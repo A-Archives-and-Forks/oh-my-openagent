@@ -1,6 +1,7 @@
 /// <reference types="bun-types" />
 
 import { describe, expect, it } from "bun:test"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { CODEGRAPH_NO_DAEMON_ENV, CODEGRAPH_TELEMETRY_ENV, DO_NOT_TRACK_ENV } from "@oh-my-opencode/utils"
@@ -158,31 +159,39 @@ describe("createCodegraphMcpConfig", () => {
 
   it("uses configured install_dir for provisioned lookup and MCP environment", () => {
     // given
-    const installDir = "/custom/codegraph"
+    const installDir = mkdtempSync(join(tmpdir(), "omo-codegraph-custom-install-"))
     const provisionedPath = join(installDir, "bin", process.platform === "win32" ? "codegraph.cmd" : "codegraph")
+    const markerPath = join(installDir, ".provisioned", "codegraph-1.4.1.json")
     const nodePath = "/opt/node22/bin/node"
+    mkdirSync(join(installDir, "bin"), { recursive: true })
+    mkdirSync(join(installDir, ".provisioned"), { recursive: true })
+    writeFileSync(provisionedPath, "")
+    writeFileSync(markerPath, `${JSON.stringify({ binPath: provisionedPath, version: "1.4.1" })}\n`)
 
-    // when
-    const config = createCodegraphMcpConfig({
-      cwd: "/workspace/project",
-      config: { enabled: true, install_dir: installDir },
-      env: {},
-      fileExists: (filePath) => filePath === provisionedPath,
-      homeDir: "/tmp/omo-codegraph-test-home",
-      nodeVersionForExecutable: (candidate) => (candidate === nodePath ? "22.14.0" : "26.3.0"),
-      requireResolve: () => {
-        throw new Error("bundled package absent")
-      },
-      resolveExecutable: createResolver({ node: nodePath }),
-    })
+    try {
+      // when
+      const config = createCodegraphMcpConfig({
+        cwd: "/workspace/project",
+        config: { enabled: true, install_dir: installDir },
+        env: {},
+        homeDir: "/tmp/omo-codegraph-test-home",
+        nodeVersionForExecutable: (candidate) => (candidate === nodePath ? "22.14.0" : "26.3.0"),
+        requireResolve: () => {
+          throw new Error("bundled package absent")
+        },
+        resolveExecutable: createResolver({ node: nodePath }),
+      })
 
-    // then
-    expect(config).toMatchObject({
-      type: "local",
-      command: [provisionedPath, "serve", "--mcp"],
-      enabled: true,
-    })
-    expect(config.environment?.CODEGRAPH_INSTALL_DIR).toBe(installDir)
+      // then
+      expect(config).toMatchObject({
+        type: "local",
+        command: [provisionedPath, "serve", "--mcp"],
+        enabled: true,
+      })
+      expect(config.environment?.CODEGRAPH_INSTALL_DIR).toBe(installDir)
+    } finally {
+      rmSync(installDir, { force: true, recursive: true })
+    }
   })
 
   it("pins CODEGRAPH_NO_DAEMON=1 in the MCP environment when daemon is not opted in", () => {

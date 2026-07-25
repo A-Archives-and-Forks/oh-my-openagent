@@ -17,6 +17,7 @@ describe("runCodegraphServe unavailable CodeGraph paths", () => {
 			...closedMcpStdio(),
 			config: { codegraph: { auto_provision: false, enabled: true }, sources: [], warnings: [] },
 			env: { PATH: "/bin" },
+			nodeVersion: "22.14.0",
 			buildEnv: () => ({}),
 			resolve: () => ({ argsPrefix: [], command: "codegraph", exists: false, source: "path" }),
 			runProcess: (command: string) => {

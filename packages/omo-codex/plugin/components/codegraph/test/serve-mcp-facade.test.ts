@@ -17,6 +17,7 @@ describe("runCodegraphServe MCP unavailable facade", () => {
 		const run = runCodegraphServe({
 			config: { codegraph: { auto_provision: false, enabled: true }, sources: [], warnings: [] },
 			env: { PATH: "/bin" },
+			nodeVersion: "22.14.0",
 			buildEnv: () => ({}),
 			resolve: () => ({ argsPrefix: [], command: "codegraph", exists: false, source: "path" }),
 			stderr: { write: (chunk: string) => stderr.push(chunk) },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Readable } from "node:stream";
@@ -44,11 +44,16 @@ function createAllowedWorkspace(prefix: string): string {
 
 // On win32 execFile cannot run a #!/bin/sh script, so emit a codegraph.cmd batch file instead;
 // resolveCodegraphCommandInvocation wraps .cmd in `cmd.exe /d /s /c`, exactly like the real codegraph.cmd.
-function createFakeCodegraphBin(scripts: { readonly posix: string; readonly win32: string }): { readonly binPath: string; readonly dir: string } {
+function createFakeCodegraphBin(scripts: {
+	readonly posix: string;
+	readonly win32: string;
+	readonly win32Sidecar?: string;
+}): { readonly binPath: string; readonly dir: string } {
 	const dir = mkdtempSync(join(tmpdir(), "omo-codegraph-fake-bin-"));
 	if (process.platform === "win32") {
 		const binPath = join(dir, "codegraph.cmd");
 		writeFileSync(binPath, scripts.win32);
+		if (scripts.win32Sidecar !== undefined) writeFileSync(join(dir, "hang.cjs"), scripts.win32Sidecar);
 		return { binPath, dir };
 	}
 	const binPath = join(dir, "codegraph");
@@ -72,6 +77,15 @@ function probeEnv(homeDir: string, binPath: string): Record<string, string> {
 		return env;
 	}
 	return { HOME: homeDir, OMO_CODEGRAPH_BIN: binPath, PATH: "/usr/bin:/bin" };
+}
+
+function isProcessAlive(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 describe("CodeGraph SessionStart hook with a 1.0.1-era project store under the 1.4.1 binary", () => {
@@ -110,16 +124,27 @@ describe("CodeGraph SessionStart hook with a 1.0.1-era project store under the 1
 		}
 	});
 
-	it("#given the status probe hangs past its 2s timeout #when SessionStart fires #then it exits zero promptly and spawns at most one bounded worker", async () => {
+	it("#given the status probe spawns a hanging descendant #when SessionStart times out #then it exits promptly and reaps the descendant", async () => {
 		// given
 		const stdout: string[] = [];
 		const spawned: WorkerSpawnInvocation[] = [];
 		const homeDir = mkdtempSync(join(tmpdir(), "omo-codegraph-slow-home-"));
+		const survivorPidPath = join(homeDir, "survivor.pid");
 		const fake = createFakeCodegraphBin({
-			posix: "#!/bin/sh\nsleep 30\n",
-			win32: "@echo off\r\nset /p _probe_hang=\r\n",
+			posix: "#!/bin/sh\nsleep 30 &\necho \"$!\" > \"$HOME/survivor.pid\"\nwait\n",
+			win32: '@echo off\r\nnode "%~dp0hang.cjs"\r\n',
+			win32Sidecar: [
+				'const { spawn } = require("node:child_process");',
+				'const { writeFileSync } = require("node:fs");',
+				'const { join } = require("node:path");',
+				'const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });',
+				'writeFileSync(join(process.env.HOME, "survivor.pid"), String(child.pid));',
+				"setInterval(() => {}, 1000);",
+				"",
+			].join("\n"),
 		});
 		const workspace = createAllowedWorkspace("codegraph-slow-probe-workspace");
+		let descendantPid: number | undefined;
 
 		try {
 			// when
@@ -133,13 +158,16 @@ describe("CodeGraph SessionStart hook with a 1.0.1-era project store under the 1
 				spawnWorker: (invocation) => spawned.push(invocation),
 			});
 			const elapsedMs = Date.now() - startedAt;
+			descendantPid = Number.parseInt(readFileSync(survivorPidPath, "utf8").trim(), 10);
 
 			// then
 			expect(result.exitCode).toBe(0);
 			expect(result.action).toBe("spawned");
 			expect(spawned).toHaveLength(1);
 			expect(elapsedMs).toBeLessThan(15_000);
+			expect(isProcessAlive(descendantPid)).toBeFalse();
 		} finally {
+			if (descendantPid !== undefined && isProcessAlive(descendantPid)) process.kill(descendantPid, "SIGKILL");
 			rmSync(homeDir, { recursive: true, force: true });
 			rmSync(fake.dir, { recursive: true, force: true });
 			rmSync(workspace, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });
