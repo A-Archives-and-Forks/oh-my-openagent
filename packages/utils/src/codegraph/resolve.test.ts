@@ -12,7 +12,7 @@ describe("resolveCodegraphCommand managed runtime version", () => {
     const homeDir = mkdtempSync(join(tmpdir(), "omo-codegraph-resolve-stale-"))
     try {
       const installDir = join(homeDir, ".omo", "codegraph")
-      const staleBin = join(installDir, "bin", "codegraph")
+      const staleBin = join(installDir, "bin", process.platform === "win32" ? "codegraph.cmd" : "codegraph")
       const staleMarker = join(installDir, ".provisioned", "codegraph-1.0.1.json")
       mkdirSync(join(installDir, "bin"), { recursive: true })
       mkdirSync(join(installDir, ".provisioned"), { recursive: true })
@@ -47,7 +47,7 @@ describe("resolveCodegraphCommand managed runtime version", () => {
     const homeDir = mkdtempSync(join(tmpdir(), "omo-codegraph-resolve-pinned-"))
     try {
       const installDir = join(homeDir, ".omo", "codegraph")
-      const pinnedBin = join(installDir, "bin", "codegraph")
+      const pinnedBin = join(installDir, "bin", process.platform === "win32" ? "codegraph.cmd" : "codegraph")
       const pinnedMarker = join(installDir, ".provisioned", `codegraph-${CODEGRAPH_PINNED_VERSION}.json`)
       mkdirSync(join(installDir, "bin"), { recursive: true })
       mkdirSync(join(installDir, ".provisioned"), { recursive: true })
@@ -82,7 +82,7 @@ describe("resolveCodegraphCommand managed runtime version", () => {
     const homeDir = mkdtempSync(join(tmpdir(), "omo-codegraph-resolve-external-"))
     try {
       const installDir = join(homeDir, ".omo", "codegraph")
-      const expectedBin = join(installDir, "bin", "codegraph")
+      const expectedBin = join(installDir, "bin", process.platform === "win32" ? "codegraph.cmd" : "codegraph")
       const externalBin = join(homeDir, "external-codegraph")
       const pinnedMarker = join(installDir, ".provisioned", `codegraph-${CODEGRAPH_PINNED_VERSION}.json`)
       mkdirSync(join(installDir, "bin"), { recursive: true })
