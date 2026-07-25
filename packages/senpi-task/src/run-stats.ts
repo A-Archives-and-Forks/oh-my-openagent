@@ -15,6 +15,7 @@ export function createRunStatsTracker(startedAt: number, now: () => number = Dat
   let outputTokens = 0
   let totalTokens = 0
   let generationMs = 0
+  let collapsedWindows = 0
   let windowStart = startedAt
 
   return {
@@ -32,13 +33,15 @@ export function createRunStatsTracker(startedAt: number, now: () => number = Dat
         return false
       }
       if (event.type !== "message_end" || !isAssistantMessage(event.message)) return false
-      // Prefer the child's own message timestamp over arrival time: RPC event delivery is bursty,
-      // so arrival deltas can collapse to zero while the child generated tokens for real seconds.
-      const timestamp = readMessageTimestamp(event.message) ?? now()
+      // Windows are measured on the arrival clock: AssistantMessage.timestamp marks message
+      // creation (stream start), not completion, so it cannot close a generation window.
+      const timestamp = now()
       turns += 1
-      generationMs += Math.max(0, timestamp - windowStart)
+      const window = Math.max(0, timestamp - windowStart)
+      generationMs += window
       windowStart = timestamp
       const usage = readUsage(event.message)
+      if (window === 0 && (usage.output ?? 0) > 0) collapsedWindows += 1
       outputTokens += usage.output ?? 0
       totalTokens += usage.total ?? 0
       return true
@@ -46,9 +49,10 @@ export function createRunStatsTracker(startedAt: number, now: () => number = Dat
     snapshot(nowMs) {
       const runtimeMs = Math.max(0, nowMs - startedAt)
       // RPC delivery can arrive in a post-hoc burst, collapsing measured generation windows to
-      // zero. Fall back to total runtime so throughput stays a (conservative) lower bound
-      // instead of disappearing entirely.
-      const throughputWindowMs = generationMs > 0 ? generationMs : runtimeMs
+      // zero. Whenever any token-bearing window collapsed (or none was measured at all), fall
+      // back to total runtime so throughput stays a conservative lower bound instead of either
+      // disappearing or being divided by only the windows that happened to measure.
+      const throughputWindowMs = collapsedWindows > 0 || generationMs === 0 ? runtimeMs : generationMs
       const tps = tokensPerSecond(outputTokens, throughputWindowMs)
       return {
         runtime_ms: runtimeMs,
@@ -71,11 +75,6 @@ export function tokensPerSecond(outputTokens: number, generationMs: number): num
 
 function isAssistantMessage(message: unknown): message is Record<string, unknown> {
   return isRecord(message) && message.role === "assistant"
-}
-
-function readMessageTimestamp(message: Record<string, unknown>): number | undefined {
-  const timestamp = message.timestamp
-  return typeof timestamp === "number" && Number.isFinite(timestamp) ? timestamp : undefined
 }
 
 function readUsage(message: Record<string, unknown>): { readonly output?: number; readonly total?: number } {

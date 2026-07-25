@@ -77,3 +77,61 @@ describe("manager run stats wiring", () => {
     expect(store.load(started.task_id)?.run_stats?.turns).toBe(1)
   })
 })
+
+describe("manager run stats through steering transitions", () => {
+  test("#given a running child with usage #when cancelled through cancelTask #then the cancelled record carries run stats", async () => {
+    // given
+    const { manager, store, inProcess } = makeManager()
+    const started = await manager.start(baseSpec())
+    if (started.kind !== "started") throw new Error(`unexpected start result: ${started.kind}`)
+    const fake = inProcess.handles.get(started.task_id)
+    if (fake === undefined) throw new Error("fake handle missing")
+    fake.emit({
+      type: "message_end",
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "working" }],
+        usage: { output: 77, totalTokens: 300 },
+      },
+    })
+    fake.emit({ type: "tool_execution_start", toolName: "read", args: {} })
+
+    // when
+    const outcome = await manager.cancelTask(started.task_id, "user cancelled")
+
+    // then
+    expect(outcome.kind).toBe("cancelled")
+    const record = store.load(started.task_id)
+    expect(record?.status).toBe("cancelled")
+    expect(record?.run_stats?.turns).toBe(1)
+    expect(record?.run_stats?.tool_calls).toBe(1)
+    expect(record?.run_stats?.output_tokens).toBe(77)
+  })
+
+  test("#given a completed run revived then cancelled #when the revived run has no events #then no stale run stats survive", async () => {
+    // given: a first run that completes WITH stats
+    const { manager, store, inProcess } = makeManager()
+    const started = await manager.start(baseSpec())
+    if (started.kind !== "started") throw new Error(`unexpected start result: ${started.kind}`)
+    const fake = inProcess.handles.get(started.task_id)
+    if (fake === undefined) throw new Error("fake handle missing")
+    fake.emit({
+      type: "message_end",
+      message: { role: "assistant", content: [{ type: "text", text: "one" }], usage: { output: 50, totalTokens: 100 } },
+    })
+    fake.settle({ status: "completed", finalResponse: "done" })
+    await manager.waitFor(started.task_id)
+    expect(store.load(started.task_id)?.run_stats?.output_tokens).toBe(50)
+
+    // when: a follow-up revives the resident child and the revived run is cancelled with no events
+    const send = await manager.sendToTask({ idOrName: started.task_id, message: "keep going" })
+    if (send.kind !== "revived") throw new Error(`unexpected send result: ${send.kind}`)
+    const outcome = await manager.cancelTask(started.task_id, "stop the revived run")
+
+    // then: the revived run's cancel must not report the previous run's stats
+    expect(outcome.kind).toBe("cancelled")
+    const record = store.load(started.task_id)
+    expect(record?.run_stats?.output_tokens).toBeUndefined()
+    expect(record?.run_stats?.turns).toBe(0)
+  })
+})

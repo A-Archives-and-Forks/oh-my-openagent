@@ -90,24 +90,21 @@ describe("run stats tracker", () => {
     expect(tracker.snapshot(5_000).tokens_per_second).toBe(2.5)
   })
 
-  test("#given a child timestamp much later than arrival #when snapshotted #then generation uses the message clock", () => {
+  test("#given message_start before message_end #when snapshotted #then the window is the arrival-clock gap", () => {
     // given
     let nowMs = 10_000
     const tracker = createRunStatsTracker(10_000, () => nowMs)
 
-    // when: arrival clock says ~0ms later, but the child message carries its own timestamp 3s later
+    // when: streaming observed from arrival of message_start to arrival of message_end
+    tracker.accept({ type: "message_start", message: { role: "assistant", content: [] } })
+    nowMs = 13_000
     tracker.accept({
       type: "message_end",
-      message: {
-        role: "assistant",
-        content: [{ type: "text", text: "done" }],
-        usage: { output: 300, totalTokens: 600 },
-        timestamp: 13_000,
-      },
+      message: { role: "assistant", content: [{ type: "text", text: "done" }], usage: { output: 300, totalTokens: 600 } },
     })
 
     // then
-    const snapshot = tracker.snapshot(10_000)
+    const snapshot = tracker.snapshot(13_000)
     expect(snapshot.generation_ms).toBe(3_000)
     expect(snapshot.tokens_per_second).toBe(100)
   })
@@ -127,5 +124,30 @@ describe("run stats tracker", () => {
     const snapshot = tracker.snapshot(3_000)
     expect(snapshot.generation_ms).toBeUndefined()
     expect(snapshot.tokens_per_second).toBe(200)
+  })
+
+  test("#given one measured window and one collapsed window #when snapshotted #then tps conservatively uses runtime", () => {
+    // given
+    let nowMs = 1_000
+    const tracker = createRunStatsTracker(1_000, () => nowMs)
+
+    // when: first turn measures 2s of generation, second turn arrives in the same ms (burst)
+    nowMs = 2_000
+    tracker.accept({ type: "message_start", message: { role: "assistant", content: [] } })
+    nowMs = 4_000
+    tracker.accept({
+      type: "message_end",
+      message: { role: "assistant", content: [], usage: { output: 100, totalTokens: 200 } },
+    })
+    tracker.accept({
+      type: "message_end",
+      message: { role: "assistant", content: [], usage: { output: 300, totalTokens: 600 } },
+    })
+
+    // then: dividing all 400 output tokens by only the measured 2s window would overstate tps,
+    // so the whole 9s runtime is used instead
+    const snapshot = tracker.snapshot(10_000)
+    expect(snapshot.generation_ms).toBe(2_000)
+    expect(snapshot.tokens_per_second).toBe(44)
   })
 })

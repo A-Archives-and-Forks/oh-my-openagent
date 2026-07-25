@@ -153,6 +153,7 @@ class TaskManagerImpl implements TaskManager {
       },
       reacquireForRevive: (taskId) => this.#reacquireForRevive(taskId),
       destruction: options.destruction ?? NOOP_DESTRUCTION,
+      runStatsSnapshot: (taskId) => this.#runStats.get(taskId)?.snapshot(this.#now()),
       now: this.#now,
     }
     this.#steering = createSteeringEngine(port)
