@@ -44,11 +44,16 @@ function createAllowedWorkspace(prefix: string): string {
 
 // On win32 execFile cannot run a #!/bin/sh script, so emit a codegraph.cmd batch file instead;
 // resolveCodegraphCommandInvocation wraps .cmd in `cmd.exe /d /s /c`, exactly like the real codegraph.cmd.
-function createFakeCodegraphBin(scripts: { readonly posix: string; readonly win32: string }): { readonly binPath: string; readonly dir: string } {
+function createFakeCodegraphBin(scripts: {
+	readonly posix: string;
+	readonly win32: string;
+	readonly win32Sidecar?: string;
+}): { readonly binPath: string; readonly dir: string } {
 	const dir = mkdtempSync(join(tmpdir(), "omo-codegraph-fake-bin-"));
 	if (process.platform === "win32") {
 		const binPath = join(dir, "codegraph.cmd");
 		writeFileSync(binPath, scripts.win32);
+		if (scripts.win32Sidecar !== undefined) writeFileSync(join(dir, "hang.cjs"), scripts.win32Sidecar);
 		return { binPath, dir };
 	}
 	const binPath = join(dir, "codegraph");
@@ -127,11 +132,16 @@ describe("CodeGraph SessionStart hook with a 1.0.1-era project store under the 1
 		const survivorPidPath = join(homeDir, "survivor.pid");
 		const fake = createFakeCodegraphBin({
 			posix: "#!/bin/sh\nsleep 30 &\necho \"$!\" > \"$HOME/survivor.pid\"\nwait\n",
-			win32: [
-				"@echo off",
-				'powershell -NoProfile -Command "$p=Start-Process powershell -ArgumentList \'-NoProfile\',\'-Command\',\'Start-Sleep -Seconds 30\' -PassThru; Set-Content -Path (Join-Path $env:HOME \'survivor.pid\') -Value $p.Id; Wait-Process -Id $p.Id"',
+			win32: '@echo off\r\nnode "%~dp0hang.cjs"\r\n',
+			win32Sidecar: [
+				'const { spawn } = require("node:child_process");',
+				'const { writeFileSync } = require("node:fs");',
+				'const { join } = require("node:path");',
+				'const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });',
+				'writeFileSync(join(process.env.HOME, "survivor.pid"), String(child.pid));',
+				"setInterval(() => {}, 1000);",
 				"",
-			].join("\r\n"),
+			].join("\n"),
 		});
 		const workspace = createAllowedWorkspace("codegraph-slow-probe-workspace");
 		let descendantPid: number | undefined;
