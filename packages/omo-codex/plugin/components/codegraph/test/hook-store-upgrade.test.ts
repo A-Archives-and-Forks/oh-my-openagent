@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Readable } from "node:stream";
@@ -74,6 +74,15 @@ function probeEnv(homeDir: string, binPath: string): Record<string, string> {
 	return { HOME: homeDir, OMO_CODEGRAPH_BIN: binPath, PATH: "/usr/bin:/bin" };
 }
 
+function isProcessAlive(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 describe("CodeGraph SessionStart hook with a 1.0.1-era project store under the 1.4.1 binary", () => {
 	it("#given a real 1.4.1 status payload for a migrated 1.0.1 store #when SessionStart probes via the default probe #then it stays silent without spawning a re-init worker", async () => {
 		// given
@@ -110,16 +119,22 @@ describe("CodeGraph SessionStart hook with a 1.0.1-era project store under the 1
 		}
 	});
 
-	it("#given the status probe hangs past its 2s timeout #when SessionStart fires #then it exits zero promptly and spawns at most one bounded worker", async () => {
+	it("#given the status probe spawns a hanging descendant #when SessionStart times out #then it exits promptly and reaps the descendant", async () => {
 		// given
 		const stdout: string[] = [];
 		const spawned: WorkerSpawnInvocation[] = [];
 		const homeDir = mkdtempSync(join(tmpdir(), "omo-codegraph-slow-home-"));
+		const survivorPidPath = join(homeDir, "survivor.pid");
 		const fake = createFakeCodegraphBin({
-			posix: "#!/bin/sh\nsleep 30\n",
-			win32: "@echo off\r\nset /p _probe_hang=\r\n",
+			posix: "#!/bin/sh\nsleep 30 &\necho \"$!\" > \"$HOME/survivor.pid\"\nwait\n",
+			win32: [
+				"@echo off",
+				'powershell -NoProfile -Command "$p=Start-Process powershell -ArgumentList \'-NoProfile\',\'-Command\',\'Start-Sleep -Seconds 30\' -PassThru; Set-Content -Path (Join-Path $env:HOME \'survivor.pid\') -Value $p.Id; Wait-Process -Id $p.Id"',
+				"",
+			].join("\r\n"),
 		});
 		const workspace = createAllowedWorkspace("codegraph-slow-probe-workspace");
+		let descendantPid: number | undefined;
 
 		try {
 			// when
@@ -133,13 +148,16 @@ describe("CodeGraph SessionStart hook with a 1.0.1-era project store under the 1
 				spawnWorker: (invocation) => spawned.push(invocation),
 			});
 			const elapsedMs = Date.now() - startedAt;
+			descendantPid = Number.parseInt(readFileSync(survivorPidPath, "utf8").trim(), 10);
 
 			// then
 			expect(result.exitCode).toBe(0);
 			expect(result.action).toBe("spawned");
 			expect(spawned).toHaveLength(1);
 			expect(elapsedMs).toBeLessThan(15_000);
+			expect(isProcessAlive(descendantPid)).toBeFalse();
 		} finally {
+			if (descendantPid !== undefined && isProcessAlive(descendantPid)) process.kill(descendantPid, "SIGKILL");
 			rmSync(homeDir, { recursive: true, force: true });
 			rmSync(fake.dir, { recursive: true, force: true });
 			rmSync(workspace, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 });

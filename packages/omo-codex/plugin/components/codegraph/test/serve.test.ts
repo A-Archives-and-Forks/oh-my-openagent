@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { Readable, Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
+import { CODEGRAPH_PINNED_VERSION } from "../../../../../utils/src/codegraph/manifest.ts";
 import { resolveServeProcessInvocation, runCodegraphServe } from "../src/serve.ts";
 
 const componentRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -182,12 +183,12 @@ describe("runCodegraphServe", () => {
 		expect(spawned).toEqual([{ args: ["serve", "--mcp"], command: commandPath }]);
 	});
 
-	it("#given Windows Codex SOT install_dir has codegraph.cmd and daemon is off by default #when serving MCP #then it resolves there, exports CODEGRAPH_INSTALL_DIR, and pins CODEGRAPH_NO_DAEMON=1", async () => {
-		await withProcessPlatform("win32", async () => {
+	it("#given Codex SOT install_dir has the pinned platform launcher and daemon is off by default #when serving MCP #then it resolves there, exports CODEGRAPH_INSTALL_DIR, and pins CODEGRAPH_NO_DAEMON=1", async () => {
+		await withProcessPlatform(process.platform, async () => {
 			// given
 			const tempRoot = mkdtempSync(join(tmpdir(), "omo-codegraph-serve-install-dir-"));
 			const installDir = join(tempRoot, "custom-codegraph");
-			const binPath = join(installDir, "bin", "codegraph.cmd");
+			const binPath = join(installDir, "bin", process.platform === "win32" ? "codegraph.cmd" : "codegraph");
 			const calls: Array<{
 				readonly args: readonly string[];
 				readonly command: string;
@@ -196,7 +197,12 @@ describe("runCodegraphServe", () => {
 
 			try {
 				mkdirSync(join(installDir, "bin"), { recursive: true });
+				mkdirSync(join(installDir, ".provisioned"), { recursive: true });
 				writeFileSync(binPath, "");
+				writeFileSync(
+					join(installDir, ".provisioned", `codegraph-${CODEGRAPH_PINNED_VERSION}.json`),
+					`${JSON.stringify({ binPath, version: CODEGRAPH_PINNED_VERSION })}\n`,
+				);
 
 				// when
 				const exitCode = await runCodegraphServe({
@@ -237,12 +243,12 @@ describe("runCodegraphServe", () => {
 		});
 	});
 
-	it("#given Windows Codex SOT install_dir with codegraph.daemon=true #when serving MCP #then CODEGRAPH_NO_DAEMON is omitted so the daemon may run", async () => {
-		await withProcessPlatform("win32", async () => {
+	it("#given Codex SOT install_dir with codegraph.daemon=true #when serving MCP #then CODEGRAPH_NO_DAEMON is omitted so the daemon may run", async () => {
+		await withProcessPlatform(process.platform, async () => {
 			// given
 			const tempRoot = mkdtempSync(join(tmpdir(), "omo-codegraph-serve-install-dir-daemon-"));
 			const installDir = join(tempRoot, "custom-codegraph");
-			const binPath = join(installDir, "bin", "codegraph.cmd");
+			const binPath = join(installDir, "bin", process.platform === "win32" ? "codegraph.cmd" : "codegraph");
 			const calls: Array<{
 				readonly args: readonly string[];
 				readonly command: string;
@@ -251,7 +257,12 @@ describe("runCodegraphServe", () => {
 
 			try {
 				mkdirSync(join(installDir, "bin"), { recursive: true });
+				mkdirSync(join(installDir, ".provisioned"), { recursive: true });
 				writeFileSync(binPath, "");
+				writeFileSync(
+					join(installDir, ".provisioned", `codegraph-${CODEGRAPH_PINNED_VERSION}.json`),
+					`${JSON.stringify({ binPath, version: CODEGRAPH_PINNED_VERSION })}\n`,
+				);
 
 				// when
 				const exitCode = await runCodegraphServe({

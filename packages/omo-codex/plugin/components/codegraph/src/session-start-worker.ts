@@ -1,11 +1,11 @@
-import { execFile } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync } from "node:fs";
+import { appendFileSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { extname, join } from "node:path";
 import { cwd as processCwd, env as processEnv, execPath as processExecPath, stderr as processStderr } from "node:process";
 
 import { getCodexOmoConfig } from "../../../shared/src/config-loader.ts";
 import { buildCodegraphChildEnv, buildCodegraphEnv } from "../../../../../utils/src/codegraph/env.ts";
+import { resolvePinnedCodegraphBin } from "../../../../../utils/src/codegraph/managed-runtime.ts";
 import { CODEGRAPH_PINNED_VERSION } from "../../../../../utils/src/codegraph/manifest.ts";
 import { evaluateCodegraphNodeSupport, type CodegraphNodeSupport } from "../../../../../utils/src/codegraph/node-support.ts";
 import { ensureCodegraphProvisioned } from "../../../../../utils/src/codegraph/provision.ts";
@@ -15,6 +15,7 @@ import {
 	type CodegraphCommandResolution,
 } from "../../../../../utils/src/codegraph/resolve.ts";
 import { ensureCodegraphGitignored, prepareCodegraphWorkspace } from "../../../../../utils/src/codegraph/workspace.ts";
+import { runProcessWithTreeTimeout } from "../../../../../utils/src/process-tree.ts";
 import type {
 	CodegraphCommandResult,
 	CodegraphConfig,
@@ -164,15 +165,14 @@ function jsonSaysInitialized(value: unknown): boolean | undefined {
 
 async function runCodegraphCommand(projectRoot: string, command: string, args: readonly string[], options: { readonly env: Record<string, string>; readonly timeoutMs: number }): Promise<CodegraphCommandResult> {
 	const invocation = resolveCodegraphCommandInvocation(command, args);
-	return new Promise((resolvePromise) => {
-		execFile(invocation.command, [...invocation.args], { cwd: projectRoot, encoding: "utf8", env: buildCodegraphChildEnv({ ambientEnv: processEnv, codegraphEnv: options.env }), maxBuffer: 1024 * 1024, timeout: options.timeoutMs, windowsHide: true }, (error, stdout, stderr) => {
-			if (error === null) {
-				resolvePromise({ exitCode: 0, stderr: toOutputText(stderr), stdout: toOutputText(stdout), timedOut: false });
-				return;
-			}
-			resolvePromise({ exitCode: resolveExitCode(error), stderr: toOutputText(stderr), stdout: toOutputText(stdout), timedOut: error.killed === true });
-		});
-	});
+	return runProcessWithTreeTimeout({
+		args: invocation.args,
+		command: invocation.command,
+		cwd: projectRoot,
+		env: buildCodegraphChildEnv({ ambientEnv: processEnv, codegraphEnv: options.env }),
+		maxBuffer: 1024 * 1024,
+		timeoutMs: options.timeoutMs,
+	}).then(({ exitCode, stderr, stdout, timedOut }) => ({ exitCode, stderr, stdout, timedOut }));
 }
 
 export function resolveCodegraphCommandInvocation(
@@ -203,18 +203,7 @@ function safeLogOutcome(logOutcome: (outcome: CodegraphSessionStartOutcome) => v
 }
 
 function provisionedBinFromInstallDir(installDir: string | undefined): string | null {
-	if (installDir === undefined) return null;
-	const candidate = join(installDir, "bin", process.platform === "win32" ? "codegraph.cmd" : "codegraph");
-	return existsSync(candidate) ? candidate : null;
-}
-
-function resolveExitCode(error: Error): number {
-	if ("code" in error && typeof error.code === "number") return error.code;
-	return 1;
-}
-
-function toOutputText(value: string | Buffer): string {
-	return Buffer.isBuffer(value) ? value.toString("utf8") : value;
+	return resolvePinnedCodegraphBin(installDir);
 }
 
 function resolveHomeDir(env: Record<string, string | undefined>): string {
