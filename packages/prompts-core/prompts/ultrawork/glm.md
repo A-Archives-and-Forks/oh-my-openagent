@@ -152,6 +152,10 @@ If a verification command is unavailable or not applicable, state the exact reas
 
 When a `create_goal` tool exists, register the run's goal with it before implementation: the objective, the scenario contract, and one WHEN TO STOP line naming the observable end state. Without the tool, record the same contract in your working notes and treat it as binding.
 
+## TODO DISCIPLINE
+
+Track every multi-step task in a live todo list: one atomic item per action with its verification, exactly one item in progress, status updated the instant it changes, newly discovered work added immediately. Never batch completions.
+
 ## SCENARIO CONTRACT
 
 Before production changes, define scenarios covering:

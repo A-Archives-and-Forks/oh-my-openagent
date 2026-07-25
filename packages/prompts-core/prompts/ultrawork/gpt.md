@@ -120,6 +120,10 @@ At start, run `NOTE=$(mktemp -t ulw-$(date +%Y%m%d-%H%M%S).XXXXXX.md)` and echo 
 
 When a `create_goal` tool exists, register the run's goal with it before implementation: the objective, the scenario contract, and the WHEN TO STOP line. No tool → record the same contract in the notepad and treat it as binding.
 
+## TODO DISCIPLINE
+
+Maintain a live todo list for every multi-step task: one atomic item per action (`path: <action> for <scenario> — verify by <check>`), exactly one in_progress, transitions marked the instant they happen, discovered work inserted immediately. Never batch completions.
+
 ## SCENARIO CONTRACT (binding, defined BEFORE coding)
 
 Define 3+ scenarios covering: **happy path**, **edge** (boundary / empty / malformed / concurrent), **adjacent-surface regression**. For each, write:
