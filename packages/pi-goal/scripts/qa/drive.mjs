@@ -1,15 +1,13 @@
 #!/usr/bin/env node
 // Live QA driver: boots the REAL pi coding agent CLI in RPC mode inside an
-// isolated PI_CODING_AGENT_DIR sandbox, loads the Senpi Ultragoal extension
-// plus a scripted mock provider (no network), and proves the compatible goal
-// tools, /ultragoal command, and continuation wiring end to end on the real
-// harness. Three scenarios:
-//   command:  /ultragoal creates the goal and its continuation completes it.
+// isolated PI_CODING_AGENT_DIR sandbox, loads the vendored pi-goal extension
+// plus a scripted mock provider (no network), and proves the goal tools and
+// continuation wiring work end to end on the real harness. Two scenarios:
 //   complete: turn 1 creates the goal, the extension queues a hidden
 //             continuation prompt, and the continuation turn marks it complete.
 //   blocked:  turn 1 creates the goal, and the continuation turn marks it
 //             blocked via update_goal (codex-aligned status).
-// Runs all three by default; pass --scenario <command|complete|blocked> to run one.
+// Runs both by default; pass --scenario <complete|blocked> to run one.
 import { spawn } from "node:child_process"
 import { createHash } from "node:crypto"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
@@ -23,22 +21,12 @@ const mockProviderEntry = join(scriptDir, "mock-provider", "index.ts")
 const goalExtensionEntry = join(packageRoot, "src", "index.ts")
 const realPiAgentDir = join(homedir(), ".pi", "agent")
 const RUN_TIMEOUT_MILLISECONDS = 120_000
-const CONTINUATION_MARKER = "Continue working toward the active Senpi ultragoal."
-// Present only in the Ultragoal continuation prompt, so its delivery proves the
-// evidence-bound workflow actually reached the real session.
-const COMPLETION_AUDIT_MARKER = "Prompt-to-artifact completion audit:"
+const CONTINUATION_MARKER = "Continue working toward the active thread goal."
+// Present only in the codex-aligned continuation prompt, so its delivery proves
+// the new prompt content actually reached the real session (not the old prompt).
+const CODEX_CONTINUATION_MARKER = "Blocked audit:"
 
 const SCENARIOS = {
-  command: {
-    objective: "QA: prove /ultragoal works on the real pi harness",
-    initialMessage: "/ultragoal QA: prove /ultragoal works on the real pi harness",
-    tokenBudget: undefined,
-    steps: [
-      { type: "tool_call", name: "update_goal", arguments: { status: "complete" } },
-      { type: "text", text: "Ultragoal command QA complete." },
-    ],
-    terminalStatus: "complete",
-  },
   complete: {
     objective: "QA: prove pi-goal works on the real pi harness",
     tokenBudget: 50_000,
@@ -214,9 +202,7 @@ function runRpcScenario(piBin, sandbox, scenario, scenarioReport) {
       }
     }
 
-    child.stdin.write(
-      `${JSON.stringify({ type: "prompt", message: scenario.initialMessage ?? "please create the QA goal" })}\n`,
-    )
+    child.stdin.write(`${JSON.stringify({ type: "prompt", message: "please create the QA goal" })}\n`)
   })
 }
 
@@ -230,7 +216,7 @@ async function runScenario(piBin, name) {
     goalStoreFile: undefined,
     goalAfterRun: undefined,
     continuationObserved: false,
-    completionAuditMarkerObserved: false,
+    codexContinuationMarkerObserved: false,
     terminalStatusObserved: false,
     sandboxRoot: sandbox.root,
   }
@@ -241,14 +227,14 @@ async function runScenario(piBin, name) {
     scenarioReport.goalAfterRun = goal
     const sandboxText = readSandboxText(sandbox.root)
     scenarioReport.continuationObserved = sandboxText.includes(CONTINUATION_MARKER)
-    scenarioReport.completionAuditMarkerObserved = sandboxText.includes(COMPLETION_AUDIT_MARKER)
+    scenarioReport.codexContinuationMarkerObserved = sandboxText.includes(CODEX_CONTINUATION_MARKER)
     scenarioReport.terminalStatusObserved = goal?.status === scenario.terminalStatus
 
     const shapeCorrect = goal?.objective === scenario.objective && goal?.tokenBudget === scenario.tokenBudget
     if (
       shapeCorrect &&
       scenarioReport.continuationObserved &&
-      scenarioReport.completionAuditMarkerObserved &&
+      scenarioReport.codexContinuationMarkerObserved &&
       scenarioReport.terminalStatusObserved
     ) {
       scenarioReport.result = "PASS"

@@ -40,7 +40,7 @@ function adapterVersionIfPresent(): string | undefined {
 }
 
 describe("OMO Senpi plugin manifest", () => {
-  it("#given a Pi package manifest #when loaded #then it bundles OMO and Senpi ultragoal extensions", () => {
+  it("#given a Pi package manifest #when loaded #then it points at exactly one bundled extension and skills directory", () => {
     const manifest = readJsonObject(pluginManifestPath)
     const pi = manifest.pi
 
@@ -49,7 +49,7 @@ describe("OMO Senpi plugin manifest", () => {
       throw new Error("plugin package.json pi manifest is not an object")
     }
 
-    expect(Reflect.get(pi, "extensions")).toEqual(["./extensions/omo.js", "./extensions/ultragoal.js"])
+    expect(Reflect.get(pi, "extensions")).toEqual(["./extensions/omo.js"])
     expect(Reflect.get(pi, "skills")).toEqual(["./skills"])
     expect(Reflect.has(pi, "hooks")).toBe(false)
   })
