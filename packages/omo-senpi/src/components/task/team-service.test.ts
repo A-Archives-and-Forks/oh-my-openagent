@@ -32,12 +32,15 @@ afterEach(() => {
   for (const root of tempRoots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
-async function activeTeamHarness() {
+async function activeTeamHarness(sessionId?: string) {
   const cwd = mkdtempSync(join(tmpdir(), "omo-senpi-team-service-"))
   tempRoots.push(cwd)
   const pi = new FakeExtensionAPI()
   const omoConfig = loadOmoConfig({ cwd }).config
   const engine = composeTaskEngine({ pi, omoConfig, cwd, sharedParentTools: () => [] })
+  if (sessionId !== undefined) {
+    engine.runtime.captureFrom({ sessionManager: { getSessionId: () => sessionId } })
+  }
   const stateDir = {
     project_dir: cwd,
     ...(engine.settings.state_dir !== undefined ? { task: { state_dir: engine.settings.state_dir } } : {}),
@@ -230,5 +233,37 @@ describe("createTeamService lead messaging", () => {
     } finally {
       process.argv = originalArgv
     }
+  })
+})
+
+describe("createTeamService ownership guard", () => {
+  test("#given a team owned by another session #when scoped service methods are called #then they reject with an ownership error", async () => {
+    // given: the runtime state lead is 'lead-session' but the current session is a stranger
+    const { runtimeState, service } = await activeTeamHarness("other-session")
+
+    // when / then: every scoped surface rejects instead of answering with misleading data
+    await expect(service.listTasks(runtimeState.teamRunId, {})).rejects.toThrow("is not owned by the current session")
+    await expect(service.getTask(runtimeState.teamRunId, "1")).rejects.toThrow("is not owned by the current session")
+    await expect(
+      service.createTask(runtimeState.teamRunId, { subject: "s", description: "d", status: "pending" }),
+    ).rejects.toThrow("is not owned by the current session")
+    await expect(
+      service.updateTask({ teamRunId: runtimeState.teamRunId, taskId: "1", status: "completed" }),
+    ).rejects.toThrow("is not owned by the current session")
+    await expect(
+      service.sendMessage(runtimeState.teamRunId, { from: "lead", to: "beta", body: "x" }),
+    ).rejects.toThrow("is not owned by the current session")
+    await expect(service.status(runtimeState.teamRunId)).rejects.toThrow("is not owned by the current session")
+  })
+
+  test("#given the owning session #when scoped service methods are called #then they proceed", async () => {
+    // given
+    const { runtimeState, service } = await activeTeamHarness("lead-session")
+
+    // when
+    const tasks = await service.listTasks(runtimeState.teamRunId, {})
+
+    // then
+    expect(tasks).toEqual([])
   })
 })
