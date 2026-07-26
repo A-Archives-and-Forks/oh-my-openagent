@@ -167,3 +167,45 @@ describe("team_delete tool", () => {
     expect(tool.name).toBe("team_delete")
   })
 })
+
+describe("team_create inline_spec schema shape", () => {
+  test("#given the team_create schema #when inline_spec is inspected #then it exposes an object shape with members (no bare Unknown)", () => {
+    // when: strip the prose description so only the structural schema remains
+    const structural = { ...TeamCreateParams.properties.inline_spec, description: undefined }
+    const serialized = JSON.stringify(structural)
+
+    // then: the model must see the spec shape in the schema structure, not an empty {} that invites stringified JSON
+    expect(serialized).not.toBe("{}")
+    expect(serialized).toContain("members")
+  })
+
+  test("#given a JSON-stringified inline spec #when team_create runs #then the parsed object reaches the service", async () => {
+    // given
+    const service = createFakeTeamService({ createTeam: async () => fakeCreateResult() })
+    const payload = JSON.stringify({ name: "demo", members: [{ name: "alpha", kind: "category", category: "deep" }] })
+
+    // when
+    const result = await runTeamCreate(service, { inline_spec: payload })
+
+    // then
+    expect(result.details).toMatchObject({ kind: "created", team_name: "demo" })
+    expect(service.calls[0]).toMatchObject({
+      method: "createTeam",
+      args: [{ inlineSpec: { name: "demo", members: [{ name: "alpha", kind: "category", category: "deep" }] } }],
+    })
+  })
+
+  test("#given a malformed JSON string inline spec #when team_create runs #then it rejects without calling the service", async () => {
+    // given
+    const service = createFakeTeamService()
+
+    // when
+    const result = await runTeamCreate(service, { inline_spec: "{not json" })
+
+    // then
+    const text = result.content[0]?.type === "text" ? result.content[0].text : ""
+    expect(text).toContain("inline_spec")
+    expect(text).toContain("JSON")
+    expect(service.calls).toHaveLength(0)
+  })
+})
