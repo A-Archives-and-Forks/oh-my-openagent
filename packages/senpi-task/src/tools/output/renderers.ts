@@ -1,5 +1,6 @@
 import type { AgentToolResult, Theme, ThemeColor, ToolRenderResultOptions } from "@code-yeongyu/senpi"
 
+import { formatStatusTarget, taskIdentityLabel } from "../../status-line"
 import {
   excerptRendererText,
   joinRendererTokens,
@@ -43,18 +44,6 @@ export function renderTaskOutputResult(
   return linesComponent([theme.fg(row.color, normalizeRendererText(row.text))])
 }
 
-export function taskOutputModelText(snapshot: TaskSnapshot): string {
-  const display = nonEmpty(snapshot.resolved_model?.display)
-  const model = normalizeRendererText(snapshot.model)
-  const reasoning = nonEmpty(snapshot.resolved_model?.reasoning_effort)
-  const variant = nonEmpty(snapshot.resolved_model?.variant)
-  const details = [
-    reasoning === undefined ? undefined : `reasoning ${reasoning}`,
-    variant === undefined ? undefined : `variant ${variant}`,
-  ].filter((part) => part !== undefined)
-  return `model ${display ?? model}${details.length > 0 ? ` (${details.join(", ")})` : ""}`
-}
-
 function taskOutputCallLine(args: TaskOutputInput, width: number): string {
   const mode = args.mode ?? "status"
   const tail = mode === "tail" ? `tail_lines:${args.tail_lines ?? DEFAULT_TAIL_LINES}` : undefined
@@ -67,16 +56,25 @@ function taskOutputCallLine(args: TaskOutputInput, width: number): string {
 
 function taskOutputResultRow(details: TaskOutputDetails): ResultRow {
   switch (details.kind) {
-    case "status":
+    case "status": {
+      const identity = snapshotIdentity(details.snapshot)
+      const idSuffix = identity === details.snapshot.task_id ? undefined : `(${details.snapshot.task_id})`
+      const target =
+        formatStatusTarget({
+          category: details.snapshot.category,
+          agentType: details.snapshot.agent_type,
+          resolvedModel: details.snapshot.resolved_model,
+        }) ?? `model:${normalizeRendererText(details.snapshot.model)}`
       return {
         color: statusThemeColor(details.snapshot.status),
-        text: `task_output status ${details.snapshot.task_id} (${details.snapshot.status}) ${taskOutputModelText(details.snapshot)}${runStatsSuffix(details.snapshot.run_stats)}`,
+        text: `${joinRendererTokens([`task_output ${identity}`, idSuffix, normalizeRendererText(details.snapshot.status)])} · ${target}${runStatsSuffix(details.snapshot.run_stats)}`,
       }
+    }
     case "transcript":
       return {
         color: statusThemeColor(details.snapshot.status),
         text: joinRendererTokens([
-          `task_output transcript ${details.snapshot.task_id}`,
+          `task_output transcript ${snapshotIdentity(details.snapshot)}`,
           `mode:${details.mode}`,
           `source:${details.source}`,
           details.truncated ? "truncated" : undefined,
@@ -96,9 +94,26 @@ function notFoundRow(details: Extract<TaskOutputDetails, { readonly kind: "not_f
   return joinRendererTokens([`task_output not found: ${details.reason}`, known])
 }
 
+// Model-facing model summary for the task_output status view text (TUI rows use formatStatusTarget).
+export function taskOutputModelText(snapshot: TaskSnapshot): string {
+  const display = nonEmpty(snapshot.resolved_model?.display)
+  const model = normalizeRendererText(snapshot.model)
+  const reasoning = nonEmpty(snapshot.resolved_model?.reasoning_effort)
+  const variant = nonEmpty(snapshot.resolved_model?.variant)
+  const details = [
+    reasoning === undefined ? undefined : `reasoning ${reasoning}`,
+    variant === undefined ? undefined : `variant ${variant}`,
+  ].filter((part) => part !== undefined)
+  return `model ${display ?? model}${details.length > 0 ? ` (${details.join(", ")})` : ""}`
+}
+
 function nonEmpty(value: string | undefined): string | undefined {
   const normalized = value === undefined ? undefined : excerptRendererText(value)
   return normalized !== undefined && normalized.length > 0 ? normalized : undefined
+}
+
+function snapshotIdentity(snapshot: TaskSnapshot): string {
+  return taskIdentityLabel({ taskId: snapshot.task_id, name: snapshot.name, description: snapshot.description })
 }
 
 function assertNever(value: never): never {
