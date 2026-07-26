@@ -3176,13 +3176,6 @@ async function executeCodegraphSessionStartHook(options = {}) {
   const projectRoot = resolveProjectRoot(input, options.cwd ?? processCwd2());
   const homeDir = resolveHomeDir3(env);
   const config = options.config ?? getCodexOmoConfig({ cwd: projectRoot, env, homeDir });
-  pruneCodegraphProjectStoresBestEffort(homeDir, { debugLog: writeDebugLog });
-  await sweepCodegraphZombiesBestEffort({
-    env,
-    homeDir,
-    ...config.trustedCodegraphInstallDir === undefined ? {} : { trustedCodegraphInstallDir: config.trustedCodegraphInstallDir },
-    log: writeDebugLog
-  }, options.sweepZombies);
   if (config.codegraph?.enabled === false) {
     return { action: "skipped-disabled", exitCode: 0 };
   }
@@ -3194,6 +3187,13 @@ async function executeCodegraphSessionStartHook(options = {}) {
   if (exclusion.excluded) {
     return { action: "skipped-excluded", exitCode: 0 };
   }
+  pruneCodegraphProjectStoresBestEffort(homeDir, { debugLog: writeDebugLog });
+  await sweepCodegraphZombiesBestEffort({
+    env,
+    homeDir,
+    ...config.trustedCodegraphInstallDir === undefined ? {} : { trustedCodegraphInstallDir: config.trustedCodegraphInstallDir },
+    log: writeDebugLog
+  }, options.sweepZombies);
   const isInitialized = await (options.statusProbe ?? isCodegraphProjectInitialized)({
     daemon: config.codegraph?.daemon !== false,
     env,
