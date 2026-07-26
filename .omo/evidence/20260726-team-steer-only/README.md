@@ -32,3 +32,5 @@ The targeted tests assert the exact steering-engine outcome (`delivered: "steer"
 ## Omitted
 
 No dev-baseline QA run was made: the isolated live QA passed. No manual interactive TUI session was run beyond the automated renderer and live-E2E coverage.
+
+- CI synchronize trigger: no functional change.
