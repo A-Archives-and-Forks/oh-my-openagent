@@ -48,7 +48,7 @@ function coordinatorWithManualFlush(delivered: Delivered[]): { coordinator: Idle
 }
 
 const completionDetails = [
-  { task_id: "st_1", name: "worker", status: "completed" as const, duration_ms: 10, final_response_head: "ok", continuation_hint: "continue" },
+  { task_id: "st_1", name: "worker", status: "completed" as const, duration_ms: 10, final_response: "ok", continuation_hint: "continue" },
 ]
 
 function completionMessage(taskId: string) {

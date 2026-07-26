@@ -100,7 +100,7 @@ describe("task-family custom message renderers", () => {
       name: "작업자",
       status: "completed" as const,
       duration_ms: 10,
-      final_response_head: ADVERSARIAL_CONTENT,
+      final_response: ADVERSARIAL_CONTENT,
       continuation_hint: "task_send로 계속",
     }]
 
@@ -121,7 +121,7 @@ describe("task-family custom message renderers", () => {
       status: "completed" as const,
       duration_ms: 1250,
       tokens: 321,
-      final_response_head: "검증 작업을 완료했습니다.",
+      final_response: "검증 작업을 완료했습니다.",
       continuation_hint: 'Use task_send({ to: "st_done", message: "..." }) to continue.',
     }]
 
@@ -154,8 +154,8 @@ describe("task-family custom message renderers", () => {
       name: "worker",
       status: "completed" as const,
       duration_ms: 1250,
-      final_response_head: "검증 작업을 완료했습니다.",
-      continuation_hint: 'Use task_output({ task_id: "st_done" }) to read the full result after inspecting the complete transcript and all attached evidence.',
+      final_response: "검증 작업을 완료했습니다.",
+      continuation_hint: 'Use task_send({ to: "st_done", message: "continue with the remaining evidence and report the result" }) to continue.',
     }]
 
     // when
