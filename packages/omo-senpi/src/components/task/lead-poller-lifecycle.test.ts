@@ -162,6 +162,60 @@ describe("lead poller lifecycle", () => {
     expect(explicit).toEqual({ ok: true, teamRunId: "run-b" })
   })
 
+  test("#given multiple owned teams #when no run id is resolved #then the reason lists the owned runs", async () => {
+    // given
+    const h = harness()
+    h.setTeams([ownedTeam("run-a"), ownedTeam("run-b")])
+
+    // when
+    const missing = await h.lifecycle.resolveTeamRunId()
+
+    // then
+    expect(missing.ok).toBe(false)
+    if (missing.ok) throw new Error("expected resolution failure")
+    expect(missing.reason).toContain("run-a")
+    expect(missing.reason).toContain("run-b")
+  })
+
+  test("#given one owned team #when resolveDefaultTeamRunId is called #then it resolves", async () => {
+    // given
+    const h = harness()
+    h.setTeams([ownedTeam("run-solo")])
+
+    // when
+    const resolved = await h.lifecycle.resolveDefaultTeamRunId()
+
+    // then
+    expect(resolved).toEqual({ kind: "resolved", teamRunId: "run-solo" })
+  })
+
+  test("#given no owned team #when resolveDefaultTeamRunId is called #then it reports none", async () => {
+    // given
+    const h = harness()
+    h.setTeams([ownedTeam("run-foreign", "session-b")])
+
+    // when
+    const resolved = await h.lifecycle.resolveDefaultTeamRunId()
+
+    // then
+    expect(resolved).toEqual({ kind: "none" })
+  })
+
+  test("#given multiple owned teams #when resolveDefaultTeamRunId is called #then it reports ambiguous with the owned runs", async () => {
+    // given
+    const h = harness()
+    h.setTeams([ownedTeam("run-a"), ownedTeam("run-b")])
+
+    // when
+    const resolved = await h.lifecycle.resolveDefaultTeamRunId()
+
+    // then
+    expect(resolved.kind).toBe("ambiguous")
+    if (resolved.kind !== "ambiguous") throw new Error("expected ambiguous")
+    expect(resolved.reason).toContain("run-a")
+    expect(resolved.reason).toContain("run-b")
+  })
+
   test("#given a shared delivery journal #when the lifecycle creates a poller #then the journal reaches the poller deps", async () => {
     // given
     const h = harness()

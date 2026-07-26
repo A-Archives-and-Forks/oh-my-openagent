@@ -164,7 +164,14 @@ async function runSpawn(
     const agents = started.error.availableAgents
     const categories = started.error.availableCategories
     const agentSuffix = agents && agents.length > 0 ? ` Available agents: ${agents.join(", ")}.` : ""
-    const categorySuffix = categories && categories.length > 0 ? ` Available categories: ${categories.join(", ")}.` : ""
+    // A model_unavailable failure means the category name IS valid; labeling the list "Available
+    // categories" told models to retry the same broken binding. Name the vocabulary honestly and
+    // surface the explicit-model escape hatch.
+    const categorySuffix = categories && categories.length > 0
+      ? started.error.code === "model_unavailable"
+        ? ` Valid category names: ${categories.join(", ")}. Pass model: "<provider>/<model>" to override the category default.`
+        : ` Available categories: ${categories.join(", ")}.`
+      : ""
     return result(started.error.message + agentSuffix + categorySuffix, { task_id: "", status: "plan_error", mode: "spawn", reason: started.error.message })
   }
   if (started.kind === "depth_denied") {

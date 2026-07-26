@@ -325,6 +325,7 @@ export type {
   SendManager,
   SendResultDetails,
   SendToolResult,
+  DefaultTeamRunIdResolution,
   SessionIdCarrier,
   TaskCancelDeps,
   TaskCancelInput,

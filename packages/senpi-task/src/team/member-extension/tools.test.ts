@@ -80,6 +80,33 @@ describe("member extension tools", () => {
     await expect(runMemberTaskSend(deps, { to: "nobody", message: "nope" })).rejects.toThrow("Unknown team recipient")
   })
 
+  test("#given an unknown recipient #when task_send runs #then the error lists the valid recipients", async () => {
+    // given
+    const harness = createHarness()
+    const deps = {
+      teamRunId: TEAM_RUN_ID,
+      memberName: "alice",
+      taskId: "st_00000001" as const,
+      config: harness.config,
+      members: ["alice", "bob"],
+    }
+
+    // when
+    let caught: unknown
+    try {
+      await runMemberTaskSend(deps, { to: "ghost", message: "hello" })
+    } catch (error) {
+      caught = error
+    }
+
+    // then
+    const message = String(caught)
+    expect(message).toContain("ghost")
+    expect(message).toContain("alice")
+    expect(message).toContain("bob")
+    expect(message).toContain("lead")
+  })
+
   test("#given malformed member identity env #when parsed #then typed configuration errors reject malformed values", () => {
     // given
     const baseEnv: NodeJS.ProcessEnv = {

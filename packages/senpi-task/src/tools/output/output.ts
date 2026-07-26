@@ -12,8 +12,8 @@ import { defaultTranscriptReader } from "./transcript"
 import type { TaskOutputDeps, TaskOutputDetails, TaskOutputToolResult, TaskSnapshot, TranscriptReader } from "./types"
 
 export const TaskOutputParams = Type.Object({
-  task_id: Type.Optional(Type.String({ description: "Task id (st_...) of the child to read." })),
-  name: Type.Optional(Type.String({ description: "Canonical task name, as an alternative to task_id." })),
+  task_id: Type.Optional(Type.String({ description: "Task id (st_...) of the child to read. Provide exactly one of task_id or name." })),
+  name: Type.Optional(Type.String({ description: "Canonical task name; required if task_id is omitted." })),
   mode: Type.Optional(
     Type.Union([Type.Literal("status"), Type.Literal("tail"), Type.Literal("full")], {
       description: "status (default) = record snapshot + final result; tail = last lines of the transcript; full = whole transcript.",
