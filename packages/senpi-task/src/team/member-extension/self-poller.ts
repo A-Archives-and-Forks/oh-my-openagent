@@ -18,6 +18,9 @@ import { MessageSchema, type Message } from "@oh-my-opencode/team-core/types"
 import type { PersistedTaskEvent } from "../../store"
 import { buildPeerMessageEnvelope } from "../messaging/message"
 import type { WaitClaim, WaitRegistry } from "../messaging/wait-registry"
+import { isMissingPath, sessionJsonlContainsMessage } from "./session-scan"
+
+export { sessionJsonlContainsMessage } from "./session-scan"
 
 const DEAD_PID_LEASE_STALE_MS = 0
 const RESERVED_PREFIX = ".delivering-"
@@ -82,11 +85,25 @@ export function createMemberSelfPoller(deps: MemberSelfPollerDeps): MemberSelfPo
     }
   }
 
+  // A pending delivery whose injected envelope never landed has no other route back to team_wait:
+  // its reservation hides the message from listUnreadMessages and recovery only runs at process
+  // start. Re-offering pending deliveries to later registrations breaks that starvation; if the
+  // queued envelope still lands afterwards, the duplicate is bounded and id-identical, never a loss.
+  const claimPendingUnderLease = async (): Promise<void> => {
+    for (const delivery of [...pending.values()]) {
+      const claim = deps.waitRegistry.takeMatch(delivery.message)
+      if (claim === undefined) continue
+      pending.delete(delivery.message.messageId)
+      await resolveWait(deps, delivery, claim)
+    }
+  }
+
   return {
     async pollOnce(filter = {}) {
       if (stopped) return
       await withLease(async () => {
         await checkPendingUnderLease()
+        await claimPendingUnderLease()
         const messages = await listUnreadMessages(deps.teamRunId, deps.memberName, deps.config)
         for (const message of messages) {
           if (filter.from !== undefined && message.from !== filter.from) continue
@@ -238,48 +255,4 @@ function appendDeliveredEvent(deps: MemberSelfPollerDeps, message: Message): voi
   })
 }
 
-export async function sessionJsonlContainsMessage(sessionDir: string, messageId: string): Promise<boolean> {
-  let entries: string[]
-  try {
-    entries = (await readdir(sessionDir)).filter((name) => name.endsWith(".jsonl")).toSorted()
-  } catch (error) {
-    if (isMissingPath(error)) return false
-    throw error
-  }
 
-  for (const entry of entries) {
-    const text = await readFile(join(sessionDir, entry), "utf8")
-    for (const line of text.split("\n")) {
-      const value = parseJsonLine(line)
-      if (containsEnvelopeMarker(value, messageId)) return true
-    }
-  }
-  return false
-}
-
-function parseJsonLine(line: string): unknown {
-  if (line.trim().length === 0) return undefined
-  try {
-    return JSON.parse(line)
-  } catch (error) {
-    if (error instanceof SyntaxError) return undefined
-    throw error
-  }
-}
-
-function containsEnvelopeMarker(value: unknown, messageId: string): boolean {
-  if (typeof value === "string") {
-    return value.includes("<peer_message ") && value.includes(`messageId="${messageId}"`)
-  }
-  if (Array.isArray(value)) return value.some((entry) => containsEnvelopeMarker(entry, messageId))
-  if (!isRecord(value)) return false
-  return Object.values(value).some((entry) => containsEnvelopeMarker(entry, messageId))
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-}
-
-function isMissingPath(error: unknown): boolean {
-  return error instanceof Error && "code" in error && error.code === "ENOENT"
-}

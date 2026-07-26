@@ -189,6 +189,59 @@ describe("member extension tools", () => {
     expect(harness.events.map((event) => event.type)).toEqual(["team_message_sent", "team_message_sent"])
   })
 
+  test("#given an unread lead message w2mem #when team_wait passes an empty from filter #then it matches any sender like an omitted filter", async () => {
+    // given
+    const harness = createHarness()
+    const value = message("cccccccc-cccc-4ccc-8ccc-cccccccccccc", "lead", "round brief")
+    await seed(harness, value)
+    const deps = {
+      poller: harness.poller,
+      waitRegistry: harness.registry,
+      waitBounds: { min_ms: 5, default_ms: 50, max_ms: 100 },
+    }
+
+    // when
+    const result = await runMemberTeamWait(deps, { from: "", timeout_ms: 50 }, undefined)
+
+    // then
+    expect(result.details).toEqual({
+      kind: "message",
+      message_id: value.messageId,
+      from: "lead",
+      body: "round brief",
+    })
+  })
+
+  test("#given a reserved delivery whose injected envelope never landed w2mem #when a later team_wait polls #then the pending message resolves the wait and commits", async () => {
+    // given
+    const harness = createHarness()
+    const value = message("dddddddd-dddd-4ddd-8ddd-dddddddddddd", "lead", "stuck brief")
+    await seed(harness, value)
+    await harness.poller.pollOnce()
+    expect(existsSync(join(harness.inboxDir, `.delivering-${value.messageId}.json`))).toBe(true)
+    const deps = {
+      poller: harness.poller,
+      waitRegistry: harness.registry,
+      waitBounds: { min_ms: 5, default_ms: 50, max_ms: 100 },
+    }
+
+    // when
+    const result = await runMemberTeamWait(deps, { timeout_ms: 50 }, undefined)
+
+    // then
+    expect(result.details).toEqual({
+      kind: "message",
+      message_id: value.messageId,
+      from: "lead",
+      body: "stuck brief",
+    })
+    expect(existsSync(join(harness.inboxDir, "processed", `${value.messageId}.json`))).toBe(true)
+    expect(harness.events.at(-1)).toEqual({
+      type: "team_message_waited",
+      payload: { message_id: value.messageId, from: "lead", body: "stuck brief" },
+    })
+  })
+
   test("#given malformed member identity env w2mem #when parsed #then typed configuration errors reject every malformed value", () => {
     // given
     const baseEnv: NodeJS.ProcessEnv = {

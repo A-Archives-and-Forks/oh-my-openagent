@@ -6,6 +6,14 @@ export type WaitFilter = {
   readonly from?: string
 }
 
+// Model-facing boundary: models emit `from: ""` meaning "any sender". An empty or whitespace-only
+// filter can never match a real member name, so it silently starves the wait; normalize it to the
+// omitted-filter contract before registering or polling.
+export function normalizeWaitFrom(from: string | undefined): string | undefined {
+  const trimmed = from?.trim()
+  return trimmed === undefined || trimmed.length === 0 ? undefined : trimmed
+}
+
 export type WaitRegistration<TMessage extends WaitMessage> = {
   readonly promise: Promise<TMessage>
   cancel(reason?: unknown): boolean
