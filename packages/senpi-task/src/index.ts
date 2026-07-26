@@ -30,6 +30,14 @@ export type {
   TaskRecordDiagnostic,
   TaskRecordStore,
 } from "./store"
+export {
+  composeStatusLine,
+  formatStatusTarget,
+  taskIdentityLabel,
+  toolCountSuffix,
+} from "./status-line"
+export type { StatusLineInput, StatusLineStats, StatusTargetInput, TaskIdentityInput } from "./status-line"
+export { assistantLastLine, formatToolActivity } from "./progress"
 export { createMinimalSenpiResourceLoader } from "./senpi/minimal-resource-loader"
 export type { MinimalSenpiResourceLoaderOptions } from "./senpi/minimal-resource-loader"
 export {
@@ -325,6 +333,7 @@ export type {
   SendManager,
   SendResultDetails,
   SendToolResult,
+  DefaultTeamRunIdResolution,
   SessionIdCarrier,
   TaskCancelDeps,
   TaskCancelInput,
@@ -375,7 +384,6 @@ export {
   createTeamMemberRespawnLaunchResolver,
   TeamMemberRespawnLaunchError,
   sendTeamMessage,
-  WaitRegistry,
 } from "./team"
 export type {
   BuildTeamMessageOptions,
@@ -393,10 +401,6 @@ export type {
   ReconcileTeamMailboxDeps,
   SendTeamMessageInput,
   SendTeamMessageResult,
-  WaitClaim,
-  WaitFilter,
-  WaitMessage,
-  WaitRegistration,
 } from "./team"
 export {
   approveShutdown,
