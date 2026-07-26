@@ -1,6 +1,6 @@
 ---
 name: ultrawork
-description: Binding ultrawork mode directive for omo-senpi. When a prompt contains ultrawork or ulw, the omo input hook injects the full directive inline as an <ultrawork-mode> block in the same message, so when that block is already present do not read this file again - it duplicates the same directive. Read this file only when ultrawork mode is requested and no <ultrawork-mode> block is present in the conversation.
+description: Binding ultrawork mode directive for omo-senpi. When a prompt contains ultrawork or ulw, the omo input hook injects the full directive as a hidden custom message (customType omo-ultrawork:directive, display false) ahead of the user's text, which is left untouched; the directive is present in the conversation context as a user-role message even though it is not shown as a block in the visible prompt. When the directive is already present in the conversation, do not read this file again - this file is that same directive. Read this file only when ultrawork mode is requested and the directive is not already present in the conversation.
 metadata:
   short-description: Binding ultrawork mode directive
 ---
