@@ -53,20 +53,18 @@ export class IdleInjectionCoordinator {
     this.#pending.set(injection.key, injection)
   }
 
-  // Producers that do not need synchronous delivery (the ulw-loop continuation) enqueue then request a
-  // deferred flush. A synchronous wake flushOnIdle on the same tick drains the queue first, so the
-  // deferred pass finds it empty and no-ops - collapsing wake+continuation into one injection. Repeated
-  // requests before the deferred pass runs coalesce to a single flush.
+  // Streaming-safe producers enqueue then request a batched steer at the next tool-call boundary.
+  // Repeated requests before the deferred pass runs coalesce to a single flush.
   scheduleFlush(): void {
     if (this.#flushScheduled) return
     this.#flushScheduled = true
     this.#scheduleFlush(() => {
       this.#flushScheduled = false
-      this.flushOnIdle()
+      this.#flush("steer")
     })
   }
 
-  // Immediate coalesced flush for an IDLE parent: a microtask is soon enough to land the steer before
+  // Immediate coalesced flush for an IDLE parent. A microtask is soon enough to land the follow-up before
   // senpi's print mode can decide the session is over (the windowed timer is not - live-driver proven),
   // while still batching every notification that becomes ready in the same tick into one injection.
   flushSoon(): void {
@@ -86,15 +84,19 @@ export class IdleInjectionCoordinator {
     return this.#pending.delete(key)
   }
 
-  // Flush the whole queue as one injection. Returns how many queued items were collapsed (0 = no-op).
+  // Flush the whole queue as one idle-edge follow-up. Returns how many queued items were collapsed (0 = no-op).
   flushOnIdle(): number {
+    return this.#flush("followUp")
+  }
+
+  #flush(deliverAs: "steer" | "followUp"): number {
     if (this.#pending.size === 0) return 0
     const ordered = [...this.#pending.values()].sort(
       (left, right) => SOURCE_RANK[left.source] - SOURCE_RANK[right.source],
     )
     const collapsed = ordered.length
     this.#pending.clear()
-    this.#deliver(ordered.map((injection) => injection.content).join("\n\n"), { deliverAs: "steer" })
+    this.#deliver(ordered.map((injection) => injection.content).join("\n\n"), { deliverAs })
     for (const injection of ordered) injection.onFlushed?.()
     return collapsed
   }
