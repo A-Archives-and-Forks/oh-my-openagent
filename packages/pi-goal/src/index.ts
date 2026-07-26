@@ -15,13 +15,13 @@ import type { Goal, GoalAccountingMode, GoalStoreRef, TokenUsageSnapshot } from 
 import { COMPLETABLE_GOAL_STATUS_VALUES, isRecord } from "./goal/types.js";
 import { updateGoalUi } from "./goal/ui.js";
 
-const GOAL_USAGE = "Usage: /goal <objective>";
-const GOAL_EMPTY_HINT = "No goal is currently set.";
+const GOAL_USAGE = "Usage: /ultragoal <objective>";
+const GOAL_EMPTY_HINT = "No ultragoal is currently set.";
 const GOAL_CONTINUATION_MESSAGE_TYPE = "pi-goal-continuation";
 const GOAL_BUDGET_LIMIT_MESSAGE_TYPE = "pi-goal-budget-limit";
-const REPLACE_GOAL_CHOICE = "Replace current goal";
+const REPLACE_GOAL_CHOICE = "Replace current ultragoal";
 const CANCEL_REPLACE_GOAL_CHOICE = "Cancel";
-const RESUME_GOAL_CHOICE = "Resume goal";
+const RESUME_GOAL_CHOICE = "Resume ultragoal";
 const LEAVE_GOAL_PAUSED_CHOICE = "Leave paused";
 const EMPTY_USAGE: TokenUsageSnapshot = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0 };
 const STALE_EXTENSION_CONTEXT_ERROR_PREFIX = "This extension ctx is stale after session replacement or reload.";
@@ -123,8 +123,8 @@ export default function (pi: ExtensionAPI): void {
 		},
 	});
 
-	pi.registerCommand("goal", {
-		description: "Set, inspect, pause, resume, or clear the persistent goal",
+	pi.registerCommand("ultragoal", {
+		description: "Set, inspect, pause, resume, or clear the persistent Senpi ultragoal",
 		handler: async (rawArgs, ctx) => {
 			const command = parseGoalCommand(rawArgs);
 			try {
@@ -153,7 +153,7 @@ export default function (pi: ExtensionAPI): void {
 							stopAgentGoalAccounting(goal.id);
 						}
 						updateGoalUi(ctx, goal);
-						ctx.ui.notify(`Goal ${goalStatusLabel(goal.status)}\n${formatGoalForTool(goal)}`, "info");
+						ctx.ui.notify(`Ultragoal ${goalStatusLabel(goal.status)}\n${formatGoalForTool(goal)}`, "info");
 						queueGoalContinuation(pi, ctx, goal);
 						return;
 					}
@@ -163,7 +163,9 @@ export default function (pi: ExtensionAPI): void {
 						clearAgentGoalAccounting();
 						updateGoalUi(ctx, null);
 						ctx.ui.notify(
-							cleared ? "Goal cleared" : "No goal to clear\nThis thread does not currently have a goal.",
+							cleared
+								? "Ultragoal cleared"
+								: "No ultragoal to clear\nThis thread does not currently have an ultragoal.",
 							cleared ? "info" : "warning",
 						);
 						return;
@@ -249,13 +251,13 @@ export default function (pi: ExtensionAPI): void {
 		const goal = current === null ? await createGoal(ref, objective) : await updateGoal(ref, { objective });
 		if (goal.status === "active") beginAgentGoalAccounting(goal);
 		updateGoalUi(ctx, goal);
-		ctx.ui.notify(`Goal ${goalStatusLabel(goal.status)}\n${formatGoalForTool(goal)}`, "info");
+		ctx.ui.notify(`Ultragoal ${goalStatusLabel(goal.status)}\n${formatGoalForTool(goal)}`, "info");
 		queueGoalContinuation(pi, ctx, goal);
 	}
 
 	async function confirmReplaceGoal(ctx: ExtensionContext, objective: string): Promise<boolean> {
 		if (!ctx.hasUI) return true;
-		const choice = await ctx.ui.select(`Replace goal?\nNew objective: ${objective}`, [
+		const choice = await ctx.ui.select(`Replace ultragoal?\nNew objective: ${objective}`, [
 			REPLACE_GOAL_CHOICE,
 			CANCEL_REPLACE_GOAL_CHOICE,
 		]);
@@ -272,7 +274,7 @@ export default function (pi: ExtensionAPI): void {
 			return false;
 		}
 
-		const choice = await ctx.ui.select(`Resume paused goal?\nGoal: ${goal.objective}`, [
+		const choice = await ctx.ui.select(`Resume paused ultragoal?\nObjective: ${goal.objective}`, [
 			RESUME_GOAL_CHOICE,
 			LEAVE_GOAL_PAUSED_CHOICE,
 		]);
@@ -281,7 +283,7 @@ export default function (pi: ExtensionAPI): void {
 		const resumed = await updateGoal(goalStoreRef(ctx), { status: "active" });
 		beginAgentGoalAccounting(resumed);
 		updateGoalUi(ctx, resumed);
-		ctx.ui.notify(`Goal ${goalStatusLabel(resumed.status)}\n${formatGoalForTool(resumed)}`, "info");
+		ctx.ui.notify(`Ultragoal ${goalStatusLabel(resumed.status)}\n${formatGoalForTool(resumed)}`, "info");
 		queueGoalContinuation(pi, ctx, resumed);
 		return true;
 	}

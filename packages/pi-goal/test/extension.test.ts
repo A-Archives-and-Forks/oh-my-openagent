@@ -216,7 +216,7 @@ describe("pi-goal extension accounting", () => {
 		const completedGoal = await readGoal(refForContext(ctx));
 		expect(completedGoal?.status).toBe("complete");
 		expect(completedGoal?.timeUsedSeconds).toBe(65);
-		expect(completedGoal === null ? "" : goalFooterIndicator(completedGoal).text).toBe("Goal achieved (1m)");
+		expect(completedGoal === null ? "" : goalFooterIndicator(completedGoal).text).toBe("Ultragoal achieved (1m)");
 		expect(toolResultText(completion)).toContain('"timeUsedSeconds": 65');
 
 		advanceClock(5_000);
@@ -313,49 +313,56 @@ describe("pi-goal extension accounting", () => {
 	});
 });
 
-describe("pi-goal extension command UI parity", () => {
+describe("Senpi ultragoal command UI", () => {
 	afterEach(async () => {
 		resetClock();
 		await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 	});
 
-	it("shows Codex-style usage text for a bare /goal without a goal", async () => {
+	it("registers /ultragoal instead of /goal", async () => {
+		const harness = createHarness();
+
+		expect(() => harness.command("goal")).toThrow("command not registered");
+		expect(() => harness.command("ultragoal")).not.toThrow();
+	});
+
+	it("shows ultragoal usage text for a bare /ultragoal without an ultragoal", async () => {
 		const harness = createHarness();
 		const ui = createMockUi();
 		const ctx = await createContext("thread-show-no-goal", { hasUI: true, ui });
 
-		await harness.command("goal").handler("", ctx);
+		await harness.command("ultragoal").handler("", ctx);
 
 		expect(ui.notifyCalls).toContainEqual({
-			message: "Usage: /goal <objective>\nNo goal is currently set.",
+			message: "Usage: /ultragoal <objective>\nNo ultragoal is currently set.",
 			type: "warning",
 		});
 	});
 
-	it("shows Codex-style clear feedback when no goal exists", async () => {
+	it("shows ultragoal clear feedback when no goal exists", async () => {
 		const harness = createHarness();
 		const ui = createMockUi();
 		const ctx = await createContext("thread-clear-no-goal", { hasUI: true, ui });
 
-		await harness.command("goal").handler("clear", ctx);
+		await harness.command("ultragoal").handler("clear", ctx);
 
 		expect(ui.notifyCalls).toContainEqual({
-			message: "No goal to clear\nThis thread does not currently have a goal.",
+			message: "No ultragoal to clear\nThis thread does not currently have an ultragoal.",
 			type: "warning",
 		});
 	});
 
-	it("asks with Codex-style choices before replacing an existing goal", async () => {
+	it("asks before replacing an existing ultragoal", async () => {
 		const harness = createHarness();
 		const ui = createMockUi({ selectResponses: ["Cancel"] });
 		const ctx = await createContext("thread-replace-cancel", { hasUI: true, ui });
 		await harness.tool("create_goal").execute("create-goal", { objective: "Original" }, undefined, undefined, ctx);
 
-		await harness.command("goal").handler("Replacement", ctx);
+		await harness.command("ultragoal").handler("Replacement", ctx);
 
 		expect(ui.selectCalls).toContainEqual({
-			title: "Replace goal?\nNew objective: Replacement",
-			options: ["Replace current goal", "Cancel"],
+			title: "Replace ultragoal?\nNew objective: Replacement",
+			options: ["Replace current ultragoal", "Cancel"],
 		});
 		expect(ui.confirmCalls).toHaveLength(0);
 		expect(await readGoal(refForContext(ctx))).toMatchObject({ objective: "Original" });
@@ -363,11 +370,11 @@ describe("pi-goal extension command UI parity", () => {
 
 	it("replaces an existing goal only after the replace choice is selected", async () => {
 		const harness = createHarness();
-		const ui = createMockUi({ selectResponses: ["Replace current goal"] });
+		const ui = createMockUi({ selectResponses: ["Replace current ultragoal"] });
 		const ctx = await createContext("thread-replace-confirm", { hasUI: true, ui });
 		await harness.tool("create_goal").execute("create-goal", { objective: "Original" }, undefined, undefined, ctx);
 
-		await harness.command("goal").handler("Replacement", ctx);
+		await harness.command("ultragoal").handler("Replacement", ctx);
 
 		expect(await readGoal(refForContext(ctx))).toMatchObject({
 			objective: "Replacement",
@@ -376,23 +383,23 @@ describe("pi-goal extension command UI parity", () => {
 			timeUsedSeconds: 0,
 		});
 		expect(ui.notifyCalls.at(-1)).toMatchObject({
-			message: expect.stringContaining("Goal active\nObjective: Replacement"),
+			message: expect.stringContaining("Ultragoal active\nObjective: Replacement"),
 			type: "info",
 		});
 	});
 
 	it("prompts to resume a paused goal when a session is resumed", async () => {
 		const harness = createHarness();
-		const ui = createMockUi({ selectResponses: ["Resume goal"] });
+		const ui = createMockUi({ selectResponses: ["Resume ultragoal"] });
 		const ctx = await createContext("thread-resume-paused", { hasUI: true, ui });
 		await harness.tool("create_goal").execute("create-goal", { objective: "Paused work" }, undefined, undefined, ctx);
-		await harness.command("goal").handler("pause", ctx);
+		await harness.command("ultragoal").handler("pause", ctx);
 
 		await harness.emit("session_start", { type: "session_start", reason: "resume" }, ctx);
 
 		expect(ui.selectCalls).toContainEqual({
-			title: "Resume paused goal?\nGoal: Paused work",
-			options: ["Resume goal", "Leave paused"],
+			title: "Resume paused ultragoal?\nObjective: Paused work",
+			options: ["Resume ultragoal", "Leave paused"],
 		});
 		expect(await readGoal(refForContext(ctx))).toMatchObject({ objective: "Paused work", status: "active" });
 		expect(harness.sentMessages).toHaveLength(1);
@@ -401,10 +408,10 @@ describe("pi-goal extension command UI parity", () => {
 
 	it("does not prompt to resume a paused goal on non-resume session starts", async () => {
 		const harness = createHarness();
-		const ui = createMockUi({ selectResponses: ["Resume goal"] });
+		const ui = createMockUi({ selectResponses: ["Resume ultragoal"] });
 		const ctx = await createContext("thread-startup-paused", { hasUI: true, ui });
 		await harness.tool("create_goal").execute("create-goal", { objective: "Paused work" }, undefined, undefined, ctx);
-		await harness.command("goal").handler("pause", ctx);
+		await harness.command("ultragoal").handler("pause", ctx);
 
 		await harness.emit("session_start", { type: "session_start", reason: "startup" }, ctx);
 
@@ -418,7 +425,7 @@ describe("pi-goal extension command UI parity", () => {
 		const ui = createMockUi({ selectResponses: ["Leave paused"] });
 		const ctx = await createContext("thread-leave-paused", { hasUI: true, ui });
 		await harness.tool("create_goal").execute("create-goal", { objective: "Paused work" }, undefined, undefined, ctx);
-		await harness.command("goal").handler("pause", ctx);
+		await harness.command("ultragoal").handler("pause", ctx);
 
 		await harness.emit("session_start", { type: "session_start", reason: "resume" }, ctx);
 

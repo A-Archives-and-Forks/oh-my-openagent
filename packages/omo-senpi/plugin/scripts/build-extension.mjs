@@ -35,6 +35,8 @@ const packageRoot = dirname(pluginRoot)
 const repoRoot = join(packageRoot, "..", "..")
 const entryPath = join(packageRoot, "src", "extension", "index.ts")
 const outputPath = join(pluginRoot, "extensions", "omo.js")
+const ultragoalEntryPath = join(repoRoot, "packages", "pi-goal", "src", "index.ts")
+const ultragoalOutputPath = join(pluginRoot, "extensions", "ultragoal.js")
 const memberEntryPath = join(repoRoot, "packages", "senpi-task", "src", "team", "member-extension", "index.ts")
 const memberOutputPath = join(pluginRoot, "extensions", "omo-member.js")
 const builtinModuleNames = builtinModules.filter((moduleName) => !moduleName.startsWith("_"))
@@ -51,9 +53,13 @@ export async function buildExtension(options = {}) {
   const memberOutput = options.memberOutputPath ?? (options.outputPath === undefined
     ? memberOutputPath
     : join(dirname(output), "omo-member.js"))
+  const ultragoalOutput = options.ultragoalOutputPath ?? (options.outputPath === undefined
+    ? ultragoalOutputPath
+    : join(dirname(output), "ultragoal.js"))
   const mainInputs = await buildEntry(entryPath, output)
+  const ultragoalInputs = await buildEntry(ultragoalEntryPath, ultragoalOutput)
   const memberInputs = await buildEntry(memberEntryPath, memberOutput)
-  return { mainInputs, memberInputs }
+  return { mainInputs, ultragoalInputs, memberInputs }
 }
 
 async function buildEntry(entry, output) {
@@ -77,23 +83,36 @@ export async function checkExtensionCurrent(options = {}) {
   const memberOutput = options.memberOutputPath ?? (options.outputPath === undefined
     ? memberOutputPath
     : join(dirname(output), "omo-member.js"))
+  const ultragoalOutput = options.ultragoalOutputPath ?? (options.outputPath === undefined
+    ? ultragoalOutputPath
+    : join(dirname(output), "ultragoal.js"))
   const currentMain = await readBuiltEntry(output)
   if (currentMain === undefined) return { ok: false, reason: "missing-output", output }
+  const currentUltragoal = await readBuiltEntry(ultragoalOutput)
+  if (currentUltragoal === undefined) return { ok: false, reason: "missing-output", output: ultragoalOutput }
   const currentMember = await readBuiltEntry(memberOutput)
   if (currentMember === undefined) return { ok: false, reason: "missing-output", output: memberOutput }
 
   const tempRoot = await mkdtemp(join(repoRoot, ".build-check-"))
   const expectedOutput = join(tempRoot, "omo.js")
+  const expectedUltragoalOutput = join(tempRoot, "ultragoal.js")
   const expectedMemberOutput = join(tempRoot, "omo-member.js")
   try {
-    await buildExtension({ outputPath: expectedOutput, memberOutputPath: expectedMemberOutput })
+    await buildExtension({
+      outputPath: expectedOutput,
+      ultragoalOutputPath: expectedUltragoalOutput,
+      memberOutputPath: expectedMemberOutput,
+    })
     if (!artifactsMatch(currentMain, await readFile(expectedOutput, "utf8"))) {
       return { ok: false, reason: "stale-output", output }
+    }
+    if (!artifactsMatch(currentUltragoal, await readFile(expectedUltragoalOutput, "utf8"))) {
+      return { ok: false, reason: "stale-output", output: ultragoalOutput }
     }
     if (!artifactsMatch(currentMember, await readFile(expectedMemberOutput, "utf8"))) {
       return { ok: false, reason: "stale-output", output: memberOutput }
     }
-    return { ok: true, output, memberOutput }
+    return { ok: true, output, ultragoalOutput, memberOutput }
   } finally {
     await rm(tempRoot, { recursive: true, force: true })
   }
@@ -190,6 +209,6 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
     console.log(`omo-senpi extension build is current: ${result.output}`)
   } else {
     await buildExtension()
-    console.log(`Built omo-senpi extensions: ${outputPath}, ${memberOutputPath}`)
+    console.log(`Built omo-senpi extensions: ${outputPath}, ${ultragoalOutputPath}, ${memberOutputPath}`)
   }
 }

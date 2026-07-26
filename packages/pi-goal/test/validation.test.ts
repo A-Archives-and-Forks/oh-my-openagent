@@ -1,17 +1,15 @@
 import { describe, expect, it } from "bun:test";
 
-import { MAX_OBJECTIVE_LENGTH, validateObjective } from "../src/goal/validation.js";
+import { validateObjective } from "../src/goal/validation.js";
 
 describe("validateObjective", () => {
-	it("accepts objective when at Codex character limit", () => {
-		const objective = "a".repeat(MAX_OBJECTIVE_LENGTH);
+	it("accepts objectives well beyond the former 4,000-character limit", () => {
+		const objective = "목표".repeat(10_000);
 
 		expect(validateObjective(objective)).toBe(objective);
 	});
 
-	it("throws Codex-style file hint when objective exceeds limit", () => {
-		const objective = "a".repeat(MAX_OBJECTIVE_LENGTH + 1);
-
-		expect(() => validateObjective(objective)).toThrow("Put longer instructions in a file");
+	it("still rejects an empty objective after trimming", () => {
+		expect(() => validateObjective(" \n\t ")).toThrow("objective must not be empty");
 	});
 });

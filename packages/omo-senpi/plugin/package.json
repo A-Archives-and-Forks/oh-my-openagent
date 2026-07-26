@@ -13,7 +13,8 @@
   ],
   "pi": {
     "extensions": [
-      "./extensions/omo.js"
+      "./extensions/omo.js",
+      "./extensions/ultragoal.js"
     ],
     "skills": [
       "./skills"

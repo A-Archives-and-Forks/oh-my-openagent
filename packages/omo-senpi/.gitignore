@@ -1,2 +1,3 @@
-/plugin/extensions/
+/plugin/extensions/*
+!/plugin/extensions/ultragoal.js
 /plugin/skills/
