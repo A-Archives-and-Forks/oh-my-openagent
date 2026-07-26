@@ -75,9 +75,10 @@ export type TeamDeleteDetails =
 const CREATE_DESCRIPTION = [
   "Create a team run from a named spec or an inline spec. The current session is the team lead.",
   "Provide exactly one of team_name or inline_spec. Members run as background children; you coordinate them with the other team_* tools.",
+  "Returns spec_error for invalid specs and runtime_error for spawn/bounds failures.",
 ].join(" ")
 
-const DELETE_DESCRIPTION = "Delete a team run and cancel its members. Lead-only. Pass force=true to tear it down while members are still active."
+const DELETE_DESCRIPTION = "Delete a team run and cancel its members (terminal, not resumable). Lead-only. Pass force=true to tear it down while members are still active."
 
 function coerceInlineSpec(input: unknown): { readonly ok: true; readonly spec: unknown } | { readonly ok: false; readonly reason: string } {
   if (typeof input !== "string") return { ok: true, spec: input }

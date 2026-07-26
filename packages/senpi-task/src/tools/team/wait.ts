@@ -111,7 +111,7 @@ export function createTeamWaitTool(
   return {
     name: "team_wait",
     label: "Team Wait",
-    description: "Wait for the next durable message to the current team lead, optionally filtered by sender.",
+    description: "Lead-only. Wait for the next durable message to this team lead, optionally filtered by sender; drains any unreported delivered message first. timeout_ms is clamped to the configured bounds; on timeout the result names current member states. Members reply only after being sent work, so the normal loop is task_send(member) -> team_wait.",
     parameters: TeamWaitParams,
     execute: (_toolCallId: string, params: TeamWaitInput, signal: AbortSignal | undefined, onUpdate: AgentToolUpdateCallback<TeamWaitDetails> | undefined) => runTeamWait(deps, params, signal, onUpdate),
     renderResult: (result, options, theme) => renderTeamWaitResult(result, options, theme),
