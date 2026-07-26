@@ -14,6 +14,7 @@ import {
   teamStorageBaseDir,
   toTeamCoreConfig,
   type LeadDeliveryJournal,
+  type TaskSendTeamRouting,
   type TeamToolsService,
   type WaitBounds,
 } from "@oh-my-opencode/senpi-task"
@@ -82,7 +83,7 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
 
       pi.registerMessageRenderer?.(TASK_COMPLETION_MESSAGE_TYPE, renderTaskCompletion)
       const teamTools = createTeamToolContext(pi, ctx, engine)
-      registerTaskTools(pi, engine, teamTools.service)
+      registerTaskTools(pi, engine, teamTools.service, teamTools.leadPollers.resolveDefaultTeamRunId)
       registerTeamTools(pi, teamTools, engine.settings.wait)
       registerTaskCommands(pi, engine.manager)
 
@@ -115,7 +116,12 @@ function registerTaskFlags(pi: SenpiExtensionAPI): void {
 // senpi-task tool factories return fully-typed ToolDefinitions whose typed renderCall breaks a plain
 // structural assignment to the registerTool(Record) seam; spreading each into a fresh object literal
 // lands it through the record-shaped registration boundary without a cast (no behavioural change).
-function registerTaskTools(pi: SenpiExtensionAPI, engine: TaskEngine, teamService: TeamToolsService): void {
+function registerTaskTools(
+  pi: SenpiExtensionAPI,
+  engine: TaskEngine,
+  teamService: TeamToolsService,
+  resolveDefaultTeamRunId: TaskSendTeamRouting["resolveDefaultTeamRunId"],
+): void {
   const resolveCallerSessionId = defaultResolveCallerSessionId
   const manager = engine.manager
   pi.registerTool({
@@ -126,7 +132,11 @@ function registerTaskTools(pi: SenpiExtensionAPI, engine: TaskEngine, teamServic
     }),
   })
   pi.registerTool({
-    ...createTaskSendTool({ manager, resolveCallerSessionId, teamRouting: { service: teamService, from: TEAM_LEAD_SENTINEL } }),
+    ...createTaskSendTool({
+      manager,
+      resolveCallerSessionId,
+      teamRouting: { service: teamService, from: TEAM_LEAD_SENTINEL, ...(resolveDefaultTeamRunId !== undefined ? { resolveDefaultTeamRunId } : {}) },
+    }),
   })
   pi.registerTool({ ...createTaskCancelTool({ manager }) })
   pi.registerTool({ ...createTaskOutputTool({ manager, stateDir: engine.stateDir, resolveCallerSessionId }) })

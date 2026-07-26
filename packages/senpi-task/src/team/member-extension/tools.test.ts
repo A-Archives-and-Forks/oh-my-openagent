@@ -98,6 +98,26 @@ describe("member extension tools", () => {
     })
   })
 
+  test("#given a member wait that times out w2mem #when no message arrives #then the text never points at tools members do not have", async () => {
+    // given
+    const harness = createHarness()
+    const deps = {
+      poller: harness.poller,
+      waitRegistry: harness.registry,
+      waitBounds: { min_ms: 5, default_ms: 50, max_ms: 100 },
+    }
+
+    // when
+    const result = await runMemberTeamWait(deps, { timeout_ms: 50 }, undefined)
+
+    // then: members have no task_output and timeout writes no team_message_waited event
+    const text = result.content[0]?.type === "text" ? result.content[0].text : ""
+    expect(result.details).toMatchObject({ kind: "timeout" })
+    expect(text).not.toContain("task_output")
+    expect(text).not.toContain("team_message_waited")
+    expect(text).toContain("team_wait again")
+  })
+
   test("#given a resolved message w2mem #when member team_wait returns #then the text carries the body and id like the lead-side format", async () => {
     // given
     const harness = createHarness()
@@ -137,6 +157,33 @@ describe("member extension tools", () => {
     // then
     const text = result.content[0]?.type === "text" ? result.content[0].text : ""
     expect(text).toMatch(/^Message enqueued to lead \(id: .+\)\.$/)
+  })
+
+  test("#given an unknown recipient w2mem #when member task_send runs #then the error lists the valid recipients", async () => {
+    // given
+    const harness = createHarness()
+    const deps = {
+      teamRunId: TEAM_RUN_ID,
+      memberName: "alice",
+      taskId: "st_00000001" as const,
+      config: harness.config,
+      members: ["alice", "bob"],
+    }
+
+    // when
+    let caught: unknown
+    try {
+      await runMemberTaskSend(deps, { to: "ghost", message: "hello" })
+    } catch (error) {
+      caught = error
+    }
+
+    // then
+    const message = String(caught)
+    expect(message).toContain("ghost")
+    expect(message).toContain("alice")
+    expect(message).toContain("bob")
+    expect(message).toContain("lead")
   })
 
   test("#given a parked team_wait w2mem #when the poller receives a later match #then commit precedes promise resolution", async () => {
