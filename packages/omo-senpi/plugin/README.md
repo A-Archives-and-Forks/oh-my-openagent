@@ -1,6 +1,15 @@
 # omo-senpi
 
-`@code-yeongyu/omo-senpi` is the Senpi edition of OMO packaged as one Pi package. It loads one generated extension entry from `extensions/omo.js` and generated skills from `skills/`.
+`@code-yeongyu/omo-senpi` is the Senpi edition of OMO packaged as one Pi package. It loads the generated OMO adapter from `extensions/omo.js`, the persistent Senpi Ultragoal runtime from `extensions/ultragoal.js`, and generated skills from `skills/`.
+
+## Senpi Ultragoal
+
+`/ultragoal <objective>` starts the persistent workflow. It keeps the compatible
+`create_goal`, `get_goal`, and `update_goal` tool API, but drives work with Senpi's
+todo/task primitives, evidence checkpoints, and a prompt-to-artifact completion audit.
+The workflow is adapted from
+[Gajae-Code Ultragoal](https://github.com/Yeachan-Heo/gajae-code/tree/b0fd6a7ee771d22918d0429e319bbe26e4e247fa/packages/coding-agent/src/defaults/gjc/skills/ultragoal).
+Objectives are unbounded in length after trimming; empty objectives remain invalid.
 
 ## Shipped skills
 

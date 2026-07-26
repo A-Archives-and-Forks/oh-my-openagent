@@ -2,12 +2,12 @@ import { describe, expect, it } from "bun:test";
 
 import { parseGoalCommand } from "../src/goal/command.js";
 
-describe("goal command parsing", () => {
-	it("treats bare /goal as a summary request", () => {
+describe("ultragoal command parsing", () => {
+	it("treats bare /ultragoal as a summary request", () => {
 		expect(parseGoalCommand("")).toEqual({ kind: "show" });
 	});
 
-	it("treats arbitrary text after /goal as the objective", () => {
+	it("treats arbitrary text after /ultragoal as the objective", () => {
 		expect(parseGoalCommand("ship the Codex style flow --token-budget 88")).toEqual({
 			kind: "setObjective",
 			objective: "ship the Codex style flow --token-budget 88",

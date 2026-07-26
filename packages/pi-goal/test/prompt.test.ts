@@ -4,20 +4,19 @@ import { buildBudgetLimitedPrompt, buildContinuationPrompt } from "../src/goal/p
 import type { Goal } from "../src/goal/types.js";
 
 describe("goal prompts", () => {
-	it("renders the codex continuation prompt structure with an escaped objective", () => {
+	it("renders the Senpi ultragoal workflow with an escaped objective", () => {
 		const prompt = buildContinuationPrompt(testGoal("A & B < C > D", { tokenBudget: 100 }));
 
-		expect(prompt.startsWith("Continue working toward the active thread goal.")).toBe(true);
+		expect(prompt.startsWith("Continue working toward the active Senpi ultragoal.")).toBe(true);
 		expect(prompt).toContain("<objective>\nA &amp; B &lt; C &gt; D\n</objective>");
 		expect(prompt).not.toContain("<untrusted_objective>");
 
 		for (const marker of [
-			"Continuation behavior:",
-			"Work from evidence:",
-			"Progress visibility:",
-			"Fidelity:",
-			"Completion audit:",
-			"Blocked audit:",
+			"Durable execution workflow:",
+			"Prompt-to-artifact completion audit:",
+			"Use the `todo` tool",
+			"Delegate independent work",
+			"checkpoint",
 		]) {
 			expect(prompt).toContain(marker);
 		}

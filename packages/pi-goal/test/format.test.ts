@@ -18,7 +18,7 @@ describe("goal display formatting", () => {
 
 	it("summarizes goal time and budgeted tokens", () => {
 		expect(goalUsageSummary(testGoal({ tokenBudget: 50_000, tokensUsed: 63_876 }))).toBe(
-			"Objective: Port /goal as a pi extension Time: 2m. Tokens: 63.9K/50K.",
+			"Objective: Port /ultragoal as a Senpi extension Time: 2m. Tokens: 63.9K/50K.",
 		);
 	});
 
@@ -51,7 +51,7 @@ function testGoal(overrides: Partial<Goal> = {}): Goal {
 	return {
 		id: "goal-1",
 		threadId: "thread-1",
-		objective: "Port /goal as a pi extension",
+		objective: "Port /ultragoal as a Senpi extension",
 		status: "active",
 		tokensUsed: 0,
 		timeUsedSeconds: 120,
