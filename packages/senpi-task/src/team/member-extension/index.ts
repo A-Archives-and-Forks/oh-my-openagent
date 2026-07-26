@@ -9,7 +9,7 @@ import { log } from "@oh-my-opencode/utils"
 import { parseTaskId, type TaskId } from "../../state"
 import { createTaskRecordStore } from "../../store"
 import type { WaitBounds } from "../../tools/control/clamp"
-import { WaitRegistry } from "../messaging/wait-registry"
+import { MemberWaitRegistry } from "./wait-registry"
 import { createMemberSelfPoller, type MemberSelfPoller } from "./self-poller"
 import { createQaAfterInjectHold } from "./qa-inject-hold"
 import { createMemberTaskSendTool, createMemberTeamWaitTool } from "./tools"
@@ -57,7 +57,7 @@ export class MemberExtensionShutdownError extends Error {
 
 type ActiveRuntime = {
   readonly poller: MemberSelfPoller
-  readonly registry: WaitRegistry<Message>
+  readonly registry: MemberWaitRegistry
   started: boolean
   pollTimer?: ReturnType<typeof setInterval>
   ackTimer?: ReturnType<typeof setInterval>
@@ -132,7 +132,7 @@ export default async function registerMemberExtension(pi: ExtensionAPI): Promise
   if (activeRuntimes.has(pi)) return
   const parsed = parseMemberExtensionEnv(process.env)
   const store = createTaskRecordStore({ project_dir: parsed.stateDir, task: { state_dir: parsed.stateDir } })
-  const registry = new WaitRegistry<Message>()
+  const registry = new MemberWaitRegistry()
   const afterInject = createQaAfterInjectHold(process.env)
   const appendEvent = (event: Parameters<typeof store.appendEvent>[1]): void => {
     store.appendEvent(parsed.taskId, event)

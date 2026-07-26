@@ -8,10 +8,10 @@ import { listUnreadMessages, sendMessage } from "@oh-my-opencode/team-core/team-
 import type { Message } from "@oh-my-opencode/team-core/types"
 
 import type { PersistedTaskEvent } from "../../store"
-import { WaitRegistry } from "../messaging/wait-registry"
 import { MemberExtensionConfigError, parseMemberExtensionEnv } from "./index"
 import { createMemberSelfPoller } from "./self-poller"
 import { runMemberTaskSend, runMemberTeamWait } from "./tools"
+import { MemberWaitRegistry } from "./wait-registry"
 
 const TEAM_RUN_ID = "66666666-6666-4666-8666-666666666666"
 const roots: string[] = []
@@ -21,7 +21,7 @@ type Harness = {
   readonly config: TeamModeConfig
   readonly inboxDir: string
   readonly sessionDir: string
-  readonly registry: WaitRegistry<Message>
+  readonly registry: MemberWaitRegistry
   readonly events: PersistedTaskEvent[]
   readonly poller: ReturnType<typeof createMemberSelfPoller>
 }
@@ -33,7 +33,7 @@ function createHarness(): Harness {
   const sessionDir = join(root, "sessions")
   mkdirSync(sessionDir, { recursive: true })
   const config = TeamModeConfigSchema.parse({ base_dir: baseDir })
-  const registry = new WaitRegistry<Message>()
+  const registry = new MemberWaitRegistry()
   const events: PersistedTaskEvent[] = []
   return {
     root,

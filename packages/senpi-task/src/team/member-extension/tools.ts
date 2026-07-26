@@ -9,9 +9,8 @@ import { Type, type Static } from "typebox"
 import type { PersistedTaskEvent } from "../../store"
 import { clampWaitTimeout, type WaitBounds } from "../../tools/control/clamp"
 import { toolResult } from "../../tools/control/tool-result"
-import { formatMessageText } from "../../tools/team/wait"
-import { buildTeamMessage } from "../messaging/message"
-import { normalizeWaitFrom, type WaitRegistration, type WaitRegistry } from "../messaging/wait-registry"
+import { buildTeamMessage, formatPeerMessage } from "../messaging/message"
+import { normalizeMemberWaitFrom, type MemberWaitRegistration, type MemberWaitRegistry } from "./wait-registry"
 import { TEAM_LEAD_SENTINEL } from "../normalize"
 import type { MemberSelfPoller } from "./self-poller"
 
@@ -52,7 +51,7 @@ export type MemberTaskSendDeps = {
 
 export type MemberTeamWaitDeps = {
   readonly poller: Pick<MemberSelfPoller, "pollOnce">
-  readonly waitRegistry: WaitRegistry<Message>
+  readonly waitRegistry: MemberWaitRegistry
   readonly waitBounds: WaitBounds
 }
 
@@ -112,7 +111,7 @@ export async function runMemberTeamWait(
   signal: AbortSignal | undefined,
 ): Promise<AgentToolResult<MemberTeamWaitDetails>> {
   const timeoutMs = clampWaitTimeout(input.timeout_ms, deps.waitBounds)
-  const from = normalizeWaitFrom(input.from)
+  const from = normalizeMemberWaitFrom(input.from)
   const registration = deps.waitRegistry.register(from === undefined ? {} : { from })
 
   try {
@@ -125,7 +124,7 @@ export async function runMemberTeamWait(
           { kind: "timeout", timeout_ms: timeoutMs },
         )
       case "message":
-        return toolResult(formatMessageText(outcome.message), {
+        return toolResult(formatPeerMessage(outcome.message), {
           kind: "message",
           message_id: outcome.message.messageId,
           from: outcome.message.from,
@@ -172,7 +171,7 @@ function assertNever(value: never): never {
 }
 
 async function waitForMessage(
-  registration: WaitRegistration<Message>,
+  registration: MemberWaitRegistration,
   timeoutMs: number,
   signal: AbortSignal | undefined,
 ): Promise<WaitOutcome> {

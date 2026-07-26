@@ -17,7 +17,7 @@ import { MessageSchema, type Message } from "@oh-my-opencode/team-core/types"
 
 import type { PersistedTaskEvent } from "../../store"
 import { buildPeerMessageEnvelope } from "../messaging/message"
-import type { WaitClaim, WaitRegistry } from "../messaging/wait-registry"
+import type { MemberWaitClaim, MemberWaitRegistry } from "./wait-registry"
 import { isMissingPath, sessionJsonlContainsMessage } from "./session-scan"
 
 export { sessionJsonlContainsMessage } from "./session-scan"
@@ -31,7 +31,7 @@ export type MemberSelfPollerDeps = {
   readonly memberName: string
   readonly config: TeamModeConfig
   readonly sessionDir: string
-  readonly waitRegistry: WaitRegistry<Message>
+  readonly waitRegistry: MemberWaitRegistry
   readonly sendUserMessage: (content: string) => void
   readonly appendEvent?: (event: PersistedTaskEvent) => void
   readonly afterInject?: (message: Message) => Promise<void>
@@ -168,7 +168,7 @@ async function processMessage(
 async function resolveWait(
   deps: MemberSelfPollerDeps,
   delivery: PendingDelivery,
-  claim: WaitClaim<Message>,
+  claim: MemberWaitClaim,
 ): Promise<void> {
   if (!claim.isActive()) {
     await releaseDeliveryReservation(delivery.reservation)

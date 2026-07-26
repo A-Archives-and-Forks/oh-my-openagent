@@ -20,7 +20,6 @@ const TEAM_TOOL_NAMES = [
   "task_get",
   "task_list",
   "task_update",
-  "team_wait",
 ]
 const ALL_TOOL_NAMES = [...TASK_TOOL_NAMES, ...TEAM_TOOL_NAMES]
 const TASK_EVENTS = [
@@ -140,7 +139,7 @@ describe("omo-senpi task component wiring", () => {
     expect(pi.handlers.map((handler) => handler.event).sort()).toEqual([...TASK_EVENTS, "session_start"].sort())
   })
 
-  it("#given a fake ExtensionAPI boot #when the task component registers #then the 7 lead team tools are wired", () => {
+  it("#given a fake ExtensionAPI boot #when the task component registers #then only injection-driven lead team tools are wired", () => {
     // given
     const pi = new FakeExtensionAPI()
     const logger = createLogger()
@@ -150,6 +149,26 @@ describe("omo-senpi task component wiring", () => {
 
     const registered = toolNames(pi)
     for (const teamTool of TEAM_TOOL_NAMES) expect(registered).toContain(teamTool)
+    expect(registered).not.toContain("team_wait")
+  })
+
+  it("#given the removed-tool hint capability #when the task component registers #then team_wait receives injection guidance", () => {
+    // given
+    const pi = new FakeExtensionAPI() as FakeExtensionAPI & {
+      registerRemovedToolHint: (name: string, hint: string) => void
+    }
+    const hints: Array<{ name: string; hint: string }> = []
+    pi.registerRemovedToolHint = (name, hint) => hints.push({ name, hint })
+    const logger = createLogger()
+
+    // when
+    createTaskComponent({ resolveCwd: () => tempProject() }).register(pi, ctxFor(pi, logger))
+
+    // then
+    expect(hints).toEqual([{
+      name: "team_wait",
+      hint: "team_wait was removed - team messages arrive as injected notifications; send updates with task_send and end your turn.",
+    }])
   })
 
   it("#given the omo-task flag is false #when the component registers #then only the unconditional hygiene sweep handler is wired", () => {

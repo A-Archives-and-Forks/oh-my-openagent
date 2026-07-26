@@ -11,7 +11,6 @@ import {
   type ParentState,
   type PersistedTaskEvent,
   type TeamCoreConfig,
-  type WaitRegistry,
 } from "@oh-my-opencode/senpi-task"
 
 import type { IdleInjectionCoordinator } from "../../extension/idle-injection-coordinator"
@@ -26,12 +25,11 @@ export type LeadPollerLifecycleDeps = {
   readonly runtime: Pick<TaskRuntimeContext, "sessionId" | "sessionFile" | "parentState">
   readonly config: TeamCoreConfig
   readonly runtimeDir: (teamRunId: string) => string
-  readonly waitRegistry: WaitRegistry<Message>
   readonly deliveryJournal?: LeadDeliveryJournal
   readonly appendTaskEvent: (taskId: string, event: PersistedTaskEvent) => void
   readonly pi: Pick<SenpiExtensionAPI, "sendUserMessage">
   readonly logger: ComponentLogger
-  readonly coordinator?: Pick<IdleInjectionCoordinator, "enqueue" | "scheduleFlush" | "flushSoon" | "remove">
+  readonly coordinator?: Pick<IdleInjectionCoordinator, "enqueue" | "scheduleFlush" | "flushSoon">
   readonly createPoller?: (input: LeadPollerFactoryInput) => LeadPollerPort
   readonly readMemberTaskMap?: (runtimeDir: string) => Promise<Readonly<Record<string, string>>>
   readonly scheduleInterval?: (tick: () => void, intervalMs: number) => () => void
@@ -97,7 +95,6 @@ export function createLeadPollerLifecycle(deps: LeadPollerLifecycleDeps): LeadPo
         teamRunId: team.teamRunId,
         config: deps.config,
         coordinator: sink,
-        waitRegistry: deps.waitRegistry,
         ...(deps.deliveryJournal !== undefined ? { deliveryJournal: deps.deliveryJournal } : {}),
         appendEvent: deps.appendTaskEvent,
         eventTaskId: (message) => memberTaskMap[message.from],
@@ -195,9 +192,6 @@ export function createLeadPollerLifecycle(deps: LeadPollerLifecycleDeps): LeadPo
           default:
             return assertNever(parentState)
         }
-      },
-      remove(key) {
-        return input.coordinator?.remove(key) ?? false
       },
     }
   }

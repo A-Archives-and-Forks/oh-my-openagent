@@ -13,8 +13,8 @@ import type { Message } from "@oh-my-opencode/team-core/types"
 
 import type { PersistedTaskEvent } from "../../store"
 import { buildPeerMessageEnvelope } from "../messaging/message"
-import { WaitRegistry } from "../messaging/wait-registry"
 import { createMemberSelfPoller } from "./self-poller"
+import { MemberWaitRegistry } from "./wait-registry"
 
 const TEAM_RUN_ID = "11111111-1111-4111-8111-111111111111"
 const roots: string[] = []
@@ -25,7 +25,7 @@ type Harness = {
   readonly sessionDir: string
   readonly injected: string[]
   readonly events: PersistedTaskEvent[]
-  readonly registry: WaitRegistry<Message>
+  readonly registry: MemberWaitRegistry
 }
 
 function createHarness(): Harness {
@@ -40,7 +40,7 @@ function createHarness(): Harness {
     sessionDir,
     injected: [],
     events: [],
-    registry: new WaitRegistry<Message>(),
+    registry: new MemberWaitRegistry(),
   }
 }
 
