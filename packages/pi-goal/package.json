@@ -3,7 +3,7 @@
 	"version": "4.15.1",
 	"type": "module",
 	"private": true,
-	"description": "Persistent Senpi Ultragoal workflow with goal tools, TUI footer, and evidence-bound continuation prompts.",
+	"description": "Persistent goal tracking Pi extension with Codex-style goal tools, TUI footer, and continuation prompts. Vendored from code-yeongyu/pi-goal.",
 	"license": "MIT",
 	"pi": {
 		"extensions": [

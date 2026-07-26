@@ -51,15 +51,15 @@ export function goalFooterIndicator(goal: Goal): GoalFooterIndicator {
 	const color = goalStatusColor(goal.status);
 	switch (goal.status) {
 		case "active":
-			return { color, text: usageText === null ? "Pursuing ultragoal" : `Pursuing ultragoal (${usageText})` };
+			return { color, text: usageText === null ? "Pursuing goal" : `Pursuing goal (${usageText})` };
 		case "paused":
-			return { color, text: "Ultragoal paused (/ultragoal resume)" };
+			return { color, text: "Goal paused (/goal resume)" };
 		case "blocked":
-			return { color, text: "Ultragoal blocked (/ultragoal resume)" };
+			return { color, text: "Goal blocked (/goal resume)" };
 		case "budgetLimited":
-			return { color, text: usageText === null ? "Ultragoal abandoned" : `Ultragoal unmet (${usageText})` };
+			return { color, text: usageText === null ? "Goal abandoned" : `Goal unmet (${usageText})` };
 		case "complete":
-			return { color, text: usageText === null ? "Ultragoal achieved" : `Ultragoal achieved (${usageText})` };
+			return { color, text: usageText === null ? "Goal achieved" : `Goal achieved (${usageText})` };
 	}
 }
 
