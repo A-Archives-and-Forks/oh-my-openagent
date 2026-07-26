@@ -12,16 +12,14 @@ const SKILL_COMMAND_PREFIX = "/skill:"
 const ULTRAWORK_SKILL_NAME = "ultrawork"
 const ULTRAWORK_CUSTOM_TYPE = "omo-ultrawork:directive"
 
-type SenpiStreamingBehavior = "steer" | "followUp"
-
 interface SenpiInputEvent {
   type: "input"
   text: string
   source: "interactive" | "rpc" | "extension"
-  streamingBehavior?: SenpiStreamingBehavior
+  streamingBehavior?: "steer" | "followUp"
 }
 
-type SenpiInputEventResult = { action: "continue" }
+type SenpiInputEventResult = { action: "continue" } | { action: "transform"; text: string }
 
 export function createUltraworkComponent(): OmoSenpiComponent {
   return {
@@ -61,7 +59,9 @@ function handleInput(pi: SenpiExtensionAPI, payload: unknown, ctx: ComponentCont
     return { action: "continue" }
   }
 
-  const streamingBehavior = readStreamingBehavior(payload.streamingBehavior)
+  // Any defined streamingBehavior means senpi will QUEUE this prompt instead of
+  // sending it now, which changes how the directive has to travel.
+  const isQueued = payload.streamingBehavior !== undefined
 
   if (payload.text.startsWith(SKILL_COMMAND_PREFIX)) {
     // Mirror senpi's parse exactly: skill name runs to the FIRST space (or end).
@@ -82,43 +82,42 @@ function handleInput(pi: SenpiExtensionAPI, payload: unknown, ctx: ComponentCont
     }
   }
 
-  return injectDirective(pi, streamingBehavior)
+  return armUltrawork(pi, payload.text, isQueued)
 }
 
 /**
- * Arm ultrawork mode WITHOUT touching the user's text.
+ * Arm ultrawork mode.
  *
- * The directive rides in as a hidden custom message: senpi converts custom
- * messages into `role: "user"` context (core/messages.ts `convertToLlm`) so the
- * model still receives every rule, while `display: false` keeps the TUI from
- * rendering ~17KB of directive above what the user actually typed
- * (interactive-mode renders `case "custom"` only when `message.display`).
+ * Idle prompts get the directive as a hidden custom message: senpi converts custom
+ * messages into `role: "user"` context (core/messages.ts `convertToLlm`) so the model
+ * still receives every rule, while `display: false` keeps the TUI from rendering ~17KB
+ * of directive above what the user actually typed (interactive-mode renders
+ * `case "custom"` only when `message.display`). `sendCustomMessage` appends
+ * synchronously on that path, so the directive lands ahead of the user message this
+ * very `input` event is still gating. The typed text stays byte-identical, so senpi's
+ * native `/skill:` expansion cannot be disturbed by this hook.
  *
- * Leaving the text byte-identical also means senpi's native `/skill:` expansion,
- * which only fires while the prompt still STARTS with the command, can no longer
- * be disturbed by this hook.
+ * A QUEUED prompt cannot use that route. Senpi drains its steering and follow-up
+ * queues one message at a time by default (`PendingMessageQueue` in agent.ts, and
+ * `getFollowUpMode()` defaulting to "one-at-a-time") and runs an assistant turn per
+ * drained message, so a separate hidden message would be answered on its own turn
+ * before the user's actual ask arrived. Keep the pair atomic by carrying the directive
+ * inside that one queued message instead. Appending rather than prepending is what
+ * preserves `/skill:` expansion, which only fires while the text still STARTS with the
+ * command.
  */
-function injectDirective(pi: SenpiExtensionAPI, streamingBehavior: SenpiStreamingBehavior | undefined): SenpiInputEventResult {
-  const message = {
+function armUltrawork(pi: SenpiExtensionAPI, text: string, isQueued: boolean): SenpiInputEventResult {
+  if (isQueued) {
+    return { action: "transform", text: `${text}\n${SENPI_ULTRAWORK_DIRECTIVE}` }
+  }
+
+  pi.sendMessage({
     customType: ULTRAWORK_CUSTOM_TYPE,
     content: SENPI_ULTRAWORK_DIRECTIVE,
     display: false,
-  }
-
-  // Idle: senpi appends synchronously, landing the directive ahead of the user
-  // message the `input` event is still gating. Queued: mirror the prompt's own
-  // delivery so both enter the SAME queue in that order.
-  if (streamingBehavior === undefined) {
-    pi.sendMessage(message)
-  } else {
-    pi.sendMessage(message, { deliverAs: streamingBehavior })
-  }
+  })
 
   return { action: "continue" }
-}
-
-function readStreamingBehavior(value: unknown): SenpiStreamingBehavior | undefined {
-  return value === "steer" || value === "followUp" ? value : undefined
 }
 
 function isSenpiInputEvent(value: unknown): value is SenpiInputEvent {

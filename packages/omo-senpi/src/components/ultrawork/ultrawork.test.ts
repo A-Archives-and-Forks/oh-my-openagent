@@ -61,6 +61,17 @@ function expectNoInjection(pi: FakeExtensionAPI, result: unknown): void {
   expect(pi.messages).toHaveLength(0)
 }
 
+/**
+ * A prompt queued mid-stream must carry its directive INSIDE the same message.
+ * Senpi drains steering and follow-up queues one message at a time by default, and
+ * runs an assistant turn per drained message, so a separate hidden message would
+ * burn its own turn before the user's ask ever arrives.
+ */
+function expectAtomicQueuedInjection(pi: FakeExtensionAPI, result: unknown, prompt: string): void {
+  expect(result).toEqual({ action: "transform", text: `${prompt}\n${SENPI_ULTRAWORK_DIRECTIVE}` })
+  expect(pi.messages).toHaveLength(0)
+}
+
 function markerCount(text: string): number {
   return text.match(/<ultrawork-mode>/g)?.length ?? 0
 }
@@ -109,32 +120,48 @@ describe("omo-senpi ultrawork component", () => {
     expect(pi.messages[0]?.options?.["deliverAs"]).toBeUndefined()
   })
 
-  it("#given a steer-queued prompt #when a trigger arms #then the injection mirrors deliverAs steer", async () => {
+  it("#given a steer-queued prompt #when a trigger arms #then the directive stays atomic with the prompt", async () => {
     // given
     const pi = new FakeExtensionAPI()
     await createUltraworkComponent().register(pi, createTestContext(pi))
+    const prompt = "ulw redirect this"
 
     // when
-    const result = await dispatchInput(pi, "ulw redirect this", "interactive", "steer")
-
-    // then: the directive must ride the SAME queue as the prompt it arms
-    expectHiddenInjection(pi, result, "steer")
-  })
-
-  it("#given a followUp-queued prompt #when a trigger arms #then the injection mirrors deliverAs followUp", async () => {
-    // given
-    const pi = new FakeExtensionAPI()
-    await createUltraworkComponent().register(pi, createTestContext(pi))
-
-    // when
-    const result = await dispatchInput(pi, "ulw queue this", "interactive", "followUp")
+    const result = await dispatchInput(pi, prompt, "interactive", "steer")
 
     // then
-    expectHiddenInjection(pi, result, "followUp")
+    expectAtomicQueuedInjection(pi, result, prompt)
   })
 
-  it("#given an unknown streamingBehavior value #when a trigger arms #then no delivery override leaks through", async () => {
+  it("#given a followUp-queued prompt #when a trigger arms #then the directive stays atomic with the prompt", async () => {
     // given
+    const pi = new FakeExtensionAPI()
+    await createUltraworkComponent().register(pi, createTestContext(pi))
+    const prompt = "ulw queue this"
+
+    // when
+    const result = await dispatchInput(pi, prompt, "interactive", "followUp")
+
+    // then: a hidden message here would be drained alone and answered on its own turn
+    expectAtomicQueuedInjection(pi, result, prompt)
+  })
+
+  it("#given a queued /skill: command #when a trigger arms #then the directive is appended so expansion survives", async () => {
+    // given: senpi expands /skill: only while the text still STARTS with the command
+    const pi = new FakeExtensionAPI()
+    await createUltraworkComponent().register(pi, createTestContext(pi))
+    const prompt = "/skill:frontend ulw 수준으로 다듬어줘"
+
+    // when
+    const result = await dispatchInput(pi, prompt, "interactive", "followUp")
+
+    // then
+    expectAtomicQueuedInjection(pi, result, prompt)
+    expect((result as { text: string }).text.startsWith("/skill:frontend")).toBe(true)
+  })
+
+  it("#given any queued prompt #when a trigger arms #then no hidden message is emitted for it", async () => {
+    // given: senpi queues ANY defined streamingBehavior, defaulting to steer
     const pi = new FakeExtensionAPI()
     await createUltraworkComponent().register(pi, createTestContext(pi))
 
@@ -142,7 +169,8 @@ describe("omo-senpi ultrawork component", () => {
     const result = await dispatchInput(pi, "ulw odd payload", "interactive", "bogus")
 
     // then
-    expectHiddenInjection(pi, result, undefined)
+    expect(pi.messages).toHaveLength(0)
+    expect(result).toMatchObject({ action: "transform" })
   })
 
   it("#given non-trigger input #when user input dispatches #then injects nothing", async () => {
