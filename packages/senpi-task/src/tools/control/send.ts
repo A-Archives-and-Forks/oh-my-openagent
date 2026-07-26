@@ -8,8 +8,9 @@ import { renderTaskSendCall, renderTaskSendResult } from "./renderers"
 import { invalidArguments, mapSendOutcome, notFound, scopeDenied } from "./send-results"
 import { isStructuredMessage, TaskSendParams } from "./send-schema"
 import type { TaskSendInput } from "./send-schema"
-import { missingTeamRunId, resolveTeamRunId, routeStructuredMessage } from "./send-shutdown"
+import { resolveSendTeamRunId, routeStructuredMessage } from "./send-shutdown"
 import type { TaskSendTeamRouting } from "./send-shutdown"
+export type { DefaultTeamRunIdResolution } from "./send-shutdown"
 import { toolResult } from "./tool-result"
 import type { CallerSessionResolver, SendManager, SendResultDetails, SendToolResult } from "./types"
 export { TaskSendParams } from "./send-schema"
@@ -75,10 +76,11 @@ export async function runTaskSend(
     if (outcome.kind !== "not_found") return mapSendOutcome(outcome)
     if (teamRouting === undefined) return notFound(manager, outcome.reason, callerSessionId)
 
-    const runId = resolveTeamRunId(params, teamRouting)
-    if (runId === undefined) return missingTeamRunId()
+    const resolution = await resolveSendTeamRunId(params, teamRouting)
+    if (resolution.kind === "none") return notFound(manager, outcome.reason, callerSessionId)
+    if (resolution.kind === "error") return invalidArguments(resolution.reason)
 
-    const teamResult = await runTeamSend(teamRouting.service, runId, teamRouting.from, {
+    const teamResult = await runTeamSend(teamRouting.service, resolution.teamRunId, teamRouting.from, {
       to: params.to,
       body: params.message,
       ...(params.summary !== undefined ? { summary: params.summary } : {}),

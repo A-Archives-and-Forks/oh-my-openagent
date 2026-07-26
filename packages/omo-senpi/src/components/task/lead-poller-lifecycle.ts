@@ -3,6 +3,7 @@ import {
   createLeadPoller,
   readMemberTaskMap,
   type ActiveTeamSummary,
+  type DefaultTeamRunIdResolution,
   type LeadDeliveryJournal,
   type LeadInjection,
   type LeadInjectionSink,
@@ -44,6 +45,7 @@ export type LeadPollerLifecycle = {
     | { readonly ok: true; readonly teamRunId: string }
     | { readonly ok: false; readonly reason: string }
   >
+  resolveDefaultTeamRunId(): Promise<DefaultTeamRunIdResolution>
   shutdown(): void
 }
 
@@ -147,7 +149,15 @@ export function createLeadPollerLifecycle(deps: LeadPollerLifecycleDeps): LeadPo
     const onlyTeam = owned[0]
     if (owned.length === 1 && onlyTeam !== undefined) return { ok: true, teamRunId: onlyTeam.teamRunId }
     if (owned.length === 0) return { ok: false, reason: "No active team is owned by the current session." }
-    return { ok: false, reason: "Multiple teams are owned by the current session; pass team_run_id." }
+    return { ok: false, reason: multipleOwnedReason(owned) }
+  }
+
+  const resolveDefaultTeamRunId = async (): Promise<DefaultTeamRunIdResolution> => {
+    const owned = await synchronize()
+    const onlyTeam = owned[0]
+    if (owned.length === 1 && onlyTeam !== undefined) return { kind: "resolved", teamRunId: onlyTeam.teamRunId }
+    if (owned.length === 0) return { kind: "none" }
+    return { kind: "ambiguous", reason: multipleOwnedReason(owned) }
   }
 
   const disposeInterval = (deps.scheduleInterval ?? scheduleInterval)(() => {
@@ -162,6 +172,7 @@ export function createLeadPollerLifecycle(deps: LeadPollerLifecycleDeps): LeadPo
     tick,
     resolveLeadPoller,
     resolveTeamRunId,
+    resolveDefaultTeamRunId,
     shutdown() {
       if (stopped) return
       stopped = true
@@ -201,6 +212,11 @@ export function createLeadPollerLifecycle(deps: LeadPollerLifecycleDeps): LeadPo
       },
     }
   }
+}
+
+function multipleOwnedReason(owned: readonly ActiveTeamSummary[]): string {
+  const listed = owned.map((team) => `${team.teamRunId} ('${team.teamName}')`).join(", ")
+  return `Multiple teams are owned by the current session: ${listed}. Pass team_run_id.`
 }
 
 function isTransition(state: ParentState): boolean {
