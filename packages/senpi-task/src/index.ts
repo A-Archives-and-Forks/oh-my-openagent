@@ -384,7 +384,6 @@ export {
   createTeamMemberRespawnLaunchResolver,
   TeamMemberRespawnLaunchError,
   sendTeamMessage,
-  WaitRegistry,
 } from "./team"
 export type {
   BuildTeamMessageOptions,
@@ -402,10 +401,6 @@ export type {
   ReconcileTeamMailboxDeps,
   SendTeamMessageInput,
   SendTeamMessageResult,
-  WaitClaim,
-  WaitFilter,
-  WaitMessage,
-  WaitRegistration,
 } from "./team"
 export {
   approveShutdown,
