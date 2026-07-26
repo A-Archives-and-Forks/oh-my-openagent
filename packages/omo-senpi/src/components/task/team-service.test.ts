@@ -236,6 +236,36 @@ describe("createTeamService lead messaging", () => {
   })
 })
 
+describe("createTeamService named-team lookup", () => {
+  test("#given an unknown team_name with declared teams #when createTeam runs #then the error lists the declared teams", async () => {
+    // given
+    const cwd = mkdtempSync(join(tmpdir(), "omo-senpi-team-named-"))
+    tempRoots.push(cwd)
+    mkdirSync(join(cwd, ".omo"), { recursive: true })
+    writeFileSync(join(cwd, ".omo", "omo.json"), `${JSON.stringify({
+      teams: {
+        "declared-a": { members: [{ name: "alpha", kind: "category", category: "quick", prompt: "work" }] },
+        "declared-b": { members: [{ name: "beta", kind: "category", category: "quick", prompt: "work" }] },
+      },
+    })}\n`)
+    const pi = new FakeExtensionAPI()
+    const omoConfig = loadOmoConfig({ cwd }).config
+    const engine = composeTaskEngine({ pi, omoConfig, cwd, sharedParentTools: () => [] })
+    engine.runtime.captureFrom({ sessionManager: { getSessionId: () => "lead-session" } })
+    const service = createTeamService({
+      manager: engine.manager,
+      runtime: engine.runtime,
+      settings: engine.settings,
+      omoConfig,
+      cwd,
+      agentNames: new Set(Object.keys(engine.agents)),
+    })
+
+    // when / then
+    await expect(service.createTeam({ teamName: "missing-team" })).rejects.toThrow(/missing-team[\s\S]*declared-a[\s\S]*declared-b/)
+  })
+})
+
 describe("createTeamService ownership guard", () => {
   test("#given a team owned by another session #when scoped service methods are called #then they reject with an ownership error", async () => {
     // given: the runtime state lead is 'lead-session' but the current session is a stranger

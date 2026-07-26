@@ -4,7 +4,7 @@ import type { Message } from "@oh-my-opencode/team-core/types"
 
 import { WaitRegistry } from "../../team/messaging/wait-registry"
 import { createLeadDeliveryJournal } from "../../team/messaging/delivery-journal"
-import { createFakeTeamService } from "./__fixtures__/team-tool-fakes"
+import { createFakeTeamService, fakeRuntimeState } from "./__fixtures__/team-tool-fakes"
 import type { LeadTeamToolDeps } from "./types"
 import { runTeamWait } from "./wait"
 
@@ -28,6 +28,34 @@ function baseDeps(registry: WaitRegistry<Message>): Omit<LeadTeamToolDeps, "reso
 }
 
 describe("lead team_wait", () => {
+  test("#given a wait that times out #when no message arrives #then the text is truthful and names member states", async () => {
+    // given
+    const registry = new WaitRegistry<Message>()
+
+    // when
+    const result = await runTeamWait({
+      ...baseDeps(registry),
+      service: createFakeTeamService({
+        status: async () => fakeRuntimeState({
+          members: [
+            { name: "architect", agentType: "general-purpose", status: "errored", pendingInjectedMessageIds: [] },
+            { name: "validator", agentType: "general-purpose", status: "running", pendingInjectedMessageIds: [] },
+          ],
+        }),
+      }),
+      resolveLeadPoller: () => ({ pollOnce: () => Promise.resolve(), shutdown: () => undefined }),
+      resolveTeamRunId: async () => ({ ok: true, teamRunId: TEAM_RUN_ID } as const),
+    }, {}, undefined)
+
+    // then: no pointer to a recovery event that never gets written on timeout, and real member states
+    const text = result.content[0]?.type === "text" ? result.content[0].text : ""
+    expect(result.details).toMatchObject({ kind: "timeout" })
+    expect(text).not.toContain("team_message_waited")
+    expect(text).toContain("team_wait again")
+    expect(text).toContain("architect [errored]")
+    expect(text).toContain("validator [running]")
+  })
+
   test("#given an active team wait #when it starts #then it emits progress before its message resolves", async () => {
     const registry = new WaitRegistry<Message>()
     let resolvePoll: () => void = () => {}

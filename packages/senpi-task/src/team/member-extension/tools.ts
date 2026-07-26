@@ -120,8 +120,10 @@ export async function runMemberTeamWait(
     const outcome = await waitForMessage(registration, timeoutMs, signal)
     switch (outcome.kind) {
       case "timeout":
+        // Members have no task_output and a timeout writes no team_message_waited event; point only
+        // at surfaces a member actually has.
         return toolResult(
-          `No team message arrived within ${timeoutMs}ms. Check task_output for a committed team_message_waited recovery event.`,
+          `No team message arrived within ${timeoutMs}ms. Either team_wait again to keep listening, or finish and report to the lead with task_send.`,
           { kind: "timeout", timeout_ms: timeoutMs },
         )
       case "message":

@@ -98,6 +98,26 @@ describe("member extension tools", () => {
     })
   })
 
+  test("#given a member wait that times out w2mem #when no message arrives #then the text never points at tools members do not have", async () => {
+    // given
+    const harness = createHarness()
+    const deps = {
+      poller: harness.poller,
+      waitRegistry: harness.registry,
+      waitBounds: { min_ms: 5, default_ms: 50, max_ms: 100 },
+    }
+
+    // when
+    const result = await runMemberTeamWait(deps, { timeout_ms: 50 }, undefined)
+
+    // then: members have no task_output and timeout writes no team_message_waited event
+    const text = result.content[0]?.type === "text" ? result.content[0].text : ""
+    expect(result.details).toMatchObject({ kind: "timeout" })
+    expect(text).not.toContain("task_output")
+    expect(text).not.toContain("team_message_waited")
+    expect(text).toContain("team_wait again")
+  })
+
   test("#given a resolved message w2mem #when member team_wait returns #then the text carries the body and id like the lead-side format", async () => {
     // given
     const harness = createHarness()
