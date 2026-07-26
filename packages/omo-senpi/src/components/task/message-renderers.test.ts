@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test"
 import { Theme, type MessageRenderer } from "@code-yeongyu/senpi"
 import { normalizeRendererText, rendererVisibleWidth } from "@oh-my-opencode/senpi-task"
 
-import { renderTaskCompletion } from "./renderers"
+import { renderTaskCompletion, renderTeamMemberLiveness } from "./renderers"
 
 const TEST_FG_COLORS = {
   accent: "#000000",
@@ -145,6 +145,30 @@ describe("task-family custom message renderers", () => {
     expect(text).toContain("task_send")
     expect(text).not.toContain("<task-notification>")
     expect(text).not.toContain("<head>")
+  })
+
+  test("#given a liveness event #when rendering #then member state and a sanitized crash reason are visible", () => {
+    // given
+    const details = {
+      memberName: "alpha",
+      lastKnownState: "error" as const,
+      reason: ADVERSARIAL_CONTENT,
+    }
+
+    // when
+    const lines = renderContentLines(
+      renderTeamMemberLiveness,
+      "senpi-task.team-member-liveness",
+      "raw liveness protocol",
+      details,
+    )
+
+    // then
+    expectSanitizedLines(lines)
+    const text = lines.join("\n")
+    expect(text).toContain("team member liveness")
+    expect(text).toContain("member:alpha")
+    expect(text).toContain("last state:error")
   })
 
   test("#given a long completion continuation #when rendering at 54 cells #then the actual-width excerpt preserves English word boundaries", () => {

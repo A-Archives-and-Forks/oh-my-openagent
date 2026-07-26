@@ -132,8 +132,11 @@ describe("omo-senpi task component wiring", () => {
     expect(toolNames(pi)).toEqual([...ALL_TOOL_NAMES].sort())
     // the /tasks and /task-kill commands registered
     expect(pi.commands.map((entry) => entry.name).sort()).toEqual([...TASK_COMMANDS].sort())
-    // pull-delivered peer messages are plain user turns; only completion keeps a custom renderer
-    expect(pi.messageRenderers.map((entry) => entry.customType)).toEqual(["senpi-task.completion"])
+    // Peer mail is a plain injected turn; completion and member liveness use structured renderers.
+    expect(pi.messageRenderers.map((entry) => entry.customType)).toEqual([
+      "senpi-task.completion",
+      "senpi-task.team-member-liveness",
+    ])
     // exactly the task event handlers (session lifecycle + transition-buffer edges) plus the
     // unconditional T16 hygiene sweep handler, which registers its own session_start listener
     expect(pi.handlers.map((handler) => handler.event).sort()).toEqual([...TASK_EVENTS, "session_start"].sort())

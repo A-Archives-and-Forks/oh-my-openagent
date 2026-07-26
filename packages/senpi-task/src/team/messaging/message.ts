@@ -35,15 +35,6 @@ export function buildTeamMessage(
 // Byte-for-byte mirror of team-core team-mailbox `buildEnvelope` (poll.ts), replicated here because
 // that helper is only reachable via a forbidden deep subpath. The inject fallback path calls the real
 // team-core envelope via `pollAndBuildInjection`; `inject.test.ts` asserts the two stay identical.
-export function formatPeerMessage(message: Message): string {
-  const header = `Message from ${message.from} (id: ${message.messageId}):`
-  const summary = message.summary === undefined ? "" : `\nsummary: ${collapseMessageText(message.summary, 400)}`
-  const body = message.body.length <= 4_000
-    ? message.body
-    : `${message.body.slice(0, 4_000)}\n...[truncated, full body remains in the durable mailbox]`
-  return `${header}${summary}\n${body}`
-}
-
 export function buildPeerMessageEnvelope(message: Message): string {
   const attributes = [
     `from="${escapeAttributeValue(message.from)}"`,
@@ -61,11 +52,6 @@ export function buildPeerMessageEnvelope(message: Message): string {
   return `<peer_message ${attributes.join(" ")}>
 ${message.body}
 </peer_message>`
-}
-
-function collapseMessageText(value: string, max: number): string {
-  const collapsed = value.replace(/\s+/g, " ").trim()
-  return collapsed.length <= max ? collapsed : `${collapsed.slice(0, max)}...`
 }
 
 function escapeAttributeValue(value: string): string {
