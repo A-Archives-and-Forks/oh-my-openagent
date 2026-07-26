@@ -129,7 +129,7 @@ function registerTaskTools(pi: SenpiExtensionAPI, engine: TaskEngine, teamServic
     ...createTaskSendTool({ manager, resolveCallerSessionId, teamRouting: { service: teamService, from: TEAM_LEAD_SENTINEL } }),
   })
   pi.registerTool({ ...createTaskCancelTool({ manager }) })
-  pi.registerTool({ ...createTaskOutputTool({ manager, stateDir: engine.stateDir, waitConfig: engine.settings.wait, resolveCallerSessionId }) })
+  pi.registerTool({ ...createTaskOutputTool({ manager, stateDir: engine.stateDir, resolveCallerSessionId }) })
 }
 
 function createTeamToolContext(

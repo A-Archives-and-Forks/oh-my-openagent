@@ -45,14 +45,14 @@ function snapshot(overrides: Partial<TaskSnapshot> = {}): TaskSnapshot {
 }
 
 describe("task_output renderers", () => {
-  test("#given task_output arguments #when rendering calls #then rows show target mode wait and only relevant tail lines", () => {
+  test("#given task_output arguments #when rendering calls #then rows show target mode peek and only relevant tail lines", () => {
     // given / when
     const tailLine = firstLine(
-      renderTaskOutputCall({ name: "long-running-explorer", mode: "tail", block: false, tail_lines: 20 }, TEST_THEME),
+      renderTaskOutputCall({ name: "long-running-explorer", mode: "tail", tail_lines: 20 }, TEST_THEME),
       96,
     )
     const statusLine = firstLine(
-      renderTaskOutputCall({ task_id: "st_1", mode: "status", block: true, tail_lines: 20 }, TEST_THEME),
+      renderTaskOutputCall({ task_id: "st_1", mode: "status", tail_lines: 20 }, TEST_THEME),
       96,
     )
 
@@ -62,7 +62,7 @@ describe("task_output renderers", () => {
     expect(tailLine).toContain("mode:tail")
     expect(tailLine).toContain("peek")
     expect(tailLine).toContain("tail_lines:20")
-    expect(statusLine).toContain("block")
+    expect(statusLine).toContain("peek")
     expect(statusLine).not.toContain("tail_lines")
   })
 
@@ -73,7 +73,6 @@ describe("task_output renderers", () => {
         {
           name: "한국어 작업 이름이 아주 길게 이어집니다.\nEnglish task name also continues long enough to require truncation.",
           mode: "tail",
-          block: false,
           tail_lines: 7,
         },
         ANSI_THEME,
@@ -91,7 +90,7 @@ describe("task_output renderers", () => {
   test("#given a width smaller than the fixed call tokens #when rendering task_output #then the complete ANSI row is clamped", () => {
     // given / when
     const line = firstLine(
-      renderTaskOutputCall({ name: "abcdef", mode: "status", block: true }, ANSI_THEME),
+      renderTaskOutputCall({ name: "abcdef", mode: "status" }, ANSI_THEME),
       20,
     )
 
@@ -112,7 +111,6 @@ describe("task_output renderers", () => {
         truncated: true,
         snapshot: snapshot(),
       },
-      { kind: "timed_out", task_id: "st_wait", waited_ms: 5000 },
       { kind: "not_found", reason: "No task 'missing' in this session.", known_tasks: ["alpha"] },
       { kind: "invalid_arguments", reason: "Provide task_id or name." },
     ]
@@ -126,7 +124,6 @@ describe("task_output renderers", () => {
     expect(lines.join("\n")).toContain("task_output transcript st_done")
     expect(lines.join("\n")).toContain("source:event-log")
     expect(lines.join("\n")).toContain("truncated")
-    expect(lines.join("\n")).toContain("task_output timed out st_wait after 5000ms")
     expect(lines.join("\n")).toContain("task_output not found")
     expect(lines.join("\n")).toContain("known:alpha")
     expect(lines.join("\n")).toContain("task_output invalid")

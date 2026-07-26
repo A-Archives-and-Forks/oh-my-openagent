@@ -102,6 +102,7 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
   const notifier = createCompletionNotifier({
     notifier: parentNotifier,
     store: baseStore,
+    stateDir: baseStore.stateDir,
     getParentState: () => runtime.parentState(),
     getCurrentSessionId: () => runtime.sessionId(),
   })

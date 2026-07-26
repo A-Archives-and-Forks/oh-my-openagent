@@ -57,10 +57,9 @@ export function taskOutputModelText(snapshot: TaskSnapshot): string {
 
 function taskOutputCallLine(args: TaskOutputInput, width: number): string {
   const mode = args.mode ?? "status"
-  const waitMode = (args.block ?? true) ? "block" : "peek"
   const tail = mode === "tail" ? `tail_lines:${args.tail_lines ?? DEFAULT_TAIL_LINES}` : undefined
   const beforeTarget = "task_output target:"
-  const afterTarget = joinRendererTokens([`mode:${mode}`, waitMode, tail])
+  const afterTarget = joinRendererTokens([`mode:${mode}`, "peek", tail])
   const available = Math.min(TARGET_EXCERPT_MAX, Math.max(0, width - rendererVisibleWidth(beforeTarget) - rendererVisibleWidth(afterTarget) - 1))
   const target = excerptRendererText(args.task_id ?? args.name ?? "<missing>", available)
   return joinRendererTokens([`${beforeTarget}${target}`, afterTarget])
@@ -83,10 +82,6 @@ function taskOutputResultRow(details: TaskOutputDetails): ResultRow {
           details.truncated ? "truncated" : undefined,
         ]),
       }
-    case "timed_out":
-      return { color: "warning", text: `task_output timed out ${details.task_id} after ${details.waited_ms}ms` }
-    case "waiting":
-      return { color: "toolTitle", text: details.progress.activity }
     case "not_found":
       return { color: "error", text: notFoundRow(details) }
     case "invalid_arguments":
