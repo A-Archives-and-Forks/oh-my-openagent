@@ -11,7 +11,7 @@ import { clampWaitTimeout, type WaitBounds } from "../../tools/control/clamp"
 import { toolResult } from "../../tools/control/tool-result"
 import { formatMessageText } from "../../tools/team/wait"
 import { buildTeamMessage } from "../messaging/message"
-import type { WaitRegistration, WaitRegistry } from "../messaging/wait-registry"
+import { normalizeWaitFrom, type WaitRegistration, type WaitRegistry } from "../messaging/wait-registry"
 import { TEAM_LEAD_SENTINEL } from "../normalize"
 import type { MemberSelfPoller } from "./self-poller"
 
@@ -112,10 +112,11 @@ export async function runMemberTeamWait(
   signal: AbortSignal | undefined,
 ): Promise<AgentToolResult<MemberTeamWaitDetails>> {
   const timeoutMs = clampWaitTimeout(input.timeout_ms, deps.waitBounds)
-  const registration = deps.waitRegistry.register(input.from === undefined ? {} : { from: input.from })
+  const from = normalizeWaitFrom(input.from)
+  const registration = deps.waitRegistry.register(from === undefined ? {} : { from })
 
   try {
-    await deps.poller.pollOnce(input.from === undefined ? {} : { from: input.from })
+    await deps.poller.pollOnce(from === undefined ? {} : { from })
     const outcome = await waitForMessage(registration, timeoutMs, signal)
     switch (outcome.kind) {
       case "timeout":

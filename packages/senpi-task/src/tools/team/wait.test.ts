@@ -236,6 +236,31 @@ describe("lead team_wait", () => {
     expect(requested).toEqual([undefined, TEAM_RUN_ID])
   })
 
+  test("#given a queued message from any sender w2lead #when team_wait passes an empty from filter #then it matches like an omitted filter", async () => {
+    // given
+    const registry = new WaitRegistry<Message>()
+
+    // when
+    const result = await runTeamWait({
+      ...baseDeps(registry),
+      resolveLeadPoller: () => ({
+        pollOnce: async () => {
+          registry.takeMatch(TEAM_RUN_ID, VALUE)?.resolve()
+        },
+        shutdown: () => undefined,
+      }),
+      resolveTeamRunId: async () => ({ ok: true, teamRunId: TEAM_RUN_ID } as const),
+    }, { from: "" }, undefined)
+
+    // then
+    expect(result.details).toEqual({
+      kind: "message",
+      message_id: VALUE.messageId,
+      from: "alpha",
+      body: "ready",
+    })
+  })
+
   test("#given a resolved run without an active poller w2lead #when team_wait starts #then it returns an unavailable result without registering", async () => {
     // given
     const registry = new WaitRegistry<Message>()

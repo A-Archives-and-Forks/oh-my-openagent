@@ -3,7 +3,7 @@ import type { Message } from "@oh-my-opencode/team-core/types"
 import { Type, type Static } from "typebox"
 
 import type { ToolProgressDetails } from "../../progress"
-import type { WaitRegistration } from "../../team/messaging/wait-registry"
+import { normalizeWaitFrom, type WaitRegistration } from "../../team/messaging/wait-registry"
 import { clampWaitTimeout, toolResult } from "../control"
 import { linesComponent } from "../task/renderers"
 import type { LeadTeamToolDeps } from "./types"
@@ -52,9 +52,10 @@ export async function runTeamWait(
   }
 
   const timeoutMs = clampWaitTimeout(input.timeout_ms, deps.waitBounds)
-  const activity = `waiting for team message${input.from === undefined ? "" : ` from ${input.from}`}`
+  const from = normalizeWaitFrom(input.from)
+  const activity = `waiting for team message${from === undefined ? "" : ` from ${from}`}`
   onUpdate?.(toolResult(activity, { kind: "waiting", progress: { activity, startedAt: Date.now(), maxWaitMs: timeoutMs } }))
-  const filter = input.from === undefined ? {} : { from: input.from }
+  const filter = from === undefined ? {} : { from }
   const registration = deps.registry.register(resolved.teamRunId, filter)
   try {
     const delivered = deps.deliveryJournal?.takeOldestUnreported(resolved.teamRunId, filter)
