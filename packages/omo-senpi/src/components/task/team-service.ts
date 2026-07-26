@@ -138,7 +138,10 @@ export function createTeamService(deps: TeamServiceDeps): TeamToolsService {
         },
       })
     },
-    deleteTeam: (input) => deleteTeam(input.teamRunId, { manager: deps.manager, stateDir, taskSettings: deps.settings }),
+    deleteTeam: async (input) => {
+      await assertOwnedTeam(deps, config, input.teamRunId)
+      return deleteTeam(input.teamRunId, { manager: deps.manager, stateDir, taskSettings: deps.settings })
+    },
     sendMessage: async (teamRunId, input) => {
       await assertOwnedTeam(deps, config, teamRunId)
       const runtimeState = await loadRuntimeState(teamRunId, config)
@@ -183,25 +186,31 @@ export function createTeamService(deps: TeamServiceDeps): TeamToolsService {
       await assertOwnedTeam(deps, config, teamRunId)
       return getTeamTask({ teamRunId, config }, taskId)
     },
-    requestShutdown: (teamRunId, member) =>
-      requestShutdown(teamRunId, member, {
+    requestShutdown: async (teamRunId, member) => {
+      await assertOwnedTeam(deps, config, teamRunId)
+      return requestShutdown(teamRunId, member, {
         config,
         sendMessage: makeShutdownMessenger(deps.manager, stateDir, teamRunId),
         ...(deps.now !== undefined ? { now: deps.now } : {}),
-      }),
-    approveShutdown: (teamRunId, member) =>
-      approveShutdown(teamRunId, member, {
+      })
+    },
+    approveShutdown: async (teamRunId, member) => {
+      await assertOwnedTeam(deps, config, teamRunId)
+      return approveShutdown(teamRunId, member, {
         config,
         sendMessage: makeShutdownMessenger(deps.manager, stateDir, teamRunId),
         cancelMemberTask: makeCancelMemberTask(deps.manager, stateDir, teamRunId),
         ...(deps.now !== undefined ? { now: deps.now } : {}),
-      }),
-    rejectShutdown: (teamRunId, member, reason) =>
-      rejectShutdown(teamRunId, member, reason, {
+      })
+    },
+    rejectShutdown: async (teamRunId, member, reason) => {
+      await assertOwnedTeam(deps, config, teamRunId)
+      return rejectShutdown(teamRunId, member, reason, {
         config,
         sendMessage: makeShutdownMessenger(deps.manager, stateDir, teamRunId),
         ...(deps.now !== undefined ? { now: deps.now } : {}),
-      }),
+      })
+    },
   }
   return service
 }

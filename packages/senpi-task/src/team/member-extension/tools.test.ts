@@ -159,6 +159,33 @@ describe("member extension tools", () => {
     expect(text).toMatch(/^Message enqueued to lead \(id: .+\)\.$/)
   })
 
+  test("#given an unknown recipient w2mem #when member task_send runs #then the error lists the valid recipients", async () => {
+    // given
+    const harness = createHarness()
+    const deps = {
+      teamRunId: TEAM_RUN_ID,
+      memberName: "alice",
+      taskId: "st_00000001" as const,
+      config: harness.config,
+      members: ["alice", "bob"],
+    }
+
+    // when
+    let caught: unknown
+    try {
+      await runMemberTaskSend(deps, { to: "ghost", message: "hello" })
+    } catch (error) {
+      caught = error
+    }
+
+    // then
+    const message = String(caught)
+    expect(message).toContain("ghost")
+    expect(message).toContain("alice")
+    expect(message).toContain("bob")
+    expect(message).toContain("lead")
+  })
+
   test("#given a parked team_wait w2mem #when the poller receives a later match #then commit precedes promise resolution", async () => {
     // given
     const harness = createHarness()

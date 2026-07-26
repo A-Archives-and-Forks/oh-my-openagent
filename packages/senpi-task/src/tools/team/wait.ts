@@ -79,12 +79,17 @@ export async function runTeamWait(
         // A timeout writes no team_message_waited event (that ledger only records committed
         // deliveries), so the text must not send the model hunting for one. Naming live member
         // states is the actionable part: waiting on a crashed member is a dead wait.
-        const memberSegment = await deps.service
-          .status(resolved.teamRunId)
-          .then((state) => state.members.length > 0
+        const memberSegment = await deps.service.status(resolved.teamRunId).then(
+          (state) => state.members.length > 0
             ? ` Members: ${state.members.map((member) => `${member.name} [${member.status}]`).join(", ")}.`
-            : "")
-          .catch(() => "")
+            : "",
+          (error: unknown) => {
+            // A status failure must stay visible: masking it would misreport a broken run as a
+            // plain quiet timeout.
+            const message = error instanceof Error ? error.message : String(error)
+            return ` (member status unavailable: ${message})`
+          },
+        )
         return toolResult(
           `No team message arrived within ${timeoutMs}ms.${memberSegment} Either team_wait again to keep listening, or check member progress with task_output.`,
           { kind: "timeout", timeout_ms: timeoutMs },

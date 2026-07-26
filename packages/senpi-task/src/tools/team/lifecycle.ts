@@ -28,7 +28,9 @@ const InlineTeamSpecSchema = Type.Object(
   {
     name: Type.Optional(Type.String({ description: "Team name; defaults to a derived inline name when omitted." })),
     members: Type.Optional(
-      Type.Array(InlineTeamSpecMemberSchema, { description: "Team members. The current session is always the lead; do not declare a lead member." }),
+      Type.Union([Type.Array(InlineTeamSpecMemberSchema), InlineTeamSpecMemberSchema], {
+        description: "Team members (an array, or a single member object which is wrapped into one). The current session is always the lead; do not declare a lead member.",
+      }),
     ),
   },
   { additionalProperties: true },
@@ -75,7 +77,7 @@ export type TeamDeleteDetails =
 const CREATE_DESCRIPTION = [
   "Create a team run from a named spec or an inline spec. The current session is the team lead.",
   "Provide exactly one of team_name or inline_spec. Members run as background children; you coordinate them with the other team_* tools.",
-  "Returns spec_error for invalid specs and runtime_error for spawn/bounds failures.",
+  "Returns invalid_arguments for malformed input, spec_error for invalid specs, and runtime_error for spawn/bounds failures.",
 ].join(" ")
 
 const DELETE_DESCRIPTION = "Delete a team run and cancel its members (terminal, not resumable). Lead-only. Pass force=true to tear it down while members are still active."

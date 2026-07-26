@@ -284,6 +284,10 @@ describe("createTeamService ownership guard", () => {
       service.sendMessage(runtimeState.teamRunId, { from: "lead", to: "beta", body: "x" }),
     ).rejects.toThrow("is not owned by the current session")
     await expect(service.status(runtimeState.teamRunId)).rejects.toThrow("is not owned by the current session")
+    await expect(service.deleteTeam({ teamRunId: runtimeState.teamRunId })).rejects.toThrow("is not owned by the current session")
+    await expect(service.requestShutdown(runtimeState.teamRunId, "beta")).rejects.toThrow("is not owned by the current session")
+    await expect(service.approveShutdown(runtimeState.teamRunId, "beta")).rejects.toThrow("is not owned by the current session")
+    await expect(service.rejectShutdown(runtimeState.teamRunId, "beta", "keep going")).rejects.toThrow("is not owned by the current session")
   })
 
   test("#given the owning session #when scoped service methods are called #then they proceed", async () => {

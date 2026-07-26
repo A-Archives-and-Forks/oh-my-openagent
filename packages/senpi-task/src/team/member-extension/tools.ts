@@ -59,8 +59,9 @@ export type MemberTeamWaitDeps = {
 export class UnknownMemberRecipientError extends Error {
   readonly recipient: string
 
-  constructor(recipient: string) {
-    super(`Unknown team recipient: ${recipient}`)
+  constructor(recipient: string, members: readonly string[]) {
+    const valid = [...members, TEAM_LEAD_SENTINEL].sort().join(", ")
+    super(`Unknown team recipient: ${recipient}. Valid recipients: ${valid}.`)
     this.name = "UnknownMemberRecipientError"
     this.recipient = recipient
   }
@@ -78,7 +79,7 @@ export async function runMemberTaskSend(
   input: MemberTaskSendInput,
 ): Promise<AgentToolResult<MemberTaskSendDetails>> {
   const recipients = new Set([...deps.members, TEAM_LEAD_SENTINEL])
-  if (!recipients.has(input.to)) throw new UnknownMemberRecipientError(input.to)
+  if (!recipients.has(input.to)) throw new UnknownMemberRecipientError(input.to, deps.members)
 
   const message = buildTeamMessage({
     from: deps.memberName,

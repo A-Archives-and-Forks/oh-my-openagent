@@ -56,6 +56,30 @@ describe("lead team_wait", () => {
     expect(text).toContain("validator [running]")
   })
 
+  test("#given a wait that times out while member status is unavailable #then the text says so instead of hiding the failure", async () => {
+    // given
+    const registry = new WaitRegistry<Message>()
+
+    // when
+    const result = await runTeamWait({
+      ...baseDeps(registry),
+      service: createFakeTeamService({
+        status: async () => {
+          throw new Error("state corrupt")
+        },
+      }),
+      resolveLeadPoller: () => ({ pollOnce: () => Promise.resolve(), shutdown: () => undefined }),
+      resolveTeamRunId: async () => ({ ok: true, teamRunId: TEAM_RUN_ID } as const),
+    }, {}, undefined)
+
+    // then: a status failure must not be masked as a plain silent timeout
+    const text = result.content[0]?.type === "text" ? result.content[0].text : ""
+    expect(result.details).toMatchObject({ kind: "timeout" })
+    expect(text).not.toContain("team_message_waited")
+    expect(text).toContain("member status unavailable")
+    expect(text).toContain("state corrupt")
+  })
+
   test("#given an active team wait #when it starts #then it emits progress before its message resolves", async () => {
     const registry = new WaitRegistry<Message>()
     let resolvePoll: () => void = () => {}
