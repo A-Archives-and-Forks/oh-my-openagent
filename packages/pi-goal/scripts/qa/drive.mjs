@@ -9,7 +9,7 @@
 //             continuation prompt, and the continuation turn marks it complete.
 //   blocked:  turn 1 creates the goal, and the continuation turn marks it
 //             blocked via update_goal (codex-aligned status).
-// Runs both by default; pass --scenario <complete|blocked> to run one.
+// Runs all three by default; pass --scenario <command|complete|blocked> to run one.
 import { spawn } from "node:child_process"
 import { createHash } from "node:crypto"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
