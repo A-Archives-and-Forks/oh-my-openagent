@@ -46,6 +46,13 @@ export type MigrationBoundary =
   | "source-moved"
   | "source-recorded"
 
+export type MigrationPlan = {
+  readonly id: string
+  readonly sources: readonly MigrationSourceDescriptor[]
+  readonly targetPath: string
+  readonly transform: MigrationTransform
+}
+
 export type RunMigrationOptions = {
   readonly clock?: MigrationClock
   readonly env?: MigrationEnvironment
@@ -61,10 +68,32 @@ export type RunMigrationOptions = {
   readonly writeTarget?: MigrationTargetWriter
 }
 
+export type MigrationPreview = {
+  readonly backupMoves: readonly { readonly from: string; readonly to: string }[]
+  readonly targetPath: string
+  readonly transform: Readonly<Record<string, unknown>>
+}
+
 export type MigrationRunResult = {
   readonly diagnostics: readonly string[]
   readonly journalResumed: boolean
-  readonly status: "locked" | "migrated" | "skipped"
+  readonly preview?: MigrationPreview
+  readonly status: "locked" | "migrated" | "planned" | "skipped"
+}
+
+export type RunMigrationsOptions = Omit<
+  RunMigrationOptions,
+  "id" | "sources" | "targetPath" | "transform"
+> & {
+  readonly afterMigrations?: (results: readonly MigrationRunResult[]) => void
+  readonly discover: () => readonly MigrationPlan[]
+  readonly dryRun?: boolean
+}
+
+export type MigrationBatchRunResult = {
+  readonly journalResumed: boolean
+  readonly results: readonly MigrationRunResult[]
+  readonly status: "completed" | "locked"
 }
 
 export class MigrationValidationError extends Error {
