@@ -1,4 +1,5 @@
-import { isPlainObject, parseJsoncSafe } from "@oh-my-opencode/utils"
+import { isPlainObject } from "../internal/plain-object"
+import { parseJsoncSafe } from "../internal/jsonc-parse"
 import { writePreparedTarget, writeOmoMigrationTarget, prepareTargetWrite, targetDocument } from "./commit"
 import { type MigrationBackupMove, migrationJournalPath, removeMigrationJournal, writeMigrationJournal } from "./journal"
 import { acquireMigrationLock, migrationLockPath } from "./lock"

@@ -1,5 +1,5 @@
 import { join } from "node:path"
-import { isPlainObject } from "@oh-my-opencode/utils"
+import { isPlainObject } from "../internal/plain-object"
 import { resolveHomeDir } from "../loader"
 import type { MigrationClock, MigrationEnvironment, MigrationFileSystem, MigrationProcess } from "./types"
 

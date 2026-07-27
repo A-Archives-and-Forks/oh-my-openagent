@@ -1,5 +1,6 @@
 import { basename, dirname, join } from "node:path"
-import { isPlainObject, parseJsoncSafe } from "@oh-my-opencode/utils"
+import { isPlainObject } from "../internal/plain-object"
+import { parseJsoncSafe } from "../internal/jsonc-parse"
 import { resolveHomeDir } from "../loader"
 import { OmoConfigSchema } from "../schema"
 import { updateOmoConfig } from "../writer"

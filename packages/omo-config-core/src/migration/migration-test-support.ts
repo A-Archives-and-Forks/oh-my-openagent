@@ -1,4 +1,5 @@
-import { isPlainObject, parseJsoncSafe } from "@oh-my-opencode/utils"
+import { isPlainObject } from "../internal/plain-object"
+import { parseJsoncSafe } from "../internal/jsonc-parse"
 import type { MigrationFileSystem } from "./types"
 
 function fileError(code: string, message: string): Error {

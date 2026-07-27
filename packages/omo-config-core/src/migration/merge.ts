@@ -1,4 +1,4 @@
-import { isPlainObject, isUnsafeObjectKey } from "@oh-my-opencode/utils"
+import { isPlainObject, isUnsafeObjectKey } from "../internal/plain-object"
 
 export type NoClobberMergeResult = {
   readonly additions: Record<string, unknown>

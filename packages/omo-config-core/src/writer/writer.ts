@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import { dirname, join } from "node:path"
-import { parseJsoncSafe } from "@oh-my-opencode/utils"
+import { parseJsoncSafe } from "../internal/jsonc-parse"
 import { applyEdits, modify } from "jsonc-parser/lib/esm/main.js"
 import { resolveUserOmoConfigPath } from "../loader"
 import {
