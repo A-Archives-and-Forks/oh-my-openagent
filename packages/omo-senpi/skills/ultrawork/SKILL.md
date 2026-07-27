@@ -346,15 +346,16 @@ Blocking waits are gone from this harness. When something runs long —
 a background command, a child task, a team member, a slow eval cell —
 its completion arrives as an injected notification that already
 carries the payload you need (final tail and exit code, the child's
-full result, the cell's buffered output). End your turn or keep doing
-independent root work; the notification wakes you. Never re-poll the
-same surface with empty reads — every status check you issue as a
-tool call replays the entire accumulated context through the model.
+full result, the cell's buffered output). Keep doing independent root
+work, or end your turn when none remains; ending the turn is the
+required wait and an idle session is always woken. Never re-poll the
+same surface with empty reads — every status check replays the entire
+accumulated context through the model.
 - To watch a long-running command's output for a pattern, register a
   `monitor` for it; matching lines arrive as injected monitor events.
-- Need a midpoint read? Peek once with `bash_output` or
-  `task_output({ mode: "tail" })` — both return immediately — then go
-  back to root work.
+- Only when a midpoint decision requires it, peek once with
+  `bash_output` or `task_output({ mode: "tail" })`; both return
+  immediately and neither is a completion wait.
 
 # omo-senpi task + team tools
 Delegate through the `task` tool: `prompt` plus exactly ONE of
