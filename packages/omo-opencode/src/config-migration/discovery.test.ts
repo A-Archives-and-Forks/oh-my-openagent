@@ -26,6 +26,38 @@ function memoryFileSystem(paths: readonly string[]): ConfigMigrationDiscoveryFil
   }
 }
 
+function shortPathMemoryFileSystem(
+  shortHome: string,
+  longHome: string,
+  paths: readonly string[],
+): ConfigMigrationDiscoveryFileSystem {
+  const normalizedShortHome = win32.normalize(shortHome)
+  const normalizedLongHome = win32.normalize(longHome)
+  const normalize = (path: string): string => win32.normalize(path)
+    .replace(normalizedShortHome, normalizedLongHome)
+    .toLowerCase()
+  const files = new Set(paths.map(normalize))
+  const existsSync = (path: string): boolean => {
+    const key = normalize(path)
+    return files.has(key) || [...files].some((file) => file.startsWith(`${key}\\`))
+  }
+  return {
+    existsSync,
+    readdirSync: (directory): string[] => {
+      const prefix = `${normalize(directory).replace(/[\\/]$/, "")}\\`
+      return [...new Set(
+        [...files]
+          .filter((path) => path.startsWith(prefix))
+          .map((path) => path.slice(prefix.length).split("\\")[0])
+      )]
+    },
+    realpathSync: (path): string => {
+      if (!existsSync(path)) throw Object.assign(new Error(`Missing ${path}`), { code: "ENOENT" })
+      return win32.normalize(path).replace(normalizedShortHome, normalizedLongHome)
+    },
+  }
+}
+
 describe("legacy config discovery", () => {
   test("#given a custom active profile, default config, Tauri config, and walked project config #when discovering sources #then roots are deduplicated and separated from config.jsonc", () => {
     // given
@@ -82,6 +114,31 @@ describe("legacy config discovery", () => {
     expect(opencodeGroup.sources.some((source) => source.path.includes("__test"))).toBe(false)
     expect(groups[1].sources).toEqual([
       expect.objectContaining({ kind: "config-jsonc", path: "/home/alice/.omo/config.jsonc" }),
+    ])
+  })
+
+  test("#given a native Windows HOME with the POSIX CLI adapter #when its short path expands through realpath #then discovery keeps the canonical source within the config root", () => {
+    // given
+    const shortHome = "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\omo-config-migrate-A1B2\\home"
+    const longHome = "C:\\Users\\runner\\AppData\\Local\\Temp\\omo-config-migrate-A1B2\\home"
+    const sourcePath = win32.join(shortHome, ".config", "opencode", "oh-my-openagent.json")
+
+    // when
+    const groups = discoverLegacyConfigGroups({
+      cwd: win32.join(shortHome, "project"),
+      environment: { HOME: shortHome, XDG_CONFIG_HOME: posix.join(shortHome, ".config") },
+      fileSystem: shortPathMemoryFileSystem(shortHome, longHome, [sourcePath]),
+      homeDir: shortHome,
+      pathOperations: posix,
+      platform: "win32",
+    })
+
+    // then
+    expect(groups[0]?.sources).toEqual([
+      expect.objectContaining({
+        configPath: win32.join(longHome, ".config", "opencode", "oh-my-openagent.json").replaceAll("\\", "/"),
+        path: win32.join(longHome, ".config", "opencode", "oh-my-openagent.json").replaceAll("\\", "/"),
+      }),
     ])
   })
 

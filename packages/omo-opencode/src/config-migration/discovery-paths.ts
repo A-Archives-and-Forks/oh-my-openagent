@@ -1,4 +1,4 @@
-import { win32 } from "node:path"
+import { posix, win32 } from "node:path"
 
 import { DEFAULT_DISCOVERY_FILE_SYSTEM, type ConfigMigrationDiscoveryOptions } from "./types"
 
@@ -17,13 +17,24 @@ export function discoveryFileSystem(options: ConfigMigrationDiscoveryOptions) {
   return options.fileSystem ?? DEFAULT_DISCOVERY_FILE_SYSTEM
 }
 
+function usesWindowsPathSemantics(options: ConfigMigrationDiscoveryOptions): boolean {
+  return options.platform === "win32" || (options.platform === undefined && process.platform === "win32")
+}
+
+function normalizeWindowsPosixPath(path: string, options: ConfigMigrationDiscoveryOptions): string {
+  return usesWindowsPathSemantics(options) && options.pathOperations === posix ? path.replaceAll("\\", "/") : path
+}
+
 export function canonicalPath(path: string, options: ConfigMigrationDiscoveryOptions): string {
-  const normalized = options.pathOperations.resolve(options.pathOperations.normalize(path))
+  const normalized = options.pathOperations.normalize(path)
+  const resolved = usesWindowsPathSemantics(options) && win32.isAbsolute(normalized)
+    ? normalized
+    : options.pathOperations.resolve(normalized)
   try {
-    return discoveryFileSystem(options).realpathSync(normalized)
+    return normalizeWindowsPosixPath(discoveryFileSystem(options).realpathSync(resolved), options)
   } catch (error) {
     if (error instanceof Error && (Reflect.get(error, "code") === "ENOENT" || Reflect.get(error, "code") === "ENOTDIR")) {
-      return normalized
+      return normalizeWindowsPosixPath(resolved, options)
     }
     throw error
   }
