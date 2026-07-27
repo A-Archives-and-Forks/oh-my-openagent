@@ -1,5 +1,6 @@
 import { join } from "node:path"
 import { isPlainObject } from "../internal/plain-object"
+import { toPosixPath } from "../internal/posix-path"
 import { resolveHomeDir } from "../loader"
 import type { MigrationClock, MigrationEnvironment, MigrationFileSystem, MigrationProcess } from "./types"
 
@@ -21,7 +22,7 @@ export type MigrationJournal = {
 }
 
 export function migrationJournalPath(env: MigrationEnvironment): string {
-  return join(resolveHomeDir(env), ".omo", ".migration-journal.json")
+  return toPosixPath(join(resolveHomeDir(env), ".omo", ".migration-journal.json"))
 }
 
 function isFileExistsError(error: unknown): boolean {

@@ -1,4 +1,5 @@
 import { dirname, isAbsolute, join, relative, resolve } from "node:path"
+import { toPosixPath } from "../internal/posix-path"
 import { DEFAULT_READ_FILE_SYSTEM, type OmoConfigEnv, type OmoConfigReadFileSystem } from "./types"
 
 export type OmoConfigPathCandidate = {
@@ -19,7 +20,7 @@ function containsPath(parent: string, child: string): boolean {
 }
 
 export function resolveHomeDir(env: OmoConfigEnv = process.env): string {
-  return resolve(env.HOME ?? env.USERPROFILE ?? process.cwd())
+  return toPosixPath(resolve(env.HOME ?? env.USERPROFILE ?? process.cwd()))
 }
 
 export function resolveUserOmoConfigPath(env: OmoConfigEnv = process.env): string {
