@@ -15,13 +15,13 @@ export const CATEGORY_FALLBACK_CHAINS: Readonly<Record<string, readonly Delegate
     { providers: ["zai-coding-plan", "opencode", "bailian-coding-plan", "vercel"], model: "glm-5" },
     { providers: ["opencode-go", "vercel"], model: "glm-5.2" },
   ],
+  architect: [
+    { providers: ["anthropic", "anthropic-api", "github-copilot", "opencode", "vercel"], model: "claude-fable-5", variant: "xhigh" },
+  ],
   ultrabrain: [
-    { providers: ["openai", "vercel"], model: "gpt-5.6-sol", variant: "xhigh" },
+    { providers: ["openai", "quotio-openai", "vercel"], model: "gpt-5.6-sol", variant: "max" },
     { providers: ["github-copilot"], model: "gpt-5.6-sol", variant: "high" },
-    { providers: ["openai", "opencode", "vercel"], model: "gpt-5.6-sol", variant: "xhigh" },
-    { providers: ["google", "github-copilot", "opencode", "vercel"], model: "gemini-3.1-pro", variant: "high" },
-    { providers: ["anthropic", "github-copilot", "opencode", "vercel"], model: "claude-opus-5", variant: "max" },
-    { providers: ["opencode-go", "vercel"], model: "glm-5.2" },
+    { providers: ["openai", "opencode", "vercel"], model: "gpt-5.6-sol", variant: "max" },
   ],
   deep: [
     { providers: ["openai", "vercel"], model: "gpt-5.6-terra", variant: "xhigh" },

@@ -14,6 +14,8 @@ import {
   CATEGORY_PROMPT_APPEND_RESOLVERS,
   CATEGORY_PROMPT_APPENDS,
   DEFAULT_CATEGORIES,
+  categoryGateModel,
+  isCategoryGateSatisfied,
 } from "./builtins"
 import { CATEGORY_FALLBACK_CHAINS } from "./fallback-chains"
 import type {
@@ -118,8 +120,23 @@ function flattenFallbackModels(fallbackModels: OmoFallbackModels | undefined): r
   return fallbackModels.map((fallback) => typeof fallback === "string" ? fallback : fallbackObjectToString(fallback))
 }
 
-function availableCategoryNames(config: OmoConfig): readonly string[] {
-  return Array.from(new Set([...Object.keys(DEFAULT_CATEGORIES), ...Object.keys(config.categories ?? {})])).sort()
+function availableCategoryNames(config: OmoConfig, availableModelIds?: ReadonlySet<string>): readonly string[] {
+  const names = Array.from(new Set([...Object.keys(DEFAULT_CATEGORIES), ...Object.keys(config.categories ?? {})])).sort()
+  if (availableModelIds === undefined) return names
+  const userCategories = config.categories ?? {}
+  return names.filter((name) =>
+    isCategoryGateSatisfied(name, getOwnRecordValue(userCategories, name) !== undefined, availableModelIds)
+  )
+}
+
+function modelIdsOf(models: readonly string[]): ReadonlySet<string> {
+  const ids = new Set<string>()
+  for (const entry of models) {
+    const modelId = entry.slice(entry.indexOf("/") + 1)
+    ids.add(modelId)
+    ids.add(modelId.slice(modelId.lastIndexOf("/") + 1))
+  }
+  return ids
 }
 
 function getOwnRecordValue<TValue>(
@@ -197,6 +214,18 @@ export function resolveCategory<TModel extends SenpiModelPort>(
       availableCategories,
     }
   }
+
+  const gatedCategories = availableCategoryNames(omoConfig, modelIdsOf(availableModels))
+  if (!isCategoryGateSatisfied(categoryName, userConfig !== undefined, modelIdsOf(availableModels))) {
+    return {
+      kind: "model_unavailable",
+      category: categoryName,
+      attemptedModel: builtinConfig?.model ?? config.model,
+      availableModels,
+      availableCategories: gatedCategories,
+    }
+  }
+
   const fallbackChain = getOwnRecordValue(CATEGORY_FALLBACK_CHAINS, categoryName)
   const resolution = resolveModelForDelegateTask(
     {
@@ -221,7 +250,7 @@ export function resolveCategory<TModel extends SenpiModelPort>(
       category: categoryName,
       attemptedModel: config.model,
       availableModels,
-      availableCategories,
+      availableCategories: gatedCategories,
     }
   }
 
@@ -242,7 +271,7 @@ export function resolveCategory<TModel extends SenpiModelPort>(
       category: categoryName,
       attemptedModel: selection.selectedModel,
       availableModels,
-      availableCategories,
+      availableCategories: gatedCategories,
       ...(fallback !== undefined ? { nearestFallback: fallback } : {}),
       ...(selection.fallbackEntry !== undefined ? { fallbackEntry: selection.fallbackEntry } : {}),
     }
@@ -271,6 +300,6 @@ export function resolveCategory<TModel extends SenpiModelPort>(
     config,
     description: userConfig?.description ?? getOwnRecordValue(CATEGORY_DESCRIPTIONS, categoryName),
     modelSelection: selection,
-    availableCategories,
+    availableCategories: gatedCategories,
   }
 }
