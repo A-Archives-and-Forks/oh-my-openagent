@@ -1,16 +1,10 @@
 import {
-  HARNESS_IDS,
   SETTING_HARNESS_SUPPORT,
-  type CodegraphConfig,
+  type CodegraphConfig as CoreCodegraphConfig,
   type HarnessId,
 } from "@oh-my-opencode/omo-config-core"
 
-export {
-  HARNESS_IDS,
-  SETTING_HARNESS_SUPPORT,
-  type CodegraphConfig,
-  type HarnessId,
-}
+export type CodegraphConfig = CoreCodegraphConfig
 
 export type HarnessOverrideConfig = {
   readonly codegraph?: Partial<CodegraphConfig>

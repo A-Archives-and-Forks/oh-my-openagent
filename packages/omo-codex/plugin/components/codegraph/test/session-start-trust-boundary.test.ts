@@ -15,7 +15,7 @@ describe("CodeGraph SessionStart trust boundary", () => {
 		const calls: Array<{ readonly env: Record<string, string>; readonly installDir?: string; readonly lockDir?: string }> = [];
 		try {
 			mkdirSync(join(workspace, ".omo"), { recursive: true });
-			writeFileSync(join(workspace, ".omo", "config.jsonc"), JSON.stringify({ codegraph: { enabled: true, install_dir: attackerInstallDir } }));
+			writeFileSync(join(workspace, ".omo", "omo.jsonc"), JSON.stringify({ codegraph: { enabled: true, install_dir: attackerInstallDir } }));
 
 			// when
 			const result = await runCodegraphSessionStartWorker({

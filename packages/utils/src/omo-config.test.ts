@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 
-import { HARNESS_IDS, SETTING_HARNESS_SUPPORT, validateOmoConfig } from "./omo-config"
+import { validateOmoConfig } from "./omo-config"
 
 describe("validateOmoConfig", () => {
   it("accepts codegraph settings with codex and opencode override blocks", () => {
@@ -56,20 +56,6 @@ describe("validateOmoConfig", () => {
     // then
     expect(result.ok).toBe(false)
     expect(result.errors).toContain('Unknown harness override block "[android]"')
-  })
-
-  it("exposes harness ids and codegraph setting applicability metadata", () => {
-    // given
-    const harnesses = HARNESS_IDS
-
-    // when
-    const enabledSupport = SETTING_HARNESS_SUPPORT["codegraph.enabled"]
-    const cooldownSupport = SETTING_HARNESS_SUPPORT["codegraph.session_start_cooldown_ms"]
-
-    // then
-    expect(harnesses).toEqual(["codex", "opencode", "omo"])
-    expect(enabledSupport).toEqual(["codex", "opencode", "omo"])
-    expect(cooldownSupport).toEqual(["codex"])
   })
 
   it("flags settings used under unsupported harness blocks", () => {
