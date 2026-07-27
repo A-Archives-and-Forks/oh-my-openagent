@@ -24,6 +24,10 @@
 
 The component tests cover exact-directory initialization, timeout/inconclusive fail-closed behavior, atomic lock deduplication, stale-lock recovery, cooldown expiry and exponential backoff, nested-root suppression, direct `init` without `status`, and timeout-to-cooldown behavior. The installed-fixture probe exercises the built artifact rather than TypeScript source and directly checks the regression signature: no status CLI, no worker, no lock, and no outcome-log growth for an already initialized project. The app-server artifact separately proves Codex still wires and completes the SessionStart hook in a real isolated turn.
 
+## Post-rebase verification
+
+After rebasing onto `dev` with the CodeGraph 1.5.0 managed-runtime changes, the component build succeeded, all 78 component tests passed with 249 assertions, and `tsc --noEmit` completed without diagnostics. The four utils suites touching OMO config passed 22/22 tests, the Codex config-loader suite passed 10/10 tests, and the regenerated omo-senpi extension passed `build-extension.mjs --check` with the reported state `current`. This specifically verifies that version-aware managed-runtime re-provisioning remains intact alongside the no-status SessionStart bootstrap guards.
+
 ## What was omitted
 
 - No TUI smoke was run because this change has no visual or interactive behavior; the app-server notification stream is the assertion-grade lifecycle surface.
