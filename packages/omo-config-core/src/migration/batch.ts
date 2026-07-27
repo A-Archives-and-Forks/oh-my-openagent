@@ -1,4 +1,4 @@
-import { dirname } from "node:path"
+import { dirname, posix } from "node:path"
 
 import { isPlainObject } from "../internal/plain-object"
 import { parseJsoncSafe } from "../internal/jsonc-parse"
@@ -78,8 +78,12 @@ function assertSafeSourcePaths(sources: readonly MigrationSourceDescriptor[], pr
   }
 }
 
+function directoryPath(path: string): string {
+  return path.startsWith("/") ? posix.dirname(path) : dirname(path)
+}
+
 function ensureBackupDirectories(moves: readonly MigrationBackupMove[], fileSystem: MigrationFileSystem): void {
-  for (const move of moves) fileSystem.mkdirSync(dirname(move.to), { recursive: true })
+  for (const move of moves) fileSystem.mkdirSync(directoryPath(move.to), { recursive: true })
 }
 
 function executePlan(input: {

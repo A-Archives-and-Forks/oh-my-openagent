@@ -32,7 +32,7 @@ describe("legacy config leftovers doctor warning", () => {
 
     // then
     expect(leftovers).toHaveLength(1)
-    expect(leftovers[0]).toEndWith(".config/opencode/oh-my-openagent.json")
+    expect(leftovers[0]).toEndWith(join(".config", "opencode", "oh-my-openagent.json"))
     expect(warning).toMatchObject({
       severity: "warning",
       fix: expect.stringContaining("oh-my-openagent config migrate"),

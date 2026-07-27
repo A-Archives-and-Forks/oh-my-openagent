@@ -1,4 +1,4 @@
-import { dirname } from "node:path"
+import { dirname, posix } from "node:path"
 
 import {
   DEFAULT_MIGRATION_FILE_SYSTEM,
@@ -15,13 +15,17 @@ export type ExecuteLegacyConfigMigrationPlanOptions = Omit<
   "id" | "sources" | "targetPath" | "transform"
 >
 
+function directoryPath(path: string): string {
+  return path.startsWith("/") ? posix.dirname(path) : dirname(path)
+}
+
 function createBackupDirectories(
   plan: LegacyConfigMigrationPlan,
   fileSystem: MigrationFileSystem,
 ): void {
   for (const source of plan.sources) {
     if (source.backupPath === undefined) continue
-    fileSystem.mkdirSync(dirname(source.backupPath), { recursive: true })
+    fileSystem.mkdirSync(directoryPath(source.backupPath), { recursive: true })
   }
 }
 
