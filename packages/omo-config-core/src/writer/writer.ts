@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { dirname, join } from "node:path"
 import { parseJsoncSafe } from "../internal/jsonc-parse"
+import { toPosixPath } from "../internal/posix-path"
 import { applyEdits, modify } from "jsonc-parser/lib/esm/main.js"
 import { resolveUserOmoConfigPath } from "../loader"
 import {
@@ -116,7 +117,7 @@ function assertJsoncCanBeModified(path: string, content: string): void {
 
 export function updateOmoConfig(options: UpdateOmoConfigOptions): UpdateOmoConfigResult {
   const fileSystem = options.fileSystem ?? DEFAULT_WRITE_FILE_SYSTEM
-  const path = resolveWritePath(options)
+  const path = toPosixPath(resolveWritePath(options))
   const directory = dirname(path)
   const existed = fileSystem.existsSync(path)
   let content = EMPTY_OMO_CONFIG
