@@ -174,17 +174,22 @@ describe("fallback-architect component", () => {
     })
 
     describe("#when the prompt was queued while the agent was streaming", () => {
-      it("#then no reminder is injected and the typed text is left alone", async () => {
+      it("#then the reminder rides inside that same prompt instead of burning its own turn", async () => {
         const pi = await setup()
         await endMessage(pi, refusalMessage())
         await selectModel(pi, { model: OPUS, previousModel: FABLE, source: "fallback" })
 
-        const steer = await sendQueuedInput(pi, "steer")
-        const followUp = await sendQueuedInput(pi, "followUp")
+        const steer = (await sendQueuedInput(pi, "steer")) as { action: string; text: string }
+        const followUp = (await sendQueuedInput(pi, "followUp")) as { action: string; text: string }
 
-        expect(steer).toEqual({ action: "continue" })
-        expect(followUp).toEqual({ action: "continue" })
-        expect(reminders(pi)).toHaveLength(0)
+        for (const result of [steer, followUp]) {
+          expect(result.action).toBe("transform")
+          // Appended, never prepended: a leading `/skill:` command must still expand.
+          expect(result.text.startsWith("next question")).toBe(true)
+          expect(result.text).toContain('task(category: "architect")')
+        }
+        // No separate steering message was created, so nothing consumes an extra assistant turn.
+        expect(pi.messages.filter((call) => call.message["customType"] === FALLBACK_ARCHITECT_REMINDER_TYPE)).toHaveLength(0)
       })
     })
 

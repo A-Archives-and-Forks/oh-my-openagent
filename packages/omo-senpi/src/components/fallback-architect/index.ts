@@ -16,6 +16,10 @@ import {
 
 const FALLBACK_ARCHITECT_DISABLED_FLAG = "omo-senpi-fallback-architect-disabled"
 
+type FallbackArchitectInputResult =
+  | { action: "continue" }
+  | { action: "transform"; text: string; images?: readonly unknown[] }
+
 export interface FallbackArchitectComponentOptions {
   /** Injectable so tests can decide the gate without depending on the developer's own omo.json. */
   hasArchitectCategory?: (cwd: string) => boolean
@@ -81,20 +85,29 @@ export function createFallbackArchitectComponent(
         ctx.logger.info("omo-senpi fallback-architect directive injected", { from, to })
       })
 
-      pi.on("input", (payload: unknown): { action: "continue" } => {
+      pi.on("input", (payload: unknown): FallbackArchitectInputResult => {
         if (isDisabled() || state.active === undefined) return { action: "continue" }
         if (!isUserSourcedInput(payload)) return { action: "continue" }
+
+        const reminder = buildFallbackArchitectReminder({ from: state.active.from })
+
         // A prompt queued mid-stream carries streamingBehavior. Senpi drains those queues one
         // message at a time and answers each drained message, so a separate hidden message would
-        // burn its own assistant turn before the user's actual ask is handled (the same trap
-        // documented in components/ultrawork/index.ts). The directive is already in context by
-        // then, so the right move for a supplementary reminder is to skip this prompt rather than
-        // rewrite the user's text.
-        if (isQueuedDuringStreaming(payload)) return { action: "continue" }
+        // burn its own assistant turn before the user's actual ask is handled. Carry the reminder
+        // inside that one queued message instead, appending so a leading `/skill:` command still
+        // expands. Same reasoning and same shape as components/ultrawork/index.ts.
+        if (isQueuedDuringStreaming(payload)) {
+          const images = payload["images"]
+          return {
+            action: "transform",
+            text: `${payload["text"]}\n${reminder}`,
+            ...(Array.isArray(images) ? { images } : {}),
+          }
+        }
 
         pi.sendMessage({
           customType: FALLBACK_ARCHITECT_REMINDER_TYPE,
-          content: buildFallbackArchitectReminder({ from: state.active.from }),
+          content: reminder,
           display: false,
         })
         return { action: "continue" }
@@ -111,8 +124,13 @@ function isQueuedDuringStreaming(payload: unknown): boolean {
   return isRecord(payload) && typeof payload["streamingBehavior"] === "string"
 }
 
-function isUserSourcedInput(payload: unknown): boolean {
-  return isRecord(payload) && payload["type"] === "input" && payload["source"] !== "extension"
+function isUserSourcedInput(payload: unknown): payload is Record<string, unknown> & { text: string } {
+  return (
+    isRecord(payload) &&
+    payload["type"] === "input" &&
+    payload["source"] !== "extension" &&
+    typeof payload["text"] === "string"
+  )
 }
 
 function extractCwd(eventCtx: unknown): string | undefined {
