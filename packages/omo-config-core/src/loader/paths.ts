@@ -1,4 +1,5 @@
-import { dirname, isAbsolute, join, relative, resolve } from "node:path"
+import { dirname, isAbsolute, join, posix, relative, resolve } from "node:path"
+import { toPosixPath } from "../internal/posix-path"
 import { DEFAULT_READ_FILE_SYSTEM, type OmoConfigEnv, type OmoConfigReadFileSystem } from "./types"
 
 export type OmoConfigPathCandidate = {
@@ -19,7 +20,8 @@ function containsPath(parent: string, child: string): boolean {
 }
 
 export function resolveHomeDir(env: OmoConfigEnv = process.env): string {
-  return resolve(env.HOME ?? env.USERPROFILE ?? process.cwd())
+  const homeDir = env.HOME ?? env.USERPROFILE ?? process.cwd()
+  return homeDir.startsWith("/") ? posix.resolve(homeDir) : toPosixPath(resolve(homeDir))
 }
 
 export function resolveUserOmoConfigPath(env: OmoConfigEnv = process.env): string {
@@ -88,7 +90,6 @@ export function findProjectConfigPathsFarthestFirst(
 export function resolveOmoConfigPaths(options: ResolveOmoConfigPathsOptions): readonly OmoConfigPathCandidate[] {
   const fileSystem = options.fileSystem ?? DEFAULT_READ_FILE_SYSTEM
   const env = options.env ?? process.env
-  const platform = options.platform ?? process.platform
   const userPath = detectUserOmoJsonPath(env, fileSystem)
   const projectPaths = findProjectConfigPathsFarthestFirst(options.cwd, resolveHomeDir(env), fileSystem)
   return [

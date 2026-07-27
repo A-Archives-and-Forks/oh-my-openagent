@@ -65,7 +65,7 @@ export const DEFAULT_WRITE_FILE_SYSTEM: OmoConfigWriteFileSystem = {
 }
 
 export class OmoConfigWriteError extends Error {
-  readonly name = "OmoConfigWriteError"
+  override readonly name = "OmoConfigWriteError"
 
   constructor(
     readonly path: string,

@@ -35,7 +35,12 @@ function fakeNodeSupport(overrides: Partial<CodegraphNodeSupport> = {}): Codegra
 }
 
 function loadedConfig(daemon: boolean = true) {
-	return { config: { codegraph: { daemon } }, diagnostics: [], sources: [] }
+	return {
+		config: { codegraph: { auto_provision: true, daemon, enabled: true, telemetry: false } },
+		diagnostics: [],
+		layers: [],
+		sources: [],
+	}
 }
 
 function testCodegraphEnv({ daemon }: { readonly daemon: boolean }): Record<string, string> {

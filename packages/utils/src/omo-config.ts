@@ -1,16 +1,15 @@
-export const HARNESS_IDS = ["codex", "opencode", "omo"] as const
+import {
+  HARNESS_IDS,
+  SETTING_HARNESS_SUPPORT,
+  type CodegraphConfig,
+  type HarnessId,
+} from "@oh-my-opencode/omo-config-core"
 
-export type HarnessId = (typeof HARNESS_IDS)[number]
-
-export interface CodegraphConfig {
-  readonly auto_provision?: boolean
-  readonly daemon?: boolean
-  readonly enabled?: boolean
-  readonly excluded_roots?: readonly string[]
-  readonly install_dir?: string
-  readonly session_start_cooldown_ms?: number
-  readonly telemetry?: boolean
-  readonly watch_debounce_ms?: number
+export {
+  HARNESS_IDS,
+  SETTING_HARNESS_SUPPORT,
+  type CodegraphConfig,
+  type HarnessId,
 }
 
 export type HarnessOverrideConfig = {
@@ -26,17 +25,6 @@ export type OmoConfig = HarnessOverrideConfig & {
 type CodegraphSettingKey = keyof CodegraphConfig
 type SettingPath = `codegraph.${CodegraphSettingKey}`
 
-export const SETTING_HARNESS_SUPPORT: Record<SettingPath, readonly HarnessId[]> = {
-  "codegraph.auto_provision": HARNESS_IDS,
-  "codegraph.daemon": ["codex", "opencode"],
-  "codegraph.enabled": HARNESS_IDS,
-  "codegraph.excluded_roots": ["codex", "opencode"],
-  "codegraph.install_dir": HARNESS_IDS,
-  "codegraph.session_start_cooldown_ms": ["codex"],
-  "codegraph.telemetry": HARNESS_IDS,
-  "codegraph.watch_debounce_ms": ["opencode", "omo"],
-} as const
-
 export interface OmoConfigValidationResult {
   readonly errors: readonly string[]
   readonly ok: boolean
@@ -47,6 +35,8 @@ const HARNESS_BLOCK_KEYS: Record<string, HarnessId> = {
   "[omo]": "omo",
   "[opencode]": "opencode",
 }
+
+const SESSION_START_COOLDOWN_FLOOR_MS = 60_000
 
 const CODEGRAPH_VALUE_TYPES: Record<CodegraphSettingKey, "boolean" | "number" | "string" | "string_array"> = {
   auto_provision: "boolean",
@@ -98,13 +88,17 @@ function validateCodegraphSection(
       continue
     }
 
-    if (settingKey === "session_start_cooldown_ms" && typeof value === "number" && (!Number.isFinite(value) || value < 60_000)) {
-      errors.push(`${pathPrefix}.${key} must be a finite number of at least 60000`)
+    if (settingKey === "watch_debounce_ms" && typeof value === "number" && (!Number.isFinite(value) || value < 0)) {
+      errors.push(`${pathPrefix}.${key} must be a non-negative finite number`)
       continue
     }
 
-    if (settingKey === "watch_debounce_ms" && typeof value === "number" && (!Number.isFinite(value) || value < 0)) {
-      errors.push(`${pathPrefix}.${key} must be a non-negative finite number`)
+    if (
+      settingKey === "session_start_cooldown_ms" &&
+      typeof value === "number" &&
+      (!Number.isFinite(value) || value < SESSION_START_COOLDOWN_FLOOR_MS)
+    ) {
+      errors.push(`${pathPrefix}.${key} must be a finite number of at least ${SESSION_START_COOLDOWN_FLOOR_MS}`)
       continue
     }
 
