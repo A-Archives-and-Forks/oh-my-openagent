@@ -806,8 +806,161 @@ function resolveCodegraphCommand(options = {}) {
 }
 
 // ../../../../utils/src/process-tree.ts
-import { execFile, spawn } from "node:child_process";
+import { spawn } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
+
+// ../../../../utils/src/process-tree-termination.ts
+import { execFile } from "node:child_process";
+async function terminateProcessTree(pid, options) {
+  return options.platform === "win32" ? terminateWindowsProcessTree(pid, options) : terminatePosixProcessTree(pid, options);
+}
+async function terminatePosixProcessTree(pid, options) {
+  const attempts = [];
+  const knownPids = new Set(await listPosixTreePids(pid));
+  attempts.push(attemptPosixSignal(pid, "SIGTERM", "process-group"));
+  await waitForDirectChild(options.childClosed, options.graceMs);
+  for (const treePid of await listPosixTreePids(pid))
+    knownPids.add(treePid);
+  const gracefulSurvivors = [...knownPids].filter(isProcessAlive);
+  if (gracefulSurvivors.length > 0) {
+    attempts.push(attemptPosixSignal(pid, "SIGKILL", "process-group"));
+    for (const survivorPid of gracefulSurvivors) {
+      attempts.push(attemptPosixSignal(survivorPid, "SIGKILL", "process"));
+    }
+  }
+  const [survivorPids] = await Promise.all([
+    waitForSurvivors([...knownPids], options.waitMs),
+    waitForDirectChild(options.childClosed, options.waitMs)
+  ]);
+  return { attempts, survivorPids };
+}
+async function terminateWindowsProcessTree(pid, options) {
+  const attempts = [];
+  attempts.push(await attemptWindowsTreeSignal(pid, "SIGTERM"));
+  await waitForDirectChild(options.childClosed, options.graceMs);
+  if (isProcessAlive(pid))
+    attempts.push(await attemptWindowsTreeSignal(pid, "SIGKILL"));
+  const [survivorPids] = await Promise.all([
+    waitForSurvivors([pid], options.waitMs),
+    waitForDirectChild(options.childClosed, options.waitMs)
+  ]);
+  return { attempts, survivorPids };
+}
+function attemptPosixSignal(pid, signal, target) {
+  try {
+    process.kill(target === "process-group" ? -pid : pid, signal);
+    return { outcome: "sent", pid, signal, target };
+  } catch (error) {
+    if (!(error instanceof Error))
+      throw error;
+    const code = "code" in error ? error.code : undefined;
+    if (code === "ESRCH")
+      return { outcome: "missing", pid, signal, target };
+    if (code === "EPERM")
+      return { error: error.message, outcome: "denied", pid, signal, target };
+    return { error: error.message, outcome: "failed", pid, signal, target };
+  }
+}
+function attemptWindowsTreeSignal(pid, signal) {
+  const args = ["/PID", String(pid), "/T", ...signal === "SIGKILL" ? ["/F"] : []];
+  return new Promise((resolvePromise) => {
+    execFile("taskkill.exe", args, { timeout: 5000, windowsHide: true }, (error) => {
+      if (error === null) {
+        resolvePromise({ outcome: "sent", pid, signal, target: "process-tree" });
+        return;
+      }
+      const code = "code" in error ? error.code : undefined;
+      const outcome = code === "EPERM" ? "denied" : code === "ESRCH" ? "missing" : "failed";
+      resolvePromise({ error: error.message, outcome, pid, signal, target: "process-tree" });
+    });
+  });
+}
+async function listPosixTreePids(rootPid) {
+  try {
+    const rows = parseProcessRows(await execFileText("ps", ["-eo", "pid=,ppid=,pgid="]));
+    const selected = new Set([rootPid]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const row of rows) {
+        if (selected.has(row.pid) || row.pgid !== rootPid && !selected.has(row.ppid))
+          continue;
+        selected.add(row.pid);
+        changed = true;
+      }
+    }
+    return [...selected];
+  } catch (error) {
+    if (error instanceof Error)
+      return [rootPid];
+    throw error;
+  }
+}
+function parseProcessRows(output) {
+  const rows = [];
+  for (const line of output.split(/\r?\n/)) {
+    const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s*$/.exec(line);
+    const pidText = match?.[1];
+    const ppidText = match?.[2];
+    const pgidText = match?.[3];
+    if (pidText === undefined || ppidText === undefined || pgidText === undefined)
+      continue;
+    const pid = Number(pidText);
+    const ppid = Number(ppidText);
+    const pgid = Number(pgidText);
+    if (![pid, ppid, pgid].every(Number.isSafeInteger))
+      continue;
+    rows.push({ pgid, pid, ppid });
+  }
+  return rows;
+}
+function execFileText(command, args) {
+  return new Promise((resolvePromise, reject) => {
+    execFile(command, [...args], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024, windowsHide: true }, (error, stdout) => {
+      if (error !== null) {
+        reject(error);
+        return;
+      }
+      resolvePromise(stdout);
+    });
+  });
+}
+async function waitForSurvivors(pids, waitMs) {
+  const deadline = Date.now() + waitMs;
+  let survivors = pids.filter(isProcessAlive);
+  while (survivors.length > 0 && Date.now() < deadline) {
+    await delay(Math.min(25, Math.max(0, deadline - Date.now())));
+    survivors = survivors.filter(isProcessAlive);
+  }
+  return survivors;
+}
+function waitForDirectChild(childClosed, waitMs) {
+  return Promise.race([childClosed, delay(waitMs)]);
+}
+function isProcessAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (!(error instanceof Error))
+      throw error;
+    const code = "code" in error ? error.code : undefined;
+    if (code === "ESRCH")
+      return false;
+    return code === "EPERM";
+  }
+}
+function delay(ms) {
+  if (ms <= 0)
+    return Promise.resolve();
+  return new Promise((resolvePromise) => {
+    setTimeout(resolvePromise, ms);
+  });
+}
+
+// ../../../../utils/src/process-tree.ts
+var DEFAULT_TERMINATION_GRACE_MS = 1000;
+var DEFAULT_TERMINATION_WAIT_MS = 2000;
 function runProcessWithTreeTimeout(options) {
   return new Promise((resolvePromise) => {
     const child = spawn(options.command, [...options.args], {
@@ -825,15 +978,41 @@ function runProcessWithTreeTimeout(options) {
     let overflowed = false;
     let settled = false;
     let treeTermination;
+    let resolveChildClosed = () => {
+      return;
+    };
+    const childClosed = new Promise((resolveClosed) => {
+      resolveChildClosed = resolveClosed;
+    });
     const stderrDecoder = new StringDecoder("utf8");
     const stdoutDecoder = new StringDecoder("utf8");
+    const startTermination = () => {
+      if (treeTermination !== undefined)
+        return treeTermination;
+      treeTermination = child.pid === undefined ? Promise.resolve({ attempts: [], survivorPids: [] }) : terminateProcessTree(child.pid, {
+        childClosed,
+        graceMs: options.terminationGraceMs ?? DEFAULT_TERMINATION_GRACE_MS,
+        platform: process.platform,
+        waitMs: options.terminationWaitMs ?? DEFAULT_TERMINATION_WAIT_MS
+      });
+      treeTermination = treeTermination.then((report) => {
+        try {
+          options.onTerminationReport?.(report);
+        } catch (error) {
+          stderr += `[process-tree] termination observer failed: ${error instanceof Error ? error.message : String(error)}
+`;
+        }
+        return report;
+      });
+      return treeTermination;
+    };
     const capture = (target, chunk) => {
       if (overflowed)
         return;
       const currentBytes = target === "stdout" ? stdoutBytes : stderrBytes;
       if (currentBytes + chunk.length > options.maxBuffer) {
         overflowed = true;
-        treeTermination ??= terminateProcessTree(child.pid);
+        startTermination().then(() => settle(1, null));
         return;
       }
       if (target === "stdout") {
@@ -848,7 +1027,7 @@ function runProcessWithTreeTimeout(options) {
     child.stderr.on("data", (chunk) => capture("stderr", chunk));
     const timeout = setTimeout(() => {
       timedOut = true;
-      treeTermination ??= terminateProcessTree(child.pid);
+      startTermination().then(() => settle(124, child.signalCode));
     }, options.timeoutMs);
     timeout.unref();
     const settle = async (exitCode, signal) => {
@@ -856,35 +1035,20 @@ function runProcessWithTreeTimeout(options) {
         return;
       settled = true;
       clearTimeout(timeout);
-      await treeTermination;
+      const termination = treeTermination === undefined ? null : await treeTermination;
       stderr += stderrDecoder.end();
       stdout += stdoutDecoder.end();
-      resolvePromise({ exitCode, signal, stderr, stdout, timedOut });
+      resolvePromise({ exitCode, signal, stderr, stdout, termination, timedOut });
     };
-    child.once("error", () => void settle(1, null));
-    child.once("close", (code, signal) => void settle(overflowed ? 1 : code ?? 1, signal));
+    child.once("error", () => {
+      resolveChildClosed();
+      settle(1, null);
+    });
+    child.once("close", (code, signal) => {
+      resolveChildClosed();
+      settle(timedOut ? 124 : overflowed ? 1 : code ?? 1, signal);
+    });
   });
-}
-function terminateProcessTree(pid) {
-  if (pid === undefined)
-    return Promise.resolve();
-  if (process.platform === "win32")
-    return taskkillProcessTree(pid);
-  try {
-    process.kill(-pid, "SIGKILL");
-  } catch (error) {
-    if (!isIgnorableKillError(error))
-      throw error;
-  }
-  return Promise.resolve();
-}
-function taskkillProcessTree(pid) {
-  return new Promise((resolvePromise) => {
-    execFile("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { timeout: 5000, windowsHide: true }, () => resolvePromise());
-  });
-}
-function isIgnorableKillError(error) {
-  return error instanceof Error && "code" in error && (error.code === "EPERM" || error.code === "ESRCH");
 }
 
 // ../../shared/src/config-loader.ts
@@ -2189,192 +2353,12 @@ function isNonFatalCodegraphGcError(error) {
 
 // src/hook-sweep.ts
 import { fileURLToPath } from "node:url";
-// ../../../../utils/src/process-sweep/sweeper.ts
-import { existsSync as existsSync8, mkdirSync as mkdirSync2, statSync as statSync2, utimesSync, writeFileSync as writeFileSync2 } from "node:fs";
-import { homedir as homedir10 } from "node:os";
-import { dirname as dirname5, join as join12 } from "node:path";
+// ../../../../utils/src/process-sweep/family-sweeper.ts
+import { existsSync as existsSync7, mkdirSync as mkdirSync2, statSync as statSync2, utimesSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { dirname as dirname4 } from "node:path";
 
-// ../../../../utils/src/codegraph/daemon-lock.ts
-import { readFileSync as readFileSync5, realpathSync as realpathSync4 } from "node:fs";
-import { dirname as dirname4, join as join10, resolve as resolve6 } from "node:path";
-function parseDaemonLock(raw) {
-  const trimmed = raw.trim();
-  if (trimmed.length === 0)
-    return null;
-  try {
-    const parsed = JSON.parse(trimmed);
-    if (typeof parsed === "object" && parsed !== null && "pid" in parsed) {
-      const pid = parsed.pid;
-      if (typeof pid === "number" && Number.isSafeInteger(pid) && pid > 0) {
-        const record = parsed;
-        return {
-          pid,
-          ...typeof record["socketPath"] === "string" ? { socketPath: record["socketPath"] } : {},
-          ...typeof record["startedAt"] === "number" ? { startedAt: record["startedAt"] } : {},
-          ...typeof record["version"] === "string" ? { version: record["version"] } : {}
-        };
-      }
-    }
-    return null;
-  } catch (error) {
-    if (!(error instanceof SyntaxError))
-      throw error;
-  }
-  const legacyPid = Number(trimmed);
-  if (Number.isSafeInteger(legacyPid) && legacyPid > 0)
-    return { pid: legacyPid };
-  return null;
-}
-function daemonLockCandidates(projectRoot) {
-  const dirs = new Set;
-  const resolved = resolve6(projectRoot);
-  collectAncestors(resolved, dirs);
-  collectAncestors(realpathIfPossible2(resolved), dirs);
-  return [...dirs].map((dir) => join10(dir, ".codegraph", "daemon.pid"));
-}
-function evaluateDaemonStaleness(pid, projectRoot) {
-  let sawLock = false;
-  for (const lockPath of daemonLockCandidates(projectRoot)) {
-    const raw = readLockIfPresent(lockPath);
-    if (raw === undefined)
-      continue;
-    if (raw === null)
-      return { stale: false, reason: "lock-unreadable" };
-    sawLock = true;
-    const lock = parseDaemonLock(raw);
-    if (lock === null)
-      return { stale: false, reason: "lock-unparseable" };
-    if (lock.pid === pid)
-      return { stale: false, reason: "lock-pid-match" };
-  }
-  return sawLock ? { stale: true, reason: "lock-pid-mismatch" } : { stale: true, reason: "lock-absent" };
-}
-function readLockIfPresent(lockPath) {
-  try {
-    return readFileSync5(lockPath, "utf8");
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT")
-      return;
-    if (error instanceof Error && "code" in error && error.code === "ENOTDIR")
-      return;
-    return null;
-  }
-}
-function collectAncestors(start, output) {
-  let current = start;
-  for (;; ) {
-    output.add(current);
-    const parent = dirname4(current);
-    if (parent === current)
-      return;
-    current = parent;
-  }
-}
-function realpathIfPossible2(path) {
-  try {
-    return realpathSync4(path);
-  } catch (error) {
-    if (error instanceof Error)
-      return path;
-    throw error;
-  }
-}
-
-// ../../../../utils/src/process-sweep/command-match.ts
-import { posix, win32 } from "node:path";
-function splitCommandTokens(command) {
-  const tokens = [];
-  let current = "";
-  let quote = null;
-  let tokenStarted = false;
-  for (const char of command) {
-    if (quote !== null) {
-      if (char === quote) {
-        quote = null;
-      } else {
-        current += char;
-      }
-      continue;
-    }
-    if (char === '"' || char === "'") {
-      quote = char;
-      tokenStarted = true;
-      continue;
-    }
-    if (/\s/.test(char)) {
-      if (tokenStarted || current.length > 0) {
-        tokens.push(current);
-        current = "";
-        tokenStarted = false;
-      }
-      continue;
-    }
-    current += char;
-  }
-  if (tokenStarted || current.length > 0)
-    tokens.push(current);
-  return tokens;
-}
-function hasExecutableToken(command, expectedPath) {
-  let searchFrom = 0;
-  for (;; ) {
-    const pathIndex = command.indexOf(expectedPath, searchFrom);
-    if (pathIndex < 0)
-      return false;
-    const tokenStart = findTokenStart(command, pathIndex);
-    const tokenEnd = findTokenEnd(command, pathIndex + expectedPath.length);
-    if (command.slice(tokenStart, tokenEnd) === expectedPath && tokenLooksExecutable(command, tokenStart))
-      return true;
-    searchFrom = pathIndex + expectedPath.length;
-  }
-}
-function tokenLooksExecutable(command, tokenStart) {
-  let prefix = command.slice(0, tokenStart).trimEnd();
-  if (prefix.length === 0)
-    return true;
-  for (;; ) {
-    const previousTokenStart = findTokenStart(prefix, prefix.length - 1);
-    const previousToken = prefix.slice(previousTokenStart);
-    if (!previousToken.startsWith("-")) {
-      const executableName = previousToken.split("/").at(-1) ?? previousToken;
-      return /^node\d*(\.exe)?$/i.test(executableName) || /^bun(\.exe)?$/i.test(executableName);
-    }
-    prefix = prefix.slice(0, previousTokenStart).trimEnd();
-    if (prefix.length === 0)
-      return false;
-  }
-}
-function findTokenStart(command, index) {
-  for (let cursor = index - 1;cursor >= 0; cursor -= 1) {
-    if (/\s|["']/.test(command[cursor] ?? ""))
-      return cursor + 1;
-  }
-  return 0;
-}
-function findTokenEnd(command, index) {
-  for (let cursor = index;cursor < command.length; cursor += 1) {
-    if (/\s|["']/.test(command[cursor] ?? ""))
-      return cursor;
-  }
-  return command.length;
-}
-function normalizeRoots(roots, platform) {
-  const normalized = new Set;
-  for (const root of roots) {
-    const trimmed = root.trim();
-    if (trimmed.length === 0)
-      continue;
-    normalized.add(normalizeForComparison2(resolvePathForPlatform(trimmed, platform), platform));
-  }
-  return [...normalized].sort((left, right) => right.length - left.length || left.localeCompare(right));
-}
-function resolvePathForPlatform(value, platform) {
-  return platform === "win32" ? win32.resolve(value) : posix.resolve(value);
-}
-function normalizeForComparison2(value, platform) {
-  const normalized = value.replaceAll("\\", "/").replace(/\/+$/, "");
-  return platform === "win32" ? normalized.toLowerCase() : normalized;
-}
+// ../../../../utils/src/process-sweep/exec.ts
+import { execFile as execFile2 } from "node:child_process";
 
 // ../../../../utils/src/process-sweep/process-table.ts
 function parsePosixProcessTable(output) {
@@ -2435,17 +2419,465 @@ function isRecord3(value) {
   return typeof value === "object" && value !== null;
 }
 
+// ../../../../utils/src/process-sweep/exec.ts
+function enumerateProcesses(platform = process.platform) {
+  return platform === "win32" ? enumerateWindowsProcesses() : enumeratePosixProcesses();
+}
+function createDefaultProcessKiller(platform = process.platform) {
+  return platform === "win32" ? createWindowsKiller() : createPosixKiller();
+}
+function defaultIsProcessAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (!(error instanceof Error))
+      throw error;
+    return processKillErrorMeansAlive(error);
+  }
+}
+function enumeratePosixProcesses() {
+  return execFileText2("ps", ["-eo", "pid=,ppid=,command="]).then(parsePosixProcessTable);
+}
+function enumerateWindowsProcesses() {
+  const command = [
+    "Get-CimInstance Win32_Process",
+    "Select-Object ProcessId,ParentProcessId,CommandLine",
+    "ConvertTo-Json -Compress -Depth 2"
+  ].join(" | ");
+  return execFileText2("powershell.exe", ["-NoProfile", "-Command", command]).then(parseWindowsProcessTable);
+}
+function createPosixKiller() {
+  return {
+    isAlive: defaultIsProcessAlive,
+    kill: (pid) => {
+      process.kill(pid, "SIGKILL");
+      return Promise.resolve();
+    },
+    terminate: (pid) => {
+      process.kill(pid, "SIGTERM");
+      return Promise.resolve();
+    }
+  };
+}
+function createWindowsKiller() {
+  return {
+    isAlive: defaultIsProcessAlive,
+    kill: (pid) => execFileVoid("taskkill.exe", ["/PID", String(pid), "/T", "/F"]),
+    terminate: (pid) => execFileVoid("taskkill.exe", ["/PID", String(pid), "/T"])
+  };
+}
+function execFileText2(command, args) {
+  return new Promise((resolvePromise, reject) => {
+    execFile2(command, [...args], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024, windowsHide: true }, (error, stdout) => {
+      if (error !== null) {
+        reject(error);
+        return;
+      }
+      resolvePromise(stdout);
+    });
+  });
+}
+function execFileVoid(command, args) {
+  return execFileText2(command, args).then(() => {
+    return;
+  });
+}
+function processKillErrorMeansAlive(error) {
+  const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+  if (code === "ESRCH")
+    return false;
+  if (code === "EPERM")
+    return true;
+  return false;
+}
+
+// ../../../../utils/src/process-sweep/family-sweeper.ts
+var DEFAULT_GRACE_MS = 2000;
+var DEFAULT_THROTTLE_MS = 60 * 60 * 1000;
+async function runProcessFamilySweep(config, options) {
+  const nowMs = options.nowMs ?? Date.now();
+  const dryRun = options.dryRun === true;
+  if (options.force !== true && isSweepThrottled(config.stampFile, nowMs, options.throttleMs ?? DEFAULT_THROTTLE_MS)) {
+    return { action: "throttled", candidates: [], dryRun, failed: [], killed: [], spared: [], stampFile: config.stampFile };
+  }
+  try {
+    const plan = await config.collect();
+    const { failed, killed } = dryRun ? { failed: [], killed: [] } : await killTargets(plan.killList, options, config.familyLabel);
+    if (!dryRun)
+      writeSweepStamp(config.stampFile, nowMs);
+    return {
+      action: "swept",
+      candidates: plan.candidates,
+      dryRun,
+      failed,
+      killed,
+      spared: plan.spared,
+      stampFile: config.stampFile
+    };
+  } catch (error) {
+    options.log?.(`${config.familyLabel} skipped: ${error instanceof Error ? error.message : String(error)}`);
+    return { action: "failed", candidates: [], dryRun, failed: [], killed: [], spared: [], stampFile: config.stampFile };
+  }
+}
+async function killTargets(targets, options, familyLabel) {
+  const failed = [];
+  const killed = [];
+  const context = {
+    failed,
+    familyLabel,
+    killer: options.killer ?? createDefaultProcessKiller(options.platform),
+    log: options.log
+  };
+  for (const target of targets) {
+    const terminated = await safelyTerminate(target.pid, context);
+    if (!terminated)
+      continue;
+    await delay2(options.graceMs ?? DEFAULT_GRACE_MS);
+    if (!await context.killer.isAlive(target.pid)) {
+      killed.push(target);
+      continue;
+    }
+    if (await safelyKill(target.pid, context))
+      killed.push(target);
+  }
+  return { failed, killed };
+}
+async function safelyTerminate(pid, context) {
+  try {
+    await context.killer.terminate(pid);
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    context.failed.push({ error: message, pid, stage: "terminate" });
+    context.log?.(`${context.familyLabel} failed to terminate pid ${pid}: ${message}`);
+    return false;
+  }
+}
+async function safelyKill(pid, context) {
+  try {
+    await context.killer.kill(pid);
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    context.failed.push({ error: message, pid, stage: "kill" });
+    context.log?.(`${context.familyLabel} failed to kill pid ${pid}: ${message}`);
+    return false;
+  }
+}
+function isSweepThrottled(stampFile, nowMs, throttleMs) {
+  if (!existsSync7(stampFile))
+    return false;
+  return nowMs - statSync2(stampFile).mtimeMs < throttleMs;
+}
+function writeSweepStamp(stampFile, nowMs) {
+  mkdirSync2(dirname4(stampFile), { recursive: true });
+  writeFileSync2(stampFile, `${new Date(nowMs).toISOString()}
+`);
+  const stampDate = new Date(nowMs);
+  utimesSync(stampFile, stampDate, stampDate);
+}
+function delay2(ms) {
+  if (ms <= 0)
+    return Promise.resolve();
+  return new Promise((resolvePromise) => {
+    setTimeout(resolvePromise, ms);
+  });
+}
+
+// ../../../../utils/src/process-sweep/command-match.ts
+import { posix, win32 } from "node:path";
+function splitCommandTokens(command) {
+  const tokens = [];
+  let current = "";
+  let quote = null;
+  let tokenStarted = false;
+  for (const char of command) {
+    if (quote !== null) {
+      if (char === quote) {
+        quote = null;
+      } else {
+        current += char;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'") {
+      quote = char;
+      tokenStarted = true;
+      continue;
+    }
+    if (/\s/.test(char)) {
+      if (tokenStarted || current.length > 0) {
+        tokens.push(current);
+        current = "";
+        tokenStarted = false;
+      }
+      continue;
+    }
+    current += char;
+  }
+  if (tokenStarted || current.length > 0)
+    tokens.push(current);
+  return tokens;
+}
+function hasExecutableToken(command, expectedPath) {
+  let searchFrom = 0;
+  for (;; ) {
+    const pathIndex = command.indexOf(expectedPath, searchFrom);
+    if (pathIndex < 0)
+      return false;
+    const tokenStart = findTokenStart(command, pathIndex);
+    const tokenEnd = findTokenEnd(command, pathIndex + expectedPath.length);
+    if (command.slice(tokenStart, tokenEnd) === expectedPath && tokenLooksExecutable(command, tokenStart))
+      return true;
+    searchFrom = pathIndex + expectedPath.length;
+  }
+}
+function hasExecutableTokenUnderRootWithSuffix(command, root, suffix) {
+  let searchFrom = 0;
+  for (;; ) {
+    const suffixIndex = command.indexOf(suffix, searchFrom);
+    if (suffixIndex < 0)
+      return false;
+    const tokenStart = findTokenStart(command, suffixIndex);
+    const tokenEnd = findTokenEnd(command, suffixIndex + suffix.length);
+    const token = command.slice(tokenStart, tokenEnd);
+    if (token.endsWith(suffix) && token.startsWith(`${root}/`) && tokenLooksExecutable(command, tokenStart))
+      return true;
+    searchFrom = suffixIndex + suffix.length;
+  }
+}
+function tokenLooksExecutable(command, tokenStart) {
+  let prefix = command.slice(0, tokenStart).trimEnd();
+  if (prefix.length === 0)
+    return true;
+  for (;; ) {
+    const previousTokenStart = findTokenStart(prefix, prefix.length - 1);
+    const previousToken = prefix.slice(previousTokenStart);
+    if (!previousToken.startsWith("-")) {
+      const executableName = previousToken.split("/").at(-1) ?? previousToken;
+      return /^node\d*(\.exe)?$/i.test(executableName) || /^bun(\.exe)?$/i.test(executableName);
+    }
+    prefix = prefix.slice(0, previousTokenStart).trimEnd();
+    if (prefix.length === 0)
+      return false;
+  }
+}
+function findTokenStart(command, index) {
+  for (let cursor = index - 1;cursor >= 0; cursor -= 1) {
+    if (/\s|["']/.test(command[cursor] ?? ""))
+      return cursor + 1;
+  }
+  return 0;
+}
+function findTokenEnd(command, index) {
+  for (let cursor = index;cursor < command.length; cursor += 1) {
+    if (/\s|["']/.test(command[cursor] ?? ""))
+      return cursor;
+  }
+  return command.length;
+}
+function normalizeRoots(roots, platform) {
+  const normalized = new Set;
+  for (const root of roots) {
+    const trimmed = root.trim();
+    if (trimmed.length === 0)
+      continue;
+    normalized.add(normalizeForComparison2(resolvePathForPlatform(trimmed, platform), platform));
+  }
+  return [...normalized].sort((left, right) => right.length - left.length || left.localeCompare(right));
+}
+function resolvePathForPlatform(value, platform) {
+  return platform === "win32" ? win32.resolve(value) : posix.resolve(value);
+}
+function normalizeForComparison2(value, platform) {
+  const normalized = value.replaceAll("\\", "/").replace(/\/+$/, "");
+  return platform === "win32" ? normalized.toLowerCase() : normalized;
+}
+
+// ../../../../utils/src/process-sweep/roots.ts
+import { existsSync as existsSync8, readdirSync as readdirSync2, realpathSync as realpathSync4 } from "node:fs";
+import { homedir as homedir9 } from "node:os";
+import { join as join10, resolve as resolve6 } from "node:path";
+function discoverCodegraphOwnedRoots(options = {}) {
+  const env = options.env ?? process.env;
+  const homeDir = options.homeDir ?? env["HOME"] ?? env["USERPROFILE"] ?? homedir9();
+  const roots = new Set;
+  addRoot(roots, options.trustedCodegraphInstallDir);
+  addRoot(roots, buildCodegraphEnv({ homeDir })[CODEGRAPH_INSTALL_DIR_ENV]);
+  addRoot(roots, join10(homeDir, ".claude", "omo"));
+  addRoot(roots, options.pluginRoot);
+  for (const root of options.extraRoots ?? [])
+    addRoot(roots, root);
+  for (const root of readCodexPluginCacheRoots(options.codexHome ?? env["CODEX_HOME"] ?? join10(homeDir, ".codex"))) {
+    addRoot(roots, root);
+  }
+  return [...roots];
+}
+function readCodexPluginCacheRoots(codexHome) {
+  const cacheRoot = join10(codexHome, "plugins", "cache");
+  if (!existsSync8(cacheRoot))
+    return [];
+  const roots = [];
+  for (const publisher of safeReadDir(cacheRoot)) {
+    if (!OMO_CODEX_PLUGIN_CACHE_PUBLISHERS.has(publisher))
+      continue;
+    const omoRoot = join10(cacheRoot, publisher, "omo");
+    if (!existsSync8(omoRoot))
+      continue;
+    for (const version of safeReadDir(omoRoot))
+      roots.push(join10(omoRoot, version));
+  }
+  return roots;
+}
+function addRoot(roots, root) {
+  if (root === undefined || root.trim().length === 0)
+    return;
+  const resolved = resolve6(root);
+  roots.add(resolved);
+  roots.add(realpathIfPossible2(resolved));
+}
+function safeReadDir(path) {
+  try {
+    return readdirSync2(path, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+  } catch (error) {
+    if (isNonFatalFsError(error))
+      return [];
+    throw error;
+  }
+}
+function realpathIfPossible2(path) {
+  try {
+    return realpathSync4(path);
+  } catch (error) {
+    if (error instanceof Error)
+      return resolve6(path);
+    throw error;
+  }
+}
+function isNonFatalFsError(error) {
+  if (!(error instanceof Error))
+    return false;
+  const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
+  return typeof code === "string" && ["EACCES", "ENOENT", "ENOTDIR", "EPERM"].includes(code);
+}
+var OMO_CODEX_PLUGIN_CACHE_PUBLISHERS = new Set(["sisyphuslabs"]);
+
+// ../../../../utils/src/process-sweep/codegraph-sweeper.ts
+import { homedir as homedir10 } from "node:os";
+import { join as join12 } from "node:path";
+
+// ../../../../utils/src/codegraph/daemon-lock.ts
+import { readFileSync as readFileSync5, realpathSync as realpathSync5 } from "node:fs";
+import { dirname as dirname5, join as join11, resolve as resolve7 } from "node:path";
+function parseDaemonLock(raw) {
+  const trimmed = raw.trim();
+  if (trimmed.length === 0)
+    return null;
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (typeof parsed === "object" && parsed !== null && "pid" in parsed) {
+      const pid = parsed.pid;
+      if (typeof pid === "number" && Number.isSafeInteger(pid) && pid > 0) {
+        const record = parsed;
+        return {
+          pid,
+          ...typeof record["socketPath"] === "string" ? { socketPath: record["socketPath"] } : {},
+          ...typeof record["startedAt"] === "number" ? { startedAt: record["startedAt"] } : {},
+          ...typeof record["version"] === "string" ? { version: record["version"] } : {}
+        };
+      }
+    }
+    return null;
+  } catch (error) {
+    if (!(error instanceof SyntaxError))
+      throw error;
+  }
+  const legacyPid = Number(trimmed);
+  if (Number.isSafeInteger(legacyPid) && legacyPid > 0)
+    return { pid: legacyPid };
+  return null;
+}
+function daemonLockCandidates(projectRoot) {
+  const dirs = new Set;
+  const resolved = resolve7(projectRoot);
+  collectAncestors(resolved, dirs);
+  collectAncestors(realpathIfPossible3(resolved), dirs);
+  return [...dirs].map((dir) => join11(dir, ".codegraph", "daemon.pid"));
+}
+function evaluateDaemonStaleness(pid, projectRoot) {
+  let sawLock = false;
+  for (const lockPath of daemonLockCandidates(projectRoot)) {
+    const raw = readLockIfPresent(lockPath);
+    if (raw === undefined)
+      continue;
+    if (raw === null)
+      return { stale: false, reason: "lock-unreadable" };
+    sawLock = true;
+    const lock = parseDaemonLock(raw);
+    if (lock === null)
+      return { stale: false, reason: "lock-unparseable" };
+    if (lock.pid === pid)
+      return { stale: false, reason: "lock-pid-match" };
+  }
+  return sawLock ? { stale: true, reason: "lock-pid-mismatch" } : { stale: true, reason: "lock-absent" };
+}
+function readLockIfPresent(lockPath) {
+  try {
+    return readFileSync5(lockPath, "utf8");
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT")
+      return;
+    if (error instanceof Error && "code" in error && error.code === "ENOTDIR")
+      return;
+    return null;
+  }
+}
+function collectAncestors(start, output) {
+  let current = start;
+  for (;; ) {
+    output.add(current);
+    const parent = dirname5(current);
+    if (parent === current)
+      return;
+    current = parent;
+  }
+}
+function realpathIfPossible3(path) {
+  try {
+    return realpathSync5(path);
+  } catch (error) {
+    if (error instanceof Error)
+      return path;
+    throw error;
+  }
+}
+
 // ../../../../utils/src/process-sweep/codegraph-family.ts
 var SERVE_WRAPPER_SUFFIX = "/components/codegraph/dist/serve.js";
-var UPSTREAM_PACKAGE_SEGMENT = "/@colbymchenry/codegraph/";
+var UPSTREAM_PACKAGE_PATTERN = /\/@colbymchenry\/codegraph(?:-(?:darwin|linux|win32)-(?:arm64|x64))?\//g;
 function selectZombieCodegraphProcesses(processes, options) {
   const platform = options.platform ?? process.platform;
   const livePids = new Set(processes.map((processInfo) => processInfo.pid));
+  const processByPid = new Map(processes.map((processInfo) => [processInfo.pid, processInfo]));
   const roots = normalizeRoots(options.ownedRoots, platform);
+  const daemonMatches = new Map;
+  const workerMatches = new Map;
+  const ancestry = { livePids, processByPid, workerMatches };
   const zombies = [];
   for (const processInfo of processes) {
     const daemon = matchDaemonCommand(processInfo.command, roots, platform);
     if (daemon !== null) {
+      daemonMatches.set(processInfo.pid, daemon);
+      continue;
+    }
+    const worker = matchOwnedCodegraphCommand(processInfo.command, roots, platform);
+    if (worker !== null)
+      workerMatches.set(processInfo.pid, worker);
+  }
+  for (const processInfo of processes) {
+    const daemon = daemonMatches.get(processInfo.pid);
+    if (daemon !== undefined) {
       if (!isOrphaned(processInfo, livePids))
         continue;
       zombies.push({
@@ -2456,12 +2888,12 @@ function selectZombieCodegraphProcesses(processes, options) {
       });
       continue;
     }
-    const match = matchOwnedCodegraphCommand(processInfo.command, roots, platform);
-    if (match === null)
+    const worker = workerMatches.get(processInfo.pid);
+    if (worker === undefined)
       continue;
-    if (!isOrphaned(processInfo, livePids))
+    if (!isOrphaned(processInfo, livePids) && !hasOrphanedWorkerAncestor(processInfo, ancestry))
       continue;
-    zombies.push({ ...processInfo, matchedRoot: match.root, matchKind: match.kind });
+    zombies.push({ ...processInfo, matchedRoot: worker.root, matchKind: worker.kind });
   }
   return zombies;
 }
@@ -2481,7 +2913,7 @@ function matchDaemonCommand(command, roots, platform) {
       if (hasExecutableToken(normalizedCommand, `${root}${suffix}`))
         return { projectRoot, root };
     }
-    if (hasExecutableToken(normalizedCommand, `${root}${BUNDLE_SCRIPT_SUFFIX}`))
+    if (hasExecutableTokenUnderRootWithSuffix(normalizedCommand, root, BUNDLE_SCRIPT_SUFFIX))
       return { projectRoot, root };
   }
   return null;
@@ -2505,290 +2937,112 @@ function matchOwnedCodegraphCommand(command, roots, platform) {
     const serveWrapper = `${root}${SERVE_WRAPPER_SUFFIX}`;
     if (hasExecutableToken(normalizedCommand, serveWrapper))
       return { kind: "serve-wrapper", root };
-    if (upstreamPackagePathIsUnderRoot(normalizedCommand, root)) {
+    if (hasExecutableTokenUnderRootWithSuffix(normalizedCommand, root, BUNDLE_SCRIPT_SUFFIX) || hasExecutableToken(normalizedCommand, `${root}/npm-shim.js`) || upstreamPackagePathIsUnderRoot(normalizedCommand, root)) {
       return { kind: "upstream-codegraph", root };
     }
   }
   return null;
 }
 function upstreamPackagePathIsUnderRoot(command, root) {
-  let searchFrom = 0;
+  UPSTREAM_PACKAGE_PATTERN.lastIndex = 0;
   for (;; ) {
-    const packageIndex = command.indexOf(UPSTREAM_PACKAGE_SEGMENT, searchFrom);
-    if (packageIndex < 0)
+    const match = UPSTREAM_PACKAGE_PATTERN.exec(command);
+    if (match === null)
       return false;
-    const tokenStart = findTokenStart(command, packageIndex);
+    const tokenStart = findTokenStart(command, match.index);
     if (command.slice(tokenStart).startsWith(`${root}/`) && tokenLooksExecutable(command, tokenStart))
       return true;
-    searchFrom = packageIndex + UPSTREAM_PACKAGE_SEGMENT.length;
+  }
+}
+function hasOrphanedWorkerAncestor(processInfo, ancestry) {
+  const visited = new Set;
+  let parentPid = processInfo.ppid;
+  for (;; ) {
+    if (visited.has(parentPid))
+      return false;
+    visited.add(parentPid);
+    const parent = ancestry.processByPid.get(parentPid);
+    if (parent === undefined || !ancestry.workerMatches.has(parent.pid))
+      return false;
+    if (isOrphaned(parent, ancestry.livePids))
+      return true;
+    parentPid = parent.ppid;
   }
 }
 
-// ../../../../utils/src/process-sweep/exec.ts
-import { execFile as execFile2 } from "node:child_process";
-function enumerateProcesses(platform = process.platform) {
-  return platform === "win32" ? enumerateWindowsProcesses() : enumeratePosixProcesses();
-}
-function createDefaultProcessKiller(platform = process.platform) {
-  return platform === "win32" ? createWindowsKiller() : createPosixKiller();
-}
-function defaultIsProcessAlive(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    if (!(error instanceof Error))
-      throw error;
-    return processKillErrorMeansAlive(error);
-  }
-}
-function enumeratePosixProcesses() {
-  return execFileText("ps", ["-eo", "pid=,ppid=,command="]).then(parsePosixProcessTable);
-}
-function enumerateWindowsProcesses() {
-  const command = [
-    "Get-CimInstance Win32_Process",
-    "Select-Object ProcessId,ParentProcessId,CommandLine",
-    "ConvertTo-Json -Compress -Depth 2"
-  ].join(" | ");
-  return execFileText("powershell.exe", ["-NoProfile", "-Command", command]).then(parseWindowsProcessTable);
-}
-function createPosixKiller() {
-  return {
-    isAlive: defaultIsProcessAlive,
-    kill: (pid) => {
-      process.kill(pid, "SIGKILL");
-      return Promise.resolve();
-    },
-    terminate: (pid) => {
-      process.kill(pid, "SIGTERM");
-      return Promise.resolve();
-    }
-  };
-}
-function createWindowsKiller() {
-  return {
-    isAlive: defaultIsProcessAlive,
-    kill: (pid) => execFileVoid("taskkill.exe", ["/PID", String(pid), "/T", "/F"]),
-    terminate: (pid) => execFileVoid("taskkill.exe", ["/PID", String(pid), "/T"])
-  };
-}
-function execFileText(command, args) {
-  return new Promise((resolvePromise, reject) => {
-    execFile2(command, [...args], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024, windowsHide: true }, (error, stdout) => {
-      if (error !== null) {
-        reject(error);
-        return;
-      }
-      resolvePromise(stdout);
-    });
-  });
-}
-function execFileVoid(command, args) {
-  return execFileText(command, args).then(() => {
-    return;
-  });
-}
-function processKillErrorMeansAlive(error) {
-  const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
-  if (code === "ESRCH")
-    return false;
-  if (code === "EPERM")
-    return true;
-  return false;
-}
-
-// ../../../../utils/src/process-sweep/roots.ts
-import { existsSync as existsSync7, readdirSync as readdirSync2, realpathSync as realpathSync5 } from "node:fs";
-import { homedir as homedir9 } from "node:os";
-import { join as join11, resolve as resolve7 } from "node:path";
-function discoverCodegraphOwnedRoots(options = {}) {
-  const env = options.env ?? process.env;
-  const homeDir = options.homeDir ?? env["HOME"] ?? env["USERPROFILE"] ?? homedir9();
-  const roots = new Set;
-  addRoot(roots, options.trustedCodegraphInstallDir);
-  addRoot(roots, buildCodegraphEnv({ homeDir })[CODEGRAPH_INSTALL_DIR_ENV]);
-  addRoot(roots, options.pluginRoot);
-  for (const root of options.extraRoots ?? [])
-    addRoot(roots, root);
-  for (const root of readCodexPluginCacheRoots(options.codexHome ?? env["CODEX_HOME"] ?? join11(homeDir, ".codex"))) {
-    addRoot(roots, root);
-  }
-  return [...roots];
-}
-function readCodexPluginCacheRoots(codexHome) {
-  const cacheRoot = join11(codexHome, "plugins", "cache");
-  if (!existsSync7(cacheRoot))
-    return [];
-  const roots = [];
-  for (const publisher of safeReadDir(cacheRoot)) {
-    if (!OMO_CODEX_PLUGIN_CACHE_PUBLISHERS.has(publisher))
-      continue;
-    const omoRoot = join11(cacheRoot, publisher, "omo");
-    if (!existsSync7(omoRoot))
-      continue;
-    for (const version of safeReadDir(omoRoot))
-      roots.push(join11(omoRoot, version));
-  }
-  return roots;
-}
-function addRoot(roots, root) {
-  if (root === undefined || root.trim().length === 0)
-    return;
-  const resolved = resolve7(root);
-  roots.add(resolved);
-  roots.add(realpathIfPossible3(resolved));
-}
-function safeReadDir(path) {
-  try {
-    return readdirSync2(path, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
-  } catch (error) {
-    if (isNonFatalFsError(error))
-      return [];
-    throw error;
-  }
-}
-function realpathIfPossible3(path) {
-  try {
-    return realpathSync5(path);
-  } catch (error) {
-    if (error instanceof Error)
-      return resolve7(path);
-    throw error;
-  }
-}
-function isNonFatalFsError(error) {
-  if (!(error instanceof Error))
-    return false;
-  const code = typeof error === "object" && error !== null && "code" in error ? error.code : undefined;
-  return typeof code === "string" && ["EACCES", "ENOENT", "ENOTDIR", "EPERM"].includes(code);
-}
-var OMO_CODEX_PLUGIN_CACHE_PUBLISHERS = new Set(["sisyphuslabs"]);
-
-// ../../../../utils/src/process-sweep/sweeper.ts
-var DEFAULT_GRACE_MS = 2000;
-var DEFAULT_THROTTLE_MS = 60 * 60 * 1000;
-async function runProcessFamilySweep(config, options) {
-  const nowMs = options.nowMs ?? Date.now();
-  const dryRun = options.dryRun === true;
-  if (options.force !== true && isSweepThrottled(config.stampFile, nowMs, options.throttleMs ?? DEFAULT_THROTTLE_MS)) {
-    return { action: "throttled", candidates: [], dryRun, failed: [], killed: [], spared: [], stampFile: config.stampFile };
-  }
-  try {
-    const plan = await config.collect();
-    const { failed, killed } = dryRun ? { failed: [], killed: [] } : await killTargets(plan.killList, options.killer ?? createDefaultProcessKiller(options.platform), options, config.familyLabel);
-    if (!dryRun)
-      writeSweepStamp(config.stampFile, nowMs);
-    return {
-      action: "swept",
-      candidates: plan.candidates,
-      dryRun,
-      failed,
-      killed,
-      spared: plan.spared,
-      stampFile: config.stampFile
-    };
-  } catch (error) {
-    options.log?.(`${config.familyLabel} skipped: ${error instanceof Error ? error.message : String(error)}`);
-    return { action: "failed", candidates: [], dryRun, failed: [], killed: [], spared: [], stampFile: config.stampFile };
-  }
-}
-var CODEGRAPH_SWEEP_STAMP_FILE = "zombie-sweep.stamp";
+// ../../../../utils/src/process-sweep/codegraph-sweeper.ts
+var CODEGRAPH_DAEMON_SWEEP_STAMP_FILE = "zombie-sweep.stamp";
+var CODEGRAPH_WORKER_SWEEP_STAMP_FILE = "worker-sweep.stamp";
 async function sweepCodegraphZombies(options = {}) {
   const homeDir = options.homeDir ?? options.env?.["HOME"] ?? options.env?.["USERPROFILE"] ?? homedir10();
-  const stampFile = join12(codegraphDataRoot(homeDir), CODEGRAPH_SWEEP_STAMP_FILE);
+  const dataRoot = codegraphDataRoot(homeDir);
+  const daemonStampFile = join12(dataRoot, CODEGRAPH_DAEMON_SWEEP_STAMP_FILE);
+  const workerStampFile = join12(dataRoot, CODEGRAPH_WORKER_SWEEP_STAMP_FILE);
   const ownedRoots = options.ownedRoots ?? discoverCodegraphOwnedRoots(options);
-  const result = await runProcessFamilySweep({
-    familyLabel: "CodeGraph zombie sweep",
-    stampFile,
-    collect: async () => {
-      const provider = options.processProvider ?? (() => enumerateProcesses(options.platform));
-      const candidates = selectZombieCodegraphProcesses(await provider(), {
-        ownedRoots,
-        ...options.platform === undefined ? {} : { platform: options.platform }
-      });
-      const { killList, spared } = partitionByDaemonStaleness(candidates, options.log);
-      return { candidates, killList, spared };
-    }
-  }, options);
-  return { ...result, ownedRoots };
+  const provider = options.processProvider ?? (() => enumerateProcesses(options.platform));
+  let candidatesPromise;
+  const collectCandidates = () => {
+    candidatesPromise ??= provider().then((processes) => selectZombieCodegraphProcesses(processes, {
+      ownedRoots,
+      ...options.platform === undefined ? {} : { platform: options.platform }
+    }));
+    return candidatesPromise;
+  };
+  const [workerResult, daemonResult] = await Promise.all([
+    runProcessFamilySweep({
+      familyLabel: "CodeGraph worker sweep",
+      stampFile: workerStampFile,
+      collect: async () => {
+        const candidates = (await collectCandidates()).filter((candidate) => candidate.matchKind !== "upstream-daemon");
+        return { candidates, killList: candidates, spared: [] };
+      }
+    }, { ...options, force: true }),
+    runProcessFamilySweep({
+      familyLabel: "CodeGraph daemon sweep",
+      stampFile: daemonStampFile,
+      collect: async () => {
+        const candidates = (await collectCandidates()).filter((candidate) => candidate.matchKind === "upstream-daemon");
+        const { killList, spared } = partitionByDaemonStaleness(candidates, options.log);
+        return { candidates, killList, spared };
+      }
+    }, options)
+  ]);
+  return {
+    action: aggregateAction(workerResult.action, daemonResult.action),
+    candidates: [...workerResult.candidates, ...daemonResult.candidates],
+    daemonAction: daemonResult.action,
+    daemonStampFile,
+    dryRun: options.dryRun === true,
+    failed: [...workerResult.failed, ...daemonResult.failed],
+    killed: [...workerResult.killed, ...daemonResult.killed],
+    ownedRoots,
+    spared: daemonResult.spared,
+    stampFile: daemonStampFile,
+    workerAction: workerResult.action,
+    workerStampFile
+  };
 }
 function partitionByDaemonStaleness(candidates, log) {
   const killList = [];
   const spared = [];
   for (const candidate of candidates) {
-    if (candidate.matchKind !== "upstream-daemon") {
-      killList.push(candidate);
-      continue;
-    }
     const staleness = evaluateDaemonStaleness(candidate.pid, candidate.daemonProjectRoot ?? candidate.matchedRoot);
     if (staleness.stale) {
-      log?.(`CodeGraph zombie sweep sweeping stale daemon pid ${candidate.pid} (${staleness.reason})`);
+      log?.(`CodeGraph daemon sweep sweeping stale daemon pid ${candidate.pid} (${staleness.reason})`);
       killList.push(candidate);
       continue;
     }
-    log?.(`CodeGraph zombie sweep spared live daemon pid ${candidate.pid} (${staleness.reason})`);
+    log?.(`CodeGraph daemon sweep spared live daemon pid ${candidate.pid} (${staleness.reason})`);
     spared.push(candidate);
   }
   return { killList, spared };
 }
-async function killTargets(targets, killer, options, familyLabel) {
-  const failed = [];
-  const killed = [];
-  for (const target of targets) {
-    const terminated = await safelyTerminate(target.pid, killer, failed, options.log, familyLabel);
-    if (!terminated)
-      continue;
-    await delay(options.graceMs ?? DEFAULT_GRACE_MS);
-    if (!await killer.isAlive(target.pid)) {
-      killed.push(target);
-      continue;
-    }
-    if (await safelyKill(target.pid, killer, failed, options.log, familyLabel))
-      killed.push(target);
-  }
-  return { failed, killed };
-}
-async function safelyTerminate(pid, killer, failed, log, familyLabel) {
-  try {
-    await killer.terminate(pid);
-    return true;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    failed.push({ error: message, pid, stage: "terminate" });
-    log?.(`${familyLabel} failed to terminate pid ${pid}: ${message}`);
-    return false;
-  }
-}
-async function safelyKill(pid, killer, failed, log, familyLabel) {
-  try {
-    await killer.kill(pid);
-    return true;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    failed.push({ error: message, pid, stage: "kill" });
-    log?.(`${familyLabel} failed to kill pid ${pid}: ${message}`);
-    return false;
-  }
-}
-function isSweepThrottled(stampFile, nowMs, throttleMs) {
-  if (!existsSync8(stampFile))
-    return false;
-  return nowMs - statSync2(stampFile).mtimeMs < throttleMs;
-}
-function writeSweepStamp(stampFile, nowMs) {
-  mkdirSync2(dirname5(stampFile), { recursive: true });
-  writeFileSync2(stampFile, `${new Date(nowMs).toISOString()}
-`);
-  const stampDate = new Date(nowMs);
-  utimesSync(stampFile, stampDate, stampDate);
-}
-function delay(ms) {
-  if (ms <= 0)
-    return Promise.resolve();
-  return new Promise((resolvePromise) => {
-    setTimeout(resolvePromise, ms);
-  });
+function aggregateAction(workerAction, daemonAction) {
+  if (workerAction === "failed" || daemonAction === "failed")
+    return "failed";
+  if (workerAction === "swept" || daemonAction === "swept")
+    return "swept";
+  return "throttled";
 }
 // src/hook-sweep.ts
 async function sweepCodegraphZombiesBestEffort(options, sweep = sweepCodegraphZombies) {
@@ -3112,6 +3366,8 @@ async function runCodegraphCommand(projectRoot, command, args, options) {
     cwd: projectRoot,
     env: buildCodegraphChildEnv({ ambientEnv: processEnv, codegraphEnv: options.env }),
     maxBuffer: 1024 * 1024,
+    onTerminationReport: (report) => processStderr.write(`[codegraph-session-start] process tree termination ${JSON.stringify(report)}
+`),
     timeoutMs: options.timeoutMs
   }).then(({ exitCode, stderr, stdout, timedOut }) => ({ exitCode, stderr, stdout, timedOut }));
 }
@@ -3241,6 +3497,8 @@ function runStatusProbe(projectRoot, command, args, env) {
     cwd: projectRoot,
     env,
     maxBuffer: 1024 * 1024,
+    onTerminationReport: (report) => processStderr2.write(`[codegraph-session-start] status probe termination ${JSON.stringify(report)}
+`),
     timeoutMs: STATUS_PROBE_TIMEOUT_MS
   }).then(({ exitCode, stdout, timedOut }) => ({ exitCode, stdout, timedOut }));
 }
@@ -3517,7 +3775,7 @@ function bufferFromChunk(chunk) {
 var DEFAULT_IDLE_TIMEOUT_MS = 10 * 60000;
 var DEFAULT_PARENT_POLL_INTERVAL_MS = 30000;
 var noopLog = () => {};
-function isProcessAlive(pid) {
+function isProcessAlive2(pid) {
   try {
     process.kill(pid, 0);
     return true;
@@ -3625,7 +3883,7 @@ function createParentWatchdog(config, onDeadParent) {
   if (pollIntervalMs <= 0)
     return { clear: () => {} };
   const parentPid = config.parentPid ?? process.ppid;
-  const probeAlive = config.probeAlive ?? isProcessAlive;
+  const probeAlive = config.probeAlive ?? isProcessAlive2;
   let fired = false;
   const timer = setInterval(() => {
     if (fired || probeAlive(parentPid))

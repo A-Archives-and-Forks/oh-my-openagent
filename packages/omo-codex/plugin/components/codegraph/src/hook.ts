@@ -153,6 +153,7 @@ function runStatusProbe(
 		cwd: projectRoot,
 		env,
 		maxBuffer: 1024 * 1024,
+		onTerminationReport: (report) => processStderr.write(`[codegraph-session-start] status probe termination ${JSON.stringify(report)}\n`),
 		timeoutMs: STATUS_PROBE_TIMEOUT_MS,
 	}).then(({ exitCode, stdout, timedOut }) => ({ exitCode, stdout, timedOut }));
 }

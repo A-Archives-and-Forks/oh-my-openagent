@@ -171,6 +171,7 @@ async function runCodegraphCommand(projectRoot: string, command: string, args: r
 		cwd: projectRoot,
 		env: buildCodegraphChildEnv({ ambientEnv: processEnv, codegraphEnv: options.env }),
 		maxBuffer: 1024 * 1024,
+		onTerminationReport: (report) => processStderr.write(`[codegraph-session-start] process tree termination ${JSON.stringify(report)}\n`),
 		timeoutMs: options.timeoutMs,
 	}).then(({ exitCode, stderr, stdout, timedOut }) => ({ exitCode, stderr, stdout, timedOut }));
 }
