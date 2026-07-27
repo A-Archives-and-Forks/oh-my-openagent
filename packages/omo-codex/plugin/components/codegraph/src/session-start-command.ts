@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { env as processEnv } from "node:process";
+import { env as processEnv, stderr as processStderr } from "node:process";
 
 import { buildCodegraphChildEnv, buildCodegraphEnv } from "../../../../../utils/src/codegraph/env.ts";
 import { CODEGRAPH_PINNED_VERSION } from "../../../../../utils/src/codegraph/manifest.ts";
@@ -88,6 +88,7 @@ export async function runSessionStartCodegraphCommand(
 		cwd: projectRoot,
 		env: buildCodegraphChildEnv({ ambientEnv: processEnv, codegraphEnv: options.env }),
 		maxBuffer: 1024 * 1024,
+		onTerminationReport: (report) => processStderr.write(`[codegraph-session-start] process tree termination ${JSON.stringify(report)}\n`),
 		timeoutMs: options.timeoutMs,
 	}).then(({ exitCode, stderr, stdout, timedOut }) => ({ exitCode, stderr, stdout, timedOut }));
 }

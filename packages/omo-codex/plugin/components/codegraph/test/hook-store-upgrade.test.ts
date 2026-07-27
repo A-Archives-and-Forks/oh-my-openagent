@@ -35,6 +35,7 @@ describe("CodeGraph SessionStart hook with a migrated 1.0.1 project store under 
 				stdin: Readable.from(["{}"]),
 				stdout: { write: (chunk) => stdout.push(chunk) },
 				spawnWorker: (invocation) => spawned.push(invocation),
+				sweepZombies: () => undefined,
 			});
 
 			// then
