@@ -161,7 +161,11 @@ function cycleDiagnostics(catalog: OmoModelCatalog | undefined): readonly OmoMod
 
 export function resolveModelReferences(view: OmoConfig): ResolveModelReferencesResult {
   const diagnostics = cycleDiagnostics(view.models)
-  const cycleNames = new Set(diagnostics.map((diagnostic) => diagnostic.path.split(".")[1]))
+  const cycleNames = new Set<string>()
+  for (const diagnostic of diagnostics) {
+    const name = diagnostic.path.split(".")[1]
+    if (name !== undefined) cycleNames.add(name)
+  }
   const agents = view.agents === undefined
     ? undefined
     : Object.fromEntries(Object.entries(view.agents).map(([name, definition]) => [

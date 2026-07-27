@@ -68,7 +68,7 @@ export type MigrationRunResult = {
 }
 
 export class MigrationValidationError extends Error {
-  readonly name = "MigrationValidationError"
+  override readonly name = "MigrationValidationError"
 
   constructor(readonly targetPath: string, message: string) {
     super(`Migration validation failed for ${targetPath}: ${message}`)
@@ -76,7 +76,7 @@ export class MigrationValidationError extends Error {
 }
 
 export class MigrationTransactionError extends Error {
-  readonly name = "MigrationTransactionError"
+  override readonly name = "MigrationTransactionError"
 
   constructor(message: string) {
     super(message)

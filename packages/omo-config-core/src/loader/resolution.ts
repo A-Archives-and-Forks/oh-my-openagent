@@ -33,9 +33,9 @@ function profileNameFromOpenCodeConfigDir(path: string | undefined): string | un
 export function resolveOmoProfileName(options: ResolveOmoProfileNameOptions = {}): string | undefined {
   const env = options.env ?? process.env
   return profileName(options.profile)
-    ?? profileName(env.OMO_PROFILE)
-    ?? profileName(env.OCX_PROFILE)
-    ?? profileNameFromOpenCodeConfigDir(env.OPENCODE_CONFIG_DIR)
+    ?? profileName(env["OMO_PROFILE"])
+    ?? profileName(env["OCX_PROFILE"])
+    ?? profileNameFromOpenCodeConfigDir(env["OPENCODE_CONFIG_DIR"])
 }
 
 function toRecord(value: unknown): Record<string, unknown> | undefined {
@@ -58,7 +58,7 @@ function harnessLayer(config: Readonly<Record<string, unknown>>, harness?: OmoHa
 }
 
 export function resolveOmoConfigView(options: ResolveOmoConfigViewOptions): ResolveOmoConfigViewResult {
-  const profiles = toRecord(options.config.profiles)
+  const profiles = toRecord(options.config["profiles"])
   const profile = options.profile === undefined ? undefined : toRecord(profiles?.[options.profile])
   const diagnostics: OmoConfigDiagnostic[] = profile === undefined && options.profile !== undefined
     ? [{
@@ -77,9 +77,10 @@ export function resolveOmoConfigView(options: ResolveOmoConfigViewOptions): Reso
   let config: Record<string, unknown> = {}
   for (const layer of layers) config = mergeOmoConfigRecords(config, layer)
 
+  const resolvedProfile = options.profile !== undefined && profile !== undefined ? options.profile : undefined
   return {
     config: withoutControlKeys(config),
     diagnostics,
-    profile: profile === undefined ? undefined : options.profile,
+    ...(resolvedProfile === undefined ? {} : { profile: resolvedProfile }),
   }
 }

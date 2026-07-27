@@ -88,7 +88,6 @@ export function findProjectConfigPathsFarthestFirst(
 export function resolveOmoConfigPaths(options: ResolveOmoConfigPathsOptions): readonly OmoConfigPathCandidate[] {
   const fileSystem = options.fileSystem ?? DEFAULT_READ_FILE_SYSTEM
   const env = options.env ?? process.env
-  const platform = options.platform ?? process.platform
   const userPath = detectUserOmoJsonPath(env, fileSystem)
   const projectPaths = findProjectConfigPathsFarthestFirst(options.cwd, resolveHomeDir(env), fileSystem)
   return [

@@ -1,5 +1,5 @@
 export function hasMigrationMarker(target: Readonly<Record<string, unknown>>, migrationId: string): boolean {
-  const markers = target._migrations
+  const markers = target["_migrations"]
   return Array.isArray(markers) && markers.some((marker) => marker === migrationId)
 }
 

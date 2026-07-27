@@ -83,9 +83,11 @@ function assertSafeSourcePaths(sources: readonly MigrationSourceDescriptor[], pr
 
 export function runMigration(options: RunMigrationOptions): MigrationRunResult {
   const clock = options.clock ?? DEFAULT_MIGRATION_CLOCK
+  const home = globalThis.process.env["HOME"]
+  const userProfile = globalThis.process.env["USERPROFILE"]
   const env: MigrationEnvironment = options.env ?? {
-    HOME: globalThis.process.env.HOME,
-    USERPROFILE: globalThis.process.env.USERPROFILE,
+    ...(home === undefined ? {} : { HOME: home }),
+    ...(userProfile === undefined ? {} : { USERPROFILE: userProfile }),
   }
   const fileSystem = options.fileSystem ?? DEFAULT_MIGRATION_FILE_SYSTEM
   const migrationProcess: MigrationProcess = {
@@ -97,7 +99,7 @@ export function runMigration(options: RunMigrationOptions): MigrationRunResult {
     clock,
     env,
     fileSystem,
-    leaseDurationMs: options.leaseDurationMs,
+    ...(options.leaseDurationMs === undefined ? {} : { leaseDurationMs: options.leaseDurationMs }),
     process: migrationProcess,
   })
   if (lock === null) return { diagnostics: [], journalResumed: false, status: "locked" }

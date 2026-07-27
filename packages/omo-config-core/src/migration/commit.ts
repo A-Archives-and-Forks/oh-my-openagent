@@ -22,7 +22,7 @@ function targetDocument(path: string, fileSystem: MigrationFileSystem): Record<s
 }
 
 function markerValue(target: Readonly<Record<string, unknown>>, migrationId: string, targetPath: string): readonly string[] {
-  const value = target._migrations
+  const value = target["_migrations"]
   if (value === undefined) return [migrationId]
   if (!Array.isArray(value) || !value.every((entry) => typeof entry === "string")) {
     throw new MigrationValidationError(targetPath, "the existing migration marker must be an array of strings")

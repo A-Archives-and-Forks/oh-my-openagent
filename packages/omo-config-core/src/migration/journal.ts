@@ -35,36 +35,36 @@ function journalTempPath(path: string, process: MigrationProcess, clock: Migrati
 
 function parseJournal(value: unknown): MigrationJournal {
   if (!isPlainObject(value)) throw new Error("Migration journal must be an object")
-  if (value.version !== 1) throw new Error("Migration journal version is unsupported")
-  if (typeof value.targetPath !== "string" || typeof value.migrationId !== "string") {
+  if (value["version"] !== 1) throw new Error("Migration journal version is unsupported")
+  if (typeof value["targetPath"] !== "string" || typeof value["migrationId"] !== "string") {
     throw new Error("Migration journal target is invalid")
   }
-  if (!isPlainObject(value.targetWrite) || !isPlainObject(value.targetWrite.additions)) {
+  if (!isPlainObject(value["targetWrite"]) || !isPlainObject(value["targetWrite"]["additions"])) {
     throw new Error("Migration journal target write is invalid")
   }
-  if (typeof value.targetWritten !== "boolean" || !Array.isArray(value.completedMoves)) {
+  if (typeof value["targetWritten"] !== "boolean" || !Array.isArray(value["completedMoves"])) {
     throw new Error("Migration journal completion state is invalid")
   }
-  if (!value.completedMoves.every((path) => typeof path === "string")) {
+  if (!value["completedMoves"].every((path) => typeof path === "string")) {
     throw new Error("Migration journal completed moves are invalid")
   }
-  if (!Array.isArray(value.backupMoves)) throw new Error("Migration journal backup plan is invalid")
+  if (!Array.isArray(value["backupMoves"])) throw new Error("Migration journal backup plan is invalid")
 
   const backupMoves: MigrationBackupMove[] = []
-  for (const move of value.backupMoves) {
-    if (!isPlainObject(move) || typeof move.from !== "string" || typeof move.to !== "string") {
+  for (const move of value["backupMoves"]) {
+    if (!isPlainObject(move) || typeof move["from"] !== "string" || typeof move["to"] !== "string") {
       throw new Error("Migration journal backup move is invalid")
     }
-    backupMoves.push({ from: move.from, to: move.to })
+    backupMoves.push({ from: move["from"], to: move["to"] })
   }
 
   return {
     backupMoves,
-    completedMoves: [...value.completedMoves],
-    migrationId: value.migrationId,
-    targetPath: value.targetPath,
-    targetWrite: { additions: { ...value.targetWrite.additions } },
-    targetWritten: value.targetWritten,
+    completedMoves: [...value["completedMoves"]],
+    migrationId: value["migrationId"],
+    targetPath: value["targetPath"],
+    targetWrite: { additions: { ...value["targetWrite"]["additions"] } },
+    targetWritten: value["targetWritten"],
     version: 1,
   }
 }

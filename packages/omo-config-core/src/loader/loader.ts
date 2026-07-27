@@ -140,9 +140,9 @@ export function loadOmoConfig(options: LoadOmoConfigOptions = {}): LoadOmoConfig
 
   for (const candidate of resolveOmoConfigPaths({
     cwd,
-    env: options.env,
+    ...(options.env === undefined ? {} : { env: options.env }),
     fileSystem,
-    platform: options.platform,
+    ...(options.platform === undefined ? {} : { platform: options.platform }),
   })) {
     const loaded = readConfigSource(candidate.path, candidate.scope, fileSystem)
     sources.push(loaded.source)
@@ -153,10 +153,14 @@ export function loadOmoConfig(options: LoadOmoConfigOptions = {}): LoadOmoConfig
     }
   }
 
+  const requestedProfile = resolveOmoProfileName({
+    ...(options.env === undefined ? {} : { env: options.env }),
+    ...(options.profile === undefined ? {} : { profile: options.profile }),
+  })
   const resolved = resolveOmoConfigView({
     config: merged,
-    harness: options.harness,
-    profile: resolveOmoProfileName({ env: options.env, profile: options.profile }),
+    ...(options.harness === undefined ? {} : { harness: options.harness }),
+    ...(requestedProfile === undefined ? {} : { profile: requestedProfile }),
   })
   const finalConfig = OmoConfigSchema.safeParse(mergeOmoConfigRecords(DEFAULT_RAW_CONFIG, resolved.config))
   if (finalConfig.success) {
@@ -164,7 +168,7 @@ export function loadOmoConfig(options: LoadOmoConfigOptions = {}): LoadOmoConfig
       config: stripResolutionControlKeys(finalConfig.data),
       diagnostics: [...diagnostics, ...resolved.diagnostics],
       layers,
-      profile: resolved.profile,
+      ...(resolved.profile === undefined ? {} : { profile: resolved.profile }),
       sources,
     }
   }
@@ -173,7 +177,7 @@ export function loadOmoConfig(options: LoadOmoConfigOptions = {}): LoadOmoConfig
     config: stripResolutionControlKeys(OmoConfigSchema.parse(DEFAULT_RAW_CONFIG)) satisfies OmoConfig,
     diagnostics: [...diagnostics, ...resolved.diagnostics, validationDiagnostic("(merged omo config)", finalConfig.error.issues)],
     layers,
-    profile: resolved.profile,
+    ...(resolved.profile === undefined ? {} : { profile: resolved.profile }),
     sources,
   }
 }
