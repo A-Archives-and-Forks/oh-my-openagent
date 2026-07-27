@@ -17,8 +17,11 @@ export const OMO_CONFIG_FILE_FILTER_GLOBS = ["omo.jsonc", "omo.json"] as const
 // Keep listening for config-file writes below a new `.omo` directory. If its first
 // config is rejected, no reload occurs to rebuild the target set, so the original
 // ancestor watch must observe the fix that clears the sticky rejection.
-export const OMO_CONFIG_DIRECTORY_FILTER_GLOBS = [".omo", ".omo/omo.jsonc", ".omo/omo.json"] as const
-export const USER_OMO_CONFIG_DIRECTORY_FILTER_GLOBS = ["omo"] as const
+// The leading `/` anchors each glob to its watch root: senpi matches unanchored
+// globs at any depth, which made an ancestor target cover every `.omo` directory
+// in the whole subtree.
+export const OMO_CONFIG_DIRECTORY_FILTER_GLOBS = ["/.omo", "/.omo/omo.jsonc", "/.omo/omo.json"] as const
+export const USER_OMO_CONFIG_DIRECTORY_FILTER_GLOBS = ["/omo"] as const
 
 /** Matches the frozen config-watch wire target shape without importing senpi internals. */
 export interface OmoConfigWatchTarget {
