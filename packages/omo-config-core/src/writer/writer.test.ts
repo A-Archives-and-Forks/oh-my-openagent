@@ -1,6 +1,6 @@
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { describe, expect, setSystemTime, test } from "bun:test"
 import { loadOmoConfig, OmoConfigWriteError, updateOmoConfig } from "../index"
 
@@ -289,7 +289,7 @@ describe("updateOmoConfig", () => {
 
     // then
     expect(edited.path).toBe(jsonPath)
-    expect(edited.path.startsWith(join(jsonFixture.homeDir, ".omo") + "/")).toBe(true)
+    expect(dirname(edited.path)).toBe(join(jsonFixture.homeDir, ".omo"))
   })
 
 })
