@@ -191,17 +191,17 @@ describe("getCodexOmoConfig", () => {
 		// given
 		const homeDir = createTemporaryDirectory("omo-codex-shared-env-")
 		const cwd = createTemporaryDirectory("omo-codex-project-env-")
-		writeOmoConfig(homeDir, JSON.stringify({ codegraph: { enabled: true } }))
+		writeOmoConfig(homeDir, JSON.stringify({ codegraph: { enabled: false } }))
 
 		// when
 		const result = getCodexOmoConfig({
 			cwd,
 			homeDir,
-			env: { CODEX_CODEGRAPH_ENABLED: "0" },
+			env: { CODEX_CODEGRAPH_ENABLED: "1" },
 		})
 
 		// then
-		expect(result.codegraph?.enabled).toBe(false)
+		expect(result.codegraph?.enabled).toBe(true)
 	})
 
 	it("#given no SOT files #when loading config #then returns built-in defaults and missing global source", () => {
