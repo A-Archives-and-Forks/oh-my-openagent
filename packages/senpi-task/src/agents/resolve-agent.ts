@@ -100,10 +100,11 @@ export function resolveAgent<TModel extends SenpiModelPort>(
   // unparseable available set keeps the find-only behavior rather than failing every resolution.
   const availableModels = parseAvailableAgentModels(registry.getAvailable())
   let attemptedModel: string | undefined
-  const directModels = agentModelCandidates(definition.model, definition.models, {
+  const configuredTuning = {
     ...(definition.variant === undefined ? {} : { variant: definition.variant }),
     ...(definition.reasoningEffort === undefined ? {} : { reasoningEffort: definition.reasoningEffort }),
-  })
+  }
+  const directModels = agentModelCandidates(definition.model, definition.models, configuredTuning)
   for (const candidate of directModels) {
     attemptedModel = candidate.model
     const found = findExactAgentModel(candidate.model, registry)
@@ -125,7 +126,14 @@ export function resolveAgent<TModel extends SenpiModelPort>(
       attemptedModel = resolution.model
       const found = findExactAgentModel(resolution.model, registry)
       if (found !== undefined) {
-        return resolvedAgent(context, found, resolution.variant)
+        // A builtin chain rung carries its own variant, but an agent that configured tuning without
+        // naming a model still resolves here, so the configured values must win over the rung's.
+        return resolvedAgent(
+          context,
+          found,
+          configuredTuning.variant ?? resolution.variant,
+          configuredTuning.reasoningEffort,
+        )
       }
     }
   }
