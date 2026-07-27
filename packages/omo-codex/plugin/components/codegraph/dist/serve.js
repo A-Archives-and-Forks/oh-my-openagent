@@ -1543,6 +1543,7 @@ var SETTING_HARNESS_SUPPORT = {
   "codegraph.enabled": HARNESS_IDS,
   "codegraph.excluded_roots": ["codex", "opencode"],
   "codegraph.install_dir": HARNESS_IDS,
+  "codegraph.session_start_cooldown_ms": ["codex"],
   "codegraph.telemetry": HARNESS_IDS,
   "codegraph.watch_debounce_ms": ["opencode", "omo"]
 };
@@ -1563,6 +1564,7 @@ var CODEGRAPH_SETTING_KEYS = [
   "enabled",
   "excluded_roots",
   "install_dir",
+  "session_start_cooldown_ms",
   "telemetry",
   "watch_debounce_ms"
 ];
@@ -1622,6 +1624,9 @@ function validateCodegraphValue(key, value) {
   }
   if (key === "install_dir")
     return typeof value === "string" ? null : "must be a string";
+  if (key === "session_start_cooldown_ms") {
+    return typeof value === "number" && Number.isFinite(value) && value >= 60000 ? null : "must be a finite number of at least 60000";
+  }
   if (key === "watch_debounce_ms") {
     return typeof value === "number" && Number.isFinite(value) && value >= 0 ? null : "must be a non-negative finite number";
   }
@@ -1649,6 +1654,10 @@ function setCodegraphSetting(config, key, value) {
     case "install_dir":
       if (typeof value === "string")
         config.install_dir = value;
+      return;
+    case "session_start_cooldown_ms":
+      if (typeof value === "number")
+        config.session_start_cooldown_ms = value;
       return;
     case "telemetry":
       if (typeof value === "boolean")
@@ -1761,6 +1770,7 @@ var CODEGRAPH_ENV_KEYS = [
   ["auto_provision", "AUTO_PROVISION", "boolean"],
   ["enabled", "ENABLED", "boolean"],
   ["install_dir", "INSTALL_DIR", "string"],
+  ["session_start_cooldown_ms", "SESSION_START_COOLDOWN_MS", "number"],
   ["telemetry", "TELEMETRY", "boolean"],
   ["watch_debounce_ms", "WATCH_DEBOUNCE_MS", "number"]
 ];
@@ -1800,6 +1810,10 @@ function setCodegraphSetting2(config, key, value) {
       if (typeof value === "string")
         config.install_dir = value;
       return;
+    case "session_start_cooldown_ms":
+      if (typeof value === "number" && value >= 60000)
+        config.session_start_cooldown_ms = value;
+      return;
     case "telemetry":
       if (typeof value === "boolean")
         config.telemetry = value;
@@ -1820,7 +1834,8 @@ function buildEnvOverrides(harness, env, warnings, merge) {
       if (rawValue === undefined)
         continue;
       const parsed = parseEnvValue(rawValue, kind);
-      if (parsed === null) {
+      const cooldownIsValid = settingKey !== "session_start_cooldown_ms" || typeof parsed === "number" && parsed >= 60000;
+      if (parsed === null || !cooldownIsValid) {
         warnings.push(`${envKey} has invalid ${kind} value "${rawValue}"`);
         continue;
       }
@@ -2559,10 +2574,12 @@ function requestedProtocolVersion(params) {
   return params["protocolVersion"];
 }
 
+// src/session-start-cooldown.ts
+var DEFAULT_SESSION_START_COOLDOWN_MS = 15 * 60 * 1000;
+var MAX_SESSION_START_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
 // src/session-start-worker.ts
 var SESSION_START_CWD_ENV = "OMO_CODEGRAPH_SESSION_START_CWD";
-var WINDOWS_CMD_EXTENSIONS2 = new Set([".bat", ".cmd"]);
-var WINDOWS_NODE_SCRIPT_EXTENSIONS2 = new Set([".cjs", ".js", ".mjs"]);
 
 // src/serve.ts
 var CODEGRAPH_SKIP_HINT = `CodeGraph MCP skipped: codegraph binary not found. Install CodeGraph or set OMO_CODEGRAPH_BIN.

@@ -86,6 +86,20 @@ describe("getCodexOmoConfig", () => {
 		expect(result.codegraph?.excluded_roots).toEqual(["/tmp/omo-research", "/private/tmp/omo-research"])
 	})
 
+	it("#given codex SOT sets the SessionStart cooldown #when loading config #then the configured base interval is returned", () => {
+		// given
+		const homeDir = createTemporaryDirectory("omo-codex-shared-cooldown-home-")
+		const cwd = createTemporaryDirectory("omo-codex-shared-cooldown-project-")
+		writeOmoConfig(homeDir, JSON.stringify({ "[codex]": { codegraph: { session_start_cooldown_ms: 900_000 } } }))
+
+		// when
+		const result = getCodexOmoConfig({ cwd, homeDir, env: {} })
+
+		// then
+		expect(result.codegraph?.session_start_cooldown_ms).toBe(900_000)
+		expect(result.warnings).toEqual([])
+	})
+
 	it("#given no codegraph.daemon key #when loading config #then daemon defaults to on", () => {
 		// given
 		const homeDir = createTemporaryDirectory("omo-codex-shared-daemon-default-home-")

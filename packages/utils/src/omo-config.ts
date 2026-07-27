@@ -36,12 +36,15 @@ const HARNESS_BLOCK_KEYS: Record<string, HarnessId> = {
   "[opencode]": "opencode",
 }
 
+const SESSION_START_COOLDOWN_FLOOR_MS = 60_000
+
 const CODEGRAPH_VALUE_TYPES: Record<CodegraphSettingKey, "boolean" | "number" | "string" | "string_array"> = {
   auto_provision: "boolean",
   daemon: "boolean",
   enabled: "boolean",
   excluded_roots: "string_array",
   install_dir: "string",
+  session_start_cooldown_ms: "number",
   telemetry: "boolean",
   watch_debounce_ms: "number",
 }
@@ -87,6 +90,15 @@ function validateCodegraphSection(
 
     if (settingKey === "watch_debounce_ms" && typeof value === "number" && (!Number.isFinite(value) || value < 0)) {
       errors.push(`${pathPrefix}.${key} must be a non-negative finite number`)
+      continue
+    }
+
+    if (
+      settingKey === "session_start_cooldown_ms" &&
+      typeof value === "number" &&
+      (!Number.isFinite(value) || value < SESSION_START_COOLDOWN_FLOOR_MS)
+    ) {
+      errors.push(`${pathPrefix}.${key} must be a finite number of at least ${SESSION_START_COOLDOWN_FLOOR_MS}`)
       continue
     }
 
