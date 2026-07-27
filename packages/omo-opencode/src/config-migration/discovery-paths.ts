@@ -1,6 +1,10 @@
-import { posix, win32 } from "node:path"
+import { win32 } from "node:path"
 
-import { DEFAULT_DISCOVERY_FILE_SYSTEM, type ConfigMigrationDiscoveryOptions } from "./types"
+import {
+  DEFAULT_DISCOVERY_FILE_SYSTEM,
+  type ConfigMigrationDiscoveryOptions,
+  type ConfigMigrationPathOperations,
+} from "./types"
 
 export const CONFIG_FILE_NAMES = [
   "oh-my-openagent.jsonc",
@@ -21,8 +25,12 @@ function usesWindowsPathSemantics(options: ConfigMigrationDiscoveryOptions): boo
   return options.platform === "win32" || process.platform === "win32"
 }
 
-function normalizeWindowsPosixPath(path: string, options: ConfigMigrationDiscoveryOptions): string {
-  return usesWindowsPathSemantics(options) && options.pathOperations === posix ? path.replaceAll("\\", "/") : path
+export function hostPathOperations(options: ConfigMigrationDiscoveryOptions): ConfigMigrationPathOperations {
+  return usesWindowsPathSemantics(options) ? win32 : options.pathOperations
+}
+
+function comparisonPath(path: string, options: ConfigMigrationDiscoveryOptions): string {
+  return usesWindowsPathSemantics(options) ? path.replaceAll("\\", "/").toLowerCase() : path
 }
 
 export function canonicalPath(path: string, options: ConfigMigrationDiscoveryOptions): string {
@@ -31,18 +39,17 @@ export function canonicalPath(path: string, options: ConfigMigrationDiscoveryOpt
     ? normalized
     : options.pathOperations.resolve(normalized)
   try {
-    return normalizeWindowsPosixPath(discoveryFileSystem(options).realpathSync(resolved), options)
+    return discoveryFileSystem(options).realpathSync(resolved)
   } catch (error) {
     if (error instanceof Error && (Reflect.get(error, "code") === "ENOENT" || Reflect.get(error, "code") === "ENOTDIR")) {
-      return normalizeWindowsPosixPath(resolved, options)
+      return resolved
     }
     throw error
   }
 }
 
 export function pathKey(path: string, options: ConfigMigrationDiscoveryOptions): string {
-  const canonical = canonicalPath(path, options)
-  return isWindowsPathOperations(options) ? canonical.toLowerCase() : canonical
+  return comparisonPath(canonicalPath(path, options), options)
 }
 
 export function configPaths(directory: string, options: ConfigMigrationDiscoveryOptions): readonly string[] {
@@ -62,8 +69,9 @@ export function profileDirectories(root: string, options: ConfigMigrationDiscove
 }
 
 function isWithin(parent: string, child: string, options: ConfigMigrationDiscoveryOptions): boolean {
-  const relative = options.pathOperations.relative(parent, child)
-  return relative === "" || (!relative.startsWith("..") && !options.pathOperations.isAbsolute(relative))
+  const pathOperations = hostPathOperations(options)
+  const relative = pathOperations.relative(parent, child)
+  return relative === "" || (!relative.startsWith("..") && !pathOperations.isAbsolute(relative))
 }
 
 export function projectDirectories(options: ConfigMigrationDiscoveryOptions): readonly string[] {
@@ -74,7 +82,7 @@ export function projectDirectories(options: ConfigMigrationDiscoveryOptions): re
   for (;;) {
     directories.push(current)
     if (stopAtHome && pathKey(current, options) === pathKey(homeDir, options)) break
-    const parent = options.pathOperations.dirname(current)
+    const parent = hostPathOperations(options).dirname(current)
     if (parent === current) break
     current = parent
   }

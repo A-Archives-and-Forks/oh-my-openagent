@@ -147,8 +147,8 @@ describe("legacy config discovery", () => {
     // then
     expect(groups[0]?.sources).toEqual([
       expect.objectContaining({
-        configPath: win32.join(longHome, ".config", "opencode", "oh-my-openagent.json").replaceAll("\\", "/"),
-        path: win32.join(longHome, ".config", "opencode", "oh-my-openagent.json").replaceAll("\\", "/"),
+        configPath: win32.join(longHome, ".config", "opencode", "oh-my-openagent.json"),
+        path: win32.join(longHome, ".config", "opencode", "oh-my-openagent.json"),
       }),
     ])
   })

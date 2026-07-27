@@ -1,7 +1,7 @@
 import type { MigrationSourceDescriptor, MigrationTransform } from "@oh-my-opencode/omo-config-core"
 
 import { discoverLegacyConfigGroups, CONFIG_JSONC_MIGRATION_ID, OPENCODE_CONFIG_MIGRATION_ID } from "./discovery"
-import { canonicalPath, isWindowsPathOperations } from "./discovery-paths"
+import { canonicalPath, hostPathOperations, pathKey } from "./discovery-paths"
 import { mergeRecords } from "./record-values"
 import { transformConfigJsoncSources } from "./transform-config-jsonc"
 import { transformOpenCodeSources } from "./transform-opencode"
@@ -30,14 +30,10 @@ function backupTimestamp(value: string | undefined): string {
   return value ?? new Date().toISOString().replace(/[:.]/g, "-")
 }
 
-function pathKey(path: string, options: ConfigMigrationDiscoveryOptions): string {
-  const canonical = canonicalPath(path, options)
-  return isWindowsPathOperations(options) ? canonical.toLowerCase() : canonical
-}
-
 function safeRelativePath(path: string, homeDir: string, options: ConfigMigrationDiscoveryOptions): string {
-  const relative = options.pathOperations.relative(homeDir, path)
-  if (relative !== "" && !relative.startsWith("..") && !options.pathOperations.isAbsolute(relative)) return relative
+  const pathOperations = hostPathOperations(options)
+  const relative = pathOperations.relative(homeDir, path)
+  if (relative !== "" && !relative.startsWith("..") && !pathOperations.isAbsolute(relative)) return relative
   return `external-${encodeURIComponent(path)}`
 }
 
@@ -47,15 +43,16 @@ function descriptors(
   timestamp: string,
 ): readonly MigrationSourceDescriptor[] {
   const homeDir = canonicalPath(options.homeDir, options)
-  const userBackupRoot = options.pathOperations.join(
+  const pathOperations = hostPathOperations(options)
+  const userBackupRoot = pathOperations.join(
     homeDir,
     ".omo",
     `migration-backup-${timestamp}-opencode-config`,
   )
   return sources.map((source) => ({
     backupPath: source.projectRoot === undefined
-      ? options.pathOperations.join(userBackupRoot, safeRelativePath(source.path, homeDir, options))
-      : options.pathOperations.join(source.projectRoot, ".omo", `migration-backup-${timestamp}`, options.pathOperations.basename(source.path)),
+      ? pathOperations.join(userBackupRoot, safeRelativePath(source.path, homeDir, options))
+      : pathOperations.join(source.projectRoot, ".omo", `migration-backup-${timestamp}`, pathOperations.basename(source.path)),
     path: source.path,
   }))
 }
@@ -113,7 +110,8 @@ export function createLegacyConfigMigrationPlans(
 ): readonly LegacyConfigMigrationPlan[] {
   const timestamp = backupTimestamp(options.backupTimestamp)
   const [openCodeGroup, configJsoncGroup] = discoverLegacyConfigGroups(options)
-  const userTargetPath = options.pathOperations.join(options.homeDir, ".omo", "omo.jsonc")
+  const pathOperations = hostPathOperations(options)
+  const userTargetPath = pathOperations.join(options.homeDir, ".omo", "omo.jsonc")
   const userSources = openCodeGroup.sources.filter((source) => source.projectRoot === undefined)
   const projectSources = new Map<string, DiscoveredLegacyConfigSource[]>()
   for (const source of openCodeGroup.sources) {
@@ -130,7 +128,7 @@ export function createLegacyConfigMigrationPlans(
     projectInputs.push({
       scopes: [{ kind: "project", projectRoot }],
       sources,
-      targetPath: options.pathOperations.join(projectRoot, ".omo", "omo.jsonc"),
+      targetPath: pathOperations.join(projectRoot, ".omo", "omo.jsonc"),
     })
   }
   const openCodeInputs: OpenCodePlanInput[] = [
