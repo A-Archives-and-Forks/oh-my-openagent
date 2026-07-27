@@ -136,6 +136,73 @@ describe("category activation gating", () => {
     })
   })
 
+  describe("#given a retargeted fallback fixture", () => {
+    test("#when visual-engineering resolves on a gemini-only registry #then it is a REAL chain fallback, not a primary hit", () => {
+      // given
+      const models = registry([model("google", "gemini-3.1-pro")])
+
+      // when
+      const result = resolveCategory("visual-engineering", {}, models)
+
+      // then
+      expect(result.kind).toBe("resolved")
+      if (result.kind !== "resolved") throw new Error("Expected resolved")
+      expect(result.modelSelection.matchedFallback).toBe(true)
+      expect(result.spec.variant).toBe("high")
+    })
+
+    test("#when artistry resolves on the same registry #then it is a PRIMARY hit, which is why it cannot prove fallback", () => {
+      // given
+      const models = registry([model("google", "gemini-3.1-pro")])
+
+      // when
+      const result = resolveCategory("artistry", {}, models)
+
+      // then
+      expect(result.kind).toBe("resolved")
+      if (result.kind !== "resolved") throw new Error("Expected resolved")
+      expect(result.modelSelection.matchedFallback).toBe(false)
+    })
+  })
+
+  describe("#given a registry model whose last path segment collides with a gate model", () => {
+    test("#when architect resolves #then an unrelated vendor model must not open the fable gate", () => {
+      // given
+      const models = registry([model("custom", "unrelated/claude-fable-5")])
+
+      // when
+      const result = resolveCategory("architect", {}, models)
+
+      // then
+      expect(result.kind).toBe("model_unavailable")
+      expect(result.availableCategories).not.toContain("architect")
+    })
+
+    test("#when ultrabrain resolves #then an unrelated vendor model must not open the sol gate", () => {
+      // given
+      const models = registry([model("custom", "unrelated/gpt-5.6-sol")])
+
+      // when
+      const result = resolveCategory("ultrabrain", {}, models)
+
+      // then
+      expect(result.kind).toBe("model_unavailable")
+      expect(result.availableCategories).not.toContain("ultrabrain")
+    })
+
+    test("#when a real vercel gateway id is present #then the gate still opens", () => {
+      // given
+      const models = registry([model("vercel", "openai/gpt-5.6-sol")])
+
+      // when
+      const result = resolveCategory("ultrabrain", {}, models)
+
+      // then
+      expect(result.kind).toBe("resolved")
+      expect(result.availableCategories).toContain("ultrabrain")
+    })
+  })
+
   describe("#given an ungated builtin category", () => {
     test("#when the registry offers only a chain rung #then the pre-gating fallback behavior is unchanged", () => {
       // given

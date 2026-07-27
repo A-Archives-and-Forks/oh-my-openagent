@@ -63,7 +63,7 @@ describe("createTaskChildPlanner", () => {
     })
   })
 
-  test("#given artistry falls back to a variant-bearing model #when planned #then resolved_model keeps fallback variant metadata", () => {
+  test("#given visual-engineering falls back to a variant-bearing model #when planned #then resolved_model keeps fallback variant metadata", () => {
     // given
     const planner = createTaskChildPlanner(
       {},
@@ -76,7 +76,7 @@ describe("createTaskChildPlanner", () => {
       prompt: "Think hard.",
       parent_session_id: "parent-1",
       depth: 0,
-      category: "artistry",
+      category: "visual-engineering",
     })
 
     // then
@@ -231,13 +231,13 @@ describe("createTaskChildPlanner", () => {
       prompt: "Think hard.",
       parent_session_id: "parent-1",
       depth: 0,
-      subagent_type: "artistry",
+      subagent_type: "visual-engineering",
     })
 
     // then
     const resolved = expectResolved(result)
     expect(resolved.plan.resolved_model).toMatchObject({ source: "category", provider: "google" })
-    expect(resolved.plan.category).toBe("artistry")
+    expect(resolved.plan.category).toBe("visual-engineering")
   })
 
   test("#given a disabled agent sharing a category name #when planned without an explicit model #then category fallback remains available", () => {
@@ -373,7 +373,7 @@ describe("createTaskChildPlanner plan variant", () => {
       prompt: "Think hard.",
       parent_session_id: "parent-1",
       depth: 0,
-      category: "artistry",
+      category: "visual-engineering",
     })
 
     // then
