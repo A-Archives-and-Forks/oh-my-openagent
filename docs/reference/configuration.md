@@ -652,7 +652,7 @@ To disable the LSP MCP entirely:
 
 ### CodeGraph
 
-The `codegraph` MCP ships a pinned CodeGraph 1.4.1 binary; project stores built by older versions migrate automatically on first use, with no manual re-index. Two keys tune where it runs:
+The `codegraph` MCP ships a pinned CodeGraph 1.5.0 binary; managed installs provisioned at 1.0.1 or 1.4.1 upgrade automatically, and project stores built by older versions remain compatible without a manual re-index. Two keys tune where it runs:
 
 ```jsonc
 {
