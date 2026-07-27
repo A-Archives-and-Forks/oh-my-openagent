@@ -82,7 +82,7 @@ describe("detectCurrentConfig - single package detection", () => {
     writeFileSync(testOmoConfigPath, "{}\n", "utf-8")
     const originalReadFileSync = fs.readFileSync
     const readFileSyncSpy = spyOn(fs, "readFileSync").mockImplementation((filePath, options) => {
-      if (String(filePath).endsWith(".omo/omo.jsonc")) {
+      if (String(filePath).replaceAll("\\", "/").endsWith(".omo/omo.jsonc")) {
         throw "read failed"
       }
       return originalReadFileSync(filePath, options)
