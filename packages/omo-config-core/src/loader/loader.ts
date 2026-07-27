@@ -2,11 +2,13 @@ import { parseJsoncSafe } from "@oh-my-opencode/utils"
 import { OmoCodegraphSettingsSchema, OmoConfigLayerSchema, OmoConfigSchema, OmoTaskSettingsSchema, type OmoConfig } from "../schema"
 import { mergeOmoConfigRecords } from "./merge"
 import { resolveOmoConfigPaths } from "./paths"
+import { resolveOmoConfigView, resolveOmoProfileName } from "./resolution"
 import {
   DEFAULT_READ_FILE_SYSTEM,
   type LoadOmoConfigOptions,
   type LoadOmoConfigResult,
   type OmoConfigDiagnostic,
+  type OmoConfigRawLayer,
   type OmoConfigReadFileSystem,
   type OmoConfigSource,
 } from "./types"
@@ -17,6 +19,17 @@ const DEFAULT_RAW_CONFIG: Record<string, unknown> = {
   codegraph: OmoCodegraphSettingsSchema.parse({}),
   task: OmoTaskSettingsSchema.parse({}),
   teams: {},
+}
+
+function stripResolutionControlKeys(config: OmoConfig): OmoConfig {
+  const {
+    "[codex]": _codex,
+    "[opencode]": _opencode,
+    "[senpi]": _senpi,
+    profiles: _profiles,
+    ...resolved
+  } = config
+  return resolved
 }
 
 function validationDiagnostic(path: string, issues: readonly { readonly path: readonly PropertyKey[] }[]): OmoConfigDiagnostic {
@@ -98,8 +111,9 @@ function readConfigSource(
 export function loadOmoConfig(options: LoadOmoConfigOptions = {}): LoadOmoConfigResult {
   const fileSystem = options.fileSystem ?? DEFAULT_READ_FILE_SYSTEM
   const cwd = options.cwd ?? process.cwd()
-  let merged = DEFAULT_RAW_CONFIG
+  let merged: Record<string, unknown> = {}
   const diagnostics: OmoConfigDiagnostic[] = []
+  const layers: OmoConfigRawLayer[] = []
   const sources: OmoConfigSource[] = []
 
   for (const candidate of resolveOmoConfigPaths({
@@ -111,17 +125,33 @@ export function loadOmoConfig(options: LoadOmoConfigOptions = {}): LoadOmoConfig
     const loaded = readConfigSource(candidate.path, candidate.scope, fileSystem)
     sources.push(loaded.source)
     if (loaded.diagnostic !== undefined) diagnostics.push(loaded.diagnostic)
-    if (loaded.value !== undefined) merged = mergeOmoConfigRecords(merged, loaded.value)
+    if (loaded.value !== undefined) {
+      layers.push({ config: loaded.value, source: loaded.source })
+      merged = mergeOmoConfigRecords(merged, loaded.value)
+    }
   }
 
-  const finalConfig = OmoConfigSchema.safeParse(merged)
+  const resolved = resolveOmoConfigView({
+    config: merged,
+    harness: options.harness,
+    profile: resolveOmoProfileName({ env: options.env, profile: options.profile }),
+  })
+  const finalConfig = OmoConfigSchema.safeParse(mergeOmoConfigRecords(DEFAULT_RAW_CONFIG, resolved.config))
   if (finalConfig.success) {
-    return { config: finalConfig.data, diagnostics, sources }
+    return {
+      config: stripResolutionControlKeys(finalConfig.data),
+      diagnostics: [...diagnostics, ...resolved.diagnostics],
+      layers,
+      profile: resolved.profile,
+      sources,
+    }
   }
 
   return {
-    config: OmoConfigSchema.parse(DEFAULT_RAW_CONFIG) satisfies OmoConfig,
-    diagnostics: [...diagnostics, validationDiagnostic("(merged omo config)", finalConfig.error.issues)],
+    config: stripResolutionControlKeys(OmoConfigSchema.parse(DEFAULT_RAW_CONFIG)) satisfies OmoConfig,
+    diagnostics: [...diagnostics, ...resolved.diagnostics, validationDiagnostic("(merged omo config)", finalConfig.error.issues)],
+    layers,
+    profile: resolved.profile,
     sources,
   }
 }
