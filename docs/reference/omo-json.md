@@ -113,7 +113,9 @@ A record of agent name to definition (`schema/agent.ts`).
 | `description` | string | |
 | `prompt` | string | |
 | `model` | string | |
-| `models` | string[] | |
+| `models` | model entries | fallback chain; each entry is a bare string or `{ model, variant?, reasoningEffort? }` (see [fallback models](#fallback-models)) |
+| `variant` | string | default variant for this agent's models; a per-entry `variant` overrides it |
+| `reasoningEffort` | `none \| minimal \| low \| medium \| high \| xhigh \| max` | default effort for this agent's models; a per-entry `reasoningEffort` overrides it |
 | `tools` | record<string, boolean> | |
 | `execution_mode` | `in-process \| process` | overrides `task.default_execution_mode`; curated builtin agents remain in-process |
 | `background` | boolean | |
@@ -230,6 +232,24 @@ Each member shares a base (`name` matching `^[a-z0-9-]+$`, optional `cwd`, `work
 ### Fallback models
 
 `fallback_models` (on a category) and per-model fallback entries accept a union (`schema/fallback-models.ts`): a single model string, an array of model strings, an array of objects, or a mixed array. Each object is `{ model, variant?, reasoningEffort?, temperature?, top_p?, maxTokens?, thinking? }`.
+
+An agent's `models` array accepts a deliberately narrower entry object, `{ model, variant?, reasoningEffort? }`, so a fallback can run at a different effort than the agent's primary model. Agent resolution threads only `variant` and `reasoningEffort` to the child, so the remaining category-only fields are rejected rather than silently ignored:
+
+```jsonc
+{
+  "agents": {
+    "explore": {
+      "model": "apitopia/kimi-for-coding-highspeed",
+      "models": [
+        { "model": "quotio-openai/gpt-5.4-mini-fast", "reasoningEffort": "minimal" },
+        "anthropic/claude-haiku-4-5"
+      ]
+    }
+  }
+}
+```
+
+For both categories and agents the resolved `variant` wins over `reasoningEffort`, and whichever applies becomes the spawned child's thinking level.
 
 ## Example
 
