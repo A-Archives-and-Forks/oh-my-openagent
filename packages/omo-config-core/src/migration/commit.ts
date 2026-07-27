@@ -1,4 +1,4 @@
-import { basename, dirname, join } from "node:path"
+import { basename, dirname, join, resolve } from "node:path"
 import { isPlainObject } from "../internal/plain-object"
 import { parseJsoncSafe } from "../internal/jsonc-parse"
 import { resolveHomeDir } from "../loader"
@@ -51,6 +51,10 @@ function writerInput(targetPath: string, env: MigrationEnvironment): { readonly 
   throw new MigrationTransactionError(`Migration target is not an omo config path: ${targetPath}`)
 }
 
+function sameResolvedPath(a: string, b: string): boolean {
+  return resolve(a) === resolve(b)
+}
+
 export const writeOmoMigrationTarget: MigrationTargetWriter = (input): void => {
   const options = writerInput(input.targetPath, input.env)
   const result = updateOmoConfig({
@@ -59,7 +63,7 @@ export const writeOmoMigrationTarget: MigrationTargetWriter = (input): void => {
     env: input.env,
     fileSystem: input.fileSystem,
   })
-  if (result.path !== input.targetPath) {
+  if (!sameResolvedPath(result.path, input.targetPath)) {
     throw new MigrationTransactionError(`Migration writer resolved ${result.path} instead of ${input.targetPath}`)
   }
 }
