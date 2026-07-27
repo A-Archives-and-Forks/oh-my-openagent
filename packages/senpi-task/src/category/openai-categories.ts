@@ -161,9 +161,10 @@ THIS CATEGORY USES A LIGHTWEIGHT MODEL (gpt-5.6-luna).
 export const OPENAI_CATEGORIES = [
   {
     name: "ultrabrain",
-    config: { model: "openai/gpt-5.6-sol", variant: "xhigh" },
+    config: { model: "openai/gpt-5.6-sol", variant: "max" },
     description: "Use ONLY for genuinely hard, logic-heavy tasks. Give clear goals only, not step-by-step instructions.",
     promptAppend: ULTRABRAIN_CATEGORY_PROMPT_APPEND,
+    requiresModel: "gpt-5.6-sol",
   },
   {
     name: "deep",

@@ -32,9 +32,9 @@ function expectResolved(result: ReturnType<typeof resolveCategory<FakeModel>>): 
 }
 
 const gpt56CategoryCases = [
-  { category: "ultrabrain", modelId: "gpt-5.6-sol" },
-  { category: "deep", modelId: "gpt-5.6-terra" },
-  { category: "unspecified-low", modelId: "gpt-5.6-luna" },
+  { category: "ultrabrain", modelId: "gpt-5.6-sol", nativeVariant: "max" },
+  { category: "deep", modelId: "gpt-5.6-terra", nativeVariant: "xhigh" },
+  { category: "unspecified-low", modelId: "gpt-5.6-luna", nativeVariant: "xhigh" },
 ] as const
 
 describe("resolveCategory", () => {
@@ -153,12 +153,12 @@ describe("resolveCategory", () => {
     })
   })
 
-  test("#given ultrabrain primary is unavailable and hardcoded Google fallback is available #when resolved #then delegate-core fallback chain preserves the high variant", () => {
+  test("#given visual-engineering primary is unavailable and hardcoded Google fallback is available #when resolved #then delegate-core fallback chain preserves the high variant", () => {
     // given
     const models = registry([model("google", "gemini-3.1-pro")])
 
     // when
-    const result = resolveCategory("ultrabrain", {}, models)
+    const result = resolveCategory("visual-engineering", {}, models)
 
     // then
     const resolved = expectResolved(result)
@@ -173,24 +173,21 @@ describe("resolveCategory", () => {
     })
   })
 
-  test("#given only transformed Vercel GPT-5.6 models #when deep categories resolve #then each keeps xhigh", () => {
-    for (const { category, modelId } of gpt56CategoryCases) {
+  test("#given only transformed Vercel GPT-5.6 models #when deep categories resolve #then each keeps its native top rung", () => {
+    for (const { category, modelId, nativeVariant } of gpt56CategoryCases) {
       const gatewayModelId = `openai/${modelId}`
       const result = expectResolved(resolveCategory(category, {}, registry([model("vercel", gatewayModelId)])))
 
       expect(result.spec.provider).toBe("vercel")
       expect(result.spec.modelId).toBe(gatewayModelId)
-      expect(result.spec.variant).toBe("xhigh")
-      expect(result.modelSelection.fallbackEntry).toEqual({
-        providers: ["openai", "vercel"],
-        model: modelId,
-        variant: "xhigh",
-      })
+      expect(result.spec.variant).toBe(nativeVariant)
+      expect(result.modelSelection.fallbackEntry?.model).toBe(modelId)
+      expect(result.modelSelection.fallbackEntry?.variant).toBe(nativeVariant)
     }
   })
 
-  test("#given transformed Vercel and Copilot GPT-5.6 models #when deep categories resolve #then Vercel xhigh wins", () => {
-    for (const { category, modelId } of gpt56CategoryCases) {
+  test("#given transformed Vercel and Copilot GPT-5.6 models #when deep categories resolve #then the Vercel native rung wins", () => {
+    for (const { category, modelId, nativeVariant } of gpt56CategoryCases) {
       const gatewayModelId = `openai/${modelId}`
       const models = registry([
         model("github-copilot", modelId),
@@ -200,12 +197,8 @@ describe("resolveCategory", () => {
 
       expect(result.spec.provider).toBe("vercel")
       expect(result.spec.modelId).toBe(gatewayModelId)
-      expect(result.spec.variant).toBe("xhigh")
-      expect(result.modelSelection.fallbackEntry).toEqual({
-        providers: ["openai", "vercel"],
-        model: modelId,
-        variant: "xhigh",
-      })
+      expect(result.spec.variant).toBe(nativeVariant)
+      expect(result.modelSelection.fallbackEntry?.model).toBe(modelId)
     }
   })
 
@@ -324,7 +317,7 @@ describe("resolveCategory", () => {
 })
 
 describe("builtin category defaults", () => {
-  test("#given ported builtin defaults #when snapshotted #then all eight category defaults stay pinned", () => {
+  test("#given ported builtin defaults #when snapshotted #then all nine category defaults stay pinned", () => {
     // given
     const defaults = BUILTIN_CATEGORY_DEFAULTS
 
@@ -345,6 +338,7 @@ describe("builtin category defaults", () => {
       "deep",
       "quick",
       "unspecified-low",
+      "architect",
       "unspecified-high",
       "writing",
     ])

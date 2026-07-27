@@ -39,11 +39,4 @@ export const AGENT_FALLBACK_CHAINS: Readonly<Record<string, readonly DelegateFal
     { providers: ["google", "github-copilot", "opencode", "vercel"], model: "gemini-3.1-pro", variant: "high" },
     { providers: ["opencode-go", "vercel"], model: "glm-5.2" },
   ],
-  oracle: [
-    { providers: ["openai", "opencode", "vercel"], model: "gpt-5.6-sol", variant: "xhigh" },
-    { providers: ["github-copilot"], model: "gpt-5.6-sol", variant: "high" },
-    { providers: ["google", "github-copilot", "opencode", "vercel"], model: "gemini-3.1-pro", variant: "high" },
-    { providers: ["anthropic", "github-copilot", "opencode", "vercel"], model: "claude-opus-5", variant: "max" },
-    { providers: ["opencode-go", "vercel"], model: "glm-5.2" },
-  ],
 }
