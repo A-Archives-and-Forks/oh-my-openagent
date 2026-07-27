@@ -9,8 +9,14 @@ const WRITER_DIR = join(LOADER_DIR, "..", "writer")
  * The user-scope omo config root is `~/.omo` and nothing else. Any reappearance of
  * an XDG / APPDATA / `.config/omo` user-config branch reintroduces the split-brain
  * this package was fixed to remove, so the audit fails on the source text itself.
+ *
+ * This scan is supplemental and defeatable by construction (a computed string, or a
+ * helper moved outside these two directories). The load-bearing guarantees are the
+ * behavioral tests that populate `$XDG_CONFIG_HOME`, `%APPDATA%`, and `~/.config/omo`
+ * with decoys and assert neither the loader nor the writer ever touches them:
+ * `paths.test.ts` and the writer containment case in `../writer/writer.test.ts`.
  */
-const FORBIDDEN_USER_CONFIG_TOKENS = ["XDG_CONFIG_HOME", "APPDATA", ".config"] as const
+const FORBIDDEN_USER_CONFIG_TOKENS = ["XDG_CONFIG_HOME", "APPDATA", `".config"`] as const
 
 function collectSourceFiles(directory: string): readonly string[] {
   const entries = readdirSync(directory)
