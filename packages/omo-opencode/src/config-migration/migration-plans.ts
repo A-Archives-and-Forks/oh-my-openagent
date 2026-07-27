@@ -80,7 +80,7 @@ function openCodePlan(
     inspect: (loaded) => openCodeInspection(input, loaded),
     sources: descriptors(input.sources, options, timestamp),
     targetPath: input.targetPath,
-    transform: (loaded) => openCodeInspection(input, loaded).document,
+    transform: (loaded) => openCodeInspection(input, loaded),
   }
 }
 
@@ -144,7 +144,7 @@ export function createLegacyConfigMigrationPlans(
       inspect: (loaded) => transformConfigJsoncSources({ discovered: configJsoncGroup.sources, sources: loaded }),
       sources: descriptors(configJsoncGroup.sources, options, timestamp),
       targetPath: userTargetPath,
-      transform: (loaded) => transformConfigJsoncSources({ discovered: configJsoncGroup.sources, sources: loaded }).document,
+      transform: (loaded) => transformConfigJsoncSources({ discovered: configJsoncGroup.sources, sources: loaded }),
     },
   ]
 }

@@ -86,6 +86,17 @@ function ensureBackupDirectories(moves: readonly MigrationBackupMove[], fileSyst
   for (const move of moves) fileSystem.mkdirSync(directoryPath(move.to), { recursive: true })
 }
 
+function transformResult(value: ReturnType<MigrationPlan["transform"]>): {
+  readonly diagnostics: readonly string[]
+  readonly document: Readonly<Record<string, unknown>>
+} {
+  if (isPlainObject(value) && isPlainObject(value.document) && Array.isArray(value.diagnostics) && value.diagnostics.every((diagnostic) => typeof diagnostic === "string")) {
+    return { diagnostics: value.diagnostics, document: value.document }
+  }
+  if (!isPlainObject(value)) throw new MigrationTransactionError("Migration transform must return a plain object")
+  return { diagnostics: [], document: value }
+}
+
 function executePlan(input: {
   readonly clock: MigrationClock
   readonly dryRun: boolean
@@ -107,12 +118,12 @@ function executePlan(input: {
     return { diagnostics: [], journalResumed, status: "skipped" }
   }
 
-  const transformed = plan.transform(loadSources(existingSources, fileSystem))
-  if (!isPlainObject(transformed)) throw new MigrationTransactionError("Migration transform must return a plain object")
-  const prepared = prepareTargetWrite({ additions: transformed, migrationId: plan.id, target, targetPath: plan.targetPath })
+  const transformed = transformResult(plan.transform(loadSources(existingSources, fileSystem)))
+  const prepared = prepareTargetWrite({ additions: transformed.document, migrationId: plan.id, target, targetPath: plan.targetPath })
+  const diagnostics = [...transformed.diagnostics, ...prepared.diagnostics]
   const moves = backupMoves(existingSources, plan.id, fileSystem, protectedPaths)
-  const preview = { backupMoves: moves, targetPath: plan.targetPath, transform: transformed }
-  if (input.dryRun) return { diagnostics: prepared.diagnostics, journalResumed, preview, status: "planned" }
+  const preview = { backupMoves: moves, targetPath: plan.targetPath, transform: transformed.document }
+  if (input.dryRun) return { diagnostics, journalResumed, preview, status: "planned" }
 
   ensureBackupDirectories(moves, fileSystem)
   const journal = {
@@ -120,7 +131,7 @@ function executePlan(input: {
     completedMoves: [],
     migrationId: plan.id,
     targetPath: plan.targetPath,
-    targetWrite: { additions: transformed },
+    targetWrite: { additions: transformed.document },
     targetWritten: false,
     version: 1 as const,
   }
@@ -142,7 +153,7 @@ function executePlan(input: {
     input.onBoundary?.("source-recorded")
   }
   removeMigrationJournal(fileSystem, env)
-  return { diagnostics: prepared.diagnostics, journalResumed, preview, status: "migrated" }
+  return { diagnostics, journalResumed, preview, status: "migrated" }
 }
 
 export function runMigrations(options: RunMigrationsOptions): MigrationBatchRunResult {

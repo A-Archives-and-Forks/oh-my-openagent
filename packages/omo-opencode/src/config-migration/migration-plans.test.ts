@@ -96,4 +96,39 @@ describe("legacy config migration plans", () => {
       rmSync(fixtureRoot, { force: true, recursive: true })
     }
   })
+
+  test("#given overlapping legacy [omo] and [senpi] blocks #when previewing and migrating config.jsonc #then both results report the transform conflict", () => {
+    // given
+    const fixtureRoot = mkdtempSync(join(tmpdir(), "omo-config-migration-diagnostics-"))
+    const homeDir = join(fixtureRoot, "home")
+    const configJsoncPath = join(homeDir, ".omo", "config.jsonc")
+    mkdirSync(join(configJsoncPath, ".."), { recursive: true })
+    writeFileSync(configJsoncPath, JSON.stringify({
+      "[omo]": { agents: { oracle: { model: "legacy" } } },
+      "[senpi]": { agents: { oracle: { model: "current" } } },
+    }))
+
+    try {
+      const plans = createLegacyConfigMigrationPlans({
+        backupTimestamp: "2026-07-27T12-34-56-789Z",
+        cwd: homeDir,
+        environment: { HOME: homeDir, XDG_CONFIG_HOME: join(homeDir, ".config") },
+        homeDir,
+        pathOperations: posix,
+        platform: "linux",
+      })
+      const plan = plans.find((candidate) => candidate.id === CONFIG_JSONC_MIGRATION_ID)
+      if (plan === undefined) throw new Error("Expected config.jsonc migration plan")
+
+      // when
+      const dryRun = executeLegacyConfigMigrationPlan(plan, { dryRun: true, env: { HOME: homeDir } })
+      const migrated = executeLegacyConfigMigrationPlan(plan, { env: { HOME: homeDir } })
+
+      // then
+      expect(dryRun.diagnostics).toContain("conflict: [senpi] legacy [omo] kept [senpi]")
+      expect(migrated.diagnostics).toContain("conflict: [senpi] legacy [omo] kept [senpi]")
+    } finally {
+      rmSync(fixtureRoot, { force: true, recursive: true })
+    }
+  })
 })

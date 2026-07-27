@@ -278,6 +278,21 @@ describe("getCodexOmoConfig", () => {
 		expect(result.warnings).toContain("omo-codex: configuration migration: skipped: codegraph.enabled legacy=false kept=true")
 	})
 
+	it("#given overlapping [omo] and [senpi] blocks in legacy config #when Codex migrates #then the transform conflict is reported", () => {
+		// given
+		const homeDir = createTemporaryDirectory("omo-codex-legacy-senpi-conflict-")
+		writeLegacyOmoConfig(homeDir, JSON.stringify({
+			"[omo]": { agents: { oracle: { model: "legacy" } } },
+			"[senpi]": { agents: { oracle: { model: "current" } } },
+		}))
+
+		// when
+		const result = runCodexStartupMigration({ cwd: homeDir, environment: { HOME: homeDir }, homeDir })
+
+		// then
+		expect(result.results[0]?.diagnostics).toContain("conflict: [senpi] legacy [omo] kept [senpi]")
+	})
+
 	it("#given a malformed migration journal #when codex starts #then exposes the recovery failure through loader warnings", () => {
 		// given
 		const homeDir = createTemporaryDirectory("omo-codex-recovery-warning-")
