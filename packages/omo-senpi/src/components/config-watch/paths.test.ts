@@ -86,10 +86,10 @@ describe("resolveOmoConfigWatchTargets", () => {
       projectConfigPath,
       cwdConfigPath,
     ])
-    expect(targetFor(targets, userConfigDirectory, "omo.jsonc")).toBe(true)
-    expect(targetFor(targets, join(fixture.workDir, ".omo"), "omo.json")).toBe(true)
-    expect(targetFor(targets, join(fixture.projectDir, ".omo"), "omo.jsonc")).toBe(true)
-    expect(targetFor(targets, join(fixture.cwd, ".omo"), "omo.jsonc")).toBe(true)
+    expect(targetFor(targets, userConfigDirectory, "/omo.jsonc")).toBe(true)
+    expect(targetFor(targets, join(fixture.workDir, ".omo"), "/omo.json")).toBe(true)
+    expect(targetFor(targets, join(fixture.projectDir, ".omo"), "/omo.jsonc")).toBe(true)
+    expect(targetFor(targets, join(fixture.cwd, ".omo"), "/omo.jsonc")).toBe(true)
     expect(targets.filter((target) => target.filterGlobs.includes("/.omo")).map((target) => target.path)).toEqual([
       fixture.cwd,
       fixture.projectDir,
@@ -129,7 +129,7 @@ describe("resolveOmoConfigWatchTargets", () => {
       platform: "linux",
     })
 
-    expect(targetFor(targets, join(fixture.projectDir, ".omo"), "omo.jsonc")).toBe(false)
+    expect(targetFor(targets, join(fixture.projectDir, ".omo"), "/omo.jsonc")).toBe(false)
     expect(targetFor(targets, fixture.projectDir, "/.omo")).toBe(true)
   })
 
@@ -144,8 +144,8 @@ describe("resolveOmoConfigWatchTargets", () => {
       platform: "linux",
     })
 
-    expect(targetFor(targets, omoDirectory, "omo.jsonc")).toBe(true)
-    expect(targetFor(targets, omoDirectory, "omo.json")).toBe(true)
+    expect(targetFor(targets, omoDirectory, "/omo.jsonc")).toBe(true)
+    expect(targetFor(targets, omoDirectory, "/omo.json")).toBe(true)
   })
 
   it("#given an existing ~/.omo user config directory #when resolving targets #then it is watched for both config filenames", () => {
@@ -160,8 +160,8 @@ describe("resolveOmoConfigWatchTargets", () => {
     })
 
     expect(resolution.userConfigCreationWatched).toBe(true)
-    expect(targetFor(resolution.targets, userConfigDirectory, "omo.jsonc")).toBe(true)
-    expect(targetFor(resolution.targets, userConfigDirectory, "omo.json")).toBe(true)
+    expect(targetFor(resolution.targets, userConfigDirectory, "/omo.jsonc")).toBe(true)
+    expect(targetFor(resolution.targets, userConfigDirectory, "/omo.json")).toBe(true)
   })
 
   it("#given a missing ~/.omo user config directory #when resolving targets #then no bare-HOME creation target is emitted and discovery needs a later reload", () => {
@@ -241,6 +241,22 @@ describe("resolveOmoConfigWatchTargets", () => {
     const targets = resolveOmoConfigWatchTargets({ cwd: fixture.cwd, env, platform: "linux" })
     const userCreationTarget = targets.find((target) => target.path === fixture.homeDir && target.filterGlobs.includes("/omo"))
     expect(userCreationTarget?.filterGlobs).toEqual(["/omo"])
+  })
+
+  it("#given an existing .omo directory holding runtime state #when resolving targets #then its config globs are root-anchored so the subtree is not scanned", () => {
+    const fixture = createFixture()
+    writeProjectConfig(fixture.projectDir)
+    const omoDirectory = join(fixture.projectDir, ".omo")
+    mkdirSync(join(omoDirectory, "senpi-task", "children", "st_abc"), { recursive: true })
+    writeFileSync(join(omoDirectory, "senpi-task", "children", "st_abc", "transcript.jsonl"), "{}\n")
+
+    const targets = resolveOmoConfigWatchTargets({
+      cwd: fixture.cwd,
+      env: fixtureEnv(fixture),
+      platform: "linux",
+    })
+    const configTarget = targets.find((target) => target.path === omoDirectory)
+    expect(configTarget?.filterGlobs).toEqual(["/omo.jsonc", "/omo.json"])
   })
 })
 
