@@ -45,7 +45,7 @@ describe("agent plans carrying configured effort", () => {
     expect(plan.resolved_model?.reasoning_effort).toBe("minimal")
   })
 
-  test("#given an agent carrying both variant and effort #when planned #then the explicit variant wins", () => {
+  test("#given an agent carrying both variant and effort #when planned #then effort wins exactly as it does for a category", () => {
     // given
     const config = {
       agents: {
@@ -62,7 +62,28 @@ describe("agent plans carrying configured effort", () => {
     const plan = resolvedPlan(planner({ subagent_type: "librarian", prompt: "go", parent_session_id: "p", depth: 1 }))
 
     // then
-    expect(plan.variant).toBe("high")
+    expect(plan.variant).toBe("minimal")
+  })
+
+  test("#given an agent level variant and a per entry effort #when planned #then the per entry effort still reaches the child", () => {
+    // given
+    const config = {
+      agents: {
+        explore: {
+          variant: "high",
+          models: [{ model: "quotio-openai/gpt-5.4-mini-fast", reasoningEffort: "minimal" as const }],
+        },
+      },
+    } satisfies OmoConfig
+    const agents = mapOmoConfigAgents(config)
+    const models = registry([{ provider: "quotio-openai", id: "gpt-5.4-mini-fast" }])
+    const planner = createTaskChildPlanner(config, agents, () => models)
+
+    // when
+    const plan = resolvedPlan(planner({ subagent_type: "explore", prompt: "go", parent_session_id: "p", depth: 1 }))
+
+    // then
+    expect(plan.variant).toBe("minimal")
   })
 
   test("#given an agent with plain string models #when planned #then no variant is invented", () => {
