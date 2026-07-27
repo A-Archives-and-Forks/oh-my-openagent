@@ -3,12 +3,16 @@ import * as z from "zod"
 import { ToolsInputSchema, normalizeToolRules } from "./tools"
 import type { AgentDefinition, AgentDefinitionInput } from "./types"
 
+// Same effort levels omo-config-core enforces, so the markdown-frontmatter and overlay paths cannot
+// accept a value asSenpiThinkingLevel would silently drop.
+const ReasoningEffortSchema = z.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"])
+
 const AgentModelEntrySchema = z.union([
   z.string(),
   z.object({
     model: z.string(),
     variant: z.string().optional(),
-    reasoningEffort: z.string().optional(),
+    reasoningEffort: ReasoningEffortSchema.optional(),
   }).passthrough(),
 ])
 
@@ -19,7 +23,7 @@ export const RawAgentDefinitionSchema = z.object({
   model: z.string().optional(),
   models: z.array(AgentModelEntrySchema).optional(),
   variant: z.string().optional(),
-  reasoningEffort: z.string().optional(),
+  reasoningEffort: ReasoningEffortSchema.optional(),
   temperature: z.number().min(0).max(2).optional(),
   tools: ToolsInputSchema.optional(),
   disable: z.boolean().optional(),

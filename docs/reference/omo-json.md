@@ -116,7 +116,7 @@ A record of agent name to definition (`schema/agent.ts`).
 | `description` | string | |
 | `prompt` | string | |
 | `model` | string | |
-| `models` | model entries | fallback chain; same entry shape as [fallback models](#fallback-models), so an entry may be a bare string or `{ model, variant?, reasoningEffort?, ... }` |
+| `models` | model entries | fallback chain; each entry is a bare string or `{ model, variant?, reasoningEffort? }` (see [fallback models](#fallback-models)) |
 | `variant` | string | default variant for this agent's models; a per-entry `variant` overrides it |
 | `reasoningEffort` | `none \| minimal \| low \| medium \| high \| xhigh \| max` | default effort for this agent's models; a per-entry `reasoningEffort` overrides it |
 | `tools` | record<string, boolean> | |
@@ -236,7 +236,7 @@ Each member shares a base (`name` matching `^[a-z0-9-]+$`, optional `cwd`, `work
 
 `fallback_models` (on a category) and per-model fallback entries accept a union (`schema/fallback-models.ts`): a single model string, an array of model strings, an array of objects, or a mixed array. Each object is `{ model, variant?, reasoningEffort?, temperature?, top_p?, maxTokens?, thinking? }`.
 
-An agent's `models` array accepts the same entry shape, so a fallback can run at a different effort than the agent's primary model:
+An agent's `models` array accepts a deliberately narrower entry object, `{ model, variant?, reasoningEffort? }`, so a fallback can run at a different effort than the agent's primary model. Agent resolution threads only `variant` and `reasoningEffort` to the child, so the remaining category-only fields are rejected rather than silently ignored:
 
 ```jsonc
 {
