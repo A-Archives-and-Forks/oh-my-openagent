@@ -347,6 +347,17 @@
               "type": "string"
             }
           },
+          "disallowed_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "max_turns": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
           "temperature": {
             "type": "number",
             "minimum": 0,
@@ -390,6 +401,10 @@
           "items": {
             "type": "string"
           }
+        },
+        "session_start_cooldown_ms": {
+          "type": "number",
+          "minimum": 60000
         }
       },
       "required": [
@@ -1094,6 +1109,17 @@
                   "type": "string"
                 }
               },
+              "disallowed_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "max_turns": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
               "temperature": {
                 "type": "number",
                 "minimum": 0,
@@ -1133,6 +1159,10 @@
               "items": {
                 "type": "string"
               }
+            },
+            "session_start_cooldown_ms": {
+              "type": "number",
+              "minimum": 60000
             }
           },
           "additionalProperties": false
@@ -1780,6 +1810,17 @@
                   "type": "string"
                 }
               },
+              "disallowed_tools": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "max_turns": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
               "temperature": {
                 "type": "number",
                 "minimum": 0,
@@ -1819,6 +1860,10 @@
               "items": {
                 "type": "string"
               }
+            },
+            "session_start_cooldown_ms": {
+              "type": "number",
+              "minimum": 60000
             }
           },
           "additionalProperties": false
@@ -2472,6 +2517,17 @@
                     "type": "string"
                   }
                 },
+                "disallowed_tools": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "max_turns": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
                 "temperature": {
                   "type": "number",
                   "minimum": 0,
@@ -2511,6 +2567,10 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "session_start_cooldown_ms": {
+                "type": "number",
+                "minimum": 60000
               }
             },
             "additionalProperties": false
@@ -3162,6 +3222,17 @@
                         "type": "string"
                       }
                     },
+                    "disallowed_tools": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "max_turns": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
                     "temperature": {
                       "type": "number",
                       "minimum": 0,
@@ -3201,6 +3272,10 @@
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "session_start_cooldown_ms": {
+                    "type": "number",
+                    "minimum": 60000
                   }
                 },
                 "additionalProperties": false
@@ -3848,6 +3923,17 @@
                         "type": "string"
                       }
                     },
+                    "disallowed_tools": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "max_turns": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
                     "temperature": {
                       "type": "number",
                       "minimum": 0,
@@ -3887,6 +3973,10 @@
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "session_start_cooldown_ms": {
+                    "type": "number",
+                    "minimum": 60000
                   }
                 },
                 "additionalProperties": false
