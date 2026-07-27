@@ -43,7 +43,7 @@ function writerInput(targetPath: string, env: MigrationEnvironment): { readonly 
   const homeDir = resolveHomeDir(env)
   const userDirectory = toPosixPath(join(homeDir, ".omo"))
   const fileName = basename(targetPath)
-  if (dirname(targetPath) === userDirectory && (fileName === "omo.json" || fileName === "omo.jsonc")) {
+  if (toPosixPath(dirname(targetPath)) === userDirectory && (fileName === "omo.json" || fileName === "omo.jsonc")) {
     return { scope: "user" }
   }
   if (basename(dirname(targetPath)) === ".omo" && (fileName === "omo.json" || fileName === "omo.jsonc")) {
