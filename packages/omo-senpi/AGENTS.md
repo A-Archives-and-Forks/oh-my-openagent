@@ -10,7 +10,7 @@ This package is adapter-only. It may depend on harness-neutral core packages plu
 |------|---------|
 | `package.json` | Private workspace package `@oh-my-opencode/omo-senpi`; exports the adapter, extension, and local installer entrypoints. |
 | `src/extension/` | Senpi ExtensionAPI composition layer. It validates the required API surface, registers global and per-component disable flags, and wires components defensively. |
-| `src/components/` | Nine live components: `ultrawork`, `start-work-continuation`, `ulw-loop`, `comment-checker`, `telemetry`, `lsp`, `codegraph`, `task`, and `config-watch`. |
+| `src/components/` | Ten live components: `ultrawork`, `start-work-continuation`, `ulw-loop`, `fallback-architect`, `comment-checker`, `telemetry`, `lsp`, `codegraph`, `task`, and `config-watch`. |
 | `src/install/` | Local Senpi installer and uninstaller helpers. They add or remove the absolute plugin path in `SENPI_CODING_AGENT_DIR` or `~/.senpi/agent` settings. |
 | `scripts/qa/` | Live Senpi QA drivers, continuation probe, and mock provider used by task 13 validation. |
 | `skills/` | Native Senpi skills authored directly against the Senpi tool surface (not ported from Codex or the shared pool); currently `hyperplan`, `ultrawork`, and `ulw-research`. `sync-skills.mjs` ships them verbatim. |

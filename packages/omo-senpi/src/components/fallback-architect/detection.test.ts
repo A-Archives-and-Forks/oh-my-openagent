@@ -64,6 +64,13 @@ describe("fallback-architect detection", () => {
       })
     })
 
+    describe("#when an aborted message still carries stale refusal details", () => {
+      it("#then the stop reason wins and the message is not refusal-like", () => {
+        expect(isRefusalLikeMessage(assistant({ stopReason: "aborted", stopDetails: { type: "refusal" } }))).toBe(false)
+        expect(isRefusalLikeMessage(assistant({ stopReason: "stop", stopDetails: { type: "sensitive" } }))).toBe(false)
+      })
+    })
+
     describe("#when the payload is malformed", () => {
       it("#then returns false instead of throwing", () => {
         expect(isRefusalLikeMessage(undefined)).toBe(false)

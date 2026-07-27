@@ -47,13 +47,16 @@ function isModelDescriptor(value: unknown): value is FallbackModelDescriptor {
 export function isRefusalLikeMessage(message: unknown): boolean {
   if (!isRecord(message) || message["role"] !== "assistant") return false
 
+  // Order matters and mirrors senpi: the stop reason is checked FIRST, so a message that ended for
+  // another reason (an abort, a normal stop) can never be read as a refusal just because it still
+  // carries stale stopDetails.
+  const stopReason = message["stopReason"]
+  if (typeof stopReason !== "string" || !REFUSAL_ELIGIBLE_STOP_REASONS.has(stopReason)) return false
+
   const stopDetails = message["stopDetails"]
   if (isRecord(stopDetails) && typeof stopDetails["type"] === "string" && REFUSAL_STOP_DETAIL_TYPES.has(stopDetails["type"])) {
     return true
   }
-
-  const stopReason = message["stopReason"]
-  if (typeof stopReason !== "string" || !REFUSAL_ELIGIBLE_STOP_REASONS.has(stopReason)) return false
 
   const errorMessage = message["errorMessage"]
   return typeof errorMessage === "string" && ANTHROPIC_POLICY_REFUSAL_PATTERN.test(errorMessage)

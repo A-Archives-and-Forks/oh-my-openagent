@@ -84,6 +84,13 @@ export function createFallbackArchitectComponent(
       pi.on("input", (payload: unknown): { action: "continue" } => {
         if (isDisabled() || state.active === undefined) return { action: "continue" }
         if (!isUserSourcedInput(payload)) return { action: "continue" }
+        // A prompt queued mid-stream carries streamingBehavior. Senpi drains those queues one
+        // message at a time and answers each drained message, so a separate hidden message would
+        // burn its own assistant turn before the user's actual ask is handled (the same trap
+        // documented in components/ultrawork/index.ts). The directive is already in context by
+        // then, so the right move for a supplementary reminder is to skip this prompt rather than
+        // rewrite the user's text.
+        if (isQueuedDuringStreaming(payload)) return { action: "continue" }
 
         pi.sendMessage({
           customType: FALLBACK_ARCHITECT_REMINDER_TYPE,
@@ -98,6 +105,10 @@ export function createFallbackArchitectComponent(
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
+}
+
+function isQueuedDuringStreaming(payload: unknown): boolean {
+  return isRecord(payload) && typeof payload["streamingBehavior"] === "string"
 }
 
 function isUserSourcedInput(payload: unknown): boolean {

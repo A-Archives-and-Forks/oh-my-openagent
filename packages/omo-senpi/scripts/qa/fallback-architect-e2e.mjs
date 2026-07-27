@@ -113,8 +113,8 @@ function readSessionEntries(sessionDir) {
 	return entries;
 }
 
-function findDirective(entries) {
-	return entries.find((entry) => collectCustomTypes(entry).includes(DIRECTIVE_TYPE));
+function collectDirectives(entries) {
+	return entries.filter((entry) => collectCustomTypes(entry).includes(DIRECTIVE_TYPE));
 }
 
 function collectCustomTypes(value, depth = 0) {
@@ -146,23 +146,29 @@ function runScenario(senpiBin, scenario) {
 	try {
 		const run = driveSenpi(senpiBin, seeded);
 		const entries = readSessionEntries(seeded.sessionDir);
-		const directive = findDirective(entries);
-		const content = directive === undefined ? "" : directiveContent(directive);
-		const injected = directive !== undefined;
+		const directives = collectDirectives(entries);
+		const content = directives.length === 0 ? "" : directiveContent(directives[0]);
 
+		// Criterion 1 is "exactly ONE directive", so the count is the observable, never a boolean.
+		const expectedCount = scenario.expectDirective ? 1 : 0;
 		const contentOk = scenario.expectDirective
-			? content.includes(PRIMARY) && content.includes(FALLBACK) && content.includes('task(category: "architect")')
+			? content.includes(PRIMARY) &&
+				content.includes(FALLBACK) &&
+				content.includes('task(category: "architect")') &&
+				content.includes("Decompose the current problem into independent parts") &&
+				content.includes("ONE self-contained query per part")
 			: true;
+		const exitOk = run.status === 0;
 
 		return {
 			scenario: scenario.name,
-			expectDirective: scenario.expectDirective,
-			injected,
+			expectedDirectives: expectedCount,
+			observedDirectives: directives.length,
 			contentOk,
 			exitStatus: run.status,
 			entries: entries.length,
-			result: injected === scenario.expectDirective && contentOk ? "PASS" : "FAIL",
-			stderrTail: run.status === 0 ? undefined : String(run.stderr ?? "").slice(-400),
+			result: directives.length === expectedCount && contentOk && exitOk ? "PASS" : "FAIL",
+			stderrTail: exitOk ? undefined : String(run.stderr ?? "").slice(-400),
 		};
 	} finally {
 		rmSync(seeded.sandbox.root, { recursive: true, force: true });
@@ -183,9 +189,11 @@ function runSelfTest() {
 		{ type: "custom", message: { customType: DIRECTIVE_TYPE, content: `${PRIMARY} ${FALLBACK} task(category: "architect")` } },
 		{ type: "user", content: "hello" },
 	];
-	if (findDirective(entries) === undefined) throw new Error("self-test: directive entry not detected");
-	if (!directiveContent(findDirective(entries)).includes(PRIMARY)) throw new Error("self-test: directive content not read");
-	if (findDirective([{ type: "user", content: "hello" }]) !== undefined) throw new Error("self-test: false positive");
+	if (collectDirectives(entries).length !== 1) throw new Error("self-test: directive entry not detected exactly once");
+	if (!directiveContent(collectDirectives(entries)[0]).includes(PRIMARY)) throw new Error("self-test: directive content not read");
+	if (collectDirectives([{ type: "user", content: "hello" }]).length !== 0) throw new Error("self-test: false positive");
+	const duplicated = [...entries, entries[0]];
+	if (collectDirectives(duplicated).length !== 2) throw new Error("self-test: duplicate directives must be counted, not collapsed");
 	if (SCENARIOS.filter((s) => s.expectDirective).length !== 2) throw new Error("self-test: expected two positive scenarios");
 	console.log(JSON.stringify({ selfTest: "PASS", scenarios: SCENARIOS.map((s) => s.name) }, null, 2));
 }

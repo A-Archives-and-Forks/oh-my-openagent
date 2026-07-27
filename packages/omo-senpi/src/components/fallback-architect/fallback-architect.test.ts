@@ -55,6 +55,15 @@ async function sendInput(pi: FakeExtensionAPI, source = "interactive"): Promise<
   return result
 }
 
+async function sendQueuedInput(pi: FakeExtensionAPI, streamingBehavior: string): Promise<unknown> {
+  const [result] = await pi.dispatch(
+    "input",
+    { type: "input", text: "next question", source: "interactive", streamingBehavior },
+    { cwd: "/tmp/project" },
+  )
+  return result
+}
+
 function directives(pi: FakeExtensionAPI): Record<string, unknown>[] {
   return pi.messages.map((call) => call.message).filter((m) => m["customType"] === FALLBACK_ARCHITECT_DIRECTIVE_TYPE)
 }
@@ -161,6 +170,30 @@ describe("fallback-architect component", () => {
         expect(second).toEqual({ action: "continue" })
         expect(reminders(pi)).toHaveLength(2)
         expect(reminders(pi)[0]?.["display"]).toBe(false)
+      })
+    })
+
+    describe("#when the prompt was queued while the agent was streaming", () => {
+      it("#then no reminder is injected and the typed text is left alone", async () => {
+        const pi = await setup()
+        await endMessage(pi, refusalMessage())
+        await selectModel(pi, { model: OPUS, previousModel: FABLE, source: "fallback" })
+
+        const steer = await sendQueuedInput(pi, "steer")
+        const followUp = await sendQueuedInput(pi, "followUp")
+
+        expect(steer).toEqual({ action: "continue" })
+        expect(followUp).toEqual({ action: "continue" })
+        expect(reminders(pi)).toHaveLength(0)
+      })
+    })
+
+    describe("#when a refusal fallback follows an aborted message carrying stale refusal details", () => {
+      it("#then nothing is injected", async () => {
+        const pi = await setup()
+        await endMessage(pi, { role: "assistant", stopReason: "aborted", stopDetails: { type: "refusal" } })
+        await selectModel(pi, { model: OPUS, previousModel: FABLE, source: "fallback" })
+        expect(pi.messages).toHaveLength(0)
       })
     })
 
