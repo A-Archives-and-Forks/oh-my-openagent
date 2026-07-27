@@ -138,26 +138,30 @@ describe("config check", () => {
       const originalConfigDir = process.env.OPENCODE_CONFIG_DIR
       const originalXdgConfig = process.env.XDG_CONFIG_HOME
       const originalXdgCache = process.env.XDG_CACHE_HOME
+      const originalHome = process.env.HOME
       const testRootDir = join(
         tmpdir(),
         `omo-doctor-custom-provider-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       )
-      const pluginConfigDir = join(testRootDir, "plugin")
       const xdgConfigDir = join(testRootDir, "xdg-config")
       const xdgCacheDir = join(testRootDir, "xdg-cache")
 
       try {
-        mkdirSync(pluginConfigDir, { recursive: true })
+        mkdirSync(join(testRootDir, ".omo"), { recursive: true })
         mkdirSync(join(xdgConfigDir, "opencode"), { recursive: true })
         mkdirSync(join(xdgCacheDir, "opencode"), { recursive: true })
 
-        process.env.OPENCODE_CONFIG_DIR = pluginConfigDir
+        process.env.HOME = testRootDir
         process.env.XDG_CONFIG_HOME = xdgConfigDir
         process.env.XDG_CACHE_HOME = xdgCacheDir
 
         writeFileSync(
-          join(pluginConfigDir, "omo.json"),
-          JSON.stringify({ agents: { sisyphus: { model: "kiro/claude-opus-4-6" } } }, null, 2) + "\n",
+          join(testRootDir, ".omo", "omo.jsonc"),
+          JSON.stringify(
+            { "[opencode]": { agents: { sisyphus: { model: "kiro/claude-opus-4-6" } } } },
+            null,
+            2,
+          ) + "\n",
           "utf-8",
         )
         writeFileSync(
@@ -200,6 +204,11 @@ describe("config check", () => {
           delete process.env.XDG_CACHE_HOME
         } else {
           process.env.XDG_CACHE_HOME = originalXdgCache
+        }
+        if (originalHome === undefined) {
+          delete process.env.HOME
+        } else {
+          process.env.HOME = originalHome
         }
       }
     })
