@@ -665,10 +665,16 @@ The `codegraph` MCP ships a pinned CodeGraph 1.5.0 binary; managed installs prov
 
     // Extra exclude-only roots. Projects under these skip CodeGraph entirely.
     // Entries may be absolute, ~-relative, or relative to the home directory.
-    "excluded_roots": ["~/scratch/codegraph"]
+    "excluded_roots": ["~/scratch/codegraph"],
+
+    // Codex only: failed SessionStart initialization attempts back off from
+    // this base interval, doubling to a 24-hour cap. Minimum: 60000.
+    "session_start_cooldown_ms": 900000
   }
 }
 ```
+
+The Codex SessionStart bootstrap checks only `<projectRoot>/.codegraph/codegraph.db`; it never calls `codegraph status`. An ancestor database covers nested projects, while per-project locks and persistent cooldown stamps suppress duplicate or repeatedly failing background initializers. Suppressions are recorded in `~/.omo/codegraph/session-start.jsonl` as actions including `skipped-cooldown`, `skipped-locked`, and `skipped-nested-root`.
 
 An ambient `CODEGRAPH_NO_DAEMON=1` forces daemon-off even when `codegraph.daemon` is `true`. Inspect or stop running daemons with the upstream `codegraph daemon` command, an interactive picker that lists running daemons and stops the one you select.
 
