@@ -58,6 +58,17 @@ function shortPathMemoryFileSystem(
   }
 }
 
+function withProcessPlatform<T>(platform: NodeJS.Platform, callback: () => T): T {
+  const descriptor = Object.getOwnPropertyDescriptor(process, "platform")
+  if (descriptor === undefined) throw new Error("Missing process.platform descriptor")
+  Object.defineProperty(process, "platform", { ...descriptor, value: platform })
+  try {
+    return callback()
+  } finally {
+    Object.defineProperty(process, "platform", descriptor)
+  }
+}
+
 describe("legacy config discovery", () => {
   test("#given a custom active profile, default config, Tauri config, and walked project config #when discovering sources #then roots are deduplicated and separated from config.jsonc", () => {
     // given
@@ -124,14 +135,14 @@ describe("legacy config discovery", () => {
     const sourcePath = win32.join(shortHome, ".config", "opencode", "oh-my-openagent.json")
 
     // when
-    const groups = discoverLegacyConfigGroups({
+    const groups = withProcessPlatform("win32", () => discoverLegacyConfigGroups({
       cwd: win32.join(shortHome, "project"),
       environment: { HOME: shortHome, XDG_CONFIG_HOME: posix.join(shortHome, ".config") },
       fileSystem: shortPathMemoryFileSystem(shortHome, longHome, [sourcePath]),
       homeDir: shortHome,
       pathOperations: posix,
-      platform: "win32",
-    })
+      platform: "linux",
+    }))
 
     // then
     expect(groups[0]?.sources).toEqual([

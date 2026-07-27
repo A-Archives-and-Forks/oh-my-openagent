@@ -18,7 +18,7 @@ export function discoveryFileSystem(options: ConfigMigrationDiscoveryOptions) {
 }
 
 function usesWindowsPathSemantics(options: ConfigMigrationDiscoveryOptions): boolean {
-  return options.platform === "win32" || (options.platform === undefined && process.platform === "win32")
+  return options.platform === "win32" || process.platform === "win32"
 }
 
 function normalizeWindowsPosixPath(path: string, options: ConfigMigrationDiscoveryOptions): string {
