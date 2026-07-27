@@ -1,5 +1,7 @@
 import * as z from "zod"
 
+import { HARNESS_IDS, type HarnessId } from "./harness"
+
 const OmoCodegraphSettingsShape = {
   enabled: z.boolean(),
   auto_provision: z.boolean(),
@@ -21,3 +23,26 @@ export const OmoCodegraphSettingsSchema = OmoCodegraphSettingsLayerSchema.extend
 
 export type OmoCodegraphSettings = z.infer<typeof OmoCodegraphSettingsSchema>
 export type OmoCodegraphSettingsLayer = z.infer<typeof OmoCodegraphSettingsLayerSchema>
+
+export interface CodegraphConfig {
+  readonly auto_provision?: boolean
+  readonly daemon?: boolean
+  readonly enabled?: boolean
+  readonly excluded_roots?: readonly string[]
+  readonly install_dir?: string
+  readonly telemetry?: boolean
+  readonly watch_debounce_ms?: number
+}
+
+type CodegraphSettingKey = keyof CodegraphConfig
+type SettingPath = `codegraph.${CodegraphSettingKey}`
+
+export const SETTING_HARNESS_SUPPORT: Record<SettingPath, readonly HarnessId[]> = {
+  "codegraph.auto_provision": HARNESS_IDS,
+  "codegraph.daemon": ["codex", "opencode"],
+  "codegraph.enabled": HARNESS_IDS,
+  "codegraph.excluded_roots": ["codex", "opencode"],
+  "codegraph.install_dir": HARNESS_IDS,
+  "codegraph.telemetry": HARNESS_IDS,
+  "codegraph.watch_debounce_ms": ["opencode", "omo"],
+} as const

@@ -112,6 +112,31 @@ describe("loadOmoConfig resolution", () => {
     expect(result.config.codegraph?.telemetry).toBe(true)
   })
 
+  test("#given user roots and overlapping codex project roots #when loading the codex view #then roots retain their ordered unique union", () => {
+    // given
+    const fixture = makeFixture()
+    writeJsonc(
+      join(fixture.homeDir, ".omo", "omo.jsonc"),
+      `{"codegraph":{"excluded_roots":["/tmp/omo-a","/tmp/omo-b"]}}`,
+    )
+    writeJsonc(
+      join(fixture.projectDir, ".omo", "omo.jsonc"),
+      `{"[codex]":{"codegraph":{"excluded_roots":["/tmp/omo-b","/tmp/omo-c"]}}}`,
+    )
+
+    // when
+    const result = loadOmoConfig({
+      cwd: fixture.cwd,
+      env: { HOME: fixture.homeDir },
+      harness: "codex",
+      platform: "linux",
+    })
+
+    // then
+    expect(result.diagnostics).toEqual([])
+    expect(result.config.codegraph?.excluded_roots).toEqual(["/tmp/omo-a", "/tmp/omo-b", "/tmp/omo-c"])
+  })
+
   test("#given an unknown activated profile #when loading a harness view #then a profile diagnostic is emitted and no profile overlay is applied", () => {
     // given
     const fixture = makeFixture()

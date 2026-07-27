@@ -3,13 +3,13 @@ import * as z from "zod"
 import { OmoAgentsConfigSchema } from "./agent"
 import { OmoCategoriesConfigSchema } from "./category"
 import { OmoCodegraphSettingsLayerSchema, OmoCodegraphSettingsSchema } from "./codegraph"
+import { OmoHarnessIdSchema, type OmoHarnessId } from "./harness"
 import { OmoModelCatalogLayerSchema, OmoModelCatalogSchema } from "./model-catalog"
 import { OmoTaskSettingsLayerSchema, OmoTaskSettingsSchema } from "./task"
 import { OmoTeamsConfigLayerSchema, OmoTeamsConfigSchema } from "./team"
 
-export const OmoHarnessIdSchema = z.enum(["opencode", "senpi", "codex"])
-
-export type OmoHarnessId = z.infer<typeof OmoHarnessIdSchema>
+export type { OmoHarnessId }
+export { OmoHarnessIdSchema }
 
 export const OmoOpenCodeHarnessConfigSchema = z.record(z.string(), z.unknown())
 

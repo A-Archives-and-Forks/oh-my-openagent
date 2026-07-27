@@ -1,4 +1,5 @@
-import { parseJsoncSafe } from "@oh-my-opencode/utils"
+import { parse, printParseErrorCode } from "jsonc-parser/lib/esm/main.js"
+
 import { OmoCodegraphSettingsSchema, OmoConfigLayerSchema, OmoConfigSchema, OmoTaskSettingsSchema, type OmoConfig } from "../schema"
 import { mergeOmoConfigRecords } from "./merge"
 import { resolveOmoConfigPaths } from "./paths"
@@ -12,6 +13,27 @@ import {
   type OmoConfigReadFileSystem,
   type OmoConfigSource,
 } from "./types"
+
+type JsoncParseResult<T> = {
+  readonly data: T | null
+  readonly errors: readonly { readonly message: string; readonly offset: number }[]
+}
+
+function parseJsoncSafe<T>(content: string): JsoncParseResult<T> {
+  const errors: { error: number; length: number; offset: number }[] = []
+  const data = parse(content.charCodeAt(0) === 0xfeff ? content.slice(1) : content, errors, {
+    allowTrailingComma: true,
+    disallowComments: false,
+  }) as T | null
+
+  return {
+    data: errors.length === 0 ? data : null,
+    errors: errors.map((error) => ({
+      message: printParseErrorCode(error.error),
+      offset: error.offset,
+    })),
+  }
+}
 
 const DEFAULT_RAW_CONFIG: Record<string, unknown> = {
   agents: {},

@@ -1,4 +1,4 @@
-import type { OmoHarnessId } from "../schema"
+import { HARNESS_IDS, OMO_CONFIG_HARNESS_IDS, type HarnessId, type OmoHarnessId } from "../schema"
 import { mergeOmoConfigRecords } from "./merge"
 import type { OmoConfigDiagnostic, OmoConfigEnv } from "./types"
 
@@ -9,7 +9,7 @@ export type ResolveOmoProfileNameOptions = {
 
 export type ResolveOmoConfigViewOptions = {
   readonly config: Readonly<Record<string, unknown>>
-  readonly harness?: OmoHarnessId
+  readonly harness?: OmoHarnessId | HarnessId
   readonly profile?: string
 }
 
@@ -19,7 +19,7 @@ export type ResolveOmoConfigViewResult = {
   readonly profile?: string
 }
 
-const HARNESS_KEYS = ["[opencode]", "[senpi]", "[codex]"]
+const HARNESS_KEYS = [...new Set([...HARNESS_IDS, ...OMO_CONFIG_HARNESS_IDS])].map((harness) => `[${harness}]`)
 
 function profileName(value: string | undefined): string | undefined {
   return value === "" ? undefined : value
@@ -52,7 +52,7 @@ function withoutControlKeys(config: Readonly<Record<string, unknown>>): Record<s
   return result
 }
 
-function harnessLayer(config: Readonly<Record<string, unknown>>, harness?: OmoHarnessId): Record<string, unknown> {
+function harnessLayer(config: Readonly<Record<string, unknown>>, harness?: OmoHarnessId | HarnessId): Record<string, unknown> {
   if (harness === undefined) return {}
   return toRecord(config[`[${harness}]`]) ?? {}
 }
