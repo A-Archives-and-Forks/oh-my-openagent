@@ -6,7 +6,7 @@ import { activeStatus, createLogger } from "../components/ulw-loop/ulw-loop.test
 import { createParentNotifier } from "../components/task/parent-notifier"
 import { IdleInjectionCoordinator } from "./idle-injection-coordinator"
 
-// The Oracle arbitration blocker: a background task-completion wake and a ulw-loop continuation that
+// The arbitration blocker: a background task-completion wake and a ulw-loop continuation that
 // land on the SAME idle edge must collapse into exactly ONE injection. This drives the two REAL
 // producers (createUlwLoopComponent + createParentNotifier) through one shared coordinator, exactly as
 // composeOmoSenpiExtension wires them, instead of hand-enqueuing state the producers never actually
