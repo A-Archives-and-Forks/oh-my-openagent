@@ -102,11 +102,11 @@ function createThrowingTransportFactory(): TelemetryTransportFactory {
 
 function createRunConfigFixture(telemetry: boolean): string {
   const directory = mkdtempSync(join(tmpdir(), "omo-run-telemetry-"))
-  const configDirectory = join(directory, ".opencode")
+  const configDirectory = join(directory, ".omo")
   mkdirSync(configDirectory, { recursive: true })
   writeFileSync(
     join(configDirectory, "omo.jsonc"),
-    JSON.stringify({ telemetry }),
+    JSON.stringify({ "[opencode]": { telemetry } }),
   )
   return directory
 }
