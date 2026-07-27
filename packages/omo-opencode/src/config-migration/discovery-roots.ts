@@ -1,4 +1,4 @@
-import { canonicalPath, isWindowsPathOperations, pathKey } from "./discovery-paths"
+import { canonicalPath, hostPathOperations, isWindowsPathOperations, pathKey, usesWindowsPathSemantics } from "./discovery-paths"
 import type { ConfigMigrationDiscoveryOptions } from "./types"
 
 const TAURI_IDENTIFIERS = ["ai.opencode.desktop", "ai.opencode.desktop.dev"] as const
@@ -32,27 +32,28 @@ function configBaseDirectory(options: ConfigMigrationDiscoveryOptions): string {
 }
 
 function defaultRoot(options: ConfigMigrationDiscoveryOptions): string {
-  if (isWindowsPathOperations(options)) {
-    const appData = environmentValue(options, "APPDATA")
-      ?? options.pathOperations.join(options.homeDir, "AppData", "Roaming")
-    return options.pathOperations.join(appData, "opencode")
-  }
   return options.pathOperations.join(configBaseDirectory(options), "opencode")
 }
 
 function defaultTauriRoots(options: ConfigMigrationDiscoveryOptions): readonly string[] {
   if (options.tauriConfigDirs !== undefined) return options.tauriConfigDirs
-  if (isWindowsPathOperations(options)) {
-    const appData = environmentValue(options, "APPDATA")
-      ?? options.pathOperations.join(options.homeDir, "AppData", "Roaming")
-    return TAURI_IDENTIFIERS.map((identifier) => options.pathOperations.join(appData, identifier))
-  }
   if (options.platform === "darwin") {
     const supportDir = options.pathOperations.join(options.homeDir, "Library", "Application Support")
     return TAURI_IDENTIFIERS.map((identifier) => options.pathOperations.join(supportDir, identifier))
   }
   const base = configBaseDirectory(options)
   return TAURI_IDENTIFIERS.map((identifier) => options.pathOperations.join(base, identifier))
+}
+
+function windowsRoots(options: ConfigMigrationDiscoveryOptions): readonly string[] {
+  if (!usesWindowsPathSemantics(options)) return []
+  const pathOperations = hostPathOperations(options)
+  const appData = environmentValue(options, "APPDATA")
+    ?? pathOperations.join(options.homeDir, "AppData", "Roaming")
+  return [
+    pathOperations.join(appData, "opencode"),
+    ...TAURI_IDENTIFIERS.map((identifier) => pathOperations.join(appData, identifier)),
+  ]
 }
 
 function activeProfileRoot(path: string, options: ConfigMigrationDiscoveryOptions): ConfigRoot {
@@ -74,6 +75,7 @@ export function configRoots(options: ConfigMigrationDiscoveryOptions): readonly 
     ...(custom === undefined ? [] : [activeProfileRoot(custom, options)]),
     { path: defaultRoot(options), precedence: 1 },
     ...defaultTauriRoots(options).map((path, index) => ({ path, precedence: index + 2 })),
+    ...windowsRoots(options).map((path, index) => ({ path, precedence: index + 4 })),
   ]
   const seen = new Set<string>()
   const result: ConfigRoot[] = []
