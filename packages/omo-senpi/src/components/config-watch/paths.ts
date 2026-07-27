@@ -125,7 +125,7 @@ export function resolveOmoConfigWatchTargetResolution(
 ): OmoConfigWatchTargetResolution {
   const env = options.env ?? process.env
   const platform = options.platform ?? process.platform
-  const userConfigDirectory = resolveUserOmoConfigDirectory(env, platform)
+  const userConfigDirectory = resolveUserOmoConfigDirectory(env)
   const ancestorDirectories = findAncestorDirectories(options.cwd, resolveHomeDir(env))
   const resolvedConfigPaths = resolveOmoConfigPaths({ cwd: options.cwd, env, platform })
   const configuredProjectDirectories = new Set([
@@ -159,8 +159,12 @@ export function resolveOmoConfigWatchTargetResolution(
   const senpiProtectedPaths = resolveSenpiProtectedPaths(env)
   const permittedTargets = targets.filter((target) => !isSenpiRestrictedTarget(target.path, senpiProtectedPaths))
 
-  const userConfigCreationWatched = isExistingDirectory(userConfigDirectory)
-    || isExistingDirectory(dirname(userConfigDirectory))
+  // Derived from the SURVIVING targets, not from directory existence: `~/.omo`'s parent
+  // is `$HOME`, whose creation target is always dropped by the protected-path filter, so
+  // an existence check would report a watch that was never registered.
+  const userConfigCreationWatched = permittedTargets.some(
+    (target) => target.path === userConfigDirectory || target.path === dirname(userConfigDirectory),
+  )
   return {
     targets: permittedTargets,
     userConfigCreationWatched,

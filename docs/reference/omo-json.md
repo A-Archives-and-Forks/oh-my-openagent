@@ -8,11 +8,8 @@ Files may be JSONC: `//` comments and trailing commas are allowed. Every schema 
 
 The loader resolves layers in `resolveOmoConfigPaths` and folds them lowest-to-highest, so the **last** layer merged wins (`packages/omo-config-core/src/loader/paths.ts`, `loader.ts`).
 
-1. **User layer (lowest precedence).** `omo.jsonc`, falling back to `omo.json`, under:
-   - `%APPDATA%\omo` on Windows,
-   - else `$XDG_CONFIG_HOME/omo`,
-   - else `~/.config/omo`.
-2. **Project layers.** `.omo/omo.jsonc` (then `.omo/omo.json`) in every directory from the current working directory up to `$HOME`. Farther ancestors are merged first; the **nearest** project file has the highest precedence and beats the user layer.
+1. **User layer (lowest precedence).** `omo.jsonc`, falling back to `omo.json`, under `~/.omo` on every platform. This is the same root that already holds omo runtime state (`teams/`, `rules/`, `plans/`, `codegraph/`, `lsp-daemon/`), so there is one user-scope omo directory and one only.
+2. **Project layers.** `.omo/omo.jsonc` (then `.omo/omo.json`) in every directory from the current working directory up to `$HOME`. Farther ancestors are merged first; the **nearest** project file has the highest precedence and beats the user layer. `$HOME` itself is skipped by this walk, because `~/.omo` is already the user layer and must not be counted twice.
 
 Merge rules (`loader/merge.ts`):
 
