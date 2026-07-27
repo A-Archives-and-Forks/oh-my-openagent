@@ -1,6 +1,7 @@
 import { basename, dirname, join, resolve } from "node:path"
 import { isPlainObject } from "../internal/plain-object"
 import { parseJsoncSafe } from "../internal/jsonc-parse"
+import { toPosixPath } from "../internal/posix-path"
 import { resolveHomeDir } from "../loader"
 import { OmoConfigSchema } from "../schema"
 import { updateOmoConfig } from "../writer"
@@ -40,7 +41,7 @@ function validateTarget(targetPath: string, document: Readonly<Record<string, un
 
 function writerInput(targetPath: string, env: MigrationEnvironment): { readonly projectDir?: string; readonly scope: "project" | "user" } {
   const homeDir = resolveHomeDir(env)
-  const userDirectory = join(homeDir, ".omo")
+  const userDirectory = toPosixPath(join(homeDir, ".omo"))
   const fileName = basename(targetPath)
   if (dirname(targetPath) === userDirectory && (fileName === "omo.json" || fileName === "omo.jsonc")) {
     return { scope: "user" }
@@ -52,7 +53,7 @@ function writerInput(targetPath: string, env: MigrationEnvironment): { readonly 
 }
 
 function sameResolvedPath(a: string, b: string): boolean {
-  return resolve(a) === resolve(b)
+  return toPosixPath(resolve(a)) === toPosixPath(resolve(b))
 }
 
 export const writeOmoMigrationTarget: MigrationTargetWriter = (input): void => {

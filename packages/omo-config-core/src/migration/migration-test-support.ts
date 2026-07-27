@@ -1,5 +1,6 @@
 import { isPlainObject } from "../internal/plain-object"
 import { parseJsoncSafe } from "../internal/jsonc-parse"
+import { toPosixPath } from "../internal/posix-path"
 import type { MigrationFileSystem } from "./types"
 
 function fileError(code: string, message: string): Error {
@@ -13,12 +14,16 @@ export class MemoryMigrationFileSystem implements MigrationFileSystem {
   readonly files = new Map<string, string>()
   readonly operations: string[] = []
 
+  private key(path: string): string {
+    return toPosixPath(path)
+  }
+
   copyFileSync(source: string, destination: string): void {
-    this.files.set(destination, this.readFileSync(source, "utf-8"))
+    this.files.set(this.key(destination), this.readFileSync(source, "utf-8"))
   }
 
   existsSync(path: string): boolean {
-    return this.files.has(path) || this.directories.has(path)
+    return this.files.has(this.key(path)) || this.directories.has(this.key(path))
   }
 
   lstatSync(_path: string): { readonly isSymbolicLink: () => boolean } {
@@ -26,14 +31,14 @@ export class MemoryMigrationFileSystem implements MigrationFileSystem {
   }
 
   mkdirSync(path: string, _options: { readonly recursive: true }): string | undefined {
-    this.directories.add(path)
-    this.operations.push(`mkdir:${path}`)
+    this.directories.add(this.key(path))
+    this.operations.push(`mkdir:${this.key(path)}`)
     return undefined
   }
 
   readFileSync(path: string, _encoding: "utf-8"): string {
-    const content = this.files.get(path)
-    if (content === undefined) throw fileError("ENOENT", `Missing ${path}`)
+    const content = this.files.get(this.key(path))
+    if (content === undefined) throw fileError("ENOENT", `Missing ${this.key(path)}`)
     return content
   }
 
@@ -46,40 +51,40 @@ export class MemoryMigrationFileSystem implements MigrationFileSystem {
   }
 
   removeIfContentsMatchSync(path: string, expected: string): boolean {
-    if (this.files.get(path) !== expected) return false
-    this.files.delete(path)
-    this.operations.push(`remove:${path}`)
+    if (this.files.get(this.key(path)) !== expected) return false
+    this.files.delete(this.key(path))
+    this.operations.push(`remove:${this.key(path)}`)
     return true
   }
 
   renameSync(oldPath: string, newPath: string): void {
     const content = this.readFileSync(oldPath, "utf-8")
-    this.files.set(newPath, content)
-    this.files.delete(oldPath)
-    this.operations.push(`rename:${oldPath}:${newPath}`)
+    this.files.set(this.key(newPath), content)
+    this.files.delete(this.key(oldPath))
+    this.operations.push(`rename:${this.key(oldPath)}:${this.key(newPath)}`)
   }
 
   replaceIfContentsMatchSync(path: string, expected: string, content: string): boolean {
-    if (this.files.get(path) !== expected) return false
-    this.files.set(path, content)
-    this.operations.push(`replace:${path}`)
+    if (this.files.get(this.key(path)) !== expected) return false
+    this.files.set(this.key(path), content)
+    this.operations.push(`replace:${this.key(path)}`)
     return true
   }
 
   unlinkSync(path: string): void {
-    if (!this.files.delete(path)) throw fileError("ENOENT", `Missing ${path}`)
-    this.operations.push(`unlink:${path}`)
+    if (!this.files.delete(this.key(path))) throw fileError("ENOENT", `Missing ${this.key(path)}`)
+    this.operations.push(`unlink:${this.key(path)}`)
   }
 
   writeFileExclusiveSync(path: string, content: string): void {
-    if (this.files.has(path)) throw fileError("EEXIST", `Already exists ${path}`)
-    this.files.set(path, content)
-    this.operations.push(`exclusive:${path}`)
+    if (this.files.has(this.key(path))) throw fileError("EEXIST", `Already exists ${this.key(path)}`)
+    this.files.set(this.key(path), content)
+    this.operations.push(`exclusive:${this.key(path)}`)
   }
 
   writeFileSync(path: string, content: string, _encoding: "utf-8"): void {
-    this.files.set(path, content)
-    this.operations.push(`write:${path}`)
+    this.files.set(this.key(path), content)
+    this.operations.push(`write:${this.key(path)}`)
   }
 }
 
