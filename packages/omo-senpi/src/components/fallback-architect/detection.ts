@@ -59,7 +59,7 @@ export function isRefusalLikeMessage(message: unknown): boolean {
   return typeof errorMessage === "string" && ANTHROPIC_POLICY_REFUSAL_PATTERN.test(errorMessage)
 }
 
-export function isFableFiveModel(model: unknown): boolean {
+export function isFableFiveModel(model: unknown): model is FallbackModelDescriptor {
   return isModelDescriptor(model) && model.id === FABLE_FIVE_MODEL_ID
 }
 
