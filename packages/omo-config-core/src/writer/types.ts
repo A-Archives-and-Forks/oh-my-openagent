@@ -42,6 +42,7 @@ export type UpdateOmoConfigOptions = {
   readonly platform?: NodeJS.Platform
   readonly projectDir?: string
   readonly scope: "project" | "user"
+  readonly targetPath?: string
 }
 
 export type UpdateOmoConfigResult = {

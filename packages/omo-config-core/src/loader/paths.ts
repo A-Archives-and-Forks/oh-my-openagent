@@ -63,14 +63,28 @@ function detectOmoJsonPath(dir: string, fileSystem: OmoConfigReadFileSystem): st
   return isLoadableProjectConfigFile(jsonPath, fileSystem) ? jsonPath : null
 }
 
+function realpathOrSelf(path: string, fileSystem: OmoConfigReadFileSystem): string {
+  if (fileSystem.realpathSync === undefined) return path
+  try {
+    return fileSystem.realpathSync(path)
+  } catch {
+    return path
+  }
+}
+
 export function findProjectConfigPathsFarthestFirst(
   cwd: string,
   homeDir: string,
   fileSystem: OmoConfigReadFileSystem,
 ): readonly string[] {
+  // process.cwd() and HOME can disagree in symlink form (/var vs /private/var),
+  // so the containment check compares real paths while returned candidates keep
+  // the caller's path form.
   const startDir = resolve(cwd)
   const resolvedHomeDir = resolve(homeDir)
-  const stopDir = containsPath(resolvedHomeDir, startDir) ? resolvedHomeDir : null
+  const stopDir = containsPath(realpathOrSelf(resolvedHomeDir, fileSystem), realpathOrSelf(startDir, fileSystem))
+    ? resolvedHomeDir
+    : null
   const nearestFirst: string[] = []
   let currentDir = startDir
 
@@ -78,7 +92,8 @@ export function findProjectConfigPathsFarthestFirst(
     // `$HOME/.omo` is the user layer, so the walk must not also claim it as a project layer.
     const configPath = currentDir === resolvedHomeDir ? null : detectOmoJsonPath(currentDir, fileSystem)
     if (configPath !== null) nearestFirst.push(configPath)
-    if (stopDir !== null && currentDir === stopDir) break
+    // cwd outside $HOME: only the working directory itself is checked.
+    if (stopDir === null || currentDir === stopDir) break
     const parentDir = dirname(currentDir)
     if (parentDir === currentDir) break
     currentDir = parentDir

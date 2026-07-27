@@ -1,3 +1,4 @@
+export * from "./batch"
 export * from "./engine"
 export * from "./journal"
 export * from "./lock"

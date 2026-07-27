@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, readFileSync } from "node:fs"
+import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs"
 import type { OmoConfig, OmoHarnessId } from "../schema"
 
 export type OmoConfigDiagnosticKind = "parse" | "profile" | "read" | "validation"
@@ -29,6 +29,7 @@ export type OmoConfigReadFileSystem = {
   readonly existsSync: (path: string) => boolean
   readonly lstatSync?: (path: string) => { readonly isSymbolicLink: () => boolean }
   readonly readFileSync: (path: string, encoding: "utf-8") => string
+  readonly realpathSync?: (path: string) => string
 }
 
 export type OmoConfigRawLayer = {
@@ -57,4 +58,5 @@ export const DEFAULT_READ_FILE_SYSTEM: OmoConfigReadFileSystem = {
   existsSync,
   lstatSync,
   readFileSync,
+  realpathSync,
 }

@@ -63,6 +63,7 @@ export const writeOmoMigrationTarget: MigrationTargetWriter = (input): void => {
     edits: input.edits,
     env: input.env,
     fileSystem: input.fileSystem,
+    targetPath: input.targetPath,
   })
   if (!sameResolvedPath(result.path, input.targetPath)) {
     throw new MigrationTransactionError(`Migration writer resolved ${result.path} instead of ${input.targetPath}`)
