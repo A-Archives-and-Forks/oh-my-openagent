@@ -213,6 +213,40 @@ describe("createConfigStartupComponent", () => {
     expect(logs).toEqual([])
   })
 
+  test("#given a migration target with a conflicting legacy value #when session_start captures a UI #then it reports the skipped-conflict diagnostic once", async () => {
+    // given
+    const fileSystem = memoryFileSystem()
+    fileSystem.files.set("/home/alice/.config/opencode/oh-my-openagent.jsonc", '{"agents":{"finder":{"model":"provider/legacy"}}}')
+    fileSystem.files.set("/home/alice/.omo/omo.jsonc", '{"[opencode]":{"agents":{"finder":{"model":"provider/kept"}}}}')
+    const migration = runSenpiStartupMigration(migrationOptions(fileSystem))
+    const pi = new FakeExtensionAPI()
+    const logs: string[] = []
+    createConfigStartupComponent({
+      loadConfig: () => ({ config: {}, diagnostics: [], layers: [], sources: [] }),
+      resolveCwd: () => "/project",
+      runMigration: () => migration,
+    }).register(pi, context(logs))
+    const notifications: Array<{ message: string; type: string | undefined }> = []
+    const eventContext = { ui: { notify: (message: string, type?: string) => notifications.push({ message, type }) } }
+
+    // when
+    await pi.dispatch("session_start", {}, eventContext)
+    await pi.dispatch("session_start", {}, eventContext)
+
+    // then
+    expect(notifications).toEqual([
+      {
+        message: "omo-senpi: migrated legacy configuration from /home/alice/.config/opencode/oh-my-openagent.jsonc",
+        type: "info",
+      },
+      {
+        message: "omo-senpi: configuration migration: skipped: [opencode].agents.finder.model legacy=\"provider/legacy\" kept=\"provider/kept\"",
+        type: "warning",
+      },
+    ])
+    expect(logs).toEqual([])
+  })
+
   test("#given config diagnostics without a UI #when session_start fires #then it logs a single fallback warning", async () => {
     // given
     const pi = new FakeExtensionAPI()

@@ -28,9 +28,14 @@ export type LoadedMigrationSource = MigrationSourceDescriptor & {
   readonly value: unknown
 }
 
+export type MigrationTransformResult = {
+  readonly diagnostics: readonly string[]
+  readonly document: Readonly<Record<string, unknown>>
+}
+
 export type MigrationTransform = (
   sources: readonly LoadedMigrationSource[],
-) => Readonly<Record<string, unknown>>
+) => Readonly<Record<string, unknown>> | MigrationTransformResult
 
 export type MigrationTargetWriter = (input: {
   readonly edits: readonly OmoConfigEdit[]

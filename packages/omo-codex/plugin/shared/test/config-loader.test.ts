@@ -191,17 +191,17 @@ describe("getCodexOmoConfig", () => {
 		// given
 		const homeDir = createTemporaryDirectory("omo-codex-shared-env-")
 		const cwd = createTemporaryDirectory("omo-codex-project-env-")
-		writeOmoConfig(homeDir, JSON.stringify({ codegraph: { enabled: true } }))
+		writeOmoConfig(homeDir, JSON.stringify({ codegraph: { enabled: false } }))
 
 		// when
 		const result = getCodexOmoConfig({
 			cwd,
 			homeDir,
-			env: { CODEX_CODEGRAPH_ENABLED: "0" },
+			env: { CODEX_CODEGRAPH_ENABLED: "1" },
 		})
 
 		// then
-		expect(result.codegraph?.enabled).toBe(false)
+		expect(result.codegraph?.enabled).toBe(true)
 	})
 
 	it("#given no SOT files #when loading config #then returns built-in defaults and missing global source", () => {
@@ -276,6 +276,21 @@ describe("getCodexOmoConfig", () => {
 		expect(result.warnings.some((warning) => warning.startsWith("omo-codex: migrated legacy configuration from ")
 			&& warning.endsWith("/.omo/config.jsonc"))).toBe(true)
 		expect(result.warnings).toContain("omo-codex: configuration migration: skipped: codegraph.enabled legacy=false kept=true")
+	})
+
+	it("#given overlapping [omo] and [senpi] blocks in legacy config #when Codex migrates #then the transform conflict is reported", () => {
+		// given
+		const homeDir = createTemporaryDirectory("omo-codex-legacy-senpi-conflict-")
+		writeLegacyOmoConfig(homeDir, JSON.stringify({
+			"[omo]": { agents: { oracle: { model: "legacy" } } },
+			"[senpi]": { agents: { oracle: { model: "current" } } },
+		}))
+
+		// when
+		const result = runCodexStartupMigration({ cwd: homeDir, environment: { HOME: homeDir }, homeDir })
+
+		// then
+		expect(result.results[0]?.diagnostics).toContain("conflict: [senpi] legacy [omo] kept [senpi]")
 	})
 
 	it("#given a malformed migration journal #when codex starts #then exposes the recovery failure through loader warnings", () => {

@@ -21,7 +21,7 @@ export function discoveryFileSystem(options: ConfigMigrationDiscoveryOptions) {
   return options.fileSystem ?? DEFAULT_DISCOVERY_FILE_SYSTEM
 }
 
-function usesWindowsPathSemantics(options: ConfigMigrationDiscoveryOptions): boolean {
+export function usesWindowsPathSemantics(options: ConfigMigrationDiscoveryOptions): boolean {
   return options.platform === "win32" || (options.fileSystem === undefined && process.platform === "win32")
 }
 
