@@ -3,8 +3,17 @@ export {
   OPENCODE_CONFIG_MIGRATION_ID,
   discoverLegacyConfigGroups,
 } from "./discovery"
+export {
+  createLegacyConfigMigrationPlans,
+} from "./migration-plans"
+export { executeLegacyConfigMigrationPlan } from "./migration-executor"
 export { transformConfigJsoncSources } from "./transform-config-jsonc"
 export { transformOpenCodeSources } from "./transform-opencode"
+export type { ExecuteLegacyConfigMigrationPlanOptions } from "./migration-executor"
+export type {
+  CreateLegacyConfigMigrationPlansOptions,
+  LegacyConfigMigrationPlan,
+} from "./migration-plans"
 export type {
   ConfigMigrationTransformResult,
   LoadedLegacyConfigSource,
