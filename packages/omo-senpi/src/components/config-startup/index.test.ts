@@ -213,6 +213,38 @@ describe("createConfigStartupComponent", () => {
     expect(logs).toEqual([])
   })
 
+  test("#given a skipped migration conflict #when session_start captures a UI #then it reports the migration diagnostic once", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const logs: string[] = []
+    createConfigStartupComponent({
+      loadConfig: () => ({ config: {}, diagnostics: [], layers: [], sources: [] }),
+      resolveCwd: () => "/project",
+      runMigration: () => ({
+        journalResumed: false,
+        migratedFrom: [],
+        results: [{
+          diagnostics: ["skipped: codegraph.enabled legacy=false kept=true"],
+          journalResumed: false,
+          status: "migrated",
+        }],
+      }),
+    }).register(pi, context(logs))
+    const notifications: Array<{ message: string; type: string | undefined }> = []
+    const eventContext = { ui: { notify: (message: string, type?: string) => notifications.push({ message, type }) } }
+
+    // when
+    await pi.dispatch("session_start", {}, eventContext)
+    await pi.dispatch("session_start", {}, eventContext)
+
+    // then
+    expect(notifications).toEqual([{
+      message: "omo-senpi: configuration migration: skipped: codegraph.enabled legacy=false kept=true",
+      type: "warning",
+    }])
+    expect(logs).toEqual([])
+  })
+
   test("#given config diagnostics without a UI #when session_start fires #then it logs a single fallback warning", async () => {
     // given
     const pi = new FakeExtensionAPI()

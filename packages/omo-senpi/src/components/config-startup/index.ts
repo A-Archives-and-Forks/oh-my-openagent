@@ -139,6 +139,11 @@ function notificationMessages(
     type: "info",
   })
   else if (migration.journalResumed) messages.push({ message: "omo-senpi: recovered an interrupted configuration migration", type: "info" })
+  const migrationDiagnostics = migration.results.flatMap((result) => result.diagnostics)
+  if (migrationDiagnostics.length > 0) messages.push({
+    message: `omo-senpi: configuration migration: ${migrationDiagnostics.join("; ")}`,
+    type: "warning",
+  })
   if (config.diagnostics.length > 0) messages.push({
     message: `omo-senpi: configuration diagnostics: ${config.diagnostics.map((diagnostic) => diagnostic.message).join("; ")}`,
     type: "warning",
