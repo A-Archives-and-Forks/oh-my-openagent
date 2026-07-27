@@ -111,6 +111,7 @@ describe("CodeGraph SessionStart hook with a 1.0.1-era project store under the 1
 				stdin: Readable.from(["{}"]),
 				stdout: { write: (chunk) => stdout.push(chunk) },
 				spawnWorker: (invocation) => spawned.push(invocation),
+				sweepZombies: () => undefined,
 			});
 
 			// then
@@ -156,6 +157,7 @@ describe("CodeGraph SessionStart hook with a 1.0.1-era project store under the 1
 				stdin: Readable.from(["{}"]),
 				stdout: { write: (chunk) => stdout.push(chunk) },
 				spawnWorker: (invocation) => spawned.push(invocation),
+				sweepZombies: () => undefined,
 			});
 			const elapsedMs = Date.now() - startedAt;
 			descendantPid = Number.parseInt(readFileSync(survivorPidPath, "utf8").trim(), 10);
