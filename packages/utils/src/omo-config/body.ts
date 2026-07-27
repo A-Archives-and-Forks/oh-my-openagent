@@ -36,6 +36,7 @@ const CODEGRAPH_SETTING_KEYS: readonly CodegraphSettingKey[] = [
   "enabled",
   "excluded_roots",
   "install_dir",
+  "session_start_cooldown_ms",
   "telemetry",
   "watch_debounce_ms",
 ]
@@ -105,6 +106,11 @@ function validateCodegraphValue(key: CodegraphSettingKey, value: unknown): strin
       : "must be an array of strings"
   }
   if (key === "install_dir") return typeof value === "string" ? null : "must be a string"
+  if (key === "session_start_cooldown_ms") {
+    return typeof value === "number" && Number.isFinite(value) && value >= 60_000
+      ? null
+      : "must be a finite number of at least 60000"
+  }
   if (key === "watch_debounce_ms") {
     return typeof value === "number" && Number.isFinite(value) && value >= 0
       ? null
@@ -131,6 +137,9 @@ function setCodegraphSetting(config: MutableCodegraphConfig, key: CodegraphSetti
       return
     case "install_dir":
       if (typeof value === "string") config.install_dir = value
+      return
+    case "session_start_cooldown_ms":
+      if (typeof value === "number") config.session_start_cooldown_ms = value
       return
     case "telemetry":
       if (typeof value === "boolean") config.telemetry = value

@@ -8,6 +8,7 @@ export interface CodegraphConfig {
   readonly enabled?: boolean
   readonly excluded_roots?: readonly string[]
   readonly install_dir?: string
+  readonly session_start_cooldown_ms?: number
   readonly telemetry?: boolean
   readonly watch_debounce_ms?: number
 }
@@ -31,6 +32,7 @@ export const SETTING_HARNESS_SUPPORT: Record<SettingPath, readonly HarnessId[]> 
   "codegraph.enabled": HARNESS_IDS,
   "codegraph.excluded_roots": ["codex", "opencode"],
   "codegraph.install_dir": HARNESS_IDS,
+  "codegraph.session_start_cooldown_ms": ["codex"],
   "codegraph.telemetry": HARNESS_IDS,
   "codegraph.watch_debounce_ms": ["opencode", "omo"],
 } as const
@@ -52,6 +54,7 @@ const CODEGRAPH_VALUE_TYPES: Record<CodegraphSettingKey, "boolean" | "number" | 
   enabled: "boolean",
   excluded_roots: "string_array",
   install_dir: "string",
+  session_start_cooldown_ms: "number",
   telemetry: "boolean",
   watch_debounce_ms: "number",
 }
@@ -92,6 +95,11 @@ function validateCodegraphSection(
 
     if (typeof value !== expectedType) {
       errors.push(`${pathPrefix}.${key} must be a ${expectedType}`)
+      continue
+    }
+
+    if (settingKey === "session_start_cooldown_ms" && typeof value === "number" && (!Number.isFinite(value) || value < 60_000)) {
+      errors.push(`${pathPrefix}.${key} must be a finite number of at least 60000`)
       continue
     }
 
