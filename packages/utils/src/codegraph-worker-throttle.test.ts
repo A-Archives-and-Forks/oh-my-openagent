@@ -9,7 +9,7 @@ describe("CodeGraph worker sweep cadence", () => {
   it("#given a fresh daemon sweep stamp #when an orphaned worker appears #then worker reaping still runs", async () => {
     // given
     const homeDir = mkdtempSync(join(tmpdir(), "omo-codegraph-worker-throttle-"))
-    const installDir = join(homeDir, ".omo", "codegraph")
+    const installDir = "/tmp/omo-codegraph-worker-throttle"
     const calls: string[] = []
     try {
       const nowMs = Date.UTC(2026, 6, 27, 1, 0, 0)
@@ -63,7 +63,7 @@ describe("CodeGraph worker sweep cadence", () => {
   it("#given a live daemon lock and an orphaned worker #when both sweep lanes run #then the worker is killed and the daemon is spared", async () => {
     // given
     const homeDir = mkdtempSync(join(tmpdir(), "omo-codegraph-worker-daemon-"))
-    const installDir = join(homeDir, ".omo", "codegraph")
+    const installDir = "/tmp/omo-codegraph-worker-daemon"
     const projectRoot = join(homeDir, "project")
     const daemonPid = 96201
     const calls: string[] = []

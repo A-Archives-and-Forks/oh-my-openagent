@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 
 import { discoverCodegraphOwnedRoots, selectZombieCodegraphProcesses } from "./codegraph/process-sweep"
 
@@ -114,7 +114,7 @@ describe("CodeGraph worker process selection", () => {
     const roots = discoverCodegraphOwnedRoots({ codexHome: join(homeDir, ".missing-codex"), homeDir })
 
     // then
-    expect(roots).toContain(join(homeDir, ".claude", "omo"))
+    expect(roots).toContain(resolve(homeDir, ".claude", "omo"))
   })
 
   it("#given a detached provisioned daemon #when selecting zombies #then daemon classification remains intact", () => {
