@@ -1,5 +1,7 @@
 import { relative } from "node:path"
 
+import type { OmoConfigEnv } from "@oh-my-opencode/omo-config-core"
+
 import { applyDisabledProviders } from "../shared/disabled-providers"
 import { log } from "../shared/logger"
 import { loadOmoOpenCodeConfigChain } from "../plugin-config/omo-config-chain"
@@ -113,8 +115,11 @@ function migrateRalphLoopConfig(config: OhMyOpenCodeConfig): OhMyOpenCodeConfig 
   }
 }
 
-export function validatePluginConfig(directory: string): PluginConfigValidation {
-  const chain = loadOmoOpenCodeConfigChain(directory)
+export function validatePluginConfig(
+  directory: string,
+  environment: OmoConfigEnv = process.env,
+): PluginConfigValidation {
+  const chain = loadOmoOpenCodeConfigChain(directory, environment)
   const views = chain.views.map((view) => parseConfigView(view.path, view.config))
   const chainMessages = chain.diagnostics.map((diagnostic) => `${shortPath(diagnostic.path)}: ${diagnostic.message}`)
   const messages = [...chainMessages, ...views.flatMap((view) => view.messages)]

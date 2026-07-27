@@ -156,7 +156,7 @@ describe("config check", () => {
         process.env.XDG_CACHE_HOME = xdgCacheDir
 
         writeFileSync(
-          join(pluginConfigDir, "oh-my-openagent.json"),
+          join(pluginConfigDir, "omo.json"),
           JSON.stringify({ agents: { sisyphus: { model: "kiro/claude-opus-4-6" } } }, null, 2) + "\n",
           "utf-8",
         )

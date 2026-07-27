@@ -105,7 +105,7 @@ function createRunConfigFixture(telemetry: boolean): string {
   const configDirectory = join(directory, ".opencode")
   mkdirSync(configDirectory, { recursive: true })
   writeFileSync(
-    join(configDirectory, "oh-my-openagent.jsonc"),
+    join(configDirectory, "omo.jsonc"),
     JSON.stringify({ telemetry }),
   )
   return directory

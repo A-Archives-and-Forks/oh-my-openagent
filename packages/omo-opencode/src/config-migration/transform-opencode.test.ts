@@ -174,4 +174,44 @@ describe("OpenCode config migration transform", () => {
       [root.path]: ["model-version:reverted-old-model->new-model"],
     })
   })
+
+  test("#given legacy config keys #when transforming #then their current omo equivalents are retained without file-level rewrites", () => {
+    const root: DiscoveredLegacyConfigSource = {
+      baseRoot: "/home/alice/.config/opencode",
+      configPath: "/home/alice/.config/opencode/oh-my-openagent.jsonc",
+      kind: "user-config",
+      path: "/home/alice/.config/opencode/oh-my-openagent.jsonc",
+      precedence: 0,
+    }
+
+    const result = transformOpenCodeSources({
+      discovered: [root],
+      scope: { kind: "user" },
+      sources: [loaded(root, {
+        agents: {
+          OmO: { model: "anthropic/claude-opus-4-4" },
+          oracle: { model: "anthropic/claude-opus-4-4" },
+        },
+        categories: { deep: { model: "anthropic/claude-opus-4-4" } },
+        disabled_agents: ["OmO"],
+        disabled_hooks: ["anthropic-auto-compact", "empty-message-sanitizer"],
+        experimental: { hashline_edit: { enabled: true } },
+        lsp: { typescript: { command: ["typescript-language-server", "--stdio"] } },
+        omo_agent: { model: "provider/sisyphus" },
+      })],
+    })
+
+    expect(result.document["[opencode]"]).toEqual({
+      agents: {
+        oracle: { model: "anthropic/claude-opus-4-8" },
+        sisyphus: { model: "anthropic/claude-opus-4-8" },
+      },
+      categories: { deep: { model: "anthropic/claude-opus-4-8" } },
+      disabled_agents: ["sisyphus"],
+      disabled_hooks: ["anthropic-context-window-limit-recovery"],
+      hashline_edit: { enabled: true },
+      sisyphus_agent: { model: "provider/sisyphus" },
+    })
+    expect(result.document.legacy_migrations).toBeUndefined()
+  })
 })

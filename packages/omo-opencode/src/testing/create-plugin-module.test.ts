@@ -364,7 +364,7 @@ describe("createPluginModule()", () => {
       // given
       const runOpenCodeStartupMigration = mock(() => ({
         journalResumed: false,
-        migratedFrom: ["/home/alice/.config/opencode/oh-my-openagent.json"],
+        migratedFrom: ["/home/alice/.config/opencode/omo.json"],
         reloadRequired: true,
         results: [],
         skippedConflictCount: 2,

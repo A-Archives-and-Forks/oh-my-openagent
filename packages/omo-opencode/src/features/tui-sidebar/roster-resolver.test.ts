@@ -95,7 +95,7 @@ describe("resolveRoster", () => {
     withIsolatedConfig("malformed", (root) => {
       // given
       const project = join(root, "project")
-      writeJson(join(project, ".opencode", "oh-my-openagent.json"), {
+      writeJson(join(project, ".opencode", "omo.json"), {
         agents: { sisyphus: { model: 123 } },
       })
 

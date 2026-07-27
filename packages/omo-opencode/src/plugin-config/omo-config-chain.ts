@@ -3,6 +3,7 @@ import {
   loadOmoConfig,
   mergeOmoConfigRecords,
   OmoConfigSchema,
+  type OmoConfigEnv,
   resolveModelReferences,
   resolveOmoConfigView,
 } from "@oh-my-opencode/omo-config-core"
@@ -100,8 +101,11 @@ function modelView(view: Readonly<Record<string, unknown>>): {
   }
 }
 
-export function loadOmoOpenCodeConfigChain(directory: string): OmoOpenCodeConfigChain {
-  const loaded = loadOmoConfig({ cwd: directory })
+export function loadOmoOpenCodeConfigChain(
+  directory: string,
+  environment: OmoConfigEnv = process.env,
+): OmoOpenCodeConfigChain {
+  const loaded = loadOmoConfig({ cwd: directory, env: environment })
   const merged = loaded.layers.reduce<Record<string, unknown>>(
     (config, layer) => mergeOmoConfigRecords(config, layer.config),
     {},
