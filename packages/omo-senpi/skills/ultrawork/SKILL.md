@@ -364,8 +364,7 @@ Delegate through the `task` tool: `prompt` plus exactly ONE of
 `metis`, `momus` work with zero configuration);
 `run_in_background: true` for parallel waves, `load_skills` to arm a
 child with skills, `name` to track it. Read a child back with
-`task_output`, steer with `task_send`, park it with
-`task_send({ deliver_as: "interrupt" })`, end it with `task_cancel`;
+`task_output`, steer it with `task_send`, end it with `task_cancel`;
 `/tasks` lists what this session spawned. Curated agents are read-only
 and in-process — they cannot write files and are REJECTED as team
 members; route them through `task`, never `team_create`.
