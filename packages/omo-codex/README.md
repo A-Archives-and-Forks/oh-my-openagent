@@ -93,7 +93,7 @@ Suppressed attempts are auditable in `~/.omo/codegraph/session-start.jsonl` thro
 
 ### CodeGraph daemon
 
-By default CodeGraph uses the upstream shared daemon. Set `codegraph.daemon` to `false` in the OMO config (`~/.omo/config.jsonc`, or `.omo/config.jsonc` in a project) to keep each MCP process in-process:
+By default CodeGraph uses the upstream shared daemon. Set `codegraph.daemon` to `false` in the unified OMO config (`~/.omo/omo.jsonc`, or `.omo/omo.jsonc` in a project) to keep each MCP process in-process:
 
 ```jsonc
 {
