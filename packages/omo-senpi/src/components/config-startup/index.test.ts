@@ -77,6 +77,17 @@ function memoryFileSystem() {
   return fileSystem
 }
 
+function withProcessPlatform<T>(platform: NodeJS.Platform, callback: () => T): T {
+  const descriptor = Object.getOwnPropertyDescriptor(process, "platform")
+  if (descriptor === undefined) throw new Error("Missing process.platform descriptor")
+  Object.defineProperty(process, "platform", { ...descriptor, value: platform })
+  try {
+    return callback()
+  } finally {
+    Object.defineProperty(process, "platform", descriptor)
+  }
+}
+
 function migrationOptions(fileSystem: ReturnType<typeof memoryFileSystem>) {
   return {
     clock: { now: () => 1_000 },
@@ -101,7 +112,7 @@ describe("runSenpiStartupMigration", () => {
     fileSystem.files.set("/home/alice/.omo/config.jsonc", '{"codegraph":{"daemon":false}}')
 
     // when
-    const result = runSenpiStartupMigration(migrationOptions(fileSystem))
+    const result = withProcessPlatform("win32", () => runSenpiStartupMigration(migrationOptions(fileSystem)))
 
     // then
     expect(result.error).toBeUndefined()
@@ -122,7 +133,7 @@ describe("runSenpiStartupMigration", () => {
     let raced = false
 
     // when
-    const senpiResult = runSenpiStartupMigration({
+    const senpiResult = withProcessPlatform("win32", () => runSenpiStartupMigration({
       ...options,
       onBoundary: (boundary) => {
         if (boundary !== "journal-written" || raced) return
@@ -143,7 +154,7 @@ describe("runSenpiStartupMigration", () => {
           pid: 42,
         })
       },
-    })
+    }))
 
     // then
     if (opencodeResult === undefined) throw new Error("Expected OpenCode race result")

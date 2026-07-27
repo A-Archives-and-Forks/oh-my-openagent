@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { existsSync, mkdtempSync, mkdirSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, posix, win32 } from "node:path"
 
@@ -128,7 +128,7 @@ describe("legacy config discovery", () => {
     ])
   })
 
-  test("#given a native Windows HOME with the POSIX CLI adapter #when its short path expands through realpath #then discovery keeps the canonical source within the config root", () => {
+  test("#given an injected Windows filesystem #when its short path expands through realpath #then discovery keeps the canonical source within the config root", () => {
     // given
     const shortHome = "C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\omo-config-migrate-A1B2\\home"
     const longHome = "C:\\Users\\runner\\AppData\\Local\\Temp\\omo-config-migrate-A1B2\\home"
@@ -137,10 +137,10 @@ describe("legacy config discovery", () => {
     // when
     const groups = withProcessPlatform("win32", () => discoverLegacyConfigGroups({
       cwd: win32.join(shortHome, "project"),
-      environment: { HOME: shortHome, XDG_CONFIG_HOME: posix.join(shortHome, ".config") },
+      environment: { HOME: shortHome, OPENCODE_CONFIG_DIR: win32.join(shortHome, ".config", "opencode") },
       fileSystem: shortPathMemoryFileSystem(shortHome, longHome, [sourcePath]),
       homeDir: shortHome,
-      pathOperations: posix,
+      pathOperations: win32,
       platform: "linux",
     }))
 
@@ -185,7 +185,6 @@ describe("legacy config discovery", () => {
       const symlinked = discoverLegacyConfigGroups({
         cwd: fixtureRoot,
         environment: { HOME: fixtureRoot, XDG_CONFIG_HOME: fixtureRoot },
-        fileSystem: { existsSync, readdirSync, realpathSync },
         homeDir: fixtureRoot,
         pathOperations: posix,
         platform: "linux",

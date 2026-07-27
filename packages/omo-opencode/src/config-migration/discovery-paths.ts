@@ -22,7 +22,7 @@ export function discoveryFileSystem(options: ConfigMigrationDiscoveryOptions) {
 }
 
 function usesWindowsPathSemantics(options: ConfigMigrationDiscoveryOptions): boolean {
-  return options.platform === "win32" || process.platform === "win32"
+  return options.platform === "win32" || (options.fileSystem === undefined && process.platform === "win32")
 }
 
 export function hostPathOperations(options: ConfigMigrationDiscoveryOptions): ConfigMigrationPathOperations {
