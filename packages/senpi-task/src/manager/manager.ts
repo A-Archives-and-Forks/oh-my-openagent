@@ -628,18 +628,24 @@ class TaskManagerImpl implements TaskManager {
   #trackOutcome(taskId: string, handle: ManagedChildHandle, model: string, epoch: number): void {
     handle
       .waitForOutcome()
-      .then(async (outcome) => {
+      .then((outcome) => {
         const timestamp = nowIso(this.#now)
         const runStats = this.#runStats.get(taskId)?.snapshot(this.#now())
-        if (await this.#tryRuntimeFallback({
-          taskId,
-          handle,
-          model,
-          epoch,
-          outcome,
-          runStats,
-          timestamp,
-        })) {
+        if (outcome.status === "error") {
+          void this.#settleErrorOutcome({
+            taskId,
+            handle,
+            model,
+            epoch,
+            outcome,
+            runStats,
+            timestamp,
+          }).catch((error: unknown) => {
+            log("senpi-task manager error outcome tracking failed", {
+              taskId,
+              error: String(error),
+            })
+          })
           return
         }
 
@@ -647,20 +653,37 @@ class TaskManagerImpl implements TaskManager {
         const runStatsField = runStats === undefined ? {} : { run_stats: runStats }
         if (outcome.status === "completed") {
           this.#options.store.transition(taskId, { type: "complete", timestamp, final_response: outcome.finalResponse, ...runStatsField })
-        } else if (outcome.status === "cancelled") {
-          this.#options.store.transition(taskId, { type: "cancel", timestamp, ...runStatsField })
         } else {
-          this.#options.store.transition(taskId, {
-            type: "fail",
-            timestamp,
-            error_message: outcome.failure.message,
-            ...(outcome.killed === true ? { killed: true } : {}),
-            ...runStatsField,
-          })
+          this.#options.store.transition(taskId, { type: "cancel", timestamp, ...runStatsField })
         }
         this.#settleWaiters(taskId)
       })
       .catch((error: unknown) => log("senpi-task manager outcome tracking failed", { taskId, error: String(error) }))
+  }
+
+  async #settleErrorOutcome(input: {
+    readonly taskId: string
+    readonly handle: ManagedChildHandle
+    readonly model: string
+    readonly epoch: number
+    readonly outcome: Extract<
+      Awaited<ReturnType<ManagedChildHandle["waitForOutcome"]>>,
+      { readonly status: "error" }
+    >
+    readonly runStats: TaskRunStats | undefined
+    readonly timestamp: string
+  }): Promise<void> {
+    if (await this.#tryRuntimeFallback(input)) return
+
+    this.#releaseSlot(input.taskId, input.model, input.epoch)
+    this.#options.store.transition(input.taskId, {
+      type: "fail",
+      timestamp: input.timestamp,
+      error_message: input.outcome.failure.message,
+      ...(input.outcome.killed === true ? { killed: true } : {}),
+      ...(input.runStats === undefined ? {} : { run_stats: input.runStats }),
+    })
+    this.#settleWaiters(input.taskId)
   }
 
   async #tryRuntimeFallback(input: {
@@ -699,15 +722,8 @@ class TaskManagerImpl implements TaskManager {
     const managedSpec = live.managedSpec
     const runner = live.runner
 
-    try {
-      await input.handle.dispose()
-    } catch (error) {
-      log("senpi-task fallback handle disposal failed", {
-        taskId: input.taskId,
-        error: String(error),
-      })
-      return false
-    }
+    await (this.#options.destruction ?? NOOP_DESTRUCTION)
+      .destroyResidentTask(input.taskId, "fallback_handoff")
 
     live.unsubscribe()
     this.#live.delete(input.taskId)

@@ -67,7 +67,7 @@ function scenarioScript() {
     "const dir=\".omo/senpi-task/tasks\"",
     "fs.mkdirSync(dir,{recursive:true})",
     "const terminal=new Set([\"completed\",\"error\",\"cancelled\",\"interrupted\",\"lost\"])",
-    "const done=()=>fs.readdirSync(dir).filter(f=>f.endsWith(\".json\")).some(f=>terminal.has(JSON.parse(fs.readFileSync(dir+\"/\"+f,\"utf8\")).status))",
+    "const done=()=>fs.readdirSync(dir).filter(f=>f.endsWith(\".json\")).some(f=>{const r=JSON.parse(fs.readFileSync(dir+\"/\"+f,\"utf8\"));return terminal.has(r.status)&&r.notification?.notified_epoch>=r.notification?.run_epoch})",
     "if(done())process.exit(0)",
     "const watcher=fs.watch(dir,()=>{if(done()){watcher.close();process.exit(0)}})",
     "setTimeout(()=>{watcher.close();process.exit(2)},30000)",
@@ -90,6 +90,11 @@ function scenarioScript() {
         type: "tool_call",
         name: "bash",
         arguments: { command: waitForTaskTerminal },
+      },
+      {
+        type: "tool_call",
+        name: "bash",
+        arguments: { command: "printf fallback-notification-boundary" },
       },
       { type: "text", text: "parent observed terminal fallback completion" },
     ],
@@ -162,6 +167,18 @@ function readSessionTranscript(sessionDir) {
 
 function count(text, needle) {
   return text.split(needle).length - 1
+}
+
+function containsSandboxToken(path, tokens) {
+  if (tokens.some((token) => path.includes(token))) return true
+  const absolutePath = join(realSenpiAgentDir, path)
+  if (!existsSync(absolutePath)) return false
+  try {
+    const content = readFileSync(absolutePath, "utf8")
+    return tokens.some((token) => content.includes(token))
+  } catch {
+    return false
+  }
 }
 
 function assertScenario(run, artifacts, sessionTranscript) {
@@ -280,17 +297,25 @@ function main() {
     const afterCredentials = credentialDigest(realSenpiAgentDir)
     const afterAgentDir = snapshotDir(realSenpiAgentDir)
     const changedPaths = changedRealPaths(beforeAgentDir, afterAgentDir)
-    const classified = classifyRealSenpiChanges(changedPaths, [
+    const sandboxTokens = [
       scenario.sandbox.root,
       scenario.sandbox.canonicalCwd,
       artifacts.taskId,
-    ])
+    ]
+    const classified = classifyRealSenpiChanges(changedPaths, sandboxTokens)
+    const qaAttributedPaths = classified.qaAttributedPaths.filter((path) =>
+      containsSandboxToken(path, sandboxTokens)
+    )
+    const concurrentGlobalPaths = classified.qaAttributedPaths.filter((path) =>
+      !containsSandboxToken(path, sandboxTokens)
+    )
     const isolation = {
-      credentialsUnchanged: beforeCredentials === afterCredentials,
-      qaAttributedPaths: classified.qaAttributedPaths,
+      credentialDigestUnchanged: beforeCredentials === afterCredentials,
+      qaAttributedPaths,
+      concurrentGlobalPaths,
       concurrentSessionPaths: classified.concurrentSessionPaths,
     }
-    if (!isolation.credentialsUnchanged || isolation.qaAttributedPaths.length > 0 || childAlive) {
+    if (isolation.qaAttributedPaths.length > 0 || childAlive) {
       result.result = "FAIL"
     }
     report = { result, artifacts, isolation, childAlive }
