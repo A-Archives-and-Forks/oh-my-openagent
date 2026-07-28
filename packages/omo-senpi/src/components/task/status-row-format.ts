@@ -19,7 +19,6 @@ export const LIVE_STATUS_REFRESH_MS = 250
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const
 
 const TERMINAL_STATUSES: ReadonlySet<TaskStatus> = new Set(["completed", "error", "cancelled", "interrupted", "lost"])
-const ERROR_STATUSES: ReadonlySet<TaskStatus> = new Set(["error", "lost"])
 
 export function isTerminal(status: TaskStatus): boolean {
   return TERMINAL_STATUSES.has(status)
