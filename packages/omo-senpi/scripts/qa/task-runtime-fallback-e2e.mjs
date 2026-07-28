@@ -96,6 +96,12 @@ function run() {
     final_text: stdoutText.includes(finalText) ? "PASS" : "FAIL",
     fallback_event: artifacts.log.includes("retry_fallback_applied") ? "PASS" : "FAIL",
     final_model: artifacts.task?.model === "omo-fallback-mock/healthy-fallback" ? "PASS" : "FAIL",
+    fallback_attempts: JSON.stringify(
+      artifacts.task?.fallback_attempts?.map((model) => `${model.provider}/${model.model_id}`),
+    ) === JSON.stringify([
+      "omo-fallback-mock/dead-primary",
+      "omo-fallback-mock/healthy-fallback",
+    ]) ? "PASS" : "FAIL",
     real_credentials_untouched: afterCredentials === beforeCredentials ? "PASS" : "FAIL",
     cleanup,
   }

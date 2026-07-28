@@ -18,10 +18,16 @@ export function applyRuntimeFallbackEvent(
   const resolvedModel = parseModelSelector(selector, record.resolved_model?.source ?? "category")
   if (resolvedModel === undefined) return
   const fallbackModels = remainingFallbacks(record.fallback_models, resolvedModel)
+  const fallbackAttempts = appendFallbackAttempts(
+    record.fallback_attempts,
+    record.resolved_model,
+    resolvedModel,
+  )
   store.replace({
     ...record,
     model: resolvedModel.display,
     resolved_model: resolvedModel,
+    fallback_attempts: fallbackAttempts,
     updated_at: new Date().toISOString(),
     ...(fallbackModels === undefined ? {} : { fallback_models: fallbackModels }),
   })
@@ -54,6 +60,25 @@ function remainingFallbacks(
     candidate.provider === selected.provider && candidate.model_id === selected.model_id
   )
   return selectedIndex === -1 ? candidates : candidates.slice(selectedIndex + 1)
+}
+
+function appendFallbackAttempts(
+  attempts: readonly ResolvedModelRecord[] | undefined,
+  previous: ResolvedModelRecord | undefined,
+  selected: ResolvedModelRecord,
+): readonly ResolvedModelRecord[] {
+  const next = [...(attempts ?? [])]
+  for (const candidate of [previous, selected]) {
+    if (
+      candidate !== undefined
+      && !next.some((attempt) =>
+        attempt.provider === candidate.provider && attempt.model_id === candidate.model_id
+      )
+    ) {
+      next.push(candidate)
+    }
+  }
+  return next
 }
 
 function readEventString(event: ManagedChildEvent, key: string): string | undefined {

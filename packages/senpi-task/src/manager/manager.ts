@@ -752,7 +752,7 @@ class TaskManagerImpl implements TaskManager {
     this.#options.store.appendEvent(input.taskId, {
       type: "task_model_fallback",
       payload: {
-        from_model: input.model,
+        from_model: record.model,
         to_model: nextModel.display,
         error_message: input.outcome.failure.message,
       },
