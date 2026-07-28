@@ -17,6 +17,7 @@ import {
   categoryGateModel,
   isCategoryGateSatisfied,
 } from "./builtins"
+import { buildRuntimeModelChain, type ModelChainCandidate } from "../model-chain"
 import { CATEGORY_FALLBACK_CHAINS } from "./fallback-chains"
 import type {
   CategoryModelSelection,
@@ -118,6 +119,43 @@ function flattenFallbackModels(fallbackModels: OmoFallbackModels | undefined): r
     return [fallbackModels]
   }
   return fallbackModels.map((fallback) => typeof fallback === "string" ? fallback : fallbackObjectToString(fallback))
+}
+
+function categoryModelCandidates(config: OmoCategoryConfig): readonly ModelChainCandidate[] {
+  const primary = config.model === undefined
+    ? []
+    : [{
+        model: config.model,
+        ...(config.variant !== undefined ? { variant: config.variant } : {}),
+        ...(config.reasoningEffort !== undefined
+          ? { reasoningEffort: config.reasoningEffort }
+          : {}),
+      }]
+  const fallbackModels = config.fallback_models
+  if (fallbackModels === undefined) return primary
+
+  const entries = typeof fallbackModels === "string" ? [fallbackModels] : fallbackModels
+  const fallbacks = entries.map((entry): ModelChainCandidate => {
+    if (typeof entry === "string") {
+      return {
+        model: entry,
+        ...(config.variant !== undefined ? { variant: config.variant } : {}),
+        ...(config.reasoningEffort !== undefined
+          ? { reasoningEffort: config.reasoningEffort }
+          : {}),
+      }
+    }
+    return {
+      model: entry.model,
+      ...(entry.variant ?? config.variant) !== undefined
+        ? { variant: entry.variant ?? config.variant }
+        : {},
+      ...(entry.reasoningEffort ?? config.reasoningEffort) !== undefined
+        ? { reasoningEffort: entry.reasoningEffort ?? config.reasoningEffort }
+        : {},
+    }
+  })
+  return [...primary, ...fallbacks]
 }
 
 function availableCategoryNames(config: OmoConfig, availableModelIds?: ReadonlySet<string>): readonly string[] {
@@ -290,10 +328,17 @@ export function resolveCategory<TModel extends SenpiModelPort>(
 
   const prompt_append = promptAppendForCategory(categoryName, selection.selectedModel, userConfig?.prompt_append)
   const variant = userConfig?.variant ?? selection.variant ?? config.variant
+  const runtimeModelChain = buildRuntimeModelChain({
+    candidates: categoryModelCandidates(config),
+    selectedModel: selection.selectedModel,
+    availableModels: new Set(availableModels),
+    source: "category",
+  })
   const spec: ResolvedChildSpec<TModel> = {
     model: foundModel.model,
     provider: foundModel.provider,
     modelId: foundModel.modelId,
+    ...runtimeModelChain,
     ...(foundModel.displayName !== undefined ? { displayName: foundModel.displayName } : {}),
     ...(variant !== undefined ? { variant } : {}),
     ...(config.temperature !== undefined ? { temperature: config.temperature } : {}),
