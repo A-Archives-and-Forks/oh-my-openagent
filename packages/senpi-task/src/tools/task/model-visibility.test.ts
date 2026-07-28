@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 
 import type { StartResult } from "../../manager"
-import { createFakeManager } from "./__fixtures__/task-tool-fakes"
+import { CTX, createFakeManager } from "./__fixtures__/task-tool-fakes"
 import { executeBatch } from "./execute-batch"
 import { taskResultLines } from "./renderers"
 
@@ -37,6 +37,7 @@ describe("batch task model visibility", () => {
         },
       ],
       signal: undefined,
+      ctx: CTX,
       runInBackground: true,
       startItem: async () => started,
     })
