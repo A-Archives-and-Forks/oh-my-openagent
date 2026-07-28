@@ -83,6 +83,16 @@ describe("reload guard", () => {
     ])
   })
 
+  it("#given a running child #when the veto is consulted twice (senpi pre-check + internal check) #then both consultations return the identical result", async () => {
+    const pi = new FakeExtensionAPI()
+    wireReloadGuard(pi, managerOf([record({ task_id: "st_7", status: "running", name: "deep-refactor" })]))
+
+    const first = await pi.dispatch("session_before_reload", { type: "session_before_reload" })
+    const second = await pi.dispatch("session_before_reload", { type: "session_before_reload" })
+    expect(second).toEqual(first)
+    expect(first[0]).toHaveProperty("cancel", true)
+  })
+
   it("#given a wired guard with no running children #when senpi emits session_before_reload #then reload proceeds", async () => {
     const pi = new FakeExtensionAPI()
     wireReloadGuard(pi, managerOf([record({ task_id: "st_1", status: "completed" })]))

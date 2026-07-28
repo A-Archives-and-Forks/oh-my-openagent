@@ -1,4 +1,4 @@
-import type { TaskRecord } from "@oh-my-opencode/senpi-task"
+import { taskIdentityLabel, type TaskRecord } from "@oh-my-opencode/senpi-task"
 
 import type { SenpiExtensionAPI } from "../../extension/types"
 
@@ -17,7 +17,13 @@ export function evaluateReloadVeto(manager: ReloadGuardManager): ReloadVeto {
     .map((taskId) => manager.get(taskId))
     .filter((entry): entry is TaskRecord => entry !== undefined && entry.status === "running")
   if (running.length === 0) return undefined
-  const labels = running.map((entry) => entry.description ?? entry.name ?? entry.task_id)
+  const labels = running.map((entry) =>
+    taskIdentityLabel({
+      taskId: entry.task_id,
+      ...(entry.name !== undefined && { name: entry.name }),
+      ...(entry.description !== undefined && { description: entry.description }),
+    }),
+  )
   return {
     cancel: true,
     reason: `${running.length} subagent(s) still running: ${labels.join(", ")} - wait for them to finish or cancel them (task_cancel) before reloading.`,
