@@ -11,7 +11,7 @@ const sharedSkillsRoot = join(repoRoot, "shared-skills", "skills")
 const skillSources = [
   {
     name: "ulw-loop",
-    source: join(repoRoot, "omo-codex", "plugin", "components", "ulw-loop", "skills", "ulw-loop"),
+    source: join(repoRoot, "omo-senpi", "skills", "ulw-loop"),
   },
 ]
 const componentSkillNames = new Set(skillSources.map(({ name }) => name))
@@ -311,7 +311,7 @@ export async function syncSkills() {
     await assertSourceExists(source)
     const destination = join(skillsRoot, name)
     await cp(source, destination, { filter: shouldCopySkillSource, recursive: true })
-    await adaptSkillTree(destination, applyTier1Adaptation)
+    await adaptSkillTree(destination, normalizeBlankLines)
   }
 
   for (const { name, source } of nativeSkillSources) {
