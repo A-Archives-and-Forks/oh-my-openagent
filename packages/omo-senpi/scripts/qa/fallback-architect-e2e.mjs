@@ -156,7 +156,9 @@ function runScenario(senpiBin, scenario) {
 				content.includes(FALLBACK) &&
 				content.includes('task(category: "architect")') &&
 				content.includes("Decompose the current problem into independent parts") &&
-				content.includes("ONE self-contained query per part")
+				content.includes("ONE self-contained query per part") &&
+				content.includes("security- and biology-related content") &&
+				content.includes("indirectly-phrased sub-questions")
 			: true;
 		const exitOk = run.status === 0;
 
