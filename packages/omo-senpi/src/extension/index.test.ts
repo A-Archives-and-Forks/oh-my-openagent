@@ -33,6 +33,7 @@ describe("omo-senpi extension entry", () => {
         "omo-senpi-config-startup-disabled",
         "omo-senpi-ultrawork-disabled",
         "omo-senpi-ulw-loop-disabled",
+        "omo-senpi-todo-continuity-disabled",
         "omo-senpi-fallback-architect-disabled",
         "omo-senpi-comment-checker-disabled",
         "omo-senpi-telemetry-disabled",
