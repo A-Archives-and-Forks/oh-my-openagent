@@ -12,16 +12,27 @@ const SHARED_SENPI_LOGS = new Set([SHARED_SENPI_LOG, "logs/config-reload.log"])
 
 // Per-file content snapshot of a directory (relpath -> sha256), for precise pollution attribution.
 // Returns an empty map when the directory is absent.
-export function snapshotDir(root) {
+export function snapshotDir(root, { readdir = readdirSync, readFile = readFileSync } = {}) {
   const snapshot = new Map()
   if (!existsSync(root)) return snapshot
   const walk = (dir) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    let entries
+    try {
+      entries = readdir(dir, { withFileTypes: true })
+    } catch (error) {
+      if (isTransientSnapshotEntryError(error)) return
+      throw error
+    }
+    for (const entry of entries) {
       const abs = join(dir, entry.name)
       if (entry.isDirectory()) walk(abs)
       else if (entry.isFile()) {
         const rel = abs.slice(root.length + 1)
-        snapshot.set(rel, snapshotDigest(rel, abs))
+        try {
+          snapshot.set(rel, snapshotDigest(rel, abs, readFile))
+        } catch (error) {
+          if (!isTransientSnapshotEntryError(error)) throw error
+        }
       }
     }
   }
@@ -29,8 +40,12 @@ export function snapshotDir(root) {
   return snapshot
 }
 
-function snapshotDigest(rel, abs) {
-  const content = readFileSync(abs)
+function isTransientSnapshotEntryError(error) {
+  return error?.code === "ENOENT" || error?.code === "ENOTDIR"
+}
+
+function snapshotDigest(rel, abs, readFile) {
+  const content = readFile(abs)
   if (rel !== "settings.json") return createHash("sha256").update(content).digest("hex")
   try {
     const settings = JSON.parse(content.toString("utf8"))
