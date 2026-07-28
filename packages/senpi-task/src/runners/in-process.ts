@@ -40,6 +40,7 @@ export type ChildSpec = {
   readonly agentDir?: string
   readonly authStorage?: CreateAgentSessionOptions["authStorage"]
   readonly modelRegistry?: CreateAgentSessionOptions["modelRegistry"]
+  readonly modelRuntime?: CreateAgentSessionOptions["modelRuntime"]
   readonly model?: CreateAgentSessionOptions["model"]
   readonly thinkingLevel?: CreateAgentSessionOptions["thinkingLevel"]
   readonly selectedModel?: string
@@ -106,6 +107,7 @@ export class InProcessRunner {
       ...(spec.agentDir !== undefined && { agentDir: spec.agentDir }),
       ...(spec.authStorage !== undefined && { authStorage: spec.authStorage }),
       ...(spec.modelRegistry !== undefined && { modelRegistry: spec.modelRegistry }),
+      ...(spec.modelRuntime !== undefined && { modelRuntime: spec.modelRuntime }),
       ...(spec.model !== undefined && { model: spec.model }),
       ...(spec.thinkingLevel !== undefined && { thinkingLevel: spec.thinkingLevel }),
       ...(settingsManager !== undefined && { settingsManager }),
