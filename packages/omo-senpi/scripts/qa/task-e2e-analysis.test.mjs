@@ -1,9 +1,40 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { changedRealPaths, classifyRealSenpiChanges, snapshotDir } from "./task-e2e-analysis.mjs";
+
+describe("snapshotDir", () => {
+	test("#given a transient lock directory #when it disappears during traversal #then the snapshot continues", () => {
+		// given
+		const root = mkdtempSync(join(tmpdir(), "task-e2e-snapshot-"));
+		const lockDir = join(root, "hooks-state.json.lock");
+		let observedTransientDirectory = false;
+		mkdirSync(lockDir);
+		writeFileSync(join(root, "settings.json"), JSON.stringify({ theme: "dark" }));
+
+		// when
+		const snapshot = snapshotDir(root, {
+			readdir(dir, options) {
+				if (dir === lockDir) {
+					observedTransientDirectory = true;
+					rmSync(lockDir, { recursive: true, force: true });
+					const error = new Error(`ENOENT: no such file or directory, scandir '${lockDir}'`);
+					error.code = "ENOENT";
+					throw error;
+				}
+				return readdirSync(dir, options);
+			},
+		});
+
+		// then
+		expect(observedTransientDirectory).toBe(true);
+		expect(snapshot.has("settings.json")).toBe(true);
+		expect(snapshot.has("hooks-state.json.lock")).toBe(false);
+		rmSync(root, { recursive: true, force: true });
+	});
+});
 
 describe("changedRealPaths", () => {
 	test("#given machine-global append-only logs #when snapshots differ #then they are excluded from QA pollution", () => {

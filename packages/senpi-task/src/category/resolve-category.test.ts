@@ -103,6 +103,52 @@ describe("resolveCategory", () => {
     expect(resolved.modelSelection.matchedFallback).toBe(true)
   })
 
+  test("#given configured runtime fallback preserves requested and resolved models #when resolved #then the ordered runtime chain is retained", () => {
+    // given
+    const models = registry([
+      model("vendor-b", "fallback-model"),
+      model("vendor-c", "final-model"),
+    ])
+
+    // when
+    const result = resolveCategory(
+      "quick",
+      {
+        categories: {
+          quick: {
+            model: "vendor-a/primary-model",
+            fallback_models: [
+              "vendor-b/fallback-model",
+              "vendor-c/final-model",
+            ],
+          },
+        },
+      },
+      models,
+    )
+
+    // then
+    const resolved = expectResolved(result)
+    expect(resolved.spec.provider).toBe("vendor-b")
+    expect(resolved.spec.modelId).toBe("fallback-model")
+    expect(resolved.spec).toMatchObject({
+      requested_model: {
+        source: "category",
+        provider: "vendor-a",
+        model_id: "primary-model",
+        display: "vendor-a/primary-model",
+      },
+      fallback_models: [
+        {
+          source: "category",
+          provider: "vendor-c",
+          model_id: "final-model",
+          display: "vendor-c/final-model",
+        },
+      ],
+    })
+  })
+
   test("#given quick primary is unavailable and hardcoded fallback is available #when resolved #then delegate-core fallback chain reaches Anthropic Haiku", () => {
     // given
     const models = registry([model("anthropic-api", "claude-haiku-4-5")])
