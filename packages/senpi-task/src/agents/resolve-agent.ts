@@ -1,6 +1,7 @@
 import { resolveModelForDelegateTask } from "@oh-my-opencode/delegate-core"
 
 import type { SenpiModelPort, SenpiModelRegistryPort } from "../category"
+import { buildRuntimeModelChain } from "../model-chain"
 import type { ResolvedModelRecord } from "../state"
 import { agentModelCandidates, type AgentModelCandidate } from "./agent-model-entry"
 import {
@@ -28,6 +29,8 @@ export type ResolvedAgentResult = AgentPersona & {
   readonly kind: "resolved"
   readonly agent: string
   readonly model: string
+  readonly requested_model?: ResolvedModelRecord
+  readonly fallback_models?: readonly ResolvedModelRecord[]
   readonly resolved_model?: ResolvedModelRecord
   readonly availableAgents: readonly string[]
 }
@@ -110,7 +113,18 @@ export function resolveAgent<TModel extends SenpiModelPort>(
     const found = findExactAgentModel(candidate.model, registry)
     if (found === undefined) continue
     if (availableModels !== undefined && !availableModels.includes(`${found.provider}/${found.modelId}`)) continue
-    return resolvedAgent(context, found, candidate.variant, candidate.reasoningEffort)
+    return resolvedAgent(
+      context,
+      found,
+      candidate.variant,
+      candidate.reasoningEffort,
+      buildRuntimeModelChain({
+        candidates: directModels,
+        selectedModel: candidate.model,
+        ...(availableModels !== undefined ? { availableModels: new Set(availableModels) } : {}),
+        source: "agent",
+      }),
+    )
   }
 
   if (availableModels !== undefined && fallbackChain !== undefined) {
@@ -167,12 +181,17 @@ function resolvedAgent(
   model: ParsedAgentModel,
   variant?: string,
   reasoningEffort?: AgentModelCandidate["reasoningEffort"],
+  runtimeModelChain: {
+    readonly requested_model?: ResolvedModelRecord
+    readonly fallback_models?: readonly ResolvedModelRecord[]
+  } = {},
 ): ResolvedAgentResult {
   const display = `${model.provider}/${model.modelId}`
   return {
     kind: "resolved",
     agent: context.name,
     model: display,
+    ...runtimeModelChain,
     resolved_model: {
       source: "agent",
       provider: model.provider,
