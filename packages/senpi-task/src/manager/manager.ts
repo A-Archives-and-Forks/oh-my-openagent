@@ -714,12 +714,18 @@ class TaskManagerImpl implements TaskManager {
     this.#releaseSlot(input.taskId, input.model, input.epoch)
 
     const remainingModels = record.fallback_models?.slice(1) ?? []
+    const fallbackAttempts = [
+      ...(record.fallback_attempts
+        ?? (record.resolved_model === undefined ? [] : [record.resolved_model])),
+      nextModel,
+    ]
     const nextEpoch = record.notification.run_epoch + 1
     const nextRecord: TaskRecord = {
       ...record,
       model: nextModel.display,
       resolved_model: nextModel,
       fallback_models: remainingModels,
+      fallback_attempts: fallbackAttempts,
       updated_at: input.timestamp,
       notification: {
         ...record.notification,

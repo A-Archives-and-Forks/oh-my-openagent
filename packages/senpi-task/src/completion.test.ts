@@ -56,4 +56,31 @@ describe("task completion fallback reporting", () => {
     expect(message.content).not.toContain("quota")
     expect(message.content).not.toContain("403")
   })
+
+  test("#given no model reroute #when fallback notification rendering runs #then existing completion output stays unchanged", () => {
+    // given
+    const record = {
+      ...completedFallbackRecord(),
+      requested_model: {
+        source: "category" as const,
+        provider: "vendor-a",
+        model_id: "primary-model",
+        display: "vendor-a/primary-model",
+      },
+      resolved_model: {
+        source: "category" as const,
+        provider: "vendor-a",
+        model_id: "primary-model",
+        display: "vendor-a/primary-model",
+      },
+      model: "vendor-a/primary-model",
+    }
+
+    // when
+    const message = buildCompletionMessage([buildCompletionDetails(record)])
+
+    // then
+    expect(message.content).toContain("model:vendor-a/primary-model")
+    expect(message.content).not.toContain("fallback:")
+  })
 })

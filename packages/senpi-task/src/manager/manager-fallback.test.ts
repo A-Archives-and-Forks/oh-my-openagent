@@ -148,4 +148,54 @@ describe("TaskManager configured runtime fallback", () => {
     expect(await terminal).toMatchObject({ status: "error" })
     expect(runner.startedSpecs).toHaveLength(1)
   })
+
+  test("#given every configured model fails before tools #when the chain exhausts #then attempted models remain in terminal diagnostics", async () => {
+    // given
+    const runner = new ObservableRunner()
+    const { manager, store } = makeManager({
+      planner: fallbackPlanner(),
+      process: runner,
+    })
+    const initialStart = runner.nextStart()
+    const result = await manager.start(baseSpec({ execution_mode: "process" }))
+    if (result.kind !== "started") throw new Error("expected started task")
+    await initialStart
+    const firstHandle = runner.handles.get(result.task_id)
+    if (firstHandle === undefined) throw new Error("expected initial handle")
+    const fallbackStart = runner.nextStart()
+    firstHandle.settle({
+      status: "error",
+      failure: {
+        kind: "child-prompt-failed",
+        message: "primary unavailable",
+      },
+    })
+    await fallbackStart
+    const secondHandle = runner.handles.get(result.task_id)
+    if (secondHandle === undefined) throw new Error("expected fallback handle")
+    await secondHandle.waitForSubscription()
+    const terminal = manager.waitFor(result.task_id)
+
+    // when
+    secondHandle.settle({
+      status: "error",
+      failure: {
+        kind: "child-prompt-failed",
+        message: "fallback unavailable",
+      },
+    })
+
+    // then
+    expect(await terminal).toMatchObject({
+      status: "error",
+      model: "vendor-b/fallback-model",
+      error_message: "fallback unavailable",
+      fallback_models: [],
+      fallback_attempts: [
+        { display: "vendor-a/primary-model" },
+        { display: "vendor-b/fallback-model" },
+      ],
+    })
+    expect(store.list().records).toHaveLength(1)
+  })
 })

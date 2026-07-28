@@ -74,6 +74,7 @@ export type TaskRecordInput = {
   readonly model: string
   readonly requested_model?: ResolvedModelRecord
   readonly fallback_models?: readonly ResolvedModelRecord[]
+  readonly fallback_attempts?: readonly ResolvedModelRecord[]
   readonly resolved_model?: ResolvedModelRecord
   readonly tool_allow?: readonly string[]
   readonly tool_deny?: readonly string[]
