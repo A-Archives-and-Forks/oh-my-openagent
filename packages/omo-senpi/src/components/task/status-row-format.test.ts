@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test"
 
 import { rendererVisibleWidth, type TaskRecord, type TaskStatus } from "@oh-my-opencode/senpi-task"
 
-import { buildWidgetRows, formatFooterStatus, formatTaskRow } from "./status-row-format"
+import { buildWidgetRows, formatTaskRow } from "./status-row-format"
 
 function record(overrides: Partial<TaskRecord> & { task_id: string; status: TaskStatus }): TaskRecord {
   return {
@@ -35,38 +35,6 @@ function longActiveRecord(): TaskRecord {
     },
   })
 }
-
-describe("formatFooterStatus", () => {
-  it("#given two running tasks #when formatting the footer #then compact active counts and a task tail render", () => {
-    const records = [record({ task_id: "st_aaaa", status: "running" }), record({ task_id: "st_bbbb", status: "running" })]
-    const footer = formatFooterStatus(records)
-    expect(footer).toContain("t2/r2")
-    expect(footer).toContain("st_aaaa")
-  })
-
-  it("#given no tasks #when formatting the footer #then it is undefined so the status clears", () => {
-    expect(formatFooterStatus([])).toBeUndefined()
-  })
-
-  it("#given errored and completed terminals #when formatting #then done and err counts are distinct", () => {
-    const records = [
-      record({ task_id: "st_a", status: "completed" }),
-      record({ task_id: "st_b", status: "error" }),
-      record({ task_id: "st_c", status: "lost" }),
-    ]
-    const footer = formatFooterStatus(records) ?? ""
-    expect(footer).toContain("run:0")
-    expect(footer).toContain("done:3")
-    expect(footer).toContain("err:2")
-  })
-
-  it("#given a 137-column active task #when formatting the footer #then it remains one physical line at 72 and 120 columns", () => {
-    const footer = formatFooterStatus([longActiveRecord()]) ?? ""
-    expect(footer).not.toContain("\n")
-    for (const columns of [72, 120]) expect(rendererVisibleWidth(footer)).toBeLessThanOrEqual(columns)
-    expect(footer).toBe("t1/r1 ac...|category:ultrabrain omo-mock/mock-1 xhigh in-process running")
-  })
-})
 
 describe("buildWidgetRows", () => {
   it("#given more than five active tasks #when building rows #then it caps at five and adds a +N more row", () => {
