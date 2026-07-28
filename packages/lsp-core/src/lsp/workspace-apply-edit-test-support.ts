@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, watch, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -149,13 +149,32 @@ export async function waitForEventCount(
 	predicate: (event: RecordedEvent) => boolean,
 	count: number,
 ): Promise<readonly RecordedEvent[]> {
-	const deadline = Date.now() + 2_000;
-	while (Date.now() < deadline) {
-		const matches = readEvents(path).filter(predicate);
-		if (matches.length >= count) return matches;
-		await new Promise((resolve) => setTimeout(resolve, 10));
-	}
-	return readEvents(path).filter(predicate);
+	const current = (): readonly RecordedEvent[] => readEvents(path).filter(predicate);
+	const existing = current();
+	if (existing.length >= count) return existing;
+
+	return new Promise((resolve) => {
+		let settled = false;
+		let watcher: ReturnType<typeof watch> | undefined;
+		let timeout: ReturnType<typeof setTimeout> | undefined;
+
+		function settle(events: readonly RecordedEvent[]): void {
+			if (settled) return;
+			settled = true;
+			if (timeout) clearTimeout(timeout);
+			watcher?.close();
+			resolve(events);
+		}
+
+		function settleIfReady(): void {
+			const events = current();
+			if (events.length >= count) settle(events);
+		}
+
+		watcher = watch(path, settleIfReady);
+		timeout = setTimeout(() => settle(current()), 2_000);
+		settleIfReady();
+	});
 }
 
 function isRecordedEvent(value: unknown): value is RecordedEvent {
