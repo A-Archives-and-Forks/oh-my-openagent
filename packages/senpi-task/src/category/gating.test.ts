@@ -151,9 +151,9 @@ describe("category activation gating", () => {
       expect(result.spec.variant).toBe("high")
     })
 
-    test("#when artistry resolves on the same registry #then it is a PRIMARY hit, which is why it cannot prove fallback", () => {
+    test("#when artistry resolves on a fable-only registry #then it is a PRIMARY hit, which is why it cannot prove fallback", () => {
       // given
-      const models = registry([model("google", "gemini-3.1-pro")])
+      const models = registry([model("anthropic", "claude-fable-5")])
 
       // when
       const result = resolveCategory("artistry", {}, models)

@@ -4,7 +4,7 @@ import type { DelegateFallbackEntry } from "@oh-my-opencode/delegate-core"
 // senpi-task cannot import model-core here without adding a package dependency outside this task's scope.
 export const CATEGORY_FALLBACK_CHAINS: Readonly<Record<string, readonly DelegateFallbackEntry[]>> = {
   "visual-engineering": [
-    { providers: ["anthropic", "github-copilot", "opencode", "vercel"], model: "claude-opus-5", variant: "high" },
+    { providers: ["anthropic", "github-copilot", "opencode", "vercel"], model: "claude-opus-5", variant: "max" },
     {
       providers: ["apitopia", "opencode-go", "kimi-for-coding", "moonshotai", "opencode", "vercel"],
       model: "kimi-k3",
@@ -34,11 +34,13 @@ export const CATEGORY_FALLBACK_CHAINS: Readonly<Record<string, readonly Delegate
     { providers: ["opencode-go", "vercel"], model: "glm-5.2" },
   ],
   artistry: [
-    { providers: ["google", "github-copilot", "opencode", "vercel"], model: "gemini-3.1-pro", variant: "high" },
-    { providers: ["anthropic", "github-copilot", "opencode", "vercel"], model: "claude-opus-5", variant: "max" },
-    { providers: ["openai", "github-copilot", "opencode", "vercel"], model: "gpt-5.6-sol", variant: "high" },
-    { providers: ["opencode-go", "vercel"], model: "kimi-k3" },
-    { providers: ["opencode-go", "vercel"], model: "glm-5.2" }
+    { providers: ["anthropic", "github-copilot", "opencode", "vercel"], model: "claude-fable-5", variant: "xhigh" },
+    {
+      providers: ["apitopia", "opencode-go", "kimi-for-coding", "moonshotai", "opencode", "vercel"],
+      model: "kimi-k3",
+      variant: "max",
+    },
+    { providers: ["anthropic", "github-copilot", "opencode", "vercel"], model: "claude-opus-5", variant: "xhigh" },
   ],
   quick: [
     { providers: ["apitopia"], model: "kimi-for-coding-highspeed" },

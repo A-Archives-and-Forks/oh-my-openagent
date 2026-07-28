@@ -6,7 +6,7 @@ export const CATEGORY_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
       {
         providers: ["anthropic", "github-copilot", "opencode", "vercel"],
         model: "claude-opus-5",
-        variant: "high",
+        variant: "max",
       },
       {
         providers: ["apitopia", "opencode-go", "kimi-for-coding", "moonshotai", "opencode", "vercel"],
@@ -96,18 +96,20 @@ export const CATEGORY_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
   artistry: {
     fallbackChain: [
       {
-        providers: ["google", "github-copilot", "opencode", "vercel"],
-        model: "gemini-3.1-pro",
-        variant: "high",
+        providers: ["anthropic", "github-copilot", "opencode", "vercel"],
+        model: "claude-fable-5",
+        variant: "xhigh",
+      },
+      {
+        providers: ["apitopia", "opencode-go", "kimi-for-coding", "moonshotai", "opencode", "vercel"],
+        model: "kimi-k3",
+        variant: "max",
       },
       {
         providers: ["anthropic", "github-copilot", "opencode", "vercel"],
         model: "claude-opus-5",
-        variant: "max",
+        variant: "xhigh",
       },
-      { providers: ["openai", "github-copilot", "opencode", "vercel"], model: "gpt-5.6-sol", variant: "high" },
-      { providers: ["opencode-go", "vercel"], model: "kimi-k3" },
-      { providers: ["opencode-go", "vercel"], model: "glm-5.2" },
     ],
   },
   quick: {

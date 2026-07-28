@@ -164,7 +164,7 @@ describe("sisyphus-task", () => {
       // when / #then
       expect(category).toBeDefined()
       expect(category.model).toBe("anthropic/claude-opus-5")
-      expect(category.variant).toBe("high")
+      expect(category.variant).toBe("max")
     })
 
     test("ultrabrain category has model and variant config", () => {
@@ -837,8 +837,8 @@ describe("sisyphus-task", () => {
       expect(result).toBeNull()
     })
 
-    test("allows artistry to use its fallback chain when gemini is missing", () => {
-      // given - artistry can fall back from gemini to another capable model
+    test("allows artistry to use its fallback chain when fable is missing", () => {
+      // given - artistry can fall back from fable to another capable model
       const categoryName = "artistry"
       const availableModels = new Set<string>(["anthropic/claude-opus-4-8"])
 
@@ -850,7 +850,7 @@ describe("sisyphus-task", () => {
 
       // then
       expect(result).not.toBeNull()
-      expect(result?.model).toBe("google/gemini-3.1-pro")
+      expect(result?.model).toBe("anthropic/claude-fable-5")
     })
 
     test("allows artistry when availability is empty", () => {
@@ -866,7 +866,7 @@ describe("sisyphus-task", () => {
 
       // then
       expect(result).not.toBeNull()
-      expect(result?.model).toBe("google/gemini-3.1-pro")
+      expect(result?.model).toBe("anthropic/claude-fable-5")
     })
 
     test("bypasses requiresModel when explicit user config provided", () => {
@@ -2474,6 +2474,9 @@ describe("sisyphus-task", () => {
        const tool = createDelegateTask({
          manager: mockManager,
          client: mockClient,
+         userCategories: {
+           "gemini-canvas": { model: "google/gemini-3.1-pro", variant: "high" },
+         },
        })
       
       const toolContext = {
@@ -2483,12 +2486,12 @@ describe("sisyphus-task", () => {
         abort: new AbortController().signal,
       }
       
-      // when - using artistry (gemini model) with run_in_background=false
+      // when - using a user-defined gemini category with run_in_background=false
       const result = await tool.execute(
         {
           description: "Test gemini forced background",
           prompt: "Do something creative",
-          category: "artistry",
+          category: "gemini-canvas",
           run_in_background: false,
           load_skills: ["git-master"],
         },
@@ -2696,8 +2699,8 @@ describe("sisyphus-task", () => {
       expect(result).not.toContain("UNSTABLE AGENT MODE")
     }, { timeout: 20000 })
 
-    test("artistry category (gemini) with run_in_background=false should force background but wait for result", async () => {
-      // given - artistry also uses gemini model
+    test("user gemini category with run_in_background=false should force background but wait for result", async () => {
+      // given - a user-defined category pinned to a gemini model
       const { createDelegateTask } = require("./tools")
       let launchCalled = false
       
@@ -2737,6 +2740,9 @@ describe("sisyphus-task", () => {
        const tool = createDelegateTask({
          manager: mockManager,
          client: mockClient,
+         userCategories: {
+           "gemini-canvas": { model: "google/gemini-3.1-pro", variant: "high" },
+         },
        })
       
       const toolContext = {
@@ -2746,12 +2752,12 @@ describe("sisyphus-task", () => {
         abort: new AbortController().signal,
       }
       
-      // when - artistry category (gemini-3.1-pro with high variant)
+      // when - user gemini category (gemini-3.1-pro with high variant)
       const result = await tool.execute(
         {
           description: "Test artistry forced background",
           prompt: "Do something artistic",
-          category: "artistry",
+          category: "gemini-canvas",
           run_in_background: false,
           load_skills: ["git-master"],
         },

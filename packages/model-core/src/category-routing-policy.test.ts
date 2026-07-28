@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test"
 import { CATEGORY_MODEL_REQUIREMENTS } from "./model-requirements"
 
 describe("category routing policy", () => {
-  test("visual-engineering prioritizes Opus high, Kimi K3 max, then Fable low", () => {
+  test("visual-engineering prioritizes Opus max, Kimi K3 max, then Fable low", () => {
     // given
     const visual = CATEGORY_MODEL_REQUIREMENTS["visual-engineering"]
 
@@ -15,7 +15,7 @@ describe("category routing policy", () => {
       {
         providers: ["anthropic", "github-copilot", "opencode", "vercel"],
         model: "claude-opus-5",
-        variant: "high",
+        variant: "max",
       },
       {
         providers: ["apitopia", "opencode-go", "kimi-for-coding", "moonshotai", "opencode", "vercel"],
@@ -26,6 +26,33 @@ describe("category routing policy", () => {
         providers: ["anthropic", "github-copilot", "opencode", "vercel"],
         model: "claude-fable-5",
         variant: "low",
+      },
+    ])
+  })
+
+  test("artistry prioritizes Fable xhigh, Kimi K3 max, then Opus xhigh", () => {
+    // given
+    const artistry = CATEGORY_MODEL_REQUIREMENTS["artistry"]
+
+    // when
+    const chain = artistry.fallbackChain
+
+    // then
+    expect(chain).toEqual([
+      {
+        providers: ["anthropic", "github-copilot", "opencode", "vercel"],
+        model: "claude-fable-5",
+        variant: "xhigh",
+      },
+      {
+        providers: ["apitopia", "opencode-go", "kimi-for-coding", "moonshotai", "opencode", "vercel"],
+        model: "kimi-k3",
+        variant: "max",
+      },
+      {
+        providers: ["anthropic", "github-copilot", "opencode", "vercel"],
+        model: "claude-opus-5",
+        variant: "xhigh",
       },
     ])
   })
