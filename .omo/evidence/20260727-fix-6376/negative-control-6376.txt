@@ -1,0 +1,34 @@
+### NEGATIVE CONTROL - issue #6376 - 2026-07-28T01:27:46Z
+### Revert ONLY the product file, keep the test. S2 MUST fail again.
+
+--- index.mjs diff vs base (must be empty) ---
+(empty == product change removed)
+
+=== bun test (expect FAIL) ===
+bun test v1.3.14 (0d9b296a)
+
+packages\shared-skills\shared-skills-root-path.test.ts:
+53 | 		// when
+54 | 		const loaded = await loadFrom(bundleDirectory);
+55 | 		const resolved = loaded.sharedSkillsRootPath();
+56 | 
+57 | 		// then
+58 | 		expect(resolve(resolved)).toBe(resolve(join(root, "skills")));
+                                 ^
+error: expect(received).toBe(expected)
+
+Expected: "C:\Users\pss\AppData\Local\Temp\shared-skills-root-NphoKy\skills"
+Received: "C:\Users\pss\AppData\Local\Temp\shared-skills-root-NphoKy\cli\skills"
+
+      at <anonymous> (C:\Users\pss\.omo-contrib\work\omo\packages\shared-skills\shared-skills-root-path.test.ts:58:29)
+(fail) sharedSkillsRootPath > #given a bundle one level below the skills directory #when the root is resolved #then the parent directory is used [8.06ms]
+
+ 2 pass
+ 1 fail
+ 5 expect() calls
+Ran 3 tests across 1 file. [283.00ms]
+EXIT=1  (non-zero == control confirmed)
+
+--- fix restored (must be non-empty) ---
+ packages/shared-skills/index.mjs | 9 ++++++++-
+ 1 file changed, 8 insertions(+), 1 deletion(-)
