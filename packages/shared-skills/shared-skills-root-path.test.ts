@@ -1,5 +1,5 @@
-import { describe, expect, test } from "bun:test";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { afterAll, describe, expect, test } from "bun:test";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -25,10 +25,15 @@ async function loadFrom(moduleDirectory: string): Promise<RootPathModule> {
 	return (await import(pathToFileURL(copiedModule).href)) as RootPathModule;
 }
 
+/**
+ * realpathSync matters here: on macOS the temp dir lives under a symlinked /var, and the
+ * dynamic import canonicalizes the module URL, so the resolved root would otherwise be
+ * compared against a non-canonical expectation.
+ */
 function createFixtureRoot(): string {
 	const root = mkdtempSync(join(tmpdir(), "shared-skills-root-"));
 	cleanupRoots.push(root);
-	return root;
+	return realpathSync(root);
 }
 
 describe("sharedSkillsRootPath", () => {
@@ -74,7 +79,7 @@ describe("sharedSkillsRootPath", () => {
 	});
 });
 
-process.on("exit", () => {
+afterAll(() => {
 	for (const root of cleanupRoots.splice(0)) {
 		rmSync(root, { recursive: true, force: true });
 	}

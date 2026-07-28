@@ -1,5 +1,5 @@
-### GREEN capture - issue #6376 - 2026-07-28T01:27:45Z
-### product diff:
+### GREEN capture - issue #6376 - 2026-07-28T01:52:01Z
+### product diff vs upstream/dev:
  packages/shared-skills/index.mjs | 9 ++++++++-
  1 file changed, 8 insertions(+), 1 deletion(-)
 
@@ -28,5 +28,5 @@ bun test v1.3.14 (0d9b296a)
  3 pass
  0 fail
  6 expect() calls
-Ran 3 tests across 1 file. [280.00ms]
+Ran 3 tests across 1 file. [1197.00ms]
 EXIT=0
