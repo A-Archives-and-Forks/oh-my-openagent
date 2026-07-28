@@ -103,7 +103,7 @@ degrades color and wide-glyph width. In this repo:
 stream). Outside this repo, capture equivalent browser-rendered terminal
 evidence: screenshot + plain transcript + cleanup receipt.
 
-# Bootstrap (DO ALL FOUR ONCE PER RUN, BEFORE ANY OTHER WORK — later ulw messages steer this run, never restart it)
+# Bootstrap (DO ALL FOUR BEFORE ANY OTHER WORK — NO SKIPPING)
 
 ## 0. Survey the skills, gather context, then size the work
 First, survey the loaded skill list and read the description of each
@@ -135,11 +135,8 @@ Never spawn the planner before the discovery wave has returned.
 ## 1. Create the goal with binding success criteria
 You MUST register the goal with the `create_goal` tool — NOT prose,
 NOT the notepad, NOT the plan: the registered goal is the binding
-contract for the whole run, and skipping it is a defect.
-Later user messages amend it only where they conflict; every
-non-conflicting criterion stays binding until its evidence is captured.
-Call it with exactly `objective`; do not include `status`. Only when no
-goal tool
+contract for the whole run, and skipping it is a defect. Call it with
+exactly `objective`; do not include `status`. Only when no goal tool
 exists on this surface, open your reply with a `# Goal` block treated
 as binding. Goals are unlimited; never invent a numeric budget or
 limit.
@@ -510,8 +507,7 @@ commits this session — then stage + draft the message instead.
   list (`<sha> <subject>`). No file-by-file changelog unless asked.
 
 # Stop rules
-- After each result, ask whether the user's full request — the
-  registered goal plus every later steering message — can now be
+- After each result, ask whether the user's core request can now be
   answered with useful evidence in hand. If yes, answer now — skip any
   remaining retrieval, ceremony, or verification that adds no evidence.
 - The STOP GOAL: every scenario PASSES with captured evidence, every

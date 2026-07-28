@@ -10,7 +10,6 @@ import { createTaskComponent } from "../components/task"
 import { createStartWorkContinuationComponent } from "../components/start-work-continuation"
 import { createUltraworkComponent } from "../components/ultrawork"
 import { createUlwLoopComponent } from "../components/ulw-loop"
-import { createTodoContinuityComponent } from "../components/todo-continuity"
 import { createFallbackArchitectComponent } from "../components/fallback-architect"
 
 const components: OmoSenpiComponent[] = [
@@ -18,7 +17,6 @@ const components: OmoSenpiComponent[] = [
   createUltraworkComponent(),
   createStartWorkContinuationComponent(),
   createUlwLoopComponent(),
-  createTodoContinuityComponent(),
   createFallbackArchitectComponent(),
   createCommentCheckerComponent(),
   createSenpiTelemetryComponent(),
