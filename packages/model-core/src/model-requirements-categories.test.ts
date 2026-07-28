@@ -134,23 +134,24 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     })
   })
 
-  test("artistry keeps gemini-3.1-pro high primary and gpt-5.6-sol OpenAI coverage", () => {
+  test("artistry keeps claude-fable-5 xhigh primary with Kimi max and Opus xhigh coverage", () => {
     // given
     const artistry = CATEGORY_MODEL_REQUIREMENTS["artistry"]
 
     // when
-    const primary = artistry.fallbackChain[0]
-    const openAiFallback = artistry.fallbackChain.find((entry) => entry.providers.includes("openai"))
+    const [primary, kimiFallback, opusFallback] = artistry.fallbackChain
 
     // then
-    expect(artistry.fallbackChain.length).toBeGreaterThan(0)
-    expect(primary?.model).toBe("gemini-3.1-pro")
-    expect(primary?.variant).toBe("high")
-    expect(primary?.providers[0]).toBe("google")
-    expect(openAiFallback).toEqual({
-      providers: ["openai", "github-copilot", "opencode", "vercel"],
-      model: "gpt-5.6-sol",
-      variant: "high",
+    expect(artistry.fallbackChain.length).toBe(3)
+    expect(primary?.model).toBe("claude-fable-5")
+    expect(primary?.variant).toBe("xhigh")
+    expect(primary?.providers[0]).toBe("anthropic")
+    expect(kimiFallback?.model).toBe("kimi-k3")
+    expect(kimiFallback?.variant).toBe("max")
+    expect(opusFallback).toEqual({
+      providers: ["anthropic", "github-copilot", "opencode", "vercel"],
+      model: "claude-opus-5",
+      variant: "xhigh",
     })
   })
 
