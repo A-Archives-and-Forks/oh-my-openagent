@@ -240,7 +240,7 @@ describe("createTaskStatusUi.background progress", () => {
       "⠋ Investig... · category:quick · model:gpt-5.4-mini-fast · turn 3 (7 tools) · 42 tok/s · read src/foo.ts · 1m 5s",
       "⠋ Review t... · agent:explore · model:gpt-5.4-mini-fast · turn 1 (2 tools) · bash bun test · 1m 5s",
     ])
-    expect(ui.statusCalls.at(-1)).toContain("Investig...")
-    expect(ui.statusCalls.at(-1)).toContain("read src/foo.ts")
+    // C1: the duplicated footer task status line is gone; widget rows are the only task surface.
+    expect(ui.statusCalls).toHaveLength(0)
   })
 })

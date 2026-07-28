@@ -72,7 +72,7 @@ The component registers two slash commands (`packages/omo-senpi/src/components/t
 - **`/tasks`** lists this session's tasks; `/tasks --all` lists tasks across every session.
 - **`/task-kill`** opens a selector over cancellable tasks (running / pending / interrupted) and cancels the chosen one after a confirm.
 
-A live status footer also tracks the session's tasks as they change.
+A live status widget below the editor tracks the session's tasks as they change; the footer itself stays reserved for the goal indicator.
 
 ## Teams
 
