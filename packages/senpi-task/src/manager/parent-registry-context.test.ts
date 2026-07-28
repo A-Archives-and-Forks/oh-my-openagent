@@ -109,6 +109,7 @@ describe("createParentRegistrySessionContext", () => {
   test("#given a parent registry with a dynamically-registered provider #when a child spec names that model #then the registry, its auth storage, and the resolved Model are threaded", () => {
     // given
     const registry = registryWithMockProvider()
+    const modelRuntime = registry.modelRuntime
     const provide = createParentRegistrySessionContext(() => registry)
 
     // when
@@ -116,6 +117,7 @@ describe("createParentRegistrySessionContext", () => {
 
     // then
     expect(context.modelRegistry).toBe(registry)
+    expect(context.modelRuntime).toBe(modelRuntime)
     expect(context.authStorage).toBe(registry.authStorage)
     expect(context.model?.provider).toBe("omo-mock")
     expect(context.model?.id).toBe("mock-1")

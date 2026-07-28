@@ -41,11 +41,13 @@ describe("changedRealPaths", () => {
 		const before = new Map([
 			["senpi-debug.log", "before-debug"],
 			["logs/config-reload.log", "before-reload"],
+			["logs/fallback.log", "before-fallback"],
 			["settings.json", "stable"],
 		]);
 		const after = new Map([
 			["senpi-debug.log", "after-debug"],
 			["logs/config-reload.log", "after-reload"],
+			["logs/fallback.log", "after-fallback"],
 			["settings.json", "stable"],
 		]);
 

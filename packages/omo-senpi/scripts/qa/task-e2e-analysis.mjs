@@ -8,7 +8,7 @@ import { join } from "node:path"
 // Senpi writes machine-global append-only diagnostics under the real agent directory. Every concurrent
 // Senpi process on the host can append to these files, so they cannot identify QA pollution.
 export const SHARED_SENPI_LOG = "senpi-debug.log"
-const SHARED_SENPI_LOGS = new Set([SHARED_SENPI_LOG, "logs/config-reload.log"])
+const SHARED_SENPI_LOGS = new Set([SHARED_SENPI_LOG, "logs/config-reload.log", "logs/fallback.log"])
 
 // Per-file content snapshot of a directory (relpath -> sha256), for precise pollution attribution.
 // Returns an empty map when the directory is absent.

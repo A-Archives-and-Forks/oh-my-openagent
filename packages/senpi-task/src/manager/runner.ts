@@ -12,6 +12,7 @@ export type InProcessSessionContext = {
   readonly agentDir?: string
   readonly authStorage?: CreateAgentSessionOptions["authStorage"]
   readonly modelRegistry?: CreateAgentSessionOptions["modelRegistry"]
+  readonly modelRuntime?: ChildSpec["modelRuntime"]
   readonly model?: CreateAgentSessionOptions["model"]
   readonly thinkingLevel?: CreateAgentSessionOptions["thinkingLevel"]
 }
@@ -69,6 +70,7 @@ function toChildSpec(spec: ManagedStartSpec, context: InProcessSessionContext): 
     ...(context.agentDir !== undefined ? { agentDir: context.agentDir } : {}),
     ...(context.authStorage !== undefined ? { authStorage: context.authStorage } : {}),
     ...(context.modelRegistry !== undefined ? { modelRegistry: context.modelRegistry } : {}),
+    ...(context.modelRuntime !== undefined ? { modelRuntime: context.modelRuntime } : {}),
     ...(context.model !== undefined ? { model: context.model } : {}),
     ...(context.thinkingLevel !== undefined ? { thinkingLevel: context.thinkingLevel } : {}),
     ...(spec.model !== undefined ? { selectedModel: spec.model } : {}),

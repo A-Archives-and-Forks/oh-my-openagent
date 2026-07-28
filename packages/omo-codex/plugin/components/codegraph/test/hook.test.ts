@@ -41,6 +41,7 @@ describe("CodeGraph SessionStart hook", () => {
 				stdout: { write: (chunk) => stdout.push(chunk) },
 				ancestorProbe: () => ({ kind: "uninitialized" }),
 				spawnWorker: (invocation) => spawned.push(invocation),
+				sweepZombies: () => undefined,
 			});
 
 			// then
@@ -230,6 +231,7 @@ describe("CodeGraph SessionStart hook", () => {
 				spawnWorker: (invocation) => {
 					spawned.push(invocation);
 				},
+				sweepZombies: () => undefined,
 				workerCliPath: "/plugin/components/codegraph/dist/cli.js",
 			});
 
