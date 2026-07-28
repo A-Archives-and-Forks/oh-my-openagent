@@ -192,9 +192,7 @@ After running the preview, present the output to the user and say:
 >
 > **For all release types**, an enhanced summary is **required** — I'll draft one in the next step.
 
-Wait for the user to acknowledge before proceeding.
-
-If the user already confirmed the publish workflow and did not explicitly ask to review the generated changelog before release-note editing, treat the publish confirmation as sufficient acknowledgement and continue. Do not end the assistant turn here.
+**APPROVAL GATE (single, binary):** The user's initial publish request with a named bump type IS the only approval this workflow requires. Do NOT wait for a separate acknowledgement here. Present the preview, then IMMEDIATELY proceed to Step 6. The only exception: if the user explicitly said "let me review the changelog before you continue" (or equivalent), stop and wait. Otherwise continue without ending the turn.
 </agent-instruction>
 
 ---
@@ -266,10 +264,10 @@ cat /tmp/release-summary-v${NEW_VERSION}.md
 ```
 
 <agent-instruction>
-After drafting, ask the user:
-> "Here's the release summary I drafted. This will appear AT THE TOP of the release notes, above the auto-generated commit changelog and contributor thanks. Want me to adjust anything before applying?"
+Present the draft to the user:
+> "Here's the release summary I drafted. This will appear AT THE TOP of the release notes, above the auto-generated commit changelog and contributor thanks."
 
-If the user already confirmed the publish workflow and did not explicitly request a release-note review hold, proceed to Step 7 after presenting the draft. Do not stop before Step 7.5, because the Discord announcement is mandatory.
+**APPROVAL GATE (same single gate):** The initial publish confirmation covers this step too. Present the draft, then IMMEDIATELY proceed to Step 7 (apply) and Step 7.5 (Discord). Do NOT stop to wait for approval unless the user explicitly requested a release-note review hold before the publish started. The Discord announcement (Step 7.5) is mandatory and must not be blocked by a review hold that was never requested.
 </agent-instruction>
 
 ---
