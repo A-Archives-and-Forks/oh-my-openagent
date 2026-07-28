@@ -154,6 +154,8 @@ const ulwPlanReviewOverride = `## Senpi Review Override (authoritative)
 
 In omo-senpi the curated \`oracle\` subagent does not exist. The high-accuracy review is MOMUS-ONLY: one round is exactly ONE native \`momus\` review of the complete plan file. Ignore every "dual" review instruction, every "independent" reviewer lane, and every \`independent_reviewer\` state field below; never spawn \`task(subagent_type="oracle")\`. A momus approval whose remaining items are notes counts as approval.
 
+Only a plan file produced by this skill and recorded with \`review_required\` authorizes a \`momus\` or \`metis\` review. A bare \`ulw\` run without that file uses notepad self-review instead, however large the work feels.
+
 If a section below conflicts with this section, this section wins.
 
 `
