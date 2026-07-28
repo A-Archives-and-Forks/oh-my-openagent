@@ -54,7 +54,8 @@ notepad instead of the reviewer loop.
 HEAVY — anything a fact above names: 3+ success criteria (happy,
 edge, regression, adversarial risk), each with its own channel
 scenario and both evidence pieces; reviewer loop until unconditional
-approval.
+approval WHEN the Verification gate below triggers, self-review in the
+notepad when it does not.
 
 # Manual-QA channels
 Run real-surface proof yourself through the channel that faithfully
