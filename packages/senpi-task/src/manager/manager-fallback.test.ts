@@ -198,4 +198,77 @@ describe("TaskManager configured runtime fallback", () => {
     })
     expect(store.list().records).toHaveLength(1)
   })
+
+  test("#given native fallback already advanced once #when that model terminates #then manager handoff uses only the remaining rung", async () => {
+    // given
+    const runner = new ObservableRunner()
+    const { manager, store } = makeManager({
+      planner: () => ({
+        kind: "resolved",
+        plan: {
+          ...fallbackPlanner()().plan,
+          fallback_models: [
+            {
+              source: "category",
+              provider: "vendor-b",
+              model_id: "fallback-one",
+              display: "vendor-b/fallback-one",
+            },
+            {
+              source: "category",
+              provider: "vendor-c",
+              model_id: "fallback-two",
+              display: "vendor-c/fallback-two",
+            },
+          ],
+        },
+      }),
+      inProcess: runner,
+    })
+    const initialStart = runner.nextStart()
+    const result = await manager.start(baseSpec({ execution_mode: "in-process" }))
+    if (result.kind !== "started") throw new Error("expected started task")
+    await initialStart
+    const handle = runner.handles.get(result.task_id)
+    if (handle === undefined) throw new Error("expected initial handle")
+    const nativeFallbackEvent = {
+      type: "retry_fallback_applied",
+      from: "vendor-a/primary-model",
+      to: "vendor-b/fallback-one",
+      chainKey: "vendor-a/primary-model",
+      reason: "hard-error",
+    } as const
+    handle.emit(nativeFallbackEvent)
+    expect(store.load(result.task_id)).toMatchObject({
+      model: "vendor-b/fallback-one",
+      fallback_models: [{ display: "vendor-c/fallback-two" }],
+      fallback_attempts: [
+        { display: "vendor-a/primary-model" },
+        { display: "vendor-b/fallback-one" },
+      ],
+    })
+    const fallbackStart = runner.nextStart()
+
+    // when
+    handle.settle({
+      status: "error",
+      failure: {
+        kind: "child-turn-failed",
+        message: "native fallback exhausted",
+      },
+    })
+
+    // then
+    const nextSpec = await fallbackStart
+    expect(nextSpec.model).toBe("vendor-c/fallback-two")
+    expect(store.load(result.task_id)).toMatchObject({
+      model: "vendor-c/fallback-two",
+      fallback_models: [],
+      fallback_attempts: [
+        { display: "vendor-a/primary-model" },
+        { display: "vendor-b/fallback-one" },
+        { display: "vendor-c/fallback-two" },
+      ],
+    })
+  })
 })

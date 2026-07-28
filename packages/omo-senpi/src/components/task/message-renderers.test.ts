@@ -41,6 +41,7 @@ const TEST_FG_COLORS = {
   thinkingLow: "#000000",
   thinkingMedium: "#000000",
   thinkingMinimal: "#000000",
+  thinkingMax: "#000000",
   thinkingOff: "#000000",
   thinkingText: "#000000",
   thinkingXhigh: "#000000",
@@ -79,7 +80,7 @@ function renderContentLines<T>(
 ): readonly string[] {
   const component = renderer(
     { role: "custom", customType, content, display: true, details, timestamp: 0 },
-    { expanded: false },
+    { expanded: false, outputPad: 0 },
     TEST_THEME,
   )
   return component?.render(width) ?? []

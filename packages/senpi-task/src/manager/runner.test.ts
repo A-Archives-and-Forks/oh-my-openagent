@@ -74,6 +74,45 @@ describe("createInProcessManagedRunner", () => {
     expect(captured?.parentSessionId).toBe("parent-1")
     expect(outcome).toEqual({ status: "completed", finalResponse: "ok" })
   })
+
+  test("#given a managed spec with a runtime fallback chain #when started #then the ordered chain reaches the child runner", async () => {
+    // given
+    let captured: ChildSpec | undefined
+    const requestedModel = {
+      source: "category",
+      provider: "apitopia",
+      model_id: "kimi-for-coding-highspeed-unlocked",
+      display: "apitopia/kimi-for-coding-highspeed-unlocked",
+      reasoning_effort: "minimal",
+    } as const
+    const fallbackModels = [
+      {
+        source: "category",
+        provider: "quotio-openai",
+        model_id: "gpt-5.4-mini-fast",
+        display: "quotio-openai/gpt-5.4-mini-fast",
+        reasoning_effort: "minimal",
+      },
+    ] as const
+    const runner: InProcessRunnerLike = {
+      start: (spec) => {
+        captured = spec
+        return Promise.resolve(fakeInProcessHandle({ status: "completed", finalResponse: "ok" }))
+      },
+    }
+    const managed = createInProcessManagedRunner(runner)
+    const spec = {
+      ...managedSpec(),
+      requestedModel,
+      fallbackModels,
+    }
+
+    // when
+    await managed.start(spec)
+
+    // then
+    expect(captured).toMatchObject({ requestedModel, fallbackModels })
+  })
 })
 
 describe("createRpcManagedRunner", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import { AuthStorage, ModelRegistry } from "@code-yeongyu/senpi"
+import { ModelRegistry, ModelRuntime } from "@code-yeongyu/senpi"
 
 import { createParentRegistrySessionContext, findModelReference } from "./parent-registry-context"
 import type { ManagedStartSpec } from "./types"
@@ -19,7 +19,7 @@ function baseSpec(overrides: Partial<ManagedStartSpec> = {}): ManagedStartSpec {
 }
 
 function registryWithMockProvider(): ModelRegistry {
-  const registry = ModelRegistry.inMemory(AuthStorage.inMemory())
+  const registry = new ModelRegistry(ModelRuntime.createSync())
   registry.registerProvider("omo-mock", {
     name: "omo mock provider",
     baseUrl: "file://mock-provider",

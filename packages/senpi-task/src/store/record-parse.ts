@@ -24,8 +24,8 @@ export function parseTaskRecord(value: unknown, path: string): TaskRecord {
   const errorMessage = readOptionalString(value, "error_message")
   const killed = readOptionalBoolean(value, "killed")
   const requestedModel = readOptionalResolvedModel(value, "requested_model")
-  const fallbackModels = readOptionalResolvedModels(value, "fallback_models")
-  const fallbackAttempts = readOptionalResolvedModels(value, "fallback_attempts")
+  const fallbackModels = readOptionalResolvedModelArray(value, "fallback_models")
+  const fallbackAttempts = readOptionalResolvedModelArray(value, "fallback_attempts")
   const resolvedModel = readOptionalResolvedModel(value, "resolved_model")
   const spawnSpec = readOptionalSpawnSpec(value)
   const runStats = readOptionalRunStats(value)
@@ -91,11 +91,28 @@ function readOptionalSpawnSpec(record: Record<string, unknown>): TaskRecord["spa
 
 function readOptionalResolvedModel(
   record: Record<string, unknown>,
-  key: "requested_model" | "resolved_model",
+  key: "requested_model" | "resolved_model" = "resolved_model",
 ): ResolvedModelRecord | undefined {
   const value = record[key]
   if (value === undefined) return undefined
   if (!isRecord(value)) throw new Error(`${key} is not an object`)
+  return readResolvedModel(value)
+}
+
+function readOptionalResolvedModelArray(
+  record: Record<string, unknown>,
+  key: "fallback_models" | "fallback_attempts",
+): readonly ResolvedModelRecord[] | undefined {
+  const value = record[key]
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) throw new Error(`${key} is not an array`)
+  return value.map((candidate, index) => {
+    if (!isRecord(candidate)) throw new Error(`${key}[${index}] is not an object`)
+    return readResolvedModel(candidate)
+  })
+}
+
+function readResolvedModel(value: Record<string, unknown>): ResolvedModelRecord {
   const variant = readOptionalString(value, "variant")
   const reasoningEffort = readOptionalString(value, "reasoning_effort")
   return {
@@ -106,24 +123,6 @@ function readOptionalResolvedModel(
     ...(variant === undefined ? {} : { variant }),
     ...(reasoningEffort === undefined ? {} : { reasoning_effort: reasoningEffort }),
   }
-}
-
-function readOptionalResolvedModels(
-  record: Record<string, unknown>,
-  key: "fallback_models" | "fallback_attempts",
-): readonly ResolvedModelRecord[] | undefined {
-  const value = record[key]
-  if (value === undefined) return undefined
-  if (!Array.isArray(value)) throw new Error(`${key} is not an array`)
-  return value.map((entry, index) => {
-    if (!isRecord(entry)) throw new Error(`${key}[${index}] is not an object`)
-    const parsed = readOptionalResolvedModel(
-      { resolved_model: entry },
-      "resolved_model",
-    )
-    if (parsed === undefined) throw new Error(`${key}[${index}] is missing`)
-    return parsed
-  })
 }
 
 function readNotification(record: Record<string, unknown>): TaskRecord["notification"] {
