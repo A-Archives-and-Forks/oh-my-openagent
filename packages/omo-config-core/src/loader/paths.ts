@@ -14,6 +14,8 @@ export type ResolveOmoConfigPathsOptions = {
   readonly platform?: NodeJS.Platform
 }
 
+export const MAX_PROJECT_CONFIG_DIRECTORY_DEPTH = 256
+
 function containsPath(parent: string, child: string): boolean {
   const pathToChild = relative(parent, child)
   return pathToChild === "" || (!pathToChild.startsWith("..") && !isAbsolute(pathToChild))
@@ -82,18 +84,17 @@ export function findProjectConfigPathsFarthestFirst(
   // the caller's path form.
   const startDir = resolve(cwd)
   const resolvedHomeDir = resolve(homeDir)
-  const stopDir = containsPath(realpathOrSelf(resolvedHomeDir, fileSystem), realpathOrSelf(startDir, fileSystem))
-    ? resolvedHomeDir
-    : null
+  const realHomeDir = realpathOrSelf(resolvedHomeDir, fileSystem)
+  const stopDir = containsPath(realHomeDir, realpathOrSelf(startDir, fileSystem)) ? realHomeDir : null
   const nearestFirst: string[] = []
   let currentDir = startDir
 
-  while (true) {
+  for (let depth = 0; depth < MAX_PROJECT_CONFIG_DIRECTORY_DEPTH; depth += 1) {
+    const isHomeDir = currentDir === resolvedHomeDir || (stopDir !== null && realpathOrSelf(currentDir, fileSystem) === stopDir)
     // `$HOME/.omo` is the user layer, so the walk must not also claim it as a project layer.
-    const configPath = currentDir === resolvedHomeDir ? null : detectOmoJsonPath(currentDir, fileSystem)
+    const configPath = isHomeDir ? null : detectOmoJsonPath(currentDir, fileSystem)
     if (configPath !== null) nearestFirst.push(configPath)
-    // cwd outside $HOME: only the working directory itself is checked.
-    if (stopDir === null || currentDir === stopDir) break
+    if (isHomeDir) break
     const parentDir = dirname(currentDir)
     if (parentDir === currentDir) break
     currentDir = parentDir
