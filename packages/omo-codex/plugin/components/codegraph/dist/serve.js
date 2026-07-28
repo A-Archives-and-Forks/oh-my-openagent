@@ -7256,6 +7256,7 @@ var DEFAULT_READ_FILE_SYSTEM = {
 };
 
 // ../../../../omo-config-core/src/loader/paths.ts
+var MAX_PROJECT_CONFIG_DIRECTORY_DEPTH = 256;
 function containsPath(parent, child) {
   const pathToChild = relative(parent, child);
   return pathToChild === "" || !pathToChild.startsWith("..") && !isAbsolute2(pathToChild);
@@ -7314,14 +7315,16 @@ function realpathOrSelf(path, fileSystem) {
 function findProjectConfigPathsFarthestFirst(cwd, homeDir, fileSystem) {
   const startDir = resolve3(cwd);
   const resolvedHomeDir = resolve3(homeDir);
-  const stopDir = containsPath(realpathOrSelf(resolvedHomeDir, fileSystem), realpathOrSelf(startDir, fileSystem)) ? resolvedHomeDir : null;
+  const realHomeDir = realpathOrSelf(resolvedHomeDir, fileSystem);
+  const stopDir = containsPath(realHomeDir, realpathOrSelf(startDir, fileSystem)) ? realHomeDir : null;
   const nearestFirst = [];
   let currentDir = startDir;
-  while (true) {
-    const configPath = currentDir === resolvedHomeDir ? null : detectOmoJsonPath(currentDir, fileSystem);
+  for (let depth = 0;depth < MAX_PROJECT_CONFIG_DIRECTORY_DEPTH; depth += 1) {
+    const isHomeDir = currentDir === resolvedHomeDir || stopDir !== null && realpathOrSelf(currentDir, fileSystem) === stopDir;
+    const configPath = isHomeDir ? null : detectOmoJsonPath(currentDir, fileSystem);
     if (configPath !== null)
       nearestFirst.push(configPath);
-    if (stopDir === null || currentDir === stopDir)
+    if (isHomeDir)
       break;
     const parentDir = dirname2(currentDir);
     if (parentDir === currentDir)
@@ -8060,6 +8063,9 @@ function removeMigrationJournal(fileSystem, env) {
 import { join as join11 } from "node:path";
 var DEFAULT_LEASE_DURATION_MS = 30000;
 var GUARD_LEASE_DURATION_MS = 1000;
+var LIVE_OWNER_STALE_LEASE_MULTIPLIER = 2;
+var MUTATION_GUARD_RETRY_DELAYS_MS = [2, 4, 8, 16, 32];
+var MUTATION_GUARD_SLEEP_VIEW = new Int32Array(new SharedArrayBuffer(4));
 function migrationLockPath(env) {
   return toPosixPath(join11(resolveHomeDir(env), ".omo", ".migration.lock"));
 }
@@ -8094,12 +8100,20 @@ function leaseContent(process3, clock, duration3) {
   return `${JSON.stringify({ leaseExpiresAt: clock.now() + duration3, pid: process3.pid })}
 `;
 }
-function isExpiredDead(record2, clock, process3) {
-  return record2.leaseExpiresAt <= clock.now() && !process3.isAlive(record2.pid);
+function isReclaimable(record2, clock, process3, leaseDurationMs) {
+  const now = clock.now();
+  if (record2.leaseExpiresAt > now)
+    return false;
+  if (!process3.isAlive(record2.pid))
+    return true;
+  return record2.leaseExpiresAt + leaseDurationMs * LIVE_OWNER_STALE_LEASE_MULTIPLIER <= now;
+}
+function sleepSync(milliseconds) {
+  Atomics.wait(MUTATION_GUARD_SLEEP_VIEW, 0, 0, milliseconds);
 }
 function acquireMutationGuard(input) {
   const path = mutationGuardPath(input.env);
-  for (let attempt = 0;attempt < 3; attempt += 1) {
+  for (let attempt = 0;attempt <= MUTATION_GUARD_RETRY_DELAYS_MS.length; attempt += 1) {
     const content = leaseContent(input.process, input.clock, GUARD_LEASE_DURATION_MS);
     try {
       input.fileSystem.writeFileExclusiveSync(path, content);
@@ -8108,11 +8122,19 @@ function acquireMutationGuard(input) {
       if (!isFileExistsError3(error))
         throw error;
     }
-    const observedContent = input.fileSystem.readFileSync(path, "utf-8");
-    const observed = parseLockRecord(observedContent);
-    if (observed === null || !isExpiredDead(observed, input.clock, input.process))
-      return null;
-    input.fileSystem.removeIfContentsMatchSync(path, observedContent);
+    try {
+      const observedContent = input.fileSystem.readFileSync(path, "utf-8");
+      const observed = parseLockRecord(observedContent);
+      if (observed === null || isReclaimable(observed, input.clock, input.process, GUARD_LEASE_DURATION_MS)) {
+        input.fileSystem.removeIfContentsMatchSync(path, observedContent);
+      }
+    } catch (error) {
+      if (!isFileMissingError(error))
+        throw error;
+    }
+    const retryDelayMs = MUTATION_GUARD_RETRY_DELAYS_MS[attempt];
+    if (retryDelayMs !== undefined)
+      sleepSync(retryDelayMs);
   }
   return null;
 }
@@ -8144,8 +8166,10 @@ function acquireMigrationLock(input) {
       return {
         release: () => {
           const guardContent2 = acquireMutationGuard(input);
-          if (guardContent2 === null)
+          if (guardContent2 === null) {
+            input.fileSystem.removeIfContentsMatchSync(path, ownedContent);
             return;
+          }
           try {
             input.fileSystem.removeIfContentsMatchSync(path, ownedContent);
           } finally {
@@ -8173,7 +8197,7 @@ function acquireMigrationLock(input) {
         throw error;
       }
       const observed = parseLockRecord(observedContent);
-      if (observed === null || !isExpiredDead(observed, input.clock, input.process))
+      if (observed !== null && !isReclaimable(observed, input.clock, input.process, leaseDurationMs))
         return null;
       input.fileSystem.removeIfContentsMatchSync(path, observedContent);
     } finally {
@@ -8281,6 +8305,14 @@ function ensureBackupDirectories(moves, fileSystem) {
   for (const move of moves)
     fileSystem.mkdirSync(directoryPath2(move.to), { recursive: true });
 }
+function transformResult(value) {
+  if (isPlainObject3(value) && isPlainObject3(value.document) && Array.isArray(value.diagnostics) && value.diagnostics.every((diagnostic) => typeof diagnostic === "string")) {
+    return { diagnostics: value.diagnostics, document: value.document };
+  }
+  if (!isPlainObject3(value))
+    throw new MigrationTransactionError("Migration transform must return a plain object");
+  return { diagnostics: [], document: value };
+}
 function executePlan(input) {
   const { env, fileSystem, journalResumed, plan } = input;
   const protectedPaths = new Set([plan.targetPath, migrationJournalPath(env), migrationLockPath(env)]);
@@ -8290,21 +8322,20 @@ function executePlan(input) {
   if (!shouldRunMigration({ legacySourcesExist: existingSources.length > 0, migrationId: plan.id, target })) {
     return { diagnostics: [], journalResumed, status: "skipped" };
   }
-  const transformed = plan.transform(loadSources(existingSources, fileSystem));
-  if (!isPlainObject3(transformed))
-    throw new MigrationTransactionError("Migration transform must return a plain object");
-  const prepared = prepareTargetWrite({ additions: transformed, migrationId: plan.id, target, targetPath: plan.targetPath });
+  const transformed = transformResult(plan.transform(loadSources(existingSources, fileSystem)));
+  const prepared = prepareTargetWrite({ additions: transformed.document, migrationId: plan.id, target, targetPath: plan.targetPath });
+  const diagnostics = [...transformed.diagnostics, ...prepared.diagnostics];
   const moves = backupMoves(existingSources, plan.id, fileSystem, protectedPaths);
-  const preview = { backupMoves: moves, targetPath: plan.targetPath, transform: transformed };
+  const preview = { backupMoves: moves, targetPath: plan.targetPath, transform: transformed.document };
   if (input.dryRun)
-    return { diagnostics: prepared.diagnostics, journalResumed, preview, status: "planned" };
+    return { diagnostics, journalResumed, preview, status: "planned" };
   ensureBackupDirectories(moves, fileSystem);
   const journal = {
     backupMoves: moves,
     completedMoves: [],
     migrationId: plan.id,
     targetPath: plan.targetPath,
-    targetWrite: { additions: transformed },
+    targetWrite: { additions: transformed.document },
     targetWritten: false,
     version: 1
   };
@@ -8327,7 +8358,7 @@ function executePlan(input) {
     input.onBoundary?.("source-recorded");
   }
   removeMigrationJournal(fileSystem, env);
-  return { diagnostics: prepared.diagnostics, journalResumed, preview, status: "migrated" };
+  return { diagnostics, journalResumed, preview, status: "migrated" };
 }
 function runMigrations(options) {
   const clock = options.clock ?? DEFAULT_MIGRATION_CLOCK;
@@ -8399,12 +8430,15 @@ function transformConfigJsonc(configPath, sources) {
   const senpi = recordAt(legacy, "[senpi]");
   const history = migrationHistory(sources, configPath);
   return {
-    $schema: OMO_SCHEMA_URL,
-    ...recordAt(legacy, "codegraph") === undefined ? {} : { codegraph: recordAt(legacy, "codegraph") },
-    ...recordAt(legacy, "[opencode]") === undefined ? {} : { "[opencode]": recordAt(legacy, "[opencode]") },
-    ...recordAt(legacy, "[codex]") === undefined ? {} : { "[codex]": recordAt(legacy, "[codex]") },
-    ...senpi === undefined && omo === undefined ? {} : { "[senpi]": senpi ?? omo },
-    ...Object.keys(history).length === 0 ? {} : { legacy_migrations: history }
+    diagnostics: omo !== undefined && senpi !== undefined ? ["conflict: [senpi] legacy [omo] kept [senpi]"] : [],
+    document: {
+      $schema: OMO_SCHEMA_URL,
+      ...recordAt(legacy, "codegraph") === undefined ? {} : { codegraph: recordAt(legacy, "codegraph") },
+      ...recordAt(legacy, "[opencode]") === undefined ? {} : { "[opencode]": recordAt(legacy, "[opencode]") },
+      ...recordAt(legacy, "[codex]") === undefined ? {} : { "[codex]": recordAt(legacy, "[codex]") },
+      ...senpi === undefined && omo === undefined ? {} : { "[senpi]": senpi ?? omo },
+      ...Object.keys(history).length === 0 ? {} : { legacy_migrations: history }
+    }
   };
 }
 function timestamp(value) {
