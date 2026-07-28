@@ -123,6 +123,12 @@ function toAgentPlan(resolution: ResolvedAgentResult, explicitModel: ResolvedMod
   const appliedVariant = resolution.resolved_model?.reasoning_effort ?? resolution.resolved_model?.variant
   return {
     model: resolution.model,
+    ...(resolution.requested_model !== undefined
+      ? { requested_model: resolution.requested_model }
+      : {}),
+    ...(resolution.fallback_models !== undefined
+      ? { fallback_models: resolution.fallback_models }
+      : {}),
     ...(resolvedModel !== undefined ? { resolved_model: resolvedModel } : {}),
     ...(appliedVariant !== undefined ? { variant: appliedVariant } : {}),
     agentType: resolution.agentType,
@@ -152,6 +158,12 @@ function toPlanResolution(
       kind: "resolved",
       plan: {
         model: `${resolution.spec.provider}/${resolution.spec.modelId}`,
+        ...(resolution.spec.requested_model !== undefined
+          ? { requested_model: resolution.spec.requested_model }
+          : {}),
+        ...(resolution.spec.fallback_models !== undefined
+          ? { fallback_models: resolution.spec.fallback_models }
+          : {}),
         resolved_model: {
           source: "category",
           provider: resolution.spec.provider,
