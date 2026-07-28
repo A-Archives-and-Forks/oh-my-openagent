@@ -35,6 +35,22 @@ Publishing is not complete until the Discord release announcement has been attem
 - After the release notes are finalized, immediately run Step 7.5 and post to Discord.
 - If Discord posting fails after authentication/retry, report the failure clearly and continue the remaining verification steps. A skipped Discord step is a workflow failure.
 
+## CRITICAL: NO EARLY TURN-END AFTER TRIGGER (COMPLETION CONTRACT)
+
+Once `gh workflow run publish` succeeds, the publish is NOT done. A prior session forgot this: it triggered the workflow and ended its turn, leaving the release unverified, the enhanced summary unwritten, and the Discord announcement unsent. That mistake is why this section exists.
+
+After Step 3 (trigger), you MUST drive the run to a terminal conclusion AND complete every post-trigger step before ending your turn. You may NOT end the turn, hand off, or stop for the day while ANY of these is unresolved:
+
+1. **Run conclusion** — `gh run view <id> --json conclusion` must return `success` (poll while drafting notes; never sleep idle).
+2. **Release exists** — Step 5: `gh release view v${NEW_VERSION}` resolves.
+3. **Enhanced summary applied** — Step 6 + Step 7: draft (mandatory for patch/minor/major) AND `gh release edit --notes-file` applied. "Patch is optional" is wrong; patch summaries are MANDATORY.
+4. **Discord announced** — Step 7.5: `agent-discordbot message send` attempted; either a message id is recorded OR a clear failure is reported to the user. A skipped Discord step is a workflow failure.
+5. **npm verified** — Step 8: `npm view oh-my-opencode version` (and oh-my-openagent, lazycodex-ai) shows `${NEW_VERSION}`.
+
+Only after all five are green may you end the turn. If the run fails, run `gh run view <id> --log-failed`, report it, and STOP (do not repair the tree mid-publish). If a post-trigger step fails for an external reason (npm propagation, Discord auth), report it clearly and continue the remaining steps — do not let one failure abort the rest.
+
+This contract applies to the slash-command copies (`.agents/command/publish.md`, `.opencode/command/publish.md`) too; they are kept byte-identical to this skill per the `.agents/AGENTS.md` drift rule.
+
 ## CRITICAL: ARGUMENT REQUIREMENT
 
 **You MUST receive a version bump type from the user.** Valid options:
