@@ -13,12 +13,11 @@ import type { CapturedUi } from "./runtime-context"
 import {
   backgroundWidgetRows,
   buildWidgetRows,
-  formatFooterStatus,
   isTerminal,
   LIVE_STATUS_REFRESH_MS,
 } from "./status-row-format"
 
-export { buildWidgetRows, formatFooterStatus, formatTaskRow } from "./status-row-format"
+export { buildWidgetRows, formatTaskRow } from "./status-row-format"
 
 const UI_KEY = "omo-task"
 const DEFAULT_DEBOUNCE_MS = 250
@@ -116,8 +115,6 @@ export function createTaskStatusUi(deps: TaskStatusUiDeps): TaskStatusUi {
       : records.filter((record) => deps.manager.wasBackground?.(record.task_id) === true)
     const renderedAt = now()
     const liveStats = deps.manager.runStatsSnapshot?.bind(deps.manager)
-    const footer = formatFooterStatus(deps.manager.wasBackground === undefined ? records : background, liveActivity, renderedAt, liveStats)
-    ui.setStatus(UI_KEY, footer)
     const rows = deps.manager.wasBackground === undefined
       ? buildWidgetRows(records)
       : backgroundWidgetRows(background, liveActivity, renderedAt, liveStats)
