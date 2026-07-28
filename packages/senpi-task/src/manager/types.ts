@@ -26,9 +26,9 @@ export type ManagedStartSpec = {
   readonly parentSessionId: string
   readonly rootSessionId: string
   readonly model?: string
-  readonly variant?: string
   readonly requestedModel?: ResolvedModelRecord
   readonly fallbackModels?: readonly ResolvedModelRecord[]
+  readonly variant?: string
   readonly agentType?: string
   readonly instructions?: string
   readonly toolAllowlist?: readonly string[]

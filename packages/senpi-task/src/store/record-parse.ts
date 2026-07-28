@@ -23,9 +23,10 @@ export function parseTaskRecord(value: unknown, path: string): TaskRecord {
   const finalResponse = readOptionalString(value, "final_response")
   const errorMessage = readOptionalString(value, "error_message")
   const killed = readOptionalBoolean(value, "killed")
-  const resolvedModel = readOptionalResolvedModel(value)
   const requestedModel = readOptionalResolvedModel(value, "requested_model")
   const fallbackModels = readOptionalResolvedModelArray(value, "fallback_models")
+  const fallbackAttempts = readOptionalResolvedModelArray(value, "fallback_attempts")
+  const resolvedModel = readOptionalResolvedModel(value, "resolved_model")
   const spawnSpec = readOptionalSpawnSpec(value)
   const runStats = readOptionalRunStats(value)
 
@@ -49,6 +50,7 @@ export function parseTaskRecord(value: unknown, path: string): TaskRecord {
     ...(toolDeny === undefined ? {} : { tool_deny: toolDeny }),
     ...(requestedModel === undefined ? {} : { requested_model: requestedModel }),
     ...(fallbackModels === undefined ? {} : { fallback_models: fallbackModels }),
+    ...(fallbackAttempts === undefined ? {} : { fallback_attempts: fallbackAttempts }),
     ...(resolvedModel === undefined ? {} : { resolved_model: resolvedModel }),
     ...(spawnSpec === undefined ? {} : { spawn_spec: spawnSpec }),
     ...(pid === undefined ? {} : { pid }),
@@ -89,7 +91,7 @@ function readOptionalSpawnSpec(record: Record<string, unknown>): TaskRecord["spa
 
 function readOptionalResolvedModel(
   record: Record<string, unknown>,
-  key = "resolved_model",
+  key: "requested_model" | "resolved_model" = "resolved_model",
 ): ResolvedModelRecord | undefined {
   const value = record[key]
   if (value === undefined) return undefined
@@ -99,7 +101,7 @@ function readOptionalResolvedModel(
 
 function readOptionalResolvedModelArray(
   record: Record<string, unknown>,
-  key: string,
+  key: "fallback_models" | "fallback_attempts",
 ): readonly ResolvedModelRecord[] | undefined {
   const value = record[key]
   if (value === undefined) return undefined
