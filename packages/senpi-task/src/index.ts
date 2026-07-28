@@ -281,6 +281,7 @@ export {
   buildSkillPrepend,
   buildTaskExecute,
   buildTaskToolDescription,
+  resolvePromptCacheSafeWaitSeconds,
   createFsSkillLoader,
   createTaskTool,
   excerptRendererPromptText,
@@ -295,9 +296,14 @@ export {
   taskCallLines,
   taskResultLines,
   validateTaskTarget,
+  waitForForegroundTask,
 } from "./tools/task"
 export type {
+  ForegroundWaitInput,
+  ForegroundWaitOptions,
+  ForegroundWaitResult,
   ResolveAncestry,
+  ScheduleDeadline,
   SkillLoader,
   SkillResolution,
   TaskAgentInfo,

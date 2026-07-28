@@ -392,6 +392,12 @@ class TaskManagerImpl implements TaskManager {
 
   residentTaskIds(): readonly string[] { return [...this.#live.keys()] }
 
+  promoteToBackground(taskId: string): boolean {
+    const promoted = !this.#background.has(taskId)
+    this.#background.add(taskId)
+    return promoted
+  }
+
   wasBackground(taskId: string): boolean { return this.#background.has(taskId) }
 
   async respawn(record: TaskRecord, resumeSessionPath: string): Promise<RespawnResult> {

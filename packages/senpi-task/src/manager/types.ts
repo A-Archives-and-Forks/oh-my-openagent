@@ -201,7 +201,9 @@ export type TaskManager = {
   // Subscribe at the runner-agnostic handle seam now or when a queued task is promoted.
   subscribeChild(taskId: string, listener: ManagedChildListener): () => void
   residentTaskIds(): readonly string[]
-  // Whether a task was spawned run_in_background, so the store-terminal completion bridge only
-  // notifies background terminals (sync spawns are awaited inline by the tool).
+  // Promote a foreground task when the tool stops waiting inline. The completion bridge reads this
+  // state live at terminal transition, so promotion makes the eventual completion notify normally.
+  promoteToBackground(taskId: string): boolean
+  // Whether a task is currently background, either from its spawn spec or a later promotion.
   wasBackground(taskId: string): boolean
 }
