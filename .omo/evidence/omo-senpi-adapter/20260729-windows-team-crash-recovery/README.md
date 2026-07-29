@@ -34,7 +34,7 @@ The Windows host cannot create the symlinks used by a set of cross-platform test
 |---|---:|---:|---|
 | `bun run typecheck` | not needed for comparison | exit 0 | PASS |
 | `bun run build` | exit 0 | exit 0 | PASS |
-| `bun test` | 12,267 pass / 73 fail / 22 skip | 12,286 pass / 73 fail / 22 skip | No increase in failures; 19 new passing tests |
+| `bun test` | 12,267 pass / 73 fail / 22 skip | 12,287 pass / 73 fail / 22 skip | No increase in failures; 20 new passing tests |
 | `bun run test:codex` | 359 pass / 28 fail / 7 skip | 359 pass / 28 fail / 7 skip | Exact baseline parity |
 
 The remaining root and Codex failures are pre-existing on this Windows host. They are dominated by `EPERM` from symlink fixtures, checkout symlink materialization, home-directory contamination, and unrelated timeout-sensitive scans.
