@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { createOhMyOpenCodeJsonSchema } from "./build-schema-document"
 
-const SCHEMA_OUTPUT_PATH = "assets/oh-my-opencode.schema.json"
+const SCHEMA_OUTPUT_PATH = "assets/omo.schema.json"
 const DIST_SCHEMA_OUTPUT_PATH = "dist/oh-my-opencode.schema.json"
 
 async function main() {

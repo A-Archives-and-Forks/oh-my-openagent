@@ -95,6 +95,9 @@ const EXPECTED_CONFIG = {
       max_ms: 600_000,
       min_ms: 5_000,
     },
+    warnings: {
+      unavailable_categories: true,
+    },
   },
   teams: {},
 } satisfies OmoConfig
