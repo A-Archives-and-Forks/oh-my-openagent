@@ -205,7 +205,11 @@ function heartbeatState(context: LifecycleContext, record: TaskRecord): "fresh" 
 // unreachable, so it must never keep occupying a residency slot the LRU gate cannot reclaim
 // (the reconcile_lost cause also kills a still-alive orphan pid before the claim is dropped).
 async function markLost(context: LifecycleContext, record: TaskRecord, message: string): Promise<void> {
-  const result = markRecordLostForReconciliation(record, { timestamp: nowIso(context), error_message: message })
+  const result = markRecordLostForReconciliation(record, {
+    timestamp: nowIso(context),
+    error_message: message,
+    updateReason: record.status === "lost",
+  })
   if (!result.applied) return
   context.store.replace(result.record)
   context.store.appendEvent(record.task_id, { type: "reconcile_lost", payload: { reason: message } })

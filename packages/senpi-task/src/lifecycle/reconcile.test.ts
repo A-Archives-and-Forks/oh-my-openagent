@@ -307,6 +307,26 @@ describe("reconcileOnSessionStart reattach", () => {
     expect(store.load("st_00000012")?.residency_state).toBe("disposed")
   })
 
+  test(" w2reattach #given an orphan whose reattach respawn then fails #when reconciled #then the true terminal reason replaces the first lost reason", async () => {
+    // given a live orphan child with a persisted session but no usable spawn spec, so the first
+    // lost marking (orphan) is followed by a second one (reattach failure) in the same pass
+    const taskId = "st_00000014"
+    const store = tempStore()
+    seedRecord(store, { task_id: taskId, status: "running", residency_state: "resident", execution_mode: "process", pid: 901, updated_at: new Date(now() - 1_000).toISOString() })
+    persistSessions(store, taskId)
+    const respawnRunner = new FakeRespawnRunner()
+    createManager(store, respawnRunner)
+    const lifecycle = createTaskLifecycle({ store, registry: new FakeRegistry(), config: settings(), now, signaller: fakeSignaller(new Set([901]), []), orphanKillDelayMs: 0 })
+
+    // when
+    const result = await lifecycle.reconcileOnSessionStart()
+
+    // then the reattach failure detail replaces the generic orphan reason instead of being swallowed
+    expect(result.outcomes[0]?.kind).toBe("lost")
+    expect(store.load(taskId)?.error_message).toBe("reattach failed: persisted spawn spec unavailable")
+    expect(readEvents(store, taskId)).toContain("reconcile_lost")
+  })
+
   test(" w2reattach #given reconcile reattach is disabled #when a durable session exists #then v1 lost behavior runs without respawn", async () => {
     // given
     const { store, respawnRunner, lifecycle } = createHarness({ taskId: "st_00000005", config: { reattach_on_reconcile: false } })
