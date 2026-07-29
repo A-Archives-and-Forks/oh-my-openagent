@@ -6,6 +6,8 @@ Oh-My-OpenAgent provides 11 specialized AI agents. Each has distinct expertise, 
 
 ### Current Agent Model Chains
 
+The category chains below are edition-aware. Senpi uses `kimi-coding` for Kimi rungs. The OpenCode edition uses `kimi-for-coding` for the same Kimi chain positions. The same resolved chain is used at spawn time and again if runtime retry fallback needs to recover.
+
 | Agent | Primary | Full fallback chain |
 | --- | --- | --- |
 | **sisyphus** | `claude-opus-5` | `anthropic\|github-copilot\|opencode\|vercel/claude-opus-5 (max)` → `opencode-go\|kimi-for-coding\|moonshotai\|opencode\|vercel\|bailian-coding-plan\|moonshotai-cn\|firmware\|ollama-cloud\|aihubmix/kimi-k3` → `openai\|github-copilot\|opencode\|vercel/gpt-5.6-sol (medium)` → `zai-coding-plan\|opencode\|bailian-coding-plan\|vercel/glm-5` → `opencode/big-pickle` |
@@ -163,9 +165,9 @@ By combining these two concepts, you can generate optimal agents through `task`.
 | `ultrabrain`         | `openai/gpt-5.6-sol` (xhigh)    | Deep logical reasoning, complex architecture decisions requiring extensive analysis                                         |
 | `deep`               | `openai/gpt-5.6-terra` (xhigh)  | Goal-oriented autonomous problem-solving on hairy problems requiring deep research. ONE goal + ONE deliverable per call — multiple goals must fan out as parallel `deep` calls, never bundled into one. |
 | `artistry`           | `google/gemini-3.1-pro` (high)  | Highly creative/artistic tasks, novel ideas                                                                                 |
-| `quick`              | `apitopia/kimi-for-coding-highspeed` | Trivial tasks - single file changes, typo fixes, simple modifications                                                  |
+| `quick`              | `kimi-coding/kimi-for-coding-highspeed` | Trivial tasks - single file changes, typo fixes, simple modifications                                                  |
 | `unspecified-low`    | `openai/gpt-5.6-luna` (xhigh)   | Tasks that don't fit other categories, low effort required                                                                  |
-| `unspecified-high`   | `apitopia/kimi-k3` (max)        | Tasks that don't fit other categories, high effort required                                                               |
+| `unspecified-high`   | `kimi-coding/kimi-k3` (max)        | Tasks that don't fit other categories, high effort required                                                               |
 | `writing`            | `kimi-for-coding/kimi-k3`          | Documentation, prose, technical writing                                                                                     |
 
 ### Usage
