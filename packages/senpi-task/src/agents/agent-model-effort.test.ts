@@ -77,6 +77,21 @@ describe("agent model entries carrying effort", () => {
     expect(agents.explore?.models).toEqual(["openai/a", "openai/b"])
   })
 
+  test("#given a canonicalized agent entry #when resolved through resolveAgent #then its canonical reasoning reaches the resolved model record", () => {
+    // given a canonical entry (the schema rewrites reasoningEffort to reasoning)
+    const agents = roster({
+      name: "explore",
+      models: [{ model: "quotio-openai/gpt-5.4-mini-fast", reasoning: "high" }],
+    })
+    const models = registry([{ provider: "quotio-openai", id: "gpt-5.4-mini-fast" }])
+
+    // when resolved end to end through withDefaults
+    const result = expectResolved(resolveAgent("explore", agents, models))
+
+    // then the canonical level survives into the resolved record
+    expect(result.resolved_model?.reasoning_effort).toBe("high")
+  })
+
   test("#given a resolved agent model entry carrying effort #when resolved #then the effort reaches the resolved model record", () => {
     // given
     const agents = roster({
