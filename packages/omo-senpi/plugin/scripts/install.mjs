@@ -22,6 +22,7 @@ var REQUIRED_PLUGIN_ARTIFACTS = [
   join("skills", "debugging", "SKILL.md"),
   join("skills", "frontend", "SKILL.md"),
   join("skills", "git-master", "SKILL.md"),
+  join("skills", "give-me-tips", "SKILL.md"),
   join("skills", "init-deep", "SKILL.md"),
   join("skills", "lsp-setup", "SKILL.md"),
   join("skills", "programming", "SKILL.md"),
