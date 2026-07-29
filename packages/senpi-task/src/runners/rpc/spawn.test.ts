@@ -1,5 +1,6 @@
-import { homedir } from "node:os"
-import { isAbsolute, join, sep } from "node:path"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { homedir, tmpdir } from "node:os"
+import { dirname, isAbsolute, join, sep } from "node:path"
 import { describe, expect, test } from "bun:test"
 
 import { buildChildArgs, buildRpcSpawn, detectBunBinary, resolveChildSessionDir, resolveSenpiExecutable } from "./spawn"
@@ -122,6 +123,43 @@ describe("buildChildArgs", () => {
 })
 
 describe("buildRpcSpawn spawn strategy", () => {
+  test("#given a Windows npm senpi installation #when building an RPC child #then Node launches the npm package CLI without shell forwarding", () => {
+    // given
+    const npmDir = mkdtempSync(join(tmpdir(), "senpi-npm-rpc-"))
+    const shim = join(npmDir, "senpi.cmd")
+    const cli = join(npmDir, "node_modules", "@code-yeongyu", "senpi", "dist", "cli.js")
+    mkdirSync(dirname(cli), { recursive: true })
+    writeFileSync(shim, "@echo off\n")
+    writeFileSync(cli, "")
+
+    try {
+      // when
+      const descriptor = buildRpcSpawn(
+        { ...baseSpec, model: "omo-mock/mock-1" },
+        {
+          isBunBinary: false,
+          execPath: "C:\\Program Files\\nodejs\\node.exe",
+          platform: "win32",
+          parentEnv: { PATH: npmDir },
+          resolveRpcEntry: () => "/fallback/rpc-entry.js",
+        },
+      )
+
+      // then
+      expect(descriptor.command).toBe("C:\\Program Files\\nodejs\\node.exe")
+      expect(descriptor.args).toEqual([
+        cli,
+        "--mode",
+        "rpc",
+        "--no-extensions",
+        "--model",
+        "omo-mock/mock-1",
+      ])
+    } finally {
+      rmSync(npmDir, { recursive: true, force: true })
+    }
+  })
+
   test("#given a resolvable senpi executable #when building #then it spawns the EXECUTABLE in rpc mode (not the loader-hijacked rpc-entry)", () => {
     // when
     const descriptor = buildRpcSpawn(

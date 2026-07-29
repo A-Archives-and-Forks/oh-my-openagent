@@ -73,11 +73,75 @@ describe("team member liveness notifier", () => {
             memberName: "alpha",
             lastKnownState: "error",
             reason: "RPC child killed by signal SIGKILL",
+            deliveryKey: "team-member-liveness:st_00000001:0",
           },
         }],
       },
       options: { triggerTurn: true, deliverAs: "steer" },
     }])
+  })
+
+  test("#given a queued team liveness event #when only its matching delivery key is observed #then the durable epoch is marked exactly once", () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const scheduled: Array<() => void> = []
+    const persisted: number[] = []
+    const coordinator = new IdleInjectionCoordinator(
+      (message, options) => pi.sendMessage(message, { triggerTurn: true, deliverAs: options.deliverAs }),
+      { scheduleFlush: (flush) => scheduled.push(flush) },
+    )
+    const notifier = createTeamMemberLivenessNotifier({
+      pi,
+      coordinator,
+      isStreaming: () => true,
+      markDelivered: (record) => persisted.push(record.notification.run_epoch),
+    })
+
+    // when queued but not delivered
+    notifier.notifyTerminal(memberRecord())
+
+    // then no premature durable marker
+    expect(persisted).toEqual([])
+
+    // when sendMessage returns but no later lifecycle boundary has confirmed progress
+    for (const flush of scheduled) flush()
+
+    // then there is still no premature durable marker
+    expect(persisted).toEqual([])
+
+    // when an unrelated delivery is observed
+    notifier.acknowledgeDelivered("team-member-liveness:st_unrelated:0")
+
+    // then it cannot acknowledge this record
+    expect(persisted).toEqual([])
+
+    // when the exact liveness delivery is observed twice
+    notifier.acknowledgeDelivered("team-member-liveness:st_00000001:0")
+    notifier.acknowledgeDelivered("team-member-liveness:st_00000001:0")
+
+    // then the delivered epoch is persisted once
+    expect(persisted).toEqual([0])
+  })
+
+  test("#given the liveness epoch is already persisted #when a restarted notifier observes the terminal record #then it does not enqueue a duplicate", () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const coordinator = new IdleInjectionCoordinator(
+      (message, options) => pi.sendMessage(message, { triggerTurn: true, deliverAs: options.deliverAs }),
+    )
+    const notifier = createTeamMemberLivenessNotifier({
+      pi,
+      coordinator,
+      isStreaming: () => false,
+      wasDelivered: () => true,
+    })
+
+    // when
+    notifier.notifyTerminal(memberRecord())
+    coordinator.flushOnIdle()
+
+    // then
+    expect(pi.messages).toEqual([])
   })
 
   test("#given a process member killed by SIGKILL #when the manager observes its terminal outcome #then the wired lead notifier injects liveness", async () => {
@@ -114,9 +178,13 @@ describe("team member liveness notifier", () => {
       memberName: "alpha",
       lastKnownState: "error",
       reason: "RPC child killed by signal SIGKILL",
+      deliveryKey: `team-member-liveness:${started.task_id}:0`,
     })
     expect(liveness?.message.display).toBe(false)
     expect(liveness?.options).toEqual({ triggerTurn: true, deliverAs: "steer" })
+    expect(engine.manager.get(started.task_id)?.notification.liveness_notified_epoch).toBeUndefined()
+    engine.memberLiveness.acknowledgeDelivered(`team-member-liveness:${started.task_id}:0`)
+    expect(engine.manager.get(started.task_id)?.notification.liveness_notified_epoch).toBe(0)
   })
 
   test("#given a normal member completion #when its terminal record is observed #then no liveness event is injected", () => {

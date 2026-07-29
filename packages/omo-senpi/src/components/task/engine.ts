@@ -94,17 +94,44 @@ const DEFAULT_RUNNER_FACTORIES: TaskRunnerFactories = {
 export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
   const settings: OmoTaskSettings = deps.omoConfig.task ?? OmoTaskSettingsSchema.parse({})
   const runtime = new TaskRuntimeContext(deps.cwd)
-  const memberLiveness = createTeamMemberLivenessNotifier({
-    pi: deps.pi,
-    ...(deps.coordinator === undefined ? {} : { coordinator: deps.coordinator }),
-    isStreaming: () => runtime.parentState().kind === "streaming",
-  })
-  const agents = resolveAgents(deps.omoConfig)
-
   const baseStore = createTaskRecordStore({
     project_dir: deps.cwd,
     ...(settings.state_dir !== undefined && { task: { state_dir: settings.state_dir } }),
   })
+  const memberLiveness = createTeamMemberLivenessNotifier({
+    pi: deps.pi,
+    ...(deps.coordinator === undefined ? {} : { coordinator: deps.coordinator }),
+    isStreaming: () => runtime.parentState().kind === "streaming",
+    wasDelivered: (record) => {
+      try {
+        const fresh = baseStore.load(record.task_id) ?? record
+        return (fresh.notification.liveness_notified_epoch ?? -1) >= record.notification.run_epoch
+      } catch (error) {
+        log("omo-senpi team liveness marker read failed", {
+          taskId: record.task_id,
+          error: error instanceof Error ? error.message : String(error),
+        })
+        return false
+      }
+    },
+    markDelivered: (record) => {
+      try {
+        const fresh = baseStore.load(record.task_id) ?? record
+        const epoch = record.notification.run_epoch
+        if ((fresh.notification.liveness_notified_epoch ?? -1) >= epoch) return
+        baseStore.replace({
+          ...fresh,
+          notification: { ...fresh.notification, liveness_notified_epoch: epoch },
+        })
+      } catch (error) {
+        log("omo-senpi team liveness marker write failed", {
+          taskId: record.task_id,
+          error: error instanceof Error ? error.message : String(error),
+        })
+      }
+    },
+  })
+  const agents = resolveAgents(deps.omoConfig)
 
   const parentNotifier = createParentNotifier(deps.pi, deps.coordinator, () => runtime.parentState().kind === "streaming")
   const notifier = createCompletionNotifier({

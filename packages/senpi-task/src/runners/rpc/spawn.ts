@@ -22,6 +22,11 @@ export type RpcSpawnDescriptor = {
   readonly env: NodeJS.ProcessEnv
 }
 
+type SenpiLauncher = {
+  readonly command: string
+  readonly prefixArgs: readonly string[]
+}
+
 export type RpcSpawnRuntime = {
   readonly isBunBinary: boolean
   readonly execPath: string
@@ -85,6 +90,32 @@ export function resolveSenpiExecutable(runtime: RpcSpawnRuntime): string | null 
   return scanPathForExecutable(binaryName, runtime.parentEnv.PATH)
 }
 
+function normalizeSenpiLauncher(executable: string, runtime: RpcSpawnRuntime): SenpiLauncher | null {
+  if (runtime.platform !== "win32" || executable.toLowerCase().endsWith(".exe")) {
+    return { command: executable, prefixArgs: [] }
+  }
+  const cliPath = join(dirname(executable), "node_modules", "@code-yeongyu", "senpi", "dist", "cli.js")
+  return existsSync(cliPath)
+    ? { command: runtime.execPath, prefixArgs: [cliPath] }
+    : null
+}
+
+function resolveSenpiLauncher(runtime: RpcSpawnRuntime): SenpiLauncher | null {
+  const executable = (runtime.resolveSenpiExecutable ?? resolveSenpiExecutable)(runtime)
+  if (executable !== null) {
+    const normalized = normalizeSenpiLauncher(executable, runtime)
+    if (normalized !== null) return normalized
+  }
+  if (runtime.platform !== "win32") return null
+  for (const name of ["senpi.cmd", "senpi"]) {
+    const npmShim = scanPathForExecutable(name, runtime.parentEnv.PATH)
+    if (npmShim === null) continue
+    const normalized = normalizeSenpiLauncher(npmShim, runtime)
+    if (normalized !== null) return normalized
+  }
+  return null
+}
+
 /**
  * The child-facing argv tail shared by both spawn strategies: `--no-extensions` so the detached child
  * does NOT auto-load the parent's whole package set, then ONLY the threaded `-e` extensions, then the
@@ -137,9 +168,14 @@ export function buildRpcSpawn(spec: RpcSpawnSpec, runtime?: Partial<RpcSpawnRunt
     [SESSION_DIR_ENV]: resolveChildSessionDir(spec.state_dir, spec.task_id),
   }
   const childArgs = buildChildArgs(spec)
-  const executable = (resolved.resolveSenpiExecutable ?? resolveSenpiExecutable)(resolved)
-  if (executable !== null) {
-    return { command: executable, args: ["--mode", "rpc", ...childArgs], cwd: spec.cwd, env }
+  const launcher = resolveSenpiLauncher(resolved)
+  if (launcher !== null) {
+    return {
+      command: launcher.command,
+      args: [...launcher.prefixArgs, "--mode", "rpc", ...childArgs],
+      cwd: spec.cwd,
+      env,
+    }
   }
   return { command: resolved.execPath, args: [resolved.resolveRpcEntry(), ...childArgs], cwd: spec.cwd, env }
 }

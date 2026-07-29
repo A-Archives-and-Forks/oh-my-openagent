@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { loadOmoConfig } from "@oh-my-opencode/omo-config-core"
+import type { TaskRecord } from "@oh-my-opencode/senpi-task"
 
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import type { ComponentContext, ComponentLogger } from "../../extension/types"
@@ -32,6 +33,8 @@ const TASK_EVENTS = [
   "model_select",
   "before_agent_start",
   "agent_end",
+  "message_start",
+  "message_end",
 ]
 const TASK_COMMANDS = ["task-kill", "tasks"]
 
@@ -272,6 +275,123 @@ describe("omo-senpi task component wiring", () => {
 
     // then
     expect(order).toEqual(["reattach", "cleanup", "reclaim", "notify", "poll"])
+  })
+
+  it("#given a terminal team member persisted before a process crash #when a fresh session reconciles it as resumed #then pending liveness is replayed", async () => {
+    // given
+    const cwd = tempProject()
+    const pi = new FakeExtensionAPI()
+    const logger = createLogger()
+    const base = composeTaskEngine({ pi, omoConfig: loadOmoConfig({ cwd }).config, cwd, sharedParentTools: () => [] })
+    const terminal: TaskRecord = {
+      task_id: "st_00000009",
+      name: "team:11111111-1111-4111-8111-111111111111:crash",
+      parent_session_id: "old-lead",
+      root_session_id: "old-lead",
+      depth: 1,
+      execution_mode: "process",
+      model: "omo-mock/mock-1",
+      status: "error",
+      residency_state: "resident",
+      created_at: "2026-07-29T00:00:00.000Z",
+      updated_at: "2026-07-29T00:00:01.000Z",
+      error_message: "RPC child exited with code 1",
+      notification: { run_epoch: 0, notified_epoch: 0 },
+    }
+    const notified: string[] = []
+    const engine: TaskEngine = {
+      ...base,
+      manager: { ...base.manager, get: () => terminal },
+      lifecycle: {
+        ...base.lifecycle,
+        reconcileOnSessionStart: async () => ({
+          outcomes: [{ task_id: terminal.task_id, kind: "resumed" }],
+        }),
+        cleanupExpiredRecords: () => ({ deleted: [], retained: [] }),
+      },
+      memberLiveness: {
+        notifyTerminal: (record) => notified.push(record.task_id),
+        acknowledgeDelivered: (_deliveryKey) => undefined,
+      },
+    }
+    const transitions = createSessionTransitionBridge({ runtime: engine.runtime, notifier: engine.notifier })
+    wireEventBridge(pi, ctxFor(pi, logger), engine, noopStatusUi, transitions, {
+      reconcileTeamMailbox: () => Promise.resolve(),
+      leadPollers: { tick: () => Promise.resolve(), shutdown: () => undefined },
+    })
+
+    // when
+    await pi.dispatch("session_start", {}, {
+      ui: fakeUi(),
+      mode: "tui",
+      sessionManager: { getSessionId: () => "new-lead" },
+    })
+
+    // then
+    expect(notified).toEqual([terminal.task_id])
+  })
+
+  it("#given pending liveness deliveries #when lifecycle and message events fire #then only matching direct and wrapped messages are acknowledged", async () => {
+    // given
+    const cwd = tempProject()
+    const pi = new FakeExtensionAPI()
+    const logger = createLogger()
+    const base = composeTaskEngine({ pi, omoConfig: loadOmoConfig({ cwd }).config, cwd, sharedParentTools: () => [] })
+    const acknowledgements: string[] = []
+    const engine: TaskEngine = {
+      ...base,
+      memberLiveness: {
+        notifyTerminal: base.memberLiveness.notifyTerminal,
+        acknowledgeDelivered: (deliveryKey) => { acknowledgements.push(deliveryKey) },
+      },
+    }
+    const transitions = createSessionTransitionBridge({ runtime: engine.runtime, notifier: engine.notifier })
+    wireEventBridge(pi, ctxFor(pi, logger), engine, noopStatusUi, transitions, {
+      reconcileTeamMailbox: () => Promise.resolve(),
+      leadPollers: { tick: () => Promise.resolve(), shutdown: () => undefined },
+    })
+
+    // when an unrelated turn completes and an unrelated structured message is observed
+    await pi.dispatch("agent_end", {}, {
+      ui: fakeUi(),
+      mode: "tui",
+      sessionManager: { getSessionId: () => "lead-session" },
+    })
+    await pi.dispatch("message_end", {
+      type: "message_end",
+      message: {
+        customType: "senpi-task.team-member-liveness",
+        details: { deliveryKey: "unrelated-delivery" },
+      },
+    }, {})
+
+    // then neither can acknowledge a pending liveness record
+    expect(acknowledgements).toEqual([])
+
+    // when the exact direct and wrapped liveness messages are observed
+    await pi.dispatch("message_start", {
+      type: "message_start",
+      message: {
+        customType: "senpi-task.team-member-liveness",
+        details: { deliveryKey: "team-member-liveness:st_direct:0" },
+      },
+    }, {})
+    await pi.dispatch("message_end", {
+      type: "message_end",
+      message: {
+        customType: "omo-senpi:wake",
+        details: [{
+          customType: "senpi-task.team-member-liveness",
+          details: { deliveryKey: "team-member-liveness:st_wrapped:1" },
+        }],
+      },
+    }, {})
+
+    // then only those delivery keys are acknowledged
+    expect(acknowledgements).toEqual([
+      "team-member-liveness:st_direct:0",
+      "team-member-liveness:st_wrapped:1",
+    ])
   })
 
   it("#given a captured ui #when session_before_switch fires #then the ui bridge is cleared", async () => {

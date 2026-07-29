@@ -54,6 +54,24 @@ describe("createTaskRecordStore caching", () => {
     expect(result.records[0]?.resolved_model).toEqual(resolvedModel)
   })
 
+  test("#given a persisted liveness delivery epoch #when a fresh store reads the task #then the epoch round-trips", () => {
+    // given
+    const project = tempProject()
+    const writer = createTaskRecordStore({ project_dir: project })
+    const record = baseRecord("st_00000008")
+    writer.save({
+      ...record,
+      notification: { ...record.notification, liveness_notified_epoch: 0 },
+    })
+    const reader = createTaskRecordStore({ project_dir: project })
+
+    // when
+    const loaded = reader.load(record.task_id)
+
+    // then
+    expect(loaded?.notification.liveness_notified_epoch).toBe(0)
+  })
+
   test("#given unchanged records #when list() is called repeatedly #then results stay consistent", () => {
     // given
     const project = tempProject()
