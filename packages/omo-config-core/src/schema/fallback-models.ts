@@ -1,7 +1,7 @@
-import { normalizeReasoning, splitReasoningSuffix } from "@oh-my-opencode/model-core"
 import * as z from "zod"
 
 import { OmoModelRefObjectSchema, OmoReasoningSchema, type OmoModelRefObject } from "./model-ref"
+import { normalizeReasoning, splitReasoningSuffix } from "./reasoning-vocabulary"
 
 export const OmoThinkingConfigSchema = z.object({
   type: z.enum(["enabled", "disabled"]),

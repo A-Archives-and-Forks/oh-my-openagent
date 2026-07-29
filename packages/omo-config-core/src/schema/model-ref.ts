@@ -1,5 +1,6 @@
-import { REASONING_LEVELS } from "@oh-my-opencode/model-core"
 import * as z from "zod"
+
+import { REASONING_LEVELS } from "./reasoning-vocabulary"
 
 const REASONING_LEVELS_OR_AUTO = [...REASONING_LEVELS, "auto"] as const
 
