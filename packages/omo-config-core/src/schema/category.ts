@@ -13,7 +13,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
-const OmoCategoryConfigInputSchema = z.object({
+export const OmoCategoryConfigObjectSchema = z.object({
   description: z.string().optional(),
   model: z.string().optional(),
   models: z.array(z.union([z.string(), OmoFallbackModelObjectSchema])).optional(),
@@ -44,7 +44,7 @@ const OmoCategoryConfigInputSchema = z.object({
 
 export const OmoCategoryConfigSchema = z.preprocess(
   (value) => isRecord(value) ? normalizeLegacyModelFields(value) : value,
-  OmoCategoryConfigInputSchema,
+  OmoCategoryConfigObjectSchema,
 )
 
 export const OmoCategoriesConfigSchema = z.record(z.string(), OmoCategoryConfigSchema)
