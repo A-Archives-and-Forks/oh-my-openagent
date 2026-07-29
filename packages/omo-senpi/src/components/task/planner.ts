@@ -201,6 +201,10 @@ function toPlanResolution(
       code: "model_unavailable",
       message: `No available model for category "${categoryName}" (attempted ${resolution.attemptedModel ?? "none"}).`,
       availableCategories: resolution.availableCategories,
+      // Dead-chain detail rides the error so the warning layer can surface it without re-resolving.
+      category: categoryName,
+      ...(resolution.attempted_chain !== undefined && { attempted_chain: resolution.attempted_chain }),
+      ...(resolution.missing_providers !== undefined && { missing_providers: resolution.missing_providers }),
     },
   }
 }

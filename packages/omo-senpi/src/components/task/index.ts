@@ -17,13 +17,14 @@ import {
 } from "@oh-my-opencode/senpi-task"
 
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
+import { CATEGORY_UNAVAILABLE_MESSAGE_TYPE } from "./category-unavailable-warning"
 import { registerTaskCommands } from "./commands"
 import { composeTaskEngine, type TaskEngine } from "./engine"
 import { TASK_USAGE_HINT_FLAG, wireEventBridge } from "./event-bridge"
 import { createLeadPollerLifecycle, type LeadPollerLifecycle } from "./lead-poller-lifecycle"
 import { TEAM_MEMBER_LIVENESS_MESSAGE_TYPE } from "./member-liveness"
 import { TASK_COMPLETION_MESSAGE_TYPE } from "./parent-notifier"
-import { renderTaskCompletion, renderTeamMemberLiveness } from "./renderers"
+import { renderCategoryUnavailable, renderTaskCompletion, renderTeamMemberLiveness } from "./renderers"
 import { createTeamMailboxReconciler, createTeamService } from "./team-service"
 import { createSessionTransitionBridge } from "./session-transition-bridge"
 import { wireSessionStartProcessSweep } from "./process-sweep"
@@ -76,6 +77,7 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
 
       pi.registerMessageRenderer?.(TASK_COMPLETION_MESSAGE_TYPE, renderTaskCompletion)
       pi.registerMessageRenderer?.(TEAM_MEMBER_LIVENESS_MESSAGE_TYPE, renderTeamMemberLiveness)
+      pi.registerMessageRenderer?.(CATEGORY_UNAVAILABLE_MESSAGE_TYPE, renderCategoryUnavailable)
       const teamTools = createTeamToolContext(pi, ctx, engine)
       registerTaskTools(pi, engine, teamTools.service, teamTools.leadPollers.resolveDefaultTeamRunId)
       registerTeamTools(pi, teamTools)

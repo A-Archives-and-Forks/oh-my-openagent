@@ -30,6 +30,7 @@ import {
 
 import type { IdleInjectionCoordinator } from "../../extension/idle-injection-coordinator"
 import type { SenpiExtensionAPI } from "../../extension/types"
+import { createCategoryUnavailableWarningPlanner } from "./category-unavailable-warning"
 import { createCompletionObservingStore } from "./completion-bridge"
 import { createParentNotifier } from "./parent-notifier"
 import { createTaskChildPlanner } from "./planner"
@@ -149,7 +150,14 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
 
   const factories = deps.runnerFactories ?? DEFAULT_RUNNER_FACTORIES
   const runnerContext: RunnerBuildContext = { runtime, sharedParentTools: deps.sharedParentTools, settings }
-  const planner = createTaskChildPlanner(deps.omoConfig, agents, () => runtime.modelRegistry())
+  const basePlanner = createTaskChildPlanner(deps.omoConfig, agents, () => runtime.modelRegistry())
+  const planner = createCategoryUnavailableWarningPlanner({
+    planner: basePlanner,
+    pi: deps.pi,
+    runtime,
+    omoConfig: deps.omoConfig,
+    settings,
+  })
   const manager = createTaskManager({
     store: notifyingStore,
     runners: { "in-process": factories.inProcess(runnerContext), process: factories.process(runnerContext) },

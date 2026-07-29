@@ -1,4 +1,5 @@
 import type { ToolDefinition } from "@code-yeongyu/senpi"
+import type { DelegateFallbackEntry } from "@oh-my-opencode/delegate-core"
 import type { OmoTaskSettings } from "@oh-my-opencode/omo-config-core"
 
 import type { ResolvedModelRecord, TaskRecord, TaskRunStats, TaskStatus } from "../state"
@@ -82,6 +83,11 @@ export type PlanResolutionError = {
   readonly message: string
   readonly availableAgents?: readonly string[]
   readonly availableCategories?: readonly string[]
+  // Dead-chain spawn detail: the category whose builtin fallback chain had zero resolvable rungs,
+  // the rungs that were attempted, and the chain providers missing from the live registry.
+  readonly category?: string
+  readonly attempted_chain?: readonly DelegateFallbackEntry[]
+  readonly missing_providers?: readonly string[]
 }
 
 export type PlanResolution =
