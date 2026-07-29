@@ -193,7 +193,7 @@ describe("task_output renderers", () => {
     )
 
     // then blank effort falls back to the variant, and an unresolved model keeps a model token
-    expect(withResolved).toContain("category:quick · model:openai/gpt-5.6-sol:xhigh")
+    expect(withResolved).toContain("category:quick(openai/gpt-5.6-sol:xhigh)")
     expect(withResolved).not.toContain("reasoning")
     expect(raw).toContain("model:anthropic/claude-sonnet-4-5")
   })
@@ -220,7 +220,7 @@ describe("task_output renderers", () => {
     const line = firstLine(renderTaskOutputResult(toolResult("ignored", detail), RESULT_OPTIONS, TEST_THEME), 200)
 
     // then
-    expect(line).toContain("category:quick · model:openai/gpt-5.6-sol:xhigh")
+    expect(line).toContain("category:quick(openai/gpt-5.6-sol:xhigh)")
     expectNoTerminalControls(line)
   })
 
