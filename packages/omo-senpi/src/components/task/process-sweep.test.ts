@@ -67,6 +67,51 @@ describe("wireSessionStartProcessSweep()", () => {
     expect(currentVersion).toBe("9.8.7")
   })
 
+  it("#given daemon runtime resolution fails #when session_start fires #then unrelated cleanup families still run", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const logger = createLogger()
+    const completedFamilies: string[] = []
+    let resolveCleanup!: () => void
+    const unrelatedCleanupCompleted = new Promise<void>((resolve) => {
+      resolveCleanup = resolve
+    })
+    wireSessionStartProcessSweep(pi, ctxFor(logger), {
+      env: {},
+      resolveDaemonVersion: () => {
+        throw new Error("packaged daemon metadata is unreadable")
+      },
+      familySweeps: {
+        sweepCodegraph: async () => {
+          completedFamilies.push("codegraph")
+        },
+        sweepLspProxies: async () => {
+          completedFamilies.push("lsp-proxies")
+          resolveCleanup()
+        },
+        sweepStaleLspDaemons: async () => {
+          completedFamilies.push("stale-lsp-daemons")
+        },
+      },
+    })
+
+    // when
+    await pi.dispatch("session_start", {})
+
+    // then
+    await Promise.race([
+      unrelatedCleanupCompleted,
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("unrelated cleanup families did not complete")), 1_000)
+      }),
+    ])
+    expect(completedFamilies).toEqual(["codegraph", "lsp-proxies"])
+    expect(logger.entries).toContainEqual({
+      level: "warn",
+      message: "lsp-daemon stale-version sweep skipped: packaged daemon metadata is unreadable",
+    })
+  })
+
   it("#given a wired sweep #when session_start fires #then the family sweep runs", async () => {
     // given
     const pi = new FakeExtensionAPI()

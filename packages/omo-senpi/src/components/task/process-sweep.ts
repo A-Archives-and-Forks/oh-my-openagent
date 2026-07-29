@@ -49,7 +49,7 @@ export function wireSessionStartProcessSweep(
   const resolveDaemonVersion =
     options.resolveDaemonVersion ?? (() => resolveSenpiPackagedDaemonRuntime().version)
   const sweep = options.sweep ?? (() => {
-    return sweepOmoFamiliesBestEffort(ctx, resolveDaemonVersion(), options.familySweeps)
+    return sweepOmoFamiliesBestEffort(ctx, resolveDaemonVersion, options.familySweeps)
   })
 
   pi.on("session_start", () => {
@@ -81,7 +81,7 @@ function runSweepBestEffort(sweep: OmoFamilySweep, ctx: ComponentContext): void 
 
 async function sweepOmoFamiliesBestEffort(
   ctx: ComponentContext,
-  currentLspDaemonVersion: string,
+  resolveLspDaemonVersion: () => string,
   sweeps: OmoFamilySweeps = DEFAULT_FAMILY_SWEEPS,
 ): Promise<void> {
   const log = (message: string): void => {
@@ -90,8 +90,10 @@ async function sweepOmoFamiliesBestEffort(
   await Promise.all([
     bestEffort("CodeGraph zombie sweep", log, () => sweeps.sweepCodegraph({ log })),
     bestEffort("lsp-daemon proxy sweep", log, () => sweeps.sweepLspProxies({ log })),
-    bestEffort("lsp-daemon stale-version sweep", log, () =>
-      sweeps.sweepStaleLspDaemons({ currentVersion: currentLspDaemonVersion, log })),
+    bestEffort("lsp-daemon stale-version sweep", log, () => {
+      const currentVersion = resolveLspDaemonVersion()
+      return sweeps.sweepStaleLspDaemons({ currentVersion, log })
+    }),
   ])
 }
 
