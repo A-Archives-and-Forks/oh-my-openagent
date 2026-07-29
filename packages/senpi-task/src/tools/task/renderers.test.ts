@@ -177,6 +177,78 @@ describe("taskResultLines", () => {
     expect(row).toContain("reason:provider capacity")
   })
 
+  test("#given resolved category metadata with variant only #when rendered #then the variant is shown", () => {
+    // given
+    const details = {
+      task_id: "st_0000000c",
+      status: "pending",
+      mode: "spawn" as const,
+      category: "ultrabrain",
+      resolved_model: {
+        provider: "openai",
+        model_id: "gpt-5.6-sol",
+        display: "GPT-5.6 Sol",
+        reasoning_effort: "xhigh",
+        variant: "sol",
+        source: "category" as const,
+      },
+    }
+
+    // when
+    const row = taskResultLines(details).join(" ")
+
+    // then
+    expect(row).toContain("model:openai/gpt-5.6-sol:xhigh")
+    expect(row).not.toContain(":sol")
+  })
+
+  test("#given resolved category metadata with reasoning effort only #when rendered #then the reasoning effort is shown", () => {
+    // given
+    const details = {
+      task_id: "st_0000000c",
+      status: "pending",
+      mode: "spawn" as const,
+      category: "ultrabrain",
+      resolved_model: {
+        provider: "openai",
+        model_id: "gpt-5.6-sol",
+        display: "GPT-5.6 Sol",
+        reasoning_effort: "xhigh",
+        source: "category" as const,
+      },
+    }
+
+    // when
+    const row = taskResultLines(details).join(" ")
+
+    // then
+    expect(row).toContain("model:openai/gpt-5.6-sol:xhigh")
+  })
+
+  test("#given resolved category metadata without effort or variant #when rendered #then the model is shown without a suffix", () => {
+    // given
+    const details = {
+      task_id: "st_0000000c",
+      status: "pending",
+      mode: "spawn" as const,
+      category: "ultrabrain",
+      resolved_model: {
+        provider: "openai",
+        model_id: "gpt-5.6-sol",
+        display: "GPT-5.6 Sol",
+        source: "category" as const,
+      },
+    }
+
+    // when
+    const row = taskResultLines(details).join(" ")
+
+    // then
+    expect(row).toContain("model:openai/gpt-5.6-sol")
+    expect(row).not.toContain(":xhigh")
+    expect(row).not.toContain(":sol")
+  })
+
   test("#given a legacy explicit model result #when rendered #then raw model fallback is useful without empty labels", () => {
     // when
     const row = taskResultLines({

@@ -360,7 +360,63 @@ describe("createTaskChildPlanner plan variant", () => {
     })
 
     // then
+    const resolved = expectResolved(result)
+    expect(resolved.plan.variant).toBe("xhigh")
+    expect(resolved.plan.resolved_model).toMatchObject({ reasoning_effort: "xhigh", variant: "high" })
+  })
+
+  test("#given a category with reasoning effort only #when planned #then the public plan carries that effort", () => {
+    // given
+    const planner = createTaskChildPlanner(
+      {
+        categories: {
+          ultrabrain: {
+            model: "google/gemini-3.1-pro",
+            reasoningEffort: "xhigh",
+          },
+        },
+      },
+      {},
+      () => registry([model("google", "gemini-3.1-pro")]),
+    )
+
+    // when
+    const result = planner({
+      prompt: "Find the hard bug.",
+      parent_session_id: "parent-1",
+      depth: 0,
+      category: "ultrabrain",
+    })
+
+    // then
     expect(expectResolved(result).plan.variant).toBe("xhigh")
+  })
+
+  test("#given a category with variant only #when planned #then the public plan carries that variant", () => {
+    // given
+    const planner = createTaskChildPlanner(
+      {
+        categories: {
+          ultrabrain: {
+            model: "google/gemini-3.1-pro",
+            variant: "high",
+          },
+        },
+      },
+      {},
+      () => registry([model("google", "gemini-3.1-pro")]),
+    )
+
+    // when
+    const result = planner({
+      prompt: "Find the hard bug.",
+      parent_session_id: "parent-1",
+      depth: 0,
+      category: "ultrabrain",
+    })
+
+    // then
+    expect(expectResolved(result).plan.variant).toBe("high")
   })
 
   test("#given a category resolving a variant-bearing fallback without reasoning effort #when planned #then the applied variant is the resolved variant", () => {
