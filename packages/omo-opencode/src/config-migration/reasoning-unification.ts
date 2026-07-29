@@ -48,8 +48,13 @@ function primaryModelRef(record: Readonly<Record<string, unknown>>, opencode: bo
 }
 
 function conflictDiagnostic(record: Readonly<Record<string, unknown>>, path: readonly string[]): string | undefined {
-  if (record["variant"] === undefined || record["reasoningEffort"] === undefined) return undefined
-  return `conflict: ${path.join(".")} dropped variant=${JSON.stringify(record["variant"])} kept reasoningEffort=${JSON.stringify(record["reasoningEffort"])}`
+  const present = (["reasoning", "reasoningEffort", "variant"] as const).filter((key) => record[key] !== undefined)
+  if (present.length < 2) return undefined
+  const [keptKey, ...droppedKeys] = present
+  const keptValue = record[keptKey]
+  const dropped = droppedKeys.map((key) => [key, record[key]] as const)
+  const droppedText = dropped.map(([key, value]) => `${key}=${JSON.stringify(value)}`).join(" ")
+  return `conflict: ${path.join(".")} dropped ${droppedText} kept ${keptKey}=${JSON.stringify(keptValue)}`
 }
 
 function normalizeDefinition(

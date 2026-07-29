@@ -25,6 +25,19 @@ describe("2026-08 reasoning unification migration", () => {
     expect(result.diagnostics).toContain('conflict: categories.conflict dropped variant="high" kept reasoningEffort="xhigh"')
   })
 
+  test("#given canonical reasoning outranking legacy keys #when transformed #then the journal reports reasoning as the winner", () => {
+    // given
+    const input = { categories: { odd: { model: "a/m", reasoning: "low", reasoningEffort: "xhigh", variant: "high" } } }
+
+    // when
+    const result = transformReasoningUnification(input)
+
+    // then the migrated value is the canonical winner, and the journal does not claim the legacy key won
+    expect(result.document.categories?.odd).toMatchObject({ reasoning: "low" })
+    const journal = result.diagnostics.find((entry) => entry.includes("conflict")) ?? ""
+    expect(journal).not.toContain('kept reasoningEffort="xhigh"')
+  })
+
   test("#given an existing user omo config #when planned and executed #then dry-run, backup, journaled execution, and marker use the existing engine", () => {
     // given
     const root = mkdtempSync(join(tmpdir(), "omo-reasoning-migration-"))
