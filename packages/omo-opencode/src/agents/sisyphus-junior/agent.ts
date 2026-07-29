@@ -156,14 +156,12 @@ export function createSisyphusJuniorAgentWithOverrides(
     base.top_p = override.top_p
   }
 
+  if (override?.variant !== undefined) {
+    base.variant = override.variant
+  }
+
   if (isGptModel(model)) {
-    const variant = override?.variant ?? override?.reasoningEffort
-    const reasoningEffort = override?.reasoningEffort ?? override?.variant ?? "medium"
-    return {
-      ...base,
-      ...(variant ? { variant } : {}),
-      reasoningEffort,
-    } as AgentConfig
+    return { ...base, reasoningEffort: override?.reasoningEffort ?? "medium" } as AgentConfig
   }
 
   if (isGlmModel(model)) {
