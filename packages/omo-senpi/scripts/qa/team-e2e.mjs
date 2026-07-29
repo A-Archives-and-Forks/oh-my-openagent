@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { homedir, tmpdir } from "node:os"
-import { delimiter, dirname, join, resolve } from "node:path"
+import { delimiter, dirname, isAbsolute, join, resolve, win32 } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
 import { createSandbox, digestDirectory, seedSandbox } from "./drive.mjs"
@@ -29,7 +29,8 @@ const DURA_DRAIN_TIMEOUT_MS = 30_000
 const MAIN_INJECTION_TIMEOUT_MS = 30_000
 const DURA_EXPECTED_PROCESSED = 3
 
-const OMO_CONFIG = {
+export const TEAM_E2E_OMO_CONFIG = {
+  task: { reattach_on_reconcile: false },
   categories: {
     quick: { model: "omo-mock/mock-1" },
     fixture: { model: "omo-mock/mock-1" },
@@ -40,21 +41,37 @@ const OMO_CONFIG = {
 
 const spawnedGroups = new Set()
 
-function resolveSenpi() {
-  const bin = process.env.SENPI_BIN?.trim() || "senpi"
-  if (bin.includes("/")) return existsSync(bin) ? bin : null
-  for (const dir of (process.env.PATH ?? "").split(delimiter)) {
-    const candidate = resolve(dir || ".", bin)
-    if (existsSync(candidate)) return candidate
+export function resolveSenpi(operations = {}) {
+  const platform = operations.platform ?? process.platform
+  const env = operations.env ?? process.env
+  const fileExists = operations.existsSync ?? existsSync
+  const requested = env.SENPI_BIN?.trim()
+  if (requested !== undefined && requested !== "" && isExecutablePath(requested)) {
+    return fileExists(requested) ? requested : null
+  }
+  const names = platform === "win32" && (requested === undefined || requested === "" || requested.toLowerCase() === "senpi")
+    ? ["senpi.exe", "senpi.cmd", "senpi"]
+    : [requested || "senpi"]
+  const pathDelimiter = operations.delimiter ?? (platform === "win32" ? ";" : delimiter)
+  const joinPath = operations.joinPath ?? (platform === "win32" ? win32.join : join)
+  for (const dir of (env.PATH ?? "").split(pathDelimiter)) {
+    for (const name of names) {
+      const candidate = joinPath(dir || ".", name)
+      if (fileExists(candidate)) return candidate
+    }
   }
   return null
+}
+
+function isExecutablePath(value) {
+  return isAbsolute(value) || win32.isAbsolute(value) || value.includes("/") || value.includes("\\")
 }
 
 function seedProject(sandbox) {
   seedSandbox(sandbox)
   const omoDir = join(sandbox.cwd, ".omo")
   mkdirSync(omoDir, { recursive: true })
-  writeFileSync(join(omoDir, "omo.json"), `${JSON.stringify(OMO_CONFIG, null, 2)}\n`)
+  writeFileSync(join(omoDir, "omo.json"), `${JSON.stringify(TEAM_E2E_OMO_CONFIG, null, 2)}\n`)
 }
 
 function startRun(input) {
@@ -256,6 +273,7 @@ function selfTest() {
     parentKilled: true,
     restartStatus: 0,
     livenessInjected: true,
+    afterRestartRecord: { notification: { run_epoch: 0, liveness_notified_epoch: 0 } },
   })
   if (!Object.values(crashChecks).every((value) => value === true)) {
     throw new Error("self-test: SIGKILL liveness recovery should pass")
@@ -267,6 +285,7 @@ function selfTest() {
     parentKilled: true,
     restartStatus: 0,
     livenessInjected: false,
+    afterRestartRecord: { notification: { run_epoch: 0, liveness_notified_epoch: 0 } },
   })
   if (missingLiveness.crashLivenessInjectedToLead !== false) {
     throw new Error("self-test: missing liveness injection must fail")

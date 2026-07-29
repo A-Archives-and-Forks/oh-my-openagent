@@ -1,6 +1,25 @@
 import { spawn, spawnSync } from "node:child_process"
-import { mkdirSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
+import { existsSync, mkdirSync, writeFileSync } from "node:fs"
+import { basename, dirname, join } from "node:path"
+
+export function resolveSenpiInvocation(senpiBin, operations = {}) {
+  const platform = operations.platform ?? process.platform
+  if (platform === "win32") {
+    const launcherName = basename(senpiBin).toLowerCase()
+    if (launcherName.endsWith(".exe") || (launcherName !== "senpi" && launcherName !== "senpi.cmd")) {
+      return { command: senpiBin, prefixArgs: [] }
+    }
+    const cliPath = join(dirname(senpiBin), "node_modules", "@code-yeongyu", "senpi", "dist", "cli.js")
+    const fileExists = operations.existsSync ?? existsSync
+    if (fileExists(cliPath)) {
+      return {
+        command: operations.execPath ?? process.execPath,
+        prefixArgs: [cliPath],
+      }
+    }
+  }
+  return { command: senpiBin, prefixArgs: [] }
+}
 
 export function startSenpiRun(input) {
   writeFileSync(join(input.sandbox.cwd, "mock-script.json"), `${JSON.stringify(input.script, null, 2)}\n`)
@@ -20,7 +39,8 @@ export function startSenpiRun(input) {
     sessionDir,
     input.prompt,
   ]
-  const child = spawn(input.senpiBin, args, {
+  const invocation = resolveSenpiInvocation(input.senpiBin)
+  const child = spawn(invocation.command, [...invocation.prefixArgs, ...args], {
     cwd: input.sandbox.cwd,
     env: {
       ...process.env,
@@ -90,17 +110,64 @@ export function killProcess(pid) {
   }
 }
 
-export function killProcessGroup(pid) {
-  try {
-    process.kill(-pid, "SIGKILL")
-    return true
-  } catch (error) {
-    if (isMissingProcess(error)) return false
-    throw error
+/**
+ * Terminate exactly one QA-owned process tree and return evidence that distinguishes a successful
+ * termination, a root that had already exited, and a failed termination. Windows has no POSIX
+ * negative-pid process-group signal, so use taskkill's exact /PID + /T tree contract there.
+ */
+export function terminateProcessTree(pid, operations = {}) {
+  const platform = operations.platform ?? process.platform
+  const isProcessAlive = operations.isProcessAlive ?? defaultIsProcessAlive
+  if (!isProcessAlive(pid)) return { kind: "already-exited", pid, platform }
+
+  if (platform === "win32") {
+    const run = operations.spawnSync ?? spawnSync
+    const result = run("taskkill.exe", ["/PID", String(pid), "/T", "/F"], { encoding: "utf8" })
+    const aliveAfter = isProcessAlive(pid)
+    if (!aliveAfter) {
+      return result.status === 0
+        ? { kind: "terminated", pid, platform }
+        : { kind: "already-exited", pid, platform }
+    }
+    return {
+      kind: "failed",
+      pid,
+      platform,
+      status: result.status ?? null,
+      error: processTreeError(result),
+    }
   }
+
+  const signal = operations.processKill ?? process.kill.bind(process)
+  try {
+    signal(-pid, "SIGKILL")
+  } catch (error) {
+    if (isMissingProcess(error)) return { kind: "already-exited", pid, platform }
+    return { kind: "failed", pid, platform, status: null, error: error instanceof Error ? error.message : String(error) }
+  }
+  return isProcessAlive(pid)
+    ? { kind: "failed", pid, platform, status: null, error: "process group remained alive after SIGKILL" }
+    : { kind: "terminated", pid, platform }
+}
+
+export function killProcessGroup(pid, operations = {}) {
+  const terminate = operations.terminateProcessTree
+    ?? ((targetPid) => terminateProcessTree(targetPid, operations))
+  return terminate(pid).kind !== "failed"
 }
 
 export function cleanupProcessGroups(groupIds, operations = {}) {
+  const platform = operations.platform ?? process.platform
+  if (platform === "win32") {
+    const terminate = operations.terminateProcessTree
+      ?? ((targetPid) => terminateProcessTree(targetPid, operations))
+    let leaked = 0
+    for (const groupId of groupIds) {
+      if (terminate(groupId)?.kind === "failed") leaked += 1
+    }
+    return leaked
+  }
+
   const listGroupPids = operations.listGroupPids ?? readProcessGroupPids
   const kill = operations.killProcess ?? killProcess
   let leaked = 0
@@ -114,6 +181,23 @@ export function cleanupProcessGroups(groupIds, operations = {}) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function defaultIsProcessAlive(pid) {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    if (isMissingProcess(error)) return false
+    if (error instanceof Error && "code" in error && error.code === "EPERM") return true
+    throw error
+  }
+}
+
+function processTreeError(result) {
+  if (result.error instanceof Error) return result.error.message
+  const stderr = typeof result.stderr === "string" ? result.stderr.trim() : ""
+  return stderr || `taskkill exited with status ${result.status ?? "unknown"}`
 }
 
 function isMissingProcess(error) {

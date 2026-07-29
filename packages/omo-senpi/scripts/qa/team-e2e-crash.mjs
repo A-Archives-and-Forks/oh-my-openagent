@@ -5,14 +5,38 @@ import {
   deliveredEventCount,
   discoverRunIds,
   memberTaskId,
+  parseEvents,
   processedMessagePath,
   readJsonIfPresent,
   taskRecord,
 } from "./team-e2e-support.mjs"
-import { killProcess, killProcessGroup, pollUntil } from "./team-e2e-runtime.mjs"
+import { killProcess, pollUntil, terminateProcessTree } from "./team-e2e-runtime.mjs"
 import { CRASH_SEED_SCRIPT, NOOP_SCRIPT } from "./team-e2e-scripts.mjs"
 
 const HOLD_TIMEOUT_MS = 30_000
+const TEAM_LIVENESS_TYPE = "senpi-task.team-member-liveness"
+const ABNORMAL_MEMBER_STATES = new Set(["error", "lost"])
+
+export function hasCrashLivenessEvent(stdout) {
+  for (const event of parseEvents(stdout)) {
+    if (event?.type !== "message_start" && event?.type !== "message_end") continue
+    const message = event?.message
+    if (message === undefined || message === null || typeof message !== "object") continue
+    if (message.customType === TEAM_LIVENESS_TYPE && isCrashLivenessDetails(message.details)) return true
+    if (message.customType !== "omo-senpi:wake" || !Array.isArray(message.details)) continue
+    for (const entry of message.details) {
+      if (entry?.customType === TEAM_LIVENESS_TYPE && isCrashLivenessDetails(entry.details)) return true
+    }
+  }
+  return false
+}
+
+function isCrashLivenessDetails(details) {
+  return details !== null
+    && typeof details === "object"
+    && details.memberName === "crash"
+    && ABNORMAL_MEMBER_STATES.has(details.lastKnownState)
+}
 
 export async function runCrashRestartScenario(input) {
   const sandbox = input.createSandbox()
@@ -33,13 +57,18 @@ export async function runCrashRestartScenario(input) {
     )
     const before = readCrashReservationState(sandbox.cwd, target)
     const memberKilled = target.pid === undefined ? false : killProcess(target.pid)
-    const parentKilled = initial.pid === undefined ? false : killProcessGroup(initial.pid)
+    const parentTermination = initial.pid === undefined
+      ? { kind: "failed", pid: null, platform: process.platform, status: null, error: "parent pid unavailable" }
+      : terminateProcessTree(initial.pid)
+    const parentKilled = parentTermination.kind !== "failed"
     const initialResult = await initial.completion
+    const afterKillRecord = target.taskId === undefined ? undefined : taskRecord(sandbox.cwd, target.taskId)
     writeFileSync(join(input.outDir, "crash-initial-stdout.json.log"), initialResult.stdout)
     writeFileSync(join(input.outDir, "crash-initial-stderr.log"), initialResult.stderr)
 
     let restartStatus = null
     let livenessInjected = false
+    let afterRestartRecord
     if (target.ready) {
       const restartResult = await input.startRun({
         senpiBin: input.senpiBin,
@@ -50,14 +79,18 @@ export async function runCrashRestartScenario(input) {
       restartStatus = restartResult.status
       writeFileSync(join(input.outDir, "crash-restart-stdout.json.log"), restartResult.stdout)
       writeFileSync(join(input.outDir, "crash-restart-stderr.log"), restartResult.stderr)
-      livenessInjected = restartResult.stdout.includes("Team member liveness: crash exited abnormally; last known state: lost.")
+      livenessInjected = hasCrashLivenessEvent(restartResult.stdout)
+      afterRestartRecord = target.taskId === undefined ? undefined : taskRecord(sandbox.cwd, target.taskId)
     }
 
     const evidence = {
       target,
       before,
       memberKilled,
+      parentTermination,
       parentKilled,
+      afterKillRecord,
+      afterRestartRecord,
       initialStatus: initialResult.status,
       restartStatus,
       livenessInjected,
@@ -70,13 +103,22 @@ export async function runCrashRestartScenario(input) {
 }
 
 export function evaluateCrashRecovery(evidence) {
+  const parentQuiescent = evidence.parentTermination === undefined
+    ? evidence.parentKilled === true
+    : evidence.parentTermination.kind !== "failed"
+  const runEpoch = evidence.afterRestartRecord?.notification?.run_epoch
+  const livenessNotifiedEpoch = evidence.afterRestartRecord?.notification?.liveness_notified_epoch
   return {
     crashHoldReached: evidence.target.ready,
-    crashKilledMemberAtHold: evidence.memberKilled && evidence.parentKilled,
+    crashKilledMemberAtHold: evidence.memberKilled === true && parentQuiescent,
     crashReservationUncommittedAtKill:
       evidence.before.processedExists === false && evidence.before.eventCount === 0,
     crashRestartExitClean: evidence.restartStatus === 0,
     crashLivenessInjectedToLead: evidence.livenessInjected === true,
+    crashLivenessAcknowledged:
+      typeof runEpoch === "number"
+      && typeof livenessNotifiedEpoch === "number"
+      && livenessNotifiedEpoch >= runEpoch,
   }
 }
 
