@@ -7,7 +7,7 @@ import {
 
 describe("transformModelForProvider", () => {
   describe("kimi-for-coding provider", () => {
-    test("normalizes the canonical kimi-k3 model id for the provider runtime", () => {
+    test("maps kimi-k3 to the short k3 model id", () => {
       // given
       const provider = "kimi-for-coding"
       const model = "kimi-k3"
@@ -19,6 +19,20 @@ describe("transformModelForProvider", () => {
       // then
       expect(displayModel).toBe("k3")
       expect(runtimeModel).toBe("k3")
+    })
+
+    test("maps kimi-k3-256k to the short k3-256k model id", () => {
+      // given
+      const provider = "kimi-for-coding"
+      const model = "kimi-k3-256k"
+
+      // when
+      const displayModel = transformModelForProvider(provider, model)
+      const runtimeModel = transformRuntimeModelForProvider(provider, model)
+
+      // then
+      expect(displayModel).toBe("k3-256k")
+      expect(runtimeModel).toBe("k3-256k")
     })
   })
 

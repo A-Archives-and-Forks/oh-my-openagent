@@ -14,6 +14,7 @@ const mockProvider = join(scriptDir, "fallback-architect-mock-provider.ts");
 const realSenpiAgentDir = join(homedir(), ".senpi", "agent");
 
 const DIRECTIVE_TYPE = "omo-fallback-architect:directive";
+const TIP_TYPE = "omo-fallback-architect:tip";
 const PRIMARY = "omo-mock/claude-fable-5";
 const FALLBACK = "omo-mock/mock-weak";
 
@@ -128,17 +129,27 @@ function collectCustomTypes(value, depth = 0) {
 }
 
 function directiveContent(entry) {
+	return customMessageDetails(entry, DIRECTIVE_TYPE).content;
+}
+
+function collectTips(entries) {
+	return entries.filter((entry) => collectCustomTypes(entry).includes(TIP_TYPE));
+}
+
+// The tip criterion is richer than the directive one: the transcript entry must show the exact
+// content AND prove the message was user-visible (display === true), so the walk returns both.
+function customMessageDetails(entry, customType) {
 	const stack = [entry];
 	while (stack.length > 0) {
 		const current = stack.pop();
 		if (typeof current !== "object" || current === null) continue;
-		if (Reflect.get(current, "customType") === DIRECTIVE_TYPE) {
+		if (Reflect.get(current, "customType") === customType) {
 			const content = Reflect.get(current, "content");
-			if (typeof content === "string") return content;
+			return { content: typeof content === "string" ? content : "", display: Reflect.get(current, "display") };
 		}
 		for (const nested of Object.values(current)) stack.push(nested);
 	}
-	return "";
+	return { content: "", display: undefined };
 }
 
 function runScenario(senpiBin, scenario) {
@@ -148,6 +159,8 @@ function runScenario(senpiBin, scenario) {
 		const entries = readSessionEntries(seeded.sessionDir);
 		const directives = collectDirectives(entries);
 		const content = directives.length === 0 ? "" : directiveContent(directives[0]);
+		const tips = collectTips(entries);
+		const tip = tips.length === 0 ? { content: "", display: undefined } : customMessageDetails(tips[0], TIP_TYPE);
 
 		// Criterion 1 is "exactly ONE directive", so the count is the observable, never a boolean.
 		const expectedCount = scenario.expectDirective ? 1 : 0;
@@ -158,7 +171,11 @@ function runScenario(senpiBin, scenario) {
 				content.includes("Decompose the current problem into independent parts") &&
 				content.includes("ONE self-contained query per part") &&
 				content.includes("security- and biology-related content") &&
-				content.includes("indirectly-phrased sub-questions")
+				content.includes("indirectly-phrased sub-questions") &&
+				content.includes("did not drop the question")
+			: true;
+		const tipOk = scenario.expectDirective
+			? tip.content.includes(FALLBACK) && tip.content.includes("give-me-tips") && tip.display === true
 			: true;
 		const exitOk = run.status === 0;
 
@@ -166,10 +183,16 @@ function runScenario(senpiBin, scenario) {
 			scenario: scenario.name,
 			expectedDirectives: expectedCount,
 			observedDirectives: directives.length,
+			expectedTips: expectedCount,
+			observedTips: tips.length,
 			contentOk,
+			tipOk,
 			exitStatus: run.status,
 			entries: entries.length,
-			result: directives.length === expectedCount && contentOk && exitOk ? "PASS" : "FAIL",
+			result:
+				directives.length === expectedCount && tips.length === expectedCount && contentOk && tipOk && exitOk
+					? "PASS"
+					: "FAIL",
 			stderrTail: exitOk ? undefined : String(run.stderr ?? "").slice(-400),
 		};
 	} finally {
@@ -189,13 +212,20 @@ function findOnPath(bin) {
 function runSelfTest() {
 	const entries = [
 		{ type: "custom", message: { customType: DIRECTIVE_TYPE, content: `${PRIMARY} ${FALLBACK} task(category: "architect")` } },
+		{ type: "custom", message: { customType: TIP_TYPE, content: `Fable 5 refused, ${FALLBACK} reasons on. give-me-tips`, display: true } },
 		{ type: "user", content: "hello" },
 	];
 	if (collectDirectives(entries).length !== 1) throw new Error("self-test: directive entry not detected exactly once");
 	if (!directiveContent(collectDirectives(entries)[0]).includes(PRIMARY)) throw new Error("self-test: directive content not read");
 	if (collectDirectives([{ type: "user", content: "hello" }]).length !== 0) throw new Error("self-test: false positive");
-	const duplicated = [...entries, entries[0]];
+	if (collectTips(entries).length !== 1) throw new Error("self-test: tip entry not detected exactly once");
+	const tip = customMessageDetails(collectTips(entries)[0], TIP_TYPE);
+	if (!tip.content.includes(FALLBACK) || !tip.content.includes("give-me-tips")) throw new Error("self-test: tip content not read");
+	if (tip.display !== true) throw new Error("self-test: tip display flag not read");
+	if (collectTips([{ type: "user", content: "hello" }]).length !== 0) throw new Error("self-test: tip false positive");
+	const duplicated = [...entries, entries[0], entries[1]];
 	if (collectDirectives(duplicated).length !== 2) throw new Error("self-test: duplicate directives must be counted, not collapsed");
+	if (collectTips(duplicated).length !== 2) throw new Error("self-test: duplicate tips must be counted, not collapsed");
 	if (SCENARIOS.filter((s) => s.expectDirective).length !== 2) throw new Error("self-test: expected two positive scenarios");
 	console.log(JSON.stringify({ selfTest: "PASS", scenarios: SCENARIOS.map((s) => s.name) }, null, 2));
 }

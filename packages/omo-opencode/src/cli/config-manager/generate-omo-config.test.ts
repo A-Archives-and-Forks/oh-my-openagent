@@ -169,10 +169,9 @@ describe("generateOmoConfig - model fallback system", () => {
         variant: "medium",
       },
     ])
-    expect(categories.deep).toEqual({
-      model: "openai/gpt-5.6-sol",
-      variant: "medium",
-    })
+    expect(categories.deep.model).toBe("openai/gpt-5.6-sol")
+    expect(categories.deep.variant).toBe("medium")
+    expect(categories.deep.fallback_models).toBeUndefined()
   })
 
   test("uses haiku for explore when Claude max20", () => {

@@ -6561,13 +6561,13 @@
                 "exclusiveMinimum": 0,
                 "maximum": 9007199254740991
               },
-              "warn_unavailable": {
-                "type": "boolean"
-              },
               "is_unstable_agent": {
                 "type": "boolean"
               },
               "disable": {
+                "type": "boolean"
+              },
+              "warn_unavailable": {
                 "type": "boolean"
               }
             },
@@ -15642,13 +15642,13 @@
                       "exclusiveMinimum": 0,
                       "maximum": 9007199254740991
                     },
-                    "warn_unavailable": {
-                      "type": "boolean"
-                    },
                     "is_unstable_agent": {
                       "type": "boolean"
                     },
                     "disable": {
+                      "type": "boolean"
+                    },
+                    "warn_unavailable": {
                       "type": "boolean"
                     }
                   },
