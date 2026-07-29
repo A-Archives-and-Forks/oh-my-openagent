@@ -231,8 +231,7 @@ describe("createTaskTool", () => {
 
     // then
     expect(row).toContain("category:quick")
-    expect(row).toContain("GPT-5.6 Sol")
-    expect(row).toContain("xhigh")
+    expect(row).toContain("model:openai/gpt-5.6-sol:xhigh")
     expect(row).toContain(`${ANSI_ITALIC}foreground${ANSI_ITALIC_END}`)
     expect(rendererVisibleWidth(row)).toBeLessThanOrEqual(72)
   })

@@ -34,7 +34,7 @@ describe("taskIdentityLabel", () => {
 })
 
 describe("formatStatusTarget", () => {
-  test("#given a category and resolved model #when formatted #then explicit category and model tokens are emitted", () => {
+  test("#given a category and resolved model #when formatted #then model metadata qualifies the category", () => {
     // given / when / then
     expect(
       formatStatusTarget({
@@ -47,7 +47,7 @@ describe("formatStatusTarget", () => {
           source: "category",
         },
       }),
-    ).toBe("category:quick · model:quotio-openai/gpt-5.4-mini-fast:high")
+    ).toBe("category:quick(quotio-openai/gpt-5.4-mini-fast:high)")
   })
 
   test("#given only an agent type #when formatted #then the agent name is the target", () => {
@@ -69,16 +69,16 @@ describe("formatStatusTarget", () => {
           source: "category",
         },
       }),
-    ).toBe("category:quick · model:openai/gpt-5.6-sol:xhigh")
+    ).toBe("category:quick(openai/gpt-5.6-sol:xhigh)")
   })
 
   test("#given a category but only a raw model #when formatted #then the sanitized raw model qualifies the target", () => {
     // given / when / then
     expect(formatStatusTarget({ category: "quick", model: "anthropic/claude-sonnet-4-5" })).toBe(
-      "category:quick · model:anthropic/claude-sonnet-4-5",
+      "category:quick(anthropic/claude-sonnet-4-5)",
     )
     expect(formatStatusTarget({ model: "anthropic/claude-sonnet-4-5" })).toBe("model:anthropic/claude-sonnet-4-5")
-    expect(formatStatusTarget({ category: "quick", model: "raw\u001b[31m-model" })).toBe("category:quick · model:raw-model")
+    expect(formatStatusTarget({ category: "quick", model: "raw\u001b[31m-model" })).toBe("category:quick(raw-model)")
   })
 
   test("#given no target facts #when formatted #then nothing is emitted", () => {

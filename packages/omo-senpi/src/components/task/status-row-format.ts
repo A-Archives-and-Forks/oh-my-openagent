@@ -1,5 +1,6 @@
 import {
   excerptRendererText,
+  formatStatusTarget,
   normalizeRendererText,
   rendererVisibleWidth,
   taskIdentityLabel,
@@ -42,6 +43,17 @@ function modelDisplay(record: TaskRecord): string {
 
 function liveModelDisplay(record: TaskRecord): string {
   return optionalRendererText(record.resolved_model?.model_id) ?? modelDisplay(record)
+}
+
+function liveTarget(record: TaskRecord): string {
+  const category = optionalRendererText(record.category)
+  if (category === undefined) return `${targetLabel(record)} · model:${liveModelDisplay(record)}`
+  return formatStatusTarget({
+    category,
+    resolvedModel: record.resolved_model,
+    model: record.model,
+    fallbackCount: record.fallback_attempts?.length,
+  }) ?? `category:${category}`
 }
 
 function progressHead(record: TaskRecord): string | undefined {
@@ -98,8 +110,7 @@ function formatLiveBackgroundRow(
   const parts = [
     frame,
     identity,
-    targetLabel(record),
-    `model:${liveModelDisplay(record)}`,
+    liveTarget(record),
     ...liveStatsTokens(stats),
     activity,
     elapsed,
