@@ -19,7 +19,7 @@ import {
   isCategoryChainViable,
   isCategoryGateSatisfied,
 } from "./builtins"
-import { buildRuntimeModelChain, type ModelChainCandidate } from "../model-chain"
+import { buildRuntimeModelChain, chainRungCandidates, type ModelChainCandidate } from "../model-chain"
 import { CATEGORY_FALLBACK_CHAINS } from "./fallback-chains"
 import type {
   CategoryModelSelection,
@@ -386,10 +386,21 @@ export function resolveCategory<TModel extends SenpiModelPort>(
 
   const prompt_append = promptAppendForCategory(categoryName, selection.selectedModel, userConfig?.prompt_append)
   const variant = userConfig?.variant ?? selection.variant ?? config.variant
+  const availableModelSet = new Set(availableModels)
+  // Builtin chain rungs remaining after the selected one extend the runtime retry chain, appended
+  // after any user-configured fallback_models so user entries keep priority (dedupe keeps firsts).
+  const chainCandidates = fallbackChain === undefined
+    ? []
+    : chainRungCandidates({
+        chain: fallbackChain,
+        selectedModel: selection.selectedModel,
+        ...(selection.fallbackEntry !== undefined ? { selectedRungEntry: selection.fallbackEntry } : {}),
+        availableModels: availableModelSet,
+      })
   const runtimeModelChain = buildRuntimeModelChain({
-    candidates: categoryModelCandidates(config),
+    candidates: [...categoryModelCandidates(config), ...chainCandidates],
     selectedModel: selection.selectedModel,
-    availableModels: new Set(availableModels),
+    availableModels: availableModelSet,
     source: "category",
   })
   const spec: ResolvedChildSpec<TModel> = {

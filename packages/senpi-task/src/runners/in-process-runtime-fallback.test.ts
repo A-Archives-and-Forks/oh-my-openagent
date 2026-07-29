@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 
 import type { CreateAgentSessionOptions } from "@code-yeongyu/senpi"
 
+import { resolveCategory } from "../category"
 import { InProcessRunner } from "./in-process"
 import type { ChildSession, ChildSpec } from "./in-process"
 
@@ -83,6 +84,46 @@ describe("InProcessRunner runtime fallback", () => {
           "quotio-openai/gpt-5.4-mini-fast:minimal",
           "example-gateway/z-ai/glm-5.2-ultrafast-unlocked:none",
         ],
+      },
+    })
+  })
+
+  test("#given a builtin category resolving to a chain rung #when the child session is created #then the remaining chain rungs land in retry fallback chains", async () => {
+    // given
+    const models = [
+      { provider: "quotio-openai", id: "gpt-5.4-mini-fast" },
+      { provider: "openai", id: "gpt-5.4-mini" },
+    ] as const
+    const registry = {
+      getAvailable: () => models,
+      find: (provider: string, modelId: string) =>
+        models.find((candidate) => candidate.provider === provider && candidate.id === modelId),
+    }
+    const resolution = resolveCategory("quick", {}, registry)
+    if (resolution.kind !== "resolved") throw new Error(`Expected resolved category, got ${resolution.kind}`)
+    const spec = resolution.spec
+    let captured: CreateAgentSessionOptions | undefined
+    const runner = new InProcessRunner({
+      createSession: async (options) => {
+        captured = options
+        return completedSession()
+      },
+    })
+
+    // when
+    const handle = await runner.start({
+      ...baseSpec(),
+      selectedModel: `${spec.provider}/${spec.modelId}`,
+      ...(spec.fallback_models !== undefined ? { fallbackModels: spec.fallback_models } : {}),
+    })
+    await handle.waitForIdle()
+
+    // then
+    expect(`${spec.provider}/${spec.modelId}`).toBe("quotio-openai/gpt-5.4-mini-fast")
+    expect(capturedRetrySettings(captured)).toMatchObject({
+      modelFallback: true,
+      chains: {
+        "quotio-openai/gpt-5.4-mini-fast": ["openai/gpt-5.4-mini:minimal"],
       },
     })
   })
