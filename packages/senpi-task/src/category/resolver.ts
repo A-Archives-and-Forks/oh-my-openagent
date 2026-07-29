@@ -15,6 +15,8 @@ import {
   CATEGORY_PROMPT_APPENDS,
   DEFAULT_CATEGORIES,
   categoryGateModel,
+  isCategoryChainRungResolvable,
+  isCategoryChainViable,
   isCategoryGateSatisfied,
 } from "./builtins"
 import { buildRuntimeModelChain, type ModelChainCandidate } from "../model-chain"
@@ -162,9 +164,42 @@ function availableCategoryNames(config: OmoConfig, availableModelIds?: ReadonlyS
   const names = Array.from(new Set([...Object.keys(DEFAULT_CATEGORIES), ...Object.keys(config.categories ?? {})])).sort()
   if (availableModelIds === undefined) return names
   const userCategories = config.categories ?? {}
-  return names.filter((name) =>
-    isCategoryGateSatisfied(name, getOwnRecordValue(userCategories, name) !== undefined, availableModelIds)
-  )
+  return names.filter((name) => {
+    const hasExplicitUserConfig = getOwnRecordValue(userCategories, name) !== undefined
+    return isCategoryGateSatisfied(name, hasExplicitUserConfig, availableModelIds)
+      && isCategoryChainViable(name, hasExplicitUserConfig, availableModelIds)
+  })
+}
+
+// Gated listing for the disabled/not_found early returns. The registry is only consulted best
+// effort here: a throwing or malformed registry degrades to the ungated list (today's behavior),
+// since those results never resolve a model anyway.
+function gatedAvailableCategories<TModel extends SenpiModelPort>(
+  config: OmoConfig,
+  senpiModelRegistry: SenpiModelRegistryPort<TModel>,
+): readonly string[] {
+  try {
+    const parsed = parseAvailableModels(senpiModelRegistry.getAvailable())
+    if (!parsed.validContainer) return availableCategoryNames(config)
+    return availableCategoryNames(config, modelIdsOf(parsed.models))
+  } catch {
+    return availableCategoryNames(config)
+  }
+}
+
+// Chain providers with no model in the live registry, in chain order, deduplicated.
+function missingChainProviders(
+  chain: readonly DelegateFallbackEntry[],
+  availableModels: readonly string[],
+): readonly string[] {
+  const connected = new Set(availableModels.map((model) => model.slice(0, model.indexOf("/"))))
+  const missing: string[] = []
+  for (const rung of chain) {
+    for (const provider of rung.providers) {
+      if (!connected.has(provider) && !missing.includes(provider)) missing.push(provider)
+    }
+  }
+  return missing
 }
 
 // A gateway provider re-publishes an upstream model under `<gateway>/<upstream-vendor>/<model-id>`
@@ -242,13 +277,13 @@ export function resolveCategory<TModel extends SenpiModelPort>(
       kind: "disabled",
       category: categoryName,
       reason: `Category "${categoryName}" is disabled by omo.json`,
-      availableCategories,
+      availableCategories: gatedAvailableCategories(omoConfig, senpiModelRegistry),
     }
   }
 
   const builtinConfig = getOwnRecordValue(DEFAULT_CATEGORIES, categoryName)
   if (!builtinConfig && !userConfig) {
-    return { kind: "not_found", category: categoryName, availableCategories }
+    return { kind: "not_found", category: categoryName, availableCategories: gatedAvailableCategories(omoConfig, senpiModelRegistry) }
   }
 
   const config = { ...builtinConfig, ...userConfig }
@@ -264,18 +299,41 @@ export function resolveCategory<TModel extends SenpiModelPort>(
     }
   }
 
-  const gatedCategories = availableCategoryNames(omoConfig, modelIdsOf(availableModels))
-  if (!isCategoryGateSatisfied(categoryName, userConfig !== undefined, modelIdsOf(availableModels))) {
+  const availableModelIds = modelIdsOf(availableModels)
+  const gatedCategories = availableCategoryNames(omoConfig, availableModelIds)
+  const fallbackChain = getOwnRecordValue(CATEGORY_FALLBACK_CHAINS, categoryName)
+  const chainDead = fallbackChain !== undefined
+    && fallbackChain.length > 0
+    && !fallbackChain.some((rung) => isCategoryChainRungResolvable(rung, availableModelIds))
+  const deadChain = chainDead && fallbackChain !== undefined
+    ? { attempted_chain: fallbackChain, missing_providers: missingChainProviders(fallbackChain, availableModels) }
+    : undefined
+  if (!isCategoryGateSatisfied(categoryName, userConfig !== undefined, availableModelIds)) {
     return {
       kind: "model_unavailable",
       category: categoryName,
       attemptedModel: builtinConfig?.model ?? config.model,
       availableModels,
       availableCategories: gatedCategories,
+      ...(deadChain ?? {}),
     }
   }
 
-  const fallbackChain = getOwnRecordValue(CATEGORY_FALLBACK_CHAINS, categoryName)
+  // Dead-chain short-circuit: a builtin chain with zero resolvable rungs can never produce a model,
+  // so fail before resolution with the rungs that were attempted. An explicit user model or user
+  // fallback list opts the category out (its failure stays a plain user-model miss without chain
+  // details), and a caller-supplied system default remains the resolver's last resort.
+  if (deadChain !== undefined && userConfig?.model === undefined && userConfig?.fallback_models === undefined && options.systemDefaultModel === undefined) {
+    return {
+      kind: "model_unavailable",
+      category: categoryName,
+      attemptedModel: builtinConfig?.model ?? config.model,
+      availableModels,
+      availableCategories: gatedCategories,
+      ...deadChain,
+    }
+  }
+
   const resolution = resolveModelForDelegateTask(
     {
       userModel: userConfig?.model,

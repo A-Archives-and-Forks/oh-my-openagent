@@ -340,9 +340,9 @@ Domain-specific model delegation used by the `task()` tool. When Sisyphus delega
 | `ultrabrain`         | `openai/gpt-5.6-sol` (xhigh)    | Deep logical reasoning, complex architecture   |
 | `deep`               | `openai/gpt-5.6-terra` (xhigh)  | Autonomous problem-solving, thorough research  |
 | `artistry`           | `google/gemini-3.1-pro` (high)  | Creative/unconventional approaches             |
-| `quick`              | `apitopia/kimi-for-coding-highspeed` | Trivial tasks, typo fixes, single-file changes |
+| `quick`              | `kimi-coding/kimi-for-coding-highspeed` | Trivial tasks, typo fixes, single-file changes |
 | `unspecified-low`    | `openai/gpt-5.6-luna` (xhigh)   | General tasks, low effort                      |
-| `unspecified-high`   | `apitopia/kimi-k3` (max)        | General tasks, high effort                     |
+| `unspecified-high`   | `kimi-coding/kimi-k3` (max)        | General tasks, high effort                     |
 | `writing`            | `kimi-for-coding/kimi-k3`          | Documentation, prose, technical writing        |
 
 > **Note**: Built-in category defaults are available automatically. User-defined category config merges over the built-in defaults or adds custom categories.
@@ -352,6 +352,7 @@ Domain-specific model delegation used by the `task()` tool. When Sisyphus delega
 | Option              | Type          | Default | Description                                                         |
 | ------------------- | ------------- | ------- | ------------------------------------------------------------------- |
 | `model`             | string        | -       | Model override                                                      |
+| `requiresModel`     | string        | -       | Exact model required for this category to spawn. Used by `deep` to require `gpt-5.6-sol`. |
 | `fallback_models`   | string\|array | -       | Fallback models on API errors. Supports strings or mixed arrays of strings and object entries with per-model settings |
 | `temperature`       | number        | -       | Sampling temperature                                                |
 | `top_p`             | number        | -       | Top-p sampling                                                      |
@@ -366,6 +367,8 @@ Domain-specific model delegation used by the `task()` tool. When Sisyphus delega
 | `description`       | string        | -       | Shown in `task()` tool prompt                                       |
 | `is_unstable_agent` | boolean       | `false` | Force background mode + monitoring. Auto-enabled for Gemini models. |
 | `disable`           | boolean       | `false` | Exclude this category from task delegation                          |
+| `warn_unavailable`   | boolean       | -       | Suppress the once-per-session dead-chain warning for this category. A category set here still respects the global `task.warnings.unavailable_categories` flag. |
+| `warn_unavailable`  | boolean       | -       | Suppress the once-per-session dead-chain warning for this category. A category set here still respects the global `task.warnings.unavailable_categories` flag. |
 
 Disable categories: `{ "categories": { "ultrabrain": { "disable": true } } }`
 
@@ -373,12 +376,23 @@ Disable categories: `{ "categories": { "ultrabrain": { "disable": true } } }`
 
 Runtime priority:
 
+The same resolved chain drives spawn-time selection and runtime retry fallback, so a recovered task stays on the same category chain.
+
+A builtin category can be hidden from `availableCategories` when none of its fallback-chain rungs resolves against the live registry. Spawns then fail with `model_unavailable`, carry the attempted chain and missing providers, and emit a once-per-session warning unless `task.warnings.unavailable_categories` is false or `categories.<name>.warn_unavailable` is false. Setting an explicit category model is the forcing path.
+
+
 1. **UI-selected model** - model chosen in the OpenCode UI, for primary agents
 2. **User override** - model set in config → used exactly as-is. Even on cold cache, explicit user configuration takes precedence over hardcoded fallback chains
 3. **Category default** - model inherited from the assigned category config
 4. **User `fallback_models`** - user-configured fallback list is tried before built-in fallback chains
 5. **Provider fallback chain** - built-in provider/model chain from OmO source
 6. **System default** - OpenCode's configured default model
+
+The same resolved chain drives spawn-time selection and runtime retry fallback, so a recovered task stays on the same category chain.
+
+A builtin category can be hidden from `availableCategories` when none of its fallback-chain rungs resolves against the live registry. Spawns then fail with `model_unavailable`, carry the attempted chain and missing providers, and emit a once-per-session warning unless `task.warnings.unavailable_categories` is false or `categories.<name>.warn_unavailable` is false. Setting an explicit category model is the forcing path.
+
+A builtin category can be hidden from `availableCategories` when none of its fallback-chain rungs resolves against the live registry. Spawns then fail with `model_unavailable`, carry the attempted chain and missing providers, and emit a once-per-session warning unless `task.warnings.unavailable_categories` is false or `categories.<name>.warn_unavailable` is false. Setting an explicit category model is the forcing path.
 
 #### Model Settings Compatibility
 

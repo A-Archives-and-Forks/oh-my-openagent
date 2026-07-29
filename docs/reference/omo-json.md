@@ -316,7 +316,7 @@ An agent's `models` array accepts a deliberately narrower entry object, `{ model
 {
   "agents": {
     "explore": {
-      "model": "apitopia/kimi-for-coding-highspeed",
+      "model": "kimi-coding/kimi-for-coding-highspeed",
       "models": [
         { "model": "quotio-openai/gpt-5.4-mini-fast", "reasoningEffort": "minimal" },
         "anthropic/claude-haiku-4-5"

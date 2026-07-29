@@ -304,7 +304,10 @@ describe("createTaskChildPlanner", () => {
     if (result.kind !== "error") throw new Error(`Expected error resolution, got ${result.kind}`)
     expect(result.error.code).toBe("unknown_target")
     expect(result.error.availableAgents).toEqual(["explore", "librarian", "metis", "momus"])
-    expect(result.error.availableCategories).toContain("ultrabrain")
+    // writing survives on a gemini-only registry (its gemini-3.1-pro rung resolves); ultrabrain's
+    // sol-only chain is dead, so the dead-chain gate excludes it.
+    expect(result.error.availableCategories).toContain("writing")
+    expect(result.error.availableCategories).not.toContain("ultrabrain")
   })
 
   test("#given subagent_type naming a builtin agent whose chain no registry model satisfies #when planned #then it reports model_unavailable with the agent list", () => {
