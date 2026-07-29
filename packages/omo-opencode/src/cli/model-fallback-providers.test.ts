@@ -267,12 +267,11 @@ describe("generateModelConfig provider routes", () => {
       // when the generated model config is resolved
       const result = generateModelConfig(config)
 
-      // then utility routes use the global MiniMax provider
+      // then utility agents use the global MiniMax provider
       expect(result.agents?.librarian?.model).toBe("minimax-coding-plan/MiniMax-M3")
       expect(result.agents?.explore?.model).toBe("minimax-coding-plan/MiniMax-M3")
       expect(result.agents?.atlas?.model).toBe("minimax-coding-plan/MiniMax-M3")
       expect(result.agents?.["sisyphus-junior"]?.model).toBe("minimax-coding-plan/MiniMax-M3")
-      expect(result.categories?.writing?.model).toBe("minimax-coding-plan/MiniMax-M3")
     })
 
     test("keeps opencode-go MiniMax M3 ahead of Coding Plan fallback when both are available", () => {
@@ -296,10 +295,11 @@ describe("generateModelConfig provider routes", () => {
       // when the generated model config is resolved
       const result = generateModelConfig(config)
 
-      // then utility routes use the regional MiniMax provider
+      // then utility agents use the regional MiniMax provider
       expect(result.agents?.librarian?.model).toBe("minimax-cn-coding-plan/MiniMax-M3")
       expect(result.agents?.explore?.model).toBe("minimax-cn-coding-plan/MiniMax-M3")
-      expect(result.categories?.quick?.model).toBe("minimax-cn-coding-plan/MiniMax-M3")
+      expect(result.agents?.atlas?.model).toBe("minimax-cn-coding-plan/MiniMax-M3")
+      expect(result.agents?.["sisyphus-junior"]?.model).toBe("minimax-cn-coding-plan/MiniMax-M3")
     })
   })
 

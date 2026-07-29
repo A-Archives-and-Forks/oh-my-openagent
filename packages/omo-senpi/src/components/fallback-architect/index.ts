@@ -13,6 +13,7 @@ import {
   FALLBACK_ARCHITECT_DIRECTIVE_TYPE,
   FALLBACK_ARCHITECT_REMINDER_TYPE,
 } from "./directive"
+import { buildFallbackTipText, FALLBACK_ARCHITECT_TIP_TYPE, renderFallbackTip } from "./tip-message"
 
 const FALLBACK_ARCHITECT_DISABLED_FLAG = "omo-senpi-fallback-architect-disabled"
 
@@ -45,6 +46,10 @@ export function createFallbackArchitectComponent(
     register(pi: SenpiExtensionAPI, ctx: ComponentContext): void {
       const state: FallbackArchitectState = { refusalPending: false, active: undefined }
       const isDisabled = (): boolean => ctx.config.getFlag(FALLBACK_ARCHITECT_DISABLED_FLAG) === true
+
+      // Optional capability: older hosts without registerMessageRenderer fall back to senpi's
+      // default custom-message rendering for the tip.
+      pi.registerMessageRenderer?.(FALLBACK_ARCHITECT_TIP_TYPE, renderFallbackTip)
 
       pi.on("message_end", (payload: unknown): void => {
         if (!isMessageEndEvent(payload)) return
@@ -79,6 +84,11 @@ export function createFallbackArchitectComponent(
           customType: FALLBACK_ARCHITECT_DIRECTIVE_TYPE,
           content: buildFallbackArchitectDirective({ from, to }),
           display: false,
+        })
+        pi.sendMessage({
+          customType: FALLBACK_ARCHITECT_TIP_TYPE,
+          content: buildFallbackTipText({ from, to }),
+          display: true,
         })
         state.active = { from, to }
         state.refusalPending = false
