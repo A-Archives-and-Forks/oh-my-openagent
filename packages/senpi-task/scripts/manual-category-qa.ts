@@ -58,12 +58,21 @@ if (visualPrimary.kind !== "resolved") {
 requireCondition(visualPrimary.spec.modelId === "claude-opus-5", "visual-engineering primary model mismatch")
 requireCondition(visualPrimary.spec.variant === "max", "visual-engineering primary variant is not max")
 
-const visualKimiFallback = resolveCategory("visual-engineering", {}, registry([model("apitopia", "kimi-k3")]))
+const quickPrimary = resolveCategory("quick", {}, registry([model("kimi-coding", "kimi-for-coding-highspeed")]))
+requireCondition(quickPrimary.kind === "resolved", "quick primary did not resolve")
+if (quickPrimary.kind !== "resolved") {
+  throw new Error("quick primary did not resolve")
+}
+requireCondition(quickPrimary.spec.provider === "kimi-coding", "quick primary provider mismatch")
+requireCondition(quickPrimary.spec.modelId === "kimi-for-coding-highspeed", "quick primary model mismatch")
+requireCondition(quickPrimary.modelSelection.matchedFallback === false, "quick primary should be a direct hit")
+
+const visualKimiFallback = resolveCategory("visual-engineering", {}, registry([model("kimi-coding", "k3")]))
 requireCondition(visualKimiFallback.kind === "resolved", "visual-engineering kimi fallback did not resolve")
 if (visualKimiFallback.kind !== "resolved") {
   throw new Error("visual-engineering kimi fallback did not resolve")
 }
-requireCondition(visualKimiFallback.spec.modelId === "kimi-k3", "visual-engineering kimi fallback model mismatch")
+requireCondition(visualKimiFallback.spec.modelId === "k3", "visual-engineering kimi fallback model mismatch")
 requireCondition(visualKimiFallback.spec.variant === "max", "visual-engineering kimi fallback variant is not max")
 
 const artistryPrimary = resolveCategory("artistry", {}, registry([model("anthropic", "claude-fable-5")]))
@@ -74,12 +83,12 @@ if (artistryPrimary.kind !== "resolved") {
 requireCondition(artistryPrimary.spec.modelId === "claude-fable-5", "artistry primary model mismatch")
 requireCondition(artistryPrimary.spec.variant === "xhigh", "artistry primary variant is not xhigh")
 
-const artistryKimiFallback = resolveCategory("artistry", {}, registry([model("apitopia", "kimi-k3")]))
+const artistryKimiFallback = resolveCategory("artistry", {}, registry([model("kimi-coding", "k3")]))
 requireCondition(artistryKimiFallback.kind === "resolved", "artistry kimi fallback did not resolve")
 if (artistryKimiFallback.kind !== "resolved") {
   throw new Error("artistry kimi fallback did not resolve")
 }
-requireCondition(artistryKimiFallback.spec.modelId === "kimi-k3", "artistry kimi fallback model mismatch")
+requireCondition(artistryKimiFallback.spec.modelId === "k3", "artistry kimi fallback model mismatch")
 requireCondition(artistryKimiFallback.spec.variant === "max", "artistry kimi fallback variant is not max")
 
 const artistryOpusFallback = resolveCategory("artistry", {}, registry([model("anthropic", "claude-opus-5")]))
@@ -89,6 +98,32 @@ if (artistryOpusFallback.kind !== "resolved") {
 }
 requireCondition(artistryOpusFallback.spec.modelId === "claude-opus-5", "artistry opus fallback model mismatch")
 requireCondition(artistryOpusFallback.spec.variant === "xhigh", "artistry opus fallback variant is not xhigh")
+
+const unspecifiedHighPrimary = resolveCategory("unspecified-high", {}, registry([model("kimi-coding", "k3")]))
+requireCondition(unspecifiedHighPrimary.kind === "resolved", "unspecified-high primary did not resolve")
+if (unspecifiedHighPrimary.kind !== "resolved") {
+  throw new Error("unspecified-high primary did not resolve")
+}
+requireCondition(unspecifiedHighPrimary.spec.provider === "kimi-coding", "unspecified-high primary provider mismatch")
+requireCondition(unspecifiedHighPrimary.spec.modelId === "k3", "unspecified-high primary model mismatch")
+requireCondition(unspecifiedHighPrimary.spec.variant === "max", "unspecified-high primary variant is not max")
+
+const deepSolRegistry = resolveCategory("deep", {}, registry([model("openai", "gpt-5.6-sol")]))
+requireCondition(deepSolRegistry.kind === "resolved", "deep did not resolve on a gpt-5.6-sol registry")
+if (deepSolRegistry.kind !== "resolved") {
+  throw new Error("deep did not resolve on a gpt-5.6-sol registry")
+}
+requireCondition(deepSolRegistry.spec.modelId === "gpt-5.6-sol", "deep model mismatch")
+requireCondition(deepSolRegistry.spec.variant === "medium", "deep variant is not medium")
+
+const noSolRegistry = registry([model("kimi-coding", "k3"), model("anthropic", "claude-opus-5")])
+const deepGated = resolveCategory("deep", {}, noSolRegistry)
+requireCondition(deepGated.kind === "model_unavailable", "deep did not gate on a registry without gpt-5.6-sol")
+if (deepGated.kind !== "model_unavailable") {
+  throw new Error("deep did not gate on a registry without gpt-5.6-sol")
+}
+requireCondition(deepGated.attemptedModel === "openai/gpt-5.6-sol", "deep gate attempted model mismatch")
+requireCondition(!deepGated.availableCategories.includes("deep"), "deep stayed listed without gpt-5.6-sol")
 
 const disabled = resolveCategory(
   "ultrabrain",
@@ -112,13 +147,14 @@ requireCondition(
   "unavailable available models missing registry model",
 )
 
-const hardcodedFallback = resolveCategory("quick", {}, registry([model("anthropic", "claude-haiku-4-5")]))
+const hardcodedFallback = resolveCategory("quick", {}, registry([model("openai", "gpt-5.4-mini")]))
 requireCondition(hardcodedFallback.kind === "resolved", "hardcoded fallback scenario did not resolve")
 if (hardcodedFallback.kind !== "resolved") {
   throw new Error("hardcoded fallback scenario did not resolve")
 }
-requireCondition(hardcodedFallback.spec.provider === "anthropic", "hardcoded fallback provider mismatch")
-requireCondition(hardcodedFallback.spec.modelId === "claude-haiku-4-5", "hardcoded fallback model mismatch")
+requireCondition(hardcodedFallback.spec.provider === "openai", "hardcoded fallback provider mismatch")
+requireCondition(hardcodedFallback.spec.modelId === "gpt-5.4-mini", "hardcoded fallback model mismatch")
+requireCondition(hardcodedFallback.spec.variant === "minimal", "hardcoded fallback variant is not minimal")
 requireCondition(hardcodedFallback.modelSelection.matchedFallback, "hardcoded fallback was not marked as fallback")
 
 const systemDefault = resolveCategory(
@@ -213,7 +249,7 @@ for (const result of identityFind) {
   if (result.kind !== "model_unavailable") {
     throw new Error("identity find result did not return model_unavailable")
   }
-  requireCondition(result.attemptedModel === "apitopia/kimi-for-coding-highspeed", "identity find attempted model changed")
+  requireCondition(result.attemptedModel === "openai/gpt-5.4-mini", "identity find attempted model changed")
   requireCondition(!JSON.stringify(result).includes("evil"), "identity find result leaked mismatched provider")
 }
 
@@ -271,6 +307,15 @@ requireCondition(prototypeName.kind === "not_found", "prototype-shaped category 
 
 console.log(JSON.stringify({
   happy,
+  quickPrimary,
+  visualPrimary,
+  visualKimiFallback,
+  artistryPrimary,
+  artistryKimiFallback,
+  artistryOpusFallback,
+  unspecifiedHighPrimary,
+  deepSolRegistry,
+  deepGated,
   disabled,
   unavailable,
   hardcodedFallback,

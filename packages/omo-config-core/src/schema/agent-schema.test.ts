@@ -29,7 +29,7 @@ describe("agent model entries", () => {
   test("#given an agent whose models mix strings and objects #when parsed #then both forms are accepted", () => {
     // given
     const definition = {
-      model: "apitopia/kimi-for-coding-highspeed",
+      model: "kimi-coding/kimi-for-coding-highspeed",
       models: ["quotio-openai/gpt-5.4-mini-fast", { model: "anthropic/claude-haiku-4-5", variant: "low" }],
     }
 
