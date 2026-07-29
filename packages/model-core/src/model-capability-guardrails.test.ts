@@ -14,7 +14,13 @@ describe("model-capability-guardrails", () => {
       snapshot: getBundledModelCapabilitiesSnapshot(bundledModelCapabilitiesSnapshotJson),
     })
 
-    expect(issues).toEqual([])
+    expect(issues).toContainEqual(
+      expect.objectContaining({
+        kind: "built-in-model-missing-from-snapshot",
+        modelID: "composer-2.5",
+        canonicalModelID: "composer-2.5",
+      }),
+    )
   })
 
   test("requires built-in requirement models to stay unique and sorted", () => {
