@@ -34,14 +34,20 @@ describe("taskIdentityLabel", () => {
 })
 
 describe("formatStatusTarget", () => {
-  test("#given a category and resolved model #when formatted #then the model is qualified in parentheses", () => {
+  test("#given a category and resolved model #when formatted #then explicit category and model tokens are emitted", () => {
     // given / when / then
     expect(
       formatStatusTarget({
         category: "quick",
-        resolvedModel: { provider: "kimi-coding", model_id: "kimi-k3", display: "kimi-k3", reasoning_effort: "max", source: "category" },
+        resolvedModel: {
+          provider: "quotio-openai",
+          model_id: "gpt-5.4-mini-fast",
+          display: "gpt-5.4-mini-fast",
+          reasoning_effort: "high",
+          source: "category",
+        },
       }),
-    ).toBe("quick (kimi-coding/kimi-k3:max)")
+    ).toBe("category:quick · model:quotio-openai/gpt-5.4-mini-fast:high")
   })
 
   test("#given only an agent type #when formatted #then the agent name is the target", () => {
@@ -63,14 +69,16 @@ describe("formatStatusTarget", () => {
           source: "category",
         },
       }),
-    ).toBe("quick (openai/gpt-5.6-sol:xhigh)")
+    ).toBe("category:quick · model:openai/gpt-5.6-sol:xhigh")
   })
 
   test("#given a category but only a raw model #when formatted #then the sanitized raw model qualifies the target", () => {
     // given / when / then
-    expect(formatStatusTarget({ category: "quick", model: "anthropic/claude-sonnet-4-5" })).toBe("quick (anthropic/claude-sonnet-4-5)")
-    expect(formatStatusTarget({ model: "anthropic/claude-sonnet-4-5" })).toBe("anthropic/claude-sonnet-4-5")
-    expect(formatStatusTarget({ category: "quick", model: "raw\u001b[31m-model" })).toBe("quick (raw-model)")
+    expect(formatStatusTarget({ category: "quick", model: "anthropic/claude-sonnet-4-5" })).toBe(
+      "category:quick · model:anthropic/claude-sonnet-4-5",
+    )
+    expect(formatStatusTarget({ model: "anthropic/claude-sonnet-4-5" })).toBe("model:anthropic/claude-sonnet-4-5")
+    expect(formatStatusTarget({ category: "quick", model: "raw\u001b[31m-model" })).toBe("category:quick · model:raw-model")
   })
 
   test("#given no target facts #when formatted #then nothing is emitted", () => {

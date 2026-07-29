@@ -39,7 +39,7 @@ describe("child task progress", () => {
     const details = progress.details()
     expect(details).toEqual({
       progress: {
-        activity: "st_00000001 · quick (kimi-coding/kimi-k3-unlocked:max) · turn 1 (1 tool) · running · 50 tok/s",
+        activity: "st_00000001 · category:quick · model:kimi-coding/kimi-k3-unlocked:max · turn 1 (1 tool) · running · 50 tok/s",
         startedAt: 1_000,
       },
       childId: "st_00000001",
@@ -63,7 +63,9 @@ describe("child task progress", () => {
     )
 
     // then the id survives only as the correlation handle inside details, not as the lead token
-    expect(progress.details().progress.activity).toBe("Audit the waiting line · quick (kimi-coding/kimi-k3-unlocked:max) · turn 0 · running")
+    expect(progress.details().progress.activity).toBe(
+      "Audit the waiting line · category:quick · model:kimi-coding/kimi-k3-unlocked:max · turn 0 · running",
+    )
     expect(progress.details().childId).toBe("st_00000009")
   })
 
@@ -87,12 +89,31 @@ describe("child task progress", () => {
     expect(details.toolCalls).toBe(2)
   })
 
+  test("#given runtime fallback events #when progress is composed #then the active model and fallback count update", () => {
+    // given
+    const progress = createChildProgress(
+      "st_00000004",
+      { category: "quick", resolvedModel: RESOLVED_MODEL },
+      1_000,
+      () => 2_000,
+    )
+
+    // when
+    progress.accept({ type: "retry_fallback_applied", to: "quotio-openai/gpt-5.4-mini-fast:high" })
+    progress.accept({ type: "retry_fallback_applied", to: "anthropic-api/claude-haiku-4-5:medium" })
+
+    // then
+    expect(progress.details().progress.activity).toBe(
+      "st_00000004 · category:quick · model:anthropic-api/claude-haiku-4-5:medium · fallback:2 · turn 0 · running",
+    )
+  })
+
   test("#given no events yet #when composed #then activity has no turn-zero noise beyond the base status", () => {
     // given
     const progress = createChildProgress("st_00000003", { category: "deep" }, 1_000, () => 1_000)
 
     // then
-    expect(progress.details().progress.activity).toBe("st_00000003 · deep · turn 0 · running")
+    expect(progress.details().progress.activity).toBe("st_00000003 · category:deep · turn 0 · running")
     expect(progress.contentText()).toBe("")
   })
 

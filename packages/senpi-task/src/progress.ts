@@ -46,11 +46,20 @@ export function createChildProgress(
   let currentTool: string | undefined
   let lastAssistantLine: string | undefined
   let lastTotalTokens: number | undefined
+  let resolvedModel = target.resolvedModel
+  let model = target.model
+  let fallbackCount = 0
 
   const activity = (stats: ReturnType<typeof tracker.snapshot>): string =>
     composeStatusLine({
       identity: taskIdentityLabel({ taskId, name: target.name, description: target.description }),
-      target: formatStatusTarget(target),
+      target: formatStatusTarget({
+        category: target.category,
+        agentType: target.agentType,
+        resolvedModel,
+        model,
+        fallbackCount,
+      }),
       stats,
       verb: currentTool === undefined ? "running" : `running ${currentTool}`,
     })
@@ -58,6 +67,12 @@ export function createChildProgress(
   return {
     accept(event): boolean {
       const statsChanged = tracker.accept(event)
+      if (event.type === "retry_fallback_applied" && event.to !== undefined) {
+        resolvedModel = undefined
+        model = event.to
+        fallbackCount += 1
+        return true
+      }
       if (event.type === "tool_execution_start" && typeof event.toolName === "string") {
         currentTool = formatToolActivity(event.toolName, event.args ?? event.input)
         return true
