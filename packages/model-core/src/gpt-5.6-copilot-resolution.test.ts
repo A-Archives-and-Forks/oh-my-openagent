@@ -23,7 +23,7 @@ describe("GitHub Copilot GPT-5.6 resolution", () => {
     {
       name: "deep",
       requirement: CATEGORY_MODEL_REQUIREMENTS.deep,
-      expectedModel: "github-copilot/gpt-5.6-terra",
+      expectedModel: "github-copilot/gpt-5.6-sol",
     },
     {
       name: "unspecified-low",
@@ -35,7 +35,7 @@ describe("GitHub Copilot GPT-5.6 resolution", () => {
   for (const { name, requirement, expectedModel } of selectionCases) {
     test(`${name} selects its Copilot GPT-5.6 model with its configured variant`, () => {
       // given
-      const expectedVariant = name === "hephaestus" ? "medium" : "high"
+      const expectedVariant = name === "hephaestus" ? "medium" : name === "deep" ? "medium" : "high"
       const availableModels = new Set([expectedModel, "github-copilot/gpt-5.5"])
 
       // when
