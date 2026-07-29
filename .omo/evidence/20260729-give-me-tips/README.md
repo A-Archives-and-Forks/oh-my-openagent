@@ -49,3 +49,9 @@ omo-fallback-receipt.json).
 
 No secrets captured: mock provider uses a file:// baseUrl + inline "mock" key; sandbox settings
 contain no credentials; live-session transcript paths are listed by name only, contents untouched.
+
+## POST-MERGE (origin/dev 0dbf644f9) RE-QA
+
+After merging origin/dev (bundle conflict resolved by regeneration): bun test from root 412 pass / 0 fail
+(bun-test-post-merge.txt); fallback-architect-e2e overall PASS incl. isolation guard
+(e2e-green-post-merge.txt).
