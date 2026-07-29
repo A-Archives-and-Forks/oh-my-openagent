@@ -243,6 +243,9 @@
           },
           "disable": {
             "type": "boolean"
+          },
+          "warn_unavailable": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -478,6 +481,22 @@
         "reattach_on_reconcile": {
           "type": "boolean"
         },
+        "warnings": {
+          "default": {
+            "unavailable_categories": true
+          },
+          "type": "object",
+          "properties": {
+            "unavailable_categories": {
+              "default": true,
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "unavailable_categories"
+          ],
+          "additionalProperties": false
+        },
         "wait": {
           "default": {
             "min_ms": 5000,
@@ -553,6 +572,7 @@
         "max_depth",
         "residency_max_children",
         "ttl_ms",
+        "warnings",
         "wait",
         "team"
       ],
@@ -7934,6 +7954,9 @@
               },
               "disable": {
                 "type": "boolean"
+              },
+              "warn_unavailable": {
+                "type": "boolean"
               }
             },
             "additionalProperties": false
@@ -8153,6 +8176,15 @@
             },
             "reattach_on_reconcile": {
               "type": "boolean"
+            },
+            "warnings": {
+              "type": "object",
+              "properties": {
+                "unavailable_categories": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
             },
             "wait": {
               "type": "object",
@@ -8635,6 +8667,9 @@
               },
               "disable": {
                 "type": "boolean"
+              },
+              "warn_unavailable": {
+                "type": "boolean"
               }
             },
             "additionalProperties": false
@@ -8854,6 +8889,15 @@
             },
             "reattach_on_reconcile": {
               "type": "boolean"
+            },
+            "warnings": {
+              "type": "object",
+              "properties": {
+                "unavailable_categories": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
             },
             "wait": {
               "type": "object",
@@ -9342,6 +9386,9 @@
                 },
                 "disable": {
                   "type": "boolean"
+                },
+                "warn_unavailable": {
+                  "type": "boolean"
                 }
               },
               "additionalProperties": false
@@ -9561,6 +9608,15 @@
               },
               "reattach_on_reconcile": {
                 "type": "boolean"
+              },
+              "warnings": {
+                "type": "object",
+                "properties": {
+                  "unavailable_categories": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
               },
               "wait": {
                 "type": "object",
@@ -16976,6 +17032,9 @@
                     },
                     "disable": {
                       "type": "boolean"
+                    },
+                    "warn_unavailable": {
+                      "type": "boolean"
                     }
                   },
                   "additionalProperties": false
@@ -17195,6 +17254,15 @@
                   },
                   "reattach_on_reconcile": {
                     "type": "boolean"
+                  },
+                  "warnings": {
+                    "type": "object",
+                    "properties": {
+                      "unavailable_categories": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": false
                   },
                   "wait": {
                     "type": "object",
@@ -17677,6 +17745,9 @@
                     },
                     "disable": {
                       "type": "boolean"
+                    },
+                    "warn_unavailable": {
+                      "type": "boolean"
                     }
                   },
                   "additionalProperties": false
@@ -17896,6 +17967,15 @@
                   },
                   "reattach_on_reconcile": {
                     "type": "boolean"
+                  },
+                  "warnings": {
+                    "type": "object",
+                    "properties": {
+                      "unavailable_categories": {
+                        "type": "boolean"
+                      }
+                    },
+                    "additionalProperties": false
                   },
                   "wait": {
                     "type": "object",

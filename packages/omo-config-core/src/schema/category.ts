@@ -23,6 +23,7 @@ export const OmoCategoryConfigSchema = z.object({
   max_prompt_tokens: z.number().int().positive().optional(),
   is_unstable_agent: z.boolean().optional(),
   disable: z.boolean().optional(),
+  warn_unavailable: z.boolean().optional(),
 }).strict()
 
 export const OmoCategoriesConfigSchema = z.record(z.string(), OmoCategoryConfigSchema)
