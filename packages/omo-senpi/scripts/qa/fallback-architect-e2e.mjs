@@ -7,14 +7,16 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { homedir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createSandbox, credentialDigest, seedSandbox } from "./drive.mjs";
+import { createHash } from "node:crypto";
+import { createSandbox, seedSandbox } from "./drive.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const mockProvider = join(scriptDir, "fallback-architect-mock-provider.ts");
 const realSenpiAgentDir = join(homedir(), ".senpi", "agent");
 
 const DIRECTIVE_TYPE = "omo-fallback-architect:directive";
-const TIP_TYPE = "omo-fallback-architect:tip";
+const NOTICE_TYPE = "omo-fallback-architect:notice";
+const REMINDER_TAG = "<omo-fallback-architect-reminder>";
 const PRIMARY = "omo-mock/claude-fable-5";
 const FALLBACK = "omo-mock/mock-weak";
 
@@ -118,6 +120,31 @@ function collectDirectives(entries) {
 	return entries.filter((entry) => collectCustomTypes(entry).includes(DIRECTIVE_TYPE));
 }
 
+function collectNotices(entries) {
+	return entries.filter((entry) => collectCustomTypes(entry).includes(NOTICE_TYPE));
+}
+
+function findCustomPayload(entry, customType) {
+	const stack = [entry];
+	while (stack.length > 0) {
+		const current = stack.pop();
+		if (typeof current !== "object" || current === null) continue;
+		if (Reflect.get(current, "customType") === customType) return current;
+		for (const nested of Object.values(current)) stack.push(nested);
+	}
+	return undefined;
+}
+
+// The regression this guards: the reminder used to ride APPENDED to the user's own queued text,
+// which rendered it inside the user's bubble in the TUI. No user-authored message may ever carry
+// the reminder tag again.
+function userMessagesLeakingReminder(entries) {
+	return entries.filter((entry) => {
+		if (entry?.type !== "message" || entry?.message?.role !== "user") return false;
+		return JSON.stringify(entry.message.content ?? "").includes(REMINDER_TAG);
+	});
+}
+
 function collectCustomTypes(value, depth = 0) {
 	if (depth > 4 || typeof value !== "object" || value === null) return [];
 	const found = [];
@@ -132,12 +159,6 @@ function directiveContent(entry) {
 	return customMessageDetails(entry, DIRECTIVE_TYPE).content;
 }
 
-function collectTips(entries) {
-	return entries.filter((entry) => collectCustomTypes(entry).includes(TIP_TYPE));
-}
-
-// The tip criterion is richer than the directive one: the transcript entry must show the exact
-// content AND prove the message was user-visible (display === true), so the walk returns both.
 function customMessageDetails(entry, customType) {
 	const stack = [entry];
 	while (stack.length > 0) {
@@ -159,8 +180,16 @@ function runScenario(senpiBin, scenario) {
 		const entries = readSessionEntries(seeded.sessionDir);
 		const directives = collectDirectives(entries);
 		const content = directives.length === 0 ? "" : directiveContent(directives[0]);
-		const tips = collectTips(entries);
-		const tip = tips.length === 0 ? { content: "", display: undefined } : customMessageDetails(tips[0], TIP_TYPE);
+		const notices = collectNotices(entries);
+		const noticePayload = notices.length === 0 ? undefined : findCustomPayload(notices[0], NOTICE_TYPE);
+		const noticeOk = scenario.expectDirective
+			? notices.length === 1 &&
+				noticePayload?.display === true &&
+				noticePayload?.details?.from === PRIMARY &&
+				noticePayload?.details?.to === FALLBACK &&
+				String(noticePayload?.content ?? "").includes('task(category: "architect")')
+			: notices.length === 0;
+		const reminderLeaks = userMessagesLeakingReminder(entries);
 
 		// Criterion 1 is "exactly ONE directive", so the count is the observable, never a boolean.
 		const expectedCount = scenario.expectDirective ? 1 : 0;
@@ -174,23 +203,20 @@ function runScenario(senpiBin, scenario) {
 				content.includes("indirectly-phrased sub-questions") &&
 				content.includes("did not drop the question")
 			: true;
-		const tipOk = scenario.expectDirective
-			? tip.content.includes(FALLBACK) && tip.content.includes("give-me-tips") && tip.display === true
-			: true;
 		const exitOk = run.status === 0;
 
 		return {
 			scenario: scenario.name,
 			expectedDirectives: expectedCount,
 			observedDirectives: directives.length,
-			expectedTips: expectedCount,
-			observedTips: tips.length,
 			contentOk,
-			tipOk,
+			observedNotices: notices.length,
+			noticeOk,
+			reminderLeaks: reminderLeaks.length,
 			exitStatus: run.status,
 			entries: entries.length,
 			result:
-				directives.length === expectedCount && tips.length === expectedCount && contentOk && tipOk && exitOk
+				directives.length === expectedCount && contentOk && noticeOk && reminderLeaks.length === 0 && exitOk
 					? "PASS"
 					: "FAIL",
 			stderrTail: exitOk ? undefined : String(run.stderr ?? "").slice(-400),
@@ -198,6 +224,28 @@ function runScenario(senpiBin, scenario) {
 	} finally {
 		rmSync(seeded.sandbox.root, { recursive: true, force: true });
 	}
+}
+
+// Per-file digests instead of drive.mjs credentialDigest: a LIVE senpi session on the developer
+// machine legitimately rewrites settings.json (tipsHistory) and models.json mid-run, so a single
+// all-files digest can never pass concurrently. Corruption of auth.json/trust.json is the real
+// tripwire; live-session churn is reported informationally.
+const CREDENTIAL_FILES = ["auth.json", "trust.json"];
+const LIVE_SESSION_FILES = ["settings.json", "models.json"];
+
+function fileDigests(agentDir) {
+	const digests = {};
+	for (const name of [...CREDENTIAL_FILES, ...LIVE_SESSION_FILES]) {
+		const path = join(agentDir, name);
+		digests[name] = existsSync(path)
+			? createHash("sha256").update(readFileSync(path)).digest("hex")
+			: "absent";
+	}
+	return digests;
+}
+
+function changedFiles(before, after) {
+	return Object.keys(before).filter((name) => before[name] !== after[name]);
 }
 
 function findOnPath(bin) {
@@ -212,28 +260,44 @@ function findOnPath(bin) {
 function runSelfTest() {
 	const entries = [
 		{ type: "custom", message: { customType: DIRECTIVE_TYPE, content: `${PRIMARY} ${FALLBACK} task(category: "architect")` } },
-		{ type: "custom", message: { customType: TIP_TYPE, content: `Fable 5 refused, ${FALLBACK} reasons on. give-me-tips`, display: true } },
 		{ type: "user", content: "hello" },
 	];
 	if (collectDirectives(entries).length !== 1) throw new Error("self-test: directive entry not detected exactly once");
 	if (!directiveContent(collectDirectives(entries)[0]).includes(PRIMARY)) throw new Error("self-test: directive content not read");
 	if (collectDirectives([{ type: "user", content: "hello" }]).length !== 0) throw new Error("self-test: false positive");
-	if (collectTips(entries).length !== 1) throw new Error("self-test: tip entry not detected exactly once");
-	const tip = customMessageDetails(collectTips(entries)[0], TIP_TYPE);
-	if (!tip.content.includes(FALLBACK) || !tip.content.includes("give-me-tips")) throw new Error("self-test: tip content not read");
-	if (tip.display !== true) throw new Error("self-test: tip display flag not read");
-	if (collectTips([{ type: "user", content: "hello" }]).length !== 0) throw new Error("self-test: tip false positive");
-	const duplicated = [...entries, entries[0], entries[1]];
+	const duplicated = [...entries, entries[0]];
 	if (collectDirectives(duplicated).length !== 2) throw new Error("self-test: duplicate directives must be counted, not collapsed");
-	if (collectTips(duplicated).length !== 2) throw new Error("self-test: duplicate tips must be counted, not collapsed");
 	if (SCENARIOS.filter((s) => s.expectDirective).length !== 2) throw new Error("self-test: expected two positive scenarios");
+	const noticeEntry = {
+		type: "custom_message",
+		customType: NOTICE_TYPE,
+		content: 'task(category: "architect")',
+		display: true,
+		details: { from: PRIMARY, to: FALLBACK },
+	};
+	if (collectNotices([noticeEntry, { type: "user" }]).length !== 1) throw new Error("self-test: notice entry not detected");
+	if (findCustomPayload(noticeEntry, NOTICE_TYPE)?.display !== true) throw new Error("self-test: notice payload not read");
+	const leakingUser = { type: "message", message: { role: "user", content: [{ type: "text", text: `hi\n${REMINDER_TAG}` }] } };
+	if (userMessagesLeakingReminder([leakingUser]).length !== 1) throw new Error("self-test: reminder leak not detected");
+	if (userMessagesLeakingReminder([{ type: "message", message: { role: "user", content: "clean" } }]).length !== 0) {
+		throw new Error("self-test: reminder leak false positive");
+	}
+	const beforeDigests = { "auth.json": "a", "trust.json": "b", "settings.json": "c", "models.json": "d" };
+	const liveChurn = changedFiles(beforeDigests, { ...beforeDigests, "settings.json": "x" });
+	if (liveChurn.length !== 1 || liveChurn.every((name) => CREDENTIAL_FILES.includes(name))) {
+		throw new Error("self-test: live-session churn must be detected as non-credential");
+	}
+	const credentialChange = changedFiles(beforeDigests, { ...beforeDigests, "auth.json": "x" });
+	if (!credentialChange.some((name) => CREDENTIAL_FILES.includes(name))) {
+		throw new Error("self-test: credential change must trip the isolation gate");
+	}
 	console.log(JSON.stringify({ selfTest: "PASS", scenarios: SCENARIOS.map((s) => s.name) }, null, 2));
 }
 
 function main() {
 	if (process.argv.includes("--self-test")) return runSelfTest();
 
-	const beforeDigest = credentialDigest(realSenpiAgentDir);
+	const beforeDigests = fileDigests(realSenpiAgentDir);
 	const senpiBin = process.env.SENPI_BIN?.trim() || "senpi";
 	const resolved = findOnPath(senpiBin);
 	if (resolved === null) {
@@ -242,11 +306,12 @@ function main() {
 	}
 
 	const scenarios = SCENARIOS.map((scenario) => runScenario(resolved, scenario));
-	const afterDigest = credentialDigest(realSenpiAgentDir);
-	const isolated = beforeDigest === afterDigest;
+	const changed = changedFiles(beforeDigests, fileDigests(realSenpiAgentDir));
+	const isolated = changed.every((name) => !CREDENTIAL_FILES.includes(name));
+	const liveSessionActivity = changed.filter((name) => LIVE_SESSION_FILES.includes(name));
 	const result = scenarios.every((s) => s.result === "PASS") && isolated ? "PASS" : "FAIL";
 
-	console.log(JSON.stringify({ result, isolatedRealAgentDir: isolated, scenarios }, null, 2));
+	console.log(JSON.stringify({ result, isolatedRealAgentDir: isolated, liveSessionActivity, scenarios }, null, 2));
 	if (result !== "PASS") process.exitCode = 1;
 }
 
