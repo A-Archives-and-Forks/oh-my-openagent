@@ -162,6 +162,52 @@ describe("team e2e process cleanup", () => {
     expect(invocation).toEqual({ command: executable, prefixArgs: [] })
   })
 
+  it("#given invalid root pids #when process-tree termination is requested #then every platform fails closed without side effects", () => {
+    // given
+    const invalidPids = [0, -1, Number.NaN, Number.POSITIVE_INFINITY, 1.5, Number.MAX_SAFE_INTEGER + 1]
+    const probes: number[] = []
+    const windowsCalls: number[] = []
+    const posixCalls: number[] = []
+
+    // when / then
+    for (const pid of invalidPids) {
+      expect(runtime.terminateProcessTree(pid, {
+        platform: "win32",
+        isProcessAlive: (candidate: number) => {
+          probes.push(candidate)
+          return true
+        },
+        spawnSync: () => {
+          windowsCalls.push(pid)
+          return { status: 0, stdout: "SUCCESS", stderr: "" }
+        },
+      })).toEqual({
+        kind: "failed",
+        pid,
+        platform: "win32",
+        status: null,
+        error: "pid must be a positive safe integer",
+      })
+      expect(runtime.terminateProcessTree(pid, {
+        platform: "linux",
+        isProcessAlive: (candidate: number) => {
+          probes.push(candidate)
+          return true
+        },
+        processKill: () => { posixCalls.push(pid) },
+      })).toEqual({
+        kind: "failed",
+        pid,
+        platform: "linux",
+        status: null,
+        error: "pid must be a positive safe integer",
+      })
+    }
+    expect(probes).toEqual([])
+    expect(windowsCalls).toEqual([])
+    expect(posixCalls).toEqual([])
+  })
+
   it("#given a live Windows QA root pid #when its process tree is terminated #then taskkill targets only that pid tree and returns structured evidence", () => {
     // given
     const calls: Array<{ command: string; args: readonly string[] }> = []

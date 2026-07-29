@@ -117,6 +117,15 @@ export function killProcess(pid) {
  */
 export function terminateProcessTree(pid, operations = {}) {
   const platform = operations.platform ?? process.platform
+  if (!Number.isSafeInteger(pid) || pid <= 0) {
+    return {
+      kind: "failed",
+      pid,
+      platform,
+      status: null,
+      error: "pid must be a positive safe integer",
+    }
+  }
   const isProcessAlive = operations.isProcessAlive ?? defaultIsProcessAlive
   if (!isProcessAlive(pid)) return { kind: "already-exited", pid, platform }
 

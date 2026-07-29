@@ -8,7 +8,8 @@ The patch:
 
 - resolves npm-installed `senpi` shims through `process.execPath` and the package CLI instead of asking Windows to execute `.cmd` wrappers directly;
 - preserves direct spawning for native executables;
-- terminates the exact captured process tree on Windows with `taskkill.exe /PID <pid> /T /F`;
+- rejects non-positive, non-integer, non-finite, and unsafe root PIDs before any process probe or termination side effect;
+- terminates the exact validated process tree on Windows with `taskkill.exe /PID <pid> /T /F`;
 - persists `notification.liveness_notified_epoch` in task records;
 - acknowledges restart-liveness only after the matching structured `message_start`/`message_end` `deliveryKey` is observed;
 - replays an unacknowledged liveness event after a lead restart;
@@ -18,7 +19,7 @@ Base: `origin/dev` at `106bf0da14077e42e5e95cdd0ca0c27a86730bda`.
 
 ## Focused validation
 
-- Seven focused test files: **82 passed / 0 failed**, 211 assertions.
+- Seven focused test files: **83 passed / 0 failed**, 226 assertions.
 - `packages/omo-senpi` typecheck: **PASS**.
 - `packages/senpi-task` typecheck: **PASS**.
 - Team QA self-test: **PASS**.
