@@ -114,14 +114,16 @@ function readOptionalResolvedModelArray(
 
 function readResolvedModel(value: Record<string, unknown>): ResolvedModelRecord {
   const variant = readOptionalString(value, "variant")
-  const reasoningEffort = readOptionalString(value, "reasoning_effort")
+  const legacyReasoningEffort = readOptionalString(value, "reasoning_effort")
+  const reasoning = readOptionalString(value, "reasoning")
   return {
     provider: readString(value, "provider"),
     model_id: readString(value, "model_id"),
     display: readString(value, "display"),
     source: readResolvedModelSource(value),
     ...(variant === undefined ? {} : { variant }),
-    ...(reasoningEffort === undefined ? {} : { reasoning_effort: reasoningEffort }),
+    ...(legacyReasoningEffort === undefined ? {} : { reasoning_effort: legacyReasoningEffort }),
+    ...(reasoning === undefined ? {} : { reasoning }),
   }
 }
 

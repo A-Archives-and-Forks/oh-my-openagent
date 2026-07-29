@@ -14,6 +14,11 @@ import { getAvailableModelsForDelegateTask } from "./available-models"
 import { resolveModelForDelegateTask } from "./model-selection"
 import type { DelegatedModelConfig } from "./types"
 import { applyCategoryParams } from "./delegated-model-config"
+import { applyFallbackEntrySettings } from "./fallback-entry-settings"
+
+function getConfiguredModel(entry: string | { model: string } | undefined): string | undefined {
+  return typeof entry === "string" ? entry : entry?.model
+}
 
 function resolveCategoryPromptAppendForModel(
   categoryName: string,
@@ -102,7 +107,13 @@ Available categories: ${allCategoryNames}`)
   }
 
   const requirement = CATEGORY_MODEL_REQUIREMENTS[args.category!]
-  const normalizedConfiguredFallbackModels = normalizeFallbackModels(resolved.config.fallback_models)
+  const hasCanonicalModels = resolved.config.models !== undefined
+  const canonicalPrimaryEntry = resolved.config.models?.[0]
+  const configuredPrimaryModel = getConfiguredModel(canonicalPrimaryEntry)
+  const categoryResolvedModel = hasCanonicalModels ? configuredPrimaryModel : resolved.model
+  const normalizedConfiguredFallbackModels = normalizeFallbackModels(
+    hasCanonicalModels ? resolved.config.models?.slice(1) : resolved.config.fallback_models,
+  )
   let actualModel: string | undefined
   let modelInfo: ModelFallbackInfo | undefined
   let categoryModel: DelegatedModelConfig | undefined
@@ -111,13 +122,15 @@ Available categories: ${allCategoryNames}`)
   let matchedFallback = false
 
   const overrideModel = sisyphusJuniorModel
-  const explicitCategoryModel = userCategories?.[args.category!]?.model
+  const explicitCategoryModel = hasCanonicalModels
+    ? configuredPrimaryModel
+    : userCategories?.[args.category!]?.model
 
   if (!requirement) {
     // Precedence: explicit category model > sisyphus-junior default > category resolved model
     // This keeps `sisyphus-junior.model` useful as a global default while allowing
     // per-category overrides via `categories[category].model`.
-    actualModel = explicitCategoryModel ?? overrideModel ?? resolved.model
+    actualModel = explicitCategoryModel ?? overrideModel ?? categoryResolvedModel
     if (actualModel) {
       modelInfo = explicitCategoryModel || overrideModel
         ? { model: actualModel, type: "user-defined", source: "override" }
@@ -132,8 +145,10 @@ Available categories: ${allCategoryNames}`)
     const resolution = resolveModelForDelegateTask({
       userModel: explicitCategoryModel ?? overrideModel,
       userFallbackModels: flattenToFallbackModelStrings(normalizedConfiguredFallbackModels),
-      categoryDefaultModel: resolved.model,
-      isUserConfiguredCategoryModel: resolved.isUserConfiguredModel,
+      categoryDefaultModel: categoryResolvedModel,
+      isUserConfiguredCategoryModel: hasCanonicalModels
+        ? configuredPrimaryModel !== undefined
+        : resolved.isUserConfiguredModel,
       fallbackChain: requirement.fallbackChain,
       availableModels,
       systemDefaultModel,
@@ -224,27 +239,33 @@ Available categories: ${categoryNames.join(", ")}`)
     normalizedConfiguredFallbackModels,
     defaultProviderID,
   )
+  const canonicalModelChain = hasCanonicalModels
+    ? buildFallbackChainFromModels(resolved.config.models, defaultProviderID)
+    : undefined
 
-  // Only promote fallback-only settings when resolution actually selected a fallback model.
-  const effectiveEntry = matchedFallback && categoryModel
-    ? (
-        fallbackEntry
-        ?? (configuredFallbackChain
-          ? findMostSpecificFallbackEntry(categoryModel.providerID, categoryModel.modelID, configuredFallbackChain)
+  // Canonical model entries carry settings for both the primary and fallback rungs.
+  // Legacy fallback-only settings are promoted only when resolution selected a fallback.
+  const effectiveEntry = categoryModel
+    ? hasCanonicalModels
+      ? (canonicalModelChain
+          ? findMostSpecificFallbackEntry(categoryModel.providerID, categoryModel.modelID, canonicalModelChain)
           : undefined)
-      )
+      : matchedFallback
+        ? (
+            fallbackEntry
+            ?? (configuredFallbackChain
+              ? findMostSpecificFallbackEntry(categoryModel.providerID, categoryModel.modelID, configuredFallbackChain)
+              : undefined)
+          )
+        : undefined
     : undefined
 
   if (categoryModel && effectiveEntry) {
-    categoryModel = {
-      ...categoryModel,
-      variant: userCategories?.[args.category!]?.variant ?? effectiveEntry.variant ?? categoryModel.variant,
-      reasoningEffort: effectiveEntry.reasoningEffort ?? categoryModel.reasoningEffort,
-      temperature: effectiveEntry.temperature ?? categoryModel.temperature,
-      top_p: effectiveEntry.top_p ?? categoryModel.top_p,
-      maxTokens: effectiveEntry.maxTokens ?? categoryModel.maxTokens,
-      thinking: effectiveEntry.thinking ?? categoryModel.thinking,
-    }
+    categoryModel = applyFallbackEntrySettings({
+      categoryModel,
+      effectiveEntry,
+      variantOverride: userCategories?.[args.category!]?.variant,
+    })
   }
 
   return {

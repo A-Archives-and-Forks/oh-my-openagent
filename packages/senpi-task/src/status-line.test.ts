@@ -55,6 +55,70 @@ describe("formatStatusTarget", () => {
     expect(formatStatusTarget({ agentType: "momus" })).toBe("momus")
   })
 
+
+  test("#given resolved model metadata with effort and variant #when formatted #then reasoning effort wins in the status target", () => {
+    // given / when / then
+    expect(
+      formatStatusTarget({
+        category: "ultrabrain",
+        resolvedModel: {
+          provider: "openai",
+          model_id: "gpt-5.6-sol",
+          display: "GPT-5.6 Sol",
+          reasoning_effort: "xhigh",
+          variant: "sol",
+          source: "category",
+        },
+      }),
+    ).toBe("category:ultrabrain(openai/gpt-5.6-sol:xhigh)")
+  })
+
+  test("#given resolved model metadata with variant only #when formatted #then the variant is rendered", () => {
+    // given / when / then
+    expect(
+      formatStatusTarget({
+        category: "ultrabrain",
+        resolvedModel: {
+          provider: "openai",
+          model_id: "gpt-5.6-sol",
+          display: "GPT-5.6 Sol",
+          variant: "sol",
+          source: "category",
+        },
+      }),
+    ).toBe("category:ultrabrain(openai/gpt-5.6-sol:sol)")
+  })
+
+  test("#given resolved model metadata with reasoning effort only #when formatted #then the reasoning effort is rendered", () => {
+    // given / when / then
+    expect(
+      formatStatusTarget({
+        category: "ultrabrain",
+        resolvedModel: {
+          provider: "openai",
+          model_id: "gpt-5.6-sol",
+          display: "GPT-5.6 Sol",
+          reasoning_effort: "xhigh",
+          source: "category",
+        },
+      }),
+    ).toBe("category:ultrabrain(openai/gpt-5.6-sol:xhigh)")
+  })
+
+  test("#given resolved model metadata without effort or variant #when formatted #then the model name is rendered without a suffix", () => {
+    // given / when / then
+    expect(
+      formatStatusTarget({
+        category: "ultrabrain",
+        resolvedModel: {
+          provider: "openai",
+          model_id: "gpt-5.6-sol",
+          display: "GPT-5.6 Sol",
+          source: "category",
+        },
+      }),
+    ).toBe("category:ultrabrain(openai/gpt-5.6-sol)")
+  })
   test("#given model metadata with terminal controls #when formatted #then every part is normalized", () => {
     // given / when / then
     expect(

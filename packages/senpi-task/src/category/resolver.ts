@@ -124,13 +124,27 @@ function flattenFallbackModels(fallbackModels: OmoFallbackModels | undefined): r
 }
 
 function categoryModelCandidates(config: OmoCategoryConfig): readonly ModelChainCandidate[] {
+  // Canonical models[] wins over the legacy model + fallback_models branch: entry zero is the
+  // primary model and the rest become the ordered runtime fallback chain.
+  if (config.models !== undefined && config.models.length > 0) {
+    return config.models.map((entry): ModelChainCandidate => {
+      if (typeof entry === "string") return { model: entry }
+      return {
+        model: entry.model,
+        ...(entry.variant !== undefined ? { variant: entry.variant } : {}),
+        ...(entry.reasoning !== undefined ? { reasoningEffort: entry.reasoning } : {}),
+      }
+    })
+  }
+
+  const categoryReasoning = config.reasoning ?? config.reasoningEffort
   const primary = config.model === undefined
     ? []
     : [{
         model: config.model,
         ...(config.variant !== undefined ? { variant: config.variant } : {}),
-        ...(config.reasoningEffort !== undefined
-          ? { reasoningEffort: config.reasoningEffort }
+        ...(categoryReasoning !== undefined
+          ? { reasoningEffort: categoryReasoning }
           : {}),
       }]
   const fallbackModels = config.fallback_models
@@ -152,8 +166,8 @@ function categoryModelCandidates(config: OmoCategoryConfig): readonly ModelChain
       ...(entry.variant ?? config.variant) !== undefined
         ? { variant: entry.variant ?? config.variant }
         : {},
-      ...(entry.reasoningEffort ?? config.reasoningEffort) !== undefined
-        ? { reasoningEffort: entry.reasoningEffort ?? config.reasoningEffort }
+      ...(entry.reasoning ?? config.reasoning ?? entry.reasoningEffort ?? config.reasoningEffort) !== undefined
+        ? { reasoningEffort: entry.reasoning ?? config.reasoning ?? entry.reasoningEffort ?? config.reasoningEffort }
         : {},
     }
   })
@@ -323,7 +337,8 @@ export function resolveCategory<TModel extends SenpiModelPort>(
   // so fail before resolution with the rungs that were attempted. An explicit user model or user
   // fallback list opts the category out (its failure stays a plain user-model miss without chain
   // details), and a caller-supplied system default remains the resolver's last resort.
-  if (deadChain !== undefined && userConfig?.model === undefined && userConfig?.fallback_models === undefined && options.systemDefaultModel === undefined) {
+  const userHasCanonicalModels = (userConfig?.models?.length ?? 0) > 0
+  if (deadChain !== undefined && !userHasCanonicalModels && userConfig?.model === undefined && userConfig?.fallback_models === undefined && options.systemDefaultModel === undefined) {
     return {
       kind: "model_unavailable",
       category: categoryName,
@@ -334,10 +349,22 @@ export function resolveCategory<TModel extends SenpiModelPort>(
     }
   }
 
+  // Canonical models[] wins over the legacy model + fallback_models branch only when present;
+  // builtin categories have no models key and must keep their chain-based resolution.
+  const canonicalChain = config.models !== undefined && config.models.length > 0
+    ? categoryModelCandidates(config)
+    : undefined
+  const canonicalReasoningByModel = new Map(
+    (canonicalChain ?? []).map((candidate) => [candidate.model, candidate.reasoningEffort]),
+  )
+  const userModel = canonicalChain !== undefined ? canonicalChain[0].model : userConfig?.model
+  const userFallbackModels = canonicalChain !== undefined
+    ? canonicalChain.slice(1).map((candidate) => candidate.model)
+    : flattenFallbackModels(config.fallback_models)
   const resolution = resolveModelForDelegateTask(
     {
-      userModel: userConfig?.model,
-      userFallbackModels: flattenFallbackModels(config.fallback_models),
+      userModel,
+      userFallbackModels,
       categoryDefaultModel: builtinConfig?.model,
       isUserConfiguredCategoryModel: false,
       fallbackChain,
@@ -386,6 +413,11 @@ export function resolveCategory<TModel extends SenpiModelPort>(
 
   const prompt_append = promptAppendForCategory(categoryName, selection.selectedModel, userConfig?.prompt_append)
   const variant = userConfig?.variant ?? selection.variant ?? config.variant
+  // Canonical reasoning outranks the legacy reasoningEffort, whether it sits on the category or
+  // on the selected canonical models entry; legacy reasoningEffort is the final fallback.
+  const effectiveReasoningEffort = canonicalReasoningByModel.get(selection.selectedModel)
+      ?? config.reasoning
+      ?? config.reasoningEffort
   const availableModelSet = new Set(availableModels)
   // Builtin chain rungs remaining after the selected one extend the runtime retry chain, appended
   // after any user-configured fallback_models so user entries keep priority (dedupe keeps firsts).
@@ -414,7 +446,7 @@ export function resolveCategory<TModel extends SenpiModelPort>(
     ...(config.top_p !== undefined ? { top_p: config.top_p } : {}),
     ...(config.maxTokens !== undefined ? { maxTokens: config.maxTokens } : {}),
     ...(config.thinking !== undefined ? { thinking: config.thinking } : {}),
-    ...(config.reasoningEffort !== undefined ? { reasoningEffort: config.reasoningEffort } : {}),
+    ...(effectiveReasoningEffort !== undefined ? { reasoningEffort: effectiveReasoningEffort } : {}),
     ...(config.tools !== undefined ? { tools: config.tools } : {}),
     ...(prompt_append !== undefined ? { prompt_append } : {}),
   }

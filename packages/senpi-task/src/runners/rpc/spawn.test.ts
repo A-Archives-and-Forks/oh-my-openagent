@@ -117,6 +117,13 @@ describe("buildChildArgs", () => {
     expect(args).toEqual(["--no-extensions", "--model", "omo-mock/mock-1", "--thinking", "xhigh"])
   })
 
+  test("#given a spec with high reasoning effort #when building child args #then it maps to senpi high", () => {
+    // when
+    const args = buildChildArgs({ ...baseSpec, model: "omo-mock/mock-1", variant: "high" })
+    // then
+    expect(args).toEqual(["--no-extensions", "--model", "omo-mock/mock-1", "--thinking", "high"])
+  })
+
   test("#given the omo.json reasoningEffort none as variant #when building child args #then it maps to senpi off", () => {
     // when
     const args = buildChildArgs({ ...baseSpec, variant: "none" })

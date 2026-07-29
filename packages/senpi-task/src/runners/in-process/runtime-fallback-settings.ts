@@ -20,7 +20,7 @@ export function createRuntimeFallbackSettings(
 }
 
 function modelSelector(model: ResolvedModelRecord): string {
-  const thinking = model.reasoning_effort ?? model.variant
+  const thinking = model.reasoning ?? model.reasoning_effort ?? model.variant
   return thinking === undefined
     ? `${model.provider}/${model.model_id}`
     : `${model.provider}/${model.model_id}:${thinking}`

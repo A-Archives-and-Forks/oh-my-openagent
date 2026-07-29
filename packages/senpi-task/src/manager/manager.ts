@@ -7,6 +7,7 @@ import { RunnerError } from "../runners/in-process/runner-error"
 import { RpcProcessRunner } from "../runners/rpc-process"
 import type { RpcChildHandle, RpcRunnerSpec } from "../runners/types"
 import { createTaskRecord, parseTaskId, syncTaskIdFloor } from "../state"
+import { resolvedReasoningFields } from "../state/resolved-reasoning"
 import { TaskIdSpaceExhaustedError } from "../state/id"
 import type { TaskRecord, TaskRunStats } from "../state"
 import { createSteeringEngine } from "../steering"
@@ -781,9 +782,7 @@ class TaskManagerImpl implements TaskManager {
       model: nextModel.display,
       requestedModel: record.requested_model,
       fallbackModels: remainingModels,
-      ...(nextModel.reasoning_effort ?? nextModel.variant) !== undefined
-        ? { variant: nextModel.reasoning_effort ?? nextModel.variant }
-        : {},
+      ...resolvedReasoningFields(nextModel),
     }
     const launch = (): void => {
       void this.#launchRuntimeFallback({

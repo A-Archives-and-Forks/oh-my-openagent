@@ -133,7 +133,7 @@ export function buildChildArgs(spec: RpcRunnerSpec): readonly string[] {
   if (spec.model !== undefined && spec.model.length > 0) {
     args.push("--model", spec.model)
   }
-  const thinkingLevel = asSenpiThinkingLevel(spec.variant)
+  const thinkingLevel = asSenpiThinkingLevel(spec.reasoning ?? spec.variant)
   if (thinkingLevel !== undefined) {
     args.push("--thinking", thinkingLevel)
   }

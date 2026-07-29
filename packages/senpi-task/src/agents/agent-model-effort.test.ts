@@ -47,6 +47,25 @@ describe("agent model entries carrying effort", () => {
     expect(entry.reasoningEffort).toBe("minimal")
   })
 
+  test("#given an omo agent whose model entries carry canonical reasoning #when bridged #then the entry reasoning is preserved on the candidate", () => {
+    // given a canonicalized agent entry (the schema rewrites reasoningEffort to reasoning)
+    const config = {
+      agents: {
+        explore: {
+          models: [{ model: "provider/model", reasoning: "high" }],
+        },
+      },
+    }
+
+    // when
+    const agents = mapOmoConfigAgents(config)
+
+    // then canonical reasoning flows into the internal effort slot
+    const entry = agents.explore?.models?.[0]
+    if (typeof entry !== "object") throw new Error("Expected the bridged entry to stay an object")
+    expect(entry.reasoning).toBe("high")
+  })
+
   test("#given an omo agent with plain string models #when bridged #then the legacy strings are preserved verbatim", () => {
     // given
     const config = { agents: { explore: { models: ["openai/a", "openai/b"] } } }
@@ -56,6 +75,21 @@ describe("agent model entries carrying effort", () => {
 
     // then
     expect(agents.explore?.models).toEqual(["openai/a", "openai/b"])
+  })
+
+  test("#given a canonicalized agent entry #when resolved through resolveAgent #then its canonical reasoning reaches the resolved model record", () => {
+    // given a canonical entry (the schema rewrites reasoningEffort to reasoning)
+    const agents = roster({
+      name: "explore",
+      models: [{ model: "quotio-openai/gpt-5.4-mini-fast", reasoning: "high" }],
+    })
+    const models = registry([{ provider: "quotio-openai", id: "gpt-5.4-mini-fast" }])
+
+    // when resolved end to end through withDefaults
+    const result = expectResolved(resolveAgent("explore", agents, models))
+
+    // then the canonical level survives into the resolved record
+    expect(result.resolved_model?.reasoning_effort).toBe("high")
   })
 
   test("#given a resolved agent model entry carrying effort #when resolved #then the effort reaches the resolved model record", () => {
