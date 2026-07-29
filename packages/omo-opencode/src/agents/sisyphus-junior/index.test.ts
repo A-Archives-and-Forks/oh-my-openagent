@@ -156,6 +156,68 @@ describe("createSisyphusJuniorAgentWithOverrides", () => {
       expect(result.thinking).toBeUndefined()
     })
 
+    test("#given GPT model with variant override #when agent is created #then respects user variant", () => {
+      const override = {
+        model: "openai/gpt-5.6-sol",
+        variant: "xhigh",
+        reasoningEffort: "xhigh" as const,
+      }
+
+      const result = createSisyphusJuniorAgentWithOverrides(override)
+
+      expect(result.variant).toBe("xhigh")
+      expect(result.reasoningEffort).toBe("xhigh")
+    })
+
+    test("#given GPT model with reasoningEffort override only #when agent is created #then honors reasoningEffort without injecting variant", () => {
+      // given
+      const override = { model: "openai/gpt-5.6-sol", reasoningEffort: "high" as const }
+
+      // when
+      const result = createSisyphusJuniorAgentWithOverrides(override)
+
+      // then
+      expect(result.reasoningEffort).toBe("high")
+      expect(result.variant).toBeUndefined()
+    })
+
+    test("#given GPT model with variant override only #when agent is created #then keeps default reasoningEffort", () => {
+      // given
+      const override = { model: "openai/gpt-5.6-sol", variant: "xhigh" }
+
+      // when
+      const result = createSisyphusJuniorAgentWithOverrides(override)
+
+      // then
+      expect(result.variant).toBe("xhigh")
+      expect(result.reasoningEffort).toBe("medium")
+    })
+
+    test("#given GPT model with distinct variant and reasoningEffort #when agent is created #then applies each independently", () => {
+      // given
+      const override = { model: "openai/gpt-5.6-sol", variant: "xhigh", reasoningEffort: "low" as const }
+
+      // when
+      const result = createSisyphusJuniorAgentWithOverrides(override)
+
+      // then
+      expect(result.variant).toBe("xhigh")
+      expect(result.reasoningEffort).toBe("low")
+    })
+
+    test("#given Claude opus-4.7+ model with variant override #when agent is created #then honors variant and lets core derive effort", () => {
+      // given
+      const override = { model: "anthropic/claude-opus-4-7", variant: "max" }
+
+      // when
+      const result = createSisyphusJuniorAgentWithOverrides(override)
+
+      // then
+      expect(result.variant).toBe("max")
+      expect(result.thinking).toBeUndefined()
+      expect(result.reasoningEffort).toBeUndefined()
+    })
+
     test("#given Claude model #when agent is created #then injects thinking", () => {
       // given
       const override = { model: "anthropic/claude-sonnet-4-6" }
@@ -577,6 +639,17 @@ describe("getSisyphusJuniorPromptSource", () => {
   test("returns 'gpt-5-5' for GitHub Copilot GPT 5.5", () => {
     // given
     const model = "github-copilot/gpt-5.5"
+
+    // when
+    const source = getSisyphusJuniorPromptSource(model)
+
+    // then
+    expect(source).toBe("gpt-5-5")
+  })
+
+  test("returns 'gpt-5-5' for GPT 5.6 models", () => {
+    // given
+    const model = "openai/gpt-5.6-sol"
 
     // when
     const source = getSisyphusJuniorPromptSource(model)
