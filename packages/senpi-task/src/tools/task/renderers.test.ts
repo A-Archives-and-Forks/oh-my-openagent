@@ -364,7 +364,7 @@ describe("taskResultLines run stats", () => {
       mode: "spawn" as const,
       category: "deep",
       execution_mode: "in-process",
-      model: "apitopia/kimi-k3-unlocked",
+      model: "kimi-coding/kimi-k3-unlocked",
       run_in_background: false,
       run_stats: {
         runtime_ms: 134_000,

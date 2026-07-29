@@ -10,7 +10,7 @@ import { FALLBACK_ARCHITECT_TIP_TYPE } from "./tip-message"
 
 const FABLE = { provider: "anthropic", id: "claude-fable-5" }
 const OPUS = { provider: "anthropic", id: "claude-opus-5" }
-const KIMI = { provider: "apitopia", id: "kimi-k3-unlocked" }
+const KIMI = { provider: "kimi-coding", id: "kimi-k3-unlocked" }
 const DISABLED_FLAG = "omo-senpi-fallback-architect-disabled"
 
 function createTestContext(pi: FakeExtensionAPI): ComponentContext {

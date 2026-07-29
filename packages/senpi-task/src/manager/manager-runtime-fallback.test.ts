@@ -13,13 +13,13 @@ describe("TaskManager runtime fallback visibility", () => {
       planner: () => ({
         kind: "resolved",
         plan: {
-          model: "apitopia/kimi-for-coding-highspeed-unlocked",
+          model: "kimi-coding/kimi-for-coding-highspeed-unlocked",
           category: "quick",
           resolved_model: {
             source: "category",
-            provider: "apitopia",
+            provider: "kimi-coding",
             model_id: "kimi-for-coding-highspeed-unlocked",
-            display: "apitopia/kimi-for-coding-highspeed-unlocked",
+            display: "kimi-coding/kimi-for-coding-highspeed-unlocked",
             reasoning_effort: "minimal",
           },
         },
@@ -31,9 +31,9 @@ describe("TaskManager runtime fallback visibility", () => {
     if (fake === undefined) throw new Error("Fake child handle missing")
     const fallbackEvent = {
       type: "retry_fallback_applied",
-      from: "apitopia/kimi-for-coding-highspeed-unlocked",
+      from: "kimi-coding/kimi-for-coding-highspeed-unlocked",
       to: "quotio-openai/gpt-5.4-mini-fast:minimal",
-      chainKey: "apitopia/kimi-for-coding-highspeed-unlocked",
+      chainKey: "kimi-coding/kimi-for-coding-highspeed-unlocked",
       reason: "hard-error",
     }
 
