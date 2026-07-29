@@ -5,7 +5,7 @@ import type { FallbackEntry } from "../../shared/model-requirements"
 import { mergeCategories } from "../../shared/merge-categories"
 import { SISYPHUS_JUNIOR_AGENT } from "./sisyphus-junior-agent"
 import { resolveCategoryConfig } from "./categories"
-import { CATEGORY_PROMPT_APPEND_RESOLVERS } from "./constants"
+import { BUILTIN_CATEGORY_REQUIRES_MODEL, CATEGORY_PROMPT_APPEND_RESOLVERS } from "./constants"
 import { parseModelString } from "../../shared/model-string-parser"
 import { CATEGORY_MODEL_REQUIREMENTS } from "../../shared/model-requirements"
 import { normalizeFallbackModels, flattenToFallbackModelStrings } from "../../shared/model-resolver"
@@ -85,13 +85,14 @@ export async function resolveCategoryExecution(
 
   if (!resolved) {
     const requirement = CATEGORY_MODEL_REQUIREMENTS[categoryName]
+    const requiredModel = requirement?.requiresModel ?? BUILTIN_CATEGORY_REQUIRES_MODEL[categoryName]
     const allCategoryNames = Object.keys(enabledCategories).join(", ")
 
-    if (categoryExists && requirement?.requiresModel) {
-      return categoryResolutionError(`Category "${categoryName}" requires model "${requirement.requiresModel}" which is not available.
+    if (categoryExists && requiredModel) {
+      return categoryResolutionError(`Category "${categoryName}" requires model "${requiredModel}" which is not available.
 
 To use this category:
-1. Connect a provider with this model: ${requirement.requiresModel}
+1. Connect a provider with this model: ${requiredModel}
 2. Or configure an alternative model in your .omo/omo.jsonc for this category
 
 Available categories: ${allCategoryNames}`)

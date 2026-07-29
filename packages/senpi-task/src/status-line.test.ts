@@ -92,13 +92,13 @@ describe("composeStatusLine", () => {
     // given / when
     const line = composeStatusLine({
       identity: "Audit renderers",
-      target: "quick (apitopia/kimi-k3:max)",
+      target: "quick (kimi-coding/kimi-k3:max)",
       stats: { runtime_ms: 1_000, turns: 3, tool_calls: 7, tokens_per_second: 62 },
       verb: "running read src/foo.ts",
     })
 
     // then
-    expect(line).toBe("Audit renderers · quick (apitopia/kimi-k3:max) · turn 3 (7 tools) · running read src/foo.ts · 62 tok/s")
+    expect(line).toBe("Audit renderers · quick (kimi-coding/kimi-k3:max) · turn 3 (7 tools) · running read src/foo.ts · 62 tok/s")
   })
 
   test("#given a single tool call #when composed #then the tool noun is singular", () => {

@@ -68,7 +68,7 @@ describe("createTaskChildPlanner", () => {
     const planner = createTaskChildPlanner(
       {},
       {},
-      () => registry([model("google", "gemini-3.1-pro")]),
+      () => registry([model("zai-coding-plan", "glm-5.2")]),
     )
 
     // when
@@ -83,10 +83,10 @@ describe("createTaskChildPlanner", () => {
     const resolved = expectResolved(result)
     expect(resolved.plan.resolved_model).toMatchObject({
       source: "category",
-      provider: "google",
-      model_id: "gemini-3.1-pro",
-      display: "google/gemini-3.1-pro",
-      variant: "high",
+      provider: "zai-coding-plan",
+      model_id: "glm-5.2",
+      display: "zai-coding-plan/glm-5.2",
+      variant: "max",
     })
   })
 
@@ -223,7 +223,7 @@ describe("createTaskChildPlanner", () => {
     const planner = createTaskChildPlanner(
       {},
       BUILTIN_AGENTS,
-      () => registry([model("google", "gemini-3.1-pro")]),
+      () => registry([model("zai-coding-plan", "glm-5.2")]),
     )
 
     // when
@@ -236,7 +236,7 @@ describe("createTaskChildPlanner", () => {
 
     // then
     const resolved = expectResolved(result)
-    expect(resolved.plan.resolved_model).toMatchObject({ source: "category", provider: "google" })
+    expect(resolved.plan.resolved_model).toMatchObject({ source: "category", provider: "zai-coding-plan" })
     expect(resolved.plan.category).toBe("visual-engineering")
   })
 
@@ -365,7 +365,7 @@ describe("createTaskChildPlanner plan variant", () => {
     const planner = createTaskChildPlanner(
       {},
       {},
-      () => registry([model("google", "gemini-3.1-pro")]),
+      () => registry([model("zai-coding-plan", "glm-5.2")]),
     )
 
     // when
@@ -377,7 +377,7 @@ describe("createTaskChildPlanner plan variant", () => {
     })
 
     // then
-    expect(expectResolved(result).plan.variant).toBe("high")
+    expect(expectResolved(result).plan.variant).toBe("max")
   })
 
   test("#given an explicit provider model #when planned #then no variant is applied", () => {

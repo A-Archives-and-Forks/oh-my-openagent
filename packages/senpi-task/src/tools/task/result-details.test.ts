@@ -6,7 +6,7 @@ import { recordDetails } from "./result-details"
 test("#given a record with fallback attempts #when result details are built #then the renderer receives the recorded history", () => {
   // given
   const fallbackAttempts = [
-    { provider: "apitopia", model_id: "kimi-for-coding-highspeed", display: "kimi-for-coding-highspeed", source: "category" as const },
+    { provider: "kimi-coding", model_id: "kimi-for-coding-highspeed", display: "kimi-for-coding-highspeed", source: "category" as const },
     {
       provider: "quotio-openai",
       model_id: "gpt-5.4-mini-fast",
