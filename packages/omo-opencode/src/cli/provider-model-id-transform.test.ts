@@ -7,7 +7,7 @@ import {
 
 describe("transformModelForProvider", () => {
   describe("kimi-for-coding provider", () => {
-    test("preserves the canonical kimi-k3 model id", () => {
+    test("normalizes the canonical kimi-k3 model id for the provider runtime", () => {
       // given
       const provider = "kimi-for-coding"
       const model = "kimi-k3"
@@ -17,8 +17,8 @@ describe("transformModelForProvider", () => {
       const runtimeModel = transformRuntimeModelForProvider(provider, model)
 
       // then
-      expect(displayModel).toBe("kimi-k3")
-      expect(runtimeModel).toBe("kimi-k3")
+      expect(displayModel).toBe("k3")
+      expect(runtimeModel).toBe("k3")
     })
   })
 

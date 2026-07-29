@@ -21,6 +21,8 @@ export const CategoryConfigSchema = z.object({
   tools: z.record(z.string(), z.boolean()).optional(),
   prompt_append: z.string().optional(),
   max_prompt_tokens: z.number().int().positive().optional(),
+  /** Warn when this category has no available configured model. */
+  warn_unavailable: z.boolean().optional(),
   /** Mark agent as unstable - forces background mode for monitoring. Auto-enabled for gemini/minimax models. */
   is_unstable_agent: z.boolean().optional(),
   /** Disable this category. Disabled categories are excluded from task delegation. */
