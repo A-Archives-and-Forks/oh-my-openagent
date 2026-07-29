@@ -5,6 +5,7 @@ import {
 } from "@oh-my-opencode/utils/process-sweep"
 
 import type { ComponentContext, SenpiExtensionAPI } from "../../extension/types"
+import { resolveSenpiPackagedDaemonRuntime } from "../lsp/daemon-runtime"
 
 // Unconditional omo process hygiene for the senpi adapter (T16): fired on
 // extension session start, mirroring the task component's session-start
@@ -17,6 +18,21 @@ export const SENPI_RPC_CHILD_MARKER_ENV = "SENPI_CODING_AGENT_SESSION_DIR"
 
 export type OmoFamilySweep = () => Promise<unknown>
 
+export interface OmoFamilySweeps {
+  readonly sweepCodegraph: (options: { readonly log?: (message: string) => void }) => Promise<unknown>
+  readonly sweepLspProxies: (options: { readonly log?: (message: string) => void }) => Promise<unknown>
+  readonly sweepStaleLspDaemons: (options: {
+    readonly currentVersion: string
+    readonly log?: (message: string) => void
+  }) => Promise<unknown>
+}
+
+const DEFAULT_FAMILY_SWEEPS: OmoFamilySweeps = {
+  sweepCodegraph: sweepCodegraphZombies,
+  sweepLspProxies: sweepOrphanedLspDaemonProxies,
+  sweepStaleLspDaemons: sweepStaleLspDaemonVersions,
+}
+
 export interface SessionStartProcessSweepOptions {
   readonly env?: Record<string, string | undefined>
   readonly sweep?: OmoFamilySweep
@@ -28,7 +44,10 @@ export function wireSessionStartProcessSweep(
   options: SessionStartProcessSweepOptions = {},
 ): void {
   const env = options.env ?? process.env
-  const sweep = options.sweep ?? (() => sweepOmoFamiliesBestEffort(ctx))
+  const sweep = options.sweep ?? (() => {
+    const daemonVersion = resolveSenpiPackagedDaemonRuntime().version
+    return sweepOmoFamiliesBestEffort(ctx, daemonVersion)
+  })
 
   pi.on("session_start", () => {
     if (env[SENPI_RPC_CHILD_MARKER_ENV] !== undefined) {
@@ -57,14 +76,19 @@ function runSweepBestEffort(sweep: OmoFamilySweep, ctx: ComponentContext): void 
   }
 }
 
-async function sweepOmoFamiliesBestEffort(ctx: ComponentContext): Promise<void> {
+export async function sweepOmoFamiliesBestEffort(
+  ctx: ComponentContext,
+  currentLspDaemonVersion: string,
+  sweeps: OmoFamilySweeps = DEFAULT_FAMILY_SWEEPS,
+): Promise<void> {
   const log = (message: string): void => {
     ctx.logger.warn(message)
   }
   await Promise.all([
-    bestEffort("CodeGraph zombie sweep", log, () => sweepCodegraphZombies({ log })),
-    bestEffort("lsp-daemon proxy sweep", log, () => sweepOrphanedLspDaemonProxies({ log })),
-    bestEffort("lsp-daemon stale-version sweep", log, () => sweepStaleLspDaemonVersions({ log })),
+    bestEffort("CodeGraph zombie sweep", log, () => sweeps.sweepCodegraph({ log })),
+    bestEffort("lsp-daemon proxy sweep", log, () => sweeps.sweepLspProxies({ log })),
+    bestEffort("lsp-daemon stale-version sweep", log, () =>
+      sweeps.sweepStaleLspDaemons({ currentVersion: currentLspDaemonVersion, log })),
   ])
 }
 

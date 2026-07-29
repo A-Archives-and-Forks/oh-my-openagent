@@ -2,7 +2,11 @@ import { describe, expect, it } from "bun:test"
 
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import type { ComponentContext, ComponentLogger } from "../../extension/types"
-import { SENPI_RPC_CHILD_MARKER_ENV, wireSessionStartProcessSweep } from "./process-sweep"
+import {
+  SENPI_RPC_CHILD_MARKER_ENV,
+  sweepOmoFamiliesBestEffort,
+  wireSessionStartProcessSweep,
+} from "./process-sweep"
 
 interface RecordedLog {
   level: "info" | "warn" | "error"
@@ -34,6 +38,24 @@ async function flushMicrotasks(): Promise<void> {
 }
 
 describe("wireSessionStartProcessSweep()", () => {
+  it("#given the packaged daemon version #when sweeping families #then the stale-version sweep receives it", async () => {
+    // given
+    const logger = createLogger()
+    let currentVersion: string | undefined
+
+    // when
+    await sweepOmoFamiliesBestEffort(ctxFor(logger), "0.1.0", {
+      sweepCodegraph: async () => undefined,
+      sweepLspProxies: async () => undefined,
+      sweepStaleLspDaemons: async (options) => {
+        currentVersion = options.currentVersion
+      },
+    })
+
+    // then
+    expect(currentVersion).toBe("0.1.0")
+  })
+
   it("#given a wired sweep #when session_start fires #then the family sweep runs", async () => {
     // given
     const pi = new FakeExtensionAPI()
