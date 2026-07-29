@@ -1,4 +1,5 @@
 import { lowerReasoningForModel } from "./agent-variant"
+import type { LoweredReasoning } from "./agent-variant"
 import { clearSessionPromptParams, setSessionPromptParams } from "./session-prompt-params-state"
 
 type PromptParamModel = {
@@ -16,10 +17,10 @@ type PromptParamModel = {
 export function applySessionPromptParams(
   sessionID: string,
   model: PromptParamModel | undefined,
-): void {
+): LoweredReasoning {
   if (!model) {
     clearSessionPromptParams(sessionID)
-    return
+    return {}
   }
 
   const loweredReasoning = model.reasoning !== undefined
@@ -43,4 +44,6 @@ export function applySessionPromptParams(
     ...(model.maxTokens !== undefined ? { maxOutputTokens: model.maxTokens } : {}),
     ...(Object.keys(promptOptions).length > 0 ? { options: promptOptions } : {}),
   })
+
+  return loweredReasoning ?? {}
 }

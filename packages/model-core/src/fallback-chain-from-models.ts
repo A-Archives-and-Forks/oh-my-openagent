@@ -72,6 +72,7 @@ export function parseFallbackModelObjectEntry(
   return {
     ...base,
     variant: obj.variant ?? base.variant,
+    reasoning: obj.reasoning,
     reasoningEffort: obj.reasoningEffort,
     temperature: obj.temperature,
     top_p: obj.top_p,
