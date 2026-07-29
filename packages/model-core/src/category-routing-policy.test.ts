@@ -166,7 +166,7 @@ describe("category routing policy", () => {
       },
       {
         providers: ["google", "github-copilot", "opencode", "vercel"],
-        model: "gemini-3.1-pro",
+        model: "gemini-3.6-flash",
       },
     ])
   })
