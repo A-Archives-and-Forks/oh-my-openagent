@@ -39,9 +39,9 @@ describe("formatStatusTarget", () => {
     expect(
       formatStatusTarget({
         category: "quick",
-        resolvedModel: { provider: "apitopia", model_id: "kimi-k3", display: "kimi-k3", reasoning_effort: "max", source: "category" },
+        resolvedModel: { provider: "kimi-coding", model_id: "kimi-k3", display: "kimi-k3", reasoning_effort: "max", source: "category" },
       }),
-    ).toBe("quick (apitopia/kimi-k3:max)")
+    ).toBe("quick (kimi-coding/kimi-k3:max)")
   })
 
   test("#given only an agent type #when formatted #then the agent name is the target", () => {
@@ -84,13 +84,13 @@ describe("composeStatusLine", () => {
     // given / when
     const line = composeStatusLine({
       identity: "Audit renderers",
-      target: "quick (apitopia/kimi-k3:max)",
+      target: "quick (kimi-coding/kimi-k3:max)",
       stats: { runtime_ms: 1_000, turns: 3, tool_calls: 7, tokens_per_second: 62 },
       verb: "running read src/foo.ts",
     })
 
     // then
-    expect(line).toBe("Audit renderers · quick (apitopia/kimi-k3:max) · turn 3 (7 tools) · running read src/foo.ts · 62 tok/s")
+    expect(line).toBe("Audit renderers · quick (kimi-coding/kimi-k3:max) · turn 3 (7 tools) · running read src/foo.ts · 62 tok/s")
   })
 
   test("#given a single tool call #when composed #then the tool noun is singular", () => {

@@ -25,20 +25,20 @@ describe("createTaskChildPlanner runtime fallback", () => {
       {
         categories: {
           quick: {
-            model: "apitopia/kimi-for-coding-highspeed-unlocked",
+            model: "kimi-coding/kimi-for-coding-highspeed-unlocked",
             reasoningEffort: "minimal",
             fallback_models: [
               { model: "quotio-openai/gpt-5.4-mini-fast", reasoningEffort: "minimal" },
-              { model: "apitopia/z-ai/glm-5.2-ultrafast-unlocked", reasoningEffort: "none" },
+              { model: "example-gateway/z-ai/glm-5.2-ultrafast-unlocked", reasoningEffort: "none" },
             ],
           },
         },
       },
       {},
       () => registry([
-        model("apitopia", "kimi-for-coding-highspeed-unlocked"),
+        model("kimi-coding", "kimi-for-coding-highspeed-unlocked"),
         model("quotio-openai", "gpt-5.4-mini-fast"),
-        model("apitopia", "z-ai/glm-5.2-ultrafast-unlocked"),
+        model("example-gateway", "z-ai/glm-5.2-ultrafast-unlocked"),
       ]),
     )
 
@@ -55,7 +55,7 @@ describe("createTaskChildPlanner runtime fallback", () => {
     expect(result.plan).toMatchObject({
       requested_model: {
         source: "category",
-        provider: "apitopia",
+        provider: "kimi-coding",
         model_id: "kimi-for-coding-highspeed-unlocked",
       },
       fallback_models: [
@@ -67,7 +67,7 @@ describe("createTaskChildPlanner runtime fallback", () => {
         },
         {
           source: "category",
-          provider: "apitopia",
+          provider: "example-gateway",
           model_id: "z-ai/glm-5.2-ultrafast-unlocked",
           reasoning_effort: "none",
         },

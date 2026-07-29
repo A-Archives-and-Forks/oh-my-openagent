@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test"
 import { createChildProgress, readToolProgressDetails } from "./progress"
 
 const RESOLVED_MODEL = {
-  provider: "apitopia",
+  provider: "kimi-coding",
   model_id: "kimi-k3-unlocked",
   display: "Kimi K3 Unlocked",
   reasoning_effort: "max",
@@ -39,7 +39,7 @@ describe("child task progress", () => {
     const details = progress.details()
     expect(details).toEqual({
       progress: {
-        activity: "st_00000001 · quick (apitopia/kimi-k3-unlocked:max) · turn 1 (1 tool) · running · 50 tok/s",
+        activity: "st_00000001 · quick (kimi-coding/kimi-k3-unlocked:max) · turn 1 (1 tool) · running · 50 tok/s",
         startedAt: 1_000,
       },
       childId: "st_00000001",
@@ -63,7 +63,7 @@ describe("child task progress", () => {
     )
 
     // then the id survives only as the correlation handle inside details, not as the lead token
-    expect(progress.details().progress.activity).toBe("Audit the waiting line · quick (apitopia/kimi-k3-unlocked:max) · turn 0 · running")
+    expect(progress.details().progress.activity).toBe("Audit the waiting line · quick (kimi-coding/kimi-k3-unlocked:max) · turn 0 · running")
     expect(progress.details().childId).toBe("st_00000009")
   })
 

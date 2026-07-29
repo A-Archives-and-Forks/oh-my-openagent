@@ -110,7 +110,7 @@ describe("agent model entries carrying effort", () => {
     // given
     const agents = roster({
       name: "explore",
-      model: "apitopia/kimi-for-coding-highspeed",
+      model: "kimi-coding/kimi-for-coding-highspeed",
       reasoningEffort: "high",
       models: [{ model: "quotio-openai/gpt-5.4-mini-fast", reasoningEffort: "minimal" }],
     })

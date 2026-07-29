@@ -14,11 +14,11 @@ EVAL-FIRST: \`eval\` is your default execution surface. Before acting, ask "how 
 const CURRENT_USER_CONFIG = `{
   "categories": {
     "quick": {
-      "model": "apitopia/kimi-for-coding-highspeed-unlocked",
+      "model": "kimi-coding/kimi-for-coding-highspeed-unlocked",
       "reasoningEffort": "minimal",
       "fallback_models": [
         { "model": "quotio-openai/gpt-5.4-mini-fast", "reasoningEffort": "minimal" },
-        { "model": "apitopia/z-ai/glm-5.2-ultrafast-unlocked", "reasoningEffort": "none" }
+        { "model": "example-gateway/z-ai/glm-5.2-ultrafast-unlocked", "reasoningEffort": "none" }
       ],
       "prompt_append": ${JSON.stringify(QUICK_PROMPT_APPEND)}
     },
@@ -29,10 +29,10 @@ const CURRENT_USER_CONFIG = `{
   },
   "agents": {
     "explore": {
-      "model": "apitopia/kimi-for-coding-highspeed",
+      "model": "kimi-coding/kimi-for-coding-highspeed",
       "models": [
         { "model": "quotio-openai/gpt-5.4-mini-fast", "reasoningEffort": "minimal" },
-        "apitopia/z-ai/glm-5.2-ultrafast-unlocked",
+        "example-gateway/z-ai/glm-5.2-ultrafast-unlocked",
         { "model": "quotio-openai/gpt-5.4-mini", "reasoningEffort": "minimal" }
       ]
     },
@@ -46,10 +46,10 @@ const CURRENT_USER_CONFIG = `{
 const EXPECTED_CONFIG = {
   agents: {
     explore: {
-      model: "apitopia/kimi-for-coding-highspeed",
+      model: "kimi-coding/kimi-for-coding-highspeed",
       models: [
         { model: "quotio-openai/gpt-5.4-mini-fast", reasoningEffort: "minimal" },
-        "apitopia/z-ai/glm-5.2-ultrafast-unlocked",
+        "example-gateway/z-ai/glm-5.2-ultrafast-unlocked",
         { model: "quotio-openai/gpt-5.4-mini", reasoningEffort: "minimal" },
       ],
     },
@@ -62,9 +62,9 @@ const EXPECTED_CONFIG = {
     quick: {
       fallback_models: [
         { model: "quotio-openai/gpt-5.4-mini-fast", reasoningEffort: "minimal" },
-        { model: "apitopia/z-ai/glm-5.2-ultrafast-unlocked", reasoningEffort: "none" },
+        { model: "example-gateway/z-ai/glm-5.2-ultrafast-unlocked", reasoningEffort: "none" },
       ],
-      model: "apitopia/kimi-for-coding-highspeed-unlocked",
+      model: "kimi-coding/kimi-for-coding-highspeed-unlocked",
       prompt_append: QUICK_PROMPT_APPEND,
       reasoningEffort: "minimal",
     },

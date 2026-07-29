@@ -141,6 +141,7 @@ describe("buildTaskExecute spawn", () => {
             ttl_ms: 86400000,
             wait: { min_ms: 5000, default_ms: 60000, max_ms: 600000 },
             team: { max_members: 8, max_parallel_members: 4, max_wall_clock_minutes: 120 },
+            warnings: { unavailable_categories: true },
           },
         },
       }),
