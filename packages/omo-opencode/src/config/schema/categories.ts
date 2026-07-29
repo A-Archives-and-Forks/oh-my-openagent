@@ -25,6 +25,8 @@ export const CategoryConfigSchema = z.object({
   is_unstable_agent: z.boolean().optional(),
   /** Disable this category. Disabled categories are excluded from task delegation. */
   disable: z.boolean().optional(),
+  /** Suppress the warning shown when this category's model is unavailable. Mirrors omo-config-core. */
+  warn_unavailable: z.boolean().optional(),
 })
 
 export const BuiltinCategoryNameSchema = z.enum([
