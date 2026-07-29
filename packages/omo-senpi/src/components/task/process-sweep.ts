@@ -18,7 +18,7 @@ export const SENPI_RPC_CHILD_MARKER_ENV = "SENPI_CODING_AGENT_SESSION_DIR"
 
 export type OmoFamilySweep = () => Promise<unknown>
 
-export interface OmoFamilySweeps {
+interface OmoFamilySweeps {
   readonly sweepCodegraph: (options: { readonly log?: (message: string) => void }) => Promise<unknown>
   readonly sweepLspProxies: (options: { readonly log?: (message: string) => void }) => Promise<unknown>
   readonly sweepStaleLspDaemons: (options: {
@@ -36,6 +36,8 @@ const DEFAULT_FAMILY_SWEEPS: OmoFamilySweeps = {
 export interface SessionStartProcessSweepOptions {
   readonly env?: Record<string, string | undefined>
   readonly sweep?: OmoFamilySweep
+  readonly resolveDaemonVersion?: () => string
+  readonly familySweeps?: OmoFamilySweeps
 }
 
 export function wireSessionStartProcessSweep(
@@ -44,9 +46,10 @@ export function wireSessionStartProcessSweep(
   options: SessionStartProcessSweepOptions = {},
 ): void {
   const env = options.env ?? process.env
+  const resolveDaemonVersion =
+    options.resolveDaemonVersion ?? (() => resolveSenpiPackagedDaemonRuntime().version)
   const sweep = options.sweep ?? (() => {
-    const daemonVersion = resolveSenpiPackagedDaemonRuntime().version
-    return sweepOmoFamiliesBestEffort(ctx, daemonVersion)
+    return sweepOmoFamiliesBestEffort(ctx, resolveDaemonVersion(), options.familySweeps)
   })
 
   pi.on("session_start", () => {
@@ -76,7 +79,7 @@ function runSweepBestEffort(sweep: OmoFamilySweep, ctx: ComponentContext): void 
   }
 }
 
-export async function sweepOmoFamiliesBestEffort(
+async function sweepOmoFamiliesBestEffort(
   ctx: ComponentContext,
   currentLspDaemonVersion: string,
   sweeps: OmoFamilySweeps = DEFAULT_FAMILY_SWEEPS,

@@ -2,11 +2,7 @@ import { describe, expect, it } from "bun:test"
 
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import type { ComponentContext, ComponentLogger } from "../../extension/types"
-import {
-  SENPI_RPC_CHILD_MARKER_ENV,
-  sweepOmoFamiliesBestEffort,
-  wireSessionStartProcessSweep,
-} from "./process-sweep"
+import { SENPI_RPC_CHILD_MARKER_ENV, wireSessionStartProcessSweep } from "./process-sweep"
 
 interface RecordedLog {
   level: "info" | "warn" | "error"
@@ -38,22 +34,37 @@ async function flushMicrotasks(): Promise<void> {
 }
 
 describe("wireSessionStartProcessSweep()", () => {
-  it("#given the packaged daemon version #when sweeping families #then the stale-version sweep receives it", async () => {
+  it("#given the packaged daemon runtime #when session_start fires #then the stale-version sweep receives its version", async () => {
     // given
+    const pi = new FakeExtensionAPI()
     const logger = createLogger()
-    let currentVersion: string | undefined
-
-    // when
-    await sweepOmoFamiliesBestEffort(ctxFor(logger), "0.1.0", {
-      sweepCodegraph: async () => undefined,
-      sweepLspProxies: async () => undefined,
-      sweepStaleLspDaemons: async (options) => {
-        currentVersion = options.currentVersion
+    let resolveStaleSweep!: (currentVersion: string) => void
+    const staleSweepCalled = new Promise<string>((resolve) => {
+      resolveStaleSweep = resolve
+    })
+    wireSessionStartProcessSweep(pi, ctxFor(logger), {
+      env: {},
+      resolveDaemonVersion: () => "9.8.7",
+      familySweeps: {
+        sweepCodegraph: async () => undefined,
+        sweepLspProxies: async () => undefined,
+        sweepStaleLspDaemons: async (options) => {
+          resolveStaleSweep(options.currentVersion)
+        },
       },
     })
 
+    // when
+    await pi.dispatch("session_start", {})
+
     // then
-    expect(currentVersion).toBe("0.1.0")
+    const currentVersion = await Promise.race([
+      staleSweepCalled,
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("stale-version sweep was not called")), 1_000)
+      }),
+    ])
+    expect(currentVersion).toBe("9.8.7")
   })
 
   it("#given a wired sweep #when session_start fires #then the family sweep runs", async () => {

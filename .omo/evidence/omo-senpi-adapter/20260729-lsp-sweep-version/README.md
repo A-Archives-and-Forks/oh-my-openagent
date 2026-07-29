@@ -10,28 +10,28 @@ daemon version into `sweepStaleLspDaemonVersions`.
 Command:
 
 ```sh
-bun --cwd /home/minpeter/.local/share/oh-my-openagent-senpi-pr test \
-  packages/omo-senpi/src/components/task/process-sweep.test.ts
+bun test \
+  /home/minpeter/.local/share/oh-my-openagent-senpi-pr/packages/omo-senpi/src/components/task/process-sweep.test.ts
 ```
 
 Observed before the implementation:
 
 ```text
-SyntaxError: Export named 'sweepOmoFamiliesBestEffort' not found
-0 pass
+error: stale-version sweep was not called
+5 pass
 1 fail
 ```
 
-This proves the new regression test could not pass against the pre-fix
-implementation.
+This proves the session-start path did not honor the injected packaged-version
+resolver and family sweep dependencies before the wiring seam was implemented.
 
 ### Targeted regression test
 
 Command:
 
 ```sh
-bun --cwd /home/minpeter/.local/share/oh-my-openagent-senpi-pr test \
-  packages/omo-senpi/src/components/task/process-sweep.test.ts
+bun test \
+  /home/minpeter/.local/share/oh-my-openagent-senpi-pr/packages/omo-senpi/src/components/task/process-sweep.test.ts
 ```
 
 Observed after the implementation:
@@ -42,8 +42,11 @@ Observed after the implementation:
 7 expect() calls
 ```
 
-The added assertion observed `currentVersion === "0.1.0"` at the stale-version
-sweep dependency.
+The added assertion dispatched the real `session_start` handler, resolved the
+distinct `"9.8.7"` sentinel through the packaged-version seam, and observed
+that value at the stale-version sweep dependency. The sentinel intentionally
+differs from the packaged `0.1.0` version so the test fails if the injected
+resolver is bypassed.
 
 ### Senpi package typecheck
 
