@@ -1,4 +1,5 @@
 import type { CategoryConfig } from "../config/schema";
+import type { FallbackModels } from "../config/schema/fallback-models";
 import { PROMETHEUS_PERMISSION, getPrometheusPrompt } from "../agents/prometheus";
 import { resolvePromptAppend } from "../agents/builtin-agents/resolve-file-uri";
 import { AGENT_MODEL_REQUIREMENTS } from "../shared/model-requirements";
@@ -20,6 +21,7 @@ type PrometheusOverride = Record<string, unknown> & {
   temperature?: number;
   top_p?: number;
   maxTokens?: number;
+  fallback_models?: FallbackModels;
   prompt?: string;
   prompt_append?: string;
 };
@@ -82,8 +84,14 @@ export async function buildPrometheusAgentConfig(params: {
 
   const resolvedModel = modelResolution?.model;
   const resolvedVariant = modelResolution?.variant;
+  const currentModelVariant = shouldUseCurrentModel
+    ? requirement?.fallbackChain.find((entry) =>
+        isModelInFallbackChain(params.currentModel, [entry]),
+      )?.variant
+    : undefined;
 
-  const variantToUse = params.pluginPrometheusOverride?.variant ?? resolvedVariant;
+  const variantToUse =
+    params.pluginPrometheusOverride?.variant ?? resolvedVariant ?? currentModelVariant;
   const reasoningEffortToUse =
     params.pluginPrometheusOverride?.reasoningEffort ?? categoryConfig?.reasoningEffort;
   const textVerbosityToUse =
@@ -94,6 +102,8 @@ export async function buildPrometheusAgentConfig(params: {
   const topPToUse = params.pluginPrometheusOverride?.top_p ?? categoryConfig?.top_p;
   const maxTokensToUse =
     params.pluginPrometheusOverride?.maxTokens ?? categoryConfig?.maxTokens;
+  const fallbackModelsToUse =
+    params.pluginPrometheusOverride?.fallback_models ?? categoryConfig?.fallback_models;
 
   const base: Record<string, unknown> = {
     ...(resolvedModel ? { model: resolvedModel } : {}),
@@ -106,6 +116,7 @@ export async function buildPrometheusAgentConfig(params: {
     ...(temperatureToUse !== undefined ? { temperature: temperatureToUse } : {}),
     ...(topPToUse !== undefined ? { top_p: topPToUse } : {}),
     ...(maxTokensToUse !== undefined ? { maxTokens: maxTokensToUse } : {}),
+    ...(fallbackModelsToUse !== undefined ? { fallback_models: fallbackModelsToUse } : {}),
     ...(categoryConfig?.tools ? { tools: categoryConfig.tools } : {}),
     ...(thinkingToUse ? { thinking: thinkingToUse } : {}),
     ...(reasoningEffortToUse !== undefined

@@ -2,7 +2,7 @@ import type { OmoConfig } from "@oh-my-opencode/omo-config-core"
 
 import type { AgentDefinition } from "../../agents"
 import type { TaskManager } from "../../manager"
-import type { ResolvedModelRecord } from "../../state"
+import type { ResolvedModelRecord, TaskRunStats } from "../../state"
 import type { TaskToolParamsStatic } from "./params"
 
 // The narrow slice of senpi's ExtensionContext the task tool reads. ExtensionContext satisfies it
@@ -11,6 +11,7 @@ import type { TaskToolParamsStatic } from "./params"
 export type TaskToolContext = {
   readonly cwd: string
   readonly sessionManager: { getSessionId(): string }
+  readonly getPromptCacheSafeWaitSeconds?: () => number | undefined
 }
 
 // Parent-session ancestry the tool folds into the child spawn: the child's depth is the parent's
@@ -31,6 +32,7 @@ export type SkillResolution = {
 }
 
 export type SkillLoader = (names: readonly string[], cwd: string) => SkillResolution
+
 
 export type TaskCategoryInfo = {
   readonly name: string
@@ -67,9 +69,14 @@ export type ResolvedSpawnItem =
 export type TaskToolItemDetail = {
   readonly task_id: string
   readonly name?: string
+  readonly category?: string
+  readonly subagent_type?: string
+  readonly model?: string
+  readonly resolved_model?: ResolvedModelRecord
   readonly status: string
   readonly error_message?: string
   readonly queue_position?: number
+  readonly run_in_background?: boolean
 }
 
 export type TaskToolDetails = {
@@ -86,6 +93,7 @@ export type TaskToolDetails = {
   readonly queue_position?: number
   readonly items?: readonly TaskToolItemDetail[]
   readonly reason?: string
+  readonly run_stats?: TaskRunStats
 }
 
 export type { TaskToolParamsStatic }

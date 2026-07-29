@@ -1,8 +1,8 @@
 import type { ComponentContext, SenpiExtensionAPI } from "../../extension/types"
-import { DUAL_CONFIG_WARNING } from "./coexistence"
 import type { TaskEngine } from "./engine"
 import type { LeadPollerLifecycle } from "./lead-poller-lifecycle"
 import type { LiveTaskContext } from "./runtime-context"
+import { wireReloadGuard } from "./reload-guard"
 import type { SessionTransitionBridge } from "./session-transition-bridge"
 import type { TaskStatusUi } from "./status-ui"
 import { createOncePerSessionGuard, TASK_USAGE_GUIDANCE } from "./usage-guidance"
@@ -10,7 +10,6 @@ import { createOncePerSessionGuard, TASK_USAGE_GUIDANCE } from "./usage-guidance
 export const TASK_USAGE_HINT_FLAG = "omo-task-usage-hint"
 
 type EventBridgeState = {
-  readonly warnDualConfig: boolean
   readonly reconcileTeamMailbox: () => Promise<void>
   readonly leadPollers: Pick<LeadPollerLifecycle, "tick" | "shutdown">
 }
@@ -25,23 +24,28 @@ export function wireEventBridge(
   transitions: SessionTransitionBridge,
   state: EventBridgeState,
 ): void {
-  let warnedDualConfig = false
   const guidanceGuard = createOncePerSessionGuard()
+  wireReloadGuard(pi, engine.manager)
 
   pi.on("session_start", async (_payload, eventCtx) => {
     engine.runtime.captureFrom(asLiveContext(eventCtx))
     transitions.onSessionStart(engine.runtime.sessionId())
-    await engine.lifecycle.reconcileOnSessionStart()
+    const reconciliation = await engine.lifecycle.reconcileOnSessionStart()
+    for (const outcome of reconciliation.outcomes) {
+      if ((outcome.kind !== "lost" && outcome.kind !== "lost_and_terminated") || outcome.reason === "already lost") continue
+      const record = engine.manager.get(outcome.task_id)
+      if (record !== undefined) engine.memberLiveness.notifyTerminal(record)
+    }
+    const cleanup = engine.lifecycle.cleanupExpiredRecords()
+    if (cleanup.deleted.length > 0) {
+      ctx.logger.info("senpi-task ttl cleanup", { deleted: cleanup.deleted.length, retained: cleanup.retained.length })
+    }
     await reconcileTeamMailboxBestEffort(ctx, state)
     const sessionId = engine.runtime.sessionId()
     if (sessionId !== undefined) {
       engine.notifier.reconcileFailedNotifications({ sessionId, parentState: engine.runtime.parentState() })
     }
     await tickLeadPollersBestEffort(ctx, state)
-    if (state.warnDualConfig && !warnedDualConfig) {
-      warnedDualConfig = true
-      notifyOrLog(engine, ctx, DUAL_CONFIG_WARNING)
-    }
     statusUi.scheduleSync()
   })
 
@@ -66,6 +70,7 @@ export function wireEventBridge(
     engine.runtime.captureFrom(asLiveContext(eventCtx))
     transitions.onShutdown(engine.runtime.sessionId())
     engine.runtime.clearUi()
+    statusUi.dispose()
     state.leadPollers.shutdown()
     await engine.lifecycle.teardownOnSessionShutdown()
   })
@@ -114,15 +119,6 @@ async function tickLeadPollersBestEffort(ctx: ComponentContext, state: EventBrid
       error: error instanceof Error ? error.message : String(error),
     })
   }
-}
-
-function notifyOrLog(engine: TaskEngine, ctx: ComponentContext, message: string): void {
-  const ui = engine.runtime.ui()
-  if (ui !== undefined) {
-    ui.notify(message, "warning")
-    return
-  }
-  ctx.logger.warn(message)
 }
 
 function asLiveContext(value: unknown): LiveTaskContext {

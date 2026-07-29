@@ -20,11 +20,11 @@ const TEAM_TOOL_NAMES = [
   "task_get",
   "task_list",
   "task_update",
-  "team_wait",
 ]
 const ALL_TOOL_NAMES = [...TASK_TOOL_NAMES, ...TEAM_TOOL_NAMES]
 const TASK_EVENTS = [
   "session_start",
+  "session_before_reload",
   "session_before_switch",
   "session_before_compact",
   "session_compact",
@@ -80,7 +80,7 @@ function fakeUi(): CapturedUi {
   }
 }
 
-const noopStatusUi = { scheduleSync: () => {}, syncNow: () => {} }
+const noopStatusUi = { scheduleSync: () => {}, syncNow: () => {}, dispose: () => {} }
 
 // Build the real engine and wire its event bridge over a fake ExtensionAPI so tests can drive the
 // registered handlers and observe the captured-ui bridge (todo 18: cleared on switch/shutdown).
@@ -98,7 +98,6 @@ function wiredBridge(): {
   const reconcileCalls = { count: 0 }
   const leadCalls = { ticks: 0, shutdowns: 0 }
   wireEventBridge(pi, ctxFor(pi, logger), engine, noopStatusUi, transitions, {
-    warnDualConfig: false,
     reconcileTeamMailbox: () => {
       reconcileCalls.count += 1
       return Promise.resolve()
@@ -133,13 +132,17 @@ describe("omo-senpi task component wiring", () => {
     expect(toolNames(pi)).toEqual([...ALL_TOOL_NAMES].sort())
     // the /tasks and /task-kill commands registered
     expect(pi.commands.map((entry) => entry.name).sort()).toEqual([...TASK_COMMANDS].sort())
-    // pull-delivered peer messages are plain user turns; only completion keeps a custom renderer
-    expect(pi.messageRenderers.map((entry) => entry.customType)).toEqual(["senpi-task.completion"])
-    // exactly the task event handlers (session lifecycle + transition-buffer edges)
-    expect(pi.handlers.map((handler) => handler.event).sort()).toEqual([...TASK_EVENTS].sort())
+    // Peer mail is a plain injected turn; completion and member liveness use structured renderers.
+    expect(pi.messageRenderers.map((entry) => entry.customType)).toEqual([
+      "senpi-task.completion",
+      "senpi-task.team-member-liveness",
+    ])
+    // exactly the task event handlers (session lifecycle + transition-buffer edges) plus the
+    // unconditional T16 hygiene sweep handler, which registers its own session_start listener
+    expect(pi.handlers.map((handler) => handler.event).sort()).toEqual([...TASK_EVENTS, "session_start"].sort())
   })
 
-  it("#given a fake ExtensionAPI boot #when the task component registers #then the 7 lead team tools are wired", () => {
+  it("#given a fake ExtensionAPI boot #when the task component registers #then only injection-driven lead team tools are wired", () => {
     // given
     const pi = new FakeExtensionAPI()
     const logger = createLogger()
@@ -149,9 +152,29 @@ describe("omo-senpi task component wiring", () => {
 
     const registered = toolNames(pi)
     for (const teamTool of TEAM_TOOL_NAMES) expect(registered).toContain(teamTool)
+    expect(registered).not.toContain("team_wait")
   })
 
-  it("#given the omo-task flag is false #when the component registers #then nothing is wired", () => {
+  it("#given the removed-tool hint capability #when the task component registers #then team_wait receives steer guidance", () => {
+    // given
+    const pi = new FakeExtensionAPI() as FakeExtensionAPI & {
+      registerRemovedToolHint: (name: string, hint: string) => void
+    }
+    const hints: Array<{ name: string; hint: string }> = []
+    pi.registerRemovedToolHint = (name, hint) => hints.push({ name, hint })
+    const logger = createLogger()
+
+    // when
+    createTaskComponent({ resolveCwd: () => tempProject() }).register(pi, ctxFor(pi, logger))
+
+    // then
+    expect(hints).toEqual([{
+      name: "team_wait",
+      hint: "team_wait was removed - team messages arrive as steered notifications; send updates with task_send and end your turn.",
+    }])
+  })
+
+  it("#given the omo-task flag is false #when the component registers #then only the unconditional hygiene sweep handler is wired", () => {
     // given
     const pi = new FakeExtensionAPI()
     const logger = createLogger()
@@ -162,12 +185,12 @@ describe("omo-senpi task component wiring", () => {
 
     // then
     expect(pi.tools).toEqual([])
-    expect(pi.handlers).toEqual([])
+    expect(pi.handlers.map((handler) => handler.event)).toEqual(["session_start"])
     expect(pi.messageRenderers).toEqual([])
     expect(logger.entries).toContainEqual({ level: "info", message: "omo-senpi task component disabled by flag" })
   })
 
-  it("#given a malformed omo.json #when the component registers #then it boots with defaults, warns once, and still wires the tools", () => {
+  it("#given a malformed omo.json #when the component registers #then it boots with defaults and still wires the tools", () => {
     // given a project whose .omo/omo.json is invalid JSON
     const project = tempProject()
     mkdirSync(join(project, ".omo"), { recursive: true })
@@ -180,11 +203,8 @@ describe("omo-senpi task component wiring", () => {
 
     // then it never crashed: all tools still registered
     expect(toolNames(pi)).toEqual([...ALL_TOOL_NAMES].sort())
-    // and exactly one config-load warning was emitted
-    const configWarnings = logger.entries.filter(
-      (entry) => entry.level === "warn" && entry.message.includes("using default config after omo.json load issues"),
-    )
-    expect(configWarnings).toHaveLength(1)
+    // diagnostics are surfaced once by the dedicated config-startup component on session_start.
+    expect(logger.entries).toEqual([])
   })
 
   it("#given a wired bridge #when session_start fires repeatedly #then the team mailbox is reconciled on every start", async () => {
@@ -201,7 +221,7 @@ describe("omo-senpi task component wiring", () => {
     expect(leadCalls.ticks).toBe(2)
   })
 
-  it("#given a session start #when reconciliation runs #then reattach, mailbox reclaim, notification retry, and lead polling stay ordered", async () => {
+  it("#given a session start #when reconciliation runs #then reattach, cleanup, mailbox reclaim, notification retry, and lead polling stay ordered", async () => {
     // given
     const cwd = tempProject()
     const pi = new FakeExtensionAPI()
@@ -216,6 +236,10 @@ describe("omo-senpi task component wiring", () => {
           order.push("reattach")
           return { outcomes: [] }
         },
+        cleanupExpiredRecords: () => {
+          order.push("cleanup")
+          return { deleted: [], retained: [] }
+        },
       },
       notifier: {
         ...base.notifier,
@@ -224,7 +248,6 @@ describe("omo-senpi task component wiring", () => {
     }
     const transitions = createSessionTransitionBridge({ runtime: engine.runtime, notifier: engine.notifier })
     wireEventBridge(pi, ctxFor(pi, logger), engine, noopStatusUi, transitions, {
-      warnDualConfig: false,
       reconcileTeamMailbox: () => {
         order.push("reclaim")
         return Promise.resolve()
@@ -246,7 +269,7 @@ describe("omo-senpi task component wiring", () => {
     })
 
     // then
-    expect(order).toEqual(["reattach", "reclaim", "notify", "poll"])
+    expect(order).toEqual(["reattach", "cleanup", "reclaim", "notify", "poll"])
   })
 
   it("#given a captured ui #when session_before_switch fires #then the ui bridge is cleared", async () => {
@@ -288,9 +311,9 @@ describe("omo-senpi task component wiring", () => {
     // when
     createTaskComponent({ resolveCwd: () => tempProject() }).register(pi, ctxFor(pi, logger))
 
-    // then no tools or events wired
+    // then no tools wired; only the unconditional hygiene sweep handler remains
     expect(pi.tools).toEqual([])
-    expect(pi.handlers).toEqual([])
+    expect(pi.handlers.map((handler) => handler.event)).toEqual(["session_start"])
     const skipWarnings = logger.entries.filter(
       (entry) => entry.level === "warn" && entry.message.includes("missing ExtensionAPI capabilities"),
     )
