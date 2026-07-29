@@ -10,7 +10,7 @@ The patch:
 - preserves direct spawning for native executables;
 - terminates the exact captured process tree on Windows with `taskkill.exe /PID <pid> /T /F`;
 - persists `notification.liveness_notified_epoch` in task records;
-- acknowledges restart-liveness only after the `agent_end` event is delivered;
+- acknowledges restart-liveness only after the matching structured `message_start`/`message_end` `deliveryKey` is observed;
 - replays an unacknowledged liveness event after a lead restart;
 - validates structured liveness events without accepting unrelated event payloads.
 
