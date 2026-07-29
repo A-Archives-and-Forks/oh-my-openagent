@@ -1,4 +1,5 @@
 import { join } from "node:path"
+
 import { log } from "@oh-my-opencode/utils"
 
 import { registerLifecycleReattachPorts, type ReattachResult, type RespawnResult } from "../lifecycle/port"
@@ -25,6 +26,7 @@ import {
   recordSpawnedPid,
 } from "./manager-helpers"
 import { claimTaskRecord, TaskRecordCollisionError } from "../store"
+import { sessionTailNeedsContinuation } from "./interrupted-turn"
 import { NameRegistry } from "./names"
 import { createRunStatsTracker, type RunStatsTracker } from "../run-stats"
 import { subscribeTranscriptLog } from "./transcript-log"
@@ -79,6 +81,8 @@ type ReattachingTaskManager = TaskManager & {
 const NOOP_DESTRUCTION: DestructionPort = { destroyResidentTask: () => Promise.resolve() }
 const GENERIC_START_FAILURE_MESSAGE = "Task runner failed to start."
 const RESPAWN_CLEANUP_FAILURE_REASON = "rpc respawn cleanup failed"
+const CONTINUATION_MESSAGE =
+  "Your previous turn was interrupted by a host process restart. Resume your task from its current state and finish it - do not restart from scratch, and do not repeat work already recorded in this session."
 
 function publicStartFailureMessage(error: unknown): string {
   try {
@@ -429,6 +433,14 @@ class TaskManagerImpl implements TaskManager {
       if (switched.cancelled) {
         if (!(await this.#disposeFailedRespawn(handle))) return { ok: false, reason: RESPAWN_CLEANUP_FAILURE_REASON }
         return { ok: false, reason: "switch_session was cancelled" }
+      }
+      if (await sessionTailNeedsContinuation(resumeSessionPath)) {
+        try {
+          await handle.followUp(CONTINUATION_MESSAGE)
+        } catch {
+          if (!(await this.#disposeFailedRespawn(handle))) return { ok: false, reason: RESPAWN_CLEANUP_FAILURE_REASON }
+          return { ok: false, reason: "rpc respawn failed" }
+        }
       }
       return { ok: true, handle: adaptRpcHandle(handle) }
     } catch (error) { // no-excuse-ok: catch - RPC respawn boundary converts failures into a typed result.
