@@ -17,12 +17,13 @@ import {
   seedCrashReservation,
 } from "./team-e2e-support.mjs"
 import { analyzeMain, injectionEvidence, teamMessageEnqueues, verdict } from "./team-e2e-analysis.mjs"
-import { evaluateCrashRecovery, runCrashRestartScenario } from "./team-e2e-crash.mjs"
-import { cleanupProcessGroups, pollUntil, startSenpiRun } from "./team-e2e-runtime.mjs"
+import { runCrashRestartScenario } from "./team-e2e-crash.mjs"
+import { createOwnedProcessRegistry, pollUntil, startSenpiRun } from "./team-e2e-runtime.mjs"
 import { LEAD_SCRIPT, DURA_REVIVE_SCRIPT, DURA_SEED_SCRIPT, NOOP_SCRIPT } from "./team-e2e-scripts.mjs"
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const mockProviderEntry = join(scriptDir, "team-e2e-mock-provider.ts")
+const memberExtensionEntry = join(scriptDir, "..", "..", "plugin", "extensions", "omo-member.js")
 const realSenpiAgentDir = join(homedir(), ".senpi", "agent")
 const STALE_TTL_MS = 10 * 60 * 1000
 const DURA_DRAIN_TIMEOUT_MS = 30_000
@@ -39,7 +40,7 @@ export const TEAM_E2E_OMO_CONFIG = {
   agents: { fixture: { model: "omo-mock/mock-1", description: "team fixture agent", prompt: "You are the fixture agent." } },
 }
 
-const spawnedGroups = new Set()
+const spawnedGroups = createOwnedProcessRegistry()
 
 export function resolveSenpi(operations = {}) {
   const platform = operations.platform ?? process.platform
@@ -79,7 +80,8 @@ function startRun(input) {
     ...input,
     mockProviderEntry,
     parseEvents,
-    onPid: (pid) => spawnedGroups.add(pid),
+    onPid: (pid) => spawnedGroups.onSpawn(pid),
+    onClose: (pid) => spawnedGroups.onClose(pid),
   })
 }
 
@@ -88,7 +90,7 @@ function runSenpi(input) {
 }
 
 function killGroups() {
-  return cleanupProcessGroups(spawnedGroups)
+  return spawnedGroups.cleanup()
 }
 
 async function runMain(senpiBin, outDir) {
@@ -105,7 +107,7 @@ async function runMain(senpiBin, outDir) {
         MAIN_INJECTION_TIMEOUT_MS,
       )
     } finally {
-      active.kill()
+      await active.kill()
     }
     const run = await active.completion
     writeFileSync(join(outDir, "main-stdout.json.log"), run.stdout)
@@ -139,7 +141,7 @@ async function runDuraRevive(senpiBin, outDir) {
         DURA_DRAIN_TIMEOUT_MS,
       )
     } finally {
-      active.kill()
+      await active.kill()
     }
     const run = await active.completion
     writeFileSync(join(outDir, "dura-stdout.json.log"), run.stdout)
@@ -212,10 +214,10 @@ async function main() {
     let leakedPids = 0
     try {
       const main = await runMain(senpiBin, outDir)
-      const crash = await runCrashRestartScenario({ senpiBin, outDir, createSandbox, seedProject, startRun })
+      const crash = await runCrashRestartScenario({ senpiBin, outDir, createSandbox, seedProject, startRun, memberExtensionEntry })
       checks = { ...main.checks, ...crash }
     } finally {
-      leakedPids = killGroups()
+      leakedPids = await killGroups()
     }
     const afterCredential = credentialDigest(realSenpiAgentDir)
     const afterWholeDir = digestDirectory(realSenpiAgentDir)
@@ -265,30 +267,6 @@ function selfTest() {
   const enqueue = teamMessageEnqueues(send)[0]
   if (enqueue?.messageId !== "msg-1" || enqueue.recipients[0] !== "quick") {
     throw new Error("self-test: pull enqueue details not parsed")
-  }
-  const crashChecks = evaluateCrashRecovery({
-    target: { ready: true },
-    before: { processedExists: false, eventCount: 0 },
-    memberKilled: true,
-    parentKilled: true,
-    restartStatus: 0,
-    livenessInjected: true,
-    afterRestartRecord: { notification: { run_epoch: 0, liveness_notified_epoch: 0 } },
-  })
-  if (!Object.values(crashChecks).every((value) => value === true)) {
-    throw new Error("self-test: SIGKILL liveness recovery should pass")
-  }
-  const missingLiveness = evaluateCrashRecovery({
-    target: { ready: true },
-    before: { processedExists: false, eventCount: 0 },
-    memberKilled: true,
-    parentKilled: true,
-    restartStatus: 0,
-    livenessInjected: false,
-    afterRestartRecord: { notification: { run_epoch: 0, liveness_notified_epoch: 0 } },
-  })
-  if (missingLiveness.crashLivenessInjectedToLead !== false) {
-    throw new Error("self-test: missing liveness injection must fail")
   }
   const empty = inboxCounts(join(scriptDir, "does-not-exist"))
   if (empty.unread !== 0 || empty.reserved !== 0) throw new Error("self-test: missing inbox should be zeroed")

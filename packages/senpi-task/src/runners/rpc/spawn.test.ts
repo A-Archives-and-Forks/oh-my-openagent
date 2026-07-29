@@ -77,11 +77,21 @@ describe("resolveSenpiExecutable", () => {
     expect(resolved).toBeNull()
   })
 
-  test("#given a bun runtime #when resolving #then the sibling binary next to the bun exec is chosen", () => {
-    // when
+  test("#given a bun runtime whose sibling Senpi binary is absent #when resolving #then it falls through instead of returning a missing path", () => {
     const resolved = resolveSenpiExecutable({ ...runtime, isBunBinary: true, execPath: "/opt/senpi/bin/bun", parentEnv: {} })
-    // then
-    expect(resolved).toBe(join("/opt/senpi/bin", "senpi"))
+    expect(resolved).toBeNull()
+  })
+
+  test("#given a bun runtime with an existing sibling Senpi binary #when resolving #then that sibling is chosen", () => {
+    const root = mkdtempSync(join(tmpdir(), "senpi-bun-sibling-"))
+    const execPath = join(root, "bun")
+    const sibling = join(root, "senpi")
+    writeFileSync(sibling, "")
+    try {
+      expect(resolveSenpiExecutable({ ...runtime, isBunBinary: true, execPath, parentEnv: {} })).toBe(sibling)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })
 
@@ -157,6 +167,35 @@ describe("buildRpcSpawn spawn strategy", () => {
       ])
     } finally {
       rmSync(npmDir, { recursive: true, force: true })
+    }
+  })
+
+  test("#given a project-local node_modules/.bin Senpi shim #when building an RPC child #then Node launches its package CLI without rpc-entry fallback", () => {
+    const root = mkdtempSync(join(tmpdir(), "senpi-local-bin-rpc-"))
+    const shimDir = join(root, "node_modules", ".bin")
+    const shim = join(shimDir, "senpi.cmd")
+    const cli = join(root, "node_modules", "@code-yeongyu", "senpi", "dist", "cli.js")
+    mkdirSync(dirname(cli), { recursive: true })
+    mkdirSync(shimDir, { recursive: true })
+    writeFileSync(shim, "@echo off\n")
+    writeFileSync(cli, "")
+    try {
+      const descriptor = buildRpcSpawn(
+        { ...baseSpec, model: "omo-mock/mock-1" },
+        {
+          isBunBinary: false,
+          execPath: "C:\\Program Files\\nodejs\\node.exe",
+          platform: "win32",
+          parentEnv: { PATH: shimDir },
+          resolveRpcEntry: () => "/fallback/rpc-entry.js",
+        },
+      )
+
+      expect(descriptor.command).toBe("C:\\Program Files\\nodejs\\node.exe")
+      expect(descriptor.args[0]).toBe(cli)
+      expect(descriptor.args).not.toContain("/fallback/rpc-entry.js")
+    } finally {
+      rmSync(root, { recursive: true, force: true })
     }
   })
 

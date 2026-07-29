@@ -1,7 +1,6 @@
 import type { ComponentContext, SenpiExtensionAPI } from "../../extension/types"
 import type { TaskEngine } from "./engine"
 import type { LeadPollerLifecycle } from "./lead-poller-lifecycle"
-import { livenessDeliveryKeys } from "./member-liveness"
 import type { LiveTaskContext } from "./runtime-context"
 import { wireReloadGuard } from "./reload-guard"
 import type { SessionTransitionBridge } from "./session-transition-bridge"
@@ -37,7 +36,7 @@ export function wireEventBridge(
       // A previous process can persist the terminal transition before its queued team-liveness steer
       // flushes. Re-observe every reconciled record; the notifier filters non-team/non-error states and
       // its persisted liveness epoch suppresses records already delivered in an earlier process.
-      if (record !== undefined) engine.memberLiveness.notifyTerminal(record)
+      if (record !== undefined) await engine.notifyOwnedMemberLiveness(record)
     }
     const cleanup = engine.lifecycle.cleanupExpiredRecords()
     if (cleanup.deleted.length > 0) {
@@ -83,21 +82,15 @@ export function wireEventBridge(
     statusUi.scheduleSync()
   })
 
-  pi.on("agent_end", (_payload, eventCtx) => {
-    engine.runtime.captureFrom(asLiveContext(eventCtx))
+  pi.on("agent_end", async (_payload, eventCtx) => {
+    const liveContext = asLiveContext(eventCtx)
+    engine.runtime.captureFrom(liveContext)
     const coordinator = ctx.idleCoordinator
-    if (coordinator === undefined) return undefined
-    queueMicrotask(() => coordinator.flushOnIdle())
-    return undefined
+    if (coordinator !== undefined) queueMicrotask(() => coordinator.flushOnIdle())
+    await engine.memberLiveness.acknowledgePersisted(
+      () => liveContext.sessionManager?.getSessionFile?.() ?? engine.runtime.sessionFile(),
+    )
   })
-
-  const acknowledgeObservedLiveness = (payload: unknown): void => {
-    for (const deliveryKey of livenessDeliveryKeys(payload)) {
-      engine.memberLiveness.acknowledgeDelivered(deliveryKey)
-    }
-  }
-  pi.on("message_start", acknowledgeObservedLiveness)
-  pi.on("message_end", acknowledgeObservedLiveness)
 
   pi.on("before_agent_start", (_payload, eventCtx) => {
     engine.runtime.captureFrom(asLiveContext(eventCtx))

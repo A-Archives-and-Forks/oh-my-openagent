@@ -85,7 +85,8 @@ export function resolveSenpiExecutable(runtime: RpcSpawnRuntime): string | null 
     return scanPathForExecutable(override, runtime.parentEnv.PATH)
   }
   if (runtime.isBunBinary) {
-    return join(dirname(runtime.execPath), binaryName)
+    const sibling = join(dirname(runtime.execPath), binaryName)
+    return existsSync(sibling) ? sibling : null
   }
   return scanPathForExecutable(binaryName, runtime.parentEnv.PATH)
 }
@@ -94,10 +95,13 @@ function normalizeSenpiLauncher(executable: string, runtime: RpcSpawnRuntime): S
   if (runtime.platform !== "win32" || executable.toLowerCase().endsWith(".exe")) {
     return { command: executable, prefixArgs: [] }
   }
-  const cliPath = join(dirname(executable), "node_modules", "@code-yeongyu", "senpi", "dist", "cli.js")
-  return existsSync(cliPath)
-    ? { command: runtime.execPath, prefixArgs: [cliPath] }
-    : null
+  const shimDir = dirname(executable)
+  const cliCandidates = [
+    join(shimDir, "node_modules", "@code-yeongyu", "senpi", "dist", "cli.js"),
+    join(shimDir, "..", "@code-yeongyu", "senpi", "dist", "cli.js"),
+  ]
+  const cliPath = cliCandidates.find((candidate) => existsSync(candidate))
+  return cliPath === undefined ? null : { command: runtime.execPath, prefixArgs: [cliPath] }
 }
 
 function resolveSenpiLauncher(runtime: RpcSpawnRuntime): SenpiLauncher | null {

@@ -2,7 +2,7 @@
 
 ## Scope
 
-This evidence covers the Windows Team-mode launcher and restart-liveness fixes tracked by #6449.
+This directory contains the original Windows run for #6449. It was not regenerated during the PR #6451 review fixes because the current verification host is macOS and cannot execute the Windows-only live path. The committed JSON predates the strengthened harness fields and must not be cited as evidence for the revised crash gate; a fresh Windows run must replace it before those fields are claimed.
 
 The patch:
 
@@ -11,13 +11,15 @@ The patch:
 - rejects non-positive, non-integer, non-finite, and unsafe root PIDs before any process probe or termination side effect;
 - terminates the exact validated process tree on Windows with `taskkill.exe /PID <pid> /T /F`;
 - persists `notification.liveness_notified_epoch` in task records;
-- acknowledges restart-liveness only after the matching structured `message_start`/`message_end` `deliveryKey` is observed;
-- replays an unacknowledged liveness event after a lead restart;
+- acknowledges restart-liveness only after the matching delivery key is durably observable in the lead session JSONL;
+- replays an unacknowledged liveness event after a lead restart and fences replay/live notification to the owning lead session;
 - validates structured liveness events without accepting unrelated event payloads.
 
 Base: `origin/dev` at `106bf0da14077e42e5e95cdd0ca0c27a86730bda`.
 
-## Focused validation
+## Historical focused validation (superseded)
+
+The counts below describe the pre-review candidate only; current macOS verification is reported in the PR review handoff rather than rewritten into this historical artifact.
 
 - Seven focused test files: **83 passed / 0 failed**, 226 assertions.
 - `packages/omo-senpi` typecheck: **PASS**.
@@ -39,9 +41,9 @@ The Windows host cannot create the symlinks used by a set of cross-platform test
 
 The remaining root and Codex failures are pre-existing on this Windows host. They are dominated by `EPERM` from symlink fixtures, checkout symlink materialization, home-directory contamination, and unrelated timeout-sensitive scans.
 
-## Live Windows Team E2E
+## Historical live Windows Team E2E (not regenerated)
 
-`node packages/omo-senpi/scripts/qa/team-e2e.mjs` ran against the built candidate with isolated mock credentials and state.
+`node packages/omo-senpi/scripts/qa/team-e2e.mjs` ran against the earlier candidate with isolated mock credentials and state. Its 13-check output does not include the revised alive-before-kill ordering, exact reserved-message replacement delivery, or durable JSONL acknowledgement fields, so it is retained only as historical context.
 
 - Result: **PASS**.
 - Checks: **13/13 true**.
@@ -54,7 +56,7 @@ The remaining root and Codex failures are pre-existing on this Windows host. The
 - Credential isolation remained clean.
 - Leaked child PIDs: **0**.
 
-Sanitized structured results are in `team-e2e.json` and `crash-recovery.json`.
+The historical sanitized results remain in `team-e2e.json` and `crash-recovery.json`; they were not hand-edited to imitate output from the strengthened harness.
 
 ## Isolation
 
