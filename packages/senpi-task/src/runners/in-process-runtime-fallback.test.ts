@@ -59,15 +59,15 @@ describe("InProcessRunner runtime fallback", () => {
       },
       {
         source: "category",
-        provider: "apitopia",
+        provider: "example-gateway",
         model_id: "z-ai/glm-5.2-ultrafast-unlocked",
-        display: "apitopia/z-ai/glm-5.2-ultrafast-unlocked",
+        display: "example-gateway/z-ai/glm-5.2-ultrafast-unlocked",
         reasoning_effort: "none",
       },
     ] as const
     const spec = {
       ...baseSpec(),
-      selectedModel: "apitopia/kimi-for-coding-highspeed-unlocked",
+      selectedModel: "kimi-coding/kimi-for-coding-highspeed-unlocked",
       fallbackModels,
     }
 
@@ -79,9 +79,9 @@ describe("InProcessRunner runtime fallback", () => {
     expect(capturedRetrySettings(captured)).toMatchObject({
       modelFallback: true,
       chains: {
-        "apitopia/kimi-for-coding-highspeed-unlocked": [
+        "kimi-coding/kimi-for-coding-highspeed-unlocked": [
           "quotio-openai/gpt-5.4-mini-fast:minimal",
-          "apitopia/z-ai/glm-5.2-ultrafast-unlocked:none",
+          "example-gateway/z-ai/glm-5.2-ultrafast-unlocked:none",
         ],
       },
     })

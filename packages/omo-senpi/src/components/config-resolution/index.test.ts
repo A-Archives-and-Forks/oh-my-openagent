@@ -31,11 +31,11 @@ describe("loadSenpiOmoConfig", () => {
     const { home, project } = fixture()
     writeConfig(home, {
       categories: {
-        quick: { model: "apitopia/kimi-for-coding-highspeed-unlocked", reasoningEffort: "minimal" },
+        quick: { model: "kimi-coding/kimi-for-coding-highspeed-unlocked", reasoningEffort: "minimal" },
         deep: { fallback_models: ["quotio-openai/gpt-5.6-terra"] },
       },
       agents: {
-        explore: { model: "apitopia/kimi-for-coding-highspeed", models: ["quotio-openai/gpt-5.4-mini-fast"] },
+        explore: { model: "kimi-coding/kimi-for-coding-highspeed", models: ["quotio-openai/gpt-5.4-mini-fast"] },
         oracle: { model: "quotio-openai/gpt-5.6-sol", reasoningEffort: "max" },
       },
     })
@@ -46,11 +46,11 @@ describe("loadSenpiOmoConfig", () => {
     // then
     expect(result.diagnostics).toEqual([])
     expect(result.config.categories).toEqual({
-      quick: { model: "apitopia/kimi-for-coding-highspeed-unlocked", reasoningEffort: "minimal" },
+      quick: { model: "kimi-coding/kimi-for-coding-highspeed-unlocked", reasoningEffort: "minimal" },
       deep: { fallback_models: ["quotio-openai/gpt-5.6-terra"] },
     })
     expect(result.config.agents).toEqual({
-      explore: { model: "apitopia/kimi-for-coding-highspeed", models: ["quotio-openai/gpt-5.4-mini-fast"] },
+      explore: { model: "kimi-coding/kimi-for-coding-highspeed", models: ["quotio-openai/gpt-5.4-mini-fast"] },
       oracle: { model: "quotio-openai/gpt-5.6-sol", reasoningEffort: "max" },
     })
   })

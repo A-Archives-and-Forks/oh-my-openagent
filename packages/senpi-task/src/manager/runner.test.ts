@@ -88,9 +88,9 @@ describe("createInProcessManagedRunner", () => {
     let captured: ChildSpec | undefined
     const requestedModel = {
       source: "category",
-      provider: "apitopia",
+      provider: "kimi-coding",
       model_id: "kimi-for-coding-highspeed-unlocked",
-      display: "apitopia/kimi-for-coding-highspeed-unlocked",
+      display: "kimi-coding/kimi-for-coding-highspeed-unlocked",
       reasoning_effort: "minimal",
     } as const
     const fallbackModels = [
