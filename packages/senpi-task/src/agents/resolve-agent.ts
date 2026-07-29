@@ -213,6 +213,7 @@ function resolvedAgent(
       display,
       ...(variant !== undefined ? { variant } : {}),
       ...(reasoningEffort !== undefined ? { reasoning_effort: reasoningEffort } : {}),
+      ...((reasoningEffort ?? variant) !== undefined ? { reasoning: reasoningEffort ?? variant } : {}),
     },
     availableAgents: context.availableAgents,
     ...context.persona,

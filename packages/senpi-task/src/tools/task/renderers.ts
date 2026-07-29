@@ -105,7 +105,7 @@ function resolvedModelToken(details: ModelIdentity): string | undefined {
   const provider = optionalRendererText(resolved.provider)
   const modelId = optionalRendererText(resolved.model_id)
   if (provider === undefined || modelId === undefined) return formatResolvedModel(details.model)
-  const reasoning = optionalRendererText(resolved.reasoning_effort) ?? optionalRendererText(resolved.variant)
+  const reasoning = optionalRendererText(resolved.reasoning) ?? optionalRendererText(resolved.reasoning_effort) ?? optionalRendererText(resolved.variant)
   return `model:${provider}/${modelId}${reasoning === undefined ? "" : `:${reasoning}`}`
 }
 

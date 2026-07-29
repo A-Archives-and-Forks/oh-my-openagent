@@ -30,6 +30,7 @@ export type ResolvedChildSpec<TModel extends SenpiModelPort> = {
   readonly fallback_models?: readonly ResolvedModelRecord[]
   readonly displayName?: string
   readonly variant?: string
+  readonly reasoning?: string
   readonly temperature?: number
   readonly top_p?: number
   readonly maxTokens?: number

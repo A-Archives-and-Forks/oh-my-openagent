@@ -80,6 +80,6 @@ function formatStatusModel(resolved: ResolvedModelRecord | undefined): string | 
   const provider = optionalRendererText(resolved.provider)
   const modelId = optionalRendererText(resolved.model_id)
   if (provider === undefined || modelId === undefined) return undefined
-  const effort = optionalRendererText(resolved.reasoning_effort) ?? optionalRendererText(resolved.variant)
+  const effort = optionalRendererText(resolved.reasoning) ?? optionalRendererText(resolved.reasoning_effort) ?? optionalRendererText(resolved.variant)
   return `${provider}/${modelId}${effort === undefined ? "" : `:${effort}`}`
 }
