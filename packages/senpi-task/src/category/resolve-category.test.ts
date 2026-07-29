@@ -174,6 +174,79 @@ describe("resolveCategory", () => {
     })
   })
 
+  test("#given a canonical models chain with per-entry reasoning #when resolved #then the canonical chain and reasoning reach the resolved model", () => {
+    // given
+    const models = registry([
+      model("vendor-a", "primary-model"),
+      model("vendor-b", "fallback-model"),
+    ])
+
+    // when
+    const result = resolveCategory(
+      "quick",
+      {
+        categories: {
+          quick: {
+            models: [
+              { model: "vendor-a/primary-model", reasoning: "high" },
+              { model: "vendor-b/fallback-model", reasoning: "off" },
+            ],
+          },
+        },
+      },
+      models,
+    )
+
+    // then
+    const resolved = expectResolved(result)
+    expect(resolved.spec.provider).toBe("vendor-a")
+    expect(resolved.spec.modelId).toBe("primary-model")
+    expect(resolved.spec.reasoningEffort).toBe("high")
+    expect(resolved.spec.fallback_models?.[0]?.model_id).toBe("fallback-model")
+  })
+
+  test("#given a canonical models chain plus a conflicting legacy fallback_models #when resolved #then canonical models wins", () => {
+    // given
+    const models = registry([model("vendor-a", "primary-model")])
+
+    // when
+    const result = resolveCategory(
+      "quick",
+      {
+        categories: {
+          quick: {
+            models: [{ model: "vendor-a/primary-model", reasoning: "high" }],
+            model: "vendor-z/legacy-primary",
+            fallback_models: ["vendor-z/legacy-fallback"],
+          },
+        },
+      },
+      models,
+    )
+
+    // then canonical models takes precedence over the legacy branch
+    const resolved = expectResolved(result)
+    expect(resolved.spec.provider).toBe("vendor-a")
+    expect(resolved.spec.modelId).toBe("primary-model")
+  })
+
+  test("#given a simple category with canonical reasoning and no chain #when resolved #then the canonical thinking level reaches the resolved model", () => {
+    // given
+    const models = registry([model("vendor-a", "solo-model")])
+
+    // when
+    const result = resolveCategory(
+      "deep",
+      { categories: { deep: { model: "vendor-a/solo-model", reasoning: "medium" } } },
+      models,
+    )
+
+    // then a simple migrated {model, reasoning} keeps its thinking level
+    const resolved = expectResolved(result)
+    expect(resolved.spec.modelId).toBe("solo-model")
+    expect(resolved.spec.reasoningEffort).toBe("medium")
+  })
+
   test("#given quick primary is unavailable and the quotio rung is available #when resolved #then delegate-core fallback chain reaches gpt-5.4-mini-fast", () => {
     // given
     const models = registry([model("quotio-openai", "gpt-5.4-mini-fast")])
