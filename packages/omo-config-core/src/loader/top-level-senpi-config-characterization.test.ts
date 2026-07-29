@@ -48,29 +48,29 @@ const EXPECTED_CONFIG = {
     explore: {
       model: "kimi-coding/kimi-for-coding-highspeed",
       models: [
-        { model: "quotio-openai/gpt-5.4-mini-fast", reasoningEffort: "minimal" },
+        { model: "quotio-openai/gpt-5.4-mini-fast", reasoning: "minimal" },
         "example-gateway/z-ai/glm-5.2-ultrafast-unlocked",
-        { model: "quotio-openai/gpt-5.4-mini", reasoningEffort: "minimal" },
+        { model: "quotio-openai/gpt-5.4-mini", reasoning: "minimal" },
       ],
     },
     oracle: {
       model: "quotio-openai/gpt-5.6-sol",
-      reasoningEffort: "max",
+      reasoning: "max",
     },
   },
   categories: {
     quick: {
       fallback_models: [
-        { model: "quotio-openai/gpt-5.4-mini-fast", reasoningEffort: "minimal" },
-        { model: "example-gateway/z-ai/glm-5.2-ultrafast-unlocked", reasoningEffort: "none" },
+        { model: "quotio-openai/gpt-5.4-mini-fast", reasoning: "minimal" },
+        { model: "example-gateway/z-ai/glm-5.2-ultrafast-unlocked", reasoning: "off" },
       ],
       model: "kimi-coding/kimi-for-coding-highspeed-unlocked",
       prompt_append: QUICK_PROMPT_APPEND,
-      reasoningEffort: "minimal",
+      reasoning: "minimal",
     },
     deep: {
       model: "quotio-openai/gpt-5.6-terra",
-      variant: "xhigh",
+      reasoning: "xhigh",
     },
   },
   codegraph: {
