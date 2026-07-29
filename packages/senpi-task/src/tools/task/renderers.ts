@@ -17,7 +17,6 @@ import {
   rendererVisibleWidth,
 } from "../../renderer-text"
 import { runStatsResultTokens } from "../run-stats-format"
-import { qualifyResolvedModelDisplay } from "./resolved-model-display"
 
 const TASK_REASON_EXCERPT_WIDTH = 40
 
@@ -103,26 +102,16 @@ function resolvedModelToken(details: ModelIdentity): string | undefined {
   const resolved = details.resolved_model
   if (resolved === undefined) return formatResolvedModel(details.model)
 
-  const display = optionalRendererText(resolved.display) ?? formatResolvedModel(details.model)
-  const qualifiedDisplay = qualifyResolvedModelDisplay(optionalRendererText(resolved.provider), display)
-  const reasoning = optionalRendererText(resolved.reasoning_effort)
-  const variant = usefulVariant(optionalRendererText(resolved.variant), reasoning, display)
-  const content = joinRendererTokens([qualifiedDisplay, reasoning === undefined ? undefined : `reasoning:${reasoning}`,
-    variant === undefined ? undefined : `variant:${variant}`,
-  ])
-  return content.length > 0 ? `(${content})` : undefined
+  const provider = optionalRendererText(resolved.provider)
+  const modelId = optionalRendererText(resolved.model_id)
+  if (provider === undefined || modelId === undefined) return formatResolvedModel(details.model)
+  const reasoning = optionalRendererText(resolved.reasoning_effort) ?? optionalRendererText(resolved.variant)
+  return `model:${provider}/${modelId}${reasoning === undefined ? "" : `:${reasoning}`}`
 }
 
-function usefulVariant(
-  variant: string | undefined,
-  reasoning: string | undefined,
-  display: string | undefined,
-): string | undefined {
-  if (variant === undefined) return undefined
-  const comparable = variant.toLocaleLowerCase()
-  if (reasoning?.toLocaleLowerCase() === comparable) return undefined
-  if (display?.toLocaleLowerCase().includes(comparable) === true) return undefined
-  return variant
+function fallbackCountToken(details: Pick<TaskToolDetails, "fallback_attempts">): string | undefined {
+  const count = details.fallback_attempts?.length ?? 0
+  return count > 0 ? `fallback:${count}` : undefined
 }
 
 function taskResultLine(details: TaskToolDetails, mode: string | undefined): string {
@@ -132,6 +121,7 @@ function taskResultLine(details: TaskToolDetails, mode: string | undefined): str
     "task",
     taskTargetToken(details),
     resolvedModelToken(details),
+    fallbackCountToken(details),
     mode,
     formatTaskStatus(details.status),
     taskId === undefined ? undefined : `id:${taskId}`,
@@ -161,6 +151,7 @@ function taskResultLineForWidth(details: TaskToolDetails, mode: string | undefin
   const requiredWithoutModel = [
     "task",
     taskTargetToken(details),
+    fallbackCountToken(details),
     mode,
     formatTaskStatus(details.status),
   ].filter((token): token is string => token !== undefined)
@@ -173,6 +164,7 @@ function taskResultLineForWidth(details: TaskToolDetails, mode: string | undefin
     "task",
     taskTargetToken(details),
     compactResolvedModelToken(details, modelWidth),
+    fallbackCountToken(details),
     mode,
     formatTaskStatus(details.status),
   ].filter((token): token is string => token !== undefined)
@@ -187,21 +179,9 @@ function taskResultLineForWidth(details: TaskToolDetails, mode: string | undefin
 }
 
 function compactResolvedModelToken(details: ModelIdentity, maxWidth: number): string | undefined {
-  const resolved = details.resolved_model
-  if (resolved === undefined) return formatResolvedModel(details.model)
-  const reasoning = optionalRendererText(resolved.reasoning_effort)
-  const display = optionalRendererText(resolved.display)
-  const qualifiedDisplay = qualifyResolvedModelDisplay(optionalRendererText(resolved.provider), display)
-  const candidates = [qualifiedDisplay, `${resolved.provider}/${resolved.model_id}`, resolved.model_id, details.model]
-    .map(optionalRendererText)
-    .filter((candidate): candidate is string => candidate !== undefined)
-  for (const candidate of candidates) {
-    const token = `(${joinRendererTokens([candidate, reasoning])})`
-    if (rendererVisibleWidth(token) <= maxWidth) return token
-  }
-  const shortest = candidates.toSorted((left, right) => rendererVisibleWidth(left) - rendererVisibleWidth(right))[0]
-  if (shortest === undefined) return undefined
-  return `(${excerptRendererText(joinRendererTokens([shortest, reasoning]), Math.max(0, maxWidth - 2))})`
+  const token = resolvedModelToken(details)
+  if (token === undefined || rendererVisibleWidth(token) <= maxWidth) return token
+  return excerptRendererText(token, maxWidth)
 }
 
 function taskResultOptionalTokens(details: TaskToolDetails): readonly string[] {

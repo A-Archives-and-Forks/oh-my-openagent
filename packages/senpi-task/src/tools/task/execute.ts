@@ -1,13 +1,14 @@
 import type { AgentToolResult, AgentToolUpdateCallback } from "@code-yeongyu/senpi"
 
-import { resolveExecutionMode, type ExecutionMode, type ManagerStartSpec, type StartResult } from "../../manager"
+import { resolveExecutionMode, type ExecutionMode, type ManagerStartSpec } from "../../manager"
 import type { TaskRecord } from "../../state"
-import { createChildProgress, type ToolProgressDetails } from "../../progress"
+import { createChildProgress } from "../../progress"
 import { executeBatch } from "./execute-batch"
 import { buildStartSpec, singleSpawnParams } from "./execute-spec"
 import type { ForegroundWaitOptions } from "./foreground-wait"
 import { waitForForegroundTask } from "./foreground-wait"
 import type { TaskToolParamsStatic } from "./params"
+import { partialDetails, recordDetails, startedDetails, type SingleSpawnParams } from "./result-details"
 import { backgroundConversionText, backgroundStartText } from "./start-presentation"
 import type { ResolvedSpawnItem, TaskToolContext, TaskToolDeps, TaskToolDetails, TaskToolMode } from "./types"
 import { resolveSpawnItems, validateBatchShape, validateTaskTarget } from "./validation"
@@ -21,8 +22,6 @@ type TaskExecute = (
 ) => Promise<AgentToolResult<TaskToolDetails>>
 
 type ResolvedManagerStartSpec = ManagerStartSpec & { readonly execution_mode: ExecutionMode }
-
-type SingleSpawnParams = Omit<TaskToolParamsStatic, "prompt" | "tasks"> & { readonly prompt: string }
 
 type RunSpawnInput = ForegroundWaitOptions & {
   readonly params: SingleSpawnParams
@@ -39,54 +38,9 @@ function continuationFooter(taskId: string): string {
   return `\n\n[task_id: ${taskId} - continue with task_send(to="${taskId}", message="...")]`
 }
 
-function recordDetails(record: TaskRecord, mode: TaskToolMode): TaskToolDetails {
-  return {
-    task_id: record.task_id,
-    status: record.status,
-    mode,
-    ...(record.name !== undefined && { name: record.name }),
-    ...(record.category !== undefined && { category: record.category }),
-    ...(record.agent_type !== undefined && { subagent_type: record.agent_type }),
-    execution_mode: record.execution_mode,
-    model: record.model,
-    ...(record.resolved_model !== undefined && { resolved_model: record.resolved_model }),
-    ...(record.run_stats !== undefined && { run_stats: record.run_stats }),
-    run_in_background: false,
-  }
-}
-
 function syncResult(record: TaskRecord, mode: TaskToolMode): AgentToolResult<TaskToolDetails> {
   const body = record.final_response ?? record.error_message ?? `Task ${record.status}`
   return result(body + continuationFooter(record.task_id), recordDetails(record, mode))
-}
-
-function startedDetails(
-  started: Extract<StartResult, { kind: "started" }>,
-  params: SingleSpawnParams,
-  executionMode: ExecutionMode,
-): TaskToolDetails {
-  return {
-    task_id: started.task_id,
-    status: started.status,
-    mode: "spawn",
-    name: started.name,
-    ...(params.category !== undefined && { category: params.category }),
-    ...(params.subagent_type !== undefined && { subagent_type: params.subagent_type }),
-    execution_mode: executionMode,
-    ...(params.model !== undefined && { model: params.model }),
-    ...(started.resolved_model !== undefined && { resolved_model: started.resolved_model }),
-    run_in_background: params.run_in_background === true,
-    ...(started.queue_position !== undefined && { queue_position: started.queue_position }),
-  }
-}
-
-function partialDetails(
-  started: Extract<StartResult, { kind: "started" }>,
-  params: SingleSpawnParams,
-  executionMode: ExecutionMode,
-  progress: ToolProgressDetails,
-): TaskToolDetails & ToolProgressDetails {
-  return { ...startedDetails(started, params, executionMode), ...progress }
 }
 
 async function runSpawn(
