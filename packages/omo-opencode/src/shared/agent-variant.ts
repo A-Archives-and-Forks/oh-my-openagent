@@ -130,9 +130,10 @@ export function applyAgentVariant(
   config: OhMyOpenCodeConfig,
   agentName: string | undefined,
   message: { variant?: string },
+  currentModel: { providerID: string; modelID: string },
 ): void {
   const variant = resolveAgentVariant(config, agentName)
-  if (variant !== undefined && message.variant === undefined) {
-    message.variant = variant
-  }
+  if (variant === undefined || message.variant !== undefined) return
+
+  Object.assign(message, lowerReasoningForModel(variant, currentModel))
 }

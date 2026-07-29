@@ -114,10 +114,53 @@ describe("applyAgentVariant", () => {
     const message: { variant?: string } = {}
 
     // when
-    applyAgentVariant(config, "sisyphus", message)
+    applyAgentVariant(config, "sisyphus", message, {
+      providerID: "test-provider",
+      modelID: "test-model",
+      runtimeModel: { variants: { low: {} } },
+    } as { providerID: string; modelID: string; runtimeModel?: { variants?: { low?: unknown } } })
 
     // then
     expect(message.variant).toBe("low")
+  })
+
+  test("lowers canonical reasoning to reasoningEffort when the selected model has no matching preset", () => {
+    // given
+    const config = {
+      agents: {
+        sisyphus: { reasoning: "high" },
+      },
+    } as OhMyOpenCodeConfig
+    const message: { variant?: string; reasoningEffort?: string } = {}
+
+    // when
+    applyAgentVariant(config, "sisyphus", message, {
+      providerID: "test-provider",
+      modelID: "test-model",
+    } as { providerID: string; modelID: string; runtimeModel?: { variants?: Record<string, unknown> } })
+
+    // then
+    expect(message).toEqual({ reasoningEffort: "high" })
+  })
+
+  test("keeps canonical reasoning as variant when the selected model exposes the preset", () => {
+    // given
+    const config = {
+      agents: {
+        sisyphus: { reasoning: "high" },
+      },
+    } as OhMyOpenCodeConfig
+    const message: { variant?: string; reasoningEffort?: string } = {}
+
+    // when
+    applyAgentVariant(config, "sisyphus", message, {
+      providerID: "test-provider",
+      modelID: "test-model",
+      runtimeModel: { variants: { high: {} } },
+    } as { providerID: string; modelID: string; runtimeModel?: { variants?: { high?: unknown } } })
+
+    // then
+    expect(message).toEqual({ variant: "high" })
   })
 
   test("does not override existing variant", () => {
@@ -130,7 +173,11 @@ describe("applyAgentVariant", () => {
     const message = { variant: "max" }
 
     // when
-    applyAgentVariant(config, "sisyphus", message)
+    applyAgentVariant(config, "sisyphus", message, {
+      providerID: "test-provider",
+      modelID: "test-model",
+      runtimeModel: { variants: { low: {} } },
+    } as { providerID: string; modelID: string; runtimeModel?: { variants?: { low?: unknown } } })
 
     // then
     expect(message.variant).toBe("max")
