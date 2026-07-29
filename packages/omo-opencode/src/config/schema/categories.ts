@@ -1,3 +1,4 @@
+import { OmoReasoningSchema } from "@oh-my-opencode/omo-config-core"
 import { z } from "zod"
 import { FallbackModelsSchema } from "./fallback-models"
 
@@ -6,6 +7,8 @@ export const CategoryConfigSchema = z.object({
   description: z.string().optional(),
   model: z.string().optional(),
   fallback_models: FallbackModelsSchema.optional(),
+  reasoning: OmoReasoningSchema.optional(),
+  /** @deprecated Use `reasoning` instead. */
   variant: z.string().optional(),
   temperature: z.number().min(0).max(2).optional(),
   top_p: z.number().min(0).max(1).optional(),
@@ -16,6 +19,7 @@ export const CategoryConfigSchema = z.object({
       budgetTokens: z.number().optional(),
     })
     .optional(),
+  /** @deprecated Use `reasoning` instead. */
   reasoningEffort: z.enum(["none", "minimal", "low", "medium", "high", "xhigh", "max"]).optional(),
   textVerbosity: z.enum(["low", "medium", "high"]).optional(),
   tools: z.record(z.string(), z.boolean()).optional(),
