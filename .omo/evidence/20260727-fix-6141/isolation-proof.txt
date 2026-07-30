@@ -12,6 +12,12 @@ real opencode db : C:\Users\pss\.local\share\opencode\opencode.db
   sha256 before  : \177e07bc6ebe02350f2d5409a61f341ff95db96d9ba5b90c8a581cc24a3dee19
   sha256 after   : \4765ae21aa32f3b803d222b2099eaf0508934b007c9fb6bc35778ef57695cec7
 
+required session-count comparison, recorded 2026-07-30:
+  command         : sqlite3 "$REAL_OPENCODE_DB" 'SELECT count(*) FROM session;'
+  count before    : 2799
+  count after     : 2799
+  observed result : unchanged
+
 NOTE: the db digest may differ because this QA was run from inside a live
 opencode session that continuously writes to its own database. The
 authoritative isolation evidence is the 'opencode debug paths' block in each
