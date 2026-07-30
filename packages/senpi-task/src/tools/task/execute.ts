@@ -65,10 +65,10 @@ async function runSpawn(
     const agentSuffix = agents && agents.length > 0 ? ` Available agents: ${agents.join(", ")}.` : ""
     // A model_unavailable failure means the category name IS valid; labeling the list "Available
     // categories" told models to retry the same broken binding. Name the vocabulary honestly and
-    // surface the explicit-model escape hatch.
+    // point at the omo.json config escape hatch.
     const categorySuffix = categories && categories.length > 0
       ? started.error.code === "model_unavailable"
-        ? ` Valid category names: ${categories.join(", ")}. Pass model: "<provider>/<model>" to override the category default.`
+        ? ` Valid category names: ${categories.join(", ")}. Retry one of these, or configure categories.<name>.models in omo.json — model overrides cannot be combined with category.`
         : ` Available categories: ${categories.join(", ")}.`
       : ""
     return result(started.error.message + agentSuffix + categorySuffix, { task_id: "", status: "plan_error", mode: "spawn", reason: started.error.message })

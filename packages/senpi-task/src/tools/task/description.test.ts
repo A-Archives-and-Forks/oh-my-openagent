@@ -83,3 +83,25 @@ describe("buildTaskToolDescription", () => {
     expect(duplicatedTargetRule).toBe(false)
   })
 })
+
+describe("buildTaskToolDescription category+model exclusivity", () => {
+  test("#given the description #when built #then it forbids combining category with model and names the config escape hatch", () => {
+    // given
+    const config: OmoConfig = { categories: {}, agents: {} }
+
+    // when
+    const description = buildTaskToolDescription({ omoConfig: config, agents })
+
+    // then
+    expect(description).toContain("NEVER combine model with category")
+    expect(description).toContain("omo.json")
+    expect(description).toContain("subagent_type")
+  })
+
+  test("#given the prompt guidelines #when read #then they carry the category/model exclusivity rule", () => {
+    const joined = TASK_PROMPT_GUIDELINES.join("\n")
+    expect(joined).toContain("model")
+    expect(joined).toContain("category")
+    expect(joined).toContain("omo.json")
+  })
+})

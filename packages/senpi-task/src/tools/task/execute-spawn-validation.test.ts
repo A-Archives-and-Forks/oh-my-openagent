@@ -66,4 +66,29 @@ describe("buildTaskExecute spawn validation", () => {
     expect(captured?.depth).toBe(3)
     expect(captured?.root_session_id).toBe("root-session")
   })
+
+  test("#given category with model #when executed #then it returns the exclusivity error without spawning", async () => {
+    let started = false
+    const manager = createFakeManager({
+      start: async (): Promise<StartResult> => {
+        started = true
+        return { kind: "started", task_id: "st_x", status: "running", name: "t" }
+      },
+    })
+    const execute = buildTaskExecute(makeDeps(manager))
+
+    const result = await execute(
+      "c",
+      { prompt: "p", category: "architect", model: "quotio-openai/gpt-5.4-mini-fast" },
+      undefined,
+      undefined,
+      CTX,
+    )
+
+    expect(started).toBe(false)
+    expect(result.details.status).toBe("invalid_arguments")
+    const text = result.content[0]?.type === "text" ? result.content[0].text : ""
+    expect(text).toContain("omo.json")
+  })
+
 })
