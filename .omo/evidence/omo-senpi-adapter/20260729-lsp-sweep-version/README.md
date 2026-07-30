@@ -97,6 +97,64 @@ The complete `lsp-core` package also passed:
 277 expect() calls
 ```
 
+### macOS full-suite flake stabilization
+
+The refreshed macOS run proved the diagnostics fallback fix, then exposed two
+independent timing assumptions elsewhere in the root suite:
+
+- overlapping Senpi reconciles assumed the second-started RPC child must lose
+  ownership, even though either asynchronous respawn can complete first;
+- the CodeGraph tree-reaping fixture gave a loaded nested Node process only
+  100ms to spawn its descendant and write `survivor.pid`.
+
+The reconcile failure reproduced locally 20 times in 1,000 runs. The corrected
+assertion verifies the actual invariant: exactly one child is terminated and
+disposed, and the surviving child remains the manager owner regardless of
+start order.
+
+```text
+1000 pass
+0 fail
+5000 expect() calls
+```
+
+The CodeGraph fixture now starts a readiness listener before spawning the
+command. After the descendant writes its PID and signals that listener, the
+test resolves an injected timeout trigger that runs the same process-tree
+termination path as the production timer. The standard `AbortSignal` listener
+is removed when the command settles. This removes wall-clock startup from
+the asserted behavior.
+
+```text
+100 pass
+0 fail
+200 expect() calls
+```
+
+Affected package gates:
+
+```text
+senpi-task: 1035 pass, 0 fail
+codegraph-bootstrap: 21 pass, 0 fail
+workspace typecheck: exit code 0
+```
+
+After materializing the repository's ignored build prerequisites with
+`bun run build`, the full root suite passed:
+
+```text
+12518 pass
+3 skip
+0 fail
+42864 expect() calls
+```
+
+After fetching `origin/dev`, the branch was already current:
+
+```text
+behind 0, ahead 5
+```
+
 ### Senpi package typecheck
 
 Command:
