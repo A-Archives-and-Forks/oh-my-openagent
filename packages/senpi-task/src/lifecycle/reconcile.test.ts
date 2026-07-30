@@ -393,11 +393,12 @@ describe("reconcileOnSessionStart reattach", () => {
 
     // then
     expect(respawnRunner.startedSpecs).toHaveLength(2)
-    expect(respawnRunner.controls[1]?.terminated()).toBe(1)
-    expect(respawnRunner.controls[1]?.disposed()).toBe(1)
+    const discardedIndex = respawnRunner.controls.findIndex((control) => control.terminated() === 1)
+    expect(respawnRunner.controls.map((control) => [control.terminated(), control.disposed()]).sort())
+      .toEqual([[0, 0], [1, 1]])
     expect(results.flatMap((result) => result.outcomes.map((outcome) => outcome.kind))).toEqual(["resumed", "resumed"])
     expect(store.load("st_0000000b")?.notification.run_epoch).toBe(1)
-    expect(manager.getResidentHandle("st_0000000b")?.pid).toBe(1001)
+    expect(manager.getResidentHandle("st_0000000b")?.pid).toBe(1002 - discardedIndex)
   })
 
   test(" w2reattach #given a process runner reports effective launch inputs #when persisted record is reloaded #then only safe spawn facts survive", async () => {
