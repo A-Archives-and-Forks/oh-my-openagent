@@ -5,9 +5,10 @@
 # and reports whether the Hephaestus agent survives agent registration when its
 # configured model is an AWS Bedrock vendor-prefixed GPT-5 id.
 #
-# Isolation: HOME / USERPROFILE / APPDATA / LOCALAPPDATA / XDG_* are all redirected
-# into a mktemp sandbox that is deleted on exit, so the real ~/.local/share/opencode
-# database and the real user config are never read or written.
+# Isolation: HOME / USERPROFILE / APPDATA / LOCALAPPDATA / XDG_* and process
+# temp variables are all redirected into a mktemp sandbox that is deleted on exit,
+# so the real ~/.local/share/opencode database, temp directory, and the real user
+# config are never read or written.
 #
 # Run once on unmodified upstream/dev and once with the fix applied, then diff.
 #
@@ -21,7 +22,7 @@ SBX="$(mktemp -d "${TMPDIR:-/tmp}/omo-6141-XXXXXX")"
 trap 'rm -rf "$SBX"' EXIT
 
 PROJECT="$SBX/project"
-mkdir -p "$PROJECT/.opencode" "$SBX/home"
+mkdir -p "$PROJECT/.opencode" "$SBX/home" "$SBX/tmp"
 
 cat > "$PROJECT/.opencode/opencode.json" <<JSON
 {
@@ -48,9 +49,12 @@ export XDG_DATA_HOME="$SBX/home/.local/share"
 export XDG_CONFIG_HOME="$SBX/home/.config"
 export XDG_STATE_HOME="$SBX/home/.local/state"
 export XDG_CACHE_HOME="$SBX/home/.cache"
+export TMPDIR="$SBX/tmp"
+export TEMP="$SBX/tmp"
+export TMP="$SBX/tmp"
 export OPENCODE_DISABLE_AUTOUPDATE=1
 export OPENCODE_DISABLE_MODELS_FETCH=1
-mkdir -p "$APPDATA" "$LOCALAPPDATA" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME"
+mkdir -p "$APPDATA" "$LOCALAPPDATA" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME" "$TMPDIR"
 
 {
   echo "### live-surface capture for issue #6141"

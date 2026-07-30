@@ -1,7 +1,7 @@
 ### live-surface capture for issue #6141
 ### surface: REAL opencode -> opencode debug config (agent registration map)
-### opencode: 1.18.5
-### repo: C:/Users/pss/.omo-contrib/work/omo
+### opencode: 1.18.9
+### repo: C:/Users/pss/OneDrive/Documents/github/oh-my-openagent-6141
 ### agent.ts diff vs upstream/dev at capture time:
 ### (empty above == unmodified base; non-empty == fix applied)
 
@@ -15,15 +15,15 @@
 }
 
 === $ opencode debug paths   (must all be inside the sandbox) ===
-home       C:/Users/pss/AppData/Local/Temp/omo-6141-w6WxNn/home
-data       C:\Users\pss\AppData\Local\Temp\omo-6141-w6WxNn\home\.local\share\opencode
-bin        C:\Users\pss\AppData\Local\Temp\omo-6141-w6WxNn\home\.cache\opencode\bin
-log        C:\Users\pss\AppData\Local\Temp\omo-6141-w6WxNn\home\.local\share\opencode\log
-repos      C:\Users\pss\AppData\Local\Temp\omo-6141-w6WxNn\home\.local\share\opencode\repos
-cache      C:\Users\pss\AppData\Local\Temp\omo-6141-w6WxNn\home\.cache\opencode
-config     C:\Users\pss\AppData\Local\Temp\omo-6141-w6WxNn\home\.config\opencode
-state      C:\Users\pss\AppData\Local\Temp\omo-6141-w6WxNn\home\.local\state\opencode
-tmp        C:\Users\pss\AppData\Local\Temp\opencode
+home       C:/Users/pss/AppData/Local/Temp/omo-6141-Uq58dz/home
+data       C:\Users\pss\AppData\Local\Temp\omo-6141-Uq58dz\home\.local\share\opencode
+bin        C:\Users\pss\AppData\Local\Temp\omo-6141-Uq58dz\home\.cache\opencode\bin
+log        C:\Users\pss\AppData\Local\Temp\omo-6141-Uq58dz\home\.local\share\opencode\log
+repos      C:\Users\pss\AppData\Local\Temp\omo-6141-Uq58dz\home\.local\share\opencode\repos
+cache      C:\Users\pss\AppData\Local\Temp\omo-6141-Uq58dz\home\.cache\opencode
+config     C:\Users\pss\AppData\Local\Temp\omo-6141-Uq58dz\home\.config\opencode
+state      C:\Users\pss\AppData\Local\Temp\omo-6141-Uq58dz\home\.local\state\opencode
+tmp        C:\Users\pss\AppData\Local\Temp\omo-6141-Uq58dz\tmp\opencode
 EXIT=0
 
 === $ opencode debug config  -> resolved agent map ===

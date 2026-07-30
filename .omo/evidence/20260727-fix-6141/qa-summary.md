@@ -1,6 +1,9 @@
 # QA summary - issue #6141 - Hephaestus dropped for AWS Bedrock vendor-prefixed gpt-5 ids
 
 Captured 2026-07-27 (UTC) on Windows 11, bun 1.3.14, node v22.14.0, opencode 1.18.5.
+The live OpenCode surface was rerun on 2026-07-30 after redirecting process temp
+variables into the sandbox; both captures now show `tmp` under the sandbox and
+the real OpenCode session count stayed unchanged at `2818 -> 2818`.
 Base: `upstream/dev` @ `da2d4a916`.
 
 ## The defect
