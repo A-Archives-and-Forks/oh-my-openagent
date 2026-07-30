@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { chmodSync, closeSync, constants, copyFileSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, statSync, watch, writeFileSync, writeSync } from "node:fs"
+import { chmodSync, closeSync, constants, copyFileSync, createReadStream, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, statSync, writeFileSync, writeSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { basename, dirname, join } from "node:path"
+import { join } from "node:path"
 
 const AGENT_DIR = join(import.meta.dir, "agent")
 const cleanup = join(AGENT_DIR, "cleanup.sh")
@@ -24,33 +24,48 @@ function createFixture(workerBody: string): { readonly repo: string; readonly ag
   return { repo, agentDir, logDir }
 }
 
-function waitForFileContent(path: string, expectedContent: string, timeoutMs = 3_000): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const targetName = basename(path)
-    let settled = false
-    const hasExpectedContent = (): boolean => {
-      try {
-        return read(path) === expectedContent
-      } catch { // no-excuse-ok: catch -- file publication may not have happened yet
-        return false
+function subscribeToExactLines(path: string, expectedLines: readonly string[], timeoutMs = 3_000): readonly Promise<void>[] {
+  const stream = createReadStream(path, { encoding: "utf8" })
+  const pending = expectedLines.map(() => Promise.withResolvers<void>())
+  let buffer = ""
+  let nextLine = 0
+  let settled = false
+  const timeout = setTimeout(() => finish(new Error(`timed out waiting for completion line ${expectedLines[nextLine]} from ${path}`)), timeoutMs)
+
+  const finish = (error?: Error): void => {
+    if (settled) return
+    settled = true
+    clearTimeout(timeout)
+    stream.destroy()
+    if (error !== undefined) {
+      for (const waiter of pending.slice(nextLine)) waiter.reject(error)
+    }
+  }
+
+  stream.on("data", (chunk) => {
+    buffer += chunk
+    for (let newline = buffer.indexOf("\n"); newline !== -1; newline = buffer.indexOf("\n")) {
+      const line = buffer.slice(0, newline)
+      buffer = buffer.slice(newline + 1)
+      const expected = expectedLines[nextLine]
+      if (line !== expected) {
+        finish(new Error(`expected completion line ${expected}, received ${line}`))
+        return
+      }
+      pending[nextLine]?.resolve()
+      nextLine += 1
+      if (nextLine === expectedLines.length) {
+        finish()
+        return
       }
     }
-    const watcher = watch(dirname(path), (_eventType, filename) => {
-      if ((filename === null || filename.toString() === targetName) && hasExpectedContent()) finish()
-    })
-    const timeout = setTimeout(() => finish(new Error(`timed out waiting for exact content in ${path}`)), timeoutMs)
-
-    function finish(error?: Error): void {
-      if (settled) return
-      settled = true
-      clearTimeout(timeout)
-      watcher.close()
-      if (error === undefined) resolve()
-      else reject(error)
-    }
-
-    if (hasExpectedContent()) finish()
   })
+  stream.on("error", (error) => finish(error))
+  stream.on("end", () => {
+    if (nextLine !== expectedLines.length) finish(new Error(`completion FIFO ended after ${nextLine} of ${expectedLines.length} lines`))
+  })
+
+  return pending.map(({ promise }) => promise)
 }
 
 function removeFixture(fixture: { readonly repo: string; readonly logDir: string }): void {
@@ -92,23 +107,28 @@ printf 'worker-log\\n'
 
   posixBashTest("#given the SessionEnd launcher #when async mode runs #then it returns before cleanup finishes", async () => {
     const fixture = createFixture(`#!/usr/bin/env bash
+exec 3> "$CLAUDE_PROJECT_DIR/worker.completion"
 printf 'worker-started\\n' > "$CLAUDE_PROJECT_DIR/worker.started.tmp"
 mv "$CLAUDE_PROJECT_DIR/worker.started.tmp" "$CLAUDE_PROJECT_DIR/worker.started"
+printf 'started\\n' >&3
 IFS= read -r _ < "$CLAUDE_PROJECT_DIR/worker.release"
 printf 'worker-' > "$CLAUDE_PROJECT_DIR/worker.finished.tmp"
 printf 'worker-publishing\\n' > "$CLAUDE_PROJECT_DIR/worker.publishing.tmp"
 mv "$CLAUDE_PROJECT_DIR/worker.publishing.tmp" "$CLAUDE_PROJECT_DIR/worker.publishing"
+printf 'publishing\\n' >&3
 IFS= read -r _ < "$CLAUDE_PROJECT_DIR/worker.release"
 printf 'finished\\n' >> "$CLAUDE_PROJECT_DIR/worker.finished.tmp"
 mv "$CLAUDE_PROJECT_DIR/worker.finished.tmp" "$CLAUDE_PROJECT_DIR/worker.finished"
+printf 'finished\\n' >&3
 `)
     const releasePath = join(fixture.repo, "worker.release")
+    const completionPath = join(fixture.repo, "worker.completion")
     const startedPath = join(fixture.repo, "worker.started")
     const publishingPath = join(fixture.repo, "worker.publishing")
     const finishedPath = join(fixture.repo, "worker.finished")
-    expect(Bun.spawnSync(["mkfifo", releasePath]).exitCode).toBe(0)
+    expect(Bun.spawnSync(["mkfifo", releasePath, completionPath]).exitCode).toBe(0)
     const releaseFd = openSync(releasePath, constants.O_RDWR | constants.O_NONBLOCK)
-    const workerStarted = waitForFileContent(startedPath, "worker-started\n")
+    const [workerStarted, workerPublishing, workerFinished] = subscribeToExactLines(completionPath, ["started", "publishing", "finished"])
     try {
       const result = Bun.spawnSync({
         cmd: ["bash", "./cleanup-hook.sh"], cwd: fixture.agentDir, stdout: "pipe", stderr: "pipe", timeout: 3_000,
@@ -119,12 +139,11 @@ mv "$CLAUDE_PROJECT_DIR/worker.finished.tmp" "$CLAUDE_PROJECT_DIR/worker.finishe
       expect(read(startedPath)).toBe("worker-started\n")
       expect(existsSync(finishedPath)).toBe(false)
 
-      const workerPublishing = waitForFileContent(publishingPath, "worker-publishing\n")
       writeSync(releaseFd, "release\n")
       await workerPublishing
+      expect(read(publishingPath)).toBe("worker-publishing\n")
       expect(existsSync(finishedPath)).toBe(false)
 
-      const workerFinished = waitForFileContent(finishedPath, "worker-finished\n")
       writeSync(releaseFd, "publish\n")
       await workerFinished
       expect(read(finishedPath)).toBe("worker-finished\n")
