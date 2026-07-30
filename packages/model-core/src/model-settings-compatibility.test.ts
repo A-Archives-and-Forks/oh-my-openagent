@@ -552,6 +552,24 @@ describe("resolveCompatibleModelSettings", () => {
     ])
   })
 
+  test("drops temperature for Claude Opus 4.8 without capability metadata", () => {
+    const result = resolveCompatibleModelSettings({
+      providerID: "anthropic",
+      modelID: "anthropic/claude-opus-4-8",
+      desired: { temperature: 0.1 },
+    })
+
+    expect(result.temperature).toBeUndefined()
+    expect(result.changes).toEqual([
+      {
+        field: "temperature",
+        from: "0.1",
+        to: undefined,
+        reason: "unsupported-by-model-family",
+      },
+    ])
+  })
+
   test("drops thinking when model capabilities say it is unsupported", () => {
     const result = resolveCompatibleModelSettings({
       providerID: "openai",

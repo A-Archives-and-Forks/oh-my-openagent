@@ -35,4 +35,28 @@ describe("finalizeAgentConfig", () => {
     expect(result).toEqual({});
     expect(isAgentRegistered("stale-agent")).toBe(false);
   });
+
+  test("removes hardcoded temperature from agents using Claude Opus 4.8", () => {
+    // given
+    const config = {
+      agent: {
+        oracle: {
+          model: "anthropic/claude-opus-4-8",
+          temperature: 0.1,
+        },
+      },
+    };
+
+    // when
+    const result = finalizeAgentConfig({
+      config,
+      pluginConfig: createPluginConfig(),
+      configuredDefaultAgent: undefined,
+    });
+
+    // then
+    expect(result.oracle).toEqual({
+      model: "anthropic/claude-opus-4-8",
+    });
+  });
 });

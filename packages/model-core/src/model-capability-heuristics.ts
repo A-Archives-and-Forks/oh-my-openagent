@@ -7,6 +7,7 @@ export type HeuristicModelFamilyDefinition = {
   variants?: string[]
   reasoningEfforts?: string[]
   reasoningEffortAliases?: Record<string, string>
+  supportsTemperature?: boolean
   supportsThinking?: boolean
 }
 
@@ -28,6 +29,7 @@ export const HEURISTIC_MODEL_FAMILY_REGISTRY: ReadonlyArray<HeuristicModelFamily
     pattern: /(?:^|\/)o\d(?:$|-)/,
     variants: ["low", "medium", "high"],
     reasoningEfforts: ["none", "minimal", "low", "medium", "high"],
+    supportsTemperature: false,
   },
   {
     family: "gpt-5",

@@ -1,4 +1,5 @@
 import { detectHeuristicModelFamily } from "./model-capability-heuristics"
+import { isClaudeOpus47OrLaterModel } from "./model-family-detectors"
 import { clampReasoningLevel, REASONING_LEVELS } from "./reasoning-level"
 
 type CompatibilityField = "variant" | "reasoningEffort" | "temperature" | "topP" | "maxTokens" | "thinking"
@@ -142,12 +143,20 @@ export function resolveCompatibleModelSettings(
   }
 
   let temperature = input.desired.temperature
-  if (temperature !== undefined && input.capabilities?.supportsTemperature === false) {
+  const familyDisallowsTemperature =
+    isClaudeOpus47OrLaterModel(input.modelID) || family?.supportsTemperature === false
+  if (
+    temperature !== undefined &&
+    (input.capabilities?.supportsTemperature === false || familyDisallowsTemperature)
+  ) {
     changes.push({
       field: "temperature",
       from: String(temperature),
       to: undefined,
-      reason: "unsupported-by-model-metadata",
+      reason:
+        input.capabilities?.supportsTemperature === false
+          ? "unsupported-by-model-metadata"
+          : "unsupported-by-model-family",
     })
     temperature = undefined
   }
