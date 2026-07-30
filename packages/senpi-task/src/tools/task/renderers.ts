@@ -38,6 +38,7 @@ const STATUS_COLORS: Readonly<Record<string, ThemeColor>> = {
   interrupted: "warning",
   running: "accent",
   pending: "muted",
+  invalid_arguments: "error",
 }
 
 export function statusThemeColor(status: string): ThemeColor {
