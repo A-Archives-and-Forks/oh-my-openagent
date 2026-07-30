@@ -95,17 +95,20 @@ KILL:4242:unrelated-replacement
 
 It also proved that an unrelated `node ... cli.js daemon` command satisfied the
 legacy argv matcher. The stale-version family now preserves the complete owner
-record, re-reads it, authenticates `daemon/ping` with the version auth token,
-and compares PID, nonce, start time, endpoint path, and socket identity. The
-same owner-bound proof runs during planning, immediately before `SIGTERM`, and
-again before `SIGKILL`; uncertainty spares the PID.
+record, re-reads it, authenticates `omo/ping` (`params._omo.{protocolVersion,
+token}`) with the version `daemon.auth` token, and compares PID, nonce, start
+time, endpoint path, and socket identity. The same owner-bound proof runs during
+planning, immediately before `SIGTERM`, and again before `SIGKILL`; uncertainty
+spares the PID.
 
 Deterministic regressions prove generic argv is insufficient and an identity
-change after TERM never receives KILL:
+change after TERM never receives KILL. One case drives the real
+`packages/lsp-daemon/src/request-routing.ts` router so the wire envelope cannot
+drift, and one pins the `daemon.auth` token path:
 
 ```text
-21 process-sweep family tests pass
-2 owner-attestation tests pass
+19 process-sweep family tests pass
+5 owner-attestation tests pass
 0 fail
 ```
 
