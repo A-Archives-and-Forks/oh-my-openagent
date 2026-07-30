@@ -82,6 +82,33 @@ directory CLI, and invalid version exactly as the daemon client does:
 8 expect() calls
 ```
 
+### Owner-bound daemon termination safety
+
+The current-head security review reproduced two unsafe behaviors in the original
+PID-only sweep authorization:
+
+```text
+TERM:4242:attested-daemon
+ALIVE:4242:unrelated-replacement
+KILL:4242:unrelated-replacement
+```
+
+It also proved that an unrelated `node ... cli.js daemon` command satisfied the
+legacy argv matcher. The stale-version family now preserves the complete owner
+record, re-reads it, authenticates `daemon/ping` with the version auth token,
+and compares PID, nonce, start time, endpoint path, and socket identity. The
+same owner-bound proof runs during planning, immediately before `SIGTERM`, and
+again before `SIGKILL`; uncertainty spares the PID.
+
+Deterministic regressions prove generic argv is insufficient and an identity
+change after TERM never receives KILL:
+
+```text
+21 process-sweep family tests pass
+2 owner-attestation tests pass
+0 fail
+```
+
 ### Targeted regression test
 
 Command:
@@ -267,6 +294,8 @@ remained intact with a version distinct from packaged `0.1.0`.
   daemon's effective version and spares a live paired override.
 - The resolver-failure regression proves LSP packaging failures cannot suppress
   the independent CodeGraph and orphaned-proxy cleanup families.
+- Owner-bound authenticated re-attestation proves stale cleanup cannot signal an
+  unrelated recycled PID or escalate after identity changes.
 - The repeated diagnostics fallback cases and complete `lsp-core` package gate
   cover the macOS CI failure without changing production timing behavior.
 - The complete package gate covers the generated extension bundle and all
