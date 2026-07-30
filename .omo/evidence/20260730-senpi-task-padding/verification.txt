@@ -52,3 +52,36 @@ Final gate rerun:
   bun run test:senpi
   PASS: fresh Senpi plugin build, omo-senpi tsgo, and 489 tests with
   0 failures, 1371 expectations, 78 files
+
+Post-rebase verification against latest dev:
+  Base:
+    origin/dev b6d047382141c5dcc141fa23ba8ba032b8cf7841
+
+  Generated bundle conflict:
+    packages/omo-senpi/plugin/extensions/omo.js
+    Resolution: regenerated both Senpi extension bundles from the rebased
+    source. No generated hunk was hand-merged.
+    Conflict markers after regeneration: 0
+
+  bun run typecheck
+  PASS: root, script, and every package tsgo project
+
+  bun run test:senpi
+  PASS: fresh plugin build and 493 tests with 0 failures, 1382 expectations,
+  78 files
+
+  Task-branch root suite:
+    bun test
+    12508 pass, 8 skip, 18 fail
+    The failures are outside the changed Senpi task surface and are concentrated
+    in Codex installer/telemetry tests.
+
+  Clean origin/dev baseline:
+    detached worktree at the exact base SHA
+    bun install --frozen-lockfile --ignore-scripts
+    bun test
+    12495 pass, 8 skip, 26 fail
+    The same Codex installer/telemetry failure family reproduces on untouched
+    origin/dev, along with additional unrelated failures. The root-suite
+    failures are therefore pre-existing on the selected PR base, not introduced
+    by this task fix.

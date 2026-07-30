@@ -29,3 +29,8 @@ QA-only source mutations:
 Revert proof:
   git diff --quiet -- <both QA scripts>
   exit: 0
+
+Post-rebase baseline worktrees removed and verified absent:
+  /private/tmp/omo-dev-root-baseline-20260730
+  /private/tmp/omo-dev-root-baseline-clean-20260730
+  /private/tmp/omo-dev-root-baseline-ignore-scripts-20260730
