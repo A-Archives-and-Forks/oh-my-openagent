@@ -11,6 +11,7 @@ const requiredRetainedPythonFiles = [
 const optionalGeneratedPythonFiles = [
   "packages/omo-codex/plugin/skills/ast-grep/scripts/ast_grep_helper.py",
   "packages/omo-codex/plugin/skills/coding-agent-sessions/scripts/agent_sessions/__init__.py",
+  "packages/omo-codex/plugin/skills/coding-agent-sessions/scripts/agent_sessions/aside_scanner.py",
   "packages/omo-codex/plugin/skills/coding-agent-sessions/scripts/agent_sessions/claude.py",
   "packages/omo-codex/plugin/skills/coding-agent-sessions/scripts/agent_sessions/cli.py",
   "packages/omo-codex/plugin/skills/coding-agent-sessions/scripts/agent_sessions/codex.py",
