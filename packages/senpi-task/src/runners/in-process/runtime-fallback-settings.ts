@@ -5,9 +5,13 @@ import type { ResolvedModelRecord } from "../../state"
 export function createRuntimeFallbackSettings(
   selectedModel: string | undefined,
   fallbackModels: readonly ResolvedModelRecord[] | undefined,
-): SettingsManager | undefined {
+): SettingsManager {
   if (selectedModel === undefined || fallbackModels === undefined || fallbackModels.length === 0) {
-    return undefined
+    return SettingsManager.inMemory({
+      retry: {
+        modelFallback: false,
+      },
+    })
   }
   return SettingsManager.inMemory({
     retry: {
