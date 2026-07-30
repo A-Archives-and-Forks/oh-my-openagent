@@ -5,7 +5,7 @@ import {
 } from "@oh-my-opencode/utils/process-sweep"
 
 import type { ComponentContext, SenpiExtensionAPI } from "../../extension/types"
-import { resolveSenpiPackagedDaemonRuntime } from "../lsp/daemon-runtime"
+import { resolveSenpiDaemonRuntime } from "../lsp/daemon-runtime"
 
 // Unconditional omo process hygiene for the senpi adapter (T16): fired on
 // extension session start, mirroring the task component's session-start
@@ -36,7 +36,7 @@ const DEFAULT_FAMILY_SWEEPS: OmoFamilySweeps = {
 export interface SessionStartProcessSweepOptions {
   readonly env?: Record<string, string | undefined>
   readonly sweep?: OmoFamilySweep
-  readonly resolveDaemonVersion?: () => string
+  readonly resolveDaemonVersion?: (env: Record<string, string | undefined>) => string
   readonly familySweeps?: OmoFamilySweeps
 }
 
@@ -47,9 +47,9 @@ export function wireSessionStartProcessSweep(
 ): void {
   const env = options.env ?? process.env
   const resolveDaemonVersion =
-    options.resolveDaemonVersion ?? (() => resolveSenpiPackagedDaemonRuntime().version)
+    options.resolveDaemonVersion ?? ((runtimeEnv) => resolveSenpiDaemonRuntime(runtimeEnv).version)
   const sweep = options.sweep ?? (() => {
-    return sweepOmoFamiliesBestEffort(ctx, resolveDaemonVersion, options.familySweeps)
+    return sweepOmoFamiliesBestEffort(ctx, () => resolveDaemonVersion(env), options.familySweeps)
   })
 
   pi.on("session_start", () => {

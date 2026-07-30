@@ -1,6 +1,12 @@
 import { describe, expect, it } from "bun:test"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+
+import { sweepStaleLspDaemonVersions } from "@oh-my-opencode/utils/process-sweep"
 
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
+import { resolveSenpiDaemonRuntime } from "../lsp/daemon-runtime"
 import type { ComponentContext, ComponentLogger } from "../../extension/types"
 import { SENPI_RPC_CHILD_MARKER_ENV, wireSessionStartProcessSweep } from "./process-sweep"
 
@@ -65,6 +71,80 @@ describe("wireSessionStartProcessSweep()", () => {
       }),
     ])
     expect(currentVersion).toBe("9.8.7")
+  })
+
+  it("#given a paired daemon override #when session_start sweeps stale versions #then the active override daemon is spared", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const logger = createLogger()
+    const homeDir = mkdtempSync(join(tmpdir(), "omo-senpi-daemon-override-"))
+    const runtimeDir = join(homeDir, ".omo", "lsp-daemon")
+    const overrideCli = join(homeDir, "override-cli.js")
+    writeFileSync(overrideCli, "export {}\n")
+    writeOwner(join(runtimeDir, "v9.8.7"), 987)
+    writeOwner(join(runtimeDir, "v0.1.0"), 100)
+    const live = new Set([987, 100])
+    const killed: number[] = []
+    let resolveVersion!: (version: string) => void
+    const resolvedVersion = new Promise<string>((resolve) => {
+      resolveVersion = resolve
+    })
+    const env = {
+      ["OMO_LSP_DAEMON_CLI"]: overrideCli,
+      ["OMO_LSP_DAEMON_VERSION"]: "9.8.7",
+    }
+    wireSessionStartProcessSweep(pi, ctxFor(logger), {
+      env,
+      resolveDaemonVersion: (runtimeEnv = {}) =>
+        resolveSenpiDaemonRuntime(runtimeEnv, {
+          cliPath: join(homeDir, "packaged-cli.js"),
+          version: "0.1.0",
+        }).version,
+      familySweeps: {
+        sweepCodegraph: async () => undefined,
+        sweepLspProxies: async () => undefined,
+        sweepStaleLspDaemons: async ({ currentVersion }) => {
+          resolveVersion(currentVersion)
+        },
+      },
+    })
+
+    // when
+    await pi.dispatch("session_start", {})
+    const currentVersion = await Promise.race([
+      resolvedVersion,
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("override version was not resolved")), 1_000)
+      }),
+    ])
+    await sweepStaleLspDaemonVersions({
+      attest: async () => true,
+      currentVersion,
+      force: true,
+      homeDir,
+      isAlive: (pid) => live.has(pid),
+      killer: {
+        isAlive(pid) {
+          return live.has(pid)
+        },
+        async kill(pid) {
+          killed.push(pid)
+          live.delete(pid)
+        },
+        async terminate(pid) {
+          killed.push(pid)
+          live.delete(pid)
+        },
+      },
+      log: (message) => logger.warn(message),
+      platform: "linux",
+    })
+
+    // then
+    expect(currentVersion).toBe("9.8.7")
+    expect(killed).toEqual([100])
+    expect(live.has(987)).toBe(true)
+    rmSync(homeDir, { recursive: true, force: true })
   })
 
   it("#given daemon runtime resolution fails #when session_start fires #then unrelated cleanup families still run", async () => {
@@ -216,3 +296,13 @@ describe("wireSessionStartProcessSweep()", () => {
     expect(failures).toHaveLength(1)
   })
 })
+
+function writeOwner(versionDir: string, pid: number): void {
+  mkdirSync(versionDir, { recursive: true })
+  writeFileSync(join(versionDir, "daemon.owner"), `${JSON.stringify({
+    endpoint: { kind: "unix", path: "/tmp/daemon.sock", dev: 1, ino: 1 },
+    nonce: "nonce",
+    pid,
+    startedAt: "2026-07-30T00:00:00.000Z",
+  })}\n`)
+}

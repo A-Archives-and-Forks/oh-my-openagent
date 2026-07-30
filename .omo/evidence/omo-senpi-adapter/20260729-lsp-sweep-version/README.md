@@ -2,9 +2,10 @@
 
 ## What was tested
 
-This QA covers the Senpi startup process sweep after wiring the packaged LSP
-daemon version into `sweepStaleLspDaemonVersions`, isolating runtime resolution
-to that cleanup family, and stabilizing the diagnostics freshness integration
+This QA covers the Senpi startup process sweep after wiring the effective LSP
+daemon runtime version into `sweepStaleLspDaemonVersions`, including supported
+paired CLI/version overrides, isolating runtime resolution to that cleanup family,
+and stabilizing the diagnostics freshness integration
 coverage that failed on the loaded macOS runner.
 
 ### Regression test red phase
@@ -46,6 +47,32 @@ error: unrelated cleanup families did not complete
 The injected daemon resolver threw before the three family-level best-effort
 boundaries started, reproducing the review finding.
 
+### Active daemon override red/green phase
+
+The packaged daemon is version `0.1.0`, while the regression fixture starts a
+paired override contract at version `9.8.7` with a real temporary CLI path.
+Before the fix, startup passed no environment to the resolver and selected
+`0.1.0` as current:
+
+```text
+Expected: "9.8.7"
+Received: "0.1.0"
+7 pass
+1 fail
+```
+
+That incorrect current version makes the live `9.8.7` owner a stale candidate.
+After startup began resolving the same effective runtime contract as the daemon,
+the test ran the real stale-version sweeper and proved only PID 100 from
+`v0.1.0` was terminated while active override PID 987 remained alive. Ten
+repeated runs passed:
+
+```text
+10 pass
+0 fail
+30 expect() calls
+```
+
 ### Targeted regression test
 
 Command:
@@ -58,16 +85,16 @@ bun test \
 Observed after the implementation:
 
 ```text
-7 pass
+8 pass
 0 fail
-9 expect() calls
+12 expect() calls
 ```
 
 The added assertion dispatched the real `session_start` handler, resolved the
-distinct `"9.8.7"` sentinel through the packaged-version seam, and observed
-that value at the stale-version sweep dependency. The sentinel intentionally
-differs from the packaged `0.1.0` version so the test fails if the injected
-resolver is bypassed.
+distinct `"9.8.7"` sentinel through the version-resolution seam, and observed
+that value at the stale-version sweep dependency. The override assertion also
+uses `9.8.7`, deliberately different from packaged `0.1.0`, so the test fails
+if startup ignores the effective runtime environment.
 
 The isolation assertion also injects an unreadable daemon metadata error and
 proves that CodeGraph and orphaned-proxy cleanup still complete while only the
@@ -176,9 +203,9 @@ bun run --cwd /home/minpeter/.local/share/oh-my-openagent-senpi-pr test:senpi
 Observed result:
 
 ```text
-490 pass
+491 pass
 0 fail
-1371 expect() calls
+1374 expect() calls
 ```
 
 The gate rebuilt the packaged daemon and regenerated Senpi extension artifacts,
@@ -220,12 +247,15 @@ Observed result:
 ```
 
 The successful `get_commands` response reported both `tasks` and `task-kill`
-from the PR worktree's generated `omo.js`.
+from the PR worktree's generated `omo.js`. The TUI and RPC were rerun with
+`OMO_LSP_DAEMON_CLI` pointing at the built worktree CLI and
+`OMO_LSP_DAEMON_VERSION=9.8.7`; the badge, command surface, and clean startup
+remained intact with a version distinct from packaged `0.1.0`.
 
 ## Why this is enough
 
 - The red/green regression test proves the stale-version sweep receives the
-  packaged version.
+  daemon's effective version and spares a live paired override.
 - The resolver-failure regression proves LSP packaging failures cannot suppress
   the independent CodeGraph and orphaned-proxy cleanup families.
 - The repeated diagnostics fallback cases and complete `lsp-core` package gate
