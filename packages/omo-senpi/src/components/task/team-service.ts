@@ -25,6 +25,7 @@ import {
   type ActiveTeamSummary,
   type PersistedTaskEvent,
   type StateDirConfig,
+  type TaskLifecycle,
   type TaskManager,
   type TeamCoreConfig,
   type TeamToolsService,
@@ -44,6 +45,9 @@ const TEAM_MEMBER_SPAWN_DEPTH = 1
 
 export interface TeamServiceDeps {
   readonly manager: TaskManager
+  // Lifecycle single-writer destruction port; team deletion needs it for terminal-resident members
+  // whose terminal `cancelTask` is an intentional noop.
+  readonly destruction: Pick<TaskLifecycle, "destroyResidentTask">
   readonly runtime: TaskRuntimeContext
   readonly settings: OmoTaskSettings
   readonly omoConfig: OmoConfig
@@ -140,7 +144,12 @@ export function createTeamService(deps: TeamServiceDeps): TeamToolsService {
     },
     deleteTeam: async (input) => {
       await assertOwnedTeam(deps, config, input.teamRunId)
-      return deleteTeam(input.teamRunId, { manager: deps.manager, stateDir, taskSettings: deps.settings })
+      return deleteTeam(input.teamRunId, {
+        manager: deps.manager,
+        destruction: deps.destruction,
+        stateDir,
+        taskSettings: deps.settings,
+      })
     },
     sendMessage: async (teamRunId, input) => {
       await assertOwnedTeam(deps, config, teamRunId)
