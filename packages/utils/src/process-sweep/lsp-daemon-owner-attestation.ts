@@ -22,6 +22,9 @@ export interface LspDaemonOwnerTarget {
   readonly pid: number
 }
 
+const OWNER_PING_REQUEST_ID = "process-sweep-owner-attestation"
+const OMO_DAEMON_PROTOCOL_VERSION = 1
+
 export interface LspDaemonOwnerAttestationDeps {
   readonly pingOwner?: (endpoint: LspDaemonOwnerEndpoint, authToken: string) => Promise<LspDaemonOwnerIdentity | null>
   readonly readText?: (path: string) => Promise<string>
@@ -47,18 +50,30 @@ export async function attestLspDaemonOwner(
 
 export function parseLspDaemonOwner(value: unknown): LspDaemonOwnerIdentity | null {
   if (!isRecord(value)) return null
-  const { endpoint, nonce, pid, startedAt } = value
-  if (!Number.isSafeInteger(pid) || (pid as number) <= 0) return null
+  const pid = value["pid"]
+  const nonce = value["nonce"]
+  const startedAt = value["startedAt"]
+  const endpoint = value["endpoint"]
+  if (typeof pid !== "number" || !Number.isSafeInteger(pid) || pid <= 0) return null
   if (typeof nonce !== "string" || nonce.length === 0) return null
   if (typeof startedAt !== "string" || startedAt.length === 0) return null
   if (!isRecord(endpoint)) return null
-  if (endpoint.kind !== "unix" || typeof endpoint.path !== "string" || endpoint.path.length === 0) return null
-  if (!Number.isSafeInteger(endpoint.dev) || !Number.isSafeInteger(endpoint.ino)) return null
+  const kind = endpoint["kind"]
+  const path = endpoint["path"]
+  const dev = endpoint["dev"]
+  const ino = endpoint["ino"]
+  if (kind !== "unix" || typeof path !== "string" || path.length === 0) return null
+  if (typeof dev !== "number" || !Number.isSafeInteger(dev)) return null
+  if (typeof ino !== "number" || !Number.isSafeInteger(ino)) return null
+  return { endpoint: { dev, ino, kind: "unix", path }, nonce, pid, startedAt }
+}
+
+export function createLspDaemonOwnerPingRequest(authToken: string): Record<string, unknown> {
   return {
-    endpoint: { dev: endpoint.dev as number, ino: endpoint.ino as number, kind: "unix", path: endpoint.path },
-    nonce,
-    pid: pid as number,
-    startedAt,
+    id: OWNER_PING_REQUEST_ID,
+    jsonrpc: "2.0",
+    method: "omo/ping",
+    params: { _omo: { protocolVersion: OMO_DAEMON_PROTOCOL_VERSION, token: authToken } },
   }
 }
 
@@ -80,12 +95,7 @@ async function pingLspDaemonOwner(
     socket.setTimeout(500, () => finish(null))
     socket.once("error", () => finish(null))
     socket.once("connect", () => {
-      socket.write(`${JSON.stringify({
-        id: "process-sweep-owner-attestation",
-        jsonrpc: "2.0",
-        method: "daemon/ping",
-        params: { authToken },
-      })}\n`)
+      socket.write(`${JSON.stringify(createLspDaemonOwnerPingRequest(authToken))}\n`)
     })
     socket.on("data", (chunk: string) => {
       buffer += chunk
@@ -95,10 +105,10 @@ async function pingLspDaemonOwner(
       if (line.length === 0) return finish(null)
       try {
         const response: unknown = JSON.parse(line)
-        if (!isRecord(response) || response.id !== "process-sweep-owner-attestation" || "error" in response) {
+        if (!isRecord(response) || response["id"] !== OWNER_PING_REQUEST_ID || "error" in response) {
           return finish(null)
         }
-        finish(parseLspDaemonOwner(response.result))
+        finish(parseLspDaemonOwner(response["result"]))
       } catch {
         finish(null)
       }
