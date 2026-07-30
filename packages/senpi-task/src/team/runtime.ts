@@ -186,8 +186,23 @@ function toMemberTaskMap(spawned: ReadonlyMap<string, SpawnedMember>): MemberTas
  * Deletes a team run: transition `active`/`shutdown_requested` -> `deleting`, cancel every mapped
  * member task, transition -> `deleted`, then remove the team-core runtime directory. A missing
  * runtime state is treated as an already-deleted no-op (idempotent double delete).
+ *
+ * Same-process calls for one team coalesce onto a single in-flight operation: an uncoordinated
+ * second delete can crash on the removed runtime directory or tear down the same resident twice,
+ * so concurrent callers share one promise keyed by the resolved runtime directory.
  */
-export async function deleteTeam(teamRunId: string, deps: DeleteTeamDeps): Promise<DeleteTeamResult> {
+const deleteOperations = new Map<string, Promise<DeleteTeamResult>>()
+
+export function deleteTeam(teamRunId: string, deps: DeleteTeamDeps): Promise<DeleteTeamResult> {
+  const key = resolveTeamRuntimeDirs(deps.stateDir, teamRunId).runtimeDir
+  const current = deleteOperations.get(key)
+  if (current !== undefined) return current
+  const operation = performDeleteTeam(teamRunId, deps).finally(() => deleteOperations.delete(key))
+  deleteOperations.set(key, operation)
+  return operation
+}
+
+async function performDeleteTeam(teamRunId: string, deps: DeleteTeamDeps): Promise<DeleteTeamResult> {
   const config = toTeamCoreConfig(deps.taskSettings, teamStorageBaseDir(deps.stateDir))
   const runtimeDir = resolveTeamRuntimeDirs(deps.stateDir, teamRunId).runtimeDir
 
@@ -218,7 +233,21 @@ async function cancelMemberTasks(teamRunId: string, runtimeDir: string, deps: De
   const cancelled: string[] = []
   for (const taskId of Object.values(map)) {
     const outcome = await deps.manager.cancelTask(taskId, `delete team ${teamRunId}`)
-    if (outcome.kind === "cancelled") cancelled.push(taskId)
+    if (outcome.kind === "cancelled") {
+      cancelled.push(taskId)
+      continue
+    }
+    // Terminal cancellation is an intentional noop (completed residents stay revivable), but team
+    // deletion owns member teardown: route the resident through the lifecycle single-writer port.
+    // A `cancelled` noop means an in-flight cancellation already owns destruction, and a
+    // non-resident record has nothing left to tear down, so neither path may destroy again.
+    if (
+      outcome.kind === "noop"
+      && outcome.status !== "cancelled"
+      && deps.manager.get(taskId)?.residency_state === "resident"
+    ) {
+      await deps.destruction.destroyResidentTask(taskId, "cancel")
+    }
   }
   return cancelled
 }

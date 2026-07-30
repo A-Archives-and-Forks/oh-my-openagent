@@ -11,6 +11,7 @@ import { SenpiTeamRuntimeError, createTeam, deleteTeam } from "./runtime"
 import { toTeamCoreConfig } from "./runtime-config"
 import { resolveTeamRuntimeDirs, teamStorageBaseDir } from "./storage"
 import {
+  FakeDestruction,
   FakeTeamManager,
   cleanupTeamRuntimeTmp,
   stateDirConfig,
@@ -347,6 +348,28 @@ describe("createTeam", () => {
 })
 
 describe("deleteTeam", () => {
+  async function completedResidentTeam(status: "completed" | "cancelled" = "completed") {
+    const stateDir = stateDirConfig(tempProjectDir())
+    const settings = taskSettings()
+    const manager = new FakeTeamManager({ defaultBehavior: { kind: "ok", status } })
+    const destruction = new FakeDestruction()
+    const spec = normalizeSenpiTeamSpec(
+      { members: [{ name: "alpha", kind: "category", category: "quick", prompt: "done" }] },
+      "squad",
+    )
+    const created = await createTeam(spec, "project", {
+      manager,
+      stateDir,
+      taskSettings: settings,
+      leadSessionId: "lead-session",
+      spawnDepth: 1,
+    })
+    const taskId = Object.values(created.memberTaskIds)[0]
+    if (taskId === undefined) throw new Error("expected one mapped member task")
+    const deps = { manager, destruction, stateDir, taskSettings: settings }
+    return { created, deps, manager, destruction, stateDir, taskId }
+  }
+
   test("#given an active team #when deleted #then all member tasks are cancelled and the runtime dir is removed", async () => {
     // given
     const stateDir = stateDirConfig(tempProjectDir())
@@ -371,7 +394,12 @@ describe("deleteTeam", () => {
     const runtimeDir = resolveTeamRuntimeDirs(stateDir, created.runtimeState.teamRunId).runtimeDir
 
     // when
-    const result = await deleteTeam(created.runtimeState.teamRunId, { manager, stateDir, taskSettings: settings })
+    const result = await deleteTeam(created.runtimeState.teamRunId, {
+      manager,
+      destruction: new FakeDestruction(),
+      stateDir,
+      taskSettings: settings,
+    })
 
     // then
     expect([...result.cancelledTaskIds].sort()).toEqual(["st_000001", "st_000002"])
@@ -392,7 +420,12 @@ describe("deleteTeam", () => {
     const seeded = await createRuntimeState(spec, "lead-session", "project", config)
 
     // when
-    const attempt = deleteTeam(seeded.teamRunId, { manager, stateDir, taskSettings: settings })
+    const attempt = deleteTeam(seeded.teamRunId, {
+      manager,
+      destruction: new FakeDestruction(),
+      stateDir,
+      taskSettings: settings,
+    })
 
     // then
     await expect(attempt).rejects.toMatchObject({ code: "invalid_delete_state" })
@@ -414,12 +447,70 @@ describe("deleteTeam", () => {
       leadSessionId: "lead-session",
       spawnDepth: 1,
     })
-    await deleteTeam(created.runtimeState.teamRunId, { manager, stateDir, taskSettings: settings })
+    const deps = { manager, destruction: new FakeDestruction(), stateDir, taskSettings: settings }
+    await deleteTeam(created.runtimeState.teamRunId, deps)
 
     // when
-    const second = await deleteTeam(created.runtimeState.teamRunId, { manager, stateDir, taskSettings: settings })
+    const second = await deleteTeam(created.runtimeState.teamRunId, deps)
 
     // then
     expect(second.cancelledTaskIds).toEqual([])
+  })
+
+  test("#given a completed resident member #when deleted #then cancellation stays noop while lifecycle destroys it and the runtime is removed", async () => {
+    // given
+    const { created, deps, manager, destruction, stateDir, taskId } = await completedResidentTeam()
+    const runtimeDir = resolveTeamRuntimeDirs(stateDir, created.runtimeState.teamRunId).runtimeDir
+
+    // when
+    const result = await deleteTeam(created.runtimeState.teamRunId, deps)
+
+    // then
+    expect(manager.cancelled).toEqual([{ taskId, reason: `delete team ${created.runtimeState.teamRunId}` }])
+    expect(result.cancelledTaskIds).toEqual([])
+    expect(destruction.calls).toEqual([{ taskId, cause: "cancel" }])
+    expect(manager.get(taskId)?.status).toBe("completed")
+    expect(existsSync(runtimeDir)).toBe(false)
+  })
+
+  test("#given a completed resident member already disposed #when deleted #then destruction is not repeated", async () => {
+    // given
+    const { created, deps, manager, destruction, taskId } = await completedResidentTeam()
+    manager.setResidency(taskId, "disposed")
+
+    // when
+    const result = await deleteTeam(created.runtimeState.teamRunId, deps)
+
+    // then
+    expect(result.cancelledTaskIds).toEqual([])
+    expect(destruction.calls).toEqual([])
+  })
+
+  test("#given a resident member already cancelled by an in-flight cancellation #when deleted #then destruction is not raced", async () => {
+    // given
+    const { created, deps, manager, destruction } = await completedResidentTeam("cancelled")
+
+    // when
+    const result = await deleteTeam(created.runtimeState.teamRunId, deps)
+
+    // then
+    expect(result.cancelledTaskIds).toEqual([])
+    expect(destruction.calls).toEqual([])
+  })
+
+  test("#given two delete calls for one team #when invoked concurrently #then they share one cancellation and one destruction", async () => {
+    // given
+    const { created, deps, manager, destruction } = await completedResidentTeam()
+
+    // when
+    const [first, second] = await Promise.all([
+      deleteTeam(created.runtimeState.teamRunId, deps),
+      deleteTeam(created.runtimeState.teamRunId, deps),
+    ])
+
+    // then
+    expect(first).toEqual(second)
+    expect(manager.cancelled).toHaveLength(1)
+    expect(destruction.calls).toHaveLength(1)
   })
 })

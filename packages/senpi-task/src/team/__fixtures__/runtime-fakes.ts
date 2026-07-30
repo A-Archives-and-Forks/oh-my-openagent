@@ -4,6 +4,7 @@ import { join } from "node:path"
 
 import { OmoTaskSettingsSchema, type OmoTaskSettings } from "@oh-my-opencode/omo-config-core"
 
+import type { DestroyCause } from "../../lifecycle"
 import type { ManagerStartSpec, StartResult } from "../../manager"
 import type { ResolvedModelRecord, TaskRecord, TaskStatus } from "../../state"
 import type { CancelOutcome } from "../../steering"
@@ -69,9 +70,19 @@ function buildRecord(taskId: string, spec: ManagerStartSpec, status: TaskStatus,
   }
 }
 
+export class FakeDestruction {
+  readonly calls: Array<{ readonly taskId: string; readonly cause: DestroyCause }> = []
+
+  destroyResidentTask(taskId: string, cause: DestroyCause): Promise<void> {
+    this.calls.push({ taskId, cause })
+    return Promise.resolve()
+  }
+}
+
 // Structural stand-in for the TaskManager the team runtime spawns members through. Records every
 // start/cancel call and hands out deterministic st_ ids + child session ids so tests can assert the
-// member -> task mapping and the rollback cancellations without a live in-process runner.
+// member -> task mapping and the rollback cancellations without a live in-process runner. cancelTask
+// mirrors the production steering contract: terminal records noop instead of reporting cancelled.
 export class FakeTeamManager {
   readonly started: ManagerStartSpec[] = []
   readonly cancelled: Array<{ readonly taskId: string; readonly reason?: string }> = []
@@ -106,6 +117,14 @@ export class FakeTeamManager {
     this.cancelled.push({ taskId: idOrName, ...(reason !== undefined ? { reason } : {}) })
     const record = this.#records.get(idOrName)
     if (record === undefined) return Promise.resolve({ kind: "not_found", reason: `no task ${idOrName}` })
+    if (record.status !== "pending" && record.status !== "running") {
+      return Promise.resolve({
+        kind: "noop",
+        task_id: idOrName,
+        status: record.status,
+        reason: `Task ${idOrName} is ${record.status}, not running.`,
+      })
+    }
     return Promise.resolve({ kind: "cancelled", task_id: idOrName, previous_status: record.status })
   }
 
@@ -121,5 +140,10 @@ export class FakeTeamManager {
   setStatus(taskId: string, status: TaskStatus): void {
     const record = this.#records.get(taskId)
     if (record !== undefined) this.#records.set(taskId, { ...record, status })
+  }
+
+  setResidency(taskId: string, residencyState: TaskRecord["residency_state"]): void {
+    const record = this.#records.get(taskId)
+    if (record !== undefined) this.#records.set(taskId, { ...record, residency_state: residencyState })
   }
 }
