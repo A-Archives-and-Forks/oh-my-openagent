@@ -164,7 +164,7 @@ describe("InProcessRunner runtime fallback", () => {
     })
   })
 
-  test("#given no runtime fallbacks #when the child session is created #then no fallback settings manager is injected", async () => {
+  test("#given no runtime fallbacks #when the child session is created #then global model fallback is disabled", async () => {
     // given
     let captured: CreateAgentSessionOptions | undefined
     const runner = new InProcessRunner({
@@ -179,6 +179,9 @@ describe("InProcessRunner runtime fallback", () => {
     await handle.waitForIdle()
 
     // then
-    expect(capturedRetrySettings(captured)).toBeUndefined()
+    expect(capturedRetrySettings(captured)).toMatchObject({
+      modelFallback: false,
+      chains: {},
+    })
   })
 })
