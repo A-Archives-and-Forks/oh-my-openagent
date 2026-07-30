@@ -73,6 +73,15 @@ repeated runs passed:
 30 expect() calls
 ```
 
+The resolver parity cases also reject an unpaired override, relative CLI,
+directory CLI, and invalid version exactly as the daemon client does:
+
+```text
+4 pass
+0 fail
+8 expect() calls
+```
+
 ### Targeted regression test
 
 Command:
@@ -203,9 +212,9 @@ bun run --cwd /home/minpeter/.local/share/oh-my-openagent-senpi-pr test:senpi
 Observed result:
 
 ```text
-491 pass
+492 pass
 0 fail
-1374 expect() calls
+1379 expect() calls
 ```
 
 The gate rebuilt the packaged daemon and regenerated Senpi extension artifacts,

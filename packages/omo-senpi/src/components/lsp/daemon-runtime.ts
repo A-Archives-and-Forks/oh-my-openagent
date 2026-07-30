@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs"
-import { resolve } from "node:path"
+import { existsSync, readFileSync, statSync } from "node:fs"
+import { isAbsolute } from "node:path"
 import { fileURLToPath } from "node:url"
 
 export interface SenpiDaemonRuntime {
@@ -11,15 +11,26 @@ export function resolveSenpiDaemonRuntime(
   env: Record<string, string | undefined> = process.env,
   packagedRuntime: SenpiDaemonRuntime = resolveSenpiPackagedDaemonRuntime(),
 ): SenpiDaemonRuntime {
-  const cliOverride = normalizeOptional(env["OMO_LSP_DAEMON_CLI"])
-  const versionOverride = normalizeOptional(env["OMO_LSP_DAEMON_VERSION"])
-  if ((cliOverride === undefined) !== (versionOverride === undefined)) {
+  const cliOverride = env["OMO_LSP_DAEMON_CLI"]
+  const versionOverride = env["OMO_LSP_DAEMON_VERSION"]
+  const hasCliOverride = cliOverride !== undefined
+  const hasVersionOverride = versionOverride !== undefined
+  if (hasCliOverride !== hasVersionOverride) {
     throw new Error("OMO_LSP_DAEMON_CLI and OMO_LSP_DAEMON_VERSION must be set together")
   }
-  if (cliOverride === undefined || versionOverride === undefined) return packagedRuntime
-  const cliPath = resolve(cliOverride)
-  if (!existsSync(cliPath)) throw new Error(`Senpi LSP daemon override CLI is missing: ${cliPath}`)
-  return { cliPath, version: versionOverride }
+  if (!hasCliOverride || !hasVersionOverride) {
+    if (!isAbsolute(packagedRuntime.cliPath)) {
+      throw new Error("Packaged Senpi LSP daemon CLI path must be absolute")
+    }
+    return { cliPath: packagedRuntime.cliPath, version: validateDaemonVersion(packagedRuntime.version) }
+  }
+  if (!isAbsolute(cliOverride)) {
+    throw new Error("OMO_LSP_DAEMON_CLI must be an absolute path to an existing regular file")
+  }
+  const stat = statSync(cliOverride, { throwIfNoEntry: false })
+  if (!stat) throw new Error("OMO_LSP_DAEMON_CLI points to a missing file")
+  if (!stat.isFile()) throw new Error("OMO_LSP_DAEMON_CLI must point to a regular file")
+  return { cliPath: cliOverride, version: validateDaemonVersion(versionOverride) }
 }
 
 export function resolveSenpiPackagedDaemonRuntime(importerUrl: string = import.meta.url): SenpiDaemonRuntime {
@@ -33,12 +44,15 @@ export function resolveSenpiPackagedDaemonRuntime(importerUrl: string = import.m
   return { cliPath, version: parsed.version }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
+const DAEMON_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/
+
+function validateDaemonVersion(version: string): string {
+  if (!DAEMON_VERSION_PATTERN.test(version)) {
+    throw new Error("LSP daemon version must match [A-Za-z0-9][A-Za-z0-9._+-]{0,127}")
+  }
+  return version
 }
 
-function normalizeOptional(value: string | undefined): string | undefined {
-  if (value === undefined) return undefined
-  const normalized = value.trim()
-  return normalized.length > 0 ? normalized : undefined
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
 }
