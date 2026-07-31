@@ -109,7 +109,7 @@ describe("run stats tracker", () => {
     expect(snapshot.tokens_per_second).toBe(100)
   })
 
-  test("#given bursty delivery collapsing the generation window #when snapshotted #then tps falls back to runtime", () => {
+  test("#given bursty delivery collapsing the only generation window #when snapshotted #then tps is omitted as unverifiable", () => {
     // given
     let nowMs = 1_000
     const tracker = createRunStatsTracker(1_000, () => nowMs)
@@ -120,10 +120,12 @@ describe("run stats tracker", () => {
       message: { role: "assistant", content: [{ type: "text", text: "done" }], usage: { output: 400, totalTokens: 900 } },
     })
 
-    // then: generation window is zero/absent, so tps uses the 2s runtime instead
+    // then: the single token-bearing generation window collapsed to zero measured duration, so
+    // generation throughput is unknowable (runtime would conflate tool/idle time with streaming
+    // speed). tokens_per_second MUST be absent, not a runtime-derived substitute.
     const snapshot = tracker.snapshot(3_000)
     expect(snapshot.generation_ms).toBeUndefined()
-    expect(snapshot.tokens_per_second).toBe(200)
+    expect(snapshot.tokens_per_second).toBeUndefined()
   })
 
   test("#given numeric cost and cache token usage #when snapshotted #then cost and cache hit rate accumulate", () => {
@@ -273,7 +275,7 @@ describe("run stats tracker", () => {
     expect(JSON.stringify(snapshot)).not.toContain("null")
   })
 
-  test("#given one measured window and one collapsed window #when snapshotted #then tps conservatively uses runtime", () => {
+  test("#given one measured window and one token-bearing collapsed window #when snapshotted #then tps is omitted as unverifiable", () => {
     // given
     let nowMs = 1_000
     const tracker = createRunStatsTracker(1_000, () => nowMs)
@@ -291,10 +293,15 @@ describe("run stats tracker", () => {
       message: { role: "assistant", content: [], usage: { output: 300, totalTokens: 600 } },
     })
 
-    // then: dividing all 400 output tokens by only the measured 2s window would overstate tps,
-    // so the whole 9s runtime is used instead
+    // then: one measured window (2s) and one token-bearing collapsed window (0s). Dividing all
+    // 400 output tokens by only the measured 2s would overstate tps; dividing by runtime would
+    // conflate streaming speed with tool/idle time. Either way the collapsed portion's timing is
+    // lost, so generation throughput is UNKNOWABLE and tokens_per_second MUST be absent.
     const snapshot = tracker.snapshot(10_000)
+    expect(snapshot.runtime_ms).toBe(9_000)
+    expect(snapshot.output_tokens).toBe(400)
+    expect(snapshot.total_tokens).toBe(800)
     expect(snapshot.generation_ms).toBe(2_000)
-    expect(snapshot.tokens_per_second).toBe(44)
+    expect(snapshot.tokens_per_second).toBeUndefined()
   })
 })
