@@ -13,37 +13,43 @@ WHAT WAS TESTED
 5. Real OpenCode database isolation:
    sqlite3 "$(opencode db path)" "SELECT count(*) FROM session;"
    was run immediately before and after the driver.
-6. Bundled capability regression:
-   Oracle was configured with `openai/gpt-5.6-sol` and
-   `temperature: 0.1`, whose bundled metadata marks temperature unsupported.
+6. Runtime capability regression:
+   Oracle was configured with `custom-provider/future-model` and
+   `temperature: 0.1`; the isolated provider cache marks the bare
+   `future-model` ID as not supporting temperature.
 
 WHAT WAS OBSERVED
 
 - Before the review fix, all three supported inline reasoning suffixes retained
   `temperature: 0.1`, and the ordered-map helper was not exported for the
   identity regression test. The focused run reported `70 pass, 4 fail, 1 error`.
-- After the review fix, the focused run reported:
-  `105 pass, 0 fail, 246 assertions`.
+- After the final review and CI fixes, the combined focused run reported:
+  `130 pass, 0 fail, 312 assertions`.
+- The prior Ubuntu CI failure was reproduced as two plan-inheritance fixtures
+  asserting that `gpt-5.4` retained temperature. Those fixtures now use
+  temperature-capable `anthropic/claude-sonnet-4-5`, preserving their
+  inheritance assertions without contradicting capability filtering.
 - Both package typechecks exited 0 with no diagnostics.
 - The driver built `dist/index.js` from current source and recorded `EXIT=0`.
 - Every `opencode debug paths` entry, including `tmp`, resolved inside the
   throwaway `omo-6338-review-*` sandbox.
 - The real `opencode debug config` surface reported:
-  `oracle_model=openai/gpt-5.6-sol`
+  `oracle_model=custom-provider/future-model`
   `oracle_temperature_present=false`
   `configured_order_preserved=true`
 - The exact harness output is committed as
   `review-capabilities-output-20260731.txt`.
 - The real OpenCode session count remained unchanged:
-  `2821 before -> 2821 after`.
+  `2823 before -> 2823 after`, read through immutable read-only snapshots.
 
 WHY IT IS ENOUGH
 
-The regression tests pin each supported reasoning suffix, bundled model
-capabilities, and ordered-map identity. The live OpenCode surface proves that
-the capability-only temperature restriction survives config loading, agent
-remapping, priority ordering, and finalization in the real harness. The
-unchanged real session count proves the QA did not add host sessions.
+The regression tests pin each supported reasoning suffix, bundled and runtime
+model capabilities, the bare provider-cache lookup contract, and ordered-map
+identity. The live OpenCode surface proves that a runtime-metadata-only
+temperature restriction survives config loading, agent remapping, priority
+ordering, and finalization in the real harness. The unchanged real session
+count proves the QA did not add host sessions.
 
 WHAT WAS OMITTED
 

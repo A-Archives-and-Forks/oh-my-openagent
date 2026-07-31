@@ -22,7 +22,7 @@ cat > "$PROJECT/.opencode/oh-my-openagent.jsonc" <<'JSON'
   "agent_order": ["oracle", "sisyphus"],
   "agents": {
     "oracle": {
-      "model": "openai/gpt-5.6-sol",
+      "model": "custom-provider/future-model",
       "temperature": 0.1
     },
     "sisyphus": {
@@ -46,6 +46,21 @@ export TMP="$SBX/tmp"
 export OPENCODE_DISABLE_AUTOUPDATE=1
 export OPENCODE_DISABLE_MODELS_FETCH=1
 mkdir -p "$APPDATA" "$LOCALAPPDATA" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME" "$TMPDIR"
+mkdir -p "$XDG_CACHE_HOME/oh-my-opencode"
+cat > "$XDG_CACHE_HOME/oh-my-opencode/provider-models.json" <<'JSON'
+{
+  "models": {
+    "custom-provider": [
+      {
+        "id": "future-model",
+        "temperature": false
+      }
+    ]
+  },
+  "connected": ["custom-provider"],
+  "updatedAt": "2026-07-31T00:00:00.000Z"
+}
+JSON
 
 {
   echo "### PR #6485 review rerun"

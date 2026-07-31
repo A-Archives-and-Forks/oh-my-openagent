@@ -1147,7 +1147,7 @@ describe("Plan agent model inheritance from prometheus", () => {
   test("plan agent inherits temperature, reasoningEffort, and other model settings from prometheus", async () => {
     //#given - prometheus configured with category that has temperature and reasoningEffort
     spyOn(shared, unsafeTestValue("resolveModelPipeline")).mockReturnValue({
-      model: "openai/gpt-5.4",
+      model: "anthropic/claude-sonnet-4-5",
       provenance: "override",
       variant: "high",
     })
@@ -1158,7 +1158,7 @@ describe("Plan agent model inheritance from prometheus", () => {
       },
       agents: {
         prometheus: {
-          model: "openai/gpt-5.4",
+          model: "anthropic/claude-sonnet-4-5",
           variant: "high",
           temperature: 0.3,
           top_p: 0.9,
@@ -1189,7 +1189,7 @@ describe("Plan agent model inheritance from prometheus", () => {
     const agents = config.agent as Record<string, Record<string, unknown>>
     expect(agents.plan).toBeDefined()
     expect(agents.plan.mode).toBe("subagent")
-    expect(agents.plan.model).toBe("openai/gpt-5.4")
+    expect(agents.plan.model).toBe("anthropic/claude-sonnet-4-5")
     expect(agents.plan.variant).toBe("high")
     expect(agents.plan.temperature).toBe(0.3)
     expect(agents.plan.top_p).toBe(0.9)
@@ -1200,7 +1200,7 @@ describe("Plan agent model inheritance from prometheus", () => {
   })
 
   test("plan agent user override takes priority over prometheus inherited settings", async () => {
-    //#given - prometheus resolves to opus, but user has plan override for gpt-5.4
+    //#given - prometheus resolves to opus, but user has a temperature-capable plan override
     spyOn(shared, unsafeTestValue("resolveModelPipeline")).mockReturnValue({
       model: "anthropic/claude-opus-4-7",
       provenance: "provider-fallback",
@@ -1213,7 +1213,7 @@ describe("Plan agent model inheritance from prometheus", () => {
       },
       agents: {
         plan: {
-          model: "openai/gpt-5.4",
+          model: "anthropic/claude-sonnet-4-5",
           variant: "high",
           temperature: 0.5,
         },
@@ -1237,7 +1237,7 @@ describe("Plan agent model inheritance from prometheus", () => {
 
     //#then - plan uses its own override, not prometheus settings
     const agents = config.agent as Record<string, Record<string, unknown>>
-    expect(agents.plan.model).toBe("openai/gpt-5.4")
+    expect(agents.plan.model).toBe("anthropic/claude-sonnet-4-5")
     expect(agents.plan.variant).toBe("high")
     expect(agents.plan.temperature).toBe(0.5)
   })

@@ -2,7 +2,7 @@ import {
   clearRegisteredAgentNames,
   registerAgentName,
 } from "../features/claude-code-session-state";
-import { getModelCapabilities, log } from "../shared";
+import { getModelCapabilities, log, parseModelString } from "../shared";
 import { setDefaultAgentForSort } from "../shared/agent-sort-shim";
 import { resolveCompatibleModelSettings } from "../shared/model-settings-compatibility";
 import { remapAgentKeysToDisplayNames } from "./agent-key-remapper";
@@ -37,17 +37,24 @@ function collectDesiredSettings(agent: Record<string, unknown>): DesiredAgentSet
   };
 }
 
-function applyCompatibleAgentSettings(agent: unknown): unknown {
+type ModelCapabilitiesResolver = typeof getModelCapabilities;
+
+function applyCompatibleAgentSettings(
+  agent: unknown,
+  resolveCapabilities: ModelCapabilitiesResolver,
+): unknown {
   if (!isRecord(agent) || typeof agent.model !== "string") return agent;
   const desired = collectDesiredSettings(agent);
-  const providerID = providerIDFromModel(agent.model);
+  const parsedModel = parseModelString(agent.model);
+  const providerID = parsedModel?.providerID ?? providerIDFromModel(agent.model);
+  const modelID = parsedModel?.modelID ?? agent.model;
   const compatible = resolveCompatibleModelSettings({
     providerID,
-    modelID: agent.model,
+    modelID,
     desired,
-    capabilities: getModelCapabilities({
+    capabilities: resolveCapabilities({
       providerID,
-      modelID: agent.model,
+      modelID,
     }),
   });
   if (compatible.changes.length === 0) return agent;
@@ -62,9 +69,10 @@ function applyCompatibleAgentSettings(agent: unknown): unknown {
 
 export function applyCompatibleAgentsSettings(
   agents: Record<string, unknown>,
+  resolveCapabilities: ModelCapabilitiesResolver = getModelCapabilities,
 ): Record<string, unknown> {
   for (const name of Object.keys(agents)) {
-    agents[name] = applyCompatibleAgentSettings(agents[name]);
+    agents[name] = applyCompatibleAgentSettings(agents[name], resolveCapabilities);
   }
   return agents;
 }

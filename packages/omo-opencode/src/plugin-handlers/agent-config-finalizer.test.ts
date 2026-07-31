@@ -5,6 +5,7 @@ import {
   _resetForTesting as resetSessionStateForTesting,
 } from "../features/claude-code-session-state";
 import type { OhMyOpenCodeConfig } from "../config";
+import { getModelCapabilities } from "../shared";
 import {
   applyCompatibleAgentsSettings,
   finalizeAgentConfig,
@@ -84,6 +85,38 @@ describe("finalizeAgentConfig", () => {
     // then
     expect(result.oracle).toEqual({
       model: "openai/gpt-5.6-sol",
+    });
+  });
+
+  test("uses the bare model ID for runtime capability metadata lookup", () => {
+    // given
+    const agents = {
+      oracle: {
+        model: "custom-provider/future-model",
+        temperature: 0.1,
+      },
+    };
+    let observedInput: Parameters<typeof getModelCapabilities>[0] | undefined;
+
+    // when
+    applyCompatibleAgentsSettings(agents, (input) => {
+      observedInput = input;
+      return getModelCapabilities({
+        ...input,
+        runtimeModel: {
+          id: input.modelID,
+          temperature: false,
+        },
+      });
+    });
+
+    // then
+    expect(observedInput).toEqual({
+      providerID: "custom-provider",
+      modelID: "future-model",
+    });
+    expect(agents.oracle).toEqual({
+      model: "custom-provider/future-model",
     });
   });
 
