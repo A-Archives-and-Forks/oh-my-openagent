@@ -24,7 +24,7 @@ WHAT WAS OBSERVED
   `temperature: 0.1`, and the ordered-map helper was not exported for the
   identity regression test. The focused run reported `70 pass, 4 fail, 1 error`.
 - After the final review and CI fixes, the combined focused run reported:
-  `130 pass, 0 fail, 312 assertions`.
+  `132 pass, 0 fail, 316 assertions`.
 - The prior Ubuntu CI failure was reproduced as two plan-inheritance fixtures
   asserting that `gpt-5.4` retained temperature. Those fixtures now use
   temperature-capable `anthropic/claude-sonnet-4-5`, preserving their
@@ -41,6 +41,10 @@ WHAT WAS OBSERVED
   `review-capabilities-output-20260731.txt`.
 - The real OpenCode session count remained unchanged:
   `2823 before -> 2823 after`, read through immutable read-only snapshots.
+- Explicit capability metadata now outranks family fallback. A direct library
+  driver observed:
+  `explicitTrue.temperature=0.7` with no changes, while unknown support for
+  the same Claude Opus family removed temperature as unsupported by family.
 
 WHY IT IS ENOUGH
 

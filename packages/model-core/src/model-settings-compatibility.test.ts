@@ -552,6 +552,21 @@ describe("resolveCompatibleModelSettings", () => {
     ])
   })
 
+  test.each([
+    ["anthropic", "claude-opus-4-8"],
+    ["openai", "o3"],
+  ])("keeps temperature for %s/%s when capability metadata explicitly enables it", (providerID, modelID) => {
+    const result = resolveCompatibleModelSettings({
+      providerID,
+      modelID,
+      desired: { temperature: 0.7 },
+      capabilities: { supportsTemperature: true },
+    })
+
+    expect(result.temperature).toBe(0.7)
+    expect(result.changes).toEqual([])
+  })
+
   test("drops temperature for Claude Opus 4.8 without capability metadata", () => {
     const result = resolveCompatibleModelSettings({
       providerID: "anthropic",

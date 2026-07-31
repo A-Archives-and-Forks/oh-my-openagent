@@ -143,18 +143,20 @@ export function resolveCompatibleModelSettings(
   }
 
   let temperature = input.desired.temperature
+  const metadataSupportsTemperature = input.capabilities?.supportsTemperature
   const familyDisallowsTemperature =
-    isClaudeOpus47OrLaterModel(input.modelID) || family?.supportsTemperature === false
+    metadataSupportsTemperature === undefined &&
+    (isClaudeOpus47OrLaterModel(input.modelID) || family?.supportsTemperature === false)
   if (
     temperature !== undefined &&
-    (input.capabilities?.supportsTemperature === false || familyDisallowsTemperature)
+    (metadataSupportsTemperature === false || familyDisallowsTemperature)
   ) {
     changes.push({
       field: "temperature",
       from: String(temperature),
       to: undefined,
       reason:
-        input.capabilities?.supportsTemperature === false
+        metadataSupportsTemperature === false
           ? "unsupported-by-model-metadata"
           : "unsupported-by-model-family",
     })
