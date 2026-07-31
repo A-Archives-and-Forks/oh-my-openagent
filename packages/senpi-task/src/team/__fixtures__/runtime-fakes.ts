@@ -46,6 +46,7 @@ export type StartBehavior =
 export type FakeTeamManagerOptions = {
   readonly behaviors?: readonly StartBehavior[]
   readonly defaultBehavior?: StartBehavior
+  readonly beforeCancelReturn?: (taskId: string) => Promise<void>
 }
 
 function buildRecord(taskId: string, spec: ManagerStartSpec, status: TaskStatus, resolvedModel?: ResolvedModelRecord): TaskRecord {
@@ -113,19 +114,21 @@ export class FakeTeamManager {
     })
   }
 
-  cancelTask(idOrName: string, reason?: string): Promise<CancelOutcome> {
+  async cancelTask(idOrName: string, reason?: string): Promise<CancelOutcome> {
     this.cancelled.push({ taskId: idOrName, ...(reason !== undefined ? { reason } : {}) })
     const record = this.#records.get(idOrName)
-    if (record === undefined) return Promise.resolve({ kind: "not_found", reason: `no task ${idOrName}` })
+    if (record === undefined) return { kind: "not_found", reason: `no task ${idOrName}` }
     if (record.status !== "pending" && record.status !== "running") {
-      return Promise.resolve({
+      return {
         kind: "noop",
         task_id: idOrName,
         status: record.status,
         reason: `Task ${idOrName} is ${record.status}, not running.`,
-      })
+      }
     }
-    return Promise.resolve({ kind: "cancelled", task_id: idOrName, previous_status: record.status })
+    this.#records.set(idOrName, { ...record, status: "cancelled", updated_at: new Date().toISOString() })
+    await this.#options.beforeCancelReturn?.(idOrName)
+    return { kind: "cancelled", task_id: idOrName, previous_status: record.status }
   }
 
   get(taskId: string): TaskRecord | undefined {

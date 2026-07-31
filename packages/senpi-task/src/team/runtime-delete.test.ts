@@ -21,11 +21,19 @@ afterEach(() => {
 })
 
 describe("deleteTeam", () => {
-  async function completedResidentTeam(status: "completed" | "cancelled" = "completed") {
+  async function completedResidentTeam(
+    status: "running" | "completed" | "cancelled" = "completed",
+    beforeCancelReturn?: (taskId: string, destruction: FakeDestruction) => Promise<void>,
+  ) {
     const stateDir = stateDirConfig(tempProjectDir())
     const settings = taskSettings()
-    const manager = new FakeTeamManager({ defaultBehavior: { kind: "ok", status } })
     const destruction = new FakeDestruction()
+    const manager = new FakeTeamManager({
+      defaultBehavior: { kind: "ok", status },
+      ...(beforeCancelReturn !== undefined
+        ? { beforeCancelReturn: (taskId) => beforeCancelReturn(taskId, destruction) }
+        : {}),
+    })
     const spec = normalizeSenpiTeamSpec(
       { members: [{ name: "alpha", kind: "category", category: "quick", prompt: "done" }] },
       "squad",
@@ -159,16 +167,40 @@ describe("deleteTeam", () => {
     expect(destruction.calls).toEqual([])
   })
 
-  test("#given a resident member already cancelled by an in-flight cancellation #when deleted #then destruction is not raced", async () => {
+  test("#given a resident member cancellation is in flight #when deleted #then deletion does not race its destruction", async () => {
     // given
-    const { created, deps, manager, destruction } = await completedResidentTeam("cancelled")
+    const cancellationStarted = Promise.withResolvers<void>()
+    const releaseCancellation = Promise.withResolvers<void>()
+    const duplicateDestructionStarted = Promise.withResolvers<void>()
+    let destructionAttempts = 0
+    const harness = await completedResidentTeam("running", async (taskId, destruction) => {
+      destructionAttempts += 1
+      await destruction.destroyResidentTask(taskId, "cancel")
+      if (destructionAttempts === 1) {
+        cancellationStarted.resolve()
+        await releaseCancellation.promise
+      } else {
+        duplicateDestructionStarted.resolve()
+      }
+    })
+    const { created, deps, manager, destruction, taskId } = harness
+    const externalCancellation = manager.cancelTask(taskId, "external cancellation")
+    await cancellationStarted.promise
 
     // when
-    const result = await deleteTeam(created.runtimeState.teamRunId, deps)
+    const deletion = deleteTeam(created.runtimeState.teamRunId, deps)
+    const firstCompletion = await Promise.race([
+      deletion.then(() => "delete" as const),
+      duplicateDestructionStarted.promise.then(() => "duplicate-destruction" as const),
+    ])
+    releaseCancellation.resolve()
+    const [externalOutcome, result] = await Promise.all([externalCancellation, deletion])
 
     // then
+    expect(firstCompletion).toBe("delete")
+    expect(externalOutcome.kind).toBe("cancelled")
     expect(result.cancelledTaskIds).toEqual([])
-    expect(destruction.calls).toEqual([])
+    expect(destruction.calls).toEqual([{ taskId, cause: "cancel" }])
   })
 
   test("#given two delete calls for one team #when invoked concurrently #then they share one cancellation and one destruction", async () => {
