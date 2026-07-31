@@ -168,7 +168,7 @@ describe("taskResultLines", () => {
     const row = taskResultLines(details).join(" ")
 
     // then
-    expect(row).toContain("category:ultrabrain model:openai/gpt-5.6-sol:xhigh")
+    expect(row).toContain("category:ultrabrain(openai/gpt-5.6-sol:xhigh)")
     expect(row.match(/xhigh/gu)).toHaveLength(1)
     expect(row).toContain("background")
     expect(row).toContain("pending")
@@ -198,7 +198,7 @@ describe("taskResultLines", () => {
     const row = taskResultLines(details).join(" ")
 
     // then
-    expect(row).toContain("model:openai/gpt-5.6-sol:xhigh")
+    expect(row).toContain("category:ultrabrain(openai/gpt-5.6-sol:xhigh)")
     expect(row).not.toContain(":sol")
   })
 
@@ -222,7 +222,7 @@ describe("taskResultLines", () => {
     const row = taskResultLines(details).join(" ")
 
     // then
-    expect(row).toContain("model:openai/gpt-5.6-sol:xhigh")
+    expect(row).toContain("category:ultrabrain(openai/gpt-5.6-sol:xhigh)")
   })
 
   test("#given resolved category metadata without effort or variant #when rendered #then the model is shown without a suffix", () => {
@@ -244,7 +244,7 @@ describe("taskResultLines", () => {
     const row = taskResultLines(details).join(" ")
 
     // then
-    expect(row).toContain("model:openai/gpt-5.6-sol")
+    expect(row).toContain("category:ultrabrain(openai/gpt-5.6-sol)")
     expect(row).not.toContain(":xhigh")
     expect(row).not.toContain(":sol")
   })
@@ -261,8 +261,7 @@ describe("taskResultLines", () => {
     }).join(" ")
 
     // then
-    expect(row).toContain("agent:momus")
-    expect(row).toContain("model:openai/manual")
+    expect(row).toContain("agent:momus(openai/manual)")
     expect(row).toContain("foreground")
     expect(row).not.toContain("prompt:")
     expect(row).not.toContain("reason:")
@@ -291,8 +290,8 @@ describe("taskResultLines", () => {
     const compact = renderTaskResultComponent(details, ANSI_THEME).render(96).join(" ")
 
     // then
-    expect(plain).toContain("model:openai/gpt-5.6-sol:xhigh")
-    expect(compact).toContain("model:openai/gpt-5.6-sol:xhigh")
+    expect(plain).toContain("category:ultrabrain(openai/gpt-5.6-sol:xhigh)")
+    expect(compact).toContain("category:ultrabrain(openai/gpt-5.6-sol:xhigh)")
   })
 
   test("#given resolved category context #when the real result component renders at width 80 #then provider, model, and reasoning stay visible within bounds", () => {
@@ -318,7 +317,7 @@ describe("taskResultLines", () => {
     const rendered = renderTaskResultComponent(details, ANSI_THEME).render(80)
 
     // then
-    expect(rendered.join(" ")).toContain("model:openai/gpt-5.6-sol:xhigh")
+    expect(rendered.join(" ")).toContain("category:ultrabrain(openai/gpt-5.6-sol:xhigh)")
     for (const line of rendered) expect(rendererVisibleWidth(line)).toBeLessThanOrEqual(80)
   })
 
@@ -349,7 +348,7 @@ describe("taskResultLines", () => {
 
     // then
     for (const row of [plain, compact]) {
-      expect(row).toContain("model:quotio-openai/gpt-5.4-mini-fast:high")
+      expect(row).toContain("category:quick(quotio-openai/gpt-5.4-mini-fast:high)")
       expect(row).toContain("fallback:2")
     }
     expect(rendererVisibleWidth(compact)).toBeLessThanOrEqual(120)
