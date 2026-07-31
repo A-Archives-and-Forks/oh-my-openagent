@@ -23,6 +23,12 @@ Captured 2026-07-30 on Windows 11, bun 1.3.14, opencode 1.18.9.
   - `data/config/cache/state/tmp` all resolved under
     `C:\Users\pss\AppData\Local\Temp\omo-6338-JiKzz2\...`
   - real OpenCode DB session count stayed `2818 -> 2818`.
+- The 2026-07-31 reviewer rerun also covered all supported o-series reasoning
+  suffixes and custom agent ordering. It passed 76 focused tests, both package
+  typechecks, and the real OpenCode driver with
+  `atlas_temperature_present=false` and `configured_order_preserved=true`.
+  The real session count again stayed `2818 -> 2818`. See
+  `review-rerun-20260731.txt`.
 
 ## Why it is enough
 

@@ -1,4 +1,5 @@
 import { normalizeModelID } from "./model-normalization"
+import { parseVariantFromModelID } from "./model-string-parser"
 
 export type HeuristicModelFamilyDefinition = {
   family: string
@@ -109,7 +110,8 @@ export const HEURISTIC_MODEL_FAMILY_REGISTRY: ReadonlyArray<HeuristicModelFamily
 ]
 
 export function detectHeuristicModelFamily(modelID: string): HeuristicModelFamilyDefinition | undefined {
-  const normalizedModelID = normalizeModelID(modelID).toLowerCase()
+  const parsedModel = parseVariantFromModelID(modelID, { allowMaxSuffix: true })
+  const normalizedModelID = normalizeModelID(parsedModel.modelID).toLowerCase()
 
   for (const definition of HEURISTIC_MODEL_FAMILY_REGISTRY) {
     if (definition.pattern?.test(normalizedModelID)) {

@@ -55,10 +55,13 @@ function applyCompatibleAgentSettings(agent: unknown): unknown {
   return next;
 }
 
-function applyCompatibleAgentsSettings(agents: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(agents).map(([name, agent]) => [name, applyCompatibleAgentSettings(agent)]),
-  );
+export function applyCompatibleAgentsSettings(
+  agents: Record<string, unknown>,
+): Record<string, unknown> {
+  for (const name of Object.keys(agents)) {
+    agents[name] = applyCompatibleAgentSettings(agents[name]);
+  }
+  return agents;
 }
 
 export function finalizeAgentConfig(

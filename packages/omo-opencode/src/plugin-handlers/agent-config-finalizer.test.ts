@@ -5,7 +5,10 @@ import {
   _resetForTesting as resetSessionStateForTesting,
 } from "../features/claude-code-session-state";
 import type { OhMyOpenCodeConfig } from "../config";
-import { finalizeAgentConfig } from "./agent-config-finalizer";
+import {
+  applyCompatibleAgentsSettings,
+  finalizeAgentConfig,
+} from "./agent-config-finalizer";
 
 function createPluginConfig(): OhMyOpenCodeConfig {
   return {
@@ -56,6 +59,32 @@ describe("finalizeAgentConfig", () => {
 
     // then
     expect(result.oracle).toEqual({
+      model: "anthropic/claude-opus-4-8",
+    });
+  });
+
+  test("updates compatible settings without replacing the ordered agent map", () => {
+    // given
+    const agents = {
+      "Atlas - Plan Executor": {
+        model: "anthropic/claude-opus-4-8",
+        temperature: 0.1,
+      },
+      "Sisyphus - ultraworker": {
+        model: "openai/gpt-5.4",
+      },
+    };
+
+    // when
+    const result = applyCompatibleAgentsSettings(agents);
+
+    // then
+    expect(result).toBe(agents);
+    expect(Object.keys(result)).toEqual([
+      "Atlas - Plan Executor",
+      "Sisyphus - ultraworker",
+    ]);
+    expect(result["Atlas - Plan Executor"]).toEqual({
       model: "anthropic/claude-opus-4-8",
     });
   });

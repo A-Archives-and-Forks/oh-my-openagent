@@ -570,6 +570,28 @@ describe("resolveCompatibleModelSettings", () => {
     ])
   })
 
+  test.each([
+    "openai/o3:high",
+    "openai/o3(high)",
+    "openai/o3 high",
+  ])("drops temperature for reasoning-suffixed o-series model %s", (modelID) => {
+    const result = resolveCompatibleModelSettings({
+      providerID: "openai",
+      modelID,
+      desired: { temperature: 0.1 },
+    })
+
+    expect(result.temperature).toBeUndefined()
+    expect(result.changes).toEqual([
+      {
+        field: "temperature",
+        from: "0.1",
+        to: undefined,
+        reason: "unsupported-by-model-family",
+      },
+    ])
+  })
+
   test("drops thinking when model capabilities say it is unsupported", () => {
     const result = resolveCompatibleModelSettings({
       providerID: "openai",
