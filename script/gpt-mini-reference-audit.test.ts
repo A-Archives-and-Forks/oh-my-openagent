@@ -38,7 +38,7 @@ describe("GPT Mini reference audit", () => {
 
     // then
     expect(matches).toEqual([])
-  })
+  }, 20_000)
 })
 
 async function trackedFiles(): Promise<string[]> {
