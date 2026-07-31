@@ -70,6 +70,48 @@ describe("start-work Stop hook", () => {
 		expect(parsed.reason).toContain("- Your session id in boulder.json: `codex:sess_abc`");
 	});
 
+	it("#given active codex work and an external-blocker marker #when hook runs #then returns empty output", () => {
+		// given
+		const workspace = createWorkspace({
+			boulderJson: createBoulderJson({ sessionIds: ["codex:sess_abc"], status: "active" }),
+			planMarkdown: SCAFFOLD_PLAN_MARKDOWN,
+		});
+		const fs = createMemoryFs();
+		const input = {
+			...createStopInput(workspace),
+			last_assistant_message: [
+				"<start-work-blocked-external>",
+				"Blocker: the staging deploy credential is missing.",
+				"Resume when a valid credential is provisioned.",
+			].join("\n"),
+		};
+
+		// when
+		const output = runStopHook(input, fs);
+
+		// then
+		expect(output).toBe("");
+	});
+
+	it("#given the external-blocker marker below the first line #when hook runs #then still returns block JSON", () => {
+		// given
+		const workspace = createWorkspace({
+			boulderJson: createBoulderJson({ sessionIds: ["codex:sess_abc"], status: "active" }),
+			planMarkdown: SCAFFOLD_PLAN_MARKDOWN,
+		});
+		const fs = createMemoryFs();
+		const input = {
+			...createStopInput(workspace),
+			last_assistant_message: ["Next turn I may need to emit", "<start-work-blocked-external>"].join("\n"),
+		};
+
+		// when
+		const output = runStopHook(input, fs);
+
+		// then
+		expect(parseBlockOutput(output).decision).toBe("block");
+	});
+
 	it("#given active codex work with zero remaining tasks #when hook runs #then blocks for the final gate", () => {
 		// given
 		const workspace = createWorkspace({

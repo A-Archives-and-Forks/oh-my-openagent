@@ -48,4 +48,5 @@ Conventions for human contributors and AI agents working on this repository.
 - Never make a network call from the hook.
 - Keep the directive in `directive.md`. Do not inline it into TypeScript files.
 - The hook only continues sessions listed in `.omo/boulder.json` as `codex:<session_id>`.
+- The hook yields no output when the first line of `last_assistant_message` is exactly `<start-work-blocked-external>`, so a conclusive external blocker can end the turn. Match that marker on the first line only.
 - The hook continues while the plan has a readable top-level checklist (`total > 0`). A fully-checked plan still blocks Stop until the final gate runs and the Boulder work is marked completed; an unreadable or empty checklist yields no output.
