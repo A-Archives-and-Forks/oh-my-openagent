@@ -13,7 +13,7 @@
 # Run once on unmodified upstream/dev and once with the fix applied, then diff.
 #
 # usage: bash live-driver.sh <output-file>
-set -uo pipefail
+set -euo pipefail
 
 OUT="${1:?usage: live-driver.sh <output-file>}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -61,6 +61,13 @@ mkdir -p "$APPDATA" "$LOCALAPPDATA" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_ST
   echo "### surface: REAL opencode -> opencode debug config (agent registration map)"
   echo "### opencode: $(opencode --version 2>&1 | head -1)"
   echo "### repo: $REPO_WIN"
+  echo "=== \$ bun run build ==="
+} > "$OUT"
+
+( cd "$REPO" && bun run build ) >> "$OUT" 2>&1
+
+{
+  echo "EXIT=0"
   echo "### agent.ts diff vs upstream/dev at capture time:"
   git -C "$REPO" diff --stat upstream/dev -- packages/omo-opencode/src/agents/hephaestus/agent.ts
   echo "### (empty above == unmodified base; non-empty == fix applied)"
@@ -69,7 +76,7 @@ mkdir -p "$APPDATA" "$LOCALAPPDATA" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_ST
   cat "$PROJECT/.opencode/oh-my-openagent.jsonc"
   echo
   echo "=== \$ opencode debug paths   (must all be inside the sandbox) ==="
-} > "$OUT"
+} >> "$OUT"
 
 ( cd "$PROJECT" && opencode debug paths ) >> "$OUT" 2>&1
 echo "EXIT=$?" >> "$OUT"
@@ -87,7 +94,7 @@ try { cfg = JSON.parse(raw) } catch (e) {
   const s = raw.indexOf("{");
   cfg = s >= 0 ? JSON.parse(raw.slice(s)) : null;
 }
-if (!cfg) { console.log("  UNPARSEABLE debug config output"); process.exit(0) }
+if (!cfg) { console.error("  UNPARSEABLE debug config output"); process.exit(1) }
 const agents = cfg.agent ?? {};
 const names = Object.keys(agents).sort();
 console.log("  registered agent count : " + names.length);

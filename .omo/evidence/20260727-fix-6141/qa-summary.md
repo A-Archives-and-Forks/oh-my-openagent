@@ -4,6 +4,9 @@ Captured 2026-07-27 (UTC) on Windows 11, bun 1.3.14, node v22.14.0, opencode 1.1
 The live OpenCode surface was rerun on 2026-07-30 after redirecting process temp
 variables into the sandbox; both captures now show `tmp` under the sandbox and
 the real OpenCode session count stayed unchanged at `2818 -> 2818`.
+The reviewer rerun on 2026-07-31 also builds from source before driving
+OpenCode, fails closed on build or parse errors, and again observed an unchanged
+real session count of `2818 -> 2818`. See `review-rerun-20260731.txt`.
 Base: `upstream/dev` @ `da2d4a916`.
 
 ## The defect
