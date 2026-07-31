@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process"
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { basename, delimiter, dirname, join, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -9,8 +9,11 @@ import { createSandbox, seedSandbox } from "./drive.mjs"
 import { changedRealPaths, classifyRealSenpiChanges, snapshotDir } from "./task-e2e-analysis.mjs"
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
+const packageRoot = resolve(scriptDir, "..", "..")
+const packagedPluginRoot = join(packageRoot, "plugin")
 const mockProviderEntry = join(scriptDir, "mock-provider", "index.ts")
 const realSenpiAgentDir = join(homedir(), ".senpi", "agent")
+const excludedSnapshotRoots = new Set(["omo-local-update", "omo-runtime-worktree"])
 const defaultReceiptDir = resolve(".omo/evidence/20260730-ulw-goal-footer/tui")
 const activeUlwStatus = JSON.stringify({
   ok: true,
@@ -43,14 +46,44 @@ function findOnPath(bin) {
   return null
 }
 
+function snapshotWriteSurface(root) {
+  return snapshotDir(root, {
+    readdir(dir, options) {
+      const entries = readdirSync(dir, options)
+      if (dir !== root) return entries
+      return entries.filter((entry) => !excludedSnapshotRoots.has(entry.name))
+    },
+  })
+}
+
 function prepareScenario() {
   const sandbox = createSandbox()
   seedSandbox(sandbox)
   const sessionDir = join(sandbox.root, "sessions")
   const fakeBinDir = join(sandbox.root, "bin")
+  const pluginRoot = join(sandbox.root, "plugin")
   const ulwActiveMarker = join(sandbox.root, "ulw-active")
   mkdirSync(sessionDir, { recursive: true })
   mkdirSync(fakeBinDir, { recursive: true })
+  mkdirSync(join(pluginRoot, "extensions"), { recursive: true })
+  copyFileSync(join(packagedPluginRoot, "extensions", "omo.js"), join(pluginRoot, "extensions", "omo.js"))
+  writeFileSync(
+    join(pluginRoot, "package.json"),
+    `${JSON.stringify(
+      {
+        name: "@code-yeongyu/omo-senpi-qa-minimal",
+        private: true,
+        type: "module",
+        pi: { extensions: ["./extensions/omo.js"] },
+      },
+      null,
+      2,
+    )}\n`,
+  )
+  writeFileSync(
+    join(sandbox.agentDir, "settings.json"),
+    `${JSON.stringify({ defaultProjectTrust: "ask", packages: [pluginRoot] }, null, 2)}\n`,
+  )
   const omoBin = join(fakeBinDir, "omo")
   writeFileSync(
     omoBin,
@@ -79,7 +112,7 @@ function prepareScenario() {
       2,
     )}\n`,
   )
-  return { sandbox, sessionDir, omoBin }
+  return { sandbox, sessionDir, omoBin, pluginRoot }
 }
 
 function composeCommand(senpiBin, sessionDir) {
@@ -146,7 +179,7 @@ function runChild(command, args, options) {
 }
 
 async function runScenario() {
-  const beforeSnapshot = snapshotDir(realSenpiAgentDir)
+  const beforeSnapshot = snapshotWriteSurface(realSenpiAgentDir)
   const senpiBin = findOnPath(process.env.SENPI_BIN?.trim() || "senpi")
   const prepared = prepareScenario()
   const realLogPath = join(realSenpiAgentDir, "logs", "session.log")
@@ -165,7 +198,7 @@ async function runScenario() {
     cleaned = true
     child?.kill("SIGTERM")
     rmSync(prepared.sandbox.root, { recursive: true, force: true })
-    const changedReal = changedRealPaths(beforeSnapshot, snapshotDir(realSenpiAgentDir))
+    const changedReal = changedRealPaths(beforeSnapshot, snapshotWriteSurface(realSenpiAgentDir))
     const afterRealLog = existsSync(realLogPath) ? readFileSync(realLogPath, "utf8") : ""
     const qaLogWrite = afterRealLog.slice(beforeRealLog.length).includes(basename(prepared.sandbox.root))
     const concurrentLogPaths = changedReal.includes("logs/session.log") && !qaLogWrite ? ["logs/session.log"] : []
@@ -221,6 +254,23 @@ function runSelfTest() {
     throw new Error("self-test: environment isolation failed")
   }
   if (env.OMO_BIN !== prepared.omoBin || !existsSync(prepared.omoBin)) throw new Error("self-test: fake omo missing")
+  if (prepared.pluginRoot === undefined || !existsSync(join(prepared.pluginRoot, "extensions", "omo.js"))) {
+    throw new Error("self-test: minimal plugin missing")
+  }
+  const settings = JSON.parse(readFileSync(join(prepared.sandbox.agentDir, "settings.json"), "utf8"))
+  if (settings.packages?.[0] !== prepared.pluginRoot) throw new Error("self-test: minimal plugin not configured")
+  const manifest = JSON.parse(readFileSync(join(prepared.pluginRoot, "package.json"), "utf8"))
+  if (manifest.pi?.skills !== undefined) throw new Error("self-test: minimal plugin must not scan skills")
+  const excludedDir = join(prepared.sandbox.agentDir, "omo-runtime-worktree")
+  mkdirSync(excludedDir, { recursive: true })
+  writeFileSync(join(excludedDir, "ignored.txt"), "before\n")
+  const beforeSnapshot = snapshotWriteSurface(prepared.sandbox.agentDir)
+  writeFileSync(join(excludedDir, "ignored.txt"), "after\n")
+  writeFileSync(join(prepared.sandbox.agentDir, "settings.json"), "{}\n")
+  const snapshotChanges = changedRealPaths(beforeSnapshot, snapshotWriteSurface(prepared.sandbox.agentDir))
+  if (!snapshotChanges.includes("settings.json") || snapshotChanges.some((path) => path.startsWith("omo-runtime-worktree/"))) {
+    throw new Error("self-test: write-surface snapshot filter failed")
+  }
   rmSync(prepared.sandbox.root, { recursive: true, force: true })
   if (existsSync(prepared.sandbox.root)) throw new Error("self-test: sandbox cleanup failed")
   console.log("SELF-TEST OK")
