@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process"
-import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { basename, delimiter, dirname, join, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -48,12 +48,13 @@ function prepareScenario() {
   seedSandbox(sandbox)
   const sessionDir = join(sandbox.root, "sessions")
   const fakeBinDir = join(sandbox.root, "bin")
+  const ulwActiveMarker = join(sandbox.root, "ulw-active")
   mkdirSync(sessionDir, { recursive: true })
   mkdirSync(fakeBinDir, { recursive: true })
   const omoBin = join(fakeBinDir, "omo")
   writeFileSync(
     omoBin,
-    `#!/bin/sh\nif [ "$1 $2 $3" = "ulw-loop status --json" ]; then\n  printf '%s\\n' '${activeUlwStatus}'\n  exit 0\nfi\nexit 2\n`,
+    `#!/bin/sh\nif [ "$1 $2" = "ulw-loop create-goals" ]; then\n  : > '${ulwActiveMarker}'\n  exit 0\nfi\nif [ "$1 $2 $3" = "ulw-loop status --json" ]; then\n  if [ -f '${ulwActiveMarker}' ]; then printf '%s\\n' '${activeUlwStatus}'; else printf '%s\\n' '{"ok":false,"error":{"code":"ULW_LOOP_PLAN_MISSING"}}'; fi\n  exit 0\nfi\nexit 2\n`,
   )
   chmodSync(omoBin, 0o755)
   writeFileSync(
@@ -65,6 +66,11 @@ function prepareScenario() {
             type: "tool_call",
             name: "create_goal",
             arguments: { objective: "Keep the real TUI open while the active ulw-loop footer animates." },
+          },
+          {
+            type: "tool_call",
+            name: "bash",
+            arguments: { command: "\"$OMO_BIN\" ulw-loop create-goals" },
           },
           { type: "text", text: "The goal and ulw-loop are active. Observe the footer animation." },
         ],
@@ -91,7 +97,7 @@ function composeCommand(senpiBin, sessionDir) {
       "--offline",
       "--approve",
       "--no-context-files",
-      "Create the requested goal, then keep working under the active ulw-loop.",
+      "Create the requested goal, activate the ulw-loop through the shell, then keep working.",
     ],
   }
 }
@@ -143,6 +149,8 @@ async function runScenario() {
   const beforeSnapshot = snapshotDir(realSenpiAgentDir)
   const senpiBin = findOnPath(process.env.SENPI_BIN?.trim() || "senpi")
   const prepared = prepareScenario()
+  const realLogPath = join(realSenpiAgentDir, "logs", "session.log")
+  const beforeRealLog = existsSync(realLogPath) ? readFileSync(realLogPath, "utf8") : ""
   let child
   let cleaned = false
   writeReceipt("driver-start.json", {
@@ -158,14 +166,17 @@ async function runScenario() {
     child?.kill("SIGTERM")
     rmSync(prepared.sandbox.root, { recursive: true, force: true })
     const changedReal = changedRealPaths(beforeSnapshot, snapshotDir(realSenpiAgentDir))
-    const classified = classifyRealSenpiChanges(changedReal, [basename(prepared.sandbox.root)])
+    const afterRealLog = existsSync(realLogPath) ? readFileSync(realLogPath, "utf8") : ""
+    const qaLogWrite = afterRealLog.slice(beforeRealLog.length).includes(basename(prepared.sandbox.root))
+    const concurrentLogPaths = changedReal.includes("logs/session.log") && !qaLogWrite ? ["logs/session.log"] : []
+    const classified = classifyRealSenpiChanges(changedReal.filter((path) => path !== "logs/session.log" || qaLogWrite), [basename(prepared.sandbox.root)])
     const payload = {
       result: senpiBin !== null && classified.qaAttributedPaths.length === 0 ? "PASS" : "FAIL",
       reason,
       sandboxCleaned: !existsSync(prepared.sandbox.root),
       realAgentWriteIsolation: classified.qaAttributedPaths.length === 0,
       qaAttributedRealPaths: classified.qaAttributedPaths,
-      concurrentSessionPaths: classified.concurrentSessionPaths,
+      concurrentSessionPaths: [...classified.concurrentSessionPaths, ...concurrentLogPaths],
       cleanup: `removed ${prepared.sandbox.root}`,
     }
     const receipt = writeReceipt("driver-cleanup.json", payload)
