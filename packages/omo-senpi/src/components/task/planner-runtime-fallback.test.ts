@@ -81,7 +81,7 @@ describe("createTaskChildPlanner runtime fallback", () => {
       {},
       {},
       () => registry([
-        model("quotio-openai", "gpt-5.4-mini-fast"),
+        model("quotio-openai", "gpt-5.6-luna-fast"),
         model("openai", "gpt-5.4-mini"),
       ]),
     )
@@ -97,7 +97,7 @@ describe("createTaskChildPlanner runtime fallback", () => {
     // then
     if (result.kind !== "resolved") throw new Error(`Expected resolved plan, got ${result.kind}`)
     expect(result.plan).toMatchObject({
-      model: "quotio-openai/gpt-5.4-mini-fast",
+      model: "quotio-openai/gpt-5.6-luna-fast",
       requested_model: {
         source: "category",
         provider: "kimi-coding",
@@ -106,8 +106,8 @@ describe("createTaskChildPlanner runtime fallback", () => {
       resolved_model: {
         source: "category",
         provider: "quotio-openai",
-        model_id: "gpt-5.4-mini-fast",
-        variant: "minimal",
+        model_id: "gpt-5.6-luna-fast",
+        variant: "low",
       },
       fallback_models: [
         {
@@ -126,13 +126,13 @@ describe("createTaskChildPlanner runtime fallback", () => {
       {
         categories: {
           quick: {
-            fallback_models: [{ model: "quotio-openai/gpt-5.4-mini-fast", variant: "low" }],
+            fallback_models: [{ model: "quotio-openai/gpt-5.6-luna-fast", variant: "low" }],
           },
         },
       },
       {},
       () => registry([
-        model("quotio-openai", "gpt-5.4-mini-fast"),
+        model("quotio-openai", "gpt-5.6-luna-fast"),
         model("openai", "gpt-5.4-mini"),
       ]),
     )
@@ -147,10 +147,10 @@ describe("createTaskChildPlanner runtime fallback", () => {
 
     // then
     if (result.kind !== "resolved") throw new Error(`Expected resolved plan, got ${result.kind}`)
-    expect(result.plan.model).toBe("quotio-openai/gpt-5.4-mini-fast")
+    expect(result.plan.model).toBe("quotio-openai/gpt-5.6-luna-fast")
     expect(result.plan.resolved_model).toMatchObject({
       provider: "quotio-openai",
-      model_id: "gpt-5.4-mini-fast",
+      model_id: "gpt-5.6-luna-fast",
       variant: "low",
     })
     expect(result.plan.fallback_models).toEqual([

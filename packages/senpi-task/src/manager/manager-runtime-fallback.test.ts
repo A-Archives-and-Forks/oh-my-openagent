@@ -59,7 +59,7 @@ describe("TaskManager runtime fallback visibility", () => {
   test("#given a builtin category child on a chain rung #when Senpi applies a fallback to the next rung #then the record advances and the remaining chain shrinks", async () => {
     // given
     const models = [
-      { provider: "quotio-openai", id: "gpt-5.4-mini-fast" },
+      { provider: "quotio-openai", id: "gpt-5.6-luna-fast" },
       { provider: "openai", id: "gpt-5.4-mini" },
     ] as const
     const registry = {
@@ -97,7 +97,7 @@ describe("TaskManager runtime fallback visibility", () => {
 
     // then: the remaining chain rung after the selected one is on the record before any retry
     expect(store.load(started.task_id)).toMatchObject({
-      model: "quotio-openai/gpt-5.4-mini-fast",
+      model: "quotio-openai/gpt-5.6-luna-fast",
       fallback_models: [
         {
           source: "category",
@@ -111,9 +111,9 @@ describe("TaskManager runtime fallback visibility", () => {
     // when
     const fallbackEvent = {
       type: "retry_fallback_applied",
-      from: "quotio-openai/gpt-5.4-mini-fast",
+      from: "quotio-openai/gpt-5.6-luna-fast",
       to: "openai/gpt-5.4-mini:minimal",
-      chainKey: "quotio-openai/gpt-5.4-mini-fast",
+      chainKey: "quotio-openai/gpt-5.6-luna-fast",
       reason: "hard-error",
     }
     fake.emit(fallbackEvent)
@@ -132,7 +132,7 @@ describe("TaskManager runtime fallback visibility", () => {
     expect(record?.fallback_models).toEqual([])
     expect(
       record?.fallback_attempts?.map((attempt) => `${attempt.provider}/${attempt.model_id}`),
-    ).toEqual(["quotio-openai/gpt-5.4-mini-fast", "openai/gpt-5.4-mini"])
+    ).toEqual(["quotio-openai/gpt-5.6-luna-fast", "openai/gpt-5.4-mini"])
     fake.settle({ status: "completed", finalResponse: "done" })
     await manager.waitFor(started.task_id)
   })
