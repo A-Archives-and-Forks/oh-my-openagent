@@ -8,6 +8,7 @@ export const expectedSkills = [
 	"ast-grep",
 	"coding-agent-sessions",
 	"comment-checker",
+	"data-scientist",
 	"debugging",
 	"frontend",
 	"git-master",

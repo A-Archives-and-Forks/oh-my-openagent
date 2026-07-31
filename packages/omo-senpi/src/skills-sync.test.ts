@@ -8,6 +8,7 @@ const skillsRoot = join(repoRoot, "packages", "omo-senpi", "plugin", "skills")
 const expectedSkillNames = [
   "ast-grep",
   "coding-agent-sessions",
+  "data-scientist",
   "debugging",
   "frontend",
   "git-master",
