@@ -205,6 +205,31 @@ describe("composeStatusLine", () => {
     expect(line).toBe("Audit renderers · quick (kimi-coding/kimi-k3:max) · turn 3 (7 tools) · running read src/foo.ts · 62 tok/s")
   })
 
+  test("#given cost and cache facts #when composed #then the cost token sits immediately before tps", () => {
+    // given / when
+    const line = composeStatusLine({
+      identity: "Audit renderers",
+      target: "quick (kimi-coding/kimi-k3:max)",
+      stats: { runtime_ms: 1_000, turns: 3, tool_calls: 7, tokens_per_second: 62, cost_usd: 0.4213, cache_hit_rate: 0.8712 },
+      verb: "running read src/foo.ts",
+    })
+
+    // then
+    expect(line).toBe(
+      "Audit renderers · quick (kimi-coding/kimi-k3:max) · turn 3 (7 tools) · running read src/foo.ts · $0.4213 (CH: 87%) · 62 tok/s",
+    )
+  })
+
+  test("#given a cache hit rate without cost #when composed #then the cache token still renders before tps", () => {
+    // given / when / then
+    expect(
+      composeStatusLine({
+        identity: "t",
+        stats: { runtime_ms: 0, turns: 1, tool_calls: 0, tokens_per_second: 8, cache_hit_rate: 0.5 },
+      }),
+    ).toBe("t · turn 1 · (CH: 50%) · 8 tok/s")
+  })
+
   test("#given a single tool call #when composed #then the tool noun is singular", () => {
     // given / when / then
     expect(

@@ -9,5 +9,8 @@ Cleanup receipts
 - Removed the build-drifted worktree.
 - Recreated the final worktree from PR head f75375603.
 - Installed final dependencies with --ignore-scripts.
+- Merged current origin/dev without rewriting PR history.
+- Resolved generated-bundle conflicts through the pinned authoritative Senpi
+  generator, then verified marker-free output and an empty unmerged index.
 - Final worktree removal will be verified after PR merge.
 

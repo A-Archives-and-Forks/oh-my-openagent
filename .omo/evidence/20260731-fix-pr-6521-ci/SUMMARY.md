@@ -20,6 +20,9 @@
   and passed diagnostically in 4.28 seconds. A 20-second circuit-breaker makes
   the repository-wide scan deterministic without timing-based synchronization.
 - The final full suite passed 12,626 tests with zero failures.
+- After `dev` advanced, its native-path fix was integrated with a merge commit.
+  The only conflicts were generated Senpi bundles; they were regenerated with
+  Bun 1.3.12 and passed the build-current check.
 
 ## Why it is enough
 
@@ -28,6 +31,9 @@
 - Typecheck, no-excuse validation, and the full suite cover adjacent script and
   repository behavior.
 - GitHub Actions is the authoritative Windows acceptance surface.
+- The post-merge Senpi gate passed 511 tests with zero failures, the focused
+  audit passed, the generated bundles were current, and no conflict markers or
+  unmerged index entries remained.
 
 ## Senpi surface scope
 
