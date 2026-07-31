@@ -288,6 +288,47 @@ describe("task_output run stats rendering", () => {
     expect(line).toContain("· 118 tok/s")
   })
 
+  test("#given run stats with cost and cache hits #when the status row renders #then the cost token sits immediately before tps", () => {
+    // given
+    const detail: TaskOutputDetails = {
+      kind: "status",
+      snapshot: snapshot({
+        run_stats: {
+          runtime_ms: 134_000,
+          turns: 3,
+          tool_calls: 5,
+          output_tokens: 900,
+          tokens_per_second: 118,
+          cost_usd: 0.4213,
+          cache_hit_rate: 0.8712,
+        },
+      }),
+    }
+
+    // when
+    const line = firstLine(renderTaskOutputResult(toolResult("ignored", detail), RESULT_OPTIONS, TEST_THEME), 200)
+
+    // then
+    expect(line).toContain("· $0.4213 (CH: 87%) · 118 tok/s")
+  })
+
+  test("#given run stats with cost but no cache facts #when the status row renders #then only the cost is shown before tps", () => {
+    // given
+    const detail: TaskOutputDetails = {
+      kind: "status",
+      snapshot: snapshot({
+        run_stats: { runtime_ms: 1_000, turns: 1, tool_calls: 0, tokens_per_second: 20, cost_usd: 0.5 },
+      }),
+    }
+
+    // when
+    const line = firstLine(renderTaskOutputResult(toolResult("ignored", detail), RESULT_OPTIONS, TEST_THEME), 200)
+
+    // then
+    expect(line).toContain("· $0.5000 · 20 tok/s")
+    expect(line).not.toContain("CH:")
+  })
+
   test("#given a snapshot without run stats #when the status row renders #then no runtime tokens appear", () => {
     // when
     const line = firstLine(
