@@ -254,7 +254,7 @@ describe("createTaskStatusUi.background progress", () => {
 
     expect(ui.widgetCalls.at(-1)?.content).toEqual([
       "⠋ Investig... · category:quick(quotio-openai/gpt-5.4-mini-fast:high) · fallback:2 · turn 3 (7 tools) · 42 tok/s · rea...",
-      "⠋ Review t... · agent:explore · model:gpt-5.4-mini-fast · turn 1 (2 tools) · bash bun test · 1m 5s",
+      "⠋ Review t... · agent:explore(quotio-openai/gpt-5.4-mini-fast) · turn 1 (2 tools) · bash bun test · 1m 5s",
     ])
     // C1: the duplicated footer task status line is gone; widget rows are the only task surface.
     expect(ui.statusCalls).toHaveLength(0)

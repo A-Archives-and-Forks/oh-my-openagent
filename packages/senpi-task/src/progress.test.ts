@@ -84,7 +84,7 @@ describe("child task progress", () => {
 
     // then
     const details = progress.details()
-    expect(details.progress.activity).toBe("st_00000002 · momus · turn 1 (2 tools) · running grep TODO")
+    expect(details.progress.activity).toBe("st_00000002 · agent:momus · turn 1 (2 tools) · running grep TODO")
     expect(details.currentTool).toBe("grep TODO")
     expect(details.toolCalls).toBe(2)
   })

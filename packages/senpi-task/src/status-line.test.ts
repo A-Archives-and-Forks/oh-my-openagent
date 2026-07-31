@@ -50,9 +50,32 @@ describe("formatStatusTarget", () => {
     ).toBe("category:quick(quotio-openai/gpt-5.4-mini-fast:high)")
   })
 
-  test("#given only an agent type #when formatted #then the agent name is the target", () => {
+  test("#given only an agent type #when formatted #then the agent target shares the category grammar", () => {
     // given / when / then
-    expect(formatStatusTarget({ agentType: "momus" })).toBe("momus")
+    expect(formatStatusTarget({ agentType: "momus" })).toBe("agent:momus")
+  })
+
+  test("#given an agent type and resolved model #when formatted #then model metadata qualifies the agent exactly like a category", () => {
+    // given / when / then
+    expect(
+      formatStatusTarget({
+        agentType: "momus",
+        resolvedModel: {
+          provider: "openai",
+          model_id: "gpt-5.6-sol-fast",
+          display: "gpt-5.6-sol-fast",
+          reasoning: "high",
+          source: "agent",
+        },
+      }),
+    ).toBe("agent:momus(openai/gpt-5.6-sol-fast:high)")
+  })
+
+  test("#given an agent type with only a raw model #when formatted #then the raw model qualifies the agent target", () => {
+    // given / when / then
+    expect(formatStatusTarget({ agentType: "explore", model: "anthropic/claude-sonnet-4-6" })).toBe(
+      "agent:explore(anthropic/claude-sonnet-4-6)",
+    )
   })
 
 

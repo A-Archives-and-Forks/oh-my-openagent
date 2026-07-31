@@ -75,7 +75,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
 
     // then
     expect(librarian.fallbackChain).toHaveLength(8)
-    expect(primary).toEqual({ providers: ["openai"], model: "gpt-5.4-mini-fast" })
+    expect(primary).toEqual({ providers: ["openai"], model: "gpt-5.6-luna-fast", variant: "low" })
     expect(second?.providers).toContain("opencode-go")
     expect(second?.providers).toContain("bailian-coding-plan")
     expect(second?.model).toBe("qwen3.7-plus")
@@ -103,7 +103,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
 
     // then
     expect(explore.fallbackChain).toHaveLength(8)
-    expect(primary).toEqual({ providers: ["openai"], model: "gpt-5.4-mini-fast" })
+    expect(primary).toEqual({ providers: ["openai"], model: "gpt-5.6-luna-fast", variant: "low" })
     expect(second?.providers).toContain("opencode-go")
     expect(second?.providers).toContain("bailian-coding-plan")
     expect(second?.model).toBe("qwen3.7-plus")

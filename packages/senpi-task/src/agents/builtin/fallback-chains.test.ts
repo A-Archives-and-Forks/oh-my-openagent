@@ -39,7 +39,7 @@ describe("AGENT_FALLBACK_CHAINS", () => {
   test("#given the mirrored fallback table #when compared with the independent transcription #then every provider model variant and order is pinned", () => {
     expect(AGENT_FALLBACK_CHAINS).toEqual({
       explore: [
-        { providers: ["openai"], model: "gpt-5.4-mini-fast" },
+        { providers: ["openai"], model: "gpt-5.6-luna-fast", variant: "low" },
         { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.5-plus" },
         { providers: ["vercel"], model: "minimax-m2.7-highspeed" },
         { providers: ["opencode-go", "vercel"], model: "minimax-m3" },
@@ -49,7 +49,7 @@ describe("AGENT_FALLBACK_CHAINS", () => {
         { providers: ["openai", "vercel"], model: "gpt-5.4-nano" },
       ],
       librarian: [
-        { providers: ["openai"], model: "gpt-5.4-mini-fast" },
+        { providers: ["openai"], model: "gpt-5.6-luna-fast", variant: "low" },
         { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.5-plus" },
         { providers: ["vercel"], model: "minimax-m2.7-highspeed" },
         { providers: ["opencode-go", "vercel"], model: "minimax-m3" },
