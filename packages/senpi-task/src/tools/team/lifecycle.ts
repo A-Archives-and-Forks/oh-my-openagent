@@ -2,6 +2,7 @@ import type { AgentToolResult, ToolDefinition } from "@code-yeongyu/senpi"
 import { Type } from "typebox"
 import type { Static } from "typebox"
 
+import { TASK_SUMMARY_MAX_LENGTH } from "../../task-summary"
 import { SenpiTeamRuntimeError, SenpiTeamSpecError } from "../../team"
 import type { CreatedMemberInfo } from "../../team"
 import type { ResolvedModelRecord } from "../../state"
@@ -20,6 +21,12 @@ const InlineTeamSpecMemberSchema = Type.Object(
     category: Type.Optional(Type.String({ description: "Category to route this member through (kind category)." })),
     subagent_type: Type.Optional(Type.String({ description: "Agent definition to run this member as (kind subagent_type or agent)." })),
     prompt: Type.Optional(Type.String({ description: "Member instructions; MUST be written in English." })),
+    task_summary: Type.Optional(
+      Type.String({
+        maxLength: TASK_SUMMARY_MAX_LENGTH,
+        description: "One-line summary of this member's assigned work, shown in the task footer/widget UI. Longer values are force-truncated to 80 chars.",
+      }),
+    ),
   },
   { additionalProperties: true },
 )
@@ -62,6 +69,7 @@ export type TeamCreateMemberView = {
   readonly task_id: string
   readonly model?: ResolvedModelRecord
   readonly prompt_excerpt?: string
+  readonly task_summary?: string
 }
 
 export type TeamCreateDetails =
@@ -123,6 +131,7 @@ export async function runTeamCreate(service: TeamToolsService, params: TeamCreat
       task_id: member.taskId,
       ...(member.model !== undefined ? { model: member.model } : {}),
       ...(member.promptExcerpt !== undefined ? { prompt_excerpt: member.promptExcerpt } : {}),
+      ...(member.taskSummary !== undefined ? { task_summary: member.taskSummary } : {}),
     }))
     const lines = [
       `Created team '${state.teamName}' (${state.teamRunId}) with ${members.length} members.`,
