@@ -3,7 +3,8 @@ PR #6375 review rerun - 2026-07-31
 WHAT WAS TESTED
 
 1. Hardened evidence driver:
-   bash .omo/evidence/20260727-fix-6141/live-driver.sh /tmp/pr6375-live-after.txt
+   bash .omo/evidence/20260727-fix-6141/live-driver.sh \
+     /tmp/pr6375-live-after-asserted-final.txt true
 2. Focused regression suite:
    bun test packages/omo-opencode/src/agents/hephaestus/agent.test.ts
 3. Package typecheck:
@@ -14,8 +15,12 @@ WHAT WAS TESTED
 
 WHAT WAS OBSERVED
 
-- The driver ran `bun run build` before invoking OpenCode and recorded
-  `build: all steps completed` followed by `EXIT=0`.
+- The driver built `dist/index.js` from the current source before invoking
+  OpenCode and recorded the successful bundle followed by `EXIT=0`.
+- The driver's `true` expectation argument made the run fail unless
+  Hephaestus was present in the resolved agent map.
+- The exact output is committed as
+  `live-driver-after-asserted-20260731.txt`.
 - Every path reported by `opencode debug paths`, including `tmp`, was inside
   the throwaway `omo-6141-*` sandbox.
 - `opencode debug config` exited 0 and reported:
@@ -23,7 +28,7 @@ WHAT WAS OBSERVED
 - The resolved model was:
   `amazon-bedrock/openai.gpt-5.4`
 - The real OpenCode session count was unchanged:
-  `2818 before -> 2818 after`
+  `2821 before -> 2821 after`
 - The focused suite passed:
   `31 pass, 0 fail`
 - The package typecheck exited 0 with no diagnostics.

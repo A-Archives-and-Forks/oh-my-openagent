@@ -12,10 +12,15 @@
 #
 # Run once on unmodified upstream/dev and once with the fix applied, then diff.
 #
-# usage: bash live-driver.sh <output-file>
+# usage: bash live-driver.sh <output-file> <expect-registered:true|false>
 set -euo pipefail
 
-OUT="${1:?usage: live-driver.sh <output-file>}"
+OUT="${1:?usage: live-driver.sh <output-file> <expect-registered:true|false>}"
+EXPECT_REGISTERED="${2:?usage: live-driver.sh <output-file> <expect-registered:true|false>}"
+if [[ "$EXPECT_REGISTERED" != "true" && "$EXPECT_REGISTERED" != "false" ]]; then
+  echo "expect-registered must be true or false" >&2
+  exit 2
+fi
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 REPO_WIN="$(cd "$REPO" && pwd -W 2>/dev/null || echo "$REPO")"
 SBX="$(mktemp -d "${TMPDIR:-/tmp}/omo-6141-XXXXXX")"
@@ -61,10 +66,10 @@ mkdir -p "$APPDATA" "$LOCALAPPDATA" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_ST
   echo "### surface: REAL opencode -> opencode debug config (agent registration map)"
   echo "### opencode: $(opencode --version 2>&1 | head -1)"
   echo "### repo: $REPO_WIN"
-  echo "=== \$ bun run build ==="
+  echo "=== \$ bun build packages/omo-opencode/src/index.ts --outdir dist --target bun --format esm --external zod ==="
 } > "$OUT"
 
-( cd "$REPO" && bun run build ) >> "$OUT" 2>&1
+( cd "$REPO" && bun build packages/omo-opencode/src/index.ts --outdir dist --target bun --format esm --external zod ) >> "$OUT" 2>&1
 
 {
   echo "EXIT=0"
@@ -103,15 +108,21 @@ console.log("");
 // opencode keys the resolved agent map by DISPLAY name, so match case-insensitively.
 const key = names.find((n) => /^hephaestus/i.test(n));
 const h = key ? agents[key] : undefined;
-console.log("  >>> HEPHAESTUS REGISTERED : " + (h !== undefined) + (key ? "  (key: " + key + ")" : ""));
+const registered = h !== undefined;
+const expected = process.argv[2] === "true";
+console.log("  >>> HEPHAESTUS REGISTERED : " + registered + (key ? "  (key: " + key + ")" : ""));
 if (h) {
   console.log("      hephaestus.model    : " + (h.model ?? "(unset)"));
   console.log("      hephaestus.mode     : " + (h.mode ?? "(unset)"));
   console.log("      hephaestus.hidden   : " + (h.hidden ?? "(unset)"));
 }
+if (registered !== expected) {
+  console.error("  EXPECTATION FAILED: expected HEPHAESTUS REGISTERED = " + expected);
+  process.exit(1);
+}
 const controlKey = names.find((n) => /^sisyphus/i.test(n)) ?? names.find((n) => /^oracle/i.test(n));
 console.log("  control agent registered  : " + (controlKey !== undefined) + (controlKey ? "  (key: " + controlKey + ")" : ""));
-' "$SBX/config.json" >> "$OUT" 2>&1
+' "$SBX/config.json" "$EXPECT_REGISTERED" >> "$OUT" 2>&1
 
 {
   echo ""
