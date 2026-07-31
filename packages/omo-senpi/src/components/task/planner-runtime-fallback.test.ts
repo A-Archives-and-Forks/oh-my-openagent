@@ -28,7 +28,7 @@ describe("createTaskChildPlanner runtime fallback", () => {
             model: "kimi-coding/kimi-for-coding-highspeed-unlocked",
             reasoningEffort: "minimal",
             fallback_models: [
-              { model: "quotio-openai/gpt-5.4-mini-fast", reasoningEffort: "minimal" },
+              { model: "quotio-openai/gpt-5.6-luna-fast", reasoningEffort: "minimal" },
               { model: "example-gateway/z-ai/glm-5.2-ultrafast-unlocked", reasoningEffort: "none" },
             ],
           },
@@ -37,7 +37,7 @@ describe("createTaskChildPlanner runtime fallback", () => {
       {},
       () => registry([
         model("kimi-coding", "kimi-for-coding-highspeed-unlocked"),
-        model("quotio-openai", "gpt-5.4-mini-fast"),
+        model("quotio-openai", "gpt-5.6-luna-fast"),
         model("example-gateway", "z-ai/glm-5.2-ultrafast-unlocked"),
       ]),
     )
@@ -62,7 +62,7 @@ describe("createTaskChildPlanner runtime fallback", () => {
         {
           source: "category",
           provider: "quotio-openai",
-          model_id: "gpt-5.4-mini-fast",
+          model_id: "gpt-5.6-luna-fast",
           reasoning_effort: "minimal",
         },
         {
