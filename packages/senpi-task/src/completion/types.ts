@@ -23,6 +23,8 @@ export type CompletionDetails = {
   readonly category?: string
   readonly agent_type?: string
   readonly model: string
+  readonly requested_model?: ResolvedModelRecord
+  readonly fallback_models?: readonly ResolvedModelRecord[]
   readonly resolved_model?: ResolvedModelRecord
   readonly duration_ms: number
   readonly tokens?: number

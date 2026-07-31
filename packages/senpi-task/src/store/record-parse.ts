@@ -23,7 +23,10 @@ export function parseTaskRecord(value: unknown, path: string): TaskRecord {
   const finalResponse = readOptionalString(value, "final_response")
   const errorMessage = readOptionalString(value, "error_message")
   const killed = readOptionalBoolean(value, "killed")
-  const resolvedModel = readOptionalResolvedModel(value)
+  const requestedModel = readOptionalResolvedModel(value, "requested_model")
+  const fallbackModels = readOptionalResolvedModelArray(value, "fallback_models")
+  const fallbackAttempts = readOptionalResolvedModelArray(value, "fallback_attempts")
+  const resolvedModel = readOptionalResolvedModel(value, "resolved_model")
   const spawnSpec = readOptionalSpawnSpec(value)
   const runStats = readOptionalRunStats(value)
 
@@ -45,6 +48,9 @@ export function parseTaskRecord(value: unknown, path: string): TaskRecord {
     ...(category === undefined ? {} : { category }),
     ...(toolAllow === undefined ? {} : { tool_allow: toolAllow }),
     ...(toolDeny === undefined ? {} : { tool_deny: toolDeny }),
+    ...(requestedModel === undefined ? {} : { requested_model: requestedModel }),
+    ...(fallbackModels === undefined ? {} : { fallback_models: fallbackModels }),
+    ...(fallbackAttempts === undefined ? {} : { fallback_attempts: fallbackAttempts }),
     ...(resolvedModel === undefined ? {} : { resolved_model: resolvedModel }),
     ...(spawnSpec === undefined ? {} : { spawn_spec: spawnSpec }),
     ...(pid === undefined ? {} : { pid }),
@@ -83,19 +89,41 @@ function readOptionalSpawnSpec(record: Record<string, unknown>): TaskRecord["spa
   return { cwd: readString(value, "cwd") }
 }
 
-function readOptionalResolvedModel(record: Record<string, unknown>): ResolvedModelRecord | undefined {
-  const value = record["resolved_model"]
+function readOptionalResolvedModel(
+  record: Record<string, unknown>,
+  key: "requested_model" | "resolved_model" = "resolved_model",
+): ResolvedModelRecord | undefined {
+  const value = record[key]
   if (value === undefined) return undefined
-  if (!isRecord(value)) throw new Error("resolved_model is not an object")
+  if (!isRecord(value)) throw new Error(`${key} is not an object`)
+  return readResolvedModel(value)
+}
+
+function readOptionalResolvedModelArray(
+  record: Record<string, unknown>,
+  key: "fallback_models" | "fallback_attempts",
+): readonly ResolvedModelRecord[] | undefined {
+  const value = record[key]
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) throw new Error(`${key} is not an array`)
+  return value.map((candidate, index) => {
+    if (!isRecord(candidate)) throw new Error(`${key}[${index}] is not an object`)
+    return readResolvedModel(candidate)
+  })
+}
+
+function readResolvedModel(value: Record<string, unknown>): ResolvedModelRecord {
   const variant = readOptionalString(value, "variant")
-  const reasoningEffort = readOptionalString(value, "reasoning_effort")
+  const legacyReasoningEffort = readOptionalString(value, "reasoning_effort")
+  const reasoning = readOptionalString(value, "reasoning")
   return {
     provider: readString(value, "provider"),
     model_id: readString(value, "model_id"),
     display: readString(value, "display"),
     source: readResolvedModelSource(value),
     ...(variant === undefined ? {} : { variant }),
-    ...(reasoningEffort === undefined ? {} : { reasoning_effort: reasoningEffort }),
+    ...(legacyReasoningEffort === undefined ? {} : { reasoning_effort: legacyReasoningEffort }),
+    ...(reasoning === undefined ? {} : { reasoning }),
   }
 }
 
@@ -103,10 +131,12 @@ function readNotification(record: Record<string, unknown>): TaskRecord["notifica
   const notification = record["notification"]
   if (!isRecord(notification)) throw new Error("notification is not an object")
   const failedEpoch = readOptionalNumber(notification, "notification_failed_epoch")
+  const livenessNotifiedEpoch = readOptionalNumber(notification, "liveness_notified_epoch")
   return {
     run_epoch: readNumber(notification, "run_epoch"),
     notified_epoch: readNumber(notification, "notified_epoch"),
     ...(failedEpoch === undefined ? {} : { notification_failed_epoch: failedEpoch }),
+    ...(livenessNotifiedEpoch === undefined ? {} : { liveness_notified_epoch: livenessNotifiedEpoch }),
   }
 }
 

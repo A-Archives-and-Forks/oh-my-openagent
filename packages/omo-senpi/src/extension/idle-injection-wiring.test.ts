@@ -16,7 +16,7 @@ describe("idle-injection wiring: real producers on one idle edge", () => {
     // given a shared coordinator whose deferred flush is captured (manual scheduler = deterministic)
     const delivered: string[] = []
     const scheduled: Array<() => void> = []
-    const coordinator = new IdleInjectionCoordinator((content) => delivered.push(content), {
+    const coordinator = new IdleInjectionCoordinator((message) => delivered.push(message.content), {
       scheduleFlush: (flush) => scheduled.push(flush),
     })
 

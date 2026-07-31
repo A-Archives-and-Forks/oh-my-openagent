@@ -29,8 +29,12 @@ export type ResolvedModelRecord = {
   readonly provider: string
   readonly model_id: string
   readonly display: string
+  /** @deprecated mirrors `reasoning` during the unification deprecation window. */
   readonly variant?: string
+  /** @deprecated legacy persisted spelling; read through `reasoning`. */
   readonly reasoning_effort?: string
+  /** Canonical unified reasoning level (off|minimal|low|medium|high|xhigh|max) or a harness-native preset token. */
+  readonly reasoning?: string
   readonly source: ResolvedModelSource
 }
 
@@ -52,6 +56,7 @@ export type TaskNotification = {
   readonly run_epoch: number
   readonly notified_epoch: number
   readonly notification_failed_epoch?: number
+  readonly liveness_notified_epoch?: number
 }
 
 export type TaskSpawnSpec = {
@@ -72,6 +77,9 @@ export type TaskRecordInput = {
   readonly category?: string
   readonly execution_mode: string
   readonly model: string
+  readonly requested_model?: ResolvedModelRecord
+  readonly fallback_models?: readonly ResolvedModelRecord[]
+  readonly fallback_attempts?: readonly ResolvedModelRecord[]
   readonly resolved_model?: ResolvedModelRecord
   readonly tool_allow?: readonly string[]
   readonly tool_deny?: readonly string[]

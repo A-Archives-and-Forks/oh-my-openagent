@@ -11,7 +11,7 @@ const sharedSkillsRoot = join(repoRoot, "shared-skills", "skills")
 const skillSources = [
   {
     name: "ulw-loop",
-    source: join(repoRoot, "omo-codex", "plugin", "components", "ulw-loop", "skills", "ulw-loop"),
+    source: join(repoRoot, "omo-senpi", "skills", "ulw-loop"),
   },
 ]
 const componentSkillNames = new Set(skillSources.map(({ name }) => name))
@@ -21,6 +21,10 @@ const componentSkillNames = new Set(skillSources.map(({ name }) => name))
 // section stripping, and no Senpi-compatibility banner (they already speak native Senpi tools).
 const nativeSkillsRoot = join(repoRoot, "omo-senpi", "skills")
 const nativeSkillSources = [
+  {
+    name: "give-me-tips",
+    source: join(nativeSkillsRoot, "give-me-tips"),
+  },
   {
     name: "hyperplan",
     source: join(nativeSkillsRoot, "hyperplan"),
@@ -153,6 +157,8 @@ function applyStartWorkOverlay(content) {
 const ulwPlanReviewOverride = `## Senpi Review Override (authoritative)
 
 In omo-senpi the curated \`oracle\` subagent does not exist. The high-accuracy review is MOMUS-ONLY: one round is exactly ONE native \`momus\` review of the complete plan file. Ignore every "dual" review instruction, every "independent" reviewer lane, and every \`independent_reviewer\` state field below; never spawn \`task(subagent_type="oracle")\`. A momus approval whose remaining items are notes counts as approval.
+
+Only a plan file produced by this skill and recorded with \`review_required\` authorizes a \`momus\` or \`metis\` review. A bare \`ulw\` run without that file uses notepad self-review instead, however large the work feels.
 
 If a section below conflicts with this section, this section wins.
 
@@ -309,7 +315,7 @@ export async function syncSkills() {
     await assertSourceExists(source)
     const destination = join(skillsRoot, name)
     await cp(source, destination, { filter: shouldCopySkillSource, recursive: true })
-    await adaptSkillTree(destination, applyTier1Adaptation)
+    await adaptSkillTree(destination, normalizeBlankLines)
   }
 
   for (const { name, source } of nativeSkillSources) {

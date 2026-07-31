@@ -66,4 +66,42 @@ describe("buildTaskToolDescription", () => {
     expect(TASK_PROMPT_SNIPPET.length).toBeGreaterThan(0)
     expect(TASK_PROMPT_GUIDELINES.length).toBeGreaterThan(0)
   })
+
+  test("#given task prompt surfaces #when responsibilities are inspected #then target selection belongs to the tool description only", () => {
+    // given
+    const config: OmoConfig = { categories: {}, agents: {} }
+
+    // when
+    const description = buildTaskToolDescription({ omoConfig: config, agents })
+    const duplicatedTargetRule = TASK_PROMPT_GUIDELINES.some(
+      (guideline) => /category.*subagent_type|subagent_type.*category/i.test(guideline),
+    )
+
+    // then
+    expect(description).toMatch(/\bprompt\b/)
+    expect(description).toMatch(/\btasks\b/)
+    expect(duplicatedTargetRule).toBe(false)
+  })
+})
+
+describe("buildTaskToolDescription category+model exclusivity", () => {
+  test("#given the description #when built #then it forbids combining category with model and names the config escape hatch", () => {
+    // given
+    const config: OmoConfig = { categories: {}, agents: {} }
+
+    // when
+    const description = buildTaskToolDescription({ omoConfig: config, agents })
+
+    // then
+    expect(description).toContain("NEVER combine model with category")
+    expect(description).toContain("omo.json")
+    expect(description).toContain("subagent_type")
+  })
+
+  test("#given the prompt guidelines #when read #then they carry the category/model exclusivity rule", () => {
+    const joined = TASK_PROMPT_GUIDELINES.join("\n")
+    expect(joined).toContain("model")
+    expect(joined).toContain("category")
+    expect(joined).toContain("omo.json")
+  })
 })
