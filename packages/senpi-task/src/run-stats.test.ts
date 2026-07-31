@@ -250,6 +250,29 @@ describe("run stats tracker", () => {
     expect(tracker.snapshot(2_000).cost_usd).toBeUndefined()
   })
 
+  test("#given finite values that overflow cumulative totals #when snapshotted #then non-finite metrics are omitted", () => {
+    // given
+    const tracker = createRunStatsTracker(1_000, () => 2_000)
+    const overflowingTurn = {
+      type: "message_end" as const,
+      message: {
+        role: "assistant",
+        content: [],
+        usage: { input: 0, cacheRead: 1e308, cacheWrite: 0, cost: 1e308 },
+      },
+    }
+
+    // when: every individual value is finite, but the two-turn sums overflow
+    tracker.accept(overflowingTurn)
+    tracker.accept(overflowingTurn)
+
+    // then
+    const snapshot = tracker.snapshot(2_000)
+    expect(snapshot.cost_usd).toBeUndefined()
+    expect(snapshot.cache_hit_rate).toBeUndefined()
+    expect(JSON.stringify(snapshot)).not.toContain("null")
+  })
+
   test("#given one measured window and one collapsed window #when snapshotted #then tps conservatively uses runtime", () => {
     // given
     let nowMs = 1_000

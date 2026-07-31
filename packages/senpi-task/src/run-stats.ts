@@ -64,6 +64,7 @@ export function createRunStatsTracker(startedAt: number, now: () => number = Dat
       // disappearing or being divided by only the windows that happened to measure.
       const throughputWindowMs = collapsedWindows > 0 || generationMs === 0 ? runtimeMs : generationMs
       const tps = tokensPerSecond(outputTokens, throughputWindowMs)
+      const cacheHitRate = boundedCacheHitRate(cacheReadTokens, cacheableTokens)
       return {
         runtime_ms: runtimeMs,
         turns,
@@ -72,10 +73,8 @@ export function createRunStatsTracker(startedAt: number, now: () => number = Dat
         ...(totalTokens > 0 ? { total_tokens: totalTokens } : {}),
         ...(generationMs > 0 ? { generation_ms: generationMs } : {}),
         ...(tps === undefined ? {} : { tokens_per_second: tps }),
-        ...(sawCost ? { cost_usd: costUsd } : {}),
-        ...(cacheableTokens > 0
-          ? { cache_hit_rate: Math.min(1, Math.max(0, cacheReadTokens / cacheableTokens)) }
-          : {}),
+        ...(sawCost && Number.isFinite(costUsd) ? { cost_usd: costUsd } : {}),
+        ...(cacheHitRate === undefined ? {} : { cache_hit_rate: cacheHitRate }),
       }
     },
   }
@@ -85,6 +84,14 @@ export function tokensPerSecond(outputTokens: number, generationMs: number): num
   if (outputTokens <= 0 || generationMs <= 0) return undefined
   const raw = outputTokens / (generationMs / 1_000)
   return raw >= 10 ? Math.round(raw) : Math.round(raw * 10) / 10
+}
+
+function boundedCacheHitRate(cacheReadTokens: number, cacheableTokens: number): number | undefined {
+  if (!Number.isFinite(cacheReadTokens) || !Number.isFinite(cacheableTokens) || cacheableTokens <= 0) {
+    return undefined
+  }
+  const rate = cacheReadTokens / cacheableTokens
+  return Number.isFinite(rate) ? Math.min(1, Math.max(0, rate)) : undefined
 }
 
 function isAssistantMessage(message: unknown): message is Record<string, unknown> {
