@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test"
 
-import { Theme, type MessageRenderer } from "@code-yeongyu/senpi"
+import type { MessageRenderer } from "@code-yeongyu/senpi"
 import { normalizeRendererText, rendererVisibleWidth } from "@oh-my-opencode/senpi-task"
 
+import { Theme } from "../../senpi-test-runtime"
 import { renderTaskCompletion, renderTeamMemberLiveness } from "./renderers"
 
 const TEST_FG_COLORS = {

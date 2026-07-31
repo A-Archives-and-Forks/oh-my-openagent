@@ -41,7 +41,10 @@ export type ResolvedModelRecord = {
 // Usage/runtime facts accumulated over ONE run of the child (spawn to terminal transition).
 // total_tokens sums usage.totalTokens across assistant turns (billed volume: context re-sent
 // per turn counts every time); output_tokens sums completion tokens only. generation_ms sums
-// assistant streaming windows, so tokens_per_second reflects generation speed, not tool time.
+// assistant streaming windows. tokens_per_second is emitted ONLY when every token-bearing
+// generation window has a non-zero measured duration; when any token-bearing window collapsed
+// to zero (post-hoc RPC burst, clock coalescing), the lost timing makes generation throughput
+// unverifiable and the field is omitted rather than reporting a runtime-derived substitute.
 export type TaskRunStats = {
   readonly runtime_ms: number
   readonly turns: number
@@ -50,6 +53,11 @@ export type TaskRunStats = {
   readonly total_tokens?: number
   readonly generation_ms?: number
   readonly tokens_per_second?: number
+  /** Summed provider-reported spend for the run, in USD. */
+  readonly cost_usd?: number
+  /** cacheRead / (input + cacheRead + cacheWrite) over the run, as a 0..1 fraction. Omitted when
+   * no turn reported a cacheable denominator (never inferred as zero). */
+  readonly cache_hit_rate?: number
 }
 
 export type TaskNotification = {
