@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 
 import { createRuntimeState } from "@oh-my-opencode/team-core/team-state-store"
 
+import { writeMemberTaskMap } from "./member-map"
 import { normalizeSenpiTeamSpec } from "./normalize"
 import { createTeam, deleteTeam } from "./runtime"
 import { toTeamCoreConfig } from "./runtime-config"
@@ -154,6 +155,29 @@ describe("deleteTeam", () => {
     expect(existsSync(runtimeDir)).toBe(false)
   })
 
+  test("#given a member sidecar points at a foreign task #when deleted #then that task is untouched", async () => {
+    // given
+    const { created, deps, manager, destruction, stateDir } = await completedResidentTeam()
+    const foreign = await manager.start({
+      prompt: "foreign work",
+      parent_session_id: "lead-session",
+      depth: 1,
+      name: "foreign-task",
+    })
+    if (foreign.kind !== "started") throw new Error("expected foreign task to start")
+    const runtimeDir = resolveTeamRuntimeDirs(stateDir, created.runtimeState.teamRunId).runtimeDir
+    await writeMemberTaskMap(runtimeDir, { alpha: foreign.task_id })
+
+    // when
+    const result = await deleteTeam(created.runtimeState.teamRunId, deps)
+
+    // then
+    expect(result.cancelledTaskIds).toEqual([])
+    expect(manager.cancelled).toEqual([])
+    expect(destruction.calls).toEqual([])
+    expect(manager.get(foreign.task_id)?.status).toBe("completed")
+  })
+
   test("#given a completed resident member already disposed #when deleted #then destruction is not repeated", async () => {
     // given
     const { created, deps, manager, destruction, taskId } = await completedResidentTeam()
@@ -171,7 +195,7 @@ describe("deleteTeam", () => {
     // given
     const { created, deps, manager, destruction, taskId } = await completedResidentTeam()
     manager.setGetHook(taskId, (record, readCount) => (
-      readCount === 2 ? { ...record, status: "running" } : record
+      readCount === 3 ? { ...record, status: "running" } : record
     ))
 
     // when

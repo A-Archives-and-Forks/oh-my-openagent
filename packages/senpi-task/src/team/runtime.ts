@@ -20,7 +20,7 @@ import {
   type DeleteTeamDeps,
   type DeleteTeamResult,
 } from "./runtime-types"
-import { spawnTeamMembers, type SpawnMembersResult, type SpawnedMember } from "./spawn-members"
+import { memberTaskName, spawnTeamMembers, type SpawnMembersResult, type SpawnedMember } from "./spawn-members"
 import { ensureTeamRuntimeDirs, resolveTeamRuntimeDirs, teamStorageBaseDir } from "./storage"
 
 const MS_PER_MINUTE = 60_000
@@ -231,7 +231,8 @@ async function performDeleteTeam(teamRunId: string, deps: DeleteTeamDeps): Promi
 async function cancelMemberTasks(teamRunId: string, runtimeDir: string, deps: DeleteTeamDeps): Promise<string[]> {
   const map = await readMemberTaskMap(runtimeDir)
   const cancelled: string[] = []
-  for (const taskId of Object.values(map)) {
+  for (const [memberName, taskId] of Object.entries(map)) {
+    if (deps.manager.get(taskId)?.name !== memberTaskName(teamRunId, memberName)) continue
     const outcome = await deps.manager.cancelTask(taskId, `delete team ${teamRunId}`)
     if (outcome.kind === "cancelled") {
       cancelled.push(taskId)
