@@ -178,8 +178,8 @@ describe("generateModelConfig", () => {
       const result = generateModelConfig(config)
 
       // #then explore should use native OpenAI mini-fast (primary model)
-      expect(result.agents?.explore?.model).toBe("openai/gpt-5.4-mini-fast")
-      expect(result.agents?.explore?.variant).toBeUndefined()
+      expect(result.agents?.explore?.model).toBe("openai/gpt-5.6-luna-fast")
+      expect(result.agents?.explore?.variant).toBe("low")
     })
 
     test("explore uses gpt-5-mini when only Copilot available", () => {

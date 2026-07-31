@@ -4,7 +4,7 @@ import type { DelegateFallbackEntry } from "@oh-my-opencode/delegate-core"
 // senpi-task cannot import model-core here without adding a package dependency outside this task's scope.
 export const AGENT_FALLBACK_CHAINS: Readonly<Record<string, readonly DelegateFallbackEntry[]>> = {
   explore: [
-    { providers: ["openai"], model: "gpt-5.4-mini-fast" },
+    { providers: ["openai"], model: "gpt-5.6-luna-fast", variant: "low" },
     { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.5-plus" },
     { providers: ["vercel"], model: "minimax-m2.7-highspeed" },
     { providers: ["opencode-go", "vercel"], model: "minimax-m3" },
@@ -14,7 +14,7 @@ export const AGENT_FALLBACK_CHAINS: Readonly<Record<string, readonly DelegateFal
     { providers: ["openai", "vercel"], model: "gpt-5.4-nano" },
   ],
   librarian: [
-    { providers: ["openai"], model: "gpt-5.4-mini-fast" },
+    { providers: ["openai"], model: "gpt-5.6-luna-fast", variant: "low" },
     { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.5-plus" },
     { providers: ["vercel"], model: "minimax-m2.7-highspeed" },
     { providers: ["opencode-go", "vercel"], model: "minimax-m3" },

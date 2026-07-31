@@ -56,7 +56,7 @@ export const CATEGORY_FALLBACK_CHAINS: Readonly<Record<string, readonly Delegate
   ],
   quick: [
     { providers: ["kimi-coding", "kimi-for-coding"], model: "kimi-for-coding-highspeed" },
-    { providers: ["quotio-openai"], model: "gpt-5.4-mini-fast", variant: "minimal" },
+    { providers: ["quotio-openai"], model: "gpt-5.6-luna-fast", variant: "low" },
     { providers: ["openai"], model: "gpt-5.4-mini", variant: "minimal" },
     { providers: ["xai"], model: "grok-4.20-0309-non-reasoning" },
     { providers: ["xiaomi"], model: "mimo-v2.5-pro-ultraspeed" },
