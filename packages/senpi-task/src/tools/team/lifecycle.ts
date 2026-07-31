@@ -5,8 +5,8 @@ import type { Static } from "typebox"
 import { SenpiTeamRuntimeError, SenpiTeamSpecError } from "../../team"
 import type { CreatedMemberInfo } from "../../team"
 import type { ResolvedModelRecord } from "../../state"
+import { formatTargetIdentity, formatTargetWithModel } from "../../status-line"
 import { toolResult } from "../control"
-import { qualifyResolvedModelDisplay } from "../task/resolved-model-display"
 import type { TeamToolDeps, TeamToolsService } from "./types"
 
 const InlineTeamSpecMemberSchema = Type.Object(
@@ -157,23 +157,21 @@ export async function runTeamDelete(service: TeamToolsService, params: TeamDelet
 }
 
 function formatMemberRole(role: CreatedMemberInfo["role"]): string {
-  return role.kind === "category" ? `category:${role.category}` : `subagent_type:${role.subagentType}`
+  return formatTargetIdentity(
+    role.kind === "category" ? { category: role.category } : { agentType: role.subagentType },
+  ) ?? "task"
 }
 
 // Prompt excerpts stay in details, never in the text lines: echoing raw member prompts into the
 // lead conversation lets their content spoof scanners that match markers in the message stream
 // (e2e role detection, keyword triggers).
 function formatCreatedMemberLine(member: CreatedMemberInfo): string {
-  return `- ${member.name} [${member.status}] ${formatMemberRole(member.role)}${formatModelSegment(member.model)} task:${member.taskId}`
-}
-
-function formatModelSegment(model: ResolvedModelRecord | undefined): string {
-  if (model === undefined) return ""
-  const display = qualifyResolvedModelDisplay(model.provider, model.display) ?? model.model_id
-  const reasoningValue = model.reasoning ?? model.reasoning_effort
-  const reasoning = reasoningValue === undefined ? "" : ` reasoning:${reasoningValue}`
-  const variant = model.variant === undefined ? "" : ` variant:${model.variant}`
-  return ` (${display}${reasoning}${variant})`
+  const target = formatTargetWithModel({
+    category: member.role.kind === "category" ? member.role.category : undefined,
+    agentType: member.role.kind === "category" ? undefined : member.role.subagentType,
+    resolvedModel: member.model,
+  })
+  return `- ${member.name} [${member.status}] ${target ?? formatMemberRole(member.role)} task:${member.taskId}`
 }
 
 export function createTeamCreateTool(deps: TeamToolDeps): ToolDefinition {

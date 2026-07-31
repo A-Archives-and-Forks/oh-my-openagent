@@ -44,8 +44,7 @@ describe("batch task model visibility", () => {
     const itemLine = taskResultLines(output.details)[1]
 
     // then
-    expect(itemLine).toContain("category:quick")
-    expect(itemLine).toContain("model:quotio-openai/gpt-5.4-mini-fast")
+    expect(itemLine).toContain("category:quick(quotio-openai/gpt-5.4-mini-fast)")
     expect(itemLine).not.toContain("requested/model")
   })
 })

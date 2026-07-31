@@ -33,6 +33,8 @@ export type {
 export {
   composeStatusLine,
   formatStatusTarget,
+  formatTargetIdentity,
+  formatTargetWithModel,
   taskIdentityLabel,
   toolCountSuffix,
 } from "./status-line"

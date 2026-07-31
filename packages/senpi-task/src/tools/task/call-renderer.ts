@@ -1,6 +1,7 @@
 import type { Theme } from "@code-yeongyu/senpi"
 import { truncateToWidth } from "@earendil-works/pi-tui"
 
+import { formatTargetIdentity } from "../../status-line"
 import {
   ELLIPSIS,
   excerptRendererPromptText,
@@ -19,11 +20,7 @@ export type TaskCallArgs = {
 }
 
 export function formatTaskTarget(args: Pick<TaskCallArgs, "category" | "subagent_type">): string {
-  const category = optionalRendererText(args.category)
-  if (category !== undefined) return `category:${category}`
-  const agent = optionalRendererText(args.subagent_type)
-  if (agent !== undefined) return `agent:${agent}`
-  return "task"
+  return formatTargetIdentity({ category: args.category, agentType: args.subagent_type }) ?? "task"
 }
 
 export function formatTaskMode(runInBackground: boolean | undefined): string {
