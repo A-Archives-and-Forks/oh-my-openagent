@@ -58,13 +58,13 @@ describe("formatStatusTarget", () => {
         category: "quick",
         resolvedModel: {
           provider: "quotio-openai",
-          model_id: "gpt-5.4-mini-fast",
-          display: "gpt-5.4-mini-fast",
+          model_id: "gpt-5.6-luna-fast",
+          display: "gpt-5.6-luna-fast",
           reasoning_effort: "high",
           source: "category",
         },
       }),
-    ).toBe("category:quick(quotio-openai/gpt-5.4-mini-fast:high)")
+    ).toBe("category:quick(quotio-openai/gpt-5.6-luna-fast:high)")
   })
 
   test("#given only an agent type #when formatted #then the agent target shares the category grammar", () => {

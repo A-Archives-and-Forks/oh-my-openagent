@@ -76,6 +76,7 @@ export const CATEGORY_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
     fallbackChain: [
       { providers: ["kimi-for-coding"], model: "kimi-for-coding-highspeed" },
       { providers: ["quotio-openai"], model: "gpt-5.6-luna-fast", variant: "low" },
+      { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "off" },
       {
         providers: ["qwen-token-plan", "alibaba-token-plan", "bailian-coding-plan", "opencode-go", "vercel"],
         model: "qwen3.6-flash",
