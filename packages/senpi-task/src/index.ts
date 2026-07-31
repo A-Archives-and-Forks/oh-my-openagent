@@ -186,10 +186,15 @@ export type {
   TrustedRespawnLaunchResolver,
 } from "./manager"
 export {
+  AGENT_INVOCATION_CONDITIONS,
   BUILTIN_AGENTS,
   BUILTIN_AGENT_DEFAULTS,
   CURATED_READONLY_AGENT_NAMES,
+  EMPTY_SKILL_INVOCATIONS,
+  PLAN_GATED_AGENT_NAMES,
   defineAgent,
+  evaluateInvocationGuard,
+  invocationConditionForAgent,
   loadAgents,
   mapOmoConfigAgents,
   registerAgent,
@@ -197,6 +202,7 @@ export {
   resolveToolRule,
 } from "./agents"
 export type {
+  AgentInvocationCondition,
   AgentModelCandidate,
   AgentModelEntry,
   AgentModelUnavailableResult,
@@ -207,10 +213,12 @@ export type {
   AgentLoaderDiagnostic,
   AgentLoaderDiagnosticKind,
   AgentToolRule,
+  InvocationGuardVerdict,
   LoadAgentsOptions,
   LoadAgentsResult,
   ResolveAgentOptions,
   ResolvedAgentResult,
+  SkillInvocationState,
 } from "./agents"
 export {
   buildCompletionDetails,

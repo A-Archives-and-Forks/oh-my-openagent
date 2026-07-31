@@ -1,6 +1,6 @@
 import type { OmoConfig } from "@oh-my-opencode/omo-config-core"
 
-import type { AgentDefinition } from "../../agents"
+import { PLAN_GATED_AGENT_NAMES, type AgentDefinition } from "../../agents"
 import { listTaskAgents, listTaskCategories } from "./categories"
 import type { TaskAgentInfo, TaskCategoryInfo } from "./types"
 
@@ -26,7 +26,13 @@ function renderList(entries: readonly (TaskCategoryInfo | TaskAgentInfo)[]): str
 export function buildTaskToolDescription(input: DescriptionInput): string {
   const categories = listTaskCategories(input.omoConfig)
   const agents = listTaskAgents(input.agents)
-  const agentNames = agents.map((agent) => agent.name).join(", ") || "none loaded"
+  const plainAgents = agents.filter((agent) => !PLAN_GATED_AGENT_NAMES.has(agent.name))
+  const gatedAgents = agents.filter((agent) => PLAN_GATED_AGENT_NAMES.has(agent.name))
+  const agentNames = plainAgents.map((agent) => agent.name).join(", ") || "none loaded"
+  const gatedLine =
+    gatedAgents.length === 0
+      ? ""
+      : `\n  Plan-gated agents (spawnable only in a session where the ulw-plan skill was invoked and start-work was never invoked): ${gatedAgents.map((agent) => agent.name).join(", ")}`
   return `Spawn one child task or fan out a batch.
 
 Choose exactly one input form:
@@ -37,7 +43,7 @@ Each spawn MUST provide EITHER category OR subagent_type after inheritance. DO N
 
 - category routes through Sisyphus-Junior. Available categories:
 ${renderList(categories)}
-- subagent_type invokes a loaded agent directly. Available agents: ${agentNames}
+- subagent_type invokes a loaded agent directly. Available agents: ${agentNames}${gatedLine}
 
 Blank provider padding is normalized automatically; do not add filler values.
 load_skills prepends named skills. run_in_background=true returns task ids for parallel work; false waits for results.

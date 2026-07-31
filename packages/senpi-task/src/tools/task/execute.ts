@@ -7,6 +7,7 @@ import { executeBatch } from "./execute-batch"
 import { buildStartSpec, singleSpawnParams } from "./execute-spec"
 import type { ForegroundWaitOptions } from "./foreground-wait"
 import { waitForForegroundTask } from "./foreground-wait"
+import { invocationGateDenial } from "./invocation-gate"
 import type { TaskToolParamsStatic } from "./params"
 import { partialDetails, recordDetails, startedDetails, type SingleSpawnParams } from "./result-details"
 import { backgroundConversionText, backgroundStartText } from "./start-presentation"
@@ -55,6 +56,12 @@ async function runSpawn(
   const selection = validateTaskTarget(params)
   if (selection.kind === "error") {
     return result(selection.error.message, { task_id: "", status: "invalid_arguments", mode: "spawn", reason: selection.error.message })
+  }
+  if (selection.kind === "subagent_type") {
+    const denial = invocationGateDenial(deps, selection.subagentType, ctx.sessionManager.getSessionId())
+    if (denial !== undefined) {
+      return result(denial, { task_id: "", status: "denied", mode: "spawn", reason: denial })
+    }
   }
   const target = selection.kind === "category" ? { category: selection.category } : { subagentType: selection.subagentType }
   const spec = buildStartSpec(params, target, ctx.sessionManager.getSessionId(), deps, ctx.cwd)
@@ -237,6 +244,12 @@ export function buildTaskExecute(deps: TaskToolDeps, options: ForegroundWaitOpti
       startItem: async (item) => {
         const itemParams = singleSpawnParams(item, params.run_in_background)
         const target = item.kind === "category" ? { category: item.category } : { subagentType: item.subagentType }
+        if (item.kind === "subagent_type") {
+          const denial = invocationGateDenial(deps, item.subagentType, parentSessionId)
+          if (denial !== undefined) {
+            return { kind: "plan_unresolved", error: { code: "invalid_target", message: denial } }
+          }
+        }
         const spec = buildStartSpec(itemParams, target, parentSessionId, deps, ctx.cwd)
         return deps.manager.start(spec)
       },
