@@ -2,7 +2,7 @@ import {
   clearRegisteredAgentNames,
   registerAgentName,
 } from "../features/claude-code-session-state";
-import { log } from "../shared";
+import { getModelCapabilities, log } from "../shared";
 import { setDefaultAgentForSort } from "../shared/agent-sort-shim";
 import { resolveCompatibleModelSettings } from "../shared/model-settings-compatibility";
 import { remapAgentKeysToDisplayNames } from "./agent-key-remapper";
@@ -40,10 +40,15 @@ function collectDesiredSettings(agent: Record<string, unknown>): DesiredAgentSet
 function applyCompatibleAgentSettings(agent: unknown): unknown {
   if (!isRecord(agent) || typeof agent.model !== "string") return agent;
   const desired = collectDesiredSettings(agent);
+  const providerID = providerIDFromModel(agent.model);
   const compatible = resolveCompatibleModelSettings({
-    providerID: providerIDFromModel(agent.model),
+    providerID,
     modelID: agent.model,
     desired,
+    capabilities: getModelCapabilities({
+      providerID,
+      modelID: agent.model,
+    }),
   });
   if (compatible.changes.length === 0) return agent;
 

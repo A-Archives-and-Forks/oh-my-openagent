@@ -19,10 +19,10 @@ JSON
 
 cat > "$PROJECT/.opencode/oh-my-openagent.jsonc" <<'JSON'
 {
-  "agent_order": ["atlas", "sisyphus"],
+  "agent_order": ["oracle", "sisyphus"],
   "agents": {
-    "atlas": {
-      "model": "openai/o3:high",
+    "oracle": {
+      "model": "openai/gpt-5.6-sol",
       "temperature": 0.1
     },
     "sisyphus": {
@@ -52,10 +52,10 @@ mkdir -p "$APPDATA" "$LOCALAPPDATA" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_ST
   echo "### surface: real opencode debug config"
   echo "### opencode: $(opencode --version 2>&1 | head -1)"
   echo "### repo: $REPO_WIN"
-  echo "=== \$ bun run build ==="
+  echo "=== \$ bun build packages/omo-opencode/src/index.ts --outdir dist --target bun --format esm --external zod ==="
 } > "$OUT"
 
-( cd "$REPO" && timeout 240s bun run build ) >> "$OUT" 2>&1
+( cd "$REPO" && timeout 240s bun build packages/omo-opencode/src/index.ts --outdir dist --target bun --format esm --external zod ) >> "$OUT" 2>&1
 echo "EXIT=0" >> "$OUT"
 
 echo "=== \$ opencode debug paths ===" >> "$OUT"
@@ -82,17 +82,17 @@ if (!config) {
 }
 const agents = config.agent ?? {};
 const names = Object.keys(agents);
-const atlasKey = names.find((name) => /^atlas/i.test(name));
+const oracleKey = names.find((name) => /^oracle/i.test(name));
 const sisyphusKey = names.find((name) => /^sisyphus/i.test(name));
-const atlas = atlasKey ? agents[atlasKey] : undefined;
-const atlasIndex = atlasKey ? names.indexOf(atlasKey) : -1;
+const oracle = oracleKey ? agents[oracleKey] : undefined;
+const oracleIndex = oracleKey ? names.indexOf(oracleKey) : -1;
 const sisyphusIndex = sisyphusKey ? names.indexOf(sisyphusKey) : -1;
-const temperatureRemoved = atlas !== undefined && atlas.temperature === undefined;
+const temperatureRemoved = oracle !== undefined && oracle.temperature === undefined;
 const configuredOrderPreserved =
-  atlasIndex >= 0 && sisyphusIndex >= 0 && atlasIndex < sisyphusIndex;
+  oracleIndex >= 0 && sisyphusIndex >= 0 && oracleIndex < sisyphusIndex;
 console.log("agent_names=" + names.join(", "));
-console.log("atlas_model=" + (atlas?.model ?? "(missing)"));
-console.log("atlas_temperature_present=" + (atlas?.temperature !== undefined));
+console.log("oracle_model=" + (oracle?.model ?? "(missing)"));
+console.log("oracle_temperature_present=" + (oracle?.temperature !== undefined));
 console.log("configured_order_preserved=" + configuredOrderPreserved);
 if (!temperatureRemoved || !configuredOrderPreserved) process.exit(1);
 ' "$SBX/config.json" >> "$OUT" 2>&1

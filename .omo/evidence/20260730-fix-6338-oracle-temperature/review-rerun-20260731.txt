@@ -13,6 +13,9 @@ WHAT WAS TESTED
 5. Real OpenCode database isolation:
    sqlite3 "$(opencode db path)" "SELECT count(*) FROM session;"
    was run immediately before and after the driver.
+6. Bundled capability regression:
+   Oracle was configured with `openai/gpt-5.6-sol` and
+   `temperature: 0.1`, whose bundled metadata marks temperature unsupported.
 
 WHAT WAS OBSERVED
 
@@ -20,26 +23,27 @@ WHAT WAS OBSERVED
   `temperature: 0.1`, and the ordered-map helper was not exported for the
   identity regression test. The focused run reported `70 pass, 4 fail, 1 error`.
 - After the review fix, the focused run reported:
-  `76 pass, 0 fail, 187 assertions`.
+  `105 pass, 0 fail, 246 assertions`.
 - Both package typechecks exited 0 with no diagnostics.
-- The driver built the plugin from source and reported
-  `build: all steps completed`.
+- The driver built `dist/index.js` from current source and recorded `EXIT=0`.
 - Every `opencode debug paths` entry, including `tmp`, resolved inside the
   throwaway `omo-6338-review-*` sandbox.
 - The real `opencode debug config` surface reported:
-  `atlas_model=openai/o3:high`
-  `atlas_temperature_present=false`
+  `oracle_model=openai/gpt-5.6-sol`
+  `oracle_temperature_present=false`
   `configured_order_preserved=true`
+- The exact harness output is committed as
+  `review-capabilities-output-20260731.txt`.
 - The real OpenCode session count remained unchanged:
-  `2818 before -> 2818 after`.
+  `2821 before -> 2821 after`.
 
 WHY IT IS ENOUGH
 
-The regression tests pin each supported reasoning suffix and prove that
-compatibility updates preserve the ordered map object. The live OpenCode
-surface proves both behaviors survive config loading, agent remapping,
-priority ordering, and finalization in the real harness. The unchanged real
-session count proves the QA did not add host sessions.
+The regression tests pin each supported reasoning suffix, bundled model
+capabilities, and ordered-map identity. The live OpenCode surface proves that
+the capability-only temperature restriction survives config loading, agent
+remapping, priority ordering, and finalization in the real harness. The
+unchanged real session count proves the QA did not add host sessions.
 
 WHAT WAS OMITTED
 

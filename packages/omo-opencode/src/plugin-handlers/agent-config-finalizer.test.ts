@@ -63,6 +63,30 @@ describe("finalizeAgentConfig", () => {
     });
   });
 
+  test("removes hardcoded temperature when bundled capabilities mark it unsupported", () => {
+    // given
+    const config = {
+      agent: {
+        oracle: {
+          model: "openai/gpt-5.6-sol",
+          temperature: 0.1,
+        },
+      },
+    };
+
+    // when
+    const result = finalizeAgentConfig({
+      config,
+      pluginConfig: createPluginConfig(),
+      configuredDefaultAgent: undefined,
+    });
+
+    // then
+    expect(result.oracle).toEqual({
+      model: "openai/gpt-5.6-sol",
+    });
+  });
+
   test("updates compatible settings without replacing the ordered agent map", () => {
     // given
     const agents = {
