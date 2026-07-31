@@ -128,7 +128,7 @@ describe("InProcessRunner runtime fallback", () => {
     // given
     const models = [
       { provider: "quotio-openai", id: "gpt-5.6-luna-fast" },
-      { provider: "openai", id: "gpt-5.4-mini" },
+      { provider: "opencode-go", id: "minimax-m3" },
     ] as const
     const registry = {
       getAvailable: () => models,
@@ -159,7 +159,7 @@ describe("InProcessRunner runtime fallback", () => {
     expect(capturedRetrySettings(captured)).toMatchObject({
       modelFallback: true,
       chains: {
-        "quotio-openai/gpt-5.6-luna-fast": ["openai/gpt-5.4-mini:minimal"],
+        "quotio-openai/gpt-5.6-luna-fast": ["opencode-go/minimax-m3:max"],
       },
     })
   })

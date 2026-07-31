@@ -132,7 +132,7 @@ describe("category activation gating", () => {
       expect(result.kind).toBe("resolved")
       if (result.kind !== "resolved") throw new Error("Expected resolved")
       expect(result.spec.provider).toBe("github-copilot")
-      expect(result.spec.variant).toBe("high")
+      expect(result.spec.variant).toBe("max")
     })
   })
 
