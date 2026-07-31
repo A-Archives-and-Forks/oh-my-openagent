@@ -88,6 +88,8 @@ export class FakeTeamManager {
   readonly started: ManagerStartSpec[] = []
   readonly cancelled: Array<{ readonly taskId: string; readonly reason?: string }> = []
   readonly #records = new Map<string, TaskRecord>()
+  readonly #getHooks = new Map<string, (record: TaskRecord, readCount: number) => TaskRecord>()
+  readonly #getCounts = new Map<string, number>()
   readonly #options: FakeTeamManagerOptions
   #counter = 0
 
@@ -132,7 +134,19 @@ export class FakeTeamManager {
   }
 
   get(taskId: string): TaskRecord | undefined {
-    return this.#records.get(taskId)
+    const record = this.#records.get(taskId)
+    const hook = this.#getHooks.get(taskId)
+    if (record === undefined || hook === undefined) return record
+    const readCount = (this.#getCounts.get(taskId) ?? 0) + 1
+    this.#getCounts.set(taskId, readCount)
+    const updated = hook(record, readCount)
+    this.#records.set(taskId, updated)
+    return updated
+  }
+
+  setGetHook(taskId: string, hook: (record: TaskRecord, readCount: number) => TaskRecord): void {
+    this.#getHooks.set(taskId, hook)
+    this.#getCounts.set(taskId, 0)
   }
 
   getResidentHandle(taskId: string): { readonly sessionId: string | undefined } | undefined {

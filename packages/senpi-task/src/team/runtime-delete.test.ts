@@ -167,6 +167,22 @@ describe("deleteTeam", () => {
     expect(destruction.calls).toEqual([])
   })
 
+  test("#given a completed resident member revives between residency checks #when deleted #then destruction is skipped", async () => {
+    // given
+    const { created, deps, manager, destruction, taskId } = await completedResidentTeam()
+    manager.setGetHook(taskId, (record, readCount) => (
+      readCount === 2 ? { ...record, status: "running" } : record
+    ))
+
+    // when
+    const result = await deleteTeam(created.runtimeState.teamRunId, deps)
+
+    // then
+    expect(result.cancelledTaskIds).toEqual([])
+    expect(destruction.calls).toEqual([])
+    expect(manager.get(taskId)?.status).toBe("running")
+  })
+
   test("#given a resident member cancellation is in flight #when deleted #then deletion does not race its destruction", async () => {
     // given
     const cancellationStarted = Promise.withResolvers<void>()
