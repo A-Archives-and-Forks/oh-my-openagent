@@ -34,6 +34,9 @@
 - The post-merge Senpi gate passed 511 tests with zero failures, the focused
   audit passed, the generated bundles were current, and no conflict markers or
   unmerged index entries remained.
+- Exact-SHA GitHub Actions run `30632258545` completed with `CI_EXIT=0`.
+  The previously failing `test (windows-latest)` job passed, together with all
+  required test, typecheck, build, Senpi, and Codex compatibility jobs.
 
 ## Senpi surface scope
 

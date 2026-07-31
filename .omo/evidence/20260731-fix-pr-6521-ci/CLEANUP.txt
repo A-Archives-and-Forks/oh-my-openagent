@@ -12,5 +12,6 @@ Cleanup receipts
 - Merged current origin/dev without rewriting PR history.
 - Resolved generated-bundle conflicts through the pinned authoritative Senpi
   generator, then verified marker-free output and an empty unmerged index.
+- Exact-SHA CI run 30632258545 completed successfully; its monitor exited 0.
 - Final worktree removal will be verified after PR merge.
 
