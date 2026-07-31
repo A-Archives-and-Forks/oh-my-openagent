@@ -39,6 +39,7 @@ export {
   toolCountSuffix,
 } from "./status-line"
 export type { StatusLineInput, StatusLineStats, StatusTargetInput, TaskIdentityInput } from "./status-line"
+export { TASK_SUMMARY_MAX_LENGTH, clampTaskSummary } from "./task-summary"
 export { assistantLastLine, formatToolActivity } from "./progress"
 export { createMinimalSenpiResourceLoader } from "./senpi/minimal-resource-loader"
 export type { MinimalSenpiResourceLoaderOptions } from "./senpi/minimal-resource-loader"

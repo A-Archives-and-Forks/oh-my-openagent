@@ -59,6 +59,7 @@ export type TaskToolMode = "spawn"
 
 type ResolvedSpawnItemBase = {
   readonly prompt: string
+  readonly task_summary?: string
   readonly description?: string
   readonly name?: string
   readonly model?: string
@@ -71,6 +72,7 @@ export type ResolvedSpawnItem =
 
 export type TaskToolItemDetail = {
   readonly task_id: string
+  readonly task_summary?: string
   readonly name?: string
   readonly category?: string
   readonly subagent_type?: string
@@ -86,6 +88,7 @@ export type TaskToolDetails = {
   readonly task_id: string
   readonly status: string
   readonly mode: TaskToolMode
+  readonly task_summary?: string
   readonly name?: string
   readonly category?: string
   readonly subagent_type?: string

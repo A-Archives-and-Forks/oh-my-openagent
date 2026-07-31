@@ -51,7 +51,7 @@ function progressHead(record: TaskRecord): string | undefined {
 }
 
 export function formatTaskRow(record: TaskRecord): string {
-  const identity = taskIdentityLabel({ taskId: record.task_id, name: record.name, description: record.description })
+  const identity = taskIdentityLabel({ taskId: record.task_id, name: record.name, description: record.description, taskSummary: record.task_summary })
   const parts = [identity]
   if (identity !== normalizeRendererText(record.task_id)) parts.push(`(${normalizeRendererText(record.task_id)})`)
   parts.push(recordStatusTarget(record))
@@ -86,7 +86,7 @@ function formatLiveBackgroundRow(
   stats?: TaskRunStats,
 ): string {
   const identity = excerptRendererText(
-    taskIdentityLabel({ taskId: record.task_id, name: record.name, description: record.description }),
+    taskIdentityLabel({ taskId: record.task_id, name: record.name, description: record.description, taskSummary: record.task_summary }),
     stats === undefined ? LIVE_DESCRIPTION_MAX : LIVE_DESCRIPTION_MAX_WITH_STATS,
   )
   const elapsed = formatElapsed(record.created_at, now)
@@ -137,7 +137,7 @@ function formatCompactTaskRow(record: TaskRecord, maxWidth: number, includeName:
 function compactTaskIdentity(record: TaskRecord, maxWidth: number, includeName: boolean): string {
   if (!includeName) return excerptRendererText(record.task_id, maxWidth)
   return excerptRendererText(
-    taskIdentityLabel({ taskId: record.task_id, name: record.name, description: record.description }),
+    taskIdentityLabel({ taskId: record.task_id, name: record.name, description: record.description, taskSummary: record.task_summary }),
     maxWidth,
   )
 }

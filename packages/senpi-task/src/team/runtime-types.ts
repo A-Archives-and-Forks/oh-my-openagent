@@ -77,6 +77,7 @@ export type CreatedMemberInfo = {
   readonly role: CreatedMemberRole
   readonly model?: ResolvedModelRecord
   readonly promptExcerpt?: string
+  readonly taskSummary?: string
 }
 
 export type CreateTeamResult = {

@@ -3,6 +3,23 @@ import { describe, expect, test } from "bun:test"
 import { composeStatusLine, formatStatusTarget, taskIdentityLabel } from "./status-line"
 
 describe("taskIdentityLabel", () => {
+  test("#given a task summary #when labelled #then the delegated-work summary wins over description, name and id", () => {
+    // given / when / then
+    expect(
+      taskIdentityLabel({
+        taskId: "st_00000001",
+        name: "task-1",
+        description: "quick label",
+        taskSummary: "Refactor auth into sessions",
+      }),
+    ).toBe("Refactor auth into sessions")
+  })
+
+  test("#given a blank task summary #when labelled #then it falls back to the description", () => {
+    // given / when / then
+    expect(taskIdentityLabel({ taskId: "st_00000001", description: "Audit renderers", taskSummary: "  " })).toBe("Audit renderers")
+  })
+
   test("#given a description #when labelled #then the human description wins over name and id", () => {
     // given / when / then
     expect(taskIdentityLabel({ taskId: "st_00000001", name: "task-1", description: "Audit renderers" })).toBe("Audit renderers")
