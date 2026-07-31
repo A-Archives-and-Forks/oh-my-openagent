@@ -247,9 +247,9 @@ describe("resolveCategory", () => {
     expect(resolved.spec.reasoningEffort).toBe("medium")
   })
 
-  test("#given quick primary is unavailable and the quotio rung is available #when resolved #then delegate-core fallback chain reaches gpt-5.4-mini-fast", () => {
+  test("#given quick primary is unavailable and the quotio rung is available #when resolved #then delegate-core fallback chain reaches gpt-5.6-luna-fast", () => {
     // given
-    const models = registry([model("quotio-openai", "gpt-5.4-mini-fast")])
+    const models = registry([model("quotio-openai", "gpt-5.6-luna-fast")])
 
     // when
     const result = resolveCategory("quick", {}, models)
@@ -257,13 +257,13 @@ describe("resolveCategory", () => {
     // then
     const resolved = expectResolved(result)
     expect(resolved.spec.provider).toBe("quotio-openai")
-    expect(resolved.spec.modelId).toBe("gpt-5.4-mini-fast")
-    expect(resolved.spec.variant).toBe("minimal")
+    expect(resolved.spec.modelId).toBe("gpt-5.6-luna-fast")
+    expect(resolved.spec.variant).toBe("low")
     expect(resolved.modelSelection.matchedFallback).toBe(true)
     expect(resolved.modelSelection.fallbackEntry).toEqual({
       providers: ["quotio-openai"],
-      model: "gpt-5.4-mini-fast",
-      variant: "minimal",
+      model: "gpt-5.6-luna-fast",
+      variant: "low",
     })
   })
 

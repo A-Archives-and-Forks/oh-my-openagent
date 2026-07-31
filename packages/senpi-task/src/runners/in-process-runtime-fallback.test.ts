@@ -127,7 +127,7 @@ describe("InProcessRunner runtime fallback", () => {
   test("#given a builtin category resolving to a chain rung #when the child session is created #then the remaining chain rungs land in retry fallback chains", async () => {
     // given
     const models = [
-      { provider: "quotio-openai", id: "gpt-5.4-mini-fast" },
+      { provider: "quotio-openai", id: "gpt-5.6-luna-fast" },
       { provider: "openai", id: "gpt-5.4-mini" },
     ] as const
     const registry = {
@@ -155,11 +155,11 @@ describe("InProcessRunner runtime fallback", () => {
     await handle.waitForIdle()
 
     // then
-    expect(`${spec.provider}/${spec.modelId}`).toBe("quotio-openai/gpt-5.4-mini-fast")
+    expect(`${spec.provider}/${spec.modelId}`).toBe("quotio-openai/gpt-5.6-luna-fast")
     expect(capturedRetrySettings(captured)).toMatchObject({
       modelFallback: true,
       chains: {
-        "quotio-openai/gpt-5.4-mini-fast": ["openai/gpt-5.4-mini:minimal"],
+        "quotio-openai/gpt-5.6-luna-fast": ["openai/gpt-5.4-mini:minimal"],
       },
     })
   })

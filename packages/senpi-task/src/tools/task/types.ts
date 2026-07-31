@@ -1,6 +1,6 @@
 import type { OmoConfig } from "@oh-my-opencode/omo-config-core"
 
-import type { AgentDefinition } from "../../agents"
+import type { AgentDefinition, SkillInvocationState } from "../../agents"
 import type { TaskManager } from "../../manager"
 import type { ResolvedModelRecord, TaskRunStats } from "../../state"
 import type { TaskToolParamsStatic } from "./params"
@@ -50,6 +50,9 @@ export type TaskToolDeps = {
   readonly agents: Readonly<Record<string, AgentDefinition>>
   readonly resolveAncestry?: ResolveAncestry
   readonly loadSkills?: SkillLoader
+  // Session-scoped skill-invocation state for plan-gated agents (metis/momus). When absent the
+  // invocation gate fails CLOSED: without a resolver there is no proof ulw-plan was invoked.
+  readonly resolveSkillInvocations?: (sessionId: string) => SkillInvocationState
 }
 
 export type TaskToolMode = "spawn"
