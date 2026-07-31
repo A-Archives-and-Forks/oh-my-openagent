@@ -62,6 +62,12 @@ two failures with ALL of `packages/omo-codex` stashed, which proves they are pre
 than caused by this change. The remaining Codex-gate steps that do cover this change were run individually and are
 recorded above.
 
+Additional live harness artifact:
+
+- `app-server-plugin-20260731.txt`: canonical isolated `codex app-server`
+  self-test and local-plugin turn with first-party hook notifications and
+  unchanged real Codex config proof.
+
 ## Why it is enough
 
 The defect is that `StopInput.last_assistant_message` was declared in `types.ts` and validated by `isStopInput()` while
@@ -76,8 +82,8 @@ older directive is unaffected because an absent marker preserves the existing pa
 
 ## What was omitted
 
-No live Codex `app-server` session was driven, because this hook's decision depends only on the payload and the
-workspace files, both of which the CLI smoke reproduces exactly. No secrets, tokens, credentials, auth headers, or env
-dumps appear in these artifacts; the only recorded environment detail is the SHA-256 of the real
+The live app-server run uses a local mock model and redacts its temporary paths.
+No secrets, tokens, credentials, auth headers, or env dumps appear in these
+artifacts; the only recorded environment detail is the SHA-256 of the real
 `~/.codex/config.toml`, used solely to prove it was not modified. Verbose logs were trimmed to their failure headers
 and summaries, and each trimmed file says so on its first line.
