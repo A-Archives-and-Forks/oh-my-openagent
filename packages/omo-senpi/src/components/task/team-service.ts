@@ -42,6 +42,13 @@ import {
 // The team members spawn one level below the current (lead) session, matching the task tool's
 // (ancestry.depth + 1) child spawn depth for a top-level lead.
 const TEAM_MEMBER_SPAWN_DEPTH = 1
+const CANONICAL_TEAM_RUN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+
+function assertCanonicalTeamRunId(teamRunId: string): void {
+  if (!CANONICAL_TEAM_RUN_ID.test(teamRunId)) {
+    throw new Error(`Team run id '${teamRunId}' must be a canonical lowercase UUID v4.`)
+  }
+}
 
 export interface TeamServiceDeps {
   readonly manager: TaskManager
@@ -143,6 +150,7 @@ export function createTeamService(deps: TeamServiceDeps): TeamToolsService {
       })
     },
     deleteTeam: async (input) => {
+      assertCanonicalTeamRunId(input.teamRunId)
       await assertOwnedTeam(deps, config, input.teamRunId)
       return deleteTeam(input.teamRunId, {
         manager: deps.manager,
