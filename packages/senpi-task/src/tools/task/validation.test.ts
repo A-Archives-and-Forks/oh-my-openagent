@@ -286,6 +286,40 @@ describe("resolveSpawnItems", () => {
   })
 })
 
+describe("resolveSpawnItems task_summary", () => {
+  test("#given a single spawn with a task_summary #when resolved #then the item carries the summary", () => {
+    // given / when
+    const resolved = resolveSpawnItems({
+      prompt: "TASK: Audit the boundary.",
+      task_summary: "Audit the boundary",
+      category: "quick",
+    })
+
+    // then
+    expect(resolved.kind).toBe("ok")
+    if (resolved.kind !== "ok") throw new Error(resolved.error.message)
+    expect(resolved.items[0]?.task_summary).toBe("Audit the boundary")
+  })
+
+  test("#given batch items with and without task_summary #when resolved #then summaries stay per-item and never inherit", () => {
+    // given / when
+    const resolved = resolveSpawnItems({
+      task_summary: "Top-level summary",
+      category: "quick",
+      tasks: [
+        { prompt: "TASK: first.", task_summary: "First summary" },
+        { prompt: "TASK: second." },
+      ],
+    })
+
+    // then
+    expect(resolved.kind).toBe("ok")
+    if (resolved.kind !== "ok") throw new Error(resolved.error.message)
+    expect(resolved.items[0]?.task_summary).toBe("First summary")
+    expect(resolved.items[1]?.task_summary).toBeUndefined()
+  })
+})
+
 describe("batch spawn types", () => {
   test("#given the new batch types w2val #when imported #then ResolvedSpawnItem and TaskToolItemDetail are exported with the documented shape", () => {
     // @allow construct values of the exported union types to prove both the export and shape

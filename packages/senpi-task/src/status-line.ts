@@ -9,6 +9,7 @@ export type TaskIdentityInput = {
   readonly taskId: string
   readonly name?: string
   readonly description?: string
+  readonly taskSummary?: string
 }
 
 export type StatusTargetInput = {
@@ -32,10 +33,12 @@ export type StatusLineInput = {
   readonly verb?: string
 }
 
-// WHAT the task is, not which opaque handle it got: description (human label) beats the generated
-// name, and the task id is only the last-resort handle when neither was supplied.
+// WHAT the task is, not which opaque handle it got: the delegated-work summary beats the
+// description (human label), which beats the generated name; the task id is only the last-resort
+// handle when none was supplied.
 export function taskIdentityLabel(input: TaskIdentityInput): string {
-  const label = optionalRendererText(input.description) ?? optionalRendererText(input.name)
+  const label =
+    optionalRendererText(input.taskSummary) ?? optionalRendererText(input.description) ?? optionalRendererText(input.name)
   return label === undefined ? excerptRendererText(input.taskId, IDENTITY_MAX_WIDTH) : excerptRendererText(label, IDENTITY_MAX_WIDTH)
 }
 
