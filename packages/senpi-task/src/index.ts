@@ -32,6 +32,7 @@ export type {
 } from "./store"
 export {
   composeStatusLine,
+  formatSpend,
   formatStatusTarget,
   formatTargetIdentity,
   formatTargetWithModel,

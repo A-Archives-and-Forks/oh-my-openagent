@@ -73,6 +73,8 @@ function readOptionalRunStats(record: Record<string, unknown>): TaskRunStats | u
   const totalTokens = readOptionalNumber(value, "total_tokens")
   const generationMs = readOptionalNumber(value, "generation_ms")
   const tokensPerSecond = readOptionalNumber(value, "tokens_per_second")
+  const costUsd = readOptionalNumber(value, "cost_usd")
+  const cacheHitRate = readOptionalNumber(value, "cache_hit_rate")
   return {
     runtime_ms: readNumber(value, "runtime_ms"),
     turns: readNumber(value, "turns"),
@@ -81,6 +83,8 @@ function readOptionalRunStats(record: Record<string, unknown>): TaskRunStats | u
     ...(totalTokens === undefined ? {} : { total_tokens: totalTokens }),
     ...(generationMs === undefined ? {} : { generation_ms: generationMs }),
     ...(tokensPerSecond === undefined ? {} : { tokens_per_second: tokensPerSecond }),
+    ...(costUsd === undefined ? {} : { cost_usd: costUsd }),
+    ...(cacheHitRate === undefined ? {} : { cache_hit_rate: cacheHitRate }),
   }
 }
 
