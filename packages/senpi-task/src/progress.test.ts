@@ -11,6 +11,19 @@ const RESOLVED_MODEL = {
 } as const
 
 describe("child task progress", () => {
+  test("#given a task summary #when progress is composed #then the activity identity is the summary", () => {
+    // given
+    const progress = createChildProgress(
+      "st_00000001",
+      { category: "quick", taskSummary: "Audit the boundary", description: "quick label" },
+      1_000,
+      () => 1_000,
+    )
+
+    // then
+    expect(progress.details().progress.activity.startsWith("Audit the boundary")).toBe(true)
+  })
+
   test("#given child events #when progress is composed #then activity carries target, model, turn and tool counts", () => {
     // given
     let nowMs = 1_000

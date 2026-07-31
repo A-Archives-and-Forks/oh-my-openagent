@@ -103,7 +103,10 @@ async function runSpawn(
   }
   // Background children intentionally outlive the parent turn; only the synchronous wait is abort-scoped.
   if (params.run_in_background === true) {
-    return result(backgroundStartText(started, params.description), startedDetails(started, params, spec.execution_mode))
+    return result(
+      backgroundStartText(started, { taskSummary: params.task_summary, description: params.description }),
+      startedDetails(started, params, spec.execution_mode),
+    )
   }
 
   const startedAt = Date.now()
@@ -115,6 +118,7 @@ async function runSpawn(
       ...(started.resolved_model !== undefined && { resolvedModel: started.resolved_model }),
       ...(params.model !== undefined && { model: params.model }),
       name: started.name,
+      ...(params.task_summary !== undefined && { taskSummary: params.task_summary }),
       ...(params.description !== undefined && { description: params.description }),
     },
     startedAt,
@@ -174,7 +178,7 @@ async function runSpawn(
       ...(scheduleDeadline !== undefined && { scheduleDeadline }),
     })
     if (waited.kind === "promoted") {
-      return result(backgroundConversionText(started, params.description, waited.budgetSeconds), {
+      return result(backgroundConversionText(started, { taskSummary: params.task_summary, description: params.description }, waited.budgetSeconds), {
         ...startedDetails(started, params, spec.execution_mode),
         run_in_background: true,
       })
