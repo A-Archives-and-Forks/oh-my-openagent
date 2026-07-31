@@ -37,8 +37,8 @@ const gpt56CategoryCases = [
     modelId: "gpt-5.6-sol",
     nativeVariant: "max",
     mixedWinner: { provider: "vercel", modelId: "openai/gpt-5.6-sol", variant: "max" },
-    copilotVariant: "high",
-    copilotFallbackEntry: { providers: ["github-copilot"] as string[], model: "gpt-5.6-sol", variant: "high" },
+    copilotVariant: "max",
+    copilotFallbackEntry: { providers: ["github-copilot"] as string[], model: "gpt-5.6-sol", variant: "max" },
   },
   {
     category: "deep",
@@ -54,11 +54,15 @@ const gpt56CategoryCases = [
   },
   {
     category: "unspecified-low",
-    modelId: "gpt-5.6-luna",
-    nativeVariant: "xhigh",
-    mixedWinner: { provider: "vercel", modelId: "openai/gpt-5.6-luna", variant: "xhigh" },
+    modelId: "gpt-5.6-terra",
+    nativeVariant: "high",
+    mixedWinner: { provider: "github-copilot", modelId: "gpt-5.6-terra", variant: "high" },
     copilotVariant: "high",
-    copilotFallbackEntry: { providers: ["github-copilot"] as string[], model: "gpt-5.6-luna", variant: "high" },
+    copilotFallbackEntry: {
+      providers: ["openai", "quotio-openai", "github-copilot", "opencode", "vercel"] as string[],
+      model: "gpt-5.6-terra",
+      variant: "high",
+    },
   },
 ] as const
 

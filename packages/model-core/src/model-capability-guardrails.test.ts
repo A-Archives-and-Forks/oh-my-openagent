@@ -17,8 +17,8 @@ describe("model-capability-guardrails", () => {
     expect(issues).toContainEqual(
       expect.objectContaining({
         kind: "built-in-model-missing-from-snapshot",
-        modelID: "composer-2.5",
-        canonicalModelID: "composer-2.5",
+        modelID: "gpt-5.6-luna-fast",
+        canonicalModelID: "gpt-5.6-luna-fast",
       }),
     )
   })

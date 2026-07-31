@@ -82,7 +82,7 @@ describe("createTaskChildPlanner runtime fallback", () => {
       {},
       () => registry([
         model("quotio-openai", "gpt-5.6-luna-fast"),
-        model("openai", "gpt-5.4-mini"),
+        model("opencode-go", "minimax-m3"),
       ]),
     )
 
@@ -112,9 +112,9 @@ describe("createTaskChildPlanner runtime fallback", () => {
       fallback_models: [
         {
           source: "category",
-          provider: "openai",
-          model_id: "gpt-5.4-mini",
-          variant: "minimal",
+          provider: "opencode-go",
+          model_id: "minimax-m3",
+          variant: "max",
         },
       ],
     })
@@ -133,7 +133,7 @@ describe("createTaskChildPlanner runtime fallback", () => {
       {},
       () => registry([
         model("quotio-openai", "gpt-5.6-luna-fast"),
-        model("openai", "gpt-5.4-mini"),
+        model("opencode-go", "minimax-m3"),
       ]),
     )
 
@@ -156,10 +156,10 @@ describe("createTaskChildPlanner runtime fallback", () => {
     expect(result.plan.fallback_models).toEqual([
       {
         source: "category",
-        provider: "openai",
-        model_id: "gpt-5.4-mini",
-        display: "openai/gpt-5.4-mini",
-        variant: "minimal",
+        provider: "opencode-go",
+        model_id: "minimax-m3",
+        display: "opencode-go/minimax-m3",
+        variant: "max",
       },
     ])
   })
