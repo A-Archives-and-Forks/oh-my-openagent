@@ -6,7 +6,7 @@ import type { ReadonlyFileSystem, StopHookEventName, StopHookOutput, StopInput }
 export function runStopHook(input: unknown, fs: ReadonlyFileSystem): string {
 	if (!isStopInput(input)) return "";
 	if (input.stop_hook_active) return "";
-	if (startsWithExternalBlockerMarker(input.last_assistant_message)) return "";
+	if (hasAllowedExternalBlockerMarker(input.last_assistant_message)) return "";
 	if (transcriptHasContextPressureMarker(input.transcript_path, fs)) return "";
 	const state = readContinuationState(input.cwd, input.session_id);
 	if (state === null) return "";
@@ -41,11 +41,13 @@ function renderDirective(state: ContinuationState, sessionId: string): string {
 }
 
 const EXTERNAL_BLOCKER_MARKER = "<start-work-blocked-external>";
+const ULTRAWORK_OPENER = "ULTRAWORK MODE ENABLED!";
 
-function startsWithExternalBlockerMarker(lastAssistantMessage: string | undefined): boolean {
+function hasAllowedExternalBlockerMarker(lastAssistantMessage: string | undefined): boolean {
 	if (lastAssistantMessage === undefined) return false;
-	const [firstLine = ""] = lastAssistantMessage.split(String.fromCharCode(10), 1);
-	return firstLine.trim() === EXTERNAL_BLOCKER_MARKER;
+	const [firstLine = "", secondLine = ""] = lastAssistantMessage.split(String.fromCharCode(10), 2);
+	if (firstLine.trim() === EXTERNAL_BLOCKER_MARKER) return true;
+	return firstLine.trim() === ULTRAWORK_OPENER && secondLine.trim() === EXTERNAL_BLOCKER_MARKER;
 }
 
 const CONTEXT_PRESSURE_MARKERS = [

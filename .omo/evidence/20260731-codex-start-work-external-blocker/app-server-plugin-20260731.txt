@@ -9,6 +9,11 @@ WHAT WAS TESTED
    CODEX_BIN=<native-codex.exe> \
    QA_CWD=<isolated PR worktree> \
    bash .agents/skills/codex-qa/scripts/app-server-drive.sh --plugin
+3. Stop-specific local-plugin case:
+   CODEX_BIN=<native-codex.exe> \
+   QA_CWD=<isolated PR worktree> \
+   EXPECT=stop \
+   bash .agents/skills/codex-qa/scripts/app-server-drive.sh --plugin
 
 WHAT WAS OBSERVED
 
@@ -19,6 +24,9 @@ WHAT WAS OBSERVED
 - First-party hook notifications included successful `hook/started` and
   `hook/completed` pairs for `sessionStart` and `userPromptSubmit`; the driver
   reported no missing or failed hooks.
+- The Stop-specific run required `stop` as an expected hook and exited 0 after
+  observing successful `hook/started` and `hook/completed` notifications for
+  that event, with no missing or failed hooks.
 - The plugin hook summary reported `pluginHook: true`.
 - The local mock model handled the turn; no provider API or credential was
   used.
@@ -27,11 +35,11 @@ WHAT WAS OBSERVED
 
 WHY IT IS ENOUGH
 
-The app-server case proves the reviewed local plugin installs and participates
-in a real first-party Codex turn under isolated `CODEX_HOME`. The PR-specific
-Stop decision is additionally pinned by the component tests and the committed
-before/after CLI smoke, including first-line marker acceptance and below-first-
-line rejection.
+The app-server cases prove the reviewed local plugin installs, participates in
+a real first-party Codex turn under isolated `CODEX_HOME`, and executes the
+changed Stop hook. The PR-specific decision is additionally pinned by the
+component tests and committed before/after CLI smoke, including first-line
+acceptance, ultrawork-opener acceptance, and later-line rejection.
 
 WHAT WAS OMITTED
 

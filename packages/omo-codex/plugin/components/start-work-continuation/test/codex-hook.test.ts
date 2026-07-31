@@ -93,6 +93,29 @@ describe("start-work Stop hook", () => {
 		expect(output).toBe("");
 	});
 
+	it("#given ultrawork opener then external-blocker marker #when hook runs #then returns empty output", () => {
+		// given
+		const workspace = createWorkspace({
+			boulderJson: createBoulderJson({ sessionIds: ["codex:sess_abc"], status: "active" }),
+			planMarkdown: SCAFFOLD_PLAN_MARKDOWN,
+		});
+		const fs = createMemoryFs();
+		const input = {
+			...createStopInput(workspace),
+			last_assistant_message: [
+				"ULTRAWORK MODE ENABLED!",
+				"<start-work-blocked-external>",
+				"Blocker: the staging deploy credential is missing.",
+			].join("\n"),
+		};
+
+		// when
+		const output = runStopHook(input, fs);
+
+		// then
+		expect(output).toBe("");
+	});
+
 	it("#given the external-blocker marker below the first line #when hook runs #then still returns block JSON", () => {
 		// given
 		const workspace = createWorkspace({

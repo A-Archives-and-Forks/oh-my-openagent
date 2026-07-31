@@ -32,7 +32,7 @@ AssertionError: expected '{"decision":"block","reason":"<start-…' to be '' // 
 Tests  1 failed | 11 passed (12)
 ```
 
-GREEN (`green-component-vitest.txt`): `Test Files 3 passed (3)` / `Tests 39 passed (39)`. Typecheck
+GREEN (`green-component-vitest.txt`): `Test Files 3 passed (3)` / `Tests 40 passed (40)`. Typecheck
 (`typecheck-component.txt`): `tsc exit=0`.
 
 Real hook CLI, before vs after. Only `src/codex-hook.ts` was stashed between the two runs, so the delta is attributable
@@ -65,8 +65,8 @@ recorded above.
 Additional live harness artifact:
 
 - `app-server-plugin-20260731.txt`: canonical isolated `codex app-server`
-  self-test and local-plugin turn with first-party hook notifications and
-  unchanged real Codex config proof.
+  self-test, local-plugin turn, and Stop-specific expected-hook turn with
+  first-party notifications and unchanged real Codex config proof.
 
 ## Why it is enough
 
