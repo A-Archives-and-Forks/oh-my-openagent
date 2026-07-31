@@ -24,6 +24,8 @@ export type StatusTargetInput = {
 export type StatusLineStats = Pick<TaskRunStats, "turns" | "tool_calls"> & {
   readonly runtime_ms?: number
   readonly tokens_per_second?: number
+  readonly cost_usd?: number
+  readonly cache_hit_rate?: number
 }
 
 export type StatusLineInput = {
@@ -73,16 +75,39 @@ export function formatStatusTarget(input: StatusTargetInput): string | undefined
 }
 
 // The canonical grammar every live/status row shares:
-//   <identity> · <target (model)> · turn N (M tools) · <verb> · T tok/s
+//   <identity> · <target (model)> · turn N (M tools) · <verb> · $C (CH: R%) · T tok/s
 export function composeStatusLine(input: StatusLineInput): string {
   const tokens = [
     input.identity,
     input.target,
     input.stats === undefined ? undefined : `turn ${input.stats.turns}${toolCountSuffix(input.stats.tool_calls)}`,
     input.verb,
+    input.stats === undefined ? undefined : formatSpend(input.stats),
     input.stats?.tokens_per_second === undefined ? undefined : `${input.stats.tokens_per_second} tok/s`,
   ]
   return tokens.filter((token): token is string => typeof token === "string" && token.length > 0).join(" · ")
+}
+
+// The one compound spend token shared by every prose/live surface: `$0.4213 (CH: 87%)`, degrading
+// to `$0.4213` or `(CH: 87%)` when only one fact is known. Rendered immediately before throughput
+// so the money fact and the speed fact stay adjacent on every row.
+export function formatSpend(stats: Pick<TaskRunStats, "cost_usd" | "cache_hit_rate">): string | undefined {
+  const cost = formatCostUsd(stats.cost_usd)
+  const cacheHit = formatCacheHitPercent(stats.cache_hit_rate)
+  if (cost === undefined) return cacheHit
+  return cacheHit === undefined ? cost : `${cost} ${cacheHit}`
+}
+
+export function formatCostUsd(costUsd: number | undefined): string | undefined {
+  if (costUsd === undefined || !Number.isFinite(costUsd) || costUsd < 0) return undefined
+  return `$${costUsd.toFixed(4)}`
+}
+
+export function formatCacheHitPercent(cacheHitRate: number | undefined): string | undefined {
+  if (cacheHitRate === undefined || !Number.isFinite(cacheHitRate) || cacheHitRate < 0 || cacheHitRate > 1) {
+    return undefined
+  }
+  return `(CH: ${Math.round(cacheHitRate * 100)}%)`
 }
 
 export function toolCountSuffix(toolCalls: number): string {
