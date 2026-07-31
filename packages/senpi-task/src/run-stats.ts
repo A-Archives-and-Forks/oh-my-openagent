@@ -58,12 +58,21 @@ export function createRunStatsTracker(startedAt: number, now: () => number = Dat
     },
     snapshot(nowMs) {
       const runtimeMs = Math.max(0, nowMs - startedAt)
-      // RPC delivery can arrive in a post-hoc burst, collapsing measured generation windows to
-      // zero. Whenever any token-bearing window collapsed (or none was measured at all), fall
-      // back to total runtime so throughput stays a conservative lower bound instead of either
-      // disappearing or being divided by only the windows that happened to measure.
-      const throughputWindowMs = collapsedWindows > 0 || generationMs === 0 ? runtimeMs : generationMs
-      const tps = tokensPerSecond(outputTokens, throughputWindowMs)
+      // Generation throughput contract: `tokens_per_second` is emitted ONLY when every
+      // token-bearing generation window has a non-zero measured duration, so the figure reflects
+      // streaming speed and nothing else. When any token-bearing window collapsed to zero
+      // (post-hoc RPC burst, clock coalescing, etc.), the timing for that portion of the output
+      // is irrecoverably lost — dividing total tokens by only the surviving measured windows
+      // would overstate throughput, and dividing by runtime would conflate streaming speed with
+      // tool/idle time. Either way the number is unverifiable, so `tokens_per_second` is omitted.
+      //
+      // The runtime fallback survives ONLY for the no-measured-window case where no
+      // token-bearing collapsed window exists (i.e. outputTokens is zero or every window was
+      // zero-token): there the runtime is the sole available timing signal and no collapsed
+      // token timing has been lost.
+      const throughputWindowMs =
+        collapsedWindows > 0 ? undefined : generationMs > 0 ? generationMs : runtimeMs
+      const tps = throughputWindowMs === undefined ? undefined : tokensPerSecond(outputTokens, throughputWindowMs)
       const cacheHitRate = boundedCacheHitRate(cacheReadTokens, cacheableTokens)
       return {
         runtime_ms: runtimeMs,
