@@ -72,6 +72,22 @@ describe("buildWidgetRows", () => {
   })
 })
 
+describe("task_summary identity", () => {
+  it("#given a record with a task_summary #when building the widget row #then the summary leads over name and description", () => {
+    const row = buildWidgetRows([
+      record({ task_id: "st_sum", name: "finder", description: "quick label", task_summary: "Audit auth session flow", status: "running", category: "quick" }),
+    ])[0] ?? ""
+    expect(row.startsWith("Audi")).toBe(true)
+    expect(row).not.toContain("finder")
+    expect(row).not.toContain("quick label")
+  })
+
+  it("#given a record with a task_summary #when formatting the full row #then the summary is the identity", () => {
+    const row = formatTaskRow(record({ task_id: "st_sum", name: "finder", task_summary: "Audit auth session flow", status: "running" }))
+    expect(row.startsWith("Audit auth session flow")).toBe(true)
+  })
+})
+
 describe("formatTaskRow", () => {
   it("#given resolved category metadata #when formatting #then the unified target carries the model and effort", () => {
     const task = record({
