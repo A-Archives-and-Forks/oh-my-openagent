@@ -52,7 +52,7 @@ describe("category routing policy", () => {
     ])
   })
 
-  test("quick prioritizes kimi-for-coding-highspeed, luna fast low, then the speed tier", () => {
+  test("quick prioritizes Kimi high-speed, Luna low, DeepSeek off, then the speed tier", () => {
     // given
     const quick = CATEGORY_MODEL_REQUIREMENTS["quick"]
 
@@ -63,6 +63,11 @@ describe("category routing policy", () => {
     expect(leadingChain).toEqual([
       { providers: ["kimi-for-coding"], model: "kimi-for-coding-highspeed" },
       { providers: ["quotio-openai"], model: "gpt-5.6-luna-fast", variant: "low" },
+      {
+        providers: ["deepseek"],
+        model: "deepseek-v4-flash",
+        variant: "off",
+      },
       {
         providers: ["qwen-token-plan", "alibaba-token-plan", "bailian-coding-plan", "opencode-go", "vercel"],
         model: "qwen3.6-flash",

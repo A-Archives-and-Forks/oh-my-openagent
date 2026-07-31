@@ -355,7 +355,7 @@ describe("batch spawn types", () => {
 describe("validateTaskTarget category+model exclusivity", () => {
   test("#given category with model #when validated #then returns a typed category_with_model error", () => {
     // given
-    const params = { prompt: "p", category: "architect", model: "quotio-openai/gpt-5.4-mini-fast" }
+    const params = { prompt: "p", category: "architect", model: "quotio-openai/gpt-5.6-luna-fast" }
 
     // when
     const result = validateTaskTarget(params)
@@ -382,7 +382,7 @@ describe("validateTaskTarget category+model exclusivity", () => {
 describe("resolveSpawnItems category+model exclusivity", () => {
   test("#given single-form category with a model override #then returns an item_target error", () => {
     // given / when
-    const result = resolveSpawnItems({ prompt: "p", category: "quick", model: "openai/gpt-5.4-mini" })
+    const result = resolveSpawnItems({ prompt: "p", category: "quick", model: "openai/gpt-5.6-luna-fast" })
 
     // then
     expect(result.kind).toBe("error")
@@ -393,7 +393,7 @@ describe("resolveSpawnItems category+model exclusivity", () => {
 
   test("#given a top-level model inherited by a category item #then returns an item_target error", () => {
     // given / when
-    const result = resolveSpawnItems({ model: "openai/gpt-5.4-mini", tasks: [{ prompt: "one", category: "quick" }] })
+    const result = resolveSpawnItems({ model: "openai/gpt-5.6-luna-fast", tasks: [{ prompt: "one", category: "quick" }] })
 
     // then
     expect(result.kind).toBe("error")
@@ -404,7 +404,7 @@ describe("resolveSpawnItems category+model exclusivity", () => {
 
   test("#given a top-level category and an item model #then returns an item_target error", () => {
     // given / when
-    const result = resolveSpawnItems({ category: "quick", tasks: [{ prompt: "one" }, { prompt: "two", model: "openai/gpt-5.4-mini" }] })
+    const result = resolveSpawnItems({ category: "quick", tasks: [{ prompt: "one" }, { prompt: "two", model: "openai/gpt-5.6-luna-fast" }] })
 
     // then
     expect(result.kind).toBe("error")

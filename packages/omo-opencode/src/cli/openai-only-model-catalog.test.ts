@@ -57,7 +57,7 @@ describe("generateModelConfig OpenAI-only model catalog", () => {
 
     // #then
     expect(result.categories?.artistry).toEqual({ model: "openai/gpt-5.6-sol", variant: "xhigh" })
-    expect(result.categories?.quick).toEqual({ model: "openai/gpt-5.4-mini" })
+    expect(result.categories?.quick).toEqual({ model: "openai/gpt-5.6-luna-fast" })
     expect(result.categories?.["visual-engineering"]).toEqual({ model: "openai/gpt-5.6-sol", variant: "high" })
     expect(result.categories?.writing).toEqual({ model: "openai/gpt-5.6-sol", variant: "medium" })
   })
