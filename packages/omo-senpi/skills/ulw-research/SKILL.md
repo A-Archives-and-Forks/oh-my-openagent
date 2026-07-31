@@ -50,6 +50,8 @@ The research is done when all of these hold:
 - Every asserted claim is represented in the claim graph, tied to an intent-vs-reality diff when an expected truth exists, and backed by observation manifest entries from independent observation groups or a documented single-source exception; convergence or exception status is explicit.
 - The format-proposal gate was asked and answered BEFORE the team was created, and the final materials match that answer.
 - The delivered artifact passed both delivery gates: visual QA on the rendered pages, then a `writing` proofread pass with a clean result.
+- Every excursion opened during the run was closed by an EXIT rule, folded back into the claim or axis that triggered it, and recorded in both `excursion-log.md` and the ulw-loop ledger.
+- The delivery message carries the closing briefing: how many sources the answer rests on (total + unique domains) and how many minutes the run took.
 - The session journal reconstructs what was searched, found, expanded, and debated, wave by wave, and it was written in real time rather than reconstructed at the end.
 - The team was disbanded (`team_delete`) and every lane reached terminal status before the final answer.
 
@@ -62,6 +64,7 @@ Saturation is not just more searching; it is a knowledge-production protocol. Th
 - `observation-manifest.md` — one row per observation. Required fields: `observation_id`, source path or URL, evidence layer, observer group, independence basis, observer, `observed_at`, `valid_at` or `claim_valid_at`, artifact path, quote or line anchor, and contamination notes.
 - `verification-economics.md` — one row per proof decision. Required fields: claim, risk, error cost, verification cost/time, chosen verification path, defer/verify decision, outcome, and residual risk.
 - `cause-disappearance.md` — one row per causal finding. Required fields: cause id, expected truth, previous observation, `last_seen`, disconfirming observation, replacement cause if any, current status, and whether the violation is no longer observed.
+- `excursion-log.md` — one ENTER row and one EXIT row per excursion. Required fields: `excursion_id`, parent claim or axis, ENTER trigger, depth, workers spent, EXIT rule that closed it, what it changed in the top-level answer (`none` is a valid, required answer), and the ulw-loop steer/evidence id it was mirrored into.
 - `debate-log.md` — one row per debate round: the claim under attack, the attacker's argument, the defender's evidence, your verdict, and what changed in the claim graph because of it.
 
 Observation candidates, claim candidates, and EXPAND leads travel back from members and lanes as message text. You write the instrumentation artifacts, link candidates into the intent diff and claim graph, and record where each observation entered the synthesis. A conclusion is not ready for final materials until its expected truth/reality diff is closed or marked unknown, its claim node exists, and its independent-observation convergence status is supported or explicitly excepted.
@@ -90,7 +93,7 @@ This is `$SESSION_DIR`. Write `brief.md` into it: the analysis block, the axis l
 
 ### Run it as a loop, and journal in real time
 
-ulw-loop is ON by default for this mode: register the research axes as loop goals (`omo ulw-loop create-goals`, then `create_goal` from the printed handoff) so the run has durable state and survives a compaction. From that point every finding, source, quote, number, and lead is written into `$SESSION_DIR` **the instant it lands** — never held in the conversation for an end-of-run dump. After any context loss, re-read the brief, the journal, and `omo ulw-loop status --json` before doing anything else, then resume from the open wave.
+ulw-loop is ON by default for this mode: register the research axes as loop goals (`omo ulw-loop create-goals`, then `create_goal` from the printed handoff) so the run has durable state and survives a compaction. The session directory's timestamp is the run's start clock — the closing briefing is computed from it, so create it once and never rename it. From that point every finding, source, quote, number, and lead is written into `$SESSION_DIR` **the instant it lands** — never held in the conversation for an end-of-run dump. After any context loss, re-read the brief, the journal, and `omo ulw-loop status --json` before doing anything else, then resume from the open wave.
 
 ### Format-proposal gate — ALWAYS ask, before the team exists
 
@@ -205,6 +208,32 @@ End your reply with the ## EXPAND tail.")
 
 4. **Debate rounds (the ultradebate/hyperdebate engine).** The moment a contested, high-risk, or surprising claim lands, `task_send` it to the skeptic (and the contrarian, when stood up): "ATTACK: <claim> — EVIDENCE: <what supports it> — find the weakest assumption, the missing counter-source, the independence failure." Relay the attack to the claim's owner for defense, collect both sides, then record your verdict in `debate-log.md` and update the claim node. A claim that never drew an attack still gets one skeptic pass before it may enter the synthesis as supported.
 5. Record the wave in `expansion-log.md`: spawned, markers gained, leads opened/closed, debates settled.
+### Excursions — dive deep on a new find, then surface back out
+
+The Phase 0 core question is the fixed goal of the run and never drifts. An excursion is a BOUNDED detour off the wave plan to chase something a return surfaced — you go deep, settle it, and come back up to the question you were hired to answer.
+
+**ENTER (dive) only on a trigger.** One of these must hold, and you name which one:
+
+1. The find contradicts a claim already locked in `claim-graph.md`.
+2. It would change the final answer or a recommendation if it turned out to be true.
+3. It exposes a source territory no axis owns, so nobody else will ever reach it.
+4. The user's steering points at it — their words are the trigger, quoted verbatim.
+
+Interest alone is not a trigger. Anything without one stays a queued lead in `expansion-log.md`, and the wave plan continues.
+
+**Budget the dive before you take it.** State the lane or member count and the probe count for this level in the ENTER row. An excursion may spawn at most ONE nested sub-excursion; a third level means the thing has become its own research question — surface immediately and either promote it to a real axis with its own member (`omo ulw-loop steer --kind add_subgoal --title "<axis>" --objective "<what it must answer>" --evidence "<what surfaced it>" --rationale "<why the plan changes>"`) or record it as an out-of-scope gap in `SYNTHESIS.md`.
+
+**EXIT (surface) the moment any of these holds** — you do not need all of them:
+
+- The ENTER trigger is resolved: the claim is confirmed, refuted, or its dependency is closed.
+- Two consecutive probes changed nothing in the parent answer.
+- The finding stops moving any claim's status — diminishing return is an exit, not a reason to push harder.
+- The level's stated budget is spent.
+
+**Fold back on the way out.** Every EXIT writes one line saying what the excursion changed in the top-level answer, and `none — <reason>` is a legitimate, required outcome; an excursion whose result is silently dropped is a lost run. Update the parent claim node or axis digest with the result, then mirror the whole excursion into the loop ledger: `omo ulw-loop steer --kind annotate_ledger --evidence "<what the excursion observed>" --rationale "<what it changed, or none>"`, and when it settled a success criterion, `omo ulw-loop record-evidence --goal-id <id> --criterion-id <id> --status pass|fail|blocked --evidence "<artifact>"`. After a compaction, `omo ulw-loop status --json` plus `excursion-log.md` tell you which excursions are still open.
+
+**Anti-drift.** After every EXIT, re-read the core question in `brief.md` and confirm the run still answers it. Three consecutive excursions that changed nothing end excursions for the run: converge on what you have.
+
 6. **Relay the user's steering to everyone.** When the user changes scope, cadence, target sources, language, or format mid-run, broadcast it to every live member and lane immediately (`task_send` per member, a follow-up per lane) and record the exact wording in `expansion-log.md`. Steering only you saw silently splits the team's assignment from the user's actual ask.
 
 **Convergence — the only stop rules while this mode is active.** Run at least 2 expansion waves on any multi-faceted query before claiming convergence; then stop only when one holds:
@@ -255,7 +284,7 @@ After convergence and all verifications, re-read the whole journal, start from `
 
 ```
 # ULW-Research Synthesis: <query>
-Members + lanes: <total> · Waves: <count> · Sources: <count> · Verifications: <count> · Debate rounds: <count>
+Members + lanes: <total> · Waves: <count> · Excursions: <count> · Sources: <count> (<unique domains> domains) · Verifications: <count> · Debate rounds: <count> · Elapsed: <minutes> min
 
 ## Executive summary        — 2-3 paragraphs answering the core question
 ## Findings by theme        — per theme: consensus, evidence links, key quote (<20 words, attributed), verified yes/no
@@ -308,6 +337,17 @@ Nothing reaches the user until both gates pass:
 
 Then deliver: the artifact plus a compact chat-readable summary of what it says — the answer in a few sentences, the numbers that matter, and what to look at first. The document is the deliverable; the summary is what gets it read.
 
+### The closing briefing — every run ends with it
+
+The last thing the user reads states, in one compact block, what the answer is made of:
+
+- **Sources.** How many sources the answer rests on and how many distinct domains they come from, counted from `sources-ledger.md`, not estimated: `grep -c '^\[S' sources-ledger.md` for the total and the unique-host count for domains. Name how many were primary sources and how many claims went to the unresolved/refuted annex.
+- **Effort.** Members, lanes, waves, excursions, verifications, and debate rounds — the same counters as the `SYNTHESIS.md` header.
+- **Elapsed time, always.** Minutes from the run's start to delivery, derived from the session directory's own timestamp so it cannot be guessed: `python3 -c "import datetime,os,sys; s=datetime.datetime.strptime(os.path.basename(sys.argv[1]),'%Y%m%d-%H%M%S'); print(round((datetime.datetime.now()-s).total_seconds()/60))" "$SESSION_DIR"`.
+
+Never ship the artifact without this block, and never fill it from memory — every number in it is read off the journal.
+
+
 **Teardown is part of the deliverable.** Once the materials are delivered: `team_delete({ team_run_id, force: true })` for every team you stood up, confirm each lane is terminal (`/tasks`), and only then write the final answer. A live team left running past the final answer is a failed run, not a finished one.
 
 ## Search craft
@@ -356,3 +396,7 @@ High-yield combinations: official docs (`site:<docs domain>`), GitHub implementa
 | A derived estimate presented as a measured number | MEASURED / ASSUMED / DERIVED lineage on every quantitative claim, plus a sensitivity line |
 | Delivering before visual QA or before the `writing` proofread gate | Both gates are mandatory and ordered; a typo the user finds means the gate did not run |
 | Referencing an asset that is not on disk | Verify the asset manifest before rendering; re-render whatever is missing |
+| Chasing an interesting find with no ENTER trigger | Excursions need a named trigger; everything else stays a queued lead |
+| An excursion that never came back, or drifted into a new mission | EXIT rules are unconditional; depth 3 means promote it to an axis or record it as a gap |
+| An excursion whose result was never folded back | Every EXIT writes what it changed in the top-level answer, `none` included, and mirrors into the loop ledger |
+| Delivering without the closing briefing | Source count, unique domains, and elapsed minutes are read off the journal and stated every time |
