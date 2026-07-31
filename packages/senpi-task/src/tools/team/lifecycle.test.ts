@@ -130,8 +130,8 @@ describe("team_create tool", () => {
               role: { kind: "category", category: "quick" },
               model: {
                 provider: "openai",
-                model_id: "gpt-5.4-mini-fast",
-                display: "gpt-5.4-mini-fast",
+                model_id: "gpt-5.6-luna-fast",
+                display: "gpt-5.6-luna-fast",
                 variant: "max",
                 source: "category",
               },
@@ -146,7 +146,7 @@ describe("team_create tool", () => {
     // then
     const text = result.content[0]?.type === "text" ? result.content[0].text : ""
     expect(text).toContain("category:deep(anthropic/claude-opus-4-7:high)")
-    expect(text).toContain("category:quick(openai/gpt-5.4-mini-fast:max)")
+    expect(text).toContain("category:quick(openai/gpt-5.6-luna-fast:max)")
     expect(text).not.toContain("variant:")
     expect(text).not.toContain("undefined")
   })
