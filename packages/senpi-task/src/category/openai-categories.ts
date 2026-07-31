@@ -168,14 +168,15 @@ export const OPENAI_CATEGORIES = [
   },
   {
     name: "deep",
-    config: { model: "openai/gpt-5.6-terra", variant: "xhigh" },
+    config: { model: "openai/gpt-5.6-sol", variant: "medium" },
     description: "Goal-oriented autonomous problem-solving on hairy problems requiring deep research. ONE goal + ONE deliverable per call — multiple goals must fan out as parallel `deep` calls, never bundled into one.",
     promptAppend: DEEP_CATEGORY_PROMPT_APPEND,
     resolvePromptAppend: resolveDeepCategoryPromptAppend,
+    requiresModel: "gpt-5.6-sol",
   },
   {
     name: "quick",
-    config: { model: "apitopia/kimi-for-coding-highspeed" },
+    config: { model: "kimi-coding/kimi-for-coding-highspeed" },
     description: "Trivial tasks - single file changes, typo fixes, simple modifications",
     promptAppend: QUICK_CATEGORY_PROMPT_APPEND,
   },

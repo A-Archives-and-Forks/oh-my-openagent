@@ -98,7 +98,7 @@ function notFoundRow(details: Extract<TaskOutputDetails, { readonly kind: "not_f
 export function taskOutputModelText(snapshot: TaskSnapshot): string {
   const display = nonEmpty(snapshot.resolved_model?.display)
   const model = normalizeRendererText(snapshot.model)
-  const reasoning = nonEmpty(snapshot.resolved_model?.reasoning_effort)
+  const reasoning = nonEmpty(snapshot.resolved_model?.reasoning) ?? nonEmpty(snapshot.resolved_model?.reasoning_effort)
   const variant = nonEmpty(snapshot.resolved_model?.variant)
   const details = [
     reasoning === undefined ? undefined : `reasoning ${reasoning}`,

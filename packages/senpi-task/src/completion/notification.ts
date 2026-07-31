@@ -29,6 +29,12 @@ export function buildCompletionDetails(record: TaskRecord, options: BuildDetails
     ...(record.category === undefined ? {} : { category: record.category }),
     ...(record.agent_type === undefined ? {} : { agent_type: record.agent_type }),
     model: record.model,
+    ...(record.requested_model === undefined
+      ? {}
+      : { requested_model: record.requested_model }),
+    ...(record.fallback_models === undefined
+      ? {}
+      : { fallback_models: record.fallback_models }),
     ...(record.resolved_model === undefined ? {} : { resolved_model: record.resolved_model }),
     duration_ms: durationMs(record),
     ...(runStats === undefined ? {} : { run_stats: runStats }),
@@ -88,6 +94,7 @@ function completionDetailLines(detail: CompletionDetails, width: number | undefi
     detail.category === undefined ? undefined : `category:${normalizeRendererText(detail.category)}`,
     detail.agent_type === undefined ? undefined : `agent:${normalizeRendererText(detail.agent_type)}`,
     `model:${normalizeRendererText(detail.resolved_model?.display ?? detail.model)}`,
+    fallbackToken(detail),
     `status:${normalizeRendererText(detail.status)}`,
     `duration:${formatDuration(detail.duration_ms)}`,
     detail.tokens === undefined ? undefined : `tokens:${detail.tokens}`,
@@ -111,6 +118,13 @@ function completionDetailLines(detail: CompletionDetails, width: number | undefi
       ? []
       : [`${nextPrefix}${excerptForWidth(continuation, width, nextPrefix, "")}`]),
   ]
+}
+
+function fallbackToken(detail: CompletionDetails): string | undefined {
+  const requested = detail.requested_model?.display
+  const resolved = detail.resolved_model?.display ?? detail.model
+  if (requested === undefined || requested === resolved) return undefined
+  return `fallback:${normalizeRendererText(requested)}->${normalizeRendererText(resolved)}`
 }
 
 function excerptForWidth(value: string, width: number | undefined, prefix: string, suffix: string): string {

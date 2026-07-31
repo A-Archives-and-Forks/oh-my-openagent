@@ -86,6 +86,41 @@ describe("resolveAgent", () => {
     expect(result.model).toBe("local/primary")
   })
 
+  test("#given configured runtime fallback preserves requested and resolved models #when an agent resolves #then the ordered runtime chain is retained", () => {
+    // given
+    const agents = roster({
+      name: "custom",
+      model: "local/primary",
+      models: ["openai/secondary", "google/tertiary"],
+    })
+    const models = registry([
+      model("openai", "secondary"),
+      model("google", "tertiary"),
+    ])
+
+    // when
+    const result = expectResolved(resolveAgent("custom", agents, models))
+
+    // then
+    expect(result.model).toBe("openai/secondary")
+    expect(result).toMatchObject({
+      requested_model: {
+        source: "agent",
+        provider: "local",
+        model_id: "primary",
+        display: "local/primary",
+      },
+      fallback_models: [
+        {
+          source: "agent",
+          provider: "google",
+          model_id: "tertiary",
+          display: "google/tertiary",
+        },
+      ],
+    })
+  })
+
   test("#given an unavailable primary and ordered def.models #when resolved #then the first available model wins", () => {
     // given
     const agents = roster({

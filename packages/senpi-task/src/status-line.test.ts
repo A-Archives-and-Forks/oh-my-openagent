@@ -34,14 +34,20 @@ describe("taskIdentityLabel", () => {
 })
 
 describe("formatStatusTarget", () => {
-  test("#given a category and resolved model #when formatted #then the model is qualified in parentheses", () => {
+  test("#given a category and resolved model #when formatted #then model metadata qualifies the category", () => {
     // given / when / then
     expect(
       formatStatusTarget({
         category: "quick",
-        resolvedModel: { provider: "apitopia", model_id: "kimi-k3", display: "kimi-k3", reasoning_effort: "max", source: "category" },
+        resolvedModel: {
+          provider: "quotio-openai",
+          model_id: "gpt-5.4-mini-fast",
+          display: "gpt-5.4-mini-fast",
+          reasoning_effort: "high",
+          source: "category",
+        },
       }),
-    ).toBe("quick (apitopia/kimi-k3:max)")
+    ).toBe("category:quick(quotio-openai/gpt-5.4-mini-fast:high)")
   })
 
   test("#given only an agent type #when formatted #then the agent name is the target", () => {
@@ -49,6 +55,70 @@ describe("formatStatusTarget", () => {
     expect(formatStatusTarget({ agentType: "momus" })).toBe("momus")
   })
 
+
+  test("#given resolved model metadata with effort and variant #when formatted #then reasoning effort wins in the status target", () => {
+    // given / when / then
+    expect(
+      formatStatusTarget({
+        category: "ultrabrain",
+        resolvedModel: {
+          provider: "openai",
+          model_id: "gpt-5.6-sol",
+          display: "GPT-5.6 Sol",
+          reasoning_effort: "xhigh",
+          variant: "sol",
+          source: "category",
+        },
+      }),
+    ).toBe("category:ultrabrain(openai/gpt-5.6-sol:xhigh)")
+  })
+
+  test("#given resolved model metadata with variant only #when formatted #then the variant is rendered", () => {
+    // given / when / then
+    expect(
+      formatStatusTarget({
+        category: "ultrabrain",
+        resolvedModel: {
+          provider: "openai",
+          model_id: "gpt-5.6-sol",
+          display: "GPT-5.6 Sol",
+          variant: "sol",
+          source: "category",
+        },
+      }),
+    ).toBe("category:ultrabrain(openai/gpt-5.6-sol:sol)")
+  })
+
+  test("#given resolved model metadata with reasoning effort only #when formatted #then the reasoning effort is rendered", () => {
+    // given / when / then
+    expect(
+      formatStatusTarget({
+        category: "ultrabrain",
+        resolvedModel: {
+          provider: "openai",
+          model_id: "gpt-5.6-sol",
+          display: "GPT-5.6 Sol",
+          reasoning_effort: "xhigh",
+          source: "category",
+        },
+      }),
+    ).toBe("category:ultrabrain(openai/gpt-5.6-sol:xhigh)")
+  })
+
+  test("#given resolved model metadata without effort or variant #when formatted #then the model name is rendered without a suffix", () => {
+    // given / when / then
+    expect(
+      formatStatusTarget({
+        category: "ultrabrain",
+        resolvedModel: {
+          provider: "openai",
+          model_id: "gpt-5.6-sol",
+          display: "GPT-5.6 Sol",
+          source: "category",
+        },
+      }),
+    ).toBe("category:ultrabrain(openai/gpt-5.6-sol)")
+  })
   test("#given model metadata with terminal controls #when formatted #then every part is normalized", () => {
     // given / when / then
     expect(
@@ -63,14 +133,16 @@ describe("formatStatusTarget", () => {
           source: "category",
         },
       }),
-    ).toBe("quick (openai/gpt-5.6-sol:xhigh)")
+    ).toBe("category:quick(openai/gpt-5.6-sol:xhigh)")
   })
 
   test("#given a category but only a raw model #when formatted #then the sanitized raw model qualifies the target", () => {
     // given / when / then
-    expect(formatStatusTarget({ category: "quick", model: "anthropic/claude-sonnet-4-5" })).toBe("quick (anthropic/claude-sonnet-4-5)")
-    expect(formatStatusTarget({ model: "anthropic/claude-sonnet-4-5" })).toBe("anthropic/claude-sonnet-4-5")
-    expect(formatStatusTarget({ category: "quick", model: "raw\u001b[31m-model" })).toBe("quick (raw-model)")
+    expect(formatStatusTarget({ category: "quick", model: "anthropic/claude-sonnet-4-5" })).toBe(
+      "category:quick(anthropic/claude-sonnet-4-5)",
+    )
+    expect(formatStatusTarget({ model: "anthropic/claude-sonnet-4-5" })).toBe("model:anthropic/claude-sonnet-4-5")
+    expect(formatStatusTarget({ category: "quick", model: "raw\u001b[31m-model" })).toBe("category:quick(raw-model)")
   })
 
   test("#given no target facts #when formatted #then nothing is emitted", () => {
@@ -84,13 +156,13 @@ describe("composeStatusLine", () => {
     // given / when
     const line = composeStatusLine({
       identity: "Audit renderers",
-      target: "quick (apitopia/kimi-k3:max)",
+      target: "quick (kimi-coding/kimi-k3:max)",
       stats: { runtime_ms: 1_000, turns: 3, tool_calls: 7, tokens_per_second: 62 },
       verb: "running read src/foo.ts",
     })
 
     // then
-    expect(line).toBe("Audit renderers · quick (apitopia/kimi-k3:max) · turn 3 (7 tools) · running read src/foo.ts · 62 tok/s")
+    expect(line).toBe("Audit renderers · quick (kimi-coding/kimi-k3:max) · turn 3 (7 tools) · running read src/foo.ts · 62 tok/s")
   })
 
   test("#given a single tool call #when composed #then the tool noun is singular", () => {

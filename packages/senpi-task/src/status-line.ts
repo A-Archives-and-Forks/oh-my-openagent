@@ -17,6 +17,7 @@ export type StatusTargetInput = {
   readonly resolvedModel?: ResolvedModelRecord
   // Raw model string used when no resolved model metadata exists (live/legacy tasks).
   readonly model?: string
+  readonly fallbackCount?: number
 }
 
 export type StatusLineStats = Pick<TaskRunStats, "turns" | "tool_calls"> & {
@@ -40,10 +41,20 @@ export function taskIdentityLabel(input: TaskIdentityInput): string {
 
 // WHERE it runs: the routing target plus the model actually resolved for it.
 export function formatStatusTarget(input: StatusTargetInput): string | undefined {
-  const label = optionalRendererText(input.category) ?? optionalRendererText(input.agentType)
+  const category = optionalRendererText(input.category)
+  const agentType = optionalRendererText(input.agentType)
   const model = formatStatusModel(input.resolvedModel) ?? optionalRendererText(input.model)
-  if (label === undefined) return model
-  return model === undefined ? label : `${label} (${model})`
+  const label =
+    category === undefined
+      ? agentType
+      : `category:${category}${model === undefined ? "" : `(${model})`}`
+  const tokens = [
+    label,
+    category === undefined && model !== undefined ? `model:${model}` : undefined,
+    input.fallbackCount === undefined || input.fallbackCount <= 0 ? undefined : `fallback:${input.fallbackCount}`,
+  ]
+  const target = tokens.filter((token): token is string => token !== undefined).join(" · ")
+  return target.length === 0 ? undefined : target
 }
 
 // The canonical grammar every live/status row shares:
@@ -69,6 +80,6 @@ function formatStatusModel(resolved: ResolvedModelRecord | undefined): string | 
   const provider = optionalRendererText(resolved.provider)
   const modelId = optionalRendererText(resolved.model_id)
   if (provider === undefined || modelId === undefined) return undefined
-  const effort = optionalRendererText(resolved.reasoning_effort) ?? optionalRendererText(resolved.variant)
+  const effort = optionalRendererText(resolved.reasoning) ?? optionalRendererText(resolved.reasoning_effort) ?? optionalRendererText(resolved.variant)
   return `${provider}/${modelId}${effort === undefined ? "" : `:${effort}`}`
 }

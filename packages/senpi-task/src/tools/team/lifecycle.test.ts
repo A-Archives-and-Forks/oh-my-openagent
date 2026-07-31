@@ -71,6 +71,52 @@ describe("team_create tool", () => {
     expect(result.details.members[1]).toMatchObject({ name: "beta", role: "subagent_type:sisyphus", task_id: "st_b" })
   })
 
+  test("#given member model metadata variants and reasoning efforts #when team_create runs #then reasoning is labeled and reasoning effort wins over variant", async () => {
+    // given
+    const service = createFakeTeamService({
+      createTeam: async () =>
+        fakeCreateResult({
+          members: [
+            fakeCreatedMember({
+              name: "alpha",
+              status: "running",
+              role: { kind: "category", category: "deep" },
+              model: {
+                provider: "anthropic",
+                model_id: "claude-opus-4-7",
+                display: "Claude Opus 4.7",
+                reasoning_effort: "high",
+                variant: "xhigh",
+                source: "category",
+              },
+            }),
+            fakeCreatedMember({
+              name: "beta",
+              status: "running",
+              role: { kind: "category", category: "quick" },
+              model: {
+                provider: "openai",
+                model_id: "gpt-5.4-mini-fast",
+                display: "gpt-5.4-mini-fast",
+                variant: "max",
+                source: "category",
+              },
+            }),
+          ],
+        }),
+    })
+
+    // when
+    const result = await runTeamCreate(service, { inline_spec: { name: "demo", members: [] } })
+
+    // then
+    const text = result.content[0]?.type === "text" ? result.content[0].text : ""
+    expect(text).toContain("(anthropic Claude Opus 4.7 reasoning:high variant:xhigh)")
+    expect(text).toContain("(openai gpt-5.4-mini-fast variant:max)")
+    expect(text).not.toContain("reasoning:max")
+    expect(text).not.toContain("reasoning:undefined")
+  })
+
   test("#given both team_name and inline_spec #when team_create runs #then it rejects with invalid_arguments", async () => {
     // given
     const service = createFakeTeamService()

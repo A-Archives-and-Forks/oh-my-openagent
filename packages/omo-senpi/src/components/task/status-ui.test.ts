@@ -69,6 +69,28 @@ function runtimeOf(ui: FakeUi | undefined, sessionId = "session-a", mode = "tui"
 }
 
 describe("createTaskStatusUi.syncNow", () => {
+  it("#given a list-only manager #when a static running row renders #then no animation timer starts", () => {
+    const active = new Map<number, () => void>()
+    let nextHandle = 1
+    const timers: StatusUiTimers = {
+      set: (callback) => {
+        const handle = nextHandle++
+        active.set(handle, callback)
+        return handle
+      },
+      clear: (handle) => { if (typeof handle === "number") active.delete(handle) },
+    }
+    const statusUi = createTaskStatusUi({
+      manager: fakeManager([record({ task_id: "st_static", status: "running" })]),
+      runtime: runtimeOf(fakeUi()),
+      timers,
+    })
+
+    statusUi.syncNow()
+
+    expect(active.size).toBe(0)
+  })
+
   it("#given two running tasks in the current session #when syncing #then footer and two widget rows render scoped to the session", () => {
     const mine = [record({ task_id: "st_1", status: "running" }), record({ task_id: "st_2", status: "running" })]
     const other = record({ task_id: "st_other", status: "running", parent_session_id: "session-b", root_session_id: "session-b" })
@@ -78,7 +100,8 @@ describe("createTaskStatusUi.syncNow", () => {
 
     statusUi.syncNow()
 
-    expect(ui.statusCalls.at(-1)).toContain("t2/r2")
+    // C1: the duplicated footer task status line is gone; only the belowEditor widget rows remain.
+    expect(ui.statusCalls).toHaveLength(0)
     const widget = ui.widgetCalls.at(-1)
     expect(widget?.content).toHaveLength(2)
     expect(widget?.placement).toBe("belowEditor")
@@ -105,7 +128,8 @@ describe("createTaskStatusUi.syncNow", () => {
 
     statusUi.syncNow()
 
-    const footer = ui.statusCalls.at(-1) ?? ""
+    // C1: no footer status line is registered; the sanitized row lives only in the widget.
+    expect(ui.statusCalls).toHaveLength(0)
     const widgetRow = ui.widgetCalls.at(-1)?.content?.[0] ?? ""
     expect(widgetRow).toContain("한")
     expect(widgetRow).toContain("category:ultrabrain")
@@ -113,8 +137,7 @@ describe("createTaskStatusUi.syncNow", () => {
     expect(widgetRow).toContain("xhigh")
     expect(widgetRow).toContain("in-process")
     expect(widgetRow).toContain("running")
-    expect(footer).toContain("t1/r1")
-    expect(`${footer} ${widgetRow}`).not.toMatch(/[\u0000-\u001f\u007f-\u009f]/u)
+    expect(widgetRow).not.toMatch(/[\u0000-\u001f\u007f-\u009f]/u)
   })
 
   it("#given no captured ui context #when syncing #then it is a no-op", () => {
@@ -193,7 +216,9 @@ describe("createTaskStatusUi.scheduleSync", () => {
     statusUi.scheduleSync()
     expect(active.size).toBe(1)
     for (const callback of [...active.values()]) callback()
-    expect(ui.statusCalls).toHaveLength(1)
+    // C1: debounce still coalesces to one syncNow, but no footer status is registered.
+    expect(ui.statusCalls).toHaveLength(0)
+    expect(ui.widgetCalls).toHaveLength(1)
   })
 
   it("#given a pending debounce #when disposed #then the timer clears without rendering", () => {

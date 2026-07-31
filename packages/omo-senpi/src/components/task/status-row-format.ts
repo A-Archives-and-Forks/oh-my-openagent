@@ -1,5 +1,6 @@
 import {
   excerptRendererText,
+  formatStatusTarget,
   normalizeRendererText,
   rendererVisibleWidth,
   taskIdentityLabel,
@@ -10,17 +11,15 @@ import {
 } from "@oh-my-opencode/senpi-task"
 
 const MAX_WIDGET_ROWS = 5
-const STATUS_LINE_MAX = 72
 const WIDGET_LINE_MAX = 70
 const LIVE_WIDGET_LINE_MAX = 120
 const PROGRESS_HEAD_MAX = 60
 const LIVE_DESCRIPTION_MAX = 18
 const LIVE_DESCRIPTION_MAX_WITH_STATS = 11
-const SPINNER_INTERVAL_MS = 250
+export const LIVE_STATUS_REFRESH_MS = 250
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const
 
 const TERMINAL_STATUSES: ReadonlySet<TaskStatus> = new Set(["completed", "error", "cancelled", "interrupted", "lost"])
-const ERROR_STATUSES: ReadonlySet<TaskStatus> = new Set(["error", "lost"])
 
 export function isTerminal(status: TaskStatus): boolean {
   return TERMINAL_STATUSES.has(status)
@@ -46,6 +45,17 @@ function liveModelDisplay(record: TaskRecord): string {
   return optionalRendererText(record.resolved_model?.model_id) ?? modelDisplay(record)
 }
 
+function liveTarget(record: TaskRecord): string {
+  const category = optionalRendererText(record.category)
+  if (category === undefined) return `${targetLabel(record)} · model:${liveModelDisplay(record)}`
+  return formatStatusTarget({
+    category,
+    resolvedModel: record.resolved_model,
+    model: record.model,
+    fallbackCount: record.fallback_attempts?.length,
+  }) ?? `category:${category}`
+}
+
 function progressHead(record: TaskRecord): string | undefined {
   const normalized = optionalRendererText(record.final_response)
   if (normalized === undefined) return undefined
@@ -66,31 +76,6 @@ export function formatTaskRow(record: TaskRecord): string {
   const progress = progressHead(record)
   if (progress !== undefined) parts.push(`progress:${progress}`)
   return parts.join(" ")
-}
-
-export function formatFooterStatus(
-  records: readonly TaskRecord[],
-  liveActivity?: ReadonlyMap<string, string>,
-  now = Date.now(),
-  liveStats?: (taskId: string) => TaskRunStats | undefined,
-): string | undefined {
-  if (records.length === 0) return undefined
-  const running = records.filter((record) => record.status === "running").length
-  const done = records.filter((record) => isTerminal(record.status)).length
-  const errored = records.filter((record) => ERROR_STATUSES.has(record.status)).length
-  const pieces = [`tasks:${records.length}`, `run:${running}`, `done:${done}`, `err:${errored}`]
-  const active = records.find((record) => !isTerminal(record.status))
-  if (active === undefined) return excerptRendererText(pieces.join(" "), STATUS_LINE_MAX)
-  const compactCounts = [`t${records.length}`, `r${running}`]
-  if (done > 0) compactCounts.push(`d${done}`)
-  if (errored > 0) compactCounts.push(`e${errored}`)
-  const prefix = compactCounts.join("/")
-  const activity = liveActivity?.get(active.task_id)
-  const rowWidth = STATUS_LINE_MAX - rendererVisibleWidth(prefix) - 1
-  const row = activity === undefined
-    ? formatCompactTaskRow(active, rowWidth, true)
-    : formatLiveBackgroundRow(active, activity, now, rowWidth, liveStats?.(active.task_id), false)
-  return excerptRendererText(`${prefix} ${row}`, STATUS_LINE_MAX)
 }
 
 export function buildWidgetRows(records: readonly TaskRecord[]): string[] {
@@ -115,18 +100,17 @@ function formatLiveBackgroundRow(
   now: number,
   maxWidth: number,
   stats?: TaskRunStats,
-  includeTargetModel = true,
 ): string {
   const identity = excerptRendererText(
     taskIdentityLabel({ taskId: record.task_id, name: record.name, description: record.description }),
     stats === undefined ? LIVE_DESCRIPTION_MAX : LIVE_DESCRIPTION_MAX_WITH_STATS,
   )
   const elapsed = formatElapsed(record.created_at, now)
-  const frame = SPINNER_FRAMES[Math.floor(now / SPINNER_INTERVAL_MS) % SPINNER_FRAMES.length] ?? SPINNER_FRAMES[0]
+  const frame = SPINNER_FRAMES[Math.floor(now / LIVE_STATUS_REFRESH_MS) % SPINNER_FRAMES.length] ?? SPINNER_FRAMES[0]
   const parts = [
     frame,
     identity,
-    ...(includeTargetModel ? [targetLabel(record), `model:${liveModelDisplay(record)}`] : []),
+    liveTarget(record),
     ...liveStatsTokens(stats),
     activity,
     elapsed,

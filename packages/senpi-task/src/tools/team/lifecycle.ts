@@ -170,7 +170,8 @@ function formatCreatedMemberLine(member: CreatedMemberInfo): string {
 function formatModelSegment(model: ResolvedModelRecord | undefined): string {
   if (model === undefined) return ""
   const display = qualifyResolvedModelDisplay(model.provider, model.display) ?? model.model_id
-  const reasoning = model.reasoning_effort === undefined ? "" : ` reasoning:${model.reasoning_effort}`
+  const reasoningValue = model.reasoning ?? model.reasoning_effort
+  const reasoning = reasoningValue === undefined ? "" : ` reasoning:${reasoningValue}`
   const variant = model.variant === undefined ? "" : ` variant:${model.variant}`
   return ` (${display}${reasoning}${variant})`
 }
