@@ -197,7 +197,11 @@ describe("buildTaskExecute spawn", () => {
     })
     const execute = buildTaskExecute(
       makeDeps(manager, {
-        resolveSkillInvocations: () => ({ hasInvoked: (skill: string) => skill === "ulw-plan" }),
+        resolveSkillInvocations: () => ({
+          hasInvoked: (skill: string) => skill === "ulw-plan",
+          hasUserRequested: (skill: string) => skill === "ulw-plan",
+          hasPlanArtifact: () => true,
+        }),
       }),
     )
 

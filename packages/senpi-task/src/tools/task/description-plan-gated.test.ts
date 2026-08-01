@@ -25,6 +25,8 @@ describe("buildTaskToolDescription plan-gated agents", () => {
     expect(description).toContain("Plan-gated agents")
     expect(description).toContain("ulw-plan")
     expect(description).toContain("start-work")
+    expect(description).toContain("user explicitly request")
+    expect(description).toContain(".omo/plans")
     expect(description).toContain("metis")
     expect(description).toContain("momus")
   })

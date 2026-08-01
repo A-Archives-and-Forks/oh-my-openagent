@@ -33,7 +33,7 @@ export function buildTaskToolDescription(input: DescriptionInput): string {
   const gatedLine =
     gatedAgents.length === 0
       ? ""
-      : `\n  Plan-gated agents (spawnable only in a session where the ulw-plan skill was invoked and start-work was never invoked): ${gatedAgents.map((agent) => agent.name).join(", ")}`
+      : `\n  Plan-gated agents (spawnable only after the user explicitly requests the ulw-plan workflow, a .omo/plans/*.md plan artifact was touched in this session, and start-work was never invoked): ${gatedAgents.map((agent) => agent.name).join(", ")}`
   return `Spawn one child task or fan out a batch.
 
 Choose exactly one input form:

@@ -139,3 +139,151 @@ describe("createSkillInvocationTracker", () => {
     expect(tracker.stateFor("sess-a").hasInvoked("ulw-plan")).toBe(true)
   })
 })
+
+describe("createSkillInvocationTracker - user-request channel", () => {
+  test("#given a plain user input asking for ulw plan #when it arrives #then it is recorded as a user request but not an invocation", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const tracker = createSkillInvocationTracker(pi)
+
+    // when
+    await pi.dispatch("input", { text: "ulw plan \uc73c\ub85c \uc791\uc5c5\uacc4\ud68d\uc11c \ub9cc\ub4e4\uc5b4\uc918" }, CTX_A)
+
+    // then
+    expect(tracker.stateFor("sess-a").hasUserRequested("ulw-plan")).toBe(true)
+    expect(tracker.stateFor("sess-a").hasInvoked("ulw-plan")).toBe(false)
+  })
+
+  test("#given a slash skill input #when it arrives #then it counts as both an invocation and a user request", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const tracker = createSkillInvocationTracker(pi)
+
+    // when
+    await pi.dispatch("input", { text: "/skill:ulw-plan plan the auth refactor" }, CTX_A)
+
+    // then
+    expect(tracker.stateFor("sess-a").hasInvoked("ulw-plan")).toBe(true)
+    expect(tracker.stateFor("sess-a").hasUserRequested("ulw-plan")).toBe(true)
+  })
+
+  test("#given an ulw-plan mention only inside an ultrawork-mode block #when the input arrives #then no user request is recorded", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const tracker = createSkillInvocationTracker(pi)
+
+    // when
+    await pi.dispatch(
+      "input",
+      { text: "fix the login bug\n<ultrawork-mode>\nTrigger ONLY when a ulw-plan run produced a plan file.\n</ultrawork-mode>" },
+      CTX_A,
+    )
+
+    // then
+    expect(tracker.stateFor("sess-a").hasUserRequested("ulw-plan")).toBe(false)
+  })
+
+  test("#given an ulw-plan mention only inside a system-reminder block #when the input arrives #then no user request is recorded", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const tracker = createSkillInvocationTracker(pi)
+
+    // when
+    await pi.dispatch(
+      "input",
+      { text: "<system-reminder>senpi ulw-plan overrides pending</system-reminder>\ncontinue the migration" },
+      CTX_A,
+    )
+
+    // then
+    expect(tracker.stateFor("sess-a").hasUserRequested("ulw-plan")).toBe(false)
+  })
+})
+
+describe("createSkillInvocationTracker - plan-artifact channel", () => {
+  function toolResult(toolName: string, input: Record<string, unknown>, isError = false) {
+    return { type: "tool_result", toolCallId: "c9", toolName, input, content: [], isError }
+  }
+
+  test("#given a write into a worktree .omo/plans file #when the tool result arrives #then the session has a plan artifact", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const tracker = createSkillInvocationTracker(pi)
+
+    // when
+    await pi.dispatch("tool_result", toolResult("write", { path: "/repo/.local-ignore/worktrees/wt1/.omo/plans/feature.md" }), CTX_A)
+
+    // then
+    expect(tracker.stateFor("sess-a").hasPlanArtifact()).toBe(true)
+    expect(tracker.stateFor("sess-b").hasPlanArtifact()).toBe(false)
+  })
+
+  test("#given an edit of a relative .omo/plans path #when the tool result arrives #then the artifact is recorded", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const tracker = createSkillInvocationTracker(pi)
+
+    // when
+    await pi.dispatch("tool_result", toolResult("edit", { path: ".omo/plans/refactor.md" }), CTX_A)
+
+    // then
+    expect(tracker.stateFor("sess-a").hasPlanArtifact()).toBe(true)
+  })
+
+  test("#given a read of a plan file written by a planning child #when the tool result arrives #then the artifact is recorded", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const tracker = createSkillInvocationTracker(pi)
+
+    // when
+    await pi.dispatch("tool_result", toolResult("read", { path: "/other/checkout/.omo/plans/child-authored.md" }), CTX_A)
+
+    // then
+    expect(tracker.stateFor("sess-a").hasPlanArtifact()).toBe(true)
+  })
+
+  test("#given an apply_patch whose patch body touches .omo/plans #when the tool result arrives #then the artifact is recorded", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const tracker = createSkillInvocationTracker(pi)
+
+    // when
+    await pi.dispatch(
+      "tool_result",
+      toolResult("apply_patch", { input: "*** Begin Patch\n*** Add File: .omo/plans/release.md\n+# Plan\n*** End Patch" }),
+      CTX_A,
+    )
+
+    // then
+    expect(tracker.stateFor("sess-a").hasPlanArtifact()).toBe(true)
+  })
+
+  test("#given non-plan writes and failed plan writes #when the tool results arrive #then no artifact is recorded", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const tracker = createSkillInvocationTracker(pi)
+
+    // when
+    await pi.dispatch("tool_result", toolResult("write", { path: "/repo/docs/plans.md" }), CTX_A)
+    await pi.dispatch("tool_result", toolResult("write", { path: ".omo/plans/broken.md" }, true), CTX_A)
+    await pi.dispatch("tool_result", toolResult("grep", { path: ".omo/plans/scan.md" }), CTX_A)
+
+    // then
+    expect(tracker.stateFor("sess-a").hasPlanArtifact()).toBe(false)
+  })
+
+  test("#given a recorded request and artifact followed by session shutdown #when queried #then all state is dropped", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const tracker = createSkillInvocationTracker(pi)
+    await pi.dispatch("input", { text: "ulw plan please" }, CTX_A)
+    await pi.dispatch("tool_result", toolResult("write", { path: ".omo/plans/x.md" }), CTX_A)
+
+    // when
+    await pi.dispatch("session_shutdown", {}, CTX_A)
+
+    // then
+    expect(tracker.stateFor("sess-a").hasUserRequested("ulw-plan")).toBe(false)
+    expect(tracker.stateFor("sess-a").hasPlanArtifact()).toBe(false)
+  })
+})
