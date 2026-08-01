@@ -49,7 +49,8 @@ function advertisedAgentNames(engine: TaskEngine): string {
 
 function advertisedPlanGatedAgentNames(engine: TaskEngine): string {
   const description = buildTaskToolDescription({ omoConfig: engine.omoConfig, agents: engine.agents })
-  const marker = "Plan-gated agents (spawnable only in a session where the ulw-plan skill was invoked and start-work was never invoked): "
+  const marker =
+    "Plan-gated agents (spawnable only after the user explicitly requests the ulw-plan workflow, a .omo/plans/*.md plan artifact was touched in this session, and start-work was never invoked): "
   const start = description.indexOf(marker)
   if (start < 0) throw new Error("task tool description is missing the Plan-gated agents list")
   const rest = description.slice(start + marker.length)

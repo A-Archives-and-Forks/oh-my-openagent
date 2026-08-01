@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // Manual QA driver for the plan-gated agent tier (metis/momus): proves on a REAL senpi process
-// that task(subagent_type: "momus"|"metis") is denied until the session invokes ulw-plan, opens
-// after an ulw-plan SKILL.md read, and closes again after a start-work SKILL.md read.
-//   node plan-gated-agents-e2e.mjs --bundle <pluginDir> --scenario <denial|sequence> --expect <gated|ungated>
+// that task(subagent_type: "momus"|"metis") is denied without an explicit USER ulw-plan request
+// plus a .omo/plans artifact (a SKILL.md read alone stays denied), opens once the user prompt
+// requests ulw-plan and a plan file is written, and closes again after a start-work SKILL.md read.
+//   node plan-gated-agents-e2e.mjs --bundle <pluginDir> --scenario <denial|read-unlock|sequence> --expect <gated|ungated>
 // Isolation: SENPI_CODING_AGENT_DIR + XDG_CONFIG_HOME point at a throwaway sandbox; the real
 // ~/.senpi/agent is digest-compared before/after and MUST stay identical.
 import { spawnSync } from "node:child_process"
@@ -85,10 +86,21 @@ function denialScript() {
   }
 }
 
-function sequenceScript(skillsDir) {
+function readUnlockScript(skillsDir) {
   return {
     parentSteps: [
       { type: "tool_call", name: "read", arguments: { path: join(skillsDir, "ulw-plan", "SKILL.md") } },
+      { type: "tool_call", name: "task", arguments: { subagent_type: "momus", prompt: "review the plan", run_in_background: true } },
+      { type: "text", text: "read-unlock scenario complete" },
+    ],
+    childSteps: [{ type: "text", text: "momus child ran" }],
+  }
+}
+
+function sequenceScript(skillsDir) {
+  return {
+    parentSteps: [
+      { type: "tool_call", name: "write", arguments: { path: ".omo/plans/qa-plan.md", content: "# QA Plan\n\n- review me\n" } },
       { type: "tool_call", name: "task", arguments: { subagent_type: "momus", prompt: "review the plan", run_in_background: false } },
       { type: "tool_call", name: "read", arguments: { path: join(skillsDir, "start-work", "SKILL.md") } },
       { type: "tool_call", name: "task", arguments: { subagent_type: "metis", prompt: "gap analysis", run_in_background: true } },
@@ -96,6 +108,13 @@ function sequenceScript(skillsDir) {
     ],
     childSteps: [{ type: "text", text: "momus review complete" }],
   }
+}
+
+const SCENARIO_PROMPTS = {
+  denial: "run the scripted scenario",
+  "read-unlock": "run the scripted scenario",
+  // The hyphenated form arms the user-request channel without tripping the ultrawork /ulw(?!-)/ trigger.
+  sequence: "please run the ulw-plan review scripted scenario",
 }
 
 function seedScenario(pluginRoot, script) {
@@ -144,7 +163,11 @@ function main() {
     return
   }
   const skillsDir = join(args.bundle, "skills")
-  const script = args.scenario === "sequence" ? sequenceScript(skillsDir) : denialScript()
+  const script =
+    args.scenario === "sequence" ? sequenceScript(skillsDir)
+    : args.scenario === "read-unlock" ? readUnlockScript(skillsDir)
+    : denialScript()
+  const scenarioPrompt = SCENARIO_PROMPTS[args.scenario] ?? SCENARIO_PROMPTS.denial
   // A live dev machine (including the session driving this QA) keeps writing session JSONL and
   // logs into the real agent dir, so the whole-directory digest is informational only; the
   // isolation gate is the four credential files staying byte-identical (drive.mjs convention).
@@ -155,7 +178,7 @@ function main() {
   try {
     const run = spawnSync(
       senpiBin,
-      ["-e", mockProviderEntry, "-p", "--mode", "json", "--provider", "omo-mock", "--model", "mock-1", "--session-dir", sessionDir, "run the scripted scenario"],
+      ["-e", mockProviderEntry, "-p", "--mode", "json", "--provider", "omo-mock", "--model", "mock-1", "--session-dir", sessionDir, scenarioPrompt],
       {
         cwd: sandbox.cwd,
         env: { ...process.env, SENPI_CODING_AGENT_DIR: sandbox.agentDir, XDG_CONFIG_HOME: sandbox.xdgConfigHome, SENPI_CODING_AGENT_SESSION_DIR: sessionDir, OMO_SENPI_QA: "1" },
@@ -168,23 +191,31 @@ function main() {
 
     const transcript = `${run.stdout ?? ""}\n${collectText(sessionDir)}`
     const records = storeTaskRecords(stateDir)
-    const requiredDenial = transcript.includes("is plan-gated and cannot be spawned yet")
-    const forbiddenDenial = transcript.includes("is plan-gated and cannot be spawned:")
+    const missingRequestDenial = transcript.includes("available only after the user explicitly requests")
+    const missingArtifactDenial = transcript.includes("no plan artifact")
+    const startWorkDenial = transcript.includes("is plan-gated and cannot be spawned:")
+    const anyDenial = missingRequestDenial || missingArtifactDenial || startWorkDenial
     const childCompleted = transcript.includes("momus review complete")
 
     const checks = {}
     if (args.scenario === "denial" && args.expect === "gated") {
-      checks.denial_present = requiredDenial
+      checks.denial_present = missingRequestDenial
       checks.no_child_spawned = records.length === 0
     } else if (args.scenario === "denial" && args.expect === "ungated") {
-      checks.no_gate_text = !requiredDenial && !forbiddenDenial
+      checks.no_gate_text = !anyDenial
+      checks.child_spawned = records.length > 0
+    } else if (args.scenario === "read-unlock" && args.expect === "gated") {
+      checks.read_does_not_unlock = missingRequestDenial
+      checks.no_child_spawned = records.length === 0
+    } else if (args.scenario === "read-unlock" && args.expect === "ungated") {
+      checks.no_gate_text = !anyDenial
       checks.child_spawned = records.length > 0
     } else if (args.scenario === "sequence" && args.expect === "gated") {
       checks.first_spawn_allowed = childCompleted
-      checks.second_denied_start_work = forbiddenDenial
+      checks.second_denied_start_work = startWorkDenial
       checks.exactly_one_child = records.length === 1
     } else if (args.scenario === "sequence" && args.expect === "ungated") {
-      checks.no_gate_text = !requiredDenial && !forbiddenDenial
+      checks.no_gate_text = !anyDenial
       checks.both_spawned = records.length === 2
     }
     checks.exit_zero = run.status === 0
