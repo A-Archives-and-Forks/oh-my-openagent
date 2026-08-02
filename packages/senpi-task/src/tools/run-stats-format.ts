@@ -1,5 +1,5 @@
 import type { TaskRunStats } from "../state"
-import { formatCacheHitPercent, formatCostUsd, formatSpend } from "../status-line"
+import { formatCacheHitPercent, formatCostUsd, formatRunSpend } from "../status-line"
 
 export function formatRunDuration(durationMs: number): string {
   const totalSeconds = Math.max(0, Math.round(durationMs / 1_000))
@@ -16,7 +16,7 @@ export function formatRunDuration(durationMs: number): string {
 export function runStatsSuffix(stats: TaskRunStats | undefined): string {
   if (stats === undefined) return ""
   const parts = [`ran ${formatRunDuration(stats.runtime_ms)}`]
-  const spend = formatSpend(stats)
+  const spend = formatRunSpend(stats)
   if (spend !== undefined) parts.push(spend)
   if (stats.tokens_per_second !== undefined) parts.push(`${stats.tokens_per_second} tok/s`)
   return parts.map((part) => ` · ${part}`).join("")
@@ -27,7 +27,7 @@ export function runStatsResultTokens(stats: TaskRunStats | undefined): readonly 
   if (stats === undefined) return []
   const duration = formatRunDuration(stats.runtime_ms).replaceAll(" ", "")
   const cost = formatCostUsd(stats.cost_usd)
-  const cacheHit = formatCacheHitPercent(stats.cache_hit_rate)
+  const cacheHit = formatCacheHitPercent(stats.cache_hit_rate_run)
   return [
     `ran:${duration}`,
     ...(cost === undefined ? [] : [`cost:${cost}`]),

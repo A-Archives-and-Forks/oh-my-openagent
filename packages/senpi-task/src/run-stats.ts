@@ -21,6 +21,7 @@ export function createRunStatsTracker(startedAt: number, now: () => number = Dat
   let sawCost = false
   let cacheReadTokens = 0
   let cacheableTokens = 0
+  let latestCacheHitRate: number | undefined
 
   return {
     accept(event) {
@@ -52,8 +53,12 @@ export function createRunStatsTracker(startedAt: number, now: () => number = Dat
         costUsd += usage.cost
         sawCost = true
       }
-      cacheReadTokens += usage.cacheRead ?? 0
-      cacheableTokens += (usage.input ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0)
+      const requestCacheReadTokens = usage.cacheRead ?? 0
+      const requestCacheableTokens = (usage.input ?? 0) + requestCacheReadTokens + (usage.cacheWrite ?? 0)
+      const requestCacheHitRate = boundedCacheHitRate(requestCacheReadTokens, requestCacheableTokens)
+      if (requestCacheHitRate !== undefined) latestCacheHitRate = requestCacheHitRate
+      cacheReadTokens += requestCacheReadTokens
+      cacheableTokens += requestCacheableTokens
       return true
     },
     snapshot(nowMs) {
@@ -73,7 +78,7 @@ export function createRunStatsTracker(startedAt: number, now: () => number = Dat
       const throughputWindowMs =
         collapsedWindows > 0 ? undefined : generationMs > 0 ? generationMs : runtimeMs
       const tps = throughputWindowMs === undefined ? undefined : tokensPerSecond(outputTokens, throughputWindowMs)
-      const cacheHitRate = boundedCacheHitRate(cacheReadTokens, cacheableTokens)
+      const runCacheHitRate = boundedCacheHitRate(cacheReadTokens, cacheableTokens)
       return {
         runtime_ms: runtimeMs,
         turns,
@@ -83,7 +88,8 @@ export function createRunStatsTracker(startedAt: number, now: () => number = Dat
         ...(generationMs > 0 ? { generation_ms: generationMs } : {}),
         ...(tps === undefined ? {} : { tokens_per_second: tps }),
         ...(sawCost && Number.isFinite(costUsd) ? { cost_usd: costUsd } : {}),
-        ...(cacheHitRate === undefined ? {} : { cache_hit_rate: cacheHitRate }),
+        ...(latestCacheHitRate === undefined ? {} : { cache_hit_rate_last: latestCacheHitRate }),
+        ...(runCacheHitRate === undefined ? {} : { cache_hit_rate_run: runCacheHitRate }),
       }
     },
   }
