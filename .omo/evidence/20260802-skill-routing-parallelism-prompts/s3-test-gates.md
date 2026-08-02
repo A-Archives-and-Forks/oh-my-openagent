@@ -6,7 +6,7 @@ Observed: 12665 pass, 3 skip (pre-existing live-tmux/named-pipe skips), 1 fail:
   script/codex-installer-version.test.ts "#given the generated Codex installer #when release versions
   are synchronized #then its embedded package version matches the root release version"
 PRE-EXISTING: the identical single test fails on the untouched `dev` main checkout
-(/Users/yeongyu/local-workspaces/omo, commit b072d2791) - the committed generated installer still
+(the main clone of this repository, commit b072d2791) - the committed generated installer still
 embeds 4.19.3 after the v4.19.4 release; CI regenerates install-dist during setup/build so CI stays
 green. Not caused by this change (this change reverted incidental install-dist rebuild churn to keep
 scope clean). Verification transcript: `bun test script/codex-installer-version.test.ts` in the main
