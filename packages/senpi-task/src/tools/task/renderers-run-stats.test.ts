@@ -46,7 +46,8 @@ describe("taskResultLines run stats", () => {
         output_tokens: 900,
         tokens_per_second: 118,
         cost_usd: 0.42131,
-        cache_hit_rate: 0.8712,
+        cache_hit_rate_last: 0.2,
+        cache_hit_rate_run: 0.8712,
       },
     }
 
@@ -87,7 +88,8 @@ describe("taskResultLines run stats", () => {
         tool_calls: 0,
         tokens_per_second: 10,
         cost_usd: Number.POSITIVE_INFINITY,
-        cache_hit_rate: 2,
+        cache_hit_rate_last: 0.2,
+        cache_hit_rate_run: 2,
       },
     })
 
