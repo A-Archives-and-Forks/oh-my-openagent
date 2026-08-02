@@ -1,6 +1,6 @@
 import {
   excerptRendererText,
-  formatSpend,
+  formatLiveSpend,
   formatStatusTarget,
   formatTargetWithModel,
   normalizeRendererText,
@@ -75,7 +75,7 @@ export function buildWidgetRows(records: readonly TaskRecord[]): string[] {
 function liveStatsTokens(stats: TaskRunStats | undefined): string[] {
   if (stats === undefined) return []
   const tokens = [`turn ${stats.turns}${toolCountSuffix(stats.tool_calls)}`]
-  const spend = formatSpend(stats)
+  const spend = formatLiveSpend(stats)
   if (spend !== undefined) tokens.push(spend)
   if (stats.tokens_per_second !== undefined) tokens.push(`${stats.tokens_per_second} tok/s`)
   return tokens

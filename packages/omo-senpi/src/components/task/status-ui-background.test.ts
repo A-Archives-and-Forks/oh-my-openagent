@@ -155,8 +155,24 @@ describe("createTaskStatusUi.background progress", () => {
       subscribeChild: () => () => undefined,
       runStatsSnapshot: (taskId) =>
         taskId === "st_solo"
-          ? { runtime_ms: 1_000, turns: 2, tool_calls: 1, tokens_per_second: 40, cost_usd: 0.4213, cache_hit_rate: 0.8712 }
-          : { runtime_ms: 1_000, turns: 1, tool_calls: 0, tokens_per_second: 12, cost_usd: 0.017, cache_hit_rate: 0.5 },
+          ? {
+              runtime_ms: 1_000,
+              turns: 2,
+              tool_calls: 1,
+              tokens_per_second: 40,
+              cost_usd: 0.4213,
+              cache_hit_rate_last: 0.8712,
+              cache_hit_rate_run: 0.4,
+            }
+          : {
+              runtime_ms: 1_000,
+              turns: 1,
+              tool_calls: 0,
+              tokens_per_second: 12,
+              cost_usd: 0.017,
+              cache_hit_rate_last: 0.5,
+              cache_hit_rate_run: 0.1,
+            },
     }
     const ui = fakeUi()
     const statusUi = createTaskStatusUi({
