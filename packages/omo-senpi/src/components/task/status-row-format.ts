@@ -14,10 +14,13 @@ import {
 
 const MAX_WIDGET_ROWS = 5
 const WIDGET_LINE_MAX = 70
-const LIVE_WIDGET_LINE_MAX = 120
+const LIVE_WIDGET_LINE_MAX = 220
 const PROGRESS_HEAD_MAX = 60
-const LIVE_DESCRIPTION_MAX = 18
-const LIVE_DESCRIPTION_MAX_WITH_STATS = 11
+const LIVE_IDENTITY_MAX = 80
+const LIVE_IDENTITY_MIN = 12
+const LIVE_TARGET_MIN = 20
+const LIVE_ACTIVITY_MIN = 8
+const LIVE_SEPARATOR_WIDTH = 3
 export const LIVE_STATUS_REFRESH_MS = 250
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"] as const
 
@@ -88,21 +91,42 @@ function formatLiveBackgroundRow(
   maxWidth: number,
   stats?: TaskRunStats,
 ): string {
-  const identity = excerptRendererText(
-    taskIdentityLabel({ taskId: record.task_id, name: record.name, description: record.description, taskSummary: record.task_summary }),
-    stats === undefined ? LIVE_DESCRIPTION_MAX : LIVE_DESCRIPTION_MAX_WITH_STATS,
-  )
   const elapsed = formatElapsed(record.created_at, now)
   const frame = SPINNER_FRAMES[Math.floor(now / LIVE_STATUS_REFRESH_MS) % SPINNER_FRAMES.length] ?? SPINNER_FRAMES[0]
-  const parts = [
-    frame,
-    identity,
-    recordStatusTarget(record),
-    ...liveStatsTokens(stats),
-    activity,
+  const fullIdentity = liveTaskIdentity(record)
+  const fullTarget = recordStatusTarget(record)
+  const fullActivity = normalizeRendererText(activity)
+  const minimumPartsWidth = rendererVisibleWidth(
+    `${frame} ${excerptRendererText(fullIdentity, LIVE_IDENTITY_MIN)} · ${excerptRendererText(fullTarget, LIVE_TARGET_MIN)} · ${excerptRendererText(fullActivity, LIVE_ACTIVITY_MIN)} · ${elapsed}`,
+  )
+  let remainingWidth = Math.max(0, maxWidth - minimumPartsWidth)
+  const statsTokens = liveStatsTokens(stats).filter((token) => {
+    const tokenWidth = rendererVisibleWidth(token) + LIVE_SEPARATOR_WIDTH
+    if (tokenWidth > remainingWidth) return false
+    remainingWidth -= tokenWidth
+    return true
+  })
+  const activityWidth = Math.min(rendererVisibleWidth(fullActivity), LIVE_ACTIVITY_MIN + remainingWidth)
+  remainingWidth -= Math.max(0, activityWidth - LIVE_ACTIVITY_MIN)
+  const targetWidth = Math.min(rendererVisibleWidth(fullTarget), LIVE_TARGET_MIN + remainingWidth)
+  remainingWidth -= Math.max(0, targetWidth - LIVE_TARGET_MIN)
+  const identityWidth = Math.min(LIVE_IDENTITY_MAX, LIVE_IDENTITY_MIN + remainingWidth)
+  const context = [
+    excerptRendererText(fullTarget, targetWidth),
+    ...statsTokens,
+    excerptRendererText(fullActivity, activityWidth),
     elapsed,
   ]
-  return excerptRendererText(parts.join(" · ").replace(`${frame} · `, `${frame} `), maxWidth)
+  const contextText = context.join(" · ")
+  const identity = excerptRendererText(fullIdentity, identityWidth)
+  return excerptRendererText(`${frame} ${identity} · ${contextText}`, maxWidth)
+}
+
+function liveTaskIdentity(record: TaskRecord): string {
+  return optionalRendererText(record.task_summary)
+    ?? optionalRendererText(record.description)
+    ?? optionalRendererText(record.name)
+    ?? normalizeRendererText(record.task_id)
 }
 
 function formatElapsed(createdAt: string, now: number): string {
@@ -118,11 +142,15 @@ export function backgroundWidgetRows(
   activity: ReadonlyMap<string, string>,
   now: number,
   liveStats?: (taskId: string) => TaskRunStats | undefined,
+  maxWidth = LIVE_WIDGET_LINE_MAX,
 ): string[] {
   const active = records.filter((record) => !isTerminal(record.status))
   if (active.length === 0) return []
+  const boundedWidth = Number.isFinite(maxWidth) && maxWidth > 0
+    ? Math.min(LIVE_WIDGET_LINE_MAX, Math.floor(maxWidth))
+    : LIVE_WIDGET_LINE_MAX
   const shown = active.slice(0, MAX_WIDGET_ROWS).map((record) =>
-    formatLiveBackgroundRow(record, activity.get(record.task_id) ?? "running", now, LIVE_WIDGET_LINE_MAX, liveStats?.(record.task_id)),
+    formatLiveBackgroundRow(record, activity.get(record.task_id) ?? "running", now, boundedWidth, liveStats?.(record.task_id)),
   )
   const overflow = active.length - MAX_WIDGET_ROWS
   if (overflow > 0) shown.push(`+${overflow} more`)
