@@ -115,6 +115,36 @@ The 13 shims the real installer created are exactly the names in `MANAGED_CODEX_
 which independently confirms the allowlist is complete, and `omo.backup` surviving is the
 ownership fix proven on the real surface rather than only in unit tests.
 
+### The installed wrapper is attempted first, and why it is not the path that runs
+
+Review asked for the uninstaller the installer produced rather than the repository source.
+The driver now invokes `<BIN>\omo.cmd` first. On Windows that wrapper is broken by a separate,
+already-reported defect and cannot run at all:
+
+```text
+=== REAL UNINSTALL: the INSTALLED wrapper first ===
+  installed wrapper present: True
+  <BIN>\omo.cmd uninstall --platform=codex -> exit=255
+    The syntax of the command is incorrect.
+  wrapper failed (known lazycodex#142 on Windows); falling back to the bundle it execs
+=== REAL UNINSTALL: bun dist/cli/index.js uninstall --platform=codex (the SHIPPED bundle) ===
+  path used: shipped dist/cli bundle (bun, as the wrapper execs it)
+  uninstall exit=0
+  bin dir after uninstall: omo.backup
+```
+
+That failure is lazycodex#142: `windowsNodeDiscoveryLines()` emits `=="^""`, which is not valid
+CMD comparison syntax, so cmd.exe aborts parsing before any runtime is reached. It is unrelated
+to this change and has an open sister-PR (#5859-era #5923). The run therefore falls back to the
+exact bundle that wrapper execs, `dist/cli/index.js` under bun, and records both attempts rather
+than silently substituting the repository source. `dist/cli` is bun-targeted; the separate
+`dist/cli-node` bundle is the node fallback, so running `dist/cli` under node fails on
+`__require`.
+
+The shipped bundle used here was rebuilt on this branch and contains the change
+(`removeManagedCodexBins` appears in `dist/cli/index.js`), so this is the shipped code path, not
+a source-level invocation.
+
 ### Mandatory Codex compatibility gate (`test-codex-gate.txt`)
 
 `bun run test:codex` cannot run on this Windows host: the vendored

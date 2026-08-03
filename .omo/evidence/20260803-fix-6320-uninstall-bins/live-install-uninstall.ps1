@@ -60,10 +60,34 @@ try {
   $userCopy = Join-Path $binDir "omo.backup"
   if (Test-Path -LiteralPath $rootBin) { Copy-Item -LiteralPath $rootBin -Destination $userCopy }
 
+  # Prefer the uninstaller the installer just produced. On Windows that wrapper is currently
+  # broken by a separate, already-reported defect (lazycodex#142: windowsNodeDiscoveryLines
+  # emits an invalid CMD quote comparison, so cmd.exe aborts with "The syntax of the command
+  # is incorrect." and exit 255; open sister-PR #5923). When that happens the run falls back
+  # to the shipped bundle the wrapper itself execs, and records both, rather than silently
+  # substituting the source CLI.
+  $installedOmo = Join-Path $binDir "omo.cmd"
   Write-Output ""
-  Write-Output "=== REAL UNINSTALL: bun packages/omo-opencode/src/cli/index.ts uninstall --platform=codex ==="
-  $uninstallOut = & bun (Join-Path $repoRoot "packages\omo-opencode\src\cli\index.ts") uninstall --platform=codex 2>&1
-  $uninstallExit = $LASTEXITCODE
+  Write-Output "=== REAL UNINSTALL: the INSTALLED wrapper first ==="
+  Write-Output "  installed wrapper present: $(Test-Path -LiteralPath $installedOmo)"
+  $wrapperOut = & $installedOmo uninstall --platform=codex 2>&1
+  $wrapperExit = $LASTEXITCODE
+  Write-Output "  <BIN>\omo.cmd uninstall --platform=codex -> exit=$wrapperExit"
+  $wrapperOut | Select-Object -Last 3 | ForEach-Object { "    $($_ -replace [regex]::Escape($sandbox), '<SANDBOX>')" }
+
+  if ($wrapperExit -eq 0) {
+    $uninstallOut = $wrapperOut
+    $uninstallExit = 0
+    Write-Output "  path used: installed wrapper"
+  } else {
+    Write-Output "  wrapper failed (known lazycodex#142 on Windows); falling back to the bundle it execs"
+    Write-Output "=== REAL UNINSTALL: bun dist/cli/index.js uninstall --platform=codex (the SHIPPED bundle) ==="
+    # The wrapper execs this bundle with bun; dist/cli is bun-targeted, and dist/cli-node is
+    # the separate node fallback, so running it under node fails on __require.
+    $uninstallOut = & bun (Join-Path $repoRoot "dist\cli\index.js") uninstall --platform=codex 2>&1
+    $uninstallExit = $LASTEXITCODE
+    Write-Output "  path used: shipped dist/cli bundle (bun, as the wrapper execs it)"
+  }
   $uninstallOut | Select-Object -Last 25 | ForEach-Object { "  $($_ -replace [regex]::Escape($sandbox), '<SANDBOX>')" }
   Write-Output "  uninstall exit=$uninstallExit"
 
