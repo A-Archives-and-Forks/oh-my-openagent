@@ -62,11 +62,17 @@ two failures with ALL of `packages/omo-codex` stashed, which proves they are pre
 than caused by this change. The remaining Codex-gate steps that do cover this change were run individually and are
 recorded above.
 
-Additional live harness artifact:
+Additional live harness artifacts:
 
 - `app-server-plugin-20260731.txt`: canonical isolated `codex app-server`
-  self-test, local-plugin turn, and Stop-specific expected-hook turn with
-  first-party notifications and unchanged real Codex config proof.
+  self-test and local-plugin turn, with first-party notifications and unchanged
+  real Codex config proof. Its earlier Stop-specific claim was withdrawn on
+  2026-08-03; the file records why.
+- `app-server-plugin-expect-stop-20260803.txt` (+ `.raw.txt`): the Stop case
+  rerun as `--plugin --expect stop`, so the driver fails unless `stop`
+  completes. It exited 0 having recorded `hook/started` and `hook/completed`
+  for `stop:19:...\hooks\stop-checking-start-work-continuation.json`, which is
+  this component's own Stop registration.
 
 ## Why it is enough
 
