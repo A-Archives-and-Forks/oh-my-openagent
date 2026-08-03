@@ -2,8 +2,10 @@ import { isPlainRecord } from "./codex-cache-fs"
 import { lstat, readFile, readdir, rm, rmdir } from "node:fs/promises"
 import { homedir } from "node:os"
 import { isAbsolute, join, relative, resolve } from "node:path"
+import { removeManagedCodexBins } from "./codex-cleanup-bins"
 import { cleanupCodexConfig, MANAGED_CODEX_AGENT_NAMES } from "./codex-cleanup-config"
 import { validateManagedCleanupTarget } from "./codex-cleanup-safety"
+import { resolveCodexInstallerBinDir } from "./codex-installer-bin-dir"
 import { repairProjectLocalCodexArtifactsBestEffort } from "./codex-project-local-cleanup-best-effort"
 import type { SkippedCleanupPath } from "./codex-cleanup-safety"
 import type { ProjectLocalCodexCleanupResult } from "./codex-project-local-cleanup"
@@ -12,6 +14,8 @@ const INSTALLED_AGENTS_MANIFEST = ".installed-agents.json"
 
 export interface CodexCleanupOptions {
   readonly codexHome?: string
+  readonly binDir?: string
+  readonly platform?: NodeJS.Platform
   readonly projectDirectory?: string
   readonly env?: { readonly [key: string]: string | undefined }
   readonly now?: () => Date
@@ -26,6 +30,7 @@ export interface CodexCleanupResult {
   readonly skippedPaths: readonly SkippedCleanupPath[]
   readonly removedAgentLinks: readonly string[]
   readonly skippedAgentLinks: readonly string[]
+  readonly removedBinLinks: readonly string[]
   readonly projectCleanup: ProjectLocalCodexCleanupResult
 }
 
@@ -51,6 +56,9 @@ export async function cleanupCodexLight(input: CodexCleanupOptions = {}): Promis
   }
   await pruneEmptyRuntimeDirBestEffort(codexHome)
 
+  const binDir = resolveCodexInstallerBinDir({ binDir: input.binDir, codexHome, env })
+  const removedBinLinks = await removeManagedCodexBins(binDir, input.platform ?? process.platform)
+
   const projectDirectory = input.projectDirectory ?? env.OMO_CODEX_PROJECT ?? process.cwd()
   const projectCleanup = await repairProjectLocalCodexArtifactsBestEffort({
     startDirectory: projectDirectory,
@@ -68,6 +76,7 @@ export async function cleanupCodexLight(input: CodexCleanupOptions = {}): Promis
     skippedPaths,
     removedAgentLinks: agentCleanup.removed,
     skippedAgentLinks: agentCleanup.skipped,
+    removedBinLinks,
     projectCleanup,
   }
 }

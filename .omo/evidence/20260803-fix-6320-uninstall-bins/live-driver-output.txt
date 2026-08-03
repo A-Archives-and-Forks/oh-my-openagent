@@ -1,0 +1,29 @@
+{
+  "scenario": "real linkRootRuntimeBin install -> real cleanupCodexLight uninstall, isolated CODEX_HOME + CODEX_LOCAL_BIN_DIR (win32)",
+  "before": {
+    "rootBinPath": "<BIN>\\omo.cmd",
+    "rootBinExists": true,
+    "rootBinHasMarker": true,
+    "componentExists": true,
+    "componentHasMarker": true,
+    "userBinExists": true
+  },
+  "after": {
+    "rootBinExists": false,
+    "componentExists": false,
+    "userBinExists": true,
+    "removedBinLinks": [
+      "<BIN>\\omo-ulw-loop.cmd",
+      "<BIN>\\omo.cmd"
+    ]
+  },
+  "isolation": {
+    "realCodexConfigUnchanged": true,
+    "realLocalBinUnchanged": true,
+    "realConfigSha": "2d70a22821b0..."
+  },
+  "result": "PASS"
+}
+
+
+EXIT=0
