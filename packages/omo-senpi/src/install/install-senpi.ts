@@ -180,7 +180,9 @@ async function verifyAstGrepRuntimeIntegrity(pluginPath: string): Promise<void> 
     throw astGrepIntegrityError(runtimeEntry, `runtime is unreadable or non-executable: ${messageOf(error)}`)
   }
 
-  if (!(await fileExists(manifestPath))) return
+  if (!(await fileExists(manifestPath))) {
+    throw astGrepIntegrityError(runtimeEntry, `manifest is missing: ${manifestPath}`)
+  }
 
   let manifest: unknown
   try {
