@@ -24,6 +24,26 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SBX="$(mktemp -d "${TMPDIR:-/tmp}/omo-6376-XXXXXX")"
 trap 'rm -rf "$SBX"; rm -f "$REPO/dist/cli/omo-6376-probe.mjs" "$REPO/dist/cli-node/omo-6376-probe.mjs" "$REPO/dist/omo-6376-probe.mjs"' EXIT
 
+# Any probe that fails flips this; the script exits non-zero at the end. `set -e` is not
+# usable here because the probes are expected to report MISSING on an unfixed base, so
+# failures are tracked explicitly instead of aborting.
+DRIVER_FAILED=0
+fail() { printf 'DRIVER-FAIL: %s\n' "$*" | tee -a "$OUT" >&2; DRIVER_FAILED=1; }
+
+# The bug only exists in BUILT output, so the artifacts are a hard prerequisite rather than
+# something to skip silently. Building here is not possible on Windows (the vendored
+# lsp-tools-mcp build script starts with `rm -rf`), so they are required explicitly.
+REQUIRED_ARTIFACTS="dist/index.js dist/cli/index.js dist/cli-node/index.js dist/skills/ast-grep/install.sh"
+MISSING_ARTIFACTS=""
+for A in $REQUIRED_ARTIFACTS; do
+  [ -e "$REPO/$A" ] || MISSING_ARTIFACTS="$MISSING_ARTIFACTS $A"
+done
+if [ -n "$MISSING_ARTIFACTS" ]; then
+  printf 'DRIVER-FAIL: missing built artifacts:%s\n' "$MISSING_ARTIFACTS" >&2
+  printf 'Run `bun run build` first (it emits the omo bundles before the vendored lsp-tools-mcp step).\n' >&2
+  exit 2
+fi
+
 export HOME="$SBX/home"
 export USERPROFILE="$SBX/home"
 export APPDATA="$SBX/home/AppData/Roaming"
@@ -60,7 +80,7 @@ mkdir -p "$APPDATA" "$LOCALAPPDATA" "$XDG_DATA_HOME" "$XDG_CONFIG_HOME" "$XDG_ST
 } > "$OUT"
 
 for D in dist dist/cli dist/cli-node; do
-  [ -d "$REPO/$D" ] || continue
+  [ -d "$REPO/$D" ] || { fail "expected bundle directory $D is absent"; continue; }
   cp "$REPO/packages/shared-skills/index.mjs" "$REPO/$D/omo-6376-probe.mjs"
   ( cd "$REPO" && node -e '
     const { pathToFileURL } = require("node:url");
@@ -84,6 +104,24 @@ done
   echo "\$ node dist/cli-node/index.js doctor"
 } >> "$OUT"
 ( cd "$SBX" && node "$REPO/dist/cli-node/index.js" doctor ) >> "$OUT" 2>&1
-echo "EXIT=$?" >> "$OUT"
+DOCTOR_EXIT=$?
+echo "EXIT=$DOCTOR_EXIT" >> "$OUT"
+# doctor exits 1 whenever it reports findings, so only a crash (>1) is a driver failure.
+[ "$DOCTOR_EXIT" -le 1 ] || fail "doctor crashed with exit $DOCTOR_EXIT"
+
+# Assert the thing this PR is about: every shipped bundle must resolve a skills root that
+# actually contains the ast-grep asset. Without this the driver reported MISSING and still
+# exited 0.
+if grep -q 'ast-grep/install.sh   : MISSING' "$OUT"; then
+  fail "a shipped bundle resolved a skills root without ast-grep/install.sh"
+fi
+
+{
+  echo
+  echo "=== driver verdict ==="
+  echo "  DRIVER_FAILED=$DRIVER_FAILED"
+  echo "  RESULT: $([ "$DRIVER_FAILED" -eq 0 ] && echo PASS || echo FAIL)"
+} >> "$OUT"
 
 echo "wrote $OUT"
+exit "$DRIVER_FAILED"
