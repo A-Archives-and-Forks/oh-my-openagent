@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   MAX_JSON_RECORD_BYTES,
+  MAX_MCP_PAYLOAD_BYTES,
   MAX_STDERR_BYTES,
   spawnSgRunner,
 } from "./sg-runner";
@@ -46,6 +47,13 @@ if (mode.startsWith("exit-1-controlled-")) {
 }
 if (mode === "exit-2") { process.stderr.write("invalid language"); process.exitCode = 2; }
 if (mode === "many") { for (let i = 0; i < 20; i++) process.stdout.write(rec(i) + "\\n"); setInterval(() => {}, 1000); }
+if (mode === "payload-cap") {
+  const marker = process.argv[3];
+  fs.writeFileSync(marker + ".pid", String(process.pid));
+  fs.writeFileSync(marker + ".ready", "ready");
+  for (let i = 0; i < 8; i++) process.stdout.write(JSON.stringify({ text: "x".repeat(900000), file: "/repo/f" + i + ".ts" }) + "\\n");
+  setInterval(() => {}, 1000);
+}
 if (mode === "hang") {
   const marker = process.argv[3];
   fs.writeFileSync(marker + ".pid", String(process.pid));
@@ -185,6 +193,26 @@ describe("bounded sg NDJSON runner", () => {
     expect(result.records).toHaveLength(2);
     expect(result).toMatchObject({ truncated: true, reason: "match_limit", atLeastMatches: 3 });
   });
+
+  it("#given records exceeding the aggregate payload cap #when the next record arrives #then output is truncated and the child is terminated", async () => {
+    const { directory, executable } = fixtureRunner();
+    const marker = join(directory, "payload-cap-child");
+    const ready = waitForFile(directory, "payload-cap-child.ready");
+    const running = spawnSgRunner({ sgPath: executable, args: ["payload-cap", marker], workdir: directory, maxMatches: 500 });
+    await ready;
+
+    const result = await withTimeout(running, "payload-capped child exit");
+
+    expect(result).toMatchObject({
+      truncated: true,
+      reason: "output_cap",
+      atLeastMatches: result.records.length + 1,
+      maxPayloadBytes: MAX_MCP_PAYLOAD_BYTES,
+    });
+    expect(Buffer.byteLength(JSON.stringify(result.records), "utf8")).toBeLessThanOrEqual(MAX_MCP_PAYLOAD_BYTES);
+    const pid = Number(readFileSync(`${marker}.pid`, "utf8"));
+    expect(() => process.kill(pid, 0)).toThrow();
+  }, 4_000);
 
   it("#given excessive stderr #when sg exits #then stderr is capped by UTF-8 bytes", async () => {
     const { directory, executable } = fixtureRunner();

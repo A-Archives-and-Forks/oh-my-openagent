@@ -16,7 +16,7 @@ export type SgRunnerErrorCode =
   | "SG_FAILED"
   | "TIMEOUT";
 
-export type SgTruncationReason = "match_limit" | "sg_output_truncated" | null;
+export type SgTruncationReason = "match_limit" | "output_cap" | "sg_output_truncated" | null;
 
 export interface SgRunnerInput {
   readonly sgPath: string;
@@ -36,6 +36,7 @@ export interface SgRunnerResult {
   readonly stderr: string;
   readonly durationMs: number;
   readonly atLeastMatches: number;
+  readonly maxPayloadBytes: number;
   readonly exitCode: number | null;
 }
 
@@ -88,6 +89,7 @@ export async function spawnSgRunner(input: SgRunnerInput): Promise<SgRunnerResul
       stdio: ["ignore", "pipe", "pipe"],
     });
     const records: Record<string, unknown>[] = [];
+    let serializedRecordsBytes = 2;
     const stderrChunks: Buffer[] = [];
     let stderrBytes = 0;
     let stderrLinePrefix = "";
@@ -96,6 +98,7 @@ export async function spawnSgRunner(input: SgRunnerInput): Promise<SgRunnerResul
     let malformed = false;
     let fatalError: SgRunnerErrorCode | null = null;
     let stopReason: "abort" | "limit" | "timeout" | null = null;
+    let truncationReason: Exclude<SgTruncationReason, "sg_output_truncated" | null> | null = null;
     let killTimer: ReturnType<typeof setTimeout> | undefined;
     let settled = false;
 
@@ -135,9 +138,19 @@ export async function spawnSgRunner(input: SgRunnerInput): Promise<SgRunnerResul
       try {
         const parsed: unknown = JSON.parse(text);
         if (!isRecord(parsed)) throw new Error("record is not an object");
+        const serializedBytes = Buffer.byteLength(JSON.stringify(parsed), "utf8");
+        const nextAggregateBytes = serializedRecordsBytes + serializedBytes + (records.length > 0 ? 1 : 0);
+        if (nextAggregateBytes > MAX_MCP_PAYLOAD_BYTES) {
+          truncationReason = "output_cap";
+          stop("limit");
+          child.stdout.pause();
+          return false;
+        }
         records.push(parsed);
+        serializedRecordsBytes = nextAggregateBytes;
         if (records.length > maxMatches) {
           records.length = maxMatches;
+          truncationReason = "match_limit";
           stop("limit");
           child.stdout.pause();
           return false;
@@ -208,16 +221,17 @@ export async function spawnSgRunner(input: SgRunnerInput): Promise<SgRunnerResul
         return reject(new SgRunnerError("SG_FAILED", `ast-grep exited with code ${exitCode ?? "unknown"}`, stderr, duration()));
       }
       if (malformed && records.length === 0) return reject(new SgRunnerError("OUTPUT_PARSE_FAILED", "ast-grep produced no parseable JSON records", stderr, duration()));
-      const limited = stopReason === "limit";
+      const limited = stopReason === "limit" && truncationReason !== null;
       const salvaged = malformed && records.length > 0;
       resolve({
         records,
         truncated: limited || salvaged,
-        reason: limited ? "match_limit" : salvaged ? "sg_output_truncated" : null,
+        reason: limited ? truncationReason : salvaged ? "sg_output_truncated" : null,
         salvagedRecords: salvaged ? records.length : 0,
         stderr,
         durationMs: duration(),
-        atLeastMatches: limited ? maxMatches + 1 : records.length,
+        atLeastMatches: limited ? records.length + 1 : records.length,
+        maxPayloadBytes: MAX_MCP_PAYLOAD_BYTES,
         exitCode,
       });
     });

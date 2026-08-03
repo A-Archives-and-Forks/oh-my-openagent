@@ -223,8 +223,9 @@ export interface ScanSuccessPayload {
   readonly counts: { readonly plannedMatches: number; readonly plannedFiles: number };
   readonly truncation: {
     readonly truncated: boolean;
-    readonly reason: "match_limit" | "sg_output_truncated" | null;
+    readonly reason: "match_limit" | "output_cap" | "sg_output_truncated" | null;
     readonly maxMatches: number;
+    readonly maxPayloadBytes: number;
     readonly salvagedRecords: number;
   };
   readonly application: {
@@ -355,6 +356,7 @@ export async function executeScan(
     truncated: preview.truncated,
     reason: preview.reason,
     maxMatches: input.maxMatches,
+    maxPayloadBytes: preview.maxPayloadBytes,
     salvagedRecords: preview.salvagedRecords,
   } as const;
   const counts = {

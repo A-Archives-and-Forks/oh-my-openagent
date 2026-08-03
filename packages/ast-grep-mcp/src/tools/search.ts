@@ -268,8 +268,9 @@ export interface SearchSuccessPayload {
   };
   readonly truncation: {
     readonly truncated: boolean;
-    readonly reason: "match_limit" | "sg_output_truncated" | null;
+    readonly reason: "match_limit" | "output_cap" | "sg_output_truncated" | null;
     readonly maxMatches: number;
+    readonly maxPayloadBytes: number;
     readonly salvagedRecords: number;
   };
   readonly warnings: string[];
@@ -452,6 +453,7 @@ export async function executeSearch(
       truncated,
       reason,
       maxMatches,
+      maxPayloadBytes: runnerResult.maxPayloadBytes,
       salvagedRecords: runnerResult.salvagedRecords,
     },
     warnings,

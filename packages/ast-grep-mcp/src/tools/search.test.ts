@@ -408,6 +408,7 @@ describe("search tool: payload shapes (ub §5/§6)", () => {
         truncated: false,
         reason: null,
         maxMatches: 50,
+        maxPayloadBytes: 4 * 1024 * 1024,
         salvagedRecords: 0,
       },
       warnings: [],
@@ -421,6 +422,7 @@ describe("search tool: payload shapes (ub §5/§6)", () => {
     expect(payload.truncation.truncated).toBe(false);
     expect(payload.truncation.reason).toBeNull();
     expect(payload.truncation.maxMatches).toBe(50);
+    expect(payload.truncation.maxPayloadBytes).toBe(4 * 1024 * 1024);
     expect(payload.truncation.salvagedRecords).toBe(0);
     // No flat fields
     const flat = payload as unknown as Record<string, unknown>;
@@ -503,6 +505,7 @@ describe.skipIf(!SG_AVAILABLE)("search tool: live fixture (ub §5/§6 contract)"
     expect(payload.truncation.truncated).toBe(false);
     expect(payload.truncation.reason).toBeNull();
     expect(payload.truncation.maxMatches).toBe(50);
+    expect(payload.truncation.maxPayloadBytes).toBe(4 * 1024 * 1024);
     expect(payload.truncation.salvagedRecords).toBe(0);
 
     expect(payload.warnings).toEqual([]);
