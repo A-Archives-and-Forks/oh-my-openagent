@@ -29,9 +29,10 @@ export function createRunStatsTracker(startedAt: number, now: () => number = Dat
     accept(event) {
       if (event.type === "tool_execution_start") {
         toolCalls += 1
+        const evalInput = event.args ?? event.input
         const isEvalRun =
           event.toolName === "eval" &&
-          (!isRecord(event.args) || (event.args.action !== "peek" && event.args.action !== "stop"))
+          (!isRecord(evalInput) || (evalInput.action !== "peek" && evalInput.action !== "stop"))
         if (isEvalRun) {
           if (event.toolCallId === undefined) anonymousEvalRuns += 1
           else evalRunCallIds.add(event.toolCallId)
@@ -51,7 +52,15 @@ export function createRunStatsTracker(startedAt: number, now: () => number = Dat
           countNestedEvalTools && isRecord(event.result) && isRecord(event.result.details)
             ? event.result.details
             : undefined
-        const nestedEvalTools = Array.isArray(details?.toolCalls) ? details.toolCalls.length : 0
+        const nestedEvalTools = Array.isArray(details?.toolCalls)
+          ? details.toolCalls.filter(
+              (call) =>
+                isRecord(call) &&
+                typeof call.name === "string" &&
+                call.name.length > 0 &&
+                typeof call.ok === "boolean",
+            ).length
+          : 0
         toolCalls += nestedEvalTools
         windowStart = now()
         return nestedEvalTools > 0

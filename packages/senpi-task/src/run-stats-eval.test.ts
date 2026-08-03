@@ -85,6 +85,63 @@ describe("eval nested tool accounting", () => {
     expect(tracker.snapshot(2_000).tool_calls).toBe(1)
   })
 
+  test("#given an input-only eval control call #when its result repeats prior nested calls #then only the control call is new", () => {
+    // given
+    const tracker = createRunStatsTracker(1_000, () => 2_000)
+
+    // when
+    tracker.accept({
+      type: "tool_execution_start",
+      toolCallId: "eval-input-peek",
+      toolName: "eval",
+      input: { action: "peek", cell_id: "cell-1" },
+    })
+    tracker.accept({
+      type: "tool_execution_end",
+      toolCallId: "eval-input-peek",
+      toolName: "eval",
+      result: EVAL_RESULT_WITH_TWO_TOOLS,
+      isError: false,
+    })
+
+    // then
+    expect(tracker.snapshot(2_000).tool_calls).toBe(1)
+  })
+
+  test("#given malformed eval tool summaries #when the eval ends #then only valid tool calls are counted", () => {
+    // given
+    const tracker = createRunStatsTracker(1_000, () => 2_000)
+
+    // when
+    tracker.accept({
+      type: "tool_execution_start",
+      toolCallId: "eval-malformed",
+      toolName: "eval",
+      args: { language: "py", code: "read(); bash()" },
+    })
+    tracker.accept({
+      type: "tool_execution_end",
+      toolCallId: "eval-malformed",
+      toolName: "eval",
+      result: {
+        content: [],
+        details: {
+          toolCalls: [
+            { name: "read", ok: true },
+            null,
+            { name: "bash" },
+            { name: "", ok: true },
+            { name: "bash", ok: false },
+          ],
+        },
+      },
+      isError: false,
+    })
+
+    // then
+    expect(tracker.snapshot(2_000).tool_calls).toBe(3)
+  })
+
   test("#given a non-eval tool result with details #when it ends #then the top-level tool counts once", () => {
     // given
     const tracker = createRunStatsTracker(1_000, () => 2_000)

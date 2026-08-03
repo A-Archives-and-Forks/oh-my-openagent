@@ -58,6 +58,7 @@ const RUN_STATS = {
   tokens_per_second: 42,
   cost_usd: 0.1303,
   cache_hit_rate_last: 0.89,
+  cache_hit_rate_run: 0.44,
 }
 
 function foregroundLines() {
@@ -138,8 +139,9 @@ function scenario(name) {
   if (name === "background") {
     return {
       lines: backgroundLines(),
-      required: ["3 tools", "$0.1303", "42 tok/s", "1m 5s", "ran 1m 5s"],
-      forbidden: ["CH:"],
+      required: ["3 tools", "$0.1303", "42 tok/s", "1m 5s", "ran 1m 5s", "(CH: 44%)"],
+      runningForbidden: ["CH:"],
+      completedRequired: ["(CH: 44%)"],
     }
   }
   if (name === "team") {
@@ -154,7 +156,15 @@ const plain = visible.replace(/\u001b\[[0-9;]*m/gu, "")
 for (const token of selected.required) {
   if (!plain.includes(token)) throw new Error(`missing required renderer token: ${token} in ${JSON.stringify(plain)}`)
 }
-for (const token of selected.forbidden ?? []) {
-  if (plain.includes(token)) throw new Error(`unexpected renderer token: ${token} in ${JSON.stringify(plain)}`)
+const [runningLine = "", completedLine = ""] = selected.lines.map((line) => line.replace(/\u001b\[[0-9;]*m/gu, ""))
+for (const token of selected.runningForbidden ?? []) {
+  if (runningLine.includes(token)) {
+    throw new Error(`unexpected running-row token: ${token} in ${JSON.stringify(runningLine)}`)
+  }
+}
+for (const token of selected.completedRequired ?? []) {
+  if (!completedLine.includes(token)) {
+    throw new Error(`missing completed-row token: ${token} in ${JSON.stringify(completedLine)}`)
+  }
 }
 process.stdout.write(`${visible}\n`)
