@@ -40,9 +40,9 @@ $ node dist/cli-node/index.js doctor
 
 2. [33mLoaded plugin is outdated[39m
    [2mLoaded 4.19.3, latest 4.19.4.[22m
-   [36mFix:[39m [2mUpdate: cd "C:\Users\pss\AppData\Local\Temp\omo-6376-M1sSYS\home\.config\opencode" && bun add oh-my-openagent@latest
-If Bun reports blocked postinstalls, inspect them: cd "C:\Users\pss\AppData\Local\Temp\omo-6376-M1sSYS\home\.config\opencode" && bun pm untrusted
-Then trust only OMO-related packages from that list: cd "C:\Users\pss\AppData\Local\Temp\omo-6376-M1sSYS\home\.config\opencode" && bun pm trust oh-my-openagent @code-yeongyu/comment-checker[22m
+   [36mFix:[39m [2mUpdate: cd "C:\Users\pss\AppData\Local\Temp\omo-6376-7a5Ye8\home\.config\opencode" && bun add oh-my-openagent@latest
+If Bun reports blocked postinstalls, inspect them: cd "C:\Users\pss\AppData\Local\Temp\omo-6376-7a5Ye8\home\.config\opencode" && bun pm untrusted
+Then trust only OMO-related packages from that list: cd "C:\Users\pss\AppData\Local\Temp\omo-6376-7a5Ye8\home\.config\opencode" && bun pm trust oh-my-openagent @code-yeongyu/comment-checker[22m
    [36mAffects:[39m [2mplugin features[22m
 
 3. [33mModel cache not found[39m

@@ -20,7 +20,9 @@
 set -uo pipefail
 
 OUT="${1:?usage: live-driver.sh <output-file>}"
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+# OMO_REPO_ROOT lets a caller that copies this script elsewhere (for example to strip CRLF)
+# still resolve the repository; BASH_SOURCE would otherwise point at the copy's directory.
+REPO="${OMO_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)}"
 SBX="$(mktemp -d "${TMPDIR:-/tmp}/omo-6376-XXXXXX")"
 trap 'rm -rf "$SBX"; rm -f "$REPO/dist/cli/omo-6376-probe.mjs" "$REPO/dist/cli-node/omo-6376-probe.mjs" "$REPO/dist/omo-6376-probe.mjs"' EXIT
 
@@ -95,6 +97,10 @@ for D in dist dist/cli dist/cli-node; do
       console.log("      ast-grep/install.sh   : " + (existsSync(asset) ? "FOUND" : "MISSING"));
     });
   ' "$D" ) >> "$OUT" 2>&1
+  PROBE_EXIT=$?
+  # A probe that cannot import or execute prints no MISSING line, so without this a crash
+  # would leave the final grep reporting PASS for a bundle that was never exercised.
+  [ "$PROBE_EXIT" -eq 0 ] || fail "bundle probe for $D exited $PROBE_EXIT (bundle not exercised)"
   rm -f "$REPO/$D/omo-6376-probe.mjs"
 done
 

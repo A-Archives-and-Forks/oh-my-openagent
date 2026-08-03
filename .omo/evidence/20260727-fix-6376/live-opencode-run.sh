@@ -99,6 +99,11 @@ AFTER_COUNT="$(count_sessions)"
 
 OK=1
 [ "$RUN_EXIT" -eq 0 ] || OK=0
+# Both counts must be real numbers. If `opencode db` fails or changes format, count_sessions
+# returns an empty string, and two empty strings would otherwise compare equal and record a
+# pass without ever proving isolation.
+case "$BEFORE_COUNT" in ''|*[!0-9]*) echo "  FAIL: session count before is not numeric ('$BEFORE_COUNT')" >> "$OUT"; OK=0 ;; esac
+case "$AFTER_COUNT" in ''|*[!0-9]*) echo "  FAIL: session count after is not numeric ('$AFTER_COUNT')" >> "$OUT"; OK=0 ;; esac
 [ "$BEFORE_COUNT" = "$AFTER_COUNT" ] || OK=0
 [ "${RESOLVE_ERRORS:-0}" -eq 0 ] || OK=0
 echo "  RESULT: $([ "$OK" -eq 1 ] && echo PASS || echo FAIL)" >> "$OUT"
