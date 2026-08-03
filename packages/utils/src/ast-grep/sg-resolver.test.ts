@@ -10,9 +10,17 @@ function tempDir(name: string): string {
   return join(tmpdir(), `omo-${name}-${crypto.randomUUID()}`)
 }
 
+/**
+ * Fixtures must be genuinely runnable: every candidate has to pass a real `--version` probe, so a
+ * stub that cannot execute is a rejected candidate, not a resolvable one.
+ */
 function writeExecutable(filePath: string): void {
   writeFileSync(filePath, "#!/bin/sh\nprintf 'ast-grep 0.43.0\\n'\n")
+  chmodSync(filePath, 0o755)
 }
+
+/** Home directory with no OMO runtime, so tier-2 candidates cannot shadow the tier under test. */
+const NO_RUNTIME_HOME = join(tmpdir(), "omo-sg-resolver-no-runtime-home")
 
 describe("findSgBinarySync", () => {
   it("prefers the OMO_AST_GREP_SG_PATH override", () => {
@@ -77,50 +85,56 @@ describe("findSgBinarySync", () => {
     expect(result).toBeNull()
   })
 
-  it("prefers ast-grep over sg on darwin without running the version probe", () => {
-    // given
-    let probeCalls = 0
+  it("prefers ast-grep over sg on darwin without probing the noisy sg alias", () => {
+    // given: only the PATH tier has candidates, so the assertion targets ast-grep-over-sg ordering
+    const probed: string[] = []
     const astGrep = "/usr/local/bin/ast-grep"
     const sgAlias = "/usr/local/bin/sg"
 
     // when
     const result = findSgBinarySync({
+      cache: false,
       env: {},
-      fileExists: () => true,
+      fileExists: (filePath) => filePath === astGrep || filePath === sgAlias,
+      homeDir: NO_RUNTIME_HOME,
       platform: "darwin",
-      runVersionProbeSync: () => {
-        probeCalls += 1
-        throw new Error("probe must not run when ast-grep resolves first")
+      runVersionProbeSync: (binaryPath) => {
+        probed.push(binaryPath)
+        if (binaryPath === sgAlias) throw new Error("the sg alias probe must never run when ast-grep passes")
+        return "ast-grep 0.45.0"
       },
       which: (commandName) => (commandName === "ast-grep" ? astGrep : sgAlias),
     })
 
-    // then
+    // then: ast-grep passes its probe, so the noisy sg alias is never spawned
     expect(result).toBe(astGrep)
-    expect(probeCalls).toBe(0)
+    expect(probed).toEqual([astGrep])
   })
 
-  it("prefers ast-grep over sg on win32 without running the version probe", () => {
-    // given
-    let probeCalls = 0
+  it("prefers ast-grep over sg on win32 without probing the noisy sg alias", () => {
+    // given: only the PATH tier has candidates, so the assertion targets ast-grep-over-sg ordering
+    const probed: string[] = []
     const astGrep = "C:\\tools\\ast-grep.exe"
     const sgAlias = "C:\\tools\\sg.exe"
 
     // when
     const result = findSgBinarySync({
+      cache: false,
       env: {},
-      fileExists: () => true,
+      fileExists: (filePath) => filePath === astGrep || filePath === sgAlias,
+      homeDir: NO_RUNTIME_HOME,
       platform: "win32",
-      runVersionProbeSync: () => {
-        probeCalls += 1
-        throw new Error("probe must not run when ast-grep resolves first")
+      runVersionProbeSync: (binaryPath) => {
+        probed.push(binaryPath)
+        if (binaryPath === sgAlias) throw new Error("the sg alias probe must never run when ast-grep passes")
+        return "ast-grep 0.45.0"
       },
       which: (commandName) => (commandName === "ast-grep" ? astGrep : sgAlias),
     })
 
-    // then
+    // then: ast-grep passes its probe, so the noisy sg alias is never spawned
     expect(result).toBe(astGrep)
-    expect(probeCalls).toBe(0)
+    expect(probed).toEqual([astGrep])
   })
 
   it("falls back to the sg alias on darwin when ast-grep is absent", () => {
@@ -129,8 +143,10 @@ describe("findSgBinarySync", () => {
 
     // when
     const result = findSgBinarySync({
+      cache: false,
       env: {},
-      fileExists: () => true,
+      fileExists: (filePath) => filePath === sgAlias,
+      homeDir: NO_RUNTIME_HOME,
       platform: "darwin",
       runVersionProbeSync: () => "ast-grep 0.45.0",
       which: (commandName) => (commandName === "sg" ? sgAlias : null),
@@ -187,10 +203,12 @@ describe("findSgBinarySync", () => {
 
     // when
     const result = findSgBinarySync({
+      cache: false,
       env: {},
-      fileExists: () => true,
+      fileExists: (filePath) => filePath === linuxSetgroups || filePath === astGrep,
+      homeDir: NO_RUNTIME_HOME,
       platform: "linux",
-      runVersionProbeSync: () => "sg from shadow-utils",
+      runVersionProbeSync: (binaryPath) => (binaryPath === linuxSetgroups ? "sg from shadow-utils" : "ast-grep 0.43.0"),
       which: (commandName) => (commandName === "ast-grep" ? astGrep : linuxSetgroups),
     })
 
