@@ -9,6 +9,7 @@ export type TaskIdentityInput = {
   readonly taskId: string
   readonly name?: string
   readonly description?: string
+  readonly taskSummary?: string
 }
 
 export type StatusTargetInput = {
@@ -23,6 +24,9 @@ export type StatusTargetInput = {
 export type StatusLineStats = Pick<TaskRunStats, "turns" | "tool_calls"> & {
   readonly runtime_ms?: number
   readonly tokens_per_second?: number
+  readonly cost_usd?: number
+  readonly cache_hit_rate_last?: number
+  readonly cache_hit_rate_run?: number
 }
 
 export type StatusLineInput = {
@@ -32,10 +36,12 @@ export type StatusLineInput = {
   readonly verb?: string
 }
 
-// WHAT the task is, not which opaque handle it got: description (human label) beats the generated
-// name, and the task id is only the last-resort handle when neither was supplied.
+// WHAT the task is, not which opaque handle it got: the delegated-work summary beats the
+// description (human label), which beats the generated name; the task id is only the last-resort
+// handle when none was supplied.
 export function taskIdentityLabel(input: TaskIdentityInput): string {
-  const label = optionalRendererText(input.description) ?? optionalRendererText(input.name)
+  const label =
+    optionalRendererText(input.taskSummary) ?? optionalRendererText(input.description) ?? optionalRendererText(input.name)
   return label === undefined ? excerptRendererText(input.taskId, IDENTITY_MAX_WIDTH) : excerptRendererText(label, IDENTITY_MAX_WIDTH)
 }
 
@@ -70,16 +76,51 @@ export function formatStatusTarget(input: StatusTargetInput): string | undefined
 }
 
 // The canonical grammar every live/status row shares:
-//   <identity> · <target (model)> · turn N (M tools) · <verb> · T tok/s
+//   <identity> · <target (model)> · turn N (M tools) · <verb> · $C (CH: R%) · T tok/s
+// CH is the latest valid assistant request's rate, matching Senpi's root footer.
 export function composeStatusLine(input: StatusLineInput): string {
   const tokens = [
     input.identity,
     input.target,
     input.stats === undefined ? undefined : `turn ${input.stats.turns}${toolCountSuffix(input.stats.tool_calls)}`,
     input.verb,
+    input.stats === undefined ? undefined : formatLiveSpend(input.stats),
     input.stats?.tokens_per_second === undefined ? undefined : `${input.stats.tokens_per_second} tok/s`,
   ]
   return tokens.filter((token): token is string => typeof token === "string" && token.length > 0).join(" · ")
+}
+
+// Running rows pair spend with the latest valid request's cache-hit rate, matching Senpi's footer.
+export function formatLiveSpend(
+  stats: Pick<TaskRunStats, "cost_usd" | "cache_hit_rate_last">,
+): string | undefined {
+  return formatSpendFacts(stats.cost_usd, stats.cache_hit_rate_last)
+}
+
+// Completed-run summaries pair spend with the cumulative whole-run cache-hit rate.
+export function formatRunSpend(
+  stats: Pick<TaskRunStats, "cost_usd" | "cache_hit_rate_run">,
+): string | undefined {
+  return formatSpendFacts(stats.cost_usd, stats.cache_hit_rate_run)
+}
+
+function formatSpendFacts(costUsd: number | undefined, cacheHitRate: number | undefined): string | undefined {
+  const cost = formatCostUsd(costUsd)
+  const cacheHit = formatCacheHitPercent(cacheHitRate)
+  if (cost === undefined) return cacheHit
+  return cacheHit === undefined ? cost : `${cost} ${cacheHit}`
+}
+
+export function formatCostUsd(costUsd: number | undefined): string | undefined {
+  if (costUsd === undefined || !Number.isFinite(costUsd) || costUsd < 0) return undefined
+  return `$${costUsd.toFixed(4)}`
+}
+
+export function formatCacheHitPercent(cacheHitRate: number | undefined): string | undefined {
+  if (cacheHitRate === undefined || !Number.isFinite(cacheHitRate) || cacheHitRate < 0 || cacheHitRate > 1) {
+    return undefined
+  }
+  return `(CH: ${Math.round(cacheHitRate * 100)}%)`
 }
 
 export function toolCountSuffix(toolCalls: number): string {
