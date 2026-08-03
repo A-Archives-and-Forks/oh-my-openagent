@@ -176,7 +176,9 @@ describe("findSgBinarySync", () => {
       [
         `import { findSgBinarySync } from ${JSON.stringify(resolverPath)}`,
         `const result = findSgBinarySync({`,
+        `  cache: false,`,
         `  env: {},`,
+        `  homeDir: ${JSON.stringify(NO_RUNTIME_HOME)},`,
         `  platform: "darwin",`,
         `  which: (commandName) => (commandName === "sg" ? ${JSON.stringify(fakeSg)} : null),`,
         `})`,
