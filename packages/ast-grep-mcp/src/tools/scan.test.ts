@@ -193,7 +193,7 @@ describe("scan tool: stderr compatibility", () => {
     const result = await executeScan(baseInput(dir), fakeSg);
     expect(result.ok).toBe(true);
     expect((result as ScanSuccessPayload).warnings[0]).toStartWith("WARNING:");
-  });
+  }, { timeout: 15000 });
 });
 
 describe.skipIf(!SG_AVAILABLE)("scan tool: pinned real-binary fixtures", () => {

@@ -3,6 +3,7 @@
 import { describe, expect, test } from "bun:test"
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { readFileSync } from "node:fs"
+import { createHash } from "node:crypto"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { runSenpiInstaller } from "../packages/omo-senpi/src/install/install-senpi"
@@ -127,8 +128,18 @@ describe("Senpi compatibility test script", () => {
       await writeFile(join(pluginRoot, "runtime", "lsp-daemon", "dist", ".omo-runtime-manifest.json"), "{}\n")
       await mkdir(join(pluginRoot, "runtime", "ast-grep-mcp"), { recursive: true })
       const astGrepRuntime = join(pluginRoot, "runtime", "ast-grep-mcp", "cli.js")
-      await writeFile(astGrepRuntime, "console.log('ast-grep mcp')\n")
+      const astGrepRuntimeContent = "console.log('ast-grep mcp')\n"
+      await writeFile(astGrepRuntime, astGrepRuntimeContent)
       await chmod(astGrepRuntime, 0o755)
+      const astGrepManifestPath = join(pluginRoot, "runtime", "ast-grep-mcp", "manifest.json")
+      await writeFile(
+        astGrepManifestPath,
+        JSON.stringify({
+          sha256: createHash("sha256").update(astGrepRuntimeContent).digest("hex"),
+          mode: 0o755,
+          stagedAtUtc: new Date().toISOString(),
+        }),
+      )
 
       const commands: string[] = []
 
