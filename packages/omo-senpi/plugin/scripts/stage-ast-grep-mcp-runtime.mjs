@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { createHash } from "node:crypto"
 import { constants, existsSync } from "node:fs"
-import { access, chmod, copyFile, mkdir, mkdtemp, readFile, rename, rm, stat } from "node:fs/promises"
+import { access, chmod, copyFile, mkdir, mkdtemp, readFile, rename, rm, stat, writeFile } from "node:fs/promises"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 
@@ -22,6 +22,7 @@ export async function stageAstGrepMcpRuntime(options = {}) {
   const tempParent = await mkdtemp(join(dirname(targetDir), ".tmp-omo-senpi-ast-grep-runtime-"))
   const tempDir = join(tempParent, "ast-grep-mcp")
   const tempEntry = join(tempDir, "cli.js")
+  const tempManifest = join(tempDir, "manifest.json")
   const backupDir = `${targetDir}.backup-${process.pid}-${Date.now()}`
   let backupCreated = false
   let targetMoved = false
@@ -31,6 +32,17 @@ export async function stageAstGrepMcpRuntime(options = {}) {
     await copyFile(sourceEntry, tempEntry)
     await chmod(tempEntry, 0o755)
     await validateEntry(tempEntry, "staged")
+    const stagedStat = await stat(tempEntry)
+    const stagedSha256 = await sha256(tempEntry)
+    await writeFile(
+      tempManifest,
+      `${JSON.stringify({
+        sha256: stagedSha256,
+        mode: stagedStat.mode & 0o777,
+        stagedAtUtc: new Date().toISOString(),
+      }, null, 2)}\n`,
+      "utf8",
+    )
 
     if (existsSync(targetDir)) {
       await rename(targetDir, backupDir)
@@ -39,7 +51,13 @@ export async function stageAstGrepMcpRuntime(options = {}) {
     await rename(tempDir, targetDir)
     targetMoved = true
     if (backupCreated) await rm(backupDir, { recursive: true, force: true })
-    return { ok: true, sourceEntry, targetEntry }
+    return {
+      ok: true,
+      sourceEntry,
+      targetEntry,
+      manifestPath: join(targetDir, "manifest.json"),
+      sha256: stagedSha256,
+    }
   } catch (error) {
     if (!targetMoved && backupCreated) {
       await rm(targetDir, { recursive: true, force: true })
@@ -54,6 +72,7 @@ export async function stageAstGrepMcpRuntime(options = {}) {
 export async function checkAstGrepMcpRuntimeFresh(options = {}) {
   const sourceEntry = resolve(options.sourceEntry ?? defaultSourceEntry)
   const targetEntry = resolve(options.targetEntry ?? defaultTargetEntry)
+  const manifestPath = resolve(options.manifestPath ?? join(dirname(targetEntry), "manifest.json"))
   await validateEntry(sourceEntry, "built")
 
   let targetStat
@@ -83,7 +102,46 @@ export async function checkAstGrepMcpRuntimeFresh(options = {}) {
       `ast-grep-mcp runtime stale: staged sha256 ${stagedSha256} does not match built sha256 ${sourceSha256}`,
     )
   }
-  return { ok: true, sourceEntry, targetEntry, sha256: sourceSha256 }
+
+  const manifest = await readManifest(manifestPath)
+  const stagedMode = targetStat.mode & 0o777
+  if (manifest.sha256 !== stagedSha256) {
+    throw new Error(
+      `ast-grep-mcp runtime stale: manifest sha256 ${manifest.sha256} does not match staged sha256 ${stagedSha256}`,
+    )
+  }
+  if (manifest.mode !== stagedMode) {
+    throw new Error(`ast-grep-mcp runtime stale: manifest mode ${manifest.mode} does not match staged mode ${stagedMode}`)
+  }
+  return { ok: true, sourceEntry, targetEntry, manifestPath, sha256: sourceSha256, mode: stagedMode }
+}
+
+async function readManifest(manifestPath) {
+  let raw
+  try {
+    raw = await readFile(manifestPath, "utf8")
+  } catch (error) {
+    if (isErrno(error, "ENOENT")) throw new Error(`ast-grep-mcp runtime stale: manifest is missing: ${manifestPath}`)
+    throw error
+  }
+
+  let parsed
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new Error(`ast-grep-mcp runtime stale: manifest is invalid JSON: ${manifestPath}`)
+  }
+  if (
+    parsed === null ||
+    typeof parsed !== "object" ||
+    !/^[a-f0-9]{64}$/.test(parsed.sha256) ||
+    !Number.isInteger(parsed.mode) ||
+    typeof parsed.stagedAtUtc !== "string" ||
+    Number.isNaN(Date.parse(parsed.stagedAtUtc))
+  ) {
+    throw new Error(`ast-grep-mcp runtime stale: manifest is malformed: ${manifestPath}`)
+  }
+  return parsed
 }
 
 async function validateEntry(entry, kind) {
