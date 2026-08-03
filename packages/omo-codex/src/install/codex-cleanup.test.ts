@@ -558,6 +558,28 @@ trusted_hash = "sha256:user"
     expect(await pathExists(markerlessSameName)).toBe(true)
   })
 
+  test("#given a user-owned bin using an installer name without the marker #when cleanup runs #then it is kept", async () => {
+    // given: the most realistic collision - the user owns the root command name themselves
+    const codexHome = await mkdtemp(join(tmpdir(), "omo-codex-cleanup-usermain-home-"))
+    const binDir = await mkdtemp(join(tmpdir(), "omo-codex-cleanup-usermain-bin-"))
+    await writeFile(join(codexHome, "config.toml"), "[features]\nplugins = true\n")
+    const userRootBin = join(binDir, "omo.cmd")
+    await writeFile(userRootBin, "@echo off\r\necho my own omo launcher\r\n")
+
+    // when
+    const result = await cleanupCodexLight({
+      codexHome,
+      binDir,
+      platform: "win32",
+      projectDirectory: codexHome,
+      now: () => new Date("2026-06-01T00:00:00Z"),
+    })
+
+    // then
+    expect(result.removedBinLinks).toEqual([])
+    expect(await pathExists(userRootBin)).toBe(true)
+  })
+
   test.skipIf(process.platform === "win32")(
     "#given a user symlink whose target resembles a managed component #when cleanup runs #then it is kept",
     async () => {
