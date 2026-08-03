@@ -16,6 +16,10 @@ const LEGACY_CODEX_COMPONENT_BINS = [
 
 type LegacyCodexComponent = (typeof LEGACY_CODEX_COMPONENT_BINS)[number]["component"]
 
+export const LEGACY_CODEX_COMPONENT_BIN_NAMES: readonly string[] = LEGACY_CODEX_COMPONENT_BINS.map(
+  (entry) => entry.name,
+)
+
 export async function removeLegacyCodexComponentBins(binDir: string, platform: LinkPlatform): Promise<void> {
   for (const entry of LEGACY_CODEX_COMPONENT_BINS) {
     const linkPath = join(binDir, platform === "win32" ? `${entry.name}.cmd` : entry.name)

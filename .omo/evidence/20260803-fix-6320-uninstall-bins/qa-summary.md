@@ -64,6 +64,57 @@ the publish workflow.
   are pre-existing and environmental, unrelated to this change. (An earlier 18-fail run happened
   under concurrent `typecheck:packages` load; idle it is 2.)
 
+## Review hardening (2026-08-03, after the first review round)
+
+Review found three real defects in the first revision. All are fixed, each with its own RED.
+
+1. **Ownership was marker-only (codex P2 + cubic P2).** A marker is not proof the installer
+   created a file: a user who copies or renames a generated wrapper (`~/.local/bin/omo.backup`)
+   keeps the marker, and on POSIX a user symlink pointing at a managed-looking target matched
+   too. Removal now requires BOTH an installer bin NAME and the marker/managed target.
+   `MANAGED_CODEX_BIN_NAMES` lists the root `omo` plus every component `package.json` bin key,
+   unioned with the legacy names (re-exported from `codex-cache-legacy-bins.ts` so there is one
+   source of truth). On Windows only `<name>.cmd` is considered, so a `.backup` copy is skipped
+   outright.
+2. **Filesystem-root codexHome bypassed the root-safety invariant (cubic P1).** With
+   `codexHome` at a filesystem root, `resolveCodexInstallerBinDir` yields a shared system bin
+   directory, and the bin sweep would have scanned it while every other cleanup path refuses
+   via `validateManagedCleanupTarget`. That check is now exported as
+   `codexHomeResolvesToFilesystemRoot` (and reused inside `validateManagedCleanupTarget`, so
+   the invariant has one definition) and the bin sweep is skipped for such a home.
+3. **The allowlist could silently drift.** `codex-cleanup-bins-coverage.test.ts` walks the real
+   `packages/omo-codex/plugin` tree and fails if any component declares a `bin` that is not in
+   `MANAGED_CODEX_BIN_NAMES`, so a new component bin cannot quietly start surviving uninstall.
+
+RED for the hardening (`red-review-hardening-20260803.txt`): the root-guard case removed the
+wrapper despite the root home, and the user-copy case deleted `omo.backup` and `omo-mine.cmd`.
+GREEN (`green-review-hardening-20260803.txt`): **16 pass / 2 skip / 0 fail**.
+
+**The live proof was replaced, not patched.** The first revision's live driver called
+`linkRootRuntimeBin` and `cleanupCodexLight` directly; review correctly ruled that this cannot
+verify the shipped installer/uninstaller integration. It is deleted and replaced by
+`live-install-uninstall.ps1`, which drives the SHIPPED entrypoints end to end and is configured
+only through the production environment variables (no `binDir` argument anywhere, which also
+answers the review point that the previous driver never exercised `CODEX_LOCAL_BIN_DIR`):
+
+```text
+REAL INSTALL   node packages/omo-codex/scripts/install-local.mjs            exit=0
+  bin dir after install: lazycodex-executor-verify.cmd, omo.cmd, omo-codegraph.cmd,
+  omo-comment-checker.cmd, omo-git-bash-hook.cmd, omo-lsp.cmd, omo-rules.cmd,
+  omo-start-work-continuation.cmd, omo-telemetry.cmd, omo-ultrawork.cmd,
+  omo-ulw-loop.cmd, ulw.cmd, ulw-loop.cmd
+REAL UNINSTALL bun packages/omo-opencode/src/cli/index.ts uninstall --platform=codex   exit=0
+  bin dir after uninstall: omo.backup
+  installed root omo.cmd: True | uninstall removed omo.cmd: True
+  kept user copy omo.backup: True | no managed bins left behind: True
+  real ~/.codex/config.toml same: True | real ~/.local/bin listing same: True
+RESULT: PASS
+```
+
+The 13 shims the real installer created are exactly the names in `MANAGED_CODEX_BIN_NAMES`,
+which independently confirms the allowlist is complete, and `omo.backup` surviving is the
+ownership fix proven on the real surface rather than only in unit tests.
+
 ## Why this is enough
 
 The unit RED->GREEN pins the exact regression at the uninstall boundary; the negative control couples

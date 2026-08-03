@@ -4,7 +4,7 @@ import { homedir } from "node:os"
 import { isAbsolute, join, relative, resolve } from "node:path"
 import { removeManagedCodexBins } from "./codex-cleanup-bins"
 import { cleanupCodexConfig, MANAGED_CODEX_AGENT_NAMES } from "./codex-cleanup-config"
-import { validateManagedCleanupTarget } from "./codex-cleanup-safety"
+import { codexHomeResolvesToFilesystemRoot, validateManagedCleanupTarget } from "./codex-cleanup-safety"
 import { resolveCodexInstallerBinDir } from "./codex-installer-bin-dir"
 import { repairProjectLocalCodexArtifactsBestEffort } from "./codex-project-local-cleanup-best-effort"
 import type { SkippedCleanupPath } from "./codex-cleanup-safety"
@@ -56,8 +56,13 @@ export async function cleanupCodexLight(input: CodexCleanupOptions = {}): Promis
   }
   await pruneEmptyRuntimeDirBestEffort(codexHome)
 
+  // A filesystem-root codexHome would resolve the installer bin dir to a shared system
+  // directory, so it is refused here for the same reason validateManagedCleanupTarget refuses
+  // the state paths.
   const binDir = resolveCodexInstallerBinDir({ binDir: input.binDir, codexHome, env })
-  const removedBinLinks = await removeManagedCodexBins(binDir, input.platform ?? process.platform)
+  const removedBinLinks = codexHomeResolvesToFilesystemRoot(codexHome)
+    ? []
+    : await removeManagedCodexBins(binDir, input.platform ?? process.platform)
 
   const projectDirectory = input.projectDirectory ?? env.OMO_CODEX_PROJECT ?? process.cwd()
   const projectCleanup = await repairProjectLocalCodexArtifactsBestEffort({

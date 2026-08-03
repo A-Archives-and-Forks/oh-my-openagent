@@ -4,7 +4,7 @@
 import { describe, expect, test } from "bun:test"
 import { lstat, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { dirname, join } from "node:path"
+import { dirname, join, parse } from "node:path"
 import { COMMAND_SHIM_MARKER } from "./codex-cache-command-shim"
 import { RUNTIME_WRAPPER_MARKER } from "./codex-cache-runtime-wrapper"
 import { cleanupCodexLight, cleanupCodexLightConfigText, removeManagedPathBestEffort } from "./codex-cleanup"
@@ -503,6 +503,100 @@ trusted_hash = "sha256:user"
     // then
     expect(result.removedBinLinks).toEqual([])
   })
+
+  test("#given a codex home resolving to a filesystem root #when cleanup runs #then no bin link is scanned or removed", async () => {
+    // given: a real managed wrapper in the bin dir, but a codex home at the filesystem root,
+    // where resolveCodexInstallerBinDir would otherwise point at a shared system bin directory
+    const binDir = await mkdtemp(join(tmpdir(), "omo-codex-cleanup-rootguard-bin-"))
+    const projectDirectory = await mkdtemp(join(tmpdir(), "omo-codex-cleanup-rootguard-proj-"))
+    const rootBin = join(binDir, "omo.cmd")
+    await writeFile(rootBin, `@echo off\r\nrem ${RUNTIME_WRAPPER_MARKER}\r\n`)
+
+    // when
+    const result = await cleanupCodexLight({
+      codexHome: parse(process.cwd()).root,
+      binDir,
+      platform: "win32",
+      projectDirectory,
+      now: () => new Date("2026-06-01T00:00:00Z"),
+    })
+
+    // then
+    expect(result.removedBinLinks).toEqual([])
+    expect(await pathExists(rootBin)).toBe(true)
+  })
+
+  test("#given a user copy of a generated wrapper #when cleanup runs #then only installer bin names are removed", async () => {
+    // given: a backup copy still carries the generated marker, but the installer never created that name
+    const codexHome = await mkdtemp(join(tmpdir(), "omo-codex-cleanup-copy-home-"))
+    const binDir = await mkdtemp(join(tmpdir(), "omo-codex-cleanup-copy-bin-"))
+    await writeFile(join(codexHome, "config.toml"), "[features]\nplugins = true\n")
+    const wrapper = `@echo off\r\nrem ${RUNTIME_WRAPPER_MARKER}\r\n`
+    const managedBin = join(binDir, "omo.cmd")
+    const userCopy = join(binDir, "omo.backup")
+    const userNamedCmd = join(binDir, "omo-mine.cmd")
+    const markerlessSameName = join(binDir, "omo-lsp.cmd")
+    await writeFile(managedBin, wrapper)
+    await writeFile(userCopy, wrapper)
+    await writeFile(userNamedCmd, wrapper)
+    await writeFile(markerlessSameName, "@echo off\r\necho my own omo-lsp\r\n")
+
+    // when
+    const result = await cleanupCodexLight({
+      codexHome,
+      binDir,
+      platform: "win32",
+      projectDirectory: codexHome,
+      now: () => new Date("2026-06-01T00:00:00Z"),
+    })
+
+    // then: the installer-created name goes; a copy, an unknown name, and a markerless same-name stay
+    expect(result.removedBinLinks).toEqual([managedBin])
+    expect(await pathExists(managedBin)).toBe(false)
+    expect(await pathExists(userCopy)).toBe(true)
+    expect(await pathExists(userNamedCmd)).toBe(true)
+    expect(await pathExists(markerlessSameName)).toBe(true)
+  })
+
+  test.skipIf(process.platform === "win32")(
+    "#given a user symlink whose target resembles a managed component #when cleanup runs #then it is kept",
+    async () => {
+      // given
+      const codexHome = await mkdtemp(join(tmpdir(), "omo-codex-cleanup-usersym-home-"))
+      const binDir = await mkdtemp(join(tmpdir(), "omo-codex-cleanup-usersym-bin-"))
+      await writeFile(join(codexHome, "config.toml"), "[features]\nplugins = true\n")
+      const managedTarget = join(
+        codexHome,
+        "plugins",
+        "cache",
+        "sisyphuslabs",
+        "omo",
+        "1.0.0",
+        "components",
+        "lsp",
+        "dist",
+        "cli.js",
+      )
+      const managedSymlink = join(binDir, "omo-lsp")
+      const userSymlink = join(binDir, "mytool")
+      await symlink(managedTarget, managedSymlink)
+      await symlink(managedTarget, userSymlink)
+
+      // when
+      const result = await cleanupCodexLight({
+        codexHome,
+        binDir,
+        platform: "linux",
+        projectDirectory: codexHome,
+        now: () => new Date("2026-06-01T00:00:00Z"),
+      })
+
+      // then
+      expect(result.removedBinLinks).toEqual([managedSymlink])
+      expect(await pathExists(managedSymlink)).toBe(false)
+      expect(await pathExists(userSymlink)).toBe(true)
+    },
+  )
 })
 
 async function writeFixtureFile(path: string, contents: string): Promise<void> {
