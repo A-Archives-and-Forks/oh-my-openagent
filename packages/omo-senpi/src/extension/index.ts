@@ -3,6 +3,7 @@ import type { OmoSenpiComponent } from "./types"
 import { createConfigStartupComponent } from "../components/config-startup"
 import { createCommentCheckerComponent } from "../components/comment-checker"
 import { createConfigWatchComponent } from "../components/config-watch"
+import { createAstGrepComponent } from "../components/ast-grep"
 import { createLspComponent } from "../components/lsp"
 import { createSenpiTelemetryComponent } from "../components/telemetry"
 import { createTaskComponent } from "../components/task"
@@ -19,6 +20,7 @@ const components: OmoSenpiComponent[] = [
   createFallbackArchitectComponent(),
   createCommentCheckerComponent(),
   createSenpiTelemetryComponent(),
+  createAstGrepComponent(),
   createLspComponent(),
   createTaskComponent(),
   createConfigWatchComponent(),

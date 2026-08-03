@@ -53,6 +53,7 @@ async function makePluginFixture(options: { readonly runtime?: boolean } = { run
   }
   await writeFixtureFile(join(pluginPath, "scripts", "install.mjs"), "#!/usr/bin/env node\n")
   if (options.runtime !== false) {
+    await writeFixtureFile(join(pluginPath, "runtime", "ast-grep-mcp", "cli.js"), "console.log('ast-grep')\n")
     await writeFixtureFile(join(pluginPath, "runtime", "lsp-daemon", "dist", "cli.js"), "console.log('cli')\n")
     await writeFixtureFile(join(pluginPath, "runtime", "lsp-daemon", "dist", "index.js"), "export {}\n")
     await writeFixtureFile(join(pluginPath, "runtime", "lsp-daemon", "dist", "index.d.ts"), "export {}\n")
