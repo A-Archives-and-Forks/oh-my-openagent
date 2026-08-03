@@ -91,6 +91,38 @@ describe("taskCallLines", () => {
     expect(rendererVisibleWidth(line)).toBeLessThanOrEqual(100)
   })
 
+  test("#given a task_summary #when rendered #then the summary replaces the truncated prompt excerpt", () => {
+    // given
+    const args = {
+      prompt: "TASK: A very long internal delegation prompt that the user should not have to read in the call row.",
+      task_summary: "Audit the task tool boundary",
+      category: "quick",
+      run_in_background: false,
+    }
+
+    // when
+    const lines = taskCallLines(args)
+
+    // then
+    expect(lines).toEqual(['task "Audit the task tool boundary" foreground'])
+  })
+
+  test("#given a task_summary #when rendered width-bounded #then the summary replaces the prompt excerpt", () => {
+    // given
+    const args = {
+      prompt: "TASK: A very long internal delegation prompt that the user should not have to read in the call row.",
+      task_summary: "Audit the task tool boundary",
+      run_in_background: true,
+    }
+
+    // when
+    const [line = ""] = renderTaskCallLines(args, ANSI_THEME, 100)
+
+    // then
+    expect(line).toContain("Audit the task tool boundary")
+    expect(line).not.toContain("internal delegation")
+  })
+
   test("#given a long Korean prompt #when excerpted #then truncation backs up to a word boundary", () => {
     // given
     const sentence = "한국어로 긴 작업 지시를 작성하고 여러 줄의 혼합 폭 텍스트를 확인하세요."
@@ -330,14 +362,14 @@ describe("taskResultLines", () => {
       category: "quick",
       resolved_model: {
         provider: "quotio-openai",
-        model_id: "gpt-5.4-mini-fast",
-        display: "gpt-5.4-mini-fast",
+        model_id: "gpt-5.6-luna-fast",
+        display: "gpt-5.6-luna-fast",
         reasoning_effort: "high",
         source: "category" as const,
       },
       fallback_attempts: [
         { provider: "kimi-coding", model_id: "kimi-for-coding-highspeed", display: "kimi-for-coding-highspeed", source: "category" as const },
-        { provider: "quotio-openai", model_id: "gpt-5.4-mini-fast", display: "gpt-5.4-mini-fast", reasoning_effort: "high", source: "category" as const },
+        { provider: "quotio-openai", model_id: "gpt-5.6-luna-fast", display: "gpt-5.6-luna-fast", reasoning_effort: "high", source: "category" as const },
       ],
       run_in_background: false,
     }
@@ -348,7 +380,7 @@ describe("taskResultLines", () => {
 
     // then
     for (const row of [plain, compact]) {
-      expect(row).toContain("category:quick(quotio-openai/gpt-5.4-mini-fast:high)")
+      expect(row).toContain("category:quick(quotio-openai/gpt-5.6-luna-fast:high)")
       expect(row).toContain("fallback:2")
     }
     expect(rendererVisibleWidth(compact)).toBeLessThanOrEqual(120)

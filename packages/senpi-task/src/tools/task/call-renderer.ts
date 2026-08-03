@@ -14,6 +14,7 @@ const TASK_PROMPT_EXCERPT_WIDTH = 80
 
 export type TaskCallArgs = {
   readonly prompt?: string
+  readonly task_summary?: string
   readonly category?: string
   readonly subagent_type?: string
   readonly run_in_background?: boolean
@@ -42,25 +43,30 @@ export function renderTaskCallLines(
   return [taskCallLineForWidth(args, mode, plainMode, width)]
 }
 
-// The call row is intentionally prompt-only: the category/model context lives in the live progress
+// The call row is intentionally label-only: the category/model context lives in the live progress
 // line (details.progress.activity) and the final result row, so repeating it here wasted the width
-// that the prompt excerpt needs.
+// that the excerpt needs. The task_summary, when present, replaces the truncated prompt so the row
+// reads as WHAT was delegated instead of the prompt's first words.
+function callRowText(args: TaskCallArgs): string | undefined {
+  return optionalRendererText(args.task_summary) ?? optionalRendererText(args.prompt)
+}
+
 function taskCallLine(args: TaskCallArgs, mode: string): string {
-  return joinRendererTokens(["task", promptToken(args.prompt), mode])
+  return joinRendererTokens(["task", promptToken(callRowText(args)), mode])
 }
 
 function taskCallLineForWidth(args: TaskCallArgs, mode: string, plainMode: string, width: number): string {
   if (width <= 0) return ""
   const fixedWidth = rendererVisibleWidth("task") + rendererVisibleWidth(plainMode) + 4
   const available = Math.min(TASK_PROMPT_EXCERPT_WIDTH, Math.max(0, width - fixedWidth))
-  const normalized = optionalRendererText(args.prompt)
+  const normalized = callRowText(args)
   const prompt = normalized === undefined || available <= 0
     ? undefined
     : `"${excerptRendererPromptText(normalized, available)}"`
   return truncateToWidth(joinRendererTokens(["task", prompt, mode]), width, ELLIPSIS)
 }
 
-function promptToken(prompt: string | undefined): string | undefined {
-  const normalized = optionalRendererText(prompt)
+function promptToken(text: string | undefined): string | undefined {
+  const normalized = optionalRendererText(text)
   return normalized === undefined ? undefined : `"${excerptRendererPromptText(normalized, TASK_PROMPT_EXCERPT_WIDTH)}"`
 }

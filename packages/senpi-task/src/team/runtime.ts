@@ -137,6 +137,7 @@ function toCreatedMemberInfos(
         : { kind: "subagent_type", subagentType: member.subagent_type },
       ...(outcome.resolvedModel !== undefined ? { model: outcome.resolvedModel } : {}),
       ...(member.prompt !== undefined ? { promptExcerpt: excerptPrompt(member.prompt) } : {}),
+      ...(member.task_summary !== undefined ? { taskSummary: member.task_summary } : {}),
     }]
   })
 }

@@ -70,11 +70,11 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     const librarian = AGENT_MODEL_REQUIREMENTS["librarian"]
 
     // when
-    const [primary, second, third, fourth, fifth, sixth, seventh, eighth] =
+    const [primary, , second, third, fourth, fifth, sixth, seventh, eighth] =
       librarian.fallbackChain
 
     // then
-    expect(librarian.fallbackChain).toHaveLength(8)
+    expect(librarian.fallbackChain).toHaveLength(9)
     expect(primary).toEqual({ providers: ["openai"], model: "gpt-5.6-luna-fast", variant: "low" })
     expect(second?.providers).toContain("opencode-go")
     expect(second?.providers).toContain("bailian-coding-plan")
@@ -99,10 +99,10 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     const explore = AGENT_MODEL_REQUIREMENTS["explore"]
 
     // when
-    const [primary, second, third, fourth, fifth, sixth, seventh, eighth] = explore.fallbackChain
+    const [primary, , second, third, fourth, fifth, sixth, seventh, eighth] = explore.fallbackChain
 
     // then
-    expect(explore.fallbackChain).toHaveLength(8)
+    expect(explore.fallbackChain).toHaveLength(9)
     expect(primary).toEqual({ providers: ["openai"], model: "gpt-5.6-luna-fast", variant: "low" })
     expect(second?.providers).toContain("opencode-go")
     expect(second?.providers).toContain("bailian-coding-plan")
