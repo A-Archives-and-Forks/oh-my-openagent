@@ -31,20 +31,28 @@ Observed running row:
 ⠋ Background... · category:quick(apitopia/z-ai/glm-5.2-ultrafast-unlocked) · turn 3 (3 tools) · $0.1303 · 42 tok/s · read src/foo.ts · 1m 5s
 ```
 
+Observed completed row:
+
+```text
+task_output Background completion statistics (st_background) completed · category:quick · ran 1m 5s · 3 tools · $0.1303 (CH: 44%) · 42 tok/s
+```
+
 PASS:
 
 - `3 tools` comes from one eval plus two nested `details.toolCalls`.
 - `$0.1303`, `42 tok/s`, activity, and elapsed time remain visible.
 - `CH:` is absent despite the fixture carrying `cache_hit_rate_last: 0.89`.
+- `(CH: 44%)` remains present on the completed row from `cache_hit_rate_run: 0.44`.
 - `terminal/terminal.png` is a 3248x432 xterm.js browser capture.
 - `terminal/terminal.txt` captures the real PTY output.
 - `terminal/metadata.json` records `connector: xterm-node-pty` and `browserCapture: captured`.
+- `terminal/metadata.json` preserves the evidence schema with `"ansi": null`.
 
 Cleanup receipt:
 
 ```text
-metadata: pty pid 21468 killed
-verification: pty-clean:21468
+metadata: pty pid 98365 killed
+verification: pty-clean:98365
 verification: web-terminal-qa-process-clean
 verification: renderer-process-clean
 ```
@@ -64,6 +72,14 @@ verification: renderer-process-clean
 - `bun run build`: PASS.
 - `bun run test:senpi`: 529 pass, 0 fail across 84 files.
 - `git diff --check`: PASS.
+
+## Cubic review response
+
+- Validated every `details.toolCalls` entry before counting it.
+- Classified eval controls from `args ?? input`.
+- Refreshed the terminal fixture to prove running cache-rate absence and completed cache-rate presence separately.
+- Preserved evidence metadata shape with `"ansi": null`.
+- Re-ran focused tests, package compilers, repository typecheck/build, and the 529-test Senpi gate.
 
 ## LIGHT self-review
 
