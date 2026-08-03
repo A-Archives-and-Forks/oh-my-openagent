@@ -115,6 +115,35 @@ The 13 shims the real installer created are exactly the names in `MANAGED_CODEX_
 which independently confirms the allowlist is complete, and `omo.backup` surviving is the
 ownership fix proven on the real surface rather than only in unit tests.
 
+### Mandatory Codex compatibility gate (`test-codex-gate.txt`)
+
+`bun run test:codex` cannot run on this Windows host: the vendored
+`packages/lsp-tools-mcp` build script starts with `rm -rf dist`, which cmd.exe does not
+provide, so the run stops at `build:lsp-tools-mcp` before any test executes. That is a
+pre-existing host limitation, not a property of this change, so the gate was run on Linux
+(WSL Ubuntu, node v24.18.0, bun 1.3.12 - CI's toolchain) against this branch:
+
+```text
+bun run test:codex
+  399 pass / 1 skip / 1 fail   (401 tests across 66 files)
+```
+
+Every test touching this change passes there, including the two that are skipped on Windows:
+
+```text
+(pass) codex cleanup > ... removes managed component symlinks and keeps unrelated ones
+(pass) codex cleanup > ... a user symlink whose target resembles a managed component ... is kept
+(pass) codex cleanup > ... a codex home resolving to a filesystem root ... no bin link is scanned
+(pass) codex cleanup > ... a user copy of a generated wrapper ... only installer bin names are removed
+(pass) managed Codex bin coverage > ... each name is a managed bin name
+```
+
+The single failure is `#given unreadable existing config #when updating config #then rejects
+and preserves content`. It is a chmod-based permission test and WSL runs as uid 0, where root
+bypasses file permissions. Proven pre-existing rather than asserted
+(`baseline-unreadable-config-preexisting.txt`): the same file on pristine `upstream/dev`
+(55ea9490b) gives an identical `0 pass / 1 fail`.
+
 ## Why this is enough
 
 The unit RED->GREEN pins the exact regression at the uninstall boundary; the negative control couples
