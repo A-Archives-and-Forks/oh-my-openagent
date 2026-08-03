@@ -22,16 +22,39 @@ export function createRunStatsTracker(startedAt: number, now: () => number = Dat
   let cacheReadTokens = 0
   let cacheableTokens = 0
   let latestCacheHitRate: number | undefined
+  const evalRunCallIds = new Set<string>()
+  let anonymousEvalRuns = 0
 
   return {
     accept(event) {
       if (event.type === "tool_execution_start") {
         toolCalls += 1
+        const isEvalRun =
+          event.toolName === "eval" &&
+          (!isRecord(event.args) || (event.args.action !== "peek" && event.args.action !== "stop"))
+        if (isEvalRun) {
+          if (event.toolCallId === undefined) anonymousEvalRuns += 1
+          else evalRunCallIds.add(event.toolCallId)
+        }
         return true
       }
       if (event.type === "tool_execution_end") {
+        let countNestedEvalTools = false
+        if (event.toolName === "eval") {
+          if (event.toolCallId !== undefined) countNestedEvalTools = evalRunCallIds.delete(event.toolCallId)
+          else if (anonymousEvalRuns > 0) {
+            anonymousEvalRuns -= 1
+            countNestedEvalTools = true
+          }
+        }
+        const details =
+          countNestedEvalTools && isRecord(event.result) && isRecord(event.result.details)
+            ? event.result.details
+            : undefined
+        const nestedEvalTools = Array.isArray(details?.toolCalls) ? details.toolCalls.length : 0
+        toolCalls += nestedEvalTools
         windowStart = now()
-        return false
+        return nestedEvalTools > 0
       }
       if (event.type === "message_start") {
         if (isAssistantMessage(event.message)) windowStart = now()
