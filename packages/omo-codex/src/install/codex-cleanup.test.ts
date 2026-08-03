@@ -581,6 +581,47 @@ trusted_hash = "sha256:user"
   })
 
   test.skipIf(process.platform === "win32")(
+    "#given a legacy install under another marketplace #when cleanup runs #then its legacy bins are still removed",
+    async () => {
+      // given: the legacy layout used an arbitrary marketplace segment, which the legacy
+      // remover already recognizes, so uninstall must not leave those commands on PATH
+      const codexHome = await mkdtemp(join(tmpdir(), "omo-codex-cleanup-legacy-home-"))
+      const binDir = await mkdtemp(join(tmpdir(), "omo-codex-cleanup-legacy-bin-"))
+      await writeFile(join(codexHome, "config.toml"), "[features]\nplugins = true\n")
+      const legacyTarget = join(
+        codexHome,
+        "plugins",
+        "cache",
+        "othermarketplace",
+        "omo",
+        "0.9.0",
+        "components",
+        "lsp",
+        "dist",
+        "cli.js",
+      )
+      const legacyBin = join(binDir, "codex-lsp")
+      const userBin = join(binDir, "mytool")
+      await symlink(legacyTarget, legacyBin)
+      await symlink(legacyTarget, userBin)
+
+      // when
+      const result = await cleanupCodexLight({
+        codexHome,
+        binDir,
+        platform: "linux",
+        projectDirectory: codexHome,
+        now: () => new Date("2026-06-01T00:00:00Z"),
+      })
+
+      // then
+      expect(result.removedBinLinks).toEqual([legacyBin])
+      expect(await pathExists(legacyBin)).toBe(false)
+      expect(await pathExists(userBin)).toBe(true)
+    },
+  )
+
+  test.skipIf(process.platform === "win32")(
     "#given a user symlink whose target resembles a managed component #when cleanup runs #then it is kept",
     async () => {
       // given

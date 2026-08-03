@@ -3,7 +3,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path"
 import { COMMAND_SHIM_MARKER } from "./codex-cache-command-shim"
 import { isManagedComponentBinTarget } from "./codex-cache-dangling-bins"
 import { isNodeErrorWithCode } from "./codex-cache-fs"
-import { LEGACY_CODEX_COMPONENT_BIN_NAMES } from "./codex-cache-legacy-bins"
+import { isLegacyCodexBinTarget, LEGACY_CODEX_COMPONENT_BIN_NAMES } from "./codex-cache-legacy-bins"
 import { RUNTIME_WRAPPER_MARKER } from "./codex-cache-runtime-wrapper"
 
 type LinkPlatform = NodeJS.Platform
@@ -52,7 +52,7 @@ export async function removeManagedCodexBins(binDir: string, platform: LinkPlatf
     const binName = managedBinNameForEntry(entry.name, platform)
     if (binName === null || !MANAGED_CODEX_BIN_NAMES.has(binName)) continue
     const linkPath = join(binDir, entry.name)
-    if (await isManagedCodexBin(linkPath, platform)) {
+    if (await isManagedCodexBin(linkPath, platform, binName)) {
       await rm(linkPath, { force: true })
       removed.push(linkPath)
     }
@@ -67,7 +67,7 @@ function managedBinNameForEntry(entryName: string, platform: LinkPlatform): stri
   return entryName.endsWith(".cmd") ? entryName.slice(0, -".cmd".length) : null
 }
 
-async function isManagedCodexBin(linkPath: string, platform: LinkPlatform): Promise<boolean> {
+async function isManagedCodexBin(linkPath: string, platform: LinkPlatform, binName: string): Promise<boolean> {
   const entryStat = await lstat(linkPath).catch((error: unknown) => {
     if (isNodeErrorWithCode(error) && error.code === "ENOENT") return null
     throw error
@@ -78,7 +78,9 @@ async function isManagedCodexBin(linkPath: string, platform: LinkPlatform): Prom
     if (platform === "win32") return false
     const linkTarget = await readlink(linkPath)
     const target = isAbsolute(linkTarget) ? linkTarget : resolve(dirname(linkPath), linkTarget)
-    return isManagedComponentBinTarget(target)
+    // The current layout is checked strictly; legacy names additionally accept the older
+    // arbitrary-marketplace shape, so a legacy install does not leave commands on PATH.
+    return isManagedComponentBinTarget(target) || isLegacyCodexBinTarget(binName, target)
   }
 
   if (!entryStat.isFile()) return false
