@@ -104,7 +104,10 @@ export function reclaimOrphanedResident(context: LifecycleContext, observed: Tas
   return claimResidencySlot(
     context,
     observed.task_id,
-    (fresh) => fresh.residency_state === "resident" && fresh.host_pid === observed.host_pid,
+    (fresh) =>
+      fresh.residency_state === "resident" &&
+      fresh.host_pid === observed.host_pid &&
+      fresh.updated_at === observed.updated_at,
   )
 }
 
@@ -144,16 +147,25 @@ export async function admitSuspendedBatch(
         outcomes.push({ task_id: record.task_id, kind: "deferred", reason: "lease_lost" })
         continue
       }
-      const result = claimResidencySlot(
-        context,
-        record.task_id,
-        (fresh) => SUSPENDED_RESIDENCIES.has(fresh.residency_state) && fresh.killed !== true,
-      )
-      outcomes.push(
-        result === "claimed"
-          ? { task_id: record.task_id, kind: "claimed" }
-          : { task_id: record.task_id, kind: "deferred", reason: "foreign_live_owner" },
-      )
+      try {
+        const result = claimResidencySlot(
+          context,
+          record.task_id,
+          (fresh) =>
+            fresh.parent_session_id === parentSessionId &&
+            SUSPENDED_RESIDENCIES.has(fresh.residency_state) &&
+            REVIVABLE_STATUSES.has(fresh.status) &&
+            fresh.killed !== true,
+        )
+        outcomes.push(
+          result === "claimed"
+            ? { task_id: record.task_id, kind: "claimed" }
+            : { task_id: record.task_id, kind: "deferred", reason: "foreign_live_owner" },
+        )
+      } catch {
+        // Each record lock is independently bounded. One contended record never aborts the batch.
+        outcomes.push({ task_id: record.task_id, kind: "deferred", reason: "lock_contended" })
+      }
     }
     // Overflow stays suspended with deferred/capacity - never evicted, never lost.
     for (const record of candidates.slice(available)) {

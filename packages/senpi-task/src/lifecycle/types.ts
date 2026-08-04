@@ -6,7 +6,18 @@ export type AdmissionResult =
   | { readonly kind: "evicted"; readonly evicted_task_id: string }
   | { readonly kind: "rejected"; readonly error: AgentLimitReached }
 
-export type ReconcileOutcomeKind = "resumed" | "lost" | "lost_and_terminated" | "foreign_live_owner"
+export type ReconcileOutcomeKind = "resumed" | "lost" | "lost_and_terminated" | "foreign_live_owner" | "deferred"
+
+export type ReconcileDeferredReason =
+  | "capacity"
+  | "lock_contended"
+  | "foreign_live_owner"
+  | "model_unavailable"
+  | "tools_unavailable"
+  | "session_unavailable"
+  | "spawn_spec_unavailable"
+  | "team_inactive"
+  | "reattach_disabled"
 
 export type ReconcileOutcome = {
   readonly task_id: string
@@ -44,7 +55,7 @@ export type SuspendSummary = {
 export type TaskLifecycle = {
   destroyResidentTask(taskId: string, cause: DestroyCause): Promise<void>
   admitResident(parentSessionId: string): Promise<AdmissionResult>
-  reconcileOnSessionStart(): Promise<ReconcileResult>
+  reconcileOnSessionStart(parentSessionId?: string): Promise<ReconcileResult>
   cleanupExpiredRecords(): CleanupResult
   suspendOnSessionShutdown(input: SuspendInput): Promise<SuspendSummary>
 }

@@ -73,7 +73,7 @@ type TaskManagerImplOptions = TaskManagerOptions & {
 }
 
 type ReattachingTaskManager = TaskManager & {
-  respawn(record: TaskRecord, resumeSessionPath: string): Promise<RespawnResult>
+  respawn(record: TaskRecord, resumeSessionPath?: string): Promise<RespawnResult>
   reattach(record: TaskRecord, handle: ManagedChildHandle): Promise<ReattachResult>
   waiterKeyCount(): number
   releasedKeyCount(): number
@@ -418,7 +418,7 @@ class TaskManagerImpl implements TaskManager {
     return record.notify_on_terminal
   }
 
-  respawn(record: TaskRecord, resumeSessionPath: string): Promise<RespawnResult> {
+  respawn(record: TaskRecord, resumeSessionPath?: string): Promise<RespawnResult> {
     return respawnManagedTask({
       record,
       sessionPath: resumeSessionPath,
@@ -452,6 +452,7 @@ class TaskManagerImpl implements TaskManager {
       armOutcome: (fresh, attachedHandle, epoch) => {
         this.#concurrency.acquire(fresh.model, fresh.task_id)
         this.#outcome.trackOutcome(fresh.task_id, attachedHandle, fresh.model, epoch)
+        void this.#steering.notifyStarted(fresh.task_id)
       },
     })
   }

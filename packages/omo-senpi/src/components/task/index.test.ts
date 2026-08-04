@@ -278,8 +278,8 @@ describe("omo-senpi task component wiring", () => {
       ...base,
       lifecycle: {
         ...base.lifecycle,
-        reconcileOnSessionStart: async () => {
-          order.push("reattach")
+        reconcileOnSessionStart: async (sessionId) => {
+          order.push(`reattach:${sessionId}`)
           return { outcomes: [] }
         },
         cleanupExpiredRecords: () => {
@@ -315,7 +315,7 @@ describe("omo-senpi task component wiring", () => {
     })
 
     // then
-    expect(order).toEqual(["reattach", "cleanup", "reclaim", "notify", "poll"])
+    expect(order).toEqual(["reattach:session-a", "cleanup", "reclaim", "notify", "poll"])
   })
 
   it("#given a terminal member owned by lead A #when lead B reconciles then lead A reconciles #then only the owning lead receives replay", async () => {

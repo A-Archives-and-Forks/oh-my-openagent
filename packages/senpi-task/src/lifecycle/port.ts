@@ -3,6 +3,7 @@ import type { OmoTaskSettings } from "@oh-my-opencode/omo-config-core"
 import type { ManagedChildHandle } from "../manager/child-handle"
 import type { TaskRecord } from "../state"
 import type { TaskRecordStore } from "../store"
+import type { BatchAdmissionOptions } from "./residency"
 
 // Why a task is being torn down. Cancel (todo 10), LRU eviction, TTL cleanup, and session_start
 // reconciliation ALL route their destruction through the single-writer port. Session shutdown is
@@ -52,6 +53,7 @@ export type RespawnFailureCode =
   | "tools_unavailable"
   | "spawn_spec_unavailable"
   | "session_unavailable"
+  | "team_inactive"
   | "respawn_failed"
 
 export type RespawnResult =
@@ -67,7 +69,7 @@ export type ReattachResult =
   | { readonly ok: true }
   | { readonly ok: false; readonly kind: "already_attached" | "failed"; readonly reason: string }
 
-export type RespawnPort = (record: TaskRecord, resumeSessionPath: string) => Promise<RespawnResult>
+export type RespawnPort = (record: TaskRecord, resumeSessionPath?: string) => Promise<RespawnResult>
 export type ReattachPort = (record: TaskRecord, handle: ManagedChildHandle) => Promise<ReattachResult>
 
 export type LifecycleReattachPorts = {
@@ -104,6 +106,8 @@ export type LifecycleDeps = {
   // Remove a queued (never-launched) child from the concurrency queue when session shutdown
   // suspends it. Defaults to a no-op; the manager wires its real dequeue through here.
   readonly dequeuePending?: (taskId: string) => void
+  // Test seam for bounded admission-lease timing and deterministic contention.
+  readonly reconcileAdmission?: BatchAdmissionOptions
 }
 
 export function injectedLifecycleReattachPorts(deps: LifecycleDeps): LifecycleReattachPorts | undefined {

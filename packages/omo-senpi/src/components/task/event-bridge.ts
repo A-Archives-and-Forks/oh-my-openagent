@@ -31,7 +31,7 @@ export function wireEventBridge(
   pi.on("session_start", async (_payload, eventCtx) => {
     engine.runtime.captureFrom(asLiveContext(eventCtx))
     transitions.onSessionStart(engine.runtime.sessionId())
-    const reconciliation = await engine.lifecycle.reconcileOnSessionStart()
+    const reconciliation = await engine.lifecycle.reconcileOnSessionStart(engine.runtime.sessionId())
     for (const outcome of reconciliation.outcomes) {
       const record = engine.manager.get(outcome.task_id)
       // A previous process can persist the terminal transition before its queued team-liveness steer
