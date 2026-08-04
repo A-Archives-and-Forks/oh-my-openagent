@@ -118,12 +118,19 @@ function removeRecord(
   cache: Map<string, CacheEntry>,
   appendFds: AppendFdCache,
 ): void {
-  const recordPath = taskPath(stateDir, taskId)
+  // Record-last ordering: a crash mid-cleanup never orphans a record pointing at nothing.
+  // (1) children/<taskId>/ recursively (session transcripts)
+  rmSync(join(stateDir, "children", String(taskId)), { recursive: true, force: true })
+  // (2) completion spill file
+  rmSync(join(stateDir, "completion-results", `${taskId}.txt`), { force: true })
+  // (3) task event log
   const logPath = join(stateDir, "logs", `${taskId}.jsonl`)
-  rmSync(recordPath, { force: true })
   rmSync(logPath, { force: true })
-  cache.delete(recordPath)
   closeAppendFd(logPath, appendFds)
+  // (4) record LAST
+  const recordPath = taskPath(stateDir, taskId)
+  rmSync(recordPath, { force: true })
+  cache.delete(recordPath)
 }
 
 function listRecords(stateDir: string, cache: Map<string, CacheEntry>): ListTaskRecordsResult {

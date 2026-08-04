@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -203,5 +203,107 @@ describe("createTaskRecordStore event append", () => {
     const raw = readFileSync(join(stateDir, "tasks", "st_00000006.json"), "utf8")
     expect(raw).not.toContain("\n  ")
     expect(JSON.parse(raw).task_id).toBe("st_00000006")
+  })
+})
+
+describe("createTaskRecordStore remove artifacts", () => {
+  const TASK_ID = "st_00000010"
+
+  function seedFullArtifactSet(project: string): string {
+    const store = createTaskRecordStore({ project_dir: project })
+    store.save(baseRecord(TASK_ID))
+    store.appendEvent(TASK_ID, { type: "created", payload: {} })
+
+    const stateDir = resolveStateDir({ project_dir: project })
+
+    // children/<taskId>/sessions/<taskId>/x.jsonl
+    const childDir = join(stateDir, "children", TASK_ID, "sessions", TASK_ID)
+    mkdirSync(childDir, { recursive: true })
+    writeFileSync(join(childDir, "x.jsonl"), "{\"role\":\"user\",\"content\":\"hi\"}\n", "utf8")
+
+    // completion-results/<taskId>.txt
+    const spillDir = join(stateDir, "completion-results")
+    mkdirSync(spillDir, { recursive: true })
+    writeFileSync(join(spillDir, `${TASK_ID}.txt`), "spilled final response", "utf8")
+
+    return stateDir
+  }
+
+  test("#given a record + event log + children dir + spill file #when remove is called #then ALL FOUR artifacts are deleted", () => {
+    // given
+    const project = tempProject()
+    const stateDir = seedFullArtifactSet(project)
+    const store = createTaskRecordStore({ project_dir: project })
+
+    const recordPath = join(stateDir, "tasks", `${TASK_ID}.json`)
+    const logPath = join(stateDir, "logs", `${TASK_ID}.jsonl`)
+    const childDir = join(stateDir, "children", TASK_ID)
+    const spillPath = join(stateDir, "completion-results", `${TASK_ID}.txt`)
+
+    expect(existsSync(recordPath)).toBe(true)
+    expect(existsSync(logPath)).toBe(true)
+    expect(existsSync(childDir)).toBe(true)
+    expect(existsSync(spillPath)).toBe(true)
+
+    // when
+    store.remove(TASK_ID)
+
+    // then
+    expect(existsSync(recordPath)).toBe(false)
+    expect(existsSync(logPath)).toBe(false)
+    expect(existsSync(childDir)).toBe(false)
+    expect(existsSync(spillPath)).toBe(false)
+  })
+
+  test("#given a partially-cleaned task (children dir already gone) #when remove is called #then it still deletes log + record without throwing", () => {
+    // given
+    const project = tempProject()
+    const stateDir = seedFullArtifactSet(project)
+    // simulate a partial cleanup: children dir already removed
+    rmSync(join(stateDir, "children", TASK_ID), { recursive: true, force: true })
+
+    const store = createTaskRecordStore({ project_dir: project })
+    const recordPath = join(stateDir, "tasks", `${TASK_ID}.json`)
+    const logPath = join(stateDir, "logs", `${TASK_ID}.jsonl`)
+    const spillPath = join(stateDir, "completion-results", `${TASK_ID}.txt`)
+
+    expect(existsSync(recordPath)).toBe(true)
+    expect(existsSync(logPath)).toBe(true)
+    expect(existsSync(spillPath)).toBe(true)
+
+    // when
+    store.remove(TASK_ID)
+
+    // then
+    expect(existsSync(recordPath)).toBe(false)
+    expect(existsSync(logPath)).toBe(false)
+    expect(existsSync(spillPath)).toBe(false)
+  })
+
+  test("#given a fully removed task #when remove is called again #then it is a no-op without throwing", () => {
+    // given
+    const project = tempProject()
+    const stateDir = seedFullArtifactSet(project)
+    const store = createTaskRecordStore({ project_dir: project })
+    store.remove(TASK_ID)
+
+    const recordPath = join(stateDir, "tasks", `${TASK_ID}.json`)
+    const logPath = join(stateDir, "logs", `${TASK_ID}.jsonl`)
+    const childDir = join(stateDir, "children", TASK_ID)
+    const spillPath = join(stateDir, "completion-results", `${TASK_ID}.txt`)
+
+    expect(existsSync(recordPath)).toBe(false)
+    expect(existsSync(logPath)).toBe(false)
+    expect(existsSync(childDir)).toBe(false)
+    expect(existsSync(spillPath)).toBe(false)
+
+    // when
+    expect(() => store.remove(TASK_ID)).not.toThrow()
+
+    // then - everything still gone
+    expect(existsSync(recordPath)).toBe(false)
+    expect(existsSync(logPath)).toBe(false)
+    expect(existsSync(childDir)).toBe(false)
+    expect(existsSync(spillPath)).toBe(false)
   })
 })

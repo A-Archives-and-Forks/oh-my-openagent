@@ -36,7 +36,10 @@ export type TaskRecordStore = {
   readonly list: () => ListTaskRecordsResult
   readonly appendEvent: (taskId: string, event: PersistedTaskEvent) => string
   readonly transition: (taskId: string, transition: TaskTransition) => TaskTransitionResult
-  // TTL cleanup only (lifecycle-owned): drop a record and its JSONL log. Idempotent on a missing
-  // record. Normal terminal transitions must NEVER delete a record - they use transition().
+  // Lifecycle-owned cleanup (TTL, cancel, reconcile): delete EVERY durable task artifact for a
+  // task - children/<taskId>/ recursively, the completion spill file, the event log, and the record
+  // (record-last so a crash mid-cleanup never orphans a record pointing at nothing; a later sweep
+  // retries). Idempotent: a re-run on a partially-cleaned task is a no-op. Normal terminal
+  // transitions must NEVER delete a record - they use transition().
   readonly remove: (taskId: string) => void
 }
