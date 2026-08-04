@@ -56,3 +56,51 @@ export function findModelReference<TModel>(registry: ModelFinder<TModel>, modelR
   if (slash <= 0 || slash === modelReference.length - 1) return undefined
   return registry.find(modelReference.slice(0, slash), modelReference.slice(slash + 1))
 }
+
+/**
+ * Resume-time model resolution that FAILS CLOSED: the exact persisted provider+model_id must
+ * resolve in the live registry, else `{ok: false, code: "model_unavailable"}`. Resume NEVER
+ * silently drifts to senpi's default model — the caller must surface the failure as a retryable
+ * `deferred` outcome. The resolver keys on `resolved_model.provider` + `resolved_model.model_id`
+ * (threaded onto ManagedStartSpec by todo 5) and never on `resolved_model.display`, which is a
+ * human string that can differ from the registry id. Does NOT mutate the record.
+ */
+export function resolveResumeContext(
+  resolveRegistry: ParentModelRegistryResolver,
+  spec: ManagedStartSpec,
+): ResumeContextResult {
+  const registry = resolveRegistry()
+  if (registry === undefined) {
+    return { ok: false, code: "model_unavailable", reason: "no live parent model registry available" }
+  }
+
+  const resolvedModel = spec.resolvedModel
+  if (resolvedModel === undefined) {
+    return { ok: false, code: "model_unavailable", reason: "spec carries no resolved_model to match against" }
+  }
+
+  // Key on the canonical provider+model_id pair, NOT on the display string.
+  const model = registry.find(resolvedModel.provider, resolvedModel.model_id)
+  if (model === undefined) {
+    return {
+      ok: false,
+      code: "model_unavailable",
+      reason: `provider "${resolvedModel.provider}" model "${resolvedModel.model_id}" not found in the live registry`,
+    }
+  }
+
+  const modelRuntime = registry.modelRuntime
+  const thinkingLevel = asSenpiThinkingLevel(spec.variant)
+  const context: InProcessSessionContext = {
+    modelRegistry: registry,
+    authStorage: registry.authStorage,
+    ...(modelRuntime !== undefined && { modelRuntime }),
+    model,
+    ...(thinkingLevel !== undefined && { thinkingLevel }),
+  }
+  return { ok: true, context }
+}
+
+export type ResumeContextResult =
+  | { readonly ok: true; readonly context: InProcessSessionContext }
+  | { readonly ok: false; readonly code: "model_unavailable"; readonly reason: string }
