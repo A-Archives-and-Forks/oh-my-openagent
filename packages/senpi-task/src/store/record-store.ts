@@ -111,6 +111,39 @@ export function createTaskRecordStore(config: StateDirConfig): TaskRecordStore {
       const path = taskPath(stateDir, parsedTaskId)
       withTaskRecordLock(path, () => removeRecord(stateDir, parsedTaskId, cache, appendFds))
     },
+    tombstoneIfExpired(taskId, shouldRetain) {
+      const parsedTaskId = parseTaskId(taskId)
+      const path = taskPath(stateDir, parsedTaskId)
+      // The lock file lives beside the record, so the tasks dir must exist even when the record
+      // itself was never written (the "missing" outcome is defined and must not throw ENOENT).
+      mkdirSync(join(stateDir, "tasks"), { recursive: true })
+      return withTaskRecordLock(path, () => {
+        // Re-read + validate + tombstone ONLY: artifact deletion is phase 2, outside the lock,
+        // because recursive filesystem work can outlive any lease.
+        const current = readRecord(path)
+        if (current === null) return { kind: "missing" } as const
+        if (shouldRetain(current)) return { kind: "retained" } as const
+        renameSync(path, tombstonePath(stateDir, parsedTaskId))
+        cache.delete(path)
+        return { kind: "tombstoned", record: current } as const
+      })
+    },
+    completeExpunge(taskId) {
+      const parsedTaskId = parseTaskId(taskId)
+      // Phase 2 (and crash recovery): the record is already tombstoned - committed to deletion,
+      // invisible to load/list, never resurrected - so this is idempotent and needs no lock.
+      removeRecord(stateDir, parsedTaskId, cache, appendFds)
+      rmSync(tombstonePath(stateDir, parsedTaskId), { force: true })
+    },
+    listExpunging() {
+      const tasksDir = join(stateDir, "tasks")
+      mkdirSync(tasksDir, { recursive: true })
+      return readdirSync(tasksDir)
+        .filter((entry) => entry.endsWith(TOMBSTONE_SUFFIX))
+        .map((entry) => entry.slice(0, entry.length - TOMBSTONE_SUFFIX.length))
+        .filter(isParseableTaskId)
+        .toSorted()
+    },
   }
 }
 
@@ -226,8 +259,23 @@ function writeRecord(stateDir: string, record: TaskRecord, mode: WriteRecordMode
   renameSync(tmpPath, path)
 }
 
+const TOMBSTONE_SUFFIX = ".json.expunging"
+
 function taskPath(stateDir: string, taskId: TaskId): string {
   return join(stateDir, "tasks", `${taskId}.json`)
+}
+
+function tombstonePath(stateDir: string, taskId: TaskId): string {
+  return join(stateDir, "tasks", `${taskId}${TOMBSTONE_SUFFIX}`)
+}
+
+function isParseableTaskId(value: string): boolean {
+  try {
+    parseTaskId(value)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function isEnoent(error: unknown): boolean {

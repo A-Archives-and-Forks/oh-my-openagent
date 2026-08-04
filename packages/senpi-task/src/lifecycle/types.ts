@@ -56,6 +56,6 @@ export type TaskLifecycle = {
   destroyResidentTask(taskId: string, cause: DestroyCause): Promise<void>
   admitResident(parentSessionId: string): Promise<AdmissionResult>
   reconcileOnSessionStart(parentSessionId?: string): Promise<ReconcileResult>
-  cleanupExpiredRecords(): CleanupResult
+  cleanupExpiredRecords(): Promise<CleanupResult>
   suspendOnSessionShutdown(input: SuspendInput): Promise<SuspendSummary>
 }

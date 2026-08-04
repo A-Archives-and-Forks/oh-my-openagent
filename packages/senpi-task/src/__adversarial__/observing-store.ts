@@ -48,6 +48,9 @@ export function createObservingStore(backing: TaskRecordStore): ObservingStore {
     list: () => backing.list(),
     appendEvent: (taskId, event) => backing.appendEvent(taskId, event),
     remove: (taskId) => backing.remove(taskId),
+    tombstoneIfExpired: (taskId, shouldRetain) => backing.tombstoneIfExpired(taskId, shouldRetain),
+    completeExpunge: (taskId) => backing.completeExpunge(taskId),
+    listExpunging: () => backing.listExpunging(),
     replace: (record) => {
       observeReplace(backing, observations, record)
       backing.replace(record)

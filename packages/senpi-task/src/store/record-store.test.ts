@@ -308,3 +308,96 @@ describe("createTaskRecordStore remove artifacts", () => {
     expect(existsSync(spillPath)).toBe(false)
   })
 })
+
+describe("createTaskRecordStore tombstone expunge", () => {
+  const TASK_ID = "st_00000030"
+
+  function seedTombstoneCandidate(project: string): { store: ReturnType<typeof createTaskRecordStore>; stateDir: string } {
+    const store = createTaskRecordStore({ project_dir: project })
+    store.save(baseRecord(TASK_ID))
+    store.appendEvent(TASK_ID, { type: "created", payload: {} })
+    const stateDir = resolveStateDir({ project_dir: project })
+    mkdirSync(join(stateDir, "children", TASK_ID), { recursive: true })
+    const spillDir = join(stateDir, "completion-results")
+    mkdirSync(spillDir, { recursive: true })
+    writeFileSync(join(spillDir, `${TASK_ID}.txt`), "spilled final response", "utf8")
+    return { store, stateDir }
+  }
+
+  test("#given the retention predicate rejects the record #when tombstoneIfExpired runs #then the record is renamed to a tombstone invisible to load, list, and mutate", () => {
+    // given
+    const project = tempProject()
+    const { store, stateDir } = seedTombstoneCandidate(project)
+    const taskRecordPath = join(stateDir, "tasks", `${TASK_ID}.json`)
+    const tombstonePath = `${taskRecordPath}.expunging`
+    // a stray non-task tombstone name must never enter the expunge pipeline
+    writeFileSync(join(stateDir, "tasks", "not-a-task.json.expunging"), "{}", "utf8")
+
+    // when
+    const result = store.tombstoneIfExpired(TASK_ID, () => false)
+
+    // then the atomic rename commits the record to deletion and no claim can take it
+    if (result.kind !== "tombstoned") throw new Error("expected tombstoned")
+    expect(result.record.task_id).toBe(TASK_ID)
+    expect(existsSync(taskRecordPath)).toBe(false)
+    expect(existsSync(tombstonePath)).toBe(true)
+    expect(store.load(TASK_ID)).toBeNull()
+    expect(store.list().records).toHaveLength(0)
+    expect(store.mutate(TASK_ID, (record) => record)).toBeNull()
+    expect(store.listExpunging()).toEqual([TASK_ID])
+  })
+
+  test("#given the retention predicate keeps the record #when tombstoneIfExpired runs #then the record is untouched", () => {
+    // given
+    const project = tempProject()
+    const { store, stateDir } = seedTombstoneCandidate(project)
+    const taskRecordPath = join(stateDir, "tasks", `${TASK_ID}.json`)
+
+    // when
+    const result = store.tombstoneIfExpired(TASK_ID, () => true)
+
+    // then
+    expect(result.kind).toBe("retained")
+    expect(existsSync(taskRecordPath)).toBe(true)
+    expect(existsSync(`${taskRecordPath}.expunging`)).toBe(false)
+    expect(store.load(TASK_ID)?.task_id).toBe(TASK_ID)
+  })
+
+  test("#given a missing record #when tombstoneIfExpired runs #then it reports missing without writing anything", () => {
+    // given
+    const project = tempProject()
+    const store = createTaskRecordStore({ project_dir: project })
+
+    // when
+    const result = store.tombstoneIfExpired(TASK_ID, () => false)
+
+    // then
+    expect(result.kind).toBe("missing")
+    expect(store.listExpunging()).toEqual([])
+  })
+
+  test("#given a tombstoned record with leftover artifacts #when completeExpunge runs #then children dir, spill, log, and tombstone are gone and a re-run is a no-op", () => {
+    // given
+    const project = tempProject()
+    const { store, stateDir } = seedTombstoneCandidate(project)
+    store.tombstoneIfExpired(TASK_ID, () => false)
+    const tombstonePath = join(stateDir, "tasks", `${TASK_ID}.json.expunging`)
+    expect(existsSync(tombstonePath)).toBe(true)
+
+    // when
+    store.completeExpunge(TASK_ID)
+
+    // then
+    expect(existsSync(tombstonePath)).toBe(false)
+    expect(existsSync(join(stateDir, "children", TASK_ID))).toBe(false)
+    expect(existsSync(join(stateDir, "completion-results", `${TASK_ID}.txt`))).toBe(false)
+    expect(existsSync(join(stateDir, "logs", `${TASK_ID}.jsonl`))).toBe(false)
+    expect(store.listExpunging()).toEqual([])
+
+    // when run again (crash-recovery idempotence)
+    expect(() => store.completeExpunge(TASK_ID)).not.toThrow()
+
+    // then everything is still gone
+    expect(existsSync(tombstonePath)).toBe(false)
+  })
+})
