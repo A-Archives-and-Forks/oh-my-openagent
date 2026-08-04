@@ -4,13 +4,14 @@ import { describe, expect, it } from "bun:test"
 
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import { SENPI_ULTRAWORK_DIRECTIVE } from "./generated-directive"
-import { createUltraworkComponent } from "./index"
+import { createSessionArming, createUltraworkComponent } from "./index"
 import {
   createTestContext,
   dispatchInput,
   expectHiddenInjection,
   expectReminderMessage,
   registerIsolatedUltrawork,
+  seedSharedArmingSlot,
   sessionEventCtx,
 } from "./ultrawork.test-support"
 
@@ -239,5 +240,32 @@ describe("omo-senpi ultrawork once-per-session arming", () => {
     }
     expect(content.length).toBeLessThan(400)
     expect(content).not.toContain("<ultrawork-mode>")
+  })
+
+  it("#given a ledger left under a different directive revision #when the bundle re-evaluates #then the session is not armed and receives the full directive", async () => {
+    // given: an earlier bundle evaluation armed the session and left its ledger
+    // on the process-global slot tagged with a revision the CURRENT directive no
+    // longer matches (omo.js or SENPI_ULTRAWORK_DIRECTIVE changed mid-process).
+    // The seed doubles as a plain ledger so the versionless code path still
+    // reuses it outright — that unconditional reuse is the stale-arming bug.
+    const staleLedger = createSessionArming()
+    staleLedger.markArmed("session-upgraded")
+    const restoreSlot = seedSharedArmingSlot(Object.assign(staleLedger, { revision: "stale-directive-revision" }))
+    try {
+      // when: the reloaded bundle constructs its component against the shared slot
+      const pi = new FakeExtensionAPI()
+      await createUltraworkComponent().register(pi, createTestContext(pi))
+      await pi.dispatch("session_start", {}, sessionEventCtx("session-upgraded"))
+      const result = await dispatchInput(pi, "ulw after upgrade")
+
+      // then: the revision mismatch discards the stale ledger, so the session gets
+      // the FULL directive again — never a reminder pointing at rules its
+      // transcript no longer holds.
+      expect(result).toEqual({ action: "continue" })
+      expect(pi.messages).toHaveLength(1)
+      expect(pi.messages[0]?.message["content"]).toBe(SENPI_ULTRAWORK_DIRECTIVE)
+    } finally {
+      restoreSlot()
+    }
   })
 })

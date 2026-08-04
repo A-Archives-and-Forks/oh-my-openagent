@@ -6,6 +6,7 @@ import { SENPI_ULTRAWORK_DIRECTIVE } from "./generated-directive"
 import { createSessionArming, createUltraworkComponent } from "./index"
 
 const ULTRAWORK_CUSTOM_TYPE = "omo-ultrawork:directive"
+const ARMING_LEDGER_KEY = Symbol.for("omo.ultrawork.arming")
 
 export type InputDispatchResult = { action: "continue" } | { action: "transform"; text: string }
 
@@ -59,6 +60,24 @@ export async function registerIsolatedUltrawork(pi: FakeExtensionAPI): Promise<v
 
 export function sessionEventCtx(sessionId: string): { sessionManager: { getSessionId(): string } } {
   return { sessionManager: { getSessionId: () => sessionId } }
+}
+
+/**
+ * Seeds the process-global arming slot the way an earlier bundle evaluation left
+ * it and returns a restore function. Only the reload-path tests may touch this
+ * slot; every other test stays isolated through registerIsolatedUltrawork.
+ */
+export function seedSharedArmingSlot(slot: unknown): () => void {
+  const registry = globalThis as unknown as Record<symbol, unknown>
+  const previous = registry[ARMING_LEDGER_KEY]
+  registry[ARMING_LEDGER_KEY] = slot
+  return () => {
+    if (previous === undefined) {
+      delete registry[ARMING_LEDGER_KEY]
+      return
+    }
+    registry[ARMING_LEDGER_KEY] = previous
+  }
 }
 
 /**

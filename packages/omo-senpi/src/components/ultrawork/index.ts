@@ -53,18 +53,51 @@ export interface SessionArming {
 // session there and re-injects the full ~17KB directive on the next trigger, the
 // exact token burn this guard exists to stop. The default ledger therefore hangs
 // off globalThis (process-lifetime, survives re-evaluation), keyed by a
-// registered symbol so every evaluation of the bundle shares one ledger. Tests
-// inject isolated ledgers through the factory parameter instead.
+// registered symbol so every evaluation of the bundle shares one ledger — but
+// ONLY while the directive revision matches: a slot left by an older bundle
+// armed its sessions against a directive their transcripts may no longer hold,
+// so a revision mismatch must start a fresh ledger, not reuse the stale one.
+// Tests inject isolated ledgers through the factory parameter instead.
 const ARMING_LEDGER_KEY = Symbol.for("omo.ultrawork.arming")
 
+interface SharedArmingSlot {
+  readonly revision: string
+  readonly arming: SessionArming
+}
+
+// FNV-1a over the directive text: cheap, import-free, and derived from the
+// content itself, so the revision changes automatically whenever the embedded
+// directive (or the bundle carrying it) changes — no hand-maintained constant.
+function ultraworkDirectiveRevision(): string {
+  let hash = 0x811c9dc5
+  for (let index = 0; index < SENPI_ULTRAWORK_DIRECTIVE.length; index++) {
+    hash ^= SENPI_ULTRAWORK_DIRECTIVE.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(16)
+}
+
+const ULTRAWORK_DIRECTIVE_REVISION = ultraworkDirectiveRevision()
+
+function isCurrentArmingSlot(value: unknown): value is SharedArmingSlot {
+  if (typeof value !== "object" || value === null) {
+    return false
+  }
+  const slot = value as SharedArmingSlot
+  // A bare ledger from a pre-revision bundle has no revision to match, so it is
+  // discarded here exactly like a mismatched one.
+  return slot.revision === ULTRAWORK_DIRECTIVE_REVISION && typeof slot.arming === "object" && slot.arming !== null
+}
+
 function sharedSessionArming(): SessionArming {
-  const registry = globalThis as unknown as Record<symbol, SessionArming | undefined>
+  const registry = globalThis as unknown as Record<symbol, unknown>
   const existing = registry[ARMING_LEDGER_KEY]
-  if (existing !== undefined) {
-    return existing
+  if (isCurrentArmingSlot(existing)) {
+    return existing.arming
   }
   const created = createSessionArming()
-  registry[ARMING_LEDGER_KEY] = created
+  const slot: SharedArmingSlot = { revision: ULTRAWORK_DIRECTIVE_REVISION, arming: created }
+  registry[ARMING_LEDGER_KEY] = slot
   return created
 }
 
