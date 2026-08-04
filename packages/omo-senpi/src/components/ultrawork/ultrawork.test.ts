@@ -34,14 +34,41 @@ async function dispatchInput(
   text: unknown,
   source: unknown = "interactive",
   streamingBehavior?: unknown,
+  eventCtx?: unknown,
 ): Promise<unknown> {
-  const [result] = await pi.dispatch("input", {
-    type: "input",
-    text,
-    source,
-    ...(streamingBehavior === undefined ? {} : { streamingBehavior }),
-  })
+  const [result] = await pi.dispatch(
+    "input",
+    {
+      type: "input",
+      text,
+      source,
+      ...(streamingBehavior === undefined ? {} : { streamingBehavior }),
+    },
+    eventCtx,
+  )
   return result
+}
+
+function sessionEventCtx(sessionId: string): { sessionManager: { getSessionId(): string } } {
+  return { sessionManager: { getSessionId: () => sessionId } }
+}
+
+/**
+ * A re-armed session must get a SHORT nudge, never a second ~17KB directive: the
+ * transcript already holds every rule, so the reminder stays under 400 chars and
+ * carries no "<ultrawork-mode>" open tag that would read as a fresh block.
+ */
+function expectReminderMessage(pi: FakeExtensionAPI, index: number): void {
+  const call = pi.messages[index]
+  expect(call?.message["customType"]).toBe(ULTRAWORK_CUSTOM_TYPE)
+  expect(call?.message["display"]).toBe(false)
+  const content = call?.message["content"]
+  if (typeof content !== "string") {
+    throw new Error("expected a string reminder message")
+  }
+  expect(content.length).toBeLessThan(400)
+  expect(content).not.toContain("<ultrawork-mode>")
+  expect(content).not.toBe(SENPI_ULTRAWORK_DIRECTIVE)
 }
 
 /** The directive must ride in as ONE hidden custom message, never as rewritten user text. */
@@ -338,6 +365,165 @@ describe("omo-senpi ultrawork component", () => {
       expect(result).toEqual({ action: "continue" })
       expect(pi.messages).toHaveLength(1)
     }
+  })
+
+  it("#given an armed session #when a second trigger dispatches #then injects a short reminder instead of the full directive", async () => {
+    // given: the first trigger of a session arms the full directive once
+    const pi = new FakeExtensionAPI()
+    await createUltraworkComponent().register(pi, createTestContext(pi))
+    await pi.dispatch("session_start", {}, sessionEventCtx("session-a"))
+    await dispatchInput(pi, "ulw first pass")
+    expect(pi.messages[0]?.message["content"]).toBe(SENPI_ULTRAWORK_DIRECTIVE)
+
+    // when
+    const result = await dispatchInput(pi, "ulw second pass")
+
+    // then: the transcript already holds the directive, so only a nudge rides in
+    expect(result).toEqual({ action: "continue" })
+    expect(pi.messages).toHaveLength(2)
+    expectReminderMessage(pi, 1)
+  })
+
+  it("#given an armed session #when the session compacts #then the next trigger injects the full directive again", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    await createUltraworkComponent().register(pi, createTestContext(pi))
+    await pi.dispatch("session_start", {}, sessionEventCtx("session-a"))
+    await dispatchInput(pi, "ulw first pass")
+
+    // when: an accepted compaction drops the transcript block that held the directive
+    await pi.dispatch("session_compact", { type: "session_compact", accepted: true }, sessionEventCtx("session-a"))
+    const result = await dispatchInput(pi, "ulw after compact")
+
+    // then
+    expect(result).toEqual({ action: "continue" })
+    expect(pi.messages).toHaveLength(2)
+    expect(pi.messages[1]?.message["content"]).toBe(SENPI_ULTRAWORK_DIRECTIVE)
+  })
+
+  it("#given an armed session #when a compaction is rejected #then the next trigger stays a reminder", async () => {
+    // given: a rejected compaction leaves the transcript (and the directive) intact
+    const pi = new FakeExtensionAPI()
+    await createUltraworkComponent().register(pi, createTestContext(pi))
+    await pi.dispatch("session_start", {}, sessionEventCtx("session-a"))
+    await dispatchInput(pi, "ulw first pass")
+
+    // when
+    await pi.dispatch("session_compact", { type: "session_compact", accepted: false }, sessionEventCtx("session-a"))
+    const result = await dispatchInput(pi, "ulw after rejected compact")
+
+    // then
+    expect(result).toEqual({ action: "continue" })
+    expect(pi.messages).toHaveLength(2)
+    expectReminderMessage(pi, 1)
+  })
+
+  it("#given a known fresh session #when the first trigger dispatches #then injects the full directive byte-identically", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    await createUltraworkComponent().register(pi, createTestContext(pi))
+    await pi.dispatch("session_start", {}, sessionEventCtx("session-a"))
+
+    // when
+    const result = await dispatchInput(pi, "ulw first pass")
+
+    // then
+    expectHiddenInjection(pi, result)
+  })
+
+  it("#given an armed session #when a queued trigger dispatches #then the transform appends the reminder not the directive", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    await createUltraworkComponent().register(pi, createTestContext(pi))
+    await pi.dispatch("session_start", {}, sessionEventCtx("session-a"))
+    const first = await dispatchInput(pi, "ulw queued first", "interactive", "steer")
+    expect(first).toEqual({ action: "transform", text: `ulw queued first\n${SENPI_ULTRAWORK_DIRECTIVE}` })
+
+    // when
+    const prompt = "ulw queued second"
+    const result = await dispatchInput(pi, prompt, "interactive", "steer")
+
+    // then: still atomic with the queued message, but only the short reminder
+    expect(pi.messages).toHaveLength(0)
+    expect(result).toMatchObject({ action: "transform" })
+    const text = (result as { text: string }).text
+    expect(text.startsWith(`${prompt}\n`)).toBe(true)
+    const appended = text.slice(prompt.length + 1)
+    expect(appended.length).toBeLessThan(400)
+    expect(appended).not.toContain("<ultrawork-mode>")
+  })
+
+  it("#given a pasted directive block #when the next plain trigger dispatches #then injects the reminder not a second full copy", async () => {
+    // given: the pasted transcript already carries the full directive
+    const pi = new FakeExtensionAPI()
+    await createUltraworkComponent().register(pi, createTestContext(pi))
+    await pi.dispatch("session_start", {}, sessionEventCtx("session-a"))
+    await dispatchInput(pi, "이 기록 확인해줘 <ultrawork-mode>\n# Role\n</ultrawork-mode> 그리고 ulw 모드로 부탁해")
+    expect(pi.messages).toHaveLength(0)
+
+    // when
+    const result = await dispatchInput(pi, "ulw keep going")
+
+    // then
+    expect(result).toEqual({ action: "continue" })
+    expect(pi.messages).toHaveLength(1)
+    expectReminderMessage(pi, 0)
+  })
+
+  it("#given /skill:ultrawork expanded inline #when the next plain trigger dispatches #then injects the reminder not a second full copy", async () => {
+    // given: the skill expansion inlines the full SKILL.md, whose body IS the directive
+    const pi = new FakeExtensionAPI()
+    await createUltraworkComponent().register(pi, createTestContext(pi))
+    await pi.dispatch("session_start", {}, sessionEventCtx("session-a"))
+    await dispatchInput(pi, "/skill:ultrawork fix this login bug")
+    expect(pi.messages).toHaveLength(0)
+
+    // when
+    const result = await dispatchInput(pi, "ulw keep going")
+
+    // then
+    expect(result).toEqual({ action: "continue" })
+    expect(pi.messages).toHaveLength(1)
+    expectReminderMessage(pi, 0)
+  })
+
+  it("#given two armed sessions #when switching back to the first #then the next trigger is the reminder", async () => {
+    // given: both sessions hold the directive in their own transcripts
+    const pi = new FakeExtensionAPI()
+    await createUltraworkComponent().register(pi, createTestContext(pi))
+    await pi.dispatch("session_start", {}, sessionEventCtx("session-a"))
+    await dispatchInput(pi, "ulw in a")
+    await pi.dispatch("session_start", {}, sessionEventCtx("session-b"))
+    await dispatchInput(pi, "ulw in b")
+    expect(pi.messages).toHaveLength(2)
+
+    // when: back in session A; dropping its arming here would re-inject ~17KB it still holds
+    await pi.dispatch("session_before_switch", {}, sessionEventCtx("session-b"))
+    await pi.dispatch("session_start", {}, sessionEventCtx("session-a"))
+    const result = await dispatchInput(pi, "ulw in a again")
+
+    // then
+    expect(result).toEqual({ action: "continue" })
+    expect(pi.messages).toHaveLength(3)
+    expect(pi.messages[0]?.message["content"]).toBe(SENPI_ULTRAWORK_DIRECTIVE)
+    expect(pi.messages[1]?.message["content"]).toBe(SENPI_ULTRAWORK_DIRECTIVE)
+    expectReminderMessage(pi, 2)
+  })
+
+  it("#given the input event ctx carries the session id #when a second trigger dispatches #then injects the reminder without any session events", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    await createUltraworkComponent().register(pi, createTestContext(pi))
+    await dispatchInput(pi, "ulw first pass", "interactive", undefined, sessionEventCtx("session-a"))
+
+    // when
+    const result = await dispatchInput(pi, "ulw second pass", "interactive", undefined, sessionEventCtx("session-a"))
+
+    // then
+    expect(result).toEqual({ action: "continue" })
+    expect(pi.messages).toHaveLength(2)
+    expect(pi.messages[0]?.message["content"]).toBe(SENPI_ULTRAWORK_DIRECTIVE)
+    expectReminderMessage(pi, 1)
   })
 
   it("#given synced senpi skill artifact #when description is read #then documents hidden injection instead of inviting a re-read", () => {
