@@ -1,5 +1,7 @@
 import { resolveModelIDAlias } from "../model-capability-aliases"
 import { detectHeuristicModelFamily } from "../model-capability-heuristics"
+import { parseVariantFromModelID } from "../model-string-parser"
+import type { ModelMetadata, ProviderCache } from "../provider-cache"
 
 import {
 	readRuntimeModel,
@@ -41,12 +43,29 @@ function getProviderOverride(providerID: string, modelID: string): ModelCapabili
 		: undefined
 }
 
+// The provider cache matches ids exactly (`entry.id === modelID`), so a request carrying a
+// reasoning suffix never finds the bare model the provider advertised, and an explicitly
+// stated capability would be lost to heuristics. The exact id is tried first so a suffixed
+// cache entry still wins; only then is the suffix-stripped form consulted.
+function findProviderMetadata(
+	providerCache: ProviderCache | undefined,
+	providerID: string,
+	modelID: string,
+): ModelMetadata | undefined {
+	if (!providerCache) return undefined
+	const exactMatch = providerCache.findProviderModelMetadata(providerID, modelID)
+	if (exactMatch) return exactMatch
+	const bareModelID = parseVariantFromModelID(modelID, { allowMaxSuffix: true }).modelID
+	if (!bareModelID || bareModelID === modelID) return undefined
+	return providerCache.findProviderModelMetadata(providerID, bareModelID)
+}
+
 export function getModelCapabilities(input: GetModelCapabilitiesInput): ModelCapabilities {
 	const canonicalization = resolveModelIDAlias(input.modelID, input.providerID)
 	const override = getOverride(input.modelID)
 	const providerOverride = getProviderOverride(input.providerID, canonicalization.canonicalModelID)
 	const runtimeModel = readRuntimeModel(
-		input.runtimeModel ?? input.providerCache?.findProviderModelMetadata(input.providerID, input.modelID),
+		input.runtimeModel ?? findProviderMetadata(input.providerCache, input.providerID, input.modelID),
 	)
 	const runtimeSnapshot = input.runtimeSnapshot
 	const bundledSnapshot = input.bundledSnapshot
