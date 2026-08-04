@@ -123,6 +123,41 @@ describe("createInProcessManagedRunner", () => {
     // then
     expect(captured).toMatchObject({ requestedModel, fallbackModels })
   })
+
+  test("#given a managed resume spec #when resumed #then it maps every persisted tool and model fact to ChildSpec", async () => {
+    // given
+    let captured: ChildSpec | undefined
+    let capturedPath: string | undefined
+    const runner: InProcessRunnerLike = {
+      start: () => Promise.resolve(fakeInProcessHandle({ status: "completed", finalResponse: "ok" })),
+      resume: (spec, sessionPath) => {
+        captured = spec
+        capturedPath = sessionPath
+        return Promise.resolve(fakeInProcessHandle({ status: "completed", finalResponse: "ok" }))
+      },
+    }
+    const managed = createInProcessManagedRunner(runner)
+    const resolvedModel = {
+      source: "agent",
+      provider: "anthropic",
+      model_id: "claude",
+      display: "Claude",
+    } as const
+
+    // when
+    await managed.resume?.({
+      ...managedSpec(),
+      resolvedModel,
+      toolDenylist: ["write"],
+      memberScopedToolNames: ["team_ping"],
+    }, "/tmp/session.jsonl")
+
+    // then
+    expect(capturedPath).toBe("/tmp/session.jsonl")
+    expect(captured?.resolvedModel).toEqual(resolvedModel)
+    expect(captured?.toolDenylist).toEqual(["write"])
+    expect(captured?.memberScopedToolNames).toEqual(["team_ping"])
+  })
 })
 
 describe("createRpcManagedRunner", () => {

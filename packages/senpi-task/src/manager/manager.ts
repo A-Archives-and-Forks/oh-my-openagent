@@ -1,5 +1,3 @@
-import { join } from "node:path"
-
 import { log } from "@oh-my-opencode/utils"
 
 import { registerLifecycleReattachPorts, type ReattachResult, type RespawnResult } from "../lifecycle/port"
@@ -12,7 +10,7 @@ import { TaskIdSpaceExhaustedError } from "../state/id"
 import type { TaskRecord, TaskRunStats } from "../state"
 import { createSteeringEngine } from "../steering"
 import type { CancelOutcome, DestructionPort, InterruptOutcome, SendInput, SendOutcome, SteeringEngine, SteeringPort } from "../steering"
-import { adaptRpcHandle, discardManagedHandle, discardRpcHandle, type ManagedChildHandle, type ManagedChildListener } from "./child-handle"
+import { discardManagedHandle, type ManagedChildHandle, type ManagedChildListener } from "./child-handle"
 import { TaskConcurrency } from "./concurrency"
 import { decideDepthPolicy } from "./depth-policy"
 import { onceOnly } from "./once-only"
@@ -29,7 +27,7 @@ import {
 } from "./manager-helpers"
 import { createOutcomeTracker, type OutcomeTracker } from "./manager-outcome"
 import { claimTaskRecord, TaskRecordCollisionError } from "../store"
-import { sessionTailNeedsContinuation } from "./interrupted-turn"
+import { reattachManagedTask, respawnManagedTask } from "./manager-respawn"
 import { NameRegistry } from "./names"
 import { createRunStatsTracker, type RunStatsTracker } from "../run-stats"
 import { subscribeTranscriptLog } from "./transcript-log"
@@ -83,9 +81,6 @@ type ReattachingTaskManager = TaskManager & {
 
 const NOOP_DESTRUCTION: DestructionPort = { destroyResidentTask: () => Promise.resolve() }
 const GENERIC_START_FAILURE_MESSAGE = "Task runner failed to start."
-const RESPAWN_CLEANUP_FAILURE_REASON = "rpc respawn cleanup failed"
-const CONTINUATION_MESSAGE =
-  "Your previous turn was interrupted by a host process restart. Resume your task from its current state and finish it - do not restart from scratch, and do not repeat work already recorded in this session."
 
 function publicStartFailureMessage(error: unknown): string {
   try {
@@ -423,97 +418,42 @@ class TaskManagerImpl implements TaskManager {
     return record.notify_on_terminal
   }
 
-  async respawn(record: TaskRecord, resumeSessionPath: string): Promise<RespawnResult> {
-    const spawnSpec = record.spawn_spec
-    if (spawnSpec === undefined) return { ok: false, reason: "persisted spawn spec unavailable" }
-
-    let handle: RpcChildHandle | undefined
-    try {
-      const trustedLaunch = this.#options.trustedRespawnLaunch === undefined
-        ? undefined
-        : await this.#options.trustedRespawnLaunch(record)
-      handle = this.#rpcRespawnRunner.start({
-        task_id: record.task_id,
-        cwd: spawnSpec.cwd,
-        state_dir: join(this.#options.store.stateDir, "children", record.task_id),
-        prompt: "",
-        resumeSessionPath,
-        model: record.model,
-        ...(record.resolved_model?.variant === undefined ? {} : { variant: record.resolved_model.variant }),
-        ...(trustedLaunch?.extensions === undefined ? {} : { extensions: trustedLaunch.extensions }),
-        ...(trustedLaunch?.memberEnv === undefined ? {} : { memberEnv: trustedLaunch.memberEnv }),
-      })
-      const switchSession = handle.switchSession
-      if (switchSession === undefined) {
-        if (!(await this.#disposeFailedRespawn(handle))) return { ok: false, reason: RESPAWN_CLEANUP_FAILURE_REASON }
-        return { ok: false, reason: "respawned RPC handle cannot switch sessions" }
-      }
-      const switched = await switchSession(resumeSessionPath)
-      if (switched.cancelled) {
-        if (!(await this.#disposeFailedRespawn(handle))) return { ok: false, reason: RESPAWN_CLEANUP_FAILURE_REASON }
-        return { ok: false, reason: "switch_session was cancelled" }
-      }
-      if (await sessionTailNeedsContinuation(resumeSessionPath)) {
-        try {
-          await handle.followUp(CONTINUATION_MESSAGE)
-        } catch {
-          if (!(await this.#disposeFailedRespawn(handle))) return { ok: false, reason: RESPAWN_CLEANUP_FAILURE_REASON }
-          return { ok: false, reason: "rpc respawn failed" }
-        }
-      }
-      return { ok: true, handle: adaptRpcHandle(handle) }
-    } catch (error) { // no-excuse-ok: catch - RPC respawn boundary converts failures into a typed result.
-      const cleanedUp = handle === undefined || await this.#disposeFailedRespawn(handle)
-      log("senpi-task rpc respawn failed", { taskId: record.task_id, error: String(error) })
-      return { ok: false, reason: cleanedUp ? "rpc respawn failed" : RESPAWN_CLEANUP_FAILURE_REASON }
-    }
+  respawn(record: TaskRecord, resumeSessionPath: string): Promise<RespawnResult> {
+    return respawnManagedTask({
+      record,
+      sessionPath: resumeSessionPath,
+      stateDir: this.#options.store.stateDir,
+      runners: this.#options.runners,
+      rpcRunner: this.#rpcRespawnRunner,
+      ...(this.#options.trustedRespawnLaunch === undefined
+        ? {}
+        : { trustedLaunch: this.#options.trustedRespawnLaunch }),
+    })
   }
 
-  async reattach(record: TaskRecord, handle: ManagedChildHandle): Promise<ReattachResult> {
-    if (this.#live.has(record.task_id)) {
-      await discardManagedHandle(handle)
-      return { ok: false, kind: "already_attached", reason: "task already has a live handle" }
-    }
-    let unsubscribe: (() => void) | undefined
-    let acquiredEpoch: number | undefined
-    try {
-      unsubscribe = this.#subscribeChildFacts(handle, record.task_id)
-      this.#live.set(record.task_id, { handle, model: record.model, unsubscribe })
-      this.#attachChildSubscribers(record.task_id, handle)
-      if (isTerminalRecord(record) && record.status !== "lost") {
-        this.#options.store.replace({
-          ...record,
-          residency_state: "resident",
-          host_pid: this.#hostPid,
-          updated_at: nowIso(this.#now),
-          ...(handle.pid === undefined ? {} : { pid: handle.pid }),
-        })
-        return { ok: true }
-      }
-
-      const { error_message: _error, final_response: _final, killed: _killed, ...rest } = record
-      const reattached: TaskRecord = {
-        ...rest,
-        status: "running",
-        residency_state: "resident",
-        host_pid: this.#hostPid,
-        updated_at: nowIso(this.#now),
-        notification: { ...record.notification, run_epoch: record.notification.run_epoch + 1 },
-        ...(handle.pid === undefined ? {} : { pid: handle.pid }),
-      }
-      this.#options.store.replace(reattached)
-      acquiredEpoch = reattached.notification.run_epoch
-      this.#concurrency.acquire(record.model, record.task_id)
-      this.#outcome.trackOutcome(record.task_id, handle, record.model, acquiredEpoch)
-      return { ok: true }
-    } catch (error) { // no-excuse-ok: catch - ownership-transfer boundary converts setup failure into a typed result.
-      unsubscribe?.()
-      if (this.#live.get(record.task_id)?.handle === handle) this.#live.delete(record.task_id)
-      if (acquiredEpoch !== undefined) this.#releaseSlot(record.task_id, record.model, acquiredEpoch)
-      await discardManagedHandle(handle)
-      log("senpi-task rpc reattach failed", { taskId: record.task_id, error: String(error) })
-      return { ok: false, kind: "failed", reason: "manager reattach failed" }
-    }
+  reattach(record: TaskRecord, handle: ManagedChildHandle): Promise<ReattachResult> {
+    return reattachManagedTask({
+      record,
+      handle,
+      store: this.#options.store,
+      hostPid: this.#hostPid,
+      now: this.#now,
+      isAttached: (taskId) => this.#live.has(taskId),
+      attachLive: (fresh, attachedHandle) => {
+        const unsubscribe = this.#subscribeChildFacts(attachedHandle, fresh.task_id)
+        this.#live.set(fresh.task_id, { handle: attachedHandle, model: fresh.model, unsubscribe })
+        this.#attachChildSubscribers(fresh.task_id, attachedHandle)
+        return unsubscribe
+      },
+      detachLive: (taskId, attachedHandle, unsubscribe) => {
+        unsubscribe()
+        if (this.#live.get(taskId)?.handle === attachedHandle) this.#live.delete(taskId)
+      },
+      armOutcome: (fresh, attachedHandle, epoch) => {
+        this.#concurrency.acquire(fresh.model, fresh.task_id)
+        this.#outcome.trackOutcome(fresh.task_id, attachedHandle, fresh.model, epoch)
+      },
+    })
   }
 
   waitFor(taskId: string, options?: { readonly signal?: AbortSignal }): Promise<TaskRecord> {
@@ -555,16 +495,6 @@ class TaskManagerImpl implements TaskManager {
 
   // Test-only observability for proving the release guard never grows unboundedly across revives.
   releasedKeyCount(): number { return this.#released.size }
-
-  async #disposeFailedRespawn(handle: RpcChildHandle): Promise<boolean> {
-    try {
-      await discardRpcHandle(handle)
-      return true
-    } catch (error) { // no-excuse-ok: catch - cleanup failure is logged and returned through RespawnResult.
-      log("senpi-task failed respawn cleanup rejected", { taskId: handle.task_id, error: String(error) })
-      return false
-    }
-  }
 
   async #launch(context: LaunchContext): Promise<{ ok: true } | { ok: false; error: string }> {
     const { record, managedSpec, runner, model } = context

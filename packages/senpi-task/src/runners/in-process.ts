@@ -49,6 +49,7 @@ export type ChildSpec = {
   readonly selectedModel?: string
   readonly requestedModel?: ResolvedModelRecord
   readonly fallbackModels?: readonly ResolvedModelRecord[]
+  readonly resolvedModel?: ResolvedModelRecord
   readonly toolAllowlist?: readonly string[]
   // Denylist mapped onto senpi's real deny field `excludeTools` (`tools:` is the allowlist and does
   // NOT deny). Sourced from record.tool_deny (the agent definition's disallowedTools).

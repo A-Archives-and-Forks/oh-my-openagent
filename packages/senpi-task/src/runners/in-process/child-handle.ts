@@ -26,6 +26,7 @@ export type RunnerFailure = {
     | "child-turn-failed"
     | "session-create-failed"
     | "depth-exceeded"
+    | "model_unavailable"
     | "tools_unavailable"
     | "session_unavailable"
   readonly message: string

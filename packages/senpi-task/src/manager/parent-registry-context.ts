@@ -1,7 +1,11 @@
 import type { CreateAgentSessionOptions } from "@code-yeongyu/senpi"
 
 import { asSenpiThinkingLevel } from "../senpi/thinking-level"
-import type { InProcessSessionContext, InProcessSessionContextProvider } from "./runner"
+import type {
+  InProcessSessionContext,
+  InProcessSessionContextProvider,
+  ResumeSessionContextResult,
+} from "./runner"
 import type { ManagedStartSpec } from "./types"
 
 // The concrete senpi ModelRegistry the parent session owns. `createAgentSession` needs this exact
@@ -30,7 +34,7 @@ type ModelFinder<TModel> = {
 export function createParentRegistrySessionContext(
   resolveRegistry: ParentModelRegistryResolver,
 ): InProcessSessionContextProvider {
-  return (spec: ManagedStartSpec): InProcessSessionContext => {
+  const provide = (spec: ManagedStartSpec): InProcessSessionContext => {
     const registry = resolveRegistry()
     if (registry === undefined) return {}
     const model = spec.model === undefined ? undefined : findModelReference(registry, spec.model)
@@ -44,6 +48,9 @@ export function createParentRegistrySessionContext(
       ...(thinkingLevel !== undefined && { thinkingLevel }),
     }
   }
+  return Object.assign(provide, {
+    resolveResumeContext: (spec: ManagedStartSpec) => resolveResumeContext(resolveRegistry, spec),
+  })
 }
 
 /**
@@ -101,6 +108,4 @@ export function resolveResumeContext(
   return { ok: true, context }
 }
 
-export type ResumeContextResult =
-  | { readonly ok: true; readonly context: InProcessSessionContext }
-  | { readonly ok: false; readonly code: "model_unavailable"; readonly reason: string }
+export type ResumeContextResult = ResumeSessionContextResult

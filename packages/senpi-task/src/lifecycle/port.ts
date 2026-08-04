@@ -47,9 +47,21 @@ export type ProcessSignaller = {
   signal(pid: number, signal: "SIGTERM" | "SIGKILL"): void
 }
 
+export type RespawnFailureCode =
+  | "model_unavailable"
+  | "tools_unavailable"
+  | "spawn_spec_unavailable"
+  | "session_unavailable"
+  | "respawn_failed"
+
 export type RespawnResult =
   | { readonly ok: true; readonly handle: ManagedChildHandle }
-  | { readonly ok: false; readonly reason: string }
+  | {
+      readonly ok: false
+      readonly disposition: "retryable" | "unrecoverable"
+      readonly code: RespawnFailureCode
+      readonly reason: string
+    }
 
 export type ReattachResult =
   | { readonly ok: true }
