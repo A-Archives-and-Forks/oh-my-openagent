@@ -282,14 +282,14 @@ describe("omo-senpi task component wiring", () => {
           order.push(`reattach:${sessionId}`)
           return { outcomes: [] }
         },
-        cleanupExpiredRecords: () => {
+        cleanupExpiredRecords: async () => {
           order.push("cleanup")
           return { deleted: [], retained: [] }
         },
       },
       notifier: {
         ...base.notifier,
-        reconcileFailedNotifications: () => { order.push("notify") },
+        reconcileUnnotifiedNotifications: () => { order.push("notify") },
       },
     }
     const transitions = createSessionTransitionBridge({ runtime: engine.runtime, notifier: engine.notifier })
@@ -315,7 +315,7 @@ describe("omo-senpi task component wiring", () => {
     })
 
     // then
-    expect(order).toEqual(["reattach:session-a", "cleanup", "reclaim", "notify", "poll"])
+    expect(order).toEqual(["reattach:session-a", "reclaim", "notify", "cleanup", "poll"])
   })
 
   it("#given a terminal member owned by lead A #when lead B reconciles then lead A reconciles #then only the owning lead receives replay", async () => {
@@ -331,7 +331,7 @@ describe("omo-senpi task component wiring", () => {
       lifecycle: {
         ...base.lifecycle,
         reconcileOnSessionStart: async () => ({ outcomes: [{ task_id: terminal.task_id, kind: "resumed" }] }),
-        cleanupExpiredRecords: () => ({ deleted: [], retained: [] }),
+        cleanupExpiredRecords: async () => ({ deleted: [], retained: [] }),
       },
     }
     const transitions = createSessionTransitionBridge({ runtime: engine.runtime, notifier: engine.notifier })
@@ -385,7 +385,7 @@ describe("omo-senpi task component wiring", () => {
       lifecycle: {
         ...base.lifecycle,
         reconcileOnSessionStart: async () => ({ outcomes: [{ task_id: terminal.task_id, kind: "resumed" }] }),
-        cleanupExpiredRecords: () => ({ deleted: [], retained: [] }),
+        cleanupExpiredRecords: async () => ({ deleted: [], retained: [] }),
       },
     }
     const transitions = createSessionTransitionBridge({ runtime: engine.runtime, notifier: engine.notifier })

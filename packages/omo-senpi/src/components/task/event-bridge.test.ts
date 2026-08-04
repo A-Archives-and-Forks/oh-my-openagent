@@ -1,7 +1,13 @@
 import { describe, expect, it } from "bun:test"
 
 import type { SessionShutdownEvent } from "@code-yeongyu/senpi"
-import type { SuspendInput, SuspendSummary, TaskLifecycle } from "@oh-my-opencode/senpi-task"
+import type {
+  ReconcileResult,
+  SuspendInput,
+  SuspendSummary,
+  TaskLifecycle,
+  TaskRecord,
+} from "@oh-my-opencode/senpi-task"
 
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import type { ComponentContext } from "../../extension/types"
@@ -18,15 +24,27 @@ const fakeSummary: SuspendSummary = {
   failures: [],
 }
 
-function wireHarness(sessionId?: string) {
+type HarnessOptions = {
+  readonly outcomes?: ReconcileResult["outcomes"]
+  readonly records?: Readonly<Record<string, TaskRecord>>
+  readonly cleanupDeleted?: readonly string[]
+}
+
+function wireHarness(sessionId?: string, options: HarnessOptions = {}) {
   const pi = new FakeExtensionAPI()
   const calls: SuspendInput[] = []
   const order: string[] = []
   const warnings: Array<{ message: string; details?: unknown }> = []
+  const infos: Array<{ message: string; details?: unknown }> = []
+  const reconcileCalls: Array<string | undefined> = []
+  const notifyCalls: Array<{ sessionId: string; parentState: unknown }> = []
+  const livenessCalls: string[] = []
 
   const engine = {
     runtime: {
-      captureFrom: () => {},
+      captureFrom: () => {
+        order.push("capture")
+      },
       sessionId: () => sessionId,
       clearUi: () => {
         order.push("clearUi")
@@ -41,24 +59,47 @@ function wireHarness(sessionId?: string) {
       },
       destroyResidentTask: async () => {},
       admitResident: async () => ({ kind: "admitted" as const }),
-      reconcileOnSessionStart: async () => ({ outcomes: [] }),
-      cleanupExpiredRecords: () => ({ deleted: [] as readonly string[], retained: [] as readonly string[] }),
+      reconcileOnSessionStart: async (parentSessionId?: string) => {
+        reconcileCalls.push(parentSessionId)
+        order.push("reconcile")
+        return { outcomes: options.outcomes ?? [] }
+      },
+      // Two markers make a missing `await` observable: without it the next chain step ("poll")
+      // would land between cleanup:start and cleanup:end.
+      cleanupExpiredRecords: async () => {
+        order.push("cleanup:start")
+        await Promise.resolve()
+        order.push("cleanup:end")
+        return { deleted: options.cleanupDeleted ?? [], retained: [] as readonly string[] }
+      },
     } satisfies Partial<TaskLifecycle> as unknown as TaskLifecycle,
-    manager: { get: () => undefined } as unknown as TaskEngine["manager"],
-    notifier: { reconcileFailedNotifications: () => {} } as unknown as TaskEngine["notifier"],
+    manager: {
+      get: (taskId: string) => options.records?.[taskId],
+    } as unknown as TaskEngine["manager"],
+    notifier: {
+      reconcileUnnotifiedNotifications: (input: { sessionId: string; parentState: unknown }) => {
+        notifyCalls.push(input)
+        order.push("notify")
+      },
+    } as unknown as TaskEngine["notifier"],
     planner: {} as TaskEngine["planner"],
     agents: {},
     omoConfig: {} as TaskEngine["omoConfig"],
     settings: {} as TaskEngine["settings"],
     stateDir: "",
     memberLiveness: { acknowledgePersisted: async () => {} } as unknown as TaskEngine["memberLiveness"],
-    notifyOwnedMemberLiveness: async () => {},
+    notifyOwnedMemberLiveness: async (record: TaskRecord) => {
+      livenessCalls.push(record.task_id)
+      order.push(`liveness:${record.task_id}`)
+    },
     appendTaskEvent: () => {},
     onStoreMutation: () => () => {},
   } as unknown as TaskEngine
 
   const statusUi = {
-    scheduleSync: () => {},
+    scheduleSync: () => {
+      order.push("statusSync")
+    },
     syncNow: () => {},
     dispose: () => {
       order.push("dispose")
@@ -72,13 +113,19 @@ function wireHarness(sessionId?: string) {
     onShutdown: () => {
       order.push("transition")
     },
-    onSessionStart: () => {},
+    onSessionStart: () => {
+      order.push("onSessionStart")
+    },
   } as unknown as SessionTransitionBridge
 
   const state = {
-    reconcileTeamMailbox: async () => {},
+    reconcileTeamMailbox: async () => {
+      order.push("reclaim")
+    },
     leadPollers: {
-      tick: async () => {},
+      tick: async () => {
+        order.push("poll")
+      },
       shutdown: () => {
         order.push("leadShutdown")
       },
@@ -87,7 +134,9 @@ function wireHarness(sessionId?: string) {
 
   const ctx = {
     logger: {
-      info: () => {},
+      info: (message: string, details?: unknown) => {
+        infos.push({ message, details })
+      },
       warn: (message: string, details?: unknown) => {
         warnings.push({ message, details })
       },
@@ -98,8 +147,79 @@ function wireHarness(sessionId?: string) {
 
   wireEventBridge(pi, ctx, engine, statusUi, transitions, state)
 
-  return { pi, calls, order, warnings }
+  return { pi, calls, order, warnings, infos, reconcileCalls, notifyCalls, livenessCalls }
 }
+
+describe("event-bridge session_start recovery chain", () => {
+  it("#given a resumed session with a revived record #when session_start fires #then the chain runs in the planned order with the session id threaded", async () => {
+    // given
+    const revived = { task_id: "task-revived" } as TaskRecord
+    const { pi, order, reconcileCalls, notifyCalls, livenessCalls } = wireHarness("parent-session", {
+      outcomes: [
+        { task_id: "task-revived", kind: "resumed" },
+        { task_id: "task-gone", kind: "resumed" },
+      ],
+      records: { "task-revived": revived },
+    })
+
+    // when
+    await pi.dispatch("session_start", {}, {})
+
+    // then
+    expect(order).toEqual([
+      "capture",
+      "onSessionStart",
+      "reconcile",
+      "liveness:task-revived",
+      "reclaim",
+      "notify",
+      "cleanup:start",
+      "cleanup:end",
+      "poll",
+      "statusSync",
+    ])
+    expect(reconcileCalls).toEqual(["parent-session"])
+    expect(notifyCalls).toEqual([{ sessionId: "parent-session", parentState: { kind: "idle" } }])
+    expect(livenessCalls).toEqual(["task-revived"])
+  })
+
+  it("#given no captured session id #when session_start fires #then the legacy sweep still runs with undefined while the scoped notification branch is skipped", async () => {
+    // given
+    const { pi, order, reconcileCalls, notifyCalls, warnings } = wireHarness(undefined)
+
+    // when
+    await pi.dispatch("session_start", {}, {})
+
+    // then
+    expect(reconcileCalls).toEqual([undefined])
+    expect(notifyCalls).toHaveLength(0)
+    expect(order).toEqual([
+      "capture",
+      "onSessionStart",
+      "reconcile",
+      "reclaim",
+      "cleanup:start",
+      "cleanup:end",
+      "poll",
+      "statusSync",
+    ])
+    expect(warnings).toHaveLength(0)
+  })
+
+  it("#given expired records #when session_start fires #then the awaited ttl cleanup runs after notification reconcile and logs deletions", async () => {
+    // given
+    const { pi, order, infos } = wireHarness("parent-session", { cleanupDeleted: ["task-old"] })
+
+    // when
+    await pi.dispatch("session_start", {}, {})
+
+    // then
+    expect(order.indexOf("cleanup:start")).toBeGreaterThan(order.indexOf("notify"))
+    expect(order.indexOf("poll")).toBeGreaterThan(order.indexOf("cleanup:end"))
+    expect(infos).toHaveLength(1)
+    expect(infos[0]?.message).toContain("ttl cleanup")
+  })
+})
 
 describe("event-bridge session_shutdown", () => {
   it("#given a session_shutdown with a reason and a captured session id #when the event fires #then it suspends with parentSessionId and reason", async () => {
@@ -114,7 +234,7 @@ describe("event-bridge session_shutdown", () => {
     )
 
     // then
-    expect(order).toEqual(["transition", "clearUi", "dispose", "leadShutdown", "suspend"])
+    expect(order).toEqual(["capture", "transition", "clearUi", "dispose", "leadShutdown", "suspend"])
     expect(calls).toEqual([{ parentSessionId: "parent-session", reason: "quit" }])
   })
 
@@ -130,7 +250,7 @@ describe("event-bridge session_shutdown", () => {
     )
 
     // then
-    expect(order).toEqual(["transition", "clearUi", "dispose", "leadShutdown"])
+    expect(order).toEqual(["capture", "transition", "clearUi", "dispose", "leadShutdown"])
     expect(calls).toHaveLength(0)
     expect(warnings).toHaveLength(1)
     expect(warnings[0]?.message).toContain("session id")
