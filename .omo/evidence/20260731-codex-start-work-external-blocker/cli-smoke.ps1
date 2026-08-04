@@ -70,6 +70,7 @@ Invoke-Hook "A. ordinary answer, plan still has unchecked tasks" "Finished task 
 Invoke-Hook "B. external blocker marker on the FIRST line" "<start-work-blocked-external>`nBlocker: deploy credential DEPLOY_TOKEN is not provisioned.`nResume when the token exists in the vault."
 Invoke-Hook "C. marker mentioned but NOT on the first line" "I might need to emit this later:`n<start-work-blocked-external>"
 Invoke-Hook "D. ultrawork opener followed by blocker marker" "ULTRAWORK MODE ENABLED!`n<start-work-blocked-external>`nBlocker: deploy credential DEPLOY_TOKEN is not provisioned."
+Invoke-Hook "E. bare marker with no stated blocker" "<start-work-blocked-external>"
 
 Remove-Item -Recurse -Force $ws
 Write-Output ""

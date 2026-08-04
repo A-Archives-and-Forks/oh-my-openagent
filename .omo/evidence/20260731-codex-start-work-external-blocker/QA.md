@@ -16,17 +16,24 @@ driven over stdin exactly the way Codex invokes the `Stop` hook, and the real `~
 | 6 | `bun run test:codex` | Codex compatibility gate | Gate status on this machine |
 
 `cli-smoke.ps1` builds a throwaway workspace containing `.omo/boulder.json` (active work, `codex:smoke-session`) and a
-two-task `.omo/plans/test.md`, then fires four payloads that differ ONLY in `last_assistant_message`:
+two-task `.omo/plans/test.md`, then fires five payloads that differ ONLY in `last_assistant_message`:
 
 - **A** ordinary answer -> continuation must still be injected
-- **B** `<start-work-blocked-external>` as the entire first line -> the turn must be allowed to end
+- **B** `<start-work-blocked-external>` as the entire first line, followed by the stated blocker -> the turn must be
+  allowed to end
 - **C** the same marker present but NOT on the first line -> continuation must still be injected (false-positive guard)
-- **D** ultrawork's mandatory `ULTRAWORK MODE ENABLED!` opener followed by the marker on the second line -> the turn must
-  be allowed to end
+- **D** ultrawork's mandatory `ULTRAWORK MODE ENABLED!` opener followed by the marker on the second line, then the
+  stated blocker -> the turn must be allowed to end
+- **E** a bare marker with no stated blocker -> continuation must still be injected (added 2026-08-04)
 
 The contract is therefore not strictly "first line only". The marker is honored as the entire first line, or as the
-entire second line when the ultrawork opener occupies the first. Case D is the only place that second form is exercised,
-and case C is what keeps the allowance structural rather than a substring match.
+entire second line when the ultrawork opener occupies the first, and in both cases at least one following line must
+actually state the blocker. Case D is the only place the second form is exercised, case C keeps the allowance
+structural rather than a substring match, and case E keeps a bare marker from ending the turn.
+
+Case E exists because a marker alone is exactly what a quoted echo, or untrusted text the agent read during the task,
+would produce. `directive.md` already required the blocker and the resume condition on the following lines, so the hook
+now enforces what the directive asks for instead of trusting the marker by itself.
 
 ## What was observed
 
@@ -50,6 +57,7 @@ to the fix alone (`cli-smoke-before-fix.txt`, `cli-smoke-after-fix.txt`):
 | B marker on first line | BLOCK (continuation injected), 9968 bytes | **NO OUTPUT (Stop allowed), 0 bytes** |
 | C marker below first line | BLOCK (continuation injected), 9968 bytes | BLOCK (continuation injected), 10092 bytes |
 | D ultrawork opener, marker on second line | not captured | **NO OUTPUT (Stop allowed), 0 bytes** |
+| E bare marker, no stated blocker | not captured | BLOCK (continuation injected), 10092 bytes |
 
 Case B is the bug and the fix; case D is the ultrawork form of the same allowance. Cases A and C keep the BLOCK verdict
 across the change, so the continuation contract and the false-positive guard are intact.
