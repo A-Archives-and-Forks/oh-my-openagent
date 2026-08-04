@@ -16,11 +16,17 @@ driven over stdin exactly the way Codex invokes the `Stop` hook, and the real `~
 | 6 | `bun run test:codex` | Codex compatibility gate | Gate status on this machine |
 
 `cli-smoke.ps1` builds a throwaway workspace containing `.omo/boulder.json` (active work, `codex:smoke-session`) and a
-two-task `.omo/plans/test.md`, then fires three payloads that differ ONLY in `last_assistant_message`:
+two-task `.omo/plans/test.md`, then fires four payloads that differ ONLY in `last_assistant_message`:
 
 - **A** ordinary answer -> continuation must still be injected
 - **B** `<start-work-blocked-external>` as the entire first line -> the turn must be allowed to end
 - **C** the same marker present but NOT on the first line -> continuation must still be injected (false-positive guard)
+- **D** ultrawork's mandatory `ULTRAWORK MODE ENABLED!` opener followed by the marker on the second line -> the turn must
+  be allowed to end
+
+The contract is therefore not strictly "first line only". The marker is honored as the entire first line, or as the
+entire second line when the ultrawork opener occupies the first. Case D is the only place that second form is exercised,
+and case C is what keeps the allowance structural rather than a substring match.
 
 ## What was observed
 
@@ -40,12 +46,22 @@ to the fix alone (`cli-smoke-before-fix.txt`, `cli-smoke-after-fix.txt`):
 
 | Case | Before fix | After fix |
 |---|---|---|
-| A ordinary answer | BLOCK (continuation injected), 9968 bytes | BLOCK (continuation injected), 9968 bytes |
+| A ordinary answer | BLOCK (continuation injected), 9968 bytes | BLOCK (continuation injected), 10092 bytes |
 | B marker on first line | BLOCK (continuation injected), 9968 bytes | **NO OUTPUT (Stop allowed), 0 bytes** |
-| C marker below first line | BLOCK (continuation injected), 9968 bytes | BLOCK (continuation injected), 9968 bytes |
+| C marker below first line | BLOCK (continuation injected), 9968 bytes | BLOCK (continuation injected), 10092 bytes |
+| D ultrawork opener, marker on second line | not captured | **NO OUTPUT (Stop allowed), 0 bytes** |
 
-Case B is the bug and the fix. Cases A and C are byte-identical across both runs, so the continuation contract and the
-false-positive guard are unchanged.
+Case B is the bug and the fix; case D is the ultrawork form of the same allowance. Cases A and C keep the BLOCK verdict
+across the change, so the continuation contract and the false-positive guard are intact.
+
+Two honest caveats about this table, both corrected on 2026-08-04 after review:
+
+- The A and C payloads are **not** byte-identical across the runs (9968 -> 10092). Only the verdict is unchanged. The
+  reason payload grew because `directive.md` gained the blocker-marker instruction, which is part of this change, so the
+  size delta is expected rather than a regression.
+- Case D has no before-fix row because the ultrawork second-line form was added after `cli-smoke-before-fix.txt` was
+  captured. `cli-smoke-before-fix.txt` contains A, B and C only. Its RED counterpart is the unit seam, where the
+  ultrawork case fails without the fix.
 
 Isolation: the smoke script hashes the real `~/.codex/config.toml` before and after every run and reported
 `unchanged: True` in both. The hook only reads the payload `cwd`; it never touches `CODEX_HOME`. The throwaway
@@ -80,7 +96,7 @@ The defect is that `StopInput.last_assistant_message` was declared in `types.ts`
 `runStopHook()` never read it, so no answer the agent could write would ever end the turn. The evidence closes that at
 both levels: the unit seam pins the decision function, and the built CLI proves the behavior a live Codex `Stop` hook
 would actually produce. The before/after CLI runs cover the fix path, the untouched happy path, and the near-miss
-false positive, and the two non-target cases are byte-identical across the change.
+false positive, and the two non-target cases keep their BLOCK verdict across the change.
 
 Residual risk: the marker is a plain-text contract between `directive.md` and the hook, so a model that ignores the
 directive keeps the old (blocking) behavior. That is the safe direction of failure. A session already mid-flight on an

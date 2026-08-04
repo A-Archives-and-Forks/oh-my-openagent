@@ -1,6 +1,12 @@
 $ErrorActionPreference = "Stop"
-$comp = "C:\Users\pss\OneDrive\Documents\github\oh-my-openagent-144\packages\omo-codex\plugin\components\start-work-continuation"
+# Derive the component from this script's location so the smoke run is reproducible on any
+# checkout instead of only on the machine that first recorded it.
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..\..")).Path
+$comp = Join-Path $repoRoot "packages\omo-codex\plugin\components\start-work-continuation"
 $cli = Join-Path $comp "dist\cli.js"
+if (-not (Test-Path $cli)) {
+    throw "built hook CLI not found at $cli - run 'npm run build' in the component first. Refusing to report stop verdicts against a missing build."
+}
 
 $realCodexConfig = Join-Path $env:USERPROFILE ".codex\config.toml"
 $before = if (Test-Path $realCodexConfig) { (Get-FileHash $realCodexConfig -Algorithm SHA256).Hash } else { "ABSENT" }
@@ -27,15 +33,37 @@ function Invoke-Hook([string]$label, [string]$lastMsg) {
     } | ConvertTo-Json -Compress
     $file = Join-Path $ws "payload.json"
     [System.IO.File]::WriteAllText($file, $payload)
-    $raw = cmd /c "node `"$cli`" hook stop < `"$file`""
+    # A crashed hook writes nothing to stdout, which is indistinguishable from the
+    # "Stop allowed" verdict this script exists to prove. Capture the exit code and stderr so a
+    # failure can never be reported as a passing stop.
+    $errFile = Join-Path $ws "stderr.txt"
+    $raw = cmd /c "node `"$cli`" hook stop < `"$file`" 2> `"$errFile`""
+    $exitCode = $LASTEXITCODE
+    # Get-Content -Raw yields $null for an empty file, so normalize before calling string methods.
+    $stderr = ""
+    if (Test-Path $errFile) {
+        $stderrRaw = Get-Content $errFile -Raw
+        if ($null -ne $stderrRaw) { $stderr = $stderrRaw }
+    }
     $out = ($raw | Where-Object { $_ -notmatch '^Active code page:' }) -join ""
     $trimmed = $out.Trim()
-    $verdict = if ($trimmed -eq "") { "NO OUTPUT (Stop allowed)" } elseif ($trimmed -like '*"decision":"block"*') { "BLOCK (continuation injected)" } else { "UNEXPECTED" }
+    $verdict =
+        if ($exitCode -ne 0) { "HOOK FAILED (exit=$exitCode) - NOT a stop verdict" }
+        elseif ($trimmed -eq "") { "NO OUTPUT (Stop allowed)" }
+        elseif ($trimmed -like '*"decision":"block"*') { "BLOCK (continuation injected)" }
+        else { "UNEXPECTED" }
     Write-Output ""
     Write-Output "=== $label ==="
     Write-Output "last_assistant_message (escaped): $($lastMsg -replace "`n", '\n')"
     Write-Output "observed: $verdict"
+    Write-Output "hook exit code: $exitCode"
     Write-Output "raw output length: $($trimmed.Length)"
+    if ($exitCode -ne 0 -or $stderr.Trim() -ne "") {
+        Write-Output "stderr: $($stderr.Trim())"
+    }
+    if ($exitCode -ne 0) {
+        throw "hook CLI exited $exitCode for case '$label' - the smoke run is inconclusive, not a pass."
+    }
 }
 
 Invoke-Hook "A. ordinary answer, plan still has unchecked tasks" "Finished task one."

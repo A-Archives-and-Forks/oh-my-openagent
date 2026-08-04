@@ -218,6 +218,14 @@ When all top-level checkboxes in `## TODOs` and `## Final Verification Wave` are
 3. Remove or mark the Boulder work as completed.
 4. Print an `ORCHESTRATION COMPLETE` block with the plan path, verification commands, artifacts, and cleanup receipts.
 
+### Conclusive external blocker (Codex)
+
+Some plans stall on something no amount of retrying fixes: a missing credential, missing hardware, a revoked authorization, or an unavailable third-party service. Only the user or external state can clear it.
+
+When you hit one, run ONE authoritative check, then stop retrying and stop reviewer dispatch. Write `<start-work-blocked-external>` as the entire first line of your answer, then state the exact blocker and the observable condition that resumes the work. If ultrawork requires `ULTRAWORK MODE ENABLED!` as the first line, put the marker alone on the second line instead.
+
+The Codex Stop hook recognizes both forms and lets the turn end so the user can act. Any other placement, including merely discussing the marker later in an answer, continues the plan as usual. Use this only for a blocker you have actually confirmed, never to end a turn you simply want to stop.
+
 ## Hard rules
 
 - No production change before a failing-first proof exists (unit test at a seam, otherwise the failing Manual-QA scenario), and no change to existing behavior before a baseline characterization test pins the current behavior and passes on the unchanged code.
