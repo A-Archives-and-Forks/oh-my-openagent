@@ -2,6 +2,7 @@ import type { CreateAgentSessionOptions } from "@code-yeongyu/senpi"
 
 import type { ChildHandle as InProcessChildHandle } from "../runners/in-process/child-handle"
 import type { ChildSpec } from "../runners/in-process"
+import { resolveChildSessionDir } from "../runners/rpc/spawn"
 import type { RpcChildHandle, RpcRunnerSpec } from "../runners/types"
 import { adaptInProcessHandle, adaptRpcHandle, type ManagedChildHandle } from "./child-handle"
 import type { ManagedRunner, ManagedStartSpec } from "./types"
@@ -63,6 +64,9 @@ function toChildSpec(spec: ManagedStartSpec, context: InProcessSessionContext): 
   return {
     taskId: spec.taskId,
     cwd: spec.cwd,
+    // ManagedStartSpec.stateDir is already join(stateDir, "children", taskId); the session dir
+    // nests sessions/<taskId>/ under it, identical to the rpc child's layout (spawn.ts).
+    sessionDir: resolveChildSessionDir(spec.stateDir, spec.taskId),
     depth: spec.depth,
     parentSessionId: spec.parentSessionId,
     rootSessionId: spec.rootSessionId,

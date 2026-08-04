@@ -4,6 +4,7 @@ import type { CreateAgentSessionOptions } from "@code-yeongyu/senpi"
 import type { ChildHandle as InProcessChildHandle, RunnerOutcome } from "../runners/in-process/child-handle"
 import type { ChildSpec } from "../runners/in-process"
 import type { RpcChildHandle, RpcRunnerSpec } from "../runners/types"
+import { resolveChildSessionDir } from "../runners/rpc/spawn"
 import { createInProcessManagedRunner, createRpcManagedRunner, type InProcessRunnerLike, type RpcRunnerLike } from "./runner"
 import type { ManagedStartSpec } from "./types"
 
@@ -80,6 +81,7 @@ describe("createInProcessManagedRunner", () => {
     expect(captured?.agentDir).toBe("/home/user/.senpi/agent")
     expect(captured?.modelRuntime).toBe(modelRuntime)
     expect(captured?.parentSessionId).toBe("parent-1")
+    expect(captured?.sessionDir).toBe(resolveChildSessionDir(managedSpec().stateDir, "st_00000001"))
     expect(outcome).toEqual({ status: "completed", finalResponse: "ok" })
   })
 

@@ -1,13 +1,9 @@
 import { createAgentSession, SessionManager, type CreateAgentSessionOptions, type ToolDefinition } from "@code-yeongyu/senpi"
 
-import { CURATED_READONLY_AGENT_NAMES } from "../agents/builtin"
 import type { ResolvedModelRecord } from "../state"
-import { createChildResourceLoader } from "./in-process/child-loader"
 import { createChildHandle, type ChildHandle, type ChildSession } from "./in-process/child-handle"
-import { createCuratedReadonlyBashTool } from "./in-process/curated-readonly-bash"
-import { createRuntimeFallbackSettings } from "./in-process/runtime-fallback-settings"
+import { buildChildSessionOptions, requireChildSessionDir } from "./in-process/child-options"
 import { RunnerError } from "./in-process/runner-error"
-import { mergeChildCustomTools } from "./in-process/shared-tool-filter"
 import { buildSubagentPrompt } from "./in-process/subagent-prompt"
 
 export type {
@@ -37,6 +33,11 @@ export type DepthPolicy = {
 export type ChildSpec = {
   readonly taskId: string
   readonly cwd: string
+  // Isolated persistence dir for the child's JSONL transcript:
+  // resolveChildSessionDir(join(stateDir, "children", taskId), taskId), shared with the rpc mode so
+  // reconcile's newestSessionPath discovers both modes identically. REQUIRED - a missing dir is a
+  // typed session-create-failed, never a silent inMemory/default-dir fallback.
+  readonly sessionDir: string
   readonly agentDir?: string
   readonly authStorage?: CreateAgentSessionOptions["authStorage"]
   readonly modelRegistry?: CreateAgentSessionOptions["modelRegistry"]
@@ -47,6 +48,12 @@ export type ChildSpec = {
   readonly requestedModel?: ResolvedModelRecord
   readonly fallbackModels?: readonly ResolvedModelRecord[]
   readonly toolAllowlist?: readonly string[]
+  // Denylist mapped onto senpi's real deny field `excludeTools` (`tools:` is the allowlist and does
+  // NOT deny). Sourced from record.tool_deny (the agent definition's disallowedTools).
+  readonly toolDenylist?: readonly string[]
+  // Names of the member-scoped tools, carried for persistence so a later resume can re-resolve
+  // them against the live shared parent tools (todo 10). Start uses `memberScopedTools` directly.
+  readonly memberScopedToolNames?: readonly string[]
   // executable ToolDefinitions merged AFTER the shared-tool family filter - the ONLY sanctioned
   // bypass of the task/team-family exclusion (team layer injects the pre-scoped member tool here).
   readonly memberScopedTools?: readonly ToolDefinition[]
@@ -92,32 +99,17 @@ export class InProcessRunner {
       })
     }
 
-    const mergedCustomTools = mergeChildCustomTools(this.#sharedParentTools, spec.memberScopedTools, {
-      uiOnlyToolNames: this.#uiOnlyToolNames,
-    })
-    const customTools = spec.agentType !== undefined && CURATED_READONLY_AGENT_NAMES.has(spec.agentType)
-      ? [...mergedCustomTools.filter((tool) => tool.name !== "bash"), createCuratedReadonlyBashTool(spec.cwd)]
-      : mergedCustomTools
-    const settingsManager = createRuntimeFallbackSettings(spec.selectedModel, spec.fallbackModels)
-    const options: CreateAgentSessionOptions = {
-      cwd: spec.cwd,
-      sessionManager: SessionManager.inMemory(spec.cwd),
-      resourceLoader: createChildResourceLoader(),
-      customTools,
-      ...(spec.agentDir !== undefined && { agentDir: spec.agentDir }),
-      ...(spec.authStorage !== undefined && { authStorage: spec.authStorage }),
-      ...(spec.modelRegistry !== undefined && { modelRegistry: spec.modelRegistry }),
-      ...(spec.modelRuntime !== undefined && { modelRuntime: spec.modelRuntime }),
-      ...(spec.model !== undefined && { model: spec.model }),
-      ...(spec.thinkingLevel !== undefined && { thinkingLevel: spec.thinkingLevel }),
-      settingsManager,
-      ...(spec.toolAllowlist !== undefined && { tools: [...spec.toolAllowlist] }),
-    }
-
     let session: ChildSession
     try {
+      const options = buildChildSessionOptions({
+        spec,
+        sessionManager: SessionManager.create(spec.cwd, requireChildSessionDir(spec)),
+        sharedParentTools: this.#sharedParentTools,
+        uiOnlyToolNames: this.#uiOnlyToolNames,
+      })
       session = await this.#createSession(options)
     } catch (error) {
+      if (RunnerError.is(error)) throw error
       throw new RunnerError({ kind: "session-create-failed", message: sessionCreateMessage(error), cause: error })
     }
 
