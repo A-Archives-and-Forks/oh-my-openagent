@@ -390,6 +390,7 @@ export type {
   OutputManager,
   RenderOptions,
   RenderedTranscript,
+  SuspendedDetails,
   TaskOutputDeps,
   TaskOutputDetails,
   TaskOutputInput,

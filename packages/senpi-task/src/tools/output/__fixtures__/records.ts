@@ -19,6 +19,7 @@ export type RecordOverrides = {
   readonly error_message?: string
   readonly run_epoch?: number
   readonly notified_epoch?: number
+  readonly residency_state?: TaskRecord["residency_state"]
 }
 
 // A fully-formed TaskRecord for tool tests: every required field defaulted, terminal fields opt-in.
@@ -32,7 +33,7 @@ export function makeRecord(overrides: RecordOverrides = {}): TaskRecord {
     root_session_id: "session-root",
     depth: 0,
     status,
-    residency_state: "resident",
+    residency_state: overrides.residency_state ?? "resident",
     execution_mode: overrides.execution_mode ?? "in-process",
     model: overrides.model ?? "claude-sonnet-4-5",
     created_at: overrides.created_at ?? timestamp,
