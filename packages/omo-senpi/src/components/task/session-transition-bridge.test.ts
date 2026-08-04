@@ -45,6 +45,12 @@ function fakeStore(initial: TaskRecord): FakeStore {
     replace: (next) => {
       current = next
     },
+    mutate: (taskId, mutation) => {
+      if (current.task_id !== taskId) return null
+      const next = mutation(current)
+      if (next !== current) current = next
+      return next
+    },
     appendEvent: (taskId, event) => {
       events.push({ taskId, type: event.type })
       return "evt"

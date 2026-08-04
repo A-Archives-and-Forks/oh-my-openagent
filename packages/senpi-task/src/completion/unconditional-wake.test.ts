@@ -37,6 +37,13 @@ function fakeStore(record: TaskRecord) {
     replace: (next: TaskRecord): void => {
       records.set(next.task_id, next)
     },
+    mutate: (taskId: string, mutation: (record: TaskRecord) => TaskRecord): TaskRecord | null => {
+      const current = records.get(taskId)
+      if (current === undefined) return null
+      const next = mutation(current)
+      if (next !== current) records.set(taskId, next)
+      return next
+    },
     appendEvent: (_taskId: string, _event: PersistedTaskEvent): string => "log.jsonl",
     list: () => ({ records: [...records.values()], diagnostics: [] }),
   }

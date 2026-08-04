@@ -58,6 +58,13 @@ describe("team fallback notification", () => {
         replace: (next: TaskRecord) => {
           records.set(next.task_id, next)
         },
+        mutate: (taskId: string, mutation: (record: TaskRecord) => TaskRecord) => {
+          const current = records.get(taskId)
+          if (current === undefined) return null
+          const next = mutation(current)
+          if (next !== current) records.set(taskId, next)
+          return next
+        },
         appendEvent: (_taskId: string, _event: PersistedTaskEvent) => "events.jsonl",
       },
     })

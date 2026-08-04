@@ -92,14 +92,17 @@ export function instrumentCompletionNotifier(
         epochs.bufferedByTask.clear()
       }
     },
-    reconcileFailedNotifications(input) {
+    reconcileUnnotifiedNotifications(input) {
       const records = store.list().records
       for (const record of records) epochs.activeByTask.set(record.task_id, record.notification.run_epoch)
       try {
-        notifier.reconcileFailedNotifications(input)
+        notifier.reconcileUnnotifiedNotifications(input)
       } finally {
         for (const record of records) epochs.activeByTask.delete(record.task_id)
       }
+    },
+    reconcileFailedNotifications(input) {
+      this.reconcileUnnotifiedNotifications(input)
     },
     bufferedCount: (sessionId) => notifier.bufferedCount(sessionId),
   }
