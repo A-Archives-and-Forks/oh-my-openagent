@@ -34,6 +34,42 @@ export function requireChildSessionDir(spec: ChildSpec): string {
 }
 
 /**
+ * Re-resolve persisted member-scoped tool NAMES against the live shared parent tools on resume.
+ * The raw (unfiltered) shared set is searched because member-scoped tools are the sanctioned
+ * bypass of the task/team-family exclusion. A name that is duplicated in the spec, missing from
+ * the live set, or ambiguous in it is a TYPED tools_unavailable failure (retryable) - never a
+ * silently weakened tool surface.
+ */
+export function resolveMemberScopedToolNames(
+  names: readonly string[],
+  sharedParentTools: readonly ToolDefinition[],
+): ToolDefinition[] {
+  const resolved: ToolDefinition[] = []
+  const seen = new Set<string>()
+  for (const name of names) {
+    if (seen.has(name)) {
+      throw new RunnerError({
+        kind: "tools_unavailable",
+        message: `Member-scoped tool name "${name}" is duplicated in the persisted spec.`,
+      })
+    }
+    seen.add(name)
+    const matches = sharedParentTools.filter((tool) => tool.name === name)
+    const tool = matches[0]
+    if (matches.length !== 1 || tool === undefined) {
+      throw new RunnerError({
+        kind: "tools_unavailable",
+        message: matches.length === 0
+          ? `Member-scoped tool "${name}" is not available in the live parent tools.`
+          : `Member-scoped tool "${name}" matches ${matches.length} live parent tools.`,
+      })
+    }
+    resolved.push(tool)
+  }
+  return resolved
+}
+
+/**
  * Assemble the full CreateAgentSessionOptions for an in-process child: shared parent tools minus
  * the task/team family, member-scoped tools (the sanctioned bypass), the curated read-only bash
  * override, the allowlist on `tools`, the denylist on senpi's real deny field `excludeTools`
