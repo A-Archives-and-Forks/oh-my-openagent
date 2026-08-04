@@ -58,6 +58,7 @@ function completedFallbackRecord(): TaskRecord {
     updated_at: "2026-07-28T08:00:03.000Z",
     final_response: "team worker completed",
     notification: { run_epoch: 0, notified_epoch: -1 },
+    notify_on_terminal: false,
   }
 }
 

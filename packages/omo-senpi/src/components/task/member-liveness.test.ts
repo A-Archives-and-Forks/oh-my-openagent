@@ -34,6 +34,7 @@ function memberRecord(overrides: Partial<TaskRecord> = {}): TaskRecord {
     error_message: "RPC child killed by signal SIGKILL",
     killed: true,
     notification: { run_epoch: 0, notified_epoch: -1 },
+    notify_on_terminal: false,
     ...overrides,
   }
 }

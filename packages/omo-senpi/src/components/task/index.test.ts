@@ -150,6 +150,7 @@ function terminalRecord(teamRunId: string, memberName = "crash"): TaskRecord {
     updated_at: "2026-07-29T00:00:01.000Z",
     error_message: "RPC child exited with code 1",
     notification: { run_epoch: 0, notified_epoch: 0 },
+    notify_on_terminal: false,
   }
 }
 

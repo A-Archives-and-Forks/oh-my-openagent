@@ -1,3 +1,4 @@
+import type { SessionShutdownEvent } from "@code-yeongyu/senpi"
 import type { ComponentContext, SenpiExtensionAPI } from "../../extension/types"
 import type { TaskEngine } from "./engine"
 import type { LeadPollerLifecycle } from "./lead-poller-lifecycle"
@@ -68,13 +69,23 @@ export function wireEventBridge(
     statusUi.scheduleSync()
   })
 
-  pi.on("session_shutdown", async (_payload, eventCtx) => {
+  pi.on("session_shutdown", async (payload, eventCtx) => {
     engine.runtime.captureFrom(asLiveContext(eventCtx))
     transitions.onShutdown(engine.runtime.sessionId())
     engine.runtime.clearUi()
     statusUi.dispose()
     state.leadPollers.shutdown()
-    await engine.lifecycle.teardownOnSessionShutdown()
+    const shutdownEvent = payload as SessionShutdownEvent
+    const parentSessionId = engine.runtime.sessionId()
+    const reason = shutdownEvent.reason
+    if (parentSessionId === undefined || typeof reason !== "string") {
+      ctx.logger.warn(
+        "omo-senpi task session_shutdown skipped: no captured session id or malformed reason",
+        { parentSessionId, reason },
+      )
+      return
+    }
+    await engine.lifecycle.suspendOnSessionShutdown({ parentSessionId, reason })
   })
 
   pi.on("model_select", (_payload, eventCtx) => {
