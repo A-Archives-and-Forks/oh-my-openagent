@@ -34,6 +34,7 @@ describe("findSgBinarySync", () => {
     const result = findSgBinarySync({
       env: { [SG_PATH_ENV_KEY]: overridePath },
       fileExists: (filePath) => filePath === overridePath,
+      runVersionProbeSync: () => "ast-grep 0.43.0",
       runtimeDir: join(root, "runtime"),
       which: () => join(root, "path-sg"),
     })
@@ -49,14 +50,15 @@ describe("findSgBinarySync", () => {
     const root = tempDir("sg-runtime")
     const runtimeDir = join(root, "runtime")
     mkdirSync(runtimeDir, { recursive: true })
-    const runtimeSg = join(runtimeDir, "sg")
+    const runtimeSg = join(runtimeDir, process.platform === "win32" ? "sg.exe" : "sg")
     writeExecutable(runtimeSg)
 
     // when
     const result = findSgBinarySync({
       env: {},
       fileExists: (filePath) => filePath === runtimeSg,
-      platform: "linux",
+      platform: process.platform,
+      runVersionProbeSync: () => "ast-grep 0.43.0",
       runtimeDir,
       which: () => join(root, "path-sg"),
     })
@@ -139,7 +141,7 @@ describe("findSgBinarySync", () => {
 
   it("falls back to the sg alias on darwin when ast-grep is absent", () => {
     // given
-    const sgAlias = "/opt/homebrew/bin/sg"
+    const sgAlias = join("/opt/homebrew/bin", "sg")
 
     // when
     const result = findSgBinarySync({

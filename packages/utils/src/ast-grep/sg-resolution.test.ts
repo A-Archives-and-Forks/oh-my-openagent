@@ -22,6 +22,10 @@ function astGrepStub(filePath: string): string {
   return writeStubBinary(filePath, "#!/bin/sh\nprintf 'ast-grep 0.43.0\\n'\n")
 }
 
+function hostBinaryName(name: "ast-grep" | "sg"): string {
+  return process.platform === "win32" ? `${name}.exe` : name
+}
+
 function setgroupsStub(filePath: string): string {
   return writeStubBinary(filePath, "#!/bin/sh\nprintf 'sg from shadow-utils 4.13\\n' >&2\nexit 1\n")
 }
@@ -179,7 +183,7 @@ describe("resolveSgBinarySync tier order", () => {
 
   it("#given only Homebrew holds sg #when PATH is empty #then the homebrew tier resolves it last after a version probe", () => {
     // given
-    const brewSg = "/opt/homebrew/bin/sg"
+    const brewSg = join("/opt/homebrew/bin", "sg")
     const probed: string[] = []
 
     // when
@@ -202,7 +206,7 @@ describe("resolveSgBinarySync tier order", () => {
 
   it("#given linux #when only linuxbrew holds sg #then the linuxbrew candidate resolves and darwin-only prefixes are skipped", () => {
     // given
-    const linuxbrew = "/home/linuxbrew/.linuxbrew/bin/sg"
+    const linuxbrew = join("/home/linuxbrew/.linuxbrew/bin", "sg")
     const probed: string[] = []
 
     // when
@@ -302,6 +306,13 @@ describe("resolveSgBinarySync probe-all behaviour", () => {
     const result = resolveSgBinarySync(
       isolatedOptions({
         platform: "linux",
+        runVersionProbeSync:
+          process.platform === "win32"
+            ? (binaryPath) => {
+                if (binaryPath === setgroups) throw new Error("setgroups probe failed")
+                return "ast-grep 0.43.0"
+              }
+            : undefined,
         which: (commandName) => (commandName === "sg" ? setgroups : commandName === "ast-grep" ? realAstGrep : null),
       }),
     )
@@ -346,6 +357,14 @@ describe("resolveSgBinarySync probe-all behaviour", () => {
     const result = resolveSgBinarySync(
       isolatedOptions({
         platform: "linux",
+        runVersionProbeSync:
+          process.platform === "win32"
+            ? () => {
+                const error = new Error("probe timed out") as Error & { code: string }
+                error.code = "ETIMEDOUT"
+                throw error
+              }
+            : undefined,
         which: (commandName) => (commandName === "sg" ? hanging : null),
       }),
     )
@@ -354,7 +373,7 @@ describe("resolveSgBinarySync probe-all behaviour", () => {
     // then
     expect(result.found).toBe(false)
     expect(elapsedMs).toBeLessThan(20_000)
-    expect(elapsedMs).toBeGreaterThanOrEqual(4_000)
+    if (process.platform !== "win32") expect(elapsedMs).toBeGreaterThanOrEqual(4_000)
 
     rmSync(root, { force: true, recursive: true })
   }, { timeout: 30_000 })
@@ -398,6 +417,7 @@ describe("resolveSgBinarySync cache", () => {
       env: { [AST_GREP_BIN_DIR_ENV_KEY]: join(root, "bin") },
       homeDir: "/nonexistent-home",
       platform: "linux",
+      runVersionProbeSync: process.platform === "win32" ? () => "ast-grep 0.43.0" : undefined,
       which: () => null,
     }
 
@@ -529,14 +549,15 @@ describe("findSgBinarySync compatibility", () => {
   it("#given the extended resolver #when a binary resolves #then findSgBinarySync still returns the plain path", () => {
     // given
     const root = tempDir("compat-found")
-    const cached = astGrepStub(join(root, "bin", "sg"))
+    const cached = astGrepStub(join(root, "bin", hostBinaryName("sg")))
 
     // when
     const result = findSgBinarySync({
       cache: false,
       env: { [AST_GREP_BIN_DIR_ENV_KEY]: join(root, "bin") },
       homeDir: "/nonexistent-home",
-      platform: "linux",
+      platform: process.platform,
+      runVersionProbeSync: process.platform === "win32" ? () => "ast-grep 0.43.0" : undefined,
       which: () => null,
     })
 

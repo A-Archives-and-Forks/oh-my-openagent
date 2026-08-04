@@ -17,10 +17,24 @@ function tempDir(name: string): string {
   return join(tmpdir(), `omo-${name}-${crypto.randomUUID()}`)
 }
 
+interface StubFixture {
+  readonly body: string
+  readonly mode: number
+}
+
+const stubFixtures = new Map<string, StubFixture>()
+
+const TEST_PLATFORM: NodeJS.Platform = process.platform === "win32" ? "win32" : "linux"
+
+function binaryName(name: "ast-grep" | "sg"): string {
+  return TEST_PLATFORM === "win32" ? `${name}.exe` : name
+}
+
 function writeStub(filePath: string, body: string, mode = 0o755): string {
   mkdirSync(join(filePath, ".."), { recursive: true })
   writeFileSync(filePath, body)
   chmodSync(filePath, mode)
+  stubFixtures.set(filePath, { body, mode })
   return filePath
 }
 
@@ -28,11 +42,36 @@ function workingAstGrep(filePath: string): string {
   return writeStub(filePath, "#!/bin/sh\nprintf 'ast-grep 0.45.0\\n'\n")
 }
 
+function runWindowsStubProbe(binaryPath: string): string {
+  const fixture = stubFixtures.get(binaryPath)
+  if (fixture === undefined) throw new Error(`unknown stub: ${binaryPath}`)
+  if ((fixture.mode & 0o111) === 0) {
+    const error = new Error(`spawn ${binaryPath} EACCES`) as Error & { code: string }
+    error.code = "EACCES"
+    throw error
+  }
+  if (fixture.body.includes("sleep 60")) {
+    const error = new Error(`spawn ${binaryPath} ETIMEDOUT`) as Error & { code: string }
+    error.code = "ETIMEDOUT"
+    throw error
+  }
+  if (fixture.body.includes("printf 'ast-grep ")) return "ast-grep 0.45.0"
+  throw new Error(`probe failed: ${binaryPath}`)
+}
+
 /** Home directory with no OMO runtime, so tier 2 cannot shadow the tier under test. */
 const NO_RUNTIME_HOME = join(tmpdir(), "omo-sg-probe-contract-no-home")
 
 function isolated(overrides: SgResolverOptions): SgResolverOptions {
-  return { cache: false, env: {}, homeDir: NO_RUNTIME_HOME, platform: "linux", which: () => null, ...overrides }
+  return {
+    cache: false,
+    env: {},
+    homeDir: NO_RUNTIME_HOME,
+    platform: TEST_PLATFORM,
+    runVersionProbeSync: TEST_PLATFORM === "win32" ? runWindowsStubProbe : undefined,
+    which: () => null,
+    ...overrides,
+  }
 }
 
 describe("sg probe contract: a failing probe never wins", () => {
@@ -40,7 +79,7 @@ describe("sg probe contract: a failing probe never wins", () => {
     // given: the override exists and is executable but exits 42 without printing a version
     const root = tempDir("contract-override")
     const brokenOverride = writeStub(join(root, "override", "custom-override"), "#!/bin/sh\nexit 42\n")
-    const pathAstGrep = workingAstGrep(join(root, "path", "ast-grep"))
+    const pathAstGrep = workingAstGrep(join(root, "path", binaryName("ast-grep")))
 
     // when
     const result = resolveSgBinarySync(
@@ -75,18 +114,20 @@ describe("sg probe contract: a failing probe never wins", () => {
   it("#given a cached env candidate that loses its executable bit #when revalidating #then EACCES rejects it", () => {
     // given: a working override is resolved and cached
     const root = tempDir("contract-eacces")
-    const override = workingAstGrep(join(root, "override", "sg-cached"))
+    const override = workingAstGrep(join(root, "override", binaryName("sg")))
     clearSgResolutionCache()
     const options: SgResolverOptions = {
       env: { [SG_PATH_ENV_KEY]: override },
       homeDir: NO_RUNTIME_HOME,
-      platform: "linux",
+      platform: TEST_PLATFORM,
+      runVersionProbeSync: TEST_PLATFORM === "win32" ? runWindowsStubProbe : undefined,
       which: () => null,
     }
     const cached = resolveSgBinarySync(options)
 
     // when: the binary loses its executable bit and the cache is revalidated
     chmodSync(override, 0o644)
+    stubFixtures.set(override, { body: "#!/bin/sh\nprintf 'ast-grep 0.45.0\\n'\n", mode: 0o644 })
     const revalidated = resolveSgBinarySync({ ...options, revalidate: true })
 
     // then: EACCES rejects it, and the same pass must not re-accept it either
@@ -101,8 +142,12 @@ describe("sg probe contract: a failing probe never wins", () => {
   it("#given a non-executable candidate #when resolving fresh #then EACCES rejects it and a later tier wins", () => {
     // given
     const root = tempDir("contract-eacces-fresh")
-    const unreadable = writeStub(join(root, "override", "ast-grep"), "#!/bin/sh\nprintf 'ast-grep 0.45.0\\n'\n", 0o644)
-    const pathAstGrep = workingAstGrep(join(root, "path", "ast-grep"))
+    const unreadable = writeStub(
+      join(root, "override", binaryName("ast-grep")),
+      "#!/bin/sh\nprintf 'ast-grep 0.45.0\\n'\n",
+      0o644,
+    )
+    const pathAstGrep = workingAstGrep(join(root, "path", binaryName("ast-grep")))
 
     // when
     const result = resolveSgBinarySync(
@@ -121,8 +166,8 @@ describe("sg probe contract: a failing probe never wins", () => {
   it("#given a PATH ast-grep that hangs #when the 5s probe times out #then it is rejected and the next candidate wins", () => {
     // given: an `ast-grep`-named stub that never returns, and a working `sg` behind it on PATH
     const root = tempDir("contract-timeout")
-    const hangingAstGrep = writeStub(join(root, "path", "ast-grep"), "#!/bin/sh\nsleep 60\n")
-    const workingSg = workingAstGrep(join(root, "path", "sg"))
+    const hangingAstGrep = writeStub(join(root, "path", binaryName("ast-grep")), "#!/bin/sh\nsleep 60\n")
+    const workingSg = workingAstGrep(join(root, "path", binaryName("sg")))
     const startedAt = Date.now()
 
     // when
@@ -133,7 +178,7 @@ describe("sg probe contract: a failing probe never wins", () => {
 
     // then: the hung probe is bounded and never selected
     expect(result.found ? result.path : null).toBe(workingSg)
-    expect(elapsedMs).toBeGreaterThanOrEqual(4_000)
+    if (process.platform !== "win32") expect(elapsedMs).toBeGreaterThanOrEqual(4_000)
     expect(elapsedMs).toBeLessThan(20_000)
 
     rmSync(root, { force: true, recursive: true })
@@ -142,9 +187,9 @@ describe("sg probe contract: a failing probe never wins", () => {
   it("#given every probe throws #when resolving #then no tier is exempt and BINARY_NOT_FOUND is returned", () => {
     // given: candidates in every tier exist as files, but no probe can run
     const root = tempDir("contract-all-throw")
-    const override = join(root, "override", "ast-grep")
+    const override = join(root, "override", binaryName("ast-grep"))
     const runtimeDir = join(root, "runtime")
-    const pathAstGrep = join(root, "path", "ast-grep")
+    const pathAstGrep = join(root, "path", binaryName("ast-grep"))
 
     // when
     const result = resolveSgBinarySync(
@@ -169,7 +214,10 @@ describe("sg probe contract: a failing probe never wins", () => {
   it("#given an ast-grep-named candidate whose probe reports another tool #when resolving #then the name grants no exemption", () => {
     // given
     const root = tempDir("contract-name-exemption")
-    const impostor = writeStub(join(root, "path", "ast-grep"), "#!/bin/sh\nprintf 'ripgrep 14.1.0\\n'\n")
+    const impostor = writeStub(
+      join(root, "path", binaryName("ast-grep")),
+      "#!/bin/sh\nprintf 'ripgrep 14.1.0\\n'\n",
+    )
 
     // when
     const result = resolveSgBinarySync(isolated({ which: (commandName) => (commandName === "ast-grep" ? impostor : null) }))
@@ -184,8 +232,8 @@ describe("sg probe contract: a failing probe never wins", () => {
     // given: the OMO-provisioned runtime dir holds a binary that cannot run
     const root = tempDir("contract-runtime-exemption")
     const runtimeDir = join(root, "runtime")
-    writeStub(join(runtimeDir, "sg"), "#!/bin/sh\nexit 3\n")
-    const pathAstGrep = workingAstGrep(join(root, "path", "ast-grep"))
+    writeStub(join(runtimeDir, binaryName("sg")), "#!/bin/sh\nexit 3\n")
+    const pathAstGrep = workingAstGrep(join(root, "path", binaryName("ast-grep")))
 
     // when
     const result = resolveSgBinarySync(
@@ -202,8 +250,8 @@ describe("sg probe contract: a failing probe never wins", () => {
     // given
     const root = tempDir("contract-packagedir")
     const packageDir = join(root, "ast-grep-mcp")
-    const packageLocal = workingAstGrep(join(packageDir, "bin", "ast-grep"))
-    const pathAstGrep = workingAstGrep(join(root, "path", "ast-grep"))
+    const packageLocal = workingAstGrep(join(packageDir, "bin", binaryName("ast-grep")))
+    const pathAstGrep = workingAstGrep(join(root, "path", binaryName("ast-grep")))
 
     // when
     const result = resolveSgBinarySync(
