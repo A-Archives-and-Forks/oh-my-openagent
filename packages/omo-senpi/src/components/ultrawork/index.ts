@@ -37,7 +37,7 @@ interface SessionEventContext {
   }
 }
 
-interface SessionArming {
+export interface SessionArming {
   trackSession(sessionId: string | undefined): void
   currentSessionId(): string | undefined
   rearmOnCompact(sessionId: string | undefined): void
@@ -45,11 +45,18 @@ interface SessionArming {
   markArmed(sessionId: string | undefined): void
 }
 
-export function createUltraworkComponent(): OmoSenpiComponent {
+// Senpi tears down the extension runner and re-registers every component during
+// a session switch or resume, so a ledger created inside register() resets there
+// and re-injects the full ~17KB directive on the resumed session's first trigger.
+// The default ledger therefore lives at module scope: re-registration within the
+// process keeps every armed session id (and the anonymous fallback slot). Tests
+// inject isolated ledgers through the factory parameter instead.
+const sharedSessionArming = createSessionArming()
+
+export function createUltraworkComponent(arming: SessionArming = sharedSessionArming): OmoSenpiComponent {
   return {
     name: "ultrawork",
     register(pi: SenpiExtensionAPI, ctx: ComponentContext): void {
-      const arming = createSessionArming()
       pi.on("input", (payload: unknown, eventCtx: unknown): SenpiInputEventResult =>
         handleInput(pi, payload, ctx, arming, sessionIdFromEventCtx(eventCtx)),
       )
@@ -83,7 +90,7 @@ export function isUltraworkInput(text: string): boolean {
  * against. Hosts that expose no session id anywhere fall back to one anonymous
  * ledger slot, reset by the same compaction event.
  */
-function createSessionArming(): SessionArming {
+export function createSessionArming(): SessionArming {
   const armedSessionIds = new Set<string>()
   let currentSessionId: string | undefined
   let anonymousArmed = false
