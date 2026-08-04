@@ -184,6 +184,22 @@ describe("team member liveness notifier", () => {
 
     expect(sent).toEqual([])
   })
+
+  test("#given an errored member record suspended between shutdown and revival #when observed #then no liveness death event is injected", () => {
+    // given a member whose errored record was suspended at session shutdown and still awaits revival
+    const sent: Record<string, unknown>[] = []
+    const notifier = createTeamMemberLivenessNotifier({
+      pi: { sendMessage: (message) => { sent.push(message) } },
+      isStreaming: () => false,
+    })
+
+    // when the suspended record is re-observed in either suspended residency
+    notifier.notifyTerminal(memberRecord({ residency_state: "persisted_only", killed: undefined }))
+    notifier.notifyTerminal(memberRecord({ residency_state: "rpc_detached", killed: undefined }))
+
+    // then the member is treated as suspended, not dead
+    expect(sent).toEqual([])
+  })
 })
 
 async function withTimeout<T>(signal: Promise<T>, timeoutMs: number): Promise<T> {
