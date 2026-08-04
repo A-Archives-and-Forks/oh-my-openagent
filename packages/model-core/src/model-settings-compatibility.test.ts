@@ -585,6 +585,41 @@ describe("resolveCompatibleModelSettings", () => {
     ])
   })
 
+  // A reasoning suffix makes the model id miss the capability snapshot, so `supportsTemperature`
+  // arrives undefined and only family detection can decide. This is the case that still leaks
+  // temperature into the outgoing request; the unsuffixed id is already snapshot-backed.
+  test("drops temperature for a reasoning-suffixed Claude Opus 4.8 id with no capability metadata", () => {
+    const result = resolveCompatibleModelSettings({
+      providerID: "azure-anthropic",
+      modelID: "azure-anthropic/claude-opus-4-8-thinking",
+      desired: { temperature: 0.1 },
+    })
+
+    expect(result.temperature).toBeUndefined()
+    expect(result.changes).toEqual([
+      {
+        field: "temperature",
+        from: "0.1",
+        to: undefined,
+        reason: "unsupported-by-model-family",
+      },
+    ])
+  })
+
+  // Capability metadata always wins over family detection: an explicit `true` must be honored
+  // even for a family that would otherwise be assumed temperature-free.
+  test("keeps temperature when capability metadata explicitly supports it", () => {
+    const result = resolveCompatibleModelSettings({
+      providerID: "azure-anthropic",
+      modelID: "azure-anthropic/claude-opus-4-8-thinking",
+      desired: { temperature: 0.1 },
+      capabilities: { supportsTemperature: true },
+    })
+
+    expect(result.temperature).toBe(0.1)
+    expect(result.changes).toEqual([])
+  })
+
   test.each([
     "openai/o3:high",
     "openai/o3(high)",
