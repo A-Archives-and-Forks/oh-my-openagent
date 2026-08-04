@@ -151,7 +151,7 @@ describe("agent-side wait commands", () => {
     const command = waitForRecordStatusCommand("/tmp/project", "lruone", "completed")
     expect(command).toContain('"lruone"')
     expect(command).toContain('"completed"')
-    expect(command).toContain(join("/tmp/project", ".omo", "senpi-task", "tasks"))
+    expect(command).toContain(JSON.stringify(join("/tmp/project", ".omo", "senpi-task", "tasks")))
   })
 })
 
