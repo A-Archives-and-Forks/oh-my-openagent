@@ -6,7 +6,7 @@ import { registerLifecycleReattachPorts, type ReattachResult, type RespawnResult
 import { RunnerError } from "../runners/in-process/runner-error"
 import { RpcProcessRunner } from "../runners/rpc-process"
 import type { RpcChildHandle, RpcRunnerSpec } from "../runners/types"
-import { createTaskRecord, parseTaskId, syncTaskIdFloor } from "../state"
+import { createTaskRecord, isSpawnSpecV1, parseTaskId, syncTaskIdFloor } from "../state"
 import { resolvedReasoningFields } from "../state/resolved-reasoning"
 import { TaskIdSpaceExhaustedError } from "../state/id"
 import type { TaskRecord, TaskRunStats } from "../state"
@@ -21,6 +21,7 @@ import { toContinueResult } from "./continue-result"
 import {
   buildManagedSpec,
   buildRecordInput,
+  buildSpawnSpecV1,
   inSession,
   isTerminalRecord,
   nowIso,
@@ -249,17 +250,11 @@ class TaskManagerImpl implements TaskManager {
         cwd: this.#options.cwd,
         stateDir: this.#options.store.stateDir,
       })
-      finalRecord = executionMode === "process"
-        ? {
-            ...renamedRecord,
-            spawn_spec: {
-              cwd: managedSpec.cwd,
-              ...(managedSpec.extensions === undefined ? {} : { extensions: managedSpec.extensions }),
-              ...(managedSpec.memberEnv === undefined ? {} : { member_env: managedSpec.memberEnv }),
-            },
-          }
-        : renamedRecord
-      if (finalRecord !== claimed) this.#options.store.replace(finalRecord)
+      // Persist the mode-neutral rebuild spec for BOTH execution modes: v1 carries only safe
+      // launch facts (effective prompt, instructions, tool names, cwd) - never executable tools,
+      // extensions, or member env.
+      finalRecord = { ...renamedRecord, spawn_spec: buildSpawnSpecV1(managedSpec) }
+      this.#options.store.replace(finalRecord)
       if (spec.run_in_background === true) this.#background.add(finalRecord.task_id)
     } catch (error) {
       if (registration.name !== claimed.name) this.#names.release(spec.parent_session_id, registration.name)
@@ -616,7 +611,9 @@ class TaskManagerImpl implements TaskManager {
     if (current === null || isTerminalRecord(current)) return
     const withPid = recordSpawnedPid(current, handle.pid) ?? current
     const spawnSpec = handle.spawnSpec
-    const updated: TaskRecord = spawnSpec === undefined
+    // A v1 spawn_spec persisted at spawn is authoritative: the rpc echo would rewrite it as the
+    // legacy {cwd, extensions, member_env} shape, dropping the rebuild facts v1 carries.
+    const updated: TaskRecord = spawnSpec === undefined || (current.spawn_spec !== undefined && isSpawnSpecV1(current.spawn_spec))
       ? withPid
       : {
           ...withPid,

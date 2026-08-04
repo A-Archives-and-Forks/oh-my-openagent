@@ -409,9 +409,10 @@ describe("reconcileOnSessionStart reattach", () => {
     // when
     const result = await manager.start({ prompt: "bootstrap", parent_session_id: "parent-1", depth: 1, execution_mode: "process" })
 
-    // then
+    // then the v1 rebuild facts persisted at spawn survive, while the runner-reported extensions
+    // and member env (untrusted launch inputs) never reach the record
     if (result.kind !== "started") throw new Error("expected started task")
-    expect(store.load(result.task_id)?.spawn_spec).toEqual({ cwd: "/tmp/project" })
+    expect(store.load(result.task_id)?.spawn_spec).toEqual({ version: 1, cwd: "/tmp/project", prompt: "bootstrap" })
   })
 
   test(" w2reattach #given switch_session is cancelled #when reconciled #then the fresh child is torn down and the record stays lost", async () => {
