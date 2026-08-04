@@ -1,0 +1,14 @@
+Changed-file diagnostics:
+  packages/senpi-task/src/tools/run-stats-format.ts: no diagnostics
+  packages/senpi-task/src/tools/task/renderers-run-stats.test.ts: no diagnostics
+
+Commands:
+  bun test packages/senpi-task
+  tsgo --noEmit -p packages/senpi-task/tsconfig.json
+  node packages/omo-senpi/plugin/scripts/build-extension.mjs
+  node packages/omo-senpi/plugin/scripts/build-extension.mjs --check
+
+Observed:
+  All commands exited 0.
+  The generated Senpi extension remained current; no generated file changed.
+  Worktree diff remained limited to the formatter and its focused test.
