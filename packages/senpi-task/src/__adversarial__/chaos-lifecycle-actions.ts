@@ -1,5 +1,6 @@
 import type { TaskRecord } from "../state"
 import { CHAOS_MODEL, CHAOS_SESSION } from "./chaos-harness"
+import type { ChaosEngine } from "./chaos-engine-factory"
 import type { ChaosState } from "./chaos-actions"
 
 function candidates(state: ChaosState, predicate: (record: TaskRecord) => boolean): string[] {
@@ -53,6 +54,19 @@ function syntheticId(state: ChaosState, offset: number): string {
   return `st_0000${suffix}`
 }
 
+export function observeReclamationPostcondition(
+  state: ChaosState,
+  taskId: string,
+  owner: ChaosEngine | undefined,
+): void {
+  const record = state.harness.store.load(taskId)
+  const attached = owner?.manager.getResidentHandle(taskId) !== undefined
+  if (record?.residency_state === "resident" && attached) return
+  state.harness.lifecycleObservations.reclamationBreaches.push(
+    `orphan ${taskId} remained ownerless after capacity-gated reconcile at full cap`,
+  )
+}
+
 export async function massReviveAtCap(state: ChaosState): Promise<void> {
   state.harness.lifecycleObservations.actionCounts.mass_revive_at_cap += 1
   const count = state.harness.residencyMax + 2
@@ -91,9 +105,7 @@ export async function massReviveAtCap(state: ChaosState): Promise<void> {
   const before = state.harness.store.load(resident.task_id)?.notification.run_epoch
   await owner?.lifecycle.reconcileOnSessionStart(CHAOS_SESSION)
   const after = state.harness.store.load(resident.task_id)
-  if (after?.residency_state !== "resident" || owner?.manager.getResidentHandle(resident.task_id) === undefined) {
-    state.harness.lifecycleObservations.reclamationBreaches.push(`orphan ${resident.task_id} was capacity-gated at full cap`)
-  }
+  observeReclamationPostcondition(state, resident.task_id, owner)
   if (before !== undefined && after?.notification.run_epoch !== before + 1) {
     state.seamBreaches.push(`reclaimed ${resident.task_id} epoch did not advance exactly once`)
   }

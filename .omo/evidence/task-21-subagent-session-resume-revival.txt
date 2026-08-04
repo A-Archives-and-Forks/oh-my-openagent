@@ -68,3 +68,13 @@ GREEN / robustness
 Manual QA
 - Happy: deterministic lifecycle probe ran every new action exactly once and returned zero violations.
 - Failure: all eight injected lifecycle regressions fired their corresponding invariant; double-revive specifically fired inv6.
+
+Inv12 mutation-proof correction after adversarial review
+- Removed the synthetic mutation-probe write to `reclamationBreaches`.
+- The capacity-gate mutant now seeds one ownerless resident into a cap of one and routes the buggy reconcile path through `lifecycle.admitResident(CHAOS_SESSION)`.
+- Admission genuinely returns `rejected` because the orphan itself consumes the only residency slot; the mutant then incorrectly skips resident-orphan reclamation.
+- The same `observeReclamationPostcondition` used by the happy full-cap action derives the failure from persisted residency plus live-handle state. The mutation probe does not author a breach.
+- Witness output:
+  [{"invariant":12,"detail":"orphan st_0000bad0 remained ownerless after capacity-gated reconcile at full cap"}]
+- Corrected RED: the focused test initially expected the derived postcondition detail but received the old synthetic `was capacity-gated at full cap` detail.
+- Corrected GREEN: focused inv12 mutation test 1 pass / 0 fail; adversarial suite 10 pass / 0 fail; full package 1312 pass / 0 fail / 4117 expects; tsgo clean.

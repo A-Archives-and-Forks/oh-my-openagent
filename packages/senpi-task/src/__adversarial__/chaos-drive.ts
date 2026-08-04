@@ -3,7 +3,14 @@ import type { ChaosState } from "./chaos-actions"
 import type { TaskRecord } from "../state"
 import { buildHarness, CHAOS_SESSION } from "./chaos-harness"
 import { collectInvariantViolations } from "./chaos-invariants"
-import { crashMidSuspend, massReviveAtCap, resumeSession, siblingReconcileRace, suspendSession } from "./chaos-lifecycle-actions"
+import {
+  crashMidSuspend,
+  massReviveAtCap,
+  observeReclamationPostcondition,
+  resumeSession,
+  siblingReconcileRace,
+  suspendSession,
+} from "./chaos-lifecycle-actions"
 import type { Violation } from "./chaos-invariants"
 import { RandomSource } from "./prng"
 
@@ -195,8 +202,15 @@ export async function runLifecycleMutationProbe(mutation: LifecycleMutation): Pr
       seedMutationRecord(state, "st_0000bad1", { residency_state: "resident" })
       seedMutationRecord(state, "st_0000bad2", { residency_state: "resident" })
     } else if (mutation === "capacity_gate_reclamation") {
-      seedMutationRecord(state, taskId, { residency_state: "resident", host_pid: state.harness.engines[0]?.hostPid })
-      state.harness.lifecycleObservations.reclamationBreaches.push(`orphan ${taskId} was capacity-gated at full cap`)
+      const owner = state.harness.engines[0]
+      if (owner === undefined) throw new Error("capacity-gate mutation owner unavailable")
+      seedMutationRecord(state, taskId, { residency_state: "resident", host_pid: owner.hostPid })
+      // Mutant: route resident-orphan reclamation through ordinary admission. Because the orphan
+      // itself consumes the only slot, admission rejects and the buggy reconcile path returns
+      // without running reclaimOrphanedResident.
+      const admission = await owner.lifecycle.admitResident(CHAOS_SESSION)
+      if (admission.kind !== "rejected") throw new Error("capacity-gate mutation did not reach a full cap")
+      observeReclamationPostcondition(state, taskId, owner)
     } else {
       seedMutationRecord(state, taskId, { status: "completed", final_response: "done" })
       await state.harness.engines[0]?.inProcessRunner.start({
