@@ -5,6 +5,13 @@ PR: https://github.com/code-yeongyu/oh-my-openagent/pull/6583
 Issue: https://github.com/code-yeongyu/oh-my-openagent/issues/6582
 Commit under test: `938d35003` plus this evidence artifact
 
+> **Authentic production reproduction:** the `got undefined` fault this PR fixes occurred
+> live in a real OpenCode user session (`ses_038a0d10dffe7hHQyjy3ndVIgF`, model
+> `9router/5.6 terra`, agent `Atlas`), not just a synthetic repro. Full transcript
+> provenance, the exact installed-plugin bug line, and minimal-repro failing events are in
+> `./TESTIMONY-USER-SESSION.md`. That file is the primary observed-behavior evidence; this
+> README documents the complementary real-harness harness run on a fresh plugin build.
+
 ## Environment
 - OpenCode: `1.18.11`
 - Model: `9router/Light`
