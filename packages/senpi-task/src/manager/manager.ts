@@ -27,6 +27,7 @@ import {
   nowIso,
   recordSpawnedPid,
 } from "./manager-helpers"
+import { createOutcomeTracker, type OutcomeTracker } from "./manager-outcome"
 import { claimTaskRecord, TaskRecordCollisionError } from "../store"
 import { sessionTailNeedsContinuation } from "./interrupted-turn"
 import { NameRegistry } from "./names"
@@ -125,6 +126,7 @@ class TaskManagerImpl implements TaskManager {
   readonly #waiters = new Map<string, TaskWaiter[]>()
   readonly #background = new Set<string>()
   readonly #steering: SteeringEngine
+  readonly #outcome: OutcomeTracker
 
   constructor(options: TaskManagerImplOptions) {
     this.#options = options
@@ -166,6 +168,16 @@ class TaskManagerImpl implements TaskManager {
       now: this.#now,
     }
     this.#steering = createSteeringEngine(port)
+    this.#outcome = createOutcomeTracker({
+      store: options.store,
+      now: this.#now,
+      liveHandle: (taskId) => this.#live.get(taskId)?.handle,
+      tryLoad: (taskId) => this.#tryLoad(taskId),
+      runStatsSnapshot: (taskId) => this.#runStats.get(taskId)?.snapshot(this.#now()),
+      releaseSlot: (taskId, model, epoch) => this.#releaseSlot(taskId, model, epoch),
+      settleWaiters: (taskId) => this.#settleWaiters(taskId),
+      tryRuntimeFallback: (input) => this.#tryRuntimeFallback(input),
+    })
     registerLifecycleReattachPorts(options.store, {
       respawn: (record, resumeSessionPath) => this.respawn(record, resumeSessionPath),
       reattach: (record, handle) => this.reattach(record, handle),
@@ -393,12 +405,23 @@ class TaskManagerImpl implements TaskManager {
   residentTaskIds(): readonly string[] { return [...this.#live.keys()] }
 
   promoteToBackground(taskId: string): boolean {
-    const promoted = !this.#background.has(taskId)
+    const promoted = !this.wasBackground(taskId)
     this.#background.add(taskId)
+    // Background intent must survive the owning process: a resumed manager reads the RECORD to
+    // decide terminal notification, so promotion is persisted, not just held in memory.
+    this.#options.store.mutate(taskId, (record) =>
+      record.notify_on_terminal ? record : { ...record, notify_on_terminal: true },
+    )
     return promoted
   }
 
-  wasBackground(taskId: string): boolean { return this.#background.has(taskId) }
+  // The record is authoritative (it outlives this process); the in-memory set only answers for
+  // tasks whose record is unsaved or unreadable.
+  wasBackground(taskId: string): boolean {
+    const record = this.#tryLoad(taskId)
+    if (record === null) return this.#background.has(taskId)
+    return record.notify_on_terminal
+  }
 
   async respawn(record: TaskRecord, resumeSessionPath: string): Promise<RespawnResult> {
     const spawnSpec = record.spawn_spec
@@ -481,7 +504,7 @@ class TaskManagerImpl implements TaskManager {
       this.#options.store.replace(reattached)
       acquiredEpoch = reattached.notification.run_epoch
       this.#concurrency.acquire(record.model, record.task_id)
-      this.#trackOutcome(record.task_id, handle, record.model, acquiredEpoch)
+      this.#outcome.trackOutcome(record.task_id, handle, record.model, acquiredEpoch)
       return { ok: true }
     } catch (error) { // no-excuse-ok: catch - ownership-transfer boundary converts setup failure into a typed result.
       unsubscribe?.()
@@ -585,7 +608,7 @@ class TaskManagerImpl implements TaskManager {
     })
     this.#attachChildSubscribers(record.task_id, handle)
     this.#recordSpawnFacts(record.task_id, handle)
-    this.#trackOutcome(record.task_id, handle, model, record.notification.run_epoch)
+    this.#outcome.trackOutcome(record.task_id, handle, model, record.notification.run_epoch)
     void this.#steering.notifyStarted(record.task_id)
     return { ok: true }
   }
@@ -639,67 +662,6 @@ class TaskManagerImpl implements TaskManager {
       transcript()
       stats()
     }
-  }
-
-  #trackOutcome(taskId: string, handle: ManagedChildHandle, model: string, epoch: number): void {
-    handle
-      .waitForOutcome()
-      .then((outcome) => {
-        const timestamp = nowIso(this.#now)
-        const runStats = this.#runStats.get(taskId)?.snapshot(this.#now())
-        if (outcome.status === "error") {
-          void this.#settleErrorOutcome({
-            taskId,
-            handle,
-            model,
-            epoch,
-            outcome,
-            runStats,
-            timestamp,
-          }).catch((error: unknown) => {
-            log("senpi-task manager error outcome tracking failed", {
-              taskId,
-              error: String(error),
-            })
-          })
-          return
-        }
-
-        this.#releaseSlot(taskId, model, epoch)
-        const runStatsField = runStats === undefined ? {} : { run_stats: runStats }
-        if (outcome.status === "completed") {
-          this.#options.store.transition(taskId, { type: "complete", timestamp, final_response: outcome.finalResponse, ...runStatsField })
-        } else {
-          this.#options.store.transition(taskId, { type: "cancel", timestamp, ...runStatsField })
-        }
-        this.#settleWaiters(taskId)
-      })
-      .catch((error: unknown) => log("senpi-task manager outcome tracking failed", { taskId, error: String(error) }))
-  }
-
-  async #settleErrorOutcome(input: {
-    readonly taskId: string
-    readonly handle: ManagedChildHandle
-    readonly model: string
-    readonly epoch: number
-    readonly outcome: Extract<
-      Awaited<ReturnType<ManagedChildHandle["waitForOutcome"]>>,
-      { readonly status: "error" }
-    >
-    readonly runStats: TaskRunStats | undefined
-    readonly timestamp: string
-  }): Promise<void> {
-    if (await this.#tryRuntimeFallback(input)) return
-
-    this.#releaseSlot(input.taskId, input.model, input.epoch)
-    this.#options.store.transition(input.taskId, {
-      type: "fail",
-      timestamp: input.timestamp,
-      error_message: input.outcome.failure.message,
-      ...(input.outcome.killed === true ? { killed: true } : {}),
-      ...(input.runStats === undefined ? {} : { run_stats: input.runStats }),
-    })
-    this.#settleWaiters(input.taskId)
   }
 
   async #tryRuntimeFallback(input: {
@@ -840,7 +802,7 @@ class TaskManagerImpl implements TaskManager {
     })
     this.#attachChildSubscribers(context.record.task_id, handle)
     this.#recordSpawnFacts(context.record.task_id, handle)
-    this.#trackOutcome(
+    this.#outcome.trackOutcome(
       context.record.task_id,
       handle,
       context.model,
@@ -858,7 +820,7 @@ class TaskManagerImpl implements TaskManager {
     this.#concurrency.acquire(live.model, taskId)
     // A revived run gets a fresh tracker so its eventual terminal stats describe THIS run.
     this.#runStats.set(taskId, createRunStatsTracker(this.#now(), this.#now))
-    this.#trackOutcome(taskId, live.handle, live.model, epoch)
+    this.#outcome.trackOutcome(taskId, live.handle, live.model, epoch)
   }
 
   #releaseSlot(taskId: string, model: string, epoch: number): void {
