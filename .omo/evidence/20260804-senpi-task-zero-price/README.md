@@ -29,6 +29,7 @@
   `task completed id:st_paid ran:1s tools:0 cost:$0.4213`.
 - Both changed files had no LSP diagnostics.
 - Package tests, typecheck, extension build, and generated-output check exited 0.
+- CI then caught that the initially committed Senpi bundle was stale because the first local build had resolved workspace packages from the shared checkout. Worktree-local dependencies were installed, the bundle was regenerated, and its `--check` command passed. Details are in `ci-remediation.txt`.
 - The isolated live Senpi task driver passed all 11 lifecycle/integration checks, reported `real_senpi_untouched: PASS`, and leaked zero of four spawned PIDs.
 - Visual QA cleanup:
   PTY 24979 killed and confirmed absent;
@@ -40,6 +41,7 @@
 - `green.txt`
 - `verification.txt`
 - `live-senpi.txt`
+- `ci-remediation.txt`
 - `zero/terminal.png`
 - `zero/terminal.txt`
 - `zero/terminal-ansi.txt`
@@ -51,7 +53,7 @@
 
 ## Why it is enough
 
-The failing test proves the prior task renderer exposed the exact unwanted zero-dollar token. The same seam passes after the one-line change, while the existing non-zero assertion remains green. The xterm.js captures exercise the production task row formatter through a real PTY and browser terminal, proving the user-visible zero and non-zero outputs rather than relying on tests alone. Package and generated-adapter checks cover adjacent code risk, and the isolated live Senpi task driver proves the component still works through the actual harness lifecycle.
+The failing test proves the prior task renderer exposed the exact unwanted zero-dollar token. The same seam passes after the one-line change, while the existing non-zero assertion remains green. The xterm.js captures exercise the production task row formatter through a real PTY and browser terminal, proving the user-visible zero and non-zero outputs rather than relying on tests alone. Package and regenerated-adapter checks cover adjacent code risk, and the isolated live Senpi task driver proves the component still works through the actual harness lifecycle.
 
 ## Self-review
 

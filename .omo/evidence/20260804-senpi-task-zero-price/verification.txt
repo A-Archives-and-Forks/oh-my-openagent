@@ -10,5 +10,8 @@ Commands:
 
 Observed:
   All commands exited 0.
-  The generated Senpi extension remained current; no generated file changed.
-  Worktree diff remained limited to the formatter and its focused test.
+  After installing worktree-local dependencies, the generated Senpi extension was refreshed and its `--check` verification exited 0.
+  The committed implementation consists of the formatter, focused test, and required generated Senpi bundle.
+
+Environment note:
+  The first pre-PR build ran without worktree-local node_modules, so Bun resolved workspace dependencies from the shared checkout and incorrectly produced no generated diff. CI caught the stale bundle. See `ci-remediation.txt` for the corrected build and verification.
