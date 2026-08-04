@@ -37,6 +37,7 @@ export function makeRecord(overrides: RecordOverrides = {}): TaskRecord {
     model: overrides.model ?? "claude-sonnet-4-5",
     created_at: overrides.created_at ?? timestamp,
     updated_at: timestamp,
+    notify_on_terminal: false,
     notification: {
       run_epoch: overrides.run_epoch ?? 0,
       notified_epoch: overrides.notified_epoch ?? -1,

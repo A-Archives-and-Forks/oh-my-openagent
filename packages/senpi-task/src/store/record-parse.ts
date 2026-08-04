@@ -24,6 +24,8 @@ export function parseTaskRecord(value: unknown, path: string): TaskRecord {
   const finalResponse = readOptionalString(value, "final_response")
   const errorMessage = readOptionalString(value, "error_message")
   const killed = readOptionalBoolean(value, "killed")
+  // Legacy records predate the field: they never asked for a terminal notification, so false.
+  const notifyOnTerminal = readOptionalBoolean(value, "notify_on_terminal") ?? false
   const requestedModel = readOptionalResolvedModel(value, "requested_model")
   const fallbackModels = readOptionalResolvedModelArray(value, "fallback_models")
   const fallbackAttempts = readOptionalResolvedModelArray(value, "fallback_attempts")
@@ -40,6 +42,7 @@ export function parseTaskRecord(value: unknown, path: string): TaskRecord {
     depth: readNumber(value, "depth"),
     execution_mode: readString(value, "execution_mode"),
     model: readString(value, "model"),
+    notify_on_terminal: notifyOnTerminal,
     created_at: readString(value, "created_at"),
     updated_at: readString(value, "updated_at"),
     notification: readNotification(value),

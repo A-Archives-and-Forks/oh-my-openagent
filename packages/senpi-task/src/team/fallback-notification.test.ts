@@ -30,6 +30,7 @@ function completedTeamRecord(): TaskRecord {
       display: "vendor-b/fallback-model",
     },
     fallback_models: [],
+    notify_on_terminal: false,
     status: "completed",
     residency_state: "resident",
     created_at: "2026-07-28T08:00:00.000Z",

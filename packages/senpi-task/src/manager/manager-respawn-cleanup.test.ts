@@ -20,6 +20,7 @@ function respawnRecord(): TaskRecord {
     depth: 1,
     execution_mode: "process",
     model: "openai/gpt-5.6",
+    notify_on_terminal: false,
     status: "lost",
     residency_state: "resident",
     created_at: "2026-07-12T00:00:00.000Z",

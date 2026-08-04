@@ -53,6 +53,7 @@ export function seedRecord(store: TaskRecordStore, input: SeedInput): TaskRecord
     residency_state: input.residency_state ?? "resident",
     created_at: timestamp,
     updated_at: timestamp,
+    notify_on_terminal: false,
     notification: { run_epoch: 0, notified_epoch: -1 },
     ...(input.pid !== undefined ? { pid: input.pid } : {}),
     ...(input.child_session_id !== undefined ? { child_session_id: input.child_session_id } : {}),

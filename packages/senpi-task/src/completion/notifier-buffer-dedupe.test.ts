@@ -20,6 +20,7 @@ function bufferedRecord(): TaskRecord {
     created_at: "2026-07-06T01:00:00.000Z",
     updated_at: "2026-07-06T01:00:03.000Z",
     final_response: "final",
+    notify_on_terminal: false,
     notification: { run_epoch: 0, notified_epoch: -1 },
   }
 }
