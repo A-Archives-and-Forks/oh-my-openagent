@@ -64,6 +64,38 @@ describe("sharedSkillsRootPath", () => {
 		expect(existsSync(resolved)).toBe(true);
 	});
 
+	test("#given the Codex marketplace layout #when the root is resolved #then the skills directory two levels up is used", async () => {
+		// given: `plugin/` is copied to `plugins/omo/` (so skills land at `plugins/omo/skills`)
+		// while the root CLI runtimes are bundled to `plugins/omo/dist/cli` and
+		// `plugins/omo/dist/cli-node`, two levels below the skills directory (AGENTS.md).
+		const root = createFixtureRoot();
+		mkdirSync(join(root, "skills", "ast-grep"), { recursive: true });
+		const bundleDirectory = join(root, "dist", "cli");
+
+		// when
+		const loaded = await loadFrom(bundleDirectory);
+		const resolved = loaded.sharedSkillsRootPath();
+
+		// then
+		expect(resolve(resolved)).toBe(resolve(join(root, "skills")));
+		expect(existsSync(resolved)).toBe(true);
+	});
+
+	test("#given a nearer skills directory than the marketplace one #when the root is resolved #then the nearest wins", async () => {
+		// given: both `dist/skills` and `skills` exist, so probe precedence has to be observable
+		const root = createFixtureRoot();
+		mkdirSync(join(root, "skills", "ast-grep"), { recursive: true });
+		mkdirSync(join(root, "dist", "skills", "ast-grep"), { recursive: true });
+		const bundleDirectory = join(root, "dist", "cli");
+
+		// when
+		const loaded = await loadFrom(bundleDirectory);
+		const resolved = loaded.sharedSkillsRootPath();
+
+		// then
+		expect(resolve(resolved)).toBe(resolve(join(root, "dist", "skills")));
+	});
+
 	test("#given no skills directory beside or above the module #when the root is resolved #then the sibling path is still returned", async () => {
 		// given
 		const root = createFixtureRoot();
