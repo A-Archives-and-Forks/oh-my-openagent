@@ -61,10 +61,16 @@ export async function removeManagedCodexBins(binDir: string, platform: LinkPlatf
 }
 
 // Windows shims and wrappers are always written as `<name>.cmd`; anything else in the bin
-// directory (including a `.backup` copy) is not something the installer created.
+// directory (including a `.backup` copy) is not something the installer created. Windows
+// resolves names case-insensitively while preserving the casing an entry was created with, so
+// the installer's lowercase `omo.cmd` path can write through to an entry that stays on disk as
+// `OMO.CMD`; the name is lowercased here so such a wrapper is still recognized as managed.
+// POSIX names stay untouched because there `OMO` really is a different file. Ownership is not
+// widened by this: removal still requires the installer's marker.
 function managedBinNameForEntry(entryName: string, platform: LinkPlatform): string | null {
   if (platform !== "win32") return entryName
-  return entryName.endsWith(".cmd") ? entryName.slice(0, -".cmd".length) : null
+  const normalizedEntryName = entryName.toLowerCase()
+  return normalizedEntryName.endsWith(".cmd") ? normalizedEntryName.slice(0, -".cmd".length) : null
 }
 
 async function isManagedCodexBin(linkPath: string, platform: LinkPlatform, binName: string): Promise<boolean> {
