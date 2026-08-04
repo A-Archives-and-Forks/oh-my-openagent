@@ -30,6 +30,7 @@ type CacheEntry = {
   readonly record: TaskRecord
   readonly mtimeMs: number
   readonly size: number
+  readonly warnings: readonly string[]
 }
 
 export class TaskRecordCollisionError extends Error {
@@ -50,10 +51,11 @@ export function createTaskRecordStore(config: StateDirConfig): TaskRecordStore {
   const appendFds: AppendFdCache = new Map()
 
   function cacheSet(path: string): void {
-    const record = readRecord(path)
+    const warnings: string[] = []
+    const record = readRecord(path, warnings)
     if (record === null) return
     const stat = statSync(path)
-    cache.set(path, { record, mtimeMs: stat.mtimeMs, size: stat.size })
+    cache.set(path, { record, mtimeMs: stat.mtimeMs, size: stat.size, warnings })
   }
 
   return {
@@ -145,7 +147,15 @@ function listRecords(stateDir: string, cache: Map<string, CacheEntry>): ListTask
     seen.add(path)
     try {
       const record = readCached(path, cache)
-      if (record !== null) records.push(record)
+      if (record !== null) {
+        records.push(record)
+        const cached = cache.get(path)
+        if (cached !== undefined) {
+          for (const warning of cached.warnings) {
+            diagnostics.push({ type: "parse_warning", path, message: warning })
+          }
+        }
+      }
     } catch (error) {
       if (!(error instanceof Error)) throw error
       diagnostics.push({ type: "parse_error", path, message: error.message })
@@ -177,15 +187,16 @@ function readCached(path: string, cache: Map<string, CacheEntry>): TaskRecord | 
     return hit.record
   }
 
-  const record = readRecord(path)
-  if (record !== null) cache.set(path, { record, mtimeMs: stat.mtimeMs, size: stat.size })
+  const warnings: string[] = []
+  const record = readRecord(path, warnings)
+  if (record !== null) cache.set(path, { record, mtimeMs: stat.mtimeMs, size: stat.size, warnings })
   return record
 }
 
-function readRecord(path: string): TaskRecord | null {
+function readRecord(path: string, warnings: string[] = []): TaskRecord | null {
   try {
     const parsed: unknown = JSON.parse(readFileSync(path, "utf8"))
-    return parseTaskRecord(parsed, path)
+    return parseTaskRecord(parsed, path, warnings)
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") return null
     throw error

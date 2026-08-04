@@ -7,11 +7,17 @@ export type StateDirConfig = {
   }
 }
 
-export type TaskRecordDiagnostic = {
-  readonly type: "parse_error"
-  readonly path: string
-  readonly message: string
-}
+export type TaskRecordDiagnostic =
+  | {
+      readonly type: "parse_error"
+      readonly path: string
+      readonly message: string
+    }
+  | {
+      readonly type: "parse_warning"
+      readonly path: string
+      readonly message: string
+    }
 
 export type ListTaskRecordsResult = {
   readonly records: readonly TaskRecord[]
