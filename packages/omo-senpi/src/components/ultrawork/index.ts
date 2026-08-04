@@ -46,14 +46,29 @@ export interface SessionArming {
 }
 
 // Senpi tears down the extension runner and re-registers every component during
-// a session switch or resume, so a ledger created inside register() resets there
-// and re-injects the full ~17KB directive on the resumed session's first trigger.
-// The default ledger therefore lives at module scope: re-registration within the
-// process keeps every armed session id (and the anonymous fallback slot). Tests
+// a session switch or resume, and it loads PACKAGED extensions through an
+// uncached importer (Jiti `moduleCache: false` in core/extensions/loader.ts), so
+// every module-scope binding in this bundle is reconstructed on each load. A
+// ledger held at module scope — or inside register() — forgets every armed
+// session there and re-injects the full ~17KB directive on the next trigger, the
+// exact token burn this guard exists to stop. The default ledger therefore hangs
+// off globalThis (process-lifetime, survives re-evaluation), keyed by a
+// registered symbol so every evaluation of the bundle shares one ledger. Tests
 // inject isolated ledgers through the factory parameter instead.
-const sharedSessionArming = createSessionArming()
+const ARMING_LEDGER_KEY = Symbol.for("omo.ultrawork.arming")
 
-export function createUltraworkComponent(arming: SessionArming = sharedSessionArming): OmoSenpiComponent {
+function sharedSessionArming(): SessionArming {
+  const registry = globalThis as unknown as Record<symbol, SessionArming | undefined>
+  const existing = registry[ARMING_LEDGER_KEY]
+  if (existing !== undefined) {
+    return existing
+  }
+  const created = createSessionArming()
+  registry[ARMING_LEDGER_KEY] = created
+  return created
+}
+
+export function createUltraworkComponent(arming: SessionArming = sharedSessionArming()): OmoSenpiComponent {
   return {
     name: "ultrawork",
     register(pi: SenpiExtensionAPI, ctx: ComponentContext): void {
