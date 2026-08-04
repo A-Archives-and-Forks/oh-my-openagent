@@ -2,6 +2,7 @@
 
 import { renderTaskCompletion } from "../../src/components/task/renderers.ts"
 import { backgroundWidgetRows } from "../../src/components/task/status-row-format.ts"
+import { createRunStatsTracker } from "../../../senpi-task/src/run-stats.ts"
 import { renderTaskOutputResult } from "../../../senpi-task/src/tools/output/renderers.ts"
 import { renderTaskResultComponent } from "../../../senpi-task/src/tools/task/renderers.ts"
 
@@ -21,14 +22,43 @@ const THEME = {
   italic: (text) => `\u001b[3m${text}\u001b[23m`,
 }
 
+const EVAL_TOOL_CALL_COUNT = (() => {
+  const tracker = createRunStatsTracker(0, () => 20_000)
+  tracker.accept({
+    type: "tool_execution_start",
+    toolCallId: "eval-qa",
+    toolName: "eval",
+    args: { action: "run", language: "py", code: "read(); bash()" },
+  })
+  tracker.accept({
+    type: "tool_execution_end",
+    toolCallId: "eval-qa",
+    toolName: "eval",
+    result: {
+      content: [{ type: "text", text: "done" }],
+      details: {
+        toolCalls: [
+          { name: "read", ok: true },
+          { name: "bash", ok: true },
+        ],
+      },
+    },
+    isError: false,
+  })
+  return tracker.snapshot(20_000).tool_calls
+})()
+
 const RUN_STATS = {
   runtime_ms: 65_000,
   turns: 3,
-  tool_calls: 7,
+  tool_calls: EVAL_TOOL_CALL_COUNT,
   output_tokens: 840,
   total_tokens: 3_200,
   generation_ms: 20_000,
   tokens_per_second: 42,
+  cost_usd: 0.1303,
+  cache_hit_rate_last: 0.89,
+  cache_hit_rate_run: 0.44,
 }
 
 function foregroundLines() {
@@ -107,7 +137,12 @@ function scenario(name) {
     return { lines: foregroundLines(), required: ["foreground completed", "ran:2m5s", "tools:7", "tps:64"] }
   }
   if (name === "background") {
-    return { lines: backgroundLines(), required: ["7 tools", "42 tok/s", "1m 5s", "ran 1m 5s"] }
+    return {
+      lines: backgroundLines(),
+      required: ["3 tools", "$0.1303", "42 tok/s", "1m 5s", "ran 1m 5s", "(CH: 44%)"],
+      runningForbidden: ["CH:"],
+      completedRequired: ["(CH: 44%)"],
+    }
   }
   if (name === "team") {
     return { lines: teamLines(), required: ["name:stats-member", "status:completed", "duration:1m 5s", "tools:4", "tps:250"] }
@@ -120,5 +155,16 @@ const visible = selected.lines.join("\n")
 const plain = visible.replace(/\u001b\[[0-9;]*m/gu, "")
 for (const token of selected.required) {
   if (!plain.includes(token)) throw new Error(`missing required renderer token: ${token} in ${JSON.stringify(plain)}`)
+}
+const [runningLine = "", completedLine = ""] = selected.lines.map((line) => line.replace(/\u001b\[[0-9;]*m/gu, ""))
+for (const token of selected.runningForbidden ?? []) {
+  if (runningLine.includes(token)) {
+    throw new Error(`unexpected running-row token: ${token} in ${JSON.stringify(runningLine)}`)
+  }
+}
+for (const token of selected.completedRequired ?? []) {
+  if (!completedLine.includes(token)) {
+    throw new Error(`missing completed-row token: ${token} in ${JSON.stringify(completedLine)}`)
+  }
 }
 process.stdout.write(`${visible}\n`)
