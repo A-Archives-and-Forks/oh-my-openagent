@@ -63,17 +63,30 @@ export class MonitorOutputInjector {
     }
 
     const sessionID = pending.record.parentSessionId
-    const forceActiveDispatch = this.hasTerminalBatchOverActiveDeferCeiling(pending)
-    const sessionActive = await this.isSessionActive(sessionID)
+    const hasForcedTerminalBatch = this.hasTerminalBatchOverActiveDeferCeiling(pending)
+    let sessionActive = await this.isSessionActive(sessionID)
     if (!sessionActive) {
       await this.settleAfterSessionIdle()
-      if ((await this.isSessionActive(sessionID)) && !forceActiveDispatch) {
+      sessionActive = await this.isSessionActive(sessionID)
+      if (sessionActive && !hasForcedTerminalBatch) {
         this.scheduleFlush(monitorId)
         return
       }
-    } else if (!forceActiveDispatch) {
+    } else if (!hasForcedTerminalBatch) {
       this.scheduleFlush(monitorId)
       return
+    }
+
+    if (sessionActive && hasForcedTerminalBatch) {
+      const forcedTerminalBatches: OutputBatch[] = []
+      const remainingBatches: OutputBatch[] = []
+      for (const batch of pending.batches) {
+        const destination = this.shouldForceActiveDispatch(pending.record, batch)
+          ? forcedTerminalBatches
+          : remainingBatches
+        destination.push(batch)
+      }
+      pending.batches = [...forcedTerminalBatches, ...remainingBatches]
     }
 
     if (await latestAssistantTurnBlocksMonitorOutput(this.deps.client, this.deps.directory, sessionID)) {
@@ -98,6 +111,12 @@ export class MonitorOutputInjector {
       if (this.deliveredSources.has(source)) {
         pending.batches.shift()
         continue
+      }
+
+      const forceActiveDispatch = this.shouldForceActiveDispatch(pending.record, batch)
+      if (sessionActive && !forceActiveDispatch) {
+        this.scheduleFlush(monitorId)
+        return
       }
 
       pending.batches.shift()
@@ -240,14 +259,16 @@ export class MonitorOutputInjector {
   }
 
   private hasTerminalBatchOverActiveDeferCeiling(pending: PendingMonitorOutput): boolean {
+    return pending.batches.some((batch) => this.shouldForceActiveDispatch(pending.record, batch))
+  }
+
+  private shouldForceActiveDispatch(record: MonitorRecord, batch: OutputBatch): boolean {
     const maxActiveDeferMs = this.deps.maxActiveDeferMs
     if (maxActiveDeferMs === undefined || maxActiveDeferMs <= 0) {
       return false
     }
-    return pending.batches.some((batch) =>
-      this.isTerminalBatch(batch)
-      && this.getQueuedAgeMs(this.createSource(pending.record, batch)) >= maxActiveDeferMs
-    )
+    return this.isTerminalBatch(batch)
+      && this.getQueuedAgeMs(this.createSource(record, batch)) >= maxActiveDeferMs
   }
 
   private rememberQueuedAt(source: string): void {

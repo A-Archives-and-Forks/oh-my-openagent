@@ -151,6 +151,24 @@ describe("monitor terminal batch parent wake", () => {
     expect(harness.calls).toHaveLength(0)
   })
 
+  test("over-ceiling terminal batch dispatches ahead of queued streaming batches while the parent is busy", async () => {
+    const harness = createHarness({ active: true, maxActiveDeferMs: 60_000 })
+    const runningRecord = createRecord({ status: "running", exitCode: undefined })
+
+    harness.injector.queueBatch(runningRecord, createBatch(1, true))
+    harness.injector.queueBatch(runningRecord, createBatch(2, true))
+    harness.injector.queueBatch(createRecord(), createBatch(3, false))
+    harness.advance(60_000)
+
+    await harness.injector.flushMonitor("mon_1")
+
+    expect(harness.calls).toHaveLength(1)
+    expect(harness.calls[0]?.source).toBe("monitor-output:mon_1:batch-3")
+    expect(harness.calls[0]?.input.body.noReply).toBe(false)
+    expect(harness.calls[0]?.checkStatus).toBe(false)
+    expect(harness.injector.getPendingBatches("mon_1").map((batch) => batch.batchSeq)).toEqual([1, 2])
+  })
+
   test("ceiling is opt-in: an omitted maxActiveDeferMs keeps the unbounded legacy deferral", async () => {
     const harness = createHarness({ active: true })
 
