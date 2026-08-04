@@ -71,6 +71,9 @@ export type BatchAdmissionOptions = {
   readonly timing?: Partial<AdmissionLeaseTiming>
   // Test seam for deterministic displacement/contention; production uses the real lease.
   readonly acquireLease?: typeof acquireSessionAdmissionLease
+  // Records this reconciliation pass has already classified as unsafe to admit (for example, a
+  // terminal no-transcript record whose disposal lock contended). They remain suspended for retry.
+  readonly excludeTaskIds?: ReadonlySet<string>
 }
 
 export type ResidencyClaimResult = "claimed" | "not_claimable"
@@ -122,7 +125,7 @@ export async function admitSuspendedBatch(
     // Bounded wait expired: the WHOLE batch defers, never a throw aborting session start.
     return {
       lease: "lock_contended",
-      outcomes: revivalCandidates(context, parentSessionId).map((record) => ({
+      outcomes: revivalCandidates(context, parentSessionId, options.excludeTaskIds).map((record) => ({
         task_id: record.task_id,
         kind: "deferred",
         reason: "lock_contended",
@@ -134,7 +137,7 @@ export async function admitSuspendedBatch(
   const outcomes: BatchAdmissionOutcome[] = []
   let leaseState: BatchAdmissionResult["lease"] = "acquired"
   try {
-    const candidates = byRevivalPriority(revivalCandidates(context, parentSessionId))
+    const candidates = byRevivalPriority(revivalCandidates(context, parentSessionId, options.excludeTaskIds))
     // Residents include live foreign owners; when the configured cap sits below the current
     // resident count, available clamps to 0 - revive none, keep owned residents, evict nothing.
     const available = Math.max(0, context.config.residency_max_children - residentsFor(context, parentSessionId).length)
@@ -177,11 +180,16 @@ export async function admitSuspendedBatch(
   return { lease: leaseState, outcomes }
 }
 
-function revivalCandidates(context: LifecycleContext, parentSessionId: string): readonly TaskRecord[] {
+function revivalCandidates(
+  context: LifecycleContext,
+  parentSessionId: string,
+  excludeTaskIds: ReadonlySet<string> | undefined,
+): readonly TaskRecord[] {
   return context.store
     .list()
     .records.filter(
       (record) =>
+        !excludeTaskIds?.has(record.task_id) &&
         record.parent_session_id === parentSessionId &&
         SUSPENDED_RESIDENCIES.has(record.residency_state) &&
         REVIVABLE_STATUSES.has(record.status) &&

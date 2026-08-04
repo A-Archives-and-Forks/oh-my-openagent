@@ -18,6 +18,7 @@ export type ReconcileDeferredReason =
   | "spawn_spec_unavailable"
   | "team_inactive"
   | "reattach_disabled"
+  | "rollback_failed"
 
 export type ReconcileOutcome = {
   readonly task_id: string

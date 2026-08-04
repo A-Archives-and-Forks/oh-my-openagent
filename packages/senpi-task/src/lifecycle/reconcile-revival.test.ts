@@ -224,6 +224,32 @@ describe("reconcileOnSessionStart scoped revival", () => {
     expect(harness.store.load("st_10000019")?.residency_state).toBe("persisted_only")
   })
 
+  test("#given terminal no-transcript disposal contends once #when admission follows #then the prompt is never relaunched and disposal defers", async () => {
+    // given
+    const backing = tempStore()
+    const record = withV1(backing, seedRecord(backing, {
+      task_id: "st_1000001a", parent_session_id: parentSessionId, status: "completed",
+      residency_state: "persisted_only", execution_mode: "in-process",
+    }))
+    let mutations = 0
+    const store: TaskRecordStore = {
+      ...backing,
+      mutate: (taskId, mutation) => {
+        if (taskId === record.task_id && mutations++ === 0) throw new Error("one-shot disposal lock contention")
+        return backing.mutate(taskId, mutation)
+      },
+    }
+    const harness = injectedHarness({ store })
+
+    // when
+    const result = await harness.lifecycle.reconcileOnSessionStart(parentSessionId)
+
+    // then
+    expect(harness.launches).toHaveLength(0)
+    expect(result.outcomes).toContainEqual({ task_id: record.task_id, kind: "deferred", reason: "lock_contended" })
+    expect(harness.store.load(record.task_id)?.residency_state).toBe("persisted_only")
+  })
+
   test("#given model resolution is temporarily unavailable #when revival fails #then ownership rolls back and the outcome is deferred", async () => {
     // given
     const harness = injectedHarness({
@@ -244,6 +270,38 @@ describe("reconcileOnSessionStart scoped revival", () => {
     expect(result.outcomes).toContainEqual({ task_id: record.task_id, kind: "deferred", reason: "model_unavailable" })
     expect(harness.store.load(record.task_id)?.residency_state).toBe("persisted_only")
     expect(harness.store.load(record.task_id)?.host_pid).toBeUndefined()
+  })
+
+  test("#given retryable respawn failure and rollback lock failure #when reconciled #then the outcome loudly names the failed rollback", async () => {
+    // given
+    const backing = tempStore()
+    const record = withV1(backing, seedRecord(backing, {
+      task_id: "st_1000001b", parent_session_id: parentSessionId, status: "running",
+      residency_state: "persisted_only", execution_mode: "in-process",
+    }))
+    persistSession(backing, record.task_id)
+    let mutations = 0
+    const store: TaskRecordStore = {
+      ...backing,
+      mutate: (taskId, mutation) => {
+        if (taskId === record.task_id && mutations++ === 1) throw new Error("rollback lock failed")
+        return backing.mutate(taskId, mutation)
+      },
+    }
+    const harness = injectedHarness({
+      store,
+      onRespawn: async () => ({
+        ok: false, disposition: "retryable", code: "model_unavailable", reason: "model registry is cold",
+      }),
+    })
+
+    // when
+    const result = await harness.lifecycle.reconcileOnSessionStart(parentSessionId)
+
+    // then
+    expect(result.outcomes).toContainEqual({ task_id: record.task_id, kind: "deferred", reason: "rollback_failed" })
+    expect(harness.store.load(record.task_id)?.residency_state).toBe("resident")
+    expect(harness.store.load(record.task_id)?.host_pid).toBe(hostPid)
   })
 
   test("#given one record lock throws #when a batch reconciles #then only that record defers and the other revives", async () => {

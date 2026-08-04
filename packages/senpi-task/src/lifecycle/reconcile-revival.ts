@@ -1,3 +1,5 @@
+import { log } from "@oh-my-opencode/utils"
+
 import type { TaskRecord } from "../state"
 import { isSpawnSpecV1, markRecordLostForReconciliation } from "../state"
 import { delay, nowIso, TERMINAL_STATUSES, type LifecycleContext } from "./context"
@@ -39,28 +41,38 @@ export async function reconcileScopedRevival(
   }
 
   // A terminal record without a transcript is not a revival candidate at all. Dispose it before
-  // capacity selection so it neither consumes a slot nor reruns its persisted prompt.
+  // capacity selection so it neither consumes a slot nor reruns its persisted prompt. Once seen,
+  // exclude it from THIS pass even if disposal lock contention is transient: admission must never
+  // turn a failed no-rerun disposal into a fresh terminal prompt launch.
+  const excludedFromAdmission = new Set(context.reconcileAdmission.excludeTaskIds)
   for (const observed of sessionRecords) {
     if (!isSuspended(observed) || !TERMINAL_STATUSES.has(observed.status) || observed.status === "lost") continue
     if (observed.killed === true || sessionPathFor(observed.task_id) !== undefined) continue
-    const disposed = disposeSuspendedTerminalWithoutTranscript(context, observed)
-    if (disposed) {
+    excludedFromAdmission.add(observed.task_id)
+    const disposal = disposeSuspendedTerminalWithoutTranscript(context, observed)
+    if (disposal === "disposed") {
       outcomes.push({
         task_id: observed.task_id,
         kind: "resumed",
         reason: "terminal without transcript disposed; persisted result preserved",
       })
+    } else if (disposal === "lock_contended") {
+      outcomes.push(deferred(observed.task_id, "lock_contended"))
     }
   }
 
   const candidates = suspendedCandidates(context, parentSessionId)
+    .filter(({ record }) => !excludedFromAdmission.has(record.task_id))
   if (context.config.reattach_on_reconcile === false) {
     outcomes.push(...candidates.map(({ record }) => deferred(record.task_id, "reattach_disabled")))
     return outcomes
   }
 
   const priorResidencies = new Map(candidates.map((candidate) => [candidate.record.task_id, candidate.priorResidency]))
-  const admission = await admitSuspendedBatch(context, parentSessionId, context.reconcileAdmission)
+  const admission = await admitSuspendedBatch(context, parentSessionId, {
+    ...context.reconcileAdmission,
+    excludeTaskIds: excludedFromAdmission,
+  })
   const reported = new Set<string>()
   for (const outcome of admission.outcomes) {
     reported.add(outcome.task_id)
@@ -147,8 +159,7 @@ async function reclaimResidentExclusive(
 
   const rollbackResidency: SuspendedResidency = claimed.execution_mode === "process" ? "rpc_detached" : "persisted_only"
   if (context.config.reattach_on_reconcile === false) {
-    rollbackClaim(context, claimed.task_id, rollbackResidency)
-    return deferred(claimed.task_id, "reattach_disabled")
+    return rollbackOrDeferred(context, claimed.task_id, rollbackResidency, "reattach_disabled")
   }
   return reviveClaimed(context, claimed, rollbackResidency, sessionPath)
 }
@@ -161,15 +172,13 @@ async function reviveClaimed(
 ): Promise<ReconcileOutcome> {
   const fresh = context.store.load(claimed.task_id)
   if (!isClaimHeld(context, fresh, claimed.parent_session_id) || fresh.killed === true || !REVIVABLE_STATUSES.has(fresh.status)) {
-    rollbackClaim(context, claimed.task_id, rollbackResidency)
-    return deferred(claimed.task_id, "foreign_live_owner")
+    return rollbackOrDeferred(context, claimed.task_id, rollbackResidency, "foreign_live_owner")
   }
 
   if (fresh.execution_mode === "process" && fresh.pid !== undefined) {
     const terminated = await terminateOldRpc(context, fresh)
     if (!terminated) {
-      rollbackClaim(context, fresh.task_id, rollbackResidency)
-      return deferred(fresh.task_id, "session_unavailable")
+      return rollbackOrDeferred(context, fresh.task_id, rollbackResidency, "session_unavailable")
     }
   }
 
@@ -195,8 +204,7 @@ async function reviveClaimed(
   const respawned = await ports.respawn(fresh, sessionPath)
   if (!respawned.ok) {
     if (respawned.disposition === "retryable") {
-      rollbackClaim(context, fresh.task_id, rollbackResidency)
-      return deferred(fresh.task_id, deferredCode(respawned.code))
+      return rollbackOrDeferred(context, fresh.task_id, rollbackResidency, deferredCode(respawned.code))
     }
     if (TERMINAL_STATUSES.has(fresh.status)) {
       context.store.transition(fresh.task_id, { type: "dispose", timestamp: nowIso(context) })
@@ -211,8 +219,7 @@ async function reviveClaimed(
     if (reattached.kind === "already_attached") {
       return { task_id: fresh.task_id, kind: "resumed", reason: reattached.reason }
     }
-    rollbackClaim(context, fresh.task_id, rollbackResidency)
-    return deferred(fresh.task_id, "session_unavailable")
+    return rollbackOrDeferred(context, fresh.task_id, rollbackResidency, "session_unavailable")
   }
   context.store.appendEvent(fresh.task_id, {
     type: "reconcile_reattached",
@@ -234,7 +241,18 @@ async function terminateOldRpc(context: LifecycleContext, record: TaskRecord): P
   return !context.signaller.isAlive(pid)
 }
 
-function rollbackClaim(context: LifecycleContext, taskId: string, residency: SuspendedResidency): void {
+function rollbackOrDeferred(
+  context: LifecycleContext,
+  taskId: string,
+  residency: SuspendedResidency,
+  successReason: ReconcileDeferredReason,
+): ReconcileOutcome {
+  return rollbackClaim(context, taskId, residency)
+    ? deferred(taskId, successReason)
+    : deferred(taskId, "rollback_failed")
+}
+
+function rollbackClaim(context: LifecycleContext, taskId: string, residency: SuspendedResidency): boolean {
   try {
     context.store.mutate(taskId, (fresh) => {
       if (fresh.host_pid !== context.hostPid || fresh.residency_state !== "resident") return fresh
@@ -245,8 +263,10 @@ function rollbackClaim(context: LifecycleContext, taskId: string, residency: Sus
       const { pid: _pid, ...withoutPid } = withoutHost
       return { ...withoutPid, residency_state: residency, updated_at: nowIso(context) }
     })
-  } catch {
-    // A rollback CAS that loses its lock/ownership race must not overwrite the winner.
+    return true
+  } catch (error) {
+    log("senpi-task reconcile ownership rollback failed", { taskId, residency, error: String(error) })
+    return false
   }
 }
 
@@ -268,7 +288,10 @@ async function markLost(context: LifecycleContext, record: TaskRecord, message: 
   await destroyResidentTask(context, record.task_id, "reconcile_lost")
 }
 
-function disposeSuspendedTerminalWithoutTranscript(context: LifecycleContext, observed: TaskRecord): boolean {
+function disposeSuspendedTerminalWithoutTranscript(
+  context: LifecycleContext,
+  observed: TaskRecord,
+): "disposed" | "not_applied" | "lock_contended" {
   let applied = false
   try {
     context.store.mutate(observed.task_id, (fresh) => {
@@ -278,9 +301,9 @@ function disposeSuspendedTerminalWithoutTranscript(context: LifecycleContext, ob
       return { ...rest, residency_state: "disposed", updated_at: nowIso(context) }
     })
   } catch {
-    return false
+    return "lock_contended"
   }
-  return applied
+  return applied ? "disposed" : "not_applied"
 }
 
 function suspendedCandidates(context: LifecycleContext, parentSessionId: string): readonly RevivalCandidate[] {
