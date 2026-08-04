@@ -160,6 +160,16 @@ async function sha256(path) {
   return createHash("sha256").update(await readFile(path)).digest("hex")
 }
 
+async function fileExists(path) {
+  try {
+    await access(path)
+    return true
+  } catch (error) {
+    if (isErrno(error, "ENOENT")) return false
+    throw error
+  }
+}
+
 function isErrno(error, code) {
   return error instanceof Error && "code" in error && error.code === code
 }
@@ -167,8 +177,14 @@ function isErrno(error, code) {
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     if (process.argv.includes("--check")) {
-      const result = await checkAstGrepMcpRuntimeFresh()
-      console.log(`Senpi ast-grep-mcp runtime is current: ${result.targetEntry} sha256=${result.sha256}`)
+      // Fresh-checkout-safe: if ast-grep-mcp was never built locally (its dist is a gitignored
+      // build output), there is nothing to verify — CI covers the full build in its dedicated job.
+      if (!(await fileExists(defaultSourceEntry))) {
+        console.log(`runtime dist not built locally; skipping freshness check: ${defaultSourceEntry}`)
+      } else {
+        const result = await checkAstGrepMcpRuntimeFresh()
+        console.log(`Senpi ast-grep-mcp runtime is current: ${result.targetEntry} sha256=${result.sha256}`)
+      }
     } else {
       const result = await stageAstGrepMcpRuntime()
       console.log(`Staged Senpi ast-grep MCP runtime: ${result.targetEntry}`)
