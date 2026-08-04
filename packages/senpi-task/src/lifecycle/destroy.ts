@@ -5,9 +5,15 @@ import type { DestroyCause, ResidentHandle } from "./port"
 
 /**
  * THE single-writer destruction port. This is the ONLY function in the package that invokes a
- * handle's dispose()/terminate() or (for a previous-process orphan) an OS kill. Cancel (todo 10),
- * LRU eviction, TTL, session shutdown, and reconciliation all route here so terminal state never
- * auto-disposes and every teardown is bookkept identically.
+ * handle's dispose()/terminate() for TERMINAL teardown, or (for a previous-process orphan) an OS
+ * kill. Cancel (todo 10), LRU eviction, TTL, and reconciliation all route here so terminal state
+ * never auto-disposes and every teardown is bookkept identically.
+ *
+ * The ONLY sibling caller of handle abort/terminate/dispose is shutdown.ts's
+ * suspendOnSessionShutdown (a deliberate deviation from the single-writer rule, recorded in the
+ * work plan): suspension is NOT destruction - this port's contract is terminal teardown (forget +
+ * dispose transition), while suspension must keep the record continuable as persisted_only /
+ * rpc_detached, so it cannot route through destroyResidentTask.
  */
 export async function destroyResidentTask(
   context: LifecycleContext,

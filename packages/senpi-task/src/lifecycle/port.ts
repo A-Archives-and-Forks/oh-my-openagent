@@ -4,13 +4,14 @@ import type { ManagedChildHandle } from "../manager/child-handle"
 import type { TaskRecord } from "../state"
 import type { TaskRecordStore } from "../store"
 
-// Why a task is being torn down. Cancel (todo 10), LRU eviction, TTL cleanup, session shutdown, and
-// session_start reconciliation ALL route their destruction through the single-writer port.
+// Why a task is being torn down. Cancel (todo 10), LRU eviction, TTL cleanup, and session_start
+// reconciliation ALL route their destruction through the single-writer port. Session shutdown is
+// NOT here: it suspends revivable children (shutdown.ts) and only routes deliberately-stopped
+// children through the port, under the "cancel" deliberate-stop family.
 export type DestroyCause =
   | "cancel"
   | "evict"
   | "ttl"
-  | "shutdown"
   | "reconcile_lost"
   | "fallback_handoff"
 
@@ -88,6 +89,9 @@ export type LifecycleDeps = {
   // Pid of THIS host process. Defaults to process.pid; injectable so reconciliation tests can
   // simulate cross-process ownership deterministically.
   readonly hostPid?: number
+  // Remove a queued (never-launched) child from the concurrency queue when session shutdown
+  // suspends it. Defaults to a no-op; the manager wires its real dequeue through here.
+  readonly dequeuePending?: (taskId: string) => void
 }
 
 export function injectedLifecycleReattachPorts(deps: LifecycleDeps): LifecycleReattachPorts | undefined {

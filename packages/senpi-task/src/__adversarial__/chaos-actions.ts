@@ -194,7 +194,7 @@ async function actReconcile(state: ChaosState): Promise<void> {
 }
 
 async function actShutdown(state: ChaosState): Promise<void> {
-  await state.harness.lifecycle.teardownOnSessionShutdown()
+  await state.harness.lifecycle.suspendOnSessionShutdown({ parentSessionId: CHAOS_SESSION, reason: "quit" })
 }
 
 async function actNotifierFailThenRetry(state: ChaosState): Promise<void> {

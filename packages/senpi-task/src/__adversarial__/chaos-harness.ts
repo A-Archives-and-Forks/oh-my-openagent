@@ -204,6 +204,12 @@ export function buildHarness(options: ChaosHarnessOptions): ChaosHarness {
     default_concurrency: options.concurrency,
     residency_max_children: options.residencyMax,
     max_depth: options.maxDepth,
+    // Pre-revival shutdown semantics: suspended records can never quiesce (todo 7's outcome guard
+    // deliberately blocks their late terminalization, and scoped revival only lands in todo 13),
+    // so the bench drives shutdown through the resume_children=false legacy dispose path - itself
+    // new todo-6 code pinned by shutdown.test.ts - until todo 21 extends the bench with a
+    // suspend/revival-aware quiescence model.
+    resume_children: false,
   })
 
   const registry = new FakeRegistry()

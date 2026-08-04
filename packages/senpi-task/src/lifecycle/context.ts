@@ -15,6 +15,7 @@ export type LifecycleContext = {
   readonly signaller: ProcessSignaller
   readonly orphanKillDelayMs: number
   readonly hostPid: number
+  readonly dequeuePending: (taskId: string) => void
   readonly reattachPorts: LifecycleReattachPorts | undefined
 }
 
@@ -48,6 +49,7 @@ export function resolveContext(deps: LifecycleDeps): LifecycleContext {
     signaller: deps.signaller ?? defaultSignaller,
     orphanKillDelayMs: deps.orphanKillDelayMs ?? DEFAULT_ORPHAN_KILL_DELAY_MS,
     hostPid: deps.hostPid ?? process.pid,
+    dequeuePending: deps.dequeuePending ?? (() => {}),
     reattachPorts: injectedLifecycleReattachPorts(deps),
   }
 }

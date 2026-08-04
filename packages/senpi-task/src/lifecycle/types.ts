@@ -23,10 +23,22 @@ export type CleanupResult = {
   readonly retained: readonly string[]
 }
 
-export type TeardownSummary = {
-  readonly in_process: number
-  readonly rpc: number
-  readonly total: number
+export type SuspendInput = {
+  readonly parentSessionId: string
+  readonly reason: string
+}
+
+export type SuspendFailure = {
+  readonly task_id: string
+  readonly error: string
+}
+
+export type SuspendSummary = {
+  readonly suspended_in_process: number
+  readonly suspended_rpc: number
+  readonly suspended_pending: number
+  readonly disposed: number
+  readonly failures: readonly SuspendFailure[]
 }
 
 export type TaskLifecycle = {
@@ -34,5 +46,5 @@ export type TaskLifecycle = {
   admitResident(parentSessionId: string): Promise<AdmissionResult>
   reconcileOnSessionStart(): Promise<ReconcileResult>
   cleanupExpiredRecords(): CleanupResult
-  teardownOnSessionShutdown(): Promise<TeardownSummary>
+  suspendOnSessionShutdown(input: SuspendInput): Promise<SuspendSummary>
 }
