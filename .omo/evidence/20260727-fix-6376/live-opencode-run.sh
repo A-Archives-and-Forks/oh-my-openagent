@@ -37,14 +37,22 @@ cat > "$SBX/config/opencode/opencode.json" <<JSON
 }
 JSON
 
-export HOME="$SBX/home"
-export USERPROFILE="$SBX/home"
-export XDG_DATA_HOME="$SBX/data"
-export XDG_CONFIG_HOME="$SBX/config"
-export XDG_CACHE_HOME="$SBX/cache"
-export XDG_STATE_HOME="$SBX/state"
-export TMPDIR="$SBX/tmp"; export TEMP="$SBX/tmp"; export TMP="$SBX/tmp"
-export OPENCODE_DISABLE_AUTOUPDATE=1
+# The sandbox environment is applied ONLY inside the subshell that runs opencode, never to
+# this shell. Mutating it here and trying to undo it afterwards cannot be done faithfully: an
+# `unset` does not restore a variable the caller had set, and forcing USERPROFILE to HOME loses
+# an original value that differed. Either way the after-count could read a different database
+# than the before-count and two coincidentally equal numbers would report a pass. Keeping this
+# shell pristine means both counts always read the same real database by construction.
+sandbox_env() {
+  export HOME="$SBX/home"
+  export USERPROFILE="$SBX/home"
+  export XDG_DATA_HOME="$SBX/data"
+  export XDG_CONFIG_HOME="$SBX/config"
+  export XDG_CACHE_HOME="$SBX/cache"
+  export XDG_STATE_HOME="$SBX/state"
+  export TMPDIR="$SBX/tmp"; export TEMP="$SBX/tmp"; export TMP="$SBX/tmp"
+  export OPENCODE_DISABLE_AUTOUPDATE=1
+}
 
 {
   echo "### opencode-qa Case A for #6376: shared-skill discovery inside real OpenCode"
@@ -59,7 +67,7 @@ export OPENCODE_DISABLE_AUTOUPDATE=1
   echo '=== real session: opencode run "reply with exactly OK" --format json ==='
 } > "$OUT"
 
-( cd "$SBX/proj" && opencode run "reply with exactly OK" --format json ) > "$SBX/run.json" 2>"$SBX/run.err"
+( sandbox_env && cd "$SBX/proj" && opencode run "reply with exactly OK" --format json ) > "$SBX/run.json" 2>"$SBX/run.err"
 RUN_EXIT=$?
 echo "  opencode run exit=$RUN_EXIT" >> "$OUT"
 echo "  stdout bytes=$(wc -c < "$SBX/run.json" | tr -d ' ')  stderr tail:" >> "$OUT"
@@ -81,12 +89,8 @@ echo "=== what this session does and does not establish ===" >> "$OUT"
 } >> "$OUT"
 RESOLVE_ERRORS=0
 
-# Restore EVERY home-determining variable before reading the real DB. USERPROFILE decides
-# the home on Windows, so leaving it set makes `opencode db` resolve the sandbox DB and
-# report 0 instead of the real count.
-unset XDG_DATA_HOME XDG_CONFIG_HOME XDG_CACHE_HOME XDG_STATE_HOME TMPDIR TEMP TMP
-export HOME="$REAL_HOME"
-export USERPROFILE="$REAL_HOME"
+# No restore step is needed or wanted: this shell never entered the sandbox, so the after-count
+# reads the same database the before-count read, whatever the caller's original environment was.
 AFTER_COUNT="$(count_sessions)"
 {
   echo
