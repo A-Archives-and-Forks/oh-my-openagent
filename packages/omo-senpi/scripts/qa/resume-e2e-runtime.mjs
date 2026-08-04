@@ -118,7 +118,7 @@ export function waitForFileCommand(path) {
 // lane uses it to guarantee the first child is a terminal idle resident before the second spawn).
 export function waitForRecordStatusCommand(cwd, name, status) {
   const dir = join(taskStateDir(cwd), "tasks")
-  const script = `const fs=require('fs'),path=require('path');const dir=process.argv[1],name=process.argv[2],want=process.argv[3];const until=Date.now()+60000;function hit(){if(!fs.existsSync(dir))return false;for(const f of fs.readdirSync(dir)){if(!f.endsWith('.json'))continue;try{const r=JSON.parse(fs.readFileSync(path.join(dir,f),'utf8'));if(r.name===name&&r.status===want)return true}catch(e){}}return false}(function poll(){if(hit())process.exit(0);if(Date.now()>until){console.error('timed out waiting for record '+name+' status '+want);process.exit(1)}setTimeout(poll,50)})()`
+  const script = `const fs=require('fs'),path=require('path');const dir=process.argv[1],name=process.argv[2],want=process.argv[3];const until=Date.now()+60000;function hit(){if(!fs.existsSync(dir))return false;for(const f of fs.readdirSync(dir)){if(!f.endsWith('.json'))continue;try{const r=JSON.parse(fs.readFileSync(path.join(dir,f),'utf8'));if(r.name===name&&r.status===want)return true}catch(e){/* mid-write record file: skip and retry on next poll */}}return false}(function poll(){if(hit())process.exit(0);if(Date.now()>until){console.error('timed out waiting for record '+name+' status '+want);process.exit(1)}setTimeout(poll,50)})()`
   return `node -e "${script}" ${JSON.stringify(dir)} ${JSON.stringify(name)} ${JSON.stringify(status)}`
 }
 

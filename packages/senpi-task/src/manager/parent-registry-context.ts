@@ -67,7 +67,7 @@ export function findModelReference<TModel>(registry: ModelFinder<TModel>, modelR
 /**
  * Resume-time model resolution that FAILS CLOSED: the exact persisted provider+model_id must
  * resolve in the live registry, else `{ok: false, code: "model_unavailable"}`. Resume NEVER
- * silently drifts to senpi's default model — the caller must surface the failure as a retryable
+ * silently drifts to senpi's default model, and the caller must surface the failure as a retryable
  * `deferred` outcome. The resolver keys on `resolved_model.provider` + `resolved_model.model_id`
  * (threaded onto ManagedStartSpec by todo 5) and never on `resolved_model.display`, which is a
  * human string that can differ from the registry id. Does NOT mutate the record.
