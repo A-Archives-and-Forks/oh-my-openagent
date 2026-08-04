@@ -16,6 +16,7 @@ export interface SenpiInstallOptions {
   readonly repoRoot?: string
   readonly agentDir?: string
   readonly pluginPath?: string
+  readonly platform?: NodeJS.Platform
   readonly runCommand?: (command: string, args: readonly string[], options: { readonly cwd: string }) => Promise<void>
 }
 
@@ -120,6 +121,7 @@ function resolveInstallContext(options: SenpiInstallOptions): {
   readonly agentDir: string
   readonly settingsPath: string
   readonly pluginPath: string
+  readonly platform: NodeJS.Platform
   readonly allowBuild: boolean
   readonly runCommand: (command: string, args: readonly string[], options: { readonly cwd: string }) => Promise<void>
 } {
@@ -134,6 +136,7 @@ function resolveInstallContext(options: SenpiInstallOptions): {
     agentDir,
     settingsPath: join(agentDir, "settings.json"),
     pluginPath,
+    platform: options.platform ?? process.platform,
     allowBuild,
     runCommand: options.runCommand ?? defaultRunCommand,
   }
@@ -158,7 +161,7 @@ async function ensurePluginArtifacts(context: ReturnType<typeof resolveInstallCo
     }
   }
 
-  await verifyAstGrepRuntimeIntegrity(context.pluginPath)
+  await verifyAstGrepRuntimeIntegrity(context.pluginPath, context.platform)
 }
 
 async function hasMissingPluginArtifact(pluginPath: string): Promise<boolean> {
@@ -168,7 +171,7 @@ async function hasMissingPluginArtifact(pluginPath: string): Promise<boolean> {
   return false
 }
 
-async function verifyAstGrepRuntimeIntegrity(pluginPath: string): Promise<void> {
+async function verifyAstGrepRuntimeIntegrity(pluginPath: string, platform: NodeJS.Platform): Promise<void> {
   const runtimeEntry = join(pluginPath, "runtime", "ast-grep-mcp", "cli.js")
   const manifestPath = join(dirname(runtimeEntry), "manifest.json")
   let runtimeStat
@@ -208,7 +211,7 @@ async function verifyAstGrepRuntimeIntegrity(pluginPath: string): Promise<void> 
   }
 
   const actualMode = runtimeStat.mode & 0o777
-  if (actualMode !== manifest.mode) {
+  if (platform !== "win32" && actualMode !== manifest.mode) {
     throw astGrepIntegrityError(runtimeEntry, `mode mismatch: manifest=${manifest.mode} actual=${actualMode}`)
   }
 }

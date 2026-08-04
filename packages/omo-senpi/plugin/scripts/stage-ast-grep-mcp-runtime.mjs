@@ -73,6 +73,7 @@ export async function checkAstGrepMcpRuntimeFresh(options = {}) {
   const sourceEntry = resolve(options.sourceEntry ?? defaultSourceEntry)
   const targetEntry = resolve(options.targetEntry ?? defaultTargetEntry)
   const manifestPath = resolve(options.manifestPath ?? join(dirname(targetEntry), "manifest.json"))
+  const platform = options.platform ?? process.platform
   await validateEntry(sourceEntry, "built")
 
   let targetStat
@@ -110,7 +111,7 @@ export async function checkAstGrepMcpRuntimeFresh(options = {}) {
       `ast-grep-mcp runtime stale: manifest sha256 ${manifest.sha256} does not match staged sha256 ${stagedSha256}`,
     )
   }
-  if (manifest.mode !== stagedMode) {
+  if (platform !== "win32" && manifest.mode !== stagedMode) {
     throw new Error(`ast-grep-mcp runtime stale: manifest mode ${manifest.mode} does not match staged mode ${stagedMode}`)
   }
   return { ok: true, sourceEntry, targetEntry, manifestPath, sha256: sourceSha256, mode: stagedMode }

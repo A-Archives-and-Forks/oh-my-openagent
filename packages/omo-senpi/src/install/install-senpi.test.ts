@@ -155,6 +155,45 @@ describe("runSenpiInstaller", () => {
     expect(settings.packages).toEqual(["keep-me", pluginPath])
   })
 
+  test("#given a Windows packed runtime with a POSIX manifest mode #when installing #then matching content passes integrity", async () => {
+    // given
+    const agentDir = await makeAgentDir()
+    const pluginPath = await makePluginFixture()
+    const runtimeEntry = join(pluginPath, "runtime", "ast-grep-mcp", "cli.js")
+    await chmod(runtimeEntry, 0o700)
+
+    // when
+    const result = await runSenpiInstaller({
+      env: { SENPI_CODING_AGENT_DIR: agentDir },
+      repoRoot,
+      pluginPath,
+      platform: "win32",
+    })
+
+    // then
+    expect(result.ok).toBe(true)
+    expect(await readSettings(agentDir)).toEqual({ packages: [pluginPath] })
+  })
+
+  test("#given a POSIX packed runtime with a mismatched manifest mode #when installing #then integrity fails", async () => {
+    // given
+    const agentDir = await makeAgentDir()
+    const pluginPath = await makePluginFixture()
+    const runtimeEntry = join(pluginPath, "runtime", "ast-grep-mcp", "cli.js")
+    await chmod(runtimeEntry, 0o700)
+
+    // when
+    const install = runSenpiInstaller({
+      env: { SENPI_CODING_AGENT_DIR: agentDir },
+      repoRoot,
+      pluginPath,
+      platform: "linux",
+    })
+
+    // then
+    await expect(install).rejects.toThrow("mode mismatch: manifest=493 actual=")
+  })
+
   test("#given packed ast-grep runtime differs from its manifest #when installing #then integrity failure leaves settings unchanged", async () => {
     // given
     const agentDir = await makeAgentDir()

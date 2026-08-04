@@ -112,12 +112,15 @@ describe("scan tool: schema and CLI", () => {
   });
 
   it("#given ruleFile #when building dry and apply args #then JSON is preview-only", () => {
-    const input = baseInput("/tmp/project");
+    const project = join(tmpdir(), "project");
+    const ruleFile = join(project, "rule.yml");
+    const sourcePath = join(project, "src");
+    const input = baseInput(project);
     expect(buildScanArgs(input)).toEqual([
-      "scan", "--rule", "/tmp/project/rule.yml", "--json=stream", "/tmp/project/src",
+      "scan", "--rule", ruleFile, "--json=stream", sourcePath,
     ]);
     expect(buildScanApplyArgs(input)).toEqual([
-      "scan", "--rule", "/tmp/project/rule.yml", "--update-all", "/tmp/project/src",
+      "scan", "--rule", ruleFile, "--update-all", sourcePath,
     ]);
   });
 
