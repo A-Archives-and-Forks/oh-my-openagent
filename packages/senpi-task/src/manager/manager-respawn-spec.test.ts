@@ -28,12 +28,14 @@ const RESOLVED: ResolvedModelRecord = {
   provider: "anthropic",
   model_id: "claude-opus-4",
   display: "Claude Opus 4",
+  variant: "high",
   source: "category",
 }
 
 const PLAN: ResolvedChildPlan = {
   model: "anthropic/claude-opus-4",
   resolved_model: RESOLVED,
+  variant: "high",
   promptAppend: "PLANNER APPEND",
   instructions: "planner instructions",
   toolAllowlist: ["read", "bash"],
@@ -153,6 +155,7 @@ describe("buildRespawnManagedSpec", () => {
       rootSessionId: original.rootSessionId,
       model: original.model,
       resolvedModel: RESOLVED,
+      variant: "high",
       agentType: "explore",
       instructions: "planner instructions",
       toolAllowlist: ["read", "bash"],
