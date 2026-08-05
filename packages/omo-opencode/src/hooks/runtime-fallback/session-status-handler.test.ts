@@ -169,6 +169,48 @@ describe("createSessionStatusHandler", () => {
     SessionCategoryRegistry.clear()
   })
 
+  it("#given identical retry messages across variants #when retries repeat #then same-variant events dedupe and the new variant advances", async () => {
+    // given
+    SessionCategoryRegistry.clear()
+    const sessionID = "session-status-variant-aware-dedup"
+    SessionCategoryRegistry.register(sessionID, "test")
+
+    const deps = createDeps()
+    const abortCalls: string[] = []
+    const retryCalls: Array<{ sessionID: string; model: string; source: string }> = []
+    const handler = createSessionStatusHandler(deps, createHelpers(abortCalls, retryCalls), deps.sessionStatusRetryKeys)
+    const status = {
+      type: "retry",
+      attempt: 1,
+      message: "AI_APICallError: 5-hour usage limit reached",
+    }
+    const lowModel = { providerID: "opencode-go", modelID: "glm-5.2", variant: "low" }
+
+    // when
+    await handler({ sessionID, model: lowModel, status })
+    await handler({ sessionID, model: lowModel, status })
+    await handler({
+      sessionID,
+      model: { providerID: "opencode-go", modelID: "glm-5.2", variant: "high" },
+      status,
+    })
+
+    // then
+    expect(retryCalls).toEqual([
+      {
+        sessionID,
+        model: "openai/gpt-5.4",
+        source: "session.status",
+      },
+      {
+        sessionID,
+        model: "google/gemini-2.5-pro",
+        source: "session.status",
+      },
+    ])
+    SessionCategoryRegistry.clear()
+  })
+
   it("#given repeated retry status without model metadata #when fallback mutates the current model #then the duplicate remains deduped", async () => {
     // given
     SessionCategoryRegistry.clear()
