@@ -238,3 +238,55 @@ The real OpenCode `chat.params` handler observed:
 ```json
 [{"providerID":"anthropic","modelID":"claude-opus-4.8:high","temperatureSent":true},{"providerID":"anthropic","modelID":"anthropic/claude-opus-4.8:high","temperatureSent":true},{"providerID":"azure-anthropic","modelID":"claude-opus-4.8:high","temperatureSent":false}]
 ```
+
+## 2026-08-05 integration follow-up: aliases prefer canonical entries
+
+The first provider-precedence CI run
+(`https://github.com/code-yeongyu/oh-my-openagent/actions/runs/31011209139`)
+failed the OpenAI fast-alias contract on all three platforms after `dev` moved.
+Provider-qualified requested IDs were winning even when
+`resolveModelIDAlias()` had selected a canonical model.
+
+The branch was merged with current `upstream/dev`. Snapshot lookup order now
+depends on canonicalization:
+
+- canonical IDs preserve requested/suffixed specificity;
+- exact and pattern aliases prefer canonical provider-qualified entries before
+  alias-specific entries.
+
+RED:
+
+```text
+command=bun test packages/model-core/src/model-capabilities-openai-fast-aliases.test.ts
+exit_code=1
+result=2 pass, 1 fail, 13 expect calls
+failure=gpt-5.6-luna-fast selected the provider-specific alias snapshot instead of canonical gpt-5.6-luna
+```
+
+GREEN:
+
+```text
+command=bun test packages/model-core/src/model-capabilities-openai-fast-aliases.test.ts
+exit_code=0
+result=3 pass, 0 fail, 16 expect calls
+
+command=bun test packages/model-core/src/model-capabilities-suffixed-provider-lookup.test.ts
+exit_code=0
+result=9 pass, 0 fail, 15 expect calls
+
+command=bun test packages/model-core/src
+exit_code=0
+result=349 pass, 0 fail, 678 expect calls
+
+command=bun run typecheck
+exit_code=0
+
+command=bun run build
+exit_code=0
+```
+
+The public capability API and real OpenCode handler observed:
+
+```json
+{"aliasMatch":true,"aliasCanonicalModelID":"gpt-5.6-luna","aliasSnapshotSource":"bundled-snapshot","anthropicTemperatureSent":true}
+```

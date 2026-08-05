@@ -87,14 +87,13 @@ function findProviderMetadata(
 function findSnapshotEntry(
 	snapshot: GetModelCapabilitiesInput["runtimeSnapshot"],
 	providerID: string,
-	requestedModelID: string,
-	canonicalModelID: string,
+	modelIDs: readonly string[],
 ) {
 	if (!snapshot) return undefined
 	const normalizedProviderID = providerID.trim()
 	const providerSpecificCandidates: string[] = []
 	const generalCandidates: string[] = []
-	for (const modelID of [requestedModelID, canonicalModelID]) {
+	for (const modelID of modelIDs) {
 		const strippedModelID = stripSameProviderPrefix(providerID, modelID)
 		const unqualifiedModelID = strippedModelID ?? (modelID.includes("/") ? undefined : modelID)
 		if (!unqualifiedModelID) {
@@ -129,17 +128,18 @@ export function getModelCapabilities(input: GetModelCapabilitiesInput): ModelCap
 	)
 	const runtimeSnapshot = input.runtimeSnapshot
 	const bundledSnapshot = input.bundledSnapshot
+	const snapshotModelIDs = canonicalization.source === "canonical"
+		? [input.modelID, canonicalization.canonicalModelID]
+		: [canonicalization.canonicalModelID, input.modelID]
 	const runtimeSnapshotEntry = findSnapshotEntry(
 		runtimeSnapshot,
 		input.providerID,
-		input.modelID,
-		canonicalization.canonicalModelID,
+		snapshotModelIDs,
 	)
 	const bundledSnapshotEntry = findSnapshotEntry(
 		bundledSnapshot,
 		input.providerID,
-		input.modelID,
-		canonicalization.canonicalModelID,
+		snapshotModelIDs,
 	)
 	const snapshotEntry = runtimeSnapshotEntry ?? bundledSnapshotEntry
 	const heuristicFamily = detectHeuristicModelFamily(canonicalization.canonicalModelID)
