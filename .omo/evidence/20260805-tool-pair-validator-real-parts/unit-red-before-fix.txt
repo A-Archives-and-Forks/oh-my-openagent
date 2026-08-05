@@ -1,9 +1,13 @@
+# Failing-first: the conversion-invariant gate run against origin/dev's tool-pair-validator sources.
+# hook.test.ts is intentionally NOT part of this run: it asserts INTERRUPTED_TOOL_ERROR, a symbol
+# that only exists after the fix, so it cannot execute against the old implementation.
+
 $ git checkout origin/dev -- packages/omo-opencode/src/hooks/tool-pair-validator/{types,tool-part-ids,tool-result-repair,message-transform}.ts
-$ bun test packages/omo-opencode/src/hooks/tool-pair-validator --timeout 20000
+$ bun test packages/omo-opencode/src/hooks/tool-pair-validator/conversion-invariant.test.ts --timeout 20000
 
 bun test v1.3.14 (0d9b296a)
 bun : 
-At line:1 char:703
+At line:1 char:1114
 + ... ii -Append; bun test packages/omo-opencode/src/hooks/tool-pair-valida ...
 +                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     + CategoryInfo          : NotSpecified: (:String) [], RemoteException
@@ -30,7 +34,7 @@ error: expect(received).toEqual(expected)
       at <anonymous> (C:\Users\pss\OneDrive\Documents\github\oh-my-openagent-wt\fix-tool-pair-validator-real-part-model
 \packages\omo-opencode\src\hooks\tool-pair-validator\conversion-invariant.test.ts:128:71)
 (fail) tool-pair-validator conversion invariant > #given an assistant turn with a stuck tool part > #then the 
-converted request has no orphaned tool_use [61.72ms]
+converted request has no orphaned tool_use [11.96ms]
 143 | 
 144 |       // when
 145 |       await runToolPairValidator(createToolPairValidatorHook(), messages)
@@ -51,20 +55,9 @@ error: expect(received).toEqual(expected)
       at <anonymous> (C:\Users\pss\OneDrive\Documents\github\oh-my-openagent-wt\fix-tool-pair-validator-real-part-model
 \packages\omo-opencode\src\hooks\tool-pair-validator\conversion-invariant.test.ts:148:49)
 (fail) tool-pair-validator conversion invariant > #given the hook repaired a turn > #then it added no part type that 
-the conversion would discard [5.04ms]
-
-packages\omo-opencode\src\hooks\tool-pair-validator\hook.test.ts:
-
-# Unhandled error between tests
--------------------------------
-SyntaxError: Export named 'INTERRUPTED_TOOL_ERROR' not found in module 'C:\Users\pss\OneDrive\Documents\github\oh-my-op
-enagent-wt\fix-tool-pair-validator-real-part-model\packages\omo-opencode\src\hooks\tool-pair-validator\tool-result-repa
-ir.ts'.
--------------------------------
-
+the conversion would discard [4.05ms]
 
  1 pass
- 3 fail
- 1 error
+ 2 fail
  5 expect() calls
-Ran 4 tests across 2 files. [3.10s]
+Ran 3 tests across 1 file. [1.84s]

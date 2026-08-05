@@ -7,8 +7,13 @@ Change scope: `packages/omo-opencode/src/hooks/tool-pair-validator/` (+ the two
 
 ## WHAT WAS TESTED
 
-1. **Unit, failing-first.** New tests run against the OLD implementation (source files stashed,
-   tests kept) to prove they actually catch the defect. Artifact: `unit-red-before-fix.txt`.
+1. **Unit, failing-first.** The `conversion-invariant.test.ts` gate run against the OLD
+   implementation (the four source files checked out from `origin/dev`, the new tests kept) to
+   prove it actually catches the defect. Artifact: `unit-red-before-fix.txt`. `hook.test.ts` is
+   deliberately excluded from that run: it asserts `INTERRUPTED_TOOL_ERROR`, a symbol that only
+   exists after the fix, so it cannot execute against the old sources and is a green-only suite.
+   The failing-first proof rests entirely on the conversion-invariant gate, which is written
+   against the shared contract and runs unchanged on both implementations.
 2. **Unit, green.** Same tests against the new implementation, plus the surrounding blast radius.
 3. **Real OpenCode, hermetic sandbox.** Built the plugin from this worktree, loaded it into a real
    `opencode` 1.18.13 run inside a sandbox that isolates BOTH the XDG dirs and the user home, and
@@ -30,7 +35,7 @@ Change scope: `packages/omo-opencode/src/hooks/tool-pair-validator/` (+ the two
   - []
   + [ "tool_result" ]
 
- 1 pass  3 fail
+ 1 pass  2 fail  (3 tests, 1 file)
 ```
 
 The old hook leaves the orphan in place AND injects a `tool_result` part, a type that is not in
