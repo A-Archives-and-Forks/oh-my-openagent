@@ -119,8 +119,19 @@ function findSnapshotEntry(
 	return undefined
 }
 
+function resolveCapabilityModelAlias(modelID: string, providerID: string) {
+	const direct = resolveModelIDAlias(modelID, providerID)
+	if (direct.source !== "canonical") return direct
+	const bareModelID = parseVariantFromModelID(modelID, { allowMaxSuffix: true }).modelID
+	if (bareModelID === modelID) return direct
+	const bareAlias = resolveModelIDAlias(bareModelID, providerID)
+	return bareAlias.source === "canonical"
+		? direct
+		: { ...bareAlias, requestedModelID: modelID }
+}
+
 export function getModelCapabilities(input: GetModelCapabilitiesInput): ModelCapabilities {
-	const canonicalization = resolveModelIDAlias(input.modelID, input.providerID)
+	const canonicalization = resolveCapabilityModelAlias(input.modelID, input.providerID)
 	const override = getOverride(input.modelID)
 	const providerOverride = getProviderOverride(input.providerID, canonicalization.canonicalModelID)
 	const runtimeModel = readRuntimeModel(

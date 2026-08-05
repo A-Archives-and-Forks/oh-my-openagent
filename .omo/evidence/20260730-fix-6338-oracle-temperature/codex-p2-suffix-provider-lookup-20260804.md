@@ -290,3 +290,50 @@ The public capability API and real OpenCode handler observed:
 ```json
 {"aliasMatch":true,"aliasCanonicalModelID":"gpt-5.6-luna","aliasSnapshotSource":"bundled-snapshot","anthropicTemperatureSent":true}
 ```
+
+## 2026-08-05 follow-up: suffix-stripped alias canonicalization
+
+Review comment:
+https://github.com/code-yeongyu/oh-my-openagent/pull/6485#discussion_r3721120898
+
+When direct alias resolution has no match, capability resolution now strips a
+recognized variant suffix and runs the bare form through the alias registry.
+The returned capability record preserves the original requested ID while using
+the canonical alias target for snapshot lookup.
+
+RED:
+
+```text
+command=bun test packages/model-core/src/model-capabilities-openai-fast-aliases.test.ts
+exit_code=1
+result=3 pass, 2 fail, 18 expect calls
+failure=OpenAI and Vercel suffixed fast aliases stayed canonical and missed gpt-5.6-sol snapshot metadata
+```
+
+GREEN:
+
+```text
+command=bun test packages/model-core/src/model-capabilities-openai-fast-aliases.test.ts
+exit_code=0
+result=5 pass, 0 fail, 18 expect calls
+
+command=bun test packages/model-core/src/model-capabilities-suffixed-provider-lookup.test.ts
+exit_code=0
+result=9 pass, 0 fail, 15 expect calls
+
+command=bun test packages/model-core/src
+exit_code=0
+result=351 pass, 0 fail, 680 expect calls
+
+command=bun run typecheck
+exit_code=0
+
+command=bun run build
+exit_code=0
+```
+
+The real OpenCode `chat.params` handler observed:
+
+```json
+[{"providerID":"openai","modelID":"gpt-5.6-sol-fast:high","temperatureSent":false},{"providerID":"vercel","modelID":"openai/gpt-5.6-sol-fast:high","temperatureSent":false}]
+```
