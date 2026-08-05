@@ -68,6 +68,7 @@ function pauseForGenuineUserInterruption(args: {
   state.abortDetectedAt = undefined
   state.wasCancelled = false
   state.tokenLimitDetected = false
+  state.unrecoverableErrorDetected = false
   sessionStateStore.cancelCountdown(sessionID)
   log(`[${HOOK_NAME}] Paused continuation after genuine user interruption`, { sessionID })
 }
@@ -140,6 +141,7 @@ export function handleNonIdleEvent(args: {
         state.abortDetectedAt = undefined
         state.wasCancelled = false
         state.tokenLimitDetected = false
+        state.unrecoverableErrorDetected = false
       }
       sessionStateStore.cancelCountdown(sessionID)
       return
