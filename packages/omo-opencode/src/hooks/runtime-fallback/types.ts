@@ -87,7 +87,7 @@ export interface HookDeps {
   sessionRetryInFlight: Set<string>
   sessionAwaitingFallbackResult: Set<string>
   sessionFallbackTimeouts: Map<string, RuntimeFallbackTimeout>
-  sessionStatusRetryKeys: Map<string, string>
+  sessionStatusRetryKeys: Map<string, Set<string>>
   /**
    * Sessions whose in-flight request was aborted by us (to swap in a fallback
    * model), as opposed to a user-initiated stop. Consumed by

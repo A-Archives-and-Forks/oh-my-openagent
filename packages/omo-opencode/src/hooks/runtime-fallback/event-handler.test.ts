@@ -71,7 +71,7 @@ describe("createEventHandler", () => {
     state.pendingFallbackModel = "openai/gpt-5.4"
     deps.sessionStates.set(sessionID, state)
     deps.sessionRetryInFlight.add(sessionID)
-    deps.sessionStatusRetryKeys.set(sessionID, "retry:1")
+    deps.sessionStatusRetryKeys.set(sessionID, new Set(["retry:1"]))
     const handler = createEventHandler(deps, createHelpers(deps, abortCalls, clearCalls))
 
     // when
@@ -94,7 +94,7 @@ describe("createEventHandler", () => {
     deps.sessionStates.set(sessionID, state)
     deps.sessionRetryInFlight.add(sessionID)
     deps.sessionFallbackTimeouts.set(sessionID, 1)
-    deps.sessionStatusRetryKeys.set(sessionID, "retry:1")
+    deps.sessionStatusRetryKeys.set(sessionID, new Set(["retry:1"]))
     const handler = createEventHandler(deps, createHelpers(deps, abortCalls, clearCalls))
 
     // when
@@ -121,7 +121,7 @@ describe("createEventHandler", () => {
     deps.sessionStates.set(sessionID, state)
     deps.sessionRetryInFlight.add(sessionID)
     deps.sessionAwaitingFallbackResult.add(sessionID)
-    deps.sessionStatusRetryKeys.set(sessionID, "retry:2")
+    deps.sessionStatusRetryKeys.set(sessionID, new Set(["retry:2"]))
     const handler = createEventHandler(deps, createHelpers(deps, abortCalls, clearCalls))
 
     await handler({ event: { type: "session.error", properties: { sessionID, error: { name: "AbortError" } } } })

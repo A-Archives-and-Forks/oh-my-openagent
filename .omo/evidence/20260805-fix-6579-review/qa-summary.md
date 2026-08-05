@@ -10,11 +10,13 @@ WSL2 with the native Linux OpenCode 1.18.13 binary.
    model metadata while the first fallback mutates `currentModel`.
 2. A red-green regression test that repeats one variant and then sends a
    different variant of the same provider/model.
-3. The complete runtime-fallback test directory.
-4. Repository typecheck and production build.
-5. Direct Bun drivers importing the exported session-status handler and
+3. A red-green regression test that interleaves two models and then replays a
+   stale status from the first model.
+4. The complete runtime-fallback test directory.
+5. Repository typecheck and production build.
+6. Direct Bun drivers importing the exported session-status handler and
    replaying the exact model-less duplicate sequence.
-6. A real isolated OpenCode server loaded with this worktree's `dist/index.js`.
+7. A real isolated OpenCode server loaded with this worktree's `dist/index.js`.
    The QA subscribed to `/event` before prompting and awaited a
    `session.status` event.
 
@@ -28,12 +30,18 @@ WSL2 with the native Linux OpenCode 1.18.13 binary.
   high variants shared one key: 6 pass, 1 fail.
 - After including the normalized variant, the targeted file passed:
   7 pass, 0 fail.
-- The complete runtime-fallback suite passed: 254 pass, 0 fail.
+- Before retaining all active keys, the third regression failed because the
+  stale first model aborted a third time: 7 pass, 1 fail.
+- After storing a per-session key set, the targeted file passed:
+  8 pass, 0 fail.
+- The complete runtime-fallback suite passed: 255 pass, 0 fail.
 - `bun run typecheck` and `bun run build` exited 0.
 - The direct driver observed one abort, one fallback dispatch to
   `openai/gpt-5.4`, and a stable key beginning with `unknown:`.
 - The variant driver observed two aborts and two fallback dispatches; the
   repeated low variant deduplicated while the high variant advanced.
+- The interleaved driver retained both model keys and observed only two aborts
+  and two fallback dispatches when the first model repeated.
 - The real prompt returned HTTP 204.
 - The SSE subscription observed `{"type":"session.status"}`.
 - The loaded plugin list contained this worktree's `dist/index.js`.
@@ -49,8 +57,9 @@ Exact concise captures:
 
 ## Why it is enough
 
-The two red-green tests toggle both reviewer-reported failures directly. The
-full hook suite covers adjacent retry, abort, watchdog, and cleanup behavior.
+The three red-green tests toggle all reviewer-reported failures directly. The
+full hook suite covers adjacent retry, abort, watchdog, and cleanup behavior,
+including the lifecycle paths that delete each session's key set.
 Typecheck and build validate the shipped TypeScript bundle. The direct driver
 executes the changed module through its exported factory. The isolated real
 OpenCode run proves the matching lifecycle event reaches the loaded plugin
