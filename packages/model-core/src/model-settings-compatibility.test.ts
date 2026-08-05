@@ -642,6 +642,20 @@ describe("resolveCompatibleModelSettings", () => {
     ])
   })
 
+  test.each([
+    "openai/o3-deep-research",
+    "openai/o4-mini-deep-research",
+  ])("keeps temperature for the deep-research exception %s", (modelID) => {
+    const result = resolveCompatibleModelSettings({
+      providerID: "openai",
+      modelID,
+      desired: { temperature: 0.1 },
+    })
+
+    expect(result.temperature).toBe(0.1)
+    expect(result.changes).toEqual([])
+  })
+
   test("drops thinking when model capabilities say it is unsupported", () => {
     const result = resolveCompatibleModelSettings({
       providerID: "openai",

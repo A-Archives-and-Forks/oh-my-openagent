@@ -26,6 +26,13 @@ export const HEURISTIC_MODEL_FAMILY_REGISTRY: ReadonlyArray<HeuristicModelFamily
     supportsThinking: true,
   },
   {
+    family: "openai-deep-research",
+    includes: ["o3-deep-research", "o4-mini-deep-research"],
+    variants: ["low", "medium", "high"],
+    reasoningEfforts: ["none", "minimal", "low", "medium", "high"],
+    supportsTemperature: true,
+  },
+  {
     family: "openai-reasoning",
     pattern: /(?:^|\/)o\d(?:$|-)/,
     variants: ["low", "medium", "high"],
