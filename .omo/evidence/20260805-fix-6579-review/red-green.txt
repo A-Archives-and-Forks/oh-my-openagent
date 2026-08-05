@@ -1,0 +1,11 @@
+RED
+command=bun test packages/omo-opencode/src/hooks/runtime-fallback/session-status-handler.test.ts
+exit_code=1
+result=5 pass, 1 fail, 15 expect calls
+failure=the repeated model-less retry aborted twice after currentModel mutated
+
+GREEN
+command=bun test packages/omo-opencode/src/hooks/runtime-fallback/session-status-handler.test.ts
+exit_code=0
+result=6 pass, 0 fail, 18 expect calls
+observed=the repeated model-less retry aborted and dispatched exactly once

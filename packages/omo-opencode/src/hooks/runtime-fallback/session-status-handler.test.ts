@@ -169,6 +169,42 @@ describe("createSessionStatusHandler", () => {
     SessionCategoryRegistry.clear()
   })
 
+  it("#given repeated retry status without model metadata #when fallback mutates the current model #then the duplicate remains deduped", async () => {
+    // given
+    SessionCategoryRegistry.clear()
+    const sessionID = "session-status-missing-model-dedup"
+    SessionCategoryRegistry.register(sessionID, "test")
+
+    const deps = createDeps()
+    const abortCalls: string[] = []
+    const retryCalls: Array<{ sessionID: string; model: string; source: string }> = []
+    const state = createFallbackState("anthropic/claude-opus-4-7")
+    deps.sessionStates.set(sessionID, state)
+    const handler = createSessionStatusHandler(deps, createHelpers(abortCalls, retryCalls), deps.sessionStatusRetryKeys)
+    const status = {
+      type: "retry",
+      attempt: 1,
+      message: "AI_APICallError: 5-hour usage limit reached",
+    }
+
+    // when
+    await handler({ sessionID, status })
+    await handler({ sessionID, status })
+
+    // then
+    expect(abortCalls).toEqual([sessionID])
+    expect(retryCalls).toEqual([
+      {
+        sessionID,
+        model: "openai/gpt-5.4",
+        source: "session.status",
+      },
+    ])
+    expect(state.currentModel).toBe("openai/gpt-5.4")
+    expect(state.pendingFallbackModel).toBe("openai/gpt-5.4")
+    SessionCategoryRegistry.clear()
+  })
+
   it("#given pending fallback prompt may already be accepted #when provider retry status arrives #then it keeps waiting for that accepted prompt", async () => {
     // given
     SessionCategoryRegistry.clear()
