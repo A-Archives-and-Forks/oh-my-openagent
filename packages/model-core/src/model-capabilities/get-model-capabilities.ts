@@ -87,10 +87,33 @@ function findProviderMetadata(
 function findSnapshotEntry(
 	snapshot: GetModelCapabilitiesInput["runtimeSnapshot"],
 	providerID: string,
-	modelID: string,
+	requestedModelID: string,
+	canonicalModelID: string,
 ) {
 	if (!snapshot) return undefined
-	for (const candidate of buildLookupCandidates(providerID, modelID)) {
+	const normalizedProviderID = providerID.trim()
+	const providerSpecificCandidates: string[] = []
+	const generalCandidates: string[] = []
+	for (const modelID of [requestedModelID, canonicalModelID]) {
+		const strippedModelID = stripSameProviderPrefix(providerID, modelID)
+		const unqualifiedModelID = strippedModelID ?? (modelID.includes("/") ? undefined : modelID)
+		if (!unqualifiedModelID) {
+			generalCandidates.push(...buildLookupCandidates(providerID, modelID))
+			continue
+		}
+		const bareModelID = parseVariantFromModelID(unqualifiedModelID, { allowMaxSuffix: true }).modelID
+		if (normalizedProviderID) {
+			providerSpecificCandidates.push(
+				`${normalizedProviderID}/${unqualifiedModelID}`,
+				`${normalizedProviderID}/${bareModelID}`,
+			)
+		}
+		generalCandidates.push(unqualifiedModelID, bareModelID)
+	}
+	const seen = new Set<string>()
+	for (const candidate of [...providerSpecificCandidates, ...generalCandidates]) {
+		if (seen.has(candidate)) continue
+		seen.add(candidate)
 		const entry = snapshot.models[candidate]
 		if (entry) return entry
 	}
@@ -106,8 +129,18 @@ export function getModelCapabilities(input: GetModelCapabilitiesInput): ModelCap
 	)
 	const runtimeSnapshot = input.runtimeSnapshot
 	const bundledSnapshot = input.bundledSnapshot
-	const runtimeSnapshotEntry = findSnapshotEntry(runtimeSnapshot, input.providerID, canonicalization.canonicalModelID)
-	const bundledSnapshotEntry = findSnapshotEntry(bundledSnapshot, input.providerID, canonicalization.canonicalModelID)
+	const runtimeSnapshotEntry = findSnapshotEntry(
+		runtimeSnapshot,
+		input.providerID,
+		input.modelID,
+		canonicalization.canonicalModelID,
+	)
+	const bundledSnapshotEntry = findSnapshotEntry(
+		bundledSnapshot,
+		input.providerID,
+		input.modelID,
+		canonicalization.canonicalModelID,
+	)
 	const snapshotEntry = runtimeSnapshotEntry ?? bundledSnapshotEntry
 	const heuristicFamily = detectHeuristicModelFamily(canonicalization.canonicalModelID)
 

@@ -196,3 +196,45 @@ The real OpenCode `chat.params` handler observed:
 ```json
 [{"modelID":"gpt-5.6-sol:high","temperatureSent":false},{"modelID":"gpt-5.4:high","temperatureSent":false},{"modelID":"o3-deep-research","temperatureSent":true}]
 ```
+
+## 2026-08-05 follow-up: provider-specific snapshot precedence
+
+Review comment:
+https://github.com/code-yeongyu/oh-my-openagent/pull/6485#discussion_r3720980123
+
+Snapshot candidates now place provider-qualified requested and canonical IDs
+before their unqualified forms. This preserves a provider-specific capability
+when both qualified and bare snapshot entries exist and disagree.
+
+RED:
+
+```text
+command=bun test packages/model-core/src/model-capabilities-suffixed-provider-lookup.test.ts
+exit_code=1
+result=7 pass, 2 fail
+failure=both Anthropic forms selected bare temperature:false instead of provider-specific temperature:true
+```
+
+GREEN:
+
+```text
+command=bun test packages/model-core/src/model-capabilities-suffixed-provider-lookup.test.ts
+exit_code=0
+result=9 pass, 0 fail, 15 expect calls
+
+command=bun test packages/model-core/src
+exit_code=0
+result=349 pass, 0 fail, 675 expect calls
+
+command=bun run typecheck
+exit_code=0
+
+command=bun run build
+exit_code=0
+```
+
+The real OpenCode `chat.params` handler observed:
+
+```json
+[{"providerID":"anthropic","modelID":"claude-opus-4.8:high","temperatureSent":true},{"providerID":"anthropic","modelID":"anthropic/claude-opus-4.8:high","temperatureSent":true},{"providerID":"azure-anthropic","modelID":"claude-opus-4.8:high","temperatureSent":false}]
+```
