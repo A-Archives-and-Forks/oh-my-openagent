@@ -48,11 +48,6 @@ const sectionHeadingsToStrip = new Set([
   "Codex Subagent Reliability",
   "Subagent-dependent transition barrier",
   "Senpi Harness Tool Compatibility",
-  // The blocker marker is honored by the Codex Stop hook only. Senpi's continuation
-  // handler decides from Boulder state and its signature and never reads the assistant
-  // response, so a Senpi agent following that contract would emit the marker and still
-  // receive another continuation.
-  "Conclusive external blocker (Codex)",
 ])
 const forbiddenGuidancePattern = /\b(?:multi_agent|spawn_agent)\b/i
 
