@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { getModelCapabilities } from "./model-capabilities"
+import { getModelCapabilities, type ModelCapabilitiesSnapshot } from "./model-capabilities"
 import type { ModelMetadata, ProviderCache } from "./provider-cache"
 
 // The connected-providers adapter matches cache entries by exact id
@@ -100,5 +100,30 @@ describe("getModelCapabilities provider lookup for suffixed model ids", () => {
 
     // then
     expect(capabilities.supportsTemperature).toBeUndefined()
+  })
+
+  test("#given a snapshot-backed bare model #when a same-provider prefixed suffixed id is requested #then snapshot metadata resolves", () => {
+    // given
+    const bundledSnapshot: ModelCapabilitiesSnapshot = {
+      generatedAt: "2026-08-05T00:00:00.000Z",
+      sourceUrl: "https://models.dev/api.json",
+      models: {
+        "gpt-5.6-sol": {
+          id: "gpt-5.6-sol",
+          temperature: false,
+        },
+      },
+    }
+
+    // when
+    const capabilities = getModelCapabilities({
+      providerID: "openai",
+      modelID: "openai/gpt-5.6-sol:high",
+      bundledSnapshot,
+    })
+
+    // then
+    expect(capabilities.supportsTemperature).toBe(false)
+    expect(capabilities.diagnostics.supportsTemperature.source).toBe("bundled-snapshot")
   })
 })

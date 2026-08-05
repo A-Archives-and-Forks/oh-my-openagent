@@ -153,3 +153,46 @@ The direct public-API driver observed:
 ```json
 {"lookups":["custom/future-model:high","future-model:high","custom/future-model","future-model"],"supportsTemperature":false,"source":"runtime"}
 ```
+
+## 2026-08-05 follow-up: suffixed snapshot IDs
+
+Review comment:
+https://github.com/code-yeongyu/oh-my-openagent/pull/6485#discussion_r3720738201
+
+The same ordered candidate list now resolves runtime and bundled snapshot
+entries, not only provider-cache metadata. Runtime snapshot entries keep
+precedence over bundled entries, and exact suffixed entries keep precedence
+over bare entries within each snapshot.
+
+RED:
+
+```text
+command=bun test packages/model-core/src/model-capabilities-suffixed-provider-lookup.test.ts
+exit_code=1
+result=6 pass, 1 fail
+failure=openai/gpt-5.6-sol:high missed bundled gpt-5.6-sol temperature metadata
+```
+
+GREEN:
+
+```text
+command=bun test packages/model-core/src/model-capabilities-suffixed-provider-lookup.test.ts
+exit_code=0
+result=7 pass, 0 fail, 11 expect calls
+
+command=bun test packages/model-core/src
+exit_code=0
+result=347 pass, 0 fail, 671 expect calls
+
+command=bun run typecheck
+exit_code=0
+
+command=bun run build
+exit_code=0
+```
+
+The real OpenCode `chat.params` handler observed:
+
+```json
+[{"modelID":"gpt-5.6-sol:high","temperatureSent":false},{"modelID":"gpt-5.4:high","temperatureSent":false},{"modelID":"o3-deep-research","temperatureSent":true}]
+```

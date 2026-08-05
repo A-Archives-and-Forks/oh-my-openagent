@@ -50,6 +50,24 @@ function stripSameProviderPrefix(providerID: string, modelID: string): string | 
 		: undefined
 }
 
+function buildLookupCandidates(providerID: string, modelID: string): string[] {
+	const bareModelID = parseVariantFromModelID(modelID, { allowMaxSuffix: true }).modelID
+	const candidates = [
+		modelID,
+		stripSameProviderPrefix(providerID, modelID),
+		bareModelID,
+		stripSameProviderPrefix(providerID, bareModelID),
+	]
+	const uniqueCandidates: string[] = []
+	const seen = new Set<string>()
+	for (const candidate of candidates) {
+		if (!candidate || seen.has(candidate)) continue
+		seen.add(candidate)
+		uniqueCandidates.push(candidate)
+	}
+	return uniqueCandidates
+}
+
 // The provider cache matches ids exactly (`entry.id === modelID`), so a request carrying a
 // reasoning suffix or same-provider prefix can miss the model the provider advertised.
 // More specific forms are tried first so exact suffixed metadata still wins.
@@ -59,19 +77,22 @@ function findProviderMetadata(
 	modelID: string,
 ): ModelMetadata | undefined {
 	if (!providerCache) return undefined
-	const bareModelID = parseVariantFromModelID(modelID, { allowMaxSuffix: true }).modelID
-	const candidates = [
-		modelID,
-		stripSameProviderPrefix(providerID, modelID),
-		bareModelID,
-		stripSameProviderPrefix(providerID, bareModelID),
-	]
-	const seen = new Set<string>()
-	for (const candidate of candidates) {
-		if (!candidate || seen.has(candidate)) continue
-		seen.add(candidate)
+	for (const candidate of buildLookupCandidates(providerID, modelID)) {
 		const match = providerCache.findProviderModelMetadata(providerID, candidate)
 		if (match) return match
+	}
+	return undefined
+}
+
+function findSnapshotEntry(
+	snapshot: GetModelCapabilitiesInput["runtimeSnapshot"],
+	providerID: string,
+	modelID: string,
+) {
+	if (!snapshot) return undefined
+	for (const candidate of buildLookupCandidates(providerID, modelID)) {
+		const entry = snapshot.models[candidate]
+		if (entry) return entry
 	}
 	return undefined
 }
@@ -85,8 +106,9 @@ export function getModelCapabilities(input: GetModelCapabilitiesInput): ModelCap
 	)
 	const runtimeSnapshot = input.runtimeSnapshot
 	const bundledSnapshot = input.bundledSnapshot
-	const snapshotEntry = runtimeSnapshot?.models?.[canonicalization.canonicalModelID]
-		?? bundledSnapshot?.models?.[canonicalization.canonicalModelID]
+	const runtimeSnapshotEntry = findSnapshotEntry(runtimeSnapshot, input.providerID, canonicalization.canonicalModelID)
+	const bundledSnapshotEntry = findSnapshotEntry(bundledSnapshot, input.providerID, canonicalization.canonicalModelID)
+	const snapshotEntry = runtimeSnapshotEntry ?? bundledSnapshotEntry
 	const heuristicFamily = detectHeuristicModelFamily(canonicalization.canonicalModelID)
 
 	const runtimeVariants = readRuntimeModelVariants(runtimeModel)
@@ -99,9 +121,9 @@ export function getModelCapabilities(input: GetModelCapabilitiesInput): ModelCap
 	const runtimeModalities = readRuntimeModelModalities(runtimeModel)
 
 	const snapshotSource: ModelCapabilitiesDiagnostics["snapshot"]["source"] =
-		runtimeSnapshot?.models?.[canonicalization.canonicalModelID]
+		runtimeSnapshotEntry
 			? "runtime-snapshot"
-			: bundledSnapshot?.models?.[canonicalization.canonicalModelID]
+			: bundledSnapshotEntry
 			? "bundled-snapshot"
 			: "none"
 	const familySource: ModelCapabilitiesDiagnostics["family"]["source"] =
