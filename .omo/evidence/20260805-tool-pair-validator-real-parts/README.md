@@ -10,10 +10,10 @@ Change scope: `packages/omo-opencode/src/hooks/tool-pair-validator/` (+ the two
 1. **Unit, failing-first.** New tests run against the OLD implementation (source files stashed,
    tests kept) to prove they actually catch the defect. Artifact: `unit-red-before-fix.txt`.
 2. **Unit, green.** Same tests against the new implementation, plus the surrounding blast radius.
-3. **Real OpenCode, isolated.** Built the plugin from this worktree, loaded it into a real
-   `opencode` 1.18.13 run inside an isolated XDG sandbox, and drove two prompts:
-   a healthy run (all tool parts terminal) and a run over a session containing a real
-   `running` tool part. Artifact: `opencode-qa-plugin.log`, transcript below.
+3. **Real OpenCode, hermetic sandbox.** Built the plugin from this worktree, loaded it into a real
+   `opencode` 1.18.13 run inside a sandbox that isolates BOTH the XDG dirs and the user home, and
+   drove two prompts: a healthy run (all tool parts terminal) and a run over a session containing a
+   real `running` tool part. Artifact: `opencode-qa-plugin.log`, transcript below.
 
 ## WHAT WAS OBSERVED
 
@@ -53,40 +53,51 @@ bun build packages/omo-opencode/src/index.ts --outdir dist --target bun --format
 `packages/lsp-tools-mcp` build (`'rm' is not recognized`). That is pre-existing and unrelated to
 this change; the plugin bundle step was run directly and succeeds.
 
-### 3. Real OpenCode, isolated sandbox
+### 3. Real OpenCode, hermetic sandbox
 
-Sandbox: `XDG_DATA_HOME` / `XDG_CONFIG_HOME` / `XDG_STATE_HOME` / `XDG_CACHE_HOME` and `TMP`/`TEMP`
-all pointed at `%TEMP%\omo-qa-sandbox`. Only `auth.json` was copied in (credentials are config, not
-session state). Plugin registered by absolute path in the sandbox `opencode.json`.
+Sandbox `%TEMP%\omo-qa-sandbox2`. Isolated: `XDG_DATA_HOME` / `XDG_CONFIG_HOME` / `XDG_STATE_HOME` /
+`XDG_CACHE_HOME`, `TMP` / `TEMP`, **and the user home** (`USERPROFILE` / `HOME` / `HOMEDRIVE` /
+`HOMEPATH`). Home isolation matters because the Claude Code compatibility loaders read `~/.claude.json`,
+`~/.claude/skills` and `~/.agents`; an earlier XDG-only run picked up a host MCP server from
+`~/.claude.json`, so that run was discarded and everything below was re-captured hermetically.
+Only `auth.json` was copied in (credentials are config, not session state). Plugin registered by
+absolute path in the sandbox `opencode.json`.
 
-**Run A - healthy session.** `opencode run "Use the bash tool to run: echo omo-qa-probe ..." --format json`
+Host-config leak scan over the captured log: **0** matches for `.claude`, `.agents`, `gitnexus`, and
+the plugin reports `Loaded 0 plugins with 0 commands, 0 skills, 0 agents, 0 MCP servers` on both runs.
+
+**Run A - healthy session.** `opencode run "Use the bash tool to run: echo omo-qa-probe ..." --format json --model opencode/deepseek-v4-flash-free`
 
 ```
 {"type":"tool_use", ... "state":{"status":"completed","input":{"command":"echo omo-qa-probe"},"output":"omo-qa-probe\r\n", ...}}
 {"type":"text", ... "text":"DONE"}
-OPENCODE_EXIT=0
+OPENCODE_EXIT_A=0
+TOOL_PAIR_VALIDATOR_LINES_AFTER_RUN_A=0
+HOST_CONFIG_REFERENCES=0
 ```
 
-`[tool-pair-validator]` lines in the plugin log after Run A: **0**. Correct: every tool part was
-terminal, so the hook is a no-op and adds nothing to the request.
+Correct: every tool part was terminal, so the hook is a no-op and adds nothing to the request.
 
 **Run B - session containing a real non-terminal tool part.** The completed tool part
-`prt_fd076b18c001JQqkhfjEPYLQlh` (callID `call_00_p1uAgdhIpxlkWpaFBKx72999`) was rewritten in the
+`prt_fd0a4cab5001JAgXsKPkj1cPk8` (callID `call_00_oDnN4HwLLjEpi4cnkHMj7440`) was rewritten in the
 SANDBOX database to `state.status = "running"`, removing the source of its `tool_result`. Then the
 same session was continued:
 
 ```
-opencode run "Reply with exactly OK." --model opencode/deepseek-v4-flash-free --session ses_02f898812ffebRNU8h8WGx6Hkz
+BEFORE part=prt_fd0a4cab5001JAgXsKPkj1cPk8 callID=call_00_oDnN4HwLLjEpi4cnkHMj7440 status=completed
+AFTER  part=prt_fd0a4cab5001JAgXsKPkj1cPk8 callID=call_00_oDnN4HwLLjEpi4cnkHMj7440 status=running
+
+opencode run "Reply with exactly OK." --format json --model opencode/deepseek-v4-flash-free --session ses_02f5b6101ffety2kcRS95DU4ua
 {"type":"text", ... "text":"OK"}
-OPENCODE_EXIT=0
+OPENCODE_EXIT_B=0
 ```
 
 Plugin log:
 
 ```
-[2026-08-05T05:49:43.629Z] [tool-pair-validator] Settled unpaired tool parts into a terminal error state
-  {"assistantMessageID":"msg_fd0767cea001yeEqWlzEoLEZYK",
-   "repairedToolCallIDs":["call_00_p1uAgdhIpxlkWpaFBKx72999"],
+[2026-08-05T06:42:25.114Z] [tool-pair-validator] Settled unpaired tool parts into a terminal error state
+  {"assistantMessageID":"msg_fd0a4a4b4001PYv1wN0u4daqGl",
+   "repairedToolCallIDs":["call_00_oDnN4HwLLjEpi4cnkHMj7440"],
    "previousStatuses":["running"]}
 ```
 
@@ -100,13 +111,20 @@ that OpenCode hands it, never stored session state.
 
 ### Isolation proof
 
+Measured tightly around a single sandbox run (the host machine is also running an interactive
+opencode session, so only a before/after pair bracketing one QA invocation is meaningful):
+
 ```
-REAL_DB_SESSIONS_BEFORE=2862
-REAL_DB_SESSIONS_AFTER =2862
+REAL_DB_SESSIONS_BEFORE=2863
+SANDBOX_DB_PATH=C:\Users\pss\AppData\Local\Temp\omo-qa-sandbox2\data\opencode\opencode.db
+OPENCODE_EXIT=0
+REAL_DB_SESSIONS_AFTER=2863
+ISOLATION=OK (real session count unchanged)
 SANDBOX_SESSIONS=2
 ```
 
-The real `~/.local/share/opencode/opencode.db` was never written to.
+`opencode db path` inside the sandbox resolves to the sandbox database, and the real
+`~/.local/share/opencode/opencode.db` session count is unchanged across the run.
 
 ## WHY IT IS ENOUGH
 
