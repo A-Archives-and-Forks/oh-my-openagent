@@ -1,0 +1,99 @@
+[2026-08-05T05:43:33.377Z] [oh-my-openagent] ENTRY - plugin loading {"directory":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\project"}
+[2026-08-05T05:43:33.450Z] [config-migration] startup completed {"journalResumed":false,"migratedFrom":[],"skippedConflictCount":0}
+[2026-08-05T05:43:33.518Z] lsp-daemon stale-version sweep skipped: current lsp-daemon version is unknown 
+[2026-08-05T05:43:33.521Z] [live-server-route] registered {"directory":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\project","hasServerUrl":true,"registrationCount":1}
+[2026-08-05T05:43:33.560Z] [tmux-session-manager] initialized {"configEnabled":false,"tmuxConfig":{"enabled":false,"layout":"main-vertical","main_pane_size":60,"main_pane_min_width":120,"agent_pane_min_width":40,"isolation":"inline"},"projectDirectory":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\project","serverUrl":"http://localhost:4096/"}
+[2026-08-05T05:43:34.323Z] [tool-registry] Built tool registry {"totalTools":13,"teamModeEnabled":false,"teamToolCount":0}
+[2026-08-05T05:43:35.791Z] directory-agents-injector auto-disabled due to native OpenCode support {"currentVersion":"1.18.13","nativeVersion":"1.1.37"}
+[2026-08-05T05:43:35.851Z] Loaded 0 plugins with 0 commands, 0 skills, 0 agents, 0 MCP servers 
+[2026-08-05T05:43:36.187Z] Loaded MCP server "gitnexus" from user {"path":"C:\\Users\\pss\\.claude.json"}
+[2026-08-05T05:43:36.065Z] CodeGraph daemon sweep spared live daemon pid 27848 (lock-pid-match) 
+[2026-08-05T05:43:36.147Z] [agent-source-loader] Agent sources loaded {"user":0,"project":0,"opencodeGlobal":0,"opencodeProject":0,"plugin":0,"agentDefinitions":0,"opencodeConfig":0,"config":0}
+[2026-08-05T05:43:36.148Z] [connected-providers-cache] Cache file not found {"cacheFile":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\cache\\oh-my-opencode\\connected-providers.json"}
+[2026-08-05T05:43:36.149Z] [fetchAvailableModels] CALLED {"connectedProvidersUnknown":true}
+[2026-08-05T05:43:36.149Z] [fetchAvailableModels] connected providers unknown, returning empty set for fallback resolution 
+[2026-08-05T05:43:36.174Z] [fetchAvailableModels] CALLED {"connectedProvidersUnknown":true}
+[2026-08-05T05:43:36.175Z] [fetchAvailableModels] connected providers unknown, returning empty set for fallback resolution 
+[2026-08-05T05:43:36.177Z] [config-handler] agents loaded {"agentKeys":["Sisyphus - ultraworker","Hephaestus - Deep Agent","Prometheus - Plan Builder","Atlas - Plan Executor","build","explore","librarian","Metis - Plan Consultant","Momus - Plan Critic","multimodal-looker","oracle","plan","Sisyphus-Junior"]}
+[2026-08-05T05:43:37.542Z] [config-handler] config handler applied {"agentCount":13,"commandCount":28}
+[2026-08-05T05:45:21.971Z] [oh-my-openagent] ENTRY - plugin loading {"directory":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\project"}
+[2026-08-05T05:45:22.045Z] [config-migration] startup completed {"journalResumed":false,"migratedFrom":[],"skippedConflictCount":0}
+[2026-08-05T05:45:22.080Z] lsp-daemon stale-version sweep skipped: current lsp-daemon version is unknown 
+[2026-08-05T05:45:22.105Z] [live-server-route] registered {"directory":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\project","hasServerUrl":true,"registrationCount":1}
+[2026-08-05T05:45:22.127Z] [tmux-session-manager] initialized {"configEnabled":false,"tmuxConfig":{"enabled":false,"layout":"main-vertical","main_pane_size":60,"main_pane_min_width":120,"agent_pane_min_width":40,"isolation":"inline"},"projectDirectory":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\project","serverUrl":"http://localhost:4096/"}
+[2026-08-05T05:45:22.603Z] [tool-registry] Built tool registry {"totalTools":13,"teamModeEnabled":false,"teamToolCount":0}
+[2026-08-05T05:45:23.734Z] directory-agents-injector auto-disabled due to native OpenCode support {"currentVersion":"1.18.13","nativeVersion":"1.1.37"}
+[2026-08-05T05:45:23.774Z] Loaded 0 plugins with 0 commands, 0 skills, 0 agents, 0 MCP servers 
+[2026-08-05T05:45:24.034Z] Loaded MCP server "gitnexus" from user {"path":"C:\\Users\\pss\\.claude.json"}
+[2026-08-05T05:45:24.014Z] [agent-source-loader] Agent sources loaded {"user":0,"project":0,"opencodeGlobal":0,"opencodeProject":0,"plugin":0,"agentDefinitions":0,"opencodeConfig":0,"config":0}
+[2026-08-05T05:45:24.015Z] [connected-providers-cache] Cache file not found {"cacheFile":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\cache\\oh-my-opencode\\connected-providers.json"}
+[2026-08-05T05:45:24.016Z] [fetchAvailableModels] CALLED {"connectedProvidersUnknown":true}
+[2026-08-05T05:45:24.016Z] [fetchAvailableModels] connected providers unknown, returning empty set for fallback resolution 
+[2026-08-05T05:45:24.024Z] [fetchAvailableModels] CALLED {"connectedProvidersUnknown":true}
+[2026-08-05T05:45:24.024Z] [fetchAvailableModels] connected providers unknown, returning empty set for fallback resolution 
+[2026-08-05T05:45:24.025Z] [config-handler] agents loaded {"agentKeys":["Sisyphus - ultraworker","Hephaestus - Deep Agent","Prometheus - Plan Builder","Atlas - Plan Executor","build","explore","librarian","Metis - Plan Consultant","Momus - Plan Critic","multimodal-looker","oracle","plan","Sisyphus-Junior"]}
+[2026-08-05T05:46:06.010Z] [oh-my-openagent] ENTRY - plugin loading {"directory":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\project"}
+[2026-08-05T05:46:07.495Z] [config-migration] startup completed {"journalResumed":false,"migratedFrom":[],"skippedConflictCount":0}
+[2026-08-05T05:46:07.520Z] lsp-daemon stale-version sweep skipped: current lsp-daemon version is unknown 
+[2026-08-05T05:46:07.536Z] [live-server-route] registered {"directory":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\project","hasServerUrl":true,"registrationCount":1}
+[2026-08-05T05:46:07.547Z] [tmux-session-manager] initialized {"configEnabled":false,"tmuxConfig":{"enabled":false,"layout":"main-vertical","main_pane_size":60,"main_pane_min_width":120,"agent_pane_min_width":40,"isolation":"inline"},"projectDirectory":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\project","serverUrl":"http://localhost:4096/"}
+[2026-08-05T05:46:08.354Z] [tool-registry] Built tool registry {"totalTools":13,"teamModeEnabled":false,"teamToolCount":0}
+[2026-08-05T05:46:09.785Z] directory-agents-injector auto-disabled due to native OpenCode support {"currentVersion":"1.18.13","nativeVersion":"1.1.37"}
+[2026-08-05T05:46:09.862Z] Loaded 0 plugins with 0 commands, 0 skills, 0 agents, 0 MCP servers 
+[2026-08-05T05:46:10.361Z] Loaded MCP server "gitnexus" from user {"path":"C:\\Users\\pss\\.claude.json"}
+[2026-08-05T05:46:10.310Z] [agent-source-loader] Agent sources loaded {"user":0,"project":0,"opencodeGlobal":0,"opencodeProject":0,"plugin":0,"agentDefinitions":0,"opencodeConfig":0,"config":0}
+[2026-08-05T05:46:10.311Z] [connected-providers-cache] Cache file not found {"cacheFile":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\cache\\oh-my-opencode\\connected-providers.json"}
+[2026-08-05T05:46:10.312Z] [fetchAvailableModels] CALLED {"connectedProvidersUnknown":true}
+[2026-08-05T05:46:10.312Z] [fetchAvailableModels] connected providers unknown, returning empty set for fallback resolution 
+[2026-08-05T05:46:10.319Z] [fetchAvailableModels] CALLED {"connectedProvidersUnknown":true}
+[2026-08-05T05:46:10.319Z] [fetchAvailableModels] connected providers unknown, returning empty set for fallback resolution 
+[2026-08-05T05:46:10.320Z] [config-handler] agents loaded {"agentKeys":["Sisyphus - ultraworker","Hephaestus - Deep Agent","Prometheus - Plan Builder","Atlas - Plan Executor","build","explore","librarian","Metis - Plan Consultant","Momus - Plan Critic","multimodal-looker","oracle","plan","Sisyphus-Junior"]}
+[2026-08-05T05:46:12.588Z] [config-handler] config handler applied {"agentCount":13,"commandCount":28}
+[2026-08-05T05:47:28.953Z] [oh-my-openagent] ENTRY - plugin loading {"directory":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\project"}
+[2026-08-05T05:47:29.048Z] [config-migration] startup completed {"journalResumed":false,"migratedFrom":[],"skippedConflictCount":0}
+[2026-08-05T05:47:29.092Z] lsp-daemon stale-version sweep skipped: current lsp-daemon version is unknown 
+[2026-08-05T05:47:29.098Z] [live-server-route] registered {"directory":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\project","hasServerUrl":true,"registrationCount":1}
+[2026-08-05T05:47:29.123Z] [tmux-session-manager] initialized {"configEnabled":false,"tmuxConfig":{"enabled":false,"layout":"main-vertical","main_pane_size":60,"main_pane_min_width":120,"agent_pane_min_width":40,"isolation":"inline"},"projectDirectory":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\project","serverUrl":"http://localhost:4096/"}
+[2026-08-05T05:47:29.615Z] [tool-registry] Built tool registry {"totalTools":13,"teamModeEnabled":false,"teamToolCount":0}
+[2026-08-05T05:47:31.363Z] directory-agents-injector auto-disabled due to native OpenCode support {"currentVersion":"1.18.13","nativeVersion":"1.1.37"}
+[2026-08-05T05:47:31.428Z] Loaded 0 plugins with 0 commands, 0 skills, 0 agents, 0 MCP servers 
+[2026-08-05T05:47:31.793Z] Loaded MCP server "gitnexus" from user {"path":"C:\\Users\\pss\\.claude.json"}
+[2026-08-05T05:47:31.750Z] [agent-source-loader] Agent sources loaded {"user":0,"project":0,"opencodeGlobal":0,"opencodeProject":0,"plugin":0,"agentDefinitions":0,"opencodeConfig":0,"config":0}
+[2026-08-05T05:47:31.752Z] [connected-providers-cache] Cache file not found {"cacheFile":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\cache\\oh-my-opencode\\connected-providers.json"}
+[2026-08-05T05:47:31.753Z] [fetchAvailableModels] CALLED {"connectedProvidersUnknown":true}
+[2026-08-05T05:47:31.753Z] [fetchAvailableModels] connected providers unknown, returning empty set for fallback resolution 
+[2026-08-05T05:47:31.776Z] [fetchAvailableModels] CALLED {"connectedProvidersUnknown":true}
+[2026-08-05T05:47:31.776Z] [fetchAvailableModels] connected providers unknown, returning empty set for fallback resolution 
+[2026-08-05T05:47:31.778Z] [config-handler] agents loaded {"agentKeys":["Sisyphus - ultraworker","Hephaestus - Deep Agent","Prometheus - Plan Builder","Atlas - Plan Executor","build","explore","librarian","Metis - Plan Consultant","Momus - Plan Critic","multimodal-looker","oracle","plan","Sisyphus-Junior"]}
+[2026-08-05T05:47:32.629Z] [config-handler] config handler applied {"agentCount":13,"commandCount":28}
+[2026-08-05T05:47:34.385Z] [connected-providers-cache] Provider-models cache file not found {"cacheFile":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\cache\\oh-my-opencode\\provider-models.json"}
+[2026-08-05T05:47:39.512Z] [auto-update-checker] Connected providers cache exists, updating in background 
+[2026-08-05T05:47:40.260Z] [connected-providers-cache] Fetched connected providers {"count":2,"providers":["openai","opencode"]}
+[2026-08-05T05:47:40.269Z] [connected-providers-cache] Cache written {"count":2,"updatedAt":"2026-08-05T05:47:40.260Z"}
+[2026-08-05T05:47:40.271Z] [connected-providers-cache] Extracted models from provider list {"providerCount":2,"totalModels":21}
+[2026-08-05T05:47:40.275Z] [connected-providers-cache] Provider-models cache written {"providerCount":2,"updatedAt":"2026-08-05T05:47:40.271Z"}
+[2026-08-05T05:47:40.362Z] [model-capabilities-cache] Cache written {"modelCount":2778,"generatedAt":"2026-08-05T05:47:40.352Z"}
+[2026-08-05T05:47:40.824Z] [auto-update-checker] Already on latest version for channel: "latest"
+[2026-08-05T05:47:41.470Z] [codegraph-bootstrap] CodeGraph bootstrap finished {"action":"init","exitCode":0,"mode":"global-linked","projectRoot":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\project","timedOut":false}
+[2026-08-05T05:49:35.244Z] [oh-my-openagent] ENTRY - plugin loading {"directory":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\project"}
+[2026-08-05T05:49:35.315Z] [config-migration] startup completed {"journalResumed":false,"migratedFrom":[],"skippedConflictCount":0}
+[2026-08-05T05:49:35.338Z] lsp-daemon stale-version sweep skipped: current lsp-daemon version is unknown 
+[2026-08-05T05:49:35.343Z] [live-server-route] registered {"directory":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\project","hasServerUrl":true,"registrationCount":1}
+[2026-08-05T05:49:35.364Z] [tmux-session-manager] initialized {"configEnabled":false,"tmuxConfig":{"enabled":false,"layout":"main-vertical","main_pane_size":60,"main_pane_min_width":120,"agent_pane_min_width":40,"isolation":"inline"},"projectDirectory":"C:\\Users\\pss\\AppData\\Local\\Temp\\omo-qa-sandbox\\project","serverUrl":"http://localhost:4096/"}
+[2026-08-05T05:49:35.889Z] [tool-registry] Built tool registry {"totalTools":13,"teamModeEnabled":false,"teamToolCount":0}
+[2026-08-05T05:49:37.098Z] directory-agents-injector auto-disabled due to native OpenCode support {"currentVersion":"1.18.13","nativeVersion":"1.1.37"}
+[2026-08-05T05:49:37.142Z] Loaded 0 plugins with 0 commands, 0 skills, 0 agents, 0 MCP servers 
+[2026-08-05T05:49:37.432Z] Loaded MCP server "gitnexus" from user {"path":"C:\\Users\\pss\\.claude.json"}
+[2026-08-05T05:49:37.395Z] [agent-source-loader] Agent sources loaded {"user":0,"project":0,"opencodeGlobal":0,"opencodeProject":0,"plugin":0,"agentDefinitions":0,"opencodeConfig":0,"config":0}
+[2026-08-05T05:49:37.399Z] [connected-providers-cache] Read cache {"count":2,"updatedAt":"2026-08-05T05:47:40.260Z"}
+[2026-08-05T05:49:37.402Z] [connected-providers-cache] Read provider-models cache {"providerCount":2,"updatedAt":"2026-08-05T05:47:40.271Z"}
+[2026-08-05T05:49:37.403Z] [fetchAvailableModels] CALLED {"connectedProvidersUnknown":false,"connectedProviders":["openai","opencode"]}
+[2026-08-05T05:49:37.403Z] [fetchAvailableModels] using provider-models cache (whitelist-filtered) 
+[2026-08-05T05:49:37.403Z] [fetchAvailableModels] parsed from provider-models cache {"count":21,"connectedProviders":["openai","opencode"]}
+[2026-08-05T05:49:37.417Z] [isAnyProviderConnected] found model from required provider {"provider":"openai","model":"openai/gpt-5.3-codex-spark"}
+[2026-08-05T05:49:37.420Z] [fetchAvailableModels] CALLED {"connectedProvidersUnknown":false,"connectedProviders":["openai","opencode"]}
+[2026-08-05T05:49:37.420Z] [fetchAvailableModels] using provider-models cache (whitelist-filtered) 
+[2026-08-05T05:49:37.420Z] [fetchAvailableModels] parsed from provider-models cache {"count":21,"connectedProviders":["openai","opencode"]}
+[2026-08-05T05:49:37.422Z] [config-handler] agents loaded {"agentKeys":["Sisyphus - ultraworker","Hephaestus - Deep Agent","Prometheus - Plan Builder","Atlas - Plan Executor","build","explore","librarian","Metis - Plan Consultant","Momus - Plan Critic","multimodal-looker","oracle","plan","Sisyphus-Junior"]}
+[2026-08-05T05:49:38.109Z] [config-handler] config handler applied {"agentCount":13,"commandCount":28}
+[2026-08-05T05:49:43.629Z] [tool-pair-validator] Settled unpaired tool parts into a terminal error state {"assistantMessageID":"msg_fd0767cea001yeEqWlzEoLEZYK","repairedToolCallIDs":["call_00_p1uAgdhIpxlkWpaFBKx72999"],"previousStatuses":["running"]}
