@@ -120,6 +120,55 @@ describe("createSessionStatusHandler", () => {
     SessionCategoryRegistry.clear()
   })
 
+  it("#given identical retry messages across models #when retries repeat #then same-model events dedupe and the new model advances", async () => {
+    // given
+    SessionCategoryRegistry.clear()
+    const sessionID = "session-status-model-aware-dedup"
+    SessionCategoryRegistry.register(sessionID, "test")
+
+    const deps = createDeps()
+    const abortCalls: string[] = []
+    const retryCalls: Array<{ sessionID: string; model: string; source: string }> = []
+    const handler = createSessionStatusHandler(deps, createHelpers(abortCalls, retryCalls), deps.sessionStatusRetryKeys)
+    const status = {
+      type: "retry",
+      attempt: 1,
+      message: "AI_APICallError: 5-hour usage limit reached",
+    }
+
+    // when
+    await handler({
+      sessionID,
+      model: "opencode-go/glm-5.2",
+      status,
+    })
+    await handler({
+      sessionID,
+      model: "opencode-go/glm-5.2",
+      status,
+    })
+    await handler({
+      sessionID,
+      model: "openai/gpt-5.4",
+      status,
+    })
+
+    // then
+    expect(retryCalls).toEqual([
+      {
+        sessionID,
+        model: "openai/gpt-5.4",
+        source: "session.status",
+      },
+      {
+        sessionID,
+        model: "google/gemini-2.5-pro",
+        source: "session.status",
+      },
+    ])
+    SessionCategoryRegistry.clear()
+  })
+
   it("#given pending fallback prompt may already be accepted #when provider retry status arrives #then it keeps waiting for that accepted prompt", async () => {
     // given
     SessionCategoryRegistry.clear()

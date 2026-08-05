@@ -54,7 +54,8 @@ export function createSessionStatusHandler(
       }
     }
 
-    const retryKey = `${extractRetryAttempt(status.attempt, retryMessage)}:${normalizeRetryStatusMessage(retryMessage)}`
+    const retryModel = model ?? sessionStates.get(sessionID)?.currentModel ?? "unknown"
+    const retryKey = `${retryModel}:${extractRetryAttempt(status.attempt, retryMessage)}:${normalizeRetryStatusMessage(retryMessage)}`
     if (sessionStatusRetryKeys.get(sessionID) === retryKey) {
       return
     }

@@ -174,7 +174,7 @@ describe("createAutoRetryHelpers", () => {
     const deps = createDeps(promptCalls)
     const helpers = createAutoRetryHelpers(deps)
     const sessionID = "session-internal-abort-refresh"
-    const staleLastAccess = Date.now() - 31 * 60 * 1000
+    const staleLastAccess = Date.now() - 13 * 60 * 60 * 1000
     deps.sessionLastAccess.set(sessionID, staleLastAccess)
 
     // when
@@ -192,7 +192,7 @@ describe("createAutoRetryHelpers", () => {
     const helpers = createAutoRetryHelpers(deps)
     const sessionID = "session-stale-internal-abort"
     deps.sessionStates.set(sessionID, createFallbackState("anthropic/claude-opus-4-7"))
-    deps.sessionLastAccess.set(sessionID, Date.now() - 31 * 60 * 1000)
+    deps.sessionLastAccess.set(sessionID, Date.now() - 13 * 60 * 60 * 1000)
     deps.internallyAbortedSessions.add(sessionID)
 
     // when
