@@ -118,7 +118,9 @@ export function handleNonIdleEvent(args: {
       }
       const state = sessionStateStore.getExistingState(sessionID)
       const messageID = typeof info?.id === "string" ? info.id : undefined
-      if (parts === undefined && state && hasAcceptedContinuationLifecycle(state) && messageID) {
+      const shouldDeferClassification = state !== undefined &&
+        (hasAcceptedContinuationLifecycle(state) || state.unrecoverableErrorDetected === true)
+      if (parts === undefined && state && shouldDeferClassification && messageID) {
         state.pendingUserMessageID = messageID
         log(`[${HOOK_NAME}] Deferred user interruption classification until message part`, {
           sessionID,
@@ -181,6 +183,12 @@ export function handleNonIdleEvent(args: {
               sessionID: targetSessionID,
               sessionStateStore,
             })
+          } else {
+            state.abortDetectedAt = undefined
+            state.wasCancelled = false
+            state.tokenLimitDetected = false
+            state.unrecoverableErrorDetected = false
+            sessionStateStore.cancelCountdown(targetSessionID)
           }
           return
         }
