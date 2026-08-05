@@ -104,3 +104,52 @@ typecheck:packages exit=0
 
 - an exact suffixed cache entry still wins over the bare model (precedence preserved)
 - when neither form matches, temperature stays unresolved (no new inference introduced)
+
+## 2026-08-05 follow-up: same-provider prefixed IDs
+
+Review comment:
+https://github.com/code-yeongyu/oh-my-openagent/pull/6485#discussion_r3720591901
+
+The suffix fallback still missed `custom/future-model:high` when the provider
+cache advertised only `future-model`. The lookup now tries, in order:
+
+1. the exact requested ID;
+2. the same-provider prefix-stripped requested ID;
+3. the suffix-stripped ID;
+4. the same-provider prefix-stripped bare ID.
+
+The prefix is stripped only when it matches `providerID`; a
+`custom` request for `other/future-model:high` remains unresolved.
+
+RED:
+
+```text
+command=bun test packages/model-core/src/model-capabilities-suffixed-provider-lookup.test.ts
+exit_code=1
+result=5 pass, 1 fail
+failure=custom/future-model:high did not resolve future-model metadata
+```
+
+GREEN:
+
+```text
+command=bun test packages/model-core/src/model-capabilities-suffixed-provider-lookup.test.ts
+exit_code=0
+result=6 pass, 0 fail, 9 expect calls
+
+command=bun test packages/model-core/src
+exit_code=0
+result=346 pass, 0 fail, 669 expect calls
+
+command=bun run typecheck
+exit_code=0
+
+command=bun run build
+exit_code=0
+```
+
+The direct public-API driver observed:
+
+```json
+{"lookups":["custom/future-model:high","future-model:high","custom/future-model","future-model"],"supportsTemperature":false,"source":"runtime"}
+```

@@ -43,21 +43,37 @@ function getProviderOverride(providerID: string, modelID: string): ModelCapabili
 		: undefined
 }
 
+function stripSameProviderPrefix(providerID: string, modelID: string): string | undefined {
+	const prefix = `${providerID.trim()}/`
+	return prefix !== "/" && modelID.slice(0, prefix.length).toLowerCase() === prefix.toLowerCase()
+		? modelID.slice(prefix.length)
+		: undefined
+}
+
 // The provider cache matches ids exactly (`entry.id === modelID`), so a request carrying a
-// reasoning suffix never finds the bare model the provider advertised, and an explicitly
-// stated capability would be lost to heuristics. The exact id is tried first so a suffixed
-// cache entry still wins; only then is the suffix-stripped form consulted.
+// reasoning suffix or same-provider prefix can miss the model the provider advertised.
+// More specific forms are tried first so exact suffixed metadata still wins.
 function findProviderMetadata(
 	providerCache: ProviderCache | undefined,
 	providerID: string,
 	modelID: string,
 ): ModelMetadata | undefined {
 	if (!providerCache) return undefined
-	const exactMatch = providerCache.findProviderModelMetadata(providerID, modelID)
-	if (exactMatch) return exactMatch
 	const bareModelID = parseVariantFromModelID(modelID, { allowMaxSuffix: true }).modelID
-	if (!bareModelID || bareModelID === modelID) return undefined
-	return providerCache.findProviderModelMetadata(providerID, bareModelID)
+	const candidates = [
+		modelID,
+		stripSameProviderPrefix(providerID, modelID),
+		bareModelID,
+		stripSameProviderPrefix(providerID, bareModelID),
+	]
+	const seen = new Set<string>()
+	for (const candidate of candidates) {
+		if (!candidate || seen.has(candidate)) continue
+		seen.add(candidate)
+		const match = providerCache.findProviderModelMetadata(providerID, candidate)
+		if (match) return match
+	}
+	return undefined
 }
 
 export function getModelCapabilities(input: GetModelCapabilitiesInput): ModelCapabilities {

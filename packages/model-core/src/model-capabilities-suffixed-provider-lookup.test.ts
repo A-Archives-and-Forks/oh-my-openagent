@@ -70,4 +70,35 @@ describe("getModelCapabilities provider lookup for suffixed model ids", () => {
     // then
     expect(capabilities.supportsTemperature).toBeUndefined()
   })
+
+  test("#given a same-provider prefixed suffixed id #when only the bare cache entry exists #then provider metadata resolves", () => {
+    // given
+    const providerCache = bareModelOnlyCache("future-model", { id: "future-model", temperature: false })
+
+    // when
+    const capabilities = getModelCapabilities({
+      providerID: "custom",
+      modelID: "custom/future-model:high",
+      providerCache,
+    })
+
+    // then
+    expect(capabilities.supportsTemperature).toBe(false)
+    expect(capabilities.diagnostics.supportsTemperature.source).toBe("runtime")
+  })
+
+  test("#given a different-provider prefixed id #when only the bare cache entry exists #then the prefix is not stripped", () => {
+    // given
+    const providerCache = bareModelOnlyCache("future-model", { id: "future-model", temperature: false })
+
+    // when
+    const capabilities = getModelCapabilities({
+      providerID: "custom",
+      modelID: "other/future-model:high",
+      providerCache,
+    })
+
+    // then
+    expect(capabilities.supportsTemperature).toBeUndefined()
+  })
 })
