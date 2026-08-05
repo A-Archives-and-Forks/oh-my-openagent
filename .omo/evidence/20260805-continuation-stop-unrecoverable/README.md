@@ -3,7 +3,13 @@
 Issue: https://github.com/code-yeongyu/oh-my-openagent/issues/6605 (also relieves #6303, #6528)
 Date: 2026-08-05
 Change scope: `packages/omo-opencode/src/hooks/todo-continuation-enforcer/`
-(`unrecoverable-request-error.ts` new, plus `handler.ts`, `idle-event.ts`, `non-idle-events.ts`, `types.ts`).
+(`unrecoverable-request-error.ts` new, plus `handler.ts`, `idle-event.ts`, `non-idle-events.ts`,
+`continuation-injection.ts`, `types.ts`).
+
+Two paths were added during review and are covered by the same classifier and by unit tests:
+`continuation-injection.ts` rethrows a failed `dispatchInternalPrompt` into its own catch, and a
+partless `message.updated` arriving after the flag is set now defers classification to the split
+part instead of clearing the flag eagerly. Suite after those additions: 145 pass, 0 fail.
 
 ## WHAT WAS TESTED
 
