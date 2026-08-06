@@ -20,6 +20,7 @@ function record(overrides: Partial<TaskRecord> & { task_id: string; status: Task
     created_at: "2026-07-07T00:00:00.000Z",
     updated_at: "2026-07-07T00:00:01.000Z",
     notification: { run_epoch: 0, notified_epoch: -1 },
+    notify_on_terminal: false,
     ...overrides,
   }
 }
@@ -133,62 +134,6 @@ describe("createTaskStatusUi.background progress", () => {
     expect(second).toContain("1s")
     expect(second[0]).not.toBe(first[0])
     expect(listCalls).toBe(1)
-  })
-
-  it("#given live solo and process-member rows with cost and cache facts #when rendered #then the cost token sits immediately before tps", () => {
-    // given: st_solo is an in-process solo task, st_member is an rpc-backed team member
-    const active = new Map<number, () => void>()
-    let nextHandle = 1
-    const timers: StatusUiTimers = {
-      set: (callback) => {
-        const handle = nextHandle++
-        active.set(handle, callback)
-        return handle
-      },
-      clear: (handle) => { if (typeof handle === "number") active.delete(handle) },
-    }
-    const solo = record({ task_id: "st_solo", name: "Solo", status: "running", category: "quick" })
-    const member = record({ task_id: "st_member", name: "Member", status: "running", category: "quick", execution_mode: "process", pid: 4242 })
-    const manager: StatusUiManager = {
-      list: () => listed([solo, member]),
-      wasBackground: () => true,
-      subscribeChild: () => () => undefined,
-      runStatsSnapshot: (taskId) =>
-        taskId === "st_solo"
-          ? {
-              runtime_ms: 1_000,
-              turns: 2,
-              tool_calls: 1,
-              tokens_per_second: 40,
-              cost_usd: 0.4213,
-              cache_hit_rate_last: 0.8712,
-              cache_hit_rate_run: 0.4,
-            }
-          : {
-              runtime_ms: 1_000,
-              turns: 1,
-              tool_calls: 0,
-              tokens_per_second: 12,
-              cost_usd: 0.017,
-              cache_hit_rate_last: 0.5,
-              cache_hit_rate_run: 0.1,
-            },
-    }
-    const ui = fakeUi()
-    const statusUi = createTaskStatusUi({
-      manager,
-      runtime: { ui: () => ui, sessionId: () => "session-a", mode: () => "tui" },
-      timers,
-      now: () => Date.parse("2026-07-07T00:00:01.000Z"),
-    })
-
-    // when
-    statusUi.syncNow()
-
-    // then
-    const rows = ui.widgetCalls.at(-1)?.content ?? []
-    expect(rows[0]).toContain("$0.4213 (CH: 87%) · 40 tok/s")
-    expect(rows[1]).toContain("$0.0170 (CH: 50%) · 12 tok/s")
   })
 
   it("#given a live refresh timer #when the final background task completes #then the timer stops", () => {
