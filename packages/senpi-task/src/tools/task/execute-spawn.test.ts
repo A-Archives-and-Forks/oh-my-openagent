@@ -139,6 +139,7 @@ describe("buildTaskExecute spawn", () => {
             max_depth: 1,
             residency_max_children: 8,
             ttl_ms: 86400000,
+            resume_children: true,
             wait: { min_ms: 5000, default_ms: 60000, max_ms: 600000 },
             warnings: { unavailable_categories: true },
             team: { max_members: 8, max_parallel_members: 4, max_wall_clock_minutes: 120 },
@@ -195,7 +196,15 @@ describe("buildTaskExecute spawn", () => {
         return makeRecord({ task_id: "st_00000004", status: "completed", final_response: "THE FINAL ANSWER" })
       },
     })
-    const execute = buildTaskExecute(makeDeps(manager))
+    const execute = buildTaskExecute(
+      makeDeps(manager, {
+        resolveSkillInvocations: () => ({
+          hasInvoked: (skill: string) => skill === "ulw-plan",
+          hasUserRequested: (skill: string) => skill === "ulw-plan",
+          hasPlanArtifact: () => true,
+        }),
+      }),
+    )
 
     const result = await execute("c", { prompt: "p", subagent_type: "momus" }, undefined, undefined, CTX)
 
