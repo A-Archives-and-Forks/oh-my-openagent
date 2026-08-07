@@ -40,5 +40,5 @@ Request: "add a 5/min-per-IP rate-limit to `/login`".
 3. Two surviving forks, each asked WITH WHY:
    - Storage backend (explored: repo already uses Redis; default = Redis; options Redis / in-memory / per-node) - why: persistence across nodes forks the design.
    - Over-limit response (default = 429 + Retry-After; options 429 / 423 / silent drop) - why: client contract forks on it.
-4. Approval brief -> explicit okay -> scaffold -> append todos -> if `review_required`, run dual review and deliver receipts; otherwise deliver with the optional review question.
+4. Approval brief -> explicit okay -> scaffold -> append todos -> run the momus high-accuracy review (default-on unless the user explicitly opted out) and deliver the receipt.
 </worked_example>

@@ -63,7 +63,7 @@ If a draft/plan already exists and the user says a review modifier - even append
 
 Both paths record `intent`, `review_required`, and decisions to `.omo/drafts/<slug>.md` as they go - long sessions outlive your context, and plan generation reads the draft, not your memory.
 
-As soon as `<slug>`, intent, and classification are known, run the scaffold with `--draft-only`. Add `--review-required` when an explicit modifier requires review or intent is UNCLEAR and classification is non-Trivial, so the first durable write contains the complete request state below; never defer that already-known obligation to a later edit. If review becomes required only after the draft exists, atomically replace stale action/review fields with this request state. If a complete plan already exists, initialize a review round directly.
+As soon as `<slug>`, intent, and classification are known, run the scaffold with `--draft-only`. Add `--review-required` by default - high-accuracy review is DEFAULT-ON for every plan this skill produces; omit it ONLY when the user explicitly declined the review or on the `/start-work` bootstrap path - so the first durable write contains the complete request state below; never defer that already-known obligation to a later edit. If review becomes required only after the draft exists, atomically replace stale action/review fields with this request state. If a complete plan already exists, initialize a review round directly.
 
 <!-- ulw-plan-review-request-state-contract -->
 ```json
@@ -85,7 +85,7 @@ As soon as `<slug>`, intent, and classification are known, run the scaffold with
 }
 ```
 
-After approval and only after the plan is complete, replace the request state atomically with the initialized review round before launching either reviewer:
+After approval and only after the plan is complete, replace the request state atomically with the initialized review round before launching momus:
 
 <!-- ulw-plan-review-round-state-contract -->
 ```json
@@ -124,7 +124,6 @@ After approval and only after the plan is complete, replace the request state at
       "from": { "round_status": "active", "lane_status": "launching" },
       "to": { "round_status": "inconclusive", "lane_status": "inconclusive", "result": "launch_interrupted_without_receipt" },
       "cas": ["round_status=active", "status=launching", "workspace_root", "runtime_home", "target", "round_id", "plan_sha256", "launch_id"],
-      "invalidates_other_lane": true,
       "next": "fresh_review_round"
     }
   },
@@ -141,7 +140,7 @@ After approval and only after the plan is complete, replace the request state at
 
 `plan_path` must equal `.omo/plans/<validated-slug>.md`; reject absolute paths, `..`, and normalization drift. Bind the file operation to the workspace itself: open the canonical workspace root as a directory descriptor, then open `.omo`, `plans`, and the final file descriptor-relative with no-follow semantics on every segment, requiring directories for ancestors and a regular final file. Compute `plan_sha256` only from bytes read from that final descriptor. If the platform cannot provide that descriptor chain, return `INCONCLUSIVE`; do not substitute path-based validate-then-open checks.
 
-Apply the lifecycle transition table exactly. Every launch, receipt, interruption, and completion CAS compares the persisted workspace, runtime, target, round, and digest binding; a delayed action from a replaced round cannot claim or terminalize the new round. On compaction, resume from persisted round and lane state: dispatch only `pending`, terminalize stranded `launching`, wait only for the matching `in_flight` completion, and never mutate terminal lanes. A matching launch interruption terminalizes the round as inconclusive, invalidates the other lane, and requires a fresh round. Any plan change also invalidates both lanes. Never reconstruct state from chat history.
+Apply the lifecycle transition table exactly. Every launch, receipt, interruption, and completion CAS compares the persisted workspace, runtime, target, round, and digest binding; a delayed action from a replaced round cannot claim or terminalize the new round. On compaction, resume from persisted round and lane state: dispatch only `pending`, terminalize stranded `launching`, wait only for the matching `in_flight` completion, and never mutate terminal lanes. A matching launch interruption terminalizes the round as inconclusive and requires a fresh round. Any plan change also invalidates the round. Never reconstruct state from chat history.
 
 ## Approval gate (DO NOT SKIP)
 This gate is the only thing between a finished brief and the plan file, and the one place a planner can loop. Handle it as a decision with durable state, not a passphrase hunt.
