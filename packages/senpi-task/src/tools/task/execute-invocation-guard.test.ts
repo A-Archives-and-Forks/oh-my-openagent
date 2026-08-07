@@ -14,6 +14,7 @@ function resolverFor(opts: {
     hasInvoked: (name: string) => (opts.invoked ?? []).includes(name),
     hasUserRequested: (name: string) => (opts.requested ?? []).includes(name),
     hasPlanArtifact: () => opts.artifact ?? false,
+    planArtifactReferences: () => [],
   })
 }
 

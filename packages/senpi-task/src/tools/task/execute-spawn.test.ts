@@ -202,6 +202,7 @@ describe("buildTaskExecute spawn", () => {
           hasInvoked: (skill: string) => skill === "ulw-plan",
           hasUserRequested: (skill: string) => skill === "ulw-plan",
           hasPlanArtifact: () => true,
+          planArtifactReferences: () => [],
         }),
       }),
     )
