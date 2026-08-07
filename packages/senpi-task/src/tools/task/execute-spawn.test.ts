@@ -202,7 +202,7 @@ describe("buildTaskExecute spawn", () => {
           hasInvoked: (skill: string) => skill === "ulw-plan",
           hasUserRequested: (skill: string) => skill === "ulw-plan",
           hasPlanArtifact: () => true,
-          planArtifactReferences: () => [],
+          planArtifactReferences: () => [{ path: ".omo/plans/spawn-plan.md", count: 1, lastTouchedAt: 1 }],
         }),
       }),
     )

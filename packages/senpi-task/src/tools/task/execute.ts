@@ -8,6 +8,7 @@ import { buildStartSpec, singleSpawnParams } from "./execute-spec"
 import type { ForegroundWaitOptions } from "./foreground-wait"
 import { waitForForegroundTask } from "./foreground-wait"
 import { invocationGateDenial } from "./invocation-gate"
+import { planReviewContractOutcome } from "./plan-review-contract"
 import type { TaskToolParamsStatic } from "./params"
 import { partialDetails, recordDetails, startedDetails, type SingleSpawnParams } from "./result-details"
 import { backgroundConversionText, backgroundStartText } from "./start-presentation"
@@ -57,14 +58,23 @@ async function runSpawn(
   if (selection.kind === "error") {
     return result(selection.error.message, { task_id: "", status: "invalid_arguments", mode: "spawn", reason: selection.error.message })
   }
+  let effectiveParams = params
   if (selection.kind === "subagent_type") {
-    const denial = invocationGateDenial(deps, selection.subagentType, ctx.sessionManager.getSessionId())
+    const sessionId = ctx.sessionManager.getSessionId()
+    const denial = invocationGateDenial(deps, selection.subagentType, sessionId)
     if (denial !== undefined) {
       return result(denial, { task_id: "", status: "denied", mode: "spawn", reason: denial })
     }
+    const contract = planReviewContractOutcome(deps, selection.subagentType, params.prompt, sessionId)
+    if (contract?.kind === "deny") {
+      return result(contract.message, { task_id: "", status: "denied", mode: "spawn", reason: contract.message })
+    }
+    if (contract?.kind === "prompt") {
+      effectiveParams = { ...params, prompt: contract.prompt, load_skills: [] }
+    }
   }
   const target = selection.kind === "category" ? { category: selection.category } : { subagentType: selection.subagentType }
-  const spec = buildStartSpec(params, target, ctx.sessionManager.getSessionId(), deps, ctx.cwd)
+  const spec = buildStartSpec(effectiveParams, target, ctx.sessionManager.getSessionId(), deps, ctx.cwd)
   const started = await deps.manager.start(spec)
   if (started.kind === "plan_unresolved") {
     const agents = started.error.availableAgents
@@ -246,12 +256,19 @@ export function buildTaskExecute(deps: TaskToolDeps, options: ForegroundWaitOpti
       ...(options.env !== undefined && { env: options.env }),
       ...(options.scheduleDeadline !== undefined && { scheduleDeadline: options.scheduleDeadline }),
       startItem: async (item) => {
-        const itemParams = singleSpawnParams(item, params.run_in_background)
+        let itemParams = singleSpawnParams(item, params.run_in_background)
         const target = item.kind === "category" ? { category: item.category } : { subagentType: item.subagentType }
         if (item.kind === "subagent_type") {
           const denial = invocationGateDenial(deps, item.subagentType, parentSessionId)
           if (denial !== undefined) {
             return { kind: "plan_unresolved", error: { code: "invalid_target", message: denial } }
+          }
+          const contract = planReviewContractOutcome(deps, item.subagentType, itemParams.prompt, parentSessionId)
+          if (contract?.kind === "deny") {
+            return { kind: "plan_unresolved", error: { code: "invalid_target", message: contract.message } }
+          }
+          if (contract?.kind === "prompt") {
+            itemParams = { ...itemParams, prompt: contract.prompt, load_skills: [] }
           }
         }
         const spec = buildStartSpec(itemParams, target, parentSessionId, deps, ctx.cwd)
