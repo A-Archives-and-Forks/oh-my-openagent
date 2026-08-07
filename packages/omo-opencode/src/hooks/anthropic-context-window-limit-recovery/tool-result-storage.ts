@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
 import { getMessageIds } from "./message-storage-directory"
@@ -105,7 +105,15 @@ export function truncateToolResult(partPath: string): {
 	}
 }
 
-
+/**
+ * Infrastructure for the future distillation feature (issue #1734).
+ *
+ * The non-destructive truncation in `truncateToolResult()` writes the original
+ * tool output to `{partPath}.original`. This function reads that backup so the
+ * distiller can access the full output even after the live part file has been
+ * truncated. It is not called anywhere today because the distillation consumer
+ * has not been implemented yet.
+ */
 export function recoverTruncatedOutput(partPath: string): string | null {
 	try {
 		const backupPath = `${partPath}.original`
@@ -114,6 +122,33 @@ export function recoverTruncatedOutput(partPath: string): string | null {
 	} catch {
 		return null
 	}
+}
+
+export function cleanupTruncationBackups(sessionID: string): number {
+	const messageIds = getMessageIds(sessionID)
+	let deletedCount = 0
+
+	for (const messageID of messageIds) {
+		const partDir = join(PART_STORAGE_DIR, messageID)
+		if (!existsSync(partDir)) continue
+
+		for (const file of readdirSync(partDir)) {
+			if (!file.endsWith(".original")) continue
+
+			try {
+				const backupPath = join(partDir, file)
+				rmSync(backupPath)
+				deletedCount++
+			} catch (error) {
+				if (!(error instanceof Error)) {
+					throw error
+				}
+				// Best-effort cleanup: leave the file if it cannot be removed
+			}
+		}
+	}
+
+	return deletedCount
 }
 
 export function getTotalToolOutputSize(sessionID: string): number {
