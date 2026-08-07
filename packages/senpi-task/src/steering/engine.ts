@@ -47,12 +47,13 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
     if (record === undefined) {
       return { kind: "not_found", reason: `No task found for "${input.idOrName}".`, suggestion: NOT_FOUND_SUGGESTION }
     }
-    // One-shot policy runs BEFORE scope, the pending enqueue, and messageability: a one-shot agent
-    // refuses task_send in every state (running, pending, terminal, cross-session alike).
-    const oneShot = oneShotPolicyDenial(record)
-    if (oneShot !== undefined) return oneShot
     const denied = scopeDenied(record, input)
     if (denied !== undefined) return denied
+    // One-shot policy runs after ownership is established but BEFORE the pending enqueue and
+    // messageability: a one-shot agent refuses task_send in every state (running, pending,
+    // terminal, cross-session alike), and an unauthorized caller learns only the scope denial.
+    const oneShot = oneShotPolicyDenial(record)
+    if (oneShot !== undefined) return oneShot
 
     const deliverAs = input.deliverAs ?? DEFAULT_SEND_DELIVERY
     if (record.status === "pending") return enqueuePending(record, input.message, deliverAs)

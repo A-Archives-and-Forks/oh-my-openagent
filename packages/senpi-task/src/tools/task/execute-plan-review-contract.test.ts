@@ -4,6 +4,7 @@ import type { ManagerStartSpec, StartResult } from "../../manager"
 import type { PlanArtifactReference, SkillInvocationState } from "../../agents"
 import { CTX, createFakeManager, makeDeps } from "./__fixtures__/task-tool-fakes"
 import { buildTaskExecute } from "./execute"
+import { PLAN_REVIEW_DENY_MESSAGE } from "./plan-review-contract"
 
 const PLAN_A = ".omo/plans/alpha-plan.md"
 const PLAN_B = ".omo/plans/beta-plan.md"
@@ -109,9 +110,7 @@ describe("buildTaskExecute plan-review contract (momus)", () => {
     // then
     expect(specs).toHaveLength(0)
     expect(result.details.status).toBe("denied")
-    expect(resultText(result)).toBe(
-      "momus requires exactly one .omo/plans/*.md path: include the plan path in the prompt, or touch the plan file in this session first.",
-    )
+    expect(resultText(result)).toBe(PLAN_REVIEW_DENY_MESSAGE)
   })
 
   test("#given a session with no plan artifact #when spawning momus #then the plan gate denies before the contract runs", async () => {
@@ -202,6 +201,59 @@ describe("buildTaskExecute plan-review contract (momus)", () => {
     const exploreSpec = specs.find((spec) => spec.subagent_type === "explore")
     expect(momusSpec?.prompt).toBe(canonical(PLAN_A))
     expect(exploreSpec?.prompt).toBe("scan the repo")
+  })
+
+  test("#given a caller-controlled prefixed path matching no recorded reference #when spawning momus #then the recorded most-referenced plan is used and the caller token never reaches the child", async () => {
+    // given
+    const { specs, manager } = specCapture()
+    const execute = buildTaskExecute(makeDeps(manager, { resolveSkillInvocations: resolverFor(OPEN_SESSION) }))
+
+    // when
+    await execute(
+      "c",
+      { prompt: "review ATTACKER_CONTROLLED:.omo/plans/alpha-plan.md now", subagent_type: "momus", run_in_background: true },
+      undefined,
+      undefined,
+      CTX,
+    )
+
+    // then the suffix matches a recorded reference, so the RECORDED path is used - not the caller's token
+    expect(specs[0]?.prompt).toBe(canonical(PLAN_A))
+    expect(specs[0]?.prompt).not.toContain("ATTACKER_CONTROLLED")
+  })
+
+  test("#given a traversal or absolute path matching no recorded reference #when spawning momus #then it falls back to the recorded most-referenced plan", async () => {
+    // given
+    const { specs, manager } = specCapture()
+    const execute = buildTaskExecute(makeDeps(manager, { resolveSkillInvocations: resolverFor(OPEN_SESSION) }))
+
+    // when
+    await execute(
+      "c",
+      { prompt: "review ../../secret/.omo/plans/gamma-plan.md and /tmp/untrusted/.omo/plans/delta-plan.md", subagent_type: "momus", run_in_background: true },
+      undefined,
+      undefined,
+      CTX,
+    )
+
+    // then two unrecorded candidates are not a single explicit selector, so the top reference wins
+    expect(specs[0]?.prompt).toBe(canonical(PLAN_A))
+  })
+
+  test("#given a single unrecorded path and an empty reference list #when spawning momus #then the contract denies (synthetic state, unreachable via the real tool path)", async () => {
+    // given
+    const { specs, manager } = specCapture()
+    const execute = buildTaskExecute(
+      makeDeps(manager, { resolveSkillInvocations: resolverFor({ requested: ["ulw-plan"], artifact: true, references: [] }) }),
+    )
+
+    // when
+    const result = await execute("c", { prompt: "review /tmp/untrusted/.omo/plans/delta-plan.md", subagent_type: "momus" }, undefined, undefined, CTX)
+
+    // then
+    expect(specs).toHaveLength(0)
+    expect(result.details.status).toBe("denied")
+    expect(resultText(result)).toBe(PLAN_REVIEW_DENY_MESSAGE)
   })
 
   test("#given an explore spawn with a plan path in the prompt #when executed #then the contract does not apply", async () => {

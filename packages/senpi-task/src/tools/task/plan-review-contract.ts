@@ -30,14 +30,33 @@ export function extractPlanPaths(text: string): readonly string[] {
 export type PlanReviewTarget = { readonly kind: "path"; readonly path: string } | { readonly kind: "deny"; readonly message: string }
 
 export function resolvePlanReviewTarget(callerPrompt: string, state: SkillInvocationState): PlanReviewTarget {
+  const references = state.planArtifactReferences()
   const explicit = extractPlanPaths(callerPrompt)
   if (explicit.length === 1) {
     const only = explicit[0]
-    if (only !== undefined) return { kind: "path", path: only }
+    const recorded = only !== undefined ? matchRecordedReference(only, references) : undefined
+    if (recorded !== undefined) return { kind: "path", path: recorded.path }
   }
-  const mostReferenced = topReference(state.planArtifactReferences())
+  const mostReferenced = topReference(references)
   if (mostReferenced !== undefined) return { kind: "path", path: mostReferenced.path }
   return { kind: "deny", message: PLAN_REVIEW_DENY_MESSAGE }
+}
+
+// An explicit caller path is a SELECTOR over session-recorded references, never a value that
+// reaches the child: the prompt is built from the RECORDED path, so caller-controlled prefixes,
+// absolute paths, and `..` segments cannot be interpolated into the momus prompt. Identity is the
+// normalized `.omo/plans/<name>.md` suffix, which keeps worktree-rooted recordings matchable.
+function matchRecordedReference(candidate: string, references: readonly PlanArtifactReference[]): PlanArtifactReference | undefined {
+  const wanted = planSuffix(candidate)
+  if (wanted === undefined) return undefined
+  return references.find((reference) => planSuffix(reference.path) === wanted)
+}
+
+function planSuffix(path: string): string | undefined {
+  const normalized = path.replace(/\\/g, "/")
+  const marker = ".omo/plans/"
+  const index = normalized.indexOf(marker)
+  return index === -1 ? undefined : normalized.slice(index)
 }
 
 export function buildPlanReviewPrompt(path: string): string {
