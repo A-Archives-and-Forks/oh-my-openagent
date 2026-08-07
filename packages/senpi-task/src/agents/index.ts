@@ -1,5 +1,11 @@
 export { BUILTIN_AGENTS, BUILTIN_AGENT_DEFAULTS, CURATED_READONLY_AGENT_NAMES } from "./builtin"
 export {
+  AGENT_INTERACTION_POLICIES,
+  ONE_SHOT_AGENT_NAMES,
+  interactionPolicyForAgent,
+} from "./interaction-policy"
+export type { AgentInteractionPolicy } from "./interaction-policy"
+export {
   AGENT_INVOCATION_CONDITIONS,
   EMPTY_SKILL_INVOCATIONS,
   PLAN_GATED_AGENT_NAMES,
