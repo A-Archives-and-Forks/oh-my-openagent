@@ -82,6 +82,6 @@ export function resolveOmoTaskSettings(
   const record = z.record(z.string(), z.unknown()).parse(input)
   return OmoTaskSettingsSchema.parse({
     ...record,
-    residency_max_children: record.residency_max_children ?? Math.max(8, resolveParallelism() * 3),
+    residency_max_children: record["residency_max_children"] ?? Math.max(8, resolveParallelism() * 3),
   })
 }
