@@ -34,6 +34,7 @@ const SEND_RESULT_RENDER_CASES = [
   ["queued", { kind: "queued", task_id: "st_1", queue_position: 3 }, "[muted]task_send queued st_1 position 3[/muted]"],
   ["not_continuable", { kind: "not_continuable", task_id: "st_1", reason: "Task is cancelled.", suggestion: "Start a new task." }, "[warning]task_send not continuable st_1: Task is cancelled. Start a new task.[/warning]"],
   ["scope_denied", { kind: "scope_denied", task_id: "st_1", owning_session_id: "owner", reason: "Denied." }, "[error]task_send denied st_1 owner:owner[/error]"],
+  ["one_shot_agent", { kind: "one_shot_agent", task_id: "st_1", agent: "momus", message: "reminder" }, "[error]task_send denied st_1 one-shot:momus[/error]"],
   ["not_found", { kind: "not_found", reason: "No task.", known_tasks: ["alpha"] }, "[error]task_send not found: No task. known:alpha[/error]"],
   ["invalid_arguments", { kind: "invalid_arguments", reason: "message is required" }, "[error]task_send invalid: message is required[/error]"],
   ["team_message", { kind: "team_message", team: { kind: "to_lead", message_id: "msg-1" } }, "[success]task_send team message msg-1 enqueued to lead[/success]"],

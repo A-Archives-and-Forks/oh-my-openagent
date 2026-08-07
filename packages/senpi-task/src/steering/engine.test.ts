@@ -3,6 +3,7 @@ import { join } from "node:path"
 
 import { afterEach, describe, expect, test } from "bun:test"
 
+import { AGENT_INTERACTION_POLICIES } from "../agents"
 import type { ManagedChildHandle } from "../manager/child-handle"
 import type { TaskRecord } from "../state"
 import { createTaskRecordStore } from "../store"
@@ -180,6 +181,61 @@ describe.each(flavors)("steering engine over the %s runner fake", (flavor) => {
 
     // then (ordered delivery)
     expect(fake.followUpCalls).toEqual(["first", "second"])
+  })
+})
+
+describe("steering engine one-shot agent refusal", () => {
+  test("#given a running resident momus child #when sent #then the outcome is one_shot_agent with the registry reminder and nothing is delivered", async () => {
+    // given
+    const harness = makeHarness()
+    const record = harness.seedRecord({ agent_type: "momus" })
+    toRunning(harness, record)
+    const fake = makeFakeHandle(record.task_id, "in-process")
+    harness.setLive(record.task_id, fake.handle)
+
+    // when
+    const outcome = await harness.engine.sendToTask({ idOrName: record.task_id, message: "steer attempt", deliverAs: "steer" })
+
+    // then
+    if (outcome.kind !== "one_shot_agent") throw new Error("expected one_shot_agent")
+    expect(outcome.task_id).toBe(record.task_id)
+    expect(outcome.agent).toBe("momus")
+    expect(outcome.message).toBe(AGENT_INTERACTION_POLICIES.momus.sendDenialReminder)
+    expect(fake.steerCalls).toEqual([])
+    expect(fake.followUpCalls).toEqual([])
+  })
+
+  test("#given a pending momus child #when sent #then the outcome is one_shot_agent and nothing is queued", async () => {
+    // given
+    const harness = makeHarness()
+    const record = harness.seedRecord({ agent_type: "momus" })
+
+    // when
+    const outcome = await harness.engine.sendToTask({ idOrName: record.task_id, message: "pre-launch note" })
+
+    // then
+    if (outcome.kind !== "one_shot_agent") throw new Error("expected one_shot_agent")
+    expect(outcome.message).toBe(AGENT_INTERACTION_POLICIES.momus.sendDenialReminder)
+    expect(harness.store.load(record.task_id)?.pending_steering ?? []).toEqual([])
+  })
+
+  test("#given a completed resident momus child #when sent #then the outcome is one_shot_agent and no revive occurs", async () => {
+    // given
+    const harness = makeHarness()
+    const record = harness.seedRecord({ agent_type: "momus" })
+    toCompleted(harness, record)
+    const fake = makeFakeHandle(record.task_id, "in-process")
+    harness.setLive(record.task_id, fake.handle)
+
+    // when
+    const outcome = await harness.engine.sendToTask({ idOrName: record.task_id, message: "revive attempt" })
+
+    // then
+    if (outcome.kind !== "one_shot_agent") throw new Error("expected one_shot_agent")
+    expect(outcome.message).toBe(AGENT_INTERACTION_POLICIES.momus.sendDenialReminder)
+    expect(fake.followUpCalls).toEqual([])
+    expect(harness.reviveCalls).toEqual([])
+    expect(harness.store.load(record.task_id)?.status).toBe("completed")
   })
 })
 
