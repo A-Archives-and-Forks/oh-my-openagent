@@ -100,7 +100,7 @@ ulw-loop is ON by default for this mode: register the research axes as loop goal
 Never guess the shape of the deliverable. After the brief and before `team_create`, propose the final materials and WAIT for the user's answer:
 
 - **Default pair: PDF + DOCX.** Offer both as the baseline for any report/document request.
-- Name the alternatives that actually fit THIS domain — slides for a briefing, standalone HTML for a living page, Markdown for a working note, several at once when the audience differs.
+- Name the alternatives that actually fit THIS domain — slides for a briefing, standalone HTML for a living page, Markdown for a working note, LaTeX for a typeset or citation-heavy document, several at once when the audience differs.
 - Propose the TEMPLATE too, chosen from the domain and the user's own context: section skeleton, citation style, length target, language, and any house style they have used before. A prior document the user points at is the strongest template signal — read it and mirror its structure and tagging.
 - Ask once, compactly: proposed format + proposed template + what each option costs. Then stop and wait. Guessing here wastes the entire assembly pass.
 
@@ -314,6 +314,7 @@ The format answered at the Phase 0 gate is binding. Absent an explicit user over
 |---|---|
 | PDF (default) | Author the report as one self-contained HTML file, then print it headless: `chrome --headless --disable-gpu --no-pdf-header-footer --print-to-pdf=<out.pdf> file://<report.html>`. Embed the `design-spec.md` fonts as real webfonts (CJK included) instead of trusting system fallbacks. `uv run --with weasyprint python` is the fallback renderer. |
 | DOCX (default) | `pandoc <report.md> -o <out.docx>`, adding `--reference-doc=<template.docx>` when the user has a house style; `uv run --with python-docx python` when pandoc is unavailable. Charts and Mermaid renders go in as images. |
+| LaTeX (.tex + PDF) | Read [references/latex-report.md](references/latex-report.md) first and follow it end to end: scaffold from its preamble, write per-section `.tex`, compile with the detected engine (XeLaTeX when the report language needs CJK), iterate to a clean multi-pass log, then render page PNGs for the visual-QA gate. |
 | Slides / deck | `uv run --with python-pptx python` — one claim per slide, a chart or diagram per claim. |
 | Standalone HTML / Markdown | The authored source itself. |
 
@@ -350,7 +351,6 @@ The last thing the user reads states, in one compact block, what the answer is m
 - **Elapsed time, always.** Minutes from the run's start to delivery, derived from the session directory's own timestamp so it cannot be guessed: `python3 -c "import datetime,os,sys; s=datetime.datetime.strptime(os.path.basename(sys.argv[1]),'%Y%m%d-%H%M%S'); print(round((datetime.datetime.now()-s).total_seconds()/60))" "$SESSION_DIR"`.
 
 Never ship the artifact without this block, and never fill it from memory — every number in it is read off the journal.
-
 
 **Teardown is part of the deliverable.** Once the materials are delivered: `team_delete({ team_run_id, force: true })` for every team you stood up, confirm each lane is terminal (`/tasks`), and only then write the final answer. A live team left running past the final answer is a failed run, not a finished one.
 
