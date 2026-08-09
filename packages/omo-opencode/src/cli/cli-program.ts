@@ -57,7 +57,8 @@ export function resolveInstallArgs(
   options: InstallCommandOptions,
   invocationName: string | undefined = process.env.OMO_INVOCATION_NAME,
 ): InstallArgs {
-  const defaultPlatform = invocationName === "lazycodex" || invocationName === "lazycodex-ai" ? "codex" : undefined
+  const defaultPlatform =
+    process.env.OMO_EDITION === "codex" || invocationName === "lazycodex" || invocationName === "lazycodex-ai" ? "codex" : undefined
   const platform = options.platform ?? defaultPlatform
   if (platform === "senpi" && !isSenpiPlatformEnabled()) {
     throw new Error(
