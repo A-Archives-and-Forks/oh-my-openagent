@@ -13,7 +13,7 @@ Most users want **Ultimate**. Pick **Light** if you are already invested in Code
 | Light (Codex CLI) | `npx lazycodex-ai install` | `~/.codex/plugins/cache/sisyphuslabs/omo/`, stable Codex marketplace snapshot, `~/.codex/config.toml` marketplace/plugin/agent blocks, optional autonomous Codex permissions, component CLIs in `~/.local/bin` |
 | Both | `bunx oh-my-openagent install --platform=both` | Both of the above |
 
-Both `lazycodex-ai` and `lazycodex` are shipped bin aliases that default to the Codex Light installer and run through Node/npm. `--platform` on the shared `omo` CLI still defaults to `opencode` (Ultimate). `lazycodex` is also the repository identity that hosts the marketplace bundle. Neither alias is the Codex marketplace name.
+Both `lazycodex-ai` and `lazycodex` are shipped bin aliases that default to the Codex Light installer and run through Node/npm. `--platform` on the shared `omo-agent-toolkit` CLI still defaults to `opencode` (Ultimate). `lazycodex` is also the repository identity that hosts the marketplace bundle. Neither alias is the Codex marketplace name.
 
 ## For Humans
 
@@ -40,7 +40,7 @@ npx lazycodex-ai install --no-tui --codex-autonomous
 
 It writes managed Codex Light state to `~/.codex/` and does not touch OpenCode or provider flags. During migration from older Codex plugin installs it may also repair the current project's `.codex/config.toml` if that project has the known `multi_agent_v2` plus legacy `[agents] max_threads` conflict; project-owned `.codex` artifacts are reported, not deleted. Global Codex config will register marketplace `sisyphuslabs` from the local built cache under `~/.codex/plugins/cache/sisyphuslabs`, enable plugin `omo@sisyphuslabs`, and write a valid `[features.multi_agent_v2]` limit table. The installer never enables MultiAgentV2; if it finds an explicit legacy `multi_agent_v2 = false` shorthand, it preserves that disable as table-form `enabled = false`.
 
-On Windows, keep the direct `npx lazycodex-ai install ...` form above. Do not rewrite it into an `npx --package` command that launches the `omo install` bin indirectly; that package-manager shape can fail before the installer starts.
+On Windows, keep the direct `npx lazycodex-ai install ...` form above. Do not rewrite it into an `npx --package` command that launches the `omo-agent-toolkit install` bin indirectly; that package-manager shape can fail before the installer starts.
 
 On native Windows Codex installs, the installer discovers Git Bash before writing Codex config. It checks `OMO_CODEX_GIT_BASH_PATH`, standard Git for Windows locations, and then PATH. If Git Bash is missing, it prints the install guidance shown here and stops without running `winget` or changing system dependencies:
 
@@ -101,7 +101,7 @@ A detached worker finishes the install in the background (the `sg` download is t
 
 - writes the managed `~/.codex/config.toml` blocks: marketplace source preserved, `omo@sisyphuslabs` plugin enabled, managed `[agents.*]` entries, and re-stamped SHA256 `[hooks.state."omo@sisyphuslabs:..."]` trust hashes
 - copies bundled Codex agent TOMLs into `~/.codex/agents/`
-- links the top-level `omo` runtime wrapper plus component CLIs (`omo-rules`, `omo-lsp`, …) into `~/.local/bin` (or `$CODEX_LOCAL_BIN_DIR`; isolated `CODEX_HOME` installs use `<CODEX_HOME>/bin`)
+- links the top-level `omo-agent-toolkit` runtime wrapper plus component CLIs (`omo-rules`, `omo-lsp`, …) into `~/.local/bin` (or `$CODEX_LOCAL_BIN_DIR`; isolated `CODEX_HOME` installs use `<CODEX_HOME>/bin`)
 - provisions a checksum-pinned standalone `sg` (ast-grep) binary into `<CODEX_HOME>/runtime/ast-grep/<platform>-<arch>/` for the `ast-grep` skill
 - on native Windows, provisions a pinned Node LTS runtime into `<CODEX_HOME>/runtime/node/` when `node` is missing (see the Windows status below)
 - records every run in the plugin data dir: `<CODEX_HOME>/plugins/data/omo-sisyphuslabs/bootstrap/state.json` plus a JSONL `bootstrap.log` (Windows adds a `ps-bootstrap.log` transcript)
@@ -123,7 +123,7 @@ A detached worker finishes the install in the background (the `sg` download is t
 
 | Mode | What you see | What to do |
 |---|---|---|
-| `omo-cli` absent | The top-level `omo` command was not linked because the installed payload is old or incomplete and lacks the root CLI runtime. Current marketplace payloads ship `dist/cli/index.js` plus `dist/cli-node/index.js`, so this should not appear on a fresh marketplace install. Component CLIs still link normally. | Upgrade or reinstall the marketplace plugin, then start a new Codex session so bootstrap relinks bins. Verify with `npx lazycodex-ai doctor`; use `npx lazycodex-ai <command>` only as a temporary workaround. |
+| `omo-agent-toolkit` absent | The top-level `omo-agent-toolkit` command was not linked because the installed payload is old or incomplete and lacks the root CLI runtime. Current marketplace payloads ship `dist/cli/index.js` plus `dist/cli-node/index.js`, so this should not appear on a fresh marketplace install. Component CLIs still link normally. | Upgrade or reinstall the marketplace plugin, then start a new Codex session so bootstrap relinks bins. Verify with `npx lazycodex-ai doctor`; use `npx lazycodex-ai <command>` only as a temporary workaround. |
 | `sg` pending / offline | The ast-grep provisioning entry appears in the degraded list and the `ast-grep` skill cannot find `sg` yet — the first download is still running, or it failed while offline. | Start another session (bootstrap retries automatically), or install ast-grep yourself and/or set `OMO_AST_GREP_SG_PATH=/path/to/sg`. Verify with `npx lazycodex-ai doctor`. |
 | Proxy limitation | Binary downloads fail behind an HTTP(S) proxy. The logged error says it plainly: the bootstrap downloader "does not tunnel through HTTP(S) proxies in v1; the download was attempted directly." | Run one session on a direct connection, or provide `sg` via `OMO_AST_GREP_SG_PATH`/`PATH`. Verify with `npx lazycodex-ai doctor`. |
 | OpenCode Windows proxy preinstall | OpenCode starts before OMO loads, shows only default agents, or logs `fetch() proxy.url must be a non-empty string` while trying to install `oh-my-openagent@latest`. | Set `HTTP_PROXY`/`HTTPS_PROXY` for the shell that launches OpenCode, then preinstall into OpenCode's Windows config prefix: `npm install oh-my-openagent@latest --prefix "%APPDATA%\\opencode"`. Restart OpenCode and run `bunx oh-my-openagent doctor --json`. |
@@ -385,7 +385,7 @@ grep -A2 'omo@sisyphuslabs' ~/.codex/config.toml
 grep -E 'approval_policy|sandbox_mode|network_access' ~/.codex/config.toml
 
 # Component binaries linked?
-ls ~/.local/bin/ | grep -E '^(omo|ulw|ulw-loop|omo-(comment-checker|git-bash-hook|lsp|rules|start-work-continuation|telemetry|ultrawork|ulw-loop))$'
+ls ~/.local/bin/ | grep -E '^(omo-agent-toolkit|ulw|ulw-loop|omo-(comment-checker|git-bash-hook|lsp|rules|start-work-continuation|telemetry|ultrawork|ulw-loop))$'
 
 # Codex CLI sees the plugin?
 codex --help
@@ -746,7 +746,7 @@ Skip this section if `--platform=opencode`. Otherwise, the user installed the **
 
 - **Plugin cache:** `~/.codex/plugins/cache/sisyphuslabs/omo/<version>/`
 - **Codex marketplace snapshot:** `~/.codex/.tmp/marketplaces/sisyphuslabs/` (local marketplace metadata and bundled source snapshot)
-- **User-linked component binaries:** `lazycodex-executor-verify`, `omo-comment-checker`, `omo-git-bash-hook`, `omo-lsp`, `omo-rules`, `omo-start-work-continuation`, `omo-telemetry`, `omo-ulw-loop`, `omo-ultrawork`, `ulw`, and `ulw-loop` in `~/.local/bin` (or under `$CODEX_LOCAL_BIN_DIR` if set). Other components, including `codegraph` and `teammode`, run through plugin MCP, hook, skill, or script surfaces rather than user-linked executables. The top-level `omo` command belongs to the shared oh-my-openagent launcher, not a Codex component.
+- **User-linked component binaries:** `lazycodex-executor-verify`, `omo-comment-checker`, `omo-git-bash-hook`, `omo-lsp`, `omo-rules`, `omo-start-work-continuation`, `omo-telemetry`, `omo-ulw-loop`, `omo-ultrawork`, `ulw`, and `ulw-loop` in `~/.local/bin` (or under `$CODEX_LOCAL_BIN_DIR` if set). Other components, including `codegraph` and `teammode`, run through plugin MCP, hook, skill, or script surfaces rather than user-linked executables. The top-level `omo-agent-toolkit` command belongs to the shared oh-my-openagent launcher, not a Codex component.
 - **Codex agent roles:** `~/.codex/agents/{lazycodex-clone-fidelity-reviewer,lazycodex-code-reviewer,lazycodex-executor,lazycodex-gate-reviewer,lazycodex-qa-executor,lazycodex-worker-low,lazycodex-worker-medium,lazycodex-worker-high,explorer,librarian,metis,momus,plan}.toml` copied from the bundled plugin snapshot, so they keep resolving when Codex prunes old plugin-cache versions or temporary marketplace state
 - **Codex config edits:** `~/.codex/config.toml` gained `[features] plugins = true`, `[features] plugin_hooks = true`, `[features.multi_agent_v2] max_concurrent_threads_per_session = 1000`, `[marketplaces.sisyphuslabs]` pointing at `~/.codex/plugins/cache/sisyphuslabs`, `[plugins."omo@sisyphuslabs"]`, plugin MCP policy blocks, SHA256-pinned `[hooks.state."omo@sisyphuslabs:..."]` entries, and optionally autonomous permission settings if accepted. If the installer cannot resolve a CodeGraph-compatible Node runtime, it writes the `codegraph` MCP policy as disabled while leaving `omo@sisyphuslabs` enabled.
 
@@ -777,7 +777,7 @@ Compatibility note: LazyCodex is the Codex-platform OmO install path for `oh-my-
 | Symptom | Fix |
 |---------|-----|
 | `codex --help` does not list the omo plugin | Re-run `npx lazycodex-ai install` (idempotent — hook hashes are recomputed) |
-| `command not found: omo-rules` or `command not found: omo` | Add `~/.local/bin` to `PATH`, or set `$CODEX_LOCAL_BIN_DIR` to a directory already on `PATH` |
+| `command not found: omo-rules` or `command not found: omo-agent-toolkit` | Add `~/.local/bin` to `PATH`, or set `$CODEX_LOCAL_BIN_DIR` to a directory already on `PATH` |
 | `npm install` fails mid-install | `rm -rf ~/.codex/plugins/cache/sisyphuslabs` and retry |
 | Plugin block is present but hooks do not fire | Verify `~/.codex/config.toml` contains `[features]\nplugins = true\nplugin_hooks = true` and `[plugins."omo@sisyphuslabs"]` |
 | `MCP client for codegraph failed to start` | Re-run `npx lazycodex-ai install` with a CodeGraph-compatible Node runtime on `PATH`, or set `CODEGRAPH_NODE_BIN` to one. The installer disables only the `codegraph` MCP policy when the local runtime is unsupported; the rest of OMO remains enabled. |
@@ -875,7 +875,7 @@ Every agent, hook, skill, MCP, command, and tool is configurable via `disabled_*
 
 | Variable | Effect |
 |----------|--------|
-| `OMO_INVOCATION_NAME` | Overrides detected bin name (`oh-my-opencode`, `omo`, `lazycodex-ai`, etc.). Used by shared wrapper packages to route `lazycodex-ai` invocations to the Node installer path. |
+| `OMO_INVOCATION_NAME` | Overrides detected bin name (`oh-my-opencode`, `omo-agent-toolkit`, `lazycodex-ai`, etc.). Used by shared wrapper packages to route `lazycodex-ai` invocations to the Node installer path. |
 | `OMO_DISABLE_POSTHOG=1` | Disables all PostHog telemetry for the main plugin |
 | `OMO_SEND_ANONYMOUS_TELEMETRY=0` | Same effect as above |
 | `OMO_CODEX_DISABLE_POSTHOG=1` | Disables PostHog telemetry for the Codex CLI Light edition only |
@@ -886,7 +886,7 @@ Every agent, hook, skill, MCP, command, and tool is configurable via `disabled_*
 | `OMO_OPENCLAW_REPLY_LISTENER_STARTUP_TOKEN` | Startup token for OpenClaw reply listener daemon |
 | `OMO_OPENCLAW_REPLY_LISTENER_STARTUP_TIMEOUT_MS` | Timeout for reply listener startup |
 | `OH_MY_OPENCODE_FORCE_BASELINE=1` | Forces baseline (non-AVX2) binary selection on x64 |
-| `OPENCODE_DEFAULT_AGENT` | Default agent for `omo run` (overridden by `--agent`) |
+| `OPENCODE_DEFAULT_AGENT` | Default agent for `omo-agent-toolkit run` (overridden by `--agent`) |
 | `CODEX_LOCAL_BIN_DIR` | Overrides `~/.local/bin` for Codex component symlinks |
 
 #### Hash-anchored edits (Hashline)
@@ -987,9 +987,9 @@ npx lazycodex-ai uninstall
 # backward-compatible alias:
 npx lazycodex-ai cleanup
 
-omo uninstall --platform=codex
+omo-agent-toolkit uninstall --platform=codex
 # backward-compatible alias:
-omo cleanup --platform=codex
+omo-agent-toolkit cleanup --platform=codex
 ```
 
 The uninstall command removes the managed `~/.codex/plugins/cache/sisyphuslabs` and `~/.codex/.tmp/marketplaces/sisyphuslabs` trees, strips `sisyphuslabs` / legacy LazyCodex marketplace, plugin, hook-state, and managed agent blocks from `~/.codex/config.toml` after writing a timestamped backup, and removes managed agent TOML files from `~/.codex/agents/`, including orphaned files whose install manifest is already gone.

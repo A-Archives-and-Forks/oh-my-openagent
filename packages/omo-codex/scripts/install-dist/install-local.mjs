@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-codex-install:837f31a80cb49a0be547308babfd7266571dd1c53846dc2a2225006cc2da8bfa:4d76fe0ff01e90dd4738f72edf1ef3d8e3fcffd9fbb16dc119e9299ef723edcb
+// omo-codex-install:7bc4b0f020f0a1b4448cc75385a7e3c60042e3b270e304d4c1a43a859e81a4c2:4b60b36edd7ab8d733b7b76076299071e9e4d2b44bb7dd611ef4a72eab6693c6
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -2293,31 +2293,31 @@ var init_exception_steps = __esm(() => {
 // node_modules/.bun/@posthog+core@1.30.3/node_modules/@posthog/core/dist/error-tracking/index.mjs
 var exports_error_tracking = {};
 __export(exports_error_tracking, {
-  winjsStackLineParser: () => winjsStackLineParser,
-  stripReservedExceptionStepFields: () => stripReservedExceptionStepFields,
-  reverseAndStripFrames: () => reverseAndStripFrames,
-  resolveExceptionStepsConfig: () => resolveExceptionStepsConfig,
-  opera11StackLineParser: () => opera11StackLineParser,
-  opera10StackLineParser: () => opera10StackLineParser,
-  nodeStackLineParser: () => nodeStackLineParser,
-  getUtf8ByteLength: () => getUtf8ByteLength,
-  geckoStackLineParser: () => geckoStackLineParser,
-  createStackParser: () => createStackParser,
-  createDefaultStackParser: () => createDefaultStackParser,
-  chromeStackLineParser: () => chromeStackLineParser,
-  StringCoercer: () => StringCoercer,
-  ReduceableCache: () => ReduceableCache,
-  PromiseRejectionEventCoercer: () => PromiseRejectionEventCoercer,
-  PrimitiveCoercer: () => PrimitiveCoercer,
-  ObjectCoercer: () => ObjectCoercer,
-  ExceptionStepsBuffer: () => ExceptionStepsBuffer,
-  EventCoercer: () => EventCoercer,
-  ErrorPropertiesBuilder: () => ErrorPropertiesBuilder,
-  ErrorEventCoercer: () => ErrorEventCoercer,
-  ErrorCoercer: () => ErrorCoercer,
-  EXCEPTION_STEP_INTERNAL_FIELDS: () => EXCEPTION_STEP_INTERNAL_FIELDS,
+  DEFAULT_EXCEPTION_STEPS_CONFIG: () => DEFAULT_EXCEPTION_STEPS_CONFIG,
   DOMExceptionCoercer: () => DOMExceptionCoercer,
-  DEFAULT_EXCEPTION_STEPS_CONFIG: () => DEFAULT_EXCEPTION_STEPS_CONFIG
+  EXCEPTION_STEP_INTERNAL_FIELDS: () => EXCEPTION_STEP_INTERNAL_FIELDS,
+  ErrorCoercer: () => ErrorCoercer,
+  ErrorEventCoercer: () => ErrorEventCoercer,
+  ErrorPropertiesBuilder: () => ErrorPropertiesBuilder,
+  EventCoercer: () => EventCoercer,
+  ExceptionStepsBuffer: () => ExceptionStepsBuffer,
+  ObjectCoercer: () => ObjectCoercer,
+  PrimitiveCoercer: () => PrimitiveCoercer,
+  PromiseRejectionEventCoercer: () => PromiseRejectionEventCoercer,
+  ReduceableCache: () => ReduceableCache,
+  StringCoercer: () => StringCoercer,
+  chromeStackLineParser: () => chromeStackLineParser,
+  createDefaultStackParser: () => createDefaultStackParser,
+  createStackParser: () => createStackParser,
+  geckoStackLineParser: () => geckoStackLineParser,
+  getUtf8ByteLength: () => getUtf8ByteLength,
+  nodeStackLineParser: () => nodeStackLineParser,
+  opera10StackLineParser: () => opera10StackLineParser,
+  opera11StackLineParser: () => opera11StackLineParser,
+  resolveExceptionStepsConfig: () => resolveExceptionStepsConfig,
+  reverseAndStripFrames: () => reverseAndStripFrames,
+  stripReservedExceptionStepFields: () => stripReservedExceptionStepFields,
+  winjsStackLineParser: () => winjsStackLineParser
 });
 var init_error_tracking = __esm(() => {
   init_error_properties_builder();
@@ -6109,14 +6109,14 @@ var init_posthog = __esm(() => {
 // packages/omo-codex/src/telemetry/index.ts
 var exports_telemetry = {};
 __export(exports_telemetry, {
-  getPostHogDistinctId: () => getPostHogDistinctId,
-  createPluginPostHog: () => createPluginPostHog,
-  createInstallPostHog: () => createInstallPostHog,
-  createCliPostHog: () => createCliPostHog,
-  __setOsProviderForTesting: () => __setOsProviderForTesting,
-  __setActivityStateProviderForTesting: () => __setActivityStateProviderForTesting,
+  __resetActivityStateProviderForTesting: () => __resetActivityStateProviderForTesting,
   __resetOsProviderForTesting: () => __resetOsProviderForTesting,
-  __resetActivityStateProviderForTesting: () => __resetActivityStateProviderForTesting
+  __setActivityStateProviderForTesting: () => __setActivityStateProviderForTesting,
+  __setOsProviderForTesting: () => __setOsProviderForTesting,
+  createCliPostHog: () => createCliPostHog,
+  createInstallPostHog: () => createInstallPostHog,
+  createPluginPostHog: () => createPluginPostHog,
+  getPostHogDistinctId: () => getPostHogDistinctId
 });
 var init_telemetry = __esm(() => {
   init_posthog();
@@ -6684,7 +6684,7 @@ function isNodeErrorWithCode2(error) {
 // packages/omo-codex/src/install/codex-cache-runtime-wrapper.ts
 import { join as join4 } from "node:path";
 var RUNTIME_WRAPPER_MARKER = "OMO_GENERATED_RUNTIME_WRAPPER";
-function posixRuntimeWrapper(cliPath, codexHome, binDir, nodeCliPath) {
+function posixRuntimeWrapper(binName, cliPath, codexHome, binDir, nodeCliPath) {
   const ulwLoopBin = toPosixPath(join4(binDir, "omo-ulw-loop"));
   const nodeCli = escapePosixDoubleQuoted(toPosixPath(nodeCliPath));
   const escapedCliPath = escapePosixDoubleQuoted(toPosixPath(cliPath));
@@ -6694,6 +6694,8 @@ function posixRuntimeWrapper(cliPath, codexHome, binDir, nodeCliPath) {
     "#!/bin/sh",
     `# ${RUNTIME_WRAPPER_MARKER}`,
     `export CODEX_HOME="\${CODEX_HOME:-${escapedCodexHome}}"`,
+    `export OMO_INVOCATION_NAME=${binName}`,
+    "export OMO_EDITION=codex",
     'if [ "$1" = "ulw-loop" ] && [ -x "' + escapedUlwLoopBin + '" ]; then',
     "  shift",
     '  exec "' + escapedUlwLoopBin + '" ulw-loop "$@"',
@@ -6717,11 +6719,11 @@ function posixRuntimeWrapper(cliPath, codexHome, binDir, nodeCliPath) {
     `  if [ -f "${nodeCli}" ] && command -v node >/dev/null 2>&1; then`,
     `    exec node "${nodeCli}" "$@"`,
     "  fi",
-    `  echo "omo: bun runtime not found (checked PATH, ~/.bun/bin, /opt/homebrew/bin, /usr/local/bin) and the node fallback CLI is missing at ${nodeCli}; install bun from https://bun.sh, or reinstall omo and force the fallback with OMO_RUNTIME=node" >&2`,
+    `  echo "${binName}: bun runtime not found (checked PATH, ~/.bun/bin, /opt/homebrew/bin, /usr/local/bin) and the node fallback CLI is missing at ${nodeCli}; install bun from https://bun.sh, or reinstall ${binName} and force the fallback with OMO_RUNTIME=node" >&2`,
     "  exit 127",
     "fi",
     `if [ ! -f "${escapedCliPath}" ]; then`,
-    `  echo "omo: runtime target missing at ${escapedCliPath}; reinstall with: npx --yes lazycodex-ai@latest install --no-tui" >&2`,
+    `  echo "${binName}: runtime target missing at ${escapedCliPath}; reinstall with: npx --yes lazycodex-ai@latest install --no-tui" >&2`,
     "  exit 1",
     "fi",
     `exec "$BUN_BINARY" "${escapedCliPath}" "$@"`,
@@ -6729,12 +6731,14 @@ function posixRuntimeWrapper(cliPath, codexHome, binDir, nodeCliPath) {
   ].join(`
 `);
 }
-function windowsRuntimeWrapper(cliPath, codexHome, binDir, nodeCliPath) {
+function windowsRuntimeWrapper(binName, cliPath, codexHome, binDir, nodeCliPath) {
   const ulwLoopBin = join4(binDir, "omo-ulw-loop.cmd");
   return [
     "@echo off",
     `rem ${RUNTIME_WRAPPER_MARKER}`,
     `if not defined CODEX_HOME set "CODEX_HOME=${codexHome}"`,
+    `set "OMO_INVOCATION_NAME=${binName}"`,
+    'set "OMO_EDITION=codex"',
     ...windowsNodeDiscoveryLines(),
     `if "%~1"=="ulw-loop" if exist "${ulwLoopBin}" (`,
     "  shift /1",
@@ -6752,11 +6756,11 @@ function windowsRuntimeWrapper(cliPath, codexHome, binDir, nodeCliPath) {
     `    "%OMO_NODE_BINARY%" "${nodeCliPath}" %*`,
     "    exit /b %ERRORLEVEL%",
     "  )",
-    `  echo omo: bun runtime not found, no Node runtime was discovered from NODE_REPL_NODE_PATH or PATH, or the node fallback CLI is missing at ${nodeCliPath}; install bun from https://bun.sh or rerun LazyCodex install from Codex Desktop 1>&2`,
+    `  echo ${binName}: bun runtime not found, no Node runtime was discovered from NODE_REPL_NODE_PATH or PATH, or the node fallback CLI is missing at ${nodeCliPath}; install bun from https://bun.sh or rerun LazyCodex install from Codex Desktop 1>&2`,
     "  exit /b 127",
     ")",
     `if not exist "${cliPath}" (`,
-    `  echo omo: runtime target missing at ${cliPath}; reinstall with: npx --yes lazycodex-ai@latest install --no-tui 1>&2`,
+    `  echo ${binName}: runtime target missing at ${cliPath}; reinstall with: npx --yes lazycodex-ai@latest install --no-tui 1>&2`,
     "  exit /b 1",
     ")",
     `"%BUN_BINARY%" "${cliPath}" %*`,
@@ -6772,7 +6776,14 @@ function escapePosixDoubleQuoted(value) {
 }
 
 // packages/omo-codex/src/install/codex-cache-bins.ts
-var RESERVED_NESTED_BIN_NAMES = new Set(["omo", "lazycodex", "lazycodex-ai", "oh-my-opencode", "oh-my-openagent"]);
+var RESERVED_NESTED_BIN_NAMES = new Set([
+  "omo",
+  "omo-agent-toolkit",
+  "lazycodex",
+  "lazycodex-ai",
+  "oh-my-opencode",
+  "oh-my-openagent"
+]);
 async function linkCachedPluginBins(input) {
   const binLinks = await discoverPackageBins(input.pluginRoot);
   const platform = input.platform ?? process.platform;
@@ -6802,20 +6813,26 @@ async function removeCachedManagedNpmBinShims(pluginRoot) {
 }
 async function linkRootRuntimeBin(input) {
   const cliPath = join5(input.repoRoot, "dist", "cli", "index.js");
-  if (!await isFile(cliPath))
-    return null;
-  const nodeCliPath = join5(input.repoRoot, "dist", "cli-node", "index.js");
   const platform = input.platform ?? process.platform;
+  const legacyPath = join5(input.binDir, platform === "win32" ? "omo.cmd" : "omo");
+  if (!await isFile(cliPath)) {
+    await removeGeneratedRuntimeWrapper(legacyPath);
+    return null;
+  }
+  const binName = "omo-agent-toolkit";
+  const nodeCliPath = join5(input.repoRoot, "dist", "cli-node", "index.js");
   await mkdir(input.binDir, { recursive: true });
   if (platform === "win32") {
-    const linkPath2 = join5(input.binDir, "omo.cmd");
-    await replaceRuntimeWrapper(linkPath2, windowsRuntimeWrapper(cliPath, input.codexHome, input.binDir, nodeCliPath));
-    return { name: "omo", path: linkPath2, target: cliPath };
+    const linkPath2 = join5(input.binDir, `${binName}.cmd`);
+    await replaceRuntimeWrapper(linkPath2, windowsRuntimeWrapper(binName, cliPath, input.codexHome, input.binDir, nodeCliPath));
+    await removeGeneratedRuntimeWrapper(legacyPath);
+    return { name: binName, path: linkPath2, target: cliPath };
   }
-  const linkPath = join5(input.binDir, "omo");
-  await replaceRuntimeWrapper(linkPath, posixRuntimeWrapper(cliPath, input.codexHome, input.binDir, nodeCliPath));
+  const linkPath = join5(input.binDir, binName);
+  await replaceRuntimeWrapper(linkPath, posixRuntimeWrapper(binName, cliPath, input.codexHome, input.binDir, nodeCliPath));
   await chmod(linkPath, 493);
-  return { name: "omo", path: linkPath, target: cliPath };
+  await removeGeneratedRuntimeWrapper(legacyPath);
+  return { name: binName, path: linkPath, target: cliPath };
 }
 async function linkCachedPluginBin(binDir, link, platform) {
   if (platform === "win32") {
@@ -6927,6 +6944,29 @@ async function replaceRuntimeWrapper(linkPath, content) {
     throw new Error(`${linkPath} already exists and is not a generated OMO runtime wrapper`);
   await rm3(linkPath, { force: true });
   await writeFile(linkPath, content);
+}
+async function removeGeneratedRuntimeWrapper(path) {
+  try {
+    const entry = await lstat4(path);
+    if (!entry.isFile() && !entry.isSymbolicLink())
+      return;
+    const content = await readGeneratedWrapperContent(path);
+    if (content.includes(RUNTIME_WRAPPER_MARKER))
+      await rm3(path, { force: true });
+  } catch (error) {
+    if (isNodeErrorWithCode(error) && error.code === "ENOENT")
+      return;
+    throw error;
+  }
+}
+async function readGeneratedWrapperContent(path) {
+  try {
+    return await readFile3(path, "utf8");
+  } catch (error) {
+    if (isNodeErrorWithCode(error) && (error.code === "ENOENT" || error.code === "EISDIR"))
+      return "";
+    throw error;
+  }
 }
 async function existingNonRuntimeWrapper(path) {
   try {
@@ -10734,6 +10774,11 @@ async function seedAndMigrateOmoSot(input) {
 // packages/omo-codex/src/install/install-ast-grep-sg.ts
 import { join as join33 } from "node:path";
 
+// packages/utils/src/ast-grep/install-script.ts
+import { spawn as spawn2 } from "node:child_process";
+import { existsSync as existsSync4 } from "node:fs";
+import { join as join32 } from "node:path";
+
 // packages/utils/src/ast-grep/sg-manifest.ts
 function normalizeRuntimePlatform(platform = process.platform) {
   if (platform === "darwin" || platform === "linux" || platform === "win32")
@@ -10750,9 +10795,6 @@ function runtimeSlug(platform = process.platform, arch = process.arch) {
 }
 
 // packages/utils/src/ast-grep/install-script.ts
-import { spawn as spawn2 } from "node:child_process";
-import { existsSync as existsSync4 } from "node:fs";
-import { join as join32 } from "node:path";
 var AST_GREP_BIN_DIR_ENV_KEY = "OMO_AST_GREP_BIN_DIR";
 var AST_GREP_INSTALL_TIMEOUT_MS = 30000;
 function astGrepRuntimeDir(baseDir, platform = process.platform, arch = process.arch) {
@@ -10964,7 +11006,7 @@ async function runCodexInstaller(options = {}) {
       if (runtimeLink !== null)
         log(`Linked ${runtimeLink.name} -> ${runtimeLink.target}`);
       else
-        log(`Warning: skipped the omo runtime wrapper because ${join36(repoRoot, "dist", "cli", "index.js")} is missing; omo ulw-loop commands will be unavailable until a package shipping dist/cli is installed`);
+        log(`Warning: skipped the omo-agent-toolkit runtime wrapper because ${join36(repoRoot, "dist", "cli", "index.js")} is missing; omo-agent-toolkit ulw-loop commands will be unavailable until a package shipping dist/cli is installed`);
     }
     pluginSources.push({ name: entry.name, sourcePath });
     installed.push(plugin);
@@ -11299,7 +11341,7 @@ async function runDelegatedOmoCommand(parsed, options) {
     options.log(formatShellCommand(invocation.command, invocation.args));
     return;
   }
-  const env2 = invocation.delegatesToOmo ? { ...process.env, OMO_INVOCATION_NAME: "omo", ...invocation.env } : { ...process.env, ...invocation.env };
+  const env2 = invocation.delegatesToOmo ? { ...process.env, OMO_INVOCATION_NAME: "omo-agent-toolkit", ...invocation.env } : { ...process.env, ...invocation.env };
   await options.runCommand(invocation.command, invocation.args, { cwd: options.cwd, env: env2 });
 }
 function buildDelegatedOmoInvocation(parsed) {
@@ -11319,7 +11361,7 @@ function buildDelegatedOmoInvocation(parsed) {
       args2.push(`--repo-root=${parsed.repoRoot}`);
     return { command: "npx", args: args2, delegatesToOmo: true };
   }
-  const args = ["--yes", "--package", "oh-my-openagent", "omo", parsed.command];
+  const args = ["--yes", "--package", "oh-my-openagent", "omo-agent-toolkit", parsed.command];
   if (parsed.command === "cleanup") {
     args.push("--platform=codex", ...parsed.args);
   } else {
@@ -11767,23 +11809,23 @@ async function runLazyCodexInstallLocalCli(input) {
   return 0;
 }
 export {
-  updateCodexConfig,
-  stampGitBashMcpEnv,
-  runLazyCodexInstallLocalCli,
-  runDelegatedOmoCommand,
-  resolveDefaultRepoRootForEntrypoint,
-  resolveDefaultRepoRoot,
-  resolveCodexInstallerBinDir,
-  repairNearestProjectLocalCodexArtifacts,
-  readCodexModelCatalog,
-  parseLazyCodexInstallCliArgs,
-  linkRootRuntimeBin,
-  linkCachedPluginBins,
-  installMarketplaceLocally,
-  installCachedPlugin,
-  formatLazyCodexInstallHelp,
-  findMissingHookCommandTargets,
-  buildDelegatedOmoInvocation,
+  PASSTHROUGH_COMMANDS,
   assertHookCommandTargets,
-  PASSTHROUGH_COMMANDS
+  buildDelegatedOmoInvocation,
+  findMissingHookCommandTargets,
+  formatLazyCodexInstallHelp,
+  installCachedPlugin,
+  installMarketplaceLocally,
+  linkCachedPluginBins,
+  linkRootRuntimeBin,
+  parseLazyCodexInstallCliArgs,
+  readCodexModelCatalog,
+  repairNearestProjectLocalCodexArtifacts,
+  resolveCodexInstallerBinDir,
+  resolveDefaultRepoRoot,
+  resolveDefaultRepoRootForEntrypoint,
+  runDelegatedOmoCommand,
+  runLazyCodexInstallLocalCli,
+  stampGitBashMcpEnv,
+  updateCodexConfig
 };
