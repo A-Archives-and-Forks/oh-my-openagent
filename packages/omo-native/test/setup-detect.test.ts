@@ -26,6 +26,7 @@ async function loadDatabaseSync() {
 }
 
 const SOURCE_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)))
+const TTY_DRIVER = resolve(fileURLToPath(new URL("tty-driver.py", import.meta.url)))
 const roots: string[] = []
 const SECRET_SENTINELS = ["SENPI-SECRET", "OPENCODE-SECRET", "SQLITE-SECRET"]
 
@@ -141,9 +142,7 @@ function runLauncher(launcher: string, fixture: Fixture, args: string[], tty = f
     XDG_DATA_HOME: fixture.xdg,
   }
   if (!tty) return spawnSync(process.execPath, [launcher, ...args], { encoding: "utf8", env })
-  return spawnSync("script", ["-q", "/dev/null", "env", ...Object.entries(env).map(([key, value]) => `${key}=${value}`), process.execPath, launcher, ...args], {
-    encoding: "utf8",
-  })
+  return spawnSync("python3", [TTY_DRIVER, "", "", process.execPath, launcher, ...args], { encoding: "utf8", env })
 }
 
 afterEach(() => {
