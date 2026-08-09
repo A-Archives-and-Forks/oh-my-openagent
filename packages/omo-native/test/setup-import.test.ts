@@ -7,8 +7,26 @@ import {
 } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
-import { DatabaseSync } from "node:sqlite"
 import { fileURLToPath } from "node:url"
+
+// node:sqlite is unavailable on the pinned CI Bun, so it loads lazily inside the cases that need it,
+// mirroring the production loadSqlite seam in bin/lib/setup-detect.js.
+// Bun 1.3.12 (the pinned CI runtime) ships no node:sqlite at all, so the module loads lazily and the
+// fixtures that need a real database are skipped there. Production already degrades the same way:
+// bin/lib/setup-detect.js falls back to file-presence detection when the import throws.
+globalThis.SQLITE_AVAILABLE = await (async () => {
+  try {
+    await import("node:sqlite")
+    return true
+  } catch {
+    return false
+  }
+})()
+
+async function loadDatabaseSync() {
+globalThis.sqlite = await import("node:sqlite")
+  return sqlite.DatabaseSync
+}
 
 const SOURCE_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)))
 const roots: string[] = []
@@ -25,8 +43,9 @@ function write(path: string, content: string): void {
   writeFileSync(path, content)
 }
 
-function database(path: string, version: number, rows: Array<[string, string, string, string | null]>): void {
+async function database(path: string, version: number, rows: Array<[string, string, string, string | null]>): Promise<void> {
   mkdirSync(dirname(path), { recursive: true })
+  const DatabaseSync = await loadDatabaseSync()
   const db = new DatabaseSync(path)
   db.exec(`
     CREATE TABLE auth_schema_version (id INTEGER PRIMARY KEY, version INTEGER NOT NULL);
@@ -136,10 +155,10 @@ describe("omo setup credential inheritance", () => {
     expectSourcesUntouched(before)
   })
 
-  test("#given pinned omp and gjc databases #when accepted #then allow-listed rows import and unknown schema is noticed", () => {
+  test.skipIf(!SQLITE_AVAILABLE)("#given pinned omp and gjc databases #when accepted #then allow-listed rows import and unknown schema is noticed", async () => {
     const item = fixture()
-    database(join(item.home, ".omp", "agent", "agent.db"), 7, [["google", "api_key", secrets[0], null]])
-    database(join(item.home, ".gjc", "agent", "agent.db"), 4, [
+    await database(join(item.home, ".omp", "agent", "agent.db"), 7, [["google", "api_key", secrets[0], null]])
+    await database(join(item.home, ".gjc", "agent", "agent.db"), 4, [
       ["openai", "api_key", secrets[1], null],
       ["xai", "oauth", secrets[2], null],
       ["anthropic", "api_key", secrets[3], "disabled"],
@@ -153,7 +172,7 @@ describe("omo setup credential inheritance", () => {
       openai: { type: "api_key", key: secrets[1] },
     })
     const unknown = fixture()
-    database(join(unknown.home, ".omp", "agent", "agent.db"), 99, [["google", "api_key", secrets[0], null]])
+    await database(join(unknown.home, ".omp", "agent", "agent.db"), 99, [["google", "api_key", secrets[0], null]])
     const unknownResult = run(unknown, ["setup", "--yes"])
     expect(unknownResult.status).toBe(0)
     expect(unknownResult.stdout).toContain("auth schema version 99 is unknown")

@@ -4,10 +4,28 @@ import { spawnSync } from "node:child_process"
 import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
-import { DatabaseSync } from "node:sqlite"
 import { fileURLToPath } from "node:url"
 import { detectHarnesses, needsSetupSuggestion } from "../bin/lib/setup-detect.js"
 import { formatSetupReport } from "../bin/lib/setup-report.js"
+
+// node:sqlite is unavailable on the pinned CI Bun, so it loads lazily inside the cases that need it,
+// mirroring the production loadSqlite seam in bin/lib/setup-detect.js.
+// Bun 1.3.12 (the pinned CI runtime) ships no node:sqlite at all, so the module loads lazily and the
+// fixtures that need a real database are skipped there. Production already degrades the same way:
+// bin/lib/setup-detect.js falls back to file-presence detection when the import throws.
+globalThis.SQLITE_AVAILABLE = await (async () => {
+  try {
+    await import("node:sqlite")
+    return true
+  } catch {
+    return false
+  }
+})()
+
+async function loadDatabaseSync() {
+globalThis.sqlite = await import("node:sqlite")
+  return sqlite.DatabaseSync
+}
 
 const SOURCE_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)))
 const roots: string[] = []
@@ -20,8 +38,9 @@ function write(path: string, content: string): void {
   writeFileSync(path, content)
 }
 
-function createDatabase(path: string, version: number, rows: Array<[string, string, string | null]>): void {
+async function createDatabase(path: string, version: number, rows: Array<[string, string, string | null]>): Promise<void> {
   mkdirSync(dirname(path), { recursive: true })
+  const DatabaseSync = await loadDatabaseSync()
   const db = new DatabaseSync(path)
   db.exec(`
     CREATE TABLE auth_schema_version (id INTEGER PRIMARY KEY, version INTEGER NOT NULL);
@@ -46,7 +65,7 @@ function createFixture(): Fixture {
   return { root, home, agentDir, xdg }
 }
 
-function populateAll(fixture: Fixture): void {
+async function populateAll(fixture: Fixture): Promise<void> {
   write(join(fixture.agentDir, "auth.json"), JSON.stringify({
     "senpi-beta": { type: "oauth", access: "SENPI-SECRET" },
     "senpi-alpha": { type: "api_key", key: "SENPI-SECRET" },
@@ -58,11 +77,11 @@ function populateAll(fixture: Fixture): void {
     "open-oauth": { type: "oauth", access: "OPENCODE-SECRET" },
     "open-api": { type: "api", key: "OPENCODE-SECRET" },
   }))
-  createDatabase(join(fixture.home, ".omp", "agent", "agent.db"), 7, [
+  await createDatabase(join(fixture.home, ".omp", "agent", "agent.db"), 7, [
     ["omp-api", "api_key", null], ["omp-disabled", "oauth", "expired"],
   ])
   write(join(fixture.home, ".omp", "agent", "models.db"), "models-fixture")
-  createDatabase(join(fixture.home, ".gjc", "agent", "agent.db"), 4, [
+  await createDatabase(join(fixture.home, ".gjc", "agent", "agent.db"), 4, [
     ["gjc-oauth", "oauth", null],
   ])
   write(join(fixture.home, ".gjc", "agent", "config.yml"), [
@@ -135,9 +154,9 @@ afterEach(() => {
 
 describe("omo setup sibling detection", () => {
   describe("#given all four harness stores", () => {
-    test("#when detected #then the exact report contains ids and types but no values", async () => {
+    test.skipIf(!SQLITE_AVAILABLE)("#when detected #then the exact report contains ids and types but no values", async () => {
       const fixture = createFixture()
-      populateAll(fixture)
+      await populateAll(fixture)
       const report = formatSetupReport(await detect(fixture))
       expect(report).toBe([
         "HARNESS | INSTALLED | PROVIDERS | CREDENTIAL TYPES | MODELS",
@@ -151,9 +170,9 @@ describe("omo setup sibling detection", () => {
       for (const secret of SECRET_SENTINELS) expect(report).not.toContain(secret)
     })
 
-    test("#when detection runs twice #then every source hash and directory listing stays identical", async () => {
+    test.skipIf(!SQLITE_AVAILABLE)("#when detection runs twice #then every source hash and directory listing stays identical", async () => {
       const fixture = createFixture()
-      populateAll(fixture)
+      await populateAll(fixture)
       const before = snapshotTree(fixture.root)
       await detect(fixture)
       await detect(fixture)
@@ -164,7 +183,7 @@ describe("omo setup sibling detection", () => {
   })
 
   describe("#given each store is absent in turn", () => {
-    test("#when detected #then that harness reports installed no without crashing", async () => {
+    test.skipIf(!SQLITE_AVAILABLE)("#when detected #then that harness reports installed no without crashing", async () => {
       const cases = [
         ["senpi", (fixture: Fixture) => join(fixture.agentDir, "auth.json")],
         ["opencode", (fixture: Fixture) => join(fixture.xdg, "opencode", "auth.json")],
@@ -173,7 +192,7 @@ describe("omo setup sibling detection", () => {
       ] as const
       for (const [name, storePath] of cases) {
         const fixture = createFixture()
-        populateAll(fixture)
+        await populateAll(fixture)
         rmSync(storePath(fixture))
         const report = formatSetupReport(await detect(fixture))
         expect(report).toContain(`${name} | no | none | none |`)
@@ -182,9 +201,9 @@ describe("omo setup sibling detection", () => {
   })
 
   describe("#given an unknown sqlite auth schema", () => {
-    test("#when detected #then it reports detection-only and parses no credentials", async () => {
+    test.skipIf(!SQLITE_AVAILABLE)("#when detected #then it reports detection-only and parses no credentials", async () => {
       const fixture = createFixture()
-      createDatabase(join(fixture.home, ".omp", "agent", "agent.db"), 99, [["must-not-parse", "api_key", null]])
+      await createDatabase(join(fixture.home, ".omp", "agent", "agent.db"), 99, [["must-not-parse", "api_key", null]])
       const inventory = await detect(fixture)
       const omp = inventory.harnesses.find((item) => item.id === "oh-my-pi")!
       expect(omp.providers).toHaveLength(0)
@@ -194,9 +213,9 @@ describe("omo setup sibling detection", () => {
   })
 
   describe("#given node:sqlite is unavailable", () => {
-    test("#when detected #then sqlite stores degrade to file presence and remain successful", async () => {
+    test.skipIf(!SQLITE_AVAILABLE)("#when detected #then sqlite stores degrade to file presence and remain successful", async () => {
       const fixture = createFixture()
-      populateAll(fixture)
+      await populateAll(fixture)
       const inventory = await detect(fixture, { loadSqlite: async () => { throw new Error("not available") } })
       for (const id of ["oh-my-pi", "gajae-code"]) {
         const harness = inventory.harnesses.find((item) => item.id === id)!
