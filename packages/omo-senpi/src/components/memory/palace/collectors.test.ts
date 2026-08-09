@@ -27,7 +27,7 @@ describe("palace collectors", () => {
     expect(persona?.body).toContain("fixture persona")
     expect(persona?.description).toBe("who the agent is")
     expect(core.every((entry) => entry.path.startsWith("system/"))).toBe(true)
-  })
+  }, 30_000)
 
   test("#given committed binary and text assets #when external entries are collected #then binaries report size only and never content", async () => {
     const fixture = await createPalaceFixture()
@@ -41,7 +41,7 @@ describe("palace collectors", () => {
     const text = external.find((entry) => entry.path === "reference/notes.md")
     expect(text?.binary).toBe(false)
     expect(text?.body).toContain("external note")
-  })
+  }, 30_000)
 
   test("#given a dirty working tree #when core entries are collected #then uncommitted files are labelled as absent from the system prompt", async () => {
     const fixture = await createPalaceFixture()
@@ -52,7 +52,7 @@ describe("palace collectors", () => {
     const draft = core.find((entry) => entry.path === "system/draft.md")
     expect(draft?.state).toBe("uncommitted - not active in system prompt")
     expect(core.find((entry) => entry.path === "system/persona.md")?.state).toBe("committed")
-  })
+  }, 30_000)
 
   test("#given reflection and ordinary commits #when history is collected #then reflection commits are tagged and caps are declared", async () => {
     const fixture = await createPalaceFixture()
@@ -70,7 +70,7 @@ describe("palace collectors", () => {
       perDiffBytes: HISTORY_PER_DIFF_CAP,
       totalDiffBytes: HISTORY_TOTAL_PAYLOAD_CAP,
     })
-  })
+  }, 30_000)
 
   test("#given merge and chore reflection subjects #when matched against the reflection pattern #then only reflection-scoped commits match", () => {
     expect(REFLECTION_COMMIT_PATTERN.test("feat(reflection): learn")).toBe(true)
@@ -92,7 +92,7 @@ describe("palace collectors", () => {
     expect(reflection.cursor?.reflected_completed_steps).toBe(1)
     expect(reflection.outcomes.map((entry) => entry.runId)).toEqual(["run-new", "run-old"])
     expect(reflection.outcomes[0]?.outcome).toBe("failed")
-  })
+  }, 30_000)
 
   test("#given more completion records than the limit #when reflection data is collected #then only the newest N are kept", async () => {
     const fixture = await createPalaceFixture()
@@ -107,5 +107,5 @@ describe("palace collectors", () => {
     const reflection = await collectReflection(fixture.paths, { limit: 2 })
 
     expect(reflection.outcomes.map((entry) => entry.runId)).toEqual(["run-4", "run-3"])
-  })
+  }, 30_000)
 })

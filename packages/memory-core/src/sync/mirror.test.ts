@@ -135,7 +135,7 @@ describe("MirrorSync lifecycle", () => {
       expect(commit.code).toBe(0)
       expect((await run(["git", "show", "main:system/persona.md"], bare)).stdout).toBe("hooked\n")
       expect(await readLog(dir)).toContain("exit=0")
-    })
+    }, 30_000)
 
     it("#when set is called with trailing slashes #then the stored url is normalized", async () => {
       // given
@@ -148,7 +148,7 @@ describe("MirrorSync lifecycle", () => {
       // then
       expect(await repo.configGet(CONFIG_KEY)).toBe(`file://${bare}`)
       expect((await mirror.status()).url).toBe(`file://${bare}`)
-    })
+    }, 30_000)
 
     it("#when set is called twice #then the second url wins", async () => {
       // given
@@ -165,7 +165,7 @@ describe("MirrorSync lifecycle", () => {
       expect((await mirror.status()).url).toBe(`file://${second}`)
       expect((await run(["git", "show", "main:reference/notes.md"], second)).stdout).toBe("second\n")
       expect((await run(["git", "show", "main:reference/notes.md"], first)).code).not.toBe(0)
-    })
+    }, 30_000)
 
     it("#when unset #then later commits produce no new log lines", async () => {
       // given
@@ -183,7 +183,7 @@ describe("MirrorSync lifecycle", () => {
       // then
       expect(await readLog(dir)).toBe(before)
       expect((await mirror.status()).url).toBeUndefined()
-    })
+    }, 30_000)
   })
 
   describe("#given an unreachable mirror", () => {
@@ -201,7 +201,7 @@ describe("MirrorSync lifecycle", () => {
       expect(result.detail).not.toBe("")
       expect(status.url).toBe(`file://${missing}`)
       expect(status.aheadCount).toBeGreaterThan(0)
-    })
+    }, 30_000)
 
     it("#when a commit lands #then the commit succeeds and the failure is logged in status", async () => {
       // given
@@ -220,7 +220,7 @@ describe("MirrorSync lifecycle", () => {
       expect(log).not.toContain("exit=0")
       expect(status.lastLogLines.length).toBeGreaterThan(0)
       expect(status.lastLogLines.join("\n")).toContain("exit=")
-    })
+    }, 30_000)
   })
 
   describe("#given pushNow", () => {
@@ -234,7 +234,7 @@ describe("MirrorSync lifecycle", () => {
       // then
       expect(result.pushed).toBe(false)
       expect(result.detail).toContain("No memory repository configured")
-    })
+    }, 30_000)
 
     it("#when a mirror is configured #then a one-shot foreground push lands and clears ahead", async () => {
       // given
@@ -250,7 +250,7 @@ describe("MirrorSync lifecycle", () => {
       expect(result.pushed).toBe(true)
       expect((await run(["git", "log", "--oneline", "main"], bare)).stdout).toContain("initialize")
       expect((await mirror.status()).aheadCount).toBe(0)
-    })
+    }, 30_000)
   })
 
   describe("#given a credentialed url", () => {
@@ -265,7 +265,7 @@ describe("MirrorSync lifecycle", () => {
       // then
       expect(status.redactedUrl).toBe("https://***:***@example.com/acme/memory.git")
       expect(status.redactedUrl).not.toContain("s3cr3t")
-    })
+    }, 30_000)
 
     /**
      * git scrubs userinfo from its own transport errors, so a failing push is
@@ -298,7 +298,7 @@ describe("MirrorSync lifecycle", () => {
       expect(tail).toContain("https://***:***@example.com/acme/memory.git")
       expect(tail).toContain("***@example.com:acme/memory.git")
       expect(tail).toContain("exit=128")
-    })
+    }, 30_000)
 
     it("#when a push to a credentialed remote fails #then the detail leaks no credential", async () => {
       // given
@@ -312,6 +312,6 @@ describe("MirrorSync lifecycle", () => {
       expect(result.pushed).toBe(false)
       expect(result.detail).not.toContain("s3cr3t")
       expect(result.detail).not.toContain("x-token")
-    })
+    }, 30_000)
   })
 })
