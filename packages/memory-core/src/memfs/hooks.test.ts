@@ -100,8 +100,10 @@ describe("installHooks", () => {
     // then
     expect(installed.map((hook) => hook.name)).toEqual(["pre-commit", "post-commit"])
     expect(await readFile(hookPath, "utf8")).toBe(first)
-    for (const hook of installed) {
-      expect(statSync(hook.path).mode & 0o777).toBe(0o755)
+    if (process.platform !== "win32") {
+      for (const hook of installed) {
+        expect(statSync(hook.path).mode & 0o777).toBe(0o755)
+      }
     }
   })
 
@@ -136,8 +138,9 @@ describe("installHooks", () => {
     // when
     const installed = installHooks(worktree)
 
-    // then
-    const sharedHooks = join(realpathSync(dir), ".git", "hooks")
+    // then (resolve against git's own canonical common-dir so 8.3 short names cannot diverge)
+    const gitCommonDir = (await run(["git", "rev-parse", "--git-common-dir"], worktree)).stdout.trim()
+    const sharedHooks = join(gitCommonDir, "hooks")
     expect(resolveHooksDir(worktree)).toBe(sharedHooks)
     expect(installed[0]?.path).toBe(join(sharedHooks, "pre-commit"))
     expect(existsSync(join(worktree, ".git", "hooks"))).toBe(false)
