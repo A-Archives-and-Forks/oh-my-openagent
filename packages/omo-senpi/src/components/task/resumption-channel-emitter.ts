@@ -10,7 +10,7 @@ import {
 import type { SenpiExtensionAPI } from "../../extension/types"
 import { isTerminal, taskStatusDescription } from "./status-row-format"
 
-export const RESUMPTION_CHANNEL_STATE_EVENT = "resumption_channel_state"
+export const RESUMPTION_CHANNEL_STATE_EVENT = "wake_source_state"
 const RESUMPTION_CHANNEL_SOURCE = "senpi-task"
 
 type ResumptionChannel = {
