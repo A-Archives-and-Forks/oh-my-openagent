@@ -11,11 +11,13 @@ Plugin registration inside `opencode.json` prefers `oh-my-openagent`.
 
 All published packages expose the same compiled CLI with these bin entries:
 
-- `oh-my-openagent` (preferred name)
+- `omo-agent-toolkit` (short name, recommended in docs and prompts)
+- `oh-my-openagent` (preferred package-matching name)
 - `oh-my-opencode` (legacy compatibility name)
-- `omo` (short alias, recommended in docs and prompts)
 - `lazycodex` (Light edition shortcut; install defaults to `--platform=codex`)
 - `lazycodex-ai` (Light edition shortcut; install defaults to `--platform=codex`)
+
+The former `omo` bin was removed in this major release; that name is reserved for the future native edition (npm `omo-ai`), which is not shipped here.
 
 ## Basic Usage
 
@@ -86,7 +88,7 @@ Subscription flags (`--claude`, `--openai`, etc.) only apply when `--platform` i
 Anonymous telemetry uses PostHog with a hashed installation identifier. Two streams exist:
 
 - `omo_daily_active`: fired by the main plugin when it loads (`reason: "plugin_loaded"`) and by `oh-my-openagent run` (`reason: "run_started"`).
-- `omo_codex_daily_active`: fired by `omo install --platform=codex` or `--platform=both` (`reason: "install_completed"`) and by the Codex plugin's `SessionStart` hook on every Codex session (`reason: "session_start"`). Both sources share the same UTC-day deduplication, so daily/weekly/monthly active counts reflect real Codex usage, not just install events.
+- `omo_codex_daily_active`: fired by `omo-agent-toolkit install --platform=codex` or `--platform=both` (`reason: "install_completed"`) and by the Codex plugin's `SessionStart` hook on every Codex session (`reason: "session_start"`). Both sources share the same UTC-day deduplication, so daily/weekly/monthly active counts reflect real Codex usage, not just install events.
 
 Opt-out env vars:
 
@@ -107,14 +109,14 @@ Removes managed Codex Light state. `cleanup` remains available as a backward-com
 
 ```bash
 npx lazycodex-ai uninstall
-omo uninstall --platform=codex
+omo-agent-toolkit uninstall --platform=codex
 ```
 
 ### Options
 
 | Option | Description |
 | --- | --- |
-| `--platform codex` | Required when using the shared `omo` CLI unless `OMO_INVOCATION_NAME` is `lazycodex` or `lazycodex-ai` |
+| `--platform codex` | Required when using the shared `omo-agent-toolkit` CLI unless `OMO_INVOCATION_NAME` is `lazycodex` or `lazycodex-ai` |
 | `--codex-home <path>` | Codex home to clean, defaulting to `CODEX_HOME` or `~/.codex` |
 | `--project <path>` | Project directory to inspect for project-local legacy Codex artifacts |
 | `--json` | Output structured JSON result |

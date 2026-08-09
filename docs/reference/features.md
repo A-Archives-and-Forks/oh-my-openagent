@@ -124,7 +124,7 @@ When running inside tmux:
 - Auto-cleanup when agents complete
 - **Stable agent ordering**: core-agent tab cycling defaults to Sisyphus, Hephaestus, Prometheus, Atlas, and can be customized with `agent_order`
 
-When running inside cmux (`cmux omo`), the same pane integration is routed through cmux's tmux compatibility command. OMO detects the cmux environment from `CMUX_SOCKET_PATH` or a cmux-provided `TMUX` value, so `tmux.enabled` can create cmux panes even when a real `tmux` binary is not installed.
+When running inside cmux (`cmux omo-agent-toolkit`), the same pane integration is routed through cmux's tmux compatibility command. OMO detects the cmux environment from `CMUX_SOCKET_PATH` or a cmux-provided `TMUX` value, so `tmux.enabled` can create cmux panes even when a real `tmux` binary is not installed.
 
 Customize agent models, prompts, and permissions in the `[opencode]` block of `~/.omo/omo.jsonc`.
 
@@ -387,7 +387,7 @@ Commands are slash-triggered workflows that execute predefined templates.
 
 ### /ulw-loop
 
-The `/ulw-loop` slash command has been removed; continuous goal pursuit is now handled by `/goal`. The `omo ulw-loop` CLI subcommand remains as a passthrough to the Codex LazyCodex ulw-loop CLI.
+The `/ulw-loop` slash command has been removed; continuous goal pursuit is now handled by `/goal`. The `omo-agent-toolkit ulw-loop` CLI subcommand remains as a passthrough to the Codex LazyCodex ulw-loop CLI.
 
 ### /refactor
 
