@@ -148,6 +148,29 @@ bun pm -g untrusted
 
 Do not run a blanket trust command. Trust only packages you recognize from this install path, such as `oh-my-openagent`, legacy `oh-my-opencode`, or `@code-yeongyu/comment-checker`, then rerun the supported `bunx oh-my-openagent install` or `npx lazycodex-ai doctor` check.
 
+### Senpi edition (beta): `omo` via npm `omo-ai`
+
+The senpi-native edition ships as the npm package `omo-ai` and installs a single command, `omo`, which launches the pinned senpi release with the full OMO extension loaded. No settings edits, no plugin registration, no extra setup.
+
+It is beta-channel only. The tag is mandatory:
+
+```bash
+npm i -g omo-ai@beta
+omo
+```
+
+A bare `npm i -g omo-ai` fails with ETARGET on purpose; every published version is a prerelease, so the default channel never resolves. See the [omo-ai publishing runbook](../reference/omo-ai-publishing.md) for the mechanism.
+
+**Upgrade order on older machines.** If the machine still has oh-my-openagent/oh-my-opencode 4.19.4 or earlier installed globally, that package owns a global `omo` bin and the install above fails with EEXIST. Upgrade or uninstall the old package first, then install `omo-ai@beta`.
+
+### First run: `omo setup`
+
+`omo setup` is the onboarding command for the senpi edition. It replaces the old manual "configure OmO/senpi" guidance; there's nothing to hand-edit anymore. It runs in three stages:
+
+1. **Detect (read-only).** Scans your other coding-agent installs for provider credentials: senpi's agent dir (`SENPI_CODING_AGENT_DIR`, else `~/.senpi/agent`), opencode (`~/.local/share/opencode/auth.json`, XDG-aware), oh-my-pi (`~/.omp/agent/agent.db`), and gajae-code (`~/.gjc/agent/agent.db`). It reports, per harness, whether it's installed and which provider ids have credentials of which type. Credential values are never printed. The oh-my-pi and gajae-code databases are opened read-only.
+2. **Import (consent-gated).** Only after you confirm (interactively, or with `--yes`; `--dry-run` previews without writing), compatible API-key credentials are imported into senpi's auth store. Existing senpi entries are never overwritten, and only providers senpi actually knows are imported. OAuth entries are reported but never imported. Source stores are never written; imports go to senpi's `auth.json` only, atomically and with a timestamped backup.
+3. **Model report.** Prints a provider/model availability summary pointing at the [agent-model matching guide](./agent-model-matching.md), plus a ready-to-paste config snippet for any custom-endpoint providers it found. Report only; setup never writes model config for you.
+
 ## For LLM Agents
 
 > **IMPORTANT: Use `curl` to fetch this file, NOT WebFetch.** WebFetch summarizes content and loses critical flags like `--platform`, subscription questions, and Codex verification details. Always use:
