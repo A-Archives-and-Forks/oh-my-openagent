@@ -44,6 +44,7 @@ export interface SenpiInstallResult {
 
 const REQUIRED_PLUGIN_ARTIFACTS = [
   join("extensions", "omo.js"),
+  join("extensions", "reflection-persona.md"),
   join("skills", "ast-grep", "SKILL.md"),
   join("skills", "coding-agent-sessions", "SKILL.md"),
   join("skills", "debugging", "SKILL.md"),
