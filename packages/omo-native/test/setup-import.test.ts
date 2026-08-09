@@ -9,12 +9,10 @@ import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
-// node:sqlite is unavailable on the pinned CI Bun, so it loads lazily inside the cases that need it,
-// mirroring the production loadSqlite seam in bin/lib/setup-detect.js.
 // Bun 1.3.12 (the pinned CI runtime) ships no node:sqlite at all, so the module loads lazily and the
-// fixtures that need a real database are skipped there. Production already degrades the same way:
-// bin/lib/setup-detect.js falls back to file-presence detection when the import throws.
-globalThis.SQLITE_AVAILABLE = await (async () => {
+// fixtures that need a real database skip there. Production degrades the same way: setup-import.js
+// reports the database credentials as not imported when the import throws.
+const SQLITE_AVAILABLE = await (async () => {
   try {
     await import("node:sqlite")
     return true
@@ -24,7 +22,7 @@ globalThis.SQLITE_AVAILABLE = await (async () => {
 })()
 
 async function loadDatabaseSync() {
-globalThis.sqlite = await import("node:sqlite")
+  const sqlite = await import("node:sqlite")
   return sqlite.DatabaseSync
 }
 
