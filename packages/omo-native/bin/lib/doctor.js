@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join, relative } from "node:path"
 import { packageManifest, packageRoot, readJson, resolveSenpi } from "./package-paths.js"
+import { needsSetupSuggestion } from "./setup-detect.js"
 
 const artifacts = [
   ["plugin manifest", "plugin/package.json"],
@@ -41,7 +42,7 @@ function warnForSettings() {
   }
 }
 
-export function runDoctor() {
+export function runDoctor(inventory) {
   let failed = false
   for (const [label, artifact] of artifacts) {
     const path = join(packageRoot, artifact)
@@ -77,5 +78,8 @@ export function runDoctor() {
   }
 
   warnForSettings()
+  if (needsSetupSuggestion(inventory)) {
+    console.log("INFO senpi has no credentials; run omo setup to review sibling stores")
+  }
   process.exitCode = failed ? 1 : 0
 }

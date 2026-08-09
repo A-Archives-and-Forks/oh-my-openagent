@@ -3,6 +3,8 @@ import { delimiter, join } from "node:path"
 import { spawnNode } from "./child-process.js"
 import { runDoctor } from "./doctor.js"
 import { nearestNodeBin, packageManifest, packageRoot, resolveSenpi } from "./package-paths.js"
+import { detectHarnesses, needsSetupSuggestion } from "./setup-detect.js"
+import { printSetupReport } from "./setup-report.js"
 
 const earlyCommands = new Set(["install", "remove", "list", "config", "auth", "app-server"])
 
@@ -33,14 +35,19 @@ function isInteractiveDefault(args) {
   return process.stderr.isTTY === true && !args.includes("-p") && !args.includes("--print")
 }
 
-export function runLauncher(args = process.argv.slice(2)) {
+export async function runLauncher(args = process.argv.slice(2)) {
   const command = args[0]
   if (command === "ulw-loop") {
     spawnNode(join(packageRoot, "plugin", "runtime", "agent-toolkit", "ulw-loop", "cli.js"), args.slice(1))
     return
   }
   if (command === "doctor") {
-    runDoctor()
+    runDoctor(await detectHarnesses())
+    return
+  }
+  if (command === "setup") {
+    printSetupReport(await detectHarnesses())
+    process.exitCode = 0
     return
   }
   if (command === "update" && args.length === 1) {
@@ -54,6 +61,9 @@ export function runLauncher(args = process.argv.slice(2)) {
   }
   if (isInteractiveDefault(args)) {
     console.error(`omo (omo-ai beta ${packageManifest().version})`)
+    if (process.stdout.isTTY === true && needsSetupSuggestion(await detectHarnesses())) {
+      console.error("omo: sibling credentials detected; run `omo setup` to review them")
+    }
   }
   spawnSenpi(args, true)
 }

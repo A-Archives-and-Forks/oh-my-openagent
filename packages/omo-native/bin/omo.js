@@ -2,7 +2,7 @@
 import { runLauncher } from "./lib/launcher.js"
 
 try {
-  runLauncher()
+  await runLauncher()
 } catch (error) {
   console.error(`omo: ${error.message}`)
   process.exitCode = 1
