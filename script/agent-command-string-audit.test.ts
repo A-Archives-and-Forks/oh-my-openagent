@@ -6,9 +6,11 @@ import { resolve } from "node:path"
 
 const WORKSPACE_ROOT = resolve(import.meta.dir, "..")
 const ALLOWLIST_RELATIVE_PATH = "script/agent-command-string-audit.allowlist.json"
+const AUDIT_TEST_RELATIVE_PATH = "script/agent-command-string-audit.test.ts"
 const ALLOWLIST_PATH = resolve(WORKSPACE_ROOT, ALLOWLIST_RELATIVE_PATH)
 const AGENT_COMMAND_RE = /\bomo (ulw-loop|boulder)\b/g
 const HUMAN_COMMAND_RE = /\bomo (install|uninstall|cleanup|doctor|run|get-local-version|version|mcp)\b/g
+const BARE_BIN_RE = /(command -v omo|\/bin\/omo|=omo|\$\(which omo\))(?![\w-])/g
 const ALLOWLIST_CATEGORIES = ["emit-migrate", "test-expectation", "input-compat-preserve", "docs"] as const
 
 type AllowlistCategory = (typeof ALLOWLIST_CATEGORIES)[number]
@@ -16,6 +18,7 @@ type Allowlist = Record<AllowlistCategory, string[]>
 
 function isExcluded(filePath: string): boolean {
   return filePath === ALLOWLIST_RELATIVE_PATH
+    || filePath === AUDIT_TEST_RELATIVE_PATH
     || filePath === "CHANGELOG.md"
     || filePath.endsWith("/CHANGELOG.md")
     || filePath === ".omo"
@@ -36,7 +39,7 @@ function collectHits(): string[] {
   return trackedSourceFiles().flatMap((filePath) => {
     const source = readFileSync(resolve(WORKSPACE_ROOT, filePath), "utf8")
     return source.split("\n").flatMap((line, lineIndex) => {
-      const matches = [AGENT_COMMAND_RE, HUMAN_COMMAND_RE].flatMap((pattern) => Array.from(line.matchAll(pattern), (match) => match[0]))
+      const matches = [AGENT_COMMAND_RE, HUMAN_COMMAND_RE, BARE_BIN_RE].flatMap((pattern) => Array.from(line.matchAll(pattern), (match) => match[0]))
       return matches.map((match) => `${filePath}:${lineIndex + 1}: ${match}`)
     })
   }).sort()

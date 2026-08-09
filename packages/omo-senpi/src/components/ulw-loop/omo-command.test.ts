@@ -37,10 +37,10 @@ describe("omo-senpi ulw-loop omo-command spawn target", () => {
   })
 
   it("#given a plain bin on darwin #when building the spawn target #then it is unchanged", () => {
-    const target = toSpawnTarget("/usr/local/bin/omo", ["ulw-loop", "status", "--json"], "darwin")
+    const target = toSpawnTarget("/usr/local/bin/omo-agent-toolkit", ["ulw-loop", "status", "--json"], "darwin")
 
     expect(target).toEqual({
-      command: "/usr/local/bin/omo",
+      command: "/usr/local/bin/omo-agent-toolkit",
       args: ["ulw-loop", "status", "--json"],
     })
   })

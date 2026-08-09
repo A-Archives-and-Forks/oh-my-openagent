@@ -17,7 +17,7 @@ All published packages expose the same compiled CLI with these bin entries:
 - `lazycodex` (Light edition shortcut; install defaults to `--platform=codex`)
 - `lazycodex-ai` (Light edition shortcut; install defaults to `--platform=codex`)
 
-The former `omo` bin was removed in this major release; that name is reserved for the future native edition (npm `omo-ai`), which is not shipped here.
+The former `omo` bin was removed in this major release; that name is reserved for the future native edition (npm `omo-ai`, composed of senpi plus the `packages/*senpi*` workspaces), which is not shipped here.
 
 ## Basic Usage
 

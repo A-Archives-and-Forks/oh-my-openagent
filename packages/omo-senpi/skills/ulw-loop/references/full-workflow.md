@@ -85,10 +85,10 @@ if [ -z "$ULW_LOOP_NODE" ]; then
 fi
 
 ULW_LOOP_CLI=
-if command -v omo >/dev/null 2>&1 && omo-agent-toolkit ulw-loop help >/dev/null 2>&1; then
-  ULW_LOOP_CLI=omo
+if command -v omo-agent-toolkit >/dev/null 2>&1 && omo-agent-toolkit ulw-loop help >/dev/null 2>&1; then
+  ULW_LOOP_CLI=omo-agent-toolkit
 elif [ -n "$ULW_LOOP_NODE" ]; then
-  for candidate in "$HOME/.local/bin/omo" "$CODEX_HOME/bin/omo" "$CODEX_HOME"/plugins/cache/sisyphuslabs/omo/*/components/ulw-loop/dist/cli.js; do
+  for candidate in "$HOME/.local/bin/omo-agent-toolkit" "$CODEX_HOME/bin/omo-agent-toolkit" "$CODEX_HOME"/plugins/cache/sisyphuslabs/omo/*/components/ulw-loop/dist/cli.js; do
     [ -f "$candidate" ] || [ -x "$candidate" ] || continue
     if "$ULW_LOOP_NODE" "$candidate" ulw-loop help >/dev/null 2>&1; then
       ULW_LOOP_CLI="$candidate"
@@ -97,14 +97,14 @@ elif [ -n "$ULW_LOOP_NODE" ]; then
   done
 
   if [ -n "$ULW_LOOP_CLI" ] && [ -n "$ULW_LOOP_NODE" ]; then
-    omo() { "$ULW_LOOP_NODE" "$ULW_LOOP_CLI" "$@"; }
+    omo-agent-toolkit() { "$ULW_LOOP_NODE" "$ULW_LOOP_CLI" "$@"; }
   fi
 fi
 
 if [ -z "${ULW_LOOP_CLI:-}" ]; then
   /bin/mkdir -p .omo/ulw-loop 2>/dev/null || mkdir -p .omo/ulw-loop 2>/dev/null || true
   NOTE="${NOTE:-.omo/ulw-loop/bootstrap-notepad.md}"
-  printf '%s\n' "No ulw-loop-capable omo executable found; PATH omo may be the OpenCode CLI without the omo-senpi ulw-loop subcommand, and cached ulw-loop CLI was not found under ${CODEX_HOME:-$HOME/.omo-senpi}." >> "$NOTE" 2>/dev/null || true
+  printf '%s\n' "No ulw-loop-capable omo-agent-toolkit executable found; PATH omo-agent-toolkit may be the OpenCode CLI without the omo-senpi ulw-loop subcommand, and cached ulw-loop CLI was not found under ${CODEX_HOME:-$HOME/.omo-senpi}." >> "$NOTE" 2>/dev/null || true
   printf '%s\n' "Install with npx omo-senpi-ai install or set CODEX_LOCAL_BIN_DIR to a PATH directory." >&2
 fi
 ```
