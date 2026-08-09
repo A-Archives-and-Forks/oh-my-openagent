@@ -207,11 +207,20 @@ async function replaceRuntimeWrapper(linkPath: string, content: string): Promise
 async function removeGeneratedRuntimeWrapper(path: string): Promise<void> {
   try {
     const entry = await lstat(path)
-    if (!entry.isFile()) return
-    const content = await readFile(path, "utf8")
+    if (!entry.isFile() && !entry.isSymbolicLink()) return
+    const content = await readGeneratedWrapperContent(path)
     if (content.includes(RUNTIME_WRAPPER_MARKER)) await rm(path, { force: true })
   } catch (error) {
     if (isNodeErrorWithCode(error) && error.code === "ENOENT") return
+    throw error
+  }
+}
+
+async function readGeneratedWrapperContent(path: string): Promise<string> {
+  try {
+    return await readFile(path, "utf8")
+  } catch (error) {
+    if (isNodeErrorWithCode(error) && (error.code === "ENOENT" || error.code === "EISDIR")) return ""
     throw error
   }
 }

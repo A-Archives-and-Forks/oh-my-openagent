@@ -169,6 +169,7 @@ describe("OMO_EDITION install routing", () => {
 
   test("OMO_EDITION=codex defaults a non-codex invocation name to the codex platform", () => {
     withEdition("codex", () => {
+      // given: the codex edition marker is set by the wrapper
       // when
       const args = resolveInstallArgs({ tui: true }, "omo-agent-toolkit")
 
@@ -179,6 +180,7 @@ describe("OMO_EDITION install routing", () => {
 
   test("OMO_EDITION=codex is checked before the lazycodex name checks", () => {
     withEdition("codex", () => {
+      // given: the codex edition marker is set by the wrapper
       // when
       const args = resolveInstallArgs({ tui: true }, "lazycodex")
 
@@ -189,6 +191,7 @@ describe("OMO_EDITION install routing", () => {
 
   test("explicit --platform still wins over OMO_EDITION", () => {
     withEdition("codex", () => {
+      // given: the codex edition marker is set by the wrapper
       // when
       const args = resolveInstallArgs({ tui: true, platform: "opencode" }, "omo-agent-toolkit")
 

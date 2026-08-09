@@ -5,7 +5,8 @@ import { existsSync, readFileSync, statSync } from "node:fs"
 import { resolve } from "node:path"
 
 const WORKSPACE_ROOT = resolve(import.meta.dir, "..")
-const ALLOWLIST_PATH = resolve(import.meta.dir, "agent-command-string-audit.allowlist.json")
+const ALLOWLIST_RELATIVE_PATH = "script/agent-command-string-audit.allowlist.json"
+const ALLOWLIST_PATH = resolve(WORKSPACE_ROOT, ALLOWLIST_RELATIVE_PATH)
 const AGENT_COMMAND_RE = /\bomo (ulw-loop|boulder)\b/g
 const HUMAN_COMMAND_RE = /\bomo (install|uninstall|cleanup|doctor|run|get-local-version|version|mcp)\b/g
 const ALLOWLIST_CATEGORIES = ["emit-migrate", "test-expectation", "input-compat-preserve", "docs"] as const
@@ -14,7 +15,8 @@ type AllowlistCategory = (typeof ALLOWLIST_CATEGORIES)[number]
 type Allowlist = Record<AllowlistCategory, string[]>
 
 function isExcluded(filePath: string): boolean {
-  return filePath === "CHANGELOG.md"
+  return filePath === ALLOWLIST_RELATIVE_PATH
+    || filePath === "CHANGELOG.md"
     || filePath.endsWith("/CHANGELOG.md")
     || filePath === ".omo"
     || filePath.startsWith(".omo/")

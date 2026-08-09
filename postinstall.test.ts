@@ -5,8 +5,9 @@ import { spawnSync } from "node:child_process"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { fileURLToPath } from "node:url"
 
-const postinstallPath = new URL("./postinstall.mjs", import.meta.url).pathname
+const postinstallPath = fileURLToPath(new URL("./postinstall.mjs", import.meta.url))
 const RENAME_NOTICE =
   "oh-my-openagent: the 'omo' command is now 'omo-agent-toolkit' (the old name was removed in this major release)."
 
@@ -22,8 +23,10 @@ function runPostinstallInFixtureEnv(): PostinstallRun {
     const result = spawnSync(process.execPath, [postinstallPath], {
       encoding: "utf8",
       env: {
+        ...inheritedPlatformEnv(),
         PATH: process.env.PATH ?? "",
         HOME: fixtureHome,
+        USERPROFILE: fixtureHome,
         XDG_CACHE_HOME: join(fixtureHome, "cache"),
       },
     })
@@ -31,6 +34,15 @@ function runPostinstallInFixtureEnv(): PostinstallRun {
   } finally {
     rmSync(fixtureHome, { recursive: true, force: true })
   }
+}
+
+function inheritedPlatformEnv(): Record<string, string> {
+  const inherited: Record<string, string> = {}
+  for (const key of ["SystemRoot", "SYSTEMROOT", "ComSpec", "COMSPEC", "PATHEXT", "TEMP", "TMP", "windir"]) {
+    const value = process.env[key]
+    if (value !== undefined) inherited[key] = value
+  }
+  return inherited
 }
 
 function countNoticeLines(output: string): number {
