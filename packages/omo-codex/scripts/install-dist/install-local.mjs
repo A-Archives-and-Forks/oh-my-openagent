@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-codex-install:5a2f77332540af9cd263e7de46c293e6f4b2c7a16dfc585a0ba8a384754813d6:c9ccbe0407dc9c11fc59e2fbe4883439b7543c27b3854a7c001767f6d4762e31
+// omo-codex-install:7bc4b0f020f0a1b4448cc75385a7e3c60042e3b270e304d4c1a43a859e81a4c2:4b60b36edd7ab8d733b7b76076299071e9e4d2b44bb7dd611ef4a72eab6693c6
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -6948,14 +6948,23 @@ async function replaceRuntimeWrapper(linkPath, content) {
 async function removeGeneratedRuntimeWrapper(path) {
   try {
     const entry = await lstat4(path);
-    if (!entry.isFile())
+    if (!entry.isFile() && !entry.isSymbolicLink())
       return;
-    const content = await readFile3(path, "utf8");
+    const content = await readGeneratedWrapperContent(path);
     if (content.includes(RUNTIME_WRAPPER_MARKER))
       await rm3(path, { force: true });
   } catch (error) {
     if (isNodeErrorWithCode(error) && error.code === "ENOENT")
       return;
+    throw error;
+  }
+}
+async function readGeneratedWrapperContent(path) {
+  try {
+    return await readFile3(path, "utf8");
+  } catch (error) {
+    if (isNodeErrorWithCode(error) && (error.code === "ENOENT" || error.code === "EISDIR"))
+      return "";
     throw error;
   }
 }
