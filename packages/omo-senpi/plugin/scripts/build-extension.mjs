@@ -37,6 +37,7 @@ const entryPath = join(packageRoot, "src", "extension", "index.ts")
 const outputPath = join(pluginRoot, "extensions", "omo.js")
 const memberEntryPath = join(repoRoot, "packages", "senpi-task", "src", "team", "member-extension", "index.ts")
 const memberOutputPath = join(pluginRoot, "extensions", "omo-member.js")
+const reflectionPersonaSource = join(repoRoot, "packages", "memory-core", "src", "reflection", "assets", "reflection-persona.md")
 const builtinModuleNames = builtinModules
   .filter((moduleName) => !moduleName.startsWith("_"))
   .sort()
@@ -60,6 +61,9 @@ export async function buildExtension(options = {}) {
     : join(dirname(output), "omo-member.js"))
   const mainInputs = await buildEntry(entryPath, output)
   const memberInputs = await buildEntry(memberEntryPath, memberOutput)
+  // Bundling inlines assets.ts but its markdown is read from disk at runtime next to the bundle,
+  // so the persona must be staged into the extension output directory the loader executes from.
+  await writeFile(join(dirname(output), "reflection-persona.md"), await readFile(reflectionPersonaSource, "utf8"))
   return { mainInputs, memberInputs }
 }
 
@@ -99,6 +103,11 @@ export async function checkExtensionCurrent(options = {}) {
     }
     if (!artifactsMatch(currentMember, await readFile(expectedMemberOutput, "utf8"))) {
       return { ok: false, reason: "stale-output", output: memberOutput }
+    }
+    const expectedPersona = await readFile(join(tempRoot, "reflection-persona.md"), "utf8")
+    const currentPersona = await readFile(join(dirname(output), "reflection-persona.md"), "utf8").catch(() => undefined)
+    if (currentPersona !== expectedPersona) {
+      return { ok: false, reason: "stale-output", output: join(dirname(output), "reflection-persona.md") }
     }
     return { ok: true, output, memberOutput }
   } finally {

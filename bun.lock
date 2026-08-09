@@ -36,6 +36,7 @@
         "@oh-my-opencode/lsp-core": "workspace:*",
         "@oh-my-opencode/mcp-client-core": "workspace:*",
         "@oh-my-opencode/mcp-stdio-core": "workspace:*",
+        "@oh-my-opencode/memory-core": "workspace:*",
         "@oh-my-opencode/model-core": "workspace:*",
         "@oh-my-opencode/omo-codex": "workspace:*",
         "@oh-my-opencode/omo-config-core": "workspace:*",
@@ -171,6 +172,10 @@
       "devDependencies": {
         "bun-types": "1.3.12",
       },
+    },
+    "packages/memory-core": {
+      "name": "@oh-my-opencode/memory-core",
+      "version": "0.1.0",
     },
     "packages/model-core": {
       "name": "@oh-my-opencode/model-core",
@@ -716,6 +721,8 @@
     "@oh-my-opencode/mcp-client-core": ["@oh-my-opencode/mcp-client-core@workspace:packages/mcp-client-core"],
 
     "@oh-my-opencode/mcp-stdio-core": ["@oh-my-opencode/mcp-stdio-core@workspace:packages/mcp-stdio-core"],
+
+    "@oh-my-opencode/memory-core": ["@oh-my-opencode/memory-core@workspace:packages/memory-core"],
 
     "@oh-my-opencode/model-core": ["@oh-my-opencode/model-core@workspace:packages/model-core"],
 
