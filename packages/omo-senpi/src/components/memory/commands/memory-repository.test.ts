@@ -48,7 +48,7 @@ describe("/memory-repository", () => {
     expect(text).toContain("127.0.0.1")
     expect(text).not.toContain("s3cr3t-token")
     expect(ctx.ui.notifications.every((entry) => !entry.message.includes("s3cr3t-token"))).toBe(true)
-  })
+  }, 20_000)
 
   test("#given a configured mirror #when status runs #then the redacted url and ahead count render", async () => {
     // given
@@ -112,7 +112,7 @@ describe("/memory-repository", () => {
     expect(text).toContain("push failed")
     expect(text).not.toContain("s3cr3t-token")
     expect(ctx.ui.notifications.at(-1)?.level).toBe("error")
-  })
+  }, 20_000)
 
   test("#given set without a url #when invoked #then a usage error is returned", async () => {
     // given

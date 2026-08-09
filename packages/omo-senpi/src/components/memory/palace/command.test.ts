@@ -103,8 +103,8 @@ describe("palace command", () => {
 
     expect(tmux.execCalls).toHaveLength(0)
     expect(ssh.execCalls).toHaveLength(0)
-    expect(tmux.notifications[0]?.message).toContain("/viewers/palace-")
-    expect(ssh.notifications[0]?.message).toContain("/viewers/palace-")
+    expect(tmux.notifications[0]?.message).toMatch(/[\\/]viewers[\\/]palace-/)
+    expect(ssh.notifications[0]?.message).toMatch(/[\\/]viewers[\\/]palace-/)
   })
 
   test("#given a headless context #when /palace runs #then the path is returned as command output text", async () => {

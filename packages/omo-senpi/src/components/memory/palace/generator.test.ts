@@ -65,9 +65,11 @@ describe("palace generator machine gate", () => {
 
     const result = await generatePalaceHtml(fixture.context)
 
-    expect(result.path).toMatch(/\/viewers\/palace-[0-9TZ-]+\.html$/)
-    expect((await stat(result.path)).mode & 0o777).toBe(0o600)
-    expect((await stat(dirname(result.path))).mode & 0o777).toBe(0o700)
+    expect(result.path).toMatch(/[\\/]viewers[\\/]palace-[0-9TZ-]+\.html$/)
+    if (process.platform !== "win32") {
+      expect((await stat(result.path)).mode & 0o777).toBe(0o600)
+      expect((await stat(dirname(result.path))).mode & 0o777).toBe(0o700)
+    }
   })
 
   test("#given memory content carrying a script-breakout payload #when the palace is generated #then the raw payload never appears and the escaped form does", async () => {
