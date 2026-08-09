@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
-import { join, relative } from "node:path"
+import { join } from "node:path"
 import { packageManifest, packageRoot, readJson, resolveSenpi } from "./package-paths.js"
 import { needsSetupSuggestion } from "./setup-detect.js"
 
@@ -48,7 +48,9 @@ export function runDoctor(inventory) {
     const path = join(packageRoot, artifact)
     if (existsSync(path)) pass(`${label}: ${artifact}`)
     else {
-      fail(`${label}: missing ${relative(packageRoot, path)}`)
+      // Report the declared posix-style artifact path so diagnostics read identically on every platform;
+      // deriving it back from the joined path yields backslashes on Windows.
+      fail(`${label}: missing ${artifact}`)
       failed = true
     }
   }

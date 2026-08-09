@@ -22,7 +22,9 @@ function writeFile(path: string, content: string, mode?: number): void {
 }
 
 function createFixture(options: { hoisted?: boolean; shim?: boolean } = {}): Fixture {
-  const root = mkdtempSync(join(tmpdir(), "omo-launcher-"))
+  // Windows hands back the 8.3 short form (RUNNER~1) here while the launcher reports the long path, so
+  // the fixture root is canonicalized once and every derived path inherits the same spelling.
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "omo-launcher-")))
   roots.push(root)
   const packagePath = options.hoisted
     ? join(root, "node_modules", "omo-ai")
@@ -185,7 +187,9 @@ describe("omo launcher", () => {
         expect(run(fixture, ["list"], { FAKE_EXIT: "7" }).status).toBe(7)
       })
 
-      test("#then SIGINT is re-raised by the launcher", () => {
+      // Windows has no POSIX signal delivery, so a terminated child reports a null signal there and the
+      // launcher has nothing to re-raise.
+      test.skipIf(process.platform === "win32")("#then SIGINT is re-raised by the launcher", () => {
         const fixture = createFixture()
         const result = run(fixture, ["list"], { FAKE_SIGNAL: "SIGINT" })
         expect(result.signal).toBe("SIGINT")
