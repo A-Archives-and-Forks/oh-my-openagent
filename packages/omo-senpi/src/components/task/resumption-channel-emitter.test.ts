@@ -118,7 +118,7 @@ describe("createResumptionChannelEmitter", () => {
     // then
     expect(harness.emitted).toEqual([
       {
-        name: "resumption_channel_state",
+        name: "wake_source_state",
         data: {
           source: "senpi-task",
           activeCount: 1,
@@ -130,7 +130,7 @@ describe("createResumptionChannelEmitter", () => {
         },
       },
       {
-        name: "resumption_channel_state",
+        name: "wake_source_state",
         data: { source: "senpi-task", activeCount: 0, channels: [] },
       },
     ])
@@ -152,7 +152,7 @@ describe("createResumptionChannelEmitter", () => {
 
     // then
     expect(harness.emitted).toEqual([{
-      name: "resumption_channel_state",
+      name: "wake_source_state",
       data: {
         source: "senpi-task",
         activeCount: 1,
@@ -203,7 +203,7 @@ describe("createResumptionChannelEmitter", () => {
 
     // then
     expect(emitted).toEqual([{
-      name: "resumption_channel_state",
+      name: "wake_source_state",
       data: {
         source: "senpi-task",
         activeCount: 1,
@@ -249,6 +249,6 @@ describe("createResumptionChannelEmitter", () => {
 
   it("#given the local event contract #when the literal is inspected #then it exactly matches the harness event name", () => {
     // given / when / then
-    expect(RESUMPTION_CHANNEL_STATE_EVENT).toBe("resumption_channel_state")
+    expect(RESUMPTION_CHANNEL_STATE_EVENT).toBe("wake_source_state")
   })
 })
