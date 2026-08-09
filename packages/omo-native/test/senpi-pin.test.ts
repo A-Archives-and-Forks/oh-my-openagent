@@ -3,8 +3,9 @@ import { describe, expect, test } from "bun:test"
 import omoNativeManifest from "../package.json"
 import omoSenpiManifest from "../../omo-senpi/package.json"
 import senpiTaskManifest from "../../senpi-task/package.json"
+import rootManifest from "../../../package.json"
 
-const SENPI_PIN = "2026.8.9"
+const SENPI_PIN = "2026.8.9-2"
 const EXACT_PIN = /^\d/
 
 describe("senpi dependency pin", () => {
@@ -18,6 +19,10 @@ describe("senpi dependency pin", () => {
       test("#then omo-senpi peer and dev pins match", () => {
         expect(omoSenpiManifest.peerDependencies["@code-yeongyu/senpi"]).toBe(SENPI_PIN)
         expect(omoSenpiManifest.devDependencies["@code-yeongyu/senpi"]).toBe(SENPI_PIN)
+      })
+
+      test("#then the root devDependency pin matches", () => {
+        expect(rootManifest.devDependencies["@code-yeongyu/senpi"]).toBe(SENPI_PIN)
       })
 
       test("#then senpi-task pins match", () => {
