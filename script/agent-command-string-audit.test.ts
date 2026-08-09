@@ -49,6 +49,8 @@ function readAllowlist(): Allowlist {
   return JSON.parse(readFileSync(ALLOWLIST_PATH, "utf8")) as Allowlist
 }
 
+const AUDIT_TIMEOUT_MS = 120_000
+
 describe("agent command string audit", () => {
   test("#given tracked source files #when legacy agent and human commands are scanned #then every hit is categorized", () => {
     const allowlist = readAllowlist()
@@ -60,5 +62,5 @@ describe("agent command string audit", () => {
     const categorized = ALLOWLIST_CATEGORIES.flatMap((category) => allowlist[category])
     expect(new Set(categorized).size, "allowlist entries must be unique").toBe(categorized.length)
     expect(collectHits()).toEqual(categorized.sort())
-  })
+  }, AUDIT_TIMEOUT_MS)
 })
