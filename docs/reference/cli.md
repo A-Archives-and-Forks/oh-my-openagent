@@ -17,7 +17,13 @@ All published packages expose the same compiled CLI with these bin entries:
 - `lazycodex` (Light edition shortcut; install defaults to `--platform=codex`)
 - `lazycodex-ai` (Light edition shortcut; install defaults to `--platform=codex`)
 
-The former `omo` bin was removed in this major release; that name is reserved for the future native edition (npm `omo-ai`, composed of senpi plus the `packages/*senpi*` workspaces), which is not shipped here.
+The former `omo` bin was removed from these packages in this major release. The name now belongs to the senpi-native edition:
+
+| Bin | Package | Channel | What it is |
+| --- | --- | --- | --- |
+| `omo` | `omo-ai` | npm beta channel only (`npm i -g omo-ai@beta`) | Launches the pinned senpi release with the full OMO extension loaded. A bare `npm i -g omo-ai` fails by design; see the [omo-ai publishing runbook](./omo-ai-publishing.md). |
+
+The `omo-agent-toolkit` npm bin stays with the wrapper packages above; `omo-ai` never declares it.
 
 ## Basic Usage
 

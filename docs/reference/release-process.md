@@ -14,6 +14,8 @@ Before publishing a release, maintainers verify:
 
 CI green is required for release readiness, but CI does not replace manual verification for bugs whose reproducer depends on timing, providers, models, or external OpenCode behavior.
 
+For the `omo-ai` package (the senpi-native edition, beta channel only), see the [omo-ai publishing runbook](./omo-ai-publishing.md): bootstrap state, the beta-gate mechanism, the Trusted Publisher merge gate, and the first-beta-release checklist.
+
 ## Post-Fix Repro Verification
 
 Race-condition and concurrency fixes must include reporter-verified repro confirmation before the originating issue is closed. CI green is necessary but not sufficient for this class of fix.
