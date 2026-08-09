@@ -47,6 +47,10 @@ describe("SenpiSubprocessRunner integration", () => {
     expect(spawn?.env.MEMORY_DIR).toBe(spawn?.paths.worktree)
     expect(spawn?.env.TRANSCRIPT_PATH).toBe(spawn?.paths.transcript)
     expect(spawn?.env.SENPI_MEMORY_REFLECTION).toBe("1")
+    // A detached child has no controlling terminal, so senpi's PTY-backed bash session errors
+    // ("Native PTY session handle is missing write()") and the child can never git-commit; the
+    // pipe fallback is the supported non-interactive path (SENPI_PTY_FORCE_PIPE in pi-pty).
+    expect(spawn?.env.SENPI_PTY_FORCE_PIPE).toBe("1")
     expect(spawn?.args).toEqual([
       "-p",
       "--system-prompt", spawn?.paths.persona,

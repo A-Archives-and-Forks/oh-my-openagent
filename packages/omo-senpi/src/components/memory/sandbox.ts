@@ -96,6 +96,8 @@ function buildDarwinProfile(input: {
     "(allow default)",
     "(deny file-write*)",
     ...writable.map((path) => `(allow file-write* (subpath ${seatbeltString(path)}))`),
+    '(allow file-write* (literal "/dev/null"))',
+    '(allow file-write* (literal "/dev/tty"))',
     ...input.payloads.map((path) => `(allow file-read* (literal ${seatbeltString(path)}))`),
     ...input.foreignRoots.map((path) => `(deny file-read* (subpath ${seatbeltString(path)}))`),
   ].join("\n")

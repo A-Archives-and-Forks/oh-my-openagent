@@ -200,9 +200,8 @@ async function scenario2() {
 
   const childScript = {
     parentSteps: [
-      // The child runs detached without a controlling terminal, so senpi's PTY-backed bash tool
-      // cannot execute there; edit is the PTY-free write path.
       { type: "tool_call", name: "edit", arguments: { path: "system/facts.md", edits: [{ oldText: "seed for dreaming", newText: "seed for dreaming\ndreamed fact" }] } },
+      { type: "tool_call", name: "bash", arguments: { command: "git add system/facts.md && git commit -m 'feat(reflection): dreamed a memory'" } },
       { type: "text", text: "reflection written" },
     ],
     childSteps: [],
@@ -241,13 +240,12 @@ async function scenario2() {
     console.error("S2 completion wait failed. reflection dirs:", existsSync(join(memoryHome, "agents")) ? readdirSync(join(memoryHome, "agents")).map((a) => readdirSync(join(memoryHome, "agents", a, "runtime"), { withFileTypes: true }).map((d) => d.name).join(",")) : "none")
     return record("S2 completion record", false, completion.message)
   }
-  record("S2 reflection reached a terminal outcome", typeof completion.record.outcome === "string" && completion.record.outcome.length > 0, String(completion.record.outcome))
-  record("S2 child edited memory in its worktree", completion.record.outcome === "dirty_uncommitted" || completion.record.outcome === "merged", `${completion.record.outcome} (edit tool ran in the detached child; bash needs a PTY the child does not have)`)
+  record("S2 completion record", true, String(completion.record.outcome))
+  record("S2 outcome merged", completion.record.outcome === "merged", JSON.stringify(completion.record))
   record("S2 quick category recorded", completion.record.category === "quick", completion.record.category)
-  record("S2 cursor retryable on non-merge", completion.record.outcome === "merged" || completion.record.delivery !== undefined, JSON.stringify(completion.record.delivery ?? null))
   const log = gitLog(repo)
-  record("S2 parent repo left clean and intact", log.includes("seed memory before reflection"), log.split("\n").slice(0, 2).join(" || "))
-  record("S2 worktrees cleaned up", !existsSync(join(dirname(repo), "runtime", "worktrees")) || readdirSync(join(dirname(repo), "runtime", "worktrees")).length === 0, "runtime/worktrees")
+  record("S2 merge commit landed", /merge\(reflection\)/.test(log), log.split("\n").slice(0, 3).join(" || "))
+  record("S2 dreamed fact merged into parent repo", existsSync(join(repo, "system", "facts.md")) && readFileSync(join(repo, "system", "facts.md"), "utf8").includes("dreamed fact"), "system/facts.md")
 }
 
 function buildCommandContext(sandbox, overrides = {}) {

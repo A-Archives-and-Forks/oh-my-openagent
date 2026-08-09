@@ -1,4 +1,5 @@
 *.md text eol=lf
+*.txt text eol=lf
 *.ts text eol=lf
 *.tsx text eol=lf
 *.mts text eol=lf

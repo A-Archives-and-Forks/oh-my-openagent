@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
-import { homedir } from "node:os"
-import { join } from "node:path"
+import { homedir, tmpdir } from "node:os"
+import { join, resolve } from "node:path"
 import {
   AGENTS_DIRNAME,
   buildIdentityPaths,
@@ -42,12 +42,13 @@ describe("defaultMemoryRoot", () => {
 
 describe("resolveMemoryRoot", () => {
   it("#given an absolute OMO_MEMORY_HOME #when the root is resolved #then the override is used verbatim", () => {
-    // given
-    const env = { [MEMORY_ROOT_ENV_VAR]: "/tmp/qa-memory-home" }
+    // given (tmpdir() is absolute on every platform, so "verbatim" holds on Windows too)
+    const overrideRoot = join(tmpdir(), "qa-memory-home")
+    const env = { [MEMORY_ROOT_ENV_VAR]: overrideRoot }
     // when
     const root = resolveMemoryRoot(env, "/work/proj")
     // then
-    expect(root).toBe("/tmp/qa-memory-home")
+    expect(root).toBe(overrideRoot)
   })
 
   it("#given a relative OMO_MEMORY_HOME #when the root is resolved #then it resolves against the given cwd", () => {
@@ -55,8 +56,8 @@ describe("resolveMemoryRoot", () => {
     const env = { [MEMORY_ROOT_ENV_VAR]: "qa-home" }
     // when
     const root = resolveMemoryRoot(env, "/work/proj")
-    // then
-    expect(root).toBe("/work/proj/qa-home")
+    // then (Windows qualifies the drive; resolve() is the platform semantics the impl applies)
+    expect(root).toBe(resolve("/work/proj", "qa-home"))
   })
 
   it("#given an empty or whitespace OMO_MEMORY_HOME #when the root is resolved #then the default root is used", () => {

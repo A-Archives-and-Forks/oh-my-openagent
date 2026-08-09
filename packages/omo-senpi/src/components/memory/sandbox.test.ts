@@ -121,6 +121,28 @@ describe("reflection worker OS sandbox", () => {
     expect(transformed.env.TMPDIR).toBe(join(realpathSync(dirname(setup.payloadPaths[0] ?? "")), ".sandbox-tmp"))
   })
 
+  test("#given the Darwin profile #when git-shell children run inside it #then device nodes they stream through stay writable", () => {
+    // given
+    const setup = fixture()
+    const transform = buildSandboxTransform({
+      policy: "required",
+      worktreeDir: setup.worktree,
+      gitCommonDir: setup.gitCommonDir,
+      payloadPaths: setup.payloadPaths,
+      platform: "darwin",
+      which: () => "/usr/bin/sandbox-exec",
+    })
+
+    // when
+    const profile = transform(spawnArgs(setup.worktree)).args[1]
+
+    // then
+    // git opens /dev/null read-write for stream redirection and the shell touches /dev/tty; the
+    // earlier (deny file-write*) blanket killed every `git commit` inside a reflection child.
+    expect(profile).toContain('(allow file-write* (literal "/dev/null"))')
+    expect(profile).toContain('(allow file-write* (literal "/dev/tty"))')
+  })
+
   test("#given Linux with bwrap available #when spawn arguments are transformed #then the root is read-only while worktree and git state are rebound writable", () => {
     // given
     const { setup, transform } = build("required", { platform: "linux", which: () => "/usr/bin/bwrap" })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { createHash } from "node:crypto"
-import { homedir } from "node:os"
+import { homedir, tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { AGENTS_DIRNAME, MEMORY_ROOT_ENV_VAR } from "./layout"
 import { resolveMemoryIdentity } from "./resolve"
@@ -102,13 +102,14 @@ describe("resolveMemoryIdentity explicit mode", () => {
 
 describe("resolveMemoryIdentity root override", () => {
   it("#given OMO_MEMORY_HOME #when resolved #then paths honor it and sanitization still applies", () => {
-    // given
-    const env = { [MEMORY_ROOT_ENV_VAR]: "/tmp/qa-memory-home" }
+    // given (tmpdir() is absolute on every platform, so "verbatim" holds on Windows too)
+    const overrideRoot = join(tmpdir(), "qa-memory-home")
+    const env = { [MEMORY_ROOT_ENV_VAR]: overrideRoot }
     // when
     const identity = resolveMemoryIdentity("../evil", "/repo/alpha", env)
     // then
     expect(identity.paths.root).toBe(
-      join("/tmp/qa-memory-home", AGENTS_DIRNAME, `evil-${expectedHash("../evil")}`),
+      join(overrideRoot, AGENTS_DIRNAME, `evil-${expectedHash("../evil")}`),
     )
     expect(identity.paths.repo).toBe(join(identity.paths.root, "repo"))
     expect(identity.paths.pushQueue).toBe(join(identity.paths.root, "runtime", "push-queue"))
@@ -119,22 +120,22 @@ describe("resolveMemoryIdentity root override", () => {
     const env = { [MEMORY_ROOT_ENV_VAR]: "qa-home" }
     // when
     const identity = resolveMemoryIdentity("auto", "/work/proj", env)
-    // then
+    // then (Windows qualifies the drive; resolve() is the platform semantics the impl applies)
     expect(identity.paths.root).toBe(
-      join("/work/proj", "qa-home", AGENTS_DIRNAME, identity.id),
+      join(resolve("/work/proj", "qa-home"), AGENTS_DIRNAME, identity.id),
     )
   })
 
   it("#given no env argument #when OMO_MEMORY_HOME is set in the process env #then the default env read honors it", () => {
     // given
     const previous = process.env[MEMORY_ROOT_ENV_VAR]
-    process.env[MEMORY_ROOT_ENV_VAR] = "/tmp/qa-process-env-home"
+    process.env[MEMORY_ROOT_ENV_VAR] = join(tmpdir(), "qa-process-env-home")
     try {
       // when
       const identity = resolveMemoryIdentity("backend-lead", "/repo/alpha")
       // then
       expect(identity.paths.root).toBe(
-        join("/tmp/qa-process-env-home", AGENTS_DIRNAME, identity.id),
+        join(resolve("/repo/alpha", join(tmpdir(), "qa-process-env-home")), AGENTS_DIRNAME, identity.id),
       )
     } finally {
       if (previous === undefined) {
