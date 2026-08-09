@@ -1,9 +1,18 @@
 {
-  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "noEmit": true,
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
     "allowJs": true,
-    "checkJs": false
+    "checkJs": false,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "lib": ["ESNext"],
+    "types": ["bun-types"]
   },
-  "include": ["test", "bin"]
+  "include": ["test/**/*", "bin/**/*"]
 }
