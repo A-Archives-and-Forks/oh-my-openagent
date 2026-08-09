@@ -109,10 +109,30 @@ export async function checkAgentToolkitFresh(options = {}) {
 }
 
 async function buildAggregateBundle() {
-  if (!(await filesEqual(packageLock, installedPackageLock))) {
+  // The lockfile comparison alone is not enough: a pruned or partially installed tree can match the lock
+  // and still be missing the compiler the component build shells out to.
+  const compiler = join(codexPluginRoot, "node_modules", ".bin", process.platform === "win32" ? "tsc.cmd" : "tsc")
+  const needsInstall = !(await filesEqual(packageLock, installedPackageLock)) || !(await fileExists(compiler))
+  if (needsInstall) {
     run("npm", ["--prefix", "packages/omo-codex/plugin", "ci"])
   }
-  run("node", ["packages/omo-codex/plugin/scripts/build-components.mjs"])
+  // Only the ulw-loop bundle is staged here. Building every codex component instead would couple this
+  // staging step to unrelated components, and one of them failing to emit its dist takes the whole
+  // senpi plugin build down with it.
+  run("npm", ["--prefix", "packages/omo-codex/plugin", "run", "--workspace", "components/ulw-loop", "build"])
+  // The component build only runs tsc, whose output still imports its siblings by relative path. The
+  // staged runtime is copied out on its own, so it has to be bundled into a single self-contained file
+  // exactly like build-components.mjs does after each component build.
+  run("bun", [
+    "build",
+    join(codexPluginRoot, "components", "ulw-loop", "src", "cli.ts"),
+    "--target",
+    "node",
+    "--format",
+    "esm",
+    "--outfile",
+    defaultSourceEntry,
+  ])
 }
 
 async function probeSelfContainment(targetDir) {

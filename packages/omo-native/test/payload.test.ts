@@ -91,9 +91,12 @@ describe("build:omo-native staged payload", () => {
           }
           expect(manifest.name).toBe("@code-yeongyu/omo-senpi")
 
-          const shimMode =
-            statSync(join(outputDir, "runtime", "agent-toolkit", "omo-agent-toolkit")).mode & 0o777
-          expect(shimMode).toBe(0o755)
+          // Windows has no POSIX execute bit, so stat reports 0o666 there regardless of the staged mode.
+          if (process.platform !== "win32") {
+            const shimMode =
+              statSync(join(outputDir, "runtime", "agent-toolkit", "omo-agent-toolkit")).mode & 0o777
+            expect(shimMode).toBe(0o755)
+          }
 
           const skillCount = readdirSync(join(outputDir, "skills"), {
             withFileTypes: true,

@@ -34,7 +34,10 @@ describe("agent-toolkit runtime staging", () => {
 
     const posixShim = join(fixture.targetDir, "omo-agent-toolkit")
     assert.equal(result.ok, true)
-    assert.equal((await stat(posixShim)).mode & 0o777, 0o755)
+    // Windows has no POSIX execute bit, so stat reports 0o666 there no matter what chmod requested.
+    if (process.platform !== "win32") {
+      assert.equal((await stat(posixShim)).mode & 0o777, 0o755)
+    }
     assert.equal(await readFile(posixShim, "utf8"), "#!/bin/sh\nexec node \"$(dirname \"$0\")/cli.js\" \"$@\"\n")
     assert.equal(await readFile(join(fixture.targetDir, "omo-agent-toolkit.cmd"), "utf8"), "@echo off\r\nnode \"%~dp0cli.js\" %*\r\n")
     const probeCwd = await mkdtemp(join(tmpdir(), "omo-senpi-agent-toolkit-probe-test-"))
