@@ -47,7 +47,7 @@ export async function runOmoCommand(
 ): Promise<{ code: number; stdout: string }> {
   const { promise, resolve } = Promise.withResolvers<{ code: number; stdout: string }>()
   // stderr is never consumed: piping it would wedge the child forever once the
-  // 64KiB pipe buffer fills (observed as thousands of live `omo ulw-loop status`
+  // 64KiB pipe buffer fills (observed as thousands of live `omo-agent-toolkit ulw-loop status`
   // processes). Inherit-discard it and hard-kill the child on timeout instead.
   const target = toSpawnTarget(bin, args)
   const child = spawn(target.command, [...target.args], {
