@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 
 import { AGENT_HOME_SENTINEL, resolveAgentHome } from "./resolve-agent-home"
 
@@ -19,16 +19,16 @@ describe("resolveAgentHome", () => {
           exists: () => false,
         })
 
-        expect(home).toBe("/explicit/omo")
+        expect(home).toBe(resolve("/explicit/omo"))
       })
 
       test("#then each legacy name still works on its own", () => {
         expect(
           resolveAgentHome({ env: { SENPI_CODING_AGENT_DIR: "/explicit/senpi" }, homeDir: HOME, exists: () => false }),
-        ).toBe("/explicit/senpi")
+        ).toBe(resolve("/explicit/senpi"))
         expect(
           resolveAgentHome({ env: { PI_CODING_AGENT_DIR: "/explicit/pi" }, homeDir: HOME, exists: () => false }),
-        ).toBe("/explicit/pi")
+        ).toBe(resolve("/explicit/pi"))
       })
 
       test("#then a blank value is ignored", () => {

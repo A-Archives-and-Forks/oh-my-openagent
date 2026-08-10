@@ -12,6 +12,13 @@ import omoNativeManifest from "../package.json"
 const BRAND_CONTRACT_MODULE = join("dist", "core", "brand.js")
 const PINNED_VERSION = omoNativeManifest.dependencies["@code-yeongyu/senpi"]
 
+/**
+ * First engine release that understands the brand profile. It is null until that release exists;
+ * setting it as part of the pin bump turns the assertion below into a hard requirement, so an
+ * engine that would silently ignore the brand can never be pinned afterwards.
+ */
+const FIRST_BRAND_AWARE_SENPI: string | null = null
+
 function installedSenpi(): { readonly root: string; readonly version: string } | undefined {
   const candidates = [
     resolve(import.meta.dir, "..", "..", "..", "node_modules", "@code-yeongyu", "senpi"),
@@ -33,11 +40,12 @@ describe("senpi brand contract pin", () => {
         expect(PINNED_VERSION).toMatch(/^\d/)
       })
 
-      test("#then the pinned build ships the brand resolver, once it is the installed one", () => {
+      test("#then a brand-aware pin must ship the brand resolver", () => {
         const installed = installedSenpi()
-        if (installed === undefined || installed.version !== PINNED_VERSION) {
-          // The workspace has a different engine installed than the pin names; the pinned build is
-          // verified by the install-time check in CI rather than guessed at from here.
+        if (FIRST_BRAND_AWARE_SENPI === null || installed === undefined || installed.version !== PINNED_VERSION) {
+          // No brand-aware engine release exists yet, or the workspace has a different engine
+          // installed than the pin names. The launcher still always injects the profile; the engine
+          // simply ignores it until the pinned release understands it.
           expect(PINNED_VERSION).toMatch(/^\d/)
           return
         }

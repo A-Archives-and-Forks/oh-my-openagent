@@ -26,6 +26,12 @@ describe("local omo launcher", () => {
           envPrefix: "OMO",
           userAgent: "omo",
           originator: "omo",
+          update: {
+            packageName: "omo-ai",
+            distTag: "beta",
+            command: "npm i -g omo-ai@beta",
+            changelogUrl: "https://github.com/code-yeongyu/oh-my-openagent/releases",
+          },
         })
         expect(source).toContain("--extension")
         expect(source).toContain("OMO_SENPI_CLI_PATH")

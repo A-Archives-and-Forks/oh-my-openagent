@@ -115,8 +115,9 @@ describe("omo launcher", () => {
         expect(environment.PATH?.split(process.platform === "win32" ? ";" : ":")[0]).toBe(dirname(fixture.shimPath ?? ""))
         expect(existsSync(environment.PATH?.split(process.platform === "win32" ? ";" : ":")[0] ?? "")).toBe(true)
         expect(environment.OMO_AGENT_TOOLKIT_BIN).toBe(join(fixture.packageRoot, "bin", "omo-agent-toolkit.js"))
-        // An inherited value must never survive: it is replaced by the resolved shim, never leaked.
-        expect(environment.OMO_BIN).toBe(fixture.shimPath)
+        // An inherited value must never survive; it is replaced by this launcher's own entry so
+        // anything resolving the product by name re-enters here instead of the bare engine.
+        expect(environment.OMO_BIN).toBe(join(fixture.packageRoot, "bin", "omo.js"))
       })
 
       test("#then SENPI_BIN stays absent when no shim exists", () => {
@@ -150,12 +151,12 @@ describe("omo launcher", () => {
         })
       })
 
-      test("#then OMO_BIN accompanies SENPI_BIN so both spellings resolve the shim", () => {
+      test("#then OMO_BIN names this launcher, so the product never resolves to the bare engine", () => {
         const fixture = createFixture({ hoisted: true })
         mkdirSync(join(fixture.packageRoot, "node_modules"), { recursive: true })
         const result = run(fixture, ["say", "hi"])
         expect(result.status).toBe(0)
-        expect(capture(fixture).env.OMO_BIN).toBe(fixture.shimPath)
+        expect(capture(fixture).env.OMO_BIN).toBe(join(fixture.packageRoot, "bin", "omo.js"))
       })
     })
 
@@ -211,7 +212,7 @@ describe("omo launcher", () => {
           expect(captured.argv).not.toContain("--extension")
           expect(existsSync(captured.env.SENPI_BIN ?? "")).toBe(true)
           expect(captured.env.OMO_AGENT_TOOLKIT_BIN).toBe(join(fixture.packageRoot, "bin", "omo-agent-toolkit.js"))
-          expect(captured.env.OMO_BIN).toBe(captured.env.SENPI_BIN)
+          expect(captured.env.OMO_BIN).toBe(join(fixture.packageRoot, "bin", "omo.js"))
         })
       }
     })

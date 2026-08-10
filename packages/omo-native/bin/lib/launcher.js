@@ -8,6 +8,17 @@ import { printSetupReport } from "./setup-report.js"
 
 const earlyCommands = new Set(["install", "remove", "list", "config", "auth", "app-server"])
 const selfUpdateTargets = new Set(["self", "senpi", "omo"])
+// Updating extensions or model catalogs is the engine's job; everything else under `update`
+// would try to replace the pinned engine, so the launcher answers it instead.
+const engineUpdateTargets = new Set(["--extensions", "--models"])
+
+function isSelfUpdate(args) {
+  if (args[0] !== "update") return false
+  const rest = args.slice(1)
+  if (rest.length === 0) return true
+  if (rest.some((arg) => engineUpdateTargets.has(arg))) return false
+  return rest.every((arg) => arg.startsWith("-") || selfUpdateTargets.has(arg))
+}
 
 // Identity the engine adopts for this install: what the user sees, where state lives, which
 // environment prefix is read first, what goes on the wire, and which channel to check for
@@ -53,11 +64,11 @@ function senpiEnvironment(senpiRoot) {
   if (binDir) {
     env.PATH = env.PATH ? `${binDir}${delimiter}${env.PATH}` : binDir
     const shim = join(binDir, process.platform === "win32" ? "senpi.cmd" : "senpi")
-    if (existsSync(shim)) {
-      env.SENPI_BIN = shim
-      env.OMO_BIN = shim
-    }
+    if (existsSync(shim)) env.SENPI_BIN = shim
   }
+  // Anything resolving the product by name must re-enter through this launcher, otherwise it
+  // would reach the engine directly and lose the brand.
+  env.OMO_BIN = join(packageRoot, "bin", "omo.js")
   return env
 }
 
@@ -95,7 +106,7 @@ export async function runLauncher(args = process.argv.slice(2)) {
   }
   // The engine is pinned by this package, so a self-update would break the pairing; every
   // self-update spelling is answered with the command that actually updates the product.
-  if (command === "update" && (args.length === 1 || args.includes("--self") || selfUpdateTargets.has(args[1]))) {
+  if (isSelfUpdate(args)) {
     console.log(`omo is updated via npm: ${brandProfile().update.command}`)
     process.exitCode = 0
     return
