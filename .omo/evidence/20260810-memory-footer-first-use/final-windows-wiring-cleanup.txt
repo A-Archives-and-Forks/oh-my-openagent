@@ -39,6 +39,7 @@ Third Windows observation:
 Fourth Windows observation:
 - Run 31390931111 still reported `EBUSY` after the `.git`-first 20×100 cleanup attempt.
 - Bun's Windows `fs.rm` path did not honor the configured retry budget long enough to remove the fixture root reliably.
+- The same Windows root job also timed out the pre-existing `/memory-repository set` usage-error case at 5203 ms after dangling-process cleanup; that test is outside this branch's diff and remains a replacement-matrix gate rather than a claimed fix here.
 - The final approach removes the Git handle source entirely from wiring lifecycle tests through dependency injection.
 - The dedicated Git repository and status suites continue to cover committed HEAD, commit timestamps, and unavailable-commit behavior.
 
