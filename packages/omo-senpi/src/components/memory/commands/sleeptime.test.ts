@@ -24,7 +24,7 @@ describe("/sleeptime", () => {
     const text = await invoke(pi, "sleeptime", "", ctx)
 
     // then
-    expect(text).toContain("Step trigger: off")
+    expect(text).toContain("Step trigger: every 25 steps")
     expect(text).toContain("On compaction: on")
     expect(text).toContain("Merge policy: auto")
     expect(text).toContain("Category: quick")

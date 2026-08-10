@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { OmoMemorySettingsSchema } from "@oh-my-opencode/omo-config-core"
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import { MEMORY_BINDING_CUSTOM_TYPE, createMemoryComponent, memoryModuleSupervisor, resolveMemoryConfig } from "./index"
 import { componentContext, loadedMemoryConfig, memorySettings, MemoryFakeExtensionAPI, sessionContext } from "./memory.test-support"
@@ -49,6 +50,19 @@ describe("createMemoryComponent", () => {
 
   test("#given no memory section #when config resolves #then memory defaults enabled with the auto identity", () => {
     expect(resolveMemoryConfig({ config: {}, diagnostics: [], layers: [], sources: [] })).toEqual(memorySettings())
+  })
+
+  test("#given no memory key in config #when resolved through adapter fallback #then it matches parsing {} through the schema", () => {
+    // given
+    const emptyConfigResult = { config: {}, diagnostics: [] as const, layers: [] as const, sources: [] as const }
+    const schemaParsed = OmoMemorySettingsSchema.parse({})
+
+    // when
+    const fallbackResolved = resolveMemoryConfig(emptyConfigResult)
+
+    // then
+    expect(fallbackResolved).toEqual(schemaParsed)
+    expect(fallbackResolved).toEqual(memorySettings())
   })
 
   test("#given disabled config or a global/component disable flag #when registered #then the host registration surface is byte-identical", () => {

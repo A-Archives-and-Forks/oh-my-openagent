@@ -43,6 +43,7 @@ async function fixture(options: {
   readonly onLaunch?: (request: ReflectionRequest) => void
   readonly withoutLaunchHandler?: boolean
   readonly session?: ReflectionTriggerSession | undefined
+  readonly enabled?: boolean
 } = {}): Promise<Fixture> {
   const root = await mkdtemp(join(tmpdir(), "omo-trigger-wiring-"))
   roots.push(root)
@@ -69,7 +70,12 @@ async function fixture(options: {
   const ledger: MemoryPendingLedger = { pendingCompaction: false, configRestartNotified: false }
   const launches: ReflectionRequest[] = []
   const logs: Array<{ level: string; message: string; details?: unknown }> = []
-  const session: ReflectionTriggerSession = { conversationId: CONVERSATION, ledger, engine: store }
+  const session: ReflectionTriggerSession = {
+    conversationId: CONVERSATION,
+    ledger,
+    engine: store,
+    ...(options.enabled === undefined ? {} : { enabled: options.enabled }),
+  }
   const resolvedSession = "session" in options ? options.session : session
 
   const pi = new FakeExtensionAPI()
@@ -349,31 +355,99 @@ describe("reflection trigger wiring", () => {
     expect(logs.filter((entry) => entry.level === "warn")).toHaveLength(1)
     expect(base.launches).toEqual([])
   })
+
+  test("#given reflection disabled #when a clean run settles #then no reservation is made and no launch fires", async () => {
+    const { pi, launches, store } = await fixture({ stepCount: 1, enabled: false })
+
+    await successfulSettle(pi)
+
+    expect(launches).toEqual([])
+    expect((await store.readState()).active).toBeUndefined()
+  })
+
+  test("#given reflection disabled #when a pending compaction is consumed at settle #then no compaction launch fires", async () => {
+    const { pi, launches, store, ledger } = await fixture({ stepCount: 1, enabled: false })
+
+    await compact(pi, true)
+    await successfulSettle(pi)
+
+    expect(ledger.pendingCompaction).toBe(false)
+    expect(launches).toEqual([])
+    expect((await store.readState()).active).toBeUndefined()
+  })
+
+  test("#given reflection disabled #when a manual request is made #then no launch fires", async () => {
+    const { launches, wiring } = await fixture({ stepCount: 0, enabled: false })
+
+    wiring.requestManualReflection("ignored")
+    await wiring.whenIdle()
+
+    expect(launches).toEqual([])
+  })
+
+  test("#given reflection enabled #when a clean run settles #then the launch fires exactly as before", async () => {
+    const { pi, launches } = await fixture({ stepCount: 1, enabled: true })
+
+    await successfulSettle(pi)
+
+    expect(launches).toHaveLength(1)
+    expect(launches[0]?.trigger).toBe("step-count")
+  })
 })
 
 describe("resolveReflectionTriggerConfig", () => {
   test("#given resolved memory settings #when no agent override applies #then the base trigger config is used", () => {
-    expect(resolveReflectionTriggerConfig(memorySettings())).toEqual({ stepCount: 0, onCompaction: true })
+    expect(resolveReflectionTriggerConfig(memorySettings())).toEqual({ enabled: true, stepCount: 25, onCompaction: true })
     expect(
       resolveReflectionTriggerConfig(
         memorySettings({
-          reflection: { trigger: { step_count: 4, on_compaction: false }, merge: "auto", category: "quick", timeout_minutes: 15, sandbox: "auto" },
+          reflection: { enabled: true, trigger: { step_count: 4, on_compaction: false }, merge: "auto", category: "quick", timeout_minutes: 15, sandbox: "auto" },
         }),
       ),
-    ).toEqual({ stepCount: 4, onCompaction: false })
+    ).toEqual({ enabled: true, stepCount: 4, onCompaction: false })
   })
 
   test("#given a per-agent override #when the bound agent matches #then its trigger fields win field by field", () => {
     const settings = memorySettings({
-      reflection: { trigger: { step_count: 4, on_compaction: false }, merge: "auto", category: "quick", timeout_minutes: 15, sandbox: "auto" },
+      reflection: { enabled: true, trigger: { step_count: 4, on_compaction: false }, merge: "auto", category: "quick", timeout_minutes: 15, sandbox: "auto" },
       agents: {
         writer: { reflection: { trigger: { step_count: 9 } } },
         reviewer: { reflection: { trigger: { on_compaction: true } } },
       },
     })
 
-    expect(resolveReflectionTriggerConfig(settings, "writer")).toEqual({ stepCount: 9, onCompaction: false })
-    expect(resolveReflectionTriggerConfig(settings, "reviewer")).toEqual({ stepCount: 4, onCompaction: true })
-    expect(resolveReflectionTriggerConfig(settings, "unknown-agent")).toEqual({ stepCount: 4, onCompaction: false })
+    expect(resolveReflectionTriggerConfig(settings, "writer")).toEqual({ enabled: true, stepCount: 9, onCompaction: false })
+    expect(resolveReflectionTriggerConfig(settings, "reviewer")).toEqual({ enabled: true, stepCount: 4, onCompaction: true })
+    expect(resolveReflectionTriggerConfig(settings, "unknown-agent")).toEqual({ enabled: true, stepCount: 4, onCompaction: false })
+  })
+
+  test("#given reflection disabled in base settings #when no agent override applies #then enabled is false", () => {
+    const settings = memorySettings({
+      reflection: { enabled: false, trigger: { step_count: 25, on_compaction: true }, merge: "auto", category: "quick", timeout_minutes: 15, sandbox: "auto" },
+    })
+
+    expect(resolveReflectionTriggerConfig(settings)).toEqual({ enabled: false, stepCount: 25, onCompaction: true })
+  })
+
+  test("#given reflection enabled in base but disabled by per-agent override #when the bound agent matches #then enabled is false", () => {
+    const settings = memorySettings({
+      agents: {
+        writer: { reflection: { enabled: false } },
+      },
+    })
+
+    expect(resolveReflectionTriggerConfig(settings, "writer")).toEqual({ enabled: false, stepCount: 25, onCompaction: true })
+    expect(resolveReflectionTriggerConfig(settings, "other-agent")).toEqual({ enabled: true, stepCount: 25, onCompaction: true })
+  })
+
+  test("#given reflection disabled in base but enabled by per-agent override #when the bound agent matches #then enabled is true", () => {
+    const settings = memorySettings({
+      reflection: { enabled: false, trigger: { step_count: 25, on_compaction: true }, merge: "auto", category: "quick", timeout_minutes: 15, sandbox: "auto" },
+      agents: {
+        reviewer: { reflection: { enabled: true } },
+      },
+    })
+
+    expect(resolveReflectionTriggerConfig(settings, "reviewer")).toEqual({ enabled: true, stepCount: 25, onCompaction: true })
   })
 })
