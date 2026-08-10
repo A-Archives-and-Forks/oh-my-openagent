@@ -18,15 +18,16 @@ import { createMemoryWiring } from "./wiring"
 
 const COMMIT_TIME = "2026-08-10T00:00:00.000Z"
 const NOW = Date.parse("2026-08-10T00:01:30.000Z")
-const WINDOWS_CLEANUP_RETRIES = process.platform === "win32" ? 5 : 0
+const WINDOWS_REMOVE_RETRIES = process.platform === "win32" ? 8 : 0
+const WINDOWS_REMOVE_RETRY_DELAY_MS = 75
 const roots: string[] = []
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, {
     recursive: true,
     force: true,
-    maxRetries: WINDOWS_CLEANUP_RETRIES,
-    retryDelay: 100,
+      maxRetries: WINDOWS_REMOVE_RETRIES,
+      retryDelay: WINDOWS_REMOVE_RETRY_DELAY_MS,
   })))
 })
 
