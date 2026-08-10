@@ -60,7 +60,7 @@ describe("memory footer wiring", () => {
   test("#given a completed first-use attempt #when a new session starts #then the once-only footer gate resets", async () => {
     const fixture = await createFixture()
     const pi = new MemoryFakeExtensionAPI()
-    const statusCalls: Array<{ key: string; text: string | undefined }> = []
+    const firstStatusCalls: Array<{ key: string; text: string | undefined }> = []
     createMemoryComponent({
       env: fixture.env,
       loadConfig: () => loadedMemoryConfig(memorySettings()),
@@ -68,21 +68,22 @@ describe("memory footer wiring", () => {
       resolveCwd: () => fixture.cwd,
     }).register(pi, componentContext())
 
-    const first = sessionContext("session-first", statusCalls)
+    const first = sessionContext("session-first", firstStatusCalls)
     await pi.dispatch("session_start", { type: "session_start" }, sessionContext("session-first"))
     await pi.dispatch("tool_result", memoryResult("memory"), first)
     await pi.dispatch("session_shutdown", { type: "session_shutdown" }, first)
-    expect(statusCalls).toHaveLength(2)
-    expectRelativeStatus(statusCalls[0], fixture.identity)
-    expect(statusCalls[1]).toEqual({ key: "memory", text: undefined })
-    statusCalls.length = 0
+    expect(firstStatusCalls).toHaveLength(2)
+    expectRelativeStatus(firstStatusCalls[0], fixture.identity)
+    expect(firstStatusCalls[1]).toEqual({ key: "memory", text: undefined })
 
-    const second = sessionContext("session-second", statusCalls)
+    const secondStatusCalls: Array<{ key: string; text: string | undefined }> = []
+    const second = sessionContext("session-second", secondStatusCalls)
     await pi.dispatch("session_start", { type: "session_start" }, sessionContext("session-second"))
     await pi.dispatch("tool_result", memoryResult("memory"), second)
 
-    expect(statusCalls).toHaveLength(1)
-    expectRelativeStatus(statusCalls[0], fixture.identity)
+    expect(firstStatusCalls).toHaveLength(2)
+    expect(secondStatusCalls).toHaveLength(1)
+    expectRelativeStatus(secondStatusCalls[0], fixture.identity)
     await pi.dispatch("session_shutdown", { type: "session_shutdown" }, second)
   })
 
