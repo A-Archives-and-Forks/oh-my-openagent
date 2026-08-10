@@ -40,6 +40,8 @@ export interface MemoryWiringOptions {
   readonly env: Record<string, string | undefined>
   readonly logger?: ComponentLogger
   readonly createRuntime?: (identity: MemoryIdentityContext, deps: MemoryIdentityRuntimeDeps) => MemoryIdentityRuntime
+  /** Boot-snapshot tool exposure; registration must not re-read config (latch order is observable). */
+  readonly toolExposure?: "direct" | "search"
 }
 
 export interface MemoryWiring {
@@ -168,7 +170,12 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     registerStatic(pi: SenpiExtensionAPI, ctx: ComponentContext): void {
       const api = completionApi(pi)
       if (api !== undefined) registerReflectionCompletionRenderer(api)
-      const promptHandler = createMemoryPromptHandler({ resolveContext, cache: promptCache })
+      const toolExposure = options.toolExposure ?? "direct"
+      const promptHandler = createMemoryPromptHandler({
+        resolveContext,
+        cache: promptCache,
+        searchExposure: () => toolExposure === "search",
+      })
       pi.on("before_agent_start", (payload, eventCtx) => {
         lastEventCtx.current = eventCtx
         return promptHandler(payload, eventCtx)
@@ -186,7 +193,9 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
         if (branchEntryCount(eventCtx) === 0) return undefined
         return journalWiringFor(identity).reconcileSession(eventCtx)
       })
-      registerMemoryToolSurface(pi, () => (activeSessionId === undefined ? undefined : resolveContext(activeSessionId)))
+      registerMemoryToolSurface(pi, () => (activeSessionId === undefined ? undefined : resolveContext(activeSessionId)), {
+        exposure: toolExposure,
+      })
       registerMemoryGuard(pi, ctx, {
         getContext: (eventContext) => {
           const sessionId = sessionIdFrom(eventContext)

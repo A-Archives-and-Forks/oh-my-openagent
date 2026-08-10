@@ -26,6 +26,7 @@ import type { OmoMemorySettings } from "@oh-my-opencode/omo-config-core"
 const DEFAULT_MEMORY_SETTINGS: OmoMemorySettings = {
   enabled: true,
   agent: "auto",
+  tool_exposure: "direct",
   reflection: {
     trigger: { step_count: 0, on_compaction: true },
     merge: "auto",

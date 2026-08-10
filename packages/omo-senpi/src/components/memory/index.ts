@@ -23,6 +23,7 @@ const RESTART_REQUIRED_NOTICE = "restart required to apply memory config change"
 const DEFAULT_MEMORY_CONFIG: OmoMemorySettings = {
   enabled: true,
   agent: "auto",
+  tool_exposure: "direct",
   reflection: {
     trigger: { step_count: 0, on_compaction: true },
     merge: "auto",
@@ -89,6 +90,9 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
         cwd: resolveCwd,
         env,
         logger: ctx.logger,
+        // Reuse the boot snapshot: registration must not add a loadConfig() call, because the
+        // enablement latch depends on the ORDER of reads across boot -> session_start -> reload.
+        toolExposure: bootConfig.tool_exposure,
       })
       wiring.registerStatic(pi, ctx)
       pi.registerEntryRenderer(MEMORY_BINDING_CUSTOM_TYPE, renderMemoryBindingEntry)
