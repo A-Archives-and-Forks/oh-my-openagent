@@ -11,14 +11,10 @@ import {
   installHooks,
   memoryWriterLockPath,
   withLock,
-  type MemoryIdentity,
   type ReflectionFinalizeResult,
-  type ReflectionOutcome,
   type ReflectionWorktree,
   type ReservedRun,
 } from "@oh-my-opencode/memory-core"
-import type { SenpiModelPort, SenpiModelRegistryPort } from "@oh-my-opencode/senpi-task"
-
 import { loadSenpiOmoConfig, type SenpiOmoConfigResult } from "../../config-resolution"
 import { createOncePerSessionGuard } from "../../task/usage-guidance"
 import {
@@ -37,55 +33,20 @@ import {
   prepareReflectionSpawn,
   runReflectionChild,
   type DreamPeoplePolicy,
-  type ReflectionSandbox,
 } from "./spawn"
 
 const DEFAULT_CATEGORY = "quick"
 const DEFAULT_TIMEOUT_MINUTES = 15
 
-export interface ReflectionReservationPort {
-  complete(
-    runId: string,
-    outcome: ReflectionOutcome,
-  ): Promise<{ readonly outcome: ReflectionOutcome; readonly launch?: ReservedRun }>
-}
+export type {
+  ReflectionReservationPort,
+  ReflectionRunResult,
+  ReflectionRunner,
+  SenpiSubprocessRunnerOptions,
+} from "./runner-types"
 
-export interface ReflectionRunResult {
-  readonly runId: string
-  readonly outcome: ReflectionOutcome
-  readonly reason?: string
-  readonly detail?: string
-  readonly completion: ReflectionCompletionRecord
-  readonly launch?: ReservedRun
-}
-
-export interface ReflectionRunner {
-  launch(request: ReservedRun): Promise<ReflectionRunResult>
-}
-
-export interface SenpiSubprocessRunnerOptions {
-  readonly identity: MemoryIdentity
-  readonly reservation: ReflectionReservationPort
-  readonly resolveModelRegistry: () => SenpiModelRegistryPort<SenpiModelPort> | undefined
-  readonly loadConfig?: (options?: { readonly cwd?: string }) => SenpiOmoConfigResult
-  readonly cwd?: string
-  readonly env?: NodeJS.ProcessEnv
-  readonly deadlineMs?: number
-  readonly terminationGraceMs?: number
-  readonly maxOutputBytes?: number
-  readonly sandbox?: ReflectionSandbox
-  readonly liveSession?: () => ReflectionLiveSession | undefined
-  readonly now?: () => Date
-  readonly senpiCommand?: string
-  readonly supervisorPath?: string
-  readonly withWriterLock?: <T>(operation: () => Promise<T>) => Promise<T>
-}
-
-type ExecutionResult = {
-  readonly outcome: ReflectionOutcome
-  readonly reason?: string
-  readonly detail?: string
-}
+import { cleanupSucceeded, errorMessage, failureReason } from "./runner-results"
+import type { ExecutionResult, ReflectionRunResult, ReflectionRunner, SenpiSubprocessRunnerOptions } from "./runner-types"
 
 export class SenpiSubprocessRunner implements ReflectionRunner {
   private readonly loadConfig: (options?: { readonly cwd?: string }) => SenpiOmoConfigResult
@@ -290,21 +251,4 @@ function resolvePeoplePolicy(config: OmoConfig, identity: string): DreamPeoplePo
     max_entries: override?.max_entries ?? base?.max_entries ?? 40,
     max_entry_chars: override?.max_entry_chars ?? base?.max_entry_chars ?? 200,
   }
-}
-
-function failureReason(result: ReflectionFinalizeResult): { readonly reason?: string } {
-  if (result.status === "dirty_uncommitted") return { reason: "completion_validation" }
-  if (result.status === "parent_dirty" || result.status === "merge_conflict") return { reason: "integration_failed" }
-  if (result.status !== "failed") return {}
-  return { reason: result.detail && /Git administration|recorded launch SHA|changed paths|no HEAD commit|escapes the memory repository/i.test(result.detail)
-    ? "completion_validation"
-    : "integration_failed" }
-}
-
-function cleanupSucceeded(result: ReflectionFinalizeResult): boolean {
-  return result.cleanup.worktreeRemoved && result.cleanup.branchRemoved
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
