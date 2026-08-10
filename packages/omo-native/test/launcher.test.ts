@@ -60,7 +60,7 @@ process.exit(Number(process.env.FAKE_EXIT ?? 0))
   if (options.shim !== false) {
     shimPath = join(modulesRoot, ".bin", process.platform === "win32" ? "senpi.cmd" : "senpi")
     writeFile(shimPath, "fixture shim\n", 0o755)
-  shimPath = realpathSync.native(shimPath)
+    shimPath = realpathSync.native(shimPath)
   }
   const toolkitRuntime = join(packageRoot, "plugin", "runtime", "agent-toolkit")
   writeFile(join(toolkitRuntime, "cli.js"), `
