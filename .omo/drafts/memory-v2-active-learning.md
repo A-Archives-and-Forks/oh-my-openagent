@@ -78,3 +78,44 @@ executed. Nine further todos were in flight at the time of writing.
   transcript replay. Removed; a repo-wide duplicate-clause scan now reports zero.
 - I29 integrity DAMAGED (orphaned reference): a `**IC-24 metric**` cross-reference pointed at a contract that
   does not exist (IC stops at 17). Rewritten to name todo 24 directly; orphan scan now reports zero.
+
+## Round 30 verdicts (both lanes reported)
+
+- `fullscope-b30` executor simulation, sha `66a8a3bc`: **VERDICT: EXECUTABLE** - all 25 todos executable,
+  ZERO stall points. Sixth consecutive EXECUTABLE from this lane.
+- `fullscope-a30` contract/technical, sha `66a8a3bc`: **VERDICT: BLOCKED** - 1 blocker, 2 notes. All three
+  integrated in commit `eb8a46895`:
+  1. BLOCKER (Windows, VERIFIED REAL): IC-8/IC-9 described POSIX semantics as universal (process groups,
+     `getProcessStartIdentity`) while `.github/workflows/ci.yml` runs the root suite on `windows-latest`
+     across four job matrices and `AGENTS.md:396` documents native Windows builds. Confirmed against
+     `packages/memory-core/src/locks/process-identity.ts:35-41`, which has NO win32 branch and returns null
+     for every pid there. IC-8 now binds win32 containment to `taskkill /T /F` at the SIGKILL instant and
+     `child.kill()` at the SIGTERM instant, both derived from the SAME absolute instants as POSIX so deadline
+     enforcement is platform-independent. IC-9 now states the Windows consequence explicitly and bounds it:
+     identity is always unavailable, reconciliation always resolves through UNKNOWN to `abandoned.json`,
+     which advances no watermark and keeps the batch retryable, so Windows loses resumption efficiency and
+     never loses data. Todo 25 gained REQUIRED Windows coverage via an injected platform seam.
+  2. NOTE (docs): `docs/reference/configuration.md:9-39` has no memory section, yet the Must-have forbids
+     todo 20 from being the first documentation pass. Added an explicit carve-out: todo 1 owns creating the
+     `memory.*` reference section, with a required backfill before todo 20 audits it.
+  3. NOTE (todo 3 QA): the real-surface run would have exercised the DEFAULT direct surface and proven
+     nothing about IC-17 provenance, since `tool_exposure` defaults to `"direct"`. Todo 3 QA now requires the
+     search/MCP exposure with a non-auto agent AND asserts the direct seam too.
+
+### Implementation-side correction found by the todo 15 executor
+
+IC-2 requires background writers to stamp `Omo-Writer: reflection|dream|facts-extractor`, but the landed
+dream persona emitted only the prior-art `Generated-By: agent memory` block. Verified that nothing keys
+POSITIVELY on the background values (nudge keys on `Omo-Writer: memory-tool`; soul-notice keys on its
+ABSENCE), so this was a spec-compliance gap rather than a live defect. Fixed in the implementation, not the
+plan: the dream persona now stamps `Omo-Writer: dream` alongside the existing block, in both the source asset
+and its packaged copy, with the drift-equality test still green.
+
+## Round 31 - approval bind on the corrected plan
+
+- plan sha256: `00e7141af04d32cd0e8aaa69ce5e3132e71ecee30f6758be913d9c47caba35e3`, committed at `eb8a46895`, working tree clean for that path.
+- lane spawned 2026-08-10T07:16:20Z: `fullscope-a31` (full-scope contract/technical, no delta scoping). momus excluded.
+- Mechanical self-audit at this sha: **20/20 gates PASS**, 210 citations resolve in range. Gates added since
+  round 30: windows_specified, docs_carveout, t3_mcp_qa.
+- Empirical executability at this sha: NINE todos executed from this plan text (1, 2, 4, 5, 11, 15, 16, 23
+  landed; more in flight), zero requiring human clarification.
