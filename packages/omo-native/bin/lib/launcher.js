@@ -62,7 +62,9 @@ function senpiEnvironment(senpiRoot) {
 
   const binDir = nearestNodeBin(senpiRoot)
   if (binDir) {
-    env.PATH = env.PATH ? `${binDir}${delimiter}${env.PATH}` : binDir
+    const pathKey = Object.keys(env).find((key) => key.toLowerCase() === "path") ?? "PATH"
+    const path = env[pathKey]
+    env[pathKey] = path ? `${binDir}${delimiter}${path}` : binDir
     const shim = join(binDir, process.platform === "win32" ? "senpi.cmd" : "senpi")
     if (existsSync(shim)) env.SENPI_BIN = shim
   }

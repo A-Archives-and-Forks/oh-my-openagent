@@ -13,6 +13,7 @@ import {
   type MemoryIdentityRuntimeDeps,
 } from "./identity-runtime"
 import { createMemoryJournalWiring, type MemoryJournalWiring } from "./journal-wiring"
+import { resolveMemoryModelRegistry } from "./model-registry-resolver"
 import { registerPalaceCommand } from "./palace/command"
 import { createMemoryPromptHandler } from "./prompt"
 import { registerMemoryCommands } from "./commands/register"
@@ -39,7 +40,10 @@ export interface MemoryWiringOptions {
   readonly cwd: () => string
   readonly env: Record<string, string | undefined>
   readonly logger?: ComponentLogger
-  readonly createRuntime?: (identity: MemoryIdentityContext, deps: MemoryIdentityRuntimeDeps) => MemoryIdentityRuntime
+  readonly createRuntime?: (
+    identity: MemoryIdentityContext,
+    deps: MemoryIdentityRuntimeDeps,
+  ) => Pick<MemoryIdentityRuntime, "store" | "launch">
   /** Boot-snapshot tool exposure; registration must not re-read config (latch order is observable). */
   readonly toolExposure?: "direct" | "search"
 }
@@ -56,7 +60,7 @@ type StatusUi = {
 
 export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
   const promptCache = new MemoryBlockCache()
-  const runtimes = new Map<string, MemoryIdentityRuntime>()
+  const runtimes = new Map<string, Pick<MemoryIdentityRuntime, "store" | "launch">>()
   const journals = new Map<string, MemoryJournalWiring>()
   const lastEventCtx: { current?: unknown } = {}
   let activeSessionId: string | undefined
@@ -81,14 +85,6 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     }
   }
 
-  function resolveModelRegistry(): ReturnType<MemoryIdentityRuntimeDeps["resolveModelRegistry"]> {
-    if (!isRecord(lastEventCtx.current)) return undefined
-    const registry = lastEventCtx.current.modelRegistry
-    return isRecord(registry)
-      ? (registry as unknown as ReturnType<MemoryIdentityRuntimeDeps["resolveModelRegistry"]>)
-      : undefined
-  }
-
   function journalWiringFor(identity: MemoryIdentityContext): MemoryJournalWiring {
     const cached = journals.get(identity.identity)
     if (cached !== undefined) return cached
@@ -97,14 +93,14 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     return wiring
   }
 
-  function runtimeFor(identity: MemoryIdentityContext): MemoryIdentityRuntime {
+  function runtimeFor(identity: MemoryIdentityContext): Pick<MemoryIdentityRuntime, "store" | "launch"> {
     const cached = runtimes.get(identity.identity)
     if (cached !== undefined) return cached
     const create = options.createRuntime ?? createIdentityRuntime
     const runtime = create(identity, {
       loadConfig: options.loadConfig,
       cwd: options.cwd,
-      resolveModelRegistry,
+      resolveModelRegistry: () => resolveMemoryModelRegistry(lastEventCtx.current),
       ...(options.logger === undefined ? {} : { logger: options.logger }),
     })
     runtimes.set(identity.identity, runtime)
