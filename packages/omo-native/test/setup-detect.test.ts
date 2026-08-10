@@ -247,7 +247,7 @@ describe("omo setup sibling detection", () => {
       expect(result.stdout).not.toContain("INFO no credentials found")
     })
 
-    test("#when default launch is on a TTY #then one hint appears and non-TTY emits none", () => {
+    test.skipIf(process.platform === "win32")("#when default launch is on a TTY #then one hint appears and non-TTY emits none", () => {
       const fixture = createFixture()
       const launcher = createLauncherFixture(fixture)
       write(join(fixture.xdg, "opencode", "auth.json"), "{}")

@@ -12,6 +12,7 @@ const pluginRoot = dirname(scriptDir)
 const packageRoot = dirname(pluginRoot)
 const repoRoot = resolve(packageRoot, "..", "..")
 const codexPluginRoot = join(repoRoot, "packages", "omo-codex", "plugin")
+const codexPluginNodeModules = join(codexPluginRoot, "node_modules")
 const defaultSourceEntry = join(codexPluginRoot, "components", "ulw-loop", "dist", "cli.js")
 const defaultDirectiveEntry = join(codexPluginRoot, "components", "ulw-loop", "directive.md")
 const defaultTargetDir = join(pluginRoot, "runtime", "agent-toolkit")
@@ -61,13 +62,9 @@ export async function stageAgentToolkit(options = {}) {
     await chmod(join(tempDir, "omo-agent-toolkit"), 0o755)
     await probeSelfContainment(tempDir)
 
-    if (await fileExists(targetDir)) {
-      await rename(targetDir, backupDir)
-      backupCreated = true
-    }
+    if (await fileExists(targetDir)) await rm(targetDir, { recursive: true, force: true })
     await rename(tempDir, targetDir)
     targetMoved = true
-    if (backupCreated) await rm(backupDir, { recursive: true, force: true })
     return { ok: true, sourceEntry, directiveEntry, targetDir, sha256: await sha256(sourceEntry) }
   } catch (error) {
     if (!targetMoved && backupCreated) {
@@ -114,6 +111,11 @@ async function buildAggregateBundle() {
   const compiler = join(codexPluginRoot, "node_modules", ".bin", process.platform === "win32" ? "tsc.cmd" : "tsc")
   const needsInstall = !(await filesEqual(packageLock, installedPackageLock)) || !(await fileExists(compiler))
   if (needsInstall) {
+    // The root `bun install` links this plugin's workspaces before its prepare script reaches this
+    // build, and `npm ci` aborts on those pre-existing links with
+    // `EEXIST: file already exists, symlink '../../components/teammode'` rather than replacing them.
+    // Removing the tree first makes the install deterministic whoever populated it.
+    await rm(codexPluginNodeModules, { recursive: true, force: true })
     run("npm", ["--prefix", "packages/omo-codex/plugin", "ci"])
   }
   // Only the ulw-loop bundle is staged here. Building every codex component instead would couple this

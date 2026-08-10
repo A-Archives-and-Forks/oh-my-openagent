@@ -94,7 +94,7 @@ process.exit(Number(process.env.FAKE_EXIT ?? 0))
 function run(fixture: Fixture, args: string[], env: NodeJS.ProcessEnv = {}) {
   return spawnSync(process.execPath, [fixture.launcher, ...args], {
     encoding: "utf8",
-    env: { ...process.env, CAPTURE_FILE: fixture.captureFile, ...env },
+    env: { ...process.env, PATH: "/usr/bin:/bin", CAPTURE_FILE: fixture.captureFile, ...env },
   })
 }
 
@@ -126,7 +126,12 @@ describe("omo launcher", () => {
         expect(result.status).toBe(0)
         expect(environment.SENPI_BIN).toBe(fixture.shimPath)
         expect(existsSync(environment.SENPI_BIN ?? "")).toBe(true)
-        expect(environment.PATH?.split(process.platform === "win32" ? ";" : ":")[0]).toBe(dirname(fixture.shimPath ?? ""))
+        const pathHead = environment.PATH?.split(process.platform === "win32" ? ";" : ":")[0]
+        const expectedShimDir = dirname(fixture.shimPath ?? "")
+        // Windows does not canonicalise the casing of a PATH entry the way the fixture spells it,
+        // so the directory contract is compared case-insensitively there.
+        if (process.platform === "win32") expect(pathHead?.toLowerCase()).toBe(expectedShimDir.toLowerCase())
+        else expect(pathHead).toBe(expectedShimDir)
         expect(existsSync(environment.PATH?.split(process.platform === "win32" ? ";" : ":")[0] ?? "")).toBe(true)
         expect(environment.OMO_AGENT_TOOLKIT_BIN).toBe(join(fixture.packageRoot, "bin", "omo-agent-toolkit.js"))
         // An inherited value must never survive; it is replaced by this launcher's own entry so
