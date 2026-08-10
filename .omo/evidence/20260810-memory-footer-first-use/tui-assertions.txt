@@ -9,12 +9,12 @@ After capture:
 
 Both captures:
 - `@uncommitted` appears: PASS (count 0)
-- before metadata cleanup: `pty pid 10435 killed`
-- after metadata cleanup: `pty pid 10434 killed`
+- before metadata cleanup: `pty pid 21391 killed`
+- after metadata cleanup: `pty pid 21392 killed`
 - isolated `qa-runtime` directory removed: PASS
 - matching Senpi/PTY processes remaining: PASS (none)
 
 Result: PASS
 
 Final-build note:
-These assertions were re-run after the Omo Native telemetry `dev` sync, generated-bundle regeneration, and final Windows test cleanup fixes. The artifacts match the final rebuilt production tree.
+These assertions were re-run after the Git-free wiring harness injection and final generated-bundle rebuild. The artifacts match the final rebuilt production tree.

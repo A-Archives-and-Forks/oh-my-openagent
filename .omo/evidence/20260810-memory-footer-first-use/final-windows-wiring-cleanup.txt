@@ -14,10 +14,9 @@ Root cause:
 
 Fix:
 - Keep the exact event-driven behavior test.
-- Remove the nested Git directory before removing the fixture root.
-- Use Node's built-in recursive removal retry only on Windows:
-  - `maxRetries: 20`
-  - `retryDelay: 100`
+- Inject a deterministic status refresher into the wiring lifecycle tests.
+- Stop creating real Git repositories in `wiring.test.ts`.
+- Keep real Git HEAD and timestamp coverage in `repo.test.ts` and `status.test.ts`.
 - No sleeps, assertion retries, skipped checks, or weakened behavior.
 
 Local verification:
@@ -35,8 +34,13 @@ Third Windows observation:
 - Run 31388591913 still reported `EBUSY` in both the Windows root and Senpi Windows jobs with the 10×50 budget.
 - The reset test passed in both logs; no shared-buffer assertion failed.
 - The Windows root job also exposed backslash-separated cleanup report paths from `removeStaleSelfPackageTests`.
-- The final fix removes the nested `.git` directory first with a 20×100 bounded budget, then removes the fixture root.
 - Cleanup report paths are now constructed with forward slashes on every OS.
+
+Fourth Windows observation:
+- Run 31390931111 still reported `EBUSY` after the `.git`-first 20×100 cleanup attempt.
+- Bun's Windows `fs.rm` path did not honor the configured retry budget long enough to remove the fixture root reliably.
+- The final approach removes the Git handle source entirely from wiring lifecycle tests through dependency injection.
+- The dedicated Git repository and status suites continue to cover committed HEAD, commit timestamps, and unavailable-commit behavior.
 
 Remaining proof:
 - The replacement Senpi Windows job and Windows root job must pass before merge.

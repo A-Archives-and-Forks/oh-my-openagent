@@ -17,7 +17,7 @@
     "cols": 120,
     "rows": 32
   },
-  "cleanup": "pty pid 10434 killed",
+  "cleanup": "pty pid 21392 killed",
   "files": {
     "png": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/fix/senpi-memory-footer-first-use/.omo/evidence/20260810-memory-footer-first-use/tui-after/terminal.png",
     "text": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/fix/senpi-memory-footer-first-use/.omo/evidence/20260810-memory-footer-first-use/tui-after/terminal.txt",
