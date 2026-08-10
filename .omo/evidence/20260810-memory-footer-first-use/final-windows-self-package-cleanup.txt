@@ -30,6 +30,8 @@ Windows proof:
 - The branch was then synced with the latest `dev`; its replacement matrix must pass before PR merge.
 
 Senpi job proof:
-- Run 31392779021 exposed a stale generated-files freshness test in `senpi-compatibility (macos-latest)`.
-- That job did not run the cleanup step, so package-local self-package tests remained discoverable.
+- Run 31392779021 exposed a hermetic Senpi typecheck failure in `senpi-compatibility (macos-latest)`.
+- The stale package-local self-package copy lacked the current `@oh-my-opencode/omo-opencode/config-migration` export, causing TS2307 in `config-startup/index.ts` and its test.
+- That job did not run the cleanup step, so stale self-package types remained resolvable ahead of the current workspace package.
 - The workflow now runs the same cleanup before both root `bun test` and `bun test packages/omo-senpi`.
+- The same run's Senpi Windows job also timed out two pre-existing Git-backed `/memfs diff` cases at 5437 ms and 5125 ms; those are outside this branch's diff and remain explicit replacement-matrix gates.
