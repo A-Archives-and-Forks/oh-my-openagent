@@ -174,7 +174,6 @@ describe("facts queue enqueue", () => {
     expect(await queueFileNames(paths)).toHaveLength(0)
   })
 })
-
   test("#given an aborted drain signal #when enqueue is attempted #then nothing publishes and the cursor stays untouched", async () => {
     // given
     const paths = await identityFixture()
@@ -191,4 +190,54 @@ describe("facts queue enqueue", () => {
     const cursor = await queue.readCursor(CONVERSATION)
     expect(cursor.enqueued_through_message_id).toBeNull()
     expect(cursor.consumed_through_message_id).toBeNull()
+  })
+
+  test("#given the abort fires at the interior clock hook #when enqueue runs #then nothing publishes and the cursor stays untouched", async () => {
+    // given
+    const paths = await identityFixture()
+    const aborted = new AbortController()
+    const queue = new FactsQueue({
+      identityPaths: paths,
+      now: () => {
+        aborted.abort()
+        return new Date("2026-01-15T12:00:00.000Z")
+      },
+    })
+
+    // when
+    const result = await queue.enqueue(request(journal(2), { signal: aborted.signal }))
+
+    // then
+    expect(result.enqueued).toBe(false)
+    expect(await queue.listPending()).toHaveLength(0)
+    const cursor = await queue.readCursor(CONVERSATION)
+    expect(cursor.enqueued_through_message_id).toBeNull()
+  })
+
+  test("#given the abort fires after the publish lands #when the cursor advance is attempted #then the batch stays retryable with the watermark unmoved", async () => {
+    // given
+    const paths = await identityFixture()
+    const aborted = new AbortController()
+    const prototype = FactsQueue.prototype as unknown as Record<string, (entry: FactsQueueEntry, at: Date, signal?: AbortSignal) => Promise<void>>
+    const original = prototype["publish"]
+    prototype["publish"] = async (entry, at, signal) => {
+      await original.call(queue, entry, at, signal)
+      aborted.abort()
+    }
+    const queue = new FactsQueue({ identityPaths: paths, now: () => new Date("2026-01-15T12:00:00.000Z") })
+
+    // when
+    let result: Awaited<ReturnType<FactsQueue["enqueue"]>>
+    try {
+      result = await queue.enqueue(request(journal(2), { signal: aborted.signal }))
+    } finally {
+      prototype["publish"] = original
+    }
+
+    // then: the publish landed (one started atomic write), but the watermark never moved,
+    // so a later launch sees the batch as pending and retries it.
+    expect(result.enqueued).toBe(true)
+    expect(await queue.listPending()).toHaveLength(1)
+    const cursor = await queue.readCursor(CONVERSATION)
+    expect(cursor.enqueued_through_message_id).toBeNull()
   })

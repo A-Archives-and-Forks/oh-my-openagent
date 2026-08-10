@@ -223,7 +223,9 @@ export class SkillsUsageTracker {
               lastUsedAt: timestamp,
             }
           }
+          if (isAborted()) return
           await mkdir(join(this.paths.ledgerPath, ".."), { recursive: true })
+          if (isAborted()) return
           await writeLedgerAtomic(this.paths.ledgerPath, updated)
         },
         { waitTimeoutMs: LOCK_WAIT_MS },

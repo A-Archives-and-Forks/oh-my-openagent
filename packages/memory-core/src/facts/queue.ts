@@ -61,6 +61,8 @@ export class FactsQueue {
    * the crash window where a queue file landed but its cursor write did not.
    */
   async enqueue(request: FactsEnqueueRequest): Promise<FactsEnqueueResult> {
+    const abortedNow = (): boolean => request.signal?.aborted === true
+    if (abortedNow()) return { enqueued: false, reason: "no-new-entries" }
     return this.locked(async () => {
       const anchor = await this.effectiveAnchor(request.conversationId, request.entries)
       const startIndex = request.entries.findIndex(
@@ -96,11 +98,10 @@ export class FactsQueue {
         entries: request.entries.slice(startIndex),
       }
 
-      const abortedNow = (): boolean => request.signal?.aborted === true
       if (abortedNow()) return { enqueued: false, reason: "no-new-entries" }
-      await this.publish(entry, at)
+      await this.publish(entry, at, request.signal)
       if (abortedNow()) return { enqueued: true, entry }
-      await this.advanceEnqueued(request.conversationId, entry.range)
+      await this.advanceEnqueued(request.conversationId, entry.range, request.signal)
       return { enqueued: true, entry }
     })
   }
@@ -168,10 +169,11 @@ export class FactsQueue {
     return anchor
   }
 
-  private async publish(entry: FactsQueueEntry, at: Date): Promise<void> {
+  private async publish(entry: FactsQueueEntry, at: Date, signal?: AbortSignal): Promise<void> {
     const target = this.layout.entryPath(entry.conversationId, entry.range.end_message_id, at)
     const temporary = `${target}.tmp`
     await writeFile(temporary, `${JSON.stringify(entry, null, 2)}\n`, { encoding: "utf8", mode: 0o600 })
+    if (signal?.aborted === true) return rm(temporary, { force: true })
     await rename(temporary, target)
   }
 
@@ -206,9 +208,10 @@ export class FactsQueue {
   }
 
   /** MONOTONIC: only a strictly later snapshot boundary may move the enqueue watermark. */
-  private async advanceEnqueued(conversationId: string, range: FactsQueueRange): Promise<void> {
+  private async advanceEnqueued(conversationId: string, range: FactsQueueRange, signal?: AbortSignal): Promise<void> {
     const cursor = await this.readCursorUnlocked(conversationId)
     if (range.end_snapshot_line <= cursor.enqueued_through_snapshot_line) return
+    if (signal?.aborted === true) return
     await this.writeCursor(conversationId, {
       ...cursor,
       enqueued_through_message_id: range.end_message_id,

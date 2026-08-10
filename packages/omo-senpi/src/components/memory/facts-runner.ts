@@ -77,6 +77,7 @@ export class FactsExtractorRunner {
     if (!existsSync(join(repo.dir, ".git"))) await repo.init({ seedFiles: buildDefaultSeedFiles() })
     const batchId = (this.options.createBatchId ?? randomUUID)()
     const launchedAt = this.now().getTime()
+    if (isAborted()) return { status: "skipped" }
     const runDir = await reserveFactsRunDir({
       factsDir: this.options.identity.paths.facts,
       entries,
