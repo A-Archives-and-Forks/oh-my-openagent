@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "bun:test"
+import { afterEach, describe, expect, it, setDefaultTimeout } from "bun:test"
 
 import {
   author,
@@ -8,6 +8,9 @@ import {
   params,
 } from "./memory-apply-patch.test-support"
 
+// Each case drives a real git repository through commit and patch application; the 5s default is not
+// a budget those subprocesses fit on a loaded Windows runner.
+setDefaultTimeout(process.platform === "win32" ? 30_000 : 5_000)
 const { fixture, cleanup } = createPatchFixtureHarness()
 
 afterEach(cleanup)
