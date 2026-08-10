@@ -1,0 +1,20 @@
+Before capture:
+- `terminal.txt` contains `no memory tool used`: PASS (count 1)
+- `terminal.txt` contains `mem:`: PASS (count 0)
+
+After capture:
+- `terminal.txt` contains `memory created; footer should now show relative age`: PASS (count 1)
+- `terminal.txt` contains `mem:`: PASS (count 1)
+- `terminal.txt` contains `mem:.*just now`: PASS (count 1)
+
+Both captures:
+- `@uncommitted` appears: PASS (count 0)
+- before metadata cleanup: `pty pid 31940 killed`
+- after metadata cleanup: `pty pid 31939 killed`
+- isolated `qa-runtime` directory removed: PASS
+- matching Senpi/PTY processes remaining: PASS (none)
+
+Result: PASS
+
+Final-build note:
+These assertions were re-run after merging repaired `dev`, regenerating the committed bundles, and preserving the original bind-time compile-token advisory while keeping footer rendering deferred. The artifacts match the final rebuilt production tree.
