@@ -60,6 +60,16 @@ describe("agent-toolkit runtime staging", () => {
     assert.equal(await readFile(join(fixture.targetDir, "directive.md"), "utf8"), await readFile(fixture.directiveEntry, "utf8"))
   })
 
+  test("#given an identical staged toolkit #when staged again #then preserves the target directory identity", async () => {
+    const fixture = await makeFixture()
+    await stageAgentToolkit({ ...fixture, buildBundle: false })
+    const before = await stat(fixture.targetDir)
+
+    await stageAgentToolkit({ ...fixture, buildBundle: false })
+
+    assert.equal((await stat(fixture.targetDir)).ino, before.ino)
+  })
+
   test("#given an unknown component #when dispatched #then it exits one and lists ulw-loop", async () => {
     const fixture = await makeFixture()
     await stageAgentToolkit({ ...fixture, buildBundle: false })
