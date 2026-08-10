@@ -1,0 +1,180 @@
+import { afterEach, describe, expect, test } from "bun:test"
+import { spawn, type ChildProcess } from "node:child_process"
+import { existsSync } from "node:fs"
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises"
+import { createServer, type AddressInfo } from "node:net"
+import { tmpdir } from "node:os"
+import { basename, dirname, join } from "node:path"
+
+const supervisorPath = join(import.meta.dir, "memory-run-supervisor.ts")
+const childFixture = join(import.meta.dir, "__fixtures__", "supervisor-child.ts")
+const taskkillFixture = join(import.meta.dir, "__fixtures__", "supervisor-taskkill.ts")
+const roots: string[] = []
+const liveProcesses = new Set<number>()
+const platforms = ["posix", "win32"] as const
+
+async function waitForPath(path: string, timeoutMs = 5_000): Promise<void> {
+  if (existsSync(path)) return
+  const { watch } = await import("node:fs")
+  await new Promise<void>((resolve, reject) => {
+    let settled = false
+    const watcher = watch(dirname(path), (_event, changed) => {
+      if (changed === basename(path) && existsSync(path)) finish()
+    })
+    const timeout = setTimeout(() => finish(new Error(`waited ${timeoutMs}ms for ${path}`)), timeoutMs)
+    const finish = (error?: Error) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeout)
+      watcher.close()
+      error === undefined ? resolve() : reject(error)
+    }
+    if (existsSync(path)) finish()
+  })
+}
+
+async function makeRun(mode: "graceful" | "stubborn"): Promise<{
+  runDir: string
+  clockPath: string
+  childExited: Promise<void>
+}> {
+  const runDir = await mkdtemp(join(tmpdir(), "memory-run-supervisor-ic8-"))
+  roots.push(runDir)
+  await mkdir(runDir, { recursive: true, mode: 0o700 })
+  const clockPath = join(runDir, "clock.txt")
+  const exitServer = createServer()
+  await new Promise<void>((resolve, reject) => {
+    exitServer.once("error", reject)
+    exitServer.listen(0, "127.0.0.1", resolve)
+  })
+  const address = exitServer.address() as AddressInfo
+  const childExited = new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("waited 5s for model child exit")), 5_000)
+    exitServer.once("connection", (socket) => {
+      exitServer.close()
+      socket.once("close", () => {
+        clearTimeout(timeout)
+        resolve()
+      })
+    })
+  })
+  await writeFile(clockPath, "1000\n", "utf8")
+  await writeFile(join(runDir, "ledger.json"), `${JSON.stringify({ version: 1, runId: "run-ic8", kind: "reflection" })}\n`)
+  await writeFile(join(runDir, "launch.json"), `${JSON.stringify({
+    version: 1,
+    runId: "run-ic8",
+    kind: "reflection",
+    command: process.execPath,
+    args: [childFixture, mode, runDir],
+    cwd: runDir,
+    env: { ...process.env, OMO_MEMORY_SUPERVISOR_EXIT_PORT: String(address.port) },
+    hardDeadlineAt: 2_000,
+    terminationGraceMs: 1_000,
+    maxOutputBytes: 65_536,
+    stdoutPath: join(runDir, "child-stdout.log"),
+    stderrPath: join(runDir, "child-stderr.log"),
+  })}\n`, { mode: 0o600 })
+  return { runDir, clockPath, childExited }
+}
+
+function launchSupervisor(runDir: string, clockPath: string, platform: typeof platforms[number]): ChildProcess {
+  const child = spawn(process.execPath, [supervisorPath, runDir], {
+    detached: true,
+    stdio: "ignore",
+    env: {
+      ...process.env,
+      OMO_MEMORY_SUPERVISOR_ALLOW_TEST_SEAMS: "1",
+      OMO_MEMORY_SUPERVISOR_PLATFORM: platform,
+      OMO_MEMORY_SUPERVISOR_CLOCK_PATH: clockPath,
+      OMO_MEMORY_SUPERVISOR_TASKKILL_COMMAND: JSON.stringify([process.execPath, taskkillFixture]),
+      OMO_MEMORY_SUPERVISOR_TASKKILL_RUN_DIR: runDir,
+      ...(process.platform === "win32" && platform === "posix"
+        ? { OMO_MEMORY_SUPERVISOR_POSIX_SIGNAL_COMMAND: JSON.stringify([process.execPath, taskkillFixture]) }
+        : {}),
+    },
+  })
+  if (child.pid !== undefined) liveProcesses.add(child.pid)
+  return child
+}
+
+async function advanceClock(path: string, value: number): Promise<void> {
+  const temporary = `${path}.next`
+  await writeFile(temporary, `${value}\n`, "utf8")
+  await rename(temporary, path)
+}
+
+function waitForExit(child: ChildProcess): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error("waited 5s for process exit")), 5_000)
+    child.once("error", reject)
+    child.once("close", (code, signal) => {
+      clearTimeout(timeout)
+      if (child.pid !== undefined) liveProcesses.delete(child.pid)
+      resolve({ code, signal })
+    })
+  })
+}
+
+afterEach(async () => {
+  for (const pid of liveProcesses) {
+    try {
+      process.kill(pid, "SIGKILL")
+    } catch (error) {
+      if (!(error instanceof Error) || !("code" in error) || error.code !== "ESRCH") throw error
+    }
+  }
+  liveProcesses.clear()
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+})
+
+describe("memory run supervisor IC-8 containment", () => {
+  for (const platform of platforms) {
+    test(`#given the injected ${platform} branch #when the absolute deadline instants are advanced #then graceful and hard tree termination use those instants`, async () => {
+      // given
+      const { runDir, clockPath, childExited } = await makeRun("stubborn")
+      const supervisor = launchSupervisor(runDir, clockPath, platform)
+      const exit = waitForExit(supervisor)
+      await waitForPath(join(runDir, "child-started.json"))
+      expect(existsSync(join(runDir, "child-terminated.json"))).toBe(false)
+
+      // when
+      await advanceClock(clockPath, 2_000)
+      if (supervisor.pid === undefined) throw new Error("supervisor pid is required")
+      await waitForPath(join(runDir, `${platform === "win32" ? "win32-graceful" : "posix-SIGTERM"}-${supervisor.pid}.json`))
+      expect(existsSync(join(runDir, "taskkill-invocation.json"))).toBe(false)
+      await advanceClock(clockPath, 3_000)
+      await waitForPath(join(runDir, "outcome.json"))
+      await Promise.all([exit, childExited])
+
+      // then
+      const outcome = JSON.parse(await readFile(join(runDir, "outcome.json"), "utf8")) as Record<string, unknown>
+      expect(outcome.timedOut).toBe(true)
+      if (platform === "win32") {
+        const invocation = JSON.parse(await readFile(join(runDir, "taskkill-invocation.json"), "utf8")) as { readonly args: string[] }
+        expect(invocation.args.slice(-4)).toEqual(["/pid", expect.any(String), "/T", "/F"])
+      } else {
+        expect(existsSync(join(runDir, "taskkill-invocation.json"))).toBe(false)
+      }
+    })
+
+    test(`#given the injected ${platform} branch and a released child #when the supervisor dies abruptly #then the bootstrap alone enforces the persisted deadline`, async () => {
+      // given
+      const { runDir, clockPath, childExited } = await makeRun("graceful")
+      const supervisor = launchSupervisor(runDir, clockPath, platform)
+      const exit = waitForExit(supervisor)
+      await waitForPath(join(runDir, "child-started.json"))
+      const ledger = JSON.parse(await readFile(join(runDir, "ledger.json"), "utf8")) as { readonly childPid: number }
+
+      // when
+      supervisor.kill("SIGKILL")
+      await exit
+      expect(existsSync(join(runDir, "outcome.json"))).toBe(false)
+      await advanceClock(clockPath, 2_000)
+      await waitForPath(join(runDir, `${platform === "win32" ? "win32-graceful" : "posix-SIGTERM"}-${ledger.childPid}.json`))
+      await childExited
+
+      // then
+      expect(existsSync(join(runDir, "outcome.json"))).toBe(false)
+    })
+  }
+})

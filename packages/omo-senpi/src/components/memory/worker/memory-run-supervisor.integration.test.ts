@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { spawn, type ChildProcess } from "node:child_process"
 import { existsSync } from "node:fs"
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, dirname, join } from "node:path"
 
@@ -45,10 +45,23 @@ async function makeRun(options: {
 }
 
 function launchSupervisor(runDir: string): ChildProcess {
+  const clockPath = join(runDir, "clock.txt")
   return spawn(process.execPath, [supervisorPath, runDir], {
     detached: true,
     stdio: "ignore",
+    env: existsSync(clockPath) ? {
+      ...process.env,
+      OMO_MEMORY_SUPERVISOR_ALLOW_TEST_SEAMS: "1",
+      OMO_MEMORY_SUPERVISOR_CLOCK_PATH: clockPath,
+    } : process.env,
   })
+}
+
+async function advanceClock(runDir: string, value: number): Promise<void> {
+  const path = join(runDir, "clock.txt")
+  const temporary = `${path}.next`
+  await writeFile(temporary, `${value}\n`, "utf8")
+  await rename(temporary, path)
 }
 
 async function waitForPath(path: string, timeoutMs = 4_000): Promise<void> {
@@ -231,31 +244,46 @@ describe("memory run supervisor", () => {
 
   test("#given a child that exits during termination grace #when the absolute deadline arrives #then timeout is recorded without escalation", async () => {
     // given
-    const runDir = await makeRun({ mode: "graceful", hardDeadlineAt: Date.now() + 150, terminationGraceMs: 2_000 })
+    const runDir = await makeRun({ mode: "graceful", hardDeadlineAt: 2_000, terminationGraceMs: 2_000 })
+    await writeFile(join(runDir, "clock.txt"), "1000\n", "utf8")
 
     // when
     const supervisor = launchSupervisor(runDir)
     const exit = waitForExit(supervisor)
+    await waitForPath(join(runDir, "child-started.json"))
+    await advanceClock(runDir, 2_000)
+    if (process.platform === "win32") await advanceClock(runDir, 4_000)
     const outcome = await readOutcome(runDir)
     await exit
 
     // then
-    expect(outcome).toMatchObject({ childExit: { code: 0, signal: null }, timedOut: true })
-    expect(existsSync(join(runDir, "child-terminated.json"))).toBe(true)
+    expect(outcome.timedOut).toBe(true)
+    if (process.platform !== "win32") {
+      expect(outcome.childExit).toEqual({ code: 0, signal: null })
+      expect(existsSync(join(runDir, "child-terminated.json"))).toBe(true)
+    }
   })
 
   test("#given a child that ignores SIGTERM #when termination grace expires #then the process group is killed", async () => {
     // given
-    const runDir = await makeRun({ mode: "stubborn", hardDeadlineAt: Date.now() + 150, terminationGraceMs: 100 })
+    const runDir = await makeRun({ mode: "stubborn", hardDeadlineAt: 2_000, terminationGraceMs: 100 })
+    await writeFile(join(runDir, "clock.txt"), "1000\n", "utf8")
 
     // when
     const supervisor = launchSupervisor(runDir)
     const exit = waitForExit(supervisor)
+    await waitForPath(join(runDir, "child-started.json"))
+    await advanceClock(runDir, 2_000)
+    if (process.platform !== "win32") await waitForPath(join(runDir, "child-terminated.json"))
+    await advanceClock(runDir, 2_100)
     const outcome = await readOutcome(runDir)
     await exit
 
     // then
-    expect(outcome).toMatchObject({ childExit: { code: null, signal: "SIGKILL" }, timedOut: true })
-    expect(existsSync(join(runDir, "child-terminated.json"))).toBe(true)
+    expect(outcome.timedOut).toBe(true)
+    if (process.platform !== "win32") {
+      expect(outcome.childExit).toEqual({ code: null, signal: "SIGKILL" })
+      expect(existsSync(join(runDir, "child-terminated.json"))).toBe(true)
+    }
   })
 })

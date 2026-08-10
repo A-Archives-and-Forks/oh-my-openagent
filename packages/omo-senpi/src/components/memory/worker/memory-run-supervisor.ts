@@ -12,12 +12,16 @@ import {
   type RunLaunchManifest,
   type RunOutcome,
 } from "./run-artifacts"
-import { getSupervisorProcessStart } from "./supervisor-process-identity"
-
-interface ChildExit {
-  readonly code: number | null
-  readonly signal: string | null
-}
+import {
+  getSupervisorProcessStart,
+  getSupervisorRuntimePlatform,
+  parseSupervisorChildExit,
+  scheduleSupervisorDeadline,
+  signalSupervisorProcessGroup,
+  terminateSupervisorChildGracefully,
+  terminateSupervisorChildHard,
+  type SupervisorChildExit,
+} from "./supervisor-process-identity"
 
 async function readRelease(): Promise<boolean> {
   for await (const chunk of process.stdin) {
@@ -26,28 +30,38 @@ async function readRelease(): Promise<boolean> {
   return false
 }
 
-function writeBootstrapStatus(status: ChildExit): void {
+function writeBootstrapStatus(status: SupervisorChildExit): void {
   try {
     writeSync(3, `${JSON.stringify(status)}\n`)
   } catch (error) {
-    if (!(error instanceof Error) || !("code" in error) || !["EPIPE", "EBADF"].includes(String(error.code))) {
-      throw error
-    }
+    if (!(error instanceof Error) || !("code" in error) || !["EPIPE", "EBADF"].includes(String(error.code))) throw error
   }
 }
 
 async function runChildBootstrap(runDir: string): Promise<void> {
   if (!(await readRelease())) return
   const manifest = await readRunJson<RunLaunchManifest>(join(runDir, "launch.json"))
+  const platform = getSupervisorRuntimePlatform()
   const child = spawn(manifest.command, [...manifest.args], {
     cwd: manifest.cwd,
     env: manifest.env,
     detached: false,
     stdio: ["ignore", "inherit", "inherit"],
   })
-  process.on("SIGTERM", () => undefined)
-  process.on("SIGINT", () => undefined)
-  const status = await new Promise<ChildExit>((resolve) => {
+  writeBootstrapStatus({ code: child.pid ?? null, signal: "MODEL_PID" })
+  const cascadeGraceful = () => {
+    if (platform === "win32" || process.platform === "win32") child.kill()
+  }
+  process.on("SIGTERM", cascadeGraceful)
+  process.on("SIGINT", cascadeGraceful)
+  const cancelTerm = scheduleSupervisorDeadline(manifest.hardDeadlineAt, () => {
+    if (platform === "win32") terminateSupervisorChildGracefully(platform, child)
+    else signalSupervisorProcessGroup(process.pid, "SIGTERM")
+  })
+  const cancelKill = scheduleSupervisorDeadline(manifest.hardDeadlineAt + manifest.terminationGraceMs, () => {
+    terminateSupervisorChildHard(platform, process.pid)
+  })
+  const status = await new Promise<SupervisorChildExit>((resolve) => {
     let settled = false
     child.once("error", () => {
       if (settled) return
@@ -59,39 +73,18 @@ async function runChildBootstrap(runDir: string): Promise<void> {
       settled = true
       resolve({ code, signal })
     })
+  }).finally(() => {
+    cancelTerm()
+    cancelKill()
   })
   writeBootstrapStatus(status)
-}
-
-function signalProcessGroup(pid: number | undefined, signal: NodeJS.Signals): void {
-  if (pid === undefined) return
-  try {
-    if (process.platform === "win32") process.kill(pid, signal)
-    else process.kill(-pid, signal)
-  } catch (error) {
-    if (!(error instanceof Error) || !("code" in error) || error.code !== "ESRCH") throw error
-  }
-}
-
-function parseBootstrapStatus(text: string): ChildExit | undefined {
-  const line = text.trim().split("\n").at(-1)
-  if (line === undefined || line.length === 0) return undefined
-  try {
-    const value = JSON.parse(line) as Record<string, unknown>
-    const code = typeof value.code === "number" || value.code === null ? value.code : undefined
-    const signal = typeof value.signal === "string" || value.signal === null ? value.signal : undefined
-    return code === undefined || signal === undefined ? undefined : { code, signal }
-  } catch {
-    return undefined
-  }
 }
 
 async function runSupervisor(runDir: string): Promise<void> {
   const launchPath = join(runDir, "launch.json")
   const ledgerPath = join(runDir, "ledger.json")
-  const outcomePath = join(runDir, "outcome.json")
   const manifest = await readRunJson<RunLaunchManifest>(launchPath)
-
+  const platform = getSupervisorRuntimePlatform()
   await updateRunLedger(ledgerPath, {
     pid: process.pid,
     processStart: await getSupervisorProcessStart(process.pid),
@@ -102,33 +95,44 @@ async function runSupervisor(runDir: string): Promise<void> {
   const bootstrap = spawn(process.execPath, [fileURLToPath(import.meta.url), "--child-bootstrap", runDir], {
     cwd: manifest.cwd,
     env: process.env,
-    detached: true,
+    detached: platform === "posix",
     stdio: ["pipe", stdoutFd, stderrFd, "pipe"],
   })
-  let childGroupPid = bootstrap.pid
+  let childPid = bootstrap.pid
+  let modelPid: number | undefined
   let bootstrapStatus = ""
   const control = bootstrap.stdio[3]
   if (control !== undefined && control !== null && "setEncoding" in control) {
     control.setEncoding("utf8")
-    control.on("data", (chunk: string) => { bootstrapStatus += chunk })
+    control.on("data", (chunk: string) => {
+      bootstrapStatus += chunk
+      for (const line of bootstrapStatus.split("\n")) {
+        try {
+          const message = JSON.parse(line) as Record<string, unknown>
+          if (message.signal === "MODEL_PID" && typeof message.code === "number") modelPid = message.code
+        } catch (error) {
+          if (!(error instanceof SyntaxError)) throw error
+        }
+      }
+    })
   }
 
-  const containChild = () => {
+  const containChild = (synchronous = false) => {
     try {
-      signalProcessGroup(childGroupPid, "SIGKILL")
+      terminateSupervisorChildHard(platform, childPid, synchronous)
     } catch (error) {
       process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
     }
   }
-  process.once("exit", containChild)
+  process.once("exit", () => containChild(true))
   process.once("SIGTERM", () => {
     containChild()
-    childGroupPid = undefined
+    childPid = undefined
     process.exit(143)
   })
   process.once("SIGINT", () => {
     containChild()
-    childGroupPid = undefined
+    childPid = undefined
     process.exit(130)
   })
 
@@ -140,15 +144,18 @@ async function runSupervisor(runDir: string): Promise<void> {
   bootstrap.stdin?.end("1\n")
 
   let timedOut = false
-  let escalation: ReturnType<typeof setTimeout> | undefined
-  const deadline = setTimeout(() => {
+  let hardKillFinished = Promise.resolve()
+  let finishHardKill: (() => void) | undefined
+  if (platform === "win32") hardKillFinished = new Promise<void>((resolve) => { finishHardKill = resolve })
+  const cancelTerm = scheduleSupervisorDeadline(manifest.hardDeadlineAt, () => {
     timedOut = true
-    signalProcessGroup(childGroupPid, "SIGTERM")
-    const killDelay = Math.max(0, manifest.hardDeadlineAt + manifest.terminationGraceMs - Date.now())
-    escalation = setTimeout(() => signalProcessGroup(childGroupPid, "SIGKILL"), killDelay)
-  }, Math.max(0, manifest.hardDeadlineAt - Date.now()))
-
-  const wrapperExit = await new Promise<ChildExit>((resolve, reject) => {
+    terminateSupervisorChildGracefully(platform, bootstrap)
+  })
+  const cancelKill = scheduleSupervisorDeadline(manifest.hardDeadlineAt + manifest.terminationGraceMs, () => {
+    terminateSupervisorChildHard(platform, modelPid ?? childPid)
+    finishHardKill?.()
+  })
+  const wrapperExit = await new Promise<SupervisorChildExit>((resolve, reject) => {
     let settled = false
     bootstrap.once("error", (error) => {
       if (settled) return
@@ -160,25 +167,24 @@ async function runSupervisor(runDir: string): Promise<void> {
       settled = true
       resolve({ code, signal })
     })
-  }).finally(() => {
-    clearTimeout(deadline)
-    if (escalation !== undefined) clearTimeout(escalation)
-    childGroupPid = undefined
-    closeSync(stdoutFd)
-    closeSync(stderrFd)
   })
+  if (platform === "win32" && timedOut) await hardKillFinished
+  cancelTerm()
+  cancelKill()
+  childPid = undefined
+  closeSync(stdoutFd)
+  closeSync(stderrFd)
 
   const outcome: RunOutcome = {
     version: 1,
     runId: manifest.runId,
     finishedAt: new Date().toISOString(),
-    childExit: parseBootstrapStatus(bootstrapStatus) ?? wrapperExit,
+    childExit: parseSupervisorChildExit(bootstrapStatus) ?? wrapperExit,
     timedOut,
   }
-  await writeRunJsonAtomic(outcomePath, outcome)
+  await writeRunJsonAtomic(join(runDir, "outcome.json"), outcome)
   await unlinkRunArtifact(launchPath)
 }
-
 const args = process.argv.slice(2)
 try {
   if (args[0] === "--child-bootstrap") {

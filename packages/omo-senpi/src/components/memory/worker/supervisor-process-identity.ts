@@ -1,5 +1,134 @@
-import { execFile } from "node:child_process"
+import { execFile, spawn, spawnSync, type ChildProcess } from "node:child_process"
+import { readFileSync, watch, writeFileSync } from "node:fs"
 import { readFile } from "node:fs/promises"
+import { basename, dirname } from "node:path"
+
+export type SupervisorRuntimePlatform = "posix" | "win32"
+export type CancelSupervisorDeadline = () => void
+export interface SupervisorChildExit {
+  readonly code: number | null
+  readonly signal: string | null
+}
+
+export function parseSupervisorChildExit(text: string): SupervisorChildExit | undefined {
+  const line = text.trim().split("\n").at(-1)
+  if (line === undefined || line.length === 0) return undefined
+  try {
+    const value = JSON.parse(line) as Record<string, unknown>
+    const code = typeof value.code === "number" || value.code === null ? value.code : undefined
+    const signal = typeof value.signal === "string" || value.signal === null ? value.signal : undefined
+    return code === undefined || signal === undefined || signal === "MODEL_PID" ? undefined : { code, signal }
+  } catch {
+    return undefined
+  }
+}
+
+function testSeamsEnabled(): boolean {
+  return process.env.OMO_MEMORY_SUPERVISOR_ALLOW_TEST_SEAMS === "1"
+}
+
+export function getSupervisorRuntimePlatform(): SupervisorRuntimePlatform {
+  if (testSeamsEnabled()) {
+    const injected = process.env.OMO_MEMORY_SUPERVISOR_PLATFORM
+    if (injected === "posix" || injected === "win32") return injected
+  }
+  return process.platform === "win32" ? "win32" : "posix"
+}
+
+export function scheduleSupervisorDeadline(instant: number, callback: () => void): CancelSupervisorDeadline {
+  const clockPath = testSeamsEnabled() ? process.env.OMO_MEMORY_SUPERVISOR_CLOCK_PATH : undefined
+  if (clockPath === undefined) {
+    const timer = setTimeout(callback, Math.max(0, instant - Date.now()))
+    return () => clearTimeout(timer)
+  }
+  let settled = false
+  const check = () => {
+    if (settled) return
+    const now = Number(readFileSync(clockPath, "utf8").trim())
+    if (!Number.isFinite(now) || now < instant) return
+    settled = true
+    watcher.close()
+    callback()
+  }
+  const watcher = watch(dirname(clockPath), (_event, changed) => {
+    if (changed === basename(clockPath)) check()
+  })
+  queueMicrotask(check)
+  return () => {
+    if (settled) return
+    settled = true
+    watcher.close()
+  }
+}
+
+function recordTestTermination(action: string, targetPid: number): void {
+  if (!testSeamsEnabled()) return
+  const runDir = process.env.OMO_MEMORY_SUPERVISOR_TASKKILL_RUN_DIR
+  if (runDir === undefined) return
+  writeFileSync(`${runDir}/${action}-${process.pid}.json`, `${JSON.stringify({ targetPid })}\n`, "utf8")
+}
+
+function testCommand(name: string): readonly string[] | undefined {
+  if (!testSeamsEnabled()) return undefined
+  const raw = process.env[name]
+  if (raw === undefined) return undefined
+  const value = JSON.parse(raw) as unknown
+  if (!Array.isArray(value) || !value.every((part) => typeof part === "string") || value.length === 0) {
+    throw new TypeError(`${name} must be a non-empty string array`)
+  }
+  return value
+}
+
+function spawnTerminationCommand(command: readonly string[], args: readonly string[], synchronous: boolean): void {
+  const [executable, ...prefix] = command
+  if (executable === undefined) throw new TypeError("termination command is required")
+  if (synchronous) {
+    const result = spawnSync(executable, [...prefix, ...args], { env: process.env, stdio: "ignore" })
+    if (result.error !== undefined) throw result.error
+    return
+  }
+  const child = spawn(executable, [...prefix, ...args], { env: process.env, stdio: "ignore" })
+  child.once("error", (error) => process.stderr.write(`${error.message}\n`))
+}
+
+export function signalSupervisorProcessGroup(pid: number, signal: NodeJS.Signals): void {
+  recordTestTermination(`posix-${signal}`, pid)
+  const injected = testCommand("OMO_MEMORY_SUPERVISOR_POSIX_SIGNAL_COMMAND")
+  if (injected !== undefined) {
+    spawnTerminationCommand(injected, ["--signal-group", String(pid), signal], false)
+    return
+  }
+  try {
+    process.kill(-pid, signal)
+  } catch (error) {
+    if (!(error instanceof Error) || !("code" in error) || error.code !== "ESRCH") throw error
+  }
+}
+
+function taskkillTree(pid: number, synchronous: boolean): void {
+  const command = testCommand("OMO_MEMORY_SUPERVISOR_TASKKILL_COMMAND") ?? ["taskkill"]
+  spawnTerminationCommand(command, ["/pid", String(pid), "/T", "/F"], synchronous)
+}
+
+export function terminateSupervisorChildGracefully(
+  platform: SupervisorRuntimePlatform,
+  wrapper: ChildProcess,
+): void {
+  if (platform === "win32") {
+    recordTestTermination("win32-graceful", wrapper.pid ?? -1)
+    wrapper.kill()
+  } else if (wrapper.pid !== undefined) signalSupervisorProcessGroup(wrapper.pid, "SIGTERM")
+}
+
+export function terminateSupervisorChildHard(
+  platform: SupervisorRuntimePlatform,
+  pid: number | undefined,
+  synchronous = false,
+): void {
+  if (pid === undefined) return
+  if (platform === "win32") taskkillTree(pid, synchronous)
+  else signalSupervisorProcessGroup(pid, "SIGKILL")
+}
 
 async function readCommand(command: string, args: readonly string[]): Promise<string | null> {
   return await new Promise((resolve) => {

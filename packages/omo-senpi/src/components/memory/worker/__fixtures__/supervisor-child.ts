@@ -1,4 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises"
+import { createConnection } from "node:net"
 import { join } from "node:path"
 
 const [mode, runDir] = process.argv.slice(2)
@@ -19,10 +20,11 @@ if (mode === "inspect") {
   process.exit(23)
 }
 
-await writeMarker("child-started.json", { pid: process.pid })
-
 if (mode === "graceful") {
-  process.once("SIGTERM", () => {
+  let terminating = false
+  process.on("SIGTERM", () => {
+    if (terminating) return
+    terminating = true
     void writeMarker("child-terminated.json", { signal: "SIGTERM" }).then(() => process.exit(0))
   })
 } else if (mode === "stubborn") {
@@ -31,4 +33,12 @@ if (mode === "graceful") {
   })
 }
 
+const exitPort = Number(process.env.OMO_MEMORY_SUPERVISOR_EXIT_PORT)
+if (Number.isInteger(exitPort)) {
+  await new Promise<void>((resolve, reject) => {
+    const socket = createConnection({ host: "127.0.0.1", port: exitPort }, resolve)
+    socket.once("error", reject)
+  })
+}
+await writeMarker("child-started.json", { pid: process.pid })
 setInterval(() => undefined, 60_000)
