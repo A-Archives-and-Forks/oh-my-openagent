@@ -121,6 +121,7 @@ git commit -m "<type>(dream): <summary>
 Updates:
 - <what changed and why>
 
+Omo-Writer: dream
 Generated-By: agent memory
 Agent-ID: <AGENT_ID>"
 ```
