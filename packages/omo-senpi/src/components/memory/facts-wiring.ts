@@ -35,7 +35,7 @@ export interface MemoryFactsWiringOptions {
 
 export interface MemoryFactsWiring {
   /** Enqueue the un-enqueued delta for a settled conversation. Never throws. */
-  enqueueSettled(conversationId: string): Promise<FactsEnqueueResult>
+  enqueueSettled(conversationId: string, signal?: AbortSignal): Promise<FactsEnqueueResult>
   /** Enqueue, count the settle gate, and fire one all-pending launch at the threshold. */
   onSettled(conversationId: string): Promise<FactsEnqueueResult>
   /** Leftover queue entries a crashed run left behind, ready for relaunch. */
@@ -43,7 +43,7 @@ export interface MemoryFactsWiring {
   /** Fire facts-run reconciliation without blocking session_start on the child. */
   reconcileExtractor(): void
   /** Shutdown drain step (c): launch pending work only when the settle threshold is already met. */
-  launchIfThresholdMet(): Promise<boolean>
+  launchIfThresholdMet(signal?: AbortSignal): Promise<boolean>
   /** Terminal SUCCESS only: drops the batch and advances the consumed watermark. */
   markConsumed(entries: readonly FactsQueueEntry[]): Promise<void>
 }
@@ -67,12 +67,12 @@ export function createMemoryFactsWiring(options: MemoryFactsWiringOptions): Memo
   }
 
   const wiring: MemoryFactsWiring = {
-    async enqueueSettled(conversationId: string): Promise<FactsEnqueueResult> {
-      if (!options.factsEnabled()) return DISABLED
+    async enqueueSettled(conversationId: string, signal?: AbortSignal): Promise<FactsEnqueueResult> {
+      if (isAborted(signal) || !options.factsEnabled()) return DISABLED
       try {
         const journal = createJournal(join(options.identityPaths.transcripts, conversationId))
         const entries = await journal.readEntries()
-        if (entries.length === 0) return DISABLED
+        if (isAborted(signal) || entries.length === 0) return DISABLED
         return await queue.enqueue({
           identity: options.identity,
           sessionId: conversationId,
@@ -110,12 +110,13 @@ export function createMemoryFactsWiring(options: MemoryFactsWiringOptions): Memo
       if (options.factsEnabled()) fire("reconcile")
     },
 
-    async launchIfThresholdMet(): Promise<boolean> {
-      if (!options.factsEnabled()) return false
+    async launchIfThresholdMet(signal?: AbortSignal): Promise<boolean> {
+      if (isAborted(signal) || !options.factsEnabled()) return false
       if (settles < Math.max(1, options.debounceSettles?.() ?? 4)) return false
+      if (isAborted(signal) || options.extractor === undefined) return false
       settles = 0
-      if (options.extractor === undefined) return false
       try {
+        if (isAborted(signal)) return false
         await options.extractor.launchPending()
       } catch (error) {
         options.logger?.warn("facts extractor launch failed", { error: String(error) })
@@ -132,4 +133,9 @@ export function createMemoryFactsWiring(options: MemoryFactsWiringOptions): Memo
     },
   }
   return wiring
+}
+
+/** AbortSignal state is mutable across awaits and callback probes, so every boundary reads it live. */
+function isAborted(signal: AbortSignal | undefined): boolean {
+  return signal?.aborted === true
 }

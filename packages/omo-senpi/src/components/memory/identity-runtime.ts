@@ -22,36 +22,11 @@ import {
   type ReflectionReservationPort,
 } from "./worker"
 import type { ReflectionSpawnArgs } from "./worker"
-import type { OmoMemorySettings } from "@oh-my-opencode/omo-config-core"
+import { OmoMemorySettingsSchema, type OmoMemorySettings } from "@oh-my-opencode/omo-config-core"
 
-const DEFAULT_MEMORY_SETTINGS: OmoMemorySettings = {
-  enabled: true,
-  agent: "auto",
-  tool_exposure: "direct",
-  reflection: {
-    enabled: true,
-    trigger: { step_count: 25, on_compaction: true },
-    merge: "auto",
-    category: "quick",
-    timeout_minutes: 15,
-    sandbox: "auto",
-  },
-  nudge: { enabled: true, every_user_turns: 10 },
-  facts: { enabled: true, debounce_settles: 4 },
-  dream: {
-    enabled: true,
-    idle_minutes: 30,
-    min_hours_between: 24,
-    shutdown_launch: true,
-    auto_select_max: 5,
-    auto_select_max_chars: 150000,
-  },
-  people: { enabled: true, max_entries: 40, max_entry_chars: 200 },
-  soul: { edit_notice: true },
-  sync: { enabled: true },
-  search: { enabled: true },
-  compile_warn_tokens: 30000,
-  agents: {},
+/** Resolves an absent root memory block to a fresh default tree from the config schema. */
+export function resolveMemorySettings(settings: OmoMemorySettings | undefined): OmoMemorySettings {
+  return settings ?? OmoMemorySettingsSchema.parse({})
 }
 
 export interface MemoryIdentityRuntimeDeps {
@@ -85,7 +60,7 @@ export function createIdentityRuntime(
   identity: MemoryIdentityContext,
   deps: MemoryIdentityRuntimeDeps,
 ): MemoryIdentityRuntime {
-  const settings = deps.loadConfig({ cwd: deps.cwd() }).config.memory ?? DEFAULT_MEMORY_SETTINGS
+  const settings = resolveMemorySettings(deps.loadConfig({ cwd: deps.cwd() }).config.memory)
   const store = new ReflectionReservationStore({
     identity: asMemoryIdentity(identity),
     config: resolveReflectionTriggerConfig(settings, identity.identity),

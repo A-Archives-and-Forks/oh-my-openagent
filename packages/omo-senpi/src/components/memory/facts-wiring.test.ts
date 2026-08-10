@@ -155,6 +155,109 @@ describe("facts wiring settle enqueue", () => {
     expect(result.enqueued).toBe(false)
     expect(await queueFileCount(paths)).toBe(0)
   })
+
+  test("#given a pre-aborted drain signal #when final-delta enqueue is requested #then no journal read or queue mutation starts", async () => {
+    const paths = await fixture()
+    const controller = new AbortController()
+    controller.abort()
+    let journalReads = 0
+    const wiring = createMemoryFactsWiring({
+      identity: IDENTITY,
+      identityPaths: paths,
+      factsEnabled: () => true,
+      createJournal: () => ({
+        readEntries: async () => {
+          journalReads += 1
+          return [entry("user", "m1")]
+        },
+      }) as unknown as TranscriptJournal,
+    })
+
+    const result = await wiring.enqueueSettled(SESSION, controller.signal)
+
+    expect(result.enqueued).toBe(false)
+    expect(journalReads).toBe(0)
+    expect(await queueFileCount(paths)).toBe(0)
+  })
+
+  test("#given abort arrives while the final journal delta is being read #when enqueue reaches the queue boundary #then no queue mutation starts", async () => {
+    const paths = await fixture()
+    const controller = new AbortController()
+    const wiring = createMemoryFactsWiring({
+      identity: IDENTITY,
+      identityPaths: paths,
+      factsEnabled: () => true,
+      createJournal: () => ({
+        readEntries: async () => {
+          controller.abort()
+          return [entry("user", "m1")]
+        },
+      }) as unknown as TranscriptJournal,
+    })
+
+    const result = await wiring.enqueueSettled(SESSION, controller.signal)
+
+    expect(result.enqueued).toBe(false)
+    expect(await queueFileCount(paths)).toBe(0)
+  })
+})
+
+describe("facts wiring shutdown launch", () => {
+  test("#given a pre-aborted drain signal at a met threshold #when launch is requested #then no extractor spawn starts", async () => {
+    const paths = await fixture()
+    await seedJournal(paths, 1)
+    let launches = 0
+    let thresholdReads = 0
+    const wiring = createMemoryFactsWiring({
+      identity: IDENTITY,
+      identityPaths: paths,
+      factsEnabled: () => true,
+      debounceSettles: () => ++thresholdReads === 1 ? 2 : 1,
+      extractor: {
+        launchPending: async () => { launches += 1 },
+        reconcilePending: async () => undefined,
+      },
+    })
+    await wiring.onSettled(SESSION)
+    const controller = new AbortController()
+    controller.abort()
+
+    const launched = await wiring.launchIfThresholdMet(controller.signal)
+
+    expect(launched).toBe(false)
+    expect(launches).toBe(0)
+  })
+
+  test("#given abort arrives during the threshold probe #when launch reaches the extractor boundary #then no extractor spawn starts", async () => {
+    const paths = await fixture()
+    await seedJournal(paths, 1)
+    const controller = new AbortController()
+    let launches = 0
+    let thresholdReads = 0
+    const wiring = createMemoryFactsWiring({
+      identity: IDENTITY,
+      identityPaths: paths,
+      factsEnabled: () => true,
+      debounceSettles: () => {
+        thresholdReads += 1
+        if (thresholdReads === 2) {
+          controller.abort()
+          return 1
+        }
+        return 2
+      },
+      extractor: {
+        launchPending: async () => { launches += 1 },
+        reconcilePending: async () => undefined,
+      },
+    })
+    await wiring.onSettled(SESSION)
+
+    const launched = await wiring.launchIfThresholdMet(controller.signal)
+
+    expect(launched).toBe(false)
+    expect(launches).toBe(0)
+  })
 })
 
 describe("facts wiring session_start reconcile", () => {

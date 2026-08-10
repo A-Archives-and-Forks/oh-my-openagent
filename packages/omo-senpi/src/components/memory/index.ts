@@ -13,6 +13,7 @@ import { renderMemoryBindingEntry } from "./bindings/entry-renderer"
 import { hasMemoryCapabilities, missingMemoryCapabilities } from "./capabilities"
 import { createMemoryIdentityContext, type MemoryIdentityContext } from "./context"
 import { shutdownDeadlineAt, type ShutdownReason } from "./shutdown-drain"
+import { resolveMemorySettings } from "./identity-runtime"
 import { memoryModuleSupervisor } from "./supervisor"
 import { createMemoryWiring } from "./wiring"
 
@@ -20,36 +21,6 @@ const GLOBAL_DISABLED_FLAG = "omo-senpi-disabled"
 const MEMORY_DISABLED_FLAG = "omo-senpi-memory-disabled"
 const CONFIG_WATCH_RELOADED = "config-watch:reloaded"
 const RESTART_REQUIRED_NOTICE = "restart required to apply memory config change"
-
-const DEFAULT_MEMORY_CONFIG: OmoMemorySettings = {
-  enabled: true,
-  agent: "auto",
-  tool_exposure: "direct",
-  reflection: {
-    enabled: true,
-    trigger: { step_count: 25, on_compaction: true },
-    merge: "auto",
-    category: "quick",
-    timeout_minutes: 15,
-    sandbox: "auto",
-  },
-  nudge: { enabled: true, every_user_turns: 10 },
-  facts: { enabled: true, debounce_settles: 4 },
-  dream: {
-    enabled: true,
-    idle_minutes: 30,
-    min_hours_between: 24,
-    shutdown_launch: true,
-    auto_select_max: 5,
-    auto_select_max_chars: 150000,
-  },
-  people: { enabled: true, max_entries: 40, max_entry_chars: 200 },
-  soul: { edit_notice: true },
-  sync: { enabled: true },
-  search: { enabled: true },
-  compile_warn_tokens: 30000,
-  agents: {},
-}
 
 export type ResolvedMemoryConfig = OmoMemorySettings
 
@@ -172,7 +143,7 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
 }
 
 export function resolveMemoryConfig(loaded: SenpiOmoConfigResult): ResolvedMemoryConfig {
-  return loaded.config.memory ?? DEFAULT_MEMORY_CONFIG
+  return resolveMemorySettings(loaded.config.memory)
 }
 
 function isEnabled(config: ResolvedMemoryConfig, ctx: ComponentContext): boolean {

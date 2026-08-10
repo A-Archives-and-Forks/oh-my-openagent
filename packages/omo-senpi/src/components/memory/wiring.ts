@@ -9,6 +9,7 @@ import { hasMemoryCapabilities } from "./capabilities"
 import type { MemoryIdentityContext } from "./context"
 import {
   createIdentityRuntime,
+  resolveMemorySettings,
   type MemoryIdentityRuntime,
   type MemoryIdentityRuntimeDeps,
 } from "./identity-runtime"
@@ -17,7 +18,6 @@ import { createMemoryFactsWiring, type MemoryFactsWiring } from "./facts-wiring"
 import { createMemoryJournalWiring, type MemoryJournalWiring } from "./journal-wiring"
 import {
   createDreamTriggerWiring,
-  DEFAULT_DREAM_TRIGGER_SETTINGS,
   resolveDreamTriggerSettings,
   type DreamTriggerSession,
 } from "./dream-trigger"
@@ -38,7 +38,11 @@ import {
 import { registerMemorySkillsScope } from "./skills-scope"
 import { registerSkillsUsage, type SkillsUsageTracker } from "./skills-usage"
 import { createSoulNoticeWiring } from "./soul-notice"
-import { createReflectionTriggerWiring, type ReflectionTriggerSession } from "./trigger-wiring"
+import {
+  createReflectionTriggerWiring,
+  resolveReflectionTriggerConfig,
+  type ReflectionTriggerSession,
+} from "./trigger-wiring"
 import { registerMemoryToolSurface } from "./tools"
 import {
   consumePendingReflectionCompletions,
@@ -90,8 +94,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
   const nudgeWiring = createMemoryNudgeWiring({
     resolveContext,
     resolveSettings: (identity) => {
-      const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
-      if (settings === undefined) return { enabled: false, everyUserTurns: 10 }
+      const settings = resolveMemorySettings(options.loadConfig({ cwd: options.cwd() }).config.memory)
       const override = settings.agents[identity]?.nudge
       return {
         enabled: override?.enabled ?? settings.nudge.enabled,
@@ -102,15 +105,17 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
   const soulNoticeWiring = createSoulNoticeWiring({
     resolveContext,
     resolveEditNotice: (identity) => {
-      const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
-      if (settings === undefined) return false
+      const settings = resolveMemorySettings(options.loadConfig({ cwd: options.cwd() }).config.memory)
       const override = settings.agents[identity]?.soul
       return override?.edit_notice ?? settings.soul.edit_notice
     },
   })
 
-  async function flushSkillsUsageTrackers(): Promise<void> {
-    await Promise.all([...skillsUsageTrackersRef.current.values()].map((tracker) => tracker.flush()))
+  async function flushSkillsUsageTrackers(signal?: AbortSignal): Promise<void> {
+    for (const tracker of skillsUsageTrackersRef.current.values()) {
+      if (signal?.aborted === true) return
+      await tracker.flush()
+    }
   }
 
   const shutdownDrain = createShutdownDrain({
@@ -124,16 +129,16 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       enqueueFinalDelta: async (sessionId, signal) => {
         const identity = resolveContext(sessionId)
         if (identity === undefined || signal.aborted) return
-        await factsWiringFor(identity).enqueueSettled(sessionId)
+        await factsWiringFor(identity).enqueueSettled(sessionId, signal)
       },
       flushSkillsUsage: async (_sessionId, signal) => {
         if (signal.aborted) return
-        await flushSkillsUsageTrackers()
+        await flushSkillsUsageTrackers(signal)
       },
       launchFacts: async (sessionId, signal) => {
         const identity = resolveContext(sessionId)
         if (identity === undefined || signal.aborted) return
-        await factsWiringFor(identity).launchIfThresholdMet()
+        await factsWiringFor(identity).launchIfThresholdMet(signal)
       },
     },
   })
@@ -143,8 +148,8 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     resolveActiveSession: () => (activeSessionId === undefined ? undefined : dreamSessionById(activeSessionId)),
     resolveSessionById: dreamSessionById,
     resolveSettings: (identity) => {
-      const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
-      return settings === undefined ? DEFAULT_DREAM_TRIGGER_SETTINGS : resolveDreamTriggerSettings(settings, identity)
+      const settings = resolveMemorySettings(options.loadConfig({ cwd: options.cwd() }).config.memory)
+      return resolveDreamTriggerSettings(settings, identity)
     },
     ...(options.logger === undefined ? {} : { logger: options.logger }),
   })
@@ -202,14 +207,14 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       identity: identity.identity,
       identityPaths: identity.identityPaths,
       factsEnabled: () => {
-        const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
-        const override = settings?.agents[identity.identity]?.facts
-        return override?.enabled ?? settings?.facts.enabled ?? false
+        const settings = resolveMemorySettings(options.loadConfig({ cwd: options.cwd() }).config.memory)
+        const override = settings.agents[identity.identity]?.facts
+        return override?.enabled ?? settings.facts.enabled
       },
       debounceSettles: () => {
-        const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
-        const override = settings?.agents[identity.identity]?.facts
-        return override?.debounce_settles ?? settings?.facts.debounce_settles ?? 4
+        const settings = resolveMemorySettings(options.loadConfig({ cwd: options.cwd() }).config.memory)
+        const override = settings.agents[identity.identity]?.facts
+        return override?.debounce_settles ?? settings.facts.debounce_settles
       },
       extractor,
       ...(options.logger === undefined ? {} : { logger: options.logger }),
@@ -238,9 +243,11 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     const identity = resolveContext(sessionId)
     if (identity === undefined) return undefined
     const runtime = runtimeFor(identity)
+    const settings = resolveMemorySettings(options.loadConfig({ cwd: options.cwd() }).config.memory)
     return {
       conversationId: sessionId,
       ledger: identity.ledger,
+      enabled: resolveReflectionTriggerConfig(settings, identity.identity).enabled,
       engine: {
         evaluate: async (conversationId, event) => {
           lastEventCtx.current = eventCtx
@@ -301,10 +308,9 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     }
   }
 
-  /** Palace people-panel gate: resolved `memory.people` settings, undefined when config is unreadable. */
+  /** Palace people-panel gate using the resolved `memory.people` settings. */
   function resolvePalacePeople(): PalacePeopleOptions | undefined {
-    const people = options.loadConfig({ cwd: options.cwd() }).config.memory?.people
-    if (people === undefined) return undefined
+    const people = resolveMemorySettings(options.loadConfig({ cwd: options.cwd() }).config.memory).people
     return {
       enabled: people.enabled,
       limits: { maxEntries: people.max_entries, maxEntryChars: people.max_entry_chars },
@@ -313,8 +319,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
 
   function loadCommandSettings(): MemoryCommandSettings {
     const resolved = options.loadConfig({ cwd: options.cwd() }).config
-    if (resolved.memory === undefined) throw new Error("memory settings unavailable")
-    return { settings: resolved.memory, config: resolved }
+    return { settings: resolveMemorySettings(resolved.memory), config: resolved }
   }
 
   return {
@@ -433,11 +438,11 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       factsWiringFor(identity).reconcileExtractor()
       const ui = readUi(eventCtx)
       if (ui !== undefined) {
-        const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
+        const settings = resolveMemorySettings(options.loadConfig({ cwd: options.cwd() }).config.memory)
         void refreshMemoryStatus({
           context: identity,
           ui,
-          compileWarnTokens: settings?.compile_warn_tokens ?? 30_000,
+          compileWarnTokens: settings.compile_warn_tokens,
           alreadyNotified: false,
         }).catch(() => {})
       }

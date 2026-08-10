@@ -112,6 +112,7 @@ export async function prepareReflectionSpawn(input: {
   readonly dreamStateSource: string
   readonly peoplePolicy: DreamPeoplePolicy
   readonly senpiCommand?: string
+  readonly chmodFile?: (path: string, mode: number) => Promise<void>
 }): Promise<ReflectionSpawnArgs> {
   const sessionDir = join(input.reflectionSessionsDir, safeRunId(input.run.runId))
   await mkdir(sessionDir, { recursive: true, mode: 0o700 })
@@ -132,11 +133,12 @@ export async function prepareReflectionSpawn(input: {
   ]
   // Payload files are chmod 0400 after writing, so a reused run directory (retry with the same
   // runId) must relax the mode before rewriting or the open() fails with EACCES.
+  const chmodFile = input.chmodFile ?? chmod
   await Promise.all(payloadPaths.map(async (path) => {
     try {
-      await chmod(path, 0o600)
-    } catch {
-      // First run for this runId: nothing to relax.
+      await chmodFile(path, 0o600)
+    } catch (error) {
+      if (errorCode(error) !== "ENOENT") throw error
     }
   }))
   await Promise.all([
@@ -223,14 +225,15 @@ export async function prepareFactsSpawn(input: {
   readonly thinking?: string
   readonly env: NodeJS.ProcessEnv
   readonly senpiCommand?: string
+  readonly chmodFile?: (path: string, mode: number) => Promise<void>
 }): Promise<FactsSpawnArgs> {
   await mkdir(input.runDir, { recursive: true, mode: 0o700 })
   const payload = join(input.runDir, "facts-payload.json")
   const extraction = join(input.runDir, "extraction.jsonl")
   try {
-    await chmod(payload, 0o600)
-  } catch {
-    // The first launch has no payload to relax.
+    await (input.chmodFile ?? chmod)(payload, 0o600)
+  } catch (error) {
+    if (errorCode(error) !== "ENOENT") throw error
   }
   await writeFile(payload, `${JSON.stringify(input.payload, null, 2)}\n`, { encoding: "utf8", mode: 0o600 })
   await chmod(payload, 0o400)

@@ -277,6 +277,7 @@ export function createDreamTriggerWiring(options: DreamTriggerWiringOptions): Dr
       ...(request.focus === undefined ? {} : { focus: request.focus }),
       ...(request.targetDoc === undefined ? {} : { targetDoc: request.targetDoc }),
     })
+    if (isAborted(request.signal)) return { fired: false, rejection: "aborted" }
     if (result.status === "active") {
       try {
         session.launch(result.run)
