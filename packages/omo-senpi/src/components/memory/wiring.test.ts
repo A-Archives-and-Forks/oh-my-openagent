@@ -18,17 +18,17 @@ import { createMemoryWiring } from "./wiring"
 
 const COMMIT_TIME = "2026-08-10T00:00:00.000Z"
 const NOW = Date.parse("2026-08-10T00:01:30.000Z")
-const WINDOWS_REMOVE_RETRIES = process.platform === "win32" ? 10 : 0
-const WINDOWS_REMOVE_RETRY_DELAY_MS = 50
-const roots: string[] = []
+const WINDOWS_REMOVE_RETRIES = process.platform === "win32" ? 20 : 0
+const WINDOWS_REMOVE_RETRY_DELAY_MS = 100
+const fixtures: Array<{ root: string; gitDir?: string }> = []
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, {
-    recursive: true,
-    force: true,
-    maxRetries: WINDOWS_REMOVE_RETRIES,
-    retryDelay: WINDOWS_REMOVE_RETRY_DELAY_MS,
-  })))
+  await Promise.all(fixtures.splice(0).map(async ({ root, gitDir }) => {
+    if (gitDir !== undefined) {
+      await removeFixturePath(gitDir)
+    }
+    await removeFixturePath(root)
+  }))
 })
 
 describe("memory footer wiring", () => {
@@ -149,10 +149,12 @@ async function createFixture(): Promise<{
   readonly sessionId: string
 }> {
   const root = await mkdtemp(join(tmpdir(), "omo-memory-footer-wiring-"))
-  roots.push(root)
+  const fixture: { root: string; gitDir?: string } = { root }
+  fixtures.push(fixture)
   const cwd = join(root, "project")
   const env = { OMO_MEMORY_HOME: join(root, "memory") }
   const identity = resolveMemoryIdentity("auto", cwd, env)
+  fixture.gitDir = join(identity.paths.repo, ".git")
   const sessionId = "session-memory-footer"
   const repo = new GitMemoryRepo({ dir: identity.paths.repo, agentId: identity.id })
   await ensureIdentityRuntimeDirs(identity.paths)
@@ -175,6 +177,15 @@ async function createFixture(): Promise<{
     binding: { identity: identity.id, repoPathHash: "hash", boundAt: 1 },
   })
   return { cwd, env, context, identity: identity.id, sessionId }
+}
+
+async function removeFixturePath(path: string): Promise<void> {
+  await rm(path, {
+    recursive: true,
+    force: true,
+    maxRetries: WINDOWS_REMOVE_RETRIES,
+    retryDelay: WINDOWS_REMOVE_RETRY_DELAY_MS,
+  })
 }
 
 function memoryResult(toolName: string, isError = false): Record<string, unknown> {
