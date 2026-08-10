@@ -8,7 +8,7 @@ import {
 
 const PERSONA_PATH = "system/persona.md"
 const REMINDER =
-  "Reminder: <projection> contains the local path of the memory file projection. <memory> is your persistent memory across conversations: consult it before asking the user anything it may already answer, and save durable facts, preferences, decisions, and corrections with the memory tools as soon as they emerge instead of waiting to be asked."
+  "Reminder: <projection> holds local paths of memory projections. <memory> is your persistent memory across conversations. Consult it BEFORE asking the user anything it may already answer. Save durable facts, preferences, decisions, and corrections with the memory tools THE MOMENT they emerge. Route facts about a person to their record under people/ (the primary human's card is system/human.md)."
 
 export interface CompileMemoryBlockOptions {
   agentId: string

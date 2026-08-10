@@ -8,6 +8,15 @@ import { compileMemoryBlock } from "./compile"
 const tempDirs: string[] = []
 const NOW = new Date("2026-05-04T00:00:00.000Z")
 
+/**
+ * Prose-agnostic normalization: replace the leading `Reminder: ...` paragraph
+ * with a `<reminder/>` placeholder so golden fixtures pin STRUCTURE (tier presence,
+ * nesting, metadata fields) and never pin reminder wording.
+ */
+function normalizeReminder(text: string): string {
+  return text.replace(/^Reminder: .*$/m, "<reminder/>")
+}
+
 async function fixture(name: string): Promise<string> {
   return readFile(join(import.meta.dir, "fixtures", `${name}.golden.txt`), "utf8")
 }
@@ -50,7 +59,7 @@ describe("compileMemoryBlock", () => {
     })
 
     // then
-    expect(block).toBe(await fixture("full"))
+    expect(normalizeReminder(block)).toBe(await fixture("full"))
     expect(block).not.toContain("External body")
     expect(block).not.toContain("SKILL.md")
     expect(block).not.toContain("PNG-BODY")
@@ -69,7 +78,7 @@ describe("compileMemoryBlock", () => {
     })
 
     // then
-    expect(block).toBe(await fixture("empty"))
+    expect(normalizeReminder(block)).toBe(await fixture("empty"))
   })
 
   it("#given only a committed persona #when compiled #then its description is omitted", async () => {
@@ -87,7 +96,7 @@ describe("compileMemoryBlock", () => {
     })
 
     // then
-    expect(block).toBe(await fixture("persona-only"))
+    expect(normalizeReminder(block)).toBe(await fixture("persona-only"))
     expect(block).not.toContain("Secret description")
   })
 
