@@ -17,7 +17,7 @@ const PINNED_VERSION = omoNativeManifest.dependencies["@code-yeongyu/senpi"]
  * setting it as part of the pin bump turns the assertion below into a hard requirement, so an
  * engine that would silently ignore the brand can never be pinned afterwards.
  */
-const FIRST_BRAND_AWARE_SENPI: string | null = null
+const FIRST_BRAND_AWARE_SENPI: string | null = "2026.8.11-2"
 
 function installedSenpi(): { readonly root: string; readonly version: string } | undefined {
   const candidates = [
