@@ -26,9 +26,10 @@ afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recur
 
 async function launchDream(
   people: { enabled: boolean; max_entries: number; max_entry_chars: number },
-  options: { readonly seedLedgers?: boolean } = {},
+  options: { readonly seedLedgers?: boolean; readonly targetDoc?: string } = {},
 ): Promise<{
   readonly identity: MemoryIdentity
+  readonly baseSha: string
   readonly result: Awaited<ReturnType<SenpiSubprocessRunner["launch"]>>
   readonly spawn: ReflectionSpawnArgs
 }> {
@@ -40,7 +41,14 @@ async function launchDream(
     paths: buildIdentityPaths(root, "agent-test"),
   }
   const repo = new GitMemoryRepo({ dir: identity.paths.repo, agentId: identity.id })
-  await repo.init({ seedFiles: [{ relativePath: "system/base.md", content: "---\ndescription: Base\n---\nBase.\n" }] })
+  await repo.init({ seedFiles: [
+    { relativePath: "system/base.md", content: "---\ndescription: Base\n---\nBase.\n" },
+    ...(options.targetDoc === undefined
+      ? []
+      : [{ relativePath: options.targetDoc, content: "---\ndescription: Style\n---\nOriginal.\n" }]),
+  ] })
+  const baseSha = await repo.head()
+  if (!baseSha) throw new Error("expected fixture base SHA")
   if (options.seedLedgers !== false) {
     await mkdir(join(identity.paths.runtime, "dream"), { recursive: true })
     await writeFile(join(identity.paths.runtime, "skills-usage.json"), `${JSON.stringify({
@@ -80,12 +88,18 @@ async function launchDream(
   })
   const run: ReservedRun = {
     runId: "dream-run-1",
-    request: { trigger: "dream", origin: "manual", conversationIds: [], snapshots: [] },
+    request: {
+      trigger: "dream",
+      origin: "manual",
+      conversationIds: [],
+      snapshots: [],
+      ...(options.targetDoc === undefined ? {} : { targetDoc: options.targetDoc }),
+    },
   }
   const result = await runner.launch(run)
   const spawn = calls[0]
   if (!spawn) throw new Error("expected dream spawn")
-  return { identity, result, spawn }
+  return { identity, baseSha, result, spawn }
 }
 
 describe("dream worker dispatch", () => {
@@ -131,5 +145,26 @@ describe("dream worker dispatch", () => {
     const lines = (await readFile(join(item.identity.paths.repo, "people", "fixture", "card.md"), "utf8")).trim().split("\n")
     expect(lines).toHaveLength(limits.max_entries)
     expect(lines.every((line) => line.length === limits.max_entry_chars)).toBe(true)
+  })
+
+  test("#given a memory document target #when the dream completes #then only that document is merged", async () => {
+    // given
+    const targetDoc = "reference/style.md"
+
+    // when
+    const item = await launchDream(
+      { enabled: false, max_entries: 40, max_entry_chars: 200 },
+      { targetDoc },
+    )
+    const repo = new GitMemoryRepo({ dir: item.identity.paths.repo, agentId: item.identity.id })
+    const commits = await repo.log({ range: `${item.baseSha}..HEAD`, includePaths: true })
+    const ledger = JSON.parse(await readFile(join(item.spawn.paths.sessionDir, "ledger.json"), "utf8"))
+
+    // then
+    expect(item.result.outcome).toBe("merged")
+    expect(await readFile(join(item.identity.paths.repo, targetDoc), "utf8")).toContain("Maintained by dream")
+    expect(new Set(commits.flatMap((commit) => commit.paths ?? []))).toEqual(new Set([targetDoc]))
+    expect(item.spawn.env.DREAM_TARGET_PATH).toBe(join(item.spawn.paths.worktree, targetDoc))
+    expect(ledger.targetDoc).toBe(targetDoc)
   })
 })

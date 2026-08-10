@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
-import { basename, dirname, join } from "node:path"
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import {
@@ -34,6 +34,7 @@ export interface ReflectionSpawnPaths {
   readonly skillsUsage?: string
   readonly dreamState?: string
   readonly dreamPolicy?: string
+  readonly dreamTarget?: string
 }
 
 export interface DreamPeoplePolicy {
@@ -48,6 +49,7 @@ export interface ReflectionSpawnArgs {
   readonly trigger?: ReservedRun["request"]["trigger"]
   readonly origin?: "manual" | "idle" | "shutdown"
   readonly mergePolicy?: "auto" | "integration"
+  readonly targetDoc?: string
   readonly worktree?: ReflectionWorktree
   readonly command: string
   readonly args: readonly string[]
@@ -149,6 +151,9 @@ export async function prepareReflectionSpawn(input: {
   ])
   await Promise.all(payloadPaths.map((path) => chmod(path, 0o400)))
 
+  const dreamTarget = isDream && input.run.request.targetDoc !== undefined
+    ? resolveDreamTarget(input.worktree.dir, input.run.request.targetDoc)
+    : undefined
   const paths: ReflectionSpawnPaths = {
     sessionDir,
     worktree: input.worktree.dir,
@@ -157,6 +162,7 @@ export async function prepareReflectionSpawn(input: {
     persona,
     prompt,
     ...dreamPaths,
+    ...(dreamTarget === undefined ? {} : { dreamTarget }),
   }
   const env: NodeJS.ProcessEnv = {
     ...input.env,
@@ -166,6 +172,7 @@ export async function prepareReflectionSpawn(input: {
       SKILLS_USAGE_PATH: dreamPaths.skillsUsage,
       DREAM_STATE_PATH: dreamPaths.dreamState,
       DREAM_POLICY_PATH: dreamPaths.dreamPolicy,
+      ...(dreamTarget === undefined ? {} : { DREAM_TARGET_PATH: dreamTarget }),
     }),
     SENPI_MEMORY_REFLECTION: "1",
     // A detached child has no controlling terminal, so senpi's PTY-backed bash session fails with
@@ -197,6 +204,7 @@ export async function prepareReflectionSpawn(input: {
     trigger: input.run.request.trigger,
     ...(input.run.request.trigger === "dream" ? { origin: input.run.request.origin } : {}),
     mergePolicy: input.mergePolicy,
+    ...(input.run.request.targetDoc === undefined ? {} : { targetDoc: input.run.request.targetDoc }),
     worktree: input.worktree,
     command: input.senpiCommand ?? resolveDefaultSenpiCommand(input.env),
     args,
@@ -302,6 +310,7 @@ export async function runReflectionChild(
       terminationGraceMs: graceMs,
       deadlineAt: hardDeadlineAt + graceMs,
       mergePolicy: metadata.mergePolicy,
+      ...(metadata.targetDoc === undefined ? {} : { targetDoc: metadata.targetDoc }),
       worktreeDir: metadata.worktree.dir,
       worktreeBranch: metadata.worktree.branch,
       baseSha: metadata.worktree.baseSha,
@@ -432,16 +441,26 @@ function requireRunMetadata(spawnArgs: ReflectionSpawnArgs): {
   readonly trigger: ReservedRun["request"]["trigger"]
   readonly origin?: "manual" | "idle" | "shutdown"
   readonly mergePolicy: "auto" | "integration"
+  readonly targetDoc?: string
   readonly worktree: ReflectionWorktree
 } {
-  const { runId, kind, trigger, origin, mergePolicy, worktree } = spawnArgs
+  const { runId, kind, trigger, origin, mergePolicy, targetDoc, worktree } = spawnArgs
   if (runId === undefined || kind === undefined || trigger === undefined || mergePolicy === undefined || worktree === undefined) {
     throw new TypeError("reflection spawn metadata is required")
   }
   if ((kind === "dream") !== (trigger === "dream") || (kind === "dream" && origin === undefined)) {
     throw new TypeError("dream spawn metadata requires trigger and origin")
   }
-  return { runId, kind, trigger, ...(origin === undefined ? {} : { origin }), mergePolicy, worktree }
+  if (targetDoc !== undefined && kind !== "dream") throw new TypeError("dream target metadata requires a dream run")
+  return {
+    runId,
+    kind,
+    trigger,
+    ...(origin === undefined ? {} : { origin }),
+    mergePolicy,
+    ...(targetDoc === undefined ? {} : { targetDoc }),
+    worktree,
+  }
 }
 
 function passthroughSandbox(spawnArgs: ReflectionSpawnArgs): ReflectionSpawnArgs {
@@ -452,13 +471,30 @@ function passthroughFactsSandbox(spawnArgs: FactsSpawnArgs): FactsSpawnArgs {
   return spawnArgs
 }
 
+function resolveDreamTarget(worktree: string, targetDoc: string): string {
+  if (isAbsolute(targetDoc) || /^[a-zA-Z]:[\\/]/.test(targetDoc) || !targetDoc.endsWith(".md")) {
+    throw new TypeError("dream target must be a memory-repo-relative .md document")
+  }
+  const target = resolve(worktree, targetDoc)
+  const confined = relative(resolve(worktree), target)
+  if (!confined || confined === ".." || confined.startsWith(`..${sep}`) || isAbsolute(confined)
+    || confined.split(sep).includes(".git")) {
+    throw new TypeError("dream target escapes the memory worktree")
+  }
+  return target
+}
+
 function buildTaskPrompt(run: ReservedRun, worktree: string, transcript: string): string {
   const focus = run.request.focus ? `\nFocus: ${run.request.focus}` : ""
+  const target = run.request.targetDoc === undefined
+    ? []
+    : [`Document maintenance target: ${run.request.targetDoc}`, "Modify no memory document except this target."]
   return [
     "# Reflection mechanics",
     `MEMORY_DIR=${worktree}`,
     `TRANSCRIPT_PATH=${transcript}`,
     "Read the transcript payload, update only files under MEMORY_DIR, and commit every intended memory change.",
+    ...target,
     "Do not modify Git administration files. Finish with a clean worktree.",
     `Trigger: ${run.request.trigger}${focus}`,
   ].join("\n")

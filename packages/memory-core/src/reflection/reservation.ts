@@ -233,7 +233,8 @@ function isReflectionRequest(value: unknown): value is ReflectionRequest {
       ? request.origin === "manual" || request.origin === "idle" || request.origin === "shutdown"
       : request.origin === undefined) &&
     Array.isArray(request.conversationIds) && request.conversationIds.every((id) => typeof id === "string") &&
-    Array.isArray(request.snapshots)
+    Array.isArray(request.snapshots) &&
+    (request.targetDoc === undefined || (request.trigger === "dream" && typeof request.targetDoc === "string"))
   )
 }
 

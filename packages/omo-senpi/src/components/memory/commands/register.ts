@@ -5,6 +5,7 @@
 
 import type { SenpiExtensionAPI } from "../../../extension/types"
 import { registerDoctorCommand } from "./doctor"
+import { registerDreamCommand } from "./dream"
 import { registerInitCommand } from "./init"
 import { registerMemfsCommand } from "./memfs"
 import { registerMemoryCommand } from "./memory"
@@ -27,6 +28,7 @@ export const MEMORY_COMMAND_NAMES = [
   "memory-repository",
   "sleeptime",
   "reflect",
+  "dream",
   "search",
   "people",
 ] as const
@@ -43,6 +45,7 @@ export function registerMemoryCommands(pi: SenpiExtensionAPI, deps: MemoryComman
   registerMemoryRepositoryCommand(pi, deps)
   registerSleeptimeCommand(pi, deps)
   registerReflectCommand(pi, deps)
+  registerDreamCommand(pi, deps)
   registerSearchCommand(pi, deps)
   // `people.enabled` is enforced inside the handler, not at registration: reading settings
   // here would consume a config resolution the enablement latch depends on counting.
@@ -50,6 +53,8 @@ export function registerMemoryCommands(pi: SenpiExtensionAPI, deps: MemoryComman
 }
 
 export type {
+  DreamRequestSink,
+  ManualDreamCommandRequest,
   ManualReflectionRequest,
   MemoryCommandContext,
   MemoryCommandDeps,

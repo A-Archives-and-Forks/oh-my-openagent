@@ -156,6 +156,7 @@ export type DreamFireOutcome =
 export interface ManualDreamRequest {
   readonly focus?: string
   readonly conversationIds?: readonly string[]
+  readonly targetDoc?: string
 }
 
 export interface DreamTriggerWiringOptions {
@@ -274,6 +275,7 @@ export function createDreamTriggerWiring(options: DreamTriggerWiringOptions): Dr
       conversationIds,
       snapshots,
       ...(request.focus === undefined ? {} : { focus: request.focus }),
+      ...(request.targetDoc === undefined ? {} : { targetDoc: request.targetDoc }),
     })
     if (result.status === "active") {
       try {

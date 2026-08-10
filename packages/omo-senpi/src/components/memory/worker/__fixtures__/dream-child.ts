@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { promisify } from "node:util"
 
 const execFileAsync = promisify(execFile)
@@ -50,14 +50,20 @@ if (JSON.stringify(await json(dreamStatePath)) !== JSON.stringify(expectedState)
   throw new Error("dream state payload mismatch")
 }
 
-await mkdir(join(memoryDir, "system"), { recursive: true })
-await writeFile(join(memoryDir, "system", "dream-dispatch.json"), `${JSON.stringify(policy, null, 2)}\n`)
-if (policy.people.enabled) {
-  const entries = Array.from({ length: policy.people.max_entries }, (_, index) =>
-    `ATTRIBUTE: ${String(index + 1).padStart(2, "0")} ${"x".repeat(policy.people.max_entry_chars)}`.slice(0, policy.people.max_entry_chars),
-  )
-  await mkdir(join(memoryDir, "people", "fixture"), { recursive: true })
-  await writeFile(join(memoryDir, "people", "fixture", "card.md"), `${entries.join("\n")}\n`)
+const targetPath = process.env.DREAM_TARGET_PATH
+if (targetPath !== undefined) {
+  await mkdir(dirname(targetPath), { recursive: true })
+  await writeFile(targetPath, "---\ndescription: Style\n---\nMaintained by dream.\n")
+} else {
+  await mkdir(join(memoryDir, "system"), { recursive: true })
+  await writeFile(join(memoryDir, "system", "dream-dispatch.json"), `${JSON.stringify(policy, null, 2)}\n`)
+  if (policy.people.enabled) {
+    const entries = Array.from({ length: policy.people.max_entries }, (_, index) =>
+      `ATTRIBUTE: ${String(index + 1).padStart(2, "0")} ${"x".repeat(policy.people.max_entry_chars)}`.slice(0, policy.people.max_entry_chars),
+    )
+    await mkdir(join(memoryDir, "people", "fixture"), { recursive: true })
+    await writeFile(join(memoryDir, "people", "fixture", "card.md"), `${entries.join("\n")}\n`)
+  }
 }
 await git(memoryDir, ["add", "-A"])
 await git(memoryDir, ["commit", "-m", "chore(dream): verify dispatch fixture"])

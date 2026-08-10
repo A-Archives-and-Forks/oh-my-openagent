@@ -35,7 +35,13 @@ export interface ReflectionFinalizeResult {
 type WriterLock = <T>(operation: () => Promise<T>) => Promise<T>
 
 export type ReflectionFinalizeOptions =
-  | { readonly mode: "auto"; readonly summary: string; readonly runId?: string; readonly withWriterLock: WriterLock }
+  | {
+      readonly mode: "auto"
+      readonly summary: string
+      readonly runId?: string
+      readonly allowedPaths?: readonly string[]
+      readonly withWriterLock: WriterLock
+    }
   | { readonly mode: "explicit"; readonly withWriterLock: WriterLock }
 
 export async function createReflectionWorktree(
@@ -92,6 +98,10 @@ export async function finalizeReflectionWorktree(
     if (validation.status !== "valid") {
       status = validation.status
       detail = "detail" in validation ? validation.detail : undefined
+    } else if (options.mode === "auto" && options.allowedPaths !== undefined
+      && validation.changedPaths.some((path) => !options.allowedPaths?.includes(path))) {
+      status = "failed"
+      detail = `Dream document maintenance changed paths outside its target: ${validation.changedPaths.join(", ")}`
     } else {
       const integrated = await options.withWriterLock(async () => {
         if ((await worktree.parent.status()).trim()) return { status: "parent_dirty" as const }

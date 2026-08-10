@@ -15,6 +15,7 @@ export interface ReservationRunLedger {
   readonly terminationGraceMs: number
   readonly deadlineAt: number
   readonly mergePolicy: "auto" | "integration"
+  readonly targetDoc?: string
   readonly worktreeDir: string
   readonly worktreeBranch: string
   readonly baseSha: string
@@ -47,6 +48,9 @@ export function parseReservationRunLedger(value: unknown): ReservationRunLedger 
   const terminationGraceMs = Number(value.terminationGraceMs)
   if (Number(value.deadlineAt) !== hardDeadlineAt + terminationGraceMs) throw new Error("Reservation run deadline mismatch")
   if (value.mergePolicy !== "auto" && value.mergePolicy !== "integration") throw new Error("Invalid reservation merge policy")
+  if (value.targetDoc !== undefined && (kind !== "dream" || typeof value.targetDoc !== "string")) {
+    throw new Error("Invalid dream target document")
+  }
   if (!optionalPid(value.pid) || !optionalIdentity(value.processStart) || !optionalPid(value.childPid) || !optionalIdentity(value.childProcessStart)) {
     throw new Error("Invalid reservation process identity")
   }

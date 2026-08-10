@@ -132,7 +132,28 @@ export async function selectDreamConversations(
   options: DreamSelectorOptions,
   mode: DreamSelectionMode = {},
 ): Promise<DreamSelection> {
-  const conversations = await loadConversations(options.transcriptsDir)
+  return selectLoadedConversations(await loadConversations(options.transcriptsDir), options, mode)
+}
+
+export async function selectRecentDreamConversations(
+  options: DreamSelectorOptions,
+  recentN: number,
+  mode: DreamSelectionMode = {},
+): Promise<DreamSelection> {
+  const recent = (await loadConversations(options.transcriptsDir))
+    .sort((left, right) => {
+      const activity = Date.parse(right.lastActivity) - Date.parse(left.lastActivity)
+      return activity === 0 ? compareConversationIds(left.conversationId, right.conversationId) : activity
+    })
+    .slice(0, recentN)
+  return selectLoadedConversations(recent, options, mode)
+}
+
+function selectLoadedConversations(
+  conversations: readonly LoadedConversation[],
+  options: DreamSelectorOptions,
+  mode: DreamSelectionMode,
+): DreamSelection {
   const targetBytes = options.autoSelectMaxBytes / options.autoSelectMax
   const now = options.now()
   const candidates = conversations.map((conversation): DreamScoredConversation => {

@@ -53,6 +53,20 @@ export interface ReflectionRequestSink {
   request(request: ManualReflectionRequest): Promise<ReflectionRequestReceipt>
 }
 
+export interface ManualDreamCommandRequest {
+  readonly focus?: string
+  readonly conversationIds?: readonly string[]
+  readonly targetDoc?: string
+}
+
+export type DreamCommandOutcome =
+  | { readonly fired: true; readonly runId: string; readonly status: "active" | "pending" }
+  | { readonly fired: false; readonly rejection: string }
+
+export interface DreamRequestSink {
+  request(request: ManualDreamCommandRequest): Promise<DreamCommandOutcome>
+}
+
 export interface MemoryCommandSettings {
   readonly settings: OmoMemorySettings
   /** Path of the omo config file users edit to change memory settings. */
@@ -70,6 +84,7 @@ export interface MemoryCommandDeps {
   /** Prompt-assembly cache seam: busting makes the next agent run recompile from HEAD. */
   bustPromptCache(): void
   reflectionSink?: ReflectionRequestSink
+  dreamSink?: DreamRequestSink
   /** Senpi sessions root for `/search`; defaults to <agentDir>/sessions. */
   sessionsDir?(): string
   exec?: GitExec

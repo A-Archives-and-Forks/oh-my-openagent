@@ -66,6 +66,29 @@ describe("reflection worktree finalization", () => {
     await assertCleaned(worktree, parentDir)
   })
 
+  it("#given a document-maintenance allowlist #when the child changes another path #then nothing is merged", async () => {
+    // #given
+    const { repo, parentDir, worktreesDir } = await fixture()
+    const worktree = await createReflectionWorktree(repo, "targeted", worktreesDir)
+    await commit(worktree, "reference-style.md", "target\n")
+    await commit(worktree, "unrelated.md", "unrelated\n")
+
+    // #when
+    let lockCalls = 0
+    const result = await finalizeReflectionWorktree(worktree, {
+      mode: "auto",
+      summary: "targeted dream",
+      allowedPaths: ["reference-style.md"],
+      withWriterLock: async (operation) => { lockCalls += 1; return operation() },
+    })
+
+    // #then
+    expect(result.status).toBe("failed")
+    expect(lockCalls).toBe(0)
+    expect(await repo.lsTree()).toEqual(["memory.md"])
+    await assertCleaned(worktree, parentDir)
+  })
+
   it("#given a reflection with no commits #when finalized #then it reports no_changes and cleans up", async () => {
     // #given
     const { repo, parentDir, worktreesDir } = await fixture()

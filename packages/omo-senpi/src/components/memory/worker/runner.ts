@@ -173,7 +173,13 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
       const finalized = await finalizeReflectionWorktree(
         worktree,
         merge === "auto"
-          ? { mode: "auto", summary: `${run.request.trigger} ${run.runId}`, runId: run.runId, withWriterLock: (operation) => this.withWriterLock(operation) }
+          ? {
+              mode: "auto",
+              summary: `${run.request.trigger} ${run.runId}`,
+              runId: run.runId,
+              ...(run.request.targetDoc === undefined ? {} : { allowedPaths: [run.request.targetDoc] }),
+              withWriterLock: (operation) => this.withWriterLock(operation),
+            }
           : { mode: "explicit", withWriterLock: (operation) => this.withWriterLock(operation) },
       )
       return {

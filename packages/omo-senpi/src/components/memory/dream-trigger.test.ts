@@ -511,10 +511,14 @@ describe("manual dream origin", () => {
   test("#given explicit conversation ids #when a manual dream is requested #then those conversations are reserved", async () => {
     const f = await fixture({ conversationText: null })
     await writeConversation(f.identity.paths.transcripts, "conversation-b", "second conversation")
-    const outcome = await f.wiring.requestManualDream({ conversationIds: ["conversation-b"] })
+    const outcome = await f.wiring.requestManualDream({
+      conversationIds: ["conversation-b"],
+      targetDoc: "reference/style.md",
+    })
     expect(outcome).toEqual({ fired: true, runId: "run-1", status: "active" })
     expect(f.launches[0]?.request.conversationIds).toEqual(["conversation-b"])
     expect(f.launches[0]?.request.snapshots).toHaveLength(1)
+    expect(f.launches[0]?.request.targetDoc).toBe("reference/style.md")
   })
 
   test("#given no unreflected content anywhere #when a manual dream is requested #then it declines to reserve", async () => {

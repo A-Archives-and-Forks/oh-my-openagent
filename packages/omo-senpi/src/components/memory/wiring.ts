@@ -410,6 +410,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
             return { disposition: result.status === "active" ? "reserved" : "pending", runId: result.run.runId }
           },
         },
+        dreamSink: { request: (request) => dreamTriggerWiring.requestManualDream(request) },
         sessionsDir: () => join(options.env.SENPI_CODING_AGENT_DIR ?? join(homedir(), ".senpi", "agent"), "sessions"),
       })
       const triggerWiring = createReflectionTriggerWiring({

@@ -51,6 +51,7 @@ export async function finalizeRecordedOutcome(
           mode: "auto",
           summary: `${ledger.trigger} ${ledger.runId}`,
           runId: ledger.runId,
+          ...(ledger.targetDoc === undefined ? {} : { allowedPaths: [ledger.targetDoc] }),
           withWriterLock: (operation) => writerLock(context, operation),
         }
       : { mode: "explicit", withWriterLock: (operation) => writerLock(context, operation) },

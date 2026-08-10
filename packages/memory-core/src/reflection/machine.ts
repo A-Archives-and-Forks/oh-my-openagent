@@ -34,6 +34,7 @@ export interface ReflectionRequest {
   readonly snapshots: readonly CapturedConversation[]
   readonly focus?: string
   readonly recentN?: number
+  readonly targetDoc?: string
 }
 
 export interface ReservedRun {
@@ -216,6 +217,7 @@ function mergeRequests(left: ReflectionRequest, right: ReflectionRequest): Refle
     snapshots: mergeSnapshots(left.snapshots, right.snapshots),
     focus: strongest.focus,
     recentN: Math.max(left.recentN ?? 0, right.recentN ?? 0) || undefined,
+    targetDoc: strongest.targetDoc,
   }
   return strongest.trigger === "dream"
     ? { ...merged, trigger: "dream", origin: strongest.origin }
