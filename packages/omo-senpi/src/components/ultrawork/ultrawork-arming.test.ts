@@ -67,6 +67,54 @@ describe("omo-senpi ultrawork once-per-session arming", () => {
     expectReminderMessage(pi, 1)
   })
 
+  it("#given one live session #when triggers span rejected and accepted compactions #then the directive-reminder sequence stays pinned", async () => {
+    // given: a fresh session has no directive in its transcript
+    const pi = new FakeExtensionAPI()
+    const arming = createSessionArming()
+    await createUltraworkComponent(arming).register(pi, createTestContext(pi))
+    await pi.dispatch("session_start", {}, sessionEventCtx("session-characterization"))
+
+    // when: first trigger, repeat trigger, rejected compact, then accepted compact
+    await dispatchInput(pi, "ulw first")
+    await dispatchInput(pi, "ulw second")
+    await pi.dispatch("session_compact", { type: "session_compact", accepted: false }, sessionEventCtx("session-characterization"))
+    await dispatchInput(pi, "ulw after rejected compact")
+    await pi.dispatch("session_compact", { type: "session_compact", accepted: true }, sessionEventCtx("session-characterization"))
+    await dispatchInput(pi, "ulw after accepted compact")
+
+    // then: only accepted compaction permits the full directive to return
+    expect(pi.messages).toHaveLength(4)
+    expect(pi.messages[0]?.message["content"]).toBe(SENPI_ULTRAWORK_DIRECTIVE)
+    expectReminderMessage(pi, 1)
+    expectReminderMessage(pi, 2)
+    expect(pi.messages[3]?.message["content"]).toBe(SENPI_ULTRAWORK_DIRECTIVE)
+  })
+
+  it("#given suppression routes #when matching text dispatches #then no message emits and the session ledger stays unarmed", async () => {
+    const cases = [
+      { name: "/skill prefix", text: "/skill:myulw run it", source: "interactive", disabled: false },
+      { name: "disabled flag", text: "ulw fix this", source: "interactive", disabled: true },
+      { name: "extension source", text: "ultrawork again", source: "extension", disabled: false },
+    ] as const
+
+    for (const testCase of cases) {
+      // given
+      const pi = new FakeExtensionAPI()
+      const arming = createSessionArming()
+      pi.setFlag("omo-senpi-ultrawork-disabled", testCase.disabled)
+      await createUltraworkComponent(arming).register(pi, createTestContext(pi))
+      await pi.dispatch("session_start", {}, sessionEventCtx(`session-${testCase.name}`))
+
+      // when
+      const result = await dispatchInput(pi, testCase.text, testCase.source)
+
+      // then
+      expect(result).toEqual({ action: "continue" })
+      expect(pi.messages).toHaveLength(0)
+      expect(arming.isArmed(`session-${testCase.name}`)).toBe(false)
+    }
+  })
+
   it("#given a known fresh session #when the first trigger dispatches #then injects the full directive byte-identically", async () => {
     // given
     const pi = new FakeExtensionAPI()
