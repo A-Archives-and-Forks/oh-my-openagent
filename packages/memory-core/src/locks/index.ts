@@ -8,6 +8,7 @@ export {
 export type { AcquireLockOptions } from "./acquire"
 export {
   LOCK_DOMAINS,
+  factsQueueLockPath,
   memoryWriterLockPath,
   reflectionSchedulerLockPath,
   skillsUsageLockPath,

@@ -17,6 +17,8 @@ export const RUNTIME_SUBDIRNAMES = [
   "worktrees",
   "viewers",
   "push-queue",
+  "facts-queue",
+  "facts",
 ] as const
 export type RuntimeSubdirname = (typeof RUNTIME_SUBDIRNAMES)[number]
 
@@ -31,6 +33,8 @@ export interface MemoryIdentityPaths {
   worktrees: string
   viewers: string
   pushQueue: string
+  factsQueue: string
+  facts: string
 }
 
 export function defaultMemoryRoot(): string {
@@ -59,5 +63,7 @@ export function buildIdentityPaths(memoryRoot: string, id: string): MemoryIdenti
     worktrees: join(runtime, "worktrees"),
     viewers: join(runtime, "viewers"),
     pushQueue: join(runtime, "push-queue"),
+    factsQueue: join(runtime, "facts-queue"),
+    facts: join(runtime, "facts"),
   }
 }

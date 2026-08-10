@@ -6,6 +6,7 @@ export const LOCK_DOMAINS = [
   "reflection-scheduler",
   "transcript-state",
   "skills-usage",
+  "facts-queue",
 ] as const
 
 export type LockDomain = (typeof LOCK_DOMAINS)[number]
@@ -26,4 +27,8 @@ export function transcriptStateLockPath(locksDirectory: string, transcriptId: st
 
 export function skillsUsageLockPath(locksDirectory: string): string {
   return path.join(locksDirectory, "skills-usage.lock")
+}
+
+export function factsQueueLockPath(locksDirectory: string): string {
+  return path.join(locksDirectory, "facts-queue.lock")
 }
