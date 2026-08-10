@@ -1,5 +1,5 @@
 /// <reference types="bun-types" />
-import { afterEach, beforeEach, mock, setDefaultTimeout } from "bun:test"
+import { afterEach, beforeEach, mock } from "bun:test"
 import { spawnSync } from "node:child_process"
 import { existsSync, mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -37,13 +37,6 @@ function ensureVendoredLspDaemonBuilt(): void {
   }
 }
 ensureVendoredLspDaemonBuilt()
-
-// The Windows runner needs multiples of the POSIX time for the same subprocess work (git, npm, the
-// installer, real fixture repositories), so Bun's 5s default expires on work that is still progressing
-// and reports it as a hang. Raise the floor once, for win32 only, instead of rediscovering the class one
-// flaking file at a time. POSIX keeps the strict default so a genuine hang stays loud, and a file that
-// needs a different budget still sets its own.
-if (process.platform === "win32") setDefaultTimeout(30_000)
 
 // Skill/agent/command discovery reads the developer's real HOME (~/.agents/skills,
 // ~/.claude, ~/.config/opencode). A machine with real user skills installed then makes
