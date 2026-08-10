@@ -296,10 +296,11 @@ describe("memoryApplyPatch", () => {
     ].join("\n"))))
 
     // #then
+    expect(error).toBeInstanceOf(MemoryPatchHunkError)
     expect(error.message).toContain("... <truncated 101 chars> ...")
     expect(error.message).toContain("... <truncated 1027 chars> ...")
+    expect(error.message).not.toContain(failed)
     expect(error.message).not.toContain("c".repeat(4_001))
-    expect(error.message.length).toBeLessThan(7_000)
   })
 
   it("#given UTF-16LE source #when read #then it is rejected with conversion guidance and remains byte-identical", async () => {

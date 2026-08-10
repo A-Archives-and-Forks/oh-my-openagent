@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { rm } from "node:fs/promises"
 
+import { parseMemoryFile, parsePeopleCard } from "@oh-my-opencode/memory-core"
+
 import { MemoryFakeExtensionAPI, memorySettings } from "../memory.test-support"
 import { fakeCommandContext, fakeDeps, invoke, seededRepo, tempIdentity } from "./commands.test-support"
 import {
@@ -10,7 +12,7 @@ import {
   resolvePersonQuery,
   selectObservations,
 } from "./people"
-import type { PeopleAskEvidence, PeopleAskRequest } from "./people-ask"
+import { hasNoEvidence, type PeopleAskEvidence, type PeopleAskRequest } from "./people-ask"
 import { registerMemoryCommands } from "./register"
 import type { MemoryCommandIdentity } from "./types"
 
@@ -180,52 +182,70 @@ describe("observation selection", () => {
 })
 
 describe("/people command", () => {
-  test("#given a fixture repository #when /people runs #then the roster and every edge render", async () => {
+  test("#given a fixture repository #when /people runs #then the derived roster and edge sets are surfaced through one notification", async () => {
     // given
     const identity = await peopleFixture()
+    const deps = fakeDeps(identity)
     const pi = new MemoryFakeExtensionAPI()
-    registerPeopleCommand(pi, fakeDeps(identity))
+    registerPeopleCommand(pi, deps)
     const ctx = fakeCommandContext()
 
     // when
+    const graph = await derivePeopleGraph(deps, identity, LIMITS)
     const text = await invoke(pi, "people", "", ctx)
 
     // then
-    for (const slug of ["human", "jane-doe", "nia-blank", "sam-rivers"]) expect(text).toContain(slug)
-    expect(text).toContain("works-with")
-    expect(text).toContain("reports-to")
-    expect(ctx.ui.notifications.at(-1)?.message).toBe(text)
+    expect(new Set(graph.nodes.map((node) => node.slug))).toEqual(new Set(["human", "jane-doe", "nia-blank", "sam-rivers"]))
+    expect(new Set(graph.edges.map((edge) => `${edge.source}:${edge.predicate}:${edge.target}`))).toEqual(new Set([
+      "human:works-with:jane-doe",
+      "human:mentors:sam-rivers",
+      "jane-doe:reports-to:human",
+      "sam-rivers:collaborates:unknown-person",
+    ]))
+    expect(ctx.ui.notifications).toEqual([{ message: text, level: "info" }])
   }, 30_000)
 
-  test("#given an unknown name #when /people runs #then close slugs are offered", async () => {
+  test("#given an unknown name #when /people runs #then the structural query miss and error notification preserve close slugs", async () => {
     // given
     const identity = await peopleFixture()
+    const deps = fakeDeps(identity)
     const pi = new MemoryFakeExtensionAPI()
-    registerPeopleCommand(pi, fakeDeps(identity))
+    registerPeopleCommand(pi, deps)
     const ctx = fakeCommandContext()
 
     // when
+    const graph = await derivePeopleGraph(deps, identity, LIMITS)
+    const resolution = resolvePersonQuery(graph.nodes, "jane doh")
     const text = await invoke(pi, "people", "jane doh", ctx)
 
     // then
-    expect(text).toContain("jane-doe")
-    expect(ctx.ui.notifications.at(-1)?.level).toBe("error")
+    expect(resolution).toEqual({ kind: "miss", close: ["jane-doe"] })
+    expect(ctx.ui.notifications).toEqual([{ message: text, level: "error" }])
   }, 30_000)
 
-  test("#given a person with observations #when /people <name> runs #then the card and capped observations render", async () => {
+  test("#given a person with observations #when /people <name> runs #then parsed card fields and capped observation selection are surfaced", async () => {
     // given
     const identity = await peopleFixture(25)
+    const deps = fakeDeps(identity)
     const pi = new MemoryFakeExtensionAPI()
-    registerPeopleCommand(pi, fakeDeps(identity))
+    registerPeopleCommand(pi, deps)
     const ctx = fakeCommandContext()
 
     // when
+    const card = parsePeopleCard(parseMemoryFile(JANE_CARD).body, LIMITS).card
+    const observations = await selectObservations(deps, identity, "jane-doe", LIMITS, { all: false })
     const text = await invoke(pi, "people", "Jane", ctx)
 
     // then
-    expect(text).toContain("staff engineer")
-    expect(text).toContain("explicit note 25")
-    expect(text).not.toContain("explicit note 5 ")
+    expect(card.entries).toEqual([
+      { prefix: "IDENTITY", content: "staff engineer" },
+      { prefix: "ATTRIBUTE", content: "prefers small diffs" },
+      { prefix: "RELATIONSHIP", content: "reports-to: human" },
+    ])
+    expect(observations.find((group) => group.section === "Explicit")?.entries.map((entry) => entry.date)).toEqual(
+      Array.from({ length: 20 }, (_, index) => `2026-03-${String(25 - index).padStart(2, "0")}`),
+    )
+    expect(ctx.ui.notifications).toEqual([{ message: text, level: "info" }])
   }, 30_000)
 })
 
@@ -250,8 +270,9 @@ describe("/people --ask", () => {
     const text = await invoke(pi, "people", 'nia-blank --ask "does nia ship on fridays?"', ctx)
 
     // then
+    expect(hasNoEvidence({ card: [], observations: [], searchHits: [] })).toBe(true)
     expect(asked).toEqual([])
-    expect(text).toContain("I don't know")
+    expect(ctx.ui.notifications).toEqual([{ message: text, level: "info" }])
   }, 30_000)
 
   test("#given card and observation evidence #when --ask runs #then the quick child receives that evidence and its answer renders", async () => {
@@ -278,9 +299,14 @@ describe("/people --ask", () => {
     expect(asked[0]?.question).toBe("how does jane review?")
     expect(asked[0]?.slug).toBe("jane-doe")
     const evidence = asked[0]?.evidence as PeopleAskEvidence
-    expect(evidence.card.length).toBeGreaterThan(0)
+    expect(evidence.card).toEqual([
+      "IDENTITY: staff engineer",
+      "ATTRIBUTE: prefers small diffs",
+      "RELATIONSHIP: reports-to: human",
+    ])
     expect(evidence.observations.length).toBe(4)
-    expect(text).toContain("Jane reviews small diffs.")
+    expect(hasNoEvidence(evidence)).toBe(false)
+    expect(ctx.ui.notifications).toEqual([{ message: text, level: "info" }])
   }, 30_000)
 })
 
@@ -303,8 +329,7 @@ describe("people command people.enabled gate", () => {
     const text = await invoke(pi, "people", "", ctx)
 
     // then
-    expect(text).toContain("disabled")
-    expect(ctx.ui.notifications.at(-1)?.level).toBe("error")
+    expect(ctx.ui.notifications).toEqual([{ message: text, level: "error" }])
   }, 30_000)
 
   test("#given people.enabled true #when the suite registers #then /people is present", async () => {

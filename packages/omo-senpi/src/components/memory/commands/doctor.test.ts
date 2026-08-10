@@ -199,6 +199,7 @@ describe("/doctor", () => {
     // then
     expect(text).toContain("[warn] abandoned-runs")
     expect(text).toContain(runDir)
+    expect(ctx.ui.notifications.at(-1)?.level).toBe("warning")
   })
 
   test("#given an unregistered worktree directory #when doctor runs #then the orphan is reported", async () => {

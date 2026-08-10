@@ -173,17 +173,24 @@ describe("/dream external transcript staging and target validation", () => {
 
   test("#given non-session JSONL #when imported #then it is rejected without submitting a dream", async () => {
     // given
-    const { requests, pi, ctx } = await harness()
+    const { identity, requests, pi, ctx } = await harness()
     const transcript = join(ctx.agentDir ?? "", "not-session.jsonl")
     await writeFile(transcript, `${JSON.stringify({ kind: "user", text: "not senpi" })}\n`, "utf8")
 
     // when
+    let stagingError: unknown
+    try {
+      await stageDreamTranscript(transcript, identity.identityPaths.transcripts, ctx.agentDir ?? "")
+    } catch (error) {
+      stagingError = error
+    }
     const output = await invoke(pi, "dream", `--from transcript:${transcript}`, ctx)
 
     // then
+    expect(stagingError).toBeInstanceOf(TypeError)
     expect(requests).toEqual([])
-    expect(output).toContain("only senpi session JSONL")
-    expect(ctx.ui.notifications.at(-1)?.level).toBe("error")
+    expect(ctx.ui.notifications).toEqual([{ message: output, level: "error" }])
+    expect(output).toBe((stagingError as Error).message)
   })
 
   test("#given valid and escaping --to paths #when invoked #then only the memory-relative document is accepted", async () => {

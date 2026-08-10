@@ -3,7 +3,7 @@ import { rm } from "node:fs/promises"
 
 import { MemoryFakeExtensionAPI, memorySettings } from "../memory.test-support"
 import { TEST_IDENTITY, fakeCommandContext, fakeDeps, invoke, tempIdentity } from "./commands.test-support"
-import { registerSleeptimeCommand } from "./sleeptime"
+import { registerSleeptimeCommand, resolveSleeptimeSettings } from "./sleeptime"
 
 const tempDirs: string[] = []
 
@@ -12,51 +12,55 @@ afterEach(async () => {
 })
 
 describe("/sleeptime", () => {
-  test("#given default settings #when invoked #then resolved reflection, nudge, facts, dream, people, soul settings, the config path, and the reflect and dream hints render", async () => {
+  test("#given default settings #when resolved and invoked #then machine values use their defaults without override flags", async () => {
     // given
     const { root, identity } = await tempIdentity()
     tempDirs.push(root)
+    const settings = memorySettings()
     const pi = new MemoryFakeExtensionAPI()
-    registerSleeptimeCommand(pi, fakeDeps(identity))
+    registerSleeptimeCommand(pi, fakeDeps(identity, { loadSettings: () => ({ settings, configPath: "/tmp/omo.jsonc" }) }))
     const ctx = fakeCommandContext()
 
     // when
+    const resolved = resolveSleeptimeSettings(settings, TEST_IDENTITY)
     const text = await invoke(pi, "sleeptime", "", ctx)
 
-    // then -- reflection block
-    expect(text).toContain("Step trigger: every 25 steps")
-    expect(text).toContain("On compaction: on")
-    expect(text).toContain("Merge policy: auto")
-    expect(text).toContain("Category: quick")
-    expect(text).toContain("Timeout: 15 minutes")
-    expect(text).toContain("Sandbox: auto")
-    // then -- nudge block
-    expect(text).toContain("Nudge: on")
-    expect(text).toContain("every 10 turns")
-    // then -- facts block
-    expect(text).toContain("Facts: on")
-    expect(text).toContain("debounce 4 settles")
-    // then -- dream block
-    expect(text).toContain("Dream: on")
-    expect(text).toContain("idle 30 minutes")
-    expect(text).toContain("min 24h between")
-    expect(text).toContain("shutdown launch on")
-    expect(text).toContain("select max 5")
-    // then -- people block
-    expect(text).toContain("People: on")
-    expect(text).toContain("max 40 entries")
-    expect(text).toContain("max 200 chars")
-    // then -- soul block
-    expect(text).toContain("Soul: edit notice on")
-    // then -- hints
-    expect(text).toContain("/tmp/omo.jsonc")
-    expect(text).toContain("memory.reflection")
-    expect(text).toContain("/reflect")
-    expect(text).toContain("/dream")
-    expect(ctx.ui.notifications.at(-1)?.level).toBe("info")
+    // then
+    expect(resolved).toEqual({
+      reflection: {
+        stepCount: { value: 25, overridden: false },
+        onCompaction: { value: true, overridden: false },
+        merge: { value: "auto", overridden: false },
+        category: { value: "quick", overridden: false },
+        timeoutMinutes: { value: 15, overridden: false },
+        sandbox: { value: "auto", overridden: false },
+      },
+      nudge: {
+        enabled: { value: true, overridden: false },
+        everyUserTurns: { value: 10, overridden: false },
+      },
+      facts: {
+        enabled: { value: true, overridden: false },
+        debounceSettles: { value: 4, overridden: false },
+      },
+      dream: {
+        enabled: { value: true, overridden: false },
+        idleMinutes: { value: 30, overridden: false },
+        minHoursBetween: { value: 24, overridden: false },
+        shutdownLaunch: { value: true, overridden: false },
+        autoSelectMax: { value: 5, overridden: false },
+      },
+      people: {
+        enabled: { value: true, overridden: false },
+        maxEntries: { value: 40, overridden: false },
+        maxEntryChars: { value: 200, overridden: false },
+      },
+      soul: { editNotice: { value: true, overridden: false } },
+    })
+    expect(ctx.ui.notifications).toEqual([{ message: text, level: "info" }])
   })
 
-  test("#given per-agent overrides on reflection, nudge, facts, dream, people, soul #when invoked #then overridden fields are marked and applied", async () => {
+  test("#given per-agent overrides #when resolved and invoked #then override values and flags win field by field", async () => {
     // given
     const { root, identity } = await tempIdentity()
     tempDirs.push(root)
@@ -77,34 +81,45 @@ describe("/sleeptime", () => {
     const ctx = fakeCommandContext()
 
     // when
+    const resolved = resolveSleeptimeSettings(settings, TEST_IDENTITY)
     const text = await invoke(pi, "sleeptime", "", ctx)
 
-    // then -- reflection overrides
-    expect(text).toContain("Step trigger: every 5 steps [agent override]")
-    expect(text).toContain("Merge policy: integration [agent override]")
-    expect(text).toContain("Timeout: 30 minutes [agent override]")
-    expect(text).toContain("Category: quick")
-    // then -- nudge overrides
-    expect(text).toContain("Nudge: off [agent override]")
-    expect(text).toContain("every 20 turns [agent override]")
-    // then -- facts overrides
-    expect(text).toContain("Facts: off [agent override]")
-    expect(text).toContain("debounce 8 settles [agent override]")
-    // then -- dream overrides
-    expect(text).toContain("Dream: off [agent override]")
-    expect(text).toContain("idle 60 minutes [agent override]")
-    expect(text).toContain("min 48h between [agent override]")
-    // then -- people overrides
-    expect(text).toContain("People: off [agent override]")
-    expect(text).toContain("max 20 entries [agent override]")
-    expect(text).toContain("max 100 chars [agent override]")
-    // then -- soul overrides
-    expect(text).toContain("Soul: edit notice off [agent override]")
-    // then -- config hint references per-agent path
-    expect(text).toContain(`memory.agents.${TEST_IDENTITY}`)
+    // then
+    expect(resolved).toEqual({
+      reflection: {
+        stepCount: { value: 5, overridden: true },
+        onCompaction: { value: true, overridden: false },
+        merge: { value: "integration", overridden: true },
+        category: { value: "quick", overridden: false },
+        timeoutMinutes: { value: 30, overridden: true },
+        sandbox: { value: "auto", overridden: false },
+      },
+      nudge: {
+        enabled: { value: false, overridden: true },
+        everyUserTurns: { value: 20, overridden: true },
+      },
+      facts: {
+        enabled: { value: false, overridden: true },
+        debounceSettles: { value: 8, overridden: true },
+      },
+      dream: {
+        enabled: { value: false, overridden: true },
+        idleMinutes: { value: 60, overridden: true },
+        minHoursBetween: { value: 48, overridden: true },
+        shutdownLaunch: { value: true, overridden: false },
+        autoSelectMax: { value: 5, overridden: false },
+      },
+      people: {
+        enabled: { value: false, overridden: true },
+        maxEntries: { value: 20, overridden: true },
+        maxEntryChars: { value: 100, overridden: true },
+      },
+      soul: { editNotice: { value: false, overridden: true } },
+    })
+    expect(ctx.ui.notifications).toEqual([{ message: text, level: "info" }])
   })
 
-  test("#given an unbound session #when invoked #then an actionable error is returned", async () => {
+  test("#given an unbound session #when invoked #then the command surfaces a structured error notification", async () => {
     // given
     const pi = new MemoryFakeExtensionAPI()
     registerSleeptimeCommand(pi, fakeDeps(undefined))
@@ -114,7 +129,6 @@ describe("/sleeptime", () => {
     const text = await invoke(pi, "sleeptime", "", ctx)
 
     // then
-    expect(text).toContain("not bound")
-    expect(ctx.ui.notifications.at(-1)?.level).toBe("error")
+    expect(ctx.ui.notifications).toEqual([{ message: text, level: "error" }])
   })
 })

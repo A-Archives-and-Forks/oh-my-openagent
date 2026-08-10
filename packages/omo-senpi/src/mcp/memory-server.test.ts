@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { GitMemoryRepo, buildIdentityPaths } from "@oh-my-opencode/memory-core"
+import { GitMemoryRepo, buildIdentityPaths, parseMemoryFile } from "@oh-my-opencode/memory-core"
 
 import { createMemoryBinding } from "../components/memory/binding"
 import { createMemoryIdentityContext } from "../components/memory/context"
@@ -21,12 +21,6 @@ function fixture() {
     cwd: join(root, "project"),
     env: { ...process.env, OMO_MEMORY_HOME: join(root, "memory-home") },
   }
-}
-
-function body(result: { content?: unknown } | undefined): string {
-  const content = result?.content
-  if (!Array.isArray(content)) return ""
-  return content.map((item) => (item as { text?: string }).text ?? "").join("")
 }
 
 afterEach(() => {
@@ -56,7 +50,7 @@ describe("omo-memory MCP server", () => {
       } } },
       { cwd, env },
     )
-    expect(body(created?.result as { content?: unknown })).toContain("Memory create committed locally")
+    expect((created?.result as { isError?: boolean } | undefined)?.isError).toBeFalsy()
 
     const replaced = await handleMemoryMcpRequest(
       { jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "memory", arguments: {
@@ -65,16 +59,17 @@ describe("omo-memory MCP server", () => {
       } } },
       { cwd, env },
     )
-    expect(body(replaced?.result as { content?: unknown })).toContain("Memory str_replace committed locally")
+    expect((replaced?.result as { isError?: boolean } | undefined)?.isError).toBeFalsy()
 
     const agentsDir = join(String(env.OMO_MEMORY_HOME), "agents")
     const identityDir = readdirSync(agentsDir)[0]
     expect(identityDir).toBeDefined()
-    const profile = readFileSync(
-      join(agentsDir, String(identityDir), "repo", "system/human/preferences.md"),
-      "utf8",
-    )
-    expect(profile).toContain("theme: light")
+    const repoDir = join(agentsDir, String(identityDir), "repo")
+    const profile = parseMemoryFile(readFileSync(join(repoDir, "system/human/preferences.md"), "utf8"))
+    const repo = new GitMemoryRepo({ dir: repoDir, agentId: String(identityDir) })
+    expect(profile.frontmatter.description).toBe("User preferences")
+    expect(profile.body.trim()).toBe("theme: light")
+    expect((await repo.log({ limit: 2 })).map((entry) => entry.subject)).toEqual(["Switch theme", "Record preference"])
   })
 
   test("#given injected provenance for a non-auto identity #when an MCP memory call runs #then it writes that bound repo with durable turn trailers", async () => {
@@ -126,8 +121,10 @@ describe("omo-memory MCP server", () => {
     )
 
     // then
-    expect(body(result?.result as { content?: unknown })).toContain("Memory create committed locally")
-    expect(await repo.show("HEAD", "bound.md")).toContain("description: Bound")
+    expect((result?.result as { isError?: boolean } | undefined)?.isError).toBeFalsy()
+    const committed = parseMemoryFile(await repo.show("HEAD", "bound.md"))
+    expect(committed.frontmatter.description).toBe("Bound")
+    expect(committed.body.trim()).toBe("")
     expect((await repo.log({ limit: 1 }))[0]?.trailers).toEqual({
       "Omo-Writer": "memory-tool",
       "Omo-Session": "session-mcp",
@@ -189,9 +186,13 @@ describe("omo-memory MCP server", () => {
     )
 
     // then
-    expect(body(created?.result as { content?: unknown })).toContain("Memory create committed locally")
+    expect((created?.result as { isError?: boolean } | undefined)?.isError).toBeFalsy()
     const agentsDir = join(String(env.OMO_MEMORY_HOME), "agents")
     const [identityDir] = readdirSync(agentsDir)
+    const repoDir = join(agentsDir, String(identityDir), "repo")
+    const repo = new GitMemoryRepo({ dir: repoDir, agentId: String(identityDir) })
+    expect((await repo.log({ limit: 1 }))[0]?.subject).toBe("standalone write")
+    expect(parseMemoryFile(await repo.show("HEAD", "notes.md")).body.trim()).toBe("standalone")
     const receiptsDir = join(agentsDir, String(identityDir), "runtime", "tool-receipts")
     expect(existsSync(receiptsDir) ? readdirSync(receiptsDir) : []).toEqual([])
   })

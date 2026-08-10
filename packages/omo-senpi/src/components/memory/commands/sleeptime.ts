@@ -4,13 +4,132 @@
 // config-file path to edit and the manual "reflect now" and "dream" hints
 // (porting note 10).
 
+import type { OmoMemorySettings } from "@oh-my-opencode/omo-config-core"
+
 import type { SenpiExtensionAPI } from "../../../extension/types"
 import { requireIdentity, respond, type MemoryCommandContext, type MemoryCommandDeps } from "./types"
 
-const OVERRIDE_MARK = " [agent override]"
+export const SLEEPTIME_OVERRIDE_MARK = " [agent override]"
 
-function mark(overridden: boolean): string {
-  return overridden ? OVERRIDE_MARK : ""
+export interface ResolvedSleeptimeValue<T> {
+  readonly value: T
+  readonly overridden: boolean
+}
+
+export interface ResolvedSleeptimeSettings {
+  readonly reflection: {
+    readonly stepCount: ResolvedSleeptimeValue<number>
+    readonly onCompaction: ResolvedSleeptimeValue<boolean>
+    readonly merge: ResolvedSleeptimeValue<string>
+    readonly category: ResolvedSleeptimeValue<string>
+    readonly timeoutMinutes: ResolvedSleeptimeValue<number>
+    readonly sandbox: ResolvedSleeptimeValue<string>
+  }
+  readonly nudge: {
+    readonly enabled: ResolvedSleeptimeValue<boolean>
+    readonly everyUserTurns: ResolvedSleeptimeValue<number>
+  }
+  readonly facts: {
+    readonly enabled: ResolvedSleeptimeValue<boolean>
+    readonly debounceSettles: ResolvedSleeptimeValue<number>
+  }
+  readonly dream: {
+    readonly enabled: ResolvedSleeptimeValue<boolean>
+    readonly idleMinutes: ResolvedSleeptimeValue<number>
+    readonly minHoursBetween: ResolvedSleeptimeValue<number>
+    readonly shutdownLaunch: ResolvedSleeptimeValue<boolean>
+    readonly autoSelectMax: ResolvedSleeptimeValue<number>
+  }
+  readonly people: {
+    readonly enabled: ResolvedSleeptimeValue<boolean>
+    readonly maxEntries: ResolvedSleeptimeValue<number>
+    readonly maxEntryChars: ResolvedSleeptimeValue<number>
+  }
+  readonly soul: {
+    readonly editNotice: ResolvedSleeptimeValue<boolean>
+  }
+}
+
+function resolved<T>(value: T, overridden: boolean): ResolvedSleeptimeValue<T> {
+  return { value, overridden }
+}
+
+export function resolveSleeptimeSettings(
+  settings: OmoMemorySettings,
+  agentId: string,
+): ResolvedSleeptimeSettings {
+  const agentOverride = settings.agents[agentId]
+  const reflection = agentOverride?.reflection
+  const nudge = agentOverride?.nudge
+  const facts = agentOverride?.facts
+  const dream = agentOverride?.dream
+  const people = agentOverride?.people
+  const soul = agentOverride?.soul
+
+  return {
+    reflection: {
+      stepCount: resolved(
+        reflection?.trigger?.step_count ?? settings.reflection.trigger.step_count,
+        reflection?.trigger?.step_count !== undefined,
+      ),
+      onCompaction: resolved(
+        reflection?.trigger?.on_compaction ?? settings.reflection.trigger.on_compaction,
+        reflection?.trigger?.on_compaction !== undefined,
+      ),
+      merge: resolved(reflection?.merge ?? settings.reflection.merge, reflection?.merge !== undefined),
+      category: resolved(reflection?.category ?? settings.reflection.category, reflection?.category !== undefined),
+      timeoutMinutes: resolved(
+        reflection?.timeout_minutes ?? settings.reflection.timeout_minutes,
+        reflection?.timeout_minutes !== undefined,
+      ),
+      sandbox: resolved(reflection?.sandbox ?? settings.reflection.sandbox, reflection?.sandbox !== undefined),
+    },
+    nudge: {
+      enabled: resolved(nudge?.enabled ?? settings.nudge.enabled, nudge?.enabled !== undefined),
+      everyUserTurns: resolved(
+        nudge?.every_user_turns ?? settings.nudge.every_user_turns,
+        nudge?.every_user_turns !== undefined,
+      ),
+    },
+    facts: {
+      enabled: resolved(facts?.enabled ?? settings.facts.enabled, facts?.enabled !== undefined),
+      debounceSettles: resolved(
+        facts?.debounce_settles ?? settings.facts.debounce_settles,
+        facts?.debounce_settles !== undefined,
+      ),
+    },
+    dream: {
+      enabled: resolved(dream?.enabled ?? settings.dream.enabled, dream?.enabled !== undefined),
+      idleMinutes: resolved(dream?.idle_minutes ?? settings.dream.idle_minutes, dream?.idle_minutes !== undefined),
+      minHoursBetween: resolved(
+        dream?.min_hours_between ?? settings.dream.min_hours_between,
+        dream?.min_hours_between !== undefined,
+      ),
+      shutdownLaunch: resolved(
+        dream?.shutdown_launch ?? settings.dream.shutdown_launch,
+        dream?.shutdown_launch !== undefined,
+      ),
+      autoSelectMax: resolved(
+        dream?.auto_select_max ?? settings.dream.auto_select_max,
+        dream?.auto_select_max !== undefined,
+      ),
+    },
+    people: {
+      enabled: resolved(people?.enabled ?? settings.people.enabled, people?.enabled !== undefined),
+      maxEntries: resolved(people?.max_entries ?? settings.people.max_entries, people?.max_entries !== undefined),
+      maxEntryChars: resolved(
+        people?.max_entry_chars ?? settings.people.max_entry_chars,
+        people?.max_entry_chars !== undefined,
+      ),
+    },
+    soul: {
+      editNotice: resolved(soul?.edit_notice ?? settings.soul.edit_notice, soul?.edit_notice !== undefined),
+    },
+  }
+}
+
+function mark(setting: ResolvedSleeptimeValue<unknown>): string {
+  return setting.overridden ? SLEEPTIME_OVERRIDE_MARK : ""
 }
 
 export function registerSleeptimeCommand(pi: SenpiExtensionAPI, deps: MemoryCommandDeps): void {
@@ -23,78 +142,36 @@ export function registerSleeptimeCommand(pi: SenpiExtensionAPI, deps: MemoryComm
 
       const { settings, configPath } = deps.loadSettings()
       const agentId = identity.identity
-      const agentOverride = settings.agents[agentId]
-
-      // -- reflection --
-      const baseReflection = settings.reflection
-      const ovrReflection = agentOverride?.reflection
-      const stepCount = ovrReflection?.trigger?.step_count ?? baseReflection.trigger.step_count
-      const onCompaction = ovrReflection?.trigger?.on_compaction ?? baseReflection.trigger.on_compaction
-      const merge = ovrReflection?.merge ?? baseReflection.merge
-      const category = ovrReflection?.category ?? baseReflection.category
-      const timeout = ovrReflection?.timeout_minutes ?? baseReflection.timeout_minutes
-      const sandbox = ovrReflection?.sandbox ?? baseReflection.sandbox
-
-      // -- nudge --
-      const baseNudge = settings.nudge
-      const ovrNudge = agentOverride?.nudge
-      const nudgeEnabled = ovrNudge?.enabled ?? baseNudge.enabled
-      const nudgeEvery = ovrNudge?.every_user_turns ?? baseNudge.every_user_turns
-
-      // -- facts --
-      const baseFacts = settings.facts
-      const ovrFacts = agentOverride?.facts
-      const factsEnabled = ovrFacts?.enabled ?? baseFacts.enabled
-      const factsDebounce = ovrFacts?.debounce_settles ?? baseFacts.debounce_settles
-
-      // -- dream --
-      const baseDream = settings.dream
-      const ovrDream = agentOverride?.dream
-      const dreamEnabled = ovrDream?.enabled ?? baseDream.enabled
-      const dreamIdle = ovrDream?.idle_minutes ?? baseDream.idle_minutes
-      const dreamMinHours = ovrDream?.min_hours_between ?? baseDream.min_hours_between
-      const dreamShutdown = ovrDream?.shutdown_launch ?? baseDream.shutdown_launch
-      const dreamSelectMax = ovrDream?.auto_select_max ?? baseDream.auto_select_max
-
-      // -- people --
-      const basePeople = settings.people
-      const ovrPeople = agentOverride?.people
-      const peopleEnabled = ovrPeople?.enabled ?? basePeople.enabled
-      const peopleMaxEntries = ovrPeople?.max_entries ?? basePeople.max_entries
-      const peopleMaxChars = ovrPeople?.max_entry_chars ?? basePeople.max_entry_chars
-
-      // -- soul --
-      const baseSoul = settings.soul
-      const ovrSoul = agentOverride?.soul
-      const soulEditNotice = ovrSoul?.edit_notice ?? baseSoul.edit_notice
+      const values = resolveSleeptimeSettings(settings, agentId)
+      const { reflection, nudge, facts, dream, people, soul } = values
 
       const lines = [
         `# Sleeptime reflection: ${agentId}`,
         "",
-        `Step trigger: ${stepCount > 0 ? `every ${stepCount} steps` : "off"}${mark(ovrReflection?.trigger?.step_count !== undefined)}`,
-        `On compaction: ${onCompaction ? "on" : "off"}${mark(ovrReflection?.trigger?.on_compaction !== undefined)}`,
-        `Merge policy: ${merge}${mark(ovrReflection?.merge !== undefined)}`,
-        `Category: ${category}${mark(ovrReflection?.category !== undefined)}`,
-        `Timeout: ${timeout} minutes${mark(ovrReflection?.timeout_minutes !== undefined)}`,
-        `Sandbox: ${sandbox}${mark(ovrReflection?.sandbox !== undefined)}`,
+        `Step trigger: ${reflection.stepCount.value > 0 ? `every ${reflection.stepCount.value} steps` : "off"}${mark(reflection.stepCount)}`,
+        `On compaction: ${reflection.onCompaction.value ? "on" : "off"}${mark(reflection.onCompaction)}`,
+        `Merge policy: ${reflection.merge.value}${mark(reflection.merge)}`,
+        `Category: ${reflection.category.value}${mark(reflection.category)}`,
+        `Timeout: ${reflection.timeoutMinutes.value} minutes${mark(reflection.timeoutMinutes)}`,
+        `Sandbox: ${reflection.sandbox.value}${mark(reflection.sandbox)}`,
         "",
-        `Nudge: ${nudgeEnabled ? "on" : "off"}${mark(ovrNudge?.enabled !== undefined)}`,
-        `Nudge every: every ${nudgeEvery} turns${mark(ovrNudge?.every_user_turns !== undefined)}`,
+        `Nudge: ${nudge.enabled.value ? "on" : "off"}${mark(nudge.enabled)}`,
+        `Nudge every: every ${nudge.everyUserTurns.value} turns${mark(nudge.everyUserTurns)}`,
         "",
-        `Facts: ${factsEnabled ? "on" : "off"}${mark(ovrFacts?.enabled !== undefined)}`,
-        `Facts debounce: debounce ${factsDebounce} settles${mark(ovrFacts?.debounce_settles !== undefined)}`,
+        `Facts: ${facts.enabled.value ? "on" : "off"}${mark(facts.enabled)}`,
+        `Facts debounce: debounce ${facts.debounceSettles.value} settles${mark(facts.debounceSettles)}`,
         "",
-        `Dream: ${dreamEnabled ? "on" : "off"}${mark(ovrDream?.enabled !== undefined)}`,
-        `Dream idle: idle ${dreamIdle} minutes${mark(ovrDream?.idle_minutes !== undefined)}`,
-        `Dream spacing: min ${dreamMinHours}h between${mark(ovrDream?.min_hours_between !== undefined)}`,
-        `Dream shutdown: shutdown launch ${dreamShutdown ? "on" : "off"}${mark(ovrDream?.shutdown_launch !== undefined)}`,
-        `Dream select: select max ${dreamSelectMax}${mark(ovrDream?.auto_select_max !== undefined)}`,
+        `Dream: ${dream.enabled.value ? "on" : "off"}${mark(dream.enabled)}`,
+        `Dream idle: idle ${dream.idleMinutes.value} minutes${mark(dream.idleMinutes)}`,
+        `Dream spacing: min ${dream.minHoursBetween.value}h between${mark(dream.minHoursBetween)}`,
+        `Dream shutdown: shutdown launch ${dream.shutdownLaunch.value ? "on" : "off"}${mark(dream.shutdownLaunch)}`,
+        `Dream select: select max ${dream.autoSelectMax.value}${mark(dream.autoSelectMax)}`,
         "",
-        `People: ${peopleEnabled ? "on" : "off"}${mark(ovrPeople?.enabled !== undefined)}`,
-        `People entries: max ${peopleMaxEntries} entries${mark(ovrPeople?.max_entries !== undefined)}`,
-        `People chars: max ${peopleMaxChars} chars${mark(ovrPeople?.max_entry_chars !== undefined)}`,
+        `People: ${people.enabled.value ? "on" : "off"}${mark(people.enabled)}`,
+        `People entries: max ${people.maxEntries.value} entries${mark(people.maxEntries)}`,
+        `People chars: max ${people.maxEntryChars.value} chars${mark(people.maxEntryChars)}`,
         "",
-        `Soul: edit notice ${soulEditNotice ? "on" : "off"}${mark(ovrSoul?.edit_notice !== undefined)}`,
+        `Soul: edit notice ${soul.editNotice.value ? "on" : "off"}${mark(soul.editNotice)}`,
         "",
         `Edit ${configPath ?? "your omo config file"} under memory.reflection, or memory.agents.${agentId} for this identity only.`,
         "Reflect now: /reflect [--recent N | --conversation <ids>] [focus]",
