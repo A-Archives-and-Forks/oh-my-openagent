@@ -12,6 +12,7 @@ import {
   buildDefaultSeedFiles,
   initMemoryWithSeeds,
 } from "./seeds"
+import { MEMORY_DISCIPLINE_SKILL_PATH } from "./memory-discipline"
 
 const exec = promisify(execFile)
 const tempDirs: string[] = []
@@ -39,13 +40,27 @@ describe("default memory seeds", () => {
   })
 
   describe("#given buildDefaultSeedFiles", () => {
-    it("#then it produces two files with system/ paths and frontmatter", () => {
+    it("#then it produces three files with expected paths and frontmatter", () => {
       const files = buildDefaultSeedFiles()
 
-      expect(files).toHaveLength(2)
+      expect(files).toHaveLength(3)
       const paths = files.map((f) => f.relativePath)
       expect(paths).toContain("system/persona.md")
       expect(paths).toContain("system/human.md")
+      expect(paths).toContain("skills/memory-discipline/SKILL.md")
+    })
+
+    it("#then the memory-discipline skill seed path is skills/memory-discipline/SKILL.md", () => {
+      expect(MEMORY_DISCIPLINE_SKILL_PATH).toBe("skills/memory-discipline/SKILL.md")
+    })
+
+    it("#then the memory-discipline skill frontmatter parses and its description starts with the trigger phrase", () => {
+      const files = buildDefaultSeedFiles()
+      const skill = files.find((f) => f.relativePath === MEMORY_DISCIPLINE_SKILL_PATH)!
+
+      const parsed = parseMemoryFile(skill.content)
+      expect(parsed.frontmatter.description.startsWith("This skill should be used when")).toBe(true)
+      expect(parsed.body.trim().length).toBeGreaterThan(0)
     })
 
     it("#then every seed file has valid frontmatter with a description", () => {
@@ -126,7 +141,8 @@ describe("default memory seeds", () => {
     const tree = await repo.lsTree()
     expect(tree).toContain("system/persona.md")
     expect(tree).toContain("system/human.md")
-    expect(tree).toHaveLength(2)
+    expect(tree).toContain("skills/memory-discipline/SKILL.md")
+    expect(tree).toHaveLength(3)
 
     const commitSubject = await gitLog(dir, "%s")
     expect(commitSubject).toBe("chore: initialize local memory")

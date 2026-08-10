@@ -25,6 +25,10 @@ import {
   DEFAULT_HUMAN_BODY,
   DEFAULT_PERSONA_BODY,
 } from "./default-memory"
+import {
+  MEMORY_DISCIPLINE_SKILL_CONTENT,
+  MEMORY_DISCIPLINE_SKILL_PATH,
+} from "./memory-discipline"
 
 export { DEFAULT_MEMORY_BLOCK_LABELS } from "./default-memory"
 
@@ -41,8 +45,9 @@ export interface InitMemorySeedsOptions {
 }
 
 /**
- * Build the two default seed files (system/persona.md + system/human.md)
- * with frontmatter rendered from the content constants.
+ * Build the default seed files: system/persona.md + system/human.md with
+ * frontmatter rendered from the content constants, plus the
+ * memory-discipline skill (pre-rendered, SKILL.md frontmatter).
  *
  * Pure — no filesystem access. Safe to call repeatedly.
  */
@@ -55,6 +60,10 @@ export function buildDefaultSeedFiles(): readonly DefaultSeedFile[] {
     {
       relativePath: HUMAN_PATH,
       content: renderMemoryFile({ description: HUMAN_DESCRIPTION }, DEFAULT_HUMAN_BODY),
+    },
+    {
+      relativePath: MEMORY_DISCIPLINE_SKILL_PATH,
+      content: MEMORY_DISCIPLINE_SKILL_CONTENT,
     },
   ]
 }
