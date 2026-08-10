@@ -1,7 +1,7 @@
 import { homedir } from "node:os"
 import { join } from "node:path"
 
-import { MemoryBlockCache, consumeSoulNoticeDelta, sanitizeToSlug } from "@oh-my-opencode/memory-core"
+import { MemoryBlockCache, TranscriptJournal, consumeSoulNoticeDelta, sanitizeToSlug } from "@oh-my-opencode/memory-core"
 
 import type { ComponentContext, ComponentLogger, SenpiExtensionAPI } from "../../extension/types"
 import type { SenpiOmoConfigResult } from "../config-resolution"
@@ -15,6 +15,12 @@ import {
 import { FactsExtractorRunner } from "./facts-runner"
 import { createMemoryFactsWiring, type MemoryFactsWiring } from "./facts-wiring"
 import { createMemoryJournalWiring, type MemoryJournalWiring } from "./journal-wiring"
+import {
+  createDreamTriggerWiring,
+  DEFAULT_DREAM_TRIGGER_SETTINGS,
+  resolveDreamTriggerSettings,
+  type DreamTriggerSession,
+} from "./dream-trigger"
 import { createMemoryNudgeWiring } from "./nudge-wiring"
 import { registerPalaceCommand } from "./palace/command"
 import type { PalacePeopleOptions } from "./palace/people"
@@ -132,6 +138,18 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     },
   })
 
+  const dreamTriggerWiring = createDreamTriggerWiring({
+    resolveSession: (eventCtx) => dreamSessionFor(eventCtx),
+    resolveActiveSession: () => (activeSessionId === undefined ? undefined : dreamSessionById(activeSessionId)),
+    resolveSessionById: dreamSessionById,
+    resolveSettings: (identity) => {
+      const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
+      return settings === undefined ? DEFAULT_DREAM_TRIGGER_SETTINGS : resolveDreamTriggerSettings(settings, identity)
+    },
+    ...(options.logger === undefined ? {} : { logger: options.logger }),
+  })
+  shutdownDrain.registerEvaluator(dreamTriggerWiring.shutdownEvaluator())
+
   function asCommandIdentity(identity: MemoryIdentityContext | undefined): MemoryCommandIdentity | undefined {
     if (identity === undefined) return undefined
     return { identity: identity.identity, identityPaths: identity.identityPaths }
@@ -232,6 +250,26 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
         },
       },
     }
+  }
+
+  function dreamSessionById(sessionId: string): DreamTriggerSession | undefined {
+    const identity = resolveContext(sessionId)
+    if (identity === undefined) return undefined
+    const runtime = runtimeFor(identity)
+    return {
+      conversationId: sessionId,
+      identity: identity.identity,
+      identityPaths: identity.identityPaths,
+      getJournal: async (conversationId) =>
+        new TranscriptJournal({ journalDir: join(identity.identityPaths.transcripts, conversationId) }),
+      store: runtime.store,
+      launch: (run) => runtime.launch(run),
+    }
+  }
+
+  function dreamSessionFor(eventCtx: unknown): DreamTriggerSession | undefined {
+    const sessionId = sessionIdFrom(eventCtx)
+    return sessionId === undefined ? undefined : dreamSessionById(sessionId)
   }
 
   function sessionIdFrom(eventCtx: unknown): string | undefined {
@@ -380,6 +418,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
         ...(options.logger === undefined ? {} : { logger: options.logger }),
       })
       triggerWiring.register(pi)
+      dreamTriggerWiring.register(pi)
     },
 
     async afterBind(pi: SenpiExtensionAPI, sessionId: string, identity: MemoryIdentityContext, eventCtx: unknown): Promise<void> {
