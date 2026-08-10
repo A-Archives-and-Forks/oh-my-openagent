@@ -2,6 +2,10 @@
 
 Letta-Code-style persistent agent memory for omo-senpi, backed by `@oh-my-opencode/memory-core` (harness-neutral; zero Senpi imports). Parity target: letta-code@a75f4d93e's local-capable matrix, executed per `.omo/plans/letta-memory-parity-port.md` with the research corpus at `.omo/ulw-research/20260809-224128/`.
 
+## Attribution
+
+The memory architecture - the git-backed memory filesystem, the memory tool semantics, and background reflection - is inspired by [letta-code](https://github.com/letta-ai/letta-code), which is Apache-2.0 licensed (Copyright 2025, Letta authors). This component is an independent reimplementation written against the observable behavior of letta-code@a75f4d93e; no letta-code source was copied. "Letta" and "Letta Code" are trademarks of Letta, Inc., referenced only to describe origin.
+
 ## Anatomy
 
 | Path | Purpose |
