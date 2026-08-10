@@ -63,6 +63,43 @@ function wiringFor(paths: MemoryIdentityPaths, enabled: boolean) {
 }
 
 describe("facts wiring settle enqueue", () => {
+  test("#given debounce four #when four settles complete #then exactly one all-pending extractor launch fires", async () => {
+    // given
+    const paths = await fixture()
+    await seedJournal(paths, 2)
+    let launches = 0
+    let signalLaunch: (() => void) | undefined
+    const launched = new Promise<void>((resolve) => { signalLaunch = resolve })
+    const wiring = createMemoryFactsWiring({
+      identity: IDENTITY,
+      identityPaths: paths,
+      factsEnabled: () => true,
+      debounceSettles: () => 4,
+      extractor: {
+        launchPending: async () => {
+          launches += 1
+          signalLaunch?.()
+        },
+        reconcilePending: async () => undefined,
+      },
+    })
+
+    // when
+    await wiring.onSettled(SESSION)
+    await wiring.onSettled(SESSION)
+    await wiring.onSettled(SESSION)
+    expect(launches).toBe(0)
+    await wiring.onSettled(SESSION)
+    await Promise.race([
+      launched,
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("facts launch did not fire")), 2_000)),
+    ])
+
+    // then
+    expect(launches).toBe(1)
+    expect(await queueFileCount(paths)).toBe(1)
+  })
+
   test("#given facts enabled and a new journal delta #when settle runs #then one queue file is published", async () => {
     // given
     const paths = await fixture()

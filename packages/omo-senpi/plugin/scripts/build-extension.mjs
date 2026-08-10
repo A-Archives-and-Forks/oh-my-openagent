@@ -42,6 +42,7 @@ const memoryMcpOutputPath = join(pluginRoot, "extensions", "omo-memory-mcp.js")
 const supervisorEntryPath = join(packageRoot, "src", "components", "memory", "worker", "memory-run-supervisor.ts")
 const supervisorOutputPath = join(pluginRoot, "extensions", "memory-run-supervisor.mjs")
 const reflectionPersonaSource = join(repoRoot, "packages", "memory-core", "src", "reflection", "assets", "reflection-persona.md")
+const factsPersonaSource = join(repoRoot, "packages", "memory-core", "src", "facts", "assets", "facts-persona.md")
 const builtinModuleNames = builtinModules
   .filter((moduleName) => !moduleName.startsWith("_"))
   .sort()
@@ -75,7 +76,10 @@ export async function buildExtension(options = {}) {
   const supervisorInputs = await buildEntry(supervisorEntryPath, supervisorOutput)
   // Bundling inlines assets.ts but its markdown is read from disk at runtime next to the bundle,
   // so the persona must be staged into the extension output directory the loader executes from.
-  await writeFile(join(dirname(output), "reflection-persona.md"), await readFile(reflectionPersonaSource, "utf8"))
+  await Promise.all([
+    writeFile(join(dirname(output), "reflection-persona.md"), await readFile(reflectionPersonaSource, "utf8")),
+    writeFile(join(dirname(output), "facts-persona.md"), await readFile(factsPersonaSource, "utf8")),
+  ])
   return { mainInputs, memberInputs, memoryMcpInputs, supervisorInputs }
 }
 

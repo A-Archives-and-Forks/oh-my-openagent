@@ -16,11 +16,18 @@ import type { ComponentLogger } from "../../extension/types"
 
 const DISABLED: FactsEnqueueResult = { enqueued: false, reason: "no-new-entries" }
 
+export interface FactsExtractorPort {
+  launchPending(): Promise<unknown>
+  reconcilePending(): Promise<unknown>
+}
+
 export interface MemoryFactsWiringOptions {
   readonly identity: string
   readonly identityPaths: MemoryIdentityPaths
   /** `memory.facts.enabled` kill switch, read per call so a config reload is honored. */
   readonly factsEnabled: () => boolean
+  readonly debounceSettles?: () => number
+  readonly extractor?: FactsExtractorPort
   readonly createJournal?: (journalDir: string) => TranscriptJournal
   readonly now?: () => Date
   readonly logger?: ComponentLogger
@@ -29,8 +36,12 @@ export interface MemoryFactsWiringOptions {
 export interface MemoryFactsWiring {
   /** Enqueue the un-enqueued delta for a settled conversation. Never throws. */
   enqueueSettled(conversationId: string): Promise<FactsEnqueueResult>
+  /** Enqueue, count the settle gate, and fire one all-pending launch at the threshold. */
+  onSettled(conversationId: string): Promise<FactsEnqueueResult>
   /** Leftover queue entries a crashed run left behind, ready for relaunch. */
   reconcilePending(): Promise<FactsQueueEntry[]>
+  /** Fire facts-run reconciliation without blocking session_start on the child. */
+  reconcileExtractor(): void
   /** Terminal SUCCESS only: drops the batch and advances the consumed watermark. */
   markConsumed(entries: readonly FactsQueueEntry[]): Promise<void>
 }
@@ -42,8 +53,18 @@ export function createMemoryFactsWiring(options: MemoryFactsWiringOptions): Memo
     identityPaths: options.identityPaths,
     ...(options.now === undefined ? {} : { now: options.now }),
   })
+  let settles = 0
 
-  return {
+  const fire = (operation: "launch" | "reconcile"): void => {
+    const promise = operation === "launch"
+      ? options.extractor?.launchPending()
+      : options.extractor?.reconcilePending()
+    void promise?.catch((error) => {
+      options.logger?.warn(`facts extractor ${operation} failed`, { error: String(error) })
+    })
+  }
+
+  const wiring: MemoryFactsWiring = {
     async enqueueSettled(conversationId: string): Promise<FactsEnqueueResult> {
       if (!options.factsEnabled()) return DISABLED
       try {
@@ -62,6 +83,17 @@ export function createMemoryFactsWiring(options: MemoryFactsWiringOptions): Memo
       }
     },
 
+    async onSettled(conversationId: string): Promise<FactsEnqueueResult> {
+      const result = await wiring.enqueueSettled(conversationId)
+      if (!options.factsEnabled()) return result
+      settles += 1
+      if (settles >= Math.max(1, options.debounceSettles?.() ?? 4)) {
+        settles = 0
+        fire("launch")
+      }
+      return result
+    },
+
     async reconcilePending(): Promise<FactsQueueEntry[]> {
       if (!options.factsEnabled()) return []
       try {
@@ -72,6 +104,10 @@ export function createMemoryFactsWiring(options: MemoryFactsWiringOptions): Memo
       }
     },
 
+    reconcileExtractor(): void {
+      if (options.factsEnabled()) fire("reconcile")
+    },
+
     async markConsumed(entries: readonly FactsQueueEntry[]): Promise<void> {
       try {
         await queue.markConsumed(entries)
@@ -80,4 +116,5 @@ export function createMemoryFactsWiring(options: MemoryFactsWiringOptions): Memo
       }
     },
   }
+  return wiring
 }

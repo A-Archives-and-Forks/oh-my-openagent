@@ -1,7 +1,7 @@
 import { homedir } from "node:os"
 import { join } from "node:path"
 
-import { MemoryBlockCache } from "@oh-my-opencode/memory-core"
+import { MemoryBlockCache, sanitizeToSlug } from "@oh-my-opencode/memory-core"
 
 import type { ComponentContext, ComponentLogger, SenpiExtensionAPI } from "../../extension/types"
 import type { SenpiOmoConfigResult } from "../config-resolution"
@@ -12,6 +12,8 @@ import {
   type MemoryIdentityRuntime,
   type MemoryIdentityRuntimeDeps,
 } from "./identity-runtime"
+import { FactsExtractorRunner } from "./facts-runner"
+import { createMemoryFactsWiring, type MemoryFactsWiring } from "./facts-wiring"
 import { createMemoryJournalWiring, type MemoryJournalWiring } from "./journal-wiring"
 import { createMemoryNudgeWiring } from "./nudge-wiring"
 import { registerPalaceCommand } from "./palace/command"
@@ -62,6 +64,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
   const promptCache = new MemoryBlockCache()
   const runtimes = new Map<string, MemoryIdentityRuntime>()
   const journals = new Map<string, MemoryJournalWiring>()
+  const factsWirings = new Map<string, MemoryFactsWiring>()
   const lastEventCtx: { current?: unknown } = {}
   let activeSessionId: string | undefined
   const skillsUsageTrackersRef: { current: Map<string, SkillsUsageTracker> } = { current: new Map() }
@@ -111,6 +114,41 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     if (cached !== undefined) return cached
     const wiring = createMemoryJournalWiring({ identityPaths: identity.identityPaths })
     journals.set(identity.identity, wiring)
+    return wiring
+  }
+
+  function factsWiringFor(identity: MemoryIdentityContext): MemoryFactsWiring {
+    const cached = factsWirings.get(identity.identity)
+    if (cached !== undefined) return cached
+    const extractor = new FactsExtractorRunner({
+      identity: {
+        id: identity.identity,
+        safeSlug: sanitizeToSlug(identity.identity),
+        paths: identity.identityPaths,
+      },
+      cwd: options.cwd(),
+      loadConfig: () => options.loadConfig({ cwd: options.cwd() }),
+      resolveModelRegistry,
+      env: options.env,
+      ...(options.logger === undefined ? {} : { logger: options.logger }),
+    })
+    const wiring = createMemoryFactsWiring({
+      identity: identity.identity,
+      identityPaths: identity.identityPaths,
+      factsEnabled: () => {
+        const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
+        const override = settings?.agents[identity.identity]?.facts
+        return override?.enabled ?? settings?.facts.enabled ?? false
+      },
+      debounceSettles: () => {
+        const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
+        const override = settings?.agents[identity.identity]?.facts
+        return override?.debounce_settles ?? settings?.facts.debounce_settles ?? 4
+      },
+      extractor,
+      ...(options.logger === undefined ? {} : { logger: options.logger }),
+    })
+    factsWirings.set(identity.identity, wiring)
     return wiring
   }
 
@@ -212,7 +250,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       pi.on("session_start", (_payload, eventCtx) => {
         if (eventCtx !== undefined) lastEventCtx.current = eventCtx
       })
-      pi.on("agent_settled", (_payload, eventCtx) => {
+      pi.on("agent_settled", async (_payload, eventCtx) => {
         lastEventCtx.current = eventCtx
         const sessionId = sessionIdFrom(eventCtx)
         if (sessionId === undefined) return undefined
@@ -220,7 +258,9 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
         if (identity === undefined) return undefined
         activeSessionId = sessionId
         if (branchEntryCount(eventCtx) === 0) return undefined
-        return journalWiringFor(identity).reconcileSession(eventCtx)
+        const result = await journalWiringFor(identity).reconcileSession(eventCtx)
+        await factsWiringFor(identity).onSettled(sessionId)
+        return result
       })
       registerMemoryToolSurface(pi, () => (activeSessionId === undefined ? undefined : resolveContext(activeSessionId)), {
         exposure: toolExposure,
@@ -286,6 +326,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       if (branchEntryCount(eventCtx) > 0) {
         await journalWiringFor(identity).reconcileSession(eventCtx)
       }
+      factsWiringFor(identity).reconcileExtractor()
       const ui = readUi(eventCtx)
       if (ui !== undefined) {
         const settings = options.loadConfig({ cwd: options.cwd() }).config.memory

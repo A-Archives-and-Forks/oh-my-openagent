@@ -1,11 +1,13 @@
 import { spawn } from "node:child_process"
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { chmod, mkdir, writeFile } from "node:fs/promises"
 import { basename, dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import {
+  loadFactsPersona,
   loadReflectionPersona,
+  type FactsPayload,
   type ReflectionWorktree,
   type ReservedRun,
 } from "@oh-my-opencode/memory-core"
@@ -55,6 +57,35 @@ export interface ReflectionChildResult {
   readonly stderr: string
   readonly timedOut: boolean
 }
+
+export interface FactsSpawnArgs {
+  readonly runId: string
+  readonly command: string
+  readonly args: readonly string[]
+  readonly cwd: string
+  readonly env: NodeJS.ProcessEnv
+  readonly detached: true
+  readonly paths: {
+    readonly runDir: string
+    readonly payload: string
+    readonly extraction: string
+  }
+}
+
+export interface FactsRunLedgerEnvelope {
+  readonly version: 1
+  readonly runId: string
+  readonly kind: "facts"
+  readonly startedAt: string
+  readonly hardDeadlineAt: number
+  readonly terminationGraceMs: number
+  readonly deadlineAt: number
+  readonly batchId: string
+  readonly queued: readonly { readonly conversationId: string; readonly end_message_id: string }[]
+  readonly headBeforeApply?: string
+}
+
+export type FactsSandbox = (spawnArgs: FactsSpawnArgs) => FactsSpawnArgs | Promise<FactsSpawnArgs>
 
 export async function prepareReflectionSpawn(input: {
   readonly run: ReservedRun
@@ -138,6 +169,56 @@ export async function prepareReflectionSpawn(input: {
   }
 }
 
+export async function prepareFactsSpawn(input: {
+  readonly runId: string
+  readonly runDir: string
+  readonly payload: FactsPayload
+  readonly model: string
+  readonly thinking?: string
+  readonly env: NodeJS.ProcessEnv
+  readonly senpiCommand?: string
+}): Promise<FactsSpawnArgs> {
+  await mkdir(input.runDir, { recursive: true, mode: 0o700 })
+  const payload = join(input.runDir, "facts-payload.json")
+  const extraction = join(input.runDir, "extraction.jsonl")
+  try {
+    await chmod(payload, 0o600)
+  } catch {
+    // The first launch has no payload to relax.
+  }
+  await writeFile(payload, `${JSON.stringify(input.payload, null, 2)}\n`, { encoding: "utf8", mode: 0o600 })
+  await chmod(payload, 0o400)
+  const env: NodeJS.ProcessEnv = {
+    ...input.env,
+    FACTS_PAYLOAD_PATH: payload,
+    FACTS_EXTRACTION_PATH: extraction,
+    SENPI_MEMORY_FACTS: "1",
+    SENPI_PTY_FORCE_PIPE: "1",
+  }
+  const args = [
+    "-p",
+    "--system-prompt", loadFactsPersona(),
+    "--tools", "read,write",
+    "--no-extensions",
+    "--no-skills",
+    "--no-prompt-templates",
+    "--no-context-files",
+    "--session-dir", input.runDir,
+    "--model", input.model,
+    ...(input.thinking === undefined ? [] : ["--thinking", input.thinking]),
+    `Read ${payload} and write only ${extraction} according to the system prompt.`,
+  ]
+  return {
+    runId: input.runId,
+    command: input.senpiCommand ?? resolveDefaultSenpiCommand(input.env),
+    args,
+    cwd: input.runDir,
+    env,
+    detached: true,
+    paths: { runDir: input.runDir, payload, extraction },
+  }
+}
+
 export async function runReflectionChild(
   spawnArgs: ReflectionSpawnArgs,
   options: {
@@ -158,47 +239,124 @@ export async function runReflectionChild(
 
   const prepared = await (options.sandbox ?? passthroughSandbox)(spawnArgs)
   const metadata = requireRunMetadata(prepared)
-  await mkdir(prepared.paths.sessionDir, { recursive: true, mode: 0o700 })
-  const stdoutPath = join(prepared.paths.sessionDir, "child-stdout.log")
-  const stderrPath = join(prepared.paths.sessionDir, "child-stderr.log")
   const launchedAt = (options.now ?? Date.now)()
   const hardDeadlineAt = launchedAt + options.deadlineMs
-  const deadlineAt = hardDeadlineAt + graceMs
-  const launch: RunLaunchManifest = {
-    version: 1,
+  return runSupervisedChild({
+    runDir: prepared.paths.sessionDir,
     runId: metadata.runId,
     kind: metadata.kind,
     command: prepared.command,
-    args: [...prepared.args],
+    args: prepared.args,
     cwd: prepared.cwd,
-    env: definedEnvironment(prepared.env),
+    env: prepared.env,
     hardDeadlineAt,
     terminationGraceMs: graceMs,
     maxOutputBytes,
+    supervisorPath: options.supervisorPath,
+    ledger: {
+      version: 1,
+      runId: metadata.runId,
+      kind: metadata.kind,
+      trigger: metadata.trigger,
+      startedAt: new Date(launchedAt).toISOString(),
+      hardDeadlineAt,
+      terminationGraceMs: graceMs,
+      deadlineAt: hardDeadlineAt + graceMs,
+      mergePolicy: metadata.mergePolicy,
+      worktreeDir: metadata.worktree.dir,
+      worktreeBranch: metadata.worktree.branch,
+      baseSha: metadata.worktree.baseSha,
+      gitFilePath: metadata.worktree.gitFilePath,
+      gitFileSnapshot: metadata.worktree.gitFileSnapshot,
+      commonConfigPath: metadata.worktree.commonConfigPath,
+      commonConfigSnapshot: metadata.worktree.commonConfigSnapshot,
+    },
+  })
+}
+
+export async function runFactsChild(
+  spawnArgs: FactsSpawnArgs,
+  options: {
+    readonly deadlineMs: number
+    readonly terminationGraceMs?: number
+    readonly maxOutputBytes?: number
+    readonly sandbox?: FactsSandbox
+    readonly supervisorPath?: string
+    readonly now?: () => number
+    readonly batchId: string
+    readonly queued: readonly { readonly conversationId: string; readonly end_message_id: string }[]
+  },
+): Promise<ReflectionChildResult> {
+  if (!Number.isFinite(options.deadlineMs) || options.deadlineMs <= 0) {
+    throw new TypeError("facts deadline must be positive")
+  }
+  const graceMs = options.terminationGraceMs ?? DEFAULT_GRACE_MS
+  const maxOutputBytes = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES
+  if (graceMs < 0 || maxOutputBytes <= 0) throw new TypeError("facts spawn limits are invalid")
+  const prepared = await (options.sandbox ?? passthroughFactsSandbox)(spawnArgs)
+  const launchedAt = (options.now ?? Date.now)()
+  const hardDeadlineAt = launchedAt + options.deadlineMs
+  return runSupervisedChild({
+    runDir: prepared.paths.runDir,
+    runId: prepared.runId,
+    kind: "facts",
+    command: prepared.command,
+    args: prepared.args,
+    cwd: prepared.cwd,
+    env: prepared.env,
+    hardDeadlineAt,
+    terminationGraceMs: graceMs,
+    maxOutputBytes,
+    supervisorPath: options.supervisorPath,
+    ledger: {
+      version: 1,
+      runId: prepared.runId,
+      kind: "facts",
+      startedAt: new Date(launchedAt).toISOString(),
+      hardDeadlineAt,
+      terminationGraceMs: graceMs,
+      deadlineAt: hardDeadlineAt + graceMs,
+      batchId: options.batchId,
+      queued: options.queued,
+    } satisfies FactsRunLedgerEnvelope,
+  })
+}
+
+async function runSupervisedChild(input: {
+  readonly runDir: string
+  readonly runId: string
+  readonly kind: "reflection" | "facts"
+  readonly command: string
+  readonly args: readonly string[]
+  readonly cwd: string
+  readonly env: NodeJS.ProcessEnv
+  readonly hardDeadlineAt: number
+  readonly terminationGraceMs: number
+  readonly maxOutputBytes: number
+  readonly supervisorPath?: string
+  readonly ledger: Readonly<Record<string, unknown>>
+}): Promise<ReflectionChildResult> {
+  await mkdir(input.runDir, { recursive: true, mode: 0o700 })
+  const stdoutPath = join(input.runDir, "child-stdout.log")
+  const stderrPath = join(input.runDir, "child-stderr.log")
+  const launch: RunLaunchManifest = {
+    version: 1,
+    runId: input.runId,
+    kind: input.kind,
+    command: input.command,
+    args: [...input.args],
+    cwd: input.cwd,
+    env: definedEnvironment(input.env),
+    hardDeadlineAt: input.hardDeadlineAt,
+    terminationGraceMs: input.terminationGraceMs,
+    maxOutputBytes: input.maxOutputBytes,
     stdoutPath,
     stderrPath,
   }
-  await writeRunJsonAtomic(join(prepared.paths.sessionDir, "ledger.json"), {
-    version: 1,
-    runId: metadata.runId,
-    kind: metadata.kind,
-    trigger: metadata.trigger,
-    startedAt: new Date(launchedAt).toISOString(),
-    hardDeadlineAt,
-    terminationGraceMs: graceMs,
-    deadlineAt,
-    mergePolicy: metadata.mergePolicy,
-    worktreeDir: metadata.worktree.dir,
-    worktreeBranch: metadata.worktree.branch,
-    baseSha: metadata.worktree.baseSha,
-    gitFilePath: metadata.worktree.gitFilePath,
-    gitFileSnapshot: metadata.worktree.gitFileSnapshot,
-    commonConfigPath: metadata.worktree.commonConfigPath,
-    commonConfigSnapshot: metadata.worktree.commonConfigSnapshot,
-  })
-  await writeRunJsonAtomic(join(prepared.paths.sessionDir, "launch.json"), launch)
+  await writeRunJsonAtomic(join(input.runDir, "ledger.json"), input.ledger)
+  await writeRunJsonAtomic(join(input.runDir, "launch.json"), launch)
 
-  const supervisor = spawn(process.execPath, [options.supervisorPath ?? defaultSupervisorPath(), prepared.paths.sessionDir], {
+  const supervisor = spawn(process.execPath, [input.supervisorPath ?? defaultSupervisorPath(), input.runDir], {
     detached: true,
     stdio: "ignore",
   })
@@ -219,19 +377,19 @@ export async function runReflectionChild(
   if (supervisorExit.code !== 0 || supervisorExit.signal !== null) {
     throw new Error(`memory run supervisor exited with ${supervisorExit.code ?? supervisorExit.signal ?? "unknown status"}`)
   }
-  const outcome = await readRunJson<RunOutcome>(join(prepared.paths.sessionDir, "outcome.json"))
+  const outcome = await readRunJson<RunOutcome>(join(input.runDir, "outcome.json"))
   return {
     code: outcome.childExit.code,
     signal: isNodeSignal(outcome.childExit.signal) ? outcome.childExit.signal : null,
-    stdout: readTail(stdoutPath, maxOutputBytes),
-    stderr: readTail(stderrPath, maxOutputBytes),
+    stdout: readTail(stdoutPath, input.maxOutputBytes),
+    stderr: readTail(stderrPath, input.maxOutputBytes),
     timedOut: outcome.timedOut,
   }
 }
 
 function requireRunMetadata(spawnArgs: ReflectionSpawnArgs): {
   readonly runId: string
-  readonly kind: "reflection"
+  readonly kind: "reflection" | "dream"
   readonly trigger: ReservedRun["request"]["trigger"]
   readonly mergePolicy: "auto" | "integration"
   readonly worktree: ReflectionWorktree
@@ -244,6 +402,10 @@ function requireRunMetadata(spawnArgs: ReflectionSpawnArgs): {
 }
 
 function passthroughSandbox(spawnArgs: ReflectionSpawnArgs): ReflectionSpawnArgs {
+  return spawnArgs
+}
+
+function passthroughFactsSandbox(spawnArgs: FactsSpawnArgs): FactsSpawnArgs {
   return spawnArgs
 }
 
@@ -280,7 +442,11 @@ function definedEnvironment(env: NodeJS.ProcessEnv): Record<string, string> {
 }
 
 function defaultSupervisorPath(): string {
-  return fileURLToPath(new URL("./memory-run-supervisor.mjs", import.meta.url))
+  const override = process.env.OMO_MEMORY_RUN_SUPERVISOR_PATH
+  if (override !== undefined && override.trim().length > 0) return override
+  const bundled = fileURLToPath(new URL("./memory-run-supervisor.mjs", import.meta.url))
+  if (existsSync(bundled)) return bundled
+  return fileURLToPath(new URL("./memory-run-supervisor.ts", import.meta.url))
 }
 
 const NODE_SIGNALS = new Set<NodeJS.Signals>([
