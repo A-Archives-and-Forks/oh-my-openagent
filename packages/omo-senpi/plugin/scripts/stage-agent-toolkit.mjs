@@ -99,7 +99,7 @@ async function stagedToolkitMatches(tempDir, targetDir) {
     if (!matches.every(Boolean)) return false
     return process.platform === "win32" || ((await stat(join(targetDir, "omo-agent-toolkit"))).mode & 0o777) === 0o755
   } catch (error) {
-    if (isErrno(error, "ENOENT")) return false
+    if (isErrno(error, "ENOENT") || isErrno(error, "ENOTDIR") || isErrno(error, "EISDIR")) return false
     throw error
   }
 }

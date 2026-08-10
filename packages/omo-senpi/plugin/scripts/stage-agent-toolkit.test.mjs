@@ -70,6 +70,17 @@ describe("agent-toolkit runtime staging", () => {
     assert.equal((await stat(fixture.targetDir)).ino, before.ino)
   })
 
+  test("#given a malformed staged toolkit #when staged again #then replaces the stale directory shape", async () => {
+    const fixture = await makeFixture()
+    await stageAgentToolkit({ ...fixture, buildBundle: false })
+    await rm(join(fixture.targetDir, "ulw-loop"), { recursive: true, force: true })
+    await writeFile(join(fixture.targetDir, "ulw-loop"), "stale", "utf8")
+
+    await stageAgentToolkit({ ...fixture, buildBundle: false })
+
+    assert.equal(await readFile(join(fixture.targetDir, "ulw-loop", "cli.js"), "utf8"), await readFile(fixture.sourceEntry, "utf8"))
+  })
+
   test("#given an unknown component #when dispatched #then it exits one and lists ulw-loop", async () => {
     const fixture = await makeFixture()
     await stageAgentToolkit({ ...fixture, buildBundle: false })
