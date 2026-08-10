@@ -48,7 +48,10 @@ export async function runReflectionChild(
   const prepared = await (options.sandbox ?? passthroughSandbox)(spawnArgs)
   const metadata = requireRunMetadata(prepared)
   const launchedAt = (options.now ?? Date.now)()
-  const hardDeadlineAt = launchedAt + options.deadlineMs
+  // The absolute deadline anchors to the enforcing supervisor's wall clock, never to the
+  // parent's logical clock: an injected now() may sit arbitrarily in the past, which would
+  // make the supervisor fire the deadline at spawn and always report a timeout.
+  const hardDeadlineAt = Date.now() + options.deadlineMs
   return runSupervisedChild({
     runDir: prepared.paths.sessionDir,
     runId: metadata.runId,
@@ -105,7 +108,10 @@ export async function runFactsChild(
   if (graceMs < 0 || maxOutputBytes <= 0) throw new TypeError("facts spawn limits are invalid")
   const prepared = await (options.sandbox ?? passthroughFactsSandbox)(spawnArgs)
   const launchedAt = (options.now ?? Date.now)()
-  const hardDeadlineAt = launchedAt + options.deadlineMs
+  // The absolute deadline anchors to the enforcing supervisor's wall clock, never to the
+  // parent's logical clock: an injected now() may sit arbitrarily in the past, which would
+  // make the supervisor fire the deadline at spawn and always report a timeout.
+  const hardDeadlineAt = Date.now() + options.deadlineMs
   return runSupervisedChild({
     runDir: prepared.paths.runDir,
     runId: prepared.runId,
