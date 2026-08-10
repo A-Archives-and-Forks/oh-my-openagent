@@ -21,6 +21,7 @@ import { registerMemoryGuard } from "./guard"
 import { registerMemoryFilesystemPolicy } from "./policy-guard"
 import { refreshMemoryStatus } from "./status"
 import { registerMemorySkillsScope } from "./skills-scope"
+import { registerSkillsUsage, type SkillsUsageTracker } from "./skills-usage"
 import { createReflectionTriggerWiring, type ReflectionTriggerSession } from "./trigger-wiring"
 import { registerMemoryToolSurface } from "./tools"
 import {
@@ -47,6 +48,7 @@ export interface MemoryWiringOptions {
 export interface MemoryWiring {
   registerStatic(pi: SenpiExtensionAPI, ctx: ComponentContext): void
   afterBind(pi: SenpiExtensionAPI, sessionId: string, identity: MemoryIdentityContext, eventCtx: unknown): Promise<void>
+  flushSkillsUsage(): Promise<void>
 }
 
 type StatusUi = {
@@ -60,6 +62,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
   const journals = new Map<string, MemoryJournalWiring>()
   const lastEventCtx: { current?: unknown } = {}
   let activeSessionId: string | undefined
+  const skillsUsageTrackersRef: { current: Map<string, SkillsUsageTracker> } = { current: new Map() }
 
   const resolveContext = (sessionId: string): MemoryIdentityContext | undefined =>
     options.sessions.get(sessionId)?.context
@@ -204,6 +207,15 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
         resolveCwd: options.cwd,
       })
       registerMemorySkillsScope(pi, { resolveContext })
+      const skillsUsageTrackers = registerSkillsUsage(pi, {
+        resolveContext: (eventContext) => {
+          const sessionId = sessionIdFrom(eventContext)
+          return sessionId === undefined ? undefined : resolveContext(sessionId)
+        },
+        resolveCwd: options.cwd,
+        ...(options.logger === undefined ? {} : { logger: options.logger }),
+      })
+      skillsUsageTrackersRef.current = skillsUsageTrackers
       registerPalaceCommand(pi, () => (activeSessionId === undefined ? undefined : resolveContext(activeSessionId)))
       registerMemoryCommands(pi, {
         contextForSession: (sessionId) => asCommandIdentity(resolveContext(sessionId)),
@@ -261,6 +273,12 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
           { sessionId, api },
         ).catch(() => {})
       }
+    },
+
+    async flushSkillsUsage(): Promise<void> {
+      await Promise.all(
+        [...skillsUsageTrackersRef.current.values()].map((tracker) => tracker.flush()),
+      )
     },
   }
 }

@@ -5,6 +5,7 @@ export const LOCK_DOMAINS = [
   "memory-write",
   "reflection-scheduler",
   "transcript-state",
+  "skills-usage",
 ] as const
 
 export type LockDomain = (typeof LOCK_DOMAINS)[number]
@@ -21,4 +22,8 @@ export function transcriptStateLockPath(locksDirectory: string, transcriptId: st
   if (transcriptId.length === 0) throw new Error("transcript id must not be empty")
   const digest = createHash("sha256").update(transcriptId).digest("hex").slice(0, 16)
   return path.join(locksDirectory, `transcript-state-${digest}.lock`)
+}
+
+export function skillsUsageLockPath(locksDirectory: string): string {
+  return path.join(locksDirectory, "skills-usage.lock")
 }

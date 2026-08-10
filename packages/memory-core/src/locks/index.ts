@@ -10,6 +10,7 @@ export {
   LOCK_DOMAINS,
   memoryWriterLockPath,
   reflectionSchedulerLockPath,
+  skillsUsageLockPath,
   transcriptStateLockPath,
 } from "./domains"
 export type { LockDomain } from "./domains"

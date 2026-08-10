@@ -5,6 +5,7 @@ import {
   LOCK_DOMAINS,
   memoryWriterLockPath,
   reflectionSchedulerLockPath,
+  skillsUsageLockPath,
   transcriptStateLockPath,
 } from "./index"
 
@@ -17,14 +18,16 @@ describe("lock domain paths", () => {
     const paths = [
       memoryWriterLockPath(locksDirectory),
       reflectionSchedulerLockPath(locksDirectory),
+      skillsUsageLockPath(locksDirectory),
       transcriptStateLockPath(locksDirectory, "conversation/../one"),
     ]
 
     // #then
-    expect(LOCK_DOMAINS).toEqual(["memory-write", "reflection-scheduler", "transcript-state"])
+    expect(LOCK_DOMAINS).toEqual(["memory-write", "reflection-scheduler", "transcript-state", "skills-usage"])
     expect(paths[0]).toBe(path.join(locksDirectory, "memory-write.lock"))
     expect(paths[1]).toBe(path.join(locksDirectory, "reflection-scheduler.lock"))
-    expect(path.dirname(paths[2] ?? "")).toBe(locksDirectory)
-    expect(path.basename(paths[2] ?? "")).toMatch(/^transcript-state-[a-f0-9]{16}\.lock$/)
+    expect(paths[2]).toBe(path.join(locksDirectory, "skills-usage.lock"))
+    expect(path.dirname(paths[3] ?? "")).toBe(locksDirectory)
+    expect(path.basename(paths[3] ?? "")).toMatch(/^transcript-state-[a-f0-9]{16}\.lock$/)
   })
 })
