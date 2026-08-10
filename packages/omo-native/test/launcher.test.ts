@@ -126,13 +126,11 @@ describe("omo launcher", () => {
         expect(result.status).toBe(0)
         expect(environment.SENPI_BIN).toBe(fixture.shimPath)
         expect(existsSync(environment.SENPI_BIN ?? "")).toBe(true)
-        const pathHead = environment.PATH?.split(process.platform === "win32" ? ";" : ":")[0]
-        const expectedShimDir = dirname(fixture.shimPath ?? "")
-        // Windows does not canonicalise the casing of a PATH entry the way the fixture spells it,
-        // so the directory contract is compared case-insensitively there.
-        if (process.platform === "win32") expect(pathHead?.toLowerCase()).toBe(expectedShimDir.toLowerCase())
-        else expect(pathHead).toBe(expectedShimDir)
-        expect(existsSync(environment.PATH?.split(process.platform === "win32" ? ";" : ":")[0] ?? "")).toBe(true)
+        const path = Object.entries(environment).find(([key]) => key.toLowerCase() === "path")?.[1]
+        const binDir = path?.split(process.platform === "win32" ? ";" : ":")[0]
+        expect(binDir).toBeDefined()
+        expect(realpathSync.native(binDir ?? "")).toBe(realpathSync.native(dirname(fixture.shimPath ?? "")))
+        expect(existsSync(binDir ?? "")).toBe(true)
         expect(environment.OMO_AGENT_TOOLKIT_BIN).toBe(join(fixture.packageRoot, "bin", "omo-agent-toolkit.js"))
         // An inherited value must never survive; it is replaced by this launcher's own entry so
         // anything resolving the product by name re-enters here instead of the bare engine.

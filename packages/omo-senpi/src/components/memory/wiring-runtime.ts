@@ -13,6 +13,7 @@ import {
   type MemoryIdentityRuntimeDeps,
 } from "./identity-runtime"
 import { createMemoryJournalWiring, type MemoryJournalWiring } from "./journal-wiring"
+import { resolveMemoryModelRegistry } from "./model-registry-resolver"
 import { resolveReflectionTriggerConfig, type ReflectionTriggerSession } from "./trigger-wiring"
 import { isRecord, sessionIdFrom } from "./wiring-context"
 import type { MemoryWiringOptions } from "./wiring-types"
@@ -40,11 +41,7 @@ export function createMemoryRuntimeWiring(
     options.sessions.get(sessionId)?.context
 
   function resolveModelRegistry(): ReturnType<MemoryIdentityRuntimeDeps["resolveModelRegistry"]> {
-    if (!isRecord(lastEventCtx.current)) return undefined
-    const registry = lastEventCtx.current.modelRegistry
-    return isRecord(registry)
-      ? (registry as unknown as ReturnType<MemoryIdentityRuntimeDeps["resolveModelRegistry"]>)
-      : undefined
+    return resolveMemoryModelRegistry(lastEventCtx.current)
   }
 
   function journalWiringFor(identity: MemoryIdentityContext): MemoryJournalWiring {

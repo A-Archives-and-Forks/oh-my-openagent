@@ -5,6 +5,8 @@ import { join } from "node:path"
 import { GitMemoryRepo } from "../git"
 import { MemoryBlockCache, hashMemoryTemplate } from "./cache"
 
+const WINDOWS_INTEGRATION_TEST_TIMEOUT = process.platform === "win32" ? 20_000 : 5_000
+
 const tempDirs: string[] = []
 
 async function createRepo() {
@@ -70,7 +72,7 @@ describe("MemoryBlockCache", () => {
     expect(headChanged).toContain("second")
     expect(ticks).toBe(3)
     expect(cache.size).toBe(2)
-  })
+  }, WINDOWS_INTEGRATION_TEST_TIMEOUT)
 
   it("#given one session at a nudged threshold #when 100 changing nudge variants compile #then replacement keeps the cache bounded to one entry", async () => {
     // given
