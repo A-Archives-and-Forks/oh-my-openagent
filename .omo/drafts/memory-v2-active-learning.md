@@ -159,3 +159,53 @@ stashed; fixed in `3347fd4cc`; the previously failing lazy-init test now passes 
 - lane spawned 2026-08-10T07:25:54Z: `fullscope-a32`, full-scope, no delta scoping. momus excluded.
 - Mechanical self-audit at this sha: **22/22 gates PASS**, 210 citations resolve in range.
 - Empirical executability: ELEVEN todos executed from this plan text (1, 2, 4, 5, 8, 11, 15, 16, 19, 23).
+
+## Round 32 verdict and resolutions
+
+`fullscope-a32`, sha `a607a88f`: **VERDICT: BLOCKED** - 1 blocker, 1 note. Both integrated in `6cf4e8589`.
+
+1. BLOCKER (DESTRUCTIVE RECOVERY - user data loss). The plan mandated `git merge --abort` else
+   `git reset --hard HEAD`, and facts reconciliation unconditionally reset and checked out affected paths
+   before retrying. Memory is USER DATA (persona, notes, people cards, and any hand edit made after a crashed
+   run), and this repository's posture is explicitly refuse-rather-than-clobber: integration returns
+   `parent_dirty` without mutating (`reflection/worktree.ts:96-98`) and `cleanCheck` throws `DirtyRepoError`
+   (`git/repo.ts:119-123`). Either mandated path would have silently destroyed those edits. FIX: recovery is
+   now OWNERSHIP-PROVEN. Reflection may `git merge --abort` ONLY when `.git/MERGE_HEAD` names the
+   `validatedTipSha` this run recorded; otherwise the tree is left byte-identical and the run settles
+   `parent_dirty`. Facts restoration is PATH-SCOPED: a path is restored only when its current blob sha equals
+   the post-write sha this run produced, and on ANY drift every path is left untouched, no watermark advances,
+   and the batch stays queued. `git reset --hard` is now FORBIDDEN and appears nowhere as a mandated action.
+2. NOTE (IC-6): the inline `consumed.json` schema now carries `end_snapshot_line`, matching the shipped type.
+
+## Round 33 - UNCONDITIONAL FULL-SCOPE APPROVAL
+
+**`fullscope-a33` (deep lane, fresh reviewer, full scope, no delta scoping), plan sha256
+`6f04d2102f8ad82d64746e72f46232974602e0a65dc764c6a21314ae9728a4ec`: `VERDICT: APPROVED`.**
+
+- ZERO blockers. Two NOTES only, both explicitly non-blocking.
+- Verdict time: 2026-08-10T07:40:42Z. Reviewer verified the digest itself before reviewing.
+- The reviewed sha IS the final on-disk sha: the plan is committed at `6cf4e8589` with a clean working tree
+  for that path, and `sha256(.omo/plans/memory-v2-active-learning.md)` equals the reviewed digest exactly.
+- Self-audit at this sha: 24/24 mechanical gates PASS, 215 citations resolve in range.
+
+### The two NOTES (recorded, neither blocking, one actionable against the CODE not the plan)
+
+1. Todo 25's ALREADY-LANDED implementation predates the strengthened IC-8: the supervisor still routes win32
+   termination through `process.kill()` (`worker/memory-run-supervisor.ts:69`), which does not kill a Windows
+   process TREE, and the bootstrap only awaits child closure rather than arming its own absolute-deadline
+   timers. This is implementation debt created by the contract being strengthened AFTER that todo landed, not
+   a plan defect. Actioned: todo 25 reopened to comply before the F1 gate.
+2. Task-boundary friction between todos 25 and 13 over which one owns the UNKNOWN-to-`abandoned.json`
+   reconciliation assertion. IC-9 fully decides the behavior, so this is placement, not a missing decision.
+
+### Verdict history across the whole effort
+
+| lane | rounds | outcome |
+|---|---|---|
+| full-scope contract | a21, a24, a26, a30, a31, a32, **a33** | 4x APPROVED including the final unconditional bind |
+| executor simulation | b19, b20, b22, b24, b27, b30 | EXECUTABLE 25/25, zero stalls, every round |
+| test-discipline audit | t25 | COMPLIANT, zero violations |
+| integrity audit | i28, i29 | 2 reconstruction defects found and fixed |
+| contract audit | multiple | all findings integrated |
+
+Thirty-three rounds. Every finding raised across every lane was integrated; none was declined.
