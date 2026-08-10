@@ -11,6 +11,7 @@ export {
   factsBatchPaths,
   parseFactsExtractionJsonl,
   restoreFactsBatch,
+  type ApplyFactsBatchOptions,
   type ApplyFactsBatchResult,
   type FactsBatch,
   type FactsExtractionRecord,
@@ -18,6 +19,14 @@ export {
   type FactsPayload,
   type FactsPersonReference,
 } from "./extraction"
+export {
+  normalizeObservationText,
+  planFactsRouting,
+  type FactsAliasTie,
+  type FactsPeopleRouting,
+  type FactsPersonTarget,
+  type FactsRoutingPlan,
+} from "./person-routing"
 export {
   FACTS_QUEUE_VERSION,
   canonicalPosition,

@@ -5,6 +5,13 @@ import { dirname, join } from "node:path"
 
 import type { GitCommitAuthor, GitMemoryRepo } from "../git"
 import { parseMemoryFile, renderMemoryFile } from "../memfs"
+import {
+  factsRoutingPaths,
+  planFactsRouting,
+  writePersonTargets,
+  type FactsAliasTie,
+  type FactsPeopleRouting,
+} from "./person-routing"
 import type { FactsQueueEntry } from "./schema"
 
 export interface FactsPersonReference {
@@ -49,6 +56,11 @@ export type ApplyFactsBatchResult =
   | { readonly outcome: "committed"; readonly sha: string; readonly affectedPaths: readonly string[] }
   | { readonly outcome: "no_facts"; readonly affectedPaths: readonly [] }
 
+export interface ApplyFactsBatchOptions {
+  readonly people?: FactsPeopleRouting
+  readonly onAliasTie?: (tie: FactsAliasTie) => void
+}
+
 export class FactsExtractionValidationError extends Error {
   override readonly name = "FactsExtractionValidationError"
 }
@@ -72,24 +84,26 @@ export async function applyFactsBatch(
   repo: GitMemoryRepo,
   batch: FactsBatch,
   author: GitCommitAuthor,
+  options: ApplyFactsBatchOptions = {},
 ): Promise<ApplyFactsBatchResult> {
   validateBatchId(batch.batchId)
   if (batch.records.length === 0) return { outcome: "no_facts", affectedPaths: [] }
   await repo.cleanCheck()
 
-  const grouped = new Map<string, FactsExtractionRecord[]>()
-  for (const record of batch.records) {
-    const path = routeRecord(record)
-    const records = grouped.get(path) ?? []
-    records.push(record)
-    grouped.set(path, records)
-  }
-  const affectedPaths = [...grouped.keys()].sort()
+  const people = options.people
+  const plan = await planFactsRouting(repo.dir, batch.records, people, options.onAliasTie)
+  const affectedPaths = factsRoutingPaths(plan)
   const existed = new Set(affectedPaths.filter((path) => existsSync(join(repo.dir, path))))
 
   try {
-    for (const [relativePath, records] of grouped) {
+    for (const [relativePath, records] of plan.notes) {
       await appendFactsFile(repo.dir, relativePath, records)
+    }
+    if (people?.enabled === true && plan.observations.size > 0) {
+      await writePersonTargets(repo.dir, plan, {
+        maxEntries: people.maxEntries,
+        maxEntryChars: people.maxEntryChars,
+      })
     }
     const count = batch.records.length
     const result = await repo.commitWrite(
@@ -126,15 +140,20 @@ async function appendFactsFile(
   await writeFile(path, renderMemoryFile(parsed.frontmatter, `${parsed.body}${prefix}${bullets}\n`), "utf8")
 }
 
-export function factsBatchPaths(records: readonly FactsExtractionRecord[]): readonly string[] {
-  return [...new Set(records.map(routeRecord))].sort()
+export async function factsBatchPaths(
+  repoDir: string,
+  records: readonly FactsExtractionRecord[],
+  options: ApplyFactsBatchOptions = {},
+): Promise<readonly string[]> {
+  return factsRoutingPaths(await planFactsRouting(repoDir, records, options.people))
 }
 
 export async function restoreFactsBatch(
   repo: GitMemoryRepo,
   records: readonly FactsExtractionRecord[],
+  options: ApplyFactsBatchOptions = {},
 ): Promise<void> {
-  const paths = factsBatchPaths(records)
+  const paths = await factsBatchPaths(repo.dir, records, options)
   if (paths.length === 0) return
   await git(repo.dir, ["reset", "HEAD", "--", ...paths])
   for (const path of paths) {
@@ -156,15 +175,6 @@ async function restoreBatch(
       .filter((path) => !existed.has(path))
       .map((path) => rm(join(repoDir, path), { force: true })),
   )
-}
-
-function routeRecord(record: FactsExtractionRecord): string {
-  switch (record.scope) {
-    case "person":
-      return `notes/facts/${record.date.slice(0, 7)}.md`
-    case "project":
-      return `notes/facts/${record.date.slice(0, 7)}.md`
-  }
 }
 
 function parseRecord(value: unknown, index: number): FactsExtractionRecord {

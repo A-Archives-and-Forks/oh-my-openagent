@@ -17,6 +17,13 @@ if (mode === "fact") {
     text: `fixture consumed ${payload.entries.length} queue entries`,
     date: payload.today,
   })}\n`)
+} else if (mode === "person") {
+  await writeFile(extractionPath, `${JSON.stringify({
+    scope: "person",
+    person: { name: "Mina", aliases: ["Min"] },
+    text: "Mina prefers concise reviews.",
+    date: payload.today,
+  })}\n`)
 } else if (mode === "empty") {
   await writeFile(extractionPath, "")
 } else if (mode === "malformed") {

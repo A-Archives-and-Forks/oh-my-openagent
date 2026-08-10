@@ -18,6 +18,7 @@ import {
   withLock,
   type ApplyFactsBatchResult,
   type FactsPayload,
+  type FactsPeopleRouting,
   type FactsQueueEntry,
   type MemoryIdentity,
 } from "@oh-my-opencode/memory-core"
@@ -271,16 +272,23 @@ export class FactsExtractorRunner {
     repo: GitMemoryRepo,
     records: ReturnType<typeof parseFactsExtractionJsonl>,
   ): Promise<Extract<ApplyFactsBatchResult, { readonly outcome: "committed" }> | undefined> {
+    const people = this.resolvePeopleRouting()
     for (let attempt = 1; attempt <= WRITER_ATTEMPTS; attempt += 1) {
       try {
         const result = await this.withWriterLock(async () => {
           const headBeforeApply = await repo.head()
           if (headBeforeApply === null) throw new Error("facts repository has no HEAD")
           await updateRunLedger(join(runDir, "ledger.json"), { headBeforeApply })
-          await restoreFactsBatch(repo, records)
+          await restoreFactsBatch(repo, records, { people })
           return applyFactsBatch(repo, { batchId: ledger.batchId, records }, {
             agentId: this.options.identity.id,
             authorName: "Facts Extractor",
+          }, {
+            people,
+            onAliasTie: (tie) => this.options.logger?.warn(
+              "facts person alias tie resolved by slug order",
+              { alias: tie.alias, slugs: tie.slugs.join(","), chosen: tie.chosen },
+            ),
           })
         }, attempt)
         if (result.outcome !== "committed") throw new Error("facts batch unexpectedly produced no commit")
@@ -296,6 +304,16 @@ export class FactsExtractorRunner {
       }
     }
     return undefined
+  }
+
+  private resolvePeopleRouting(): FactsPeopleRouting {
+    const memory = this.options.loadConfig().config.memory
+    const override = memory?.agents[this.options.identity.id]?.people
+    return {
+      enabled: override?.enabled ?? memory?.people.enabled ?? true,
+      maxEntries: override?.max_entries ?? memory?.people.max_entries ?? 40,
+      maxEntryChars: override?.max_entry_chars ?? memory?.people.max_entry_chars ?? 200,
+    }
   }
 
   private async withWriterLock<T>(operation: () => Promise<T>, attempt: number): Promise<T> {
