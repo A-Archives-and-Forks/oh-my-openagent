@@ -7,7 +7,8 @@ import {
 } from "./render"
 
 const PERSONA_PATH = "system/persona.md"
-const REMINDER = "Reminder: <projection> contains the local path of the memory file projection."
+const REMINDER =
+  "Reminder: <projection> contains the local path of the memory file projection. <memory> is your persistent memory across conversations: consult it before asking the user anything it may already answer, and save durable facts, preferences, decisions, and corrections with the memory tools as soon as they emerge instead of waiting to be asked."
 
 export interface CompileMemoryBlockOptions {
   agentId: string

@@ -22,7 +22,7 @@ import { registerMemoryFilesystemPolicy } from "./policy-guard"
 import { refreshMemoryStatus } from "./status"
 import { registerMemorySkillsScope } from "./skills-scope"
 import { createReflectionTriggerWiring, type ReflectionTriggerSession } from "./trigger-wiring"
-import { registerMemoryTools } from "./tools"
+import { registerMemoryToolSurface } from "./tools"
 import {
   consumePendingReflectionCompletions,
   registerReflectionCompletionRenderer,
@@ -186,7 +186,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
         if (branchEntryCount(eventCtx) === 0) return undefined
         return journalWiringFor(identity).reconcileSession(eventCtx)
       })
-      registerMemoryTools(pi, () => (activeSessionId === undefined ? undefined : resolveContext(activeSessionId)))
+      registerMemoryToolSurface(pi, () => (activeSessionId === undefined ? undefined : resolveContext(activeSessionId)))
       registerMemoryGuard(pi, ctx, {
         getContext: (eventContext) => {
           const sessionId = sessionIdFrom(eventContext)

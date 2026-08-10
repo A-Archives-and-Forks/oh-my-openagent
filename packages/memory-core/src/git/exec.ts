@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process"
+import { existsSync } from "node:fs"
 import { GitNotFoundError, GitTimeoutError } from "./errors"
 
 export interface GitExecOptions {
@@ -42,8 +43,22 @@ export function createNodeGitExec(): GitExec {
           if (settled) return
           settled = true
           clearTimeout(timer)
-          if (error.code === "ENOENT") reject(new GitNotFoundError({ cause: error }))
-          else reject(error)
+          if (error.code === "ENOENT") {
+            // spawn reports ENOENT for a missing cwd as much as for a missing git binary. A fresh
+            // memory identity has no repo dir yet, and calling that "git not found on PATH" surfaced a
+            // bogus extension error on every first session. Behave like git itself: report the absent
+            // cwd as exit 128 so head() reads it as no-repo-yet, and reserve GitNotFoundError for a cwd
+            // that exists while the binary genuinely cannot spawn.
+            if (!existsSync(options.cwd)) {
+              resolve({
+                code: 128,
+                stdout: "",
+                stderr: `fatal: cannot change to '${options.cwd}': No such file or directory`,
+              })
+              return
+            }
+            reject(new GitNotFoundError({ cause: error }))
+          } else reject(error)
         })
         child.on("close", (code) => {
           if (settled) return
