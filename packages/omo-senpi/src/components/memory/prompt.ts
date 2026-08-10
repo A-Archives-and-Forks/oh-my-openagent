@@ -8,7 +8,7 @@ import {
 
 import type { MemoryIdentityContext } from "./context"
 
-export const MEMORY_PROMPT_TEMPLATE = "omo-senpi:before_agent_start:v1"
+export const MEMORY_PROMPT_TEMPLATE = "omo-senpi:before_agent_start:v2"
 
 // Injected ONLY under the opt-in search exposure: pointing the agent at tool_search while the tools
 // are directly registered sent it hunting for a tool that does not exist (session 019fe95c-09d2).

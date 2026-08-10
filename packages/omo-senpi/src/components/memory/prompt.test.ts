@@ -13,7 +13,7 @@ import {
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import { createMemoryBinding } from "./binding"
 import { createMemoryIdentityContext, type MemoryIdentityContext } from "./context"
-import { createMemoryPromptHandler } from "./prompt"
+import { MEMORY_PROMPT_TEMPLATE, createMemoryPromptHandler } from "./prompt"
 
 const IDENTITY = "prompt-agent"
 
@@ -91,6 +91,12 @@ async function dispatchEvent(
 function boundHandler(repo: CountingRepo, context: MemoryIdentityContext) {
   return createMemoryPromptHandler({ resolveContext: () => context, createRepo: () => repo })
 }
+
+describe("MEMORY_PROMPT_TEMPLATE", () => {
+  test("#given the compiled-block cache key #when the template id is read #then it is the v2 soul template", () => {
+    expect(MEMORY_PROMPT_TEMPLATE).toBe("omo-senpi:before_agent_start:v2")
+  })
+})
 
 describe("createMemoryPromptHandler", () => {
   test("#given an unbound or disabled session #when before_agent_start dispatches #then the handler returns undefined and never touches the repo", async () => {

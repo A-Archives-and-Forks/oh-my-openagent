@@ -7,6 +7,7 @@ import {
 } from "./render"
 
 const PERSONA_PATH = "system/persona.md"
+const IDENTITY_PATH = "system/identity.md"
 export const MEMORY_NUDGE_METADATA_TOKEN = "user turns since your last memory save"
 const REMINDER =
   "Reminder: <projection> holds local paths of memory projections. <memory> is your persistent memory across conversations. Consult it BEFORE asking the user anything it may already answer. Save durable facts, preferences, decisions, and corrections with the memory tools THE MOMENT they emerge. Route facts about a person to their record under people/ (the primary human's card is system/human.md)."
@@ -35,11 +36,14 @@ export async function compileMemoryBlockAtRevision(
   const persona = revision && paths.includes(PERSONA_PATH)
     ? await readSystemFile(repo, revision, PERSONA_PATH)
     : undefined
+  const identity = revision && paths.includes(IDENTITY_PATH)
+    ? await readSystemFile(repo, revision, IDENTITY_PATH)
+    : undefined
   const systemFiles = revision
     ? await readSystemFiles(repo, revision, paths.filter(isOtherSystemMarkdown))
     : []
   const externalPaths = paths.filter(isExternalPath)
-  const projection = renderProjection(persona, systemFiles, externalPaths)
+  const projection = renderProjection(persona, identity, systemFiles, externalPaths)
   const metadata = renderMetadata(options, (options.clock ?? (() => new Date()))())
   return [projection, metadata].filter((part) => part.length > 0).join("\n\n")
 }
@@ -73,19 +77,27 @@ async function readSystemFile(
 
 function renderProjection(
   persona: CompiledSystemFile | undefined,
+  identity: CompiledSystemFile | undefined,
   systemFiles: readonly CompiledSystemFile[],
   externalPaths: readonly string[],
 ): string {
-  if (!persona && systemFiles.length === 0 && externalPaths.length === 0) return ""
+  if (!persona && !identity && systemFiles.length === 0 && externalPaths.length === 0) return ""
   const lines = [REMINDER]
-  if (persona) {
-    lines.push(
-      "",
-      "<self>",
-      "<projection>$MEMORY_DIR/system/persona.md</projection>",
-      persona.body.trimEnd(),
-      "</self>",
-    )
+  if (persona || identity) {
+    lines.push("", "<self>")
+    if (persona) {
+      lines.push(
+        "<projection>$MEMORY_DIR/system/persona.md</projection>",
+        persona.body.trimEnd(),
+      )
+    }
+    if (identity) {
+      lines.push(
+        "<projection>$MEMORY_DIR/system/identity.md</projection>",
+        identity.body.trimEnd(),
+      )
+    }
+    lines.push("</self>")
   }
   if (systemFiles.length > 0 || externalPaths.length > 0) {
     lines.push("", "<memory>")
@@ -97,7 +109,7 @@ function renderProjection(
 }
 
 function isOtherSystemMarkdown(path: string): boolean {
-  return path.startsWith("system/") && path !== PERSONA_PATH && path.endsWith(".md")
+  return path.startsWith("system/") && path !== PERSONA_PATH && path !== IDENTITY_PATH && path.endsWith(".md")
 }
 
 function isExternalPath(path: string): boolean {

@@ -65,6 +65,48 @@ describe("compileMemoryBlock", () => {
     expect(block).not.toContain("PNG-BODY")
   })
 
+  it("#given a committed persona and identity #when compiled #then both render under <self> and identity stays out of the generic memory tier", async () => {
+    // given
+    const { repo } = await repoWith([
+      { relativePath: "system/persona.md", content: memory("Not projected", "I am a careful coding agent.\n") },
+      { relativePath: "system/identity.md", content: memory("Identity card", "- Name: Archivist\n- Creature: red fox\n- Vibe: quiet collector\n- Emoji: :fox:\n") },
+      { relativePath: "system/facts.md", content: memory("Stable facts", "The project uses Bun.\n") },
+    ])
+
+    // when
+    const block = await compileMemoryBlock(repo, {
+      agentId: "persona-identity-agent",
+      conversationId: "persona-identity-conversation",
+      previousMessageCount: 2,
+      clock: () => NOW,
+    })
+
+    // then
+    expect(normalizeReminder(block)).toBe(await fixture("persona-identity"))
+    expect(block).not.toContain("<identity>")
+  })
+
+  it("#given only a committed identity #when compiled #then it renders under <self> without a persona", async () => {
+    // given
+    const { repo } = await repoWith([
+      { relativePath: "system/identity.md", content: memory("Identity card", "- Name: Archivist\n") },
+    ])
+
+    // when
+    const block = await compileMemoryBlock(repo, {
+      agentId: "identity-agent",
+      conversationId: "identity-conversation",
+      previousMessageCount: 0,
+      clock: () => NOW,
+    })
+
+    // then
+    expect(block).toContain("<self>")
+    expect(block).toContain("<projection>$MEMORY_DIR/system/identity.md</projection>")
+    expect(block).not.toContain("<projection>$MEMORY_DIR/system/persona.md</projection>")
+    expect(block).not.toContain("<identity>")
+  })
+
   it("#given an empty committed repository #when compiled #then only metadata is emitted", async () => {
     // given
     const { repo } = await repoWith([])
