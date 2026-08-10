@@ -209,3 +209,16 @@ stashed; fixed in `3347fd4cc`; the previously failing lazy-init test now passes 
 | contract audit | multiple | all findings integrated |
 
 Thirty-three rounds. Every finding raised across every lane was integrated; none was declined.
+
+## Post-approval: F1-F4 final verification wave
+
+All 25 todos implemented, then the plan's own final verification wave ran on the branch. First pass: F1 FAIL (5 rows), F2 FAIL (4 classes), F3 FAIL (stale-bundle race), F4 FAIL (metadata drift). Every finding was fixed:
+
+- MH-1 runtime gating + schema-default resolvers + drain abort threading (aa7ef94e4)
+- spawn.ts empty catches (aa7ef94e4); LOC splits S1-S4 (0baef0c1f, 7e4e0c505, feb6faa3a, af2f66c1b)
+- MH-4 single-carrier + MN-6 contradiction preservation + dash fixes (47f7c863f)
+- banned test shapes reworked with mutation checks (2e61de173)
+- bundle shipped 867,366 -> 974,066 bytes, budget documented to 1MB (f801a00c5)
+- branch synced through v5.0.0-beta.5 (43e47c610, 8a705227e)
+
+Second pass: F2 PASS (16e7fe518); F3 PASS (856e981a3, all 7 scenario steps green live); F1 rerun found two residuals - the skill still restated the announcement (now a pointer to the persona only), and the abort signal was not threaded through the composite facts enqueue publish boundary, SkillsUsageTracker.flush, and FactsExtractorRunner.launchPendingOnce. Threading added with function-boundary checks (narrowing-proof), each proven by a focused boundary test: queue publishes nothing and cursor untouched; skills ledger never written; facts reserves no run, spawns no child, batch stays retryable. F4 rerun residual is branch currency only (origin/dev keeps advancing; re-sync at land time).
