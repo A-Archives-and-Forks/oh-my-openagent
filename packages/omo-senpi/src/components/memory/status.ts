@@ -22,6 +22,7 @@ export interface GitRepoForStatus {
 
 export interface MemoryStatusResult {
   readonly notified: boolean
+  readonly footerShown: boolean
 }
 
 export interface RefreshMemoryStatusInput {
@@ -38,8 +39,9 @@ export interface RefreshMemoryStatusInput {
 export async function refreshMemoryStatus(input: RefreshMemoryStatusInput): Promise<MemoryStatusResult> {
   const repo = input.gitRepo ?? createGitRepo(input.context.identityPaths.repo)
   const head = await repo.head()
-  if (head === null) return { notified: false }
+  if (head === null) return { notified: false, footerShown: false }
 
+  let footerShown = false
   if (input.showFooter !== false) {
     const committedAt = await repo.headCommitTimestamp()
     const age = committedAt === null
@@ -47,19 +49,20 @@ export async function refreshMemoryStatus(input: RefreshMemoryStatusInput): Prom
       : formatRelativeAge(committedAt * SECOND_MS, (input.now ?? Date.now)())
     if (age !== null) {
       input.ui.setStatus(MEMORY_STATUS_KEY, `mem:${input.context.identity} ${age}`)
+      footerShown = true
     }
   }
 
-  if (input.checkAdvisory === false || input.alreadyNotified) return { notified: false }
+  if (input.checkAdvisory === false || input.alreadyNotified) return { notified: false, footerShown }
 
   const estimate = await estimateSystemTokens(repo, head)
-  if (estimate < input.compileWarnTokens) return { notified: false }
+  if (estimate < input.compileWarnTokens) return { notified: false, footerShown }
 
   input.ui.notify(
     `system memory ~${estimate} tokens exceeds advisory ${input.compileWarnTokens}; consider /doctor`,
     "warning",
   )
-  return { notified: true }
+  return { notified: true, footerShown }
 }
 
 async function estimateSystemTokens(repo: GitRepoForStatus, head: string): Promise<number> {

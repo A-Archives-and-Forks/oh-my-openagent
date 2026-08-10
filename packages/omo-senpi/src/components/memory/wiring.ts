@@ -56,6 +56,7 @@ export interface MemoryWiringOptions {
 
 export interface MemoryWiring {
   registerStatic(pi: SenpiExtensionAPI, ctx: ComponentContext): void
+  clearStatus(eventCtx: unknown): void
   afterBind(pi: SenpiExtensionAPI, sessionId: string, identity: MemoryIdentityContext, eventCtx: unknown): Promise<void>
 }
 
@@ -201,18 +202,24 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
         if (sessionId === undefined) return
         const state = options.sessions.get(sessionId)
         if (state?.context === undefined || state.memoryStatusAttempted) return
-        state.memoryStatusAttempted = true
         const ui = readUi(eventCtx)
         if (ui === undefined) return
+        state.memoryStatusAttempted = true
         const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
-        await refreshMemoryStatus({
-          context: state.context,
-          ui,
-          compileWarnTokens: settings?.compile_warn_tokens ?? 30_000,
-          alreadyNotified: false,
-          checkAdvisory: false,
-          ...(options.now === undefined ? {} : { now: options.now }),
-        })
+        try {
+          const result = await refreshMemoryStatus({
+            context: state.context,
+            ui,
+            compileWarnTokens: settings?.compile_warn_tokens ?? 30_000,
+            alreadyNotified: false,
+            checkAdvisory: false,
+            ...(options.now === undefined ? {} : { now: options.now }),
+          })
+          state.memoryStatusAttempted = result.footerShown
+        } catch (error) {
+          state.memoryStatusAttempted = false
+          throw error
+        }
       })
       registerMemoryToolSurface(pi, () => (activeSessionId === undefined ? undefined : resolveContext(activeSessionId)), {
         exposure: toolExposure,
@@ -258,6 +265,10 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       triggerWiring.register(pi)
     },
 
+    clearStatus(eventCtx: unknown): void {
+      readUi(eventCtx)?.setStatus(MEMORY_STATUS_KEY, undefined)
+    },
+
     async afterBind(pi: SenpiExtensionAPI, sessionId: string, identity: MemoryIdentityContext, eventCtx: unknown): Promise<void> {
       activeSessionId = sessionId
       lastEventCtx.current = eventCtx
@@ -267,7 +278,6 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       }
       const ui = readUi(eventCtx)
       if (ui !== undefined) {
-        ui.setStatus(MEMORY_STATUS_KEY, undefined)
         const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
         void refreshMemoryStatus({
           context: identity,
@@ -293,7 +303,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isMemoryToolResult(value: unknown): boolean {
-  if (!isRecord(value) || value.type !== "tool_result" || typeof value.toolName !== "string") return false
+  if (
+    !isRecord(value)
+    || value.type !== "tool_result"
+    || value.isError === true
+    || typeof value.toolName !== "string"
+  ) return false
   return matchesToolName(value.toolName, MEMORY_TOOL_NAME)
     || matchesToolName(value.toolName, MEMORY_APPLY_PATCH_TOOL_NAME)
 }

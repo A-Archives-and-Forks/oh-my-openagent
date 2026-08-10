@@ -112,6 +112,7 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
 
       pi.on("session_start", (_payload, eventCtx) => {
         const surface = readSessionSurface(eventCtx)
+        wiring.clearStatus(eventCtx)
         const sessionConfig = resolveMemoryConfig(loadConfig({ cwd }))
         const enabled = isEnabled(sessionConfig, ctx)
         releaseSession(sessions.get(surface.id))
@@ -147,6 +148,7 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
 
       pi.on("session_shutdown", (_payload, eventCtx) => {
         const sessionId = readSessionSurface(eventCtx).id
+        wiring.clearStatus(eventCtx)
         releaseSession(sessions.get(sessionId))
         sessions.delete(sessionId)
         unsubscribeReload?.()
