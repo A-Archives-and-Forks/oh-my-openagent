@@ -1,14 +1,17 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, win32 } from "node:path"
 
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import {
   OMO_NATIVE_PROPERTY_ALLOWLISTS,
   type OmoNativeEventName,
 } from "./product-identity"
-import { registerOmoNativeToolTelemetry } from "./omo-native-tools"
+import {
+  builtinSkillNameFromCanonicalPaths,
+  registerOmoNativeToolTelemetry,
+} from "./omo-native-tools"
 
 type CapturedEvent = { readonly name: OmoNativeEventName; readonly properties: Readonly<Record<string, unknown>> }
 
@@ -86,9 +89,9 @@ describe("OmO Native tool telemetry", () => {
     const outsideRoot = join(skillsRoot, "..", "..", "notes")
     const outside = createSkill(outsideRoot, "ulw-plan")
     const custom = createSkill(skillsRoot, "private-skill")
-    const injected = createSkill(skillsRoot, 'ulw-plan\"},\"feature\":\"goal_tool')
+    const injected = createSkill(skillsRoot, "ulw-plan},feature=goal_tool")
     const symlinkPath = join(skillsRoot, "debugging")
-    symlinkSync(join(outsideRoot, "ulw-plan"), symlinkPath)
+    symlinkSync(join(outsideRoot, "ulw-plan"), symlinkPath, process.platform === "win32" ? "junction" : "dir")
 
     for (const path of [outside, custom, injected, join(skillsRoot, "..", "..", "etc", "passwd"), join(symlinkPath, "SKILL.md")]) {
       await pi.dispatch("tool_result", result("read", { path }), context())
@@ -96,6 +99,40 @@ describe("OmO Native tool telemetry", () => {
     await pi.dispatch("tool_result", result("read", { path: null }), context())
 
     expect(events).toEqual([])
+  })
+
+  test("#given canonical Windows paths #when builtin paths vary by case or namespace #then the builtin skill is matched", () => {
+    const root = "C:\\Users\\runneradmin\\plugin\\skills"
+
+    expect(builtinSkillNameFromCanonicalPaths(
+      root,
+      "c:\\users\\RUNNERADMIN\\plugin\\SKILLS\\DEBUGGING\\skill.md",
+      win32,
+    )).toBe("debugging")
+    expect(builtinSkillNameFromCanonicalPaths(
+      root,
+      "\\\\?\\C:\\Users\\runneradmin\\plugin\\skills\\ulw-plan\\SKILL.md",
+      win32,
+    )).toBe("ulw-plan")
+    expect(builtinSkillNameFromCanonicalPaths(
+      "\\\\server\\share\\plugin\\skills",
+      "\\\\?\\UNC\\server\\share\\plugin\\skills\\debugging\\SKILL.md",
+      win32,
+    )).toBe("debugging")
+  })
+
+  test("#given canonical Windows paths outside the builtin root #when matched #then no skill name is emitted", () => {
+    const root = "C:\\Users\\runneradmin\\plugin\\skills"
+
+    for (const path of [
+      "C:\\Users\\runneradmin\\plugin\\notes\\debugging\\SKILL.md",
+      "C:\\Users\\runneradmin\\plugin\\skills-escape\\debugging\\SKILL.md",
+      "D:\\plugin\\skills\\debugging\\SKILL.md",
+      "\\\\?\\C:\\Users\\runneradmin\\plugin\\notes\\debugging\\SKILL.md",
+      "\\\\?\\UNC\\server\\share\\plugin\\notes\\debugging\\SKILL.md",
+    ]) {
+      expect(builtinSkillNameFromCanonicalPaths(root, path, win32)).toBeUndefined()
+    }
   })
 
   test("#given a background category batch of three #when task completes #then every item uses the batch bucket", async () => {

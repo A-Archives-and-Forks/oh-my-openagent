@@ -1,5 +1,5 @@
 import { realpathSync } from "node:fs"
-import { isAbsolute, relative, resolve, sep } from "node:path"
+import { isAbsolute, relative, resolve, sep, win32 } from "node:path"
 
 import type { SenpiExtensionAPI } from "../../extension/types"
 import {
@@ -95,21 +95,47 @@ function readToolResult(
   return { toolName: value.toolName, input: value.input, isError: value.isError === true }
 }
 
+type PathSemantics = Pick<typeof win32, "isAbsolute" | "relative" | "sep">
+
 function builtinSkillName(rawPath: unknown, eventContext: unknown, skillsRoot: string): string | undefined {
   if (typeof rawPath !== "string" || rawPath.length === 0 || rawPath.includes("\0")) return undefined
   try {
     const root = realpathSync(skillsRoot)
     const cwd = isRecord(eventContext) && typeof eventContext.cwd === "string" ? eventContext.cwd : process.cwd()
     const target = realpathSync(resolve(cwd, rawPath))
-    const pathFromRoot = relative(root, target)
-    if (pathFromRoot === "" || pathFromRoot.startsWith(`..${sep}`) || pathFromRoot === ".." || isAbsolute(pathFromRoot)) return undefined
-    const parts = pathFromRoot.split(sep)
-    if (parts.length !== 2 || parts[1] !== "SKILL.md") return undefined
-    const skillName = parts[0]
-    return skillName !== undefined && BUILTIN_SKILLS.has(skillName) ? skillName : undefined
+    return builtinSkillNameFromCanonicalPaths(root, target, { isAbsolute, relative, sep })
   } catch {
     return undefined
   }
+}
+
+export function builtinSkillNameFromCanonicalPaths(
+  root: string,
+  target: string,
+  path: PathSemantics,
+): string | undefined {
+  const windows = path.sep === "\\"
+  const comparableRoot = windows ? windowsPathWithoutNamespace(root) : root
+  const comparableTarget = windows ? windowsPathWithoutNamespace(target) : target
+  const pathFromRoot = path.relative(comparableRoot, comparableTarget)
+  if (pathFromRoot === "" || pathFromRoot.startsWith(`..${path.sep}`) || pathFromRoot === ".." || path.isAbsolute(pathFromRoot)) return undefined
+  const parts = pathFromRoot.split(path.sep)
+  if (parts.length !== 2) return undefined
+  const skillName = parts[0]
+  const fileName = parts[1]
+  if (skillName === undefined || fileName === undefined) return undefined
+  if (windows) {
+    if (fileName.toLowerCase() !== "skill.md") return undefined
+    const builtinName = skillName.toLowerCase()
+    return BUILTIN_SKILLS.has(builtinName) ? builtinName : undefined
+  }
+  return fileName === "SKILL.md" && BUILTIN_SKILLS.has(skillName) ? skillName : undefined
+}
+
+function windowsPathWithoutNamespace(path: string): string {
+  if (path.startsWith("\\\\?\\UNC\\")) return `\\\\${path.slice(8)}`
+  if (path.startsWith("\\\\?\\")) return path.slice(4)
+  return path
 }
 
 function spawnTargets(input: Record<string, unknown>): SpawnTarget[] {
