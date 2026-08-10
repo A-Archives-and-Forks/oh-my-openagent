@@ -42,6 +42,8 @@ export interface MemoryFactsWiring {
   reconcilePending(): Promise<FactsQueueEntry[]>
   /** Fire facts-run reconciliation without blocking session_start on the child. */
   reconcileExtractor(): void
+  /** Shutdown drain step (c): launch pending work only when the settle threshold is already met. */
+  launchIfThresholdMet(): Promise<boolean>
   /** Terminal SUCCESS only: drops the batch and advances the consumed watermark. */
   markConsumed(entries: readonly FactsQueueEntry[]): Promise<void>
 }
@@ -106,6 +108,19 @@ export function createMemoryFactsWiring(options: MemoryFactsWiringOptions): Memo
 
     reconcileExtractor(): void {
       if (options.factsEnabled()) fire("reconcile")
+    },
+
+    async launchIfThresholdMet(): Promise<boolean> {
+      if (!options.factsEnabled()) return false
+      if (settles < Math.max(1, options.debounceSettles?.() ?? 4)) return false
+      settles = 0
+      if (options.extractor === undefined) return false
+      try {
+        await options.extractor.launchPending()
+      } catch (error) {
+        options.logger?.warn("facts extractor launch failed", { error: String(error) })
+      }
+      return true
     },
 
     async markConsumed(entries: readonly FactsQueueEntry[]): Promise<void> {

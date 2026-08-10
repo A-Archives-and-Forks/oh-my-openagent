@@ -24,6 +24,11 @@ import type { MemoryCommandIdentity, MemoryCommandSettings } from "./commands/ty
 import { registerMemoryGuard } from "./guard"
 import { registerMemoryFilesystemPolicy } from "./policy-guard"
 import { refreshMemoryStatus } from "./status"
+import {
+  createShutdownDrain,
+  type ShutdownDrainInput,
+  type ShutdownEvaluator,
+} from "./shutdown-drain"
 import { registerMemorySkillsScope } from "./skills-scope"
 import { registerSkillsUsage, type SkillsUsageTracker } from "./skills-usage"
 import { createSoulNoticeWiring } from "./soul-notice"
@@ -54,6 +59,10 @@ export interface MemoryWiring {
   registerStatic(pi: SenpiExtensionAPI, ctx: ComponentContext): void
   afterBind(pi: SenpiExtensionAPI, sessionId: string, identity: MemoryIdentityContext, eventCtx: unknown): Promise<void>
   flushSkillsUsage(): Promise<void>
+  /** IC-10: bounded drain the session_shutdown handler awaits before the session is released. */
+  onSessionShutdown(input: ShutdownDrainInput): Promise<void>
+  /** IC-10: appends an evaluator run last on quit; unregistered is a no-op. */
+  registerShutdownEvaluator(evaluator: ShutdownEvaluator): void
 }
 
 type StatusUi = {
@@ -91,6 +100,35 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       if (settings === undefined) return false
       const override = settings.agents[identity]?.soul
       return override?.edit_notice ?? settings.soul.edit_notice
+    },
+  })
+
+  async function flushSkillsUsageTrackers(): Promise<void> {
+    await Promise.all([...skillsUsageTrackersRef.current.values()].map((tracker) => tracker.flush()))
+  }
+
+  const shutdownDrain = createShutdownDrain({
+    ...(options.logger === undefined ? {} : { logger: options.logger }),
+    steps: {
+      flushJournal: async (sessionId, signal) => {
+        const identity = resolveContext(sessionId)
+        if (identity === undefined) return
+        await journalWiringFor(identity).journalFor(sessionId).flush(signal)
+      },
+      enqueueFinalDelta: async (sessionId, signal) => {
+        const identity = resolveContext(sessionId)
+        if (identity === undefined || signal.aborted) return
+        await factsWiringFor(identity).enqueueSettled(sessionId)
+      },
+      flushSkillsUsage: async (_sessionId, signal) => {
+        if (signal.aborted) return
+        await flushSkillsUsageTrackers()
+      },
+      launchFacts: async (sessionId, signal) => {
+        const identity = resolveContext(sessionId)
+        if (identity === undefined || signal.aborted) return
+        await factsWiringFor(identity).launchIfThresholdMet()
+      },
     },
   })
 
@@ -373,9 +411,15 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     },
 
     async flushSkillsUsage(): Promise<void> {
-      await Promise.all(
-        [...skillsUsageTrackersRef.current.values()].map((tracker) => tracker.flush()),
-      )
+      await flushSkillsUsageTrackers()
+    },
+
+    async onSessionShutdown(input: ShutdownDrainInput): Promise<void> {
+      await shutdownDrain.run(input)
+    },
+
+    registerShutdownEvaluator(evaluator: ShutdownEvaluator): void {
+      shutdownDrain.registerEvaluator(evaluator)
     },
   }
 }

@@ -12,6 +12,7 @@ import {
 import { renderMemoryBindingEntry } from "./bindings/entry-renderer"
 import { hasMemoryCapabilities, missingMemoryCapabilities } from "./capabilities"
 import { createMemoryIdentityContext, type MemoryIdentityContext } from "./context"
+import { shutdownDeadlineAt, type ShutdownReason } from "./shutdown-drain"
 import { memoryModuleSupervisor } from "./supervisor"
 import { createMemoryWiring } from "./wiring"
 
@@ -146,11 +147,22 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
         })
         memoryModuleSupervisor.acquire()
         pi.appendEntry(MEMORY_BINDING_CUSTOM_TYPE, binding)
-        void wiring.afterBind(pi, surface.id, state.context, eventCtx)
+        // Bind-time reconcile floats past session_start by design, but its rejection must not
+        // float: an unhandled rejection is attributed to whatever code is running when it lands.
+        void wiring.afterBind(pi, surface.id, state.context, eventCtx).catch((error: unknown) => {
+          ctx.logger.warn("memory bind-time reconcile failed", { error: String(error) })
+        })
       })
 
-      pi.on("session_shutdown", (_payload, eventCtx) => {
+      pi.on("session_shutdown", async (payload, eventCtx) => {
         const sessionId = readSessionSurface(eventCtx).id
+        // The drain runs BEFORE the session is released: its steps read the bound identity.
+        await wiring.onSessionShutdown({
+          reason: readShutdownReason(payload),
+          sessionId,
+          deadlineAt: shutdownDeadlineAt(now),
+          now,
+        })
         releaseSession(sessions.get(sessionId))
         sessions.delete(sessionId)
         unsubscribeReload?.()
@@ -192,6 +204,15 @@ function readSessionSurface(value: unknown): SessionSurface {
 
 function isSessionUi(value: unknown): value is SessionUi {
   return isRecord(value) && typeof value.notify === "function"
+}
+
+const SHUTDOWN_REASONS: readonly ShutdownReason[] = ["quit", "reload", "new", "resume", "fork"]
+
+/** An unknown or absent reason drains conservatively: flush and enqueue, launch nothing. */
+function readShutdownReason(payload: unknown): ShutdownReason {
+  if (!isRecord(payload)) return "reload"
+  const reason = payload.reason
+  return SHUTDOWN_REASONS.find((candidate) => candidate === reason) ?? "reload"
 }
 
 function isOmoConfigReload(value: unknown): boolean {
