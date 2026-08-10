@@ -113,8 +113,10 @@ describe("omo launcher", () => {
         expect(environment.SENPI_BIN).toBe(fixture.shimPath)
         expect(existsSync(environment.SENPI_BIN ?? "")).toBe(true)
         const path = Object.entries(environment).find(([key]) => key.toLowerCase() === "path")?.[1]
-        expect(path?.split(process.platform === "win32" ? ";" : ":")[0]).toBe(dirname(fixture.shimPath ?? ""))
-        expect(existsSync(path?.split(process.platform === "win32" ? ";" : ":")[0] ?? "")).toBe(true)
+        const binDir = path?.split(process.platform === "win32" ? ";" : ":")[0]
+        expect(binDir).toBeDefined()
+        expect(realpathSync.native(binDir ?? "")).toBe(realpathSync.native(dirname(fixture.shimPath ?? "")))
+        expect(existsSync(binDir ?? "")).toBe(true)
         expect(environment.OMO_AGENT_TOOLKIT_BIN).toBe(join(fixture.packageRoot, "bin", "omo-agent-toolkit.js"))
         expect(environment.OMO_BIN).toBeUndefined()
       })
