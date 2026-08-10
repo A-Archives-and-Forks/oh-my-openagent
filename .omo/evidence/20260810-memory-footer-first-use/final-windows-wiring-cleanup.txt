@@ -14,14 +14,15 @@ Root cause:
 
 Fix:
 - Keep the exact event-driven behavior test.
+- Remove the nested Git directory before removing the fixture root.
 - Use Node's built-in recursive removal retry only on Windows:
-  - `maxRetries: 10`
-  - `retryDelay: 50`
+  - `maxRetries: 20`
+  - `retryDelay: 100`
 - No sleeps, assertion retries, skipped checks, or weakened behavior.
 
 Local verification:
 - Cleanup plus focused memory tests: 25 pass, 0 fail, 76 assertions.
-- Full memory suite: 251 pass, 0 fail, 835 assertions.
+- Full memory suite: 260 pass, 0 fail, 860 assertions.
 - Omo-senpi typecheck: exit 0.
 
 Second Windows observation:
@@ -31,10 +32,11 @@ Second Windows observation:
 - The actual teardown fix now matches the repository's memory-server and memfs convention: ten Windows retries with a 50 ms linear backoff.
 
 Third Windows observation:
-- Run 31388591913, job 93454798463, no longer reported `EPERM` or `EBUSY`.
-- The reset test instead observed a clear in the shared cross-session status buffer before the second footer assertion.
-- The test now uses distinct status sinks for session one and session two.
-- It asserts the first sink remains exactly `[footer, clear]` after session two publishes, so late cross-session writes are still detected rather than ignored.
+- Run 31388591913 still reported `EBUSY` in both the Windows root and Senpi Windows jobs with the 10×50 budget.
+- The reset test passed in both logs; no shared-buffer assertion failed.
+- The Windows root job also exposed backslash-separated cleanup report paths from `removeStaleSelfPackageTests`.
+- The final fix removes the nested `.git` directory first with a 20×100 bounded budget, then removes the fixture root.
+- Cleanup report paths are now constructed with forward slashes on every OS.
 
 Remaining proof:
 - The replacement Senpi Windows job and Windows root job must pass before merge.
