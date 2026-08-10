@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process"
-import { closeSync, openSync, readFileSync } from "node:fs"
+import { readFileSync } from "node:fs"
 import { chmod, mkdir, writeFile } from "node:fs/promises"
 import { basename, dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 
 import {
   loadReflectionPersona,
@@ -9,6 +10,13 @@ import {
   type ReservedRun,
 } from "@oh-my-opencode/memory-core"
 import { detectBunBinary, resolveSenpiExecutable } from "@oh-my-opencode/senpi-task"
+
+import {
+  readRunJson,
+  writeRunJsonAtomic,
+  type RunLaunchManifest,
+  type RunOutcome,
+} from "./run-artifacts"
 
 const DEFAULT_GRACE_MS = 5_000
 const DEFAULT_MAX_OUTPUT_BYTES = 64 * 1024
@@ -23,6 +31,11 @@ export interface ReflectionSpawnPaths {
 }
 
 export interface ReflectionSpawnArgs {
+  readonly runId?: string
+  readonly kind?: "reflection"
+  readonly trigger?: ReservedRun["request"]["trigger"]
+  readonly mergePolicy?: "auto" | "integration"
+  readonly worktree?: ReflectionWorktree
   readonly command: string
   readonly args: readonly string[]
   readonly cwd: string
@@ -50,6 +63,7 @@ export async function prepareReflectionSpawn(input: {
   readonly model: string
   readonly thinking?: string
   readonly env: NodeJS.ProcessEnv
+  readonly mergePolicy: "auto" | "integration"
   readonly senpiCommand?: string
 }): Promise<ReflectionSpawnArgs> {
   const sessionDir = join(input.reflectionSessionsDir, safeRunId(input.run.runId))
@@ -110,6 +124,11 @@ export async function prepareReflectionSpawn(input: {
     `@${prompt}`,
   ]
   return {
+    runId: input.run.runId,
+    kind: "reflection",
+    trigger: input.run.request.trigger,
+    mergePolicy: input.mergePolicy,
+    worktree: input.worktree,
     command: input.senpiCommand ?? resolveDefaultSenpiCommand(input.env),
     args,
     cwd: input.worktree.dir,
@@ -126,6 +145,8 @@ export async function runReflectionChild(
     readonly terminationGraceMs?: number
     readonly maxOutputBytes?: number
     readonly sandbox?: ReflectionSandbox
+    readonly supervisorPath?: string
+    readonly now?: () => number
   },
 ): Promise<ReflectionChildResult> {
   if (!Number.isFinite(options.deadlineMs) || options.deadlineMs <= 0) {
@@ -136,59 +157,90 @@ export async function runReflectionChild(
   if (graceMs < 0 || maxOutputBytes <= 0) throw new TypeError("reflection spawn limits are invalid")
 
   const prepared = await (options.sandbox ?? passthroughSandbox)(spawnArgs)
+  const metadata = requireRunMetadata(prepared)
   await mkdir(prepared.paths.sessionDir, { recursive: true, mode: 0o700 })
-  // Child output goes to per-run log files instead of pipes back into the parent: a piped child
-  // with listeners holds the parent's event loop open until the child exits, which would tie the
-  // session's lifetime to the detached reflection run.
   const stdoutPath = join(prepared.paths.sessionDir, "child-stdout.log")
   const stderrPath = join(prepared.paths.sessionDir, "child-stderr.log")
-  const stdoutFd = openSync(stdoutPath, "w")
-  const stderrFd = openSync(stderrPath, "w")
-  let fdsClosed = false
-  const closeFds = () => {
-    if (fdsClosed) return
-    fdsClosed = true
-    closeSync(stdoutFd)
-    closeSync(stderrFd)
-  }
-  const child = spawn(prepared.command, [...prepared.args], {
+  const launchedAt = (options.now ?? Date.now)()
+  const hardDeadlineAt = launchedAt + options.deadlineMs
+  const deadlineAt = hardDeadlineAt + graceMs
+  const launch: RunLaunchManifest = {
+    version: 1,
+    runId: metadata.runId,
+    kind: metadata.kind,
+    command: prepared.command,
+    args: [...prepared.args],
     cwd: prepared.cwd,
-    env: prepared.env,
-    detached: prepared.detached,
-    stdio: ["ignore", stdoutFd, stderrFd],
+    env: definedEnvironment(prepared.env),
+    hardDeadlineAt,
+    terminationGraceMs: graceMs,
+    maxOutputBytes,
+    stdoutPath,
+    stderrPath,
+  }
+  await writeRunJsonAtomic(join(prepared.paths.sessionDir, "ledger.json"), {
+    version: 1,
+    runId: metadata.runId,
+    kind: metadata.kind,
+    trigger: metadata.trigger,
+    startedAt: new Date(launchedAt).toISOString(),
+    hardDeadlineAt,
+    terminationGraceMs: graceMs,
+    deadlineAt,
+    mergePolicy: metadata.mergePolicy,
+    worktreeDir: metadata.worktree.dir,
+    worktreeBranch: metadata.worktree.branch,
+    baseSha: metadata.worktree.baseSha,
+    gitFilePath: metadata.worktree.gitFilePath,
+    gitFileSnapshot: metadata.worktree.gitFileSnapshot,
+    commonConfigPath: metadata.worktree.commonConfigPath,
+    commonConfigSnapshot: metadata.worktree.commonConfigSnapshot,
   })
-  child.unref()
+  await writeRunJsonAtomic(join(prepared.paths.sessionDir, "launch.json"), launch)
 
-  let timedOut = false
-  let escalation: ReturnType<typeof setTimeout> | undefined
-  const deadline = setTimeout(() => {
-    timedOut = true
-    signalProcessGroup(child.pid, "SIGTERM", child.kill.bind(child))
-    escalation = setTimeout(() => {
-      signalProcessGroup(child.pid, "SIGKILL", child.kill.bind(child))
-    }, graceMs)
-  }, options.deadlineMs)
-
-  const result = await new Promise<ReflectionChildResult>((resolve, reject) => {
+  const supervisor = spawn(process.execPath, [options.supervisorPath ?? defaultSupervisorPath(), prepared.paths.sessionDir], {
+    detached: true,
+    stdio: "ignore",
+  })
+  supervisor.unref()
+  const supervisorExit = await new Promise<{ readonly code: number | null; readonly signal: NodeJS.Signals | null }>((resolve, reject) => {
     let settled = false
-    child.once("error", (error) => {
+    supervisor.once("error", (error) => {
       if (settled) return
       settled = true
       reject(error)
     })
-    child.once("close", (code, signal) => {
+    supervisor.once("close", (code, signal) => {
       if (settled) return
       settled = true
-      closeFds()
-      resolve({ code, signal, stdout: readTail(stdoutPath, maxOutputBytes), stderr: readTail(stderrPath, maxOutputBytes), timedOut })
+      resolve({ code, signal })
     })
-  }).finally(() => {
-    clearTimeout(deadline)
-    if (escalation !== undefined) clearTimeout(escalation)
-    closeFds()
   })
+  if (supervisorExit.code !== 0 || supervisorExit.signal !== null) {
+    throw new Error(`memory run supervisor exited with ${supervisorExit.code ?? supervisorExit.signal ?? "unknown status"}`)
+  }
+  const outcome = await readRunJson<RunOutcome>(join(prepared.paths.sessionDir, "outcome.json"))
+  return {
+    code: outcome.childExit.code,
+    signal: isNodeSignal(outcome.childExit.signal) ? outcome.childExit.signal : null,
+    stdout: readTail(stdoutPath, maxOutputBytes),
+    stderr: readTail(stderrPath, maxOutputBytes),
+    timedOut: outcome.timedOut,
+  }
+}
 
-  return result
+function requireRunMetadata(spawnArgs: ReflectionSpawnArgs): {
+  readonly runId: string
+  readonly kind: "reflection"
+  readonly trigger: ReservedRun["request"]["trigger"]
+  readonly mergePolicy: "auto" | "integration"
+  readonly worktree: ReflectionWorktree
+} {
+  const { runId, kind, trigger, mergePolicy, worktree } = spawnArgs
+  if (runId === undefined || kind === undefined || trigger === undefined || mergePolicy === undefined || worktree === undefined) {
+    throw new TypeError("reflection spawn metadata is required")
+  }
+  return { runId, kind, trigger, mergePolicy, worktree }
 }
 
 function passthroughSandbox(spawnArgs: ReflectionSpawnArgs): ReflectionSpawnArgs {
@@ -223,18 +275,24 @@ function safeRunId(runId: string): string {
   return safe.slice(0, 80)
 }
 
-function signalProcessGroup(
-  pid: number | undefined,
-  signal: NodeJS.Signals,
-  fallback: (signal: NodeJS.Signals) => boolean,
-): void {
-  if (pid === undefined) return
-  try {
-    if (process.platform === "win32") fallback(signal)
-    else process.kill(-pid, signal)
-  } catch (error) {
-    if (errorCode(error) !== "ESRCH") fallback(signal)
-  }
+function definedEnvironment(env: NodeJS.ProcessEnv): Record<string, string> {
+  return Object.fromEntries(Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined))
+}
+
+function defaultSupervisorPath(): string {
+  return fileURLToPath(new URL("./memory-run-supervisor.mjs", import.meta.url))
+}
+
+const NODE_SIGNALS = new Set<NodeJS.Signals>([
+  "SIGABRT", "SIGALRM", "SIGBUS", "SIGCHLD", "SIGCONT", "SIGFPE", "SIGHUP", "SIGILL",
+  "SIGINT", "SIGIO", "SIGIOT", "SIGKILL", "SIGPIPE", "SIGPOLL", "SIGPROF", "SIGPWR",
+  "SIGQUIT", "SIGSEGV", "SIGSTKFLT", "SIGSTOP", "SIGSYS", "SIGTERM", "SIGTRAP", "SIGTSTP",
+  "SIGTTIN", "SIGTTOU", "SIGURG", "SIGUSR1", "SIGUSR2", "SIGVTALRM", "SIGWINCH", "SIGXCPU",
+  "SIGXFSZ",
+])
+
+function isNodeSignal(signal: string | null): signal is NodeJS.Signals {
+  return signal !== null && NODE_SIGNALS.has(signal as NodeJS.Signals)
 }
 
 function readTail(path: string, maxBytes: number): string {
@@ -245,9 +303,4 @@ function readTail(path: string, maxBytes: number): string {
   } catch (error) {
     return error instanceof Error ? `[failed to read child output: ${error.message}]` : "[failed to read child output]"
   }
-}
-
-function errorCode(error: unknown): string | undefined {
-  if (!(error instanceof Error) || !("code" in error)) return undefined
-  return typeof error.code === "string" ? error.code : undefined
 }

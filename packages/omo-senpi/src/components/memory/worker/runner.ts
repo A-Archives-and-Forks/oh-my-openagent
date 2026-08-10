@@ -71,6 +71,7 @@ export interface SenpiSubprocessRunnerOptions {
   readonly liveSession?: () => ReflectionLiveSession | undefined
   readonly now?: () => Date
   readonly senpiCommand?: string
+  readonly supervisorPath?: string
   readonly withWriterLock?: <T>(operation: () => Promise<T>) => Promise<T>
 }
 
@@ -124,6 +125,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
     let worktree: ReflectionWorktree | undefined
     try {
       worktree = await createReflectionWorktree(repo, run.runId, this.options.identity.paths.worktrees)
+      const merge = loaded.config.memory?.reflection.merge ?? "auto"
       const spawnArgs = await prepareReflectionSpawn({
         run,
         worktree,
@@ -131,6 +133,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
         model: resolution.model,
         thinking: resolution.thinking,
         env: this.options.env ?? process.env,
+        mergePolicy: merge,
         senpiCommand: this.options.senpiCommand,
       })
       const configuredMinutes = loaded.config.memory?.reflection.timeout_minutes ?? DEFAULT_TIMEOUT_MINUTES
@@ -139,6 +142,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
         terminationGraceMs: this.options.terminationGraceMs,
         maxOutputBytes: this.options.maxOutputBytes,
         sandbox: this.options.sandbox,
+        supervisorPath: this.options.supervisorPath,
       })
 
       if (child.timedOut) {
@@ -155,7 +159,6 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
           : { outcome: "failed", reason: "cleanup_failed", detail: [childDetail, discarded.detail].filter(Boolean).join("; ") }
       }
 
-      const merge = loaded.config.memory?.reflection.merge ?? "auto"
       const finalized = await finalizeReflectionWorktree(
         worktree,
         merge === "auto"

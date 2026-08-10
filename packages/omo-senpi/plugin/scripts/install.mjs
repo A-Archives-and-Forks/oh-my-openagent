@@ -209,6 +209,7 @@ function isErrno(error, code) {
 var execFileAsync = promisify(execFile);
 var REQUIRED_PLUGIN_ARTIFACTS = [
   join3("extensions", "omo.js"),
+  join3("extensions", "memory-run-supervisor.mjs"),
   join3("extensions", "reflection-persona.md"),
   join3("skills", "ast-grep", "SKILL.md"),
   join3("skills", "coding-agent-sessions", "SKILL.md"),

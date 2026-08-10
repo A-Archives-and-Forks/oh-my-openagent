@@ -55,6 +55,7 @@ export interface RunnerHarness {
 }
 
 const childFixture = join(import.meta.dir, "__fixtures__", "reflection-child.ts")
+const supervisorFixture = join(import.meta.dir, "memory-run-supervisor.ts")
 
 export async function createRunnerHarness(options: {
   readonly childMode: "commit" | "timeout" | "admin"
@@ -122,6 +123,7 @@ export async function createRunnerHarness(options: {
     cwd: root,
     deadlineMs: options.deadlineMs,
     terminationGraceMs: options.terminationGraceMs,
+    supervisorPath: supervisorFixture,
     liveSession: () => ({
       sessionId: "conversation-a",
       api,

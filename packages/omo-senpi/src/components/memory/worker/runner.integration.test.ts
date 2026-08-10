@@ -64,6 +64,24 @@ describe("SenpiSubprocessRunner integration", () => {
       "--thinking", "high",
       `@${spawn?.paths.prompt}`,
     ])
+    expect(existsSync(join(spawn?.paths.sessionDir ?? "", "launch.json"))).toBe(false)
+    expect(JSON.parse(await readFile(join(spawn?.paths.sessionDir ?? "", "outcome.json"), "utf8"))).toMatchObject({
+      version: 1,
+      runId: item.run.runId,
+      childExit: { code: 0, signal: null },
+      timedOut: false,
+    })
+    expect(JSON.parse(await readFile(join(spawn?.paths.sessionDir ?? "", "ledger.json"), "utf8"))).toMatchObject({
+      version: 1,
+      runId: item.run.runId,
+      kind: "reflection",
+      trigger: item.run.request.trigger,
+      pid: expect.any(Number),
+      childPid: expect.any(Number),
+      deadlineAt: expect.any(Number),
+      mergePolicy: "auto",
+      worktreeDir: spawn?.paths.worktree,
+    })
     expect(JSON.parse(await readFile(join(item.identity.paths.reflection, "completions", `${item.run.runId}.json`), "utf8"))).toMatchObject({
       runId: item.run.runId,
       outcome: "merged",

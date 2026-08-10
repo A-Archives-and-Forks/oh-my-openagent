@@ -21,6 +21,7 @@ const defaultOutputDir = join(packageDir, "plugin")
 // Mirrors REQUIRED_PLUGIN_ARTIFACTS in packages/omo-senpi/src/install/install-senpi.ts.
 const REQUIRED_PLUGIN_ARTIFACTS = [
   join("extensions", "omo.js"),
+  join("extensions", "memory-run-supervisor.mjs"),
   join("skills", "ast-grep", "SKILL.md"),
   join("skills", "coding-agent-sessions", "SKILL.md"),
   join("skills", "debugging", "SKILL.md"),

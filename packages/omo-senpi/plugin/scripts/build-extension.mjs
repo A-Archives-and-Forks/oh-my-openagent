@@ -39,6 +39,8 @@ const memberEntryPath = join(repoRoot, "packages", "senpi-task", "src", "team", 
 const memberOutputPath = join(pluginRoot, "extensions", "omo-member.js")
 const memoryMcpEntryPath = join(packageRoot, "src", "mcp", "memory-server.ts")
 const memoryMcpOutputPath = join(pluginRoot, "extensions", "omo-memory-mcp.js")
+const supervisorEntryPath = join(packageRoot, "src", "components", "memory", "worker", "memory-run-supervisor.ts")
+const supervisorOutputPath = join(pluginRoot, "extensions", "memory-run-supervisor.mjs")
 const reflectionPersonaSource = join(repoRoot, "packages", "memory-core", "src", "reflection", "assets", "reflection-persona.md")
 const builtinModuleNames = builtinModules
   .filter((moduleName) => !moduleName.startsWith("_"))
@@ -64,13 +66,17 @@ export async function buildExtension(options = {}) {
   const memoryMcpOutput = options.memoryMcpOutputPath ?? (options.outputPath === undefined
     ? memoryMcpOutputPath
     : join(dirname(output), "omo-memory-mcp.js"))
+  const supervisorOutput = options.supervisorOutputPath ?? (options.outputPath === undefined
+    ? supervisorOutputPath
+    : join(dirname(output), "memory-run-supervisor.mjs"))
   const mainInputs = await buildEntry(entryPath, output)
   const memberInputs = await buildEntry(memberEntryPath, memberOutput)
   const memoryMcpInputs = await buildEntry(memoryMcpEntryPath, memoryMcpOutput)
+  const supervisorInputs = await buildEntry(supervisorEntryPath, supervisorOutput)
   // Bundling inlines assets.ts but its markdown is read from disk at runtime next to the bundle,
   // so the persona must be staged into the extension output directory the loader executes from.
   await writeFile(join(dirname(output), "reflection-persona.md"), await readFile(reflectionPersonaSource, "utf8"))
-  return { mainInputs, memberInputs, memoryMcpInputs }
+  return { mainInputs, memberInputs, memoryMcpInputs, supervisorInputs }
 }
 
 async function buildEntry(entry, output) {
@@ -97,19 +103,30 @@ export async function checkExtensionCurrent(options = {}) {
   const memoryMcpOutput = options.memoryMcpOutputPath ?? (options.outputPath === undefined
     ? memoryMcpOutputPath
     : join(dirname(output), "omo-memory-mcp.js"))
+  const supervisorOutput = options.supervisorOutputPath ?? (options.outputPath === undefined
+    ? supervisorOutputPath
+    : join(dirname(output), "memory-run-supervisor.mjs"))
   const currentMain = await readBuiltEntry(output)
   if (currentMain === undefined) return { ok: false, reason: "missing-output", output }
   const currentMember = await readBuiltEntry(memberOutput)
   if (currentMember === undefined) return { ok: false, reason: "missing-output", output: memberOutput }
   const currentMemoryMcp = await readBuiltEntry(memoryMcpOutput)
   if (currentMemoryMcp === undefined) return { ok: false, reason: "missing-output", output: memoryMcpOutput }
+  const currentSupervisor = await readBuiltEntry(supervisorOutput)
+  if (currentSupervisor === undefined) return { ok: false, reason: "missing-output", output: supervisorOutput }
 
   const tempRoot = await mkdtemp(join(repoRoot, ".build-check-"))
   const expectedOutput = join(tempRoot, "omo.js")
   const expectedMemberOutput = join(tempRoot, "omo-member.js")
   const expectedMemoryMcpOutput = join(tempRoot, "omo-memory-mcp.js")
+  const expectedSupervisorOutput = join(tempRoot, "memory-run-supervisor.mjs")
   try {
-    await buildExtension({ outputPath: expectedOutput, memberOutputPath: expectedMemberOutput, memoryMcpOutputPath: expectedMemoryMcpOutput })
+    await buildExtension({
+      outputPath: expectedOutput,
+      memberOutputPath: expectedMemberOutput,
+      memoryMcpOutputPath: expectedMemoryMcpOutput,
+      supervisorOutputPath: expectedSupervisorOutput,
+    })
     if (!artifactsMatch(currentMain, await readFile(expectedOutput, "utf8"))) {
       return { ok: false, reason: "stale-output", output }
     }
@@ -118,6 +135,9 @@ export async function checkExtensionCurrent(options = {}) {
     }
     if (!artifactsMatch(currentMemoryMcp, await readFile(expectedMemoryMcpOutput, "utf8"))) {
       return { ok: false, reason: "stale-output", output: memoryMcpOutput }
+    }
+    if (!artifactsMatch(currentSupervisor, await readFile(expectedSupervisorOutput, "utf8"))) {
+      return { ok: false, reason: "stale-output", output: supervisorOutput }
     }
     const expectedPersona = await readFile(join(tempRoot, "reflection-persona.md"), "utf8")
     const currentPersona = await readFile(join(dirname(output), "reflection-persona.md"), "utf8").catch(() => undefined)
@@ -228,6 +248,6 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
     console.log(`omo-senpi extension build is current: ${result.output}`)
   } else {
     await buildExtension()
-    console.log(`Built omo-senpi extensions: ${outputPath}, ${memberOutputPath}`)
+    console.log(`Built omo-senpi extensions: ${outputPath}, ${memberOutputPath}, ${memoryMcpOutputPath}, ${supervisorOutputPath}`)
   }
 }

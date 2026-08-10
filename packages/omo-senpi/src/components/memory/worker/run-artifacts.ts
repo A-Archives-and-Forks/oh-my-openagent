@@ -1,0 +1,73 @@
+import { randomUUID } from "node:crypto"
+import { open, readFile, rename, unlink } from "node:fs/promises"
+import { dirname } from "node:path"
+
+export interface RunLaunchManifest {
+  readonly version: 1
+  readonly runId: string
+  readonly kind: "reflection" | "dream" | "facts"
+  readonly command: string
+  readonly args: readonly string[]
+  readonly cwd: string
+  readonly env: Readonly<Record<string, string>>
+  readonly hardDeadlineAt: number
+  readonly terminationGraceMs: number
+  readonly maxOutputBytes: number
+  readonly stdoutPath: string
+  readonly stderrPath: string
+}
+
+export interface RunOutcome {
+  readonly version: 1
+  readonly runId: string
+  readonly finishedAt: string
+  readonly childExit: {
+    readonly code: number | null
+    readonly signal: string | null
+  }
+  readonly timedOut: boolean
+}
+
+export async function readRunJson<T>(path: string): Promise<T> {
+  return JSON.parse(await readFile(path, "utf8")) as T
+}
+
+export async function writeRunJsonAtomic(path: string, value: unknown, mode = 0o600): Promise<void> {
+  const temporary = `${path}.tmp-${process.pid}-${randomUUID()}`
+  const file = await open(temporary, "wx", mode)
+  try {
+    await file.writeFile(`${JSON.stringify(value, null, 2)}\n`, "utf8")
+    await file.sync()
+  } finally {
+    await file.close()
+  }
+  await rename(temporary, path)
+  await syncDirectory(dirname(path))
+}
+
+async function syncDirectory(path: string): Promise<void> {
+  try {
+    const directory = await open(path, "r")
+    try {
+      await directory.sync()
+    } finally {
+      await directory.close()
+    }
+  } catch (error) {
+    const code = error instanceof Error && "code" in error ? error.code : undefined
+    if (process.platform !== "win32" || !["EISDIR", "EPERM"].includes(String(code))) throw error
+  }
+}
+
+export async function updateRunLedger(path: string, fields: Readonly<Record<string, unknown>>): Promise<void> {
+  const current = await readRunJson<Record<string, unknown>>(path)
+  await writeRunJsonAtomic(path, { ...current, ...fields })
+}
+
+export async function unlinkRunArtifact(path: string): Promise<void> {
+  try {
+    await unlink(path)
+  } catch (error) {
+    if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error
+  }
+}
