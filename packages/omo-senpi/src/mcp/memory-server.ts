@@ -25,6 +25,7 @@ import {
   resolveMemoryIdentity,
   runMemoryApplyPatch,
   runMemoryTool,
+  type MemoryToolCommit,
   type MemoryToolParams,
 } from "@oh-my-opencode/memory-core"
 
@@ -35,6 +36,7 @@ import {
   MEMORY_TOOL_DESCRIPTION,
   MEMORY_TOOL_NAME,
 } from "../components/memory/tool-metadata"
+import { writeToolReceipt } from "../components/memory/tool-receipts"
 
 const SERVER_NAME = "omo-memory"
 const SERVER_VERSION = "0.1.0"
@@ -136,6 +138,7 @@ async function callMemoryTool(
         ...(toolProvenance === undefined ? {} : { provenance: toolProvenance }),
       } as MemoryToolParams
       const result = await runMemoryTool({ repo: session.repo, lock: session.lock, params })
+      await writeCommitReceipt(identity.paths.toolReceipts, provenance?.toolCallId, result.commit)
       return toolText(id, result.message)
     }
     const result = await runMemoryApplyPatch({
@@ -148,6 +151,7 @@ async function callMemoryTool(
         ...(toolProvenance === undefined ? {} : { provenance: toolProvenance }),
       },
     })
+    await writeCommitReceipt(identity.paths.toolReceipts, provenance?.toolCallId, result.commit)
     return toolText(id, result.message)
   } catch (error) {
     if (
@@ -167,6 +171,8 @@ interface McpMemoryProvenance {
   readonly userTurns: number
   readonly identityId: string
   readonly repoPath: string
+  /** Injected by the extension's tool_call bridge; keys the IC-17 out-of-band receipt. */
+  readonly toolCallId?: string
 }
 
 function readMcpProvenance(args: Record<string, unknown>): McpMemoryProvenance | undefined {
@@ -188,7 +194,31 @@ function readMcpProvenance(args: Record<string, unknown>): McpMemoryProvenance |
     userTurns: value.userTurns,
     identityId: value.identityId,
     repoPath: resolve(value.repoPath),
+    ...(typeof value.toolCallId === "string" && value.toolCallId.length > 0
+      ? { toolCallId: value.toolCallId }
+      : {}),
   }
+}
+
+// IC-17 outbound half: commit metadata reaches the extension through an identity-scoped receipt
+// file keyed by the injected toolCallId, never through the tool text (senpi's MCP output guard
+// truncates large results, which would silently drop the notice on exactly the largest edits).
+async function writeCommitReceipt(
+  receiptsDir: string,
+  toolCallId: string | undefined,
+  commit: MemoryToolCommit | undefined,
+): Promise<void> {
+  if (toolCallId === undefined || commit === undefined) return
+  try {
+    await writeToolReceipt(receiptsDir, { version: 1, toolCallId, ...commit })
+  } catch (error) {
+    // The commit is already durable; a lost receipt only drops the visible notice.
+    process.stderr.write(`omo-memory: failed to write tool receipt: ${errorMessage(error)}\n`)
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function toolText(id: string | number | null, text: string, isError = false): JsonRpcResponse {

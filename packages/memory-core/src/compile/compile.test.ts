@@ -3,7 +3,11 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { GitMemoryRepo } from "../git"
-import { MEMORY_NUDGE_METADATA_TOKEN, compileMemoryBlock } from "./compile"
+import {
+  MEMORY_NUDGE_METADATA_TOKEN,
+  MEMORY_SOUL_METADATA_TOKEN,
+  compileMemoryBlock,
+} from "./compile"
 
 const tempDirs: string[] = []
 const NOW = new Date("2026-05-04T00:00:00.000Z")
@@ -165,6 +169,32 @@ describe("compileMemoryBlock", () => {
     expect(nudged).toContain(MEMORY_NUDGE_METADATA_TOKEN)
     expect(nudged).toMatch(/- 2 user turns since/)
     expect(quiet).not.toContain(MEMORY_NUDGE_METADATA_TOKEN)
+  })
+
+  it("#given a soul notice #when compiled #then metadata carries the soul token and short sha only for that compile", async () => {
+    // given
+    const { repo } = await repoWith([])
+    const sha = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
+
+    // when
+    const noticed = await compileMemoryBlock(repo, {
+      agentId: "soul-agent",
+      conversationId: "soul-conversation",
+      previousMessageCount: 2,
+      soulNotice: { sha },
+      clock: () => NOW,
+    })
+    const quiet = await compileMemoryBlock(repo, {
+      agentId: "soul-agent",
+      conversationId: "soul-conversation",
+      previousMessageCount: 2,
+      clock: () => NOW,
+    })
+
+    // then
+    expect(noticed).toContain(MEMORY_SOUL_METADATA_TOKEN)
+    expect(noticed).toMatch(/- Soul updated by reflection a1b2c3d /)
+    expect(quiet).not.toContain(MEMORY_SOUL_METADATA_TOKEN)
   })
 
   it("#given a dirty persona edit #when compiled #then only the committed HEAD body appears", async () => {

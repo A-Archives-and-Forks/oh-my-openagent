@@ -1,7 +1,7 @@
 import { homedir } from "node:os"
 import { join } from "node:path"
 
-import { MemoryBlockCache, sanitizeToSlug } from "@oh-my-opencode/memory-core"
+import { MemoryBlockCache, consumeSoulNoticeDelta, sanitizeToSlug } from "@oh-my-opencode/memory-core"
 
 import type { ComponentContext, ComponentLogger, SenpiExtensionAPI } from "../../extension/types"
 import type { SenpiOmoConfigResult } from "../config-resolution"
@@ -26,6 +26,7 @@ import { registerMemoryFilesystemPolicy } from "./policy-guard"
 import { refreshMemoryStatus } from "./status"
 import { registerMemorySkillsScope } from "./skills-scope"
 import { registerSkillsUsage, type SkillsUsageTracker } from "./skills-usage"
+import { createSoulNoticeWiring } from "./soul-notice"
 import { createReflectionTriggerWiring, type ReflectionTriggerSession } from "./trigger-wiring"
 import { registerMemoryToolSurface } from "./tools"
 import {
@@ -81,6 +82,15 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
         enabled: override?.enabled ?? settings.nudge.enabled,
         everyUserTurns: override?.every_user_turns ?? settings.nudge.every_user_turns,
       }
+    },
+  })
+  const soulNoticeWiring = createSoulNoticeWiring({
+    resolveContext,
+    resolveEditNotice: (identity) => {
+      const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
+      if (settings === undefined) return false
+      const override = settings.agents[identity]?.soul
+      return override?.edit_notice ?? settings.soul.edit_notice
     },
   })
 
@@ -235,13 +245,24 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     registerStatic(pi: SenpiExtensionAPI, ctx: ComponentContext): void {
       const api = completionApi(pi)
       if (api !== undefined) registerReflectionCompletionRenderer(api)
-      if (hasMemoryCapabilities(pi)) nudgeWiring.register(pi)
+      if (hasMemoryCapabilities(pi)) {
+        nudgeWiring.register(pi)
+        soulNoticeWiring.register(pi)
+      }
       const toolExposure = options.toolExposure ?? "direct"
       const promptHandler = createMemoryPromptHandler({
         resolveContext,
         cache: promptCache,
         searchExposure: () => toolExposure === "search",
         resolveNudgeTurns: (repo, sessionId, identity) => nudgeWiring.nudgeTurns(repo, sessionId, identity),
+        resolveSoulNotice: async (repo, sessionId, identity) => {
+          const context = resolveContext(sessionId)
+          if (context === undefined || context.identity !== identity) return undefined
+          return consumeSoulNoticeDelta(repo, {
+            noticesDir: context.identityPaths.notices,
+            locksDir: context.identityPaths.locks,
+          })
+        },
       })
       pi.on("before_agent_start", (payload, eventCtx) => {
         lastEventCtx.current = eventCtx
@@ -264,6 +285,10 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       })
       registerMemoryToolSurface(pi, () => (activeSessionId === undefined ? undefined : resolveContext(activeSessionId)), {
         exposure: toolExposure,
+        onCommit: (commit) => {
+          const context = activeSessionId === undefined ? undefined : resolveContext(activeSessionId)
+          if (context !== undefined) soulNoticeWiring.onCommit(context, commit)
+        },
       })
       registerMemoryGuard(pi, ctx, {
         getContext: (eventContext) => {

@@ -307,3 +307,80 @@ describe("memory tool execution", () => {
     expect(existsSync(join(identityPaths.repo, ".git", "hooks", "post-commit"))).toBe(true)
   })
 })
+
+describe("memory tool onCommit seam", () => {
+  test("#given a bound identity #when memory create commits #then onCommit receives the sha, first-line subject, and affected paths", async () => {
+    // given
+    const fixture = await boundFixture()
+    const commits: Array<{ sha: string; subject: string; affectedPaths: readonly string[] }> = []
+    const [memoryTool] = createMemoryTools(() => fixture.context, {
+      onCommit: (commit) => commits.push(commit),
+    })
+
+    // when
+    const result = await memoryTool.execute("call-1", {
+      command: "create",
+      reason: "rewrite the persona",
+      file_path: "system/persona.md",
+      description: "Persona",
+      file_text: "v2 soul",
+    })
+
+    // then
+    expect(result.isError).toBeUndefined()
+    expect(commits).toEqual([{
+      sha: (await fixture.repo.head()) ?? "",
+      subject: "rewrite the persona",
+      affectedPaths: ["system/persona.md"],
+    }])
+  })
+
+  test("#given a bound identity #when memory_apply_patch commits #then onCommit receives the commit metadata", async () => {
+    // given
+    const fixture = await boundFixture()
+    await seedFile(fixture, "system/identity.md", "- Name: Ada")
+    const commits: Array<{ sha: string; subject: string; affectedPaths: readonly string[] }> = []
+    const [, applyPatchTool] = createMemoryTools(() => fixture.context, {
+      onCommit: (commit) => commits.push(commit),
+    })
+    const input = [
+      "*** Begin Patch",
+      "*** Update File: system/identity.md",
+      "@@",
+      "-- Name: Ada",
+      "+- Name: Grace",
+      "*** End Patch",
+    ].join("\n")
+
+    // when
+    const result = await applyPatchTool.execute("call-2", { reason: "rename", input })
+
+    // then
+    expect(result.isError).toBeUndefined()
+    expect(commits).toHaveLength(1)
+    expect(commits[0]?.subject).toBe("rename")
+    expect(commits[0]?.affectedPaths).toEqual(["system/identity.md"])
+  })
+
+  test("#given an engine rejection #when the tool executes #then onCommit is not called", async () => {
+    // given
+    const fixture = await boundFixture()
+    const commits: Array<{ sha: string; subject: string; affectedPaths: readonly string[] }> = []
+    const [memoryTool] = createMemoryTools(() => fixture.context, {
+      onCommit: (commit) => commits.push(commit),
+    })
+
+    // when
+    const result = await memoryTool.execute("call-3", {
+      command: "str_replace",
+      reason: "missing target",
+      file_path: "system/persona.md",
+      old_string: "nothing",
+      new_string: "something",
+    })
+
+    // then
+    expect(result.isError).toBe(true)
+    expect(commits).toHaveLength(0)
+  })
+})

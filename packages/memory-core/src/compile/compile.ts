@@ -9,6 +9,7 @@ import {
 const PERSONA_PATH = "system/persona.md"
 const IDENTITY_PATH = "system/identity.md"
 export const MEMORY_NUDGE_METADATA_TOKEN = "user turns since your last memory save"
+export const MEMORY_SOUL_METADATA_TOKEN = "Soul updated by"
 const REMINDER =
   "Reminder: <projection> holds local paths of memory projections. <memory> is your persistent memory across conversations. Consult it BEFORE asking the user anything it may already answer. Save durable facts, preferences, decisions, and corrections with the memory tools THE MOMENT they emerge. Route facts about a person to their record under people/ (the primary human's card is system/human.md)."
 
@@ -17,6 +18,8 @@ export interface CompileMemoryBlockOptions {
   conversationId: string
   previousMessageCount: number
   nudgeTurns?: number
+  /** Newest out-of-band soul commit since the identity watermark (plan IC-5); rendered once, then consumed. */
+  soulNotice?: { readonly sha: string }
   clock?: () => Date
 }
 
@@ -126,6 +129,9 @@ function renderMetadata(options: CompileMemoryBlockOptions, compiledAt: Date): s
     ...(options.nudgeTurns === undefined
       ? []
       : [`- ${options.nudgeTurns} ${MEMORY_NUDGE_METADATA_TOKEN}. Save durable facts now, or decide nothing qualifies.`]),
+    ...(options.soulNotice === undefined
+      ? []
+      : [`- ${MEMORY_SOUL_METADATA_TOKEN} reflection ${options.soulNotice.sha.slice(0, 7)} since your last run`]),
     "</memory_metadata>",
   ].join("\n")
 }

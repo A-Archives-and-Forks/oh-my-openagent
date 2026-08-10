@@ -2,7 +2,12 @@ import type { GitMemoryRepo, MemoryToolProvenance } from "@oh-my-opencode/memory
 
 import type { MemoryExtensionAPI } from "./capabilities"
 import type { MemoryIdentityContext } from "./context"
-import { MEMORY_APPLY_PATCH_TOOL_NAME, MEMORY_TOOL_NAME } from "./tool-metadata"
+import {
+  MEMORY_APPLY_PATCH_TOOL_NAME,
+  MEMORY_MCP_APPLY_PATCH_TOOL_NAME,
+  MEMORY_MCP_TOOL_NAME,
+  MEMORY_TOOL_NAME,
+} from "./tool-metadata"
 
 export const ACCEPTED_TURNS_ENTRY_TYPE = "omo-memory:accepted-turns"
 
@@ -91,6 +96,11 @@ export function createMemoryNudgeWiring(options: MemoryNudgeWiringOptions): Memo
           userTurns: state.priorUserTurns,
           identityId: context.identity,
           repoPath: context.identityPaths.repo,
+          // The receipt key for the IC-17 outbound half: unforgeable because the bridge
+          // overwrites the whole provenance object; never read from model arguments.
+          ...(typeof payload.toolCallId === "string" && payload.toolCallId.length > 0
+            ? { toolCallId: payload.toolCallId }
+            : {}),
         }
       })
     },
@@ -173,7 +183,12 @@ function isTurn(value: unknown): value is number {
 }
 
 function isMemoryToolName(value: unknown): boolean {
-  return value === MEMORY_TOOL_NAME || value === MEMORY_APPLY_PATCH_TOOL_NAME
+  // The MCP surface exposes the same tools under senpi's catalog names (mcp_<server>_<tool>);
+  // matching only the bare names would skip provenance injection on the search exposure.
+  return value === MEMORY_TOOL_NAME
+    || value === MEMORY_APPLY_PATCH_TOOL_NAME
+    || value === MEMORY_MCP_TOOL_NAME
+    || value === MEMORY_MCP_APPLY_PATCH_TOOL_NAME
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

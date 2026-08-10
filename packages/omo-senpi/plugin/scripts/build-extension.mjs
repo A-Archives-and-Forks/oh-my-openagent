@@ -185,7 +185,14 @@ async function attachBuildMarker(output, entry, metafile) {
   const body = await readFile(output, "utf8")
   const metadata = JSON.parse(await readFile(metafile, "utf8"))
   const sourceDigest = await digestBuildSources(metadata, entry)
-  await writeFile(output, `${BUILD_MARKER_PREFIX}${sourceDigest}:${digest(body)}\n${body}`)
+  const marker = `${BUILD_MARKER_PREFIX}${sourceDigest}:${digest(body)}`
+  // A leading shebang must stay at byte 0: Node's ESM loader strips it only there, so a marker
+  // prepended above it makes the spawned bundle unstartable (omo-memory-mcp, memory-run-supervisor).
+  const shebang = /^#![^\n]*\n/.exec(body)
+  const text = shebang === null
+    ? `${marker}\n${body}`
+    : `${shebang[0]}${marker}\n${body.slice(shebang[0].length)}`
+  await writeFile(output, text)
   return Object.keys(metadata.inputs ?? {})
 }
 
@@ -214,11 +221,15 @@ function artifactsMatch(currentText, expectedText) {
 }
 
 function parseBuildArtifact(text) {
-  const newline = text.indexOf("\n")
+  // The marker follows the shebang on executable bundles (see attachBuildMarker).
+  const offset = text.startsWith("#!") ? text.indexOf("\n") + 1 : 0
+  const marked = text.slice(offset)
+  const newline = marked.indexOf("\n")
   if (newline < 0) return undefined
-  const match = /^\/\/ omo-senpi-build:([a-f0-9]{64}):([a-f0-9]{64})$/.exec(text.slice(0, newline))
+  const match = /^\/\/ omo-senpi-build:([a-f0-9]{64}):([a-f0-9]{64})$/.exec(marked.slice(0, newline))
   if (match === null) return undefined
-  return { sourceDigest: match[1], bodyDigest: match[2], body: text.slice(newline + 1) }
+  // The digest body is the full bundle bytes (shebang included), matching attachBuildMarker.
+  return { sourceDigest: match[1], bodyDigest: match[2], body: text.slice(0, offset) + marked.slice(newline + 1) }
 }
 
 function digest(value) {

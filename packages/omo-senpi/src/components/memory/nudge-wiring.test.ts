@@ -226,7 +226,43 @@ describe("createMemoryNudgeWiring", () => {
         userTurns: 5,
         identityId: context.identity,
         repoPath: context.identityPaths.repo,
+        toolCallId: "call-1",
       },
+    })
+  })
+
+  test("#given a bound identity #when an MCP-surface memory tool call starts #then provenance is injected under the catalog tool names", async () => {
+    // given
+    const { context } = await fixture()
+    const pi = new MemoryFakeExtensionAPI()
+    const wiring = createMemoryNudgeWiring({
+      resolveContext: () => context,
+      resolveSettings: () => ({ enabled: true, everyUserTurns: 2 }),
+    })
+    wiring.register(pi)
+    const ctx = eventContext("session-mcp-call", [{
+      type: "custom",
+      customType: ACCEPTED_TURNS_ENTRY_TYPE,
+      data: { version: 1, sessionId: "session-mcp-call", priorUserTurns: 4, sessionBaselineTurns: 1 },
+    }])
+    await pi.dispatch("session_start", {}, ctx)
+    const call: {
+      type: string
+      toolCallId: string
+      toolName: string
+      input: Record<string, unknown>
+    } = { type: "tool_call", toolCallId: "call-mcp-1", toolName: "mcp_omo-memory_memory_apply_patch", input: { reason: "save" } }
+
+    // when
+    await pi.dispatch("tool_call", call, ctx)
+
+    // then
+    expect(call.input["provenance"]).toEqual({
+      sessionId: "session-mcp-call",
+      userTurns: 4,
+      identityId: context.identity,
+      repoPath: context.identityPaths.repo,
+      toolCallId: "call-mcp-1",
     })
   })
 })

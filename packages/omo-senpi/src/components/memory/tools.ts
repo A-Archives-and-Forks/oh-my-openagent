@@ -9,6 +9,7 @@ import {
   MemoryToolError,
   runMemoryApplyPatch,
   runMemoryTool,
+  type MemoryToolCommit,
   type MemoryToolProvenance,
 } from "@oh-my-opencode/memory-core"
 import { Type, type Static, type TSchema } from "typebox"
@@ -21,11 +22,12 @@ import type { MemoryIdentityContext } from "./context"
 import {
   MEMORY_APPLY_PATCH_DESCRIPTION,
   MEMORY_APPLY_PATCH_TOOL_NAME,
+  MEMORY_MCP_SERVER_NAME,
   MEMORY_TOOL_DESCRIPTION,
   MEMORY_TOOL_NAME,
 } from "./tool-metadata"
 
-export { MEMORY_APPLY_PATCH_TOOL_NAME, MEMORY_TOOL_NAME }
+export { MEMORY_APPLY_PATCH_TOOL_NAME, MEMORY_MCP_SERVER_NAME, MEMORY_TOOL_NAME }
 
 const UNBOUND_IDENTITY_MESSAGE =
   "no memory identity bound to this session; enable omo memory and restart the session so the memory tools can initialize"
@@ -73,6 +75,8 @@ export interface MemoryToolsOptions {
   readonly lockWaitTimeoutMs?: number
   /** Writer-lock retry cadence while waiting; defaults to the memory-core default (25ms). */
   readonly lockRetryDelayMs?: number
+  /** Post-commit notice seam (plan IC-4): invoked once after each successful commit, never on errors. */
+  readonly onCommit?: (commit: MemoryToolCommit) => void
 }
 
 export type MemoryContextResolver = () => MemoryIdentityContext | undefined
@@ -94,8 +98,6 @@ export function registerMemoryTools(
 ): void {
   for (const tool of createMemoryTools(resolveContext, options)) pi.registerTool({ ...tool })
 }
-
-export const MEMORY_MCP_SERVER_NAME = "omo-memory"
 
 export interface MemoryToolSurfaceOptions extends MemoryToolsOptions {
   readonly exposure?: "direct" | "search"
@@ -150,6 +152,7 @@ function createMemoryTool(
           lock,
           params: { ...params, author, ...(provenance === undefined ? {} : { provenance }) },
         })
+        if (result.commit !== undefined) options.onCommit?.(result.commit)
         return okResult(result.message)
       } catch (error) {
         if (error instanceof MemoryToolError) return errorResult(error.message)
@@ -185,6 +188,7 @@ function createMemoryApplyPatchTool(
           lock,
           params: { ...params, author, ...(provenance === undefined ? {} : { provenance }) },
         })
+        if (result.commit !== undefined) options.onCommit?.(result.commit)
         return okResult(result.message)
       } catch (error) {
         if (

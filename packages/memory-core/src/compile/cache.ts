@@ -34,7 +34,7 @@ export class MemoryBlockCache {
   ): Promise<string> {
     const revision = await repo.head()
     const key = `${hashMemoryTemplate(template)}:${options.agentId}:${options.conversationId}`
-    const variant = `${revision ?? "no-head"}:${options.nudgeTurns ?? "quiet"}`
+    const variant = `${revision ?? "no-head"}:${options.nudgeTurns ?? "quiet"}:${options.soulNotice?.sha ?? "quiet"}`
     const existing = this.entries.get(key)
     if (existing?.variant === variant) return existing.pending
 

@@ -25,6 +25,29 @@ async function builtOutputs() {
 }
 
 describe("checkExtensionCurrent", () => {
+  test("#given freshly built outputs #when the executable bundles are inspected #then the shebang stays the first bytes and the marker still parses", async () => {
+    // given
+    const outputs = await builtOutputs()
+
+    // when
+    const mcp = await readFile(outputs.memoryMcpOutputPath, "utf8")
+    const supervisor = await readFile(outputs.supervisorOutputPath, "utf8")
+
+    // then (Node's ESM loader strips a shebang only at byte 0; a marker above it breaks startup)
+    for (const text of [mcp, supervisor]) {
+      expect(text.startsWith("#!/usr/bin/env node\n")).toBe(true)
+      expect(text.indexOf("\n// omo-senpi-build:")).toBeGreaterThan(0)
+    }
+    // and the freshness round-trip still recognizes the artifacts
+    const check = await checkExtensionCurrent({
+      outputPath: outputs.outputPath,
+      memberOutputPath: outputs.memberOutputPath,
+      memoryMcpOutputPath: outputs.memoryMcpOutputPath,
+      supervisorOutputPath: outputs.supervisorOutputPath,
+    })
+    expect(check.ok).toBe(true)
+  })
+
   test("#given platform-specific source paths #when normalized #then build markers use portable separators", () => {
     expect(toPortableBuildPath("packages\\omo-senpi\\src\\extension\\index.ts"))
       .toBe("packages/omo-senpi/src/extension/index.ts")

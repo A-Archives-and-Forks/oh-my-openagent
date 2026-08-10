@@ -5,6 +5,7 @@ import {
   LOCK_DOMAINS,
   factsQueueLockPath,
   memoryWriterLockPath,
+  noticeLockPath,
   reflectionSchedulerLockPath,
   skillsUsageLockPath,
   transcriptStateLockPath,
@@ -22,6 +23,7 @@ describe("lock domain paths", () => {
       skillsUsageLockPath(locksDirectory),
       transcriptStateLockPath(locksDirectory, "conversation/../one"),
       factsQueueLockPath(locksDirectory),
+      noticeLockPath(locksDirectory),
     ]
 
     // #then
@@ -31,6 +33,7 @@ describe("lock domain paths", () => {
       "transcript-state",
       "skills-usage",
       "facts-queue",
+      "notice",
     ])
     expect(paths[0]).toBe(path.join(locksDirectory, "memory-write.lock"))
     expect(paths[1]).toBe(path.join(locksDirectory, "reflection-scheduler.lock"))
@@ -38,5 +41,6 @@ describe("lock domain paths", () => {
     expect(path.dirname(paths[3] ?? "")).toBe(locksDirectory)
     expect(path.basename(paths[3] ?? "")).toMatch(/^transcript-state-[a-f0-9]{16}\.lock$/)
     expect(paths[4]).toBe(path.join(locksDirectory, "facts-queue.lock"))
+    expect(paths[5]).toBe(path.join(locksDirectory, "notice.lock"))
   })
 })

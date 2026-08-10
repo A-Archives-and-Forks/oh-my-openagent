@@ -16,6 +16,14 @@
 export const DEFAULT_MEMORY_BLOCK_LABELS = ["persona", "human"] as const
 
 /**
+ * sha256 of the exact v1 persona seed file (frontmatter `description: Persona - who I am`
+ * plus the v1 body from commit 02a7d562e, 977 bytes, no trailing newline). The /doctor
+ * advisory compares system/persona.md against this to flag repos that never received the
+ * v2 soul seed; detection is advisory only, never an auto-rewrite.
+ */
+export const V1_PERSONA_SEED_SHA256 = "ed9106790224a2820d68b1e09c847672dbd3c44b56e8dedd17091e8d0a8c0e8e"
+
+/**
  * Persona block body, v2. OpenClaw SOUL register: identity philosophy,
  * opinions allowed, self-evolution invited, plus the committed-HEAD
  * projection contract ($MEMORY_DIR, system/ blocks, external projection).

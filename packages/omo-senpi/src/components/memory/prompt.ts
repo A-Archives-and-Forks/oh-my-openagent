@@ -31,6 +31,11 @@ export interface MemoryPromptInjectionOptions {
     sessionId: string,
     identity: string,
   ) => Promise<number | undefined>
+  readonly resolveSoulNotice?: (
+    repo: GitMemoryRepo,
+    sessionId: string,
+    identity: string,
+  ) => Promise<{ readonly sha: string } | undefined>
 }
 
 /**
@@ -54,11 +59,13 @@ export function createMemoryPromptHandler(
 
     const repo = createRepo(context)
     const nudgeTurns = await options.resolveNudgeTurns?.(repo, session.id, context.identity)
+    const soulNotice = await options.resolveSoulNotice?.(repo, session.id, context.identity)
     const block = await cache.compile(repo, `${MEMORY_PROMPT_TEMPLATE}:${context.identity}`, {
       agentId: context.identity,
       conversationId: session.id,
       previousMessageCount: session.priorMessageCount,
       ...(nudgeTurns === undefined ? {} : { nudgeTurns }),
+      ...(soulNotice === undefined ? {} : { soulNotice }),
       ...(options.clock === undefined ? {} : { clock: options.clock }),
     })
     const composed = options.searchExposure?.() === true ? `${block}\n\n${MEMORY_TOOL_DISCOVERY_NOTE}` : block

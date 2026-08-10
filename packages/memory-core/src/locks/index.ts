@@ -10,6 +10,7 @@ export {
   LOCK_DOMAINS,
   factsQueueLockPath,
   memoryWriterLockPath,
+  noticeLockPath,
   reflectionSchedulerLockPath,
   skillsUsageLockPath,
   transcriptStateLockPath,

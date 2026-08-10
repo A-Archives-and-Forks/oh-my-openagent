@@ -5,6 +5,7 @@ import { NoEffectiveChangesError, type GitCommitAuthor, type GitMemoryRepo } fro
 import { parseMemoryFile, renderMemoryFile, type ParsedMemoryFile } from "../memfs/frontmatter"
 import { validateMemoryPath, validateRepositoryPath } from "../memfs/paths"
 import type { LockDomain } from "../locks"
+import { SOUL_EDIT_RESULT_LINE, touchesSoulPath } from "../soul"
 import { MemoryToolError } from "./tool-errors"
 
 export type MemoryCommand =
@@ -36,8 +37,16 @@ export interface MemoryToolParams {
   file_text?: string
 }
 
+/** Post-commit metadata carried to the notice channel (plan IC-4); subject is the message's first line. */
+export interface MemoryToolCommit {
+  readonly sha: string
+  readonly subject: string
+  readonly affectedPaths: readonly string[]
+}
+
 export interface MemoryToolResult {
   message: string
+  readonly commit?: MemoryToolCommit
 }
 
 export interface MemoryToolLock {
@@ -74,10 +83,16 @@ export async function runMemoryTool(options: RunMemoryToolOptions): Promise<Memo
       }
 
       const local = !(await hasConfiguredRemote(repo))
+      const summary = local
+        ? `Memory ${params.command} committed locally (${result.sha.slice(0, 7)}).`
+        : `Memory ${params.command} committed (${result.sha.slice(0, 7)}); harness will sync after the turn.`
       return {
-        message: local
-          ? `Memory ${params.command} committed locally (${result.sha.slice(0, 7)}).`
-          : `Memory ${params.command} committed (${result.sha.slice(0, 7)}); harness will sync after the turn.`,
+        message: touchesSoulPath(affectedPaths) ? `${summary}\n${SOUL_EDIT_RESULT_LINE}` : summary,
+        commit: {
+          sha: result.sha,
+          subject: reason.split(/\r?\n/, 1)[0] ?? reason,
+          affectedPaths,
+        },
       }
     })
   } catch (error) {

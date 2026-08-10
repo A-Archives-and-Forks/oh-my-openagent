@@ -91,6 +91,30 @@ describe("MemoryBlockCache", () => {
     expect(cache.size).toBe(1)
   })
 
+  it("#given a consumed soul notice at an unchanged HEAD #when compiled again #then the notice variant is replaced and the line is gone", async () => {
+    // given
+    const { repo } = await createRepo()
+    const cache = new MemoryBlockCache()
+    const base = {
+      agentId: "cache-agent",
+      conversationId: "soul-session",
+      previousMessageCount: 1,
+    }
+
+    // when
+    const noticed = await cache.compile(repo, "template", {
+      ...base,
+      soulNotice: { sha: "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678" },
+    })
+    const quiet = await cache.compile(repo, "template", base)
+    const quietAgain = await cache.compile(repo, "template", base)
+
+    // then
+    expect(noticed).not.toBe(quiet)
+    expect(quietAgain).toBe(quiet)
+    expect(cache.size).toBe(1)
+  })
+
   it("#given template content #when hashed #then the structure version participates in sha256", () => {
     // given / when / then
     expect(hashMemoryTemplate("template")).toMatch(/^[0-9a-f]{64}$/)

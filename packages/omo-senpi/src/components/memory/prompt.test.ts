@@ -7,7 +7,9 @@ import type { BeforeAgentStartEventResult } from "@code-yeongyu/senpi"
 import {
   GitMemoryRepo,
   MEMORY_NUDGE_METADATA_TOKEN,
+  MEMORY_SOUL_METADATA_TOKEN,
   buildIdentityPaths,
+  consumeSoulNoticeDelta,
 } from "@oh-my-opencode/memory-core"
 
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
@@ -162,6 +164,56 @@ describe("createMemoryPromptHandler", () => {
     // then
     expect(result?.systemPrompt).toContain(MEMORY_NUDGE_METADATA_TOKEN)
     expect(result?.systemPrompt).toMatch(/- 2 user turns since/)
+  })
+
+  test("#given a reflection soul notice #when before_agent_start compiles #then the memory metadata carries the soul token and short sha", async () => {
+    // given
+    const { repo, context } = await fixture()
+    const pi = new FakeExtensionAPI()
+    pi.on("before_agent_start", createMemoryPromptHandler({
+      resolveContext: () => context,
+      createRepo: () => repo,
+      resolveSoulNotice: async () => ({ sha: "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678" }),
+    }))
+
+    // when
+    const result = await dispatchEvent(pi, beforeAgentStart("BASE PROMPT"), eventContext("session-1", 2))
+
+    // then
+    expect(result?.systemPrompt).toContain(MEMORY_SOUL_METADATA_TOKEN)
+    expect(result?.systemPrompt).toMatch(/- Soul updated by reflection a1b2c3d /)
+  })
+
+  test("#given an out-of-band soul commit #when the prompt compiles repeatedly at the same HEAD #then the soul line appears exactly once", async () => {
+    // given
+    const { repo, context } = await fixture()
+    const watermark = {
+      noticesDir: context.identityPaths.notices,
+      locksDir: context.identityPaths.locks,
+    }
+    expect(await consumeSoulNoticeDelta(repo, watermark)).toBeUndefined()
+    await writeFile(join(repo.dir, "system/persona.md"), "---\ndescription: Persona\n---\nevolved\n")
+    await repo.commitWrite(
+      ["system/persona.md"],
+      "chore(reflection): merge run r1\n\nOmo-Writer: reflection",
+      { agentId: IDENTITY, authorName: "Prompt Agent" },
+    )
+    const pi = new FakeExtensionAPI()
+    pi.on("before_agent_start", createMemoryPromptHandler({
+      resolveContext: () => context,
+      createRepo: () => repo,
+      resolveSoulNotice: (repoArg) => consumeSoulNoticeDelta(repoArg, watermark),
+    }))
+
+    // when
+    const first = await dispatchEvent(pi, beforeAgentStart("BASE PROMPT"), eventContext("session-1", 1))
+    const second = await dispatchEvent(pi, beforeAgentStart("BASE PROMPT"), eventContext("session-1", 1))
+    const third = await dispatchEvent(pi, beforeAgentStart("BASE PROMPT"), eventContext("session-1", 1))
+
+    // then
+    expect(first?.systemPrompt).toContain(MEMORY_SOUL_METADATA_TOKEN)
+    expect(second?.systemPrompt).not.toContain(MEMORY_SOUL_METADATA_TOKEN)
+    expect(third?.systemPrompt).not.toContain(MEMORY_SOUL_METADATA_TOKEN)
   })
 
   test("#given another extension already rewrote the system prompt #when the handler runs #then the foreign text survives and the block is appended", async () => {
