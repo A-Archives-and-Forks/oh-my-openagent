@@ -24,13 +24,13 @@ function writeFile(path: string, content: string, mode?: number): void {
 function createFixture(options: { hoisted?: boolean; shim?: boolean } = {}): Fixture {
   // Windows hands back the 8.3 short form (RUNNER~1) here while the launcher reports the long path, so
   // the fixture root is canonicalized once and every derived path inherits the same spelling.
-  const root = realpathSync(mkdtempSync(join(tmpdir(), "omo-launcher-")))
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), "omo-launcher-")))
   roots.push(root)
   const packagePath = options.hoisted
     ? join(root, "node_modules", "omo-ai")
     : join(root, "app")
   mkdirSync(packagePath, { recursive: true })
-  const packageRoot = realpathSync(packagePath)
+  const packageRoot = realpathSync.native(packagePath)
   cpSync(join(SOURCE_ROOT, "bin"), join(packageRoot, "bin"), { recursive: true })
   writeFile(join(packageRoot, "package.json"), JSON.stringify({
     name: "omo-ai",
@@ -60,7 +60,7 @@ process.exit(Number(process.env.FAKE_EXIT ?? 0))
   if (options.shim !== false) {
     shimPath = join(modulesRoot, ".bin", process.platform === "win32" ? "senpi.cmd" : "senpi")
     writeFile(shimPath, "fixture shim\n", 0o755)
-    shimPath = realpathSync(shimPath)
+  shimPath = realpathSync.native(shimPath)
   }
   const toolkitRuntime = join(packageRoot, "plugin", "runtime", "agent-toolkit")
   writeFile(join(toolkitRuntime, "cli.js"), `
