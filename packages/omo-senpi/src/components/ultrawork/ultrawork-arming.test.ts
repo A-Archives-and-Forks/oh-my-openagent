@@ -4,7 +4,7 @@ import { describe, expect, it } from "bun:test"
 
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import { SENPI_ULTRAWORK_DIRECTIVE } from "./generated-directive"
-import { createSessionArming, createUltraworkComponent } from "./index"
+import { armingSnapshot, classifyUltraworkInput, createSessionArming, createUltraworkComponent } from "./index"
 import {
   createTestContext,
   dispatchInput,
@@ -113,6 +113,49 @@ describe("omo-senpi ultrawork once-per-session arming", () => {
       expect(pi.messages).toHaveLength(0)
       expect(arming.isArmed(`session-${testCase.name}`)).toBe(false)
     }
+  })
+
+  it("#given shared arming state #when snapshot is read three times #then every read is identical and the ledger stays unchanged", () => {
+    // given
+    const arming = createSessionArming()
+    arming.markArmed("session-snapshot")
+    arming.rearmOnCompact("session-snapshot")
+    const restoreSlot = seedSharedArmingSlot({ directive: SENPI_ULTRAWORK_DIRECTIVE, arming })
+
+    try {
+      const before = {
+        armed: arming.isArmed("session-snapshot"),
+        pending: arming.isCompactRearmPending?.("session-snapshot") ?? false,
+      }
+
+      // when
+      const snapshots = [
+        armingSnapshot("session-snapshot"),
+        armingSnapshot("session-snapshot"),
+        armingSnapshot("session-snapshot"),
+      ]
+
+      // then
+      expect(snapshots).toEqual([
+        { wasArmed: false, compactRearmPending: true },
+        { wasArmed: false, compactRearmPending: true },
+        { wasArmed: false, compactRearmPending: true },
+      ])
+      expect({
+        armed: arming.isArmed("session-snapshot"),
+        pending: arming.isCompactRearmPending?.("session-snapshot") ?? false,
+      }).toEqual(before)
+    } finally {
+      restoreSlot()
+    }
+  })
+
+  it("#given pre-mutation snapshots #when effective prompts are classified #then every arming stage is distinguishable", () => {
+    const input = { text: "ulw ship it", source: "interactive" as const }
+
+    expect(classifyUltraworkInput(input, { wasArmed: false, compactRearmPending: false }).stage).toBe("first_arm")
+    expect(classifyUltraworkInput(input, { wasArmed: true, compactRearmPending: false }).stage).toBe("remention")
+    expect(classifyUltraworkInput(input, { wasArmed: false, compactRearmPending: true }).stage).toBe("post_compact_rearm")
   })
 
   it("#given a known fresh session #when the first trigger dispatches #then injects the full directive byte-identically", async () => {
