@@ -64,6 +64,23 @@ Static and type checks:
 - TypeScript no-excuse audit: no violations in the three build-graph/install test files
 - pure LOC: build.ts 138; build dependency test 9; staging script 211; staging test 73
 
+Final-head CI integration corrections:
+- GitHub run: https://github.com/code-yeongyu/oh-my-openagent/actions/runs/31373658888
+- Linux and macOS root failures were the stale static Senpi graph assertion; the focused test passed after its expected dependency list included `codex-plugin`
+- Windows Senpi failure was `/memory-repository status` completing just beyond Bun's default five-second budget; the same real Git-backed test now uses the existing 20-second Git integration budget
+- Linux Senpi failure was reproducible nondeterminism in `compaction-survival.test.ts`: 50-process stress failed on iteration 12 before the fix
+- root cause: the integration fixture registered a second reflection trigger over the same identity after the real memory component already composed one; the production reservation could win the active slot before the test spy
+- fix: inject the reservation store and launch capture through the real component's narrow runtime seam, leaving one prompt/journal/trigger composition
+- exact Bun 1.3.12 stress after the fix: 50 consecutive process runs passed
+- full memory component suite: 240 pass, 0 fail, 807 assertions
+- focused reproduced failures after the fix: 19 pass, 0 fail
+- omo-senpi typecheck and script typecheck: exit 0
+- TypeScript no-excuse audit: no violations in seven changed files
+- `wiring.ts` was split back below the size ceiling by moving untrusted model-registry parsing into `model-registry-resolver.ts`; pure LOC is 246
+- the full hermetic `test:senpi` gate initially exposed host `OMO_AGENT_TOOLKIT_BIN` leaking into a legacy `OMO_BIN` precedence test
+- that test now explicitly unsets the higher-priority variable; focused runtime result: 13 pass, 0 fail
+- final full Senpi gate with Bun 1.3.12: 894 pass, 0 fail, 2578 assertions
+
 Isolated Codex installer QA:
 - `OMO_SKIP_MATERIALIZE=1 bash .agents/skills/codex-qa/scripts/install-verify.sh --self-test`
 - plugin cache, config enablement, component bins, and agent TOMLs all passed
