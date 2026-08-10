@@ -2,10 +2,10 @@ Command:
 bun test packages/omo-senpi/src/components/memory
 
 Observed:
-260 pass
+251 pass
 0 fail
-860 expect() calls
-Ran 260 tests across 42 files. [68.50s]
+835 expect() calls
+Ran 251 tests across 40 files. [54.09s]
 
 Coverage highlights:
 - memory component registration and session shutdown

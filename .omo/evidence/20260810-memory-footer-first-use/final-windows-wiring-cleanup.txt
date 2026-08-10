@@ -22,7 +22,7 @@ Fix:
 
 Local verification:
 - Cleanup plus focused memory tests: 25 pass, 0 fail, 76 assertions.
-- Full memory suite: 260 pass, 0 fail, 860 assertions.
+- Full memory suite: 251 pass, 0 fail, 835 assertions.
 - Omo-senpi typecheck: exit 0.
 
 Second Windows observation:
