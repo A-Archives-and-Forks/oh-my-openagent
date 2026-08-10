@@ -60,6 +60,11 @@ const BUILD_SETTINGS = JSON.stringify({
 })
 
 export async function buildExtension(options = {}) {
+  const packageManifest = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"))
+  if (typeof packageManifest.version !== "string" || packageManifest.version.length === 0) {
+    throw new Error("omo-senpi package manifest must contain a version")
+  }
+  const buildDefines = { OMO_SENPI_PACKAGE_VERSION: packageManifest.version }
   const output = options.outputPath ?? outputPath
   const memberOutput = options.memberOutputPath ?? (options.outputPath === undefined
     ? memberOutputPath
@@ -70,10 +75,10 @@ export async function buildExtension(options = {}) {
   const supervisorOutput = options.supervisorOutputPath ?? (options.outputPath === undefined
     ? supervisorOutputPath
     : join(dirname(output), "memory-run-supervisor.mjs"))
-  const mainInputs = await buildEntry(entryPath, output)
-  const memberInputs = await buildEntry(memberEntryPath, memberOutput)
-  const memoryMcpInputs = await buildEntry(memoryMcpEntryPath, memoryMcpOutput)
-  const supervisorInputs = await buildEntry(supervisorEntryPath, supervisorOutput)
+  const mainInputs = await buildEntry(entryPath, output, buildDefines)
+  const memberInputs = await buildEntry(memberEntryPath, memberOutput, buildDefines)
+  const memoryMcpInputs = await buildEntry(memoryMcpEntryPath, memoryMcpOutput, buildDefines)
+  const supervisorInputs = await buildEntry(supervisorEntryPath, supervisorOutput, buildDefines)
   // Bundling inlines assets.ts but its markdown is read from disk at runtime next to the bundle,
   // so the persona must be staged into the extension output directory the loader executes from.
   await Promise.all([
@@ -83,17 +88,18 @@ export async function buildExtension(options = {}) {
   return { mainInputs, memberInputs, memoryMcpInputs, supervisorInputs }
 }
 
-async function buildEntry(entry, output) {
+async function buildEntry(entry, output, buildDefines) {
   await mkdir(dirname(output), { recursive: true })
   const metafile = `${output}.meta.json`
   try {
     run("bun", [
       "build", entry, "--target", "node", "--format", "esm", "--outfile", output,
       "--minify", `--metafile=${metafile}`,
+      ...Object.entries(buildDefines).flatMap(([name, value]) => ["--define", `${name}=${JSON.stringify(value)}`]),
       ...externalSpecifiers.flatMap((specifier) => ["--external", specifier]),
     ])
     await normalizeBuiltinImports(output)
-    return await attachBuildMarker(output, entry, metafile)
+    return await attachBuildMarker(output, entry, metafile, buildDefines)
   } finally {
     await rm(metafile, { force: true })
   }
@@ -181,10 +187,10 @@ async function normalizeBuiltinImports(output) {
   }
 }
 
-async function attachBuildMarker(output, entry, metafile) {
+async function attachBuildMarker(output, entry, metafile, buildDefines) {
   const body = await readFile(output, "utf8")
   const metadata = JSON.parse(await readFile(metafile, "utf8"))
-  const sourceDigest = await digestBuildSources(metadata, entry)
+  const sourceDigest = await digestBuildSources(metadata, entry, buildDefines)
   const marker = `${BUILD_MARKER_PREFIX}${sourceDigest}:${digest(body)}`
   // A leading shebang must stay at byte 0: Node's ESM loader strips it only there, so a marker
   // prepended above it makes the spawned bundle unstartable (omo-memory-mcp, memory-run-supervisor).
@@ -196,10 +202,13 @@ async function attachBuildMarker(output, entry, metafile) {
   return Object.keys(metadata.inputs ?? {})
 }
 
-async function digestBuildSources(metadata, entry) {
+async function digestBuildSources(metadata, entry, buildDefines) {
   const inputs = metadata !== null && typeof metadata === "object" && metadata.inputs !== null
     && typeof metadata.inputs === "object" ? Object.keys(metadata.inputs).sort() : []
-  const hash = createHash("sha256").update(BUILD_SETTINGS).update(toPortableBuildPath(relative(repoRoot, entry)))
+  const hash = createHash("sha256")
+    .update(BUILD_SETTINGS)
+    .update(JSON.stringify(buildDefines))
+    .update(toPortableBuildPath(relative(repoRoot, entry)))
   for (const input of inputs) {
     const inputPath = resolve(repoRoot, input)
     hash.update(toPortableBuildPath(relative(repoRoot, inputPath))).update(await readFile(inputPath))
