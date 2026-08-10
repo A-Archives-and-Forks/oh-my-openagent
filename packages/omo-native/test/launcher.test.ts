@@ -107,7 +107,7 @@ describe("omo launcher", () => {
       test("#then launcher environment points to existing hoisted shims", () => {
         const fixture = createFixture({ hoisted: true })
         mkdirSync(join(fixture.packageRoot, "node_modules"), { recursive: true })
-        const result = run(fixture, ["--version"], { OMO_BIN: "/must/not/leak" })
+        const result = run(fixture, ["say", "hi"], { OMO_BIN: "/must/not/leak" })
         const environment = capture(fixture).env
         expect(result.status).toBe(0)
         expect(environment.SENPI_BIN).toBe(fixture.shimPath)
@@ -115,14 +115,83 @@ describe("omo launcher", () => {
         expect(environment.PATH?.split(process.platform === "win32" ? ";" : ":")[0]).toBe(dirname(fixture.shimPath ?? ""))
         expect(existsSync(environment.PATH?.split(process.platform === "win32" ? ";" : ":")[0] ?? "")).toBe(true)
         expect(environment.OMO_AGENT_TOOLKIT_BIN).toBe(join(fixture.packageRoot, "bin", "omo-agent-toolkit.js"))
-        expect(environment.OMO_BIN).toBeUndefined()
+        // An inherited value must never survive: it is replaced by the resolved shim, never leaked.
+        expect(environment.OMO_BIN).toBe(fixture.shimPath)
       })
 
       test("#then SENPI_BIN stays absent when no shim exists", () => {
         const fixture = createFixture({ shim: false })
-        const result = run(fixture, ["--version"], { SENPI_BIN: "/stale/senpi" })
+        const result = run(fixture, ["say", "hi"], { SENPI_BIN: "/stale/senpi" })
         expect(result.status).toBe(0)
         expect(capture(fixture).env.SENPI_BIN).toBeUndefined()
+      })
+    })
+
+
+    describe("#when the product identity is handed to the engine", () => {
+      test("#then the brand profile names the product, its flat home and its update channel", () => {
+        const fixture = createFixture()
+        const result = run(fixture, ["say", "hi"])
+        expect(result.status).toBe(0)
+
+        const brand = JSON.parse(capture(fixture).env.SENPI_BRAND ?? "{}")
+        expect(brand.name).toBe("omo")
+        expect(brand.configDir).toBe(".omo")
+        expect(brand.flatLayout).toBe(true)
+        expect(brand.envPrefix).toBe("OMO")
+        expect(brand.userAgent).toBe("omo")
+        expect(brand.originator).toBe("omo")
+        expect(brand.displayVersion).toBe("1.2.3-test.0")
+        expect(brand.update).toEqual({
+          packageName: "omo-ai",
+          distTag: "beta",
+          command: "npm i -g omo-ai@beta",
+          changelogUrl: "https://github.com/code-yeongyu/oh-my-openagent/releases",
+        })
+      })
+
+      test("#then OMO_BIN accompanies SENPI_BIN so both spellings resolve the shim", () => {
+        const fixture = createFixture({ hoisted: true })
+        mkdirSync(join(fixture.packageRoot, "node_modules"), { recursive: true })
+        const result = run(fixture, ["say", "hi"])
+        expect(result.status).toBe(0)
+        expect(capture(fixture).env.OMO_BIN).toBe(fixture.shimPath)
+      })
+    })
+
+    describe("#when the version is requested on its own", () => {
+      test("#then the product version is reported with its engine version, without spawning senpi", () => {
+        const fixture = createFixture()
+        const result = run(fixture, ["--version"])
+        expect(result.status).toBe(0)
+        expect(result.stdout.trim()).toBe("omo 1.2.3-test.0 (engine: senpi 2026.8.9)")
+        expect(existsSync(fixture.captureFile)).toBe(false)
+      })
+
+      test("#then a compound invocation still reaches senpi", () => {
+        const fixture = createFixture()
+        const result = run(fixture, ["--version", "--print"])
+        expect(result.status).toBe(0)
+        expect(capture(fixture).argv).toContain("--version")
+      })
+    })
+
+    describe("#when a self-update is requested", () => {
+      for (const args of [["update", "--self"], ["update", "self"], ["update", "senpi"]]) {
+        test(`#then ${args.join(" ")} is answered with the product's own update command`, () => {
+          const fixture = createFixture()
+          const result = run(fixture, args)
+          expect(result.status).toBe(0)
+          expect(result.stdout).toContain("npm i -g omo-ai@beta")
+          expect(existsSync(fixture.captureFile)).toBe(false)
+        })
+      }
+
+      test("#then updating extensions still passes through to senpi", () => {
+        const fixture = createFixture()
+        const result = run(fixture, ["update", "--extensions"])
+        expect(result.status).toBe(0)
+        expect(capture(fixture).argv).toEqual(["update", "--extensions"])
       })
     })
 
@@ -130,7 +199,7 @@ describe("omo launcher", () => {
       for (const [label, args] of [
         ["install", ["install", "source"]], ["remove", ["remove", "source"]],
         ["list", ["list"]], ["config", ["config"]], ["auth", ["auth", "login"]],
-        ["app-server", ["app-server"]], ["update with flags", ["update", "--self"]],
+        ["app-server", ["app-server"]], ["update with flags", ["update", "--extensions"]],
         ["update with a source", ["update", "source"]],
       ] as const) {
         test(`#then ${label} passes through without an extension argument`, () => {
@@ -142,7 +211,7 @@ describe("omo launcher", () => {
           expect(captured.argv).not.toContain("--extension")
           expect(existsSync(captured.env.SENPI_BIN ?? "")).toBe(true)
           expect(captured.env.OMO_AGENT_TOOLKIT_BIN).toBe(join(fixture.packageRoot, "bin", "omo-agent-toolkit.js"))
-          expect(captured.env.OMO_BIN).toBeUndefined()
+          expect(captured.env.OMO_BIN).toBe(captured.env.SENPI_BIN)
         })
       }
     })
@@ -207,7 +276,7 @@ describe("omo launcher", () => {
       test("#then resolution fails with actionable reinstall guidance", () => {
         const fixture = createFixture()
         rmSync(join(fixture.packageRoot, "node_modules", "@code-yeongyu", "senpi", "dist", "cli.js"))
-        const result = run(fixture, ["--version"])
+        const result = run(fixture, ["say", "hi"])
         expect(result.status).toBe(1)
         expect(result.stderr).toContain("reinstall with: npm i -g omo-ai@beta")
       })
@@ -215,7 +284,7 @@ describe("omo launcher", () => {
       test("#then a missing dependency fails with the same reinstall guidance", () => {
         const fixture = createFixture()
         rmSync(join(fixture.packageRoot, "node_modules", "@code-yeongyu", "senpi"), { recursive: true })
-        const result = run(fixture, ["--version"])
+        const result = run(fixture, ["say", "hi"])
         expect(result.status).toBe(1)
         expect(result.stderr).toContain("could not resolve @code-yeongyu/senpi")
         expect(result.stderr).toContain("reinstall with: npm i -g omo-ai@beta")

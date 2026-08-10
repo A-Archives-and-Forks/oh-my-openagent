@@ -79,6 +79,7 @@ export function runDoctor(inventory) {
     }
   }
 
+  console.log(`INFO omo ${packageManifest().version} (engine: senpi ${senpi ? readJson(join(senpi.packageRoot, "package.json")).version : "unresolved"})`)
   warnForSettings()
   if (needsSetupSuggestion(inventory)) {
     console.log("INFO senpi has no credentials; run omo setup to review sibling stores")
