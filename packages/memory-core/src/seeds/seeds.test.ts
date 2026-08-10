@@ -82,12 +82,12 @@ describe("default memory seeds", () => {
       )
     })
 
-    it("#then the human description is 'Human - what I know about the user'", () => {
+    it("#then the human description is 'Person - Human'", () => {
       const files = buildDefaultSeedFiles()
       const human = files.find((f) => f.relativePath === "system/human.md")!
 
       expect(parseMemoryFile(human.content).frontmatter.description).toBe(
-        "Human - what I know about the user",
+        "Person - Human",
       )
     })
 
@@ -118,7 +118,16 @@ describe("default memory seeds", () => {
       expect(hasEmoji).toBe(false)
     })
 
-    it("#then the human body is a template to be learned (not empty, invites learning)", () => {
+    it("#then the human seed frontmatter has kind: person and aliases", () => {
+      const files = buildDefaultSeedFiles()
+      const human = files.find((f) => f.relativePath === "system/human.md")!
+      const parsed = parseMemoryFile(human.content)
+
+      expect(parsed.frontmatter.kind).toBe("person")
+      expect(parsed.frontmatter.aliases).toEqual([])
+    })
+
+    it("#then the human body is a card-format template (not empty, invites learning)", () => {
       const files = buildDefaultSeedFiles()
       const human = files.find((f) => f.relativePath === "system/human.md")!
       const body = parseMemoryFile(human.content).body

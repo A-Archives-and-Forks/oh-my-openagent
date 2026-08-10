@@ -36,7 +36,8 @@ const PERSONA_PATH = "system/persona.md"
 const HUMAN_PATH = "system/human.md"
 
 const PERSONA_DESCRIPTION = "Persona - who I am"
-const HUMAN_DESCRIPTION = "Human - what I know about the user"
+const HUMAN_DESCRIPTION = "Person - Human"
+const HUMAN_ALIASES: readonly string[] = []
 
 export interface DefaultSeedFile extends GitSeedFile {}
 
@@ -59,7 +60,10 @@ export function buildDefaultSeedFiles(): readonly DefaultSeedFile[] {
     },
     {
       relativePath: HUMAN_PATH,
-      content: renderMemoryFile({ description: HUMAN_DESCRIPTION }, DEFAULT_HUMAN_BODY),
+      content: renderMemoryFile(
+        { description: HUMAN_DESCRIPTION, kind: "person", aliases: HUMAN_ALIASES },
+        DEFAULT_HUMAN_BODY,
+      ),
     },
     {
       relativePath: MEMORY_DISCIPLINE_SKILL_PATH,
