@@ -15,8 +15,8 @@ Root cause:
 Fix:
 - Keep the exact event-driven behavior test.
 - Use Node's built-in recursive removal retry only on Windows:
-  - `maxRetries: 8`
-  - `retryDelay: 75`
+  - `maxRetries: 10`
+  - `retryDelay: 50`
 - No sleeps, assertion retries, skipped checks, or weakened behavior.
 
 Local verification:
@@ -28,7 +28,7 @@ Second Windows observation:
 - Run 31387195794, job 93450243823, still failed in `afterEach`: `EBUSY` removing the temporary fixture root after the five-retry budget.
 - The reset test passed in that run; no sequence assertion failed.
 - The event-bound reset-test restructure is retained as a clarity improvement, not claimed as the Windows failure fix.
-- The actual teardown fix now matches the repository's memory-server convention: eight Windows retries with a 75 ms linear backoff.
+- The actual teardown fix now matches the repository's memory-server and memfs convention: ten Windows retries with a 50 ms linear backoff.
 
 Remaining proof:
 - The replacement Senpi Windows job and Windows root job must pass before merge.
