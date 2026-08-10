@@ -67,7 +67,7 @@ export function createOmoNativeNoticeRegistration(
   return {
     register(pi, _ctx) {
       pi.on("session_start", (_payload, eventCtx) => {
-        if (!enabled(options, eventCtx, env)) return
+        if (!enabled(options, eventCtx, env, reportOnce)) return
         const ui = notificationUi(eventCtx)
         if (ui === undefined || !claimNotice(stateDir, reportOnce)) return
         try {
@@ -80,29 +80,38 @@ export function createOmoNativeNoticeRegistration(
       pi.registerCommand("omo-telemetry", {
         description: "Preview OmO Native telemetry state and recently sent payloads.",
         handler: async (_args: string, commandCtx: CommandContext): Promise<void> => {
-          report(commandCtx, preview(options, commandCtx.cwd, env, stateDir))
+          report(commandCtx, preview(options, commandCtx.cwd, env, stateDir, reportOnce))
         },
       })
     },
   }
 }
 
-function enabled(options: OmoNativeNoticeOptions, value: unknown, env: TelemetryEnv): boolean {
+function enabled(
+  options: OmoNativeNoticeOptions,
+  value: unknown,
+  env: TelemetryEnv,
+  diagnostics: (error: unknown) => void,
+): boolean {
   return isTelemetryClientEnabled({ env, product: createOmoNativeProductConfig() })
-    && configEnabled(options, extractString(value, "cwd"), env)
+    && configEnabled(options, extractString(value, "cwd"), env, diagnostics)
 }
 
 function configEnabled(
   options: OmoNativeNoticeOptions,
   cwd: string | undefined,
   env: TelemetryEnv,
+  diagnostics: (error: unknown) => void,
 ): boolean {
   if (options.isConfigEnabled !== undefined) return options.isConfigEnabled(cwd, env)
   try {
     const loaded = loadSenpiOmoConfig({ env: { ...env }, ...(cwd === undefined ? {} : { cwd }) })
-    return isOmoTelemetryEnabled(loaded.config)
-  } catch {
-    return true
+    if (loaded.diagnostics.length === 0) return isOmoTelemetryEnabled(loaded.config)
+    diagnostics(new Error(loaded.diagnostics.map(({ message }) => message).join("; ")))
+    return false
+  } catch (error) {
+    diagnostics(error)
+    return false
   }
 }
 
@@ -128,8 +137,9 @@ function preview(
   cwd: string | undefined,
   env: TelemetryEnv,
   stateDir: string,
+  diagnostics: (error: unknown) => void,
 ): string {
-  const config = configEnabled(options, cwd, env)
+  const config = configEnabled(options, cwd, env, diagnostics)
   const active = isTelemetryClientEnabled({ env, product: createOmoNativeProductConfig() }) && config
   const matrix = ENV_KEYS.map((key) => `${key}: ${env[key] ?? "<unset>"}`)
   return [

@@ -61,8 +61,8 @@ function writeInventory(agentDir: string, input: {
   }))
 }
 
-function sessionCtx(sessionId = "session-1"): unknown {
-  return { cwd: "/repo", sessionManager: { getSessionId: () => sessionId } }
+function sessionCtx(sessionId = "session-1", cwd = "/repo"): unknown {
+  return { cwd, sessionManager: { getSessionId: () => sessionId } }
 }
 
 function register(agentDir: string, recorder: Recorder, options: {
@@ -115,6 +115,91 @@ describe("OmO Native session telemetry", () => {
       expect(recorder.messages).toEqual([])
       expect(existsSync(getTelemetryActivityStateFilePath(getOmoNativeStateDir(env)))).toBe(false)
       expect(existsSync(getTelemetryActivityStateFilePath(getSenpiTelemetryStateDir(env)))).toBe(false)
+    })
+  })
+
+  it.each([
+    ["no config file", undefined, true],
+    ["telemetry enabled false", '{"telemetry":{"enabled":false}}', false],
+    ["telemetry enabled true", '{"telemetry":{"enabled":true}}', true],
+  ])("#given %s #when session_start loads config #then telemetry matches the resolved setting", async (_name, config, expectedEnabled) => {
+    await withTempAgentDir(async (agentDir) => {
+      // given
+      writeInventory(agentDir)
+      const home = join(agentDir, "home")
+      const cwd = join(home, "project")
+      mkdirSync(cwd, { recursive: true })
+      if (config !== undefined) {
+        mkdirSync(join(home, ".omo"), { recursive: true })
+        writeFileSync(join(home, ".omo", "omo.json"), config)
+      }
+      const recorder = createRecorder()
+      const pi = register(agentDir, recorder, { env: { ...createEnabledEnv(agentDir), HOME: home } })
+
+      // when
+      await pi.dispatch("session_start", { type: "session_start", reason: "startup" }, sessionCtx("config", cwd))
+
+      // then
+      expect(recorder.messages.some(({ event }) => event === "session_started")).toBe(expectedEnabled)
+    })
+  })
+
+  it("#given malformed existing config #when session_start loads config #then telemetry is disabled and a diagnostic is emitted", async () => {
+    await withTempAgentDir(async (agentDir) => {
+      // given
+      writeInventory(agentDir)
+      const home = join(agentDir, "home")
+      const cwd = join(home, "project")
+      mkdirSync(join(home, ".omo"), { recursive: true })
+      mkdirSync(cwd, { recursive: true })
+      writeFileSync(join(home, ".omo", "omo.json"), '{"telemetry":{"enabled":false}')
+      const diagnostics: Array<TelemetryDiagnosticInput | { readonly event: "omo_native_inventory_read_failed" }> = []
+      const recorder = createRecorder()
+      const pi = register(agentDir, recorder, {
+        diagnostics: (input) => diagnostics.push(input),
+        env: { ...createEnabledEnv(agentDir), HOME: home },
+      })
+
+      // when
+      await pi.dispatch("session_start", { type: "session_start", reason: "startup" }, sessionCtx("malformed", cwd))
+
+      // then
+      expect(recorder.messages).toEqual([])
+      expect(diagnostics).toHaveLength(1)
+      expect(diagnostics[0]).toMatchObject({
+        errorKind: "error",
+        event: "telemetry_capture_failed",
+        source: "omo-native-session",
+      })
+    })
+  })
+
+  it("#given unreadable existing config #when session_start loads config #then telemetry is disabled and a diagnostic is emitted", async () => {
+    await withTempAgentDir(async (agentDir) => {
+      // given
+      writeInventory(agentDir)
+      const home = join(agentDir, "home")
+      const cwd = join(home, "project")
+      mkdirSync(join(home, ".omo", "omo.json"), { recursive: true })
+      mkdirSync(cwd, { recursive: true })
+      const diagnostics: Array<TelemetryDiagnosticInput | { readonly event: "omo_native_inventory_read_failed" }> = []
+      const recorder = createRecorder()
+      const pi = register(agentDir, recorder, {
+        diagnostics: (input) => diagnostics.push(input),
+        env: { ...createEnabledEnv(agentDir), HOME: home },
+      })
+
+      // when
+      await pi.dispatch("session_start", { type: "session_start", reason: "startup" }, sessionCtx("unreadable", cwd))
+
+      // then
+      expect(recorder.messages).toEqual([])
+      expect(diagnostics).toHaveLength(1)
+      expect(diagnostics[0]).toMatchObject({
+        errorKind: "error",
+        event: "telemetry_capture_failed",
+        source: "omo-native-session",
+      })
     })
   })
 

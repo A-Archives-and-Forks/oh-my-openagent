@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import { spawn, spawnSync } from "node:child_process"
 import {
   chmodSync,
@@ -12,14 +12,20 @@ import {
 } from "node:fs"
 import { tmpdir } from "node:os"
 import { basename, delimiter, dirname, join, relative, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
+
+import {
+  KNOWN_MODELS,
+  KNOWN_PROVIDERS,
+  OMO_NATIVE_PROPERTY_ALLOWLISTS,
+} from "../../packages/omo-senpi/src/components/telemetry/product-identity.ts"
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(scriptDir, "..", "..")
 const pluginRoot = join(repoRoot, "packages", "omo-senpi", "plugin")
 const goalExtension = join(repoRoot, "packages", "pi-goal", "src", "index.ts")
 const defaultEvidenceDir = join(repoRoot, ".omo", "evidence", "20260810-omo-native-telemetry")
-const nativeEvents = new Set([
+const expectedNativeEvents = new Set([
   "daily_active",
   "session_started",
   "prompt_submitted",
@@ -28,23 +34,23 @@ const nativeEvents = new Set([
   "delegation_started",
   "feature_used",
 ])
-const sharedKeys = new Set(["$process_person_profile", "package_version", "platform", "product_name", "schema_version"])
-const propertyAllowlists = {
-  daily_active: ["$session_id", "day_utc", "reason"],
-  session_started: ["$session_id", "$os", "$os_version", "arch", "cpu_count", "default_model", "default_provider", "memory_bucket", "model_count", "provider_count", "providers", "reason"],
-  prompt_submitted: ["$session_id", "input_source", "invocation_stage", "is_effective_ultrawork_invocation", "is_real_user_prompt", "is_turn_start", "keyword_any", "keyword_occurrence_bucket", "keyword_ultrawork_full", "keyword_ulw_abbrev", "keyword_variant", "prompt_length_bucket", "queue_mode", "real_prompt_ordinal_bucket", "suppression_reason"],
-  turn_completed: ["$session_id", "cache_read_tokens", "cache_write_tokens", "cost_usd", "input_tokens", "model_id", "output_tokens", "provider", "reasoning_tokens", "total_tokens", "turn_index"],
-  skill_loaded: ["$session_id", "skill_name"],
-  delegation_started: ["$session_id", "background", "batch_size_bucket", "kind", "name"],
-  feature_used: ["$session_id", "feature"],
+
+export function assertAllowlistCoverage(allowlists) {
+  const actual = new Set(Object.keys(allowlists))
+  const missing = [...expectedNativeEvents].filter((name) => !actual.has(name)).sort()
+  const extra = [...actual].filter((name) => !expectedNativeEvents.has(name)).sort()
+  if (missing.length > 0 || extra.length > 0) {
+    throw new Error(`OmO Native QA allowlist event coverage diverged: missing=${missing.join(",") || "none"}; extra=${extra.join(",") || "none"}`)
+  }
 }
+
+assertAllowlistCoverage(OMO_NATIVE_PROPERTY_ALLOWLISTS)
+const nativeEvents = new Set(Object.keys(OMO_NATIVE_PROPERTY_ALLOWLISTS))
+const sharedKeys = new Set(["$process_person_profile", "package_version", "platform", "product_name", "schema_version"])
 const sdkAddedKeys = new Set(["$lib", "$lib_version", "$geoip_disable"])
 const sdkWireKeys = new Set(["distinct_id", "uuid"])
-const knownModels = new Set([
-  "claude-fable-5", "claude-haiku-4-5", "claude-opus-5", "claude-sonnet-5", "deepseek-v4-flash",
-  "deepseek-v4-pro", "gemini-3.6-flash", "gpt-5.6-luna-fast", "gpt-5.6-sol", "gpt-5.6-terra",
-  "k3", "kimi-for-coding-highspeed", "kimi-k3", "minimax-m2.7", "minimax-m3", "grok-4.20-0309-non-reasoning",
-])
+const knownModels = new Set(Object.values(KNOWN_MODELS).flat())
+const knownProviders = new Set(KNOWN_PROVIDERS)
 const prompts = [
   "ulw plan: list the repo top-level files by delegating one quick task, and track it with a goal",
   "Read one packaged builtin SKILL.md and summarize its purpose briefly.",
@@ -53,7 +59,7 @@ const prompts = [
 const helpText = `omo-native-telemetry-qa
 
 Usage:
-  node script/qa/omo-native-telemetry-qa.mjs [--evidence-dir <dir>] [--senpi-bin <path>]
+  bun script/qa/omo-native-telemetry-qa.mjs [--evidence-dir <dir>] [--senpi-bin <path>]
 
 Runs a real isolated Senpi CLI against a local PostHog capture server, writes redacted evidence,
 and exits non-zero unless the enabled drive, both opt-out drives, privacy scans, and cleanup pass.
@@ -346,10 +352,10 @@ function assertEnabled(events) {
 function privacyScan(events, checks) {
   const addPass = (name, detail) => checks.push({ name, result: "PASS", detail })
   for (const event of events) {
-    const allowed = new Set([...propertyAllowlists[event.event], ...sharedKeys, ...sdkAddedKeys, ...sdkWireKeys])
+    const allowed = new Set([...OMO_NATIVE_PROPERTY_ALLOWLISTS[event.event], ...sharedKeys, ...sdkAddedKeys, ...sdkWireKeys])
     for (const key of Object.keys(event.properties)) {
       if (!allowed.has(key)) throw new Error(`property-allowlist: ${event.event}.${key} is not documented or SDK-added`)
-      if (key.startsWith("$") && !propertyAllowlists[event.event].includes(key) && !sharedKeys.has(key) && !sdkAddedKeys.has(key)) {
+      if (key.startsWith("$") && !OMO_NATIVE_PROPERTY_ALLOWLISTS[event.event].includes(key) && !sharedKeys.has(key) && !sdkAddedKeys.has(key)) {
         throw new Error(`dollar-property-allowlist: ${event.event}.${key} is not permitted`)
       }
     }
@@ -357,6 +363,15 @@ function privacyScan(events, checks) {
       if (typeof value !== "string") continue
       if (key === "model_id" || key === "default_model") {
         if (value !== "custom" && !knownModels.has(value)) throw new Error(`known-model-allowlist: ${key}=${value}`)
+        continue
+      }
+      if (key === "provider" || key === "default_provider") {
+        if (value !== "custom" && !knownProviders.has(value)) throw new Error(`known-provider-allowlist: ${key}=${value}`)
+        continue
+      }
+      if (key === "providers") {
+        const providers = value === "" ? [] : value.split(",")
+        if (providers.some((provider) => !knownProviders.has(provider))) throw new Error(`known-provider-allowlist: ${key}=${value}`)
         continue
       }
       if (/(^|\s)(\/|~\/|[A-Za-z]:\\)/.test(value)) throw new Error(`path-privacy: ${event.event}.${key}=${value}`)
@@ -582,11 +597,14 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  if (error?.name === "BlockedClaim") {
-    process.stderr.write(`${error.name}: ${error.message}\n${error.helpOutput ?? ""}`)
-    process.exit(2)
-  }
-  process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`)
-  process.exit(1)
-})
+const invokedPath = process.argv[1]
+if (invokedPath !== undefined && import.meta.url === pathToFileURL(invokedPath).href) {
+  main().catch((error) => {
+    if (error?.name === "BlockedClaim") {
+      process.stderr.write(`${error.name}: ${error.message}\n${error.helpOutput ?? ""}`)
+      process.exit(2)
+    }
+    process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`)
+    process.exit(1)
+  })
+}

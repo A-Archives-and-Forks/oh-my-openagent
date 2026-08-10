@@ -29,7 +29,6 @@ function register(agentDir: string, options: {
   createOmoNativeNoticeRegistration({
     diagnostics: options.diagnostics,
     env: options.env ?? createEnabledEnv(agentDir),
-    isConfigEnabled: () => true,
     stateDir: options.stateDir,
   }).register(pi, { config: pi, logger: createSilentLogger() })
   return pi
@@ -42,13 +41,92 @@ function commandHandler(pi: FakeExtensionAPI): CommandHandler {
   return handler as CommandHandler
 }
 
-async function commandOutput(pi: FakeExtensionAPI): Promise<string> {
+async function commandOutput(pi: FakeExtensionAPI, cwd?: string): Promise<string> {
   const lines: string[] = []
-  await commandHandler(pi)("", { output: (text) => lines.push(text) })
+  await commandHandler(pi)("", { ...(cwd === undefined ? {} : { cwd }), output: (text) => lines.push(text) })
   return lines.join("\n")
 }
 
 describe("OmO Native telemetry notice and preview", () => {
+  it.each([
+    ["no config file", undefined, true],
+    ["telemetry enabled false", '{"telemetry":{"enabled":false}}', false],
+    ["telemetry enabled true", '{"telemetry":{"enabled":true}}', true],
+  ])("#given %s #when preview loads config #then it reports the resolved enabled state", async (_name, config, expectedEnabled) => {
+    await withTempAgentDir(async (agentDir) => {
+      // given
+      const home = join(agentDir, "home")
+      const cwd = join(home, "project")
+      mkdirSync(cwd, { recursive: true })
+      if (config !== undefined) {
+        mkdirSync(join(home, ".omo"), { recursive: true })
+        writeFileSync(join(home, ".omo", "omo.json"), config)
+      }
+      const pi = register(agentDir, { env: { ...createEnabledEnv(agentDir), HOME: home } })
+
+      // when
+      const output = await commandOutput(pi, cwd)
+
+      // then
+      expect(output).toContain(`omo.json telemetry.enabled: ${expectedEnabled}`)
+    })
+  })
+
+  it("#given malformed existing config #when preview loads config #then it reports disabled and emits a diagnostic", async () => {
+    await withTempAgentDir(async (agentDir) => {
+      // given
+      const home = join(agentDir, "home")
+      const cwd = join(home, "project")
+      mkdirSync(join(home, ".omo"), { recursive: true })
+      mkdirSync(cwd, { recursive: true })
+      writeFileSync(join(home, ".omo", "omo.json"), '{"telemetry":{"enabled":false}')
+      const diagnostics: TelemetryDiagnosticInput[] = []
+      const pi = register(agentDir, {
+        diagnostics: (input) => diagnostics.push(input),
+        env: { ...createEnabledEnv(agentDir), HOME: home },
+      })
+
+      // when
+      const output = await commandOutput(pi, cwd)
+
+      // then
+      expect(output).toContain("omo.json telemetry.enabled: false")
+      expect(diagnostics).toHaveLength(1)
+      expect(diagnostics[0]).toMatchObject({
+        errorKind: "error",
+        event: "telemetry_capture_failed",
+        source: "omo-native-notice",
+      })
+    })
+  })
+
+  it("#given unreadable existing config #when preview loads config #then it reports disabled and emits a diagnostic", async () => {
+    await withTempAgentDir(async (agentDir) => {
+      // given
+      const home = join(agentDir, "home")
+      const cwd = join(home, "project")
+      mkdirSync(join(home, ".omo", "omo.json"), { recursive: true })
+      mkdirSync(cwd, { recursive: true })
+      const diagnostics: TelemetryDiagnosticInput[] = []
+      const pi = register(agentDir, {
+        diagnostics: (input) => diagnostics.push(input),
+        env: { ...createEnabledEnv(agentDir), HOME: home },
+      })
+
+      // when
+      const output = await commandOutput(pi, cwd)
+
+      // then
+      expect(output).toContain("omo.json telemetry.enabled: false")
+      expect(diagnostics).toHaveLength(1)
+      expect(diagnostics[0]).toMatchObject({
+        errorKind: "error",
+        event: "telemetry_capture_failed",
+        source: "omo-native-notice",
+      })
+    })
+  })
+
   it("#given enabled telemetry #when two consecutive session_start events fire #then the notice is sent exactly once", async () => {
     await withTempAgentDir(async (agentDir) => {
       // given

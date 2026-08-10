@@ -140,9 +140,18 @@ function configEnabled(options: OmoNativeSessionOptions, eventCtx: unknown, env:
       env: { ...env },
       ...(cwd === undefined ? {} : { cwd }),
     })
-    return isOmoTelemetryEnabled(loaded.config)
-  } catch {
-    return true
+    if (loaded.diagnostics.length === 0) return isOmoTelemetryEnabled(loaded.config)
+    const error = new Error(loaded.diagnostics.map(({ message }) => message).join("; "))
+    options.diagnostics?.({ event: "telemetry_capture_failed", source: SOURCE, error, errorKind: "error" })
+    return false
+  } catch (error) {
+    options.diagnostics?.({
+      event: "telemetry_capture_failed",
+      source: SOURCE,
+      error,
+      errorKind: error instanceof Error ? "error" : "non_error",
+    })
+    return false
   }
 }
 
