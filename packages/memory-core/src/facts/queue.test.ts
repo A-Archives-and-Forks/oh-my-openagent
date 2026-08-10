@@ -9,6 +9,7 @@ import {
   FactsQueue,
   factsQueuePaths,
   type FactsEnqueueRequest,
+  type FactsQueueEntry,
 } from "./queue"
 
 const IDENTITY = "facts-queue-agent"
