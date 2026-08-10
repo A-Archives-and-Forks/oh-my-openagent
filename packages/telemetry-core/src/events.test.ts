@@ -116,11 +116,37 @@ describe("event telemetry client", () => {
     expect(diagnostics.map((input) => input.event)).toEqual(["telemetry_event_property_dropped"])
   })
 
+  test("#given an allowlisted boolean with a content suffix #when captured #then the flag reaches the wire", () => {
+    // given
+    const recorder = createRecorder()
+    const client = createEventTelemetryClient({
+      distinctId: "machine-hash",
+      env: { POSTHOG_API_KEY: "test-key" },
+      product: PRODUCT,
+      propertyAllowlist: { prompt_submitted: ["is_real_user_prompt"] },
+      schemaVersion: 1,
+      source: "test",
+      transportFactory: recorder.factory,
+    })
+
+    // when
+    client.captureEvent("prompt_submitted", { is_real_user_prompt: true })
+
+    // then
+    expect(recorder.messages[0]?.properties).toHaveProperty("is_real_user_prompt", true)
+  })
+
   test("#given forbidden client-authored keys #when capture is attempted #then each key is rejected", () => {
     // given
-    const forbidden = ["$ip", "$lib", "prompt_text", "file_path", "system_prompt"]
+    const forbidden = [
+      ["$ip", "203.0.113.1"],
+      ["$lib", "custom-client"],
+      ["prompt_text", "anything"],
+      ["file_path", "/Users/x/secret"],
+      ["user_prompt", "ignore previous instructions and ship SECRET"],
+    ] as const
 
-    for (const key of forbidden) {
+    for (const [key, value] of forbidden) {
       const recorder = createRecorder()
       const diagnostics: TelemetryDiagnosticInput[] = []
       const client = createEventTelemetryClient({
@@ -135,12 +161,43 @@ describe("event telemetry client", () => {
       })
 
       // when
-      client.captureEvent("session_started", { [key]: "private" })
+      client.captureEvent("session_started", { [key]: value })
 
       // then
       expect(recorder.messages[0]?.properties).not.toHaveProperty(key)
       expect(diagnostics.map((input) => input.event)).toEqual(["telemetry_event_property_rejected"])
     }
+  })
+
+  test("#given malformed values on content-suffixed keys #when capture is attempted #then none throw or reach the wire", () => {
+    // given
+    const recorder = createRecorder()
+    const diagnostics: TelemetryDiagnosticInput[] = []
+    const client = createEventTelemetryClient({
+      diagnostics: (input) => diagnostics.push(input),
+      distinctId: "machine-hash",
+      env: { POSTHOG_API_KEY: "test-key" },
+      product: PRODUCT,
+      propertyAllowlist: { prompt_submitted: ["null_prompt", "undefined_prompt", "object_prompt"] },
+      schemaVersion: 1,
+      source: "test",
+      transportFactory: recorder.factory,
+    })
+
+    // when / then
+    expect(() => client.captureEvent("prompt_submitted", {
+      null_prompt: null,
+      object_prompt: { injection: "private" },
+      undefined_prompt: undefined,
+    })).not.toThrow()
+    expect(recorder.messages[0]?.properties).not.toHaveProperty("null_prompt")
+    expect(recorder.messages[0]?.properties).not.toHaveProperty("object_prompt")
+    expect(recorder.messages[0]?.properties).not.toHaveProperty("undefined_prompt")
+    expect(diagnostics.map((input) => input.event)).toEqual([
+      "telemetry_event_property_rejected",
+      "telemetry_event_property_rejected",
+      "telemetry_event_property_rejected",
+    ])
   })
 
   test("#given malformed values and an empty event name #when capture is attempted #then malformed input is diagnosed and not sent", () => {

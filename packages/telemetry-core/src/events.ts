@@ -110,7 +110,7 @@ export function createEventTelemetryClient(
 
       const projected: Record<string, string | number | boolean> = {}
       for (const [key, value] of Object.entries(properties)) {
-        if (isForbiddenKey(key)) {
+        if (isForbiddenKey(key, value)) {
           report("telemetry_event_property_rejected", new Error(`forbidden event property: ${key}`))
           continue
         }
@@ -185,8 +185,12 @@ function createEventTransport(input: CreateEventTelemetryClientInput): Telemetry
   }
 }
 
-function isForbiddenKey(key: string): boolean {
-  return key === "$ip" || FORBIDDEN_SUFFIX.test(key) || (key.startsWith("$") && !ALLOWED_DOLLAR_KEYS.has(key))
+function isForbiddenKey(key: string, value: unknown): boolean {
+  return (
+    key === "$ip" ||
+    (typeof value === "string" && FORBIDDEN_SUFFIX.test(key)) ||
+    (key.startsWith("$") && !ALLOWED_DOLLAR_KEYS.has(key))
+  )
 }
 
 function isEventPropertyValue(value: unknown): value is string | number | boolean {

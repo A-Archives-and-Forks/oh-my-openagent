@@ -161,3 +161,156 @@ removed /tmp/task-7-green-suite.txt
 removed /tmp/task-7-typecheck.txt
 removed /tmp/task-7-qa-output.txt
 ```
+
+## Cross-wave fix: _prompt suffix guard
+
+### Chosen guard
+
+Option (b): content-suffixed keys are forbidden when their value is a string, regardless of allowlisting. Dollar-key rejection remains unconditional, and all non-string values still pass through the event allowlist and scalar validator.
+
+This makes the guard content-shaped without weakening the privacy invariant. A boolean or finite-number flag cannot carry prompt text, file paths, or message bodies. A string on `_text`, `_path`, or `_prompt` can carry that content, so it is rejected before allowlist projection even if a future developer explicitly allowlists the key. Invalid non-string values such as null, undefined, arrays, and objects are still rejected by scalar validation and never reach transport.
+
+### RED
+
+The regression test was added before the implementation change.
+
+Literal command:
+
+```sh
+cd /Volumes/mengmotaStorage/local-workspaces/omo-wt/feat/omo-native-telemetry && bun test packages/telemetry-core/src/events.test.ts --test-name-pattern 'allowlisted boolean with a content suffix'
+```
+
+Real output:
+
+```text
+bun test v1.4.0-canary.1 (b58cd4685)
+
+packages/telemetry-core/src/events.test.ts:
+131 |
+132 |     // when
+133 |     client.captureEvent("prompt_submitted", { is_real_user_prompt: true })
+134 |
+135 |     // then
+136 |     expect(recorder.messages[0]?.properties).toHaveProperty("is_real_user_prompt", true)
+                                                   ^
+error: expect(received).toHaveProperty(path, value)
+
+Expected path: "is_real_user_prompt"
+
+Expected value: true
+
+Unable to find property
+
+      at <anonymous> (/Volumes/mengmotaStorage/local-workspaces/omo-wt/feat/omo-native-telemetry/packages/telemetry-core/src/events.test.ts:136:46)
+(fail) event telemetry client > #given an allowlisted boolean with a content suffix #when captured #then the flag reaches the wire [0.85ms]
+
+ 0 pass
+ 8 filtered out
+ 1 fail
+ 1 expect() calls
+Ran 1 test across 1 file. [124.00ms]
+```
+
+### GREEN
+
+Focused boundary suite:
+
+```sh
+cd /Volumes/mengmotaStorage/local-workspaces/omo-wt/feat/omo-native-telemetry && bun test packages/telemetry-core/src/events.test.ts
+```
+
+```text
+10 pass
+0 fail
+32 expect() calls
+Ran 10 tests across 1 file. [131.00ms]
+```
+
+Required telemetry-core suite:
+
+```sh
+cd /Volumes/mengmotaStorage/local-workspaces/omo-wt/feat/omo-native-telemetry && bun test packages/telemetry-core
+```
+
+```text
+41 pass
+0 fail
+75 expect() calls
+Ran 41 tests across 4 files. [134.00ms]
+```
+
+The count increased from 39 to 41 tests and from 69 to 75 assertions. In `events.test.ts`, the count increased from 8 to 10 tests. This proves both the wire-survival regression and malformed suffix cases ran; no existing test count decreased.
+
+Required OmO Native telemetry suite:
+
+```sh
+cd /Volumes/mengmotaStorage/local-workspaces/omo-wt/feat/omo-native-telemetry && bun test packages/omo-senpi/src/components/telemetry
+```
+
+```text
+55 pass
+0 fail
+171 expect() calls
+Ran 55 tests across 8 files. [1.79s]
+```
+
+The prompt module's 7 tests are included and green.
+
+Typechecks:
+
+```sh
+cd /Volumes/mengmotaStorage/local-workspaces/omo-wt/feat/omo-native-telemetry && bun run --cwd packages/omo-senpi typecheck
+```
+
+```text
+$ tsgo --noEmit -p tsconfig.json
+```
+
+```sh
+cd /Volumes/mengmotaStorage/local-workspaces/omo-wt/feat/omo-native-telemetry && bun run --cwd packages/telemetry-core typecheck
+```
+
+```text
+$ tsgo --noEmit -p tsconfig.json
+```
+
+### Manual QA wire payload
+
+A throwaway `qa-guard-probe.ts` in the worktree imported the real telemetry-core event client and OmO Native product identity, used a recording transport, and captured `prompt_submitted` with the required values.
+
+Literal command:
+
+```sh
+cd /Volumes/mengmotaStorage/local-workspaces/omo-wt/feat/omo-native-telemetry && bun ./qa-guard-probe.ts
+```
+
+Real stdout:
+
+```json
+{"distinctId":"qa-machine-hash","event":"prompt_submitted","properties":{"is_real_user_prompt":true,"input_source":"interactive","platform":"omo-senpi","product_name":"omo-native","package_version":"5.0.0-beta.5","schema_version":1,"$process_person_profile":false}}
+```
+
+`is_real_user_prompt` and `input_source` are present on the exact wire payload. `prompt_text` and `file_path` are absent.
+
+### Adversarial results
+
+| Case | Result |
+| --- | --- |
+| allowlisted `is_real_user_prompt: true` | Reaches the wire unchanged |
+| allowlisted `prompt_text: "anything"` | Rejected before transport |
+| allowlisted `file_path: "/Users/x/secret"` | Rejected before transport |
+| allowlisted `user_prompt` carrying instruction-injection text | Rejected before transport |
+| allowlisted null on a `_prompt` key | Does not throw; rejected by scalar validation |
+| allowlisted undefined on a `_prompt` key | Does not throw; rejected by scalar validation |
+| allowlisted object containing private text on a `_prompt` key | Does not throw; rejected by scalar validation |
+| `$ip` | Rejected before transport |
+| non-allowlisted `$lib` | Rejected before transport |
+| unknown ordinary key | Dropped with `telemetry_event_property_dropped` |
+
+### Cleanup receipt
+
+```text
+removed /Volumes/mengmotaStorage/local-workspaces/omo-wt/feat/omo-native-telemetry/qa-guard-probe.ts
+```
+
+Final cleanup check: `test ! -e qa-guard-probe.ts` passed, and `git status --short` contained no QA probe.
