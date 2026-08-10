@@ -13,6 +13,9 @@ function senpiEnvironment(senpiRoot) {
   delete env.OMO_BIN
   delete env.SENPI_BIN
   env.OMO_AGENT_TOOLKIT_BIN = join(packageRoot, "bin", "omo-agent-toolkit.js")
+  // senpi's footer reads this marker to show the OmO Native badge for omo-ai installs, which load
+  // the plugin via --extension and therefore never match the settings-packages detection gates.
+  env.OMO_NATIVE = "1"
 
   const binDir = nearestNodeBin(senpiRoot)
   if (binDir) {

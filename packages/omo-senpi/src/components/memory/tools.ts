@@ -96,20 +96,26 @@ export function registerMemoryTools(
 
 export const MEMORY_MCP_SERVER_NAME = "omo-memory"
 
-// The memory tools surface through senpi's tool_search catalog when the host accepts extension MCP
-// servers: the standalone omo-memory-mcp.js bundle (built beside this extension) serves both tools,
-// registered with exposure "search" so they promote on demand instead of occupying the always-on set.
-// Hosts without registerMcpServer keep the direct registration as the fallback surface.
+export interface MemoryToolSurfaceOptions extends MemoryToolsOptions {
+  readonly exposure?: "direct" | "search"
+}
+
+// Direct registration is the DEFAULT surface: an extension-declared MCP server that fails to start
+// (as shipped in 5.0.0-beta.3, where the declaration missing `enabled: true` resolved as state
+// "disabled") removes memory entirely. The search exposure stays available as an explicit opt-in
+// (memory.tool_exposure: "search") and must declare enabled: true so senpi actually starts it;
+// hosts without registerMcpServer fall back to direct registration even when opted in.
 export function registerMemoryToolSurface(
   pi: SenpiExtensionAPI,
   resolveContext: MemoryContextResolver,
-  options: MemoryToolsOptions = {},
+  options: MemoryToolSurfaceOptions = {},
 ): void {
-  if (typeof pi.registerMcpServer === "function") {
+  if (options.exposure === "search" && typeof pi.registerMcpServer === "function") {
     pi.registerMcpServer(MEMORY_MCP_SERVER_NAME, {
       command: process.execPath,
       args: [join(dirname(fileURLToPath(import.meta.url)), "omo-memory-mcp.js")],
       exposure: "search",
+      enabled: true,
     })
     return
   }

@@ -10,8 +10,8 @@ import type { MemoryIdentityContext } from "./context"
 
 export const MEMORY_PROMPT_TEMPLATE = "omo-senpi:before_agent_start:v1"
 
-// The memory tools ride the host's tool_search catalog (exposure "search"), so the always-visible
-// block must carry the discovery pointer or the agent has no way to learn how to reach them.
+// Injected ONLY under the opt-in search exposure: pointing the agent at tool_search while the tools
+// are directly registered sent it hunting for a tool that does not exist (session 019fe95c-09d2).
 const MEMORY_TOOL_DISCOVERY_NOTE =
   'The memory tools are discoverable through tool_search: run `tool_search("memory")` once to activate them, then use them for every save.'
 
@@ -25,6 +25,7 @@ export interface MemoryPromptInjectionOptions {
   readonly createRepo?: (context: MemoryIdentityContext) => GitMemoryRepo
   readonly cache?: MemoryBlockCache
   readonly clock?: () => Date
+  readonly searchExposure?: () => boolean
 }
 
 /**
@@ -52,7 +53,7 @@ export function createMemoryPromptHandler(
       previousMessageCount: session.priorMessageCount,
       ...(options.clock === undefined ? {} : { clock: options.clock }),
     })
-    const composed = `${block}\n\n${MEMORY_TOOL_DISCOVERY_NOTE}`
+    const composed = options.searchExposure?.() === true ? `${block}\n\n${MEMORY_TOOL_DISCOVERY_NOTE}` : block
     return { systemPrompt: replaceMemoryBlock(systemPrompt, markMemoryBlock(context.identity, composed)) }
   }
 }

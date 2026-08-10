@@ -14,6 +14,7 @@ describe("OmoMemorySettingsSchema defaults", () => {
     expect(parsed).toEqual({
       enabled: true,
       agent: "auto",
+      tool_exposure: "direct",
       reflection: {
         trigger: { step_count: 0, on_compaction: true },
         merge: "auto",
@@ -33,6 +34,7 @@ describe("OmoMemorySettingsSchema defaults", () => {
     const input: OmoMemorySettings = {
       enabled: false,
       agent: "backend-lead",
+      tool_exposure: "search",
       reflection: {
         trigger: { step_count: 25, on_compaction: false },
         merge: "integration",

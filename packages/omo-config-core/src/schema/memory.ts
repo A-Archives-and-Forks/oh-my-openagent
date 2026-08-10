@@ -56,6 +56,9 @@ export const OmoMemoryAgentOverridesSchema = z.object({
 export const OmoMemorySettingsSchema = z.object({
   enabled: z.boolean().default(true),
   agent: z.string().min(1).default("auto"),
+  // "direct" registers the memory tools as always-on ToolDefinitions; "search" opts in to the
+  // extension-declared MCP server surfaced through senpi's tool_search catalog.
+  tool_exposure: z.enum(["direct", "search"]).default("direct"),
   reflection: OmoMemoryReflectionSchema.default({
     trigger: { step_count: 0, on_compaction: true },
     merge: "auto",
@@ -72,6 +75,7 @@ export const OmoMemorySettingsSchema = z.object({
 export const OmoMemorySettingsLayerSchema = z.object({
   enabled: z.boolean().optional(),
   agent: z.string().min(1).optional(),
+  tool_exposure: z.enum(["direct", "search"]).optional(),
   reflection: OmoMemoryReflectionLayerSchema.optional(),
   sync: OmoMemorySyncLayerSchema.optional(),
   search: OmoMemorySearchLayerSchema.optional(),

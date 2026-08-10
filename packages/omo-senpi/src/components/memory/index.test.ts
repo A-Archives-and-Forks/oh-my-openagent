@@ -86,11 +86,10 @@ describe("createMemoryComponent", () => {
       "senpi-memory.reflection-completion",
       MEMORY_BINDING_CUSTOM_TYPE,
     ])
-    // The tool surface prefers the exposure-search MCP server on hosts with registerMcpServer;
-    // the fallback assertion for direct registration lives in tool-surface.test.ts.
-    expect(pi.mcpServers.map((server) => server.name)).toEqual(["omo-memory"])
-    expect(pi.mcpServers[0]?.config["exposure"]).toBe("search")
-    expect(pi.tools.map((tool) => tool.name)).toEqual([])
+    // Direct registration is the default surface so memory always works; the exposure-search MCP
+    // variant is an explicit opt-in asserted in tool-surface.test.ts.
+    expect(pi.tools.map((tool) => tool.name)).toEqual(["memory", "memory_apply_patch"])
+    expect(pi.mcpServers.map((server) => server.name)).toEqual([])
     expect(pi.entries).toEqual([{
       customType: MEMORY_BINDING_CUSTOM_TYPE,
       data: expect.objectContaining({ identity: expect.stringMatching(/^project-[a-f0-9]{8}$/), boundAt: 123 }),

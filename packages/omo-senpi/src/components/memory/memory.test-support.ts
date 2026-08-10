@@ -27,6 +27,7 @@ export function memorySettings(overrides: Partial<OmoMemorySettings> = {}): OmoM
   return {
     enabled: true,
     agent: "auto",
+    tool_exposure: "direct",
     reflection: {
       trigger: { step_count: 0, on_compaction: true },
       merge: "auto",
