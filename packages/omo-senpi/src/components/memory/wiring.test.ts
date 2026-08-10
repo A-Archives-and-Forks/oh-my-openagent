@@ -71,14 +71,17 @@ describe("memory footer wiring", () => {
     await pi.dispatch("session_start", { type: "session_start" }, sessionContext("session-first"))
     await pi.dispatch("tool_result", memoryResult("memory"), first)
     await pi.dispatch("session_shutdown", { type: "session_shutdown" }, first)
+    expect(statusCalls).toHaveLength(2)
+    expectRelativeStatus(statusCalls[0], fixture.identity)
+    expect(statusCalls[1]).toEqual({ key: "memory", text: undefined })
+    statusCalls.length = 0
 
     const second = sessionContext("session-second", statusCalls)
     await pi.dispatch("session_start", { type: "session_start" }, sessionContext("session-second"))
     await pi.dispatch("tool_result", memoryResult("memory"), second)
 
+    expect(statusCalls).toHaveLength(1)
     expectRelativeStatus(statusCalls[0], fixture.identity)
-    expect(statusCalls[1]).toEqual({ key: "memory", text: undefined })
-    expectRelativeStatus(statusCalls[2], fixture.identity)
     await pi.dispatch("session_shutdown", { type: "session_shutdown" }, second)
   })
 
