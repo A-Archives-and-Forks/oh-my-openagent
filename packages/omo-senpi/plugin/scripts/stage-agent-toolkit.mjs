@@ -12,6 +12,7 @@ const pluginRoot = dirname(scriptDir)
 const packageRoot = dirname(pluginRoot)
 const repoRoot = resolve(packageRoot, "..", "..")
 const codexPluginRoot = join(repoRoot, "packages", "omo-codex", "plugin")
+const codexPluginNodeModules = join(codexPluginRoot, "node_modules")
 const defaultSourceEntry = join(codexPluginRoot, "components", "ulw-loop", "dist", "cli.js")
 const defaultDirectiveEntry = join(codexPluginRoot, "components", "ulw-loop", "directive.md")
 const defaultTargetDir = join(pluginRoot, "runtime", "agent-toolkit")
@@ -138,6 +139,7 @@ async function buildAggregateBundle() {
   const compiler = join(codexPluginRoot, "node_modules", ".bin", process.platform === "win32" ? "tsc.cmd" : "tsc")
   const needsInstall = !(await filesEqual(packageLock, installedPackageLock)) || !(await fileExists(compiler))
   if (needsInstall) {
+    await rm(codexPluginNodeModules, { recursive: true, force: true })
     run("npm", ["--prefix", "packages/omo-codex/plugin", "ci"])
   }
   // Only the ulw-loop bundle is staged here. Building every codex component instead would couple this
