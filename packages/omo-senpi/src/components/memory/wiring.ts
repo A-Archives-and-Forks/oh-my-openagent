@@ -323,6 +323,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       activeSessionId = sessionId
       lastEventCtx.current = eventCtx
       registerMemoryFilesystemPolicy(pi, identity)
+      await runtimeFor(identity).reconcile()
       if (branchEntryCount(eventCtx) > 0) {
         await journalWiringFor(identity).reconcileSession(eventCtx)
       }

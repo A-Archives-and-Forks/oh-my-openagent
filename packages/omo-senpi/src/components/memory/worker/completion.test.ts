@@ -27,6 +27,8 @@ function record(): ReflectionCompletionRecord {
     model: "omo-mock/mock-1",
     thinking: "high",
     conversationIds: ["conversation-a"],
+    trigger: "dream",
+    origin: "shutdown",
     outcome: "merged",
     startedAt: "2026-08-09T12:00:00.000Z",
     finishedAt: "2026-08-09T12:00:01.000Z",
@@ -49,6 +51,8 @@ describe("reflection completion flow", () => {
     expect(persisted).toEqual(written)
     expect(persisted).toMatchObject({
       runId: "run-offline",
+      trigger: "dream",
+      origin: "shutdown",
       outcome: "merged",
       finishedAt: "2026-08-09T12:00:01.000Z",
     })

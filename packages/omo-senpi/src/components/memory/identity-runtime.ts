@@ -17,6 +17,7 @@ import { buildSandboxTransform, type SandboxPolicy, type SandboxTransform } from
 import { resolveReflectionTriggerConfig } from "./trigger-wiring"
 import {
   SenpiSubprocessRunner,
+  reconcileReflectionRuns,
   type ReflectionLiveSession,
   type ReflectionReservationPort,
 } from "./worker"
@@ -67,6 +68,7 @@ export interface MemoryIdentityRuntime {
   readonly reservationPort: ReflectionReservationPort
   readonly runner: SenpiSubprocessRunner
   launch(run: ReservedRun): void
+  reconcile(): Promise<void>
 }
 
 let runCounter = 0
@@ -111,22 +113,29 @@ export function createIdentityRuntime(
     return builtSandbox(spawnArgs)
   }
 
+  const runner = new SenpiSubprocessRunner({
+    identity: asMemoryIdentity(identity),
+    reservation: store,
+    resolveModelRegistry: deps.resolveModelRegistry,
+    cwd: deps.cwd(),
+    sandbox: lazySandbox,
+    ...(deps.liveSession === undefined ? {} : { liveSession: deps.liveSession }),
+  })
+  const launch = (run: ReservedRun): void => {
+    void runner.launch(run).then((result) => {
+      if (result.launch !== undefined) launch(result.launch)
+    }).catch((error: unknown) => {
+      deps.logger?.warn("memory reflection launch failed", { error: describe(error) })
+    })
+  }
   const runtime: MemoryIdentityRuntime = {
     identity,
     store,
     reservationPort: store,
-    runner: new SenpiSubprocessRunner({
-      identity: asMemoryIdentity(identity),
-      reservation: store,
-      resolveModelRegistry: deps.resolveModelRegistry,
-      cwd: deps.cwd(),
-      sandbox: lazySandbox,
-      ...(deps.liveSession === undefined ? {} : { liveSession: deps.liveSession }),
-    }),
-    launch(run: ReservedRun): void {
-      void this.runner.launch(run).catch((error: unknown) => {
-        deps.logger?.warn("memory reflection launch failed", { error: describe(error) })
-      })
+    runner,
+    launch,
+    async reconcile(): Promise<void> {
+      await reconcileReflectionRuns({ identity: asMemoryIdentity(identity), reservation: store, launch })
     },
   }
   return runtime

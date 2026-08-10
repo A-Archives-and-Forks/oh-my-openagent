@@ -141,6 +141,27 @@ describe("/doctor", () => {
     expect(text).toContain("[ok] locks")
   })
 
+  test("#given an abandoned reservation run #when doctor runs #then manual-disposal paths are reported", async () => {
+    // given
+    const { identity, pi, ctx } = await harness()
+    const runDir = join(identity.identityPaths.reflection, "runs", "run-abandoned")
+    await mkdir(runDir, { recursive: true })
+    await writeFile(join(runDir, "abandoned.json"), `${JSON.stringify({
+      version: 1,
+      runId: "run-abandoned",
+      outcome: "abandoned_unknown",
+      abandonedAt: "2026-08-10T00:00:00.000Z",
+    })}\n`)
+
+    // when
+    const text = await invoke(pi, "doctor", "", ctx)
+
+    // then
+    expect(text).toContain("[warn] abandoned-runs")
+    expect(text).toContain(runDir)
+    expect(text).toContain("manual disposal")
+  })
+
   test("#given an unregistered worktree directory #when doctor runs #then the orphan is reported", async () => {
     // given
     const { identity, pi, ctx } = await harness()

@@ -35,7 +35,7 @@ export interface ReflectionFinalizeResult {
 type WriterLock = <T>(operation: () => Promise<T>) => Promise<T>
 
 export type ReflectionFinalizeOptions =
-  | { readonly mode: "auto"; readonly summary: string; readonly withWriterLock: WriterLock }
+  | { readonly mode: "auto"; readonly summary: string; readonly runId?: string; readonly withWriterLock: WriterLock }
   | { readonly mode: "explicit"; readonly withWriterLock: WriterLock }
 
 export async function createReflectionWorktree(
@@ -103,7 +103,7 @@ export async function finalizeReflectionWorktree(
             ? { status: "merged" as const }
             : { status: "failed" as const, detail: "Reflection branch tip is not reachable from parent HEAD" }
         }
-        return autoMerge(worktree, options.summary)
+        return autoMerge(worktree, options.summary, options.runId)
       })
       status = integrated.status
       detail = integrated.detail
@@ -121,9 +121,11 @@ export async function finalizeReflectionWorktree(
   return { status, ...(detail ? { detail } : {}), cleanup }
 }
 
-async function autoMerge(worktree: ReflectionWorktree, summary: string) {
+async function autoMerge(worktree: ReflectionWorktree, summary: string, runId: string | undefined) {
   const merge = await run(worktree.exec, worktree.parent.dir, [
-    "merge", "--no-ff", worktree.branch, "-m", `merge(reflection): ${summary}`,
+    "merge", "--no-ff", worktree.branch,
+    "-m", `merge(reflection): ${summary}`,
+    ...(runId === undefined ? [] : ["-m", `Omo-Run: ${runId}`]),
   ])
   if (merge.code === 0) return { status: "merged" as const }
 

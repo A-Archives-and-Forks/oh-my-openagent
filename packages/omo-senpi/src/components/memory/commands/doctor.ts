@@ -6,6 +6,7 @@
 
 import type { SenpiExtensionAPI } from "../../../extension/types"
 import {
+  checkAbandonedRuns,
   checkFrontmatter,
   checkLocks,
   checkRepository,
@@ -48,6 +49,7 @@ export function registerDoctorCommand(pi: SenpiExtensionAPI, deps: MemoryCommand
           ...(await checkFrontmatter(repoDir)),
           await checkLocks(deps, identity.identityPaths.locks),
           await checkWorktrees(deps, identity),
+          await checkAbandonedRuns(identity.identityPaths.reflection),
           await checkTokens(repoDir, warnTokens),
         )
 

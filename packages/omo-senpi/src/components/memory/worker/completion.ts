@@ -3,7 +3,7 @@ import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises"
 import { basename, join } from "node:path"
 
 import type { EntryRenderer } from "@code-yeongyu/senpi"
-import type { ReflectionOutcome } from "@oh-my-opencode/memory-core"
+import type { DreamOrigin, ReflectionOutcome, ReflectionTrigger } from "@oh-my-opencode/memory-core"
 import { linesComponent, normalizeRendererText } from "@oh-my-opencode/senpi-task"
 
 export const REFLECTION_COMPLETION_ENTRY_TYPE = "senpi-memory.reflection-completion"
@@ -16,6 +16,8 @@ export interface ReflectionCompletionRecord {
   readonly model?: string
   readonly thinking?: string
   readonly conversationIds: readonly string[]
+  readonly trigger: ReflectionTrigger
+  readonly origin?: DreamOrigin
   readonly outcome: ReflectionOutcome
   readonly reason?: string
   readonly detail?: string
@@ -148,6 +150,10 @@ function isCompletionRecord(value: unknown): value is ReflectionCompletionRecord
     && typeof record.category === "string"
     && Array.isArray(record.conversationIds)
     && record.conversationIds.every((id) => typeof id === "string")
+    && (record.trigger === "manual" || record.trigger === "compaction" || record.trigger === "step-count" || record.trigger === "dream")
+    && (record.trigger === "dream"
+      ? record.origin === "manual" || record.origin === "idle" || record.origin === "shutdown"
+      : record.origin === undefined)
     && typeof record.outcome === "string"
     && typeof record.startedAt === "string"
     && typeof record.finishedAt === "string"

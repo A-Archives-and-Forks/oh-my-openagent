@@ -59,6 +59,27 @@ async function syncDirectory(path: string): Promise<void> {
   }
 }
 
+export async function readRunTextTail(path: string, maxBytes: number): Promise<string> {
+  if (!Number.isInteger(maxBytes) || maxBytes <= 0) throw new TypeError("run output limit must be positive")
+  let file
+  try {
+    file = await open(path, "r")
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return ""
+    throw error
+  }
+  try {
+    const size = (await file.stat()).size
+    const length = Math.min(size, maxBytes)
+    const buffer = Buffer.alloc(length)
+    await file.read(buffer, 0, length, Math.max(0, size - length))
+    const text = buffer.toString("utf8")
+    return size > maxBytes ? `[truncated to last ${maxBytes} bytes]\n${text}` : text
+  } finally {
+    await file.close()
+  }
+}
+
 export async function updateRunLedger(path: string, fields: Readonly<Record<string, unknown>>): Promise<void> {
   const current = await readRunJson<Record<string, unknown>>(path)
   await writeRunJsonAtomic(path, { ...current, ...fields })

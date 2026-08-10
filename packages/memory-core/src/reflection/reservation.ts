@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto"
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises"
-import { join } from "node:path"
+import { hostname } from "node:os"
+import { dirname, join } from "node:path"
 import type { MemoryIdentity } from "../identity"
 import type { TranscriptJournal } from "../journal"
-import { createLockRecord, reflectionSchedulerLockPath, withLock } from "../locks"
+import { createLockRecord, getProcessStartIdentity, reflectionSchedulerLockPath, withLock } from "../locks"
 import {
   completeTransition,
   evaluateTransitions,
@@ -18,11 +19,19 @@ import {
   type TriggerConfig,
 } from "./machine"
 
+export interface ReflectionLauncherIdentity {
+  readonly pid: number
+  readonly hostname: string
+  readonly processStart: string | null
+}
+
 export interface ReflectionReservationStoreOptions {
   readonly identity: MemoryIdentity
   readonly config: TriggerConfig
   readonly getJournal: (conversationId: string) => Promise<TranscriptJournal>
   readonly createRunId?: () => string
+  readonly now?: () => Date
+  readonly launcherIdentity?: () => Promise<ReflectionLauncherIdentity>
 }
 
 export interface ReservationResult {
@@ -40,12 +49,16 @@ export class ReflectionReservationStore {
   private readonly pendingPath: string
   private readonly schedulerLockPath: string
   private readonly createRunId: () => string
+  private readonly now: () => Date
+  private readonly launcherIdentity: () => Promise<ReflectionLauncherIdentity>
 
   constructor(private readonly options: ReflectionReservationStoreOptions) {
     this.activePath = join(options.identity.paths.reflection, "active.lock")
     this.pendingPath = join(options.identity.paths.reflection, "pending.json")
     this.schedulerLockPath = reflectionSchedulerLockPath(options.identity.paths.locks)
     this.createRunId = options.createRunId ?? randomUUID
+    this.now = options.now ?? (() => new Date())
+    this.launcherIdentity = options.launcherIdentity ?? currentLauncherIdentity
   }
 
   async evaluate(conversationId: string, event: ReflectionEvent): Promise<ReservationResult | null> {
@@ -78,8 +91,11 @@ export class ReflectionReservationStore {
     return this.locked(runId, async () => {
       const current = await this.readStateUnlocked()
       const transition = reserveTransition(current, request, runId)
-      await this.writeStateUnlocked(transition.state)
-      const run = transition.result === "active" ? transition.state.active : transition.state.pending
+      const state = transition.result === "active"
+        ? { ...transition.state, active: await this.withLaunchOwner(transition.state.active) }
+        : transition.state
+      await this.writeStateUnlocked(state)
+      const run = transition.result === "active" ? state.active : state.pending
       if (!run) throw new Error("Reservation transition did not produce a run")
       return { status: transition.result, run }
     })
@@ -119,16 +135,36 @@ export class ReflectionReservationStore {
         const journal = journals.get(conversationId)
         if (journal) await journal.setPendingCompaction(false)
       }
-      await this.writeStateUnlocked(transition.state)
+      if ((outcome === "merged" || outcome === "no_changes") && current.active?.request.trigger === "dream") {
+        await writeJsonAtomic(join(this.options.identity.paths.runtime, "dream", "state.json"), {
+          last_dream_at: this.now().toISOString(),
+          lastRunId: runId,
+        })
+      }
+      const promoted = transition.launch === undefined ? undefined : await this.withLaunchOwner(transition.launch)
+      const nextState = promoted === undefined ? transition.state : { ...transition.state, active: promoted }
+      await this.writeStateUnlocked(nextState)
       return {
         outcome,
-        ...(transition.launch === undefined ? {} : { launch: transition.launch }),
+        ...(promoted === undefined ? {} : { launch: promoted }),
       }
     })
   }
 
   async readState(): Promise<ReservationState> {
     return this.locked(undefined, () => this.readStateUnlocked())
+  }
+
+  private async withLaunchOwner(run: ReservedRun | undefined): Promise<ReservedRun | undefined> {
+    if (run === undefined) return undefined
+    const launcher = await this.launcherIdentity()
+    return {
+      ...run,
+      reservedAt: this.now().toISOString(),
+      launcherPid: launcher.pid,
+      launcherHostname: launcher.hostname,
+      launcherProcessStart: launcher.processStart,
+    }
   }
 
   private async locked<T>(runId: string | undefined, task: () => Promise<T>): Promise<T> {
@@ -165,6 +201,13 @@ async function readRun(path: string): Promise<ReservedRun | null> {
   return parsed
 }
 
+async function writeJsonAtomic(path: string, value: unknown): Promise<void> {
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 })
+  const temporaryPath = `${path}.tmp-${randomUUID()}`
+  await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", mode: 0o600 })
+  await rename(temporaryPath, path)
+}
+
 async function writeOptionalRun(path: string, run: ReservedRun | undefined): Promise<void> {
   if (!run) {
     await unlink(path).catch((error: unknown) => {
@@ -172,9 +215,7 @@ async function writeOptionalRun(path: string, run: ReservedRun | undefined): Pro
     })
     return
   }
-  const temporaryPath = `${path}.tmp-${randomUUID()}`
-  await writeFile(temporaryPath, `${JSON.stringify(run, null, 2)}\n`, { encoding: "utf8", mode: 0o600 })
-  await rename(temporaryPath, path)
+  await writeJsonAtomic(path, run)
 }
 
 function isReservedRun(value: unknown): value is ReservedRun {
@@ -187,10 +228,21 @@ function isReflectionRequest(value: unknown): value is ReflectionRequest {
   if (!value || typeof value !== "object") return false
   const request = value as Record<string, unknown>
   return (
-    (request.trigger === "manual" || request.trigger === "compaction" || request.trigger === "step-count") &&
+    (request.trigger === "manual" || request.trigger === "compaction" || request.trigger === "step-count" || request.trigger === "dream") &&
+    (request.trigger === "dream"
+      ? request.origin === "manual" || request.origin === "idle" || request.origin === "shutdown"
+      : request.origin === undefined) &&
     Array.isArray(request.conversationIds) && request.conversationIds.every((id) => typeof id === "string") &&
     Array.isArray(request.snapshots)
   )
+}
+
+async function currentLauncherIdentity(): Promise<ReflectionLauncherIdentity> {
+  return {
+    pid: process.pid,
+    hostname: hostname(),
+    processStart: await getProcessStartIdentity(process.pid),
+  }
 }
 
 function errorCode(error: unknown): string | undefined {

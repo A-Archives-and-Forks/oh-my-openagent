@@ -156,6 +156,26 @@ export async function checkWorktrees(
   }
 }
 
+export async function checkAbandonedRuns(reflectionDir: string): Promise<DoctorCheck> {
+  const runsDir = join(reflectionDir, "runs")
+  let entries
+  try {
+    entries = await readdir(runsDir, { withFileTypes: true })
+  } catch {
+    return { name: "abandoned-runs", level: "ok", detail: "no abandoned runs" }
+  }
+  const abandoned = entries
+    .filter((entry) => entry.isDirectory() && existsSync(join(runsDir, entry.name, "abandoned.json")))
+    .map((entry) => join(runsDir, entry.name))
+    .sort()
+  if (abandoned.length === 0) return { name: "abandoned-runs", level: "ok", detail: "no abandoned runs" }
+  return {
+    name: "abandoned-runs",
+    level: "warn",
+    detail: `${abandoned.length} run${abandoned.length === 1 ? "" : "s"} need manual disposal: ${abandoned.join("; ")}`,
+  }
+}
+
 export async function checkTokens(repoDir: string, warnTokens: number): Promise<DoctorCheck> {
   const estimate = await estimateSystemTokens(repoDir)
   if (estimate.totalTokens < warnTokens) {

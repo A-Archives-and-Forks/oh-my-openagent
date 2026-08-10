@@ -32,6 +32,7 @@ import {
   shouldWarnCategoryUnavailable,
   type ReflectionModelResolution,
 } from "./resolve-model"
+import { writeRunJsonAtomic } from "./run-artifacts"
 import { prepareReflectionSpawn, runReflectionChild, type ReflectionSandbox } from "./spawn"
 
 const DEFAULT_CATEGORY = "quick"
@@ -110,7 +111,9 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
     }
 
     const execution = await this.execute(run, resolution, loaded)
-    return this.settle(run, execution, startedAt, resolution, false)
+    const settled = await this.settle(run, execution, startedAt, resolution, false)
+    await this.publishFinal(settled)
+    return settled
   }
 
   private async execute(
@@ -129,7 +132,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
       const spawnArgs = await prepareReflectionSpawn({
         run,
         worktree,
-        reflectionSessionsDir: this.options.identity.paths.reflectionSessions,
+        reflectionSessionsDir: join(this.options.identity.paths.reflection, "runs"),
         model: resolution.model,
         thinking: resolution.thinking,
         env: this.options.env ?? process.env,
@@ -162,7 +165,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
       const finalized = await finalizeReflectionWorktree(
         worktree,
         merge === "auto"
-          ? { mode: "auto", summary: `${run.request.trigger} ${run.runId}`, withWriterLock: (operation) => this.withWriterLock(operation) }
+          ? { mode: "auto", summary: `${run.request.trigger} ${run.runId}`, runId: run.runId, withWriterLock: (operation) => this.withWriterLock(operation) }
           : { mode: "explicit", withWriterLock: (operation) => this.withWriterLock(operation) },
       )
       return {
@@ -197,6 +200,8 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
       category: resolution.category,
       ...(resolution.kind === "resolved" ? { model: resolution.model, thinking: resolution.thinking } : {}),
       conversationIds: run.request.conversationIds,
+      trigger: run.request.trigger,
+      ...(run.request.trigger === "dream" ? { origin: run.request.origin } : {}),
       outcome: result.outcome,
       ...(result.reason === undefined ? {} : { reason: result.reason }),
       ...(result.detail === undefined ? {} : { detail: result.detail }),
@@ -217,6 +222,17 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
       completion,
       ...(transition.launch === undefined ? {} : { launch: transition.launch }),
     }
+  }
+
+  private async publishFinal(result: ReflectionRunResult): Promise<void> {
+    const runDir = join(this.options.identity.paths.reflection, "runs", result.runId)
+    if (!existsSync(join(runDir, "ledger.json"))) return
+    await writeRunJsonAtomic(join(runDir, "final.json"), {
+      version: 1,
+      runId: result.runId,
+      outcome: result.outcome,
+      finishedAt: result.completion.finishedAt,
+    })
   }
 
   private notifyCategoryUnavailable(config: OmoConfig, resolution: Extract<ReflectionModelResolution, { readonly kind: "category_unavailable" }>): void {

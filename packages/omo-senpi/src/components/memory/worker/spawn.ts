@@ -34,8 +34,9 @@ export interface ReflectionSpawnPaths {
 
 export interface ReflectionSpawnArgs {
   readonly runId?: string
-  readonly kind?: "reflection"
+  readonly kind?: "reflection" | "dream"
   readonly trigger?: ReservedRun["request"]["trigger"]
+  readonly origin?: "manual" | "idle" | "shutdown"
   readonly mergePolicy?: "auto" | "integration"
   readonly worktree?: ReflectionWorktree
   readonly command: string
@@ -156,8 +157,9 @@ export async function prepareReflectionSpawn(input: {
   ]
   return {
     runId: input.run.runId,
-    kind: "reflection",
+    kind: input.run.request.trigger === "dream" ? "dream" : "reflection",
     trigger: input.run.request.trigger,
+    ...(input.run.request.trigger === "dream" ? { origin: input.run.request.origin } : {}),
     mergePolicy: input.mergePolicy,
     worktree: input.worktree,
     command: input.senpiCommand ?? resolveDefaultSenpiCommand(input.env),
@@ -258,6 +260,7 @@ export async function runReflectionChild(
       runId: metadata.runId,
       kind: metadata.kind,
       trigger: metadata.trigger,
+      ...(metadata.kind === "dream" ? { origin: metadata.origin } : {}),
       startedAt: new Date(launchedAt).toISOString(),
       hardDeadlineAt,
       terminationGraceMs: graceMs,
@@ -325,7 +328,7 @@ export async function runFactsChild(
 async function runSupervisedChild(input: {
   readonly runDir: string
   readonly runId: string
-  readonly kind: "reflection" | "facts"
+  readonly kind: "reflection" | "dream" | "facts"
   readonly command: string
   readonly args: readonly string[]
   readonly cwd: string
@@ -391,14 +394,18 @@ function requireRunMetadata(spawnArgs: ReflectionSpawnArgs): {
   readonly runId: string
   readonly kind: "reflection" | "dream"
   readonly trigger: ReservedRun["request"]["trigger"]
+  readonly origin?: "manual" | "idle" | "shutdown"
   readonly mergePolicy: "auto" | "integration"
   readonly worktree: ReflectionWorktree
 } {
-  const { runId, kind, trigger, mergePolicy, worktree } = spawnArgs
+  const { runId, kind, trigger, origin, mergePolicy, worktree } = spawnArgs
   if (runId === undefined || kind === undefined || trigger === undefined || mergePolicy === undefined || worktree === undefined) {
     throw new TypeError("reflection spawn metadata is required")
   }
-  return { runId, kind, trigger, mergePolicy, worktree }
+  if ((kind === "dream") !== (trigger === "dream") || (kind === "dream" && origin === undefined)) {
+    throw new TypeError("dream spawn metadata requires trigger and origin")
+  }
+  return { runId, kind, trigger, ...(origin === undefined ? {} : { origin }), mergePolicy, worktree }
 }
 
 function passthroughSandbox(spawnArgs: ReflectionSpawnArgs): ReflectionSpawnArgs {
