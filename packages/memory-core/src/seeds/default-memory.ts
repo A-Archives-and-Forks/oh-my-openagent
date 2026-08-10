@@ -36,7 +36,7 @@ Your memory lives in a version-controlled filesystem rooted at $MEMORY_DIR. File
 
 Changes to these files take effect only after a git commit. Use the memory tools to edit, never hand-write raw git commands during a session. Keep your self-model accurate and minimal.
 
-If you change this file, tell the user — it is your soul and they should know.`
+If you change this file, tell the user. It is your soul and they should know.`
 
 /**
  * Human block body. A card-format template to be learned (IC-14, IC-16).
