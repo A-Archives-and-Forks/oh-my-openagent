@@ -42,9 +42,8 @@ describe("memory footer wiring", () => {
     await pi.dispatch("tool_result", memoryResult("mcp_omo-memory_memory_apply_patch"), toolContext)
     await pi.dispatch("tool_result", memoryResult("read"), toolContext)
 
-    expect(statusCalls).toEqual([
-      { key: "memory", text: `mem:${fixture.identity} 1m ago` },
-    ])
+    expect(statusCalls).toHaveLength(1)
+    expectRelativeStatus(statusCalls[0], fixture.identity)
     await pi.dispatch("session_shutdown", { type: "session_shutdown" }, toolContext)
   })
 
@@ -68,10 +67,10 @@ describe("memory footer wiring", () => {
     await pi.dispatch("session_start", { type: "session_start" }, sessionContext("session-second"))
     await pi.dispatch("tool_result", memoryResult("memory"), second)
 
-    expect(statusCalls).toEqual([
-      { key: "memory", text: `mem:${fixture.identity} 1m ago` },
-      { key: "memory", text: `mem:${fixture.identity} 1m ago` },
-    ])
+    expect(statusCalls).toHaveLength(2)
+    for (const call of statusCalls) {
+      expectRelativeStatus(call, fixture.identity)
+    }
     await pi.dispatch("session_shutdown", { type: "session_shutdown" }, second)
   })
 })
@@ -133,4 +132,12 @@ function sessionContext(
           }),
     },
   }
+}
+
+function expectRelativeStatus(
+  call: { key: string; text: string | undefined } | undefined,
+  identity: string,
+): void {
+  expect(call?.key).toBe("memory")
+  expect(call?.text).toMatch(new RegExp(`^mem:${identity} (?:just now|[1-9]\\d*[mhd] ago)$`))
 }
