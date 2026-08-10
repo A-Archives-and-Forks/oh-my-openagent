@@ -62,13 +62,9 @@ export async function stageAgentToolkit(options = {}) {
     await chmod(join(tempDir, "omo-agent-toolkit"), 0o755)
     await probeSelfContainment(tempDir)
 
-    if (await fileExists(targetDir)) {
-      await rename(targetDir, backupDir)
-      backupCreated = true
-    }
+    if (await fileExists(targetDir)) await rm(targetDir, { recursive: true, force: true })
     await rename(tempDir, targetDir)
     targetMoved = true
-    if (backupCreated) await rm(backupDir, { recursive: true, force: true })
     return { ok: true, sourceEntry, directiveEntry, targetDir, sha256: await sha256(sourceEntry) }
   } catch (error) {
     if (!targetMoved && backupCreated) {
