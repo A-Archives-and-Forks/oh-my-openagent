@@ -25,5 +25,6 @@ GREEN:
 - Real workspace invocation: no stale self-package test copies found on macOS.
 
 Windows proof:
-- Final-head run 31385945591 passed the Windows root job with the cleanup step active.
-- The branch was then synced with the latest `dev`; its replacement matrix must also pass before PR merge.
+- In run 31385945591, the stale Ralph and registrar failures did not recur, confirming the cleanup removed that failure mode.
+- That run did not complete green: the Windows root job was cancelled, and Senpi Windows failed during fixture teardown.
+- The branch was then synced with the latest `dev`; its replacement matrix must pass before PR merge.

@@ -1,0 +1,28 @@
+Final Windows memory wiring fixture cleanup
+
+Observed failure:
+- Run: 31385945591
+- Job: `senpi-compatibility (windows-latest)` 93446265992
+- Test body: `#given bind reconciliation is pending #when a footer publishes #then bind completion does not erase it`
+- The behavior assertion completed; the test failed in `afterEach`.
+- Exact error: Windows `EPERM` while `fs.rm` unlinked the temporary Git repository's `.git/config`.
+
+Root cause:
+- The fixture creates and mutates a real Git repository.
+- The one-shot recursive removal had no bounded retry for transient Windows file-handle release.
+- This was cleanup nondeterminism, not a footer ordering assertion failure or timeout.
+
+Fix:
+- Keep the exact event-driven behavior test.
+- Use Node's built-in recursive removal retry only on Windows:
+  - `maxRetries: 5`
+  - `retryDelay: 100`
+- No sleeps, assertion retries, skipped checks, or weakened behavior.
+
+Local verification:
+- Cleanup plus focused memory tests: 25 pass, 0 fail, 73 assertions.
+- Full memory suite: 251 pass, 0 fail, 832 assertions.
+- Omo-senpi typecheck: exit 0.
+
+Remaining proof:
+- The final Senpi Windows job and Windows root job must pass before merge.

@@ -1,8 +1,8 @@
 Latest dev sync verification
 
 Sync:
-- Merged `origin/dev` after PR #6694's stale-self cleanup matrix passed.
-- New base changes were limited to OpenCode model fallback registration behavior and tests.
+- Merged `origin/dev` after run 31385945591 proved the stale-self failure mode was gone but ended with cancelled jobs and a Senpi Windows teardown failure.
+- New base changes included PR #6713's Windows root baseline repairs plus OpenCode model fallback registration behavior and tests.
 - Merge conflicts: none.
 
 Verification on the merged tree:
