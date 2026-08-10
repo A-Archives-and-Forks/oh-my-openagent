@@ -214,6 +214,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
           ui,
           compileWarnTokens: settings?.compile_warn_tokens ?? 30_000,
           alreadyNotified: false,
+          checkAdvisory: false,
           ...(options.now === undefined ? {} : { now: options.now }),
         })
       })
@@ -268,7 +269,18 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       if (branchEntryCount(eventCtx) > 0) {
         await journalWiringFor(identity).reconcileSession(eventCtx)
       }
-      readUi(eventCtx)?.setStatus(MEMORY_STATUS_KEY, undefined)
+      const ui = readUi(eventCtx)
+      if (ui !== undefined) {
+        ui.setStatus(MEMORY_STATUS_KEY, undefined)
+        const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
+        void refreshMemoryStatus({
+          context: identity,
+          ui,
+          compileWarnTokens: settings?.compile_warn_tokens ?? 30_000,
+          alreadyNotified: false,
+          showFooter: false,
+        }).catch(() => {})
+      }
       const api = completionApi(pi)
       if (api !== undefined) {
         void consumePendingReflectionCompletions(

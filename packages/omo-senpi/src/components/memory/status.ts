@@ -31,6 +31,8 @@ export interface RefreshMemoryStatusInput {
   readonly alreadyNotified: boolean
   readonly gitRepo?: GitRepoForStatus
   readonly now?: () => number
+  readonly showFooter?: boolean
+  readonly checkAdvisory?: boolean
 }
 
 export async function refreshMemoryStatus(input: RefreshMemoryStatusInput): Promise<MemoryStatusResult> {
@@ -38,15 +40,17 @@ export async function refreshMemoryStatus(input: RefreshMemoryStatusInput): Prom
   const head = await repo.head()
   if (head === null) return { notified: false }
 
-  const committedAt = await repo.headCommitTimestamp()
-  const age = committedAt === null
-    ? null
-    : formatRelativeAge(committedAt * SECOND_MS, (input.now ?? Date.now)())
-  if (age !== null) {
-    input.ui.setStatus(MEMORY_STATUS_KEY, `mem:${input.context.identity} ${age}`)
+  if (input.showFooter !== false) {
+    const committedAt = await repo.headCommitTimestamp()
+    const age = committedAt === null
+      ? null
+      : formatRelativeAge(committedAt * SECOND_MS, (input.now ?? Date.now)())
+    if (age !== null) {
+      input.ui.setStatus(MEMORY_STATUS_KEY, `mem:${input.context.identity} ${age}`)
+    }
   }
 
-  if (input.alreadyNotified) return { notified: false }
+  if (input.checkAdvisory === false || input.alreadyNotified) return { notified: false }
 
   const estimate = await estimateSystemTokens(repo, head)
   if (estimate < input.compileWarnTokens) return { notified: false }

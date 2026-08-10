@@ -176,6 +176,64 @@ describe("refreshMemoryStatus", () => {
     expect(result.notified).toBe(true)
   })
 
+  test("#given footer rendering disabled at session bind #when memory is oversized #then advisory fires without a footer", async () => {
+    const fakeRepo: GitRepoForStatus = {
+      head: async () => "abcdef1234567890",
+      headCommitTimestamp: async () => Date.parse("2026-08-10T00:00:00.000Z") / 1000,
+      lsTree: async () => ["system/persona.md"],
+      show: async () => "oversized memory body",
+    }
+    const context = createMemoryIdentityContext({
+      identity: "fake-agent",
+      identityPaths: buildIdentityPaths("/tmp/nonexistent", "fake-agent"),
+      binding: { identity: "fake-agent", repoPathHash: "hash", boundAt: 1 },
+    })
+    const recorder = recordingUi()
+
+    await refreshMemoryStatus({
+      context,
+      ui: recorder.ui,
+      compileWarnTokens: 1,
+      alreadyNotified: false,
+      gitRepo: fakeRepo,
+      now: () => Date.parse("2026-08-10T00:01:30.000Z"),
+      showFooter: false,
+    })
+
+    expect(recorder.statusCalls).toEqual([])
+    expect(recorder.notifications).toHaveLength(1)
+  })
+
+  test("#given advisory checking disabled after first memory use #when memory is oversized #then footer renders without another warning", async () => {
+    const fakeRepo: GitRepoForStatus = {
+      head: async () => "abcdef1234567890",
+      headCommitTimestamp: async () => Date.parse("2026-08-10T00:00:00.000Z") / 1000,
+      lsTree: async () => ["system/persona.md"],
+      show: async () => "oversized memory body",
+    }
+    const context = createMemoryIdentityContext({
+      identity: "fake-agent",
+      identityPaths: buildIdentityPaths("/tmp/nonexistent", "fake-agent"),
+      binding: { identity: "fake-agent", repoPathHash: "hash", boundAt: 1 },
+    })
+    const recorder = recordingUi()
+
+    await refreshMemoryStatus({
+      context,
+      ui: recorder.ui,
+      compileWarnTokens: 1,
+      alreadyNotified: false,
+      gitRepo: fakeRepo,
+      now: () => Date.parse("2026-08-10T00:01:30.000Z"),
+      checkAdvisory: false,
+    })
+
+    expect(recorder.statusCalls).toEqual([
+      { key: MEMORY_STATUS_KEY, text: "mem:fake-agent 1m ago" },
+    ])
+    expect(recorder.notifications).toEqual([])
+  })
+
   test("#given an already-notified session #when refresh runs again over threshold #then no second notify fires", async () => {
     const bigContent = "B".repeat(120_000)
     const { repoPath } = await createFixtureRepo([
