@@ -1,10 +1,11 @@
 import { spawn } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
-import { chmod, mkdir, writeFile } from "node:fs/promises"
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
 import { basename, dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import {
+  loadDreamPersona,
   loadFactsPersona,
   loadReflectionPersona,
   type FactsPayload,
@@ -30,6 +31,15 @@ export interface ReflectionSpawnPaths {
   readonly transcript: string
   readonly persona: string
   readonly prompt: string
+  readonly skillsUsage?: string
+  readonly dreamState?: string
+  readonly dreamPolicy?: string
+}
+
+export interface DreamPeoplePolicy {
+  readonly enabled: boolean
+  readonly max_entries: number
+  readonly max_entry_chars: number
 }
 
 export interface ReflectionSpawnArgs {
@@ -96,6 +106,9 @@ export async function prepareReflectionSpawn(input: {
   readonly thinking?: string
   readonly env: NodeJS.ProcessEnv
   readonly mergePolicy: "auto" | "integration"
+  readonly skillsUsageSource: string
+  readonly dreamStateSource: string
+  readonly peoplePolicy: DreamPeoplePolicy
   readonly senpiCommand?: string
 }): Promise<ReflectionSpawnArgs> {
   const sessionDir = join(input.reflectionSessionsDir, safeRunId(input.run.runId))
@@ -103,9 +116,21 @@ export async function prepareReflectionSpawn(input: {
   const transcript = join(sessionDir, "transcript-payload.json")
   const persona = join(sessionDir, "reflection-persona.md")
   const prompt = join(sessionDir, "reflection-task.md")
+  const isDream = input.run.request.trigger === "dream"
+  const dreamPaths = isDream ? {
+    skillsUsage: join(sessionDir, "skills-usage.json"),
+    dreamState: join(sessionDir, "dream-state.json"),
+    dreamPolicy: join(sessionDir, "dream-policy.json"),
+  } : undefined
+  const payloadPaths = [
+    transcript,
+    persona,
+    prompt,
+    ...(dreamPaths === undefined ? [] : Object.values(dreamPaths)),
+  ]
   // Payload files are chmod 0400 after writing, so a reused run directory (retry with the same
   // runId) must relax the mode before rewriting or the open() fails with EACCES.
-  await Promise.all([transcript, persona, prompt].map(async (path) => {
+  await Promise.all(payloadPaths.map(async (path) => {
     try {
       await chmod(path, 0o600)
     } catch {
@@ -114,23 +139,34 @@ export async function prepareReflectionSpawn(input: {
   }))
   await Promise.all([
     writeFile(transcript, `${JSON.stringify({ schemaVersion: 1, runId: input.run.runId, request: input.run.request }, null, 2)}\n`, "utf8"),
-    writeFile(persona, loadReflectionPersona().markdown, "utf8"),
+    writeFile(persona, isDream ? loadDreamPersona().markdown : loadReflectionPersona().markdown, "utf8"),
     writeFile(prompt, buildTaskPrompt(input.run, input.worktree.dir, transcript), "utf8"),
+    ...(dreamPaths === undefined ? [] : [
+      copyJsonOrEmpty(input.skillsUsageSource, dreamPaths.skillsUsage),
+      copyJsonOrEmpty(input.dreamStateSource, dreamPaths.dreamState),
+      writeFile(dreamPaths.dreamPolicy, `${JSON.stringify({ version: 1, people: input.peoplePolicy }, null, 2)}\n`, "utf8"),
+    ]),
   ])
-  await Promise.all([transcript, persona, prompt].map((path) => chmod(path, 0o400)))
+  await Promise.all(payloadPaths.map((path) => chmod(path, 0o400)))
 
-  const paths = {
+  const paths: ReflectionSpawnPaths = {
     sessionDir,
     worktree: input.worktree.dir,
     gitCommonDir: dirname(input.worktree.commonConfigPath),
     transcript,
     persona,
     prompt,
+    ...dreamPaths,
   }
   const env: NodeJS.ProcessEnv = {
     ...input.env,
     MEMORY_DIR: input.worktree.dir,
     TRANSCRIPT_PATH: transcript,
+    ...(dreamPaths === undefined ? {} : {
+      SKILLS_USAGE_PATH: dreamPaths.skillsUsage,
+      DREAM_STATE_PATH: dreamPaths.dreamState,
+      DREAM_POLICY_PATH: dreamPaths.dreamPolicy,
+    }),
     SENPI_MEMORY_REFLECTION: "1",
     // A detached child has no controlling terminal, so senpi's PTY-backed bash session fails with
     // "Native PTY session handle is missing write()" and the child could never git-commit its
@@ -426,6 +462,21 @@ function buildTaskPrompt(run: ReservedRun, worktree: string, transcript: string)
     "Do not modify Git administration files. Finish with a clean worktree.",
     `Trigger: ${run.request.trigger}${focus}`,
   ].join("\n")
+}
+
+async function copyJsonOrEmpty(source: string, destination: string): Promise<void> {
+  let content = "{}\n"
+  try {
+    content = await readFile(source, "utf8")
+  } catch (error) {
+    if (errorCode(error) !== "ENOENT") throw error
+  }
+  await writeFile(destination, content, "utf8")
+}
+
+function errorCode(error: unknown): string | undefined {
+  if (!(error instanceof Error) || !("code" in error)) return undefined
+  return typeof error.code === "string" ? error.code : undefined
 }
 
 function resolveDefaultSenpiCommand(env: NodeJS.ProcessEnv): string {

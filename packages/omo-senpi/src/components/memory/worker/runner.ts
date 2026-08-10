@@ -33,7 +33,12 @@ import {
   type ReflectionModelResolution,
 } from "./resolve-model"
 import { writeRunJsonAtomic } from "./run-artifacts"
-import { prepareReflectionSpawn, runReflectionChild, type ReflectionSandbox } from "./spawn"
+import {
+  prepareReflectionSpawn,
+  runReflectionChild,
+  type DreamPeoplePolicy,
+  type ReflectionSandbox,
+} from "./spawn"
 
 const DEFAULT_CATEGORY = "quick"
 const DEFAULT_TIMEOUT_MINUTES = 15
@@ -137,6 +142,9 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
         thinking: resolution.thinking,
         env: this.options.env ?? process.env,
         mergePolicy: merge,
+        skillsUsageSource: join(this.options.identity.paths.runtime, "skills-usage.json"),
+        dreamStateSource: join(this.options.identity.paths.runtime, "dream", "state.json"),
+        peoplePolicy: resolvePeoplePolicy(loaded.config, this.options.identity.id),
         senpiCommand: this.options.senpiCommand,
       })
       const configuredMinutes = loaded.config.memory?.reflection.timeout_minutes ?? DEFAULT_TIMEOUT_MINUTES
@@ -265,6 +273,16 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
     if (this.options.withWriterLock) return this.options.withWriterLock(operation)
     const record = await createLockRecord("memory-write")
     return withLock(memoryWriterLockPath(this.options.identity.paths.locks), record, operation, { waitTimeoutMs: 5_000 })
+  }
+}
+
+function resolvePeoplePolicy(config: OmoConfig, identity: string): DreamPeoplePolicy {
+  const base = config.memory?.people
+  const override = config.memory?.agents[identity]?.people
+  return {
+    enabled: override?.enabled ?? base?.enabled ?? true,
+    max_entries: override?.max_entries ?? base?.max_entries ?? 40,
+    max_entry_chars: override?.max_entry_chars ?? base?.max_entry_chars ?? 200,
   }
 }
 
