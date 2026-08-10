@@ -38,12 +38,12 @@ function ensureVendoredLspDaemonBuilt(): void {
 }
 ensureVendoredLspDaemonBuilt()
 
-// The Windows runner needs multiples of the POSIX time for the same subprocess work (git, npm, the
-// installer, real fixture repositories), so Bun's 5s default expires on work that is still progressing
-// and reports it as a hang. Raise the floor once, for win32 only, instead of rediscovering the class one
-// flaking file at a time. POSIX keeps the strict default so a genuine hang stays loud, and a file that
-// needs a different budget still sets its own.
-if (process.platform === "win32") setDefaultTimeout(30_000)
+// setDefaultTimeout is per-file when a TEST file calls it, but the preload runs before every file and
+// its value becomes the default each file starts from. CI runners need multiples of the local time for
+// the same git/npm/installer subprocesses, so raise the floor here once rather than rediscovering the
+// class one flaking suite at a time. A file that needs more still sets its own budget, and a file that
+// wants the strict default can lower it locally.
+setDefaultTimeout(process.platform === "win32" ? 30_000 : 20_000)
 
 // Skill/agent/command discovery reads the developer's real HOME (~/.agents/skills,
 // ~/.claude, ~/.config/opencode). A machine with real user skills installed then makes
