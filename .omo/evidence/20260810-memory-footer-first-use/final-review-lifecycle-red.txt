@@ -16,4 +16,4 @@ Observed:
 - Received no status call before reconciliation suspended.
 - 0 pass, 1 fail.
 
-The tests were added before the lifecycle production edits.
+The tests were added before the lifecycle production edits. The bind-order test was then renamed to its final behavior-oriented title, `#given bind reconciliation is pending #when a footer publishes #then bind completion does not erase it`, without changing the regression it covers.
