@@ -11,6 +11,9 @@ import type { OmoMemorySettings } from "@oh-my-opencode/omo-config-core"
 import type { ComponentLogger, SenpiExtensionAPI } from "../../extension/types"
 import type { MemoryPendingLedger } from "./context"
 
+/** Resolved trigger policy including the reflection feature switch. */
+export type ResolvedTriggerConfig = TriggerConfig & { readonly enabled: boolean }
+
 /** Narrow view of memory-core's ReflectionReservationStore used by the wiring. */
 export interface ReflectionTriggerEngine {
   evaluate(conversationId: string, event: ReflectionEvent): Promise<ReservationResult | null>
@@ -21,6 +24,8 @@ export interface ReflectionTriggerSession {
   readonly conversationId: string
   readonly ledger: MemoryPendingLedger
   readonly engine: ReflectionTriggerEngine
+  /** When false, the wiring short-circuits before reserving. Defaults to true when absent. */
+  readonly enabled?: boolean
 }
 
 export interface ManualReflectionOptions {
@@ -97,6 +102,10 @@ export function createReflectionTriggerWiring(options: ReflectionTriggerWiringOp
         const outcome = outcomes.get(session.conversationId)
         outcomes.delete(session.conversationId)
         if (outcome === undefined || outcome.aborted || outcome.willRetry) return
+        if (session.enabled === false) {
+          session.ledger.pendingCompaction = false
+          return
+        }
 
         // Not tracked through whenIdle: the host already awaits this handler.
         try {
@@ -121,6 +130,7 @@ export function createReflectionTriggerWiring(options: ReflectionTriggerWiringOp
     requestManualReflection(focus?: string, manual: ManualReflectionOptions = {}): void {
       const session = options.resolveSession()
       if (!session) return
+      if (session.enabled === false) return
       track(() =>
         evaluateAndLaunch(session, {
           kind: "manual",
@@ -140,13 +150,17 @@ export function createReflectionTriggerWiring(options: ReflectionTriggerWiringOp
 /**
  * Resolved reflection trigger policy for the bound agent: per-agent overrides win field by field
  * over the base settings. A step_count of 0 (the default) disables threshold launches entirely.
+ * `enabled` false short-circuits trigger evaluation before any reservation is made.
  */
-export function resolveReflectionTriggerConfig(settings: OmoMemorySettings, agentName?: string): TriggerConfig {
-  const base = settings.reflection.trigger
-  const override = agentName === undefined ? undefined : settings.agents[agentName]?.reflection?.trigger
+export function resolveReflectionTriggerConfig(settings: OmoMemorySettings, agentName?: string): ResolvedTriggerConfig {
+  const base = settings.reflection
+  const override = agentName === undefined ? undefined : settings.agents[agentName]?.reflection
+  const triggerBase = base.trigger
+  const triggerOverride = override?.trigger
   return {
-    stepCount: override?.step_count ?? base.step_count,
-    onCompaction: override?.on_compaction ?? base.on_compaction,
+    enabled: override?.enabled ?? base.enabled,
+    stepCount: triggerOverride?.step_count ?? triggerBase.step_count,
+    onCompaction: triggerOverride?.on_compaction ?? triggerBase.on_compaction,
   }
 }
 
