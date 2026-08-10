@@ -41,7 +41,7 @@ export const OmoMemoryNudgeSchema = z.object({
 }).strict()
 
 // ---------------------------------------------------------------------------
-// Facts (category is deliberately NOT a knob — pinned "quick")
+// Facts (category is deliberately NOT a knob: pinned "quick")
 // ---------------------------------------------------------------------------
 
 export const OmoMemoryFactsSchema = z.object({

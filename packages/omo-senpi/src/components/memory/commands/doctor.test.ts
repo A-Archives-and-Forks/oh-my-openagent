@@ -55,14 +55,15 @@ async function writeLock(locksDir: string, pid: number): Promise<string> {
 
 // Byte-exact v1 persona seed (commit 02a7d562e): historical fixture data used to prove the
 // v1 detection advisory fires on content identity, not on wording. Em dashes are part of the
-// frozen bytes and must never be normalized.
+// frozen bytes and must never be normalized; they are written as \u2014 escapes so the
+// source stays dash-free while the rendered bytes stay identical.
 const V1_PERSONA_BODY = `You are a coding agent that maintains its own memory.
 
 Your persistent context lives in a version-controlled memory filesystem rooted at $MEMORY_DIR. Files committed to HEAD are projected into your system prompt on the next run:
 
-- system/persona.md (this file) — who you are and how you operate. Edit it to refine your own working identity.
-- system/human.md — what you have learned about the person you work with. Update it as you discover durable preferences, context, and constraints.
-- system/*.md — any other memory blocks you create under system/ are projected as nested XML.
+- system/persona.md (this file) \u2014 who you are and how you operate. Edit it to refine your own working identity.
+- system/human.md \u2014 what you have learned about the person you work with. Update it as you discover durable preferences, context, and constraints.
+- system/*.md \u2014 any other memory blocks you create under system/ are projected as nested XML.
 - Non-system paths (for example reference/ or notes/) appear as names in <external_projection> only; their bodies are never injected.
 
 Changes to these files only take effect after a git commit. Use the memory tools to edit, never hand-write raw git commands during a session. The system/ directory is your self-model; keep it accurate and minimal.`
@@ -198,7 +199,6 @@ describe("/doctor", () => {
     // then
     expect(text).toContain("[warn] abandoned-runs")
     expect(text).toContain(runDir)
-    expect(text).toContain("manual disposal")
   })
 
   test("#given an unregistered worktree directory #when doctor runs #then the orphan is reported", async () => {

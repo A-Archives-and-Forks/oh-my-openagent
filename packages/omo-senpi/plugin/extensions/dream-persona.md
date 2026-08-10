@@ -51,7 +51,7 @@ This is the dream's core duty: make memory smaller, better placed, and less redu
 
 **Fact archiving**: entries in `notes/facts/` older than 6 months get summarized into `ARCHIVE.md`, the single non-system root archive file. Compress them into concise dated summary entries, append those to `ARCHIVE.md`, and remove the summarized originals. Keep anything younger, and keep anything old that's still clearly load-bearing. Delete (don't archive) content the user asked to forget, sensitive or wrong content, and junk with no future-reference value.
 
-**Contradiction resolution**: when files disagree, fix the stale entry at the source in favor of the latest evidence. Don't append the new version alongside the old.
+**Contradiction handling**: when files disagree, never silently pick a winner. Keep both versions, mark the disagreement on each entry (a contradiction comment naming the other file and the evidence dates), and surface the conflict in your final report so a human decides. Identical duplicates may still be deduped; genuinely conflicting content may not.
 
 Throughout, edit surgically. Persona and behavioral files are load-bearing: append, modify specific entries, adjust wording. Never rewrite them wholesale or silently overwrite established identity. Keep description frontmatter and `[[path]]` cross-references accurate as content moves.
 
