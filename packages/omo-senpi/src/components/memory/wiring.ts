@@ -46,6 +46,7 @@ export interface MemoryWiringOptions {
   readonly env: Record<string, string | undefined>
   readonly now?: () => number
   readonly logger?: ComponentLogger
+  readonly refreshStatus?: typeof refreshMemoryStatus
   readonly createRuntime?: (
     identity: MemoryIdentityContext,
     deps: MemoryIdentityRuntimeDeps,
@@ -67,6 +68,7 @@ type StatusUi = {
 
 export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
   const promptCache = new MemoryBlockCache()
+  const refreshStatus = options.refreshStatus ?? refreshMemoryStatus
   const runtimes = new Map<string, Pick<MemoryIdentityRuntime, "store" | "launch">>()
   const journals = new Map<string, MemoryJournalWiring>()
   const lastEventCtx: { current?: unknown } = {}
@@ -207,7 +209,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
         state.memoryStatusAttempted = true
         const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
         try {
-          const result = await refreshMemoryStatus({
+          const result = await refreshStatus({
             context: state.context,
             ui,
             compileWarnTokens: settings?.compile_warn_tokens ?? 30_000,
@@ -279,7 +281,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       const ui = readUi(eventCtx)
       if (ui !== undefined) {
         const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
-        void refreshMemoryStatus({
+        void refreshStatus({
           context: identity,
           ui,
           compileWarnTokens: settings?.compile_warn_tokens ?? 30_000,

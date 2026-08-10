@@ -1,10 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { execFileSync } from "node:child_process"
 import { mkdir, mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { GitMemoryRepo, resolveMemoryIdentity } from "@oh-my-opencode/memory-core"
+import { resolveMemoryIdentity } from "@oh-my-opencode/memory-core"
 
 import { createMemoryIdentityContext, type MemoryIdentityContext } from "./context"
 import { createMemoryComponent, ensureIdentityRuntimeDirs } from "./index"
@@ -14,21 +13,17 @@ import {
   loadedMemoryConfig,
   memorySettings,
 } from "./memory.test-support"
+import {
+  MEMORY_STATUS_KEY,
+  type MemoryStatusResult,
+  type RefreshMemoryStatusInput,
+} from "./status"
 import { createMemoryWiring } from "./wiring"
 
-const COMMIT_TIME = "2026-08-10T00:00:00.000Z"
-const NOW = Date.parse("2026-08-10T00:01:30.000Z")
-const WINDOWS_REMOVE_RETRIES = process.platform === "win32" ? 20 : 0
-const WINDOWS_REMOVE_RETRY_DELAY_MS = 100
-const fixtures: Array<{ root: string; gitDir?: string }> = []
+const roots: string[] = []
 
 afterEach(async () => {
-  await Promise.all(fixtures.splice(0).map(async ({ root, gitDir }) => {
-    if (gitDir !== undefined) {
-      await removeFixturePath(gitDir)
-    }
-    await removeFixturePath(root)
-  }))
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
 
 describe("memory footer wiring", () => {
@@ -39,7 +34,7 @@ describe("memory footer wiring", () => {
     createMemoryComponent({
       env: fixture.env,
       loadConfig: () => loadedMemoryConfig(memorySettings()),
-      now: () => NOW,
+      refreshStatus: fakeRefreshMemoryStatus,
       resolveCwd: () => fixture.cwd,
     }).register(pi, componentContext())
 
@@ -64,7 +59,7 @@ describe("memory footer wiring", () => {
     createMemoryComponent({
       env: fixture.env,
       loadConfig: () => loadedMemoryConfig(memorySettings()),
-      now: () => NOW,
+      refreshStatus: fakeRefreshMemoryStatus,
       resolveCwd: () => fixture.cwd,
     }).register(pi, componentContext())
 
@@ -99,7 +94,7 @@ describe("memory footer wiring", () => {
       loadConfig: () => loadedMemoryConfig(memorySettings()),
       cwd: () => fixture.cwd,
       env: fixture.env,
-      now: () => NOW,
+      refreshStatus: fakeRefreshMemoryStatus,
     })
     const eventCtx = sessionContext(
       fixture.sessionId,
@@ -125,7 +120,7 @@ describe("memory footer wiring", () => {
     createMemoryComponent({
       env: fixture.env,
       loadConfig: () => loadedMemoryConfig(memorySettings()),
-      now: () => NOW,
+      refreshStatus: fakeRefreshMemoryStatus,
       resolveCwd: () => fixture.cwd,
     }).register(pi, componentContext())
 
@@ -149,28 +144,13 @@ async function createFixture(): Promise<{
   readonly sessionId: string
 }> {
   const root = await mkdtemp(join(tmpdir(), "omo-memory-footer-wiring-"))
-  const fixture: { root: string; gitDir?: string } = { root }
-  fixtures.push(fixture)
+  roots.push(root)
   const cwd = join(root, "project")
   const env = { OMO_MEMORY_HOME: join(root, "memory") }
   const identity = resolveMemoryIdentity("auto", cwd, env)
-  fixture.gitDir = join(identity.paths.repo, ".git")
   const sessionId = "session-memory-footer"
-  const repo = new GitMemoryRepo({ dir: identity.paths.repo, agentId: identity.id })
   await ensureIdentityRuntimeDirs(identity.paths)
   await mkdir(join(identity.paths.transcripts, sessionId), { recursive: true })
-  await repo.init({
-    authorName: "Memory Footer Test",
-    seedFiles: [{ relativePath: "system/persona.md", content: "test persona\n" }],
-  })
-  execFileSync("git", ["commit", "--amend", "--no-edit", `--date=${COMMIT_TIME}`], {
-    cwd: identity.paths.repo,
-    env: {
-      ...process.env,
-      GIT_AUTHOR_DATE: COMMIT_TIME,
-      GIT_COMMITTER_DATE: COMMIT_TIME,
-    },
-  })
   const context = createMemoryIdentityContext({
     identity: identity.id,
     identityPaths: identity.paths,
@@ -179,13 +159,14 @@ async function createFixture(): Promise<{
   return { cwd, env, context, identity: identity.id, sessionId }
 }
 
-async function removeFixturePath(path: string): Promise<void> {
-  await rm(path, {
-    recursive: true,
-    force: true,
-    maxRetries: WINDOWS_REMOVE_RETRIES,
-    retryDelay: WINDOWS_REMOVE_RETRY_DELAY_MS,
-  })
+async function fakeRefreshMemoryStatus(
+  input: RefreshMemoryStatusInput,
+): Promise<MemoryStatusResult> {
+  if (input.showFooter === false) {
+    return { notified: false, footerShown: false }
+  }
+  input.ui.setStatus(MEMORY_STATUS_KEY, `mem:${input.context.identity} 1m ago`)
+  return { notified: false, footerShown: true }
 }
 
 function memoryResult(toolName: string, isError = false): Record<string, unknown> {

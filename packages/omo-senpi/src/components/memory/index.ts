@@ -45,6 +45,7 @@ export interface MemoryComponentOptions {
   readonly now?: () => number
   readonly resolveCwd?: () => string
   readonly createRuntime?: MemoryWiringOptions["createRuntime"]
+  readonly refreshStatus?: MemoryWiringOptions["refreshStatus"]
 }
 
 type SessionUi = { notify(message: string, level: "error" | "warning"): void }
@@ -94,6 +95,7 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
         now,
         logger: ctx.logger,
         ...(options.createRuntime === undefined ? {} : { createRuntime: options.createRuntime }),
+        ...(options.refreshStatus === undefined ? {} : { refreshStatus: options.refreshStatus }),
         // Reuse the boot snapshot: registration must not add a loadConfig() call, because the
         // enablement latch depends on the ORDER of reads across boot -> session_start -> reload.
         toolExposure: bootConfig.tool_exposure,
