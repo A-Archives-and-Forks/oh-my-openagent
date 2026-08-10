@@ -4,7 +4,7 @@ bun test packages/omo-senpi/src/components/memory
 Observed:
 251 pass
 0 fail
-834 expect() calls
+835 expect() calls
 Ran 251 tests across 40 files. [52.13s]
 
 Coverage highlights:

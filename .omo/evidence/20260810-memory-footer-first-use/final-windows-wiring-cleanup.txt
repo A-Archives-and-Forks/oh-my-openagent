@@ -20,8 +20,8 @@ Fix:
 - No sleeps, assertion retries, skipped checks, or weakened behavior.
 
 Local verification:
-- Cleanup plus focused memory tests: 25 pass, 0 fail, 75 assertions.
-- Full memory suite: 251 pass, 0 fail, 834 assertions.
+- Cleanup plus focused memory tests: 25 pass, 0 fail, 76 assertions.
+- Full memory suite: 251 pass, 0 fail, 835 assertions.
 - Omo-senpi typecheck: exit 0.
 
 Second Windows observation:
@@ -29,6 +29,12 @@ Second Windows observation:
 - The reset test passed in that run; no sequence assertion failed.
 - The event-bound reset-test restructure is retained as a clarity improvement, not claimed as the Windows failure fix.
 - The actual teardown fix now matches the repository's memory-server and memfs convention: ten Windows retries with a 50 ms linear backoff.
+
+Third Windows observation:
+- Run 31388591913, job 93454798463, no longer reported `EPERM` or `EBUSY`.
+- The reset test instead observed a clear in the shared cross-session status buffer before the second footer assertion.
+- The test now uses distinct status sinks for session one and session two.
+- It asserts the first sink remains exactly `[footer, clear]` after session two publishes, so late cross-session writes are still detected rather than ignored.
 
 Remaining proof:
 - The replacement Senpi Windows job and Windows root job must pass before merge.
