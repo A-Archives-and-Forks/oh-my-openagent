@@ -24,5 +24,6 @@ GREEN:
 - `actionlint .github/workflows/ci.yml`: exit 0.
 - Real workspace invocation: no stale self-package test copies found on macOS.
 
-Remaining proof:
-- The final Windows GitHub Actions root job must pass with the cleanup step before PR merge.
+Windows proof:
+- Final-head run 31385945591 passed the Windows root job with the cleanup step active.
+- The branch was then synced with the latest `dev`; its replacement matrix must also pass before PR merge.

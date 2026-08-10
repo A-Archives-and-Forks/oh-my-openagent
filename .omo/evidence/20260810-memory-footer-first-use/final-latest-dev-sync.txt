@@ -1,0 +1,25 @@
+Latest dev sync verification
+
+Sync:
+- Merged `origin/dev` after PR #6694's stale-self cleanup matrix passed.
+- New base changes were limited to OpenCode model fallback registration behavior and tests.
+- Merge conflicts: none.
+
+Verification on the merged tree:
+- Cleanup plus focused memory tests: 25 pass, 0 fail, 73 assertions.
+- Full memory component: 251 pass, 0 fail, 832 assertions.
+- Script typecheck: exit 0.
+- Omo-senpi typecheck: exit 0.
+- `actionlint .github/workflows/ci.yml`: exit 0.
+- Senpi plugin build: exit 0.
+- Generated extension freshness check: exit 0.
+
+Real xterm:
+- Before first memory use: footer count 0.
+- After real `memory create`: footer count 1 with `just now`.
+- `@uncommitted`: count 0.
+- PTYs 88375 and 88374 killed.
+- QA runtime removed and no matching process remained.
+
+Remaining proof:
+- The replacement GitHub Actions matrix on the merged branch must pass before merge.

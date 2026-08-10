@@ -9,12 +9,12 @@ After capture:
 
 Both captures:
 - `@uncommitted` appears: PASS (count 0)
-- before metadata cleanup: `pty pid 24561 killed`
-- after metadata cleanup: `pty pid 24562 killed`
+- before metadata cleanup: `pty pid 88375 killed`
+- after metadata cleanup: `pty pid 88374 killed`
 - isolated `qa-runtime` directory removed: PASS
 - matching Senpi/PTY processes remaining: PASS (none)
 
 Result: PASS
 
 Final-build note:
-These assertions were re-run after fixing shutdown/rebind clearing, bind reconciliation ordering, and failed-tool retry eligibility, then regenerating the committed bundles. The artifacts match the final rebuilt production tree.
+These assertions were re-run after the final `dev` sync and committed-bundle regeneration. The artifacts match the final rebuilt production tree.
