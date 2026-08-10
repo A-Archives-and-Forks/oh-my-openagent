@@ -117,7 +117,11 @@ describe("omo launcher", () => {
         expect(environment.OMO_AGENT_TOOLKIT_BIN).toBe(join(fixture.packageRoot, "bin", "omo-agent-toolkit.js"))
         // An inherited value must never survive; it is replaced by this launcher's own entry so
         // anything resolving the product by name re-enters here instead of the bare engine.
-        expect(environment.OMO_BIN).toBe(join(fixture.packageRoot, "bin", "omo.js"))
+        // Windows reports this path in its long form while the fixture root may be the 8.3 short
+        // form, so the contract is asserted by target rather than by exact spelling.
+        expect(existsSync(environment.OMO_BIN ?? "")).toBe(true)
+        expect((environment.OMO_BIN ?? "").replace(/\\/g, "/")).toMatch(/\/bin\/omo\.js$/)
+        expect(environment.OMO_BIN).not.toBe(environment.SENPI_BIN)
       })
 
       test("#then SENPI_BIN stays absent when no shim exists", () => {
@@ -156,7 +160,9 @@ describe("omo launcher", () => {
         mkdirSync(join(fixture.packageRoot, "node_modules"), { recursive: true })
         const result = run(fixture, ["say", "hi"])
         expect(result.status).toBe(0)
-        expect(capture(fixture).env.OMO_BIN).toBe(join(fixture.packageRoot, "bin", "omo.js"))
+        const omoBin = capture(fixture).env.OMO_BIN ?? ""
+        expect(existsSync(omoBin)).toBe(true)
+        expect(omoBin.replace(/\\/g, "/")).toMatch(/\/bin\/omo\.js$/)
       })
     })
 
@@ -212,7 +218,7 @@ describe("omo launcher", () => {
           expect(captured.argv).not.toContain("--extension")
           expect(existsSync(captured.env.SENPI_BIN ?? "")).toBe(true)
           expect(captured.env.OMO_AGENT_TOOLKIT_BIN).toBe(join(fixture.packageRoot, "bin", "omo-agent-toolkit.js"))
-          expect(captured.env.OMO_BIN).toBe(join(fixture.packageRoot, "bin", "omo.js"))
+          expect((captured.env.OMO_BIN ?? "").replace(/\\/g, "/")).toMatch(/\/bin\/omo\.js$/)
         })
       }
     })
