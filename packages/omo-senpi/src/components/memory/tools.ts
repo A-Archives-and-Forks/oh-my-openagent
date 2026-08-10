@@ -1,130 +1,33 @@
-import { existsSync } from "node:fs"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 
 import type { AgentToolResult, ToolDefinition } from "@code-yeongyu/senpi"
 import {
-  GitMemoryRepo,
   MemoryApplyPatchError,
   MemoryPatchHunkError,
   MemoryPatchParseError,
   MemoryToolError,
-  buildDefaultSeedFiles,
-  createLockRecord,
-  installHooks,
-  memoryWriterLockPath,
   runMemoryApplyPatch,
   runMemoryTool,
-  withLock,
-  type GitCommitAuthor,
-  type MemoryToolLock,
 } from "@oh-my-opencode/memory-core"
 import { Type, type Static, type TSchema } from "typebox"
+
+import { prepareMemoryEngineSession } from "./engine-session"
 
 import type { SenpiExtensionAPI } from "../../extension/types"
 import type { MemoryIdentityContext } from "./context"
 
-export const MEMORY_TOOL_NAME = "memory"
-export const MEMORY_APPLY_PATCH_TOOL_NAME = "memory_apply_patch"
+import {
+  MEMORY_APPLY_PATCH_DESCRIPTION,
+  MEMORY_APPLY_PATCH_TOOL_NAME,
+  MEMORY_TOOL_DESCRIPTION,
+  MEMORY_TOOL_NAME,
+} from "./tool-metadata"
+
+export { MEMORY_APPLY_PATCH_TOOL_NAME, MEMORY_TOOL_NAME }
 
 const UNBOUND_IDENTITY_MESSAGE =
   "no memory identity bound to this session; enable omo memory and restart the session so the memory tools can initialize"
-
-const MEMORY_TOOL_DESCRIPTION = [
-  "A convenience tool for memories stored in the omo memory repo that automatically commits changes. The harness syncs clean committed memory changes after the turn.",
-  "",
-  "Memory files are markdown documents with YAML frontmatter. Frontmatter carries a `description` (required on create; it is what the memory index shows) and may set `read_only: \"true\"` to block modification. Edits preserve existing frontmatter.",
-  "",
-  "Supported operations on memory files:",
-  "- `str_replace`",
-  "- `insert`",
-  "- `delete` (files, or directories recursively)",
-  "- `rename` (path rename only)",
-  "- `update_description`",
-  "- `create`",
-  "For larger reorganizations, use memory_apply_patch instead.",
-  "",
-  "Path formats accepted:",
-  "- relative memory file paths (e.g. `system/contacts.md`, `reference/project/team.md`)",
-  "- absolute paths only when they are inside the memory repo",
-  "",
-  "Note: absolute paths outside the memory repo are rejected.",
-  "",
-  "When creating or deleting files, check for `[[path]]` references in other memory files that may need to be added or updated. Keeping references consistent ensures future discoverability.",
-  "",
-  "On success the tool returns `Memory <command> committed locally (<sha>).`, or `Memory <command> committed (<sha>); harness will sync after the turn.` when a remote is configured. Commits are authored with the bound omo memory identity.",
-  "",
-  "Examples:",
-  "",
-  "```python",
-  '# Replace text in a memory file',
-  'memory(command="str_replace", reason="Update theme preference", file_path="system/human/preferences.md", old_string="theme: dark", new_string="theme: light")',
-  "",
-  "# Insert text at line 5",
-  'memory(command="insert", reason="Add note about meeting", file_path="reference/history/meeting-notes.md", insert_line=5, insert_text="New note here")',
-  "",
-  "# Delete a memory file",
-  'memory(command="delete", reason="Remove stale notes", file_path="reference/history/old_notes.md")',
-  "",
-  "# Rename a memory file",
-  'memory(command="rename", reason="Promote temp notes", old_path="reference/history/temp.md", new_path="reference/history/permanent.md")',
-  "",
-  "# Update a block description",
-  'memory(command="update_description", reason="Clarify coding prefs block", file_path="system/human/prefs/coding.md", description="The user\'s coding preferences.")',
-  "",
-  "# Create a block with starting text",
-  'memory(command="create", reason="Track coding preferences", file_path="system/human/prefs/coding.md", description="The user\'s coding preferences.", file_text="The user adds type hints to all of their Python code.")',
-  "```",
-].join("\n")
-
-const MEMORY_APPLY_PATCH_DESCRIPTION = [
-  "Apply a codex-style patch to memory files in the omo memory repo, then automatically commit the change. The harness syncs clean committed memory changes after the turn.",
-  "",
-  "This is similar to `apply_patch`, but scoped to the memory repo and with memory-aware guardrails.",
-  "",
-  "- Required args:",
-  "  - `reason` — git commit message for the memory change",
-  "  - `input` — patch text using the standard apply_patch format",
-  "",
-  "Patch format:",
-  "- `*** Begin Patch`",
-  "- `*** Add File: <path>`",
-  "- `*** Update File: <path>`",
-  "  - optional `*** Move to: <path>`",
-  "  - one or more `@@` hunks with ` `, `-`, `+` lines",
-  "- `*** Delete File: <path>`",
-  "- `*** End Patch`",
-  "",
-  "Path rules:",
-  "- Relative paths are interpreted inside the memory repo",
-  "- Absolute paths are allowed only when under the memory repo",
-  "- Paths outside the memory repo are rejected",
-  "",
-  "Memory rules:",
-  "- Operates on markdown memory files (`.md`) with YAML frontmatter",
-  "- Updated/deleted files must be valid memory files with frontmatter",
-  "- `read_only: \"true\"` files cannot be modified",
-  "- If adding a file without frontmatter, frontmatter is created automatically",
-  "",
-  "Git behavior:",
-  "- Stages changed memory paths",
-  "- Commits with `reason`, authored by the bound omo memory identity (`<identity>@omo.local`)",
-  "- Sync to a configured remote is handled by the harness after the turn",
-  "",
-  "On success the tool returns `memory_apply_patch committed locally (<sha>).`, or `memory_apply_patch committed (<sha>); harness will sync after the turn.` when a remote is configured.",
-  "",
-  "Example:",
-  "```python",
-  "memory_apply_patch(",
-  '  reason="Refine coding preferences",',
-  '  input="""*** Begin Patch',
-  "*** Update File: system/human/prefs/coding.md",
-  "@@",
-  "-Use broad abstractions",
-  "+Prefer small focused helpers",
-  '*** End Patch"""',
-  ")",
-  "```",
-].join("\n")
 
 export const MemoryToolParams = Type.Object({
   command: Type.Union([
@@ -189,6 +92,28 @@ export function registerMemoryTools(
   options: MemoryToolsOptions = {},
 ): void {
   for (const tool of createMemoryTools(resolveContext, options)) pi.registerTool({ ...tool })
+}
+
+export const MEMORY_MCP_SERVER_NAME = "omo-memory"
+
+// The memory tools surface through senpi's tool_search catalog when the host accepts extension MCP
+// servers: the standalone omo-memory-mcp.js bundle (built beside this extension) serves both tools,
+// registered with exposure "search" so they promote on demand instead of occupying the always-on set.
+// Hosts without registerMcpServer keep the direct registration as the fallback surface.
+export function registerMemoryToolSurface(
+  pi: SenpiExtensionAPI,
+  resolveContext: MemoryContextResolver,
+  options: MemoryToolsOptions = {},
+): void {
+  if (typeof pi.registerMcpServer === "function") {
+    pi.registerMcpServer(MEMORY_MCP_SERVER_NAME, {
+      command: process.execPath,
+      args: [join(dirname(fileURLToPath(import.meta.url)), "omo-memory-mcp.js")],
+      exposure: "search",
+    })
+    return
+  }
+  registerMemoryTools(pi, resolveContext, options)
 }
 
 function createMemoryTool(
@@ -258,41 +183,8 @@ function createMemoryApplyPatchTool(
   }
 }
 
-interface MemoryEngineDeps {
-  readonly repo: GitMemoryRepo
-  readonly lock: MemoryToolLock
-  readonly author: GitCommitAuthor
-}
-
-async function prepareEngine(context: MemoryIdentityContext, options: MemoryToolsOptions): Promise<MemoryEngineDeps> {
-  // First-write seam: runtime dirs (including the locks directory) must exist before the writer
-  // lock publishes into them; reads never create identity storage.
-  await context.repoAccess.ensureRuntimeDirs()
-  const repo = new GitMemoryRepo({ dir: context.identityPaths.repo, agentId: context.identity })
-  const lock = createWriterLock(context, options)
-  if (!existsSync(join(context.identityPaths.repo, ".git"))) {
-    await lock("memory-write", async () => {
-      if (!existsSync(join(context.identityPaths.repo, ".git"))) {
-        await repo.init({ seedFiles: buildDefaultSeedFiles(), installHooks: (dir) => { installHooks(dir) } })
-      }
-    })
-  }
-  return {
-    repo,
-    lock,
-    author: { agentId: context.identity, authorName: context.identity },
-  }
-}
-
-function createWriterLock(context: MemoryIdentityContext, options: MemoryToolsOptions): MemoryToolLock {
-  return async (domain, operation) => {
-    if (domain !== "memory-write") throw new MemoryToolError(`unsupported lock domain '${domain}'`)
-    const record = await createLockRecord(`memory tool (${context.identity})`)
-    return withLock(memoryWriterLockPath(context.identityPaths.locks), record, operation, {
-      waitTimeoutMs: options.lockWaitTimeoutMs ?? 5_000,
-      ...(options.lockRetryDelayMs === undefined ? {} : { retryDelayMs: options.lockRetryDelayMs }),
-    })
-  }
+async function prepareEngine(context: MemoryIdentityContext, options: MemoryToolsOptions) {
+  return prepareMemoryEngineSession(context.identity, context.identityPaths, options)
 }
 
 function okResult(message: string): MemoryToolExecutionResult {

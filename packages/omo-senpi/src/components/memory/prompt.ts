@@ -10,6 +10,11 @@ import type { MemoryIdentityContext } from "./context"
 
 export const MEMORY_PROMPT_TEMPLATE = "omo-senpi:before_agent_start:v1"
 
+// The memory tools ride the host's tool_search catalog (exposure "search"), so the always-visible
+// block must carry the discovery pointer or the agent has no way to learn how to reach them.
+const MEMORY_TOOL_DISCOVERY_NOTE =
+  'The memory tools are discoverable through tool_search: run `tool_search("memory")` once to activate them, then use them for every save.'
+
 export interface MemoryPromptSession {
   readonly id: string
   readonly priorMessageCount: number
@@ -47,7 +52,8 @@ export function createMemoryPromptHandler(
       previousMessageCount: session.priorMessageCount,
       ...(options.clock === undefined ? {} : { clock: options.clock }),
     })
-    return { systemPrompt: replaceMemoryBlock(systemPrompt, markMemoryBlock(context.identity, block)) }
+    const composed = `${block}\n\n${MEMORY_TOOL_DISCOVERY_NOTE}`
+    return { systemPrompt: replaceMemoryBlock(systemPrompt, markMemoryBlock(context.identity, composed)) }
   }
 }
 
