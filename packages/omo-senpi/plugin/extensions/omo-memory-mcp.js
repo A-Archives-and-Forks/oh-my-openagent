@@ -1,4 +1,4 @@
-// omo-senpi-build:0e83eef34092713a91fe32b64b0b5edd970736458bb24efa5881267d193e7f8d:4f40d732b76ab337ed051f5f4652fb0b8aa033abf5fdc0b36d588f254c9f6a78
+// omo-senpi-build:76780b789c2a637c5ceae399cd639c0ef7f9c2e4a19648c76aba7d7588e3e57c:4f40d732b76ab337ed051f5f4652fb0b8aa033abf5fdc0b36d588f254c9f6a78
 #!/usr/bin/env node
 import{resolve as ao}from"node:path";import{pathToFileURL as co}from"node:url";function R(e){return typeof e==="object"&&e!==null&&!Array.isArray(e)}function N(e,t){return{jsonrpc:"2.0",id:e,result:t}}function M(e,t,r,n){return{jsonrpc:"2.0",id:e,error:n===void 0?{code:t,message:r}:{code:t,message:r,data:n}}}function F(e){return typeof e==="string"||typeof e==="number"||e===null?e:null}function Ee(e){return e instanceof Error?e.message:String(e)}var Pe=Buffer.from(`\r
 \r

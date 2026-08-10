@@ -9,15 +9,58 @@ The payloads carry only booleans, buckets, counters, and allowlisted enum values
 <!-- BEGIN GENERATED SCHEMA -->
 ## Event schema
 
-| Event | Allowed properties |
-|-------|--------------------|
-| `daily_active` | `$session_id`, `day_utc`, `reason` |
-| `session_started` | `$session_id`, `$os`, `$os_version`, `arch`, `cpu_count`, `default_model`, `default_provider`, `memory_bucket`, `model_count`, `provider_count`, `providers`, `reason` |
-| `prompt_submitted` | `$session_id`, `input_source`, `invocation_stage`, `is_effective_ultrawork_invocation`, `is_real_user_prompt`, `is_turn_start`, `keyword_any`, `keyword_occurrence_bucket`, `keyword_ultrawork_full`, `keyword_ulw_abbrev`, `keyword_variant`, `prompt_length_bucket`, `queue_mode`, `real_prompt_ordinal_bucket`, `suppression_reason` |
-| `turn_completed` | `$session_id`, `cache_read_tokens`, `cache_write_tokens`, `cost_usd`, `input_tokens`, `model_id`, `output_tokens`, `provider`, `reasoning_tokens`, `total_tokens`, `turn_index` |
-| `skill_loaded` | `$session_id`, `skill_name` |
-| `delegation_started` | `$session_id`, `background`, `batch_size_bucket`, `kind`, `name` |
-| `feature_used` | `$session_id`, `feature` |
+| Event | Property | Type | Allowed values |
+|-------|----------|------|----------------|
+| `daily_active` | `$session_id` | `string` | - |
+| `daily_active` | `day_utc` | `string` | - |
+| `daily_active` | `reason` | `string` | `session_start` |
+| `session_started` | `$session_id` | `string` | - |
+| `session_started` | `$os` | `string` | - |
+| `session_started` | `$os_version` | `string` | - |
+| `session_started` | `arch` | `string` | - |
+| `session_started` | `cpu_count` | `number` | - |
+| `session_started` | `default_model` | `string` | `claude-fable-5`, `claude-haiku-4-5`, `claude-opus-5`, `claude-sonnet-5`, `deepseek-v4-flash`, `deepseek-v4-pro`, `gemini-3.6-flash`, `gpt-5.6-sol`, `gpt-5.6-terra`, `k3`, `kimi-for-coding-highspeed`, `kimi-k3`, `gpt-5.6-luna-fast`, `minimax-m2.7`, `minimax-m3`, `grok-4.20-0309-non-reasoning`, `custom` |
+| `session_started` | `default_provider` | `string` | `anthropic`, `anthropic-api`, `deepseek`, `google`, `github-copilot`, `kimi-for-coding`, `moonshotai`, `openai`, `opencode`, `opencode-go`, `quotio-openai`, `vercel`, `xai`, `custom` |
+| `session_started` | `memory_bucket` | `string` | `lt_8_gb`, `8_15_gb`, `16_31_gb`, `32_63_gb`, `64_plus_gb` |
+| `session_started` | `model_count` | `number` | - |
+| `session_started` | `provider_count` | `number` | - |
+| `session_started` | `providers` | `string` | - |
+| `session_started` | `reason` | `string` | `startup`, `reload`, `new`, `resume`, `fork` |
+| `prompt_submitted` | `$session_id` | `string` | - |
+| `prompt_submitted` | `input_source` | `string` | `interactive`, `rpc`, `extension` |
+| `prompt_submitted` | `invocation_stage` | `string` | `none`, `first_arm`, `remention`, `post_compact_rearm` |
+| `prompt_submitted` | `is_effective_ultrawork_invocation` | `boolean` | - |
+| `prompt_submitted` | `is_real_user_prompt` | `boolean` | - |
+| `prompt_submitted` | `is_turn_start` | `boolean` | - |
+| `prompt_submitted` | `keyword_any` | `boolean` | - |
+| `prompt_submitted` | `keyword_occurrence_bucket` | `string` | `1`, `2`, `3_5`, `6_plus` |
+| `prompt_submitted` | `keyword_ultrawork_full` | `boolean` | - |
+| `prompt_submitted` | `keyword_ulw_abbrev` | `boolean` | - |
+| `prompt_submitted` | `keyword_variant` | `string` | `none`, `ulw`, `ultrawork`, `both` |
+| `prompt_submitted` | `prompt_length_bucket` | `string` | `lt_100`, `100_500`, `500_2000`, `gte_2000` |
+| `prompt_submitted` | `queue_mode` | `string` | `immediate`, `follow_up`, `steer`, `other` |
+| `prompt_submitted` | `real_prompt_ordinal_bucket` | `string` | `1`, `2_3`, `4_10`, `11_25`, `26_plus` |
+| `prompt_submitted` | `suppression_reason` | `string` | `none`, `no_keyword`, `extension_source`, `embedded_directive`, `skill_expansion`, `skill_name_only` |
+| `turn_completed` | `$session_id` | `string` | - |
+| `turn_completed` | `cache_read_tokens` | `number` | - |
+| `turn_completed` | `cache_write_tokens` | `number` | - |
+| `turn_completed` | `cost_usd` | `number` | - |
+| `turn_completed` | `input_tokens` | `number` | - |
+| `turn_completed` | `model_id` | `string` | `claude-fable-5`, `claude-haiku-4-5`, `claude-opus-5`, `claude-sonnet-5`, `deepseek-v4-flash`, `deepseek-v4-pro`, `gemini-3.6-flash`, `gpt-5.6-sol`, `gpt-5.6-terra`, `k3`, `kimi-for-coding-highspeed`, `kimi-k3`, `gpt-5.6-luna-fast`, `minimax-m2.7`, `minimax-m3`, `grok-4.20-0309-non-reasoning`, `custom` |
+| `turn_completed` | `output_tokens` | `number` | - |
+| `turn_completed` | `provider` | `string` | `anthropic`, `anthropic-api`, `deepseek`, `google`, `github-copilot`, `kimi-for-coding`, `moonshotai`, `openai`, `opencode`, `opencode-go`, `quotio-openai`, `vercel`, `xai`, `custom` |
+| `turn_completed` | `reasoning_tokens` | `number` | - |
+| `turn_completed` | `total_tokens` | `number` | - |
+| `turn_completed` | `turn_index` | `number` | - |
+| `skill_loaded` | `$session_id` | `string` | - |
+| `skill_loaded` | `skill_name` | `string` | `ast-grep`, `coding-agent-sessions`, `data-scientist`, `debugging`, `frontend`, `git-master`, `give-me-tips`, `hyperplan`, `init-deep`, `lsp-setup`, `programming`, `refactor`, `remove-ai-slops`, `review-work`, `start-work`, `ultimate-browsing`, `ultrawork`, `ulw-loop`, `ulw-plan`, `ulw-research`, `visual-qa` |
+| `delegation_started` | `$session_id` | `string` | - |
+| `delegation_started` | `background` | `boolean` | - |
+| `delegation_started` | `batch_size_bucket` | `string` | `1`, `2_4`, `5_plus` |
+| `delegation_started` | `kind` | `string` | `category`, `subagent` |
+| `delegation_started` | `name` | `string` | `visual-engineering`, `artistry`, `ultrabrain`, `deep`, `quick`, `unspecified-low`, `architect`, `unspecified-high`, `writing`, `explore`, `librarian`, `metis`, `momus`, `custom` |
+| `feature_used` | `$session_id` | `string` | - |
+| `feature_used` | `feature` | `string` | `goal_tool`, `team_create`, `memory_tool` |
 <!-- END GENERATED SCHEMA -->
 
 ### Reasoning tokens caveat

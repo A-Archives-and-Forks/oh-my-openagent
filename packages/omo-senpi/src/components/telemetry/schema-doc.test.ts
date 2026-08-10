@@ -8,7 +8,7 @@ const WORKSPACE_ROOT = resolve(import.meta.dir, "../../../../..")
 const DOC_PATH = resolve(WORKSPACE_ROOT, "docs/reference/senpi-telemetry.md")
 const GENERATOR_URL = new URL("../../../../../script/telemetry-schema-block.mjs", import.meta.url)
 
-type SchemaBlockGenerator = (allowlists?: unknown) => string
+type SchemaBlockGenerator = (schemas?: unknown) => string
 
 async function loadGenerator(): Promise<SchemaBlockGenerator> {
   const loaded: unknown = await import(GENERATOR_URL.href)
@@ -50,11 +50,11 @@ describe("OmO Native telemetry schema documentation", () => {
     }
   })
 
-  test("#given an empty property allowlist #when generation is attempted #then no corrupt block is emitted", async () => {
+  test("#given an empty property schema #when generation is attempted #then no corrupt block is emitted", async () => {
     const generateTelemetrySchemaBlock = await loadGenerator()
 
-    expect(() => generateTelemetrySchemaBlock({ empty_event: [] })).toThrow(
-      "Telemetry event empty_event must contain at least one allowed property",
+    expect(() => generateTelemetrySchemaBlock({ empty_event: {} })).toThrow(
+      "Telemetry event empty_event must contain at least one property schema",
     )
   })
 })

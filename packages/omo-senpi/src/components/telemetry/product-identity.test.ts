@@ -9,6 +9,7 @@ import {
   CURATED_AGENTS,
   KNOWN_MODELS,
   KNOWN_PROVIDERS,
+  OMO_NATIVE_EVENT_SCHEMAS,
   OMO_NATIVE_POSTHOG_API_KEY,
   OMO_NATIVE_PROPERTY_ALLOWLISTS,
   createOmoNativeProductConfig,
@@ -42,6 +43,7 @@ describe("OmO Native product identity", () => {
     expect(OMO_NATIVE_POSTHOG_API_KEY).toBe("phc_REPLACE_ME_OMO_NATIVE")
     expect(config.platform).toBe("omo-senpi")
     expect(config.machineIdPrefix).toBe("omo-senpi:")
+    expect(config.packageVersion).toBe("5.0.0-beta.5")
     expect(config.productEnvPrefix).toBe("OMO_SENPI")
     expect(config.disableGeoip).toBe(true)
     expect(getTelemetryApiKey({ POSTHOG_API_KEY: "env-project-key" }, config.defaultApiKey)).toBe("env-project-key")
@@ -111,9 +113,20 @@ describe("OmO Native product identity", () => {
     expect(Object.isFrozen(BUILTIN_CATEGORY_NAMES)).toBe(true)
     expect(Object.isFrozen(BUILTIN_SKILL_NAMES)).toBe(true)
     expect(BUILTIN_SKILL_NAMES.length).toBeGreaterThan(0)
-    expect(Object.isFrozen(OMO_NATIVE_PROPERTY_ALLOWLISTS)).toBe(true)
-    for (const properties of Object.values(OMO_NATIVE_PROPERTY_ALLOWLISTS)) {
+    expect(Object.isFrozen(OMO_NATIVE_EVENT_SCHEMAS)).toBe(true)
+    for (const properties of Object.values(OMO_NATIVE_EVENT_SCHEMAS)) {
       expect(Object.isFrozen(properties)).toBe(true)
+      for (const schema of Object.values(properties)) {
+        expect(Object.isFrozen(schema)).toBe(true)
+        if (schema.values !== undefined) expect(Object.isFrozen(schema.values)).toBe(true)
+      }
+    }
+    expect(Object.isFrozen(OMO_NATIVE_PROPERTY_ALLOWLISTS)).toBe(true)
+    for (const [eventName, properties] of Object.entries(OMO_NATIVE_PROPERTY_ALLOWLISTS)) {
+      expect(Object.isFrozen(properties)).toBe(true)
+      expect(properties.join("\n")).toBe(
+        Object.keys(OMO_NATIVE_EVENT_SCHEMAS[eventName as keyof typeof OMO_NATIVE_EVENT_SCHEMAS]).join("\n"),
+      )
     }
   })
 })

@@ -1,5 +1,8 @@
 import type { TurnEndEvent } from "@code-yeongyu/senpi"
-import { createDefaultPostHogTransport } from "@oh-my-opencode/telemetry-core"
+import {
+  createDefaultPostHogTransport,
+  createEventTelemetryClient,
+} from "@oh-my-opencode/telemetry-core"
 import type {
   EventTelemetryClient,
   EventTelemetryProperties,
@@ -21,18 +24,11 @@ import { registerOmoNativeToolTelemetry } from "./omo-native-tools"
 import { createOmoNativeTurnHandler } from "./omo-native-turns"
 import {
   OMO_NATIVE_PROPERTY_ALLOWLISTS,
+  createOmoNativeProductConfig,
   getOmoNativeStateDir,
   hashSessionId,
   type OmoNativeEventName,
 } from "./product-identity"
-
-const SHARED_PROPERTY_KEYS = [
-  "$process_person_profile",
-  "package_version",
-  "platform",
-  "product_name",
-  "schema_version",
-] as const
 
 type SharedState = {
   capture?: (name: OmoNativeEventName, properties: EventTelemetryProperties) => void
@@ -54,7 +50,12 @@ export function createOmoNativeTelemetryComponent(options: OmoNativeTelemetryCom
       if (isOmoNativeEventName(name)) state.capture?.(name, properties)
     },
   }
-  const transportFactory = sharedTransportFactory(options.transportFactory ?? createDefaultPostHogTransport, state, buffer.onCapture)
+  const transportFactory = sharedTransportFactory(
+    options.transportFactory ?? createDefaultPostHogTransport,
+    state,
+    buffer.onCapture,
+    options,
+  )
 
   return {
     name: "telemetry",
@@ -101,6 +102,7 @@ function sharedTransportFactory(
   factory: TelemetryTransportFactory,
   state: SharedState,
   onCapture: (payload: TelemetryCaptureMessage) => void,
+  options: OmoNativeTelemetryComponentOptions,
 ): TelemetryTransportFactory {
   return (apiKey, transportOptions) => {
     const transport = factory(apiKey, transportOptions)
@@ -108,8 +110,8 @@ function sharedTransportFactory(
 
     const wrapped: TelemetryTransport = {
       capture(message) {
-        installCaptureFacade(state, transport, message, onCapture)
-        transport.capture(message)
+        installCaptureFacade(state, transport, message, onCapture, options)
+        forwardValidatedCapture(transport, message)
         onCapture(message)
       },
       flush: transport.flush === undefined ? undefined : () => transport.flush?.() ?? Promise.resolve(),
@@ -133,36 +135,34 @@ function installCaptureFacade(
   transport: TelemetryTransport,
   template: TelemetryCaptureMessage,
   onCapture: (payload: TelemetryCaptureMessage) => void,
+  options: OmoNativeTelemetryComponentOptions,
 ): void {
-  const shared = projectProperties(template.properties ?? {}, SHARED_PROPERTY_KEYS)
   const sessionId = template.properties?.$session_id
   state.sessionHash = typeof sessionId === "string" ? sessionId : state.sessionHash
-  state.capture = (name, properties) => {
-    const payload: TelemetryCaptureMessage = {
-      distinctId: template.distinctId,
-      event: name,
-      properties: {
-        ...projectProperties(properties, OMO_NATIVE_PROPERTY_ALLOWLISTS[name]),
-        ...shared,
+  const privacyClient = createEventTelemetryClient({
+    diagnostics: options.diagnostics,
+    distinctId: template.distinctId,
+    env: options.env,
+    onCapture,
+    product: createOmoNativeProductConfig(),
+    propertyAllowlist: OMO_NATIVE_PROPERTY_ALLOWLISTS,
+    schemaVersion: 1,
+    source: "omo-native-component",
+    transportFactory: () => ({
+      capture(message) {
+        forwardValidatedCapture(transport, message)
       },
-    }
-    transport.capture(payload)
-    onCapture(payload)
-  }
+      shutdown: async () => undefined,
+    }),
+  })
+  state.capture = privacyClient.captureEvent
 }
 
-function projectProperties(
-  properties: Readonly<Record<string, unknown>>,
-  keys: readonly string[],
-): Record<string, string | number | boolean> {
-  const projected: Record<string, string | number | boolean> = {}
-  for (const key of keys) {
-    const value = properties[key]
-    if (typeof value === "string" || typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value))) {
-      projected[key] = typeof value === "string" ? value.slice(0, 64) : value
-    }
-  }
-  return projected
+// This is the sole native transport boundary. Every message reaching it has already passed through
+// telemetry-core's captureEvent privacy wrapper; keeping the raw transport call here makes the
+// source-scanning invariant precise and prevents native event producers from bypassing validation.
+function forwardValidatedCapture(transport: TelemetryTransport, message: TelemetryCaptureMessage): void {
+  transport.capture(message)
 }
 
 function hashForContext(
