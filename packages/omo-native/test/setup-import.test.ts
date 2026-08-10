@@ -212,18 +212,22 @@ describe("omo setup credential inheritance", () => {
     expect(readdirSync(item.agentDir)).toEqual(files)
   })
 
-  test("#given dry-run or declined consent #when setup runs #then auth remains absent", () => {
-    for (const [args, input] of [[["setup", "--dry-run"], undefined], [["setup"], "n\n"]] as const) {
-      const item = fixture()
-      write(join(item.xdg, "opencode", "auth.json"), JSON.stringify({ openai: { type: "api", key: secrets[0] } }))
-      const result = run(item, [...args], input)
-      // On Windows only the non-interactive dry-run is exercised: the declined-consent path is
-      // driven through a python3 pty helper that the runners do not provide.
-      if (process.platform === "win32" && input !== undefined) continue
-      expect(result.status).toBe(0)
-      expect(existsSync(join(item.agentDir, "auth.json"))).toBe(false)
-      expect(`${result.stdout}${result.stderr}`).toContain(input === undefined ? "DRY RUN" : "Import cancelled")
-    }
+  test("#given dry-run #when setup runs #then auth remains absent", () => {
+    const item = fixture()
+    write(join(item.xdg, "opencode", "auth.json"), JSON.stringify({ openai: { type: "api", key: secrets[0] } }))
+    const result = run(item, ["setup", "--dry-run"])
+    expect(result.status).toBe(0)
+    expect(existsSync(join(item.agentDir, "auth.json"))).toBe(false)
+    expect(`${result.stdout}${result.stderr}`).toContain("DRY RUN")
+  })
+
+  test.skipIf(process.platform === "win32")("#given declined consent #when setup runs #then auth remains absent", () => {
+    const item = fixture()
+    write(join(item.xdg, "opencode", "auth.json"), JSON.stringify({ openai: { type: "api", key: secrets[0] } }))
+    const result = run(item, ["setup"], "n\n")
+    expect(result.status).toBe(0)
+    expect(existsSync(join(item.agentDir, "auth.json"))).toBe(false)
+    expect(`${result.stdout}${result.stderr}`).toContain("Import cancelled")
   })
 
   test("#given malformed senpi auth #when accepted #then it warns and skips all writes", () => {

@@ -78,10 +78,7 @@ describe("Senpi compatibility test script", () => {
     expect(buildOrchestrator, "the build orchestrator must generate Senpi plugin artifacts before publishing").toContain(
       "build:senpi-plugin:stage",
     )
-    expect(
-      senpiNode,
-      "build graph senpi-plugin must depend on ast-grep-mcp, lsp-daemon and codex-plugin (single owner of the shared plugin tree) and call only the stage script",
-    ).toBe(true)
+    expect(senpiNode, "build graph senpi-plugin must wait for every shared runtime and plugin dependency").toBe(true)
     expect(prepublishOnlyScript, "prepublishOnly must route through build, which includes the Senpi plugin build").toContain(
       "bun run build",
     )

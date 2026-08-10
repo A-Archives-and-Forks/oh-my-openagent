@@ -198,9 +198,9 @@ describe("runMemoryTool", () => {
       { command: "rename", reason: "rename", old_path: "locked", new_path: "moved" },
     ]
 
+    const setup = await fixture()
+    await seed(setup, "locked.md", "body", "true")
     for (const params of cases) {
-      const setup = await fixture()
-      await seed(setup, "locked.md", "body", "true")
       await expect(run(setup, params)).rejects.toThrow(/memory: locked is read_only/)
     }
   })
@@ -214,8 +214,8 @@ describe("runMemoryTool", () => {
       { params: { command: "rename", reason: "x", old_path: "", new_path: "x" }, message: /^memory: rename: 'old_path'/ },
     ]
 
+    const setup = await fixture()
     for (const row of rows) {
-      const setup = await fixture()
       const error = await run(setup, row.params).then(() => null, (cause: unknown) => cause)
       expect(error).toBeInstanceOf(MemoryToolError)
       expect(error instanceof Error ? error.message : String(error)).toMatch(row.message)

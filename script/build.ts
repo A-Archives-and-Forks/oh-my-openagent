@@ -42,8 +42,8 @@ function killTree(child: ReturnType<typeof spawn>): void {
 // - codex-plugin's build-bundled-mcp-runtimes reads (and rebuilds when missing) the
 //   git-bash-mcp / lsp-tools-mcp / lsp-daemon dists, so those must finish first or the two
 //   builds race on the same vendored dist directory.
-// - senpi-plugin's stage-agent-toolkit may provision and build packages/omo-codex/plugin,
-//   so codex-plugin must finish first or two npm processes mutate the same node_modules tree.
+// - senpi-plugin stages the Codex ulw-loop component and may run npm ci in that plugin
+//   workspace, so codex-plugin must finish its own npm ci before Senpi staging begins.
 type BuildNode = {
 	id: string;
 	command: string;

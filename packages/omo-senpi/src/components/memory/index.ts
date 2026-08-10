@@ -13,7 +13,7 @@ import { renderMemoryBindingEntry } from "./bindings/entry-renderer"
 import { hasMemoryCapabilities, missingMemoryCapabilities } from "./capabilities"
 import { createMemoryIdentityContext, type MemoryIdentityContext } from "./context"
 import { memoryModuleSupervisor } from "./supervisor"
-import { createMemoryWiring } from "./wiring"
+import { createMemoryWiring, type MemoryWiringOptions } from "./wiring"
 
 const GLOBAL_DISABLED_FLAG = "omo-senpi-disabled"
 const MEMORY_DISABLED_FLAG = "omo-senpi-memory-disabled"
@@ -44,6 +44,7 @@ export interface MemoryComponentOptions {
   readonly loadConfig?: (options?: { readonly cwd?: string }) => SenpiOmoConfigResult
   readonly now?: () => number
   readonly resolveCwd?: () => string
+  readonly createRuntime?: MemoryWiringOptions["createRuntime"]
 }
 
 type SessionUi = { notify(message: string, level: "error" | "warning"): void }
@@ -90,6 +91,7 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
         cwd: resolveCwd,
         env,
         logger: ctx.logger,
+        ...(options.createRuntime === undefined ? {} : { createRuntime: options.createRuntime }),
         // Reuse the boot snapshot: registration must not add a loadConfig() call, because the
         // enablement latch depends on the ORDER of reads across boot -> session_start -> reload.
         toolExposure: bootConfig.tool_exposure,
