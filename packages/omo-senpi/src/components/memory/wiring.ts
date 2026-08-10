@@ -19,10 +19,14 @@ import { registerMemoryCommands } from "./commands/register"
 import type { MemoryCommandIdentity, MemoryCommandSettings } from "./commands/types"
 import { registerMemoryGuard } from "./guard"
 import { registerMemoryFilesystemPolicy } from "./policy-guard"
-import { refreshMemoryStatus } from "./status"
+import { MEMORY_STATUS_KEY, refreshMemoryStatus } from "./status"
 import { registerMemorySkillsScope } from "./skills-scope"
 import { createReflectionTriggerWiring, type ReflectionTriggerSession } from "./trigger-wiring"
-import { registerMemoryToolSurface } from "./tools"
+import {
+  MEMORY_APPLY_PATCH_TOOL_NAME,
+  MEMORY_TOOL_NAME,
+  registerMemoryToolSurface,
+} from "./tools"
 import {
   consumePendingReflectionCompletions,
   registerReflectionCompletionRenderer,
@@ -31,6 +35,7 @@ import {
 
 export interface MemorySessionStateLike {
   readonly context?: MemoryIdentityContext
+  memoryStatusAttempted: boolean
 }
 
 export interface MemoryWiringOptions {
@@ -38,6 +43,7 @@ export interface MemoryWiringOptions {
   readonly loadConfig: (options: { readonly cwd?: string }) => SenpiOmoConfigResult
   readonly cwd: () => string
   readonly env: Record<string, string | undefined>
+  readonly now?: () => number
   readonly logger?: ComponentLogger
   readonly createRuntime?: (identity: MemoryIdentityContext, deps: MemoryIdentityRuntimeDeps) => MemoryIdentityRuntime
   /** Boot-snapshot tool exposure; registration must not re-read config (latch order is observable). */
@@ -193,6 +199,24 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
         if (branchEntryCount(eventCtx) === 0) return undefined
         return journalWiringFor(identity).reconcileSession(eventCtx)
       })
+      pi.on("tool_result", async (payload, eventCtx) => {
+        if (!isMemoryToolResult(payload)) return
+        const sessionId = sessionIdFrom(eventCtx)
+        if (sessionId === undefined) return
+        const state = options.sessions.get(sessionId)
+        if (state?.context === undefined || state.memoryStatusAttempted) return
+        state.memoryStatusAttempted = true
+        const ui = readUi(eventCtx)
+        if (ui === undefined) return
+        const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
+        await refreshMemoryStatus({
+          context: state.context,
+          ui,
+          compileWarnTokens: settings?.compile_warn_tokens ?? 30_000,
+          alreadyNotified: false,
+          ...(options.now === undefined ? {} : { now: options.now }),
+        })
+      })
       registerMemoryToolSurface(pi, () => (activeSessionId === undefined ? undefined : resolveContext(activeSessionId)), {
         exposure: toolExposure,
       })
@@ -244,16 +268,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       if (branchEntryCount(eventCtx) > 0) {
         await journalWiringFor(identity).reconcileSession(eventCtx)
       }
-      const ui = readUi(eventCtx)
-      if (ui !== undefined) {
-        const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
-        void refreshMemoryStatus({
-          context: identity,
-          ui,
-          compileWarnTokens: settings?.compile_warn_tokens ?? 30_000,
-          alreadyNotified: false,
-        }).catch(() => {})
-      }
+      readUi(eventCtx)?.setStatus(MEMORY_STATUS_KEY, undefined)
       const api = completionApi(pi)
       if (api !== undefined) {
         void consumePendingReflectionCompletions(
@@ -267,4 +282,19 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
+}
+
+function isMemoryToolResult(value: unknown): boolean {
+  if (!isRecord(value) || value.type !== "tool_result" || typeof value.toolName !== "string") return false
+  return matchesToolName(value.toolName, MEMORY_TOOL_NAME)
+    || matchesToolName(value.toolName, MEMORY_APPLY_PATCH_TOOL_NAME)
+}
+
+function matchesToolName(toolName: string, expected: string): boolean {
+  const normalized = toolName.trim().toLowerCase().replaceAll("-", "_")
+  const suffix = expected.trim().toLowerCase().replaceAll("-", "_")
+  return normalized === suffix
+    || normalized.endsWith(`_${suffix}`)
+    || normalized.endsWith(`:${suffix}`)
+    || normalized.endsWith(`/${suffix}`)
 }

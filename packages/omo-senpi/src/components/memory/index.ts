@@ -56,6 +56,7 @@ type SessionState = {
   readonly enabled: boolean
   readonly ui?: SessionUi
   context?: MemoryIdentityContext
+  memoryStatusAttempted: boolean
   restartNotified: boolean
 }
 
@@ -89,6 +90,7 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
         loadConfig,
         cwd: resolveCwd,
         env,
+        now,
         logger: ctx.logger,
         // Reuse the boot snapshot: registration must not add a loadConfig() call, because the
         // enablement latch depends on the ORDER of reads across boot -> session_start -> reload.
@@ -111,7 +113,12 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
         const sessionConfig = resolveMemoryConfig(loadConfig({ cwd }))
         const enabled = isEnabled(sessionConfig, ctx)
         releaseSession(sessions.get(surface.id))
-        const state: SessionState = { enabled, restartNotified: false, ...(surface.ui === undefined ? {} : { ui: surface.ui }) }
+        const state: SessionState = {
+          enabled,
+          memoryStatusAttempted: false,
+          restartNotified: false,
+          ...(surface.ui === undefined ? {} : { ui: surface.ui }),
+        }
         sessions.set(surface.id, state)
         if (!enabled) return
 
