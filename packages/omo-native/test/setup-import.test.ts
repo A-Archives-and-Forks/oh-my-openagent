@@ -197,7 +197,9 @@ describe("omo setup credential inheritance", () => {
     const files = readdirSync(item.agentDir)
     const backup = files.find((name) => /^auth\.json\.bak-\d{8}T\d{6}\.\d{3}Z$/.test(name))
     expect(first.status).toBe(0)
-    expect(statSync(join(item.agentDir, "auth.json")).mode & 0o777).toBe(0o600)
+    // Windows has no POSIX mode bits: chmod is a no-op and stat reports a default, so the 0600
+    // contract is only assertable where permission bits actually exist.
+    if (process.platform !== "win32") expect(statSync(join(item.agentDir, "auth.json")).mode & 0o777).toBe(0o600)
     expect(backup).toBeDefined()
     expect(readFileSync(join(item.agentDir, backup!), "utf8")).toBe(original)
     const afterFirst = readFileSync(join(item.agentDir, "auth.json"), "utf8")
@@ -215,6 +217,9 @@ describe("omo setup credential inheritance", () => {
       const item = fixture()
       write(join(item.xdg, "opencode", "auth.json"), JSON.stringify({ openai: { type: "api", key: secrets[0] } }))
       const result = run(item, [...args], input)
+      // On Windows only the non-interactive dry-run is exercised: the declined-consent path is
+      // driven through a python3 pty helper that the runners do not provide.
+      if (process.platform === "win32" && input !== undefined) continue
       expect(result.status).toBe(0)
       expect(existsSync(join(item.agentDir, "auth.json"))).toBe(false)
       expect(`${result.stdout}${result.stderr}`).toContain(input === undefined ? "DRY RUN" : "Import cancelled")
