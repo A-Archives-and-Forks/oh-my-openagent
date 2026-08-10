@@ -96,6 +96,11 @@ Post-PR-#6708 dev merge:
 - failing-first injected-copy regression initially completed staging instead of rejecting
 - staging now removes partial backup copies before rethrowing; the original target remains byte-identical and no backup sibling survives
 - final staging suite: 6 pass, 0 fail
+- final Windows root run reached four unrelated integration tests that each exceeded Bun's five-second default at 5015-5016 ms
+- only those tests now use a 20-second budget on Windows: Bash summary rendering, two marketplace fixture syncs, and a Git-backed memory cache refresh
+- non-Windows timeout remains 5 seconds
+- focused exact Bun 1.3.12 result: 21 pass, 0 fail, 116 assertions
+- script and memory-core typechecks: exit 0
 
 Isolated Codex installer QA:
 - `OMO_SKIP_MATERIALIZE=1 bash .agents/skills/codex-qa/scripts/install-verify.sh --self-test`
