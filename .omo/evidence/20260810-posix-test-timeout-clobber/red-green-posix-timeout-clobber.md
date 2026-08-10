@@ -1,54 +1,67 @@
-# RED -> GREEN - per-file test budgets on slow runners
+# RED -> GREEN - CI test-timeout budgets
 
-## Correction
+## The mechanism, pinned by three probes
 
-An earlier revision of this document claimed `setDefaultTimeout` was process-global and that PR #6713
-lowered it on POSIX. **That was wrong**, and the corrected mechanism is below. The claim was disproven by
-direct experiment rather than argument.
+`setDefaultTimeout` behaves differently depending on WHO calls it, which is what made this confusing.
 
-## The decisive experiment
+1. **Called by a TEST file it is per-file.** Two throwaway files in one run: `a` set 60s, `b` set nothing
+   and awaited 6s.
 
-Two throwaway files run in one `bun test` invocation:
+   ```text
+   (pass) a fast test in the raising file [3.57ms]
+   (fail) b slow test in a file with no budget [5002.23ms]
+     ^ this test timed out after 5000ms.
+   ```
 
-- `a-raises.test.ts` calls `setDefaultTimeout(60_000)` and holds a fast test.
-- `b-slow.test.ts` sets no budget and awaits 6s.
+2. **Called by the PRELOAD it is the default every file starts from.** With the repo's own
+   `bunfig.toml` (`preload = ["./test-setup.ts"]`) and a floor added to that preload, the same
+   unbudgeted 6s test passes:
 
-```text
-(pass) a fast test in the raising file [3.57ms]
-(fail) b slow test in a file with no budget [5002.23ms]
-  ^ this test timed out after 5000ms.
-```
+   ```text
+   (pass) unbudgeted suite gets the floor [6006.20ms]
+   ```
 
-`setDefaultTimeout` is therefore **per-file**: one file can never raise or lower another file's budget.
-The probe was deleted after the run.
+3. **Without a floor in the preload, an unbudgeted file gets 5s**, confirmed against the real repo wiring.
 
-## What that proves about PR #6713
+Every probe was deleted after its run.
 
-1. The `test-setup.ts` win32 floor could never apply to any test file, because the preload declares no
-   tests. It was dead code implying protection it did not provide, so it is removed here.
-2. The four per-file budgets #6713 added were correct and are **restored**; removing them was the wrong
-   inference.
-3. The two CI failures were independent suites that simply have no budget of their own:
-   - `prompt-async-route-audit.test.ts` timed out on macOS - it parses the entire production source set
-     through the TypeScript native API.
-     https://github.com/code-yeongyu/oh-my-openagent/actions/runs/31385635588/job/93445296099
-   - `memory-apply-patch.test.ts` timed out twice on Windows - it drives real git repositories.
-     https://github.com/code-yeongyu/oh-my-openagent/actions/runs/31387467844/job/93451057786
+## What that means for PR #6713
+
+The `test-setup.ts` floor #6713 added was **mechanically correct**; an intermediate revision of this
+branch removed it on the wrong theory that it was dead code. It is restored here with a proof.
+
+## RED
+
+Three separate CI jobs were reported as hangs while the work was still progressing, each in a suite with
+no budget of its own:
+
+- `prompt-async-route-audit.test.ts` (macOS) - parses the whole production source set through the
+  TypeScript native API.
+  https://github.com/code-yeongyu/oh-my-openagent/actions/runs/31385635588/job/93445296099
+- `memory-apply-patch.test.ts` (Windows, 2 tests) - drives real git repositories.
+  https://github.com/code-yeongyu/oh-my-openagent/actions/runs/31387467844/job/93451057786
+- `/doctor` in `status.test.ts` (Windows) - runs the deterministic doctor checks.
+  https://github.com/code-yeongyu/oh-my-openagent/actions/runs/31389201735/job/93456696786
+
+A sweep found **60** test files that spawn git/npm/installer subprocesses and carry no budget, so fixing
+them one CI round at a time does not converge.
 
 ## Fix
 
-Give each of those two suites its own budget, and delete the no-op floor. No assertion, fixture or
-production path changes.
+Raise the floor once in the preload (`win32 ? 30_000 : 20_000`), which every file inherits, and keep the
+two per-file budgets added for the suites that are slowest. Suites needing more still set their own; a
+suite wanting the strict default can lower it locally.
 
 ## GREEN (local)
 
 ```text
-Ran 27 tests across 4 files. 27 pass, 0 fail
+Ran 35 tests across 4 files. 35 pass, 0 fail
 ```
 
-covering both newly budgeted suites plus two of the suites whose budgets were restored.
+covering the doctor suite, the prompt-route audit, memory-apply-patch and the palace generator.
 
 ## Why this is enough
 
-The mechanism is established by direct experiment rather than inference, each failing suite now owns the
-budget it needs, and no file can affect another file's budget. CI remains the deciding surface.
+The semantics are established by direct experiment rather than inference, the floor is proven to apply
+through the repository's real preload wiring, and the whole class of unbudgeted subprocess suites is
+covered at once instead of one flake at a time. CI remains the deciding surface.
