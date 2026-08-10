@@ -1,5 +1,5 @@
 import { lstat, readdir, rm } from "node:fs/promises"
-import { join, relative } from "node:path"
+import { join } from "node:path"
 
 const SELF_PACKAGE_NAMES = ["oh-my-opencode", "oh-my-openagent"] as const
 
@@ -15,7 +15,7 @@ export async function removeStaleSelfPackageTests(root = process.cwd()): Promise
       const candidate = join(packagesDir, packageEntry.name, "node_modules", packageName)
       if (!await pathExists(candidate)) continue
       await rm(candidate, { recursive: true, force: true })
-      removed.push(relative(root, candidate))
+      removed.push(["packages", packageEntry.name, "node_modules", packageName].join("/"))
     }
   }
 
