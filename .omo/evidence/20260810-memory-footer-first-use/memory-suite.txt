@@ -2,10 +2,10 @@ Command:
 bun test packages/omo-senpi/src/components/memory
 
 Observed:
-248 pass
+251 pass
 0 fail
-824 expect() calls
-Ran 248 tests across 40 files. [43.68s]
+842 expect() calls
+Ran 251 tests across 40 files. [52.13s]
 
 Coverage highlights:
 - memory component registration and session shutdown
@@ -18,4 +18,4 @@ Coverage highlights:
 
 No test was skipped, disabled, or weakened.
 
-This final run occurred after merging repaired `dev`, preserving the bind-time advisory, and rebuilding the final plugin tree.
+This final run occurred after merging repaired `dev`, fixing the final lifecycle review findings, preserving the bind-time advisory, and rebuilding the final plugin tree.

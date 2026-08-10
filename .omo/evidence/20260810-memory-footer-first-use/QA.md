@@ -50,7 +50,7 @@ Focused and adjacent automated evidence covers deterministic time buckets, missi
 - Temporary LSP worktree symlink: removed.
 - Shared-skill submodules dirtied by a failed materialization attempt: restored to their recorded gitlink revisions.
 - Final xterm evidence was recaptured after preserving the original bind-time advisory, rebuilding the plugin, and keeping the footer-only first-use path separate.
-- Final merged-dev recapture used PTYs 31940 and 31939; both were killed by the driver, the isolated runtime was removed, and no matching process remained.
+- Final lifecycle-fix recapture used PTYs 24561 and 24562; both were killed by the driver, the isolated runtime was removed, and no matching process remained.
 
 ## What was omitted
 
