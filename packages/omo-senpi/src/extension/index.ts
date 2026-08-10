@@ -13,9 +13,11 @@ import { createUltraworkComponent } from "../components/ultrawork"
 import { createUlwLoopComponent } from "../components/ulw-loop"
 import { createTodoFanoutReminderComponent } from "../components/todo-fanout-reminder"
 import { createFallbackArchitectComponent } from "../components/fallback-architect"
+import { createNativeBadgeComponent } from "../components/native-badge"
 
 const components: OmoSenpiComponent[] = [
   createConfigStartupComponent(),
+  createNativeBadgeComponent(),
   createUltraworkComponent(),
   createStartWorkContinuationComponent(),
   createUlwLoopComponent(),
