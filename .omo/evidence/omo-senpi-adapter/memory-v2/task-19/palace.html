@@ -1,16 +1,4 @@
-// Self-contained memory palace HTML shell. No external fonts, stylesheets, scripts or network calls.
-// Design tokens (ported from the letta memory viewer, system font stacks substituted for the CDN
-// webfonts) live in :root / html.dark; every rule below references a token, never a raw literal.
-
-export const PALACE_DATA_PLACEHOLDER = "<!--OMO_PALACE_DATA-->"
-export const PALACE_DATA_ELEMENT_ID = "omo-palace-data"
-
-// The people tab and panel are stripped verbatim by the generator when `memory.people.enabled`
-// is false, so a disabled people layer leaves no tab, no panel and no payload behind.
-export const PALACE_PEOPLE_TAB = `<button class="tab" data-tab="people" type="button">People</button>`
-export const PALACE_PEOPLE_PANEL = `<section id="panel-people" hidden></section>`
-
-export const PALACE_TEMPLATE = `<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -282,18 +270,18 @@ body {
     <button class="tab" data-tab="external" type="button">External</button>
     <button class="tab" data-tab="history" type="button">History</button>
     <button class="tab" data-tab="reflection" type="button">Reflection</button>
-    ${PALACE_PEOPLE_TAB}
+    <button class="tab" data-tab="people" type="button">People</button>
   </nav>
   <main class="main">
     <section id="panel-core"></section>
     <section id="panel-external" hidden></section>
     <section id="panel-history" hidden></section>
     <section id="panel-reflection" hidden></section>
-    ${PALACE_PEOPLE_PANEL}
+    <section id="panel-people" hidden></section>
   </main>
   <footer class="footer" id="footer"></footer>
 </div>
-<script type="application/json" id="${PALACE_DATA_ELEMENT_ID}">${PALACE_DATA_PLACEHOLDER}</script>
+<script type="application/json" id="omo-palace-data">{"metadata":{"identity":"palace-agent","headSha":"c6770a6ed566a69a264deffa31cbd8d1785a1fb6","recompiledAt":"2026-08-10T07:19:05.216Z"},"core":{"entries":[{"path":"system/human.md","projection":"$MEMORY_DIR/system/human.md","description":"who the user is","body":"\nIDENTITY: the person you work with\nRELATIONSHIP: works-with: jane-doe\nRELATIONSHIP: mentors: sam-rivers\n","state":"committed"},{"path":"system/persona.md","projection":"$MEMORY_DIR/system/persona.md","description":"who the agent is","body":"\nfixture persona body\n","state":"committed"}]},"external":{"entries":[{"path":"people/jane-doe/card.md","binary":false,"byteSize":181,"state":"committed","body":"---\ndescription: Person - Jane Doe\nkind: person\naliases: [\"Jane\",\"JD\"]\n---\n\nIDENTITY: staff engineer\nATTRIBUTE: senior-engineer: prefers small diffs\nRELATIONSHIP: reports-to: human\n"},{"path":"people/sam-rivers/card.md","binary":false,"byteSize":117,"state":"committed","body":"---\ndescription: Person - Sam Rivers\nkind: person\n---\n\nIDENTITY: designer\nRELATIONSHIP: collaborates: unknown-person\n"},{"path":"reference/logo.png","binary":true,"byteSize":12,"state":"committed"},{"path":"reference/notes.md","binary":false,"byteSize":55,"state":"committed","body":"---\ndescription: external note\n---\n\nexternal note body\n"}],"tree":"\u003cexternal_projection>\n$MEMORY_DIR/\n├── people/\n│   ├── jane-doe/\n│   │   └── card.md\n│   └── sam-rivers/\n│       └── card.md\n└── reference/\n    ├── logo.png\n    └── notes.md\n\u003c/external_projection>"},"history":{"commits":[{"sha":"c6770a6ed566a69a264deffa31cbd8d1785a1fb6","shortSha":"c6770a6","author":"Palace Fixture","date":"2026-08-10T16:19:05+09:00","subject":"chore: add people fixtures","body":"","isReflection":false,"diffTruncated":false,"diff":"\ndiff --git a/people/jane-doe/card.md b/people/jane-doe/card.md\nnew file mode 100644\nindex 0000000..f0b161d\n--- /dev/null\n+++ b/people/jane-doe/card.md\n@@ -0,0 +1,9 @@\n+---\n+description: Person - Jane Doe\n+kind: person\n+aliases: [\"Jane\",\"JD\"]\n+---\n+\n+IDENTITY: staff engineer\n+ATTRIBUTE: senior-engineer: prefers small diffs\n+RELATIONSHIP: reports-to: human\ndiff --git a/people/sam-rivers/card.md b/people/sam-rivers/card.md\nnew file mode 100644\nindex 0000000..6fa6da3\n--- /dev/null\n+++ b/people/sam-rivers/card.md\n@@ -0,0 +1,7 @@\n+---\n+description: Person - Sam Rivers\n+kind: person\n+---\n+\n+IDENTITY: designer\n+RELATIONSHIP: collaborates: unknown-person\ndiff --git a/system/human.md b/system/human.md\nindex 441d05a..8bcc5b1 100644\n--- a/system/human.md\n+++ b/system/human.md\n@@ -1,5 +1,9 @@\n ---\n description: who the user is\n+kind: person\n+aliases: [\"Boss\"]\n ---\n \n-fixture human body\n+IDENTITY: the person you work with\n+RELATIONSHIP: works-with: jane-doe\n+RELATIONSHIP: mentors: sam-rivers\n"},{"sha":"bbaf3eaaab62e69e0a1ca700f533934b1d966edf","shortSha":"bbaf3ea","author":"Palace Fixture","date":"2026-08-10T16:19:05+09:00","subject":"chore: add binary asset","body":"","isReflection":false,"diffTruncated":false,"diff":"\ndiff --git a/reference/logo.png b/reference/logo.png\nnew file mode 100644\nindex 0000000..6735744\nBinary files /dev/null and b/reference/logo.png differ\n"},{"sha":"60f4813679eb87a2b06aa5f234eebb96b5ab2231","shortSha":"60f4813","author":"Palace Fixture","date":"2026-08-10T16:19:05+09:00","subject":"chore: initialize local memory","body":"","isReflection":false,"diffTruncated":false,"diff":"\ndiff --git a/reference/notes.md b/reference/notes.md\nnew file mode 100644\nindex 0000000..7d6cc03\n--- /dev/null\n+++ b/reference/notes.md\n@@ -0,0 +1,5 @@\n+---\n+description: external note\n+---\n+\n+external note body\ndiff --git a/system/human.md b/system/human.md\nnew file mode 100644\nindex 0000000..441d05a\n--- /dev/null\n+++ b/system/human.md\n@@ -0,0 +1,5 @@\n+---\n+description: who the user is\n+---\n+\n+fixture human body\ndiff --git a/system/persona.md b/system/persona.md\nnew file mode 100644\nindex 0000000..d6bff8e\n--- /dev/null\n+++ b/system/persona.md\n@@ -0,0 +1,5 @@\n+---\n+description: who the agent is\n+---\n+\n+fixture persona body\n"}],"caps":{"maxCommits":500,"perDiffBytes":100000,"totalDiffBytes":5000000}},"reflection":{"outcomes":[],"cursor":{"schema_version":"v3_assistant_steps","reflected_through_message_id":"msg-1","total_completed_steps":2,"reflected_completed_steps":1,"steps_since_last_successful_reflection":1,"last_reflection_succeeded_at":"2026-01-15T00:00:00.000Z"},"conversationId":"conversation-1"},"people":{"nodes":[{"slug":"human","path":"system/human.md","displayName":"human","kind":"person","aliases":["Boss"],"state":"committed"},{"slug":"jane-doe","path":"people/jane-doe/card.md","displayName":"Jane Doe","kind":"person","aliases":["Jane","JD"],"state":"committed"},{"slug":"sam-rivers","path":"people/sam-rivers/card.md","displayName":"Sam Rivers","kind":"person","aliases":[],"state":"committed"}],"edges":[{"source":"human","predicate":"works-with","target":"jane-doe","targetSlug":"jane-doe"},{"source":"human","predicate":"mentors","target":"sam-rivers","targetSlug":"sam-rivers"},{"source":"jane-doe","predicate":"reports-to","target":"human","targetSlug":"human"},{"source":"sam-rivers","predicate":"collaborates","target":"unknown-person"}],"diagnostics":[]}}</script>
 <script>
 (function () {
   'use strict';
@@ -304,7 +292,7 @@ body {
 
   var DATA;
   try {
-    DATA = JSON.parse(document.getElementById('${PALACE_DATA_ELEMENT_ID}').textContent);
+    DATA = JSON.parse(document.getElementById('omo-palace-data').textContent);
   } catch (error) {
     document.body.textContent = 'Failed to parse palace data.';
     return;
@@ -488,4 +476,3 @@ body {
 </script>
 </body>
 </html>
-`

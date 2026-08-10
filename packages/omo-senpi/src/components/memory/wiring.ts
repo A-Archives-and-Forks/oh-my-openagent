@@ -14,6 +14,7 @@ import {
 } from "./identity-runtime"
 import { createMemoryJournalWiring, type MemoryJournalWiring } from "./journal-wiring"
 import { registerPalaceCommand } from "./palace/command"
+import type { PalacePeopleOptions } from "./palace/people"
 import { createMemoryPromptHandler } from "./prompt"
 import { registerMemoryCommands } from "./commands/register"
 import type { MemoryCommandIdentity, MemoryCommandSettings } from "./commands/types"
@@ -163,6 +164,16 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     }
   }
 
+  /** Palace people-panel gate: resolved `memory.people` settings, undefined when config is unreadable. */
+  function resolvePalacePeople(): PalacePeopleOptions | undefined {
+    const people = options.loadConfig({ cwd: options.cwd() }).config.memory?.people
+    if (people === undefined) return undefined
+    return {
+      enabled: people.enabled,
+      limits: { maxEntries: people.max_entries, maxEntryChars: people.max_entry_chars },
+    }
+  }
+
   function loadCommandSettings(): MemoryCommandSettings {
     const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
     if (settings === undefined) throw new Error("memory settings unavailable")
@@ -216,7 +227,11 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
         ...(options.logger === undefined ? {} : { logger: options.logger }),
       })
       skillsUsageTrackersRef.current = skillsUsageTrackers
-      registerPalaceCommand(pi, () => (activeSessionId === undefined ? undefined : resolveContext(activeSessionId)))
+      registerPalaceCommand(
+        pi,
+        () => (activeSessionId === undefined ? undefined : resolveContext(activeSessionId)),
+        resolvePalacePeople,
+      )
       registerMemoryCommands(pi, {
         contextForSession: (sessionId) => asCommandIdentity(resolveContext(sessionId)),
         resolveIdentity: () => (activeSessionId === undefined ? undefined : asCommandIdentity(resolveContext(activeSessionId))),
