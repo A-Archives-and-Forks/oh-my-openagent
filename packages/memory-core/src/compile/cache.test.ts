@@ -42,7 +42,7 @@ describe("MemoryBlockCache", () => {
     expect(cache.size).toBe(1)
   })
 
-  it("#given either template content or HEAD changes #when compiled #then a fresh cache entry is produced", async () => {
+  it("#given either template content or HEAD changes #when compiled #then each logical session key retains only its latest variant", async () => {
     // given
     const { dir, repo } = await createRepo()
     let ticks = 0
@@ -69,7 +69,26 @@ describe("MemoryBlockCache", () => {
     expect(headChanged).not.toBe(templateChanged)
     expect(headChanged).toContain("second")
     expect(ticks).toBe(3)
-    expect(cache.size).toBe(3)
+    expect(cache.size).toBe(2)
+  })
+
+  it("#given one session at a nudged threshold #when 100 changing nudge variants compile #then replacement keeps the cache bounded to one entry", async () => {
+    // given
+    const { repo } = await createRepo()
+    const cache = new MemoryBlockCache()
+
+    // when
+    for (let nudgeTurns = 2; nudgeTurns < 102; nudgeTurns += 1) {
+      await cache.compile(repo, "template", {
+        agentId: "cache-agent",
+        conversationId: "one-session",
+        previousMessageCount: nudgeTurns,
+        nudgeTurns,
+      })
+    }
+
+    // then
+    expect(cache.size).toBe(1)
   })
 
   it("#given template content #when hashed #then the structure version participates in sha256", () => {

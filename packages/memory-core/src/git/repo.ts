@@ -49,6 +49,24 @@ export interface GitMergeOptions {
   message?: string
 }
 
+export interface MemoryCommit {
+  readonly sha: string
+  readonly subject: string
+  readonly body: string
+  readonly authorName: string
+  readonly authorEmail: string
+  readonly committedAt: string
+  readonly trailers: Readonly<Record<string, string>>
+  readonly paths?: readonly string[]
+}
+
+export interface GitLogOptions {
+  readonly range?: string
+  readonly paths?: readonly string[]
+  readonly limit?: number
+  readonly includePaths?: boolean
+}
+
 export class GitMemoryRepo {
   readonly dir: string
   readonly agentId: string
@@ -142,6 +160,21 @@ export class GitMemoryRepo {
 
   async show(revision: string, path: string): Promise<string> {
     return (await this.git(["show", `${revision}:${path}`])).stdout
+  }
+
+  async log(options: GitLogOptions = {}): Promise<readonly MemoryCommit[]> {
+    const argv = ["log", "--format=%x1e%H%x1f%s%x1f%b%x1f%an%x1f%ae%x1f%cI"]
+    if (options.limit !== undefined) argv.push("-n", String(options.limit))
+    if (options.range !== undefined) argv.push(options.range)
+    if (options.paths !== undefined && options.paths.length > 0) argv.push("--", ...options.paths)
+    const records = parseLogOutput((await this.git(argv)).stdout)
+    if (options.includePaths !== true) return records
+    return Promise.all(records.map(async (commit) => ({
+      ...commit,
+      paths: parseNulPaths((await this.git([
+        "diff-tree", "--no-commit-id", "--name-only", "-z", "-r", commit.sha,
+      ])).stdout),
+    })))
   }
 
   async worktreeAdd(path: string, branch: string, startPoint = "HEAD"): Promise<void> {
@@ -242,6 +275,37 @@ export class GitMemoryRepo {
       env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
     })
   }
+}
+
+function parseLogOutput(output: string): MemoryCommit[] {
+  return output.split("\x1e").slice(1).map((record) => {
+    const [sha = "", subject = "", body = "", authorName = "", authorEmail = "", committedAt = ""] = record.split("\x1f")
+    const normalizedBody = body.replace(/\r?\n$/, "")
+    return {
+      sha,
+      subject,
+      body: normalizedBody,
+      authorName,
+      authorEmail,
+      committedAt: committedAt.trim(),
+      trailers: parseTrailers(normalizedBody),
+    }
+  })
+}
+
+function parseTrailers(body: string): Readonly<Record<string, string>> {
+  const trailers: Record<string, string> = {}
+  for (const line of body.split(/\r?\n/)) {
+    const match = /^([^:\s][^:]*):\s*(.*)$/.exec(line)
+    if (match === null) continue
+    const key = match[1]?.trim()
+    if (key !== undefined && key.length > 0) trailers[key] = match[2] ?? ""
+  }
+  return trailers
+}
+
+function parseNulPaths(output: string): string[] {
+  return output.split("\0").filter(Boolean)
 }
 
 function authorFlags(author: GitCommitAuthor): string[] {

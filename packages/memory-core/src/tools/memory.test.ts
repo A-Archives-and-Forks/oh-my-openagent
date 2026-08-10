@@ -85,6 +85,32 @@ describe("runMemoryTool", () => {
     )
   })
 
+  it("#given accepted-turn provenance #when memory commits #then the in-band writer session and turn trailers are durable", async () => {
+    // given
+    const setup = await fixture()
+
+    // when
+    await runMemoryTool({
+      repo: setup.repo,
+      lock: setup.lock,
+      params: {
+        command: "create",
+        reason: "remember provenance",
+        file_path: "provenance.md",
+        description: "Provenance",
+        author: AUTHOR,
+        provenance: { sessionId: "session-provenance", userTurns: 7 },
+      },
+    })
+
+    // then
+    expect((await setup.repo.log({ limit: 1 }))[0]?.trailers).toEqual({
+      "Omo-Writer": "memory-tool",
+      "Omo-Session": "session-provenance",
+      "Omo-Turn": "7",
+    })
+  })
+
   it("#given create omits optional file_text #when run #then an empty body is valid", async () => {
     const setup = await fixture()
 

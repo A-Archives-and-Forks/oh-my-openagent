@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { GitMemoryRepo } from "../git"
-import { compileMemoryBlock } from "./compile"
+import { MEMORY_NUDGE_METADATA_TOKEN, compileMemoryBlock } from "./compile"
 
 const tempDirs: string[] = []
 const NOW = new Date("2026-05-04T00:00:00.000Z")
@@ -98,6 +98,31 @@ describe("compileMemoryBlock", () => {
     // then
     expect(normalizeReminder(block)).toBe(await fixture("persona-only"))
     expect(block).not.toContain("Secret description")
+  })
+
+  it("#given nudge turns #when compiled #then metadata includes the behavioral nudge token and count only when requested", async () => {
+    // given
+    const { repo } = await repoWith([])
+
+    // when
+    const nudged = await compileMemoryBlock(repo, {
+      agentId: "nudge-agent",
+      conversationId: "nudge-conversation",
+      previousMessageCount: 2,
+      nudgeTurns: 2,
+      clock: () => NOW,
+    })
+    const quiet = await compileMemoryBlock(repo, {
+      agentId: "nudge-agent",
+      conversationId: "nudge-conversation",
+      previousMessageCount: 2,
+      clock: () => NOW,
+    })
+
+    // then
+    expect(nudged).toContain(MEMORY_NUDGE_METADATA_TOKEN)
+    expect(nudged).toMatch(/- 2 user turns since/)
+    expect(quiet).not.toContain(MEMORY_NUDGE_METADATA_TOKEN)
   })
 
   it("#given a dirty persona edit #when compiled #then only the committed HEAD body appears", async () => {

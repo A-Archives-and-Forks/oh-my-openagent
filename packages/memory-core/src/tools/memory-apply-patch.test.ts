@@ -84,6 +84,25 @@ describe("memoryApplyPatch", () => {
     )
   })
 
+  it("#given accepted-turn provenance #when a patch commits #then the in-band writer session and turn trailers are durable", async () => {
+    // given
+    const { repo, locksDirectory } = await fixture()
+    const input = "*** Begin Patch\n*** Add File: provenance.md\n+fact\n*** End Patch"
+
+    // when
+    await memoryApplyPatch(repo, {
+      ...params(locksDirectory, "remember patch provenance", input),
+      provenance: { sessionId: "session-patch", userTurns: 9 },
+    })
+
+    // then
+    expect((await repo.log({ limit: 1 }))[0]?.trailers).toEqual({
+      "Omo-Writer": "memory-tool",
+      "Omo-Session": "session-patch",
+      "Omo-Turn": "9",
+    })
+  })
+
   it("#given add then update in one patch #when applied #then the update sees the pending add", async () => {
     // #given
     const { repo, locksDirectory } = await fixture()

@@ -13,6 +13,7 @@ import {
   type MemoryIdentityRuntimeDeps,
 } from "./identity-runtime"
 import { createMemoryJournalWiring, type MemoryJournalWiring } from "./journal-wiring"
+import { createMemoryNudgeWiring } from "./nudge-wiring"
 import { registerPalaceCommand } from "./palace/command"
 import type { PalacePeopleOptions } from "./palace/people"
 import { createMemoryPromptHandler } from "./prompt"
@@ -67,6 +68,18 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
 
   const resolveContext = (sessionId: string): MemoryIdentityContext | undefined =>
     options.sessions.get(sessionId)?.context
+  const nudgeWiring = createMemoryNudgeWiring({
+    resolveContext,
+    resolveSettings: (identity) => {
+      const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
+      if (settings === undefined) return { enabled: false, everyUserTurns: 10 }
+      const override = settings.agents[identity]?.nudge
+      return {
+        enabled: override?.enabled ?? settings.nudge.enabled,
+        everyUserTurns: override?.every_user_turns ?? settings.nudge.every_user_turns,
+      }
+    },
+  })
 
   function asCommandIdentity(identity: MemoryIdentityContext | undefined): MemoryCommandIdentity | undefined {
     if (identity === undefined) return undefined
@@ -184,11 +197,13 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     registerStatic(pi: SenpiExtensionAPI, ctx: ComponentContext): void {
       const api = completionApi(pi)
       if (api !== undefined) registerReflectionCompletionRenderer(api)
+      if (hasMemoryCapabilities(pi)) nudgeWiring.register(pi)
       const toolExposure = options.toolExposure ?? "direct"
       const promptHandler = createMemoryPromptHandler({
         resolveContext,
         cache: promptCache,
         searchExposure: () => toolExposure === "search",
+        resolveNudgeTurns: (repo, sessionId, identity) => nudgeWiring.nudgeTurns(repo, sessionId, identity),
       })
       pi.on("before_agent_start", (payload, eventCtx) => {
         lastEventCtx.current = eventCtx

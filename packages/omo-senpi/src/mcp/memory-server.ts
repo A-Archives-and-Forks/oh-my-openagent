@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Standalone stdio MCP server exposing the omo memory tools. The senpi extension registers this server
 // with exposure "search" so the tools surface through senpi's tool_search catalog instead of occupying
-// the always-on tool set. It runs under plain Node with no senpi runtime: identity derives from the
-// child process cwd (the session project directory) via memory-core's auto rule.
+// the always-on tool set. It runs under plain Node with no senpi runtime: the extension injects the
+// bound identity and accepted-turn provenance, with cwd-based auto identity retained for standalone calls.
 
-import { resolve } from "node:path"
+import { dirname, resolve } from "node:path"
 import type { Readable, Writable } from "node:stream"
 import { pathToFileURL } from "node:url"
 
@@ -21,6 +21,7 @@ import {
   MemoryPatchHunkError,
   MemoryPatchParseError,
   MemoryToolError,
+  buildIdentityPaths,
   resolveMemoryIdentity,
   runMemoryApplyPatch,
   runMemoryTool,
@@ -115,12 +116,25 @@ async function callMemoryTool(
   }
   try {
     const cwd = options.cwd ?? process.cwd()
-    const identity = resolveMemoryIdentity(undefined, cwd, options.env ?? process.env)
+    const provenance = readMcpProvenance(args)
+    const identity = provenance === undefined
+      ? resolveMemoryIdentity(undefined, cwd, options.env ?? process.env)
+      : {
+          id: provenance.identityId,
+          paths: buildIdentityPaths(dirname(dirname(dirname(provenance.repoPath))), provenance.identityId),
+        }
     const session = await prepareMemoryEngineSession(identity.id, identity.paths)
+    const toolProvenance = provenance === undefined
+      ? undefined
+      : { sessionId: provenance.sessionId, userTurns: provenance.userTurns }
     if (name === MEMORY_TOOL_NAME) {
       // Field-level validation lives in runMemoryTool's required() guards, so the MCP argument record
       // is asserted straight into the core param shape rather than re-validated here.
-      const params = { ...args, author: session.author } as MemoryToolParams
+      const params = {
+        ...args,
+        author: session.author,
+        ...(toolProvenance === undefined ? {} : { provenance: toolProvenance }),
+      } as MemoryToolParams
       const result = await runMemoryTool({ repo: session.repo, lock: session.lock, params })
       return toolText(id, result.message)
     }
@@ -131,6 +145,7 @@ async function callMemoryTool(
         reason: typeof args.reason === "string" ? args.reason : "",
         input: typeof args.input === "string" ? args.input : "",
         author: session.author,
+        ...(toolProvenance === undefined ? {} : { provenance: toolProvenance }),
       },
     })
     return toolText(id, result.message)
@@ -144,6 +159,35 @@ async function callMemoryTool(
       return toolText(id, error.message, true)
     }
     throw error
+  }
+}
+
+interface McpMemoryProvenance {
+  readonly sessionId: string
+  readonly userTurns: number
+  readonly identityId: string
+  readonly repoPath: string
+}
+
+function readMcpProvenance(args: Record<string, unknown>): McpMemoryProvenance | undefined {
+  const value = args.provenance
+  if (!isPlainRecord(value)) return undefined
+  if (
+    typeof value.sessionId !== "string"
+    || value.sessionId.length === 0
+    || typeof value.identityId !== "string"
+    || value.identityId.length === 0
+    || typeof value.repoPath !== "string"
+    || value.repoPath.length === 0
+    || typeof value.userTurns !== "number"
+    || !Number.isSafeInteger(value.userTurns)
+    || value.userTurns < 0
+  ) return undefined
+  return {
+    sessionId: value.sessionId,
+    userTurns: value.userTurns,
+    identityId: value.identityId,
+    repoPath: resolve(value.repoPath),
   }
 }
 

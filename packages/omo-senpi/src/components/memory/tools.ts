@@ -9,6 +9,7 @@ import {
   MemoryToolError,
   runMemoryApplyPatch,
   runMemoryTool,
+  type MemoryToolProvenance,
 } from "@oh-my-opencode/memory-core"
 import { Type, type Static, type TSchema } from "typebox"
 
@@ -143,7 +144,12 @@ function createMemoryTool(
       if (context === undefined) return errorResult(`${MEMORY_TOOL_NAME}: ${UNBOUND_IDENTITY_MESSAGE}`)
       try {
         const { repo, lock, author } = await prepareEngine(context, options)
-        const result = await runMemoryTool({ repo, lock, params: { ...params, author } })
+        const provenance = readToolProvenance(params)
+        const result = await runMemoryTool({
+          repo,
+          lock,
+          params: { ...params, author, ...(provenance === undefined ? {} : { provenance }) },
+        })
         return okResult(result.message)
       } catch (error) {
         if (error instanceof MemoryToolError) return errorResult(error.message)
@@ -173,7 +179,12 @@ function createMemoryApplyPatchTool(
       if (context === undefined) return errorResult(`${MEMORY_APPLY_PATCH_TOOL_NAME}: ${UNBOUND_IDENTITY_MESSAGE}`)
       try {
         const { repo, lock, author } = await prepareEngine(context, options)
-        const result = await runMemoryApplyPatch({ repo, lock, params: { ...params, author } })
+        const provenance = readToolProvenance(params)
+        const result = await runMemoryApplyPatch({
+          repo,
+          lock,
+          params: { ...params, author, ...(provenance === undefined ? {} : { provenance }) },
+        })
         return okResult(result.message)
       } catch (error) {
         if (
@@ -191,6 +202,23 @@ function createMemoryApplyPatchTool(
 
 async function prepareEngine(context: MemoryIdentityContext, options: MemoryToolsOptions) {
   return prepareMemoryEngineSession(context.identity, context.identityPaths, options)
+}
+
+function readToolProvenance(value: unknown): MemoryToolProvenance | undefined {
+  if (!isRecord(value) || !isRecord(value.provenance)) return undefined
+  const provenance = value.provenance
+  if (
+    typeof provenance.sessionId !== "string"
+    || provenance.sessionId.length === 0
+    || typeof provenance.userTurns !== "number"
+    || !Number.isSafeInteger(provenance.userTurns)
+    || provenance.userTurns < 0
+  ) return undefined
+  return { sessionId: provenance.sessionId, userTurns: provenance.userTurns }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
 }
 
 function okResult(message: string): MemoryToolExecutionResult {

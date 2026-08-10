@@ -2,6 +2,7 @@ import { access, mkdir, readFile, unlink, writeFile } from "node:fs/promises"
 import { dirname, join, relative } from "node:path"
 
 import { NoEffectiveChangesError, type GitCommitAuthor, type GitMemoryRepo } from "../git"
+import type { MemoryToolProvenance } from "./memory"
 import { parseMemoryFile, renderMemoryFile } from "../memfs/frontmatter"
 import { MemoryPathError, validateMemoryPath } from "../memfs/paths"
 import type { LockDomain } from "../locks"
@@ -19,6 +20,7 @@ export interface MemoryApplyPatchParams {
   readonly reason: string
   readonly input: string
   readonly author: GitCommitAuthor
+  readonly provenance?: MemoryToolProvenance
 }
 
 export interface MemoryApplyPatchResult {
@@ -61,7 +63,7 @@ export async function runMemoryApplyPatch(
       const paths = await applyOperations(repo.dir, parseMemoryPatch(params.input))
       let result
       try {
-        result = await repo.commitWrite(paths, reason, params.author)
+        result = await repo.commitWrite(paths, memoryCommitMessage(reason, params.provenance), params.author)
       } catch (error) {
         if (error instanceof NoEffectiveChangesError) {
           throw new MemoryApplyPatchError(
@@ -227,6 +229,17 @@ async function exists(path: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+function memoryCommitMessage(reason: string, provenance: MemoryToolProvenance | undefined): string {
+  if (provenance === undefined) return reason
+  return [
+    reason,
+    "",
+    "Omo-Writer: memory-tool",
+    `Omo-Session: ${provenance.sessionId}`,
+    `Omo-Turn: ${provenance.userTurns}`,
+  ].join("\n")
 }
 
 function errorMessage(error: unknown): string {

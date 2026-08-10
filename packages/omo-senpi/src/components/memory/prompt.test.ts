@@ -4,7 +4,11 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import type { BeforeAgentStartEventResult } from "@code-yeongyu/senpi"
-import { GitMemoryRepo, buildIdentityPaths } from "@oh-my-opencode/memory-core"
+import {
+  GitMemoryRepo,
+  MEMORY_NUDGE_METADATA_TOKEN,
+  buildIdentityPaths,
+} from "@oh-my-opencode/memory-core"
 
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import { createMemoryBinding } from "./binding"
@@ -134,6 +138,24 @@ describe("createMemoryPromptHandler", () => {
     expect(result?.systemPrompt).toContain(`- AGENT_ID: ${IDENTITY}`)
     expect(result?.systemPrompt).toContain("- CONVERSATION_ID: session-1")
     expect(result?.systemPrompt).toContain("- 3 previous messages")
+  })
+
+  test("#given nudge state at the threshold #when before_agent_start compiles #then the memory metadata carries the behavioral nudge token", async () => {
+    // given
+    const { repo, context } = await fixture()
+    const pi = new FakeExtensionAPI()
+    pi.on("before_agent_start", createMemoryPromptHandler({
+      resolveContext: () => context,
+      createRepo: () => repo,
+      resolveNudgeTurns: async () => 2,
+    }))
+
+    // when
+    const result = await dispatchEvent(pi, beforeAgentStart("BASE PROMPT"), eventContext("session-1", 2))
+
+    // then
+    expect(result?.systemPrompt).toContain(MEMORY_NUDGE_METADATA_TOKEN)
+    expect(result?.systemPrompt).toMatch(/- 2 user turns since/)
   })
 
   test("#given another extension already rewrote the system prompt #when the handler runs #then the foreign text survives and the block is appended", async () => {
