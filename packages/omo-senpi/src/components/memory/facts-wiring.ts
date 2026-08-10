@@ -17,8 +17,8 @@ import type { ComponentLogger } from "../../extension/types"
 const DISABLED: FactsEnqueueResult = { enqueued: false, reason: "no-new-entries" }
 
 export interface FactsExtractorPort {
-  launchPending(): Promise<unknown>
-  reconcilePending(): Promise<unknown>
+  launchPending(signal?: AbortSignal): Promise<unknown>
+  reconcilePending(signal?: AbortSignal): Promise<unknown>
 }
 
 export interface MemoryFactsWiringOptions {
@@ -57,10 +57,11 @@ export function createMemoryFactsWiring(options: MemoryFactsWiringOptions): Memo
   })
   let settles = 0
 
-  const fire = (operation: "launch" | "reconcile"): void => {
+  const fire = (operation: "launch" | "reconcile", signal?: AbortSignal): void => {
+    if (signal?.aborted === true) return
     const promise = operation === "launch"
-      ? options.extractor?.launchPending()
-      : options.extractor?.reconcilePending()
+      ? options.extractor?.launchPending(signal)
+      : options.extractor?.reconcilePending(signal)
     void promise?.catch((error) => {
       options.logger?.warn(`facts extractor ${operation} failed`, { error: String(error) })
     })
@@ -78,6 +79,7 @@ export function createMemoryFactsWiring(options: MemoryFactsWiringOptions): Memo
           sessionId: conversationId,
           conversationId,
           entries,
+          signal,
         })
       } catch (error) {
         options.logger?.warn("facts queue enqueue failed", { conversationId, error: String(error) })
@@ -117,7 +119,7 @@ export function createMemoryFactsWiring(options: MemoryFactsWiringOptions): Memo
       settles = 0
       try {
         if (isAborted(signal)) return false
-        await options.extractor.launchPending()
+        await options.extractor.launchPending(signal)
       } catch (error) {
         options.logger?.warn("facts extractor launch failed", { error: String(error) })
       }

@@ -57,7 +57,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
   async function flushSkillsUsageTrackers(signal?: AbortSignal): Promise<void> {
     for (const tracker of skillsUsageTrackersRef.current.values()) {
       if (signal?.aborted === true) return
-      await tracker.flush()
+      await tracker.flush(signal)
     }
   }
 

@@ -179,7 +179,8 @@ export class SkillsUsageTracker {
    * Flushes pending increments immediately (used by shutdown drain).
    * Never throws.
    */
-  async flush(): Promise<void> {
+  async flush(signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted === true) return
     if (this.flushPromise !== undefined) return this.flushPromise
     if (this.timer !== undefined) {
       clearTimeout(this.timer)
@@ -188,7 +189,7 @@ export class SkillsUsageTracker {
     if (this.pending.size === 0) return
     const batch = new Map(this.pending)
     this.pending.clear()
-    this.flushPromise = this.flushBatch(batch).finally(() => {
+    this.flushPromise = this.flushBatch(batch, signal).finally(() => {
       this.flushPromise = undefined
     })
     return this.flushPromise
@@ -202,8 +203,11 @@ export class SkillsUsageTracker {
     }, DEBOUNCE_MS)
   }
 
-  private async flushBatch(batch: Map<string, number>): Promise<void> {
+  private async flushBatch(batch: Map<string, number>, signal?: AbortSignal): Promise<void> {
+    const isAborted = (): boolean => signal?.aborted === true
+    if (isAborted()) return
     const record = await createLockRecord("skills-usage")
+    if (isAborted()) return
     try {
       await withLock(
         this.paths.lockPath,

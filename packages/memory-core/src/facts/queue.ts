@@ -31,6 +31,7 @@ export interface FactsEnqueueRequest {
   readonly sessionId: string
   readonly conversationId: string
   readonly entries: readonly TranscriptEntry[]
+  readonly signal?: AbortSignal
 }
 
 export type FactsEnqueueResult =
@@ -95,7 +96,10 @@ export class FactsQueue {
         entries: request.entries.slice(startIndex),
       }
 
+      const abortedNow = (): boolean => request.signal?.aborted === true
+      if (abortedNow()) return { enqueued: false, reason: "no-new-entries" }
       await this.publish(entry, at)
+      if (abortedNow()) return { enqueued: true, entry }
       await this.advanceEnqueued(request.conversationId, entry.range)
       return { enqueued: true, entry }
     })

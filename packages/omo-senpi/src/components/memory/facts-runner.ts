@@ -41,9 +41,10 @@ export class FactsExtractorRunner {
     this.now = options.now ?? (() => new Date())
   }
 
-  async launchPending(): Promise<FactsLaunchResult> {
+  async launchPending(signal?: AbortSignal): Promise<FactsLaunchResult> {
+    if (signal?.aborted === true) return { status: "skipped" }
     if (this.activeLaunch !== undefined) return { status: "active" }
-    const operation = this.launchPendingOnce()
+    const operation = this.launchPendingOnce(signal)
     this.activeLaunch = operation
     try {
       return await operation
@@ -52,15 +53,18 @@ export class FactsExtractorRunner {
     }
   }
 
-  async reconcilePending(): Promise<FactsLaunchResult> {
+  async reconcilePending(signal?: AbortSignal): Promise<FactsLaunchResult> {
     const active = await this.reconcileRuns()
     if (active) return { status: "active" }
-    return this.launchPending()
+    return this.launchPending(signal)
   }
 
-  private async launchPendingOnce(): Promise<FactsLaunchResult> {
+  private async launchPendingOnce(signal?: AbortSignal): Promise<FactsLaunchResult> {
+    const isAborted = (): boolean => signal?.aborted === true
+    if (isAborted()) return { status: "skipped" }
     if (await this.reconcileRuns()) return { status: "active" }
     const entries = await this.queue.listPending()
+    if (isAborted()) return { status: "skipped" }
     if (entries.length === 0) return { status: "empty" }
     const loaded = this.options.loadConfig()
     const resolution = resolveReflectionModel(QUICK_CATEGORY, loaded.config, this.options.resolveModelRegistry())
@@ -101,6 +105,7 @@ export class FactsExtractorRunner {
       senpiCommand: this.options.senpiCommand,
     })
 
+    if (isAborted()) return { status: "skipped" }
     try {
       const child = await runFactsChild(spawnArgs, {
         deadlineMs: this.options.deadlineMs ?? DEFAULT_DEADLINE_MS,

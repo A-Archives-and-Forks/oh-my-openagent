@@ -174,3 +174,21 @@ describe("facts queue enqueue", () => {
     expect(await queueFileNames(paths)).toHaveLength(0)
   })
 })
+
+  test("#given an aborted drain signal #when enqueue is attempted #then nothing publishes and the cursor stays untouched", async () => {
+    // given
+    const paths = await identityFixture()
+    const queue = new FactsQueue({ identityPaths: paths, now: clockFrom(0) })
+    const aborted = new AbortController()
+    aborted.abort()
+
+    // when
+    const result = await queue.enqueue(request(journal(2), { signal: aborted.signal }))
+
+    // then
+    expect(result.enqueued).toBe(false)
+    expect(await queue.listPending()).toHaveLength(0)
+    const cursor = await queue.readCursor(CONVERSATION)
+    expect(cursor.enqueued_through_message_id).toBeNull()
+    expect(cursor.consumed_through_message_id).toBeNull()
+  })

@@ -97,3 +97,29 @@ describe("registerSkillsUsage", () => {
     expect(trackers.size).toBe(0)
   })
 })
+
+  test("#given a pending increment and an aborted drain signal #when flushed #then the ledger is never written", async () => {
+    // given
+    const { context, repoDir } = await fixture()
+    const pi = new FakeExtensionAPI()
+    const trackers = registerSkillsUsage(pi, {
+      resolveContext: () => context,
+      resolveCwd: () => repoDir,
+      now: () => new Date("2026-01-15T10:00:00Z"),
+    })
+    await pi.dispatch(
+      "tool_call",
+      toolCall("read", { path: join(repoDir, "skills", "foo", "SKILL.md") }),
+      eventContext("session-1"),
+    )
+    const tracker = trackers.get(context.identity)
+    const aborted = new AbortController()
+    aborted.abort()
+
+    // when
+    await tracker?.flush(aborted.signal)
+
+    // then
+    const ledger = await readSkillsUsageLedger(skillsUsagePaths(context.identityPaths).ledgerPath)
+    expect(Object.keys(ledger)).toHaveLength(0)
+  })
