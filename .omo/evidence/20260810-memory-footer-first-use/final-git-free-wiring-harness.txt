@@ -13,7 +13,7 @@ Implementation:
 
 Verification:
 - Focused status+wiring: 15 pass, 0 fail, 45 assertions.
-- Cleanup plus focused memory: 25 pass, 0 fail, 76 assertions.
+- Cleanup plus focused memory: 25 pass, 0 fail, 80 assertions.
 - Full memory component: 251 pass, 0 fail, 835 assertions across 40 files.
 - Omo-senpi typecheck: exit 0.
 - TypeScript no-excuse audit: no violations.

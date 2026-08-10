@@ -20,7 +20,7 @@ Fix:
 - No sleeps, assertion retries, skipped checks, or weakened behavior.
 
 Local verification:
-- Cleanup plus focused memory tests: 25 pass, 0 fail, 76 assertions.
+- Cleanup plus focused memory tests: 25 pass, 0 fail, 80 assertions.
 - Full memory suite: 251 pass, 0 fail, 835 assertions.
 - Omo-senpi typecheck: exit 0.
 

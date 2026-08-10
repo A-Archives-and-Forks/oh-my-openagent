@@ -17,8 +17,8 @@ RED:
 GREEN:
 - The cleanup scans only `packages/*/node_modules/{oh-my-opencode,oh-my-openagent}`.
 - It removes those stale self-package copies and leaves unrelated dependencies untouched.
-- The CI test job invokes it after `bun install --frozen-lockfile` and before `bun test`.
-- Focused test: 2 pass, 0 fail, 6 assertions.
+- The root test and Senpi compatibility jobs invoke it after dependency installation and before their Bun suites.
+- Focused test: 2 pass, 0 fail, 10 assertions.
 - Script typecheck: exit 0.
 - TypeScript no-excuse audit: no violations.
 - `actionlint .github/workflows/ci.yml`: exit 0.
@@ -28,3 +28,8 @@ Windows proof:
 - In run 31385945591, the stale Ralph and registrar failures did not recur, confirming the cleanup removed that failure mode.
 - That run did not complete green: the Windows root job was cancelled, and Senpi Windows failed during fixture teardown.
 - The branch was then synced with the latest `dev`; its replacement matrix must pass before PR merge.
+
+Senpi job proof:
+- Run 31392779021 exposed a stale generated-files freshness test in `senpi-compatibility (macos-latest)`.
+- That job did not run the cleanup step, so package-local self-package tests remained discoverable.
+- The workflow now runs the same cleanup before both root `bun test` and `bun test packages/omo-senpi`.
