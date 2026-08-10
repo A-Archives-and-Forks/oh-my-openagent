@@ -274,9 +274,9 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
   }
 
   function loadCommandSettings(): MemoryCommandSettings {
-    const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
-    if (settings === undefined) throw new Error("memory settings unavailable")
-    return { settings }
+    const resolved = options.loadConfig({ cwd: options.cwd() }).config
+    if (resolved.memory === undefined) throw new Error("memory settings unavailable")
+    return { settings: resolved.memory, config: resolved }
   }
 
   return {
