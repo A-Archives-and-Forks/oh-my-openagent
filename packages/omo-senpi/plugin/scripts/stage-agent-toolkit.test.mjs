@@ -1,8 +1,8 @@
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { afterEach, describe, test } from "node:test"
 
 import { checkAgentToolkitFresh, stageAgentToolkit } from "./stage-agent-toolkit.mjs"
@@ -79,6 +79,33 @@ describe("agent-toolkit runtime staging", () => {
     await stageAgentToolkit({ ...fixture, buildBundle: false })
 
     assert.equal(await readFile(join(fixture.targetDir, "ulw-loop", "cli.js"), "utf8"), await readFile(fixture.sourceEntry, "utf8"))
+  })
+
+  test("#given a partial Windows backup copy #when staging fails #then removes backup debris and preserves the target", async () => {
+    const fixture = await makeFixture()
+    await stageAgentToolkit({ ...fixture, buildBundle: false })
+    const original = await readFile(join(fixture.targetDir, "ulw-loop", "cli.js"), "utf8")
+    await writeFile(fixture.sourceEntry, "#!/usr/bin/env node\nconsole.log('changed')\n", "utf8")
+
+    await assert.rejects(
+      stageAgentToolkit({
+        ...fixture,
+        buildBundle: false,
+        platform: "win32",
+        copyDirectory: async (_source, backupDir) => {
+          await mkdir(backupDir, { recursive: true })
+          await writeFile(join(backupDir, "partial"), "partial", "utf8")
+          throw new Error("copy failed")
+        },
+      }),
+      /copy failed/,
+    )
+
+    assert.equal(await readFile(join(fixture.targetDir, "ulw-loop", "cli.js"), "utf8"), original)
+    assert.equal(
+      (await readdir(dirname(fixture.targetDir))).some((entry) => entry.startsWith("agent-toolkit.backup-")),
+      false,
+    )
   })
 
   test("#given an unknown component #when dispatched #then it exits one and lists ulw-loop", async () => {

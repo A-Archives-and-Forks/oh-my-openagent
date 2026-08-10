@@ -43,6 +43,8 @@ export async function stageAgentToolkit(options = {}) {
   const sourceEntry = resolve(options.sourceEntry ?? defaultSourceEntry)
   const directiveEntry = resolve(options.directiveEntry ?? defaultDirectiveEntry)
   const targetDir = resolve(options.targetDir ?? defaultTargetDir)
+  const platform = options.platform ?? process.platform
+  const copyDirectory = options.copyDirectory ?? cp
   if (options.buildBundle !== false) await buildAggregateBundle()
   await validateFile(sourceEntry, "aggregate ulw-loop bundle")
   await validateFile(directiveEntry, "ulw-loop directive")
@@ -68,8 +70,13 @@ export async function stageAgentToolkit(options = {}) {
       return { ok: true, sourceEntry, directiveEntry, targetDir, sha256: await sha256(sourceEntry) }
     }
     if (await fileExists(targetDir)) {
-      if (process.platform === "win32") {
-        await cp(targetDir, backupDir, { recursive: true, force: true, verbatimSymlinks: true })
+      if (platform === "win32") {
+        try {
+          await copyDirectory(targetDir, backupDir, { recursive: true, force: true, verbatimSymlinks: true })
+        } catch (error) {
+          await rm(backupDir, { recursive: true, force: true })
+          throw error
+        }
         backupCreated = true
         await rm(targetDir, { recursive: true, force: true })
       } else {
