@@ -5,7 +5,9 @@
 // pushed through ctx.ui.notify so read-only output never enters model context.
 
 import type { GitExec, MemoryIdentityPaths } from "@oh-my-opencode/memory-core"
-import type { OmoMemorySettings } from "@oh-my-opencode/omo-config-core"
+import type { OmoConfig, OmoMemorySettings } from "@oh-my-opencode/omo-config-core"
+
+import type { PeopleAskRunner } from "./people-ask"
 
 export type NotifyLevel = "info" | "warning" | "error"
 
@@ -23,6 +25,8 @@ export interface MemoryCommandContext {
   readonly agentDir?: string
   readonly ui?: MemoryCommandUi
   readonly sessionManager?: { getSessionId(): string }
+  /** senpi's live model registry; `/people --ask` resolves its quick child through it. */
+  readonly modelRegistry?: unknown
   waitForIdle?(): Promise<void>
 }
 
@@ -53,6 +57,8 @@ export interface MemoryCommandSettings {
   readonly settings: OmoMemorySettings
   /** Path of the omo config file users edit to change memory settings. */
   readonly configPath?: string
+  /** Full resolved config; `/people --ask` needs it to resolve the quick model category. */
+  readonly config?: OmoConfig
 }
 
 export interface MemoryCommandDeps {
@@ -67,6 +73,10 @@ export interface MemoryCommandDeps {
   /** Senpi sessions root for `/search`; defaults to <agentDir>/sessions. */
   sessionsDir?(): string
   exec?: GitExec
+  /** Dialectic-lite seam for `/people --ask`; defaults to a real quick child. */
+  peopleAsk?: PeopleAskRunner
+  /** Environment handed to command-spawned children; defaults to process.env. */
+  env?: NodeJS.ProcessEnv
   now?(): number
   /** Doctor stale-lock liveness probe; defaults to signal-0. */
   isProcessAlive?(pid: number): boolean
