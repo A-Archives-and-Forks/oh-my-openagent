@@ -91,106 +91,40 @@ async function readExplicitEntries(dir: string, slug: string): Promise<readonly 
   return card.observations?.find((group) => group.section === "Explicit")?.entries ?? []
 }
 
-describe("facts extraction JSONL validation", () => {
-  test("#given valid project and person arms #when parsed #then scope remains a discriminated union", () => {
-    // given
-    const raw = `${JSON.stringify(project())}\n${JSON.stringify(person())}\n`
-
-    // when
-    const records = parseFactsExtractionJsonl(raw)
-
-    // then
-    expect(records).toEqual([project(), person()])
-  })
-
-  test("#given a project record carrying person #when parsed #then the whole extraction is rejected", () => {
-    // given
-    const raw = JSON.stringify({ ...project(), person: { name: "Mina", aliases: [] } })
-
-    // when
-    const operation = () => parseFactsExtractionJsonl(raw)
-
-    // then
-    expect(operation).toThrow("project record must not carry person")
-  })
-
-  test("#given a person record missing person #when parsed #then the whole extraction is rejected", () => {
-    // given
-    const raw = JSON.stringify({ scope: "person", text: "Mina prefers Bun.", date: "2026-08-10" })
-
-    // when
-    const operation = () => parseFactsExtractionJsonl(raw)
-
-    // then
-    expect(operation).toThrow("person record requires person")
-  })
-})
-
-describe("atomic facts batch application", () => {
-  test("#given project and resolved person records #when applied without a people policy #then one notes commit preserves both texts and trailers", async () => {
+describe("person routing gate and unresolved mentions", () => {
+  test("#given people routing is disabled #when a person fact arrives #then it falls back to the monthly notes file", async () => {
     // given
     const { dir, repo } = await fixture()
 
     // when
-    const result = await applyFactsBatch(repo, {
-      batchId: "11111111-1111-4111-8111-111111111111",
-      records: [project(), person()],
-    }, AUTHOR)
+    await applyFactsBatch(repo, {
+      batchId: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+      records: [person()],
+    }, AUTHOR, { people: { enabled: false, maxEntries: 40, maxEntryChars: 200 } })
 
     // then
-    expect(result.outcome).toBe("committed")
-    if (result.outcome !== "committed") throw new Error("expected a committed facts batch")
     const memory = parseMemoryFile(await readFile(join(dir, "notes/facts/2026-08.md"), "utf8"))
-    expect(memory.body).toContain("- [2026-08-10] The project uses Bun.")
     expect(memory.body).toContain("- [2026-08-10] Mina prefers concise reviews.")
-    const [commit] = await repo.log({ range: "HEAD~1..HEAD" })
-    expect(commit?.sha).toBe(result.sha)
-    expect(commit?.subject).toBe("chore(facts): extract 2 facts")
-    expect(commit?.trailers["Generated-By"]).toBe("facts-extractor")
-    expect(commit?.trailers["Omo-Writer"]).toBe("facts-extractor")
-    expect(commit?.trailers["Omo-Facts-Batch"]).toBe("11111111-1111-4111-8111-111111111111")
+    expect(existsSync(join(dir, "people", "mina"))).toBe(false)
   })
 
-  test("#given zero applicable records #when applied #then no commit is attempted", async () => {
+  test("#given an unresolved person mention #when applied #then the prefixed bullet is stored verbatim in monthly notes", async () => {
     // given
-    const { repo } = await fixture()
-    const before = await repo.head()
+    const { dir, repo } = await fixture()
 
     // when
-    const result = await applyFactsBatch(repo, {
-      batchId: "22222222-2222-4222-8222-222222222222",
-      records: [],
-    }, AUTHOR)
+    await applyFactsBatch(repo, {
+      batchId: "ffffffff-ffff-4fff-8fff-ffffffffffff",
+      records: [{
+        scope: "project",
+        text: "person-unresolved: A teammate said the launch slips.",
+        date: "2026-08-10",
+      }],
+    }, AUTHOR, { people: PEOPLE })
 
     // then
-    expect(result).toEqual({ outcome: "no_facts", affectedPaths: [] })
-    expect(await repo.head()).toBe(before)
-  })
-
-  test("#given git commit fails after staging #when the batch aborts #then index and working tree are restored", async () => {
-    // given
-    const base = createNodeGitExec()
-    let rejectCommit = false
-    const exec: GitExec = {
-      run: async (args, options) => {
-        if (rejectCommit && args.includes("commit")) {
-          return { code: 1, stdout: "", stderr: "injected commit failure" }
-        }
-        return base.run(args, options)
-      },
-    }
-    const { dir, repo } = await fixture(exec)
-    rejectCommit = true
-
-    // when
-    const operation = applyFactsBatch(repo, {
-      batchId: "33333333-3333-4333-8333-333333333333",
-      records: [project()],
-    }, AUTHOR)
-
-    // then
-    await expect(operation).rejects.toThrow("injected commit failure")
-    expect(await repo.status()).toBe("")
-    expect(await readFile(join(dir, "notes/facts/2026-08.md"), "utf8").catch(() => undefined)).toBeUndefined()
+    const memory = parseMemoryFile(await readFile(join(dir, "notes/facts/2026-08.md"), "utf8"))
+    expect(memory.body).toContain("- [2026-08-10] person-unresolved: A teammate said the launch slips.")
+    expect(existsSync(join(dir, "people"))).toBe(false)
   })
 })

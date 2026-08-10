@@ -2,70 +2,35 @@ import { existsSync } from "node:fs"
 import { mkdir, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { withSerializedGitConfigMutation } from "./config-lock"
-import {
-  DirtyRepoError,
-  GitCommandError,
-  InvalidGitPathError,
-  NoEffectiveChangesError,
-} from "./errors"
+import { DirtyRepoError, NoEffectiveChangesError } from "./errors"
 import { createNodeGitExec, type GitExec, type GitExecResult } from "./exec"
 import { describeDirtyMarkdownEncodingIssues, parsePorcelainPath } from "./porcelain"
+import { authorFlags, commandError, normalizePathspecs, normalizeSeedPath } from "./repo-arguments"
+import { parseLogOutput, parseNulPaths } from "./repo-log"
+import type {
+  GitCommitAuthor,
+  GitCommitResult,
+  GitLogOptions,
+  GitMemoryRepoOptions,
+  GitMergeOptions,
+  InitializeGitRepoOptions,
+  MemoryCommit,
+} from "./repo-types"
+
+export type {
+  GitCommitAuthor,
+  GitCommitResult,
+  GitLogOptions,
+  GitMemoryRepoOptions,
+  GitMergeOptions,
+  GitSeedFile,
+  InitializeGitRepoOptions,
+  MemoryCommit,
+} from "./repo-types"
 
 const GIT_TIMEOUT_MS = 30_000
 const INITIAL_COMMIT = "chore: initialize local memory"
 const EMPTY_INITIAL_COMMIT = "chore: initialize empty local memory"
-
-export interface GitCommitAuthor {
-  agentId: string
-  authorName: string
-  authorEmail?: string
-}
-
-export interface GitSeedFile {
-  relativePath: string
-  content: string
-}
-
-export interface GitMemoryRepoOptions {
-  dir: string
-  agentId: string
-  exec?: GitExec
-  installHooks?: (dir: string) => void | Promise<void>
-}
-
-export interface InitializeGitRepoOptions {
-  authorName?: string
-  seedFiles?: readonly GitSeedFile[]
-  installHooks?: (dir: string) => void | Promise<void>
-}
-
-export interface GitCommitResult {
-  committed: true
-  sha: string
-}
-
-export interface GitMergeOptions {
-  noFF?: boolean
-  message?: string
-}
-
-export interface MemoryCommit {
-  readonly sha: string
-  readonly subject: string
-  readonly body: string
-  readonly authorName: string
-  readonly authorEmail: string
-  readonly committedAt: string
-  readonly trailers: Readonly<Record<string, string>>
-  readonly paths?: readonly string[]
-}
-
-export interface GitLogOptions {
-  readonly range?: string
-  readonly paths?: readonly string[]
-  readonly limit?: number
-  readonly includePaths?: boolean
-}
 
 export class GitMemoryRepo {
   readonly dir: string
@@ -275,58 +240,4 @@ export class GitMemoryRepo {
       env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
     })
   }
-}
-
-function parseLogOutput(output: string): MemoryCommit[] {
-  return output.split("\x1e").slice(1).map((record) => {
-    const [sha = "", subject = "", body = "", authorName = "", authorEmail = "", committedAt = ""] = record.split("\x1f")
-    const normalizedBody = body.replace(/\r?\n$/, "")
-    return {
-      sha,
-      subject,
-      body: normalizedBody,
-      authorName,
-      authorEmail,
-      committedAt: committedAt.trim(),
-      trailers: parseTrailers(normalizedBody),
-    }
-  })
-}
-
-function parseTrailers(body: string): Readonly<Record<string, string>> {
-  const trailers: Record<string, string> = {}
-  for (const line of body.split(/\r?\n/)) {
-    const match = /^([^:\s][^:]*):\s*(.*)$/.exec(line)
-    if (match === null) continue
-    const key = match[1]?.trim()
-    if (key !== undefined && key.length > 0) trailers[key] = match[2] ?? ""
-  }
-  return trailers
-}
-
-function parseNulPaths(output: string): string[] {
-  return output.split("\0").filter(Boolean)
-}
-
-function authorFlags(author: GitCommitAuthor): string[] {
-  const name = author.authorName.trim() || author.agentId
-  const email = author.authorEmail ?? `${author.agentId}@omo.local`
-  return ["-c", `user.name=${name}`, "-c", `user.email=${email}`]
-}
-
-function normalizePathspecs(paths: readonly string[]): string[] {
-  return [...new Set(paths.map((path) => path.replace(/\\/g, "/")).filter((path) => path.trim()))]
-}
-
-function normalizeSeedPath(path: string): string {
-  const normalized = path.replace(/\\/g, "/")
-  const segments = normalized.split("/").filter(Boolean)
-  if (!normalized || normalized.startsWith("/") || segments.some((segment) => segment === "." || segment === "..")) {
-    throw new InvalidGitPathError(`Invalid memory seed path: ${path}`)
-  }
-  return segments.join("/")
-}
-
-function commandError(argv: readonly string[], result: GitExecResult): GitCommandError {
-  return new GitCommandError(argv, result.code, result.stdout, result.stderr)
 }
