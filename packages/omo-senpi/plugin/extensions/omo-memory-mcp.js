@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-senpi-build:268ff12f1cf20c0e5df46a31ef4ac462c34bf57b0320aa1b96a977a144275897:bda48d836e8f1944ec01ba4eb9b23d94f6f77f32c3e3f0973a6ca54036fd5765
+// omo-senpi-build:68571d586b0908219c1c711a9bca8e3a8b78ce8d0f5c8d6448f2bf26c236faee:4d84e50a4e2bb944c54da22a7668b1f3449338a528d10c8d345ecae0e583f164
 import{dirname as Ce,resolve as Jt}from"node:path";import{pathToFileURL as Bo}from"node:url";function R(e){return typeof e==="object"&&e!==null&&!Array.isArray(e)}function j(e,t){return{jsonrpc:"2.0",id:e,result:t}}function b(e,t,n,r){return{jsonrpc:"2.0",id:e,error:r===void 0?{code:t,message:n}:{code:t,message:n,data:r}}}function H(e){return typeof e==="string"||typeof e==="number"||e===null?e:null}function Oe(e){return e instanceof Error?e.message:String(e)}var $e=Buffer.from(`\r
 \r
 `);async function*Ae(e){let t=Buffer.alloc(0);for await(let r of e){t=Buffer.concat([t,en(r)]);while(!0){let o=Kt(t);if(o.kind==="incomplete")break;if(t=o.remaining,o.message)yield o.message}}let n=t.toString("utf8").trim();if(n.length>0)yield ne(n,"line")}async function Ne(e,t,n){let r=JSON.stringify(t),o=n==="framed"?`Content-Length: ${Buffer.byteLength(r,"utf8")}\r
@@ -232,9 +232,7 @@ Cards hold what is stable about a person; observations hold what you noticed and
 
 ## Soul rules
 
-## Soul rules
-
-Files under system/ are your self-model, projected into every prompt. Edit them only for durable identity changes and keep them minimal. The persona is the single carrier of the announcement rule for those edits; this skill deliberately does not restate it. Never edit them silently: a silent edit to your own persona hides drift from the person best placed to catch it.
+Files under system/ are your self-model, projected into every prompt. Edit them only for durable identity changes and keep them minimal. The persona is the single carrier of the announcement rule for those edits; this skill deliberately does not restate it.
 
 \`system/identity.md\` is an optional card of particulars. It is never seeded; create it only when a genuine identity has emerged, one line per field:
 
