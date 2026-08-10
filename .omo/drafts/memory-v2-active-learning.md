@@ -119,3 +119,43 @@ and its packaged copy, with the drift-equality test still green.
   round 30: windows_specified, docs_carveout, t3_mcp_qa.
 - Empirical executability at this sha: NINE todos executed from this plan text (1, 2, 4, 5, 11, 15, 16, 23
   landed; more in flight), zero requiring human clarification.
+
+## Round 31 verdict and resolutions
+
+`fullscope-a31`, sha `00e7141a`: **VERDICT: BLOCKED** - 1 blocker, 1 note. Both integrated in `374a6bf31`.
+
+1. BLOCKER (abrupt-supervisor-death deadline hole) - a REAL hole in round 30's own Windows fix, not a
+   re-raise. Round 30 made the SUPERVISOR the sole deadline enforcer via `taskkill`. But on abrupt supervisor
+   death the reconciler reaches the win32 UNKNOWN path and writes `abandoned.json` WITHOUT terminating the
+   still-running child, so the child outlives `deadlineAt`. FIX: IC-8 gains BOOTSTRAP SELF-ENFORCEMENT - the
+   bootstrap arms its OWN timers against the persisted absolute instants, so the child self-terminates on ANY
+   platform regardless of supervisor liveness. That is what makes the win32 UNKNOWN path SAFE rather than
+   merely lossless. Todo 25 must test supervisor-kill-then-child-still-exits on both branches.
+2. NOTE (IC-7) - the extraction record is now a discriminated union on `scope`, with a parent-side validator
+   rejecting a project record carrying `person` or a person record missing it.
+
+## EMPIRICAL contract defect found by execution, not review (IC-6)
+
+The facts-queue executor's FIRST implementation FAILED, exposing a genuine gap in IC-6's prescribed
+mechanism. Ordering watermarks by position in the current journal entry list is well-defined only when BOTH
+endpoints appear in ONE list. A late-finishing batch does not contain the newer batch's endpoint, the lookup
+returns "not found", the guard reads that as "no newer watermark exists", and the consumed watermark rolled
+backward from m4 to m2. FIX: the cursor persists `enqueued_through_snapshot_line` /
+`consumed_through_snapshot_line` and advances only on a STRICTLY GREATER `range.end_snapshot_line`, which IS
+comparable across batches. Message-id position stays the INTRA-batch rule; snapshot line is the INTER-batch
+one. The plan's own mechanism was proven insufficient by running it, and the correction now matches the
+shipped implementation exactly.
+
+## Implementation regression found by the palace executor (not a plan defect)
+
+`hooks-scripts.ts:32` pinned `ALL_KNOWN_KEYS="description read_only limit"` while the people work added
+`kind`/`aliases` to the seeded `system/human.md` and the TS parser, so every FRESH memory repository failed
+its own pre-commit hook on init and lazy repo creation was blocked. Reproduced with the reporter's changes
+stashed; fixed in `3347fd4cc`; the previously failing lazy-init test now passes (11/11) and memfs is 97/97.
+
+## Round 32 - approval bind
+
+- plan sha256: `a607a88f25e397963b6ac552b109aa800e90a83c8e8805192e9d9ec30af22ec1`, committed at `374a6bf31`, working tree clean for that path.
+- lane spawned 2026-08-10T07:25:54Z: `fullscope-a32`, full-scope, no delta scoping. momus excluded.
+- Mechanical self-audit at this sha: **22/22 gates PASS**, 210 citations resolve in range.
+- Empirical executability: ELEVEN todos executed from this plan text (1, 2, 4, 5, 8, 11, 15, 16, 19, 23).
