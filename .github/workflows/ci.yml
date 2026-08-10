@@ -102,6 +102,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Remove stale self-package test copies
+        run: bun run script/remove-stale-self-package-tests.ts
+
       # The full install runs the root `prepare` (`bun run build`), whose
       # `build:lsp-daemon` step already runs `npm ci && npm run build` in
       # packages/lsp-daemon, so its node_modules and dist exist before the tests.
