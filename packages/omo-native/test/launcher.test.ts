@@ -94,7 +94,7 @@ process.exit(Number(process.env.FAKE_EXIT ?? 0))
 function run(fixture: Fixture, args: string[], env: NodeJS.ProcessEnv = {}) {
   return spawnSync(process.execPath, [fixture.launcher, ...args], {
     encoding: "utf8",
-    env: { ...process.env, CAPTURE_FILE: fixture.captureFile, ...env },
+    env: { ...process.env, PATH: "/usr/bin:/bin", CAPTURE_FILE: fixture.captureFile, ...env },
   })
 }
 

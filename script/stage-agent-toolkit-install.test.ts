@@ -2,6 +2,13 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
 
+/**
+ * CI restores a partially populated `node_modules` (the workspace symlinks are created by the root
+ * `bun install` whose prepare script triggers this build). `npm ci` then aborts with
+ * `EEXIST: file already exists, symlink '../../components/teammode'` because it refuses to
+ * overwrite a workspace link it did not create, and the whole senpi plugin build fails before a
+ * single test runs. The install therefore has to start from a tree it owns.
+ */
 const script = readFileSync(
   join(import.meta.dir, "..", "packages", "omo-senpi", "plugin", "scripts", "stage-agent-toolkit.mjs"),
   "utf8",

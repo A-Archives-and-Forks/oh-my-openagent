@@ -2,7 +2,7 @@
 import { spawnSync } from "node:child_process"
 import { createHash } from "node:crypto"
 import { constants } from "node:fs"
-import { access, chmod, copyFile, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises"
+import { access, chmod, copyFile, cp, mkdir, mkdtemp, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -68,17 +68,27 @@ export async function stageAgentToolkit(options = {}) {
       return { ok: true, sourceEntry, directiveEntry, targetDir, sha256: await sha256(sourceEntry) }
     }
     if (await fileExists(targetDir)) {
-      await rename(targetDir, backupDir)
-      backupCreated = true
+      if (process.platform === "win32") {
+        await cp(targetDir, backupDir, { recursive: true, force: true, verbatimSymlinks: true })
+        backupCreated = true
+        await rm(targetDir, { recursive: true, force: true })
+      } else {
+        await rename(targetDir, backupDir)
+        backupCreated = true
+      }
     }
     await rename(tempDir, targetDir)
     targetMoved = true
-    if (backupCreated) await rm(backupDir, { recursive: true, force: true })
+    if (backupCreated) {
+      await rm(backupDir, { recursive: true, force: true })
+      backupCreated = false
+    }
     return { ok: true, sourceEntry, directiveEntry, targetDir, sha256: await sha256(sourceEntry) }
   } catch (error) {
     if (!targetMoved && backupCreated) {
       await rm(targetDir, { recursive: true, force: true })
       await rename(backupDir, targetDir)
+      backupCreated = false
     }
     throw error
   } finally {
@@ -139,6 +149,10 @@ async function buildAggregateBundle() {
   const compiler = join(codexPluginRoot, "node_modules", ".bin", process.platform === "win32" ? "tsc.cmd" : "tsc")
   const needsInstall = !(await filesEqual(packageLock, installedPackageLock)) || !(await fileExists(compiler))
   if (needsInstall) {
+    // The root `bun install` links this plugin's workspaces before its prepare script reaches this
+    // build, and `npm ci` aborts on those pre-existing links with
+    // `EEXIST: file already exists, symlink '../../components/teammode'` rather than replacing them.
+    // Removing the tree first makes the install deterministic whoever populated it.
     await rm(codexPluginNodeModules, { recursive: true, force: true })
     run("npm", ["--prefix", "packages/omo-codex/plugin", "ci"])
   }

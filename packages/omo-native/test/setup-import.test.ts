@@ -197,6 +197,8 @@ describe("omo setup credential inheritance", () => {
     const files = readdirSync(item.agentDir)
     const backup = files.find((name) => /^auth\.json\.bak-\d{8}T\d{6}\.\d{3}Z$/.test(name))
     expect(first.status).toBe(0)
+    // Windows has no POSIX mode bits: chmod is a no-op and stat reports a default, so the 0600
+    // contract is only assertable where permission bits actually exist.
     if (process.platform !== "win32") expect(statSync(join(item.agentDir, "auth.json")).mode & 0o777).toBe(0o600)
     expect(backup).toBeDefined()
     expect(readFileSync(join(item.agentDir, backup!), "utf8")).toBe(original)
