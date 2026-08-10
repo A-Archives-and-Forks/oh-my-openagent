@@ -38,7 +38,7 @@ describe("removeStaleSelfPackageTests", () => {
     expect((await stat(unrelated)).isDirectory()).toBe(true)
   })
 
-  test("#given the root CI workflow #when steps are ordered #then stale self tests are removed before bun test", async () => {
+  test("#given root and Senpi CI jobs #when steps are ordered #then stale self tests are removed before each suite", async () => {
     // given
     const workflow = await readFile(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8")
 
@@ -46,12 +46,21 @@ describe("removeStaleSelfPackageTests", () => {
     const installIndex = workflow.indexOf("      - name: Install dependencies")
     const cleanupIndex = workflow.indexOf("      - name: Remove stale self-package test copies")
     const testIndex = workflow.indexOf("      - name: Run tests")
+    const senpiJobIndex = workflow.indexOf("  senpi-compatibility:")
+    const senpiInstallIndex = workflow.indexOf("      - name: Install dependencies", senpiJobIndex)
+    const senpiCleanupIndex = workflow.indexOf("      - name: Remove stale self-package test copies", senpiJobIndex)
+    const senpiTestIndex = workflow.indexOf("      - name: Run Senpi compatibility tests", senpiJobIndex)
+    const cleanupCount = workflow.match(/      - name: Remove stale self-package test copies/g)?.length ?? 0
 
     // then
     expect(installIndex).toBeGreaterThanOrEqual(0)
     expect(cleanupIndex).toBeGreaterThan(installIndex)
     expect(testIndex).toBeGreaterThan(cleanupIndex)
-    expect(workflow).toContain("run: bun run script/remove-stale-self-package-tests.ts")
+    expect(senpiInstallIndex).toBeGreaterThan(senpiJobIndex)
+    expect(senpiCleanupIndex).toBeGreaterThan(senpiInstallIndex)
+    expect(senpiTestIndex).toBeGreaterThan(senpiCleanupIndex)
+    expect(cleanupCount).toBe(2)
+    expect(workflow.match(/run: bun run script\/remove-stale-self-package-tests\.ts/g)).toHaveLength(2)
   })
 })
 
