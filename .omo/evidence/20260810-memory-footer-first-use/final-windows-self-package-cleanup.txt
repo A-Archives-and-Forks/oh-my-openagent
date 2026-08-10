@@ -1,0 +1,28 @@
+Final Windows root CI cleanup
+
+Observed CI failure:
+- Authoritative run: 31383351855
+- Windows root job: 93438288729
+- Current Git tree contained neither failing test path.
+- Bun executed stale self-package copies through package-local `node_modules`:
+  - `packages/omo-opencode/src/cli/ralph-compatibility.test.ts`
+  - `packages/omo-senpi/src/__tests__/registration-design-audit.test.ts`
+- The stale Ralph CLI test exhausted its 30-second test budget.
+- The stale registrar audit expected 72 registrations but saw the new memory `tool_result` registrar as registration 73.
+
+RED:
+- Added `script/remove-stale-self-package-tests.test.ts`.
+- Initial exact Bun 1.3.12 run failed because `remove-stale-self-package-tests.ts` did not exist.
+
+GREEN:
+- The cleanup scans only `packages/*/node_modules/{oh-my-opencode,oh-my-openagent}`.
+- It removes those stale self-package copies and leaves unrelated dependencies untouched.
+- The CI test job invokes it after `bun install --frozen-lockfile` and before `bun test`.
+- Focused test: 2 pass, 0 fail, 6 assertions.
+- Script typecheck: exit 0.
+- TypeScript no-excuse audit: no violations.
+- `actionlint .github/workflows/ci.yml`: exit 0.
+- Real workspace invocation: no stale self-package test copies found on macOS.
+
+Remaining proof:
+- The final Windows GitHub Actions root job must pass with the cleanup step before PR merge.
