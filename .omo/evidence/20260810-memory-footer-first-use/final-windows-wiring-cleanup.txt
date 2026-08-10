@@ -20,9 +20,15 @@ Fix:
 - No sleeps, assertion retries, skipped checks, or weakened behavior.
 
 Local verification:
-- Cleanup plus focused memory tests: 25 pass, 0 fail, 73 assertions.
-- Full memory suite: 251 pass, 0 fail, 832 assertions.
+- Cleanup plus focused memory tests: 25 pass, 0 fail, 75 assertions.
+- Full memory suite: 251 pass, 0 fail, 834 assertions.
 - Omo-senpi typecheck: exit 0.
 
+Second Windows observation:
+- Run 31387195794, job 93450243823, confirmed the bounded removal fixed the prior `EPERM`.
+- The same reset test then exposed a combined sequence assertion after the second session published its footer.
+- The test now verifies the first shutdown clear immediately after `session_shutdown`, resets the observation buffer, and verifies the second session independently.
+- No behavior assertion was removed; each lifecycle edge is checked closer to the event that produces it.
+
 Remaining proof:
-- The final Senpi Windows job and Windows root job must pass before merge.
+- The replacement Senpi Windows job and Windows root job must pass before merge.

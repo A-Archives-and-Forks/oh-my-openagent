@@ -6,8 +6,8 @@ Sync:
 - Merge conflicts: none.
 
 Verification on the merged tree:
-- Cleanup plus focused memory tests: 25 pass, 0 fail, 73 assertions.
-- Full memory component: 251 pass, 0 fail, 832 assertions.
+- Cleanup plus focused memory tests: 25 pass, 0 fail, 75 assertions.
+- Full memory component: 251 pass, 0 fail, 834 assertions.
 - Script typecheck: exit 0.
 - Omo-senpi typecheck: exit 0.
 - `actionlint .github/workflows/ci.yml`: exit 0.
