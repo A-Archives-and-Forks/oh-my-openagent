@@ -230,15 +230,15 @@ describe("observation entry format (IC-16)", () => {
       const result = parsePeopleCard(text, limits)
 
       expect(result.diagnostics).toEqual([])
-      expect(result.card.observations).toHaveLength(1)
-      expect(result.card.observations[0].section).toBe("Explicit")
-      expect(result.card.observations[0].entries[0].date).toBe("2026-01-15")
-      expect(result.card.observations[0].entries[0].content).toBe("Prefers dark mode")
-      expect(result.card.observations[0].entries[0].src).toBe("msg-001")
-      expect(result.card.observations[0].entries[0].n).toBe(2)
-      expect(result.card.observations[0].entries[0].pattern).toBe("repeated")
-      expect(result.card.observations[0].entries[0].confidence).toBe("high")
-      expect(result.card.observations[0].entries[0].status).toBe("open")
+      expect((result.card.observations ?? [])).toHaveLength(1)
+      expect((result.card.observations ?? [])[0].section).toBe("Explicit")
+      expect((result.card.observations ?? [])[0].entries[0].date).toBe("2026-01-15")
+      expect((result.card.observations ?? [])[0].entries[0].content).toBe("Prefers dark mode")
+      expect((result.card.observations ?? [])[0].entries[0].src).toBe("msg-001")
+      expect((result.card.observations ?? [])[0].entries[0].n).toBe(2)
+      expect((result.card.observations ?? [])[0].entries[0].pattern).toBe("repeated")
+      expect((result.card.observations ?? [])[0].entries[0].confidence).toBe("high")
+      expect((result.card.observations ?? [])[0].entries[0].status).toBe("open")
     })
   })
 
@@ -252,11 +252,11 @@ describe("observation entry format (IC-16)", () => {
     it("#then parsePeopleCard extracts with optional fields undefined", () => {
       const result = parsePeopleCard(text, limits)
 
-      expect(result.card.observations[0].entries[0].src).toBe("msg-001")
-      expect(result.card.observations[0].entries[0].n).toBeUndefined()
-      expect(result.card.observations[0].entries[0].pattern).toBeUndefined()
-      expect(result.card.observations[0].entries[0].confidence).toBeUndefined()
-      expect(result.card.observations[0].entries[0].status).toBeUndefined()
+      expect((result.card.observations ?? [])[0].entries[0].src).toBe("msg-001")
+      expect((result.card.observations ?? [])[0].entries[0].n).toBeUndefined()
+      expect((result.card.observations ?? [])[0].entries[0].pattern).toBeUndefined()
+      expect((result.card.observations ?? [])[0].entries[0].confidence).toBeUndefined()
+      expect((result.card.observations ?? [])[0].entries[0].status).toBeUndefined()
     })
   })
 
@@ -270,8 +270,8 @@ describe("observation entry format (IC-16)", () => {
     it("#then parsePeopleCard extracts with all comment fields undefined", () => {
       const result = parsePeopleCard(text, limits)
 
-      expect(result.card.observations[0].entries[0].content).toBe("Plain fact")
-      expect(result.card.observations[0].entries[0].src).toBeUndefined()
+      expect((result.card.observations ?? [])[0].entries[0].content).toBe("Plain fact")
+      expect((result.card.observations ?? [])[0].entries[0].src).toBeUndefined()
     })
   })
 
@@ -289,11 +289,11 @@ describe("observation entry format (IC-16)", () => {
     it("#then parsePeopleCard separates them by section", () => {
       const result = parsePeopleCard(text, limits)
 
-      expect(result.card.observations).toHaveLength(2)
-      expect(result.card.observations[0].section).toBe("Explicit")
-      expect(result.card.observations[0].entries).toHaveLength(1)
-      expect(result.card.observations[1].section).toBe("Deductive")
-      expect(result.card.observations[1].entries).toHaveLength(1)
+      expect((result.card.observations ?? [])).toHaveLength(2)
+      expect((result.card.observations ?? [])[0].section).toBe("Explicit")
+      expect((result.card.observations ?? [])[0].entries).toHaveLength(1)
+      expect((result.card.observations ?? [])[1].section).toBe("Deductive")
+      expect((result.card.observations ?? [])[1].entries).toHaveLength(1)
     })
   })
 
@@ -307,8 +307,8 @@ describe("observation entry format (IC-16)", () => {
     it("#then parsePeopleCard extracts n without src", () => {
       const result = parsePeopleCard(text, limits)
 
-      expect(result.card.observations[0].entries[0].n).toBe(3)
-      expect(result.card.observations[0].entries[0].src).toBeUndefined()
+      expect((result.card.observations ?? [])[0].entries[0].n).toBe(3)
+      expect((result.card.observations ?? [])[0].entries[0].src).toBeUndefined()
     })
   })
 
@@ -322,8 +322,8 @@ describe("observation entry format (IC-16)", () => {
     it("#then parsePeopleCard preserves the full src string", () => {
       const result = parsePeopleCard(text, limits)
 
-      expect(result.card.observations[0].entries[0].src).toBe("msg-001,msg-002")
-      expect(result.card.observations[0].entries[0].n).toBe(2)
+      expect((result.card.observations ?? [])[0].entries[0].src).toBe("msg-001,msg-002")
+      expect((result.card.observations ?? [])[0].entries[0].n).toBe(2)
     })
   })
 
@@ -373,7 +373,7 @@ describe("observation entry format (IC-16)", () => {
       const result = parsePeopleCard(text, limits)
 
       expect(result.card.entries).toHaveLength(2)
-      expect(result.card.observations).toHaveLength(1)
+      expect((result.card.observations ?? [])).toHaveLength(1)
       expect(result.diagnostics).toEqual([])
     })
 
