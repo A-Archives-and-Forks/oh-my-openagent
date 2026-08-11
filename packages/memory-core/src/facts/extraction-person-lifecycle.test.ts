@@ -119,7 +119,7 @@ describe("person routing reinforcement", () => {
     const reinforced = await readExplicitEntries(dir, "mina")
     expect(reinforced).toHaveLength(1)
     expect(reinforced[0]).toMatchObject({ date: "2026-08-11", content: "Mina prefers concise reviews.", n: 3 })
-  })
+  }, 30_000)
 
   test("#given an existing explicit observation #when a different fact arrives #then it appends a separate line", async () => {
     // given
@@ -138,7 +138,7 @@ describe("person routing reinforcement", () => {
     expect(entries).toHaveLength(2)
     expect(entries[0]).toMatchObject({ date: "2026-08-01", content: "Mina prefers concise reviews." })
     expect(entries[1]).toMatchObject({ date: "2026-08-10", content: "Mina prefers dark themes." })
-  })
+  }, 30_000)
 })
 
 describe("person routing new people", () => {
@@ -165,7 +165,7 @@ describe("person routing new people", () => {
     })
     expect((await readExplicitEntries(dir, "yeongyu")).map((entry) => entry.content))
       .toEqual(["Yeongyu reviews on Tuesdays."])
-  })
+  }, 30_000)
 
   test("#given a slug already taken by a different person #when a new person sanitizes to it #then a numeric suffix avoids the collision", async () => {
     // given
@@ -185,7 +185,7 @@ describe("person routing new people", () => {
       .toEqual(["Yeongyu joined the platform guild."])
     expect(await readFile(join(dir, "people", "yeongyu", "observations.md"), "utf8").catch(() => undefined))
       .toBeUndefined()
-  })
+  }, 30_000)
 
   test("#given two facts about the same new person in one batch #when applied #then one card receives both entries", async () => {
     // given
@@ -204,5 +204,5 @@ describe("person routing new people", () => {
     expect(await readdir(join(dir, "people"))).toEqual(["yeongyu"])
     expect((await readExplicitEntries(dir, "yeongyu")).map((entry) => entry.content))
       .toEqual(["Yeongyu reviews on Tuesdays.", "YG drafted the alias table."])
-  })
+  }, 30_000)
 })

@@ -131,7 +131,7 @@ export class GitPathStateStore {
       throw error
     }
     if (!stat.isFile()) throw unsupportedWorktree(path, stat.isSymbolicLink() ? "symlink" : "non-file")
-    const oid = await this.hashWorktreeBlob(await readFile(fullPath))
+    const oid = await this.hashWorktreeBlob(await readFile(fullPath), true)
     return { kind: "file", mode: stat.mode & 0o777, oid }
   }
 

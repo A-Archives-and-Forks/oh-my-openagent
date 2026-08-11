@@ -1,21 +1,27 @@
 import {
+  FactsPlanParentDirtyError,
   LockContentionError,
-  applyFactsBatch,
-  restoreFactsBatch,
-  type ApplyFactsBatchResult,
+  applyFactsRecovery,
+  findFactsBatchReceipt,
+  planFactsMutation,
+  validateFactsRecovery,
+  type FactsApplyRecovery,
   type FactsPeopleRouting,
   type GitMemoryRepo,
   type MemoryIdentity,
   type parseFactsExtractionJsonl,
 } from "@oh-my-opencode/memory-core"
-
 import type { OmoConfig } from "@oh-my-opencode/omo-config-core"
 
 import type { ComponentLogger } from "../../extension/types"
-import { updateRunLedger } from "./worker/run-artifacts"
 import type { FactsRunLedger } from "./facts-runner-types"
+import { updateRunLedger } from "./worker/run-artifacts"
 
 const WRITER_ATTEMPTS = 3
+
+type Applied =
+  | { readonly outcome: "committed"; readonly sha: string }
+  | { readonly outcome: "parent_dirty" }
 
 export function resolveFactsPeopleRouting(config: OmoConfig, identity: string): FactsPeopleRouting {
   const memory = config.memory
@@ -38,27 +44,10 @@ export async function applyFactsWithRetries(options: {
   readonly withWriterLock: <T>(operation: () => Promise<T>, attempt: number) => Promise<T>
   readonly retryDelay?: (attempt: number, delayMs: number) => Promise<void>
   readonly random?: () => number
-}): Promise<Extract<ApplyFactsBatchResult, { readonly outcome: "committed" }> | undefined> {
+}): Promise<Applied | undefined> {
   for (let attempt = 1; attempt <= WRITER_ATTEMPTS; attempt += 1) {
     try {
-      const result = await options.withWriterLock(async () => {
-        const headBeforeApply = await options.repo.head()
-        if (headBeforeApply === null) throw new Error("facts repository has no HEAD")
-        await updateRunLedger(`${options.runDir}/ledger.json`, { headBeforeApply })
-        await restoreFactsBatch(options.repo, options.records, { people: options.people })
-        return applyFactsBatch(options.repo, { batchId: options.ledger.batchId, records: options.records }, {
-          agentId: options.identity.id,
-          authorName: "Facts Extractor",
-        }, {
-          people: options.people,
-          onAliasTie: (tie) => options.logger?.warn(
-            "facts person alias tie resolved by slug order",
-            { alias: tie.alias, slugs: tie.slugs.join(","), chosen: tie.chosen },
-          ),
-        })
-      }, attempt)
-      if (result.outcome !== "committed") throw new Error("facts batch unexpectedly produced no commit")
-      return result
+      return await options.withWriterLock(async () => applyClaimed(options), attempt)
     } catch (error) {
       if (!(error instanceof LockContentionError)) throw error
       if (attempt === WRITER_ATTEMPTS) {
@@ -70,6 +59,46 @@ export async function applyFactsWithRetries(options: {
     }
   }
   return undefined
+}
+
+async function applyClaimed(options: {
+  readonly runDir: string
+  readonly ledger: FactsRunLedger
+  readonly repo: GitMemoryRepo
+  readonly records: ReturnType<typeof parseFactsExtractionJsonl>
+  readonly people: FactsPeopleRouting
+  readonly identity: MemoryIdentity
+  readonly logger?: ComponentLogger
+}): Promise<Applied> {
+  const receipt = await findFactsBatchReceipt(options.repo, options.ledger.batchId)
+  if (receipt !== undefined) return { outcome: "committed", sha: receipt.sha }
+  const batch = { batchId: options.ledger.batchId, records: options.records }
+  let recovery: FactsApplyRecovery
+  if (options.ledger.applyRecovery !== undefined) {
+    recovery = options.ledger.applyRecovery
+    validateFactsRecovery(recovery, batch)
+  } else {
+    try {
+      recovery = await planFactsMutation(options.repo, batch, options.people, (tie) => options.logger?.warn(
+        "facts person alias tie resolved by slug order",
+        { alias: tie.alias, slugs: tie.slugs.join(","), chosen: tie.chosen },
+      ))
+    } catch (error) {
+      if (error instanceof FactsPlanParentDirtyError) return { outcome: "parent_dirty" }
+      throw error
+    }
+    await updateRunLedger(`${options.runDir}/ledger.json`, {
+      headBeforeApply: recovery.headBeforeApply,
+      applyRecovery: recovery,
+    })
+  }
+  const result = await applyFactsRecovery(options.repo, recovery, options.records.length, {
+    agentId: options.identity.id,
+    authorName: "Facts Extractor",
+  })
+  return result.outcome === "parent_dirty"
+    ? result
+    : { outcome: "committed", sha: result.sha }
 }
 
 function delay(_attempt: number, milliseconds: number): Promise<void> {

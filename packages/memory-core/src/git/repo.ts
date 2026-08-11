@@ -4,10 +4,11 @@ import { dirname, join } from "node:path"
 import { withSerializedGitConfigMutation } from "./config-lock"
 import { DirtyRepoError, NoEffectiveChangesError } from "./errors"
 import { createNodeGitExec, type GitExec, type GitExecResult } from "./exec"
-import { describeDirtyMarkdownEncodingIssues, parsePorcelainPath } from "./porcelain"
+import { describeDirtyMarkdownEncodingIssues } from "./porcelain"
 import { GitPathStateStore } from "./path-state"
 import { authorFlags, commandError, normalizePathspecs, normalizeSeedPath } from "./repo-arguments"
 import { parseLogOutput, parseNulPaths } from "./repo-log"
+import { assertNoUnrelatedChanges } from "./repo-status"
 import type {
   GitCommitAuthor,
   GitCommitResult,
@@ -70,7 +71,7 @@ export class GitMemoryRepo {
     if (paths.length > 0) {
       await this.stage(paths)
       if (await this.hasPathChanges(paths)) {
-        return (await this.commitStaged(INITIAL_COMMIT, author, paths)).sha
+        return (await this.commitStaged(INITIAL_COMMIT, author)).sha
       }
     }
 
@@ -94,18 +95,28 @@ export class GitMemoryRepo {
     const normalized = normalizePathspecs(paths)
     if (normalized.length === 0) throw new NoEffectiveChangesError(normalized)
 
-    await this.assertNoUnrelatedChanges(normalized)
+    await assertNoUnrelatedChanges(this.dir, normalized, () => this.status())
     await this.stage(normalized)
-    if (!(await this.hasPathChanges(normalized))) {
-      throw new NoEffectiveChangesError(normalized)
-    }
-    return this.commitStaged(reason, author, normalized)
+    return this.commitPrepared(normalized, reason, author)
+  }
+
+  async commitPrepared(
+    paths: readonly string[],
+    reason: string,
+    author: GitCommitAuthor,
+  ): Promise<GitCommitResult> {
+    await this.hookInstaller(this.dir)
+    const normalized = normalizePathspecs(paths)
+    if (normalized.length === 0) throw new NoEffectiveChangesError(normalized)
+    await assertNoUnrelatedChanges(this.dir, normalized, () => this.status())
+    if (!(await this.hasPathChanges(normalized))) throw new NoEffectiveChangesError(normalized)
+    return this.commitStaged(reason, author)
   }
 
   async status(paths: readonly string[] = []): Promise<string> {
     const normalized = normalizePathspecs(paths)
     const suffix = normalized.length > 0 ? ["--", ...normalized] : []
-    return (await this.git(["status", "--porcelain", ...suffix])).stdout
+    return (await this.git(["status", "--porcelain", "--untracked-files=all", ...suffix])).stdout
   }
 
   async head(): Promise<string | null> {
@@ -189,20 +200,6 @@ export class GitMemoryRepo {
     }
   }
 
-  private async assertNoUnrelatedChanges(paths: readonly string[]): Promise<void> {
-    const porcelain = await this.status()
-    const unrelated = porcelain.split(/\r?\n/).filter(Boolean).filter((line) => {
-      const path = parsePorcelainPath(line)
-      return path !== null && !paths.some((allowed) =>
-        path === allowed || path.startsWith(`${allowed}/`) || allowed.startsWith(path.endsWith("/") ? path : `${path}/`),
-      )
-    })
-    if (unrelated.length > 0) {
-      const listing = `${unrelated.join("\n")}\n`
-      throw new DirtyRepoError(listing, describeDirtyMarkdownEncodingIssues(this.dir, listing))
-    }
-  }
-
   private async stage(paths: readonly string[]): Promise<void> {
     await this.git(["add", "-A", "--", ...paths])
   }
@@ -214,14 +211,8 @@ export class GitMemoryRepo {
   private async commitStaged(
     reason: string,
     author: GitCommitAuthor,
-    paths: readonly string[],
   ): Promise<GitCommitResult> {
-    try {
-      await this.git([...authorFlags(author), "commit", "-m", reason])
-    } catch (error) {
-      await this.gitResult(["reset", "HEAD", "--", ...paths])
-      throw error
-    }
+    await this.git([...authorFlags(author), "commit", "-m", reason])
     return { committed: true, sha: await this.requireHead() }
   }
 

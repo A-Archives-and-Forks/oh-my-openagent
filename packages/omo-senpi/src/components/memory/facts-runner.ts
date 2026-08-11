@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto"
 import { existsSync } from "node:fs"
-import { readFile, readdir } from "node:fs/promises"
+import { readFile } from "node:fs/promises"
 import { basename, join } from "node:path"
 
 import {
   FactsQueue,
   GitMemoryRepo,
+  findFactsBatchReceipt,
   buildDefaultSeedFiles,
   createLockRecord,
   memoryWriterLockPath,
@@ -17,7 +18,7 @@ import {
 import { readFactsPeoplePayload } from "./facts-people-payload"
 import { launchFactsModelChain } from "./worker/facts-child-launch"
 import { resolveReflectionModel } from "./worker/resolve-model"
-import { readRunJson, runOutcomeMatchesLedger, updateRunLedger, writeRunJsonAtomic, type RunOutcome } from "./worker/run-artifacts"
+import { readRunJson, type RunOutcome } from "./worker/run-artifacts"
 
 const QUICK_CATEGORY = "quick"
 const DEFAULT_DEADLINE_MS = 15 * 60_000
@@ -25,8 +26,9 @@ const WRITER_WAIT_MS = 2_000
 
 export type { FactsExtractorRunnerOptions, FactsLaunchResult } from "./facts-runner-types"
 import type { FactsExtractorRunnerOptions, FactsFinalRecord, FactsLaunchResult, FactsRunLedger } from "./facts-runner-types"
-import { describe, finalResult, queueKeys, reserveFactsRunDir, runLiveness, writeFactsFinal } from "./facts-run-storage"
+import { describe, finalResult, queueKeys, reserveFactsRunDir, writeFactsFinal } from "./facts-run-storage"
 import { applyFactsWithRetries, resolveFactsPeopleRouting } from "./facts-batch-apply"
+import { reconcileFactsRuns } from "./facts-run-reconcile"
 
 export class FactsExtractorRunner {
   private readonly queue: FactsQueue
@@ -122,45 +124,17 @@ export class FactsExtractorRunner {
     return this.finalizeRun(runDir, repo)
   }
 
-  private async reconcileRuns(): Promise<boolean> {
-    const runsDir = join(this.options.identity.paths.facts, "runs")
-    const names = await readdir(runsDir).catch(() => [])
-    let active = false
-    for (const name of names.sort()) {
-      const runDir = join(runsDir, name)
-      if (existsSync(join(runDir, "final.json")) || existsSync(join(runDir, "abandoned.json"))) continue
-      const ledger = await readRunJson<FactsRunLedger>(join(runDir, "ledger.json")).catch(() => undefined)
-      if (ledger === undefined) continue
-      if (existsSync(join(runDir, "outcome.json"))) {
-        const outcome = await readRunJson<RunOutcome>(join(runDir, "outcome.json"))
-        if (runOutcomeMatchesLedger(ledger, outcome)) {
-          const repo = new GitMemoryRepo({ dir: this.options.identity.paths.repo, agentId: this.options.identity.id })
-          try {
-            await this.finalizeRun(runDir, repo)
-          } catch (error) {
-            this.options.logger?.warn("facts run reconciliation remains pending", {
-              runId: ledger.runId,
-              error: describe(error),
-            })
-            active = true
-          }
-          continue
-        }
-      }
-      const verdict = await runLiveness(ledger)
-      if (verdict === "alive" || this.now().getTime() <= ledger.deadlineAt) {
-        active = true
-        continue
-      }
-      if (verdict === "unknown") {
-        await writeRunJsonAtomic(join(runDir, "abandoned.json"), {
-          version: 1, runId: ledger.runId, abandonedAt: this.now().toISOString(), reason: "unknown_liveness",
-        })
-      } else {
-        await this.writeFinal(runDir, ledger.runId, "failed", "facts supervisor and child are not alive")
-      }
-    }
-    return active
+  private reconcileRuns(): Promise<boolean> {
+    return reconcileFactsRuns({
+      factsDir: this.options.identity.paths.facts,
+      now: this.now,
+      finalize: async (runDir) => {
+        const repo = new GitMemoryRepo({ dir: this.options.identity.paths.repo, agentId: this.options.identity.id })
+        await this.finalizeRun(runDir, repo)
+      },
+      fail: (runDir, runId, detail) => this.writeFinal(runDir, runId, "failed", detail),
+      warn: (message, fields) => this.options.logger?.warn(message, fields),
+    })
   }
 
   private async finalizeRun(runDir: string, repo: GitMemoryRepo): Promise<FactsLaunchResult> {
@@ -179,7 +153,13 @@ export class FactsExtractorRunner {
     repo: GitMemoryRepo,
     ledger: FactsRunLedger,
   ): Promise<FactsLaunchResult> {
+    const receipt = await findFactsBatchReceipt(repo, ledger.batchId)
     const payload = await readRunJson<FactsPayload>(join(runDir, "facts-payload.json"))
+    if (receipt !== undefined) {
+      await this.queue.markConsumed(payload.entries)
+      await this.writeFinal(runDir, ledger.runId, "committed", undefined, receipt.sha)
+      return { status: "committed", runId: ledger.runId, sha: receipt.sha }
+    }
     const outcome = await readRunJson<RunOutcome>(join(runDir, "outcome.json"))
     if (outcome.timedOut || outcome.childExit.code !== 0) {
       await this.writeFinal(runDir, ledger.runId, "failed", "facts child did not exit successfully")
@@ -193,15 +173,6 @@ export class FactsExtractorRunner {
       return { status: "failed", runId: ledger.runId }
     }
 
-    if (ledger.headBeforeApply !== undefined) {
-      const commits = await repo.log({ range: `${ledger.headBeforeApply}..HEAD` })
-      const receipt = commits.find((commit) => commit.trailers["Omo-Facts-Batch"] === ledger.batchId)
-      if (receipt !== undefined) {
-        await this.queue.markConsumed(payload.entries)
-        await this.writeFinal(runDir, ledger.runId, "committed", undefined, receipt.sha)
-        return { status: "committed", runId: ledger.runId, sha: receipt.sha }
-      }
-    }
     if (records.length === 0) {
       await this.queue.markConsumed(payload.entries)
       await this.writeFinal(runDir, ledger.runId, "no_facts")
@@ -218,6 +189,10 @@ export class FactsExtractorRunner {
     if (applied === undefined) {
       await this.writeFinal(runDir, ledger.runId, "failed", "memory-write lock exhausted")
       return { status: "failed", runId: ledger.runId }
+    }
+    if (applied.outcome === "parent_dirty") {
+      await this.writeFinal(runDir, ledger.runId, "parent_dirty", "memory repository contains foreign state")
+      return { status: "parent_dirty", runId: ledger.runId }
     }
     await this.queue.markConsumed(payload.entries)
     await this.writeFinal(runDir, ledger.runId, "committed", undefined, applied.sha)
@@ -255,7 +230,7 @@ export class FactsExtractorRunner {
   private async writeFinal(
     runDir: string,
     runId: string,
-    outcome: "committed" | "no_facts" | "failed",
+    outcome: "committed" | "no_facts" | "failed" | "parent_dirty",
     detail?: string,
     sha?: string,
   ): Promise<void> {

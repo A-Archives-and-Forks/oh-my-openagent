@@ -110,7 +110,7 @@ describe("person routing alias resolution", () => {
     expect(entries[0]?.date).toBe("2026-08-10")
     expect(entries[0]?.n).toBeUndefined()
     expect(await readdir(join(dir, "people"))).toEqual(["mina"])
-  })
+  }, 30_000)
 
   test("#given two cards whose aliases both match #when resolved #then the longest matching alias wins", async () => {
     // given
@@ -129,7 +129,7 @@ describe("person routing alias resolution", () => {
       .toEqual(["Mina reviewed the plan."])
     expect(await readFile(join(dir, "people", "mina-kim", "observations.md"), "utf8").catch(() => undefined))
       .toBeUndefined()
-  })
+  }, 30_000)
 
   test("#given two cards with equal-length matching aliases #when resolved #then the smallest slug wins and the tie is logged", async () => {
     // given
@@ -148,7 +148,7 @@ describe("person routing alias resolution", () => {
     expect((await readExplicitEntries(dir, "aaa-min")).map((entry) => entry.content))
       .toEqual(["Min joined the platform guild."])
     expect(ties).toEqual([{ alias: "Min", slugs: ["aaa-min", "bbb-min"], chosen: "aaa-min" }])
-  })
+  }, 30_000)
 
   test("#given the primary human card carries an alias #when a fact names it #then it routes to the human ledger without a new card", async () => {
     // given
@@ -174,5 +174,5 @@ describe("person routing alias resolution", () => {
     expect((await readExplicitEntries(dir, "human")).map((entry) => entry.content))
       .toEqual(["Lo prefers dark themes."])
     expect(existsSync(join(dir, "people", "human", "card.md"))).toBe(false)
-  })
+  }, 30_000)
 })

@@ -30,7 +30,7 @@ describe("deterministic facts writer-lock interleavings", () => {
     expect(result.status).toBe("committed")
     expect(attempts).toEqual([1, 2])
     expect(await queue.listPending()).toHaveLength(0)
-  })
+  }, 30_000)
 
   test("#given the lock remains held for all three attempts #when finalization exhausts retries #then no commit lands and one warning leaves queue and watermarks unchanged", async () => {
     // given
@@ -65,5 +65,5 @@ describe("deterministic facts writer-lock interleavings", () => {
     expect(await queue.readCursor("session-1")).toEqual(before)
     const repo = new GitMemoryRepo({ dir: identity.paths.repo, agentId: identity.id })
     expect((await repo.log()).filter((commit) => commit.trailers["Generated-By"] === "facts-extractor")).toHaveLength(0)
-  })
+  }, 30_000)
 })

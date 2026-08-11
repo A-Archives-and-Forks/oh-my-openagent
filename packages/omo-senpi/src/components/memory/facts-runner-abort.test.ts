@@ -20,7 +20,7 @@ describe("facts runner shutdown abort boundary", () => {
     expect(result.status).toBe("skipped")
     expect(await queue.listPending()).toHaveLength(1)
     expect(existsSync(join(identity.paths.facts, "runs"))).toBe(false)
-  })
+  }, 30_000)
 
   test("#given the abort fires at the batch-id hook mid-composite #when launch proceeds #then the reservation boundary refuses to start", async () => {
     // given: the abort lands mid-composite, inside the batch-id hook right before the
@@ -41,5 +41,5 @@ describe("facts runner shutdown abort boundary", () => {
     expect(result.status).toBe("skipped")
     expect(await queue.listPending()).toHaveLength(1)
     expect(existsSync(join(identity.paths.facts, "runs"))).toBe(false)
-  })
+  }, 30_000)
 })

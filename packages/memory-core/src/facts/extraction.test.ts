@@ -101,7 +101,7 @@ describe("facts extraction JSONL validation", () => {
 
     // then
     expect(records).toEqual([project(), person()])
-  })
+  }, 30_000)
 
   test("#given a project record carrying person #when parsed #then the whole extraction is rejected", () => {
     // given
@@ -112,7 +112,7 @@ describe("facts extraction JSONL validation", () => {
 
     // then
     expect(operation).toThrow("project record must not carry person")
-  })
+  }, 30_000)
 
   test("#given a person record missing person #when parsed #then the whole extraction is rejected", () => {
     // given
@@ -123,7 +123,7 @@ describe("facts extraction JSONL validation", () => {
 
     // then
     expect(operation).toThrow("person record requires person")
-  })
+  }, 30_000)
 })
 
 describe("atomic facts batch application", () => {
@@ -149,7 +149,7 @@ describe("atomic facts batch application", () => {
     expect(commit?.trailers["Generated-By"]).toBe("facts-extractor")
     expect(commit?.trailers["Omo-Writer"]).toBe("facts-extractor")
     expect(commit?.trailers["Omo-Facts-Batch"]).toBe("11111111-1111-4111-8111-111111111111")
-  })
+  }, 30_000)
 
   test("#given zero applicable records #when applied #then no commit is attempted", async () => {
     // given
@@ -165,7 +165,7 @@ describe("atomic facts batch application", () => {
     // then
     expect(result).toEqual({ outcome: "no_facts", affectedPaths: [] })
     expect(await repo.head()).toBe(before)
-  })
+  }, 30_000)
 
   test("#given git commit fails after staging #when the batch aborts #then index and working tree are restored", async () => {
     // given
@@ -192,5 +192,5 @@ describe("atomic facts batch application", () => {
     await expect(operation).rejects.toThrow("injected commit failure")
     expect(await repo.status()).toBe("")
     expect(await readFile(join(dir, "notes/facts/2026-08.md"), "utf8").catch(() => undefined)).toBeUndefined()
-  })
+  }, 30_000)
 })

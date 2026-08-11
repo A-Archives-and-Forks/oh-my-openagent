@@ -8,9 +8,8 @@ export {
 export {
   applyFactsBatch,
   FactsExtractionValidationError,
-  factsBatchPaths,
   parseFactsExtractionJsonl,
-  restoreFactsBatch,
+  validateFactsRecovery,
   type ApplyFactsBatchOptions,
   type ApplyFactsBatchResult,
   type FactsBatch,
@@ -20,8 +19,21 @@ export {
   type FactsPersonReference,
 } from "./extraction"
 export {
+  FactsPlanParentDirtyError,
+  factsRecordsHash,
+  planFactsMutation,
+  type FactsApplyRecovery,
+  type FactsRecoveryPath,
+} from "./mutation-plan"
+export {
+  applyFactsRecovery,
+  findFactsBatchReceipt,
+  type FactsRecoveryResult,
+} from "./recovery"
+export {
   normalizeObservationText,
   planFactsRouting,
+  renderPersonTargets,
   type FactsAliasTie,
   type FactsPeopleRouting,
   type FactsPersonTarget,

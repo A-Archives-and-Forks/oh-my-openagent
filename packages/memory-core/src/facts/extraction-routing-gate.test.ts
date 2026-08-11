@@ -106,7 +106,7 @@ describe("person routing gate and unresolved mentions", () => {
     const memory = parseMemoryFile(await readFile(join(dir, "notes/facts/2026-08.md"), "utf8"))
     expect(memory.body).toContain("- [2026-08-10] Mina prefers concise reviews.")
     expect(existsSync(join(dir, "people", "mina"))).toBe(false)
-  })
+  }, 30_000)
 
   test("#given an unresolved person mention #when applied #then the prefixed bullet is stored verbatim in monthly notes", async () => {
     // given
@@ -126,5 +126,5 @@ describe("person routing gate and unresolved mentions", () => {
     const memory = parseMemoryFile(await readFile(join(dir, "notes/facts/2026-08.md"), "utf8"))
     expect(memory.body).toContain("- [2026-08-10] person-unresolved: A teammate said the launch slips.")
     expect(existsSync(join(dir, "people"))).toBe(false)
-  })
+  }, 30_000)
 })

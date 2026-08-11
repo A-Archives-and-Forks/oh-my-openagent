@@ -9,8 +9,8 @@
  * people/human/observations.md. The whole path is gated by people.enabled.
  */
 
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises"
-import { dirname, join } from "node:path"
+import { readFile } from "node:fs/promises"
+import { join } from "node:path"
 
 import { parseMemoryFile, renderMemoryFile } from "../memfs"
 import {
@@ -23,6 +23,7 @@ import {
   type PeopleLimits,
 } from "../people"
 import type { FactsExtractionRecord, FactsPersonReference } from "./extraction"
+import { readFactsPeopleIndex, type FactsPeopleIndexEntry } from "./person-index"
 
 export interface FactsPeopleRouting {
   readonly enabled: boolean
@@ -51,12 +52,6 @@ export interface FactsRoutingPlan {
   }>
 }
 
-interface PeopleIndexEntry {
-  readonly slug: string
-  readonly displayName: string
-  readonly names: readonly string[]
-}
-
 type MutableObservationBucket = {
   readonly target: FactsPersonTarget
   records: FactsExtractionRecord[]
@@ -79,7 +74,7 @@ export async function planFactsRouting(
     return { notes, observations }
   }
 
-  const index = await readPeopleIndex(repoDir)
+  const index = await readFactsPeopleIndex(repoDir)
   const taken = new Set(index.map((entry) => entry.slug))
   for (const record of records) {
     if (record.scope !== "person") {
@@ -123,15 +118,20 @@ export function factsRoutingPaths(plan: FactsRoutingPlan): readonly string[] {
   return paths.sort()
 }
 
-export async function writePersonTargets(
+export async function renderPersonTargets(
   repoDir: string,
   plan: FactsRoutingPlan,
   limits: PeopleLimits,
-): Promise<void> {
+): Promise<ReadonlyMap<string, string>> {
+  const content = new Map<string, string>()
   for (const [slug, bucket] of plan.observations) {
-    if (bucket.target.isNew) await writeCardSkeleton(repoDir, bucket.target)
-    await upsertExplicitObservations(repoDir, slug, bucket.target.displayName, bucket.records, limits)
+    if (bucket.target.isNew) content.set(`people/${slug}/card.md`, renderCardSkeleton(bucket.target))
+    content.set(
+      `people/${slug}/observations.md`,
+      await renderExplicitObservations(repoDir, slug, bucket.target.displayName, bucket.records, limits),
+    )
   }
+  return content
 }
 
 export function normalizeObservationText(text: string): string {
@@ -140,24 +140,22 @@ export function normalizeObservationText(text: string): string {
   return uncommented.replace(/[\p{P}]+$/u, "").trim()
 }
 
-async function writeCardSkeleton(repoDir: string, target: FactsPersonTarget): Promise<void> {
-  if (target.person === undefined) return
-  const path = join(repoDir, "people", target.slug, "card.md")
-  await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, renderMemoryFile({
+function renderCardSkeleton(target: FactsPersonTarget): string {
+  if (target.person === undefined) throw new Error(`New person target lacks identity: ${target.slug}`)
+  return renderMemoryFile({
     description: `Person - ${target.person.name}`,
     kind: "person",
     aliases: [...target.person.aliases],
-  }, ""), "utf8")
+  }, "")
 }
 
-async function upsertExplicitObservations(
+async function renderExplicitObservations(
   repoDir: string,
   slug: string,
   displayName: string,
   records: readonly FactsExtractionRecord[],
   limits: PeopleLimits,
-): Promise<void> {
+): Promise<string> {
   const path = join(repoDir, "people", slug, "observations.md")
   const existing = await readFile(path, "utf8").catch(() => undefined)
   const parsed = existing === undefined
@@ -184,12 +182,11 @@ async function upsertExplicitObservations(
     explicit.entries[at] = { ...found, date: record.date, n: (found.n ?? 1) + 1 }
   }
   const body = serializePeopleCard({ entries: card.entries, observations: groups }, limits)
-  await mkdir(dirname(path), { recursive: true })
-  await writeFile(path, renderMemoryFile(parsed.frontmatter, `${body}\n`), "utf8")
+  return renderMemoryFile(parsed.frontmatter, `${body}\n`)
 }
 
 function resolvePersonSlug(
-  index: readonly PeopleIndexEntry[],
+  index: readonly FactsPeopleIndexEntry[],
   person: FactsPersonReference,
   onAliasTie?: (tie: FactsAliasTie) => void,
 ): string | undefined {
@@ -214,54 +211,6 @@ function resolvePersonSlug(
     onAliasTie?.({ alias, slugs, chosen })
   }
   return chosen
-}
-
-async function readPeopleIndex(repoDir: string): Promise<PeopleIndexEntry[]> {
-  const index: PeopleIndexEntry[] = []
-  const human = await readCardFrontmatter(join(repoDir, "system", "human.md"))
-  if (human !== undefined) {
-    index.push({
-      slug: "human",
-      displayName: displayNameOf(human.description, "human"),
-      names: namesOf(human, "human"),
-    })
-  }
-  const entries = await readdir(join(repoDir, "people"), { withFileTypes: true }).catch(() => [])
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name === "human") continue
-    const card = await readCardFrontmatter(join(repoDir, "people", entry.name, "card.md"))
-    if (card === undefined) continue
-    index.push({
-      slug: entry.name,
-      displayName: displayNameOf(card.description, entry.name),
-      names: namesOf(card, entry.name),
-    })
-  }
-  return index
-}
-
-async function readCardFrontmatter(
-  path: string,
-): Promise<{ readonly description: string; readonly aliases: readonly string[] } | undefined> {
-  const raw = await readFile(path, "utf8").catch(() => undefined)
-  if (raw === undefined) return undefined
-  try {
-    const parsed = parseMemoryFile(raw)
-    return { description: parsed.frontmatter.description, aliases: parsed.frontmatter.aliases ?? [] }
-  } catch {
-    return undefined
-  }
-}
-
-function namesOf(
-  card: { readonly description: string; readonly aliases: readonly string[] },
-  fallback: string,
-): readonly string[] {
-  return [displayNameOf(card.description, fallback), ...card.aliases]
-}
-
-function displayNameOf(description: string, fallback: string): string {
-  return description.replace(/^Person\s*-\s*/i, "").trim() || fallback
 }
 
 function foldAlias(value: string): string {

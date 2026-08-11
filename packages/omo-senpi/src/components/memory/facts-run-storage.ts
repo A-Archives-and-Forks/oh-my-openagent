@@ -60,7 +60,7 @@ export async function reserveFactsRunDir(options: {
 export async function writeFactsFinal(options: {
   readonly runDir: string
   readonly runId: string
-  readonly outcome: "committed" | "no_facts" | "failed"
+  readonly outcome: "committed" | "no_facts" | "failed" | "parent_dirty"
   readonly now: () => Date
   readonly detail?: string
   readonly sha?: string
@@ -110,7 +110,10 @@ export function finalResult(record: FactsFinalRecord): FactsLaunchResult {
   if (record.outcome === "committed" && record.sha !== undefined) {
     return { status: "committed", runId: record.runId, sha: record.sha }
   }
-  return { status: record.outcome === "no_facts" ? "no_facts" : "failed", runId: record.runId }
+  if (record.outcome === "no_facts" || record.outcome === "parent_dirty") {
+    return { status: record.outcome, runId: record.runId }
+  }
+  return { status: "failed", runId: record.runId }
 }
 
 export function delay(_attempt: number, milliseconds: number): Promise<void> {

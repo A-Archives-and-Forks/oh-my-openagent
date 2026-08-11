@@ -1,4 +1,4 @@
-import type { FactsQueue, FactsQueueEntry, MemoryIdentity } from "@oh-my-opencode/memory-core"
+import type { FactsApplyRecovery, FactsQueue, FactsQueueEntry, MemoryIdentity } from "@oh-my-opencode/memory-core"
 import type { SenpiModelPort, SenpiModelRegistryPort } from "@oh-my-opencode/senpi-task"
 
 import type { ComponentLogger } from "../../extension/types"
@@ -8,7 +8,7 @@ import type { FactsSandbox } from "./worker/spawn"
 export type FactsLaunchResult =
   | { readonly status: "empty" | "active" | "skipped" }
   | { readonly status: "committed"; readonly runId: string; readonly sha: string }
-  | { readonly status: "no_facts" | "failed"; readonly runId: string }
+  | { readonly status: "no_facts" | "failed" | "parent_dirty"; readonly runId: string }
 
 export interface FactsExtractorRunnerOptions {
   readonly identity: MemoryIdentity
@@ -45,6 +45,7 @@ export interface FactsRunLedger {
   readonly batchId: string
   readonly queued: readonly ReturnType<typeof queueKey>[]
   readonly headBeforeApply?: string
+  readonly applyRecovery?: FactsApplyRecovery
   readonly pid?: number
   readonly processStart?: string | null
   readonly childPid?: number
@@ -54,7 +55,7 @@ export interface FactsRunLedger {
 export interface FactsFinalRecord {
   readonly version: 1
   readonly runId: string
-  readonly outcome: "committed" | "no_facts" | "failed"
+  readonly outcome: "committed" | "no_facts" | "failed" | "parent_dirty"
   readonly sha?: string
 }
 

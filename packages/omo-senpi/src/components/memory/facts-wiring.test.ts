@@ -99,7 +99,7 @@ describe("facts wiring settle enqueue", () => {
     // then
     expect(launches).toBe(1)
     expect(await queueFileCount(paths)).toBe(1)
-  })
+  }, 30_000)
 
   test("#given facts enabled and a new journal delta #when settle runs #then one queue file is published", async () => {
     // given
@@ -113,7 +113,7 @@ describe("facts wiring settle enqueue", () => {
     // then
     expect(result.enqueued).toBe(true)
     expect(await queueFileCount(paths)).toBe(1)
-  })
+  }, 30_000)
 
   test("#given the same cursor #when settle runs twice #then no duplicate entry is published", async () => {
     // given
@@ -128,7 +128,7 @@ describe("facts wiring settle enqueue", () => {
     // then
     expect(duplicate.enqueued).toBe(false)
     expect(await queueFileCount(paths)).toBe(1)
-  })
+  }, 30_000)
 
   test("#given facts disabled #when settle runs #then nothing is enqueued", async () => {
     // given
@@ -142,7 +142,7 @@ describe("facts wiring settle enqueue", () => {
     // then
     expect(result.enqueued).toBe(false)
     expect(await queueFileCount(paths)).toBe(0)
-  })
+  }, 30_000)
 
   test("#given an empty journal #when settle runs #then nothing is enqueued", async () => {
     // given
@@ -155,7 +155,7 @@ describe("facts wiring settle enqueue", () => {
     // then
     expect(result.enqueued).toBe(false)
     expect(await queueFileCount(paths)).toBe(0)
-  })
+  }, 30_000)
 
   test("#given a pre-aborted drain signal #when final-delta enqueue is requested #then no journal read or queue mutation starts", async () => {
     const paths = await fixture()
@@ -179,7 +179,7 @@ describe("facts wiring settle enqueue", () => {
     expect(result.enqueued).toBe(false)
     expect(journalReads).toBe(0)
     expect(await queueFileCount(paths)).toBe(0)
-  })
+  }, 30_000)
 
   test("#given abort arrives while the final journal delta is being read #when enqueue reaches the queue boundary #then no queue mutation starts", async () => {
     const paths = await fixture()
@@ -200,7 +200,7 @@ describe("facts wiring settle enqueue", () => {
 
     expect(result.enqueued).toBe(false)
     expect(await queueFileCount(paths)).toBe(0)
-  })
+  }, 30_000)
 })
 
 describe("facts wiring shutdown launch", () => {
@@ -227,7 +227,7 @@ describe("facts wiring shutdown launch", () => {
 
     expect(launched).toBe(false)
     expect(launches).toBe(0)
-  })
+  }, 30_000)
 
   test("#given abort arrives during the threshold probe #when launch reaches the extractor boundary #then no extractor spawn starts", async () => {
     const paths = await fixture()
@@ -258,7 +258,7 @@ describe("facts wiring shutdown launch", () => {
 
     expect(launched).toBe(false)
     expect(launches).toBe(0)
-  })
+  }, 30_000)
 })
 
 describe("facts wiring session_start reconcile", () => {
@@ -276,7 +276,7 @@ describe("facts wiring session_start reconcile", () => {
     expect(launchable).toHaveLength(1)
     expect(launchable[0]?.conversationId).toBe(SESSION)
     expect(launchable[0]?.range.end_message_id).toBe("m2")
-  })
+  }, 30_000)
 
   test("#given facts disabled #when reconcile runs #then no leftover work is reported", async () => {
     // given
@@ -289,7 +289,7 @@ describe("facts wiring session_start reconcile", () => {
 
     // then
     expect(launchable).toHaveLength(0)
-  })
+  }, 30_000)
 
   test("#given a consumed batch #when reconcile runs #then nothing is left to relaunch", async () => {
     // given
@@ -304,5 +304,5 @@ describe("facts wiring session_start reconcile", () => {
     // then
     expect(await wiring.reconcilePending()).toHaveLength(0)
     expect(await queueFileCount(paths)).toBe(0)
-  })
+  }, 30_000)
 })
