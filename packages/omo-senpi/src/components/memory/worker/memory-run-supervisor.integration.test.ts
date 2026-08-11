@@ -105,8 +105,9 @@ async function waitForLedgerChild(runDir: string): Promise<{ readonly childPid: 
   const { watch } = await import("node:fs")
   return await new Promise((resolve, reject) => {
     let settled = false
-    const watcher = watch(runDir, async (_event, changed) => {
-      if (changed !== "ledger.json") return
+    // Re-read on any event in the directory: updateRunLedger writes via temp+rename, and Linux
+    // inotify reports only the rename SOURCE name, so filtering on "ledger.json" never fires there.
+    const watcher = watch(runDir, async () => {
       const value = await read().catch(() => undefined)
       if (value !== undefined) finish(value)
     })
