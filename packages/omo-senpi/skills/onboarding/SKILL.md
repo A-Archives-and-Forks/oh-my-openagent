@@ -33,29 +33,39 @@ let the user ask for depth on any item. Do not dump the whole list as a wall of 
 
 The baked catalog:
 
-- **Senpi-native skills** that ship with omo: `init-deep` (deep AGENTS.md generation for a
-  project), `ultrawork` and `ulw-loop` (sustained autonomous work loops), `ulw-plan` and
-  `ulw-research` (planning and research lanes), `hyperplan` (heavyweight planning), and
-  `give-me-tips` (deep, verified explanations of any Tip: line the TUI shows).
-- **The fallback architect**: when a top-tier model refuses, omo detects the refusal from the real
-  stop metadata, routes the question through an architect consultation lane the refusal cannot
-  block, and shows the user a Tip: line explaining what happened. The refused question is never
-  lost.
-- **Memory**: omo records durable facts about the user and their projects through dedicated memory
-  tools, so later sessions start already knowing their stack, preferences, and habits.
-- **Start-work continuation**: interrupted work leaves a ledger under `.omo/` so a fresh session
-  can pick up exactly where the last one stopped.
-- **Tips with a live source of truth**: `senpi --list-tips` prints the real tip catalog as JSON,
-  and the `give-me-tips` skill explains any of them from the actual implementation code, gated by
-  what this specific user can see.
-- **Interactive UI primitives**: omo components can put real pickers, confirms, and inputs in
-  front of the user, in the TUI and in the desktop app alike, instead of burying choices in prose.
+- **Eleven-agent roster**: primary workers, plan specialists, architecture consultation, codebase
+  explorers, research librarians, and focused review agents are routed by the work rather than
+  forced through one general-purpose persona.
+- **The Senpi component layer**: startup config and migration, native status, onboarding,
+  init-deep advising, anonymous telemetry, ultrawork arming, start-work continuation, ulw-loop
+  continuation, todo fan-out reminders, fallback architecture, comment checking, ast-grep, LSP,
+  task delegation, memory, and live config watching cooperate as independent components.
+- **Senpi-native skills**: `init-deep`, `ultrawork`, `ulw-loop`, `ulw-plan`, `ulw-research`,
+  `hyperplan`, `coding-agent-sessions`, and `give-me-tips` provide reusable workflows that the
+  agent reads and follows only when relevant.
+- **Three MCP tiers**: built-in servers, user or project `.mcp.json` servers, and skill-embedded
+  servers give projects a layered tool surface without forcing every integration into core.
+- **Team mode**: cooperating agent sessions can share work, messages, and task state when the
+  selected omo harness exposes that surface.
+- **Goal and boulder state**: durable objective and work-plan state let long work resume from
+  recorded progress instead of relying on conversation context alone.
+- **Ultrawork and ulw workflows**: planning, research, execution loops, fan-out decisions, and
+  evidence-bound continuation keep autonomous work moving until its observable goal is proven.
+- **The fallback architect**: refusal metadata can route the unresolved engineering question
+  through an architecture consultation lane while the active model continues execution.
+- **Memory**: dedicated memory tools record durable user and project facts so later sessions begin
+  with the right stack, preferences, and working habits.
+- **Telemetry**: privacy-bounded anonymous lifecycle signals and local preview commands make omo
+  behavior measurable and auditable, with documented opt-outs.
+- **Init-deep**: hierarchical `AGENTS.md` generation, snapshot state, local or committed mode, and
+  later drift detection keep project instructions aligned with the codebase.
+- **Tips with a live source of truth**: run `senpi --list-tips` during the tour, then read and
+  follow `give-me-tips` for any visible tip the user wants explained from the implementation.
+- **Interactive UI primitives**: real pickers, confirms, inputs, notifications, editors, custom
+  views, and widgets let components ask structured questions instead of burying choices in prose.
 - **Re-running this tour**: onboarding auto-starts once, ever. The user can bring it back any time
-  with the `omo --onboard` flag, or shut the auto-start off with the
+  with the `senpi --onboard` flag, or shut the auto-start off with the
   `omo-senpi-onboarding-disabled` flag.
-- **Session archaeology**: the bundled `coding-agent-sessions` skill can find and read local
-  sessions from Co&#x64;ex, Claude Code, OpenCode, senpi, and a long tail of other agent products.
-  Lane 3 of this flow uses it.
 - **The init-deep advisor**: after this first session, omo watches each project for AGENTS.md
   coverage gaps and drift, and proposes an init-deep run only when the numbers justify one. On
   this first session, you carry that proposal yourself in lane 6.
@@ -109,20 +119,39 @@ durable finding about the user through the memory tools as you go.
 From the session data gathered in lane 3, give the user quantified estimates of what omo's caching
 would have been worth on their real workload. Compute, do not guess:
 
-- their cache hit rate: cache-read tokens over cache-read plus fresh input tokens, from the
-  per-message `usage` records (`input`, `output`, `cacheRead`, `cacheWrite`) in their session
-  files,
-- attribute each message's usage to the model active at that point in the session, meaning the
-  most recent `model_change` event before it in file order,
-- their actual spend versus what the same traffic would have cost with every cached read billed at
-  the full input rate, using per-model prices; models without a known price contribute tokens to
-  the totals but are left out of the cost figures,
-- sum everything exactly and round only the final numbers you present.
+- Quantify token and cost savings only from Senpi JSONL v3 sessions. Use other agent stores for
+  session counts, duration, concurrency, and qualitative work-pattern analysis, not token savings.
+- Fetch `https://models.dev/api.json`. Treat its top level as the provider map. Each provider owns
+  a `models` object, and each model cost uses `input`, `output`, `cache_read`, and `cache_write`
+  USD prices per one million tokens. If the API is unavailable, every session has insufficient
+  pricing data.
+- Process session files in chronological filename order. Process entries inside a file in JSONL
+  line order. A malformed timestamp skips that entry. Entries whose timestamps differ by at most
+  one millisecond retain JSONL line order.
+- Read usage only from `message.usage`. Map `input`, `cacheRead`, `cacheWrite`, and `output`
+  exactly. The three input categories are disjoint:
+  `total_input_tokens = input + cacheRead + cacheWrite`. A session whose total input is zero is
+  skipped.
+- Attribute each usage entry to `message.provider` plus `message.model` when both are present.
+  Otherwise use the latest `model_change` provider and `modelId`. Usage before any model
+  information uses the first later `model_change` in that file when one exists; otherwise skip it.
+- Resolve prices first by exact `provider/model` composite identity. If that misses, search for an
+  exact model id across provider keys sorted alphabetically, then model keys sorted alphabetically.
+  The first deterministic hit wins. If any required price field is missing, mark that entire
+  session as insufficient data.
+- Aggregate usage by provider and model, then compute grand totals. The caching rate is
+  `cacheRead / (input + cacheRead + cacheWrite) * 100`.
+- Compute actual cost as
+  `(input * price.input + output * price.output + cacheRead * price.cache_read + cacheWrite * price.cache_write) / 1_000_000`.
+  Compute omo savings as
+  `cacheRead * (price.input - price.cache_read) / 1_000_000`.
+- Round only final aggregated values with `Math.round(value * 100) / 100`. Never round per message,
+  model, or session. Label the result `estimate`.
 
 Label the result as an estimate and give exactly one line of methodology, in this shape: "Estimate
-from your local session logs: per-message usage attributed to the active model, cache reads priced
-at cache-read rate versus full input rate, summed across sessions, rounded at the end." One line,
-then the numbers, then stop. No hedging beyond the word estimate.
+from your local Senpi session logs: message-level model attribution, models.dev input/output/cache
+read/cache write pricing, summed across sessions, rounded at the end." One line, then the numbers,
+then stop.
 
 If the user skipped lane 3, skip this lane too; there is no data to map.
 
@@ -162,4 +191,4 @@ not proposing, do not hint that a check ran. Close the conversation warmly inste
 If all gates pass, ask in the user's language: "want me to set up AGENTS.md for this project?"
 This is opt-in. On yes, read the `init-deep` skill at its SKILL.md path and follow it. On no,
 record the decline through the memory tools and finish the conversation gracefully: a short
-send-off in their language, an invitation to come back with `omo --onboard`, and nothing more.
+send-off in their language, an invitation to come back with `senpi --onboard`, and nothing more.

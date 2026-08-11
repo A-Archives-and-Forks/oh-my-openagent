@@ -20,7 +20,7 @@ import type { EligibilityResult, OmoInitDeepProposedData } from "./proposed-data
 import { runAdvisorAfterPreflight } from "./runtime"
 import * as advisorState from "./state"
 
-const choices = ["Run now", "Skip for now", "Never in this project", "Never anywhere"]
+const choices = ["Run now", "Skip this time", "Never in this project", "Never anywhere"]
 
 beforeEach(() => setTestHome())
 afterEach(() => {
@@ -60,18 +60,12 @@ describe("createInitDeepAdvisorComponent", () => {
           drift: null,
           suggestedMode: "local",
         })
-      } else if (choice === "Skip for now") {
+      } else if (choice === "Skip this time" || choice === undefined) {
         expect(advisorState.readCooldownUntil(stateDir, repo)).toBeGreaterThan(Date.now())
       } else if (choice === "Never in this project") {
         expect(advisorState.isProjectDeclined(stateDir, repo)).toBe(true)
       } else if (choice === "Never anywhere") {
         expect(advisorState.isGloballyDeclined(stateDir)).toBe(true)
-      } else {
-        expect(advisorState.readCooldownUntil(stateDir, repo)).toBe(0)
-        expect(advisorState.isProjectDeclined(stateDir, repo)).toBe(false)
-        expect(advisorState.isGloballyDeclined(stateDir)).toBe(false)
-        expect(pi.messages).toHaveLength(0)
-        expect(pi.appendEntry).not.toHaveBeenCalled()
       }
     })
   }
@@ -131,7 +125,7 @@ describe("createInitDeepAdvisorComponent", () => {
   test("#given a non-UI mode #when startup runs #then proposal state and UI remain untouched", async () => {
     // given
     const root = makeCoverageRepo()
-    const { pi, select, eventCtx } = createHarness(root, "Skip for now", false)
+    const { pi, select, eventCtx } = createHarness(root, "Skip this time", false)
     const repo = advisorState.repoHash(root)
 
     // when

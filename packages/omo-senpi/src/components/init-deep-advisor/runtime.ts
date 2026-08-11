@@ -22,10 +22,10 @@ import {
 
 const CHOICES = [
   "Run now",
-  "Skip for now",
+  "Skip this time",
   "Never in this project",
   "Never anywhere",
-]
+] as const
 
 export interface AdvisorPreflight {
   readonly root: string
@@ -81,7 +81,7 @@ function handleChoice(
     )
     return
   }
-  if (choice === "Skip for now") {
+  if (choice === "Skip this time" || choice === undefined) {
     writeCooldown(stateDir, repo, Date.now())
     return
   }
