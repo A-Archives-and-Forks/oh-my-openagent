@@ -137,7 +137,7 @@ describe("computeDrift", () => {
   test("#given a blob object sha #when computing drift #then it is stale", () => {
     // given
     const { root } = makeDriftRepo()
-    const blobSha = git(root, ["rev-parse", `HEAD:${join("src", "file0.ts")}`]).trim()
+    const blobSha = git(root, ["rev-parse", "HEAD:src/file0.ts"]).trim()
 
     // when
     const drift = computeDrift(root, snapshotAt(blobSha))

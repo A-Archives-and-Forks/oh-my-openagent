@@ -96,10 +96,11 @@ describe("gitTrackedFileCount", () => {
     expect(count).toBe(2)
   })
 
-  test("#given a tracked filename containing a newline #when counting #then NUL delimiting keeps the count correct", () => {
+  test("#given a platform-valid delimiter-sensitive filename #when counting #then NUL delimiting keeps the count correct", () => {
     // given
     const { root } = repoWithCommit()
-    writeFileAt(root, "we\nird.ts", sourceFile(2))
+    const filename = process.platform === "win32" ? "we ird.ts" : "we\nird.ts"
+    writeFileAt(root, filename, sourceFile(2))
     commitAll(root, "weird name")
 
     // when
@@ -121,7 +122,7 @@ describe("gitTouchedFilesSince", () => {
     const touched = gitTouchedFilesSince(root, sha)
 
     // then
-    expect(touched).toEqual([join("src", "a.ts")])
+    expect(touched).toEqual(["src/a.ts"])
   })
 
   test("#given commits touching only AGENTS.md and the snapshot #when listing touched files #then they are excluded", () => {
@@ -194,7 +195,7 @@ describe("gitObjectType", () => {
     // given
     const { root } = repoWithCommit()
     const treeSha = git(root, ["rev-parse", "HEAD^{tree}"]).trim()
-    const blobSha = git(root, ["rev-parse", `HEAD:${join("src", "a.ts")}`]).trim()
+    const blobSha = git(root, ["rev-parse", "HEAD:src/a.ts"]).trim()
     git(root, ["tag", "-a", "v1", "-m", "tagged"])
     const tagSha = git(root, ["rev-parse", "v1"]).trim()
 
