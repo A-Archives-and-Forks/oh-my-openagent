@@ -24,6 +24,25 @@ export type RunAbandonmentPrecedence =
   | { readonly decision: "veto"; readonly ledger: ReservationRunLedger }
   | { readonly decision: "abandon"; readonly ledger: ReservationRunLedger }
 
+async function readTerminalPublication(
+  runDir: string,
+  ledger: ReservationRunLedger,
+): Promise<"finalize" | "veto" | undefined> {
+  const outcomePath = join(runDir, "outcome.json")
+  if (existsSync(outcomePath)) {
+    const outcome = await readRunJson<RunOutcome>(outcomePath)
+    if (runOutcomeMatchesLedger(ledger, outcome)) return "finalize"
+  }
+  const publishingPath = join(runDir, "publishing.json")
+  if (!existsSync(publishingPath)) return undefined
+  const publishing = await readRunJson<RunPublicationPending>(publishingPath)
+  return publishing.version === 1
+    && publishing.runId === ledger.runId
+    && publishing.attempt === ledger.attempt
+    ? "veto"
+    : undefined
+}
+
 export async function checkRunAbandonmentPrecedence(
   runDir: string,
   runId: string,
@@ -32,27 +51,17 @@ export async function checkRunAbandonmentPrecedence(
   const ledger = parseReservationRunLedger(await readRunJson<unknown>(join(runDir, "ledger.json")))
   if (ledger.runId !== runId) throw new Error(`Finalization ledger mismatch: ${runId}`)
 
-  const outcomePath = join(runDir, "outcome.json")
-  if (existsSync(outcomePath)) {
-    const outcome = await readRunJson<RunOutcome>(outcomePath)
-    if (runOutcomeMatchesLedger(ledger, outcome)) return { decision: "finalize", ledger }
-  }
-
-  const publishingPath = join(runDir, "publishing.json")
-  if (existsSync(publishingPath)) {
-    const publishing = await readRunJson<RunPublicationPending>(publishingPath)
-    if (publishing.version === 1
-      && publishing.runId === ledger.runId
-      && publishing.attempt === ledger.attempt) {
-      return { decision: "veto", ledger }
-    }
-  }
+  const published = await readTerminalPublication(runDir, ledger)
+  if (published !== undefined) return { decision: published, ledger }
 
   const [supervisor, child] = await Promise.all([
     classifyRunProcess(ledger.pid, ledger.processStart, seams),
     classifyRunProcess(ledger.childPid, ledger.childProcessStart, seams),
   ])
-  return supervisor === "alive" || child === "alive"
-    ? { decision: "veto", ledger }
-    : { decision: "abandon", ledger }
+  if (supervisor === "alive" || child === "alive") return { decision: "veto", ledger }
+
+  // A publisher can finish while liveness is being classified, so the marker is
+  // re-read after classification and immediately before the abandon decision.
+  const settled = await readTerminalPublication(runDir, ledger)
+  return settled === undefined ? { decision: "abandon", ledger } : { decision: settled, ledger }
 }
