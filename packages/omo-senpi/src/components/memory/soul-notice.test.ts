@@ -10,16 +10,17 @@ import { createMemoryIdentityContext, type MemoryIdentityContext } from "./conte
 import { MemoryFakeExtensionAPI } from "./memory.test-support"
 import { SOUL_UPDATED_ENTRY_TYPE, createSoulNoticeWiring } from "./soul-notice"
 import { toolReceiptPath, writeToolReceipt } from "./tool-receipts"
+import { realpathSync } from "node:fs"
 
 const IDENTITY = "soul-notice-agent"
 const roots: string[] = []
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 async function fixture(): Promise<{ context: MemoryIdentityContext }> {
-  const root = await mkdtemp(join(tmpdir(), "omo-soul-notice-"))
+  const root = realpathSync.native(await mkdtemp(join(tmpdir(), "omo-soul-notice-")))
   roots.push(root)
   const identityPaths = buildIdentityPaths(root, IDENTITY)
   const context = createMemoryIdentityContext({

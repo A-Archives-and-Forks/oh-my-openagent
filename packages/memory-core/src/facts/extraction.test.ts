@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { existsSync } from "node:fs"
+import { existsSync, realpathSync } from "node:fs"
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -18,11 +18,11 @@ const AUTHOR = { agentId: "facts-agent", authorName: "Facts Extractor" }
 const tempDirs: string[] = []
 
 afterEach(async () => {
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 async function fixture(exec?: GitExec): Promise<{ readonly dir: string; readonly repo: GitMemoryRepo }> {
-  const dir = await mkdtemp(join(tmpdir(), "memory-facts-extraction-"))
+  const dir = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-facts-extraction-")))
   tempDirs.push(dir)
   const repo = new GitMemoryRepo({ dir, agentId: AUTHOR.agentId, ...(exec === undefined ? {} : { exec }) })
   await repo.init({ seedFiles: buildDefaultSeedFiles() })

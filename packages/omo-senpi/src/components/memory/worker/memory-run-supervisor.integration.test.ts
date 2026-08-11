@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
-import { spawn, type ChildProcess } from "node:child_process"
-import { existsSync } from "node:fs"
+import { spawn, spawnSync, type ChildProcess } from "node:child_process"
+import { existsSync, realpathSync } from "node:fs"
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
@@ -29,7 +29,7 @@ async function makeRun(options: {
   readonly hardDeadlineAt?: number
   readonly terminationGraceMs?: number
 }): Promise<string> {
-  const runDir = await mkdtemp(join(tmpdir(), "memory-run-supervisor-"))
+  const runDir = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-run-supervisor-")))
   roots.push(runDir)
   await mkdir(runDir, { recursive: true, mode: 0o700 })
   await writeFile(join(runDir, "ledger.json"), `${JSON.stringify({ version: 1, runId: "run-a", kind: "reflection" })}\n`)
@@ -165,10 +165,20 @@ function groupIsAlive(pid: number): boolean {
   }
 }
 
+// Same win32 caveat: signalGroup terminates one process on that platform; the tree must die
+// for the run directory to be removable.
+function killTree(pid: number): void {
+  if (process.platform === "win32") {
+    spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore" })
+    return
+  }
+  signalGroup(pid, "SIGKILL")
+}
+
 afterEach(async () => {
   for (const pid of processGroups) {
     try {
-      signalGroup(pid, "SIGKILL")
+      killTree(pid)
     } catch {
       continue
     }

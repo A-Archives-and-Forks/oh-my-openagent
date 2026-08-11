@@ -8,6 +8,7 @@ import { GitMemoryRepo, type GitCommitAuthor } from "../git"
 import { parseMemoryFile, renderMemoryFile } from "../memfs/frontmatter"
 import { runMemoryTool, type MemoryToolLock, type MemoryToolParams } from "./memory"
 import { MemoryToolError } from "./tool-errors"
+import { realpathSync } from "node:fs"
 
 const exec = promisify(execFile)
 const AUTHOR: GitCommitAuthor = {
@@ -19,7 +20,7 @@ const AUTHOR: GitCommitAuthor = {
 const roots: string[] = []
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 async function fixture(): Promise<{
@@ -27,7 +28,7 @@ async function fixture(): Promise<{
   lock: MemoryToolLock
   domains: string[]
 }> {
-  const root = await mkdtemp(join(tmpdir(), "omo-memory-tool-"))
+  const root = realpathSync.native(await mkdtemp(join(tmpdir(), "omo-memory-tool-")))
   roots.push(root)
   const repo = new GitMemoryRepo({ dir: join(root, "repo"), agentId: AUTHOR.agentId })
   await repo.init({ authorName: AUTHOR.authorName })

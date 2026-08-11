@@ -5,6 +5,7 @@ import { join } from "node:path"
 
 import { GitMemoryRepo, type GitCommitAuthor } from "../git"
 import { consumeSoulNoticeDelta } from "./watermark"
+import { realpathSync } from "node:fs"
 
 const AUTHOR: GitCommitAuthor = {
   agentId: "agent-soul-watermark-test",
@@ -14,7 +15,7 @@ const AUTHOR: GitCommitAuthor = {
 const roots: string[] = []
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 async function fixture(): Promise<{
@@ -22,7 +23,7 @@ async function fixture(): Promise<{
   noticesDir: string
   locksDir: string
 }> {
-  const root = await mkdtemp(join(tmpdir(), "omo-soul-watermark-"))
+  const root = realpathSync.native(await mkdtemp(join(tmpdir(), "omo-soul-watermark-")))
   roots.push(root)
   const repo = new GitMemoryRepo({ dir: join(root, "repo"), agentId: AUTHOR.agentId })
   await repo.init({ authorName: AUTHOR.authorName })

@@ -21,11 +21,12 @@ import {
   type RefreshMemoryStatusInput,
 } from "./status"
 import { createMemoryWiring } from "./wiring"
+import { realpathSync } from "node:fs"
 
 const roots: string[] = []
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 describe("memory footer wiring", () => {
@@ -145,7 +146,7 @@ async function createFixture(): Promise<{
   readonly identity: string
   readonly sessionId: string
 }> {
-  const root = await mkdtemp(join(tmpdir(), "omo-memory-footer-wiring-"))
+  const root = realpathSync.native(await mkdtemp(join(tmpdir(), "omo-memory-footer-wiring-")))
   roots.push(root)
   const cwd = join(root, "project")
   const env = { OMO_MEMORY_HOME: join(root, "memory") }
@@ -217,7 +218,7 @@ async function reflectionFixture(settings: ReturnType<typeof memorySettings> | u
   readonly pi: MemoryFakeExtensionAPI
   readonly evaluations: { count: number }
 }> {
-  const root = await mkdtemp(join(tmpdir(), "omo-memory-wiring-"))
+  const root = realpathSync.native(await mkdtemp(join(tmpdir(), "omo-memory-wiring-")))
   roots.push(root)
   const identity = createMemoryIdentityContext({
     identity: "agent-test",

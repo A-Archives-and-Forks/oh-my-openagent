@@ -16,13 +16,14 @@ import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import { createMemoryBinding } from "./binding"
 import { createMemoryIdentityContext, type MemoryIdentityContext } from "./context"
 import { MEMORY_PROMPT_TEMPLATE, createMemoryPromptHandler } from "./prompt"
+import { realpathSync } from "node:fs"
 
 const IDENTITY = "prompt-agent"
 
 const tempDirs: string[] = []
 
 afterEach(async () => {
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 class CountingRepo extends GitMemoryRepo {
@@ -53,7 +54,7 @@ class CountingRepo extends GitMemoryRepo {
 }
 
 async function fixture(personaBody = "first"): Promise<{ repo: CountingRepo; context: MemoryIdentityContext }> {
-  const dir = await mkdtemp(join(tmpdir(), "memory-prompt-"))
+  const dir = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-prompt-")))
   tempDirs.push(dir)
   const repo = new CountingRepo({ dir: join(dir, "repo"), agentId: IDENTITY })
   await repo.init({

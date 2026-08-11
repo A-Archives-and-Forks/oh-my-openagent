@@ -4,15 +4,16 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { TranscriptJournal } from "./store"
+import { realpathSync } from "node:fs"
 
 const tempDirs: string[] = []
 
 afterEach(async () => {
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 async function createJournal(): Promise<TranscriptJournal> {
-  const dir = await mkdtemp(join(tmpdir(), "memory-cursor-"))
+  const dir = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-cursor-")))
   tempDirs.push(dir)
   let tick = 0
   return new TranscriptJournal({

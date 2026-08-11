@@ -14,12 +14,13 @@ import {
 
 import { reconcileReflectionRuns } from "./run-reconciliation"
 import { writeRunJsonAtomic } from "./run-artifacts"
+import { realpathSync } from "node:fs"
 
 const roots: string[] = []
-afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))))
+afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }))))
 
 async function fixture(trigger: "step-count" | "dream" = "step-count") {
-  const root = await mkdtemp(join(tmpdir(), "reflection-reconcile-"))
+  const root = realpathSync.native(await mkdtemp(join(tmpdir(), "reflection-reconcile-")))
   roots.push(root)
   const identity: MemoryIdentity = { id: "agent-test", safeSlug: "agent-test", paths: buildIdentityPaths(root, "agent-test") }
   const repo = new GitMemoryRepo({ dir: identity.paths.repo, agentId: identity.id })
@@ -188,7 +189,7 @@ describe("reflection and dream run reconciliation", () => {
   test("#given old pre-launch reservations with unverifiable or reused launcher pids #when reconciled #then only confirmed pid reuse releases the reservation", async () => {
     // given
     const unknown = await fixture()
-    await rm(unknown.runDir, { recursive: true, force: true })
+    await rm(unknown.runDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
 
     // when
     const untouched = await reconcileReflectionRuns({
@@ -217,7 +218,7 @@ describe("reflection and dream run reconciliation", () => {
   test("#given an old active reservation with no run directory and a confirmed-dead local launcher #when reconciled #then the pre-launch wedge is released", async () => {
     // given
     const item = await fixture()
-    await rm(item.runDir, { recursive: true, force: true })
+    await rm(item.runDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
 
     // when
     const results = await reconcileReflectionRuns({

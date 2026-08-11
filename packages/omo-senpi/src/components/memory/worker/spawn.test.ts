@@ -6,11 +6,12 @@ import { join } from "node:path"
 import type { FactsPayload, ReflectionWorktree, ReservedRun } from "@oh-my-opencode/memory-core"
 
 import { prepareFactsSpawn, prepareReflectionSpawn } from "./spawn"
+import { realpathSync } from "node:fs"
 
 const roots: string[] = []
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 function chmodFailure(code: string): NodeJS.ErrnoException {
@@ -18,7 +19,7 @@ function chmodFailure(code: string): NodeJS.ErrnoException {
 }
 
 async function root(): Promise<string> {
-  const path = await mkdtemp(join(tmpdir(), "omo-memory-spawn-"))
+  const path = realpathSync.native(await mkdtemp(join(tmpdir(), "omo-memory-spawn-")))
   roots.push(path)
   return path
 }

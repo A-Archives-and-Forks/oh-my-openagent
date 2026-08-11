@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test"
-import { existsSync } from "node:fs"
+import { existsSync, realpathSync } from "node:fs"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -13,13 +13,13 @@ import {
 const tempDirs: string[] = []
 
 async function createRepo(agentId = "agent-one") {
-  const dir = await mkdtemp(join(tmpdir(), "memory-git-"))
+  const dir = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-git-")))
   tempDirs.push(dir)
   return { dir, repo: new GitMemoryRepo({ dir, agentId }) }
 }
 
 afterEach(async () => {
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 describe("GitMemoryRepo", () => {
@@ -216,7 +216,7 @@ describe("GitMemoryRepo", () => {
     // given
     const { repo } = await createRepo()
     await repo.init()
-    const worktreeParent = await mkdtemp(join(tmpdir(), "memory-worktree-"))
+    const worktreeParent = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-worktree-")))
     tempDirs.push(worktreeParent)
     const worktreeDir = join(worktreeParent, "checkout")
     await repo.worktreeAdd(worktreeDir, "memory/reflection-test")

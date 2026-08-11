@@ -13,16 +13,17 @@ import {
   initMemoryWithSeeds,
 } from "./seeds"
 import { MEMORY_DISCIPLINE_SKILL_PATH } from "./memory-discipline"
+import { realpathSync } from "node:fs"
 
 const exec = promisify(execFile)
 const tempDirs: string[] = []
 
 afterEach(async () => {
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 async function createRepo(agentId = "seed-agent"): Promise<{ dir: string; repo: GitMemoryRepo }> {
-  const dir = await mkdtemp(join(tmpdir(), "omo-seeds-"))
+  const dir = realpathSync.native(await mkdtemp(join(tmpdir(), "omo-seeds-")))
   tempDirs.push(dir)
   return { dir, repo: new GitMemoryRepo({ dir, agentId }) }
 }

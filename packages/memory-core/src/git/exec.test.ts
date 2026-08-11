@@ -79,7 +79,7 @@ describe("createNodeGitExec", () => {
           exec.run(["--version"], { cwd: dir, timeoutMs: 5000, env: { PATH: "/nonexistent" } }),
         ).rejects.toBeInstanceOf(GitNotFoundError)
       } finally {
-        rmSync(dir, { recursive: true, force: true })
+        rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
       }
     })
   })

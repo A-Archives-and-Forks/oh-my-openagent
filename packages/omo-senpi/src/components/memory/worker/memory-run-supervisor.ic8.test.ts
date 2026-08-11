@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
-import { spawn, type ChildProcess } from "node:child_process"
-import { existsSync } from "node:fs"
+import { spawn, spawnSync, type ChildProcess } from "node:child_process"
+import { existsSync, realpathSync } from "node:fs"
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { createServer, type AddressInfo } from "node:net"
 import { tmpdir } from "node:os"
@@ -53,7 +53,7 @@ async function makeRun(mode: "graceful" | "stubborn"): Promise<{
   clockPath: string
   childExited: Promise<void>
 }> {
-  const runDir = await mkdtemp(join(tmpdir(), "memory-run-supervisor-ic8-"))
+  const runDir = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-run-supervisor-ic8-")))
   roots.push(runDir)
   await mkdir(runDir, { recursive: true, mode: 0o700 })
   const clockPath = join(runDir, "clock.txt")
@@ -130,10 +130,20 @@ function waitForExit(child: ChildProcess): Promise<{ code: number | null; signal
   })
 }
 
+// process.kill on win32 terminates only the named process, leaving the bootstrap and model child
+// holding the run directory; taskkill /T /F takes the whole tree so cleanup can proceed.
+function killTree(pid: number): void {
+  if (process.platform === "win32") {
+    spawnSync("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore" })
+    return
+  }
+  process.kill(pid, "SIGKILL")
+}
+
 afterEach(async () => {
   for (const pid of liveProcesses) {
     try {
-      process.kill(pid, "SIGKILL")
+      killTree(pid)
     } catch (error) {
       if (!(error instanceof Error) || !("code" in error) || error.code !== "ESRCH") throw error
     }

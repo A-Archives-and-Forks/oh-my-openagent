@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { realpathSync } from "node:fs"
 
 import { TranscriptJournal, resolveMemoryIdentity, type TranscriptEntry } from "@oh-my-opencode/memory-core"
 
@@ -19,7 +20,7 @@ const SESSION = "session-drain"
 const tempDirs: string[] = []
 
 afterEach(async () => {
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 function recordingLogger(): { logger: ComponentLogger; warnings: string[] } {
@@ -186,7 +187,7 @@ describe("session shutdown drain budget", () => {
 
   test("#given a bound session with journal rows #when session_shutdown fires #then the drain runs before the session is released", async () => {
     // given
-    const root = await mkdtemp(join(tmpdir(), "omo-memory-shutdown-"))
+    const root = realpathSync.native(await mkdtemp(join(tmpdir(), "omo-memory-shutdown-")))
     tempDirs.push(root)
     const cwd = join(root, "project")
     const env = { OMO_MEMORY_HOME: join(root, "memory") }
@@ -212,7 +213,7 @@ describe("session shutdown drain budget", () => {
 
   test("#given a memory home that is not a directory #when bind-time reconcile rejects #then it is logged instead of crashing the host", async () => {
     // given
-    const root = await mkdtemp(join(tmpdir(), "omo-memory-shutdown-"))
+    const root = realpathSync.native(await mkdtemp(join(tmpdir(), "omo-memory-shutdown-")))
     tempDirs.push(root)
     await writeFile(join(root, "memory"), "not a directory", "utf8")
     const pi = new MemoryFakeExtensionAPI()

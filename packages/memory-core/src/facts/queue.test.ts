@@ -2,6 +2,7 @@ import { describe, expect, test, afterEach } from "bun:test"
 import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { realpathSync } from "node:fs"
 
 import { buildIdentityPaths, type MemoryIdentityPaths } from "../identity"
 import type { TranscriptEntry } from "../journal"
@@ -17,11 +18,11 @@ const CONVERSATION = "conversation-alpha"
 const tempDirs: string[] = []
 
 afterEach(async () => {
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 async function identityFixture(): Promise<MemoryIdentityPaths> {
-  const dir = await mkdtemp(join(tmpdir(), "memory-facts-queue-"))
+  const dir = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-facts-queue-")))
   tempDirs.push(dir)
   return buildIdentityPaths(join(dir, "memory"), IDENTITY)
 }

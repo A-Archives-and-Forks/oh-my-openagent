@@ -4,13 +4,14 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { GitMemoryRepo } from "../git"
 import { MemoryBlockCache, hashMemoryTemplate } from "./cache"
+import { realpathSync } from "node:fs"
 
 const WINDOWS_INTEGRATION_TEST_TIMEOUT = process.platform === "win32" ? 20_000 : 5_000
 
 const tempDirs: string[] = []
 
 async function createRepo() {
-  const dir = await mkdtemp(join(tmpdir(), "memory-cache-"))
+  const dir = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-cache-")))
   tempDirs.push(dir)
   const repo = new GitMemoryRepo({ dir, agentId: "cache-agent" })
   await repo.init({ seedFiles: [{ relativePath: "system/persona.md", content: "---\ndescription: Persona\n---\nfirst\n" }] })
@@ -18,7 +19,7 @@ async function createRepo() {
 }
 
 afterEach(async () => {
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 describe("MemoryBlockCache", () => {

@@ -11,7 +11,7 @@ import { SOUL_UPDATED_ENTRY_TYPE } from "./soul-notice"
 
 const roots: string[] = []
 afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
 })
 
 function fixture(): { cwd: string; memoryHome: string } {

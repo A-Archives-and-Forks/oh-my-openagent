@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
-import { existsSync } from "node:fs"
+import { existsSync, realpathSync } from "node:fs"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, join } from "node:path"
@@ -27,7 +27,7 @@ const childFixture = join(import.meta.dir, "__fixtures__", "dream-child.ts")
 const supervisorFixture = join(import.meta.dir, "memory-run-supervisor.ts")
 const roots: string[] = []
 
-afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))))
+afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }))))
 
 async function launchDream(
   people: { enabled: boolean; max_entries: number; max_entry_chars: number },
@@ -38,7 +38,7 @@ async function launchDream(
   readonly result: Awaited<ReturnType<SenpiSubprocessRunner["launch"]>>
   readonly spawn: ReflectionSpawnArgs
 }> {
-  const root = await mkdtemp(join(tmpdir(), "memory-dream-dispatch-"))
+  const root = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-dream-dispatch-")))
   roots.push(root)
   const identity: MemoryIdentity = {
     id: "agent-test",

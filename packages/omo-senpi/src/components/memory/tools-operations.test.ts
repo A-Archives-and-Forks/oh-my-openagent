@@ -9,6 +9,7 @@ import { createMemoryBinding } from "./binding"
 import { createMemoryIdentityContext } from "./context"
 import { createMemoryTools } from "./tools"
 import { IDENTITY, boundFixture, git, roots, seedFile, textOf } from "./tools.test-support"
+import { realpathSync } from "node:fs"
 
 describe("memory tool execution", () => {
   test("#given a bound identity #when memory create executes #then the engine commits and reports the short sha", async () => {
@@ -57,7 +58,7 @@ describe("memory tool execution", () => {
   })
   test("#given no repo exists yet #when the memory tool executes #then it lazily initializes with hooks and seeds", async () => {
     // given
-    const root = await mkdtemp(join(tmpdir(), "omo-senpi-memory-lazy-init-"))
+    const root = realpathSync.native(await mkdtemp(join(tmpdir(), "omo-senpi-memory-lazy-init-")))
     roots.push(root)
     const identityPaths = buildIdentityPaths(root, IDENTITY)
     const binding = createMemoryBinding({ identity: IDENTITY, repoPath: identityPaths.repo, boundAt: Date.now() })

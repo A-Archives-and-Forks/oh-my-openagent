@@ -11,17 +11,18 @@ import {
 } from "@oh-my-opencode/memory-core"
 
 import { createMemoryFactsWiring } from "./facts-wiring"
+import { realpathSync } from "node:fs"
 
 const IDENTITY = "facts-wiring-agent"
 const SESSION = "session-alpha"
 const tempDirs: string[] = []
 
 afterEach(async () => {
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 async function fixture(): Promise<MemoryIdentityPaths> {
-  const dir = await mkdtemp(join(tmpdir(), "omo-memory-facts-wiring-"))
+  const dir = realpathSync.native(await mkdtemp(join(tmpdir(), "omo-memory-facts-wiring-")))
   tempDirs.push(dir)
   const paths = buildIdentityPaths(join(dir, "memory"), IDENTITY)
   await mkdir(paths.locks, { recursive: true })

@@ -45,6 +45,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
+import { realpathSync } from "node:fs"
 
 import { buildIdentityPaths } from "@oh-my-opencode/memory-core"
 
@@ -64,11 +65,11 @@ const IDENTITY = "skills-scope-agent"
 const tempDirs: string[] = []
 
 afterEach(async () => {
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 async function fixture(): Promise<{ context: MemoryIdentityContext; skillsDir: string }> {
-  const dir = await mkdtemp(join(tmpdir(), "memory-skills-scope-"))
+  const dir = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-skills-scope-")))
   tempDirs.push(dir)
   const identityPaths = buildIdentityPaths(join(dir, "memory"), IDENTITY)
   const context = createMemoryIdentityContext({

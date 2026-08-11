@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test"
-import { existsSync } from "node:fs"
+import { existsSync, realpathSync } from "node:fs"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -14,7 +14,7 @@ const roots: string[] = []
 const exec = createNodeGitExec()
 
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "reflection-worktree-"))
+  const root = realpathSync.native(await mkdtemp(join(tmpdir(), "reflection-worktree-")))
   roots.push(root)
   const parentDir = join(root, "memory")
   const repo = new GitMemoryRepo({ dir: parentDir, agentId: "agent-one" })
@@ -38,7 +38,7 @@ async function assertCleaned(worktree: ReflectionWorktree, parentDir: string) {
 }
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 describe("reflection worktree finalization", () => {

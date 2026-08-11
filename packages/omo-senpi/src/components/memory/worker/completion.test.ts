@@ -14,9 +14,10 @@ import {
   type ReflectionCompletionRecord,
 } from "./completion"
 import { CapturedCompletionApi } from "./runner.test-support"
+import { realpathSync } from "node:fs"
 
 const roots: string[] = []
-afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))))
+afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }))))
 
 function record(): ReflectionCompletionRecord {
   return {
@@ -39,7 +40,7 @@ function record(): ReflectionCompletionRecord {
 describe("reflection completion flow", () => {
   test("#given no live source session #when completion is recorded #then it remains durable and pending", async () => {
     // given
-    const root = await mkdtemp(join(tmpdir(), "reflection-completion-"))
+    const root = realpathSync.native(await mkdtemp(join(tmpdir(), "reflection-completion-")))
     roots.push(root)
 
     // when
@@ -60,7 +61,7 @@ describe("reflection completion flow", () => {
 
   test("#given a worker completion record #when the landed palace collector reads reflection outcomes #then runId outcome and finishedAt match its contract", async () => {
     // given
-    const root = await mkdtemp(join(tmpdir(), "reflection-completion-"))
+    const root = realpathSync.native(await mkdtemp(join(tmpdir(), "reflection-completion-")))
     roots.push(root)
     const paths = buildIdentityPaths(root, "agent-test")
     await recordReflectionCompletion(join(paths.reflection, "completions"), record())
@@ -78,7 +79,7 @@ describe("reflection completion flow", () => {
 
   test("#given a pending offline completion #when its source session starts #then appendEntry notify and consumed state happen without a model message", async () => {
     // given
-    const root = await mkdtemp(join(tmpdir(), "reflection-completion-"))
+    const root = realpathSync.native(await mkdtemp(join(tmpdir(), "reflection-completion-")))
     roots.push(root)
     await recordReflectionCompletion(root, record())
     const api = new CapturedCompletionApi()

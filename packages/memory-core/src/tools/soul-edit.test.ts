@@ -8,6 +8,7 @@ import { renderMemoryFile } from "../memfs/frontmatter"
 import { MEMORY_SOUL_EDIT_RESULT_TOKEN } from "../soul"
 import { runMemoryApplyPatch } from "./memory-apply-patch"
 import { runMemoryTool, type MemoryToolLock } from "./memory"
+import { realpathSync } from "node:fs"
 
 const AUTHOR: GitCommitAuthor = {
   agentId: "agent-soul-edit-test",
@@ -17,11 +18,11 @@ const AUTHOR: GitCommitAuthor = {
 const roots: string[] = []
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 async function fixture(): Promise<{ repo: GitMemoryRepo; lock: MemoryToolLock }> {
-  const root = await mkdtemp(join(tmpdir(), "omo-memory-soul-edit-"))
+  const root = realpathSync.native(await mkdtemp(join(tmpdir(), "omo-memory-soul-edit-")))
   roots.push(root)
   const repo = new GitMemoryRepo({ dir: join(root, "repo"), agentId: AUTHOR.agentId })
   await repo.init({ authorName: AUTHOR.authorName })

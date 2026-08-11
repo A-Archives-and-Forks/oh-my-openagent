@@ -8,7 +8,7 @@ import { registerReflectCommand } from "./reflect"
 const tempDirs: string[] = []
 
 afterEach(async () => {
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 async function harness(overrides: Parameters<typeof fakeDeps>[1] = {}) {

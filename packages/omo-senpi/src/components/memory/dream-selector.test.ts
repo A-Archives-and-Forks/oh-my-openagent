@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { realpathSync } from "node:fs"
 
 import {
   REFLECTION_STATE_SCHEMA_VERSION,
@@ -22,7 +23,7 @@ const NOW = new Date("2026-08-10T12:00:00.000Z")
 const tempDirs: string[] = []
 
 afterEach(async () => {
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 function textEntry(
@@ -151,7 +152,7 @@ describe("dream conversation packing", () => {
 describe("dream journal selection", () => {
   test("#given UTF-8 journals with one fully reflected conversation #when volume and selection run twice #then bytes snapshots ranking and output stay deterministic", async () => {
     // given
-    const root = await mkdtemp(join(tmpdir(), "dream-selector-"))
+    const root = realpathSync.native(await mkdtemp(join(tmpdir(), "dream-selector-")))
     tempDirs.push(root)
     const transcriptsDir = join(root, "transcripts")
     const alpha = [

@@ -31,6 +31,7 @@ import {
   memorySettings,
 } from "./memory.test-support"
 import { resolveReflectionTriggerConfig } from "./trigger-wiring"
+import { realpathSync } from "node:fs"
 
 const SESSION_ID = "session-compaction-survival"
 const BASE_SYSTEM_PROMPT = "You are senpi, a coding agent."
@@ -42,7 +43,7 @@ const cleanups: Array<() => Promise<void>> = []
 
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0)) await cleanup()
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 interface CompactionFixture {
@@ -54,7 +55,7 @@ interface CompactionFixture {
 }
 
 async function compactionFixture(): Promise<CompactionFixture> {
-  const root = await mkdtemp(join(tmpdir(), "omo-memory-compaction-"))
+  const root = realpathSync.native(await mkdtemp(join(tmpdir(), "omo-memory-compaction-")))
   roots.push(root)
   const cwd = join(root, "project")
   const env = { OMO_MEMORY_HOME: join(root, "memory") }

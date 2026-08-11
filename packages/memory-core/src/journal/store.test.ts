@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test"
-import { existsSync } from "node:fs"
+import { existsSync, realpathSync } from "node:fs"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -9,11 +9,11 @@ import { TranscriptJournal, withLocalJournalLock } from "./store"
 const tempDirs: string[] = []
 
 afterEach(async () => {
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 async function createJournal(): Promise<{ dir: string; journal: TranscriptJournal }> {
-  const dir = await mkdtemp(join(tmpdir(), "memory-journal-"))
+  const dir = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-journal-")))
   tempDirs.push(dir)
   return {
     dir,
@@ -115,7 +115,7 @@ describe("cancellable journal flush", () => {
 
   it("#given an abort during the acquisition retry loop #when the lock is contended #then it throws without acquiring", async () => {
     // given
-    const dir = await mkdtemp(join(tmpdir(), "memory-journal-lock-"))
+    const dir = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-journal-lock-")))
     tempDirs.push(dir)
     const lockPath = join(dir, "state.lock")
     await writeFile(lockPath, "held-by-another-holder\n", "utf8")
@@ -138,7 +138,7 @@ describe("cancellable journal flush", () => {
 
   it("#given an abort raised while the task holds the lock #when the task settles #then the lock file is released anyway", async () => {
     // given
-    const dir = await mkdtemp(join(tmpdir(), "memory-journal-lock-"))
+    const dir = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-journal-lock-")))
     tempDirs.push(dir)
     const lockPath = join(dir, "state.lock")
     const controller = new AbortController()

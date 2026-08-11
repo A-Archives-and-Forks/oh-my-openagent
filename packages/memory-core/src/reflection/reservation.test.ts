@@ -6,12 +6,13 @@ import { buildIdentityPaths, type MemoryIdentity } from "../identity"
 import { TranscriptJournal, type ReflectionSnapshot } from "../journal"
 import { ReflectionReservationStore } from "./reservation"
 import type { ReflectionRequest } from "./machine"
+import { realpathSync } from "node:fs"
 
 const roots: string[] = []
-afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))))
+afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }))))
 
 async function fixture(stepCount = 2) {
-  const root = await mkdtemp(join(tmpdir(), "reflection-reservation-"))
+  const root = realpathSync.native(await mkdtemp(join(tmpdir(), "reflection-reservation-")))
   roots.push(root)
   const identity: MemoryIdentity = { id: "agent-test", safeSlug: "agent-test", paths: buildIdentityPaths(root, "agent-test") }
   const journals = new Map<string, TranscriptJournal>()

@@ -14,7 +14,7 @@ import { createRunnerHarness, type RunnerHarness } from "./runner.test-support"
 setDefaultTimeout(process.platform === "win32" ? 60_000 : 30_000)
 
 const harnesses: RunnerHarness[] = []
-afterEach(async () => Promise.all(harnesses.splice(0).map((item) => rm(item.root, { recursive: true, force: true }))))
+afterEach(async () => Promise.all(harnesses.splice(0).map((item) => rm(item.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }))))
 
 async function harness(options: Parameters<typeof createRunnerHarness>[0]): Promise<RunnerHarness> {
   const created = await createRunnerHarness(options)
