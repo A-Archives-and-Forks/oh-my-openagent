@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "bun:test";
 
 import { createStandaloneMcpRequestContext, runWithRequestContext } from "../request-context.js";
-import { findWorkspaceRoot, resolvePathInsideContext, withLspClient } from "./client-wrapper.js";
+import { findWorkspaceRoot, resolveReadablePathInsideContext, withLspClient } from "./client-wrapper.js";
 import { LspInvalidPathError } from "./errors.js";
 import { LspManager } from "./manager.js";
 
@@ -58,12 +58,35 @@ describe("LSP client path confinement", () => {
 		symlinkSync(outside, join(root, "linked"));
 
 		const result = runWithRequestContext(createStandaloneMcpRequestContext({ cwd: root }), () => ({
-			filePath: resolvePathInsideContext("linked/file.ts"),
+			filePath: resolveReadablePathInsideContext("linked/file.ts"),
 			workspaceRoot: findWorkspaceRoot("linked/file.ts"),
 		}));
 
 		expect(result.filePath).toBe(join(realpathSync(root), "linked", "file.ts"));
 		expect(result.workspaceRoot).toBe(realpathSync(root));
+	});
+
+	it("#given an absolute macOS alias path through an outside symlink #when resolving read path #then preserves the lexical suffix", () => {
+		const root = tempRoot("lsp-client-wrapper-alias-root-");
+		const outside = tempRoot("lsp-client-wrapper-alias-outside-");
+		mkdirSync(join(root, ".git"), { recursive: true });
+		writeFileSync(join(outside, "file.ts"), "export const outside = true;\n");
+		symlinkSync(outside, join(root, "linked"));
+
+		const result = runWithRequestContext(createStandaloneMcpRequestContext({ cwd: root }), () =>
+			resolveReadablePathInsideContext(join(root, "linked", "file.ts")),
+		);
+
+		expect(result).toBe(join(realpathSync(root), "linked", "file.ts"));
+	});
+
+	it("#given missing parent directories without markers #when resolving workspace #then uses an existing directory", () => {
+		const root = tempRoot("lsp-client-wrapper-missing-root-");
+		const workspace = runWithRequestContext(createStandaloneMcpRequestContext({ cwd: root }), () =>
+			findWorkspaceRoot("missing/deep/file.ts"),
+		);
+
+		expect(workspace).toBe(realpathSync(root));
 	});
 
 	it("#given a symlink inside cwd that points outside #when starting rename #then rejects before client acquisition", async () => {
@@ -79,11 +102,15 @@ describe("LSP client path confinement", () => {
 			},
 		});
 
-		await expect(
-			runWithRequestContext(createStandaloneMcpRequestContext({ cwd: root }), () =>
-				withLspClient("linked/file.ts", async () => undefined, "rename", { manager }),
-			),
-		).rejects.toThrow(LspInvalidPathError);
-		expect(clientFactoryCalls).toBe(0);
+		try {
+			await expect(
+				runWithRequestContext(createStandaloneMcpRequestContext({ cwd: root }), () =>
+					withLspClient("linked/file.ts", async () => undefined, "rename", { manager }),
+				),
+			).rejects.toThrow(LspInvalidPathError);
+			expect(clientFactoryCalls).toBe(0);
+		} finally {
+			await manager.stopAll();
+		}
 	});
 });
