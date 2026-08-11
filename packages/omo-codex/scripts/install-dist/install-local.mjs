@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-codex-install:7bc4b0f020f0a1b4448cc75385a7e3c60042e3b270e304d4c1a43a859e81a4c2:d4c7f8c7d090f1296b6c9faffd4a1a462faacc77d7b07e452a56d2a3e3108986
+// omo-codex-install:7bc4b0f020f0a1b4448cc75385a7e3c60042e3b270e304d4c1a43a859e81a4c2:fcfc1a0d279dd3e9a36399614321be478a288ae63aaf58f32288112017e7a86b
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -177,7 +177,7 @@ var init_activity_state = __esm(() => {
 });
 
 // packages/telemetry-core/src/constants.ts
-var DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com", DEFAULT_POSTHOG_API_KEY = "phc_CFJhj5HyvA62QPhvyaUCtaq23aUfznnijg5VaaGkNk74";
+var DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com", DEFAULT_POSTHOG_API_KEY = "phc_CFJhj5HyvA62QPhvyaUCtaq23aUfznnijg5VaaGkNk74", UNCONFIGURED_POSTHOG_API_KEY = "phc_REPLACE_ME_OMO_NATIVE";
 
 // packages/telemetry-core/src/diagnostics.ts
 import { appendFileSync, existsSync as existsSync6, mkdirSync as mkdirSync3, readFileSync as readFileSync3 } from "node:fs";
@@ -330,6 +330,13 @@ function shouldDisableTelemetry(input) {
 }
 function getTelemetryApiKey(env = process.env, defaultApiKey = DEFAULT_POSTHOG_API_KEY) {
   return env["POSTHOG_API_KEY"]?.trim() ?? defaultApiKey;
+}
+function isConfiguredTelemetryApiKey(apiKey) {
+  const normalized = apiKey.trim();
+  return normalized.length > 0 && normalized !== UNCONFIGURED_POSTHOG_API_KEY;
+}
+function hasTelemetryApiKey(env, defaultApiKey) {
+  return isConfiguredTelemetryApiKey(getTelemetryApiKey(env, defaultApiKey));
 }
 function getTelemetryHost(env = process.env, defaultHost = DEFAULT_POSTHOG_HOST) {
   return env["POSTHOG_HOST"]?.trim() || defaultHost;
@@ -5746,7 +5753,7 @@ function createDefaultPostHogTransport(apiKey, options) {
 }
 function isTelemetryClientEnabled(input) {
   const env = input.env ?? process.env;
-  return !shouldDisableTelemetry({ env, productEnvPrefix: input.product.productEnvPrefix }) && getTelemetryApiKey(env, input.product.defaultApiKey).length > 0;
+  return !shouldDisableTelemetry({ env, productEnvPrefix: input.product.productEnvPrefix }) && hasTelemetryApiKey(env, input.product.defaultApiKey);
 }
 function createTelemetryClient(input) {
   if (!isTelemetryClientEnabled(input)) {
