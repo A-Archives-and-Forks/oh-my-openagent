@@ -1,21 +1,12 @@
 import { afterEach } from "bun:test"
-import { mkdtemp, mkdir, rm, writeFile, readFile } from "node:fs/promises"
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { buildIdentityPaths } from "@oh-my-opencode/memory-core"
 
-import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
-import { componentContext } from "./memory.test-support"
 import { createMemoryIdentityContext, type MemoryIdentityContext } from "./context"
-import {
-  extractSkillId,
-  incrementSkillUsage,
-  readSkillsUsageLedger,
-  registerSkillsUsage,
-  skillsUsagePaths,
-  SkillsUsageTracker,
-} from "./skills-usage"
+import { skillsUsagePaths } from "./skills-usage"
 
 export const IDENTITY = "skills-usage-agent"
 const tempDirs: string[] = []

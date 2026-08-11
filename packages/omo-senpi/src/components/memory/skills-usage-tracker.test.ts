@@ -1,9 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import { writeFile } from "node:fs/promises"
 import { join } from "node:path"
-import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
-import { extractSkillId, incrementSkillUsage, readSkillsUsageLedger, registerSkillsUsage, skillsUsagePaths, SkillsUsageTracker } from "./skills-usage"
-import { eventContext, fixture, toolCall } from "./skills-usage.test-support"
+import { readSkillsUsageLedger } from "./skills-usage-ledger"
+import { SkillsUsageTracker } from "./skills-usage-tracker"
+import { fixture } from "./skills-usage.test-support"
 
 describe("SkillsUsageTracker", () => {
   test("#given a read of skills/foo/SKILL.md #when recordRead is called then flushed #then foo.count is 1", async () => {

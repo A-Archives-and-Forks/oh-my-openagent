@@ -1,9 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { writeFile } from "node:fs/promises"
-import { join } from "node:path"
-import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
-import { extractSkillId, incrementSkillUsage, readSkillsUsageLedger, registerSkillsUsage, skillsUsagePaths, SkillsUsageTracker } from "./skills-usage"
-import { eventContext, fixture, toolCall } from "./skills-usage.test-support"
+import { incrementSkillUsage, readSkillsUsageLedger } from "./skills-usage-ledger"
+import { fixture } from "./skills-usage.test-support"
 
 describe("readSkillsUsageLedger", () => {
   test("#given a missing ledger file #when read #then returns empty object", async () => {

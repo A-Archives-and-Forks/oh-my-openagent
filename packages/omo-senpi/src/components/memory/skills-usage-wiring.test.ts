@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import { writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
-import { extractSkillId, incrementSkillUsage, readSkillsUsageLedger, registerSkillsUsage, skillsUsagePaths, SkillsUsageTracker } from "./skills-usage"
+import { readSkillsUsageLedger, skillsUsagePaths } from "./skills-usage-ledger"
+import { registerSkillsUsage } from "./skills-usage-wiring"
 import { eventContext, fixture, toolCall } from "./skills-usage.test-support"
 
 describe("registerSkillsUsage", () => {
@@ -96,7 +96,6 @@ describe("registerSkillsUsage", () => {
     // #then
     expect(trackers.size).toBe(0)
   })
-})
 
   test("#given a pending increment and an aborted drain signal #when flushed #then the ledger is never written", async () => {
     // given
@@ -123,3 +122,4 @@ describe("registerSkillsUsage", () => {
     const ledger = await readSkillsUsageLedger(skillsUsagePaths(context.identityPaths).ledgerPath)
     expect(Object.keys(ledger)).toHaveLength(0)
   })
+})
