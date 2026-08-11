@@ -18,8 +18,9 @@ async function builtOutputs() {
   tempRoots.push(root)
   const outputPath = join(root, "omo.js")
   const memberOutputPath = join(root, "omo-member.js")
-  const build = await buildExtension({ outputPath, memberOutputPath })
-  return { outputPath, memberOutputPath, ...build }
+  const advisorRuntimeOutputPath = join(root, "omo-init-deep-advisor.js")
+  const build = await buildExtension({ outputPath, memberOutputPath, advisorRuntimeOutputPath })
+  return { outputPath, memberOutputPath, advisorRuntimeOutputPath, ...build }
 }
 
 describe("checkExtensionCurrent", () => {
@@ -79,10 +80,12 @@ describe("checkExtensionCurrent", () => {
     // when
     const main = await readFile(outputs.outputPath, "utf8")
     const member = await readFile(outputs.memberOutputPath, "utf8")
+    const advisorRuntime = await readFile(outputs.advisorRuntimeOutputPath, "utf8")
 
     // then
     expect(main).not.toMatch(/^[\t ]+$/m)
     expect(member).not.toMatch(/^[\t ]+$/m)
+    expect(advisorRuntime).not.toMatch(/^[\t ]+$/m)
   })
 
   test("#given the main extension build #when its metafile inputs are inspected #then senpi-task implementation sources are included", async () => {

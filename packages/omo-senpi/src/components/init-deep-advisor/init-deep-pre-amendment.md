@@ -271,57 +271,6 @@ For each generated file:
 
 ---
 
-## Phase 5: Snapshot & Mode
-
-Ask the user: **Local or committed?**
-
-Capture the answer as `USER_MODE_CHOICE`. The explicit answer is authoritative:
-- `local` keeps the generated guidance personal to this checkout.
-- `committed` reruns the change through the `work-with-pr` skill so the generated guidance lands through a reviewed PR.
-- If no explicit answer is available, tracked `AGENTS.md` status is the fallback.
-
-Run these commands after the review is complete:
-
-```bash
-# Snapshot — create complete JSON with all fields, milliseconds timestamp
-mkdir -p .omo
-SHA=$(git rev-parse HEAD)
-# Count tracked files (NUL byte counting, chunk-boundary safe)
-FILES=$(git ls-files -z | node -e 'let c=0;process.stdin.on("data",d=>{for(let i=0;i<d.length;i++)if(d[i]===0)c++});process.stdin.on("end",()=>process.stdout.write(String(c)))')
-LOC=$(git ls-files -z -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.py' '*.go' '*.rs' '*.java' '*.kt' '*.swift' '*.rb' '*.php' '*.c' '*.cpp' '*.cs' '*.scala' '*.lua' '*.ex' '*.exs' '*.zig' '*.dart' | xargs -0 wc -l 2>/dev/null | tail -1 | awk '{print $1}')
-NOW=$(node -e 'console.log(Date.now())')
-USER_MODE_CHOICE="${USER_MODE_CHOICE:-}" && if [ "$USER_MODE_CHOICE" = "committed" ]; then MODE=committed; elif [ "$USER_MODE_CHOICE" = "local" ]; then MODE=local; elif git ls-files --error-unmatch AGENTS.md >/dev/null 2>&1; then MODE=committed; else MODE=local; fi
-cat > .omo/init-deep.json <<EOF
-{"commitSha":"$SHA","fileCount":$FILES,"loc":${LOC:-0},"timestamp":$NOW,"mode":"$MODE"}
-EOF
-# Local mode exclude — managed block (idempotent, never clobbers user lines)
-if [ "$MODE" = "local" ]; then
-  EXCLUDE=$(git rev-parse --git-path info/exclude)
-  mkdir -p "$(dirname "$EXCLUDE")"
-  if ! grep -q '# >>> omo-senpi init-deep local (managed)' "$EXCLUDE" 2>/dev/null; then
-    cat >> "$EXCLUDE" <<'BLOCK'
-# >>> omo-senpi init-deep local (managed)
-# Do not edit this block; rerun init-deep or switch modes.
-/.omo/init-deep.json
-AGENTS.md
-# <<< omo-senpi init-deep local (managed)
-BLOCK
-  fi
-fi
-# Nested AGENTS.md discovery
-find . -name AGENTS.md -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/dist/*' -not -path '*/build/*'
-```
-
-When switching from local mode to committed mode, remove the managed block before rerunning through `work-with-pr`:
-
-```bash
-EXCLUDE=$(git rev-parse --git-path info/exclude) && sed -i.bak "/# >>> omo-senpi init-deep local (managed)/,/# <<< omo-senpi init-deep local (managed)/d" "$EXCLUDE" && rm -f "$EXCLUDE.bak"
-```
-
-`USER_MODE_CHOICE=committed` selects committed mode even when `AGENTS.md` is untracked. `USER_MODE_CHOICE=local` selects local mode even when `AGENTS.md` is tracked. `.git/info/exclude` cannot hide changes to an already tracked file, so explicit local mode on a tracked `AGENTS.md` is informational only and the file remains visible to git.
-
----
-
 ## Final Report
 
 ```
