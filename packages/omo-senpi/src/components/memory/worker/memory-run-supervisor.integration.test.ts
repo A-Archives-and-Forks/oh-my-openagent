@@ -174,7 +174,9 @@ afterEach(async () => {
     }
   }
   processGroups.clear()
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+  // Windows releases file handles asynchronously when killed processes die, so an immediate
+  // recursive rm can hit EBUSY there; bounded retries absorb the lag without weakening cleanup.
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 describe("memory run supervisor", () => {
