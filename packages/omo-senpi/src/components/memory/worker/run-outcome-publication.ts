@@ -23,7 +23,7 @@ export async function publishRunOutcome(
   outcome: RunOutcome,
 ): Promise<void> {
   const identity = { runId: manifest.runId, attempt: manifest.attempt ?? 1 }
-  const claim = claimRunTerminal(runDir, identity, "publish")
+  const claim = await claimRunTerminal(runDir, identity, "publish")
   if (!runTerminalClaimMatches(claim, identity, "publish")) return
   await writeRunJsonAtomic(join(runDir, "publishing.json"), {
     version: 1,

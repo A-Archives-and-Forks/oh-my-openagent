@@ -115,17 +115,16 @@ describe("run finalization publication races", () => {
       reservation,
       now: () => Date.parse("2026-08-11T10:01:00.000Z"),
       getPidLiveness: () => {
-        claimRunTerminal(item.runDir, { runId: ledger.runId, attempt: ledger.attempt ?? 1 }, "publish")
-        publication ??= new Promise<void>((resolve, reject) => {
-          setImmediate(() => {
-            writeRunJsonAtomic(join(item.runDir, "publishing.json"), {
-              version: 1,
-              runId: "run-1",
-              attempt: 1,
-              finishedAt: "2026-08-11T10:00:01.000Z",
-            }).then(resolve, reject)
+        publication ??= (async () => {
+          await claimRunTerminal(item.runDir, { runId: ledger.runId, attempt: ledger.attempt ?? 1 }, "publish")
+          await new Promise<void>((resolve) => setImmediate(resolve))
+          await writeRunJsonAtomic(join(item.runDir, "publishing.json"), {
+            version: 1,
+            runId: "run-1",
+            attempt: 1,
+            finishedAt: "2026-08-11T10:00:01.000Z",
           })
-        })
+        })()
         return "unknown"
       },
     }, item.runDir, ledger)

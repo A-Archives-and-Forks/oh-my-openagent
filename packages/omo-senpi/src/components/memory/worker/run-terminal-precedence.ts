@@ -66,7 +66,7 @@ export async function checkRunAbandonmentPrecedence(
   const settled = await readTerminalPublication(runDir, ledger)
   if (settled !== undefined) return { decision: settled, ledger }
   const identity = { runId: ledger.runId, attempt: ledger.attempt ?? 1 }
-  const claim = claimRunTerminal(runDir, identity, "abandon", seams)
+  const claim = await claimRunTerminal(runDir, identity, "abandon", seams)
   return {
     decision: runTerminalClaimMatches(claim, identity, "abandon") ? "abandon" : "veto",
     ledger,

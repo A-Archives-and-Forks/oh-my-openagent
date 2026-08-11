@@ -69,7 +69,7 @@ describe("run abandonment precedence", () => {
   test("#given a publish claimant whose pid is confirmed dead #when precedence is checked #then abandonment reclaims the terminal claim", async () => {
     // given
     const { runDir } = await fixture()
-    claimRunTerminal(runDir, { runId: "run-1", attempt: 1 }, "publish", {}, 434343)
+    await claimRunTerminal(runDir, { runId: "run-1", attempt: 1 }, "publish", {}, 434343)
 
     // when
     const precedence = await checkRunAbandonmentPrecedence(runDir, "run-1", {
@@ -88,7 +88,7 @@ describe("run abandonment precedence", () => {
   test("#given a publish claimant whose pid liveness is unknown #when precedence is checked #then the run stays active", async () => {
     // given
     const { runDir } = await fixture()
-    claimRunTerminal(runDir, { runId: "run-1", attempt: 1 }, "publish", {}, 434343)
+    await claimRunTerminal(runDir, { runId: "run-1", attempt: 1 }, "publish", {}, 434343)
 
     // when
     const precedence = await checkRunAbandonmentPrecedence(runDir, "run-1", {

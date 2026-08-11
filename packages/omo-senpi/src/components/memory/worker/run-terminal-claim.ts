@@ -10,11 +10,26 @@ import {
 } from "node:fs"
 import { dirname, join } from "node:path"
 
-import { getPidLiveness } from "@oh-my-opencode/memory-core"
+import {
+  createLockRecord,
+  getPidLiveness,
+  withLock,
+} from "@oh-my-opencode/memory-core"
 
 import type { RunLivenessSeams } from "./run-liveness"
 
 export type RunTerminalClaimKind = "publish" | "abandon"
+
+type RecoveryReason = "invalid" | "dead-publish"
+
+type RunTerminalClaimSeams = RunLivenessSeams & {
+  readonly beforeRecovery?: (reason: RecoveryReason) => Promise<void>
+}
+
+type ClaimSnapshot = {
+  readonly raw: string
+  readonly claim: RunTerminalClaim | undefined
+}
 
 export interface RunTerminalClaim {
   readonly version: 1
@@ -28,13 +43,13 @@ export function runTerminalClaimPath(runDir: string): string {
   return join(runDir, "terminal-claim.json")
 }
 
-export function claimRunTerminal(
+export async function claimRunTerminal(
   runDir: string,
   identity: { readonly runId: string; readonly attempt: number },
   kind: RunTerminalClaimKind,
-  seams: RunLivenessSeams = {},
+  seams: RunTerminalClaimSeams = {},
   claimantPid = process.pid,
-): RunTerminalClaim {
+): Promise<RunTerminalClaim> {
   const path = runTerminalClaimPath(runDir)
   const requested: RunTerminalClaim = {
     version: 1,
@@ -46,18 +61,24 @@ export function claimRunTerminal(
   let discarded = 0
   for (;;) {
     if (createExclusiveClaim(path, requested)) return requested
-    const existing = readClaimIfValid(path)
+    const snapshot = readClaimSnapshot(path)
+    if (snapshot === undefined) continue
+    const existing = snapshot.claim
     if (existing === undefined) {
       // A claim only becomes visible complete, so an unreadable one authorized
       // nothing and is discarded rather than stranding the run forever.
       if (discarded > 0) throw new TypeError("Invalid run terminal claim")
       discarded += 1
-      removeClaim(path)
+      await seams.beforeRecovery?.("invalid")
+      const replacement = await recoverClaim(runDir, path, snapshot, "invalid", identity, seams)
+      if (replacement !== undefined) return replacement
       continue
     }
     if (runTerminalClaimMatches(existing, identity, kind)) return existing
     if (existing.kind !== "publish" || !claimantIsConfirmedDead(existing, seams)) return existing
-    removeClaim(path)
+    await seams.beforeRecovery?.("dead-publish")
+    const replacement = await recoverClaim(runDir, path, snapshot, "dead-publish", identity, seams)
+    if (replacement !== undefined) return replacement
   }
 }
 
@@ -100,12 +121,43 @@ function writeDurableClaim(path: string, claim: RunTerminalClaim): void {
   }
 }
 
-function readClaimIfValid(path: string): RunTerminalClaim | undefined {
+function readClaimSnapshot(path: string): ClaimSnapshot | undefined {
+  let raw: string
   try {
-    return parseRunTerminalClaim(JSON.parse(readFileSync(path, "utf8")))
-  } catch {
-    return undefined
+    raw = readFileSync(path, "utf8")
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return undefined
+    throw error
   }
+  try {
+    return { raw, claim: parseRunTerminalClaim(JSON.parse(raw)) }
+  } catch {
+    return { raw, claim: undefined }
+  }
+}
+
+async function recoverClaim(
+  runDir: string,
+  claimPath: string,
+  inspected: ClaimSnapshot,
+  reason: RecoveryReason,
+  identity: { readonly runId: string; readonly attempt: number },
+  seams: RunTerminalClaimSeams,
+): Promise<RunTerminalClaim | undefined> {
+  const record = await createLockRecord("reflection-finalize", { runId: identity.runId })
+  return withLock(join(runDir, "terminal-claim-recovery.lock"), record, async () => {
+    const current = readClaimSnapshot(claimPath)
+    if (current === undefined) return undefined
+    if (current.raw !== inspected.raw) return current.claim
+    if (reason === "invalid") {
+      if (current.claim !== undefined) return current.claim
+    } else {
+      if (current.claim === undefined) return undefined
+      if (current.claim.kind !== "publish" || !claimantIsConfirmedDead(current.claim, seams)) return current.claim
+    }
+    removeClaim(claimPath)
+    return undefined
+  }, { waitTimeoutMs: Number.POSITIVE_INFINITY })
 }
 
 function removeClaim(path: string): void {
