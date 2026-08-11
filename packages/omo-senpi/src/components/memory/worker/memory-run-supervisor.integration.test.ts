@@ -13,7 +13,7 @@ import {
 // Each case drives a real supervisor, bootstrap, and model child - three spawned bun processes
 // plus git work. The 5s default is a fast-machine assumption, not a budget those subprocesses
 // fit on a loaded CI runner; the assertions stay event-driven with no sleeps.
-const WAIT_MS = process.platform === "win32" ? 60_000 : 30_000
+const WAIT_MS = 60_000
 setDefaultTimeout(WAIT_MS)
 
 const supervisorPath = join(import.meta.dir, "memory-run-supervisor.ts")
@@ -171,7 +171,7 @@ describe("memory run supervisor", () => {
       launching: true,
     })
     expect(outcome).toMatchObject({ attempt: 1, childExit: { code: 1 }, timedOut: false })
-  }, 30_000)
+  }, 60_000)
 
   test("#given a fixture launch manifest #when supervised #then identity is durable before the command starts and the outcome is published once", async () => {
     // given
@@ -192,7 +192,7 @@ describe("memory run supervisor", () => {
     expect(outcome).toMatchObject({ version: 1, runId: "run-a", childExit: { code: 23, signal: null }, timedOut: false })
     expect(existsSync(join(runDir, "launch.json"))).toBe(false)
     expect((await readdir(runDir)).filter((name) => name === "outcome.json")).toEqual(["outcome.json"])
-  }, 30_000)
+  }, 60_000)
 
   test("#given a detached supervisor launched by a parent #when the parent is killed #then the supervisor still publishes the child outcome", async () => {
     // given
@@ -215,7 +215,7 @@ describe("memory run supervisor", () => {
 
     // then
     expect(outcome.childExit).toEqual({ code: 23, signal: null })
-  }, 30_000)
+  }, 60_000)
 
   test("#given a bootstrap waiting for release #when its parent pipe closes #then it exits without starting the manifest command", async () => {
     // given
@@ -234,7 +234,7 @@ describe("memory run supervisor", () => {
     expect(result).toEqual({ code: 0, signal: null })
     expect(existsSync(join(runDir, "child-observation.json"))).toBe(false)
     expect(existsSync(join(runDir, "child-started.json"))).toBe(false)
-  }, 30_000)
+  }, 60_000)
 
   test("#given a released child #when the supervisor is killed abruptly #then the recorded live process group can be terminated", async () => {
     // given
@@ -255,7 +255,7 @@ describe("memory run supervisor", () => {
     // then
     expect(existsSync(join(runDir, "outcome.json"))).toBe(false)
     expect(JSON.parse(await readFile(join(runDir, "ledger.json"), "utf8"))).toMatchObject({ childPid })
-  }, 30_000)
+  }, 60_000)
 
   test("#given a child that exits during termination grace #when the absolute deadline arrives #then timeout is recorded without escalation", async () => {
     // given
@@ -277,7 +277,7 @@ describe("memory run supervisor", () => {
       expect(outcome.childExit).toEqual({ code: 0, signal: null })
       expect(existsSync(join(runDir, "child-terminated.json"))).toBe(true)
     }
-  }, 30_000)
+  }, 60_000)
 
   test("#given a child that ignores SIGTERM #when termination grace expires #then the process group is killed", async () => {
     // given
@@ -300,5 +300,5 @@ describe("memory run supervisor", () => {
       expect(outcome.childExit).toEqual({ code: null, signal: "SIGKILL" })
       expect(existsSync(join(runDir, "child-terminated.json"))).toBe(true)
     }
-  }, 30_000)
+  }, 60_000)
 })

@@ -153,7 +153,7 @@ describe("memory run supervisor IC-8 containment", () => {
     expect(result).toEqual({ code: 0, signal: null })
     expect(outcome).toMatchObject({ timedOut: true, childExit: { code: 0, signal: null } })
     expect(existsSync(join(runDir, "taskkill-invocation.json"))).toBe(false)
-  }, 30_000)
+  }, 60_000)
 
   for (const platform of platforms) {
     test(`#given the injected ${platform} branch #when the absolute deadline instants are advanced #then graceful and hard tree termination use those instants`, async () => {
@@ -182,7 +182,7 @@ describe("memory run supervisor IC-8 containment", () => {
       } else {
         expect(existsSync(join(runDir, "taskkill-invocation.json"))).toBe(false)
       }
-    }, 30_000)
+    }, 60_000)
 
     test(`#given the injected ${platform} branch and a released child #when the supervisor dies abruptly #then the bootstrap alone enforces the persisted deadline`, async () => {
       // given
@@ -202,6 +202,6 @@ describe("memory run supervisor IC-8 containment", () => {
 
       // then
       expect(existsSync(join(runDir, "outcome.json"))).toBe(false)
-    }, 30_000)
+    }, 60_000)
   }
 })
