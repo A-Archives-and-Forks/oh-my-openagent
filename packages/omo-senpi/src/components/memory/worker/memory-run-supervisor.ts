@@ -16,6 +16,7 @@ import {
   getSupervisorProcessStart,
   getSupervisorRuntimePlatform,
   parseSupervisorChildExit,
+  readSupervisorClockNow,
   scheduleSupervisorDeadline,
   signalSupervisorProcessGroup,
   terminateSupervisorChildGracefully,
@@ -175,12 +176,17 @@ async function runSupervisor(runDir: string): Promise<void> {
   closeSync(stdoutFd)
   closeSync(stderrFd)
 
+  // Record the timeout from whether the deadline instant was actually reached, not from which
+  // process's deadline callback happened to run first: the bootstrap's own enforcement can end
+  // the child before the supervisor's callback fires, and the cancels above would otherwise
+  // erase a deadline that was in fact exceeded.
+  const clockNow = readSupervisorClockNow()
   const outcome: RunOutcome = {
     version: 1,
     runId: manifest.runId,
     finishedAt: new Date().toISOString(),
     childExit: parseSupervisorChildExit(bootstrapStatus) ?? wrapperExit,
-    timedOut,
+    timedOut: timedOut || (Number.isFinite(clockNow) && clockNow >= manifest.hardDeadlineAt),
   }
   await writeRunJsonAtomic(join(runDir, "outcome.json"), outcome)
   await unlinkRunArtifact(launchPath)

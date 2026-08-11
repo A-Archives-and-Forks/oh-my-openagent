@@ -35,6 +35,14 @@ export function getSupervisorRuntimePlatform(): SupervisorRuntimePlatform {
   return process.platform === "win32" ? "win32" : "posix"
 }
 
+/** Current instant from the active clock source: the injected seam clock under test seams,
+ * else wall time. NaN when a seam clock is active but unreadable. */
+export function readSupervisorClockNow(): number {
+  const clockPath = testSeamsEnabled() ? process.env.OMO_MEMORY_SUPERVISOR_CLOCK_PATH : undefined
+  if (clockPath === undefined) return Date.now()
+  return Number(readFileSync(clockPath, "utf8").trim())
+}
+
 export function scheduleSupervisorDeadline(instant: number, callback: () => void): CancelSupervisorDeadline {
   const clockPath = testSeamsEnabled() ? process.env.OMO_MEMORY_SUPERVISOR_CLOCK_PATH : undefined
   if (clockPath === undefined) {

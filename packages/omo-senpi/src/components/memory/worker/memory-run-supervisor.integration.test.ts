@@ -70,7 +70,7 @@ async function advanceClock(runDir: string, value: number): Promise<void> {
   await rename(temporary, path)
 }
 
-async function waitForPath(path: string, timeoutMs = 4_000): Promise<void> {
+async function waitForPath(path: string, timeoutMs = WAIT_MS): Promise<void> {
   if (existsSync(path)) return
   const { watch } = await import("node:fs")
   const directory = dirname(path)
