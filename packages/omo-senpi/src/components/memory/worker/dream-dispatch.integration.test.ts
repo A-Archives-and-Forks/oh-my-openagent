@@ -84,7 +84,9 @@ async function launchDream(
     loadConfig: () => loaded,
     cwd: root,
     env: options.seedLedgers === false ? { DREAM_FIXTURE_EMPTY_LEDGERS: "1" } : {},
-    deadlineMs: 5_000,
+    // Not the behavior under test - just the chain's safety bound. 5s assumed a fast dev machine;
+    // a loaded CI runner needs more for the supervisor + bootstrap + child chain to finish.
+    deadlineMs: 20_000,
     supervisorPath: supervisorFixture,
     sandbox: (spawn) => {
       calls.push(spawn)
