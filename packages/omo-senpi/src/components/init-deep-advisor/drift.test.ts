@@ -2,7 +2,7 @@
 
 import { join } from "node:path"
 
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 
 import { COOLDOWN_DAYS } from "./constants"
 import { computeDrift, shouldProposeRefresh } from "./drift"
@@ -22,6 +22,8 @@ afterEach(() => {
 })
 
 const MS_PER_DAY = 86_400_000
+
+setDefaultTimeout(process.platform === "win32" ? 30_000 : 5_000)
 
 function snapshotAt(commitSha: string, timestamp: number = Date.now()): InitDeepSnapshotV1 {
   return { commitSha, fileCount: 10, loc: 1000, timestamp, mode: "local" }
