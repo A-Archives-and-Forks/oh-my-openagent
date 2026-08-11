@@ -12,6 +12,7 @@ export {
   memoryWriterLockPath,
   noticeLockPath,
   reflectionSchedulerLockPath,
+  runFinalizationLockPath,
   skillsUsageLockPath,
   transcriptStateLockPath,
 } from "./domains"

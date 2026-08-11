@@ -4,6 +4,7 @@ import path from "node:path"
 export const LOCK_DOMAINS = [
   "memory-write",
   "reflection-scheduler",
+  "reflection-finalize",
   "transcript-state",
   "skills-usage",
   "facts-queue",
@@ -18,6 +19,19 @@ export function memoryWriterLockPath(locksDirectory: string): string {
 
 export function reflectionSchedulerLockPath(locksDirectory: string): string {
   return path.join(locksDirectory, "reflection-scheduler.lock")
+}
+
+export function runFinalizationLockPath(locksDirectory: string, runId: string): string {
+  const trimmed = runId.trim()
+  if (!trimmed || trimmed === "." || trimmed === "..") {
+    throw new Error("run id must contain a safe identifier")
+  }
+  if (/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,79}$/.test(trimmed)) {
+    return path.join(locksDirectory, `finalize-${trimmed}.lock`)
+  }
+  const slug = trimmed.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^[.-]+|[.-]+$/g, "").slice(0, 48) || "run"
+  const digest = createHash("sha256").update(trimmed).digest("hex").slice(0, 16)
+  return path.join(locksDirectory, `finalize-${slug}-${digest}.lock`)
 }
 
 export function transcriptStateLockPath(locksDirectory: string, transcriptId: string): string {
