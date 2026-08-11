@@ -118,14 +118,25 @@ export function createMessageUpdateHandler(deps: HookDeps, helpers: AutoRetryHel
         errorType: classifyErrorType(error),
       })
 
+      const terminalQuota402Abort =
+        classifyErrorType(error) === "abort" && extractStatusCode(error, config.retry_on_errors) === 402
+
       if (!isRetryableError(error, config.retry_on_errors)) {
-        log(`[${HOOK_NAME}] message.updated error not retryable, skipping fallback`, {
+        if (!terminalQuota402Abort) {
+          log(`[${HOOK_NAME}] message.updated error not retryable, skipping fallback`, {
+            sessionID,
+            statusCode: extractStatusCode(error, config.retry_on_errors),
+            errorName: extractErrorName(error),
+            errorType: classifyErrorType(error),
+          })
+          return
+        }
+        log(`[${HOOK_NAME}] message.updated terminal-quota 402 abort with fallback chain; dispatching session-stable fallback`, {
           sessionID,
           statusCode: extractStatusCode(error, config.retry_on_errors),
           errorName: extractErrorName(error),
           errorType: classifyErrorType(error),
         })
-        return
       }
 
       const agent = info?.agent as string | undefined
