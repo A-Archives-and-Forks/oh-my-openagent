@@ -17,6 +17,7 @@ import { resolveMemoryModelRegistry } from "./model-registry-resolver"
 import { resolveReflectionTriggerConfig, type ReflectionTriggerSession } from "./trigger-wiring"
 import { isRecord, sessionIdFrom } from "./wiring-context"
 import type { MemoryWiringOptions } from "./wiring-types"
+import { buildFactsSandboxTransform, type SandboxPolicy } from "./sandbox"
 
 export interface MemoryRuntimeWiring {
   resolveContext(sessionId: string): MemoryIdentityContext | undefined
@@ -55,7 +56,12 @@ export function createMemoryRuntimeWiring(
   function factsWiringFor(identity: MemoryIdentityContext): MemoryFactsWiring {
     const cached = factsWirings.get(identity.identity)
     if (cached !== undefined) return cached
-    const extractor = new FactsExtractorRunner({
+    const settings = resolveMemorySettings(options.loadConfig({ cwd: options.cwd() }).config.memory)
+    const sandboxPolicy = settings.agents[identity.identity]?.reflection?.sandbox
+      ?? settings.reflection.sandbox
+    const createExtractor = options.createFactsExtractor
+      ?? ((extractorOptions) => new FactsExtractorRunner(extractorOptions))
+    const extractor = createExtractor({
       identity: {
         id: identity.identity,
         safeSlug: sanitizeToSlug(identity.identity),
@@ -65,6 +71,9 @@ export function createMemoryRuntimeWiring(
       loadConfig: () => options.loadConfig({ cwd: options.cwd() }),
       resolveModelRegistry,
       env: options.env,
+      sandbox: buildFactsSandboxTransform({
+        policy: sandboxPolicy as SandboxPolicy,
+      }),
       ...(options.logger === undefined ? {} : { logger: options.logger }),
     })
     const wiring = createMemoryFactsWiring({

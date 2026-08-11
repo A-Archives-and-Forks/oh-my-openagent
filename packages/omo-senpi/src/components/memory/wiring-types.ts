@@ -1,6 +1,8 @@
 import type { ComponentContext, ComponentLogger, SenpiExtensionAPI } from "../../extension/types"
 import type { SenpiOmoConfigResult } from "../config-resolution"
 import type { MemoryIdentityContext } from "./context"
+import type { FactsExtractorRunnerOptions } from "./facts-runner"
+import type { FactsExtractorPort } from "./facts-wiring"
 import type { MemoryIdentityRuntime, MemoryIdentityRuntimeDeps } from "./identity-runtime"
 import type { ShutdownDrainInput, ShutdownEvaluator } from "./shutdown-drain"
 import type { refreshMemoryStatus } from "./status"
@@ -18,6 +20,7 @@ export interface MemoryWiringOptions {
   readonly env: Record<string, string | undefined>
   readonly logger?: ComponentLogger
   readonly createRuntime?: (identity: MemoryIdentityContext, deps: MemoryIdentityRuntimeDeps) => MemoryIdentityRuntime
+  readonly createFactsExtractor?: (options: FactsExtractorRunnerOptions) => FactsExtractorPort
   /** Boot-snapshot tool exposure; registration must not re-read config (latch order is observable). */
   readonly toolExposure?: "direct" | "search"
   readonly now?: () => number

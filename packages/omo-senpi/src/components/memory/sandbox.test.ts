@@ -3,8 +3,9 @@ import { existsSync, mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
-import type { ReflectionSpawnArgs } from "./worker/spawn"
+import type { FactsSpawnArgs, ReflectionSpawnArgs } from "./worker/spawn"
 import {
+  buildFactsSandboxTransform,
   buildSandboxTransform,
   SandboxUnavailableError,
   type SandboxPolicy,
@@ -52,6 +53,25 @@ function spawnArgs(worktree: string): ReflectionSpawnArgs {
       transcript: join(sessionDir, "transcript.json"),
       persona: join(sessionDir, "persona.md"),
       prompt: join(sessionDir, "prompt.md"),
+    },
+  }
+}
+
+function factsSpawnArgs(runDir: string): FactsSpawnArgs {
+  return {
+    runId: "facts-run-1",
+    attempt: 1,
+    hardDeadlineAt: Date.now() + 10_000,
+    model: "fixture/model",
+    command: "/bin/sh",
+    args: ["-c", "exit 0"],
+    cwd: runDir,
+    env: { PATH: process.env.PATH },
+    detached: true,
+    paths: {
+      runDir,
+      payload: join(runDir, "facts-payload.json"),
+      extraction: join(runDir, "extraction.jsonl"),
     },
   }
 }
@@ -212,5 +232,35 @@ describe("reflection worker OS sandbox", () => {
     expect(transformed).toBe(original)
     expect(transform.wasSandboxed).toBe(false)
     expect(transform.warning).toBeUndefined()
+  })
+})
+
+describe("facts worker OS sandbox", () => {
+  test("#given Linux with bwrap available #when facts spawn arguments are transformed #then only the run directory is rebound writable", async () => {
+    // given
+    const root = mkdtempSync(join(tmpdir(), "omo-memory-facts-sandbox-"))
+    roots.push(root)
+    const runDir = join(root, "runtime", "facts", "runs", "run-1")
+    mkdirSync(runDir, { recursive: true })
+    writeFileSync(join(runDir, "facts-payload.json"), "{}")
+    const transform = buildFactsSandboxTransform({
+      policy: "required",
+      platform: "linux",
+      which: () => "/usr/bin/bwrap",
+    })
+
+    // when
+    const transformed = await transform(factsSpawnArgs(runDir))
+
+    // then
+    expect(transformed.command).toBe("/usr/bin/bwrap")
+    expect(transformed.args).toEqual([
+      "--ro-bind", "/", "/",
+      "--dev-bind", "/dev", "/dev",
+      "--tmpfs", "/tmp",
+      "--bind", realpathSync(runDir), realpathSync(runDir),
+      "--chdir", runDir,
+      "--", "/bin/sh", "-c", "exit 0",
+    ])
   })
 })
