@@ -1,7 +1,7 @@
 import { execFile, spawn, spawnSync, type ChildProcess } from "node:child_process"
 import { readFileSync, watch, writeFileSync } from "node:fs"
 import { readFile } from "node:fs/promises"
-import { basename, dirname } from "node:path"
+import { dirname } from "node:path"
 
 export type SupervisorRuntimePlatform = "posix" | "win32"
 export type CancelSupervisorDeadline = () => void
@@ -50,9 +50,12 @@ export function scheduleSupervisorDeadline(instant: number, callback: () => void
     watcher.close()
     callback()
   }
-  const watcher = watch(dirname(clockPath), (_event, changed) => {
-    if (changed === basename(clockPath)) check()
-  })
+  // Re-read on any event in the directory rather than filtering by the clock's own basename.
+  // An atomic replace (write temp, rename over) reports the *source* name on Linux inotify
+  // ("clock.txt.next") and the destination name on macOS, so a basename filter silently misses
+  // every clock advance on Linux. check() is a cheap guarded read, so reacting to sibling
+  // events costs nothing and keeps the seam platform-independent.
+  const watcher = watch(dirname(clockPath), () => check())
   queueMicrotask(check)
   return () => {
     if (settled) return

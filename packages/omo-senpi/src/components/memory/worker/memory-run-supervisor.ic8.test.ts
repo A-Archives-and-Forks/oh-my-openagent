@@ -4,7 +4,7 @@ import { existsSync } from "node:fs"
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { createServer, type AddressInfo } from "node:net"
 import { tmpdir } from "node:os"
-import { basename, dirname, join } from "node:path"
+import { dirname, join } from "node:path"
 
 // Real supervisor + bootstrap + model child spawns; a loaded CI runner needs far more than the
 // 5s these waiters originally assumed. The waits stay event-driven (fs/exit signals), so a true
@@ -24,8 +24,11 @@ async function waitForPath(path: string, timeoutMs = WAIT_MS): Promise<void> {
   const { watch } = await import("node:fs")
   await new Promise<void>((resolve, reject) => {
     let settled = false
-    const watcher = watch(dirname(path), (_event, changed) => {
-      if (changed === basename(path) && existsSync(path)) finish()
+    // Re-check on any event in the directory: an atomic write (write temp, rename over) reports the
+    // *source* name on Linux inotify, so filtering by the target's basename misses the arrival of
+    // rename-written artifacts such as outcome.json.
+    const watcher = watch(dirname(path), () => {
+      if (existsSync(path)) finish()
     })
     const timeout = setTimeout(() => finish(new Error(`waited ${timeoutMs}ms for ${path}`)), timeoutMs)
     const finish = (error?: Error) => {
