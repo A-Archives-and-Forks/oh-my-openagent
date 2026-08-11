@@ -72,6 +72,35 @@ platform-specific output:
   - Parallels Desktop quit;
   - Bunshin client closed.
 
+## Windows reflection lock repair
+
+The next PR rerun passed Windows Senpi compatibility but exposed one root-suite
+race:
+
+- GitHub Actions run `31514629800`, job `93856582546`.
+- RED: a simultaneous reflection reservation received Windows `EPERM` while
+  reading `reflection-scheduler.lock`; 14,379 tests passed and this was the only
+  failure.
+- Fix: Windows `EPERM` now becomes an anonymous, unreadable owner snapshot.
+  Acquisition remains fail-closed and uses the existing contention
+  deadline/backoff; release will not delete a lock whose owner cannot be
+  verified.
+- Bundle headroom: build markers retain SHA-256 digests but encode them with
+  base64url and a shorter internal prefix, removing non-runtime bytes without
+  weakening the 900,000-byte budget.
+- GREEN:
+  - local bundle: 899,711 bytes;
+  - real Windows Bun 1.3.12 bundle: 899,950 bytes;
+  - Windows marker/freshness/budget/event suites: 16 passed, 0 failed;
+  - Windows reflection reservation suite: 20 consecutive runs passed;
+  - focused memory lock/reservation tests and memory-core typecheck passed.
+- Cleanup:
+  - Windows lock QA sandbox and scripts removed;
+  - temporary remote Mac worktree and scripts removed;
+  - Windows VM restored to stopped;
+  - Parallels Desktop quit;
+  - Bunshin client closed.
+
 ## Why it is enough
 
 These are the same build, package, daemon, typecheck, and test surfaces used by
