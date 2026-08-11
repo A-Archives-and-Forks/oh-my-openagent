@@ -43,6 +43,52 @@ export async function writeWorktreeFile(
   return true
 }
 
+export async function moveWorktreeFile(root: string, path: string): Promise<string | undefined> {
+  const target = join(root, path)
+  await assertSafeParents(root, path)
+  try {
+    const stat = await lstat(target)
+    if (!stat.isFile()) throw unsupportedWorktree(path, stat.isSymbolicLink() ? "symlink" : "non-file")
+    const moved = join(dirname(target), `.${basename(target)}.omo-moved-${process.pid}-${randomUUID()}`)
+    await rename(target, moved)
+    return moved
+  } catch (error) {
+    if (errorCode(error) === "ENOENT") return undefined
+    throw error
+  }
+}
+
+export async function restoreMovedWorktreeFile(root: string, path: string, moved: string): Promise<boolean> {
+  const target = join(root, path)
+  try {
+    await link(moved, target)
+  } catch (error) {
+    if (errorCode(error) === "EEXIST") return false
+    throw error
+  }
+  await rm(moved)
+  await syncDirectory(dirname(target))
+  return true
+}
+
+export async function deleteMovedWorktreeFile(root: string, path: string, moved: string): Promise<boolean> {
+  const target = join(root, path)
+  try {
+    await link(moved, target)
+  } catch (error) {
+    if (errorCode(error) === "EEXIST") return false
+    throw error
+  }
+  await rm(target)
+  await rm(moved)
+  await syncDirectory(dirname(target))
+  return true
+}
+
+export async function discardMovedWorktreeFile(moved: string): Promise<void> {
+  await rm(moved, { force: true })
+}
+
 export async function removeWorktreeFile(root: string, path: string): Promise<void> {
   const target = join(root, path)
   await assertSafeParents(root, path)

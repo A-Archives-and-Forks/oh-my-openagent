@@ -1,12 +1,16 @@
-import { randomUUID } from "node:crypto"
-import { copyFile, lstat, open, readFile, rename, rm } from "node:fs/promises"
-import { isAbsolute, join, resolve } from "node:path"
+import { lstat, readFile } from "node:fs/promises"
+import { join } from "node:path"
 import type { GitExec, GitExecResult } from "./exec"
 import { commandError } from "./repo-arguments"
+import { writeIndexIfIdentity as writeIndexConditionally } from "./path-state-index"
 import {
   assertSafeParents,
+  deleteMovedWorktreeFile,
+  discardMovedWorktreeFile,
   errorCode,
+  moveWorktreeFile,
   removeWorktreeFile,
+  restoreMovedWorktreeFile,
   unsupportedWorktree,
   writeWorktreeFile,
 } from "./path-state-files"
@@ -83,37 +87,15 @@ export class GitPathStateStore {
     next: GitIndexIdentity | null,
   ): Promise<boolean> {
     const normalized = normalizeGitPath(path)
-    const rawIndexPath = (await this.git(["rev-parse", "--git-path", "index"])).stdout.trim()
-    const indexPath = isAbsolute(rawIndexPath) ? rawIndexPath : resolve(this.dir, rawIndexPath)
-    const lockPath = `${indexPath}.lock`
-    const temporary = `${indexPath}.omo-${process.pid}-${randomUUID()}`
-    let lock
-    try {
-      lock = await open(lockPath, "wx")
-    } catch (error) {
-      if (errorCode(error) === "EEXIST") return false
-      throw error
-    }
-    let published = false
-    try {
-      if (!sameIdentity(await this.captureIndex(normalized), expected)) return false
-      if (next !== null) assertIndexIdentity(next)
-      await copyFile(indexPath, temporary)
-      const argv = next === null
-        ? ["update-index", "--force-remove", "--", normalized]
-        : ["update-index", "--add", "--cacheinfo", next.mode, next.oid, normalized]
-      await this.git(argv, undefined, { GIT_INDEX_FILE: temporary })
-      await lock.writeFile(await readFile(temporary))
-      await lock.sync()
-      await lock.close()
-      await rename(lockPath, indexPath)
-      published = true
-      return true
-    } finally {
-      if (!published) await lock.close().catch(() => undefined)
-      await rm(temporary, { force: true })
-      if (!published) await rm(lockPath, { force: true })
-    }
+    if (next !== null) assertIndexIdentity(next)
+    return writeIndexConditionally({
+      dir: this.dir,
+      exec: this.exec,
+      path: normalized,
+      expected,
+      next,
+      capture: () => this.captureIndex(normalized),
+    })
   }
 
   async removeIndex(path: string): Promise<void> {
@@ -133,19 +115,33 @@ export class GitPathStateStore {
     next: GitWorktreeIdentity,
   ): Promise<boolean> {
     const normalized = normalizeGitPath(path)
-    if (!sameIdentity(await this.captureWorktree(normalized), expected)) return false
-    if (next.kind === "missing") {
-      await removeWorktreeFile(this.dir, normalized)
-      return true
+    if (expected.kind === "missing") {
+      if ((await this.captureWorktree(normalized)).kind !== "missing") return false
+      if (next.kind === "missing") return true
+      assertWorktreeIdentity(next)
+      return writeWorktreeFile(this.dir, normalized, await this.readBlob(next.oid), next.mode, true)
     }
-    assertWorktreeIdentity(next)
-    return writeWorktreeFile(
-      this.dir,
-      normalized,
-      await this.readBlob(next.oid),
-      next.mode,
-      expected.kind === "missing",
-    )
+    const moved = await moveWorktreeFile(this.dir, normalized)
+    if (moved === undefined) return false
+    try {
+      const current = await this.captureMovedWorktree(moved)
+      if (!sameIdentity(current, expected)) {
+        if (!await restoreMovedWorktreeFile(this.dir, normalized, moved)) await discardMovedWorktreeFile(moved)
+        return false
+      }
+      if (next.kind === "missing") {
+        const removed = await deleteMovedWorktreeFile(this.dir, normalized, moved)
+        if (!removed) await discardMovedWorktreeFile(moved)
+        return removed
+      }
+      assertWorktreeIdentity(next)
+      const published = await writeWorktreeFile(this.dir, normalized, await this.readBlob(next.oid), next.mode, true)
+      await discardMovedWorktreeFile(moved)
+      return published
+    } catch (error) {
+      if (!await restoreMovedWorktreeFile(this.dir, normalized, moved)) await discardMovedWorktreeFile(moved)
+      throw error
+    }
   }
 
   async removeWorktree(path: string): Promise<void> {
@@ -185,6 +181,12 @@ export class GitPathStateStore {
     return { kind: "file", mode: stat.mode & 0o777, oid }
   }
 
+  private async captureMovedWorktree(path: string): Promise<GitWorktreeFileIdentity> {
+    const stat = await lstat(path)
+    if (!stat.isFile()) throw unsupportedWorktree(path, stat.isSymbolicLink() ? "symlink" : "non-file")
+    return { kind: "file", mode: stat.mode & 0o777, oid: await this.hashWorktreeBlob(await readFile(path), true) }
+  }
+
   private async hashBlob(argv: readonly string[], content: string | Buffer): Promise<string> {
     const result = await this.git(["hash-object", ...argv], content)
     const oid = result.stdout.trim()
@@ -192,15 +194,11 @@ export class GitPathStateStore {
     return oid
   }
 
-  private async git(
-    argv: readonly string[],
-    stdin?: string | Buffer,
-    env: Readonly<Record<string, string>> = {},
-  ): Promise<GitExecResult> {
+  private async git(argv: readonly string[], stdin?: string | Buffer): Promise<GitExecResult> {
     const result = await this.exec.run(argv, {
       cwd: this.dir,
       timeoutMs: GIT_TIMEOUT_MS,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0", ...env },
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
       ...(stdin === undefined ? {} : { stdin }),
     })
     if (result.code !== 0) throw commandError(argv, result)
