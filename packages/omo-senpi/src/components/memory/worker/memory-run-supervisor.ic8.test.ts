@@ -1,10 +1,15 @@
 import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { spawn, spawnSync, type ChildProcess } from "node:child_process"
 import { existsSync, realpathSync } from "node:fs"
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { createServer, type AddressInfo } from "node:net"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
+import {
+  advanceTestClock,
+  createTestClock,
+  waitForFilesystemState,
+} from "./supervisor-test-signals"
 
 // Real supervisor + bootstrap + model child spawns; a loaded CI runner needs far more than the
 // 5s these waiters originally assumed. The waits stay event-driven (fs/exit signals), so a true
@@ -20,32 +25,7 @@ const liveProcesses = new Set<number>()
 const platforms = ["posix", "win32"] as const
 
 async function waitForPath(path: string, timeoutMs = WAIT_MS): Promise<void> {
-  if (existsSync(path)) return
-  const { watch } = await import("node:fs")
-  await new Promise<void>((resolve, reject) => {
-    let settled = false
-    // Re-check on any event in the directory: an atomic write (write temp, rename over) reports the
-    // *source* name on Linux inotify, so filtering by the target's basename misses the arrival of
-    // rename-written artifacts such as outcome.json.
-    const watcher = watch(dirname(path), () => {
-      if (existsSync(path)) finish()
-    })
-    // inotify delivery under bun on linux drops or delays events under load, so a slow
-    // re-check interval backs the watcher; existsSync stays the authority.
-    const interval = setInterval(() => {
-      if (existsSync(path)) finish()
-    }, 50)
-    const timeout = setTimeout(() => finish(new Error(`waited ${timeoutMs}ms for ${path}`)), timeoutMs)
-    const finish = (error?: Error) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timeout)
-      clearInterval(interval)
-      watcher.close()
-      error === undefined ? resolve() : reject(error)
-    }
-    if (existsSync(path)) finish()
-  })
+  await waitForFilesystemState(dirname(path), () => existsSync(path) ? true : undefined, timeoutMs, path)
 }
 
 async function makeRun(mode: "graceful" | "stubborn"): Promise<{
@@ -56,7 +36,7 @@ async function makeRun(mode: "graceful" | "stubborn"): Promise<{
   const runDir = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-run-supervisor-ic8-")))
   roots.push(runDir)
   await mkdir(runDir, { recursive: true, mode: 0o700 })
-  const clockPath = join(runDir, "clock.txt")
+  const clockPath = await createTestClock(runDir, 1_000)
   const exitServer = createServer()
   await new Promise<void>((resolve, reject) => {
     exitServer.once("error", reject)
@@ -73,7 +53,6 @@ async function makeRun(mode: "graceful" | "stubborn"): Promise<{
       })
     })
   })
-  await writeFile(clockPath, "1000\n", "utf8")
   await writeFile(join(runDir, "ledger.json"), `${JSON.stringify({ version: 1, runId: "run-ic8", kind: "reflection" })}\n`)
   await writeFile(join(runDir, "launch.json"), `${JSON.stringify({
     version: 1,
@@ -113,20 +92,7 @@ function launchSupervisor(runDir: string, clockPath: string, platform: typeof pl
 }
 
 async function advanceClock(path: string, value: number): Promise<void> {
-  const temporary = `${path}.next`
-  await writeFile(temporary, `${value}\n`, "utf8")
-  // The supervisor's re-check interval keeps the clock file busy on Windows, where renaming
-  // over an open file fails with EPERM; the collision is transient, so retry briefly.
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      await rename(temporary, path)
-      return
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code
-      if ((code !== "EPERM" && code !== "EBUSY") || attempt >= 50) throw error
-      await new Promise((resolve) => setTimeout(resolve, 100))
-    }
-  }
+  await advanceTestClock(path, value)
 }
 
 function waitForExit(child: ChildProcess): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {

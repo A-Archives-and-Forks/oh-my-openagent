@@ -1,7 +1,6 @@
 import { execFile, spawn, spawnSync, type ChildProcess } from "node:child_process"
-import { readFileSync, watch, writeFileSync } from "node:fs"
+import { readdirSync, watch, writeFileSync } from "node:fs"
 import { readFile } from "node:fs/promises"
-import { dirname } from "node:path"
 
 export type SupervisorRuntimePlatform = "posix" | "win32"
 export type CancelSupervisorDeadline = () => void
@@ -38,44 +37,47 @@ export function getSupervisorRuntimePlatform(): SupervisorRuntimePlatform {
 /** Current instant from the active clock source: the injected seam clock under test seams,
  * else wall time. NaN when a seam clock is active but unreadable. */
 export function readSupervisorClockNow(): number {
-  const clockPath = testSeamsEnabled() ? process.env.OMO_MEMORY_SUPERVISOR_CLOCK_PATH : undefined
-  if (clockPath === undefined) return Date.now()
-  return Number(readFileSync(clockPath, "utf8").trim())
+  const clockDir = testSeamsEnabled() ? process.env.OMO_MEMORY_SUPERVISOR_CLOCK_PATH : undefined
+  if (clockDir === undefined) return Date.now()
+  return readInjectedClock(clockDir)
 }
 
 export function scheduleSupervisorDeadline(instant: number, callback: () => void): CancelSupervisorDeadline {
-  const clockPath = testSeamsEnabled() ? process.env.OMO_MEMORY_SUPERVISOR_CLOCK_PATH : undefined
-  if (clockPath === undefined) {
+  const clockDir = testSeamsEnabled() ? process.env.OMO_MEMORY_SUPERVISOR_CLOCK_PATH : undefined
+  if (clockDir === undefined) {
     const timer = setTimeout(callback, Math.max(0, instant - Date.now()))
     return () => clearTimeout(timer)
   }
   let settled = false
   const check = () => {
     if (settled) return
-    const now = Number(readFileSync(clockPath, "utf8").trim())
+    const now = readInjectedClock(clockDir)
     if (!Number.isFinite(now) || now < instant) return
     settled = true
-    watcher.close()
-    clearInterval(interval)
+    watcher?.close()
     callback()
   }
-  // Re-read on any event in the directory rather than filtering by the clock's own basename.
-  // An atomic replace (write temp, rename over) reports the *source* name on Linux inotify
-  // ("clock.txt.next") and the destination name on macOS, so a basename filter silently misses
-  // every clock advance on Linux. Inotify delivery under bun on Linux also drops or delays
-  // events under load, so a slow interval re-check backs the watcher; the guarded read stays
-  // the authority either way. This seam only activates under the test-seam env flag, so the
-  // poll never runs in production.
-  const watcher = watch(dirname(clockPath), () => check())
-  const interval = setInterval(check, 50)
-  interval.unref()
-  queueMicrotask(check)
+  if (readInjectedClock(clockDir) >= instant) {
+    settled = true
+    callback()
+    return () => {}
+  }
+  const watcher = watch(clockDir, check)
+  check()
   return () => {
     if (settled) return
     settled = true
     watcher.close()
-    clearInterval(interval)
   }
+}
+
+function readInjectedClock(clockDir: string): number {
+  const latest = readdirSync(clockDir)
+    .map((name) => /^(\d+)-(-?\d+(?:\.\d+)?)$/.exec(name))
+    .filter((match): match is RegExpExecArray => match !== null)
+    .sort((left, right) => Number(left[1]) - Number(right[1]))
+    .at(-1)
+  return latest === undefined ? Number.NaN : Number(latest[2])
 }
 
 function recordTestTermination(action: string, targetPid: number): void {

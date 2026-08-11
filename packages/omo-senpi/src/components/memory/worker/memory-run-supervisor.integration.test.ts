@@ -1,9 +1,14 @@
 import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { spawn, spawnSync, type ChildProcess } from "node:child_process"
 import { existsSync, realpathSync } from "node:fs"
-import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
+import {
+  advanceTestClock,
+  createTestClock,
+  waitForFilesystemState,
+} from "./supervisor-test-signals"
 
 // Each case drives a real supervisor, bootstrap, and model child - three spawned bun processes
 // plus git work. The 5s default is a fast-machine assumption, not a budget those subprocesses
@@ -55,7 +60,7 @@ async function makeRun(options: {
 }
 
 function launchSupervisor(runDir: string): ChildProcess {
-  const clockPath = join(runDir, "clock.txt")
+  const clockPath = join(runDir, "clock-events")
   const child = spawn(process.execPath, [supervisorPath, runDir], {
     detached: true,
     stdio: "ignore",
@@ -72,87 +77,19 @@ function launchSupervisor(runDir: string): ChildProcess {
 }
 
 async function advanceClock(runDir: string, value: number): Promise<void> {
-  const path = join(runDir, "clock.txt")
-  const temporary = `${path}.next`
-  await writeFile(temporary, `${value}\n`, "utf8")
-  // The supervisor's re-check interval keeps the clock file busy on Windows, where renaming
-  // over an open file fails with EPERM; the collision is transient, so retry briefly.
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      await rename(temporary, path)
-      return
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code
-      if ((code !== "EPERM" && code !== "EBUSY") || attempt >= 50) throw error
-      await new Promise((resolve) => setTimeout(resolve, 100))
-    }
-  }
+  await advanceTestClock(join(runDir, "clock-events"), value)
 }
 
 async function waitForPath(path: string, timeoutMs = WAIT_MS): Promise<void> {
-  if (existsSync(path)) return
-  const { watch } = await import("node:fs")
-  const directory = dirname(path)
-  await new Promise<void>((resolve, reject) => {
-    let settled = false
-    // Re-check on any event in the directory: run artifacts are published by writing a temp file and
-    // renaming over the target, and Linux inotify reports only the rename SOURCE name, so matching
-    // the target's basename never fires there.
-    const watcher = watch(directory, () => {
-      if (existsSync(path)) finish()
-    })
-    // inotify delivery under bun on linux drops or delays events under load; the interval
-    // re-check backs the watcher and existsSync stays the authority.
-    const interval = setInterval(() => {
-      if (existsSync(path)) finish()
-    }, 50)
-    const timeout = setTimeout(() => finish(new Error(`waited ${timeoutMs}ms for ${path}`)), timeoutMs)
-    const finish = (error?: Error) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timeout)
-      clearInterval(interval)
-      watcher.close()
-      error === undefined ? resolve() : reject(error)
-    }
-    if (existsSync(path)) finish()
-  })
+  await waitForFilesystemState(dirname(path), () => existsSync(path) ? true : undefined, timeoutMs, path)
 }
 
 async function waitForLedgerChild(runDir: string): Promise<{ readonly childPid: number }> {
   const path = join(runDir, "ledger.json")
-  const read = async (): Promise<{ readonly childPid: number } | undefined> => {
+  return await waitForFilesystemState(runDir, async () => {
     const value = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>
     return typeof value.childPid === "number" ? { childPid: value.childPid } : undefined
-  }
-  const initial = await read()
-  if (initial !== undefined) return initial
-  const { watch } = await import("node:fs")
-  return await new Promise((resolve, reject) => {
-    let settled = false
-    // Re-read on any event in the directory: updateRunLedger writes via temp+rename, and Linux
-    // inotify reports only the rename SOURCE name, so filtering on "ledger.json" never fires there.
-    const probe = async (): Promise<void> => {
-      const value = await read().catch(() => undefined)
-      if (value !== undefined) finish(value)
-    }
-    const watcher = watch(runDir, () => void probe())
-    // Same inotify delivery caveat: the interval re-read backs the watcher; the content
-    // predicate (childPid is a number) stays the authority.
-    const interval = setInterval(() => void probe(), 50)
-    const timeout = setTimeout(() => finish(undefined, new Error(`waited ${WAIT_MS}ms for child identity`)), WAIT_MS)
-    const finish = (value?: { readonly childPid: number }, error?: Error) => {
-      if (settled) return
-      settled = true
-      clearTimeout(timeout)
-      clearInterval(interval)
-      watcher.close()
-      error === undefined && value !== undefined ? resolve(value) : reject(error ?? new Error("missing child identity"))
-    }
-    void read().then((value) => {
-      if (value !== undefined) finish(value)
-    }, (error: unknown) => finish(undefined, error instanceof Error ? error : new Error(String(error))))
-  })
+  }, WAIT_MS, "child identity")
 }
 
 async function readOutcome(runDir: string): Promise<Outcome> {
@@ -323,7 +260,7 @@ describe("memory run supervisor", () => {
   test("#given a child that exits during termination grace #when the absolute deadline arrives #then timeout is recorded without escalation", async () => {
     // given
     const runDir = await makeRun({ mode: "graceful", hardDeadlineAt: 2_000, terminationGraceMs: 2_000 })
-    await writeFile(join(runDir, "clock.txt"), "1000\n", "utf8")
+    await createTestClock(runDir, 1_000)
 
     // when
     const supervisor = launchSupervisor(runDir)
@@ -345,7 +282,7 @@ describe("memory run supervisor", () => {
   test("#given a child that ignores SIGTERM #when termination grace expires #then the process group is killed", async () => {
     // given
     const runDir = await makeRun({ mode: "stubborn", hardDeadlineAt: 2_000, terminationGraceMs: 100 })
-    await writeFile(join(runDir, "clock.txt"), "1000\n", "utf8")
+    await createTestClock(runDir, 1_000)
 
     // when
     const supervisor = launchSupervisor(runDir)
