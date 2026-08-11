@@ -2,8 +2,10 @@ import { existsSync, mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "bun:test"
 
-import type { TelemetryDiagnosticInput } from "@oh-my-opencode/telemetry-core"
-import { UNCONFIGURED_POSTHOG_API_KEY } from "@oh-my-opencode/telemetry-core"
+import {
+  UNCONFIGURED_POSTHOG_API_KEY,
+  type TelemetryDiagnosticInput,
+} from "@oh-my-opencode/telemetry-core"
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import { createOmoNativeNoticeRegistration } from "./omo-native-notice"
 import { getOmoNativePayloadFilePath } from "./omo-native-buffer"
@@ -148,9 +150,11 @@ describe("OmO Native telemetry notice and preview", () => {
 
   it("#given the unconfigured project key #when session_start fires #then no first-run notice is sent", async () => {
     await withTempAgentDir(async (agentDir) => {
-      // given - pin the placeholder explicitly: the packaged default is a real key now, so an
-      // absent override no longer exercises the unconfigured path this test names.
-      const env = { POSTHOG_API_KEY: UNCONFIGURED_POSTHOG_API_KEY, SENPI_CODING_AGENT_DIR: agentDir }
+      // given
+      const env = {
+        POSTHOG_API_KEY: UNCONFIGURED_POSTHOG_API_KEY,
+        SENPI_CODING_AGENT_DIR: agentDir,
+      }
       const pi = register(agentDir, { env })
       const notifications: string[] = []
 
