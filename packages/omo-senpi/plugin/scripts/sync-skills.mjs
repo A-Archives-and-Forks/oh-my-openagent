@@ -34,6 +34,10 @@ const nativeSkillSources = [
     source: join(nativeSkillsRoot, "init-deep"),
   },
   {
+    name: "onboarding",
+    source: join(nativeSkillsRoot, "onboarding"),
+  },
+  {
     name: "ultrawork",
     source: join(nativeSkillsRoot, "ultrawork"),
   },
