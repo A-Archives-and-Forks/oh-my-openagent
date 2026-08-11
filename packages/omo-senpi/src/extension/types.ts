@@ -4,6 +4,9 @@ import type { IdleInjectionCoordinator } from "./idle-injection-coordinator"
 
 export interface SenpiExtensionAPI {
   on(event: string, handler: (payload: unknown, ctx?: unknown) => unknown | Promise<unknown>): void
+  rpc?: {
+    emit(name: string, data: unknown): void
+  }
   events?: {
     emit(name: string, data: unknown): void
     on(name: string, handler: (payload: unknown) => void): () => void

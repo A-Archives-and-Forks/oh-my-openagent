@@ -1,4 +1,5 @@
 import type { SessionShutdownEvent } from "@code-yeongyu/senpi"
+import type { TaskRecord } from "@oh-my-opencode/senpi-task"
 import type { ComponentContext, SenpiExtensionAPI } from "../../extension/types"
 import type { TaskEngine } from "./engine"
 import type { LeadPollerLifecycle } from "./lead-poller-lifecycle"
@@ -17,6 +18,39 @@ type EventBridgeState = {
   readonly resumptionChannels: Pick<ResumptionChannelEmitter, "emitSessionStart" | "emitShutdown">
 }
 
+const OMO_TASK_UPDATED_EVENT = "omo.task.updated"
+
+function taskSnapshot(record: TaskRecord) {
+  return {
+    task_id: record.task_id,
+    name: record.name,
+    task_summary: record.task_summary,
+    description: record.description,
+    agent_type: record.agent_type,
+    category: record.category,
+    model: record.model,
+    status: record.status,
+    residency_state: record.residency_state,
+    execution_mode: record.execution_mode,
+    depth: record.depth,
+    created_at: record.created_at,
+    updated_at: record.updated_at,
+    ...(record.run_stats === undefined ? {} : { run_stats: record.run_stats }),
+  }
+}
+
+function emitTaskSnapshot(pi: SenpiExtensionAPI, engine: TaskEngine): void {
+  const parentSessionId = engine.runtime.sessionId()
+  if (parentSessionId === undefined || pi.rpc === undefined) return
+  const tasks = engine.manager
+    .list({ scope: "parent-session", session_id: parentSessionId })
+    .map(({ record }) => taskSnapshot(record))
+  pi.rpc.emit(OMO_TASK_UPDATED_EVENT, {
+    parent_session_id: parentSessionId,
+    tasks,
+  })
+}
+
 // Session start runs the durable recovery chain in strict order: flush/drop buffered completions
 // BEFORE reconcile (revived children must not double-deliver buffered terminals), revive/reattach
 // the resumed session's children (undefined session id still runs the legacy crash-orphan sweep),
@@ -32,6 +66,7 @@ export function wireEventBridge(
   state: EventBridgeState,
 ): void {
   const guidanceGuard = createOncePerSessionGuard()
+  const unsubscribeTaskSnapshots = engine.onStoreMutation(() => emitTaskSnapshot(pi, engine))
   wireReloadGuard(pi, engine.manager)
 
   pi.on("session_start", async (_payload, eventCtx) => {
@@ -57,6 +92,7 @@ export function wireEventBridge(
     }
     await tickLeadPollersBestEffort(ctx, state)
     statusUi.scheduleSync()
+    emitTaskSnapshot(pi, engine)
   })
 
   pi.on("session_before_switch", (_payload, eventCtx) => {
@@ -77,6 +113,7 @@ export function wireEventBridge(
   })
 
   pi.on("session_shutdown", async (payload, eventCtx) => {
+    unsubscribeTaskSnapshots()
     engine.runtime.captureFrom(asLiveContext(eventCtx))
     transitions.onShutdown(engine.runtime.sessionId())
     engine.runtime.clearUi()
