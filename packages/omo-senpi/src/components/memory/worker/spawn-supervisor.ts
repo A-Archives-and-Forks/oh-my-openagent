@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process"
+import { existsSync } from "node:fs"
 import { mkdir } from "node:fs/promises"
 import { join } from "node:path"
 
@@ -213,10 +214,11 @@ async function runSupervisedChild(input: {
       resolve({ code, signal })
     })
   })
-  if (supervisorExit.code !== 0 || supervisorExit.signal !== null) {
+  const outcomePath = join(input.runDir, "outcome.json")
+  if (!existsSync(outcomePath) && (supervisorExit.code !== 0 || supervisorExit.signal !== null)) {
     throw new Error(`memory run supervisor exited with ${supervisorExit.code ?? supervisorExit.signal ?? "unknown status"}`)
   }
-  const outcome = await readRunJson<RunOutcome>(join(input.runDir, "outcome.json"))
+  const outcome = await readRunJson<RunOutcome>(outcomePath)
   if (!runOutcomeMatchesLedger(ledger, outcome)) {
     throw new Error(`memory run outcome attempt ${outcome.attempt ?? "legacy"} does not match attempt ${input.attempt}`)
   }
