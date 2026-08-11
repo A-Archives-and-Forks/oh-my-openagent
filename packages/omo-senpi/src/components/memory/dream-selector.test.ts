@@ -16,6 +16,7 @@ import {
   rankDreamCandidates,
   scoreDreamCandidate,
   selectDreamConversations,
+  selectRecentDreamConversations,
   type DreamScoredConversation,
 } from "./dream-selector"
 
@@ -39,6 +40,28 @@ function textEntry(
     source_line_id: `${conversationId}:line:${index}`,
     source_message_id: `${conversationId}:message:${index}`,
   }
+}
+
+function contextualEntry(
+  conversationId: string,
+  kind: "reasoning" | "error" | "tool_call",
+  capturedAt: string,
+): TranscriptEntry {
+  return kind === "tool_call"
+    ? {
+        kind,
+        name: "read",
+        captured_at: capturedAt,
+        source_line_id: `${conversationId}:tail:tool`,
+        source_message_id: `${conversationId}:tail`,
+      }
+    : {
+        kind,
+        text: `${kind} tail`,
+        captured_at: capturedAt,
+        source_line_id: `${conversationId}:tail:${kind}`,
+        source_message_id: `${conversationId}:tail`,
+      }
 }
 
 function state(overrides: Partial<ReflectionTranscriptState> = {}): ReflectionTranscriptState {
@@ -150,6 +173,58 @@ describe("dream conversation packing", () => {
 })
 
 describe("dream journal selection", () => {
+  for (const kind of ["reasoning", "error", "tool_call"] as const) {
+    test(`#given a stale conversation with a newer ${kind} tail #when recent selection runs #then canonical activity wins`, async () => {
+      // given
+      const root = realpathSync.native(await mkdtemp(join(tmpdir(), "dream-selector-recency-")))
+      tempDirs.push(root)
+      const transcriptsDir = join(root, "transcripts")
+      await writeJournal(transcriptsDir, "stale-with-tail", [
+        textEntry("stale-with-tail", 0, "stale", "2026-08-10T09:00:00.000Z"),
+        contextualEntry("stale-with-tail", kind, "2026-08-10T11:30:00.000Z"),
+      ])
+      await writeJournal(transcriptsDir, "actually-recent", [
+        textEntry("actually-recent", 0, "recent", "2026-08-10T10:00:00.000Z"),
+      ])
+
+      // when
+      const result = await selectRecentDreamConversations({
+        transcriptsDir,
+        autoSelectMax: 1,
+        autoSelectMaxBytes: 10_000,
+        now: () => NOW,
+      }, 1)
+
+      // then
+      expect(result.conversationIds).toEqual(["actually-recent"])
+    })
+  }
+
+  test("#given a stale conversation with a newer contextual tail #when automatic selection is capped #then canonical activity wins", async () => {
+    // given
+    const root = realpathSync.native(await mkdtemp(join(tmpdir(), "dream-selector-auto-recency-")))
+    tempDirs.push(root)
+    const transcriptsDir = join(root, "transcripts")
+    await writeJournal(transcriptsDir, "stale-with-tail", [
+      textEntry("stale-with-tail", 0, "same", "2026-08-10T09:00:00.000Z"),
+      contextualEntry("stale-with-tail", "reasoning", "2026-08-10T11:30:00.000Z"),
+    ])
+    await writeJournal(transcriptsDir, "actually-recent", [
+      textEntry("actually-recent", 0, "same", "2026-08-10T10:00:00.000Z"),
+    ])
+
+    // when
+    const result = await selectDreamConversations({
+      transcriptsDir,
+      autoSelectMax: 1,
+      autoSelectMaxBytes: 10_000,
+      now: () => NOW,
+    })
+
+    // then
+    expect(result.conversationIds).toEqual(["actually-recent"])
+  })
+
   test("#given UTF-8 journals with one fully reflected conversation #when volume and selection run twice #then bytes snapshots ranking and output stay deterministic", async () => {
     // given
     const root = realpathSync.native(await mkdtemp(join(tmpdir(), "dream-selector-")))

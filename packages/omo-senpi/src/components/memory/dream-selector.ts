@@ -6,6 +6,7 @@ import {
   captureCursorSnapshot,
   deriveState,
   initialReflectionState,
+  isCanonicalEntry,
   searchTranscripts,
   type ReflectionTranscriptState,
   type SearchDocument,
@@ -122,7 +123,7 @@ async function loadConversations(transcriptsDir: string): Promise<LoadedConversa
     const journalEntries = await new TranscriptJournal({ journalDir }).readEntries()
     const state = await readReflectionState(join(journalDir, "state.json"), journalEntries)
     const snapshot = captureCursorSnapshot(journalEntries, state)
-    const newest = journalEntries.at(-1)
+    const newest = journalEntries.findLast(isCanonicalEntry)
     if (snapshot === null || newest === undefined) return null
     return {
       conversationId,
