@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { chmod, link, lstat, mkdir, open, rename, rm, rmdir } from "node:fs/promises"
+import { chmod, link, lstat, mkdir, open, readFile, rename, rm, rmdir, writeFile } from "node:fs/promises"
 import { basename, dirname, join } from "node:path"
 import { GitPathStateError } from "./path-state"
 
@@ -88,8 +88,10 @@ export async function reserveMovedWorktreeDeletion(
   restoreClaimed: (claimed: string) => Promise<true | string>,
 ): Promise<WorktreeDeletionReservation | undefined> {
   const target = join(root, path)
+  const marker = randomUUID()
   try {
     await mkdir(target, { mode: 0o700 })
+    await writeFile(join(target, ".omo-reservation"), marker, "utf8")
   } catch (error) {
     if (errorCode(error) === "EEXIST") return undefined
     throw error
@@ -105,6 +107,12 @@ export async function reserveMovedWorktreeDeletion(
         throw error
       }
       if (!current.isDirectory() || current.dev !== reserved.dev || current.ino !== reserved.ino) return undefined
+      try {
+        if (await readFile(join(target, ".omo-reservation"), "utf8") !== marker) return undefined
+      } catch (error) {
+        if (errorCode(error) === "ENOENT") return undefined
+        throw error
+      }
       return {
         finish: async () => {
           const claimed = join(dirname(target), `.${basename(target)}.omo-reserved-${process.pid}-${randomUUID()}`)
@@ -115,12 +123,20 @@ export async function reserveMovedWorktreeDeletion(
             throw error
           }
           const owned = await lstat(claimed)
-          if (!owned.isDirectory() || owned.dev !== reserved.dev || owned.ino !== reserved.ino) {
+          let ownedMarker: string | undefined
+          if (owned.isDirectory()) {
+            try {
+              ownedMarker = await readFile(join(claimed, ".omo-reservation"), "utf8")
+            } catch (error) {
+              if (errorCode(error) !== "ENOENT") throw error
+            }
+          }
+          if (!owned.isDirectory() || owned.dev !== reserved.dev || owned.ino !== reserved.ino || ownedMarker !== marker) {
             const restored = await restoreClaimed(claimed)
             return restored === true ? false : restored
           }
           await rm(moved)
-          await rmdir(claimed)
+          await rm(claimed, { recursive: true })
           await syncDirectory(dirname(target))
           try {
             await lstat(target)

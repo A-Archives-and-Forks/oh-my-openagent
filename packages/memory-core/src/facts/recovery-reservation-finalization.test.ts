@@ -83,7 +83,7 @@ describe("facts deletion reservation finalization", () => {
         verify: async () => {
           const finalizer = await reservation.verify()
           if (finalizer === undefined) return undefined
-          await rmdir(target)
+          await rm(target, { recursive: true })
           await mkdir(target)
           const foreign = await lstat(target)
           foreignIdentity = { dev: foreign.dev, ino: foreign.ino }
@@ -126,7 +126,7 @@ describe("facts deletion reservation finalization", () => {
       return { verify: async () => {
         const finalizer = await reservation.verify()
         if (finalizer === undefined) return undefined
-        await rmdir(target)
+        await rm(target, { recursive: true })
         await writeFile(target, "foreign A\n")
         return finalizer
       } }
@@ -176,7 +176,7 @@ describe("facts deletion reservation finalization", () => {
       return { verify: async () => {
         const finalizer = await reservation.verify()
         if (finalizer === undefined) return undefined
-        await rmdir(target)
+        await rm(target, { recursive: true })
         await mkdir(target)
         return finalizer
       } }
@@ -222,7 +222,7 @@ describe("facts deletion reservation finalization", () => {
         verify: async () => {
           const finalizer = await reservation.verify()
           if (finalizer === undefined) return undefined
-          await rmdir(target)
+          await rm(target, { recursive: true })
           await writeFile(target, "foreign finalization sentinel\n")
           return finalizer
         },

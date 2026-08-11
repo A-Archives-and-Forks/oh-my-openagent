@@ -170,10 +170,10 @@ describe("facts path-state recovery ownership", () => {
 
   test("durably inserts every pre and post identity before envelope publication", async () => {
     const { dir, repo } = await fixture()
-    await repo.configSet("filter.omo.clean", "sed 's/^WT:/IDX:/'")
-    await repo.configSet("filter.omo.smudge", "sed 's/^IDX:/WT:/'")
+    await repo.configSet("filter.factsqa.clean", "sed 's/^WT:/IDX:/'")
+    await repo.configSet("filter.factsqa.smudge", "sed 's/^IDX:/WT:/'")
     await mkdir(join(dir, "notes", "facts"), { recursive: true })
-    await writeFile(join(dir, ".gitattributes"), "notes/facts/*.md filter=omo\n")
+    await writeFile(join(dir, ".gitattributes"), "notes/facts/*.md filter=factsqa\n")
     await writeFile(
       join(dir, "notes", "facts", "2026-08.md"),
       "---\ndescription: Explicit facts for 2026-08\n---\n\nWT: base\n",
