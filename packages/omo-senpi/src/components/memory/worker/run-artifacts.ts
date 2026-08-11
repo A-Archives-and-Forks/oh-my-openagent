@@ -25,6 +25,13 @@ export interface RunAttempt {
   readonly thinking?: string
 }
 
+export interface RunPrelaunchArtifact {
+  readonly version: 1
+  readonly runId: string
+  readonly worktreeDir: string
+  readonly worktreeBranch: string
+}
+
 export interface RunOutcome {
   readonly version: 1
   readonly runId: string
@@ -107,4 +114,24 @@ export async function unlinkRunArtifact(path: string): Promise<void> {
   } catch (error) {
     if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error
   }
+}
+
+export function parseRunPrelaunchArtifact(value: unknown): RunPrelaunchArtifact {
+  if (!isRecord(value)
+    || value.version !== 1
+    || typeof value.runId !== "string"
+    || typeof value.worktreeDir !== "string"
+    || typeof value.worktreeBranch !== "string") {
+    throw new TypeError("Invalid reflection prelaunch artifact")
+  }
+  return {
+    version: 1,
+    runId: value.runId,
+    worktreeDir: value.worktreeDir,
+    worktreeBranch: value.worktreeBranch,
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
 }

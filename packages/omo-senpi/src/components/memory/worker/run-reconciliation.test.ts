@@ -14,7 +14,7 @@ import {
 
 import { reconcileReflectionRuns } from "./run-reconciliation"
 import { writeRunJsonAtomic } from "./run-artifacts"
-import { realpathSync } from "node:fs"
+import { existsSync, realpathSync } from "node:fs"
 
 const roots: string[] = []
 afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }))))
@@ -49,6 +49,12 @@ async function fixture(trigger: "step-count" | "dream" = "step-count") {
   const worktree = await createReflectionWorktree(repo, reserved.run.runId, identity.paths.worktrees)
   const runDir = join(identity.paths.reflection, "runs", reserved.run.runId)
   await mkdir(runDir, { recursive: true, mode: 0o700 })
+  await writeRunJsonAtomic(join(runDir, "prelaunch.json"), {
+    version: 1,
+    runId: reserved.run.runId,
+    worktreeDir: worktree.dir,
+    worktreeBranch: worktree.branch,
+  })
   const ledger = {
     version: 1 as const,
     runId: reserved.run.runId,
@@ -287,10 +293,10 @@ describe("reflection and dream run reconciliation", () => {
     expect((await unknown.journal.getState()).reflected_completed_steps).toBe(0)
   })
 
-  test("#given an old active reservation with no run directory and a confirmed-dead local launcher #when reconciled #then the pre-launch wedge is released", async () => {
+  test("#given an old prelaunch worktree without a ledger and a confirmed-dead launcher #when reconciled #then resources and reservation are released", async () => {
     // given
     const item = await fixture()
-    await rm(item.runDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+    await rm(join(item.runDir, "ledger.json"))
 
     // when
     const results = await reconcileReflectionRuns({
@@ -305,5 +311,11 @@ describe("reflection and dream run reconciliation", () => {
     expect(results).toEqual([{ runId: "run-orphan", outcome: "failed" }])
     expect((await item.store.readState()).active).toBeUndefined()
     expect((await item.journal.getState()).reflected_completed_steps).toBe(0)
+    expect(existsSync(item.worktree.dir)).toBe(false)
+    expect(existsSync(item.runDir)).toBe(false)
+    expect((await item.worktree.exec.run(
+      ["show-ref", "--verify", `refs/heads/${item.worktree.branch}`],
+      { cwd: item.repo.dir, timeoutMs: 30_000 },
+    )).code).not.toBe(0)
   })
 })

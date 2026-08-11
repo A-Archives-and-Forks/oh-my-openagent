@@ -6,6 +6,7 @@ import { join } from "node:path"
 import { GitMemoryRepo, createNodeGitExec } from "../git"
 import {
   createReflectionWorktree,
+  discardReflectionWorktree,
   finalizeReflectionWorktree,
   type ReflectionWorktree,
 } from "./worktree"
@@ -42,6 +43,35 @@ afterEach(async () => {
 })
 
 describe("reflection worktree finalization", () => {
+  it("#given recorded identity before Git creation #when cleanup runs #then missing resources are idempotently confirmed absent", async () => {
+    // given
+    const { repo, root } = await fixture()
+    const dir = join(root, "worktrees", "never-created")
+    const branch = "memory/reflection-never-created"
+
+    // when
+    const cleanup = await discardReflectionWorktree(repo, dir, branch)
+
+    // then
+    expect(cleanup).toEqual({ worktreeRemoved: true, branchRemoved: true })
+  })
+
+  it("#given a precreate callback #when a worktree is created #then identity is published before Git resources exist", async () => {
+    // given
+    const { repo, worktreesDir } = await fixture()
+    let observed: { readonly dir: string; readonly branch: string } | undefined
+
+    // when
+    const worktree = await createReflectionWorktree(repo, "prelaunch", worktreesDir, undefined, async (identity) => {
+      expect(existsSync(identity.dir)).toBe(false)
+      observed = identity
+    })
+
+    // then
+    expect(observed).toEqual({ dir: worktree.dir, branch: worktree.branch })
+    expect(existsSync(worktree.dir)).toBe(true)
+  })
+
   it("#given a clean committed reflection #when auto-finalized #then it no-ff merges and cleans up", async () => {
     // #given
     const { repo, parentDir, worktreesDir } = await fixture()

@@ -26,6 +26,11 @@ export interface ReflectionCleanupReceipt {
   readonly branchRemoved: boolean
 }
 
+export interface ReflectionWorktreeIdentity {
+  readonly dir: string
+  readonly branch: string
+}
+
 export interface ReflectionFinalizeResult {
   readonly status: ReflectionOutcome
   readonly detail?: string
@@ -49,6 +54,7 @@ export async function createReflectionWorktree(
   runId: string,
   worktreesDir: string,
   exec: GitExec = createNodeGitExec(),
+  beforeCreate?: (identity: ReflectionWorktreeIdentity) => void | Promise<void>,
 ): Promise<ReflectionWorktree> {
   if (!isAbsolute(worktreesDir)) throw new TypeError("worktreesDir must be absolute")
   const baseSha = await repo.head()
@@ -58,10 +64,11 @@ export async function createReflectionWorktree(
   const suffix = `${Date.now()}-${id}`
   const branch = `memory/reflection-${suffix}`
   const dir = join(resolve(worktreesDir), suffix)
-  await mkdir(worktreesDir, { recursive: true })
-  await repo.worktreeAdd(dir, branch, baseSha)
+  await beforeCreate?.({ dir, branch })
 
   try {
+    await mkdir(worktreesDir, { recursive: true })
+    await repo.worktreeAdd(dir, branch, baseSha)
     const gitFilePath = join(dir, ".git")
     const gitFileSnapshot = await readFile(gitFilePath, "utf8")
     const commonDirResult = await git(exec, repo.dir, ["rev-parse", "--git-common-dir"])
@@ -84,6 +91,15 @@ export async function createReflectionWorktree(
     await removeWorktreeAndBranch(repo, dir, branch, exec)
     throw error
   }
+}
+
+export async function discardReflectionWorktree(
+  repo: GitMemoryRepo,
+  dir: string,
+  branch: string,
+  exec: GitExec = createNodeGitExec(),
+): Promise<ReflectionCleanupReceipt> {
+  return removeWorktreeAndBranch(repo, dir, branch, exec)
 }
 
 export async function finalizeReflectionWorktree(

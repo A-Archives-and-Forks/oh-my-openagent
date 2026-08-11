@@ -1,11 +1,13 @@
 import { existsSync } from "node:fs"
-import { readdir } from "node:fs/promises"
+import { readdir, rm } from "node:fs/promises"
 import { hostname as readHostname } from "node:os"
 import { join } from "node:path"
 
 import {
   getPidLiveness,
   getProcessStartIdentity,
+  discardReflectionWorktree,
+  GitMemoryRepo,
   type MemoryIdentity,
   type ProcessLiveness,
   type ReservedRun,
@@ -13,6 +15,7 @@ import {
 
 import {
   readRunJson,
+  parseRunPrelaunchArtifact,
   runOutcomeMatchesLedger,
   type RunOutcome,
 } from "./run-artifacts"
@@ -72,7 +75,10 @@ export async function reconcileReflectionRuns(
 async function reconcilePrelaunch(context: ReconcileContext): Promise<ReflectionRunReconcileResult | undefined> {
   const active = (await context.reservation.readState()).active
   if (active?.reservedAt === undefined || active.launcherPid === undefined || active.launcherHostname === undefined) return undefined
-  if (existsSync(join(context.identity.paths.reflection, "runs", active.runId))) return undefined
+  const runDir = join(context.identity.paths.reflection, "runs", active.runId)
+  if (existsSync(join(runDir, "ledger.json"))) return undefined
+  const prelaunchPath = join(runDir, "prelaunch.json")
+  if (existsSync(runDir) && !existsSync(prelaunchPath)) return undefined
   if (context.now() - Date.parse(active.reservedAt) <= 60_000 || active.launcherHostname !== context.hostname()) return undefined
   const liveness = (context.getPidLiveness ?? getPidLiveness)(active.launcherPid)
   let dead = liveness === "dead"
@@ -81,6 +87,18 @@ async function reconcilePrelaunch(context: ReconcileContext): Promise<Reflection
     dead = actual !== null && actual !== active.launcherProcessStart
   }
   if (!dead) return undefined
+  if (existsSync(prelaunchPath)) {
+    const prelaunch = parseRunPrelaunchArtifact(await readRunJson<unknown>(prelaunchPath))
+    if (prelaunch.runId !== active.runId) throw new Error("Reflection prelaunch run id does not match reservation")
+    const repo = new GitMemoryRepo({ dir: context.identity.paths.repo, agentId: context.identity.id })
+    const cleanup = await discardReflectionWorktree(
+      repo,
+      prelaunch.worktreeDir,
+      prelaunch.worktreeBranch,
+    )
+    if (!cleanup.worktreeRemoved || !cleanup.branchRemoved) return undefined
+    await rm(runDir, { recursive: true, force: true })
+  }
   const transition = await context.reservation.complete(active.runId, "failed")
   if (transition.launch !== undefined) context.launch?.(transition.launch)
   return { runId: active.runId, outcome: "failed" }

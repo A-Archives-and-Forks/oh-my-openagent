@@ -6,7 +6,6 @@ import {
   GitMemoryRepo,
   buildDefaultSeedFiles,
   createLockRecord,
-  createReflectionWorktree,
   finalizeReflectionWorktree,
   installHooks,
   memoryWriterLockPath,
@@ -33,6 +32,7 @@ import {
   runMemoryModelAttempts,
   type MemoryModelChain,
 } from "./memory-model-attempts"
+import { createRunWorktree } from "./create-run-worktree"
 import { prepareReflectionCandidateSpawn } from "./reflection-spawn-input"
 import { writeRunJsonAtomic } from "./run-artifacts"
 import { runReflectionChild } from "./spawn"
@@ -93,7 +93,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
     }
     let worktree: ReflectionWorktree | undefined
     try {
-      worktree = await createReflectionWorktree(repo, run.runId, this.options.identity.paths.worktrees)
+      worktree = await createRunWorktree(repo, run.runId, this.options.identity.paths)
       const activeWorktree = worktree
       const reflection = resolveAgentReflectionSettings(loaded.config.memory, this.options.identity.id)
       const merge = reflection.merge
