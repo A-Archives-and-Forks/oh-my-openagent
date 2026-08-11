@@ -6,12 +6,13 @@ import type {
 
 import type { ReflectionReservationPort } from "./runner"
 import type { ReflectionCompletionRecord } from "./completion"
+import type { RunLivenessSeams } from "./run-liveness"
 
 export type ReservationStatePort = ReflectionReservationPort & {
   readState(): Promise<{ readonly active?: ReservedRun }>
 }
 
-export interface RunFinalizationContext {
+export interface RunFinalizationContext extends RunLivenessSeams {
   readonly identity: MemoryIdentity
   readonly reservation: ReservationStatePort
   readonly launch?: (run: ReservedRun) => void

@@ -17,6 +17,7 @@ import {
 import { resolveFinalizationDecision } from "./run-finalization-git"
 import { settleReservationRun } from "./run-finalization-settlement"
 import { withRunTerminalGate } from "./run-terminal-gate"
+import { checkRunAbandonmentPrecedence } from "./run-terminal-precedence"
 import type {
   DurableFinalizationDecision,
   ReservationRunResult,
@@ -95,17 +96,23 @@ export async function abandonReservationRun(
       if (await readMatchingOutcome(runDir, current) !== undefined) {
         return finalizeClaimedOutcome(context, runDir, current.runId)
       }
-      if (active?.runId === current.runId) {
-        const transition = await context.reservation.complete(current.runId, "failed")
-        if (transition.launch !== undefined) context.launch?.(transition.launch)
+      const abandonedAt = new Date(context.now()).toISOString()
+      const precedence = await checkRunAbandonmentPrecedence(runDir, current.runId, context)
+      if (precedence.decision === "finalize") {
+        return finalizeClaimedOutcome(context, runDir, precedence.ledger.runId)
       }
+      if (precedence.decision === "veto") return undefined
       await writeRunJsonAtomic(join(runDir, "abandoned.json"), {
         version: 1,
-        runId: current.runId,
+        runId: precedence.ledger.runId,
         outcome: "abandoned_unknown",
-        abandonedAt: new Date(context.now()).toISOString(),
+        abandonedAt,
       })
-      return { runId: current.runId, outcome: "abandoned_unknown" as const }
+      if (active?.runId === precedence.ledger.runId) {
+        const transition = await context.reservation.complete(precedence.ledger.runId, "failed")
+        if (transition.launch !== undefined) context.launch?.(transition.launch)
+      }
+      return { runId: precedence.ledger.runId, outcome: "abandoned_unknown" as const }
     }),
   )
   return claimedValue(claimed)
@@ -163,7 +170,7 @@ async function cleanupOrThrow(
 }
 
 function claimedValue(
-  claimed: ClaimedRunResult<ReservationRunResult>,
+  claimed: ClaimedRunResult<ReservationRunResult | undefined>,
 ): ReservationRunResult | undefined {
   return claimed.status === "busy" ? undefined : claimed.value
 }

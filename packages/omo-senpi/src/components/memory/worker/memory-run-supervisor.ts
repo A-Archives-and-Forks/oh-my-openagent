@@ -185,14 +185,21 @@ async function runSupervisor(runDir: string): Promise<void> {
   // the child before the supervisor's callback fires, and the cancels above would otherwise
   // erase a deadline that was in fact exceeded.
   const clockNow = readSupervisorClockNow()
+  const finishedAt = new Date().toISOString()
   const outcome: RunOutcome = {
     version: 1,
     runId: manifest.runId,
     attempt: manifest.attempt,
-    finishedAt: new Date().toISOString(),
+    finishedAt,
     childExit: childExit ?? wrapperExit,
     timedOut: timedOut || (Number.isFinite(clockNow) && clockNow >= manifest.hardDeadlineAt),
   }
+  await writeRunJsonAtomic(join(runDir, "publishing.json"), {
+    version: 1,
+    runId: manifest.runId,
+    attempt: manifest.attempt,
+    finishedAt,
+  })
   await withRunTerminalGate(runDir, manifest.runId, async () => {
     if (existsSync(join(runDir, "final.json")) || existsSync(join(runDir, "abandoned.json"))) return
     if (manifest.nextAttempt !== undefined && isRetryableModelMiss({

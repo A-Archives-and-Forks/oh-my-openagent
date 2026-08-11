@@ -206,7 +206,7 @@ describe("reflection and dream run reconciliation", () => {
     expect(completion.detail).toContain("model child failed validation")
   }, 30_000)
 
-  test("#given unavailable process identities and no outcome #when the bounded watch expires #then the run is abandoned without cleanup or cursor advance", async () => {
+  test("#given genuinely gone processes with unknown liveness and no outcome #when the bounded watch expires #then the run is abandoned without cleanup or cursor advance", async () => {
     // given
     const item = await fixture()
     await writeRunJsonAtomic(join(item.runDir, "ledger.json"), {
@@ -219,7 +219,7 @@ describe("reflection and dream run reconciliation", () => {
       reservation: item.store,
       now: () => 2_000,
       waitForOutcome: async () => "timeout",
-      getPidLiveness: () => "alive",
+      getPidLiveness: () => "unknown",
       getProcessStartIdentity: async () => null,
     })
 
