@@ -269,6 +269,17 @@ Final artifacts:
 - `skill-startup-final2.log`
 - `final-suite-final2.log`
 
+## CI portability follow-up
+
+The first macOS CI run after launcher hardening exposed a test-only assumption: the runner
+integration expected `-p` at argv index zero, but an installed Senpi CLI is correctly represented
+as an interpreter command plus a CLI-script prefix before the child arguments.
+
+The assertion now validates the invariant child-argument suffix while dedicated launcher tests
+continue to validate the executable/prefix descriptor. Both the normal local environment and a
+restricted `PATH=/usr/bin:/bin` installed-CLI branch pass all five runner integration cases, and
+omo-senpi typecheck remains clean.
+
 ## Why this is enough
 
 The evidence covers both user-reported failure modes at their real boundaries:

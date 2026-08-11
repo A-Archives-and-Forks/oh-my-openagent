@@ -56,7 +56,7 @@ describe("SenpiSubprocessRunner integration", () => {
     // ("Native PTY session handle is missing write()") and the child can never git-commit; the
     // pipe fallback is the supported non-interactive path (SENPI_PTY_FORCE_PIPE in pi-pty).
     expect(spawn?.env.SENPI_PTY_FORCE_PIPE).toBe("1")
-    expect(spawn?.args).toEqual([
+    const childArgs = [
       "-p",
       "--system-prompt", spawn?.paths.persona,
       "--tools", "bash,edit",
@@ -68,7 +68,8 @@ describe("SenpiSubprocessRunner integration", () => {
       "--model", "omo-mock/mock-1",
       "--thinking", "high",
       `@${spawn?.paths.prompt}`,
-    ])
+    ]
+    expect(spawn?.args.slice(-childArgs.length)).toEqual(childArgs)
     expect(existsSync(join(spawn?.paths.sessionDir ?? "", "launch.json"))).toBe(false)
     expect(JSON.parse(await readFile(join(spawn?.paths.sessionDir ?? "", "outcome.json"), "utf8"))).toMatchObject({
       version: 1,

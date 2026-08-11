@@ -368,3 +368,11 @@ Final local evidence:
 - model fallback and startup-warning E2Es PASS;
 - 453 memory tests PASS, 0 fail, 1322 assertions;
 - omo-senpi and senpi-task typechecks PASS.
+
+CI portability follow-up:
+
+- macOS CI provided the failing-first proof that the runner integration hard-coded `-p` at argv
+  index zero even though installed-CLI resolution legally prepends the Senpi CLI script;
+- the test now checks the invariant child-argument suffix;
+- normal and restricted-PATH runs both pass all runner integration cases, and omo-senpi typecheck
+  remains clean.
