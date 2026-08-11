@@ -91,10 +91,10 @@ function normalizeMessage(
   fallbackCapturedAt: string,
 ): NormalizedSessionEntry | undefined {
   if (row.type !== "message" || !isRecord(row.message) || typeof row.message.role !== "string") return undefined
-  const suppliedId = stringOf(row.source_message_id) ?? stringOf(row.id)
+  const suppliedId = stringOf(row.source_message_id)
   const text = messageText(row.message)
   const id = suppliedId ?? sha1(`${filePath}:${lineIndex}:${text}`).slice(0, 16)
-  const capturedAt = stringOf(row.captured_at) ?? stringOf(row.timestamp) ?? fallbackCapturedAt
+  const capturedAt = stringOf(row.captured_at) ?? fallbackCapturedAt
   return { value: { ...row, id }, capturedAt }
 }
 

@@ -157,18 +157,23 @@ describe("/dream external transcript staging and target validation", () => {
     }).readEntries()
 
     // then
-    const derivedId = createHash("sha1")
+    const firstDerivedId = createHash("sha1")
+      .update(`${transcript}:1:remember tabs`)
+      .digest("hex")
+      .slice(0, 16)
+    const secondDerivedId = createHash("sha1")
       .update(`${transcript}:3:tabs are preferred`)
       .digest("hex")
       .slice(0, 16)
-    expect(new Set(first.stagedMessageIds)).toEqual(new Set(["message-1", derivedId]))
+    expect(new Set(first.stagedMessageIds)).toEqual(new Set([firstDerivedId, secondDerivedId]))
     expect(second.stagedMessageIds).toEqual([])
     expect(new Set(second.skippedMessageIds)).toEqual(new Set(first.stagedMessageIds))
     expect(requests[0]?.conversationIds).toEqual([first.conversationId])
     expect(new Set(rows.map((row) => row.source_message_id)).size).toBe(2)
     const textRows = rows.filter((row) => row.kind !== "tool_call")
     expect(textRows.map((row) => row.text).sort()).toEqual(["remember tabs", "tabs are preferred"])
-    expect(textRows.find((row) => row.source_message_id === derivedId)?.captured_at).toBe(fileMtime.toISOString())
+    expect(textRows.find((row) => row.source_message_id === firstDerivedId)?.captured_at).toBe(fileMtime.toISOString())
+    expect(textRows.find((row) => row.source_message_id === secondDerivedId)?.captured_at).toBe(fileMtime.toISOString())
   })
 
   test("#given non-session JSONL #when imported #then it is rejected without submitting a dream", async () => {
