@@ -17,6 +17,7 @@ import {
 } from "./component.test-support"
 import { buildProposedData } from "./proposed-data"
 import type { EligibilityResult, OmoInitDeepProposedData } from "./proposed-data"
+import { runAdvisorAfterPreflight } from "./runtime"
 import * as advisorState from "./state"
 
 const choices = ["Run now", "Skip for now", "Never in this project", "Never anywhere"]
@@ -211,7 +212,8 @@ describe("createInitDeepAdvisorComponent", () => {
       selected.resolve()
       return undefined
     })
-    createInitDeepAdvisorComponent().register(pi, componentContext)
+    createInitDeepAdvisorComponent({ runAfterPreflight: runAdvisorAfterPreflight })
+      .register(pi, componentContext)
     const handler = pi.handlers.find((entry) => entry.event === "session_start")!.handler
 
     // when
@@ -228,7 +230,8 @@ describe("createInitDeepAdvisorComponent", () => {
     jest.useFakeTimers()
     const root = makeCoverageRepo()
     const { pi, select, eventCtx } = createHarness(root)
-    createInitDeepAdvisorComponent().register(pi, componentContext)
+    createInitDeepAdvisorComponent({ runAfterPreflight: runAdvisorAfterPreflight })
+      .register(pi, componentContext)
     const handler = pi.handlers.find((entry) => entry.event === "session_start")!.handler
 
     // when

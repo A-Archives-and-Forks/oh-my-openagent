@@ -9,23 +9,33 @@ import {
   isSessionStartEvent,
 } from "../onboarding/component"
 import { getOnboardingMarkerMtime } from "../onboarding/state"
-import { getBuiltinSkillsRoot, getOmoNativeStateDir } from "../telemetry/product-identity"
-import { computeEligibility } from "./eligibility"
-import { gitHead, gitIsRepo } from "./git-helpers"
-import { buildProposedData } from "./proposed-data"
-import type { EligibilityResult, SuggestedMode } from "./proposed-data"
-import * as advisorState from "./state"
+import { getOmoNativeStateDir } from "../telemetry/product-identity"
+import { gitIsRepo } from "./git-helpers"
+import type { AdvisorPreflight } from "./runtime"
 
-const CHOICES = [
-  "Run now",
-  "Skip for now",
-  "Never in this project",
-  "Never anywhere",
-]
+declare const OMO_SENPI_BUNDLED: boolean
+
+const RUNTIME_FILE_NAME = "omo-init-deep-advisor.js"
+
+type AdvisorRunner = (
+  pi: SenpiExtensionAPI,
+  eventCtx: ExtensionContext,
+  preflight: AdvisorPreflight,
+) => Promise<void>
+
+export interface InitDeepAdvisorComponentDependencies {
+  readonly runAfterPreflight: AdvisorRunner
+}
+
+const defaultDependencies: InitDeepAdvisorComponentDependencies = {
+  runAfterPreflight: runBundledAdvisorAfterPreflight,
+}
 
 export const processStartTime: number = Date.now()
 
-export function createInitDeepAdvisorComponent(): OmoSenpiComponent {
+export function createInitDeepAdvisorComponent(
+  dependencies: InitDeepAdvisorComponentDependencies = defaultDependencies,
+): OmoSenpiComponent {
   return {
     name: "init-deep-advisor",
     register(pi: SenpiExtensionAPI, ctx: ComponentContext): void {
@@ -35,7 +45,7 @@ export function createInitDeepAdvisorComponent(): OmoSenpiComponent {
         if (payload.reason !== "startup") return
         if (!isExtensionContext(rawEventCtx)) return
         const eventCtx: ExtensionContext = rawEventCtx
-        void runAdvisor(pi, ctx, eventCtx).catch((error) => {
+        void runAdvisor(pi, ctx, eventCtx, dependencies.runAfterPreflight).catch((error) => {
           ctx.logger.warn("init-deep-advisor failed", { error })
         })
       })
@@ -45,82 +55,58 @@ export function createInitDeepAdvisorComponent(): OmoSenpiComponent {
 
 export async function runAdvisor(
   pi: SenpiExtensionAPI,
-  ctx: ComponentContext,
+  _ctx: ComponentContext,
   eventCtx: ExtensionContext,
+  runner: AdvisorRunner = runBundledAdvisorAfterPreflight,
 ): Promise<void> {
-  if (!eventCtx.hasUI) return
-  if (pi.getFlag("omo-senpi-init-deep-advisor-disabled") === true) return
+  const preflight = advisorPreflight(pi, eventCtx)
+  if (preflight === null) return
+  await runner(pi, eventCtx, preflight)
+}
+
+async function runBundledAdvisorAfterPreflight(
+  pi: SenpiExtensionAPI,
+  eventCtx: ExtensionContext,
+  preflight: AdvisorPreflight,
+): Promise<void> {
+  const bundled = typeof OMO_SENPI_BUNDLED !== "undefined" && OMO_SENPI_BUNDLED
+  await runAdvisorRuntime(pi, eventCtx, preflight, bundled ? RUNTIME_FILE_NAME : "runtime.ts")
+}
+
+async function runAdvisorRuntime(
+  pi: SenpiExtensionAPI,
+  eventCtx: ExtensionContext,
+  preflight: AdvisorPreflight,
+  fileName: string,
+): Promise<void> {
+  const loaded: unknown = await import(new URL(fileName, import.meta.url).href)
+  if (!isRecord(loaded)) throw new Error("init-deep-advisor runtime did not load")
+  const runner = loaded["runAdvisorAfterPreflight"]
+  if (typeof runner !== "function") {
+    throw new Error("init-deep-advisor runtime is missing runAdvisorAfterPreflight")
+  }
+  await Reflect.apply(runner, undefined, [pi, eventCtx, preflight])
+}
+
+function advisorPreflight(
+  pi: SenpiExtensionAPI,
+  eventCtx: ExtensionContext,
+): AdvisorPreflight | null {
+  if (!eventCtx.hasUI) return null
+  if (pi.getFlag("omo-senpi-init-deep-advisor-disabled") === true) return null
   const onboardingStateDir = getOmoNativeStateDir(process.env)
-  const advisorStateDir = join(getOmoNativeStateDir(process.env), "init-deep-advisor-state")
+  const stateDir = join(onboardingStateDir, "init-deep-advisor-state")
   const cwd = eventCtx.cwd ?? process.cwd()
-  if (!gitIsRepo(cwd)) return
+  if (!gitIsRepo(cwd)) return null
   const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
     cwd,
     encoding: "utf8",
   }).trim()
   const markerMtime = getOnboardingMarkerMtime(onboardingStateDir)
-  if (markerMtime === null || markerMtime >= processStartTime) return
-  const repo = advisorState.repoHash(root)
-  if (advisorState.isGloballyDeclined(advisorStateDir)) return
-  if (advisorState.isProjectDeclined(advisorStateDir, repo)) return
-  const cooldownUntil = advisorState.readCooldownUntil(advisorStateDir, repo)
-  if (Date.now() < cooldownUntil) return
-  const currentHead = gitHead(root)
-  const eligibility = computeEligibility(
-    root,
-    currentHead,
-    advisorState.readLastProposedHead(advisorStateDir, repo),
-    cooldownUntil,
-  )
-  if (eligibility === null) return
-  advisorState.writeLastProposedHead(advisorStateDir, repo, currentHead)
-  await new Promise<void>((resolve) => setTimeout(resolve, 0))
-  const choice = await eventCtx.ui?.select("Init-deep", [...CHOICES], { timeout: 60_000 })
-  handleChoice(choice, pi, advisorStateDir, repo, root, eligibility)
+  if (markerMtime === null || markerMtime >= processStartTime) return null
+  return { root, stateDir }
 }
 
-function handleChoice(
-  choice: string | undefined,
-  pi: SenpiExtensionAPI,
-  stateDir: string,
-  repo: string,
-  root: string,
-  eligibility: EligibilityResult,
-): void {
-  if (choice === "Run now") {
-    const skillsRoot = getBuiltinSkillsRoot()
-    pi.sendMessage(
-      {
-        customType: "omo-init-deep-advisor:run",
-        content: `Read the init-deep skill at ${skillsRoot}/init-deep/SKILL.md with the read tool and follow it.`,
-        display: false,
-      },
-      { triggerTurn: true, deliverAs: "followUp" },
-    )
-    const proposedData = buildProposedData(repo, eligibility, suggestedMode(root))
-    pi.appendEntry?.("omo-init-deep-advisor:proposed", proposedData)
-    return
-  }
-  if (choice === "Skip for now") {
-    advisorState.writeCooldown(stateDir, repo, Date.now())
-    return
-  }
-  if (choice === "Never in this project") {
-    advisorState.writeProjectDecline(stateDir, repo)
-    return
-  }
-  if (choice === "Never anywhere") advisorState.writeGlobalDecline(stateDir)
-}
-
-function suggestedMode(root: string): SuggestedMode {
-  try {
-    execFileSync("git", ["ls-files", "--error-unmatch", "AGENTS.md"], {
-      cwd: root,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    })
-    return "committed"
-  } catch {
-    return "local"
-  }
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
 }
