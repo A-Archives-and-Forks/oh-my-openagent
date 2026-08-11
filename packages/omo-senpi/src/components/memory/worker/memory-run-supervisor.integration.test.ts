@@ -8,7 +8,8 @@ import { basename, dirname, join } from "node:path"
 // Each case drives a real supervisor, bootstrap, and model child - three spawned bun processes
 // plus git work. The 5s default is a fast-machine assumption, not a budget those subprocesses
 // fit on a loaded CI runner; the assertions stay event-driven with no sleeps.
-setDefaultTimeout(process.platform === "win32" ? 60_000 : 30_000)
+const WAIT_MS = process.platform === "win32" ? 60_000 : 30_000
+setDefaultTimeout(WAIT_MS)
 
 const supervisorPath = join(import.meta.dir, "memory-run-supervisor.ts")
 const childFixture = join(import.meta.dir, "__fixtures__", "supervisor-child.ts")
@@ -107,7 +108,7 @@ async function waitForLedgerChild(runDir: string): Promise<{ readonly childPid: 
       const value = await read().catch(() => undefined)
       if (value !== undefined) finish(value)
     })
-    const timeout = setTimeout(() => finish(undefined, new Error("waited 4s for child identity")), 4_000)
+    const timeout = setTimeout(() => finish(undefined, new Error(`waited ${WAIT_MS}ms for child identity`)), WAIT_MS)
     const finish = (value?: { readonly childPid: number }, error?: Error) => {
       if (settled) return
       settled = true
@@ -128,7 +129,7 @@ async function readOutcome(runDir: string): Promise<Outcome> {
 
 async function waitForExit(child: ChildProcess): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
   return await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("waited 5s for process exit")), 5_000)
+    const timeout = setTimeout(() => reject(new Error(`waited ${WAIT_MS}ms for process exit`)), WAIT_MS)
     child.once("error", reject)
     child.once("close", (code, signal) => {
       clearTimeout(timeout)
@@ -190,7 +191,7 @@ describe("memory run supervisor", () => {
     const parent = spawn(process.execPath, [parentFixture, supervisorPath, runDir], { stdio: ["pipe", "pipe", "inherit"] })
     const parentExit = waitForExit(parent)
     const ready = await new Promise<string>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("waited 5s for parent launch receipt")), 5_000)
+      const timeout = setTimeout(() => reject(new Error(`waited ${WAIT_MS}ms for parent launch receipt`)), WAIT_MS)
       parent.stdout?.once("data", (chunk) => {
         clearTimeout(timeout)
         resolve(String(chunk))

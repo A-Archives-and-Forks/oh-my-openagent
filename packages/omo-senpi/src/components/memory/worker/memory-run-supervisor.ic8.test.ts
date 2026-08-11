@@ -1,10 +1,16 @@
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { spawn, type ChildProcess } from "node:child_process"
 import { existsSync } from "node:fs"
 import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { createServer, type AddressInfo } from "node:net"
 import { tmpdir } from "node:os"
 import { basename, dirname, join } from "node:path"
+
+// Real supervisor + bootstrap + model child spawns; a loaded CI runner needs far more than the
+// 5s these waiters originally assumed. The waits stay event-driven (fs/exit signals), so a true
+// hang still fails - only the ceiling moves.
+const WAIT_MS = process.platform === "win32" ? 60_000 : 30_000
+setDefaultTimeout(WAIT_MS)
 
 const supervisorPath = join(import.meta.dir, "memory-run-supervisor.ts")
 const childFixture = join(import.meta.dir, "__fixtures__", "supervisor-child.ts")
@@ -13,7 +19,7 @@ const roots: string[] = []
 const liveProcesses = new Set<number>()
 const platforms = ["posix", "win32"] as const
 
-async function waitForPath(path: string, timeoutMs = 5_000): Promise<void> {
+async function waitForPath(path: string, timeoutMs = WAIT_MS): Promise<void> {
   if (existsSync(path)) return
   const { watch } = await import("node:fs")
   await new Promise<void>((resolve, reject) => {
@@ -49,7 +55,7 @@ async function makeRun(mode: "graceful" | "stubborn"): Promise<{
   })
   const address = exitServer.address() as AddressInfo
   const childExited = new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("waited 5s for model child exit")), 5_000)
+    const timeout = setTimeout(() => reject(new Error(`waited ${WAIT_MS}ms for model child exit`)), WAIT_MS)
     exitServer.once("connection", (socket) => {
       exitServer.close()
       socket.once("close", () => {
@@ -105,7 +111,7 @@ async function advanceClock(path: string, value: number): Promise<void> {
 
 function waitForExit(child: ChildProcess): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("waited 5s for process exit")), 5_000)
+    const timeout = setTimeout(() => reject(new Error(`waited ${WAIT_MS}ms for process exit`)), WAIT_MS)
     child.once("error", reject)
     child.once("close", (code, signal) => {
       clearTimeout(timeout)
