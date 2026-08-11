@@ -8,6 +8,7 @@ import { GitMemoryRepo, buildIdentityPaths, type MemoryIdentity, type ReservedRu
 
 import { abandonReservationRun, failReservationRun } from "./run-finalization"
 import { writeRunJsonAtomic } from "./run-artifacts"
+import { claimRunTerminal } from "./run-terminal-claim"
 import type { ReservationRunLedger } from "./reservation-run-ledger"
 
 const roots: string[] = []
@@ -94,6 +95,44 @@ describe("run finalization publication races", () => {
     // then
     expect(result?.outcome).toBe("timed_out")
     expect(completeOutcome).toBe("timed_out")
+    expect(existsSync(join(item.runDir, "abandoned.json"))).toBe(false)
+  }, 30_000)
+
+  test("#given publication is scheduled after every unknown-liveness read #when abandonment writes #then the matching publisher wins atomically", async () => {
+    // given
+    const item = await fixture(1)
+    const ledger = { ...item.ledger, pid: 424242, processStart: null }
+    await writeRunJsonAtomic(join(item.runDir, "ledger.json"), ledger)
+    let publication: Promise<void> | undefined
+    const reservation = {
+      readState: async () => ({ active: item.active }),
+      complete: async (_runId: string, outcome: "failed") => ({ outcome }),
+    }
+
+    // when
+    const result = await abandonReservationRun({
+      identity: item.identity,
+      reservation,
+      now: () => Date.parse("2026-08-11T10:01:00.000Z"),
+      getPidLiveness: () => {
+        claimRunTerminal(item.runDir, { runId: ledger.runId, attempt: ledger.attempt ?? 1 }, "publish")
+        publication ??= new Promise<void>((resolve, reject) => {
+          setImmediate(() => {
+            writeRunJsonAtomic(join(item.runDir, "publishing.json"), {
+              version: 1,
+              runId: "run-1",
+              attempt: 1,
+              finishedAt: "2026-08-11T10:00:01.000Z",
+            }).then(resolve, reject)
+          })
+        })
+        return "unknown"
+      },
+    }, item.runDir, ledger)
+    await publication
+
+    // then
+    expect(result).toBeUndefined()
     expect(existsSync(join(item.runDir, "abandoned.json"))).toBe(false)
   }, 30_000)
 

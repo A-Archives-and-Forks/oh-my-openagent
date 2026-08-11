@@ -7,6 +7,7 @@ import {
   type RunOutcome,
 } from "./run-artifacts"
 import { classifyRunProcess, type RunLivenessSeams } from "./run-liveness"
+import { claimRunTerminal, runTerminalClaimMatches } from "./run-terminal-claim"
 import {
   parseReservationRunLedger,
   type ReservationRunLedger,
@@ -60,8 +61,14 @@ export async function checkRunAbandonmentPrecedence(
   ])
   if (supervisor === "alive" || child === "alive") return { decision: "veto", ledger }
 
-  // A publisher can finish while liveness is being classified, so the marker is
-  // re-read after classification and immediately before the abandon decision.
+  // Preserve the legacy marker veto, then make the terminal decision with one
+  // filesystem-exclusive claim rather than another check followed by a write.
   const settled = await readTerminalPublication(runDir, ledger)
-  return settled === undefined ? { decision: "abandon", ledger } : { decision: settled, ledger }
+  if (settled !== undefined) return { decision: settled, ledger }
+  const identity = { runId: ledger.runId, attempt: ledger.attempt ?? 1 }
+  const claim = claimRunTerminal(runDir, identity, "abandon", seams)
+  return {
+    decision: runTerminalClaimMatches(claim, identity, "abandon") ? "abandon" : "veto",
+    ledger,
+  }
 }

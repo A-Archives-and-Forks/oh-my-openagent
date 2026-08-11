@@ -6,6 +6,7 @@ import { join } from "node:path"
 
 import { checkRunAbandonmentPrecedence } from "./run-terminal-precedence"
 import { writeRunJsonAtomic } from "./run-artifacts"
+import { claimRunTerminal, readRunTerminalClaim } from "./run-terminal-claim"
 import type { ReservationRunLedger } from "./reservation-run-ledger"
 
 const roots: string[] = []
@@ -63,6 +64,40 @@ describe("run abandonment precedence", () => {
 
     // then
     expect(precedence.decision).toBe("veto")
+  }, 30_000)
+
+  test("#given a publish claimant whose pid is confirmed dead #when precedence is checked #then abandonment reclaims the terminal claim", async () => {
+    // given
+    const { runDir } = await fixture()
+    claimRunTerminal(runDir, { runId: "run-1", attempt: 1 }, "publish", {}, 434343)
+
+    // when
+    const precedence = await checkRunAbandonmentPrecedence(runDir, "run-1", {
+      getPidLiveness: (pid) => pid === 434343 ? "dead" : "unknown",
+    })
+
+    // then
+    expect(precedence.decision).toBe("abandon")
+    expect(readRunTerminalClaim(runDir)).toMatchObject({
+      kind: "abandon",
+      runId: "run-1",
+      attempt: 1,
+    })
+  }, 30_000)
+
+  test("#given a publish claimant whose pid liveness is unknown #when precedence is checked #then the run stays active", async () => {
+    // given
+    const { runDir } = await fixture()
+    claimRunTerminal(runDir, { runId: "run-1", attempt: 1 }, "publish", {}, 434343)
+
+    // when
+    const precedence = await checkRunAbandonmentPrecedence(runDir, "run-1", {
+      getPidLiveness: () => "unknown",
+    })
+
+    // then
+    expect(precedence.decision).toBe("veto")
+    expect(readRunTerminalClaim(runDir).kind).toBe("publish")
   }, 30_000)
 
   test("#given a genuinely dead run with unknown liveness #when precedence is checked #then it still abandons", async () => {

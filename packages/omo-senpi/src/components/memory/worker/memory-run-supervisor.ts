@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process"
-import { closeSync, existsSync, openSync, readFileSync, writeSync } from "node:fs"
+import { closeSync, openSync, writeSync } from "node:fs"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -8,7 +8,6 @@ import {
   readRunJson,
   unlinkRunArtifact,
   updateRunLedger,
-  writeRunJsonAtomic,
   type RunLaunchManifest,
   type RunOutcome,
 } from "./run-artifacts"
@@ -23,8 +22,7 @@ import {
   terminateSupervisorChildHard,
   type SupervisorChildExit,
 } from "./supervisor-process-identity"
-import { isRetryableModelMiss } from "./model-miss"
-import { withRunTerminalGate } from "./run-terminal-gate"
+import { publishRunOutcome } from "./run-outcome-publication"
 
 async function readRelease(): Promise<boolean> {
   for await (const chunk of process.stdin) {
@@ -194,33 +192,7 @@ async function runSupervisor(runDir: string): Promise<void> {
     childExit: childExit ?? wrapperExit,
     timedOut: timedOut || (Number.isFinite(clockNow) && clockNow >= manifest.hardDeadlineAt),
   }
-  await writeRunJsonAtomic(join(runDir, "publishing.json"), {
-    version: 1,
-    runId: manifest.runId,
-    attempt: manifest.attempt,
-    finishedAt,
-  })
-  await withRunTerminalGate(runDir, manifest.runId, async () => {
-    if (existsSync(join(runDir, "final.json")) || existsSync(join(runDir, "abandoned.json"))) return
-    if (manifest.nextAttempt !== undefined && isRetryableModelMiss({
-      code: outcome.childExit.code,
-      stdout: readFileSync(manifest.stdoutPath, "utf8"),
-      stderr: readFileSync(manifest.stderrPath, "utf8"),
-      timedOut: outcome.timedOut,
-    })) {
-      await updateRunLedger(ledgerPath, {
-        attempt: manifest.nextAttempt.attempt,
-        model: manifest.nextAttempt.model,
-        ...(manifest.nextAttempt.thinking === undefined ? { thinking: undefined } : { thinking: manifest.nextAttempt.thinking }),
-        launching: true,
-        pid: undefined,
-        processStart: undefined,
-        childPid: undefined,
-        childProcessStart: undefined,
-      })
-    }
-    await writeRunJsonAtomic(join(runDir, "outcome.json"), outcome)
-  })
+  await publishRunOutcome(runDir, manifest, outcome)
   await unlinkRunArtifact(launchPath)
 }
 const args = process.argv.slice(2)
