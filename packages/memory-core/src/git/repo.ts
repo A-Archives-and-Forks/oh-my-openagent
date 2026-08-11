@@ -5,6 +5,7 @@ import { withSerializedGitConfigMutation } from "./config-lock"
 import { DirtyRepoError, NoEffectiveChangesError } from "./errors"
 import { createNodeGitExec, type GitExec, type GitExecResult } from "./exec"
 import { describeDirtyMarkdownEncodingIssues, parsePorcelainPath } from "./porcelain"
+import { GitPathStateStore } from "./path-state"
 import { authorFlags, commandError, normalizePathspecs, normalizeSeedPath } from "./repo-arguments"
 import { parseLogOutput, parseNulPaths } from "./repo-log"
 import type {
@@ -18,14 +19,8 @@ import type {
 } from "./repo-types"
 
 export type {
-  GitCommitAuthor,
-  GitCommitResult,
-  GitLogOptions,
-  GitMemoryRepoOptions,
-  GitMergeOptions,
-  GitSeedFile,
-  InitializeGitRepoOptions,
-  MemoryCommit,
+  GitCommitAuthor, GitCommitResult, GitLogOptions, GitMemoryRepoOptions,
+  GitMergeOptions, GitSeedFile, InitializeGitRepoOptions, MemoryCommit,
 } from "./repo-types"
 
 const GIT_TIMEOUT_MS = 30_000
@@ -35,6 +30,7 @@ const EMPTY_INITIAL_COMMIT = "chore: initialize empty local memory"
 export class GitMemoryRepo {
   readonly dir: string
   readonly agentId: string
+  readonly pathState: GitPathStateStore
   private readonly exec: GitExec
   private readonly hookInstaller: (dir: string) => void | Promise<void>
 
@@ -42,6 +38,7 @@ export class GitMemoryRepo {
     this.dir = options.dir
     this.agentId = options.agentId
     this.exec = options.exec ?? createNodeGitExec()
+    this.pathState = new GitPathStateStore(this.dir, this.exec)
     this.hookInstaller = options.installHooks ?? (() => undefined)
   }
 
