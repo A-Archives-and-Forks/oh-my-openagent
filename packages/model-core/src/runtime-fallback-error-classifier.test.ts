@@ -63,6 +63,60 @@ describe("runtime fallback error classifier", () => {
         expectedStatusCode: undefined,
       },
       {
+        label: "litellm terminal quota 402 (terminal_quota_exhausted type in data.detail)",
+        error: {
+          data: {
+            detail: {
+              error: {
+                type: "terminal_quota_exhausted",
+                message: "Terminal quota or billing limit reached for the requested LiteLLM model handle.",
+              },
+            },
+            statusCode: 402,
+            isRetryable: false,
+          },
+        },
+        expectedType: "quota_exceeded",
+        expectedRetryable: true,
+        expectedStatusCode: 402,
+      },
+      {
+        label: "litellm terminal quota 402 (message wording, no type)",
+        error: {
+          data: {
+            message: "Terminal quota or billing limit reached for the requested LiteLLM model handle.",
+            statusCode: 402,
+            isRetryable: false,
+          },
+        },
+        expectedType: "quota_exceeded",
+        expectedRetryable: true,
+        expectedStatusCode: 402,
+      },
+      {
+        label: "litellm hard billing limit message",
+        error: {
+          data: {
+            message: "Hard billing limit exceeded for model handle.",
+            statusCode: 402,
+          },
+        },
+        expectedType: "quota_exceeded",
+        expectedRetryable: true,
+        expectedStatusCode: 402,
+      },
+      {
+        label: "non-terminal quota wording is not terminal-abort",
+        error: {
+          data: {
+            message: "Your non-terminal quota will refresh soon; retry.",
+          },
+        },
+        expectedType: undefined,
+        expectedRetryable: false,
+        expectedStatusCode: undefined,
+      },
+      {
         label: "anthropic unrelated validation error",
         error: {
           name: "ValidationError",

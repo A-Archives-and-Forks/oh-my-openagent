@@ -43,9 +43,41 @@ function isLocalizedQuotaExhaustionMessage(message: string): boolean {
     (/用户剩余额度/i.test(message) && /需要预扣费额度/i.test(message))
   )
 }
+function getDetailErrorType(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null) return undefined
+  const record = error as Record<string, unknown>
+  const data = typeof record.data === "object" && record.data !== null ? (record.data as Record<string, unknown>) : undefined
+  const detail = (record.detail ?? data?.detail ?? record) as Record<string, unknown>
+  const detailError = (detail?.error ?? detail) as Record<string, unknown>
+  const type = detailError?.type ?? detail?.type
+  return typeof type === "string" ? type.toLowerCase() : undefined
+}
+
+function isTerminalQuotaMessage(message: string): boolean {
+  if (
+    /\bnon[-\s]+terminal\s+quota\b/i.test(message) ||
+    /\bnon[-\s]+terminal\s+billing\s+limit\b/i.test(message)
+  ) {
+    return false
+  }
+  return (
+    /\bterminal\s+quota\b/i.test(message) ||
+    /\bterminal\s+billing\s+limit\b/i.test(message) ||
+    /\bhard\s+billing\s+limit\b/i.test(message)
+  )
+}
 
 export function classifyRuntimeFallbackError(error: unknown): RuntimeFallbackErrorType | undefined {
+  const detailType = getDetailErrorType(error)
+  if (detailType === "terminal_quota_exhausted") {
+    return "quota_exceeded"
+  }
+
   const message = getRuntimeFallbackErrorMessage(error)
+  if (isTerminalQuotaMessage(message)) {
+    return "quota_exceeded"
+  }
+
   const errorName = getRuntimeFallbackErrorName(error)?.toLowerCase().replace(/[_-]/g, "")
 
   if (errorName?.includes("messageabortederror") || errorName?.includes("aborterror")) {
