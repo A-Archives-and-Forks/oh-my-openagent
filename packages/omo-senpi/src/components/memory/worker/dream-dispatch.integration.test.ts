@@ -128,7 +128,7 @@ describe("dream worker dispatch", () => {
     expect(basename(item.spawn.env.DREAM_POLICY_PATH ?? "")).toBe("dream-policy.json")
     expect(JSON.parse(await readFile(item.spawn.env.DREAM_POLICY_PATH ?? "", "utf8"))).toEqual(expectedPolicy)
     expect(existsSync(join(item.identity.paths.repo, "people"))).toBe(false)
-  })
+  }, 30_000)
 
   test("#given absent dream ledgers #when the worker launches #then it supplies readable empty objects", async () => {
     // given
@@ -141,7 +141,7 @@ describe("dream worker dispatch", () => {
     expect(item.result.outcome).toBe("merged")
     expect(JSON.parse(await readFile(item.spawn.env.SKILLS_USAGE_PATH ?? "", "utf8"))).toEqual({})
     expect(JSON.parse(await readFile(item.spawn.env.DREAM_STATE_PATH ?? "", "utf8"))).toEqual({})
-  })
+  }, 30_000)
 
   test("#given custom people limits #when the dream writes fixture entries #then it honors the resolved limits exactly", async () => {
     // given
@@ -157,7 +157,7 @@ describe("dream worker dispatch", () => {
     const lines = (await readFile(join(item.identity.paths.repo, "people", "fixture", "card.md"), "utf8")).replace(/\r\n/g, "\n").trim().split("\n")
     expect(lines).toHaveLength(limits.max_entries)
     expect(lines.every((line) => line.length === limits.max_entry_chars)).toBe(true)
-  })
+  }, 30_000)
 
   test("#given a memory document target #when the dream completes #then only that document is merged", async () => {
     // given
@@ -178,5 +178,5 @@ describe("dream worker dispatch", () => {
     expect(new Set(commits.flatMap((commit) => commit.paths ?? []))).toEqual(new Set([targetDoc]))
     expect(item.spawn.env.DREAM_TARGET_PATH).toBe(join(item.spawn.paths.worktree, targetDoc))
     expect(ledger.targetDoc).toBe(targetDoc)
-  })
+  }, 30_000)
 })

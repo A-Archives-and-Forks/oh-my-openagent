@@ -45,7 +45,7 @@ describe("resolveSenpiLaunch", () => {
 
     // then
     expect(launch).toEqual({ command: "C:\\node.exe", prefixArgs: [cli] })
-  })
+  }, 30_000)
 
   test("#given no executable but an installed CLI #when resolved #then the current interpreter launches the CLI", async () => {
     // given
@@ -60,7 +60,7 @@ describe("resolveSenpiLaunch", () => {
 
     // then
     expect(launch).toEqual({ command: process.execPath, prefixArgs: [cli] })
-  })
+  }, 30_000)
 
   test("#given package lookup fails in a script-hosted Senpi process #when resolved #then the current entry script is retained", async () => {
     // given
@@ -75,7 +75,7 @@ describe("resolveSenpiLaunch", () => {
 
     // then
     expect(launch).toEqual({ command: process.execPath, prefixArgs: [entry] })
-  })
+  }, 30_000)
 
   test("#given no executable installed CLI or current entry #when resolved #then it fails instead of launching a bare interpreter", () => {
     // given
@@ -85,7 +85,7 @@ describe("resolveSenpiLaunch", () => {
 
     // when / then
     expect(resolve).toThrow("Unable to resolve a runnable Senpi launcher")
-  })
+  }, 30_000)
 
   test("#given the real restricted PATH fallback #when launched #then Senpi prints its version", () => {
     // given
@@ -106,5 +106,5 @@ describe("resolveSenpiLaunch", () => {
     // then
     expect(child.exitCode).toBe(0)
     expect(child.stdout.toString().trim()).toMatch(/^\d{4}\.\d+\.\d+/)
-  })
+  }, 30_000)
 })

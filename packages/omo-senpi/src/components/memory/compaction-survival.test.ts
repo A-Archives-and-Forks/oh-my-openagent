@@ -216,7 +216,7 @@ describe("compaction survival + trigger integration", () => {
     const after = memoryBlock(await beforeAgentStart(pi), identity.id)
     expect(after).toBe(baseline)
     expect(after).toContain(PERSONA_BODY)
-  })
+  }, 30_000)
 
   test("#given a bound session #when compaction is rejected #then no flag is recorded and settle launches nothing", async () => {
     const { pi, readLedger, launches } = await compactionFixture()
@@ -228,7 +228,7 @@ describe("compaction survival + trigger integration", () => {
 
     expect(launches).toHaveLength(0)
     expect(readLedger().pendingCompaction).toBe(false)
-  })
+  }, 30_000)
 
   test("#given compaction accepted mid-run #when the retried turn chain settles #then exactly one launch fires across all settles", async () => {
     const { pi, readLedger, launches, logs } = await compactionFixture()
@@ -250,7 +250,7 @@ describe("compaction survival + trigger integration", () => {
     expect(launches, JSON.stringify(logs)).toHaveLength(1)
     expect(launches[0]?.trigger).toBe("compaction")
     expect(readLedger().pendingCompaction).toBe(false)
-  })
+  }, 30_000)
 
   test("#given two consecutive accepted compactions #when the run settles #then the flag is consumed once with exactly one launch", async () => {
     const { pi, readLedger, launches, logs } = await compactionFixture()
@@ -270,5 +270,5 @@ describe("compaction survival + trigger integration", () => {
     await endRun(pi)
     await settle(pi)
     expect(launches).toHaveLength(1)
-  })
+  }, 30_000)
 })

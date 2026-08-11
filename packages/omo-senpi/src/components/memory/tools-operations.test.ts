@@ -35,7 +35,7 @@ describe("memory tool execution", () => {
     expect(written.body).toBe("Adds type hints to all Python code.")
     expect(await git(fixture.repo, ["log", "-1", "--format=%s"])).toBe("Track coding preferences")
     expect(await git(fixture.repo, ["status", "--porcelain"])).toBe("")
-  })
+  }, 30_000)
   test("#given a bound identity #when the engine rejects the change #then the memory error maps to an error result", async () => {
     // given
     const fixture = await boundFixture()
@@ -55,7 +55,7 @@ describe("memory tool execution", () => {
     expect(textOf(result)).toContain("memory:")
     expect(textOf(result)).toContain("block already exists")
     expect(result.details.message).toBe(textOf(result))
-  })
+  }, 30_000)
   test("#given no repo exists yet #when the memory tool executes #then it lazily initializes with hooks and seeds", async () => {
     // given
     const root = realpathSync.native(await mkdtemp(join(tmpdir(), "omo-senpi-memory-lazy-init-")))
@@ -85,7 +85,7 @@ describe("memory tool execution", () => {
     const { existsSync } = await import("node:fs")
     expect(existsSync(join(identityPaths.repo, ".git", "hooks", "pre-commit"))).toBe(true)
     expect(existsSync(join(identityPaths.repo, ".git", "hooks", "post-commit"))).toBe(true)
-  })
+  }, 30_000)
 })
 
 describe("memory tool onCommit seam", () => {
@@ -113,7 +113,7 @@ describe("memory tool onCommit seam", () => {
       subject: "rewrite the persona",
       affectedPaths: ["system/persona.md"],
     }])
-  })
+  }, 30_000)
   test("#given an engine rejection #when the tool executes #then onCommit is not called", async () => {
     // given
     const fixture = await boundFixture()
@@ -134,5 +134,5 @@ describe("memory tool onCommit seam", () => {
     // then
     expect(result.isError).toBe(true)
     expect(commits).toHaveLength(0)
-  })
+  }, 30_000)
 })

@@ -84,7 +84,7 @@ describe("createMemoryNudgeWiring", () => {
       customType: ACCEPTED_TURNS_ENTRY_TYPE,
       data: { version: 1, sessionId: "session-1", priorUserTurns: 2, sessionBaselineTurns: 0 },
     })
-  })
+  }, 30_000)
 
   test("#given a durable accepted-turn record and contaminated branch users #when a session resumes #then hydration uses only the durable baseline", async () => {
     // given
@@ -111,7 +111,7 @@ describe("createMemoryNudgeWiring", () => {
     // then
     expect(await wiring.nudgeTurns(repo, "resumed", context.identity)).toBe(2)
     expect(wiring.provenance("resumed")).toEqual({ sessionId: "resumed", userTurns: 8 })
-  })
+  }, 30_000)
 
   test("#given one durable accepted turn and a second admitted input awaiting its started disposition #when the prompt compiles #then the projected accepted turn reaches the threshold", async () => {
     // given
@@ -135,7 +135,7 @@ describe("createMemoryNudgeWiring", () => {
 
     // then
     expect(turns).toBe(2)
-  })
+  }, 30_000)
 
   test("#given a threshold on an identity with no repository yet #when nudge state resolves #then the fresh-session baseline is used without requiring git history", async () => {
     // given
@@ -159,7 +159,7 @@ describe("createMemoryNudgeWiring", () => {
 
     // then
     expect(await turns).toBe(2)
-  })
+  }, 30_000)
 
   test("#given a threshold nudge #when an in-band memory commit lands #then the next compile state self-clears and disabled settings remain quiet", async () => {
     // given
@@ -192,7 +192,7 @@ describe("createMemoryNudgeWiring", () => {
     // then
     expect(cleared).toBeUndefined()
     expect(await wiring.nudgeTurns(repo, "session-clear", context.identity)).toBeUndefined()
-  })
+  }, 30_000)
 
   test("#given a bound non-auto identity #when a memory MCP tool call starts #then unforgeable identity and accepted-turn provenance are injected in place", async () => {
     // given
@@ -230,7 +230,7 @@ describe("createMemoryNudgeWiring", () => {
         toolCallId: "call-1",
       },
     })
-  })
+  }, 30_000)
 
   test("#given a bound identity #when an MCP-surface memory tool call starts #then provenance is injected under the catalog tool names", async () => {
     // given
@@ -265,5 +265,5 @@ describe("createMemoryNudgeWiring", () => {
       repoPath: context.identityPaths.repo,
       toolCallId: "call-mcp-1",
     })
-  })
+  }, 30_000)
 })

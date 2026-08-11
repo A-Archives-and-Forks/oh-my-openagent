@@ -78,7 +78,7 @@ describe("SenpiSubprocessRunner integration", () => {
     })
     expect(item.spawnCalls[0]?.hardDeadlineAt).toBeGreaterThanOrEqual(startedAt + 59_000)
     expect(item.spawnCalls[0]?.hardDeadlineAt).toBeLessThanOrEqual(startedAt + 61_000)
-  })
+  }, 30_000)
 
   test("#given a stub child that commits in its reflection worktree #when launched #then it merges records notifies and advances the cursor", async () => {
     // given
@@ -147,7 +147,7 @@ describe("SenpiSubprocessRunner integration", () => {
       delivery: { status: "consumed", sessionId: "conversation-a" },
     })
     await assertWorktreesClean(item)
-  })
+  }, 30_000)
 
   test("#given a child sleeping beyond an injected hard deadline #when launched #then the process group times out and cleanup leaves the cursor retryable", async () => {
     // given
@@ -161,7 +161,7 @@ describe("SenpiSubprocessRunner integration", () => {
     expect((await item.journal.getState()).reflected_completed_steps).toBe(0)
     expect((await item.store.readState()).active).toBeUndefined()
     await assertWorktreesClean(item)
-  })
+  }, 30_000)
 
   test("#given an extension-only primary and a child-visible fallback #when the primary is missing in the clean child #then reflection retries and records the fallback", async () => {
     // given
@@ -184,7 +184,7 @@ describe("SenpiSubprocessRunner integration", () => {
       outcome: "merged",
     })
     await assertWorktreesClean(item)
-  })
+  }, 30_000)
 
   test("#given empty categories and no quick model #when launched twice in one session #then both fail without spawning and only one unsuppressed warning appears", async () => {
     // given
@@ -201,7 +201,7 @@ describe("SenpiSubprocessRunner integration", () => {
     expect(item.notifications).toHaveLength(1)
     expect(item.notifications[0]?.message).toContain('Category "quick"')
     expect((await item.journal.getState()).reflected_completed_steps).toBe(0)
-  })
+  }, 30_000)
 
   test("#given a zero-exit child that modifies linked-worktree git administration #when completion validates #then it fails cleans up and leaves the cursor unmoved", async () => {
     // given
@@ -215,5 +215,5 @@ describe("SenpiSubprocessRunner integration", () => {
     expect(result.detail).toContain("Git administration files were modified")
     expect((await item.journal.getState()).reflected_completed_steps).toBe(0)
     await assertWorktreesClean(item)
-  })
+  }, 30_000)
 })

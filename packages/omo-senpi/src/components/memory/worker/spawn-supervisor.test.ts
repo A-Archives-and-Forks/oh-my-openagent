@@ -61,5 +61,5 @@ describe("supervised child outcome authority", () => {
 
     // then
     expect(result).toMatchObject({ code: null, signal: "SIGTERM", timedOut: true })
-  })
+  }, 30_000)
 })

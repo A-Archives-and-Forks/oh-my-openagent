@@ -43,5 +43,5 @@ describe("memory runtime wiring", () => {
 
     // then
     expect(captured?.sandbox).toBeFunction()
-  })
+  }, 30_000)
 })

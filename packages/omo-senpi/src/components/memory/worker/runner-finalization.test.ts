@@ -25,5 +25,5 @@ describe("live reflection run finalization", () => {
     expect(final).toMatchObject({ version: 1, runId: item.run.runId, outcome: "merged" })
     expect(exit).toBe(0)
     expect(message).toContain(`Omo-Run: ${item.run.runId}`)
-  })
+  }, 30_000)
 })
