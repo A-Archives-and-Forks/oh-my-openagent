@@ -1,4 +1,5 @@
 import type { FactsPayload, ReflectionWorktree, ReservedRun } from "@oh-my-opencode/memory-core"
+import type { RunAttempt } from "./run-artifacts"
 
 export interface ReflectionSpawnPaths {
   readonly sessionDir: string
@@ -25,6 +26,7 @@ export interface ReflectionSpawnArgs {
   readonly hardDeadlineAt: number
   readonly model: string
   readonly thinking?: string
+  readonly nextAttempt?: RunAttempt
   readonly kind?: "reflection" | "dream"
   readonly trigger?: ReservedRun["request"]["trigger"]
   readonly origin?: "manual" | "idle" | "shutdown"
@@ -57,6 +59,7 @@ export interface FactsSpawnArgs {
   readonly hardDeadlineAt: number
   readonly model: string
   readonly thinking?: string
+  readonly nextAttempt?: RunAttempt
   readonly command: string
   readonly args: readonly string[]
   readonly cwd: string
@@ -95,6 +98,7 @@ export interface PrepareReflectionSpawnInput {
   readonly thinking?: string
   readonly attempt?: number
   readonly hardDeadlineAt?: number
+  readonly nextAttempt?: RunAttempt
   readonly env: NodeJS.ProcessEnv
   readonly mergePolicy: "auto" | "integration"
   readonly skillsUsageSource: string
@@ -112,6 +116,7 @@ export interface PrepareFactsSpawnInput {
   readonly thinking?: string
   readonly attempt?: number
   readonly hardDeadlineAt?: number
+  readonly nextAttempt?: RunAttempt
   readonly env: NodeJS.ProcessEnv
   readonly senpiCommand?: string
   readonly chmodFile?: (path: string, mode: number) => Promise<void>

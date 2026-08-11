@@ -5,6 +5,7 @@ import type { MemoryIdentity, ReflectionWorktree, ReservedRun } from "@oh-my-ope
 
 import { prepareReflectionSpawn } from "./spawn"
 import type { ReflectionModelCandidate } from "./resolve-model"
+import type { RunAttempt } from "./run-artifacts"
 
 type ReflectionSpawnInput = {
   readonly run: ReservedRun
@@ -13,6 +14,7 @@ type ReflectionSpawnInput = {
   readonly candidate: ReflectionModelCandidate
   readonly attempt: number
   readonly hardDeadlineAt: number
+  readonly nextAttempt?: RunAttempt
   readonly config: OmoConfig
   readonly identity: MemoryIdentity
   readonly env: NodeJS.ProcessEnv
@@ -28,6 +30,7 @@ export function prepareReflectionCandidateSpawn(input: ReflectionSpawnInput) {
     thinking: input.candidate.thinking,
     attempt: input.attempt,
     hardDeadlineAt: input.hardDeadlineAt,
+    nextAttempt: input.nextAttempt,
     env: input.env,
     mergePolicy: input.mergePolicy,
     skillsUsageSource: join(input.identity.paths.runtime, "skills-usage.json"),

@@ -1,5 +1,7 @@
 import type { ReflectionChildResult } from "./spawn"
 import type { ReflectionModelCandidate } from "./resolve-model"
+import { isRetryableModelMiss } from "./model-miss"
+import type { RunAttempt } from "./run-artifacts"
 
 export type MemoryModelChain = readonly [
   ReflectionModelCandidate,
@@ -11,22 +13,27 @@ export type MemoryModelAttempt = {
   readonly child: ReflectionChildResult
 }
 
-const MODEL_NOT_FOUND_PATTERN = /^Error: Model ".+" not found\. Use --list-models to see available models\.$/m
-
 export async function runMemoryModelAttempts(
   candidates: MemoryModelChain,
-  attempt: (candidate: ReflectionModelCandidate, attempt: number) => Promise<ReflectionChildResult>,
+  attempt: (
+    candidate: ReflectionModelCandidate,
+    attempt: number,
+    nextAttempt: RunAttempt | undefined,
+  ) => Promise<ReflectionChildResult>,
 ): Promise<MemoryModelAttempt> {
   for (const [index, candidate] of candidates.entries()) {
-    const child = await attempt(candidate, index + 1)
+    const nextCandidate = candidates[index + 1]
+    const nextAttempt = nextCandidate === undefined
+      ? undefined
+      : {
+          attempt: index + 2,
+          model: nextCandidate.model,
+          ...(nextCandidate.thinking === undefined ? {} : { thinking: nextCandidate.thinking }),
+        }
+    const child = await attempt(candidate, index + 1, nextAttempt)
     const hasFallback = index < candidates.length - 1
     if (!hasFallback || !isRetryableModelMiss(child)) return { candidate, child }
   }
 
   throw new Error("Reflection model chain must contain a candidate")
-}
-
-function isRetryableModelMiss(child: ReflectionChildResult): boolean {
-  if (child.timedOut || child.code === 0) return false
-  return MODEL_NOT_FOUND_PATTERN.test(child.stderr) || MODEL_NOT_FOUND_PATTERN.test(child.stdout)
 }

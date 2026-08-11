@@ -323,3 +323,48 @@ Evidence:
 - real rebuilt-Omo startup: no missing skill path warning, no frontend collision, absent skills dir
 - final local gate: 451 passed, 0 failed, 1318 assertions; omo-senpi and senpi-task typechecks clean
 - evidence directory: `.omo/evidence/20260811-memory-reflection-model-fallback/`
+
+### Review round implementation-r2
+
+- reviewed head: `849f5f38a85b6459990c9dac9ae6971893a089ae`
+- goal/constraint re-review: FAIL
+- security re-review: PASS
+- hands-on QA re-review: PASS
+- context re-review: PASS
+- quality re-review: pending when the goal verdict arrived
+
+Remaining blocker:
+
+- attempt N published its matching retryable outcome before attempt N+1 was durably marked
+  `launching`, leaving a narrow reconciliation window.
+
+Resolution:
+
+- `RunLaunchManifest.nextAttempt` carries the next generation/model/thinking into the
+  sentinel-owning supervisor.
+- On the exact retryable model-not-found result, the supervisor advances `ledger.json` to the next
+  `launching` attempt and clears old process identity before publishing the current outcome.
+- A failing-first supervisor integration pinned the required ordering; focused reflection/facts
+  tests, both E2Es, and the full local gate were rerun.
+
+### Final remediation before implementation-r3
+
+The quality re-review independently cited the same transition window and also rejected the last
+bare-interpreter launcher fallback.
+
+Final changes:
+
+- the supervisor owns the next-attempt transition and advances the ledger before publishing the
+  retryable current outcome;
+- when executable, installed CLI, and current entry discovery all fail, launcher resolution throws
+  `Unable to resolve a runnable Senpi launcher` instead of passing Senpi flags to bare Node/Bun;
+- next-attempt construction moved into the shared retry helper, returning `runner.ts` to 250 pure
+  LOC.
+
+Final local evidence:
+
+- supervisor handoff test RED -> GREEN;
+- unresolved launcher test RED -> GREEN;
+- model fallback and startup-warning E2Es PASS;
+- 453 memory tests PASS, 0 fail, 1322 assertions;
+- omo-senpi and senpi-task typechecks PASS.

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process"
-import { closeSync, openSync, writeSync } from "node:fs"
+import { closeSync, openSync, readFileSync, writeSync } from "node:fs"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -23,6 +23,7 @@ import {
   terminateSupervisorChildHard,
   type SupervisorChildExit,
 } from "./supervisor-process-identity"
+import { isRetryableModelMiss } from "./model-miss"
 
 async function readRelease(): Promise<boolean> {
   for await (const chunk of process.stdin) {
@@ -189,6 +190,23 @@ async function runSupervisor(runDir: string): Promise<void> {
     finishedAt: new Date().toISOString(),
     childExit: parseSupervisorChildExit(bootstrapStatus) ?? wrapperExit,
     timedOut: timedOut || (Number.isFinite(clockNow) && clockNow >= manifest.hardDeadlineAt),
+  }
+  if (manifest.nextAttempt !== undefined && isRetryableModelMiss({
+    code: outcome.childExit.code,
+    stdout: readFileSync(manifest.stdoutPath, "utf8"),
+    stderr: readFileSync(manifest.stderrPath, "utf8"),
+    timedOut: outcome.timedOut,
+  })) {
+    await updateRunLedger(ledgerPath, {
+      attempt: manifest.nextAttempt.attempt,
+      model: manifest.nextAttempt.model,
+      ...(manifest.nextAttempt.thinking === undefined ? { thinking: undefined } : { thinking: manifest.nextAttempt.thinking }),
+      launching: true,
+      pid: undefined,
+      processStart: undefined,
+      childPid: undefined,
+      childProcessStart: undefined,
+    })
   }
   await writeRunJsonAtomic(join(runDir, "outcome.json"), outcome)
   await unlinkRunArtifact(launchPath)

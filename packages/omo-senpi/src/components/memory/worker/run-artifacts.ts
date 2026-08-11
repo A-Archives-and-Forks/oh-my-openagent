@@ -6,6 +6,7 @@ export interface RunLaunchManifest {
   readonly version: 1
   readonly runId: string
   readonly attempt: number
+  readonly nextAttempt?: RunAttempt
   readonly kind: "reflection" | "dream" | "facts"
   readonly command: string
   readonly args: readonly string[]
@@ -16,6 +17,12 @@ export interface RunLaunchManifest {
   readonly maxOutputBytes: number
   readonly stdoutPath: string
   readonly stderrPath: string
+}
+
+export interface RunAttempt {
+  readonly attempt: number
+  readonly model: string
+  readonly thinking?: string
 }
 
 export interface RunOutcome {

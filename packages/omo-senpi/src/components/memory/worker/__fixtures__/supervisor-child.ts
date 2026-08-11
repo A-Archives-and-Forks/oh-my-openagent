@@ -20,7 +20,10 @@ if (mode === "inspect") {
   process.exit(23)
 }
 
-if (mode === "graceful") {
+if (mode === "model-not-found") {
+  console.error('Error: Model "extension-only/primary" not found. Use --list-models to see available models.')
+  process.exit(1)
+} else if (mode === "graceful") {
   let terminating = false
   process.on("SIGTERM", () => {
     if (terminating) return

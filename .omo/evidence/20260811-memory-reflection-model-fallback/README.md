@@ -112,7 +112,7 @@ The real unified config loader reported:
 ### Automated verification
 
 - `bun test packages/omo-senpi/src/components/memory/`
-  - final post-review run: 451 passed, 0 failed, 1318 assertions
+  - final post-review run: 453 passed, 0 failed, 1322 assertions
 - `bun run --cwd packages/omo-senpi typecheck`
   - passed
 - focused fallback tests
@@ -205,6 +205,69 @@ Captured artifacts:
 - `model-fallback-final.log`
 - `skill-startup-final.log`
 - `final-suite.log`
+
+## Atomic retry transition follow-up
+
+Goal re-review found one remaining interleaving: attempt N could publish a matching retryable
+outcome before attempt N+1 was represented in the ledger. Reconciliation in that gap could
+finalize the whole run.
+
+Failing-first proof:
+
+- supervisor integration launched a model-not-found child with a configured next attempt;
+- expected ledger `{ attempt: 2, launching: true }`;
+- received the completed attempt-1 ledger.
+
+Fix:
+
+- `RunLaunchManifest` carries `nextAttempt`;
+- the sentinel-owning supervisor evaluates the exact model-not-found predicate;
+- before publishing attempt N's outcome, it atomically advances `ledger.json` to attempt N+1 with
+  `launching: true`, clears prior process identity, and persists the next model/thinking;
+- attempt N's subsequently published outcome is therefore already stale to reconciliation.
+
+Green proof:
+
+- supervisor atomic-handoff integration passed;
+- reflection/facts fallback and stale-outcome tests passed;
+- real fallback E2E still observed primary -> fallback and merged the fallback model;
+- real startup E2E still emitted neither reported warning;
+- final suite and typechecks are captured in `final-suite-atomic.log`.
+
+Additional artifacts:
+
+- `model-fallback-atomic.log`
+- `skill-startup-atomic.log`
+- `final-suite-atomic.log`
+
+## Final reviewer follow-up
+
+The goal reviewer identified a narrower transition gap: attempt N's outcome could be published
+before the parent prepared attempt N+1. The final repair moves the transition into the
+sentinel-owning supervisor:
+
+- `RunLaunchManifest.nextAttempt` carries the next generation/model/thinking;
+- on the exact retryable model miss, the supervisor advances the ledger before writing the current
+  outcome;
+- a dedicated real-supervisor integration failed first with attempt 1 still in the ledger, then
+  passed with `{ attempt: 2, launching: true }` and an attempt-1 outcome.
+
+The quality reviewer also required removal of the last invalid launcher state. When executable,
+installed-CLI, and current-entry discovery all fail, the resolver now throws
+`Unable to resolve a runnable Senpi launcher` instead of returning a bare Node/Bun interpreter.
+That test was captured RED then GREEN.
+
+Final real-surface results after both changes:
+
+- model fallback: primary -> fallback, `merged`, fallback model recorded;
+- startup: no missing path warning, no frontend collision, skills path genuinely absent;
+- cleanup: both isolation roots removed.
+
+Final artifacts:
+
+- `model-fallback-final2.log`
+- `skill-startup-final2.log`
+- `final-suite-final2.log`
 
 ## Why this is enough
 

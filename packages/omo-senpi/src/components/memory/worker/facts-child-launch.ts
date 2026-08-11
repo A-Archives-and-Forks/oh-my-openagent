@@ -33,7 +33,7 @@ export async function launchFactsModelChain(input: FactsChildLaunchInput) {
     },
     ...input.resolution.fallbacks,
   ]
-  return runMemoryModelAttempts(candidates, async (candidate, attempt) => {
+  return runMemoryModelAttempts(candidates, async (candidate, attempt, nextAttempt) => {
     const spawnArgs = await prepareFactsSpawn({
       runId: input.runId,
       runDir: input.runDir,
@@ -42,6 +42,7 @@ export async function launchFactsModelChain(input: FactsChildLaunchInput) {
       thinking: candidate.thinking,
       attempt,
       hardDeadlineAt: input.hardDeadlineAt,
+      nextAttempt,
       env: input.env,
       senpiCommand: input.senpiCommand,
     })

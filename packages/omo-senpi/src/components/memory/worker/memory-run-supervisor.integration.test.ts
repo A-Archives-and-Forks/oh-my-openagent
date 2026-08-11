@@ -20,14 +20,16 @@ const processGroups = new Set<number>()
 interface Outcome {
   readonly version: 1
   readonly runId: string
+  readonly attempt?: number
   readonly childExit: { readonly code: number | null; readonly signal: string | null }
   readonly timedOut: boolean
 }
 
 async function makeRun(options: {
-  readonly mode: "inspect" | "graceful" | "stubborn"
+  readonly mode: "inspect" | "graceful" | "stubborn" | "model-not-found"
   readonly hardDeadlineAt?: number
   readonly terminationGraceMs?: number
+  readonly nextAttempt?: { readonly attempt: number; readonly model: string; readonly thinking?: string }
 }): Promise<string> {
   const runDir = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-run-supervisor-")))
   roots.push(runDir)
@@ -36,7 +38,9 @@ async function makeRun(options: {
   await writeFile(join(runDir, "launch.json"), `${JSON.stringify({
     version: 1,
     runId: "run-a",
+    attempt: 1,
     kind: "reflection",
+    nextAttempt: options.nextAttempt,
     command: process.execPath,
     args: [childFixture, options.mode, runDir],
     cwd: runDir,
@@ -208,6 +212,30 @@ afterEach(async () => {
 })
 
 describe("memory run supervisor", () => {
+  test("#given a retryable model miss and a next attempt #when the supervisor publishes the outcome #then the ledger advances first", async () => {
+    // given
+    const runDir = await makeRun({
+      mode: "model-not-found",
+      nextAttempt: { attempt: 2, model: "omo-mock/mock-1", thinking: "minimal" },
+    })
+
+    // when
+    const supervisor = launchSupervisor(runDir)
+    const exit = await waitForExit(supervisor)
+    const ledger = JSON.parse(await readFile(join(runDir, "ledger.json"), "utf8"))
+    const outcome = JSON.parse(await readFile(join(runDir, "outcome.json"), "utf8")) as Outcome
+
+    // then
+    expect(exit).toEqual({ code: 0, signal: null })
+    expect(ledger).toMatchObject({
+      attempt: 2,
+      model: "omo-mock/mock-1",
+      thinking: "minimal",
+      launching: true,
+    })
+    expect(outcome).toMatchObject({ attempt: 1, childExit: { code: 1 }, timedOut: false })
+  })
+
   test("#given a fixture launch manifest #when supervised #then identity is durable before the command starts and the outcome is published once", async () => {
     // given
     const runDir = await makeRun({ mode: "inspect" })

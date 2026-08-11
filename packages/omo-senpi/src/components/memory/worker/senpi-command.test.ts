@@ -77,6 +77,16 @@ describe("resolveSenpiLaunch", () => {
     expect(launch).toEqual({ command: process.execPath, prefixArgs: [entry] })
   })
 
+  test("#given no executable installed CLI or current entry #when resolved #then it fails instead of launching a bare interpreter", () => {
+    // given
+    const resolve = () => resolveSenpiLaunch({ PATH: "" }, runtime({
+      argv: [process.execPath],
+    }))
+
+    // when / then
+    expect(resolve).toThrow("Unable to resolve a runnable Senpi launcher")
+  })
+
   test("#given the real restricted PATH fallback #when launched #then Senpi prints its version", () => {
     // given
     const node = Bun.which("node")

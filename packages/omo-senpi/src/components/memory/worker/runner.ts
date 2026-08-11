@@ -106,7 +106,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
         },
         ...resolution.fallbacks,
       ]
-      const attempt = await runMemoryModelAttempts(candidates, async (candidate, attemptNumber) => {
+      const attempt = await runMemoryModelAttempts(candidates, async (candidate, attemptNumber, nextAttempt) => {
         const spawnArgs = await prepareReflectionCandidateSpawn({
           run,
           worktree: activeWorktree,
@@ -114,6 +114,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
           candidate,
           attempt: attemptNumber,
           hardDeadlineAt,
+          nextAttempt,
           config: loaded.config,
           identity: this.options.identity,
           env: this.options.env ?? process.env,

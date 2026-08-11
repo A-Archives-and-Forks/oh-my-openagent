@@ -59,6 +59,7 @@ export async function runReflectionChild(
     attempt: prepared.attempt,
     model: prepared.model,
     thinking: prepared.thinking,
+    nextAttempt: prepared.nextAttempt,
     hardDeadlineAt: prepared.hardDeadlineAt,
     terminationGraceMs: graceMs,
     maxOutputBytes,
@@ -123,6 +124,7 @@ export async function runFactsChild(
     attempt: prepared.attempt,
     model: prepared.model,
     thinking: prepared.thinking,
+    nextAttempt: prepared.nextAttempt,
     hardDeadlineAt: prepared.hardDeadlineAt,
     terminationGraceMs: graceMs,
     maxOutputBytes,
@@ -150,6 +152,7 @@ async function runSupervisedChild(input: {
   readonly attempt: number
   readonly model: string
   readonly thinking?: string
+  readonly nextAttempt?: RunLaunchManifest["nextAttempt"]
   readonly kind: "reflection" | "dream" | "facts"
   readonly command: string
   readonly args: readonly string[]
@@ -168,6 +171,7 @@ async function runSupervisedChild(input: {
     version: 1,
     runId: input.runId,
     attempt: input.attempt,
+    nextAttempt: input.nextAttempt,
     kind: input.kind,
     command: input.command,
     args: [...input.args],
