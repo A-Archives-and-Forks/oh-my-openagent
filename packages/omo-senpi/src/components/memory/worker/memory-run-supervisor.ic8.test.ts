@@ -115,7 +115,18 @@ function launchSupervisor(runDir: string, clockPath: string, platform: typeof pl
 async function advanceClock(path: string, value: number): Promise<void> {
   const temporary = `${path}.next`
   await writeFile(temporary, `${value}\n`, "utf8")
-  await rename(temporary, path)
+  // The supervisor's re-check interval keeps the clock file busy on Windows, where renaming
+  // over an open file fails with EPERM; the collision is transient, so retry briefly.
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rename(temporary, path)
+      return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if ((code !== "EPERM" && code !== "EBUSY") || attempt >= 50) throw error
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+  }
 }
 
 function waitForExit(child: ChildProcess): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {

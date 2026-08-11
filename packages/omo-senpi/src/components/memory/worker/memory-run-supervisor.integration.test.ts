@@ -52,7 +52,7 @@ async function makeRun(options: {
 
 function launchSupervisor(runDir: string): ChildProcess {
   const clockPath = join(runDir, "clock.txt")
-  return spawn(process.execPath, [supervisorPath, runDir], {
+  const child = spawn(process.execPath, [supervisorPath, runDir], {
     detached: true,
     stdio: "ignore",
     env: existsSync(clockPath) ? {
@@ -61,13 +61,28 @@ function launchSupervisor(runDir: string): ChildProcess {
       OMO_MEMORY_SUPERVISOR_CLOCK_PATH: clockPath,
     } : process.env,
   })
+  // Track every supervisor so afterEach can tree-kill it: on win32 taskkill /T /F takes the
+  // supervisor, bootstrap, and model child together, which is what releases the run directory.
+  if (child.pid !== undefined) processGroups.add(child.pid)
+  return child
 }
 
 async function advanceClock(runDir: string, value: number): Promise<void> {
   const path = join(runDir, "clock.txt")
   const temporary = `${path}.next`
   await writeFile(temporary, `${value}\n`, "utf8")
-  await rename(temporary, path)
+  // The supervisor's re-check interval keeps the clock file busy on Windows, where renaming
+  // over an open file fails with EPERM; the collision is transient, so retry briefly.
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await rename(temporary, path)
+      return
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if ((code !== "EPERM" && code !== "EBUSY") || attempt >= 50) throw error
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+  }
 }
 
 async function waitForPath(path: string, timeoutMs = WAIT_MS): Promise<void> {
@@ -160,7 +175,10 @@ function groupIsAlive(pid: number): boolean {
   try {
     process.kill(process.platform === "win32" ? pid : -pid, 0)
     return true
-  } catch {
+  } catch (error) {
+    // EPERM means the process exists but cannot be signaled - it is alive, matching
+    // isProcessAlive. Only genuine absence (ESRCH and friends) reads as dead.
+    if (error instanceof Error && "code" in error && error.code === "EPERM") return true
     return false
   }
 }
