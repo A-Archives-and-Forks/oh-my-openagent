@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { GitMemoryRepo } from "../git"
 import { MemoryBlockCache, hashMemoryTemplate } from "./cache"
-import { realpathSync } from "node:fs"
+import { existsSync, readdirSync, realpathSync } from "node:fs"
 
 const WINDOWS_INTEGRATION_TEST_TIMEOUT = process.platform === "win32" ? 20_000 : 5_000
 
@@ -82,12 +82,26 @@ describe("MemoryBlockCache", () => {
 
     // when
     for (let nudgeTurns = 2; nudgeTurns < 102; nudgeTurns += 1) {
-      await cache.compile(repo, "template", {
-        agentId: "cache-agent",
-        conversationId: "one-session",
-        previousMessageCount: nudgeTurns,
-        nudgeTurns,
-      })
+      try {
+        await cache.compile(repo, "template", {
+          agentId: "cache-agent",
+          conversationId: "one-session",
+          previousMessageCount: nudgeTurns,
+          nudgeTurns,
+        })
+      } catch (error) {
+        // The windows runner fails this loop with a bare exit-1 git error and no stderr; surface
+        // the repository state at the failure point so the cause is visible in CI logs.
+        const dotGit = join(repo.dir, ".git")
+        const objects = join(dotGit, "objects")
+        const state = {
+          nudgeTurns,
+          dotGit: existsSync(dotGit),
+          objects: existsSync(objects) ? readdirSync(objects) : null,
+          headProbe: await repo.head().catch((probeError: unknown) => String(probeError)),
+        }
+        throw new Error(`compile failed at iteration ${nudgeTurns}: ${JSON.stringify(state)}`, { cause: error })
+      }
     }
 
     // then
