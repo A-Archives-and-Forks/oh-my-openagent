@@ -4,14 +4,13 @@ import { fileURLToPath } from "node:url"
 import { join } from "node:path"
 import {
   DEFAULT_POSTHOG_HOST,
-  UNCONFIGURED_POSTHOG_API_KEY,
   type TelemetryEnv,
   type TelemetryProductConfig,
 } from "@oh-my-opencode/telemetry-core"
 import { BUILTIN_CATEGORY_DEFAULTS, CURATED_READONLY_AGENT_NAMES } from "@oh-my-opencode/senpi-task"
 import { resolveAgentHome } from "../agent-home/resolve-agent-home"
 
-export const OMO_NATIVE_POSTHOG_API_KEY = UNCONFIGURED_POSTHOG_API_KEY
+export const OMO_NATIVE_POSTHOG_API_KEY = "phc_r6UYQzNZcGYSzKw4PxCiVrZepGqV3dw9qcvcKtRNUWAn"
 
 export type OmoNativePropertyType = "boolean" | "number" | "string"
 
