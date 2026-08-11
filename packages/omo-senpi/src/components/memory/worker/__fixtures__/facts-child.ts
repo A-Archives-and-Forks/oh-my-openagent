@@ -30,6 +30,9 @@ if (mode === "fact") {
   await writeFile(extractionPath, '{"scope":"project","person":{"name":"Mina","aliases":[]},"text":"bad","date":"2026-08-10"}\n')
 } else if (mode === "fail") {
   process.exitCode = 7
+} else if (mode === "model-not-found") {
+  console.error('Error: Model "extension-only/primary" not found. Use --list-models to see available models.')
+  process.exitCode = 1
 } else {
   throw new Error(`unknown facts fixture mode: ${mode}`)
 }

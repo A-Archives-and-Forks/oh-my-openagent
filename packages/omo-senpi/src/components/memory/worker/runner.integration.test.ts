@@ -110,6 +110,27 @@ describe("SenpiSubprocessRunner integration", () => {
     await assertWorktreesClean(item)
   })
 
+  test("#given an extension-only primary and a child-visible fallback #when the primary is missing in the clean child #then reflection retries and records the fallback", async () => {
+    // given
+    const item = await harness({ childMode: "model-fallback" })
+
+    // when
+    const result = await item.runner.launch(item.run)
+
+    // then
+    expect(result.outcome).toBe("merged")
+    expect(item.spawnCalls.map((spawn) => spawn.args[spawn.args.indexOf("--model") + 1])).toEqual([
+      "extension-only/primary",
+      "kimi-coding/fallback",
+    ])
+    expect(result.completion).toMatchObject({
+      model: "kimi-coding/fallback",
+      thinking: "minimal",
+      outcome: "merged",
+    })
+    await assertWorktreesClean(item)
+  })
+
   test("#given empty categories and no quick model #when launched twice in one session #then both fail without spawning and only one unsuppressed warning appears", async () => {
     // given
     const item = await harness({ childMode: "commit", categoryAvailable: false })

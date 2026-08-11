@@ -58,7 +58,7 @@ const childFixture = join(import.meta.dir, "__fixtures__", "reflection-child.ts"
 const supervisorFixture = join(import.meta.dir, "memory-run-supervisor.ts")
 
 export async function createRunnerHarness(options: {
-  readonly childMode: "commit" | "timeout" | "admin"
+  readonly childMode: "commit" | "timeout" | "admin" | "model-fallback"
   readonly categoryAvailable?: boolean
   readonly deadlineMs?: number
   readonly terminationGraceMs?: number
@@ -98,6 +98,11 @@ export async function createRunnerHarness(options: {
   if (!reserved || reserved.status !== "active") throw new Error("expected active reflection reservation")
 
   const model: SenpiModelPort = { provider: "omo-mock", id: "mock-1" }
+  const fallbackModels: readonly SenpiModelPort[] = [
+    { provider: "extension-only", id: "primary" },
+    { provider: "kimi-coding", id: "fallback" },
+  ]
+  const models = options.childMode === "model-fallback" ? fallbackModels : [model]
   const categoryAvailable = options.categoryAvailable ?? true
   const memory = OmoMemorySettingsSchema.parse({
     reflection: { category: "quick", timeout_minutes: 15, merge: "auto" },
@@ -105,7 +110,16 @@ export async function createRunnerHarness(options: {
   const config: OmoConfig = {
     memory,
     categories: categoryAvailable
-      ? { quick: { model: "omo-mock/mock-1", reasoning: "high" } }
+      ? {
+          quick: options.childMode === "model-fallback"
+            ? {
+                models: [
+                  { model: "extension-only/primary", reasoning: "off" },
+                  { model: "kimi-coding/fallback", reasoning: "minimal" },
+                ],
+              }
+            : { model: "omo-mock/mock-1", reasoning: "high" },
+        }
       : {},
   }
   const loaded: SenpiOmoConfigResult = { config, diagnostics: [], layers: [], sources: [] }
@@ -116,8 +130,10 @@ export async function createRunnerHarness(options: {
     identity,
     reservation: store,
     resolveModelRegistry: () => ({
-      getAvailable: () => categoryAvailable ? [model] : [],
-      find: (provider, modelId) => provider === model.provider && modelId === model.id ? model : undefined,
+      getAvailable: () => categoryAvailable ? models : [],
+      find: (provider, modelId) => models.find((candidate) =>
+        provider === candidate.provider && modelId === candidate.id
+      ),
     }),
     loadConfig: () => loaded,
     cwd: root,
@@ -131,10 +147,13 @@ export async function createRunnerHarness(options: {
     }),
     sandbox: (spawnArgs) => {
       spawnCalls.push(spawnArgs)
+      const mode = options.childMode === "model-fallback"
+        ? spawnArgs.args.includes("extension-only/primary") ? "model-not-found" : "commit"
+        : options.childMode
       return {
         ...spawnArgs,
         command: process.execPath,
-        args: [childFixture, options.childMode],
+        args: [childFixture, mode],
       }
     },
   })

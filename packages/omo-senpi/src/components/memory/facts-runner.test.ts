@@ -62,6 +62,31 @@ describe("quick-pinned facts launch", () => {
     expect(JSON.parse(await readFile(join(runDir, "outcome.json"), "utf8"))).toMatchObject({ childExit: { code: 0 } })
   })
 
+  test("#given an extension-only quick primary and a child-visible fallback #when facts extraction launches #then it retries and commits with the fallback", async () => {
+    // given
+    const { root, identity, queue } = await fixture()
+    const attempted: string[] = []
+    const base = runnerOptions(root, identity, queue, "model-fallback")
+    const runner = new FactsExtractorRunner({
+      ...base,
+      sandbox: (args) => {
+        const modelIndex = args.args.indexOf("--model")
+        attempted.push(args.args[modelIndex + 1] ?? "missing")
+        return base.sandbox?.(args) ?? args
+      },
+    })
+
+    // when
+    const result = await runner.launchPending()
+
+    // then
+    expect({ status: result.status, attempted }).toEqual({
+      status: "committed",
+      attempted: ["extension-only/primary", "omo-mock/mock-1"],
+    })
+    expect(await queue.listPending()).toHaveLength(0)
+  })
+
   test("#given a commit lands before queue cleanup crashes #when a fresh runner reconciles #then the batch receipt prevents a duplicate commit", async () => {
     // given
     const { root, identity, queue } = await fixture()

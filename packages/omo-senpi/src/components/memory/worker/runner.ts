@@ -28,12 +28,13 @@ import {
   shouldWarnCategoryUnavailable,
   type ReflectionModelResolution,
 } from "./resolve-model"
-import { writeRunJsonAtomic } from "./run-artifacts"
 import {
-  prepareReflectionSpawn,
-  runReflectionChild,
-  type DreamPeoplePolicy,
-} from "./spawn"
+  runMemoryModelAttempts,
+  type MemoryModelChain,
+} from "./memory-model-attempts"
+import { prepareReflectionCandidateSpawn } from "./reflection-spawn-input"
+import { writeRunJsonAtomic } from "./run-artifacts"
+import { runReflectionChild } from "./spawn"
 
 const DEFAULT_CATEGORY = "quick"
 const DEFAULT_TIMEOUT_MINUTES = 15
@@ -94,41 +95,53 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
     let worktree: ReflectionWorktree | undefined
     try {
       worktree = await createReflectionWorktree(repo, run.runId, this.options.identity.paths.worktrees)
+      const activeWorktree = worktree
       const merge = loaded.config.memory?.reflection.merge ?? "auto"
-      const spawnArgs = await prepareReflectionSpawn({
-        run,
-        worktree,
-        reflectionSessionsDir: join(this.options.identity.paths.reflection, "runs"),
-        model: resolution.model,
-        thinking: resolution.thinking,
-        env: this.options.env ?? process.env,
-        mergePolicy: merge,
-        skillsUsageSource: join(this.options.identity.paths.runtime, "skills-usage.json"),
-        dreamStateSource: join(this.options.identity.paths.runtime, "dream", "state.json"),
-        peoplePolicy: resolvePeoplePolicy(loaded.config, this.options.identity.id),
-        senpiCommand: this.options.senpiCommand,
-      })
       const configuredMinutes = loaded.config.memory?.reflection.timeout_minutes ?? DEFAULT_TIMEOUT_MINUTES
-      const child = await runReflectionChild(spawnArgs, {
-        deadlineMs: this.options.deadlineMs ?? configuredMinutes * 60_000,
-        terminationGraceMs: this.options.terminationGraceMs,
-        maxOutputBytes: this.options.maxOutputBytes,
-        sandbox: this.options.sandbox,
-        supervisorPath: this.options.supervisorPath,
+      const candidates: MemoryModelChain = [
+        {
+          model: resolution.model,
+          ...(resolution.thinking === undefined ? {} : { thinking: resolution.thinking }),
+        },
+        ...resolution.fallbacks,
+      ]
+      const attempt = await runMemoryModelAttempts(candidates, async (candidate) => {
+        const spawnArgs = await prepareReflectionCandidateSpawn({
+          run,
+          worktree: activeWorktree,
+          mergePolicy: merge,
+          candidate,
+          config: loaded.config,
+          identity: this.options.identity,
+          env: this.options.env ?? process.env,
+          senpiCommand: this.options.senpiCommand,
+        })
+        return runReflectionChild(spawnArgs, {
+          deadlineMs: this.options.deadlineMs ?? configuredMinutes * 60_000,
+          terminationGraceMs: this.options.terminationGraceMs,
+          maxOutputBytes: this.options.maxOutputBytes,
+          sandbox: this.options.sandbox,
+          supervisorPath: this.options.supervisorPath,
+        })
       })
+      const { child, candidate } = attempt
+      const selectedModel = {
+        model: candidate.model,
+        ...(candidate.thinking === undefined ? {} : { thinking: candidate.thinking }),
+      }
 
       if (child.timedOut) {
         const discarded = await this.discard(worktree)
         return cleanupSucceeded(discarded)
-          ? { outcome: "timed_out", reason: "deadline_exceeded", detail: child.stderr.trim() || undefined }
-          : { outcome: "failed", reason: "cleanup_failed", detail: discarded.detail }
+          ? { outcome: "timed_out", reason: "deadline_exceeded", detail: child.stderr.trim() || undefined, ...selectedModel }
+          : { outcome: "failed", reason: "cleanup_failed", detail: discarded.detail, ...selectedModel }
       }
       if (child.code !== 0) {
         const discarded = await this.discard(worktree)
         const childDetail = child.stderr.trim() || `Reflection child exited with code ${child.code ?? "signal"}`
         return cleanupSucceeded(discarded)
-          ? { outcome: "failed", reason: "child_exit", detail: childDetail }
-          : { outcome: "failed", reason: "cleanup_failed", detail: [childDetail, discarded.detail].filter(Boolean).join("; ") }
+          ? { outcome: "failed", reason: "child_exit", detail: childDetail, ...selectedModel }
+          : { outcome: "failed", reason: "cleanup_failed", detail: [childDetail, discarded.detail].filter(Boolean).join("; "), ...selectedModel }
       }
 
       const finalized = await finalizeReflectionWorktree(
@@ -147,6 +160,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
         outcome: finalized.status,
         ...(finalized.detail === undefined ? {} : { detail: finalized.detail }),
         ...failureReason(finalized),
+        ...selectedModel,
       }
     } catch (error) {
       const discarded = worktree === undefined ? undefined : await this.discard(worktree)
@@ -173,7 +187,14 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
       runId: run.runId,
       identity: this.options.identity.id,
       category: resolution.category,
-      ...(resolution.kind === "resolved" ? { model: resolution.model, thinking: resolution.thinking } : {}),
+      ...(resolution.kind === "resolved"
+        ? {
+            model: result.model ?? resolution.model,
+            ...(result.model === undefined
+              ? resolution.thinking === undefined ? {} : { thinking: resolution.thinking }
+              : result.thinking === undefined ? {} : { thinking: result.thinking }),
+          }
+        : {}),
       conversationIds: run.request.conversationIds,
       trigger: run.request.trigger,
       ...(run.request.trigger === "dream" ? { origin: run.request.origin } : {}),
@@ -240,15 +261,5 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
     if (this.options.withWriterLock) return this.options.withWriterLock(operation)
     const record = await createLockRecord("memory-write")
     return withLock(memoryWriterLockPath(this.options.identity.paths.locks), record, operation, { waitTimeoutMs: 5_000 })
-  }
-}
-
-function resolvePeoplePolicy(config: OmoConfig, identity: string): DreamPeoplePolicy {
-  const base = config.memory?.people
-  const override = config.memory?.agents[identity]?.people
-  return {
-    enabled: override?.enabled ?? base?.enabled ?? true,
-    max_entries: override?.max_entries ?? base?.max_entries ?? 40,
-    max_entry_chars: override?.max_entry_chars ?? base?.max_entry_chars ?? 200,
   }
 }

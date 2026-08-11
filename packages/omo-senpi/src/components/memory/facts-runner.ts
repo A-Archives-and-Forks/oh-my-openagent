@@ -15,11 +15,8 @@ import {
   type FactsQueueEntry,
 } from "@oh-my-opencode/memory-core"
 import { readFactsPeoplePayload } from "./facts-people-payload"
+import { launchFactsModelChain } from "./worker/facts-child-launch"
 import { resolveReflectionModel } from "./worker/resolve-model"
-import {
-  prepareFactsSpawn,
-  runFactsChild,
-} from "./worker/spawn"
 import { readRunJson, updateRunLedger, writeRunJsonAtomic, type RunOutcome } from "./worker/run-artifacts"
 
 const QUICK_CATEGORY = "quick"
@@ -96,19 +93,15 @@ export class FactsExtractorRunner {
       entries,
       ...people,
     }
-    const spawnArgs = await prepareFactsSpawn({
-      runId,
-      runDir,
-      payload,
-      model: resolution.model,
-      thinking: resolution.thinking,
-      env: this.options.env ?? process.env,
-      senpiCommand: this.options.senpiCommand,
-    })
-
     if (isAborted()) return { status: "skipped" }
     try {
-      const child = await runFactsChild(spawnArgs, {
+      const { child } = await launchFactsModelChain({
+        runId,
+        runDir,
+        payload,
+        resolution,
+        env: this.options.env ?? process.env,
+        senpiCommand: this.options.senpiCommand,
         deadlineMs: this.options.deadlineMs ?? DEFAULT_DEADLINE_MS,
         terminationGraceMs: this.options.terminationGraceMs,
         maxOutputBytes: this.options.maxOutputBytes,
@@ -116,7 +109,7 @@ export class FactsExtractorRunner {
         supervisorPath: this.options.supervisorPath,
         batchId,
         queued: queueKeys(entries),
-        now: () => launchedAt,
+        launchedAt,
       })
       if (child.timedOut || child.code !== 0) {
         await this.writeFinal(runDir, runId, "failed", child.stderr.trim() || "facts child failed")

@@ -65,31 +65,55 @@ export function runnerOptions(
   root: string,
   identity: MemoryIdentity,
   queue: FactsQueue,
-  mode: "fact" | "empty" | "malformed" | "fail" | "person",
+  mode: "fact" | "empty" | "malformed" | "fail" | "person" | "model-fallback",
   overrides: Partial<FactsExtractorRunnerOptions> = {},
 ): FactsExtractorRunnerOptions {
+  const fallbackModels: readonly SenpiModelPort[] = [
+    { provider: "extension-only", id: "primary" },
+    AVAILABLE_MODEL,
+  ]
+  const models = mode === "model-fallback" ? fallbackModels : [AVAILABLE_MODEL]
   return {
     identity,
     queue,
     cwd: root,
     loadConfig: () => ({
-      config: { categories: { quick: { model: "omo-mock/mock-1" } } },
+      config: {
+        categories: {
+          quick: mode === "model-fallback"
+            ? {
+                models: [
+                  { model: "extension-only/primary", reasoning: "off" },
+                  { model: "omo-mock/mock-1", reasoning: "minimal" },
+                ],
+              }
+            : { model: "omo-mock/mock-1" },
+        },
+      },
       diagnostics: [],
       layers: [],
       sources: [],
     }),
     resolveModelRegistry: () => ({
-      getAvailable: () => [AVAILABLE_MODEL],
-      find: (provider, modelId) =>
-        provider === AVAILABLE_MODEL.provider && modelId === AVAILABLE_MODEL.id
-          ? AVAILABLE_MODEL
-          : undefined,
+      getAvailable: () => models,
+      find: (provider, modelId) => models.find((candidate) =>
+        provider === candidate.provider && modelId === candidate.id
+      ),
     }),
     deadlineMs: 10_000,
     terminationGraceMs: 100,
     supervisorPath: supervisorFixture,
     createBatchId: () => "11111111-1111-4111-8111-111111111111",
-    sandbox: (args) => ({ ...args, command: process.execPath, args: [childFixture, mode] }),
+    sandbox: (args) => ({
+      ...args,
+      command: process.execPath,
+      args: [
+        childFixture,
+        mode === "model-fallback"
+          ? args.args.includes("extension-only/primary") ? "model-not-found" : "fact"
+          : mode,
+      ],
+    }),
     now: () => new Date("2026-08-10T12:00:00.000Z"),
     ...overrides,
   }

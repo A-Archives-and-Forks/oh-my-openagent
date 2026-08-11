@@ -3,6 +3,7 @@ import type { SenpiModelPort, SenpiModelRegistryPort } from "@oh-my-opencode/sen
 
 import type { SenpiOmoConfigResult } from "../../config-resolution"
 import type { ReflectionCompletionRecord, ReflectionLiveSession } from "./completion"
+import type { ReflectionThinkingLevel } from "./resolve-model"
 import type { ReflectionSandbox } from "./spawn"
 
 export interface ReflectionReservationPort {
@@ -47,4 +48,6 @@ export type ExecutionResult = {
   readonly outcome: ReflectionOutcome
   readonly reason?: string
   readonly detail?: string
+  readonly model?: string
+  readonly thinking?: ReflectionThinkingLevel
 }
