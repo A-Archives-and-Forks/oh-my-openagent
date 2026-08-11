@@ -1,5 +1,5 @@
 import type { SessionShutdownEvent } from "@code-yeongyu/senpi"
-import type { TaskRecord } from "@oh-my-opencode/senpi-task"
+import { recordSummary } from "@oh-my-opencode/senpi-task"
 import type { ComponentContext, SenpiExtensionAPI } from "../../extension/types"
 import type { TaskEngine } from "./engine"
 import type { LeadPollerLifecycle } from "./lead-poller-lifecycle"
@@ -18,36 +18,14 @@ type EventBridgeState = {
   readonly resumptionChannels: Pick<ResumptionChannelEmitter, "emitSessionStart" | "emitShutdown">
 }
 
-const OMO_TASK_UPDATED_EVENT = "omo.task.updated"
-
-function taskSnapshot(record: TaskRecord) {
-  return {
-    task_id: record.task_id,
-    name: record.name,
-    task_summary: record.task_summary,
-    description: record.description,
-    agent_type: record.agent_type,
-    category: record.category,
-    model: record.model,
-    status: record.status,
-    residency_state: record.residency_state,
-    execution_mode: record.execution_mode,
-    depth: record.depth,
-    created_at: record.created_at,
-    updated_at: record.updated_at,
-    ...(record.run_stats === undefined ? {} : { run_stats: record.run_stats }),
-  }
-}
-
 function emitTaskSnapshot(pi: SenpiExtensionAPI, engine: TaskEngine): void {
-  const parentSessionId = engine.runtime.sessionId()
-  if (parentSessionId === undefined || pi.rpc === undefined) return
-  const tasks = engine.manager
-    .list({ scope: "parent-session", session_id: parentSessionId })
-    .map(({ record }) => taskSnapshot(record))
-  pi.rpc.emit(OMO_TASK_UPDATED_EVENT, {
-    parent_session_id: parentSessionId,
-    tasks,
+  const parent_session_id = engine.runtime.sessionId()
+  if (parent_session_id === undefined) return
+  pi.rpc?.emit("omo.task.updated", {
+    parent_session_id,
+    tasks: engine.manager
+      .list({ scope: "parent-session", session_id: parent_session_id })
+      .map(({ record }) => recordSummary(record, true)),
   })
 }
 
