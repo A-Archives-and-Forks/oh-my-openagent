@@ -4,8 +4,9 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "bun:test";
 
 import { createStandaloneMcpRequestContext, runWithRequestContext } from "../request-context.js";
-import { findWorkspaceRoot, resolvePathInsideContext } from "./client-wrapper.js";
+import { findWorkspaceRoot, resolvePathInsideContext, withLspClient } from "./client-wrapper.js";
 import { LspInvalidPathError } from "./errors.js";
+import { LspManager } from "./manager.js";
 
 const tempDirectories: string[] = [];
 
@@ -48,16 +49,41 @@ describe("LSP client path confinement", () => {
 		).toThrow(LspInvalidPathError);
 	});
 
-	it("#given a symlink inside cwd that points outside #when resolving #then rejects the escape", () => {
+	it("#given a symlink inside cwd that points outside #when resolving read path #then keeps lexical path and cwd root", () => {
 		const root = tempRoot("lsp-client-wrapper-symlink-root-");
 		const outside = tempRoot("lsp-client-wrapper-symlink-outside-");
+		mkdirSync(join(root, ".git"), { recursive: true });
+		mkdirSync(join(outside, ".git"), { recursive: true });
 		writeFileSync(join(outside, "file.ts"), "export const outside = true;\n");
 		symlinkSync(outside, join(root, "linked"));
 
-		expect(() =>
+		const result = runWithRequestContext(createStandaloneMcpRequestContext({ cwd: root }), () => ({
+			filePath: resolvePathInsideContext("linked/file.ts"),
+			workspaceRoot: findWorkspaceRoot("linked/file.ts"),
+		}));
+
+		expect(result.filePath).toBe(join(realpathSync(root), "linked", "file.ts"));
+		expect(result.workspaceRoot).toBe(realpathSync(root));
+	});
+
+	it("#given a symlink inside cwd that points outside #when starting rename #then rejects before client acquisition", async () => {
+		const root = tempRoot("lsp-client-wrapper-rename-root-");
+		const outside = tempRoot("lsp-client-wrapper-rename-outside-");
+		writeFileSync(join(outside, "file.ts"), "export const outside = true;\n");
+		symlinkSync(outside, join(root, "linked"));
+		let clientFactoryCalls = 0;
+		const manager = new LspManager({
+			clientFactory: () => {
+				clientFactoryCalls += 1;
+				throw new Error("client acquisition must not start");
+			},
+		});
+
+		await expect(
 			runWithRequestContext(createStandaloneMcpRequestContext({ cwd: root }), () =>
-				resolvePathInsideContext("linked/file.ts"),
+				withLspClient("linked/file.ts", async () => undefined, "rename", { manager }),
 			),
-		).toThrow(LspInvalidPathError);
+		).rejects.toThrow(LspInvalidPathError);
+		expect(clientFactoryCalls).toBe(0);
 	});
 });
