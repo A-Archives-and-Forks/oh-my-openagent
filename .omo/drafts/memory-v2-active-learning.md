@@ -441,3 +441,61 @@ Verification:
 - memory-core and omo-senpi typechecks PASS;
 - rebuilt extension artifacts are current;
 - evidence: `.omo/evidence/20260811-memory-reflection-model-fallback/finalization-transaction.md`.
+
+## Review round: finalization-transaction-r1 (st_019ff0bb)
+Verdict FAIL, 4 blockers: (1) UNKNOWN abandonment could race a matching outcome publication, (2) stale attempt-1 outcome blocked dead attempt-2 finalization, (3) crash after a parent_dirty/merge_conflict checkpoint lost the durable decision, (4) legacy ledgers fabricated completion identity (category "quick", empty conversations).
+Resolution 03c9a0c34: run-local terminalization gate shared by supervisor publication and the failure/abandonment paths with a matching-attempt recheck after every reservation state read; stale attempts ignored via readMatchingOutcome; checkpointed non-merged decisions replayed from the ledger; legacy identity reconstructed only from durable sources and otherwise failed closed before completion or final.json. Repository regressions run-finalization-race/crash/settlement went RED then GREEN (8 pass, 28 assertions).
+
+## Review round: finalization-transaction-r2 (st_019ff0bb)
+Verdict FAIL, 1 blocker with two parts: the shipped memory-run-supervisor.mjs bundle predated the gate, and every gate participant used a five second wait that could make a publisher exit without publishing.
+Resolution: bundle rebuilt so the shipped supervisor honors the gate, and the gate now waits without an elapsed-time cutoff, pinned by run-terminal-gate.test.ts. Re-review requested at epoch 2.
+
+## Review round: facts-recovery-r1 (st_019ff0ca)
+Verdict FAIL, 4 blockers: foreign drift captured as owned pre-state between the clean check and capture, drift after ownership validation overwritten at the mutation boundary, pre worktree OIDs recorded without being durable in the object database, and two modules above the size limit.
+Resolution: routed back to the implementing lane with per-blocker minimum regressions; capture-then-validate before envelope publication, compare-and-set ownership at each mutation, durable object persistence for every recorded identity, and module splits.
+
+## Test determinism
+Commit 5a34e3b63: 138 process-heavy memory tests across 28 files carried no explicit deadline and depended on the default five second wall clock; one supervised facts launch failed at 5002 ms under full parallel load while passing in 770 ms isolated. They now use the explicit deadline convention already present in the memory suites, with no assertion weakened.
+
+## Review round: finalization-transaction-r3 (st_019ff0bb)
+Verdict FAIL, 1 blocker. The rebuilt bundle and the unbounded gate wait were confirmed fixed, but the gate only provides mutual exclusion, not precedence: an abandonment that acquires the lock first writes abandoned.json while a successful child is already finished inside the waiting supervisor, which then skips publication and exits 0. Proven against the shipped bundle (abandoned.json present, matching outcome.json absent).
+Resolution in progress: the supervisor publishes a durable publication-pending marker before requesting the gate, and abandonment gains a precedence check under the gate that vetoes abandonment when a matching outcome exists, a matching publication-pending marker exists, or the recorded process is still alive; a vetoed abandonment leaves the run active for later reconciliation. The documented win32 unknown-liveness path to abandoned.json is preserved for genuinely dead runs.
+
+## Review round: facts-recovery-r2 (st_019ff0ca, commit 70193918c)
+Verdict FAIL, 1 of 4 blockers still open. Closed: planning now captures affected pre-state then validates the whole repository before envelope publication (injection returned parent_dirty with foreign bytes and identities preserved); captured worktree bytes are inserted into the object database so filtered pre/post identities are durable before publication; and every touched module is at or below 250 raw lines. parent_dirty was confirmed to return before queue consumption, leaving the queue entry, enqueue cursor and consumed watermark intact, with a later clean retry committing.
+Still open: per-surface compare-and-set is a detached capture followed by an unconditional write (recovery-mutation.ts:61-64 index, :73-76 worktree), so a foreign write landing between the capture and the setter is overwritten and committed with a receipt while the journal never rolls back.
+Resolution in progress: validation moves inside the GitPathStateStore setters as a single conditional-write primitive that captures, persists current bytes to the object database, compares against the expected identity, refuses on mismatch, and uses an exclusive create for planned new paths.
+
+## Resolution: terminal precedence (commit 868b93a9e)
+The supervisor writes a durable publishing.json marker immediately after the child finishes and before it waits for terminalization.lock. Abandonment finalizes a matching durable outcome, and otherwise refuses to terminalize while a matching publication-pending marker exists or the recorded supervisor or child is classified alive; the final check sits immediately before the atomic abandoned.json write, with reservation completion after it. Shipped extensions rebuilt so the bundled supervisor carries the marker. RED proved abandonment returning abandoned_unknown against the shipped bundle; GREEN returns undefined with a durable matching outcome and no abandoned.json. Unknown-liveness dead runs still abandon. Worker suite 69 pass / 0 fail across 19 files.
+
+## Review round: finalization-transaction-r4 (st_019ff0bb, commit 0f4f1d07d)
+Verdict FAIL, 1 blocker. The marker-during-classification veto, the shipped-bundle precedence case, the dead unknown-liveness control and the other three original blockers all pass (20 pass / 0 fail / 71 assertions), but publication versus abandonment is still decided by reads followed by a write: a matching marker becoming durable after the final read and before the abandoned rename still yields abandoned.json. The reviewer's conclusion is that no finite sequence of reads can close this while the marker is written outside the shared gate.
+Resolution in progress: replace the read-then-write decision with a single exclusive-create terminal claim so exactly one claimant can win, enforced by the filesystem; the supervisor claims publish when its child finishes, abandonment claims abandon as its authorization to write the sentinel, a losing abandonment vetoes and leaves the run active, and a publish claim whose claimant is confirmed dead may be reclaimed so a crashed supervisor cannot strand a run.
+
+## Review round: facts-recovery-r3 (st_019ff0ca, commit c98ab516f)
+Verdict FAIL, 1 blocker. New-path worktree and index setter boundaries are closed (both injections return parent_dirty with exact foreign bytes, exact index identities, untouched siblings and no receipt), but writeWorktreeIfIdentity is only race-safe for missing paths: existing tracked files publish through a non-exclusive rename that never compares identity, so a foreign replacement after capture is overwritten and committed. Conditional deletion has the same unbound-removal shape.
+Resolution in progress: move-away-then-verify publication for existing paths, so the target is renamed to a transaction-private path, verified against the expected identity, restored on mismatch as parent_dirty, and republished through the same exclusive link used for new paths, with the identical sequence applied to conditional deletion.
+
+## Gate at 0f4f1d07d
+Build plus full memory-core suite, full omo-senpi memory suite and both typechecks: FINAL-GATE-PASS, 0 fail.
+
+## Review round: facts-recovery-r4 (st_019ff0ca, commit f68f6dcde)
+Verdict FAIL, 1 blocker. Existing-path replacement and deletion injections, the new-path and index setter boundaries, planning, durability and module sizes all confirmed closed. Remaining: deleteMovedWorktreeFile hard-linked the verified inode back to the public target before deleting it, so a foreign write in that window changed both names through the shared inode and was then removed, with the primitive still reporting success.
+Resolution 7d66e8e82: the emptied path is reserved by an exclusively created directory, so an ordinary writer fails with EISDIR; removal proceeds only while that exact reservation stands and anything else yields parent_dirty with foreign bytes untouched.
+
+## Review round: finalization-transaction-r5 (st_019ff0bb, commit c7122691f)
+Verdict FAIL, 1 blocker. The exclusive-claim design was confirmed to close the publication/abandonment TOCTOU once a valid claim exists (30 pass / 0 fail / 101 assertions across the whole adversarial set). Remaining: createExclusiveClaim opened the final arbitration path with an exclusive open before writing its record, so a crash in that window left a zero-byte claim that no reader could parse and no claimant could reclaim, permanently stranding the run.
+Resolution de6cea125: the record is written and fsynced to a same-directory candidate and published by an exclusive link, so the claim path only ever appears complete, and an unreadable claim authorized nothing and is discarded once instead of stranding the run.
+
+## Review round: facts-recovery-r5 (st_019ff0ca, commit 7d66e8e82)
+Verdict FAIL, 1 blocker. The post-reservation injection and every earlier item confirmed closed. Remaining: finalization verified the reservation by device and inode but then removed it through the public pathname, so a reservation swapped after the check was deleted, and the regular-file variant removed the durable moved-away file first and then failed with ENOTDIR, degrading to a generic failure instead of ownership loss.
+Resolution 4c389a01a: finalization renames the reservation to a transaction-private path and re-verifies type, device and inode there before removing anything, removes the moved-away file only after that proof, and never removes whatever foreign entry occupies the public target.
+
+## Review round: finalization-transaction-r6 (st_019ff0bb, commit de6cea125)
+Verdict FAIL, 1 blocker. The partially-created claim blocker confirmed closed, including the reviewer's own crash-image reproduction, with 32 pass / 0 fail / 106 assertions across the full adversarial set. Remaining: recovery removed a claim blindly from a stale read, so two contenders could both decide to discard the same malformed claim and the loser could unlink the winner's valid replacement, leaving two claimants each believing they won.
+Resolution in progress: every recovery removal is serialized under a dedicated exclusive recovery lock reusing the existing memory-core lock helper with dead-owner reclaim, with the claim re-read inside the lock immediately before removal so only the exact invalid or confirmed-dead record can be removed.
+
+## Review round: facts-recovery-r6 (st_019ff0ca, commit 4c389a01a)
+Verdict FAIL, 1 blocker. Both required post-verification variants confirmed closed (37 pass / 0 fail) along with every earlier item. Remaining: the mismatch-restoration path renamed the claimed foreign entry back over the public target, which on POSIX overwrites and destroys a second foreign entry that appeared in the meantime.
+Resolution in progress: restoration becomes non-overwriting, using an exclusive operation for regular files and leaving the claimed entry at its private durable pathname whenever the public target is occupied or the entry kind has no atomic non-overwriting move, always reporting parent_dirty and surfacing the private path for recovery.
