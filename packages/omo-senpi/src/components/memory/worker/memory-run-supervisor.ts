@@ -171,7 +171,8 @@ async function runSupervisor(runDir: string): Promise<void> {
       resolve({ code, signal })
     })
   })
-  if (platform === "win32" && timedOut) await hardKillFinished
+  const childExit = parseSupervisorChildExit(bootstrapStatus)
+  if (platform === "win32" && timedOut && childExit === undefined) await hardKillFinished
   cancelTerm()
   cancelKill()
   childPid = undefined
@@ -188,7 +189,7 @@ async function runSupervisor(runDir: string): Promise<void> {
     runId: manifest.runId,
     attempt: manifest.attempt,
     finishedAt: new Date().toISOString(),
-    childExit: parseSupervisorChildExit(bootstrapStatus) ?? wrapperExit,
+    childExit: childExit ?? wrapperExit,
     timedOut: timedOut || (Number.isFinite(clockNow) && clockNow >= manifest.hardDeadlineAt),
   }
   if (manifest.nextAttempt !== undefined && isRetryableModelMiss({

@@ -166,6 +166,29 @@ afterEach(async () => {
 })
 
 describe("memory run supervisor IC-8 containment", () => {
+  test("#given injected Windows and a child that exits during grace #when the hard deadline arrives #then the supervisor cancels forced taskkill", async () => {
+    // given
+    const { runDir, clockPath, childExited } = await makeRun("graceful")
+    const supervisor = launchSupervisor(runDir, clockPath, "win32")
+    const exit = waitForExit(supervisor)
+    await waitForPath(join(runDir, "child-started.json"))
+
+    // when
+    await advanceClock(clockPath, 2_000)
+    await childExited
+    const result = await exit
+    const outcome = JSON.parse(await readFile(join(runDir, "outcome.json"), "utf8")) as {
+      readonly timedOut: boolean
+      readonly childExit: { readonly code: number | null; readonly signal: string | null }
+    }
+    await advanceClock(clockPath, 3_000)
+
+    // then
+    expect(result).toEqual({ code: 0, signal: null })
+    expect(outcome).toMatchObject({ timedOut: true, childExit: { code: 0, signal: null } })
+    expect(existsSync(join(runDir, "taskkill-invocation.json"))).toBe(false)
+  })
+
   for (const platform of platforms) {
     test(`#given the injected ${platform} branch #when the absolute deadline instants are advanced #then graceful and hard tree termination use those instants`, async () => {
       // given
