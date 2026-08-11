@@ -14,7 +14,7 @@ import {
 // Real supervisor + bootstrap + model child spawns; a loaded CI runner needs far more than the
 // 5s these waiters originally assumed. The waits stay event-driven (fs/exit signals), so a true
 // hang still fails - only the ceiling moves.
-const WAIT_MS = process.platform === "win32" ? 60_000 : 30_000
+const WAIT_MS = 60_000
 setDefaultTimeout(WAIT_MS)
 
 const supervisorPath = join(import.meta.dir, "memory-run-supervisor.ts")
