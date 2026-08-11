@@ -11,7 +11,7 @@ import { spawn } from "node:child_process"
 import type { OmoConfig } from "@oh-my-opencode/omo-config-core"
 import type { SenpiModelPort, SenpiModelRegistryPort } from "@oh-my-opencode/senpi-task"
 
-import { resolveSenpiCommand } from "../worker/senpi-command"
+import { resolveSenpiLaunch } from "../worker/senpi-command"
 import { resolveReflectionModel } from "../worker/resolve-model"
 
 const QUICK_CATEGORY = "quick"
@@ -94,7 +94,15 @@ export function createPeopleAskRunner(options: PeopleAskOptions): PeopleAskRunne
       ...(resolution.thinking === undefined ? [] : ["--thinking", resolution.thinking]),
       buildAskPrompt(request),
     ]
-    const answer = await runChild(options.senpiCommand ?? resolveSenpiCommand(env), args, env, options.deadlineMs ?? DEFAULT_DEADLINE_MS)
+    const launch = options.senpiCommand === undefined
+      ? resolveSenpiLaunch(env)
+      : { command: options.senpiCommand, prefixArgs: [] }
+    const answer = await runChild(
+      launch.command,
+      [...launch.prefixArgs, ...args],
+      env,
+      options.deadlineMs ?? DEFAULT_DEADLINE_MS,
+    )
     return answer.length === 0 ? ABSTENTION_LINE : answer
   }
 }

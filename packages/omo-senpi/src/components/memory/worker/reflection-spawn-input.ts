@@ -11,6 +11,8 @@ type ReflectionSpawnInput = {
   readonly worktree: ReflectionWorktree
   readonly mergePolicy: "auto" | "integration"
   readonly candidate: ReflectionModelCandidate
+  readonly attempt: number
+  readonly hardDeadlineAt: number
   readonly config: OmoConfig
   readonly identity: MemoryIdentity
   readonly env: NodeJS.ProcessEnv
@@ -24,6 +26,8 @@ export function prepareReflectionCandidateSpawn(input: ReflectionSpawnInput) {
     reflectionSessionsDir: join(input.identity.paths.reflection, "runs"),
     model: input.candidate.model,
     thinking: input.candidate.thinking,
+    attempt: input.attempt,
+    hardDeadlineAt: input.hardDeadlineAt,
     env: input.env,
     mergePolicy: input.mergePolicy,
     skillsUsageSource: join(input.identity.paths.runtime, "skills-usage.json"),

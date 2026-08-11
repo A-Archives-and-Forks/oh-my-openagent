@@ -17,7 +17,7 @@ import {
 import { readFactsPeoplePayload } from "./facts-people-payload"
 import { launchFactsModelChain } from "./worker/facts-child-launch"
 import { resolveReflectionModel } from "./worker/resolve-model"
-import { readRunJson, updateRunLedger, writeRunJsonAtomic, type RunOutcome } from "./worker/run-artifacts"
+import { readRunJson, runOutcomeMatchesLedger, updateRunLedger, writeRunJsonAtomic, type RunOutcome } from "./worker/run-artifacts"
 
 const QUICK_CATEGORY = "quick"
 const DEFAULT_DEADLINE_MS = 15 * 60_000
@@ -102,7 +102,7 @@ export class FactsExtractorRunner {
         resolution,
         env: this.options.env ?? process.env,
         senpiCommand: this.options.senpiCommand,
-        deadlineMs: this.options.deadlineMs ?? DEFAULT_DEADLINE_MS,
+        hardDeadlineAt: Date.now() + (this.options.deadlineMs ?? DEFAULT_DEADLINE_MS),
         terminationGraceMs: this.options.terminationGraceMs,
         maxOutputBytes: this.options.maxOutputBytes,
         sandbox: this.options.sandbox,
@@ -132,17 +132,20 @@ export class FactsExtractorRunner {
       const ledger = await readRunJson<FactsRunLedger>(join(runDir, "ledger.json")).catch(() => undefined)
       if (ledger === undefined) continue
       if (existsSync(join(runDir, "outcome.json"))) {
-        const repo = new GitMemoryRepo({ dir: this.options.identity.paths.repo, agentId: this.options.identity.id })
-        try {
-          await this.finalizeRun(runDir, repo)
-        } catch (error) {
-          this.options.logger?.warn("facts run reconciliation remains pending", {
-            runId: ledger.runId,
-            error: describe(error),
-          })
-          active = true
+        const outcome = await readRunJson<RunOutcome>(join(runDir, "outcome.json"))
+        if (runOutcomeMatchesLedger(ledger, outcome)) {
+          const repo = new GitMemoryRepo({ dir: this.options.identity.paths.repo, agentId: this.options.identity.id })
+          try {
+            await this.finalizeRun(runDir, repo)
+          } catch (error) {
+            this.options.logger?.warn("facts run reconciliation remains pending", {
+              runId: ledger.runId,
+              error: describe(error),
+            })
+            active = true
+          }
+          continue
         }
-        continue
       }
       const verdict = await runLiveness(ledger)
       if (verdict === "alive" || this.now().getTime() <= ledger.deadlineAt) {

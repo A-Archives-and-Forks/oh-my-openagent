@@ -84,9 +84,15 @@ describe("reflection and dream run reconciliation", () => {
     // given
     const item = await fixture("dream")
     await commitOrphanWorktree(item)
+    await writeRunJsonAtomic(join(item.runDir, "ledger.json"), {
+      ...item.ledger,
+      attempt: 2,
+      model: "omo-mock/mock-1",
+      thinking: "minimal",
+    })
     await writeRunJsonAtomic(join(item.runDir, "outcome.json"), {
       version: 1, runId: "run-orphan", finishedAt: "2026-08-10T00:00:01.000Z",
-      childExit: { code: 0, signal: null }, timedOut: false,
+      attempt: 2, childExit: { code: 0, signal: null }, timedOut: false,
     })
 
     // when
@@ -99,10 +105,76 @@ describe("reflection and dream run reconciliation", () => {
     expect((await item.journal.getState()).reflected_completed_steps).toBe(1)
     expect(JSON.parse(await readFile(join(item.identity.paths.reflection, "completions", "run-orphan.json"), "utf8"))).toMatchObject({
       runId: "run-orphan", trigger: "dream", origin: "shutdown", outcome: "merged",
+      model: "omo-mock/mock-1", thinking: "minimal",
     })
     expect(JSON.parse(await readFile(join(item.runDir, "final.json"), "utf8"))).toMatchObject({
       version: 1, runId: "run-orphan", outcome: "merged",
     })
+  })
+
+  test("#given attempt two is live with a stale attempt-one outcome #when reconciled #then the retry remains active and its worktree stays intact", async () => {
+    // given
+    const item = await fixture()
+    await writeRunJsonAtomic(join(item.runDir, "ledger.json"), {
+      ...item.ledger,
+      attempt: 2,
+      model: "omo-mock/mock-1",
+      pid: 222,
+      processStart: "supervisor-two",
+      childPid: 333,
+      childProcessStart: "child-two",
+    })
+    await writeRunJsonAtomic(join(item.runDir, "outcome.json"), {
+      version: 1,
+      runId: "run-orphan",
+      attempt: 1,
+      finishedAt: "2026-08-10T00:00:01.000Z",
+      childExit: { code: 1, signal: null },
+      timedOut: false,
+    })
+
+    // when
+    const results = await reconcileReflectionRuns({
+      identity: item.identity,
+      reservation: item.store,
+      getPidLiveness: () => "alive",
+      getProcessStartIdentity: async (pid) => pid === 222 ? "supervisor-two" : "child-two",
+    })
+
+    // then
+    expect(results).toEqual([])
+    expect((await item.store.readState()).active?.runId).toBe("run-orphan")
+    expect(Bun.file(item.worktree.dir).size).toBeGreaterThan(0)
+  })
+
+  test("#given attempt two is being launched with a stale attempt-one outcome #when reconciled before the shared deadline #then the retry remains active", async () => {
+    // given
+    const item = await fixture()
+    await writeRunJsonAtomic(join(item.runDir, "ledger.json"), {
+      ...item.ledger,
+      attempt: 2,
+      model: "omo-mock/mock-1",
+      launching: true,
+    })
+    await writeRunJsonAtomic(join(item.runDir, "outcome.json"), {
+      version: 1,
+      runId: "run-orphan",
+      attempt: 1,
+      finishedAt: "2026-08-10T00:00:01.000Z",
+      childExit: { code: 1, signal: null },
+      timedOut: false,
+    })
+
+    // when
+    const results = await reconcileReflectionRuns({
+      identity: item.identity,
+      reservation: item.store,
+      now: () => 500,
+    })
+
+    // then
+    expect(results).toEqual([])
+    expect((await item.store.readState()).active?.runId).toBe("run-orphan")
   })
 
   test("#given a failed child outcome with a valid commit #when reconciled #then output is never merged and the cursor remains retryable", async () => {

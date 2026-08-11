@@ -15,10 +15,10 @@ const MODEL_NOT_FOUND_PATTERN = /^Error: Model ".+" not found\. Use --list-model
 
 export async function runMemoryModelAttempts(
   candidates: MemoryModelChain,
-  attempt: (candidate: ReflectionModelCandidate) => Promise<ReflectionChildResult>,
+  attempt: (candidate: ReflectionModelCandidate, attempt: number) => Promise<ReflectionChildResult>,
 ): Promise<MemoryModelAttempt> {
   for (const [index, candidate] of candidates.entries()) {
-    const child = await attempt(candidate)
+    const child = await attempt(candidate, index + 1)
     const hasFallback = index < candidates.length - 1
     if (!hasFallback || !isRetryableModelMiss(child)) return { candidate, child }
   }

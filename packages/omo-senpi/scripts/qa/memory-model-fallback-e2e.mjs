@@ -15,10 +15,8 @@ import { fileURLToPath } from "node:url"
 import { createSandbox, seedSandbox } from "./drive.mjs"
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
-const packageRoot = join(scriptDir, "..", "..")
-const pluginEntry = join(packageRoot, "plugin", "extensions", "omo.js")
 const mockProviderEntry = join(scriptDir, "mock-provider", "index.ts")
-const senpiBin = process.env.SENPI_BIN ?? "/Users/yeongyu/.local/bin/senpi"
+const senpiBin = process.env.SENPI_BIN ?? Bun.which("senpi")
 const sandbox = createSandbox()
 
 function writeConfig(stepCount) {
@@ -168,7 +166,7 @@ function waitForCompletion(dir, existing) {
 }
 
 async function main() {
-  if (!existsSync(senpiBin)) throw new Error(`senpi binary missing: ${senpiBin}`)
+  if (senpiBin === null || !existsSync(senpiBin)) throw new Error(`senpi binary missing: ${senpiBin}`)
   seedSandbox(sandbox)
   mkdirSync(join(sandbox.agentDir, "sessions"), { recursive: true })
   writeFileSync(join(sandbox.agentDir, "auth.json"), `${JSON.stringify({

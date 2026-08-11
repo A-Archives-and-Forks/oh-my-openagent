@@ -21,6 +21,10 @@ export interface DreamPeoplePolicy {
 
 export interface ReflectionSpawnArgs {
   readonly runId?: string
+  readonly attempt: number
+  readonly hardDeadlineAt: number
+  readonly model: string
+  readonly thinking?: string
   readonly kind?: "reflection" | "dream"
   readonly trigger?: ReservedRun["request"]["trigger"]
   readonly origin?: "manual" | "idle" | "shutdown"
@@ -49,6 +53,10 @@ export interface ReflectionChildResult {
 
 export interface FactsSpawnArgs {
   readonly runId: string
+  readonly attempt: number
+  readonly hardDeadlineAt: number
+  readonly model: string
+  readonly thinking?: string
   readonly command: string
   readonly args: readonly string[]
   readonly cwd: string
@@ -64,6 +72,9 @@ export interface FactsSpawnArgs {
 export interface FactsRunLedgerEnvelope {
   readonly version: 1
   readonly runId: string
+  readonly attempt: number
+  readonly model: string
+  readonly thinking?: string
   readonly kind: "facts"
   readonly startedAt: string
   readonly hardDeadlineAt: number
@@ -82,6 +93,8 @@ export interface PrepareReflectionSpawnInput {
   readonly reflectionSessionsDir: string
   readonly model: string
   readonly thinking?: string
+  readonly attempt?: number
+  readonly hardDeadlineAt?: number
   readonly env: NodeJS.ProcessEnv
   readonly mergePolicy: "auto" | "integration"
   readonly skillsUsageSource: string
@@ -97,6 +110,8 @@ export interface PrepareFactsSpawnInput {
   readonly payload: FactsPayload
   readonly model: string
   readonly thinking?: string
+  readonly attempt?: number
+  readonly hardDeadlineAt?: number
   readonly env: NodeJS.ProcessEnv
   readonly senpiCommand?: string
   readonly chmodFile?: (path: string, mode: number) => Promise<void>

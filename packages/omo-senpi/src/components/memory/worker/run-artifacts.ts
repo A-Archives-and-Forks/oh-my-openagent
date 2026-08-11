@@ -5,6 +5,7 @@ import { dirname } from "node:path"
 export interface RunLaunchManifest {
   readonly version: 1
   readonly runId: string
+  readonly attempt: number
   readonly kind: "reflection" | "dream" | "facts"
   readonly command: string
   readonly args: readonly string[]
@@ -20,12 +21,20 @@ export interface RunLaunchManifest {
 export interface RunOutcome {
   readonly version: 1
   readonly runId: string
+  readonly attempt?: number
   readonly finishedAt: string
   readonly childExit: {
     readonly code: number | null
     readonly signal: string | null
   }
   readonly timedOut: boolean
+}
+
+export function runOutcomeMatchesLedger(
+  ledger: { readonly attempt?: number },
+  outcome: RunOutcome,
+): boolean {
+  return ledger.attempt === outcome.attempt
 }
 
 export async function readRunJson<T>(path: string): Promise<T> {

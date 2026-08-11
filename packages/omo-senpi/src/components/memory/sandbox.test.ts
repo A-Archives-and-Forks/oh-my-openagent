@@ -37,6 +37,9 @@ function fixture(): {
 function spawnArgs(worktree: string): ReflectionSpawnArgs {
   const sessionDir = dirname(worktree)
   return {
+    attempt: 1,
+    hardDeadlineAt: Date.now() + 10_000,
+    model: "fixture/model",
     command: "/bin/sh",
     args: ["-c", "exit 0"],
     cwd: worktree,

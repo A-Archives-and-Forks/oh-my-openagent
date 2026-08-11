@@ -3,8 +3,6 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 
 import { loadDreamPersona, loadFactsPersona, loadReflectionPersona, type ReservedRun } from "@oh-my-opencode/memory-core"
 
-import { resolveSenpiCommand } from "./senpi-command"
-
 import type {
   FactsSpawnArgs,
   PrepareFactsSpawnInput,
@@ -12,6 +10,7 @@ import type {
   ReflectionSpawnArgs,
   ReflectionSpawnPaths,
 } from "./spawn-types"
+import { resolveSenpiLaunch } from "./senpi-command"
 
 export async function prepareReflectionSpawn(input: PrepareReflectionSpawnInput): Promise<ReflectionSpawnArgs> {
   const sessionDir = join(input.reflectionSessionsDir, safeRunId(input.run.runId))
@@ -100,16 +99,23 @@ export async function prepareReflectionSpawn(input: PrepareReflectionSpawnInput)
     ...(input.thinking === undefined ? [] : ["--thinking", input.thinking]),
     `@${prompt}`,
   ]
+  const launch = input.senpiCommand === undefined
+    ? resolveSenpiLaunch(input.env)
+    : { command: input.senpiCommand, prefixArgs: [] }
   return {
     runId: input.run.runId,
+    attempt: input.attempt ?? 1,
+    hardDeadlineAt: input.hardDeadlineAt ?? Date.now() + 15 * 60_000,
+    model: input.model,
+    ...(input.thinking === undefined ? {} : { thinking: input.thinking }),
     kind: input.run.request.trigger === "dream" ? "dream" : "reflection",
     trigger: input.run.request.trigger,
     ...(input.run.request.trigger === "dream" ? { origin: input.run.request.origin } : {}),
     mergePolicy: input.mergePolicy,
     ...(input.run.request.targetDoc === undefined ? {} : { targetDoc: input.run.request.targetDoc }),
     worktree: input.worktree,
-    command: input.senpiCommand ?? resolveSenpiCommand(input.env),
-    args,
+    command: launch.command,
+    args: [...launch.prefixArgs, ...args],
     cwd: input.worktree.dir,
     env,
     detached: true,
@@ -148,10 +154,17 @@ export async function prepareFactsSpawn(input: PrepareFactsSpawnInput): Promise<
     ...(input.thinking === undefined ? [] : ["--thinking", input.thinking]),
     `Read ${payload} and write only ${extraction} according to the system prompt.`,
   ]
+  const launch = input.senpiCommand === undefined
+    ? resolveSenpiLaunch(input.env)
+    : { command: input.senpiCommand, prefixArgs: [] }
   return {
     runId: input.runId,
-    command: input.senpiCommand ?? resolveSenpiCommand(input.env),
-    args,
+    attempt: input.attempt ?? 1,
+    hardDeadlineAt: input.hardDeadlineAt ?? Date.now() + 15 * 60_000,
+    model: input.model,
+    ...(input.thinking === undefined ? {} : { thinking: input.thinking }),
+    command: launch.command,
+    args: [...launch.prefixArgs, ...args],
     cwd: input.runDir,
     env,
     detached: true,

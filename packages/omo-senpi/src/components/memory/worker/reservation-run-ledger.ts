@@ -3,6 +3,10 @@ import { createNodeGitExec, GitMemoryRepo, type MemoryIdentity, type ReflectionW
 export interface ReservationRunLedger {
   readonly version: 1
   readonly runId: string
+  readonly attempt?: number
+  readonly model?: string
+  readonly thinking?: string
+  readonly launching?: boolean
   readonly kind: "reflection" | "dream"
   readonly trigger: "step-count" | "compaction" | "manual" | "dream"
   readonly origin?: "manual" | "idle" | "shutdown"
@@ -53,6 +57,14 @@ export function parseReservationRunLedger(value: unknown): ReservationRunLedger 
   }
   if (!optionalPid(value.pid) || !optionalIdentity(value.processStart) || !optionalPid(value.childPid) || !optionalIdentity(value.childProcessStart)) {
     throw new Error("Invalid reservation process identity")
+  }
+  if (value.attempt !== undefined && (!Number.isInteger(value.attempt) || Number(value.attempt) <= 0)) {
+    throw new Error("Invalid reservation run attempt")
+  }
+  if (value.model !== undefined && typeof value.model !== "string") throw new Error("Invalid reservation run model")
+  if (value.thinking !== undefined && typeof value.thinking !== "string") throw new Error("Invalid reservation run thinking")
+  if (value.launching !== undefined && typeof value.launching !== "boolean") {
+    throw new Error("Invalid reservation run launching state")
   }
   if (value.commonConfigSnapshot !== null && typeof value.commonConfigSnapshot !== "string") {
     throw new Error("Invalid common config snapshot")

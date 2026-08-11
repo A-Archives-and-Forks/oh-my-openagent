@@ -15,7 +15,7 @@ type FactsChildLaunchInput = {
   readonly resolution: Extract<ReflectionModelResolution, { readonly kind: "resolved" }>
   readonly env: NodeJS.ProcessEnv
   readonly senpiCommand?: string
-  readonly deadlineMs: number
+  readonly hardDeadlineAt: number
   readonly terminationGraceMs?: number
   readonly maxOutputBytes?: number
   readonly sandbox?: FactsSandbox
@@ -33,18 +33,19 @@ export async function launchFactsModelChain(input: FactsChildLaunchInput) {
     },
     ...input.resolution.fallbacks,
   ]
-  return runMemoryModelAttempts(candidates, async (candidate) => {
+  return runMemoryModelAttempts(candidates, async (candidate, attempt) => {
     const spawnArgs = await prepareFactsSpawn({
       runId: input.runId,
       runDir: input.runDir,
       payload: input.payload,
       model: candidate.model,
       thinking: candidate.thinking,
+      attempt,
+      hardDeadlineAt: input.hardDeadlineAt,
       env: input.env,
       senpiCommand: input.senpiCommand,
     })
     return runFactsChild(spawnArgs, {
-      deadlineMs: input.deadlineMs,
       terminationGraceMs: input.terminationGraceMs,
       maxOutputBytes: input.maxOutputBytes,
       sandbox: input.sandbox,

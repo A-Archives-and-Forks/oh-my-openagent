@@ -87,6 +87,7 @@ async function runSupervisor(runDir: string): Promise<void> {
   const manifest = await readRunJson<RunLaunchManifest>(launchPath)
   const platform = getSupervisorRuntimePlatform()
   await updateRunLedger(ledgerPath, {
+    launching: false,
     pid: process.pid,
     processStart: await getSupervisorProcessStart(process.pid),
   })
@@ -184,6 +185,7 @@ async function runSupervisor(runDir: string): Promise<void> {
   const outcome: RunOutcome = {
     version: 1,
     runId: manifest.runId,
+    attempt: manifest.attempt,
     finishedAt: new Date().toISOString(),
     childExit: parseSupervisorChildExit(bootstrapStatus) ?? wrapperExit,
     timedOut: timedOut || (Number.isFinite(clockNow) && clockNow >= manifest.hardDeadlineAt),

@@ -4,6 +4,7 @@ import { join } from "node:path"
 
 import {
   readRunJson,
+  runOutcomeMatchesLedger,
   writeRunJsonAtomic,
   type RunLaunchManifest,
   type RunOutcome,
@@ -30,7 +31,6 @@ const DEFAULT_MAX_OUTPUT_BYTES = 64 * 1024
 export async function runReflectionChild(
   spawnArgs: ReflectionSpawnArgs,
   options: {
-    readonly deadlineMs: number
     readonly terminationGraceMs?: number
     readonly maxOutputBytes?: number
     readonly sandbox?: ReflectionSandbox
@@ -38,9 +38,6 @@ export async function runReflectionChild(
     readonly now?: () => number
   },
 ): Promise<ReflectionChildResult> {
-  if (!Number.isFinite(options.deadlineMs) || options.deadlineMs <= 0) {
-    throw new TypeError("reflection deadline must be positive")
-  }
   const graceMs = options.terminationGraceMs ?? DEFAULT_GRACE_MS
   const maxOutputBytes = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES
   if (graceMs < 0 || maxOutputBytes <= 0) throw new TypeError("reflection spawn limits are invalid")
@@ -48,10 +45,9 @@ export async function runReflectionChild(
   const prepared = await (options.sandbox ?? passthroughSandbox)(spawnArgs)
   const metadata = requireRunMetadata(prepared)
   const launchedAt = (options.now ?? Date.now)()
-  // The absolute deadline anchors to the enforcing supervisor's wall clock, never to the
-  // parent's logical clock: an injected now() may sit arbitrarily in the past, which would
-  // make the supervisor fire the deadline at spawn and always report a timeout.
-  const hardDeadlineAt = Date.now() + options.deadlineMs
+  if (!Number.isFinite(prepared.hardDeadlineAt) || prepared.hardDeadlineAt <= 0) {
+    throw new TypeError("reflection deadline must be positive")
+  }
   return runSupervisedChild({
     runDir: prepared.paths.sessionDir,
     runId: metadata.runId,
@@ -60,7 +56,10 @@ export async function runReflectionChild(
     args: prepared.args,
     cwd: prepared.cwd,
     env: prepared.env,
-    hardDeadlineAt,
+    attempt: prepared.attempt,
+    model: prepared.model,
+    thinking: prepared.thinking,
+    hardDeadlineAt: prepared.hardDeadlineAt,
     terminationGraceMs: graceMs,
     maxOutputBytes,
     supervisorPath: options.supervisorPath,
@@ -71,9 +70,12 @@ export async function runReflectionChild(
       trigger: metadata.trigger,
       ...(metadata.kind === "dream" ? { origin: metadata.origin } : {}),
       startedAt: new Date(launchedAt).toISOString(),
-      hardDeadlineAt,
+      attempt: prepared.attempt,
+      model: prepared.model,
+      ...(prepared.thinking === undefined ? {} : { thinking: prepared.thinking }),
+      hardDeadlineAt: prepared.hardDeadlineAt,
       terminationGraceMs: graceMs,
-      deadlineAt: hardDeadlineAt + graceMs,
+      deadlineAt: prepared.hardDeadlineAt + graceMs,
       mergePolicy: metadata.mergePolicy,
       ...(metadata.targetDoc === undefined ? {} : { targetDoc: metadata.targetDoc }),
       worktreeDir: metadata.worktree.dir,
@@ -90,7 +92,6 @@ export async function runReflectionChild(
 export async function runFactsChild(
   spawnArgs: FactsSpawnArgs,
   options: {
-    readonly deadlineMs: number
     readonly terminationGraceMs?: number
     readonly maxOutputBytes?: number
     readonly sandbox?: FactsSandbox
@@ -100,9 +101,6 @@ export async function runFactsChild(
     readonly queued: readonly { readonly conversationId: string; readonly end_message_id: string }[]
   },
 ): Promise<ReflectionChildResult> {
-  if (!Number.isFinite(options.deadlineMs) || options.deadlineMs <= 0) {
-    throw new TypeError("facts deadline must be positive")
-  }
   const graceMs = options.terminationGraceMs ?? DEFAULT_GRACE_MS
   const maxOutputBytes = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES
   if (graceMs < 0 || maxOutputBytes <= 0) throw new TypeError("facts spawn limits are invalid")
@@ -111,7 +109,9 @@ export async function runFactsChild(
   // The absolute deadline anchors to the enforcing supervisor's wall clock, never to the
   // parent's logical clock: an injected now() may sit arbitrarily in the past, which would
   // make the supervisor fire the deadline at spawn and always report a timeout.
-  const hardDeadlineAt = Date.now() + options.deadlineMs
+  if (!Number.isFinite(prepared.hardDeadlineAt) || prepared.hardDeadlineAt <= 0) {
+    throw new TypeError("facts deadline must be positive")
+  }
   return runSupervisedChild({
     runDir: prepared.paths.runDir,
     runId: prepared.runId,
@@ -120,7 +120,10 @@ export async function runFactsChild(
     args: prepared.args,
     cwd: prepared.cwd,
     env: prepared.env,
-    hardDeadlineAt,
+    attempt: prepared.attempt,
+    model: prepared.model,
+    thinking: prepared.thinking,
+    hardDeadlineAt: prepared.hardDeadlineAt,
     terminationGraceMs: graceMs,
     maxOutputBytes,
     supervisorPath: options.supervisorPath,
@@ -129,9 +132,12 @@ export async function runFactsChild(
       runId: prepared.runId,
       kind: "facts",
       startedAt: new Date(launchedAt).toISOString(),
-      hardDeadlineAt,
+      attempt: prepared.attempt,
+      model: prepared.model,
+      ...(prepared.thinking === undefined ? {} : { thinking: prepared.thinking }),
+      hardDeadlineAt: prepared.hardDeadlineAt,
       terminationGraceMs: graceMs,
-      deadlineAt: hardDeadlineAt + graceMs,
+      deadlineAt: prepared.hardDeadlineAt + graceMs,
       batchId: options.batchId,
       queued: options.queued,
     } satisfies FactsRunLedgerEnvelope,
@@ -141,6 +147,9 @@ export async function runFactsChild(
 async function runSupervisedChild(input: {
   readonly runDir: string
   readonly runId: string
+  readonly attempt: number
+  readonly model: string
+  readonly thinking?: string
   readonly kind: "reflection" | "dream" | "facts"
   readonly command: string
   readonly args: readonly string[]
@@ -158,6 +167,7 @@ async function runSupervisedChild(input: {
   const launch: RunLaunchManifest = {
     version: 1,
     runId: input.runId,
+    attempt: input.attempt,
     kind: input.kind,
     command: input.command,
     args: [...input.args],
@@ -169,7 +179,16 @@ async function runSupervisedChild(input: {
     stdoutPath,
     stderrPath,
   }
-  await writeRunJsonAtomic(join(input.runDir, "ledger.json"), input.ledger)
+  const ledger = {
+    ...input.ledger,
+    attempt: input.attempt,
+    model: input.model,
+    ...(input.thinking === undefined ? {} : { thinking: input.thinking }),
+    launching: true,
+    hardDeadlineAt: input.hardDeadlineAt,
+    deadlineAt: input.hardDeadlineAt + input.terminationGraceMs,
+  }
+  await writeRunJsonAtomic(join(input.runDir, "ledger.json"), ledger)
   await writeRunJsonAtomic(join(input.runDir, "launch.json"), launch)
 
   const supervisor = spawn(process.execPath, [input.supervisorPath ?? defaultSupervisorPath(), input.runDir], {
@@ -194,6 +213,9 @@ async function runSupervisedChild(input: {
     throw new Error(`memory run supervisor exited with ${supervisorExit.code ?? supervisorExit.signal ?? "unknown status"}`)
   }
   const outcome = await readRunJson<RunOutcome>(join(input.runDir, "outcome.json"))
+  if (!runOutcomeMatchesLedger(ledger, outcome)) {
+    throw new Error(`memory run outcome attempt ${outcome.attempt ?? "legacy"} does not match attempt ${input.attempt}`)
+  }
   return {
     code: outcome.childExit.code,
     signal: isNodeSignal(outcome.childExit.signal) ? outcome.childExit.signal : null,

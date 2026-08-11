@@ -11,7 +11,11 @@ import {
   type ReservedRun,
 } from "@oh-my-opencode/memory-core"
 
-import { readRunJson } from "./run-artifacts"
+import {
+  readRunJson,
+  runOutcomeMatchesLedger,
+  type RunOutcome,
+} from "./run-artifacts"
 import {
   abandonReservationRun,
   failReservationRun,
@@ -88,12 +92,18 @@ async function reconcileRun(
   ledger: ReservationRunLedger,
 ): Promise<ReflectionRunReconcileResult | undefined> {
   const outcomePath = join(runDir, "outcome.json")
-  if (existsSync(outcomePath)) return await finalizeRecordedOutcome(context, runDir, ledger)
+  if (await hasMatchingOutcome(outcomePath, ledger)) {
+    return await finalizeRecordedOutcome(context, runDir, ledger)
+  }
+  if (ledger.launching === true && context.now() <= ledger.hardDeadlineAt) return undefined
   const supervisor = await classifyRunProcess(ledger.pid, ledger.processStart, context)
   if (supervisor === "alive" || supervisor === "unknown") {
     const wait = context.waitForOutcome ?? ((path, deadlineAt) => waitForRunSentinel(path, deadlineAt, context.now))
     if (await wait(outcomePath, ledger.deadlineAt) === "present" || existsSync(outcomePath)) {
-      return await finalizeRecordedOutcome(context, runDir, ledger)
+      const refreshed = parseReservationRunLedger(await readRunJson<unknown>(join(runDir, "ledger.json")))
+      if (await hasMatchingOutcome(outcomePath, refreshed)) {
+        return await finalizeRecordedOutcome(context, runDir, refreshed)
+      }
     }
     const refreshed = parseReservationRunLedger(await readRunJson<unknown>(join(runDir, "ledger.json")))
     const freshSupervisor = await classifyRunProcess(refreshed.pid, refreshed.processStart, context)
@@ -103,6 +113,15 @@ async function reconcileRun(
     return freshSupervisor === "alive" ? undefined : await reconcileDeadSupervisor(context, runDir, refreshed)
   }
   return await reconcileDeadSupervisor(context, runDir, ledger)
+}
+
+async function hasMatchingOutcome(
+  outcomePath: string,
+  ledger: ReservationRunLedger,
+): Promise<boolean> {
+  if (!existsSync(outcomePath)) return false
+  const outcome = await readRunJson<RunOutcome>(outcomePath)
+  return runOutcomeMatchesLedger(ledger, outcome)
 }
 
 async function reconcileDeadSupervisor(

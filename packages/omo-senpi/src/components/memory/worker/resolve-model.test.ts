@@ -120,6 +120,40 @@ describe("resolveReflectionModel", () => {
     })
   })
 
+  test("#given legacy fallback_models and a stale availability snapshot #when find locates the chain #then reflection preserves every fallback", () => {
+    // given
+    const primary: SenpiModelPort = { provider: "extension-only", id: "primary" }
+    const fallback: SenpiModelPort = { provider: "omo-mock", id: "mock-1" }
+    const staleRegistry = {
+      getAvailable: () => [],
+      find: (provider: string, modelId: string) =>
+        [primary, fallback].find((candidate) =>
+          candidate.provider === provider && candidate.id === modelId
+        ),
+    }
+    const config: OmoConfig = {
+      categories: {
+        quick: {
+          model: "extension-only/primary",
+          reasoning: "off",
+          fallback_models: [{ model: "omo-mock/mock-1", reasoning: "minimal" }],
+        },
+      },
+    }
+
+    // when
+    const result = resolveReflectionModel("quick", config, staleRegistry)
+
+    // then
+    expect(result).toEqual({
+      kind: "resolved",
+      category: "quick",
+      model: "extension-only/primary",
+      thinking: "off",
+      fallbacks: [{ model: "omo-mock/mock-1", thinking: "minimal" }],
+    })
+  })
+
   test("#given the task warning suppression convention #when evaluated #then global opt-out and per-category opt-in retain their precedence", () => {
     // given
     const globallySuppressed: OmoConfig = {

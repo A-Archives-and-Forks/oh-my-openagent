@@ -105,6 +105,8 @@ async function publishFinal(
     runId: ledger.runId,
     identity: context.identity.id,
     category: "quick",
+    ...(ledger.model === undefined ? {} : { model: ledger.model }),
+    ...(ledger.thinking === undefined ? {} : { thinking: ledger.thinking }),
     conversationIds,
     trigger: ledger.trigger,
     ...(ledger.trigger === "dream" ? { origin: ledger.origin } : {}),

@@ -127,6 +127,7 @@ export {
   parseExtensionEntries,
   resolveChildSessionDir,
   resolveSenpiExecutable,
+  resolveSenpiLauncher,
   tailStderr,
   terminateRpcChild,
 } from "./runners"
@@ -143,6 +144,7 @@ export type {
   RpcRunnerSpec,
   RpcSpawnDescriptor,
   RpcSpawnRuntime,
+  SenpiLauncher,
   RunnerErrorFacts,
   TerminateOptions,
 } from "./runners"

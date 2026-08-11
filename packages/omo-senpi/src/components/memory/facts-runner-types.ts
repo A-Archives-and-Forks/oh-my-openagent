@@ -34,6 +34,9 @@ export interface FactsExtractorRunnerOptions {
 export interface FactsRunLedger {
   readonly version: 1
   readonly runId: string
+  readonly attempt?: number
+  readonly model?: string
+  readonly thinking?: string
   readonly kind: "facts"
   readonly startedAt: string
   readonly hardDeadlineAt: number

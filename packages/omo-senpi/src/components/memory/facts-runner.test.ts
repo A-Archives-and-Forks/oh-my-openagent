@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test"
 import { existsSync } from "node:fs"
-import { readFile } from "node:fs/promises"
+import { mkdir, readFile } from "node:fs/promises"
 import { join } from "node:path"
 import { FactsQueue, GitMemoryRepo, LockContentionError } from "@oh-my-opencode/memory-core"
 import { OmoMemorySettingsSchema } from "@oh-my-opencode/omo-config-core"
 import { FactsExtractorRunner } from "./facts-runner"
 import { enqueue, fixture, onlyRunDir, runnerOptions } from "./facts-runner.test-support"
+import { writeRunJsonAtomic } from "./worker/run-artifacts"
 
 describe("quick-pinned facts launch", () => {
   test("#given quick cannot resolve #when pending facts are launched #then no child spawns and the queue stays intact with one warning", async () => {
@@ -66,25 +67,79 @@ describe("quick-pinned facts launch", () => {
     // given
     const { root, identity, queue } = await fixture()
     const attempted: string[] = []
+    const attemptNumbers: number[] = []
+    const deadlines: number[] = []
     const base = runnerOptions(root, identity, queue, "model-fallback")
     const runner = new FactsExtractorRunner({
       ...base,
       sandbox: (args) => {
         const modelIndex = args.args.indexOf("--model")
         attempted.push(args.args[modelIndex + 1] ?? "missing")
+        attemptNumbers.push(args.attempt)
+        deadlines.push(args.hardDeadlineAt)
         return base.sandbox?.(args) ?? args
       },
     })
 
     // when
     const result = await runner.launchPending()
+    const runDir = await onlyRunDir(identity)
+    const final = JSON.parse(await readFile(join(runDir, "final.json"), "utf8"))
 
     // then
-    expect({ status: result.status, attempted }).toEqual({
+    expect({ status: result.status, attempted, detail: final.detail }).toEqual({
       status: "committed",
       attempted: ["extension-only/primary", "omo-mock/mock-1"],
+      detail: undefined,
     })
+    expect(attemptNumbers).toEqual([1, 2])
+    expect(new Set(deadlines).size).toBe(1)
     expect(await queue.listPending()).toHaveLength(0)
+  })
+
+  test("#given facts attempt two has a stale attempt-one outcome #when reconciled before the shared deadline #then the retry remains active", async () => {
+    // given
+    const { root, identity, queue } = await fixture()
+    const runDir = join(identity.paths.facts, "runs", "facts-retry")
+    await mkdir(runDir, { recursive: true })
+    await writeRunJsonAtomic(join(runDir, "ledger.json"), {
+      version: 1,
+      runId: "facts-retry",
+      kind: "facts",
+      attempt: 2,
+      model: "omo-mock/mock-1",
+      startedAt: "2026-08-10T12:00:00.000Z",
+      hardDeadlineAt: Date.parse("2026-08-10T12:01:00.000Z"),
+      terminationGraceMs: 100,
+      deadlineAt: Date.parse("2026-08-10T12:01:00.100Z"),
+      batchId: "11111111-1111-4111-8111-111111111111",
+      queued: [],
+    })
+    await writeRunJsonAtomic(join(runDir, "outcome.json"), {
+      version: 1,
+      runId: "facts-retry",
+      attempt: 1,
+      finishedAt: "2026-08-10T12:00:01.000Z",
+      childExit: { code: 1, signal: null },
+      timedOut: false,
+    })
+    const warnings: string[] = []
+    const runner = new FactsExtractorRunner(runnerOptions(root, identity, queue, "fact", {
+      logger: {
+        info: () => undefined,
+        warn: (message) => { warnings.push(message) },
+        error: () => undefined,
+      },
+    }))
+
+    // when
+    const result = await runner.reconcilePending()
+
+    // then
+    expect(result.status).toBe("active")
+    expect(warnings).toEqual([])
+    expect(await queue.listPending()).toHaveLength(1)
+    expect(existsSync(join(runDir, "final.json"))).toBe(false)
   })
 
   test("#given a commit lands before queue cleanup crashes #when a fresh runner reconciles #then the batch receipt prevents a duplicate commit", async () => {

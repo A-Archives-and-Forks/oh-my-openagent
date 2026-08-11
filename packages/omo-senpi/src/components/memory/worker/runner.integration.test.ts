@@ -123,6 +123,8 @@ describe("SenpiSubprocessRunner integration", () => {
       "extension-only/primary",
       "kimi-coding/fallback",
     ])
+    expect(item.spawnCalls.map((spawn) => spawn.attempt)).toEqual([1, 2])
+    expect(new Set(item.spawnCalls.map((spawn) => spawn.hardDeadlineAt)).size).toBe(1)
     expect(result.completion).toMatchObject({
       model: "kimi-coding/fallback",
       thinking: "minimal",

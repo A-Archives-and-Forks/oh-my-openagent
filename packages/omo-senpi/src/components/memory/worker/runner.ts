@@ -98,6 +98,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
       const activeWorktree = worktree
       const merge = loaded.config.memory?.reflection.merge ?? "auto"
       const configuredMinutes = loaded.config.memory?.reflection.timeout_minutes ?? DEFAULT_TIMEOUT_MINUTES
+      const hardDeadlineAt = Date.now() + (this.options.deadlineMs ?? configuredMinutes * 60_000)
       const candidates: MemoryModelChain = [
         {
           model: resolution.model,
@@ -105,19 +106,20 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
         },
         ...resolution.fallbacks,
       ]
-      const attempt = await runMemoryModelAttempts(candidates, async (candidate) => {
+      const attempt = await runMemoryModelAttempts(candidates, async (candidate, attemptNumber) => {
         const spawnArgs = await prepareReflectionCandidateSpawn({
           run,
           worktree: activeWorktree,
           mergePolicy: merge,
           candidate,
+          attempt: attemptNumber,
+          hardDeadlineAt,
           config: loaded.config,
           identity: this.options.identity,
           env: this.options.env ?? process.env,
           senpiCommand: this.options.senpiCommand,
         })
         return runReflectionChild(spawnArgs, {
-          deadlineMs: this.options.deadlineMs ?? configuredMinutes * 60_000,
           terminationGraceMs: this.options.terminationGraceMs,
           maxOutputBytes: this.options.maxOutputBytes,
           sandbox: this.options.sandbox,

@@ -81,7 +81,7 @@ export function resolveReflectionModel(
       ...(fallbackThinking === undefined ? {} : { thinking: fallbackThinking }),
     }
   })
-  const configuredFallbacks = canonicalFallbacks(
+  const configuredFallbacks = configuredFallbackModels(
     category,
     config,
     registry,
@@ -97,14 +97,22 @@ export function resolveReflectionModel(
   }
 }
 
-function canonicalFallbacks(
+function configuredFallbackModels(
   category: string,
   config: OmoConfig,
   registry: SenpiModelRegistryPort<SenpiModelPort>,
   selectedModel: string,
 ): readonly ReflectionModelCandidate[] {
-  const configured = config.categories?.[category]?.models
-  if (configured === undefined || configured.length === 0) return []
+  const categoryConfig = config.categories?.[category]
+  if (categoryConfig === undefined) return []
+  const canonical = categoryConfig.models
+  const legacy = categoryConfig.fallback_models
+  const configured = canonical !== undefined && canonical.length > 0
+    ? canonical
+    : legacy === undefined
+      ? []
+      : [selectedModel, ...(Array.isArray(legacy) ? legacy : [legacy])]
+  if (configured.length === 0) return []
   const selectedIndex = configured.findIndex((entry) =>
     (typeof entry === "string" ? entry : entry.model) === selectedModel
   )

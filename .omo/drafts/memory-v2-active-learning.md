@@ -268,3 +268,58 @@ git-tracked bundle is what a user's senpi actually loads.
 pins category `quick` to `apitopia/*` models and declares no `apitopia` provider, and reflection and
 facts are both pinned to `quick`. This is host configuration, not plan or branch scope; reported to
 the user rather than worked around in code.
+
+## Post-approval implementation review: live-defect hardening
+
+The final paragraph above is superseded. The stale host configuration was real, but the repeated
+model failure also exposed a code defect: the long-lived parent can resolve extension-provided
+models that the intentionally clean `--no-extensions` reflection/facts child cannot load. The
+worker discarded the resolved fallback chain instead of retrying the next child-visible model.
+
+### Review round implementation-r1
+
+- reviewed head: `e0a7b9a5b275e4ae2073fc8ee702465cbff57dcd`
+- scope: production-fix delta `88d285038..e0a7b9a5b`, with the complete approved plan as binding
+  contract
+- security reviewer: PASS, no blocker
+- hands-on QA reviewer: PASS (443 memory tests, typecheck, restricted PATH, live fallback E2E,
+  cleanup and host-isolation proof)
+- goal/constraint reviewer: FAIL
+- code-quality reviewer: FAIL
+- context reviewer: FAIL
+
+Blocking findings accepted:
+
+1. Retry attempts reused one run directory while a stale earlier `outcome.json` remained
+   authoritative to reconciliation, and each attempt reset the full timeout.
+2. The successful fallback model/thinking was not durable for crash recovery.
+3. Senpi resolution returned a path string rather than `{ command, prefixArgs }`, breaking Windows
+   npm shims and the no-module fallback.
+4. First-turn stale-registry recovery preserved canonical `models[]` but dropped supported legacy
+   `model + fallback_models`.
+5. The memory skills scope intentionally returned an absent `<memory repo>/skills` path, producing
+   the user's visible warning. A stale user `omo-frontend` copy also duplicated the current global
+   `frontend` skill.
+
+Resolutions:
+
+- New run artifacts persist `attempt`, `model`, `thinking`, `launching`, and one shared
+  `hardDeadlineAt`. Outcomes carry the attempt; reflection and facts reconciliation ignore stale
+  generations. The supervisor clears `launching` when it records process ownership.
+- Crash recovery records the persisted fallback model and thinking.
+- The established Senpi launcher normalizer is exported and reused. Memory children now carry
+  `{ command, prefixArgs }`; tests cover Windows npm shims, installed CLI fallback, current entry
+  fallback, and an executed restricted-PATH `--version` call.
+- Legacy and canonical configured fallbacks are recovered through `registry.find()` during stale
+  first-turn availability.
+- Missing memory skills directories contribute nothing until they exist. The stale
+  `~/.agents/skills/omo-frontend` copy was preserved at
+  `~/.agents/skills-disabled/omo-frontend-20260811`.
+
+Evidence:
+
+- stale-attempt mutation proof: forcing all outcomes to match fails both reflection and facts tests
+- real model fallback E2E: `extension-only/primary` -> `omo-mock/mock-1`, outcome `merged`
+- real rebuilt-Omo startup: no missing skill path warning, no frontend collision, absent skills dir
+- final local gate: 451 passed, 0 failed, 1318 assertions; omo-senpi and senpi-task typechecks clean
+- evidence directory: `.omo/evidence/20260811-memory-reflection-model-fallback/`

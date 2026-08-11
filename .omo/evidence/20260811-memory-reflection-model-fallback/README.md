@@ -112,7 +112,7 @@ The real unified config loader reported:
 ### Automated verification
 
 - `bun test packages/omo-senpi/src/components/memory/`
-  - clean pre-evidence run: 443 passed, 0 failed, 1298 assertions
+  - final post-review run: 451 passed, 0 failed, 1318 assertions
 - `bun run --cwd packages/omo-senpi typecheck`
   - passed
 - focused fallback tests
@@ -125,10 +125,86 @@ The real unified config loader reported:
 - debug-artifact scan
   - no trace sentinels or debugger statements remained
 - pure LOC
-  - `facts-runner.ts`: 244
-  - `runner.ts`: 247
-  - `resolve-model.ts`: 141
-  - `memory-model-fallback-e2e.mjs`: 240
+  - `facts-runner.ts`: 247
+  - `runner.ts`: 249
+  - `resolve-model.ts`: 149
+  - `memory-model-fallback-e2e.mjs`: 238
+
+## Post-review hardening
+
+Fresh goal, quality, and context reviewers found three gaps in the first fallback implementation:
+
+1. Retry attempts reused one run directory without a durable attempt generation, so reconciliation
+   could consume an earlier retryable outcome while a later child was live.
+2. Each attempt reset the full timeout instead of sharing one absolute run deadline, and crash
+   recovery did not persist the model that actually completed.
+3. The PATH-independent resolver returned a path string rather than a cross-platform launcher
+   descriptor, and first-turn recovery omitted legacy `model + fallback_models`.
+
+The repaired protocol now persists `attempt`, `model`, `thinking`, `launching`, and one
+`hardDeadlineAt` before each child launch. `outcome.json` carries the attempt, and both reflection
+and facts reconciliation ignore outcomes whose attempt does not match the current ledger.
+The supervisor clears `launching` when it records process ownership. Crash recovery reads the
+persisted model and thinking into the completion record.
+
+Failing-first and mutation evidence:
+
+- A live attempt-2 ledger plus stale attempt-1 outcome previously finalized as failed; now
+  reconciliation returns active and preserves the worktree.
+- A pre-supervisor `launching: true` attempt previously finalized as failed; now it remains active
+  until the shared hard deadline.
+- Facts reconciliation previously tried to finalize the stale outcome; now it leaves the retry
+  active without a warning.
+- Forcing `runOutcomeMatchesLedger()` to return true made both reflection and facts stale-outcome
+  tests fail. Restoring attempt equality made them green.
+- Legacy `model + fallback_models` with a stale availability snapshot previously returned an empty
+  fallback list; it now preserves the configured fallback through `registry.find()`.
+
+Cross-platform launch evidence:
+
+- Windows npm shim: `{ command: node.exe, prefixArgs: [dist/cli.js] }`.
+- No executable but installed CLI: current interpreter plus `dist/cli.js`.
+- Script-hosted current process: current interpreter plus its existing CLI entry script.
+- Real restricted PATH with Node but no Senpi bin: the descriptor executed `senpi --version`
+  successfully.
+
+## Startup skill warnings
+
+The memory `resources_discover` handler previously contributed `<memory repo>/skills` before that
+directory existed, intentionally causing Senpi's visible `skill path does not exist` diagnostic.
+The handler now contributes nothing until the directory exists; startup/reload discovers it after a
+skill is committed.
+
+The `frontend` collision came from two scanned files declaring `name: frontend`:
+
+- current: `~/.bun/install/global/node_modules/omo-ai/plugin/skills/frontend/SKILL.md`
+- stale user copy: `~/.agents/skills/omo-frontend/SKILL.md`
+
+The stale copy was preserved outside scanned roots at:
+`~/.agents/skills-disabled/omo-frontend-20260811`.
+
+Exact Senpi loader proof:
+
+- loading current + backed-up stale file produced `name "frontend" collision`;
+- loading the current file alone produced zero diagnostics.
+
+Real rebuilt-Omo startup:
+
+```json
+{
+  "result": "PASS",
+  "exit": 0,
+  "missingSkillPathWarning": false,
+  "frontendCollision": false,
+  "skillsPathExists": false
+}
+```
+
+Captured artifacts:
+
+- `model-fallback-final.log`
+- `skill-startup-final.log`
+- `final-suite.log`
 
 ## Why this is enough
 

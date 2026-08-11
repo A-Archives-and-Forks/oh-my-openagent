@@ -1,8 +1,12 @@
-import { existsSync, realpathSync } from "node:fs"
+import { existsSync } from "node:fs"
 import { createRequire } from "node:module"
-import { delimiter, dirname, isAbsolute, join, sep } from "node:path"
+import { isAbsolute, join } from "node:path"
 
-import { detectBunBinary, resolveSenpiExecutable } from "@oh-my-opencode/senpi-task"
+import {
+  detectBunBinary,
+  resolveSenpiLauncher as resolveTaskSenpiLauncher,
+  type SenpiLauncher,
+} from "@oh-my-opencode/senpi-task"
 
 const SENPI_PACKAGE_DIR = join("@code-yeongyu", "senpi")
 const CLI_RELATIVE = join("dist", "cli.js")
@@ -16,55 +20,53 @@ const CLI_RELATIVE = join("dist", "cli.js")
  * every background memory run failed while the parent session looked healthy.
  *
  * A PATH scan cannot be the last resort because the child inherits the same PATH that already
- * failed. This extension only ever runs inside senpi, so the running installation is authoritative:
- * resolve the CLI through the senpi module that loaded us and fall back to the interpreter that is
- * executing this process. Both are absolute paths, so the spawn no longer depends on PATH at all.
+ * failed. The launcher retains any interpreter prefix needed by npm/Windows shims and falls back to
+ * the CLI or entry script of the running Senpi installation.
  */
-export function resolveSenpiCommand(env: NodeJS.ProcessEnv): string {
-  const executable = resolveSenpiExecutable({
-    isBunBinary: detectBunBinary(import.meta.url),
-    execPath: process.execPath,
-    platform: process.platform,
+export function resolveSenpiLaunch(
+  env: NodeJS.ProcessEnv,
+  runtime: SenpiLaunchRuntime = defaultRuntime(),
+): SenpiLauncher {
+  const launcher = resolveTaskSenpiLauncher({
+    isBunBinary: runtime.isBunBinary,
+    execPath: runtime.execPath,
+    platform: runtime.platform,
     parentEnv: env,
     resolveRpcEntry: () => "",
   })
-  if (executable !== null) return executable
-  return resolveInstalledSenpiCli() ?? process.execPath
+  if (launcher !== null) return launcher
+  const installedCli = runtime.resolveInstalledCli()
+  if (installedCli !== null) return { command: runtime.execPath, prefixArgs: [installedCli] }
+  const entry = runtime.argv[1]
+  if (entry !== undefined && isAbsolute(entry) && existsSync(entry)) {
+    return { command: runtime.execPath, prefixArgs: [entry] }
+  }
+  return { command: runtime.execPath, prefixArgs: [] }
 }
 
-/**
- * Locate `<senpi package>/dist/cli.js` for the installation that loaded this extension. The senpi
- * package blocks `./package.json` in its `exports` map, so the manifest cannot be resolved directly;
- * the module search paths are walked instead. A PATH-discovered launcher is followed through its
- * symlink because the published `bin` entry is that same `dist/cli.js`.
- */
+export type SenpiLaunchRuntime = {
+  readonly isBunBinary: boolean
+  readonly execPath: string
+  readonly platform: NodeJS.Platform
+  readonly argv: readonly string[]
+  readonly resolveInstalledCli: () => string | null
+}
+
 function resolveInstalledSenpiCli(): string | null {
   const require = createRequire(import.meta.url)
   for (const modulesDir of require.resolve.paths(join(SENPI_PACKAGE_DIR, "package.json")) ?? []) {
     const candidate = join(modulesDir, SENPI_PACKAGE_DIR, CLI_RELATIVE)
     if (existsSync(candidate)) return candidate
   }
-  return resolveLauncherTarget()
-}
-
-function resolveLauncherTarget(): string | null {
-  const name = process.platform === "win32" ? "senpi.exe" : "senpi"
-  for (const dir of (process.env.PATH ?? "").split(delimiter)) {
-    if (dir.length === 0) continue
-    const candidate = join(dir, name)
-    if (!existsSync(candidate)) continue
-    const target = safeRealpath(candidate)
-    if (target !== null && target.endsWith(`${sep}${CLI_RELATIVE}`)) return target
-    return candidate
-  }
   return null
 }
 
-function safeRealpath(path: string): string | null {
-  try {
-    const resolved = realpathSync(path)
-    return isAbsolute(resolved) ? resolved : join(dirname(path), resolved)
-  } catch {
-    return null
+function defaultRuntime(): SenpiLaunchRuntime {
+  return {
+    isBunBinary: detectBunBinary(import.meta.url),
+    execPath: process.execPath,
+    platform: process.platform,
+    argv: process.argv,
+    resolveInstalledCli: resolveInstalledSenpiCli,
   }
 }
