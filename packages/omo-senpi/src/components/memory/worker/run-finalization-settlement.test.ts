@@ -123,4 +123,34 @@ describe("run finalization settlement", () => {
     // then
     expect(completeCalls).toBe(1)
   })
+
+  test("#given a legacy ledger without category after settlement #when completion identity cannot be reconstructed #then no falsified record is published", async () => {
+    // given
+    const root = await mkdtemp(join(tmpdir(), "run-finalization-settlement-"))
+    roots.push(root)
+    const identity: MemoryIdentity = {
+      id: "agent-test",
+      safeSlug: "agent-test",
+      paths: buildIdentityPaths(root, "agent-test"),
+    }
+    const runDir = join(identity.paths.reflection, "runs", "run-1")
+    await mkdir(runDir, { recursive: true })
+    const legacy = { ...ledger(), category: undefined, conversationIds: undefined }
+    await writeRunJsonAtomic(join(runDir, "ledger.json"), legacy)
+
+    // when
+    const settlement = settleReservationRun({
+      identity,
+      reservation: {
+        readState: async () => ({}),
+        complete: async () => { throw new Error("inactive") },
+      },
+      now: () => Date.parse("2026-08-11T10:01:00.000Z"),
+    }, runDir, legacy, { outcome: "merged" })
+
+    // then
+    await expect(settlement).rejects.toThrow("completion identity")
+    expect(Bun.file(join(identity.paths.reflection, "completions", "run-1.json")).size).toBe(0)
+    expect(Bun.file(join(runDir, "final.json")).size).toBe(0)
+  })
 })

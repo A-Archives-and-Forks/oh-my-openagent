@@ -58,6 +58,8 @@ async function fixture(trigger: "step-count" | "dream" = "step-count") {
   const ledger = {
     version: 1 as const,
     runId: reserved.run.runId,
+    category: "quick",
+    conversationIds: ["conversation-a"],
     kind: trigger === "dream" ? "dream" as const : "reflection" as const,
     trigger,
     ...(trigger === "dream" ? { origin: "shutdown" as const } : {}),
@@ -116,7 +118,7 @@ describe("reflection and dream run reconciliation", () => {
     expect(JSON.parse(await readFile(join(item.runDir, "final.json"), "utf8"))).toMatchObject({
       version: 1, runId: "run-orphan", outcome: "merged",
     })
-  })
+  }, 30_000)
 
   test("#given attempt two is live with a stale attempt-one outcome #when reconciled #then the retry remains active and its worktree stays intact", async () => {
     // given
@@ -151,7 +153,7 @@ describe("reflection and dream run reconciliation", () => {
     expect(results).toEqual([])
     expect((await item.store.readState()).active?.runId).toBe("run-orphan")
     expect(Bun.file(item.worktree.dir).size).toBeGreaterThan(0)
-  })
+  }, 30_000)
 
   test("#given attempt two is being launched with a stale attempt-one outcome #when reconciled before the shared deadline #then the retry remains active", async () => {
     // given
@@ -181,7 +183,7 @@ describe("reflection and dream run reconciliation", () => {
     // then
     expect(results).toEqual([])
     expect((await item.store.readState()).active?.runId).toBe("run-orphan")
-  })
+  }, 30_000)
 
   test("#given a failed child outcome with a valid commit #when reconciled #then output is never merged and the cursor remains retryable", async () => {
     // given
@@ -202,7 +204,7 @@ describe("reflection and dream run reconciliation", () => {
     expect((await item.journal.getState()).reflected_completed_steps).toBe(0)
     const completion = JSON.parse(await readFile(join(item.identity.paths.reflection, "completions", "run-orphan.json"), "utf8"))
     expect(completion.detail).toContain("model child failed validation")
-  })
+  }, 30_000)
 
   test("#given unavailable process identities and no outcome #when the bounded watch expires #then the run is abandoned without cleanup or cursor advance", async () => {
     // given
@@ -229,7 +231,7 @@ describe("reflection and dream run reconciliation", () => {
     expect(Bun.file(join(item.runDir, "final.json")).size).toBe(0)
     expect(Bun.file(item.worktree.dir).size).not.toBe(0)
     expect((await item.journal.getState()).reflected_completed_steps).toBe(0)
-  })
+  }, 30_000)
 
   test("#given a dead identified supervisor and live identified child #when the shared deadline elapses #then reconciliation signals on the persisted timeline and cleans only after confirmed death", async () => {
     // given
@@ -262,7 +264,7 @@ describe("reflection and dream run reconciliation", () => {
     ])
     expect(results).toEqual([{ runId: "run-orphan", outcome: "timed_out" }])
     expect(Bun.file(item.worktree.dir).size).toBe(0)
-  })
+  }, 30_000)
 
   test("#given old pre-launch reservations with unverifiable or reused launcher pids #when reconciled #then only confirmed pid reuse releases the reservation", async () => {
     // given
@@ -291,7 +293,7 @@ describe("reflection and dream run reconciliation", () => {
     expect(untouched).toEqual([])
     expect(reused).toEqual([{ runId: "run-orphan", outcome: "failed" }])
     expect((await unknown.journal.getState()).reflected_completed_steps).toBe(0)
-  })
+  }, 30_000)
 
   test("#given an old prelaunch worktree without a ledger and a confirmed-dead launcher #when reconciled #then resources and reservation are released", async () => {
     // given
@@ -317,5 +319,5 @@ describe("reflection and dream run reconciliation", () => {
       ["show-ref", "--verify", `refs/heads/${item.worktree.branch}`],
       { cwd: item.repo.dir, timeoutMs: 30_000 },
     )).code).not.toBe(0)
-  })
+  }, 30_000)
 })

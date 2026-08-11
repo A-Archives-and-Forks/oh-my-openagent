@@ -16,6 +16,7 @@ import {
 } from "./run-finalization-claim"
 import { resolveFinalizationDecision } from "./run-finalization-git"
 import { settleReservationRun } from "./run-finalization-settlement"
+import { withRunTerminalGate } from "./run-terminal-gate"
 import type {
   DurableFinalizationDecision,
   ReservationRunResult,
@@ -58,8 +59,8 @@ export async function failReservationRun(
     context.identity,
     runDir,
     ledger.runId,
-    async () => {
-      if (existsSync(join(runDir, "outcome.json"))) {
+    async () => withRunTerminalGate(runDir, ledger.runId, async () => {
+      if (await readMatchingOutcome(runDir, ledger) !== undefined) {
         return finalizeClaimedOutcome(context, runDir, ledger.runId)
       }
       const current = await readLedger(runDir, ledger.runId)
@@ -71,7 +72,7 @@ export async function failReservationRun(
       await checkpointFailure(runDir, decision)
       await cleanupOrThrow(context, current)
       return settleReservationRun(context, runDir, current, decision)
-    },
+    }),
   )
   return claimedValue(claimed)
 }
@@ -85,12 +86,15 @@ export async function abandonReservationRun(
     context.identity,
     runDir,
     ledger.runId,
-    async () => {
-      if (existsSync(join(runDir, "outcome.json"))) {
+    async () => withRunTerminalGate(runDir, ledger.runId, async () => {
+      if (await readMatchingOutcome(runDir, ledger) !== undefined) {
         return finalizeClaimedOutcome(context, runDir, ledger.runId)
       }
       const current = await readLedger(runDir, ledger.runId)
       const active = (await context.reservation.readState()).active
+      if (await readMatchingOutcome(runDir, current) !== undefined) {
+        return finalizeClaimedOutcome(context, runDir, current.runId)
+      }
       if (active?.runId === current.runId) {
         const transition = await context.reservation.complete(current.runId, "failed")
         if (transition.launch !== undefined) context.launch?.(transition.launch)
@@ -102,7 +106,7 @@ export async function abandonReservationRun(
         abandonedAt: new Date(context.now()).toISOString(),
       })
       return { runId: current.runId, outcome: "abandoned_unknown" as const }
-    },
+    }),
   )
   return claimedValue(claimed)
 }
@@ -125,6 +129,16 @@ async function readLedger(runDir: string, runId: string): Promise<ReservationRun
   const ledger = parseReservationRunLedger(await readRunJson<unknown>(join(runDir, "ledger.json")))
   if (ledger.runId !== runId) throw new Error(`Finalization ledger mismatch: ${runId}`)
   return ledger
+}
+
+async function readMatchingOutcome(
+  runDir: string,
+  ledger: ReservationRunLedger,
+): Promise<RunOutcome | undefined> {
+  const path = join(runDir, "outcome.json")
+  if (!existsSync(path)) return undefined
+  const outcome = await readRunJson<RunOutcome>(path)
+  return runOutcomeMatchesLedger(ledger, outcome) ? outcome : undefined
 }
 
 async function checkpointFailure(

@@ -91,6 +91,13 @@ export async function ensureReflectionCompletion(
   return desired
 }
 
+export async function readReflectionCompletion(
+  completionsDir: string,
+  runId: string,
+): Promise<ReflectionCompletionRecord | null> {
+  return readRecord(join(completionsDir, `${safeRunId(runId)}.json`))
+}
+
 export async function consumePendingReflectionCompletions(
   completionsDir: string,
   live: ReflectionLiveSession,

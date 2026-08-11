@@ -53,6 +53,11 @@ export async function resolveFinalizationDecision(
     await cleanupOrThrow(context, ledger)
     return decision
   }
+  const checkpointed = decisionFromLedger(ledger)
+  if (checkpointed !== undefined) {
+    await cleanupOrThrow(context, ledger)
+    return checkpointed
+  }
 
   const worktree = worktreeFromLedger(context.identity, ledger)
   let validated = validatedFromLedger(ledger)
@@ -156,6 +161,18 @@ function validatedFromLedger(ledger: ReservationRunLedger): ValidatedReflectionT
   return ledger.validatedTipSha === undefined
     ? undefined
     : { tipSha: ledger.validatedTipSha, changedPaths: ledger.validatedChangedPaths ?? [] }
+}
+
+function decisionFromLedger(
+  ledger: ReservationRunLedger,
+): DurableFinalizationDecision | undefined {
+  if (ledger.finalizeOutcome === undefined) return undefined
+  return {
+    outcome: ledger.finalizeOutcome,
+    ...(ledger.finalizeReason === undefined ? {} : { reason: ledger.finalizeReason }),
+    ...(ledger.finalizeDetail === undefined ? {} : { detail: ledger.finalizeDetail }),
+    ...(ledger.integrationSha === undefined ? {} : { integrationSha: ledger.integrationSha }),
+  }
 }
 
 async function checkpointDecision(path: string, decision: DurableFinalizationDecision): Promise<void> {

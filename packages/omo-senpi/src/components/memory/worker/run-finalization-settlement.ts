@@ -1,6 +1,9 @@
 import { join } from "node:path"
 
-import { ensureReflectionCompletion } from "./completion"
+import {
+  ensureReflectionCompletion,
+  readReflectionCompletion,
+} from "./completion"
 import {
   readRunJson,
   updateRunLedger,
@@ -35,8 +38,16 @@ export async function settleReservationRun(
   })
 
   const active = (await context.reservation.readState()).active
+  const completionsDir = join(context.identity.paths.reflection, "completions")
+  const existing = await readReflectionCompletion(completionsDir, current.runId)
+  const category = current.category ?? existing?.category
   const conversationIds = current.conversationIds
-    ?? (active?.runId === current.runId ? active.request.conversationIds : [])
+    ?? (active?.runId === current.runId ? active.request.conversationIds : undefined)
+    ?? existing?.conversationIds
+    ?? await readLegacyConversationIds(runDir)
+  if (category === undefined || conversationIds === undefined) {
+    throw new Error(`Reflection completion identity unavailable for ${current.runId}`)
+  }
   let launch
   if (active?.runId === current.runId) {
     const transition = await context.reservation.complete(current.runId, decision.outcome)
@@ -44,11 +55,11 @@ export async function settleReservationRun(
     launch = transition.launch
   }
 
-  const completion = await ensureReflectionCompletion(join(context.identity.paths.reflection, "completions"), {
+  const completion = await ensureReflectionCompletion(completionsDir, {
     schemaVersion: 1,
     runId: current.runId,
     identity: context.identity.id,
-    category: current.category ?? "quick",
+    category,
     ...(current.model === undefined ? {} : { model: current.model }),
     ...(current.thinking === undefined ? {} : { thinking: current.thinking }),
     conversationIds,
@@ -76,5 +87,20 @@ export async function settleReservationRun(
     ...(decision.detail === undefined ? {} : { detail: decision.detail }),
     completion,
     ...(launch === undefined ? {} : { launch }),
+  }
+}
+
+async function readLegacyConversationIds(
+  runDir: string,
+): Promise<readonly string[] | undefined> {
+  try {
+    const payload = await readRunJson<Record<string, unknown>>(join(runDir, "transcript-payload.json"))
+    const request = payload.request
+    if (request === null || typeof request !== "object" || Array.isArray(request)) return undefined
+    const ids = (request as Record<string, unknown>).conversationIds
+    return Array.isArray(ids) && ids.every((id) => typeof id === "string") ? ids : undefined
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return undefined
+    throw error
   }
 }

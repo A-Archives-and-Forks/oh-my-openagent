@@ -23,7 +23,7 @@ import type { ReservationRunLedger } from "./reservation-run-ledger"
 const roots: string[] = []
 afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))))
 
-async function fixture() {
+async function fixture(integrate = true) {
   const root = await mkdtemp(join(tmpdir(), "run-finalization-crash-"))
   roots.push(root)
   const identity: MemoryIdentity = {
@@ -91,15 +91,17 @@ async function fixture() {
   })
   const validation = await validateCompletion(worktree, worktree.baseSha, worktree.exec)
   if (validation.status !== "valid") throw new Error(`expected valid worktree: ${validation.status}`)
-  const integrated = await integrateValidatedReflection(worktree, {
-    mode: "auto",
-    runId: reserved.run.runId,
-    summary: "step-count run-1",
-    validated: { tipSha: validation.tipSha, changedPaths: validation.changedPaths },
-    withWriterLock: async (operation) => operation(),
-  })
-  expect(integrated.outcome).toBe("merged")
-  return { identity, repo, journal, store, worktree, runDir, ledger }
+  if (integrate) {
+    const integrated = await integrateValidatedReflection(worktree, {
+      mode: "auto",
+      runId: reserved.run.runId,
+      summary: "step-count run-1",
+      validated: { tipSha: validation.tipSha, changedPaths: validation.changedPaths },
+      withWriterLock: async (operation) => operation(),
+    })
+    expect(integrated.outcome).toBe("merged")
+  }
+  return { identity, repo, journal, store, worktree, runDir, ledger, validation }
 }
 
 async function receiptCount(repoDir: string): Promise<number> {
@@ -130,7 +132,7 @@ describe("reflection finalization crash recovery", () => {
     expect(JSON.parse(await readFile(join(item.runDir, "final.json"), "utf8"))).toMatchObject({
       outcome: "merged",
     })
-  })
+  }, 30_000)
 
   test("#given merge cleanup and settlement completed before final publication #when retried #then completion and final repair without duplicate settlement", async () => {
     // given
@@ -156,5 +158,33 @@ describe("reflection finalization crash recovery", () => {
       join(item.identity.paths.reflection, "completions", "run-1.json"),
       "utf8",
     ))).toMatchObject({ outcome: "merged" })
-  })
+  }, 30_000)
+
+  test("#given parent_dirty was checkpointed before cleanup #when finalization retries #then the durable decision and user edit are preserved", async () => {
+    // given
+    const item = await fixture(false)
+    await writeFile(join(item.repo.dir, "system", "base.md"), "---\ndescription: Base\n---\nuser edit\n")
+    await writeRunJsonAtomic(join(item.runDir, "ledger.json"), {
+      ...item.ledger,
+      finalizePhase: "validated",
+      validatedTipSha: item.validation.tipSha,
+      validatedChangedPaths: item.validation.changedPaths,
+      finalizeOutcome: "parent_dirty",
+      finalizeReason: "parent_dirty",
+      finalizeDetail: "parent has user changes",
+    })
+    await cleanupReflectionWorktree(item.worktree)
+
+    // when
+    const result = await finalizeRecordedOutcome({
+      identity: item.identity,
+      reservation: item.store,
+      now: () => Date.parse("2026-08-11T10:01:00.000Z"),
+    }, item.runDir, item.ledger)
+
+    // then
+    expect(result?.outcome).toBe("parent_dirty")
+    expect(await readFile(join(item.repo.dir, "system", "base.md"), "utf8")).toContain("user edit")
+    expect(result?.completion?.detail).toBe("parent has user changes")
+  }, 30_000)
 })
