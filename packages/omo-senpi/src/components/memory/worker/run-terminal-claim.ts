@@ -1,6 +1,8 @@
+import { randomUUID } from "node:crypto"
 import {
   closeSync,
   fsyncSync,
+  linkSync,
   openSync,
   readFileSync,
   unlinkSync,
@@ -41,16 +43,21 @@ export function claimRunTerminal(
     attempt: identity.attempt,
     claimantPid,
   }
+  let discarded = 0
   for (;;) {
     if (createExclusiveClaim(path, requested)) return requested
-    const existing = readRunTerminalClaim(runDir)
+    const existing = readClaimIfValid(path)
+    if (existing === undefined) {
+      // A claim only becomes visible complete, so an unreadable one authorized
+      // nothing and is discarded rather than stranding the run forever.
+      if (discarded > 0) throw new TypeError("Invalid run terminal claim")
+      discarded += 1
+      removeClaim(path)
+      continue
+    }
     if (runTerminalClaimMatches(existing, identity, kind)) return existing
     if (existing.kind !== "publish" || !claimantIsConfirmedDead(existing, seams)) return existing
-    try {
-      unlinkSync(path)
-    } catch (error) {
-      if (errorCode(error) !== "ENOENT") throw error
-    }
+    removeClaim(path)
   }
 }
 
@@ -69,21 +76,44 @@ export function runTerminalClaimMatches(
 }
 
 function createExclusiveClaim(path: string, claim: RunTerminalClaim): boolean {
-  let file: number
+  const candidate = `${path}.${process.pid}.${randomUUID()}.candidate`
+  writeDurableClaim(candidate, claim)
   try {
-    file = openSync(path, "wx", 0o600)
+    linkSync(candidate, path)
   } catch (error) {
     if (errorCode(error) === "EEXIST") return false
     throw error
+  } finally {
+    removeClaim(candidate)
   }
+  syncDirectory(dirname(path))
+  return true
+}
+
+function writeDurableClaim(path: string, claim: RunTerminalClaim): void {
+  const file = openSync(path, "wx", 0o600)
   try {
     writeFileSync(file, `${JSON.stringify(claim, null, 2)}\n`, "utf8")
     fsyncSync(file)
   } finally {
     closeSync(file)
   }
-  syncDirectory(dirname(path))
-  return true
+}
+
+function readClaimIfValid(path: string): RunTerminalClaim | undefined {
+  try {
+    return parseRunTerminalClaim(JSON.parse(readFileSync(path, "utf8")))
+  } catch {
+    return undefined
+  }
+}
+
+function removeClaim(path: string): void {
+  try {
+    unlinkSync(path)
+  } catch (error) {
+    if (errorCode(error) !== "ENOENT") throw error
+  }
 }
 
 function claimantIsConfirmedDead(claim: RunTerminalClaim, seams: RunLivenessSeams): boolean {
