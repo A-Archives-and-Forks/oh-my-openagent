@@ -101,6 +101,22 @@ race:
   - Parallels Desktop quit;
   - Bunshin client closed.
 
+## Windows lazy-init integration budget
+
+Replacement PR #6760 exposed a separate test-harness timeout:
+
+- GitHub Actions run `31518406016`, job `93869168387`.
+- RED: the Git-backed lazy memory initialization completed in 5.657 seconds,
+  exceeding Bun's inherited 5-second default. Functional assertions did not
+  fail.
+- Fix: the existing integration test now declares a bounded 15-second timeout
+  on the same line; no assertion or production behavior changed.
+- GREEN:
+  - focused memory tools suite passed;
+  - the formerly failing case completed locally in 743ms;
+  - omo-senpi typecheck passed;
+  - full omo-senpi suite: 1,127 passed, 0 failed across 165 files.
+
 ## Why it is enough
 
 These are the same build, package, daemon, typecheck, and test surfaces used by
