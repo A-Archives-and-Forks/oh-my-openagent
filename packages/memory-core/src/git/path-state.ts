@@ -129,7 +129,12 @@ export class GitPathStateStore {
           await discardMovedWorktreeFile(moved)
           return false
         }
-        const removed = await reservation.finish()
+        const finalizer = await reservation.verify()
+        if (finalizer === undefined) {
+          await discardMovedWorktreeFile(moved)
+          return false
+        }
+        const removed = await finalizer.finish()
         if (!removed) await discardMovedWorktreeFile(moved)
         return removed
       }
@@ -142,18 +147,15 @@ export class GitPathStateStore {
       throw error
     }
   }
-
   async reserveWorktreeDeletion(
     path: string,
     moved: string,
   ): Promise<WorktreeDeletionReservation | undefined> {
     return reserveMovedWorktreeDeletion(this.dir, path, moved)
   }
-
   async removeWorktree(path: string): Promise<void> {
     await removeWorktreeFile(this.dir, normalizeGitPath(path))
   }
-
   private async captureIndex(path: string): Promise<GitIndexIdentity | null> {
     const output = (await this.git(["--literal-pathspecs", "ls-files", "--stage", "-z", "--", path])).stdout
     const records = output.split("\0").filter(Boolean)
@@ -171,7 +173,6 @@ export class GitPathStateStore {
     }
     return { mode: record.mode as GitIndexMode, oid: record.oid }
   }
-
   private async captureWorktree(path: string): Promise<GitWorktreeIdentity> {
     await assertSafeParents(this.dir, path)
     const fullPath = join(this.dir, path)
@@ -186,7 +187,6 @@ export class GitPathStateStore {
     const oid = await this.hashWorktreeBlob(await readFile(fullPath), true)
     return { kind: "file", mode: stat.mode & 0o777, oid }
   }
-
   private async captureMovedWorktree(path: string): Promise<GitWorktreeFileIdentity> {
     const stat = await lstat(path)
     if (!stat.isFile()) throw unsupportedWorktree(path, stat.isSymbolicLink() ? "symlink" : "non-file")

@@ -100,19 +100,18 @@ describe("facts conditional mutation primitives", () => {
     repo.pathState.reserveWorktreeDeletion = async (path, moved) => {
       repo.pathState.reserveWorktreeDeletion = originalReserve
       const reservation = await originalReserve(path, moved)
-      if (reservation !== undefined) {
-        try {
-          await writeFile(join(dir, august), "foreign after deletion reservation\n")
-        } catch (error) {
-          if (!(error instanceof Error) || !("code" in error) || error.code !== "EISDIR") throw error
-          await rm(join(dir, august), { recursive: true })
-          await writeFile(join(dir, august), "foreign after deletion reservation\n")
-        }
-      }
       return reservation === undefined ? undefined : {
-        finish: async () => {
-          deletionResult = await reservation.finish()
-          return deletionResult
+        verify: async () => {
+          try {
+            await writeFile(join(dir, august), "foreign after deletion reservation\n")
+          } catch (error) {
+            if (!(error instanceof Error) || !("code" in error) || error.code !== "EISDIR") throw error
+            await rm(join(dir, august), { recursive: true })
+            await writeFile(join(dir, august), "foreign after deletion reservation\n")
+          }
+          const finalizer = await reservation.verify()
+          if (finalizer === undefined) deletionResult = false
+          return finalizer
         },
       }
     }

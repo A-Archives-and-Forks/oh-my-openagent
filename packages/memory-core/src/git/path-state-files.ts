@@ -71,8 +71,12 @@ export async function restoreMovedWorktreeFile(root: string, path: string, moved
   return true
 }
 
-export interface WorktreeDeletionReservation {
+export interface WorktreeDeletionFinalizer {
   readonly finish: () => Promise<boolean>
+}
+
+export interface WorktreeDeletionReservation {
+  readonly verify: () => Promise<WorktreeDeletionFinalizer | undefined>
 }
 
 export async function reserveMovedWorktreeDeletion(
@@ -89,19 +93,41 @@ export async function reserveMovedWorktreeDeletion(
   }
   const reserved = await lstat(target)
   return {
-    finish: async () => {
+    verify: async () => {
       let current
       try {
         current = await lstat(target)
       } catch (error) {
-        if (errorCode(error) === "ENOENT") return false
+        if (errorCode(error) === "ENOENT") return undefined
         throw error
       }
-      if (!current.isDirectory() || current.dev !== reserved.dev || current.ino !== reserved.ino) return false
-      await rm(moved)
-      await rmdir(target)
-      await syncDirectory(dirname(target))
-      return true
+      if (!current.isDirectory() || current.dev !== reserved.dev || current.ino !== reserved.ino) return undefined
+      return {
+        finish: async () => {
+          const claimed = join(dirname(target), `.${basename(target)}.omo-reserved-${process.pid}-${randomUUID()}`)
+          try {
+            await rename(target, claimed)
+          } catch (error) {
+            if (errorCode(error) === "ENOENT") return false
+            throw error
+          }
+          const owned = await lstat(claimed)
+          if (!owned.isDirectory() || owned.dev !== reserved.dev || owned.ino !== reserved.ino) {
+            await rename(claimed, target)
+            return false
+          }
+          await rm(moved)
+          await rmdir(claimed)
+          await syncDirectory(dirname(target))
+          try {
+            await lstat(target)
+            return false
+          } catch (error) {
+            if (errorCode(error) === "ENOENT") return true
+            throw error
+          }
+        },
+      }
     },
   }
 }
