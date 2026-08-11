@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process"
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
@@ -51,10 +52,19 @@ export async function rejected(operation: Promise<unknown>): Promise<Error> {
 }
 
 export async function git(dir: string, args: readonly string[]): Promise<string> {
-  const process = Bun.spawn(["git", ...args], { cwd: dir, stdout: "pipe", stderr: "pipe" })
-  const stdout = await new Response(process.stdout).text()
-  const stderr = await new Response(process.stderr).text()
-  const exitCode = await process.exited
-  if (exitCode !== 0) throw new Error(stderr.trim())
-  return stdout.trimEnd()
+  // node:child_process keeps packages/*/src runtime-neutral, so the same code runs under Node in
+  // the codex and senpi adapters. The coupling audit scans every .ts that is not a .test.ts, and
+  // this support file is one of them, so the bun-global spawn API is not available here.
+  return await new Promise<string>((resolve, reject) => {
+    const child = spawn("git", [...args], { cwd: dir, stdio: ["ignore", "pipe", "pipe"] })
+    const stdout: Buffer[] = []
+    const stderr: Buffer[] = []
+    child.stdout?.on("data", (chunk: Buffer) => stdout.push(chunk))
+    child.stderr?.on("data", (chunk: Buffer) => stderr.push(chunk))
+    child.once("error", reject)
+    child.once("close", (code) => {
+      if (code === 0) resolve(Buffer.concat(stdout).toString("utf8").trimEnd())
+      else reject(new Error(Buffer.concat(stderr).toString("utf8").trim()))
+    })
+  })
 }
