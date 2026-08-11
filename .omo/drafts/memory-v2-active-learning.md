@@ -376,3 +376,29 @@ CI portability follow-up:
 - the test now checks the invariant child-argument suffix;
 - normal and restricted-PATH runs both pass all runner integration cases, and omo-senpi typecheck
   remains clean.
+
+### Review round implementation-r3
+
+- reviewed head: `4b7a4a75809d8668c54450a7fbb9a1ea42e045a0`
+- goal/constraint re-review: FAIL
+- security re-review: PASS
+- hands-on QA re-review: PASS
+- context re-review: PASS
+- quality re-review: withheld because the head became obsolete
+
+Remaining blocker:
+
+- a reconciler already waiting on attempt N could wake after the supervisor durably advanced to
+  attempt N+1 with `launching: true`; after rejecting the stale attempt-N outcome, the post-wait
+  path skipped the refreshed launching guard and abandoned the deliberately identity-free run.
+
+Resolution:
+
+- a deterministic `waitForOutcome` test reproduces the exact attempt-N alive -> attempt-N+1
+  launching transition and failed first with `abandoned_unknown`;
+- post-wait reconciliation now reloads once and applies matching outcome, refreshed launching,
+  then liveness classification in that order;
+- the regression lives in a focused test file rather than growing the pre-existing large
+  reconciliation test;
+- final real E2Es PASS with cleanup, and the non-overlapping local gate reports 454 tests PASS,
+  0 fail, 1325 assertions, with both typechecks clean.

@@ -112,7 +112,7 @@ The real unified config loader reported:
 ### Automated verification
 
 - `bun test packages/omo-senpi/src/components/memory/`
-  - final post-review run: 453 passed, 0 failed, 1322 assertions
+  - final post-review run: 454 passed, 0 failed, 1325 assertions
 - `bun run --cwd packages/omo-senpi typecheck`
   - passed
 - focused fallback tests
@@ -279,6 +279,36 @@ The assertion now validates the invariant child-argument suffix while dedicated 
 continue to validate the executable/prefix descriptor. Both the normal local environment and a
 restricted `PATH=/usr/bin:/bin` installed-CLI branch pass all five runner integration cases, and
 omo-senpi typecheck remains clean.
+
+## In-flight reconciliation follow-up
+
+The final goal review identified one remaining interleaving: reconciliation could begin while
+attempt N was alive, wait for its outcome, then wake after the supervisor had atomically advanced
+the ledger to attempt N+1 with `launching: true` and cleared process identity. Although the stale
+attempt-N outcome was correctly rejected, the post-wait path skipped the refreshed `launching`
+guard and classified the absent process identity as abandoned.
+
+A deterministic failing-first test now performs that exact state transition inside
+`waitForOutcome`. It failed with `abandoned_unknown` before the repair. Reconciliation now reloads
+the ledger once after the wait and applies the same decision order as entry:
+
+1. finalize only a matching-generation outcome;
+2. preserve a refreshed launch still inside the hard deadline;
+3. only then classify process liveness.
+
+Final verification after this production change:
+
+- focused interleaving test: RED (`abandoned_unknown`) -> GREEN;
+- reconciliation tests: 9 passed, 0 failed;
+- real model fallback and startup-warning E2Es: PASS, isolation roots removed;
+- full memory suite: 454 passed, 0 failed, 1325 assertions;
+- omo-senpi and senpi-task typechecks: PASS.
+
+Final artifacts:
+
+- `model-fallback-final3.log`
+- `skill-startup-final3.log`
+- `final-suite-final4.log`
 
 ## Why this is enough
 
