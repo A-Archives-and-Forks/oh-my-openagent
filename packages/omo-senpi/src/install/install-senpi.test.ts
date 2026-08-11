@@ -29,6 +29,8 @@ async function makePluginFixture(options: { readonly runtime?: boolean } = { run
   tempDirs.push(pluginPath)
   await writeFixtureFile(join(pluginPath, "package.json"), JSON.stringify({ name: "@code-yeongyu/omo-senpi" }))
   await writeFixtureFile(join(pluginPath, "extensions", "omo.js"), "export default {}\n")
+  await writeFixtureFile(join(pluginPath, "extensions", "omo-task.js"), "export const createTaskComponent = () => ({})\n")
+  await writeFixtureFile(join(pluginPath, "extensions", "omo-member.js"), "export default {}\n")
   await writeFixtureFile(join(pluginPath, "extensions", "reflection-persona.md"), "# reflection persona fixture\n")
   const requiredSkillNames = [
     "ast-grep",
@@ -258,6 +260,17 @@ describe("runSenpiInstaller", () => {
     await expect(install).rejects.toThrow("missing required runtime artifacts")
     expect(await readSettings(agentDir)).toEqual({ packages: ["keep-me"] })
     expect(await backupFiles(agentDir)).toHaveLength(0)
+  })
+
+  test("#given packed plugin missing the lazy task runtime #when installing #then settings stay unchanged", async () => {
+    const agentDir = await makeAgentDir()
+    const pluginPath = await makePluginFixture()
+    await rm(join(pluginPath, "extensions", "omo-task.js"))
+
+    const install = runSenpiInstaller({ env: { SENPI_CODING_AGENT_DIR: agentDir }, repoRoot, pluginPath })
+
+    await expect(install).rejects.toThrow("missing required runtime artifacts")
+    await expect(readFile(join(agentDir, "settings.json"), "utf8")).rejects.toThrow()
   })
 })
 

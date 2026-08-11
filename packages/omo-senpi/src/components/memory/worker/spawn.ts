@@ -8,7 +8,7 @@ import {
   type ReflectionWorktree,
   type ReservedRun,
 } from "@oh-my-opencode/memory-core"
-import { detectBunBinary, resolveSenpiExecutable } from "@oh-my-opencode/senpi-task"
+import { detectBunBinary, resolveSenpiExecutable } from "@oh-my-opencode/senpi-task/rpc-spawn"
 
 const DEFAULT_GRACE_MS = 5_000
 const DEFAULT_MAX_OUTPUT_BYTES = 64 * 1024
