@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { existsSync } from "node:fs"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -17,6 +17,11 @@ import type { SenpiModelPort } from "@oh-my-opencode/senpi-task"
 import type { SenpiOmoConfigResult } from "../../config-resolution"
 import { SenpiSubprocessRunner } from "./runner"
 import type { ReflectionSpawnArgs } from "./spawn"
+
+// Each case drives a real supervisor, bootstrap, and model child - three spawned bun processes
+// plus git work. The 5s default is a fast-machine assumption, not a budget those subprocesses
+// fit on a loaded CI runner; the assertions stay event-driven with no sleeps.
+setDefaultTimeout(process.platform === "win32" ? 60_000 : 30_000)
 
 const childFixture = join(import.meta.dir, "__fixtures__", "dream-child.ts")
 const supervisorFixture = join(import.meta.dir, "memory-run-supervisor.ts")

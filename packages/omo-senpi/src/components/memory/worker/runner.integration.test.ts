@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { existsSync } from "node:fs"
 import { readFile, readdir, rm } from "node:fs/promises"
 import { join } from "node:path"
@@ -7,6 +7,11 @@ import { GitMemoryRepo } from "@oh-my-opencode/memory-core"
 
 import { REFLECTION_COMPLETION_ENTRY_TYPE } from "./completion"
 import { createRunnerHarness, type RunnerHarness } from "./runner.test-support"
+
+// Each case drives a real supervisor, bootstrap, and model child - three spawned bun processes
+// plus git work. The 5s default is a fast-machine assumption, not a budget those subprocesses
+// fit on a loaded CI runner; the assertions stay event-driven with no sleeps.
+setDefaultTimeout(process.platform === "win32" ? 60_000 : 30_000)
 
 const harnesses: RunnerHarness[] = []
 afterEach(async () => Promise.all(harnesses.splice(0).map((item) => rm(item.root, { recursive: true, force: true }))))

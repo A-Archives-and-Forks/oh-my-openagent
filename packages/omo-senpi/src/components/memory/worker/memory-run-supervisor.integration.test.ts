@@ -1,9 +1,14 @@
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { spawn, type ChildProcess } from "node:child_process"
 import { existsSync } from "node:fs"
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, dirname, join } from "node:path"
+
+// Each case drives a real supervisor, bootstrap, and model child - three spawned bun processes
+// plus git work. The 5s default is a fast-machine assumption, not a budget those subprocesses
+// fit on a loaded CI runner; the assertions stay event-driven with no sleeps.
+setDefaultTimeout(process.platform === "win32" ? 60_000 : 30_000)
 
 const supervisorPath = join(import.meta.dir, "memory-run-supervisor.ts")
 const childFixture = join(import.meta.dir, "__fixtures__", "supervisor-child.ts")
