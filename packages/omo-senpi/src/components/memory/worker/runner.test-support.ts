@@ -60,6 +60,8 @@ const supervisorFixture = join(import.meta.dir, "memory-run-supervisor.ts")
 export async function createRunnerHarness(options: {
   readonly childMode: "commit" | "timeout" | "admin" | "model-fallback"
   readonly categoryAvailable?: boolean
+  readonly config?: OmoConfig
+  readonly models?: readonly SenpiModelPort[]
   readonly deadlineMs?: number
   readonly terminationGraceMs?: number
 }): Promise<RunnerHarness> {
@@ -102,12 +104,13 @@ export async function createRunnerHarness(options: {
     { provider: "extension-only", id: "primary" },
     { provider: "kimi-coding", id: "fallback" },
   ]
-  const models = options.childMode === "model-fallback" ? fallbackModels : [model]
+  const models = options.models
+    ?? (options.childMode === "model-fallback" ? fallbackModels : [model])
   const categoryAvailable = options.categoryAvailable ?? true
   const memory = OmoMemorySettingsSchema.parse({
     reflection: { category: "quick", timeout_minutes: 15, merge: "auto" },
   })
-  const config: OmoConfig = {
+  const config: OmoConfig = options.config ?? {
     memory,
     categories: categoryAvailable
       ? {

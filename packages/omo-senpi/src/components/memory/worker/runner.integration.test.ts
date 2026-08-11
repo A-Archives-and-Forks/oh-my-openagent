@@ -4,6 +4,7 @@ import { readFile, readdir, rm } from "node:fs/promises"
 import { join } from "node:path"
 
 import { GitMemoryRepo } from "@oh-my-opencode/memory-core"
+import { OmoMemorySettingsSchema, type OmoConfig } from "@oh-my-opencode/omo-config-core"
 
 import { REFLECTION_COMPLETION_ENTRY_TYPE } from "./completion"
 import { createRunnerHarness, type RunnerHarness } from "./runner.test-support"
@@ -28,6 +29,55 @@ async function assertWorktreesClean(item: RunnerHarness): Promise<void> {
 }
 
 describe("SenpiSubprocessRunner integration", () => {
+  test("#given conflicting base and agent reflection settings #when launched #then execution uses the agent category merge and timeout", async () => {
+    // given
+    const memory = OmoMemorySettingsSchema.parse({
+      reflection: {
+        merge: "integration",
+        category: "quick",
+        timeout_minutes: 60,
+      },
+      agents: {
+        "agent-test": {
+          reflection: {
+            merge: "auto",
+            category: "deep",
+            timeout_minutes: 1,
+          },
+        },
+      },
+    })
+    const config: OmoConfig = {
+      memory,
+      categories: {
+        quick: { model: "base/model", reasoning: "minimal" },
+        deep: { model: "override/model", reasoning: "high" },
+      },
+    }
+    const startedAt = Date.now()
+    const item = await harness({
+      childMode: "commit",
+      config,
+      models: [
+        { provider: "base", id: "model" },
+        { provider: "override", id: "model" },
+      ],
+    })
+
+    // when
+    const result = await item.runner.launch(item.run)
+
+    // then
+    expect(result.outcome).toBe("merged")
+    expect(item.spawnCalls[0]).toMatchObject({
+      model: "override/model",
+      thinking: "high",
+      mergePolicy: "auto",
+    })
+    expect(item.spawnCalls[0]?.hardDeadlineAt).toBeGreaterThanOrEqual(startedAt + 59_000)
+    expect(item.spawnCalls[0]?.hardDeadlineAt).toBeLessThanOrEqual(startedAt + 61_000)
+  })
+
   test("#given a stub child that commits in its reflection worktree #when launched #then it merges records notifies and advances the cursor", async () => {
     // given
     const item = await harness({ childMode: "commit" })

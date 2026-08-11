@@ -14,6 +14,10 @@ import type { ComponentLogger } from "../../extension/types"
 import type { SenpiOmoConfigResult } from "../config-resolution"
 import type { MemoryIdentityContext } from "./context"
 import { buildSandboxTransform, type SandboxPolicy, type SandboxTransform } from "./sandbox"
+import {
+  resolveAgentReflectionSettings,
+  resolveMemorySettings,
+} from "./reflection-settings"
 import { resolveReflectionTriggerConfig } from "./trigger-wiring"
 import {
   SenpiSubprocessRunner,
@@ -22,12 +26,7 @@ import {
   type ReflectionReservationPort,
 } from "./worker"
 import type { ReflectionSpawnArgs } from "./worker"
-import { OmoMemorySettingsSchema, type OmoMemorySettings } from "@oh-my-opencode/omo-config-core"
-
-/** Resolves an absent root memory block to a fresh default tree from the config schema. */
-export function resolveMemorySettings(settings: OmoMemorySettings | undefined): OmoMemorySettings {
-  return settings ?? OmoMemorySettingsSchema.parse({})
-}
+export { resolveMemorySettings } from "./reflection-settings"
 
 export interface MemoryIdentityRuntimeDeps {
   readonly loadConfig: (options: { readonly cwd?: string }) => SenpiOmoConfigResult
@@ -61,6 +60,7 @@ export function createIdentityRuntime(
   deps: MemoryIdentityRuntimeDeps,
 ): MemoryIdentityRuntime {
   const settings = resolveMemorySettings(deps.loadConfig({ cwd: deps.cwd() }).config.memory)
+  const reflection = resolveAgentReflectionSettings(settings, identity.identity)
   const store = new ReflectionReservationStore({
     identity: asMemoryIdentity(identity),
     config: resolveReflectionTriggerConfig(settings, identity.identity),
@@ -73,7 +73,7 @@ export function createIdentityRuntime(
   const lazySandbox = (spawnArgs: ReflectionSpawnArgs): ReflectionSpawnArgs => {
     if (builtSandbox === undefined) {
       builtSandbox = buildSandboxTransform({
-        policy: (settings.reflection?.sandbox ?? "auto") as SandboxPolicy,
+        policy: reflection.sandbox as SandboxPolicy,
         worktreeDir: identity.identityPaths.worktrees,
         gitCommonDir: identity.identityPaths.repo,
         payloadPaths: [identity.identityPaths.transcripts],
@@ -92,6 +92,7 @@ export function createIdentityRuntime(
     identity: asMemoryIdentity(identity),
     reservation: store,
     resolveModelRegistry: deps.resolveModelRegistry,
+    loadConfig: (options) => deps.loadConfig(options ?? {}),
     cwd: deps.cwd(),
     sandbox: lazySandbox,
     ...(deps.liveSession === undefined ? {} : { liveSession: deps.liveSession }),

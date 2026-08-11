@@ -28,6 +28,7 @@ describe("/sleeptime", () => {
     // then
     expect(resolved).toEqual({
       reflection: {
+        enabled: { value: true, overridden: false },
         stepCount: { value: 25, overridden: false },
         onCompaction: { value: true, overridden: false },
         merge: { value: "auto", overridden: false },
@@ -49,6 +50,7 @@ describe("/sleeptime", () => {
         minHoursBetween: { value: 24, overridden: false },
         shutdownLaunch: { value: true, overridden: false },
         autoSelectMax: { value: 5, overridden: false },
+        autoSelectMaxChars: { value: 150000, overridden: false },
       },
       people: {
         enabled: { value: true, overridden: false },
@@ -57,6 +59,8 @@ describe("/sleeptime", () => {
       },
       soul: { editNotice: { value: true, overridden: false } },
     })
+    expect(text).toContain("Reflection: on")
+    expect(text).toContain("Dream select chars: max 150000 chars")
     expect(ctx.ui.notifications).toEqual([{ message: text, level: "info" }])
   })
 
@@ -67,10 +71,24 @@ describe("/sleeptime", () => {
     const settings = memorySettings({
       agents: {
         [TEST_IDENTITY]: {
-          reflection: { trigger: { step_count: 5 }, merge: "integration", timeout_minutes: 30 },
+          reflection: {
+            enabled: false,
+            trigger: { step_count: 5, on_compaction: false },
+            merge: "integration",
+            category: "deep",
+            timeout_minutes: 30,
+            sandbox: "required",
+          },
           nudge: { enabled: false, every_user_turns: 20 },
           facts: { enabled: false, debounce_settles: 8 },
-          dream: { enabled: false, idle_minutes: 60, min_hours_between: 48 },
+          dream: {
+            enabled: false,
+            idle_minutes: 60,
+            min_hours_between: 48,
+            shutdown_launch: false,
+            auto_select_max: 3,
+            auto_select_max_chars: 25000,
+          },
           people: { enabled: false, max_entries: 20, max_entry_chars: 100 },
           soul: { edit_notice: false },
         },
@@ -87,12 +105,13 @@ describe("/sleeptime", () => {
     // then
     expect(resolved).toEqual({
       reflection: {
+        enabled: { value: false, overridden: true },
         stepCount: { value: 5, overridden: true },
-        onCompaction: { value: true, overridden: false },
+        onCompaction: { value: false, overridden: true },
         merge: { value: "integration", overridden: true },
-        category: { value: "quick", overridden: false },
+        category: { value: "deep", overridden: true },
         timeoutMinutes: { value: 30, overridden: true },
-        sandbox: { value: "auto", overridden: false },
+        sandbox: { value: "required", overridden: true },
       },
       nudge: {
         enabled: { value: false, overridden: true },
@@ -106,8 +125,9 @@ describe("/sleeptime", () => {
         enabled: { value: false, overridden: true },
         idleMinutes: { value: 60, overridden: true },
         minHoursBetween: { value: 48, overridden: true },
-        shutdownLaunch: { value: true, overridden: false },
-        autoSelectMax: { value: 5, overridden: false },
+        shutdownLaunch: { value: false, overridden: true },
+        autoSelectMax: { value: 3, overridden: true },
+        autoSelectMaxChars: { value: 25000, overridden: true },
       },
       people: {
         enabled: { value: false, overridden: true },
@@ -116,6 +136,17 @@ describe("/sleeptime", () => {
       },
       soul: { editNotice: { value: false, overridden: true } },
     })
+    for (const line of [
+      "Reflection: off [agent override]",
+      "On compaction: off [agent override]",
+      "Category: deep [agent override]",
+      "Sandbox: required [agent override]",
+      "Dream shutdown: shutdown launch off [agent override]",
+      "Dream select: select max 3 [agent override]",
+      "Dream select chars: max 25000 chars [agent override]",
+    ]) {
+      expect(text).toContain(line)
+    }
     expect(ctx.ui.notifications).toEqual([{ message: text, level: "info" }])
   })
 

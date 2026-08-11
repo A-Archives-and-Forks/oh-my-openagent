@@ -10,6 +10,7 @@ import type { OmoMemorySettings } from "@oh-my-opencode/omo-config-core"
 
 import type { ComponentLogger, SenpiExtensionAPI } from "../../extension/types"
 import type { MemoryPendingLedger } from "./context"
+import { resolveAgentReflectionSettings } from "./reflection-settings"
 
 /** Resolved trigger policy including the reflection feature switch. */
 export type ResolvedTriggerConfig = TriggerConfig & { readonly enabled: boolean }
@@ -153,14 +154,13 @@ export function createReflectionTriggerWiring(options: ReflectionTriggerWiringOp
  * `enabled` false short-circuits trigger evaluation before any reservation is made.
  */
 export function resolveReflectionTriggerConfig(settings: OmoMemorySettings, agentName?: string): ResolvedTriggerConfig {
-  const base = settings.reflection
-  const override = agentName === undefined ? undefined : settings.agents[agentName]?.reflection
-  const triggerBase = base.trigger
-  const triggerOverride = override?.trigger
+  const reflection = agentName === undefined
+    ? settings.reflection
+    : resolveAgentReflectionSettings(settings, agentName)
   return {
-    enabled: override?.enabled ?? base.enabled,
-    stepCount: triggerOverride?.step_count ?? triggerBase.step_count,
-    onCompaction: triggerOverride?.on_compaction ?? triggerBase.on_compaction,
+    enabled: reflection.enabled,
+    stepCount: reflection.trigger.step_count,
+    onCompaction: reflection.trigger.on_compaction,
   }
 }
 

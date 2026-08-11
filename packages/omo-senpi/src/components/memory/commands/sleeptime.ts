@@ -7,6 +7,7 @@
 import type { OmoMemorySettings } from "@oh-my-opencode/omo-config-core"
 
 import type { SenpiExtensionAPI } from "../../../extension/types"
+import { resolveAgentReflectionSettings } from "../reflection-settings"
 import { requireIdentity, respond, type MemoryCommandContext, type MemoryCommandDeps } from "./types"
 
 export const SLEEPTIME_OVERRIDE_MARK = " [agent override]"
@@ -18,6 +19,7 @@ export interface ResolvedSleeptimeValue<T> {
 
 export interface ResolvedSleeptimeSettings {
   readonly reflection: {
+    readonly enabled: ResolvedSleeptimeValue<boolean>
     readonly stepCount: ResolvedSleeptimeValue<number>
     readonly onCompaction: ResolvedSleeptimeValue<boolean>
     readonly merge: ResolvedSleeptimeValue<string>
@@ -39,6 +41,7 @@ export interface ResolvedSleeptimeSettings {
     readonly minHoursBetween: ResolvedSleeptimeValue<number>
     readonly shutdownLaunch: ResolvedSleeptimeValue<boolean>
     readonly autoSelectMax: ResolvedSleeptimeValue<number>
+    readonly autoSelectMaxChars: ResolvedSleeptimeValue<number>
   }
   readonly people: {
     readonly enabled: ResolvedSleeptimeValue<boolean>
@@ -65,24 +68,26 @@ export function resolveSleeptimeSettings(
   const dream = agentOverride?.dream
   const people = agentOverride?.people
   const soul = agentOverride?.soul
+  const effectiveReflection = resolveAgentReflectionSettings(settings, agentId)
 
   return {
     reflection: {
+      enabled: resolved(effectiveReflection.enabled, reflection?.enabled !== undefined),
       stepCount: resolved(
-        reflection?.trigger?.step_count ?? settings.reflection.trigger.step_count,
+        effectiveReflection.trigger.step_count,
         reflection?.trigger?.step_count !== undefined,
       ),
       onCompaction: resolved(
-        reflection?.trigger?.on_compaction ?? settings.reflection.trigger.on_compaction,
+        effectiveReflection.trigger.on_compaction,
         reflection?.trigger?.on_compaction !== undefined,
       ),
-      merge: resolved(reflection?.merge ?? settings.reflection.merge, reflection?.merge !== undefined),
-      category: resolved(reflection?.category ?? settings.reflection.category, reflection?.category !== undefined),
+      merge: resolved(effectiveReflection.merge, reflection?.merge !== undefined),
+      category: resolved(effectiveReflection.category, reflection?.category !== undefined),
       timeoutMinutes: resolved(
-        reflection?.timeout_minutes ?? settings.reflection.timeout_minutes,
+        effectiveReflection.timeout_minutes,
         reflection?.timeout_minutes !== undefined,
       ),
-      sandbox: resolved(reflection?.sandbox ?? settings.reflection.sandbox, reflection?.sandbox !== undefined),
+      sandbox: resolved(effectiveReflection.sandbox, reflection?.sandbox !== undefined),
     },
     nudge: {
       enabled: resolved(nudge?.enabled ?? settings.nudge.enabled, nudge?.enabled !== undefined),
@@ -112,6 +117,10 @@ export function resolveSleeptimeSettings(
       autoSelectMax: resolved(
         dream?.auto_select_max ?? settings.dream.auto_select_max,
         dream?.auto_select_max !== undefined,
+      ),
+      autoSelectMaxChars: resolved(
+        dream?.auto_select_max_chars ?? settings.dream.auto_select_max_chars,
+        dream?.auto_select_max_chars !== undefined,
       ),
     },
     people: {
@@ -148,6 +157,7 @@ export function registerSleeptimeCommand(pi: SenpiExtensionAPI, deps: MemoryComm
       const lines = [
         `# Sleeptime reflection: ${agentId}`,
         "",
+        `Reflection: ${reflection.enabled.value ? "on" : "off"}${mark(reflection.enabled)}`,
         `Step trigger: ${reflection.stepCount.value > 0 ? `every ${reflection.stepCount.value} steps` : "off"}${mark(reflection.stepCount)}`,
         `On compaction: ${reflection.onCompaction.value ? "on" : "off"}${mark(reflection.onCompaction)}`,
         `Merge policy: ${reflection.merge.value}${mark(reflection.merge)}`,
@@ -166,6 +176,7 @@ export function registerSleeptimeCommand(pi: SenpiExtensionAPI, deps: MemoryComm
         `Dream spacing: min ${dream.minHoursBetween.value}h between${mark(dream.minHoursBetween)}`,
         `Dream shutdown: shutdown launch ${dream.shutdownLaunch.value ? "on" : "off"}${mark(dream.shutdownLaunch)}`,
         `Dream select: select max ${dream.autoSelectMax.value}${mark(dream.autoSelectMax)}`,
+        `Dream select chars: max ${dream.autoSelectMaxChars.value} chars${mark(dream.autoSelectMaxChars)}`,
         "",
         `People: ${people.enabled.value ? "on" : "off"}${mark(people.enabled)}`,
         `People entries: max ${people.maxEntries.value} entries${mark(people.maxEntries)}`,

@@ -16,6 +16,7 @@ import {
   type ReservedRun,
 } from "@oh-my-opencode/memory-core"
 import { loadSenpiOmoConfig, type SenpiOmoConfigResult } from "../../config-resolution"
+import { resolveAgentReflectionSettings } from "../reflection-settings"
 import { createOncePerSessionGuard } from "../../task/usage-guidance"
 import {
   recordReflectionCompletion,
@@ -35,9 +36,6 @@ import {
 import { prepareReflectionCandidateSpawn } from "./reflection-spawn-input"
 import { writeRunJsonAtomic } from "./run-artifacts"
 import { runReflectionChild } from "./spawn"
-
-const DEFAULT_CATEGORY = "quick"
-const DEFAULT_TIMEOUT_MINUTES = 15
 
 export type {
   ReflectionReservationPort,
@@ -65,7 +63,8 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
     const startedAt = this.now().toISOString()
     const cwd = this.options.cwd ?? process.cwd()
     const loaded = this.loadConfig({ cwd })
-    const category = loaded.config.memory?.reflection.category ?? DEFAULT_CATEGORY
+    const reflection = resolveAgentReflectionSettings(loaded.config.memory, this.options.identity.id)
+    const category = reflection.category
     const resolution = resolveReflectionModel(category, loaded.config, this.options.resolveModelRegistry())
 
     if (resolution.kind === "category_unavailable") {
@@ -96,9 +95,9 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
     try {
       worktree = await createReflectionWorktree(repo, run.runId, this.options.identity.paths.worktrees)
       const activeWorktree = worktree
-      const merge = loaded.config.memory?.reflection.merge ?? "auto"
-      const configuredMinutes = loaded.config.memory?.reflection.timeout_minutes ?? DEFAULT_TIMEOUT_MINUTES
-      const hardDeadlineAt = Date.now() + (this.options.deadlineMs ?? configuredMinutes * 60_000)
+      const reflection = resolveAgentReflectionSettings(loaded.config.memory, this.options.identity.id)
+      const merge = reflection.merge
+      const hardDeadlineAt = Date.now() + (this.options.deadlineMs ?? reflection.timeout_minutes * 60_000)
       const candidates: MemoryModelChain = [
         {
           model: resolution.model,
