@@ -9,8 +9,9 @@
 import { spawn } from "node:child_process"
 
 import type { OmoConfig } from "@oh-my-opencode/omo-config-core"
-import { detectBunBinary, resolveSenpiExecutable, type SenpiModelPort, type SenpiModelRegistryPort } from "@oh-my-opencode/senpi-task"
+import type { SenpiModelPort, SenpiModelRegistryPort } from "@oh-my-opencode/senpi-task"
 
+import { resolveSenpiCommand } from "../worker/senpi-command"
 import { resolveReflectionModel } from "../worker/resolve-model"
 
 const QUICK_CATEGORY = "quick"
@@ -24,7 +25,6 @@ export interface PeopleAskEvidence {
   readonly observations: readonly string[]
   readonly searchHits: readonly string[]
 }
-
 export interface PeopleAskRequest {
   readonly slug: string
   readonly displayName: string
@@ -94,7 +94,7 @@ export function createPeopleAskRunner(options: PeopleAskOptions): PeopleAskRunne
       ...(resolution.thinking === undefined ? [] : ["--thinking", resolution.thinking]),
       buildAskPrompt(request),
     ]
-    const answer = await runChild(options.senpiCommand ?? defaultSenpiCommand(env), args, env, options.deadlineMs ?? DEFAULT_DEADLINE_MS)
+    const answer = await runChild(options.senpiCommand ?? resolveSenpiCommand(env), args, env, options.deadlineMs ?? DEFAULT_DEADLINE_MS)
     return answer.length === 0 ? ABSTENTION_LINE : answer
   }
 }
@@ -137,16 +137,4 @@ function runChild(
       resolve(code === 0 ? stdout.trim() : ABSTENTION_LINE)
     })
   })
-}
-
-function defaultSenpiCommand(env: NodeJS.ProcessEnv): string {
-  return (
-    resolveSenpiExecutable({
-      isBunBinary: detectBunBinary(import.meta.url),
-      execPath: process.execPath,
-      platform: process.platform,
-      parentEnv: env,
-      resolveRpcEntry: () => "",
-    }) ?? "senpi"
-  )
 }

@@ -2,7 +2,8 @@ import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
 
 import { loadDreamPersona, loadFactsPersona, loadReflectionPersona, type ReservedRun } from "@oh-my-opencode/memory-core"
-import { detectBunBinary, resolveSenpiExecutable } from "@oh-my-opencode/senpi-task"
+
+import { resolveSenpiCommand } from "./senpi-command"
 
 import type {
   FactsSpawnArgs,
@@ -107,7 +108,7 @@ export async function prepareReflectionSpawn(input: PrepareReflectionSpawnInput)
     mergePolicy: input.mergePolicy,
     ...(input.run.request.targetDoc === undefined ? {} : { targetDoc: input.run.request.targetDoc }),
     worktree: input.worktree,
-    command: input.senpiCommand ?? resolveDefaultSenpiCommand(input.env),
+    command: input.senpiCommand ?? resolveSenpiCommand(input.env),
     args,
     cwd: input.worktree.dir,
     env,
@@ -149,7 +150,7 @@ export async function prepareFactsSpawn(input: PrepareFactsSpawnInput): Promise<
   ]
   return {
     runId: input.runId,
-    command: input.senpiCommand ?? resolveDefaultSenpiCommand(input.env),
+    command: input.senpiCommand ?? resolveSenpiCommand(input.env),
     args,
     cwd: input.runDir,
     env,
@@ -200,16 +201,6 @@ async function copyJsonOrEmpty(source: string, destination: string): Promise<voi
 function errorCode(error: unknown): string | undefined {
   if (!(error instanceof Error) || !("code" in error)) return undefined
   return typeof error.code === "string" ? error.code : undefined
-}
-
-function resolveDefaultSenpiCommand(env: NodeJS.ProcessEnv): string {
-  return resolveSenpiExecutable({
-    isBunBinary: detectBunBinary(import.meta.url),
-    execPath: process.execPath,
-    platform: process.platform,
-    parentEnv: env,
-    resolveRpcEntry: () => "",
-  }) ?? "senpi"
 }
 
 function safeRunId(runId: string): string {

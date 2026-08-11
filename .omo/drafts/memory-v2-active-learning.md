@@ -222,3 +222,49 @@ All 25 todos implemented, then the plan's own final verification wave ran on the
 - branch synced through v5.0.0-beta.5 (43e47c610, 8a705227e)
 
 Second pass: F2 PASS (16e7fe518); F3 PASS (856e981a3, all 7 scenario steps green live); F1 rerun found two residuals - the skill still restated the announcement (now a pointer to the persona only), and the abort signal was not threaded through the composite facts enqueue publish boundary, SkillsUsageTracker.flush, and FactsExtractorRunner.launchPendingOnce. Threading added with function-boundary checks (narrowing-proof), each proven by a focused boundary test: queue publishes nothing and cursor untouched; skills ledger never written; facts reserves no run, spawns no child, batch stays retryable. F4 rerun residual is branch currency only (origin/dev keeps advancing; re-sync at land time).
+
+## Post-approval: production defect report from live use (senpi command resolution)
+
+The user ran the feature and reported repeated background failures, in two distinct shapes:
+
+```
+memory reflection failed  run:reflection-run-{5,6,7,8,9,49,50}  category:quick
+detail:sandbox-exec: execvp() of 'senpi' failed: No such file or directory
+
+memory reflection failed  run:reflection-run-{51..57}  category:quick
+detail:Error: Model "apitopia/z-ai/glm-5.2-ultrafast-unlocked" not found.
+```
+
+Two independent causes; only the first is a code defect.
+
+**Defect (fixed): the senpi command resolution could yield an unrunnable command.**
+`resolveDefaultSenpiCommand` (worker spawn payload) and `defaultSenpiCommand` (people-ask) both
+ended in `?? "senpi"`. That fallback is not a runnable command: when senpi is launched from an
+environment whose PATH lacks the senpi bin directory, the PATH scan returns null, the bare name is
+handed to the supervisor, and the child dies at `execvp`. A PATH scan cannot be the last resort
+because the child inherits the same PATH that already failed.
+
+Reproduced deterministically before fixing: with `PATH=/nonexistent-bin` the scan returns null and
+the resolver emits `"senpi"`. Verified against the real installation on this host, where senpi is a
+`#!/usr/bin/env node` shim at `~/.local/bin/senpi` that re-spawns `dist/cli-main.js`, so the running
+process argv never names a `senpi` executable either.
+
+Fix: `worker/senpi-command.ts` resolves the CLI PATH-independently. The extension only ever runs
+inside senpi, so the running installation is authoritative: the senpi module search paths are walked
+to `<senpi package>/dist/cli.js` (the published `bin` target; the package blocks `./package.json` in
+its `exports`, so the manifest cannot be resolved directly), a PATH-discovered launcher is followed
+through its symlink, and the interpreter executing this process is the final fallback. Every result
+is an absolute path. Both call sites now use it.
+
+Evidence: failing-first test in `worker/spawn.test.ts` pinning that a PATH that cannot resolve senpi
+never yields the bare name and always yields an existing absolute command, plus an override-preserved
+test. Restricted PATH now resolves to a real `@code-yeongyu/senpi/dist/cli.js`; full PATH still
+prefers the normal launcher. memory 437/437, senpi-task 1363/1363, both typechecks clean. The shipped
+`plugin/extensions/omo.js` was rebuilt (bare-fallback occurrences 5 -> 0), since that generated,
+git-tracked bundle is what a user's senpi actually loads.
+
+**Not a code defect: the model error.** `senpi --list-models` succeeds (rc=0) and returns zero
+`apitopia` models; the whole provider is absent from the registry. The user's `~/.omo/omo.jsonc`
+pins category `quick` to `apitopia/*` models and declares no `apitopia` provider, and reflection and
+facts are both pinned to `quick`. This is host configuration, not plan or branch scope; reported to
+the user rather than worked around in code.
