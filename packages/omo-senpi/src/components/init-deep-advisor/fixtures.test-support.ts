@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 
 import { execFileSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
@@ -17,7 +17,7 @@ const GIT_IDENTITY = [
 const createdDirs: string[] = []
 
 export function makeTempDir(prefix: string): string {
-  const dir = mkdtempSync(join(tmpdir(), prefix))
+  const dir = realpathSync.native(mkdtempSync(join(tmpdir(), prefix)))
   createdDirs.push(dir)
   return dir
 }
