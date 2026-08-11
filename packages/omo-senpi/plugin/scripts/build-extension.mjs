@@ -50,7 +50,7 @@ const externalSpecifiers = [
   ...builtinModuleNames,
   ...builtinModuleNames.map((moduleName) => `node:${moduleName}`),
 ]
-const BUILD_MARKER_PREFIX = "// omo-senpi-build:"
+const BUILD_MARKER_PREFIX = "// omo:"
 const BUILD_SETTINGS = JSON.stringify({
   target: "node",
   format: "esm",
@@ -208,7 +208,7 @@ async function digestBuildSources(metadata, entry, buildDefines) {
     hash.update(toPortableBuildPath(relative(repoRoot, inputPath))).update(await readFile(inputPath))
   }
   hash.update(await readFile(fileURLToPath(import.meta.url)))
-  return hash.digest("hex")
+  return hash.digest("base64url")
 }
 
 export function toPortableBuildPath(path) {
@@ -226,13 +226,13 @@ function artifactsMatch(currentText, expectedText) {
 function parseBuildArtifact(text) {
   const newline = text.indexOf("\n")
   if (newline < 0) return undefined
-  const match = /^\/\/ omo-senpi-build:([a-f0-9]{64}):([a-f0-9]{64})$/.exec(text.slice(0, newline))
+  const match = /^\/\/ omo:([A-Za-z0-9_-]{43}):([A-Za-z0-9_-]{43})$/.exec(text.slice(0, newline))
   if (match === null) return undefined
   return { sourceDigest: match[1], bodyDigest: match[2], body: text.slice(newline + 1) }
 }
 
 function digest(value) {
-  return createHash("sha256").update(value).digest("hex")
+  return createHash("sha256").update(value).digest("base64url")
 }
 
 function isErrno(error, code) {

@@ -64,7 +64,7 @@ describe("checkExtensionCurrent", () => {
     const artifact = await readFile(outputs.outputPath, "utf8")
     const newline = artifact.indexOf("\n")
     const [prefix, , bodyDigest] = artifact.slice(0, newline).split(":")
-    await writeFile(outputs.outputPath, `${prefix}:${"0".repeat(64)}:${bodyDigest}\n${artifact.slice(newline + 1)}`)
+    await writeFile(outputs.outputPath, `${prefix}:${"0".repeat(43)}:${bodyDigest}\n${artifact.slice(newline + 1)}`)
 
     // when
     const result = await checkExtensionCurrent(outputs)
