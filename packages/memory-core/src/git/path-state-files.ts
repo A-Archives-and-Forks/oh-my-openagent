@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { chmod, link, lstat, mkdir, open, rename, rm } from "node:fs/promises"
+import { chmod, link, lstat, mkdir, open, rename, rm, rmdir } from "node:fs/promises"
 import { basename, dirname, join } from "node:path"
 import { GitPathStateError } from "./path-state"
 
@@ -71,18 +71,39 @@ export async function restoreMovedWorktreeFile(root: string, path: string, moved
   return true
 }
 
-export async function deleteMovedWorktreeFile(root: string, path: string, moved: string): Promise<boolean> {
+export interface WorktreeDeletionReservation {
+  readonly finish: () => Promise<boolean>
+}
+
+export async function reserveMovedWorktreeDeletion(
+  root: string,
+  path: string,
+  moved: string,
+): Promise<WorktreeDeletionReservation | undefined> {
   const target = join(root, path)
   try {
-    await link(moved, target)
+    await mkdir(target, { mode: 0o700 })
   } catch (error) {
-    if (errorCode(error) === "EEXIST") return false
+    if (errorCode(error) === "EEXIST") return undefined
     throw error
   }
-  await rm(target)
-  await rm(moved)
-  await syncDirectory(dirname(target))
-  return true
+  const reserved = await lstat(target)
+  return {
+    finish: async () => {
+      let current
+      try {
+        current = await lstat(target)
+      } catch (error) {
+        if (errorCode(error) === "ENOENT") return false
+        throw error
+      }
+      if (!current.isDirectory() || current.dev !== reserved.dev || current.ino !== reserved.ino) return false
+      await rm(moved)
+      await rmdir(target)
+      await syncDirectory(dirname(target))
+      return true
+    },
+  }
 }
 
 export async function discardMovedWorktreeFile(moved: string): Promise<void> {

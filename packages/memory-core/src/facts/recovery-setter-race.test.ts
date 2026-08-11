@@ -75,6 +75,59 @@ describe("facts conditional mutation primitives", () => {
     expect((await repo.log()).some((commit) => commit.trailers["Omo-Facts-Batch"] === recovery.batchId)).toBe(false)
   })
 
+  test("preserves a foreign write injected after deletion reservation resolves", async () => {
+    const { dir, repo } = await fixture()
+    await applyFactsBatch(repo, {
+      batchId: "11111111-1111-4111-8111-111111111111",
+      records: [{ scope: "project", text: "Initial August.", date: "2026-08-01" }],
+    }, AUTHOR)
+    const planned = await planFactsMutation(repo, batch("22222222-2222-4222-8222-222222222222"), undefined)
+    const august = "notes/facts/2026-08.md"
+    const september = "notes/facts/2026-09.md"
+    const currentAugust = await repo.pathState.capture(august)
+    if (currentAugust.index === null || currentAugust.worktree.kind !== "file") throw new Error("expected August")
+    const recovery = {
+      ...planned,
+      paths: planned.paths.map((entry) => entry.path === august ? {
+        path: august,
+        pre: { index: null, worktree: { kind: "missing" as const } },
+        post: { index: currentAugust.index!, worktree: currentAugust.worktree as Extract<typeof currentAugust.worktree, { kind: "file" }> },
+      } : entry),
+    }
+    const indexBefore = await repo.pathState.captureAll([august, september])
+    let deletionResult: boolean | undefined
+    const originalReserve = repo.pathState.reserveWorktreeDeletion.bind(repo.pathState)
+    repo.pathState.reserveWorktreeDeletion = async (path, moved) => {
+      repo.pathState.reserveWorktreeDeletion = originalReserve
+      const reservation = await originalReserve(path, moved)
+      if (reservation !== undefined) {
+        try {
+          await writeFile(join(dir, august), "foreign after deletion reservation\n")
+        } catch (error) {
+          if (!(error instanceof Error) || !("code" in error) || error.code !== "EISDIR") throw error
+          await rm(join(dir, august), { recursive: true })
+          await writeFile(join(dir, august), "foreign after deletion reservation\n")
+        }
+      }
+      return reservation === undefined ? undefined : {
+        finish: async () => {
+          deletionResult = await reservation.finish()
+          return deletionResult
+        },
+      }
+    }
+
+    const result = await applyFactsRecovery(repo, recovery, 2, AUTHOR)
+
+    expect(result.outcome).toBe("parent_dirty")
+    expect(deletionResult).toBe(false)
+    expect(await readFile(join(dir, august), "utf8")).toBe("foreign after deletion reservation\n")
+    expect((await repo.pathState.capture(august)).index).toEqual(indexBefore.get(august)?.index ?? null)
+    expect((await repo.pathState.capture(september)).index).toEqual(indexBefore.get(september)?.index ?? null)
+    expect(await repo.pathState.capture(september)).toEqual(recovery.paths.find((entry) => entry.path === september)!.pre)
+    expect((await repo.log()).some((commit) => commit.trailers["Omo-Facts-Batch"] === recovery.batchId)).toBe(false)
+  })
+
   test("preserves foreign bytes injected after hashing an existing path for deletion", async () => {
     const { dir, repo, injectAfterNextWorktreeHash } = await fixture()
     await applyFactsBatch(repo, {

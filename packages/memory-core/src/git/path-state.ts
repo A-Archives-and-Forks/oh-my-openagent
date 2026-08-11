@@ -5,14 +5,15 @@ import { commandError } from "./repo-arguments"
 import { writeIndexIfIdentity as writeIndexConditionally } from "./path-state-index"
 import {
   assertSafeParents,
-  deleteMovedWorktreeFile,
   discardMovedWorktreeFile,
   errorCode,
   moveWorktreeFile,
   removeWorktreeFile,
+  reserveMovedWorktreeDeletion,
   restoreMovedWorktreeFile,
   unsupportedWorktree,
   writeWorktreeFile,
+  type WorktreeDeletionReservation,
 } from "./path-state-files"
 
 const GIT_TIMEOUT_MS = 30_000
@@ -64,23 +65,19 @@ export class GitPathStateStore {
   async hashWorktreeBlob(content: string | Buffer, write = false): Promise<string> {
     return this.hashBlob([...(write ? ["-w"] : []), "--no-filters", "--stdin"], content)
   }
-
   async hashIndexBlob(path: string, content: string | Buffer, write = false): Promise<string> {
     const normalized = normalizeGitPath(path)
     return this.hashBlob([...(write ? ["-w"] : []), `--path=${normalized}`, "--stdin"], content)
   }
-
   async readBlob(oid: string): Promise<string> {
     assertOid(oid)
     return (await this.git(["cat-file", "blob", oid])).stdout
   }
-
   async setIndex(path: string, identity: GitIndexIdentity): Promise<void> {
     const normalized = normalizeGitPath(path)
     assertIndexIdentity(identity)
     await this.git(["update-index", "--add", "--cacheinfo", identity.mode, identity.oid, normalized])
   }
-
   async writeIndexIfIdentity(
     path: string,
     expected: GitIndexIdentity | null,
@@ -97,18 +94,15 @@ export class GitPathStateStore {
       capture: () => this.captureIndex(normalized),
     })
   }
-
   async removeIndex(path: string): Promise<void> {
     const normalized = normalizeGitPath(path)
     await this.git(["update-index", "--force-remove", "--", normalized])
   }
-
   async writeWorktree(path: string, identity: GitWorktreeFileIdentity): Promise<void> {
     const normalized = normalizeGitPath(path)
     assertWorktreeIdentity(identity)
     await writeWorktreeFile(this.dir, normalized, await this.readBlob(identity.oid), identity.mode, false)
   }
-
   async writeWorktreeIfIdentity(
     path: string,
     expected: GitWorktreeIdentity,
@@ -130,7 +124,12 @@ export class GitPathStateStore {
         return false
       }
       if (next.kind === "missing") {
-        const removed = await deleteMovedWorktreeFile(this.dir, normalized, moved)
+        const reservation = await this.reserveWorktreeDeletion(normalized, moved)
+        if (reservation === undefined) {
+          await discardMovedWorktreeFile(moved)
+          return false
+        }
+        const removed = await reservation.finish()
         if (!removed) await discardMovedWorktreeFile(moved)
         return removed
       }
@@ -142,6 +141,13 @@ export class GitPathStateStore {
       if (!await restoreMovedWorktreeFile(this.dir, normalized, moved)) await discardMovedWorktreeFile(moved)
       throw error
     }
+  }
+
+  async reserveWorktreeDeletion(
+    path: string,
+    moved: string,
+  ): Promise<WorktreeDeletionReservation | undefined> {
+    return reserveMovedWorktreeDeletion(this.dir, path, moved)
   }
 
   async removeWorktree(path: string): Promise<void> {
