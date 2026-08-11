@@ -3,7 +3,7 @@ import { spawn, type ChildProcess } from "node:child_process"
 import { existsSync } from "node:fs"
 import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { basename, dirname, join } from "node:path"
+import { dirname, join } from "node:path"
 
 // Each case drives a real supervisor, bootstrap, and model child - three spawned bun processes
 // plus git work. The 5s default is a fast-machine assumption, not a budget those subprocesses
@@ -74,11 +74,13 @@ async function waitForPath(path: string, timeoutMs = 4_000): Promise<void> {
   if (existsSync(path)) return
   const { watch } = await import("node:fs")
   const directory = dirname(path)
-  const name = basename(path)
   await new Promise<void>((resolve, reject) => {
     let settled = false
-    const watcher = watch(directory, (_event, changed) => {
-      if (changed === name && existsSync(path)) finish()
+    // Re-check on any event in the directory: run artifacts are published by writing a temp file and
+    // renaming over the target, and Linux inotify reports only the rename SOURCE name, so matching
+    // the target's basename never fires there.
+    const watcher = watch(directory, () => {
+      if (existsSync(path)) finish()
     })
     const timeout = setTimeout(() => finish(new Error(`waited ${timeoutMs}ms for ${path}`)), timeoutMs)
     const finish = (error?: Error) => {
