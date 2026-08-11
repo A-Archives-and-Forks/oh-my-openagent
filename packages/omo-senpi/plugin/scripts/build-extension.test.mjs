@@ -20,8 +20,9 @@ async function builtOutputs() {
   const memberOutputPath = join(root, "omo-member.js")
   const memoryMcpOutputPath = join(root, "omo-memory-mcp.js")
   const supervisorOutputPath = join(root, "memory-run-supervisor.mjs")
-  const build = await buildExtension({ outputPath, memberOutputPath, memoryMcpOutputPath, supervisorOutputPath })
-  return { outputPath, memberOutputPath, memoryMcpOutputPath, supervisorOutputPath, ...build }
+  const advisorRuntimeOutputPath = join(root, "omo-init-deep-advisor.js")
+  const build = await buildExtension({ outputPath, memberOutputPath, memoryMcpOutputPath, supervisorOutputPath, advisorRuntimeOutputPath })
+  return { outputPath, memberOutputPath, memoryMcpOutputPath, supervisorOutputPath, advisorRuntimeOutputPath, ...build }
 }
 
 describe("checkExtensionCurrent", () => {
@@ -143,10 +144,12 @@ describe("checkExtensionCurrent", () => {
     // when
     const main = await readFile(outputs.outputPath, "utf8")
     const member = await readFile(outputs.memberOutputPath, "utf8")
+    const advisorRuntime = await readFile(outputs.advisorRuntimeOutputPath, "utf8")
 
     // then
     expect(main).not.toMatch(/^[\t ]+$/m)
     expect(member).not.toMatch(/^[\t ]+$/m)
+    expect(advisorRuntime).not.toMatch(/^[\t ]+$/m)
   })
 
   test("#given the main extension build #when its metafile inputs are inspected #then senpi-task implementation sources are included", async () => {

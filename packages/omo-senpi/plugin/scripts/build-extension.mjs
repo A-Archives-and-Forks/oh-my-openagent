@@ -42,6 +42,8 @@ const memoryMcpEntryPath = join(packageRoot, "src", "mcp", "memory-server.ts")
 const memoryMcpOutputPath = join(pluginRoot, "extensions", "omo-memory-mcp.js")
 const supervisorEntryPath = join(packageRoot, "src", "components", "memory", "worker", "memory-run-supervisor.ts")
 const supervisorOutputPath = join(pluginRoot, "extensions", "memory-run-supervisor.mjs")
+const advisorRuntimeEntryPath = join(packageRoot, "src", "components", "init-deep-advisor", "runtime.ts")
+const advisorRuntimeOutputPath = join(pluginRoot, "extensions", "omo-init-deep-advisor.js")
 const builtinModuleNames = builtinModules
   .filter((moduleName) => !moduleName.startsWith("_"))
   .sort()
@@ -63,7 +65,10 @@ export async function buildExtension(options = {}) {
   if (typeof packageManifest.version !== "string" || packageManifest.version.length === 0) {
     throw new Error("omo-senpi package manifest must contain a version")
   }
-  const buildDefines = { OMO_SENPI_PACKAGE_VERSION: packageManifest.version }
+  const buildDefines = {
+    OMO_SENPI_PACKAGE_VERSION: packageManifest.version,
+    OMO_SENPI_BUNDLED: true,
+  }
   const output = options.outputPath ?? outputPath
   const memberOutput = options.memberOutputPath ?? (options.outputPath === undefined
     ? memberOutputPath
@@ -74,16 +79,20 @@ export async function buildExtension(options = {}) {
   const supervisorOutput = options.supervisorOutputPath ?? (options.outputPath === undefined
     ? supervisorOutputPath
     : join(dirname(output), "memory-run-supervisor.mjs"))
+  const advisorRuntimeOutput = options.advisorRuntimeOutputPath ?? (options.outputPath === undefined
+    ? advisorRuntimeOutputPath
+    : join(dirname(output), "omo-init-deep-advisor.js"))
   const mainInputs = await buildEntry(entryPath, output, buildDefines)
   const memberInputs = await buildEntry(memberEntryPath, memberOutput, buildDefines)
   const memoryMcpInputs = await buildEntry(memoryMcpEntryPath, memoryMcpOutput, buildDefines)
   const supervisorInputs = await buildEntry(supervisorEntryPath, supervisorOutput, buildDefines)
+  const advisorRuntimeInputs = await buildEntry(advisorRuntimeEntryPath, advisorRuntimeOutput, buildDefines)
   // Bundling inlines assets.ts but its markdown is read from disk at runtime next to the bundle,
   // so the persona must be staged into the extension output directory the loader executes from.
   await Promise.all([
     stageRuntimePersonas(repoRoot, dirname(output)),
   ])
-  return { mainInputs, memberInputs, memoryMcpInputs, supervisorInputs }
+  return { mainInputs, memberInputs, memoryMcpInputs, supervisorInputs, advisorRuntimeInputs }
 }
 
 async function buildEntry(entry, output, buildDefines) {
@@ -114,6 +123,9 @@ export async function checkExtensionCurrent(options = {}) {
   const supervisorOutput = options.supervisorOutputPath ?? (options.outputPath === undefined
     ? supervisorOutputPath
     : join(dirname(output), "memory-run-supervisor.mjs"))
+  const advisorRuntimeOutput = options.advisorRuntimeOutputPath ?? (options.outputPath === undefined
+    ? advisorRuntimeOutputPath
+    : join(dirname(output), "omo-init-deep-advisor.js"))
   const currentMain = await readBuiltEntry(output)
   if (currentMain === undefined) return { ok: false, reason: "missing-output", output }
   const currentMember = await readBuiltEntry(memberOutput)
@@ -122,18 +134,24 @@ export async function checkExtensionCurrent(options = {}) {
   if (currentMemoryMcp === undefined) return { ok: false, reason: "missing-output", output: memoryMcpOutput }
   const currentSupervisor = await readBuiltEntry(supervisorOutput)
   if (currentSupervisor === undefined) return { ok: false, reason: "missing-output", output: supervisorOutput }
+  const currentAdvisorRuntime = await readBuiltEntry(advisorRuntimeOutput)
+  if (currentAdvisorRuntime === undefined) {
+    return { ok: false, reason: "missing-output", output: advisorRuntimeOutput }
+  }
 
   const tempRoot = await mkdtemp(join(repoRoot, ".build-check-"))
   const expectedOutput = join(tempRoot, "omo.js")
   const expectedMemberOutput = join(tempRoot, "omo-member.js")
   const expectedMemoryMcpOutput = join(tempRoot, "omo-memory-mcp.js")
   const expectedSupervisorOutput = join(tempRoot, "memory-run-supervisor.mjs")
+  const expectedAdvisorRuntimeOutput = join(tempRoot, "omo-init-deep-advisor.js")
   try {
     await buildExtension({
       outputPath: expectedOutput,
       memberOutputPath: expectedMemberOutput,
       memoryMcpOutputPath: expectedMemoryMcpOutput,
       supervisorOutputPath: expectedSupervisorOutput,
+      advisorRuntimeOutputPath: expectedAdvisorRuntimeOutput,
     })
     if (!artifactsMatch(currentMain, await readFile(expectedOutput, "utf8"))) {
       return { ok: false, reason: "stale-output", output }
@@ -147,9 +165,12 @@ export async function checkExtensionCurrent(options = {}) {
     if (!artifactsMatch(currentSupervisor, await readFile(expectedSupervisorOutput, "utf8"))) {
       return { ok: false, reason: "stale-output", output: supervisorOutput }
     }
+    if (!artifactsMatch(currentAdvisorRuntime, await readFile(expectedAdvisorRuntimeOutput, "utf8"))) {
+      return { ok: false, reason: "stale-output", output: advisorRuntimeOutput }
+    }
     const stalePersona = await findStaleRuntimePersona(tempRoot, dirname(output), repoRoot)
     if (stalePersona !== undefined) return { ok: false, reason: "stale-output", output: stalePersona }
-    return { ok: true, output, memberOutput }
+    return { ok: true, output, memberOutput, advisorRuntimeOutput }
   } finally {
     await rm(tempRoot, { recursive: true, force: true })
   }
@@ -267,6 +288,6 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
     console.log(`omo-senpi extension build is current: ${result.output}`)
   } else {
     await buildExtension()
-    console.log(`Built omo-senpi extensions: ${outputPath}, ${memberOutputPath}, ${memoryMcpOutputPath}, ${supervisorOutputPath}`)
+    console.log(`Built omo-senpi extensions: ${outputPath}, ${memberOutputPath}, ${memoryMcpOutputPath}, ${supervisorOutputPath}, ${advisorRuntimeOutputPath}`)
   }
 }

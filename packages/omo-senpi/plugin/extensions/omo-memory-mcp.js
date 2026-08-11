@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-senpi-build:5726d533d0498ef9f8bcd8eb48df343e14ec62c09fbf2874100b2d8c9270c822:e663fe4e6e5ecb4ea3ea238655960225aee02e54880d955cc31deadf9637eddb
+// omo-senpi-build:3b5eeef7be01d7c3512660d1132787a4dcbaccc2b24aa7f5981843e4920fcbef:e663fe4e6e5ecb4ea3ea238655960225aee02e54880d955cc31deadf9637eddb
 import{dirname as Xe,resolve as br}from"node:path";import{pathToFileURL as Vi}from"node:url";function v(e){return typeof e==="object"&&e!==null&&!Array.isArray(e)}function X(e,t){return{jsonrpc:"2.0",id:e,result:t}}function U(e,t,r,n){return{jsonrpc:"2.0",id:e,error:n===void 0?{code:t,message:r}:{code:t,message:r,data:n}}}function Z(e){return typeof e==="string"||typeof e==="number"||e===null?e:null}function Ze(e){return e instanceof Error?e.message:String(e)}var et=Buffer.from(`\r
 \r
 `);async function*tt(e){let t=Buffer.alloc(0);for await(let n of e){t=Buffer.concat([t,Nr(n)]);while(!0){let o=Cr(t);if(o.kind==="incomplete")break;if(t=o.remaining,o.message)yield o.message}}let r=t.toString("utf8").trim();if(r.length>0)yield xe(r,"line")}async function rt(e,t,r){let n=JSON.stringify(t),o=r==="framed"?`Content-Length: ${Buffer.byteLength(n,"utf8")}\r

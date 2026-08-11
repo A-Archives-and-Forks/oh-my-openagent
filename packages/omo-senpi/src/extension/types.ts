@@ -23,6 +23,7 @@ export interface SenpiExtensionAPI {
   sendUserMessage(content: string | readonly Record<string, unknown>[], options?: { deliverAs?: "steer" | "followUp" }): void
   registerRemovedToolHint?(name: string, hint: string): void
   registerMessageRenderer?(customType: string, renderer: unknown): void
+  appendEntry?(customType: string, data?: unknown): void
   registerMcpServer?(name: string, config: Record<string, unknown>): void
 }
 
