@@ -10,22 +10,20 @@ import {
   moveWorktreeFile,
   removeWorktreeFile,
   reserveMovedWorktreeDeletion,
+  restoreClaimedWorktreeFile,
   restoreMovedWorktreeFile,
   unsupportedWorktree,
   writeWorktreeFile,
   type WorktreeDeletionReservation,
 } from "./path-state-files"
-
 const GIT_TIMEOUT_MS = 30_000
 const INDEX_MODES = new Set<GitIndexMode>(["100644", "100755"])
 
 export type GitIndexMode = "100644" | "100755"
-
 export interface GitIndexIdentity {
   readonly mode: GitIndexMode
   readonly oid: string
 }
-
 export interface GitWorktreeFileIdentity {
   readonly kind: "file"
   readonly mode: number
@@ -33,7 +31,6 @@ export interface GitWorktreeFileIdentity {
 }
 
 export type GitWorktreeIdentity = GitWorktreeFileIdentity | { readonly kind: "missing" }
-
 export interface GitPathState {
   readonly index: GitIndexIdentity | null
   readonly worktree: GitWorktreeIdentity
@@ -46,6 +43,7 @@ export class GitPathStateError extends Error {
   }
 }
 export class GitPathStateStore {
+  private ownershipLossRecoveryPath: string | undefined
   constructor(
     private readonly dir: string,
     private readonly exec: GitExec,
@@ -108,6 +106,7 @@ export class GitPathStateStore {
     expected: GitWorktreeIdentity,
     next: GitWorktreeIdentity,
   ): Promise<boolean> {
+    this.ownershipLossRecoveryPath = undefined
     const normalized = normalizeGitPath(path)
     if (expected.kind === "missing") {
       if ((await this.captureWorktree(normalized)).kind !== "missing") return false
@@ -135,8 +134,9 @@ export class GitPathStateStore {
           return false
         }
         const removed = await finalizer.finish()
-        if (!removed) await discardMovedWorktreeFile(moved)
-        return removed
+        if (removed !== true) await discardMovedWorktreeFile(moved)
+        if (typeof removed === "string") this.ownershipLossRecoveryPath = removed
+        return removed === true
       }
       assertWorktreeIdentity(next)
       const published = await writeWorktreeFile(this.dir, normalized, await this.readBlob(next.oid), next.mode, true)
@@ -147,11 +147,19 @@ export class GitPathStateStore {
       throw error
     }
   }
+  consumeOwnershipLossRecoveryPath(): string | undefined {
+    const path = this.ownershipLossRecoveryPath
+    this.ownershipLossRecoveryPath = undefined
+    return path
+  }
   async reserveWorktreeDeletion(
     path: string,
     moved: string,
   ): Promise<WorktreeDeletionReservation | undefined> {
-    return reserveMovedWorktreeDeletion(this.dir, path, moved)
+    return reserveMovedWorktreeDeletion(this.dir, path, moved, (claimed) => this.restoreWorktreeClaim(path, claimed))
+  }
+  async restoreWorktreeClaim(path: string, claimed: string): Promise<true | string> {
+    return restoreClaimedWorktreeFile(this.dir, path, claimed)
   }
   async removeWorktree(path: string): Promise<void> {
     await removeWorktreeFile(this.dir, normalizeGitPath(path))
@@ -192,14 +200,12 @@ export class GitPathStateStore {
     if (!stat.isFile()) throw unsupportedWorktree(path, stat.isSymbolicLink() ? "symlink" : "non-file")
     return { kind: "file", mode: stat.mode & 0o777, oid: await this.hashWorktreeBlob(await readFile(path), true) }
   }
-
   private async hashBlob(argv: readonly string[], content: string | Buffer): Promise<string> {
     const result = await this.git(["hash-object", ...argv], content)
     const oid = result.stdout.trim()
     assertOid(oid)
     return oid
   }
-
   private async git(argv: readonly string[], stdin?: string | Buffer): Promise<GitExecResult> {
     const result = await this.exec.run(argv, {
       cwd: this.dir,
@@ -211,7 +217,6 @@ export class GitPathStateStore {
     return result
   }
 }
-
 function normalizeGitPath(path: string): string {
   const normalized = path.replace(/\\/g, "/")
   const segments = normalized.split("/")
@@ -222,29 +227,24 @@ function normalizeGitPath(path: string): string {
   }
   return normalized
 }
-
 function parseIndexRecord(record: string) {
   const match = /^(\d{6}) ([0-9a-f]+) ([0-3])\t([\s\S]+)$/.exec(record)
   if (match === null) throw new GitPathStateError("Git returned a malformed index entry")
   return { mode: match[1]!, oid: match[2]!, stage: match[3]!, path: match[4]! }
 }
-
 function assertOid(oid: string): void {
   if (!/^[0-9a-f]+$/.test(oid)) throw new GitPathStateError(`Invalid Git object ID: ${oid}`)
 }
-
 function assertIndexIdentity(identity: GitIndexIdentity): void {
   if (!INDEX_MODES.has(identity.mode)) throw new GitPathStateError(`Unsupported Git index mode: ${identity.mode}`)
   assertOid(identity.oid)
 }
-
 function assertWorktreeIdentity(identity: GitWorktreeFileIdentity): void {
   if (identity.kind !== "file" || !Number.isInteger(identity.mode) || identity.mode < 0 || identity.mode > 0o777) {
     throw new GitPathStateError("Invalid worktree file identity")
   }
   assertOid(identity.oid)
 }
-
 function sameIdentity(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right)
 }

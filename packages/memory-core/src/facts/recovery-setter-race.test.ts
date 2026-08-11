@@ -95,7 +95,7 @@ describe("facts conditional mutation primitives", () => {
       } : entry),
     }
     const indexBefore = await repo.pathState.captureAll([august, september])
-    let deletionResult: boolean | undefined
+    let deletionResult: boolean | string | undefined
     const originalReserve = repo.pathState.reserveWorktreeDeletion.bind(repo.pathState)
     repo.pathState.reserveWorktreeDeletion = async (path, moved) => {
       repo.pathState.reserveWorktreeDeletion = originalReserve

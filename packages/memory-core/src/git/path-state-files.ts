@@ -71,8 +71,10 @@ export async function restoreMovedWorktreeFile(root: string, path: string, moved
   return true
 }
 
+export type WorktreeConditionalResult = boolean | string
+
 export interface WorktreeDeletionFinalizer {
-  readonly finish: () => Promise<boolean>
+  readonly finish: () => Promise<WorktreeConditionalResult>
 }
 
 export interface WorktreeDeletionReservation {
@@ -83,6 +85,7 @@ export async function reserveMovedWorktreeDeletion(
   root: string,
   path: string,
   moved: string,
+  restoreClaimed: (claimed: string) => Promise<true | string>,
 ): Promise<WorktreeDeletionReservation | undefined> {
   const target = join(root, path)
   try {
@@ -113,8 +116,8 @@ export async function reserveMovedWorktreeDeletion(
           }
           const owned = await lstat(claimed)
           if (!owned.isDirectory() || owned.dev !== reserved.dev || owned.ino !== reserved.ino) {
-            await rename(claimed, target)
-            return false
+            const restored = await restoreClaimed(claimed)
+            return restored === true ? false : restored
           }
           await rm(moved)
           await rmdir(claimed)
@@ -130,6 +133,23 @@ export async function reserveMovedWorktreeDeletion(
       }
     },
   }
+}
+
+export async function restoreClaimedWorktreeFile(
+  root: string,
+  path: string,
+  claimed: string,
+): Promise<true | string> {
+  const stat = await lstat(claimed)
+  if (!stat.isFile()) return claimed
+  try {
+    await link(claimed, join(root, path))
+  } catch (error) {
+    if (errorCode(error) === "EEXIST") return claimed
+    throw error
+  }
+  await rm(claimed)
+  return true
 }
 
 export async function discardMovedWorktreeFile(moved: string): Promise<void> {

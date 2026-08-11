@@ -5,7 +5,7 @@ import { captureOwnedFactsState, sameFactsOwnedState } from "./recovery-ownershi
 
 export type FactsRecoveryResult =
   | { readonly outcome: "committed"; readonly sha: string; readonly affectedPaths: readonly string[] }
-  | { readonly outcome: "parent_dirty" }
+  | { readonly outcome: "parent_dirty"; readonly detail?: string }
 
 export async function findFactsBatchReceipt(
   repo: GitMemoryRepo,
@@ -36,7 +36,10 @@ export async function applyFactsRecovery(
     return { outcome: "committed", sha: result.sha, affectedPaths: recovery.paths.map((entry) => entry.path) }
   } catch (error) {
     await transaction.rollback()
-    if (error instanceof FactsOwnershipLostError) return { outcome: "parent_dirty" }
+    if (error instanceof FactsOwnershipLostError) return {
+      outcome: "parent_dirty",
+      ...(error.recoveryPath === undefined ? {} : { detail: `Foreign entry retained at ${error.recoveryPath}` }),
+    }
     throw error
   }
 }

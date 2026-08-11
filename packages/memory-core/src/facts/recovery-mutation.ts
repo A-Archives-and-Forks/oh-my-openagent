@@ -5,6 +5,9 @@ import { sameIdentity } from "./recovery-ownership"
 
 export class FactsOwnershipLostError extends Error {
   override readonly name = "FactsOwnershipLostError"
+  constructor(message: string, readonly recoveryPath?: string) {
+    super(message)
+  }
 }
 
 type MutationRecord =
@@ -70,9 +73,11 @@ export class FactsMutationTransaction {
     next: GitWorktreeIdentity,
   ): Promise<void> {
     if (sameIdentity(expected, next)) return
-    if (!await this.repo.pathState.writeWorktreeIfIdentity(path, expected, next)) {
-      throw new FactsOwnershipLostError(`Facts ownership changed: ${path}:worktree`)
-    }
+    const written = await this.repo.pathState.writeWorktreeIfIdentity(path, expected, next)
+    if (!written) throw new FactsOwnershipLostError(
+      `Facts ownership changed: ${path}:worktree`,
+      this.repo.pathState.consumeOwnershipLossRecoveryPath(),
+    )
     this.mutations.push({ path, surface: "worktree", before: expected, after: next })
   }
 }

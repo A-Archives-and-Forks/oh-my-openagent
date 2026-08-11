@@ -191,7 +191,12 @@ export class FactsExtractorRunner {
       return { status: "failed", runId: ledger.runId }
     }
     if (applied.outcome === "parent_dirty") {
-      await this.writeFinal(runDir, ledger.runId, "parent_dirty", "memory repository contains foreign state")
+      await this.writeFinal(
+        runDir,
+        ledger.runId,
+        "parent_dirty",
+        applied.detail ?? "memory repository contains foreign state",
+      )
       return { status: "parent_dirty", runId: ledger.runId }
     }
     await this.queue.markConsumed(payload.entries)

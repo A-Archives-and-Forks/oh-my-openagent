@@ -21,7 +21,7 @@ const WRITER_ATTEMPTS = 3
 
 type Applied =
   | { readonly outcome: "committed"; readonly sha: string }
-  | { readonly outcome: "parent_dirty" }
+  | { readonly outcome: "parent_dirty"; readonly detail?: string }
 
 export function resolveFactsPeopleRouting(config: OmoConfig, identity: string): FactsPeopleRouting {
   const memory = config.memory
