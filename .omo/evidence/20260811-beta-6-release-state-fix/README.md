@@ -39,7 +39,7 @@ compatibility gate exposed a base-branch bundle budget failure:
   tool's public record projection inside the same single-file bundle.
 - Fix: extracted and reused `recordSummary` across task results and lifecycle
   snapshots without changing the RPC payload or raising the ceiling.
-- GREEN: the final pinned Bun 1.3.12 bundle is 899,929 bytes.
+- GREEN on macOS: the final pinned Bun 1.3.12 bundle is 899,656 bytes.
 - Final exact gate:
   - bundle freshness: pass;
   - package build and npm pack: pass;
@@ -48,6 +48,29 @@ compatibility gate exposed a base-branch bundle budget failure:
   - senpi-task task-tool suite: 182 passed, 0 failed across 30 files;
   - omo-senpi and senpi-task typechecks: pass;
   - isolated pack directory removed and verified by the cleanup trap.
+
+## Windows bundle headroom
+
+The first repaired PR rerun exposed the same budget on Windows with a larger
+platform-specific output:
+
+- GitHub Actions run `31511896025`, job `93847562832`.
+- RED: Windows rebuilt `omo.js` to 900,160 bytes.
+- Additional fix: task-detail serializers now assign optional properties
+  directly. Their serialized JSON is unchanged because `undefined` properties
+  are omitted, while the bundled conditional-spread boilerplate is removed.
+- Real Parallels Windows 11 QA with Bun 1.3.12:
+  - required a clean recreation of the generated extensions directory because
+    `robocopy` preserved read-only attributes and an initial `EPERM` left stale
+    bytes;
+  - true rebuilt `omo.js`: 899,935 bytes;
+  - bundle budget and event-bridge suites: 10 passed, 0 failed.
+- Cleanup:
+  - both Windows QA sandboxes and scripts removed;
+  - temporary remote Mac worktree and scripts removed;
+  - Windows VM restored to its original stopped state;
+  - Parallels Desktop quit;
+  - Bunshin client closed.
 
 ## Why it is enough
 

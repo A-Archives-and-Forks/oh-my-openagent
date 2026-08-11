@@ -31,9 +31,9 @@ export function recordDetails(record: TaskRecord, mode: TaskToolMode): TaskToolD
   return {
     ...recordSummary(record),
     mode,
-    ...(record.agent_type !== undefined && { subagent_type: record.agent_type }),
-    ...(record.resolved_model !== undefined && { resolved_model: record.resolved_model }),
-    ...(record.fallback_attempts !== undefined && { fallback_attempts: record.fallback_attempts }),
+    subagent_type: record.agent_type,
+    resolved_model: record.resolved_model,
+    fallback_attempts: record.fallback_attempts,
     run_in_background: false,
   }
 }
@@ -47,15 +47,15 @@ export function startedDetails(
     task_id: started.task_id,
     status: started.status,
     mode: "spawn",
-    ...(params.task_summary !== undefined && { task_summary: params.task_summary }),
+    task_summary: params.task_summary,
     name: started.name,
-    ...(params.category !== undefined && { category: params.category }),
-    ...(params.subagent_type !== undefined && { subagent_type: params.subagent_type }),
+    category: params.category,
+    subagent_type: params.subagent_type,
     execution_mode: executionMode,
-    ...(params.model !== undefined && { model: params.model }),
-    ...(started.resolved_model !== undefined && { resolved_model: started.resolved_model }),
+    model: params.model,
+    resolved_model: started.resolved_model,
     run_in_background: params.run_in_background === true,
-    ...(started.queue_position !== undefined && { queue_position: started.queue_position }),
+    queue_position: started.queue_position,
   }
 }
 
