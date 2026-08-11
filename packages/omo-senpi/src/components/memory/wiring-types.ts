@@ -3,9 +3,12 @@ import type { SenpiOmoConfigResult } from "../config-resolution"
 import type { MemoryIdentityContext } from "./context"
 import type { MemoryIdentityRuntime, MemoryIdentityRuntimeDeps } from "./identity-runtime"
 import type { ShutdownDrainInput, ShutdownEvaluator } from "./shutdown-drain"
+import type { refreshMemoryStatus } from "./status"
 
 export interface MemorySessionStateLike {
   readonly context?: MemoryIdentityContext
+  /** Set once the status footer has been attempted for this session, so it shows at most once. */
+  memoryStatusAttempted?: boolean
 }
 
 export interface MemoryWiringOptions {
@@ -17,6 +20,8 @@ export interface MemoryWiringOptions {
   readonly createRuntime?: (identity: MemoryIdentityContext, deps: MemoryIdentityRuntimeDeps) => MemoryIdentityRuntime
   /** Boot-snapshot tool exposure; registration must not re-read config (latch order is observable). */
   readonly toolExposure?: "direct" | "search"
+  readonly now?: () => number
+  readonly refreshStatus?: typeof refreshMemoryStatus
 }
 
 export interface MemoryWiring {
@@ -27,6 +32,8 @@ export interface MemoryWiring {
   onSessionShutdown(input: ShutdownDrainInput): Promise<void>
   /** IC-10: appends an evaluator run last on quit; unregistered is a no-op. */
   registerShutdownEvaluator(evaluator: ShutdownEvaluator): void
+  /** Clears the memory status footer for the session behind this event context. */
+  clearStatus(eventCtx: unknown): void
 }
 
 export type StatusUi = {

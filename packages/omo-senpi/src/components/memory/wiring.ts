@@ -13,7 +13,7 @@ import { registerMemoryFilesystemPolicy } from "./policy-guard"
 import { createShutdownDrain, type ShutdownDrainInput, type ShutdownEvaluator } from "./shutdown-drain"
 import { type SkillsUsageTracker } from "./skills-usage"
 import { createSoulNoticeWiring } from "./soul-notice"
-import { refreshMemoryStatus } from "./status"
+import { MEMORY_STATUS_KEY, refreshMemoryStatus } from "./status"
 import {
   consumePendingReflectionCompletions,
   type ReflectionCompletionApi,
@@ -186,6 +186,10 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
 
     registerShutdownEvaluator(evaluator: ShutdownEvaluator): void {
       shutdownDrain.registerEvaluator(evaluator)
+    },
+
+    clearStatus(eventCtx: unknown): void {
+      readUi(eventCtx)?.setStatus(MEMORY_STATUS_KEY, undefined)
     },
   }
 }

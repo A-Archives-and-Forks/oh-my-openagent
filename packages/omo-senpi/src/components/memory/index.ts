@@ -30,6 +30,7 @@ export interface MemoryComponentOptions {
   readonly now?: () => number
   readonly resolveCwd?: () => string
   readonly createRuntime?: MemoryWiringOptions["createRuntime"]
+  readonly refreshStatus?: MemoryWiringOptions["refreshStatus"]
 }
 
 type SessionUi = { notify(message: string, level: "error" | "warning"): void }
@@ -42,6 +43,7 @@ type SessionState = {
   readonly enabled: boolean
   readonly ui?: SessionUi
   context?: MemoryIdentityContext
+  memoryStatusAttempted: boolean
   restartNotified: boolean
 }
 
@@ -75,8 +77,10 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
         loadConfig,
         cwd: resolveCwd,
         env,
+        now,
         logger: ctx.logger,
         ...(options.createRuntime === undefined ? {} : { createRuntime: options.createRuntime }),
+        ...(options.refreshStatus === undefined ? {} : { refreshStatus: options.refreshStatus }),
         // Reuse the boot snapshot: registration must not add a loadConfig() call, because the
         // enablement latch depends on the ORDER of reads across boot -> session_start -> reload.
         toolExposure: bootConfig.tool_exposure,
@@ -95,10 +99,16 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
 
       pi.on("session_start", (_payload, eventCtx) => {
         const surface = readSessionSurface(eventCtx)
+        wiring.clearStatus(eventCtx)
         const sessionConfig = resolveMemoryConfig(loadConfig({ cwd }))
         const enabled = isEnabled(sessionConfig, ctx)
         releaseSession(sessions.get(surface.id))
-        const state: SessionState = { enabled, restartNotified: false, ...(surface.ui === undefined ? {} : { ui: surface.ui }) }
+        const state: SessionState = {
+          enabled,
+          memoryStatusAttempted: false,
+          restartNotified: false,
+          ...(surface.ui === undefined ? {} : { ui: surface.ui }),
+        }
         sessions.set(surface.id, state)
         if (!enabled) return
 
@@ -136,6 +146,7 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
           deadlineAt: shutdownDeadlineAt(now),
           now,
         })
+        wiring.clearStatus(eventCtx)
         releaseSession(sessions.get(sessionId))
         sessions.delete(sessionId)
         unsubscribeReload?.()

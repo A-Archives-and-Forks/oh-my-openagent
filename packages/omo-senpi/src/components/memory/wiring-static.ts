@@ -18,9 +18,10 @@ import { registerMemorySkillsScope } from "./skills-scope"
 import { registerSkillsUsage, type SkillsUsageTracker } from "./skills-usage"
 import type { createSoulNoticeWiring } from "./soul-notice"
 import { createReflectionTriggerWiring } from "./trigger-wiring"
-import { registerMemoryToolSurface } from "./tools"
+import { MEMORY_APPLY_PATCH_TOOL_NAME, MEMORY_TOOL_NAME, registerMemoryToolSurface } from "./tools"
+import { refreshMemoryStatus } from "./status"
 import { registerReflectionCompletionRenderer, type ReflectionCompletionApi } from "./worker"
-import { branchEntryCount, sessionIdFrom } from "./wiring-context"
+import { branchEntryCount, isRecord, readUi, sessionIdFrom } from "./wiring-context"
 import type { MemoryWiringOptions } from "./wiring-types"
 import type { MemoryIdentityContext } from "./context"
 import { createMemoryPromptHandler as createPromptHandler } from "./prompt"
@@ -91,6 +92,34 @@ export function registerMemoryStatic(input: {
     await factsWiringFor(identity).onSettled(sessionId)
     return result
   })
+  // Status footer after a successful memory write: shown at most once per session, gated on the
+  // session state flag so a burst of memory tool results does not repaint the footer repeatedly.
+  const refreshStatus = options.refreshStatus ?? refreshMemoryStatus
+  pi.on("tool_result", async (payload: unknown, eventCtx: unknown) => {
+    if (!isMemoryToolResult(payload)) return
+    const sessionId = sessionIdFrom(eventCtx)
+    if (sessionId === undefined) return
+    const state = options.sessions.get(sessionId)
+    if (state?.context === undefined || state.memoryStatusAttempted === true) return
+    const ui = readUi(eventCtx)
+    if (ui === undefined) return
+    state.memoryStatusAttempted = true
+    const settings = options.loadConfig({ cwd: options.cwd() }).config.memory
+    try {
+      const result = await refreshStatus({
+        context: state.context,
+        ui,
+        compileWarnTokens: settings?.compile_warn_tokens ?? 30_000,
+        alreadyNotified: false,
+        checkAdvisory: false,
+        ...(options.now === undefined ? {} : { now: options.now }),
+      })
+      state.memoryStatusAttempted = result.footerShown
+    } catch (error) {
+      state.memoryStatusAttempted = false
+      throw error
+    }
+  })
   registerMemoryToolSurface(pi, () => (activeSession.current === undefined ? undefined : resolveContext(activeSession.current)), {
     exposure: toolExposure,
     onCommit: (commit) => {
@@ -157,4 +186,21 @@ export function registerMemoryStatic(input: {
 function asCommandIdentity(identity: MemoryIdentityContext | undefined): MemoryCommandIdentity | undefined {
   if (identity === undefined) return undefined
   return { identity: identity.identity, identityPaths: identity.identityPaths }
+}
+
+function isMemoryToolResult(value: unknown): boolean {
+  if (
+    !isRecord(value)
+    || value.type !== "tool_result"
+    || value.isError === true
+    || typeof value.toolName !== "string"
+  ) return false
+  return matchesToolName(value.toolName, MEMORY_TOOL_NAME)
+    || matchesToolName(value.toolName, MEMORY_APPLY_PATCH_TOOL_NAME)
+}
+
+function matchesToolName(toolName: string, expected: string): boolean {
+  const normalized = toolName.trim().toLowerCase().replaceAll("-", "_")
+  const target = expected.trim().toLowerCase().replaceAll("-", "_")
+  return normalized === target || normalized.endsWith(`_${target}`)
 }
