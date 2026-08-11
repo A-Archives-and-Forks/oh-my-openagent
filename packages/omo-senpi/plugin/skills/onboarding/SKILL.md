@@ -84,14 +84,16 @@ machine. Check at least:
 - Claude Code: `~/.claude/settings.json`, project and global `CLAUDE.md` files, MCP server
   definitions in `.mcp.json` or settings.
 - Co&#x64;ex: <code>~/.co&#x64;ex/config.toml</code>, any `AGENTS.md` files it manages.
-- OpenCode / oh-my-openagent: `opencode.json`, its config directory, MCP definitions.
+- OpenCode / oh-my-openagent: `~/.config/opencode/opencode.json`,
+  `~/.config/opencode/oh-my-opencode.jsonc`, project `.mcp.json`, and existing `AGENTS.md` files.
 - Anything else the user names.
 
-Read what you find, then present one concrete migration plan: which settings map to `omo.json`,
-which MCP servers move to `.mcp.json`, which `CLAUDE.md` content becomes `AGENTS.md` content, and
-which personal facts belong in memory instead of files. Show the plan and WAIT for the user to
-accept it. Apply nothing before they say yes. If they accept part of it, apply that part only.
-Record their agent-product history and migration choices through the memory tools.
+Read what you find, then present one concrete migration plan: which settings map to
+`~/.omo/omo.json[c]`, which MCP servers move to the project `.mcp.json`, which `CLAUDE.md` content
+becomes project `AGENTS.md` content, and which personal facts belong in memory instead of files.
+Show the plan and WAIT for the user to accept it. Apply nothing before they say yes. If they accept
+part of it, apply that part only. Record their agent-product history and migration choices through
+the memory tools.
 
 ## 3. Session archaeology
 
@@ -147,6 +149,11 @@ would have been worth on their real workload. Compute, do not guess:
   `cacheRead * (price.input - price.cache_read) / 1_000_000`.
 - Round only final aggregated values with `Math.round(value * 100) / 100`. Never round per message,
   model, or session. Label the result `estimate`.
+- Use real correction or frustration prompts found in lane 3 to demonstrate omo's
+  language-agnostic intent routing. Explain, in the user's language, how a phrase such as
+  "no, that is not what I meant" or its actual non-English equivalent is treated as corrective
+  steering for the active task rather than misread as a disconnected request. Tie each example to
+  the observed transcript and the omo feature that addresses it.
 
 Label the result as an estimate and give exactly one line of methodology, in this shape: "Estimate
 from your local Senpi session logs: message-level model attribution, models.dev input/output/cache
@@ -161,10 +168,15 @@ This lane has no fixed position: it runs through the entire flow. Whenever any l
 something durable about the user, write it through the `memory` tools at that moment, not in a
 batch at the end. Worth recording:
 
+- their host and machine facts relevant to future work,
 - their language and communication style,
 - which agent products they came from and what they kept from them,
 - their stacks, main repos, and working patterns from lane 3,
 - their stated preferences and every accept or decline decision from this conversation.
+
+Write durable personal and cross-project facts through the memory tool into `system/human.md`.
+Write repository-specific stack, commands, constraints, and migration decisions through the memory
+tool into `system/project.md`. Do not edit those backing files directly.
 
 Record facts, not narration. "Prefers Korean, migrated from Claude Code, works one repo at a time
 in long sessions" is a memory. "The user went through onboarding today" is not.
