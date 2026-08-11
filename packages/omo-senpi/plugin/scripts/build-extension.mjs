@@ -5,6 +5,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { builtinModules } from "node:module"
 import { dirname, join, relative, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
+import { findStaleRuntimePersona, stageRuntimePersonas } from "./persona-artifacts.mjs"
 
 // Keep this list byte-for-byte aligned with senpi loader.ts lines 145-165.
 export const SENPI_LOADER_ALIASES = [
@@ -41,8 +42,6 @@ const memoryMcpEntryPath = join(packageRoot, "src", "mcp", "memory-server.ts")
 const memoryMcpOutputPath = join(pluginRoot, "extensions", "omo-memory-mcp.js")
 const supervisorEntryPath = join(packageRoot, "src", "components", "memory", "worker", "memory-run-supervisor.ts")
 const supervisorOutputPath = join(pluginRoot, "extensions", "memory-run-supervisor.mjs")
-const reflectionPersonaSource = join(repoRoot, "packages", "memory-core", "src", "reflection", "assets", "reflection-persona.md")
-const factsPersonaSource = join(repoRoot, "packages", "memory-core", "src", "facts", "assets", "facts-persona.md")
 const builtinModuleNames = builtinModules
   .filter((moduleName) => !moduleName.startsWith("_"))
   .sort()
@@ -82,8 +81,7 @@ export async function buildExtension(options = {}) {
   // Bundling inlines assets.ts but its markdown is read from disk at runtime next to the bundle,
   // so the persona must be staged into the extension output directory the loader executes from.
   await Promise.all([
-    writeFile(join(dirname(output), "reflection-persona.md"), await readFile(reflectionPersonaSource, "utf8")),
-    writeFile(join(dirname(output), "facts-persona.md"), await readFile(factsPersonaSource, "utf8")),
+    stageRuntimePersonas(repoRoot, dirname(output)),
   ])
   return { mainInputs, memberInputs, memoryMcpInputs, supervisorInputs }
 }
@@ -149,11 +147,8 @@ export async function checkExtensionCurrent(options = {}) {
     if (!artifactsMatch(currentSupervisor, await readFile(expectedSupervisorOutput, "utf8"))) {
       return { ok: false, reason: "stale-output", output: supervisorOutput }
     }
-    const expectedPersona = await readFile(join(tempRoot, "reflection-persona.md"), "utf8")
-    const currentPersona = await readFile(join(dirname(output), "reflection-persona.md"), "utf8").catch(() => undefined)
-    if (currentPersona !== expectedPersona) {
-      return { ok: false, reason: "stale-output", output: join(dirname(output), "reflection-persona.md") }
-    }
+    const stalePersona = await findStaleRuntimePersona(tempRoot, dirname(output), repoRoot)
+    if (stalePersona !== undefined) return { ok: false, reason: "stale-output", output: stalePersona }
     return { ok: true, output, memberOutput }
   } finally {
     await rm(tempRoot, { recursive: true, force: true })

@@ -9,6 +9,8 @@ const REQUIRED_PLUGIN_ARTIFACTS = [
   join("extensions", "omo.js"),
   join("extensions", "memory-run-supervisor.mjs"),
   join("extensions", "reflection-persona.md"),
+  join("extensions", "dream-persona.md"),
+  join("extensions", "facts-persona.md"),
   join("skills", "ast-grep", "SKILL.md"),
   join("skills", "coding-agent-sessions", "SKILL.md"),
   join("skills", "debugging", "SKILL.md"),

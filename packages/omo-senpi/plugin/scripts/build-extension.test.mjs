@@ -48,6 +48,21 @@ describe("checkExtensionCurrent", () => {
     expect(check.ok).toBe(true)
   })
 
+  test("#given an empty output directory #when extensions are built #then all runtime personas match their sources", async () => {
+    // given / when
+    const outputs = await builtOutputs()
+    const personas = [
+      ["reflection-persona.md", join(repoRoot, "packages", "memory-core", "src", "reflection", "assets", "reflection-persona.md")],
+      ["dream-persona.md", join(repoRoot, "packages", "memory-core", "src", "reflection", "assets", "dream-persona.md")],
+      ["facts-persona.md", join(repoRoot, "packages", "memory-core", "src", "facts", "assets", "facts-persona.md")],
+    ]
+
+    // then
+    for (const [name, source] of personas) {
+      expect(await readFile(join(dirname(outputs.outputPath), name), "utf8")).toBe(await readFile(source, "utf8"))
+    }
+  })
+
   test("#given platform-specific source paths #when normalized #then build markers use portable separators", () => {
     expect(toPortableBuildPath("packages\\omo-senpi\\src\\extension\\index.ts"))
       .toBe("packages/omo-senpi/src/extension/index.ts")
