@@ -7,6 +7,7 @@ import type { ReflectionThinkingLevel } from "./resolve-model"
 import type { ReflectionSandbox } from "./spawn"
 
 export interface ReflectionReservationPort {
+  readState(): Promise<{ readonly active?: ReservedRun }>
   complete(
     runId: string,
     outcome: ReflectionOutcome,

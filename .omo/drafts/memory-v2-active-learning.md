@@ -402,3 +402,42 @@ Resolution:
   reconciliation test;
 - final real E2Es PASS with cleanup, and the non-overlapping local gate reports 454 tests PASS,
   0 fail, 1325 assertions, with both typechecks clean.
+
+### Review round implementation-r4
+
+- reviewed head: `3e27ac7d07b0f89e8a41c90b0806007970389623`
+- goal/constraint full-scope review: FAIL
+- quality full-scope review: FAIL
+- security full-scope review: PASS
+- hands-on QA full-scope review: PASS
+- context full-scope review: PASS
+
+Confirmed finalization blockers:
+
+- live and reconciliation paths finalized independently without a per-run claim;
+- merge and destructive cleanup could complete before reservation settlement;
+- crashes after integration or settlement could convert merged memory into failure or repeat
+  `reservation.complete()`;
+- category and conversation identity were not durable enough to reconstruct completion;
+- completion retries could downgrade consumed delivery to pending.
+
+Resolution:
+
+- added a confined `finalize-<runId>.lock` and in-lock `final.json`/`abandoned.json` recheck;
+- split worktree validation, receipt/ancestry probing, integration, and repeatable cleanup;
+- added additive validated-tip, integration, settlement, category, conversation, and final-decision
+  ledger fields;
+- routed live runner and reconciliation through one claimed finalizer;
+- made reservation settlement conditional on the run still being active;
+- made completion creation idempotent while preserving consumed delivery;
+- wrote `final.json` only after cleanup, settlement, and completion are durable;
+- added real-Git regressions for concurrent claim, crash after integration before checkpoint, and
+  crash after merge/cleanup/settlement before final publication.
+
+Verification:
+
+- memory-core: 465 pass, 0 fail, 3,897 assertions across 57 files;
+- omo-senpi memory: 474 pass, 0 fail, 1,386 assertions across 85 files;
+- memory-core and omo-senpi typechecks PASS;
+- rebuilt extension artifacts are current;
+- evidence: `.omo/evidence/20260811-memory-reflection-model-fallback/finalization-transaction.md`.

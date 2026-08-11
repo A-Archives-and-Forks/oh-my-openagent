@@ -76,7 +76,10 @@ async function launchDream(
   const calls: ReflectionSpawnArgs[] = []
   const runner = new SenpiSubprocessRunner({
     identity,
-    reservation: { complete: async (_runId, outcome) => ({ outcome }) },
+    reservation: {
+      readState: async () => ({}),
+      complete: async (_runId, outcome) => ({ outcome }),
+    },
     resolveModelRegistry: () => ({
       getAvailable: () => [model],
       find: (provider, modelId) => provider === model.provider && modelId === model.id ? model : undefined,

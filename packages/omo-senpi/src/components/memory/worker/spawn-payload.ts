@@ -106,6 +106,8 @@ export async function prepareReflectionSpawn(input: PrepareReflectionSpawnInput)
     runId: input.run.runId,
     attempt: input.attempt ?? 1,
     hardDeadlineAt: input.hardDeadlineAt ?? Date.now() + 15 * 60_000,
+    category: input.category,
+    conversationIds: input.run.request.conversationIds,
     model: input.model,
     ...(input.thinking === undefined ? {} : { thinking: input.thinking }),
     ...(input.nextAttempt === undefined ? {} : { nextAttempt: input.nextAttempt }),

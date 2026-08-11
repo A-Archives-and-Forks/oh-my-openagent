@@ -5,11 +5,8 @@ import type { OmoConfig } from "@oh-my-opencode/omo-config-core"
 import {
   GitMemoryRepo,
   buildDefaultSeedFiles,
-  createLockRecord,
-  finalizeReflectionWorktree,
+  cleanupReflectionWorktree,
   installHooks,
-  memoryWriterLockPath,
-  withLock,
   type ReflectionFinalizeResult,
   type ReflectionWorktree,
   type ReservedRun,
@@ -34,7 +31,11 @@ import {
 } from "./memory-model-attempts"
 import { createRunWorktree } from "./create-run-worktree"
 import { prepareReflectionCandidateSpawn } from "./reflection-spawn-input"
-import { writeRunJsonAtomic } from "./run-artifacts"
+import { readRunJson } from "./run-artifacts"
+import { failReservationRun, finalizeRecordedOutcome } from "./run-finalization"
+import type { RunFinalizationContext } from "./run-finalization-types"
+import { parseReservationRunLedger } from "./reservation-run-ledger"
+import { requireFinalizedResult } from "./runner-finalization-result"
 import { runReflectionChild } from "./spawn"
 
 export type {
@@ -44,7 +45,7 @@ export type {
   SenpiSubprocessRunnerOptions,
 } from "./runner-types"
 
-import { cleanupSucceeded, errorMessage, failureReason } from "./runner-results"
+import { cleanupSucceeded, errorMessage } from "./runner-results"
 import type { ExecutionResult, ReflectionRunResult, ReflectionRunner, SenpiSubprocessRunnerOptions } from "./runner-types"
 
 export class SenpiSubprocessRunner implements ReflectionRunner {
@@ -77,8 +78,8 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
     }
 
     const execution = await this.execute(run, resolution, loaded)
+    if ("runId" in execution) return this.deliverFinalized(execution)
     const settled = await this.settle(run, execution, startedAt, resolution, false)
-    await this.publishFinal(settled)
     return settled
   }
 
@@ -86,7 +87,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
     run: ReservedRun,
     resolution: Extract<ReflectionModelResolution, { readonly kind: "resolved" }>,
     loaded: SenpiOmoConfigResult,
-  ): Promise<ExecutionResult> {
+  ): Promise<ExecutionResult | ReflectionRunResult> {
     const repo = new GitMemoryRepo({ dir: this.options.identity.paths.repo, agentId: this.options.identity.id })
     if (!existsSync(join(this.options.identity.paths.repo, ".git"))) {
       await repo.init({ seedFiles: buildDefaultSeedFiles(), installHooks: (dir) => { installHooks(dir) } })
@@ -105,11 +106,12 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
         },
         ...resolution.fallbacks,
       ]
-      const attempt = await runMemoryModelAttempts(candidates, async (candidate, attemptNumber, nextAttempt) => {
+      await runMemoryModelAttempts(candidates, async (candidate, attemptNumber, nextAttempt) => {
         const spawnArgs = await prepareReflectionCandidateSpawn({
           run,
           worktree: activeWorktree,
           mergePolicy: merge,
+          category: reflection.category,
           candidate,
           attempt: attemptNumber,
           hardDeadlineAt,
@@ -126,45 +128,19 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
           supervisorPath: this.options.supervisorPath,
         })
       })
-      const { child, candidate } = attempt
-      const selectedModel = {
-        model: candidate.model,
-        ...(candidate.thinking === undefined ? {} : { thinking: candidate.thinking }),
-      }
-
-      if (child.timedOut) {
-        const discarded = await this.discard(worktree)
-        return cleanupSucceeded(discarded)
-          ? { outcome: "timed_out", reason: "deadline_exceeded", detail: child.stderr.trim() || undefined, ...selectedModel }
-          : { outcome: "failed", reason: "cleanup_failed", detail: discarded.detail, ...selectedModel }
-      }
-      if (child.code !== 0) {
-        const discarded = await this.discard(worktree)
-        const childDetail = child.stderr.trim() || `Reflection child exited with code ${child.code ?? "signal"}`
-        return cleanupSucceeded(discarded)
-          ? { outcome: "failed", reason: "child_exit", detail: childDetail, ...selectedModel }
-          : { outcome: "failed", reason: "cleanup_failed", detail: [childDetail, discarded.detail].filter(Boolean).join("; "), ...selectedModel }
-      }
-
-      const finalized = await finalizeReflectionWorktree(
-        worktree,
-        merge === "auto"
-          ? {
-              mode: "auto",
-              summary: `${run.request.trigger} ${run.runId}`,
-              runId: run.runId,
-              ...(run.request.targetDoc === undefined ? {} : { allowedPaths: [run.request.targetDoc] }),
-              withWriterLock: (operation) => this.withWriterLock(operation),
-            }
-          : { mode: "explicit", withWriterLock: (operation) => this.withWriterLock(operation) },
-      )
-      return {
-        outcome: finalized.status,
-        ...(finalized.detail === undefined ? {} : { detail: finalized.detail }),
-        ...failureReason(finalized),
-        ...selectedModel,
-      }
     } catch (error) {
+      const runDir = join(this.options.identity.paths.reflection, "runs", run.runId)
+      if (existsSync(join(runDir, "ledger.json"))) {
+        const ledger = parseReservationRunLedger(await readRunJson<unknown>(join(runDir, "ledger.json")))
+        const finalized = await failReservationRun(
+          this.finalizationContext(),
+          runDir,
+          ledger,
+          "failed",
+          errorMessage(error),
+        )
+        return requireFinalizedResult(finalized)
+      }
       const discarded = worktree === undefined ? undefined : await this.discard(worktree)
       return {
         outcome: "failed",
@@ -172,6 +148,10 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
         detail: [errorMessage(error), discarded?.detail].filter(Boolean).join("; "),
       }
     }
+    const runDir = join(this.options.identity.paths.reflection, "runs", run.runId)
+    const ledger = parseReservationRunLedger(await readRunJson<unknown>(join(runDir, "ledger.json")))
+    const finalized = await finalizeRecordedOutcome(this.finalizationContext(), runDir, ledger)
+    return requireFinalizedResult(finalized)
   }
 
   private async settle(
@@ -222,15 +202,15 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
     }
   }
 
-  private async publishFinal(result: ReflectionRunResult): Promise<void> {
-    const runDir = join(this.options.identity.paths.reflection, "runs", result.runId)
-    if (!existsSync(join(runDir, "ledger.json"))) return
-    await writeRunJsonAtomic(join(runDir, "final.json"), {
-      version: 1,
-      runId: result.runId,
-      outcome: result.outcome,
-      finishedAt: result.completion.finishedAt,
-    })
+  private async deliverFinalized(result: ReflectionRunResult): Promise<ReflectionRunResult> {
+    const live = this.options.liveSession?.()
+    this.ensureRenderer(live)
+    const completion = await recordReflectionCompletion(
+      join(this.options.identity.paths.reflection, "completions"),
+      result.completion,
+      live,
+    )
+    return { ...result, completion }
   }
 
   private notifyCategoryUnavailable(config: OmoConfig, resolution: Extract<ReflectionModelResolution, { readonly kind: "category_unavailable" }>): void {
@@ -253,15 +233,18 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
   }
 
   private async discard(worktree: ReflectionWorktree): Promise<ReflectionFinalizeResult> {
-    return finalizeReflectionWorktree(worktree, {
-      mode: "explicit",
-      withWriterLock: (operation) => this.withWriterLock(operation),
-    })
+    const cleanup = await cleanupReflectionWorktree(worktree)
+    return { status: "failed", cleanup }
   }
 
-  private async withWriterLock<T>(operation: () => Promise<T>): Promise<T> {
-    if (this.options.withWriterLock) return this.options.withWriterLock(operation)
-    const record = await createLockRecord("memory-write")
-    return withLock(memoryWriterLockPath(this.options.identity.paths.locks), record, operation, { waitTimeoutMs: 5_000 })
+  private finalizationContext(): RunFinalizationContext {
+    return {
+      identity: this.options.identity,
+      reservation: this.options.reservation,
+      now: () => this.now().getTime(),
+      ...(this.options.withWriterLock === undefined
+        ? {}
+        : { withWriterLock: this.options.withWriterLock }),
+    }
   }
 }

@@ -66,9 +66,29 @@ export async function recordReflectionCompletion(
   record: ReflectionCompletionRecord,
   live?: ReflectionLiveSession,
 ): Promise<ReflectionCompletionRecord> {
-  await writeRecord(completionsDir, record)
-  if (!live || !record.conversationIds.includes(live.sessionId)) return record
-  return deliverRecord(completionsDir, record, live)
+  const durable = await ensureReflectionCompletion(completionsDir, record)
+  if (!live
+    || durable.delivery.status === "consumed"
+    || !durable.conversationIds.includes(live.sessionId)) {
+    return durable
+  }
+  return deliverRecord(completionsDir, durable, live)
+}
+
+export async function ensureReflectionCompletion(
+  completionsDir: string,
+  desired: ReflectionCompletionRecord,
+): Promise<ReflectionCompletionRecord> {
+  const target = join(completionsDir, `${safeRunId(desired.runId)}.json`)
+  const existing = await readRecord(target)
+  if (existing !== null) {
+    if (!sameCompletion(existing, desired)) {
+      throw new Error(`Reflection completion record mismatch for ${desired.runId}`)
+    }
+    return existing
+  }
+  await writeRecord(completionsDir, desired)
+  return desired
 }
 
 export async function consumePendingReflectionCompletions(
@@ -121,6 +141,14 @@ function completionMessage(record: ReflectionCompletionRecord): string {
 
 function completionLevel(outcome: ReflectionOutcome): "info" | "warning" {
   return outcome === "merged" || outcome === "no_changes" ? "info" : "warning"
+}
+
+function sameCompletion(
+  left: ReflectionCompletionRecord,
+  right: ReflectionCompletionRecord,
+): boolean {
+  return JSON.stringify({ ...left, delivery: undefined })
+    === JSON.stringify({ ...right, delivery: undefined })
 }
 
 async function writeRecord(completionsDir: string, record: ReflectionCompletionRecord): Promise<void> {

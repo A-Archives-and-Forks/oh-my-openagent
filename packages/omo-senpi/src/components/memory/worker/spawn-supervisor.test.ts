@@ -27,6 +27,8 @@ describe("supervised child outcome authority", () => {
       origin: "manual",
       attempt: 1,
       hardDeadlineAt: Date.now() + 10_000,
+      category: "quick",
+      conversationIds: ["conversation-a"],
       model: "fixture/model",
       command: process.execPath,
       args: [],

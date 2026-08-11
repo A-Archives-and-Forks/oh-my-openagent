@@ -9,6 +9,7 @@ import { collectReflection } from "../palace/collectors"
 import {
   REFLECTION_COMPLETION_ENTRY_TYPE,
   consumePendingReflectionCompletions,
+  ensureReflectionCompletion,
   recordReflectionCompletion,
   registerReflectionCompletionRenderer,
   type ReflectionCompletionRecord,
@@ -38,6 +39,41 @@ function record(): ReflectionCompletionRecord {
 }
 
 describe("reflection completion flow", () => {
+  test("#given an existing consumed completion #when a retry ensures the same pending record #then consumed delivery is preserved", async () => {
+    // given
+    const root = realpathSync.native(await mkdtemp(join(tmpdir(), "reflection-completion-")))
+    roots.push(root)
+    const api = new CapturedCompletionApi()
+    await recordReflectionCompletion(root, record(), {
+      sessionId: "conversation-a",
+      api,
+    })
+
+    // when
+    const ensured = await ensureReflectionCompletion(root, record())
+
+    // then
+    expect(ensured.delivery.status).toBe("consumed")
+    expect(JSON.parse(await readFile(join(root, "run-offline.json"), "utf8"))).toEqual(ensured)
+  })
+
+  test("#given an existing completion with a different outcome #when ensured #then corruption is rejected without overwrite", async () => {
+    // given
+    const root = realpathSync.native(await mkdtemp(join(tmpdir(), "reflection-completion-")))
+    roots.push(root)
+    await recordReflectionCompletion(root, record())
+    const mismatched: ReflectionCompletionRecord = { ...record(), outcome: "failed" }
+
+    // when
+    const ensure = ensureReflectionCompletion(root, mismatched)
+
+    // then
+    await expect(ensure).rejects.toThrow("completion record mismatch")
+    expect(JSON.parse(await readFile(join(root, "run-offline.json"), "utf8"))).toMatchObject({
+      outcome: "merged",
+    })
+  })
+
   test("#given no live source session #when completion is recorded #then it remains durable and pending", async () => {
     // given
     const root = realpathSync.native(await mkdtemp(join(tmpdir(), "reflection-completion-")))

@@ -69,6 +69,8 @@ export async function runReflectionChild(
       version: 1,
       runId: metadata.runId,
       kind: metadata.kind,
+      category: prepared.category,
+      conversationIds: prepared.conversationIds,
       trigger: metadata.trigger,
       ...(metadata.kind === "dream" ? { origin: metadata.origin } : {}),
       startedAt: new Date(launchedAt).toISOString(),

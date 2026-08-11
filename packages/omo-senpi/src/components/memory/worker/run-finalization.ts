@@ -1,62 +1,50 @@
+import { existsSync } from "node:fs"
 import { join } from "node:path"
 
+import { cleanupReflectionWorktree } from "@oh-my-opencode/memory-core"
+
 import {
-  createLockRecord,
-  finalizeReflectionWorktree,
-  memoryWriterLockPath,
-  withLock,
-  type MemoryIdentity,
-  type ReflectionOutcome,
-  type ReservedRun,
-} from "@oh-my-opencode/memory-core"
+  readRunJson,
+  runOutcomeMatchesLedger,
+  updateRunLedger,
+  writeRunJsonAtomic,
+  type RunOutcome,
+} from "./run-artifacts"
+import {
+  withRunFinalizationClaim,
+  type ClaimedRunResult,
+} from "./run-finalization-claim"
+import { resolveFinalizationDecision } from "./run-finalization-git"
+import { settleReservationRun } from "./run-finalization-settlement"
+import type {
+  DurableFinalizationDecision,
+  ReservationRunResult,
+  RunFinalizationContext,
+} from "./run-finalization-types"
+import {
+  parseReservationRunLedger,
+  worktreeFromLedger,
+  type ReservationRunLedger,
+} from "./reservation-run-ledger"
 
-import { recordReflectionCompletion } from "./completion"
-import { readRunJson, readRunTextTail, writeRunJsonAtomic, type RunOutcome } from "./run-artifacts"
-import { worktreeFromLedger, type ReservationRunLedger } from "./reservation-run-ledger"
-import type { ReflectionReservationPort } from "./runner"
-
-export type ReservationStatePort = ReflectionReservationPort & {
-  readState(): Promise<{ readonly active?: ReservedRun }>
-}
-
-export interface RunFinalizationContext {
-  readonly identity: MemoryIdentity
-  readonly reservation: ReservationStatePort
-  readonly launch?: (run: ReservedRun) => void
-  readonly now: () => number
-  readonly withWriterLock?: <T>(operation: () => Promise<T>) => Promise<T>
-}
-
-export interface ReservationRunResult {
-  readonly runId: string
-  readonly outcome: ReflectionOutcome | "abandoned_unknown"
-}
+export type {
+  ReservationRunResult,
+  ReservationStatePort,
+  RunFinalizationContext,
+} from "./run-finalization-types"
 
 export async function finalizeRecordedOutcome(
   context: RunFinalizationContext,
   runDir: string,
   ledger: ReservationRunLedger,
-): Promise<ReservationRunResult> {
-  const outcome = await readRunJson<RunOutcome>(join(runDir, "outcome.json"))
-  if (outcome.runId !== ledger.runId) throw new Error(`Run outcome mismatch: ${ledger.runId}`)
-  const succeeded = !outcome.timedOut && outcome.childExit.code === 0 && outcome.childExit.signal === null
-  if (!succeeded) {
-    const detail = (await readRunTextTail(join(runDir, "child-stderr.log"), 64 * 1024)).trim() || undefined
-    return await failReservationRun(context, runDir, ledger, outcome.timedOut ? "timed_out" : "failed", detail)
-  }
-  const finalized = await finalizeReflectionWorktree(
-    worktreeFromLedger(context.identity, ledger),
-    ledger.mergePolicy === "auto"
-      ? {
-          mode: "auto",
-          summary: `${ledger.trigger} ${ledger.runId}`,
-          runId: ledger.runId,
-          ...(ledger.targetDoc === undefined ? {} : { allowedPaths: [ledger.targetDoc] }),
-          withWriterLock: (operation) => writerLock(context, operation),
-        }
-      : { mode: "explicit", withWriterLock: (operation) => writerLock(context, operation) },
+): Promise<ReservationRunResult | undefined> {
+  const claimed = await withRunFinalizationClaim(
+    context.identity,
+    runDir,
+    ledger.runId,
+    async () => finalizeClaimedOutcome(context, runDir, ledger.runId),
   )
-  return await publishFinal(context, runDir, ledger, finalized.status, finalized.detail)
+  return claimedValue(claimed)
 }
 
 export async function failReservationRun(
@@ -65,72 +53,103 @@ export async function failReservationRun(
   ledger: ReservationRunLedger,
   outcome: "failed" | "timed_out",
   detail?: string,
-): Promise<ReservationRunResult> {
-  const discarded = await finalizeReflectionWorktree(worktreeFromLedger(context.identity, ledger), {
-    mode: "explicit",
-    withWriterLock: (operation) => writerLock(context, operation),
-  })
-  const combinedDetail = [detail, discarded.detail].filter((value): value is string => value !== undefined && value.length > 0).join("; ")
-  return await publishFinal(context, runDir, ledger, outcome, combinedDetail || undefined)
+): Promise<ReservationRunResult | undefined> {
+  const claimed = await withRunFinalizationClaim(
+    context.identity,
+    runDir,
+    ledger.runId,
+    async () => {
+      if (existsSync(join(runDir, "outcome.json"))) {
+        return finalizeClaimedOutcome(context, runDir, ledger.runId)
+      }
+      const current = await readLedger(runDir, ledger.runId)
+      const decision: DurableFinalizationDecision = {
+        outcome,
+        reason: outcome === "timed_out" ? "deadline_exceeded" : "supervisor_failed",
+        ...(detail === undefined ? {} : { detail }),
+      }
+      await checkpointFailure(runDir, decision)
+      await cleanupOrThrow(context, current)
+      return settleReservationRun(context, runDir, current, decision)
+    },
+  )
+  return claimedValue(claimed)
 }
 
 export async function abandonReservationRun(
   context: RunFinalizationContext,
   runDir: string,
   ledger: ReservationRunLedger,
-): Promise<ReservationRunResult> {
-  await completeReservation(context, ledger.runId, "failed")
-  await writeRunJsonAtomic(join(runDir, "abandoned.json"), {
-    version: 1,
-    runId: ledger.runId,
-    outcome: "abandoned_unknown",
-    abandonedAt: new Date(context.now()).toISOString(),
-  })
-  return { runId: ledger.runId, outcome: "abandoned_unknown" }
+): Promise<ReservationRunResult | undefined> {
+  const claimed = await withRunFinalizationClaim(
+    context.identity,
+    runDir,
+    ledger.runId,
+    async () => {
+      if (existsSync(join(runDir, "outcome.json"))) {
+        return finalizeClaimedOutcome(context, runDir, ledger.runId)
+      }
+      const current = await readLedger(runDir, ledger.runId)
+      const active = (await context.reservation.readState()).active
+      if (active?.runId === current.runId) {
+        const transition = await context.reservation.complete(current.runId, "failed")
+        if (transition.launch !== undefined) context.launch?.(transition.launch)
+      }
+      await writeRunJsonAtomic(join(runDir, "abandoned.json"), {
+        version: 1,
+        runId: current.runId,
+        outcome: "abandoned_unknown",
+        abandonedAt: new Date(context.now()).toISOString(),
+      })
+      return { runId: current.runId, outcome: "abandoned_unknown" as const }
+    },
+  )
+  return claimedValue(claimed)
 }
 
-async function publishFinal(
+async function finalizeClaimedOutcome(
   context: RunFinalizationContext,
   runDir: string,
-  ledger: ReservationRunLedger,
-  outcome: ReflectionOutcome,
-  detail?: string,
-): Promise<ReservationRunResult> {
-  const active = (await context.reservation.readState()).active
-  const conversationIds = active?.runId === ledger.runId ? active.request.conversationIds : []
-  await completeReservation(context, ledger.runId, outcome)
-  const finishedAt = new Date(context.now()).toISOString()
-  await recordReflectionCompletion(join(context.identity.paths.reflection, "completions"), {
-    schemaVersion: 1,
-    runId: ledger.runId,
-    identity: context.identity.id,
-    category: "quick",
-    ...(ledger.model === undefined ? {} : { model: ledger.model }),
-    ...(ledger.thinking === undefined ? {} : { thinking: ledger.thinking }),
-    conversationIds,
-    trigger: ledger.trigger,
-    ...(ledger.trigger === "dream" ? { origin: ledger.origin } : {}),
-    outcome,
-    ...(detail === undefined ? {} : { detail }),
-    startedAt: ledger.startedAt,
-    finishedAt,
-    delivery: { status: "pending" },
-  })
-  await writeRunJsonAtomic(join(runDir, "final.json"), { version: 1, runId: ledger.runId, outcome, finishedAt })
-  return { runId: ledger.runId, outcome }
-}
-
-async function completeReservation(
-  context: RunFinalizationContext,
   runId: string,
-  outcome: ReflectionOutcome,
-): Promise<void> {
-  const transition = await context.reservation.complete(runId, outcome)
-  if (transition.launch !== undefined) context.launch?.(transition.launch)
+): Promise<ReservationRunResult> {
+  const ledger = await readLedger(runDir, runId)
+  const outcome = await readRunJson<RunOutcome>(join(runDir, "outcome.json"))
+  if (!runOutcomeMatchesLedger(ledger, outcome)) {
+    throw new Error(`Run outcome attempt ${outcome.attempt ?? "legacy"} does not match ${ledger.attempt ?? "legacy"}`)
+  }
+  const decision = await resolveFinalizationDecision(context, runDir, ledger, outcome)
+  return settleReservationRun(context, runDir, ledger, decision)
 }
 
-async function writerLock<T>(context: RunFinalizationContext, operation: () => Promise<T>): Promise<T> {
-  if (context.withWriterLock !== undefined) return await context.withWriterLock(operation)
-  const record = await createLockRecord("memory-write")
-  return await withLock(memoryWriterLockPath(context.identity.paths.locks), record, operation, { waitTimeoutMs: 5_000 })
+async function readLedger(runDir: string, runId: string): Promise<ReservationRunLedger> {
+  const ledger = parseReservationRunLedger(await readRunJson<unknown>(join(runDir, "ledger.json")))
+  if (ledger.runId !== runId) throw new Error(`Finalization ledger mismatch: ${runId}`)
+  return ledger
+}
+
+async function checkpointFailure(
+  runDir: string,
+  decision: DurableFinalizationDecision,
+): Promise<void> {
+  await updateRunLedger(join(runDir, "ledger.json"), {
+    finalizeOutcome: decision.outcome,
+    ...(decision.reason === undefined ? {} : { finalizeReason: decision.reason }),
+    ...(decision.detail === undefined ? {} : { finalizeDetail: decision.detail }),
+  })
+}
+
+async function cleanupOrThrow(
+  context: RunFinalizationContext,
+  ledger: ReservationRunLedger,
+): Promise<void> {
+  const cleanup = await cleanupReflectionWorktree(worktreeFromLedger(context.identity, ledger))
+  if (!cleanup.worktreeRemoved || !cleanup.branchRemoved) {
+    throw new Error(`Reflection cleanup incomplete for ${ledger.runId}`)
+  }
+}
+
+function claimedValue(
+  claimed: ClaimedRunResult<ReservationRunResult>,
+): ReservationRunResult | undefined {
+  return claimed.status === "busy" ? undefined : claimed.value
 }

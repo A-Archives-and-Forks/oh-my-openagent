@@ -30,7 +30,7 @@ import { classifyRunProcess, signalRecordedProcessGroup, waitUntil as waitForTim
 import { parseReservationRunLedger, type ReservationRunLedger } from "./reservation-run-ledger"
 import { waitForRunSentinel, type SentinelWaitResult } from "./run-sentinel"
 
-export type ReflectionRunReconcileResult = ReservationRunResult
+export type ReflectionRunReconcileResult = Pick<ReservationRunResult, "runId" | "outcome">
 
 export interface ReflectionRunReconciliationOptions {
   readonly identity: MemoryIdentity
@@ -67,7 +67,7 @@ export async function reconcileReflectionRuns(
     if (!existsSync(join(runDir, "ledger.json"))) continue
     const ledger = parseReservationRunLedger(await readRunJson<unknown>(join(runDir, "ledger.json")))
     const result = await reconcileRun(context, runDir, ledger)
-    if (result !== undefined) results.push(result)
+    if (result !== undefined) results.push({ runId: result.runId, outcome: result.outcome })
   }
   return results
 }

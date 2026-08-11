@@ -80,6 +80,7 @@ describe("worker payload mode relaxation", () => {
         commonConfigPath: join(base, "config"),
       } as unknown as ReflectionWorktree,
       reflectionSessionsDir: sessionDir,
+      category: "quick",
       model: "provider/model",
       env: {},
       mergePolicy: "auto",

@@ -11,6 +11,7 @@ type ReflectionSpawnInput = {
   readonly run: ReservedRun
   readonly worktree: ReflectionWorktree
   readonly mergePolicy: "auto" | "integration"
+  readonly category: string
   readonly candidate: ReflectionModelCandidate
   readonly attempt: number
   readonly hardDeadlineAt: number
@@ -26,6 +27,7 @@ export function prepareReflectionCandidateSpawn(input: ReflectionSpawnInput) {
     run: input.run,
     worktree: input.worktree,
     reflectionSessionsDir: join(input.identity.paths.reflection, "runs"),
+    category: input.category,
     model: input.candidate.model,
     thinking: input.candidate.thinking,
     attempt: input.attempt,

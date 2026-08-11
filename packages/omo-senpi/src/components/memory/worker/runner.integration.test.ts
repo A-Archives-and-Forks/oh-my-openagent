@@ -70,6 +70,8 @@ describe("SenpiSubprocessRunner integration", () => {
     // then
     expect(result.outcome).toBe("merged")
     expect(item.spawnCalls[0]).toMatchObject({
+      category: "deep",
+      conversationIds: ["conversation-a"],
       model: "override/model",
       thinking: "high",
       mergePolicy: "auto",

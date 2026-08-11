@@ -40,6 +40,8 @@ function spawnArgs(worktree: string): ReflectionSpawnArgs {
   return {
     attempt: 1,
     hardDeadlineAt: Date.now() + 10_000,
+    category: "quick",
+    conversationIds: ["conversation-a"],
     model: "fixture/model",
     command: "/bin/sh",
     args: ["-c", "exit 0"],

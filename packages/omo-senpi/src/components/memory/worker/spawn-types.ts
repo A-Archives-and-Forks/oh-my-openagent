@@ -24,6 +24,8 @@ export interface ReflectionSpawnArgs {
   readonly runId?: string
   readonly attempt: number
   readonly hardDeadlineAt: number
+  readonly category: string
+  readonly conversationIds: readonly string[]
   readonly model: string
   readonly thinking?: string
   readonly nextAttempt?: RunAttempt
@@ -94,6 +96,7 @@ export interface PrepareReflectionSpawnInput {
   readonly run: ReservedRun
   readonly worktree: ReflectionWorktree
   readonly reflectionSessionsDir: string
+  readonly category: string
   readonly model: string
   readonly thinking?: string
   readonly attempt?: number
