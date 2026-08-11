@@ -86,19 +86,22 @@ export class ReflectionReservationStore {
     return this.tryReserve({ ...evaluated.action.request, snapshots })
   }
 
-  async tryReserve(request: ReflectionRequest): Promise<ReservationResult> {
+  async tryReserve(request: ReflectionRequest, signal?: AbortSignal): Promise<ReservationResult> {
     const runId = this.createRunId()
     return this.locked(runId, async () => {
+      signal?.throwIfAborted()
       const current = await this.readStateUnlocked()
+      signal?.throwIfAborted()
       const transition = reserveTransition(current, request, runId)
       const state = transition.result === "active"
         ? { ...transition.state, active: await this.withLaunchOwner(transition.state.active) }
         : transition.state
+      signal?.throwIfAborted()
       await this.writeStateUnlocked(state)
       const run = transition.result === "active" ? state.active : state.pending
       if (!run) throw new Error("Reservation transition did not produce a run")
       return { status: transition.result, run }
-    })
+    }, signal)
   }
 
   async complete(runId: string, outcome: ReflectionOutcome): Promise<CompletionResult> {
@@ -167,9 +170,11 @@ export class ReflectionReservationStore {
     }
   }
 
-  private async locked<T>(runId: string | undefined, task: () => Promise<T>): Promise<T> {
+  private async locked<T>(runId: string | undefined, task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+    signal?.throwIfAborted()
     const record = await createLockRecord("reflection-scheduler", runId ? { runId } : {})
-    return withLock(this.schedulerLockPath, record, task, { waitTimeoutMs: 5_000 })
+    signal?.throwIfAborted()
+    return withLock(this.schedulerLockPath, record, task, { waitTimeoutMs: 5_000, signal })
   }
 
   private async readStateUnlocked(): Promise<ReservationState> {

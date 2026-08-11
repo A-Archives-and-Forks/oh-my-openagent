@@ -29,7 +29,7 @@ export interface DreamTriggerSession {
   readonly conversationId: string
   readonly identity: string
   readonly identityPaths: MemoryIdentityPaths
-  readonly getJournal: (conversationId: string) => Promise<TranscriptJournal>
+  readonly getJournal: (conversationId: string) => Promise<Pick<TranscriptJournal, "captureReflectionSnapshot">>
   readonly store: Pick<ReflectionReservationStore, "tryReserve">
   readonly launch: (run: ReservedRun) => void
 }
@@ -92,7 +92,10 @@ export function createDreamTriggerWiring(options: DreamTriggerWiringOptions): Dr
   const scheduler = options.scheduler ?? defaultScheduler
   const timers = new Map<string, { readonly handle: unknown; readonly eventCtx: unknown }>()
   const inFlight = new Set<Promise<void>>()
-  const launch = (session: DreamTriggerSession, origin: "idle" | "shutdown" | "manual", request: ManualDreamRequest & { readonly signal?: AbortSignal }) =>
+  const launch = (session: DreamTriggerSession, origin: "idle" | "shutdown" | "manual", request: ManualDreamRequest & {
+    readonly signal?: AbortSignal
+    readonly deadlineAt?: number
+  }) =>
     fireDream({
       session,
       origin,
@@ -165,7 +168,7 @@ export function createDreamTriggerWiring(options: DreamTriggerWiringOptions): Dr
         if (input.signal.aborted) return
         const session = options.resolveSessionById(input.sessionId)
         if (session === undefined) return
-        await launch(session, "shutdown", { signal: input.signal })
+        await launch(session, "shutdown", { signal: input.signal, deadlineAt: input.deadlineAt })
       }
     },
 

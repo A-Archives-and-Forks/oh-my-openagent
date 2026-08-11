@@ -85,6 +85,7 @@ export async function fixture(options: {
   readonly lastDreamAt?: string
   readonly conversationText?: string | null
   readonly reservationStore?: DreamTriggerSession["store"]
+  readonly now?: () => number
 } = {}): Promise<Fixture> {
   const root = await mkdtemp(join(tmpdir(), "omo-dream-trigger-"))
   roots.push(root)
@@ -127,7 +128,7 @@ export async function fixture(options: {
     resolveActiveSession: () => session,
     resolveSessionById: (sessionId) => (sessionId === CONVERSATION ? session : undefined),
     resolveSettings: () => triggerSettings(options.settings),
-    now: () => NOW_MS,
+    now: options.now ?? (() => NOW_MS),
     scheduler,
     logger: {
       info: () => {},

@@ -23,6 +23,23 @@ async function createJournal(): Promise<TranscriptJournal> {
 }
 
 describe("reflection cursor", () => {
+  it("#given an aborted signal #when snapshot capture starts #then reflection state is not mutated", async () => {
+    // given
+    const journal = await createJournal()
+    await journal.reconcile([
+      { kind: "assistant", messageId: "assistant-1", textBlocks: ["first"] },
+    ])
+    const controller = new AbortController()
+    controller.abort()
+
+    // when
+    const capture = journal.captureReflectionSnapshot(controller.signal)
+
+    // then
+    await expect(capture).rejects.toThrow()
+    expect((await journal.getState()).last_reflection_started_at).toBeUndefined()
+  })
+
   it("#given rows appended during reflection #when the captured snapshot succeeds #then only snapshot rows become reflected", async () => {
     // given
     const journal = await createJournal()

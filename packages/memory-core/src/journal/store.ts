@@ -7,8 +7,7 @@ import {
   deriveState,
   finalizeCursor,
   initialReflectionState,
-  type ReflectionSnapshot,
-  type ReflectionTranscriptState,
+  type ReflectionSnapshot, type ReflectionTranscriptState,
 } from "./cursor"
 import {
   projectTranscriptEntries,
@@ -167,18 +166,19 @@ export class TranscriptJournal {
     })
   }
 
-  async captureReflectionSnapshot(): Promise<ReflectionSnapshot | null> {
+  async captureReflectionSnapshot(signal?: AbortSignal): Promise<ReflectionSnapshot | null> {
     return this.locked(async () => {
       const entries = await this.readEntriesUnlocked()
       const state = deriveState(await this.readStateUnlocked(), entries)
       const snapshot = captureCursorSnapshot(entries, state)
       if (snapshot === null) return null
+      signal?.throwIfAborted()
       await this.writeStateUnlocked(
         { ...state, last_reflection_started_at: this.now().toISOString() },
         entries,
       )
       return snapshot
-    })
+    }, signal)
   }
 
   /**

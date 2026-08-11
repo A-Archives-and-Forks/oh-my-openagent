@@ -48,6 +48,24 @@ async function captured(
 }
 
 describe("persisted reflection reservation", () => {
+  it("#given an aborted signal #when reservation starts #then active and pending state remain empty", async () => {
+    // given
+    const { store } = await fixture()
+    const controller = new AbortController()
+    controller.abort()
+
+    // when
+    const reservation = store.tryReserve({
+      trigger: "step-count",
+      conversationIds: ["conversation-a"],
+      snapshots: [],
+    }, controller.signal)
+
+    // then
+    await expect(reservation).rejects.toThrow()
+    expect(await store.readState()).toEqual({})
+  })
+
   it("#given journal state at threshold #when the persisted machine evaluates a successful settle #then it captures and reserves the cursor snapshot", async () => {
     const { store } = await fixture()
 
