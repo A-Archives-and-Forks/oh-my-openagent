@@ -30,11 +30,17 @@ async function waitForPath(path: string, timeoutMs = WAIT_MS): Promise<void> {
     const watcher = watch(dirname(path), () => {
       if (existsSync(path)) finish()
     })
+    // inotify delivery under bun on linux drops or delays events under load, so a slow
+    // re-check interval backs the watcher; existsSync stays the authority.
+    const interval = setInterval(() => {
+      if (existsSync(path)) finish()
+    }, 50)
     const timeout = setTimeout(() => finish(new Error(`waited ${timeoutMs}ms for ${path}`)), timeoutMs)
     const finish = (error?: Error) => {
       if (settled) return
       settled = true
       clearTimeout(timeout)
+      clearInterval(interval)
       watcher.close()
       error === undefined ? resolve() : reject(error)
     }

@@ -82,11 +82,17 @@ async function waitForPath(path: string, timeoutMs = 4_000): Promise<void> {
     const watcher = watch(directory, () => {
       if (existsSync(path)) finish()
     })
+    // inotify delivery under bun on linux drops or delays events under load; the interval
+    // re-check backs the watcher and existsSync stays the authority.
+    const interval = setInterval(() => {
+      if (existsSync(path)) finish()
+    }, 50)
     const timeout = setTimeout(() => finish(new Error(`waited ${timeoutMs}ms for ${path}`)), timeoutMs)
     const finish = (error?: Error) => {
       if (settled) return
       settled = true
       clearTimeout(timeout)
+      clearInterval(interval)
       watcher.close()
       error === undefined ? resolve() : reject(error)
     }
@@ -107,15 +113,20 @@ async function waitForLedgerChild(runDir: string): Promise<{ readonly childPid: 
     let settled = false
     // Re-read on any event in the directory: updateRunLedger writes via temp+rename, and Linux
     // inotify reports only the rename SOURCE name, so filtering on "ledger.json" never fires there.
-    const watcher = watch(runDir, async () => {
+    const probe = async (): Promise<void> => {
       const value = await read().catch(() => undefined)
       if (value !== undefined) finish(value)
-    })
+    }
+    const watcher = watch(runDir, () => void probe())
+    // Same inotify delivery caveat: the interval re-read backs the watcher; the content
+    // predicate (childPid is a number) stays the authority.
+    const interval = setInterval(() => void probe(), 50)
     const timeout = setTimeout(() => finish(undefined, new Error(`waited ${WAIT_MS}ms for child identity`)), WAIT_MS)
     const finish = (value?: { readonly childPid: number }, error?: Error) => {
       if (settled) return
       settled = true
       clearTimeout(timeout)
+      clearInterval(interval)
       watcher.close()
       error === undefined && value !== undefined ? resolve(value) : reject(error ?? new Error("missing child identity"))
     }

@@ -48,19 +48,25 @@ export function scheduleSupervisorDeadline(instant: number, callback: () => void
     if (!Number.isFinite(now) || now < instant) return
     settled = true
     watcher.close()
+    clearInterval(interval)
     callback()
   }
   // Re-read on any event in the directory rather than filtering by the clock's own basename.
   // An atomic replace (write temp, rename over) reports the *source* name on Linux inotify
   // ("clock.txt.next") and the destination name on macOS, so a basename filter silently misses
-  // every clock advance on Linux. check() is a cheap guarded read, so reacting to sibling
-  // events costs nothing and keeps the seam platform-independent.
+  // every clock advance on Linux. Inotify delivery under bun on Linux also drops or delays
+  // events under load, so a slow interval re-check backs the watcher; the guarded read stays
+  // the authority either way. This seam only activates under the test-seam env flag, so the
+  // poll never runs in production.
   const watcher = watch(dirname(clockPath), () => check())
+  const interval = setInterval(check, 50)
+  interval.unref()
   queueMicrotask(check)
   return () => {
     if (settled) return
     settled = true
     watcher.close()
+    clearInterval(interval)
   }
 }
 
