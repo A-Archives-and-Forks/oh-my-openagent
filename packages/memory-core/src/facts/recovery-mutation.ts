@@ -38,11 +38,10 @@ export class FactsMutationTransaction {
 
   async rollback(): Promise<void> {
     for (const mutation of [...this.mutations].reverse()) {
-      const current = await this.repo.pathState.capture(mutation.path)
-      if (mutation.surface === "index" && sameIdentity(current.index, mutation.after)) {
-        await this.writeIndex(mutation.path, mutation.before)
-      } else if (mutation.surface === "worktree" && sameIdentity(current.worktree, mutation.after)) {
-        await this.writeWorktree(mutation.path, mutation.before)
+      if (mutation.surface === "index") {
+        await this.repo.pathState.writeIndexIfIdentity(mutation.path, mutation.after, mutation.before)
+      } else {
+        await this.repo.pathState.writeWorktreeIfIdentity(mutation.path, mutation.after, mutation.before)
       }
     }
   }
@@ -58,11 +57,11 @@ export class FactsMutationTransaction {
     expected: GitIndexIdentity | null,
     next: GitIndexIdentity | null,
   ): Promise<void> {
-    const current = (await this.repo.pathState.capture(path)).index
-    if (!sameIdentity(current, expected)) throw new FactsOwnershipLostError(`Facts ownership changed: ${path}:index`)
-    if (sameIdentity(current, next)) return
-    await this.writeIndex(path, next)
-    this.mutations.push({ path, surface: "index", before: current, after: next })
+    if (sameIdentity(expected, next)) return
+    if (!await this.repo.pathState.writeIndexIfIdentity(path, expected, next)) {
+      throw new FactsOwnershipLostError(`Facts ownership changed: ${path}:index`)
+    }
+    this.mutations.push({ path, surface: "index", before: expected, after: next })
   }
 
   private async compareAndSetWorktree(
@@ -70,20 +69,10 @@ export class FactsMutationTransaction {
     expected: GitWorktreeIdentity,
     next: GitWorktreeIdentity,
   ): Promise<void> {
-    const current = (await this.repo.pathState.capture(path)).worktree
-    if (!sameIdentity(current, expected)) throw new FactsOwnershipLostError(`Facts ownership changed: ${path}:worktree`)
-    if (sameIdentity(current, next)) return
-    await this.writeWorktree(path, next)
-    this.mutations.push({ path, surface: "worktree", before: current, after: next })
-  }
-
-  private async writeIndex(path: string, identity: GitIndexIdentity | null): Promise<void> {
-    if (identity === null) await this.repo.pathState.removeIndex(path)
-    else await this.repo.pathState.setIndex(path, identity)
-  }
-
-  private async writeWorktree(path: string, identity: GitWorktreeIdentity): Promise<void> {
-    if (identity.kind === "missing") await this.repo.pathState.removeWorktree(path)
-    else await this.repo.pathState.writeWorktree(path, identity)
+    if (sameIdentity(expected, next)) return
+    if (!await this.repo.pathState.writeWorktreeIfIdentity(path, expected, next)) {
+      throw new FactsOwnershipLostError(`Facts ownership changed: ${path}:worktree`)
+    }
+    this.mutations.push({ path, surface: "worktree", before: expected, after: next })
   }
 }

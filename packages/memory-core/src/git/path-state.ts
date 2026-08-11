@@ -1,8 +1,15 @@
 import { randomUUID } from "node:crypto"
-import { chmod, lstat, mkdir, open, readFile, rename, rm } from "node:fs/promises"
-import { basename, dirname, join } from "node:path"
+import { copyFile, lstat, open, readFile, rename, rm } from "node:fs/promises"
+import { isAbsolute, join, resolve } from "node:path"
 import type { GitExec, GitExecResult } from "./exec"
 import { commandError } from "./repo-arguments"
+import {
+  assertSafeParents,
+  errorCode,
+  removeWorktreeFile,
+  unsupportedWorktree,
+  writeWorktreeFile,
+} from "./path-state-files"
 
 const GIT_TIMEOUT_MS = 30_000
 const INDEX_MODES = new Set<GitIndexMode>(["100644", "100755"])
@@ -70,6 +77,45 @@ export class GitPathStateStore {
     await this.git(["update-index", "--add", "--cacheinfo", identity.mode, identity.oid, normalized])
   }
 
+  async writeIndexIfIdentity(
+    path: string,
+    expected: GitIndexIdentity | null,
+    next: GitIndexIdentity | null,
+  ): Promise<boolean> {
+    const normalized = normalizeGitPath(path)
+    const rawIndexPath = (await this.git(["rev-parse", "--git-path", "index"])).stdout.trim()
+    const indexPath = isAbsolute(rawIndexPath) ? rawIndexPath : resolve(this.dir, rawIndexPath)
+    const lockPath = `${indexPath}.lock`
+    const temporary = `${indexPath}.omo-${process.pid}-${randomUUID()}`
+    let lock
+    try {
+      lock = await open(lockPath, "wx")
+    } catch (error) {
+      if (errorCode(error) === "EEXIST") return false
+      throw error
+    }
+    let published = false
+    try {
+      if (!sameIdentity(await this.captureIndex(normalized), expected)) return false
+      if (next !== null) assertIndexIdentity(next)
+      await copyFile(indexPath, temporary)
+      const argv = next === null
+        ? ["update-index", "--force-remove", "--", normalized]
+        : ["update-index", "--add", "--cacheinfo", next.mode, next.oid, normalized]
+      await this.git(argv, undefined, { GIT_INDEX_FILE: temporary })
+      await lock.writeFile(await readFile(temporary))
+      await lock.sync()
+      await lock.close()
+      await rename(lockPath, indexPath)
+      published = true
+      return true
+    } finally {
+      if (!published) await lock.close().catch(() => undefined)
+      await rm(temporary, { force: true })
+      if (!published) await rm(lockPath, { force: true })
+    }
+  }
+
   async removeIndex(path: string): Promise<void> {
     const normalized = normalizeGitPath(path)
     await this.git(["update-index", "--force-remove", "--", normalized])
@@ -78,28 +124,32 @@ export class GitPathStateStore {
   async writeWorktree(path: string, identity: GitWorktreeFileIdentity): Promise<void> {
     const normalized = normalizeGitPath(path)
     assertWorktreeIdentity(identity)
-    const target = join(this.dir, normalized)
-    await assertSafeParents(this.dir, normalized)
-    await assertReplaceableTarget(target)
-    await mkdir(dirname(target), { recursive: true })
-    await assertSafeParents(this.dir, normalized)
-    await writeFileAtomic(target, await this.readBlob(identity.oid), identity.mode)
+    await writeWorktreeFile(this.dir, normalized, await this.readBlob(identity.oid), identity.mode, false)
+  }
+
+  async writeWorktreeIfIdentity(
+    path: string,
+    expected: GitWorktreeIdentity,
+    next: GitWorktreeIdentity,
+  ): Promise<boolean> {
+    const normalized = normalizeGitPath(path)
+    if (!sameIdentity(await this.captureWorktree(normalized), expected)) return false
+    if (next.kind === "missing") {
+      await removeWorktreeFile(this.dir, normalized)
+      return true
+    }
+    assertWorktreeIdentity(next)
+    return writeWorktreeFile(
+      this.dir,
+      normalized,
+      await this.readBlob(next.oid),
+      next.mode,
+      expected.kind === "missing",
+    )
   }
 
   async removeWorktree(path: string): Promise<void> {
-    const normalized = normalizeGitPath(path)
-    const target = join(this.dir, normalized)
-    await assertSafeParents(this.dir, normalized)
-    let stat
-    try {
-      stat = await lstat(target)
-    } catch (error) {
-      if (errorCode(error) === "ENOENT") return
-      throw error
-    }
-    if (!stat.isFile()) throw unsupportedWorktree(path, stat.isSymbolicLink() ? "symlink" : "non-file")
-    await rm(target)
-    await syncDirectory(dirname(target))
+    await removeWorktreeFile(this.dir, normalizeGitPath(path))
   }
 
   private async captureIndex(path: string): Promise<GitIndexIdentity | null> {
@@ -142,11 +192,15 @@ export class GitPathStateStore {
     return oid
   }
 
-  private async git(argv: readonly string[], stdin?: string | Buffer): Promise<GitExecResult> {
+  private async git(
+    argv: readonly string[],
+    stdin?: string | Buffer,
+    env: Readonly<Record<string, string>> = {},
+  ): Promise<GitExecResult> {
     const result = await this.exec.run(argv, {
       cwd: this.dir,
       timeoutMs: GIT_TIMEOUT_MS,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0", ...env },
       ...(stdin === undefined ? {} : { stdin }),
     })
     if (result.code !== 0) throw commandError(argv, result)
@@ -187,64 +241,6 @@ function assertWorktreeIdentity(identity: GitWorktreeFileIdentity): void {
   assertOid(identity.oid)
 }
 
-async function assertSafeParents(root: string, path: string): Promise<void> {
-  const parts = path.split("/").slice(0, -1)
-  let current = root
-  for (const part of parts) {
-    current = join(current, part)
-    try {
-      const stat = await lstat(current)
-      if (stat.isSymbolicLink() || !stat.isDirectory()) throw unsupportedWorktree(path, "unsafe parent")
-    } catch (error) {
-      if (errorCode(error) === "ENOENT") return
-      throw error
-    }
-  }
-}
-
-async function assertReplaceableTarget(path: string): Promise<void> {
-  try {
-    const stat = await lstat(path)
-    if (!stat.isFile()) throw unsupportedWorktree(path, stat.isSymbolicLink() ? "symlink" : "non-file")
-  } catch (error) {
-    if (errorCode(error) !== "ENOENT") throw error
-  }
-}
-
-async function writeFileAtomic(path: string, content: string, mode: number): Promise<void> {
-  const temporary = join(dirname(path), `.${basename(path)}.omo-${process.pid}-${randomUUID()}`)
-  const file = await open(temporary, "wx", mode)
-  try {
-    await file.writeFile(content, "utf8")
-    await chmod(temporary, mode)
-    await file.sync()
-  } catch (error) {
-    await file.close()
-    await rm(temporary, { force: true })
-    throw error
-  }
-  await file.close()
-  await rename(temporary, path)
-  await syncDirectory(dirname(path))
-}
-
-async function syncDirectory(path: string): Promise<void> {
-  try {
-    const directory = await open(path, "r")
-    try {
-      await directory.sync()
-    } finally {
-      await directory.close()
-    }
-  } catch (error) {
-    if (process.platform !== "win32" || !["EISDIR", "EPERM", "EACCES", "EINVAL"].includes(errorCode(error) ?? "")) throw error
-  }
-}
-
-function unsupportedWorktree(path: string, kind: string): GitPathStateError {
-  return new GitPathStateError(`Unsupported worktree ${kind} at path: ${path}`)
-}
-
-function errorCode(error: unknown): string | undefined {
-  return error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : undefined
+function sameIdentity(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right)
 }
