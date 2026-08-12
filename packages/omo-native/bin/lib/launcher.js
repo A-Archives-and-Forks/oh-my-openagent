@@ -2,7 +2,7 @@ import { existsSync } from "node:fs"
 import { delimiter, join } from "node:path"
 import { spawnNode } from "./child-process.js"
 import { runDoctor } from "./doctor.js"
-import { nearestNodeBin, packageManifest, packageRoot, readJson, resolveSenpi } from "./package-paths.js"
+import { nearestNodeBin, packageManifest, packageRoot, readJson, resolveSenpi, updateTarget } from "./package-paths.js"
 import { detectHarnesses, needsSetupSuggestion } from "./setup-detect.js"
 import { printSetupReport } from "./setup-report.js"
 
@@ -25,6 +25,7 @@ function isSelfUpdate(args) {
 // updates. The engine consumes this once and scrubs it, so nested engine processes are
 // unaffected.
 function brandProfile() {
+  const update = updateTarget()
   return {
     name: "omo",
     displayVersion: packageManifest().version,
@@ -36,7 +37,7 @@ function brandProfile() {
     update: {
       packageName: "omo-ai",
       distTag: "beta",
-      command: "npm i -g omo-ai@beta",
+      command: update.command,
       changelogUrl: "https://github.com/code-yeongyu/oh-my-openagent/releases",
     },
   }
@@ -109,7 +110,8 @@ export async function runLauncher(args = process.argv.slice(2)) {
   // The engine is pinned by this package, so a self-update would break the pairing; every
   // self-update spelling is answered with the command that actually updates the product.
   if (isSelfUpdate(args)) {
-    console.log(`omo is updated via npm: ${brandProfile().update.command}`)
+    const update = updateTarget()
+    console.log(`omo is updated via ${update.manager}: ${update.command}`)
     process.exitCode = 0
     return
   }
