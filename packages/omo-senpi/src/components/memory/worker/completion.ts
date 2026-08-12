@@ -8,6 +8,19 @@ import { normalizeRendererText } from "@oh-my-opencode/senpi-task/renderer-text"
 import { linesComponent } from "@oh-my-opencode/senpi-task/task-renderers"
 
 export const REFLECTION_COMPLETION_ENTRY_TYPE = "senpi-memory.reflection-completion"
+export const REFLECTION_SUMMARY_ENTRY_TYPE = "senpi-memory.reflection-summary"
+
+const DETAILED_DRAIN_LIMIT = 5
+const COMPLETION_MAX_AGE_MS = 7 * 24 * 60 * 60_000
+
+export interface ReflectionCompletionSummary {
+  readonly schemaVersion: 1
+  readonly count: number
+  readonly failedCount: number
+  readonly oldestISO: string
+  readonly newestISO: string
+  readonly dominantFingerprint: string
+}
 
 export interface ReflectionCompletionRecord {
   readonly schemaVersion: 1
@@ -68,9 +81,7 @@ export async function recordReflectionCompletion(
   live?: ReflectionLiveSession,
 ): Promise<ReflectionCompletionRecord> {
   const durable = await ensureReflectionCompletion(completionsDir, record)
-  if (!live
-    || durable.delivery.status === "consumed"
-    || !durable.conversationIds.includes(live.sessionId)) {
+  if (!live || durable.delivery.status === "consumed") {
     return durable
   }
   return deliverRecord(completionsDir, durable, live)
@@ -111,12 +122,30 @@ export async function consumePendingReflectionCompletions(
     throw error
   }
 
-  const consumed: ReflectionCompletionRecord[] = []
+  const pending: ReflectionCompletionRecord[] = []
   for (const name of names) {
     const record = await readRecord(join(completionsDir, name))
-    if (!record || record.delivery.status !== "pending") continue
-    if (!record.conversationIds.includes(live.sessionId)) continue
-    consumed.push(await deliverRecord(completionsDir, record, live))
+    if (record?.delivery.status === "pending") pending.push(record)
+  }
+  pending.sort((left, right) => Date.parse(right.finishedAt) - Date.parse(left.finishedAt))
+
+  const cutoff = Date.now() - COMPLETION_MAX_AGE_MS
+  const fresh = pending.filter((record) => Date.parse(record.finishedAt) >= cutoff)
+  const stale = pending.filter((record) => Date.parse(record.finishedAt) < cutoff)
+  const consumed: ReflectionCompletionRecord[] = []
+  for (const record of fresh.slice(0, DETAILED_DRAIN_LIMIT)) {
+    consumed.push(await deliverRecord(completionsDir, record, live, false))
+  }
+
+  const collapsed = fresh.slice(DETAILED_DRAIN_LIMIT)
+  if (collapsed.length > 0) {
+    live.api.appendEntry(REFLECTION_SUMMARY_ENTRY_TYPE, summarize(collapsed))
+    for (const record of collapsed) consumed.push(await markDelivered(completionsDir, record, live.sessionId))
+  }
+  for (const record of stale) consumed.push(await markDelivered(completionsDir, record, live.sessionId))
+
+  if (fresh.length > 0) {
+    live.ui?.notify(drainMessage(fresh), fresh.some(isUnsuccessful) ? "warning" : "info")
   }
   return consumed
 }
@@ -125,19 +154,60 @@ async function deliverRecord(
   completionsDir: string,
   record: ReflectionCompletionRecord,
   live: ReflectionLiveSession,
+  notify = true,
+): Promise<ReflectionCompletionRecord> {
+  const delivered = await markDelivered(completionsDir, record, live.sessionId)
+  live.api.appendEntry(REFLECTION_COMPLETION_ENTRY_TYPE, delivered)
+  if (notify) live.ui?.notify(completionMessage(delivered), completionLevel(delivered.outcome))
+  return delivered
+}
+
+async function markDelivered(
+  completionsDir: string,
+  record: ReflectionCompletionRecord,
+  sessionId: string,
 ): Promise<ReflectionCompletionRecord> {
   const delivered: ReflectionCompletionRecord = {
     ...record,
     delivery: {
       status: "consumed",
-      sessionId: live.sessionId,
+      sessionId,
       consumedAt: new Date().toISOString(),
     },
   }
-  live.api.appendEntry(REFLECTION_COMPLETION_ENTRY_TYPE, delivered)
-  live.ui?.notify(completionMessage(delivered), completionLevel(delivered.outcome))
   await writeRecord(completionsDir, delivered)
   return delivered
+}
+
+function summarize(records: readonly ReflectionCompletionRecord[]): ReflectionCompletionSummary {
+  const fingerprints = new Map<string, number>()
+  for (const record of records) {
+    const fingerprint = completionFingerprint(record)
+    fingerprints.set(fingerprint, (fingerprints.get(fingerprint) ?? 0) + 1)
+  }
+  return {
+    schemaVersion: 1,
+    count: records.length,
+    failedCount: records.filter(isUnsuccessful).length,
+    oldestISO: records.at(-1)?.finishedAt ?? "",
+    newestISO: records[0]?.finishedAt ?? "",
+    dominantFingerprint: [...fingerprints].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0]?.[0] ?? "",
+  }
+}
+
+function drainMessage(records: readonly ReflectionCompletionRecord[]): string {
+  const failures = records.filter(isUnsuccessful).length
+  return failures === 0
+    ? `Delivered ${records.length} memory reflection completion${records.length === 1 ? "" : "s"}.`
+    : `Delivered ${records.length} memory reflection completions; ${failures} need attention.`
+}
+
+function completionFingerprint(record: ReflectionCompletionRecord): string {
+  return `${record.reason ?? record.outcome}:${(record.detail ?? "").slice(0, 60)}`
+}
+
+function isUnsuccessful(record: ReflectionCompletionRecord): boolean {
+  return record.outcome !== "merged" && record.outcome !== "no_changes"
 }
 
 function completionMessage(record: ReflectionCompletionRecord): string {

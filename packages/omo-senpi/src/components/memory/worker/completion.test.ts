@@ -8,6 +8,7 @@ import { buildIdentityPaths } from "@oh-my-opencode/memory-core"
 import { collectReflection } from "../palace/collectors"
 import {
   REFLECTION_COMPLETION_ENTRY_TYPE,
+  REFLECTION_SUMMARY_ENTRY_TYPE,
   consumePendingReflectionCompletions,
   ensureReflectionCompletion,
   recordReflectionCompletion,
@@ -135,5 +136,53 @@ describe("reflection completion flow", () => {
     expect(api.entries).toEqual([{ customType: REFLECTION_COMPLETION_ENTRY_TYPE, data: consumed[0] }])
     expect(notifications).toHaveLength(1)
     expect(consumed[0]?.delivery).toMatchObject({ status: "consumed", sessionId: "conversation-a" })
+  })
+
+  describe("#given eight pending completions for one identity including two older than seven days", () => {
+    describe("#when a different session for that identity drains the backlog twice", () => {
+      test("#then five details one summary and one notify are emitted once while stale records are silently consumed", async () => {
+        // given
+        const root = realpathSync.native(await mkdtemp(join(tmpdir(), "reflection-completion-")))
+        roots.push(root)
+        const now = Date.now()
+        const records = Array.from({ length: 8 }, (_, index): ReflectionCompletionRecord => ({
+          ...record(),
+          runId: `run-${index}`,
+          conversationIds: [`past-session-${index}`],
+          outcome: index === 5 || index === 6 ? "failed" : "merged",
+          ...(index === 5 || index === 6 ? { reason: "child_exit", detail: "same failure" } : {}),
+          finishedAt: new Date(now - (index < 6 ? index * 60_000 : (8 + index) * 24 * 60 * 60_000)).toISOString(),
+        }))
+        for (const pending of records) await recordReflectionCompletion(root, pending)
+        const api = new CapturedCompletionApi()
+        const notifications: Array<{ message: string; level: string }> = []
+        const live = {
+          sessionId: "new-session",
+          api,
+          ui: { notify: (message: string, level: "info" | "warning" | "error") => notifications.push({ message, level }) },
+        }
+
+        // when
+        const first = await consumePendingReflectionCompletions(root, live)
+        const second = await consumePendingReflectionCompletions(root, live)
+
+        // then
+        expect(first).toHaveLength(8)
+        expect(second).toEqual([])
+        expect(api.entries.filter((entry) => entry.customType === REFLECTION_COMPLETION_ENTRY_TYPE)).toHaveLength(5)
+        expect(api.entries.filter((entry) => entry.customType === REFLECTION_SUMMARY_ENTRY_TYPE)).toEqual([{
+          customType: REFLECTION_SUMMARY_ENTRY_TYPE,
+          data: expect.objectContaining({ schemaVersion: 1, count: 1, failedCount: 1 }),
+        }])
+        expect(notifications).toHaveLength(1)
+        expect(notifications[0]?.level).toBe("warning")
+        for (const pending of records) {
+          expect(JSON.parse(await readFile(join(root, `${pending.runId}.json`), "utf8"))).toMatchObject({
+            conversationIds: pending.conversationIds,
+            delivery: { status: "consumed", sessionId: "new-session" },
+          })
+        }
+      })
+    })
   })
 })
