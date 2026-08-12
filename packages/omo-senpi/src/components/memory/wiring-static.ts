@@ -45,12 +45,16 @@ export function registerMemoryStatic(input: {
   readonly lastEventCtx: { current?: unknown }
   readonly activeSession: { current?: string }
   readonly skillsUsageTrackersRef: { current: Map<string, SkillsUsageTracker> }
+  /** Fires at the manual reflection launch site so the footer animates while the run is in flight. */
+  readonly onReflectionLaunch?: (identity: string, runId: string) => void
+  /** Fires after each settle so the footer can refresh its segments behind the fingerprint gate. */
+  readonly onSettled?: (sessionId: string, eventCtx: unknown) => void
 }): void {
   const {
     pi, ctx, options, promptCache, nudgeWiring, soulNoticeWiring, dreamTriggerWiring,
     completionApi, resolveContext, journalWiringFor, factsWiringFor, runtimeFor,
     triggerSessionFor, resolvePalacePeople, loadCommandSettings, lastEventCtx,
-    activeSession, skillsUsageTrackersRef,
+    activeSession, skillsUsageTrackersRef, onReflectionLaunch, onSettled,
   } = input
   const api = completionApi(pi)
   if (api !== undefined) registerReflectionCompletionRenderer(api)
@@ -87,9 +91,13 @@ export function registerMemoryStatic(input: {
     const identity = resolveContext(sessionId)
     if (identity === undefined) return undefined
     activeSession.current = sessionId
-    if (branchEntryCount(eventCtx) === 0) return undefined
+    if (branchEntryCount(eventCtx) === 0) {
+      onSettled?.(sessionId, eventCtx)
+      return undefined
+    }
     const result = await journalWiringFor(identity).reconcileSession(eventCtx)
     await factsWiringFor(identity).onSettled(sessionId)
+    onSettled?.(sessionId, eventCtx)
     return result
   })
   // Status footer after a successful memory write: shown at most once per session, gated on the
@@ -168,7 +176,10 @@ export function registerMemoryStatic(input: {
           ...(request.conversationIds === undefined ? {} : { conversationIds: request.conversationIds }),
         })
         if (result === null) throw new Error("reflection reservation rejected")
-        if (result.status === "active") runtime.launch(result.run)
+        if (result.status === "active") {
+          runtime.launch(result.run)
+          onReflectionLaunch?.(identity.identity, result.run.runId)
+        }
         return { disposition: result.status === "active" ? "reserved" : "pending", runId: result.run.runId }
       },
     },

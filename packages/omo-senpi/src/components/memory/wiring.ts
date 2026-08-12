@@ -16,6 +16,8 @@ import { createShutdownDrain, type ShutdownDrainInput, type ShutdownEvaluator } 
 import { type SkillsUsageTracker } from "./skills-usage"
 import { createSoulNoticeWiring } from "./soul-notice"
 import { MEMORY_STATUS_KEY, refreshMemoryStatus } from "./status"
+import { createActiveReflectionRuns } from "./status-active-runs"
+import { createMemoryFooterStatusLive } from "./status-live-wiring"
 import {
   consumePendingReflectionCompletions,
   emitReflectionHealthAlert,
@@ -37,7 +39,23 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
   const liveSession: { current?: ReflectionLiveSession } = {}
   const healthAlertOnce = createOncePerSessionGuard()
   const skillsUsageTrackersRef: { current: Map<string, SkillsUsageTracker> } = { current: new Map() }
-  const runtimeWiring = createMemoryRuntimeWiring(options, lastEventCtx, () => liveSession.current)
+  const activeRuns = createActiveReflectionRuns()
+  const footerLive = createMemoryFooterStatusLive({
+    resolveContext: (sessionId) => options.sessions.get(sessionId)?.context,
+    isActive: (identity) => activeRuns.isActive(identity),
+    ...(options.footerTimers === undefined ? {} : { timers: options.footerTimers }),
+  })
+  const runtimeWiring = createMemoryRuntimeWiring(
+    options,
+    lastEventCtx,
+    () => liveSession.current,
+    {
+      onLaunch: (identity, runId) => {
+        activeRuns.start(identity, runId)
+        footerLive.syncActive(activeSession.current, readUi(lastEventCtx.current))
+      },
+    },
+  )
   const { resolveContext, journalWiringFor, factsWiringFor, runtimeFor } = runtimeWiring
 
   const nudgeWiring = createMemoryNudgeWiring({
@@ -151,6 +169,13 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
         lastEventCtx,
         activeSession,
         skillsUsageTrackersRef,
+        onReflectionLaunch: (identity, runId) => {
+          activeRuns.start(identity, runId)
+          footerLive.syncActive(activeSession.current, readUi(lastEventCtx.current))
+        },
+        onSettled: (sessionId, eventCtx) => {
+          void footerLive.refresh(sessionId, readUi(eventCtx))
+        },
       })
     },
 
@@ -186,8 +211,12 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       if (liveSession.current !== undefined) {
         try {
           const completionsDir = join(identity.identityPaths.reflection, "completions")
-          await consumePendingReflectionCompletions(completionsDir, liveSession.current)
+          const consumed = await consumePendingReflectionCompletions(completionsDir, liveSession.current)
+          // A consumed completion is the settle signal: the run behind it is no longer in flight.
+          for (const record of consumed) activeRuns.settle(identity.identity, record.runId)
           await emitReflectionHealthAlert(completionsDir, identity.identity, liveSession.current, healthAlertOnce)
+          footerLive.syncActive(sessionId, ui)
+          await footerLive.refresh(sessionId, ui)
         } catch (error) {
           options.logger?.warn("memory reflection completion drain failed", { error: describe(error) })
         }
@@ -199,6 +228,10 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     },
 
     async onSessionShutdown(input: ShutdownDrainInput): Promise<void> {
+      const identity = options.sessions.get(input.sessionId)?.context
+      if (identity !== undefined) activeRuns.clear(identity.identity)
+      // A leaked interval outlives the session, so the animation stops before the drain runs.
+      footerLive.dispose()
       await shutdownDrain.run(input)
     },
 
@@ -207,6 +240,8 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     },
 
     clearStatus(eventCtx: unknown): void {
+      // Clearing the footer must also kill the animation, or the interval repaints what was cleared.
+      footerLive.stop()
       readUi(eventCtx)?.setStatus(MEMORY_STATUS_KEY, undefined)
     },
   }

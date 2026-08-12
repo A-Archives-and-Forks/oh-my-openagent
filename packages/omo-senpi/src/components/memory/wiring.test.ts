@@ -277,3 +277,50 @@ describe("memory wiring reflection policy", () => {
     expect(evaluations.count).toBe(1)
   })
 })
+
+describe("memory footer live wiring", () => {
+  test("#given a reflection launch during a session #when the session shuts down #then the animation interval is released", async () => {
+    const fixture = await createFixture()
+    const pi = new MemoryFakeExtensionAPI()
+    const statusCalls: Array<{ key: string; text: string | undefined }> = []
+    const handles = new Map<number, () => void>()
+    let nextHandle = 1
+    const timers = {
+      set(callback: () => void) {
+        const handle = nextHandle
+        nextHandle += 1
+        handles.set(handle, callback)
+        return handle
+      },
+      clear(handle: number | ReturnType<typeof setInterval>) {
+        handles.delete(handle as number)
+      },
+    }
+    const wiring = createMemoryWiring({
+      sessions: new Map([[fixture.sessionId, { context: fixture.context, memoryStatusAttempted: false }]]),
+      loadConfig: () => loadedMemoryConfig(memorySettings()),
+      cwd: () => fixture.cwd,
+      env: fixture.env,
+      refreshStatus: fakeRefreshMemoryStatus,
+      footerTimers: timers,
+    })
+    const eventCtx = sessionContext(fixture.sessionId, statusCalls)
+
+    wiring.registerStatic(pi, componentContext())
+    await wiring.afterBind(pi, fixture.sessionId, fixture.context, eventCtx)
+    await wiring.onSessionShutdown({
+      reason: "quit",
+      sessionId: fixture.sessionId,
+      deadlineAt: Date.now() + 1_000,
+      now: () => Date.now(),
+    })
+    wiring.clearStatus(eventCtx)
+    const afterClear = statusCalls.length
+
+    for (const callback of [...handles.values()]) callback()
+
+    expect(handles.size).toBe(0)
+    expect(statusCalls).toHaveLength(afterClear)
+    expect(statusCalls.at(-1)).toEqual({ key: "memory", text: undefined })
+  })
+})

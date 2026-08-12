@@ -31,10 +31,16 @@ export interface MemoryRuntimeWiring {
   dreamSessionFor(eventCtx: unknown): DreamTriggerSession | undefined
 }
 
+export interface MemoryRuntimeWiringHooks {
+  /** Fires at the real launch site so the footer can animate while the run is in flight. */
+  readonly onLaunch?: (identity: string, runId: string) => void
+}
+
 export function createMemoryRuntimeWiring(
   options: MemoryWiringOptions,
   lastEventCtx: { current?: unknown },
   liveSession?: () => ReflectionLiveSession | undefined,
+  hooks: MemoryRuntimeWiringHooks = {},
 ): MemoryRuntimeWiring {
   const runtimes = new Map<string, MemoryIdentityRuntime>()
   const journals = new Map<string, MemoryJournalWiring>()
@@ -128,7 +134,10 @@ export function createMemoryRuntimeWiring(
         evaluate: async (conversationId, event) => {
           lastEventCtx.current = eventCtx
           const result = await runtime.store.evaluate(conversationId, event)
-          if (result?.status === "active") runtime.launch(result.run)
+          if (result?.status === "active") {
+            runtime.launch(result.run)
+            hooks.onLaunch?.(identity.identity, result.run.runId)
+          }
           return result
         },
       },
