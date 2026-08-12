@@ -112,6 +112,7 @@ export function registerMemoryStatic(input: {
         compileWarnTokens: settings?.compile_warn_tokens ?? 30_000,
         alreadyNotified: false,
         checkAdvisory: false,
+        sessionId,
         ...(options.now === undefined ? {} : { now: options.now }),
       })
       state.memoryStatusAttempted = result.footerShown

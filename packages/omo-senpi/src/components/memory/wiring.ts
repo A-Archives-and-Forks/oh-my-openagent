@@ -180,6 +180,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
           ui,
           compileWarnTokens: settings.compile_warn_tokens,
           alreadyNotified: false,
+          sessionId,
         }).catch(() => {})
       }
       if (liveSession.current !== undefined) {
