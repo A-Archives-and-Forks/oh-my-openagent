@@ -39,7 +39,7 @@ describe("checkExtensionCurrent", () => {
     // then (Node's ESM loader strips a shebang only at byte 0; a marker above it breaks startup)
     for (const text of [mcp, supervisor]) {
       expect(text.startsWith("#!/usr/bin/env node\n")).toBe(true)
-      expect(text.indexOf("\n// omo-senpi-build:")).toBeGreaterThan(0)
+      expect(text.indexOf("\n// omo:")).toBeGreaterThan(0)
     }
     // and the freshness round-trip still recognizes the artifacts
     const check = await checkExtensionCurrent({

@@ -218,38 +218,6 @@ function run(command, args) {
   if (result.status !== 0) process.exit(result.status ?? 1)
 }
 
-async function normalizeBuiltinImports(output) {
-  const bundled = await readFile(output, "utf8")
-  // Whitespace-tolerant so minified output (`from"path"`, `import"path"`) normalizes too, not just the
-  // spaced non-minified shape.
-  const normalized = bundled.replace(
-    /(from\s*["']|import\s*\(\s*["']|import\s*["'])([^"']+)(["'])/g,
-    (match, prefix, specifier, suffix) => {
-      if (specifier.startsWith("node:")) return match
-      if (!builtinModuleNames.includes(specifier)) return match
-      return `${prefix}node:${specifier}${suffix}`
-    },
-  ).replace(/^[\t ]+$/gm, "")
-  if (normalized !== bundled) {
-    await writeFile(output, normalized)
-  }
-}
-
-async function attachBuildMarker(output, entry, metafile, buildDefines) {
-  const body = await readFile(output, "utf8")
-  const metadata = JSON.parse(await readFile(metafile, "utf8"))
-  const sourceDigest = await digestBuildSources(metadata, entry, buildDefines)
-  const marker = `${BUILD_MARKER_PREFIX}${sourceDigest}:${digest(body)}`
-  // A leading shebang must stay at byte 0: Node's ESM loader strips it only there, so a marker
-  // prepended above it makes the spawned bundle unstartable (omo-memory-mcp, memory-run-supervisor).
-  const shebang = /^#![^\n]*\n/.exec(body)
-  const text = shebang === null
-    ? `${marker}\n${body}`
-    : `${shebang[0]}${marker}\n${body.slice(shebang[0].length)}`
-  await writeFile(output, text)
-  return Object.keys(metadata.inputs ?? {})
-}
-
 async function digestBuildSources(metadata, entry, buildDefines) {
   const inputs = metadata !== null && typeof metadata === "object" && metadata.inputs !== null
     && typeof metadata.inputs === "object" ? Object.keys(metadata.inputs).sort() : []
@@ -263,34 +231,6 @@ async function digestBuildSources(metadata, entry, buildDefines) {
   }
   hash.update(await readFile(fileURLToPath(import.meta.url)))
   return hash.digest("hex")
-}
-
-export function toPortableBuildPath(path) {
-  return path.replaceAll("\\", "/")
-}
-
-function artifactsMatch(currentText, expectedText) {
-  const current = parseBuildArtifact(currentText)
-  const expected = parseBuildArtifact(expectedText)
-  return current !== undefined && expected !== undefined
-    && current.sourceDigest === expected.sourceDigest
-    && current.bodyDigest === digest(current.body)
-}
-
-function parseBuildArtifact(text) {
-  // The marker follows the shebang on executable bundles (see attachBuildMarker).
-  const offset = text.startsWith("#!") ? text.indexOf("\n") + 1 : 0
-  const marked = text.slice(offset)
-  const newline = marked.indexOf("\n")
-  if (newline < 0) return undefined
-  const match = /^\/\/ omo-senpi-build:([a-f0-9]{64}):([a-f0-9]{64})$/.exec(marked.slice(0, newline))
-  if (match === null) return undefined
-  // The digest body is the full bundle bytes (shebang included), matching attachBuildMarker.
-  return { sourceDigest: match[1], bodyDigest: match[2], body: text.slice(0, offset) + marked.slice(newline + 1) }
-}
-
-function digest(value) {
-  return createHash("sha256").update(value).digest("hex")
 }
 
 function isErrno(error, code) {
