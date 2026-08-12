@@ -133,7 +133,9 @@ describe("GitPathStateStore", () => {
     await repo.pathState.writeWorktree("nested/a b.md", identity)
     await repo.pathState.writeWorktree("nested/a b.md", identity)
     expect(await readFile(join(dir, "nested/a b.md"), "utf8")).toBe("materialized\n")
-    expect((await lstat(join(dir, "nested/a b.md"))).mode & 0o777).toBe(0o640)
+    // The exact mode round-trips on POSIX; Windows applies a umask, so 0o640 can surface as 0o666
+    // there and this assertion is POSIX-scoped rather than asserting semantics the platform lacks.
+    if (process.platform !== "win32") expect((await lstat(join(dir, "nested/a b.md"))).mode & 0o777).toBe(0o640)
 
     await repo.pathState.removeWorktree("nested/a b.md")
     await repo.pathState.removeWorktree("nested/a b.md")
