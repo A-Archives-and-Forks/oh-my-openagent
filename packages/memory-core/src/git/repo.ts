@@ -198,6 +198,9 @@ export class GitMemoryRepo {
     if ((await this.configGet("commit.gpgsign")) === null) {
       await this.configSet("commit.gpgsign", "false")
     }
+    if ((await this.configGet("gc.auto")) === null) {
+      await this.configSet("gc.auto", "0")
+    }
   }
 
   private async stage(paths: readonly string[]): Promise<void> {

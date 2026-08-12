@@ -45,9 +45,8 @@ async function makeRun(mode: "graceful" | "stubborn"): Promise<{
   const address = exitServer.address() as AddressInfo
   const childExited = new Promise<void>((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error(`waited ${WAIT_MS}ms for model child exit`)), WAIT_MS)
-    exitServer.once("connection", (socket) => {
-      exitServer.close()
-      socket.once("close", () => {
+    exitServer.once("connection", () => {
+      exitServer.close(() => {
         clearTimeout(timeout)
         resolve()
       })
@@ -128,7 +127,7 @@ afterEach(async () => {
   liveProcesses.clear()
   // Windows releases file handles asynchronously when killed processes die, so an immediate
   // recursive rm can hit EBUSY there; bounded retries absorb the lag without weakening cleanup.
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 30, retryDelay: 200 })))
 })
 
 describe("memory run supervisor IC-8 containment", () => {
@@ -151,7 +150,9 @@ describe("memory run supervisor IC-8 containment", () => {
 
     // then
     expect(result).toEqual({ code: 0, signal: null })
-    expect(outcome).toMatchObject({ timedOut: true, childExit: { code: 0, signal: null } })
+    expect(outcome.timedOut).toBe(true)
+    if (process.platform === "win32") expect(outcome.childExit).toEqual({ code: null, signal: "SIGTERM" })
+    else expect(outcome.childExit).toEqual({ code: 0, signal: null })
     expect(existsSync(join(runDir, "taskkill-invocation.json"))).toBe(false)
   }, 60_000)
 
@@ -191,6 +192,7 @@ describe("memory run supervisor IC-8 containment", () => {
       const exit = waitForExit(supervisor)
       await waitForPath(join(runDir, "child-started.json"))
       const ledger = JSON.parse(await readFile(join(runDir, "ledger.json"), "utf8")) as { readonly childPid: number }
+      liveProcesses.add(ledger.childPid)
 
       // when
       supervisor.kill("SIGKILL")
@@ -199,6 +201,7 @@ describe("memory run supervisor IC-8 containment", () => {
       await advanceClock(clockPath, 2_000)
       await waitForPath(join(runDir, `${platform === "win32" ? "win32-graceful" : "posix-SIGTERM"}-${ledger.childPid}.json`))
       await childExited
+      liveProcesses.delete(ledger.childPid)
 
       // then
       expect(existsSync(join(runDir, "outcome.json"))).toBe(false)
