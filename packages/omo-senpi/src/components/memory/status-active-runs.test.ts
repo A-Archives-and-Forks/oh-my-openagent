@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test"
 
-import { createActiveReflectionRuns } from "./status-active-runs"
+import { createActiveReflectionRuns, type ActiveReflectionRunDetails } from "./status-active-runs"
+
+const details: ActiveReflectionRunDetails = {
+  trigger: "step_count",
+  category: "quick",
+  startedAt: "2026-08-12T00:00:00.000Z",
+}
 
 describe("active reflection runs", () => {
   test("#given no launches #when activity is queried #then the identity is idle", () => {
@@ -12,7 +18,7 @@ describe("active reflection runs", () => {
   test("#given a launched run #when activity is queried #then the identity is active", () => {
     const runs = createActiveReflectionRuns()
 
-    runs.start("agent-test", "run-1")
+    runs.start("agent-test", "run-1", details)
 
     expect(runs.isActive("agent-test")).toBe(true)
   })
@@ -20,7 +26,7 @@ describe("active reflection runs", () => {
   test("#given a launched run #when the run settles #then the identity returns to idle", () => {
     const runs = createActiveReflectionRuns()
 
-    runs.start("agent-test", "run-1")
+    runs.start("agent-test", "run-1", details)
     runs.settle("agent-test", "run-1")
 
     expect(runs.isActive("agent-test")).toBe(false)
@@ -29,8 +35,8 @@ describe("active reflection runs", () => {
   test("#given two concurrent runs #when only one settles #then the identity stays active", () => {
     const runs = createActiveReflectionRuns()
 
-    runs.start("agent-test", "run-1")
-    runs.start("agent-test", "run-2")
+    runs.start("agent-test", "run-1", details)
+    runs.start("agent-test", "run-2", details)
     runs.settle("agent-test", "run-1")
 
     expect(runs.isActive("agent-test")).toBe(true)
@@ -42,8 +48,8 @@ describe("active reflection runs", () => {
   test("#given runs on separate identities #when one settles #then the other is unaffected", () => {
     const runs = createActiveReflectionRuns()
 
-    runs.start("agent-a", "run-1")
-    runs.start("agent-b", "run-2")
+    runs.start("agent-a", "run-1", details)
+    runs.start("agent-b", "run-2", details)
     runs.settle("agent-a", "run-1")
 
     expect(runs.isActive("agent-a")).toBe(false)
@@ -53,8 +59,8 @@ describe("active reflection runs", () => {
   test("#given a duplicate launch of the same run id #when it settles once #then the identity is idle", () => {
     const runs = createActiveReflectionRuns()
 
-    runs.start("agent-test", "run-1")
-    runs.start("agent-test", "run-1")
+    runs.start("agent-test", "run-1", details)
+    runs.start("agent-test", "run-1", details)
     runs.settle("agent-test", "run-1")
 
     expect(runs.isActive("agent-test")).toBe(false)
@@ -68,11 +74,28 @@ describe("active reflection runs", () => {
     expect(runs.isActive("agent-test")).toBe(false)
   })
 
+  test("#given a launched run #when the current run is queried #then its launch facts are returned", () => {
+    const runs = createActiveReflectionRuns()
+
+    runs.start("agent-test", "run-1", details)
+
+    expect(runs.current("agent-test")).toEqual({ runId: "run-1", ...details })
+  })
+
+  test("#given no launched run #when the current run is queried #then nothing is reported", () => {
+    const runs = createActiveReflectionRuns()
+
+    runs.start("agent-test", "run-1", details)
+    runs.settle("agent-test", "run-1")
+
+    expect(runs.current("agent-test")).toBeUndefined()
+  })
+
   test("#given active runs #when the identity is cleared for shutdown #then it reports idle", () => {
     const runs = createActiveReflectionRuns()
 
-    runs.start("agent-test", "run-1")
-    runs.start("agent-test", "run-2")
+    runs.start("agent-test", "run-1", details)
+    runs.start("agent-test", "run-2", details)
     runs.clear("agent-test")
 
     expect(runs.isActive("agent-test")).toBe(false)

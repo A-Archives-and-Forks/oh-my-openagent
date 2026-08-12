@@ -1,7 +1,7 @@
 import { homedir } from "node:os"
 import { join } from "node:path"
 
-import { consumeSoulNoticeDelta, type MemoryBlockCache } from "@oh-my-opencode/memory-core"
+import { consumeSoulNoticeDelta, type MemoryBlockCache, type ReservedRun } from "@oh-my-opencode/memory-core"
 
 import type { ComponentContext, SenpiExtensionAPI } from "../../extension/types"
 import { hasMemoryCapabilities } from "./capabilities"
@@ -46,15 +46,17 @@ export function registerMemoryStatic(input: {
   readonly activeSession: { current?: string }
   readonly skillsUsageTrackersRef: { current: Map<string, SkillsUsageTracker> }
   /** Fires at the manual reflection launch site so the footer animates while the run is in flight. */
-  readonly onReflectionLaunch?: (identity: string, runId: string) => void
+  readonly onReflectionLaunch?: (identity: string, run: ReservedRun) => void | Promise<void>
   /** Fires after each settle so the footer can refresh its segments behind the fingerprint gate. */
-  readonly onSettled?: (sessionId: string, eventCtx: unknown) => void
+  readonly onSettled?: (sessionId: string, eventCtx: unknown) => void | Promise<void>
+  /** Fires after every successful memory write, independent of the once-only footer latch. */
+  readonly onMemoryWrite?: (sessionId: string) => void | Promise<void>
 }): void {
   const {
     pi, ctx, options, promptCache, nudgeWiring, soulNoticeWiring, dreamTriggerWiring,
     completionApi, resolveContext, journalWiringFor, factsWiringFor, runtimeFor,
     triggerSessionFor, resolvePalacePeople, loadCommandSettings, lastEventCtx,
-    activeSession, skillsUsageTrackersRef, onReflectionLaunch, onSettled,
+    activeSession, skillsUsageTrackersRef, onReflectionLaunch, onSettled, onMemoryWrite,
   } = input
   const api = completionApi(pi)
   if (api !== undefined) registerReflectionCompletionRenderer(api)
@@ -92,12 +94,12 @@ export function registerMemoryStatic(input: {
     if (identity === undefined) return undefined
     activeSession.current = sessionId
     if (branchEntryCount(eventCtx) === 0) {
-      onSettled?.(sessionId, eventCtx)
+      await onSettled?.(sessionId, eventCtx)
       return undefined
     }
     const result = await journalWiringFor(identity).reconcileSession(eventCtx)
     await factsWiringFor(identity).onSettled(sessionId)
-    onSettled?.(sessionId, eventCtx)
+    await onSettled?.(sessionId, eventCtx)
     return result
   })
   // Status footer after a successful memory write: shown at most once per session, gated on the
@@ -108,7 +110,10 @@ export function registerMemoryStatic(input: {
     const sessionId = sessionIdFrom(eventCtx)
     if (sessionId === undefined) return
     const state = options.sessions.get(sessionId)
-    if (state?.context === undefined || state.memoryStatusAttempted === true) return
+    if (state?.context === undefined) return
+    // The rpc snapshot follows every successful write; only the footer honors the once-only latch.
+    await onMemoryWrite?.(sessionId)
+    if (state.memoryStatusAttempted === true) return
     const ui = readUi(eventCtx)
     if (ui === undefined) return
     state.memoryStatusAttempted = true
@@ -178,7 +183,7 @@ export function registerMemoryStatic(input: {
         if (result === null) throw new Error("reflection reservation rejected")
         if (result.status === "active") {
           runtime.launch(result.run)
-          onReflectionLaunch?.(identity.identity, result.run.runId)
+          await onReflectionLaunch?.(identity.identity, result.run)
         }
         return { disposition: result.status === "active" ? "reserved" : "pending", runId: result.run.runId }
       },

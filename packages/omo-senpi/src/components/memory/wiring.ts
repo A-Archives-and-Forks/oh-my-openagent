@@ -1,6 +1,6 @@
 import { join } from "node:path"
 
-import { MemoryBlockCache } from "@oh-my-opencode/memory-core"
+import { MemoryBlockCache, type ReservedRun } from "@oh-my-opencode/memory-core"
 
 import { createOncePerSessionGuard } from "../task/usage-guidance"
 
@@ -12,7 +12,9 @@ import { resolveMemorySettings } from "./identity-runtime"
 import { createMemoryNudgeWiring } from "./nudge-wiring"
 import type { PalacePeopleOptions } from "./palace/people"
 import { registerMemoryFilesystemPolicy } from "./policy-guard"
+import { createMemoryRpcBridge, type MemoryRpcBridge } from "./memory-rpc-bridge"
 import { createShutdownDrain, type ShutdownDrainInput, type ShutdownEvaluator } from "./shutdown-drain"
+import { resolveAgentReflectionSettings } from "./reflection-settings"
 import { type SkillsUsageTracker } from "./skills-usage"
 import { createSoulNoticeWiring } from "./soul-notice"
 import { MEMORY_STATUS_KEY, refreshMemoryStatus } from "./status"
@@ -40,21 +42,37 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
   const healthAlertOnce = createOncePerSessionGuard()
   const skillsUsageTrackersRef: { current: Map<string, SkillsUsageTracker> } = { current: new Map() }
   const activeRuns = createActiveReflectionRuns()
+  // The bridge needs the host API, which only arrives at registration; absent means no rpc surface.
+  const rpcBridge: { current?: MemoryRpcBridge } = {}
   const footerLive = createMemoryFooterStatusLive({
     resolveContext: (sessionId) => options.sessions.get(sessionId)?.context,
     isActive: (identity) => activeRuns.isActive(identity),
     ...(options.footerTimers === undefined ? {} : { timers: options.footerTimers }),
   })
+  /** Records the launched run and refreshes both live surfaces behind their own change gates. */
+  async function onReflectionLaunched(identity: string, run: ReservedRun): Promise<void> {
+    activeRuns.start(identity, run.runId, launchDetails(identity, run))
+    footerLive.syncActive(activeSession.current, readUi(lastEventCtx.current))
+    await rpcBridge.current?.sync()
+  }
+
+  /**
+   * Launch-time facts only. The concrete model is chosen inside the reflection child, so the
+   * snapshot reports the configured category and leaves `model` absent rather than guessing.
+   */
+  function launchDetails(identity: string, run: ReservedRun) {
+    const settings = resolveMemorySettings(options.loadConfig({ cwd: options.cwd() }).config.memory)
+    return {
+      trigger: run.request.trigger,
+      category: resolveAgentReflectionSettings(settings, identity).category,
+      startedAt: run.reservedAt ?? new Date((options.now ?? Date.now)()).toISOString(),
+    }
+  }
   const runtimeWiring = createMemoryRuntimeWiring(
     options,
     lastEventCtx,
     () => liveSession.current,
-    {
-      onLaunch: (identity, runId) => {
-        activeRuns.start(identity, runId)
-        footerLive.syncActive(activeSession.current, readUi(lastEventCtx.current))
-      },
-    },
+    { onLaunch: onReflectionLaunched },
   )
   const { resolveContext, journalWiringFor, factsWiringFor, runtimeFor } = runtimeWiring
 
@@ -150,6 +168,10 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
 
   return {
     registerStatic(pi: SenpiExtensionAPI, ctx: ComponentContext): void {
+      rpcBridge.current = createMemoryRpcBridge(pi, {
+        resolveContext,
+        activeRun: (identity) => activeRuns.current(identity),
+      })
       registerMemoryStatic({
         pi,
         ctx,
@@ -169,12 +191,14 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
         lastEventCtx,
         activeSession,
         skillsUsageTrackersRef,
-        onReflectionLaunch: (identity, runId) => {
-          activeRuns.start(identity, runId)
-          footerLive.syncActive(activeSession.current, readUi(lastEventCtx.current))
-        },
-        onSettled: (sessionId, eventCtx) => {
+        onReflectionLaunch: onReflectionLaunched,
+        onSettled: async (sessionId, eventCtx) => {
+          // The footer stays fire-and-forget; only the rpc snapshot is awaited by the caller.
           void footerLive.refresh(sessionId, readUi(eventCtx))
+          await rpcBridge.current?.sync()
+        },
+        onMemoryWrite: async () => {
+          await rpcBridge.current?.sync()
         },
       })
     },
@@ -182,6 +206,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     async afterBind(pi: SenpiExtensionAPI, sessionId: string, identity: MemoryIdentityContext, eventCtx: unknown): Promise<void> {
       activeSession.current = sessionId
       lastEventCtx.current = eventCtx
+      rpcBridge.current?.attach(sessionId)
       registerMemoryFilesystemPolicy(pi, identity)
       await runtimeFor(identity).reconcile()
       if (branchEntryCount(eventCtx) > 0) {
@@ -221,6 +246,8 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
           options.logger?.warn("memory reflection completion drain failed", { error: describe(error) })
         }
       }
+      // Published last so the bind snapshot reflects the drained backlog, not the pre-drain state.
+      await rpcBridge.current?.sync()
     },
 
     async flushSkillsUsage(): Promise<void> {
@@ -232,6 +259,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       if (identity !== undefined) activeRuns.clear(identity.identity)
       // A leaked interval outlives the session, so the animation stops before the drain runs.
       footerLive.dispose()
+      rpcBridge.current?.detach()
       await shutdownDrain.run(input)
     },
 

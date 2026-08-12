@@ -1,6 +1,6 @@
 import { join } from "node:path"
 
-import { TranscriptJournal, sanitizeToSlug } from "@oh-my-opencode/memory-core"
+import { TranscriptJournal, sanitizeToSlug, type ReservedRun } from "@oh-my-opencode/memory-core"
 
 import type { MemoryIdentityContext } from "./context"
 import type { DreamTriggerSession } from "./dream-trigger"
@@ -33,7 +33,7 @@ export interface MemoryRuntimeWiring {
 
 export interface MemoryRuntimeWiringHooks {
   /** Fires at the real launch site so the footer can animate while the run is in flight. */
-  readonly onLaunch?: (identity: string, runId: string) => void
+  readonly onLaunch?: (identity: string, run: ReservedRun) => void | Promise<void>
 }
 
 export function createMemoryRuntimeWiring(
@@ -136,7 +136,7 @@ export function createMemoryRuntimeWiring(
           const result = await runtime.store.evaluate(conversationId, event)
           if (result?.status === "active") {
             runtime.launch(result.run)
-            hooks.onLaunch?.(identity.identity, result.run.runId)
+            await hooks.onLaunch?.(identity.identity, result.run)
           }
           return result
         },
