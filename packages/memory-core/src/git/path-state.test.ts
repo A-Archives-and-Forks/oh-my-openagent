@@ -63,7 +63,11 @@ describe("GitPathStateStore", () => {
     expect(bothDirty.worktree).not.toEqual(worktreeDirty.worktree)
   })
 
-  it("captures and restores executable modes", async () => {
+  // Windows has no POSIX executable bit and git reports core.filemode=false there, so a chmod-only
+  // change is not a diff at all: the commit correctly raises NoEffectiveChangesError. The behaviour
+  // under test is real but POSIX-only, matching the repo's existing skipIf convention for
+  // platform-specific process and filesystem semantics.
+  it.skipIf(process.platform === "win32")("captures and restores executable modes", async () => {
     const { dir, repo } = await fixture([{ relativePath: "script.sh", content: "#!/bin/sh\n" }])
     await chmod(join(dir, "script.sh"), 0o755)
     await repo.commitWrite(["script.sh"], "make executable", AUTHOR)
