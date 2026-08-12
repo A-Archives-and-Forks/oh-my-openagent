@@ -117,7 +117,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
       const env = this.options.env ?? process.env
       const launch = this.options.senpiCommand === undefined
         ? resolveSenpiLaunch(env)
-        : { command: this.options.senpiCommand, prefixArgs: [] }
+        : { command: this.options.senpiCommand, prefixArgs: this.options.senpiPrefixArgs ?? [] }
       const preflight = await preflightMemoryModels({
         candidates,
         launch,
