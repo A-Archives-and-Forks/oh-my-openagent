@@ -2,6 +2,8 @@ import { watch } from "node:fs"
 import { mkdir, readdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
+const FILESYSTEM_RECHECK_INTERVAL_MS = 25
+
 export async function waitForFilesystemState<T>(
   directory: string,
   probe: () => T | undefined | Promise<T | undefined>,
@@ -13,6 +15,7 @@ export async function waitForFilesystemState<T>(
   return await new Promise<T>((resolve, reject) => {
     let settled = false
     let checking = false
+    let pending = false
     const timeout = setTimeout(() => finish(new Error(`waited ${timeoutMs}ms for ${description}`)), timeoutMs)
     const watcher = watch(directory, () => { void check() })
     const finish = (error?: Error, value?: T) => {
@@ -20,21 +23,38 @@ export async function waitForFilesystemState<T>(
       settled = true
       clearTimeout(timeout)
       watcher.close()
+      clearInterval(recheck)
       if (error !== undefined) reject(error)
       else resolve(value as T)
     }
+    // An event arriving while a probe is in flight used to be dropped outright, and the state this
+    // waits for is usually the last thing written to the directory - so that dropped event was
+    // never followed by another and the wait hung until its ceiling. Recording the event and
+    // re-probing after the in-flight one settles keeps every notification meaningful, and the
+    // interval re-read makes arrival depend on the state itself rather than on event delivery.
     const check = async () => {
-      if (settled || checking) return
+      if (settled) return
+      if (checking) {
+        pending = true
+        return
+      }
       checking = true
       try {
-        const value = await probe()
-        if (value !== undefined) finish(undefined, value)
+        do {
+          pending = false
+          const value = await probe()
+          if (value !== undefined) {
+            finish(undefined, value)
+            return
+          }
+        } while (pending)
       } catch (error) {
         finish(error instanceof Error ? error : new Error(String(error)))
       } finally {
         checking = false
       }
     }
+    const recheck = setInterval(() => { void check() }, FILESYSTEM_RECHECK_INTERVAL_MS)
     void check()
   })
 }
