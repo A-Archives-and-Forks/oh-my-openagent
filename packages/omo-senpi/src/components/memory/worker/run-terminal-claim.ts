@@ -201,6 +201,8 @@ function syncDirectory(path: string): void {
   }
   try {
     fsyncSync(directory)
+  } catch (error) {
+    if (process.platform !== "win32" || !["EPERM", "EACCES", "EINVAL"].includes(errorCode(error) ?? "")) throw error
   } finally {
     closeSync(directory)
   }
