@@ -146,8 +146,9 @@ describe("omo launcher", () => {
 
       test("#then launcher environment points to existing hoisted shims", () => {
         const fixture = createFixture({ hoisted: true })
+        const home = join(fixture.root, "home")
         mkdirSync(join(fixture.packageRoot, "node_modules"), { recursive: true })
-        const result = run(fixture, ["say", "hi"], { OMO_BIN: "/must/not/leak" })
+        const result = run(fixture, ["say", "hi"], { HOME: home, OMO_BIN: "/must/not/leak" })
         const environment = capture(fixture).env
         expect(result.status).toBe(0)
         expect(environment.SENPI_BIN).toBe(fixture.shimPath)
@@ -158,6 +159,7 @@ describe("omo launcher", () => {
         expect(realpathSync.native(binDir ?? "")).toBe(realpathSync.native(dirname(fixture.shimPath ?? "")))
         expect(existsSync(binDir ?? "")).toBe(true)
         expect(environment.OMO_AGENT_TOOLKIT_BIN).toBe(join(fixture.packageRoot, "bin", "omo-agent-toolkit.js"))
+        expect(environment.SENPI_CODING_AGENT_DIR).toBe(join(home, ".omo", "agent"))
         // An inherited value must never survive; it is replaced by this launcher's own entry so
         // anything resolving the product by name re-enters here instead of the bare engine.
         // Windows reports this path in its long form while the fixture root may be the 8.3 short
