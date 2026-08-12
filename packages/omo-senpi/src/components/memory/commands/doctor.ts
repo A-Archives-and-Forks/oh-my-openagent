@@ -10,6 +10,7 @@ import {
   checkFrontmatter,
   checkLocks,
   checkRepository,
+  checkReflectionHealth,
   checkSoulSeed,
   checkTokens,
   checkWorktrees,
@@ -52,6 +53,7 @@ export function registerDoctorCommand(pi: SenpiExtensionAPI, deps: MemoryCommand
           await checkLocks(deps, identity.identityPaths.locks),
           await checkWorktrees(deps, identity),
           await checkAbandonedRuns(identity.identityPaths.reflection),
+          await checkReflectionHealth(identity.identityPaths.reflection),
           await checkTokens(repoDir, warnTokens),
         )
 

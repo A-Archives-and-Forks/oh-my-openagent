@@ -1,4 +1,4 @@
-import type { MemoryIdentity, ReflectionOutcome, ReservedRun } from "@oh-my-opencode/memory-core"
+import type { MemoryIdentity, ReflectionOutcome, ReflectionTranscriptState, ReservedRun } from "@oh-my-opencode/memory-core"
 import type { SenpiModelPort, SenpiModelRegistryPort } from "@oh-my-opencode/senpi-task"
 
 import type { SenpiOmoConfigResult } from "../../config-resolution"
@@ -39,6 +39,7 @@ export interface SenpiSubprocessRunnerOptions {
   readonly maxOutputBytes?: number
   readonly sandbox?: ReflectionSandbox
   readonly liveSession?: () => ReflectionLiveSession | undefined
+  readonly getTranscriptState?: (conversationId: string) => Promise<ReflectionTranscriptState>
   readonly now?: () => Date
   readonly senpiCommand?: string
   readonly supervisorPath?: string

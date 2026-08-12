@@ -9,6 +9,7 @@ import { join } from "node:path"
 
 import { V1_PERSONA_SEED_SHA256, parseLockRecord, parseMemoryFile } from "@oh-my-opencode/memory-core"
 
+import { readReflectionHealth, reflectionRemediation } from "../worker"
 import { runGit } from "./repo"
 import { estimateSystemTokens } from "./tokens"
 import { defaultIsProcessAlive, type MemoryCommandDeps, type MemoryCommandIdentity } from "./types"
@@ -197,6 +198,25 @@ export async function checkAbandonedRuns(reflectionDir: string): Promise<DoctorC
     name: "abandoned-runs",
     level: "warn",
     detail: `${abandoned.length} run${abandoned.length === 1 ? "" : "s"} need manual disposal: ${abandoned.join("; ")}`,
+  }
+}
+
+export async function checkReflectionHealth(reflectionDir: string): Promise<DoctorCheck> {
+  const health = await readReflectionHealth(join(reflectionDir, "completions"))
+  const lastSuccess = health.lastSuccessAt ?? "never"
+  if (health.streak === 0 && health.pendingCount === 0) {
+    return {
+      name: "reflection-health",
+      level: "ok",
+      detail: `streak 0; pending 0; last success ${lastSuccess}`,
+    }
+  }
+  const failure = health.lastFailure
+  const hint = reflectionRemediation(failure?.reason, failure?.detail)
+  return {
+    name: "reflection-health",
+    level: health.streak >= 3 ? "warn" : "ok",
+    detail: `streak ${health.streak}; fingerprint ${health.fingerprint || "none"}; pending ${health.pendingCount}; last success ${lastSuccess}; ${hint}`,
   }
 }
 

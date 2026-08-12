@@ -183,6 +183,38 @@ describe("/doctor", () => {
     expect(text).toContain("[ok] locks")
   })
 
+  test("#given repeated model-not-found reflection failures #when doctor runs #then reflection health and remediation are reported", async () => {
+    // given
+    const { identity, pi, ctx } = await harness()
+    const completions = join(identity.identityPaths.reflection, "completions")
+    await mkdir(completions, { recursive: true })
+    for (let index = 0; index < 3; index += 1) {
+      await writeFile(join(completions, `run-${index}.json`), `${JSON.stringify({
+        schemaVersion: 1,
+        runId: `run-${index}`,
+        identity: identity.identity,
+        category: "quick",
+        conversationIds: ["past-session"],
+        trigger: "manual",
+        outcome: "failed",
+        reason: "model-not-found",
+        detail: "configured model unavailable",
+        startedAt: `2026-08-12T0${index}:00:00.000Z`,
+        finishedAt: `2026-08-12T0${index}:01:00.000Z`,
+        delivery: { status: index === 2 ? "pending" : "consumed" },
+      })}\n`)
+    }
+
+    // when
+    const text = await invoke(pi, "doctor", "", ctx)
+
+    // then
+    expect(text).toContain("[warn] reflection-health")
+    expect(text).toContain("streak 3")
+    expect(text).toContain("pending 1")
+    expect(text).toContain("adjust memory.reflection category/model in your omo config")
+  })
+
   test("#given an abandoned reservation run #when doctor runs #then manual-disposal paths are reported", async () => {
     // given
     const { identity, pi, ctx } = await harness()
