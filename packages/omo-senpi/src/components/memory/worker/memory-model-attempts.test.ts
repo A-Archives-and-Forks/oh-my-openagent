@@ -38,6 +38,23 @@ describe("runMemoryModelAttempts", () => {
     expect(result.child.code).toBe(0)
   })
 
+  test("#given a missing API key startup error #when a fallback exists #then it retries the fallback", async () => {
+    // given
+    const attempted: string[] = []
+
+    // when
+    const result = await runMemoryModelAttempts(candidates, async (candidate) => {
+      attempted.push(candidate.model)
+      return candidate.model === "extension-only/primary"
+        ? child({ stderr: "No API key found for extension-only" })
+        : child({ code: 0 })
+    })
+
+    // then
+    expect(attempted).toEqual(["extension-only/primary", "builtin/fallback"])
+    expect(result.candidate.model).toBe("builtin/fallback")
+  })
+
   test("#given a generic child failure #when a fallback exists #then it does not retry", async () => {
     // given
     const attempted: string[] = []
