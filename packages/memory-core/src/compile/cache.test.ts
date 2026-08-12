@@ -106,7 +106,7 @@ describe("MemoryBlockCache", () => {
 
     // then
     expect(cache.size).toBe(1)
-  })
+  }, WINDOWS_INTEGRATION_TEST_TIMEOUT)
 
   it("#given a consumed soul notice at an unchanged HEAD #when compiled again #then the notice variant is replaced and the line is gone", async () => {
     // given

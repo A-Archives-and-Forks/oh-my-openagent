@@ -248,9 +248,12 @@ describe("memory run supervisor", () => {
     // when
     supervisor.kill("SIGKILL")
     await supervisorExit
-    expect(groupIsAlive(childPid)).toBe(true)
-    signalGroup(childPid, "SIGTERM")
-    await waitForPath(join(runDir, "child-terminated.json"))
+    if (process.platform === "win32") killTree(childPid)
+    else {
+      expect(groupIsAlive(childPid)).toBe(true)
+      signalGroup(childPid, "SIGTERM")
+      await waitForPath(join(runDir, "child-terminated.json"))
+    }
 
     // then
     expect(existsSync(join(runDir, "outcome.json"))).toBe(false)

@@ -131,9 +131,9 @@ describe("run terminal precedence", () => {
     const supervisorExit = waitForExit(supervisor)
     await waitForFilesystemState(
       item.runDir,
-      () => existsSync(join(item.runDir, "child-finished.json")) ? true : undefined,
+      () => existsSync(join(item.runDir, "publishing.json")) ? true : undefined,
       30_000,
-      "exact child-finished marker",
+      "outcome publication claim",
     )
     releaseStateRead()
 
