@@ -56,6 +56,14 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     await rpcBridge.current?.sync()
   }
 
+  async function onLiveReflectionCompleted(identity: string, runId: string): Promise<void> {
+    activeRuns.settle(identity, runId)
+    const ui = readUi(lastEventCtx.current)
+    footerLive.syncActive(activeSession.current, ui)
+    await footerLive.refresh(activeSession.current, ui)
+    await rpcBridge.current?.sync()
+  }
+
   /**
    * Launch-time facts only. The concrete model is chosen inside the reflection child, so the
    * snapshot reports the configured category and leaves `model` absent rather than guessing.
@@ -72,7 +80,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     options,
     lastEventCtx,
     () => liveSession.current,
-    { onLaunch: onReflectionLaunched },
+    { onLaunch: onReflectionLaunched, onLiveCompletion: onLiveReflectionCompleted },
   )
   const { resolveContext, journalWiringFor, factsWiringFor, runtimeFor } = runtimeWiring
 
