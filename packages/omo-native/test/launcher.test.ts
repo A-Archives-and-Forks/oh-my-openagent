@@ -121,6 +121,13 @@ function capture(fixture: Fixture): { argv: string[]; env: NodeJS.ProcessEnv; ta
   return JSON.parse(readFileSync(fixture.captureFile, "utf8"))
 }
 
+function expectedBunUpdateCommand(packageRoot: string): string {
+  const quotedRoot = process.platform === "win32"
+    ? `"${packageRoot.replaceAll("\\", "/")}"`
+    : `'${packageRoot.replaceAll("'", "'\\''")}'`
+  return `omo is updated via bun: bun add --cwd ${quotedRoot} -g omo-ai@beta`
+}
+
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
@@ -273,21 +280,16 @@ describe("omo launcher", () => {
         const result = run(fixture, ["update"])
 
         expect(result.status).toBe(0)
-        expect(result.stdout.trim()).toBe(
-          `omo is updated via bun: bun add --cwd '${fixture.packageRoot}' -g omo-ai@beta`,
-        )
+        expect(result.stdout.trim()).toBe(expectedBunUpdateCommand(fixture.packageRoot))
         expect(existsSync(fixture.captureFile)).toBe(false)
       })
 
-      test("#then a Bun path with POSIX metacharacters is single-quoted", () => {
+      test("#then a Bun path with shell metacharacters is quoted for the host", () => {
         const fixture = createFixture({ installLayout: "bun-posix-special" })
         const result = run(fixture, ["update"])
-        const quotedRoot = `'${fixture.packageRoot.replaceAll("'", "'\\''")}'`
 
         expect(result.status).toBe(0)
-        expect(result.stdout.trim()).toBe(
-          `omo is updated via bun: bun add --cwd ${quotedRoot} -g omo-ai@beta`,
-        )
+        expect(result.stdout.trim()).toBe(expectedBunUpdateCommand(fixture.packageRoot))
       })
 
       test("#then a Windows-style Bun path uses shell-compatible forward slashes", () => {
