@@ -143,6 +143,7 @@ export async function readReflectionCompletion(
 
 export async function consumePendingReflectionCompletions(
   completionsDir: string,
+  identity: string,
   live: ReflectionLiveSession,
 ): Promise<readonly ReflectionCompletionRecord[]> {
   let names: string[]
@@ -156,7 +157,7 @@ export async function consumePendingReflectionCompletions(
   const pending: ReflectionCompletionRecord[] = []
   for (const name of names) {
     const record = await readRecord(join(completionsDir, name))
-    if (record?.delivery.status === "pending") pending.push(record)
+    if (record?.identity === identity && record.delivery.status === "pending") pending.push(record)
   }
   pending.sort((left, right) => Date.parse(right.finishedAt) - Date.parse(left.finishedAt))
 
