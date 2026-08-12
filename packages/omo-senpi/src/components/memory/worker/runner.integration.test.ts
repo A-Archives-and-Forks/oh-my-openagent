@@ -208,6 +208,21 @@ describe("SenpiSubprocessRunner integration", () => {
     await assertWorktreesClean(item)
   }, 30_000)
 
+  test("#given every child-visible candidate misses its model or auth #when the chain is exhausted #then the failed outcome fingerprints every attempted cause", async () => {
+    // given
+    const item = await harness({ childMode: "model-exhausted" })
+
+    // when
+    const result = await item.runner.launch(item.run)
+
+    // then
+    expect(result).toMatchObject({ outcome: "failed", reason: "spawn_failed" })
+    expect(result.detail).toContain("model_not_visible:extension-only/primary")
+    expect(result.detail).toContain("auth_missing:kimi-coding")
+    expect(result.detail).toContain("attempted:extension-only/primary,kimi-coding/fallback")
+    expect(item.spawnCalls).toHaveLength(2)
+  }, 30_000)
+
   test("#given empty categories and no quick model #when launched twice in one session #then both fail without spawning and only one unsuppressed warning appears", async () => {
     // given
     const item = await harness({ childMode: "commit", categoryAvailable: false })
