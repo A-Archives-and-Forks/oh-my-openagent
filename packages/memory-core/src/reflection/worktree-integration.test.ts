@@ -14,6 +14,7 @@ import {
 import { createReflectionWorktree, type ReflectionWorktree } from "./worktree"
 
 const roots: string[] = []
+const WINDOWS_INTEGRATION_TEST_TIMEOUT = process.platform === "win32" ? 20_000 : 5_000
 const exec = createNodeGitExec()
 const unlocked = <T>(operation: () => Promise<T>) => operation()
 
@@ -200,7 +201,7 @@ describe("reflection worktree integration", () => {
     expect((await git(parentDir, ["rev-parse", "-q", "--verify", "MERGE_HEAD"])).stdout.trim()).toBe(foreignTip)
     expect((await git(parentDir, ["status", "--porcelain=v2"])).stdout).toBe(beforeStatus)
     expect((await git(parentDir, ["write-tree"])).stdout.trim()).toBe(beforeTree)
-  })
+  }, WINDOWS_INTEGRATION_TEST_TIMEOUT)
 
   it("#given present then absent resources #when cleanup repeats #then both receipts confirm absence", async () => {
     const { parentDir, worktree } = await fixture("cleanup")
