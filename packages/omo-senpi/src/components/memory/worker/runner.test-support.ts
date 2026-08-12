@@ -58,7 +58,7 @@ const childFixture = join(import.meta.dir, "__fixtures__", "reflection-child.ts"
 const supervisorFixture = join(import.meta.dir, "memory-run-supervisor.ts")
 
 export async function createRunnerHarness(options: {
-  readonly childMode: "commit" | "timeout" | "admin" | "model-fallback"
+  readonly childMode: "commit" | "timeout" | "admin" | "model-fallback" | "model-exhausted"
   readonly categoryAvailable?: boolean
   readonly config?: OmoConfig
   readonly models?: readonly SenpiModelPort[]
@@ -105,7 +105,7 @@ export async function createRunnerHarness(options: {
     { provider: "kimi-coding", id: "fallback" },
   ]
   const models = options.models
-    ?? (options.childMode === "model-fallback" ? fallbackModels : [model])
+    ?? (options.childMode === "model-fallback" || options.childMode === "model-exhausted" ? fallbackModels : [model])
   const categoryAvailable = options.categoryAvailable ?? true
   const memory = OmoMemorySettingsSchema.parse({
     reflection: { category: "quick", timeout_minutes: 15, merge: "auto" },
@@ -114,7 +114,7 @@ export async function createRunnerHarness(options: {
     memory,
     categories: categoryAvailable
       ? {
-          quick: options.childMode === "model-fallback"
+          quick: options.childMode === "model-fallback" || options.childMode === "model-exhausted"
             ? {
                 models: [
                   { model: "extension-only/primary", reasoning: "off" },
@@ -156,7 +156,9 @@ export async function createRunnerHarness(options: {
       spawnCalls.push(spawnArgs)
       const mode = options.childMode === "model-fallback"
         ? spawnArgs.args.includes("extension-only/primary") ? "model-not-found" : "commit"
-        : options.childMode
+        : options.childMode === "model-exhausted"
+          ? spawnArgs.args.includes("extension-only/primary") ? "model-not-found" : "auth-missing"
+          : options.childMode
       return {
         ...spawnArgs,
         command: process.execPath,

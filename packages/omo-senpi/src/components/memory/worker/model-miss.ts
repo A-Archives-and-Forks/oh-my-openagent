@@ -10,7 +10,7 @@ export type RetryableModelMiss =
   | { readonly kind: "auth_missing"; readonly provider: string }
 
 const MODEL_NOT_FOUND_PATTERN = /^Error: Model "([^"]+)" not found\. Use --list-models to see available models\.$/m
-const API_KEY_NOT_FOUND_PATTERN = /^No API key found for\s+([^\s.]+)\.?$/m
+const API_KEY_NOT_FOUND_PATTERN = /^(?:Error:\s*)?No API key found for\s+([^\s.]+)/m
 
 export function classifyRetryableModelMiss(result: ModelMissResult): RetryableModelMiss | undefined {
   if (result.timedOut || result.code === 0) return undefined

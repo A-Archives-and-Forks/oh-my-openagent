@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test"
 
-import { runMemoryModelAttempts, type MemoryModelChain } from "./memory-model-attempts"
+import {
+  MemoryModelExhaustedError,
+  runMemoryModelAttempts,
+  type MemoryModelChain,
+} from "./memory-model-attempts"
 import type { ReflectionChildResult } from "./spawn"
 
 const candidates: MemoryModelChain = [
@@ -53,6 +57,25 @@ describe("runMemoryModelAttempts", () => {
     // then
     expect(attempted).toEqual(["extension-only/primary", "builtin/fallback"])
     expect(result.candidate.model).toBe("builtin/fallback")
+  })
+
+  test("#given every candidate has a retryable model or auth miss #when the chain is exhausted #then every candidate and cause are carried by a typed signal", async () => {
+    // given
+    const allMissing: MemoryModelChain = [
+      { model: "extension-only/primary" },
+      { model: "anthropic/fallback" },
+    ]
+
+    // when
+    const attempt = runMemoryModelAttempts(allMissing, async (candidate) => candidate.model.startsWith("extension-only/")
+      ? child({ stderr: 'Error: Model "extension-only/primary" not found. Use --list-models to see available models.' })
+      : child({ stderr: "No API key found for anthropic" }))
+
+    // then
+    await expect(attempt).rejects.toEqual(new MemoryModelExhaustedError([
+      { candidate: allMissing[0], miss: { kind: "model_not_visible", id: "extension-only/primary" } },
+      { candidate: allMissing[1], miss: { kind: "auth_missing", provider: "anthropic" } },
+    ]))
   })
 
   test("#given a generic child failure #when a fallback exists #then it does not retry", async () => {

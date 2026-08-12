@@ -26,6 +26,7 @@ import {
   type ReflectionModelResolution,
 } from "./resolve-model"
 import {
+  MemoryModelExhaustedError,
   runMemoryModelAttempts,
   type MemoryModelChain,
 } from "./memory-model-attempts"
@@ -34,7 +35,7 @@ import { resolveSenpiLaunch } from "./senpi-command"
 import { createRunWorktree } from "./create-run-worktree"
 import { prepareReflectionCandidateSpawn } from "./reflection-spawn-input"
 import { readRunJson } from "./run-artifacts"
-import { failReservationRun, finalizeRecordedOutcome } from "./run-finalization"
+import { failReservationRun, finalizeRecordedOutcome, overrideFailedReservationRun } from "./run-finalization"
 import type { RunFinalizationContext } from "./run-finalization-types"
 import { parseReservationRunLedger } from "./reservation-run-ledger"
 import { requireFinalizedResult } from "./runner-finalization-result"
@@ -148,13 +149,15 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
       const runDir = join(this.options.identity.paths.reflection, "runs", run.runId)
       if (existsSync(join(runDir, "ledger.json"))) {
         const ledger = parseReservationRunLedger(await readRunJson<unknown>(join(runDir, "ledger.json")))
-        const finalized = await failReservationRun(
-          this.finalizationContext(),
-          runDir,
-          ledger,
-          "failed",
-          errorMessage(error),
-        )
+        const finalized = error instanceof MemoryModelExhaustedError
+          ? await overrideFailedReservationRun(this.finalizationContext(), runDir, ledger, error.message)
+          : await failReservationRun(
+              this.finalizationContext(),
+              runDir,
+              ledger,
+              "failed",
+              errorMessage(error),
+            )
         return requireFinalizedResult(finalized)
       }
       const discarded = worktree === undefined ? undefined : await this.discard(worktree)
