@@ -6,7 +6,7 @@ import { join } from "node:path"
 import { GitMemoryRepo } from "@oh-my-opencode/memory-core"
 import { OmoMemorySettingsSchema, type OmoConfig } from "@oh-my-opencode/omo-config-core"
 
-import { REFLECTION_COMPLETION_ENTRY_TYPE } from "./completion"
+import { REFLECTION_COMPLETION_ENTRY_TYPE, REFLECTION_LAUNCHED_ENTRY_TYPE } from "./completion"
 import { createRunnerHarness, type RunnerHarness } from "./runner.test-support"
 
 // Each case drives a real supervisor, bootstrap, and model child - three spawned bun processes
@@ -94,8 +94,26 @@ describe("SenpiSubprocessRunner integration", () => {
     expect(await parent.head()).not.toBe(headBefore)
     expect(await readFile(join(item.identity.paths.repo, "system", "reflected.md"), "utf8")).toContain("reflection stub")
     expect((await item.journal.getState()).reflected_completed_steps).toBe(1)
-    expect(item.api.entries.map((entry) => entry.customType)).toEqual([REFLECTION_COMPLETION_ENTRY_TYPE])
-    expect(item.api.renderers.map((entry) => entry.customType)).toEqual([REFLECTION_COMPLETION_ENTRY_TYPE])
+    expect(item.api.entries.map((entry) => entry.customType)).toEqual([
+      REFLECTION_LAUNCHED_ENTRY_TYPE,
+      REFLECTION_COMPLETION_ENTRY_TYPE,
+    ])
+    expect(item.api.entries[0]).toEqual({
+      customType: REFLECTION_LAUNCHED_ENTRY_TYPE,
+      data: expect.objectContaining({
+        schemaVersion: 1,
+        runId: item.run.runId,
+        identity: "agent-test",
+        trigger: "step-count",
+        category: "quick",
+        conversationIds: ["conversation-a"],
+        backlogSteps: 1,
+      }),
+    })
+    expect(item.api.renderers.map((entry) => entry.customType)).toEqual([
+      REFLECTION_COMPLETION_ENTRY_TYPE,
+      REFLECTION_LAUNCHED_ENTRY_TYPE,
+    ])
     expect(item.notifications).toHaveLength(1)
     expect(item.spawnCalls).toHaveLength(1)
     const spawn = item.spawnCalls[0]
@@ -143,6 +161,10 @@ describe("SenpiSubprocessRunner integration", () => {
     expect(JSON.parse(await readFile(join(item.identity.paths.reflection, "completions", `${item.run.runId}.json`), "utf8"))).toMatchObject({
       runId: item.run.runId,
       outcome: "merged",
+      durationMs: expect.any(Number),
+      mergedCommitSha: expect.stringMatching(/^[a-f0-9]{40}$/),
+      filesChanged: 1,
+      consecutiveFailures: 0,
       finishedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
       delivery: { status: "consumed", sessionId: "conversation-a" },
     })
@@ -213,6 +235,7 @@ describe("SenpiSubprocessRunner integration", () => {
     expect(first).toMatchObject({ outcome: "failed", reason: "category_unavailable" })
     expect(second).toMatchObject({ outcome: "failed", reason: "category_unavailable" })
     expect(item.spawnCalls).toHaveLength(0)
+    expect(item.api.entries.every((entry) => entry.customType !== REFLECTION_LAUNCHED_ENTRY_TYPE)).toBe(true)
     expect(item.notifications).toHaveLength(1)
     expect(item.notifications[0]?.message).toContain('Category "quick"')
     expect((await item.journal.getState()).reflected_completed_steps).toBe(0)

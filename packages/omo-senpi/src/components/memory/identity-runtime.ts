@@ -96,6 +96,8 @@ export function createIdentityRuntime(
     loadConfig: (options) => deps.loadConfig(options ?? {}),
     cwd: deps.cwd(),
     sandbox: lazySandbox,
+    getTranscriptState: async (conversationId) =>
+      new TranscriptJournal({ journalDir: join(identity.identityPaths.transcripts, conversationId) }).getState(),
     ...(deps.liveSession === undefined ? {} : { liveSession: deps.liveSession }),
   })
   const launch = (run: ReservedRun): void => {
