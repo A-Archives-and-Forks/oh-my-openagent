@@ -127,6 +127,7 @@ describe("GitMemoryRepo", () => {
     expect(await repo.configGet("user.name")).toBe("Operator")
     expect(await repo.configGet("omo.agentId")).toBe("new-agent")
     expect(await repo.configGet("commit.gpgsign")).toBe("false")
+    expect(await repo.configGet("gc.auto")).toBe("0")
   })
 
   it("#given commit signing is explicitly enabled locally #when init reconciles config #then the override is preserved", async () => {
