@@ -16,6 +16,16 @@ Most users want **Ultimate**. Pick **Light** if you are already invested in Code
 
 Both `lazycodex-ai` and `lazycodex` are shipped bin aliases that default to the Codex Light installer and run through Node/npm. `--platform` on the shared `omo-agent-toolkit` CLI still defaults to `opencode` (Ultimate). `lazycodex` is also the repository identity that hosts the marketplace bundle. Neither alias is the Codex marketplace name.
 
+## Which edition should I pick?
+
+- Already use OpenCode, or want the most-tested path? Choose **Ultimate**: `bunx oh-my-openagent install`.
+- Already use Codex CLI? Choose **Light**: `npx lazycodex-ai install`.
+- Want one command without installing a host first? Choose **Senpi/native (beta)**: `npm i -g omo-ai@beta`.
+
+Ultimate and Light are plugins that load into a host you already run. Senpi is standalone: it ships a pinned Senpi engine with OMO built in.
+
+For Senpi, the `@beta` tag is required; bare `npm i -g omo-ai` fails by design. Do not install plain `omo` from npm: it is an unrelated package by a different author.
+
 ## For Humans
 
 **Strongly recommended: let an LLM agent install Ultimate for you.** Ultimate setup involves subscription detection, model selection across 11 agents, provider authentication, and config migration — humans fat-finger these. An LLM agent reads the full guide and walks every step correctly.
