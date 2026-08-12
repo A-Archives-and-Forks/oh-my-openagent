@@ -44,6 +44,7 @@ export interface SenpiSubprocessRunnerOptions {
   readonly getTranscriptState?: (conversationId: string) => Promise<ReflectionTranscriptState>
   readonly now?: () => Date
   readonly senpiCommand?: string
+  readonly senpiPrefixArgs?: readonly string[]
   readonly supervisorPath?: string
   readonly withWriterLock?: <T>(operation: () => Promise<T>) => Promise<T>
 }
