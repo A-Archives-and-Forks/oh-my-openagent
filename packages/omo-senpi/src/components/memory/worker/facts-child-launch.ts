@@ -19,6 +19,7 @@ type FactsChildLaunchInput = {
   readonly configSources: readonly { readonly path: string; readonly exists: boolean }[]
   readonly warn?: (message: string, details?: unknown) => void
   readonly senpiCommand?: string
+  readonly senpiPrefixArgs?: readonly string[]
   readonly hardDeadlineAt: number
   readonly terminationGraceMs?: number
   readonly maxOutputBytes?: number
@@ -39,7 +40,7 @@ export async function launchFactsModelChain(input: FactsChildLaunchInput) {
   ]
   const launch = input.senpiCommand === undefined
     ? resolveSenpiLaunch(input.env)
-    : { command: input.senpiCommand, prefixArgs: [] }
+    : { command: input.senpiCommand, prefixArgs: input.senpiPrefixArgs ?? [] }
   const preflight = await preflightMemoryModels({
     candidates,
     launch,
@@ -62,6 +63,7 @@ export async function launchFactsModelChain(input: FactsChildLaunchInput) {
       nextAttempt,
       env: input.env,
       senpiCommand: input.senpiCommand,
+      senpiPrefixArgs: input.senpiPrefixArgs,
     })
     return runFactsChild(spawnArgs, {
       terminationGraceMs: input.terminationGraceMs,

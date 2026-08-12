@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { execFileSync } from "node:child_process"
-import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -18,26 +17,29 @@ const candidates: MemoryModelChain = [
   { model: "builtin/fallback", thinking: "minimal" },
 ]
 
-async function fixture(body: string): Promise<{ readonly root: string; readonly launcher: string; readonly config: string }> {
+async function fixture(body: string): Promise<{
+  readonly root: string
+  readonly launch: { readonly command: string; readonly prefixArgs: readonly string[] }
+  readonly config: string
+}> {
   const root = await mkdtemp(join(tmpdir(), "memory-model-preflight-"))
   roots.push(root)
-  const launcher = join(root, "fake-senpi")
+  const launcher = join(root, "fake-senpi.mjs")
   const config = join(root, "omo.jsonc")
-  await writeFile(launcher, `#!/bin/sh\n${body}\n`, "utf8")
-  await chmod(launcher, 0o700)
+  await writeFile(launcher, `${body}\n`, "utf8")
   await writeFile(config, "{}\n", "utf8")
-  return { root, launcher, config }
+  return { root, launch: { command: process.execPath, prefixArgs: [launcher] }, config }
 }
 
 describe("preflightMemoryModels", () => {
   test("#given a clean child catalog #when candidates are preflighted #then only child-visible candidates remain in order", async () => {
     // given
-    const item = await fixture('printf "builtin/fallback\\nother/model\\n"')
+    const item = await fixture('process.stdout.write("builtin/fallback\\nother/model\\n")')
 
     // when
     const result = await preflightMemoryModels({
       candidates,
-      launch: { command: item.launcher, prefixArgs: [] },
+      launch: item.launch,
       env: { PATH: process.env.PATH },
       configSources: [{ path: item.config, exists: true }],
     })
@@ -52,11 +54,15 @@ describe("preflightMemoryModels", () => {
 
   test("#given the same launcher and config mtime #when preflight runs twice #then the child catalog is probed once", async () => {
     // given
-    const item = await fixture('echo probe >> "$PROBE_LOG"; printf "builtin/fallback\\n"')
+    const item = await fixture(`
+import { appendFileSync } from "node:fs"
+appendFileSync(process.env.PROBE_LOG, "probe\\n")
+process.stdout.write("builtin/fallback\\n")
+`)
     const probeLog = join(item.root, "probes.log")
     const input = {
       candidates,
-      launch: { command: item.launcher, prefixArgs: [] as readonly string[] },
+      launch: item.launch,
       env: { PATH: process.env.PATH, PROBE_LOG: probeLog },
       configSources: [{ path: item.config, exists: true }],
     }
@@ -71,11 +77,15 @@ describe("preflightMemoryModels", () => {
 
   test("#given a changed config mtime #when preflight runs again #then it refreshes the child catalog", async () => {
     // given
-    const item = await fixture('echo probe >> "$PROBE_LOG"; printf "builtin/fallback\\n"')
+    const item = await fixture(`
+import { appendFileSync } from "node:fs"
+appendFileSync(process.env.PROBE_LOG, "probe\\n")
+process.stdout.write("builtin/fallback\\n")
+`)
     const probeLog = join(item.root, "probes.log")
     const input = {
       candidates,
-      launch: { command: item.launcher, prefixArgs: [] as readonly string[] },
+      launch: item.launch,
       env: { PATH: process.env.PATH, PROBE_LOG: probeLog },
       configSources: [{ path: item.config, exists: true }],
     }
@@ -95,7 +105,7 @@ describe("preflightMemoryModels", () => {
 
   test("#given a launcher whose grandchild holds the output pipes #when the probe times out #then it degrades without waiting for the grandchild", async () => {
     // given
-    const item = await fixture("exit 0")
+    const item = await fixture("")
     const wrapper = join(item.root, "wrapper.mjs")
     const grandchildPidPath = join(item.root, "grandchild.pid")
     await writeFile(wrapper, `
@@ -105,12 +115,10 @@ const child = spawn(process.execPath, ["-e", "setInterval(() => undefined, 30_00
 writeFileSync(process.env.GRANDCHILD_PID, String(child.pid))
 setInterval(() => undefined, 30_000)
 `, "utf8")
-    const node = execFileSync(process.platform === "win32" ? "where" : "which", ["node"], { encoding: "utf8" }).trim().split(/\r?\n/)[0]
-    if (!node) throw new Error("node is required")
     const startedAt = Date.now()
     const probe = preflightMemoryModels({
       candidates,
-      launch: { command: node, prefixArgs: [wrapper] },
+      launch: { command: process.execPath, prefixArgs: [wrapper] },
       env: { PATH: process.env.PATH, GRANDCHILD_PID: grandchildPidPath },
       configSources: [{ path: item.config, exists: true }],
       timeoutMs: 50,
@@ -146,13 +154,13 @@ setInterval(() => undefined, 30_000)
 
   test("#given a failed child catalog probe #when candidates are preflighted #then it warns and preserves reactive fallback behavior", async () => {
     // given
-    const item = await fixture('printf "probe failed" >&2; exit 7')
+    const item = await fixture('process.stderr.write("probe failed"); process.exit(7)')
     const warnings: string[] = []
 
     // when
     const result = await preflightMemoryModels({
       candidates,
-      launch: { command: item.launcher, prefixArgs: [] },
+      launch: item.launch,
       env: { PATH: process.env.PATH },
       configSources: [{ path: item.config, exists: true }],
       warn: (message, details) => warnings.push(`${message}: ${JSON.stringify(details)}`),

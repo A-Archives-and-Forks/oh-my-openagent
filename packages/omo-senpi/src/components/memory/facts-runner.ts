@@ -106,6 +106,7 @@ export class FactsExtractorRunner {
         configSources: loaded.sources,
         warn: (message, details) => this.options.logger?.warn(message, details),
         senpiCommand: this.options.senpiCommand,
+        senpiPrefixArgs: this.options.senpiPrefixArgs,
         hardDeadlineAt: Date.now() + (this.options.deadlineMs ?? DEFAULT_DEADLINE_MS),
         terminationGraceMs: this.options.terminationGraceMs,
         maxOutputBytes: this.options.maxOutputBytes,
