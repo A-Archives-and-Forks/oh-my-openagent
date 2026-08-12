@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { chmod, mkdtemp, rm, stat, writeFile } from "node:fs/promises"
+import { execFileSync } from "node:child_process"
+import { chmod, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -90,6 +91,57 @@ describe("preflightMemoryModels", () => {
 
     // then
     expect((await Bun.file(probeLog).text()).trim().split("\n")).toHaveLength(2)
+  })
+
+  test("#given a launcher whose grandchild holds the output pipes #when the probe times out #then it degrades without waiting for the grandchild", async () => {
+    // given
+    const item = await fixture("exit 0")
+    const wrapper = join(item.root, "wrapper.mjs")
+    const grandchildPidPath = join(item.root, "grandchild.pid")
+    await writeFile(wrapper, `
+import { spawn } from "node:child_process"
+import { writeFileSync } from "node:fs"
+const child = spawn(process.execPath, ["-e", "setInterval(() => undefined, 30_000)"], { stdio: ["ignore", "inherit", "inherit"] })
+writeFileSync(process.env.GRANDCHILD_PID, String(child.pid))
+setInterval(() => undefined, 30_000)
+`, "utf8")
+    const node = execFileSync(process.platform === "win32" ? "where" : "which", ["node"], { encoding: "utf8" }).trim().split(/\r?\n/)[0]
+    if (!node) throw new Error("node is required")
+    const startedAt = Date.now()
+    const probe = preflightMemoryModels({
+      candidates,
+      launch: { command: node, prefixArgs: [wrapper] },
+      env: { PATH: process.env.PATH, GRANDCHILD_PID: grandchildPidPath },
+      configSources: [{ path: item.config, exists: true }],
+      timeoutMs: 50,
+    })
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      try {
+        await stat(grandchildPidPath)
+        break
+      } catch {
+        await new Promise<void>((resolve) => setTimeout(resolve, 1))
+      }
+    }
+    let cleanupPid: number | undefined
+
+    // when
+    const result = await Promise.race([
+      probe,
+      new Promise<"hung">((resolve) => setTimeout(() => resolve("hung"), 500)),
+    ]).finally(async () => {
+      try {
+        cleanupPid = Number((await readFile(grandchildPidPath, "utf8")).trim())
+        process.kill(cleanupPid, "SIGKILL")
+      } catch {
+        // The fixed path has already detached from the pipe-holding grandchild.
+      }
+    })
+
+    // then
+    expect(result).toEqual({ kind: "unavailable", candidates })
+    expect(Date.now() - startedAt).toBeLessThan(500)
+    if (cleanupPid !== undefined) await probe
   })
 
   test("#given a failed child catalog probe #when candidates are preflighted #then it warns and preserves reactive fallback behavior", async () => {

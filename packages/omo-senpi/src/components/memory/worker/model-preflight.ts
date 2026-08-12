@@ -96,7 +96,7 @@ async function probeChildModels(
   }, timeoutMs)
   const code = await new Promise<number | null>((resolve, reject) => {
     child.once("error", reject)
-    child.once("close", resolve)
+    child.once("exit", resolve)
   }).finally(() => clearTimeout(timeout))
   const stdoutText = Buffer.concat(stdout).toString("utf8")
   const stderrText = Buffer.concat(stderr).toString("utf8")
