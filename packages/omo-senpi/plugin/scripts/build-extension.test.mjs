@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url"
 import { buildExtension, checkExtensionCurrent, toPortableBuildPath } from "./build-extension.mjs"
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
+const pluginRoot = join(scriptDir, "..")
 const repoRoot = join(scriptDir, "..", "..", "..", "..")
 const tempRoots = []
 
@@ -17,12 +18,13 @@ async function builtOutputs() {
   const root = await mkdtemp(join(repoRoot, ".build-extension-test-"))
   tempRoots.push(root)
   const outputPath = join(root, "omo.js")
+  const taskOutputPath = join(root, "omo-task.js")
   const memberOutputPath = join(root, "omo-member.js")
   const memoryMcpOutputPath = join(root, "omo-memory-mcp.js")
   const supervisorOutputPath = join(root, "memory-run-supervisor.mjs")
   const advisorRuntimeOutputPath = join(root, "omo-init-deep-advisor.js")
-  const build = await buildExtension({ outputPath, memberOutputPath, memoryMcpOutputPath, supervisorOutputPath, advisorRuntimeOutputPath })
-  return { outputPath, memberOutputPath, memoryMcpOutputPath, supervisorOutputPath, advisorRuntimeOutputPath, ...build }
+  const build = await buildExtension({ outputPath, taskOutputPath, memberOutputPath, memoryMcpOutputPath, supervisorOutputPath, advisorRuntimeOutputPath })
+  return { root, outputPath, taskOutputPath, memberOutputPath, memoryMcpOutputPath, supervisorOutputPath, advisorRuntimeOutputPath, ...build }
 }
 
 describe("checkExtensionCurrent", () => {
@@ -75,7 +77,11 @@ describe("checkExtensionCurrent", () => {
     // given
     const outputs = await builtOutputs()
     const old = new Date(0)
-    await Promise.all([utimes(outputs.outputPath, old, old), utimes(outputs.memberOutputPath, old, old)])
+    await Promise.all([
+      utimes(outputs.outputPath, old, old),
+      utimes(outputs.taskOutputPath, old, old),
+      utimes(outputs.memberOutputPath, old, old),
+    ])
 
     // when
     const result = await checkExtensionCurrent(outputs)
@@ -128,7 +134,7 @@ describe("checkExtensionCurrent", () => {
     const artifact = await readFile(outputs.outputPath, "utf8")
     const newline = artifact.indexOf("\n")
     const [prefix, , bodyDigest] = artifact.slice(0, newline).split(":")
-    await writeFile(outputs.outputPath, `${prefix}:${"0".repeat(64)}:${bodyDigest}\n${artifact.slice(newline + 1)}`)
+    await writeFile(outputs.outputPath, `${prefix}:${"0".repeat(43)}:${bodyDigest}\n${artifact.slice(newline + 1)}`)
 
     // when
     const result = await checkExtensionCurrent(outputs)
@@ -143,20 +149,36 @@ describe("checkExtensionCurrent", () => {
 
     // when
     const main = await readFile(outputs.outputPath, "utf8")
+    const task = await readFile(outputs.taskOutputPath, "utf8")
     const member = await readFile(outputs.memberOutputPath, "utf8")
     const advisorRuntime = await readFile(outputs.advisorRuntimeOutputPath, "utf8")
 
     // then
     expect(main).not.toMatch(/^[\t ]+$/m)
+    expect(task).not.toMatch(/^[\t ]+$/m)
     expect(member).not.toMatch(/^[\t ]+$/m)
     expect(advisorRuntime).not.toMatch(/^[\t ]+$/m)
   })
 
-  test("#given the main extension build #when its metafile inputs are inspected #then senpi-task implementation sources are included", async () => {
+  test("#given the split extension build #when metafile inputs are inspected #then task sources live only in the lazy sidecar", async () => {
     // given / when
-    const inputs = (await builtOutputs()).mainInputs
+    const { mainInputs, taskInputs } = await builtOutputs()
 
     // then
-    expect(inputs.some((input) => input.endsWith("packages/senpi-task/src/runners/in-process/curated-readonly-bash.ts"))).toBe(true)
+    expect(mainInputs.some((input) => input.endsWith("packages/senpi-task/src/runners/in-process/curated-readonly-bash.ts")))
+      .toBe(false)
+    expect(taskInputs.some((input) => input.endsWith("packages/senpi-task/src/runners/in-process/curated-readonly-bash.ts")))
+      .toBe(true)
+  })
+
+  test("#given a packaged task import map #when generated artifacts are inspected #then the main bundle resolves its task sidecar", async () => {
+    const outputs = await builtOutputs()
+    const main = await readFile(outputs.outputPath, "utf8")
+    const task = await readFile(outputs.taskOutputPath, "utf8")
+    const manifest = JSON.parse(await readFile(join(pluginRoot, "package.json"), "utf8"))
+
+    expect(main).toContain('import("#omo-task-runtime")')
+    expect(task).toMatch(/^\/\/ omo:[A-Za-z0-9_-]{43}:[A-Za-z0-9_-]{43}/)
+    expect(manifest.imports).toEqual({ "#omo-task-runtime": "./extensions/omo-task.js" })
   })
 })

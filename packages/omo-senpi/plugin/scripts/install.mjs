@@ -212,6 +212,8 @@ function isErrno(error, code) {
 // packages/omo-senpi/src/install/plugin-artifacts.ts
 var REQUIRED_PLUGIN_ARTIFACTS = [
   join3("extensions", "omo.js"),
+  join3("extensions", "omo-task.js"),
+  join3("extensions", "omo-member.js"),
   join3("extensions", "memory-run-supervisor.mjs"),
   join3("extensions", "reflection-persona.md"),
   join3("extensions", "dream-persona.md"),

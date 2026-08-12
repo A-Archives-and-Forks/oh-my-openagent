@@ -1,5 +1,4 @@
 import type { SessionShutdownEvent } from "@code-yeongyu/senpi"
-import type { TaskRecord } from "@oh-my-opencode/senpi-task"
 import type { ComponentContext, SenpiExtensionAPI } from "../../extension/types"
 import type { TaskEngine } from "./engine"
 import type { LeadPollerLifecycle } from "./lead-poller-lifecycle"
@@ -8,6 +7,7 @@ import type { LiveTaskContext } from "./runtime-context"
 import { wireReloadGuard } from "./reload-guard"
 import type { SessionTransitionBridge } from "./session-transition-bridge"
 import type { TaskStatusUi } from "./status-ui"
+import { wireTaskRpcBridge } from "./task-rpc-bridge"
 import { createOncePerSessionGuard, TASK_USAGE_GUIDANCE } from "./usage-guidance"
 
 export const TASK_USAGE_HINT_FLAG = "omo-task-usage-hint"
@@ -16,39 +16,6 @@ type EventBridgeState = {
   readonly reconcileTeamMailbox: () => Promise<void>
   readonly leadPollers: Pick<LeadPollerLifecycle, "tick" | "shutdown">
   readonly resumptionChannels: Pick<ResumptionChannelEmitter, "emitSessionStart" | "emitShutdown">
-}
-
-const OMO_TASK_UPDATED_EVENT = "omo.task.updated"
-
-function taskSnapshot(record: TaskRecord) {
-  return {
-    task_id: record.task_id,
-    name: record.name,
-    task_summary: record.task_summary,
-    description: record.description,
-    agent_type: record.agent_type,
-    category: record.category,
-    model: record.model,
-    status: record.status,
-    residency_state: record.residency_state,
-    execution_mode: record.execution_mode,
-    depth: record.depth,
-    created_at: record.created_at,
-    updated_at: record.updated_at,
-    ...(record.run_stats === undefined ? {} : { run_stats: record.run_stats }),
-  }
-}
-
-function emitTaskSnapshot(pi: SenpiExtensionAPI, engine: TaskEngine): void {
-  const parentSessionId = engine.runtime.sessionId()
-  if (parentSessionId === undefined || pi.rpc === undefined) return
-  const tasks = engine.manager
-    .list({ scope: "parent-session", session_id: parentSessionId })
-    .map(({ record }) => taskSnapshot(record))
-  pi.rpc.emit(OMO_TASK_UPDATED_EVENT, {
-    parent_session_id: parentSessionId,
-    tasks,
-  })
 }
 
 // Session start runs the durable recovery chain in strict order: flush/drop buffered completions
@@ -66,7 +33,8 @@ export function wireEventBridge(
   state: EventBridgeState,
 ): void {
   const guidanceGuard = createOncePerSessionGuard()
-  const unsubscribeTaskSnapshots = engine.onStoreMutation(() => emitTaskSnapshot(pi, engine))
+  const taskRpc = wireTaskRpcBridge(pi, engine)
+  const unsubscribeTaskSnapshots = engine.onStoreMutation(() => taskRpc.sync())
   wireReloadGuard(pi, engine.manager)
 
   pi.on("session_start", async (_payload, eventCtx) => {
@@ -92,10 +60,11 @@ export function wireEventBridge(
     }
     await tickLeadPollersBestEffort(ctx, state)
     statusUi.scheduleSync()
-    emitTaskSnapshot(pi, engine)
+    taskRpc.attach()
   })
 
   pi.on("session_before_switch", (_payload, eventCtx) => {
+    taskRpc.detach()
     engine.runtime.captureFrom(asLiveContext(eventCtx))
     transitions.onBeforeSwitch(engine.runtime.sessionId())
     engine.runtime.clearUi()
@@ -114,6 +83,7 @@ export function wireEventBridge(
 
   pi.on("session_shutdown", async (payload, eventCtx) => {
     unsubscribeTaskSnapshots()
+    taskRpc.dispose()
     engine.runtime.captureFrom(asLiveContext(eventCtx))
     transitions.onShutdown(engine.runtime.sessionId())
     engine.runtime.clearUi()

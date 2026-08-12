@@ -117,6 +117,8 @@ describe("Senpi compatibility test script", () => {
       }
       await writeFile(join(pluginRoot, "package.json"), JSON.stringify({ name: "@code-yeongyu/omo-senpi" }))
       await writeFile(join(pluginRoot, "extensions", "omo.js"), "export default {}\n")
+      await writeFile(join(pluginRoot, "extensions", "omo-task.js"), "export const createTaskComponent = () => ({})\n")
+      await writeFile(join(pluginRoot, "extensions", "omo-member.js"), "export const runMember = () => undefined\n")
       await writeFile(join(pluginRoot, "extensions", "reflection-persona.md"), "# reflection persona fixture\n")
       await writeFile(join(pluginRoot, "extensions", "dream-persona.md"), "# dream persona fixture\n")
       await writeFile(join(pluginRoot, "extensions", "facts-persona.md"), "# facts persona fixture\n")

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { spawnSync } from "node:child_process"
 import { fileURLToPath } from "node:url"
+import { updateTarget } from "../bin/lib/package-paths.js"
 
 const SOURCE_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)))
 const roots: string[] = []
@@ -15,6 +16,8 @@ type Fixture = {
   captureFile: string
   shimPath?: string
 }
+
+type InstallLayout = "bun" | "bun-posix-special" | "npm" | "unknown"
 
 function writeFile(path: string, content: string, mode?: number): void {
   mkdirSync(dirname(path), { recursive: true })
@@ -35,14 +38,27 @@ function expandShortPath(path: string): string {
   }
 }
 
-function createFixture(options: { hoisted?: boolean; shim?: boolean } = {}): Fixture {
+function createFixture(options: { hoisted?: boolean; shim?: boolean; installLayout?: InstallLayout } = {}): Fixture {
   // Windows hands back the 8.3 short form (RUNNER~1) here while the launcher reports the long path, so
   // the fixture root is canonicalized once and every derived path inherits the same spelling.
   const root = expandShortPath(realpathSync(mkdtempSync(join(tmpdir(), "omo-launcher-"))))
   roots.push(root)
-  const packagePath = options.hoisted
-    ? join(root, "node_modules", "omo-ai")
-    : join(root, "app")
+  const packagePath = options.installLayout?.startsWith("bun")
+    ? join(
+      root,
+      options.installLayout === "bun-posix-special"
+        ? "custom $HOME's bun"
+        : "custom-bun",
+      "install",
+      "global",
+      "node_modules",
+      "omo-ai",
+    )
+    : options.installLayout === "npm"
+      ? join(root, "prefix", "lib", "node_modules", "omo-ai")
+      : options.hoisted
+        ? join(root, "node_modules", "omo-ai")
+        : join(root, "app")
   mkdirSync(packagePath, { recursive: true })
   const packageRoot = expandShortPath(realpathSync(packagePath))
   cpSync(join(SOURCE_ROOT, "bin"), join(packageRoot, "bin"), { recursive: true })
@@ -52,6 +68,9 @@ function createFixture(options: { hoisted?: boolean; shim?: boolean } = {}): Fix
     type: "module",
     dependencies: { "@code-yeongyu/senpi": "2026.8.9" },
   }))
+  if (options.installLayout === "npm") {
+    writeFile(join(root, "prefix", "lib", "node_modules", ".package-lock.json"), "{}\n")
+  }
 
   const modulesRoot = options.hoisted ? join(root, "node_modules") : join(packageRoot, "node_modules")
   const senpiRoot = join(modulesRoot, "@code-yeongyu", "senpi")
@@ -100,6 +119,13 @@ function run(fixture: Fixture, args: string[], env: NodeJS.ProcessEnv = {}) {
 
 function capture(fixture: Fixture): { argv: string[]; env: NodeJS.ProcessEnv; target?: string } {
   return JSON.parse(readFileSync(fixture.captureFile, "utf8"))
+}
+
+function expectedBunUpdateCommand(packageRoot: string): string {
+  const quotedRoot = process.platform === "win32"
+    ? `"${packageRoot.replaceAll("\\", "/")}"`
+    : `'${packageRoot.replaceAll("'", "'\\''")}'`
+  return `omo is updated via bun: bun add --cwd ${quotedRoot} -g omo-ai@beta`
 }
 
 afterEach(() => {
@@ -246,6 +272,50 @@ describe("omo launcher", () => {
         const result = run(fixture, ["update"])
         expect(result.status).toBe(0)
         expect(result.stdout).toContain("omo is updated via npm: npm i -g omo-ai@beta")
+        expect(existsSync(fixture.captureFile)).toBe(false)
+      })
+
+      test("#then a Bun-managed install uses a clean package cwd", () => {
+        const fixture = createFixture({ installLayout: "bun" })
+        const result = run(fixture, ["update"])
+
+        expect(result.status).toBe(0)
+        expect(result.stdout.trim()).toBe(expectedBunUpdateCommand(fixture.packageRoot))
+        expect(existsSync(fixture.captureFile)).toBe(false)
+      })
+
+      test("#then a Bun path with shell metacharacters is quoted for the host", () => {
+        const fixture = createFixture({ installLayout: "bun-posix-special" })
+        const result = run(fixture, ["update"])
+
+        expect(result.status).toBe(0)
+        expect(result.stdout.trim()).toBe(expectedBunUpdateCommand(fixture.packageRoot))
+      })
+
+      test("#then a Windows-style Bun path uses shell-compatible forward slashes", () => {
+        const root = String.raw`C:\Users\omo user\.bun\install\global\node_modules\omo-ai`
+
+        expect(updateTarget(root, "win32")).toEqual({
+          manager: "bun",
+          command: "bun add --cwd \"C:/Users/omo user/.bun/install/global/node_modules/omo-ai\" -g omo-ai@beta",
+        })
+      })
+
+      test("#then an npm-managed install keeps the npm update command", () => {
+        const fixture = createFixture({ installLayout: "npm" })
+        const result = run(fixture, ["update"])
+
+        expect(result.status).toBe(0)
+        expect(result.stdout.trim()).toBe("omo is updated via npm: npm i -g omo-ai@beta")
+        expect(existsSync(fixture.captureFile)).toBe(false)
+      })
+
+      test("#then an unknown install layout fails safe to npm", () => {
+        const fixture = createFixture({ installLayout: "unknown" })
+        const result = run(fixture, ["update"])
+
+        expect(result.status).toBe(0)
+        expect(result.stdout.trim()).toBe("omo is updated via npm: npm i -g omo-ai@beta")
         expect(existsSync(fixture.captureFile)).toBe(false)
       })
     })

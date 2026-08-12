@@ -1,11 +1,19 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process"
-import { createHash } from "node:crypto"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { builtinModules } from "node:module"
-import { dirname, join, relative, resolve } from "node:path"
+import { dirname, join } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { findStaleRuntimePersona, stageRuntimePersonas } from "./persona-artifacts.mjs"
+
+import {
+  artifactsMatch,
+  attachBuildMarker,
+  normalizeBuiltinImports,
+  toPortableBuildPath,
+} from "./build-artifact.mjs"
+
+export { toPortableBuildPath }
 
 // Keep this list byte-for-byte aligned with senpi loader.ts lines 145-165.
 export const SENPI_LOADER_ALIASES = [
@@ -34,8 +42,10 @@ const scriptDir = dirname(fileURLToPath(import.meta.url))
 const pluginRoot = dirname(scriptDir)
 const packageRoot = dirname(pluginRoot)
 const repoRoot = join(packageRoot, "..", "..")
-const entryPath = join(packageRoot, "src", "extension", "index.ts")
+const entryPath = join(packageRoot, "src", "extension", "bundled-index.ts")
 const outputPath = join(pluginRoot, "extensions", "omo.js")
+const taskEntryPath = join(packageRoot, "src", "extension", "omo-task.ts")
+const taskOutputPath = join(pluginRoot, "extensions", "omo-task.js")
 const memberEntryPath = join(repoRoot, "packages", "senpi-task", "src", "team", "member-extension", "index.ts")
 const memberOutputPath = join(pluginRoot, "extensions", "omo-member.js")
 const memoryMcpEntryPath = join(packageRoot, "src", "mcp", "memory-server.ts")
@@ -48,11 +58,11 @@ const builtinModuleNames = builtinModules
   .filter((moduleName) => !moduleName.startsWith("_"))
   .sort()
 const externalSpecifiers = [
+  "#omo-task-runtime",
   ...SENPI_LOADER_ALIASES,
   ...builtinModuleNames,
   ...builtinModuleNames.map((moduleName) => `node:${moduleName}`),
 ]
-const BUILD_MARKER_PREFIX = "// omo-senpi-build:"
 const BUILD_SETTINGS = JSON.stringify({
   target: "node",
   format: "esm",
@@ -70,6 +80,9 @@ export async function buildExtension(options = {}) {
     OMO_SENPI_BUNDLED: true,
   }
   const output = options.outputPath ?? outputPath
+  const taskOutput = options.taskOutputPath ?? (options.outputPath === undefined
+    ? taskOutputPath
+    : join(dirname(output), "omo-task.js"))
   const memberOutput = options.memberOutputPath ?? (options.outputPath === undefined
     ? memberOutputPath
     : join(dirname(output), "omo-member.js"))
@@ -83,6 +96,7 @@ export async function buildExtension(options = {}) {
     ? advisorRuntimeOutputPath
     : join(dirname(output), "omo-init-deep-advisor.js"))
   const mainInputs = await buildEntry(entryPath, output, buildDefines)
+  const taskInputs = await buildEntry(taskEntryPath, taskOutput, buildDefines)
   const memberInputs = await buildEntry(memberEntryPath, memberOutput, buildDefines)
   const memoryMcpInputs = await buildEntry(memoryMcpEntryPath, memoryMcpOutput, buildDefines)
   const supervisorInputs = await buildEntry(supervisorEntryPath, supervisorOutput, buildDefines)
@@ -92,7 +106,7 @@ export async function buildExtension(options = {}) {
   await Promise.all([
     stageRuntimePersonas(repoRoot, dirname(output)),
   ])
-  return { mainInputs, memberInputs, memoryMcpInputs, supervisorInputs, advisorRuntimeInputs }
+  return { mainInputs, taskInputs, memberInputs, memoryMcpInputs, supervisorInputs, advisorRuntimeInputs }
 }
 
 async function buildEntry(entry, output, buildDefines) {
@@ -105,8 +119,16 @@ async function buildEntry(entry, output, buildDefines) {
       ...Object.entries(buildDefines).flatMap(([name, value]) => ["--define", `${name}=${JSON.stringify(value)}`]),
       ...externalSpecifiers.flatMap((specifier) => ["--external", specifier]),
     ])
-    await normalizeBuiltinImports(output)
-    return await attachBuildMarker(output, entry, metafile, buildDefines)
+    await normalizeBuiltinImports(output, builtinModuleNames)
+    return await attachBuildMarker({
+      output,
+      entry,
+      metafile,
+      buildDefines,
+      repoRoot,
+      buildSettings: BUILD_SETTINGS,
+      buildScriptPath: fileURLToPath(import.meta.url),
+    })
   } finally {
     await rm(metafile, { force: true })
   }
@@ -114,6 +136,9 @@ async function buildEntry(entry, output, buildDefines) {
 
 export async function checkExtensionCurrent(options = {}) {
   const output = options.outputPath ?? outputPath
+  const taskOutput = options.taskOutputPath ?? (options.outputPath === undefined
+    ? taskOutputPath
+    : join(dirname(output), "omo-task.js"))
   const memberOutput = options.memberOutputPath ?? (options.outputPath === undefined
     ? memberOutputPath
     : join(dirname(output), "omo-member.js"))
@@ -128,6 +153,8 @@ export async function checkExtensionCurrent(options = {}) {
     : join(dirname(output), "omo-init-deep-advisor.js"))
   const currentMain = await readBuiltEntry(output)
   if (currentMain === undefined) return { ok: false, reason: "missing-output", output }
+  const currentTask = await readBuiltEntry(taskOutput)
+  if (currentTask === undefined) return { ok: false, reason: "missing-output", output: taskOutput }
   const currentMember = await readBuiltEntry(memberOutput)
   if (currentMember === undefined) return { ok: false, reason: "missing-output", output: memberOutput }
   const currentMemoryMcp = await readBuiltEntry(memoryMcpOutput)
@@ -141,6 +168,7 @@ export async function checkExtensionCurrent(options = {}) {
 
   const tempRoot = await mkdtemp(join(repoRoot, ".build-check-"))
   const expectedOutput = join(tempRoot, "omo.js")
+  const expectedTaskOutput = join(tempRoot, "omo-task.js")
   const expectedMemberOutput = join(tempRoot, "omo-member.js")
   const expectedMemoryMcpOutput = join(tempRoot, "omo-memory-mcp.js")
   const expectedSupervisorOutput = join(tempRoot, "memory-run-supervisor.mjs")
@@ -148,6 +176,7 @@ export async function checkExtensionCurrent(options = {}) {
   try {
     await buildExtension({
       outputPath: expectedOutput,
+      taskOutputPath: expectedTaskOutput,
       memberOutputPath: expectedMemberOutput,
       memoryMcpOutputPath: expectedMemoryMcpOutput,
       supervisorOutputPath: expectedSupervisorOutput,
@@ -155,6 +184,9 @@ export async function checkExtensionCurrent(options = {}) {
     })
     if (!artifactsMatch(currentMain, await readFile(expectedOutput, "utf8"))) {
       return { ok: false, reason: "stale-output", output }
+    }
+    if (!artifactsMatch(currentTask, await readFile(expectedTaskOutput, "utf8"))) {
+      return { ok: false, reason: "stale-output", output: taskOutput }
     }
     if (!artifactsMatch(currentMember, await readFile(expectedMemberOutput, "utf8"))) {
       return { ok: false, reason: "stale-output", output: memberOutput }
@@ -170,7 +202,7 @@ export async function checkExtensionCurrent(options = {}) {
     }
     const stalePersona = await findStaleRuntimePersona(tempRoot, dirname(output), repoRoot)
     if (stalePersona !== undefined) return { ok: false, reason: "stale-output", output: stalePersona }
-    return { ok: true, output, memberOutput, advisorRuntimeOutput }
+    return { ok: true, output, taskOutput, memberOutput, advisorRuntimeOutput }
   } finally {
     await rm(tempRoot, { recursive: true, force: true })
   }
@@ -288,6 +320,8 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
     console.log(`omo-senpi extension build is current: ${result.output}`)
   } else {
     await buildExtension()
-    console.log(`Built omo-senpi extensions: ${outputPath}, ${memberOutputPath}, ${memoryMcpOutputPath}, ${supervisorOutputPath}, ${advisorRuntimeOutputPath}`)
+    console.log(
+      `Built omo-senpi extensions: ${outputPath}, ${taskOutputPath}, ${memberOutputPath}, ${memoryMcpOutputPath}, ${supervisorOutputPath}, ${advisorRuntimeOutputPath}`,
+    )
   }
 }
