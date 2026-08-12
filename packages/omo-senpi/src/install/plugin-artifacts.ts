@@ -7,6 +7,8 @@ import { isRecord } from "./senpi-settings"
 
 const REQUIRED_PLUGIN_ARTIFACTS = [
   join("extensions", "omo.js"),
+  join("extensions", "omo-task.js"),
+  join("extensions", "omo-member.js"),
   join("extensions", "memory-run-supervisor.mjs"),
   join("extensions", "reflection-persona.md"),
   join("extensions", "dream-persona.md"),

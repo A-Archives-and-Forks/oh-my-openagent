@@ -41,43 +41,6 @@ export interface SenpiInstallResult {
   readonly removed?: boolean
 }
 
-const REQUIRED_PLUGIN_ARTIFACTS = [
-  join("extensions", "omo.js"),
-  join("extensions", "omo-task.js"),
-  join("extensions", "omo-member.js"),
-  join("extensions", "reflection-persona.md"),
-  join("skills", "ast-grep", "SKILL.md"),
-  join("skills", "coding-agent-sessions", "SKILL.md"),
-  join("skills", "debugging", "SKILL.md"),
-  join("skills", "frontend", "SKILL.md"),
-  join("skills", "git-master", "SKILL.md"),
-  join("skills", "init-deep", "SKILL.md"),
-  join("skills", "lsp-setup", "SKILL.md"),
-  join("skills", "programming", "SKILL.md"),
-  join("skills", "refactor", "SKILL.md"),
-  join("skills", "remove-ai-slops", "SKILL.md"),
-  join("skills", "review-work", "SKILL.md"),
-  join("skills", "start-work", "SKILL.md"),
-  join("skills", "ultimate-browsing", "SKILL.md"),
-  join("skills", "ultrawork", "SKILL.md"),
-  join("skills", "ulw-loop", "SKILL.md"),
-  join("skills", "ulw-plan", "SKILL.md"),
-  join("skills", "ulw-research", "SKILL.md"),
-  join("skills", "visual-qa", "SKILL.md"),
-  join("runtime", "ast-grep-mcp", "cli.js"),
-  join("runtime", "agent-toolkit", "cli.js"),
-  join("runtime", "agent-toolkit", "ulw-loop", "cli.js"),
-  join("runtime", "agent-toolkit", "omo-agent-toolkit"),
-  join("runtime", "agent-toolkit", "omo-agent-toolkit.cmd"),
-  join("runtime", "lsp-daemon", "dist", "cli.js"),
-  join("runtime", "lsp-daemon", "dist", "index.js"),
-  join("runtime", "lsp-daemon", "dist", "index.d.ts"),
-  join("runtime", "lsp-daemon", "dist", "daemon-client.js"),
-  join("runtime", "lsp-daemon", "dist", "daemon-client.d.ts"),
-  join("runtime", "lsp-daemon", "dist", "package.json"),
-  join("runtime", "lsp-daemon", "dist", ".omo-runtime-manifest.json"),
-  join("scripts", "install.mjs"),
-] as const
 export async function runSenpiInstaller(options: SenpiInstallOptions = {}): Promise<SenpiInstallResult> {
   const context = resolveInstallContext(options)
   await ensurePluginArtifacts(context)
