@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -12,6 +12,8 @@ import { applyFactsRecovery } from "./recovery"
 const AUTHOR = { agentId: "facts-setter-race", authorName: "Facts Setter Race" }
 const WINDOWS_INTEGRATION_TEST_TIMEOUT = process.platform === "win32" ? 20_000 : 5_000
 const tempDirs: string[] = []
+
+setDefaultTimeout(WINDOWS_INTEGRATION_TEST_TIMEOUT)
 
 function batch(batchId = "11111111-1111-4111-8111-111111111111"): FactsBatch {
   return {
