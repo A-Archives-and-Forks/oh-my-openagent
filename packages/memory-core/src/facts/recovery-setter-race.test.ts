@@ -131,7 +131,7 @@ describe("facts conditional mutation primitives", () => {
     expect((await repo.pathState.capture(september)).index).toEqual(indexBefore.get(september)?.index ?? null)
     expect(await repo.pathState.capture(september)).toEqual(recovery.paths.find((entry) => entry.path === september)!.pre)
     expect((await repo.log()).some((commit) => commit.trailers["Omo-Facts-Batch"] === recovery.batchId)).toBe(false)
-  })
+  }, WINDOWS_INTEGRATION_TEST_TIMEOUT)
 
   test("preserves foreign bytes injected after hashing an existing path for deletion", async () => {
     const { dir, repo, injectAfterNextWorktreeHash } = await fixture()
