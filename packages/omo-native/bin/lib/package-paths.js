@@ -12,17 +12,21 @@ export function packageManifest() {
   return readJson(join(packageRoot, "package.json"))
 }
 
-export function updateTarget() {
-  const updateCwd = dirname(join(packageRoot, "package.json"))
+function quotePosix(value) {
+  return `'${value.replaceAll("'", "'\\''")}'`
+}
+
+export function updateTarget(root = packageRoot, platform = process.platform) {
+  const updateCwd = dirname(join(root, "package.json"))
   const normalizedRoot = updateCwd.replaceAll("\\", "/")
   if (normalizedRoot.endsWith("/install/global/node_modules/omo-ai")) {
+    const quotedCwd = platform === "win32"
+      ? `"${normalizedRoot}"`
+      : quotePosix(updateCwd)
     return {
       manager: "bun",
-      command: `bun add --cwd ${JSON.stringify(updateCwd)} -g omo-ai@beta`,
+      command: `bun add --cwd ${quotedCwd} -g omo-ai@beta`,
     }
-  }
-  if (existsSync(join(dirname(packageRoot), ".package-lock.json"))) {
-    return { manager: "npm", command: "npm i -g omo-ai@beta" }
   }
   return { manager: "npm", command: "npm i -g omo-ai@beta" }
 }
