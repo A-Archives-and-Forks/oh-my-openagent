@@ -55,6 +55,7 @@ export function scheduleSupervisorDeadline(instant: number, callback: () => void
     if (!Number.isFinite(now) || now < instant) return
     settled = true
     watcher?.close()
+    clearInterval(safety)
     callback()
   }
   if (readInjectedClock(clockDir) >= instant) {
@@ -63,13 +64,22 @@ export function scheduleSupervisorDeadline(instant: number, callback: () => void
     return () => {}
   }
   const watcher = watch(clockDir, check)
+  // `check` bails whenever the directory read does not yet yield a finite instant, and the tick
+  // that crosses the deadline is normally the last write here - so that bail is permanent: no
+  // further event ever arrives to retry it and the deadline never fires. Re-reading on an interval
+  // makes arrival depend on the clock's VALUE rather than on one directory read happening to
+  // observe it, which measured 3/60 failures against 11/60 for edges alone on Linux.
+  const safety = setInterval(check, CLOCK_RECHECK_INTERVAL_MS)
   check()
   return () => {
     if (settled) return
     settled = true
     watcher.close()
+    clearInterval(safety)
   }
 }
+
+const CLOCK_RECHECK_INTERVAL_MS = 25
 
 function readInjectedClock(clockDir: string): number {
   const latest = readdirSync(clockDir)
