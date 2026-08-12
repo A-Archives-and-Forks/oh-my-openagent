@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, writeFile } from "node:fs/promises"
+import { mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -50,6 +50,7 @@ export interface RunnerHarness {
   readonly api: CapturedCompletionApi
   readonly notifications: Array<{ message: string; level: string }>
   readonly spawnCalls: ReflectionSpawnArgs[]
+  readonly preflightProbeLog: string
   reserveAgain(): Promise<ReservedRun>
 }
 
@@ -61,6 +62,7 @@ export async function createRunnerHarness(options: {
   readonly categoryAvailable?: boolean
   readonly config?: OmoConfig
   readonly models?: readonly SenpiModelPort[]
+  readonly preflightModels?: readonly SenpiModelPort[]
   readonly deadlineMs?: number
   readonly terminationGraceMs?: number
 }): Promise<RunnerHarness> {
@@ -125,9 +127,13 @@ export async function createRunnerHarness(options: {
       : {},
   }
   const loaded: SenpiOmoConfigResult = { config, diagnostics: [], layers: [], sources: [] }
-  const senpiCommand = join(root, "fake-senpi")
-  await writeFile(senpiCommand, `#!/bin/sh\nprintf '%s\\n' ${models.map((candidate) => `'${candidate.provider}/${candidate.id}'`).join(" ")}\n`, "utf8")
-  await chmod(senpiCommand, 0o700)
+  const senpiLauncher = join(root, "fake-senpi.mjs")
+  const preflightProbeLog = join(root, "preflight-probes.log")
+  await writeFile(
+    senpiLauncher,
+    `import { appendFileSync } from "node:fs"\nappendFileSync(${JSON.stringify(preflightProbeLog)}, "probe\\n")\nprocess.stdout.write(${JSON.stringify(`${(options.preflightModels ?? models).map((candidate) => `${candidate.provider}/${candidate.id}`).join("\n")}\n`)})\n`,
+    "utf8",
+  )
   const api = new CapturedCompletionApi()
   const notifications: Array<{ message: string; level: string }> = []
   const spawnCalls: ReflectionSpawnArgs[] = []
@@ -145,7 +151,8 @@ export async function createRunnerHarness(options: {
     deadlineMs: options.deadlineMs,
     terminationGraceMs: options.terminationGraceMs,
     supervisorPath: supervisorFixture,
-    senpiCommand,
+    senpiCommand: process.execPath,
+    senpiPrefixArgs: [senpiLauncher],
     getTranscriptState: (conversationId) => {
       if (conversationId !== "conversation-a") throw new Error(`unknown conversation: ${conversationId}`)
       return journal.getState()
@@ -180,6 +187,7 @@ export async function createRunnerHarness(options: {
     api,
     notifications,
     spawnCalls,
+    preflightProbeLog,
     reserveAgain: async () => {
       const snapshot = await journal.captureReflectionSnapshot()
       if (!snapshot) throw new Error("expected another reflection snapshot")
