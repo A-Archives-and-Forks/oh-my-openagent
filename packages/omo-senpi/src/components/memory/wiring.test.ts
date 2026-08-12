@@ -342,3 +342,120 @@ describe("memory wiring reflection policy", () => {
     expect(evaluations.count).toBe(1)
   })
 })
+
+/**
+ * Drives the real wiring with an injected timer set, so a reflection launch actually starts the
+ * footer animation. The spinner must be genuinely running before a stop path is asserted -
+ * otherwise "zero live handles" passes for the trivial reason that nothing ever started.
+ */
+async function liveFooterHarness(): Promise<{
+  readonly wiring: ReturnType<typeof createMemoryWiring>
+  readonly statusCalls: Array<{ key: string; text: string | undefined }>
+  readonly eventCtx: unknown
+  readonly sessionId: string
+  readonly liveTimers: () => number
+  readonly advanceFrames: (ticks: number) => void
+  readonly startReflection: () => Promise<void>
+  readonly pi: MemoryFakeExtensionAPI
+}> {
+  const fixture = await createFixture()
+  const pi = new MemoryFakeExtensionAPI()
+  const statusCalls: Array<{ key: string; text: string | undefined }> = []
+  const handles = new Map<number, () => void>()
+  let nextHandle = 1
+  const timers = {
+    set(callback: () => void) {
+      const handle = nextHandle
+      nextHandle += 1
+      handles.set(handle, callback)
+      return handle
+    },
+    clear(handle: number | ReturnType<typeof setInterval>) {
+      handles.delete(handle as number)
+    },
+  }
+  const runtime = {
+    store: {
+      evaluate: async () => ({
+        status: "active",
+        run: {
+          runId: "run-live-1",
+          request: { trigger: "settled", conversationIds: [fixture.sessionId], snapshots: [] },
+        },
+      }),
+    },
+    launch: () => {},
+    reconcile: async () => {},
+  } as unknown as MemoryIdentityRuntime
+  const wiring = createMemoryWiring({
+    sessions: new Map([[fixture.sessionId, { context: fixture.context, memoryStatusAttempted: false }]]),
+    loadConfig: () => loadedMemoryConfig(memorySettings()),
+    cwd: () => fixture.cwd,
+    env: fixture.env,
+    refreshStatus: fakeRefreshMemoryStatus,
+    footerTimers: timers,
+    createRuntime: () => runtime,
+  })
+  const eventCtx = sessionContext(fixture.sessionId, statusCalls)
+  wiring.registerStatic(pi, componentContext())
+
+  return {
+    wiring,
+    statusCalls,
+    eventCtx,
+    sessionId: fixture.sessionId,
+    pi,
+    liveTimers: () => handles.size,
+    advanceFrames(ticks) {
+      for (let tick = 0; tick < ticks; tick += 1) {
+        for (const callback of [...handles.values()]) callback()
+      }
+    },
+    async startReflection() {
+      await pi.dispatch("agent_end", { aborted: false, willRetry: false }, eventCtx)
+      await pi.dispatch("agent_settled", {}, eventCtx)
+    },
+  }
+}
+
+describe("memory footer live wiring", () => {
+  test("#given a spinner animating mid-session #when the footer is cleared #then the interval is released and nothing repaints", async () => {
+    const harness = await liveFooterHarness()
+
+    await harness.startReflection()
+    harness.advanceFrames(2)
+
+    // Non-vacuity: the animation is genuinely live before clearStatus is exercised.
+    expect(harness.liveTimers()).toBe(1)
+    expect(harness.statusCalls.some((call) => call.text?.includes("reflecting") === true)).toBe(true)
+
+    harness.wiring.clearStatus(harness.eventCtx)
+    const afterClear = harness.statusCalls.length
+
+    expect(harness.liveTimers()).toBe(0)
+    harness.advanceFrames(10)
+    expect(harness.statusCalls).toHaveLength(afterClear)
+    expect(harness.statusCalls.at(-1)).toEqual({ key: "memory", text: undefined })
+  })
+
+  test("#given a spinner animating mid-session #when the session shuts down #then the animation interval is released", async () => {
+    const harness = await liveFooterHarness()
+
+    await harness.startReflection()
+    harness.advanceFrames(2)
+
+    expect(harness.liveTimers()).toBe(1)
+
+    await harness.wiring.onSessionShutdown({
+      reason: "quit",
+      sessionId: harness.sessionId,
+      deadlineAt: Date.now() + 1_000,
+      now: () => Date.now(),
+    })
+    const afterShutdown = harness.statusCalls.length
+
+    expect(harness.liveTimers()).toBe(0)
+    harness.advanceFrames(10)
+    expect(harness.statusCalls).toHaveLength(afterShutdown)
+  })
+})
