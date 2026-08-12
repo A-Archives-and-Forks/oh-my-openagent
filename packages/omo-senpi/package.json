@@ -44,7 +44,7 @@
     "typebox": "1.1.38"
   },
   "peerDependencies": {
-    "@code-yeongyu/senpi": "2026.8.11-6"
+    "@code-yeongyu/senpi": "2026.8.12-4"
   },
   "peerDependenciesMeta": {
     "@code-yeongyu/senpi": {
@@ -52,6 +52,6 @@
     }
   },
   "devDependencies": {
-    "@code-yeongyu/senpi": "2026.8.11-6"
+    "@code-yeongyu/senpi": "2026.8.12-4"
   }
 }
