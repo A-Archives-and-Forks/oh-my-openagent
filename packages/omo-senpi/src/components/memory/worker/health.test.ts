@@ -43,6 +43,12 @@ describe("reflection health", () => {
             finishedAt: "2026-08-12T04:00:00.000Z",
           },
           lastSuccessAt: "2026-08-12T00:00:00.000Z",
+          lastOutcome: {
+            runId: "four",
+            outcome: "failed",
+            reason: "child_exit",
+            finishedAt: "2026-08-12T04:00:00.000Z",
+          },
           counts: { merged: 1, no_changes: 0, failed: 4, timed_out: 1 },
           pendingCount: 1,
           recentFailureFingerprints: [
@@ -88,6 +94,31 @@ describe("reflection health", () => {
     // then
     expect(api.entries.filter((entry) => entry.customType === REFLECTION_HEALTH_ENTRY_TYPE)).toHaveLength(1)
     expect(notifications).toHaveLength(1)
+  })
+
+  test("#given a success newer than every failure #when health is read #then the newest completion is reported as the last outcome", async () => {
+    // given
+    const root = await mkdtemp(join(tmpdir(), "reflection-health-"))
+    roots.push(root)
+    await writeFile(
+      join(root, "older.json"),
+      JSON.stringify(completion("older", "2026-08-12T01:00:00.000Z", "failed", "child_exit", "boom")),
+    )
+    await writeFile(
+      join(root, "newest.json"),
+      JSON.stringify(completion("newest", "2026-08-12T02:00:00.000Z", "merged")),
+    )
+
+    // when
+    const health = await readReflectionHealth(root)
+
+    // then
+    expect(health.lastOutcome).toEqual({
+      runId: "newest",
+      outcome: "merged",
+      finishedAt: "2026-08-12T02:00:00.000Z",
+    })
+    expect(health.streak).toBe(0)
   })
 
   test("#given a missing directory #when health is read #then zeroed health is returned", async () => {
