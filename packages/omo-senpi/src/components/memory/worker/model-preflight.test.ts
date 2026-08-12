@@ -115,6 +115,10 @@ const child = spawn(process.execPath, ["-e", "setInterval(() => undefined, 30_00
 writeFileSync(process.env.GRANDCHILD_PID, String(child.pid))
 setInterval(() => undefined, 30_000)
 `, "utf8")
+    // Windows runners pay a far larger cost to spawn process.execPath plus a grandchild, so the outer
+    // wall-clock bound is platform-scoped. The injected probe timeout stays at 50ms on every platform,
+    // so an unbounded hang still blows past even the Windows budget.
+    const outerBoundMs = process.platform === "win32" ? 5000 : 500
     const startedAt = Date.now()
     const probe = preflightMemoryModels({
       candidates,
@@ -136,7 +140,7 @@ setInterval(() => undefined, 30_000)
     // when
     const result = await Promise.race([
       probe,
-      new Promise<"hung">((resolve) => setTimeout(() => resolve("hung"), 500)),
+      new Promise<"hung">((resolve) => setTimeout(() => resolve("hung"), outerBoundMs)),
     ]).finally(async () => {
       try {
         cleanupPid = Number((await readFile(grandchildPidPath, "utf8")).trim())
@@ -148,7 +152,7 @@ setInterval(() => undefined, 30_000)
 
     // then
     expect(result).toEqual({ kind: "unavailable", candidates })
-    expect(Date.now() - startedAt).toBeLessThan(500)
+    expect(Date.now() - startedAt).toBeLessThan(outerBoundMs)
     if (cleanupPid !== undefined) await probe
   })
 
