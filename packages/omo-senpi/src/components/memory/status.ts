@@ -177,7 +177,7 @@ function isSystemMarkdown(path: string): boolean {
   return path.startsWith("system/") && path.endsWith(".md")
 }
 
-function formatRelativeAge(committedAt: number, now: number): string | null {
+export function formatRelativeAge(committedAt: number, now: number): string | null {
   const age = now - committedAt
   if (!Number.isFinite(age) || age < 0) return null
   if (age < MINUTE_MS) return "just now"
