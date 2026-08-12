@@ -76,6 +76,7 @@ export interface ReflectionLiveSession {
   readonly sessionId: string
   readonly api: ReflectionCompletionApi
   readonly ui?: ReflectionCompletionUi
+  readonly onCompletion?: (runId: string) => void | Promise<void>
   readonly logger?: {
     warn(message: string, details?: unknown): void
   }
@@ -115,7 +116,9 @@ export async function recordReflectionCompletion(
   if (!live || durable.delivery.status === "consumed") {
     return durable
   }
-  return deliverRecord(completionsDir, durable, live)
+  const delivered = await deliverRecord(completionsDir, durable, live)
+  await live.onCompletion?.(delivered.runId)
+  return delivered
 }
 
 export async function ensureReflectionCompletion(
