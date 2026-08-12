@@ -28,6 +28,13 @@ export interface ReflectionHealth {
     readonly finishedAt: string
   }
   readonly lastSuccessAt?: string
+  /** Newest completion of any outcome, so status surfaces can report the last run that finished. */
+  readonly lastOutcome?: {
+    readonly runId: string
+    readonly outcome: ReflectionOutcome
+    readonly reason?: string
+    readonly finishedAt: string
+  }
   readonly counts: {
     readonly merged: number
     readonly no_changes: number
@@ -40,6 +47,7 @@ export interface ReflectionHealth {
 }
 
 type HealthRecord = {
+  readonly runId?: string
   readonly outcome: ReflectionOutcome
   readonly reason?: string
   readonly detail?: string
@@ -80,6 +88,7 @@ export async function readReflectionHealth(
   const lastFailure = bounded.find((record) => record.outcome === "failed")
   const lastSuccess = bounded.find((record) => record.outcome === "merged" || record.outcome === "no_changes")
   const streakSinceISO = failuresBeforeSuccess.at(-1)?.finishedAt
+  const newest = bounded[0]
 
   return {
     streak: failuresBeforeSuccess.length,
@@ -94,6 +103,16 @@ export async function readReflectionHealth(
           },
         }),
     ...(lastSuccess === undefined ? {} : { lastSuccessAt: lastSuccess.finishedAt }),
+    ...(newest === undefined
+      ? {}
+      : {
+          lastOutcome: {
+            runId: newest.runId ?? "",
+            outcome: newest.outcome,
+            ...(newest.reason === undefined ? {} : { reason: newest.reason }),
+            finishedAt: newest.finishedAt,
+          },
+        }),
     counts,
     pendingCount: bounded.filter((record) => record.pending).length,
     recentFailureFingerprints: recent,
@@ -149,6 +168,7 @@ async function readHealthRecord(path: string): Promise<HealthRecord | undefined>
     if (!isRecord(parsed) || typeof parsed.finishedAt !== "string" || !isOutcome(parsed.outcome)) return undefined
     const delivery = isRecord(parsed.delivery) ? parsed.delivery : undefined
     return {
+      ...(typeof parsed.runId === "string" ? { runId: parsed.runId } : {}),
       outcome: parsed.outcome,
       ...(typeof parsed.reason === "string" ? { reason: parsed.reason } : {}),
       ...(typeof parsed.detail === "string" ? { detail: parsed.detail } : {}),
