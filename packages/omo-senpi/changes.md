@@ -56,3 +56,19 @@ than silently disabling the task component at activation time.
 
 The adapter peer and development dependency now require Senpi `2026.8.11-6`; this is the first
 published host contract with request handler registration and client-side extension requests.
+
+## 2026-08-12 — Anchor task state at the session cwd, not the process launch dir
+
+The task component resolved its project root from `process.cwd()`. In a multi-session host - one
+shared senpi process serving every session, as the OmO desktop rpc child does - that is the process
+LAUNCH directory, not the session's project root. Every session therefore shared a single task
+store, records from unrelated projects interleaved in it, and child artifacts landed where the
+host's per-project readers (`<projectDir>/.omo/senpi-task`) never look.
+
+`register` now takes the cwd the host reports for THIS session (`cwd` on the extension API), and
+falls back to `process.cwd()` only for hosts that predate it. Everything downstream - the record
+store, the `omo.json` load, team runtime dirs and the resumption channels - derives from that one
+value, so they all follow the session.
+
+Keep the fallback until the minimum supported Senpi guarantees `cwd`, and keep resolving the cwd
+ONCE at register: re-reading it later would let a session's store move mid-flight.
