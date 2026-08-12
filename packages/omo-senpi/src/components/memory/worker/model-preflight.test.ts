@@ -75,6 +75,68 @@ process.stdout.write("builtin/fallback\\n")
     expect(await Bun.file(probeLog).text()).toBe("probe\n")
   })
 
+  test("#given a cached negative catalog #when preflight repeats before expiry #then it preserves reactive attempts instead of throwing none_visible", async () => {
+    // given
+    const item = await fixture(`
+import { appendFileSync } from "node:fs"
+appendFileSync(process.env.PROBE_LOG, "probe\\n")
+process.stdout.write("other/model\\n")
+`)
+    const probeLog = join(item.root, "probes.log")
+    const input = {
+      candidates,
+      launch: item.launch,
+      env: { PATH: process.env.PATH, PROBE_LOG: probeLog },
+      configSources: [{ path: item.config, exists: true }],
+      now: () => 1_000,
+    }
+    const fresh = await preflightMemoryModels(input)
+
+    // when
+    const cached = await preflightMemoryModels(input)
+
+    // then
+    expect(fresh).toEqual({
+      kind: "none_visible",
+      rejected: candidates.map((candidate) => ({ model: candidate.model, cause: "model_not_visible" })),
+    })
+    expect(cached).toEqual({ kind: "unavailable", candidates })
+    expect(await Bun.file(probeLog).text()).toBe("probe\n")
+  })
+
+  test("#given a cached negative catalog #when its ttl expires #then preflight probes again and observes newly visible credentials", async () => {
+    // given
+    const item = await fixture(`
+import { appendFileSync, existsSync } from "node:fs"
+appendFileSync(process.env.PROBE_LOG, "probe\\n")
+process.stdout.write(existsSync(process.env.AUTH_READY) ? "builtin/fallback\\n" : "other/model\\n")
+`)
+    const probeLog = join(item.root, "probes.log")
+    const authReady = join(item.root, "auth-ready")
+    let now = 1_000
+    const input = {
+      candidates,
+      launch: item.launch,
+      env: { PATH: process.env.PATH, PROBE_LOG: probeLog, AUTH_READY: authReady },
+      configSources: [{ path: item.config, exists: true }],
+      now: () => now,
+    }
+    expect((await preflightMemoryModels(input)).kind).toBe("none_visible")
+    await writeFile(authReady, "ready\n", "utf8")
+    now += 2 * 60_000
+
+    // when
+    const refreshed = await preflightMemoryModels(input)
+
+    // then
+    expect(refreshed).toEqual({
+      kind: "filtered",
+      candidates: [{ model: "builtin/fallback", thinking: "minimal" }],
+      rejected: [{ model: "extension-only/primary", cause: "model_not_visible" }],
+    })
+    expect(await Bun.file(probeLog).text()).toBe("probe\nprobe\n")
+  })
+
   test("#given a changed config mtime #when preflight runs again #then it refreshes the child catalog", async () => {
     // given
     const item = await fixture(`

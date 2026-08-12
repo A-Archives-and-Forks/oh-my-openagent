@@ -7,6 +7,7 @@ import type { MemoryModelChain } from "./memory-model-attempts"
 import type { ReflectionModelCandidate } from "./resolve-model"
 
 const PREFLIGHT_TIMEOUT_MS = 10_000
+const CATALOG_CACHE_TTL_MS = 2 * 60_000
 const DISCOVERY_DISABLED_MODEL_LIST_ARGS = [
   "--no-extensions",
   "--no-skills",
@@ -42,17 +43,26 @@ type ModelPreflightInput = {
   readonly configSources: readonly { readonly path: string; readonly exists: boolean }[]
   readonly warn?: (message: string, details?: unknown) => void
   readonly timeoutMs?: number
+  readonly now?: () => number
 }
 
-const catalogCache = new Map<string, ReadonlySet<string>>()
+type CatalogCacheEntry = {
+  readonly visible: ReadonlySet<string>
+  readonly probedAt: number
+}
+
+const catalogCache = new Map<string, CatalogCacheEntry>()
 
 export async function preflightMemoryModels(input: ModelPreflightInput): Promise<ModelPreflightResult> {
   const cacheKey = await modelCatalogCacheKey(input.launch, input.configSources)
-  let visible = catalogCache.get(cacheKey)
+  const now = (input.now ?? Date.now)()
+  const cached = catalogCache.get(cacheKey)
+  const current = cached !== undefined && now - cached.probedAt < CATALOG_CACHE_TTL_MS ? cached : undefined
+  let visible = current?.visible
   if (visible === undefined) {
     try {
       visible = await probeChildModels(input.launch, input.env, input.timeoutMs ?? PREFLIGHT_TIMEOUT_MS)
-      catalogCache.set(cacheKey, visible)
+      catalogCache.set(cacheKey, { visible, probedAt: now })
     } catch (error) {
       input.warn?.("memory child model preflight failed; falling back to reactive model retries", {
         error: describe(error),
@@ -65,7 +75,11 @@ export async function preflightMemoryModels(input: ModelPreflightInput): Promise
   const rejected = input.candidates
     .filter((candidate) => !visible.has(candidate.model))
     .map((candidate): ModelPreflightRejection => ({ model: candidate.model, cause: "model_not_visible" }))
-  if (candidates.length === 0) return { kind: "none_visible", rejected }
+  if (candidates.length === 0) {
+    return current === undefined
+      ? { kind: "none_visible", rejected }
+      : { kind: "unavailable", candidates: input.candidates }
+  }
   return { kind: "filtered", candidates: asMemoryModelChain(candidates), rejected }
 }
 
