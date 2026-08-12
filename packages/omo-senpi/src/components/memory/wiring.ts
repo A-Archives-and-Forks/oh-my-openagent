@@ -236,7 +236,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       if (liveSession.current !== undefined) {
         try {
           const completionsDir = join(identity.identityPaths.reflection, "completions")
-          const consumed = await consumePendingReflectionCompletions(completionsDir, liveSession.current)
+          const consumed = await consumePendingReflectionCompletions(completionsDir, identity.identity, liveSession.current)
           // A consumed completion is the settle signal: the run behind it is no longer in flight.
           for (const record of consumed) activeRuns.settle(identity.identity, record.runId)
           await emitReflectionHealthAlert(completionsDir, identity.identity, liveSession.current, healthAlertOnce)
