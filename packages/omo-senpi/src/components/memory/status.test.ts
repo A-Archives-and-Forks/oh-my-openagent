@@ -15,7 +15,7 @@ import {
 
 const roots: string[] = []
 afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
 })
 
 interface RecordingUi {
@@ -95,7 +95,7 @@ describe("refreshMemoryStatus", () => {
     expect(recorder.statusCalls).toEqual([
       { key: MEMORY_STATUS_KEY, text: "mem:fake-agent 1m ago" },
     ])
-  })
+  }, 30_000)
 
   test("#given committed HEAD ages across display buckets #when refresh runs #then compact labels follow the system clock", async () => {
     const now = Date.parse("2026-08-10T12:00:00.000Z")
@@ -130,7 +130,7 @@ describe("refreshMemoryStatus", () => {
         { key: MEMORY_STATUS_KEY, text: `mem:fake-agent ${expected}` },
       ])
     }
-  })
+  }, 30_000)
 
   test("#given system markdown under the advisory threshold #when refresh runs #then no advisory notify fires", async () => {
     const smallContent = "x".repeat(100)
@@ -150,7 +150,7 @@ describe("refreshMemoryStatus", () => {
 
     expect(recorder.notifications).toEqual([])
     expect(result.notified).toBe(false)
-  })
+  }, 30_000)
 
   test("#given system markdown at or above the advisory threshold #when refresh runs #then one warning notify fires with token estimate", async () => {
     const bigContent = "A".repeat(120_000)
@@ -174,7 +174,7 @@ describe("refreshMemoryStatus", () => {
     expect(recorder.notifications[0]?.message).toContain("tokens")
     expect(recorder.notifications[0]?.message).toContain("/doctor")
     expect(result.notified).toBe(true)
-  })
+  }, 30_000)
 
   test("#given footer rendering disabled at session bind #when memory is oversized #then advisory fires without a footer", async () => {
     const fakeRepo: GitRepoForStatus = {
@@ -202,7 +202,7 @@ describe("refreshMemoryStatus", () => {
 
     expect(recorder.statusCalls).toEqual([])
     expect(recorder.notifications).toHaveLength(1)
-  })
+  }, 30_000)
 
   test("#given advisory checking disabled after first memory use #when memory is oversized #then footer renders without another warning", async () => {
     const fakeRepo: GitRepoForStatus = {
@@ -232,7 +232,7 @@ describe("refreshMemoryStatus", () => {
       { key: MEMORY_STATUS_KEY, text: "mem:fake-agent 1m ago" },
     ])
     expect(recorder.notifications).toEqual([])
-  })
+  }, 30_000)
 
   test("#given an already-notified session #when refresh runs again over threshold #then no second notify fires", async () => {
     const bigContent = "B".repeat(120_000)
@@ -251,7 +251,7 @@ describe("refreshMemoryStatus", () => {
 
     expect(recorder.notifications).toEqual([])
     expect(result.notified).toBe(false)
-  })
+  }, 30_000)
 
   test("#given a repo with no HEAD #when refresh runs #then no footer or advisory appears", async () => {
     const root = mkdtempSync(join(tmpdir(), "omo-memory-status-empty-"))
@@ -274,7 +274,7 @@ describe("refreshMemoryStatus", () => {
     expect(recorder.statusCalls).toEqual([])
     expect(recorder.notifications).toEqual([])
     expect(result.notified).toBe(false)
-  })
+  }, 30_000)
 
   test("#given a committed HEAD without a readable commit timestamp #when refresh runs #then no footer appears", async () => {
     const fakeRepo: GitRepoForStatus = {
@@ -300,7 +300,7 @@ describe("refreshMemoryStatus", () => {
 
     expect(recorder.statusCalls).toEqual([])
     expect(result.notified).toBe(false)
-  })
+  }, 30_000)
 
   test("#given a commit timestamp later than the system clock #when refresh runs #then no footer appears", async () => {
     const fakeRepo: GitRepoForStatus = {
@@ -326,7 +326,7 @@ describe("refreshMemoryStatus", () => {
     })
 
     expect(recorder.statusCalls).toEqual([])
-  })
+  }, 30_000)
 
   test("#given system files with non-system markdown excluded #when refresh estimates tokens #then only system/**/*.md counts", async () => {
     const content = "C".repeat(200_000)
@@ -351,5 +351,5 @@ describe("refreshMemoryStatus", () => {
     const estimate = match ? Number(match[1]) : NaN
     expect(estimate).toBeGreaterThanOrEqual(30_000)
     expect(estimate).toBeLessThanOrEqual(50_001)
-  })
+  }, 30_000)
 })

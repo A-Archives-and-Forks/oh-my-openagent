@@ -31,7 +31,10 @@ async function makePluginFixture(options: { readonly runtime?: boolean } = { run
   await writeFixtureFile(join(pluginPath, "extensions", "omo.js"), "export default {}\n")
   await writeFixtureFile(join(pluginPath, "extensions", "omo-task.js"), "export const createTaskComponent = () => ({})\n")
   await writeFixtureFile(join(pluginPath, "extensions", "omo-member.js"), "export default {}\n")
+  await writeFixtureFile(join(pluginPath, "extensions", "memory-run-supervisor.mjs"), "export {}\n")
   await writeFixtureFile(join(pluginPath, "extensions", "reflection-persona.md"), "# reflection persona fixture\n")
+  await writeFixtureFile(join(pluginPath, "extensions", "dream-persona.md"), "# dream persona fixture\n")
+  await writeFixtureFile(join(pluginPath, "extensions", "facts-persona.md"), "# facts persona fixture\n")
   const requiredSkillNames = [
     "ast-grep",
     "coding-agent-sessions",
@@ -242,6 +245,40 @@ describe("runSenpiInstaller", () => {
 
     // then
     await expect(install).rejects.toThrow("ast-grep MCP runtime integrity error")
+    expect(await readSettings(agentDir)).toEqual({ packages: ["keep-me"] })
+    expect(await backupFiles(agentDir)).toHaveLength(0)
+  })
+
+  test("#given a packed plugin missing the run supervisor #when installing #then artifact validation fails before settings change", async () => {
+    // given
+    const agentDir = await makeAgentDir()
+    const pluginPath = await makePluginFixture()
+    await rm(join(pluginPath, "extensions", "memory-run-supervisor.mjs"))
+    await mkdir(agentDir, { recursive: true })
+    await writeFile(join(agentDir, "settings.json"), JSON.stringify({ packages: ["keep-me"] }), "utf8")
+
+    // when
+    const install = runSenpiInstaller({ env: { SENPI_CODING_AGENT_DIR: agentDir }, repoRoot, pluginPath })
+
+    // then
+    await expect(install).rejects.toThrow("missing required runtime artifacts")
+    expect(await readSettings(agentDir)).toEqual({ packages: ["keep-me"] })
+    expect(await backupFiles(agentDir)).toHaveLength(0)
+  })
+
+  test("#given a packed plugin missing the dream persona #when installing #then artifact validation fails before settings change", async () => {
+    // given
+    const agentDir = await makeAgentDir()
+    const pluginPath = await makePluginFixture()
+    await rm(join(pluginPath, "extensions", "dream-persona.md"))
+    await mkdir(agentDir, { recursive: true })
+    await writeFile(join(agentDir, "settings.json"), JSON.stringify({ packages: ["keep-me"] }), "utf8")
+
+    // when
+    const install = runSenpiInstaller({ env: { SENPI_CODING_AGENT_DIR: agentDir }, repoRoot, pluginPath })
+
+    // then
+    await expect(install).rejects.toThrow("missing required runtime artifacts")
     expect(await readSettings(agentDir)).toEqual({ packages: ["keep-me"] })
     expect(await backupFiles(agentDir)).toHaveLength(0)
   })

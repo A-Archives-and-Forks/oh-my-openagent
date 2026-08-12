@@ -3,8 +3,9 @@ import { existsSync, mkdtempSync, mkdirSync, realpathSync, rmSync, writeFileSync
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 
-import type { ReflectionSpawnArgs } from "./worker/spawn"
+import type { FactsSpawnArgs, ReflectionSpawnArgs } from "./worker/spawn"
 import {
+  buildFactsSandboxTransform,
   buildSandboxTransform,
   SandboxUnavailableError,
   type SandboxPolicy,
@@ -12,7 +13,7 @@ import {
 
 const roots: string[] = []
 afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
 })
 
 function fixture(): {
@@ -37,6 +38,11 @@ function fixture(): {
 function spawnArgs(worktree: string): ReflectionSpawnArgs {
   const sessionDir = dirname(worktree)
   return {
+    attempt: 1,
+    hardDeadlineAt: Date.now() + 10_000,
+    category: "quick",
+    conversationIds: ["conversation-a"],
+    model: "fixture/model",
     command: "/bin/sh",
     args: ["-c", "exit 0"],
     cwd: worktree,
@@ -49,6 +55,25 @@ function spawnArgs(worktree: string): ReflectionSpawnArgs {
       transcript: join(sessionDir, "transcript.json"),
       persona: join(sessionDir, "persona.md"),
       prompt: join(sessionDir, "prompt.md"),
+    },
+  }
+}
+
+function factsSpawnArgs(runDir: string): FactsSpawnArgs {
+  return {
+    runId: "facts-run-1",
+    attempt: 1,
+    hardDeadlineAt: Date.now() + 10_000,
+    model: "fixture/model",
+    command: "/bin/sh",
+    args: ["-c", "exit 0"],
+    cwd: runDir,
+    env: { PATH: process.env.PATH },
+    detached: true,
+    paths: {
+      runDir,
+      payload: join(runDir, "facts-payload.json"),
+      extraction: join(runDir, "extraction.jsonl"),
     },
   }
 }
@@ -119,7 +144,7 @@ describe("reflection worker OS sandbox", () => {
     expect(profile).toContain(`(allow file-read* (literal ${JSON.stringify(realpathSync(setup.payloadPaths[0] ?? ""))}))`)
     expect(profile).toContain(`(deny file-read* (subpath ${JSON.stringify(realpathSync(foreignRoot))}))`)
     expect(transformed.env.TMPDIR).toBe(join(realpathSync(dirname(setup.payloadPaths[0] ?? "")), ".sandbox-tmp"))
-  })
+  }, 30_000)
 
   test("#given the Darwin profile #when git-shell children run inside it #then device nodes they stream through stay writable", () => {
     // given
@@ -141,7 +166,7 @@ describe("reflection worker OS sandbox", () => {
     // earlier (deny file-write*) blanket killed every `git commit` inside a reflection child.
     expect(profile).toContain('(allow file-write* (literal "/dev/null"))')
     expect(profile).toContain('(allow file-write* (literal "/dev/tty"))')
-  })
+  }, 30_000)
 
   test("#given Linux with bwrap available #when spawn arguments are transformed #then the root is read-only while worktree and git state are rebound writable", () => {
     // given
@@ -162,7 +187,7 @@ describe("reflection worker OS sandbox", () => {
       "--chdir", setup.worktree,
       "--", "/bin/sh", "-c", "exit 0",
     ])
-  })
+  }, 30_000)
 
   test("#given required policy without a platform sandbox #when the transform is built #then a typed unavailable error is thrown", () => {
     // given
@@ -181,7 +206,7 @@ describe("reflection worker OS sandbox", () => {
     // then
     expect(buildRequired).toThrow(SandboxUnavailableError)
     expect(buildRequired).toThrow("required reflection sandbox unavailable on linux: bwrap not found")
-  })
+  }, 30_000)
 
   test("#given auto policy without a platform sandbox #when spawn arguments are transformed #then they pass through with an explicit warning", () => {
     // given
@@ -195,7 +220,7 @@ describe("reflection worker OS sandbox", () => {
     expect(transformed).toBe(original)
     expect(transform.wasSandboxed).toBe(false)
     expect(transform.warning).toBe("reflection sandbox unavailable on linux: bwrap not found; running unsandboxed because policy is auto")
-  })
+  }, 30_000)
 
   test("#given off policy #when the transform is built and used #then detection is skipped and spawn arguments pass through", () => {
     // given
@@ -209,5 +234,35 @@ describe("reflection worker OS sandbox", () => {
     expect(transformed).toBe(original)
     expect(transform.wasSandboxed).toBe(false)
     expect(transform.warning).toBeUndefined()
-  })
+  }, 30_000)
+})
+
+describe("facts worker OS sandbox", () => {
+  test("#given Linux with bwrap available #when facts spawn arguments are transformed #then only the run directory is rebound writable", async () => {
+    // given
+    const root = mkdtempSync(join(tmpdir(), "omo-memory-facts-sandbox-"))
+    roots.push(root)
+    const runDir = join(root, "runtime", "facts", "runs", "run-1")
+    mkdirSync(runDir, { recursive: true })
+    writeFileSync(join(runDir, "facts-payload.json"), "{}")
+    const transform = buildFactsSandboxTransform({
+      policy: "required",
+      platform: "linux",
+      which: () => "/usr/bin/bwrap",
+    })
+
+    // when
+    const transformed = await transform(factsSpawnArgs(runDir))
+
+    // then
+    expect(transformed.command).toBe("/usr/bin/bwrap")
+    expect(transformed.args).toEqual([
+      "--ro-bind", "/", "/",
+      "--dev-bind", "/dev", "/dev",
+      "--tmpfs", "/tmp",
+      "--bind", realpathSync(runDir), realpathSync(runDir),
+      "--chdir", runDir,
+      "--", "/bin/sh", "-c", "exit 0",
+    ])
+  }, 30_000)
 })

@@ -3,7 +3,7 @@ import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises"
 import { basename, join } from "node:path"
 
 import type { EntryRenderer } from "@code-yeongyu/senpi"
-import type { ReflectionOutcome } from "@oh-my-opencode/memory-core"
+import type { DreamOrigin, ReflectionOutcome, ReflectionTrigger } from "@oh-my-opencode/memory-core"
 import { normalizeRendererText } from "@oh-my-opencode/senpi-task/renderer-text"
 import { linesComponent } from "@oh-my-opencode/senpi-task/task-renderers"
 
@@ -17,6 +17,8 @@ export interface ReflectionCompletionRecord {
   readonly model?: string
   readonly thinking?: string
   readonly conversationIds: readonly string[]
+  readonly trigger: ReflectionTrigger
+  readonly origin?: DreamOrigin
   readonly outcome: ReflectionOutcome
   readonly reason?: string
   readonly detail?: string
@@ -65,9 +67,36 @@ export async function recordReflectionCompletion(
   record: ReflectionCompletionRecord,
   live?: ReflectionLiveSession,
 ): Promise<ReflectionCompletionRecord> {
-  await writeRecord(completionsDir, record)
-  if (!live || !record.conversationIds.includes(live.sessionId)) return record
-  return deliverRecord(completionsDir, record, live)
+  const durable = await ensureReflectionCompletion(completionsDir, record)
+  if (!live
+    || durable.delivery.status === "consumed"
+    || !durable.conversationIds.includes(live.sessionId)) {
+    return durable
+  }
+  return deliverRecord(completionsDir, durable, live)
+}
+
+export async function ensureReflectionCompletion(
+  completionsDir: string,
+  desired: ReflectionCompletionRecord,
+): Promise<ReflectionCompletionRecord> {
+  const target = join(completionsDir, `${safeRunId(desired.runId)}.json`)
+  const existing = await readRecord(target)
+  if (existing !== null) {
+    if (!sameCompletion(existing, desired)) {
+      throw new Error(`Reflection completion record mismatch for ${desired.runId}`)
+    }
+    return existing
+  }
+  await writeRecord(completionsDir, desired)
+  return desired
+}
+
+export async function readReflectionCompletion(
+  completionsDir: string,
+  runId: string,
+): Promise<ReflectionCompletionRecord | null> {
+  return readRecord(join(completionsDir, `${safeRunId(runId)}.json`))
 }
 
 export async function consumePendingReflectionCompletions(
@@ -122,6 +151,14 @@ function completionLevel(outcome: ReflectionOutcome): "info" | "warning" {
   return outcome === "merged" || outcome === "no_changes" ? "info" : "warning"
 }
 
+function sameCompletion(
+  left: ReflectionCompletionRecord,
+  right: ReflectionCompletionRecord,
+): boolean {
+  return JSON.stringify({ ...left, delivery: undefined })
+    === JSON.stringify({ ...right, delivery: undefined })
+}
+
 async function writeRecord(completionsDir: string, record: ReflectionCompletionRecord): Promise<void> {
   await mkdir(completionsDir, { recursive: true, mode: 0o700 })
   const target = join(completionsDir, `${safeRunId(record.runId)}.json`)
@@ -149,6 +186,10 @@ function isCompletionRecord(value: unknown): value is ReflectionCompletionRecord
     && typeof record.category === "string"
     && Array.isArray(record.conversationIds)
     && record.conversationIds.every((id) => typeof id === "string")
+    && (record.trigger === "manual" || record.trigger === "compaction" || record.trigger === "step-count" || record.trigger === "dream")
+    && (record.trigger === "dream"
+      ? record.origin === "manual" || record.origin === "idle" || record.origin === "shutdown"
+      : record.origin === undefined)
     && typeof record.outcome === "string"
     && typeof record.startedAt === "string"
     && typeof record.finishedAt === "string"
