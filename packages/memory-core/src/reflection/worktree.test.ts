@@ -202,7 +202,7 @@ describe("reflection worktree finalization", () => {
     expect(await repo.show("HEAD", "child.md")).toBe("child\n")
     expect(await repo.show("HEAD", "parent.md")).toBe("parent\n")
     await assertCleaned(worktree, parentDir)
-  })
+  }, WINDOWS_INTEGRATION_TEST_TIMEOUT)
 
   it("#given an externally merged reflection branch #when explicit finalization verifies reachability #then it reports merged and cleans up", async () => {
     // #given
@@ -221,5 +221,5 @@ describe("reflection worktree finalization", () => {
     expect(result.status).toBe("merged")
     expect(await repo.show("HEAD", "explicit.md")).toBe("integrated\n")
     await assertCleaned(worktree, parentDir)
-  })
+  }, WINDOWS_INTEGRATION_TEST_TIMEOUT)
 })
