@@ -4,6 +4,7 @@ import {
   ensureReflectionCompletion,
   readReflectionCompletion,
 } from "./completion"
+import { readReflectionHealth } from "./health"
 import {
   readRunJson,
   updateRunLedger,
@@ -55,6 +56,7 @@ export async function settleReservationRun(
     launch = transition.launch
   }
 
+  const healthBefore = await readReflectionHealth(completionsDir)
   const completion = await ensureReflectionCompletion(completionsDir, {
     schemaVersion: 1,
     runId: current.runId,
@@ -70,6 +72,12 @@ export async function settleReservationRun(
     ...(decision.detail === undefined ? {} : { detail: decision.detail }),
     startedAt: current.startedAt,
     finishedAt: finalizedAt,
+    durationMs: Math.max(0, Date.parse(finalizedAt) - Date.parse(current.startedAt)),
+    ...(decision.outcome === "merged" && decision.integrationSha !== undefined
+      ? { mergedCommitSha: decision.integrationSha }
+      : {}),
+    ...(current.validatedChangedPaths === undefined ? {} : { filesChanged: current.validatedChangedPaths.length }),
+    consecutiveFailures: decision.outcome === "failed" ? healthBefore.streak + 1 : 0,
     delivery: { status: "pending" },
   })
   await updateRunLedger(ledgerPath, { finalizePhase: "settled" })

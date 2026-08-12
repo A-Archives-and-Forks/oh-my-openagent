@@ -1,6 +1,8 @@
 import { join } from "node:path"
 
-import { MemoryBlockCache } from "@oh-my-opencode/memory-core"
+import { MemoryBlockCache, type ReservedRun } from "@oh-my-opencode/memory-core"
+
+import { createOncePerSessionGuard } from "../task/usage-guidance"
 
 import type { ComponentContext, SenpiExtensionAPI } from "../../extension/types"
 import { hasMemoryCapabilities } from "./capabilities"
@@ -10,13 +12,19 @@ import { resolveMemorySettings } from "./identity-runtime"
 import { createMemoryNudgeWiring } from "./nudge-wiring"
 import type { PalacePeopleOptions } from "./palace/people"
 import { registerMemoryFilesystemPolicy } from "./policy-guard"
+import { createMemoryRpcBridge, type MemoryRpcBridge } from "./memory-rpc-bridge"
 import { createShutdownDrain, type ShutdownDrainInput, type ShutdownEvaluator } from "./shutdown-drain"
+import { resolveAgentReflectionSettings } from "./reflection-settings"
 import { type SkillsUsageTracker } from "./skills-usage"
 import { createSoulNoticeWiring } from "./soul-notice"
 import { MEMORY_STATUS_KEY, refreshMemoryStatus } from "./status"
+import { createActiveReflectionRuns } from "./status-active-runs"
+import { createMemoryFooterStatusLive } from "./status-live-wiring"
 import {
   consumePendingReflectionCompletions,
+  emitReflectionHealthAlert,
   type ReflectionCompletionApi,
+  type ReflectionLiveSession,
 } from "./worker"
 import { branchEntryCount, readUi } from "./wiring-context"
 import { createMemoryRuntimeWiring } from "./wiring-runtime"
@@ -30,8 +38,42 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
   const promptCache = new MemoryBlockCache()
   const lastEventCtx: { current?: unknown } = {}
   const activeSession: { current?: string } = {}
+  const liveSession: { current?: ReflectionLiveSession } = {}
+  const healthAlertOnce = createOncePerSessionGuard()
   const skillsUsageTrackersRef: { current: Map<string, SkillsUsageTracker> } = { current: new Map() }
-  const runtimeWiring = createMemoryRuntimeWiring(options, lastEventCtx)
+  const activeRuns = createActiveReflectionRuns()
+  // The bridge needs the host API, which only arrives at registration; absent means no rpc surface.
+  const rpcBridge: { current?: MemoryRpcBridge } = {}
+  const footerLive = createMemoryFooterStatusLive({
+    resolveContext: (sessionId) => options.sessions.get(sessionId)?.context,
+    isActive: (identity) => activeRuns.isActive(identity),
+    ...(options.footerTimers === undefined ? {} : { timers: options.footerTimers }),
+  })
+  /** Records the launched run and refreshes both live surfaces behind their own change gates. */
+  async function onReflectionLaunched(identity: string, run: ReservedRun): Promise<void> {
+    activeRuns.start(identity, run.runId, launchDetails(identity, run))
+    footerLive.syncActive(activeSession.current, readUi(lastEventCtx.current))
+    await rpcBridge.current?.sync()
+  }
+
+  /**
+   * Launch-time facts only. The concrete model is chosen inside the reflection child, so the
+   * snapshot reports the configured category and leaves `model` absent rather than guessing.
+   */
+  function launchDetails(identity: string, run: ReservedRun) {
+    const settings = resolveMemorySettings(options.loadConfig({ cwd: options.cwd() }).config.memory)
+    return {
+      trigger: run.request.trigger,
+      category: resolveAgentReflectionSettings(settings, identity).category,
+      startedAt: run.reservedAt ?? new Date((options.now ?? Date.now)()).toISOString(),
+    }
+  }
+  const runtimeWiring = createMemoryRuntimeWiring(
+    options,
+    lastEventCtx,
+    () => liveSession.current,
+    { onLaunch: onReflectionLaunched },
+  )
   const { resolveContext, journalWiringFor, factsWiringFor, runtimeFor } = runtimeWiring
 
   const nudgeWiring = createMemoryNudgeWiring({
@@ -126,6 +168,10 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
 
   return {
     registerStatic(pi: SenpiExtensionAPI, ctx: ComponentContext): void {
+      rpcBridge.current = createMemoryRpcBridge(pi, {
+        resolveContext,
+        activeRun: (identity) => activeRuns.current(identity),
+      })
       registerMemoryStatic({
         pi,
         ctx,
@@ -145,12 +191,22 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
         lastEventCtx,
         activeSession,
         skillsUsageTrackersRef,
+        onReflectionLaunch: onReflectionLaunched,
+        onSettled: async (sessionId, eventCtx) => {
+          // The footer stays fire-and-forget; only the rpc snapshot is awaited by the caller.
+          void footerLive.refresh(sessionId, readUi(eventCtx))
+          await rpcBridge.current?.sync()
+        },
+        onMemoryWrite: async () => {
+          await rpcBridge.current?.sync()
+        },
       })
     },
 
     async afterBind(pi: SenpiExtensionAPI, sessionId: string, identity: MemoryIdentityContext, eventCtx: unknown): Promise<void> {
       activeSession.current = sessionId
       lastEventCtx.current = eventCtx
+      rpcBridge.current?.attach(sessionId)
       registerMemoryFilesystemPolicy(pi, identity)
       await runtimeFor(identity).reconcile()
       if (branchEntryCount(eventCtx) > 0) {
@@ -158,6 +214,15 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       }
       factsWiringFor(identity).reconcileExtractor()
       const ui = readUi(eventCtx)
+      const api = completionApi(pi)
+      liveSession.current = api === undefined
+        ? undefined
+        : {
+            sessionId,
+            api,
+            ...(ui === undefined ? {} : { ui }),
+            ...(options.logger === undefined ? {} : { logger: options.logger }),
+          }
       if (ui !== undefined) {
         const settings = resolveMemorySettings(options.loadConfig({ cwd: options.cwd() }).config.memory)
         void refreshMemoryStatus({
@@ -165,15 +230,24 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
           ui,
           compileWarnTokens: settings.compile_warn_tokens,
           alreadyNotified: false,
+          sessionId,
         }).catch(() => {})
       }
-      const api = completionApi(pi)
-      if (api !== undefined) {
-        void consumePendingReflectionCompletions(
-          join(identity.identityPaths.reflection, "completions"),
-          { sessionId, api },
-        ).catch(() => {})
+      if (liveSession.current !== undefined) {
+        try {
+          const completionsDir = join(identity.identityPaths.reflection, "completions")
+          const consumed = await consumePendingReflectionCompletions(completionsDir, liveSession.current)
+          // A consumed completion is the settle signal: the run behind it is no longer in flight.
+          for (const record of consumed) activeRuns.settle(identity.identity, record.runId)
+          await emitReflectionHealthAlert(completionsDir, identity.identity, liveSession.current, healthAlertOnce)
+          footerLive.syncActive(sessionId, ui)
+          await footerLive.refresh(sessionId, ui)
+        } catch (error) {
+          options.logger?.warn("memory reflection completion drain failed", { error: describe(error) })
+        }
       }
+      // Published last so the bind snapshot reflects the drained backlog, not the pre-drain state.
+      await rpcBridge.current?.sync()
     },
 
     async flushSkillsUsage(): Promise<void> {
@@ -181,6 +255,11 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     },
 
     async onSessionShutdown(input: ShutdownDrainInput): Promise<void> {
+      const identity = options.sessions.get(input.sessionId)?.context
+      if (identity !== undefined) activeRuns.clear(identity.identity)
+      // A leaked interval outlives the session, so the animation stops before the drain runs.
+      footerLive.dispose()
+      rpcBridge.current?.detach()
       await shutdownDrain.run(input)
     },
 
@@ -189,7 +268,13 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     },
 
     clearStatus(eventCtx: unknown): void {
+      // Clearing the footer must also kill the animation, or the interval repaints what was cleared.
+      footerLive.stop()
       readUi(eventCtx)?.setStatus(MEMORY_STATUS_KEY, undefined)
     },
   }
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
