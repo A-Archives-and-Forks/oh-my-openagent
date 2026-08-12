@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "bun:test"
+import { afterEach, describe, expect, it, setDefaultTimeout } from "bun:test"
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
@@ -16,6 +16,9 @@ const AUTHOR: GitCommitAuthor = {
 }
 
 const roots: string[] = []
+const WINDOWS_INTEGRATION_TEST_TIMEOUT = process.platform === "win32" ? 20_000 : 5_000
+
+setDefaultTimeout(WINDOWS_INTEGRATION_TEST_TIMEOUT)
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
