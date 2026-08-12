@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs"
+import { homedir } from "node:os"
 import { delimiter, join } from "node:path"
 import { spawnNode } from "./child-process.js"
 import { runDoctor } from "./doctor.js"
@@ -56,6 +57,7 @@ function senpiEnvironment(senpiRoot) {
   delete env.OMO_BIN
   delete env.SENPI_BIN
   env.OMO_AGENT_TOOLKIT_BIN = join(packageRoot, "bin", "omo-agent-toolkit.js")
+  env.SENPI_CODING_AGENT_DIR = join(env.HOME || homedir(), ".omo", "agent")
   // senpi's footer reads this marker to show the OmO Native badge for omo-ai installs, which load
   // the plugin via --extension and therefore never match the settings-packages detection gates.
   env.OMO_NATIVE = "1"
