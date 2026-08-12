@@ -139,12 +139,16 @@ function taskkillTree(pid: number, synchronous: boolean): void {
   spawnTerminationCommand(command, ["/pid", String(pid), "/T", "/F"], synchronous)
 }
 
+export function recordSupervisorGracefulDeadline(pid: number | undefined): void {
+  if (pid !== undefined) recordTestTermination("win32-graceful", pid)
+}
+
 export function terminateSupervisorChildGracefully(
   platform: SupervisorRuntimePlatform,
   wrapper: ChildProcess,
 ): void {
   if (platform === "win32") {
-    recordTestTermination("win32-graceful", wrapper.pid ?? -1)
+    recordSupervisorGracefulDeadline(wrapper.pid)
     wrapper.kill()
   } else if (wrapper.pid !== undefined) signalSupervisorProcessGroup(wrapper.pid, "SIGTERM")
 }

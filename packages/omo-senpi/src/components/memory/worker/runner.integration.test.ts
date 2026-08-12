@@ -54,7 +54,6 @@ describe("SenpiSubprocessRunner integration", () => {
         deep: { model: "override/model", reasoning: "high" },
       },
     }
-    const startedAt = Date.now()
     const item = await harness({
       childMode: "commit",
       config,
@@ -65,6 +64,7 @@ describe("SenpiSubprocessRunner integration", () => {
     })
 
     // when
+    const startedAt = Date.now()
     const result = await item.runner.launch(item.run)
 
     // then

@@ -16,6 +16,7 @@ import {
   getSupervisorRuntimePlatform,
   parseSupervisorChildExit,
   readSupervisorClockNow,
+  recordSupervisorGracefulDeadline,
   scheduleSupervisorDeadline,
   signalSupervisorProcessGroup,
   terminateSupervisorChildGracefully,
@@ -95,9 +96,8 @@ async function runSupervisor(runDir: string): Promise<void> {
   const stdoutFd = openSync(manifest.stdoutPath, "w")
   const stderrFd = openSync(manifest.stderrPath, "w")
   const bootstrap = spawn(process.execPath, [fileURLToPath(import.meta.url), "--child-bootstrap", runDir], {
-    cwd: manifest.cwd,
     env: process.env,
-    detached: platform === "posix",
+    detached: true,
     stdio: ["pipe", stdoutFd, stderrFd, "pipe"],
   })
   let childPid = bootstrap.pid
@@ -151,7 +151,8 @@ async function runSupervisor(runDir: string): Promise<void> {
   if (platform === "win32") hardKillFinished = new Promise<void>((resolve) => { finishHardKill = resolve })
   const cancelTerm = scheduleSupervisorDeadline(manifest.hardDeadlineAt, () => {
     timedOut = true
-    terminateSupervisorChildGracefully(platform, bootstrap)
+    if (platform === "win32") recordSupervisorGracefulDeadline(bootstrap.pid)
+    else terminateSupervisorChildGracefully(platform, bootstrap)
   })
   const cancelKill = scheduleSupervisorDeadline(manifest.hardDeadlineAt + manifest.terminationGraceMs, () => {
     terminateSupervisorChildHard(platform, modelPid ?? childPid)
