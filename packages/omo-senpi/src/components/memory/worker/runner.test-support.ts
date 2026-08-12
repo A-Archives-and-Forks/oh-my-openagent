@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises"
+import { chmod, mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -126,6 +126,9 @@ export async function createRunnerHarness(options: {
       : {},
   }
   const loaded: SenpiOmoConfigResult = { config, diagnostics: [], layers: [], sources: [] }
+  const senpiCommand = join(root, "fake-senpi")
+  await writeFile(senpiCommand, `#!/bin/sh\nprintf '%s\\n' ${models.map((candidate) => `'${candidate.provider}/${candidate.id}'`).join(" ")}\n`, "utf8")
+  await chmod(senpiCommand, 0o700)
   const api = new CapturedCompletionApi()
   const notifications: Array<{ message: string; level: string }> = []
   const spawnCalls: ReflectionSpawnArgs[] = []
@@ -143,6 +146,7 @@ export async function createRunnerHarness(options: {
     deadlineMs: options.deadlineMs,
     terminationGraceMs: options.terminationGraceMs,
     supervisorPath: supervisorFixture,
+    senpiCommand,
     liveSession: () => ({
       sessionId: "conversation-a",
       api,

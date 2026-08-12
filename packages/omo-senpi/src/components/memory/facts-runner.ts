@@ -103,6 +103,8 @@ export class FactsExtractorRunner {
         payload,
         resolution,
         env: this.options.env ?? process.env,
+        configSources: loaded.sources,
+        warn: (message, details) => this.options.logger?.warn(message, details),
         senpiCommand: this.options.senpiCommand,
         hardDeadlineAt: Date.now() + (this.options.deadlineMs ?? DEFAULT_DEADLINE_MS),
         terminationGraceMs: this.options.terminationGraceMs,

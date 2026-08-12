@@ -29,6 +29,8 @@ import {
   runMemoryModelAttempts,
   type MemoryModelChain,
 } from "./memory-model-attempts"
+import { preflightMemoryModels } from "./model-preflight"
+import { resolveSenpiLaunch } from "./senpi-command"
 import { createRunWorktree } from "./create-run-worktree"
 import { prepareReflectionCandidateSpawn } from "./reflection-spawn-input"
 import { readRunJson } from "./run-artifacts"
@@ -106,7 +108,21 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
         },
         ...resolution.fallbacks,
       ]
-      await runMemoryModelAttempts(candidates, async (candidate, attemptNumber, nextAttempt) => {
+      const env = this.options.env ?? process.env
+      const launch = this.options.senpiCommand === undefined
+        ? resolveSenpiLaunch(env)
+        : { command: this.options.senpiCommand, prefixArgs: [] }
+      const preflight = await preflightMemoryModels({
+        candidates,
+        launch,
+        env: { ...env, SENPI_MEMORY_REFLECTION: "1", SENPI_PTY_FORCE_PIPE: "1" },
+        configSources: loaded.sources,
+        warn: (message, details) => this.options.logger?.warn(message, details),
+      })
+      if (preflight.kind === "none_visible") {
+        throw new Error(`No reflection model candidate is visible to the discovery-disabled child: ${preflight.rejected.map((item) => `${item.model} (${item.cause})`).join(", ")}`)
+      }
+      await runMemoryModelAttempts(preflight.candidates, async (candidate, attemptNumber, nextAttempt) => {
         const spawnArgs = await prepareReflectionCandidateSpawn({
           run,
           worktree: activeWorktree,
@@ -118,7 +134,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
           nextAttempt,
           config: loaded.config,
           identity: this.options.identity,
-          env: this.options.env ?? process.env,
+          env,
           senpiCommand: this.options.senpiCommand,
         })
         return runReflectionChild(spawnArgs, {
