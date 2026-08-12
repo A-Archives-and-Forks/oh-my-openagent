@@ -17,6 +17,7 @@ import { MEMORY_STATUS_KEY, refreshMemoryStatus } from "./status"
 import {
   consumePendingReflectionCompletions,
   type ReflectionCompletionApi,
+  type ReflectionLiveSession,
 } from "./worker"
 import { branchEntryCount, readUi } from "./wiring-context"
 import { createMemoryRuntimeWiring } from "./wiring-runtime"
@@ -30,8 +31,9 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
   const promptCache = new MemoryBlockCache()
   const lastEventCtx: { current?: unknown } = {}
   const activeSession: { current?: string } = {}
+  const liveSession: { current?: ReflectionLiveSession } = {}
   const skillsUsageTrackersRef: { current: Map<string, SkillsUsageTracker> } = { current: new Map() }
-  const runtimeWiring = createMemoryRuntimeWiring(options, lastEventCtx)
+  const runtimeWiring = createMemoryRuntimeWiring(options, lastEventCtx, () => liveSession.current)
   const { resolveContext, journalWiringFor, factsWiringFor, runtimeFor } = runtimeWiring
 
   const nudgeWiring = createMemoryNudgeWiring({
@@ -158,6 +160,15 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       }
       factsWiringFor(identity).reconcileExtractor()
       const ui = readUi(eventCtx)
+      const api = completionApi(pi)
+      liveSession.current = api === undefined
+        ? undefined
+        : {
+            sessionId,
+            api,
+            ...(ui === undefined ? {} : { ui }),
+            ...(options.logger === undefined ? {} : { logger: options.logger }),
+          }
       if (ui !== undefined) {
         const settings = resolveMemorySettings(options.loadConfig({ cwd: options.cwd() }).config.memory)
         void refreshMemoryStatus({
@@ -167,12 +178,15 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
           alreadyNotified: false,
         }).catch(() => {})
       }
-      const api = completionApi(pi)
-      if (api !== undefined) {
-        void consumePendingReflectionCompletions(
-          join(identity.identityPaths.reflection, "completions"),
-          { sessionId, api },
-        ).catch(() => {})
+      if (liveSession.current !== undefined) {
+        try {
+          await consumePendingReflectionCompletions(
+            join(identity.identityPaths.reflection, "completions"),
+            liveSession.current,
+          )
+        } catch (error) {
+          options.logger?.warn("memory reflection completion drain failed", { error: describe(error) })
+        }
       }
     },
 
@@ -192,4 +206,8 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       readUi(eventCtx)?.setStatus(MEMORY_STATUS_KEY, undefined)
     },
   }
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }

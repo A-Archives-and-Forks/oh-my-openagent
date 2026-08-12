@@ -17,6 +17,7 @@ import { createOncePerSessionGuard } from "../../task/usage-guidance"
 import {
   recordReflectionCompletion,
   registerReflectionCompletionRenderer,
+  safeNotify,
   type ReflectionCompletionRecord,
   type ReflectionLiveSession,
 } from "./completion"
@@ -218,7 +219,8 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
     if (!live?.ui || !shouldWarnCategoryUnavailable(config, resolution.category)) return
     if (!this.warnedCategory(`${live.sessionId}:${resolution.category}`)) return
     const providers = resolution.missingProviders?.join(", ")
-    live.ui.notify(
+    safeNotify(
+      live,
       providers
         ? `Category "${resolution.category}" has no usable model: none of its fallback-chain providers are connected (${providers}).`
         : `Category "${resolution.category}" has no usable model for memory reflection.`,

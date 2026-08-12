@@ -58,6 +58,9 @@ export interface ReflectionLiveSession {
   readonly sessionId: string
   readonly api: ReflectionCompletionApi
   readonly ui?: ReflectionCompletionUi
+  readonly logger?: {
+    warn(message: string, details?: unknown): void
+  }
 }
 
 export const renderReflectionCompletionEntry: EntryRenderer<ReflectionCompletionRecord> = (entry) => {
@@ -145,7 +148,7 @@ export async function consumePendingReflectionCompletions(
   for (const record of stale) consumed.push(await markDelivered(completionsDir, record, live.sessionId))
 
   if (fresh.length > 0) {
-    live.ui?.notify(drainMessage(fresh), fresh.some(isUnsuccessful) ? "warning" : "info")
+    safeNotify(live, drainMessage(fresh), fresh.some(isUnsuccessful) ? "warning" : "info")
   }
   return consumed
 }
@@ -158,7 +161,7 @@ async function deliverRecord(
 ): Promise<ReflectionCompletionRecord> {
   const delivered = await markDelivered(completionsDir, record, live.sessionId)
   live.api.appendEntry(REFLECTION_COMPLETION_ENTRY_TYPE, delivered)
-  if (notify) live.ui?.notify(completionMessage(delivered), completionLevel(delivered.outcome))
+  if (notify) safeNotify(live, completionMessage(delivered), completionLevel(delivered.outcome))
   return delivered
 }
 
@@ -208,6 +211,19 @@ function completionFingerprint(record: ReflectionCompletionRecord): string {
 
 function isUnsuccessful(record: ReflectionCompletionRecord): boolean {
   return record.outcome !== "merged" && record.outcome !== "no_changes"
+}
+
+export function safeNotify(
+  live: ReflectionLiveSession,
+  message: string,
+  level: "info" | "warning" | "error",
+): void {
+  if (!live.ui) return
+  try {
+    live.ui.notify(message, level)
+  } catch (error) {
+    live.logger?.warn("memory reflection notification failed", { error: describe(error) })
+  }
 }
 
 function completionMessage(record: ReflectionCompletionRecord): string {
@@ -271,6 +287,10 @@ function safeRunId(runId: string): string {
   const safe = basename(runId.trim()).replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "")
   if (!safe || safe === "." || safe === "..") throw new TypeError("runId must contain a safe identifier")
   return safe.slice(0, 80)
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function errorCode(error: unknown): string | undefined {

@@ -138,6 +138,32 @@ describe("reflection completion flow", () => {
     expect(consumed[0]?.delivery).toMatchObject({ status: "consumed", sessionId: "conversation-a" })
   })
 
+  describe("#given a throwing reflection UI", () => {
+    describe("#when a pending completion is delivered", () => {
+      test("#then the entry is consumed and the UI failure is logged", async () => {
+        // given
+        const root = realpathSync.native(await mkdtemp(join(tmpdir(), "reflection-completion-")))
+        roots.push(root)
+        await recordReflectionCompletion(root, record())
+        const api = new CapturedCompletionApi()
+        const warnings: unknown[] = []
+
+        // when
+        const consumed = await consumePendingReflectionCompletions(root, {
+          sessionId: "different-session",
+          api,
+          ui: { notify: () => { throw new Error("ui unavailable") } },
+          logger: { warn: (_message, details) => warnings.push(details) },
+        })
+
+        // then
+        expect(consumed[0]?.delivery.status).toBe("consumed")
+        expect(api.entries).toHaveLength(1)
+        expect(warnings).toHaveLength(1)
+      })
+    })
+  })
+
   describe("#given eight pending completions for one identity including two older than seven days", () => {
     describe("#when a different session for that identity drains the backlog twice", () => {
       test("#then five details one summary and one notify are emitted once while stale records are silently consumed", async () => {
