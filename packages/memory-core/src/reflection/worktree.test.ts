@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "bun:test"
+import { afterEach, describe, expect, it, setDefaultTimeout } from "bun:test"
 import { existsSync, realpathSync } from "node:fs"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -12,7 +12,10 @@ import {
 } from "./worktree"
 
 const roots: string[] = []
+const WINDOWS_INTEGRATION_TEST_TIMEOUT = process.platform === "win32" ? 20_000 : 5_000
 const exec = createNodeGitExec()
+
+setDefaultTimeout(WINDOWS_INTEGRATION_TEST_TIMEOUT)
 
 async function fixture() {
   const root = realpathSync.native(await mkdtemp(join(tmpdir(), "reflection-worktree-")))
