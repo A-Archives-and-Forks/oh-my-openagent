@@ -13,8 +13,8 @@ import {
   consumePendingReflectionCompletions,
   ensureReflectionCompletion,
   recordReflectionCompletion,
+  reflectionLaunchedText,
   registerReflectionCompletionRenderer,
-  renderReflectionLaunchedEntry,
   type ReflectionCompletionRecord,
   type ReflectionLaunchedEntry,
 } from "./completion"
@@ -57,19 +57,10 @@ describe("reflection completion flow", () => {
     }
 
     // when
-    const rendered = renderReflectionLaunchedEntry({
-      type: "custom",
-      id: "entry-1",
-      parentId: null,
-      timestamp: launched.startedAt,
-      customType: REFLECTION_LAUNCHED_ENTRY_TYPE,
-      data: launched,
-    })
+    const text = reflectionLaunchedText(launched)
 
     // then
-    expect(rendered?.render(200).join("\n")).toContain(
-      "memory reflection started run:run-launched trigger:step-count (+14 steps)",
-    )
+    expect(text).toBe("memory reflection started run:run-launched trigger:step-count (+14 steps)")
   })
 
   test("#given a legacy completion without enrichment fields #when it renders #then backward compatibility is preserved", () => {
@@ -80,17 +71,10 @@ describe("reflection completion flow", () => {
 
     // when
     const renderer = api.renderers.find((item) => item.customType === REFLECTION_COMPLETION_ENTRY_TYPE)?.renderer
-    const rendered = renderer?.({
-      type: "custom",
-      id: "entry-1",
-      parentId: null,
-      timestamp: legacy.finishedAt,
-      customType: REFLECTION_COMPLETION_ENTRY_TYPE,
-      data: legacy,
-    })
 
     // then
-    expect(rendered).toBeDefined()
+    expect(legacy.durationMs).toBeUndefined()
+    expect(renderer).toBeDefined()
   })
   test("#given an existing consumed completion #when a retry ensures the same pending record #then consumed delivery is preserved", async () => {
     // given

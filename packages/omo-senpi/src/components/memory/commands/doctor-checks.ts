@@ -9,7 +9,7 @@ import { join } from "node:path"
 
 import { V1_PERSONA_SEED_SHA256, parseLockRecord, parseMemoryFile } from "@oh-my-opencode/memory-core"
 
-import { readReflectionHealth } from "../worker"
+import { readReflectionHealth, reflectionRemediation } from "../worker"
 import { runGit } from "./repo"
 import { estimateSystemTokens } from "./tokens"
 import { defaultIsProcessAlive, type MemoryCommandDeps, type MemoryCommandIdentity } from "./types"
@@ -218,20 +218,6 @@ export async function checkReflectionHealth(reflectionDir: string): Promise<Doct
     level: health.streak >= 3 ? "warn" : "ok",
     detail: `streak ${health.streak}; fingerprint ${health.fingerprint || "none"}; pending ${health.pendingCount}; last success ${lastSuccess}; ${hint}`,
   }
-}
-
-export function reflectionRemediation(reason: string | undefined, detail: string | undefined): string {
-  const combined = `${reason ?? ""} ${detail ?? ""}`.toLowerCase()
-  if (combined.includes("model-not-found") || combined.includes("model_not_visible") || combined.includes("model not found")) {
-    return "the reflection child cannot see the configured category model; adjust memory.reflection category/model in your omo config"
-  }
-  if (combined.includes("spawn") || combined.includes("enoent")) {
-    return "senpi executable not resolvable for the reflection child; set SENPI_BIN"
-  }
-  if (combined.includes("api key") || combined.includes("auth_missing")) {
-    return "run /login <provider>"
-  }
-  return "inspect runtime/reflection-sessions/<runId>/child-stderr.log"
 }
 
 export async function checkTokens(repoDir: string, warnTokens: number): Promise<DoctorCheck> {

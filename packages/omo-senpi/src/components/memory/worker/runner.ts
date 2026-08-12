@@ -22,7 +22,7 @@ import {
   type ReflectionCompletionRecord,
   type ReflectionLiveSession,
 } from "./completion"
-import { readReflectionHealth } from "./health"
+import { emitReflectionHealthAlert, readReflectionHealth } from "./health"
 import {
   resolveReflectionModel,
   shouldWarnCategoryUnavailable,
@@ -55,6 +55,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
   private readonly loadConfig: (options?: { readonly cwd?: string }) => SenpiOmoConfigResult
   private readonly now: () => Date
   private readonly warnedCategory = createOncePerSessionGuard()
+  private readonly warnedHealth = createOncePerSessionGuard()
   private readonly registeredApis = new WeakSet<object>()
 
   constructor(private readonly options: SenpiSubprocessRunnerOptions) {
@@ -200,11 +201,15 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
       consecutiveFailures: result.outcome === "failed" ? healthBefore.streak + 1 : 0,
       delivery: { status: "pending" },
     }
+    const completionsDir = join(this.options.identity.paths.reflection, "completions")
     const completion = await recordReflectionCompletion(
-      join(this.options.identity.paths.reflection, "completions"),
+      completionsDir,
       record,
-      suppressCompletionNotification && live ? { sessionId: live.sessionId, api: live.api } : live,
+      suppressCompletionNotification && live
+        ? { sessionId: live.sessionId, api: live.api, logger: live.logger }
+        : live,
     )
+    await emitReflectionHealthAlert(completionsDir, this.options.identity.id, live, this.warnedHealth)
     return {
       runId: run.runId,
       outcome: result.outcome,
@@ -220,8 +225,9 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
     this.ensureRenderer(live)
     const finishedAt = result.completion.finishedAt
     const health = await readReflectionHealth(join(this.options.identity.paths.reflection, "completions"))
+    const completionsDir = join(this.options.identity.paths.reflection, "completions")
     const completion = await recordReflectionCompletion(
-      join(this.options.identity.paths.reflection, "completions"),
+      completionsDir,
       {
         ...result.completion,
         durationMs: Math.max(0, Date.parse(finishedAt) - Date.parse(result.completion.startedAt)),
@@ -232,6 +238,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
       },
       live,
     )
+    await emitReflectionHealthAlert(completionsDir, this.options.identity.id, live, this.warnedHealth)
     return { ...result, completion }
   }
 

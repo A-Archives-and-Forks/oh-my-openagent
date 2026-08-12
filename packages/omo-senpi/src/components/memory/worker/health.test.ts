@@ -3,7 +3,8 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { readReflectionHealth } from "./health"
+import { emitReflectionHealthAlert, readReflectionHealth, REFLECTION_HEALTH_ENTRY_TYPE } from "./health"
+import { CapturedCompletionApi } from "./runner.test-support"
 
 const roots: string[] = []
 afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))))
@@ -53,6 +54,40 @@ describe("reflection health", () => {
         })
       })
     })
+  })
+
+  test("#given three stable failures and a live UI #when health alerting repeats in one session #then one entry and one warning are emitted", async () => {
+    // given
+    const root = await mkdtemp(join(tmpdir(), "reflection-health-"))
+    roots.push(root)
+    for (let index = 0; index < 3; index += 1) {
+      const record = completion(`run-${index}`, `2026-08-12T0${index}:00:00.000Z`, "failed", "child_exit", "stable")
+      await writeFile(join(root, `${record.runId}.json`), JSON.stringify(record))
+    }
+    const api = new CapturedCompletionApi()
+    const notifications: string[] = []
+    const seen = new Set<string>()
+    const live = {
+      sessionId: "session-a",
+      api,
+      ui: { notify: (message: string) => notifications.push(message) },
+    }
+
+    // when
+    await emitReflectionHealthAlert(root, "agent-test", live, (key) => {
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    await emitReflectionHealthAlert(root, "agent-test", live, (key) => {
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+
+    // then
+    expect(api.entries.filter((entry) => entry.customType === REFLECTION_HEALTH_ENTRY_TYPE)).toHaveLength(1)
+    expect(notifications).toHaveLength(1)
   })
 
   test("#given a missing directory #when health is read #then zeroed health is returned", async () => {

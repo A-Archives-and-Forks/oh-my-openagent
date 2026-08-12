@@ -2,6 +2,8 @@ import { join } from "node:path"
 
 import { MemoryBlockCache } from "@oh-my-opencode/memory-core"
 
+import { createOncePerSessionGuard } from "../task/usage-guidance"
+
 import type { ComponentContext, SenpiExtensionAPI } from "../../extension/types"
 import { hasMemoryCapabilities } from "./capabilities"
 import type { MemoryIdentityContext } from "./context"
@@ -16,6 +18,7 @@ import { createSoulNoticeWiring } from "./soul-notice"
 import { MEMORY_STATUS_KEY, refreshMemoryStatus } from "./status"
 import {
   consumePendingReflectionCompletions,
+  emitReflectionHealthAlert,
   type ReflectionCompletionApi,
   type ReflectionLiveSession,
 } from "./worker"
@@ -32,6 +35,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
   const lastEventCtx: { current?: unknown } = {}
   const activeSession: { current?: string } = {}
   const liveSession: { current?: ReflectionLiveSession } = {}
+  const healthAlertOnce = createOncePerSessionGuard()
   const skillsUsageTrackersRef: { current: Map<string, SkillsUsageTracker> } = { current: new Map() }
   const runtimeWiring = createMemoryRuntimeWiring(options, lastEventCtx, () => liveSession.current)
   const { resolveContext, journalWiringFor, factsWiringFor, runtimeFor } = runtimeWiring
@@ -180,10 +184,9 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       }
       if (liveSession.current !== undefined) {
         try {
-          await consumePendingReflectionCompletions(
-            join(identity.identityPaths.reflection, "completions"),
-            liveSession.current,
-          )
+          const completionsDir = join(identity.identityPaths.reflection, "completions")
+          await consumePendingReflectionCompletions(completionsDir, liveSession.current)
+          await emitReflectionHealthAlert(completionsDir, identity.identity, liveSession.current, healthAlertOnce)
         } catch (error) {
           options.logger?.warn("memory reflection completion drain failed", { error: describe(error) })
         }

@@ -81,12 +81,13 @@ export interface ReflectionLiveSession {
   }
 }
 
+export function reflectionLaunchedText(launched: ReflectionLaunchedEntry): string {
+  return `memory reflection started run:${normalizeRendererText(launched.runId)} trigger:${normalizeRendererText(launched.trigger)} (+${launched.backlogSteps} steps)`
+}
+
 export const renderReflectionLaunchedEntry: EntryRenderer<ReflectionLaunchedEntry> = (entry) => {
   const launched = entry.data
-  if (!launched) return undefined
-  return linesComponent([
-    `memory reflection started run:${normalizeRendererText(launched.runId)} trigger:${normalizeRendererText(launched.trigger)} (+${launched.backlogSteps} steps)`,
-  ])
+  return launched === undefined ? undefined : linesComponent([reflectionLaunchedText(launched)])
 }
 
 export const renderReflectionCompletionEntry: EntryRenderer<ReflectionCompletionRecord> = (entry) => {
