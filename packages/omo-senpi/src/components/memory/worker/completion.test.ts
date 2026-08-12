@@ -8,12 +8,15 @@ import { buildIdentityPaths } from "@oh-my-opencode/memory-core"
 import { collectReflection } from "../palace/collectors"
 import {
   REFLECTION_COMPLETION_ENTRY_TYPE,
+  REFLECTION_LAUNCHED_ENTRY_TYPE,
   REFLECTION_SUMMARY_ENTRY_TYPE,
   consumePendingReflectionCompletions,
   ensureReflectionCompletion,
   recordReflectionCompletion,
   registerReflectionCompletionRenderer,
+  renderReflectionLaunchedEntry,
   type ReflectionCompletionRecord,
+  type ReflectionLaunchedEntry,
 } from "./completion"
 import { CapturedCompletionApi } from "./runner.test-support"
 import { realpathSync } from "node:fs"
@@ -40,6 +43,55 @@ function record(): ReflectionCompletionRecord {
 }
 
 describe("reflection completion flow", () => {
+  test("#given a reflection launch #when its entry renders #then run trigger and backlog are visible", () => {
+    // given
+    const launched: ReflectionLaunchedEntry = {
+      schemaVersion: 1,
+      runId: "run-launched",
+      identity: "agent-test",
+      trigger: "step-count",
+      category: "quick",
+      conversationIds: ["conversation-a"],
+      backlogSteps: 14,
+      startedAt: "2026-08-12T00:00:00.000Z",
+    }
+
+    // when
+    const rendered = renderReflectionLaunchedEntry({
+      type: "custom",
+      id: "entry-1",
+      parentId: null,
+      timestamp: launched.startedAt,
+      customType: REFLECTION_LAUNCHED_ENTRY_TYPE,
+      data: launched,
+    })
+
+    // then
+    expect(rendered?.render(200).join("\n")).toContain(
+      "memory reflection started run:run-launched trigger:step-count (+14 steps)",
+    )
+  })
+
+  test("#given a legacy completion without enrichment fields #when it renders #then backward compatibility is preserved", () => {
+    // given
+    const legacy = record()
+    const api = new CapturedCompletionApi()
+    registerReflectionCompletionRenderer(api)
+
+    // when
+    const renderer = api.renderers.find((item) => item.customType === REFLECTION_COMPLETION_ENTRY_TYPE)?.renderer
+    const rendered = renderer?.({
+      type: "custom",
+      id: "entry-1",
+      parentId: null,
+      timestamp: legacy.finishedAt,
+      customType: REFLECTION_COMPLETION_ENTRY_TYPE,
+      data: legacy,
+    })
+
+    // then
+    expect(rendered).toBeDefined()
+  })
   test("#given an existing consumed completion #when a retry ensures the same pending record #then consumed delivery is preserved", async () => {
     // given
     const root = realpathSync.native(await mkdtemp(join(tmpdir(), "reflection-completion-")))
@@ -132,7 +184,10 @@ describe("reflection completion flow", () => {
 
     // then
     expect(consumed).toHaveLength(1)
-    expect(api.renderers.map((item) => item.customType)).toEqual([REFLECTION_COMPLETION_ENTRY_TYPE])
+    expect(api.renderers.map((item) => item.customType)).toEqual([
+      REFLECTION_COMPLETION_ENTRY_TYPE,
+      REFLECTION_LAUNCHED_ENTRY_TYPE,
+    ])
     expect(api.entries).toEqual([{ customType: REFLECTION_COMPLETION_ENTRY_TYPE, data: consumed[0] }])
     expect(notifications).toHaveLength(1)
     expect(consumed[0]?.delivery).toMatchObject({ status: "consumed", sessionId: "conversation-a" })

@@ -15,12 +15,14 @@ import { loadSenpiOmoConfig, type SenpiOmoConfigResult } from "../../config-reso
 import { resolveAgentReflectionSettings } from "../reflection-settings"
 import { createOncePerSessionGuard } from "../../task/usage-guidance"
 import {
+  REFLECTION_LAUNCHED_ENTRY_TYPE,
   recordReflectionCompletion,
   registerReflectionCompletionRenderer,
   safeNotify,
   type ReflectionCompletionRecord,
   type ReflectionLiveSession,
 } from "./completion"
+import { readReflectionHealth } from "./health"
 import {
   resolveReflectionModel,
   shouldWarnCategoryUnavailable,
@@ -78,7 +80,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
       }, startedAt, resolution, true)
     }
 
-    const execution = await this.execute(run, resolution, loaded)
+    const execution = await this.execute(run, resolution, loaded, startedAt)
     if ("runId" in execution) return this.deliverFinalized(execution)
     const settled = await this.settle(run, execution, startedAt, resolution, false)
     return settled
@@ -88,6 +90,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
     run: ReservedRun,
     resolution: Extract<ReflectionModelResolution, { readonly kind: "resolved" }>,
     loaded: SenpiOmoConfigResult,
+    startedAt: string,
   ): Promise<ExecutionResult | ReflectionRunResult> {
     const repo = new GitMemoryRepo({ dir: this.options.identity.paths.repo, agentId: this.options.identity.id })
     if (!existsSync(join(this.options.identity.paths.repo, ".git"))) {
@@ -107,6 +110,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
         },
         ...resolution.fallbacks,
       ]
+      let launched = false
       await runMemoryModelAttempts(candidates, async (candidate, attemptNumber, nextAttempt) => {
         const spawnArgs = await prepareReflectionCandidateSpawn({
           run,
@@ -122,6 +126,10 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
           env: this.options.env ?? process.env,
           senpiCommand: this.options.senpiCommand,
         })
+        if (!launched) {
+          await this.appendLaunched(run, resolution, startedAt)
+          launched = true
+        }
         return runReflectionChild(spawnArgs, {
           terminationGraceMs: this.options.terminationGraceMs,
           maxOutputBytes: this.options.maxOutputBytes,
@@ -165,6 +173,8 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
     const transition = await this.options.reservation.complete(run.runId, result.outcome)
     const live = this.options.liveSession?.()
     this.ensureRenderer(live)
+    const finishedAt = this.now().toISOString()
+    const healthBefore = await readReflectionHealth(join(this.options.identity.paths.reflection, "completions"))
     const record: ReflectionCompletionRecord = {
       schemaVersion: 1,
       runId: run.runId,
@@ -185,7 +195,9 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
       ...(result.reason === undefined ? {} : { reason: result.reason }),
       ...(result.detail === undefined ? {} : { detail: result.detail }),
       startedAt,
-      finishedAt: this.now().toISOString(),
+      finishedAt,
+      durationMs: Math.max(0, Date.parse(finishedAt) - Date.parse(startedAt)),
+      consecutiveFailures: result.outcome === "failed" ? healthBefore.streak + 1 : 0,
       delivery: { status: "pending" },
     }
     const completion = await recordReflectionCompletion(
@@ -206,12 +218,63 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
   private async deliverFinalized(result: ReflectionRunResult): Promise<ReflectionRunResult> {
     const live = this.options.liveSession?.()
     this.ensureRenderer(live)
+    const finishedAt = result.completion.finishedAt
+    const health = await readReflectionHealth(join(this.options.identity.paths.reflection, "completions"))
     const completion = await recordReflectionCompletion(
       join(this.options.identity.paths.reflection, "completions"),
-      result.completion,
+      {
+        ...result.completion,
+        durationMs: Math.max(0, Date.parse(finishedAt) - Date.parse(result.completion.startedAt)),
+        ...(result.completion.outcome === "merged"
+          ? await this.mergedMetadata(result.completion.runId)
+          : {}),
+        consecutiveFailures: result.completion.outcome === "failed" ? health.streak : 0,
+      },
       live,
     )
     return { ...result, completion }
+  }
+
+  private async appendLaunched(
+    run: ReservedRun,
+    resolution: Extract<ReflectionModelResolution, { readonly kind: "resolved" }>,
+    startedAt: string,
+  ): Promise<void> {
+    const live = this.options.liveSession?.()
+    if (!live) return
+    const states = this.options.getTranscriptState === undefined
+      ? []
+      : await Promise.all(run.request.conversationIds.map((id) => this.options.getTranscriptState?.(id)))
+    const backlogSteps = states.reduce(
+      (sum, state) => sum + (state?.steps_since_last_successful_reflection ?? 0),
+      0,
+    )
+    live.api.appendEntry(REFLECTION_LAUNCHED_ENTRY_TYPE, {
+      schemaVersion: 1,
+      runId: run.runId,
+      identity: this.options.identity.id,
+      trigger: run.request.trigger,
+      category: resolution.category,
+      model: resolution.model,
+      ...(resolution.thinking === undefined ? {} : { thinking: resolution.thinking }),
+      conversationIds: run.request.conversationIds,
+      backlogSteps,
+      startedAt,
+    })
+  }
+
+  private async mergedMetadata(runId: string): Promise<{ mergedCommitSha?: string; filesChanged?: number }> {
+    try {
+      const ledger = parseReservationRunLedger(await readRunJson<unknown>(
+        join(this.options.identity.paths.reflection, "runs", runId, "ledger.json"),
+      ))
+      return {
+        ...(ledger.integrationSha === undefined ? {} : { mergedCommitSha: ledger.integrationSha }),
+        filesChanged: ledger.validatedChangedPaths?.length ?? 0,
+      }
+    } catch {
+      return {}
+    }
   }
 
   private notifyCategoryUnavailable(config: OmoConfig, resolution: Extract<ReflectionModelResolution, { readonly kind: "category_unavailable" }>): void {

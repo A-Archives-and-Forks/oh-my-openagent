@@ -8,6 +8,7 @@ import { normalizeRendererText } from "@oh-my-opencode/senpi-task/renderer-text"
 import { linesComponent } from "@oh-my-opencode/senpi-task/task-renderers"
 
 export const REFLECTION_COMPLETION_ENTRY_TYPE = "senpi-memory.reflection-completion"
+export const REFLECTION_LAUNCHED_ENTRY_TYPE = "senpi-memory.reflection-launched"
 export const REFLECTION_SUMMARY_ENTRY_TYPE = "senpi-memory.reflection-summary"
 
 const DETAILED_DRAIN_LIMIT = 5
@@ -20,6 +21,19 @@ export interface ReflectionCompletionSummary {
   readonly oldestISO: string
   readonly newestISO: string
   readonly dominantFingerprint: string
+}
+
+export interface ReflectionLaunchedEntry {
+  readonly schemaVersion: 1
+  readonly runId: string
+  readonly identity: string
+  readonly trigger: ReflectionTrigger
+  readonly category: string
+  readonly model?: string
+  readonly thinking?: string
+  readonly conversationIds: readonly string[]
+  readonly backlogSteps: number
+  readonly startedAt: string
 }
 
 export interface ReflectionCompletionRecord {
@@ -38,6 +52,10 @@ export interface ReflectionCompletionRecord {
   readonly startedAt: string
   /** Palace Reflection-tab contract: ISO completion timestamp used for newest-first ordering. */
   readonly finishedAt: string
+  readonly durationMs?: number
+  readonly mergedCommitSha?: string
+  readonly filesChanged?: number
+  readonly consecutiveFailures?: number
   readonly delivery: {
     readonly status: "pending" | "consumed"
     readonly sessionId?: string
@@ -47,7 +65,7 @@ export interface ReflectionCompletionRecord {
 
 export interface ReflectionCompletionApi {
   appendEntry<T = unknown>(customType: string, data?: T): void
-  registerEntryRenderer(customType: string, renderer: EntryRenderer<ReflectionCompletionRecord>): void
+  registerEntryRenderer<T>(customType: string, renderer: EntryRenderer<T>): void
 }
 
 export interface ReflectionCompletionUi {
@@ -63,6 +81,14 @@ export interface ReflectionLiveSession {
   }
 }
 
+export const renderReflectionLaunchedEntry: EntryRenderer<ReflectionLaunchedEntry> = (entry) => {
+  const launched = entry.data
+  if (!launched) return undefined
+  return linesComponent([
+    `memory reflection started run:${normalizeRendererText(launched.runId)} trigger:${normalizeRendererText(launched.trigger)} (+${launched.backlogSteps} steps)`,
+  ])
+}
+
 export const renderReflectionCompletionEntry: EntryRenderer<ReflectionCompletionRecord> = (entry) => {
   const record = entry.data
   if (!record) return undefined
@@ -76,6 +102,7 @@ export const renderReflectionCompletionEntry: EntryRenderer<ReflectionCompletion
 
 export function registerReflectionCompletionRenderer(api: ReflectionCompletionApi): void {
   api.registerEntryRenderer(REFLECTION_COMPLETION_ENTRY_TYPE, renderReflectionCompletionEntry)
+  api.registerEntryRenderer(REFLECTION_LAUNCHED_ENTRY_TYPE, renderReflectionLaunchedEntry)
 }
 
 export async function recordReflectionCompletion(

@@ -17,7 +17,6 @@ import type { SenpiModelPort } from "@oh-my-opencode/senpi-task"
 import type { SenpiOmoConfigResult } from "../../config-resolution"
 import type {
   ReflectionCompletionApi,
-  ReflectionCompletionRecord,
 } from "./completion"
 import { SenpiSubprocessRunner } from "./runner"
 import type { ReflectionSpawnArgs } from "./spawn"
@@ -26,18 +25,18 @@ export class CapturedCompletionApi implements ReflectionCompletionApi {
   readonly entries: Array<{ customType: string; data: unknown }> = []
   readonly renderers: Array<{
     customType: string
-    renderer: EntryRenderer<ReflectionCompletionRecord>
+    renderer: EntryRenderer<unknown>
   }> = []
 
   appendEntry<T = unknown>(customType: string, data?: T): void {
     this.entries.push({ customType, data })
   }
 
-  registerEntryRenderer(
+  registerEntryRenderer<T>(
     customType: string,
-    renderer: EntryRenderer<ReflectionCompletionRecord>,
+    renderer: EntryRenderer<T>,
   ): void {
-    this.renderers.push({ customType, renderer })
+    this.renderers.push({ customType, renderer: renderer as EntryRenderer<unknown> })
   }
 }
 
@@ -143,6 +142,10 @@ export async function createRunnerHarness(options: {
     deadlineMs: options.deadlineMs,
     terminationGraceMs: options.terminationGraceMs,
     supervisorPath: supervisorFixture,
+    getTranscriptState: (conversationId) => {
+      if (conversationId !== "conversation-a") throw new Error(`unknown conversation: ${conversationId}`)
+      return journal.getState()
+    },
     liveSession: () => ({
       sessionId: "conversation-a",
       api,
