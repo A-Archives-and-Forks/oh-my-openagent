@@ -35,3 +35,22 @@ read only the first and last session files within that shared budget.
 
 Keep the source-read budget ahead of parsing and rendering. A render-only character cap does not
 protect the parent process from loading and materializing arbitrarily large child logs.
+
+## 2026-08-12 — Never sweep a live sibling session's children in a multi-session host
+
+`reconcileOnSessionStart` treated every resident record carrying THIS host pid but absent from the
+calling session's registry as a crashed-process orphan. In a multi-session host (one shared senpi
+process running one engine + one registry PER session over a shared store, e.g. the OmO desktop rpc
+child) that description also fits a live sibling session's children, so a sibling `session_start`
+reclaimed them and marked each `in-process` record `lost` with "in-process task from a previous
+process cannot be reattached" while the child kept running; its real completion then landed as
+`late_transition_ignored`. Observed in the desktop dev instance: six `explore` children
+(`st_019ff430..435`) spawned at 04:17:43-45Z were destroyed at 04:19:04Z by another session's start.
+
+The cross-session legacy loop now defers a same-process sibling (`deferred` / `foreign_live_owner`)
+instead of reclaiming it; ownership stays with the session that actually holds the handle.
+
+Keep this guard scoped to the cross-session loop. The global sweep (`parentSessionId === undefined`)
+deliberately still loses a same-pid resident with no live handle: that is the single-session CLI
+crash-recovery path, and an in-process child genuinely dies with its engine there. Records with no
+`host_pid` or a dead foreign owner are not siblings and must stay sweepable.
