@@ -10,6 +10,7 @@ import { planFactsMutation, type FactsApplyRecovery } from "./mutation-plan"
 import { applyFactsRecovery } from "./recovery"
 
 const AUTHOR = { agentId: "facts-reservation-race", authorName: "Facts Reservation Race" }
+const WINDOWS_INTEGRATION_TEST_TIMEOUT = process.platform === "win32" ? 20_000 : 5_000
 const tempDirs: string[] = []
 
 async function fixture() {
@@ -58,7 +59,12 @@ function expectNoReceipt(repo: GitMemoryRepo, batchId: string): Promise<void> {
 }
 
 afterEach(async () => {
-  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+  await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, {
+    recursive: true,
+    force: true,
+    maxRetries: 10,
+    retryDelay: 200,
+  })))
 })
 
 describe("facts deletion reservation finalization", () => {
@@ -238,5 +244,5 @@ describe("facts deletion reservation finalization", () => {
     expect((await repo.pathState.capture(september)).index).toEqual(indexBefore.get(september)?.index ?? null)
     expect(await repo.pathState.capture(september)).toEqual(recovery.paths.find((entry) => entry.path === september)!.pre)
     await expectNoReceipt(repo, recovery.batchId)
-  })
+  }, WINDOWS_INTEGRATION_TEST_TIMEOUT)
 })

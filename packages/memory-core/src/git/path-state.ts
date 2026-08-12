@@ -193,12 +193,12 @@ export class GitPathStateStore {
     }
     if (!stat.isFile()) throw unsupportedWorktree(path, stat.isSymbolicLink() ? "symlink" : "non-file")
     const oid = await this.hashWorktreeBlob(await readFile(fullPath), true)
-    return { kind: "file", mode: stat.mode & 0o777, oid }
+    return { kind: "file", mode: worktreeMode(stat.mode), oid }
   }
   private async captureMovedWorktree(path: string): Promise<GitWorktreeFileIdentity> {
     const stat = await lstat(path)
     if (!stat.isFile()) throw unsupportedWorktree(path, stat.isSymbolicLink() ? "symlink" : "non-file")
-    return { kind: "file", mode: stat.mode & 0o777, oid: await this.hashWorktreeBlob(await readFile(path), true) }
+    return { kind: "file", mode: worktreeMode(stat.mode), oid: await this.hashWorktreeBlob(await readFile(path), true) }
   }
   private async hashBlob(argv: readonly string[], content: string | Buffer): Promise<string> {
     const result = await this.git(["hash-object", ...argv], content)
@@ -244,6 +244,9 @@ function assertWorktreeIdentity(identity: GitWorktreeFileIdentity): void {
     throw new GitPathStateError("Invalid worktree file identity")
   }
   assertOid(identity.oid)
+}
+function worktreeMode(statMode: number): number {
+  return process.platform === "win32" ? 0o644 : statMode & 0o777
 }
 function sameIdentity(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right)
