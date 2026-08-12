@@ -189,6 +189,33 @@ describe("reflection worker OS sandbox", () => {
     ])
   }, 30_000)
 
+  test("#given a bare inner command available on the child PATH #when sandbox arguments are transformed #then the wrapper receives its absolute path", () => {
+    // given
+    const { setup, transform } = build("required", { platform: "linux", which: () => "/usr/bin/bwrap" })
+    const original = { ...spawnArgs(setup.worktree), command: "sh", env: { PATH: "/bin:/usr/bin" } }
+
+    // when
+    const transformed = transform(original)
+
+    // then
+    expect(transformed.command).toBe("/usr/bin/bwrap")
+    expect(transformed.args.slice(-4)).toEqual(["--", "/bin/sh", "-c", "exit 0"])
+  }, 30_000)
+
+  test("#given a bare inner command missing from the child PATH #when sandbox arguments are transformed #then it degrades to identity with an explicit warning", () => {
+    // given
+    const { setup, transform } = build("required", { platform: "linux", which: () => "/usr/bin/bwrap" })
+    const original = { ...spawnArgs(setup.worktree), command: "missing-senpi", env: { PATH: "" } }
+
+    // when
+    const transformed = transform(original)
+
+    // then
+    expect(transformed).toBe(original)
+    expect(transform.wasSandboxed).toBe(false)
+    expect(transform.warning).toContain('inner command "missing-senpi" is not absolute and could not be resolved')
+  }, 30_000)
+
   test("#given required policy without a platform sandbox #when the transform is built #then a typed unavailable error is thrown", () => {
     // given
     const setup = fixture()
