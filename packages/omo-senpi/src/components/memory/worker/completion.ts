@@ -4,7 +4,8 @@ import { basename, join } from "node:path"
 
 import type { EntryRenderer } from "@code-yeongyu/senpi"
 import type { ReflectionOutcome } from "@oh-my-opencode/memory-core"
-import { linesComponent, normalizeRendererText } from "@oh-my-opencode/senpi-task"
+import { normalizeRendererText } from "@oh-my-opencode/senpi-task/renderer-text"
+import { linesComponent } from "@oh-my-opencode/senpi-task/task-renderers"
 
 export const REFLECTION_COMPLETION_ENTRY_TYPE = "senpi-memory.reflection-completion"
 
