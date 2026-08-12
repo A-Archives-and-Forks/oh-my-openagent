@@ -12,6 +12,7 @@ import {
 } from "./worktree"
 
 const roots: string[] = []
+const WINDOWS_INTEGRATION_TEST_TIMEOUT = process.platform === "win32" ? 20_000 : 5_000
 const exec = createNodeGitExec()
 
 async function fixture() {
@@ -218,5 +219,5 @@ describe("reflection worktree finalization", () => {
     expect(result.status).toBe("merged")
     expect(await repo.show("HEAD", "explicit.md")).toBe("integrated\n")
     await assertCleaned(worktree, parentDir)
-  })
+  }, WINDOWS_INTEGRATION_TEST_TIMEOUT)
 })
