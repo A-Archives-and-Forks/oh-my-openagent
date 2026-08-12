@@ -1,4 +1,5 @@
 export * from "./completion"
+export * from "./health"
 export * from "./resolve-model"
 export * from "./runner"
 export * from "./run-reconciliation"
