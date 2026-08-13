@@ -134,6 +134,21 @@ describe("git lock retry", () => {
     expect(result).toBe("committed")
   })
 
+  it("#given a lock that never clears #when the retry budget is exhausted #then the original error surfaces", async () => {
+    // given - a permanently held lock, which must fail loudly rather than be masked
+    let attempts = 0
+
+    // when
+    const failure = await withGitLockRetry(async () => {
+      attempts += 1
+      throw new Error("fatal: Unable to create '/x/.git/index.lock': File exists.")
+    }).catch((error: unknown) => error)
+
+    // then - bounded attempts, and the real error is preserved
+    expect(attempts).toBe(5)
+    expect(String(failure)).toContain("index.lock")
+  })
+
   it("#given a non-lock git failure #when an operation runs #then it surfaces immediately without retrying", async () => {
     // given
     let attempts = 0
