@@ -123,4 +123,42 @@ describe("createChatMessageHandler runtime fallback model override", () => {
     })
     expect(deps.sessionStates.get(sessionID)?.currentModel).toBe("litellm/openai.eu.gpt-5.5")
   })
+
+  test("#given an accepted variant fallback #when the fallback override is reapplied #then model and variant remain separate", async () => {
+    // given
+    const deps = createDeps()
+    const sessionID = "session-active-variant-fallback"
+    const state = createFallbackState("anthropic/claude-opus-4-7")
+    state.currentModel = "openai/gpt-5.4(high)"
+    state.fallbackIndex = 0
+    deps.sessionStates.set(sessionID, state)
+    const handler = createChatMessageHandler(deps)
+    const output: {
+      message: {
+        model?: { providerID: string; modelID: string }
+        variant?: string
+      }
+    } = { message: { variant: "high" } }
+
+    // when
+    await handler(
+      {
+        sessionID,
+        model: {
+          providerID: "openai",
+          modelID: "gpt-5.4",
+        },
+      },
+      output,
+    )
+
+    // then
+    expect(output.message).toEqual({
+      model: {
+        providerID: "openai",
+        modelID: "gpt-5.4",
+      },
+      variant: "high",
+    })
+  })
 })

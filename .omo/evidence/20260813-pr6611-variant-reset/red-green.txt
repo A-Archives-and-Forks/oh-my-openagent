@@ -55,3 +55,31 @@ observed:
 The handler now reads `output.message.variant` first, matching the production
 plugin adapter contract, and retains `input.variant` only as a compatibility
 fallback.
+
+VARIANT FALLBACK OUTPUT RED
+command:
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/chat-message-handler.test.ts
+
+scenario:
+  accepted fallback is openai/gpt-5.4(high)
+  output.message already carries variant high
+
+observed:
+  3 pass
+  1 fail
+  Expected modelID: "gpt-5.4"
+  Received modelID: "gpt-5.4(high)"
+  exit_code=1
+
+VARIANT FALLBACK OUTPUT GREEN
+focused command:
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/chat-message-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/session-status-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/fallback-state.test.ts
+
+observed:
+  15 pass
+  0 fail
+  31 expect() calls
+  exit_code=0
+
+The handler now parses runtime fallback strings through the canonical
+`parseModelString` helper and writes separate model and variant fields.

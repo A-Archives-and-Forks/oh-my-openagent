@@ -1,10 +1,29 @@
 import type { HookDeps } from "./types"
+import { parseModelString } from "@oh-my-opencode/model-core"
 import { HOOK_NAME } from "./constants"
 import { log } from "../../shared/logger"
 import { createFallbackState, isModelInCooldown, stringifyRuntimeModelWithVariant } from "./fallback-state"
 
 export function createChatMessageHandler(deps: HookDeps) {
   const { config, sessionStates, sessionLastAccess, sessionStatusRetryKeys } = deps
+
+  function applyRuntimeModel(
+    message: { model?: { providerID: string; modelID: string }; variant?: string },
+    runtimeModel: string,
+  ): void {
+    const parsedModel = parseModelString(runtimeModel)
+    if (!parsedModel) return
+
+    message.model = {
+      providerID: parsedModel.providerID,
+      modelID: parsedModel.modelID,
+    }
+    if (parsedModel.variant) {
+      message.variant = parsedModel.variant
+    } else {
+      delete message.variant
+    }
+  }
 
   return async (
     input: { sessionID: string; agent?: string; model?: { providerID: string; modelID: string }; variant?: string },
@@ -55,14 +74,7 @@ export function createChatMessageHandler(deps: HookDeps) {
         to: activeModel,
       })
       sessionStates.set(sessionID, createFallbackState(activeModel))
-
-      const parts = activeModel.split("/")
-      if (parts.length >= 2) {
-        output.message.model = {
-          providerID: parts[0],
-          modelID: parts.slice(1).join("/"),
-        }
-      }
+      applyRuntimeModel(output.message, activeModel)
       return
     }
 
@@ -76,14 +88,6 @@ export function createChatMessageHandler(deps: HookDeps) {
       to: activeModel,
     })
 
-    if (output.message && activeModel) {
-      const parts = activeModel.split("/")
-      if (parts.length >= 2) {
-        output.message.model = {
-          providerID: parts[0],
-          modelID: parts.slice(1).join("/"),
-        }
-      }
-    }
+    if (output.message && activeModel) applyRuntimeModel(output.message, activeModel)
   }
 }

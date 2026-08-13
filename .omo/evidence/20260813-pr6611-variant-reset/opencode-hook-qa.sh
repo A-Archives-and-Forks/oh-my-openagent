@@ -23,7 +23,8 @@ real_before="$(real_count)"
 export OPENCODE_CONFIG="$evidence/opencode.json"
 bundle_sha256="$(sha256sum "$bundle" | awk '{print $1}')"
 bundle_variant_wiring=false
-if grep -Fq 'output.message.variant ?? input.variant' "$bundle"; then
+if grep -Fq 'output.message.variant ?? input.variant' "$bundle" \
+  && grep -Fq 'const parsedModel = parseModelString(runtimeModel);' "$bundle"; then
   bundle_variant_wiring=true
 fi
 
