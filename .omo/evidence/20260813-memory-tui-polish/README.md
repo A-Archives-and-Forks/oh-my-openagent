@@ -110,6 +110,21 @@ category quick · took 4.3s · reason child_exit · worktree...
 Verified programmatically: no rendered line exceeds the requested width for any
 width from 1 to 200, including 300-character detail strings.
 
+## Where the code lives
+
+After PR #6814 split the completion module, the restyled renderers live in:
+
+| File | Role |
+|---|---|
+| `packages/omo-senpi/src/components/memory/worker/completion-renderers.ts` | `reflection-launched`, `reflection-completion`, `reflection-summary` renderers + registration |
+| `packages/omo-senpi/src/components/memory/worker/health.ts` | `senpi-memory.health` renderer + registration |
+| `packages/omo-senpi/src/components/memory/worker/entry-renderers.ts` | Shared notice contract: `noticeComponent`, `fit`, `joinFields`, outcome glyph/colour/label/summary tables |
+| `packages/omo-senpi/src/components/memory/worker/entry-renderers.test.ts` | Literal-string and recording-theme assertions |
+
+`worker/completion.ts` is a barrel that re-exports `completion-renderers.ts`, so
+import sites are unchanged. The rendered output above was re-verified
+byte-for-byte against this final layout.
+
 ## Design-system notes
 
 - Colours come from `ThemeColor` names that actually exist (`success`, `error`,
