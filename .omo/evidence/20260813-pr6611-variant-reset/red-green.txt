@@ -137,3 +137,31 @@ observed:
 The event boundary now retains object-model variants, manual generation reset
 clears its awaiting flag and timer, and primary restoration preserves a
 variant already supplied by the adapter.
+
+MODEL-LESS GENERATION DEDUPE RED
+command:
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/session-status-handler.test.ts
+
+scenario:
+  original request and dispatched fallback both emit identical retry statuses
+  without model metadata
+
+observed:
+  8 pass
+  1 fail
+  expected the second fallback call to google/gemini-2.5-pro
+  received only the first fallback call to openai/gpt-5.4
+  exit_code=1
+
+MODEL-LESS GENERATION DEDUPE GREEN
+command:
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/session-status-handler.test.ts
+
+observed:
+  9 pass
+  0 fail
+  22 expect() calls
+  exit_code=0
+
+Model-less `unknown:` keys remain stable while a fallback is pending, then are
+cleared when the next fallback generation begins.

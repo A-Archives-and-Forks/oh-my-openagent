@@ -30,15 +30,15 @@ ran under WSL2 as the non-root `codexqa` user with OpenCode 1.18.13.
 - Workspace package typecheck exited zero after merging current upstream dev.
 - The isolated OpenCode entry built successfully.
 - The exact source-loaded `dist/index.js` was rebuilt after the variant fix,
-  hashed as `46f1a4b245d2b7134d8631ad4796930c108769ac9cfd8ed39a4a19f557b8ecfc`,
+  hashed as `5eb38a954ec06d3b23914468d254a595e5f295a51fcf17d7cce47104bba9f70f`,
   and asserted to contain output-first variant resolution plus canonical
   runtime-model parsing, effective pending fallback identity, and manual
-  watchdog cleanup before OpenCode started.
+  watchdog cleanup and model-less generation scoping before OpenCode started.
 - The real prompt returned HTTP 204 and the SSE subscription observed
   `{"type":"session.status"}`.
 - OpenCode loaded this worktree's `dist/index.js`.
 - The real OpenCode database contained 0 sessions before and after QA.
-- The driver captured `/tmp/oqa-xdg.XJFGJu`, the helper's actual `oqa-xdg.*`
+- The driver captured `/tmp/oqa-xdg.J3P0Tt`, the helper's actual `oqa-xdg.*`
   sandbox, and asserted `sandbox_removed=true` after cleanup.
 
 Exact concise captures:

@@ -26,7 +26,8 @@ bundle_variant_wiring=false
 if grep -Fq 'output.message.variant ?? input.variant' "$bundle" \
   && grep -Fq 'const parsedModel = parseModelString(runtimeModel);' "$bundle" \
   && grep -Fq 'fallbackState.pendingFallbackModel = effectiveRetryModel;' "$bundle" \
-  && grep -Fq 'clearFallbackWatchdog(sessionID);' "$bundle"; then
+  && grep -Fq 'clearFallbackWatchdog(sessionID);' "$bundle" \
+  && grep -Fq 'seenRetryKey.startsWith("unknown:")' "$bundle"; then
   bundle_variant_wiring=true
 fi
 

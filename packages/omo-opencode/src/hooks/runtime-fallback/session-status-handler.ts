@@ -65,6 +65,14 @@ export function createSessionStatusHandler(
     const retryModel = model && retryVariant ? `${model}:${retryVariant}` : model ?? "unknown"
     const retryKey = `${retryModel}:${extractRetryAttempt(status.attempt, retryMessage)}:${normalizeRetryStatusMessage(retryMessage)}`
     const seenRetryKeys = sessionStatusRetryKeys.get(sessionID)
+    const existingState = sessionStates.get(sessionID)
+    if (!model && existingState && !existingState.pendingFallbackModel && seenRetryKeys) {
+      for (const seenRetryKey of seenRetryKeys) {
+        if (seenRetryKey.startsWith("unknown:")) {
+          seenRetryKeys.delete(seenRetryKey)
+        }
+      }
+    }
     if (seenRetryKeys?.has(retryKey)) {
       return
     }
