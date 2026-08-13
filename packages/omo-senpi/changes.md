@@ -1,12 +1,12 @@
 ## 2026-08-13 — Follow the Senpi 2026.8.13 host contract
 
 The adapter peer and development dependency now require Senpi `2026.8.13`.
-Generated extension artifacts are rebuilt against that host, including its
-expanded provider registry and telemetry package graph.
+The workspace lockfile now resolves the matching Senpi package family,
+including the host's telemetry package alias.
 
 Keep the peer and development pins exact and aligned with the root, OMO Native,
-and senpi-task manifests. A pin-only edit without the lockfile and regenerated
-extensions is not a complete adapter update.
+and senpi-task manifests. A pin-only edit without the matching lockfile is not
+a complete adapter update.
 
 ## 2026-08-12 — Publish and control native tasks over RPC
 
