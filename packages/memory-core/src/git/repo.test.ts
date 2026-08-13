@@ -3,6 +3,7 @@ import { existsSync, realpathSync } from "node:fs"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import type { GitExec, GitExecOptions, GitExecResult } from "./index"
 import {
   DirtyRepoError,
   GitMemoryRepo,
@@ -267,6 +268,38 @@ describe("GitMemoryRepo", () => {
         : [],
     )
     expect(lockFailures).toEqual([])
+  })
+
+
+  it("#given a transient ref lock on the first attempt #when a repo is initialized #then the retry lets HEAD settle", async () => {
+    // given - git loses the HEAD.lock race once, exactly as it does under Windows contention
+    const dir = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-git-lock-")))
+    tempDirs.push(dir)
+    const inner = createNodeGitExec()
+    const failedOnce = new Set<string>()
+
+    class FlakyLockExec implements GitExec {
+      async run(argv: readonly string[], options: GitExecOptions): Promise<GitExecResult> {
+        const verb = argv.find((token) => !token.startsWith("-")) ?? ""
+        const shouldFail = (verb === "symbolic-ref" || verb === "commit") && !failedOnce.has(verb)
+        if (shouldFail) {
+          failedOnce.add(verb)
+          throw new Error(
+            `fatal: cannot lock ref 'HEAD': Unable to create '${dir}/.git/HEAD.lock': File exists.`,
+          )
+        }
+        return inner.run(argv, options)
+      }
+    }
+
+    const repo = new GitMemoryRepo({ dir, agentId: "agent-one", exec: new FlakyLockExec() })
+
+    // when
+    const head = await repo.init({ seedFiles: [{ relativePath: "system/persona.md", content: "seed\n" }] })
+
+    // then - the transient lock must be retried away, not surfaced
+    expect(head).toMatch(/^[0-9a-f]{7,}$/)
+    expect(failedOnce.has("symbolic-ref")).toBe(true)
   })
 
 })

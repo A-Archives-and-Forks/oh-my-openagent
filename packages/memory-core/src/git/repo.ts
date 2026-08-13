@@ -47,7 +47,7 @@ export class GitMemoryRepo {
     await mkdir(this.dir, { recursive: true })
     if (!existsSync(join(this.dir, ".git"))) {
       await this.git(["init"])
-      await this.git(["symbolic-ref", "HEAD", "refs/heads/main"])
+      await withGitLockRetry(() => this.git(["symbolic-ref", "HEAD", "refs/heads/main"]))
     }
 
     await (options.installHooks ?? this.hookInstaller)(this.dir)
@@ -75,7 +75,9 @@ export class GitMemoryRepo {
       }
     }
 
-    await this.git([...authorFlags(author), "commit", "--allow-empty", "-m", EMPTY_INITIAL_COMMIT])
+    await withGitLockRetry(() =>
+      this.git([...authorFlags(author), "commit", "--allow-empty", "-m", EMPTY_INITIAL_COMMIT]),
+    )
     return this.requireHead()
   }
 
@@ -170,7 +172,7 @@ export class GitMemoryRepo {
     if (options.noFF ?? true) argv.push("--no-ff")
     if (options.message) argv.push("-m", options.message)
     argv.push(ref)
-    await this.git(argv)
+    await withGitLockRetry(() => this.git(argv))
     return this.requireHead()
   }
 
