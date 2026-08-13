@@ -115,8 +115,9 @@ describe("SenpiSubprocessRunner integration", () => {
       }),
     })
     expect(item.api.renderers.map((entry) => entry.customType)).toEqual([
-      REFLECTION_COMPLETION_ENTRY_TYPE,
-      REFLECTION_LAUNCHED_ENTRY_TYPE,
+      "senpi-memory.reflection-completion",
+      "senpi-memory.reflection-launched",
+      "senpi-memory.reflection-summary",
     ])
     expect(item.notifications).toHaveLength(1)
     expect(await readFile(item.preflightProbeLog, "utf8")).toBe("probe\n")

@@ -19,7 +19,11 @@ import { registerSkillsUsage, type SkillsUsageTracker } from "./skills-usage"
 import type { createSoulNoticeWiring } from "./soul-notice"
 import { createReflectionTriggerWiring } from "./trigger-wiring"
 import { registerMemoryToolSurface } from "./tools"
-import { registerReflectionCompletionRenderer, type ReflectionCompletionApi } from "./worker"
+import {
+  registerReflectionCompletionRenderer,
+  registerReflectionHealthRenderer,
+  type ReflectionCompletionApi,
+} from "./worker"
 import { branchEntryCount, sessionIdFrom } from "./wiring-context"
 import { registerMemoryWriteListener } from "./wiring-memory-write"
 import type { MemoryWiringOptions } from "./wiring-types"
@@ -59,7 +63,10 @@ export function registerMemoryStatic(input: {
     activeSession, skillsUsageTrackersRef, onReflectionLaunch, onSettled, onMemoryWrite,
   } = input
   const api = completionApi(pi)
-  if (api !== undefined) registerReflectionCompletionRenderer(api)
+  if (api !== undefined) {
+    registerReflectionCompletionRenderer(api)
+    registerReflectionHealthRenderer(api)
+  }
   if (hasMemoryCapabilities(pi)) {
     nudgeWiring.register(pi)
     soulNoticeWiring.register(pi)
