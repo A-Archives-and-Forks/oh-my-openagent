@@ -28,11 +28,14 @@ export function buildSandboxTransform(input: {
   readonly payloadPaths: readonly string[]
   readonly runtimeWrites?: readonly string[]
   readonly foreignRoots?: readonly string[]
+  readonly command: string
+  readonly env: NodeJS.ProcessEnv
   readonly errorRethrow?: (error: SandboxUnavailableError) => never
   readonly platform?: NodeJS.Platform
   readonly which?: (command: string) => string | undefined
 }): SandboxTransform {
   return buildPathSandboxTransform({
+    surface: "reflection",
     policy: input.policy,
     writableDirs: [
       input.worktreeDir,
@@ -42,6 +45,8 @@ export function buildSandboxTransform(input: {
     payloadPaths: input.payloadPaths,
     fallbackDir: input.worktreeDir,
     foreignRoots: input.foreignRoots,
+    command: input.command,
+    env: input.env,
     errorRethrow: input.errorRethrow,
     platform: input.platform,
     which: input.which,
@@ -51,28 +56,39 @@ export function buildSandboxTransform(input: {
 export function buildFactsSandboxTransform(input: {
   readonly policy: SandboxPolicy
   readonly foreignRoots?: readonly string[]
+  readonly onWarning?: (warning: string, spawnArgs: FactsSpawnArgs) => void
   readonly errorRethrow?: (error: SandboxUnavailableError) => never
   readonly platform?: NodeJS.Platform
   readonly which?: (command: string) => string | undefined
 }): FactsSandbox {
-  return (spawnArgs) => buildPathSandboxTransform<FactsSpawnArgs>({
-    policy: input.policy,
-    writableDirs: [spawnArgs.paths.runDir],
-    payloadPaths: [spawnArgs.paths.payload],
-    fallbackDir: spawnArgs.paths.runDir,
-    foreignRoots: input.foreignRoots,
-    errorRethrow: input.errorRethrow,
-    platform: input.platform,
-    which: input.which,
-  })(spawnArgs)
+  return (spawnArgs) => {
+    const transform = buildPathSandboxTransform<FactsSpawnArgs>({
+      surface: "facts",
+      policy: input.policy,
+      writableDirs: [spawnArgs.paths.runDir],
+      payloadPaths: [spawnArgs.paths.payload],
+      fallbackDir: spawnArgs.paths.runDir,
+      foreignRoots: input.foreignRoots,
+      command: spawnArgs.command,
+      env: spawnArgs.env,
+      errorRethrow: input.errorRethrow,
+      platform: input.platform,
+      which: input.which,
+    })
+    if (transform.warning !== undefined) input.onWarning?.(transform.warning, spawnArgs)
+    return transform(spawnArgs)
+  }
 }
 
 function buildPathSandboxTransform<T extends ReflectionSpawnArgs | FactsSpawnArgs>(input: {
+  readonly surface: "reflection" | "facts"
   readonly policy: SandboxPolicy
   readonly writableDirs: readonly string[]
   readonly payloadPaths: readonly string[]
   readonly fallbackDir: string
   readonly foreignRoots?: readonly string[]
+  readonly command: string
+  readonly env: NodeJS.ProcessEnv
   readonly errorRethrow?: (error: SandboxUnavailableError) => never
   readonly platform?: NodeJS.Platform
   readonly which?: (command: string) => string | undefined
@@ -91,7 +107,7 @@ function buildPathSandboxTransform<T extends ReflectionSpawnArgs | FactsSpawnArg
       if (input.errorRethrow !== undefined) input.errorRethrow(error)
       throw error
     }
-    return identityTransform(`reflection sandbox unavailable on ${platform}: ${reason}; running unsandboxed because policy is auto`)
+    return identityTransform(`${input.surface} sandbox unavailable on ${platform}: ${reason}; running unsandboxed because policy is auto`)
   }
 
   const writableDirs = input.writableDirs.map(canonicalPath)
@@ -101,7 +117,7 @@ function buildPathSandboxTransform<T extends ReflectionSpawnArgs | FactsSpawnArg
     const tempDir = join(dirname(payloads[0] ?? canonicalPath(input.fallbackDir)), ".sandbox-tmp")
     mkdirSync(tempDir, { recursive: true, mode: 0o700 })
     const profile = buildDarwinProfile({ writableDirs, tempDir, payloads, foreignRoots })
-    return guardedSandboxedTransform((spawnArgs, innerCommand) => ({
+    return guardedSandboxedTransform(input.surface, input.command, input.env, (spawnArgs, innerCommand) => ({
       ...spawnArgs,
       command: executable,
       args: ["-p", profile, "--", innerCommand, ...spawnArgs.args],
@@ -109,7 +125,7 @@ function buildPathSandboxTransform<T extends ReflectionSpawnArgs | FactsSpawnArg
     }))
   }
 
-  return guardedSandboxedTransform((spawnArgs, innerCommand) => ({
+  return guardedSandboxedTransform(input.surface, input.command, input.env, (spawnArgs, innerCommand) => ({
     ...spawnArgs,
     command: executable,
     args: [
@@ -188,23 +204,16 @@ function identityTransform<T>(warning?: string): GenericSandboxTransform<T> {
 }
 
 function guardedSandboxedTransform<T extends ReflectionSpawnArgs | FactsSpawnArgs>(
+  surface: "reflection" | "facts",
+  command: string,
+  env: NodeJS.ProcessEnv,
   transform: (spawnArgs: T, innerCommand: string) => T,
 ): GenericSandboxTransform<T> {
-  let wasSandboxed = true
-  let warning: string | undefined
-  const guarded = (spawnArgs: T): T => {
-    const innerCommand = resolveInnerCommand(spawnArgs.command, spawnArgs.env)
-    if (innerCommand === undefined) {
-      wasSandboxed = false
-      warning = `reflection sandbox unavailable: inner command "${spawnArgs.command}" is not absolute and could not be resolved; running unsandboxed`
-      return spawnArgs
-    }
-    return transform(spawnArgs, innerCommand)
+  const innerCommand = resolveInnerCommand(command, env)
+  if (innerCommand === undefined) {
+    return identityTransform(`${surface} sandbox unavailable: inner command "${command}" is not absolute and could not be resolved; running unsandboxed`)
   }
-  return Object.defineProperties(guarded, {
-    wasSandboxed: { get: () => wasSandboxed },
-    warning: { get: () => warning },
-  }) as GenericSandboxTransform<T>
+  return Object.assign((spawnArgs: T) => transform(spawnArgs, innerCommand), { wasSandboxed: true })
 }
 
 function resolveInnerCommand(command: string, env: NodeJS.ProcessEnv): string | undefined {
