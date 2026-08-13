@@ -1,0 +1,29 @@
+command:
+  MSYS_NO_PATHCONV=1 wsl -u codexqa bash /mnt/c/Users/pss/OneDrive/Documents/github/oh-my-openagent-6579/.omo/evidence/20260813-pr6611-variant-reset/opencode-hook-qa.sh
+
+observed:
+  opencode_version=1.18.13
+  health={"healthy":true,"version":"1.18.13"}
+  config_plugins=["file:///mnt/c/Users/pss/OneDrive/Documents/github/oh-my-openagent-6579/dist/index.js"]
+  prompt_http_status=204
+  sse_event={"type":"session.status"}
+  real_db_sessions_before=0
+  real_db_sessions_after=0
+  exit_code=0
+
+cleanup:
+  The QA driver terminated the SSE reader, terminated the isolated OpenCode
+  server process tree, waited for the server, and the common helper's EXIT
+  trap removed its isolated XDG sandbox.
+
+  Post-run probe:
+    wsl -u codexqa bash -lc "find /tmp -maxdepth 1 -type d -name 'opencode-qa.*' -print; pgrep -af 'opencode serve|0061e9d78ffe|00621dbe8ffe' || true"
+
+  observed:
+    no opencode-qa sandbox directory
+    no matching OpenCode server process
+
+notes:
+  curl reported code 18 only when the intentionally terminated SSE stream
+  closed after the matching event was captured. All binary driver assertions
+  passed and the command exited zero.

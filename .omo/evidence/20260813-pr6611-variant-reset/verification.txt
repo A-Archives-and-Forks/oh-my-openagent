@@ -1,0 +1,84 @@
+Focused regression:
+  command:
+    bun test C:/Users/pss/OneDrive/Documents/github/oh-my-openagent-6579/packages/omo-opencode/src/hooks/runtime-fallback/chat-message-handler.test.ts C:/Users/pss/OneDrive/Documents/github/oh-my-openagent-6579/packages/omo-opencode/src/hooks/runtime-fallback/session-status-handler.test.ts C:/Users/pss/OneDrive/Documents/github/oh-my-openagent-6579/packages/omo-opencode/src/hooks/runtime-fallback/fallback-state.test.ts
+  observed:
+    14 pass
+    0 fail
+    30 expect() calls
+    exit_code=0
+
+Complete runtime-fallback suite:
+  first command:
+    bun test C:/Users/pss/OneDrive/Documents/github/oh-my-openagent-6579/packages/omo-opencode/src/hooks/runtime-fallback
+  first observed:
+    256 pass
+    1 fail
+    one hook.init beforeEach exceeded Bun's default 5000 ms while loading modules
+
+  isolated diagnosis:
+    bun test C:/Users/pss/OneDrive/Documents/github/oh-my-openagent-6579/packages/omo-opencode/src/hooks/runtime-fallback/hook.init.test.ts
+    2 pass
+    0 fail
+    exit_code=0
+
+  deterministic rerun with a filesystem-safe per-test timeout:
+    bun test --timeout 15000 C:/Users/pss/OneDrive/Documents/github/oh-my-openagent-6579/packages/omo-opencode/src/hooks/runtime-fallback
+    257 pass
+    0 fail
+    460 expect() calls
+    exit_code=0
+
+TypeScript no-excuse audit:
+  command:
+    bun run packages/omo-senpi/plugin/skills/programming/scripts/typescript/check-no-excuse-rules.ts <three changed TypeScript files>
+  observed:
+    No violations in 3 file(s).
+    exit_code=0
+
+Workspace package typecheck:
+  command:
+    bun run typecheck:packages
+  observed:
+    all workspace tsgo invocations completed
+    exit_code=0
+
+Production build:
+  command:
+    cd C:/Users/pss/OneDrive/Documents/github/oh-my-openagent-6579
+    bun build packages/omo-opencode/src/index.ts --outdir C:/Users/pss/AppData/Local/Temp/pr6611-build-merged --target bun --format esm --external zod
+  observed:
+    Bundled 1986 modules in 4713ms
+    index.js 5.78 MB
+    exit_code=0
+
+Full repository build:
+  command:
+    bun run build
+  observed:
+    The OpenCode index, CLI, TUI, schemas, and supporting MCPs built.
+    The unrelated Senpi extension materialization then failed on a Windows
+    OneDrive file-open error while writing
+    packages/omo-senpi/plugin/extensions/omo-member.js.
+    This path is outside the PR diff. The changed OpenCode entry was therefore
+    validated separately above rather than suppressing the repository error.
+
+Post-upstream-merge verification:
+  focused runtime-fallback command:
+    bun test packages/omo-opencode/src/hooks/runtime-fallback/chat-message-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/session-status-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/fallback-state.test.ts
+  observed:
+    14 pass
+    0 fail
+    30 expect() calls
+    exit_code=0
+
+  workspace package typecheck:
+    bun run typecheck:packages
+  observed:
+    all workspace tsgo invocations completed
+    exit_code=0
+
+  upstream Windows regression:
+    The prior GitHub Windows failure was two 5-second timeouts in memory
+    deletion-reservation tests, outside the PR diff. Upstream commit
+    9c077f24c ("fix(memory): make runner deadline assertion deterministic")
+    was merged into this branch before push.
