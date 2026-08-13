@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs"
 import { mkdir, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
-import { withSerializedGitConfigMutation } from "./config-lock"
+import { withGitLockRetry, withSerializedGitConfigMutation } from "./config-lock"
 import { DirtyRepoError, NoEffectiveChangesError } from "./errors"
 import { createNodeGitExec, type GitExec, type GitExecResult } from "./exec"
 import { describeDirtyMarkdownEncodingIssues } from "./porcelain"
@@ -158,11 +158,11 @@ export class GitMemoryRepo {
   }
 
   async worktreeAdd(path: string, branch: string, startPoint = "HEAD"): Promise<void> {
-    await this.git(["worktree", "add", "-b", branch, path, startPoint])
+    await withGitLockRetry(() => this.git(["worktree", "add", "-b", branch, path, startPoint]))
   }
 
   async worktreeRemove(path: string, force = true): Promise<void> {
-    await this.git(["worktree", "remove", ...(force ? ["--force"] : []), path])
+    await withGitLockRetry(() => this.git(["worktree", "remove", ...(force ? ["--force"] : []), path]))
   }
 
   async merge(ref: string, options: GitMergeOptions = {}): Promise<string> {
@@ -204,7 +204,7 @@ export class GitMemoryRepo {
   }
 
   private async stage(paths: readonly string[]): Promise<void> {
-    await this.git(["add", "-A", "--", ...paths])
+    await withGitLockRetry(() => this.git(["add", "-A", "--", ...paths]))
   }
 
   private async hasPathChanges(paths: readonly string[]): Promise<boolean> {
@@ -215,7 +215,7 @@ export class GitMemoryRepo {
     reason: string,
     author: GitCommitAuthor,
   ): Promise<GitCommitResult> {
-    await this.git([...authorFlags(author), "commit", "-m", reason])
+    await withGitLockRetry(() => this.git([...authorFlags(author), "commit", "-m", reason]))
     return { committed: true, sha: await this.requireHead() }
   }
 
