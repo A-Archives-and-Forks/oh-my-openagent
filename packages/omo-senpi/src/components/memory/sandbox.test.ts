@@ -90,6 +90,8 @@ function build(policy: SandboxPolicy, options: {
       worktreeDir: setup.worktree,
       gitCommonDir: setup.gitCommonDir,
       payloadPaths: setup.payloadPaths,
+      command: "/bin/sh",
+      env: { PATH: process.env.PATH },
       platform: options.platform,
       which: options.which,
     }),
@@ -131,6 +133,8 @@ describe("reflection worker OS sandbox", () => {
       gitCommonDir: setup.gitCommonDir,
       payloadPaths: setup.payloadPaths,
       foreignRoots: [foreignRoot],
+      command: "/bin/sh",
+      env: { PATH: process.env.PATH },
       platform: "darwin",
       which: () => "/usr/bin/sandbox-exec",
     })
@@ -154,6 +158,8 @@ describe("reflection worker OS sandbox", () => {
       worktreeDir: setup.worktree,
       gitCommonDir: setup.gitCommonDir,
       payloadPaths: setup.payloadPaths,
+      command: "/bin/sh",
+      env: { PATH: process.env.PATH },
       platform: "darwin",
       which: () => "/usr/bin/sandbox-exec",
     })
@@ -191,12 +197,22 @@ describe("reflection worker OS sandbox", () => {
 
   test("#given a bare inner command available on the child PATH #when sandbox arguments are transformed #then the wrapper receives its absolute path", () => {
     // given
-    const { setup, transform } = build("required", { platform: "linux", which: () => "/usr/bin/bwrap" })
+    const setup = fixture()
     const original = {
       ...spawnArgs(setup.worktree),
       command: basename(process.execPath),
       env: { PATH: dirname(process.execPath) },
     }
+    const transform = buildSandboxTransform({
+      policy: "required",
+      worktreeDir: setup.worktree,
+      gitCommonDir: setup.gitCommonDir,
+      payloadPaths: setup.payloadPaths,
+      command: original.command,
+      env: original.env,
+      platform: "linux",
+      which: () => "/usr/bin/bwrap",
+    })
 
     // when
     const transformed = transform(original)
@@ -208,13 +224,25 @@ describe("reflection worker OS sandbox", () => {
 
   test("#given a bare inner command missing from the child PATH #when sandbox arguments are transformed #then it degrades to identity with an explicit warning", () => {
     // given
-    const { setup, transform } = build("required", { platform: "linux", which: () => "/usr/bin/bwrap" })
+    const setup = fixture()
     const original = { ...spawnArgs(setup.worktree), command: "missing-senpi", env: { PATH: "" } }
+    const transform = buildSandboxTransform({
+      policy: "required",
+      worktreeDir: setup.worktree,
+      gitCommonDir: setup.gitCommonDir,
+      payloadPaths: setup.payloadPaths,
+      command: original.command,
+      env: original.env,
+      platform: "linux",
+      which: () => "/usr/bin/bwrap",
+    })
 
     // when
+    const wasSandboxedBeforeSpawn = transform.wasSandboxed
     const transformed = transform(original)
 
     // then
+    expect(wasSandboxedBeforeSpawn).toBe(false)
     expect(transformed).toBe(original)
     expect(transform.wasSandboxed).toBe(false)
     expect(transform.warning).toContain('inner command "missing-senpi" is not absolute and could not be resolved')
@@ -230,6 +258,8 @@ describe("reflection worker OS sandbox", () => {
       worktreeDir: setup.worktree,
       gitCommonDir: setup.gitCommonDir,
       payloadPaths: setup.payloadPaths,
+      command: "/bin/sh",
+      env: { PATH: process.env.PATH },
       platform: "linux",
       which: () => undefined,
     })
