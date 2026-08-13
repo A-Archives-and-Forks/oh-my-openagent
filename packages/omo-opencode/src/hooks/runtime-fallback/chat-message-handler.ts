@@ -1,13 +1,13 @@
 import type { HookDeps } from "./types"
 import { HOOK_NAME } from "./constants"
 import { log } from "../../shared/logger"
-import { createFallbackState, isModelInCooldown } from "./fallback-state"
+import { createFallbackState, isModelInCooldown, stringifyRuntimeModelWithVariant } from "./fallback-state"
 
 export function createChatMessageHandler(deps: HookDeps) {
   const { config, sessionStates, sessionLastAccess, sessionStatusRetryKeys } = deps
 
   return async (
-    input: { sessionID: string; agent?: string; model?: { providerID: string; modelID: string } },
+    input: { sessionID: string; agent?: string; model?: { providerID: string; modelID: string }; variant?: string },
     output: { message: { model?: { providerID: string; modelID: string } }; parts?: Array<{ type: string; text?: string }> }
   ) => {
     if (!config.enabled) return
@@ -19,9 +19,7 @@ export function createChatMessageHandler(deps: HookDeps) {
 
     sessionLastAccess.set(sessionID, Date.now())
 
-    const requestedModel = input.model
-      ? `${input.model.providerID}/${input.model.modelID}`
-      : undefined
+    const requestedModel = stringifyRuntimeModelWithVariant(input.model, input.variant)
 
     if (requestedModel && requestedModel !== state.currentModel) {
       if (state.pendingFallbackModel && state.pendingFallbackModel === requestedModel) {

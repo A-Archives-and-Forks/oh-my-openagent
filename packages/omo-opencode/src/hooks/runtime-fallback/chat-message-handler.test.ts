@@ -62,6 +62,37 @@ describe("createChatMessageHandler runtime fallback model override", () => {
     expect(deps.sessionStates.get(sessionID)?.currentModel).toBe("anthropic/claude-opus-4-7")
   })
 
+  test("#given retained variant retry keys #when the user changes only the variant #then the reset starts a fresh retry generation", async () => {
+    // given
+    const deps = createDeps()
+    const sessionID = "session-manual-variant-reset"
+    const state = createFallbackState({
+      providerID: "openai",
+      modelID: "gpt-5.4",
+      variant: "high",
+    })
+    deps.sessionStates.set(sessionID, state)
+    deps.sessionStatusRetryKeys.set(sessionID, new Set(["openai/gpt-5.4(low):1:quota exceeded"]))
+    const handler = createChatMessageHandler(deps)
+
+    // when
+    await handler(
+      {
+        sessionID,
+        model: {
+          providerID: "openai",
+          modelID: "gpt-5.4",
+        },
+        variant: "low",
+      },
+      { message: {} },
+    )
+
+    // then
+    expect(deps.sessionStatusRetryKeys.has(sessionID)).toBe(false)
+    expect(deps.sessionStates.get(sessionID)?.currentModel).toBe("openai/gpt-5.4(low)")
+  })
+
   test("#given session is on an accepted fallback #when a later user message is transformed after cooldown #then it stays on the fallback model", async () => {
     // given
     const deps = createDeps()
