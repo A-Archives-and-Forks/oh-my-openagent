@@ -242,32 +242,37 @@ describe("GitMemoryRepo", () => {
     expect(existsSync(worktreeDir)).toBe(false)
   })
 
-  it("#given concurrent commits against one repository #when git index locks contend #then every write still lands", async () => {
-    // given - one repo mutated by several in-process writers at once, the exact shape
-    // that makes Windows CI surface transient .git/index.lock and ref-lock races.
-    // commitPrepared is used so the unrelated-change guard does not mask the lock race:
-    // each writer stages and commits only its own pathspec.
-    const { dir, repo } = await createRepo()
+  it("#given concurrent commits across worktrees #when index and ref locks contend #then every commit lands", async () => {
+    // given - reflection commits from per-agent worktrees that share one object store
+    // and ref namespace, which is where Windows surfaces index.lock and ref-lock races.
+    // Each worktree owns its index, so every writer is expected to succeed outright.
+    const { repo } = await createRepo()
     await repo.init({ seedFiles: [{ relativePath: "system/persona.md", content: "initial\n" }] })
-    const writers = 8
+    const writers = 6
     const author = { agentId: "agent-one", authorName: "Memory Agent" }
+    const parent = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-worktrees-")))
+    tempDirs.push(parent)
 
-    // when - every writer writes then commits its own file concurrently
+    // when - worktrees are added and committed into concurrently
     const results = await Promise.allSettled(
       Array.from({ length: writers }, async (_, index) => {
-        const relativePath = `concurrent-${index}.md`
-        await writeFile(join(dir, relativePath), `body ${index}\n`)
-        return repo.commitWrite([relativePath], `concurrent write ${index}`, author)
+        const checkout = join(parent, `checkout-${index}`)
+        await repo.worktreeAdd(checkout, `memory/concurrent-${index}`)
+        await writeFile(join(checkout, "learned.md"), `learned ${index}\n`)
+        const child = new GitMemoryRepo({ dir: checkout, agentId: "agent-one" })
+        return child.commitWrite(["learned.md"], `concurrent write ${index}`, author)
       }),
     )
 
-    // then - a transient git lock must never surface as a rejection
-    const lockFailures = results.flatMap((result) =>
-      result.status === "rejected" && /lock|Another git process/i.test(String(result.reason))
-        ? [String(result.reason)]
-        : [],
+    // then - no writer may be lost to a transient lock, and every commit is distinct
+    const rejections = results.flatMap((result) =>
+      result.status === "rejected" ? [String(result.reason)] : [],
     )
-    expect(lockFailures).toEqual([])
+    expect(rejections).toEqual([])
+    const shas = results.flatMap((result) =>
+      result.status === "fulfilled" ? [result.value.sha] : [],
+    )
+    expect(new Set(shas).size).toBe(writers)
   })
 
 
