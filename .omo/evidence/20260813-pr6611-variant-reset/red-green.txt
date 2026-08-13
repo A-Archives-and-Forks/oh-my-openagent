@@ -165,3 +165,29 @@ observed:
 
 Model-less `unknown:` keys remain stable while a fallback is pending, then are
 cleared when the next fallback generation begins.
+
+PRODUCTION-SHAPED GENERATION AND SESSION INDEX RED
+commands:
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/session-status-handler.test.ts
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/event-handler.test.ts
+
+observed:
+  the real chat-message acknowledgment could not clear the model-less key
+  because pending identity equaled current identity
+  inherited-variant session creation stored the active fallback as primary and
+  left fallbackIndex at -1
+
+PRODUCTION-SHAPED GENERATION AND SESSION INDEX GREEN
+focused commands:
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/session-status-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/chat-message-handler.test.ts
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/event-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/fallback-state.test.ts
+
+observed:
+  26 pass
+  0 fail
+  72 expect() calls
+  exit_code=0
+
+Pending fallback acknowledgment now precedes manual-change detection and clears
+only model-less keys at the true generation boundary. Session creation locates
+variant-inherited fallbacks using effective runtime-model equivalence.

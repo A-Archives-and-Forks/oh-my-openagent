@@ -276,4 +276,46 @@ describe("createEventHandler", () => {
     expect(created?.currentModel).toBe("openai/gpt-5.5-codex(medium)")
     expect(typeof created?.currentModel).toBe("string")
   })
+
+  it("#given session.created on an inherited-variant fallback #when the configured fallback is base-only #then the fallback index is retained", async () => {
+    // given
+    const sessionID = "session-inherited-variant-fallback-created"
+    const deps = createDeps()
+    deps.pluginConfig = {
+      agents: {
+        sisyphus: {
+          model: "anthropic/claude-opus-4-7",
+          variant: "high",
+          fallback_models: ["openai/gpt-5.4", "google/gemini-2.5-pro"],
+        },
+      },
+    }
+    const abortCalls: string[] = []
+    const clearCalls: string[] = []
+    const handler = createEventHandler(deps, createHelpers(deps, abortCalls, clearCalls))
+
+    // when
+    await handler({
+      event: {
+        type: "session.created",
+        properties: {
+          info: {
+            id: sessionID,
+            agent: "sisyphus",
+            model: {
+              id: "gpt-5.4",
+              providerID: "openai",
+              variant: "high",
+            },
+          },
+        },
+      },
+    })
+
+    // then
+    const created = deps.sessionStates.get(sessionID)
+    expect(created?.originalModel).toBe("anthropic/claude-opus-4-7")
+    expect(created?.currentModel).toBe("openai/gpt-5.4(high)")
+    expect(created?.fallbackIndex).toBe(0)
+  })
 })

@@ -58,13 +58,14 @@ Source-loaded bundle rebuild:
   observed:
     Bundled 1986 modules
     Patched Node/Electron require shim in dist/index.js
-    bundle_sha256=5eb38a954ec06d3b23914468d254a595e5f295a51fcf17d7cce47104bba9f70f
+    bundle_sha256=7fa8bc85c3eb865f1673cba536c689f2be0b02588942751c420453d5f85d17bd
     bundle contains:
       output.message.variant ?? input.variant
       const parsedModel = parseModelString(runtimeModel);
       fallbackState.pendingFallbackModel = effectiveRetryModel;
       clearFallbackWatchdog(sessionID);
-      seenRetryKey.startsWith("unknown:")
+      clearModelLessRetryKeys(sessionID);
+      areRuntimeModelsEquivalent(
     exit_code=0
 
 Full repository build:
@@ -130,6 +131,24 @@ Model-less fallback generation correction:
     9 pass
     0 fail
     22 expect() calls
+    exit_code=0
+
+Production-shaped generation and session index correction:
+  focused commands:
+    bun test packages/omo-opencode/src/hooks/runtime-fallback/session-status-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/chat-message-handler.test.ts
+    bun test packages/omo-opencode/src/hooks/runtime-fallback/event-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/fallback-state.test.ts
+  observed:
+    26 pass
+    0 fail
+    72 expect() calls
+    exit_code=0
+
+  full runtime-fallback command:
+    bun test --timeout 15000 packages/omo-opencode/src/hooks/runtime-fallback
+  observed:
+    262 pass
+    0 fail
+    472 expect() calls
     exit_code=0
 
   full runtime-fallback command:

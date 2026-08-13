@@ -26,6 +26,20 @@ export function createChatMessageHandler(deps: HookDeps) {
     }
   }
 
+  function clearModelLessRetryKeys(sessionID: string): void {
+    const retryKeys = sessionStatusRetryKeys.get(sessionID)
+    if (!retryKeys) return
+
+    for (const retryKey of retryKeys) {
+      if (retryKey.startsWith("unknown:")) {
+        retryKeys.delete(retryKey)
+      }
+    }
+    if (retryKeys.size === 0) {
+      sessionStatusRetryKeys.delete(sessionID)
+    }
+  }
+
   function applyRuntimeModel(
     message: { model?: { providerID: string; modelID: string }; variant?: string },
     runtimeModel: string,
@@ -60,13 +74,14 @@ export function createChatMessageHandler(deps: HookDeps) {
       output.message.variant ?? input.variant,
     )
 
-    if (requestedModel && requestedModel !== state.currentModel) {
-      if (state.pendingFallbackModel && state.pendingFallbackModel === requestedModel) {
-        state.pendingFallbackModel = undefined
-        state.pendingFallbackPromptMayHaveBeenAccepted = false
-        return
-      }
+    if (requestedModel && state.pendingFallbackModel === requestedModel) {
+      state.pendingFallbackModel = undefined
+      state.pendingFallbackPromptMayHaveBeenAccepted = false
+      clearModelLessRetryKeys(sessionID)
+      return
+    }
 
+    if (requestedModel && requestedModel !== state.currentModel) {
       log(`[${HOOK_NAME}] Detected manual model change, resetting fallback state`, {
         sessionID,
         from: state.currentModel,

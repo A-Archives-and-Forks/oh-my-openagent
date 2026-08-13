@@ -3,7 +3,11 @@ import type { AutoRetryHelpers } from "./auto-retry"
 import { HOOK_NAME } from "./constants"
 import { log } from "../../shared/logger"
 import { extractStatusCode, extractErrorName, classifyErrorType, isRetryableError } from "./error-classifier"
-import { createFallbackState } from "./fallback-state"
+import {
+  areRuntimeModelsEquivalent,
+  createFallbackState,
+  stringifyRuntimeModelWithVariant,
+} from "./fallback-state"
 import { getFallbackModelsForSession } from "./fallback-models"
 import { SessionCategoryRegistry } from "../../shared/session-category-registry"
 import { isAbortError } from "../../shared/is-abort-error"
@@ -83,8 +87,15 @@ export function createEventHandler(deps: HookDeps, helpers: AutoRetryHelpers) {
     if (sessionID && model) {
       log(`[${HOOK_NAME}] Session created with model`, { sessionID, model })
       const preferredModel = resolvePreferredSessionModel(sessionID, agent, pluginConfig)
+      const inheritedVariant = agent && typeof pluginConfig?.agents?.[agent]?.variant === "string"
+        ? pluginConfig.agents[agent].variant
+        : undefined
       const fallbackIndex = preferredModel && preferredModel !== model
-        ? getFallbackModelsForSession(sessionID, agent, pluginConfig).indexOf(model)
+        ? getFallbackModelsForSession(sessionID, agent, pluginConfig).findIndex((fallbackModel) =>
+            areRuntimeModelsEquivalent(
+              stringifyRuntimeModelWithVariant(fallbackModel, inheritedVariant),
+              model,
+            ))
         : -1
       const state = createFallbackState(fallbackIndex >= 0 && preferredModel ? preferredModel : model)
       if (fallbackIndex >= 0) {

@@ -4,6 +4,7 @@ import type { HookDeps, RuntimeFallbackPluginInput } from "./types"
 import type { AutoRetryHelpers } from "./auto-retry"
 import { RETRYABLE_ERROR_PATTERNS } from "./constants"
 import { createFallbackState } from "./fallback-state"
+import { createChatMessageHandler } from "./chat-message-handler"
 import { createSessionStatusHandler } from "./session-status-handler"
 import { SessionCategoryRegistry } from "../../shared/session-category-registry"
 
@@ -261,7 +262,24 @@ describe("createSessionStatusHandler", () => {
     const retryCalls: Array<{ sessionID: string; model: string; source: string }> = []
     const state = createFallbackState("anthropic/claude-opus-4-7")
     deps.sessionStates.set(sessionID, state)
-    const handler = createSessionStatusHandler(deps, createHelpers(abortCalls, retryCalls), deps.sessionStatusRetryKeys)
+    const chatMessageHandler = createChatMessageHandler(deps)
+    const helpers = createHelpers(abortCalls, retryCalls)
+    helpers.autoRetryWithFallback = async (retrySessionID, retryModel, _resolvedAgent, source) => {
+      retryCalls.push({ sessionID: retrySessionID, model: retryModel, source })
+      const [providerID, ...modelParts] = retryModel.split("/")
+      await chatMessageHandler(
+        {
+          sessionID: retrySessionID,
+          model: {
+            providerID,
+            modelID: modelParts.join("/"),
+          },
+        },
+        { message: {} },
+      )
+      return { accepted: true, status: "dispatched" }
+    }
+    const handler = createSessionStatusHandler(deps, helpers, deps.sessionStatusRetryKeys)
     const status = {
       type: "retry",
       attempt: 1,
@@ -306,7 +324,6 @@ describe("createSessionStatusHandler", () => {
 
     // when
     await handler({ sessionID, status })
-    state.pendingFallbackModel = undefined
     await handler({ sessionID, status })
 
     // then
