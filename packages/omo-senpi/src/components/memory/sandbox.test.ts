@@ -326,4 +326,26 @@ describe("facts worker OS sandbox", () => {
       "--", "/bin/sh", "-c", "exit 0",
     ])
   }, 30_000)
+
+  test("#given a missing facts inner command #when the transform is built #then its warning names the facts surface", async () => {
+    // given
+    const root = mkdtempSync(join(tmpdir(), "omo-memory-facts-sandbox-"))
+    roots.push(root)
+    const runDir = join(root, "runtime", "facts", "runs", "run-1")
+    mkdirSync(runDir, { recursive: true })
+    writeFileSync(join(runDir, "facts-payload.json"), "{}")
+    let warning: string | undefined
+    const transform = buildFactsSandboxTransform({
+      policy: "required",
+      platform: "linux",
+      which: () => "/usr/bin/bwrap",
+      onWarning: (value) => { warning = value },
+    })
+
+    // when
+    await transform({ ...factsSpawnArgs(runDir), command: "missing-senpi", env: { PATH: "" } })
+
+    // then
+    expect(warning).toBe('facts sandbox unavailable: inner command "missing-senpi" is not absolute and could not be resolved; running unsandboxed')
+  }, 30_000)
 })
