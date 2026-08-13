@@ -9,6 +9,7 @@ import {
   type GitExecOptions,
   type GitExecResult,
   createNodeGitExec,
+  isGitLockError,
   withSerializedGitConfigMutation,
 } from "./index"
 
@@ -71,5 +72,44 @@ describe("serialized git config", () => {
     expect(exec.maxConfigWrites).toBe(1)
     expect(await repo.configGet("omo.testOne")).toBe("one")
     expect(await repo.configGet("omo.testTwo")).toBe("two")
+  })
+})
+
+describe("git lock error classification", () => {
+  it("#given a real index.lock contention message #when classified #then it is a retryable lock error", () => {
+    // given - verbatim stderr captured from 24 concurrent commits against one repo
+    const message = [
+      "fatal: Unable to create '/tmp/probe/.git/index.lock': File exists.",
+      "",
+      "Another git process seems to be running in this repository, e.g.",
+      "an editor opened by 'git commit'.",
+    ].join("\n")
+
+    // when / then
+    expect(isGitLockError(new Error(message))).toBe(true)
+  })
+
+  it("#given a ref lock failure #when classified #then it is a retryable lock error", () => {
+    // given
+    const message = "fatal: cannot lock ref 'HEAD': Unable to create '/tmp/probe/.git/HEAD.lock': File exists."
+
+    // when / then
+    expect(isGitLockError(new Error(message))).toBe(true)
+  })
+
+  it("#given the config.lock message #when classified #then it stays a retryable lock error", () => {
+    // given
+    const message = "error: could not lock config file .git/config: File exists"
+
+    // when / then
+    expect(isGitLockError(new Error(message))).toBe(true)
+  })
+
+  it("#given an unrelated git failure #when classified #then it is NOT retryable", () => {
+    // given - a genuine error that must surface immediately, never be retried away
+    const message = "error: pathspec 'nope.txt' did not match any file(s) known to git"
+
+    // when / then
+    expect(isGitLockError(new Error(message))).toBe(false)
   })
 })

@@ -240,6 +240,35 @@ describe("GitMemoryRepo", () => {
     expect(await repo.show("HEAD", "learned.md")).toBe("learned\n")
     expect(existsSync(worktreeDir)).toBe(false)
   })
+
+  it("#given concurrent commits against one repository #when git index locks contend #then every write still lands", async () => {
+    // given - one repo mutated by several in-process writers at once, the exact shape
+    // that makes Windows CI surface transient .git/index.lock and ref-lock races.
+    // commitPrepared is used so the unrelated-change guard does not mask the lock race:
+    // each writer stages and commits only its own pathspec.
+    const { dir, repo } = await createRepo()
+    await repo.init({ seedFiles: [{ relativePath: "system/persona.md", content: "initial\n" }] })
+    const writers = 8
+    const author = { name: "tester", email: "tester@omo.local" }
+
+    // when - every writer writes then commits its own file concurrently
+    const results = await Promise.allSettled(
+      Array.from({ length: writers }, async (_, index) => {
+        const relativePath = `concurrent-${index}.md`
+        await writeFile(join(dir, relativePath), `body ${index}\n`)
+        return repo.commitWrite([relativePath], `concurrent write ${index}`, author)
+      }),
+    )
+
+    // then - a transient git lock must never surface as a rejection
+    const lockFailures = results.flatMap((result) =>
+      result.status === "rejected" && /lock|Another git process/i.test(String(result.reason))
+        ? [String(result.reason)]
+        : [],
+    )
+    expect(lockFailures).toEqual([])
+  })
+
 })
 
 async function rejectedError(operation: Promise<unknown>): Promise<Error> {
