@@ -1,9 +1,17 @@
 import { readFile, readdir } from "node:fs/promises"
 import { join } from "node:path"
 
+import type { EntryRenderer } from "@code-yeongyu/senpi"
 import type { ReflectionOutcome } from "@oh-my-opencode/memory-core"
 
-import { safeNotify, type ReflectionLiveSession } from "./completion"
+import { safeNotify, type ReflectionCompletionApi, type ReflectionLiveSession } from "./completion"
+import {
+  detailExcerpt,
+  joinFields,
+  noticeComponent,
+  normalizeRendererText,
+  optionalRendererText,
+} from "./entry-renderers"
 import { reflectionRemediation } from "./remediation"
 
 export const REFLECTION_HEALTH_ENTRY_TYPE = "senpi-memory.health"
@@ -17,6 +25,33 @@ export interface ReflectionHealthEntry {
   readonly lastDetail?: string
   readonly sinceISO: string
   readonly recommendation: string
+}
+
+// A failure streak is an attention-grabbing state: error tone, with the actionable
+// recommendation promoted to the always-visible "why" line rather than hidden in detail.
+export const renderReflectionHealthEntry: EntryRenderer<ReflectionHealthEntry> = (entry, options, theme) => {
+  const health = entry.data
+  if (!health) return undefined
+  return noticeComponent(
+    {
+      glyph: "✗",
+      title: `Memory reflection failing · ${health.streak} run${health.streak === 1 ? "" : "s"} in a row`,
+      tone: "error",
+      why: normalizeRendererText(health.recommendation),
+      detail: joinFields([
+        `reason ${normalizeRendererText(health.lastReason)}`,
+        optionalRendererText(health.lastDetail) === undefined ? undefined : detailExcerpt(health.lastDetail ?? ""),
+        `since ${normalizeRendererText(health.sinceISO)}`,
+        `identity ${normalizeRendererText(health.identity)}`,
+      ]),
+    },
+    options,
+    theme,
+  )
+}
+
+export function registerReflectionHealthRenderer(api: ReflectionCompletionApi): void {
+  api.registerEntryRenderer(REFLECTION_HEALTH_ENTRY_TYPE, renderReflectionHealthEntry)
 }
 
 export interface ReflectionHealth {
