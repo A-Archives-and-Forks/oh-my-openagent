@@ -4,6 +4,7 @@ set -euo pipefail
 repo="/mnt/c/Users/pss/OneDrive/Documents/github/oh-my-openagent-6579"
 evidence="$repo/.omo/evidence/20260813-pr6611-variant-reset"
 common="$repo/.agents/skills/opencode-qa/scripts/lib/common.sh"
+bundle="$repo/dist/index.js"
 orig_home="$HOME"
 export PATH="$HOME/.opencode/bin:$PATH"
 
@@ -20,6 +21,11 @@ real_count() {
 
 real_before="$(real_count)"
 export OPENCODE_CONFIG="$evidence/opencode.json"
+bundle_sha256="$(sha256sum "$bundle" | awk '{print $1}')"
+bundle_variant_wiring=false
+if grep -Fq 'const requestedModel = stringifyRuntimeModelWithVariant(input.model, input.variant);' "$bundle"; then
+  bundle_variant_wiring=true
+fi
 
 normalized_common="$(mktemp -t opencode-qa-common.XXXXXX)"
 tr -d '\r' < "$common" > "$normalized_common"
@@ -45,6 +51,7 @@ oqa_wait_http() {
 
 oqa_start_server
 server_pid="$OQA_SERVER_PID"
+sandbox_root="$OQA_XDG_ROOT"
 
 health="$(curl -fsS -u "opencode:$OQA_SERVER_PASS" "$OQA_SERVER_URL/global/health")"
 config_plugins="$(
@@ -111,9 +118,15 @@ fi
 pkill -TERM -P "$server_pid" 2>/dev/null || true
 oqa_cleanup
 wait "$server_pid" 2>/dev/null || true
+sandbox_removed=false
+if [[ ! -e "$sandbox_root" ]]; then
+  sandbox_removed=true
+fi
 real_after="$(real_count)"
 
 printf 'opencode_version=%s\n' "$(opencode --version)"
+printf 'bundle_sha256=%s\n' "$bundle_sha256"
+printf 'bundle_variant_wiring=%s\n' "$bundle_variant_wiring"
 printf 'health=%s\n' "$health"
 printf 'config_plugins=%s\n' "$config_plugins"
 printf 'session_id=%s\n' "$session_id"
@@ -125,6 +138,10 @@ printf 'sse_event=%s\n' "$(
 )"
 printf 'real_db_sessions_before=%s\n' "$real_before"
 printf 'real_db_sessions_after=%s\n' "$real_after"
+printf 'sandbox_root=%s\n' "$sandbox_root"
+printf 'sandbox_removed=%s\n' "$sandbox_removed"
 
 [[ "$prompt_status" == "204" ]]
+[[ "$bundle_variant_wiring" == "true" ]]
 [[ "$real_before" == "$real_after" ]]
+[[ "$sandbox_removed" == "true" ]]

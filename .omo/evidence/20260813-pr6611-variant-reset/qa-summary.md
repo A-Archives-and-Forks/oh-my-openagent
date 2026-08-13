@@ -29,11 +29,16 @@ ran under WSL2 as the non-root `codexqa` user with OpenCode 1.18.13.
 - The no-excuse audit reported no violations.
 - Workspace package typecheck exited zero after merging current upstream dev.
 - The isolated OpenCode entry built successfully.
+- The exact source-loaded `dist/index.js` was rebuilt after the variant fix,
+  hashed as `07dd06cd81fb589ff0b27cbb9a68e68f70002577b82e252c7b6f2cff1aeed4ef`,
+  and asserted to contain the variant-aware requested-model expression before
+  OpenCode started.
 - The real prompt returned HTTP 204 and the SSE subscription observed
   `{"type":"session.status"}`.
 - OpenCode loaded this worktree's `dist/index.js`.
 - The real OpenCode database contained 0 sessions before and after QA.
-- Cleanup probes found no matching server process or isolated QA directory.
+- The driver captured `/tmp/oqa-xdg.nIIvKM`, the helper's actual `oqa-xdg.*`
+  sandbox, and asserted `sandbox_removed=true` after cleanup.
 
 Exact concise captures:
 
@@ -50,8 +55,10 @@ now creates a new retry generation instead of matching retained keys from an
 older occurrence of that variant. The focused and full suites cover adjacent
 model-aware deduplication, missing model metadata, pending fallbacks, cooldowns,
 and retry cleanup. Typecheck and the isolated entry build validate the shipped
-OpenCode code. The real isolated OpenCode run proves the source-loaded plugin
-surface receives the matching lifecycle event without touching the host DB.
+OpenCode code. The bundle hash and wiring assertion tie that build to the exact
+file loaded by OpenCode. The real isolated OpenCode run proves the
+source-current plugin surface receives the matching lifecycle event without
+touching the host DB.
 
 ## What was omitted
 

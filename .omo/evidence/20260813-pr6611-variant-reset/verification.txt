@@ -51,6 +51,18 @@ Production build:
     index.js 5.78 MB
     exit_code=0
 
+Source-loaded bundle rebuild:
+  command:
+    bun build packages/omo-opencode/src/index.ts --outdir dist --target bun --format esm --external zod
+    bun run build:node-require-shim
+  observed:
+    Bundled 1986 modules
+    Patched Node/Electron require shim in dist/index.js
+    bundle_sha256=07dd06cd81fb589ff0b27cbb9a68e68f70002577b82e252c7b6f2cff1aeed4ef
+    bundle contains:
+      const requestedModel = stringifyRuntimeModelWithVariant(input.model, input.variant);
+    exit_code=0
+
 Full repository build:
   command:
     bun run build
