@@ -245,4 +245,31 @@ describe("createAutoRetryDispatcher reserved-session retry (#5109)", () => {
     // then
     expect(promptCalls.count).toBe(0)
   })
+
+  test("#given an inherited agent variant #when a base fallback is dispatched #then pending state stores the effective variant identity", async () => {
+    // given
+    const promptCalls = { count: 0 }
+    const deps = createDeps(promptCalls)
+    deps.pluginConfig = {
+      agents: {
+        sisyphus: {
+          variant: "high",
+        },
+      },
+    }
+    const sessionID = "session-inherited-variant"
+    const state = createFallbackState("anthropic/claude-opus-4-7")
+    state.currentModel = "openai/gpt-5.4"
+    state.pendingFallbackModel = "openai/gpt-5.4"
+    deps.sessionStates.set(sessionID, state)
+    const helpers = createAutoRetryHelpers(deps)
+
+    // when
+    await helpers.autoRetryWithFallback(sessionID, "openai/gpt-5.4", "sisyphus", "session.status")
+
+    // then
+    expect(promptCalls.count).toBe(1)
+    expect(state.currentModel).toBe("openai/gpt-5.4(high)")
+    expect(state.pendingFallbackModel).toBe("openai/gpt-5.4(high)")
+  })
 })

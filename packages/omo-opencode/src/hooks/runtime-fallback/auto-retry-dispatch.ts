@@ -12,6 +12,7 @@ import {
 } from "../shared/prompt-async-gate"
 import { isAmbiguousPostDispatchPromptFailure } from "../../shared/prompt-failure-classifier"
 import { resolveOriginalUserRetryMetadata } from "./auto-retry-metadata"
+import { stringifyRuntimeModelWithVariant } from "./fallback-state"
 
 export function createAutoRetryDispatcher(
   deps: HookDeps,
@@ -58,8 +59,18 @@ export function createAutoRetryDispatcher(
     }
 
     const hadAwaitingFallbackResult = sessionAwaitingFallbackResult.has(sessionID)
-    const previousPendingFallbackModel = sessionStates.get(sessionID)?.pendingFallbackModel
-    const previousPendingFallbackPromptMayHaveBeenAccepted = sessionStates.get(sessionID)?.pendingFallbackPromptMayHaveBeenAccepted
+    const fallbackState = sessionStates.get(sessionID)
+    const previousCurrentModel = fallbackState?.currentModel
+    const previousPendingFallbackModel = fallbackState?.pendingFallbackModel
+    const previousPendingFallbackPromptMayHaveBeenAccepted = fallbackState?.pendingFallbackPromptMayHaveBeenAccepted
+    const effectiveRetryModel = stringifyRuntimeModelWithVariant(
+      retryModelPayload.model,
+      retryModelPayload.variant,
+    )
+    if (fallbackState && effectiveRetryModel) {
+      fallbackState.currentModel = effectiveRetryModel
+      fallbackState.pendingFallbackModel = effectiveRetryModel
+    }
     sessionRetryInFlight.add(sessionID)
     let retryDispatched = false
     let retryMayHaveBeenAccepted = false
@@ -228,6 +239,7 @@ export function createAutoRetryDispatcher(
         }
         const state = sessionStates.get(sessionID)
         if (state) {
+          state.currentModel = previousCurrentModel ?? state.currentModel
           if (hadAwaitingFallbackResult) {
             state.pendingFallbackModel = previousPendingFallbackModel
             state.pendingFallbackPromptMayHaveBeenAccepted = previousPendingFallbackPromptMayHaveBeenAccepted

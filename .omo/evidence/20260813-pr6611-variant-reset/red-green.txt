@@ -83,3 +83,32 @@ observed:
 
 The handler now parses runtime fallback strings through the canonical
 `parseModelString` helper and writes separate model and variant fields.
+
+INHERITED VARIANT PENDING FALLBACK RED
+command:
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/auto-retry-dispatch.test.ts
+
+scenario:
+  configured fallback is openai/gpt-5.4
+  resolved agent inherits variant high
+
+observed:
+  5 pass
+  1 fail
+  Expected currentModel: "openai/gpt-5.4(high)"
+  Received currentModel: "openai/gpt-5.4"
+  exit_code=1
+
+INHERITED VARIANT PENDING FALLBACK GREEN
+focused command:
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/auto-retry-dispatch.test.ts packages/omo-opencode/src/hooks/runtime-fallback/chat-message-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/session-status-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/fallback-state.test.ts
+
+observed:
+  21 pass
+  0 fail
+  46 expect() calls
+  exit_code=0
+
+The dispatcher now stores the effective, variant-qualified identity in both
+current and pending fallback state before sending the internal prompt, and
+restores prior state if dispatch is not accepted.
