@@ -10,6 +10,7 @@ import {
   type GitExecResult,
   createNodeGitExec,
   isGitLockError,
+  withGitLockRetry,
   withSerializedGitConfigMutation,
 } from "./index"
 
@@ -111,5 +112,40 @@ describe("git lock error classification", () => {
 
     // when / then
     expect(isGitLockError(new Error(message))).toBe(false)
+  })
+})
+
+describe("git lock retry", () => {
+  it("#given transient index.lock failures #when an operation runs #then it retries and finally succeeds", async () => {
+    // given
+    let attempts = 0
+
+    // when
+    const result = await withGitLockRetry(async () => {
+      attempts += 1
+      if (attempts < 3) {
+        throw new Error("fatal: Unable to create '/tmp/r/.git/index.lock': File exists.")
+      }
+      return "committed"
+    })
+
+    // then
+    expect(attempts).toBe(3)
+    expect(result).toBe("committed")
+  })
+
+  it("#given a non-lock git failure #when an operation runs #then it surfaces immediately without retrying", async () => {
+    // given
+    let attempts = 0
+
+    // when
+    const failure = await withGitLockRetry(async () => {
+      attempts += 1
+      throw new Error("error: pathspec 'nope.txt' did not match any file(s) known to git")
+    }).catch((error: unknown) => error)
+
+    // then - a real error must not be retried away
+    expect(attempts).toBe(1)
+    expect(String(failure)).toContain("did not match")
   })
 })
