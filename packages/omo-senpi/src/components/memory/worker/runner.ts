@@ -70,6 +70,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
       loaded,
       startedAt,
       options: this.options,
+      now: () => this.now().getTime(),
       finalizationContext: () => this.finalizationContext(),
       appendLaunched: () => this.appendLaunched(run, resolution, startedAt),
     })

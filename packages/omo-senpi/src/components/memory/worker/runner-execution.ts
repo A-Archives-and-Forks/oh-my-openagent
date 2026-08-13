@@ -36,6 +36,7 @@ export async function executeReflectionRun(input: {
   readonly loaded: SenpiOmoConfigResult
   readonly startedAt: string
   readonly options: SenpiSubprocessRunnerOptions
+  readonly now: () => number
   readonly finalizationContext: () => RunFinalizationContext
   readonly appendLaunched: () => Promise<void>
 }): Promise<ExecutionResult | ReflectionRunResult> {
@@ -49,7 +50,7 @@ export async function executeReflectionRun(input: {
     worktree = await createRunWorktree(repo, run.runId, options.identity.paths)
     const activeWorktree = worktree
     const reflection = resolveAgentReflectionSettings(loaded.config.memory, options.identity.id)
-    const hardDeadlineAt = Date.now() + (options.deadlineMs ?? reflection.timeout_minutes * 60_000)
+    const hardDeadlineAt = input.now() + (options.deadlineMs ?? reflection.timeout_minutes * 60_000)
     const candidates: MemoryModelChain = [
       {
         model: resolution.model,
