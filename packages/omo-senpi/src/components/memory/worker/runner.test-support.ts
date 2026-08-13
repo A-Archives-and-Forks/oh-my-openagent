@@ -66,6 +66,7 @@ export async function createRunnerHarness(options: {
   readonly preflightModels?: readonly SenpiModelPort[]
   readonly deadlineMs?: number
   readonly terminationGraceMs?: number
+  readonly now?: () => Date
   readonly resolveAndPreflightLaunch?: ResolveAndPreflightMemoryLaunch
 }): Promise<RunnerHarness> {
   const root = await mkdtemp(join(tmpdir(), "memory-reflection-worker-"))
@@ -152,6 +153,7 @@ export async function createRunnerHarness(options: {
     cwd: root,
     deadlineMs: options.deadlineMs,
     terminationGraceMs: options.terminationGraceMs,
+    now: options.now,
     supervisorPath: supervisorFixture,
     senpiCommand: process.execPath,
     senpiPrefixArgs: [senpiLauncher],
