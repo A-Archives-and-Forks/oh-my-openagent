@@ -3,7 +3,10 @@ import { homedir } from "node:os"
 import { join, resolve } from "node:path"
 import { packageRoot } from "./package-paths.js"
 
-export function migrateLegacyBunGlobalManifest(root = packageRoot, home = homedir()) {
+export function migrateLegacyBunGlobalManifest(
+  root = packageRoot,
+  home = process.env.HOME || process.env.USERPROFILE || homedir(),
+) {
   if (resolve(root) !== resolve(home, "node_modules", "omo-ai")) return false
 
   const manifestPath = join(home, "package.json")
