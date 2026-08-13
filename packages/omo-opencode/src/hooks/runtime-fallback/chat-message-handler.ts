@@ -8,7 +8,7 @@ export function createChatMessageHandler(deps: HookDeps) {
 
   return async (
     input: { sessionID: string; agent?: string; model?: { providerID: string; modelID: string }; variant?: string },
-    output: { message: { model?: { providerID: string; modelID: string } }; parts?: Array<{ type: string; text?: string }> }
+    output: { message: { model?: { providerID: string; modelID: string }; variant?: string }; parts?: Array<{ type: string; text?: string }> }
   ) => {
     if (!config.enabled) return
 
@@ -19,7 +19,10 @@ export function createChatMessageHandler(deps: HookDeps) {
 
     sessionLastAccess.set(sessionID, Date.now())
 
-    const requestedModel = stringifyRuntimeModelWithVariant(input.model, input.variant)
+    const requestedModel = stringifyRuntimeModelWithVariant(
+      input.model,
+      output.message.variant ?? input.variant,
+    )
 
     if (requestedModel && requestedModel !== state.currentModel) {
       if (state.pendingFallbackModel && state.pendingFallbackModel === requestedModel) {

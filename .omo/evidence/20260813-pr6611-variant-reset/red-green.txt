@@ -26,3 +26,32 @@ observed after aligning the final regression to the review's high-to-low case:
 
 The handler now resets fallback state and the retained retry-key set when only
 the top-level OpenCode variant changes.
+
+ADAPTER CONTRACT RED
+command:
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/chat-message-handler.test.ts
+
+scenario:
+  input has no variant
+  output.message.variant changes from the retained high state to low
+
+observed:
+  2 pass
+  1 fail
+  Expected: "openai/gpt-5.4(low)"
+  Received: "openai/gpt-5.4"
+  exit_code=1
+
+ADAPTER CONTRACT GREEN
+command:
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/chat-message-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/session-status-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/fallback-state.test.ts
+
+observed:
+  14 pass
+  0 fail
+  30 expect() calls
+  exit_code=0
+
+The handler now reads `output.message.variant` first, matching the production
+plugin adapter contract, and retains `input.variant` only as a compatibility
+fallback.

@@ -3,7 +3,7 @@ command:
 
 observed:
   opencode_version=1.18.13
-  bundle_sha256=07dd06cd81fb589ff0b27cbb9a68e68f70002577b82e252c7b6f2cff1aeed4ef
+  bundle_sha256=f4f00ff960ed6318479371e952b5041d8a52f7a55f6d1a3e664c8ae7d0614ed7
   bundle_variant_wiring=true
   health={"healthy":true,"version":"1.18.13"}
   config_plugins=["file:///mnt/c/Users/pss/OneDrive/Documents/github/oh-my-openagent-6579/dist/index.js"]
@@ -11,7 +11,7 @@ observed:
   sse_event={"type":"session.status"}
   real_db_sessions_before=0
   real_db_sessions_after=0
-  sandbox_root=/tmp/oqa-xdg.nIIvKM
+  sandbox_root=/tmp/oqa-xdg.cPj2js
   sandbox_removed=true
   exit_code=0
 
@@ -21,7 +21,7 @@ cleanup:
   trap removed its isolated XDG sandbox.
 
   The driver captured the exact helper-created `OQA_XDG_ROOT`
-  (`/tmp/oqa-xdg.nIIvKM`) and asserted it no longer existed after cleanup.
+  (`/tmp/oqa-xdg.cPj2js`) and asserted it no longer existed after cleanup.
   `sandbox_removed=true` is the matching binary receipt.
 
 notes:
@@ -33,7 +33,7 @@ bundle provenance:
   Before starting OpenCode, the driver hashed the exact configured
   `dist/index.js` and asserted it contained:
 
-    const requestedModel = stringifyRuntimeModelWithVariant(input.model, input.variant);
+    output.message.variant ?? input.variant
 
-  This source-current bundle was rebuilt after commit b5f69f8bd and is the
-  same file OpenCode loaded through `opencode.json`.
+  This source-current bundle was rebuilt after the adapter-contract correction
+  and is the same file OpenCode loaded through `opencode.json`.

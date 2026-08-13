@@ -58,9 +58,9 @@ Source-loaded bundle rebuild:
   observed:
     Bundled 1986 modules
     Patched Node/Electron require shim in dist/index.js
-    bundle_sha256=07dd06cd81fb589ff0b27cbb9a68e68f70002577b82e252c7b6f2cff1aeed4ef
+    bundle_sha256=f4f00ff960ed6318479371e952b5041d8a52f7a55f6d1a3e664c8ae7d0614ed7
     bundle contains:
-      const requestedModel = stringifyRuntimeModelWithVariant(input.model, input.variant);
+      output.message.variant ?? input.variant
     exit_code=0
 
 Full repository build:
@@ -81,6 +81,29 @@ Post-upstream-merge verification:
     14 pass
     0 fail
     30 expect() calls
+    exit_code=0
+
+Adapter-contract correction:
+  focused command:
+    bun test packages/omo-opencode/src/hooks/runtime-fallback/chat-message-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/session-status-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/fallback-state.test.ts
+  observed:
+    14 pass
+    0 fail
+    30 expect() calls
+    exit_code=0
+
+  full runtime-fallback command:
+    bun test --timeout 15000 packages/omo-opencode/src/hooks/runtime-fallback
+  observed:
+    257 pass
+    0 fail
+    460 expect() calls
+    exit_code=0
+
+  workspace package typecheck:
+    bun run typecheck:packages
+  observed:
+    all workspace tsgo invocations completed
     exit_code=0
 
   workspace package typecheck:
