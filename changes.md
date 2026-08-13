@@ -30,6 +30,7 @@ All native Senpi workspace pins now use `2026.8.12-4` (root, native launcher, Om
 task engine), moving the omo-ai 5.0.0 beta line onto the Senpi 2026.8.12 engine train. The
 four-surface alignment rule above still holds: `packages/omo-native/test/senpi-pin.test.ts` fails any
 manifest that drifts from the shared pin, so all four move in one commit.
+
 ## 2026-08-13 — Record the OmO 5.0.0 beta.7 release
 
 Release PR #6797 merged the `v5.0.0-beta.7` source state at
@@ -43,4 +44,3 @@ The release also includes `d694add58dd1` (`fix(omo-native): emit doctor report
 atomically`). Doctor output now becomes visible only after a complete report is
 ready, so consumers must not reintroduce partially written report files or
 split the atomic write path during future release refactors.
-
