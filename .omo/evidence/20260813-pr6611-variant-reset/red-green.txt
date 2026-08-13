@@ -112,3 +112,28 @@ observed:
 The dispatcher now stores the effective, variant-qualified identity in both
 current and pending fallback state before sending the internal prompt, and
 restores prior state if dispatch is not accepted.
+
+THREE ADJACENT VARIANT P2 RED
+commands:
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/normalize-model.test.ts packages/omo-opencode/src/hooks/runtime-fallback/event-handler.test.ts
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/chat-message-handler.test.ts
+
+observed:
+  error/session model object with variant medium normalized to the base model
+  instead of openai/gpt-5.5-codex(medium)
+  manual high-to-low reset retained sessionAwaitingFallbackResult and its timer
+  inherited high primary restoration did not reapply the primary model
+
+THREE ADJACENT VARIANT P2 GREEN
+focused command:
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/normalize-model.test.ts packages/omo-opencode/src/hooks/runtime-fallback/event-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/message-update-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/chat-message-handler.test.ts
+
+observed:
+  23 pass
+  0 fail
+  50 expect() calls
+  exit_code=0
+
+The event boundary now retains object-model variants, manual generation reset
+clears its awaiting flag and timer, and primary restoration preserves a
+variant already supplied by the adapter.

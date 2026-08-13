@@ -1,11 +1,30 @@
 import type { HookDeps } from "./types"
+import type { RuntimeFallbackTimeout } from "./types"
 import { parseModelString } from "@oh-my-opencode/model-core"
 import { HOOK_NAME } from "./constants"
 import { log } from "../../shared/logger"
 import { createFallbackState, isModelInCooldown, stringifyRuntimeModelWithVariant } from "./fallback-state"
 
+declare function clearTimeout(timeout: RuntimeFallbackTimeout): void
+
 export function createChatMessageHandler(deps: HookDeps) {
-  const { config, sessionStates, sessionLastAccess, sessionStatusRetryKeys } = deps
+  const {
+    config,
+    sessionStates,
+    sessionLastAccess,
+    sessionAwaitingFallbackResult,
+    sessionFallbackTimeouts,
+    sessionStatusRetryKeys,
+  } = deps
+
+  function clearFallbackWatchdog(sessionID: string): void {
+    sessionAwaitingFallbackResult.delete(sessionID)
+    const timer = sessionFallbackTimeouts.get(sessionID)
+    if (timer) {
+      clearTimeout(timer)
+      sessionFallbackTimeouts.delete(sessionID)
+    }
+  }
 
   function applyRuntimeModel(
     message: { model?: { providerID: string; modelID: string }; variant?: string },
@@ -20,8 +39,6 @@ export function createChatMessageHandler(deps: HookDeps) {
     }
     if (parsedModel.variant) {
       message.variant = parsedModel.variant
-    } else {
-      delete message.variant
     }
   }
 
@@ -57,6 +74,7 @@ export function createChatMessageHandler(deps: HookDeps) {
       })
       state = createFallbackState(requestedModel)
       sessionStates.set(sessionID, state)
+      clearFallbackWatchdog(sessionID)
       sessionStatusRetryKeys.delete(sessionID)
       return
     }

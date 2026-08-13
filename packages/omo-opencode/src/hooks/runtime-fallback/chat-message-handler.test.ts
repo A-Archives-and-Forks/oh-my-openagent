@@ -73,6 +73,10 @@ describe("createChatMessageHandler runtime fallback model override", () => {
     })
     deps.sessionStates.set(sessionID, state)
     deps.sessionStatusRetryKeys.set(sessionID, new Set(["openai/gpt-5.4(low):1:quota exceeded"]))
+    deps.sessionAwaitingFallbackResult.add(sessionID)
+    const fallbackTimeout = setTimeout(() => {}, 60_000)
+    fallbackTimeout.unref()
+    deps.sessionFallbackTimeouts.set(sessionID, fallbackTimeout)
     const handler = createChatMessageHandler(deps)
 
     // when
@@ -89,6 +93,8 @@ describe("createChatMessageHandler runtime fallback model override", () => {
 
     // then
     expect(deps.sessionStatusRetryKeys.has(sessionID)).toBe(false)
+    expect(deps.sessionAwaitingFallbackResult.has(sessionID)).toBe(false)
+    expect(deps.sessionFallbackTimeouts.has(sessionID)).toBe(false)
     expect(deps.sessionStates.get(sessionID)?.currentModel).toBe("openai/gpt-5.4(low)")
   })
 
@@ -147,6 +153,45 @@ describe("createChatMessageHandler runtime fallback model override", () => {
         model: {
           providerID: "openai",
           modelID: "gpt-5.4",
+        },
+      },
+      output,
+    )
+
+    // then
+    expect(output.message).toEqual({
+      model: {
+        providerID: "openai",
+        modelID: "gpt-5.4",
+      },
+      variant: "high",
+    })
+  })
+
+  test("#given an inherited primary variant #when cooldown restoration runs #then the inherited variant remains applied", async () => {
+    // given
+    const deps = createDeps()
+    deps.config.restore_primary_after_cooldown = true
+    const sessionID = "session-restore-inherited-primary-variant"
+    const state = createFallbackState("openai/gpt-5.4")
+    state.currentModel = "anthropic/claude-opus-4-7(high)"
+    state.fallbackIndex = 0
+    deps.sessionStates.set(sessionID, state)
+    const handler = createChatMessageHandler(deps)
+    const output: {
+      message: {
+        model?: { providerID: string; modelID: string }
+        variant?: string
+      }
+    } = { message: { variant: "high" } }
+
+    // when
+    await handler(
+      {
+        sessionID,
+        model: {
+          providerID: "anthropic",
+          modelID: "claude-opus-4-7",
         },
       },
       output,

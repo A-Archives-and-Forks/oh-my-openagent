@@ -239,7 +239,9 @@ describe("createEventHandler", () => {
     expect(deps.sessionStates.get(sessionID)?.attemptCount).toBe(1)
 
     // simulate the next retry signal advancing the counter
-    const advanced = deps.sessionStates.get(sessionID)!
+    const advanced = deps.sessionStates.get(sessionID)
+    expect(advanced).toBeDefined()
+    if (!advanced) return
     advanced.attemptCount = 2
 
     // iteration 2: another internal abort
@@ -270,8 +272,8 @@ describe("createEventHandler", () => {
 
     // then - the stored model is the canonical string form, not the object
     const created = deps.sessionStates.get(sessionID)
-    expect(created?.originalModel).toBe("openai/gpt-5.5-codex")
-    expect(created?.currentModel).toBe("openai/gpt-5.5-codex")
+    expect(created?.originalModel).toBe("openai/gpt-5.5-codex(medium)")
+    expect(created?.currentModel).toBe("openai/gpt-5.5-codex(medium)")
     expect(typeof created?.currentModel).toBe("string")
   })
 })

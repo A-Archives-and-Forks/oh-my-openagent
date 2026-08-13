@@ -58,11 +58,12 @@ Source-loaded bundle rebuild:
   observed:
     Bundled 1986 modules
     Patched Node/Electron require shim in dist/index.js
-    bundle_sha256=61dfb898cc98f302e156af9340c9b9918c56537971146d2f4272872e5c71bebb
+    bundle_sha256=46f1a4b245d2b7134d8631ad4796930c108769ac9cfd8ed39a4a19f557b8ecfc
     bundle contains:
       output.message.variant ?? input.variant
       const parsedModel = parseModelString(runtimeModel);
       fallbackState.pendingFallbackModel = effectiveRetryModel;
+      clearFallbackWatchdog(sessionID);
     exit_code=0
 
 Full repository build:
@@ -110,6 +111,31 @@ Inherited agent variant correction:
     21 pass
     0 fail
     46 expect() calls
+    exit_code=0
+
+Three adjacent variant lifecycle corrections:
+  focused command:
+    bun test packages/omo-opencode/src/hooks/runtime-fallback/normalize-model.test.ts packages/omo-opencode/src/hooks/runtime-fallback/event-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/message-update-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/chat-message-handler.test.ts
+  observed:
+    23 pass
+    0 fail
+    50 expect() calls
+    exit_code=0
+
+  full runtime-fallback command:
+    bun test --timeout 15000 packages/omo-opencode/src/hooks/runtime-fallback
+  observed:
+    260 pass
+    0 fail
+    468 expect() calls
+    exit_code=0
+
+  workspace typecheck and strict audit:
+    bun run typecheck:packages
+    check-no-excuse-rules.ts <seven changed TypeScript files>
+  observed:
+    all workspace tsgo invocations completed
+    No violations in 7 file(s).
     exit_code=0
 
   full runtime-fallback command:
