@@ -49,3 +49,29 @@ race is gone, because the race is probabilistic.
 
 `git init` at repo.ts:49 is deliberately left unwrapped: it runs behind an `existsSync`
 guard and does not contend on a `*.lock` file.
+
+## Which proof covers which criterion
+
+| criterion | proof | RED captured? |
+|---|---|---|
+| retry predicate recognises real lock text and does not swallow genuine failures | `red-1-predicate.txt`, `mutation-proof-predicate.txt` | yes - two classes failed `Expected: true, Received: false`, and reverting the predicate fails 3 tests |
+| the retry actually engages on a lock-losing mutation | `red-3-init-ref-lock.txt` | yes - stack names `at init (repo.ts:50)`, the unguarded `symbolic-ref` |
+| concurrent mutations all land, with the expected number of commits | `green-8-worktree-concurrency.txt` | **no - see below** |
+
+The concurrent-worktree case asserts six distinct commit shas and zero rejections. It was
+**never captured RED**, and it cannot be on this machine: macOS does not lose these races,
+so the case passes with or without the fix here. It is a real-surface assertion of the
+end state, not a failing-first proof. The failing-first proof for the retry mechanism is
+`red-1` and `red-3`, both of which fail deterministically when the fix is reverted.
+
+An earlier version of that case asserted only that no *lock* error surfaced. That was
+weaker than the criterion asked for, but it could not be strengthened in place: writers
+sharing one index legitimately reject each other through the unrelated-change guard, so a
+commit count was not provable there. Per-worktree commits are both the shape reflection
+actually runs and the shape where every writer is expected to succeed.
+
+## Coverage of the mutating call sites
+
+All seven lock-taking mutations in `repo.ts` are now wrapped: `symbolic-ref` (init),
+`commit --allow-empty` (init), `stage`, `commitStaged`, `worktreeAdd`, `worktreeRemove`
+and `merge`. An audit for `await this.git([...])` on a mutating verb returns empty.
