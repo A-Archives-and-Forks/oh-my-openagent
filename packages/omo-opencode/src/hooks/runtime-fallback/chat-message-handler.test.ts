@@ -35,6 +35,33 @@ function createDeps(): HookDeps {
 }
 
 describe("createChatMessageHandler runtime fallback model override", () => {
+  test("#given retained retry status keys #when the user selects another model #then the reset starts a fresh retry generation", async () => {
+    // given
+    const deps = createDeps()
+    const sessionID = "session-manual-model-reset"
+    const state = createFallbackState("openai/gpt-5.4")
+    state.currentModel = "google/gemini-2.5-pro"
+    deps.sessionStates.set(sessionID, state)
+    deps.sessionStatusRetryKeys.set(sessionID, new Set(["openai/gpt-5.4:1:quota exceeded"]))
+    const handler = createChatMessageHandler(deps)
+
+    // when
+    await handler(
+      {
+        sessionID,
+        model: {
+          providerID: "anthropic",
+          modelID: "claude-opus-4-7",
+        },
+      },
+      { message: {} },
+    )
+
+    // then
+    expect(deps.sessionStatusRetryKeys.has(sessionID)).toBe(false)
+    expect(deps.sessionStates.get(sessionID)?.currentModel).toBe("anthropic/claude-opus-4-7")
+  })
+
   test("#given session is on an accepted fallback #when a later user message is transformed after cooldown #then it stays on the fallback model", async () => {
     // given
     const deps = createDeps()

@@ -4,7 +4,7 @@ import { log } from "../../shared/logger"
 import { createFallbackState, isModelInCooldown } from "./fallback-state"
 
 export function createChatMessageHandler(deps: HookDeps) {
-  const { config, sessionStates, sessionLastAccess } = deps
+  const { config, sessionStates, sessionLastAccess, sessionStatusRetryKeys } = deps
 
   return async (
     input: { sessionID: string; agent?: string; model?: { providerID: string; modelID: string } },
@@ -37,6 +37,7 @@ export function createChatMessageHandler(deps: HookDeps) {
       })
       state = createFallbackState(requestedModel)
       sessionStates.set(sessionID, state)
+      sessionStatusRetryKeys.delete(sessionID)
       return
     }
 
