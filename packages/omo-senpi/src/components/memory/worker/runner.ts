@@ -22,7 +22,8 @@ import {
   type ReflectionCompletionRecord,
   type ReflectionLiveSession,
 } from "./completion"
-import { emitReflectionHealthAlert, readReflectionHealth } from "./health"
+import { readReflectionHealth } from "./health"
+import { emitReflectionHealthAlert } from "./health-alert"
 import {
   resolveReflectionModel,
   shouldWarnCategoryUnavailable,
