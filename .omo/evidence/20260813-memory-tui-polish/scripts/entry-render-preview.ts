@@ -11,7 +11,7 @@ import {
   type ReflectionCompletionSummary,
   type ReflectionLaunchedEntry,
 } from "./completion"
-import { renderReflectionHealthEntry, type ReflectionHealthEntry } from "./health"
+import { renderReflectionHealthEntry, type ReflectionHealthEntry } from "./health-alert"
 
 const ANSI: Record<ThemeColor | "dim", string> = {
   success: "\u001b[32m",

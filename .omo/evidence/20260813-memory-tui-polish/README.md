@@ -117,13 +117,18 @@ After PR #6814 split the completion module, the restyled renderers live in:
 | File | Role |
 |---|---|
 | `packages/omo-senpi/src/components/memory/worker/completion-renderers.ts` | `reflection-launched`, `reflection-completion`, `reflection-summary` renderers + registration |
-| `packages/omo-senpi/src/components/memory/worker/health.ts` | `senpi-memory.health` renderer + registration |
+| `packages/omo-senpi/src/components/memory/worker/health-alert.ts` | `senpi-memory.health` renderer + registration, beside the entry shape it renders |
 | `packages/omo-senpi/src/components/memory/worker/entry-renderers.ts` | Shared notice contract: `noticeComponent`, `fit`, `joinFields`, outcome glyph/colour/label/summary tables |
 | `packages/omo-senpi/src/components/memory/worker/entry-renderers.test.ts` | Literal-string and recording-theme assertions |
 
-`worker/completion.ts` is a barrel that re-exports `completion-renderers.ts`, so
-import sites are unchanged. The rendered output above was re-verified
-byte-for-byte against this final layout.
+`worker/completion.ts` is a barrel that re-exports `completion-renderers.ts`, and
+`worker/index.ts` re-exports `health-alert.ts`, so import sites are unchanged. The
+rendered output above was re-verified byte-for-byte against this final layout.
+
+PR #6812 made `worker/health.ts` purely derivational (no writes, no `appendEntry`)
+and moved alert emission into `worker/health-alert.ts`. The health entry renderer
+lives in `health-alert.ts` rather than `health.ts` so that read-only guarantee is
+preserved; `health.test.ts` enforces it by inspecting `health.ts`'s import list.
 
 ## Design-system notes
 

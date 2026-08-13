@@ -16,7 +16,7 @@ import {
   type ReflectionCompletionSummary,
   type ReflectionLaunchedEntry,
 } from "./completion"
-import { renderReflectionHealthEntry, type ReflectionHealthEntry } from "./health"
+import { renderReflectionHealthEntry, type ReflectionHealthEntry } from "./health-alert"
 
 /** Marks colour/emphasis inline so assertions can see exactly what was applied. */
 const TAGGING_THEME = {
