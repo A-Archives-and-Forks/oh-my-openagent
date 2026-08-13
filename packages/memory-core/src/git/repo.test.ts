@@ -249,7 +249,7 @@ describe("GitMemoryRepo", () => {
     const { dir, repo } = await createRepo()
     await repo.init({ seedFiles: [{ relativePath: "system/persona.md", content: "initial\n" }] })
     const writers = 8
-    const author = { name: "tester", email: "tester@omo.local" }
+    const author = { agentId: "agent-one", authorName: "Memory Agent" }
 
     // when - every writer writes then commits its own file concurrently
     const results = await Promise.allSettled(
