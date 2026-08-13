@@ -15,6 +15,7 @@ import { OmoMemorySettingsSchema, type OmoConfig } from "@oh-my-opencode/omo-con
 import type { SenpiModelPort } from "@oh-my-opencode/senpi-task"
 
 import type { SenpiOmoConfigResult } from "../../config-resolution"
+import type { ResolveAndPreflightMemoryLaunch } from "./memory-launch-preflight"
 import type {
   ReflectionCompletionApi,
 } from "./completion"
@@ -65,6 +66,7 @@ export async function createRunnerHarness(options: {
   readonly preflightModels?: readonly SenpiModelPort[]
   readonly deadlineMs?: number
   readonly terminationGraceMs?: number
+  readonly resolveAndPreflightLaunch?: ResolveAndPreflightMemoryLaunch
 }): Promise<RunnerHarness> {
   const root = await mkdtemp(join(tmpdir(), "memory-reflection-worker-"))
   const identity: MemoryIdentity = {
@@ -153,6 +155,7 @@ export async function createRunnerHarness(options: {
     supervisorPath: supervisorFixture,
     senpiCommand: process.execPath,
     senpiPrefixArgs: [senpiLauncher],
+    resolveAndPreflightLaunch: options.resolveAndPreflightLaunch,
     getTranscriptState: (conversationId) => {
       if (conversationId !== "conversation-a") throw new Error(`unknown conversation: ${conversationId}`)
       return journal.getState()
