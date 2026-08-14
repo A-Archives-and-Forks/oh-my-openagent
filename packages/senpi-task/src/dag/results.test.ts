@@ -25,7 +25,6 @@ const runStats: TaskRunStats = {
 
 afterEach(() => {
   for (const root of cleanupRoots.splice(0)) {
-    fs.chmodSync(root, 0o755)
     fs.rmSync(root, { recursive: true, force: true })
   }
 })
@@ -118,12 +117,15 @@ describe("persistDagNodeResult durable node artifacts", () => {
     expect(reused?.runStats).toEqual(runStats)
   })
 
-  test("#given an unwritable results directory #when persisting #then a journal_corrupt diagnostic is returned instead of throwing", () => {
+  test("#given an unwritable result path #when persisting #then a journal_corrupt diagnostic is returned instead of throwing", () => {
     // given
     const projectDir = tempProject()
     const store = createDagFileStore({ project_dir: projectDir })
     const record = terminalRecord(projectDir, "unreachable output")
-    fs.chmodSync(store.paths.results, 0o500)
+    const outputPath = store.paths.result(runId, nodeId)
+    // A directory planted at the artifact path rejects open-for-write on Windows and POSIX alike.
+    fs.mkdirSync(outputPath, { recursive: true })
+    expect(fs.statSync(outputPath).isDirectory()).toBe(true)
 
     // when
     const outcome = persistDagNodeResult({ store, runId, nodeId, record })
@@ -133,10 +135,10 @@ describe("persistDagNodeResult durable node artifacts", () => {
     if (outcome.kind !== "failed") throw new Error("expected failed outcome")
     expect(outcome.diagnostic.kind).toBe("journal_corrupt")
     expect(outcome.diagnostic.runId).toBe(runId)
-    expect(outcome.diagnostic.path).toBe(store.paths.result(runId, nodeId))
+    expect(outcome.diagnostic.path).toBe(outputPath)
+    // the diagnostic must be caused by the blocked path, not returned unconditionally
+    fs.rmSync(outputPath, { recursive: true })
     expect(readDagNodeResult({ store, runId, nodeId })).toBeNull()
-    // the diagnostic must be caused by the unwritable directory, not returned unconditionally
-    fs.chmodSync(store.paths.results, 0o755)
     expect(persistDagNodeResult({ store, runId, nodeId, record }).kind).toBe("persisted")
   })
 
