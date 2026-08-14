@@ -1,16 +1,18 @@
 import { parseModelString } from "../../shared/model-string-parser"
+import { lowerReasoningForModel } from "../../shared/agent-variant"
 
 export function buildRetryModelPayload(
   model: string,
-  agentSettings?: { variant?: string; reasoningEffort?: string },
+  agentSettings?: { reasoning?: string; variant?: string; reasoningEffort?: string },
 ): { model: { providerID: string; modelID: string }; variant?: string; reasoningEffort?: string } | undefined {
   const parsedModel = parseModelString(model)
   if (!parsedModel) {
     return undefined
   }
 
-  const variant = parsedModel.variant ?? agentSettings?.variant
-  const reasoningEffort = agentSettings?.reasoningEffort
+  const loweredReasoning = lowerReasoningForModel(agentSettings?.reasoning, parsedModel)
+  const variant = parsedModel.variant ?? agentSettings?.variant ?? loweredReasoning.variant
+  const reasoningEffort = agentSettings?.reasoningEffort ?? loweredReasoning.reasoningEffort
 
   const payload: { model: { providerID: string; modelID: string }; variant?: string; reasoningEffort?: string } = {
     model: {

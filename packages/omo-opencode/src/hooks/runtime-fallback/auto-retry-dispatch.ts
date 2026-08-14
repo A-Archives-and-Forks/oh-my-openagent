@@ -43,13 +43,13 @@ export function createAutoRetryDispatcher(
     const agentSettings = resolvedAgent
       ? pluginConfig?.agents?.[resolvedAgent as keyof typeof pluginConfig.agents]
       : undefined
-    const effectiveVariant = pluginConfig && resolvedAgent
+    const effectiveReasoning = pluginConfig && resolvedAgent
       ? resolveAgentVariant(pluginConfig, resolvedAgent)
       : undefined
-    const retryModelPayload = buildRetryModelPayload(newModel, agentSettings ? {
-      variant: effectiveVariant,
-      reasoningEffort: agentSettings.reasoningEffort,
-    } : undefined)
+    const retryModelPayload = buildRetryModelPayload(newModel, {
+      reasoning: effectiveReasoning,
+      reasoningEffort: agentSettings?.reasoningEffort,
+    })
     if (!retryModelPayload) {
       log(`[${HOOK_NAME}] Invalid model format (missing provider prefix): ${newModel}`)
       const state = sessionStates.get(sessionID)
@@ -230,7 +230,7 @@ export function createAutoRetryDispatcher(
       sessionRetryInFlight.delete(sessionID)
       if (retryMayHaveBeenAccepted) {
         const state = sessionStates.get(sessionID)
-        if (state === fallbackState) {
+        if (state && state === fallbackState) {
           state.pendingFallbackPromptMayHaveBeenAccepted = true
         }
       }
@@ -242,7 +242,7 @@ export function createAutoRetryDispatcher(
           clearSessionFallbackTimeout(sessionID)
         }
         const state = sessionStates.get(sessionID)
-        if (state === fallbackState) {
+        if (state && state === fallbackState) {
           state.currentModel = previousCurrentModel ?? state.currentModel
           if (hadAwaitingFallbackResult) {
             state.pendingFallbackModel = previousPendingFallbackModel

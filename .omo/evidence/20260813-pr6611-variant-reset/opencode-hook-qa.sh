@@ -30,7 +30,9 @@ if grep -Fq 'output.message.variant ?? input.variant' "$bundle" \
   && grep -Fq 'clearModelLessRetryKeys(sessionID);' "$bundle" \
   && grep -Fq 'areRuntimeModelsEquivalent(' "$bundle" \
   && grep -Fq 'resolveAgentVariant(pluginConfig, resolvedAgent)' "$bundle" \
-  && grep -Eq '=== fallbackState' "$bundle"; then
+  && grep -Eq '=== fallbackState' "$bundle" \
+  && grep -Fq 'lowerReasoningForModel(' "$bundle" \
+  && [ "$(grep -Fo 'resolveAgentVariant(pluginConfig,' "$bundle" | wc -l)" -ge 2 ]; then
   bundle_variant_wiring=true
 fi
 

@@ -14,6 +14,7 @@ import { isAbortError } from "../../shared/is-abort-error"
 import { resolveFallbackBootstrapModel } from "./fallback-bootstrap-model"
 import { dispatchFallbackRetry } from "./fallback-retry-dispatcher"
 import { createSessionStatusHandler } from "./session-status-handler"
+import { resolveAgentVariant } from "../../shared/agent-variant"
 import { resolveMessageEventSessionID, resolveSessionEventID } from "../../shared/event-session-id"
 import { normalizeModelToCanonicalString } from "./normalize-model"
 
@@ -87,8 +88,8 @@ export function createEventHandler(deps: HookDeps, helpers: AutoRetryHelpers) {
     if (sessionID && model) {
       log(`[${HOOK_NAME}] Session created with model`, { sessionID, model })
       const preferredModel = resolvePreferredSessionModel(sessionID, agent, pluginConfig)
-      const inheritedVariant = agent && typeof pluginConfig?.agents?.[agent]?.variant === "string"
-        ? pluginConfig.agents[agent].variant
+      const inheritedVariant = agent && pluginConfig
+        ? resolveAgentVariant(pluginConfig, agent)
         : undefined
       const fallbackIndex = preferredModel && preferredModel !== model
         ? getFallbackModelsForSession(sessionID, agent, pluginConfig).findIndex((fallbackModel) =>

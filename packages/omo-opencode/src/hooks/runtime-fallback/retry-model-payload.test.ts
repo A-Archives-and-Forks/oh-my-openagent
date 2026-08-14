@@ -111,4 +111,19 @@ describe("buildRetryModelPayload", () => {
       variant: "medium",
     })
   })
+
+  test("should lower unsupported configured reasoning to reasoningEffort", () => {
+    // given
+    const model = "test-provider/test-model"
+    const agentSettings = { reasoning: "high" }
+
+    // when
+    const result = buildRetryModelPayload(model, agentSettings)
+
+    // then
+    expect(result).toEqual({
+      model: { providerID: "test-provider", modelID: "test-model" },
+      reasoningEffort: "high",
+    })
+  })
 })

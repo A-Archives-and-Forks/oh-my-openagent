@@ -58,7 +58,7 @@ Source-loaded bundle rebuild:
   observed:
     Bundled 1986 modules
     Patched Node/Electron require shim in dist/index.js
-    bundle_sha256=e7020d2e32aedacd2bd4b311c4980186e666ab0c7c239de5b8f7fd701b3755ef
+    bundle_sha256=8361d257babe449d31f1745b3c880491b36c4beb874fe3d4f614a3b70f973738
     bundle contains:
       output.message.variant ?? input.variant
       const parsedModel = parseModelString(runtimeModel);
@@ -68,6 +68,8 @@ Source-loaded bundle rebuild:
       areRuntimeModelsEquivalent(
       resolveAgentVariant(pluginConfig, resolvedAgent)
       === fallbackState
+      lowerReasoningForModel(
+      two resolveAgentVariant(pluginConfig, callsites
     exit_code=0
 
 Full repository build:
@@ -199,6 +201,28 @@ Replacement-state rollback verification:
       all workspace tsgo invocations completed
       No violations in 2 file(s).
       exit_code=0
+
+Final capability/category P2 verification:
+  RED:
+    focused command:
+      bun test retry-model-payload.test.ts auto-retry-dispatch.test.ts event-handler.test.ts
+    observed:
+      24 pass
+      3 fail
+      unsupported reasoning mis-encoded
+      category-created fallback index remained -1
+
+  GREEN:
+    focused: 27 pass, 0 fail, 69 expect() calls
+    full runtime-fallback: 266 pass, 0 fail, 480 expect() calls
+    package typecheck: exit_code=0
+    strict audit: No violations in 6 file(s).
+
+  CI-remediation proof:
+    first local final typecheck reproduced TS18048 at
+    auto-retry-dispatch.ts:251-252.
+    adding the defined-state requirement to both identity guards made the
+    complete package typecheck pass.
 
   full runtime-fallback command:
     bun test --timeout 15000 packages/omo-opencode/src/hooks/runtime-fallback

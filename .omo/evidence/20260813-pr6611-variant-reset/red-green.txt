@@ -248,3 +248,30 @@ The deferred-message regression replaces the session's fallback state while
 the old dispatch is awaiting message lookup, then drives the old generation
 through blocked rollback. Object-identity guards keep captured values off the
 new manual-model generation.
+
+FINAL CAPABILITY AND CATEGORY P2 RED
+command:
+  bun test retry-model-payload.test.ts auto-retry-dispatch.test.ts event-handler.test.ts
+
+observed before fix:
+  unsupported canonical reasoning was absent or stored as a variant-qualified
+  identity instead of native reasoningEffort
+  category-inherited session.created fallback retained fallbackIndex -1
+  24 pass
+  3 fail
+
+FINAL CAPABILITY AND CATEGORY P2 GREEN
+focused:
+  27 pass
+  0 fail
+  69 expect() calls
+
+full runtime-fallback:
+  266 pass
+  0 fail
+  480 expect() calls
+
+Package typecheck first exposed that the replacement-state identity comparison
+could also compare two undefined values. Requiring `state` before object
+identity fixed the branch-caused TS18048 failures. The final package typecheck
+and six-file strict audit are clean.

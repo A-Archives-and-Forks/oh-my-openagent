@@ -265,12 +265,12 @@ describe("createAutoRetryDispatcher reserved-session retry (#5109)", () => {
     const helpers = createAutoRetryHelpers(deps)
 
     // when
-    await helpers.autoRetryWithFallback(sessionID, "openai/gpt-5.4", "sisyphus", "session.status")
+    await helpers.autoRetryWithFallback(sessionID, "test-provider/test-model", "sisyphus", "session.status")
 
     // then
     expect(promptCalls.count).toBe(1)
-    expect(state.currentModel).toBe("openai/gpt-5.4(high)")
-    expect(state.pendingFallbackModel).toBe("openai/gpt-5.4(high)")
+    expect(state.currentModel).toBe("test-provider/test-model")
+    expect(state.pendingFallbackModel).toBe("test-provider/test-model")
   })
 
   test("#given a category-inherited variant #when a base fallback is dispatched #then pending state stores the effective variant identity", async () => {
