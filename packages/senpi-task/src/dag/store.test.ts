@@ -161,17 +161,16 @@ describe("createDagFileStore event WAL", () => {
 })
 
 describe("createDagFileStore checkpoints and layout", () => {
-  test("#given an existing checkpoint #when it is replaced #then readers see the old complete file until rename and both file and directory are fsynced", () => {
+  test("#given POSIX checkpoint persistence #when an existing checkpoint is replaced #then readers see the old complete file until rename and both file and directory are fsynced", () => {
     // given
-    const store = createDagFileStore({ project_dir: tempProject() })
-    store.writeCheckpoint(runId, { schemaVersion: 1, runId, generation: 1 })
-    const realFsync = fs.fsyncSync
+    const options = { isProcessAlive: () => true, platform: "darwin" as const }
+    const store = createDagFileStore({ project_dir: tempProject() }, options)
+    fs.writeFileSync(store.paths.run(runId), JSON.stringify({ schemaVersion: 1, runId, generation: 1 }))
     const realRename = fs.renameSync
     const observedBeforeRename: unknown[] = []
     const durabilityOrder: string[] = []
-    const fsync = spyOn(fs, "fsyncSync").mockImplementation((fd) => {
+    const fsync = spyOn(fs, "fsyncSync").mockImplementation(() => {
       durabilityOrder.push("fsync")
-      realFsync(fd)
     })
     spyOn(fs, "renameSync").mockImplementation((from, to) => {
       durabilityOrder.push("rename")
@@ -187,6 +186,27 @@ describe("createDagFileStore checkpoints and layout", () => {
     expect(store.readCheckpoint<{ generation: number }>(runId)?.generation).toBe(2)
     expect(fsync).toHaveBeenCalledTimes(2)
     expect(durabilityOrder).toEqual(["fsync", "rename", "fsync"])
+  })
+
+  test("#given Windows checkpoint persistence #when directory fsync would fail with EPERM #then the atomic checkpoint still succeeds", () => {
+    // given
+    const options = { isProcessAlive: () => true, platform: "win32" as const }
+    const store = createDagFileStore({ project_dir: tempProject() }, options)
+    const fsync = spyOn(fs, "fsyncSync")
+      .mockImplementationOnce(() => {})
+      .mockImplementationOnce(() => {
+        const error = new Error("operation not permitted")
+        Object.assign(error, { code: "EPERM" })
+        throw error
+      })
+
+    // when
+    const write = () => store.writeCheckpoint(runId, { schemaVersion: 1, runId, generation: 1 })
+
+    // then
+    expect(write).not.toThrow()
+    expect(fsync).toHaveBeenCalledTimes(1)
+    expect(store.readCheckpoint<{ generation: number }>(runId)?.generation).toBe(1)
   })
 
   test("#given a future-schema checkpoint #when it is opened #then it fails closed with a journal_corrupt diagnostic", () => {

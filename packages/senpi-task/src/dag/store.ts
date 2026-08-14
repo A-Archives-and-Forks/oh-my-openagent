@@ -108,6 +108,7 @@ export class DagJournalCorruptError extends Error {
 type StoreOptions = {
   readonly now?: () => number
   readonly isProcessAlive?: (pid: number) => boolean
+  readonly platform?: NodeJS.Platform
 }
 
 type RetentionCheckpoint = {
@@ -132,6 +133,7 @@ export function createDagFileStore(config: DagStoreConfig, options: StoreOptions
   const recoveredPaths = new Set<string>()
   const now = options.now ?? Date.now
   const isProcessAlive = options.isProcessAlive ?? defaultSignaller.isAlive
+  const platform = options.platform ?? process.platform
   const retentionDays = config.task?.dag?.retention_days ?? DAG_SETTINGS_DEFAULTS.retention_days
 
   for (const directory of [paths.keys, paths.runs, paths.events, paths.results, paths.locks]) {
@@ -190,7 +192,7 @@ export function createDagFileStore(config: DagStoreConfig, options: StoreOptions
     writeCheckpoint(runId, checkpoint) {
       assertSafeSegment(runId, "run id")
       assertSupportedSchema(checkpoint, paths.run(runId), runId, now)
-      writeJsonAtomic(paths.run(runId), checkpoint)
+      writeJsonAtomic(paths.run(runId), checkpoint, platform)
     },
     readCheckpoint<T extends object>(runId: DagRunId): T | null {
       assertSafeSegment(runId, "run id")
@@ -203,7 +205,7 @@ export function createDagFileStore(config: DagStoreConfig, options: StoreOptions
     writeKey(record) {
       assertSupportedSchema(record, paths.key(record.parentSessionId, record.runKey), record.runId, now)
       const path = paths.key(record.parentSessionId, record.runKey)
-      writeJsonAtomic(path, record)
+      writeJsonAtomic(path, record, platform)
       return path
     },
     readKey(parentSessionId, runKey) {
@@ -289,7 +291,7 @@ function createPaths(stateDir: string): DagStorePaths {
   }
 }
 
-function writeJsonAtomic(path: string, value: object): void {
+function writeJsonAtomic(path: string, value: object, platform: NodeJS.Platform): void {
   fs.mkdirSync(dirname(path), { recursive: true })
   const tmpPath = `${path}.${process.pid}.${randomUUID()}.tmp`
   let fd: number | undefined
@@ -300,15 +302,22 @@ function writeJsonAtomic(path: string, value: object): void {
     fs.closeSync(fd)
     fd = undefined
     fs.renameSync(tmpPath, path)
-    const directoryFd = fs.openSync(dirname(path), "r")
-    try {
-      fs.fsyncSync(directoryFd)
-    } finally {
-      fs.closeSync(directoryFd)
-    }
+    fsyncParentDirectoryAfterRename(path, platform)
   } finally {
     if (fd !== undefined) fs.closeSync(fd)
     fs.rmSync(tmpPath, { force: true })
+  }
+}
+
+function fsyncParentDirectoryAfterRename(path: string, platform: NodeJS.Platform): void {
+  // Directory fsync makes the rename durable on POSIX. Windows rejects fsync on directory handles
+  // with EPERM, and its MoveFileEx-backed rename uses different durability semantics.
+  if (platform === "win32") return
+  const directoryFd = fs.openSync(dirname(path), "r")
+  try {
+    fs.fsyncSync(directoryFd)
+  } finally {
+    fs.closeSync(directoryFd)
   }
 }
 
