@@ -5,6 +5,7 @@ import { join } from "node:path"
 
 import { loadOmoConfig } from "@oh-my-opencode/omo-config-core"
 import {
+  type ManagedChildEvent,
   type ManagedChildHandle,
   type ManagedRunner,
   type ManagedStartSpec,
@@ -55,11 +56,16 @@ function within<T>(promise: Promise<T>, ms = 300): Promise<T> {
 }
 
 class ScriptedRunner implements ManagedRunner {
-  readonly handles: Array<{ readonly spec: ManagedStartSpec; readonly settle: (output: string) => void }> = []
+  readonly handles: Array<{
+    readonly spec: ManagedStartSpec
+    readonly emit: (event: ManagedChildEvent) => void
+    readonly settle: (output: string) => void
+  }> = []
   readonly #signals = new Map<number, ReturnType<typeof deferred<void>>>()
 
   start(spec: ManagedStartSpec): Promise<ManagedChildHandle> {
     const outcome = deferred<RunnerOutcome>()
+    const listeners = new Set<(event: ManagedChildEvent) => void>()
     const handle: ManagedChildHandle = {
       task_id: spec.taskId,
       sessionId: `child-${spec.taskId}`,
@@ -70,12 +76,21 @@ class ScriptedRunner implements ManagedRunner {
         outcome.resolve({ status: "cancelled" })
         return Promise.resolve()
       },
-      subscribe: () => () => undefined,
+      subscribe: (listener) => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      },
       waitForOutcome: () => outcome.promise,
       lastAssistantText: () => undefined,
       dispose: () => Promise.resolve(),
     }
-    this.handles.push({ spec, settle: (output) => outcome.resolve({ status: "completed", finalResponse: output }) })
+    this.handles.push({
+      spec,
+      emit: (event) => {
+        for (const listener of listeners) listener(event)
+      },
+      settle: (output) => outcome.resolve({ status: "completed", finalResponse: output }),
+    })
     this.#signals.get(this.handles.length)?.resolve()
     return Promise.resolve(handle)
   }
@@ -154,6 +169,118 @@ function fakeUi(widgetRows: string[][]): CapturedUi {
 }
 
 describe("assembled DAG runtime", () => {
+  test("#given a running DAG node #when its assembled child emits progress #then the live runtime publishes omo.dag.activity", async () => {
+    // given
+    const cwd = fs.mkdtempSync(join(tmpdir(), "omo-senpi-dag-activity-"))
+    cleanupRoots.push(cwd)
+    const runner = new ScriptedRunner()
+    const rpcEvents: Array<{ readonly name: string; readonly data: unknown }> = []
+    const taskAttached = deferred<void>()
+    const pi = Object.assign(new FakeExtensionAPI(), {
+      rpc: {
+        emit: (name: string, data: unknown) => {
+          rpcEvents.push({ name, data })
+          if (name === "omo.dag.event" && typeof data === "object" && data !== null &&
+            "type" in data && data.type === "dag.node.task-attached") taskAttached.resolve()
+        },
+        handle: () => undefined,
+      },
+    })
+    const engine = composeTaskEngine({
+      pi,
+      omoConfig: loadOmoConfig({ cwd }).config,
+      cwd,
+      sharedParentTools: () => [],
+      runnerFactories: { inProcess: () => runner, process: () => runner },
+    })
+    engine.runtime.captureFrom({ sessionManager: { getSessionId: () => "session-activity" } })
+    const bridgeTimers = new ManualTimers()
+    const runtime = createDagRuntime({ pi, engine, logger: logger(), bridgeTimers })
+    await runtime.attach()
+
+    // when
+    const started = await runtime.manager.start({
+      parentSessionId: "session-activity",
+      rootSessionId: "session-activity",
+      definition: {
+        key: "assembled-activity",
+        name: "assembled activity",
+        nodes: [{ id: "active", prompt: "work", subagent_type: "explore", model: "omo-mock/mock-1" }],
+      },
+    })
+    await within(runner.whenStarted(1))
+    await within(taskAttached.promise)
+    runner.handles[0]?.emit({ type: "tool_execution_start", toolName: "read", args: { path: "src/live.ts" } })
+    bridgeTimers.flush(150)
+
+    // then
+    expect(rpcEvents.filter((event) => event.name === "omo.dag.activity")).toEqual([
+      {
+        name: "omo.dag.activity",
+        data: expect.objectContaining({
+          schemaVersion: 1,
+          runId: started.snapshot.runId,
+          nodeId: "active",
+          taskId: runner.handles[0]?.spec.taskId,
+          activity: expect.stringContaining("read src/live.ts"),
+          currentTool: "read src/live.ts",
+          turns: 0,
+        }),
+      },
+    ])
+    runner.handles[0]?.settle("done")
+    await within(runtime.wait(started.snapshot.runId, "session-activity"))
+    runtime.dispose()
+  })
+
+  test("#given an unknown node skill #when the assembled runtime creates the run #then snapshot records missing_skill and dispatch keeps the prompt", async () => {
+    // given
+    const cwd = fs.mkdtempSync(join(tmpdir(), "omo-senpi-dag-missing-skill-"))
+    cleanupRoots.push(cwd)
+    const runner = new ScriptedRunner()
+    const pi = new FakeExtensionAPI()
+    const engine = composeTaskEngine({
+      pi,
+      omoConfig: loadOmoConfig({ cwd }).config,
+      cwd,
+      sharedParentTools: () => [],
+      runnerFactories: { inProcess: () => runner, process: () => runner },
+    })
+    engine.runtime.captureFrom({ sessionManager: { getSessionId: () => "session-missing-skill" } })
+    const runtime = createDagRuntime({ pi, engine, logger: logger() })
+    await runtime.attach()
+
+    // when
+    const started = await runtime.manager.start({
+      parentSessionId: "session-missing-skill",
+      rootSessionId: "session-missing-skill",
+      definition: {
+        key: "assembled-missing-skill",
+        name: "assembled missing skill",
+        nodes: [{
+          id: "missing",
+          prompt: "original prompt",
+          load_skills: ["definitely-not-a-real-skill-f3"],
+          subagent_type: "explore",
+          model: "omo-mock/mock-1",
+        }],
+      },
+    })
+    await within(runner.whenStarted(1))
+    const snapshot = runtime.manager.snapshot(started.snapshot.runId, "session-missing-skill")
+
+    // then
+    expect(snapshot.diagnostics).toContainEqual(expect.objectContaining({
+      kind: "missing_skill",
+      nodeId: "missing",
+      skill: "definitely-not-a-real-skill-f3",
+    }))
+    expect(runner.handles[0]?.spec.prompt).toBe("original prompt")
+    runner.handles[0]?.settle("done")
+    await within(runtime.wait(started.snapshot.runId, "session-missing-skill"))
+    runtime.dispose()
+  })
+
   test("#given a live task component runtime #when a two-node dag runs #then scheduler, artifacts, rpc, widget, and one wake all observe the same run", async () => {
     // given
     const cwd = fs.mkdtempSync(join(tmpdir(), "omo-senpi-dag-runtime-"))

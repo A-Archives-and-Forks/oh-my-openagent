@@ -1,6 +1,11 @@
 // allow: SIZE_OK - this is the DAG composition root: one manager/store graph must be shared by the
 // tool, scheduler, RPC, TUI, wake, and lifecycle adapters or live runs split into isolated islands.
-import type { TaskManager, TaskRecord } from "@oh-my-opencode/senpi-task"
+import {
+  createChildProgress,
+  type ManagedChildEvent,
+  type TaskManager,
+  type TaskRecord,
+} from "@oh-my-opencode/senpi-task"
 import {
   createDagFileStore,
   createDagManager,
@@ -24,6 +29,7 @@ import { createDagStatusUi, type DagStatusUiTimers } from "./dag-status-ui"
 import { createDagWake } from "./dag-wake"
 import { createDagWakeSource } from "./dag-wake-source"
 import type { TaskEngine } from "./engine"
+import { createDagSkillMaterializer } from "../../../../senpi-task/src/dag/skills"
 
 const EVENT_PAGE_SIZE = 1000
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "cancelled"])
@@ -63,6 +69,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
   const schedulers = new Map<DagRunId, { readonly scheduler: DagScheduler; running?: Promise<DagRunRecordV1> }>()
   const stoppedAdmissions = new Set<DagRunId>()
   const recoveryTaskSubscriptions = new Map<string, () => void>()
+  const activityTaskSubscriptions = new Map<string, () => void>()
   let mutationListener = (): void => undefined
   let durableEventListener = (_event: DagRunEvent): void => undefined
   let activeSessionId: string | undefined
@@ -77,6 +84,10 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
   }
   const coreManager = createDagManager({
     store,
+    materializeSkills: (input) => createDagSkillMaterializer({
+      store,
+      cwd: deps.engine.runtime.cwd(),
+    })(input),
     ...(dagSettings === undefined ? {} : { settings: dagSettings }),
   })
   const taskManager = admissionTaskManager(
@@ -160,6 +171,60 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
   })
   registerDagRpcHandlers(deps.pi, { manager: queryManager, sessionId: () => activeSessionId })
 
+  const syncActivitySubscriptions = (): void => {
+    const wanted = new Map<string, { readonly runId: DagRunId; readonly nodeId: string }>()
+    if (activeSessionId !== undefined) {
+      for (const summary of manager.list(activeSessionId)) {
+        if (TERMINAL_RUN_STATUSES.has(summary.status)) continue
+        for (const node of manager.record(summary.runId, activeSessionId).nodes) {
+          if (node.taskId !== undefined && node.state !== "completed" && node.state !== "failed" &&
+            node.state !== "cancelled" && node.state !== "skipped") {
+            wanted.set(node.taskId, { runId: summary.runId, nodeId: node.id })
+          }
+        }
+      }
+    }
+    for (const [taskId, unsubscribe] of activityTaskSubscriptions) {
+      if (wanted.has(taskId)) continue
+      unsubscribe()
+      activityTaskSubscriptions.delete(taskId)
+    }
+    for (const [taskId, owner] of wanted) {
+      if (activityTaskSubscriptions.has(taskId)) continue
+      const record = deps.engine.manager.get(taskId)
+      if (record === undefined) continue
+      const progress = createChildProgress(
+        taskId,
+        {
+          name: record.name,
+          taskSummary: record.task_summary,
+          description: record.description,
+          category: record.category,
+          agentType: record.agent_type,
+          resolvedModel: record.resolved_model,
+          model: record.model,
+        },
+        Date.parse(record.created_at),
+      )
+      activityTaskSubscriptions.set(taskId, deps.engine.manager.subscribeChild(taskId, (event: ManagedChildEvent) => {
+        if (!progress.accept(event)) return
+        const details = progress.details()
+        bridge.publishActivity({
+          schemaVersion: 1,
+          runId: owner.runId,
+          nodeId: owner.nodeId,
+          taskId,
+          at: new Date().toISOString(),
+          activity: details.progress.activity,
+          ...(details.currentTool === undefined ? {} : { currentTool: details.currentTool }),
+          ...(details.lastAssistantLine === undefined ? {} : { lastAssistantLine: details.lastAssistantLine }),
+          turns: details.turns,
+          ...(details.toolCalls === undefined ? {} : { toolCalls: details.toolCalls }),
+        })
+      }))
+    }
+  }
+
   const statusUi = createDagStatusUi({
     manager: queryManager,
     runtime: deps.engine.runtime,
@@ -206,6 +271,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
   mutationListener = () => {
     bridge.sync()
     bridge.notifyStoreMutation()
+    syncActivitySubscriptions()
     statusUi.scheduleSync()
   }
 
@@ -218,6 +284,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
       activeSessionId = deps.engine.runtime.sessionId()
       durableEventListener = onEvent
       bridge.attach()
+      syncActivitySubscriptions()
       const sessionId = activeSessionId
       if (sessionId !== undefined) {
         try {
@@ -242,6 +309,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
       )
       void Promise.allSettled(stopping).then(() => removeListeners(runListeners, detachedListeners))
       clearSubscriptions(recoveryTaskSubscriptions)
+      clearSubscriptions(activityTaskSubscriptions)
       bridge.detach()
       activeSessionId = undefined
       statusUi.dispose()
@@ -256,6 +324,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
       statusUi.dispose()
       wakeSource.emitShutdown()
       clearSubscriptions(recoveryTaskSubscriptions)
+      clearSubscriptions(activityTaskSubscriptions)
       runListeners.clear()
     },
   }
