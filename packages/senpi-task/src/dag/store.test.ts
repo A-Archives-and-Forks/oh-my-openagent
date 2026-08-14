@@ -269,6 +269,23 @@ describe("createDagFileStore checkpoints and layout", () => {
     expect(durabilityOrder).toEqual(["fsync", "rename", "fsync"])
   })
 
+  test("#given a one-run session limit #when a second run checkpoint is created #then the configured limit rejects it without an orphan", () => {
+    // given
+    const store = createDagFileStore({
+      project_dir: tempProject(),
+      task: { dag: { max_runs_per_session: 1 } },
+    })
+    store.writeCheckpoint(runId, checkpoint())
+
+    // when
+    const writeSecond = () => store.writeCheckpoint(otherRunId, checkpoint({ id: otherRunId }))
+
+    // then
+    expect(writeSecond).toThrow("DAG session run limit reached: 1")
+    expect(store.readCheckpoint(otherRunId)).toBeNull()
+    expect(fs.readdirSync(store.paths.runs)).toEqual([`${runId}.json`])
+  })
+
   test("#given a parent session and run key #when writing the key #then its filename is the exact nul-delimited sha256", () => {
     // given
     const store = createDagFileStore({ project_dir: tempProject() })

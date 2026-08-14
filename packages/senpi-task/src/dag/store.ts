@@ -134,6 +134,7 @@ export function createDagFileStore(config: DagStoreConfig, options: StoreOptions
   const now = options.now ?? Date.now
   const isProcessAlive = options.isProcessAlive ?? defaultSignaller.isAlive
   const platform = options.platform ?? process.platform
+  const maxRunsPerSession = config.task?.dag?.max_runs_per_session ?? DAG_SETTINGS_DEFAULTS.max_runs_per_session
   const retentionDays = config.task?.dag?.retention_days ?? DAG_SETTINGS_DEFAULTS.retention_days
 
   for (const directory of [paths.keys, paths.runs, paths.events, paths.results, paths.locks]) {
@@ -196,7 +197,15 @@ export function createDagFileStore(config: DagStoreConfig, options: StoreOptions
     writeCheckpoint(runId, checkpoint) {
       assertSafeSegment(runId, "run id")
       assertSupportedSchema(checkpoint, paths.run(runId), runId, now)
-      writeJsonAtomic(paths.run(runId), checkpoint, platform)
+      writeCheckpointWithinSessionLimit(
+        paths,
+        runId,
+        checkpoint,
+        maxRunsPerSession,
+        platform,
+        isProcessAlive,
+        now,
+      )
     },
     readCheckpoint<T extends object>(runId: DagRunId): T | null {
       assertSafeSegment(runId, "run id")
@@ -292,6 +301,45 @@ function createPaths(stateDir: string): DagStorePaths {
     keyLock: (parentSessionId, runKey) => join(locks, `key-${dagKeyHash(parentSessionId, runKey)}.lock`),
     taskOwnerLock: (taskOwner) => join(locks, `task-owner-${sha256(taskOwner)}.lock`),
   }
+}
+
+function writeCheckpointWithinSessionLimit(
+  paths: DagStorePaths,
+  runId: DagRunId,
+  checkpoint: object,
+  maxRunsPerSession: number,
+  platform: NodeJS.Platform,
+  isProcessAlive: (pid: number) => boolean,
+  now: () => number,
+): void {
+  const path = paths.run(runId)
+  const parentSessionId = readOptionalString(checkpoint, "parentSessionId")
+  if (parentSessionId === undefined || fs.existsSync(path)) {
+    writeJsonAtomic(path, checkpoint, platform)
+    return
+  }
+  const capacityLock = join(paths.locks, `session-runs-${sha256(parentSessionId)}.lock`)
+  withLock(capacityLock, undefined, () => {
+    if (fs.existsSync(path)) {
+      writeJsonAtomic(path, checkpoint, platform)
+      return
+    }
+    let runCount = 0
+    for (const entry of fs.readdirSync(paths.runs, { withFileTypes: true })) {
+      if (!entry.isFile() || !entry.name.endsWith(".json")) continue
+      const existingRunId = entry.name.slice(0, -5) as DagRunId
+      const existingPath = join(paths.runs, entry.name)
+      const existing = readJsonFile(existingPath, existingRunId, now)
+      if (existing === null) continue
+      assertSupportedSchema(existing, existingPath, existingRunId, now)
+      if (readOptionalString(existing, "parentSessionId") === parentSessionId) runCount += 1
+    }
+    if (runCount >= maxRunsPerSession) {
+      fs.rmSync(join(paths.root, "skills", `${runId}.json`), { force: true })
+      throw new Error(`DAG session run limit reached: ${maxRunsPerSession}`)
+    }
+    writeJsonAtomic(path, checkpoint, platform)
+  }, isProcessAlive, now)
 }
 
 function writeJsonAtomic(path: string, value: object, platform: NodeJS.Platform): void {
