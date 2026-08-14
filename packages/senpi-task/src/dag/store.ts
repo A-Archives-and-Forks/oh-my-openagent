@@ -149,6 +149,10 @@ export function createDagFileStore(config: DagStoreConfig, options: StoreOptions
       assertSafeSegment(event.runId, "run id")
       assertSupportedSchema(event, paths.event(event.runId), event.runId, now)
       const path = paths.event(event.runId)
+      const expectedSeq = eventLogTailSeq(path, event.runId, now) + 1
+      if (!Number.isSafeInteger(event.seq) || event.seq !== expectedSeq) {
+        throw new Error(`DAG event seq must be strictly increasing: expected ${expectedSeq}, received ${event.seq}`)
+      }
       fs.mkdirSync(dirname(path), { recursive: true })
       const fd = fs.openSync(path, "a")
       try {
@@ -220,8 +224,7 @@ export function createDagFileStore(config: DagStoreConfig, options: StoreOptions
       assertSafeSegment(runId, "run id")
       assertSafeSegment(nodeId, "node id")
       const path = paths.result(runId, nodeId)
-      fs.mkdirSync(dirname(path), { recursive: true })
-      fs.writeFileSync(path, result, "utf8")
+      writeFileAtomic(path, result, platform)
       return path
     },
     readResult(runId, nodeId) {
@@ -292,12 +295,16 @@ function createPaths(stateDir: string): DagStorePaths {
 }
 
 function writeJsonAtomic(path: string, value: object, platform: NodeJS.Platform): void {
+  writeFileAtomic(path, JSON.stringify(value), platform)
+}
+
+function writeFileAtomic(path: string, content: string, platform: NodeJS.Platform): void {
   fs.mkdirSync(dirname(path), { recursive: true })
   const tmpPath = `${path}.${process.pid}.${randomUUID()}.tmp`
   let fd: number | undefined
   try {
     fd = fs.openSync(tmpPath, "wx")
-    fs.writeSync(fd, JSON.stringify(value))
+    fs.writeSync(fd, content)
     fs.fsyncSync(fd)
     fs.closeSync(fd)
     fd = undefined
@@ -319,6 +326,14 @@ function fsyncParentDirectoryAfterRename(path: string, platform: NodeJS.Platform
   } finally {
     fs.closeSync(directoryFd)
   }
+}
+
+function eventLogTailSeq(path: string, runId: DagRunId, now: () => number): number {
+  let tailSeq = 0
+  forEachJsonLine(path, (value) => {
+    tailSeq = parseEvent(value, path, runId, now).seq
+  })
+  return tailSeq
 }
 
 function inspectExistingEventLogs(

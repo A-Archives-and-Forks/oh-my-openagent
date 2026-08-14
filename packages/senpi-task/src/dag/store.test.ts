@@ -106,6 +106,19 @@ describe("createDagFileStore event WAL", () => {
     expect(page).toMatchObject({ nextSinceSeq: 3, headSeq: 4, hasMore: false })
   })
 
+  test("#given an existing event seq #when a distinct event reuses it #then the WAL rejects the duplicate", () => {
+    // given
+    const store = createDagFileStore({ project_dir: tempProject() })
+    store.appendEvent(event(1))
+
+    // when
+    const appendDuplicate = () => store.appendEvent(event(1, { generation: 2 }))
+
+    // then
+    expect(appendDuplicate).toThrow("DAG event seq must be strictly increasing")
+    expect(store.readEvents(runId, 0, { limit: 10 }).events).toHaveLength(1)
+  })
+
   test("#given one event append #when durability completes #then the WAL descriptor is fsynced", () => {
     // given
     const store = createDagFileStore({ project_dir: tempProject() })
@@ -227,6 +240,33 @@ describe("createDagFileStore checkpoints and layout", () => {
         runId,
       })
     }
+  })
+
+  test("#given an existing node result #when it is replaced #then readers see the old complete file until rename and both file and directory are fsynced", () => {
+    // given
+    const options = { isProcessAlive: () => true, platform: "darwin" as const }
+    const store = createDagFileStore({ project_dir: tempProject() }, options)
+    store.writeResult(runId, "node-a", "old result")
+    const realRename = fs.renameSync
+    const observedBeforeRename: string[] = []
+    const durabilityOrder: string[] = []
+    const fsync = spyOn(fs, "fsyncSync").mockImplementation(() => {
+      durabilityOrder.push("fsync")
+    })
+    spyOn(fs, "renameSync").mockImplementation((from, to) => {
+      durabilityOrder.push("rename")
+      observedBeforeRename.push(fs.readFileSync(to, "utf8"))
+      realRename(from, to)
+    })
+
+    // when
+    store.writeResult(runId, "node-a", "new result")
+
+    // then
+    expect(observedBeforeRename).toEqual(["old result"])
+    expect(store.readResult(runId, "node-a")).toBe("new result")
+    expect(fsync).toHaveBeenCalledTimes(2)
+    expect(durabilityOrder).toEqual(["fsync", "rename", "fsync"])
   })
 
   test("#given a parent session and run key #when writing the key #then its filename is the exact nul-delimited sha256", () => {
