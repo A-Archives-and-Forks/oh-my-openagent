@@ -34,7 +34,8 @@ if grep -Fq 'output.message.variant ?? input.variant' "$bundle" \
   && grep -Fq 'lowerReasoningForModel(' "$bundle" \
   && [ "$(grep -Fo 'resolveAgentVariant(pluginConfig,' "$bundle" | wc -l)" -ge 2 ] \
   && grep -Fq 'retryDispatched = true' "$bundle" \
-  && grep -Fq 'buildRetryModelPayload(fallbackModel' "$bundle"; then
+  && grep -Fq 'buildRetryModelPayload(fallbackModel' "$bundle" \
+  && grep -Fq 'part.synthetic === true' "$bundle"; then
   bundle_variant_wiring=true
 fi
 

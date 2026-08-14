@@ -124,13 +124,18 @@ afterEach(() => {
 })
 
 describe("createChatMessageHandler - synthetic/internal messages", () => {
-  test("skips synthetic-only user messages before session state and hooks mutate", async () => {
+  test("acknowledges synthetic-only retries through runtime fallback before other hooks mutate", async () => {
     // given
     const hookCalls: string[] = []
     const args = createMockHandlerArgs({ shouldOverride: true })
     args.hooks.keywordDetector = {
       "chat.message": async () => {
         hookCalls.push("keywordDetector")
+      },
+    }
+    args.hooks.runtimeFallback = {
+      "chat.message": async () => {
+        hookCalls.push("runtimeFallback")
       },
     }
     const handler = createChatMessageHandler(args)
@@ -144,7 +149,7 @@ describe("createChatMessageHandler - synthetic/internal messages", () => {
 
     // then
     expect(args._appliedSessions).toEqual([])
-    expect(hookCalls).toEqual([])
+    expect(hookCalls).toEqual(["runtimeFallback"])
     expect(getSessionAgent("test-session")).toBeUndefined()
   })
 

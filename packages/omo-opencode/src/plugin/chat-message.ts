@@ -90,6 +90,9 @@ export function createChatMessageHandler(args: {
   ): Promise<void> => {
     const nativeGoalCommand = consumeNativeGoalCommandMarker(output.parts)
     if (isSyntheticOrInternalOnlyTextParts(output.parts)) {
+      if (output.parts.some((part) => part.synthetic === true)) {
+        await hooks.runtimeFallback?.["chat.message"]?.(input, output)
+      }
       log("[chat-message] Skipping synthetic/internal-only message", {
         sessionID: input.sessionID,
       })

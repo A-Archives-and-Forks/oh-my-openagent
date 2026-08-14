@@ -347,3 +347,29 @@ full runtime-fallback:
 capability-aware retry payload builder as dispatch. Reasoning lowered to
 native effort therefore matches the event's base model and retains the correct
 fallback index. Package typecheck and the two-file strict audit are clean.
+
+SYNTHETIC ADAPTER ACKNOWLEDGMENT RED
+command:
+  bun test packages/omo-opencode/src/plugin/chat-message.test.ts
+
+observed before fix:
+  expected runtimeFallback hook call
+  received no hook calls
+  30 pass
+  1 fail
+
+SYNTHETIC ADAPTER ACKNOWLEDGMENT GREEN
+focused:
+  54 pass
+  0 fail
+  133 expect() calls
+
+full runtime-fallback:
+  269 pass
+  0 fail
+  489 expect() calls
+
+Synthetic retry parts now reach only runtime-fallback acknowledgment before
+the adapter's synthetic/internal early return. Keyword, slash-command, session
+agent, and first-message state remain skipped. Package typecheck and the
+two-file strict audit are clean.
