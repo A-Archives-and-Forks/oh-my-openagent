@@ -119,7 +119,7 @@ describe("createDagFileStore event WAL", () => {
     expect(store.readEvents(runId, 0, { limit: 10 }).events).toHaveLength(1)
   })
 
-  test("#given one event append #when durability completes #then the WAL descriptor is fsynced", () => {
+  test("#given default store durability #when one event is appended #then the WAL descriptor is fsynced", () => {
     // given
     const store = createDagFileStore({ project_dir: tempProject() })
     const fsync = spyOn(fs, "fsyncSync")
@@ -129,6 +129,23 @@ describe("createDagFileStore event WAL", () => {
 
     // then
     expect(fsync).toHaveBeenCalledTimes(1)
+  })
+
+  test("#given fsync is disabled #when WAL, lock, and checkpoint writes run #then ordering remains without durability barriers", () => {
+    // given
+    const store = createDagFileStore({ project_dir: tempProject() }, { fsync: false })
+    const fsync = spyOn(fs, "fsyncSync")
+
+    // when
+    store.withRunLock(runId, () => {
+      store.appendEvent(event(1))
+      store.writeCheckpoint(runId, { schemaVersion: 1, runId, checkpointSeq: 1 })
+    })
+
+    // then
+    expect(fsync).not.toHaveBeenCalled()
+    expect(store.readEvents(runId, 0, { limit: 10 }).events.map(({ seq }) => seq)).toEqual([1])
+    expect(store.readCheckpoint<{ checkpointSeq: number }>(runId)?.checkpointSeq).toBe(1)
   })
 
   test("#given a WAL ending in a torn fragment #when a new store opens #then valid events remain and the tail is diagnosed and discarded", () => {

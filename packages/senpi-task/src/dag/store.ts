@@ -109,6 +109,8 @@ type StoreOptions = {
   readonly now?: () => number
   readonly isProcessAlive?: (pid: number) => boolean
   readonly platform?: NodeJS.Platform
+  // Ordering-focused tests can disable fsync without bypassing real filesystem writes.
+  readonly fsync?: boolean
 }
 
 type RetentionCheckpoint = {
@@ -134,6 +136,7 @@ export function createDagFileStore(config: DagStoreConfig, options: StoreOptions
   const now = options.now ?? Date.now
   const isProcessAlive = options.isProcessAlive ?? defaultSignaller.isAlive
   const platform = options.platform ?? process.platform
+  const fsyncWrites = options.fsync ?? true
   const maxRunsPerSession = config.task?.dag?.max_runs_per_session ?? DAG_SETTINGS_DEFAULTS.max_runs_per_session
   const retentionDays = config.task?.dag?.retention_days ?? DAG_SETTINGS_DEFAULTS.retention_days
 
@@ -158,7 +161,7 @@ export function createDagFileStore(config: DagStoreConfig, options: StoreOptions
       const fd = fs.openSync(path, "a")
       try {
         fs.writeSync(fd, `${JSON.stringify(event)}\n`)
-        fs.fsyncSync(fd)
+        if (fsyncWrites) fs.fsyncSync(fd)
       } finally {
         fs.closeSync(fd)
       }
@@ -203,6 +206,7 @@ export function createDagFileStore(config: DagStoreConfig, options: StoreOptions
         checkpoint,
         maxRunsPerSession,
         platform,
+        fsyncWrites,
         isProcessAlive,
         now,
       )
@@ -218,7 +222,7 @@ export function createDagFileStore(config: DagStoreConfig, options: StoreOptions
     writeKey(record) {
       assertSupportedSchema(record, paths.key(record.parentSessionId, record.runKey), record.runId, now)
       const path = paths.key(record.parentSessionId, record.runKey)
-      writeJsonAtomic(path, record, platform)
+      writeJsonAtomic(path, record, platform, fsyncWrites)
       return path
     },
     readKey(parentSessionId, runKey) {
@@ -233,7 +237,7 @@ export function createDagFileStore(config: DagStoreConfig, options: StoreOptions
       assertSafeSegment(runId, "run id")
       assertSafeSegment(nodeId, "node id")
       const path = paths.result(runId, nodeId)
-      writeFileAtomic(path, result, platform)
+      writeFileAtomic(path, result, platform, fsyncWrites)
       return path
     },
     readResult(runId, nodeId) {
@@ -248,13 +252,13 @@ export function createDagFileStore(config: DagStoreConfig, options: StoreOptions
     },
     withRunLock(runId, operation) {
       assertSafeSegment(runId, "run id")
-      return withLock(paths.runLock(runId), runId, operation, isProcessAlive, now)
+      return withLock(paths.runLock(runId), runId, operation, isProcessAlive, now, fsyncWrites)
     },
     withKeyLock: (parentSessionId, runKey, operation) => withLock(
-      paths.keyLock(parentSessionId, runKey), undefined, operation, isProcessAlive, now,
+      paths.keyLock(parentSessionId, runKey), undefined, operation, isProcessAlive, now, fsyncWrites,
     ),
     withTaskOwnerLock: (taskOwner, runId, operation) => withLock(
-      paths.taskOwnerLock(taskOwner), runId, operation, isProcessAlive, now,
+      paths.taskOwnerLock(taskOwner), runId, operation, isProcessAlive, now, fsyncWrites,
     ),
     pruneExpired(pruneNow = now()) {
       const cutoff = pruneNow - retentionDays * 24 * 60 * 60 * 1000
@@ -309,19 +313,20 @@ function writeCheckpointWithinSessionLimit(
   checkpoint: object,
   maxRunsPerSession: number,
   platform: NodeJS.Platform,
+  fsyncWrites: boolean,
   isProcessAlive: (pid: number) => boolean,
   now: () => number,
 ): void {
   const path = paths.run(runId)
   const parentSessionId = readOptionalString(checkpoint, "parentSessionId")
   if (parentSessionId === undefined || fs.existsSync(path)) {
-    writeJsonAtomic(path, checkpoint, platform)
+    writeJsonAtomic(path, checkpoint, platform, fsyncWrites)
     return
   }
   const capacityLock = join(paths.locks, `session-runs-${sha256(parentSessionId)}.lock`)
   withLock(capacityLock, undefined, () => {
     if (fs.existsSync(path)) {
-      writeJsonAtomic(path, checkpoint, platform)
+      writeJsonAtomic(path, checkpoint, platform, fsyncWrites)
       return
     }
     let runCount = 0
@@ -338,26 +343,26 @@ function writeCheckpointWithinSessionLimit(
       fs.rmSync(join(paths.root, "skills", `${runId}.json`), { force: true })
       throw new Error(`DAG session run limit reached: ${maxRunsPerSession}`)
     }
-    writeJsonAtomic(path, checkpoint, platform)
-  }, isProcessAlive, now)
+    writeJsonAtomic(path, checkpoint, platform, fsyncWrites)
+  }, isProcessAlive, now, fsyncWrites)
 }
 
-function writeJsonAtomic(path: string, value: object, platform: NodeJS.Platform): void {
-  writeFileAtomic(path, JSON.stringify(value), platform)
+function writeJsonAtomic(path: string, value: object, platform: NodeJS.Platform, fsyncWrites: boolean): void {
+  writeFileAtomic(path, JSON.stringify(value), platform, fsyncWrites)
 }
 
-function writeFileAtomic(path: string, content: string, platform: NodeJS.Platform): void {
+function writeFileAtomic(path: string, content: string, platform: NodeJS.Platform, fsyncWrites: boolean): void {
   fs.mkdirSync(dirname(path), { recursive: true })
   const tmpPath = `${path}.${process.pid}.${randomUUID()}.tmp`
   let fd: number | undefined
   try {
     fd = fs.openSync(tmpPath, "wx")
     fs.writeSync(fd, content)
-    fs.fsyncSync(fd)
+    if (fsyncWrites) fs.fsyncSync(fd)
     fs.closeSync(fd)
     fd = undefined
     fs.renameSync(tmpPath, path)
-    fsyncParentDirectoryAfterRename(path, platform)
+    if (fsyncWrites) fsyncParentDirectoryAfterRename(path, platform)
   } finally {
     if (fd !== undefined) fs.closeSync(fd)
     fs.rmSync(tmpPath, { force: true })
@@ -529,6 +534,7 @@ function withLock<T>(
   operation: () => T,
   isProcessAlive: (pid: number) => boolean,
   now: () => number,
+  fsyncWrites: boolean,
 ): T {
   assertSafeSegment(basename(path), "lock name")
   const startedAt = now()
@@ -537,7 +543,7 @@ function withLock<T>(
       const fd = fs.openSync(path, "wx")
       try {
         fs.writeSync(fd, JSON.stringify({ hostPid: process.pid, runId, createdAt: new Date(now()).toISOString() }))
-        fs.fsyncSync(fd)
+        if (fsyncWrites) fs.fsyncSync(fd)
       } finally {
         fs.closeSync(fd)
       }

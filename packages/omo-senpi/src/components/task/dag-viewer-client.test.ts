@@ -237,7 +237,7 @@ describe("dag viewer reference consumer", () => {
     // given
     const projectDir = fs.mkdtempSync(join(tmpdir(), "omo-dag-viewer-"))
     cleanupRoots.push(projectDir)
-    const store = createDagFileStore({ project_dir: projectDir })
+    const store = createDagFileStore({ project_dir: projectDir }, { fsync: false })
     const runId = "run-viewer" as DagRunId
     const manager = createDagManager({ store, newRunId: () => runId })
     await manager.start({
