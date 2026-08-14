@@ -479,7 +479,6 @@ describe("assembled DAG runtime", () => {
     expect(runner.handles).toHaveLength(3)
 
     const resultsDir = join(engine.stateDir, "dag", "results")
-    fs.chmodSync(resultsDir, 0o500)
     const copyFailure = await runDagTool(
       {
         manager: runtime.manager,
@@ -499,9 +498,21 @@ describe("assembled DAG runtime", () => {
     )
     if (copyFailure.details.kind !== "started") throw new Error("expected copy-failure dag start")
     await runner.whenStarted(4)
-    runner.handles[3]?.settle("unwritable output")
+    runner.handles[3]?.emit({
+      type: "message_end",
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "blocked output" }],
+        usage: { output: 2, totalTokens: 3 },
+      },
+    })
+    const blockedStatsPath = join(resultsDir, copyFailure.details.run_id, "copy.stats.json")
+    // A directory at the sidecar file path rejects open-for-write on Windows and POSIX while leaving the copied output readable.
+    fs.mkdirSync(blockedStatsPath, { recursive: true })
+    expect(fs.statSync(blockedStatsPath).isDirectory()).toBe(true)
+    runner.handles[3]?.settle("blocked output")
     await runtime.wait(copyFailure.details.run_id as DagRunId, "session-dag")
-    fs.chmodSync(resultsDir, 0o755)
+    fs.rmSync(blockedStatsPath, { recursive: true })
     const failedCopyRecord = runtime.manager.record(copyFailure.details.run_id as DagRunId, "session-dag") as unknown as {
       readonly diagnostics: readonly { readonly kind: string }[]
     }
