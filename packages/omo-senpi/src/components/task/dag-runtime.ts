@@ -115,6 +115,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
         taskManager,
         initialRecord,
         executionMode: { agents: deps.engine.agents, config: deps.engine.omoConfig },
+        ...(dagSettings?.subscriber_ring === undefined ? {} : { subscriberRing: dagSettings.subscriber_ring }),
       }),
     }
     schedulers.set(runId, created)
@@ -264,6 +265,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
   const recovery = createDagRecovery({
     store,
     taskManager,
+    ...(dagSettings?.subscriber_ring === undefined ? {} : { subscriberRing: dagSettings.subscriber_ring }),
     stopAdmission: (runId) => stoppedAdmissions.add(runId),
     reattach: (runId, taskId) => {
       const key = `${runId}\0${taskId}`

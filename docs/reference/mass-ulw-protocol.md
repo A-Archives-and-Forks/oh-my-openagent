@@ -70,7 +70,7 @@ The 14 journaled payload types (`DAG_RUN_EVENT_TYPES`), with their fields beyond
 | `dag.node.task-attached` | `nodeId`, `taskId`, `attempt` |
 | `dag.node.reused` | `nodeId`, `taskId`, `sourceRunId` |
 | `dag.diagnostic.added` | `diagnostic` (`route_fallback` \| `node_flag` \| `run_flag`) |
-| `dag.stream.overflow` | `dropped`, `oldestDroppedSeq?` (see the nuance below) |
+| `dag.stream.overflow` | `droppedCount`, `recoverAfterSeq` (see the recovery rules below) |
 
 Node states: `pending`, `blocked`, `scheduled`, `running`, `completed`, `failed`, `cancelled`,
 `skipped`. Run statuses: `pending`, `running`, `paused`, `completed`, `failed`, `cancelled`.
@@ -228,16 +228,24 @@ The seq ledger is scoped to `omo.dag.event` only. Dedupe by `(runId, seq)`.
    (received seq > last applied + 1), refetch the gap via `omo.dag.history` with
    `sinceSeq = lastApplied` and `throughSeq = received seq`, then continue.
 
-## The overflow nuance (read this twice)
+## Overflow recovery
 
-On `dag.stream.overflow`, the field is NAMED `oldestDroppedSeq`, but its VALUE is not the first
-missed seq. It is the recovery cursor: the last seq the subscriber actually RECEIVED before the
-drop (`recoverAfterSeq` in the journal). The event's own envelope `seq` is the first dropped seq.
+`dag.stream.overflow` reports how much live subscriber buffering was lost:
 
-So a consumer doing exclusive-since recovery, `omo.dag.history` with
-`sinceSeq = oldestDroppedSeq`, loses nothing. Do not "correct" the value by subtracting one; the
-name suggests first-missed semantics and the value deliberately does not have them. Deriving an
-off-by-one from the field name is the exact bug this paragraph exists to prevent.
+- `droppedCount` is the number of queued events evicted from that subscriber's ring.
+- `recoverAfterSeq` is the last seq delivered to that subscriber before the loss. It is an
+  exclusive-since recovery cursor, not the first dropped seq.
+
+The overflow notification is itself appended through the normal locked WAL and checkpoint pipeline.
+It receives a fresh seq greater than the current WAL tail. No journal seq is ever reused, including
+when reporting overflow; the overflow event's envelope `seq` is therefore not a dropped event's seq.
+
+When a viewer receives an overflow event, it must pause normal application and call
+`omo.dag.history` with `sinceSeq = recoverAfterSeq` and `throughSeq = overflow.seq`. Apply that
+bounded page and every continuation page in seq order, deduping by `(runId, seq)`. This recovers all
+missed durable events and the overflow event itself. Then resume buffered live delivery, discarding
+any event whose seq was already applied. Do not subtract one from `recoverAfterSeq`, and do not infer
+a recovery cursor from `droppedCount` or the overflow event's own seq.
 
 ## omo-desktop-app integration
 

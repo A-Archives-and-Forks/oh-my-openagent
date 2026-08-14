@@ -11,6 +11,7 @@ const doc = fs.readFileSync(docPath, "utf8")
 
 const bridgeSource = fs.readFileSync(join(import.meta.dir, "dag-rpc-bridge.ts"), "utf8")
 const handlerSource = fs.readFileSync(join(import.meta.dir, "dag-rpc-handlers.ts"), "utf8")
+const eventTypesSource = fs.readFileSync(join(repoRoot, "packages", "senpi-task", "src", "dag", "types.ts"), "utf8")
 
 function extract(pattern: RegExp): readonly string[] {
   return [...new Set([...doc.matchAll(pattern)].map((match) => match[1] as string))]
@@ -59,6 +60,19 @@ describe("mass-ulw protocol doc", () => {
         for (const type of shippedTypes) {
           expect(docTypes).toContain(type)
         }
+      })
+    })
+  })
+
+  describe("#given the documented overflow payload fields", () => {
+    describe("#when compared with the shipped event union", () => {
+      it("#then the field names match exactly", () => {
+        const sourceBlock = eventTypesSource.match(/readonly type: "dag\.stream\.overflow"([\s\S]*?)\n\s*}/)?.[1]
+        const docBlock = doc.match(/\| `dag\.stream\.overflow` \|([^|]+)\|/)?.[1]
+        if (sourceBlock === undefined || docBlock === undefined) throw new Error("overflow contract block missing")
+        const sourceFields = [...sourceBlock.matchAll(/readonly ([A-Za-z]+):/g)].map((match) => match[1])
+        const docFields = [...docBlock.matchAll(/`([A-Za-z]+)`/g)].map((match) => match[1])
+        expect(docFields).toEqual(sourceFields)
       })
     })
   })
