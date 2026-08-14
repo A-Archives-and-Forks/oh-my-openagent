@@ -1,4 +1,7 @@
 import { describe, expect, it } from "bun:test"
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
 import {
   dagDefinitionFingerprint,
@@ -112,18 +115,23 @@ describe("dagDefinitionFingerprint", () => {
     expect(dagDefinitionFingerprint(rebuilt)).toBe(dagDefinitionFingerprint(baseDefinition))
   })
 
-  it("#given the same submitted definition across a skill file change on disk #when fingerprinted twice #then identical", () => {
-    // given: a skill file exists with version 1 content
-    const skillPath = `/tmp/dag-fingerprint-skill-${crypto.randomUUID()}.md`
-    Bun.write(skillPath, "# skill v1")
+  it("#given the same submitted definition across a skill file change on disk #when fingerprinted twice #then identical", async () => {
+    const skillDirectory = mkdtempSync(join(tmpdir(), "dag-fingerprint-skill-"))
+    const skillPath = join(skillDirectory, "skill.md")
+    try {
+      // given: a skill file exists with version 1 content
+      await Bun.write(skillPath, "# skill v1")
 
-    // when: the submitted definition is fingerprinted, then the skill file changes, then fingerprinted again
-    const before = dagDefinitionFingerprint(baseDefinition)
-    Bun.write(skillPath, "# skill v2 with different content and digest")
-    const after = dagDefinitionFingerprint(baseDefinition)
+      // when: the submitted definition is fingerprinted, then the skill file changes, then fingerprinted again
+      const before = dagDefinitionFingerprint(baseDefinition)
+      await Bun.write(skillPath, "# skill v2 with different content and digest")
+      const after = dagDefinitionFingerprint(baseDefinition)
 
-    // then: fingerprints cover the submitted definition only, never skill content
-    expect(after).toBe(before)
+      // then: fingerprints cover the submitted definition only, never skill content
+      expect(after).toBe(before)
+    } finally {
+      rmSync(skillDirectory, { recursive: true, force: true })
+    }
   })
 
   it("#given optional node fields present #when fingerprinted #then included in the hash", () => {
