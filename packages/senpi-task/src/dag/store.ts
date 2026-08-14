@@ -472,9 +472,13 @@ function withLock<T>(
       break
     } catch (error) {
       if (!hasCode(error, "EEXIST")) throw error
-      const holderPid = readLockPid(path)
-      if (holderPid === undefined || !isProcessAlive(holderPid)) {
-        fs.rmSync(path, { force: true })
+      const observedHolder = readLockHolder(path)
+      if (observedHolder === undefined || !isProcessAlive(observedHolder.pid)) {
+        const currentHolder = readLockHolder(path)
+        if (sameLockHolder(observedHolder, currentHolder) &&
+          (currentHolder === undefined || !isProcessAlive(currentHolder.pid))) {
+          fs.rmSync(path, { force: true })
+        }
         continue
       }
       if (now() - startedAt >= LOCK_WAIT_TIMEOUT_MS) throw new Error(`Timed out acquiring DAG lock: ${path}`)
@@ -488,22 +492,32 @@ function withLock<T>(
   }
 }
 
-function readLockPid(path: string): number | undefined {
+type LockHolder = {
+  readonly pid: number
+  readonly content: string
+}
+
+function readLockHolder(path: string): LockHolder | undefined {
   try {
-    const text = fs.readFileSync(path, "utf8")
+    const content = fs.readFileSync(path, "utf8")
     try {
-      const value = JSON.parse(text) as unknown
-      if (isRecord(value) && typeof value.hostPid === "number") return value.hostPid
+      const value = JSON.parse(content) as unknown
+      if (isRecord(value) && typeof value.hostPid === "number") return { pid: value.hostPid, content }
     } catch (error) {
       if (!(error instanceof SyntaxError)) throw error
     }
-    const firstLine = text.split("\n", 1)[0]
+    const firstLine = content.split("\n", 1)[0]
     const pid = Number(firstLine)
-    return Number.isInteger(pid) && pid > 0 ? pid : undefined
+    return Number.isInteger(pid) && pid > 0 ? { pid, content } : undefined
   } catch (error) {
     if (hasCode(error, "ENOENT")) return undefined
     throw error
   }
+}
+
+function sameLockHolder(left: LockHolder | undefined, right: LockHolder | undefined): boolean {
+  if (left === undefined || right === undefined) return left === right
+  return left.pid === right.pid && left.content === right.content
 }
 
 function pruneRunArtifacts(paths: DagStorePaths, checkpoint: RetentionCheckpoint, runId: DagRunId): void {

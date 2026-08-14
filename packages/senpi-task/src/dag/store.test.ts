@@ -246,6 +246,42 @@ describe("createDagFileStore locks and retention", () => {
     expect(fs.existsSync(store.paths.runLock(runId))).toBe(false)
   })
 
+  test("#given a dead holder is replaced before reclamation #when the run lock retries #then it never deletes the fresh holder", () => {
+    // given
+    const project = tempProject()
+    let clock = 0
+    const stalePid = 101
+    const freshPid = 202
+    let replaced = false
+    const store = createDagFileStore(
+      { project_dir: project },
+      {
+        now: () => {
+          clock += 1_001
+          return clock
+        },
+        isProcessAlive: (pid) => {
+          if (pid === stalePid && !replaced) {
+            replaced = true
+            fs.writeFileSync(store.paths.runLock(runId), JSON.stringify({ hostPid: freshPid }))
+            return false
+          }
+          return pid === freshPid
+        },
+      },
+    )
+    fs.writeFileSync(store.paths.runLock(runId), JSON.stringify({ hostPid: stalePid }))
+    let entered = false
+
+    // when
+    const acquire = () => store.withRunLock(runId, () => { entered = true })
+
+    // then
+    expect(acquire).toThrow(`Timed out acquiring DAG lock: ${store.paths.runLock(runId)}`)
+    expect(entered).toBe(false)
+    expect(JSON.parse(fs.readFileSync(store.paths.runLock(runId), "utf8"))).toEqual({ hostPid: freshPid })
+  })
+
   test("#given expired terminal artifacts and equally old live artifacts #when retention runs #then only the terminal run is pruned", () => {
     // given
     const now = Date.parse("2026-01-10T00:00:00.000Z")
