@@ -191,3 +191,17 @@ observed:
 Pending fallback acknowledgment now precedes manual-change detection and clears
 only model-less keys at the true generation boundary. Session creation locates
 variant-inherited fallbacks using effective runtime-model equivalence.
+
+CORRECTED REGRESSION WIRING
+focused command:
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/session-status-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/chat-message-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/event-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/fallback-state.test.ts
+
+observed:
+  26 pass
+  0 fail
+  72 expect() calls
+  exit_code=0
+
+The chat-message acknowledgment helper belongs only in the consecutive-
+generation test. The duplicate-within-generation test retains the plain
+dispatcher, so identical statuses remain deduped while a fallback is pending.

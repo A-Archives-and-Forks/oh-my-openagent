@@ -143,6 +143,23 @@ Production-shaped generation and session index correction:
     72 expect() calls
     exit_code=0
 
+Corrected committed regression wiring:
+  focused command:
+    bun test packages/omo-opencode/src/hooks/runtime-fallback/session-status-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/chat-message-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/event-handler.test.ts packages/omo-opencode/src/hooks/runtime-fallback/fallback-state.test.ts
+  observed:
+    26 pass
+    0 fail
+    72 expect() calls
+    exit_code=0
+
+  full runtime-fallback command:
+    bun test --timeout 15000 packages/omo-opencode/src/hooks/runtime-fallback
+  observed:
+    262 pass
+    0 fail
+    472 expect() calls
+    exit_code=0
+
   full runtime-fallback command:
     bun test --timeout 15000 packages/omo-opencode/src/hooks/runtime-fallback
   observed:
