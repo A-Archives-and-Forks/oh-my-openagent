@@ -1,12 +1,16 @@
 import { afterEach, describe, expect, test } from "bun:test"
+import { createHash } from "node:crypto"
+import * as fs from "node:fs"
+import { join } from "node:path"
 
 import type { DagTaskOwner } from "../dag/owner"
+import type { ManagedChildHandle } from "./child-handle"
 import type { DagNodeId, DagRunId } from "../dag/types"
 import { createTaskRecordStore } from "../store"
 import type { TaskRecordStore } from "../store"
 import { FakeRunner, baseSpec, categoryPlanner, cleanupProjects, makeManager, settings, tempProject } from "./__fixtures__/manager-fakes"
 import { createTaskManager } from "./manager"
-import type { SpawnAdmission } from "./types"
+import type { ManagedRunner, ManagedStartSpec, SpawnAdmission } from "./types"
 
 const owner: DagTaskOwner = {
   kind: "dag",
@@ -16,6 +20,12 @@ const owner: DagTaskOwner = {
 }
 
 afterEach(cleanupProjects)
+
+function deferred<T>() {
+  let resolve = (_value: T): void => undefined
+  const promise = new Promise<T>((done) => { resolve = done })
+  return { promise, resolve }
+}
 
 describe("TaskManager.startOwned", () => {
   test("#given a new DAG owner #when started #then the initial claim persists the owner before launch", async () => {
@@ -49,6 +59,60 @@ describe("TaskManager.startOwned", () => {
     expect(claimedOwner).toEqual(owner)
     expect(inner.load(result.task_id)?.owner).toEqual(owner)
     expect(runner.startedSpecs).toHaveLength(1)
+  })
+
+  test("#given two overlapping starts for one owner #when creation is still awaiting launch #then the owner lock serializes the second start", async () => {
+    // given
+    const project = tempProject()
+    const launch = deferred<ManagedChildHandle>()
+    const startedSpecs: ManagedStartSpec[] = []
+    const runner: ManagedRunner = {
+      start(spec) {
+        startedSpecs.push(spec)
+        return launch.promise
+      },
+    }
+    const firstStore = createTaskRecordStore({ project_dir: project })
+    const firstManager = createTaskManager({
+      store: firstStore,
+      runners: { "in-process": runner, process: runner },
+      planner: categoryPlanner(),
+      config: settings({ default_concurrency: 5, max_depth: 1 }),
+      cwd: project,
+    })
+    const secondManager = createTaskManager({
+      store: createTaskRecordStore({ project_dir: project }),
+      runners: { "in-process": runner, process: runner },
+      planner: categoryPlanner(),
+      config: settings({ default_concurrency: 5, max_depth: 1 }),
+      cwd: project,
+    })
+    const first = firstManager.startOwned(baseSpec(), owner)
+    while (startedSpecs.length === 0) await Promise.resolve()
+    const ownerKey = `${owner.kind}\0${owner.runId}\0${owner.nodeId}`
+    const lockPath = `${join(firstStore.stateDir, "owner-locks", createHash("sha256").update(ownerKey).digest("hex"))}.lock`
+
+    // when
+    const second = secondManager.startOwned(baseSpec(), owner)
+    const beforeLaunch = await Promise.race([
+      second.then(() => "settled" as const),
+      Promise.resolve("pending" as const),
+    ])
+
+    // then
+    expect(fs.existsSync(lockPath)).toBe(true)
+    expect(beforeLaunch).toBe("pending")
+    const startedSpec = startedSpecs[0]
+    if (startedSpec === undefined) throw new Error("expected blocked launch")
+    const handle = new FakeRunner().start(startedSpec)
+    launch.resolve(await handle)
+    const [firstResult, secondResult] = await Promise.all([first, second])
+    expect(firstResult.kind).toBe("started")
+    expect(secondResult.kind).toBe("started")
+    if (firstResult.kind !== "started" || secondResult.kind !== "started") throw new Error("expected starts")
+    expect(firstResult.task_id).toBe(secondResult.task_id)
+    expect(secondResult.reused).toBe(true)
+    expect(startedSpecs).toHaveLength(1)
   })
 
   test("#given an existing owner with the same fingerprint #when started again #then it reuses one persisted task and never double-spawns", async () => {

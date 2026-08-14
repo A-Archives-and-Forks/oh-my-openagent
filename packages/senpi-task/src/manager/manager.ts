@@ -32,7 +32,7 @@ import {
 } from "./manager-helpers"
 import { createOutcomeTracker, type OutcomeTracker } from "./manager-outcome"
 import { claimTaskRecord, TaskRecordCollisionError } from "../store"
-import { withTaskRecordLock } from "../store/record-lock"
+import { withTaskRecordLockAsync } from "../store/record-lock"
 import { reattachManagedTask, respawnManagedTask } from "./manager-respawn"
 import { NameRegistry } from "./names"
 import { createRunStatsTracker, type RunStatsTracker } from "../run-stats"
@@ -208,9 +208,6 @@ class TaskManagerImpl implements TaskManager {
 
   async startOwned(spec: ManagerStartSpec, owner: DagTaskOwner): Promise<OwnedStartResult> {
     const lockPath = ownerLockPath(this.#options.store.stateDir, owner)
-    const existing = withTaskRecordLock(lockPath, () => this.#ownedResult(owner))
-    if (existing !== undefined) return existing
-
     const resolution = this.#options.planner(spec)
     if (resolution.kind === "error") return { kind: "plan_unresolved", error: resolution.error }
 
@@ -219,12 +216,11 @@ class TaskManagerImpl implements TaskManager {
       if (admission.kind === "rejected") return { kind: "residency_denied", reason: admission.message }
     }
 
-    return withTaskRecordLock(lockPath, () => {
+    return withTaskRecordLockAsync(lockPath, async () => {
       const raced = this.#ownedResult(owner)
-      if (raced !== undefined) return Promise.resolve(raced)
-      return this.#startResolved(spec, resolution.plan, owner).then((result): OwnedStartResult =>
-        result.kind === "started" ? { ...result, reused: false } : result,
-      )
+      if (raced !== undefined) return raced
+      const result = await this.#startResolved(spec, resolution.plan, owner)
+      return result.kind === "started" ? { ...result, reused: false } : result
     })
   }
 
