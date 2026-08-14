@@ -38,6 +38,22 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
+function within<T>(promise: Promise<T>, ms = 300): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms)
+    void promise.then(
+      (value) => {
+        clearTimeout(timeout)
+        resolve(value)
+      },
+      (error: unknown) => {
+        clearTimeout(timeout)
+        reject(error)
+      },
+    )
+  })
+}
+
 class ScriptedRunner implements ManagedRunner {
   readonly handles: Array<{ readonly spec: ManagedStartSpec; readonly settle: (output: string) => void }> = []
   readonly #signals = new Map<number, ReturnType<typeof deferred<void>>>()
@@ -290,6 +306,99 @@ describe("assembled DAG runtime", () => {
       readonly diagnostics: readonly { readonly kind: string }[]
     }
     expect(failedCopyRecord.diagnostics.some((diagnostic) => diagnostic.kind === "journal_corrupt")).toBe(true)
+  })
+
+  test("#given an active run #when detach switches sessions before its task settles #then the old scheduler terminates without resolving ownership against the new session", async () => {
+    // given
+    const cwd = fs.mkdtempSync(join(tmpdir(), "omo-senpi-dag-detach-"))
+    cleanupRoots.push(cwd)
+    const runner = new ScriptedRunner()
+    const pi = new FakeExtensionAPI()
+    const engine = composeTaskEngine({
+      pi,
+      omoConfig: loadOmoConfig({ cwd }).config,
+      cwd,
+      sharedParentTools: () => [],
+      runnerFactories: { inProcess: () => runner, process: () => runner },
+    })
+    engine.runtime.captureFrom({ sessionManager: { getSessionId: () => "session-old" } })
+    const errors: string[] = []
+    const runtime = createDagRuntime({
+      pi,
+      engine,
+      logger: { info: () => undefined, warn: () => undefined, error: (message) => errors.push(message) },
+    })
+    await runtime.attach()
+    const started = await runtime.manager.start({
+      parentSessionId: "session-old",
+      rootSessionId: "session-old",
+      definition: {
+        key: "detach-running",
+        name: "detach running",
+        nodes: [{ id: "active", prompt: "active", subagent_type: "explore", model: "omo-mock/mock-1" }],
+      },
+    })
+    const runId = started.snapshot.runId
+    await within(runner.whenStarted(1))
+    const waiting = runtime.wait(runId, "session-old")
+
+    // when
+    runtime.detach()
+    engine.runtime.captureFrom({ sessionManager: { getSessionId: () => "session-new" } })
+    await runtime.attach()
+    runner.handles[0]?.settle("late output")
+    const result = await within(waiting)
+
+    // then
+    expect(result.status).toBe("cancelled")
+    expect(errors).toEqual([])
+    runtime.dispose()
+  })
+
+  test("#given a throwing durable-event subscriber #when a run publishes checkpoints #then the scheduler and other subscribers still reach completion", async () => {
+    // given
+    const cwd = fs.mkdtempSync(join(tmpdir(), "omo-senpi-dag-subscriber-"))
+    cleanupRoots.push(cwd)
+    const runner = new ScriptedRunner()
+    const pi = Object.assign(new FakeExtensionAPI(), {
+      rpc: {
+        emit: (name: string) => {
+          if (name === "omo.dag.event") throw new Error("subscriber exploded")
+        },
+        handle: () => undefined,
+      },
+    })
+    const engine = composeTaskEngine({
+      pi,
+      omoConfig: loadOmoConfig({ cwd }).config,
+      cwd,
+      sharedParentTools: () => [],
+      runnerFactories: { inProcess: () => runner, process: () => runner },
+    })
+    engine.runtime.captureFrom({ sessionManager: { getSessionId: () => "session-subscriber" } })
+    const runtime = createDagRuntime({ pi, engine, logger: logger() })
+    await runtime.attach()
+
+    // when
+    const started = await runtime.manager.start({
+      parentSessionId: "session-subscriber",
+      rootSessionId: "session-subscriber",
+      definition: {
+        key: "throwing-subscriber",
+        name: "throwing subscriber",
+        nodes: [{ id: "survivor", prompt: "survive", subagent_type: "explore", model: "omo-mock/mock-1" }],
+      },
+    })
+    const runId = started.snapshot.runId
+    const waiting = runtime.wait(runId, "session-subscriber")
+    await within(runner.whenStarted(1))
+    runner.handles[0]?.settle("survived")
+    const result = await within(waiting)
+
+    // then
+    expect(result.status).toBe("completed")
+    expect(result.nodes.survivor).toEqual(expect.objectContaining({ state: "completed", output: "survived" }))
+    runtime.dispose()
   })
 
   test("#given a live adapter DAG #when shutdown pauses it and a later adapter starts #then the paused event is durable and the run is claimed, resumed, and completed", async () => {
