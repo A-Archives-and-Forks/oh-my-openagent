@@ -16,8 +16,11 @@ import {
   type TeamToolsService,
 } from "@oh-my-opencode/senpi-task"
 
+import { createDagFileStore, createDagManager } from "@oh-my-opencode/senpi-task/dag"
+
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
 import { CATEGORY_UNAVAILABLE_MESSAGE_TYPE } from "./category-unavailable-warning"
+import { createDagTool } from "./dag-tool"
 import { registerTaskCommands } from "./commands"
 import { composeTaskEngine, type TaskEngine } from "./engine"
 import { TASK_USAGE_HINT_FLAG, wireEventBridge } from "./event-bridge"
@@ -178,6 +181,26 @@ function registerTaskTools(
   })
   pi.registerTool({ ...createTaskCancelTool({ manager }) })
   pi.registerTool({ ...createTaskOutputTool({ manager, stateDir: engine.stateDir, resolveCallerSessionId }) })
+  registerDagTool(pi, engine)
+}
+
+// The dag runs are stored beside the task records, under the same project dir + state_dir the engine
+// resolved, so a session's graphs live with the tasks they spawn. A session id is required to own a
+// run: without one the tool cannot enforce ownership, so it is not registered.
+function registerDagTool(pi: SenpiExtensionAPI, engine: TaskEngine): void {
+  const dagSettings = engine.settings.dag
+  const store = createDagFileStore({
+    project_dir: engine.runtime.cwd(),
+    task: {
+      ...(engine.settings.state_dir === undefined ? {} : { state_dir: engine.settings.state_dir }),
+      ...(dagSettings === undefined ? {} : { dag: dagSettings }),
+    },
+  })
+  const dagManager = createDagManager({ store, ...(dagSettings === undefined ? {} : { settings: dagSettings }) })
+  const sessionId = (): string => engine.runtime.sessionId() ?? ""
+  pi.registerTool({
+    ...createDagTool({ manager: dagManager, parentSessionId: sessionId, rootSessionId: sessionId }),
+  })
 }
 
 function createTeamToolContext(

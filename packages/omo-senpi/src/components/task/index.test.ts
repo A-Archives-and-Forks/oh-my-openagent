@@ -20,7 +20,7 @@ import { createTaskComponent, wireEventBridge } from "./index"
 import type { CapturedUi } from "./runtime-context"
 import { createSessionTransitionBridge } from "./session-transition-bridge"
 
-const TASK_TOOL_NAMES = ["task", "task_send", "task_cancel", "task_output"]
+const TASK_TOOL_NAMES = ["task", "task_send", "task_cancel", "task_output", "dag"]
 const TEAM_TOOL_NAMES = [
   "team_create",
   "team_delete",
