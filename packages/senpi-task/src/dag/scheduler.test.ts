@@ -30,6 +30,22 @@ function deferred<T>(): {
   return { promise, resolve }
 }
 
+function within<T>(promise: Promise<T>, ms = 200): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms)
+    void promise.then(
+      (value) => {
+        clearTimeout(timeout)
+        resolve(value)
+      },
+      (error: unknown) => {
+        clearTimeout(timeout)
+        reject(error)
+      },
+    )
+  })
+}
+
 afterEach(() => {
   for (const root of cleanupRoots.splice(0)) fs.rmSync(root, { recursive: true, force: true })
 })
@@ -88,6 +104,8 @@ type FakeOptions = {
   readonly startFailureKinds?: Readonly<Record<string, StartFailureKind>>
   readonly queuedNodeIds?: readonly string[]
   readonly rejectCancelNodeIds?: readonly string[]
+  readonly rejectStartNodeIds?: readonly string[]
+  readonly rejectWaitNodeIds?: readonly string[]
 }
 
 type MutableTask = {
@@ -138,6 +156,7 @@ class FakeTaskManager implements TaskManager {
   async startOwned(_spec: ManagerStartSpec, owner: DagTaskOwner): Promise<OwnedStartResult> {
     const nodeId = owner.nodeId as string
     this.attempts.push(nodeId)
+    if (this.#options.rejectStartNodeIds?.includes(nodeId) === true) throw new Error(`start rejected ${nodeId}`)
     const existing = [...this.#tasks.values()].find((entry) => entry.record.owner?.nodeId === owner.nodeId)
     if (existing !== undefined) {
       return {
@@ -217,6 +236,10 @@ class FakeTaskManager implements TaskManager {
   waitFor(taskId: string): Promise<TaskRecord> {
     const task = this.#tasks.get(taskId)
     if (task === undefined) throw new Error(`unknown fake task ${taskId}`)
+    const nodeId = String(task.record.owner?.nodeId)
+    if (this.#options.rejectWaitNodeIds?.includes(nodeId) === true) {
+      return Promise.reject(new Error(`wait rejected ${nodeId}`))
+    }
     return task.completion.promise
   }
 
@@ -441,6 +464,23 @@ describe("DAG scheduler cancellation", () => {
     }))
   })
 
+  test("#given one startOwned rejects after a sibling starts #when cancellation follows #then admission clears and the sibling is attached and cancelled", async () => {
+    // given
+    const manager = new FakeTaskManager({ autoComplete: false, rejectStartNodeIds: ["reject"] })
+    const { scheduler } = schedulerFixture(definition([node("sibling"), node("reject")]), manager)
+    const running = scheduler.run()
+    await manager.whenStarted("sibling")
+
+    // when
+    await within(scheduler.cancel(runId, "stop after rejected admission"))
+    const result = await within(running)
+
+    // then
+    expect(manager.cancellations).toEqual(["sibling"])
+    expect(result.status).toBe("cancelled")
+    expect(result.nodes.find((entry) => entry.id === "sibling")?.state).toBe("cancelled")
+  })
+
   test("#given one task cancellation rejects #when a wave is cancelled #then all waiters still resolve with consistent cancelled nodes", async () => {
     // given
     const manager = new FakeTaskManager({ autoComplete: false, rejectCancelNodeIds: ["a"] })
@@ -534,6 +574,34 @@ describe("DAG scheduler strict wave barrier", () => {
     expect(manager.starts).toEqual(["a", "b"])
     manager.complete("b")
     await running
+  })
+
+  test("#given one waitFor rejects while a sibling is running #when the wave settles #then the rejection becomes one node failure and the sibling completes", async () => {
+    // given
+    const manager = new FakeTaskManager({ autoComplete: false, rejectWaitNodeIds: ["reject"] })
+    const { scheduler } = schedulerFixture(definition([node("reject"), node("sibling")]), manager)
+    const rejected = deferred<void>()
+    scheduler.subscribe((event) => {
+      if (event.type === "dag.node.transitioned" && event.nodeId === "reject" && event.to === "failed") rejected.resolve()
+    })
+    const running = scheduler.run()
+    await Promise.all([manager.whenStarted("reject"), manager.whenStarted("sibling")])
+
+    // when
+    await within(rejected.promise)
+    manager.complete("sibling")
+    const result = await within(running)
+
+    // then
+    expect(result.status).toBe("failed")
+    expect(result.nodes.map((entry) => `${entry.id}:${entry.state}`)).toEqual([
+      "reject:failed",
+      "sibling:completed",
+    ])
+    expect(result.nodes.find((entry) => entry.id === "reject")?.error).toEqual(expect.objectContaining({
+      code: "task_error",
+      message: "wait rejected reject",
+    }))
   })
 
   test("#given one root start fails #when its wave is admitted #then siblings and the independent branch still run", async () => {

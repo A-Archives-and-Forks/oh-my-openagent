@@ -49,9 +49,13 @@ export type DagScheduler = {
   readonly subscribe: (listener: DagJournalListener) => () => void
 }
 
+type AttachedTaskSettlement =
+  | { readonly nodeId: DagNodeId; readonly kind: "record"; readonly record: TaskRecord }
+  | { readonly nodeId: DagNodeId; readonly kind: "error"; readonly error: unknown }
+
 type AttachedTask = {
   readonly nodeId: DagNodeId
-  readonly settled: Promise<{ readonly nodeId: DagNodeId; readonly record: TaskRecord }>
+  readonly settled: Promise<AttachedTaskSettlement>
 }
 
 type SchedulerContext = {
@@ -233,12 +237,26 @@ async function admitAndSettleWave(context: SchedulerContext, nodeIds: readonly D
   while (awaitingAdmission.length > 0) {
     if (context.cancellationStarted) return false
     context.admissionInProgress = true
-    const results = await Promise.all(awaitingAdmission.map(async (nodeId) => ({
-      nodeId,
-      result: await context.taskManager.startOwned(startSpec(context, nodeId), owner(context, nodeId)),
-    })))
+    let results: PromiseSettledResult<{ readonly nodeId: DagNodeId; readonly result: OwnedStartResult }>[]
+    try {
+      results = await Promise.allSettled(awaitingAdmission.map(async (nodeId) => ({
+        nodeId,
+        result: await context.taskManager.startOwned(startSpec(context, nodeId), owner(context, nodeId)),
+      })))
+    } finally {
+      context.admissionInProgress = false
+      resolveAdmissionIdle(context)
+    }
     const denied: DagNodeId[] = []
-    for (const { nodeId, result } of results) {
+    for (let index = 0; index < results.length; index += 1) {
+      const settled = results[index]
+      const nodeId = awaitingAdmission[index]
+      if (settled === undefined || nodeId === undefined) throw new Error("DAG admission result lost its node")
+      if (settled.status === "rejected") {
+        if (!context.cancellationStarted) failNode(context, nodeId, "start_failed", errorMessage(settled.reason))
+        continue
+      }
+      const { result } = settled.value
       if (context.cancellationStarted) {
         if (result.kind === "started") attachStarted(context, attached, nodeId, result)
       } else if (result.kind === "residency_denied") {
@@ -247,8 +265,6 @@ async function admitAndSettleWave(context: SchedulerContext, nodeIds: readonly D
         attachOrFail(context, attached, nodeId, result)
       }
     }
-    context.admissionInProgress = false
-    resolveAdmissionIdle(context)
     if (context.cancellationStarted) return false
     awaitingAdmission = denied
     if (awaitingAdmission.length === 0) break
@@ -308,7 +324,10 @@ function attachStarted(
   context.attachedTaskIds.set(nodeId, result.task_id)
   attached.set(nodeId, {
     nodeId,
-    settled: context.taskManager.waitFor(result.task_id).then((record) => ({ nodeId, record })),
+    settled: context.taskManager.waitFor(result.task_id).then(
+      (record): AttachedTaskSettlement => ({ nodeId, kind: "record", record }),
+      (error: unknown): AttachedTaskSettlement => ({ nodeId, kind: "error", error }),
+    ),
   })
 }
 
@@ -320,7 +339,11 @@ async function settleOne(context: SchedulerContext, attached: Map<DagNodeId, Att
   if (settled === undefined || context.cancellationStarted) return false
   attached.delete(settled.nodeId)
   context.attachedTaskIds.delete(settled.nodeId)
-  foldTaskOutcome(context, settled.nodeId, settled.record)
+  if (settled.kind === "error") {
+    failNode(context, settled.nodeId, "task_error", errorMessage(settled.error))
+  } else {
+    foldTaskOutcome(context, settled.nodeId, settled.record)
+  }
   return true
 }
 
@@ -444,6 +467,10 @@ function transitionedNode(node: DagNode, state: DagNodeState, at: string, error?
     ...(TERMINAL_NODE_STATES.has(state) ? { completedAt: at } : {}),
     ...(error === undefined ? {} : { error }),
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function nodeError(nodeId: DagNodeId, code: DagNodeErrorCode, message: string, now: () => number): DagNodeError {
