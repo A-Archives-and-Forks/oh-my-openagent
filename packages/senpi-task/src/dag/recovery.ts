@@ -2,6 +2,7 @@
 import * as fs from "node:fs"
 import { join } from "node:path"
 
+import { defaultSignaller } from "../lifecycle/context"
 import type { ManagerStartSpec, TaskManager } from "../manager/types"
 import type { TaskRecord, TaskStatus } from "../state"
 import { dagFingerprint } from "./fingerprint"
@@ -40,6 +41,8 @@ export type DagRecoveryOptions = {
   readonly store: DagFileStore
   readonly taskManager: TaskManager
   readonly hostPid?: number
+  // Liveness probe for a paused run's previous lease holder. Defaults to the lifecycle port's
+  // signaller so the signal-0 existence check has exactly one implementation in the package.
   readonly isProcessAlive?: (pid: number) => boolean
   readonly now?: () => number
   readonly stopAdmission?: (runId: DagRunId) => void
@@ -68,7 +71,7 @@ export function createDagRecovery(options: DagRecoveryOptions): DagRecovery {
     store: options.store,
     taskManager: options.taskManager,
     hostPid: options.hostPid ?? process.pid,
-    isProcessAlive: options.isProcessAlive ?? isProcessAlive,
+    isProcessAlive: options.isProcessAlive ?? defaultSignaller.isAlive,
     now: options.now ?? Date.now,
     ...(options.stopAdmission === undefined ? {} : { stopAdmission: options.stopAdmission }),
     ...(options.reattach === undefined ? {} : { reattach: options.reattach }),
@@ -419,14 +422,5 @@ function hasTranscript(stateDir: string, taskId: string): boolean {
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") return false
     throw error
-  }
-}
-
-function isProcessAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (error) {
-    return !(error instanceof Error && "code" in error && error.code === "ESRCH")
   }
 }

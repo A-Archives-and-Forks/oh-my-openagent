@@ -232,6 +232,40 @@ describe("DAG crash recovery", () => {
     expect(events(store).some((event) => event.type === "dag.run.resumed")).toBe(true)
   })
 
+  test("#given no injected liveness probe #when a paused run's previous holder is this live process #then the default probe skips it as a live lease", async () => {
+    // given - the default probe is the lifecycle port's signal-0 existence check, so THIS pid reads alive
+    const projectDir = tempProject()
+    const store = createDagFileStore({ project_dir: projectDir })
+    store.writeCheckpoint(runId, recoverableRecord(definition([node("only")]), {
+      only: { state: "scheduled" },
+    }, { previousLeaseHolderPid: process.pid }))
+
+    // when
+    const outcomes = await createDagRecovery({ store, taskManager: new RecoveryTaskManager(), hostPid: 101 })
+      .resumePausedRuns(parentSessionId)
+
+    // then
+    expect(outcomes).toEqual([{ runId, kind: "skipped", reason: "live_lease" }])
+  })
+
+  test("#given no injected liveness probe #when a paused run's previous holder pid does not exist #then the default probe claims the run", async () => {
+    // given - 2_147_483_647 is above every reachable pid, so the signal-0 probe reports it dead
+    const projectDir = tempProject()
+    const store = createDagFileStore({ project_dir: projectDir })
+    const manager = new RecoveryTaskManager()
+    store.writeCheckpoint(runId, recoverableRecord(definition([node("only")]), {
+      only: { state: "scheduled" },
+    }, { previousLeaseHolderPid: 2_147_483_647 }))
+
+    // when
+    const [outcome] = await createDagRecovery({ store, taskManager: manager, hostPid: 101 })
+      .resumePausedRuns(parentSessionId)
+
+    // then
+    expect(outcome?.kind).toBe("resumed")
+    expect(manager.startOwnedCalls).toEqual(["only"])
+  })
+
   test("#given scheduled nodes with and without durable owners #when resumed #then the owner is attached and only never-dispatched work starts", async () => {
     // given
     const projectDir = tempProject()
