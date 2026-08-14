@@ -1,5 +1,5 @@
 // allow: SIZE_OK - the six lifecycle scenarios share one assembled-runtime fixture so compaction, restart, detach, wake batching, viewer catch-up, and snapshot dedup are proven through the same adapter surface.
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, spyOn, test } from "bun:test"
 import * as fs from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -11,13 +11,10 @@ import {
   type ManagedStartSpec,
   type RunnerOutcome,
 } from "@oh-my-opencode/senpi-task"
-import {
-  createDagFileStore,
-  createDagManager,
-  type DagRunEvent,
-  type DagRunId,
-  type DagRunRecordV1,
-} from "@oh-my-opencode/senpi-task/dag"
+import * as dagEngine from "@oh-my-opencode/senpi-task/dag"
+import { createDagManager, type DagRunRecordV1 } from "../../../../senpi-task/src/dag/manager"
+import { createDagFileStore } from "../../../../senpi-task/src/dag/store"
+import type { DagRunEvent, DagRunId } from "../../../../senpi-task/src/dag/types"
 
 import { IdleInjectionCoordinator } from "../../extension/idle-injection-coordinator"
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
@@ -35,6 +32,7 @@ import { createSessionTransitionBridge } from "./session-transition-bridge"
 
 const cleanupRoots: string[] = []
 const sessionId = "session-dag-lifecycle"
+const createFileStore = createDagFileStore
 
 afterEach(() => {
   for (const root of cleanupRoots.splice(0)) {
@@ -216,14 +214,21 @@ async function runtimeFixture(options: RuntimeFixtureOptions = {}): Promise<Runt
   })
   const bridgeTimers = new ManualTimers()
   const statusTimers = new ManualTimers()
-  const runtime = createDagRuntime({
-    pi,
-    engine,
-    logger: logger(),
-    ...(options.coordinator === undefined ? {} : { coordinator: options.coordinator }),
-    bridgeTimers: bridgeTimers.seam,
-    statusUiTimers: statusTimers.seam,
-  })
+  const createStore = spyOn(dagEngine, "createDagFileStore").mockImplementation((config, storeOptions = {}) =>
+    createFileStore(config, { ...storeOptions, fsync: false }))
+  let runtime: DagRuntime
+  try {
+    runtime = createDagRuntime({
+      pi,
+      engine,
+      logger: logger(),
+      ...(options.coordinator === undefined ? {} : { coordinator: options.coordinator }),
+      bridgeTimers: bridgeTimers.seam,
+      statusUiTimers: statusTimers.seam,
+    })
+  } finally {
+    createStore.mockRestore()
+  }
   const attached = options.attach === false ? Promise.resolve() : runtime.attach()
   if (options.attach !== false && options.awaitAttach !== false) await attached
 
@@ -278,7 +283,7 @@ function pauseForShutdown(runtime: DagRuntime): void {
 
 async function seedPendingRun(project: string, runId: DagRunId): Promise<void> {
   await createDagManager({
-    store: createDagFileStore({ project_dir: project }),
+    store: createFileStore({ project_dir: project }, { fsync: false }),
     newRunId: () => runId,
   }).start({
     parentSessionId: sessionId,
@@ -427,7 +432,7 @@ describe("assembled DAG lifecycle end to end", () => {
     first.runtime.dispose()
 
     // then
-    const store = createDagFileStore({ project_dir: project })
+    const store = createFileStore({ project_dir: project }, { fsync: false })
     const paused = store.readCheckpoint<DagRunRecordV1 & { readonly previousLeaseHolderPid?: number }>(runId)
     expect(paused?.status).toBe("paused")
     expect(store.readEvents(runId, 0, { limit: 256 }).events.at(-1)).toEqual(expect.objectContaining({
