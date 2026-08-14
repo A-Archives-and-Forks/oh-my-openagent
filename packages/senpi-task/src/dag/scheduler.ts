@@ -1,4 +1,8 @@
 // allow: SIZE_OK - the admission loop, event reducer, and task outcome folding stay together so the strict barrier cannot be bypassed by callers.
+import { createHash } from "node:crypto"
+import * as fs from "node:fs"
+import { relative } from "node:path"
+
 import type { ManagerStartSpec, TaskManager } from "../manager/types"
 import type { TaskRecord, TaskStatus } from "../state"
 import { resolveDagNodeExecutionMode, type DagExecutionModeSources } from "./execution-mode"
@@ -16,7 +20,7 @@ import {
 import { createDagJournal, type DagJournal, type DagJournalListener } from "./journal"
 import type { DagPersistedNode, DagRunRecordV1 } from "./manager"
 import type { OwnedStartResult } from "./owner"
-import { persistDagNodeResult, type DagNodeResultArtifact } from "./results"
+import { persistDagNodeResult, readDagNodeResult, type DagNodeResultArtifact } from "./results"
 import type { DagFileStore } from "./store"
 import type {
   DagNode,
@@ -43,6 +47,7 @@ export type DagSchedulerOptions = {
   readonly initialRecord: DagRunRecordV1
   readonly executionMode?: Omit<DagExecutionModeSources, "route">
   readonly ancestry?: { readonly depth: number }
+  readonly subscriberRing?: number
   readonly now?: () => number
 }
 
@@ -106,6 +111,7 @@ export function createDagScheduler(options: DagSchedulerOptions): DagScheduler {
       pendingErrors,
       { store: options.store, pendingTerminalResults, now },
     ),
+    ...(options.subscriberRing === undefined ? {} : { subscriberRing: options.subscriberRing }),
     now,
   })
   const context: SchedulerContext = {
@@ -163,8 +169,11 @@ export function applyDagSchedulerEvent(
       const terminalResult = TERMINAL_NODE_STATES.has(event.to)
         ? terminalResults?.pendingTerminalResults.get(event.nodeId)
         : undefined
+      const replayedResult = terminalResult === undefined && terminalResults !== undefined && event.to === "completed"
+        ? replayDagNodeResult(terminalResults.store, record.runId, event.nodeId)
+        : undefined
       const persisted = terminalResult === undefined || terminalResults === undefined
-        ? undefined
+        ? replayedResult === undefined ? undefined : { kind: "persisted" as const, artifact: replayedResult.artifact }
         : persistDagNodeResult({
             store: terminalResults.store,
             runId: record.runId,
@@ -187,7 +196,9 @@ export function applyDagSchedulerEvent(
           return {
             ...transitioned,
             resultArtifact: persisted.artifact,
-            ...(terminalResult?.record.run_stats === undefined ? {} : { runStats: terminalResult.record.run_stats }),
+            ...(terminalResult?.record.run_stats === undefined && replayedResult?.runStats === undefined
+              ? {}
+              : { runStats: terminalResult?.record.run_stats ?? replayedResult?.runStats }),
           }
         }),
         diagnostics: persisted?.kind === "failed"
@@ -215,6 +226,50 @@ export function applyDagSchedulerEvent(
       }
     default:
       return { ...record, updatedAt: event.at }
+  }
+}
+
+function replayDagNodeResult(
+  store: DagFileStore,
+  runId: DagRunId,
+  nodeId: DagNodeId,
+): { readonly artifact: DagNodeResultArtifact; readonly runStats?: TaskRecord["run_stats"] } | undefined {
+  const result = readDagNodeResult({ store, runId, nodeId })
+  if (result === null) return undefined
+  const outputPath = store.paths.result(runId, nodeId)
+  const output = fs.readFileSync(outputPath, "utf8")
+  const statsPath = outputPath.replace(/\.txt$/, ".stats.json")
+  const stats = readOptionalArtifact(store, statsPath)
+  return {
+    artifact: {
+      ...artifactRef(store, outputPath, output),
+      ...(stats === undefined ? {} : { stats }),
+    },
+    ...(result.runStats === undefined ? {} : { runStats: result.runStats }),
+  }
+}
+
+function readOptionalArtifact(
+  store: DagFileStore,
+  path: string,
+): DagNodeResultArtifact["stats"] | undefined {
+  try {
+    return artifactRef(store, path, fs.readFileSync(path, "utf8"))
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return undefined
+    throw error
+  }
+}
+
+function artifactRef(store: DagFileStore, path: string, contents: string): {
+  readonly relativePath: string
+  readonly sha256: string
+  readonly bytes: number
+} {
+  return {
+    relativePath: relative(store.stateDir, path),
+    sha256: createHash("sha256").update(contents, "utf8").digest("hex"),
+    bytes: Buffer.byteLength(contents, "utf8"),
   }
 }
 

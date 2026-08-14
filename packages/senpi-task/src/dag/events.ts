@@ -151,14 +151,12 @@ export function dagDiagnosticAddedEvent(input: {
 }
 
 export function dagStreamOverflowEvent(input: {
-  dropped: number
-  oldestDroppedSeq?: number
+  droppedCount: number
+  recoverAfterSeq: number
 }): DagRunEventPayload {
-  return input.oldestDroppedSeq === undefined
-    ? { type: "dag.stream.overflow", dropped: input.dropped }
-    : {
-        type: "dag.stream.overflow",
-        dropped: input.dropped,
-        oldestDroppedSeq: input.oldestDroppedSeq,
-      }
+  return {
+    type: "dag.stream.overflow",
+    droppedCount: input.droppedCount,
+    recoverAfterSeq: input.recoverAfterSeq,
+  }
 }

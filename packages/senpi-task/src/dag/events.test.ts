@@ -225,10 +225,10 @@ describe("dag event builders", () => {
 
   test("#given an overflow #when dagStreamOverflowEvent #then spec-shaped payload", () => {
     // when
-    const event = dagStreamOverflowEvent({ dropped: 5, oldestDroppedSeq: 42 })
+    const event = dagStreamOverflowEvent({ droppedCount: 5, recoverAfterSeq: 42 })
 
     // then
-    expect(event).toEqual({ type: "dag.stream.overflow", dropped: 5, oldestDroppedSeq: 42 })
+    expect(event).toEqual({ type: "dag.stream.overflow", droppedCount: 5, recoverAfterSeq: 42 })
   })
 
   test("#given any builder output #when inspected #then no envelope seq or at is assigned here", () => {
@@ -260,7 +260,7 @@ describe("dag event builders", () => {
       dagDiagnosticAddedEvent({
         diagnostic: { kind: "run_flag", message: "m", at: "2026-01-01T00:00:00.000Z" },
       }),
-      dagStreamOverflowEvent({ dropped: 1 }),
+      dagStreamOverflowEvent({ droppedCount: 1, recoverAfterSeq: 0 }),
     ]
 
     // then: seq/at/lane are the WAL writer's job, never the builders'

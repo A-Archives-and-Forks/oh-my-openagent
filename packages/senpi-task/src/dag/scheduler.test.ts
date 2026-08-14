@@ -294,6 +294,7 @@ function schedulerFixture(
   input: DagDefinition,
   taskManager: FakeTaskManager,
   executionMode?: Omit<DagExecutionModeSources, "route">,
+  subscriberRing?: number,
 ) {
   const baseStore = createDagFileStore({ project_dir: tempProject() })
   let runLockDepth = 0
@@ -326,6 +327,7 @@ function schedulerFixture(
     taskManager,
     initialRecord,
     ...(executionMode === undefined ? {} : { executionMode }),
+    ...(subscriberRing === undefined ? {} : { subscriberRing }),
     now: () => eventTime++,
   })
   const events = (): readonly DagRunEvent[] => store.readEvents(runId, 0, { limit: 100 }).events
@@ -357,6 +359,41 @@ describe("DAG scheduler terminal result persistence", () => {
       nodeId: "artifact",
       runStats: { runtime_ms: 25, turns: 2, tool_calls: 1, output_tokens: 8 },
     })
+  })
+})
+
+describe("DAG scheduler subscriber backpressure", () => {
+  test("#given a non-default subscriber ring #when a scheduler listener falls behind #then overflow occurs at the configured bound", async () => {
+    // given
+    const manager = new FakeTaskManager()
+    const { scheduler } = schedulerFixture(definition([node("ring")]), manager, undefined, 1)
+    const releaseFirst = deferred<void>()
+    const firstDelivered = deferred<void>()
+    const finalDelivered = deferred<void>()
+    let firstSeq: number | undefined
+    let overflow: Extract<DagRunEvent, { type: "dag.stream.overflow" }> | undefined
+    scheduler.subscribe(async (event) => {
+      if (event.type === "dag.stream.overflow") overflow = event
+      if (event.type === "dag.run.completed") finalDelivered.resolve()
+      if (firstSeq === undefined) {
+        firstSeq = event.seq
+        firstDelivered.resolve()
+        await releaseFirst.promise
+      }
+    })
+    const running = scheduler.run()
+    await firstDelivered.promise
+
+    // when
+    const record = await running
+    releaseFirst.resolve()
+    await finalDelivered.promise
+
+    // then
+    expect(record.status).toBe("completed")
+    expect(overflow).toBeDefined()
+    expect(overflow?.droppedCount).toBeGreaterThan(0)
+    expect(overflow?.recoverAfterSeq).toBe(0)
   })
 })
 

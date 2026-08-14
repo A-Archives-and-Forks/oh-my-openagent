@@ -294,8 +294,8 @@ export type DagRunEventPayload =
   | { readonly type: "dag.diagnostic.added"; readonly diagnostic: DagDiagnostic }
   | {
       readonly type: "dag.stream.overflow"
-      readonly dropped: number
-      readonly oldestDroppedSeq?: number
+      readonly droppedCount: number
+      readonly recoverAfterSeq: number
     }
 
 export type DagRunEventEnvelope = {

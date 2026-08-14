@@ -1,4 +1,4 @@
-import { dagEventLane } from "./events"
+import { dagEventLane, dagStreamOverflowEvent } from "./events"
 import type { DagFileStore } from "./store"
 import {
   DAG_SETTINGS_DEFAULTS,
@@ -34,8 +34,7 @@ export type DagJournal<TCheckpoint extends DagJournalCheckpoint> = {
 }
 
 type OverflowState = {
-  dropped: number
-  firstDroppedSeq: number
+  droppedCount: number
   recoverAfterSeq: number
 }
 
@@ -46,6 +45,7 @@ type Subscriber = {
   running: boolean
   lastDeliveredSeq: number
   overflow?: OverflowState
+  readonly commitOverflow: (overflow: OverflowState) => DagRunEvent
   drainPromise: Promise<void>
 }
 
@@ -85,34 +85,38 @@ export function createDagJournal<TCheckpoint extends DagJournalCheckpoint>(
   const subscribers = new Set<Subscriber>()
   let checkpoint = options.store.withRunLock(options.runId, () => recoverCheckpoint(options))
 
+  const appendPayload = (payload: DagRunEventPayload, directSubscriber?: Subscriber): DagRunEvent => {
+    let durableEvent: DagRunEvent | undefined
+    checkpoint = options.store.withRunLock(options.runId, () => {
+      const recovered = recoverCheckpoint(options)
+      const tailSeq = eventLogTailSeq(options.store, options.runId, recovered.checkpointSeq)
+      const seq = Math.max(recovered.checkpointSeq, tailSeq) + 1
+      const event: DagRunEvent = {
+        ...payload,
+        schemaVersion: 1,
+        runId: options.runId,
+        seq,
+        at: new Date(now()).toISOString(),
+        lane: dagEventLane(payload.type),
+      }
+      options.store.appendEvent(event)
+      const applied = options.applyEvent(recovered, event)
+      const next = { ...applied, schemaVersion: 1, checkpointSeq: seq }
+      options.store.writeCheckpoint(options.runId, next)
+      durableEvent = event
+      return next
+    })
+    const event = durableEvent
+    if (event === undefined) throw new Error("DAG journal mutation completed without an event")
+    for (const subscriber of subscribers) {
+      if (subscriber !== directSubscriber) enqueue(subscriber, event, ringSize)
+    }
+    publishCommit(options.store, options.runId, event)
+    return event
+  }
+
   return {
-    append(payload) {
-      let durableEvent: DagRunEvent | undefined
-      checkpoint = options.store.withRunLock(options.runId, () => {
-        const recovered = recoverCheckpoint(options)
-        const tailSeq = eventLogTailSeq(options.store, options.runId, recovered.checkpointSeq)
-        const seq = Math.max(recovered.checkpointSeq, tailSeq) + 1
-        const event: DagRunEvent = {
-          ...payload,
-          schemaVersion: 1,
-          runId: options.runId,
-          seq,
-          at: new Date(now()).toISOString(),
-          lane: dagEventLane(payload.type),
-        }
-        options.store.appendEvent(event)
-        const applied = options.applyEvent(recovered, event)
-        const next = { ...applied, schemaVersion: 1, checkpointSeq: seq }
-        options.store.writeCheckpoint(options.runId, next)
-        durableEvent = event
-        return next
-      })
-      const event = durableEvent
-      if (event === undefined) throw new Error("DAG journal mutation completed without an event")
-      for (const subscriber of subscribers) enqueue(subscriber, event, ringSize, options.runId, now)
-      publishCommit(options.store, options.runId, event)
-      return event
-    },
+    append: appendPayload,
     snapshot: () => checkpoint,
     subscribe(listener) {
       const subscriber: Subscriber = {
@@ -121,6 +125,7 @@ export function createDagJournal<TCheckpoint extends DagJournalCheckpoint>(
         active: true,
         running: false,
         lastDeliveredSeq: checkpoint.checkpointSeq,
+        commitOverflow: (overflow) => appendPayload(dagStreamOverflowEvent(overflow), subscriber),
         drainPromise: Promise.resolve(),
       }
       subscribers.add(subscriber)
@@ -173,8 +178,6 @@ function enqueue(
   subscriber: Subscriber,
   event: DagRunEvent,
   ringSize: number,
-  runId: DagRunId,
-  now: () => number,
 ): void {
   if (!subscriber.active) return
   if (subscriber.queue.length >= ringSize) {
@@ -182,35 +185,34 @@ function enqueue(
     if (dropped !== undefined) {
       if (subscriber.overflow === undefined) {
         subscriber.overflow = {
-          dropped: 1,
-          firstDroppedSeq: dropped.seq,
+          droppedCount: 1,
           recoverAfterSeq: subscriber.lastDeliveredSeq,
         }
       } else {
-        subscriber.overflow.dropped += 1
+        subscriber.overflow.droppedCount += 1
       }
     }
   }
   subscriber.queue.push(event)
-  if (!subscriber.running) scheduleDrain(subscriber, runId, now)
+  if (!subscriber.running) scheduleDrain(subscriber)
 }
 
-function scheduleDrain(subscriber: Subscriber, runId: DagRunId, now: () => number): void {
+function scheduleDrain(subscriber: Subscriber): void {
   subscriber.running = true
   subscriber.drainPromise = new Promise<void>((resolve) => {
     queueMicrotask(() => {
-      void drain(subscriber, runId, now).finally(resolve)
+      void drain(subscriber).finally(resolve)
     })
   })
 }
 
-async function drain(subscriber: Subscriber, runId: DagRunId, now: () => number): Promise<void> {
+async function drain(subscriber: Subscriber): Promise<void> {
   try {
     while (subscriber.active) {
       const overflow = subscriber.overflow
       if (overflow !== undefined) {
         subscriber.overflow = undefined
-        await deliver(subscriber.listener, overflowEvent(runId, overflow, now))
+        await deliver(subscriber.listener, subscriber.commitOverflow(overflow))
         continue
       }
       const event = subscriber.queue.shift()
@@ -221,7 +223,7 @@ async function drain(subscriber: Subscriber, runId: DagRunId, now: () => number)
   } finally {
     subscriber.running = false
     if (subscriber.active && (subscriber.overflow !== undefined || subscriber.queue.length > 0)) {
-      scheduleDrain(subscriber, runId, now)
+      scheduleDrain(subscriber)
     }
   }
 }
@@ -231,18 +233,5 @@ async function deliver(listener: DagJournalListener, event: DagRunEvent): Promis
     await listener(event)
   } catch (error) {
     console.error("DAG journal subscriber failed", error)
-  }
-}
-
-function overflowEvent(runId: DagRunId, overflow: OverflowState, now: () => number): DagRunEvent {
-  return {
-    schemaVersion: 1,
-    runId,
-    seq: overflow.firstDroppedSeq,
-    at: new Date(now()).toISOString(),
-    lane: "boundary",
-    type: "dag.stream.overflow",
-    dropped: overflow.dropped,
-    oldestDroppedSeq: overflow.recoverAfterSeq,
   }
 }

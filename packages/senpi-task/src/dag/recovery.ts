@@ -7,7 +7,6 @@ import type { ManagerStartSpec, TaskManager } from "../manager/types"
 import type { TaskRecord, TaskStatus } from "../state"
 import { dagFingerprint } from "./fingerprint"
 import {
-  dagDiagnosticAddedEvent,
   dagNodeReusedEvent,
   dagNodeTaskAttachedEvent,
   dagNodeTransitionedEvent,
@@ -17,7 +16,7 @@ import {
 import { createDagJournal, type DagJournal } from "./journal"
 import type { DagPersistedNode, DagRunRecordV1 } from "./manager"
 import type { DagTaskOwner, OwnedStartResult } from "./owner"
-import { persistDagNodeResult, readDagNodeResult } from "./results"
+import { readDagNodeResult } from "./results"
 import { applyDagSchedulerEvent, createDagScheduler } from "./scheduler"
 import type { DagFileStore } from "./store"
 import type { DagNodeError, DagNodeErrorCode, DagNodeId, DagRunEvent, DagRunId } from "./types"
@@ -45,6 +44,7 @@ export type DagRecoveryOptions = {
   // signaller so the signal-0 existence check has exactly one implementation in the package.
   readonly isProcessAlive?: (pid: number) => boolean
   readonly now?: () => number
+  readonly subscriberRing?: number
   readonly stopAdmission?: (runId: DagRunId) => void
   readonly reattach?: (runId: DagRunId, taskId: string) => void
 }
@@ -58,8 +58,13 @@ type RecoveryContext = Required<Pick<DagRecoveryOptions, "store" | "taskManager"
   readonly hostPid: number
   readonly isProcessAlive: (pid: number) => boolean
   readonly now: () => number
+  readonly subscriberRing?: number
   readonly stopAdmission?: (runId: DagRunId) => void
   readonly reattach?: (runId: DagRunId, taskId: string) => void
+}
+
+type RecoveryPendingTerminalResult = {
+  readonly record: TaskRecord
 }
 
 type ClaimedRun =
@@ -73,6 +78,7 @@ export function createDagRecovery(options: DagRecoveryOptions): DagRecovery {
     hostPid: options.hostPid ?? process.pid,
     isProcessAlive: options.isProcessAlive ?? defaultSignaller.isAlive,
     now: options.now ?? Date.now,
+    ...(options.subscriberRing === undefined ? {} : { subscriberRing: options.subscriberRing }),
     ...(options.stopAdmission === undefined ? {} : { stopAdmission: options.stopAdmission }),
     ...(options.reattach === undefined ? {} : { reattach: options.reattach }),
   }
@@ -136,16 +142,18 @@ function claimPausedRun(context: RecoveryContext, runId: DagRunId, parentSession
 
 async function resumeClaimedRun(context: RecoveryContext, claimed: RecoverableRecord): Promise<DagRecoveryOutcome> {
   const pendingErrors = new Map<DagNodeId, DagNodeError>()
-  const journal = recoveryJournal(context, claimed, pendingErrors)
+  const pendingTerminalResults = new Map<DagNodeId, RecoveryPendingTerminalResult>()
+  const journal = recoveryJournal(context, claimed, pendingErrors, pendingTerminalResults)
   const reusedOutputs = new Map<DagNodeId, string>()
   try {
-    await reconcileNodes(context, journal, reusedOutputs, pendingErrors)
+    await reconcileNodes(context, journal, reusedOutputs, pendingErrors, pendingTerminalResults)
     const generation = journal.snapshot().generation + 1
     journal.append(dagRunResumedEvent({ generation }))
     const scheduler = createDagScheduler({
       store: context.store,
       taskManager: context.taskManager,
       initialRecord: journal.snapshot(),
+      ...(context.subscriberRing === undefined ? {} : { subscriberRing: context.subscriberRing }),
       now: context.now,
     })
     const record = await scheduler.run()
@@ -160,6 +168,7 @@ async function reconcileNodes(
   journal: DagJournal<DagRunRecordV1>,
   reusedOutputs: Map<DagNodeId, string>,
   pendingErrors: Map<DagNodeId, DagNodeError>,
+  pendingTerminalResults: Map<DagNodeId, RecoveryPendingTerminalResult>,
 ): Promise<void> {
   for (const observed of journal.snapshot().nodes) {
     if (observed.state === "completed") {
@@ -227,7 +236,7 @@ async function reconcileNodes(
       context.reattach?.(journal.snapshot().runId, task.task_id)
       task = await context.taskManager.waitFor(task.task_id)
     }
-    foldTaskOutcome(context, journal, observed.id, task, pendingErrors)
+    foldTaskOutcome(context, journal, observed.id, task, pendingErrors, pendingTerminalResults)
   }
 }
 
@@ -253,17 +262,13 @@ function foldTaskOutcome(
   nodeId: DagNodeId,
   task: TaskRecord,
   pendingErrors: Map<DagNodeId, DagNodeError>,
+  pendingTerminalResults: Map<DagNodeId, RecoveryPendingTerminalResult>,
 ): void {
   if (task.status === "pending" || task.status === "running") {
     throw new Error(`TaskManager.waitFor returned nonterminal task ${task.task_id}`)
   }
   if (task.status === "completed") {
-    const persisted = persistDagNodeResult({ store: context.store, runId: journal.snapshot().runId, nodeId, record: task, now: context.now })
-    if (persisted.kind === "failed") {
-      journal.append(dagDiagnosticAddedEvent({
-        diagnostic: { kind: "run_flag", message: persisted.diagnostic.message, at: persisted.diagnostic.at },
-      }))
-    }
+    pendingTerminalResults.set(nodeId, { record: task })
     transition(journal, nodeId, "completed", pendingErrors)
     return
   }
@@ -275,12 +280,19 @@ function recoveryJournal(
   context: RecoveryContext,
   record: DagRunRecordV1,
   pendingErrors: ReadonlyMap<DagNodeId, DagNodeError> = new Map(),
+  pendingTerminalResults: Map<DagNodeId, RecoveryPendingTerminalResult> = new Map(),
 ): DagJournal<DagRunRecordV1> {
   return createDagJournal({
     store: context.store,
     runId: record.runId,
     initialCheckpoint: record,
-    applyEvent: (checkpoint, event) => applyRecoveryEvent(checkpoint, event, pendingErrors),
+    applyEvent: (checkpoint, event) => applyRecoveryEvent(
+      checkpoint,
+      event,
+      pendingErrors,
+      { store: context.store, pendingTerminalResults, now: context.now },
+    ),
+    ...(context.subscriberRing === undefined ? {} : { subscriberRing: context.subscriberRing }),
     now: context.now,
   })
 }
@@ -289,12 +301,17 @@ function applyRecoveryEvent(
   record: DagRunRecordV1,
   event: DagRunEvent,
   pendingErrors: ReadonlyMap<DagNodeId, DagNodeError>,
+  terminalResults: {
+    readonly store: DagFileStore
+    readonly pendingTerminalResults: Map<DagNodeId, RecoveryPendingTerminalResult>
+    readonly now: () => number
+  },
 ): DagRunRecordV1 {
   if (event.type === "dag.run.paused") return { ...record, status: "paused", updatedAt: event.at }
   if (event.type === "dag.run.resumed") {
     return { ...record, status: "running", generation: event.generation, updatedAt: event.at }
   }
-  return applyDagSchedulerEvent(record, event, pendingErrors)
+  return applyDagSchedulerEvent(record, event, pendingErrors, terminalResults)
 }
 
 function attachTask(journal: DagJournal<DagRunRecordV1>, nodeId: DagNodeId, taskId: string): void {

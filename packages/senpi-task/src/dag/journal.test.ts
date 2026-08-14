@@ -241,10 +241,69 @@ describe("createDagJournal subscribers", () => {
     ])
     expect(delivered[1]).toMatchObject({
       type: "dag.stream.overflow",
-      dropped: 2,
-      oldestDroppedSeq: 1,
+      droppedCount: 2,
+      recoverAfterSeq: 1,
     })
     expect(delivered.slice(2).map((event) => event.seq)).toEqual([4, 5])
+  })
+
+  test("#given a viewer recovering a subscriber overflow #when it catches up from the recovery cursor #then every WAL seq is applied once without gaps", async () => {
+    // given
+    const store = createDagFileStore({ project_dir: tempProject() })
+    const journal = createDagJournal({
+      store,
+      runId,
+      initialCheckpoint: initialCheckpoint(),
+      applyEvent,
+      subscriberRing: 2,
+    })
+    const releaseFirst = deferred()
+    const firstStarted = deferred()
+    const applied = new Map<number, DagRunEvent>()
+    let lastApplied = 0
+    const applyOnce = (event: DagRunEvent): void => {
+      if (applied.has(event.seq)) return
+      applied.set(event.seq, event)
+      lastApplied = event.seq
+    }
+    journal.subscribe(async (event) => {
+      if (event.type === "dag.stream.overflow") {
+        const recovery = store.readEvents(runId, event.recoverAfterSeq, {
+          limit: 100,
+          throughSeq: event.seq,
+        })
+        for (const recovered of recovery.events) applyOnce(recovered)
+        return
+      }
+      applyOnce(event)
+      if (event.seq === 1) {
+        firstStarted.resolve()
+        await releaseFirst.promise
+      }
+    })
+    journal.append(dagRunStartedEvent({ generation: 1 }))
+    await firstStarted.promise
+
+    // when
+    journal.append(dagRunStartedEvent({ generation: 2 }))
+    journal.append(dagRunStartedEvent({ generation: 3 }))
+    journal.append(dagRunStartedEvent({ generation: 4 }))
+    journal.append(dagRunStartedEvent({ generation: 5 }))
+    releaseFirst.resolve()
+    await journal.whenIdle()
+
+    // then
+    const wal = store.readEvents(runId, 0, { limit: 100 }).events
+    expect(wal.map((event) => event.seq)).toEqual([1, 2, 3, 4, 5, 6])
+    expect(new Set(wal.map((event) => event.seq)).size).toBe(wal.length)
+    expect(wal.at(-1)).toMatchObject({
+      seq: 6,
+      type: "dag.stream.overflow",
+      droppedCount: 2,
+      recoverAfterSeq: 1,
+    })
+    expect([...applied.keys()]).toEqual([1, 2, 3, 4, 5, 6])
+    expect(lastApplied).toBe(6)
   })
 
   test("#given a slow async listener #when another mutation is appended #then the mutation completes before the listener catches up", async () => {

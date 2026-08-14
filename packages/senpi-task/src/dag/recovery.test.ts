@@ -1,5 +1,6 @@
 // allow: SIZE_OK - restart recovery needs one acceptance fixture spanning leases, task ownership, artifacts, and wave continuation.
 import { afterEach, describe, expect, test } from "bun:test"
+import { createHash } from "node:crypto"
 import * as fs from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -375,6 +376,97 @@ describe("DAG crash recovery", () => {
     // then
     expect(outcomesA.filter((outcome) => outcome.kind === "resumed")).toHaveLength(1)
     expect(outcomesB).toEqual([{ runId, kind: "skipped", reason: "live_lease" }])
+  })
+
+  test("#given a crash after a recovered task transition reaches the WAL #when the engine reopens #then artifact metadata is rebuilt from the durable copy", async () => {
+    // given
+    const projectDir = tempProject()
+    const baseStore = createDagFileStore({ project_dir: projectDir })
+    const manager = new RecoveryTaskManager()
+    const completed = {
+      ...taskRecord(owner("artifact"), "completed", "task-artifact"),
+      final_response: "recovered artifact output",
+      run_stats: { runtime_ms: 31, turns: 3, tool_calls: 2, output_tokens: 11 },
+    }
+    manager.add(completed)
+    baseStore.writeCheckpoint(runId, recoverableRecord(definition([node("artifact")]), {
+      artifact: { state: "running", taskId: "task-artifact", attempt: 1 },
+    }, { previousLeaseHolderPid: 9001 }))
+    let runLockDepth = 0
+    let resultCopiesUnderLock = 0
+    let crashTerminalCheckpoint = true
+    const crashingStore: DagFileStore = {
+      ...baseStore,
+      paths: {
+        ...baseStore.paths,
+        result(resultRunId, nodeId) {
+          if (runLockDepth > 0) resultCopiesUnderLock += 1
+          return baseStore.paths.result(resultRunId, nodeId)
+        },
+      },
+      writeCheckpoint(resultRunId, checkpoint) {
+        const record = checkpoint as DagRunRecordV1
+        if (crashTerminalCheckpoint && record.nodes.some((entry) => entry.state === "completed")) {
+          crashTerminalCheckpoint = false
+          throw new Error("injected terminal checkpoint crash")
+        }
+        baseStore.writeCheckpoint(resultRunId, checkpoint)
+      },
+      withRunLock(resultRunId, operation) {
+        return baseStore.withRunLock(resultRunId, () => {
+          runLockDepth += 1
+          try {
+            return operation()
+          } finally {
+            runLockDepth -= 1
+          }
+        })
+      },
+    }
+    const firstRecovery = createDagRecovery({
+      store: crashingStore,
+      taskManager: manager,
+      hostPid: 101,
+      isProcessAlive: () => false,
+    })
+
+    // when
+    await expect(firstRecovery.resumePausedRuns(parentSessionId)).rejects.toThrow("injected terminal checkpoint crash")
+    const reopenedStore = createDagFileStore({ project_dir: projectDir })
+    const [outcome] = await createDagRecovery({
+      store: reopenedStore,
+      taskManager: manager,
+      hostPid: 202,
+      isProcessAlive: () => false,
+    }).resumePausedRuns(parentSessionId)
+
+    // then
+    const checkpoint = reopenedStore.readCheckpoint<DagRunRecordV1 & {
+      readonly nodes: readonly (DagNode & {
+        readonly resultArtifact?: {
+          readonly relativePath: string
+          readonly sha256: string
+          readonly bytes: number
+          readonly stats?: { readonly relativePath: string; readonly sha256: string; readonly bytes: number }
+        }
+      })[]
+    }>(runId)
+    const artifact = checkpoint?.nodes[0]?.resultArtifact
+    const statsRaw = fs.readFileSync(reopenedStore.paths.result(runId, "artifact").replace(/\.txt$/, ".stats.json"), "utf8")
+    expect(outcome?.kind).toBe("resumed")
+    expect(resultCopiesUnderLock).toBeGreaterThan(0)
+    expect(reopenedStore.readResult(runId, "artifact")).toBe("recovered artifact output")
+    expect(checkpoint?.nodes[0]?.runStats).toEqual(completed.run_stats)
+    expect(artifact).toEqual({
+      relativePath: join("dag", "results", runId, "artifact.txt"),
+      sha256: createHash("sha256").update("recovered artifact output").digest("hex"),
+      bytes: Buffer.byteLength("recovered artifact output"),
+      stats: {
+        relativePath: join("dag", "results", runId, "artifact.stats.json"),
+        sha256: createHash("sha256").update(statsRaw).digest("hex"),
+        bytes: Buffer.byteLength(statsRaw),
+      },
+    })
   })
 
   test("#given a live run #when shutdown pause starts #then admission stops before pause persistence and its lease is released", () => {
