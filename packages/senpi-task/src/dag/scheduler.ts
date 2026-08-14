@@ -1,6 +1,7 @@
 // allow: SIZE_OK - the admission loop, event reducer, and task outcome folding stay together so the strict barrier cannot be bypassed by callers.
 import type { ManagerStartSpec, TaskManager } from "../manager/types"
 import type { TaskRecord, TaskStatus } from "../state"
+import { resolveDagNodeExecutionMode, type DagExecutionModeSources } from "./execution-mode"
 import { dagFingerprint } from "./fingerprint"
 import {
   dagNodeTaskAttachedEvent,
@@ -15,6 +16,7 @@ import {
 import { createDagJournal, type DagJournal, type DagJournalListener } from "./journal"
 import type { DagPersistedNode, DagRunRecordV1 } from "./manager"
 import type { OwnedStartResult } from "./owner"
+import { persistDagNodeResult, type DagNodeResultArtifact } from "./results"
 import type { DagFileStore } from "./store"
 import type {
   DagNode,
@@ -39,6 +41,8 @@ export type DagSchedulerOptions = {
   readonly store: DagFileStore
   readonly taskManager: TaskManager
   readonly initialRecord: DagRunRecordV1
+  readonly executionMode?: Omit<DagExecutionModeSources, "route">
+  readonly ancestry?: { readonly depth: number }
   readonly now?: () => number
 }
 
@@ -58,12 +62,23 @@ type AttachedTask = {
   readonly settled: Promise<AttachedTaskSettlement>
 }
 
+type PendingTerminalResult = {
+  readonly record: TaskRecord
+}
+
+type DagNodeWithResult = DagNode & {
+  readonly resultArtifact?: DagNodeResultArtifact
+}
+
 type SchedulerContext = {
   readonly taskManager: TaskManager
   readonly journal: DagJournal<DagRunRecordV1>
   readonly definitionNodes: ReadonlyMap<DagNodeId, DagPersistedNode>
+  readonly executionMode?: Omit<DagExecutionModeSources, "route">
+  readonly ancestry?: { readonly depth: number }
   readonly now: () => number
   readonly pendingErrors: Map<DagNodeId, DagNodeError>
+  readonly pendingTerminalResults: Map<DagNodeId, PendingTerminalResult>
   readonly attachedTaskIds: Map<DagNodeId, string>
   readonly cancellationRequested: Promise<void>
   readonly resolveCancellationRequested: () => void
@@ -78,21 +93,30 @@ type SchedulerContext = {
 export function createDagScheduler(options: DagSchedulerOptions): DagScheduler {
   const now = options.now ?? Date.now
   const pendingErrors = new Map<DagNodeId, DagNodeError>()
+  const pendingTerminalResults = new Map<DagNodeId, PendingTerminalResult>()
   const cancellationRequested = deferredSignal()
   const cancellationCompleted = deferredSignal()
   const journal = createDagJournal<DagRunRecordV1>({
     store: options.store,
     runId: options.initialRecord.runId,
     initialCheckpoint: options.initialRecord,
-    applyEvent: (record, event) => applyDagSchedulerEvent(record, event, pendingErrors),
+    applyEvent: (record, event) => applyDagSchedulerEvent(
+      record,
+      event,
+      pendingErrors,
+      { store: options.store, pendingTerminalResults, now },
+    ),
     now,
   })
   const context: SchedulerContext = {
     taskManager: options.taskManager,
     journal,
     definitionNodes: new Map(options.initialRecord.definition.nodes.map((node) => [node.id as DagNodeId, node])),
+    ...(options.executionMode === undefined ? {} : { executionMode: options.executionMode }),
+    ...(options.ancestry === undefined ? {} : { ancestry: options.ancestry }),
     now,
     pendingErrors,
+    pendingTerminalResults,
     attachedTaskIds: new Map(),
     cancellationRequested: cancellationRequested.promise,
     resolveCancellationRequested: cancellationRequested.resolve,
@@ -115,6 +139,11 @@ export function applyDagSchedulerEvent(
   record: DagRunRecordV1,
   event: DagRunEvent,
   pendingErrors: ReadonlyMap<DagNodeId, DagNodeError> = new Map(),
+  terminalResults?: {
+    readonly store: DagFileStore
+    readonly pendingTerminalResults: Map<DagNodeId, PendingTerminalResult>
+    readonly now: () => number
+  },
 ): DagRunRecordV1 {
   switch (event.type) {
     case "dag.run.started":
@@ -130,14 +159,52 @@ export function applyDagSchedulerEvent(
       return { ...record, status: "failed", completedAt: event.at, updatedAt: event.at }
     case "dag.run.cancelled":
       return { ...record, status: "cancelled", completedAt: event.at, updatedAt: event.at }
-    case "dag.node.transitioned":
+    case "dag.node.transitioned": {
+      const terminalResult = TERMINAL_NODE_STATES.has(event.to)
+        ? terminalResults?.pendingTerminalResults.get(event.nodeId)
+        : undefined
+      const persisted = terminalResult === undefined || terminalResults === undefined
+        ? undefined
+        : persistDagNodeResult({
+            store: terminalResults.store,
+            runId: record.runId,
+            nodeId: event.nodeId,
+            record: terminalResult.record,
+            now: terminalResults.now,
+          })
+      terminalResults?.pendingTerminalResults.delete(event.nodeId)
       return {
         ...record,
-        nodes: record.nodes.map((node) => node.id === event.nodeId
-          ? transitionedNode(node, event.to, event.at, pendingErrors.get(event.nodeId))
-          : node),
+        nodes: record.nodes.map((node) => {
+          if (node.id !== event.nodeId) return node
+          const transitioned: DagNodeWithResult = transitionedNode(
+            node,
+            event.to,
+            event.at,
+            pendingErrors.get(event.nodeId),
+          )
+          if (persisted?.kind !== "persisted") return transitioned
+          return {
+            ...transitioned,
+            resultArtifact: persisted.artifact,
+            ...(terminalResult?.record.run_stats === undefined ? {} : { runStats: terminalResult.record.run_stats }),
+          }
+        }),
+        diagnostics: persisted?.kind === "failed"
+          ? [
+              ...record.diagnostics,
+              {
+                kind: "journal_corrupt",
+                ...(persisted.diagnostic.runId === undefined ? {} : { runId: persisted.diagnostic.runId }),
+                path: persisted.diagnostic.path,
+                message: persisted.diagnostic.message,
+                at: persisted.diagnostic.at,
+              },
+            ]
+          : record.diagnostics,
         updatedAt: event.at,
       }
+    }
     case "dag.node.task-attached":
       return {
         ...record,
@@ -348,12 +415,13 @@ async function settleOne(context: SchedulerContext, attached: Map<DagNodeId, Att
 }
 
 function foldTaskOutcome(context: SchedulerContext, nodeId: DagNodeId, task: TaskRecord): void {
+  if (task.status === "pending" || task.status === "running") {
+    throw new Error(`TaskManager.waitFor returned nonterminal task ${task.task_id}`)
+  }
+  context.pendingTerminalResults.set(nodeId, { record: task })
   if (task.status === "completed") {
     transition(context, nodeId, "completed", { kind: "succeeded" })
     return
-  }
-  if (task.status === "pending" || task.status === "running") {
-    throw new Error(`TaskManager.waitFor returned nonterminal task ${task.task_id}`)
   }
   const failure = taskFailure(task.status, task.error_message)
   failNode(context, nodeId, failure.code, failure.message)
@@ -407,7 +475,16 @@ function startSpec(context: SchedulerContext, nodeId: DagNodeId): ManagerStartSp
     ...(persisted.task_summary === undefined ? {} : { task_summary: persisted.task_summary }),
     parent_session_id: record.parentSessionId,
     root_session_id: record.rootSessionId,
-    depth: 1,
+    depth: (context.ancestry?.depth ?? 0) + 1,
+    ...(context.executionMode === undefined
+      ? {}
+      : {
+          execution_mode: resolveDagNodeExecutionMode({
+            route: node.route,
+            agents: context.executionMode.agents,
+            config: context.executionMode.config,
+          }),
+        }),
     ...(node.route.kind === "category"
       ? { category: node.route.category }
       : { subagent_type: node.route.agent, ...(node.route.model === undefined ? {} : { model: node.route.model }) }),

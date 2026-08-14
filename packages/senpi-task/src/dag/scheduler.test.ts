@@ -10,8 +10,9 @@ import { compileDag, type DagDefinition } from "./graph"
 import type { DagRunRecordV1 } from "./manager"
 import type { DagTaskOwner, OwnedStartResult } from "./owner"
 import { createDagWaitSurface } from "./handle"
+import type { DagExecutionModeSources } from "./execution-mode"
 import { createDagScheduler } from "./scheduler"
-import { createDagFileStore } from "./store"
+import { createDagFileStore, type DagFileStore } from "./store"
 import type { DagNodeId, DagRunEvent, DagRunId } from "./types"
 
 const cleanupRoots: string[] = []
@@ -115,6 +116,7 @@ type MutableTask = {
 
 class FakeTaskManager implements TaskManager {
   readonly starts: string[] = []
+  readonly startedSpecs: ManagerStartSpec[] = []
   readonly attempts: string[] = []
   readonly residencyDenials: string[] = []
   readonly cancellations: string[] = []
@@ -148,15 +150,21 @@ class FakeTaskManager implements TaskManager {
       ...task.record,
       status,
       updated_at: "2026-08-14T00:00:01.000Z",
-      ...(status === "completed" ? { final_response: `done ${nodeId}` } : { error_message: `${status} ${nodeId}` }),
+      ...(status === "completed"
+        ? {
+            final_response: `done ${nodeId}`,
+            run_stats: { runtime_ms: 25, turns: 2, tool_calls: 1, output_tokens: 8 },
+          }
+        : { error_message: `${status} ${nodeId}` }),
     }
     task.completion.resolve(task.record)
   }
 
-  async startOwned(_spec: ManagerStartSpec, owner: DagTaskOwner): Promise<OwnedStartResult> {
+  async startOwned(spec: ManagerStartSpec, owner: DagTaskOwner): Promise<OwnedStartResult> {
     const nodeId = owner.nodeId as string
     this.attempts.push(nodeId)
     if (this.#options.rejectStartNodeIds?.includes(nodeId) === true) throw new Error(`start rejected ${nodeId}`)
+    this.startedSpecs.push(spec)
     const existing = [...this.#tasks.values()].find((entry) => entry.record.owner?.nodeId === owner.nodeId)
     if (existing !== undefined) {
       return {
@@ -278,14 +286,46 @@ class FakeTaskManager implements TaskManager {
   wasBackground(): boolean { return true }
 }
 
-function schedulerFixture(input: DagDefinition, taskManager: FakeTaskManager) {
-  const store = createDagFileStore({ project_dir: tempProject() })
+function schedulerFixture(
+  input: DagDefinition,
+  taskManager: FakeTaskManager,
+  executionMode?: Omit<DagExecutionModeSources, "route">,
+) {
+  const baseStore = createDagFileStore({ project_dir: tempProject() })
+  let runLockDepth = 0
+  let resultPathCallsUnderLock = 0
+  const store: DagFileStore = {
+    ...baseStore,
+    paths: {
+      ...baseStore.paths,
+      result(resultRunId, nodeId) {
+        if (runLockDepth > 0) resultPathCallsUnderLock += 1
+        return baseStore.paths.result(resultRunId, nodeId)
+      },
+    },
+    withRunLock(resultRunId, operation) {
+      return baseStore.withRunLock(resultRunId, () => {
+        runLockDepth += 1
+        try {
+          return operation()
+        } finally {
+          runLockDepth -= 1
+        }
+      })
+    },
+  }
   const initialRecord = recordFor(input)
   store.writeCheckpoint(runId, initialRecord)
   let eventTime = Date.parse("2026-08-14T00:00:02.000Z")
-  const scheduler = createDagScheduler({ store, taskManager, initialRecord, now: () => eventTime++ })
+  const scheduler = createDagScheduler({
+    store,
+    taskManager,
+    initialRecord,
+    ...(executionMode === undefined ? {} : { executionMode }),
+    now: () => eventTime++,
+  })
   const events = (): readonly DagRunEvent[] => store.readEvents(runId, 0, { limit: 100 }).events
-  return { scheduler, events, store }
+  return { scheduler, events, store, resultPathCallsUnderLock: () => resultPathCallsUnderLock }
 }
 
 function waveMembership(events: readonly DagRunEvent[], type: "dag.wave.started" | "dag.wave.completed"): readonly string[][] {
@@ -293,6 +333,45 @@ function waveMembership(events: readonly DagRunEvent[], type: "dag.wave.started"
     .filter((event): event is Extract<DagRunEvent, { type: typeof type }> => event.type === type)
     .map((event) => event.nodeIds.map(String))
 }
+
+describe("DAG scheduler terminal result persistence", () => {
+  test("#given only the senpi-task scheduler #when a node completes #then output and run stats are persisted without an adapter", async () => {
+    // given
+    const manager = new FakeTaskManager()
+    const { scheduler, store, resultPathCallsUnderLock } = schedulerFixture(definition([node("artifact")]), manager)
+
+    // when
+    const result = await scheduler.run()
+
+    // then
+    expect(result.status).toBe("completed")
+    expect(resultPathCallsUnderLock()).toBeGreaterThan(0)
+    expect(fs.readFileSync(store.paths.result(runId, "artifact"), "utf8")).toBe("done artifact")
+    expect(JSON.parse(fs.readFileSync(store.paths.result(runId, "artifact").replace(/\.txt$/, ".stats.json"), "utf8"))).toEqual({
+      schemaVersion: 1,
+      runId,
+      nodeId: "artifact",
+      runStats: { runtime_ms: 25, turns: 2, tool_calls: 1, output_tokens: 8 },
+    })
+  })
+})
+
+describe("DAG scheduler execution mode dispatch", () => {
+  test("#given task.default_execution_mode #when a DAG node is dispatched #then the scheduler resolves through the existing chain", async () => {
+    // given
+    const manager = new FakeTaskManager()
+    const { scheduler } = schedulerFixture(definition([node("mode")]), manager, {
+      agents: {},
+      config: { task: { default_execution_mode: "process" } },
+    })
+
+    // when
+    await scheduler.run()
+
+    // then
+    expect(manager.startedSpecs[0]?.execution_mode).toBe("process")
+  })
+})
 
 describe("DAG scheduler failure semantics", () => {
   test("#given every terminal task status #when folded #then each maps to its exact node outcome and error code", async () => {

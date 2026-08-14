@@ -8,12 +8,11 @@ import { OmoTaskSettingsSchema } from "@oh-my-opencode/omo-config-core"
 
 import { createTaskManager } from "../manager/manager"
 import type { ManagedChildHandle } from "../manager/child-handle"
-import type { ChildPlanner, ManagedRunner, ManagedStartSpec, TaskManager } from "../manager/types"
+import type { ChildPlanner, ManagedRunner, ManagedStartSpec } from "../manager/types"
 import { createTaskRecordStore } from "../store"
 import type { DagDefinition, DagNodeInput } from "./graph"
 import { createDagWaitSurface, type DagRunResult } from "./handle"
 import { createDagManager, type DagManager, type DagRunRecordV1, type DagStartResult } from "./manager"
-import { persistDagNodeResult } from "./results"
 import { createDagScheduler, type DagScheduler } from "./scheduler"
 import { createDagFileStore, type DagFileStore } from "./store"
 import type { DagRunEvent, DagRunId } from "./types"
@@ -80,26 +79,6 @@ function planner(spec: Parameters<ChildPlanner>[0]): ReturnType<ChildPlanner> {
   }
 }
 
-function resultPersistingManager(manager: TaskManager, store: DagFileStore): TaskManager {
-  return new Proxy(manager, {
-    get(target, property) {
-      if (property !== "waitFor") {
-        const value: unknown = Reflect.get(target, property, target)
-        return typeof value === "function" ? value.bind(target) : value
-      }
-      return async (taskId: string, options?: { readonly signal?: AbortSignal }) => {
-        const record = await target.waitFor(taskId, options)
-        const owner = record.owner
-        if (owner?.kind === "dag") {
-          const persisted = persistDagNodeResult({ store, runId: owner.runId, nodeId: owner.nodeId, record })
-          if (persisted.kind === "failed") throw new Error(persisted.diagnostic.message)
-        }
-        return record
-      }
-    },
-  })
-}
-
 type E2eFixture = {
   readonly project: string
   readonly store: DagFileStore
@@ -116,13 +95,13 @@ function e2eFixture(): E2eFixture {
   const store = createDagFileStore({ project_dir: project })
   const taskStore = createTaskRecordStore({ project_dir: project })
   const runner = new ScriptedRunner()
-  const taskManager = resultPersistingManager(createTaskManager({
+  const taskManager = createTaskManager({
     store: taskStore,
     runners: { "in-process": runner, process: runner },
     planner,
     config: OmoTaskSettingsSchema.parse({ default_concurrency: 16, max_depth: 1 }),
     cwd: project,
-  }), store)
+  })
   let nextRun = 0
   const manager = createDagManager({
     store,

@@ -7,16 +7,12 @@ import {
   createDagRecovery,
   createDagScheduler,
   createDagWaitSurface,
-  persistDagNodeResult,
   type DagFileStore,
   type DagManager,
-  type DagNodeId,
-  type DagNodeResultArtifact,
   type DagRunEvent,
   type DagRunId,
   type DagRunRecordV1,
   type DagScheduler,
-  type DagStoreDiagnostic,
   type OwnedStartResult,
 } from "@oh-my-opencode/senpi-task/dag"
 
@@ -32,21 +28,6 @@ import type { TaskEngine } from "./engine"
 const EVENT_PAGE_SIZE = 1000
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "cancelled"])
 const SCHEDULABLE_RUN_STATUSES = new Set(["pending", "running"])
-const TERMINAL_NODE_STATES = new Set(["completed", "failed", "cancelled", "skipped"])
-
-type RuntimeNodeResult =
-  | { readonly kind: "persisted"; readonly artifact: DagNodeResultArtifact; readonly runStats?: TaskRecord["run_stats"] }
-  | { readonly kind: "failed"; readonly diagnostic: DagStoreDiagnostic }
-
-type RuntimeDagNode = DagRunRecordV1["nodes"][number] & {
-  readonly resultArtifact?: DagNodeResultArtifact
-}
-
-type RuntimeDagRecord = Omit<DagRunRecordV1, "nodes" | "diagnostics"> & {
-  readonly nodes: readonly RuntimeDagNode[]
-  readonly diagnostics: readonly (DagRunRecordV1["diagnostics"][number] | DagStoreDiagnostic)[]
-}
-
 export interface DagRuntime {
   readonly manager: DagManager
   readonly wait: ReturnType<typeof createDagWaitSurface>["wait"]
@@ -79,7 +60,6 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
   })
   const runListeners = new Map<DagRunId, Set<(event: DagRunEvent) => void>>()
   const deliveredSeq = new Map<DagRunId, number>()
-  const pendingResults = new Map<string, RuntimeNodeResult>()
   const schedulers = new Map<DagRunId, { readonly scheduler: DagScheduler; running?: Promise<DagRunRecordV1> }>()
   const stoppedAdmissions = new Set<DagRunId>()
   const recoveryTaskSubscriptions = new Map<string, () => void>()
@@ -90,7 +70,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
   const store: DagFileStore = {
     ...baseStore,
     writeCheckpoint(runId, checkpoint) {
-      baseStore.writeCheckpoint(runId, augmentTerminalResult(checkpoint, pendingResults))
+      baseStore.writeCheckpoint(runId, checkpoint)
       mutationListener()
       publishDurableEvents(baseStore, runId, deliveredSeq, runListeners, durableEventListener)
     },
@@ -99,10 +79,8 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
     store,
     ...(dagSettings === undefined ? {} : { settings: dagSettings }),
   })
-  const taskManager = resultPersistingTaskManager(
+  const taskManager = admissionTaskManager(
     deps.engine.manager,
-    store,
-    pendingResults,
     (runId) => stoppedAdmissions.has(runId),
   )
 
@@ -121,7 +99,12 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
     if (existing !== undefined) return existing
     const initialRecord = coreManager.record(runId, parentSessionId)
     const created: { readonly scheduler: DagScheduler; running?: Promise<DagRunRecordV1> } = {
-      scheduler: createDagScheduler({ store, taskManager, initialRecord }),
+      scheduler: createDagScheduler({
+        store,
+        taskManager,
+        initialRecord,
+        executionMode: { agents: deps.engine.agents, config: deps.engine.omoConfig },
+      }),
     }
     schedulers.set(runId, created)
     return created
@@ -194,9 +177,8 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
     wakeSource.onRunTerminal(event.runId)
     if ((terminalWakeSeq.get(event.runId) ?? 0) >= event.seq) return
     terminalWakeSeq.set(event.runId, event.seq)
-    const sessionId = deps.engine.runtime.sessionId()
-    if (sessionId === undefined) return
-    const record = coreManager.record(event.runId, sessionId)
+    const record = baseStore.readCheckpoint<DagRunRecordV1>(event.runId)
+    if (record === null || record.parentSessionId !== activeSessionId) return
     wake?.onRunEvent(
       { runId: record.runId, name: record.name, parentSessionId: record.parentSessionId },
       {
@@ -234,6 +216,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
     taskRecord: (taskId) => deps.engine.manager.get(taskId),
     async attach() {
       activeSessionId = deps.engine.runtime.sessionId()
+      durableEventListener = onEvent
       bridge.attach()
       const sessionId = activeSessionId
       if (sessionId !== undefined) {
@@ -252,6 +235,13 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
       statusUi.scheduleSync()
     },
     detach() {
+      durableEventListener = () => undefined
+      const detachedListeners = new Map([...runListeners].map(([runId, listeners]) => [runId, new Set(listeners)]))
+      const stopping = [...schedulers].map(([runId, owned]) =>
+        owned.scheduler.cancel(runId, "runtime detached"),
+      )
+      void Promise.allSettled(stopping).then(() => removeListeners(runListeners, detachedListeners))
+      clearSubscriptions(recoveryTaskSubscriptions)
       bridge.detach()
       activeSessionId = undefined
       statusUi.dispose()
@@ -272,10 +262,8 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
   return runtime
 }
 
-function resultPersistingTaskManager(
+function admissionTaskManager(
   manager: TaskManager,
-  store: DagFileStore,
-  pendingResults: Map<string, RuntimeNodeResult>,
   admissionStopped: (runId: DagRunId) => boolean,
 ): TaskManager {
   return new Proxy(manager, {
@@ -286,20 +274,8 @@ function resultPersistingTaskManager(
           return target.startOwned({ ...spec, run_in_background: false }, owner)
         }
       }
-      if (property !== "waitFor") {
-        const value: unknown = Reflect.get(target, property, target)
-        return typeof value === "function" ? value.bind(target) : value
-      }
-      return async (taskId: string, options?: { readonly signal?: AbortSignal }): Promise<TaskRecord> => {
-        const record = await target.waitFor(taskId, options)
-        const owner = record.owner
-        if (owner?.kind !== "dag") return record
-        const outcome = persistDagNodeResult({ store, runId: owner.runId, nodeId: owner.nodeId, record })
-        pendingResults.set(resultKey(owner.runId, owner.nodeId), outcome.kind === "persisted"
-          ? { kind: "persisted", artifact: outcome.artifact, ...(record.run_stats === undefined ? {} : { runStats: record.run_stats }) }
-          : { kind: "failed", diagnostic: outcome.diagnostic })
-        return record
-      }
+      const value: unknown = Reflect.get(target, property, target)
+      return typeof value === "function" ? value.bind(target) : value
     },
   })
 }
@@ -308,32 +284,21 @@ function stoppedAdmission(): Promise<OwnedStartResult> {
   return new Promise<OwnedStartResult>(() => undefined)
 }
 
+function removeListeners(
+  listeners: Map<DagRunId, Set<(event: DagRunEvent) => void>>,
+  removing: ReadonlyMap<DagRunId, ReadonlySet<(event: DagRunEvent) => void>>,
+): void {
+  for (const [runId, stale] of removing) {
+    const current = listeners.get(runId)
+    if (current === undefined) continue
+    for (const listener of stale) current.delete(listener)
+    if (current.size === 0) listeners.delete(runId)
+  }
+}
+
 function clearSubscriptions(subscriptions: Map<string, () => void>): void {
   for (const unsubscribe of subscriptions.values()) unsubscribe()
   subscriptions.clear()
-}
-
-function augmentTerminalResult(checkpoint: object, pending: Map<string, RuntimeNodeResult>): object {
-  if (!isDagRunRecord(checkpoint)) return checkpoint
-  let changed = false
-  const diagnostics = [...checkpoint.diagnostics]
-  const nodes = checkpoint.nodes.map((node): RuntimeDagNode => {
-    if (!TERMINAL_NODE_STATES.has(node.state)) return node
-    const result = pending.get(resultKey(checkpoint.runId, node.id))
-    if (result === undefined) return node
-    pending.delete(resultKey(checkpoint.runId, node.id))
-    changed = true
-    if (result.kind === "failed") {
-      diagnostics.push(result.diagnostic)
-      return node
-    }
-    return {
-      ...node,
-      resultArtifact: result.artifact,
-      ...(result.runStats === undefined ? {} : { runStats: result.runStats }),
-    }
-  })
-  return changed ? { ...checkpoint, nodes, diagnostics } satisfies RuntimeDagRecord : checkpoint
 }
 
 function publishDurableEvents(
@@ -348,11 +313,19 @@ function publishDurableEvents(
     const page = store.readEvents(runId, sinceSeq, { limit: EVENT_PAGE_SIZE })
     for (const event of page.events) {
       delivered.set(runId, event.seq)
-      onEvent(event)
-      for (const listener of listeners.get(runId) ?? []) listener(event)
+      deliverDurableEvent(onEvent, event)
+      for (const listener of listeners.get(runId) ?? []) deliverDurableEvent(listener, event)
     }
     if (!page.hasMore) return
     sinceSeq = page.nextSinceSeq
+  }
+}
+
+function deliverDurableEvent(listener: (event: DagRunEvent) => void, event: DagRunEvent): void {
+  try {
+    listener(event)
+  } catch (error) {
+    console.error("DAG runtime subscriber failed", error)
   }
 }
 
@@ -368,12 +341,4 @@ function snapshotsForActiveSession(manager: DagManager, engine: TaskEngine) {
     ...manager.snapshot(run.runId, sessionId),
     updatedAt: run.updatedAt,
   }))
-}
-
-function resultKey(runId: DagRunId, nodeId: DagNodeId): string {
-  return `${runId}\0${nodeId}`
-}
-
-function isDagRunRecord(value: object): value is RuntimeDagRecord {
-  return "runId" in value && "nodes" in value && Array.isArray(value.nodes) && "diagnostics" in value && Array.isArray(value.diagnostics)
 }

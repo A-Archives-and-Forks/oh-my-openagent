@@ -133,6 +133,13 @@ export type DagDiagnostic =
       readonly at: string
     }
   | { readonly kind: "run_flag"; readonly message: string; readonly at: string }
+  | {
+      readonly kind: "journal_corrupt"
+      readonly runId?: DagRunId
+      readonly path: string
+      readonly message: string
+      readonly at: string
+    }
 
 export type DagNode = {
   readonly id: DagNodeId
