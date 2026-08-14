@@ -5,13 +5,14 @@ import { dagFingerprint } from "./fingerprint"
 import {
   dagNodeTaskAttachedEvent,
   dagNodeTransitionedEvent,
+  dagRunCancelledEvent,
   dagRunCompletedEvent,
   dagRunFailedEvent,
   dagRunStartedEvent,
   dagWaveCompletedEvent,
   dagWaveStartedEvent,
 } from "./events"
-import { createDagJournal, type DagJournal } from "./journal"
+import { createDagJournal, type DagJournal, type DagJournalListener } from "./journal"
 import type { DagPersistedNode, DagRunRecordV1 } from "./manager"
 import type { OwnedStartResult } from "./owner"
 import type { DagFileStore } from "./store"
@@ -24,6 +25,7 @@ import type {
   DagNodeState,
   DagNodeTransitionReason,
   DagRunEvent,
+  DagRunId,
 } from "./types"
 
 const TERMINAL_NODE_STATES: ReadonlySet<DagNodeState> = new Set([
@@ -42,7 +44,9 @@ export type DagSchedulerOptions = {
 
 export type DagScheduler = {
   readonly run: () => Promise<DagRunRecordV1>
+  readonly cancel: (runId: DagRunId, reason?: string) => Promise<void>
   readonly snapshot: () => DagRunRecordV1
+  readonly subscribe: (listener: DagJournalListener) => () => void
 }
 
 type AttachedTask = {
@@ -56,11 +60,22 @@ type SchedulerContext = {
   readonly definitionNodes: ReadonlyMap<DagNodeId, DagPersistedNode>
   readonly now: () => number
   readonly pendingErrors: Map<DagNodeId, DagNodeError>
+  readonly attachedTaskIds: Map<DagNodeId, string>
+  readonly cancellationRequested: Promise<void>
+  readonly resolveCancellationRequested: () => void
+  readonly cancellationCompleted: Promise<void>
+  readonly resolveCancellationCompleted: () => void
+  cancellationStarted: boolean
+  cancellationOperation?: Promise<void>
+  admissionInProgress: boolean
+  readonly admissionIdleWaiters: Set<() => void>
 }
 
 export function createDagScheduler(options: DagSchedulerOptions): DagScheduler {
   const now = options.now ?? Date.now
   const pendingErrors = new Map<DagNodeId, DagNodeError>()
+  const cancellationRequested = deferredSignal()
+  const cancellationCompleted = deferredSignal()
   const journal = createDagJournal<DagRunRecordV1>({
     store: options.store,
     runId: options.initialRecord.runId,
@@ -74,11 +89,21 @@ export function createDagScheduler(options: DagSchedulerOptions): DagScheduler {
     definitionNodes: new Map(options.initialRecord.definition.nodes.map((node) => [node.id as DagNodeId, node])),
     now,
     pendingErrors,
+    attachedTaskIds: new Map(),
+    cancellationRequested: cancellationRequested.promise,
+    resolveCancellationRequested: cancellationRequested.resolve,
+    cancellationCompleted: cancellationCompleted.promise,
+    resolveCancellationCompleted: cancellationCompleted.resolve,
+    cancellationStarted: false,
+    admissionInProgress: false,
+    admissionIdleWaiters: new Set(),
   }
 
   return {
     run: () => runWaves(context),
+    cancel: (runId, reason) => cancelRun(context, runId, reason),
     snapshot: journal.snapshot,
+    subscribe: journal.subscribe,
   }
 }
 
@@ -99,6 +124,8 @@ export function applyDagSchedulerEvent(
       return { ...record, status: "completed", completedAt: event.at, updatedAt: event.at }
     case "dag.run.failed":
       return { ...record, status: "failed", completedAt: event.at, updatedAt: event.at }
+    case "dag.run.cancelled":
+      return { ...record, status: "cancelled", completedAt: event.at, updatedAt: event.at }
     case "dag.node.transitioned":
       return {
         ...record,
@@ -120,19 +147,70 @@ export function applyDagSchedulerEvent(
   }
 }
 
+async function cancelRun(context: SchedulerContext, runId: DagRunId, reason?: string): Promise<void> {
+  const snapshot = context.journal.snapshot()
+  if (snapshot.runId !== runId) throw new Error(`scheduler does not own DAG run "${runId}"`)
+  if (snapshot.status === "completed" || snapshot.status === "failed" || snapshot.status === "cancelled") return
+  if (context.cancellationOperation !== undefined) return context.cancellationOperation
+
+  context.cancellationStarted = true
+  context.resolveCancellationRequested()
+  context.cancellationOperation = performCancellation(context, reason)
+  return context.cancellationOperation
+}
+
+async function performCancellation(context: SchedulerContext, reason?: string): Promise<void> {
+  try {
+    await whenAdmissionIdle(context)
+    await Promise.allSettled([...context.attachedTaskIds.values()].map((taskId) =>
+      context.taskManager.cancelTask(taskId, reason),
+    ))
+    const cancelledNodeIds: DagNodeId[] = []
+    for (const node of context.journal.snapshot().nodes) {
+      if (TERMINAL_NODE_STATES.has(node.state)) continue
+      transition(context, node.id, "cancelled", { kind: "cancelled" })
+      cancelledNodeIds.push(node.id)
+    }
+    const cancelled = context.journal.snapshot()
+    context.journal.append(Object.assign(
+      dagRunCancelledEvent({ reason, counts: countNodes(cancelled.nodes) }),
+      { cancelledNodeIds },
+    ))
+    context.attachedTaskIds.clear()
+  } finally {
+    context.resolveCancellationCompleted()
+  }
+}
+
+async function cancelledSnapshot(context: SchedulerContext): Promise<DagRunRecordV1> {
+  await context.cancellationCompleted
+  return context.journal.snapshot()
+}
+
+function whenAdmissionIdle(context: SchedulerContext): Promise<void> {
+  if (!context.admissionInProgress) return Promise.resolve()
+  return new Promise<void>((resolve) => context.admissionIdleWaiters.add(resolve))
+}
+
+function resolveAdmissionIdle(context: SchedulerContext): void {
+  for (const resolve of context.admissionIdleWaiters) resolve()
+  context.admissionIdleWaiters.clear()
+}
+
 async function runWaves(context: SchedulerContext): Promise<DagRunRecordV1> {
   if (context.journal.snapshot().status === "pending") {
     context.journal.append(dagRunStartedEvent({ generation: context.journal.snapshot().generation }))
   }
 
   for (const wave of context.journal.snapshot().waves) {
+    if (context.cancellationStarted) return cancelledSnapshot(context)
     applyDependentSkipCascade(context)
     const runnable = wave.nodeIds.filter((nodeId) => isRunnable(context.journal.snapshot(), nodeId))
     if (runnable.length === 0) continue
 
     for (const nodeId of runnable) transition(context, nodeId, "scheduled", { kind: "scheduled" })
     context.journal.append(dagWaveStartedEvent({ waveIndex: wave.index, nodeIds: runnable }))
-    await admitAndSettleWave(context, runnable)
+    if (!await admitAndSettleWave(context, runnable)) return cancelledSnapshot(context)
     context.journal.append(dagWaveCompletedEvent({ waveIndex: wave.index, nodeIds: runnable }))
   }
 
@@ -148,23 +226,30 @@ async function runWaves(context: SchedulerContext): Promise<DagRunRecordV1> {
   return context.journal.snapshot()
 }
 
-async function admitAndSettleWave(context: SchedulerContext, nodeIds: readonly DagNodeId[]): Promise<void> {
+async function admitAndSettleWave(context: SchedulerContext, nodeIds: readonly DagNodeId[]): Promise<boolean> {
   let awaitingAdmission = [...nodeIds]
   const attached = new Map<DagNodeId, AttachedTask>()
 
   while (awaitingAdmission.length > 0) {
+    if (context.cancellationStarted) return false
+    context.admissionInProgress = true
     const results = await Promise.all(awaitingAdmission.map(async (nodeId) => ({
       nodeId,
       result: await context.taskManager.startOwned(startSpec(context, nodeId), owner(context, nodeId)),
     })))
     const denied: DagNodeId[] = []
     for (const { nodeId, result } of results) {
-      if (result.kind === "residency_denied") {
+      if (context.cancellationStarted) {
+        if (result.kind === "started") attachStarted(context, attached, nodeId, result)
+      } else if (result.kind === "residency_denied") {
         denied.push(nodeId)
       } else {
         attachOrFail(context, attached, nodeId, result)
       }
     }
+    context.admissionInProgress = false
+    resolveAdmissionIdle(context)
+    if (context.cancellationStarted) return false
     awaitingAdmission = denied
     if (awaitingAdmission.length === 0) break
     if (attached.size === 0) {
@@ -177,7 +262,10 @@ async function admitAndSettleWave(context: SchedulerContext, nodeIds: readonly D
     await settleOne(context, attached)
   }
 
-  while (attached.size > 0) await settleOne(context, attached)
+  while (attached.size > 0) {
+    if (!await settleOne(context, attached)) return false
+  }
+  return true
 }
 
 function attachOrFail(
@@ -192,6 +280,15 @@ function attachOrFail(
     return
   }
 
+  attachStarted(context, attached, nodeId, result)
+}
+
+function attachStarted(
+  context: SchedulerContext,
+  attached: Map<DagNodeId, AttachedTask>,
+  nodeId: DagNodeId,
+  result: Extract<OwnedStartResult, { readonly kind: "started" }>,
+): void {
   const node = nodeById(context.journal.snapshot(), nodeId)
   const attempt = node.attempt + 1
   context.journal.append(dagNodeTaskAttachedEvent({ nodeId, taskId: result.task_id, attempt }))
@@ -208,16 +305,23 @@ function attachOrFail(
   } else if (result.status === "running") {
     transition(context, nodeId, "running", result.reused ? { kind: "resumed" } : { kind: "started" })
   }
+  context.attachedTaskIds.set(nodeId, result.task_id)
   attached.set(nodeId, {
     nodeId,
     settled: context.taskManager.waitFor(result.task_id).then((record) => ({ nodeId, record })),
   })
 }
 
-async function settleOne(context: SchedulerContext, attached: Map<DagNodeId, AttachedTask>): Promise<void> {
-  const settled = await Promise.race([...attached.values()].map((entry) => entry.settled))
+async function settleOne(context: SchedulerContext, attached: Map<DagNodeId, AttachedTask>): Promise<boolean> {
+  const settled = await Promise.race([
+    ...[...attached.values()].map((entry) => entry.settled),
+    context.cancellationRequested.then(() => undefined),
+  ])
+  if (settled === undefined || context.cancellationStarted) return false
   attached.delete(settled.nodeId)
+  context.attachedTaskIds.delete(settled.nodeId)
   foldTaskOutcome(context, settled.nodeId, settled.record)
+  return true
 }
 
 function foldTaskOutcome(context: SchedulerContext, nodeId: DagNodeId, task: TaskRecord): void {
@@ -360,6 +464,14 @@ function nodeById(record: DagRunRecordV1, nodeId: DagNodeId): DagNode {
   const node = record.nodes.find((entry) => entry.id === nodeId)
   if (node === undefined) throw new Error(`unknown DAG node "${nodeId}"`)
   return node
+}
+
+function deferredSignal(): { readonly promise: Promise<void>; readonly resolve: () => void } {
+  let resolve = (): void => undefined
+  const promise = new Promise<void>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
 }
 
 function countNodes(nodes: readonly DagNode[]): DagNodeCounts {

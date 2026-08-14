@@ -9,6 +9,7 @@ import type { TaskRecord, TaskStatus } from "../state"
 import { compileDag, type DagDefinition } from "./graph"
 import type { DagRunRecordV1 } from "./manager"
 import type { DagTaskOwner, OwnedStartResult } from "./owner"
+import { createDagWaitSurface } from "./handle"
 import { createDagScheduler } from "./scheduler"
 import { createDagFileStore } from "./store"
 import type { DagNodeId, DagRunEvent, DagRunId } from "./types"
@@ -86,6 +87,7 @@ type FakeOptions = {
   readonly startFailureNodeIds?: readonly string[]
   readonly startFailureKinds?: Readonly<Record<string, StartFailureKind>>
   readonly queuedNodeIds?: readonly string[]
+  readonly rejectCancelNodeIds?: readonly string[]
 }
 
 type MutableTask = {
@@ -97,6 +99,7 @@ class FakeTaskManager implements TaskManager {
   readonly starts: string[] = []
   readonly attempts: string[] = []
   readonly residencyDenials: string[] = []
+  readonly cancellations: string[] = []
   maxResidents = 0
 
   readonly #options: FakeOptions
@@ -233,7 +236,16 @@ class FakeTaskManager implements TaskManager {
   continueTask(): Promise<never> { throw new Error("not implemented") }
   sendToTask(): Promise<never> { throw new Error("not implemented") }
   interruptTask(): Promise<never> { throw new Error("not implemented") }
-  cancelTask(): Promise<never> { throw new Error("not implemented") }
+  async cancelTask(taskId: string): Promise<{ readonly kind: "cancelled"; readonly task_id: string; readonly previous_status: TaskStatus }> {
+    const task = this.#tasks.get(taskId)
+    if (task === undefined) throw new Error(`unknown fake task ${taskId}`)
+    const nodeId = String(task.record.owner?.nodeId)
+    this.cancellations.push(nodeId)
+    if (this.#options.rejectCancelNodeIds?.includes(nodeId) === true) throw new Error(`cancel rejected ${nodeId}`)
+    const previousStatus = task.record.status
+    this.complete(nodeId, "cancelled")
+    return { kind: "cancelled", task_id: taskId, previous_status: previousStatus }
+  }
   list(): readonly [] { return [] }
   forget(): void {}
   getResidentHandle(): undefined { return undefined }
@@ -247,9 +259,10 @@ function schedulerFixture(input: DagDefinition, taskManager: FakeTaskManager) {
   const store = createDagFileStore({ project_dir: tempProject() })
   const initialRecord = recordFor(input)
   store.writeCheckpoint(runId, initialRecord)
-  const scheduler = createDagScheduler({ store, taskManager, initialRecord, now: () => Date.parse("2026-08-14T00:00:02.000Z") })
+  let eventTime = Date.parse("2026-08-14T00:00:02.000Z")
+  const scheduler = createDagScheduler({ store, taskManager, initialRecord, now: () => eventTime++ })
   const events = (): readonly DagRunEvent[] => store.readEvents(runId, 0, { limit: 100 }).events
-  return { scheduler, events }
+  return { scheduler, events, store }
 }
 
 function waveMembership(events: readonly DagRunEvent[], type: "dag.wave.started" | "dag.wave.completed"): readonly string[][] {
@@ -343,6 +356,12 @@ describe("DAG scheduler failure semantics", () => {
       ]),
       manager,
     )
+    const completionFirstSettled = deferred<void>()
+    scheduler.subscribe((event) => {
+      if (event.type === "dag.node.transitioned" && event.nodeId === "completion-first" && event.to === "failed") {
+        completionFirstSettled.resolve()
+      }
+    })
     const running = scheduler.run()
     await Promise.all([
       manager.whenStarted("graph-first"),
@@ -352,6 +371,7 @@ describe("DAG scheduler failure semantics", () => {
 
     // when
     manager.complete("completion-first", "error")
+    await completionFirstSettled.promise
     manager.complete("preparation")
     manager.complete("graph-first", "error")
     await manager.whenStarted("later-wave")
@@ -360,8 +380,107 @@ describe("DAG scheduler failure semantics", () => {
 
     // then
     expect(result.status).toBe("failed")
+    const completionFirst = result.nodes.find((entry) => entry.id === "completion-first")
+    const graphFirst = result.nodes.find((entry) => entry.id === "graph-first")
+    expect(Date.parse(completionFirst?.completedAt ?? "")).toBeLessThan(Date.parse(graphFirst?.completedAt ?? ""))
     const failedEvent = events().find((event) => event.type === "dag.run.failed")
     expect(failedEvent).toEqual(expect.objectContaining({ error: expect.objectContaining({ nodeId: "graph-first" }) }))
+  })
+})
+
+describe("DAG scheduler cancellation", () => {
+  test("#given a running wave and pending descendants #when cancelled #then tasks cancel, admission stops, and waiters resolve cancelled", async () => {
+    // given
+    const manager = new FakeTaskManager({ autoComplete: false, queuedNodeIds: ["queued"] })
+    const { scheduler, events, store } = schedulerFixture(
+      definition([node("finished"), node("running"), node("queued"), node("next", ["finished"]), node("last", ["next"])]),
+      manager,
+    )
+    const attached = deferred<void>()
+    const finishedSettled = deferred<void>()
+    const waitSurface = createDagWaitSurface({
+      store,
+      subscribe: (_runId, listener) => scheduler.subscribe(listener),
+      cancel: scheduler.cancel,
+    })
+    scheduler.subscribe((event) => {
+      if (event.type === "dag.node.task-attached" && event.nodeId === "running") attached.resolve()
+      if (event.type === "dag.node.transitioned" && event.nodeId === "finished" && event.to === "completed") {
+        finishedSettled.resolve()
+      }
+    })
+    const waiter = waitSurface.wait(runId, parentSessionId)
+    const running = scheduler.run()
+    await manager.whenStarted("running")
+    await attached.promise
+    manager.complete("finished")
+    await finishedSettled.promise
+
+    // when
+    await waitSurface.attach(runId, parentSessionId).cancel("stop now")
+    const [runResult, waitResult] = await Promise.all([running, waiter])
+
+    // then
+    expect(manager.cancellations).toEqual(["running", "queued"])
+    expect(manager.starts).toEqual(["finished", "running", "queued"])
+    expect(runResult.status).toBe("cancelled")
+    expect(runResult.nodes.map((entry) => `${entry.id}:${entry.state}`)).toEqual([
+      "finished:completed",
+      "running:cancelled",
+      "queued:cancelled",
+      "next:cancelled",
+      "last:cancelled",
+    ])
+    expect(waitResult.status).toBe("cancelled")
+    expect(waitResult.nodes.next?.state).toBe("cancelled")
+    expect(waitResult.nodes.last?.state).toBe("cancelled")
+    expect(events()).toContainEqual(expect.objectContaining({
+      type: "dag.run.cancelled",
+      reason: "stop now",
+      cancelledNodeIds: ["running", "queued", "next", "last"],
+    }))
+  })
+
+  test("#given one task cancellation rejects #when a wave is cancelled #then all waiters still resolve with consistent cancelled nodes", async () => {
+    // given
+    const manager = new FakeTaskManager({ autoComplete: false, rejectCancelNodeIds: ["a"] })
+    const { scheduler, store } = schedulerFixture(definition([node("a"), node("b")]), manager)
+    const waitSurface = createDagWaitSurface({
+      store,
+      subscribe: (_runId, listener) => scheduler.subscribe(listener),
+    })
+    const firstWaiter = waitSurface.wait(runId, parentSessionId)
+    const secondWaiter = waitSurface.wait(runId, parentSessionId)
+    const running = scheduler.run()
+    await Promise.all([manager.whenStarted("a"), manager.whenStarted("b")])
+
+    // when
+    await scheduler.cancel(runId, "reject one")
+    const [runResult, firstResult, secondResult] = await Promise.all([running, firstWaiter, secondWaiter])
+
+    // then
+    expect(manager.cancellations.sort()).toEqual(["a", "b"])
+    expect(runResult.status).toBe("cancelled")
+    expect(firstResult).toEqual(secondResult)
+    expect(firstResult.snapshot.nodes.every((entry) => entry.state === "cancelled")).toBe(true)
+  })
+
+  test("#given a paused unclaimed run #when cancelled #then it ends cancelled without task cancellation", async () => {
+    // given
+    const manager = new FakeTaskManager({ autoComplete: false })
+    const input = definition([node("a"), node("b", ["a"])])
+    const store = createDagFileStore({ project_dir: tempProject() })
+    const initialRecord: DagRunRecordV1 = { ...recordFor(input), status: "paused" }
+    store.writeCheckpoint(runId, initialRecord)
+    const scheduler = createDagScheduler({ store, taskManager: manager, initialRecord })
+
+    // when
+    await scheduler.cancel(runId, "cancel paused")
+
+    // then
+    expect(manager.cancellations).toEqual([])
+    expect(scheduler.snapshot().status).toBe("cancelled")
+    expect(scheduler.snapshot().nodes.every((entry) => entry.state === "cancelled")).toBe(true)
   })
 })
 
