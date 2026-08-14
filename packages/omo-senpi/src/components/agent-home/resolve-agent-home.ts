@@ -6,7 +6,7 @@ import { join, resolve } from "node:path"
  * Where the senpi engine keeps its agent state for the install we are attached to.
  *
  * The branded omo distribution stores that state under `~/.omo/agent`, while a standalone
- * engine keeps it under `~/.senpi/agent`. A pre-unification omo install wrote it FLAT under
+ * engine keeps it under `~/.senpi/agent`. A pre-unification omo release wrote it FLAT under
  * `~/.omo`, so that layout is still detected as a fallback. Every layout can exist on the same
  * machine during the transition, so the location is resolved rather than assumed, and the
  * environment always wins over detection.

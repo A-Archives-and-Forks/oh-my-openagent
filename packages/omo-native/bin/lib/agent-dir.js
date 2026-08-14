@@ -89,7 +89,11 @@ function backfillSettings(source, target) {
  * still lives in the flat layout. Idempotent, never overwrites an existing canonical file, and
  * skipped entirely when the user pinned a directory of their own.
  */
+/** @typedef {{ adopted: boolean, copied: string[], backfilled: string[] }} AdoptionResult */
+
+/** @returns {AdoptionResult} */
 export function adoptLegacyFlatState(env = process.env, home = runtimeHome(env)) {
+  /** @type {AdoptionResult} */
   const result = { adopted: false, copied: [], backfilled: [] }
   const canonical = canonicalAgentDir(env, home)
   if (canonical !== defaultAgentDir(home)) return result
