@@ -34,6 +34,8 @@ export interface MemoryIdentityRuntimeDeps {
   readonly cwd: () => string
   readonly resolveModelRegistry: () => SenpiModelRegistryPort<SenpiModelPort> | undefined
   readonly resolveSessionModel?: () => ReflectionSessionModel | undefined
+  readonly resolveParentContextTokens?: () => number | undefined
+  readonly resolveParentSessionFile?: () => string | undefined
   readonly liveSession?: () => ReflectionLiveSession | undefined
   readonly logger?: ComponentLogger
 }
@@ -105,6 +107,8 @@ export function createIdentityRuntime(
     logger: deps.logger,
     resolveModelRegistry: deps.resolveModelRegistry,
     ...(deps.resolveSessionModel === undefined ? {} : { resolveSessionModel: deps.resolveSessionModel }),
+    ...(deps.resolveParentContextTokens === undefined ? {} : { resolveParentContextTokens: deps.resolveParentContextTokens }),
+    ...(deps.resolveParentSessionFile === undefined ? {} : { resolveParentSessionFile: deps.resolveParentSessionFile }),
     loadConfig: (options) => deps.loadConfig(options ?? {}),
     cwd: deps.cwd(),
     sandbox: lazySandbox,

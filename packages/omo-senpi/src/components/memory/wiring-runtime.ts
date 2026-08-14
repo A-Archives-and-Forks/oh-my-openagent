@@ -15,6 +15,10 @@ import {
 import { createMemoryJournalWiring, type MemoryJournalWiring } from "./journal-wiring"
 import { resolveMemoryModelRegistry } from "./model-registry-resolver"
 import { resolveMemorySessionModel } from "./session-model-resolver"
+import {
+  resolveParentContextTokens as resolveParentContextTokensFromCtx,
+  resolveParentSessionFile as resolveParentSessionFileFromCtx,
+} from "./session-context-resolver"
 import { resolveReflectionTriggerConfig, type ReflectionTriggerSession } from "./trigger-wiring"
 import { isRecord, sessionIdFrom } from "./wiring-context"
 import type { MemoryWiringOptions } from "./wiring-types"
@@ -58,6 +62,14 @@ export function createMemoryRuntimeWiring(
 
   function resolveSessionModel(): ReflectionSessionModel | undefined {
     return resolveMemorySessionModel(lastEventCtx.current)
+  }
+
+  function resolveParentContextTokens(): number | undefined {
+    return resolveParentContextTokensFromCtx(lastEventCtx.current)
+  }
+
+  function resolveParentSessionFile(): string | undefined {
+    return resolveParentSessionFileFromCtx(lastEventCtx.current)
   }
 
   function journalWiringFor(identity: MemoryIdentityContext): MemoryJournalWiring {
@@ -125,6 +137,8 @@ export function createMemoryRuntimeWiring(
       cwd: options.cwd,
       resolveModelRegistry,
       resolveSessionModel,
+      resolveParentContextTokens,
+      resolveParentSessionFile,
       ...(options.logger === undefined ? {} : { logger: options.logger }),
       ...(liveSession === undefined
         ? {}
