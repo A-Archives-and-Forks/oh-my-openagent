@@ -276,6 +276,24 @@ describe("resolveReflectionModel", () => {
       }
     })
 
+    test("#when an explicitly pinned model is unresolvable but other models exist #then the fallback keeps reflection alive", () => {
+      // A pin that cannot resolve (typo, disconnected provider) still means "run reflection",
+      // unlike disable:true which means "do not run" - so the ladder applies and the chosen
+      // model is reported as registry_fallback rather than silently masquerading as the pin.
+      const result = resolveReflectionModel(
+        "quick",
+        { categories: { quick: { model: "google/ghost-model" } } },
+        liveRegistry,
+      )
+
+      // then
+      expect(result.kind).toBe("resolved")
+      if (result.kind === "resolved") {
+        expect(result.model).toBe("google/gemini-3.6-flash")
+        expect(result.source).toBe("registry_fallback")
+      }
+    })
+
     test("#when neither registry nor session model can help #then it still fails closed", () => {
       // when
       const result = resolveReflectionModel("quick", { categories: {} }, { getAvailable: () => [], find: () => undefined })
