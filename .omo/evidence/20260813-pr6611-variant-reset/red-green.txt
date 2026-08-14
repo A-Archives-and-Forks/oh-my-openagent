@@ -275,3 +275,23 @@ Package typecheck first exposed that the replacement-state identity comparison
 could also compare two undefined values. Requiring `state` before object
 identity fixed the branch-caused TS18048 failures. The final package typecheck
 and six-file strict audit are clean.
+
+EXPLICIT VARIANT PRECEDENCE RED
+command:
+  bun test retry-model-payload.test.ts
+
+observed before fix:
+  explicit variant "medium" was emitted together with inherited
+  reasoningEffort "high"
+  9 pass
+  1 fail
+
+EXPLICIT VARIANT PRECEDENCE GREEN
+full runtime-fallback:
+  267 pass
+  0 fail
+  481 expect() calls
+
+Explicit model variants now suppress both inherited reasoning lowering and
+agent-level reasoningEffort for that retry payload. Package typecheck and the
+two-file strict audit are clean.

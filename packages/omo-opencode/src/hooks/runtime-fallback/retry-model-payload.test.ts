@@ -126,4 +126,19 @@ describe("buildRetryModelPayload", () => {
       reasoningEffort: "high",
     })
   })
+
+  test("should let an explicit model variant suppress inherited reasoning", () => {
+    // given
+    const model = "test-provider/test-model medium"
+    const agentSettings = { reasoning: "high" }
+
+    // when
+    const result = buildRetryModelPayload(model, agentSettings)
+
+    // then
+    expect(result).toEqual({
+      model: { providerID: "test-provider", modelID: "test-model" },
+      variant: "medium",
+    })
+  })
 })
