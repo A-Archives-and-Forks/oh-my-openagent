@@ -194,19 +194,21 @@ export type DagRunSnapshot = {
 }
 
 export const DAG_NODE_TRANSITION_REASONS = [
-  "unblocked",
-  "scheduled",
-  "started",
-  "succeeded",
-  "failed",
-  "cancelled",
-  "skipped",
-  "interrupted",
-  "lost",
-  "resumed",
+  { kind: "unblocked" },
+  { kind: "scheduled" },
+  { kind: "started" },
+  { kind: "succeeded" },
+  { kind: "failed" },
+  { kind: "cancelled" },
+  { kind: "skipped" },
+  { kind: "interrupted" },
+  { kind: "lost" },
+  { kind: "resumed" },
 ] as const
 
-export type DagNodeTransitionReason = (typeof DAG_NODE_TRANSITION_REASONS)[number]
+export type DagNodeTransitionReason =
+  | (typeof DAG_NODE_TRANSITION_REASONS)[number]
+  | { readonly kind: "task_queued"; readonly queuePosition: number }
 
 // The journaled payload union. EXACTLY 14 members; every member is written to the WAL with a
 // WAL-assigned seq. Live activity telemetry is NOT here - see DagActivityEvent below.

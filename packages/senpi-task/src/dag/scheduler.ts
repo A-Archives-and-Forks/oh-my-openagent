@@ -22,8 +22,8 @@ import type {
   DagNodeErrorCode,
   DagNodeId,
   DagNodeState,
+  DagNodeTransitionReason,
   DagRunEvent,
-  DagRunEventPayload,
 } from "./types"
 
 const TERMINAL_NODE_STATES: ReadonlySet<DagNodeState> = new Set([
@@ -45,10 +45,6 @@ export type DagScheduler = {
   readonly snapshot: () => DagRunRecordV1
 }
 
-type TaskQueuedPayload = Omit<Extract<DagRunEventPayload, { type: "dag.node.transitioned" }>, "reason"> & {
-  readonly reason: { readonly kind: "task_queued"; readonly queuePosition: number }
-}
-
 type AttachedTask = {
   readonly nodeId: DagNodeId
   readonly settled: Promise<{ readonly nodeId: DagNodeId; readonly record: TaskRecord }>
@@ -57,7 +53,6 @@ type AttachedTask = {
 type SchedulerContext = {
   readonly taskManager: TaskManager
   readonly journal: DagJournal<DagRunRecordV1>
-  readonly append: (payload: DagRunEventPayload | TaskQueuedPayload) => DagRunEvent
   readonly definitionNodes: ReadonlyMap<DagNodeId, DagPersistedNode>
   readonly now: () => number
   readonly pendingErrors: Map<DagNodeId, DagNodeError>
@@ -73,14 +68,9 @@ export function createDagScheduler(options: DagSchedulerOptions): DagScheduler {
     applyEvent: (record, event) => applyDagSchedulerEvent(record, event, pendingErrors),
     now,
   })
-  // The domain type currently exposes only the legacy string reason vocabulary. The wire contract
-  // already requires the structured task_queued reason, so this local append seam preserves that
-  // payload without widening unrelated DAG types in this scoped change.
-  const append = journal.append as (payload: DagRunEventPayload | TaskQueuedPayload) => DagRunEvent
   const context: SchedulerContext = {
     taskManager: options.taskManager,
     journal,
-    append,
     definitionNodes: new Map(options.initialRecord.definition.nodes.map((node) => [node.id as DagNodeId, node])),
     now,
     pendingErrors,
@@ -132,7 +122,7 @@ export function applyDagSchedulerEvent(
 
 async function runWaves(context: SchedulerContext): Promise<DagRunRecordV1> {
   if (context.journal.snapshot().status === "pending") {
-    context.append(dagRunStartedEvent({ generation: context.journal.snapshot().generation }))
+    context.journal.append(dagRunStartedEvent({ generation: context.journal.snapshot().generation }))
   }
 
   for (const wave of context.journal.snapshot().waves) {
@@ -140,10 +130,10 @@ async function runWaves(context: SchedulerContext): Promise<DagRunRecordV1> {
     const runnable = wave.nodeIds.filter((nodeId) => isRunnable(context.journal.snapshot(), nodeId))
     if (runnable.length === 0) continue
 
-    for (const nodeId of runnable) transition(context, nodeId, "scheduled", "scheduled")
-    context.append(dagWaveStartedEvent({ waveIndex: wave.index, nodeIds: runnable }))
+    for (const nodeId of runnable) transition(context, nodeId, "scheduled", { kind: "scheduled" })
+    context.journal.append(dagWaveStartedEvent({ waveIndex: wave.index, nodeIds: runnable }))
     await admitAndSettleWave(context, runnable)
-    context.append(dagWaveCompletedEvent({ waveIndex: wave.index, nodeIds: runnable }))
+    context.journal.append(dagWaveCompletedEvent({ waveIndex: wave.index, nodeIds: runnable }))
   }
 
   applyDependentSkipCascade(context)
@@ -151,9 +141,9 @@ async function runWaves(context: SchedulerContext): Promise<DagRunRecordV1> {
   const failed = snapshot.nodes.find((node) => node.state === "failed")
   if (failed !== undefined) {
     const error = failed.error ?? nodeError(failed.id, "start_failed", "DAG node failed", context.now)
-    context.append(dagRunFailedEvent({ error, counts: countNodes(snapshot.nodes) }))
+    context.journal.append(dagRunFailedEvent({ error, counts: countNodes(snapshot.nodes) }))
   } else {
-    context.append(dagRunCompletedEvent({ counts: countNodes(snapshot.nodes) }))
+    context.journal.append(dagRunCompletedEvent({ counts: countNodes(snapshot.nodes) }))
   }
   return context.journal.snapshot()
 }
@@ -204,10 +194,10 @@ function attachOrFail(
 
   const node = nodeById(context.journal.snapshot(), nodeId)
   const attempt = node.attempt + 1
-  context.append(dagNodeTaskAttachedEvent({ nodeId, taskId: result.task_id, attempt }))
+  context.journal.append(dagNodeTaskAttachedEvent({ nodeId, taskId: result.task_id, attempt }))
   if (result.status === "pending") {
     if (!result.reused && result.queue_position !== undefined) {
-      context.append({
+      context.journal.append({
         type: "dag.node.transitioned",
         nodeId,
         from: "scheduled",
@@ -216,7 +206,7 @@ function attachOrFail(
       })
     }
   } else if (result.status === "running") {
-    transition(context, nodeId, "running", result.reused ? "resumed" : "started")
+    transition(context, nodeId, "running", result.reused ? { kind: "resumed" } : { kind: "started" })
   }
   attached.set(nodeId, {
     nodeId,
@@ -232,7 +222,7 @@ async function settleOne(context: SchedulerContext, attached: Map<DagNodeId, Att
 
 function foldTaskOutcome(context: SchedulerContext, nodeId: DagNodeId, task: TaskRecord): void {
   if (task.status === "completed") {
-    transition(context, nodeId, "completed", "succeeded")
+    transition(context, nodeId, "completed", { kind: "succeeded" })
     return
   }
   if (task.status === "pending" || task.status === "running") {
@@ -251,7 +241,7 @@ function applyDependentSkipCascade(context: SchedulerContext): void {
       if (node.state !== "pending" && node.state !== "blocked") continue
       const dependencies = node.dependsOn.map((nodeId) => nodeById(snapshot, nodeId))
       if (dependencies.some((dependency) => TERMINAL_NODE_STATES.has(dependency.state) && dependency.state !== "completed")) {
-        transition(context, node.id, "skipped", "skipped")
+        transition(context, node.id, "skipped", { kind: "skipped" })
         changed = true
       }
     }
@@ -268,15 +258,15 @@ function transition(
   context: SchedulerContext,
   nodeId: DagNodeId,
   to: DagNodeState,
-  reason: Extract<DagRunEventPayload, { type: "dag.node.transitioned" }>["reason"],
+  reason: DagNodeTransitionReason,
 ): void {
   const from = nodeById(context.journal.snapshot(), nodeId).state
-  context.append(dagNodeTransitionedEvent({ nodeId, from, to, reason }))
+  context.journal.append(dagNodeTransitionedEvent({ nodeId, from, to, reason }))
 }
 
 function failNode(context: SchedulerContext, nodeId: DagNodeId, code: DagNodeErrorCode, message: string): void {
   context.pendingErrors.set(nodeId, nodeError(nodeId, code, message, context.now))
-  transition(context, nodeId, "failed", "failed")
+  transition(context, nodeId, "failed", { kind: "failed" })
   context.pendingErrors.delete(nodeId)
 }
 

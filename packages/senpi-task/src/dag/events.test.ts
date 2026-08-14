@@ -169,7 +169,7 @@ describe("dag event builders", () => {
       nodeId: nodeA,
       from: "blocked",
       to: "scheduled",
-      reason: "unblocked",
+      reason: { kind: "unblocked" },
     })
 
     // then
@@ -178,7 +178,7 @@ describe("dag event builders", () => {
       nodeId: nodeA,
       from: "blocked",
       to: "scheduled",
-      reason: "unblocked",
+      reason: { kind: "unblocked" },
     })
   })
 
@@ -249,7 +249,12 @@ describe("dag event builders", () => {
       dagRunCancelledEvent({ counts }),
       dagWaveStartedEvent({ waveIndex: 0, nodeIds: [nodeA] }),
       dagWaveCompletedEvent({ waveIndex: 0, nodeIds: [nodeA] }),
-      dagNodeTransitionedEvent({ nodeId: nodeA, from: "pending", to: "blocked", reason: "unblocked" }),
+      dagNodeTransitionedEvent({
+        nodeId: nodeA,
+        from: "pending",
+        to: "blocked",
+        reason: { kind: "unblocked" },
+      }),
       dagNodeTaskAttachedEvent({ nodeId: nodeA, taskId: "t", attempt: 1 }),
       dagNodeReusedEvent({ nodeId: nodeA, taskId: "t", sourceRunId: runId }),
       dagDiagnosticAddedEvent({

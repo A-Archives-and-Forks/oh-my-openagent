@@ -15,6 +15,7 @@ import {
 import type {
   DagActivityEvent,
   DagNodeTargetInput,
+  DagNodeTransitionReason,
   DagRunEvent,
   DagRunEventEnvelope,
   DagRunEventPayload,
@@ -188,6 +189,19 @@ describe("dag domain types", () => {
       "resume_task_missing",
       "journal_corrupt",
     ])
-    expect(DAG_NODE_TRANSITION_REASONS.length).toBeGreaterThan(0)
+    expect(DAG_NODE_TRANSITION_REASONS).toEqual([
+      { kind: "unblocked" },
+      { kind: "scheduled" },
+      { kind: "started" },
+      { kind: "succeeded" },
+      { kind: "failed" },
+      { kind: "cancelled" },
+      { kind: "skipped" },
+      { kind: "interrupted" },
+      { kind: "lost" },
+      { kind: "resumed" },
+    ])
+    const queued: DagNodeTransitionReason = { kind: "task_queued", queuePosition: 3 }
+    expect(queued).toEqual({ kind: "task_queued", queuePosition: 3 })
   })
 })

@@ -4,10 +4,10 @@ import * as fs from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { dagRunStartedEvent } from "./events"
+import { dagNodeTransitionedEvent, dagRunStartedEvent } from "./events"
 import { createDagJournal, type DagJournalCheckpoint } from "./journal"
 import { createDagFileStore, type DagFileStore } from "./store"
-import type { DagRunEvent, DagRunId } from "./types"
+import type { DagNodeId, DagRunEvent, DagRunId } from "./types"
 
 const cleanupRoots: string[] = []
 const runId = "run-journal" as DagRunId
@@ -132,6 +132,28 @@ describe("createDagJournal WAL ordering and replay", () => {
       generations: [1, 2],
     })
     expect(reopenedStore.readEvents(runId, 0, { limit: 10 }).events.map((event) => event.seq)).toEqual([1, 2])
+  })
+
+  test("#given a queued node transition #when appended #then the journal preserves its queue position", () => {
+    // given
+    const store = createDagFileStore({ project_dir: tempProject() })
+    const journal = createDagJournal({ store, runId, initialCheckpoint: initialCheckpoint(), applyEvent })
+    const nodeId = "node-a" as DagNodeId
+
+    // when
+    journal.append(dagNodeTransitionedEvent({
+      nodeId,
+      from: "scheduled",
+      to: "scheduled",
+      reason: { kind: "task_queued", queuePosition: 3 },
+    }))
+
+    // then
+    expect(store.readEvents(runId, 0, { limit: 10 }).events).toContainEqual(expect.objectContaining({
+      type: "dag.node.transitioned",
+      nodeId,
+      reason: { kind: "task_queued", queuePosition: 3 },
+    }))
   })
 
   test("#given a durable checkpoint and WAL #when reopened #then sequence numbers continue from the greater persisted tail", () => {
