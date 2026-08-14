@@ -116,9 +116,10 @@ export function createDagSkillMaterializer(options: DagSkillMaterializerOptions)
       nodes.push(materialized.node)
       for (const name of materialized.missing) {
         diagnostics.push({
-          kind: "node_flag",
+          kind: "missing_skill",
           nodeId: input.id as DagNodeId,
-          message: `missing_skill: "${name}"`,
+          skill: name,
+          message: `Skill "${name}" was not found.`,
           at,
         })
       }

@@ -113,7 +113,7 @@ describe("createDagSkillMaterializer at run creation", () => {
 
     // then
     expect(result.diagnostics).toEqual([
-      { kind: "node_flag", nodeId: "build" as DagNodeId, message: 'missing_skill: "nonexistent"', at },
+      { kind: "missing_skill", nodeId: "build" as DagNodeId, skill: "nonexistent", message: 'Skill "nonexistent" was not found.', at },
     ])
     expect(result.nodes[0]?.effectivePrompt).toBe(
       '<skill name="programming">\nprogramming skill body\n</skill>\n\nship the feature',
@@ -210,7 +210,13 @@ describe("createDagSkillMaterializer wired into DagManager.start", () => {
 
     // then
     expect(started.snapshot.status).toBe("pending")
-    expect(started.snapshot.diagnostics.some((diagnostic) => diagnostic.message.startsWith("missing_skill:"))).toBe(true)
+    expect(started.snapshot.diagnostics).toContainEqual({
+      kind: "missing_skill",
+      nodeId: "build" as DagNodeId,
+      skill: "nonexistent",
+      message: 'Skill "nonexistent" was not found.',
+      at: expect.any(String),
+    })
     expect(started.snapshot.nodes[0]?.state).toBe("pending")
   })
 

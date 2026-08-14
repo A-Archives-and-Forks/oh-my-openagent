@@ -295,4 +295,29 @@ describe("createDagFileStore locks and retention", () => {
     expect(fs.existsSync(join(store.paths.results, otherRunId))).toBe(true)
     expect(fs.existsSync(liveKey)).toBe(true)
   })
+
+  test("#given expired terminal and equally old live skill sidecars #when retention runs #then only the terminal sidecar is pruned", () => {
+    // given
+    const now = Date.parse("2026-01-10T00:00:00.000Z")
+    const old = "2026-01-01T00:00:00.000Z"
+    const store = createDagFileStore({
+      project_dir: tempProject(),
+      task: { dag: { retention_days: 7 } },
+    })
+    store.writeCheckpoint(runId, checkpoint({ status: "completed", completedAt: old }))
+    store.writeCheckpoint(otherRunId, checkpoint({ id: otherRunId, status: "running", completedAt: old }))
+    const skillsDirectory = join(store.paths.root, "skills")
+    const terminalSkills = join(skillsDirectory, `${runId}.json`)
+    const liveSkills = join(skillsDirectory, `${otherRunId}.json`)
+    fs.mkdirSync(skillsDirectory, { recursive: true })
+    fs.writeFileSync(terminalSkills, JSON.stringify({ runId }))
+    fs.writeFileSync(liveSkills, JSON.stringify({ runId: otherRunId }))
+
+    // when
+    store.pruneExpired(now)
+
+    // then
+    expect(fs.existsSync(terminalSkills)).toBe(false)
+    expect(fs.existsSync(liveSkills)).toBe(true)
+  })
 })

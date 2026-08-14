@@ -509,6 +509,7 @@ function readLockPid(path: string): number | undefined {
 function pruneRunArtifacts(paths: DagStorePaths, checkpoint: RetentionCheckpoint, runId: DagRunId): void {
   fs.rmSync(paths.event(runId), { force: true })
   fs.rmSync(join(paths.results, runId), { recursive: true, force: true })
+  fs.rmSync(join(paths.root, "skills", `${runId}.json`), { force: true })
   fs.rmSync(paths.runLock(runId), { force: true })
   for (const entry of fs.readdirSync(paths.keys, { withFileTypes: true })) {
     if (!entry.isFile() || !entry.name.endsWith(".json")) continue

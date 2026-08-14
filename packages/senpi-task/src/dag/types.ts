@@ -125,6 +125,13 @@ export type DagDiagnostic =
       readonly message: string
       readonly at: string
     }
+  | {
+      readonly kind: "missing_skill"
+      readonly nodeId: DagNodeId
+      readonly skill: string
+      readonly message: string
+      readonly at: string
+    }
   | { readonly kind: "run_flag"; readonly message: string; readonly at: string }
 
 export type DagNode = {
