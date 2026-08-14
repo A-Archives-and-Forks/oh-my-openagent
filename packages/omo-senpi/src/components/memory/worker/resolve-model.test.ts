@@ -195,6 +195,20 @@ describe("resolveReflectionModel", () => {
       }
     })
 
+    test("#when a pricier session model is also present #then the registry candidate still wins the ladder", () => {
+      // when: session runs the expensive pro model, registry still exposes the cheap flash
+      const result = resolveReflectionModel("quick", { categories: {} }, liveRegistry, {
+        sessionModel: { provider: "google", id: "gemini-3.1-pro" },
+      })
+
+      // then
+      expect(result.kind).toBe("resolved")
+      if (result.kind === "resolved") {
+        expect(result.model).toBe("google/gemini-3.6-flash")
+        expect(result.source).toBe("registry_fallback")
+      }
+    })
+
     test("#when the session model is cheaper than every registry candidate #then the cost chooser inherits it", () => {
       // given: only a pricey registry candidate is connected, session runs a cheaper model
       const pricey = {
