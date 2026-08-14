@@ -5,7 +5,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { dagNodeTransitionedEvent, dagRunStartedEvent } from "./events"
-import { createDagJournal, type DagJournalCheckpoint } from "./journal"
+import { createDagJournal, subscribeDagJournal, type DagJournalCheckpoint } from "./journal"
 import { createDagFileStore, type DagFileStore } from "./store"
 import type { DagNodeId, DagRunEvent, DagRunId } from "./types"
 
@@ -78,7 +78,7 @@ describe("createDagJournal WAL ordering and replay", () => {
     })
   })
 
-  test("#given checkpoint replacement crashes after WAL append #when reopened #then the orphan is replayed exactly once without premature delivery", async () => {
+  test("#given checkpoint replacement crashes after WAL append #when reopened on the same store #then replay never reaches the previous journal subscriber", async () => {
     // given
     const project = tempProject()
     const durableStore = createDagFileStore({ project_dir: project })
@@ -107,7 +107,7 @@ describe("createDagJournal WAL ordering and replay", () => {
     // when
     expect(() => crashing.append(dagRunStartedEvent({ generation: 1 }))).toThrow("injected checkpoint crash")
     await nextMicrotask()
-    const reopenedStore = createDagFileStore({ project_dir: project })
+    const reopenedStore = crashingStore
     const reopened = createDagJournal({
       store: reopenedStore,
       runId,
@@ -181,6 +181,26 @@ describe("createDagJournal WAL ordering and replay", () => {
 })
 
 describe("createDagJournal subscribers", () => {
+  test("#given a durable commit subscription #when it is removed before another journal commits #then no phantom delivery remains", async () => {
+    // given
+    const store = createDagFileStore({ project_dir: tempProject() })
+    const first = createDagJournal({ store, runId, initialCheckpoint: initialCheckpoint(), applyEvent })
+    const reopened = createDagJournal({ store, runId, initialCheckpoint: initialCheckpoint(), applyEvent })
+    const delivered: number[] = []
+    const unsubscribe = subscribeDagJournal(store, runId, (event) => {
+      delivered.push(event.seq)
+    })
+
+    // when
+    unsubscribe()
+    reopened.append(dagRunStartedEvent({ generation: 1 }))
+    await nextMicrotask()
+
+    // then
+    expect(delivered).toEqual([])
+    expect(first.snapshot().checkpointSeq).toBe(0)
+  })
+
   test("#given a subscriber blocked on its first event #when its ring overflows #then it receives one coalesced overflow with the last delivered recovery seq", async () => {
     // given
     const store = createDagFileStore({ project_dir: tempProject() })

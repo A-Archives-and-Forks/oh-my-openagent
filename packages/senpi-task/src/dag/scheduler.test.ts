@@ -105,6 +105,8 @@ type FakeOptions = {
   readonly startFailureKinds?: Readonly<Record<string, StartFailureKind>>
   readonly queuedNodeIds?: readonly string[]
   readonly rejectCancelNodeIds?: readonly string[]
+  readonly cancelStarted?: () => void
+  readonly cancelGate?: Promise<void>
   readonly rejectStartNodeIds?: readonly string[]
   readonly rejectWaitNodeIds?: readonly string[]
 }
@@ -272,6 +274,8 @@ class FakeTaskManager implements TaskManager {
     if (task === undefined) throw new Error(`unknown fake task ${taskId}`)
     const nodeId = String(task.record.owner?.nodeId)
     this.cancellations.push(nodeId)
+    this.#options.cancelStarted?.()
+    await this.#options.cancelGate
     if (this.#options.rejectCancelNodeIds?.includes(nodeId) === true) throw new Error(`cancel rejected ${nodeId}`)
     const previousStatus = task.record.status
     this.complete(nodeId, "cancelled")
@@ -491,6 +495,54 @@ describe("DAG scheduler failure semantics", () => {
 })
 
 describe("DAG scheduler cancellation", () => {
+  test("#given durable waiters armed before and during cancellation #when the scheduler cancels through a separate journal path #then every wait and re-attach settles cancelled", async () => {
+    // given
+    const cancellationStarted = deferred<void>()
+    const releaseCancellation = deferred<void>()
+    const manager = new FakeTaskManager({
+      autoComplete: false,
+      cancelStarted: cancellationStarted.resolve,
+      cancelGate: releaseCancellation.promise,
+    })
+    const { scheduler, store } = schedulerFixture(definition([node("CA"), node("CB", ["CA"])]), manager)
+    const waitSurface = createDagWaitSurface({
+      store,
+      subscribe: () => () => undefined,
+      cancel: scheduler.cancel,
+    })
+    const running = scheduler.run()
+    await manager.whenStarted("CA")
+    const beforeWait = waitSurface.wait(runId, parentSessionId)
+    const beforeAttach = waitSurface.attach(runId, parentSessionId).done()
+
+    // when
+    const cancelling = scheduler.cancel(runId, "live cancel")
+    await cancellationStarted.promise
+    const duringWait = waitSurface.wait(runId, parentSessionId)
+    const duringAttach = waitSurface.attach(runId, parentSessionId).done()
+    releaseCancellation.resolve()
+    await cancelling
+    const afterWait = waitSurface.wait(runId, parentSessionId)
+    const afterAttach = waitSurface.attach(runId, parentSessionId).done()
+    const results = await Promise.all([
+      beforeWait,
+      beforeAttach,
+      duringWait,
+      duringAttach,
+      afterWait,
+      afterAttach,
+    ])
+    await running
+
+    // then
+    expect(manager.starts).toEqual(["CA"])
+    expect(results.map((result) => result.status)).toEqual(Array.from({ length: 6 }, () => "cancelled"))
+    expect(results.every((result) => result.nodes.CA?.state === "cancelled")).toBe(true)
+    expect(results.every((result) => result.nodes.CB?.state === "cancelled")).toBe(true)
+    expect(results.every((result) => result.nodes.CA?.state === "cancelled" && result.nodes.CA.reason === "live cancel")).toBe(true)
+    expect(waitSurface.waiterCount(runId)).toBe(0)
+  })
+
   test("#given a running wave and pending descendants #when cancelled #then tasks cancel, admission stops, and waiters resolve cancelled", async () => {
     // given
     const manager = new FakeTaskManager({ autoComplete: false, queuedNodeIds: ["queued"] })

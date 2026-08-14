@@ -8,6 +8,7 @@ import {
 } from "./types"
 
 const REPLAY_PAGE_SIZE = 1000
+const commitSubscribers = new WeakMap<DagFileStore, Map<DagRunId, Set<CommitSubscriber>>>()
 
 export interface DagJournalCheckpoint {
   readonly schemaVersion: 1
@@ -48,6 +49,31 @@ type Subscriber = {
   drainPromise: Promise<void>
 }
 
+type CommitSubscriber = {
+  readonly listener: DagJournalListener
+  active: boolean
+}
+
+/** Process-local notification for durable commits, independent of a particular journal instance. */
+export function subscribeDagJournal(
+  store: DagFileStore,
+  runId: DagRunId,
+  listener: DagJournalListener,
+): () => void {
+  const storeSubscribers = commitSubscribers.get(store) ?? new Map<DagRunId, Set<CommitSubscriber>>()
+  const runSubscribers = storeSubscribers.get(runId) ?? new Set<CommitSubscriber>()
+  const subscriber: CommitSubscriber = { listener, active: true }
+  runSubscribers.add(subscriber)
+  storeSubscribers.set(runId, runSubscribers)
+  commitSubscribers.set(store, storeSubscribers)
+  return () => {
+    subscriber.active = false
+    runSubscribers.delete(subscriber)
+    if (runSubscribers.size === 0) storeSubscribers.delete(runId)
+    if (storeSubscribers.size === 0) commitSubscribers.delete(store)
+  }
+}
+
 export function createDagJournal<TCheckpoint extends DagJournalCheckpoint>(
   options: DagJournalOptions<TCheckpoint>,
 ): DagJournal<TCheckpoint> {
@@ -84,6 +110,7 @@ export function createDagJournal<TCheckpoint extends DagJournalCheckpoint>(
       const event = durableEvent
       if (event === undefined) throw new Error("DAG journal mutation completed without an event")
       for (const subscriber of subscribers) enqueue(subscriber, event, ringSize, options.runId, now)
+      publishCommit(options.store, options.runId, event)
       return event
     },
     snapshot: () => checkpoint,
@@ -107,6 +134,14 @@ export function createDagJournal<TCheckpoint extends DagJournalCheckpoint>(
     whenIdle: async () => {
       await Promise.all([...subscribers].map((subscriber) => subscriber.drainPromise))
     },
+  }
+}
+
+function publishCommit(store: DagFileStore, runId: DagRunId, event: DagRunEvent): void {
+  for (const subscriber of commitSubscribers.get(store)?.get(runId) ?? []) {
+    queueMicrotask(() => {
+      if (subscriber.active) void deliver(subscriber.listener, event)
+    })
   }
 }
 

@@ -1,6 +1,6 @@
 // allow: SIZE_OK - the wait/attach contract keeps ownership checks, terminal projection, and waiter bookkeeping on one surface so no caller can observe a half-applied terminal state.
 import type { TaskRunStats } from "../state/types"
-import type { DagJournalListener } from "./journal"
+import { subscribeDagJournal, type DagJournalListener } from "./journal"
 import type { DagRunRecordV1 } from "./manager"
 import type { DagFileStore } from "./store"
 import type {
@@ -80,7 +80,7 @@ export type DagWaitSurface = {
 
 type RunWaiters = {
   readonly resolvers: Set<(result: DagRunResult) => void>
-  unsubscribe: () => void
+  readonly unsubscribers: Set<() => void>
 }
 
 export function createDagWaitSurface(options: DagWaitSurfaceOptions): DagWaitSurface {
@@ -111,8 +111,13 @@ export function createDagWaitSurface(options: DagWaitSurfaceOptions): DagWaitSur
     const entry = waiters.get(runId)
     if (entry === undefined) return
     waiters.delete(runId)
-    entry.unsubscribe()
+    for (const unsubscribe of entry.unsubscribers) unsubscribe()
     for (const resolve of entry.resolvers) resolve(result)
+  }
+
+  function addSubscription(runId: DagRunId, entry: RunWaiters, unsubscribe: () => void): void {
+    if (waiters.get(runId) === entry) entry.unsubscribers.add(unsubscribe)
+    else unsubscribe()
   }
 
   function register(runId: DagRunId, resolve: (result: DagRunResult) => void): void {
@@ -121,15 +126,17 @@ export function createDagWaitSurface(options: DagWaitSurfaceOptions): DagWaitSur
       existing.resolvers.add(resolve)
       return
     }
-    const entry: RunWaiters = { resolvers: new Set([resolve]), unsubscribe: () => undefined }
+    const entry: RunWaiters = { resolvers: new Set([resolve]), unsubscribers: new Set() }
     waiters.set(runId, entry)
-    // The subscription belongs to the surface, not to any one caller: abandoning a wait promise
-    // drops nothing and never reaches the run.
-    entry.unsubscribe = options.subscribe(runId, () => {
+    const onJournalEvent = (): void => {
       const current = store.readCheckpoint<DagRunRecordV1>(runId)
       if (current === null || !TERMINAL_RUN_STATUSES.has(current.status)) return
       settleWaiters(runId, projectResult(current, store, readOutput))
-    })
+    }
+    // The durable journal channel covers scheduler instances that are distinct from the adapter's
+    // live event subscription. Abandoning a wait promise drops neither subscription nor the run.
+    addSubscription(runId, entry, subscribeDagJournal(store, runId, onJournalEvent))
+    addSubscription(runId, entry, options.subscribe(runId, onJournalEvent))
     // The run may have gone terminal between the ownership read and the subscription.
     const now = store.readCheckpoint<DagRunRecordV1>(runId)
     if (now !== null && TERMINAL_RUN_STATUSES.has(now.status)) {
