@@ -5,9 +5,12 @@ import {
   createDagRpcBridge,
   DAG_ACTIVITY_COALESCE_MS,
   DAG_DEFAULT_HEARTBEAT_MS,
+  DAG_MAX_RUN_SNAPSHOTS,
+  DAG_SNAPSHOT_DEBOUNCE_MS,
   type DagBridgeActivityEvent,
   type DagBridgeRun,
   type DagBridgeRunEvent,
+  type DagBridgeRunSnapshot,
   type DagRpcBridgeDeps,
 } from "./dag-rpc-bridge"
 
@@ -112,6 +115,58 @@ function wire(
     ...overrides,
   })
   return { bridge, emitted, timers, addRun: (run: DagBridgeRun) => void owned.push(run) }
+}
+
+// A snapshot as the engine hands it over: camelCase in, snake_case out on the wire.
+function runSnapshot(runId: string, overrides: Partial<DagBridgeRunSnapshot> = {}): DagBridgeRunSnapshot {
+  return {
+    runId,
+    runKey: `key_${runId}`,
+    name: `run ${runId}`,
+    status: "running",
+    createdAt: "2026-08-14T00:00:00.000Z",
+    updatedAt: "2026-08-14T00:00:01.000Z",
+    counts: {
+      total: 2,
+      pending: 0,
+      blocked: 0,
+      scheduled: 0,
+      running: 1,
+      completed: 1,
+      failed: 0,
+      cancelled: 0,
+      skipped: 0,
+    },
+    nodes: [
+      { id: "plan", prompt: "plan it", dependsOn: [], state: "completed", attempt: 1, createdAt: "2026-08-14T00:00:00.000Z", taskId: "st_plan" },
+      { id: "build", label: "build", prompt: "build it", dependsOn: ["plan"], state: "running", attempt: 1, createdAt: "2026-08-14T00:00:00.000Z" },
+    ],
+    edges: [{ from: "plan", to: "build" }],
+    waves: [
+      { index: 0, nodeIds: ["plan"] },
+      { index: 1, nodeIds: ["build"] },
+    ],
+    ...overrides,
+  }
+}
+
+function wireSnapshots(initial: readonly DagBridgeRunSnapshot[], parentSessionId: string | null = "ses_parent") {
+  const timers = fakeTimers()
+  const { pi, emitted } = fakePi()
+  let current = [...initial]
+  const bridge = createDagRpcBridge(pi, {
+    liveRuns: () => [],
+    runSnapshots: () => current,
+    parentSessionId: () => parentSessionId ?? undefined,
+    timers: timers.seam,
+    now: timers.now,
+  })
+  return {
+    bridge,
+    emitted,
+    timers,
+    setSnapshots: (next: readonly DagBridgeRunSnapshot[]) => void (current = [...next]),
+  }
 }
 
 const emittedNames = (emitted: readonly EmittedEvent[], name: string) =>
@@ -316,6 +371,237 @@ describe("dag rpc bridge", () => {
       // then
       expect(emittedNames(emitted, "omo.dag.activity")).toHaveLength(0)
       expect(timers.pending()).toBe(0)
+    })
+  })
+
+  describe("#given the omo.dag.updated snapshot channel", () => {
+    it("#when the store mutates twice with identical state #then only one snapshot is emitted", () => {
+      // given
+      const { bridge, emitted, timers } = wireSnapshots([runSnapshot("dag_1")])
+      bridge.attach()
+      timers.advance(DAG_SNAPSHOT_DEBOUNCE_MS)
+      expect(emittedNames(emitted, "omo.dag.updated")).toHaveLength(1)
+
+      // when
+      bridge.notifyStoreMutation()
+      timers.advance(DAG_SNAPSHOT_DEBOUNCE_MS)
+      bridge.notifyStoreMutation()
+      timers.advance(DAG_SNAPSHOT_DEBOUNCE_MS)
+
+      // then
+      expect(emittedNames(emitted, "omo.dag.updated")).toHaveLength(1)
+    })
+
+    it("#when a real mutation lands #then a fresh snapshot reflecting it is emitted", () => {
+      // given
+      const { bridge, emitted, timers, setSnapshots } = wireSnapshots([runSnapshot("dag_1")])
+      bridge.attach()
+      timers.advance(DAG_SNAPSHOT_DEBOUNCE_MS)
+
+      // when
+      setSnapshots([
+        runSnapshot("dag_1", {
+          status: "completed",
+          nodes: [
+            { id: "plan", prompt: "plan it", dependsOn: [], state: "completed", attempt: 1, createdAt: "2026-08-14T00:00:00.000Z", taskId: "st_plan" },
+            { id: "build", label: "build", prompt: "build it", dependsOn: ["plan"], state: "completed", attempt: 1, createdAt: "2026-08-14T00:00:00.000Z", taskId: "st_build" },
+          ],
+        }),
+      ])
+      bridge.notifyStoreMutation()
+      timers.advance(DAG_SNAPSHOT_DEBOUNCE_MS)
+
+      // then
+      const updates = emittedNames(emitted, "omo.dag.updated")
+      expect(updates).toHaveLength(2)
+      const latest = updates[1]?.data as { runs: { status: string; nodes: { id: string; state: string; task_id?: string }[] }[] }
+      expect(latest.runs[0]?.status).toBe("completed")
+      expect(latest.runs[0]?.nodes.map((node) => [node.id, node.state])).toEqual([
+        ["plan", "completed"],
+        ["build", "completed"],
+      ])
+      expect(latest.runs[0]?.nodes[1]?.task_id).toBe("st_build")
+    })
+
+    it("#when the payload is inspected #then it is snake_case and carries parent_session_id", () => {
+      // given
+      const { bridge, emitted, timers } = wireSnapshots([runSnapshot("dag_1")])
+
+      // when
+      bridge.attach()
+      timers.advance(DAG_SNAPSHOT_DEBOUNCE_MS)
+
+      // then
+      const payload = emittedNames(emitted, "omo.dag.updated")[0]?.data
+      expect(payload).toEqual({
+        parent_session_id: "ses_parent",
+        runs: [
+          {
+            run_id: "dag_1",
+            run_key: "key_dag_1",
+            name: "run dag_1",
+            status: "running",
+            created_at: "2026-08-14T00:00:00.000Z",
+            updated_at: "2026-08-14T00:00:01.000Z",
+            counts: {
+              total: 2,
+              pending: 0,
+              blocked: 0,
+              scheduled: 0,
+              running: 1,
+              completed: 1,
+              failed: 0,
+              cancelled: 0,
+              skipped: 0,
+            },
+            nodes: [
+              {
+                id: "plan",
+                prompt: "plan it",
+                depends_on: [],
+                state: "completed",
+                attempt: 1,
+                created_at: "2026-08-14T00:00:00.000Z",
+                task_id: "st_plan",
+              },
+              {
+                id: "build",
+                label: "build",
+                prompt: "build it",
+                depends_on: ["plan"],
+                state: "running",
+                attempt: 1,
+                created_at: "2026-08-14T00:00:00.000Z",
+              },
+            ],
+            edges: [{ from: "plan", to: "build" }],
+            waves: [
+              { index: 0, node_ids: ["plan"] },
+              { index: 1, node_ids: ["build"] },
+            ],
+          },
+        ],
+      })
+    })
+
+    it("#when more runs exist than the cap #then truncated_runs reports the overflow", () => {
+      // given
+      const overflow = 1
+      const all = Array.from({ length: DAG_MAX_RUN_SNAPSHOTS + overflow }, (_, index) =>
+        runSnapshot(`dag_${String(index).padStart(4, "0")}`),
+      )
+      const { bridge, emitted, timers } = wireSnapshots(all)
+
+      // when
+      bridge.attach()
+      timers.advance(DAG_SNAPSHOT_DEBOUNCE_MS)
+
+      // then
+      const payload = emittedNames(emitted, "omo.dag.updated")[0]?.data as {
+        runs: { run_id: string }[]
+        truncated_runs?: number
+      }
+      expect(payload.runs).toHaveLength(DAG_MAX_RUN_SNAPSHOTS)
+      expect(payload.truncated_runs).toBe(overflow)
+      expect(payload.runs.at(-1)?.run_id).toBe(all[DAG_MAX_RUN_SNAPSHOTS - 1]?.runId)
+      // The serialize+dedup cycle finishes inside the single debounce callback: no follow-up timer
+      // is chained, so the cap boundary never spills work into a later window.
+      expect(timers.pending()).toBe(0)
+    })
+
+    it("#when the run count is at the cap #then truncated_runs is absent", () => {
+      // given
+      const all = Array.from({ length: DAG_MAX_RUN_SNAPSHOTS }, (_, index) =>
+        runSnapshot(`dag_${String(index).padStart(4, "0")}`),
+      )
+      const { bridge, emitted, timers } = wireSnapshots(all)
+
+      // when
+      bridge.attach()
+      timers.advance(DAG_SNAPSHOT_DEBOUNCE_MS)
+
+      // then
+      const payload = emittedNames(emitted, "omo.dag.updated")[0]?.data as { truncated_runs?: number }
+      expect(payload.truncated_runs).toBeUndefined()
+    })
+
+    it("#when mutations burst inside one debounce window #then they coalesce into a single emission", () => {
+      // given
+      const { bridge, emitted, timers, setSnapshots } = wireSnapshots([runSnapshot("dag_1")])
+      bridge.attach()
+      timers.advance(DAG_SNAPSHOT_DEBOUNCE_MS)
+
+      // when
+      setSnapshots([runSnapshot("dag_1", { status: "paused" })])
+      bridge.notifyStoreMutation()
+      setSnapshots([runSnapshot("dag_1", { status: "completed" })])
+      bridge.notifyStoreMutation()
+      timers.advance(DAG_SNAPSHOT_DEBOUNCE_MS)
+
+      // then
+      const updates = emittedNames(emitted, "omo.dag.updated")
+      expect(updates).toHaveLength(2)
+      expect((updates[1]?.data as { runs: { status: string }[] }).runs[0]?.status).toBe("completed")
+    })
+
+    it("#when the session has no parent session id #then nothing is emitted on the snapshot channel", () => {
+      // given
+      const { bridge, emitted, timers } = wireSnapshots([runSnapshot("dag_1")], null)
+
+      // when
+      bridge.attach()
+      timers.advance(DAG_SNAPSHOT_DEBOUNCE_MS)
+
+      // then
+      expect(emittedNames(emitted, "omo.dag.updated")).toHaveLength(0)
+    })
+
+    it("#when the bridge detaches #then a pending snapshot never lands and the fingerprint resets", () => {
+      // given
+      const { bridge, emitted, timers, setSnapshots } = wireSnapshots([runSnapshot("dag_1")])
+      bridge.attach()
+      timers.advance(DAG_SNAPSHOT_DEBOUNCE_MS)
+      setSnapshots([runSnapshot("dag_1", { status: "completed" })])
+      bridge.notifyStoreMutation()
+
+      // when
+      bridge.detach()
+      timers.advance(DAG_SNAPSHOT_DEBOUNCE_MS * 4)
+
+      // then
+      expect(emittedNames(emitted, "omo.dag.updated")).toHaveLength(1)
+      expect(timers.pending()).toBe(0)
+
+      // and the next attach re-emits the current state despite the identical earlier fingerprint
+      setSnapshots([runSnapshot("dag_1")])
+      bridge.attach()
+      timers.advance(DAG_SNAPSHOT_DEBOUNCE_MS)
+      expect(emittedNames(emitted, "omo.dag.updated")).toHaveLength(2)
+    })
+
+    it("#when the granular ledger emits #then the snapshot channel carries no per-event deltas", () => {
+      // given
+      const source = fakeRun("dag_1", "running")
+      const timers = fakeTimers()
+      const { pi, emitted } = fakePi()
+      const bridge = createDagRpcBridge(pi, {
+        liveRuns: () => [source.run],
+        runSnapshots: () => [runSnapshot("dag_1")],
+        parentSessionId: () => "ses_parent",
+        timers: timers.seam,
+        now: timers.now,
+      })
+      bridge.attach()
+      timers.advance(DAG_SNAPSHOT_DEBOUNCE_MS)
+
+      // when
+      source.publish(runEvent("dag_1", 1, "dag.run.created"))
+      source.publish(runEvent("dag_1", 2, "dag.wave.started"))
+      timers.advance(DAG_SNAPSHOT_DEBOUNCE_MS)
+
+      // then
+      expect(emittedNames(emitted, "omo.dag.event")).toHaveLength(2)
+      expect(emittedNames(emitted, "omo.dag.updated")).toHaveLength(1)
     })
   })
 
