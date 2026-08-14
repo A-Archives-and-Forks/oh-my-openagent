@@ -115,6 +115,9 @@ export type {
 
 export type { DagTaskOwner, DagTaskOwnerKey, OwnedStartResult } from "./owner"
 
+export { createDagRecovery } from "./recovery"
+export type { DagRecovery, DagRecoveryOptions, DagRecoveryOutcome } from "./recovery"
+
 export { applyDagSchedulerEvent, createDagScheduler } from "./scheduler"
 export type { DagScheduler, DagSchedulerOptions } from "./scheduler"
 

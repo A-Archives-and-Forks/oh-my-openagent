@@ -11,7 +11,13 @@ import {
   type RunnerOutcome,
 } from "@oh-my-opencode/senpi-task"
 
-import type { DagRunId } from "@oh-my-opencode/senpi-task/dag"
+import {
+  createDagFileStore,
+  createDagManager,
+  type DagRunEvent,
+  type DagRunId,
+  type DagRunRecordV1,
+} from "@oh-my-opencode/senpi-task/dag"
 
 import { IdleInjectionCoordinator } from "../../extension/idle-injection-coordinator"
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
@@ -89,6 +95,36 @@ class ManualTimers {
   }
 }
 
+function logger() {
+  return { info: () => undefined, warn: () => undefined, error: () => undefined }
+}
+
+function dagStore(cwd: string) {
+  return createDagFileStore({ project_dir: cwd })
+}
+
+async function seedPendingRun(cwd: string, runId: DagRunId, sessionId: string): Promise<void> {
+  await createDagManager({ store: dagStore(cwd), newRunId: () => runId }).start({
+    parentSessionId: sessionId,
+    rootSessionId: sessionId,
+    definition: {
+      key: `recovery-${runId}`,
+      name: "adapter recovery",
+      nodes: [{ id: "resume", prompt: "resume", subagent_type: "explore", model: "omo-mock/mock-1" }],
+    },
+  })
+}
+
+function dagEvents(cwd: string, runId: DagRunId): readonly DagRunEvent[] {
+  return dagStore(cwd).readEvents(runId, 0, { limit: 100 }).events
+}
+
+function pauseForShutdown(runtime: ReturnType<typeof createDagRuntime>): void {
+  expect("pauseForShutdown" in runtime).toBe(true)
+  if (!("pauseForShutdown" in runtime) || typeof runtime.pauseForShutdown !== "function") return
+  runtime.pauseForShutdown()
+}
+
 function fakeUi(widgetRows: string[][]): CapturedUi {
   return {
     notify: () => undefined,
@@ -137,8 +173,7 @@ describe("assembled DAG runtime", () => {
     })
     const bridgeTimers = new ManualTimers()
     const statusUiTimers = new ManualTimers()
-    const logger = { info: () => undefined, warn: () => undefined, error: () => undefined }
-    const runtime = createDagRuntime({ pi, engine, logger, coordinator, bridgeTimers, statusUiTimers })
+    const runtime = createDagRuntime({ pi, engine, logger: logger(), coordinator, bridgeTimers, statusUiTimers })
     runtime.attach()
 
     // when
@@ -255,5 +290,102 @@ describe("assembled DAG runtime", () => {
       readonly diagnostics: readonly { readonly kind: string }[]
     }
     expect(failedCopyRecord.diagnostics.some((diagnostic) => diagnostic.kind === "journal_corrupt")).toBe(true)
+  })
+
+  test("#given a live adapter DAG #when shutdown pauses it and a later adapter starts #then the paused event is durable and the run is claimed, resumed, and completed", async () => {
+    // given
+    const cwd = fs.mkdtempSync(join(tmpdir(), "omo-senpi-dag-recovery-"))
+    cleanupRoots.push(cwd)
+    const runId = "dag-adapter-recovery" as DagRunId
+    const sessionId = "session-recovery"
+    await seedPendingRun(cwd, runId, sessionId)
+    const firstPi = new FakeExtensionAPI()
+    const firstEngine = composeTaskEngine({
+      pi: firstPi,
+      omoConfig: loadOmoConfig({ cwd }).config,
+      cwd,
+      sharedParentTools: () => [],
+      runnerFactories: { inProcess: () => new ScriptedRunner(), process: () => new ScriptedRunner() },
+    })
+    firstEngine.runtime.captureFrom({ sessionManager: { getSessionId: () => sessionId } })
+    const firstRuntime = createDagRuntime({ pi: firstPi, engine: firstEngine, logger: logger() })
+
+    // when
+    pauseForShutdown(firstRuntime)
+    firstRuntime.dispose()
+
+    // then
+    const pausedStore = dagStore(cwd)
+    const paused = pausedStore.readCheckpoint<DagRunRecordV1 & { readonly previousLeaseHolderPid?: number }>(runId)
+    expect(paused?.status).toBe("paused")
+    expect(dagEvents(cwd, runId).at(-1)).toEqual(expect.objectContaining({
+      type: "dag.run.paused",
+      reason: "session_shutdown",
+    }))
+
+    // given a subsequent host process whose predecessor PID is dead
+    if (paused === null) throw new Error("expected paused adapter run")
+    pausedStore.writeCheckpoint(runId, { ...paused, previousLeaseHolderPid: 2_147_483_647 })
+    const resumedRunner = new ScriptedRunner()
+    const resumedPi = new FakeExtensionAPI()
+    const resumedEngine = composeTaskEngine({
+      pi: resumedPi,
+      omoConfig: loadOmoConfig({ cwd }).config,
+      cwd,
+      sharedParentTools: () => [],
+      runnerFactories: { inProcess: () => resumedRunner, process: () => resumedRunner },
+    })
+    resumedEngine.runtime.captureFrom({ sessionManager: { getSessionId: () => sessionId } })
+    const resumedRuntime = createDagRuntime({ pi: resumedPi, engine: resumedEngine, logger: logger() })
+
+    // when
+    const attached = resumedRuntime.attach()
+    await resumedRunner.whenStarted(1)
+    resumedRunner.handles[0]?.settle("resumed output")
+    await attached
+    const result = await resumedRuntime.wait(runId, sessionId)
+
+    // then
+    expect(result.status).toBe("completed")
+    expect(result.nodes.resume).toEqual(expect.objectContaining({ state: "completed", output: "resumed output" }))
+    expect(dagEvents(cwd, runId).some((event) => event.type === "dag.run.resumed")).toBe(true)
+    resumedRuntime.dispose()
+  })
+
+  test("#given a paused adapter DAG whose lease holder PID is still live #when another adapter starts #then it never claims or resumes the run", async () => {
+    // given
+    const cwd = fs.mkdtempSync(join(tmpdir(), "omo-senpi-dag-live-lease-"))
+    cleanupRoots.push(cwd)
+    const runId = "dag-adapter-live-lease" as DagRunId
+    const sessionId = "session-live-lease"
+    await seedPendingRun(cwd, runId, sessionId)
+    const firstPi = new FakeExtensionAPI()
+    const firstEngine = composeTaskEngine({
+      pi: firstPi,
+      omoConfig: loadOmoConfig({ cwd }).config,
+      cwd,
+      sharedParentTools: () => [],
+    })
+    firstEngine.runtime.captureFrom({ sessionManager: { getSessionId: () => sessionId } })
+    const firstRuntime = createDagRuntime({ pi: firstPi, engine: firstEngine, logger: logger() })
+    pauseForShutdown(firstRuntime)
+
+    const secondPi = new FakeExtensionAPI()
+    const secondEngine = composeTaskEngine({
+      pi: secondPi,
+      omoConfig: loadOmoConfig({ cwd }).config,
+      cwd,
+      sharedParentTools: () => [],
+    })
+    secondEngine.runtime.captureFrom({ sessionManager: { getSessionId: () => sessionId } })
+    const secondRuntime = createDagRuntime({ pi: secondPi, engine: secondEngine, logger: logger() })
+
+    // when
+    await secondRuntime.attach()
+
+    // then
+    expect(secondRuntime.manager.record(runId, sessionId).status).toBe("paused")
+    expect(dagEvents(cwd, runId).some((event) => event.type === "dag.run.resumed")).toBe(false)
+    secondRuntime.dispose()
   })
 })

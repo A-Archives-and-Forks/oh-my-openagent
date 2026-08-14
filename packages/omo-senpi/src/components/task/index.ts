@@ -126,12 +126,13 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
       })
       const transitions = createSessionTransitionBridge({ runtime: engine.runtime, notifier: engine.notifier })
 
-      wireEventBridge(pi, ctx, engine, statusUi, transitions, {
-        reconcileTeamMailbox: teamTools.reconcileTeamMailbox,
-        leadPollers: teamTools.leadPollers,
-        resumptionChannels,
+      wireDagLifecycle(pi, dagRuntime, () => {
+        wireEventBridge(pi, ctx, engine, statusUi, transitions, {
+          reconcileTeamMailbox: teamTools.reconcileTeamMailbox,
+          leadPollers: teamTools.leadPollers,
+          resumptionChannels,
+        })
       })
-      wireDagLifecycle(pi, dagRuntime)
     },
   }
 }
@@ -211,7 +212,13 @@ function registerDagTool(pi: SenpiExtensionAPI, engine: TaskEngine, runtime: Dag
   })
 }
 
-function wireDagLifecycle(pi: SenpiExtensionAPI, runtime: DagRuntime): void {
+export function wireDagLifecycle(
+  pi: SenpiExtensionAPI,
+  runtime: Pick<DagRuntime, "attach" | "detach" | "pauseForShutdown" | "dispose">,
+  wireTaskLifecycle: () => void,
+): void {
+  pi.on("session_shutdown", () => runtime.pauseForShutdown())
+  wireTaskLifecycle()
   pi.on("session_start", () => runtime.attach())
   pi.on("session_before_switch", () => runtime.detach())
   pi.on("session_shutdown", () => runtime.dispose())
