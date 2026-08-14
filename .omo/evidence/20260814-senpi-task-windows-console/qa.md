@@ -8,6 +8,12 @@
   - Result: exit 0.
 - `bun run --cwd packages/omo-senpi typecheck`
   - Result: exit 0.
+- `bun run test:senpi`
+  - Result: GitHub Actions `senpi-compatibility` passed on Windows, Ubuntu, and macOS.
+  - Windows: https://github.com/code-yeongyu/oh-my-openagent/actions/runs/31767086674/job/94665147703
+  - Ubuntu: https://github.com/code-yeongyu/oh-my-openagent/actions/runs/31767086674/job/94665147696
+  - macOS: https://github.com/code-yeongyu/oh-my-openagent/actions/runs/31767086674/job/94665147645
+  - This gate rebuilt and staged the plugin artifacts before running the Senpi adapter tests.
 - Loaded `packages/omo-senpi/plugin/extensions/omo-task.js` with Node ESM.
   - Result: `omo-task-bundle-load-ok`.
 
