@@ -304,4 +304,51 @@ describe("createAutoRetryDispatcher reserved-session retry (#5109)", () => {
     expect(state.currentModel).toBe("openai/gpt-5.4(high)")
     expect(state.pendingFallbackModel).toBe("openai/gpt-5.4(high)")
   })
+
+  test("#given manual model change replaces state during a failed dispatch #when rollback runs #then the replacement state is preserved", async () => {
+    // given
+    const promptCalls = { count: 0 }
+    const deps = createDeps(promptCalls)
+    let releaseMessages: (() => void) | undefined
+    let messageCallCount = 0
+    deps.ctx.client.session.messages = () => {
+      messageCallCount += 1
+      if (messageCallCount > 1) {
+        return Promise.resolve({
+          data: [
+            {
+              info: { role: "assistant" },
+              parts: [{ type: "reasoning", text: "still active" }],
+            },
+          ],
+        })
+      }
+      return new Promise((resolve) => {
+        releaseMessages = () => resolve({
+          data: [
+            {
+              info: { role: "user" },
+              parts: [{ type: "text", text: "retry this" }],
+            },
+          ],
+        })
+      })
+    }
+    const helpers = createAutoRetryHelpers(deps)
+    const sessionID = "session-replaced-during-dispatch"
+    deps.sessionStates.set(sessionID, createFallbackState("anthropic/claude-opus-4-7"))
+    deps.sessionAwaitingFallbackResult.add(sessionID)
+
+    // when
+    const retryPromise = helpers.autoRetryWithFallback(sessionID, "openai/gpt-5.4", undefined, "session.error")
+    await flushPromptGateMicrotasks()
+    const replacementState = createFallbackState("google/gemini-2.5-pro")
+    deps.sessionStates.set(sessionID, replacementState)
+    if (!releaseMessages) throw new Error("message lookup did not start")
+    releaseMessages()
+    await retryPromise
+
+    // then
+    expect(replacementState.currentModel).toBe("google/gemini-2.5-pro")
+  })
 })

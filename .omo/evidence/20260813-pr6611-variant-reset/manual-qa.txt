@@ -3,7 +3,7 @@ command:
 
 observed:
   opencode_version=1.18.13
-  bundle_sha256=a5538899ee9626b0e30c1fcf95af6514452b9931925aa4b711c11aa3c8181b9d
+  bundle_sha256=e7020d2e32aedacd2bd4b311c4980186e666ab0c7c239de5b8f7fd701b3755ef
   bundle_variant_wiring=true
   health={"healthy":true,"version":"1.18.13"}
   config_plugins=["file:///mnt/c/Users/pss/OneDrive/Documents/github/oh-my-openagent-6579/dist/index.js"]
@@ -11,7 +11,7 @@ observed:
   sse_event={"type":"session.status"}
   real_db_sessions_before=0
   real_db_sessions_after=0
-  sandbox_root=/tmp/oqa-xdg.BoRSny
+  sandbox_root=/tmp/oqa-xdg.HNTCmB
   sandbox_removed=true
   exit_code=0
 
@@ -21,7 +21,7 @@ cleanup:
   trap removed its isolated XDG sandbox.
 
   The driver captured the exact helper-created `OQA_XDG_ROOT`
-  (`/tmp/oqa-xdg.BoRSny`) and asserted it no longer existed after cleanup.
+  (`/tmp/oqa-xdg.HNTCmB`) and asserted it no longer existed after cleanup.
   `sandbox_removed=true` is the matching binary receipt.
 
 notes:
@@ -40,7 +40,7 @@ bundle provenance:
     clearModelLessRetryKeys(sessionID);
     areRuntimeModelsEquivalent(
     resolveAgentVariant(pluginConfig, resolvedAgent)
+    === fallbackState
 
-  This source-current bundle was rebuilt after the final blocked-state,
-  category-variant, and canonical-key corrections and is the same file
-  OpenCode loaded through `opencode.json`.
+  This source-current bundle was rebuilt after the replacement-state rollback
+  identity guard and is the same file OpenCode loaded through `opencode.json`.

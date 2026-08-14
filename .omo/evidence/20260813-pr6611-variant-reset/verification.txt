@@ -58,7 +58,7 @@ Source-loaded bundle rebuild:
   observed:
     Bundled 1986 modules
     Patched Node/Electron require shim in dist/index.js
-    bundle_sha256=a5538899ee9626b0e30c1fcf95af6514452b9931925aa4b711c11aa3c8181b9d
+    bundle_sha256=e7020d2e32aedacd2bd4b311c4980186e666ab0c7c239de5b8f7fd701b3755ef
     bundle contains:
       output.message.variant ?? input.variant
       const parsedModel = parseModelString(runtimeModel);
@@ -67,6 +67,7 @@ Source-loaded bundle rebuild:
       clearModelLessRetryKeys(sessionID);
       areRuntimeModelsEquivalent(
       resolveAgentVariant(pluginConfig, resolvedAgent)
+      === fallbackState
     exit_code=0
 
 Full repository build:
@@ -178,6 +179,26 @@ Final three review regressions:
     all workspace tsgo invocations completed
     No violations in 4 file(s).
     exit_code=0
+
+Replacement-state rollback verification:
+  RED:
+    bun test packages/omo-opencode/src/hooks/runtime-fallback/auto-retry-dispatch.test.ts
+    Expected: "google/gemini-2.5-pro"
+    Received: "anthropic/claude-opus-4-7"
+    7 pass, 1 fail
+
+  GREEN:
+    auto-retry-dispatch.test.ts: 8 pass, 0 fail
+    focused final set: 23 pass, 0 fail
+    full runtime-fallback: 264 pass, 0 fail, 476 expect() calls
+
+  package typecheck and strict audit:
+    bun run typecheck:packages
+    check-no-excuse-rules.ts auto-retry-dispatch.ts auto-retry-dispatch.test.ts
+    observed:
+      all workspace tsgo invocations completed
+      No violations in 2 file(s).
+      exit_code=0
 
   full runtime-fallback command:
     bun test --timeout 15000 packages/omo-opencode/src/hooks/runtime-fallback

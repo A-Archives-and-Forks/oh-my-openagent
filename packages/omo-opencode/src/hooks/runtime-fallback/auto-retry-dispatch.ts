@@ -230,7 +230,7 @@ export function createAutoRetryDispatcher(
       sessionRetryInFlight.delete(sessionID)
       if (retryMayHaveBeenAccepted) {
         const state = sessionStates.get(sessionID)
-        if (state) {
+        if (state === fallbackState) {
           state.pendingFallbackPromptMayHaveBeenAccepted = true
         }
       }
@@ -242,7 +242,7 @@ export function createAutoRetryDispatcher(
           clearSessionFallbackTimeout(sessionID)
         }
         const state = sessionStates.get(sessionID)
-        if (state) {
+        if (state === fallbackState) {
           state.currentModel = previousCurrentModel ?? state.currentModel
           if (hadAwaitingFallbackResult) {
             state.pendingFallbackModel = previousPendingFallbackModel

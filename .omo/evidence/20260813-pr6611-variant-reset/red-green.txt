@@ -223,3 +223,28 @@ Full runtime-fallback:
   263 pass
   0 fail
   475 expect() calls
+
+REPLACEMENT-STATE ROLLBACK RED
+command:
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/auto-retry-dispatch.test.ts
+
+observed before fix:
+  Expected: "google/gemini-2.5-pro"
+  Received: "anthropic/claude-opus-4-7"
+  7 pass
+  1 fail
+
+REPLACEMENT-STATE ROLLBACK GREEN
+focused:
+  auto-retry-dispatch.test.ts: 8 pass, 0 fail
+  final focused set: 23 pass, 0 fail
+
+full runtime-fallback:
+  264 pass
+  0 fail
+  476 expect() calls
+
+The deferred-message regression replaces the session's fallback state while
+the old dispatch is awaiting message lookup, then drives the old generation
+through blocked rollback. Object-identity guards keep captured values off the
+new manual-model generation.
