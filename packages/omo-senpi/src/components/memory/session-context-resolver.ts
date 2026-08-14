@@ -8,6 +8,22 @@ export function resolveParentContextTokens(eventContext: unknown): number | unde
   return typeof tokens === "number" && tokens > 0 ? tokens : undefined
 }
 
+// A fork can only reuse the provider cache if the parent's prefix is actually being cached. The
+// observable proof is the session's own usage totals: a non-zero cacheRead means the provider is
+// actively caching this session's prefix, so a fork launched inside the TTL stands a chance of
+// hitting it. Anything we cannot observe is reported as not cacheable rather than assumed.
+export function resolveParentCacheReusable(eventContext: unknown): boolean {
+  if (!isRecord(eventContext)) return false
+  const manager = eventContext.sessionManager
+  if (!isRecord(manager)) return false
+  const getter = manager.getUsageTotals
+  if (typeof getter !== "function") return false
+  const totals = Reflect.apply(getter, manager, [])
+  if (!isRecord(totals)) return false
+  const cacheRead = totals.cacheRead
+  return typeof cacheRead === "number" && cacheRead > 0
+}
+
 export function resolveParentSessionFile(eventContext: unknown): string | undefined {
   if (!isRecord(eventContext)) return undefined
   const manager = eventContext.sessionManager

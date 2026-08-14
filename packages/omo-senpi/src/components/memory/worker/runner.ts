@@ -144,7 +144,7 @@ export class SenpiSubprocessRunner implements ReflectionRunner {
           }),
       ...(parentContextTokens === undefined ? {} : { parentContextTokens }),
       turns: MEMORY_WORKLOAD_PROFILES[surface].turns,
-      cacheHit: true,
+      cacheHit: this.options.resolveParentCacheReusable?.() ?? false,
     })
   }
 

@@ -16,6 +16,7 @@ import { createMemoryJournalWiring, type MemoryJournalWiring } from "./journal-w
 import { resolveMemoryModelRegistry } from "./model-registry-resolver"
 import { resolveMemorySessionModel } from "./session-model-resolver"
 import {
+  resolveParentCacheReusable as resolveParentCacheReusableFromCtx,
   resolveParentContextTokens as resolveParentContextTokensFromCtx,
   resolveParentSessionFile as resolveParentSessionFileFromCtx,
 } from "./session-context-resolver"
@@ -70,6 +71,10 @@ export function createMemoryRuntimeWiring(
 
   function resolveParentSessionFile(): string | undefined {
     return resolveParentSessionFileFromCtx(lastEventCtx.current)
+  }
+
+  function resolveParentCacheReusable(): boolean {
+    return resolveParentCacheReusableFromCtx(lastEventCtx.current)
   }
 
   function journalWiringFor(identity: MemoryIdentityContext): MemoryJournalWiring {
@@ -139,6 +144,7 @@ export function createMemoryRuntimeWiring(
       resolveSessionModel,
       resolveParentContextTokens,
       resolveParentSessionFile,
+      resolveParentCacheReusable,
       ...(options.logger === undefined ? {} : { logger: options.logger }),
       ...(liveSession === undefined
         ? {}
