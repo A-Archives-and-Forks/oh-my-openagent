@@ -114,3 +114,16 @@ export type {
 } from "./handle"
 
 export type { DagTaskOwner, DagTaskOwnerKey, OwnedStartResult } from "./owner"
+
+export { applyDagSchedulerEvent, createDagScheduler } from "./scheduler"
+export type { DagScheduler, DagSchedulerOptions } from "./scheduler"
+
+export { persistDagNodeResult, readDagNodeResult } from "./results"
+export type {
+  DagNodeResultArtifact,
+  DagNodeResultPersistInput,
+  DagNodeResultPersistOutcome,
+  DagNodeResultRead,
+  DagNodeResultReadInput,
+  DagResultArtifactRef,
+} from "./results"

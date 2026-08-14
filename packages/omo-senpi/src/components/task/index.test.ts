@@ -42,7 +42,8 @@ const TASK_EVENTS = [
   "agent_end",
 ]
 const SKILL_INVOCATION_TRACKER_EVENTS = ["input", "tool_result", "session_shutdown"]
-const TASK_COMMANDS = ["task-kill", "tasks"]
+const DAG_LIFECYCLE_EVENTS = ["session_start", "session_before_switch", "session_shutdown"]
+const TASK_COMMANDS = ["dag", "task-kill", "tasks"]
 
 interface RecordedLog {
   level: "info" | "warn" | "error"
@@ -189,7 +190,7 @@ describe("omo-senpi task component wiring", () => {
     // skill-invocation tracker subscriptions feeding the plan-gated agent gate, plus the
     // unconditional T16 hygiene sweep handler, which registers its own session_start listener
     expect(pi.handlers.map((handler) => handler.event).sort()).toEqual(
-      [...TASK_EVENTS, ...SKILL_INVOCATION_TRACKER_EVENTS, "session_start"].sort(),
+      [...TASK_EVENTS, ...SKILL_INVOCATION_TRACKER_EVENTS, ...DAG_LIFECYCLE_EVENTS, "session_start"].sort(),
     )
   })
 
