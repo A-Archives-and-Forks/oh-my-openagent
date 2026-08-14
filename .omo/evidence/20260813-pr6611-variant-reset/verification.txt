@@ -58,7 +58,7 @@ Source-loaded bundle rebuild:
   observed:
     Bundled 1986 modules
     Patched Node/Electron require shim in dist/index.js
-    bundle_sha256=a8ad10f039b1b60e9272df65e55d8b11dd02048ed8c966b2c4647900a959bace
+    bundle_sha256=46da5c49dc88c27840fd70d6a61f33ae316531cc5d34162b4e6d3cede13473e5
     bundle contains:
       output.message.variant ?? input.variant
       const parsedModel = parseModelString(runtimeModel);
@@ -73,6 +73,7 @@ Source-loaded bundle rebuild:
       retryDispatched = true
       buildRetryModelPayload(fallbackModel
       part.synthetic === true
+      Session fallback timeout skipped for stale state generation
     exit_code=0
 
 Full repository build:
@@ -274,6 +275,19 @@ Synthetic retry adapter acknowledgment:
   GREEN:
     focused: 54 pass, 0 fail, 133 expect() calls
     full runtime-fallback: 269 pass, 0 fail, 489 expect() calls
+    package typecheck: exit_code=0
+    strict audit: No violations in 2 file(s).
+
+Stale timeout generation:
+  RED:
+    auto-retry-timeout.test.ts
+    expected retryCalls=0
+    received retryCalls=1
+    2 pass, 1 fail
+
+  GREEN:
+    focused: 17 pass, 0 fail, 44 expect() calls
+    full runtime-fallback: 270 pass, 0 fail, 491 expect() calls
     package typecheck: exit_code=0
     strict audit: No violations in 2 file(s).
 

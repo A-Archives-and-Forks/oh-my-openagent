@@ -3,7 +3,7 @@ command:
 
 observed:
   opencode_version=1.18.13
-  bundle_sha256=a8ad10f039b1b60e9272df65e55d8b11dd02048ed8c966b2c4647900a959bace
+  bundle_sha256=46da5c49dc88c27840fd70d6a61f33ae316531cc5d34162b4e6d3cede13473e5
   bundle_variant_wiring=true
   health={"healthy":true,"version":"1.18.13"}
   config_plugins=["file:///mnt/c/Users/pss/OneDrive/Documents/github/oh-my-openagent-6579/dist/index.js"]
@@ -11,7 +11,7 @@ observed:
   sse_event={"type":"session.status"}
   real_db_sessions_before=0
   real_db_sessions_after=0
-  sandbox_root=/tmp/oqa-xdg.8MtsNA
+  sandbox_root=/tmp/oqa-xdg.3UxQvB
   sandbox_removed=true
   exit_code=0
 
@@ -21,7 +21,7 @@ cleanup:
   trap removed its isolated XDG sandbox.
 
   The driver captured the exact helper-created `OQA_XDG_ROOT`
-  (`/tmp/oqa-xdg.8MtsNA`) and asserted it no longer existed after cleanup.
+  (`/tmp/oqa-xdg.3UxQvB`) and asserted it no longer existed after cleanup.
   `sandbox_removed=true` is the matching binary receipt.
 
 notes:
@@ -46,9 +46,11 @@ bundle provenance:
     retryDispatched = true
     buildRetryModelPayload(fallbackModel
     part.synthetic === true
+    Session fallback timeout skipped for stale state generation
 
-  This source-current bundle was rebuilt after synthetic retry adapter
-  acknowledgment, capability-aware created fallback indexing, accepted-queued
-  state preservation, explicit-variant precedence, capability-aware reasoning
-  lowering, category-aware creation indexing, and the defined-state identity
-  guards. It is the same file OpenCode loaded through `opencode.json`.
+  This source-current bundle was rebuilt after stale-timeout generation
+  rejection, synthetic retry adapter acknowledgment, capability-aware created
+  fallback indexing, accepted-queued state preservation, explicit-variant
+  precedence, capability-aware reasoning lowering, category-aware creation
+  indexing, and the defined-state identity guards. It is the same file
+  OpenCode loaded through `opencode.json`.

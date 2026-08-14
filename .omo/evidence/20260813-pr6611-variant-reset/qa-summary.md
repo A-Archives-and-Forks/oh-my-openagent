@@ -30,20 +30,21 @@ ran under WSL2 as the non-root `codexqa` user with OpenCode 1.18.13.
 - Workspace package typecheck exited zero after merging current upstream dev.
 - The isolated OpenCode entry built successfully.
 - The exact source-loaded `dist/index.js` was rebuilt after the variant fix,
-  hashed as `a8ad10f039b1b60e9272df65e55d8b11dd02048ed8c966b2c4647900a959bace`,
+  hashed as `46da5c49dc88c27840fd70d6a61f33ae316531cc5d34162b4e6d3cede13473e5`,
   and asserted to contain output-first variant resolution plus canonical
   runtime-model parsing, effective pending fallback identity, and manual
   watchdog cleanup, true model-less generation acknowledgment, and equivalent
-  fallback indexing, category-inherited variant resolution, synthetic retry
-  adapter acknowledgment, capability-aware created-fallback indexing,
-  accepted-queued state preservation, explicit-variant precedence,
-  capability-aware reasoning lowering, and defined replacement-state identity
-  guards before OpenCode started.
+  fallback indexing, category-inherited variant resolution, stale-timeout
+  generation rejection, synthetic retry adapter acknowledgment,
+  capability-aware created-fallback indexing, accepted-queued state
+  preservation, explicit-variant precedence, capability-aware reasoning
+  lowering, and defined replacement-state identity guards before OpenCode
+  started.
 - The real prompt returned HTTP 204 and the SSE subscription observed
   `{"type":"session.status"}`.
 - OpenCode loaded this worktree's `dist/index.js`.
 - The real OpenCode database contained 0 sessions before and after QA.
-- The driver captured `/tmp/oqa-xdg.8MtsNA`, the helper's actual `oqa-xdg.*`
+- The driver captured `/tmp/oqa-xdg.3UxQvB`, the helper's actual `oqa-xdg.*`
   sandbox, and asserted `sandbox_removed=true` after cleanup.
 
 Exact concise captures:

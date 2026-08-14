@@ -59,6 +59,12 @@ export function createFallbackTimeoutHelpers(
       }
 
       await abortSessionRequest(sessionID, "session.timeout")
+      if (sessionStates.get(sessionID) !== state) {
+        log(`[${HOOK_NAME}] Session fallback timeout skipped for stale state generation`, {
+          sessionID,
+        })
+        return
+      }
       sessionRetryInFlight.delete(sessionID)
 
       if (state.pendingFallbackModel) {

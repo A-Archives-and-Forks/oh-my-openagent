@@ -373,3 +373,29 @@ Synthetic retry parts now reach only runtime-fallback acknowledgment before
 the adapter's synthetic/internal early return. Keyword, slash-command, session
 agent, and first-message state remain skipped. Package typecheck and the
 two-file strict audit are clean.
+
+STALE TIMEOUT GENERATION RED
+command:
+  bun test auto-retry-timeout.test.ts
+
+observed before fix:
+  expected stale-generation retry calls: 0
+  received: 1
+  2 pass
+  1 fail
+
+STALE TIMEOUT GENERATION GREEN
+focused:
+  17 pass
+  0 fail
+  44 expect() calls
+
+full runtime-fallback:
+  270 pass
+  0 fail
+  491 expect() calls
+
+A timeout callback now revalidates the captured state object after its awaited
+abort. A manual model or variant replacement therefore invalidates the old
+generation before any fallback mutation or prompt dispatch. Package typecheck
+and the two-file strict audit are clean.

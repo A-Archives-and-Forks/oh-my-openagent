@@ -4,6 +4,7 @@ import { createFallbackTimeoutHelpers } from "./auto-retry-timeout"
 import { createFallbackState } from "./fallback-state"
 import type { HookDeps, RuntimeFallbackPluginInput } from "./types"
 import { SessionCategoryRegistry } from "../../shared/session-category-registry"
+import { installRuntimeFallbackTestClock, restoreRuntimeFallbackTestClock } from "./test-timeout-clock.test-support"
 
 function createContext(): RuntimeFallbackPluginInput {
   return {
@@ -56,6 +57,7 @@ function createDeps(): HookDeps {
 describe("createFallbackTimeoutHelpers", () => {
   afterEach(() => {
     SessionCategoryRegistry.clear()
+    restoreRuntimeFallbackTestClock()
   })
 
   test("#given timeout fallback dispatch is blocked #when the timeout fires #then fallback state is restored", async () => {
@@ -141,5 +143,48 @@ describe("createFallbackTimeoutHelpers", () => {
     expect(deps.sessionAwaitingFallbackResult.has(sessionID)).toBe(true)
     expect(deps.sessionFallbackTimeouts.has(sessionID)).toBe(true)
     helpers.clearSessionFallbackTimeout(sessionID)
+  })
+
+  test("#given timeout callback awaits abort #when manual model change replaces state #then the stale generation never dispatches", async () => {
+    // given
+    const sessionID = "session-timeout-stale-generation"
+    SessionCategoryRegistry.register(sessionID, "test")
+    const deps = createDeps()
+    deps.options = {
+      session_timeout_ms: 1,
+    }
+    deps.sessionStates.set(sessionID, createFallbackState("openai/gpt-5.4"))
+    let resolveAbort: (() => void) | undefined
+    let markAbortStarted: (() => void) | undefined
+    const abortStarted = new Promise<void>((resolve) => {
+      markAbortStarted = resolve
+    })
+    let retryCalls = 0
+    const helpers = createFallbackTimeoutHelpers(
+      deps,
+      async () => new Promise<void>((resolve) => {
+        resolveAbort = resolve
+        markAbortStarted?.()
+      }),
+      async () => {
+        retryCalls += 1
+        return { accepted: true, status: "dispatched" }
+      },
+    )
+    const clock = installRuntimeFallbackTestClock()
+    helpers.scheduleSessionFallbackTimeout(sessionID)
+
+    // when
+    const advancePromise = clock.advanceBy(1)
+    await abortStarted
+    const replacementState = createFallbackState("google/gemini-2.5-pro")
+    deps.sessionStates.set(sessionID, replacementState)
+    if (!resolveAbort) throw new Error("abort did not start")
+    resolveAbort()
+    await advancePromise
+
+    // then
+    expect(retryCalls).toBe(0)
+    expect(replacementState.currentModel).toBe("google/gemini-2.5-pro")
   })
 })
