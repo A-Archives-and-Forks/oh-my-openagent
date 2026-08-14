@@ -217,7 +217,7 @@ export function createAutoRetryDispatcher(
       if (state) {
         state.pendingFallbackPromptMayHaveBeenAccepted = false
       }
-      retryDispatched = acceptedStatus !== "queued" || !hadAwaitingFallbackResult
+      retryDispatched = true
       return { accepted: true, status: acceptedStatus }
     } catch (retryError) {
       if (!(retryError instanceof Error)) {

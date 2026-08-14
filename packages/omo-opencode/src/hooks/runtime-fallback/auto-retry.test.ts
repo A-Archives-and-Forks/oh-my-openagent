@@ -81,7 +81,7 @@ describe("createAutoRetryHelpers", () => {
     expect(state.pendingFallbackPromptMayHaveBeenAccepted).toBe(true)
   })
 
-  test("#given an existing fallback result is pending #when a new fallback retry is skipped by the prompt gate #then the previous pending state is preserved", async () => {
+  test("#given an existing fallback result is pending #when the next retry is accepted as queued #then queued pending state supersedes the previous fallback", async () => {
     // given
     const promptCalls = { count: 0 }
     const deps = createDeps(promptCalls)
@@ -93,12 +93,18 @@ describe("createAutoRetryHelpers", () => {
     deps.sessionAwaitingFallbackResult.add(sessionID)
 
     // when
-    await helpers.autoRetryWithFallback(sessionID, "google/gemini-2.5-pro", undefined, "session.status")
+    const outcome = await helpers.autoRetryWithFallback(
+      sessionID,
+      "google/gemini-2.5-pro",
+      undefined,
+      "session.status",
+    )
 
     // then
+    expect(outcome).toEqual({ accepted: true, status: "queued" })
     expect(promptCalls.count).toBe(0)
     expect(deps.sessionAwaitingFallbackResult.has(sessionID)).toBe(true)
-    expect(state.pendingFallbackModel).toBe("openai/gpt-5.4")
+    expect(state.pendingFallbackModel).toBe("google/gemini-2.5-pro")
   })
   test("#given compact-flushed session with no recoverable user parts #when auto-retry fires the synthetic continuation #then the injected prompt is marked synthetic and carries the internal initiator marker (#4085)", async () => {
     // given - capture the actual parts forwarded to client.session.promptAsync

@@ -295,3 +295,29 @@ full runtime-fallback:
 Explicit model variants now suppress both inherited reasoning lowering and
 agent-level reasoningEffort for that retry payload. Package typecheck and the
 two-file strict audit are clean.
+
+ACCEPTED QUEUED STATE RED
+command:
+  bun test auto-retry-dispatch.test.ts
+
+observed before fix:
+  Expected: "openai/gpt-5.4(high)"
+  Received: "google/gemini-2.5-pro"
+  8 pass
+  1 fail
+
+ACCEPTED QUEUED STATE GREEN
+focused:
+  20 pass
+  0 fail
+  56 expect() calls
+
+full runtime-fallback:
+  268 pass
+  0 fail
+  486 expect() calls
+
+An accepted queued prompt now retains the effective next fallback identity,
+including inherited variants. A prompt-gate rejection still leaves
+`retryDispatched` false and uses the existing guarded rollback path. Package
+typecheck and the three-file strict audit are clean.

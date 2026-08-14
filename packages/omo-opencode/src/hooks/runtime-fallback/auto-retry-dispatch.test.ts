@@ -305,6 +305,70 @@ describe("createAutoRetryDispatcher reserved-session retry (#5109)", () => {
     expect(state.pendingFallbackModel).toBe("openai/gpt-5.4(high)")
   })
 
+  test("#given an older fallback is awaiting #when a variant-qualified next fallback is accepted as queued #then effective pending state is preserved", async () => {
+    // given
+    const promptCalls = { count: 0 }
+    const deps = createDeps(promptCalls)
+    deps.pluginConfig = {
+      agents: {
+        sisyphus: {
+          category: "visual-engineering",
+        },
+      },
+      categories: {
+        "visual-engineering": {
+          variant: "high",
+        },
+      },
+    }
+    const sessionID = "session-queued-category-variant"
+    let assistantIsActive = true
+    deps.ctx.client.session.messages = async () => ({
+      data: assistantIsActive
+        ? [
+            {
+              info: { role: "assistant" },
+              parts: [{ type: "reasoning", text: "still resolving prior fallback" }],
+            },
+          ]
+        : [
+            {
+              info: { role: "assistant", finish: true },
+              parts: [],
+            },
+          ],
+    })
+    deps.ctx.client.session.promptAsync = async () => {
+      promptCalls.count += 1
+      return {}
+    }
+    const state = createFallbackState("anthropic/claude-opus-4-7")
+    state.currentModel = "google/gemini-2.5-pro"
+    state.pendingFallbackModel = "google/gemini-2.5-pro"
+    deps.sessionStates.set(sessionID, state)
+    deps.sessionAwaitingFallbackResult.add(sessionID)
+    const helpers = createAutoRetryHelpers(deps)
+    const clock = installRuntimeFallbackTestClock()
+
+    // when
+    const outcome = await helpers.autoRetryWithFallback(
+      sessionID,
+      "openai/gpt-5.4",
+      "sisyphus",
+      "session.status",
+    )
+    assistantIsActive = false
+    await flushPromptGateMicrotasks()
+    await clock.advanceBy(DEFAULT_PROMPT_QUEUE_RETRY_MS)
+    await flushPromptGateMicrotasks()
+
+    // then
+    expect(outcome).toEqual({ accepted: true, status: "queued" })
+    expect(promptCalls.count).toBe(1)
+    expect(state.currentModel).toBe("openai/gpt-5.4(high)")
+    expect(state.pendingFallbackModel).toBe("openai/gpt-5.4(high)")
+  })
+
   test("#given manual model change replaces state during a failed dispatch #when rollback runs #then the replacement state is preserved", async () => {
     // given
     const promptCalls = { count: 0 }
