@@ -15,6 +15,7 @@ import { resolveFallbackBootstrapModel } from "./fallback-bootstrap-model"
 import { dispatchFallbackRetry } from "./fallback-retry-dispatcher"
 import { createSessionStatusHandler } from "./session-status-handler"
 import { resolveAgentVariant } from "../../shared/agent-variant"
+import { buildRetryModelPayload } from "./retry-model-payload"
 import { resolveMessageEventSessionID, resolveSessionEventID } from "../../shared/event-session-id"
 import { normalizeModelToCanonicalString } from "./normalize-model"
 
@@ -88,15 +89,21 @@ export function createEventHandler(deps: HookDeps, helpers: AutoRetryHelpers) {
     if (sessionID && model) {
       log(`[${HOOK_NAME}] Session created with model`, { sessionID, model })
       const preferredModel = resolvePreferredSessionModel(sessionID, agent, pluginConfig)
-      const inheritedVariant = agent && pluginConfig
+      const inheritedReasoning = agent && pluginConfig
         ? resolveAgentVariant(pluginConfig, agent)
         : undefined
       const fallbackIndex = preferredModel && preferredModel !== model
-        ? getFallbackModelsForSession(sessionID, agent, pluginConfig).findIndex((fallbackModel) =>
-            areRuntimeModelsEquivalent(
-              stringifyRuntimeModelWithVariant(fallbackModel, inheritedVariant),
-              model,
-            ))
+        ? getFallbackModelsForSession(sessionID, agent, pluginConfig).findIndex((fallbackModel) => {
+            const payload = buildRetryModelPayload(fallbackModel, {
+              reasoning: inheritedReasoning,
+            })
+            return payload
+              ? areRuntimeModelsEquivalent(
+                  stringifyRuntimeModelWithVariant(payload.model, payload.variant),
+                  model,
+                )
+              : false
+          })
         : -1
       const state = createFallbackState(fallbackIndex >= 0 && preferredModel ? preferredModel : model)
       if (fallbackIndex >= 0) {

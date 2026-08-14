@@ -58,7 +58,7 @@ Source-loaded bundle rebuild:
   observed:
     Bundled 1986 modules
     Patched Node/Electron require shim in dist/index.js
-    bundle_sha256=82f5c52cf057b4bfb6f5708675bf8608a78b460708b3e5b9557c0c93e2f30703
+    bundle_sha256=1fab1b36173ebdf535c021797b0edadcdfb302030c9c521e6704aa179e275e21
     bundle contains:
       output.message.variant ?? input.variant
       const parsedModel = parseModelString(runtimeModel);
@@ -71,6 +71,7 @@ Source-loaded bundle rebuild:
       lowerReasoningForModel(
       two resolveAgentVariant(pluginConfig, callsites
       retryDispatched = true
+      buildRetryModelPayload(fallbackModel
     exit_code=0
 
 Full repository build:
@@ -248,6 +249,19 @@ Accepted queued fallback state:
     full runtime-fallback: 268 pass, 0 fail, 486 expect() calls
     package typecheck: exit_code=0
     strict audit: No violations in 3 file(s).
+
+Created fallback reasoning index:
+  RED:
+    event-handler.test.ts
+    expected original primary anthropic/claude-opus-4-7
+    received test-provider/test-model
+    10 pass, 1 fail
+
+  GREEN:
+    focused: 21 pass, 0 fail, 53 expect() calls
+    full runtime-fallback: 269 pass, 0 fail, 489 expect() calls
+    package typecheck: exit_code=0
+    strict audit: No violations in 2 file(s).
 
   full runtime-fallback command:
     bun test --timeout 15000 packages/omo-opencode/src/hooks/runtime-fallback

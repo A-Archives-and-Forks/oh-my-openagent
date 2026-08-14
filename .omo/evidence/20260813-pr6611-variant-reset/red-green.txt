@@ -321,3 +321,29 @@ An accepted queued prompt now retains the effective next fallback identity,
 including inherited variants. A prompt-gate rejection still leaves
 `retryDispatched` false and uses the existing guarded rollback path. Package
 typecheck and the three-file strict audit are clean.
+
+CREATED REASONING INDEX RED
+command:
+  bun test event-handler.test.ts
+
+observed before fix:
+  expected original primary anthropic/claude-opus-4-7
+  received active base fallback test-provider/test-model
+  10 pass
+  1 fail
+
+CREATED REASONING INDEX GREEN
+focused:
+  21 pass
+  0 fail
+  53 expect() calls
+
+full runtime-fallback:
+  269 pass
+  0 fail
+  489 expect() calls
+
+`session.created` now compares each configured fallback through the same
+capability-aware retry payload builder as dispatch. Reasoning lowered to
+native effort therefore matches the event's base model and retains the correct
+fallback index. Package typecheck and the two-file strict audit are clean.

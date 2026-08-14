@@ -365,4 +365,50 @@ describe("createEventHandler", () => {
     expect(created?.currentModel).toBe("openai/gpt-5.4(high)")
     expect(created?.fallbackIndex).toBe(0)
   })
+
+  it("#given session.created on a fallback whose inherited reasoning lowers to effort #when the event reports the base model #then the fallback index is retained", async () => {
+    // given
+    const sessionID = "session-category-reasoning-fallback-created"
+    const deps = createDeps()
+    deps.pluginConfig = {
+      agents: {
+        sisyphus: {
+          model: "anthropic/claude-opus-4-7",
+          category: "deep",
+          fallback_models: ["test-provider/test-model", "google/gemini-2.5-pro"],
+        },
+      },
+      categories: {
+        deep: {
+          reasoning: "high",
+        },
+      },
+    }
+    const abortCalls: string[] = []
+    const clearCalls: string[] = []
+    const handler = createEventHandler(deps, createHelpers(deps, abortCalls, clearCalls))
+
+    // when
+    await handler({
+      event: {
+        type: "session.created",
+        properties: {
+          info: {
+            id: sessionID,
+            agent: "sisyphus",
+            model: {
+              id: "test-model",
+              providerID: "test-provider",
+            },
+          },
+        },
+      },
+    })
+
+    // then
+    const created = deps.sessionStates.get(sessionID)
+    expect(created?.originalModel).toBe("anthropic/claude-opus-4-7")
+    expect(created?.currentModel).toBe("test-provider/test-model")
+    expect(created?.fallbackIndex).toBe(0)
+  })
 })
