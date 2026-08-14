@@ -50,7 +50,7 @@ export function define(input) {
   if (input === undefined || input === null || typeof input.key !== "string" || input.key === "") {
     throw new Error("define() needs a non-empty string key: it is the run's idempotency key.")
   }
-  return new DagDefinitionBuilder(input.key, input.name)
+  return new DagDefinitionBuilder(input.key, input.name ?? input.key)
 }
 
 export function start(definition) {

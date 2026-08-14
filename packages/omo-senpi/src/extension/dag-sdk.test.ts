@@ -6,6 +6,9 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { Value } from "typebox/value"
+
+import { DagToolParams } from "../components/task/dag-tool"
 import { DAG_SDK_ROOT_ENV, createDagSdkRootProvisioning } from "./dag-sdk-root-provisioning"
 
 // The eval kernel installs `tool` as a global proxy whose properties are async tool callers
@@ -131,6 +134,29 @@ describe("dag eval sdk", () => {
         await sdk.start(definition)
 
         expect(calls).toEqual([{ action: "start", definition }])
+      })
+    })
+
+    describe("#when define receives only the documented required key", () => {
+      it("#then start emits a definition accepted by the shipped dag tool schema", async () => {
+        const calls = installToolStub(() => ({ details: { kind: "started", run_id: "run-3" } }))
+        const sdk = await loadSdk()
+
+        await sdk
+          .define({ key: "docs-refresh" })
+          .node({ id: "audit", prompt: "Audit docs", category: "quick" })
+          .start()
+
+        expect(calls).toHaveLength(1)
+        expect(Value.Check(DagToolParams, calls[0])).toBe(true)
+        expect(calls[0]).toEqual({
+          action: "start",
+          definition: {
+            key: "docs-refresh",
+            name: "docs-refresh",
+            nodes: [{ id: "audit", prompt: "Audit docs", category: "quick" }],
+          },
+        })
       })
     })
   })
