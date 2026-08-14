@@ -78,10 +78,13 @@ function recordFor(input: DagDefinition): DagRunRecordV1 {
   }
 }
 
+type StartFailureKind = "plan_unresolved" | "depth_denied" | "start_failed"
+
 type FakeOptions = {
   readonly residencyLimit?: number
   readonly autoComplete?: boolean
   readonly startFailureNodeIds?: readonly string[]
+  readonly startFailureKinds?: Readonly<Record<string, StartFailureKind>>
   readonly queuedNodeIds?: readonly string[]
 }
 
@@ -142,7 +145,15 @@ class FakeTaskManager implements TaskManager {
         name: existing.record.name ?? existing.record.task_id,
       }
     }
-    if (this.#options.startFailureNodeIds?.includes(nodeId) === true) {
+    const startFailureKind = this.#options.startFailureKinds?.[nodeId] ??
+      (this.#options.startFailureNodeIds?.includes(nodeId) === true ? "start_failed" : undefined)
+    if (startFailureKind === "plan_unresolved") {
+      return { kind: "plan_unresolved", error: { code: "unknown_target", message: `unresolved ${nodeId}` } }
+    }
+    if (startFailureKind === "depth_denied") {
+      return { kind: "depth_denied", reason: `depth denied ${nodeId}`, child_depth: 2, max_depth: 1 }
+    }
+    if (startFailureKind === "start_failed") {
       return {
         kind: "start_failed",
         task_id: `failed-${nodeId}`,
@@ -246,6 +257,113 @@ function waveMembership(events: readonly DagRunEvent[], type: "dag.wave.started"
     .filter((event): event is Extract<DagRunEvent, { type: typeof type }> => event.type === type)
     .map((event) => event.nodeIds.map(String))
 }
+
+describe("DAG scheduler failure semantics", () => {
+  test("#given every terminal task status #when folded #then each maps to its exact node outcome and error code", async () => {
+    // given
+    const cases = [
+      { status: "completed", state: "completed", code: undefined },
+      { status: "error", state: "failed", code: "task_error" },
+      { status: "interrupted", state: "failed", code: "task_interrupted" },
+      { status: "lost", state: "failed", code: "task_lost" },
+      { status: "cancelled", state: "failed", code: "task_cancelled" },
+    ] as const
+
+    for (const outcome of cases) {
+      const manager = new FakeTaskManager({ autoComplete: false })
+      const { scheduler } = schedulerFixture(definition([node(`task-${outcome.status}`)]), manager)
+      const running = scheduler.run()
+      await manager.whenStarted(`task-${outcome.status}`)
+
+      // when
+      manager.complete(`task-${outcome.status}`, outcome.status)
+      const result = await running
+
+      // then
+      expect(result.nodes[0]?.state).toBe(outcome.state)
+      expect(result.nodes[0]?.error?.code).toBe(outcome.code)
+    }
+  })
+
+  test("#given every start denial #when admission fails #then each maps to its exact node error code", async () => {
+    // given
+    const expected = {
+      plan: "plan_unresolved",
+      depth: "depth_denied",
+      start: "start_failed",
+      residency: "residency_denied",
+    } as const
+    const manager = new FakeTaskManager({
+      residencyLimit: 0,
+      startFailureKinds: { plan: "plan_unresolved", depth: "depth_denied", start: "start_failed" },
+    })
+    const { scheduler } = schedulerFixture(definition(Object.keys(expected).map((id) => node(id))), manager)
+
+    // when
+    const result = await scheduler.run()
+
+    // then
+    expect(Object.fromEntries(result.nodes.map((entry) => [entry.id, entry.error?.code]))).toEqual(expected)
+  })
+
+  test("#given a failed root with a descendant chain #when failure cascades #then every descendant skip is persisted separately", async () => {
+    // given
+    const manager = new FakeTaskManager({ startFailureNodeIds: ["root"] })
+    const { scheduler, events } = schedulerFixture(
+      definition([node("root"), node("child", ["root"]), node("grandchild", ["child"]), node("independent")]),
+      manager,
+    )
+
+    // when
+    const result = await scheduler.run()
+
+    // then
+    expect(result.nodes.map((entry) => `${entry.id}:${entry.state}`)).toEqual([
+      "root:failed",
+      "child:skipped",
+      "grandchild:skipped",
+      "independent:completed",
+    ])
+    const skipEvents = events().filter((event): event is Extract<DagRunEvent, { type: "dag.node.transitioned" }> =>
+      event.type === "dag.node.transitioned" && event.to === "skipped",
+    )
+    expect(skipEvents.map((event) => String(event.nodeId))).toEqual(["child", "grandchild"])
+    expect(new Set(skipEvents.map((event) => event.seq)).size).toBe(2)
+  })
+
+  test("#given graph-ordered failures finish out of order #when independent work settles #then the run uses the first wave and declaration failure", async () => {
+    // given
+    const manager = new FakeTaskManager({ autoComplete: false })
+    const { scheduler, events } = schedulerFixture(
+      definition([
+        node("later-wave", ["preparation"]),
+        node("graph-first"),
+        node("completion-first"),
+        node("preparation"),
+      ]),
+      manager,
+    )
+    const running = scheduler.run()
+    await Promise.all([
+      manager.whenStarted("graph-first"),
+      manager.whenStarted("completion-first"),
+      manager.whenStarted("preparation"),
+    ])
+
+    // when
+    manager.complete("completion-first", "error")
+    manager.complete("preparation")
+    manager.complete("graph-first", "error")
+    await manager.whenStarted("later-wave")
+    manager.complete("later-wave", "error")
+    const result = await running
+
+    // then
+    expect(result.status).toBe("failed")
+    const failedEvent = events().find((event) => event.type === "dag.run.failed")
+    expect(failedEvent).toEqual(expect.objectContaining({ error: expect.objectContaining({ nodeId: "graph-first" }) }))
+  })
+})
 
 describe("DAG scheduler strict wave barrier", () => {
   test("#given a linear three-wave DAG #when run #then nodes and wave events are admitted in order", async () => {

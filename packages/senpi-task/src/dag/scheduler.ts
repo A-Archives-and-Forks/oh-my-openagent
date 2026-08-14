@@ -138,7 +138,7 @@ async function runWaves(context: SchedulerContext): Promise<DagRunRecordV1> {
 
   applyDependentSkipCascade(context)
   const snapshot = context.journal.snapshot()
-  const failed = snapshot.nodes.find((node) => node.state === "failed")
+  const failed = primaryFailure(snapshot)
   if (failed !== undefined) {
     const error = failed.error ?? nodeError(failed.id, "start_failed", "DAG node failed", context.now)
     context.journal.append(dagRunFailedEvent({ error, counts: countNodes(snapshot.nodes) }))
@@ -344,6 +344,16 @@ function transitionedNode(node: DagNode, state: DagNodeState, at: string, error?
 
 function nodeError(nodeId: DagNodeId, code: DagNodeErrorCode, message: string, now: () => number): DagNodeError {
   return { code, message, nodeId, at: new Date(now()).toISOString() }
+}
+
+function primaryFailure(record: DagRunRecordV1): DagNode | undefined {
+  for (const wave of record.waves) {
+    for (const nodeId of wave.nodeIds) {
+      const node = nodeById(record, nodeId)
+      if (node.state === "failed") return node
+    }
+  }
+  return undefined
 }
 
 function nodeById(record: DagRunRecordV1, nodeId: DagNodeId): DagNode {
