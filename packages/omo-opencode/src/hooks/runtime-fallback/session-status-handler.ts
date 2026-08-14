@@ -54,15 +54,7 @@ export function createSessionStatusHandler(
       }
     }
 
-    const eventModel = props?.model
-    const retryVariant =
-      typeof eventModel === "object" &&
-      eventModel !== null &&
-      "variant" in eventModel &&
-      typeof eventModel.variant === "string"
-        ? eventModel.variant.trim().toLowerCase()
-        : ""
-    const retryModel = model && retryVariant ? `${model}:${retryVariant}` : model ?? "unknown"
+    const retryModel = model ?? "unknown"
     const retryKey = `${retryModel}:${extractRetryAttempt(status.attempt, retryMessage)}:${normalizeRetryStatusMessage(retryMessage)}`
     const seenRetryKeys = sessionStatusRetryKeys.get(sessionID)
     if (seenRetryKeys?.has(retryKey)) {

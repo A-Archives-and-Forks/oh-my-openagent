@@ -28,7 +28,8 @@ if grep -Fq 'output.message.variant ?? input.variant' "$bundle" \
   && grep -Fq 'fallbackState.pendingFallbackModel = effectiveRetryModel;' "$bundle" \
   && grep -Fq 'clearFallbackWatchdog(sessionID);' "$bundle" \
   && grep -Fq 'clearModelLessRetryKeys(sessionID);' "$bundle" \
-  && grep -Fq 'areRuntimeModelsEquivalent(' "$bundle"; then
+  && grep -Fq 'areRuntimeModelsEquivalent(' "$bundle" \
+  && grep -Fq 'resolveAgentVariant(pluginConfig, resolvedAgent)' "$bundle"; then
   bundle_variant_wiring=true
 fi
 

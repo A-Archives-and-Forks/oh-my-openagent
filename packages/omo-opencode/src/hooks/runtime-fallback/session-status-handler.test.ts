@@ -228,7 +228,7 @@ describe("createSessionStatusHandler", () => {
 
     // when
     await handler({ sessionID, model: lowModel, status })
-    await handler({ sessionID, model: lowModel, status })
+    await handler({ sessionID, model: "opencode-go/glm-5.2(low)", status })
     await handler({
       sessionID,
       model: { providerID: "opencode-go", modelID: "glm-5.2", variant: "high" },

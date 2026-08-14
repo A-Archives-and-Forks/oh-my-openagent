@@ -58,7 +58,7 @@ Source-loaded bundle rebuild:
   observed:
     Bundled 1986 modules
     Patched Node/Electron require shim in dist/index.js
-    bundle_sha256=7fa8bc85c3eb865f1673cba536c689f2be0b02588942751c420453d5f85d17bd
+    bundle_sha256=a5538899ee9626b0e30c1fcf95af6514452b9931925aa4b711c11aa3c8181b9d
     bundle contains:
       output.message.variant ?? input.variant
       const parsedModel = parseModelString(runtimeModel);
@@ -66,6 +66,7 @@ Source-loaded bundle rebuild:
       clearFallbackWatchdog(sessionID);
       clearModelLessRetryKeys(sessionID);
       areRuntimeModelsEquivalent(
+      resolveAgentVariant(pluginConfig, resolvedAgent)
     exit_code=0
 
 Full repository build:
@@ -150,6 +151,32 @@ Corrected committed regression wiring:
     26 pass
     0 fail
     72 expect() calls
+    exit_code=0
+
+Final three review regressions:
+  focused commands:
+    bun test packages/omo-opencode/src/hooks/runtime-fallback/auto-retry.test.ts
+    bun test packages/omo-opencode/src/hooks/runtime-fallback/auto-retry-dispatch.test.ts
+    bun test packages/omo-opencode/src/hooks/runtime-fallback/session-status-handler.test.ts
+  observed:
+    22 pass
+    0 fail
+    exit_code=0
+
+  full runtime-fallback command:
+    bun test --timeout 15000 packages/omo-opencode/src/hooks/runtime-fallback
+  observed:
+    263 pass
+    0 fail
+    475 expect() calls
+    exit_code=0
+
+  package typecheck and strict audit:
+    bun run typecheck:packages
+    check-no-excuse-rules.ts <four changed TypeScript files>
+  observed:
+    all workspace tsgo invocations completed
+    No violations in 4 file(s).
     exit_code=0
 
   full runtime-fallback command:

@@ -13,6 +13,7 @@ import {
 import { isAmbiguousPostDispatchPromptFailure } from "../../shared/prompt-failure-classifier"
 import { resolveOriginalUserRetryMetadata } from "./auto-retry-metadata"
 import { stringifyRuntimeModelWithVariant } from "./fallback-state"
+import { resolveAgentVariant } from "../../shared/agent-variant"
 
 export function createAutoRetryDispatcher(
   deps: HookDeps,
@@ -42,8 +43,11 @@ export function createAutoRetryDispatcher(
     const agentSettings = resolvedAgent
       ? pluginConfig?.agents?.[resolvedAgent as keyof typeof pluginConfig.agents]
       : undefined
+    const effectiveVariant = pluginConfig && resolvedAgent
+      ? resolveAgentVariant(pluginConfig, resolvedAgent)
+      : undefined
     const retryModelPayload = buildRetryModelPayload(newModel, agentSettings ? {
-      variant: agentSettings.variant,
+      variant: effectiveVariant,
       reasoningEffort: agentSettings.reasoningEffort,
     } : undefined)
     if (!retryModelPayload) {
@@ -213,7 +217,7 @@ export function createAutoRetryDispatcher(
       if (state) {
         state.pendingFallbackPromptMayHaveBeenAccepted = false
       }
-      retryDispatched = true
+      retryDispatched = acceptedStatus !== "queued" || !hadAwaitingFallbackResult
       return { accepted: true, status: acceptedStatus }
     } catch (retryError) {
       if (!(retryError instanceof Error)) {

@@ -205,3 +205,21 @@ observed:
 The chat-message acknowledgment helper belongs only in the consecutive-
 generation test. The duplicate-within-generation test retains the plain
 dispatcher, so identical statuses remain deduped while a fallback is pending.
+
+FINAL THREE REGRESSION GREEN
+commands:
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/auto-retry.test.ts
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/auto-retry-dispatch.test.ts
+  bun test packages/omo-opencode/src/hooks/runtime-fallback/session-status-handler.test.ts
+
+observed:
+  blocked dispatch preserves the previous pending fallback
+  category-inherited high variant stores openai/gpt-5.4(high)
+  object and canonical-string variant retry events dedupe to one key
+  22 pass
+  0 fail
+
+Full runtime-fallback:
+  263 pass
+  0 fail
+  475 expect() calls
