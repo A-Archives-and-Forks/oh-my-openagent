@@ -59,6 +59,7 @@ class ScriptedRunner implements ManagedRunner {
   readonly handles: Array<{
     readonly spec: ManagedStartSpec
     readonly emit: (event: ManagedChildEvent) => void
+    readonly listenerCount: () => number
     readonly settle: (output: string) => void
   }> = []
   readonly #signals = new Map<number, ReturnType<typeof deferred<void>>>()
@@ -89,6 +90,7 @@ class ScriptedRunner implements ManagedRunner {
       emit: (event) => {
         for (const listener of listeners) listener(event)
       },
+      listenerCount: () => listeners.size,
       settle: (output) => outcome.resolve({ status: "completed", finalResponse: output }),
     })
     this.#signals.get(this.handles.length)?.resolve()
@@ -169,7 +171,7 @@ function fakeUi(widgetRows: string[][]): CapturedUi {
 }
 
 describe("assembled DAG runtime", () => {
-  test("#given a running DAG node #when its assembled child emits progress #then the live runtime publishes omo.dag.activity", async () => {
+  test("#given a running DAG node #when its assembled child emits progress #then RPC and the live widget share one activity subscription that tears down", async () => {
     // given
     const cwd = fs.mkdtempSync(join(tmpdir(), "omo-senpi-dag-activity-"))
     cleanupRoots.push(cwd)
@@ -193,9 +195,15 @@ describe("assembled DAG runtime", () => {
       sharedParentTools: () => [],
       runnerFactories: { inProcess: () => runner, process: () => runner },
     })
-    engine.runtime.captureFrom({ sessionManager: { getSessionId: () => "session-activity" } })
+    const widgetRows: string[][] = []
+    engine.runtime.captureFrom({
+      mode: "tui",
+      ui: fakeUi(widgetRows),
+      sessionManager: { getSessionId: () => "session-activity" },
+    })
     const bridgeTimers = new ManualTimers()
-    const runtime = createDagRuntime({ pi, engine, logger: logger(), bridgeTimers })
+    const statusUiTimers = new ManualTimers()
+    const runtime = createDagRuntime({ pi, engine, logger: logger(), bridgeTimers, statusUiTimers })
     await runtime.attach()
 
     // when
@@ -210,8 +218,13 @@ describe("assembled DAG runtime", () => {
     })
     await within(runner.whenStarted(1))
     await within(taskAttached.promise)
+    const attachedListenerCount = runner.handles[0]?.listenerCount() ?? 0
+    expect(attachedListenerCount).toBeGreaterThan(0)
+    await runtime.attach()
+    expect(runner.handles[0]?.listenerCount()).toBe(attachedListenerCount)
     runner.handles[0]?.emit({ type: "tool_execution_start", toolName: "read", args: { path: "src/live.ts" } })
     bridgeTimers.flush(150)
+    statusUiTimers.flush(1_000)
 
     // then
     expect(rpcEvents.filter((event) => event.name === "omo.dag.activity")).toEqual([
@@ -228,8 +241,14 @@ describe("assembled DAG runtime", () => {
         }),
       },
     ])
+    expect(widgetRows).toEqual(expect.arrayContaining([
+      expect.arrayContaining([expect.stringContaining("read src/live.ts")]),
+    ]))
     runner.handles[0]?.settle("done")
     await within(runtime.wait(started.snapshot.runId, "session-activity"))
+    expect(runner.handles[0]?.listenerCount()).toBe(attachedListenerCount - 1)
+    await runtime.attach()
+    expect(runner.handles[0]?.listenerCount()).toBe(attachedListenerCount - 1)
     runtime.dispose()
   })
 
@@ -278,6 +297,60 @@ describe("assembled DAG runtime", () => {
     expect(runner.handles[0]?.spec.prompt).toBe("original prompt")
     runner.handles[0]?.settle("done")
     await within(runtime.wait(started.snapshot.runId, "session-missing-skill"))
+    runtime.dispose()
+  })
+
+  test("#given a terminal wake buffered during compaction #when the assembled runtime attaches on session start #then it redelivers exactly once", async () => {
+    // given
+    const cwd = fs.mkdtempSync(join(tmpdir(), "omo-senpi-dag-wake-redelivery-"))
+    cleanupRoots.push(cwd)
+    const runner = new ScriptedRunner()
+    const deliveries: string[] = []
+    const coordinator = new IdleInjectionCoordinator((message) => { deliveries.push(message.content) })
+    const pi = new FakeExtensionAPI()
+    const engine = composeTaskEngine({
+      pi,
+      omoConfig: loadOmoConfig({ cwd }).config,
+      cwd,
+      sharedParentTools: () => [],
+      runnerFactories: { inProcess: () => runner, process: () => runner },
+      coordinator,
+    })
+    engine.runtime.captureFrom({
+      isIdle: () => false,
+      sessionManager: { getSessionId: () => "session-wake-redelivery" },
+    })
+    const runtime = createDagRuntime({ pi, engine, logger: logger(), coordinator })
+    await runtime.attach()
+    engine.runtime.setTransition("compacting")
+    const started = await runtime.manager.start({
+      parentSessionId: "session-wake-redelivery",
+      rootSessionId: "session-wake-redelivery",
+      definition: {
+        key: "assembled-wake-redelivery",
+        name: "assembled wake redelivery",
+        nodes: [{ id: "complete", prompt: "complete", subagent_type: "explore", model: "omo-mock/mock-1" }],
+      },
+    })
+    await within(runner.whenStarted(1))
+    runner.handles[0]?.settle("done")
+    await within(runtime.wait(started.snapshot.runId, "session-wake-redelivery"))
+    expect(coordinator.pendingCount()).toBe(0)
+    expect(deliveries).toEqual([])
+
+    // when
+    engine.runtime.setTransition(undefined)
+    engine.runtime.captureFrom({ isIdle: () => true })
+    await runtime.attach()
+    await Promise.resolve()
+    await runtime.attach()
+    await Promise.resolve()
+
+    // then
+    expect(deliveries).toEqual([
+      expect.stringContaining("DAG \"assembled wake redelivery\" completed"),
+    ])
+    expect(coordinator.pendingCount()).toBe(0)
     runtime.dispose()
   })
 

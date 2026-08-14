@@ -171,6 +171,12 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
   })
   registerDagRpcHandlers(deps.pi, { manager: queryManager, sessionId: () => activeSessionId })
 
+  const statusUi = createDagStatusUi({
+    manager: queryManager,
+    runtime: deps.engine.runtime,
+    ...(deps.statusUiTimers === undefined ? {} : { timers: deps.statusUiTimers }),
+  })
+
   const syncActivitySubscriptions = (): void => {
     const wanted = new Map<string, { readonly runId: DagRunId; readonly nodeId: string }>()
     if (activeSessionId !== undefined) {
@@ -209,7 +215,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
       activityTaskSubscriptions.set(taskId, deps.engine.manager.subscribeChild(taskId, (event: ManagedChildEvent) => {
         if (!progress.accept(event)) return
         const details = progress.details()
-        bridge.publishActivity({
+        const activity: Parameters<typeof bridge.publishActivity>[0] = {
           schemaVersion: 1,
           runId: owner.runId,
           nodeId: owner.nodeId,
@@ -220,16 +226,15 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
           ...(details.lastAssistantLine === undefined ? {} : { lastAssistantLine: details.lastAssistantLine }),
           turns: details.turns,
           ...(details.toolCalls === undefined ? {} : { toolCalls: details.toolCalls }),
+        }
+        bridge.publishActivity(activity)
+        statusUi.onActivity({
+          ...activity,
+          activity: activity.currentTool ?? activity.lastAssistantLine ?? activity.activity,
         })
       }))
     }
   }
-
-  const statusUi = createDagStatusUi({
-    manager: queryManager,
-    runtime: deps.engine.runtime,
-    ...(deps.statusUiTimers === undefined ? {} : { timers: deps.statusUiTimers }),
-  })
   const wakeSource = createDagWakeSource({ pi: deps.pi, manager: queryManager, sessionId: () => deps.engine.runtime.sessionId() })
   const wake = deps.coordinator === undefined
     ? undefined
@@ -283,6 +288,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
     async attach() {
       activeSessionId = deps.engine.runtime.sessionId()
       durableEventListener = onEvent
+      wake?.onSessionStart(activeSessionId)
       bridge.attach()
       syncActivitySubscriptions()
       const sessionId = activeSessionId
