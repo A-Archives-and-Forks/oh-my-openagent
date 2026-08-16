@@ -6,6 +6,13 @@
 // streak cannot double-increment. The reverse order would lose the increment entirely: the
 // sentinel makes the run terminal, reconciliation skips it, and the batch relaunches forever
 // with no backoff - the incident shape this module exists to prevent.
+//
+// THE FAILURE IDENTITY IS THE LEDGER'S `batchId`, NEVER THE RUN NAME. Retention can free
+// `facts-<digest>-<attempt>` and hand the same name to a later launch (see `nextAttempt`), so a
+// run-name failureId would make a genuine new failure look like a crash replay of the pruned one:
+// `applyFailure` would skip it, the streak would stay pinned and the batch would never park.
+// `batchId` is minted fresh per launch and written into ledger.json, so replays (which read the
+// same ledger) stay idempotent while distinct launches can never collide.
 
 import type {
   FactsFailureReason,
@@ -36,6 +43,8 @@ export interface FactsTerminalWritesOptions {
 export interface FactsFailureWrite {
   readonly runDir: string
   readonly runId: string
+  /** Per-launch ledger id; the failure identity, because run names can be reused after pruning. */
+  readonly batchId: string
   readonly targets: readonly FactsFailureTarget[]
   readonly reason: FactsFailureReason
   readonly detail: string
@@ -47,13 +56,13 @@ export class FactsTerminalWrites {
 
   /** Record first, sentinel second. A store failure aborts the sentinel deliberately. */
   async fail(write: FactsFailureWrite): Promise<void> {
-    await this.record(write.targets, write.runId, write.reason, write.detail)
+    await this.record(write.targets, write.batchId, write.reason, write.detail)
     await this.final(write.runDir, write.runId, write.outcome ?? "failed", write.detail)
   }
 
   /** Reconciliation could not prove the run dead; the endpoints still took a failure. */
   async abandon(runDir: string, ledger: FactsRunLedger, reason: "unknown_liveness"): Promise<void> {
-    await this.record(ledgerTargets(ledger.queued), ledger.runId, reason, "facts run liveness is unknown")
+    await this.record(ledgerTargets(ledger.queued), ledger.batchId, reason, "facts run liveness is unknown")
     await this.sentinel(join(runDir, "abandoned.json"), {
       version: 1,
       runId: ledger.runId,

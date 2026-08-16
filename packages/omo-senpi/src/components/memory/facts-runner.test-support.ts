@@ -1,4 +1,5 @@
 import { afterEach, expect } from "bun:test"
+import { randomUUID } from "node:crypto"
 import { existsSync, writeFileSync } from "node:fs"
 import { mkdtemp, readFile, readdir, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -111,7 +112,9 @@ export function runnerOptions(
     supervisorPath: supervisorFixture,
     senpiCommand: process.execPath,
     senpiPrefixArgs: [senpiLauncher],
-    createBatchId: () => "11111111-1111-4111-8111-111111111111",
+    // Fresh per launch, exactly like production `randomUUID`: a pinned batchId would hide the
+    // failure-identity collision that pruned-name reuse used to cause.
+    createBatchId: () => randomUUID(),
     sandbox: (args) => ({
       ...args,
       command: process.execPath,

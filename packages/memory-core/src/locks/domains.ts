@@ -8,6 +8,7 @@ export const LOCK_DOMAINS = [
   "transcript-state",
   "skills-usage",
   "facts-queue",
+  "facts-runs",
   "notice",
 ] as const
 
@@ -46,6 +47,15 @@ export function skillsUsageLockPath(locksDirectory: string): string {
 
 export function factsQueueLockPath(locksDirectory: string): string {
   return path.join(locksDirectory, "facts-queue.lock")
+}
+
+/**
+ * Serialises the facts run-directory namespace: reservation scans/creates a run dir under it and
+ * retention pruning renames one away under it, so a pruned name can never be freed while a
+ * reservation is probing it.
+ */
+export function factsRunsLockPath(locksDirectory: string): string {
+  return path.join(locksDirectory, "facts-runs.lock")
 }
 
 export function noticeLockPath(locksDirectory: string): string {

@@ -1,11 +1,14 @@
 import { createHash } from "node:crypto"
 import { existsSync } from "node:fs"
-import { mkdir, rm } from "node:fs/promises"
+import { mkdir, readdir, rm } from "node:fs/promises"
 import { basename, join } from "node:path"
 
 import {
+  createLockRecord,
+  factsRunsLockPath,
   getPidLiveness,
   getProcessStartIdentity,
+  withLock,
   type FactsQueueEntry,
 } from "@oh-my-opencode/memory-core"
 
@@ -16,8 +19,34 @@ import type { FactsFinalRecord, FactsLaunchResult, FactsRunLedger } from "./fact
 
 const DEFAULT_DEADLINE_MS = 15 * 60_000
 const DEFAULT_GRACE_MS = 5_000
+const RUNS_LOCK_WAIT_MS = 2_000
 
+/**
+ * Reserves the next free `facts-<digest>-<attempt>` dir. The scan, the mkdir and the ledger write
+ * all happen under `facts-runs.lock` - the same lock retention pruning takes - so a name can never
+ * be freed by pruning while this loop is probing it, and no existing dir is ever overwritten.
+ * The attempt number is NOT a durable identity: see `nextAttempt`.
+ */
 export async function reserveFactsRunDir(options: {
+  readonly factsDir: string
+  readonly locksDir: string
+  readonly entries: readonly FactsQueueEntry[]
+  readonly batchId: string
+  readonly launchedAt: number
+  readonly deadlineMs?: number
+  readonly terminationGraceMs?: number
+  readonly lockWaitMs?: number
+}): Promise<string | undefined> {
+  const record = await createLockRecord("facts-runs", { runId: options.batchId })
+  return withLock(
+    factsRunsLockPath(options.locksDir),
+    record,
+    () => claimFactsRunDir(options),
+    { waitTimeoutMs: options.lockWaitMs ?? RUNS_LOCK_WAIT_MS },
+  )
+}
+
+async function claimFactsRunDir(options: {
   readonly factsDir: string
   readonly entries: readonly FactsQueueEntry[]
   readonly batchId: string
@@ -28,7 +57,8 @@ export async function reserveFactsRunDir(options: {
   const runsDir = join(options.factsDir, "runs")
   await mkdir(runsDir, { recursive: true, mode: 0o700 })
   const digest = createHash("sha256").update(JSON.stringify(queueKeys(options.entries))).digest("hex").slice(0, 12)
-  for (let attempt = 1; attempt < 10_000; attempt += 1) {
+  const start = await nextAttempt(runsDir, digest)
+  for (let attempt = start; attempt < 10_000; attempt += 1) {
     const runDir = join(runsDir, `facts-${digest}-${attempt}`)
     try {
       await mkdir(runDir, { mode: 0o700 })
@@ -57,6 +87,28 @@ export async function reserveFactsRunDir(options: {
     }
   }
   throw new Error("facts run sequence exhausted")
+}
+
+/**
+ * One past the highest attempt still ON DISK for this digest, tombstones included. That keeps the
+ * sequence monotonic while any trace survives: retention can delete an older attempt while a newer
+ * one lives, and restarting at the lowest FREE number would hand a reused name to a fresh run
+ * beside a higher-numbered survivor.
+ *
+ * A name IS handed back once the highest attempt AND its tombstone are both gone - the high-water
+ * mark is derived from disk, not persisted. Nothing depends on attempt numbers being unique over
+ * time: no consumer orders runs by attempt, and failure-streak idempotency keys on the ledger's
+ * per-launch `batchId` precisely so a reused name cannot masquerade as an earlier run's failure.
+ */
+async function nextAttempt(runsDir: string, digest: string): Promise<number> {
+  const pattern = new RegExp(`^(?:\\.prune-)?facts-${digest}-(\\d+)(?:-|$)`)
+  const names = await readdir(runsDir).catch(() => [] as string[])
+  let highest = 0
+  for (const name of names) {
+    const attempt = Number(pattern.exec(name)?.[1] ?? Number.NaN)
+    if (Number.isInteger(attempt) && attempt > highest) highest = attempt
+  }
+  return highest + 1
 }
 
 export async function writeFactsFinal(options: {
