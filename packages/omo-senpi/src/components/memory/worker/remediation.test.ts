@@ -20,6 +20,23 @@ describe("reflectionRemediation", () => {
     })
   })
 
+  describe("#given the senpi child's verbatim model-not-found error", () => {
+    // The child prints: Error: Model "<selector>" not found. Use --list-models to see available models.
+    // That wording matched no taxonomy, so a repeating model miss was reported with the generic
+    // "inspect child-stderr.log" hint that never names the actual cause.
+    test("#when remediated #then it names the model the child could not see instead of the generic child log", () => {
+      // when
+      const hint = reflectionRemediation(
+        "child_exit",
+        'Error: Model "apitopia/z-ai/glm-5.2-ultrafast-unlocked" not found. Use --list-models to see available models.',
+      )
+
+      // then
+      expect(hint).toContain("memory.reflection")
+      expect(hint).not.toContain("child-stderr.log")
+    })
+  })
+
   describe("#given the pre-existing failure taxonomies", () => {
     test("#when the child could not see the model #then the category/model hint is kept", () => {
       expect(reflectionRemediation("child_exit", "Model not found: apitopia/kimi")).toContain("memory.reflection")

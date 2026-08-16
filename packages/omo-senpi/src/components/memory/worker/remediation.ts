@@ -4,7 +4,14 @@ export function reflectionRemediation(reason: string | undefined, detail: string
   if (combined.includes("category_unavailable") || combined.includes("could not resolve a usable model")) {
     return "no connected provider offers a model for the memory reflection category; run /login <provider>, or pin categories.<category>.model (or memory.reflection.category) in omo.json"
   }
-  if (combined.includes("model-not-found") || combined.includes("model_not_visible") || combined.includes("model not found")) {
+  // The senpi child prints `Error: Model "<selector>" not found. Use --list-models ...`, so the quoted
+  // selector has to be matched too, otherwise a repeating model miss degrades to the generic child-log hint.
+  if (
+    combined.includes("model-not-found")
+    || combined.includes("model_not_visible")
+    || combined.includes("model not found")
+    || /model\s+"[^"]+"\s+not found/.test(combined)
+  ) {
     return "the reflection child cannot see the configured category model; adjust memory.reflection category/model in your omo config"
   }
   if (combined.includes("spawn") || combined.includes("enoent")) {
