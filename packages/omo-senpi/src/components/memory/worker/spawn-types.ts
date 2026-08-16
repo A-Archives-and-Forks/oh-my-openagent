@@ -1,4 +1,6 @@
 import type { FactsPayload, ReflectionWorktree, ReservedRun } from "@oh-my-opencode/memory-core"
+
+import type { FactsQueuedKey } from "../facts-failure-recording"
 import type { RunAttempt } from "./run-artifacts"
 
 export interface ReflectionSpawnPaths {
@@ -90,7 +92,7 @@ export interface FactsRunLedgerEnvelope {
   readonly terminationGraceMs: number
   readonly deadlineAt: number
   readonly batchId: string
-  readonly queued: readonly { readonly conversationId: string; readonly end_message_id: string }[]
+  readonly queued: readonly FactsQueuedKey[]
   readonly headBeforeApply?: string
 }
 

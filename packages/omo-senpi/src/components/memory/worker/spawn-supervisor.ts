@@ -10,6 +10,7 @@ import {
   type RunLaunchManifest,
   type RunOutcome,
 } from "./run-artifacts"
+import type { FactsQueuedKey } from "../facts-failure-recording"
 import { requireRunMetadata } from "./spawn-metadata"
 import { waitForRunCompletion } from "./run-sentinel"
 import {
@@ -106,7 +107,7 @@ export async function runFactsChild(
     readonly supervisorPath?: string
     readonly now?: () => number
     readonly batchId: string
-    readonly queued: readonly { readonly conversationId: string; readonly end_message_id: string }[]
+    readonly queued: readonly FactsQueuedKey[]
   },
 ): Promise<ReflectionChildResult> {
   const graceMs = options.terminationGraceMs ?? DEFAULT_GRACE_MS

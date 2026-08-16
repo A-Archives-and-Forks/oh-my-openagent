@@ -22,6 +22,7 @@ The memory architecture - the git-backed memory filesystem, the memory tool sema
 | `worker/remediation.ts` | Maps reflection failure reasons to user-facing remediation hints. |
 | `nudge-wiring.ts` | Save-nudge accounting: counts accepted user turns since the last memory write (commit-trailer provenance), surfaces a nudge line in the compiled metadata block at `nudge.every_user_turns`. |
 | `facts-wiring.ts` / `facts-runner.ts` | Durable facts queue (settle-time enqueue, crash reconcile) + quick-pinned background extractor child; the parent applies the whole batch under the `memory-write` lock, the child never touches git. |
+| `facts-terminal-writes.ts` / `facts-run-finalize.ts` | Terminal outcome for a claimed run. Every failure path records the run's queued endpoints in the failure-streak ledger BEFORE writing `final.json`/`abandoned.json` (idempotent per `failureId` = runId, so a crash in that window replays safely); `committed`/`no_facts` clear those records after `markConsumed`. |
 | `dream-selector.ts` | Dream conversation auto-selector: unreflected-volume gate, caps at `dream.auto_select_max` conversations / `dream.auto_select_max_chars` UTF-8 bytes. |
 | `skills-usage.ts` | Per-skill read-count ledger consumed by the dream skill-audit phase. |
 | `soul-notice.ts` | Soul-edit notices: commits touching `system/persona.md` or `system/identity.md` emit a non-model-facing `appendEntry` notice, gated by `soul.edit_notice`. |
