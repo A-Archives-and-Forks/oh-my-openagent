@@ -7,6 +7,9 @@ export type ProbeMode = "visible-control" | "hidden-fixed"
 
 export type ParentReady = {
   readonly pid: number
+  readonly catalogPid: number
+  readonly catalogMainWindowHandle: number
+  readonly catalogChildExited: boolean
   readonly stdioRoundTrip: true
   readonly mode: ProbeMode
   readonly parentConsoleDetached: true

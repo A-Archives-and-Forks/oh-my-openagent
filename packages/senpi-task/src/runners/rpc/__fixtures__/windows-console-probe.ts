@@ -14,11 +14,7 @@ import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import { RpcProcessRunner } from "../../rpc-process"
-import {
-  type ConsoleAttachment,
-  consoleAttachment,
-  mainWindowHandle,
-} from "./windows-console-inspection"
+import { type ConsoleAttachment, consoleAttachment, mainWindowHandle } from "./windows-console-inspection"
 import {
   credentialDigests,
   isAlive,
@@ -27,11 +23,10 @@ import {
   type ProbeMode,
   waitForFile,
 } from "./windows-console-probe-state"
+import { createWindowsModelAdmissionProbe } from "./windows-console-model-admission"
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url)
-const FAKE_CHILD_PATH = fileURLToPath(
-  new URL("./fake-child.mjs", import.meta.url),
-)
+const FAKE_CHILD_PATH = fileURLToPath(new URL("./fake-child.mjs", import.meta.url))
 const CONSOLE_HOST_PATH = fileURLToPath(new URL("./windows-console-host.ps1", import.meta.url))
 const CREDENTIAL_FILES = ["auth.json", "models.json", "settings.json", "trust.json"] as const
 
@@ -131,7 +126,14 @@ async function runParent(mode: ProbeMode, root: string): Promise<void> {
   }
   await detachCurrentConsole()
   const stop = waitForFile(stopPath, AbortSignal.timeout(30_000))
+  const catalogProbe = createWindowsModelAdmissionProbe({
+    mode,
+    root,
+    waitForFile,
+    mainWindowHandle,
+  })
   const runner = new RpcProcessRunner({
+    modelAdmission: catalogProbe.modelAdmission,
     buildSpawn: (spec) => ({
       command: process.execPath,
       args: [FAKE_CHILD_PATH],
@@ -157,7 +159,9 @@ async function runParent(mode: ProbeMode, root: string): Promise<void> {
     cwd: root,
     state_dir: join(root, "state"),
     prompt: "hold",
+    model: "omo-mock/mock-1",
   })
+  const catalog = await catalogProbe.inspection
 
   try {
     await handle.steer("stdio-round-trip")
@@ -165,6 +169,9 @@ async function runParent(mode: ProbeMode, root: string): Promise<void> {
       readyPath,
       `${JSON.stringify({
         pid: handle.pid,
+        catalogPid: catalog.pid,
+        catalogMainWindowHandle: catalog.mainWindowHandle,
+        catalogChildExited: !isAlive(catalog.pid),
         stdioRoundTrip: true,
         mode,
         parentConsoleDetached: true,
@@ -203,6 +210,10 @@ async function runProbe(): Promise<void> {
       visible.consoleWindowVisible &&
       !hidden.consoleWindowVisible &&
       hidden.mainWindowHandle === 0 &&
+      visible.catalogMainWindowHandle === 0 &&
+      hidden.catalogMainWindowHandle === 0 &&
+      visible.catalogChildExited &&
+      hidden.catalogChildExited &&
       visible.stdioRoundTrip &&
       hidden.stdioRoundTrip &&
       visible.childExited &&
@@ -228,6 +239,8 @@ async function runProbe(): Promise<void> {
         credentialFiles: CREDENTIAL_FILES,
       },
       cleanup: {
+        visibleCatalogChildExited: probeResult.visible.catalogChildExited,
+        hiddenCatalogChildExited: probeResult.hidden.catalogChildExited,
         visibleChildExited: probeResult.visible.childExited,
         hiddenChildExited: probeResult.hidden.childExited,
         tempRootRemoved,
