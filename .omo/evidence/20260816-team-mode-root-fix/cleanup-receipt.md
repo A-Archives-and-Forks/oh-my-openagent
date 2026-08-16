@@ -1,50 +1,30 @@
-# PR B cleanup receipt
+# Team Mode QA cleanup receipt
 
-## Process cleanup
+Captured immediately after the criterion-path isolated Team E2E run
+(`.omo/evidence/20260816-team-mode-root-fix/team-e2e/`).
 
-Command:
+## Process and sandbox cleanup
 
-```text
-pgrep -fl 'senpi.*omo-mock|omo-mock.*senpi'
+```
+ps aux | grep -E 'senpi.*(mock-1|omo-mock)' | grep -v grep | wc -l   -> 0
+ls -d /tmp/omo-senpi-qa-* 2>/dev/null | wc -l                        -> 0
 ```
 
-Observed:
-
-```text
-no output
-```
-
-The final verdict also records:
-
-```json
-{ "leakedPids": 0 }
-```
-
-## Sandbox cleanup
-
-Interrupted exploratory E2E runs left disposable `omo-senpi-qa-*` roots under the user temp directory.
-After no matching mock processes remained, those task-owned QA roots were removed.
-
-Verification command:
-
-```text
-root=$(getconf DARWIN_USER_TEMP_DIR)
-find "$root" /tmp -maxdepth 1 -type d -name 'omo-senpi-qa-*' -print
-```
-
-Observed:
-
-```text
-no output
-```
+No orphan mock Senpi member processes, no leftover `omo-senpi-qa-*` sandbox roots.
 
 ## Credential isolation
 
-Final Team E2E:
+`credentialIsolationClean: true` and
+`wholeDirUnchanged: true` in the verdict: the run used an isolated HOME,
+XDG config, agent directory, session directory, project and OMO config, plus a credential-free
+`omo-mock/mock-1` provider extension. The real Senpi credentials were never read or written.
 
-```json
-{
-  "credentialIsolationClean": true,
-  "leakedPids": 0
-}
-```
+## Leaked PIDs
+
+`leakedPids: 0`.
+
+## Run history
+
+Three consecutive PASS runs of the same unmodified harness against the same production code:
+`team-e2e-green-final/`, `team-e2e-repeat/`, and `team-e2e/` (criterion path). All three report
+`result: "PASS"` with `failed: []`, `leakedPids: 0`, and clean credential isolation.
