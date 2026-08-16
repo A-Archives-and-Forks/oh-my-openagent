@@ -17,6 +17,9 @@ import { describe } from "./facts-run-storage"
  * extraction, child logs) is diagnosis material and stays. */
 const DISPOSABLE = ["facts-payload.json", ".sandbox-tmp"] as const
 
+/** Retention pruning renames a run dir to this prefix before deleting it outside the runs lock. */
+export const PRUNE_TOMBSTONE_PREFIX = ".prune-"
+
 export type RemoveRunArtifact = (path: string) => Promise<void>
 
 export interface FactsRunCleanupOptions {
@@ -48,7 +51,9 @@ export async function cleanupTerminalFactsRun(options: FactsRunCleanupOptions): 
 
 /**
  * Session-start maintenance: retry cleanup for run dirs that are already terminal but still
- * carry disposable artifacts (the crash window between the sentinel and the deletion).
+ * carry disposable artifacts (the crash window between the sentinel and the deletion), and drop
+ * `.prune-*` tombstones left behind when retention pruning crashed between the rename and the
+ * removal. A tombstone is already unreachable by reservation, so deleting it is always safe.
  * Non-terminal dirs are never touched - their payload is still a reconciliation input.
  */
 export async function sweepTerminalFactsRuns(options: {
@@ -60,6 +65,14 @@ export async function sweepTerminalFactsRuns(options: {
   const names = await readdir(runsDir).catch(() => [])
   for (const name of names.sort()) {
     const runDir = join(runsDir, name)
+    if (name.startsWith(PRUNE_TOMBSTONE_PREFIX)) {
+      try {
+        await (options.remove ?? removeRunArtifact)(runDir)
+      } catch (error) {
+        options.warn?.("facts run tombstone cleanup failed", { path: runDir, error: describe(error) })
+      }
+      continue
+    }
     if (!isTerminalRunDir(runDir)) continue
     if (!DISPOSABLE.some((artifact) => existsSync(join(runDir, artifact)))) continue
     await cleanupTerminalFactsRun({

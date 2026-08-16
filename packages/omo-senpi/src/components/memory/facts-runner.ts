@@ -9,6 +9,7 @@ import {
   buildDefaultSeedFiles,
   createLockRecord,
   memoryWriterLockPath,
+  runFinalizationLockPath,
   selectLaunchable,
   withLock,
   type FactsFailureReason,
@@ -34,6 +35,7 @@ import { describe, finalResult, queueKeys, reserveFactsRunDir } from "./facts-ru
 import { finalizeClaimedFactsRun } from "./facts-run-finalize"
 import { reconcileFactsRuns } from "./facts-run-reconcile"
 import { sweepTerminalFactsRuns } from "./facts-run-cleanup"
+import { pruneTerminalFactsRuns } from "./facts-run-prune"
 
 export class FactsExtractorRunner {
   private readonly queue: FactsQueue
@@ -114,6 +116,7 @@ export class FactsExtractorRunner {
     if (isAborted()) return { status: "skipped" }
     const runDir = await reserveFactsRunDir({
       factsDir: this.options.identity.paths.facts,
+      locksDir: this.options.identity.paths.locks,
       entries,
       batchId,
       launchedAt,
@@ -174,7 +177,7 @@ export class FactsExtractorRunner {
       ...(this.options.removeRunArtifact === undefined ? {} : { remove: this.options.removeRunArtifact }),
       ...(this.options.logger === undefined ? {} : { warn: (message, fields) => this.options.logger?.warn(message, fields) }),
     })
-    return reconcileFactsRuns({
+    const active = await reconcileFactsRuns({
       factsDir: this.options.identity.paths.facts,
       now: this.now,
       finalize: async (runDir) => {
@@ -191,12 +194,34 @@ export class FactsExtractorRunner {
       abandon: (runDir, ledger, reason) => this.terminal.abandon(runDir, ledger, reason),
       warn: (message, fields) => this.options.logger?.warn(message, fields),
     })
+    await this.prune()
+    return active
+  }
+
+  /**
+   * Retention pruning. Always OUTSIDE the finalize lock (the prune path takes each run's finalize
+   * lock itself, non-blocking) and never allowed to fail a run: retention is best effort, the
+   * outcome it follows is already published.
+   */
+  private async prune(): Promise<void> {
+    try {
+      await pruneTerminalFactsRuns({
+        factsDir: this.options.identity.paths.facts,
+        locksDir: this.options.identity.paths.locks,
+        warn: (message, fields) => this.options.logger?.warn(message, fields),
+      })
+    } catch (error) {
+      this.options.logger?.warn("facts run retention pruning failed", { error: describe(error) })
+    }
   }
 
   private async finalizeRun(runDir: string, repo: GitMemoryRepo): Promise<FactsLaunchResult> {
     const ledger = await readRunJson<FactsRunLedger>(join(runDir, "ledger.json"))
     const record = await createLockRecord("facts-finalize", { runId: ledger.runId })
-    return withLock(join(this.options.identity.paths.locks, `finalize-${ledger.runId}.lock`), record, async () => {
+    // The prune below runs only after this lock is released: it takes each run's finalize lock
+    // itself, and a run holding its own finalize lock could never be pruned from inside it.
+    const finalizeLock = runFinalizationLockPath(this.options.identity.paths.locks, ledger.runId)
+    const result = await withLock<FactsLaunchResult>(finalizeLock, record, async () => {
       const finalPath = join(runDir, "final.json")
       if (existsSync(finalPath)) return finalResult(await readRunJson<FactsFinalRecord>(finalPath))
       if (existsSync(join(runDir, "abandoned.json"))) return { status: "failed", runId: ledger.runId }
@@ -211,6 +236,8 @@ export class FactsExtractorRunner {
         withWriterLock: (operation, attempt) => this.withWriterLock(operation, attempt),
       })
     }, { waitTimeoutMs: WRITER_WAIT_MS })
+    await this.prune()
+    return result
   }
 
   private async withWriterLock<T>(operation: () => Promise<T>, attempt: number): Promise<T> {
