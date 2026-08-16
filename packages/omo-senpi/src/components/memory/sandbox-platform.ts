@@ -1,5 +1,5 @@
 import { accessSync, constants, existsSync, mkdirSync, realpathSync } from "node:fs"
-import { delimiter, dirname, isAbsolute, join } from "node:path"
+import { basename, delimiter, dirname, isAbsolute, join } from "node:path"
 
 import type { FactsSpawnArgs, ReflectionSpawnArgs } from "./worker/spawn"
 import { SandboxUnavailableError, type SandboxPolicy } from "./sandbox-contracts"
@@ -8,6 +8,12 @@ export interface PathSandboxInput {
   readonly surface: "reflection" | "facts"
   readonly policy: SandboxPolicy
   readonly writableDirs: readonly string[]
+  /**
+   * Entries that do not exist yet and must stay writable as BOTH a file and a directory:
+   * proper-lockfile mkdirs the lock directory and then writes inside it. They are never
+   * realpath-canonicalized (realpathSync throws ENOENT on an absent path); their parent is.
+   */
+  readonly lockPaths?: readonly string[]
   readonly payloadPaths: readonly string[]
   readonly fallbackDir: string
   readonly foreignRoots?: readonly string[]
@@ -43,13 +49,30 @@ export function buildPathSandboxTransform<T extends ReflectionSpawnArgs | FactsS
     return identityTransform(`${input.surface} sandbox unavailable on ${platform}: ${reason}; running unsandboxed because policy is auto`)
   }
 
+  const lockPaths = input.lockPaths ?? []
+  if (platform !== "darwin" && lockPaths.length > 0) {
+    const reason = `${platform} sandbox cannot grant the agent lockfile paths (${lockPaths.join(", ")}); bwrap has no minimal grant for entries that do not exist yet`
+    if (input.policy === "required") {
+      const error = new SandboxUnavailableError(platform, reason)
+      if (input.errorRethrow !== undefined) input.errorRethrow(error)
+      throw error
+    }
+    return identityTransform(`${input.surface} sandbox unavailable on ${platform}: ${reason}; running unsandboxed because policy is auto`)
+  }
+
   const writableDirs = input.writableDirs.map(canonicalPath)
   if (platform === "darwin") {
     const payloads = input.payloadPaths.map(canonicalPath)
     const foreignRoots = (input.foreignRoots ?? []).map(canonicalPath)
     const tempDir = join(dirname(payloads[0] ?? canonicalPath(input.fallbackDir)), ".sandbox-tmp")
     mkdirSync(tempDir, { recursive: true, mode: 0o700 })
-    const profile = buildDarwinProfile({ writableDirs, tempDir, payloads, foreignRoots })
+    const profile = buildDarwinProfile({
+      writableDirs,
+      lockPaths: lockPaths.map(canonicalAbsentPath),
+      tempDir,
+      payloads,
+      foreignRoots,
+    })
     return guardedSandboxedTransform(input.surface, input.command, input.env, (spawnArgs, innerCommand) => ({
       ...spawnArgs,
       command: executable,
@@ -74,6 +97,7 @@ export function buildPathSandboxTransform<T extends ReflectionSpawnArgs | FactsS
 
 function buildDarwinProfile(input: {
   readonly writableDirs: readonly string[]
+  readonly lockPaths: readonly string[]
   readonly tempDir: string
   readonly payloads: readonly string[]
   readonly foreignRoots: readonly string[]
@@ -84,6 +108,8 @@ function buildDarwinProfile(input: {
     "(allow default)",
     "(deny file-write*)",
     ...writable.map((path) => `(allow file-write* (subpath ${seatbeltString(path)}))`),
+    ...input.lockPaths.map((path) =>
+      `(allow file-write* (literal ${seatbeltString(path)}) (subpath ${seatbeltString(path)}))`),
     '(allow file-write* (literal "/dev/null"))',
     '(allow file-write* (literal "/dev/tty"))',
     ...input.payloads.map((path) => `(allow file-read* (literal ${seatbeltString(path)}))`),
@@ -117,6 +143,11 @@ function defaultWhich(command: string): string | undefined {
 
 function canonicalPath(path: string): string {
   return realpathSync(path)
+}
+
+/** Canonicalizes the existing parent and re-joins the basename, so an absent entry never throws. */
+function canonicalAbsentPath(path: string): string {
+  return join(canonicalPath(dirname(path)), basename(path))
 }
 
 function seatbeltString(path: string): string {
