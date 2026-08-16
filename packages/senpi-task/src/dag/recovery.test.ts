@@ -378,6 +378,78 @@ describe("DAG crash recovery", () => {
     expect(outcomesB).toEqual([{ runId, kind: "skipped", reason: "live_lease" }])
   })
 
+  test("#given a crash after a terminal transition reaches the WAL but before its reducer #when recovery reopens #then output artifact metadata and run stats are rebuilt", async () => {
+    // given
+    const projectDir = tempProject()
+    const baseStore = createDagFileStore({ project_dir: projectDir })
+    const manager = new RecoveryTaskManager()
+    const completed = {
+      ...taskRecord(owner("wal-artifact"), "completed", "task-wal-artifact"),
+      final_response: "wal boundary output",
+      run_stats: { runtime_ms: 47, turns: 4, tool_calls: 3, output_tokens: 19 },
+    }
+    manager.add(completed)
+    baseStore.writeCheckpoint(runId, recoverableRecord(definition([node("wal-artifact")]), {
+      "wal-artifact": { state: "running", taskId: "task-wal-artifact", attempt: 1 },
+    }, { previousLeaseHolderPid: 9001 }))
+    let crashAfterTerminalWal = true
+    const crashingStore: DagFileStore = {
+      ...baseStore,
+      appendEvent(event) {
+        baseStore.appendEvent(event)
+        if (crashAfterTerminalWal && event.type === "dag.node.transitioned" && event.to === "completed") {
+          crashAfterTerminalWal = false
+          throw new Error("injected crash after terminal WAL append")
+        }
+      },
+    }
+
+    // when
+    await expect(createDagRecovery({
+      store: crashingStore,
+      taskManager: manager,
+      hostPid: 101,
+      isProcessAlive: () => false,
+    }).resumePausedRuns(parentSessionId)).rejects.toThrow("injected crash after terminal WAL append")
+    const reopenedStore = createDagFileStore({ project_dir: projectDir })
+    const [outcome] = await createDagRecovery({
+      store: reopenedStore,
+      taskManager: manager,
+      hostPid: 202,
+      isProcessAlive: () => false,
+    }).resumePausedRuns(parentSessionId)
+
+    // then
+    const checkpoint = reopenedStore.readCheckpoint<DagRunRecordV1 & {
+      readonly nodes: readonly (DagNode & {
+        readonly resultArtifact?: {
+          readonly relativePath: string
+          readonly sha256: string
+          readonly bytes: number
+          readonly stats?: { readonly relativePath: string; readonly sha256: string; readonly bytes: number }
+        }
+      })[]
+    }>(runId)
+    const recovered = checkpoint?.nodes[0]
+    const artifact = recovered?.resultArtifact
+    const statsPath = reopenedStore.paths.result(runId, "wal-artifact").replace(/\.txt$/, ".stats.json")
+    const statsRaw = fs.readFileSync(statsPath, "utf8")
+    expect(outcome?.kind).toBe("resumed")
+    expect(recovered?.state).toBe("completed")
+    expect(reopenedStore.readResult(runId, "wal-artifact")).toBe("wal boundary output")
+    expect(recovered?.runStats).toEqual(completed.run_stats)
+    expect(artifact).toEqual({
+      relativePath: join("dag", "results", runId, "wal-artifact.txt"),
+      sha256: createHash("sha256").update("wal boundary output").digest("hex"),
+      bytes: Buffer.byteLength("wal boundary output"),
+      stats: {
+        relativePath: join("dag", "results", runId, "wal-artifact.stats.json"),
+        sha256: createHash("sha256").update(statsRaw).digest("hex"),
+        bytes: Buffer.byteLength(statsRaw),
+      },
+    })
+  })
+
   test("#given a crash after a recovered task transition reaches the WAL #when the engine reopens #then artifact metadata is rebuilt from the durable copy", async () => {
     // given
     const projectDir = tempProject()

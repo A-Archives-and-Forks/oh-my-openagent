@@ -552,11 +552,7 @@ function withLock<T>(
       if (!hasCode(error, "EEXIST")) throw error
       const observedHolder = readLockHolder(path)
       if (observedHolder === undefined || !isProcessAlive(observedHolder.pid)) {
-        const currentHolder = readLockHolder(path)
-        if (sameLockHolder(observedHolder, currentHolder) &&
-          (currentHolder === undefined || !isProcessAlive(currentHolder.pid))) {
-          fs.rmSync(path, { force: true })
-        }
+        reclaimObservedLock(path, observedHolder, isProcessAlive)
         continue
       }
       if (now() - startedAt >= LOCK_WAIT_TIMEOUT_MS) throw new Error(`Timed out acquiring DAG lock: ${path}`)
@@ -596,6 +592,33 @@ function readLockHolder(path: string): LockHolder | undefined {
 function sameLockHolder(left: LockHolder | undefined, right: LockHolder | undefined): boolean {
   if (left === undefined || right === undefined) return left === right
   return left.pid === right.pid && left.content === right.content
+}
+
+function reclaimObservedLock(
+  path: string,
+  observedHolder: LockHolder | undefined,
+  isProcessAlive: (pid: number) => boolean,
+): boolean {
+  const currentHolder = readLockHolder(path)
+  if (!sameLockHolder(observedHolder, currentHolder) ||
+    (currentHolder !== undefined && isProcessAlive(currentHolder.pid))) {
+    return false
+  }
+  const quarantinePath = `${path}.${process.pid}.${randomUUID()}.stale`
+  try {
+    fs.renameSync(path, quarantinePath)
+  } catch (error) {
+    if (hasCode(error, "ENOENT")) return false
+    throw error
+  }
+  const movedHolder = readLockHolder(quarantinePath)
+  if (!sameLockHolder(observedHolder, movedHolder) ||
+    (movedHolder !== undefined && isProcessAlive(movedHolder.pid))) {
+    fs.renameSync(quarantinePath, path)
+    return false
+  }
+  fs.rmSync(quarantinePath, { force: true })
+  return true
 }
 
 function pruneRunArtifacts(paths: DagStorePaths, checkpoint: RetentionCheckpoint, runId: DagRunId): void {

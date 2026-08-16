@@ -99,8 +99,13 @@ export function createDagJournal<TCheckpoint extends DagJournalCheckpoint>(
         at: new Date(now()).toISOString(),
         lane: dagEventLane(payload.type),
       }
+      // Completed-node reducers synchronously stage result artifacts. Stage them before the WAL so
+      // replay can rebuild metadata even if the process dies before checkpoint replacement.
+      const prepared = event.type === "dag.node.transitioned" && event.to === "completed"
+        ? options.applyEvent(recovered, event)
+        : undefined
       options.store.appendEvent(event)
-      const applied = options.applyEvent(recovered, event)
+      const applied = prepared ?? options.applyEvent(recovered, event)
       const next = { ...applied, schemaVersion: 1, checkpointSeq: seq }
       options.store.writeCheckpoint(options.runId, next)
       durableEvent = event

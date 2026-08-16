@@ -261,7 +261,7 @@ describe("createDagFileStore checkpoints and layout", () => {
 
   test("#given an existing node result #when it is replaced #then readers see the old complete file until rename and both file and directory are fsynced", () => {
     // given
-    const options = { isProcessAlive: () => true, platform: "darwin" as const }
+    const options = { isProcessAlive: () => true, platform: "linux" as const }
     const store = createDagFileStore({ project_dir: tempProject() }, options)
     store.writeResult(runId, "node-a", "old result")
     const realRename = fs.renameSync
@@ -338,6 +338,54 @@ describe("createDagFileStore locks and retention", () => {
     // then
     expect(entered).toBe(true)
     expect(fs.existsSync(store.paths.runLock(runId))).toBe(false)
+  })
+
+  test("#given a fresh holder replaces a stale lock at reclamation #when the run lock retries #then the fresh lock survives and is never stolen", () => {
+    // given
+    const project = tempProject()
+    let clock = 0
+    const stalePid = 101
+    const freshPid = 202
+    let replaced = false
+    const store = createDagFileStore(
+      { project_dir: project },
+      {
+        now: () => {
+          clock += 1_001
+          return clock
+        },
+        isProcessAlive: (pid) => pid === freshPid,
+      },
+    )
+    const stale = JSON.stringify({ hostPid: stalePid, owner: "stale" })
+    const fresh = JSON.stringify({ hostPid: freshPid, owner: "fresh" })
+    fs.writeFileSync(store.paths.runLock(runId), stale)
+    const realRm = fs.rmSync
+    const realRename = fs.renameSync
+    spyOn(fs, "rmSync").mockImplementation((path, options) => {
+      if (!replaced && path === store.paths.runLock(runId)) {
+        replaced = true
+        fs.writeFileSync(store.paths.runLock(runId), fresh)
+      }
+      return realRm(path, options)
+    })
+    spyOn(fs, "renameSync").mockImplementation((from, to) => {
+      if (!replaced && from === store.paths.runLock(runId)) {
+        replaced = true
+        fs.writeFileSync(store.paths.runLock(runId), fresh)
+      }
+      return realRename(from, to)
+    })
+    let entered = false
+
+    // when
+    const acquire = () => store.withRunLock(runId, () => { entered = true })
+
+    // then
+    expect(acquire).toThrow(`Timed out acquiring DAG lock: ${store.paths.runLock(runId)}`)
+    expect(replaced).toBe(true)
+    expect(entered).toBe(false)
+    expect(fs.readFileSync(store.paths.runLock(runId), "utf8")).toBe(fresh)
   })
 
   test("#given a dead holder is replaced before reclamation #when the run lock retries #then it never deletes the fresh holder", () => {
