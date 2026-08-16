@@ -79,6 +79,11 @@ export const CATEGORY_FALLBACK_CHAINS: Readonly<Record<string, readonly Delegate
   ],
   "unspecified-low": [
     {
+      providers: ["xai", "github-copilot", "opencode", "vercel"],
+      model: "grok-4.6",
+      variant: "xhigh",
+    },
+    {
       providers: ["openai", "quotio-openai", "github-copilot", "opencode", "vercel"],
       model: "gpt-5.6-terra",
       variant: "high",
