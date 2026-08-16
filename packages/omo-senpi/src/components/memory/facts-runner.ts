@@ -19,6 +19,7 @@ import {
 } from "@oh-my-opencode/memory-core"
 import { hasFailureReader, readLaunchableFailures, type FactsFailureReadPort } from "./facts-launch-selection"
 import { ledgerTargets, preflightFailureId, queueEntryTargets, type FactsFailurePort } from "./facts-failure-recording"
+import { drainFactsLaunches } from "./facts-drain"
 import { classifyOversizePayload } from "./facts-oversize"
 import { FactsTerminalWrites } from "./facts-terminal-writes"
 import { readFactsPeoplePayload } from "./facts-people-payload"
@@ -64,10 +65,16 @@ export class FactsExtractorRunner {
     })
   }
 
+  /**
+   * Launches pending facts work and DRAINS: a capped payload splits one backlog into several
+   * runs, so every success immediately attempts the next batch instead of waiting for another
+   * settle. The existing `activeLaunch` latch spans the whole drain, so a concurrent caller is
+   * still refused with `active` and only one launch ever runs.
+   */
   async launchPending(signal?: AbortSignal): Promise<FactsLaunchResult> {
     if (signal?.aborted === true) return { status: "skipped" }
     if (this.activeLaunch !== undefined) return { status: "active" }
-    const operation = this.launchPendingOnce(signal)
+    const operation = drainFactsLaunches(() => this.launchPendingOnce(signal), signal)
     this.activeLaunch = operation
     try {
       return await operation
@@ -149,7 +156,6 @@ export class FactsExtractorRunner {
     const runDir = await reserveFactsRunDir({
       factsDir: this.options.identity.paths.facts,
       locksDir: this.options.identity.paths.locks,
-      entries,
       entries: batch,
       batchId,
       launchedAt,
@@ -184,8 +190,7 @@ export class FactsExtractorRunner {
       if (child.timedOut || child.code !== 0) {
         const reason: FactsFailureReason = child.timedOut ? "deadline_exceeded" : "child_exit"
         const detail = child.stderr.trim() || "facts child failed"
-        await this.terminal.fail({ runDir, runId, batchId, targets: queueEntryTargets(entries), reason, detail })
-        await this.terminal.fail({ runDir, runId, targets: queueEntryTargets(batch), reason, detail })
+        await this.terminal.fail({ runDir, runId, batchId, targets: queueEntryTargets(batch), reason, detail })
         return { status: "failed", runId }
       }
     } catch (error) {
@@ -194,11 +199,10 @@ export class FactsExtractorRunner {
         runDir,
         runId,
         batchId,
-        targets: queueEntryTargets(entries),
+        targets: queueEntryTargets(batch),
         reason,
         detail: describe(error),
       })
-      await this.terminal.fail({ runDir, runId, targets: queueEntryTargets(batch), reason, detail: describe(error) })
       return { status: "failed", runId }
     }
     return this.finalizeRun(runDir, repo)
