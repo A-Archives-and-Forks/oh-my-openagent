@@ -65,7 +65,7 @@ afterEach(async () => {
 })
 
 describe("RpcProcessRunner", () => {
-  test("#given the default RPC child spawner #when started #then Windows hides the child console", () => {
+  test("#given the default RPC child spawner #when started #then Windows hides the child console", async () => {
     let capturedOptions: SpawnOptions | undefined
     const runner = new RpcProcessRunner({
       spawnProcess: (_command, _args, options) => {
@@ -76,7 +76,7 @@ describe("RpcProcessRunner", () => {
       },
     })
 
-    runner.start(makeSpec())
+    await runner.start(makeSpec())
 
     expect(capturedOptions).toMatchObject({
       stdio: ["pipe", "pipe", "pipe"],

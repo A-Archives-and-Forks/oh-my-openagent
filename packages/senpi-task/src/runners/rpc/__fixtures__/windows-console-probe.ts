@@ -152,7 +152,7 @@ async function runParent(mode: ProbeMode, root: string): Promise<void> {
         }
       : {}),
   })
-  const handle = runner.start({
+  const handle = await runner.start({
     task_id: `st_windows_probe_${mode}`,
     cwd: root,
     state_dir: join(root, "state"),
