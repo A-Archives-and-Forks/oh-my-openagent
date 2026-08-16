@@ -30,7 +30,11 @@ function resolveSenpi() {
     }
     return null
   }
-  for (const dir of (process.env.PATH ?? "").split(delimiter)) {
+  const searchDirs = [
+    join(process.cwd(), "node_modules", ".bin"),
+    ...(process.env.PATH ?? "").split(delimiter),
+  ]
+  for (const dir of new Set(searchDirs)) {
     for (const name of executableNames(bin)) {
       const candidate = resolve(dir || ".", name)
       if (existsSync(candidate)) return candidate
