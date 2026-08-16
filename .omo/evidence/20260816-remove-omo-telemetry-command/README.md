@@ -22,3 +22,4 @@
 No real telemetry credentials, auth headers, user prompts, environment dumps, or private
 payloads are captured in this evidence directory. Later transport evidence uses only a
 local stub and synthetic allowlisted events.
+- full-suite-transcript.txt: committed transcript of the post-rebase full omo-senpi suite run (1582 pass / 0 fail).
