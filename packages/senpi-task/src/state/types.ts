@@ -1,3 +1,5 @@
+import type { DagTaskOwner } from "../dag/owner"
+
 export const TASK_STATUSES = [
   "pending",
   "running",
@@ -130,6 +132,7 @@ export type TaskRecordInput = {
   readonly notify_on_terminal: boolean
   // Durable prelaunch steering queue, drained in order once the child starts. Omitted when empty.
   readonly pending_steering?: readonly PendingSteeringEntry[]
+  readonly owner?: DagTaskOwner
 }
 
 export type TaskRecord = TaskRecordInput & {

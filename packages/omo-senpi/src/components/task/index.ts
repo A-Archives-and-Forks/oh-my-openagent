@@ -19,6 +19,9 @@ import {
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
 import { CATEGORY_UNAVAILABLE_MESSAGE_TYPE } from "./category-unavailable-warning"
 import { registerTaskCommands } from "./commands"
+import { registerDagCommands } from "./dag-commands"
+import { createDagRuntime, type DagRuntime } from "./dag-runtime"
+import { createDagTool } from "./dag-tool"
 import { composeTaskEngine, type TaskEngine } from "./engine"
 import { TASK_USAGE_HINT_FLAG, wireEventBridge } from "./event-bridge"
 import { createLeadPollerLifecycle, type LeadPollerLifecycle } from "./lead-poller-lifecycle"
@@ -81,10 +84,21 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
       pi.registerMessageRenderer?.(CATEGORY_UNAVAILABLE_MESSAGE_TYPE, renderCategoryUnavailable)
       const teamTools = createTeamToolContext(pi, ctx, engine)
       const skillInvocations = createSkillInvocationTracker(pi)
-      registerTaskTools(pi, engine, teamTools.service, teamTools.leadPollers.resolveDefaultTeamRunId, skillInvocations)
+      const dagRuntime = createDagRuntime({
+        pi,
+        engine,
+        logger: ctx.logger,
+        ...(ctx.idleCoordinator === undefined ? {} : { coordinator: ctx.idleCoordinator }),
+      })
+      registerTaskTools(pi, engine, teamTools.service, teamTools.leadPollers.resolveDefaultTeamRunId, skillInvocations, dagRuntime)
       registerTeamTools(pi, teamTools)
       registerRemovedTeamWaitHint(pi)
       registerTaskCommands(pi, engine.manager)
+      registerDagCommands(pi, {
+        list: dagRuntime.manager.list,
+        snapshot: dagRuntime.manager.snapshot,
+        taskRecord: dagRuntime.taskRecord,
+      })
 
       const statusUi = createTaskStatusUi({
         manager: engine.manager,
@@ -103,6 +117,7 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
       })
       engine.onStoreMutation(() => {
         statusUi.scheduleSync()
+        dagRuntime.sync()
         void resumptionChannels.emitIfChanged().catch((error: unknown) => {
           ctx.logger.warn("omo-senpi task resumption-channel emission failed", {
             error: error instanceof Error ? error.message : String(error),
@@ -111,10 +126,12 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
       })
       const transitions = createSessionTransitionBridge({ runtime: engine.runtime, notifier: engine.notifier })
 
-      wireEventBridge(pi, ctx, engine, statusUi, transitions, {
-        reconcileTeamMailbox: teamTools.reconcileTeamMailbox,
-        leadPollers: teamTools.leadPollers,
-        resumptionChannels,
+      wireDagLifecycle(pi, dagRuntime, () => {
+        wireEventBridge(pi, ctx, engine, statusUi, transitions, {
+          reconcileTeamMailbox: teamTools.reconcileTeamMailbox,
+          leadPollers: teamTools.leadPollers,
+          resumptionChannels,
+        })
       })
     },
   }
@@ -158,6 +175,7 @@ function registerTaskTools(
   teamService: TeamToolsService,
   resolveDefaultTeamRunId: TaskSendTeamRouting["resolveDefaultTeamRunId"],
   skillInvocations: SkillInvocationTracker,
+  dagRuntime: DagRuntime,
 ): void {
   const resolveCallerSessionId = defaultResolveCallerSessionId
   const manager = engine.manager
@@ -178,6 +196,32 @@ function registerTaskTools(
   })
   pi.registerTool({ ...createTaskCancelTool({ manager }) })
   pi.registerTool({ ...createTaskOutputTool({ manager, stateDir: engine.stateDir, resolveCallerSessionId }) })
+  registerDagTool(pi, engine, dagRuntime)
+}
+
+function registerDagTool(pi: SenpiExtensionAPI, engine: TaskEngine, runtime: DagRuntime): void {
+  const sessionId = (): string => engine.runtime.sessionId() ?? ""
+  pi.registerTool({
+    ...createDagTool({
+      manager: runtime.manager,
+      parentSessionId: sessionId,
+      rootSessionId: sessionId,
+      wait: runtime.wait,
+      cancel: runtime.cancel,
+    }),
+  })
+}
+
+export function wireDagLifecycle(
+  pi: SenpiExtensionAPI,
+  runtime: Pick<DagRuntime, "attach" | "detach" | "pauseForShutdown" | "dispose">,
+  wireTaskLifecycle: () => void,
+): void {
+  pi.on("session_shutdown", () => runtime.pauseForShutdown())
+  wireTaskLifecycle()
+  pi.on("session_start", () => runtime.attach())
+  pi.on("session_before_switch", () => runtime.detach())
+  pi.on("session_shutdown", () => runtime.dispose())
 }
 
 function createTeamToolContext(

@@ -21,6 +21,26 @@ const childFixture = join(import.meta.dir, "__fixtures__", "supervisor-child.ts"
 const parentFixture = join(import.meta.dir, "__fixtures__", "supervisor-parent.ts")
 const roots: string[] = []
 const processGroups = new Set<number>()
+const WINDOWS_CLEANUP_RACE_CODES = new Set(["EBUSY", "ENOTEMPTY", "EPERM"])
+
+// Windows releases file handles asynchronously when killed processes die, so an immediate recursive
+// rm can hit EBUSY there; bounded retries absorb the lag without weakening cleanup. A tree-killed
+// child can still outlast that window, and stalling here bills the next test file's budget, so the
+// platform's known cleanup races are tolerated while every other cleanup defect fails loudly.
+async function removeRoot(root: string): Promise<void> {
+  try {
+    await rm(root, { recursive: true, force: true, maxRetries: 30, retryDelay: 200 })
+  } catch (error) {
+    if (
+      process.platform === "win32"
+      && error instanceof Error
+      && "code" in error
+      && typeof error.code === "string"
+      && WINDOWS_CLEANUP_RACE_CODES.has(error.code)
+    ) return
+    throw error
+  }
+}
 
 interface Outcome {
   readonly version: 1
@@ -143,9 +163,7 @@ afterEach(async () => {
     }
   }
   processGroups.clear()
-  // Windows releases file handles asynchronously when killed processes die, so an immediate
-  // recursive rm can hit EBUSY there; bounded retries absorb the lag without weakening cleanup.
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
+  await Promise.all(roots.splice(0).map(removeRoot))
 })
 
 describe("memory run supervisor", () => {

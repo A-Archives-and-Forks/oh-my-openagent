@@ -9,6 +9,7 @@ import {
   type TaskSpawnSpec,
 } from "../state"
 import { parseTaskId } from "../state/id"
+import type { DagTaskOwner } from "../dag/owner"
 
 export function parseTaskRecord(value: unknown, path: string, warnings?: string[]): TaskRecord {
   if (!isRecord(value)) throw new Error(`JSON record at ${path} is not an object`)
@@ -33,6 +34,7 @@ export function parseTaskRecord(value: unknown, path: string, warnings?: string[
   const fallbackAttempts = readOptionalResolvedModelArray(value, "fallback_attempts")
   const resolvedModel = readOptionalResolvedModel(value, "resolved_model")
   const spawnSpec = readOptionalSpawnSpec(value)
+  const owner = readOptionalOwner(value)
   const pendingSteering = readOptionalPendingSteering(value, path, warnings)
   const runStats = readOptionalRunStats(value)
 
@@ -61,6 +63,7 @@ export function parseTaskRecord(value: unknown, path: string, warnings?: string[
     ...(fallbackAttempts === undefined ? {} : { fallback_attempts: fallbackAttempts }),
     ...(resolvedModel === undefined ? {} : { resolved_model: resolvedModel }),
     ...(spawnSpec === undefined ? {} : { spawn_spec: spawnSpec }),
+    ...(owner === undefined ? {} : { owner }),
     ...(pendingSteering !== undefined && pendingSteering.length > 0 ? { pending_steering: pendingSteering } : {}),
     ...(pid === undefined ? {} : { pid }),
     ...(hostPid === undefined ? {} : { host_pid: hostPid }),
@@ -69,6 +72,19 @@ export function parseTaskRecord(value: unknown, path: string, warnings?: string[
     ...(errorMessage === undefined ? {} : { error_message: errorMessage }),
     ...(killed === undefined ? {} : { killed }),
     ...(runStats === undefined ? {} : { run_stats: runStats }),
+  }
+}
+
+function readOptionalOwner(record: Record<string, unknown>): DagTaskOwner | undefined {
+  const value = record["owner"]
+  if (value === undefined) return undefined
+  if (!isRecord(value)) throw new Error("owner is not an object")
+  if (readString(value, "kind") !== "dag") throw new Error("owner.kind is not dag")
+  return {
+    kind: "dag",
+    runId: readString(value, "runId") as DagTaskOwner["runId"],
+    nodeId: readString(value, "nodeId") as DagTaskOwner["nodeId"],
+    fingerprint: readString(value, "fingerprint"),
   }
 }
 

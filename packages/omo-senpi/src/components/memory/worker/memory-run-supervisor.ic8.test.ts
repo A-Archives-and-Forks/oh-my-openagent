@@ -178,7 +178,9 @@ describe("memory run supervisor IC-8 containment", () => {
       const outcome = JSON.parse(await readFile(join(runDir, "outcome.json"), "utf8")) as Record<string, unknown>
       expect(outcome.timedOut).toBe(true)
       if (platform === "win32") {
-        const invocation = JSON.parse(await readFile(join(runDir, "taskkill-invocation.json"), "utf8")) as { readonly args: string[] }
+        const invocationPath = join(runDir, "taskkill-invocation.json")
+        await waitForPath(invocationPath)
+        const invocation = JSON.parse(await readFile(invocationPath, "utf8")) as { readonly args: string[] }
         expect(invocation.args.slice(-4)).toEqual(["/pid", expect.any(String), "/T", "/F"])
       } else {
         expect(existsSync(join(runDir, "taskkill-invocation.json"))).toBe(false)

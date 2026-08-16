@@ -38,6 +38,10 @@ export function createNativeSkillSources(repoRoot) {
       source: join(nativeSkillsRoot, "init-deep"),
     },
     {
+      name: "mass-ulw",
+      source: join(nativeSkillsRoot, "mass-ulw"),
+    },
+    {
       name: "onboarding",
       source: join(nativeSkillsRoot, "onboarding"),
     },
