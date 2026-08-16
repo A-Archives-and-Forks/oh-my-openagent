@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, test } from "bun:test"
 
@@ -109,13 +109,14 @@ describe("OmO Native telemetry component integration", () => {
       const recorder = createTransportRecorder()
       const pi = new FakeExtensionAPI()
       const session = context("integration-session")
+      const stateDir = join(agentDir, "omo-senpi", "omo-native")
       const component = createOmoNativeTelemetryComponent({
         env: createEnabledEnv(agentDir),
         hashSessionId: (raw) => `hashed:${raw}`,
         isConfigEnabled: () => true,
         now: FIXED_NOW,
         osProvider: createOsProvider("integration-host"),
-        stateDir: join(agentDir, "omo-senpi", "omo-native"),
+        stateDir,
         transportFactory: recorder.factory,
       })
       component.register(pi, { config: pi, logger: createSilentLogger() })
@@ -152,6 +153,7 @@ describe("OmO Native telemetry component integration", () => {
         [...OMO_NATIVE_PROPERTY_ALLOWLISTS.feature_used, ...SHARED_KEYS].sort(),
       ])
       assertAllowlistedPayloadKeys(recorder.messages)
+      expect(existsSync(join(stateDir, "last-payloads.json"))).toBe(false)
     })
   })
 
