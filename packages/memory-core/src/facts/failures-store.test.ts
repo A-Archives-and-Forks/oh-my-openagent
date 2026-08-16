@@ -70,7 +70,7 @@ describe("facts failure store persistence", () => {
     const raw = await readFile(layout.failuresPath, "utf8")
     expect(raw.endsWith("\n")).toBe(true)
     const info = await stat(layout.failuresPath)
-    expect(info.mode & 0o777).toBe(0o600)
+    expect(info.mode & 0o777).toBe(process.platform === "win32" ? 0o666 : 0o600)
     expect((await readdir(layout.queueDir)).filter((name) => name.includes(".tmp"))).toEqual([])
   })
 
