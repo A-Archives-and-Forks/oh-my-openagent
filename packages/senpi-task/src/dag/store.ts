@@ -538,31 +538,31 @@ function withLock<T>(
 ): T {
   assertSafeSegment(basename(path), "lock name")
   const startedAt = now()
+  let acquiredHolder: LockHolder | undefined
   for (;;) {
-    try {
-      const fd = fs.openSync(path, "wx")
-      try {
-        fs.writeSync(fd, JSON.stringify({ hostPid: process.pid, runId, createdAt: new Date(now()).toISOString() }))
-        if (fsyncWrites) fs.fsyncSync(fd)
-      } finally {
-        fs.closeSync(fd)
-      }
+    const content = JSON.stringify({
+      hostPid: process.pid,
+      runId,
+      token: randomUUID(),
+      createdAt: new Date(now()).toISOString(),
+    })
+    if (tryCreateLock(path, content, fsyncWrites)) {
+      acquiredHolder = { pid: process.pid, content }
       break
-    } catch (error) {
-      if (!hasCode(error, "EEXIST")) throw error
-      const observedHolder = readLockHolder(path)
-      if (observedHolder === undefined || !isProcessAlive(observedHolder.pid)) {
-        reclaimObservedLock(path, observedHolder, isProcessAlive)
-        continue
-      }
-      if (now() - startedAt >= LOCK_WAIT_TIMEOUT_MS) throw new Error(`Timed out acquiring DAG lock: ${path}`)
-      Atomics.wait(sleeper, 0, 0, LOCK_RETRY_MS)
     }
+    const observedHolder = readLockHolder(path)
+    if (observedHolder === undefined || !isProcessAlive(observedHolder.pid)) {
+      reclaimObservedLock(path, observedHolder, isProcessAlive)
+      continue
+    }
+    if (now() - startedAt >= LOCK_WAIT_TIMEOUT_MS) throw new Error(`Timed out acquiring DAG lock: ${path}`)
+    Atomics.wait(sleeper, 0, 0, LOCK_RETRY_MS)
   }
+  if (acquiredHolder === undefined) throw new Error(`Failed to acquire DAG lock: ${path}`)
   try {
     return operation()
   } finally {
-    fs.rmSync(path, { force: true })
+    removeObservedLock(path, acquiredHolder, () => true)
   }
 }
 
@@ -594,16 +594,44 @@ function sameLockHolder(left: LockHolder | undefined, right: LockHolder | undefi
   return left.pid === right.pid && left.content === right.content
 }
 
+function tryCreateLock(path: string, content: string, fsyncWrites: boolean): boolean {
+  const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`
+  let fd: number | undefined
+  try {
+    fd = fs.openSync(temporaryPath, "wx")
+    fs.writeSync(fd, content)
+    if (fsyncWrites) fs.fsyncSync(fd)
+    fs.closeSync(fd)
+    fd = undefined
+    fs.linkSync(temporaryPath, path)
+    return true
+  } catch (error) {
+    if (hasCode(error, "EEXIST")) return false
+    throw error
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd)
+    fs.rmSync(temporaryPath, { force: true })
+  }
+}
+
 function reclaimObservedLock(
   path: string,
   observedHolder: LockHolder | undefined,
   isProcessAlive: (pid: number) => boolean,
 ): boolean {
-  const currentHolder = readLockHolder(path)
-  if (!sameLockHolder(observedHolder, currentHolder) ||
-    (currentHolder !== undefined && isProcessAlive(currentHolder.pid))) {
-    return false
-  }
+  return removeObservedLock(
+    path,
+    observedHolder,
+    (movedHolder) => movedHolder === undefined || !isProcessAlive(movedHolder.pid),
+  )
+}
+
+function removeObservedLock(
+  path: string,
+  observedHolder: LockHolder | undefined,
+  canRemove: (movedHolder: LockHolder | undefined) => boolean,
+): boolean {
+  if (!sameLockHolder(observedHolder, readLockHolder(path))) return false
   const quarantinePath = `${path}.${process.pid}.${randomUUID()}.stale`
   try {
     fs.renameSync(path, quarantinePath)
@@ -612,13 +640,21 @@ function reclaimObservedLock(
     throw error
   }
   const movedHolder = readLockHolder(quarantinePath)
-  if (!sameLockHolder(observedHolder, movedHolder) ||
-    (movedHolder !== undefined && isProcessAlive(movedHolder.pid))) {
-    fs.renameSync(quarantinePath, path)
+  if (!sameLockHolder(observedHolder, movedHolder) || !canRemove(movedHolder)) {
+    restoreQuarantinedLock(path, quarantinePath)
     return false
   }
   fs.rmSync(quarantinePath, { force: true })
   return true
+}
+
+function restoreQuarantinedLock(path: string, quarantinePath: string): void {
+  try {
+    fs.linkSync(quarantinePath, path)
+  } catch (error) {
+    if (!hasCode(error, "EEXIST")) throw error
+  }
+  fs.rmSync(quarantinePath, { force: true })
 }
 
 function pruneRunArtifacts(paths: DagStorePaths, checkpoint: RetentionCheckpoint, runId: DagRunId): void {
