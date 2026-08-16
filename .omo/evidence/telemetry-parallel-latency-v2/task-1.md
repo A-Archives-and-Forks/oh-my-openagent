@@ -181,3 +181,124 @@ Changed files: exactly two new source files plus this evidence file.
 - `.omo/evidence/telemetry-parallel-latency-v2/task-1.md` (new, force-added; evidence dir is gitignored)
 
 No barrel export was added to `index.ts` (todo 4 wires the consumer). No existing file was modified.
+
+---
+
+# todo 1 reopen — cap defect
+
+An independent adversarial verifier returned `needs-fix` on commit `b8078d13a`. The finding was
+correct and is fixed here. Metric logic (spans, waves, `maxConcurrency`, `incomplete`,
+`clockAnomalies`) was verified correct by that same review and was **not** touched.
+
+## The defect
+
+The cap gated on `paired.length` alone (`wave-assembler.ts:69`), but per-call detail first
+accumulates in the `pending` Map. A start only becomes a `paired` entry once its end arrives, so
+for the all-starts-then-all-ends arrival order `paired.length` stays 0 while `pending` grows
+without bound. The guard never fired.
+
+The original case (f) fixture passed only because it is strictly interleaved
+`[start, end, start, end, ...]` — the one arrival order where a `paired.length` cap coincidentally
+works, because each end drains `pending` before the next start arrives.
+
+This matters because all-starts-then-all-ends **is** the fully-parallel shape this telemetry
+exists to measure. The plan's MUST-NOT ("배열을 무한히 키우지 말 것") was unenforced exactly where
+it is most load-bearing.
+
+## RED — new tests against the unfixed `paired.length` gate
+
+Two new cases were added and run **before** any implementation change:
+
+```
+$ bun test packages/omo-senpi/src/components/telemetry/wave-assembler.test.ts
+(fail) wave assembler > #given every start arriving before any end beyond the tracking cap > #when the observations are assembled > #then resident detail is bounded regardless of arrival order [1.24ms]
+(fail) wave assembler > #given unmatched starts beyond the tracking cap > #when the observations are assembled > #then pending detail is bounded and every start is still accounted for [0.45ms]
+
+171 |         expect(result.counters.incomplete).toBe(MAX_TRACKED_CALLS)
+                                                 ^
+error: expect(received).toBe(expected)
+
+Expected: 2000
+Received: 2500
+
+ 11 pass
+ 2 fail
+ 31 expect() calls
+Ran 13 tests across 1 file. [203.00ms]
+```
+
+The pre-existing interleaved case (f) and every metric test stayed green throughout, confirming the
+new cases isolate the arrival-order defect rather than re-testing covered ground.
+
+## The fix
+
+`wave-assembler.ts` — the gate now bounds **both** resident structures:
+
+```ts
+if (paired.length + pending.size >= MAX_TRACKED_CALLS) {
+  counters.droppedCalls += 1
+  continue
+}
+```
+
+Because a start moves from `pending` into `paired` on pairing, the sum is invariant across that
+transition, so the bound holds for any interleaving. A module comment records why gating on
+completed pairs alone is insufficient. Counter semantics are unchanged as required:
+`observedCalls` counts every well-formed start, `droppedCalls` counts starts refused past the cap.
+
+## GREEN
+
+```
+$ bun test packages/omo-senpi/src/components/telemetry/wave-assembler.test.ts
+ 13 pass
+ 0 fail
+ 35 expect() calls
+Ran 13 tests across 1 file. [114.00ms]
+GREEN_EXIT=0
+
+$ bun run --cwd packages/omo-senpi typecheck
+$ tsgo --noEmit -p tsconfig.json
+TYPECHECK_EXIT=0
+
+$ bun test packages/omo-senpi/src/components/telemetry/
+ 118 pass
+ 0 fail
+ 463 expect() calls
+Ran 118 tests across 14 files. [1139.00ms]
+SUITE_EXIT=0
+```
+
+118 pass / 0 fail against the stated 116-pass baseline, the difference being the two new cases.
+
+## Reproduction numbers — cap now fires
+
+Throwaway script `/tmp/wave-cap-repro.ts` ran the verifier's exact scenarios against the fix:
+
+```
+MAX_TRACKED_CALLS=2000
+5000 starts then 5000 ends: tracked=2000 dropped=3000 observed=5000 incomplete=0 accountedFor=5000
+2500 starts, no ends     : tracked=0 dropped=500 observed=2500 incomplete=2000 accountedFor=2500
+2010 interleaved pairs   : tracked=2000 dropped=10 observed=2010 incomplete=0 accountedFor=2010
+```
+
+| Scenario | Before (defect) | After (fixed) |
+| --- | --- | --- |
+| 5000 starts then 5000 ends | tracked 5000, dropped 0 | **tracked 2000, dropped 3000** |
+| 2500 starts, no ends | 2500 resident in `pending`, dropped 0 | **incomplete 2000, dropped 500** |
+| 2010 interleaved pairs | tracked 2000, dropped 10 | tracked 2000, dropped 10 (unchanged) |
+
+`accountedFor` is `pairedCalls + incomplete + droppedCalls` and equals `observedCalls` in all three
+scenarios, so counters remain truthful past the cap and no call is silently lost.
+
+## Cleanup receipt
+
+`/tmp/wave-cap-repro.ts` was deleted after the output above was captured; absence verified.
+
+## Scope of this follow-up
+
+- `packages/omo-senpi/src/components/telemetry/wave-assembler.ts` (cap gate + comment)
+- `packages/omo-senpi/src/components/telemetry/wave-assembler.test.ts` (2 new cases; existing cases untouched)
+- this evidence file
+
+`savings-math.ts`, `eval-classifier.ts`, `product-identity.ts`, `product-identity.test.ts`, and
+`docs/reference/senpi-telemetry.md` were **not** touched — other workers own those.

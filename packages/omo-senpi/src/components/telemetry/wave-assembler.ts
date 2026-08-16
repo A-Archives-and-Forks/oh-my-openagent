@@ -5,6 +5,12 @@
  * one wave. Each wave therefore reports `spanMs = maxEnd - minStart` rather than the
  * longest single duration: the savings formula downstream needs the real elapsed
  * window, and `max(duration)` overstates it on chained waves.
+ *
+ * Resident per-call detail lives in two places while a session runs: starts awaiting
+ * their end, and completed pairs. `MAX_TRACKED_CALLS` bounds their sum, so a fully
+ * parallel batch that emits every start before any end is capped the same as an
+ * interleaved one. Gating on completed pairs alone would leave the pending map
+ * unbounded for exactly the concurrent shape this telemetry exists to measure.
  */
 
 export const MAX_TRACKED_CALLS = 2000
@@ -66,7 +72,7 @@ export function assembleWaves(observations: readonly ToolExecutionObservation[])
     }
     if (observation.kind === "start") {
       counters.observedCalls += 1
-      if (paired.length >= MAX_TRACKED_CALLS) {
+      if (paired.length + pending.size >= MAX_TRACKED_CALLS) {
         counters.droppedCalls += 1
         continue
       }

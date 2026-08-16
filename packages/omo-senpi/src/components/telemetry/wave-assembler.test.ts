@@ -136,6 +136,46 @@ describe("wave assembler", () => {
     })
   })
 
+  describe("#given every start arriving before any end beyond the tracking cap", () => {
+    describe("#when the observations are assembled", () => {
+      test("#then resident detail is bounded regardless of arrival order", () => {
+        const overflow = 500
+        const total = MAX_TRACKED_CALLS + overflow
+        const starts: ToolExecutionObservation[] = []
+        const ends: ToolExecutionObservation[] = []
+        for (let index = 0; index < total; index += 1) {
+          starts.push(start(`call-${index}`, index))
+          ends.push(end(`call-${index}`, total + index))
+        }
+
+        const result = assembleWaves([...starts, ...ends])
+        const trackedCalls = result.waves.reduce((sum, wave) => sum + wave.calls.length, 0)
+
+        expect(trackedCalls).toBe(MAX_TRACKED_CALLS)
+        expect(result.counters.droppedCalls).toBe(overflow)
+        expect(result.counters.observedCalls).toBe(total)
+      })
+    })
+  })
+
+  describe("#given unmatched starts beyond the tracking cap", () => {
+    describe("#when the observations are assembled", () => {
+      test("#then pending detail is bounded and every start is still accounted for", () => {
+        const overflow = 500
+        const total = MAX_TRACKED_CALLS + overflow
+        const observations: ToolExecutionObservation[] = []
+        for (let index = 0; index < total; index += 1) observations.push(start(`call-${index}`, index))
+
+        const result = assembleWaves(observations)
+
+        expect(result.counters.incomplete).toBe(MAX_TRACKED_CALLS)
+        expect(result.counters.droppedCalls).toBe(overflow)
+        // Every observed start is either paired, still pending, or explicitly dropped.
+        expect(result.counters.pairedCalls + result.counters.incomplete + result.counters.droppedCalls).toBe(total)
+      })
+    })
+  })
+
   describe("#given malformed observations with unusable identifiers and timestamps", () => {
     describe("#when the observations are assembled", () => {
       test("#then nothing throws and the valid pair alone reaches the metrics", () => {
