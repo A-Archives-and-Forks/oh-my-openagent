@@ -69,7 +69,7 @@ describe("category routing policy", () => {
         variant: "off",
       },
       {
-        providers: ["qwen-token-plan", "alibaba-token-plan", "bailian-coding-plan", "opencode-go", "vercel"],
+        providers: ["qwen-token-plan", "alibaba-token-plan", "bailian-coding-plan", "vercel"],
         model: "qwen3.6-flash",
         variant: "low",
       },
