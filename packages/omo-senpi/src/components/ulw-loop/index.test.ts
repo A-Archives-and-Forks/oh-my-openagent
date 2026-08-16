@@ -1,4 +1,8 @@
 import { describe, expect, it } from "bun:test"
+import { execFileSync } from "node:child_process"
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import { ULW_LOOP_FOOTER_FRAMES } from "./footer-status"
@@ -10,7 +14,68 @@ import {
   createLogger,
   isTransformResult,
   registerWithRunner,
+  withEnvAsync,
 } from "./ulw-loop.test-support"
+
+describe("omo-senpi ulw-loop continuation session isolation", () => {
+  it("#given session A owns an active run in the shared cwd #when session B ends #then B receives no continuation", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "omo-senpi-ulw-session-b-"))
+    try {
+      createActivePlan(cwd)
+      await withEnvAsync(
+        {
+          PI_SESSION_ID: "session-B",
+          OMO_ULW_LOOP_SESSION_ID: undefined,
+          CODEX_SESSION_ID: undefined,
+          CODEX_THREAD_ID: undefined,
+        },
+        async () => {
+          const pi = new FakeExtensionAPI()
+          await createUlwLoopComponent({
+            resolveOmoBin: () => stagedToolkitBin(),
+          }).register(pi, { logger: createLogger(), config: { getFlag: () => false } })
+
+          await pi.dispatch("agent_end", { type: "agent_end" }, sessionContext(cwd, "session-B"))
+
+          expect(pi.messages).toEqual([])
+        },
+      )
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+
+  it("#given session A owns its scoped active run #when session A ends #then A receives the continuation", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "omo-senpi-ulw-session-a-"))
+    try {
+      createActivePlan(cwd, "session-A")
+      await withEnvAsync(
+        {
+          PI_SESSION_ID: "session-A",
+          OMO_ULW_LOOP_SESSION_ID: undefined,
+          CODEX_SESSION_ID: undefined,
+          CODEX_THREAD_ID: undefined,
+        },
+        async () => {
+          const pi = new FakeExtensionAPI()
+          await createUlwLoopComponent({
+            resolveOmoBin: () => stagedToolkitBin(),
+          }).register(pi, { logger: createLogger(), config: { getFlag: () => false } })
+
+          await pi.dispatch("agent_end", { type: "agent_end" }, sessionContext(cwd, "session-A"))
+
+          expect(pi.messages).toHaveLength(1)
+          expect(pi.messages[0]?.message).toMatchObject({
+            customType: "omo-senpi:ulw-continuation",
+            display: false,
+          })
+        },
+      )
+    } finally {
+      rmSync(cwd, { recursive: true, force: true })
+    }
+  })
+})
 
 describe("omo-senpi ulw-loop continuation", () => {
   it("#given no omo binary #when input and agent_end fire #then the component stays inert for the session", async () => {
@@ -219,3 +284,44 @@ describe("omo-senpi ulw-loop continuation", () => {
     }
   })
 })
+
+function stagedToolkitBin(): string {
+  return join(import.meta.dir, "../../../plugin/runtime/agent-toolkit/omo-agent-toolkit")
+}
+
+function sessionContext(cwd: string, sessionId: string): {
+  readonly cwd: string
+  readonly sessionManager: { getSessionId(): string }
+} {
+  return {
+    cwd,
+    sessionManager: {
+      getSessionId: () => sessionId,
+    },
+  }
+}
+
+function createActivePlan(cwd: string, sessionId?: string): void {
+  execFileSync(
+    stagedToolkitBin(),
+    [
+      "ulw-loop",
+      "create-goals",
+      ...(sessionId === undefined ? [] : ["--session-id", sessionId]),
+      "--brief",
+      "- Keep this session-owned run active",
+      "--json",
+    ],
+    {
+      cwd,
+      env: {
+        ...process.env,
+        PI_SESSION_ID: undefined,
+        OMO_ULW_LOOP_SESSION_ID: undefined,
+        CODEX_SESSION_ID: undefined,
+        CODEX_THREAD_ID: undefined,
+      },
+      stdio: "ignore",
+    },
+  )
+}

@@ -122,7 +122,28 @@ export function withEnv<T>(patch: Record<string, string | undefined>, run: () =>
 }
 
 export async function withEnvAsync<T>(patch: Record<string, string | undefined>, run: () => Promise<T>): Promise<T> {
-  return withEnv(patch, run)
+  const previous: Record<string, string | undefined> = {}
+  for (const key of Object.keys(patch)) {
+    previous[key] = process.env[key]
+    const value = patch[key]
+    if (value === undefined) {
+      delete process.env[key]
+    } else {
+      process.env[key] = value
+    }
+  }
+
+  try {
+    return await run()
+  } finally {
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) {
+        delete process.env[key]
+      } else {
+        process.env[key] = value
+      }
+    }
+  }
 }
 
 export function createTempOmoBin(stdout = activeStatus(), name = "omo"): { dir: string; bin: string; cleanup: () => void } {
