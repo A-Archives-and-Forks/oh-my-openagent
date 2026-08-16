@@ -111,12 +111,7 @@ The following never leaves your machine:
 
 A structural allowlist enforces this rather than relying on discipline: any property key not in the allowlist is dropped before send, and any string value on a key ending in `_text`, `_path`, or `_prompt` is rejected regardless of allowlisting.
 
-## Preview and audit
+## Local retention
 
-Run the `omo-telemetry` command to see, on your own machine:
-
-- the current enabled state
-- the opt-out matrix and which switch, if any, is active
-- the last captured payloads: a 50-entry ring buffer, mirrored to `last-payloads.json` in the telemetry state directory
-
-That mirror shows exactly what was sent, byte for byte, so you can verify the claims in this document against real traffic.
+OmO Native does not retain a local history or preview file of sent telemetry payloads.
+The event schema and opt-out controls above are the public audit surface.
