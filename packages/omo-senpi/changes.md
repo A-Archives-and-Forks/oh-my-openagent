@@ -10,6 +10,12 @@ The workspace lockfile and committed plugin artifacts must be regenerated
 with the new engine. The provider-map registry test remains the authority for
 whether Senpi's builtin provider set changed.
 
+The task lifecycle QA now performs `task_output(mode:"tail")` as the immediate
+tool boundary after `task_send`. The old sequence ended the parent turn with
+text first and incorrectly relied on another wake, so both the old and new
+Senpi pins could finish every real task transition while the harness reported
+a false `task_output_peek` failure.
+
 ## 2026-08-13 — Follow the Senpi 2026.8.13 host contract
 
 The adapter peer and development dependency now require Senpi `2026.8.13`.
