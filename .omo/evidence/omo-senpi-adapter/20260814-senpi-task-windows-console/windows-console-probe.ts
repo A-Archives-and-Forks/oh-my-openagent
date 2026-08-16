@@ -162,6 +162,12 @@ async function runProbe(): Promise<void> {
   const root = mkdtempSync(join(tmpdir(), "omo-rpc-window-probe-"))
   mkdirSync(join(root, "agent"), { recursive: true })
   const credentialsBefore = credentialDigests()
+  let probeResult: {
+    readonly pass: boolean
+    readonly visible: ProbeCase
+    readonly hidden: ProbeCase
+    readonly credentialsUntouched: boolean
+  } | undefined
   try {
     const visible = await runCase("visible-control", root)
     const hidden = await runCase("hidden-fixed", root)
@@ -176,28 +182,32 @@ async function runProbe(): Promise<void> {
       hidden.childExited &&
       credentialsUntouched
 
-    console.log(
-      JSON.stringify({
-        result: pass ? "PASS" : "FAIL",
-        visible,
-        hidden,
-        isolation: {
-          sandboxAgentDir: join(root, "agent"),
-          callerAgentDirIgnored: true,
-          credentialsUntouched,
-          credentialFiles: CREDENTIAL_FILES,
-        },
-        cleanup: {
-          visibleChildExited: visible.childExited,
-          hiddenChildExited: hidden.childExited,
-          tempRootRemoved: true,
-        },
-      }),
-    )
-    if (!pass) process.exitCode = 1
+    probeResult = { pass, visible, hidden, credentialsUntouched }
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
+
+  if (probeResult === undefined) throw new Error("Windows console probe did not produce a result")
+  const tempRootRemoved = !existsSync(root)
+  console.log(
+    JSON.stringify({
+      result: probeResult.pass && tempRootRemoved ? "PASS" : "FAIL",
+      visible: probeResult.visible,
+      hidden: probeResult.hidden,
+      isolation: {
+        sandboxAgentDir: join(root, "agent"),
+        callerAgentDirIgnored: true,
+        credentialsUntouched: probeResult.credentialsUntouched,
+        credentialFiles: CREDENTIAL_FILES,
+      },
+      cleanup: {
+        visibleChildExited: probeResult.visible.childExited,
+        hiddenChildExited: probeResult.hidden.childExited,
+        tempRootRemoved,
+      },
+    }),
+  )
+  if (!probeResult.pass || !tempRootRemoved) process.exitCode = 1
 }
 
 const parentIndex = process.argv.indexOf("--parent")

@@ -39,9 +39,13 @@ test.skipIf(!isWin32)(
       readonly isolation: {
         readonly credentialsUntouched: boolean
       }
+      readonly cleanup: {
+        readonly tempRootRemoved: boolean
+      }
     }
 
     // then
+    console.log(`WINDOWS_CONSOLE_PROBE ${JSON.stringify(payload)}`)
     expect(result.stderr).toBe("")
     expect(result.status).toBe(0)
     expect(payload.result).toBe("PASS")
@@ -52,5 +56,6 @@ test.skipIf(!isWin32)(
     expect(payload.visible.childExited).toBe(true)
     expect(payload.hidden.childExited).toBe(true)
     expect(payload.isolation.credentialsUntouched).toBe(true)
+    expect(payload.cleanup.tempRootRemoved).toBe(true)
   },
 )
