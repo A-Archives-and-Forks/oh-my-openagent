@@ -253,11 +253,25 @@ describe("GitMemoryRepo", () => {
     const parent = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-worktrees-")))
     tempDirs.push(parent)
 
-    // when - worktrees are added and committed into concurrently
+    // Worktree creation is SETUP, not the behavior under test, and `git worktree add` is not safe to
+    // run concurrently against one repository: while one process creates `.git/worktrees/<name>/`,
+    // another enumerating that directory reads a `commondir` that exists but is not yet written, and
+    // git aborts with `fatal: failed to read .git/worktrees/<name>/commondir` followed by the
+    // platform's spelling of errno 0 ("Success" on Linux, "Undefined error: 0" on macOS).
+    // Reproduced outside this suite with plain git at ~2 failures per 240 concurrent adds, and it
+    // has failed CI on both ubuntu and macos. Adding the worktrees sequentially removes that
+    // setup-only hazard by construction and keeps the assertion on what this test names: concurrent
+    // COMMITS contending on index and ref locks.
+    const checkouts: string[] = []
+    for (let index = 0; index < writers; index++) {
+      const checkout = join(parent, `checkout-${index}`)
+      await repo.worktreeAdd(checkout, `memory/concurrent-${index}`)
+      checkouts.push(checkout)
+    }
+
+    // when - every worktree is committed into concurrently
     const results = await Promise.allSettled(
-      Array.from({ length: writers }, async (_, index) => {
-        const checkout = join(parent, `checkout-${index}`)
-        await repo.worktreeAdd(checkout, `memory/concurrent-${index}`)
+      checkouts.map(async (checkout, index) => {
         await writeFile(join(checkout, "learned.md"), `learned ${index}\n`)
         const child = new GitMemoryRepo({ dir: checkout, agentId: "agent-one" })
         return child.commitWrite(["learned.md"], `concurrent write ${index}`, author)
