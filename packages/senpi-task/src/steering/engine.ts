@@ -6,6 +6,7 @@ import { messageability } from "../state"
 import type { PendingSteeringEntry, TaskRecord } from "../state"
 import {
   DEFAULT_SEND_DELIVERY,
+  type CancelOptions,
   type CancelOutcome,
   type InterruptOutcome,
   type SendDelivery,
@@ -176,8 +177,9 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
     return { kind: "interrupted", task_id: record.task_id, previous_status: "running" }
   }
 
-  async function cancelTask(idOrName: string, reason?: string): Promise<CancelOutcome> {
+  async function cancelTask(idOrName: string, reason?: string, options?: CancelOptions): Promise<CancelOutcome> {
     const record = resolve(idOrName)
+    const destructionCause = options?.abort === "skip" ? "cancel_without_abort" : "cancel"
     if (record === undefined) return { kind: "not_found", reason: `No task found for "${idOrName}".` }
     if (record.status === "pending") {
       const result = port.store.transition(record.task_id, {
@@ -191,7 +193,7 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
       port.dequeuePending(record.task_id)
       clearPersistedQueue(record.task_id)
       port.store.appendEvent(record.task_id, { type: "cancelled", payload: { previous_status: "pending", ...(reason !== undefined ? { reason } : {}) } })
-      await port.destruction.destroyResidentTask(record.task_id, "cancel")
+      await port.destruction.destroyResidentTask(record.task_id, destructionCause)
       return { kind: "cancelled", task_id: record.task_id, previous_status: "pending" }
     }
     if (record.status !== "running") {
@@ -215,7 +217,7 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
     // already exited rejects the abort send (protocol-client isExited), and a rejection here must NOT
     // skip the destruction that moves the record OUT of resident - otherwise it freezes at
     // {cancelled, resident}, un-evictable, leaking a residency slot forever.
-    if (handle !== undefined) {
+    if (handle !== undefined && options?.abort !== "skip") {
       try {
         await handle.abort()
       } catch (error) {
@@ -223,9 +225,23 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
       }
     }
     port.store.appendEvent(record.task_id, { type: "cancelled", payload: { previous_status: "running", ...(reason !== undefined ? { reason } : {}) } })
-    // Destruction is delegated EXCLUSIVELY to lifecycle's port; steering never disposes directly.
-    await port.destruction.destroyResidentTask(record.task_id, "cancel")
+    // An active Senpi in-process session can float AbortError from both abort() and dispose(). DAG
+    // cancellation therefore records terminal state now and lets that child reach its exact outcome
+    // boundary before lifecycle disposes it. RPC children still terminate immediately.
+    if (options?.abort === "skip" && handle !== undefined && handle.terminate === undefined) {
+      destroyAfterSettlement(handle, record.task_id)
+    } else {
+      // Destruction is delegated EXCLUSIVELY to lifecycle's port; steering never disposes directly.
+      await port.destruction.destroyResidentTask(record.task_id, destructionCause)
+    }
     return { kind: "cancelled", task_id: record.task_id, previous_status: "running" }
+  }
+
+  function destroyAfterSettlement(handle: ManagedChildHandle, taskId: string): void {
+    const destroy = (): Promise<void> => port.destruction.destroyResidentTask(taskId, "cancel_without_abort")
+    void handle.waitForOutcome().then(destroy, destroy).catch((error: unknown) => {
+      log("senpi-task deferred cancel destruction rejected", { taskId, error: String(error) })
+    })
   }
 
   return { sendToTask, interruptTask, cancelTask, notifyStarted, dropPending }

@@ -43,3 +43,11 @@ GREEN after fixes (unmutated): 478 pass / 0 fail across 86 files.
 Typecheck gates:
   bunx tsgo --noEmit -p packages/senpi-task/tsconfig.json   -> exit 0
   bunx tsgo --noEmit -p packages/omo-senpi/tsconfig.json    -> exit 0
+  bunx tsgo --noEmit -p packages/utils/tsconfig.json        -> exit 0
+
+LSP diagnostics (all severities, via the branch-synced mirror worktree at head 0360dae3d):
+  packages/senpi-task/src/runners/rpc/handle.ts          -> No diagnostics found
+  packages/senpi-task/src/runners/rpc/turn-outcome.ts    -> No diagnostics found
+  packages/senpi-task/src/manager/child-handle.ts        -> No diagnostics found
+  packages/omo-senpi/src/components/task/index.ts        -> No diagnostics found
+  packages/utils/src/codegraph-provision-upgrade.test.ts -> No diagnostics found
