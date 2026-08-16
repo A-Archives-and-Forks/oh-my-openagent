@@ -181,6 +181,46 @@ describe("OmO Native telemetry component integration", () => {
     })
   })
 
+  test("#given the real component registration order #when a session with overlapping tool calls shuts down #then exactly one non-empty parallelism_summary is captured", async () => {
+    await withTempAgentDir(async (agentDir) => {
+      writeInventory(agentDir)
+      const recorder = createTransportRecorder()
+      const pi = new FakeExtensionAPI()
+      const session = context("ordering-session")
+      createOmoNativeTelemetryComponent({
+        env: createEnabledEnv(agentDir),
+        hashSessionId: (raw) => `hashed:${raw}`,
+        isConfigEnabled: () => true,
+        now: FIXED_NOW,
+        osProvider: createOsProvider("ordering-host"),
+        stateDir: join(agentDir, "omo-senpi", "omo-native"),
+        transportFactory: recorder.factory,
+      }).register(pi, { config: pi, logger: createSilentLogger() })
+
+      await pi.dispatch("session_start", { type: "session_start", reason: "startup" }, session)
+      await pi.dispatch("tool_execution_start", { type: "tool_execution_start", toolCallId: "a", toolName: "bash", args: {} }, session)
+      await pi.dispatch("tool_execution_start", { type: "tool_execution_start", toolCallId: "b", toolName: "read", args: {} }, session)
+      await pi.dispatch("tool_execution_end", { type: "tool_execution_end", toolCallId: "a", toolName: "bash", result: 1, isError: false }, session)
+      await pi.dispatch("tool_execution_end", { type: "tool_execution_end", toolCallId: "b", toolName: "read", result: 1, isError: false }, session)
+      await pi.dispatch("session_shutdown", { type: "session_shutdown", reason: "quit" }, session)
+
+      // This is the ordering criterion: an emission registered after the session component would
+      // capture zero events here while every injected-transport unit test stayed green.
+      const summaries = recorder.messages.filter(({ event }) => event === "parallelism_summary")
+      expect(summaries).toHaveLength(1)
+      expect(summaries[0]?.properties).toMatchObject({
+        $session_id: "hashed:ordering-session",
+        non_eval_waves_total: 1,
+        non_eval_joined_calls: 2,
+        schema_kind: "parallelism_v1",
+      })
+      expect(Object.keys(summaries[0]?.properties ?? {}).sort()).toEqual(
+        [...OMO_NATIVE_PROPERTY_ALLOWLISTS.parallelism_summary, ...SHARED_KEYS].sort(),
+      )
+      expect(recorder.messages.filter(({ event }) => event === "turn_completed")).toHaveLength(0)
+    })
+  })
+
   test("#given shutdown and restart plus repeated interruption #when sessions cycle #then client state is fresh and shutdown never throws", async () => {
     await withTempAgentDir(async (agentDir) => {
       writeInventory(agentDir)

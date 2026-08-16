@@ -14,6 +14,7 @@ import type {
 
 import type { OmoSenpiComponent } from "../../extension/types"
 import { createOmoNativeNoticeRegistration } from "./omo-native-notice"
+import { registerOmoNativeParallelSummary } from "./omo-native-parallel-summary"
 import { createOmoNativePromptComponent } from "./omo-native-prompt"
 import {
   createOmoNativeSessionComponent,
@@ -57,6 +58,13 @@ export function createOmoNativeTelemetryComponent(options: OmoNativeTelemetryCom
   return {
     name: "telemetry",
     register(pi, ctx) {
+      // Must precede the session component: its `session_shutdown` handler shuts the client down,
+      // which clears `state.capture`, after which `parallelism_summary` would capture nothing.
+      registerOmoNativeParallelSummary(pi, {
+        captureEvent: client.captureEvent,
+        hashSessionId: options.hashSessionId ?? hashSessionId,
+      })
+
       createOmoNativePromptComponent({
         client,
         hashSessionId: options.hashSessionId,

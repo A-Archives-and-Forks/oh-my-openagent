@@ -63,6 +63,7 @@ The payloads carry only booleans, buckets, counters, and allowlisted enum values
 | `feature_used` | `feature` | `string` | `goal_tool`, `team_create`, `memory_tool` |
 | `parallelism_summary` | `$session_id` | `string` | - |
 | `parallelism_summary` | `clock_anomalies` | `number` | - |
+| `parallelism_summary` | `dropped_calls` | `number` | - |
 | `parallelism_summary` | `eval_only_duration_ms` | `number` | - |
 | `parallelism_summary` | `eval_only_waves` | `number` | - |
 | `parallelism_summary` | `incomplete_calls` | `number` | - |

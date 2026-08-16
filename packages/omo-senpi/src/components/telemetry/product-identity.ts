@@ -136,6 +136,7 @@ export const OMO_NATIVE_EVENT_SCHEMAS = Object.freeze({
   parallelism_summary: Object.freeze({
     "$session_id": STRING_PROPERTY,
     clock_anomalies: NUMBER_PROPERTY,
+    dropped_calls: NUMBER_PROPERTY,
     eval_only_duration_ms: NUMBER_PROPERTY,
     eval_only_waves: NUMBER_PROPERTY,
     incomplete_calls: NUMBER_PROPERTY,
