@@ -107,7 +107,45 @@ Those four were reverted with `git restore`, and `--check` was re-run and **stil
 
 ## 7. Post-commit verification transcript
 
-See `POST_COMMIT_TRANSCRIPT` section appended below.
+Commit: `5650eb58171deac05ef1c531affd8b0df3ea4ef6`
+
+```
+$ git show --stat --oneline HEAD
+5650eb581 build(omo-senpi): regenerate plugin bundle for parallelism telemetry
+ .../telemetry-parallel-latency-v2/ci-bundle-fix.md | 118 +++++++
+ .../plugin/extensions/omo-init-deep-advisor.js     |  30 +-
+ packages/omo-senpi/plugin/extensions/omo.js        | 374 ++++++++++-----------
+ 3 files changed, 320 insertions(+), 202 deletions(-)
+```
+
+Fresh `--check` re-run on a **clean working tree**, i.e. against the committed bytes:
+
+```
+$ git status --porcelain
+(empty — clean)
+
+$ npm exec --yes --package=bun@1.3.12 -- bash -c 'bun --version; node packages/omo-senpi/plugin/scripts/build-extension.mjs --check'
+1.3.12
+Senpi LSP runtime is current: .../plugin/runtime/lsp-daemon/dist
+Senpi ast-grep-mcp runtime is current: .../runtime/ast-grep-mcp/cli.js sha256=cbff6be9...
+Senpi agent-toolkit runtime is current: .../runtime/agent-toolkit sha256=eeb16d30...
+omo-senpi extension build is current: .../packages/omo-senpi/plugin/extensions/omo.js
+EXIT=0
+```
+
+Because the tree was clean, this green result is produced solely by committed content — it cannot be an artifact of un-committed build output.
+
+Push:
+
+```
+$ git push origin feat/telemetry-parallel-latency
+To https://github.com/code-yeongyu/oh-my-openagent.git
+   bf954101a..5650eb581  feat/telemetry-parallel-latency -> feat/telemetry-parallel-latency
+
+$ git rev-parse HEAD                              -> 5650eb58171deac05ef1c531affd8b0df3ea4ef6
+$ git rev-parse origin/feat/telemetry-parallel-latency -> 5650eb58171deac05ef1c531affd8b0df3ea4ef6
+in-sync: YES
+```
 
 ## 8. Cleanup receipt
 
