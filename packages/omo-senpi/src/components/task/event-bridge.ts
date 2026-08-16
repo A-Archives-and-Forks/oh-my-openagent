@@ -42,11 +42,20 @@ export function wireEventBridge(
     const sessionId = engine.runtime.sessionId()
     transitions.onSessionStart(sessionId)
     const reconciliation = await engine.lifecycle.reconcileOnSessionStart(sessionId)
+    const livenessRecords = new Map<string, ReturnType<typeof engine.manager.get>>()
     for (const outcome of reconciliation.outcomes) {
       const record = engine.manager.get(outcome.task_id)
       // A previous process can persist the terminal transition before its queued team-liveness steer
       // flushes. Re-observe every reconciled record; the notifier filters non-team/non-error states and
       // its persisted liveness epoch suppresses records already delivered in an earlier process.
+      if (record !== undefined) livenessRecords.set(record.task_id, record)
+    }
+    if (sessionId !== undefined) {
+      for (const { record } of engine.manager.list({ scope: "parent-session", session_id: sessionId })) {
+        livenessRecords.set(record.task_id, record)
+      }
+    }
+    for (const record of livenessRecords.values()) {
       if (record !== undefined) await engine.notifyOwnedMemberLiveness(record)
     }
     await state.resumptionChannels.emitSessionStart()
