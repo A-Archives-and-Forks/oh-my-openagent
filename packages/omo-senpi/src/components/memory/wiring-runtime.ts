@@ -80,7 +80,10 @@ export function createMemoryRuntimeWiring(
   function journalWiringFor(identity: MemoryIdentityContext): MemoryJournalWiring {
     const cached = journals.get(identity.identity)
     if (cached !== undefined) return cached
-    const wiring = createMemoryJournalWiring({ identityPaths: identity.identityPaths })
+    const wiring = createMemoryJournalWiring({
+      identityPaths: identity.identityPaths,
+      ...(options.logger === undefined ? {} : { logger: options.logger }),
+    })
     journals.set(identity.identity, wiring)
     return wiring
   }

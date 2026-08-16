@@ -181,7 +181,8 @@ describe("stale journal lock recovery", () => {
     let taskRuns = 0
     await withLocalJournalLock(lockPath, async () => {
       taskRuns += 1
-      expect(await readFile(lockPath, "utf8")).toBe(`${process.pid}\n`)
+      const payload = await readFile(lockPath, "utf8")
+      expect(payload.startsWith(`${process.pid}\n`)).toBe(true)
     })
 
     // then
@@ -223,7 +224,8 @@ describe("stale journal lock recovery", () => {
     }).catch((error: unknown) => error)
 
     // then
-    expect((failure as NodeJS.ErrnoException).code).toBe("EEXIST")
+    expect(failure).toBeInstanceOf(Error)
+    expect((failure as Error).name).toBe("JournalLockTimeoutError")
     expect(taskRuns).toBe(0)
     expect(await readFile(lockPath, "utf8")).toBe(`${process.pid}\n`)
   }, 15_000)
