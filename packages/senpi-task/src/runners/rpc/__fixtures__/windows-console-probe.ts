@@ -1,23 +1,24 @@
 import { type ChildProcess, spawn } from "node:child_process"
-import { createHash } from "node:crypto"
 import { once } from "node:events"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
-import { homedir, tmpdir } from "node:os"
-import { dirname, join } from "node:path"
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { createInterface } from "node:readline"
 
-import { RpcProcessRunner } from "../../../../packages/senpi-task/src/runners/rpc-process"
+import { RpcProcessRunner } from "../../rpc-process"
 import {
   type ConsoleAttachment,
   consoleAttachment,
   mainWindowHandle,
 } from "./windows-console-inspection"
+import { credentialDigests, isAlive } from "./windows-console-probe-state"
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url)
 const FAKE_CHILD_PATH = fileURLToPath(
-  new URL("../../../../packages/senpi-task/src/runners/rpc/__fixtures__/fake-child.mjs", import.meta.url),
+  new URL("./fake-child.mjs", import.meta.url),
 )
+const CONSOLE_HOST_PATH = fileURLToPath(new URL("./windows-console-host.ps1", import.meta.url))
 const CREDENTIAL_FILES = ["auth.json", "models.json", "settings.json", "trust.json"] as const
 
 type ProbeMode = "visible-control" | "hidden-fixed"
@@ -37,27 +38,6 @@ type ProbeCase = ParentReady & {
   readonly parentExitCode: number
 }
 
-function credentialDigests(): Readonly<Record<string, string>> {
-  const roots = [join(homedir(), ".omo", "agent"), join(homedir(), ".senpi", "agent")]
-  const result: Record<string, string> = {}
-  for (const root of roots) {
-    for (const name of CREDENTIAL_FILES) {
-      const path = join(root, name)
-      result[path] = existsSync(path) ? createHash("sha256").update(readFileSync(path)).digest("hex") : "missing"
-    }
-  }
-  return result
-}
-
-function isAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch {
-    return false
-  }
-}
-
 async function readJsonLine<T>(child: ChildProcess): Promise<T> {
   if (child.stdout === null) throw new Error("probe parent stdout was not piped")
   const lines = createInterface({ input: child.stdout })
@@ -70,17 +50,24 @@ async function readJsonLine<T>(child: ChildProcess): Promise<T> {
 }
 
 async function runCase(mode: ProbeMode, root: string): Promise<ProbeCase> {
-  const parent = spawn(process.execPath, [SCRIPT_PATH, "--parent", mode, root], {
-    cwd: dirname(SCRIPT_PATH),
-    env: {
-      ...process.env,
-      SENPI_CODING_AGENT_DIR: join(root, "agent"),
-      SENPI_CODING_AGENT_SESSION_DIR: join(root, "parent-session"),
+  const parent = spawn(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", CONSOLE_HOST_PATH],
+    {
+      env: {
+        ...process.env,
+        OMO_PROBE_BUN: process.execPath,
+        OMO_PROBE_SCRIPT: SCRIPT_PATH,
+        OMO_PROBE_MODE: mode,
+        OMO_PROBE_ROOT: root,
+        SENPI_CODING_AGENT_DIR: join(root, "agent"),
+        SENPI_CODING_AGENT_SESSION_DIR: join(root, "parent-session"),
+      },
+      stdio: ["pipe", "pipe", "pipe"],
+      shell: false,
+      windowsHide: true,
     },
-    stdio: ["pipe", "pipe", "pipe"],
-    shell: false,
-    windowsHide: true,
-  })
+  )
   const closed = once(parent, "close", { signal: AbortSignal.timeout(15_000) })
   let stderr = ""
   parent.stderr?.setEncoding("utf8")
@@ -132,12 +119,15 @@ async function runParent(mode: ProbeMode, root: string): Promise<void> {
         SENPI_CODING_AGENT_SESSION_DIR: join(root, "child-session"),
       },
     }),
-    spawnProcess: (command, args, options) =>
-      spawn(command, [...args], {
-        ...options,
-        detached: true,
-        ...(mode === "visible-control" ? { windowsHide: false } : {}),
-      }),
+    ...(mode === "visible-control"
+      ? {
+          spawnProcess: (command, args, options) =>
+            spawn(command, [...args], {
+              ...options,
+              windowsHide: false,
+            }),
+        }
+      : {}),
   })
   const handle = runner.start({
     task_id: `st_windows_probe_${mode}`,
@@ -164,7 +154,7 @@ async function runProbe(): Promise<void> {
 
   const root = mkdtempSync(join(tmpdir(), "omo-rpc-window-probe-"))
   mkdirSync(join(root, "agent"), { recursive: true })
-  const credentialsBefore = credentialDigests()
+  const credentialsBefore = credentialDigests(CREDENTIAL_FILES)
   let probeResult: {
     readonly pass: boolean
     readonly visible: ProbeCase
@@ -174,7 +164,7 @@ async function runProbe(): Promise<void> {
   try {
     const visible = await runCase("visible-control", root)
     const hidden = await runCase("hidden-fixed", root)
-    const credentialsAfter = credentialDigests()
+    const credentialsAfter = credentialDigests(CREDENTIAL_FILES)
     const credentialsUntouched = JSON.stringify(credentialsBefore) === JSON.stringify(credentialsAfter)
     const pass =
       visible.consoleAttached &&

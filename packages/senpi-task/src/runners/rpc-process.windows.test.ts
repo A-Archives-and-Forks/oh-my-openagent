@@ -1,40 +1,122 @@
-import { spawnSync } from "node:child_process"
+import { type ChildProcess, spawn } from "node:child_process"
+import { once } from "node:events"
 import { dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 import { expect, test } from "bun:test"
 
 const isWin32 = process.platform === "win32"
 const probePath = fileURLToPath(
-  new URL(
-    "../../../../.omo/evidence/omo-senpi-adapter/20260814-senpi-task-windows-console/windows-console-probe.ts",
-    import.meta.url,
-  ),
+  new URL("./rpc/__fixtures__/windows-console-probe.ts", import.meta.url),
 )
+const PROBE_TIMEOUT_MS = 90_000
+const CLEANUP_TIMEOUT_MS = 10_000
+
+type ProbeExit = {
+  readonly code: number | null
+  readonly signal: NodeJS.Signals | null
+}
+
+function createDeadline(timeoutMs: number, label: string): {
+  readonly promise: Promise<never>
+  readonly cancel: () => void
+} {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const promise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`))
+    }, timeoutMs)
+    timer.unref?.()
+  })
+  return {
+    promise,
+    cancel: () => {
+      if (timer !== undefined) clearTimeout(timer)
+    },
+  }
+}
+
+async function waitForClose(child: ChildProcess): Promise<ProbeExit> {
+  const [code, signal] = await once(child, "close")
+  return {
+    code: typeof code === "number" ? code : null,
+    signal: typeof signal === "string" ? signal as NodeJS.Signals : null,
+  }
+}
+
+async function terminateProcessTree(child: ChildProcess): Promise<void> {
+  if (child.exitCode !== null || child.signalCode !== null) return
+  const pid = child.pid
+  if (pid === undefined) {
+    child.kill("SIGKILL")
+    return
+  }
+  const killer = spawn("taskkill.exe", ["/pid", String(pid), "/T", "/F"], {
+    stdio: "ignore",
+    windowsHide: true,
+  })
+  await Promise.race([once(killer, "close"), once(killer, "error")])
+  if (child.exitCode === null && child.signalCode === null) {
+    child.kill("SIGKILL")
+  }
+}
 
 test.skipIf(!isWin32)(
   "#given a console-less parent #when the default RPC child starts #then windowsHide suppresses its console",
-  () => {
+  async () => {
     // given
-    const result = spawnSync(process.execPath, [probePath], {
+    const probe = spawn(process.execPath, [probePath], {
       cwd: dirname(probePath),
-      encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       shell: false,
       windowsHide: true,
     })
+    let stdout = ""
+    let stderr = ""
+    let spawnError: Error | undefined
+    probe.stdout?.setEncoding("utf8")
+    probe.stderr?.setEncoding("utf8")
+    probe.stdout?.on("data", (chunk: string) => {
+      stdout += chunk
+    })
+    probe.stderr?.on("data", (chunk: string) => {
+      stderr += chunk
+    })
+    probe.once("error", (error) => {
+      spawnError = error
+    })
+    let closeObserved = false
+    const close = waitForClose(probe).then((exit) => {
+      closeObserved = true
+      return exit
+    })
+    const deadline = createDeadline(PROBE_TIMEOUT_MS, "Windows console probe")
 
     // when
-    const diagnostic = {
-      status: result.status,
-      signal: result.signal,
-      error: result.error === undefined ? undefined : String(result.error),
-      stdout: result.stdout,
-      stderr: result.stderr,
+    let exit: ProbeExit
+    try {
+      exit = await Promise.race([close, deadline.promise])
+    } finally {
+      deadline.cancel()
+      if (!closeObserved) {
+        await terminateProcessTree(probe)
+        const cleanupDeadline = createDeadline(CLEANUP_TIMEOUT_MS, "Windows console probe cleanup")
+        try {
+          await Promise.race([close, cleanupDeadline.promise])
+        } finally {
+          cleanupDeadline.cancel()
+        }
+      }
     }
-    if (result.status !== 0 || result.stderr !== "") {
+    const diagnostic = {
+      exit,
+      error: spawnError === undefined ? undefined : String(spawnError),
+      stdout,
+      stderr,
+    }
+    if (exit.code !== 0 || exit.signal !== null || stderr !== "" || spawnError !== undefined) {
       throw new Error(`WINDOWS_CONSOLE_PROBE ${JSON.stringify(diagnostic)}`)
     }
-    const payload = JSON.parse(result.stdout.trim()) as {
+    const payload = JSON.parse(stdout.trim()) as {
       readonly result: string
       readonly visible: {
         readonly consoleAttached: boolean
@@ -69,4 +151,5 @@ test.skipIf(!isWin32)(
     expect(payload.isolation.credentialsUntouched).toBe(true)
     expect(payload.cleanup.tempRootRemoved).toBe(true)
   },
+  { timeout: PROBE_TIMEOUT_MS + CLEANUP_TIMEOUT_MS + 10_000 },
 )
