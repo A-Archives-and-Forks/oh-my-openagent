@@ -37,6 +37,8 @@ export interface FactsExtractorRunnerOptions {
   readonly failures?: FactsFailurePort
   /** Terminal sentinel write seam; tests use it to crash inside the ordering window. */
   readonly writeTerminalSentinel?: (path: string, value: unknown) => Promise<void>
+  /** Post-sentinel artifact deletion seam; tests observe the ordering and inject failures. */
+  readonly removeRunArtifact?: (path: string) => Promise<void>
   readonly createPreflightId?: () => string
 }
 

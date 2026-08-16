@@ -10,6 +10,7 @@ import {
 } from "@oh-my-opencode/memory-core"
 
 import { readRunJson, writeRunJsonAtomic } from "./worker/run-artifacts"
+import { cleanupTerminalFactsRun, type RemoveRunArtifact } from "./facts-run-cleanup"
 import type { FactsQueuedKey } from "./facts-failure-recording"
 import type { FactsFinalRecord, FactsLaunchResult, FactsRunLedger } from "./facts-runner-types"
 
@@ -66,7 +67,11 @@ export async function writeFactsFinal(options: {
   readonly detail?: string
   readonly sha?: string
   readonly write?: (path: string, value: unknown) => Promise<void>
+  readonly remove?: RemoveRunArtifact
+  readonly warn?: (message: string, fields: Readonly<Record<string, unknown>>) => void
 }): Promise<void> {
+  // Sentinel first (writeRunJsonAtomic fsyncs it), disposable artifacts second - never the
+  // reverse: a crash before the sentinel must leave the payload for reconciliation to read.
   await (options.write ?? writeRunJsonAtomic)(join(options.runDir, "final.json"), {
     version: 1,
     runId: options.runId,
@@ -74,6 +79,11 @@ export async function writeFactsFinal(options: {
     finishedAt: options.now().toISOString(),
     ...(options.detail === undefined ? {} : { detail: options.detail }),
     ...(options.sha === undefined ? {} : { sha: options.sha }),
+  })
+  await cleanupTerminalFactsRun({
+    runDir: options.runDir,
+    ...(options.remove === undefined ? {} : { remove: options.remove }),
+    ...(options.warn === undefined ? {} : { warn: options.warn }),
   })
 }
 

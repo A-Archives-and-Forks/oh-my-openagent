@@ -33,6 +33,7 @@ import type { FactsExtractorRunnerOptions, FactsFinalRecord, FactsLaunchResult, 
 import { describe, finalResult, queueKeys, reserveFactsRunDir } from "./facts-run-storage"
 import { finalizeClaimedFactsRun } from "./facts-run-finalize"
 import { reconcileFactsRuns } from "./facts-run-reconcile"
+import { sweepTerminalFactsRuns } from "./facts-run-cleanup"
 
 export class FactsExtractorRunner {
   private readonly queue: FactsQueue
@@ -54,6 +55,7 @@ export class FactsExtractorRunner {
       now: this.now,
       markConsumed: (entries) => this.queue.markConsumed(entries),
       ...(options.writeTerminalSentinel === undefined ? {} : { write: options.writeTerminalSentinel }),
+      ...(options.removeRunArtifact === undefined ? {} : { remove: options.removeRunArtifact }),
       ...(options.logger === undefined ? {} : { warn: (message, fields) => options.logger?.warn(message, fields) }),
     })
   }
@@ -164,7 +166,14 @@ export class FactsExtractorRunner {
     return this.finalizeRun(runDir, repo)
   }
 
-  private reconcileRuns(): Promise<boolean> {
+  private async reconcileRuns(): Promise<boolean> {
+    // Maintenance first: terminal dirs that crashed between their sentinel and their cleanup
+    // still hold a payload, and reconciliation itself never revisits a terminal dir.
+    await sweepTerminalFactsRuns({
+      factsDir: this.options.identity.paths.facts,
+      ...(this.options.removeRunArtifact === undefined ? {} : { remove: this.options.removeRunArtifact }),
+      ...(this.options.logger === undefined ? {} : { warn: (message, fields) => this.options.logger?.warn(message, fields) }),
+    })
     return reconcileFactsRuns({
       factsDir: this.options.identity.paths.facts,
       now: this.now,

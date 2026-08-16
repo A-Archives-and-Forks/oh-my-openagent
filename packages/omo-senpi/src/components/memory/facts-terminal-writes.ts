@@ -14,6 +14,7 @@ import type {
 } from "@oh-my-opencode/memory-core"
 
 import { ledgerTargets, type FactsFailurePort } from "./facts-failure-recording"
+import { cleanupTerminalFactsRun, type RemoveRunArtifact } from "./facts-run-cleanup"
 import { writeFactsFinal } from "./facts-run-storage"
 import type { FactsRunLedger } from "./facts-runner-types"
 import { writeRunJsonAtomic } from "./worker/run-artifacts"
@@ -27,6 +28,8 @@ export interface FactsTerminalWritesOptions {
   readonly markConsumed: (entries: readonly FactsQueueEntry[]) => Promise<void>
   /** Sentinel write seam; tests crash inside the ordering window through it. */
   readonly write?: (path: string, value: unknown) => Promise<void>
+  /** Post-sentinel deletion seam for the run's disposable artifacts. */
+  readonly remove?: RemoveRunArtifact
   readonly warn?: (message: string, fields: Readonly<Record<string, unknown>>) => void
 }
 
@@ -57,6 +60,7 @@ export class FactsTerminalWrites {
       abandonedAt: this.options.now().toISOString(),
       reason,
     })
+    await this.cleanup(runDir)
   }
 
   /** Failures raised before a run dir exists key idempotency on a fresh preflight id. */
@@ -120,10 +124,21 @@ export class FactsTerminalWrites {
       detail,
       sha,
       ...(this.options.write === undefined ? {} : { write: this.options.write }),
+      ...(this.options.remove === undefined ? {} : { remove: this.options.remove }),
+      ...(this.options.warn === undefined ? {} : { warn: this.options.warn }),
     })
   }
 
   private sentinel(path: string, value: unknown): Promise<void> {
     return (this.options.write ?? writeRunJsonAtomic)(path, value)
+  }
+
+  /** Sentinel-second deletion: only reached once the run is durably terminal. */
+  private cleanup(runDir: string): Promise<void> {
+    return cleanupTerminalFactsRun({
+      runDir,
+      ...(this.options.remove === undefined ? {} : { remove: this.options.remove }),
+      ...(this.options.warn === undefined ? {} : { warn: this.options.warn }),
+    })
   }
 }
