@@ -95,6 +95,11 @@ export const CATEGORY_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
   "unspecified-low": {
     fallbackChain: [
       {
+        providers: ["xai", "github-copilot", "opencode", "vercel"],
+        model: "grok-4.6",
+        variant: "xhigh",
+      },
+      {
         providers: ["openai", "quotio-openai", "github-copilot", "opencode", "vercel"],
         model: "gpt-5.6-terra",
         variant: "high",
