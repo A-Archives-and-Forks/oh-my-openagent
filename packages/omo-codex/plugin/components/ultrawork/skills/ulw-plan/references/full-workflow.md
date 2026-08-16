@@ -136,7 +136,7 @@ No Metis, no plan file, no execution until the user approves. The UNCLEAR path a
 
 ## Phase 3 - Generate the plan (only after approval)
 1. Rerun `node "<skill-root>/scripts/scaffold-plan.mjs" <slug> [--clear|--unclear]` without `--draft-only`. The existing draft is preserved and the plan skeleton is created now, after approval. A plain rerun is a safe no-op; never hand-build the skeleton.
-2. **Metis gap analysis (mandatory):** spawn a metis reviewer for contradictions, missing constraints, scope-creep, unvalidated assumptions, and missing acceptance criteria; fold findings in silently.
+2. **Metis gap analysis (mandatory):** spawn a metis reviewer for contradictions, missing constraints — including unstated extrinsic ones: budget/spend, mandated stack, expected scale, target audience / compliance — scope-creep, unvalidated assumptions, and missing acceptance criteria; fold findings in silently; require each constraint gap to return as a proposed default plus reversibility, or a single owner-question when defaulting is unsafe.
 3. APPEND todo batches into the `## Todos` region with edit/apply_patch - never rewrite the script-emitted headers; 50+ todos is fine; one request -> one plan.
 4. Fill `## TL;DR (For humans)` LAST, after the detailed plan, so it summarizes the real plan, not an intention.
 5. Self-review: every todo has references + agent-executable acceptance criteria + happy+failure QA scenarios; no business-logic assumption without evidence; zero criteria need a human. HR6 backstop - confirm the plan's FIRST `## ` heading is `## TL;DR (For humans)` and that every header below it appears in the template order; if you ever hand-built or reordered the file, the human summary must still lead.
