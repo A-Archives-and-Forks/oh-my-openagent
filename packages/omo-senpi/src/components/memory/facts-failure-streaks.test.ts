@@ -12,6 +12,10 @@ import { writeRunJsonAtomic } from "./worker/run-artifacts"
 
 const ABANDONED_RUN_ID = "facts-abandoned-1"
 
+/** A seeded record and a clock past its one-minute backoff window (todo 6 gates launches on it). */
+const RECORDED_AT = new Date("2026-08-10T12:00:00.000Z")
+const ELIGIBLE_AT = new Date("2026-08-10T12:01:00.000Z")
+
 /** Reconcile-only drive: `reconcilePending` reconciles first, then refuses the follow-on launch. */
 function reconcileOnly(runner: FactsExtractorRunner) {
   const stop = new AbortController()
@@ -194,7 +198,7 @@ describe("facts terminal failure recording", () => {
   test("#given a recorded failure #when a later run commits #then the endpoint's record is cleared after consumption", async () => {
     // given
     const { root, identity, queue } = await fixture()
-    const store = new FactsFailureStore({ identityPaths: identity.paths })
+    const store = new FactsFailureStore({ identityPaths: identity.paths, now: () => RECORDED_AT })
     await store.recordFailure({
       targets: [{ conversationId: "session-1", endMessageId: "m1", endSnapshotLine: 1 }],
       failureId: "earlier-run",
@@ -202,8 +206,10 @@ describe("facts terminal failure recording", () => {
     })
     expect((await store.readFailures()).entries).toHaveLength(1)
 
-    // when
-    const result = await new FactsExtractorRunner(runnerOptions(root, identity, queue, "fact")).launchPending()
+    // when: past the record's backoff window, so launch gating lets the endpoint through
+    const result = await new FactsExtractorRunner(
+      runnerOptions(root, identity, queue, "fact", { now: () => ELIGIBLE_AT }),
+    ).launchPending()
 
     // then
     expect(result.status).toBe("committed")
@@ -214,7 +220,7 @@ describe("facts terminal failure recording", () => {
   test("#given a queued endpoint with a stale record #when the run yields no facts #then the record is cleared too", async () => {
     // given
     const { root, identity, queue } = await fixture()
-    const store = new FactsFailureStore({ identityPaths: identity.paths })
+    const store = new FactsFailureStore({ identityPaths: identity.paths, now: () => RECORDED_AT })
     await store.recordFailure({
       targets: [{ conversationId: "session-1", endMessageId: "m1", endSnapshotLine: 1 }],
       failureId: "earlier-run",
@@ -222,7 +228,9 @@ describe("facts terminal failure recording", () => {
     })
 
     // when
-    const result = await new FactsExtractorRunner(runnerOptions(root, identity, queue, "empty")).launchPending()
+    const result = await new FactsExtractorRunner(
+      runnerOptions(root, identity, queue, "empty", { now: () => ELIGIBLE_AT }),
+    ).launchPending()
 
     // then
     expect(result.status).toBe("no_facts")

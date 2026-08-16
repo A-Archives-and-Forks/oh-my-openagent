@@ -240,7 +240,10 @@ describe("quick-pinned facts launch", () => {
     expect(JSON.parse(await readFile(join(firstRun, "ledger.json"), "utf8")).applyRecovery).toBeUndefined()
 
     await rm(join(identity.paths.repo, "foreign.md"))
-    const retried = await new FactsExtractorRunner(runnerOptions(root, identity, queue, "fact")).launchPending()
+    // The blocked run recorded a one-minute backoff; the retry clock clears that window.
+    const retried = await new FactsExtractorRunner(runnerOptions(root, identity, queue, "fact", {
+      now: () => new Date("2026-08-10T12:01:00.000Z"),
+    })).launchPending()
 
     expect(retried.status).toBe("committed")
     expect(await queue.listPending()).toHaveLength(0)

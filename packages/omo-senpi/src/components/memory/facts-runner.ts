@@ -9,11 +9,14 @@ import {
   buildDefaultSeedFiles,
   createLockRecord,
   memoryWriterLockPath,
+  selectLaunchable,
   withLock,
   type FactsFailureReason,
   type FactsPayload,
+  type FactsQueueEntry,
 } from "@oh-my-opencode/memory-core"
-import { ledgerTargets, preflightFailureId, queueEntryTargets } from "./facts-failure-recording"
+import { hasFailureReader, readLaunchableFailures, type FactsFailureReadPort } from "./facts-launch-selection"
+import { ledgerTargets, preflightFailureId, queueEntryTargets, type FactsFailurePort } from "./facts-failure-recording"
 import { FactsTerminalWrites } from "./facts-terminal-writes"
 import { readFactsPeoplePayload } from "./facts-people-payload"
 import { SandboxUnavailableError } from "./sandbox-contracts"
@@ -35,13 +38,19 @@ export class FactsExtractorRunner {
   private readonly queue: FactsQueue
   private readonly now: () => Date
   private readonly terminal: FactsTerminalWrites
+  private readonly failureReader: FactsFailureReadPort
   private activeLaunch: Promise<FactsLaunchResult> | undefined
 
   constructor(private readonly options: FactsExtractorRunnerOptions) {
     this.queue = options.queue ?? new FactsQueue({ identityPaths: options.identity.paths })
     this.now = options.now ?? (() => new Date())
+    const store = new FactsFailureStore({ identityPaths: options.identity.paths, now: this.now })
+    const failures: FactsFailurePort = options.failures ?? store
+    // A recording double that cannot read falls back to the durable store: gating must never
+    // be answered by a seam that does not know the real ledger.
+    this.failureReader = hasFailureReader(failures) ? failures : store
     this.terminal = new FactsTerminalWrites({
-      failures: options.failures ?? new FactsFailureStore({ identityPaths: options.identity.paths, now: this.now }),
+      failures,
       now: this.now,
       markConsumed: (entries) => this.queue.markConsumed(entries),
       ...(options.writeTerminalSentinel === undefined ? {} : { write: options.writeTerminalSentinel }),
@@ -71,9 +80,18 @@ export class FactsExtractorRunner {
     const isAborted = (): boolean => signal?.aborted === true
     if (isAborted()) return { status: "skipped" }
     if (await this.reconcileRuns()) return { status: "active" }
-    const entries = await this.queue.listPending()
+    const pending = await this.queue.listPending()
     if (isAborted()) return { status: "skipped" }
-    if (entries.length === 0) return { status: "empty" }
+    if (pending.length === 0) return { status: "empty" }
+    // FAIL-CLOSED: an unreadable ledger aborts the launch. Treating it as "no failures" would
+    // relaunch every parked batch forever - the incident this gating exists to prevent.
+    const ledger = await readLaunchableFailures(this.failureReader, (message, fields) =>
+      this.options.logger?.warn(message, fields),
+    )
+    if (!ledger.ok) return { status: "skipped" }
+    const selection = selectLaunchable(pending, ledger.failures, this.now())
+    if (selection.selected.length === 0) return { status: "empty" }
+    const entries: readonly FactsQueueEntry[] = selection.selected
     const loaded = this.options.loadConfig()
     const resolution = resolveReflectionModel(QUICK_CATEGORY, loaded.config, this.options.resolveModelRegistry())
     if (resolution.kind === "category_unavailable") {

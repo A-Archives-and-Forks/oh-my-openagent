@@ -43,6 +43,12 @@ export {
   type RecordFailureRequest,
 } from "./failures-store"
 export {
+  factsSelectionKey,
+  selectLaunchable,
+  type FactsLaunchSelection,
+  type FactsSkipReason,
+} from "./failures-selection"
+export {
   FactsPlanParentDirtyError,
   factsRecordsHash,
   planFactsMutation,
