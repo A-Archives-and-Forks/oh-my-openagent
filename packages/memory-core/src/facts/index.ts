@@ -19,6 +19,36 @@ export {
   type FactsPersonReference,
 } from "./extraction"
 export {
+  FACTS_FAILURES_VERSION,
+  FACTS_FAILURE_REASONS,
+  FactsFailuresCorruptError,
+  parseFailuresFile,
+  renderFailuresFile,
+  type FactsFailureReason,
+  type FactsFailureRecord,
+  type FactsFailureState,
+  type FactsFailuresFile,
+} from "./failures-schema"
+export {
+  applyFailure,
+  clearForRetry,
+  clearOnSuccess,
+  type ApplyFailureInput,
+  type FactsFailureFilter,
+  type FactsFailureTarget,
+} from "./failures-backoff"
+export {
+  FactsFailureStore,
+  type FactsFailureStoreOptions,
+  type RecordFailureRequest,
+} from "./failures-store"
+export {
+  factsSelectionKey,
+  selectLaunchable,
+  type FactsLaunchSelection,
+  type FactsSkipReason,
+} from "./failures-selection"
+export {
   FactsPlanParentDirtyError,
   factsRecordsHash,
   planFactsMutation,

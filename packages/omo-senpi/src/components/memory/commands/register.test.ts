@@ -39,6 +39,7 @@ describe("registerMemoryCommands", () => {
       "dream",
       "search",
       "people",
+      "facts",
     ])
   })
 

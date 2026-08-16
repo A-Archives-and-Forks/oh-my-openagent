@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises"
 import { hostname } from "node:os"
 import { join } from "node:path"
 
-import { memoryWriterLockPath } from "@oh-my-opencode/memory-core"
+import { FactsFailureStore, memoryWriterLockPath } from "@oh-my-opencode/memory-core"
 
 import { MemoryFakeExtensionAPI, memorySettings } from "../memory.test-support"
 import {
@@ -275,6 +275,39 @@ describe("/doctor", () => {
     // then
     expect(text).toContain("skills/commit/SKILL.md")
     expect(text).toContain("name:")
+  })
+
+  test("#given parked facts batches #when doctor runs #then one bounded advisory line names /facts retry", async () => {
+    // given
+    const { identity, pi, ctx } = await harness()
+    const store = new FactsFailureStore({ identityPaths: identity.identityPaths })
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await store.recordFailure({
+        targets: [{ conversationId: "conv-a", endMessageId: "msg-a", endSnapshotLine: 2 }],
+        failureId: `run-${attempt}`,
+        reason: "child_exit",
+      })
+    }
+
+    // when
+    const text = await invoke(pi, "doctor", "", ctx)
+
+    // then
+    const factsLines = text.split("\n").filter((line) => line.includes("] facts:"))
+    expect(factsLines).toHaveLength(1)
+    expect(factsLines[0]).toContain("1 parked")
+    expect(factsLines[0]).toContain("/facts retry")
+  })
+
+  test("#given no facts failures #when doctor runs #then no facts advisory line is rendered", async () => {
+    // given
+    const { pi, ctx } = await harness()
+
+    // when
+    const text = await invoke(pi, "doctor", "", ctx)
+
+    // then
+    expect(text.split("\n").filter((line) => line.includes("] facts:"))).toEqual([])
   })
 
   test("#given an unbound session #when doctor runs #then an actionable error is returned", async () => {

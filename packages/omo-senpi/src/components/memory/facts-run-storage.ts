@@ -10,6 +10,8 @@ import {
 } from "@oh-my-opencode/memory-core"
 
 import { readRunJson, writeRunJsonAtomic } from "./worker/run-artifacts"
+import { cleanupTerminalFactsRun, type RemoveRunArtifact } from "./facts-run-cleanup"
+import type { FactsQueuedKey } from "./facts-failure-recording"
 import type { FactsFinalRecord, FactsLaunchResult, FactsRunLedger } from "./facts-runner-types"
 
 const DEFAULT_DEADLINE_MS = 15 * 60_000
@@ -64,14 +66,24 @@ export async function writeFactsFinal(options: {
   readonly now: () => Date
   readonly detail?: string
   readonly sha?: string
+  readonly write?: (path: string, value: unknown) => Promise<void>
+  readonly remove?: RemoveRunArtifact
+  readonly warn?: (message: string, fields: Readonly<Record<string, unknown>>) => void
 }): Promise<void> {
-  await writeRunJsonAtomic(join(options.runDir, "final.json"), {
+  // Sentinel first (writeRunJsonAtomic fsyncs it), disposable artifacts second - never the
+  // reverse: a crash before the sentinel must leave the payload for reconciliation to read.
+  await (options.write ?? writeRunJsonAtomic)(join(options.runDir, "final.json"), {
     version: 1,
     runId: options.runId,
     outcome: options.outcome,
     finishedAt: options.now().toISOString(),
     ...(options.detail === undefined ? {} : { detail: options.detail }),
     ...(options.sha === undefined ? {} : { sha: options.sha }),
+  })
+  await cleanupTerminalFactsRun({
+    runDir: options.runDir,
+    ...(options.remove === undefined ? {} : { remove: options.remove }),
+    ...(options.warn === undefined ? {} : { warn: options.warn }),
   })
 }
 
@@ -99,10 +111,15 @@ export async function runLiveness(ledger: FactsRunLedger): Promise<"alive" | "de
   return unknown ? "unknown" : "dead"
 }
 
-export function queueKeys(entries: readonly FactsQueueEntry[]) {
+/**
+ * The batch endpoints a run owns. `end_snapshot_line` rides along because the failure ledger
+ * keys records by the snapshot boundary and reconciliation only ever has the ledger to work from.
+ */
+export function queueKeys(entries: readonly FactsQueueEntry[]): readonly FactsQueuedKey[] {
   return entries.map((entry) => ({
     conversationId: entry.conversationId,
     end_message_id: entry.range.end_message_id,
+    end_snapshot_line: entry.range.end_snapshot_line,
   }))
 }
 
