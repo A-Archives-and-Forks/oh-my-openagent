@@ -33,6 +33,7 @@ const expectedNativeEvents = new Set([
   "skill_loaded",
   "delegation_started",
   "feature_used",
+  "parallelism_summary",
 ])
 
 export function assertAllowlistCoverage(allowlists) {
@@ -470,7 +471,7 @@ function evidenceMarkdown(input) {
 
 ## Result
 
-PASS. The real Senpi CLI emitted all seven OmO Native events plus the unchanged legacy daily-active event, both opt-out paths emitted zero requests, and cleanup completed.
+PASS. The real Senpi CLI emitted all eight OmO Native events plus the unchanged legacy daily-active event, both opt-out paths emitted zero requests, and cleanup completed.
 
 ## Senpi precheck
 
@@ -494,7 +495,7 @@ ${assertionLines}
 - PASS opt-out-do-not-track-zero-requests: ${input.optOutDntRequests} requests
 - PASS opt-out-config-zero-requests: ${input.optOutConfigRequests} requests
 
-All privacy, property, and path scans above were scoped strictly to: daily_active, session_started, prompt_submitted, turn_completed, skill_loaded, delegation_started, and feature_used. The legacy \`omo_senpi_daily_active\` event was asserted for presence only and was not scanned.
+All privacy, property, and path scans above were scoped strictly to: daily_active, session_started, prompt_submitted, turn_completed, skill_loaded, delegation_started, feature_used, and parallelism_summary. The legacy \`omo_senpi_daily_active\` event was asserted for presence only and was not scanned.
 
 ## Captured payloads
 

@@ -24,6 +24,8 @@ import { realpathSync } from "node:fs"
 const roots: string[] = []
 afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }))))
 
+const FIXED_RECENT_TIMESTAMP = new Date(Date.now() - 60_000).toISOString()
+
 function record(): ReflectionCompletionRecord {
   return {
     schemaVersion: 1,
@@ -36,8 +38,8 @@ function record(): ReflectionCompletionRecord {
     trigger: "dream",
     origin: "shutdown",
     outcome: "merged",
-    startedAt: "2026-08-09T12:00:00.000Z",
-    finishedAt: "2026-08-09T12:00:01.000Z",
+    startedAt: FIXED_RECENT_TIMESTAMP,
+    finishedAt: FIXED_RECENT_TIMESTAMP,
     delivery: { status: "pending" },
   }
 }
@@ -128,7 +130,7 @@ describe("reflection completion flow", () => {
       trigger: "dream",
       origin: "shutdown",
       outcome: "merged",
-      finishedAt: "2026-08-09T12:00:01.000Z",
+      finishedAt: FIXED_RECENT_TIMESTAMP,
     })
   })
 
@@ -146,7 +148,7 @@ describe("reflection completion flow", () => {
     expect(reflection.outcomes).toEqual([{
       runId: "run-offline",
       outcome: "merged",
-      finishedAt: "2026-08-09T12:00:01.000Z",
+      finishedAt: FIXED_RECENT_TIMESTAMP,
     }])
   })
 
