@@ -164,12 +164,17 @@ describe("memory run supervisor IC-8 containment", () => {
       const exit = waitForExit(supervisor)
       await waitForPath(join(runDir, "child-started.json"))
       expect(existsSync(join(runDir, "child-terminated.json"))).toBe(false)
+      const nativeWindowsGraceWins = platform === "win32" && process.platform === "win32"
 
       // when
       await advanceClock(clockPath, 2_000)
       if (supervisor.pid === undefined) throw new Error("supervisor pid is required")
       await waitForPath(join(runDir, `${platform === "win32" ? "win32-graceful" : "posix-SIGTERM"}-${supervisor.pid}.json`))
       expect(existsSync(join(runDir, "taskkill-invocation.json"))).toBe(false)
+      if (nativeWindowsGraceWins) {
+        await childExited
+        await waitForPath(join(runDir, "outcome.json"))
+      }
       await advanceClock(clockPath, 3_000)
       await waitForPath(join(runDir, "outcome.json"))
       await Promise.all([exit, childExited])
@@ -177,7 +182,7 @@ describe("memory run supervisor IC-8 containment", () => {
       // then
       const outcome = JSON.parse(await readFile(join(runDir, "outcome.json"), "utf8")) as Record<string, unknown>
       expect(outcome.timedOut).toBe(true)
-      if (platform === "win32") {
+      if (platform === "win32" && !nativeWindowsGraceWins) {
         const invocationPath = join(runDir, "taskkill-invocation.json")
         await waitForPath(invocationPath)
         const invocation = JSON.parse(await readFile(invocationPath, "utf8")) as { readonly args: string[] }
