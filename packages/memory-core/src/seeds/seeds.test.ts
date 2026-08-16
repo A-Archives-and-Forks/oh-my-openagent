@@ -202,11 +202,7 @@ describe("default memory seeds", () => {
 
     // when
     await initMemoryWithSeeds(repo, { authorName: "Compiler Agent" })
-    const block = await compileMemoryBlock(repo, {
-      agentId: "seed-agent",
-      conversationId: "conv-seed",
-      previousMessageCount: 0,
-    })
+    const block = await compileMemoryBlock(repo, { agentId: "seed-agent" })
 
     // then
     expect(block).toContain("<self>")
