@@ -13,7 +13,6 @@ import type {
 } from "@oh-my-opencode/telemetry-core"
 
 import type { OmoSenpiComponent } from "../../extension/types"
-import { createOmoNativePayloadBuffer } from "./omo-native-buffer"
 import { createOmoNativeNoticeRegistration } from "./omo-native-notice"
 import { createOmoNativePromptComponent } from "./omo-native-prompt"
 import {
@@ -43,7 +42,6 @@ export type OmoNativeTelemetryComponentOptions = OmoNativeSessionOptions & {
 export function createOmoNativeTelemetryComponent(options: OmoNativeTelemetryComponentOptions = {}): OmoSenpiComponent {
   const env = options.env ?? process.env
   const stateDir = options.stateDir ?? getOmoNativeStateDir(env)
-  const buffer = createOmoNativePayloadBuffer({ stateDir, diagnostics: options.diagnostics })
   const state: SharedState = {}
   const client: Pick<EventTelemetryClient, "captureEvent"> = {
     captureEvent(name, properties) {
@@ -53,7 +51,6 @@ export function createOmoNativeTelemetryComponent(options: OmoNativeTelemetryCom
   const transportFactory = sharedTransportFactory(
     options.transportFactory ?? createDefaultPostHogTransport,
     state,
-    buffer.onCapture,
     options,
   )
 
@@ -101,7 +98,6 @@ export function createOmoNativeTelemetryComponent(options: OmoNativeTelemetryCom
 function sharedTransportFactory(
   factory: TelemetryTransportFactory,
   state: SharedState,
-  onCapture: (payload: TelemetryCaptureMessage) => void,
   options: OmoNativeTelemetryComponentOptions,
 ): TelemetryTransportFactory {
   return (apiKey, transportOptions) => {
@@ -110,9 +106,8 @@ function sharedTransportFactory(
 
     const wrapped: TelemetryTransport = {
       capture(message) {
-        installCaptureFacade(state, transport, message, onCapture, options)
+        installCaptureFacade(state, transport, message, options)
         forwardValidatedCapture(transport, message)
-        onCapture(message)
       },
       flush: transport.flush === undefined ? undefined : () => transport.flush?.() ?? Promise.resolve(),
       async shutdown() {
@@ -134,7 +129,6 @@ function installCaptureFacade(
   state: SharedState,
   transport: TelemetryTransport,
   template: TelemetryCaptureMessage,
-  onCapture: (payload: TelemetryCaptureMessage) => void,
   options: OmoNativeTelemetryComponentOptions,
 ): void {
   const sessionId = template.properties?.$session_id
@@ -143,7 +137,6 @@ function installCaptureFacade(
     diagnostics: options.diagnostics,
     distinctId: template.distinctId,
     env: options.env,
-    onCapture,
     product: createOmoNativeProductConfig(),
     propertyAllowlist: OMO_NATIVE_PROPERTY_ALLOWLISTS,
     schemaVersion: 1,
