@@ -165,6 +165,14 @@ export function registerMemoryStatic(input: {
       },
     },
     dreamSink: { request: (request) => dreamTriggerWiring.requestManualDream(request) },
+    factsSink: {
+      // ONE attempt after a manual unpark: `reconcileExtractor` fires the extractor's own
+      // reconcile-then-launch path, which owns the re-entrancy latch, so this never loops.
+      reconcile: async () => {
+        const identity = activeSession.current === undefined ? undefined : resolveContext(activeSession.current)
+        if (identity !== undefined) factsWiringFor(identity).reconcileExtractor()
+      },
+    },
     sessionsDir: () => join(options.env.SENPI_CODING_AGENT_DIR ?? join(homedir(), ".senpi", "agent"), "sessions"),
   })
   const triggerWiring = createReflectionTriggerWiring({

@@ -29,7 +29,8 @@ The memory architecture - the git-backed memory filesystem, the memory tool sema
 | `soul-notice.ts` | Soul-edit notices: commits touching `system/persona.md` or `system/identity.md` emit a non-model-facing `appendEntry` notice, gated by `soul.edit_notice`. |
 | `shutdown-drain.ts` | Session-shutdown journal drain under a hard budget. |
 | `sandbox.ts` | Seatbelt/bwrap sandbox transform for reflection children (`required|auto|off`, default `auto`). |
-| `commands/` | Ten slash commands; read-only output never enters model context. `/sleeptime` shows the resolved nudge/facts/dream/people/soul settings. |
+| `commands/` | Thirteen slash commands (`MEMORY_COMMAND_NAMES`: `/memory`, `/memfs`, `/remember`, `/init`, `/doctor`, `/recompile`, `/memory-repository`, `/sleeptime`, `/reflect`, `/dream`, `/search`, `/people`, `/facts`); read-only output never enters model context. `/sleeptime` shows the resolved nudge/facts/dream/people/soul settings. |
+| `commands/facts.ts` / `commands/facts-status.ts` | `/facts` renders queue depth, parked/backoff counts, next eligibility, and the bounded per-conversation last-failure list; a corrupt `failures.json` renders as UNREADABLE, never as zeros. `/facts retry [--conversation <id>]` is the ONLY unpark path: it clears failure records and fires one reconcile/launch attempt, never touching queue files or either watermark. `formatFactsAdvisory`/`factsRemediationHint` feed the `/doctor` `facts` line, which stays silent at zero state. |
 | `palace/` | Self-contained HTML memory viewer (0600/0700, machine-gated inline-JSON assertions). |
 | `guard.ts` | Soft cross-identity guard via `tool_call` (file tools only; bash advisory-only). |
 | `policy-guard.ts` | Hard guard: registers a filesystem policy when the host exposes `registerFilesystemPolicy` (senpi >= feat/extension-fs-policy), soft guard otherwise. |
