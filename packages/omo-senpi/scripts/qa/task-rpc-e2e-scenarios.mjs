@@ -85,10 +85,9 @@ function driveSenpiAsync(senpiBin, sandbox, sessionDir, parentSteps, childSteps,
   })
 }
 
-async function killSenpiHost(child) {
+export async function killSenpiHost(child, terminate = killProcessGroup) {
   if (typeof child.pid !== "number" || child.exitCode !== null || child.signalCode !== null) return true
-  if (process.platform === "win32") return child.kill("SIGKILL")
-  return killProcessGroup(child.pid)
+  return terminate(child.pid)
 }
 
 function waitForChildClose(child, timeoutMs) {
@@ -104,6 +103,12 @@ function waitForChildClose(child, timeoutMs) {
     }
     child.once("close", onClose)
   })
+}
+
+async function cleanupSenpiHost(child) {
+  const terminated = await killSenpiHost(child)
+  if (!terminated) throw new Error(`could not terminate Senpi host pid=${child.pid ?? "unknown"}`)
+  await waitForChildClose(child, 15_000)
 }
 
 export async function runKillCheck(senpiBin) {
@@ -127,7 +132,7 @@ export async function runKillCheck(senpiBin) {
       facts: { pid: running.pid, killed: errored?.killed ?? false, error_excerpt: (errored?.error_message ?? "").slice(0, 120) },
     }
   } finally {
-    await killSenpiHost(parent)
+    await cleanupSenpiHost(parent)
     rmSync(sandbox.root, { recursive: true, force: true })
   }
 }
@@ -149,14 +154,7 @@ export async function runReconcileCheck(senpiBin) {
         reason: "parent exited before crash injection",
       }
     }
-    if (!await killSenpiHost(parent)) {
-      return {
-        check: "reconcile_lost_terminates_orphan",
-        verdict: "FAIL",
-        reason: "could not terminate parent Senpi host process group",
-      }
-    }
-    await waitForChildClose(parent, 15_000)
+    await cleanupSenpiHost(parent)
     const relaunch = driveSenpi(senpiBin, sandbox, sessionDir, RECONCILE_RELAUNCH_STEPS, CHILD_STEPS_COMPLETE, "relaunch for reconcile")
     const lost = readRecords(stateDir).find((r) => r.task_id === running.task_id && r.status === "lost")
     const eventTypes = readTaskEventTypes(stateDir, running.task_id)
@@ -178,7 +176,7 @@ export async function runReconcileCheck(senpiBin) {
       },
     }
   } finally {
-    await killSenpiHost(parent)
+    await cleanupSenpiHost(parent)
     if (typeof orphanPid === "number" && pidAlive(orphanPid)) {
       try {
         process.kill(orphanPid, "SIGKILL")
