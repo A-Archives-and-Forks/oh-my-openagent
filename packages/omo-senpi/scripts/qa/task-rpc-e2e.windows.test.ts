@@ -140,7 +140,18 @@ test.skipIf(!isWin32)(
     if (exit.code !== 0 || exit.signal !== null || stderr !== "" || spawnError !== undefined) {
       throw new Error(`WINDOWS_TASK_RPC_E2E ${JSON.stringify(diagnostic)}`)
     }
-    const payload = JSON.parse(stdout.trim()) as DriverPayload
+    const parsed: unknown = JSON.parse(stdout.trim())
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      !("checks" in parsed) ||
+      !Array.isArray(parsed.checks) ||
+      !("wiringFixed" in parsed) ||
+      typeof parsed.wiringFixed !== "boolean"
+    ) {
+      throw new Error(`WINDOWS_TASK_RPC_E2E invalid payload ${JSON.stringify({ parsed, diagnostic })}`)
+    }
+    const payload = parsed as DriverPayload
     const route = check(payload, "process_mode_routes_to_rpc_runner")
     const spawnProof = check(payload, "spawn_process_pid_and_session_jsonl")
     const leakProof = check(payload, "no_leaked_rpc_child_pids")
