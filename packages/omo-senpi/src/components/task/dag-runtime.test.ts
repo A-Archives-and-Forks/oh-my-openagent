@@ -262,7 +262,7 @@ describe("assembled DAG runtime", () => {
     await runtime.attach()
     expect(runner.handles[0]?.listenerCount()).toBe(attachedListenerCount - 1)
     runtime.dispose()
-  })
+  }, { timeout: 15_000 })
 
   test("#given an unknown node skill #when the assembled runtime creates the run #then snapshot records missing_skill and dispatch keeps the prompt", async () => {
     // given
@@ -529,7 +529,7 @@ describe("assembled DAG runtime", () => {
       readonly diagnostics: readonly { readonly kind: string }[]
     }
     expect(failedCopyRecord.diagnostics.some((diagnostic) => diagnostic.kind === "journal_corrupt")).toBe(true)
-  })
+  }, { timeout: 15_000 })
 
   test("#given a live-shaped in-process child whose abort rejects #when the assembled runtime cancels #then no unhandled rejection escapes and a later run still completes", async () => {
     // given

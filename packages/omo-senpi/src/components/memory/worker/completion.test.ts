@@ -24,7 +24,8 @@ import { realpathSync } from "node:fs"
 const roots: string[] = []
 afterEach(async () => Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }))))
 
-const FIXED_RECENT_TIMESTAMP = new Date(Date.now() - 60_000).toISOString()
+const FIXED_NOW_MS = Date.parse("2026-08-16T12:00:00.000Z")
+const FIXED_RECENT_TIMESTAMP = new Date(FIXED_NOW_MS - 60_000).toISOString()
 
 function record(): ReflectionCompletionRecord {
   return {
@@ -166,7 +167,7 @@ describe("reflection completion flow", () => {
       sessionId: "conversation-a",
       api,
       ui: { notify: (message, level) => notifications.push({ message, level }) },
-    })
+    }, FIXED_NOW_MS)
 
     // then
     expect(consumed).toHaveLength(1)
@@ -186,7 +187,7 @@ describe("reflection completion flow", () => {
         // given
         const root = realpathSync.native(await mkdtemp(join(tmpdir(), "reflection-completion-")))
         roots.push(root)
-        const now = Date.now()
+        const now = FIXED_NOW_MS
         const targetRecords = Array.from({ length: 8 }, (_, index): ReflectionCompletionRecord => ({
           ...record(),
           runId: `target-${index}`,
@@ -211,7 +212,7 @@ describe("reflection completion flow", () => {
         await consumePendingReflectionCompletions(root, "agent-test", {
           sessionId: "target-session",
           api,
-        })
+        }, now)
 
         // then
         expect(api.entries.filter((entry) => entry.customType === REFLECTION_COMPLETION_ENTRY_TYPE)).toHaveLength(5)
@@ -252,7 +253,7 @@ describe("reflection completion flow", () => {
           api,
           ui: { notify: () => { throw new Error("ui unavailable") } },
           logger: { warn: (_message, details) => warnings.push(details) },
-        })
+        }, FIXED_NOW_MS)
 
         // then
         expect(consumed[0]?.delivery.status).toBe("consumed")
@@ -268,7 +269,7 @@ describe("reflection completion flow", () => {
         // given
         const root = realpathSync.native(await mkdtemp(join(tmpdir(), "reflection-completion-")))
         roots.push(root)
-        const now = Date.now()
+        const now = FIXED_NOW_MS
         const records = Array.from({ length: 8 }, (_, index): ReflectionCompletionRecord => ({
           ...record(),
           runId: `run-${index}`,
@@ -287,8 +288,8 @@ describe("reflection completion flow", () => {
         }
 
         // when
-        const first = await consumePendingReflectionCompletions(root, "agent-test", live)
-        const second = await consumePendingReflectionCompletions(root, "agent-test", live)
+        const first = await consumePendingReflectionCompletions(root, "agent-test", live, now)
+        const second = await consumePendingReflectionCompletions(root, "agent-test", live, now)
 
         // then
         expect(first).toHaveLength(8)

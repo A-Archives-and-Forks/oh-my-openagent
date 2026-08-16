@@ -1,4 +1,4 @@
-import { type ChildProcess } from "node:child_process"
+import { type ChildProcess, type SpawnOptions } from "node:child_process"
 import { mkdtempSync, rmSync } from "node:fs"
 import { homedir, tmpdir } from "node:os"
 import { join } from "node:path"
@@ -65,6 +65,27 @@ afterEach(async () => {
 })
 
 describe("RpcProcessRunner", () => {
+  test("#given the default RPC child spawner #when started #then Windows hides the child console", async () => {
+    let capturedOptions: SpawnOptions | undefined
+    const runner = new RpcProcessRunner({
+      spawnProcess: (_command, _args, options) => {
+        capturedOptions = options
+        const child = spawnFakeChild()
+        children.push(child)
+        return child
+      },
+    })
+
+    await runner.start(makeSpec())
+
+    expect(capturedOptions).toMatchObject({
+      stdio: ["pipe", "pipe", "pipe"],
+      shell: false,
+      windowsHide: true,
+      detached: process.platform !== "win32",
+    })
+  })
+
   test("#given a completing child #when started #then the handle reports final text and a clean exit", async () => {
     // given
     const { runner } = makeRunner()

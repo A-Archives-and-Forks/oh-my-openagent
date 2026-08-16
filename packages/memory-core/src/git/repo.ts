@@ -9,6 +9,7 @@ import { GitPathStateStore } from "./path-state"
 import { authorFlags, commandError, normalizePathspecs, normalizeSeedPath } from "./repo-arguments"
 import { parseLogOutput, parseNulPaths } from "./repo-log"
 import { assertNoUnrelatedChanges } from "./repo-status"
+import { withSerializedGitWorktreeMutation } from "./worktree-mutation-queue"
 import type {
   GitCommitAuthor,
   GitCommitResult,
@@ -160,11 +161,15 @@ export class GitMemoryRepo {
   }
 
   async worktreeAdd(path: string, branch: string, startPoint = "HEAD"): Promise<void> {
-    await withGitLockRetry(() => this.git(["worktree", "add", "-b", branch, path, startPoint]))
+    await withSerializedGitWorktreeMutation(this.dir, () =>
+      withGitLockRetry(() => this.git(["worktree", "add", "-b", branch, path, startPoint])),
+    )
   }
 
   async worktreeRemove(path: string, force = true): Promise<void> {
-    await withGitLockRetry(() => this.git(["worktree", "remove", ...(force ? ["--force"] : []), path]))
+    await withSerializedGitWorktreeMutation(this.dir, () =>
+      withGitLockRetry(() => this.git(["worktree", "remove", ...(force ? ["--force"] : []), path])),
+    )
   }
 
   async merge(ref: string, options: GitMergeOptions = {}): Promise<string> {

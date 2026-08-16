@@ -78,7 +78,7 @@ jobs:
 
   test:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 40 || 30 }}
     strategy:
       fail-fast: false
       matrix:

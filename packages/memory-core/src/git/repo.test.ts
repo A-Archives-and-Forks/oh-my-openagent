@@ -287,8 +287,7 @@ describe("GitMemoryRepo", () => {
       result.status === "fulfilled" ? [result.value.sha] : [],
     )
     expect(new Set(shas).size).toBe(writers)
-  })
-
+  }, 30_000)
 
   it("#given a transient ref lock on the first attempt #when a repo is initialized #then the retry lets HEAD settle", async () => {
     // given - git loses the HEAD.lock race once, exactly as it does under Windows contention

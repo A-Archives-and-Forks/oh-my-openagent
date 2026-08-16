@@ -1,8 +1,9 @@
-import { spawn } from "node:child_process"
+import { spawn, type ChildProcess } from "node:child_process"
 
 import { RunnerError } from "../in-process/runner-error"
 import type { RpcRunnerSpec } from "../types"
 import { buildRpcModelCatalogSpawn, type RpcSpawnDescriptor } from "./spawn"
+import { terminateRpcChild } from "./terminate"
 
 const PROBE_TIMEOUT_MS = 20_000
 const MAX_OUTPUT_BYTES = 2 * 1024 * 1024
@@ -20,6 +21,25 @@ type ModelCatalogProbeResult = {
   readonly stdout: string
   readonly stderr: string
   readonly timedOut: boolean
+}
+
+type ModelCatalogSpawnOptions = {
+  readonly cwd: string
+  readonly env: NodeJS.ProcessEnv
+  readonly stdio: ["ignore", "pipe", "pipe"]
+  readonly shell: false
+  readonly windowsHide: true
+  readonly detached: boolean
+}
+
+type ModelCatalogProbeOptions = {
+  readonly timeoutMs?: number
+  readonly spawnProcess?: (
+    command: string,
+    args: readonly string[],
+    options: ModelCatalogSpawnOptions,
+  ) => ChildProcess
+  readonly terminateChild?: (child: ChildProcess) => Promise<void>
 }
 
 export type RpcModelAdmission = (spec: RpcRunnerSpec) => Promise<void>
@@ -53,16 +73,30 @@ export function parseModelCatalog(output: string): ReadonlySet<string> {
   return models
 }
 
-export function probeModelCatalog(descriptor: RpcSpawnDescriptor): Promise<ModelCatalogProbeResult> {
+export function probeModelCatalog(
+  descriptor: RpcSpawnDescriptor,
+  options: ModelCatalogProbeOptions = {},
+): Promise<ModelCatalogProbeResult> {
   return new Promise((resolve) => {
-    const child = spawn(descriptor.command, [...descriptor.args], {
+    const spawnProcess = options.spawnProcess ?? ((command, args, spawnOptions) => (
+      spawn(command, [...args], spawnOptions)
+    ))
+    const terminateChild = options.terminateChild ?? terminateRpcChild
+    const child = spawnProcess(descriptor.command, descriptor.args, {
       cwd: descriptor.cwd,
       env: descriptor.env,
       stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
+      windowsHide: true,
+      detached: process.platform !== "win32",
     })
+    if (child.stdout === null || child.stderr === null) {
+      throw new Error("model catalog probe requires piped stdout and stderr")
+    }
     let stdout = ""
     let stderr = ""
     let settled = false
+    let timingOut = false
     let timeout: ReturnType<typeof setTimeout> | undefined
 
     const finish = (result: ModelCatalogProbeResult): void => {
@@ -78,15 +112,28 @@ export function probeModelCatalog(descriptor: RpcSpawnDescriptor): Promise<Model
       stderr = appendBounded(stderr, chunk)
     })
     child.once("error", (error) => {
+      if (timingOut) return
       finish({ code: null, stdout, stderr: `${stderr}\n${error.message}`, timedOut: false })
     })
     child.once("close", (code) => {
+      if (timingOut) return
       finish({ code, stdout, stderr, timedOut: false })
     })
     timeout = setTimeout(() => {
-      child.kill()
-      finish({ code: null, stdout, stderr, timedOut: true })
-    }, PROBE_TIMEOUT_MS)
+      if (settled || timingOut) return
+      timingOut = true
+      void terminateChild(child).then(
+        () => finish({ code: null, stdout, stderr, timedOut: true }),
+        (error: unknown) => finish({
+          code: null,
+          stdout,
+          stderr: `${stderr}\nfailed to terminate model catalog probe: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          timedOut: true,
+        }),
+      )
+    }, options.timeoutMs ?? PROBE_TIMEOUT_MS)
     timeout.unref()
   })
 }

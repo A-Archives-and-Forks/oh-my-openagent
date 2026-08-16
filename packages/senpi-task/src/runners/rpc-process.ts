@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from "node:child_process"
+import { type ChildProcess, type SpawnOptions, spawn } from "node:child_process"
 import { log } from "@oh-my-opencode/utils"
 
 import type { RpcChildHandle, RpcRunnerSpec } from "./types"
@@ -13,6 +13,7 @@ const DEFAULT_HEARTBEAT_INTERVAL_MS = 10_000
 
 export type RpcProcessRunnerOptions = {
   readonly spawnChild?: (descriptor: RpcSpawnDescriptor) => ChildProcess
+  readonly spawnProcess?: (command: string, args: readonly string[], options: SpawnOptions) => ChildProcess
   readonly buildSpawn?: (spec: RpcRunnerSpec) => RpcSpawnDescriptor
   readonly heartbeatIntervalMs?: number
   readonly onMalformedLine?: MalformedLineHandler
@@ -39,7 +40,9 @@ export class RpcProcessRunner {
   private readonly inheritedExtensions: readonly string[]
 
   constructor(options: RpcProcessRunnerOptions = {}) {
-    this.spawnChild = options.spawnChild ?? defaultSpawnChild
+    this.spawnChild =
+      options.spawnChild ??
+      ((descriptor) => defaultSpawnChild(descriptor, options.spawnProcess ?? spawn))
     this.buildSpawn = options.buildSpawn ?? ((spec) => buildRpcSpawn(spec))
     this.heartbeatIntervalMs = options.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS
     this.onMalformedLine = options.onMalformedLine
@@ -99,11 +102,16 @@ export class RpcProcessRunner {
   }
 }
 
-function defaultSpawnChild(descriptor: RpcSpawnDescriptor): ChildProcess {
-  return spawn(descriptor.command, [...descriptor.args], {
+function defaultSpawnChild(
+  descriptor: RpcSpawnDescriptor,
+  spawnProcess: (command: string, args: readonly string[], options: SpawnOptions) => ChildProcess,
+): ChildProcess {
+  return spawnProcess(descriptor.command, [...descriptor.args], {
     cwd: descriptor.cwd,
     env: descriptor.env,
     stdio: ["pipe", "pipe", "pipe"],
     shell: false,
+    windowsHide: true,
+    detached: process.platform !== "win32",
   })
 }
