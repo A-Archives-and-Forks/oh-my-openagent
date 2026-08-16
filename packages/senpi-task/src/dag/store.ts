@@ -558,6 +558,8 @@ function withLock<T>(
         acquiredHolder = reclaimedHolder
         break
       }
+      if (now() - startedAt >= LOCK_WAIT_TIMEOUT_MS) throw new Error(`Timed out acquiring DAG lock: ${path}`)
+      Atomics.wait(sleeper, 0, 0, LOCK_RETRY_MS)
       continue
     }
     if (now() - startedAt >= LOCK_WAIT_TIMEOUT_MS) throw new Error(`Timed out acquiring DAG lock: ${path}`)
@@ -627,6 +629,9 @@ function reclaimObservedLock(
   now: () => number,
   fsyncWrites: boolean,
 ): LockHolder | undefined {
+  const reclaimPath = `${path}.reclaim`
+  const reclaimHolder = tryAcquireReclaimMutex(reclaimPath, isProcessAlive, now, fsyncWrites)
+  if (reclaimHolder === undefined) return undefined
   const content = JSON.stringify({
     hostPid: process.pid,
     runId,
@@ -651,6 +656,52 @@ function reclaimObservedLock(
   } finally {
     if (fd !== undefined) fs.closeSync(fd)
     fs.rmSync(successorPath, { force: true })
+    removeObservedLock(reclaimPath, reclaimHolder, () => true)
+  }
+}
+
+function tryAcquireReclaimMutex(
+  path: string,
+  isProcessAlive: (pid: number) => boolean,
+  now: () => number,
+  fsyncWrites: boolean,
+): LockHolder | undefined {
+  const content = JSON.stringify({
+    hostPid: process.pid,
+    token: randomUUID(),
+    createdAt: new Date(now()).toISOString(),
+  })
+  let fd: number | undefined
+  let created = false
+  try {
+    fd = fs.openSync(path, "wx")
+    created = true
+    fs.writeSync(fd, content)
+    if (fsyncWrites) fs.fsyncSync(fd)
+    fs.closeSync(fd)
+    fd = undefined
+    return { pid: process.pid, content }
+  } catch (error) {
+    if (!hasCode(error, "EEXIST")) {
+      if (fd !== undefined) {
+        fs.closeSync(fd)
+        fd = undefined
+      }
+      if (created) fs.rmSync(path, { force: true })
+      throw error
+    }
+    const observedHolder = readLockHolder(path)
+    if (observedHolder !== undefined &&
+      (observedHolder.pid === undefined || !isProcessAlive(observedHolder.pid))) {
+      removeObservedLock(
+        path,
+        observedHolder,
+        (movedHolder) => movedHolder === undefined || movedHolder.pid === undefined || !isProcessAlive(movedHolder.pid),
+      )
+    }
+    return undefined
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd)
   }
 }
 

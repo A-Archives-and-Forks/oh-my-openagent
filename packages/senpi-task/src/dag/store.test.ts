@@ -400,6 +400,121 @@ describe("createDagFileStore locks and retention", () => {
     expect(observedPresence).not.toContain(false)
   })
 
+  test("#given two reclaimers validate one stale holder #when they contend at publication #then reclamation stays exclusive", () => {
+    // given
+    const project = tempProject()
+    const stalePid = 101
+    const contenderPid = 303
+    let reclaimerClock = 0
+    let contenderClock = 0
+    const isProcessAlive = (pid: number) => pid === process.pid || pid === contenderPid
+    const reclaimer = createDagFileStore(
+      { project_dir: project },
+      {
+        now: () => {
+          reclaimerClock += 1_001
+          return reclaimerClock
+        },
+        isProcessAlive,
+      },
+    )
+    const contender = createDagFileStore(
+      { project_dir: project },
+      {
+        now: () => {
+          contenderClock += 1_001
+          return contenderClock
+        },
+        isProcessAlive,
+      },
+    )
+    const canonical = reclaimer.paths.runLock(runId)
+    const stale = JSON.stringify({ hostPid: stalePid, owner: "stale" })
+    const contenderHolder = JSON.stringify({ hostPid: contenderPid, owner: "contender" })
+    fs.writeFileSync(canonical, stale)
+    const realRename = fs.renameSync
+    let probingPublication = false
+    let publicationProbed = false
+    let contenderEntered = false
+    let contenderLive = false
+    let vacancyObserved = false
+    let restoreOverwroteContender = false
+    let overlappingLiveHoldersPossible = false
+    spyOn(fs, "renameSync").mockImplementation((from, to) => {
+      if (!probingPublication && !publicationProbed && typeof from === "string" &&
+        from.endsWith(".successor") && to === canonical) {
+        probingPublication = true
+        publicationProbed = true
+        try {
+          contender.withRunLock(runId, () => {
+            contenderEntered = true
+            contenderLive = true
+            fs.writeFileSync(canonical, contenderHolder)
+          })
+        } catch (error) {
+          if (!(error instanceof Error) || !error.message.includes("Timed out acquiring DAG lock")) throw error
+        }
+        vacancyObserved ||= !fs.existsSync(canonical)
+        realRename(from, to)
+        restoreOverwroteContender ||= contenderLive
+        probingPublication = false
+        return
+      }
+      realRename(from, to)
+    })
+
+    // when
+    reclaimer.withRunLock(runId, () => {
+      overlappingLiveHoldersPossible ||= contenderLive
+    })
+    if (!contenderEntered) {
+      contender.withRunLock(runId, () => {
+        contenderEntered = true
+        contenderLive = true
+        fs.writeFileSync(canonical, contenderHolder)
+      })
+    }
+    const finalHolder = fs.existsSync(canonical)
+      ? JSON.parse(fs.readFileSync(canonical, "utf8")) as { readonly owner?: string }
+      : undefined
+
+    // then
+    expect(publicationProbed).toBe(true)
+    expect({
+      vacancyObserved,
+      contenderSurvived: finalHolder?.owner === "contender",
+      restoreOverwroteContender,
+      overlappingLiveHoldersPossible,
+    }).toEqual({
+      vacancyObserved: false,
+      contenderSurvived: true,
+      restoreOverwroteContender: false,
+      overlappingLiveHoldersPossible: false,
+    })
+  })
+
+  test("#given a crashed reclaimer left its sentinel #when another process reclaims the stale holder #then the sentinel cannot wedge acquisition", () => {
+    // given
+    const store = createDagFileStore(
+      { project_dir: tempProject() },
+      { isProcessAlive: () => false },
+    )
+    const canonical = store.paths.runLock(runId)
+    const reclaimSentinel = `${canonical}.reclaim`
+    fs.writeFileSync(canonical, JSON.stringify({ hostPid: 101, token: "stale-holder" }))
+    fs.writeFileSync(reclaimSentinel, JSON.stringify({ hostPid: 202, token: "crashed-reclaimer" }))
+    let entered = false
+
+    // when
+    store.withRunLock(runId, () => {
+      entered = true
+    })
+
+    // then
+    expect(entered).toBe(true)
+    expect(fs.existsSync(reclaimSentinel)).toBe(false)
+  })
+
   test("#given a contender probes every reclamation transition #when a stale lock is replaced #then only the reclaimer concludes it holds the lock", () => {
     // given
     const project = tempProject()
