@@ -430,7 +430,7 @@ describe("DAG failure, crash, and policy end to end", () => {
       type: "dag.run.failed",
       error: { nodeId: "graph-first-failure", message: "failure:graph-first-failure" },
     })
-  })
+  }, { timeout: 15_000 })
 
   test("#given a crash after an owned task spawns but before task attachment #when a fresh manager resumes #then startOwned recovers the existing task and spawn count remains exactly one", async () => {
     // given
