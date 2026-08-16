@@ -19,6 +19,7 @@ import {
 } from "@oh-my-opencode/memory-core"
 import { hasFailureReader, readLaunchableFailures, type FactsFailureReadPort } from "./facts-launch-selection"
 import { ledgerTargets, preflightFailureId, queueEntryTargets, type FactsFailurePort } from "./facts-failure-recording"
+import { classifyOversizePayload } from "./facts-oversize"
 import { FactsTerminalWrites } from "./facts-terminal-writes"
 import { readFactsPeoplePayload } from "./facts-people-payload"
 import { SandboxUnavailableError } from "./sandbox-contracts"
@@ -122,11 +123,22 @@ export class FactsExtractorRunner {
       ...people,
     } as const
     const capped = selectCappedFactsBatch({ entries, envelope, now: this.now() })
+    // Ledger-only classification, BEFORE any reservation: an entry that cannot ever fit parks
+    // now, so a failing launch path can never lose the verdict.
+    const envelopeRefused = await classifyOversizePayload({
+      terminal: this.terminal,
+      envelope,
+      oversized: capped.oversized,
+      pending: entries,
+      envelopeOversized: capped.envelopeOversized,
+      ...(this.options.createPreflightId === undefined ? {} : { createFailureId: this.options.createPreflightId }),
+      warn: (message, fields) => this.options.logger?.warn(message, fields),
+    })
+    if (envelopeRefused) return { status: "skipped" }
     if (capped.selected.length === 0) {
       this.options.logger?.warn("facts batch selection carried nothing within the payload cap", {
         pending: entries.length,
         oversized: capped.oversized.length,
-        envelopeOversized: capped.envelopeOversized,
       })
       return { status: "empty" }
     }
