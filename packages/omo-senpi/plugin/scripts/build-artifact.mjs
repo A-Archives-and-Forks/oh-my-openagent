@@ -61,7 +61,13 @@ function minifyBundleWithNode(output) {
 }
 
 function getNodeMinifier() {
-  if (nodeMinifier !== undefined) return nodeMinifier
+  if (
+    nodeMinifier !== undefined
+    && nodeMinifier.child.stdin.writable
+    && !nodeMinifier.child.stdin.writableEnded
+    && !nodeMinifier.child.stdin.destroyed
+  ) return nodeMinifier
+  nodeMinifier = undefined
   const child = spawn("node", [BUILD_ARTIFACT_PATH, "--minify-server"], {
     stdio: ["pipe", "pipe", "inherit"],
     windowsHide: true,
@@ -77,15 +83,23 @@ function getNodeMinifier() {
     pending.delete(response.id)
     if (response.error === undefined) request.resolve()
     else request.reject(new Error(response.error))
-    minifier.idleTimer = setTimeout(() => child.stdin.end(), MINIFIER_IDLE_MS)
+    minifier.idleTimer = setTimeout(() => closeNodeMinifier(minifier), MINIFIER_IDLE_MS)
   })
   child.on("exit", (code, signal) => {
+    clearTimeout(minifier.idleTimer)
     if (nodeMinifier === minifier) nodeMinifier = undefined
     const reason = new Error(`Node minifier exited before completing requests: code=${String(code)} signal=${String(signal)}`)
     for (const request of pending.values()) request.reject(reason)
     pending.clear()
   })
   return minifier
+}
+
+export function closeNodeMinifier(minifier = nodeMinifier) {
+  if (minifier === undefined) return
+  clearTimeout(minifier.idleTimer)
+  if (nodeMinifier === minifier) nodeMinifier = undefined
+  minifier.child.stdin.end()
 }
 
 export async function attachBuildMarker(options) {
