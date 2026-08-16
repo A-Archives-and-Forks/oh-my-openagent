@@ -180,8 +180,15 @@ function defaultRuntime(): RpcSpawnRuntime {
  * resolution; when no executable is found it falls back to the documented `execPath + rpc-entry` path
  * (rpc-entry re-injects `--mode rpc`, so the child args follow the entry).
  */
-export function buildRpcSpawn(spec: RpcSpawnSpec, runtime?: Partial<RpcSpawnRuntime>): RpcSpawnDescriptor {
-  const resolved: RpcSpawnRuntime = { ...defaultRuntime(), ...runtime }
+/**
+ * The env/extension preamble shared by the real child and the catalog probe. Both MUST strip member
+ * identity identically, so the rule lives in exactly one place: a divergence here would silently leak
+ * member identity into one of the two spawns.
+ */
+function buildChildProfile(
+  spec: RpcSpawnSpec,
+  resolved: RpcSpawnRuntime,
+): { readonly env: NodeJS.ProcessEnv; readonly spec: RpcSpawnSpec } {
   const env: NodeJS.ProcessEnv = { ...resolved.parentEnv }
   for (const name of MEMBER_PROCESS_ENV_NAMES) delete env[name]
   Object.assign(env, spec.memberEnv)
@@ -189,7 +196,14 @@ export function buildRpcSpawn(spec: RpcSpawnSpec, runtime?: Partial<RpcSpawnRunt
   const extensions = spec.memberEnv === undefined
     ? spec.extensions?.filter((entry) => basename(entry) !== MEMBER_EXTENSION_BUNDLE_NAME)
     : spec.extensions
-  const childArgs = buildChildArgs(extensions === spec.extensions ? spec : { ...spec, extensions })
+  return { env, spec: extensions === spec.extensions ? spec : { ...spec, extensions } }
+}
+
+export function buildRpcSpawn(spec: RpcSpawnSpec, runtime?: Partial<RpcSpawnRuntime>): RpcSpawnDescriptor {
+  const resolved: RpcSpawnRuntime = { ...defaultRuntime(), ...runtime }
+  const profile = buildChildProfile(spec, resolved)
+  const env = profile.env
+  const childArgs = buildChildArgs(profile.spec)
   const launcher = resolveSenpiLauncher(resolved)
   if (launcher !== null) {
     return {
@@ -207,14 +221,9 @@ export function buildRpcModelCatalogSpawn(
   runtime?: Partial<RpcSpawnRuntime>,
 ): RpcSpawnDescriptor {
   const resolved: RpcSpawnRuntime = { ...defaultRuntime(), ...runtime }
-  const env: NodeJS.ProcessEnv = { ...resolved.parentEnv }
-  for (const name of MEMBER_PROCESS_ENV_NAMES) delete env[name]
-  Object.assign(env, spec.memberEnv)
-  env[SESSION_DIR_ENV] = resolveChildSessionDir(spec.state_dir, spec.task_id)
-  const extensions = spec.memberEnv === undefined
-    ? spec.extensions?.filter((entry) => basename(entry) !== MEMBER_EXTENSION_BUNDLE_NAME)
-    : spec.extensions
-  const childArgs = buildModelCatalogArgs(extensions === spec.extensions ? spec : { ...spec, extensions })
+  const profile = buildChildProfile(spec, resolved)
+  const env = profile.env
+  const childArgs = buildModelCatalogArgs(profile.spec)
   const launcher = resolveSenpiLauncher(resolved)
   if (launcher !== null) {
     return {
