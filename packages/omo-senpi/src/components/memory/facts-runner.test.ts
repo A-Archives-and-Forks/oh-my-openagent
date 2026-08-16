@@ -71,7 +71,9 @@ describe("quick-pinned facts launch", () => {
     // given
     const { root, identity, queue } = await fixture()
     await enqueue(queue, identity, "session-2", "m2", "The project uses TypeScript.")
-    const runner = new FactsExtractorRunner(runnerOptions(root, identity, queue, "fact"))
+    const runner = new FactsExtractorRunner(runnerOptions(root, identity, queue, "fact", {
+      createBatchId: () => "11111111-1111-4111-8111-111111111111",
+    }))
 
     // when
     const result = await runner.launchPending()

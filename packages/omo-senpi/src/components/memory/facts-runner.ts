@@ -158,12 +158,19 @@ export class FactsExtractorRunner {
       if (child.timedOut || child.code !== 0) {
         const reason: FactsFailureReason = child.timedOut ? "deadline_exceeded" : "child_exit"
         const detail = child.stderr.trim() || "facts child failed"
-        await this.terminal.fail({ runDir, runId, targets: queueEntryTargets(entries), reason, detail })
+        await this.terminal.fail({ runDir, runId, batchId, targets: queueEntryTargets(entries), reason, detail })
         return { status: "failed", runId }
       }
     } catch (error) {
       const reason: FactsFailureReason = error instanceof SandboxUnavailableError ? "sandbox_unavailable" : "child_exit"
-      await this.terminal.fail({ runDir, runId, targets: queueEntryTargets(entries), reason, detail: describe(error) })
+      await this.terminal.fail({
+        runDir,
+        runId,
+        batchId,
+        targets: queueEntryTargets(entries),
+        reason,
+        detail: describe(error),
+      })
       return { status: "failed", runId }
     }
     return this.finalizeRun(runDir, repo)
@@ -187,6 +194,7 @@ export class FactsExtractorRunner {
       fail: (runDir, ledger, detail) => this.terminal.fail({
         runDir,
         runId: ledger.runId,
+        batchId: ledger.batchId,
         targets: ledgerTargets(ledger.queued),
         reason: "child_exit",
         detail,

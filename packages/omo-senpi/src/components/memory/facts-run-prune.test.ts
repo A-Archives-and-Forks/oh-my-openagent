@@ -154,7 +154,7 @@ describe("terminal facts run pruning", () => {
     expect(await runNames(factsDir)).toEqual(["facts-hhhh-2"])
   }, 30_000)
 
-  test("#given pruning frees an attempt name #when the same digest reserves again #then the freed name is never reused", async () => {
+  test("#given pruning frees a lower attempt name #when a higher attempt survives #then the sequence stays monotonic", async () => {
     // #given: two attempts of one digest, both terminal.
     const { factsDir, locksDir } = await fixture()
     const first = await reserveRun(factsDir, locksDir, instant(1))
@@ -167,10 +167,28 @@ describe("terminal facts run pruning", () => {
     const result = await pruneTerminalFactsRuns({ factsDir, locksDir, keepLast: 1 })
     const third = await reserveRun(factsDir, locksDir, instant(3))
 
-    // #then: the attempt sequence stays monotonic - the freed name is not handed back.
+    // #then: the freed name is not handed back while a higher attempt is still on disk.
     expect(result.pruned).toEqual([runName(first)])
     expect(runName(third)).toBe("facts-" + digestOf(first) + "-3")
     expect(await runNames(factsDir)).toEqual([runName(second), runName(third)])
+  }, 30_000)
+
+  test("#given every trace of a digest is pruned #when it reserves again #then the attempt name IS reused", async () => {
+    // #given: the high-water mark lives on disk, so evicting the last trace restarts the count.
+    // This is deliberate: failure-streak identity keys on the ledger's per-launch batchId, not on
+    // the run name, so a reused name cannot be mistaken for the pruned run's failure.
+    const { factsDir, locksDir } = await fixture()
+    const first = await reserveRun(factsDir, locksDir, instant(1))
+    await finalizeReserved(first, instant(1))
+    await seedTerminalRun({ factsDir, runId: "facts-newer-1", finishedAt: instant(5) })
+
+    // #when: retention keeps only the newer foreign run, erasing this digest's last trace.
+    const result = await pruneTerminalFactsRuns({ factsDir, locksDir, keepLast: 1 })
+    const retry = await reserveRun(factsDir, locksDir, instant(6))
+
+    // #then
+    expect(result.pruned).toEqual([runName(first)])
+    expect(runName(retry)).toBe(runName(first))
   }, 30_000)
 
   test("#given the facts-runs lock held by a live process #when a reservation runs #then it waits rather than racing the scan", async () => {

@@ -44,6 +44,7 @@ export async function finalizeClaimedFactsRun(input: FinalizeClaimedFactsRunInpu
     terminal.fail({
       runDir,
       runId,
+      batchId: ledger.batchId,
       targets: batch.targets,
       reason,
       detail,

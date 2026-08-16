@@ -24,7 +24,8 @@ const RUNS_LOCK_WAIT_MS = 2_000
 /**
  * Reserves the next free `facts-<digest>-<attempt>` dir. The scan, the mkdir and the ledger write
  * all happen under `facts-runs.lock` - the same lock retention pruning takes - so a name can never
- * be freed by pruning while this loop is probing it, and the attempt sequence stays monotonic.
+ * be freed by pruning while this loop is probing it, and no existing dir is ever overwritten.
+ * The attempt number is NOT a durable identity: see `nextAttempt`.
  */
 export async function reserveFactsRunDir(options: {
   readonly factsDir: string
@@ -89,10 +90,15 @@ async function claimFactsRunDir(options: {
 }
 
 /**
- * One past the highest attempt this digest has ever reached on disk, tombstones included.
- * Retention can delete an older attempt while a newer one survives; restarting at the lowest
- * FREE number would then hand a reused name to a fresh run and break the monotonic sequence
- * that reconciliation and the failure ledger read as an ordering.
+ * One past the highest attempt still ON DISK for this digest, tombstones included. That keeps the
+ * sequence monotonic while any trace survives: retention can delete an older attempt while a newer
+ * one lives, and restarting at the lowest FREE number would hand a reused name to a fresh run
+ * beside a higher-numbered survivor.
+ *
+ * A name IS handed back once the highest attempt AND its tombstone are both gone - the high-water
+ * mark is derived from disk, not persisted. Nothing depends on attempt numbers being unique over
+ * time: no consumer orders runs by attempt, and failure-streak idempotency keys on the ledger's
+ * per-launch `batchId` precisely so a reused name cannot masquerade as an earlier run's failure.
  */
 async function nextAttempt(runsDir: string, digest: string): Promise<number> {
   const pattern = new RegExp(`^(?:\\.prune-)?facts-${digest}-(\\d+)(?:-|$)`)
