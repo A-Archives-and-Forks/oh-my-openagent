@@ -23,7 +23,10 @@ function createAdmission() {
     PI_CODING_AGENT_DIR: agentDir,
   }
   return createRpcModelAdmission({
-    buildSpawn: (spec) => buildRpcModelCatalogSpawn(spec, { parentEnv }),
+    buildSpawn: (spec) => buildRpcModelCatalogSpawn(spec, {
+      parentEnv,
+      resolveSenpiExecutable: () => null,
+    }),
   })
 }
 
