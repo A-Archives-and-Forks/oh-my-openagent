@@ -53,6 +53,9 @@ export function artifactsMatch(currentText, expectedText) {
   return current !== undefined && expected !== undefined
     && current.sourceDigest === expected.sourceDigest
     && current.bodyDigest === digest(current.body)
+    && expected.bodyDigest === digest(expected.body)
+    && current.bodyDigest === expected.bodyDigest
+    && current.body === expected.body
 }
 
 function parseBuildArtifact(text) {
