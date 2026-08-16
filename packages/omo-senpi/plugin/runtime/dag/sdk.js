@@ -53,12 +53,27 @@ export function define(input) {
   return new DagDefinitionBuilder(input.key, input.name ?? input.key)
 }
 
-export function start(definition) {
-  return callDag({ action: "start", definition })
+function runHandle(response, runId) {
+  return {
+    ...response,
+    run_id: runId,
+    done: () => wait(runId),
+    cancel: (reason) => cancel(runId, reason),
+  }
 }
 
-export function attach(runId) {
-  return callDag({ action: "attach", run_id: runId })
+export async function start(definition) {
+  const response = await callDag({ action: "start", definition })
+  const runId = response?.details?.run_id ?? response?.run_id
+  if (typeof runId !== "string" || runId === "") {
+    throw new Error("The dag start response did not include a run_id.")
+  }
+  return runHandle(response, runId)
+}
+
+export async function attach(runId) {
+  const response = await callDag({ action: "attach", run_id: runId })
+  return runHandle(response, runId)
 }
 
 export function snapshot(runId) {

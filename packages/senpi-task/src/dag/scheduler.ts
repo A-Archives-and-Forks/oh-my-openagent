@@ -59,6 +59,20 @@ export type DagScheduler = {
   readonly whenIdle: () => Promise<void>
 }
 
+type DagSchedulerObserver = (scheduler: DagScheduler) => void
+
+const schedulerObservers = new WeakMap<TaskManager, Set<DagSchedulerObserver>>()
+
+export function observeDagSchedulers(taskManager: TaskManager, observer: DagSchedulerObserver): () => void {
+  const observers = schedulerObservers.get(taskManager) ?? new Set<DagSchedulerObserver>()
+  observers.add(observer)
+  schedulerObservers.set(taskManager, observers)
+  return () => {
+    observers.delete(observer)
+    if (observers.size === 0) schedulerObservers.delete(taskManager)
+  }
+}
+
 type AttachedTaskSettlement =
   | { readonly nodeId: DagNodeId; readonly kind: "record"; readonly record: TaskRecord }
   | { readonly nodeId: DagNodeId; readonly kind: "error"; readonly error: unknown }
@@ -134,13 +148,15 @@ export function createDagScheduler(options: DagSchedulerOptions): DagScheduler {
     admissionIdleWaiters: new Set(),
   }
 
-  return {
+  const scheduler: DagScheduler = {
     run: () => runWaves(context),
     cancel: (runId, reason) => cancelRun(context, runId, reason),
     snapshot: journal.snapshot,
     subscribe: journal.subscribe,
     whenIdle: journal.whenIdle,
   }
+  for (const observer of schedulerObservers.get(options.taskManager) ?? []) observer(scheduler)
+  return scheduler
 }
 
 export function applyDagSchedulerEvent(

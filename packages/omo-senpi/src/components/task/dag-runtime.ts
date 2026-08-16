@@ -10,7 +10,6 @@ import {
   createDagFileStore,
   createDagManager,
   createDagRecovery,
-  createDagScheduler,
   createDagWaitSurface,
   type DagFileStore,
   type DagManager,
@@ -29,6 +28,7 @@ import { createDagStatusUi, type DagStatusUiTimers } from "./dag-status-ui"
 import { createDagWake } from "./dag-wake"
 import { createDagWakeSource } from "./dag-wake-source"
 import type { TaskEngine } from "./engine"
+import { createDagScheduler, observeDagSchedulers } from "../../../../senpi-task/src/dag/scheduler"
 import { createDagSkillMaterializer } from "../../../../senpi-task/src/dag/skills"
 
 const EVENT_PAGE_SIZE = 1000
@@ -117,6 +117,9 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
     deliverDurableEvent(durableEventListener, event)
     for (const listener of runListeners.get(event.runId) ?? []) deliverDurableEvent(listener, event)
   }
+  const stopObservingSchedulers = observeDagSchedulers(taskManager, (scheduler) => {
+    scheduler.subscribe(publishSchedulerEvent)
+  })
 
   const controller = (runId: DagRunId, parentSessionId: string): { readonly scheduler: DagScheduler; running?: Promise<DagRunRecordV1> } => {
     const existing = schedulers.get(runId)
@@ -129,7 +132,6 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
       executionMode: { agents: deps.engine.agents, config: deps.engine.omoConfig },
       ...(dagSettings?.subscriber_ring === undefined ? {} : { subscriberRing: dagSettings.subscriber_ring }),
     })
-    scheduler.subscribe(publishSchedulerEvent)
     const created: { readonly scheduler: DagScheduler; running?: Promise<DagRunRecordV1> } = { scheduler }
     schedulers.set(runId, created)
     return created
@@ -159,7 +161,11 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
     const sessionId = deps.engine.runtime.sessionId() ?? ""
     const record = coreManager.record(runId, sessionId)
     if (TERMINAL_RUN_STATUSES.has(record.status)) return
-    await controller(runId, sessionId).scheduler.cancel(runId, reason)
+    try {
+      await controller(runId, sessionId).scheduler.cancel(runId, reason)
+    } catch (error) {
+      if (!isAbortError(error)) throw error
+    }
   }
 
   const waitSurface = createDagWaitSurface({ store, subscribe, cancel })
@@ -351,6 +357,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
       if (sessionId !== undefined) recovery.pauseRunsForShutdown(sessionId)
     },
     dispose() {
+      stopObservingSchedulers()
       bridge.dispose()
       activeSessionId = undefined
       statusUi.dispose()
@@ -420,6 +427,10 @@ function publishDurableEvents(
     if (!page.hasMore) return
     sinceSeq = page.nextSinceSeq
   }
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError"
 }
 
 function deliverDurableEvent(listener: (event: DagRunEvent) => void, event: DagRunEvent): void {

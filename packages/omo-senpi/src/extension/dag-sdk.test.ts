@@ -17,15 +17,21 @@ import { DAG_SDK_ROOT_ENV, createDagSdkRootProvisioning } from "./dag-sdk-root-p
 // and assert on the recorded `tool.dag` arguments.
 type DagCall = Record<string, unknown>
 
+type DagRunHandle = {
+  readonly run_id: string
+  readonly done: () => Promise<unknown>
+  readonly cancel: (reason?: string) => Promise<unknown>
+}
+
 type DagBuilder = {
   node: (input: Record<string, unknown>) => DagBuilder
-  start: () => Promise<unknown>
+  start: () => Promise<DagRunHandle>
 }
 
 type DagSdkModule = {
   define: (input: { key: string; name?: string }) => DagBuilder
-  start: (definition: Record<string, unknown>) => Promise<unknown>
-  attach: (runId: string) => Promise<unknown>
+  start: (definition: Record<string, unknown>) => Promise<DagRunHandle>
+  attach: (runId: string) => Promise<DagRunHandle>
   snapshot: (runId: string) => Promise<unknown>
   wait: (runId: string) => Promise<unknown>
   cancel: (runId: string, reason?: string) => Promise<unknown>
@@ -101,25 +107,33 @@ describe("dag eval sdk", () => {
           },
           { action: "wait", run_id: "run-7" },
         ])
-        expect(started).toEqual({ details: { kind: "started", run_id: "run-7" } })
+        expect(started).toEqual(expect.objectContaining({
+          run_id: "run-7",
+          details: { kind: "started", run_id: "run-7" },
+        }))
         expect(waited).toEqual({ details: runResult })
       })
     })
 
-    describe("#when a run id is passed to attach, snapshot and cancel", () => {
-      it("#then each maps to its own action and cancel forwards the reason only when given", async () => {
-        const calls = installToolStub(() => ({ details: { kind: "snapshot" } }))
+    describe("#when a shipped attach handle waits and cancels", () => {
+      it("#then it exposes done and cancel and dispatches the matching dag tool actions", async () => {
+        const calls = installToolStub((args) => ({ details: { kind: args.action, run_id: "run-9" } }))
         const sdk = await loadSdk()
 
-        await sdk.attach("run-9")
+        const handle = await sdk.attach("run-9")
+        expect(typeof handle.done).toBe("function")
+        expect(typeof handle.cancel).toBe("function")
+        await handle.done()
+        await handle.cancel("superseded")
         await sdk.snapshot("run-9")
-        await sdk.cancel("run-9", "superseded")
         await sdk.cancel("run-9")
 
+        expect(handle.run_id).toBe("run-9")
         expect(calls).toEqual([
           { action: "attach", run_id: "run-9" },
-          { action: "snapshot", run_id: "run-9" },
+          { action: "wait", run_id: "run-9" },
           { action: "cancel", run_id: "run-9", reason: "superseded" },
+          { action: "snapshot", run_id: "run-9" },
           { action: "cancel", run_id: "run-9" },
         ])
       })
@@ -131,8 +145,11 @@ describe("dag eval sdk", () => {
         const sdk = await loadSdk()
         const definition = { key: "raw", name: "Raw", nodes: [{ id: "a", prompt: "A", category: "quick" }] }
 
-        await sdk.start(definition)
+        const handle = await sdk.start(definition)
 
+        expect(typeof handle.done).toBe("function")
+        expect(typeof handle.cancel).toBe("function")
+        expect(handle.run_id).toBe("run-2")
         expect(calls).toEqual([{ action: "start", definition }])
       })
     })

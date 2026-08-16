@@ -3,7 +3,7 @@ import * as fs from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { loadOmoConfig } from "@oh-my-opencode/omo-config-core"
+import { loadOmoConfig, OmoTaskSettingsSchema } from "@oh-my-opencode/omo-config-core"
 import {
   type ManagedChildEvent,
   type ManagedChildHandle,
@@ -63,6 +63,11 @@ class ScriptedRunner implements ManagedRunner {
     readonly settle: (output: string) => void
   }> = []
   readonly #signals = new Map<number, ReturnType<typeof deferred<void>>>()
+  readonly #abortError: Error | undefined
+
+  constructor(abortError?: Error) {
+    this.#abortError = abortError
+  }
 
   start(spec: ManagedStartSpec): Promise<ManagedChildHandle> {
     const outcome = deferred<RunnerOutcome>()
@@ -75,7 +80,7 @@ class ScriptedRunner implements ManagedRunner {
       followUp: () => Promise.resolve(),
       abort: () => {
         outcome.resolve({ status: "cancelled" })
-        return Promise.resolve()
+        return this.#abortError === undefined ? Promise.resolve() : Promise.reject(this.#abortError)
       },
       subscribe: (listener) => {
         listeners.add(listener)
@@ -519,6 +524,67 @@ describe("assembled DAG runtime", () => {
     expect(failedCopyRecord.diagnostics.some((diagnostic) => diagnostic.kind === "journal_corrupt")).toBe(true)
   })
 
+  test("#given a live-shaped in-process child whose abort rejects #when the assembled runtime cancels #then no unhandled rejection escapes and a later run still completes", async () => {
+    // given
+    const cwd = fs.mkdtempSync(join(tmpdir(), "omo-senpi-dag-abort-boundary-"))
+    cleanupRoots.push(cwd)
+    const abortError = new DOMException("This operation was aborted", "AbortError")
+    const runner = new ScriptedRunner(abortError)
+    const pi = new FakeExtensionAPI()
+    const engine = composeTaskEngine({
+      pi,
+      omoConfig: loadOmoConfig({ cwd }).config,
+      cwd,
+      sharedParentTools: () => [],
+      runnerFactories: { inProcess: () => runner, process: () => runner },
+    })
+    const sessionId = "session-abort-boundary"
+    engine.runtime.captureFrom({ sessionManager: { getSessionId: () => sessionId } })
+    const runtime = createDagRuntime({ pi, engine, logger: logger() })
+    await runtime.attach()
+    const started = await runtime.manager.start({
+      parentSessionId: sessionId,
+      rootSessionId: sessionId,
+      definition: {
+        key: "abort-boundary",
+        name: "abort boundary",
+        nodes: [{ id: "active", prompt: "active", subagent_type: "explore", model: "omo-mock/mock-1" }],
+      },
+    })
+    await within(runner.whenStarted(1))
+    const unhandled: unknown[] = []
+    const onUnhandled = (reason: unknown): void => { unhandled.push(reason) }
+    process.on("unhandledRejection", onUnhandled)
+
+    try {
+      // when
+      await runtime.cancel(started.snapshot.runId, "live cancel")
+      const cancelled = await runtime.wait(started.snapshot.runId, sessionId)
+      const survivor = await runtime.manager.start({
+        parentSessionId: sessionId,
+        rootSessionId: sessionId,
+        definition: {
+          key: "after-abort-boundary",
+          name: "after abort boundary",
+          nodes: [{ id: "survivor", prompt: "survive", subagent_type: "explore", model: "omo-mock/mock-1" }],
+        },
+      })
+      await within(runner.whenStarted(2))
+      runner.handles[1]?.settle("runtime survived")
+      const survived = await within(runtime.wait(survivor.snapshot.runId, sessionId))
+      await new Promise<void>((resolve) => setImmediate(resolve))
+
+      // then
+      expect(cancelled.status).toBe("cancelled")
+      expect(survived.status).toBe("completed")
+      expect(survived.nodes.survivor).toEqual(expect.objectContaining({ output: "runtime survived" }))
+      expect(unhandled).toEqual([])
+    } finally {
+      process.off("unhandledRejection", onUnhandled)
+      runtime.dispose()
+    }
+  })
+
   test("#given an active run #when detach switches sessions before its task settles #then the old scheduler terminates without resolving ownership against the new session", async () => {
     // given
     const cwd = fs.mkdtempSync(join(tmpdir(), "omo-senpi-dag-detach-"))
@@ -670,6 +736,62 @@ describe("assembled DAG runtime", () => {
     expect(result.nodes.resume).toEqual(expect.objectContaining({ state: "completed", output: "resumed output" }))
     expect(dagEvents(cwd, runId).some((event) => event.type === "dag.run.resumed")).toBe(true)
     resumedRuntime.dispose()
+  })
+
+  test("#given a paused run and a non-default subscriber ring #when the assembled runtime resumes it #then shipped RPC receives the recovery scheduler overflow", async () => {
+    // given
+    const cwd = fs.mkdtempSync(join(tmpdir(), "omo-senpi-dag-recovery-ring-"))
+    cleanupRoots.push(cwd)
+    const runId = "dag-adapter-recovery-ring" as DagRunId
+    const sessionId = "session-recovery-ring"
+    await seedPendingRun(cwd, runId, sessionId)
+    const store = dagStore(cwd)
+    const pending = store.readCheckpoint<DagRunRecordV1>(runId)
+    if (pending === null) throw new Error("expected pending recovery-ring run")
+    store.writeCheckpoint(runId, {
+      ...pending,
+      status: "paused",
+      previousLeaseHolderPid: 2_147_483_647,
+    })
+    const runner = new ScriptedRunner()
+    const overflow = deferred<Extract<DagRunEvent, { type: "dag.stream.overflow" }>>()
+    const pi = Object.assign(new FakeExtensionAPI(), {
+      rpc: {
+        emit: (name: string, data: unknown) => {
+          if (name !== "omo.dag.event" || typeof data !== "object" || data === null ||
+            !("type" in data) || data.type !== "dag.stream.overflow") return
+          overflow.resolve(data as Extract<DagRunEvent, { type: "dag.stream.overflow" }>)
+        },
+        handle: () => undefined,
+      },
+    })
+    const baseConfig = loadOmoConfig({ cwd }).config
+    const engine = composeTaskEngine({
+      pi,
+      omoConfig: {
+        ...baseConfig,
+        task: OmoTaskSettingsSchema.parse({ dag: { subscriber_ring: 1 } }),
+      },
+      cwd,
+      sharedParentTools: () => [],
+      runnerFactories: { inProcess: () => runner, process: () => runner },
+    })
+    engine.runtime.captureFrom({ sessionManager: { getSessionId: () => sessionId } })
+    const runtime = createDagRuntime({ pi, engine, logger: logger() })
+
+    // when
+    const attaching = runtime.attach()
+    await within(runner.whenStarted(1))
+    runner.handles[0]?.settle("resumed through configured ring")
+    await within(attaching)
+    const delivered = await within(overflow.promise)
+
+    // then
+    expect(delivered.droppedCount).toBeGreaterThan(0)
+    expect(delivered.recoverAfterSeq).toBeGreaterThanOrEqual(0)
+    expect(dagEvents(cwd, runId)).toContainEqual(delivered)
+    expect(runtime.manager.snapshot(runId, sessionId).status).toBe("completed")
+    runtime.dispose()
   })
 
   test("#given a paused adapter DAG whose lease holder PID is still live #when another adapter starts #then it never claims or resumes the run", async () => {
