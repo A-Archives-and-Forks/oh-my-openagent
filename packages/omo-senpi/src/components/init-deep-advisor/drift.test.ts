@@ -7,6 +7,7 @@ import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { COOLDOWN_DAYS } from "./constants"
 import { computeDrift, shouldProposeRefresh, type DriftMetrics } from "./drift"
 import {
+  advanceCommits,
   cleanupTempDirs,
   commitAll,
   git,
@@ -37,15 +38,6 @@ function makeDriftRepo(): { root: string; baseSha: string } {
   return { root, baseSha }
 }
 
-function advanceCommits(root: string, count: number, touchedFileIndexes: readonly number[]): void {
-  for (let step = 0; step < count; step++) {
-    for (const fileIndex of touchedFileIndexes) {
-      writeFileAt(root, join("src", `file${fileIndex}.ts`), sourceFile(100 + step + 1))
-    }
-    commitAll(root, `drift ${step}`)
-  }
-}
-
 function thresholdDrift(): Extract<DriftMetrics, { kind: "valid" }> {
   return {
     kind: "valid",
@@ -64,7 +56,7 @@ describe("computeDrift", () => {
   test("#given 40 commits touching 2 of 10 files #when computing drift #then metrics report 40 commits and a 0.2 touched ratio", () => {
     // given
     const { root, baseSha } = makeDriftRepo()
-    advanceCommits(root, 40, [0, 1])
+    advanceCommits(root, baseSha, 40, [0, 1])
 
     // when
     const drift = computeDrift(root, snapshotAt(baseSha))
