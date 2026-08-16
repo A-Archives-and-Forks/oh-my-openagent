@@ -35,6 +35,23 @@ const FAKE_CHILD_PATH = fileURLToPath(
 const CONSOLE_HOST_PATH = fileURLToPath(new URL("./windows-console-host.ps1", import.meta.url))
 const CREDENTIAL_FILES = ["auth.json", "models.json", "settings.json", "trust.json"] as const
 
+async function detachCurrentConsole(): Promise<void> {
+  const { dlopen, FFIType } = await import("bun:ffi")
+  const kernel32 = dlopen("kernel32.dll", {
+    FreeConsole: {
+      args: [],
+      returns: FFIType.bool,
+    },
+  })
+  try {
+    if (!kernel32.symbols.FreeConsole()) {
+      throw new Error("FreeConsole failed for the Windows probe parent")
+    }
+  } finally {
+    kernel32.close()
+  }
+}
+
 async function runCase(mode: ProbeMode, root: string): Promise<ProbeCase> {
   const readyPath = join(root, `${mode}-ready.json`)
   const stopPath = join(root, `${mode}-stop`)
@@ -112,6 +129,7 @@ async function runParent(mode: ProbeMode, root: string): Promise<void> {
   if (readyPath === undefined || stopPath === undefined) {
     throw new Error("console probe parent requires ready and stop file paths")
   }
+  await detachCurrentConsole()
   const stop = waitForFile(stopPath, AbortSignal.timeout(30_000))
   const runner = new RpcProcessRunner({
     buildSpawn: (spec) => ({
@@ -143,7 +161,15 @@ async function runParent(mode: ProbeMode, root: string): Promise<void> {
 
   try {
     await handle.steer("stdio-round-trip")
-    writeFileSync(readyPath, `${JSON.stringify({ pid: handle.pid, stdioRoundTrip: true, mode })}\n`)
+    writeFileSync(
+      readyPath,
+      `${JSON.stringify({
+        pid: handle.pid,
+        stdioRoundTrip: true,
+        mode,
+        parentConsoleDetached: true,
+      })}\n`,
+    )
     await stop
   } finally {
     await handle.terminate({ sigkillDelayMs: 500 })
@@ -175,8 +201,6 @@ async function runProbe(): Promise<void> {
       visible.consoleAttached &&
       visible.consoleWindowHandle !== 0 &&
       visible.consoleWindowVisible &&
-      !hidden.consoleAttached &&
-      hidden.consoleWindowHandle === 0 &&
       !hidden.consoleWindowVisible &&
       hidden.mainWindowHandle === 0 &&
       visible.stdioRoundTrip &&

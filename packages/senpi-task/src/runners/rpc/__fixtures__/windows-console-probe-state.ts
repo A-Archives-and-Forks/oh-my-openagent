@@ -9,6 +9,7 @@ export type ParentReady = {
   readonly pid: number
   readonly stdioRoundTrip: true
   readonly mode: ProbeMode
+  readonly parentConsoleDetached: true
 }
 
 export type ProbeCase = ParentReady & {

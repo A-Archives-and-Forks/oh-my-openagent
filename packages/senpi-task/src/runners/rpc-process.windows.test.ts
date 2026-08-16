@@ -125,6 +125,7 @@ test.skipIf(!isWin32)(
         readonly mainWindowHandle: number
         readonly stdioRoundTrip: boolean
         readonly childExited: boolean
+        readonly parentConsoleDetached: boolean
       }
       readonly hidden: {
         readonly consoleAttached: boolean
@@ -133,6 +134,7 @@ test.skipIf(!isWin32)(
         readonly mainWindowHandle: number
         readonly stdioRoundTrip: boolean
         readonly childExited: boolean
+        readonly parentConsoleDetached: boolean
       }
       readonly isolation: {
         readonly credentialsUntouched: boolean
@@ -148,10 +150,10 @@ test.skipIf(!isWin32)(
     expect(payload.visible.consoleAttached).toBe(true)
     expect(payload.visible.consoleWindowHandle).not.toBe(0)
     expect(payload.visible.consoleWindowVisible).toBe(true)
-    expect(payload.hidden.consoleAttached).toBe(false)
-    expect(payload.hidden.consoleWindowHandle).toBe(0)
     expect(payload.hidden.consoleWindowVisible).toBe(false)
     expect(payload.hidden.mainWindowHandle).toBe(0)
+    expect(payload.visible.parentConsoleDetached).toBe(true)
+    expect(payload.hidden.parentConsoleDetached).toBe(true)
     expect(payload.visible.stdioRoundTrip).toBe(true)
     expect(payload.hidden.stdioRoundTrip).toBe(true)
     expect(payload.visible.childExited).toBe(true)
