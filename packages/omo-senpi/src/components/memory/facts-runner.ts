@@ -10,6 +10,7 @@ import {
   createLockRecord,
   memoryWriterLockPath,
   runFinalizationLockPath,
+  selectCappedFactsBatch,
   selectLaunchable,
   withLock,
   type FactsFailureReason,
@@ -111,6 +112,25 @@ export class FactsExtractorRunner {
 
     const repo = new GitMemoryRepo({ dir: this.options.identity.paths.repo, agentId: this.options.identity.id })
     if (!existsSync(join(repo.dir, ".git"))) await repo.init({ seedFiles: buildDefaultSeedFiles() })
+    // The people fields are part of the measured envelope, so they are read BEFORE the cap
+    // decides which entries fit - and the run dir is reserved for the SELECTED entries only.
+    const people = await readFactsPeoplePayload(repo.dir)
+    const envelope = {
+      version: 1,
+      identity: this.options.identity.id,
+      today: this.now().toISOString().slice(0, 10),
+      ...people,
+    } as const
+    const capped = selectCappedFactsBatch({ entries, envelope, now: this.now() })
+    if (capped.selected.length === 0) {
+      this.options.logger?.warn("facts batch selection carried nothing within the payload cap", {
+        pending: entries.length,
+        oversized: capped.oversized.length,
+        envelopeOversized: capped.envelopeOversized,
+      })
+      return { status: "empty" }
+    }
+    const batch: readonly FactsQueueEntry[] = capped.selected
     const batchId = (this.options.createBatchId ?? randomUUID)()
     const launchedAt = this.now().getTime()
     if (isAborted()) return { status: "skipped" }
@@ -118,6 +138,7 @@ export class FactsExtractorRunner {
       factsDir: this.options.identity.paths.facts,
       locksDir: this.options.identity.paths.locks,
       entries,
+      entries: batch,
       batchId,
       launchedAt,
       deadlineMs: this.options.deadlineMs,
@@ -125,14 +146,7 @@ export class FactsExtractorRunner {
     })
     if (runDir === undefined) return { status: "active" }
     const runId = basename(runDir)
-    const people = await readFactsPeoplePayload(repo.dir)
-    const payload: FactsPayload = {
-      version: 1,
-      identity: this.options.identity.id,
-      today: this.now().toISOString().slice(0, 10),
-      entries,
-      ...people,
-    }
+    const payload: FactsPayload = { ...envelope, entries: batch }
     if (isAborted()) return { status: "skipped" }
     try {
       const { child } = await launchFactsModelChain({
@@ -152,13 +166,14 @@ export class FactsExtractorRunner {
         sandbox: this.options.sandbox,
         supervisorPath: this.options.supervisorPath,
         batchId,
-        queued: queueKeys(entries),
+        queued: queueKeys(batch),
         launchedAt,
       })
       if (child.timedOut || child.code !== 0) {
         const reason: FactsFailureReason = child.timedOut ? "deadline_exceeded" : "child_exit"
         const detail = child.stderr.trim() || "facts child failed"
         await this.terminal.fail({ runDir, runId, batchId, targets: queueEntryTargets(entries), reason, detail })
+        await this.terminal.fail({ runDir, runId, targets: queueEntryTargets(batch), reason, detail })
         return { status: "failed", runId }
       }
     } catch (error) {
@@ -171,6 +186,7 @@ export class FactsExtractorRunner {
         reason,
         detail: describe(error),
       })
+      await this.terminal.fail({ runDir, runId, targets: queueEntryTargets(batch), reason, detail: describe(error) })
       return { status: "failed", runId }
     }
     return this.finalizeRun(runDir, repo)

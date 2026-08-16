@@ -43,6 +43,16 @@ export {
   type RecordFailureRequest,
 } from "./failures-store"
 export {
+  FACTS_STARVATION_MS,
+  MAX_FACTS_PAYLOAD_BYTES,
+  measureFactsPayloadBytes,
+  selectCappedFactsBatch,
+  serializeFactsPayload,
+  type CappedFactsBatch,
+  type CappedFactsBatchInput,
+  type FactsPayloadEnvelope,
+} from "./payload-cap"
+export {
   factsSelectionKey,
   selectLaunchable,
   type FactsLaunchSelection,
