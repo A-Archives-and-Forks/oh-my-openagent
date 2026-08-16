@@ -103,7 +103,7 @@ describe("memory identity runtime", () => {
 async function renderReflectionSandboxAgentDir(envShape: {
   readonly omo?: string
   readonly senpi?: string
-}): Promise<{ readonly expectedAgentDirReal: string; readonly renderedArgs: readonly string[] }> {
+}): Promise<{ readonly fakeHome: string; readonly renderedArgs: readonly string[] }> {
   // given: an isolated identity root, a fake sandbox-exec/bwrap on PATH so the seatbelt profile or
   // bwrap args render, and a fake absolute inner command so the sandbox does not degrade.
   const root = await mkdtemp(join(tmpdir(), "omo-memory-agent-dir-"))
@@ -121,6 +121,16 @@ async function renderReflectionSandboxAgentDir(envShape: {
     await writeFile(exe, "#!/bin/sh\nexit 0\n")
     await chmod(exe, 0o755)
   }
+  // Seeded fake home: agent-dir resolution stays HOST-INDEPENDENT (never reads the real $HOME or
+  // its ambient ~/.omo/settings.json sentinel) and the seeded sentinel forces the flat `~/.omo`
+  // branch for the no-env case. Only this temp tree is mkdir'd, so the suite never writes into a
+  // contributor's or runner's real home.
+  const fakeHome = join(root, "fake-home")
+  await mkdir(join(fakeHome, ".omo"), { recursive: true })
+  const sentinelPath = join(fakeHome, ".omo", "settings.json")
+  const injectedEnv: Record<string, string | undefined> = {}
+  if (envShape.omo !== undefined) injectedEnv.OMO_CODING_AGENT_DIR = envShape.omo
+  if (envShape.senpi !== undefined) injectedEnv.SENPI_CODING_AGENT_DIR = envShape.senpi
   const snapshot = {
     PATH: process.env.PATH,
     OMO_CODING_AGENT_DIR: process.env.OMO_CODING_AGENT_DIR,
@@ -129,17 +139,11 @@ async function renderReflectionSandboxAgentDir(envShape: {
     XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME,
   }
   process.env.PATH = `${binDir}${process.platform === "win32" ? ";" : ":"}${snapshot.PATH ?? ""}`
-  if (envShape.omo === undefined) delete process.env.OMO_CODING_AGENT_DIR
-  else process.env.OMO_CODING_AGENT_DIR = envShape.omo
-  if (envShape.senpi === undefined) delete process.env.SENPI_CODING_AGENT_DIR
-  else process.env.SENPI_CODING_AGENT_DIR = envShape.senpi
+  delete process.env.OMO_CODING_AGENT_DIR
+  delete process.env.SENPI_CODING_AGENT_DIR
   delete process.env.PI_CODING_AGENT_DIR
   delete process.env.XDG_CONFIG_HOME
   try {
-    // The agent dir the source resolves via resolveAgentHome({ env: process.env }); ensure it exists
-    // so canonicalPath (realpathSync) in the sandbox render succeeds.
-    const agentDir = resolveAgentHome({ env: { ...process.env } })
-    await mkdir(agentDir, { recursive: true })
     const identity = createMemoryIdentityContext({
       identity: "agent-dir-test",
       identityPaths: paths,
@@ -149,6 +153,8 @@ async function renderReflectionSandboxAgentDir(envShape: {
       loadConfig: () => loadedMemoryConfig(memorySettings()),
       cwd: () => root,
       resolveModelRegistry: () => undefined,
+      resolveAgentDir: () =>
+        resolveAgentHome({ env: injectedEnv, homeDir: fakeHome, exists: (p) => p === sentinelPath }),
     })
     const sandbox = (runtime.runner as unknown as { options: { sandbox: ReflectionSandbox } }).options.sandbox
     const transformed = await sandbox({
@@ -172,7 +178,7 @@ async function renderReflectionSandboxAgentDir(envShape: {
         prompt: join(paths.reflectionSessions, "prompt.md"),
       },
     })
-    return { expectedAgentDirReal: realpathSync(agentDir), renderedArgs: transformed.args }
+    return { fakeHome, renderedArgs: transformed.args }
   } finally {
     for (const [key, value] of Object.entries(snapshot)) {
       if (value === undefined) delete process.env[key]
@@ -196,41 +202,44 @@ function sandboxGrantsAgentDir(renderedArgs: readonly string[], agentDirReal: st
 
 describe("memory identity runtime agent-dir resolution", () => {
   test.skipIf(process.platform !== "darwin" && process.platform !== "linux")(
-    "#given a rendered reflection sandbox #when OMO_CODING_AGENT_DIR is set #then the agent-dir runtimeWrites entry equals resolveAgentHome",
+    "#given a rendered reflection sandbox #when OMO_CODING_AGENT_DIR is set #then the agent-dir runtimeWrites grant equals the resolved agent dir",
     async () => {
       // given
       const omoAgentDir = await mkdtemp(join(tmpdir(), "omo-omo-agent-dir-"))
       roots.push(omoAgentDir)
       // when
-      const { expectedAgentDirReal, renderedArgs } = await renderReflectionSandboxAgentDir({ omo: omoAgentDir })
-      // then
-      expect(sandboxGrantsAgentDir(renderedArgs, expectedAgentDirReal)).toBe(true)
+      const { renderedArgs } = await renderReflectionSandboxAgentDir({ omo: omoAgentDir })
+      // then: assert the LITERAL injected dir. The stale expression ignores
+      // OMO_CODING_AGENT_DIR, so it can never grant this dir on any host.
+      expect(sandboxGrantsAgentDir(renderedArgs, realpathSync(omoAgentDir))).toBe(true)
     },
     30_000,
   )
 
   test.skipIf(process.platform !== "darwin" && process.platform !== "linux")(
-    "#given a rendered reflection sandbox #when only SENPI_CODING_AGENT_DIR is set #then the agent-dir runtimeWrites entry equals resolveAgentHome",
+    "#given a rendered reflection sandbox #when only SENPI_CODING_AGENT_DIR is set #then the agent-dir runtimeWrites grant equals the resolved agent dir",
     async () => {
       // given
       const senpiAgentDir = await mkdtemp(join(tmpdir(), "omo-senpi-agent-dir-"))
       roots.push(senpiAgentDir)
-      // when
-      const { expectedAgentDirReal, renderedArgs } = await renderReflectionSandboxAgentDir({ senpi: senpiAgentDir })
+      // when: SENPI_ is visible only to the injected resolver, not process.env, so the
+      // stale expression's process.env.SENPI_CODING_AGENT_DIR read cannot mimic it.
+      const { renderedArgs } = await renderReflectionSandboxAgentDir({ senpi: senpiAgentDir })
       // then
-      expect(sandboxGrantsAgentDir(renderedArgs, expectedAgentDirReal)).toBe(true)
+      expect(sandboxGrantsAgentDir(renderedArgs, realpathSync(senpiAgentDir))).toBe(true)
     },
     30_000,
   )
 
   test.skipIf(process.platform !== "darwin" && process.platform !== "linux")(
-    "#given a rendered reflection sandbox #when no agent-dir env is set #then the agent-dir runtimeWrites entry equals resolveAgentHome",
+    "#given a rendered reflection sandbox #when no agent-dir env is set #then the agent-dir runtimeWrites grant equals the sentinel-gated branded home",
     async () => {
-      // given: OMO_, SENPI_ and PI_ unset; resolveAgentHome falls to its homedir fallback.
-      // when
-      const { expectedAgentDirReal, renderedArgs } = await renderReflectionSandboxAgentDir({})
-      // then
-      expect(sandboxGrantsAgentDir(renderedArgs, expectedAgentDirReal)).toBe(true)
+      // when: OMO_, SENPI_ and PI_ unset; the seeded sentinel forces the flat `~/.omo` branch.
+      const { fakeHome, renderedArgs } = await renderReflectionSandboxAgentDir({})
+      // then: assert the LITERAL join(fakeHome, ".omo"). The stale expression resolves
+      // join(realHome, ".senpi", "agent"), which a fresh fakeHome can never equal on any host,
+      // sentinel present or absent - so this discriminates on CI runners too, not just here.
+      expect(sandboxGrantsAgentDir(renderedArgs, realpathSync(join(fakeHome, ".omo")))).toBe(true)
     },
     30_000,
   )
