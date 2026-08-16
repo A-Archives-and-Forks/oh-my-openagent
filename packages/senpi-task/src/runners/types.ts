@@ -72,8 +72,16 @@ export type TerminateOptions = {
   readonly sigkillDelayMs?: number
 }
 
+export type RpcTerminalAssistantMessage = {
+  readonly text?: string
+  readonly stopReason?: string
+  readonly errorMessage?: string
+}
+
 export type RpcChildHandle = ChildHandle & {
   readonly spawnSpec?: RpcSpawnSpec
+  terminalAssistantMessage?(): RpcTerminalAssistantMessage | undefined
+  wasAbortedByUser?(): boolean
   switchSession?(sessionPath: string): Promise<RpcSwitchSessionResult>
   getEntries?(since?: string): Promise<RpcEntriesResult>
   terminate(options?: TerminateOptions): Promise<void>
