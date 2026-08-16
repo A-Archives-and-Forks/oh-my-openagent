@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from "node:child_process"
+import { type ChildProcess, spawn, spawnSync } from "node:child_process"
 import { once } from "node:events"
 import { fileURLToPath } from "node:url"
 import { describe, expect, test } from "bun:test"
@@ -70,16 +70,22 @@ describe("terminateRpcChild", () => {
       await terminateRpcChild(child, { sigkillDelayMs: 150 })
 
       // then
-      expect(isAlive(descendantPid)).toBe(false)
+      expect(isRunning(descendantPid)).toBe(false)
     } finally {
-      if (isAlive(descendantPid)) {
+      if (isRunning(descendantPid)) {
         process.kill(descendantPid, "SIGKILL")
       }
     }
   })
 })
 
-function isAlive(pid: number): boolean {
+function isRunning(pid: number): boolean {
+  if (!isWin32) {
+    const result = spawnSync("ps", ["-o", "stat=", "-p", String(pid)], {
+      encoding: "utf8",
+    })
+    return result.status === 0 && !result.stdout.trim().startsWith("Z")
+  }
   try {
     process.kill(pid, 0)
     return true
