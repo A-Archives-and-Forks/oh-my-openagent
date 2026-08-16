@@ -51,9 +51,11 @@ const OWN_WORDS_PLAN_REQUEST_PATTERNS: readonly RegExp[] = [
   /\bplan\b[^.!?\n]{0,40}\bbefore\s+(?:you\s+)?(?:cod(?:e|ing)|implement|start|work)/i,
   /\bbefore\s+(?:you\s+)?(?:cod(?:e|ing)|implement|start)\b[^.!?\n]{0,40}\bplan\b/i,
   /\bplan\s+(?:it|this|that|the\s+work)\s+(?:out\s+)?first\b/i,
-  // Korean: "계획부터 세워줘", "작업 계획을 먼저 세우자", "계획 먼저 짜줘"
-  /계획(?:서)?(?:부터|을|를|\s)*\s*(?:먼저\s*)?(?:세워|세우|짜|작성|수립)/,
-  /(?:먼저|우선)\s*계획(?:서)?(?:을|를)?\s*(?:세워|세우|짜|작성|수립)/,
+  // Korean: "계획부터 세워줘", "작업 계획을 먼저 세우자", "계획 작성해줘". The Sino-Korean stems (작성/수립) require the
+  // 해 that turns the noun into a verb: bare "계획 작성" is a noun phrase, and a pasted transcript
+  // saying "승인은 계획 작성까지만 허가" mentions planning without requesting it.
+  /계획(?:서)?(?:부터|을|를|\s)*\s*(?:먼저\s*)?(?:세워|세우|짜|작성해|수립해)/,
+  /(?:먼저|우선)\s*계획(?:서)?(?:을|를)?\s*(?:세워|세우|짜|작성해|수립해)/,
 ]
 
 function isOwnWordsPlanRequest(text: string): boolean {

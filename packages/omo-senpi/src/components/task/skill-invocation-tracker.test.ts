@@ -328,6 +328,41 @@ describe("createSkillInvocationTracker - own-words plan request", () => {
     expect(tracker.stateFor("sess-a").hasUserRequested("ulw-plan")).toBe(false)
   })
 
+  // A pasted transcript that MENTIONS plan-writing as a noun ("\uacc4\ud68d \uc791\uc131\uae4c\uc9c0\ub9cc \ud5c8\uac00") is not a
+  // request to plan. Found by auditing the matcher against 687 real user messages: it was the only
+  // false positive, and it armed the gate off the agent's own quoted output.
+  test("#given a pasted transcript merely mentioning plan writing #when the input arrives #then no user request is recorded", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const tracker = createSkillInvocationTracker(pi)
+
+    // when
+    await pi.dispatch(
+      "input",
+      {
+        type: "input",
+        text: "\uc2b9\uc778\uc740 \uacc4\ud68d \uc791\uc131\uae4c\uc9c0\ub9cc \ud5c8\uac00\ud558\ub294 \uac83\uc774\uace0, \uc2e4\ud589\uc740 \ubcc4\ub3c4\ub85c /start-work\ub85c \uc2dc\uc791\ud569\ub2c8\ub2e4",
+        source: "interactive",
+      },
+      CTX_A,
+    )
+
+    // then
+    expect(tracker.stateFor("sess-a").hasUserRequested("ulw-plan")).toBe(false)
+  })
+
+  test("#given an explicit korean request to write the plan #when the input arrives #then it counts as a user request", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const tracker = createSkillInvocationTracker(pi)
+
+    // when
+    await pi.dispatch("input", { type: "input", text: "\uacc4\ud68d \uc791\uc131\ud574\uc918", source: "interactive" }, CTX_A)
+
+    // then
+    expect(tracker.stateFor("sess-a").hasUserRequested("ulw-plan")).toBe(true)
+  })
+
   test("#given a plan request inside an injected ultrawork block #when the input arrives #then no user request is recorded", async () => {
     // given
     const pi = new FakeExtensionAPI()
