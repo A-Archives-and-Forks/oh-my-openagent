@@ -307,11 +307,9 @@ async function performCancellation(context: SchedulerContext, reason?: string): 
   try {
     await whenAdmissionIdle(context)
     const cancellationResults = await Promise.allSettled([...context.attachedTaskIds.values()].map((taskId) =>
-      context.taskManager.cancelTask(taskId, reason),
+      context.taskManager.cancelTask(taskId, reason, { abort: "skip" }),
     ))
-    const cancellationFailure = cancellationResults.find((result) =>
-      result.status === "rejected" && !isIntentionalAbort(result.reason),
-    )
+    const cancellationFailure = cancellationResults.find((result) => result.status === "rejected")
     const cancelledNodeIds: DagNodeId[] = []
     for (const node of context.journal.snapshot().nodes) {
       if (TERMINAL_NODE_STATES.has(node.state)) continue
@@ -621,10 +619,6 @@ function transitionedNode(node: DagNode, state: DagNodeState, at: string, error?
     ...(TERMINAL_NODE_STATES.has(state) ? { completedAt: at } : {}),
     ...(error === undefined ? {} : { error }),
   }
-}
-
-function isIntentionalAbort(error: unknown): boolean {
-  return error instanceof Error && error.name === "AbortError"
 }
 
 function errorMessage(error: unknown): string {

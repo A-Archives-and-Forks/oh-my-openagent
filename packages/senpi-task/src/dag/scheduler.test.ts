@@ -652,7 +652,7 @@ describe("DAG scheduler cancellation", () => {
     expect(result.nodes.find((entry) => entry.id === "sibling")?.state).toBe("cancelled")
   })
 
-  test("#given an intentional AbortError while cancelling a live task #when the run is cancelled #then the rejection settles locally and a later waiter resolves", async () => {
+  test("#given an AbortError returned by task cancellation #when the run is cancelled #then durable cancellation settles and the rejection still surfaces", async () => {
     // given
     const manager = new FakeTaskManager({
       autoComplete: false,
@@ -663,27 +663,18 @@ describe("DAG scheduler cancellation", () => {
       store,
       subscribe: (_runId, listener) => scheduler.subscribe(listener),
     })
-    const unhandled: unknown[] = []
-    const onUnhandled = (reason: unknown): void => { unhandled.push(reason) }
-    process.on("unhandledRejection", onUnhandled)
     const running = scheduler.run()
     await manager.whenStarted("a")
 
-    try {
-      // when
-      await scheduler.cancel(runId, "intentional cancel")
-      const after = await waitSurface.wait(runId, parentSessionId)
-      await running
-      await new Promise<void>((resolve) => setImmediate(resolve))
+    // when
+    const cancellationFailure = expect(scheduler.cancel(runId, "intentional cancel")).rejects.toThrow("intentional abort")
+    const after = await waitSurface.wait(runId, parentSessionId)
+    await Promise.all([running, cancellationFailure])
 
-      // then
-      expect(after.status).toBe("cancelled")
-      expect(after.nodes.a).toEqual(expect.objectContaining({ state: "cancelled" }))
-      expect(after.nodes.b).toEqual(expect.objectContaining({ state: "cancelled" }))
-      expect(unhandled).toEqual([])
-    } finally {
-      process.off("unhandledRejection", onUnhandled)
-    }
+    // then
+    expect(after.status).toBe("cancelled")
+    expect(after.nodes.a).toEqual(expect.objectContaining({ state: "cancelled" }))
+    expect(after.nodes.b).toEqual(expect.objectContaining({ state: "cancelled" }))
   })
 
   test("#given a genuine task cancellation failure #when a wave is cancelled #then the run settles cancelled and the failure still surfaces", async () => {

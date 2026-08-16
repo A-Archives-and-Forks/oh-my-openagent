@@ -64,6 +64,8 @@ class ScriptedRunner implements ManagedRunner {
   }> = []
   readonly #signals = new Map<number, ReturnType<typeof deferred<void>>>()
   readonly #abortError: Error | undefined
+  abortCalls = 0
+  disposeCalls = 0
 
   constructor(abortError?: Error) {
     this.#abortError = abortError
@@ -79,8 +81,10 @@ class ScriptedRunner implements ManagedRunner {
       steer: () => Promise.resolve(),
       followUp: () => Promise.resolve(),
       abort: () => {
+        this.abortCalls += 1
         outcome.resolve({ status: "cancelled" })
-        return this.#abortError === undefined ? Promise.resolve() : Promise.reject(this.#abortError)
+        if (this.#abortError !== undefined) queueMicrotask(() => { void Promise.reject(this.#abortError) })
+        return Promise.resolve()
       },
       subscribe: (listener) => {
         listeners.add(listener)
@@ -88,7 +92,10 @@ class ScriptedRunner implements ManagedRunner {
       },
       waitForOutcome: () => outcome.promise,
       lastAssistantText: () => undefined,
-      dispose: () => Promise.resolve(),
+      dispose: () => {
+        this.disposeCalls += 1
+        return Promise.resolve()
+      },
     }
     this.handles.push({
       spec,
@@ -576,9 +583,14 @@ describe("assembled DAG runtime", () => {
 
       // then
       expect(cancelled.status).toBe("cancelled")
+      expect(runner.abortCalls).toBe(0)
+      expect(runner.disposeCalls).toBe(0)
       expect(survived.status).toBe("completed")
       expect(survived.nodes.survivor).toEqual(expect.objectContaining({ output: "runtime survived" }))
       expect(unhandled).toEqual([])
+      runner.handles[0]?.settle("cancelled child reached its natural boundary")
+      await new Promise<void>((resolve) => setImmediate(resolve))
+      expect(runner.disposeCalls).toBe(1)
     } finally {
       process.off("unhandledRejection", onUnhandled)
       runtime.dispose()

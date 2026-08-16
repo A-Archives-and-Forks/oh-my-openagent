@@ -161,11 +161,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
     const sessionId = deps.engine.runtime.sessionId() ?? ""
     const record = coreManager.record(runId, sessionId)
     if (TERMINAL_RUN_STATUSES.has(record.status)) return
-    try {
-      await controller(runId, sessionId).scheduler.cancel(runId, reason)
-    } catch (error) {
-      if (!isAbortError(error)) throw error
-    }
+    await controller(runId, sessionId).scheduler.cancel(runId, reason)
   }
 
   const waitSurface = createDagWaitSurface({ store, subscribe, cancel })
@@ -427,10 +423,6 @@ function publishDurableEvents(
     if (!page.hasMore) return
     sinceSeq = page.nextSinceSeq
   }
-}
-
-function isAbortError(error: unknown): boolean {
-  return error instanceof Error && error.name === "AbortError"
 }
 
 function deliverDurableEvent(listener: (event: DagRunEvent) => void, event: DagRunEvent): void {
