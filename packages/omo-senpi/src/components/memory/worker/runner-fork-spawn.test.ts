@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -6,6 +6,11 @@ import { join } from "node:path"
 import { createRunnerHarness } from "./runner.test-support"
 
 const roots: string[] = []
+
+// Each case launches a real supervisor and child process and performs git work. Match the 60s
+// ceiling used by the supervisor suites so loaded Windows CI runners retain the same coverage.
+setDefaultTimeout(60_000)
+
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
 })

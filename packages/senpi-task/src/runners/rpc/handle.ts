@@ -3,7 +3,13 @@ import type { RpcResponse, RpcSessionState } from "@code-yeongyu/senpi"
 import { log } from "@oh-my-opencode/utils"
 
 import type { RunnerOutcome } from "../in-process/child-handle"
-import type { ChildEventListener, ChildExitOutcome, RpcChildHandle, TerminateOptions } from "../types"
+import type {
+  ChildEventListener,
+  ChildExitOutcome,
+  RpcChildHandle,
+  RpcTerminalAssistantMessage,
+  TerminateOptions,
+} from "../types"
 import { RpcCommandError } from "./errors"
 import { classifyChildExit } from "./exit-mapping"
 import type { RpcProtocolClient } from "./protocol-client"
@@ -38,6 +44,8 @@ export function createRpcChildHandle(options: CreateRpcChildHandleOptions): Trac
   let finalText: string | undefined
   let turnBaseline: string | undefined
   let turnOutcome: RunnerOutcome | undefined
+  let terminalAssistantMessage: RpcTerminalAssistantMessage | undefined
+  let abortedByUser = false
   let lastSeenAt: number | undefined
   let outcome: ChildExitOutcome | undefined
 
@@ -51,10 +59,14 @@ export function createRpcChildHandle(options: CreateRpcChildHandleOptions): Trac
 
   client.onEvent((event) => {
     if (event.type === "message_end") {
-      finalText = extractAssistantText(event.message) ?? finalText
+      const terminal = extractTerminalAssistantMessage(event.message)
+      if (terminal !== undefined) {
+        terminalAssistantMessage = terminal
+        finalText = terminal.text ?? finalText
+      }
     }
     if (event.type === "agent_end" && event.willRetry === false) {
-      settleTurn(agentEndOutcome(event, turnBaseline, finalText))
+      settleTurn(abortedByUser ? { status: "cancelled" } : agentEndOutcome(event, turnBaseline, finalText))
     }
   })
 
@@ -96,6 +108,8 @@ export function createRpcChildHandle(options: CreateRpcChildHandleOptions): Trac
       reachedIdle = false
       turnOutcome = undefined
     }
+    terminalAssistantMessage = undefined
+    abortedByUser = false
     turnBaseline = finalText
   }
 
@@ -127,7 +141,10 @@ export function createRpcChildHandle(options: CreateRpcChildHandleOptions): Trac
       return runCommand({ type: "steer", message: text }, "steer")
     },
     followUp: (text) => runPrompt(text, "followUp"),
-    abort: () => runCommand({ type: "abort" }, "abort"),
+    abort: () => {
+      abortedByUser = true
+      return runCommand({ type: "abort" }, "abort")
+    },
     subscribe: (listener: ChildEventListener) => client.onEvent(listener),
     waitForIdle: () =>
       reachedIdle || outcome ? Promise.resolve() : new Promise<void>((resolve) => idleWaiters.push(resolve)),
@@ -138,6 +155,8 @@ export function createRpcChildHandle(options: CreateRpcChildHandleOptions): Trac
           ? new Promise<RunnerOutcome>((resolve) => outcomeWaiters.push(resolve))
           : Promise.resolve(exitTurnOutcome(outcome, finalText)),
     lastAssistantText: () => finalText,
+    terminalAssistantMessage: () => terminalAssistantMessage,
+    wasAbortedByUser: () => abortedByUser,
     lastSeen: () => lastSeenAt,
     exitOutcome: () => outcome,
     waitForExit: () => (outcome ? Promise.resolve(outcome) : new Promise<ChildExitOutcome>((resolve) => exitWaiters.push(resolve))),
@@ -169,4 +188,18 @@ function readSessionId(response: RpcResponse): string | undefined {
   }
   const state: RpcSessionState = response.data
   return state.sessionId
+}
+
+function extractTerminalAssistantMessage(message: unknown): RpcTerminalAssistantMessage | undefined {
+  if (typeof message !== "object" || message === null) return undefined
+  const record = message as Record<string, unknown>
+  if (record.role !== "assistant") return undefined
+  const text = extractAssistantText(record)
+  const stopReason = typeof record.stopReason === "string" ? record.stopReason : undefined
+  const errorMessage = typeof record.errorMessage === "string" ? record.errorMessage : undefined
+  return {
+    ...(text === undefined ? {} : { text }),
+    ...(stopReason === undefined ? {} : { stopReason }),
+    ...(errorMessage === undefined ? {} : { errorMessage }),
+  }
 }

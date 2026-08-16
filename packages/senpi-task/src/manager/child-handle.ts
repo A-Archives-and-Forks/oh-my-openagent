@@ -93,7 +93,33 @@ async function rpcOutcome(handle: RpcChildHandle): Promise<RunnerOutcome> {
     const message = facts?.error_message ?? "RPC child terminated abnormally"
     return { status: "error", failure: { kind: "child-prompt-failed", message }, killed: facts?.killed === true }
   }
-  return { status: "completed", finalResponse: handle.lastAssistantText() ?? "" }
+  // A user-requested abort is a cancellation, never a turn failure. Handles that expose the tracked
+  // per-turn outcome never reach here; this fallback serves legacy/custom handles only.
+  if (handle.wasAbortedByUser?.() === true) return { status: "cancelled" }
+
+  const hasTerminalReader = handle.terminalAssistantMessage !== undefined
+  const terminal = handle.terminalAssistantMessage?.()
+  if (terminal?.stopReason === "error" || terminal?.stopReason === "aborted") {
+    return {
+      status: "error",
+      failure: {
+        kind: "child-turn-failed",
+        message: terminal.errorMessage ?? `child turn ended with stopReason "${terminal.stopReason}"`,
+      },
+    }
+  }
+
+  // Legacy handles without the observation seam retain their prior text behavior, so a revived turn
+  // cannot silently reuse the previous turn's final text.
+  const finalResponse = hasTerminalReader ? terminal?.text : handle.lastAssistantText()
+  if (finalResponse !== undefined && finalResponse.length > 0) return { status: "completed", finalResponse }
+  return {
+    status: "error",
+    failure: {
+      kind: "child-turn-failed",
+      message: terminal?.errorMessage ?? "child turn produced no assistant output",
+    },
+  }
 }
 
 export async function discardManagedHandle(handle: ManagedChildHandle): Promise<void> {
@@ -111,3 +137,4 @@ export async function discardRpcHandle(handle: RpcChildHandle): Promise<void> {
     await handle.dispose()
   }
 }
+
