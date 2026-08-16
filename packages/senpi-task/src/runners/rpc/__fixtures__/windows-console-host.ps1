@@ -9,8 +9,10 @@ public static class OmoConsoleHost {
 
 if (-not [OmoConsoleHost]::AllocConsole()) {
   $errorCode = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
-  Set-Content -LiteralPath $env:OMO_PROBE_ERROR_FILE -Value "AllocConsole failed: $errorCode"
-  exit 1
+  if ($errorCode -ne 5) {
+    Set-Content -LiteralPath $env:OMO_PROBE_ERROR_FILE -Value "AllocConsole failed: $errorCode"
+    exit 1
+  }
 }
 
 $bun = $env:OMO_PROBE_BUN
