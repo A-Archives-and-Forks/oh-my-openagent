@@ -17,6 +17,7 @@ import {
   hashSessionId,
   maskProviderAndModel,
 } from "./product-identity"
+import { MAX_TRACKED_CALLS } from "./wave-assembler"
 import { BUILTIN_CATEGORY_DEFAULTS, CURATED_READONLY_AGENT_NAMES } from "@oh-my-opencode/senpi-task"
 import { UNCONFIGURED_POSTHOG_API_KEY, getTelemetryApiKey, isConfiguredTelemetryApiKey } from "@oh-my-opencode/telemetry-core"
 
@@ -104,6 +105,22 @@ describe("OmO Native product identity", () => {
 
     expect([...CURATED_AGENTS].sort()).toEqual([...CURATED_READONLY_AGENT_NAMES].sort())
     expect([...BUILTIN_CATEGORY_NAMES].sort()).toEqual(categoryNames.sort())
+  })
+
+  test("#given the tracked-call cap #when the widest wave histogram is encoded #then it stays inside the 64 character privacy limit", () => {
+    // given: the wave assembler tracks at most MAX_TRACKED_CALLS (2000) calls, so no bucket count exceeds 4 digits
+    const bucketCount = 8
+    const widestBucketValue = String(MAX_TRACKED_CALLS)
+
+    // when: the fixed buckets (1, 2, 3, 4, 5_8, 9_16, 17_32, 33plus) are positionally encoded without labels
+    const worstCaseHistogram = Array.from({ length: bucketCount }, () => widestBucketValue).join(":")
+
+    // then: the encoded string is 39 characters, well under the wrapper's silent 64 character truncation
+    expect(widestBucketValue).toHaveLength(4)
+    expect(worstCaseHistogram).toHaveLength(bucketCount * 4 + (bucketCount - 1))
+    expect(worstCaseHistogram.length).toBeLessThanOrEqual(64)
+    expect(OMO_NATIVE_EVENT_SCHEMAS.parallelism_summary.non_eval_wave_size_histogram.type).toBe("string")
+    expect(OMO_NATIVE_PROPERTY_ALLOWLISTS.parallelism_summary).toContain("non_eval_wave_size_histogram")
   })
 
   test("#given static telemetry inventories #when inspected #then they and every property allowlist are frozen", () => {

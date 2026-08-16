@@ -7,6 +7,7 @@ const EXPECTED_EVENTS = [
   "daily_active",
   "delegation_started",
   "feature_used",
+  "parallelism_summary",
   "prompt_submitted",
   "session_started",
   "skill_loaded",
@@ -14,7 +15,7 @@ const EXPECTED_EVENTS = [
 ] as const
 
 describe("OmO Native telemetry QA allowlist source", () => {
-  test("#given the shared product allowlist #when QA initializes #then it covers exactly the seven native events", () => {
+  test("#given the shared product allowlist #when QA initializes #then it covers exactly the eight native events", () => {
     expect(() => assertAllowlistCoverage(OMO_NATIVE_PROPERTY_ALLOWLISTS)).not.toThrow()
     expect(Object.keys(OMO_NATIVE_PROPERTY_ALLOWLISTS).sort()).toEqual(EXPECTED_EVENTS)
   })
