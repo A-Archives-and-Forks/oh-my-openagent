@@ -183,7 +183,10 @@ describe("mass-ulw SKILL.md contract", () => {
         // then
         expect(result.exitCode).toBe(0)
       }
-    })
+      // 60s: this test spawns a real Python interpreter, whose first-invocation cold start on
+      // Windows CI runners (~7-8s) blows the default 5s budget. Matches the repo's established
+      // ceiling for process-spawning tests (c75092aed).
+    }, 60_000)
   })
 
   describe("#given the js examples executed against the todo-27 SDK stub", () => {
