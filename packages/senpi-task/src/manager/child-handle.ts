@@ -76,13 +76,24 @@ export function adaptRpcHandle(handle: RpcChildHandle): ManagedChildHandle {
     followUp: (text) => handle.followUp(text),
     abort: () => handle.abort(),
     subscribe: (listener) => handle.subscribe(listener),
-    waitForOutcome: () => rpcOutcome(handle),
+    waitForOutcome: () => handle.waitForOutcome === undefined ? rpcOutcome(handle) : handle.waitForOutcome(),
     ...(switchSession === undefined ? {} : { switchSession: (sessionPath: string) => switchSession(sessionPath) }),
     ...(getEntries === undefined ? {} : { getEntries: (since?: string) => getEntries(since) }),
     lastAssistantText: () => handle.lastAssistantText(),
     terminate: () => handle.terminate(),
     dispose: () => handle.dispose(),
   }
+}
+
+async function rpcOutcome(handle: RpcChildHandle): Promise<RunnerOutcome> {
+  await handle.waitForIdle()
+  const exit = handle.exitOutcome()
+  if (exit !== undefined && exit.kind !== "clean") {
+    const facts = mapExitOutcomeToError(exit, { alreadyTerminal: false })
+    const message = facts?.error_message ?? "RPC child terminated abnormally"
+    return { status: "error", failure: { kind: "child-prompt-failed", message }, killed: facts?.killed === true }
+  }
+  return { status: "completed", finalResponse: handle.lastAssistantText() ?? "" }
 }
 
 export async function discardManagedHandle(handle: ManagedChildHandle): Promise<void> {
@@ -99,17 +110,4 @@ export async function discardRpcHandle(handle: RpcChildHandle): Promise<void> {
   } finally {
     await handle.dispose()
   }
-}
-
-async function rpcOutcome(handle: RpcChildHandle): Promise<RunnerOutcome> {
-  await handle.waitForIdle()
-  const exit = handle.exitOutcome()
-  if (exit !== undefined && exit.kind !== "clean") {
-    const facts = mapExitOutcomeToError(exit, { alreadyTerminal: false })
-    const message = facts?.error_message ?? "RPC child terminated abnormally"
-    // Thread the killed FACT (an external SIGKILL / exit-by-signal) onto the outcome so the manager can
-    // persist status=error with killed:true, per the todo-8 kill contract.
-    return { status: "error", failure: { kind: "child-prompt-failed", message }, killed: facts?.killed === true }
-  }
-  return { status: "completed", finalResponse: handle.lastAssistantText() ?? "" }
 }
