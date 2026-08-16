@@ -62,11 +62,13 @@ describe("terminal facts run pruning", () => {
     // #given
     const { factsDir, locksDir } = await fixture()
     for (let index = 1; index <= 4; index += 1) {
-      await seedTerminalRun({ factsDir, runId: `facts-cccc-${index}`, finishedAt: instant(index), bytes: 4_096 })
+      await seedTerminalRun({ factsDir, runId: `facts-cccc-${index}`, finishedAt: instant(index), bytes: 100_000 })
     }
 
     // #when: two runs' filler fits under the cap, the third pushes past it.
-    await pruneTerminalFactsRuns({ factsDir, locksDir, maxTotalBytes: 10_000 })
+    // Filler is large enough that platform-specific directory metadata (lstat
+    // on a directory is 4096 on ext4 vs 64 on APFS) does not tip the cap.
+    await pruneTerminalFactsRuns({ factsDir, locksDir, maxTotalBytes: 250_000 })
 
     // #then
     expect(await runNames(factsDir)).toEqual(["facts-cccc-3", "facts-cccc-4"])
