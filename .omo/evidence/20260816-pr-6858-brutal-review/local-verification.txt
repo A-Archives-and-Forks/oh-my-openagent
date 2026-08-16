@@ -6,11 +6,11 @@ COMMAND:
 bun test packages/senpi-task/src/runners
 
 OBSERVED:
-118 pass
+125 pass
 1 Windows-only skip
 0 fail
-281 expect() calls
-Ran 119 tests across 23 files.
+299 expect() calls
+Ran 126 tests across 24 files.
 
 COMMAND:
 bun run --cwd packages/senpi-task typecheck
@@ -112,13 +112,14 @@ COMMAND:
 bun run test:senpi
 
 OBSERVED:
-1568 pass
+1582 pass
 1 intentional Windows-only production-driver skip
 0 fail
-4352 expect() calls
-Ran 1569 tests across 239 files.
+4359 expect() calls
+Ran 1583 tests across 239 files in 117.58s.
 
 PERFORMANCE ROOT FIXES:
 - 40-commit drift integration fixture: approximately 5 seconds before; approximately 316ms after one-process `git fast-import`.
 - terminal gate options unit test: approximately 5 seconds before; under 1ms after injecting the lock record fixture.
 - concurrent Git worktree registration: deterministic overlap RED `maxActive: 2`; GREEN `maxActive: 1`.
+- Git-backed MemoryBlockCache Windows timeout: RED at 5015ms in job `95143900936`; GREEN focused suite 5/5 in 1.59s with the existing 20-second Windows integration budget applied consistently.

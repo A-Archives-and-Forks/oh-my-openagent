@@ -42,16 +42,22 @@ Exact commands are recorded in:
 | `31931659970` / `95123440107` | redirected PowerShell host deadlocked after allocating a console | event-driven ready/stop files with no redirected host stdio |
 | `31932110216` / `95128456220` | `AllocConsole` returned Win32 error 5 because the host already owned a console | accept error 5 as the satisfied precondition |
 | `31932110216` / `95128456257` | production route was GREEN, but the child crashed because the QA sandbox mixed `RUNNER~1` with a canonical path | canonicalize the sandbox root using `realpathSync.native` |
+| `31933958600` / `95132959708` | both children inherited the explicit host console, so attachment could not distinguish visibility | launch the Bun probe parent with `CreateNoWindow` and inspect the console HWND |
+| `31935960840` / `95137818135` | `CreateNoWindow` left a windowless console object that both children inherited | call Win32 `FreeConsole` inside the Bun parent and assert HWND visibility, not console-object existence |
+| `31938387966` / `95143900936` | an unrelated Git-backed `MemoryBlockCache` test hit the default 5-second Windows timeout | apply the existing 20-second Windows integration budget to every Git-backed cache test |
 
 Raw failure payloads:
 
 - `windows-console-probe-red.json`
+- `windows-console-probe-red-31933958600.json`
+- `windows-console-probe-red-31935960840.json`
 - `windows-routing-red.json`
+- `../../20260816-pr-6858-brutal-review/windows-cache-red.json`
 
 ## Local GREEN
 
 - `bun test packages/senpi-task/src/runners`
-  - 118 pass, 1 Windows-only skip, 0 fail.
+  - 125 pass, 1 Windows-only skip, 0 fail.
 - `bun run --cwd packages/senpi-task typecheck`
   - exit 0.
 - `bun run --cwd packages/omo-senpi typecheck`
@@ -82,15 +88,18 @@ The local production driver reached the RPC runner with:
 
 Its separate reconcile scenario still records an unrelated breadcrumb mismatch while confirming the orphan is dead; the routing-specific checks remain truthful and GREEN.
 
-## Required Windows GREEN payloads
+## Final Windows GREEN payloads
 
-The final Windows workflow must emit:
+Authoritative workflow:
+
+https://github.com/code-yeongyu/oh-my-openagent/actions/runs/31939507552
 
 `WINDOWS_CONSOLE_PROBE`
 
-- visible control: `consoleAttached: true`
-- hidden production child: `consoleAttached: false`
-- hidden production child: `mainWindowHandle: 0`
+- Job: https://github.com/code-yeongyu/oh-my-openagent/actions/runs/31939507552/job/95146554570
+- Raw payload: `windows-console-probe-green.json`
+- visible control: detached parent, attached console, non-zero console HWND, `consoleWindowVisible: true`
+- hidden production child: `consoleWindowHandle: 0`, `consoleWindowVisible: false`, `mainWindowHandle: 0`
 - both stdio round trips: `true`
 - both children exited: `true`
 - credentials untouched: `true`
@@ -98,6 +107,8 @@ The final Windows workflow must emit:
 
 `WINDOWS_TASK_RPC_E2E`
 
+- Job: https://github.com/code-yeongyu/oh-my-openagent/actions/runs/31939507552/job/95146554538
+- Raw payload: `windows-routing-green.json`
 - `wiringFixed: true`
 - `process_mode_routes_to_rpc_runner: PASS`
 - real RPC child PID
@@ -105,7 +116,7 @@ The final Windows workflow must emit:
 - credentials and full agent directory unchanged
 - no leaked RPC PIDs
 
-The final GREEN workflow/job URLs and captured payloads will be added to this directory after the current evidence commit triggers the authoritative head run.
+The production-driver payload remains aggregate `FAIL` because two unrelated lifecycle diagnostics fail. The reviewed routing, isolation, and no-leak checks are individually `PASS`; the raw payload is preserved without relabeling.
 
 ## Isolation and cleanup
 

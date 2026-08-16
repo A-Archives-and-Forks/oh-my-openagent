@@ -39,3 +39,16 @@ The first repaired-head workflow was run `31925417976`.
   - Win32 error 5 is accepted as an already-attached console;
   - the QA sandbox root is normalized once with `realpathSync.native`;
   - every derived cwd/agent/XDG/home/trust path uses that canonical root.
+
+## Final Windows proof rounds
+
+- `31933958600`: both children inherited the explicit host console, so console attachment was not a visibility oracle.
+- `31935960840`: `CreateNoWindow` produced a windowless console object inherited by both children.
+- Root fix:
+  - the Bun probe parent calls Win32 `FreeConsole`;
+  - the visible control must expose a non-zero, visible console HWND;
+  - the hidden child must expose no visible console HWND and `MainWindowHandle: 0`;
+  - direct stdout emits the raw payload even when the test passes.
+- `31938387966`: the console and routing proofs passed, but an unrelated Git-backed cache test hit the default 5-second Windows timeout.
+- Root fix: every Git-backed `MemoryBlockCache` test now uses the existing 20-second Windows integration budget.
+- `31939507552`: every CI job passed on head `effcfe82e7774c5b6458696bc17853a3dfe49d27`.

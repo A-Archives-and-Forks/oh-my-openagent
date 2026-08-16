@@ -2,7 +2,7 @@
 
 ## Required blocker
 
-Review comment `3790854406` required the production Senpi task driver to prove that `execution_mode: "process"` reaches the RPC runner with `wiringFixed: true` and a real child PID.
+Review comment `3790854397` required the production Senpi task driver to prove that `execution_mode: "process"` reaches the RPC runner with `wiringFixed: true` and a real child PID.
 
 ## Raw artifact
 
