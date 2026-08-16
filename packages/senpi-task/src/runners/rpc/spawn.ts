@@ -1,6 +1,6 @@
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs"
 import { createRequire } from "node:module"
-import { basename, delimiter, dirname, isAbsolute, join, sep } from "node:path"
+import { basename, delimiter, dirname, isAbsolute, join, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 
 import type { RpcRunnerSpec } from "../types"
@@ -63,10 +63,19 @@ function senpiBinaryName(platform: NodeJS.Platform): string {
 function scanPathForExecutable(name: string, pathValue: string | undefined): string | null {
   for (const dir of (pathValue ?? "").split(delimiter)) {
     if (dir.length === 0) continue
-    const candidate = join(dir, name)
-    if (existsSync(candidate)) return candidate
+    const candidate = canonicalExecutable(join(dir, name))
+    if (candidate !== null) return candidate
   }
   return null
+}
+
+function canonicalExecutable(candidate: string): string | null {
+  try {
+    const canonical = realpathSync.native(resolve(candidate))
+    return statSync(canonical).isFile() ? canonical : null
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -82,13 +91,12 @@ export function resolveSenpiExecutable(runtime: RpcSpawnRuntime): string | null 
   const override = runtime.parentEnv[SENPI_BIN_ENV]?.trim()
   if (override !== undefined && override.length > 0) {
     if (override.includes("/") || override.includes(sep) || isAbsolute(override)) {
-      return existsSync(override) ? override : null
+      return canonicalExecutable(override)
     }
     return scanPathForExecutable(override, runtime.parentEnv.PATH)
   }
   if (runtime.isBunBinary) {
-    const sibling = join(dirname(runtime.execPath), binaryName)
-    return existsSync(sibling) ? sibling : null
+    return canonicalExecutable(join(dirname(runtime.execPath), binaryName))
   }
   return scanPathForExecutable(binaryName, runtime.parentEnv.PATH)
 }
