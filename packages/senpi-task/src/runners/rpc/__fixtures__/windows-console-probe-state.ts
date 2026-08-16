@@ -1,7 +1,24 @@
 import { createHash } from "node:crypto"
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync, watch } from "node:fs"
 import { homedir } from "node:os"
-import { join } from "node:path"
+import { basename, dirname, join } from "node:path"
+
+export type ProbeMode = "visible-control" | "hidden-fixed"
+
+export type ParentReady = {
+  readonly pid: number
+  readonly stdioRoundTrip: true
+  readonly mode: ProbeMode
+}
+
+export type ProbeCase = ParentReady & {
+  readonly consoleAttached: boolean
+  readonly consoleAttachError: number
+  readonly mainWindowHandle: number
+  readonly expectedVisible: boolean
+  readonly childExited: boolean
+  readonly parentExitCode: number
+}
 
 export function credentialDigests(
   credentialFiles: readonly string[],
@@ -24,4 +41,27 @@ export function isAlive(pid: number): boolean {
   } catch {
     return false
   }
+}
+
+export function waitForFile(path: string, signal: AbortSignal): Promise<void> {
+  if (existsSync(path)) return Promise.resolve()
+  return new Promise((resolve, reject) => {
+    const watcher = watch(dirname(path), () => {
+      if (existsSync(path)) finish()
+    })
+    const abort = (): void => {
+      cleanup()
+      reject(signal.reason instanceof Error ? signal.reason : new Error(`Timed out waiting for ${basename(path)}`))
+    }
+    const cleanup = (): void => {
+      watcher.close()
+      signal.removeEventListener("abort", abort)
+    }
+    const finish = (): void => {
+      cleanup()
+      resolve()
+    }
+    signal.addEventListener("abort", abort, { once: true })
+    if (existsSync(path)) finish()
+  })
 }

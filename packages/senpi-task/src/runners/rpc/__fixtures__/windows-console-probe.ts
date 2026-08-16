@@ -1,10 +1,9 @@
-import { type ChildProcess, spawn } from "node:child_process"
+import { spawn } from "node:child_process"
 import { once } from "node:events"
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { createInterface } from "node:readline"
 
 import { RpcProcessRunner } from "../../rpc-process"
 import {
@@ -12,7 +11,14 @@ import {
   consoleAttachment,
   mainWindowHandle,
 } from "./windows-console-inspection"
-import { credentialDigests, isAlive } from "./windows-console-probe-state"
+import {
+  credentialDigests,
+  isAlive,
+  type ParentReady,
+  type ProbeCase,
+  type ProbeMode,
+  waitForFile,
+} from "./windows-console-probe-state"
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url)
 const FAKE_CHILD_PATH = fileURLToPath(
@@ -21,35 +27,11 @@ const FAKE_CHILD_PATH = fileURLToPath(
 const CONSOLE_HOST_PATH = fileURLToPath(new URL("./windows-console-host.ps1", import.meta.url))
 const CREDENTIAL_FILES = ["auth.json", "models.json", "settings.json", "trust.json"] as const
 
-type ProbeMode = "visible-control" | "hidden-fixed"
-
-type ParentReady = {
-  readonly pid: number
-  readonly stdioRoundTrip: true
-  readonly mode: ProbeMode
-}
-
-type ProbeCase = ParentReady & {
-  readonly consoleAttached: boolean
-  readonly consoleAttachError: number
-  readonly mainWindowHandle: number
-  readonly expectedVisible: boolean
-  readonly childExited: boolean
-  readonly parentExitCode: number
-}
-
-async function readJsonLine<T>(child: ChildProcess): Promise<T> {
-  if (child.stdout === null) throw new Error("probe parent stdout was not piped")
-  const lines = createInterface({ input: child.stdout })
-  try {
-    const [line] = await once(lines, "line", { signal: AbortSignal.timeout(15_000) })
-    return JSON.parse(String(line)) as T
-  } finally {
-    lines.close()
-  }
-}
-
 async function runCase(mode: ProbeMode, root: string): Promise<ProbeCase> {
+  const readyPath = join(root, `${mode}-ready.json`)
+  const stopPath = join(root, `${mode}-stop`)
+  const errorPath = join(root, `${mode}-error.txt`)
+  const ready = waitForFile(readyPath, AbortSignal.timeout(15_000))
   const parent = spawn(
     "powershell.exe",
     ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", CONSOLE_HOST_PATH],
@@ -60,54 +42,67 @@ async function runCase(mode: ProbeMode, root: string): Promise<ProbeCase> {
         OMO_PROBE_SCRIPT: SCRIPT_PATH,
         OMO_PROBE_MODE: mode,
         OMO_PROBE_ROOT: root,
+        OMO_PROBE_READY_FILE: readyPath,
+        OMO_PROBE_STOP_FILE: stopPath,
+        OMO_PROBE_ERROR_FILE: errorPath,
         SENPI_CODING_AGENT_DIR: join(root, "agent"),
         SENPI_CODING_AGENT_SESSION_DIR: join(root, "parent-session"),
       },
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: "ignore",
       shell: false,
       windowsHide: true,
     },
   )
   const closed = once(parent, "close", { signal: AbortSignal.timeout(15_000) })
-  let stderr = ""
-  parent.stderr?.setEncoding("utf8")
-  parent.stderr?.on("data", (chunk: string) => {
-    stderr += chunk
-  })
 
-  let ready: ParentReady | undefined
+  let readyPayload: ParentReady | undefined
   let handle = 0
   let attachment: ConsoleAttachment | undefined
   let code: unknown
   try {
-    ready = await readJsonLine<ParentReady>(parent)
-    handle = mainWindowHandle(ready.pid)
-    attachment = consoleAttachment(ready.pid)
+    const outcome = await Promise.race([
+      ready.then(() => ({ kind: "ready" as const })),
+      closed.then(([exitCode]) => ({ kind: "closed" as const, exitCode })),
+    ])
+    if (outcome.kind === "closed") {
+      const detail = existsSync(errorPath) ? readFileSync(errorPath, "utf8").trim() : "no error detail"
+      throw new Error(`console host exited ${String(outcome.exitCode)} before ready: ${detail}`)
+    }
+    readyPayload = JSON.parse(readFileSync(readyPath, "utf8")) as ParentReady
+    handle = mainWindowHandle(readyPayload.pid)
+    attachment = consoleAttachment(readyPayload.pid)
   } finally {
-    parent.stdin?.end("stop\n")
+    writeFileSync(stopPath, "stop\n")
     ;[code] = await closed
   }
 
-  if (ready === undefined || attachment === undefined) {
+  if (readyPayload === undefined || attachment === undefined) {
     throw new Error("probe parent did not produce its ready payload")
   }
   const parentExitCode = typeof code === "number" ? code : -1
   if (parentExitCode !== 0) {
-    throw new Error(`probe parent exited ${parentExitCode}: ${stderr.trim()}`)
+    const detail = existsSync(errorPath) ? readFileSync(errorPath, "utf8").trim() : "no error detail"
+    throw new Error(`probe parent exited ${parentExitCode}: ${detail}`)
   }
 
   return {
-    ...ready,
+    ...readyPayload,
     consoleAttached: attachment.attached,
     consoleAttachError: attachment.errorCode,
     mainWindowHandle: handle,
     expectedVisible: mode === "visible-control",
-    childExited: !isAlive(ready.pid),
+    childExited: !isAlive(readyPayload.pid),
     parentExitCode,
   }
 }
 
 async function runParent(mode: ProbeMode, root: string): Promise<void> {
+  const readyPath = process.env.OMO_PROBE_READY_FILE
+  const stopPath = process.env.OMO_PROBE_STOP_FILE
+  if (readyPath === undefined || stopPath === undefined) {
+    throw new Error("console probe parent requires ready and stop file paths")
+  }
+  const stop = waitForFile(stopPath, AbortSignal.timeout(30_000))
   const runner = new RpcProcessRunner({
     buildSpawn: (spec) => ({
       command: process.execPath,
@@ -138,8 +133,8 @@ async function runParent(mode: ProbeMode, root: string): Promise<void> {
 
   try {
     await handle.steer("stdio-round-trip")
-    process.stdout.write(`${JSON.stringify({ pid: handle.pid, stdioRoundTrip: true, mode })}\n`)
-    await once(process.stdin, "data", { signal: AbortSignal.timeout(30_000) })
+    writeFileSync(readyPath, `${JSON.stringify({ pid: handle.pid, stdioRoundTrip: true, mode })}\n`)
+    await stop
   } finally {
     await handle.terminate({ sigkillDelayMs: 500 })
     await handle.waitForExit()

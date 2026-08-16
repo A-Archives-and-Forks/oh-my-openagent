@@ -9,7 +9,7 @@ public static class OmoConsoleHost {
 
 if (-not [OmoConsoleHost]::AllocConsole()) {
   $errorCode = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
-  [Console]::Error.WriteLine("AllocConsole failed: $errorCode")
+  Set-Content -LiteralPath $env:OMO_PROBE_ERROR_FILE -Value "AllocConsole failed: $errorCode"
   exit 1
 }
 
@@ -26,20 +26,15 @@ $startInfo = New-Object System.Diagnostics.ProcessStartInfo
 $startInfo.FileName = $bun
 $startInfo.Arguments = "`"$script`" --parent $mode `"$root`""
 $startInfo.UseShellExecute = $false
-$startInfo.RedirectStandardInput = $true
-$startInfo.RedirectStandardOutput = $true
-$startInfo.RedirectStandardError = $true
 
-$parent = [System.Diagnostics.Process]::Start($startInfo)
-$ready = $parent.StandardOutput.ReadLine()
-[Console]::Out.WriteLine($ready)
-$stop = [Console]::In.ReadLine()
-$parent.StandardInput.WriteLine($stop)
-$parent.StandardInput.Close()
-$parent.WaitForExit()
-
-$stderr = $parent.StandardError.ReadToEnd()
-if ($stderr) {
-  [Console]::Error.Write($stderr)
+try {
+  $parent = [System.Diagnostics.Process]::Start($startInfo)
+  $parent.WaitForExit()
+  if ($parent.ExitCode -ne 0 -and -not (Test-Path -LiteralPath $env:OMO_PROBE_ERROR_FILE)) {
+    Set-Content -LiteralPath $env:OMO_PROBE_ERROR_FILE -Value "Probe parent exited $($parent.ExitCode)"
+  }
+  exit $parent.ExitCode
+} catch {
+  Set-Content -LiteralPath $env:OMO_PROBE_ERROR_FILE -Value $_.Exception.Message
+  exit 1
 }
-exit $parent.ExitCode
