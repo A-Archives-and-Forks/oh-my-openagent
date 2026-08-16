@@ -64,11 +64,19 @@ export function buildPathSandboxTransform<T extends ReflectionSpawnArgs | FactsS
   if (platform === "darwin") {
     const payloads = input.payloadPaths.map(canonicalPath)
     const foreignRoots = (input.foreignRoots ?? []).map(canonicalPath)
+    const lockPathsResolution = resolveLockPaths({
+      lockPaths,
+      surface: input.surface,
+      policy: input.policy,
+      platform,
+      errorRethrow: input.errorRethrow,
+    })
+    if ("warning" in lockPathsResolution) return identityTransform(lockPathsResolution.warning)
     const tempDir = join(dirname(payloads[0] ?? canonicalPath(input.fallbackDir)), ".sandbox-tmp")
     mkdirSync(tempDir, { recursive: true, mode: 0o700 })
     const profile = buildDarwinProfile({
       writableDirs,
-      lockPaths: lockPaths.map(canonicalAbsentPath),
+      lockPaths: lockPathsResolution.paths,
       tempDir,
       payloads,
       foreignRoots,
@@ -148,6 +156,41 @@ function canonicalPath(path: string): string {
 /** Canonicalizes the existing parent and re-joins the basename, so an absent entry never throws. */
 function canonicalAbsentPath(path: string): string {
   return join(canonicalPath(dirname(path)), basename(path))
+}
+
+type LockPathsResolution =
+  | { readonly paths: readonly string[] }
+  | { readonly warning: string }
+
+/**
+ * Canonicalizes lock paths whose parent exists and fails closed on the rest: a lock path inside a
+ * parent that does not exist yet (fresh machine, no agent dir) can never be exercised by the child,
+ * so rendering it would either throw a raw ENOENT or grant a path nobody can create.
+ */
+function resolveLockPaths(input: {
+  readonly lockPaths: readonly string[]
+  readonly surface: "reflection" | "facts"
+  readonly policy: SandboxPolicy
+  readonly platform: NodeJS.Platform
+  readonly errorRethrow?: (error: SandboxUnavailableError) => never
+}): LockPathsResolution {
+  const paths: string[] = []
+  const absentParents: string[] = []
+  for (const lockPath of input.lockPaths) {
+    const parent = dirname(lockPath)
+    if (existsSync(parent)) paths.push(canonicalAbsentPath(lockPath))
+    else if (!absentParents.includes(parent)) absentParents.push(parent)
+  }
+  if (absentParents.length === 0) return { paths }
+  const reason = `lock parent directories do not exist (${absentParents.join(", ")})`
+  if (input.policy === "required") {
+    const error = new SandboxUnavailableError(input.platform, reason)
+    if (input.errorRethrow !== undefined) input.errorRethrow(error)
+    throw error
+  }
+  return {
+    warning: `${input.surface} sandbox unavailable on ${input.platform}: ${reason}; running unsandboxed because policy is auto`,
+  }
 }
 
 function seatbeltString(path: string): string {
