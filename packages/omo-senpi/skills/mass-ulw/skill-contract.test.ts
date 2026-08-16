@@ -42,6 +42,29 @@ function extractCodeBlocks(content: string): readonly CodeBlock[] {
   return blocks
 }
 
+// The interpreter is named `python3` on POSIX and `python` on Windows runners, so resolve it by
+// trying each candidate and keeping the first one that actually spawns. Bun.spawnSync throws
+// (rather than returning a non-zero exitCode) when the executable is missing from PATH, so an
+// unresolvable name has to be caught here instead of asserted on.
+const pythonCandidates = ["python3", "python"] as const
+
+type AstParseResult = { readonly command: string; readonly exitCode: number }
+
+function astParsePython(code: string): AstParseResult {
+  const failures: string[] = []
+  for (const command of pythonCandidates) {
+    try {
+      const proc = Bun.spawnSync([command, "-c", "import ast, sys; ast.parse(sys.stdin.read())"], {
+        stdin: new TextEncoder().encode(code),
+      })
+      return { command, exitCode: proc.exitCode }
+    } catch (error) {
+      failures.push(`${command}: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+  throw new Error(`no python interpreter found (tried ${pythonCandidates.join(", ")}): ${failures.join("; ")}`)
+}
+
 // Minimal ESM stub of the todo-27 SDK surface: define collects nodes (rejecting duplicate ids),
 // every other export delegates to globalThis.tool.dag with the matching action.
 const sdkStubSource = `
@@ -156,11 +179,9 @@ describe("mass-ulw SKILL.md contract", () => {
     test("#when python blocks are ast-parsed #then each is syntactically valid", () => {
       for (const block of blocks.filter((candidate) => candidate.lang === "python")) {
         // when
-        const proc = Bun.spawnSync(["python3", "-c", "import ast, sys; ast.parse(sys.stdin.read())"], {
-          stdin: new TextEncoder().encode(block.code),
-        })
+        const result = astParsePython(block.code)
         // then
-        expect(proc.exitCode).toBe(0)
+        expect(result.exitCode).toBe(0)
       }
     })
   })
