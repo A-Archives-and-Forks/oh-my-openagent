@@ -1,3 +1,17 @@
+## 2026-08-16 — Track Senpi 2026.8.16 for the omo-ai beta line
+
+All active native Senpi pins now use `2026.8.16` across the root workspace,
+the `omo-ai` launcher package, the OMO Senpi adapter, and the Senpi task
+engine. The companion Pi compatibility line moves from `0.84.1` to `0.84.2`
+to match the upstream host contract incorporated by this Senpi release.
+
+The workspace lockfile, manifest-shape tests, and builtin-provider map move
+with the exact engine pin. Senpi 2026.8.16 adds Cursor as a builtin
+authentication provider, so the native provider map now includes `cursor`.
+Keep these surfaces aligned whenever Senpi changes; a manifest-only update is
+incomplete because the published native payload and generated adapter bundle
+consume the resolved dependency graph.
+
 ## 2026-08-13 — Track Senpi 2026.8.13 for the omo-ai beta line
 
 All native Senpi workspace pins now use `2026.8.13` across the root, native
