@@ -80,6 +80,47 @@ describe("facts failures file parsing", () => {
     expect(() => parseFailuresFile(raw)).toThrow(FactsFailuresCorruptError)
   })
 
+  test("#given a record with a non-ISO instant #when it is parsed #then a typed error is thrown", () => {
+    // given: a NaN instant would make every `now < nextEligibleAt` comparison false, turning a
+    // corrupt record into a permanently launchable one - fail-OPEN. Each field is probed alone.
+    const corrupt: readonly (readonly [string, unknown])[] = [
+      ["firstFailureAt", "yesterday"],
+      ["lastFailureAt", "2026-08-16"],
+      ["nextEligibleAt", "soon"],
+      ["parkedAt", "not-a-date"],
+    ]
+
+    // when / then
+    for (const [field, value] of corrupt) {
+      const base = field === "parkedAt" ? record({ state: "parked", nextEligibleAt: null }) : record()
+      const raw = JSON.stringify({
+        version: FACTS_FAILURES_VERSION,
+        updatedAt: T0,
+        entries: [{ ...base, [field]: value }],
+      })
+      expect(() => parseFailuresFile(raw)).toThrow(FactsFailuresCorruptError)
+    }
+  })
+
+  test("#given a non-ISO file updatedAt #when it is parsed #then a typed error is thrown", () => {
+    // given
+    const raw = JSON.stringify({ version: FACTS_FAILURES_VERSION, updatedAt: "not-a-date", entries: [] })
+
+    // when / then
+    expect(() => parseFailuresFile(raw)).toThrow(FactsFailuresCorruptError)
+  })
+
+  test("#given a parked record with a null nextEligibleAt #when it is parsed #then null stays valid", () => {
+    // given: nullable is not the same as unvalidated - null must survive the instant check.
+    const parked = record({ state: "parked", streak: 5, nextEligibleAt: null, parkedAt: T0 })
+
+    // when
+    const parsed = parseFailuresFile(renderFailuresFile([parked], T0))
+
+    // then
+    expect(parsed.entries).toEqual([parked])
+  })
+
   test("#given unsorted records #when the file is rendered #then output is sorted and newline-terminated", () => {
     // given
     const entries = [

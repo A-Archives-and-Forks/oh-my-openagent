@@ -78,7 +78,11 @@ function nextRecord(
   // The streak counts CONSECUTIVE terminal failures for this endpoint regardless of reason:
   // a batch that fails four different ways is no healthier than one failing the same way.
   const streak = (previous?.streak ?? 0) + 1
-  const parks = input.reason === "payload_entry_oversize" || streak >= PARK_AT_STREAK
+  // Parking is ABSORBING: nothing here can unpark a record (only manual `/facts retry` clears
+  // it), because a later failure with a different reason is not evidence the cause was fixed.
+  // The streak still grows while parked, so `/facts` can show how long an endpoint has been dead.
+  const parks =
+    previous?.state === "parked" || input.reason === "payload_entry_oversize" || streak >= PARK_AT_STREAK
   const base: FactsFailureRecord = {
     conversationId: target.conversationId,
     end_message_id: target.endMessageId,

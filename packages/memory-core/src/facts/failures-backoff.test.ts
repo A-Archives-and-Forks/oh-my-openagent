@@ -97,6 +97,28 @@ describe("facts failure backoff curve", () => {
     expect(entries[0]?.parkedAt).toBe(new Date(T0.getTime() + 4 * 60_000).toISOString())
   })
 
+  test("#given a record already parked #when a later different-reason failure lands #then it stays parked with its original parkedAt", () => {
+    // given: parked at streak 1 by an oversized entry, far BELOW the streak-5 park threshold,
+    // so only `previous.state` can keep it parked.
+    const parked = streak(1, "payload_entry_oversize")
+
+    // when
+    const entries = applyFailure({
+      entries: parked,
+      targets: [target()],
+      failureId: "run-later",
+      reason: "child_exit",
+      now: new Date(T0.getTime() + 60 * 60_000),
+    })
+
+    // then: parking is absorbing - no reason and no clock can unpark it, only /facts retry.
+    expect(entries[0]?.state).toBe("parked")
+    expect(entries[0]?.nextEligibleAt).toBeNull()
+    expect(entries[0]?.parkedAt).toBe(T0.toISOString())
+    expect(entries[0]?.streak).toBe(2)
+    expect(entries[0]?.lastReason).toBe("child_exit")
+  })
+
   test("#given a changed failure reason #when the next failure lands #then the streak does not reset", () => {
     // given
     const first = applyFailure({

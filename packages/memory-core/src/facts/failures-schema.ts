@@ -67,6 +67,20 @@ function requireNonEmptyString(value: unknown, field: string): string {
   return value
 }
 
+/**
+ * Strict ISO round-trip. `Date.parse` accepts junk that collapses to NaN, and every
+ * `now < nextEligibleAt` comparison against NaN is false - a corrupt instant would make the
+ * record permanently launchable, i.e. fail-OPEN.
+ */
+function requireInstant(value: unknown, field: string): string {
+  const text = requireNonEmptyString(value, field)
+  const parsed = new Date(text)
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString() !== text) {
+    throw new FactsFailuresCorruptError(`${field} must be an ISO-8601 instant`)
+  }
+  return text
+}
+
 function requireNonNegativeInteger(value: unknown, field: string): number {
   if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
     throw new FactsFailuresCorruptError(`${field} must be a non-negative integer`)
@@ -97,11 +111,9 @@ function requireState(value: unknown): FactsFailureState {
 function parseRecord(value: unknown): FactsFailureRecord {
   if (!isRecord(value)) throw new FactsFailuresCorruptError("entries must contain objects")
   const state = requireState(value.state)
-  const nextEligibleAt = value.nextEligibleAt
-  if (nextEligibleAt !== null && (typeof nextEligibleAt !== "string" || nextEligibleAt.length === 0)) {
-    throw new FactsFailuresCorruptError("nextEligibleAt must be an instant or null")
-  }
-  const parkedAt = requireOptionalString(value.parkedAt, "parkedAt")
+  const nextEligibleAt =
+    value.nextEligibleAt === null ? null : requireInstant(value.nextEligibleAt, "nextEligibleAt")
+  const parkedAt = value.parkedAt === undefined ? undefined : requireInstant(value.parkedAt, "parkedAt")
   // The two states are structurally distinct; accepting a half-parked record would let a
   // parked entry silently become eligible again.
   if (state === "parked" && (nextEligibleAt !== null || parkedAt === undefined)) {
@@ -118,8 +130,8 @@ function parseRecord(value: unknown): FactsFailureRecord {
     end_snapshot_line: requireNonNegativeInteger(value.end_snapshot_line, "end_snapshot_line"),
     state,
     streak,
-    firstFailureAt: requireNonEmptyString(value.firstFailureAt, "firstFailureAt"),
-    lastFailureAt: requireNonEmptyString(value.lastFailureAt, "lastFailureAt"),
+    firstFailureAt: requireInstant(value.firstFailureAt, "firstFailureAt"),
+    lastFailureAt: requireInstant(value.lastFailureAt, "lastFailureAt"),
     lastReason: requireReason(value.lastReason),
     lastFailureId: requireNonEmptyString(value.lastFailureId, "lastFailureId"),
     nextEligibleAt,
@@ -148,7 +160,7 @@ export function parseFailuresFile(raw: string): FactsFailuresFile {
   const entries = parsed.entries.map((row) => parseRecord(row))
   return {
     version: FACTS_FAILURES_VERSION,
-    updatedAt: requireNonEmptyString(parsed.updatedAt, "updatedAt"),
+    updatedAt: requireInstant(parsed.updatedAt, "updatedAt"),
     entries: sortFailureRecords(entries),
   }
 }
