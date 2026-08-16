@@ -82,6 +82,7 @@ describe("RpcProcessRunner", () => {
       stdio: ["pipe", "pipe", "pipe"],
       shell: false,
       windowsHide: true,
+      detached: process.platform !== "win32",
     })
   })
 

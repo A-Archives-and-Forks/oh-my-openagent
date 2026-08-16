@@ -1,10 +1,13 @@
-import type { ChildProcess } from "node:child_process"
+import { type ChildProcess, spawn } from "node:child_process"
+import { once } from "node:events"
+import { fileURLToPath } from "node:url"
 import { describe, expect, test } from "bun:test"
 
 import { spawnFakeChild } from "./__fixtures__/spawn-fake"
 import { terminateRpcChild } from "./terminate"
 
 const isWin32 = process.platform === "win32"
+const PROCESS_TREE_PATH = fileURLToPath(new URL("./__fixtures__/process-tree.mjs", import.meta.url))
 
 function onExit(child: ChildProcess): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
   return new Promise((resolve) => {
@@ -51,4 +54,36 @@ describe("terminateRpcChild", () => {
     // when / then
     await terminateRpcChild(child, { sigkillDelayMs: 200 })
   })
+
+  test("#given a child with a TERM-ignoring descendant #when terminating #then the whole process tree exits", async () => {
+    // given
+    const child = spawn(process.execPath, [PROCESS_TREE_PATH], {
+      detached: !isWin32,
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+    const [chunk] = await once(child.stdout!, "data")
+    const descendantPid = Number.parseInt(String(chunk).trim(), 10)
+    expect(Number.isSafeInteger(descendantPid)).toBe(true)
+
+    try {
+      // when
+      await terminateRpcChild(child, { sigkillDelayMs: 150 })
+
+      // then
+      expect(isAlive(descendantPid)).toBe(false)
+    } finally {
+      if (isAlive(descendantPid)) {
+        process.kill(descendantPid, "SIGKILL")
+      }
+    }
+  })
 })
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch {
+    return false
+  }
+}
