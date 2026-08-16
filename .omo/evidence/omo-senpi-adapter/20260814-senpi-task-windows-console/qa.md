@@ -1,73 +1,121 @@
 # Windows RPC child console QA
 
-## Automated checks
+## Scope
+
+This evidence covers:
+
+- the production Senpi `execution_mode: "process"` route;
+- the default RPC child spawn options;
+- Windows console allocation with `windowsHide: false`;
+- Windows console suppression with production `windowsHide: true`;
+- RPC stdio round-trip;
+- real credential isolation;
+- child/process-tree teardown;
+- generated `omo-task.js` delivery.
+
+## Reproducible surfaces
+
+Package-owned console probe:
+
+`packages/senpi-task/src/runners/rpc/__fixtures__/windows-console-probe.ts`
+
+Package-owned console host:
+
+`packages/senpi-task/src/runners/rpc/__fixtures__/windows-console-host.ps1`
+
+Production routing driver:
+
+`packages/omo-senpi/scripts/qa/task-rpc-e2e.mjs`
+
+Exact commands are recorded in:
+
+- `probe-command.txt`
+- `routing-command.txt`
+
+## RED progression
+
+| Workflow/job | Observed failure | Root fix |
+|---|---|---|
+| `31925417976` / `95112165297` | prose-only evidence and no current-head Windows test | checked-in probe and Windows test |
+| `31927904705` / `95118244973` | both controls reported `MainWindowHandle: 0`; GUI handle is not a hosted-runner console oracle | use Win32 console attachment |
+| `31930067950` / `95118244973` | direct detached topology had no console to attach | add an explicit console host |
+| `31931659970` / `95123440107` | redirected PowerShell host deadlocked after allocating a console | event-driven ready/stop files with no redirected host stdio |
+| `31932110216` / `95128456220` | `AllocConsole` returned Win32 error 5 because the host already owned a console | accept error 5 as the satisfied precondition |
+| `31932110216` / `95128456257` | production route was GREEN, but the child crashed because the QA sandbox mixed `RUNNER~1` with a canonical path | canonicalize the sandbox root using `realpathSync.native` |
+
+Raw failure payloads:
+
+- `windows-console-probe-red.json`
+- `windows-routing-red.json`
+
+## Local GREEN
 
 - `bun test packages/senpi-task/src/runners`
-  - Result: 115 passed, 3 skipped, 0 failed.
+  - 118 pass, 1 Windows-only skip, 0 fail.
 - `bun run --cwd packages/senpi-task typecheck`
-  - Result: exit 0.
+  - exit 0.
 - `bun run --cwd packages/omo-senpi typecheck`
-  - Result: exit 0.
+  - exit 0.
+- `bun test`
+  - 15,125 pass, 7 intentional platform/TUI skips, 0 fail.
+- `bun run typecheck`
+  - exit 0 across root, scripts, and packages.
 - `bun run test:senpi`
-  - Result: GitHub Actions `senpi-compatibility` passed on Windows, Ubuntu, and macOS.
-  - Windows: https://github.com/code-yeongyu/oh-my-openagent/actions/runs/31767086674/job/94665147703
-  - Ubuntu: https://github.com/code-yeongyu/oh-my-openagent/actions/runs/31767086674/job/94665147696
-  - macOS: https://github.com/code-yeongyu/oh-my-openagent/actions/runs/31767086674/job/94665147645
-  - This gate rebuilt and staged the plugin artifacts before running the Senpi adapter tests.
-- Loaded `packages/omo-senpi/plugin/extensions/omo-task.js` with Node ESM.
-  - Result: `omo-task-bundle-load-ok`.
+  - 1,568 pass, 1 Windows-only skip, 0 fail.
+- `bun run test:codex`
+  - 519 pass, 0 fail.
+- Bun 1.3.12 `build-extension.mjs --check`
+  - all runtimes and extension bundles current.
+- Isolated Codex installer QA
+  - plugin, config, bins, and agent TOMLs landed in a throwaway `CODEX_HOME`;
+  - real `~/.codex/config.toml` unchanged.
 
-## Windows process probe
+The local production driver reached the RPC runner with:
 
-The probe launched the real `RpcProcessRunner` default child path from a detached,
-console-less parent and compared otherwise identical child processes.
+- `wiringFixed: true`
+- real process-mode PID and child session JSONL
+- steer acknowledgement
+- completion delivery
+- killed-child classification
+- real credentials and full real agent-directory digest unchanged
+- `leakedPids: 0`
 
-- Probe root and child working directory:
-  `C:\Users\USER\AppData\Local\Temp\rpc-spawn-qa`.
-- Real RPC child session directory:
-  `C:\Users\USER\AppData\Local\Temp\rpc-spawn-qa\state\sessions\qa-rpc-window\`.
-- The probe isolated `SENPI_CODING_AGENT_SESSION_DIR`; it did not set
-  `SENPI_CODING_AGENT_DIR`. The real Senpi agent directory was therefore not
-  sandboxed or checked for this window-only probe.
-- No prompt or model turn was sent to the real Senpi child. The child was stopped
-  after its first RPC status event, so the probe did not intentionally create a
-  model transcript.
-- `windowsHide: false`: a visible top-level console window was detected.
-- Current default spawn path (`windowsHide: true`): no visible top-level window;
-  `MainWindowHandle` was `0`.
-- The real Senpi RPC child also had no visible top-level window.
-- stdin, stdout, and stderr pipes remained functional.
-- `shell: false` preserved argv metacharacters without an intermediate `cmd.exe`.
-- Termination completed without orphaned child processes.
+Its separate reconcile scenario still records an unrelated breadcrumb mismatch while confirming the orphan is dead; the routing-specific checks remain truthful and GREEN.
 
-Temporary probe files and processes were removed after verification.
+## Required Windows GREEN payloads
 
-## Follow-up isolation check
+The final Windows workflow must emit:
 
-The repository's live `task-rpc-e2e.mjs` driver was run with an explicit local
-Senpi executable. Its isolation check passed:
+`WINDOWS_CONSOLE_PROBE`
 
-- Sandbox `SENPI_CODING_AGENT_DIR`:
-  `C:\Users\USER\AppData\Local\Temp\omo-senpi-qa-8SdeNf\agent`.
-- Sandbox project:
-  `C:\Users\USER\AppData\Local\Temp\omo-senpi-qa-8SdeNf\project`.
-- The caller-provided agent directory was ignored.
-- Credential digests for `auth.json`, `models.json`, `settings.json`, and
-  `trust.json` were unchanged.
-- The whole real Senpi agent-directory digest was unchanged.
-- No RPC child PID leaked.
+- visible control: `consoleAttached: true`
+- hidden production child: `consoleAttached: false`
+- hidden production child: `mainWindowHandle: 0`
+- both stdio round trips: `true`
+- both children exited: `true`
+- credentials untouched: `true`
+- temporary root removed: `true`
 
-The driver's unrelated process-routing checks reported that this configuration
-selected the in-process runner rather than the RPC runner. That pre-existing
-routing result was not counted as proof for this window fix.
+`WINDOWS_TASK_RPC_E2E`
 
-## Omitted and redacted material
+- `wiringFixed: true`
+- `process_mode_routes_to_rpc_runner: PASS`
+- real RPC child PID
+- child session JSONL: `true`
+- credentials and full agent directory unchanged
+- no leaked RPC PIDs
 
-- Child environment objects were excluded before capture because they can contain
-  provider credentials. No environment dump is stored in this evidence.
-- Process command lines were inspected and contained only executable paths,
-  script paths, fixed RPC flags, and the QA argv marker; no credentials appeared.
-- RPC stdout and stderr excerpts were length-limited and contained only status
-  events and QA markers.
-- Real auth, model, settings, trust, and session files were never copied into the
-  evidence.
+The final GREEN workflow/job URLs and captured payloads will be added to this directory after the current evidence commit triggers the authoritative head run.
+
+## Isolation and cleanup
+
+- The console probe uses a fresh `mkdtemp` root and redirects both parent and child Senpi agent/session directories into it.
+- The production driver ignores a caller-provided agent directory and creates its own canonical sandbox.
+- Credential files are compared by digest only; digest values and credential contents are never printed.
+- On timeout, the Windows tests use `taskkill /T /F` and await confirmed process close.
+- Probe/driver outputs assert zero live child PIDs before success.
+- Headless Parallels recovery never reached VM readiness; the Windows VM was not started and no guest checkout was created.
+
+## Omitted
+
+No provider tokens, auth headers, credential bodies, raw environment dumps, or private configuration contents are retained.

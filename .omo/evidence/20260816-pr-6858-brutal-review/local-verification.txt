@@ -76,3 +76,49 @@ ARCHITECTURE:
 - install-codex-git-bash-preflight.test.ts: 167 pure LOC
 - memory.test.ts: 81 pure LOC
 - All changed TypeScript files remain under the 250 pure-LOC ceiling.
+
+FINAL LOCAL ADDITIONS:
+
+COMMAND:
+bun test
+
+OBSERVED:
+15125 pass
+7 intentional platform/TUI skips
+0 fail
+1 snapshot
+48072 expect() calls
+Ran 15132 tests across 1974 files.
+
+COMMAND:
+bun run typecheck
+
+OBSERVED:
+Root, script, and every workspace package typecheck exited 0.
+
+COMMAND:
+bun packages/omo-senpi/scripts/qa/task-rpc-e2e.mjs
+
+OBSERVED:
+- production process route: PASS
+- wiringFixed: true
+- real RPC PID and child session JSONL present
+- steer/completion/kill checks passed
+- real credentials and whole real agent-directory digest unchanged
+- leakedPids: 0
+- separate reconcile breadcrumb check remained FAIL while orphanDead was true
+
+COMMAND:
+bun run test:senpi
+
+OBSERVED:
+1568 pass
+1 intentional Windows-only production-driver skip
+0 fail
+4352 expect() calls
+Ran 1569 tests across 239 files.
+
+PERFORMANCE ROOT FIXES:
+- 40-commit drift integration fixture: approximately 5 seconds before; approximately 316ms after one-process `git fast-import`.
+- terminal gate options unit test: approximately 5 seconds before; under 1ms after injecting the lock record fixture.
+- concurrent Git worktree registration: deterministic overlap RED `maxActive: 2`; GREEN `maxActive: 1`.

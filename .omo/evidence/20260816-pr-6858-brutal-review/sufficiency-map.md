@@ -13,7 +13,7 @@
 |---|---|---|
 | Generated bundle conflicted with current `dev` | `merge-red.txt` | `merge-green.txt`, `bundle-green.txt`, `local-verification.txt` |
 | Current PR head lacked CI | `ci-red.json` | Final repaired-head workflow link and check rollup will be added after the force-with-lease push |
-| Windows evidence was prose-only and did not isolate the agent directory | `evidence-red.txt` | Canonical `windows-console-probe.ts`, `windows-console-inspection.ts`, final Windows payload, and cleanup receipt |
+| Windows evidence was prose-only and did not isolate the agent directory | `evidence-red.txt` | Canonical adapter `qa.md`, command artifacts, package-owned probe, RED payloads, final Windows payload, and cleanup receipt |
 | Production `execution_mode: "process"` route was dismissed as in-process | `routing-red.txt` | `routing-green.json`, `routing-sufficiency.md` |
 | PR body used obsolete evidence paths | `evidence-red.txt` | Final PR body snapshot after canonical link replacement |
 
@@ -33,11 +33,11 @@
 
 - Codex installer: `codex-install-qa.txt`
 - Production Senpi RPC routing: `routing-green.json`, `routing-sufficiency.md`
-- Windows hosted process allocation: pending final repaired-head Windows payload.
+- Windows hosted process allocation: final repaired-head Windows payload will be added after this evidence commit triggers the authoritative workflow.
 - Interactive Windows `MainWindowHandle`: pending unlocked-desktop smoke.
 
 ## Cleanup and omissions
 
 - No environment dump is retained.
 - Real credential contents, auth headers, model tokens, and private config bodies are omitted.
-- Final worktree, LSP symlink, Windows guest copy, temporary probes, and process cleanup receipts will be added before merge.
+- Final worktree, LSP symlink, temporary probes, and process cleanup receipts will be added before merge.

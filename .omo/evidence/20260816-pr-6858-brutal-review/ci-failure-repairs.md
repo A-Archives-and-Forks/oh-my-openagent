@@ -25,3 +25,17 @@ The first repaired-head workflow was run `31925417976`.
 - RED: the probe exited 1, but the test asserted status before exposing captured stdout, so the deciding payload was hidden.
 - Root cause: `MainWindowHandle` was used as a hosted-CI contract and the positive control lacked a fail-sensitive separate-console topology.
 - Fix: expose status/signal/error/stdout/stderr on failure; use identical detached positive/negative topology; assert console allocation through Win32 `AttachConsole`; retain `MainWindowHandle` for interactive desktop proof; subscribe before shutdown and await process `close`.
+
+## Later current-head validation rounds
+
+- `31927904705`: Windows Codex full-checkout fixture timeout and Windows memory 5-second fixture timeout were root-fixed.
+- `31930067950`: macOS concurrent `git worktree add` registration race was fixed with a per-repository administration queue and deterministic overlap test.
+- `31931659970`: Windows production driver no longer skipped; `PATHEXT` and the repository-local `node_modules/.bin` directory are resolved explicitly.
+- `31932110216`:
+  - console host RED: `AllocConsole failed: 5`, meaning the host already had the required console;
+  - production route GREEN: `wiringFixed: true`, PID `1084`, and zero leaks;
+  - child RED: Bun fs-event assertion caused by an 8.3 sandbox root (`RUNNER~1`) mixed with canonical paths.
+- Current code fixes:
+  - Win32 error 5 is accepted as an already-attached console;
+  - the QA sandbox root is normalized once with `realpathSync.native`;
+  - every derived cwd/agent/XDG/home/trust path uses that canonical root.
