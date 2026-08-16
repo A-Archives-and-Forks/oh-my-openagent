@@ -83,12 +83,12 @@ COMMAND:
 bun test
 
 OBSERVED:
-15125 pass
+15485 pass
 7 intentional platform/TUI skips
 0 fail
 1 snapshot
-48072 expect() calls
-Ran 15132 tests across 1974 files.
+144137 expect() calls
+Ran 15492 tests across 2009 files in 434.37s.
 
 COMMAND:
 bun run typecheck
