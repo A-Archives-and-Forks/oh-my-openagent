@@ -29,6 +29,14 @@ const SKILL_COMMAND_PREFIX = "/skill:"
 // almost never survives to a handler. Match the NAME ATTRIBUTE: keying off the body would let any
 // other skill that merely mentions "ulw-plan" arm the gate by accident.
 const EXPANDED_SKILL_BLOCK_PATTERN = /<skill\s+name="([^"]+)"/gi
+// The expansion is `<skill name="X" ...>...body...</skill>` followed by the user's own typed text.
+// The body is skill documentation, not something the user said, so it is stripped before any
+// text matching - otherwise a skill whose docs mention ulw-plan would arm the gate. A truncated
+// block with no closing tag is stripped to the end of the input for the same reason.
+const EXPANDED_SKILL_BLOCK_BODY_PATTERNS: readonly RegExp[] = [
+  /<skill\s+name="[^"]*"[\s\S]*?<\/skill>/gi,
+  /<skill\s+name="[^"]*"[\s\S]*$/i,
+]
 // Input injected programmatically by an extension - never a human keystroke.
 const AGENT_MANUFACTURABLE_INPUT_SOURCE = "extension"
 const SKILL_MD_PATH_PATTERN = /[\\/]skills[\\/]([^\\/]+)[\\/]SKILL\.md$/i
@@ -129,13 +137,9 @@ export function createSkillInvocationTracker(pi: SenpiExtensionAPI): SkillInvoca
     }
     // The expanded form of that same command: the user picked the skill, so it counts as both an
     // invocation (forbids channel) and a request (requires channel), keyed on the name attribute.
-    const expanded = expandedSkillBlockNames(text)
-    if (expanded.length > 0) {
-      for (const skill of expanded) {
-        record(invokedBySession, sessionId, skill)
-        record(requestedBySession, sessionId, skill)
-      }
-      return
+    for (const skill of expandedSkillBlockNames(text)) {
+      record(invokedBySession, sessionId, skill)
+      record(requestedBySession, sessionId, skill)
     }
     const visible = stripInjectedBlocks(text)
     for (const [skill, pattern] of Object.entries(USER_REQUEST_PATTERNS)) {
@@ -235,6 +239,7 @@ function asInputEvent(payload: unknown): InputEvent | undefined {
 function stripInjectedBlocks(text: string): string {
   let visible = text
   for (const pattern of INJECTED_BLOCK_PATTERNS) visible = visible.replace(pattern, "")
+  for (const pattern of EXPANDED_SKILL_BLOCK_BODY_PATTERNS) visible = visible.replace(pattern, "")
   return visible
 }
 

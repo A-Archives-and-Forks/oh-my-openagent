@@ -427,6 +427,50 @@ describe("createSkillInvocationTracker - expanded skill block channel", () => {
     expect(tracker.stateFor("sess-a").hasInvoked("review-work")).toBe(true)
   })
 
+  // Real senpi expansion is `<skill name="X" ...>...body...</skill>` FOLLOWED BY the user's own
+  // typed text. Recording the block name must not swallow that trailing text, or invoking any other
+  // skill in the same message would hide a genuine plan request sitting right after it.
+  test("#given another skill block followed by an own-words plan request #when it arrives #then both are recorded", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const tracker = createSkillInvocationTracker(pi)
+
+    // when
+    await pi.dispatch(
+      "input",
+      {
+        type: "input",
+        text: '<skill name="review-work" location="/s/review-work/SKILL.md">\nreview the finished work.\n</skill>\n\nmake a plan first',
+        source: "interactive",
+      },
+      CTX_A,
+    )
+
+    // then
+    expect(tracker.stateFor("sess-a").hasInvoked("review-work")).toBe(true)
+    expect(tracker.stateFor("sess-a").hasUserRequested("ulw-plan")).toBe(true)
+  })
+
+  test("#given an unrelated skill block whose body mentions ulw-plan and no trailing request #when it arrives #then the gate stays closed", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const tracker = createSkillInvocationTracker(pi)
+
+    // when
+    await pi.dispatch(
+      "input",
+      {
+        type: "input",
+        text: '<skill name="review-work" location="/s/review-work/SKILL.md">\nPairs with ulw-plan. Run ulw plan first.\n</skill>\n\nreview the diff',
+        source: "interactive",
+      },
+      CTX_A,
+    )
+
+    // then
+    expect(tracker.stateFor("sess-a").hasUserRequested("ulw-plan")).toBe(false)
+  })
+
   test("#given an expanded start-work skill block #when it arrives #then start-work counts as invoked for the forbids check", async () => {
     // given
     const pi = new FakeExtensionAPI()
