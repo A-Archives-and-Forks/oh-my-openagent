@@ -112,11 +112,11 @@ COMMAND:
 bun run test:senpi
 
 OBSERVED:
-1582 pass
+1715 pass
 1 intentional Windows-only production-driver skip
 0 fail
-4359 expect() calls
-Ran 1583 tests across 239 files in 117.58s.
+4844 expect() calls
+Ran 1716 tests across 255 files in 148.41s.
 
 PERFORMANCE ROOT FIXES:
 - 40-commit drift integration fixture: approximately 5 seconds before; approximately 316ms after one-process `git fast-import`.

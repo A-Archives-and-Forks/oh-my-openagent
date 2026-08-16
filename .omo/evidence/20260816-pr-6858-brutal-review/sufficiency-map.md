@@ -17,14 +17,21 @@
 | Production `execution_mode: "process"` route was dismissed as in-process | `routing-red.txt` | `routing-green.json`, `routing-sufficiency.md` |
 | PR body used obsolete evidence paths | `evidence-red.txt` | Final PR body snapshot after canonical link replacement |
 
+## Final security review blockers
+
+| Blocker | RED | GREEN |
+|---|---|---|
+| RPC cancellation killed only the direct child | `security-blockers.md` descendant RED | Process-group/taskkill implementation, real descendant GREEN test |
+| Bundle freshness trusted a self-declared body hash | `security-blockers.md` forgery RED | Exact generated-body comparison, pinned deterministic Terser build, size gate |
+
 ## Required local gates
 
 `local-verification.txt` records:
 
-- 118/118 runnable Senpi runner tests green.
+- 125 runnable Senpi runner tests green, 1 Windows-only probe skip.
 - Senpi-task, omo-senpi, and omo-codex typechecks exit 0.
 - Exact Bun 1.3.12 generated bundle check exit 0.
-- Full Senpi gate: 1582 pass, 1 intentional Windows-only skip, 0 fail.
+- Full Senpi gate: 1715 pass, 1 intentional Windows-only skip, 0 fail.
 - Full Codex gate: 519 pass, 0 fail.
 - Changed-file LSP diagnostics clean.
 - Changed files below 250 pure LOC.
