@@ -120,12 +120,16 @@ test.skipIf(!isWin32)(
       readonly result: string
       readonly visible: {
         readonly consoleAttached: boolean
+        readonly consoleWindowHandle: number
+        readonly consoleWindowVisible: boolean
         readonly mainWindowHandle: number
         readonly stdioRoundTrip: boolean
         readonly childExited: boolean
       }
       readonly hidden: {
         readonly consoleAttached: boolean
+        readonly consoleWindowHandle: number
+        readonly consoleWindowVisible: boolean
         readonly mainWindowHandle: number
         readonly stdioRoundTrip: boolean
         readonly childExited: boolean
@@ -142,7 +146,11 @@ test.skipIf(!isWin32)(
     console.log(`WINDOWS_CONSOLE_PROBE ${JSON.stringify(payload)}`)
     expect(payload.result).toBe("PASS")
     expect(payload.visible.consoleAttached).toBe(true)
+    expect(payload.visible.consoleWindowHandle).not.toBe(0)
+    expect(payload.visible.consoleWindowVisible).toBe(true)
     expect(payload.hidden.consoleAttached).toBe(false)
+    expect(payload.hidden.consoleWindowHandle).toBe(0)
+    expect(payload.hidden.consoleWindowVisible).toBe(false)
     expect(payload.hidden.mainWindowHandle).toBe(0)
     expect(payload.visible.stdioRoundTrip).toBe(true)
     expect(payload.hidden.stdioRoundTrip).toBe(true)

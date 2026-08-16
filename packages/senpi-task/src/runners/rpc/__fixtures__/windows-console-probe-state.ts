@@ -14,6 +14,8 @@ export type ParentReady = {
 export type ProbeCase = ParentReady & {
   readonly consoleAttached: boolean
   readonly consoleAttachError: number
+  readonly consoleWindowHandle: number
+  readonly consoleWindowVisible: boolean
   readonly mainWindowHandle: number
   readonly expectedVisible: boolean
   readonly childExited: boolean

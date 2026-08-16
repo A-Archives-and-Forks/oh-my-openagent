@@ -1,6 +1,14 @@
 import { spawn } from "node:child_process"
 import { once } from "node:events"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -89,6 +97,8 @@ async function runCase(mode: ProbeMode, root: string): Promise<ProbeCase> {
     ...readyPayload,
     consoleAttached: attachment.attached,
     consoleAttachError: attachment.errorCode,
+    consoleWindowHandle: attachment.windowHandle,
+    consoleWindowVisible: attachment.windowVisible,
     mainWindowHandle: handle,
     expectedVisible: mode === "visible-control",
     childExited: !isAlive(readyPayload.pid),
@@ -147,7 +157,7 @@ async function runProbe(): Promise<void> {
     return
   }
 
-  const root = mkdtempSync(join(tmpdir(), "omo-rpc-window-probe-"))
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), "omo-rpc-window-probe-")))
   mkdirSync(join(root, "agent"), { recursive: true })
   const credentialsBefore = credentialDigests(CREDENTIAL_FILES)
   let probeResult: {
@@ -163,7 +173,11 @@ async function runProbe(): Promise<void> {
     const credentialsUntouched = JSON.stringify(credentialsBefore) === JSON.stringify(credentialsAfter)
     const pass =
       visible.consoleAttached &&
+      visible.consoleWindowHandle !== 0 &&
+      visible.consoleWindowVisible &&
       !hidden.consoleAttached &&
+      hidden.consoleWindowHandle === 0 &&
+      !hidden.consoleWindowVisible &&
       hidden.mainWindowHandle === 0 &&
       visible.stdioRoundTrip &&
       hidden.stdioRoundTrip &&

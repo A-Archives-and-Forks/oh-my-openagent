@@ -28,6 +28,7 @@ $startInfo = New-Object System.Diagnostics.ProcessStartInfo
 $startInfo.FileName = $bun
 $startInfo.Arguments = "`"$script`" --parent $mode `"$root`""
 $startInfo.UseShellExecute = $false
+$startInfo.CreateNoWindow = $true
 
 try {
   $parent = [System.Diagnostics.Process]::Start($startInfo)
