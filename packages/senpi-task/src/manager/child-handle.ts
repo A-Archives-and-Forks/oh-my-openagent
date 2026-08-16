@@ -111,5 +111,29 @@ async function rpcOutcome(handle: RpcChildHandle): Promise<RunnerOutcome> {
     // persist status=error with killed:true, per the todo-8 kill contract.
     return { status: "error", failure: { kind: "child-prompt-failed", message }, killed: facts?.killed === true }
   }
-  return { status: "completed", finalResponse: handle.lastAssistantText() ?? "" }
+  if (handle.wasAbortedByUser?.() === true) return { status: "cancelled" }
+
+  const hasTerminalReader = handle.terminalAssistantMessage !== undefined
+  const terminal = handle.terminalAssistantMessage?.()
+  if (terminal?.stopReason === "error" || terminal?.stopReason === "aborted") {
+    return {
+      status: "error",
+      failure: {
+        kind: "child-turn-failed",
+        message: terminal.errorMessage ?? `child turn ended with stopReason "${terminal.stopReason}"`,
+      },
+    }
+  }
+
+  // Legacy/custom handles without the observation seam retain their prior text behavior. Production
+  // RPC handles always expose it, so a revived turn cannot reuse the previous turn's final text.
+  const finalResponse = hasTerminalReader ? terminal?.text : handle.lastAssistantText()
+  if (finalResponse !== undefined && finalResponse.length > 0) return { status: "completed", finalResponse }
+  return {
+    status: "error",
+    failure: {
+      kind: "child-turn-failed",
+      message: terminal?.errorMessage ?? "child turn produced no assistant output",
+    },
+  }
 }
