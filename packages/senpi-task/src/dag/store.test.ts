@@ -493,6 +493,72 @@ describe("createDagFileStore locks and retention", () => {
     })
   })
 
+  test("#given a second reclaimer observes sentinel initialization #when the first is preempted after open #then no ownerless sentinel is visible", () => {
+    // given
+    const project = tempProject()
+    const isProcessAlive = (pid: number) => pid === process.pid
+    const first = createDagFileStore({ project_dir: project }, { isProcessAlive })
+    const second = createDagFileStore({ project_dir: project }, { isProcessAlive })
+    const canonical = first.paths.runLock(runId)
+    const reclaimSentinel = `${canonical}.reclaim`
+    fs.writeFileSync(canonical, JSON.stringify({ hostPid: 101, token: "stale-holder" }))
+    const realOpen = fs.openSync
+    const realLink = fs.linkSync
+    let preempted = false
+    let secondReclaimerEntered = false
+    let sentinelAbsentDuringInitialization = false
+    let ownerlessSentinelObserved = false
+    let publishedSentinelHadOwnerRecord = false
+    spyOn(fs, "linkSync").mockImplementation((existingPath, newPath) => {
+      realLink(existingPath, newPath)
+      if (newPath !== reclaimSentinel) return
+      const value = JSON.parse(fs.readFileSync(reclaimSentinel, "utf8")) as unknown
+      publishedSentinelHadOwnerRecord = typeof value === "object" && value !== null &&
+        "hostPid" in value && typeof value.hostPid === "number" &&
+        "token" in value && typeof value.token === "string"
+    })
+    spyOn(fs, "openSync").mockImplementation((path, flags, mode) => {
+      const fd = realOpen(path, flags, mode)
+      if (preempted || flags !== "wx" || typeof path !== "string" || !path.startsWith(reclaimSentinel)) return fd
+      preempted = true
+      sentinelAbsentDuringInitialization = !fs.existsSync(reclaimSentinel)
+      if (!sentinelAbsentDuringInitialization) {
+        const content = fs.readFileSync(reclaimSentinel, "utf8")
+        try {
+          const value = JSON.parse(content) as unknown
+          ownerlessSentinelObserved = typeof value !== "object" || value === null ||
+            !("hostPid" in value) || typeof value.hostPid !== "number" ||
+            !("token" in value) || typeof value.token !== "string"
+        } catch (error) {
+          if (!(error instanceof SyntaxError)) throw error
+          ownerlessSentinelObserved = true
+        }
+      }
+      second.withRunLock(runId, () => {
+        secondReclaimerEntered = true
+      })
+      return fd
+    })
+
+    // when
+    first.withRunLock(runId, () => {})
+
+    // then
+    expect({
+      preempted,
+      secondReclaimerEntered,
+      sentinelAbsentDuringInitialization,
+      ownerlessSentinelObserved,
+      publishedSentinelHadOwnerRecord,
+    }).toEqual({
+      preempted: true,
+      secondReclaimerEntered: true,
+      sentinelAbsentDuringInitialization: true,
+      ownerlessSentinelObserved: false,
+      publishedSentinelHadOwnerRecord: true,
+    })
+  })
+
   test("#given a crashed reclaimer left its sentinel #when another process reclaims the stale holder #then the sentinel cannot wedge acquisition", () => {
     // given
     const store = createDagFileStore(

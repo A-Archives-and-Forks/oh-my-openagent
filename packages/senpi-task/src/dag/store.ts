@@ -671,38 +671,17 @@ function tryAcquireReclaimMutex(
     token: randomUUID(),
     createdAt: new Date(now()).toISOString(),
   })
-  let fd: number | undefined
-  let created = false
-  try {
-    fd = fs.openSync(path, "wx")
-    created = true
-    fs.writeSync(fd, content)
-    if (fsyncWrites) fs.fsyncSync(fd)
-    fs.closeSync(fd)
-    fd = undefined
-    return { pid: process.pid, content }
-  } catch (error) {
-    if (!hasCode(error, "EEXIST")) {
-      if (fd !== undefined) {
-        fs.closeSync(fd)
-        fd = undefined
-      }
-      if (created) fs.rmSync(path, { force: true })
-      throw error
-    }
-    const observedHolder = readLockHolder(path)
-    if (observedHolder !== undefined &&
-      (observedHolder.pid === undefined || !isProcessAlive(observedHolder.pid))) {
-      removeObservedLock(
-        path,
-        observedHolder,
-        (movedHolder) => movedHolder === undefined || movedHolder.pid === undefined || !isProcessAlive(movedHolder.pid),
-      )
-    }
-    return undefined
-  } finally {
-    if (fd !== undefined) fs.closeSync(fd)
+  if (tryCreateLock(path, content, fsyncWrites)) return { pid: process.pid, content }
+  const observedHolder = readLockHolder(path)
+  if (observedHolder !== undefined &&
+    (observedHolder.pid === undefined || !isProcessAlive(observedHolder.pid))) {
+    removeObservedLock(
+      path,
+      observedHolder,
+      (movedHolder) => movedHolder === undefined || movedHolder.pid === undefined || !isProcessAlive(movedHolder.pid),
+    )
   }
+  return undefined
 }
 
 function removeObservedLock(
