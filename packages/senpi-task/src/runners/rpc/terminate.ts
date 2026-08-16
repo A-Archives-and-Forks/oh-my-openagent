@@ -23,10 +23,32 @@ export async function terminateRpcChild(child: ChildProcess, options?: Terminate
 
 async function terminatePosixProcessGroup(child: ChildProcess, pid: number, delay: number): Promise<void> {
   if (!processGroupExists(pid)) {
+    await terminateDirectChild(child, delay)
     return
   }
   const exited = childExit(child)
   signalProcessGroup(pid, "SIGTERM")
+  await waitForExitOrDelay(exited, delay)
+  if (processGroupExists(pid)) {
+    signalProcessGroup(pid, "SIGKILL")
+  }
+  await exited
+}
+
+async function terminateDirectChild(child: ChildProcess, delay: number): Promise<void> {
+  if (hasExited(child)) {
+    return
+  }
+  const exited = childExit(child)
+  child.kill("SIGTERM")
+  await waitForExitOrDelay(exited, delay)
+  if (!hasExited(child)) {
+    child.kill("SIGKILL")
+  }
+  await exited
+}
+
+async function waitForExitOrDelay(exited: Promise<void>, delay: number): Promise<void> {
   let escalation: ReturnType<typeof setTimeout> | undefined
   await Promise.race([
     exited,
@@ -38,10 +60,6 @@ async function terminatePosixProcessGroup(child: ChildProcess, pid: number, dela
   if (escalation) {
     clearTimeout(escalation)
   }
-  if (processGroupExists(pid)) {
-    signalProcessGroup(pid, "SIGKILL")
-  }
-  await exited
 }
 
 async function terminateWindowsProcessTree(child: ChildProcess, pid: number): Promise<void> {

@@ -5,6 +5,7 @@ const SELF_PATH = fileURLToPath(import.meta.url)
 
 if (process.argv[2] === "descendant") {
   process.on("SIGTERM", () => {})
+  process.stdout.write("ready\n")
   setInterval(() => {}, 60_000)
 } else {
   const descendant = spawn(process.execPath, [SELF_PATH, "descendant"], {
