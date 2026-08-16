@@ -66,7 +66,9 @@ const externalSpecifiers = [
 const BUILD_SETTINGS = JSON.stringify({
   target: "node",
   format: "esm",
-  minify: true,
+  minifySyntax: true,
+  minifyWhitespace: true,
+  minifyIdentifiers: false,
   loaderAliases: SENPI_LOADER_ALIASES,
 })
 
@@ -115,7 +117,7 @@ async function buildEntry(entry, output, buildDefines) {
   try {
     run("bun", [
       "build", entry, "--target", "node", "--format", "esm", "--outfile", output,
-      "--minify", `--metafile=${metafile}`,
+      "--minify-syntax", "--minify-whitespace", `--metafile=${metafile}`,
       ...Object.entries(buildDefines).flatMap(([name, value]) => ["--define", `${name}=${JSON.stringify(value)}`]),
       ...externalSpecifiers.flatMap((specifier) => ["--external", specifier]),
     ])
