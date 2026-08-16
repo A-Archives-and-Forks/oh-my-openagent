@@ -169,6 +169,28 @@ function toolNames(pi: FakeExtensionAPI): string[] {
 }
 
 describe("omo-senpi task component wiring", () => {
+  it("#given an explicit team member process #when the task component registers #then no lead task surface is wired", () => {
+    // given
+    const previousMember = process.env.SENPI_TASK_MEMBER
+    process.env.SENPI_TASK_MEMBER = "11111111-1111-4111-8111-111111111111::alice"
+    const pi = new FakeExtensionAPI()
+    const logger = createLogger()
+
+    try {
+      // when
+      createTaskComponent({ resolveCwd: () => tempProject() }).register(pi, ctxFor(pi, logger))
+    } finally {
+      if (previousMember === undefined) delete process.env.SENPI_TASK_MEMBER
+      else process.env.SENPI_TASK_MEMBER = previousMember
+    }
+
+    // then
+    expect(toolNames(pi)).toEqual([])
+    expect(pi.commands).toEqual([])
+    expect(pi.messageRenderers).toEqual([])
+    expect(pi.handlers).toEqual([])
+  })
+
   it("#given a fake ExtensionAPI boot #when the task component registers #then tools, commands, the completion renderer, and event handlers are wired", () => {
     // given
     const pi = new FakeExtensionAPI()
@@ -366,7 +388,11 @@ describe("omo-senpi task component wiring", () => {
     const base = composeTaskEngine({ pi, omoConfig: loadOmoConfig({ cwd }).config, cwd, sharedParentTools: () => [] })
     const engine: TaskEngine = {
       ...base,
-      manager: { ...base.manager, get: () => terminal },
+      manager: {
+        ...base.manager,
+        get: () => terminal,
+        list: (scope) => base.manager.list(scope),
+      },
       lifecycle: {
         ...base.lifecycle,
         reconcileOnSessionStart: async () => ({ outcomes: [{ task_id: terminal.task_id, kind: "resumed" }] }),
@@ -421,7 +447,11 @@ describe("omo-senpi task component wiring", () => {
     })
     const engine: TaskEngine = {
       ...base,
-      manager: { ...base.manager, get: () => store.load(terminal.task_id) ?? undefined },
+      manager: {
+        ...base.manager,
+        get: () => store.load(terminal.task_id) ?? undefined,
+        list: (scope) => base.manager.list(scope),
+      },
       lifecycle: {
         ...base.lifecycle,
         reconcileOnSessionStart: async () => ({ outcomes: [{ task_id: terminal.task_id, kind: "resumed" }] }),

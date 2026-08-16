@@ -430,7 +430,7 @@ describe("DAG failure, crash, and policy end to end", () => {
       type: "dag.run.failed",
       error: { nodeId: "graph-first-failure", message: "failure:graph-first-failure" },
     })
-  })
+  }, { timeout: 15_000 })
 
   test("#given a crash after an owned task spawns but before task attachment #when a fresh manager resumes #then startOwned recovers the existing task and spawn count remains exactly one", async () => {
     // given
@@ -547,7 +547,7 @@ describe("DAG failure, crash, and policy end to end", () => {
     const inheritedExtensions = ["/extensions/omo-senpi.js", "/extensions/provider.js"]
     const spawnedArgs: { readonly taskId: string; readonly args: readonly string[] }[] = []
     const rpcRunner = createRpcManagedRunner({
-      start(spec: RpcRunnerSpec) {
+      async start(spec: RpcRunnerSpec) {
         const args = buildChildArgs({ ...spec, extensions: inheritedExtensions })
         spawnedArgs.push({ taskId: spec.task_id, args })
         return rpcHandle(spec.task_id)

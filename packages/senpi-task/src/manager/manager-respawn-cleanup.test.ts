@@ -73,7 +73,7 @@ describe.each(cleanupStages)("TaskManager respawn %s cleanup", (cleanupStage) =>
       planner: categoryPlanner(),
       config: settings(),
       cwd: project,
-      rpcRespawnRunner: { start: () => handle },
+      rpcRespawnRunner: { start: async () => handle },
     })
 
     // when
@@ -134,7 +134,7 @@ describe("TaskManager respawn launch trust boundary", () => {
       config: settings(),
       cwd: project,
       rpcRespawnRunner: {
-        start: (spec) => {
+        start: async (spec) => {
           extensions = spec.extensions
           memberEnv = spec.memberEnv
           return handle
@@ -203,7 +203,7 @@ describe("TaskManager team-member respawn", () => {
       config: settings(),
       cwd: project,
       rpcRespawnRunner: {
-        start: (spec: RpcRunnerSpec) => {
+        start: async (spec: RpcRunnerSpec) => {
           startedSpec = spec
           return handle
         },
@@ -266,7 +266,7 @@ describe("TaskManager respawn variant", () => {
       config: settings(),
       cwd: project,
       rpcRespawnRunner: {
-        start: (spec: RpcRunnerSpec) => {
+        start: async (spec: RpcRunnerSpec) => {
           startedSpec = spec
           return handle
         },
@@ -561,7 +561,7 @@ describe("TaskManager respawn continuation", () => {
       planner: categoryPlanner(),
       config: settings(),
       cwd: project,
-      rpcRespawnRunner: { start: () => handle },
+      rpcRespawnRunner: { start: async () => handle },
     })
     return { manager, followUpCalls }
   }

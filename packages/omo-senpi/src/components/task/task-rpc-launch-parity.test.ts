@@ -1,0 +1,74 @@
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { fileURLToPath } from "node:url"
+import { afterEach, describe, expect, test } from "bun:test"
+
+import type { RpcRunnerSpec } from "@oh-my-opencode/senpi-task"
+import { createRpcModelAdmission } from "@oh-my-opencode/senpi-task/rpc-model-admission"
+import { buildRpcModelCatalogSpawn } from "@oh-my-opencode/senpi-task/rpc-spawn"
+
+const agentDirs: string[] = []
+const mockProviderExtension = fileURLToPath(
+  new URL("../../../scripts/qa/mock-provider/index.ts", import.meta.url),
+)
+
+function createAdmission() {
+  const agentDir = mkdtempSync(join(tmpdir(), "omo-task-rpc-model-profile-"))
+  agentDirs.push(agentDir)
+  const parentEnv = {
+    ...process.env,
+    OMO_CODING_AGENT_DIR: agentDir,
+    SENPI_CODING_AGENT_DIR: agentDir,
+    PI_CODING_AGENT_DIR: agentDir,
+  }
+  return createRpcModelAdmission({
+    buildSpawn: (spec) => buildRpcModelCatalogSpawn(spec, { parentEnv }),
+  })
+}
+
+function makeSpec(extensions: readonly string[]): RpcRunnerSpec {
+  return {
+    task_id: "st_model_profile",
+    cwd: process.cwd(),
+    state_dir: agentDirs.at(-1) ?? process.cwd(),
+    prompt: "credential-free model admission",
+    model: "omo-mock/mock-1",
+    extensions,
+  }
+}
+
+afterEach(() => {
+  for (const agentDir of agentDirs.splice(0)) {
+    rmSync(agentDir, { recursive: true, force: true })
+  }
+})
+
+describe("task RPC launch profile parity", () => {
+  test("#given an explicit provider extension #when process model admission runs #then its model is visible without credentials", async () => {
+    // given
+    const admit = createAdmission()
+
+    // when
+    const admission = admit(makeSpec([mockProviderExtension]))
+
+    // then
+    await expect(admission).resolves.toBeUndefined()
+  }, 30_000)
+
+  test("#given a model known only through parent resources #when its provider extension is not forwarded #then admission rejects before launch", async () => {
+    // given
+    const admit = createAdmission()
+
+    // when
+    const admission = admit(makeSpec([]))
+
+    // then
+    await expect(admission).rejects.toMatchObject({
+      failure: {
+        kind: "model_unavailable",
+        message: expect.stringContaining("omo-mock/mock-1"),
+      },
+    })
+  }, 30_000)
+})

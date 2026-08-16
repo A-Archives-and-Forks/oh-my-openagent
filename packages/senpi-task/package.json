@@ -33,6 +33,10 @@
       "types": "./src/runners/rpc/spawn.ts",
       "import": "./src/runners/rpc/spawn.ts"
     },
+    "./rpc-model-admission": {
+      "types": "./src/runners/rpc/model-admission.ts",
+      "import": "./src/runners/rpc/model-admission.ts"
+    },
     "./task-renderers": {
       "types": "./src/tools/task/renderers.ts",
       "import": "./src/tools/task/renderers.ts"

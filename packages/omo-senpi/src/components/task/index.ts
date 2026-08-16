@@ -8,6 +8,7 @@ import {
   createTaskSendTool,
   createTaskTool,
   defaultResolveCallerSessionId,
+  isTeamMemberProcess,
   resolveTeamRuntimeDirs,
   teamStorageBaseDir,
   toTeamCoreConfig,
@@ -52,6 +53,8 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
   return {
     name: "task",
     register(pi: SenpiExtensionAPI, ctx: ComponentContext): void {
+      if (isTeamMemberProcess()) return
+
       // Unconditional omo process hygiene (T16): fires on session_start before any
       // flag/capability gate can skip the rest of the component.
       wireSessionStartProcessSweep(pi, ctx)

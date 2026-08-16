@@ -72,7 +72,7 @@ type TaskWaiter = {
 }
 
 type RpcRespawnRunner = {
-  start(spec: RpcRunnerSpec): RpcChildHandle
+  start(spec: RpcRunnerSpec): Promise<RpcChildHandle>
 }
 
 type TaskManagerImplOptions = TaskManagerOptions & {
@@ -106,7 +106,7 @@ function publicStartFailureMessage(error: unknown): string {
       case "session-create-failed":
         return "In-process child session creation failed."
       case "child-prompt-failed":
-        return "In-process child prompt failed to start."
+        return "Child prompt failed to start."
       default:
         return GENERIC_START_FAILURE_MESSAGE
     }
