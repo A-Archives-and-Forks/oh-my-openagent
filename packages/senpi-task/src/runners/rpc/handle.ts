@@ -2,7 +2,13 @@ import type { ChildProcess } from "node:child_process"
 import type { RpcResponse, RpcSessionState } from "@code-yeongyu/senpi"
 import { log } from "@oh-my-opencode/utils"
 
-import type { ChildEventListener, ChildExitOutcome, RpcChildHandle, TerminateOptions } from "../types"
+import type {
+  ChildEventListener,
+  ChildExitOutcome,
+  RpcChildHandle,
+  RpcTerminalAssistantMessage,
+  TerminateOptions,
+} from "../types"
 import { RpcCommandError } from "./errors"
 import { classifyChildExit } from "./exit-mapping"
 import type { RpcProtocolClient } from "./protocol-client"
@@ -29,12 +35,18 @@ export function createRpcChildHandle(options: CreateRpcChildHandleOptions): RpcC
   let reachedIdle = false
   let sessionId: string | undefined
   let finalText: string | undefined
+  let terminalAssistantMessage: RpcTerminalAssistantMessage | undefined
+  let abortedByUser = false
   let lastSeenAt: number | undefined
   let outcome: ChildExitOutcome | undefined
 
   client.onEvent((event) => {
     if (event.type === "message_end") {
-      finalText = extractAssistantText(event.message) ?? finalText
+      const terminal = extractTerminalAssistantMessage(event.message)
+      if (terminal !== undefined) {
+        terminalAssistantMessage = terminal
+        finalText = terminal.text ?? finalText
+      }
     }
     if (event.type === "agent_end" && event.willRetry === false) {
       reachedIdle = true
@@ -73,11 +85,20 @@ export function createRpcChildHandle(options: CreateRpcChildHandleOptions): RpcC
     assertOk(response, label)
   }
 
-  // Reviving an idle resident child starts a fresh turn: clear the consumed idle flag so waitForIdle
-  // re-arms for the next agent_end instead of resolving immediately from the prior turn.
-  const rearmIdleAfterRevive = (): void => {
-    if (reachedIdle && outcome === undefined) {
-      reachedIdle = false
+  // Reviving an idle resident child starts a fresh turn. Clear per-turn facts BEFORE sending the
+  // prompt so an immediately emitted event cannot race with a post-command reset. Keep finalText as
+  // the cross-turn partial-output surface; the classifier reads only terminalAssistantMessage.
+  const prepareIdleRevive = (): (() => void) | undefined => {
+    if (!reachedIdle || outcome !== undefined) return undefined
+    const previousTerminal = terminalAssistantMessage
+    const previousAbortedByUser = abortedByUser
+    reachedIdle = false
+    terminalAssistantMessage = undefined
+    abortedByUser = false
+    return () => {
+      reachedIdle = true
+      terminalAssistantMessage = previousTerminal
+      abortedByUser = previousAbortedByUser
     }
   }
 
@@ -91,14 +112,24 @@ export function createRpcChildHandle(options: CreateRpcChildHandleOptions): RpcC
     },
     steer: (text) => runCommand({ type: "steer", message: text }, "steer"),
     followUp: async (text) => {
-      await runCommand({ type: "prompt", message: text, streamingBehavior: "followUp" }, "prompt")
-      rearmIdleAfterRevive()
+      const restore = prepareIdleRevive()
+      try {
+        await runCommand({ type: "prompt", message: text, streamingBehavior: "followUp" }, "prompt")
+      } catch (error) {
+        restore?.()
+        throw error
+      }
     },
-    abort: () => runCommand({ type: "abort" }, "abort"),
+    abort: () => {
+      abortedByUser = true
+      return runCommand({ type: "abort" }, "abort")
+    },
     subscribe: (listener: ChildEventListener) => client.onEvent(listener),
     waitForIdle: () =>
       reachedIdle || outcome ? Promise.resolve() : new Promise<void>((resolve) => idleWaiters.push(resolve)),
     lastAssistantText: () => finalText,
+    terminalAssistantMessage: () => terminalAssistantMessage,
+    wasAbortedByUser: () => abortedByUser,
     lastSeen: () => lastSeenAt,
     exitOutcome: () => outcome,
     waitForExit: () => (outcome ? Promise.resolve(outcome) : new Promise<ChildExitOutcome>((resolve) => exitWaiters.push(resolve))),
@@ -131,10 +162,20 @@ function readSessionId(response: RpcResponse): string | undefined {
   return state.sessionId
 }
 
-function extractAssistantText(message: unknown): string | undefined {
-  if (!isRecord(message) || message.role !== "assistant" || !Array.isArray(message.content)) {
-    return undefined
+function extractTerminalAssistantMessage(message: unknown): RpcTerminalAssistantMessage | undefined {
+  if (!isRecord(message) || message.role !== "assistant") return undefined
+  const text = extractAssistantText(message)
+  const stopReason = typeof message.stopReason === "string" ? message.stopReason : undefined
+  const errorMessage = typeof message.errorMessage === "string" ? message.errorMessage : undefined
+  return {
+    ...(text === undefined ? {} : { text }),
+    ...(stopReason === undefined ? {} : { stopReason }),
+    ...(errorMessage === undefined ? {} : { errorMessage }),
   }
+}
+
+function extractAssistantText(message: Record<string, unknown>): string | undefined {
+  if (!Array.isArray(message.content)) return undefined
   const text = message.content
     .filter((part: unknown): part is { type: "text"; text: string } => isTextPart(part))
     .map((part) => part.text)
