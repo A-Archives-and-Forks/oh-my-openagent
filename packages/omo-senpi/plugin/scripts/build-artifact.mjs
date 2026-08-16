@@ -2,6 +2,7 @@ import { createHash } from "node:crypto"
 import { readFile, writeFile } from "node:fs/promises"
 import { relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { minify } from "terser"
 
 const BUILD_MARKER_PREFIX = "// omo:"
 
@@ -16,6 +17,18 @@ export async function normalizeBuiltinImports(output, builtinModuleNames) {
     },
   ).replace(/^[\t ]+$/gm, "")
   if (normalized !== bundled) await writeFile(output, normalized)
+}
+
+export async function minifyBundle(output) {
+  const result = await minify(await readFile(output, "utf8"), {
+    compress: true,
+    mangle: true,
+    module: true,
+  })
+  if (typeof result.code !== "string") {
+    throw new Error(`Terser did not produce code for ${output}`)
+  }
+  await writeFile(output, result.code)
 }
 
 export async function attachBuildMarker(options) {

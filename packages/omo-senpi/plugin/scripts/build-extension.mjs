@@ -9,6 +9,7 @@ import { findStaleRuntimePersona, stageRuntimePersonas } from "./persona-artifac
 import {
   artifactsMatch,
   attachBuildMarker,
+  minifyBundle,
   normalizeBuiltinImports,
   toPortableBuildPath,
 } from "./build-artifact.mjs"
@@ -69,6 +70,7 @@ const BUILD_SETTINGS = JSON.stringify({
   minifySyntax: true,
   minifyWhitespace: true,
   minifyIdentifiers: false,
+  secondaryMinifier: "terser@5.44.0",
   loaderAliases: SENPI_LOADER_ALIASES,
 })
 
@@ -122,6 +124,7 @@ async function buildEntry(entry, output, buildDefines) {
       ...externalSpecifiers.flatMap((specifier) => ["--external", specifier]),
     ])
     await normalizeBuiltinImports(output, builtinModuleNames)
+    await minifyBundle(output)
     return await attachBuildMarker({
       output,
       entry,
