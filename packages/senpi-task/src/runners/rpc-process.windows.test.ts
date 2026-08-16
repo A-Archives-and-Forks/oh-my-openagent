@@ -24,14 +24,26 @@ test.skipIf(!isWin32)(
     })
 
     // when
+    const diagnostic = {
+      status: result.status,
+      signal: result.signal,
+      error: result.error === undefined ? undefined : String(result.error),
+      stdout: result.stdout,
+      stderr: result.stderr,
+    }
+    if (result.status !== 0 || result.stderr !== "") {
+      throw new Error(`WINDOWS_CONSOLE_PROBE ${JSON.stringify(diagnostic)}`)
+    }
     const payload = JSON.parse(result.stdout.trim()) as {
       readonly result: string
       readonly visible: {
+        readonly consoleAttached: boolean
         readonly mainWindowHandle: number
         readonly stdioRoundTrip: boolean
         readonly childExited: boolean
       }
       readonly hidden: {
+        readonly consoleAttached: boolean
         readonly mainWindowHandle: number
         readonly stdioRoundTrip: boolean
         readonly childExited: boolean
@@ -46,10 +58,9 @@ test.skipIf(!isWin32)(
 
     // then
     console.log(`WINDOWS_CONSOLE_PROBE ${JSON.stringify(payload)}`)
-    expect(result.stderr).toBe("")
-    expect(result.status).toBe(0)
     expect(payload.result).toBe("PASS")
-    expect(payload.visible.mainWindowHandle).not.toBe(0)
+    expect(payload.visible.consoleAttached).toBe(true)
+    expect(payload.hidden.consoleAttached).toBe(false)
     expect(payload.hidden.mainWindowHandle).toBe(0)
     expect(payload.visible.stdioRoundTrip).toBe(true)
     expect(payload.hidden.stdioRoundTrip).toBe(true)

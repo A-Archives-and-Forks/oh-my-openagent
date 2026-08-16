@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn, spawnSync } from "node:child_process"
+import { type ChildProcess, spawn } from "node:child_process"
 import { createHash } from "node:crypto"
 import { once } from "node:events"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs"
@@ -8,6 +8,11 @@ import { fileURLToPath } from "node:url"
 import { createInterface } from "node:readline"
 
 import { RpcProcessRunner } from "../../../../packages/senpi-task/src/runners/rpc-process"
+import {
+  type ConsoleAttachment,
+  consoleAttachment,
+  mainWindowHandle,
+} from "./windows-console-inspection"
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url)
 const FAKE_CHILD_PATH = fileURLToPath(
@@ -24,6 +29,8 @@ type ParentReady = {
 }
 
 type ProbeCase = ParentReady & {
+  readonly consoleAttached: boolean
+  readonly consoleAttachError: number
   readonly mainWindowHandle: number
   readonly expectedVisible: boolean
   readonly childExited: boolean
@@ -51,22 +58,6 @@ function isAlive(pid: number): boolean {
   }
 }
 
-function mainWindowHandle(pid: number): number {
-  const source = `$p = Get-Process -Id ${pid} -ErrorAction Stop; [Console]::Out.Write([int64]$p.MainWindowHandle)`
-  const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", source], {
-    encoding: "utf8",
-    windowsHide: true,
-  })
-  if (result.status !== 0) {
-    throw new Error(`MainWindowHandle probe failed: ${result.stderr.trim()}`)
-  }
-  const handle = Number.parseInt(result.stdout.trim(), 10)
-  if (!Number.isSafeInteger(handle)) {
-    throw new Error(`MainWindowHandle was not an integer: ${result.stdout}`)
-  }
-  return handle
-}
-
 async function readJsonLine<T>(child: ChildProcess): Promise<T> {
   if (child.stdout === null) throw new Error("probe parent stdout was not piped")
   const lines = createInterface({ input: child.stdout })
@@ -90,16 +81,29 @@ async function runCase(mode: ProbeMode, root: string): Promise<ProbeCase> {
     shell: false,
     windowsHide: true,
   })
+  const closed = once(parent, "close", { signal: AbortSignal.timeout(15_000) })
   let stderr = ""
   parent.stderr?.setEncoding("utf8")
   parent.stderr?.on("data", (chunk: string) => {
     stderr += chunk
   })
 
-  const ready = await readJsonLine<ParentReady>(parent)
-  const handle = mainWindowHandle(ready.pid)
-  parent.stdin?.end("stop\n")
-  const [code] = await once(parent, "exit", { signal: AbortSignal.timeout(15_000) })
+  let ready: ParentReady | undefined
+  let handle = 0
+  let attachment: ConsoleAttachment | undefined
+  let code: unknown
+  try {
+    ready = await readJsonLine<ParentReady>(parent)
+    handle = mainWindowHandle(ready.pid)
+    attachment = consoleAttachment(ready.pid)
+  } finally {
+    parent.stdin?.end("stop\n")
+    ;[code] = await closed
+  }
+
+  if (ready === undefined || attachment === undefined) {
+    throw new Error("probe parent did not produce its ready payload")
+  }
   const parentExitCode = typeof code === "number" ? code : -1
   if (parentExitCode !== 0) {
     throw new Error(`probe parent exited ${parentExitCode}: ${stderr.trim()}`)
@@ -107,6 +111,8 @@ async function runCase(mode: ProbeMode, root: string): Promise<ProbeCase> {
 
   return {
     ...ready,
+    consoleAttached: attachment.attached,
+    consoleAttachError: attachment.errorCode,
     mainWindowHandle: handle,
     expectedVisible: mode === "visible-control",
     childExited: !isAlive(ready.pid),
@@ -126,15 +132,12 @@ async function runParent(mode: ProbeMode, root: string): Promise<void> {
         SENPI_CODING_AGENT_SESSION_DIR: join(root, "child-session"),
       },
     }),
-    ...(mode === "visible-control"
-      ? {
-          spawnProcess: (command, args, options) =>
-            spawn(command, [...args], {
-              ...options,
-              windowsHide: false,
-            }),
-        }
-      : {}),
+    spawnProcess: (command, args, options) =>
+      spawn(command, [...args], {
+        ...options,
+        detached: true,
+        ...(mode === "visible-control" ? { windowsHide: false } : {}),
+      }),
   })
   const handle = runner.start({
     task_id: `st_windows_probe_${mode}`,
@@ -174,7 +177,8 @@ async function runProbe(): Promise<void> {
     const credentialsAfter = credentialDigests()
     const credentialsUntouched = JSON.stringify(credentialsBefore) === JSON.stringify(credentialsAfter)
     const pass =
-      visible.mainWindowHandle !== 0 &&
+      visible.consoleAttached &&
+      !hidden.consoleAttached &&
       hidden.mainWindowHandle === 0 &&
       visible.stdioRoundTrip &&
       hidden.stdioRoundTrip &&
