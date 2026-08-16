@@ -318,4 +318,33 @@ describe("resolveReflectionModel", () => {
     expect(shouldWarnCategoryUnavailable(categoryOptIn, "quick")).toBe(true)
     expect(shouldWarnCategoryUnavailable({ categories: { quick: { model: "missing/model" } } }, "quick")).toBe(false)
   })
+
+  test("#given a pinned user model whose model id contains a slash #when the availability snapshot is stale #then the whole model id is looked up rather than its first segment", () => {
+    // given: apitopia publishes the model id "z-ai/glm-5.2-ultrafast-unlocked", which itself contains a
+    // slash, and the availability snapshot is still empty when reflection resolves the pin.
+    const slashed: SenpiModelPort = { provider: "apitopia", id: "z-ai/glm-5.2-ultrafast-unlocked" }
+    const lookups: { readonly provider: string; readonly modelId: string }[] = []
+    const staleRegistry = {
+      getAvailable: () => [],
+      find: (provider: string, modelId: string) => {
+        lookups.push({ provider, modelId })
+        return provider === slashed.provider && modelId === slashed.id ? slashed : undefined
+      },
+    }
+    const config: OmoConfig = {
+      categories: { quick: { model: "apitopia/z-ai/glm-5.2-ultrafast-unlocked" } },
+    }
+
+    // when
+    const result = resolveReflectionModel("quick", config, staleRegistry)
+
+    // then: the pin resolves, and no lookup ever truncated the model id at its first slash
+    expect(result).toEqual({
+      kind: "resolved",
+      category: "quick",
+      model: "apitopia/z-ai/glm-5.2-ultrafast-unlocked",
+      fallbacks: [],
+    })
+    expect(lookups).not.toContainEqual({ provider: "apitopia", modelId: "z-ai" })
+  })
 })
