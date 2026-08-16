@@ -14,10 +14,10 @@ import {
   type TranscriptEntry,
   type TranscriptProjection,
 } from "./entries"
-import { withLocalJournalLock, type JournalLock } from "./lock"
+import { withLocalJournalLock, JournalLockTimeoutError, type JournalLock } from "./lock"
 import { syncJournalDirectory, syncJournalFile } from "./fsync"
 
-export { withLocalJournalLock, type JournalLock }
+export { withLocalJournalLock, JournalLockTimeoutError, type JournalLock }
 
 export type TranscriptJournalOptions = {
   readonly journalDir: string
