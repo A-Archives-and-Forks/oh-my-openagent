@@ -34,8 +34,12 @@ import { createDagSkillMaterializer } from "../../../../senpi-task/src/dag/skill
 const EVENT_PAGE_SIZE = 1000
 const TERMINAL_RUN_STATUSES = new Set(["completed", "failed", "cancelled"])
 const SCHEDULABLE_RUN_STATUSES = new Set(["pending", "running"])
+type DagRuntimeManager = Omit<DagManager, "attach"> & {
+  readonly attach: ReturnType<typeof createDagWaitSurface>["attach"]
+}
+
 export interface DagRuntime {
-  readonly manager: DagManager
+  readonly manager: DagRuntimeManager
   readonly wait: ReturnType<typeof createDagWaitSurface>["wait"]
   readonly cancel: (runId: DagRunId, reason?: string) => Promise<void>
   readonly taskRecord: (taskId: string) => TaskRecord | undefined
@@ -79,7 +83,9 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
     writeCheckpoint(runId, checkpoint) {
       baseStore.writeCheckpoint(runId, checkpoint)
       mutationListener()
-      publishDurableEvents(baseStore, runId, deliveredSeq, runListeners, durableEventListener)
+      if (!schedulers.has(runId)) {
+        publishDurableEvents(baseStore, runId, deliveredSeq, runListeners, durableEventListener)
+      }
     },
   }
   const coreManager = createDagManager({
@@ -105,19 +111,26 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
     }
   }
 
+  const publishSchedulerEvent = (event: DagRunEvent): void => {
+    if ((deliveredSeq.get(event.runId) ?? 0) >= event.seq) return
+    deliveredSeq.set(event.runId, event.seq)
+    deliverDurableEvent(durableEventListener, event)
+    for (const listener of runListeners.get(event.runId) ?? []) deliverDurableEvent(listener, event)
+  }
+
   const controller = (runId: DagRunId, parentSessionId: string): { readonly scheduler: DagScheduler; running?: Promise<DagRunRecordV1> } => {
     const existing = schedulers.get(runId)
     if (existing !== undefined) return existing
     const initialRecord = coreManager.record(runId, parentSessionId)
-    const created: { readonly scheduler: DagScheduler; running?: Promise<DagRunRecordV1> } = {
-      scheduler: createDagScheduler({
-        store,
-        taskManager,
-        initialRecord,
-        executionMode: { agents: deps.engine.agents, config: deps.engine.omoConfig },
-        ...(dagSettings?.subscriber_ring === undefined ? {} : { subscriberRing: dagSettings.subscriber_ring }),
-      }),
-    }
+    const scheduler = createDagScheduler({
+      store,
+      taskManager,
+      initialRecord,
+      executionMode: { agents: deps.engine.agents, config: deps.engine.omoConfig },
+      ...(dagSettings?.subscriber_ring === undefined ? {} : { subscriberRing: dagSettings.subscriber_ring }),
+    })
+    scheduler.subscribe(publishSchedulerEvent)
+    const created: { readonly scheduler: DagScheduler; running?: Promise<DagRunRecordV1> } = { scheduler }
     schedulers.set(runId, created)
     return created
   }
@@ -127,7 +140,12 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
     if (!SCHEDULABLE_RUN_STATUSES.has(initialRecord.status)) return
     const owned = controller(runId, parentSessionId)
     if (owned.running !== undefined) return
-    const running = owned.scheduler.run().finally(() => schedulers.delete(runId))
+    const running = owned.scheduler.run()
+      .then(async (record) => {
+        await owned.scheduler.whenIdle()
+        return record
+      })
+      .finally(() => schedulers.delete(runId))
     owned.running = running
     void running.catch((error: unknown) => {
       deps.logger.error("omo-senpi dag scheduler failed", {
@@ -135,15 +153,6 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
         error: error instanceof Error ? error.message : String(error),
       })
     })
-  }
-
-  const manager: DagManager = {
-    ...coreManager,
-    async start(params) {
-      const result = await coreManager.start(params)
-      ensureScheduled(result.snapshot.runId, params.parentSessionId)
-      return result
-    },
   }
 
   const cancel = async (runId: DagRunId, reason?: string): Promise<void> => {
@@ -154,6 +163,21 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
   }
 
   const waitSurface = createDagWaitSurface({ store, subscribe, cancel })
+  const wait = async (runId: DagRunId, parentSessionId: string) => {
+    const result = await waitSurface.wait(runId, parentSessionId)
+    const owned = schedulers.get(runId)
+    if (owned !== undefined) await owned.scheduler.whenIdle()
+    return result
+  }
+  const manager: DagRuntimeManager = {
+    ...coreManager,
+    async start(params) {
+      const result = await coreManager.start(params)
+      ensureScheduled(result.snapshot.runId, params.parentSessionId)
+      return result
+    },
+    attach: waitSurface.attach,
+  }
   const queryManager = {
     list: (sessionId: string, options?: { readonly limit?: number }) => manager.list(sessionId, options),
     snapshot: (runId: string, sessionId: string) => manager.snapshot(runId as DagRunId, sessionId),
@@ -284,7 +308,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
 
   const runtime: DagRuntime = {
     manager,
-    wait: waitSurface.wait,
+    wait,
     cancel,
     taskRecord: (taskId) => deps.engine.manager.get(taskId),
     async attach() {

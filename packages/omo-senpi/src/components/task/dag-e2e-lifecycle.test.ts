@@ -56,6 +56,8 @@ class ControlledRunner implements ManagedRunner {
   readonly children: ControlledChild[] = []
   readonly #signals = new Map<number, ReturnType<typeof deferred<void>>>()
 
+  constructor(private readonly abortError?: Error) {}
+
   start(spec: ManagedStartSpec): Promise<ManagedChildHandle> {
     const outcome = deferred<RunnerOutcome>()
     const handle: ManagedChildHandle = {
@@ -66,7 +68,7 @@ class ControlledRunner implements ManagedRunner {
       followUp: () => Promise.resolve(),
       abort: () => {
         outcome.resolve({ status: "cancelled" })
-        return Promise.resolve()
+        return this.abortError === undefined ? Promise.resolve() : Promise.reject(this.abortError)
       },
       subscribe: () => () => undefined,
       waitForOutcome: () => outcome.promise,
@@ -188,6 +190,16 @@ type RuntimeFixture = {
   readonly statusTimers: ManualTimers
   readonly widgetCalls: Array<string[] | undefined>
   readonly start: (key: string, nodes?: readonly { readonly id: string; readonly dependsOn?: readonly string[] }[]) => Promise<DagRunId>
+}
+
+function captureUnhandledRejections(): {
+  readonly reasons: unknown[]
+  readonly stop: () => void
+} {
+  const reasons: unknown[] = []
+  const listener = (reason: unknown): void => { reasons.push(reason) }
+  process.on("unhandledRejection", listener)
+  return { reasons, stop: () => process.off("unhandledRejection", listener) }
 }
 
 async function runtimeFixture(options: RuntimeFixtureOptions = {}): Promise<RuntimeFixture> {
@@ -459,7 +471,7 @@ describe("assembled DAG lifecycle end to end", () => {
     restarted.runtime.dispose()
   })
 
-  test("#given an eval-cell waiter that is abandoned #when a later cell re-attaches and calls done #then the run is unaffected and returns its result", async () => {
+  test("#given an eval-cell waiter that is abandoned #when a later cell re-attaches and calls done #then the shipped handle returns the result", async () => {
     // given
     const fixture = await runtimeFixture()
     const runId = await fixture.start("detach-safe")
@@ -467,10 +479,9 @@ describe("assembled DAG lifecycle end to end", () => {
     void fixture.runtime.wait(runId, sessionId)
 
     // when
-    const reattached = {
-      snapshot: () => fixture.runtime.manager.attach(runId, sessionId).snapshot(),
-      done: () => fixture.runtime.wait(runId, sessionId),
-    }
+    const reattached = fixture.runtime.manager.attach(runId, sessionId)
+    expect(typeof reattached.done).toBe("function")
+    expect(typeof reattached.cancel).toBe("function")
     expect(reattached.snapshot().status).toBe("running")
     fixture.runner.children[0]?.settle("detached result")
     const result = await reattached.done()
@@ -479,6 +490,39 @@ describe("assembled DAG lifecycle end to end", () => {
     expect(result.status).toBe("completed")
     expect(result.nodes.work).toEqual(expect.objectContaining({ state: "completed", output: "detached result" }))
     expect(events(fixture, runId).filter((event) => event.type === "dag.run.cancelled")).toHaveLength(0)
+  })
+
+  test("#given a shipped handle for a live child #when it cancels the run #then no abort rejection escapes and a later handle settles", async () => {
+    // given
+    const fixture = await runtimeFixture({
+      runner: new ControlledRunner(new DOMException("intentional child abort", "AbortError")),
+    })
+    const runId = await fixture.start("handle-cancel", [
+      { id: "live" },
+      { id: "after", dependsOn: ["live"] },
+    ])
+    await fixture.runner.whenStarted(1)
+    const handle = fixture.runtime.manager.attach(runId, sessionId)
+    const before = handle.done()
+    const unhandled = captureUnhandledRejections()
+
+    try {
+      // when
+      await handle.cancel("assembled cancel")
+      const after = await fixture.runtime.manager.attach(runId, sessionId).done()
+      const beforeResult = await before
+      await new Promise<void>((resolve) => setImmediate(resolve))
+
+      // then
+      expect(beforeResult.status).toBe("cancelled")
+      expect(after.status).toBe("cancelled")
+      expect(after.nodes.live).toEqual(expect.objectContaining({ state: "cancelled", reason: "assembled cancel" }))
+      expect(after.nodes.after).toEqual(expect.objectContaining({ state: "cancelled", reason: "assembled cancel" }))
+      expect(unhandled.reasons).toEqual([])
+      expect(fixture.runner.children).toHaveLength(1)
+    } finally {
+      unhandled.stop()
+    }
   })
 
   test("#given two terminal DAG notifications in one streaming flush window #when the window flushes #then exactly one batched steer is delivered", async () => {

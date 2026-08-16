@@ -105,6 +105,7 @@ type FakeOptions = {
   readonly startFailureKinds?: Readonly<Record<string, StartFailureKind>>
   readonly queuedNodeIds?: readonly string[]
   readonly rejectCancelNodeIds?: readonly string[]
+  readonly cancelErrors?: Readonly<Record<string, Error>>
   readonly cancelStarted?: () => void
   readonly cancelGate?: Promise<void>
   readonly rejectStartNodeIds?: readonly string[]
@@ -277,6 +278,8 @@ class FakeTaskManager implements TaskManager {
     this.#options.cancelStarted?.()
     await this.#options.cancelGate
     if (this.#options.rejectCancelNodeIds?.includes(nodeId) === true) throw new Error(`cancel rejected ${nodeId}`)
+    const cancelError = this.#options.cancelErrors?.[nodeId]
+    if (cancelError !== undefined) throw cancelError
     const previousStatus = task.record.status
     this.complete(nodeId, "cancelled")
     return { kind: "cancelled", task_id: taskId, previous_status: previousStatus }
@@ -649,7 +652,41 @@ describe("DAG scheduler cancellation", () => {
     expect(result.nodes.find((entry) => entry.id === "sibling")?.state).toBe("cancelled")
   })
 
-  test("#given one task cancellation rejects #when a wave is cancelled #then all waiters still resolve with consistent cancelled nodes", async () => {
+  test("#given an intentional AbortError while cancelling a live task #when the run is cancelled #then the rejection settles locally and a later waiter resolves", async () => {
+    // given
+    const manager = new FakeTaskManager({
+      autoComplete: false,
+      cancelErrors: { a: new DOMException("intentional abort", "AbortError") },
+    })
+    const { scheduler, store } = schedulerFixture(definition([node("a"), node("b", ["a"])]), manager)
+    const waitSurface = createDagWaitSurface({
+      store,
+      subscribe: (_runId, listener) => scheduler.subscribe(listener),
+    })
+    const unhandled: unknown[] = []
+    const onUnhandled = (reason: unknown): void => { unhandled.push(reason) }
+    process.on("unhandledRejection", onUnhandled)
+    const running = scheduler.run()
+    await manager.whenStarted("a")
+
+    try {
+      // when
+      await scheduler.cancel(runId, "intentional cancel")
+      const after = await waitSurface.wait(runId, parentSessionId)
+      await running
+      await new Promise<void>((resolve) => setImmediate(resolve))
+
+      // then
+      expect(after.status).toBe("cancelled")
+      expect(after.nodes.a).toEqual(expect.objectContaining({ state: "cancelled" }))
+      expect(after.nodes.b).toEqual(expect.objectContaining({ state: "cancelled" }))
+      expect(unhandled).toEqual([])
+    } finally {
+      process.off("unhandledRejection", onUnhandled)
+    }
+  })
+
+  test("#given a genuine task cancellation failure #when a wave is cancelled #then the run settles cancelled and the failure still surfaces", async () => {
     // given
     const manager = new FakeTaskManager({ autoComplete: false, rejectCancelNodeIds: ["a"] })
     const { scheduler, store } = schedulerFixture(definition([node("a"), node("b")]), manager)
@@ -663,10 +700,11 @@ describe("DAG scheduler cancellation", () => {
     await Promise.all([manager.whenStarted("a"), manager.whenStarted("b")])
 
     // when
-    await scheduler.cancel(runId, "reject one")
+    const cancellationFailure = expect(scheduler.cancel(runId, "reject one")).rejects.toThrow("cancel rejected a")
     const [runResult, firstResult, secondResult] = await Promise.all([running, firstWaiter, secondWaiter])
 
     // then
+    await cancellationFailure
     expect(manager.cancellations.sort()).toEqual(["a", "b"])
     expect(runResult.status).toBe("cancelled")
     expect(firstResult).toEqual(secondResult)

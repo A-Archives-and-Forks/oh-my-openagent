@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, mock, spyOn, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import * as fs from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -61,34 +61,28 @@ class ControlledRunner implements ManagedRunner {
 }
 
 afterEach(() => {
-  mock.restore()
   for (const root of cleanupRoots.splice(0)) fs.rmSync(root, { recursive: true, force: true })
 })
 
 describe("assembled DAG runtime configuration", () => {
-  test("#given subscriber_ring is one #when an assembled scheduler listener falls behind #then the configured overflow is durable", async () => {
+  test("#given subscriber_ring is one #when the assembled runtime emits a burst #then the shipped RPC subscriber receives a durable overflow", async () => {
     // given
     const cwd = fs.mkdtempSync(join(tmpdir(), "omo-senpi-dag-ring-"))
     cleanupRoots.push(cwd)
-    const releaseFirst = deferred<void>()
-    const firstDelivered = deferred<void>()
     const overflowDelivered = deferred<Extract<dagEngine.DagRunEvent, { type: "dag.stream.overflow" }>>()
-    const createScheduler = dagEngine.createDagScheduler
-    spyOn(dagEngine, "createDagScheduler").mockImplementation((options) => {
-      const scheduler = createScheduler(options)
-      let first = true
-      scheduler.subscribe(async (event) => {
-        if (event.type === "dag.stream.overflow") overflowDelivered.resolve(event)
-        if (!first) return
-        first = false
-        firstDelivered.resolve()
-        await releaseFirst.promise
-      })
-      return scheduler
-    })
     const { createDagRuntime } = await import("./dag-runtime")
     const runner = new ControlledRunner()
-    const pi = new FakeExtensionAPI()
+    const pi = Object.assign(new FakeExtensionAPI(), {
+      rpc: {
+        emit: (name: string, data: unknown) => {
+          const event = data as Partial<dagEngine.DagRunEvent>
+          if (name === "omo.dag.event" && event.type === "dag.stream.overflow") {
+            overflowDelivered.resolve(event as Extract<dagEngine.DagRunEvent, { type: "dag.stream.overflow" }>)
+          }
+        },
+        handle: () => undefined,
+      },
+    })
     const baseConfig = loadOmoConfig({ cwd }).config
     const engine = composeTaskEngine({
       pi,
@@ -119,11 +113,9 @@ describe("assembled DAG runtime configuration", () => {
         nodes: [{ id: "overflow", prompt: "overflow", subagent_type: "explore", model: "omo-mock/mock-1" }],
       },
     })
-    await within(firstDelivered.promise, "first scheduler event")
     await within(runner.started.promise, "node start")
     runner.outcome.resolve({ status: "completed", finalResponse: "done" })
     await within(runtime.wait(started.snapshot.runId, sessionId), "run completion")
-    releaseFirst.resolve()
     const overflow = await within(overflowDelivered.promise, "configured subscriber overflow")
 
     // then

@@ -56,6 +56,7 @@ export type DagScheduler = {
   readonly cancel: (runId: DagRunId, reason?: string) => Promise<void>
   readonly snapshot: () => DagRunRecordV1
   readonly subscribe: (listener: DagJournalListener) => () => void
+  readonly whenIdle: () => Promise<void>
 }
 
 type AttachedTaskSettlement =
@@ -138,6 +139,7 @@ export function createDagScheduler(options: DagSchedulerOptions): DagScheduler {
     cancel: (runId, reason) => cancelRun(context, runId, reason),
     snapshot: journal.snapshot,
     subscribe: journal.subscribe,
+    whenIdle: journal.whenIdle,
   }
 }
 
@@ -288,9 +290,12 @@ async function cancelRun(context: SchedulerContext, runId: DagRunId, reason?: st
 async function performCancellation(context: SchedulerContext, reason?: string): Promise<void> {
   try {
     await whenAdmissionIdle(context)
-    await Promise.allSettled([...context.attachedTaskIds.values()].map((taskId) =>
+    const cancellationResults = await Promise.allSettled([...context.attachedTaskIds.values()].map((taskId) =>
       context.taskManager.cancelTask(taskId, reason),
     ))
+    const cancellationFailure = cancellationResults.find((result) =>
+      result.status === "rejected" && !isIntentionalAbort(result.reason),
+    )
     const cancelledNodeIds: DagNodeId[] = []
     for (const node of context.journal.snapshot().nodes) {
       if (TERMINAL_NODE_STATES.has(node.state)) continue
@@ -303,6 +308,7 @@ async function performCancellation(context: SchedulerContext, reason?: string): 
       { cancelledNodeIds },
     ))
     context.attachedTaskIds.clear()
+    if (cancellationFailure?.status === "rejected") throw cancellationFailure.reason
   } finally {
     context.resolveCancellationCompleted()
   }
@@ -599,6 +605,10 @@ function transitionedNode(node: DagNode, state: DagNodeState, at: string, error?
     ...(TERMINAL_NODE_STATES.has(state) ? { completedAt: at } : {}),
     ...(error === undefined ? {} : { error }),
   }
+}
+
+function isIntentionalAbort(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError"
 }
 
 function errorMessage(error: unknown): string {
