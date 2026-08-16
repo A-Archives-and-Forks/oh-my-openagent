@@ -1,7 +1,13 @@
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path"
 
-import { loadDreamPersona, loadFactsPersona, loadReflectionPersona, type ReservedRun } from "@oh-my-opencode/memory-core"
+import {
+  loadDreamPersona,
+  loadFactsPersona,
+  loadReflectionPersona,
+  serializeFactsPayload,
+  type ReservedRun,
+} from "@oh-my-opencode/memory-core"
 
 import type {
   FactsSpawnArgs,
@@ -161,7 +167,9 @@ export async function prepareFactsSpawn(input: PrepareFactsSpawnInput): Promise<
   } catch (error) {
     if (errorCode(error) !== "ENOENT") throw error
   }
-  await writeFile(payload, `${JSON.stringify(input.payload, null, 2)}\n`, { encoding: "utf8", mode: 0o600 })
+  // ONE serializer, shared with the byte cap's measurement: a second stringify here would let
+  // the written bytes drift past the cap the selection proved.
+  await writeFile(payload, serializeFactsPayload(input.payload), { encoding: "utf8", mode: 0o600 })
   await chmod(payload, 0o400)
   const env: NodeJS.ProcessEnv = {
     ...input.env,

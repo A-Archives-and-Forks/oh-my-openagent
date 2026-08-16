@@ -10,6 +10,7 @@ import {
   createLockRecord,
   memoryWriterLockPath,
   runFinalizationLockPath,
+  selectCappedFactsBatch,
   selectLaunchable,
   withLock,
   type FactsFailureReason,
@@ -18,6 +19,8 @@ import {
 } from "@oh-my-opencode/memory-core"
 import { hasFailureReader, readLaunchableFailures, type FactsFailureReadPort } from "./facts-launch-selection"
 import { ledgerTargets, preflightFailureId, queueEntryTargets, type FactsFailurePort } from "./facts-failure-recording"
+import { drainFactsLaunches } from "./facts-drain"
+import { classifyOversizePayload } from "./facts-oversize"
 import { FactsTerminalWrites } from "./facts-terminal-writes"
 import { readFactsPeoplePayload } from "./facts-people-payload"
 import { SandboxUnavailableError } from "./sandbox-contracts"
@@ -62,10 +65,16 @@ export class FactsExtractorRunner {
     })
   }
 
+  /**
+   * Launches pending facts work and DRAINS: a capped payload splits one backlog into several
+   * runs, so every success immediately attempts the next batch instead of waiting for another
+   * settle. The existing `activeLaunch` latch spans the whole drain, so a concurrent caller is
+   * still refused with `active` and only one launch ever runs.
+   */
   async launchPending(signal?: AbortSignal): Promise<FactsLaunchResult> {
     if (signal?.aborted === true) return { status: "skipped" }
     if (this.activeLaunch !== undefined) return { status: "active" }
-    const operation = this.launchPendingOnce(signal)
+    const operation = drainFactsLaunches(() => this.launchPendingOnce(signal), signal)
     this.activeLaunch = operation
     try {
       return await operation
@@ -111,13 +120,43 @@ export class FactsExtractorRunner {
 
     const repo = new GitMemoryRepo({ dir: this.options.identity.paths.repo, agentId: this.options.identity.id })
     if (!existsSync(join(repo.dir, ".git"))) await repo.init({ seedFiles: buildDefaultSeedFiles() })
+    // The people fields are part of the measured envelope, so they are read BEFORE the cap
+    // decides which entries fit - and the run dir is reserved for the SELECTED entries only.
+    const people = await readFactsPeoplePayload(repo.dir)
+    const envelope = {
+      version: 1,
+      identity: this.options.identity.id,
+      today: this.now().toISOString().slice(0, 10),
+      ...people,
+    } as const
+    const capped = selectCappedFactsBatch({ entries, envelope, now: this.now() })
+    // Ledger-only classification, BEFORE any reservation: an entry that cannot ever fit parks
+    // now, so a failing launch path can never lose the verdict.
+    const envelopeRefused = await classifyOversizePayload({
+      terminal: this.terminal,
+      envelope,
+      oversized: capped.oversized,
+      pending: entries,
+      envelopeOversized: capped.envelopeOversized,
+      ...(this.options.createPreflightId === undefined ? {} : { createFailureId: this.options.createPreflightId }),
+      warn: (message, fields) => this.options.logger?.warn(message, fields),
+    })
+    if (envelopeRefused) return { status: "skipped" }
+    if (capped.selected.length === 0) {
+      this.options.logger?.warn("facts batch selection carried nothing within the payload cap", {
+        pending: entries.length,
+        oversized: capped.oversized.length,
+      })
+      return { status: "empty" }
+    }
+    const batch: readonly FactsQueueEntry[] = capped.selected
     const batchId = (this.options.createBatchId ?? randomUUID)()
     const launchedAt = this.now().getTime()
     if (isAborted()) return { status: "skipped" }
     const runDir = await reserveFactsRunDir({
       factsDir: this.options.identity.paths.facts,
       locksDir: this.options.identity.paths.locks,
-      entries,
+      entries: batch,
       batchId,
       launchedAt,
       deadlineMs: this.options.deadlineMs,
@@ -125,14 +164,7 @@ export class FactsExtractorRunner {
     })
     if (runDir === undefined) return { status: "active" }
     const runId = basename(runDir)
-    const people = await readFactsPeoplePayload(repo.dir)
-    const payload: FactsPayload = {
-      version: 1,
-      identity: this.options.identity.id,
-      today: this.now().toISOString().slice(0, 10),
-      entries,
-      ...people,
-    }
+    const payload: FactsPayload = { ...envelope, entries: batch }
     if (isAborted()) return { status: "skipped" }
     try {
       const { child } = await launchFactsModelChain({
@@ -152,13 +184,13 @@ export class FactsExtractorRunner {
         sandbox: this.options.sandbox,
         supervisorPath: this.options.supervisorPath,
         batchId,
-        queued: queueKeys(entries),
+        queued: queueKeys(batch),
         launchedAt,
       })
       if (child.timedOut || child.code !== 0) {
         const reason: FactsFailureReason = child.timedOut ? "deadline_exceeded" : "child_exit"
         const detail = child.stderr.trim() || "facts child failed"
-        await this.terminal.fail({ runDir, runId, batchId, targets: queueEntryTargets(entries), reason, detail })
+        await this.terminal.fail({ runDir, runId, batchId, targets: queueEntryTargets(batch), reason, detail })
         return { status: "failed", runId }
       }
     } catch (error) {
@@ -167,7 +199,7 @@ export class FactsExtractorRunner {
         runDir,
         runId,
         batchId,
-        targets: queueEntryTargets(entries),
+        targets: queueEntryTargets(batch),
         reason,
         detail: describe(error),
       })
