@@ -1,4 +1,3 @@
-import { homedir } from "node:os"
 import { join } from "node:path"
 
 import {
@@ -11,6 +10,7 @@ import {
 import type { SenpiModelRegistryPort, SenpiModelPort } from "@oh-my-opencode/senpi-task"
 
 import type { ComponentLogger } from "../../extension/types"
+import { resolveAgentHome } from "../agent-home/resolve-agent-home"
 import type { SenpiOmoConfigResult } from "../config-resolution"
 import type { MemoryIdentityContext } from "./context"
 import { buildSandboxTransform, type SandboxPolicy, type SandboxTransform } from "./sandbox"
@@ -39,6 +39,8 @@ export interface MemoryIdentityRuntimeDeps {
   readonly resolveParentCacheReusable?: () => boolean
   readonly liveSession?: () => ReflectionLiveSession | undefined
   readonly logger?: ComponentLogger
+  /** Agent home resolved for the sandbox writable grant; defaults to resolveAgentHome on process.env. */
+  readonly resolveAgentDir?: () => string
 }
 
 export interface MemoryIdentityRuntime {
@@ -75,6 +77,7 @@ export function createIdentityRuntime(
   })
 
   let builtSandbox: SandboxTransform | undefined
+  const resolveAgentDir = deps.resolveAgentDir ?? (() => resolveAgentHome({ env: process.env }))
   const lazySandbox = (spawnArgs: ReflectionSpawnArgs): ReflectionSpawnArgs => {
     if (builtSandbox === undefined) {
       builtSandbox = buildSandboxTransform({
@@ -85,7 +88,7 @@ export function createIdentityRuntime(
         runtimeWrites: [
           identity.identityPaths.reflectionSessions,
           identity.identityPaths.reflection,
-          process.env.SENPI_CODING_AGENT_DIR ?? join(homedir(), ".senpi", "agent"),
+          resolveAgentDir(),
           ...(process.env.XDG_CONFIG_HOME === undefined ? [] : [process.env.XDG_CONFIG_HOME]),
         ],
         command: spawnArgs.command,
