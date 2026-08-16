@@ -70,6 +70,14 @@ describe("createSisyphusAgent", () => {
           model: "anthropic/claude-fable-5",
           promptAnchors: ["<use_parallel_tool_calls>", "<Task_Management>", "claude-fable-5"],
         },
+        {
+          model: "xai/grok-4.6",
+          promptAnchors: ["running on Grok 4.6", "<grok_calibration>"],
+        },
+        {
+          model: "x-ai/grok-4.5",
+          promptAnchors: ["running on Grok 4.5", "<grok_calibration>"],
+        },
       ];
 
       for (const { model, promptAnchors } of cases) {
@@ -176,6 +184,37 @@ describe("createSisyphusAgent", () => {
       expect(agent.prompt).toContain("<glm_52_calibration>");
       expect(agent.thinking).toBeUndefined();
       expect(agent.reasoningEffort).toBeUndefined();
+    });
+  });
+
+  describe("#given Grok 4.5/4.6 Sisyphus models", () => {
+    test("#when creating agents #then uses the Grok-native prompt with high effort and no thinking", () => {
+      // given
+      const models = ["xai/grok-4.6", "x-ai/grok-4.5"];
+
+      for (const model of models) {
+        // when
+        const agent = createSisyphusAgent(model);
+
+        // then
+        expect(agent.prompt).toContain("<grok_calibration>");
+        expect(agent.reasoningEffort).toBe("high");
+        expect(agent.thinking).toBeUndefined();
+      }
+    });
+
+    test("#when creating agents for other grok ids #then keeps the fallback family", () => {
+      // given
+      const models = ["x-ai/grok-4.20", "xai/grok-4-1-fast-reasoning", "x-ai/grok-code-fast-1"];
+
+      for (const model of models) {
+        // when
+        const agent = createSisyphusAgent(model);
+
+        // then
+        expect(agent.prompt).not.toContain("<grok_calibration>");
+        expect(agent.reasoningEffort).toBeUndefined();
+      }
     });
   });
 
