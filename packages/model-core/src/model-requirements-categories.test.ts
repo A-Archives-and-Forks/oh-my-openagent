@@ -109,7 +109,7 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     ])
   })
 
-  test("unspecified-low follows the approved 5-rung chain", () => {
+  test("unspecified-low follows the approved 6-rung chain headed by grok-4.6 xhigh", () => {
     // given
     const unspecifiedLow = CATEGORY_MODEL_REQUIREMENTS["unspecified-low"]
 
@@ -117,7 +117,13 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     const chain = unspecifiedLow.fallbackChain
 
     // then
+    expect(chain.map((entry) => entry.model)).not.toContain("gpt-5.6-luna")
     expect(chain).toEqual([
+      {
+        providers: ["xai", "github-copilot", "opencode", "vercel"],
+        model: "grok-4.6",
+        variant: "xhigh",
+      },
       {
         providers: ["openai", "quotio-openai", "github-copilot", "opencode", "vercel"],
         model: "gpt-5.6-terra",

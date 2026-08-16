@@ -3818,7 +3818,7 @@ describe("sisyphus-task", () => {
       
       // then - default model from DEFAULT_CATEGORIES is used
       const category = expectResolvedCategoryConfig(resolved)
-      expect(category.config.model).toBe("openai/gpt-5.6-luna")
+      expect(category.config.model).toBe("xai/grok-4.6")
       expect(category.config.variant).toBe("xhigh")
     })
 
