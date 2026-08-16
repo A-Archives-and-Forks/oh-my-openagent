@@ -551,8 +551,13 @@ function withLock<T>(
       break
     }
     const observedHolder = readLockHolder(path)
-    if (observedHolder === undefined || !isProcessAlive(observedHolder.pid)) {
-      reclaimObservedLock(path, observedHolder, isProcessAlive)
+    if (observedHolder === undefined) continue
+    if (observedHolder.pid === undefined || !isProcessAlive(observedHolder.pid)) {
+      const reclaimedHolder = reclaimObservedLock(path, observedHolder, isProcessAlive, runId, now, fsyncWrites)
+      if (reclaimedHolder !== undefined) {
+        acquiredHolder = reclaimedHolder
+        break
+      }
       continue
     }
     if (now() - startedAt >= LOCK_WAIT_TIMEOUT_MS) throw new Error(`Timed out acquiring DAG lock: ${path}`)
@@ -567,7 +572,7 @@ function withLock<T>(
 }
 
 type LockHolder = {
-  readonly pid: number
+  readonly pid: number | undefined
   readonly content: string
 }
 
@@ -582,7 +587,7 @@ function readLockHolder(path: string): LockHolder | undefined {
     }
     const firstLine = content.split("\n", 1)[0]
     const pid = Number(firstLine)
-    return Number.isInteger(pid) && pid > 0 ? { pid, content } : undefined
+    return { pid: Number.isInteger(pid) && pid > 0 ? pid : undefined, content }
   } catch (error) {
     if (hasCode(error, "ENOENT")) return undefined
     throw error
@@ -616,14 +621,37 @@ function tryCreateLock(path: string, content: string, fsyncWrites: boolean): boo
 
 function reclaimObservedLock(
   path: string,
-  observedHolder: LockHolder | undefined,
+  observedHolder: LockHolder,
   isProcessAlive: (pid: number) => boolean,
-): boolean {
-  return removeObservedLock(
-    path,
-    observedHolder,
-    (movedHolder) => movedHolder === undefined || !isProcessAlive(movedHolder.pid),
-  )
+  runId: DagRunId | undefined,
+  now: () => number,
+  fsyncWrites: boolean,
+): LockHolder | undefined {
+  const content = JSON.stringify({
+    hostPid: process.pid,
+    runId,
+    token: randomUUID(),
+    createdAt: new Date(now()).toISOString(),
+  })
+  const successorPath = `${path}.${process.pid}.${randomUUID()}.successor`
+  let fd: number | undefined
+  try {
+    fd = fs.openSync(successorPath, "wx")
+    fs.writeSync(fd, content)
+    if (fsyncWrites) fs.fsyncSync(fd)
+    fs.closeSync(fd)
+    fd = undefined
+    const currentHolder = readLockHolder(path)
+    if (currentHolder === undefined || !sameLockHolder(observedHolder, currentHolder) ||
+      (currentHolder.pid !== undefined && isProcessAlive(currentHolder.pid))) {
+      return undefined
+    }
+    fs.renameSync(successorPath, path)
+    return { pid: process.pid, content }
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd)
+    fs.rmSync(successorPath, { force: true })
+  }
 }
 
 function removeObservedLock(

@@ -4,6 +4,7 @@ import { createHash } from "node:crypto"
 import * as fs from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { Worker } from "node:worker_threads"
 
 import { createDagFileStore, DagJournalCorruptError } from "./store"
 import type { DagRunEvent, DagRunId } from "./types"
@@ -343,6 +344,113 @@ describe("createDagFileStore locks and retention", () => {
     expect(fs.existsSync(store.paths.runLock(runId))).toBe(false)
   })
 
+  test("#given a concurrent observer watches stale reclamation #when ownership changes #then the canonical lock path is never vacant", () => {
+    // given
+    const store = createDagFileStore(
+      { project_dir: tempProject() },
+      { isProcessAlive: () => false },
+    )
+    fs.writeFileSync(store.paths.runLock(runId), JSON.stringify({ hostPid: 2_147_483_647, token: "stale" }))
+    const signal = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT * 2))
+    const observer = new Worker(`
+      const { existsSync } = require("node:fs")
+      const { workerData } = require("node:worker_threads")
+      const signal = new Int32Array(workerData.signal)
+      for (;;) {
+        while (Atomics.load(signal, 0) === 0) Atomics.wait(signal, 0, 0)
+        if (Atomics.load(signal, 0) === 3) break
+        Atomics.store(signal, 1, existsSync(workerData.path) ? 1 : 0)
+        Atomics.store(signal, 0, 2)
+        Atomics.notify(signal, 0)
+        while (Atomics.load(signal, 0) === 2) Atomics.wait(signal, 0, 2)
+      }
+    `, {
+      eval: true,
+      workerData: { path: store.paths.runLock(runId), signal: signal.buffer },
+    })
+    const observedPresence: boolean[] = []
+    const observe = () => {
+      Atomics.store(signal, 0, 1)
+      Atomics.notify(signal, 0)
+      while (Atomics.load(signal, 0) !== 2) {
+        if (Atomics.wait(signal, 0, 1, 1_000) === "timed-out") throw new Error("lock observer timed out")
+      }
+      observedPresence.push(Atomics.load(signal, 1) === 1)
+      Atomics.store(signal, 0, 0)
+      Atomics.notify(signal, 0)
+    }
+    const realRename = fs.renameSync
+    let observingReclamation = true
+    spyOn(fs, "renameSync").mockImplementation((from, to) => {
+      realRename(from, to)
+      if (observingReclamation && (from === store.paths.runLock(runId) || to === store.paths.runLock(runId))) observe()
+    })
+
+    // when
+    store.withRunLock(runId, () => {
+      observe()
+      observingReclamation = false
+    })
+    Atomics.store(signal, 0, 3)
+    Atomics.notify(signal, 0)
+    void observer.terminate()
+
+    // then
+    expect(observedPresence.length).toBeGreaterThan(0)
+    expect(observedPresence).not.toContain(false)
+  })
+
+  test("#given a contender probes every reclamation transition #when a stale lock is replaced #then only the reclaimer concludes it holds the lock", () => {
+    // given
+    const project = tempProject()
+    const reclaimer = createDagFileStore(
+      { project_dir: project },
+      { isProcessAlive: () => false },
+    )
+    let contenderClock = 0
+    const contender = createDagFileStore(
+      { project_dir: project },
+      {
+        now: () => {
+          contenderClock += 1_001
+          return contenderClock
+        },
+        isProcessAlive: () => true,
+      },
+    )
+    fs.writeFileSync(reclaimer.paths.runLock(runId), JSON.stringify({ hostPid: 2_147_483_647, token: "stale" }))
+    const realRename = fs.renameSync
+    let probed = false
+    let contenderEntered = false
+    let contenderRejected = false
+    let reclaimerEntered = false
+    spyOn(fs, "renameSync").mockImplementation((from, to) => {
+      realRename(from, to)
+      if (!probed && !reclaimerEntered &&
+        (from === reclaimer.paths.runLock(runId) || to === reclaimer.paths.runLock(runId))) {
+        probed = true
+        try {
+          contender.withRunLock(runId, () => {
+            contenderEntered = true
+          })
+        } catch (error) {
+          contenderRejected = error instanceof Error && error.message.includes("Timed out acquiring DAG lock")
+        }
+      }
+    })
+
+    // when
+    reclaimer.withRunLock(runId, () => {
+      reclaimerEntered = true
+    })
+
+    // then
+    expect(probed).toBe(true)
+    expect(reclaimerEntered).toBe(true)
+    expect(contenderRejected).toBe(true)
+    expect(contenderEntered).toBe(false)
+  })
+
   test("#given a fresh holder acquires between stale inspection and removal #when the run lock retries #then the fresh lock survives and the reclaimer never enters", () => {
     // given
     const project = tempProject()
@@ -363,13 +471,14 @@ describe("createDagFileStore locks and retention", () => {
     const stale = JSON.stringify({ hostPid: stalePid, owner: "stale" })
     const fresh = JSON.stringify({ hostPid: freshPid, owner: "fresh" })
     fs.writeFileSync(store.paths.runLock(runId), stale)
-    const realRename = fs.renameSync
-    spyOn(fs, "renameSync").mockImplementation((from, to) => {
-      if (!replaced && from === store.paths.runLock(runId)) {
+    const realOpen = fs.openSync
+    spyOn(fs, "openSync").mockImplementation((path, flags, mode) => {
+      const fd = realOpen(path, flags, mode)
+      if (!replaced && typeof path === "string" && path.endsWith(".successor")) {
         replaced = true
         fs.writeFileSync(store.paths.runLock(runId), fresh)
       }
-      return realRename(from, to)
+      return fd
     })
     let entered = false
 
@@ -383,14 +492,14 @@ describe("createDagFileStore locks and retention", () => {
     expect(fs.readFileSync(store.paths.runLock(runId), "utf8")).toBe(fresh)
   })
 
-  test("#given a third holder acquires while a replaced lock is quarantined #when validation restores #then the contender wins and the reclaimer never enters", () => {
+  test("#given a contender replaces the observed stale holder before atomic takeover #when validation runs #then the contender wins and the reclaimer never enters", () => {
     // given
     const project = tempProject()
     let clock = 0
     const stalePid = 101
     const freshPid = 202
     const contenderPid = 303
-    let quarantined = false
+    let successorPrepared = false
     const store = createDagFileStore(
       { project_dir: project },
       {
@@ -405,16 +514,15 @@ describe("createDagFileStore locks and retention", () => {
     const fresh = JSON.stringify({ hostPid: freshPid, owner: "fresh-before-quarantine" })
     const contender = JSON.stringify({ hostPid: contenderPid, owner: "contender" })
     fs.writeFileSync(store.paths.runLock(runId), stale)
-    const realRename = fs.renameSync
-    spyOn(fs, "renameSync").mockImplementation((from, to) => {
-      if (!quarantined && from === store.paths.runLock(runId)) {
+    const realOpen = fs.openSync
+    spyOn(fs, "openSync").mockImplementation((path, flags, mode) => {
+      const fd = realOpen(path, flags, mode)
+      if (!successorPrepared && typeof path === "string" && path.endsWith(".successor")) {
+        successorPrepared = true
         fs.writeFileSync(store.paths.runLock(runId), fresh)
-        realRename(from, to)
-        quarantined = true
         fs.writeFileSync(store.paths.runLock(runId), contender)
-        return
       }
-      realRename(from, to)
+      return fd
     })
     let entered = false
 
@@ -423,7 +531,7 @@ describe("createDagFileStore locks and retention", () => {
 
     // then
     expect(acquire).toThrow(`Timed out acquiring DAG lock: ${store.paths.runLock(runId)}`)
-    expect(quarantined).toBe(true)
+    expect(successorPrepared).toBe(true)
     expect(entered).toBe(false)
     expect(fs.readFileSync(store.paths.runLock(runId), "utf8")).toBe(contender)
   })
