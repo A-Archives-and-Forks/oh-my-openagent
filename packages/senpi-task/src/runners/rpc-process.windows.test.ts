@@ -145,7 +145,7 @@ test.skipIf(!isWin32)(
     }
 
     // then
-    console.log(`WINDOWS_CONSOLE_PROBE ${JSON.stringify(payload)}`)
+    process.stdout.write(`WINDOWS_CONSOLE_PROBE ${JSON.stringify(payload)}\n`)
     expect(payload.result).toBe("PASS")
     expect(payload.visible.consoleAttached).toBe(true)
     expect(payload.visible.consoleWindowHandle).not.toBe(0)
