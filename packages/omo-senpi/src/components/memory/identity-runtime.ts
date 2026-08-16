@@ -1,4 +1,3 @@
-import { homedir } from "node:os"
 import { join } from "node:path"
 
 import {
@@ -11,6 +10,7 @@ import {
 import type { SenpiModelRegistryPort, SenpiModelPort } from "@oh-my-opencode/senpi-task"
 
 import type { ComponentLogger } from "../../extension/types"
+import { resolveAgentHome } from "../agent-home/resolve-agent-home"
 import type { SenpiOmoConfigResult } from "../config-resolution"
 import type { MemoryIdentityContext } from "./context"
 import { buildSandboxTransform, type SandboxPolicy, type SandboxTransform } from "./sandbox"
@@ -85,7 +85,7 @@ export function createIdentityRuntime(
         runtimeWrites: [
           identity.identityPaths.reflectionSessions,
           identity.identityPaths.reflection,
-          process.env.SENPI_CODING_AGENT_DIR ?? join(homedir(), ".senpi", "agent"),
+          resolveAgentHome({ env: process.env }),
           ...(process.env.XDG_CONFIG_HOME === undefined ? [] : [process.env.XDG_CONFIG_HOME]),
         ],
         command: spawnArgs.command,
