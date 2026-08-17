@@ -172,14 +172,14 @@ describe("test workflows", () => {
     const runsCodexCommand = codexCompatibilityJob.includes("run: bun run test:codex")
     const publishMainNeedsCodex =
       workflow.includes(
-        "needs: [test, typecheck, codex-compatibility, preflight-trust, release-metadata, prepare-release-state, publish-platform]",
+        "needs: [gate-reuse, test, typecheck, codex-compatibility, preflight-trust, release-metadata, prepare-release-state, publish-platform]",
       ) &&
-      workflow.includes("needs.codex-compatibility.result == 'success'")
+      workflow.includes("contains(fromJSON('[\"success\",\"skipped\"]'), needs.codex-compatibility.result)")
     const publishPlatformNeedsCodex =
       workflow.includes(
-        "needs: [test, typecheck, codex-compatibility, preflight-trust, release-metadata, prepare-release-state]",
+        "needs: [gate-reuse, test, typecheck, codex-compatibility, preflight-trust, release-metadata, prepare-release-state]",
       ) &&
-      workflow.includes("needs.codex-compatibility.result == 'success'")
+      workflow.includes("contains(fromJSON('[\"success\",\"skipped\"]'), needs.codex-compatibility.result)")
 
     // #then
     expect(hasCodexMatrixJob, "publish workflow must expose a Codex compatibility job").toBe(true)

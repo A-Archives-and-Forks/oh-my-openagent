@@ -40,8 +40,68 @@ permissions:
   actions: write
 
 jobs:
+  gate-reuse:
+    runs-on: ubuntu-latest
+    permissions:
+      checks: read
+      contents: read
+    outputs:
+      skip_gates: ${{ steps.reuse.outputs.skip_gates }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Determine whether release gates can be reused
+        id: reuse
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PREPARED_RELEASE_SHA: ${{ inputs.prepared_release_sha }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$PREPARED_RELEASE_SHA" ]; then
+            echo "skip_gates=true" >> "$GITHUB_OUTPUT"
+            echo "Skipping duplicate gates on the release preparation dispatch."
+            exit 0
+          fi
+
+          CHECK_RUNS="$(gh api --method GET \
+            "repos/${{ github.repository }}/commits/${PREPARED_RELEASE_SHA}/check-runs" \
+            -f per_page=100 \
+            -f filter=latest \
+            --paginate \
+            --slurp)"
+          REQUIRED_CHECKS='["test","typecheck","codex-compatibility (ubuntu-latest)","codex-compatibility (macos-latest)","codex-compatibility (windows-latest)"]'
+
+          if jq -e --argjson required "$REQUIRED_CHECKS" '
+            [.[].check_runs[] | select(.name as $name | $required | index($name))] as $runs
+            | (($runs | map(.name) | unique | sort) == ($required | sort))
+              and ($runs | all(.conclusion == "success"))
+          ' <<< "$CHECK_RUNS" >/dev/null; then
+            echo "skip_gates=true" >> "$GITHUB_OUTPUT"
+            echo "All required release gates already succeeded on ${PREPARED_RELEASE_SHA}."
+          else
+            echo "skip_gates=false" >> "$GITHUB_OUTPUT"
+            echo "Required release gates are missing, incomplete, or unsuccessful on ${PREPARED_RELEASE_SHA}."
+          fi
+
+      - name: Write job summary
+        if: always()
+        shell: bash
+        env:
+          JOB_SUMMARY_TITLE: Release gate reuse decision
+          JOB_SUMMARY_STATUS: ${{ job.status }}
+          JOB_SUMMARY_DETAILS: |
+            - Skips duplicate gates on the preparation dispatch, which cannot publish.
+            - Reuses gates on a prepared SHA only when every required check run is successful.
+            - Fails closed when GitHub check-run state cannot be read.
+          JOB_SUMMARY_NEXT: Retry after GitHub check-run state is available, or fix any missing or unsuccessful release gate.
+        run: GITHUB_STEP_SUMMARY="$GITHUB_STEP_SUMMARY" bash .github/scripts/write-job-summary.sh
+
   test:
     runs-on: ubuntu-latest
+    needs: [gate-reuse]
+    if: needs.gate-reuse.outputs.skip_gates != 'true'
     steps:
       - uses: actions/checkout@v5
 
@@ -81,6 +141,8 @@ jobs:
 
   typecheck:
     runs-on: ubuntu-latest
+    needs: [gate-reuse]
+    if: needs.gate-reuse.outputs.skip_gates != 'true'
     steps:
       - uses: actions/checkout@v5
 
@@ -116,6 +178,8 @@ jobs:
 
   codex-compatibility:
     runs-on: ${{ matrix.os }}
+    needs: [gate-reuse]
+    if: needs.gate-reuse.outputs.skip_gates != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -368,13 +432,14 @@ jobs:
 
   prepare-release-state:
     runs-on: ubuntu-latest
-    needs: [test, typecheck, codex-compatibility, preflight-trust, release-metadata]
+    needs: [gate-reuse, test, typecheck, codex-compatibility, preflight-trust, release-metadata]
     if: >-
       always() &&
       github.repository == 'code-yeongyu/oh-my-openagent' &&
-      needs.test.result == 'success' &&
-      needs.typecheck.result == 'success' &&
-      needs.codex-compatibility.result == 'success' &&
+      needs.gate-reuse.result == 'success' &&
+      contains(fromJSON('["success","skipped"]'), needs.test.result) &&
+      contains(fromJSON('["success","skipped"]'), needs.typecheck.result) &&
+      contains(fromJSON('["success","skipped"]'), needs.codex-compatibility.result) &&
       needs.preflight-trust.result == 'success' &&
       needs.release-metadata.result == 'success'
     permissions:
@@ -583,14 +648,15 @@ jobs:
 
   publish-main:
     runs-on: ubuntu-latest
-    needs: [test, typecheck, codex-compatibility, preflight-trust, release-metadata, prepare-release-state, publish-platform]
+    needs: [gate-reuse, test, typecheck, codex-compatibility, preflight-trust, release-metadata, prepare-release-state, publish-platform]
     if: >-
       always() &&
       github.repository == 'code-yeongyu/oh-my-openagent' &&
       inputs.prepared_release_sha != '' &&
-      needs.test.result == 'success' &&
-      needs.typecheck.result == 'success' &&
-      needs.codex-compatibility.result == 'success' &&
+      needs.gate-reuse.result == 'success' &&
+      contains(fromJSON('["success","skipped"]'), needs.test.result) &&
+      contains(fromJSON('["success","skipped"]'), needs.typecheck.result) &&
+      contains(fromJSON('["success","skipped"]'), needs.codex-compatibility.result) &&
       needs.preflight-trust.result == 'success' &&
       needs.release-metadata.result == 'success' &&
       needs.prepare-release-state.result == 'success' &&
@@ -1074,15 +1140,16 @@ jobs:
         run: GITHUB_STEP_SUMMARY="$GITHUB_STEP_SUMMARY" bash .github/scripts/write-job-summary.sh
 
   publish-platform:
-    needs: [test, typecheck, codex-compatibility, preflight-trust, release-metadata, prepare-release-state]
+    needs: [gate-reuse, test, typecheck, codex-compatibility, preflight-trust, release-metadata, prepare-release-state]
     if: >-
       always() &&
       github.repository == 'code-yeongyu/oh-my-openagent' &&
       inputs.prepared_release_sha != '' &&
       inputs.skip_platform != true &&
-      needs.test.result == 'success' &&
-      needs.typecheck.result == 'success' &&
-      needs.codex-compatibility.result == 'success' &&
+      needs.gate-reuse.result == 'success' &&
+      contains(fromJSON('["success","skipped"]'), needs.test.result) &&
+      contains(fromJSON('["success","skipped"]'), needs.typecheck.result) &&
+      contains(fromJSON('["success","skipped"]'), needs.codex-compatibility.result) &&
       needs.preflight-trust.result == 'success' &&
       needs.release-metadata.result == 'success' &&
       needs.prepare-release-state.result == 'success'
