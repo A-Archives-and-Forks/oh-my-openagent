@@ -1,10 +1,8 @@
 import { readdir, readFile, stat } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-
 export const root = dirname(dirname(fileURLToPath(import.meta.url)));
 export const repoRoot = join(root, "..", "..", "..");
-
 export async function readJson(relativePath) {
 	return JSON.parse(await readFile(join(root, relativePath), "utf8"));
 }
@@ -78,3 +76,175 @@ export function collectCommandHooks(hooks, source) {
 export function hookLocation({ source, eventName, groupIndex, handlerIndex, handler }) {
 	return `${source}:${eventName}:${groupIndex}:${handlerIndex}:${handler.command}`;
 }
+
+const SPAWN_AGENT_START = /\bspawn_agent\s*\(/g;
+
+async function collectFiles(directory, predicate) {
+	let entries;
+	try {
+		entries = await readdir(directory, { withFileTypes: true });
+	} catch (error) {
+		if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
+		throw error;
+	}
+
+	const files = [];
+	for (const entry of entries) {
+		const path = join(directory, entry.name);
+		if (entry.isDirectory()) files.push(...(await collectFiles(path, predicate)));
+		else if (entry.isFile() && predicate(path)) files.push(path);
+	}
+	return files;
+}
+
+export async function listShippedSpawnPromptFiles() {
+	const skillFiles = [
+		...(await collectFiles(join(root, "skills"), (path) => basename(path) === "SKILL.md")),
+		...(await collectFiles(
+			join(root, "components"),
+			(path) => path.includes(`${sep}skills${sep}`) && basename(path) === "SKILL.md",
+		)),
+	];
+	const hephaestusRules = await collectFiles(
+		join(root, "components", "rules", "bundled-rules", "hephaestus"),
+		(path) => path.endsWith(".md"),
+	);
+	return [...skillFiles, ...hephaestusRules].sort();
+}
+
+export function findSpawnAgentCalls(content) {
+	const calls = [];
+	for (const match of content.matchAll(SPAWN_AGENT_START)) {
+		const openingParenthesis = match.index + match[0].lastIndexOf("(");
+		let depth = 1;
+		let quote = null;
+		let escaped = false;
+
+		for (let index = openingParenthesis + 1; index < content.length; index += 1) {
+			const character = content[index];
+			if (quote !== null) {
+				if (escaped) escaped = false;
+				else if (character === "\\") escaped = true;
+				else if (character === quote) quote = null;
+				continue;
+			}
+			if (character === '"' || character === "'" || character === "`") {
+				quote = character;
+				continue;
+			}
+			if (character === "(") depth += 1;
+			else if (character === ")") depth -= 1;
+			if (depth !== 0) continue;
+
+			calls.push({ call: content.slice(match.index, index + 1), index: match.index });
+			break;
+		}
+	}
+	return calls;
+}
+
+function tokensForSpawnCall(call) {
+	const tokens = [];
+	let braceDepth = 0;
+	let bracketDepth = 0;
+	let parenthesisDepth = 0;
+
+	for (let index = call.indexOf("(") + 1; index < call.length - 1; ) {
+		const character = call[index];
+		if (/\s/.test(character)) {
+			index += 1;
+			continue;
+		}
+		if (character === '"' || character === "'" || character === "`") {
+			const quote = character;
+			let value = "";
+			index += 1;
+			while (index < call.length - 1) {
+				const current = call[index];
+				if (current === "\\" && index + 1 < call.length - 1) {
+					value += call[index + 1];
+					index += 2;
+					continue;
+				}
+				index += 1;
+				if (current === quote) break;
+				value += current;
+			}
+			tokens.push({ type: "string", value, braceDepth, bracketDepth, parenthesisDepth });
+			continue;
+		}
+		if (/[A-Za-z_]/.test(character)) {
+			const start = index;
+			while (/[A-Za-z0-9_]/.test(call[index] ?? "")) index += 1;
+			tokens.push({ type: "identifier", value: call.slice(start, index), braceDepth, bracketDepth, parenthesisDepth });
+			continue;
+		}
+
+		if (character === "{") braceDepth += 1;
+		else if (character === "}") braceDepth -= 1;
+		else if (character === "[") bracketDepth += 1;
+		else if (character === "]") bracketDepth -= 1;
+		else if (character === "(") parenthesisDepth += 1;
+		else if (character === ")") parenthesisDepth -= 1;
+		else if (character === ":" || character === "=") {
+			tokens.push({ type: "separator", value: character, braceDepth, bracketDepth, parenthesisDepth });
+		}
+		index += 1;
+	}
+	return tokens;
+}
+
+function spawnParameters(call) {
+	const tokens = tokensForSpawnCall(call);
+	const parameters = [];
+	for (let index = 0; index < tokens.length - 2; index += 1) {
+		const key = tokens[index];
+		const separator = tokens[index + 1];
+		const value = tokens[index + 2];
+		const isArgumentScope = key.parenthesisDepth === 0 && key.bracketDepth === 0 && key.braceDepth <= 1;
+		const isSameScope =
+			separator.braceDepth === key.braceDepth && separator.bracketDepth === key.bracketDepth &&
+			separator.parenthesisDepth === key.parenthesisDepth && value.braceDepth === key.braceDepth &&
+			value.bracketDepth === key.bracketDepth &&
+			value.parenthesisDepth === key.parenthesisDepth;
+		if (!isArgumentScope || !isSameScope || separator.type !== "separator") continue;
+		parameters.push({ name: key.value, value, direct: key.braceDepth === 0 });
+	}
+	return parameters;
+}
+
+export function hasSpawnIsolationArgument(call) {
+	return spawnParameters(call).some(
+		({ name, value }) => (name === "fork_context" && value.type === "identifier" && value.value === "false") ||
+			(name === "fork_turns" && value.type === "string" && value.value === "none"),
+	);
+}
+
+export function findSpawnAgentCallsWithoutIsolation(content) {
+	return findSpawnAgentCalls(content).filter(({ call }) => !hasSpawnIsolationArgument(call));
+}
+
+export function findSpawnAgentCallsWithUnsupportedParameters(content) {
+	return findSpawnAgentCalls(content).flatMap((entry) => {
+		const parameters = spawnParameters(entry.call)
+			.filter(({ name, direct }) => name === "model" || name === "reasoning_effort" || (name === "agent_type" && direct))
+			.map(({ name }) => name);
+		return parameters.length === 0 ? [] : [{ ...entry, parameters }];
+	});
+}
+
+async function findShippedSpawnViolations(findViolations) {
+	const violations = [];
+	for (const path of await listShippedSpawnPromptFiles()) {
+		const content = await readFile(path, "utf8");
+		for (const violation of findViolations(content)) {
+			const line = content.slice(0, violation.index).split("\n").length;
+			violations.push({ path, line, ...violation });
+		}
+	}
+	return violations;
+}
+
+export const findShippedSpawnIsolationViolations = () => findShippedSpawnViolations(findSpawnAgentCallsWithoutIsolation);
+export const findShippedUnsupportedSpawnParameterViolations = () =>
+	findShippedSpawnViolations(findSpawnAgentCallsWithUnsupportedParameters);

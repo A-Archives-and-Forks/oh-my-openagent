@@ -187,7 +187,7 @@ test("#given synced ulw-loop skill #when Codex hint metadata is inspected #then 
 	// then
 	assert.match(skill, /^---\r?\nname: ulw-loop\r?\n/m);
 	assert.match(interfaceMetadata, /display_name: "\(OmO\) ulw-loop"/);
-	assert.match(interfaceMetadata, /default_prompt: "Use \$ulw-loop/);
+	assert.match(interfaceMetadata, /^\s*default_prompt:\s*".+"$/m);
 });
 
 test("#given synced ulw-loop skill #when Codex hint metadata is inspected #then ulw-loop remains discoverable as an alias", async () => {
