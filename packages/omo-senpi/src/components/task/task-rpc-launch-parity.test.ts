@@ -18,7 +18,14 @@ function createAdmission() {
   const agentDir = mkdtempSync(join(tmpdir(), "omo-task-rpc-model-profile-"))
   agentDirs.push(agentDir)
   const parentEnv = {
-    ...rootSuiteBaselineEnv,
+    PATH: rootSuiteBaselineEnv.PATH,
+    TMPDIR: rootSuiteBaselineEnv.TMPDIR,
+    TEMP: rootSuiteBaselineEnv.TEMP,
+    TMP: rootSuiteBaselineEnv.TMP,
+    HOME: agentDir,
+    USERPROFILE: agentDir,
+    CI: rootSuiteBaselineEnv.CI,
+    TERM: "dumb",
     OMO_DISABLE_POSTHOG: "true",
     OMO_CODING_AGENT_DIR: agentDir,
     SENPI_CODING_AGENT_DIR: agentDir,

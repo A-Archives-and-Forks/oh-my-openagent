@@ -63,12 +63,15 @@ function appendBounded(current: string, chunk: Buffer): string {
 export function parseModelCatalog(output: string): ReadonlySet<string> {
   const models = new Set<string>()
   for (const rawLine of output.replace(ANSI_ESCAPE, "").split(/\r?\n/)) {
-    const columns = rawLine.trim().split(/\s+/)
+    const columns = rawLine.trim().split(/\s+/).filter((column) => column.length > 0)
     const provider = columns[0]
     const model = columns[1]
-    if (provider !== undefined && model !== undefined) {
+    if (provider === undefined || provider === "provider") continue
+    if (model !== undefined && model !== "model") {
       models.add(`${provider}/${model}`)
+      continue
     }
+    if (provider.includes("/")) models.add(provider)
   }
   return models
 }
