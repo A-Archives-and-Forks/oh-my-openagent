@@ -7,6 +7,7 @@ import { join } from "node:path"
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import { ULW_LOOP_FOOTER_FRAMES } from "./footer-status"
 import { createUlwLoopComponent } from "./index"
+import { toSpawnTarget } from "./omo-command"
 import {
   activeStatus,
   changingActiveStatuses,
@@ -18,6 +19,16 @@ import {
 } from "./ulw-loop.test-support"
 
 describe("omo-senpi ulw-loop continuation session isolation", () => {
+  it("#given Windows staged toolkit #when resolving its spawn target #then uses cmd.exe with the .cmd wrapper", () => {
+    const bin = stagedToolkitBin("win32")
+
+    expect(bin).toEndWith("omo-agent-toolkit.cmd")
+    expect(toSpawnTarget(bin, ["ulw-loop", "status", "--json"], "win32")).toEqual({
+      command: "cmd.exe",
+      args: ["/d", "/s", "/c", bin, "ulw-loop", "status", "--json"],
+    })
+  })
+
   it("#given session A owns an active run in the shared cwd #when session B ends #then B receives no continuation", async () => {
     const cwd = mkdtempSync(join(tmpdir(), "omo-senpi-ulw-session-b-"))
     try {
@@ -285,8 +296,9 @@ describe("omo-senpi ulw-loop continuation", () => {
   })
 })
 
-function stagedToolkitBin(): string {
-  return join(import.meta.dir, "../../../plugin/runtime/agent-toolkit/omo-agent-toolkit")
+function stagedToolkitBin(platform: NodeJS.Platform = process.platform): string {
+  const executable = platform === "win32" ? "omo-agent-toolkit.cmd" : "omo-agent-toolkit"
+  return join(import.meta.dir, "../../../plugin/runtime/agent-toolkit", executable)
 }
 
 function sessionContext(cwd: string, sessionId: string): {
@@ -302,16 +314,18 @@ function sessionContext(cwd: string, sessionId: string): {
 }
 
 function createActivePlan(cwd: string, sessionId?: string): void {
+  const args = [
+    "ulw-loop",
+    "create-goals",
+    ...(sessionId === undefined ? [] : ["--session-id", sessionId]),
+    "--brief",
+    "- Keep this session-owned run active",
+    "--json",
+  ]
+  const target = toSpawnTarget(stagedToolkitBin(), args)
   execFileSync(
-    stagedToolkitBin(),
-    [
-      "ulw-loop",
-      "create-goals",
-      ...(sessionId === undefined ? [] : ["--session-id", sessionId]),
-      "--brief",
-      "- Keep this session-owned run active",
-      "--json",
-    ],
+    target.command,
+    [...target.args],
     {
       cwd,
       env: {

@@ -1,14 +1,17 @@
 #!/usr/bin/env bun
 
+import { spawnSync } from "node:child_process"
 import { existsSync, mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
-import { pathToFileURL, fileURLToPath } from "node:url"
-import { spawnSync } from "node:child_process"
+import { fileURLToPath, pathToFileURL } from "node:url"
+
+import { toSpawnTarget } from "../../src/components/ulw-loop/omo-command.ts"
 
 const scriptPath = fileURLToPath(import.meta.url)
 const repoRoot = join(dirname(scriptPath), "../../../..")
-const toolkitBin = join(repoRoot, "packages/omo-senpi/plugin/runtime/agent-toolkit/omo-agent-toolkit")
+const toolkitExecutable = process.platform === "win32" ? "omo-agent-toolkit.cmd" : "omo-agent-toolkit"
+const toolkitBin = join(repoRoot, "packages/omo-senpi/plugin/runtime/agent-toolkit", toolkitExecutable)
 
 if (process.argv[2] === "--extension-child") {
   const sessionId = process.argv[3]
@@ -107,7 +110,8 @@ function runChild(cwd, sessionId) {
 }
 
 function runToolkit(args, cwd, sessionId, expectedStatus) {
-  const child = spawnSync(toolkitBin, args, {
+  const target = toSpawnTarget(toolkitBin, args)
+  const child = spawnSync(target.command, [...target.args], {
     cwd,
     env: sessionEnv(sessionId),
     encoding: "utf8",
