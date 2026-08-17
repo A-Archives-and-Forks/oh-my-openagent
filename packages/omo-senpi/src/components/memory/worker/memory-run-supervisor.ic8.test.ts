@@ -2,7 +2,7 @@ import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { spawn, spawnSync, type ChildProcess } from "node:child_process"
 import { existsSync, realpathSync } from "node:fs"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
-import { createServer, type AddressInfo } from "node:net"
+import { createServer, type AddressInfo, type Server } from "node:net"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import {
@@ -22,7 +22,41 @@ const childFixture = join(import.meta.dir, "__fixtures__", "supervisor-child.ts"
 const taskkillFixture = join(import.meta.dir, "__fixtures__", "supervisor-taskkill.ts")
 const roots: string[] = []
 const liveProcesses = new Set<number>()
+const exitServers = new Set<Server>()
+const exitServerClosures = new Map<Server, Promise<void>>()
+const childExitTimeouts = new Set<ReturnType<typeof setTimeout>>()
 const platforms = ["posix", "win32"] as const
+
+function clearChildExitTimeout(timeout: ReturnType<typeof setTimeout>): void {
+  clearTimeout(timeout)
+  childExitTimeouts.delete(timeout)
+}
+
+async function closeExitServer(server: Server): Promise<void> {
+  const existing = exitServerClosures.get(server)
+  if (existing !== undefined) return existing
+  if (!server.listening) {
+    exitServers.delete(server)
+    return
+  }
+
+  const closing = new Promise<void>((resolve, reject) => {
+    server.close((error) => error ? reject(error) : resolve())
+  })
+  exitServerClosures.set(server, closing)
+  try {
+    await closing
+  } finally {
+    exitServerClosures.delete(server)
+    exitServers.delete(server)
+  }
+}
+
+async function cleanupExitResources(): Promise<void> {
+  for (const timeout of childExitTimeouts) clearTimeout(timeout)
+  childExitTimeouts.clear()
+  await Promise.all([...exitServers].map(closeExitServer))
+}
 
 async function waitForPath(path: string, timeoutMs = WAIT_MS): Promise<void> {
   await waitForFilesystemState(dirname(path), () => existsSync(path) ? true : undefined, timeoutMs, path)
@@ -38,17 +72,25 @@ async function makeRun(mode: "graceful" | "stubborn"): Promise<{
   await mkdir(runDir, { recursive: true, mode: 0o700 })
   const clockPath = await createTestClock(runDir, 1_000)
   const exitServer = createServer()
+  exitServers.add(exitServer)
   await new Promise<void>((resolve, reject) => {
     exitServer.once("error", reject)
     exitServer.listen(0, "127.0.0.1", resolve)
   })
   const address = exitServer.address() as AddressInfo
   const childExited = new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error(`waited ${WAIT_MS}ms for model child exit`)), WAIT_MS)
+    const timeout = setTimeout(() => {
+      childExitTimeouts.delete(timeout)
+      reject(new Error(`waited ${WAIT_MS}ms for model child exit`))
+    }, WAIT_MS)
+    childExitTimeouts.add(timeout)
     exitServer.once("connection", () => {
-      exitServer.close(() => {
-        clearTimeout(timeout)
+      void closeExitServer(exitServer).then(() => {
+        clearChildExitTimeout(timeout)
         resolve()
+      }, (error: unknown) => {
+        clearChildExitTimeout(timeout)
+        reject(error)
       })
     })
   })
@@ -96,13 +138,27 @@ async function advanceClock(path: string, value: number): Promise<void> {
 
 function waitForExit(child: ChildProcess): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error(`waited ${WAIT_MS}ms for process exit`)), WAIT_MS)
-    child.once("error", reject)
-    child.once("close", (code, signal) => {
-      clearTimeout(timeout)
+    const cleanup = (): void => {
+      clearChildExitTimeout(timeout)
+      child.off("error", onError)
+      child.off("close", onClose)
+    }
+    const onError = (error: Error): void => {
+      cleanup()
+      reject(error)
+    }
+    const onClose = (code: number | null, signal: NodeJS.Signals | null): void => {
+      cleanup()
       if (child.pid !== undefined) liveProcesses.delete(child.pid)
       resolve({ code, signal })
-    })
+    }
+    const timeout = setTimeout(() => {
+      cleanup()
+      reject(new Error(`waited ${WAIT_MS}ms for process exit`))
+    }, WAIT_MS)
+    childExitTimeouts.add(timeout)
+    child.once("error", onError)
+    child.once("close", onClose)
   })
 }
 
@@ -125,12 +181,29 @@ afterEach(async () => {
     }
   }
   liveProcesses.clear()
+  await cleanupExitResources()
   // Windows releases file handles asynchronously when killed processes die, so an immediate
   // recursive rm can hit EBUSY there; bounded retries absorb the lag without weakening cleanup.
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 30, retryDelay: 200 })))
 })
 
 describe("memory run supervisor IC-8 containment", () => {
+  test("#given an unconnected exit server #when test cleanup runs #then the listener and timeout are released", async () => {
+    // given
+    await makeRun("graceful")
+    const server = [...exitServers].at(-1)
+    if (!server) throw new Error("exit server is required")
+    expect(server.listening).toBe(true)
+    expect(childExitTimeouts.size).toBe(1)
+
+    // when
+    await cleanupExitResources()
+
+    // then
+    expect(server.listening).toBe(false)
+    expect(childExitTimeouts.size).toBe(0)
+  })
+
   test("#given injected Windows and a child that exits during grace #when the hard deadline arrives #then the supervisor cancels forced taskkill", async () => {
     // given
     const { runDir, clockPath, childExited } = await makeRun("graceful")
