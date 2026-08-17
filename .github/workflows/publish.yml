@@ -1114,8 +1114,12 @@ jobs:
           VERSION: ${{ needs.release-metadata.outputs.version }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          RELEASE_FLAGS=()
+          if [[ "$VERSION" == *"-"* ]]; then
+            RELEASE_FLAGS+=(--prerelease)
+          fi
           gh release view "v${VERSION}" >/dev/null 2>&1 || \
-            gh release create "v${VERSION}" --title "v${VERSION}" --notes-file /tmp/changelog.md
+            gh release create "v${VERSION}" "${RELEASE_FLAGS[@]}" --title "v${VERSION}" --notes-file /tmp/changelog.md
 
       - name: Delete draft release
         run: gh release delete next --yes 2>/dev/null || true

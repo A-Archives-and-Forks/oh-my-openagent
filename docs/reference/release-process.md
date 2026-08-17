@@ -14,6 +14,8 @@ Before publishing a release, maintainers verify:
 
 CI green is required for release readiness, but CI does not replace manual verification for bugs whose reproducer depends on timing, providers, models, or external OpenCode behavior.
 
+The `/publish` command accepts `patch`, `minor`, `major`, or an explicit semantic version such as `5.0.0-beta.9`. Bump selectors preserve the stable release flow. Explicit versions are passed to the workflow's `version` input unchanged, so prerelease channels do not fall back to the latest stable package. The command records the workflow URL returned by the dispatch and monitors that exact run ID; a latest-run lookup is not release ownership.
+
 For the `omo-ai` package (the senpi-native edition, beta channel only), see the [omo-ai publishing runbook](./omo-ai-publishing.md): bootstrap state, the beta-gate mechanism, the Trusted Publisher merge gate, and the first-beta-release checklist.
 
 ## Resuming a Failed Publish
@@ -24,7 +26,7 @@ For a transient failure, retry only the failed jobs and their dependencies:
 gh run rerun --failed <run-id>
 ```
 
-A rerun keeps the original workflow revision, dispatch SHA, and inputs. Use a fresh dispatch instead when the correction must change any of those values, such as a workflow or source fix merged after the failed run, an incorrect version or bump, or different `skip_platform` or `publish_lazycodex` inputs. Before a release-state commit or tag exists, a fresh dispatch is also the clean recovery when replacing the failed attempt because no durable release identity exists yet. Do not pass `prepared_release_sha`; that input is internal to the workflow's second dispatch.
+A rerun keeps the original workflow revision, dispatch SHA, and inputs. Use a fresh dispatch instead when the correction must change any of those values, such as a workflow or source fix merged after the failed run, an incorrect version or bump, or different `skip_platform` or `publish_lazycodex` inputs. Keep the exact run ID returned by each dispatch; do not infer ownership from whichever publish run is newest. Before a release-state commit or tag exists, a fresh dispatch is also the clean recovery when replacing the failed attempt because no durable release identity exists yet. Do not pass `prepared_release_sha`; that input is internal to the workflow's second dispatch.
 
 For example, a new explicit-version attempt is dispatched from `dev` with all intended public inputs:
 

@@ -13,7 +13,10 @@ const agentDirs: string[] = []
 const mockProviderExtension = fileURLToPath(
   new URL("../../../scripts/qa/mock-provider/index.ts", import.meta.url),
 )
-const rootSuiteBaselineEnv: NodeJS.ProcessEnv = { ...process.env }
+// Snapshot at module load, before any test in this process can mutate process.env:
+// other suites prepend fixture bin dirs to PATH, and a poisoned PATH changes
+// which Senpi launcher the probe resolves.
+const moduleLoadEnv: NodeJS.ProcessEnv = { ...process.env }
 const senpiPackageDir = dirname(createRequire(import.meta.url).resolve("@code-yeongyu/senpi/package.json"))
 const senpiRpcEntry = join(senpiPackageDir, "dist", "rpc-entry.js")
 
@@ -29,13 +32,9 @@ function createAdmission() {
   const agentDir = mkdtempSync(join(tmpdir(), "omo-task-rpc-model-profile-"))
   agentDirs.push(agentDir)
   const parentEnv = {
-    PATH: rootSuiteBaselineEnv.PATH,
-    TMPDIR: rootSuiteBaselineEnv.TMPDIR,
-    TEMP: rootSuiteBaselineEnv.TEMP,
-    TMP: rootSuiteBaselineEnv.TMP,
+    ...moduleLoadEnv,
     HOME: agentDir,
     USERPROFILE: agentDir,
-    CI: rootSuiteBaselineEnv.CI,
     TERM: "dumb",
     OMO_DISABLE_POSTHOG: "true",
     OMO_CODING_AGENT_DIR: agentDir,
@@ -75,7 +74,7 @@ describe("task RPC launch profile parity", () => {
 
     // when
     const descriptor = buildPinnedCatalogSpawn(spec, {
-      ...rootSuiteBaselineEnv,
+      ...moduleLoadEnv,
       PATH: join(tmpdir(), "foreign-senpi-bin"),
     })
 
@@ -106,7 +105,7 @@ describe("task RPC launch profile parity", () => {
     await expect(admission).rejects.toMatchObject({
       failure: {
         kind: "model_unavailable",
-        message: expect.stringContaining("omo-mock/mock-1"),
+        message: expect.stringMatching(/omo-mock\/mock-1.*probed catalog has/),
       },
     })
   }, 30_000)
