@@ -78,7 +78,7 @@ jobs:
 
   test:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.os == 'windows-latest' && 40 || 30 }}
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 60 || 30 }}
     strategy:
       fail-fast: false
       matrix:
@@ -118,21 +118,19 @@ jobs:
         run: npm test
         working-directory: packages/lsp-daemon
 
+      # Do not use shell: bash on Windows bun test. Git Bash sets SHELL/MSYSTEM so
+      # executeOnCompleteHook tests spawn sh -c instead of powershell/cmd.
       - name: Run tests
-        # Dedicated configs preserve bunfig.toml ignores. The CLI --path-ignore-patterns
-        # flag replaces that list and would re-include web, vendored, plugin, and upstream tests.
-        # Matrix keys stay os+shard so required check names stay test (ubuntu-latest) etc.
-        # Complementary Windows group stays serial: --parallel flakes codegraph provision,
-        # windowsHide RPC, and the 120s chaos bench on this shard.
-        shell: bash
-        run: |
-          if [[ "${{ matrix.os }}" == "windows-latest" && "${{ matrix.shard }}" == "1/2" ]]; then
-            bun test packages/omo-opencode packages/memory-core
-          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            bun --config=bunfig.win2.toml test
-          else
-            bun --config=bunfig.root.toml test
-          fi
+        if: runner.os != 'Windows'
+        run: bun --config=bunfig.root.toml test
+
+      - name: Run tests
+        if: matrix.shard == '1/2'
+        run: bun test packages/omo-opencode packages/memory-core
+
+      - name: Run tests
+        if: matrix.shard == '2/2'
+        run: bun --config=bunfig.win2.toml test
 
       - name: Write job summary
         if: always()

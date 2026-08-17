@@ -59,4 +59,15 @@ describe("root test CI partition", () => {
     expect(job).not.toContain("format('-c {0}'")
     expect(job).not.toContain("bun test -c")
   })
+
+  test("#given Windows hook tests read process platform #when root tests run #then bun is not launched under Git Bash", () => {
+    const job = rootTestJob()
+    const runBlock = job.slice(job.indexOf("      - name: Run tests"))
+
+    expect(runBlock).toContain('if: runner.os != \'Windows\'')
+    expect(runBlock).toContain("if: matrix.shard == '1/2'")
+    expect(runBlock).toContain("if: matrix.shard == '2/2'")
+    expect(runBlock).not.toContain("shell: bash\n        run: |")
+    expect(job).toContain("timeout-minutes: ${{ matrix.os == 'windows-latest' && 60 || 30 }}")
+  })
 })
