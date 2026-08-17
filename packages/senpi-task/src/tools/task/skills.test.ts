@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, test } from "bun:test"
+import { loadSkillsFromDir } from "@code-yeongyu/senpi"
 
 import { buildSkillPrepend, createFsSkillLoader } from "./skills"
 
@@ -162,5 +163,46 @@ describe("createFsSkillLoader", () => {
     expect(resolution.prepend).toContain(`References are relative to ${skillsDir}.`)
     expect(resolution.prepend).toContain("DIRECT BODY")
     expect(resolution.prepend).not.toContain("description: Direct root skill")
+  })
+
+  test("#given several indirect skill names #when loaded together #then every existing directory is discovered once", () => {
+    // given
+    const projectRoot = scratch()
+    mkdirSync(join(projectRoot, ".git"))
+    const cwd = join(projectRoot, "app")
+    mkdirSync(cwd)
+    const projectSkills = join(cwd, ".senpi", "skills")
+    const homeDir = scratch()
+    const globalSkills = join(homeDir, ".agents", "skills")
+    const agentDir = scratch()
+    const agentSkills = join(agentDir, "skills")
+    const packageSkills = scratch()
+    const aliasedDir = join(packageSkills, "nested")
+    for (const dir of [projectSkills, globalSkills, agentSkills, aliasedDir]) {
+      mkdirSync(dir, { recursive: true })
+    }
+    writeFileSync(
+      join(aliasedDir, "SKILL.md"),
+      "---\nname: aliased\ndescription: Aliased nested skill\n---\nALIASED BODY\n",
+      "utf8",
+    )
+    const scans: string[] = []
+    const loader = createFsSkillLoader({
+      homeDir,
+      agentDir,
+      extraDirs: [packageSkills],
+      loadSkillsFromDir: (options) => {
+        scans.push(options.dir)
+        return loadSkillsFromDir(options)
+      },
+    })
+
+    // when
+    const resolution = loader(["missing-one", "aliased", "missing-two"], cwd)
+
+    // then
+    expect(resolution.resolved).toEqual(["aliased"])
+    expect(resolution.missing).toEqual(["missing-one", "missing-two"])
+    expect(scans).toEqual([projectSkills, agentSkills, globalSkills, packageSkills])
   })
 })

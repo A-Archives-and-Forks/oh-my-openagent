@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 
-import { loadSkillsFromDir } from "@code-yeongyu/senpi"
+import { loadSkillsFromDir as discoverSkillsFromDir } from "@code-yeongyu/senpi"
 
 import type { LoadedSkill, SkillLoader, SkillResolution } from "./types"
 
@@ -10,6 +10,7 @@ export type FsSkillLoaderOptions = {
   readonly homeDir?: string
   readonly agentDir?: string
   readonly extraDirs?: readonly string[]
+  readonly loadSkillsFromDir?: typeof discoverSkillsFromDir
 }
 
 // v1 load_skills contract: wrap each resolved SKILL.md in a named block and place it before the
@@ -83,16 +84,31 @@ function directSkill(name: string, dir: string): LoadedSkill | undefined {
   return path === undefined ? undefined : readSkillFile(name, path)
 }
 
-function discoveredSkill(name: string, dir: string): LoadedSkill | undefined {
+function discoveredSkill(
+  name: string,
+  dir: string,
+  discover: typeof discoverSkillsFromDir,
+  cache: Map<string, ReturnType<typeof discoverSkillsFromDir>>,
+): LoadedSkill | undefined {
   if (!existsSync(dir)) return undefined
-  const skill = loadSkillsFromDir({ dir, source: "project" }).skills.find((candidate) => candidate.name === name)
+  let discovery = cache.get(dir)
+  if (discovery === undefined) {
+    discovery = discover({ dir, source: "project" })
+    cache.set(dir, discovery)
+  }
+  const skill = discovery.skills.find((candidate) => candidate.name === name)
   return skill === undefined ? undefined : readSkillFile(name, skill.filePath)
 }
 
-function readSkill(name: string, dirs: readonly string[]): LoadedSkill | undefined {
+function readSkill(
+  name: string,
+  dirs: readonly string[],
+  discover: typeof discoverSkillsFromDir,
+  cache: Map<string, ReturnType<typeof discoverSkillsFromDir>>,
+): LoadedSkill | undefined {
   if (!/^[a-z0-9-]+$/.test(name)) return undefined
   for (const dir of dirs) {
-    const skill = directSkill(name, dir) ?? discoveredSkill(name, dir)
+    const skill = directSkill(name, dir) ?? discoveredSkill(name, dir, discover, cache)
     if (skill !== undefined) return skill
   }
   return undefined
@@ -104,12 +120,14 @@ export function createFsSkillLoader(options: FsSkillLoaderOptions = {}): SkillLo
   const home = options.homeDir ?? homedir()
   const agentDir = options.agentDir ?? join(home, ".senpi", "agent")
   const extraDirs = options.extraDirs ?? []
+  const discover = options.loadSkillsFromDir ?? discoverSkillsFromDir
   return (names, cwd): SkillResolution => {
     const dirs = searchDirs(cwd, home, agentDir, extraDirs)
+    const discoveryCache = new Map<string, ReturnType<typeof discoverSkillsFromDir>>()
     const skills: LoadedSkill[] = []
     const missing: string[] = []
     for (const name of names) {
-      const skill = readSkill(name, dirs)
+      const skill = readSkill(name, dirs, discover, discoveryCache)
       if (skill === undefined) missing.push(name)
       else skills.push(skill)
     }
