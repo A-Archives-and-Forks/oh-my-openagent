@@ -119,7 +119,11 @@ jobs:
         working-directory: packages/lsp-daemon
 
       - name: Run tests
-        run: bun test${{ matrix.shard && format(' --shard={0}', matrix.shard) || '' }}
+        # packages/omo-senpi is covered by the senpi-compatibility job, which builds the
+        # plugin first; running it here too duplicated 46% of the Windows suite. The flag is
+        # per-invocation on purpose - a bunfig pathIgnorePatterns entry would also suppress
+        # the senpi job's own explicit `bun test packages/omo-senpi`.
+        run: bun test --path-ignore-patterns="packages/omo-senpi/**"${{ matrix.shard && format(' --shard={0}', matrix.shard) || '' }}
 
       - name: Write job summary
         if: always()
