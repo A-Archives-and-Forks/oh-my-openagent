@@ -85,3 +85,68 @@ back to itself would be tautological.
   commit contains them.
 - No secret-bearing output is reproduced: the captured logs are compiler and
   test output only.
+
+---
+
+## Post-review additions
+
+### Full suite, after the allowlist fix
+
+    $ bun test
+    15737 pass
+    7 skip
+    0 fail
+    Ran 15744 tests across 2041 files. [555.78s]
+
+The earlier run reported 15736 pass / 1 fail; that single failure was the
+pre-existing `agent command string audit` defect inherited from dev, fixed in
+32f380f92. Log: `bun-test-final.txt`.
+
+### Pre-existing dev defect: allowlist line pins
+
+`script/agent-command-string-audit.allowlist.json` pins hits by `file:LINE`.
+Commit 3dd88267f ("docs: refresh knowledge base snapshot") inserted a line above
+the `omo doctor` mention in AGENTS.md and its CLAUDE.md symlink, moving both from
+411 to 412 without updating the allowlist.
+
+Proof this branch did not cause it:
+
+    $ git diff 3dd88267f..HEAD --name-only | grep -E '^(AGENTS|CLAUDE)\.md$'
+    (no output — neither file is touched by this branch)
+
+    # on a clean 3dd88267f checkout:
+    $ grep -n 'omo doctor' AGENTS.md
+    412:- **Agent state directory:** ...
+    $ rg -n 'AGENTS.md:41' script/agent-command-string-audit.allowlist.json
+    27:    "AGENTS.md:411: omo doctor",
+
+Corrected to the observed line in its own commit. The audit still fails on any
+uncategorized hit; nothing was relaxed. Log: `audit-baseline-fix.txt`.
+
+### Criterion 1 (senpi) — satisfied by verification, not by edit
+
+The objective specifies senpi `2026.8.14 -> 2026.8.16` across four manifests.
+`origin/dev` ALREADY carried 2026.8.16 in all four; the 2026.8.14 seen during
+discovery came from the dirty main checkout, not from dev. Verified current state
+rather than making a no-op edit:
+
+    4 manifests            all "2026.8.16"
+    bun.lock               exactly one entry: @code-yeongyu/senpi@2026.8.16
+    npm latest             2026.8.16
+    node_modules installed 2026.8.16
+    pin-guard tests        3 pass / 0 fail
+      (packages/omo-native/test/brand-contract-pin.test.ts
+       + provider-map-registry.test.ts)
+
+Server-side, `senpi-compatibility (ubuntu-latest)` is SUCCESS on the PR, which is
+the job that runs `build-extension.mjs --check` — criterion 2 proven on CI, not
+just locally. Log: `tool-versions.txt`.
+
+### curl_cffi — deliberately not bumped
+
+The only version reference in the repo is a comment in
+`engine/waf_profiles.yaml`: `requires curl_cffi >= 0.15.0` for the
+chrome142/145/146 + safari260/2601 + firefox144/147 impersonate targets. It is a
+functional lower bound, not a pin, and no install instruction pins a version at
+all. Raising the floor to 0.16.0 would narrow which installs satisfy the engine
+for zero benefit, so it is left alone.
