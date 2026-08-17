@@ -1,2 +1,2 @@
 fake_llm=stopped opencode_serve=stopping
-fake_llm_pid_alive=no pid=23253
+fake_llm_pid_alive=no pid=<redacted-pid>

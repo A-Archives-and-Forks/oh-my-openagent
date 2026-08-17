@@ -12,6 +12,13 @@ import {
 	root,
 } from "./aggregate-plugin-fixture.mjs";
 
+test("#given suffixed spawn-like identifiers #when parsed #then they are not spawn calls", () => {
+	const content = 'auto_respawn_agent({agent_type: "explorer"})\nrespawn_agent(message="x")';
+
+	assert.equal(findSpawnAgentCalls(content).length, 0);
+	assert.deepEqual(findSpawnAgentCallsWithUnsupportedParameters(content), []);
+});
+
 test("#given nested spawn calls and isolation-like message text #when parsed #then only structural isolation arguments count", () => {
 	const content = [
 		'spawn_agent({message: "fork_context:false and a closing ) are prose", task: nested(call())})',

@@ -77,7 +77,7 @@ export function hookLocation({ source, eventName, groupIndex, handlerIndex, hand
 	return `${source}:${eventName}:${groupIndex}:${handlerIndex}:${handler.command}`;
 }
 
-const SPAWN_AGENT_START = /(?:(?<receiver>\b[A-Za-z_]\w*)\s*\.\s*)?(?<callee>spawn_agent)\s*\(/g;
+const SPAWN_AGENT_START = /(?:(?<receiver>\b[A-Za-z_]\w*)\s*\.\s*)?(?<callee>\bspawn_agent)\s*\(/g;
 
 async function collectFiles(directory, predicate) {
 	let entries;
