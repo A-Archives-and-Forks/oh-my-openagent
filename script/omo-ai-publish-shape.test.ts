@@ -72,6 +72,30 @@ function extractDistTagBlock(text: string): string {
 }
 
 describe("omo-ai publish workflow shape", () => {
+  test("preserves an explicit prerelease version and derives its beta dist tag", () => {
+    // given
+    const versionRun = namedStep("release-metadata", "Calculate version").run ?? ""
+
+    // when
+    const explicitVersionPrecedesBump = versionRun.indexOf('VERSION="$RAW_VERSION"') <
+      versionRun.indexOf('if [ -z "$VERSION" ]')
+
+    // then
+    expect(explicitVersionPrecedesBump).toBe(true)
+    expect(versionRun).toContain(String.raw`^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$`)
+    expect(versionRun).toContain('DIST_TAG=$(printf \'%s\' "$VERSION" | cut -d\'-\' -f2 | cut -d\'.\' -f1)')
+  })
+
+  test("marks GitHub releases as prereleases exactly when the version has a prerelease suffix", () => {
+    // given
+    const releaseRun = namedStep("release", "Create GitHub release").run ?? ""
+
+    // when / then
+    expect(releaseRun).toContain('if [[ "$VERSION" == *"-"* ]]; then')
+    expect(releaseRun).toContain("RELEASE_FLAGS+=(--prerelease)")
+    expect(releaseRun).toContain('gh release create "v${VERSION}" "${RELEASE_FLAGS[@]}"')
+  })
+
   test("maps every root release to a unique ordered prerelease", () => {
     const inputs = ["1.2.3-alpha", "1.2.3-beta.0", "1.2.3-beta.1", "1.2.3-rc.1", "1.2.3"]
     const expected = ["1.2.3-0.alpha", "1.2.3-0.beta.0", "1.2.3-0.beta.1", "1.2.3-0.rc.1", "1.2.3-1"]
