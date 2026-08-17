@@ -3,6 +3,7 @@ import { existsSync, realpathSync } from "node:fs"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { createMemoryRunSupervisorIc8ExitResources } from "./memory-run-supervisor-ic8-exit-resources"
 import {
   processGroupIsAlive,
@@ -19,9 +20,10 @@ export const IC8_WAIT_MS = 60_000
 export const IC8_PLATFORMS = ["posix", "win32"] as const
 
 export function createMemoryRunSupervisorIc8Harness() {
-  const supervisorPath = join(import.meta.dir, "memory-run-supervisor.ts")
-  const childFixture = join(import.meta.dir, "__fixtures__", "supervisor-child.ts")
-  const taskkillFixture = join(import.meta.dir, "__fixtures__", "supervisor-taskkill.ts")
+  const moduleDir = fileURLToPath(new URL(".", import.meta.url))
+  const supervisorPath = join(moduleDir, "memory-run-supervisor.ts")
+  const childFixture = join(moduleDir, "__fixtures__", "supervisor-child.ts")
+  const taskkillFixture = join(moduleDir, "__fixtures__", "supervisor-taskkill.ts")
   const roots: string[] = []
   const cleanedRunRoots = new Set<string>()
   const liveProcesses = new Set<number>()
