@@ -565,6 +565,22 @@
       "path": "packages/senpi-task/src/tools/task/skills.test.ts",
       "line": 165,
       "expected": "description: Direct root skill"
+    },
+    {
+      "fingerprint": "5604c49d0e975529c25a2f3e8d6d896cc9684de2802ff6ad7392b0dcd914f91e",
+      "category": "runtime-behavior",
+      "rationale": "Verifies publish runbooks embed the exact gh workflow run dispatch contract that extracts the run id from the dispatch URL; machine-consumed CLI command routing, not authored prose.",
+      "path": "script/release-skill-layering.test.ts",
+      "line": 93,
+      "expected": "RUN_URL=\"$(gh workflow run"
+    },
+    {
+      "fingerprint": "09aa66ef3cf3502c0e7d8c276c2be72cca0c65aa1ffcd41b5e6a7b037dc98001",
+      "category": "runtime-behavior",
+      "rationale": "Verifies publish runbooks do not fall back to ambiguous latest-run listing; the forbidden gh run list command is a machine-consumed CLI routing contract.",
+      "path": "script/release-skill-layering.test.ts",
+      "line": 96,
+      "expected": "gh run list --workflow=publish --limit=1"
     }
   ],
   "forbidden": []
