@@ -367,7 +367,7 @@ jobs:
       contents: write
       pull-requests: write
     outputs:
-      release_sha: ${{ steps.prepare.outputs.release_sha }}
+      release_sha: ${{ steps.publish_state.outputs.release_sha || steps.prepare.outputs.release_sha }}
     steps:
       # The PAT checks out with persist-credentials disabled: repo-controlled
       # generation below must never be able to read the release credential from
@@ -388,13 +388,15 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile --ignore-scripts
 
-      - name: Prepare and merge release state before publishing
+      - name: Prepare release state (generation)
         id: prepare
+        # Generation only: this step runs repo-controlled scripts and package
+        # managers, so it carries NO form of the release PAT in its environment.
+        # Credential-bearing operations live in the next step.
         env:
           VERSION: ${{ needs.release-metadata.outputs.version }}
           OMO_AI_VERSION: ${{ needs.release-metadata.outputs.omo_ai_version }}
           RELEASE_REF: ${{ github.ref_name }}
-          RELEASE_PAT: ${{ secrets.GH_PAT }}
           PREPARED_RELEASE_SHA: ${{ inputs.prepared_release_sha }}
         run: |
           set -euo pipefail
@@ -405,6 +407,7 @@ jobs:
               exit 1
             fi
             echo "release_sha=${PREPARED_RELEASE_SHA}" >> "$GITHUB_OUTPUT"
+            echo "needs_push=false" >> "$GITHUB_OUTPUT"
             echo "Publishing from prepared source ${PREPARED_RELEASE_SHA}"
             exit 0
           fi
@@ -417,6 +420,7 @@ jobs:
           if git rev-parse -q --verify "refs/tags/v${VERSION}" >/dev/null; then
             RELEASE_SHA="$(git rev-list --max-count=1 "refs/tags/v${VERSION}")"
             echo "release_sha=${RELEASE_SHA}" >> "$GITHUB_OUTPUT"
+            echo "needs_push=false" >> "$GITHUB_OUTPUT"
             echo "Release tag v${VERSION} already exists locally at ${RELEASE_SHA}"
             exit 0
           fi
@@ -424,6 +428,7 @@ jobs:
           RELEASE_SHA="$(git rev-list --max-count=1 --grep="^release: v${VERSION}$" "origin/${BASE_REF}" 2>/dev/null || true)"
           if [ -n "$RELEASE_SHA" ]; then
             echo "release_sha=${RELEASE_SHA}" >> "$GITHUB_OUTPUT"
+            echo "needs_push=false" >> "$GITHUB_OUTPUT"
             echo "Release commit already exists on origin/${BASE_REF}: ${RELEASE_SHA}"
             exit 0
           fi
@@ -434,6 +439,7 @@ jobs:
           if [ "$CURRENT_VERSION" = "$VERSION" ]; then
             RELEASE_SHA="$(git rev-parse HEAD)"
             echo "release_sha=${RELEASE_SHA}" >> "$GITHUB_OUTPUT"
+            echo "needs_push=false" >> "$GITHUB_OUTPUT"
             echo "origin/${BASE_REF} is already stamped as v${VERSION}: ${RELEASE_SHA}"
             exit 0
           fi
@@ -466,10 +472,29 @@ jobs:
           git add -f packages/omo-senpi/plugin/extensions
           git diff --cached --quiet || git commit -m "release: v${VERSION}"
 
-          # Credential boundary: everything above is repo-controlled generation
-          # that must not see the PAT; everything below needs it.
-          export GH_TOKEN="$RELEASE_PAT"
+          echo "needs_push=true" >> "$GITHUB_OUTPUT"
+          echo "release_branch=${RELEASE_BRANCH}" >> "$GITHUB_OUTPUT"
+          echo "Release state generated on ${RELEASE_BRANCH}; handing off to the privileged publish step."
+
+      - name: Publish prepared release state
+        id: publish_state
+        if: steps.prepare.outputs.needs_push == 'true'
+        # The only credential-bearing step: git push + gh PR operations. It runs
+        # no repo-controlled generation scripts. The PAT is injected into the
+        # git remote URL just for the push and removed immediately after.
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          VERSION: ${{ needs.release-metadata.outputs.version }}
+          RELEASE_BRANCH: ${{ steps.prepare.outputs.release_branch }}
+          RELEASE_REF: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          BASE_REF="${RELEASE_REF:-dev}"
+
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git push --force-with-lease origin "HEAD:${RELEASE_BRANCH}"
+          git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
 
           retry_gh() {
             local description="$1"

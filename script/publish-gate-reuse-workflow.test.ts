@@ -68,8 +68,6 @@ describe("publish gate reuse", () => {
     const prepareJob = sliceWorkflowSection(workflow, "  prepare-release-state:", "  dispatch-provenance-safe-publish:")
 
     expect(prepareJob).toContain("token: ${{ secrets.GH_PAT }}")
-    expect(prepareJob).toContain("RELEASE_PAT: ${{ secrets.GH_PAT }}")
-    expect(prepareJob).toContain('export GH_TOKEN="$RELEASE_PAT"')
     expect(prepareJob).toContain("create_release_pr()")
     expect(prepareJob).toContain("enable_release_auto_merge()")
     expect(prepareJob).toContain("gh pr create")
@@ -85,14 +83,34 @@ describe("publish gate reuse", () => {
     // The checkout must not leave the PAT in git config for repo scripts to read.
     expect(prepareJob).toContain("persist-credentials: false")
 
-    // Every repo-controlled generation step must complete before the token exists.
-    const lastGeneration = prepareJob.lastIndexOf("build-extension.mjs")
-    const tokenIntroduction = prepareJob.indexOf("export GH_TOKEN")
-    expect(lastGeneration).toBeGreaterThan(-1)
-    expect(tokenIntroduction).toBeGreaterThan(lastGeneration)
+    // Generation and privileged publication are separate steps: the generation
+    // step must carry no form of the PAT in its environment at all.
+    const generationStep = prepareJob.slice(
+      prepareJob.indexOf("name: Prepare release state"),
+      prepareJob.indexOf("name: Publish prepared release state"),
+    )
+    expect(generationStep).not.toContain("GH_PAT")
+    expect(generationStep).not.toContain("RELEASE_PAT")
+    expect(generationStep).not.toContain("GH_TOKEN")
 
-    // No env-level GH_TOKEN blanket exposure for the whole step.
-    expect(prepareJob).not.toContain("GH_TOKEN: ${{ secrets.GH_PAT }}")
+    // The privileged step owns the only credential and runs no repo-controlled
+    // generation scripts that could read it.
+    const privilegedStep = prepareJob.slice(
+      prepareJob.indexOf("name: Publish prepared release state"),
+      prepareJob.indexOf("name: Write job summary"),
+    )
+    expect(privilegedStep).toContain("GH_TOKEN: ${{ secrets.GH_PAT }}")
+    for (const repoControlled of [
+      "node packages/",
+      "jq -",
+      "npm --prefix",
+      "bun install",
+      "bun run",
+      "build-extension",
+      "sync-version",
+    ]) {
+      expect(privilegedStep).not.toContain(repoControlled)
+    }
 
     // Least-scope permissions: this job needs neither Actions reads nor OIDC.
     expect(prepareJob).not.toContain("id-token: write")
