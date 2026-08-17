@@ -14,7 +14,7 @@ This file is a router, not a rulebook. The rules live in four rulesets under `re
 | Request involves… | Read |
 |---|---|
 | ANY UI implementation, styling, redesign, mockup, or visual decision | `references/design/README.md` FIRST. It enforces two mandatory gates — the Design System Gate (a `DESIGN.md` must exist before any component is written) and the React Dev Tooling Gate (react-grab / react-scan / react-doctor installed by default) — then routes to the taste and brand references below. |
-| Spatial structure — composition, containment, sizing, alignment, scroll ownership, "what goes where", "this layout breaks at X" | ALSO `references/design/stylegallery.md`. Curl-only pattern contracts on the spatial axis; it stacks with a brand reference, which owns palette and type but never layout. |
+| Spatial structure — app shells, scroll ownership, "what goes where", "this layout breaks at X" | ALSO `references/design/layout-skill.md` for the mechanics, then `references/design/stylegallery.md` to fetch a named pattern contract for that exact spatial problem. Both stack on the style skill and add no visual direction. |
 | Interaction or motion work — micro-interactions, animated components, transitions, gestures, hover/press/state feedback, "make it feel alive" | ALSO `references/design/interaction-skill.md`. The beui.dev catalog is the mandatory interaction reference: find the nearest pattern, read its real source through the file's curl recipe, and adapt the mechanism to `DESIGN.md` motion tokens. It stacks on the routed style skill — never replaces it. |
 | Writing or modifying frontend code, OR auditing performance / SEO / accessibility / quality | ALSO `references/perfection/README.md`. Lighthouse 100 in every category, measured on real Playwright Chromium (never the `lighthouse` CLI), achieved through architecture — never by dropping animations or hiding content. |
 | Looking up a concrete style, palette, font pairing, chart type, landing structure, or UX guideline — or generating a design system from keywords | `references/ui-ux-db/README.md`. A searchable CSV database with a CLI: a lookup tool, not a posture. `design` stays the source of truth for taste and the `DESIGN.md` contract. |
@@ -122,7 +122,7 @@ Domains: `product` `style` `typography` `color` `landing` `chart` `ux` `react` `
 | "Audit my site" / "make this page faster" | `perfection/README.md` (+ `perfection/react-perf-tooling.md` if React) |
 | "Mockup image of a fintech app" — no code | `design/imagegen-frontend-mobile.md` (+ a Layer B brand if named) |
 | "What palette/fonts fit a wellness brand?" | `ui-ux-db/README.md` → search CLI |
-| "Where should this go?" / "the layout breaks" / scroll + containment questions | `design/README.md` + `design/stylegallery.md` (+ the current style skill) |
+| "Where should this go?" / "the layout breaks" / scroll + containment | `design/layout-skill.md` + `design/stylegallery.md` on the current style skill |
 | "What do shipped apps in this space look like?" / design-direction research | `design/lazyweb.md` (curl-only) + `design/_INDEX.md` shortlist |
 | "Set up this React project" | `design/README.md` + `design/react-dev-tooling-skill.md` |
 | "Use designpowers", "make the design workflow stronger", "add personas/accessibility/debt/handoff" | `design/README.md` + `designpowers/README.md` (+ `perfection/README.md` if implementation or audit follows) |

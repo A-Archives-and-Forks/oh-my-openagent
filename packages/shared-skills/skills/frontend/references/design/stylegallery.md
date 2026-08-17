@@ -16,7 +16,9 @@ question per source:
 | What does it look like - palette, type scale, material, motion feel? | Layer B brand reference |
 
 Both feed the same `DESIGN.md`. Neither replaces the other, and neither is optional because
-the other ran.
+the other ran. `layout-skill.md` is the third piece: it carries the scroll-ownership and
+CSS-contract mechanics, while this file supplies the named pattern to apply them to. Load
+the mechanics when a layout is breaking; load a pattern when you need one that already works.
 
 ## Domains
 
