@@ -78,19 +78,3 @@ export function collectCommandHooks(hooks, source) {
 export function hookLocation({ source, eventName, groupIndex, handlerIndex, handler }) {
 	return `${source}:${eventName}:${groupIndex}:${handlerIndex}:${handler.command}`;
 }
-
-export function findInvalidSpawnAgentRoleParameters(content) {
-	return [...content.matchAll(/spawn_agent\([^)\n]*(?:agent_type|model|reasoning_effort)\s*=/g)].map((match) => match[0]);
-}
-
-export function findSpawnAgentCallsWithoutForkContextFalse(content) {
-	const missingForkContext = [];
-	const regex = /spawn_agent\(([^)]*)\)/g;
-	for (const match of content.matchAll(regex)) {
-		const call = match[0];
-		if (!/"fork_context"\s*:\s*false|fork_context:\s*false|fork_context=false|"fork_turns"\s*:\s*"none"|fork_turns:\s*"none"|fork_turns="none"/.test(call)) {
-			missingForkContext.push(call);
-		}
-	}
-	return missingForkContext;
-}
