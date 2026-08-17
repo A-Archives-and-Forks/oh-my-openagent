@@ -4,6 +4,7 @@ import { existsSync, readFileSync } from "node:fs"
 const workflow = readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8")
 const rootConfig = readFileSync(new URL("../bunfig.root.toml", import.meta.url), "utf8")
 const win2ConfigPath = new URL("../bunfig.win2.toml", import.meta.url)
+const win2ParallelConfigPath = new URL("../bunfig.win2.parallel.toml", import.meta.url)
 
 function rootTestJob(): string {
   const start = workflow.indexOf("  test:\n")
@@ -36,11 +37,30 @@ describe("root test CI partition", () => {
     const job = rootTestJob()
 
     expect(job).toContain("bun test packages/omo-opencode packages/memory-core")
-    expect(job).toContain("bun --config=bunfig.win2.toml test")
-    expect(job).not.toContain("test --parallel")
+    expect(job).toContain("bun test packages/senpi-task/src/runners/rpc-process.windows.test.ts")
+    expect(job).toContain("packages/utils/src/codegraph-provision-upgrade.test.ts")
+    expect(job).toContain("packages/senpi-task/src/__adversarial__/chaos-bench.test.ts")
+    expect(job).toContain("packages/omo-codex/src/install/install-codex-legacy-agent-purge.test.ts")
+    expect(job).toContain("script/codex-installer-version.test.ts")
+    expect(job).toContain("packages/omo-native/test/payload.test.ts")
+    expect(job).toContain("packages/omo-codex/src/install/install-codex.test.ts")
+    expect(job).toContain("packages/shared-skills/provenance-gate.test.ts")
+    expect(job).toContain("packages/omo-codex/src/install/install-codex-mcp-manifest.test.ts")
+    expect(job).toContain("bun --config=bunfig.win2.parallel.toml test --parallel")
     expect(existsSync(win2ConfigPath)).toBe(true)
+    expect(existsSync(win2ParallelConfigPath)).toBe(true)
     expect(quotedPatterns(readFileSync(win2ConfigPath, "utf8"))).toContain("packages/omo-opencode/**")
     expect(quotedPatterns(readFileSync(win2ConfigPath, "utf8"))).toContain("packages/memory-core/**")
+    const parallelConfig = readFileSync(win2ParallelConfigPath, "utf8")
+    expect(parallelConfig).toContain("packages/senpi-task/src/runners/rpc-process.windows.test.ts")
+    expect(parallelConfig).toContain("packages/utils/src/codegraph-provision-upgrade.test.ts")
+    expect(parallelConfig).toContain("packages/senpi-task/src/__adversarial__/chaos-bench.test.ts")
+    expect(parallelConfig).toContain("packages/omo-codex/src/install/install-codex-legacy-agent-purge.test.ts")
+    expect(parallelConfig).toContain("script/codex-installer-version.test.ts")
+    expect(parallelConfig).toContain("packages/omo-native/test/payload.test.ts")
+    expect(parallelConfig).toContain("packages/omo-codex/src/install/install-codex.test.ts")
+    expect(parallelConfig).toContain("packages/shared-skills/provenance-gate.test.ts")
+    expect(parallelConfig).toContain("packages/omo-codex/src/install/install-codex-mcp-manifest.test.ts")
   })
 
   test("#given the dedicated Senpi compatibility job #when root tests run #then omo-senpi is excluded on every OS", () => {
@@ -58,5 +78,16 @@ describe("root test CI partition", () => {
     expect(job).not.toContain("--path-ignore-patterns=")
     expect(job).not.toContain("format('-c {0}'")
     expect(job).not.toContain("bun test -c")
+  })
+
+  test("#given Windows hook tests read process platform #when root tests run #then bun is not launched under Git Bash", () => {
+    const job = rootTestJob()
+    const runBlock = job.slice(job.indexOf("      - name: Run tests"))
+
+    expect(runBlock).toContain('if: runner.os != \'Windows\'')
+    expect(runBlock).toContain("if: matrix.shard == '1/2'")
+    expect(runBlock).toContain("if: matrix.shard == '2/2'")
+    expect(runBlock).not.toContain("shell: bash\n        run: |")
+    expect(job).toContain("timeout-minutes: ${{ matrix.os == 'windows-latest' && 60 || 30 }}")
   })
 })
