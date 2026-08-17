@@ -109,11 +109,14 @@ async function runInvocation(input: {
 }): Promise<TimedInvocationOutcome> {
   const child = input.spawnProcess(input.invocation.command, input.invocation.args, { cwd: input.skillDir, env: input.env })
   let timedOut = false
+  // The timeout MUST stay ref'd: it is the only producer of progress when the
+  // child never exits. An unref'd timer can be starved by the runtime's event
+  // loop (observed hanging the Windows test runner for the full job ceiling),
+  // and clearTimeout in the finally block already prevents leaks.
   const timeout = setTimeout(() => {
     timedOut = true
     child.kill()
   }, input.timeoutMs)
-  timeout.unref?.()
   try {
     const outcome = await child.outcome
     return timedOut ? { kind: "timed-out" } : outcome
