@@ -4,8 +4,10 @@
 # ///
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
+import pytest
 from scanner_test_support import ROOT, scan_candidates
 
 
@@ -97,3 +99,52 @@ def test_sync_skills_codex_compatibility_node_assertions_yield_candidates() -> N
     assert ("assert.match", "matcher") in by_matcher_kind
     assert {24, 83, 85, 86} <= truthy_lines
     assert all(item.path == path.relative_to(ROOT).as_posix() for item in found)
+
+
+def test_callable_node_assert_aliases_only_emit_instruction_assertions(tmp_path: Path) -> None:
+    fixture_root = ROOT / f".pytest-callable-assert-fixtures-{tmp_path.name}"
+    fixture_root.mkdir()
+    fixtures = {
+        "default.fixture.test.mjs": '''
+import verify from "node:assert";
+const promptText = "default alias prompt";
+verify(promptText.includes("must preserve default callable guidance"));
+verify(true);
+''',
+        "namespace.fixture.test.js": '''
+import * as ensure from "node:assert/strict";
+const promptText = "namespace alias prompt";
+ensure(promptText.includes("must preserve namespace callable guidance"));
+ensure(true);
+''',
+        "require.fixture.test.cjs": '''
+const check = require("node:assert");
+const promptText = "require alias prompt";
+check(promptText.includes("must preserve require callable guidance"));
+check(true);
+''',
+    }
+    paths: list[Path] = []
+    try:
+        for name, source in fixtures.items():
+            path = fixture_root / name
+            _ = path.write_text(source, encoding="utf-8")
+            paths.append(path)
+        found = scan_candidates(paths)
+    finally:
+        for path in paths:
+            path.unlink(missing_ok=True)
+        fixture_root.rmdir()
+
+    assert {(item.matcher, item.expected) for item in found} == {
+        ("includes:verify", "must preserve default callable guidance"),
+        ("includes:ensure", "must preserve namespace callable guidance"),
+        ("includes:check", "must preserve require callable guidance"),
+        ("verify", "<truthy instruction assertion>"),
+        ("ensure", "<truthy instruction assertion>"),
+        ("check", "<truthy instruction assertion>"),
+    }
+
+
+if __name__ == "__main__":
+    raise SystemExit(pytest.main([__file__, *sys.argv[1:]]))

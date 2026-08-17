@@ -16,8 +16,8 @@ state, security, runtime delivery, and user-facing UI/error behavior.
   exit 1; 2,291 tests; 2,421 candidates; 747 unclassified;
   94 stale active fingerprints.
 - Final rebased tree:
-  exit 0; 2,297 tracked tests; 1,894 candidates;
-  1,894 allowed; 0 unclassified; 0 forbidden; 0 stale.
+  exit 0; 2,297 tracked tests; 1,910 candidates;
+  1,910 allowed; 0 unclassified; 0 forbidden; 0 stale.
 - Exact base inventory:
   `red-prompt-contract-scan-post-quality.txt`.
 - Exact pre-rebase summary and scanner/classification hashes:
@@ -40,7 +40,7 @@ state, security, runtime delivery, and user-facing UI/error behavior.
   131,764 assertions, 2,048 files.
 - `bun run build`: exit 0.
 - `bun run test:codex`: exit 0; final Node section 492/492 passed.
-- Scanner regression suite: 13 passed under the declared uv environment.
+- Scanner regression suite: 15 passed under the declared uv environment.
 - Independent review blocker resolutions:
   `review-fixes.txt`.
 - Post-rebase command and result ledger:
@@ -59,7 +59,7 @@ state, security, runtime delivery, and user-facing UI/error behavior.
   - one terminal stop
   - one child task session
   - live-route dispatch
-  - real DB unchanged `5861 -> 5861`
+  - real DB count unchanged (exact count redacted)
 - Codex real app-server:
   - isolated local plugin install
   - mock-model turn completed

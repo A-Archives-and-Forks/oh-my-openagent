@@ -174,9 +174,7 @@ export function createFileScanner(ts, root) {
             return
           }
           if (shape.matcher.endsWith("toMatchInlineSnapshot") || shape.matcher.endsWith("toMatchSnapshot")) {
-            if (context || containsNodeAssertContext(shape.actual)) {
-              add(node, "snapshot", shape.matcher, shape.actual, "<snapshot pins instruction output>", true, node)
-            }
+            add(node, "snapshot", shape.matcher, shape.actual, "<snapshot pins instruction output>", true, node)
           } else if (shape.expected) {
             const expectedValues = valuesFrom(shape.expected, bindings, loopBindings)
             for (const found of expectedValues) {

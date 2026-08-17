@@ -2,7 +2,7 @@
 
 ## Baseline
 
-- Host: `mengmotaHost` (`Mac16,11`, 14 cores).
+- Host: `<redacted-host>`.
 - Worktree:
   `<worktree>`
 - Branch: `chore/remove-prompt-contract-tests`
@@ -23,9 +23,9 @@ uses the installed TypeScript 6.0.3 compiler API to parse each present
 working-tree test and follows assertion literals through variables, arrays, `for...of` bindings,
 boolean `.includes()` expressions, matcher chains, order-helper calls, derived
 heading/token arrays, `indexOf` ordering, `startsWith` aliases, regex-derived
-presentation checks, and authored-text non-empty assertions. Tracked paths
-deleted in the working tree remain in the
-2,291-file enumeration and are reported separately as `tracked-missing`.
+presentation checks, Node `assert` variants, callable assertions, and snapshot
+assertions. Tracked paths deleted in the working tree remain in the enumeration
+and are reported separately as `tracked-missing`.
 
 Candidates are joined to `prompt-contract-classification.json` by a SHA-256
 fingerprint over path, candidate kind, matcher, actual expression, and expected
@@ -37,11 +37,15 @@ exit nonzero.
 Commands:
 
 ```sh
-python3 .omo/evidence/20260817-remove-prompt-contract-tests/test_audit_prompt_contracts.py -v
-python3 .omo/evidence/20260817-remove-prompt-contract-tests/audit_prompt_contracts.py --compact
+uv run --script .omo/evidence/20260817-remove-prompt-contract-tests/test_audit_prompt_contracts.py -v
+uv run --script .omo/evidence/20260817-remove-prompt-contract-tests/test_node_assert_scanner.py -q
+uv run --script .omo/evidence/20260817-remove-prompt-contract-tests/test_snapshot_scanner.py -q
+python3 .omo/evidence/20260817-remove-prompt-contract-tests/audit_prompt_contracts.py \
+  --classification .omo/evidence/20260817-remove-prompt-contract-tests/prompt-contract-classification-index.json \
+  --compact
 ```
 
-The second command is green on the final tree. The original failing-first
+The scanner command is green on the final tree. The original failing-first
 inventory remains in the committed `red-prompt-contract-scan*.txt` artifacts;
 no nonzero result is converted to green by path omission or blanket
 classification.

@@ -152,14 +152,23 @@ def test_fingerprints_are_sha256_and_line_independent(
     assert used == {first.fingerprint}
 
 
-def test_all_tracked_javascript_and_typescript_tests_are_enumerated() -> None:
-    tracked = audit.tracked_tests(ROOT)
-    assert len(tracked) == 2297
-    assert (
-        "packages/senpi-task/src/category/__snapshots__/resolve-category.test.ts.snap"
-        not in tracked
+def test_tracked_tests_enumerates_only_tracked_test_files(tmp_path: Path) -> None:
+    tracked_paths = (
+        "src/alpha.test.ts",
+        "src/bravo.spec.mjs",
+        "src/nested/charlie.test.js",
     )
-    assert all(audit.TEST_PATH.search(path) for path in tracked)
+    ignored_paths = ("src/runtime.ts", "src/fixture.test.ts.snap")
+    for relative in (*tracked_paths, *ignored_paths):
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _ = path.write_text("export {}\n", encoding="utf-8")
+    _ = subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    _ = subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+
+    tracked = audit.tracked_tests(tmp_path)
+
+    assert tracked == list(tracked_paths)
 
 
 def test_allowed_entry_requires_non_empty_rationale_and_category(

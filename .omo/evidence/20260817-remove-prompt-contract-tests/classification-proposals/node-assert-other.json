@@ -128,20 +128,6 @@
       "rationale": "Compares staged directive.md bytes with source directive bytes, so it remains valid across editorial rewrites and fails only when the packaged runtime copy diverges from its source.",
       "path": "packages/omo-senpi/plugin/scripts/stage-agent-toolkit.test.mjs",
       "expected": "<expression:await readFile(fixture.directiveEntry, \"utf8\")>"
-    },
-    {
-      "fingerprint": "582f6e41107926ff4a0d8ef2f291a62ef845689b5506e437d45fde9c18efd47d",
-      "category": "runtime-behavior",
-      "rationale": "Checks presence of the machine-consumed description field across builtin category records without asserting any description wording, heading, order, or substantive prose length.",
-      "path": "packages/senpi-task/src/category/resolve-category.test.ts",
-      "expected": "<non-empty authored text>"
-    },
-    {
-      "fingerprint": "32c313c1c1f8a0f3dd53d932769de676b0f77620c4c57de825358947b3683f74",
-      "category": "runtime-behavior",
-      "rationale": "Checks presence of the machine-consumed promptAppend field across builtin category records while allowing unrestricted editorial rewrites; it does not pin prompt wording, headings, order, or a substantive length budget.",
-      "path": "packages/senpi-task/src/category/resolve-category.test.ts",
-      "expected": "<non-empty authored text>"
     }
   ],
   "forbidden": []

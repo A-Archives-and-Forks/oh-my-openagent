@@ -6,7 +6,7 @@ WHAT WAS OBSERVED
 
 Exit code: 0
 
-{"root":"<worktree>","parser":"typescript-6.0.3","tracked_test_count":2297,"existing_tracked_test_count":2297,"missing_tracked_test_count":0,"candidate_count":1894,"classified_allowed_count":1894,"unclassified_count":0,"forbidden_count":0,"stale_classification_count":0}
+{"root":"<worktree>","parser":"typescript-6.0.3","tracked_test_count":2297,"existing_tracked_test_count":2297,"missing_tracked_test_count":0,"candidate_count":1910,"classified_allowed_count":1910,"unclassified_count":0,"forbidden_count":0,"stale_classification_count":0}
 
 WHY IT IS ENOUGH
 
@@ -17,5 +17,5 @@ unclassified, missing, or stale entry.
 
 WHAT WAS OMITTED
 
-The scanner's 1,894 per-candidate allowed lines are represented by the
+The scanner's 1,910 per-candidate allowed lines are represented by the
 hash-bound classification sources and index instead of being duplicated here.

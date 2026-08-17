@@ -88,6 +88,15 @@ export function createNodeAssertShape(ts, source, helpers) {
 
   return function nodeAssertShape(call) {
     if (!ts.isCallExpression(call)) return null
+    if (ts.isIdentifier(call.expression) && objects.has(call.expression.text)) {
+      return {
+        matcher: call.expression.text,
+        method: "ok",
+        nodeAssert: true,
+        actual: call.arguments[0],
+        expected: undefined,
+      }
+    }
     if (ts.isIdentifier(call.expression) && functions.has(call.expression.text)) {
       const method = functions.get(call.expression.text)
       return {

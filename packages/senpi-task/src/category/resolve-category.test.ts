@@ -489,11 +489,5 @@ describe("builtin category defaults", () => {
       ultrabrain: "gpt-5.6-sol",
       deep: "gpt-5.6-sol",
     })
-
-    // then: every builtin ships non-empty prose fields without pinning their wording
-    for (const { description, promptAppend } of defaults) {
-      expect(description.trim().length).toBeGreaterThan(0)
-      expect(promptAppend.trim().length).toBeGreaterThan(0)
-    }
   })
 })
