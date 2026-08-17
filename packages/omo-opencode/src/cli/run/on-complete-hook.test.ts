@@ -59,13 +59,22 @@ describe("executeOnCompleteHook", () => {
     return onCompleteHookModule.executeOnCompleteHook
   }
 
+  function clearUnixShellIndicators(): void {
+    delete process.env.BASH_VERSION
+    delete process.env.MSYSTEM
+    delete process.env.WSL_DISTRO_NAME
+  }
+
   beforeEach(() => {
     mock.restore()
     originalPlatform = process.platform
     originalEnv = {
+      BASH_VERSION: process.env.BASH_VERSION,
+      MSYSTEM: process.env.MSYSTEM,
       SHELL: process.env.SHELL,
       PSModulePath: process.env.PSModulePath,
       ComSpec: process.env.ComSpec,
+      WSL_DISTRO_NAME: process.env.WSL_DISTRO_NAME,
     }
     logCalls = []
   })
@@ -117,6 +126,7 @@ describe("executeOnCompleteHook", () => {
     Object.defineProperty(process, "platform", { value: "win32" })
     process.env.PSModulePath = "C:\\Program Files\\PowerShell\\Modules"
     delete process.env.SHELL
+    clearUnixShellIndicators()
     const { deps, spawnCalls } = createHookDeps()
     const executeOnCompleteHook = await importFreshExecuteOnCompleteHook()
 
@@ -161,6 +171,7 @@ describe("executeOnCompleteHook", () => {
     Object.defineProperty(process, "platform", { value: "win32" })
     delete process.env.PSModulePath
     delete process.env.SHELL
+    clearUnixShellIndicators()
     process.env.ComSpec = "C:\\Windows\\System32\\cmd.exe"
     const { deps, spawnCalls } = createHookDeps()
     const executeOnCompleteHook = await importFreshExecuteOnCompleteHook()

@@ -90,4 +90,13 @@ describe("root test CI partition", () => {
     expect(runBlock).not.toContain("shell: bash\n        run: |")
     expect(job).toContain("timeout-minutes: ${{ matrix.os == 'windows-latest' && 60 || 30 }}")
   })
+
+  test("#given Windows cache restore costs more than install #when the root matrix runs #then only non-Windows jobs restore Bun cache", () => {
+    const job = rootTestJob()
+    const cacheStart = job.indexOf("      - uses: actions/cache@v5")
+    const cacheEnd = job.indexOf("      - name: Install dependencies", cacheStart)
+    const cacheStep = job.slice(cacheStart, cacheEnd)
+
+    expect(cacheStep).toContain("if: runner.os != 'Windows'")
+  })
 })
