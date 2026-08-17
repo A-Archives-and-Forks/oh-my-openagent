@@ -1,0 +1,78 @@
+FINAL PR1 SELF-REVIEW
+
+OWNED DIFF
+
+- `packages/omo-opencode/src/cli/run/on-complete-hook.test.ts`
+- `packages/omo-senpi/src/components/memory/worker/memory-run-supervisor.ic8.test.ts`
+- `packages/omo-senpi/src/components/onboarding/state.test.ts`
+- `script/ensure-vendored-lsp-daemon.test.ts`
+- `script/ensure-vendored-lsp-daemon.ts`
+- `test-setup.ts`
+
+No CI workflow, package manifest, generated bundle, production hook, production
+onboarding, or production supervisor source is owned by PR1.
+
+FINAL PURE LOC
+
+  test-setup.ts=92
+  script/ensure-vendored-lsp-daemon.ts=139
+  script/ensure-vendored-lsp-daemon.test.ts=63
+  packages/omo-opencode/src/cli/run/on-complete-hook.test.ts=249
+  packages/omo-senpi/src/components/onboarding/state.test.ts=242
+  packages/omo-senpi/src/components/memory/worker/memory-run-supervisor.ic8.test.ts=246
+
+Every changed file is at or below the 250 pure-LOC ceiling.
+
+ARCHITECTURAL QUESTIONS
+
+1. Does each edit solve a verified failure?
+   - Yes. Every edit maps to a live CI failure, real two-process race, lost
+     event mutation, or resource-cleanup mutation.
+
+2. Does each new module have one responsibility?
+   - Yes. `ensure-vendored-lsp-daemon.ts` owns only single-flight preparation
+     of the vendored LSP test prerequisite.
+
+3. Does the implementation reuse existing code?
+   - Yes. It reuses `packages/lsp-daemon/src/lock.ts` instead of duplicating
+     PID/stale-lock logic.
+
+4. Are errors typed and visible?
+   - Yes. npm install/build failures, missing output, and lock wait timeout
+     reject the preload with actionable errors. No catch block swallows them.
+
+5. Is TypeScript strict and suppression-free?
+   - Yes. Final LSP diagnostics report zero findings; full repository typecheck
+     exits 0; no `any`, `@ts-ignore`, or `@ts-expect-error` was added.
+
+6. Are tests deterministic?
+   - Yes. Event listeners are armed before triggers. Timeouts are circuit
+     breakers only. No sleep, polling interval, retry mask, `.skip`, or `.only`
+     was added.
+
+7. Is the scope minimal?
+   - Yes. Model-preflight timing and RPC polling are explicitly deferred.
+     CI partitioning/XDG isolation remain owned by their already-merged PRs.
+     Bundler-version-sensitive Codex body diffs were removed rather than
+     included.
+
+FINAL GATES
+
+- targeted: 34 pass, 0 fail;
+- LSP diagnostics: 0 findings across six files;
+- full typecheck: exit 0;
+- faithful Senpi: exit 0;
+- post-rebase root: 13896 pass, 0 fail;
+- post-rebase Codex: every component/package suite green;
+- isolated OpenCode QA: pass, real DB count unchanged;
+- generated diff: 0;
+- `git diff --check`: 0 findings.
+
+CLEANUP RECEIPTS
+
+- stale-bundle QA worktree removed and unregistered;
+- pack directories removed by EXIT traps;
+- no claim-race or memory-supervisor child process remains;
+- both temporary LSP bridge symlinks removed;
+- no generated Codex/Senpi artifact diff remains;
+- tracked worktree is clean.
