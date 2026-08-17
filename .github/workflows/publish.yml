@@ -551,18 +551,30 @@ jobs:
           gh pr merge "$PR_NUMBER" --merge --auto --delete-branch=false
 
           for attempt in $(seq 1 120); do
-            PR_STATE="$(gh pr view "$PR_NUMBER" --json state --jq '.state')"
+            # gh pr view can hit transient HTTP 5xx from GitHub's GraphQL API; retry a few
+            # times before letting set -e fail the job. Without this, a single 503 kills the
+            # entire publish run even though the release-state PR is perfectly healthy.
+            gh_view() { gh pr view "$PR_NUMBER" "$@"; }
+            for api_retry in 1 2 3 4 5; do
+              PR_STATE="$(gh_view --json state --jq '.state' 2>/dev/null)" && break
+              echo "gh pr view retry ${api_retry}/5 (attempt ${attempt}/120)"
+              sleep 5
+            done
+            if [ -z "$PR_STATE" ]; then
+              echo "::error::gh pr view failed after 5 retries at attempt ${attempt}/120; GitHub API may be down."
+              exit 1
+            fi
             if [ "$PR_STATE" = "MERGED" ]; then
-              RELEASE_SHA="$(gh pr view "$PR_NUMBER" --json mergeCommit --jq '.mergeCommit.oid')"
+              RELEASE_SHA="$(gh_view --json mergeCommit --jq '.mergeCommit.oid' 2>/dev/null)"
               echo "release_sha=${RELEASE_SHA}" >> "$GITHUB_OUTPUT"
               echo "Release-state PR #${PR_NUMBER} merged at ${RELEASE_SHA}"
               exit 0
             fi
 
-            FAILURES="$(gh pr view "$PR_NUMBER" --json statusCheckRollup --jq '[.statusCheckRollup[] | select(.conclusion == "FAILURE" or .conclusion == "CANCELLED" or .conclusion == "TIMED_OUT")] | length')"
+            FAILURES="$(gh_view --json statusCheckRollup --jq '[.statusCheckRollup[] | select(.conclusion == "FAILURE" or .conclusion == "CANCELLED" or .conclusion == "TIMED_OUT")] | length' 2>/dev/null)"
             if [ "$FAILURES" != "0" ]; then
               echo "::error::Release-state PR #${PR_NUMBER} has failing required checks; refusing to publish npm packages."
-              gh pr view "$PR_NUMBER" --json url,statusCheckRollup --jq '{url, statusCheckRollup}'
+              gh_view --json url,statusCheckRollup --jq '{url, statusCheckRollup}'
               exit 1
             fi
 
