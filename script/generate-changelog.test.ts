@@ -6,7 +6,7 @@ import { isExcludedReleaseNoteSubject, selectPreviousReleaseTag } from "./genera
 describe("selectPreviousReleaseTag", () => {
   test("#given a beta target #when releases span channels #then the preceding beta is selected", () => {
     // given
-    const tags = ["v5.0.0", "v5.0.0-rc.1", "v5.0.0-beta.8", "v5.0.0-beta.7", "v4.19.4"]
+    const tags = ["release-notes", "v5.0.0", "v5.0.0-rc.1", "v5.0.0-beta.8", "v5.0.0-beta.7", "v4.19.4"]
 
     // when
     const previous = selectPreviousReleaseTag("5.0.0-beta.9", tags)

@@ -6,6 +6,7 @@ const TEAM = ["actions-user", "github-actions[bot]", "code-yeongyu"]
 
 const EXCLUDED_PREFIX_PATTERN = /^(ignore:|test:|chore:|ci:|release:)/i
 const CONTAINED_SURFACE_PATTERN = /\bsenpi\b|\bpi-goal\b|\bpi-webfetch\b/i
+const RELEASE_VERSION_PATTERN = /^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z]+(\.[0-9A-Za-z]+)*)?$/
 
 export function isExcludedReleaseNoteSubject(subject: string): boolean {
   return EXCLUDED_PREFIX_PATTERN.test(subject) || CONTAINED_SURFACE_PATTERN.test(subject)
@@ -21,7 +22,8 @@ export function selectPreviousReleaseTag(currentVersion: string, tags: readonly 
   const targetChannel = releaseChannel(target)
   const candidates = tags.flatMap((tag) => {
     const version = tag.replace(/^v/, "")
-    if (releaseChannel(version) !== targetChannel || Bun.semver.order(version, target) >= 0) return []
+    if (!RELEASE_VERSION_PATTERN.test(version) || releaseChannel(version) !== targetChannel ||
+      Bun.semver.order(version, target) >= 0) return []
     return [{ tag, version }]
   })
   candidates.sort((left, right) => Bun.semver.order(right.version, left.version))
