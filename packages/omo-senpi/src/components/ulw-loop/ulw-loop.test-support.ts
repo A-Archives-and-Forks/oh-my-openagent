@@ -122,28 +122,9 @@ export function withEnv<T>(patch: Record<string, string | undefined>, run: () =>
 }
 
 export async function withEnvAsync<T>(patch: Record<string, string | undefined>, run: () => Promise<T>): Promise<T> {
-  const previous: Record<string, string | undefined> = {}
-  for (const key of Object.keys(patch)) {
-    previous[key] = process.env[key]
-    const value = patch[key]
-    if (value === undefined) {
-      delete process.env[key]
-    } else {
-      process.env[key] = value
-    }
-  }
-
-  try {
-    return await run()
-  } finally {
-    for (const [key, value] of Object.entries(previous)) {
-      if (value === undefined) {
-        delete process.env[key]
-      } else {
-        process.env[key] = value
-      }
-    }
-  }
+  // Keep process-global mutations scoped to synchronous invocation. Holding them
+  // across await points races other Bun test files that share this process.
+  return withEnv(patch, run)
 }
 
 export function createTempOmoBin(stdout = activeStatus(), name = "omo"): { dir: string; bin: string; cleanup: () => void } {

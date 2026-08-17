@@ -1,7 +1,5 @@
 import { describe, expect, it } from "bun:test"
 import { execFileSync } from "node:child_process"
-import { mkdtempSync, rmSync } from "node:fs"
-import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
@@ -15,7 +13,6 @@ import {
   createLogger,
   isTransformResult,
   registerWithRunner,
-  withEnvAsync,
 } from "./ulw-loop.test-support"
 
 describe("omo-senpi ulw-loop continuation session isolation", () => {
@@ -29,62 +26,27 @@ describe("omo-senpi ulw-loop continuation session isolation", () => {
     })
   })
 
-  it("#given session A owns an active run in the shared cwd #when session B ends #then B receives no continuation", async () => {
-    const cwd = mkdtempSync(join(tmpdir(), "omo-senpi-ulw-session-b-"))
-    try {
-      createActivePlan(cwd)
-      await withEnvAsync(
-        {
-          PI_SESSION_ID: "session-B",
-          OMO_ULW_LOOP_SESSION_ID: undefined,
-          CODEX_SESSION_ID: undefined,
-          CODEX_THREAD_ID: undefined,
-        },
-        async () => {
-          const pi = new FakeExtensionAPI()
-          await createUlwLoopComponent({
-            resolveOmoBin: () => stagedToolkitBin(),
-          }).register(pi, { logger: createLogger(), config: { getFlag: () => false } })
+  it("#given two independent sessions share one cwd #when the child-process probe runs #then only the owner continues", () => {
+    const output = execFileSync(
+      process.execPath,
+      [join(import.meta.dir, "../../../scripts/qa/probe-cross-session.mjs")],
+      {
+        encoding: "utf8",
+        timeout: 60_000,
+      },
+    )
 
-          await pi.dispatch("agent_end", { type: "agent_end" }, sessionContext(cwd, "session-B"))
-
-          expect(pi.messages).toEqual([])
-        },
-      )
-    } finally {
-      rmSync(cwd, { recursive: true, force: true })
-    }
-  })
-
-  it("#given session A owns its scoped active run #when session A ends #then A receives the continuation", async () => {
-    const cwd = mkdtempSync(join(tmpdir(), "omo-senpi-ulw-session-a-"))
-    try {
-      createActivePlan(cwd, "session-A")
-      await withEnvAsync(
-        {
-          PI_SESSION_ID: "session-A",
-          OMO_ULW_LOOP_SESSION_ID: undefined,
-          CODEX_SESSION_ID: undefined,
-          CODEX_THREAD_ID: undefined,
-        },
-        async () => {
-          const pi = new FakeExtensionAPI()
-          await createUlwLoopComponent({
-            resolveOmoBin: () => stagedToolkitBin(),
-          }).register(pi, { logger: createLogger(), config: { getFlag: () => false } })
-
-          await pi.dispatch("agent_end", { type: "agent_end" }, sessionContext(cwd, "session-A"))
-
-          expect(pi.messages).toHaveLength(1)
-          expect(pi.messages[0]?.message).toMatchObject({
-            customType: "omo-senpi:ulw-continuation",
-            display: false,
-          })
-        },
-      )
-    } finally {
-      rmSync(cwd, { recursive: true, force: true })
-    }
+    expect(JSON.parse(output)).toMatchObject({
+      verdict: "PASS",
+      sessionA: { messageCount: 1 },
+      sessionB: { messageCount: 0 },
+      paths: {
+        ownerPlan: true,
+        unrelatedPlan: false,
+        sharedRootPlan: false,
+      },
+      cleanup: { removedSharedCwd: true },
+    })
   })
 })
 
@@ -299,43 +261,4 @@ describe("omo-senpi ulw-loop continuation", () => {
 function stagedToolkitBin(platform: NodeJS.Platform = process.platform): string {
   const executable = platform === "win32" ? "omo-agent-toolkit.cmd" : "omo-agent-toolkit"
   return join(import.meta.dir, "../../../plugin/runtime/agent-toolkit", executable)
-}
-
-function sessionContext(cwd: string, sessionId: string): {
-  readonly cwd: string
-  readonly sessionManager: { getSessionId(): string }
-} {
-  return {
-    cwd,
-    sessionManager: {
-      getSessionId: () => sessionId,
-    },
-  }
-}
-
-function createActivePlan(cwd: string, sessionId?: string): void {
-  const args = [
-    "ulw-loop",
-    "create-goals",
-    ...(sessionId === undefined ? [] : ["--session-id", sessionId]),
-    "--brief",
-    "- Keep this session-owned run active",
-    "--json",
-  ]
-  const target = toSpawnTarget(stagedToolkitBin(), args)
-  execFileSync(
-    target.command,
-    [...target.args],
-    {
-      cwd,
-      env: {
-        ...process.env,
-        PI_SESSION_ID: undefined,
-        OMO_ULW_LOOP_SESSION_ID: undefined,
-        CODEX_SESSION_ID: undefined,
-        CODEX_THREAD_ID: undefined,
-      },
-      stdio: "ignore",
-    },
-  )
 }
