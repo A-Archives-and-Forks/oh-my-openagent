@@ -122,13 +122,14 @@ jobs:
         # Dedicated configs preserve bunfig.toml ignores. The CLI --path-ignore-patterns
         # flag replaces that list and would re-include web, vendored, plugin, and upstream tests.
         # Matrix keys stay os+shard so required check names stay test (ubuntu-latest) etc.
-        # --parallel is only set on the complementary Windows group; omo-opencode stays serial.
+        # Complementary Windows group stays serial: --parallel flakes codegraph provision,
+        # windowsHide RPC, and the 120s chaos bench on this shard.
         shell: bash
         run: |
           if [[ "${{ matrix.os }}" == "windows-latest" && "${{ matrix.shard }}" == "1/2" ]]; then
             bun test packages/omo-opencode packages/memory-core
           elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-            bun --config=bunfig.win2.toml test --parallel
+            bun --config=bunfig.win2.toml test
           else
             bun --config=bunfig.root.toml test
           fi
@@ -144,7 +145,6 @@ jobs:
             - Runs `npm test` for `packages/lsp-daemon`.
             - Runs all non-Senpi root tests on Linux and macOS via bunfig.root.toml.
             - Splits Windows by measured package groups so global zauc mock bootstraps stay with their consumers.
-            - Runs only the complementary Windows group in parallel processes; suites with global setup remain serial.
           JOB_SUMMARY_NEXT: Open the first failing test or package-build step; matrix failures are usually OS-specific.
         run: GITHUB_STEP_SUMMARY="$GITHUB_STEP_SUMMARY" bash .github/scripts/write-job-summary.sh
 

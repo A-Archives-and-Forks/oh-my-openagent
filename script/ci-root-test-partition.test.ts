@@ -36,7 +36,8 @@ describe("root test CI partition", () => {
     const job = rootTestJob()
 
     expect(job).toContain("bun test packages/omo-opencode packages/memory-core")
-    expect(job).toContain("bun --config=bunfig.win2.toml test --parallel")
+    expect(job).toContain("bun --config=bunfig.win2.toml test")
+    expect(job).not.toContain("test --parallel")
     expect(existsSync(win2ConfigPath)).toBe(true)
     expect(quotedPatterns(readFileSync(win2ConfigPath, "utf8"))).toContain("packages/omo-opencode/**")
     expect(quotedPatterns(readFileSync(win2ConfigPath, "utf8"))).toContain("packages/memory-core/**")
