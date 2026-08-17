@@ -147,7 +147,7 @@ describe("OmO Native product identity", () => {
       expect(Object.isFrozen(properties)).toBe(true)
       for (const schema of Object.values(properties)) {
         expect(Object.isFrozen(schema)).toBe(true)
-        if (schema.values !== undefined) expect(Object.isFrozen(schema.values)).toBe(true)
+        if ("values" in schema) expect(Object.isFrozen(schema.values)).toBe(true)
       }
     }
     expect(Object.isFrozen(OMO_NATIVE_PROPERTY_ALLOWLISTS)).toBe(true)
