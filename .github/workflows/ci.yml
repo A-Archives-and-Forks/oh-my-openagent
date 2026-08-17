@@ -130,7 +130,11 @@ jobs:
 
       - name: Run tests
         if: matrix.shard == '2/2'
-        run: bun --config=bunfig.win2.toml test
+        shell: pwsh
+        run: |
+          bun test packages/senpi-task/src/runners/rpc-process.windows.test.ts packages/utils/src/codegraph-provision-upgrade.test.ts packages/senpi-task/src/__adversarial__/chaos-bench.test.ts packages/omo-codex/src/install/install-codex-legacy-agent-purge.test.ts script/codex-installer-version.test.ts packages/omo-native/test/payload.test.ts packages/omo-codex/src/install/install-codex.test.ts packages/shared-skills/provenance-gate.test.ts
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          bun --config=bunfig.win2.parallel.toml test --parallel
 
       - name: Write job summary
         if: always()
