@@ -77,7 +77,7 @@ export function hookLocation({ source, eventName, groupIndex, handlerIndex, hand
 	return `${source}:${eventName}:${groupIndex}:${handlerIndex}:${handler.command}`;
 }
 
-const SPAWN_AGENT_START = /\bspawn_agent\s*\(/g;
+const SPAWN_AGENT_START = /(?:(?<receiver>\b[A-Za-z_]\w*)\s*\.\s*)?(?<callee>spawn_agent)\s*\(/g;
 
 async function collectFiles(directory, predicate) {
 	let entries;
@@ -136,7 +136,8 @@ export function findSpawnAgentCalls(content) {
 			else if (character === ")") depth -= 1;
 			if (depth !== 0) continue;
 
-			calls.push({ call: content.slice(match.index, index + 1), index: match.index });
+			const { receiver = null, callee } = match.groups;
+			calls.push({ call: content.slice(match.index, index + 1), index: match.index, receiver, callee });
 			break;
 		}
 	}
@@ -156,6 +157,7 @@ function tokensForSpawnCall(call) {
 			continue;
 		}
 		if (character === '"' || character === "'" || character === "`") {
+			const start = index;
 			const quote = character;
 			let value = "";
 			index += 1;
@@ -170,13 +172,14 @@ function tokensForSpawnCall(call) {
 				if (current === quote) break;
 				value += current;
 			}
-			tokens.push({ type: "string", value, braceDepth, bracketDepth, parenthesisDepth });
+			tokens.push({ type: "string", value, start, end: index, braceDepth, bracketDepth, parenthesisDepth });
 			continue;
 		}
 		if (/[A-Za-z_]/.test(character)) {
 			const start = index;
 			while (/[A-Za-z0-9_]/.test(call[index] ?? "")) index += 1;
-			tokens.push({ type: "identifier", value: call.slice(start, index), braceDepth, bracketDepth, parenthesisDepth });
+			tokens.push({ type: "identifier", value: call.slice(start, index), start, end: index,
+				braceDepth, bracketDepth, parenthesisDepth });
 			continue;
 		}
 
@@ -187,7 +190,8 @@ function tokensForSpawnCall(call) {
 		else if (character === "(") parenthesisDepth += 1;
 		else if (character === ")") parenthesisDepth -= 1;
 		else if (character === ":" || character === "=") {
-			tokens.push({ type: "separator", value: character, braceDepth, bracketDepth, parenthesisDepth });
+			tokens.push({ type: "separator", value: character, start: index, end: index + 1,
+				braceDepth, bracketDepth, parenthesisDepth });
 		}
 		index += 1;
 	}
@@ -207,7 +211,9 @@ function spawnParameters(call) {
 			separator.parenthesisDepth === key.parenthesisDepth && value.braceDepth === key.braceDepth &&
 			value.bracketDepth === key.bracketDepth &&
 			value.parenthesisDepth === key.parenthesisDepth;
-		if (!isArgumentScope || !isSameScope || separator.type !== "separator") continue;
+		const isAdjacent = /^\s*$/.test(call.slice(key.end, separator.start)) &&
+			/^\s*$/.test(call.slice(separator.end, value.start));
+		if (!isArgumentScope || !isSameScope || !isAdjacent || separator.type !== "separator") continue;
 		parameters.push({ name: key.value, value, direct: key.braceDepth === 0 });
 	}
 	return parameters;
@@ -226,8 +232,10 @@ export function findSpawnAgentCallsWithoutIsolation(content) {
 
 export function findSpawnAgentCallsWithUnsupportedParameters(content) {
 	return findSpawnAgentCalls(content).flatMap((entry) => {
+		const allowsObjectAgentType = entry.receiver === "multi_agent_v1";
 		const parameters = spawnParameters(entry.call)
-			.filter(({ name, direct }) => name === "model" || name === "reasoning_effort" || (name === "agent_type" && direct))
+			.filter(({ name, direct }) => name === "model" || name === "reasoning_effort" ||
+				(name === "agent_type" && (direct || !allowsObjectAgentType)))
 			.map(({ name }) => name);
 		return parameters.length === 0 ? [] : [{ ...entry, parameters }];
 	});
