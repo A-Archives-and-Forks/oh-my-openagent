@@ -6,7 +6,7 @@ Started: 2026-08-17
 
 Branch: `fix/test-process-stability-20260817-ulw`
 
-Base: `581881f38bd906e3fd1e9f225cf81a35dbcc81db`
+Base: `ed723a3901fd6c14ea55b21aa8afcac28a87b6d7`
 
 This PR owns only deterministic test-process setup and failure-path cleanup:
 
@@ -48,4 +48,3 @@ Secret-bearing environment dumps, tokens, authentication headers, and private lo
 - `origin/dev` already includes PR #6925 at the branch base.
 - The main checkout is dirty and is never used for task commands.
 - All task commands use this worktree explicitly.
-
