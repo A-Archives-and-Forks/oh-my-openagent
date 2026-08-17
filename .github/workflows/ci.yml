@@ -119,7 +119,10 @@ jobs:
         working-directory: packages/lsp-daemon
 
       - name: Run tests
-        run: bun test${{ matrix.shard && format(' --shard={0}', matrix.shard) || '' }}
+        # packages/omo-senpi is covered by the senpi-compatibility job. A dedicated config
+        # preserves every root ignore while adding Senpi; the CLI path-ignore flag replaces
+        # bunfig.toml's list and would re-include web, vendored, plugin, and upstream tests.
+        run: bun --config=bunfig.root.toml test${{ matrix.shard && format(' --shard={0}', matrix.shard) || '' }}
 
       - name: Write job summary
         if: always()
