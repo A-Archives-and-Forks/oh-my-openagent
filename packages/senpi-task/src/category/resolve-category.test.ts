@@ -253,19 +253,19 @@ describe("resolveCategory", () => {
 
   test("#given quick primary is unavailable and the quotio rung is available #when resolved #then delegate-core fallback chain reaches gpt-5.6-luna-fast", () => {
     // given
-    const models = registry([model("quotio-openai", "gpt-5.6-luna-fast")])
+    const models = registry([model("openai-codex", "gpt-5.6-luna-fast")])
 
     // when
     const result = resolveCategory("quick", {}, models)
 
     // then
     const resolved = expectResolved(result)
-    expect(resolved.spec.provider).toBe("quotio-openai")
+    expect(resolved.spec.provider).toBe("openai-codex")
     expect(resolved.spec.modelId).toBe("gpt-5.6-luna-fast")
     expect(resolved.spec.variant).toBe("low")
     expect(resolved.modelSelection.matchedFallback).toBe(true)
     expect(resolved.modelSelection.fallbackEntry).toEqual({
-      providers: ["quotio-openai"],
+      providers: ["openai-codex"],
       model: "gpt-5.6-luna-fast",
       variant: "low",
     })
