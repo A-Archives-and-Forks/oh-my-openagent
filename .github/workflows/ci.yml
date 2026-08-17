@@ -119,10 +119,19 @@ jobs:
         working-directory: packages/lsp-daemon
 
       - name: Run tests
-        # packages/omo-senpi is covered by the senpi-compatibility job. A dedicated config
-        # preserves every root ignore while adding Senpi; the CLI path-ignore flag replaces
-        # bunfig.toml's list and would re-include web, vendored, plugin, and upstream tests.
-        run: bun --config=bunfig.root.toml test${{ matrix.shard && format(' --shard={0}', matrix.shard) || '' }}
+        # Dedicated configs preserve bunfig.toml ignores. The CLI --path-ignore-patterns
+        # flag replaces that list and would re-include web, vendored, plugin, and upstream tests.
+        # Matrix keys stay os+shard so required check names stay test (ubuntu-latest) etc.
+        # --parallel is only set on the complementary Windows group; omo-opencode stays serial.
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" && "${{ matrix.shard }}" == "1/2" ]]; then
+            bun test packages/omo-opencode packages/memory-core
+          elif [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            bun --config=bunfig.win2.toml test --parallel
+          else
+            bun --config=bunfig.root.toml test
+          fi
 
       - name: Write job summary
         if: always()
@@ -133,7 +142,9 @@ jobs:
           JOB_SUMMARY_DETAILS: |
             - Builds vendored LSP packages before tests.
             - Runs `npm test` for `packages/lsp-daemon`.
-            - Runs the full root `bun test` suite on Linux and macOS, split into deterministic 2-way shards on Windows.
+            - Runs all non-Senpi root tests on Linux and macOS via bunfig.root.toml.
+            - Splits Windows by measured package groups so global zauc mock bootstraps stay with their consumers.
+            - Runs only the complementary Windows group in parallel processes; suites with global setup remain serial.
           JOB_SUMMARY_NEXT: Open the first failing test or package-build step; matrix failures are usually OS-specific.
         run: GITHUB_STEP_SUMMARY="$GITHUB_STEP_SUMMARY" bash .github/scripts/write-job-summary.sh
 
