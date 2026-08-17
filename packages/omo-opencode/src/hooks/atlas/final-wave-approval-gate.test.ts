@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { getPlanProgress, readBoulderState } from "../../features/boulder-state"
 import { classifyFinalWaveVerdict } from "./final-wave-approval-gate"
 import {
   createFinalWaveAfterHandlerHarness,
@@ -160,6 +161,74 @@ session_id: ses_final_wave_review
 
     // then - idle observes the shared pause state and does not inject a continuation
     expect(mockInput._promptMock).not.toHaveBeenCalled()
+  })
+
+  test("does not dispatch completed-plan continuation when the plan reads complete while waiting for final-wave approval", async () => {
+    // given
+    const sessionID = "atlas-final-wave-session"
+
+    writeFinalWavePlanState({
+      directory: env.directory,
+      sessionID,
+      planName: "final-wave-complete-race-plan",
+      planContent: `# Plan
+
+## TODOs
+- [x] 1. Ship the implementation
+
+## Final Verification Wave (MANDATORY - after ALL implementation tasks)
+- [x] F1. **Plan Compliance Audit** - \`oracle\`
+- [x] F2. **Code Quality Review** - \`unspecified-high\`
+- [x] F3. **Real Manual QA** - \`unspecified-high\`
+- [ ] F4. **Scope Fidelity Check** - \`deep\`
+`,
+    })
+
+    const mockInput = createMockPluginInput()
+    const hook = createAtlasHook(mockInput, {
+      directory: env.directory,
+      isCallerOrchestrator: async () => true,
+    })
+    const toolOutput = {
+      title: "Sisyphus Task",
+      output: `Tasks [4/4 compliant] | Contamination [CLEAN] | Unaccounted [CLEAN] | VERDICT: APPROVE
+
+<task_metadata>
+session_id: ses_final_wave_review
+</task_metadata>`,
+      metadata: {},
+    }
+
+    // when - the last final-wave reviewer approves and parks the session in the approval wait
+    const outputLengthBeforeApproval = toolOutput.output.length
+    await hook["tool.execute.after"]({ tool: "task", sessionID }, toolOutput)
+    expect(toolOutput.output.length).toBeGreaterThan(outputLengthBeforeApproval)
+
+    // and the reviewer's F4 checkbox update lands after the pause, so the plan now reads complete
+    const planPath = writeFinalWavePlanState({
+      directory: env.directory,
+      sessionID,
+      planName: "final-wave-complete-race-plan",
+      planContent: `# Plan
+
+## TODOs
+- [x] 1. Ship the implementation
+
+## Final Verification Wave (MANDATORY - after ALL implementation tasks)
+- [x] F1. **Plan Compliance Audit** - \`oracle\`
+- [x] F2. **Code Quality Review** - \`unspecified-high\`
+- [x] F3. **Real Manual QA** - \`unspecified-high\`
+- [x] F4. **Scope Fidelity Check** - \`deep\`
+`,
+    })
+    expect(getPlanProgress(planPath).isComplete).toBe(true)
+
+    mockInput._promptMock.mockClear()
+    await hook.handler({ event: { type: "session.idle", properties: { sessionID } } })
+
+    // then - the approval gate wins over the completed-plan branch: no completion nudge and no boulder completion
+    expect(mockInput._promptMock).not.toHaveBeenCalled()
+    expect(readBoulderState(env.directory)?.status).not.toBe("completed")
   })
 
   test("pauses for escalation when a final-wave reviewer rejects", async () => {
