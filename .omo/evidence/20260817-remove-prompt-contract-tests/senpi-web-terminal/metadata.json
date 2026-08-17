@@ -1,0 +1,27 @@
+{
+  "title": "Senpi local OMO extension prompt-contract QA",
+  "connector": "xterm-node-pty",
+  "colorPath": "xterm.js (true color; not tmux)",
+  "browserCapture": "captured",
+  "source": {
+    "kind": "command",
+    "label": "redacted command"
+  },
+  "interaction": [],
+  "redaction": {
+    "builtInRules": 7,
+    "literalRules": 0,
+    "regexRules": 0
+  },
+  "dimensions": {
+    "cols": 120,
+    "rows": 32
+  },
+  "cleanup": "pty pid 88356 killed",
+  "files": {
+    "png": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests/.omo/evidence/20260817-remove-prompt-contract-tests/senpi-web-terminal/terminal.png",
+    "text": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests/.omo/evidence/20260817-remove-prompt-contract-tests/senpi-web-terminal/terminal.txt",
+    "ansi": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests/.omo/evidence/20260817-remove-prompt-contract-tests/senpi-web-terminal/terminal-ansi.txt",
+    "metadata": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests/.omo/evidence/20260817-remove-prompt-contract-tests/senpi-web-terminal/metadata.json"
+  }
+}
