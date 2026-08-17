@@ -7,7 +7,7 @@ import { execFileSync } from "node:child_process"
 const ciWorkflowPath = new URL("../.github/workflows/ci.yml", import.meta.url)
 const publishWorkflowPath = new URL("../.github/workflows/publish.yml", import.meta.url)
 const workflowsDir = new URL("../.github/workflows/", import.meta.url)
-const pinnedBunVersion = 'bun-version: "1.3.12"'
+const pinnedBunVersion = 'bun-version: "1.3.14"'
 const workflowPaths = readdirSync(workflowsDir)
   .filter((name) => name.endsWith(".yml") || name.endsWith(".yaml"))
   .map((name) => new URL(name, workflowsDir))
@@ -242,19 +242,10 @@ describe("test workflows", () => {
       const bunVersionLines = workflow.match(/bun-version: .*/g) ?? []
 
       // #when
-      // Upstream pins the root test job to 1.3.14 outright (the runtime the
-      // Windows partition was validated under); every other job stays on the
-      // repo pin 1.3.12 so committed Senpi bundle checks match.
-      const testJobPin = 'bun-version: "1.3.14"'
-      const unpinnedBunLines = bunVersionLines.filter(
-        (line) => line !== pinnedBunVersion && line !== testJobPin,
-      )
+      const unpinnedBunLines = bunVersionLines.filter((line) => line !== pinnedBunVersion)
 
       // #then
-      expect(unpinnedBunLines, `${workflowPath.pathname} must pin Bun to an exact version`).toEqual([])
-      if (workflowPath.pathname.endsWith("/ci.yml")) {
-        expect(bunVersionLines, "ci.yml must keep exactly one test-job 1.3.14 pin").toContain(testJobPin)
-      }
+      expect(unpinnedBunLines, `${workflowPath.pathname} must pin Bun to 1.3.14`).toEqual([])
     }
   })
 
