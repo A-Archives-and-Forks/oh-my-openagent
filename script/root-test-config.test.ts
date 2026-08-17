@@ -1,12 +1,24 @@
 import { describe, expect, test } from "bun:test"
 import { existsSync, readFileSync } from "node:fs"
+import { fileURLToPath } from "node:url"
 
+const repoRoot = fileURLToPath(new URL("..", import.meta.url))
 const baseConfigPath = new URL("../bunfig.toml", import.meta.url)
 const rootConfigPath = new URL("../bunfig.root.toml", import.meta.url)
 const workflowPath = new URL("../.github/workflows/ci.yml", import.meta.url)
 
 function quotedPatterns(config: string): readonly string[] {
   return [...config.matchAll(/"([^"]+\/\*\*)"/g)].map((match) => match[1] ?? "")
+}
+
+function spawnBun(args: readonly string[]): string {
+  const result = Bun.spawnSync({
+    cmd: [process.execPath, ...args],
+    cwd: repoRoot,
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  return `${new TextDecoder().decode(result.stdout)}${new TextDecoder().decode(result.stderr)}`
 }
 
 describe("root test Bun config", () => {
@@ -29,7 +41,19 @@ describe("root test Bun config", () => {
     expect(quotedPatterns(readFileSync(rootConfigPath, "utf8"))).toContain("packages/omo-senpi/**")
   })
 
-  test("#given the dedicated root config #when CI invokes Bun #then the config is passed after the test command", () => {
-    expect(readFileSync(workflowPath, "utf8")).toContain("run: bun test -c bunfig.root.toml")
+  test("#given bun 1.3.x test argv #when CI selects the dedicated config #then --config= is passed before test", () => {
+    const workflow = readFileSync(workflowPath, "utf8")
+    expect(workflow).toContain("run: bun --config=bunfig.root.toml test")
+    expect(workflow).not.toContain("bun test -c")
+    expect(workflow).not.toContain("bun test --config")
+  })
+
+  test("#given bunfig.root.toml #when bun loads it via --config= #then Senpi tests are ignored", () => {
+    const output = spawnBun([
+      "--config=bunfig.root.toml",
+      "test",
+      "packages/omo-senpi/src/components/memory/status.test.ts",
+    ])
+    expect(output).toContain("filters did not match any test files")
   })
 })
