@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { readFileSync } from "node:fs"
+import { pathToFileURL } from "node:url"
 
 const generatedReleaseMerge =
   /^Merge pull request #[0-9]+ from code-yeongyu\/release\/v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)?-source-state$/
@@ -49,7 +50,7 @@ export function classifyCiMode({ eventName, headCommitMessage, changedPaths, dif
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const args = parseArguments(process.argv.slice(2))
   const eventName = args.get("event")
   const headCommitMessage = args.get("message")
