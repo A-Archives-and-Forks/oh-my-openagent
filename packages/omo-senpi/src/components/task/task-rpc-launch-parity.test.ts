@@ -23,6 +23,10 @@ function createAdmission() {
     OMO_CODING_AGENT_DIR: agentDir,
     SENPI_CODING_AGENT_DIR: agentDir,
     PI_CODING_AGENT_DIR: agentDir,
+    XDG_DATA_HOME: join(agentDir, "xdg-data"),
+    XDG_CACHE_HOME: join(agentDir, "xdg-cache"),
+    XDG_CONFIG_HOME: join(agentDir, "xdg-config"),
+    XDG_STATE_HOME: join(agentDir, "xdg-state"),
   }
   return createRpcModelAdmission({
     buildSpawn: (spec) => buildRpcModelCatalogSpawn(spec, {
