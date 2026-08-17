@@ -45,6 +45,7 @@ const workflowExpectations = [
       "dispatch-provenance-safe-publish",
       "publish-main",
       "release",
+      "post-publish-verify",
     ],
   },
   { path: ".github/workflows/refresh-model-capabilities.yml", jobs: ["refresh"] },

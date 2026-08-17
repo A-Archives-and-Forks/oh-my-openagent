@@ -148,16 +148,19 @@ describe("omo-ai publish workflow shape", () => {
   })
 
   test("always runs readiness, dist-tag guard, and live verification", () => {
+    // These probes moved out of publish-main into post-publish-verify: they assert registry state that is
+    // already public once publish-main succeeds, so gating the release job on them could only strand a
+    // published release. They stay unconditional inside their new job.
     for (const name of ["Wait for omo-ai registry readiness", "Guard omo-ai dist-tags", "Verify omo-ai live install"]) {
-      const step = namedStep("publish-main", name)
+      const step = namedStep("post-publish-verify", name)
       expect(step).not.toHaveProperty("if")
       expect(step.env?.OMO_AI_VERSION).toBe("${{ needs.release-metadata.outputs.omo_ai_version }}")
       expect(step.env?.ALREADY_PUBLISHED).toBe("${{ needs.release-metadata.outputs.already_published }}")
     }
 
-    expect(namedStep("publish-main", "Wait for omo-ai registry readiness").run).toContain("npm view omo-ai@$OMO_AI_VERSION version")
-    expect(namedStep("publish-main", "Guard omo-ai dist-tags").run).toContain("0.0.0-beta.0")
-    const liveRun = namedStep("publish-main", "Verify omo-ai live install").run ?? ""
+    expect(namedStep("post-publish-verify", "Wait for omo-ai registry readiness").run).toContain("npm view omo-ai@$OMO_AI_VERSION version")
+    expect(namedStep("post-publish-verify", "Guard omo-ai dist-tags").run).toContain("0.0.0-beta.0")
+    const liveRun = namedStep("post-publish-verify", "Verify omo-ai live install").run ?? ""
     expect(liveRun).toContain('npm i -g "omo-ai@$OMO_AI_VERSION"')
     expect(liveRun).toContain("lib/node_modules/omo-ai/package.json")
     expect(liveRun).toContain('"$EXACT_PREFIX/bin/omo" --version')
