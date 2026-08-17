@@ -2,12 +2,20 @@ import { createServer, type AddressInfo, type Server, type Socket } from "node:n
 
 const CLEANUP_WAIT_MS = 5_000
 
+interface Deferred<T> {
+  promise: Promise<T>
+  resolve(value: T): void
+  reject(error: Error): void
+  readonly settled: boolean
+}
+
 export function createMemoryRunSupervisorIc8ExitResources(waitMs: number) {
   const exitServers = new Set<Server>()
   const exitServerClosures = new Map<Server, Promise<void>>()
   const acceptedSockets = new Set<Socket>()
   const socketClosures = new Map<Socket, Promise<void>>()
   const childExitTimeouts = new Set<ReturnType<typeof setTimeout>>()
+  const signalSettlers = new Set<() => void>()
 
   const clearTrackedTimeout = (timeout: ReturnType<typeof setTimeout>) => {
     clearTimeout(timeout)
@@ -74,38 +82,58 @@ export function createMemoryRunSupervisorIc8ExitResources(waitMs: number) {
       acceptedSockets.add(socket)
       socketClosures.set(
         socket,
-        new Promise<void>((resolve) => socket.once("close", resolve)),
+        new Promise<void>((resolve) =>
+          socket.once("close", () => {
+            acceptedSockets.delete(socket)
+            socketClosures.delete(socket)
+            resolve()
+          }),
+        ),
       )
     })
-    const exitSocketAccepted = new Promise<Socket>((resolve) =>
-      server.once("connection", resolve),
-    )
-    const childExited = new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        childExitTimeouts.delete(timeout)
-        reject(new Error(`waited ${waitMs}ms for model child exit`))
-      }, waitMs)
-      childExitTimeouts.add(timeout)
-      void exitSocketAccepted
-        .then(async (socket) => {
-          const closed = socketClosures.get(socket)
-          if (closed === undefined) throw new Error("accepted model socket is not tracked")
-          const serverClosed = closeExitServer(server)
-          await closed
-          await serverClosed
-          clearTrackedTimeout(timeout)
-          resolve()
-        })
-        .catch((error: unknown) => {
-          clearTrackedTimeout(timeout)
-          reject(error)
-        })
-    })
-    return { port: address.port, childExited, exitSocketAccepted }
+    const exitSocketAccepted = deferred<Socket>()
+    const childExited = deferred<void>()
+    void exitSocketAccepted.promise.catch(() => {})
+    void childExited.promise.catch(() => {})
+    server.once("connection", (socket) => exitSocketAccepted.resolve(socket))
+    const timeout = setTimeout(() => {
+      childExitTimeouts.delete(timeout)
+      childExited.reject(new Error(`waited ${waitMs}ms for model child exit`))
+    }, waitMs)
+    childExitTimeouts.add(timeout)
+    const settleForCleanup = () => {
+      const error = new Error("exit resource cleaned up before model child exit")
+      exitSocketAccepted.reject(error)
+      childExited.reject(error)
+      clearTrackedTimeout(timeout)
+    }
+    signalSettlers.add(settleForCleanup)
+    void exitSocketAccepted.promise
+      .then(async (socket) => {
+        const closed = socketClosures.get(socket)
+        if (closed === undefined) throw new Error("accepted model socket is not tracked")
+        const serverClosed = closeExitServer(server)
+        await closed
+        await serverClosed
+        clearTrackedTimeout(timeout)
+        signalSettlers.delete(settleForCleanup)
+        childExited.resolve()
+      })
+      .catch((error: unknown) => {
+        clearTrackedTimeout(timeout)
+        signalSettlers.delete(settleForCleanup)
+        childExited.reject(error instanceof Error ? error : new Error(String(error)))
+      })
+    return {
+      port: address.port,
+      childExited: childExited.promise,
+      exitSocketAccepted: exitSocketAccepted.promise,
+    }
   }
 
-  const cleanup = async (): Promise<void> => {
+  const cleanup = async (): Promise<{ forcedSocketDestructions: number }> => {
     let cleanupError: Error | undefined
+    let forcedSocketDestructions = 0
     try {
       try {
         if (socketClosures.size > 0) {
@@ -116,7 +144,10 @@ export function createMemoryRunSupervisorIc8ExitResources(waitMs: number) {
           )
         }
       } catch {
-        for (const socket of acceptedSockets) socket.destroy()
+        for (const socket of acceptedSockets) {
+          forcedSocketDestructions += 1
+          socket.destroy()
+        }
         try {
           await waitBounded(
             Promise.all([...socketClosures.values()]).then(() => undefined),
@@ -137,6 +168,7 @@ export function createMemoryRunSupervisorIc8ExitResources(waitMs: number) {
         cleanupError ??= error instanceof Error ? error : new Error(String(error))
       }
     } finally {
+      for (const settle of signalSettlers) settle()
       for (const socket of acceptedSockets) {
         socket.removeAllListeners()
         socket.destroy()
@@ -144,12 +176,14 @@ export function createMemoryRunSupervisorIc8ExitResources(waitMs: number) {
       for (const server of exitServers) server.removeAllListeners()
       acceptedSockets.clear()
       socketClosures.clear()
+      signalSettlers.clear()
       exitServers.clear()
       exitServerClosures.clear()
       for (const timeout of childExitTimeouts) clearTimeout(timeout)
       childExitTimeouts.clear()
     }
     if (cleanupError !== undefined) throw cleanupError
+    return { forcedSocketDestructions }
   }
 
   return {
@@ -160,9 +194,36 @@ export function createMemoryRunSupervisorIc8ExitResources(waitMs: number) {
       acceptedSockets: acceptedSockets.size,
       childExitTimeouts: childExitTimeouts.size,
     }),
+    hasConnectedSockets: () => acceptedSockets.size > 0,
     openServer,
     trackTimeout: (timeout: ReturnType<typeof setTimeout>) =>
       childExitTimeouts.add(timeout),
     waitBounded,
+  }
+}
+
+function deferred<T>(): Deferred<T> {
+  let resolvePromise: (value: T) => void = () => {}
+  let rejectPromise: (error: Error) => void = () => {}
+  let settled = false
+  const promise = new Promise<T>((resolve, reject) => {
+    resolvePromise = resolve
+    rejectPromise = reject
+  })
+  return {
+    promise,
+    resolve: (value) => {
+      if (settled) return
+      settled = true
+      resolvePromise(value)
+    },
+    reject: (error) => {
+      if (settled) return
+      settled = true
+      rejectPromise(error)
+    },
+    get settled() {
+      return settled
+    },
   }
 }

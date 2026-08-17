@@ -1,17 +1,19 @@
 import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { existsSync } from "node:fs"
-import { readFile } from "node:fs/promises"
+import { readFile, rm } from "node:fs/promises"
 import { join } from "node:path"
 import {
   createMemoryRunSupervisorIc8Harness,
   IC8_PLATFORMS,
   IC8_WAIT_MS,
 } from "./memory-run-supervisor-ic8-harness"
+import { terminateProcessGroup } from "./memory-run-supervisor-ic8-process-groups"
 
 setDefaultTimeout(IC8_WAIT_MS)
 const harness = createMemoryRunSupervisorIc8Harness()
 const {
   advanceClock,
+  cleanup,
   cleanupExitResources,
   cleanupRunResources,
   launchSupervisor,
@@ -44,6 +46,7 @@ describe("memory run supervisor IC-8 containment", () => {
     await childExited
 
     // then
+    expect(processGroupIsAlive(ledger.childPid)).toBe(false)
     expect(resourceCounts()).toEqual({
       exitServers: 0,
       acceptedSockets: 0,
@@ -53,7 +56,7 @@ describe("memory run supervisor IC-8 containment", () => {
 
   test("#given an unconnected exit server #when test cleanup runs #then the listener and timeout are released", async () => {
     // given
-    await makeRun("graceful")
+    const { childExited, exitSocketAccepted } = await makeRun("graceful")
     expect(resourceCounts()).toEqual({
       exitServers: 1,
       acceptedSockets: 0,
@@ -69,6 +72,37 @@ describe("memory run supervisor IC-8 containment", () => {
       acceptedSockets: 0,
       childExitTimeouts: 0,
     })
+    expect(await settlementState(exitSocketAccepted)).toBe("rejected")
+    expect(await settlementState(childExited)).toBe("rejected")
+  })
+
+  test("#given a missing run ledger #when cleanup reports the ledger error #then sockets and the run root are still removed", async () => {
+    // given
+    const { runDir } = await makeRun("graceful")
+    await rm(join(runDir, "ledger.json"))
+
+    // when
+    const result = cleanup()
+
+    // then
+    await expect(result).rejects.toThrow("ledger.json")
+    expect(resourceCounts()).toEqual({
+      exitServers: 0,
+      acceptedSockets: 0,
+      childExitTimeouts: 0,
+    })
+    expect(existsSync(runDir)).toBe(false)
+  })
+
+  test("#given taskkill returns nonzero #when a Windows process group is terminated #then cleanup fails closed", () => {
+    expect(() =>
+      terminateProcessGroup(123, {
+        platform: "win32",
+        runTaskkill: () => ({ status: 1 }),
+        killGroup: () => {},
+        probeGroup: () => {},
+      }),
+    ).toThrow("taskkill failed with exit code 1")
   })
 
   test("#given injected Windows and a child that exits during grace #when the hard deadline arrives #then the supervisor cancels forced taskkill", async () => {
@@ -155,3 +189,19 @@ describe("memory run supervisor IC-8 containment", () => {
     }, 60_000)
   }
 })
+
+async function settlementState(
+  signal: Promise<unknown>,
+): Promise<"resolved" | "rejected" | "pending"> {
+  let state: "resolved" | "rejected" | "pending" = "pending"
+  void signal.then(
+    () => {
+      state = "resolved"
+    },
+    () => {
+      state = "rejected"
+    },
+  )
+  await Promise.resolve()
+  return state
+}

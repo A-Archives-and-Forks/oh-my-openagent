@@ -1,9 +1,14 @@
-import { spawn, spawnSync, type ChildProcess } from "node:child_process"
+import { spawn, type ChildProcess } from "node:child_process"
 import { existsSync, realpathSync } from "node:fs"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { createMemoryRunSupervisorIc8ExitResources } from "./memory-run-supervisor-ic8-exit-resources"
+import {
+  processGroupIsAlive,
+  terminateProcessGroup,
+  validateProcessGroupPid,
+} from "./memory-run-supervisor-ic8-process-groups"
 import {
   advanceTestClock,
   createTestClock,
@@ -127,31 +132,6 @@ export function createMemoryRunSupervisorIc8Harness() {
       child.once("close", onClose)
     })
 
-  const validateProcessGroupPid = (pid: number) => {
-    if (!Number.isInteger(pid) || pid <= 0) {
-      throw new RangeError(`process-group pid must be a positive integer: ${pid}`)
-    }
-    return pid
-  }
-  const killTree = (pid: number) => {
-    const validatedPid = validateProcessGroupPid(pid)
-    if (process.platform === "win32") {
-      spawnSync("taskkill", ["/pid", String(validatedPid), "/T", "/F"], {
-        stdio: "ignore",
-      })
-    } else {
-      process.kill(-validatedPid, "SIGKILL")
-    }
-  }
-  const processGroupIsAlive = (pid: number) => {
-    const validatedPid = validateProcessGroupPid(pid)
-    try {
-      process.kill(process.platform === "win32" ? validatedPid : -validatedPid, 0)
-      return true
-    } catch (error) {
-      return error instanceof Error && "code" in error && error.code === "EPERM"
-    }
-  }
   const ledgerChildProcessGroups = async () => {
     const groups = new Set<number>()
     for (const runDir of roots) {
@@ -166,30 +146,88 @@ export function createMemoryRunSupervisorIc8Harness() {
     return groups
   }
   const cleanupRunResources = async () => {
-    const groups = new Set([...liveProcesses, ...(await ledgerChildProcessGroups())])
+    let cleanupError: Error | undefined
+    const groups = new Set(liveProcesses)
+    let ledgerGroups = new Set<number>()
+    try {
+      ledgerGroups = await ledgerChildProcessGroups()
+    } catch (error) {
+      cleanupError = asError(error)
+    }
+    if (exitResources.hasConnectedSockets()) {
+      for (const pid of ledgerGroups) groups.add(pid)
+    }
     for (const pid of groups) {
+      if (!processGroupIsAlive(pid)) continue
       try {
-        killTree(pid)
+        terminateProcessGroup(pid)
       } catch (error) {
         if (!(error instanceof Error) || !("code" in error) || error.code !== "ESRCH") {
-          throw error
+          cleanupError ??= asError(error)
         }
       }
     }
     liveProcesses.clear()
-    await exitResources.cleanup()
+    try {
+      const { forcedSocketDestructions } = await exitResources.cleanup()
+      if (forcedSocketDestructions > 0) {
+        cleanupError ??= new Error(
+          `forced ${forcedSocketDestructions} model socket cleanup(s)`,
+        )
+      }
+    } catch (error) {
+      cleanupError ??= asError(error)
+    }
+    for (const pid of groups) {
+      try {
+        await waitForProcessGroupExit(pid)
+      } catch (error) {
+        cleanupError ??= asError(error)
+      }
+    }
     for (const runDir of roots) cleanedRunRoots.add(runDir)
+    if (cleanupError !== undefined) throw cleanupError
+  }
+
+  const waitForProcessGroupExit = async (pid: number) => {
+    if (!processGroupIsAlive(pid)) return
+    let interval: ReturnType<typeof setInterval> | undefined
+    try {
+      await exitResources.waitBounded(
+        new Promise<void>((resolve) => {
+          interval = setInterval(() => {
+            if (processGroupIsAlive(pid)) return
+            clearInterval(interval)
+            interval = undefined
+            resolve()
+          }, 25)
+        }),
+        5_000,
+        `process group ${pid} exit`,
+      )
+    } finally {
+      if (interval !== undefined) clearInterval(interval)
+    }
   }
   const cleanup = async () => {
-    await cleanupRunResources()
-    await Promise.all(
+    let cleanupError: Error | undefined
+    try {
+      await cleanupRunResources()
+    } catch (error) {
+      cleanupError = asError(error)
+    }
+    const removals = await Promise.allSettled(
       roots
         .splice(0)
         .map((root) =>
           rm(root, { recursive: true, force: true, maxRetries: 30, retryDelay: 200 }),
         ),
     )
+    for (const result of removals) {
+      if (result.status === "rejected") cleanupError ??= asError(result.reason)
+    }
     cleanedRunRoots.clear()
+    if (cleanupError !== undefined) throw cleanupError
   }
 
   return {
@@ -206,4 +244,8 @@ export function createMemoryRunSupervisorIc8Harness() {
     waitForExit,
     waitForPath,
   }
+}
+
+function asError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error))
 }
