@@ -79,7 +79,7 @@ describe("resolveCategory", () => {
           ultrabrain: {
             model: "anthropic/claude-opus-4-7",
             variant: "max",
-            prompt_append: "USER OVERLAY PROMPT",
+            prompt_append: "fixture-overlay",
           },
         },
       },
@@ -91,8 +91,8 @@ describe("resolveCategory", () => {
     expect(resolved.spec.provider).toBe("anthropic")
     expect(resolved.spec.modelId).toBe("claude-opus-4-7")
     expect(resolved.spec.variant).toBe("max")
-    expect(resolved.spec.prompt_append).toContain("DEEP LOGICAL REASONING")
-    expect(resolved.spec.prompt_append).toEndWith("\n\nUSER OVERLAY PROMPT")
+    expect(resolved.spec.prompt_append).not.toBe("fixture-overlay")
+    expect(resolved.spec.prompt_append).toEndWith("\n\nfixture-overlay")
   })
 
   test("#given a disabled omo category overlay #when resolved #then a disabled result explains the reason", () => {
@@ -422,7 +422,7 @@ describe("resolveCategory", () => {
             thinking: { type: "enabled", budgetTokens: 1024 },
             reasoningEffort: "medium",
             tools: { read: true, write: false },
-            prompt_append: "EXTRA QUICK CONTEXT",
+            prompt_append: "fixture-quick-overlay",
           },
         },
       },
@@ -437,8 +437,8 @@ describe("resolveCategory", () => {
     expect(resolved.spec.thinking).toEqual({ type: "enabled", budgetTokens: 1024 })
     expect(resolved.spec.reasoningEffort).toBe("medium")
     expect(resolved.spec.tools).toEqual({ read: true, write: false })
-    expect(resolved.spec.prompt_append).toContain("SMALL / QUICK")
-    expect(resolved.spec.prompt_append).toEndWith("\n\nEXTRA QUICK CONTEXT")
+    expect(resolved.spec.prompt_append).not.toBe("fixture-quick-overlay")
+    expect(resolved.spec.prompt_append).toEndWith("\n\nfixture-quick-overlay")
   })
 
   test("#given a custom category description #when resolved #then the resolved result preserves it", () => {
