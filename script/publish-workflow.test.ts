@@ -242,19 +242,18 @@ describe("test workflows", () => {
       const bunVersionLines = workflow.match(/bun-version: .*/g) ?? []
 
       // #when
-      // The root test job pins a per-OS pair: Windows legs run 1.3.14 (the
-      // runtime the Windows partition was validated under), everything else
-      // stays on the repo pin 1.3.12 so committed Senpi bundle checks match.
-      const windowsTestPin =
-        "bun-version: ${{ matrix.os == 'windows-latest' && '1.3.14' || '1.3.12' }}"
+      // Upstream pins the root test job to 1.3.14 outright (the runtime the
+      // Windows partition was validated under); every other job stays on the
+      // repo pin 1.3.12 so committed Senpi bundle checks match.
+      const testJobPin = 'bun-version: "1.3.14"'
       const unpinnedBunLines = bunVersionLines.filter(
-        (line) => line !== pinnedBunVersion && line !== windowsTestPin,
+        (line) => line !== pinnedBunVersion && line !== testJobPin,
       )
 
       // #then
       expect(unpinnedBunLines, `${workflowPath.pathname} must pin Bun to an exact version`).toEqual([])
       if (workflowPath.pathname.endsWith("/ci.yml")) {
-        expect(bunVersionLines, "ci.yml must keep exactly one per-OS Windows test pin").toContain(windowsTestPin)
+        expect(bunVersionLines, "ci.yml must keep exactly one test-job 1.3.14 pin").toContain(testJobPin)
       }
     }
   })
