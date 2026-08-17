@@ -1,4 +1,4 @@
-{"root": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests", "parser": "typescript-6.0.3", "tracked_test_count": 2291, "existing_tracked_test_count": 2281, "missing_tracked_test_count": 10, "candidate_count": 1763, "classified_allowed_count": 1763, "unclassified_count": 0, "forbidden_count": 0, "stale_classification_count": 0}
+{"root": "<worktree>", "parser": "typescript-6.0.3", "tracked_test_count": 2291, "existing_tracked_test_count": 2281, "missing_tracked_test_count": 10, "candidate_count": 1763, "classified_allowed_count": 1763, "unclassified_count": 0, "forbidden_count": 0, "stale_classification_count": 0}
 .agents/skills/codex-qa/scripts/lib/app-server-client.test.js:46:78 [allowed/matcher/toEqual] 0a951b59b61e3819324ec5879077e1691de456f214ba46bcf3a2639c9c2e7061 sessionStart
 .agents/skills/codex-qa/scripts/lib/app-server-client.test.js:46:94 [allowed/matcher/toEqual] d899b8ea7b07929c3863138862e96d1256f75c99744ed9fa2fec618d8fcf8981 userPromptSubmit
 packages/agents-md-core/src/constants.test.ts:8:36 [allowed/matcher/toBe] 66a63eec3b190d5b6b7f83d23eec522a3a1feb01ef7b1a3779d4eb25270ba340 AGENTS.md

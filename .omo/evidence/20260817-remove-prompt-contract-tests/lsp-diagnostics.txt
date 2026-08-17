@@ -33,6 +33,6 @@ the faithful fallback for those files.
 CLEANUP RECEIPT
 
 Removed:
-`/Volumes/mengmotaStorage/local-workspaces/omo/.local-ignore/lsp-prompt-contract-worktree`
+`<lsp-worktree>`
 
 Verified the path is neither a symlink nor a filesystem entry.

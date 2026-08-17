@@ -3,6 +3,7 @@ import fs from "node:fs"
 import path from "node:path"
 
 import { createDerivedScanner } from "./prompt_contract_derived.mjs"
+import { createNodeAssertContext, createNodeAssertShape } from "./prompt_contract_node_assert.mjs"
 import { createAstHelpers } from "./prompt_contract_values.mjs"
 
 const MATCHERS = new Set([
@@ -59,6 +60,8 @@ export function createFileScanner(ts, root) {
     const bindings = collectBindings(source)
     const candidates = []
     const loopBindings = new Map()
+    const nodeAssertShape = createNodeAssertShape(ts, source, helpers)
+    const containsNodeAssertContext = createNodeAssertContext(ts, source, helpers, bindings, loopBindings)
 
     function add(node, kind, matcher, actualNode, expectedValue, context, expectedNode = node) {
       if (!isCandidateValue(expectedValue, context)) return
@@ -86,7 +89,7 @@ export function createFileScanner(ts, root) {
       (node) => containsInstructionSource(source, node, bindings, loopBindings),
     )
 
-    function findIncludes(node, assertionNode, matcher, inheritedContext, seenBindings = new Set()) {
+    function findIncludes(node, assertionNode, matcher, inheritedContext, contextFor, seenBindings = new Set()) {
       node = unwrap(node)
       if (!node) return
       if (ts.isIdentifier(node)) {
@@ -94,7 +97,7 @@ export function createFileScanner(ts, root) {
         if (!binding || seenBindings.has(node.text)) return
         const nextSeen = new Set(seenBindings)
         nextSeen.add(node.text)
-        findIncludes(binding, assertionNode, matcher, inheritedContext, nextSeen)
+        findIncludes(binding, assertionNode, matcher, inheritedContext, contextFor, nextSeen)
         return
       }
       if (
@@ -103,12 +106,12 @@ export function createFileScanner(ts, root) {
         && node.expression.name.text === "includes"
       ) {
         const haystack = node.expression.expression
-        const context = inheritedContext || containsInstructionSource(source, haystack, bindings, loopBindings)
+        const context = inheritedContext || contextFor(haystack)
         for (const found of valuesFrom(node.arguments[0], bindings, loopBindings)) {
           add(assertionNode, "includes-boolean", `includes:${matcher}`, haystack, found.value, context, found.node)
         }
       }
-      ts.forEachChild(node, (child) => findIncludes(child, assertionNode, matcher, inheritedContext, seenBindings))
+      ts.forEachChild(node, (child) => findIncludes(child, assertionNode, matcher, inheritedContext, contextFor, seenBindings))
     }
 
     function findOrderHelpers(node, assertionNode, matcher, seenBindings = new Set()) {
@@ -159,11 +162,21 @@ export function createFileScanner(ts, root) {
         }
       }
       if (ts.isCallExpression(node)) {
-        const shape = expectShape(node)
+        const shape = expectShape(node) ?? nodeAssertShape(node)
         if (shape) {
-          const context = containsInstructionSource(source, shape.actual, bindings, loopBindings)
+          const shallowContext = containsInstructionSource(source, shape.actual, bindings, loopBindings)
+          const nodeContext = shape.nodeAssert && (
+            containsNodeAssertContext(shape.actual) || containsNodeAssertContext(shape.expected)
+          )
+          const context = shape.nodeAssert ? nodeContext : shallowContext
+          if (shape.nodeAssert && !context) {
+            ts.forEachChild(node, visit)
+            return
+          }
           if (shape.matcher.endsWith("toMatchInlineSnapshot") || shape.matcher.endsWith("toMatchSnapshot")) {
-            if (context) add(node, "snapshot", shape.matcher, shape.actual, "<snapshot pins instruction output>", true, node)
+            if (context || containsNodeAssertContext(shape.actual)) {
+              add(node, "snapshot", shape.matcher, shape.actual, "<snapshot pins instruction output>", true, node)
+            }
           } else if (shape.expected) {
             const expectedValues = valuesFrom(shape.expected, bindings, loopBindings)
             for (const found of expectedValues) {
@@ -171,15 +184,21 @@ export function createFileScanner(ts, root) {
             }
             if (
               expectedValues.length === 0
-              && /(?:^|\.)(?:toBe|toEqual|toStrictEqual)$/.test(shape.matcher)
+              && /(?:^|\.)(?:toBe|toEqual|toStrictEqual|equal|strictEqual|deepEqual|deepStrictEqual|notEqual|notStrictEqual|deepNotEqual|deepNotStrictEqual)$/.test(shape.matcher)
               && context
-              && containsInstructionSource(source, shape.expected, bindings, loopBindings)
+              && (shape.nodeAssert || containsInstructionSource(source, shape.expected, bindings, loopBindings))
             ) {
               add(node, "shipped-copy-equality", shape.matcher, shape.actual,
                 `<expression:${sourceText(source, shape.expected)}>`, true, shape.expected)
             }
           }
-          findIncludes(shape.actual, node, shape.matcher, context)
+          if (shape.nodeAssert && shape.method === "ok" && context) {
+            add(node, "truthy-assertion", shape.matcher, shape.actual, "<truthy instruction assertion>", true, node)
+          }
+          const contextFor = shape.nodeAssert
+            ? containsNodeAssertContext
+            : (candidate) => containsInstructionSource(source, candidate, bindings, loopBindings)
+          findIncludes(shape.actual, node, shape.matcher, context, contextFor)
           findOrderHelpers(shape.actual, node, shape.matcher)
           scanDerived(node, shape)
         }

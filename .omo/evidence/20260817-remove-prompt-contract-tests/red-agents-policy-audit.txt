@@ -1,4 +1,4 @@
-COMMAND: cd /Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests && python3 .omo/evidence/20260817-remove-prompt-contract-tests/audit_agents_policy.py
+COMMAND: cd <worktree> && python3 .omo/evidence/20260817-remove-prompt-contract-tests/audit_agents_policy.py
 EXPECTED RED: nonzero exit because the prompt-contract test prohibition is absent.
 OBSERVED: exit 1.
 

@@ -1,4 +1,4 @@
-real_db=/Users/yeongyu/.local/share/opencode/opencode.db before=5861
+real_db=<home>/.local/share/opencode/opencode.db before=5861
 fake_llm_port=49268
-session_id=ses_fefbfd77affeVspVTxBifnfxDs
+session_id=<redacted-session-id>
 after=5861 unchanged=yes

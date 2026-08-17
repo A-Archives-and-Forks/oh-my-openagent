@@ -1,8 +1,8 @@
-COMMAND: cd /Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests && python3 .omo/evidence/20260817-remove-prompt-contract-tests/audit_prompt_contracts.py --compact
+COMMAND: cd <worktree> && python3 .omo/evidence/20260817-remove-prompt-contract-tests/audit_prompt_contracts.py --compact
 EXPECTED RED: nonzero exit with at least one forbidden natural-language prompt/prose assertion.
 OBSERVED: exit 1; 438 candidate assertions across 127 files.
 
-{"root": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests", "test_files_scanned": 2291, "violation_count": 438}
+{"root": "<worktree>", "test_files_scanned": 2291, "violation_count": 438}
 packages/claude-code-compat-core/src/features/claude-code-agent-loader/agent-definitions-loader.test.ts:40,160,164,238,262
 packages/claude-code-compat-core/src/features/claude-code-agent-loader/json-agent-loader.test.ts:42
 packages/claude-code-compat-core/src/features/claude-code-agent-loader/loader.test.ts:104,135,199

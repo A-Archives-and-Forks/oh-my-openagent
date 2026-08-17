@@ -726,15 +726,6 @@
       "expected": "codex:<session_id>"
     },
     {
-      "fingerprint": "4ebf78ce06900ad9cfb28ace953444f2ac37d459a6c07375c33a49ea0adfa19b",
-      "status": "allowed",
-      "category": "parser-fixture",
-      "rationale": "Checks a machine-consumed schema, frontmatter, loader, or normalized field using fixture value string; the assertion covers parsing/shape rather than authored guidance.",
-      "path": "packages/senpi-task/src/agents/builtin/builtin-agents.test.ts",
-      "line": 65,
-      "expected": "string"
-    },
-    {
       "fingerprint": "62b1a9812efa9327d769ae0585a7f6ed0323294aa0c8bba443ce629fbdf65cc7",
       "status": "allowed",
       "category": "machine-sentinel",

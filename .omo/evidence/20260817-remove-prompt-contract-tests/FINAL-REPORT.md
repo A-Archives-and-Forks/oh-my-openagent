@@ -16,8 +16,8 @@ state, security, runtime delivery, and user-facing UI/error behavior.
   exit 1; 2,291 tests; 2,421 candidates; 747 unclassified;
   94 stale active fingerprints.
 - Final rebased tree:
-  exit 0; 2,297 tracked tests; 1,768 candidates;
-  1,768 allowed; 0 unclassified; 0 forbidden; 0 stale.
+  exit 0; 2,297 tracked tests; 1,894 candidates;
+  1,894 allowed; 0 unclassified; 0 forbidden; 0 stale.
 - Exact base inventory:
   `red-prompt-contract-scan-post-quality.txt`.
 - Exact pre-rebase summary and scanner/classification hashes:
@@ -36,10 +36,13 @@ state, security, runtime delivery, and user-facing UI/error behavior.
 ## Automated verification
 
 - `bun run typecheck`: exit 0 across root, scripts, and every package.
-- `bun test`: 15,612 passed, 0 failed, 7 existing platform/TUI skips,
-  137,780 assertions, 2,048 files.
+- `bun test`: 15,613 passed, 0 failed, 7 existing platform/TUI skips,
+  131,764 assertions, 2,048 files.
 - `bun run build`: exit 0.
-- `bun run test:codex`: exit 0; final Node section 490/490 passed.
+- `bun run test:codex`: exit 0; final Node section 492/492 passed.
+- Scanner regression suite: 13 passed under the declared uv environment.
+- Independent review blocker resolutions:
+  `review-fixes.txt`.
 - Post-rebase command and result ledger:
   `post-rebase-validation.txt`.
 - Focused-domain totals: `focused-domain-verification.txt`.

@@ -1,12 +1,12 @@
-COMMAND: python3 /Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests/.omo/evidence/20260817-remove-prompt-contract-tests/audit_prompt_contracts.py --classification /Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests/.omo/evidence/20260817-remove-prompt-contract-tests/prompt-contract-classification-index.json --compact
+COMMAND: python3 <worktree>/.omo/evidence/20260817-remove-prompt-contract-tests/audit_prompt_contracts.py --classification <worktree>/.omo/evidence/20260817-remove-prompt-contract-tests/prompt-contract-classification-index.json --compact
 EXPECTED: exit 0 on final edited tree using exact same command.
 OBSERVED:
 {
-  "cwd": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests",
+  "cwd": "<worktree>",
   "commit": "working-tree",
   "exit_code": 0,
   "summary": {
-    "root": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests",
+    "root": "<worktree>",
     "parser": "typescript-6.0.3",
     "tracked_test_count": 2291,
     "existing_tracked_test_count": 2281,

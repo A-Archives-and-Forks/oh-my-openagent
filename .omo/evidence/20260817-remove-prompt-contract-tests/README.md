@@ -4,7 +4,7 @@
 
 - Host: `mengmotaHost` (`Mac16,11`, 14 cores).
 - Worktree:
-  `/Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests`
+  `<worktree>`
 - Branch: `chore/remove-prompt-contract-tests`
 - Base: `origin/dev` at `3dd88267f87bd47795d3eea7782e676bb40e2f9b`.
 - Shared checkout was dirty and was not modified.
@@ -41,7 +41,7 @@ python3 .omo/evidence/20260817-remove-prompt-contract-tests/test_audit_prompt_co
 python3 .omo/evidence/20260817-remove-prompt-contract-tests/audit_prompt_contracts.py --compact
 ```
 
-The second command is intentionally red while the exact inventory in
-`current-prompt-contract-audit.txt` still contains candidates requiring lead
-disposition. A nonzero result is not converted to green by path omission or
-blanket classification.
+The second command is green on the final tree. The original failing-first
+inventory remains in the committed `red-prompt-contract-scan*.txt` artifacts;
+no nonzero result is converted to green by path omission or blanket
+classification.

@@ -6927,33 +6927,6 @@
       "expected": "PROMPT_INPUT_SENTINEL"
     },
     {
-      "fingerprint": "a561f774dcea4d1a63d65fbdca28f945ad67f9ab86afe59cd214acc301dc7a7f",
-      "status": "allowed",
-      "category": "shipped-copy-equality",
-      "rationale": "Compares the runtime result `result.categoryPromptAppend` with the real source/factory value `<expression:CATEGORY_PROMPT_APPEND_RESOLVERS.deep(\"openai/gpt-5.5\")>`, guarding selection or shipped-copy drift without pinning an independently authored sentence.",
-      "path": "packages/omo-opencode/src/tools/delegate-task/category-resolver.test.ts",
-      "line": 593,
-      "expected": "<expression:CATEGORY_PROMPT_APPEND_RESOLVERS.deep(\"openai/gpt-5.5\")>"
-    },
-    {
-      "fingerprint": "694e526df5ffe9655e076911117b045f7418d4840d10dc61e1aeff5c03dc64fb",
-      "status": "allowed",
-      "category": "shipped-copy-equality",
-      "rationale": "Compares the runtime result `result.categoryPromptAppend` with the real source/factory value `<expression:CATEGORY_PROMPT_APPEND_RESOLVERS.deep(\"openai/gpt-5.4\")>`, guarding selection or shipped-copy drift without pinning an independently authored sentence.",
-      "path": "packages/omo-opencode/src/tools/delegate-task/category-resolver.test.ts",
-      "line": 618,
-      "expected": "<expression:CATEGORY_PROMPT_APPEND_RESOLVERS.deep(\"openai/gpt-5.4\")>"
-    },
-    {
-      "fingerprint": "fddb477cff1cd3697e1904fd60f44495fa9d0e04047d210670eb8a9d49a3d1c3",
-      "status": "allowed",
-      "category": "shipped-copy-equality",
-      "rationale": "Compares the runtime result `result.categoryPromptAppend` with the real source/factory value `<expression:`${basePromptAppend}\\n\\n${userPromptAppend}`>`, guarding selection or shipped-copy drift without pinning an independently authored sentence.",
-      "path": "packages/omo-opencode/src/tools/delegate-task/category-resolver.test.ts",
-      "line": 647,
-      "expected": "<expression:`${basePromptAppend}\\n\\n${userPromptAppend}`>"
-    },
-    {
       "fingerprint": "b27ef1279c100409d5ed93a4473831efc7dc62b07a679ce59a1551014ee19973",
       "status": "allowed",
       "category": "shipped-copy-equality",
@@ -7618,69 +7591,6 @@
       "path": "packages/omo-opencode/src/tools/delegate-task/tools.test.ts",
       "line": 3726,
       "expected": "<system>"
-    },
-    {
-      "fingerprint": "23cd57f5d2c5c18c40048966f1715cbae25f21aaedfb758079a24412a6e58451",
-      "status": "allowed",
-      "category": "shipped-copy-equality",
-      "rationale": "Compares the runtime result `result` with the real source/factory value `<expression:buildTaskPrompt(prompt, \"plan\", true)>`, guarding selection or shipped-copy drift without pinning an independently authored sentence.",
-      "path": "packages/omo-opencode/src/tools/delegate-task/tools.test.ts",
-      "line": 3753,
-      "expected": "<expression:buildTaskPrompt(prompt, \"plan\", true)>"
-    },
-    {
-      "fingerprint": "d06393aea2a310f1a25941b9c0db62fc182959c947acf2f14c3d8207414ff8c6",
-      "status": "allowed",
-      "category": "shipped-copy-equality",
-      "rationale": "Compares the runtime result `result` with the real source/factory value `<expression:buildTaskPrompt(prompt, \"plan\", false)>`, guarding selection or shipped-copy drift without pinning an independently authored sentence.",
-      "path": "packages/omo-opencode/src/tools/delegate-task/tools.test.ts",
-      "line": 3754,
-      "expected": "<expression:buildTaskPrompt(prompt, \"plan\", false)>"
-    },
-    {
-      "fingerprint": "60e509315f078324dba37e760d7fd4b593b7d606b912a70aa6c42e0f5e683516",
-      "status": "allowed",
-      "category": "machine-sentinel",
-      "rationale": "Asserts stable machine-facing identifier/sentinel `non-plan-task-input-sentinel` on `result` for tool, agent, event, field, or dispatch selection.",
-      "path": "packages/omo-opencode/src/tools/delegate-task/tools.test.ts",
-      "line": 3760,
-      "expected": "non-plan-task-input-sentinel"
-    },
-    {
-      "fingerprint": "bae64268345730bdd29cfcb826086bd5e2d87407ffa241e72251be825c616ab6",
-      "status": "allowed",
-      "category": "machine-sentinel",
-      "rationale": "Asserts stable machine-facing identifier/sentinel `plan-task-tdd-disabled-sentinel` on `result` for tool, agent, event, field, or dispatch selection.",
-      "path": "packages/omo-opencode/src/tools/delegate-task/tools.test.ts",
-      "line": 3772,
-      "expected": "plan-task-tdd-disabled-sentinel"
-    },
-    {
-      "fingerprint": "1699d190aeaa60a2fb4403178e4f336bbaa0b46c29fe1540f6259b960488b003",
-      "status": "allowed",
-      "category": "shipped-copy-equality",
-      "rationale": "Compares the runtime result `result` with the real source/factory value `<expression:buildTaskPrompt(prompt, \"plan\", false)>`, guarding selection or shipped-copy drift without pinning an independently authored sentence.",
-      "path": "packages/omo-opencode/src/tools/delegate-task/tools.test.ts",
-      "line": 3781,
-      "expected": "<expression:buildTaskPrompt(prompt, \"plan\", false)>"
-    },
-    {
-      "fingerprint": "48720bb0c78eab09e252dc20f06c985dc29230096f73b83ce2841698cc9b7b22",
-      "status": "allowed",
-      "category": "shipped-copy-equality",
-      "rationale": "Compares the runtime result `result` with the real source/factory value `<expression:withTdd>`, guarding selection or shipped-copy drift without pinning an independently authored sentence.",
-      "path": "packages/omo-opencode/src/tools/delegate-task/tools.test.ts",
-      "line": 3782,
-      "expected": "<expression:withTdd>"
-    },
-    {
-      "fingerprint": "618b0e7b8487202539152325fc984a5f186001ae18813de3bbe3eff9abcd3584",
-      "status": "allowed",
-      "category": "shipped-copy-equality",
-      "rationale": "Compares the runtime result `result` with the real source/factory value `<expression:buildTaskPrompt(prompt, \"plan\")>`, guarding selection or shipped-copy drift without pinning an independently authored sentence.",
-      "path": "packages/omo-opencode/src/tools/delegate-task/tools.test.ts",
-      "line": 3794,
-      "expected": "<expression:buildTaskPrompt(prompt, \"plan\")>"
     },
     {
       "fingerprint": "a0a97e81b9cdfe4c6f4a43567f3e2a91ccf665f64236cfcf29786224b02346a7",

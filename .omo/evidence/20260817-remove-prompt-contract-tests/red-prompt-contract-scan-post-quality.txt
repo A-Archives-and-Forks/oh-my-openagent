@@ -1,12 +1,12 @@
-COMMAND: python3 /Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests/.omo/evidence/20260817-remove-prompt-contract-tests/audit_prompt_contracts.py --classification /Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests/.omo/evidence/20260817-remove-prompt-contract-tests/prompt-contract-classification-index.json --compact
+COMMAND: python3 <worktree>/.omo/evidence/20260817-remove-prompt-contract-tests/audit_prompt_contracts.py --classification <worktree>/.omo/evidence/20260817-remove-prompt-contract-tests/prompt-contract-classification-index.json --compact
 EXPECTED: nonzero on original base using final hash-bound scanner/classifications.
 OBSERVED:
 {
-  "cwd": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/prompt-contract-red-base-final-new",
+  "cwd": "<detached-base-worktree>",
   "commit": "3dd88267f87bd47795d3eea7782e676bb40e2f9b",
   "exit_code": 1,
   "summary": {
-    "root": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/prompt-contract-red-base-final-new",
+    "root": "<detached-base-worktree>",
     "parser": "typescript-6.0.3",
     "tracked_test_count": 2291,
     "existing_tracked_test_count": 2291,

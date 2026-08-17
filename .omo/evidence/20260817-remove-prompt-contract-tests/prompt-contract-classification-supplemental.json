@@ -59,13 +59,6 @@
       "expected": "<non-empty authored text>"
     },
     {
-      "fingerprint": "1131de907780ec381f931e3bf3f6f235997b623162e47d330bdab7007993a0c9",
-      "category": "runtime-behavior",
-      "rationale": "Compares footer-injected output with the same fixture output before footer injection; it verifies transformation branching without asserting footer prose.",
-      "path": "packages/skills-loader-core/src/features/opencode-skill-loader/git-master-template-injection.test.ts",
-      "expected": "<expression:withoutFooter>"
-    },
-    {
       "fingerprint": "1919d6d1acd79e2c7369e606240177878ee30db1f623970e9b231afba316247d",
       "category": "runtime-behavior",
       "rationale": "Verifies buildResumePrompt changes when the dynamic objective input changes; no authored prompt wording is asserted.",
@@ -423,13 +416,6 @@
       "rationale": "plan-sentinel-9f2c is an opaque test token proving the plan-specific reminder path without pinning authored prose.",
       "path": "packages/omo-opencode/src/hooks/atlas/verification-reminders.test.ts",
       "expected": "plan-sentinel-9f2c"
-    },
-    {
-      "fingerprint": "de937b370d72f4686ff4b8f200f2045de9e98a271c37c7255d99ddadd2447289",
-      "category": "runtime-behavior",
-      "rationale": "Compares co-author-injected output with the same fixture output before co-author injection; it verifies transformation branching without asserting prose.",
-      "path": "packages/skills-loader-core/src/features/opencode-skill-loader/git-master-template-injection.test.ts",
-      "expected": "<expression:withoutCoAuthor>"
     },
     {
       "fingerprint": "dfe4caf906e8c23489dc6b45f7c3fca51bdc9845e4727c8f72847327cedf3578",

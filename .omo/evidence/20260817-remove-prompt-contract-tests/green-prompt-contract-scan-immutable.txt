@@ -1,12 +1,12 @@
-COMMAND: python3 /Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests/.omo/evidence/20260817-remove-prompt-contract-tests/audit_prompt_contracts.py --classification /Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests/.omo/evidence/20260817-remove-prompt-contract-tests/prompt-contract-classification-index.json --compact
+COMMAND: python3 <worktree>/.omo/evidence/20260817-remove-prompt-contract-tests/audit_prompt_contracts.py --classification <worktree>/.omo/evidence/20260817-remove-prompt-contract-tests/prompt-contract-classification-index.json --compact
 EXPECTED: exit 0 on the edited worktree using the exact same final scanner and classifications.
 OBSERVED:
 {
-  "command": "python3 /Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests/.omo/evidence/20260817-remove-prompt-contract-tests/audit_prompt_contracts.py --classification /Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests/.omo/evidence/20260817-remove-prompt-contract-tests/prompt-contract-classification-index.json --compact",
-  "cwd": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests",
+  "command": "python3 <worktree>/.omo/evidence/20260817-remove-prompt-contract-tests/audit_prompt_contracts.py --classification <worktree>/.omo/evidence/20260817-remove-prompt-contract-tests/prompt-contract-classification-index.json --compact",
+  "cwd": "<worktree>",
   "exit_code": 0,
   "summary": {
-    "root": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests",
+    "root": "<worktree>",
     "parser": "typescript-6.0.3",
     "tracked_test_count": 2291,
     "existing_tracked_test_count": 2282,
@@ -55,5 +55,5 @@ OBSERVED:
   ],
   "active_fingerprint_count": 1476,
   "violating_inventory": [],
-  "cleanup_receipt": "detached worktree /Volumes/mengmotaStorage/local-workspaces/omo-wt/prompt-contract-red-base removed; git worktree prune; path absent"
+  "cleanup_receipt": "detached base worktree removed; git worktree prune; path absent"
 }

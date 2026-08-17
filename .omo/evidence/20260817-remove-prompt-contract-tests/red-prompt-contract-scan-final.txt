@@ -1,9 +1,9 @@
-COMMAND: cd /Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests && python3 .omo/evidence/20260817-remove-prompt-contract-tests/audit_prompt_contracts.py --compact
+COMMAND: cd <worktree> && python3 .omo/evidence/20260817-remove-prompt-contract-tests/audit_prompt_contracts.py --compact
 SCANNER INPUT: classification.json frozen before implementation from four exhaustive audit lanes plus the existing .omo/rules/test-discipline.md policy.
 EXPECTED RED: nonzero exit while classified whole-file or mixed natural-language prompt/prose contracts remain.
 OBSERVED: exit 1; 613 violations across 98 files; 101 mixed files scanned.
 
-{"root": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests", "test_files_scanned": 101, "violation_count": 613}
+{"root": "<worktree>", "test_files_scanned": 101, "violation_count": 613}
 packages/memory-core/src/seeds/seeds.test.ts:155
 packages/omo-codex/plugin/components/lazycodex-executor-verify/test/codex-hook.test.ts:41,407
 packages/omo-codex/plugin/components/rules/test/bundled-rules.test.ts:165,167,184,210,222,224,251,253,281

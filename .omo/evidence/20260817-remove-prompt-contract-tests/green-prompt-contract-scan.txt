@@ -3,10 +3,10 @@ EXPECTED: exit 0; every tracked test enumerated; zero unclassified, forbidden, o
 OBSERVED:
 {
   "command": "python3 .omo/evidence/20260817-remove-prompt-contract-tests/audit_prompt_contracts.py --compact",
-  "cwd": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests",
+  "cwd": "<worktree>",
   "exit_code": 0,
   "summary": {
-    "root": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests",
+    "root": "<worktree>",
     "parser": "typescript-6.0.3",
     "tracked_test_count": 2291,
     "existing_tracked_test_count": 2282,

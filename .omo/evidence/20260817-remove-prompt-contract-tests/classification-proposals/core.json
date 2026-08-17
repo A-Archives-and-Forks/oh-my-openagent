@@ -465,24 +465,6 @@
       "expected": "skills/memory-discipline/SKILL.md"
     },
     {
-      "fingerprint": "981479d5fc56e582723121fb8d6aa2f9986ca0a7643e5635d8bcd05b94ec2f71",
-      "status": "allowed",
-      "category": "machine-sentinel",
-      "rationale": "'$memory_dir' is a runtime path or placeholder token required by memory seed layout.",
-      "path": "packages/memory-core/src/seeds/seeds.test.ts",
-      "line": 100,
-      "expected": "$memory_dir"
-    },
-    {
-      "fingerprint": "5b0319fe0eda52e2a9259e20486419a904b138f97e90e81dcca5bdde310741ea",
-      "status": "allowed",
-      "category": "machine-sentinel",
-      "rationale": "'system/' is a runtime path or placeholder token required by memory seed layout.",
-      "path": "packages/memory-core/src/seeds/seeds.test.ts",
-      "line": 101,
-      "expected": "system/"
-    },
-    {
       "fingerprint": "90735453bd922d1a3bb816071d46c32fb39c5fd1ce9b373f95feb302a2ec91ec",
       "status": "allowed",
       "category": "machine-sentinel",
@@ -1761,24 +1743,6 @@
       "expected": "GIT_SEQUENCE_EDITOR=: GIT_MASTER=1 git rebase -i --autosquash $MERGE_BASE"
     },
     {
-      "fingerprint": "c0511090a50a218aa7beac68078b18bd22d48d8765058d223aa1c0fdad52ddaa",
-      "status": "allowed",
-      "category": "runtime-behavior",
-      "rationale": "Asserts runtime skill selection, MCP command/argument, shell transformation, or generated command value 'GIT_MASTER=1 git commit'.",
-      "path": "packages/skills-loader-core/src/features/opencode-skill-loader/git-master-template-injection.test.ts",
-      "line": 167,
-      "expected": "GIT_MASTER=1 git commit"
-    },
-    {
-      "fingerprint": "b8db422bf69cd2c8165ec27f2d7cbf299560f1449d3480cc9762dda357cea1cd",
-      "status": "allowed",
-      "category": "runtime-behavior",
-      "rationale": "Asserts runtime skill selection, MCP command/argument, shell transformation, or generated command value 'git commit -m'.",
-      "path": "packages/skills-loader-core/src/features/opencode-skill-loader/git-master-template-injection.test.ts",
-      "line": 168,
-      "expected": "git commit -m"
-    },
-    {
       "fingerprint": "f7fbb27326a954ca3911d2e2174dfdf6cf5dfc17e23b1eb82fbba3b13a4c46b2",
       "status": "allowed",
       "category": "runtime-behavior",
@@ -2083,33 +2047,6 @@
       "path": "packages/skills-loader-core/src/features/opencode-skill-loader/skill-content-async-resolution.test.ts",
       "line": 131,
       "expected": "shared/custom"
-    },
-    {
-      "fingerprint": "c5c005741b363b68af69905256c2bcbe7431f74f443aa36c07080a9193150a60",
-      "status": "allowed",
-      "category": "runtime-behavior",
-      "rationale": "Asserts runtime skill selection, MCP command/argument, shell transformation, or generated command value 'Short name test content'.",
-      "path": "packages/skills-loader-core/src/features/opencode-skill-loader/skill-content-async-resolution.test.ts",
-      "line": 143,
-      "expected": "Short name test content"
-    },
-    {
-      "fingerprint": "8c89d19655781a96c9b1355fe83e29df7ee452ed60d8eb867037fe00be50de58",
-      "status": "allowed",
-      "category": "runtime-behavior",
-      "rationale": "Asserts runtime skill selection, MCP command/argument, shell transformation, or generated command value 'exact match content'.",
-      "path": "packages/skills-loader-core/src/features/opencode-skill-loader/skill-content-async-resolution.test.ts",
-      "line": 171,
-      "expected": "exact match content"
-    },
-    {
-      "fingerprint": "594ff91ab4970622b7c1f3d16662e479d0519815cb0d466ec141aef00776eeb4",
-      "status": "allowed",
-      "category": "runtime-behavior",
-      "rationale": "Asserts runtime skill selection, MCP command/argument, shell transformation, or generated command value 'case insensitive match'.",
-      "path": "packages/skills-loader-core/src/features/opencode-skill-loader/skill-content-async-resolution.test.ts",
-      "line": 183,
-      "expected": "case insensitive match"
     },
     {
       "fingerprint": "af80afdd78a07119798c4c5f3e9e35b4c972f56adcfedf9a60dcf766369c4463",

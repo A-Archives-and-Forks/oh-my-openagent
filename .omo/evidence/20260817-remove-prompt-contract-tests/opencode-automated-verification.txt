@@ -1,7 +1,7 @@
 WHAT WAS TESTED
 
 1. Complete OpenCode source suite:
-   cd /Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests
+   cd <worktree>
    bun test packages/omo-opencode/src
 
 2. OpenCode package typecheck:
@@ -9,7 +9,7 @@ WHAT WAS TESTED
    bun run typecheck
 
 3. Prompt-contract audit after final OpenCode disposition:
-   cd /Volumes/mengmotaStorage/local-workspaces/omo-wt/chore-remove-prompt-contract-tests
+   cd <worktree>
    python3 .omo/evidence/20260817-remove-prompt-contract-tests/audit_prompt_contracts.py --compact
 
 4. New skip/only guard:

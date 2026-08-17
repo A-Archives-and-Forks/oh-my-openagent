@@ -1,2 +1,2 @@
-[2026-08-17T16:32:34.818Z] [live-server-route] registered {"directory":"/private/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/oqa-xdg.XXXXXX.F2EHwJmiXA/proj","hasServerUrl":true,"registrationCount":1}
-[2026-08-17T16:32:46.288Z] [live-server-route] dispatch via live listener {"sessionID":"ses_fef6eab68ffePhAX5g2ukkH2JI","source":"background-agent-parent-wake"}
+[2026-08-17T16:32:34.818Z] [live-server-route] registered {"directory":"<isolated-project>","hasServerUrl":true,"registrationCount":1}
+[2026-08-17T16:32:46.288Z] [live-server-route] dispatch via live listener {"sessionID":"<redacted-session-id>","source":"background-agent-parent-wake"}
