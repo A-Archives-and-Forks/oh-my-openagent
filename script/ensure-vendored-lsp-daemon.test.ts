@@ -75,4 +75,3 @@ describe("ensureVendoredLspDaemonBuilt", () => {
     expect(installCount).toBe(1)
   })
 })
-
