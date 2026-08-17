@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import { BUILTIN_CATEGORY_DEFAULTS, resolveCategory } from "./index"
+import { BUILTIN_CATEGORY_DEFAULTS, BUILTIN_CATEGORY_REQUIRES_MODEL, resolveCategory } from "./index"
 
 type FakeModel = {
   readonly provider: string
@@ -466,30 +466,34 @@ describe("resolveCategory", () => {
 })
 
 describe("builtin category defaults", () => {
-  test("#given ported builtin defaults #when snapshotted #then all nine category defaults stay pinned", () => {
+  test("#given ported builtin defaults #when inspected #then machine routing fields stay pinned without prose wording", () => {
     // given
     const defaults = BUILTIN_CATEGORY_DEFAULTS
 
-    // when
-    const snapshotSubject = defaults.map(({ config, description, name, promptAppend }) => ({
-      name,
-      config,
-      description,
-      promptAppend,
-    }))
-
-    // then
-    expect(JSON.stringify(snapshotSubject, null, 2)).toMatchSnapshot()
-    expect(defaults.map((entry) => entry.name)).toEqual([
-      "visual-engineering",
-      "artistry",
-      "ultrabrain",
-      "deep",
-      "quick",
-      "unspecified-low",
-      "architect",
-      "unspecified-high",
-      "writing",
+    // then: declared order plus each category's primary provider, model, and variant
+    expect(defaults.map(({ config, name }) => [name, config.model, config.variant])).toEqual([
+      ["visual-engineering", "anthropic/claude-opus-5", "max"],
+      ["artistry", "anthropic/claude-fable-5", "xhigh"],
+      ["ultrabrain", "openai/gpt-5.6-sol", "max"],
+      ["deep", "openai/gpt-5.6-sol", "medium"],
+      ["quick", "kimi-coding/kimi-for-coding-highspeed", undefined],
+      ["unspecified-low", "xai/grok-4.6", "xhigh"],
+      ["architect", "anthropic/claude-fable-5", "xhigh"],
+      ["unspecified-high", "kimi-coding/k3", "max"],
+      ["writing", "kimi-coding/k3", "low"],
     ])
+
+    // then: availability gating applies only to the model-gated builtins
+    expect(BUILTIN_CATEGORY_REQUIRES_MODEL).toEqual({
+      architect: "claude-fable-5",
+      ultrabrain: "gpt-5.6-sol",
+      deep: "gpt-5.6-sol",
+    })
+
+    // then: every builtin ships non-empty prose fields without pinning their wording
+    for (const { description, promptAppend } of defaults) {
+      expect(description.trim().length).toBeGreaterThan(0)
+      expect(promptAppend.trim().length).toBeGreaterThan(0)
+    }
   })
 })
