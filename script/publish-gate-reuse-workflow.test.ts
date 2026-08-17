@@ -20,64 +20,58 @@ function sliceWorkflowSectionToEnd(workflow: string, startMarker: string): strin
   return workflow.slice(start)
 }
 
-const skippedResultCondition = (job: string): string =>
-  `contains(fromJSON('["success","skipped"]'), needs.${job}.result)`
-
 describe("publish gate reuse", () => {
-  test("exposes a fail-closed gate reuse decision before release gates", () => {
+  test("waits for a successful CI push workflow run on the exact prepared SHA", () => {
     const workflow = readFileSync(publishWorkflowPath, "utf8")
-    const gateReuseJob = sliceWorkflowSection(workflow, "  gate-reuse:", "  test:")
+    const gateReuseJob = sliceWorkflowSection(workflow, "  gate-reuse:", "  preflight-trust:")
 
-    expect(gateReuseJob).toContain("runs-on: ubuntu-latest")
-    expect(gateReuseJob).toContain("skip_gates: ${{ steps.reuse.outputs.skip_gates }}")
+    expect(gateReuseJob).toContain("actions: read")
     expect(gateReuseJob).toContain("PREPARED_RELEASE_SHA: ${{ inputs.prepared_release_sha }}")
     expect(gateReuseJob).toContain('if [ -z "$PREPARED_RELEASE_SHA" ]')
-    expect(gateReuseJob).toContain('echo "skip_gates=true" >> "$GITHUB_OUTPUT"')
-    expect(gateReuseJob).toContain("gh api")
-    expect(gateReuseJob).toContain("commits/${PREPARED_RELEASE_SHA}/check-runs")
-    expect(gateReuseJob).toContain("--paginate")
-    for (const checkName of [
-      "test",
-      "typecheck",
-      "codex-compatibility (ubuntu-latest)",
-      "codex-compatibility (macos-latest)",
-      "codex-compatibility (windows-latest)",
-    ]) {
-      expect(gateReuseJob).toContain(checkName)
-    }
-    expect(gateReuseJob).toContain('all(.conclusion == "success")')
+    expect(gateReuseJob).toContain("actions/workflows/ci.yml/runs")
+    expect(gateReuseJob).toContain("head_sha")
+    expect(gateReuseJob).toContain("event=push")
+    expect(gateReuseJob).toContain('.head_sha == $sha')
+    expect(gateReuseJob).toContain('.event == "push"')
+    expect(gateReuseJob).toContain('.status == "completed"')
+    expect(gateReuseJob).toContain('.conclusion == "success"')
+    expect(gateReuseJob).toContain("retry_gh")
     expect(gateReuseJob).toContain("set -euo pipefail")
+    expect(gateReuseJob).not.toContain("check-runs")
+    expect(gateReuseJob).not.toContain("REQUIRED_CHECKS")
     expect(gateReuseJob).not.toContain("continue-on-error")
-    expect(gateReuseJob).not.toContain("|| true")
-    expect(gateReuseJob).toContain("name: Write job summary")
-    expect(gateReuseJob).toContain(".github/scripts/write-job-summary.sh")
   })
 
-  test("skips each release gate only when gate reuse says checks are reusable", () => {
-    const workflow = readFileSync(publishWorkflowPath, "utf8")
-    const testJob = sliceWorkflowSection(workflow, "  test:", "  typecheck:")
-    const typecheckJob = sliceWorkflowSection(workflow, "  typecheck:", "  codex-compatibility:")
-    const codexJob = sliceWorkflowSection(workflow, "  codex-compatibility:", "  preflight-trust:")
-
-    for (const job of [testJob, typecheckJob, codexJob]) {
-      expect(job).toContain("needs: [gate-reuse]")
-      expect(job).toContain("if: needs.gate-reuse.outputs.skip_gates != 'true'")
-    }
-  })
-
-  test("accepts skipped reusable gates while requiring gate-reuse itself to succeed", () => {
+  test("removes release-local test jobs and gates publication on CI reuse", () => {
     const workflow = readFileSync(publishWorkflowPath, "utf8")
     const prepareJob = sliceWorkflowSection(workflow, "  prepare-release-state:", "  dispatch-provenance-safe-publish:")
     const publishMainJob = sliceWorkflowSection(workflow, "  publish-main:", "  publish-platform:")
     const publishPlatformJob = sliceWorkflowSection(workflow, "  publish-platform:", "  release:")
 
+    expect(workflow).not.toContain("\n  test:\n")
+    expect(workflow).not.toContain("\n  typecheck:\n")
+    expect(workflow).not.toContain("\n  codex-compatibility:\n")
     for (const job of [prepareJob, publishMainJob, publishPlatformJob]) {
       expect(job).toContain("gate-reuse")
       expect(job).toContain("needs.gate-reuse.result == 'success'")
-      expect(job).toContain(skippedResultCondition("test"))
-      expect(job).toContain(skippedResultCondition("typecheck"))
-      expect(job).toContain(skippedResultCondition("codex-compatibility"))
+      expect(job).not.toContain("needs.test")
+      expect(job).not.toContain("needs.typecheck")
+      expect(job).not.toContain("needs.codex-compatibility")
     }
+  })
+
+  test("uses a workflow-capable token and retries release PR writes", () => {
+    const workflow = readFileSync(publishWorkflowPath, "utf8")
+    const prepareJob = sliceWorkflowSection(workflow, "  prepare-release-state:", "  dispatch-provenance-safe-publish:")
+
+    expect(prepareJob).toContain("token: ${{ secrets.GH_PAT }}")
+    expect(prepareJob).toContain("GH_TOKEN: ${{ secrets.GH_PAT }}")
+    expect(prepareJob).toContain("create_release_pr()")
+    expect(prepareJob).toContain("enable_release_auto_merge()")
+    expect(prepareJob).toContain("gh pr create")
+    expect(prepareJob).toContain("gh pr merge")
+    expect(prepareJob).toContain('retry_gh "Read release-state PR state" gh pr view')
+    expect(prepareJob).toContain('retry_gh "Read release-state PR checks" gh pr view')
   })
 
   test("keeps every publication surface pinned to a prepared release SHA", () => {
