@@ -19,6 +19,7 @@ pathIgnorePatterns = [
   "packages/omo-native/test/payload.test.ts",
   "packages/omo-codex/src/install/install-codex.test.ts",
   "packages/shared-skills/provenance-gate.test.ts",
+  "packages/omo-codex/src/install/install-codex-mcp-manifest.test.ts",
 ]
 
 [loader]

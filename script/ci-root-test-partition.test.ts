@@ -45,6 +45,7 @@ describe("root test CI partition", () => {
     expect(job).toContain("packages/omo-native/test/payload.test.ts")
     expect(job).toContain("packages/omo-codex/src/install/install-codex.test.ts")
     expect(job).toContain("packages/shared-skills/provenance-gate.test.ts")
+    expect(job).toContain("packages/omo-codex/src/install/install-codex-mcp-manifest.test.ts")
     expect(job).toContain("bun --config=bunfig.win2.parallel.toml test --parallel")
     expect(existsSync(win2ConfigPath)).toBe(true)
     expect(existsSync(win2ParallelConfigPath)).toBe(true)
@@ -59,6 +60,7 @@ describe("root test CI partition", () => {
     expect(parallelConfig).toContain("packages/omo-native/test/payload.test.ts")
     expect(parallelConfig).toContain("packages/omo-codex/src/install/install-codex.test.ts")
     expect(parallelConfig).toContain("packages/shared-skills/provenance-gate.test.ts")
+    expect(parallelConfig).toContain("packages/omo-codex/src/install/install-codex-mcp-manifest.test.ts")
   })
 
   test("#given the dedicated Senpi compatibility job #when root tests run #then omo-senpi is excluded on every OS", () => {
