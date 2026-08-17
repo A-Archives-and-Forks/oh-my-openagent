@@ -44,6 +44,14 @@ describe("createFsSkillLoader", () => {
     return root
   }
 
+  function writeSkill(root: string, name: string, body: string): string {
+    const skillDir = join(root, name)
+    mkdirSync(skillDir, { recursive: true })
+    const skillPath = join(skillDir, "SKILL.md")
+    writeFileSync(skillPath, `---\nname: ${name}\ndescription: ${name} test skill\n---\n${body}\n`, "utf8")
+    return skillPath
+  }
+
   test("#given a project skill dir #when a skill is loaded #then its SKILL.md content is resolved and prepended", () => {
     // given
     const cwd = scratch()
@@ -93,5 +101,66 @@ describe("createFsSkillLoader", () => {
     // then
     expect(resolution.resolved).toEqual(["commit"])
     expect(resolution.prepend).toContain("COMMIT DIRECTIVE")
+  })
+
+  test("#given Senpi native project user and package locations #when multiple skills load #then every name resolves in request order", () => {
+    // given
+    const projectRoot = scratch()
+    mkdirSync(join(projectRoot, ".git"))
+    const cwd = join(projectRoot, "packages", "app")
+    mkdirSync(cwd, { recursive: true })
+    const homeDir = scratch()
+    const agentDir = scratch()
+    const packageDir = scratch()
+    writeSkill(join(cwd, ".senpi", "skills"), "project-local", "PROJECT LOCAL")
+    writeSkill(join(projectRoot, ".agents", "skills"), "project-agent", "PROJECT AGENT")
+    writeSkill(join(cwd, ".pi", "skills"), "legacy-project", "LEGACY PROJECT")
+    writeSkill(join(agentDir, "skills"), "canonical-agent", "CANONICAL AGENT")
+    writeSkill(join(homeDir, ".agents", "skills"), "global-agent", "GLOBAL AGENT")
+    writeSkill(packageDir, "packaged", "PACKAGED")
+    const loader = createFsSkillLoader({ homeDir, agentDir, extraDirs: [packageDir] })
+
+    // when
+    const resolution = loader(
+      ["packaged", "global-agent", "canonical-agent", "legacy-project", "project-agent", "project-local"],
+      cwd,
+    )
+
+    // then
+    expect(resolution.resolved).toEqual([
+      "packaged",
+      "global-agent",
+      "canonical-agent",
+      "legacy-project",
+      "project-agent",
+      "project-local",
+    ])
+    expect(resolution.missing).toEqual([])
+    expect(resolution.prepend.indexOf("PACKAGED")).toBeLessThan(resolution.prepend.indexOf("GLOBAL AGENT"))
+    expect(resolution.prepend.indexOf("GLOBAL AGENT")).toBeLessThan(resolution.prepend.indexOf("PROJECT LOCAL"))
+  })
+
+  test("#given a direct markdown skill with frontmatter #when loaded #then only its body and source location are injected", () => {
+    // given
+    const cwd = scratch()
+    const skillsDir = join(cwd, ".senpi", "skills")
+    mkdirSync(skillsDir, { recursive: true })
+    const skillPath = join(skillsDir, "direct.md")
+    writeFileSync(
+      skillPath,
+      "---\nname: direct\ndescription: Direct root skill\n---\nDIRECT BODY\n",
+      "utf8",
+    )
+    const loader = createFsSkillLoader({ homeDir: scratch() })
+
+    // when
+    const resolution = loader(["direct"], cwd)
+
+    // then
+    expect(resolution.resolved).toEqual(["direct"])
+    expect(resolution.prepend).toContain(`<skill name="direct" location="${skillPath}">`)
+    expect(resolution.prepend).toContain(`References are relative to ${skillsDir}.`)
+    expect(resolution.prepend).toContain("DIRECT BODY")
+    expect(resolution.prepend).not.toContain("description: Direct root skill")
   })
 })
