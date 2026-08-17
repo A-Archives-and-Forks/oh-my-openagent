@@ -1,3 +1,17 @@
+## 2026-08-17 — Follow the Senpi 2026.8.17 host contract
+
+The adapter peer and development dependency now require Senpi `2026.8.17`,
+and the task engine's peer and development pins move with it. Senpi's package
+aliases resolve the matching 2026.8.17 AI, agent-core, TUI, PTY, telemetry,
+and codemode companions; the separate Pi `0.84.2` compatibility line does
+not change.
+
+This bump does not add or alter adapter behavior. The generated plugin is
+rebuilt only to prove the existing extension remains compatible with the new
+host, and the provider registry contract confirms that builtin provider IDs
+are unchanged. Conflict zones are the adapter and task manifests, workspace
+lockfile, package-shape expectations, and committed extension bundles.
+
 ## 2026-08-17 — Count eval-internal tools without inventing savings
 
 OmO Native now consumes Senpi 2026.8.16's in-process
