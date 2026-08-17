@@ -112,6 +112,12 @@ describe("publish gate reuse", () => {
       expect(privilegedStep).not.toContain(repoControlled)
     }
 
+    // The token-bearing remote URL must be removed even when git push fails
+    // under set -euo pipefail: an EXIT trap restores the clean URL before any
+    // later repo-controlled step (the always() summary) can read .git/config.
+    expect(privilegedStep).toContain("trap 'git remote set-url origin")
+    expect(privilegedStep).toContain("https://github.com/\${GITHUB_REPOSITORY}.git\"' EXIT")
+
     // Least-scope permissions: this job needs neither Actions reads nor OIDC.
     expect(prepareJob).not.toContain("id-token: write")
     expect(prepareJob).not.toContain("actions: read")

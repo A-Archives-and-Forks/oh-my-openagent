@@ -493,6 +493,7 @@ jobs:
           BASE_REF="${RELEASE_REF:-dev}"
 
           git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          trap 'git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"' EXIT
           git push --force-with-lease origin "HEAD:${RELEASE_BRANCH}"
           git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
 
