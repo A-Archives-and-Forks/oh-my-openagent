@@ -1,18 +1,29 @@
 import { mkdtempSync, rmSync } from "node:fs"
+import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { afterEach, describe, expect, test } from "bun:test"
 
 import type { RpcRunnerSpec } from "@oh-my-opencode/senpi-task"
 import { createRpcModelAdmission } from "@oh-my-opencode/senpi-task/rpc-model-admission"
-import { buildRpcModelCatalogSpawn } from "@oh-my-opencode/senpi-task/rpc-spawn"
+import { buildRpcModelCatalogSpawn, type RpcSpawnDescriptor } from "@oh-my-opencode/senpi-task/rpc-spawn"
 
 const agentDirs: string[] = []
 const mockProviderExtension = fileURLToPath(
   new URL("../../../scripts/qa/mock-provider/index.ts", import.meta.url),
 )
 const rootSuiteBaselineEnv: NodeJS.ProcessEnv = { ...process.env }
+const senpiPackageDir = dirname(createRequire(import.meta.url).resolve("@code-yeongyu/senpi/package.json"))
+const senpiRpcEntry = join(senpiPackageDir, "dist", "rpc-entry.js")
+
+function buildPinnedCatalogSpawn(spec: RpcRunnerSpec, parentEnv: NodeJS.ProcessEnv): RpcSpawnDescriptor {
+  return buildRpcModelCatalogSpawn(spec, {
+    parentEnv,
+    resolveSenpiExecutable: () => null,
+    resolveRpcEntry: () => senpiRpcEntry,
+  })
+}
 
 function createAdmission() {
   const agentDir = mkdtempSync(join(tmpdir(), "omo-task-rpc-model-profile-"))
@@ -29,10 +40,7 @@ function createAdmission() {
     XDG_STATE_HOME: join(agentDir, "xdg-state"),
   }
   return createRpcModelAdmission({
-    buildSpawn: (spec) => buildRpcModelCatalogSpawn(spec, {
-      parentEnv,
-      resolveSenpiExecutable: () => null,
-    }),
+    buildSpawn: (spec) => buildPinnedCatalogSpawn(spec, parentEnv),
   })
 }
 
@@ -54,6 +62,21 @@ afterEach(() => {
 })
 
 describe("task RPC launch profile parity", () => {
+  test("#given ambient PATH resolves a foreign senpi #when the catalog spawn is built #then it pins the package-local CLI", () => {
+    // given
+    const spec = makeSpec([mockProviderExtension])
+
+    // when
+    const descriptor = buildPinnedCatalogSpawn(spec, {
+      ...rootSuiteBaselineEnv,
+      PATH: join(tmpdir(), "foreign-senpi-bin"),
+    })
+
+    // then
+    expect(descriptor.command).toBe(process.execPath)
+    expect(descriptor.args[0]).toBe(join(senpiPackageDir, "dist", "cli.js"))
+  })
+
   test("#given an explicit provider extension #when process model admission runs #then its model is visible without credentials", async () => {
     // given
     const admit = createAdmission()
