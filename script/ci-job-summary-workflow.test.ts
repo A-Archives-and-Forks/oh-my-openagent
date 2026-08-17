@@ -35,6 +35,7 @@ const workflowExpectations = [
   {
     path: ".github/workflows/publish.yml",
     jobs: [
+      "gate-reuse",
       "test",
       "typecheck",
       "codex-compatibility",
