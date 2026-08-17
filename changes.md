@@ -1,3 +1,19 @@
+## 2026-08-17 — Track Senpi 2026.8.17 for the omo-ai beta line
+
+All active native Senpi pins now use `2026.8.17` across the root workspace,
+the `omo-ai` launcher package, the OMO Senpi adapter, and the Senpi task
+engine. The lockfile resolves the complete 2026.8.17 companion family while
+the existing Pi `0.84.2` compatibility overrides remain unchanged because
+the upstream manifest changed only its Senpi package aliases.
+
+The hand-derived provider registry was checked against the new engine. Its
+provider IDs are unchanged, while the upstream Cerebras catalog no longer
+advertises `zai-glm-4.7`; only the derivation version changes locally. This is
+a host dependency update, not an OMO extension behavior change, so extension
+source stays untouched and committed bundles are refreshed only from the
+normal build. Conflict zones are the exact manifest pins, `bun.lock`, the
+provider-map derivation comment, and generated Senpi extension artifacts.
+
 ## 2026-08-18 — Ship @babel/parser with omo-ai for bundled Senpi codemode
 
 `@code-yeongyu/senpi@2026.8.16` bundles the source-only
