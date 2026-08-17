@@ -44,10 +44,13 @@ jobs:
             : > "$PATHS_FILE"
           fi
 
+          MERGE_PARENTS="$(git show -s --format=%P "$GITHUB_SHA" | wc -w)"
+
           MODE_JSON="$(node script/ci-fast-path.mjs \
             --event "$GITHUB_EVENT_NAME" \
             --message "$HEAD_COMMIT_MESSAGE" \
             --diff-available "$DIFF_AVAILABLE" \
+            --merge-parents "$MERGE_PARENTS" \
             < "$PATHS_FILE")"
 
           jq -r '"generated_release_push=\(.generatedReleasePush)"' <<< "$MODE_JSON" >> "$GITHUB_OUTPUT"

@@ -30,11 +30,14 @@ describe("publish gate reuse", () => {
     expect(gateReuseJob).toContain('if [ -z "$PREPARED_RELEASE_SHA" ]')
     expect(gateReuseJob).toContain("actions/workflows/ci.yml/runs")
     expect(gateReuseJob).toContain("head_sha")
-    expect(gateReuseJob).toContain("event=push")
+    // The exact-SHA predicate accepts either the post-merge push run or the
+    // release PR's pull_request run: the grep/tag short-circuits return the
+    // stamp commit, which only ever has a pull_request run.
     expect(gateReuseJob).toContain('.head_sha == $sha')
-    expect(gateReuseJob).toContain('.event == "push"')
     expect(gateReuseJob).toContain('.status == "completed"')
     expect(gateReuseJob).toContain('.conclusion == "success"')
+    expect(gateReuseJob).not.toContain('event=push')
+    expect(gateReuseJob).not.toContain('.event == "push"')
     expect(gateReuseJob).toContain("retry_gh")
     expect(gateReuseJob).toContain("set -euo pipefail")
     expect(gateReuseJob).not.toContain("check-runs")
@@ -65,13 +68,35 @@ describe("publish gate reuse", () => {
     const prepareJob = sliceWorkflowSection(workflow, "  prepare-release-state:", "  dispatch-provenance-safe-publish:")
 
     expect(prepareJob).toContain("token: ${{ secrets.GH_PAT }}")
-    expect(prepareJob).toContain("GH_TOKEN: ${{ secrets.GH_PAT }}")
+    expect(prepareJob).toContain("RELEASE_PAT: ${{ secrets.GH_PAT }}")
+    expect(prepareJob).toContain('export GH_TOKEN="$RELEASE_PAT"')
     expect(prepareJob).toContain("create_release_pr()")
     expect(prepareJob).toContain("enable_release_auto_merge()")
     expect(prepareJob).toContain("gh pr create")
     expect(prepareJob).toContain("gh pr merge")
     expect(prepareJob).toContain('retry_gh "Read release-state PR state" gh pr view')
     expect(prepareJob).toContain('retry_gh "Read release-state PR checks" gh pr view')
+  })
+
+  test("scopes the release PAT away from repo-controlled generation", () => {
+    const workflow = readFileSync(publishWorkflowPath, "utf8")
+    const prepareJob = sliceWorkflowSection(workflow, "  prepare-release-state:", "  dispatch-provenance-safe-publish:")
+
+    // The checkout must not leave the PAT in git config for repo scripts to read.
+    expect(prepareJob).toContain("persist-credentials: false")
+
+    // Every repo-controlled generation step must complete before the token exists.
+    const lastGeneration = prepareJob.lastIndexOf("build-extension.mjs")
+    const tokenIntroduction = prepareJob.indexOf("export GH_TOKEN")
+    expect(lastGeneration).toBeGreaterThan(-1)
+    expect(tokenIntroduction).toBeGreaterThan(lastGeneration)
+
+    // No env-level GH_TOKEN blanket exposure for the whole step.
+    expect(prepareJob).not.toContain("GH_TOKEN: ${{ secrets.GH_PAT }}")
+
+    // Least-scope permissions: this job needs neither Actions reads nor OIDC.
+    expect(prepareJob).not.toContain("id-token: write")
+    expect(prepareJob).not.toContain("actions: read")
   })
 
   test("keeps every publication surface pinned to a prepared release SHA", () => {

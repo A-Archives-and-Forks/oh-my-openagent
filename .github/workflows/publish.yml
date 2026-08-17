@@ -78,11 +78,14 @@ jobs:
             return 1
           }
 
+          # The prepared source is validated either by the post-merge push run or
+          # by the release-state PR's own pull_request run at the exact SHA
+          # (the grep/tag short-circuits return the stamp commit, which only
+          # ever has a pull_request run). Both are full ci.yml executions.
           for attempt in $(seq 1 120); do
             RUNS="$(retry_gh "Read CI workflow runs" gh api --method GET \
               "repos/${{ github.repository }}/actions/workflows/ci.yml/runs" \
               -f head_sha="$PREPARED_RELEASE_SHA" \
-              -f event=push \
               -f per_page=100)"
 
             SUCCESS_ID="$(jq -r --arg sha "$PREPARED_RELEASE_SHA" '
@@ -90,7 +93,6 @@ jobs:
                 .workflow_runs[]
                 | select(
                     .head_sha == $sha
-                    and .event == "push"
                     and .status == "completed"
                     and .conclusion == "success"
                   )
@@ -105,18 +107,18 @@ jobs:
             fi
 
             ACTIVE_COUNT="$(jq -r --arg sha "$PREPARED_RELEASE_SHA" '
-              [.workflow_runs[] | select(.head_sha == $sha and .event == "push" and .status != "completed")]
+              [.workflow_runs[] | select(.head_sha == $sha and .status != "completed")]
               | length
             ' <<< "$RUNS")"
             COMPLETED_COUNT="$(jq -r --arg sha "$PREPARED_RELEASE_SHA" '
-              [.workflow_runs[] | select(.head_sha == $sha and .event == "push" and .status == "completed")]
+              [.workflow_runs[] | select(.head_sha == $sha and .status == "completed")]
               | length
             ' <<< "$RUNS")"
 
             if [ "$ACTIVE_COUNT" = "0" ] && [ "$COMPLETED_COUNT" != "0" ]; then
               jq -r --arg sha "$PREPARED_RELEASE_SHA" '
                 .workflow_runs[]
-                | select(.head_sha == $sha and .event == "push")
+                | select(.head_sha == $sha)
                 | "CI run \(.id): status=\(.status), conclusion=\(.conclusion), url=\(.html_url)"
               ' <<< "$RUNS"
               echo "::error::CI completed without a successful run for ${PREPARED_RELEASE_SHA}."
@@ -362,17 +364,20 @@ jobs:
       needs.preflight-trust.result == 'success' &&
       needs.release-metadata.result == 'success'
     permissions:
-      actions: read
       contents: write
-      id-token: write
       pull-requests: write
     outputs:
       release_sha: ${{ steps.prepare.outputs.release_sha }}
     steps:
+      # The PAT checks out with persist-credentials disabled: repo-controlled
+      # generation below must never be able to read the release credential from
+      # git config. The token is exported explicitly only when the generated
+      # release state is ready to be pushed.
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           token: ${{ secrets.GH_PAT }}
+          persist-credentials: false
 
       - run: git fetch --force --tags
 
@@ -389,7 +394,7 @@ jobs:
           VERSION: ${{ needs.release-metadata.outputs.version }}
           OMO_AI_VERSION: ${{ needs.release-metadata.outputs.omo_ai_version }}
           RELEASE_REF: ${{ github.ref_name }}
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          RELEASE_PAT: ${{ secrets.GH_PAT }}
           PREPARED_RELEASE_SHA: ${{ inputs.prepared_release_sha }}
         run: |
           set -euo pipefail
@@ -460,6 +465,10 @@ jobs:
           git add package.json packages/omo-native/package.json packages/oh-my-opencode-*/package.json packages/omo-senpi/package.json packages/omo-senpi/plugin/package.json packages/omo-codex/package.json packages/omo-codex/plugin/package.json packages/omo-codex/plugin/package-lock.json packages/omo-codex/plugin/.codex-plugin/plugin.json packages/omo-codex/plugin/components/*/package.json packages/omo-codex/plugin/hooks/*.json packages/omo-codex/plugin/components/*/hooks/hooks.json bun.lock
           git add -f packages/omo-senpi/plugin/extensions
           git diff --cached --quiet || git commit -m "release: v${VERSION}"
+
+          # Credential boundary: everything above is repo-controlled generation
+          # that must not see the PAT; everything below needs it.
+          export GH_TOKEN="$RELEASE_PAT"
           git push --force-with-lease origin "HEAD:${RELEASE_BRANCH}"
 
           retry_gh() {

@@ -19,6 +19,14 @@ function parseArguments(argv) {
   return values
 }
 
+function parseMergeParents(value) {
+  const count = Number(value)
+  if (!Number.isInteger(count) || count < 0) {
+    throw new Error(`expected non-negative integer merge parents, received ${value}`)
+  }
+  return count
+}
+
 function parseBoolean(value) {
   if (value === "true") return true
   if (value === "false") return false
@@ -38,9 +46,16 @@ function isWebPath(path) {
   )
 }
 
-export function classifyCiMode({ eventName, headCommitMessage, changedPaths, diffAvailable }) {
+export function classifyCiMode({ eventName, headCommitMessage, changedPaths, diffAvailable, mergeParentCount }) {
   const subject = headCommitMessage.split("\n", 1)[0] ?? ""
-  const generatedReleasePush = eventName === "push" && generatedReleaseMerge.test(subject)
+  // Provenance is machine-derived, never prose alone: an actual merge commit
+  // (exactly two parents) whose subject matches the generated release shape.
+  const isRealMerge = mergeParentCount === 2
+  const generatedReleasePush =
+    eventName === "push" &&
+    diffAvailable &&
+    isRealMerge &&
+    generatedReleaseMerge.test(subject)
   const webOnly = diffAvailable && changedPaths.length > 0 && changedPaths.every(isWebPath)
 
   return {
@@ -55,8 +70,14 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
   const eventName = args.get("event")
   const headCommitMessage = args.get("message")
   const diffAvailable = args.get("diff-available")
-  if (eventName === undefined || headCommitMessage === undefined || diffAvailable === undefined) {
-    throw new Error("--event, --message, and --diff-available are required")
+  const mergeParents = args.get("merge-parents")
+  if (
+    eventName === undefined ||
+    headCommitMessage === undefined ||
+    diffAvailable === undefined ||
+    mergeParents === undefined
+  ) {
+    throw new Error("--event, --message, --diff-available, and --merge-parents are required")
   }
 
   const mode = classifyCiMode({
@@ -64,6 +85,7 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
     headCommitMessage,
     changedPaths: readChangedPaths(readFileSync(0)),
     diffAvailable: parseBoolean(diffAvailable),
+    mergeParentCount: parseMergeParents(mergeParents),
   })
   process.stdout.write(`${JSON.stringify(mode)}\n`)
 }

@@ -37,6 +37,7 @@ function classify(
   message: string,
   changedPaths: readonly string[],
   diffAvailable = true,
+  mergeParents = 2,
 ): CiMode | undefined {
   if (!existsSync(classifierPath)) return undefined
   const pathInput = changedPaths.length === 0 ? "" : `${changedPaths.join("\0")}\0`
@@ -50,6 +51,8 @@ function classify(
       message,
       "--diff-available",
       String(diffAvailable),
+      "--merge-parents",
+      String(mergeParents),
     ],
     { encoding: "utf8", input: pathInput },
   )
@@ -118,6 +121,18 @@ describe("CI fast-path classifier", () => {
     },
   ])("$name", ({ event, message, paths, expected }) => {
     expect(classify(event, message, paths)).toEqual(expected)
+  })
+
+  test("fails closed when a release-looking push is not a real merge commit", () => {
+    const message = "Merge pull request #6955 from code-yeongyu/release/v5.0.0-beta.8-source-state"
+    const mode = classify("push", message, ["package.json"], true, 1)
+    expect(mode).toEqual({ generatedReleasePush: false, webOnly: false, runHeavy: true })
+  })
+
+  test("fails closed when a release-looking merge push has no available diff", () => {
+    const message = "Merge pull request #6955 from code-yeongyu/release/v5.0.0-beta.8-source-state"
+    const mode = classify("push", message, ["package.json"], false, 2)
+    expect(mode).toEqual({ generatedReleasePush: false, webOnly: false, runHeavy: true })
   })
 
   test("fails closed when the diff is unavailable or empty", () => {
