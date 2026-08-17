@@ -47,6 +47,15 @@ export function createMessageUpdateHandler(deps: HookDeps, helpers: AutoRetryHel
         return
       }
 
+      // Layer-2 guard: when omo's own fallback machinery aborted the in-flight
+      // request, the assistant message update carries no visible content and no
+      // error — this is an internal abort artifact, not a real response. Skip
+      // the visible-response check to avoid "Assistant update observed without
+      // visible final response" log noise for every fallback hop.
+      if (sessionRetryInFlight.has(sessionID)) {
+        return
+      }
+
       const hasVisible = await checkVisibleResponse(ctx, sessionID, info)
       if (!hasVisible) {
         log(`[${HOOK_NAME}] Assistant update observed without visible final response; keeping fallback timeout`, {
