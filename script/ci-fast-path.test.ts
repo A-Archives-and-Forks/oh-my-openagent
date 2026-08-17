@@ -3,6 +3,7 @@
 import { describe, expect, test } from "bun:test"
 import { execFileSync } from "node:child_process"
 import { existsSync, readFileSync } from "node:fs"
+import { fileURLToPath } from "node:url"
 import { load } from "js-yaml"
 
 const classifierPath = new URL("./ci-fast-path.mjs", import.meta.url)
@@ -42,7 +43,7 @@ function classify(
   const stdout = execFileSync(
     "node",
     [
-      classifierPath.pathname,
+      fileURLToPath(classifierPath),
       "--event",
       eventName,
       "--message",
