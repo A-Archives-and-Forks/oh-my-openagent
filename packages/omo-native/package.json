@@ -14,6 +14,7 @@
     "node": ">=24.0.0"
   },
   "dependencies": {
+    "@babel/parser": "8.0.4",
     "@code-yeongyu/senpi": "2026.8.16"
   },
   "repository": {
