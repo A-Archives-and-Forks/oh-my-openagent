@@ -22,6 +22,7 @@ import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../
 import { CATEGORY_UNAVAILABLE_MESSAGE_TYPE } from "./category-unavailable-warning"
 import { registerTaskCommands } from "./commands"
 import { registerDagCommands } from "./dag-commands"
+import { createDagReloadSource } from "./dag-reload-source"
 import { createDagRuntime, type DagRuntime } from "./dag-runtime"
 import { createDagTool } from "./dag-tool"
 import { composeTaskEngine, type TaskEngine } from "./engine"
@@ -139,6 +140,10 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
           reconcileTeamMailbox: teamTools.reconcileTeamMailbox,
           leadPollers: teamTools.leadPollers,
           resumptionChannels,
+          dagReloadSource: createDagReloadSource({
+            manager: dagRuntime.manager,
+            sessionId: () => engine.runtime.sessionId(),
+          }),
         })
       })
     },
