@@ -1,3 +1,17 @@
+## 2026-08-18 — Follow the Senpi 2026.8.18 host contract
+
+The adapter peer and development dependency now require Senpi `2026.8.18`,
+and the task engine's peer and development pins move with it. The 2026.8.18
+host fixes extension widget stacking order: `setWidget` now replaces the
+component in place, so the adapter's `omo-task` and `omo-dag` belowEditor
+status widgets keep a constant vertical order while both live-refresh.
+
+This bump does not add or alter adapter behavior beyond the inherited host
+fix. The provider registry contract was re-verified: builtin provider IDs
+are unchanged between 2026.8.17 and 2026.8.18. Conflict zones are the
+adapter and task manifests, workspace lockfile, package-shape and senpi-pin
+expectations, and committed extension bundles.
+
 ## 2026-08-17 — Follow the Senpi 2026.8.17 host contract
 
 The adapter peer and development dependency now require Senpi `2026.8.17`,
