@@ -9,11 +9,15 @@ metadata:
 
 Use this skill when the user asks for `mass-ulw`, a task DAG, staged fan-out, or any multi-agent job where real dependencies exist: task C needs A and B finished first. For fully independent workers, plain parallel `task` spawns are simpler. Reach for `dag` when the ordering itself is the point.
 
+## Planning - MANDATORY first step
+
+Before defining ANY graph, read `references/planning.md` (relative to this skill's own directory) IN FULL. Do not call `sdk.define`, `sdk.start`, or `tool.dag` with `action: "start"` before reading it. It carries the working doctrine this file deliberately omits: how to decompose the request into nodes, how to route each node's `category`, how to keep parallel write scopes disjoint, the node prompt contract, the verification wave, and the failure playbook. A graph defined without it is unplanned work.
+
 ## The shape
 
 A run is a declarative definition: a stable `key` (idempotency: re-starting the same key with the same graph reuses the run), a human `name`, and `nodes`. Each node has an `id`, a self-contained English `prompt`, a `category` that routes it to the right kind of worker, and optional `dependsOn` listing node ids that must finish first. `dependsOn` is ordering ONLY: no upstream output is substituted into a downstream prompt, so write every prompt to stand alone. Optional per-node extras: `label`, `task_summary`, `description`, and `load_skills` (skill names prepended to that node's prompt).
 
-Route every node by `category`. Pick the category whose job description matches the node's work; the run executes nodes in parallel waves as their dependencies clear.
+Route every node by `category` using the routing table in `references/planning.md`; the run executes nodes in parallel waves as their dependencies clear.
 
 ## JS SDK
 
