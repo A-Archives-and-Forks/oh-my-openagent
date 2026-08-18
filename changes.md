@@ -1,3 +1,9 @@
+## 2026-08-18 — Resolve configured category model chains against availability
+
+OpenCode category `models` chains now skip entries that are absent from the connected provider catalog before creating the delegated session. The configured order and per-entry settings remain intact, and fuzzy-normalized model IDs resolve to the provider's available spelling instead of being discarded.
+
+When no configured entry is available, delegation still fails rather than selecting an unrelated default, but the error now names the complete configured chain. Cold-cache behavior remains unchanged until an availability catalog exists.
+
 ## 2026-08-17 — Track Senpi 2026.8.17 for the omo-ai beta line
 
 All active native Senpi pins now use `2026.8.17` across the root workspace,
