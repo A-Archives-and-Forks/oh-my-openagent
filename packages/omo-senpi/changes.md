@@ -1,3 +1,9 @@
+## 2026-08-18 — Keep completed resident team members visible
+
+The below-editor task widget now keeps completed canonical team members while their process-local handles remain resident, so users can still see members that `task_send` can revive. Active rows remain first, the five-row cap still applies afterward, and retained completed rows render as settled compact rows without a live spinner.
+
+Ordinary completed background tasks and stale or non-resident team records remain hidden. This is a presentation-only change; task lifecycle, residency, and messaging behavior are unchanged.
+
 ## 2026-08-18 — Follow the Senpi 2026.8.18 host contract
 
 The adapter peer and development dependency now require Senpi `2026.8.18`,
