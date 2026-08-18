@@ -81,7 +81,7 @@ omo-senpi extension build is not current: stale-output
 output=.../packages/omo-senpi/plugin/extensions/omo.js
 ```
 
-The extension artifacts were regenerated and the exact CI freshness command was rerun successfully. Output is captured in `bundle-check.txt` and ends with:
+The extension artifacts were regenerated under Linux (`oven/bun:1.3.14`) because the committed source digest is intentionally platform-sensitive and CI validates Linux. The exact CI freshness command was then rerun in a fresh Linux container. Output is captured in `bundle-check.txt` and ends with:
 
 ```text
 omo-senpi extension build is current: .../packages/omo-senpi/plugin/extensions/omo.js
