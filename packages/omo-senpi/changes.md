@@ -1,3 +1,32 @@
+## 2026-08-18 — Follow the Senpi 2026.8.18-3 host contract
+
+The adapter peer and development dependency now require Senpi `2026.8.18-3`,
+and the task engine's peer and development pins move with it. The 2026.8.18-3
+host repairs the release changelog itself: a merge resolution had left a stray
+conflict marker and duplicated empty headings inside the `[Unreleased]`
+section, which the release stamper would have frozen into an immutable
+released section.
+
+The host release also carries the accumulated post-2026.8.18-2 runtime work:
+active goals resume after a continuation-flooded session load suppressed
+auto-continuation, transient provider stream-start timeouts spend their full
+configured retry budget, Cursor exec-bridge dispatches bind to the run that
+opened their stream, leaked-invoke recovery resolves wire-aliased tool names,
+Cursor context windows track the models.dev first-party catalog, Cursor
+reasoning levels drive both Cursor surfaces, advertised Cursor tool schemas
+are sanitized of JSON-Schema composition keywords, input typed during
+auto-compaction is queued instead of dropped, eval cells with no tool calls
+omit the throughput badge, the packaged codemode sidecar retains its Babel
+dependency closure, and Claude SDK OAuth selects the libc-appropriate binary.
+
+This bump does not add or alter adapter behavior beyond the inherited host
+fixes. The provider registry contract was re-verified: `builtinProviders()` in
+`packages/ai/src/providers/all.ts` is byte-identical to 2026.8.18-2, so the
+42 builtin provider IDs are unchanged and only the provider-map provenance
+stamp moves. Conflict zones are the adapter and task manifests, the workspace
+lockfile, package-shape and senpi-pin expectations, and the provider-map
+provenance comment.
+
 ## 2026-08-18 — Follow the Senpi 2026.8.18-2 host contract
 
 The adapter peer and development dependency now require Senpi `2026.8.18-2`,
