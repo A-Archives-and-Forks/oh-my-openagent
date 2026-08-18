@@ -21,7 +21,8 @@ function libraryDirs() {
   const dirs = []
   const configured = env("OMO_DAG_LIBRARY")
   if (typeof configured === "string" && configured !== "") {
-    dirs.push(...configured.split(":").filter((dir) => dir !== ""))
+    const separator = globalThis.process?.platform === "win32" ? ";" : ":"
+    dirs.push(...configured.split(separator).filter((dir) => dir !== ""))
   }
   const pwd = env("PWD")
   if (typeof pwd === "string" && pwd !== "") dirs.push(`${pwd}/.omo/dags`)

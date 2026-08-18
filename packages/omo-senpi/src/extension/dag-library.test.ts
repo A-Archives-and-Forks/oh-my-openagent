@@ -133,6 +133,22 @@ describe("dag definition library", () => {
       expect((await library.load("shadowed", { suffix: "" })).name).toBe("from-lib")
     })
 
+    it("#then on win32 the library env splits on semicolons so drive-letter paths survive", async () => {
+      const winLib = join(fixtureRoot, "win-lib")
+      await mkdir(winLib, { recursive: true })
+      await writeFile(join(winLib, "nightly.json"), JSON.stringify(NIGHTLY))
+      const descriptor = Object.getOwnPropertyDescriptor(process, "platform")!
+      Object.defineProperty(process, "platform", { value: "win32" })
+      try {
+        installGlobals({ ...envMap, OMO_DAG_LIBRARY: `C:\\first;${winLib}` })
+        const library = await loadLibrary()
+
+        expect((await library.load("nightly", { suffix: "" })).name).toBe("Nightly audit")
+      } finally {
+        Object.defineProperty(process, "platform", descriptor)
+      }
+    })
+
     it("#then a missing name fails listing the searched dirs", async () => {
       installGlobals(envMap)
       const library = await loadLibrary()

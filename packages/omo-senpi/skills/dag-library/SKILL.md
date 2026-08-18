@@ -13,7 +13,7 @@ Use this skill when the user wants to KEEP a dag definition and run it again lat
 
 A stored definition is a plain dag definition JSON file named `<name>.json` in one of the library dirs. First hit wins:
 
-1. `$OMO_DAG_LIBRARY` (colon-separated dirs)
+1. `$OMO_DAG_LIBRARY` (multiple dirs, separated by `:` — or by `;` on Windows, so drive-letter paths survive)
 2. `$PWD/.omo/dags`
 3. `$HOME/.omo/dags`
 
