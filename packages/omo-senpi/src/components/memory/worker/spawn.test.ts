@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { isAbsolute, join } from "node:path"
 
@@ -91,6 +91,50 @@ describe("worker payload mode relaxation", () => {
     }).catch((error: unknown) => error)
 
     expect((failure as NodeJS.ErrnoException).code).toBe("EACCES")
+  })
+})
+
+describe("dream token budget launch contract", () => {
+  test("#given a pressure dream fixture repo #when its spawn is prepared #then all three budget inputs carry the committed per-file estimate", async () => {
+    const base = await root()
+    await mkdir(join(base, "system"), { recursive: true })
+    await Promise.all([
+      writeFile(join(base, "system", "large.md"), "L".repeat(41)),
+      writeFile(join(base, "system", "small.md"), "S".repeat(8)),
+    ])
+    const dreamRun: ReservedRun = {
+      runId: "dream-pressure-1",
+      request: { trigger: "dream", origin: "pressure", conversationIds: [], snapshots: [] },
+    }
+
+    const prepared = await prepareReflectionSpawn({
+      run: dreamRun,
+      worktree: {
+        dir: base,
+        commonConfigPath: join(base, "config"),
+      } as unknown as ReflectionWorktree,
+      reflectionSessionsDir: join(base, "sessions"),
+      category: "quick",
+      model: "provider/model",
+      env: {},
+      mergePolicy: "auto",
+      skillsUsageSource: join(base, "skills.json"),
+      dreamStateSource: join(base, "dream.json"),
+      peoplePolicy: { enabled: true, max_entries: 40, max_entry_chars: 200 },
+      systemTokenBudget: 100,
+      systemTokenTarget: 80,
+    })
+
+    expect(prepared.env.SYSTEM_TOKENS_PATH).toBe(prepared.paths.systemTokens)
+    expect(prepared.env.SYSTEM_TOKEN_BUDGET).toBe("100")
+    expect(prepared.env.SYSTEM_TOKEN_TARGET).toBe("80")
+    expect(JSON.parse(await readFile(prepared.paths.systemTokens!, "utf8"))).toEqual({
+      totalTokens: 13,
+      files: [
+        { path: "system/large.md", bytes: 41, tokens: 11 },
+        { path: "system/small.md", bytes: 8, tokens: 2 },
+      ],
+    })
   })
 })
 
