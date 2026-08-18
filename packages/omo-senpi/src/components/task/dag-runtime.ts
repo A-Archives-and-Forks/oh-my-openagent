@@ -12,6 +12,7 @@ import {
   createDagRecovery,
   createDagWaitSurface,
   type DagFileStore,
+  type DagNodeSpawnPolicy,
   type DagManager,
   type DagRunEvent,
   type DagRunId,
@@ -54,6 +55,7 @@ export interface DagRuntimeDeps {
   readonly pi: SenpiExtensionAPI
   readonly engine: TaskEngine
   readonly logger: ComponentLogger
+  readonly nodeSpawnPolicy?: DagNodeSpawnPolicy
   readonly coordinator?: IdleInjectionCoordinator
   readonly bridgeTimers?: DagBridgeTimers
   readonly statusUiTimers?: DagStatusUiTimers
@@ -128,6 +130,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
       taskManager,
       initialRecord,
       executionMode: { agents: deps.engine.agents, config: deps.engine.omoConfig },
+      ...(deps.nodeSpawnPolicy === undefined ? {} : { nodeSpawnPolicy: deps.nodeSpawnPolicy }),
       ...(dagSettings?.subscriber_ring === undefined ? {} : { subscriberRing: dagSettings.subscriber_ring }),
     })
     const created: { readonly scheduler: DagScheduler; running?: Promise<DagRunRecordV1> } = { scheduler }
@@ -289,6 +292,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
   const recovery = createDagRecovery({
     store,
     taskManager,
+    ...(deps.nodeSpawnPolicy === undefined ? {} : { nodeSpawnPolicy: deps.nodeSpawnPolicy }),
     ...(dagSettings?.subscriber_ring === undefined ? {} : { subscriberRing: dagSettings.subscriber_ring }),
     stopAdmission: (runId) => stoppedAdmissions.add(runId),
     reattach: (runId, taskId) => {
