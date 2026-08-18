@@ -1,3 +1,21 @@
+## 2026-08-18 — Respect user permission.task on OMO main agents
+
+`applyToolConfig` built the permission object for sisyphus, atlas, hephaestus,
+and prometheus by spreading the agent's existing permission first and then
+hardcoding `task: "allow"` on top, so any user-configured `permission.task`
+was silently discarded while the config looked applied. The default is now
+injected before the spread, which keeps `task: "allow"` when the user
+configured nothing and lets an explicit user value win otherwise.
+
+The plugin-injected rules that fence delegation (`call_omo_agent: "deny"`,
+`task_*`, `teammate`, todo denials, prometheus bash denials) still apply after
+the user permission, so only the `task` default changed precedence. Verified
+against a real isolated `opencode serve` boot with a user-layer
+`[opencode].agents.<agent>.permission.task` override for all four agents, plus
+a negative-control boot without user config. Object mappings for
+`permission.task` and a configurable deny list remain follow-ups tracked in
+the issue.
+
 ## 2026-08-17 — Track Senpi 2026.8.17 for the omo-ai beta line
 
 All active native Senpi pins now use `2026.8.17` across the root workspace,
