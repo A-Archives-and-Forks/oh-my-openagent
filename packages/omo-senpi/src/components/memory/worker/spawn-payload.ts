@@ -31,6 +31,7 @@ export async function prepareReflectionSpawn(input: PrepareReflectionSpawnInput)
   }
   const dreamPaths = isDream ? {
     skillsUsage: join(sessionDir, "skills-usage.json"),
+    memoryUsage: join(sessionDir, "memory-usage.json"),
     dreamState: join(sessionDir, "dream-state.json"),
     dreamPolicy: join(sessionDir, "dream-policy.json"),
     systemTokens: join(sessionDir, "system-tokens.json"),
@@ -57,6 +58,7 @@ export async function prepareReflectionSpawn(input: PrepareReflectionSpawnInput)
     writeFile(prompt, buildTaskPrompt(input.run, input.worktree.dir, transcript), "utf8"),
     ...(dreamPaths === undefined ? [] : [
       copyJsonOrEmpty(input.skillsUsageSource, dreamPaths.skillsUsage),
+      copyJsonOrEmpty(input.memoryUsageSource, dreamPaths.memoryUsage),
       copyJsonOrEmpty(input.dreamStateSource, dreamPaths.dreamState),
       writeFile(dreamPaths.dreamPolicy, `${JSON.stringify({ version: 1, people: input.peoplePolicy }, null, 2)}\n`, "utf8"),
       writeSystemTokenEstimate(input.worktree.dir, dreamPaths.systemTokens),
@@ -83,6 +85,7 @@ export async function prepareReflectionSpawn(input: PrepareReflectionSpawnInput)
     TRANSCRIPT_PATH: transcript,
     ...(dreamPaths === undefined ? {} : {
       SKILLS_USAGE_PATH: dreamPaths.skillsUsage,
+      MEMORY_USAGE_PATH: dreamPaths.memoryUsage,
       DREAM_STATE_PATH: dreamPaths.dreamState,
       DREAM_POLICY_PATH: dreamPaths.dreamPolicy,
       SYSTEM_TOKENS_PATH: dreamPaths.systemTokens,
