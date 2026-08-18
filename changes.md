@@ -1,3 +1,23 @@
+## 2026-08-18 — Rebuild the Sisyphus runtime prompt on same-family model switches
+
+The Sisyphus runtime prompt reconciler skipped every rebuild whose runtime
+model shared the configured model's broad prompt family. The `fallback`
+family is not prompt-uniform: `buildFallbackSisyphusPrompt` applies
+Gemini-specific override blocks, and other families bake model-dependent
+sections (GPT identity text, claude/non-claude planner sections). Switching
+between same-family models in the TUI (e.g. Gemini -> MiniMax-M3 or
+DeepSeek -> MiniMax-M3) therefore kept the previous model's baked prompt in
+place, and the active model reported a stale identity (issue #6966).
+
+The reconciler now skips only when the runtime model is exactly the model the
+baked prompt was built for, and the existing rebuilt-versus-baked equality
+check suppresses genuine no-op switches (DeepSeek and MiniMax bake
+byte-identical fallback bodies, verified against the real prompt builder).
+The system-transform handler canonicalizes the opencode hook model record to
+`<providerID>/<id>` so bare builtin-provider ids compare exactly. Rebuild work
+per request is unchanged for cross-family switches; same-family switches now
+rebuild like cross-family ones already did.
+
 ## 2026-08-17 — Track Senpi 2026.8.17 for the omo-ai beta line
 
 All active native Senpi pins now use `2026.8.17` across the root workspace,
