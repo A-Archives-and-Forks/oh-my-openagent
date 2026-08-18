@@ -130,6 +130,8 @@ Rules that make node prompts obeyed:
 - **Emphasis lives in the words.** UPPERCASE, **bold**, and strong declarative verbs for load-bearing rules. No emojis, no banner dividers, no decoration - the worker reads decorated sections as flavor and skips them.
 - **One role per node.** A node that investigates does not also fix; a node that writes does not also review its own work. Role-stacked prompts produce workers that grade their own homework.
 
+**The `start` result audits this contract.** Every `dag` `start` returns advisory `warnings` when a node prompt is missing its TASK:/STOP WHEN markers or the graph has no verification node. Warnings never block the run - treat them as defects in your definition: cancel, fix the prompts, and start again under a NEW key.
+
 ## Verification wave
 
 **Every graph that changes code ends with at least one verification node** depending on ALL producer nodes. Real runs without one ship unverified work: the synthesis node's own claim is not evidence.

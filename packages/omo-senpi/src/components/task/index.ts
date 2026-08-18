@@ -8,6 +8,7 @@ import {
   createTaskSendTool,
   createTaskTool,
   defaultResolveCallerSessionId,
+  evaluateSpawnPolicy,
   isTeamMemberProcess,
   resolveTeamRuntimeDirs,
   teamStorageBaseDir,
@@ -97,6 +98,18 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
         pi,
         engine,
         logger: ctx.logger,
+        nodeSpawnPolicy: (node) =>
+          evaluateSpawnPolicy(
+            {
+              manager: engine.manager,
+              omoConfig: engine.omoConfig,
+              agents: engine.agents,
+              resolveSkillInvocations: (sessionId: string) => skillInvocations.stateFor(sessionId),
+            },
+            node.subagentType,
+            node.prompt,
+            node.parentSessionId,
+          ),
         ...(ctx.idleCoordinator === undefined ? {} : { coordinator: ctx.idleCoordinator }),
       })
       registerTaskTools(pi, engine, teamTools.service, teamTools.leadPollers.resolveDefaultTeamRunId, skillInvocations, dagRuntime)
