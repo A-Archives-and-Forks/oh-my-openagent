@@ -19,7 +19,9 @@ A run is a declarative definition: a stable `key` (idempotency: re-starting the 
 
 Route every node by `category` using the routing table in `references/planning.md`; the run executes nodes in parallel waves as their dependencies clear.
 
-## JS SDK
+## Running a dag - eval is the default
+
+Build and run every dag INSIDE an eval cell. The eval kernel installs the `tool.dag` proxy and the extension publishes a small JS SDK at `OMO_DAG_SDK_ROOT`; driving runs from a cell is what unlocks the orchestration patterns in `references/planning.md` (data-driven graph construction, multi-run composition, concurrent runs, adaptive retries).
 
 JS cells import the SDK from the path the extension publishes:
 
@@ -37,25 +39,7 @@ const result = await sdk.wait(run.run_id)
 
 `define` builds the definition and rejects duplicate node ids locally, before anything is started. `start`, `attach`, `snapshot`, `wait`, and `cancel` are the whole surface.
 
-## Python
-
-Python can't import an ESM module, so there's no SDK there. Call the tool directly with plain dicts:
-
-```python
-run = tool.dag({
-    "action": "start",
-    "definition": {
-        "key": "docs-refresh",
-        "name": "Docs refresh",
-        "nodes": [
-            {"id": "audit", "category": "explore", "prompt": "Audit docs/ for stale API references and list each stale file with the outdated claim."},
-            {"id": "rewrite", "category": "writing", "prompt": "Rewrite every stale page under docs/ against the current API surface in src/.", "dependsOn": ["audit"]},
-            {"id": "verify", "category": "quick", "prompt": "Check every code sample under docs/ compiles and every internal link resolves.", "dependsOn": ["rewrite"]}
-        ]
-    }
-})
-result = tool.dag({"action": "wait", "run_id": run["run_id"]})
-```
+Python cells cannot import the ESM SDK; call `tool.dag({...})` directly with the same payload shape the SDK produces. Prefer a JS cell whenever the run involves any orchestration beyond a single `start` + `wait`.
 
 ## Run lifecycle
 

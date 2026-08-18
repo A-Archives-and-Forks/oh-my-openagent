@@ -25,17 +25,24 @@ Read this file IN FULL before you define any graph. A graph defined without it i
 
 ## Category routing
 
-`category` routes the node to a model and a worker profile. Choose the CHEAPEST category that can do the node well. `deep` is not the default - it is the escalation.
+`category` routes the node to a model and a worker profile. **Start every node at `quick` and climb the ladder only as far as the work's difficulty demands. Specialty categories are never rungs - they are chosen only when the work itself is specialty.**
+
+The difficulty ladder, bottom rung first:
+
+1. **`quick`** - THE DEFAULT. Mechanical, single-file, or pattern-following work. Every node starts here in your head; you need a reason to leave it.
+2. **`unspecified-low`** - the piece is small but not mechanical: a few files, or a judgment call a template cannot make.
+3. **`unspecified-high`** - a standard multi-file feature or fix with real integration surface.
+
+Escalate a node only with a one-line reason you could say out loud ("touches six files across three packages"). If you cannot name the reason, the node stays at `quick`.
+
+Specialty categories - chosen by the KIND of work, never by difficulty:
 
 | Category | Route a node here when |
 | --- | --- |
-| `quick` | Mechanical, single-file, or pattern-following work. THE DEFAULT for every splittable piece. |
-| `unspecified-low` | Small miscellaneous work that does not fit a specialty. |
-| `unspecified-high` | Standard multi-file feature or fix. |
 | `visual-engineering` | Frontend, UI, styling, animation. |
 | `writing` | Docs, prose, technical writing. |
 | `git` | Git operations only. |
-| `deep` | Hairy debugging or cross-module reasoning that simpler categories already failed or would fail on. |
+| `deep` | Hairy debugging or cross-module reasoning that a ladder rung already failed on, or clearly cannot hold. |
 | `ultrabrain` | At most ONE node per graph - the single genuinely hard reasoning problem everything else depends on. |
 
 A graph whose every node is `deep` is a routing failure: it pays the most expensive worker for mechanical lanes and starves the one lane that needed the horsepower.
@@ -46,6 +53,46 @@ A graph whose every node is `deep` is a routing failure: it pays the most expens
 - **Disjoint write scopes or serialize.** No two nodes that can run in parallel may edit the same file. If two lanes must touch the same files, chain them with `dependsOn` or merge them into one node. Declare each node's read/write scope inside its prompt.
 - **Never add a dependency to pass data.** If node B needs a fact node A produces, that is a real dependency - but if B only needs a fact YOU already know, paste the fact into B's prompt and leave the edge out.
 - **Dependency matrix self-check before `start`:** every `dependsOn` id exists in the graph; no cycles; no node depends on something it does not actually consume; every wave has at least one runnable node.
+
+## Eval orchestration patterns
+
+The dag surface is built to be driven from an eval cell: the JS SDK is a thin proxy over the `dag` tool, and a settled run returns every node's output text to the cell (`result.nodes[id].output`). That makes the cell the meta-orchestrator AROUND runs, not just a launcher. The patterns below are all standard practice - use them.
+
+**Data-driven graph construction.** Build the node list in a loop from runtime data, so fan-out width is decided by what actually exists, not by what you guessed up front:
+
+```js
+const sdk = await import(`${env("OMO_DAG_SDK_ROOT")}/sdk.js`)
+const targets = await glob("packages/*/src/index.ts")
+const dag = sdk.define({ key: `audit-${today}`, name: "Repo audit" })
+for (const t of targets) {
+  dag.node({ id: `audit-${slug(t)}`, category: "quick", prompt: `TASK: Audit ${t} for stale API references. DELIVERABLE: ... VERIFY: ... STOP WHEN: ...` })
+}
+dag.node({ id: "synthesize", category: "unspecified-high", prompt: "...", dependsOn: targets.map(slug) })
+const run = await sdk.start(dag)
+```
+
+**Multi-run composition - the cell is the glue between runs.** `dependsOn` never passes data inside a run, but the cell passes data BETWEEN runs: wait for run 1, read its node outputs, and paste the relevant facts into run 2's prompts. Branching on results is plain JavaScript, so arbitrary conditional workflows fall out naturally:
+
+```js
+const probe = await sdk.wait((await sdk.start(probeDag)).run_id)
+const findings = probe.nodes["probe"].output
+if (findings.includes("critical")) {
+  const fix = sdk.define({ key: `fix-${today}`, name: "Fix" })
+  fix.node({ id: "fix", category: "deep", prompt: `TASK: ... FINDINGS:\n${findings}` })
+  await sdk.start(fix)
+}
+```
+
+**Concurrent runs.** Distinct keys run concurrently (default cap: `task.dag.max_runs_per_session` = 16). When two graphs are independent, start both and `Promise.all([sdk.wait(a), sdk.wait(b)])`.
+
+**Adaptive retries.** Read `result.nodes[id].error`, then start a NARROWER graph under a NEW key (`${key}-retry-1`) - re-issuing a changed definition under the old key is a definition conflict, and re-issuing the SAME definition under the old key reuses finished nodes instead of retrying.
+
+**Progressive snapshots.** Between waits, `snapshot(run_id)` reports per-node states; use it to prepare downstream work while lanes finish. Never spin an empty poll loop - `wait()` is the default.
+
+Two caveats:
+
+- Node outputs are stored and returned IN FULL, with no truncation - when embedding an output into a later prompt, quote or summarize the relevant part. Pasting an unbounded output into a prompt drowns it.
+- `wait()` blocks the cell until the run settles. Do independent cell work BEFORE awaiting, or run the cell detached.
 
 ## Node prompt contract
 
