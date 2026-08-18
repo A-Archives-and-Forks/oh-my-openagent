@@ -29,7 +29,7 @@ JS cells import the SDK from the path the extension publishes:
 const sdk = await import(`${env("OMO_DAG_SDK_ROOT")}/sdk.js`)
 
 const dag = sdk.define({ key: "docs-refresh", name: "Docs refresh" })
-dag.node({ id: "audit", category: "explore", prompt: "Audit docs/ for stale API references and list each stale file with the outdated claim." })
+dag.node({ id: "audit", category: "unspecified-low", prompt: "Audit docs/ for stale API references and list each stale file with the outdated claim." })
 dag.node({ id: "rewrite", category: "writing", prompt: "Rewrite every stale page under docs/ against the current API surface in src/.", dependsOn: ["audit"] })
 dag.node({ id: "verify", category: "quick", prompt: "Check every code sample under docs/ compiles and every internal link resolves.", dependsOn: ["rewrite"] })
 

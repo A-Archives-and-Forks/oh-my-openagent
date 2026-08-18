@@ -16,6 +16,17 @@ suites green). Conflict zones are the adapter and task manifests, the
 workspace lockfile, package-shape and senpi-pin expectations, and the
 provider-map provenance comment.
 
+## 2026-08-18 — Keep shipped skills on the Senpi task roster
+
+Shared skill copies now translate Oracle review lanes to `unspecified-high`,
+Oracle debugging and plan lanes to `deep`, and omit raw team leads that the
+Senpi harness supplies itself. Native DAG examples use a real category, and
+the compatibility banner no longer advertises the nonexistent `git` category.
+
+The generated skill guard derives valid named agents and categories from the
+runtime registries, so future shared-skill or native-skill drift fails before
+shipping. Shared OpenCode skill sources remain unchanged.
+
 ## 2026-08-18 — Keep completed resident team members visible
 
 The below-editor task widget now keeps completed canonical team members while their process-local handles remain resident, so users can still see members that `task_send` can revive. Active rows remain first, the five-row cap still applies afterward, and retained completed rows render as settled compact rows without a live spinner.
