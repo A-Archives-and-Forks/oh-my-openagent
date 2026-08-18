@@ -72,6 +72,21 @@ npx tsgo --noEmit -p tsconfig.json
 
 Captured in `tsgo.txt`; the file is empty because the command completed successfully with no diagnostics.
 
+## Bundle freshness
+
+The first CI pass caught the expected committed-plugin drift after changing prompt source:
+
+```text
+omo-senpi extension build is not current: stale-output
+output=.../packages/omo-senpi/plugin/extensions/omo.js
+```
+
+The extension artifacts were regenerated and the exact CI freshness command was rerun successfully. Output is captured in `bundle-check.txt` and ends with:
+
+```text
+omo-senpi extension build is current: .../packages/omo-senpi/plugin/extensions/omo.js
+```
+
 ## Dependency setup
 
 `bun install --frozen-lockfile` failed before package installation because Bun attempted to migrate `package-lock.json`, then rejected the resulting lockfile change under frozen mode. Following the task fallback, `node_modules` was symlinked from the main checkout at the workspace root and for packages required by the affected test/typecheck graph (`omo-senpi`, `omo-config-core`, and `senpi-task`). These symlinks are local-only and are not committed.

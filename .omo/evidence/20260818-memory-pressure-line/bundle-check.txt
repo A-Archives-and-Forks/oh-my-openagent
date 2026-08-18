@@ -1,0 +1,28 @@
+Senpi LSP runtime is current: /Volumes/mengmotaStorage/local-workspaces/omo-wt/feat/memory-pressure-line/packages/omo-senpi/plugin/runtime/lsp-daemon/dist
+Senpi ast-grep-mcp runtime is current: /Volumes/mengmotaStorage/local-workspaces/omo-wt/feat/memory-pressure-line/packages/omo-senpi/plugin/runtime/ast-grep-mcp/cli.js sha256=c635527b3611701b5eed228e9b71ec7e633161dab330f4a418cd8c67fd37be2b
+Senpi agent-toolkit runtime is current: /Volumes/mengmotaStorage/local-workspaces/omo-wt/feat/memory-pressure-line/packages/omo-senpi/plugin/runtime/agent-toolkit sha256=eeb16d3028fd8057997b5efdec3a983f7f2d25a15d5f7df075a14f2a5cf5f651
+Bundled 783 modules in 58ms
+
+  omo.js  1.19 MB  (entry point)
+
+Bundled 654 modules in 23ms
+
+  omo-task.js  0.91 MB  (entry point)
+
+Bundled 280 modules in 9ms
+
+  omo-member.js  173.0 KB  (entry point)
+
+Bundled 94 modules in 5ms
+
+  omo-memory-mcp.js  96.53 KB  (entry point)
+
+Bundled 90 modules in 5ms
+
+  memory-run-supervisor.mjs  25.98 KB  (entry point)
+
+Bundled 97 modules in 6ms
+
+  omo-init-deep-advisor.js  65.60 KB  (entry point)
+
+omo-senpi extension build is current: /Volumes/mengmotaStorage/local-workspaces/omo-wt/feat/memory-pressure-line/packages/omo-senpi/plugin/extensions/omo.js
