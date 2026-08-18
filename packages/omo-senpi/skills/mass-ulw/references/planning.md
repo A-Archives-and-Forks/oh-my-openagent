@@ -13,13 +13,17 @@ Read this file IN FULL before you define any graph. A graph defined without it i
 
 **TOPOLOGY LOCK first.** Before writing any node, enumerate the 1-6 top-level components that can each succeed or fail independently. Every node you define traces to exactly one component. Do not collapse a multi-component request into one blob node because it "looks small" - and do not invent components the request does not have.
 
-**Wave sizing.** Target 5-8 nodes per parallel wave; fewer than 3 means under-splitting. Split along the axis that makes pieces independent:
+**Split first, route second.** The default question is never "which category does this chunk need" but "how do I turn this chunk into more `quick` nodes". When work splits into independent pieces and those pieces can run in parallel SAFELY - disjoint write scopes, self-contained prompts, each piece verifiable on its own - many small `quick` nodes in parallel beat one big node on a smarter model, every time the split exists. Parallel quick lanes finish sooner, fail in isolation (one lane's failure never sinks the wave), and cost less per unit of work. Reach for a bigger model only for what SURVIVES splitting: the piece that cannot be decomposed without losing the whole-problem context it needs.
+
+**Do not split when:** (1) the pieces would share a write scope you cannot untangle - serialize or merge instead of pretending independence; (2) the work is one coherent judgment that needs the whole problem in view (a design decision, a root-cause diagnosis) - splitting it produces confident partial answers, not a verdict; (3) the pieces get so small that spawn and coordination overhead costs more than the work itself - a node that takes longer to brief than to execute belongs folded into its neighbor.
+
+**Wave sizing.** Target 5-8 nodes per parallel wave; fewer than 3 means under-splitting. A wave of eight `quick` nodes is healthier than a wave of three `deep` ones. Split along the axis that makes pieces independent:
 
 - **By component** - each independently-shippable part is its own lane.
 - **By file domain** - when one component spans disjoint file sets, one node per set.
 - **By phase** - collect lanes (investigate, in parallel) -> verify lanes (falsify the collections) -> synthesize (turn verified facts into the deliverable).
 
-**Default shape is fan-out, then fan-in.** N parallel lanes with no dependencies, then one synthesis node that depends on all of them. A 2-node graph with no dependency between the nodes is not a dag - use plain parallel `task` spawns instead. Reach for `dag` when ordering itself is the point.
+**Default shape is fan-out, then fan-in.** N parallel lanes with no dependencies, then one synthesis node that depends on all of them. The synthesis node starts cheap too (`quick` or `unspecified-low`): merging verified pieces is mechanical unless the merge itself needs judgment. A 2-node graph with no dependency between the nodes is not a dag - use plain parallel `task` spawns instead. Reach for `dag` when ordering itself is the point.
 
 **Split implementation from its test? No.** One node owns one deliverable end to end: the change AND its proof. A node that only writes code and a node that only tests it serialize on the same files and double the coordination cost.
 
@@ -33,7 +37,7 @@ The difficulty ladder, bottom rung first:
 2. **`unspecified-low`** - the piece is small but not mechanical: a few files, or a judgment call a template cannot make.
 3. **`unspecified-high`** - a standard multi-file feature or fix with real integration surface.
 
-Escalate a node only with a one-line reason you could say out loud ("touches six files across three packages"). If you cannot name the reason, the node stays at `quick`.
+Escalate a node only with a one-line reason you could say out loud ("touches six files across three packages") - and only AFTER the split-first doctrine has been applied: a chunk that decomposes into safe parallel `quick` pieces was never a ladder candidate. If you cannot name the reason, the node stays at `quick`.
 
 Specialty categories - chosen by the KIND of work, never by difficulty:
 
