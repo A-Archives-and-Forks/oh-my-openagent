@@ -144,7 +144,17 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
         await journalWiringFor(identity).reconcileSession(eventCtx)
       }
       factsWiringFor(identity).reconcileExtractor()
-      await reflectionLive.bind(pi, sessionId, identity, eventCtx)
+      await reflectionLive.bind(
+        pi,
+        sessionId,
+        identity,
+        eventCtx,
+        () => {
+          void dreamTriggerWiring.requestPressureDream(sessionId).catch((error: unknown) => {
+            options.logger?.warn("omo-senpi memory pressure dream trigger failed", { error: describe(error) })
+          })
+        },
+      )
     },
 
     async flushSkillsUsage(): Promise<void> {
@@ -164,6 +174,10 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       reflectionLive.clearStatus(eventCtx)
     },
   }
+}
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function buildDreamTriggerWiring(

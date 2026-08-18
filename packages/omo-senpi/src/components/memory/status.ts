@@ -53,6 +53,8 @@ export interface RefreshMemoryStatusInput {
   readonly now?: () => number
   readonly showFooter?: boolean
   readonly checkAdvisory?: boolean
+  /** Starts a spacing-gated background dream when the committed system tree reaches soft pressure. */
+  readonly requestPressureDream?: () => void
   /** Bound session whose reflection backlog feeds the ` (+N)` segment; omitted means no backlog. */
   readonly sessionId?: string
 }
@@ -81,6 +83,13 @@ export async function refreshMemoryStatus(input: RefreshMemoryStatusInput): Prom
   if (input.checkAdvisory === false || input.alreadyNotified) return { notified: false, footerShown }
 
   const estimate = await estimateSystemTokens(repo, head)
+  if (estimate >= Math.floor(MEMORY_PRESSURE_SOFT_RATIO * input.compileWarnTokens)) {
+    try {
+      input.requestPressureDream?.()
+    } catch {
+      // The advisory must remain available even if pressure-dream scheduling fails synchronously.
+    }
+  }
   if (estimate < input.compileWarnTokens) return { notified: false, footerShown }
 
   input.ui.notify(

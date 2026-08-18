@@ -30,6 +30,73 @@ afterEach(() => {
   }
 })
 
+describe("memory pressure dream wiring", () => {
+  test("#given committed system memory at soft pressure #when bind refresh computes the advisory estimate #then it attempts one pressure reservation", async () => {
+    const root = realpathSync.native(await mkdtemp(join(tmpdir(), "omo-memory-pressure-dream-wiring-")))
+    roots.push(root)
+    const identityName = "pressure-dream-agent"
+    const paths = buildIdentityPaths(root, identityName)
+    const repo = new GitMemoryRepo({ dir: paths.repo, agentId: identityName })
+    await repo.init({ seedFiles: [{ relativePath: "system/persona.md", content: "P".repeat(320) }] })
+    const identity = createMemoryIdentityContext({
+      identity: identityName,
+      identityPaths: paths,
+      binding: { identity: identityName, repoPathHash: "hash", boundAt: 1 },
+    })
+    const sessionId = "session-pressure-dream"
+    const reservationAttempts: unknown[] = []
+    let reservationObserved!: () => void
+    const observed = new Promise<void>((resolve) => { reservationObserved = resolve })
+    const runtime = {
+      reconcile: async () => {},
+      store: {
+        tryReserve: async (request: unknown) => {
+          reservationAttempts.push(request)
+          reservationObserved()
+          return {
+            status: "pending",
+            run: { runId: "run-pressure", request },
+          }
+        },
+      },
+      launch: () => {},
+    } as unknown as MemoryIdentityRuntime
+    const wiring = createMemoryWiring({
+      sessions: new Map([[sessionId, { context: identity }]]),
+      loadConfig: () => loadedMemoryConfig(memorySettings({ compile_warn_tokens: 100 })),
+      cwd: () => root,
+      env: {},
+      createRuntime: () => runtime,
+    })
+    const pi = new MemoryFakeExtensionAPI()
+    const eventCtx = {
+      sessionManager: { getSessionId: () => sessionId, getEntries: () => [] },
+      ui: { setStatus: () => {}, notify: () => {} },
+    }
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    const boundedObservation = Promise.race([
+      observed,
+      new Promise<never>((_resolve, reject) => {
+        timeout = setTimeout(() => reject(new Error("pressure reservation was not observed")), 5_000)
+      }),
+    ])
+
+    try {
+      await wiring.afterBind(pi, sessionId, identity, eventCtx)
+      await boundedObservation
+    } finally {
+      if (timeout !== undefined) clearTimeout(timeout)
+    }
+
+    expect(reservationAttempts).toEqual([{
+      trigger: "dream",
+      origin: "pressure",
+      conversationIds: [],
+      snapshots: [],
+    }])
+  }, 30_000)
+})
+
 describe("memory pressure compile wiring", () => {
   test("#given a bound fixture repo below pressure #when a committed write crosses the threshold #then the next real compile refresh adds pressure metadata without truncating memory", async () => {
     const root = realpathSync.native(await mkdtemp(join(tmpdir(), "omo-memory-pressure-wiring-")))
