@@ -1,6 +1,6 @@
 ---
 name: mass-ulw
-description: Mandatory planning reference for the mass-ulw skill - read in full BEFORE defining any graph. Covers decomposition doctrine, category routing, concurrency and write-scope rules, the node prompt contract, the verification wave, and the failure playbook.
+description: Mandatory planning reference for the mass-ulw skill - read in full BEFORE defining any graph. Covers decomposition doctrine, category routing, the capacity model and write-scope rules, dag-or-team selection, the node prompt contract, the verification wave, and the failure playbook.
 metadata:
   short-description: How to plan a dag - decomposition, categories, node prompts, verification
 ---
@@ -8,6 +8,8 @@ metadata:
 # mass-ulw planning reference
 
 Read this file IN FULL before you define any graph. A graph defined without it is unplanned work: real runs without this doctrine collapse to three `deep` nodes with no verification. Every section below exists because its absence was observed failing.
+
+Reading this file is not planning. Before `start`, write the run plan in one breath and then execute THAT plan: the topology (waves, plus the chain points where you synthesize between runs), wave sizes against the capacity model below, a one-line reason for every non-`quick` category, and the verification wave. When reality forces a change, replan out loud instead of drifting node by node.
 
 ## Decomposition doctrine
 
@@ -57,6 +59,7 @@ A graph whose every node is `deep` is a routing failure: it pays the most expens
 - **Disjoint write scopes or serialize.** No two nodes that can run in parallel may edit the same file. If two lanes must touch the same files, chain them with `dependsOn` or merge them into one node. Declare each node's read/write scope inside its prompt.
 - **Never add a dependency to pass data.** If node B needs a fact node A produces, that is a real dependency - but if B only needs a fact YOU already know, paste the fact into B's prompt and leave the edge out.
 - **Dependency matrix self-check before `start`:** every `dependsOn` id exists in the graph; no cycles; no node depends on something it does not actually consume; every wave has at least one runnable node.
+- **Capacity model.** Nodes run as background tasks under a per-model slot limiter - default 5 concurrent, overridable via `task.default_concurrency` / provider / model concurrency in omo config (0 = unbounded). Nodes past the limit queue FIFO and roll in as slots free, so a wave wider than the slots still completes, serialized in chunks. Hard caps: 64 nodes per run, 16 runs per session. The wave-sizing target above is this slot budget, not a taste number.
 
 ## Eval orchestration patterns
 
@@ -89,6 +92,8 @@ if (findings.includes("critical")) {
 
 **Concurrent runs.** Distinct keys run concurrently (default cap: `task.dag.max_runs_per_session` = 16). When two graphs are independent, start both and `Promise.all([sdk.wait(a), sdk.wait(b)])`.
 
+**Trigger-launched runs.** A run does not have to start from a user turn: a monitor hit, a goal-loop wake, or a task-completion notification can be the trigger, and the cell that fires on the wake builds and starts the next graph. Conditional pipelines live in your code, never in the definition - the graph itself has no branch construct.
+
 **Adaptive retries.** Read `result.nodes[id].error`, then start a NARROWER graph under a NEW key (`${key}-retry-1`) - re-issuing a changed definition under the old key is a definition conflict, and re-issuing the SAME definition under the old key reuses finished nodes instead of retrying.
 
 **Progressive snapshots.** Between waits, `snapshot(run_id)` reports per-node states; use it to prepare downstream work while lanes finish. Never spin an empty poll loop - `wait()` is the default.
@@ -97,6 +102,14 @@ Two caveats:
 
 - Node outputs are stored and returned IN FULL, with no truncation - when embedding an output into a later prompt, quote or summarize the relevant part. Pasting an unbounded output into a prompt drowns it.
 - `wait()` blocks the cell until the run settles. Do independent cell work BEFORE awaiting, or run the cell detached.
+
+## Dag or team
+
+The dag is not the only fan-out surface, and picking the wrong one strands the run. Decide before you plan:
+
+- **Chained dags** (the multi-run composition above) when the work is stage-shaped: every stage is a static graph and you synthesize between stages. Journaled resume, idempotent keys, and the `/dag` view come free.
+- **A `team_create` team** when workers must talk DURING the work: broadcasting leads the moment they surface, multi-round debate, or members accumulating investigation context across re-tasking. A dag node is a one-shot prompt; it cannot take a new lead mid-run.
+- **ulw-research requests go to the team path.** Cross-critique and expand loops are team mechanics; use a dag for the independent harvest stages only.
 
 ## Node prompt contract
 
@@ -129,4 +142,6 @@ Rules that make node prompts obeyed:
 
 - **A failed node blocks only its dependents.** Read the node's error first; the fix is usually a NARROWER respawn, not a rerun of the graph.
 - **Respawn small.** Re-`start` with the same `key` and definition reuses finished nodes' outputs - completed work is never redone. Change only what the failure taught you; never re-issue a changed definition under an old key to sneak past a conflict.
+- **A quiet widget is not a stall.** Nodes past the slot limit sit in `scheduled` with their task queued, so `0 running` mid-wave means waiting for slots, not death. A node whose task already completed can also take a moment to show its transition; the run folds it on the next event. Check node task states before concluding anything.
+- **Provider storms amplify under fan-out.** If many wave-1 nodes fail AT START within seconds, never even attaching a task, the provider or model route is erroring - your prompts are fine. Stop launching, fix the route, then re-`start` with the same key and definition: finished nodes are reused.
 - **Cancel is for abandoning the goal**, not for impatience. A running node is alive; elapsed time alone never justifies cancelling. When you do cancel, pass a reason so the run record says why.
