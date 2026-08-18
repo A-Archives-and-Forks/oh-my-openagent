@@ -155,3 +155,22 @@ The release also includes `d694add58dd1` (`fix(omo-native): emit doctor report
 atomically`). Doctor output now becomes visible only after a complete report is
 ready, so consumers must not reintroduce partially written report files or
 split the atomic write path during future release refactors.
+
+## 2026-08-18 — Make the lsp-daemon test budget dominate its subprocess budgets
+
+`packages/lsp-daemon/vitest.config.ts` declared no `testTimeout`, so vitest's
+5s default applied while `test/qa-driver-portability.test.ts` granted its `bun`
+cancellation smoke 10s (an `execFileSync` timeout and a `setTimeout` guard
+around its `spawn`). The harness therefore killed the test before the inner
+guard could ever fire, so a slow-but-correct subprocess reported `Test timed out
+in 5000ms` instead of an assertion result. Windows CI runners routinely spend
+more than 5s spawning `bun`, which is why "Run vendored lsp-daemon tests" failed
+on `windows-latest` with no product defect behind it.
+
+The package now sets `testTimeout`/`hookTimeout` to 30s, exported from the
+config as `TEST_TIMEOUT_MS` alongside the documented `MAX_IN_TEST_BUDGET_MS`
+ceiling of 10s. The invariant is that the harness budget strictly exceeds every
+budget a test grants a subprocess or timed promise; `test/test-timeout-budget.test.ts`
+reads both the configured value and the real budgets out of the test sources and
+fails if that ordering is ever reintroduced. Keep the bound proportionate: it
+exists to survive a cold Windows process spawn, not to hide a genuine hang.
