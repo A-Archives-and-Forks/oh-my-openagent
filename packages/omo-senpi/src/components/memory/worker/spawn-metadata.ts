@@ -6,7 +6,7 @@ export function requireRunMetadata(spawnArgs: ReflectionSpawnArgs): {
   readonly runId: string
   readonly kind: "reflection" | "dream"
   readonly trigger: ReservedRun["request"]["trigger"]
-  readonly origin?: "manual" | "idle" | "shutdown"
+  readonly origin?: "manual" | "idle" | "shutdown" | "pressure"
   readonly mergePolicy: "auto" | "integration"
   readonly targetDoc?: string
   readonly worktree: ReflectionWorktree

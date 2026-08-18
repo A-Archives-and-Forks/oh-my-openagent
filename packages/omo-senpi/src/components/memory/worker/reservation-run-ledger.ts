@@ -17,7 +17,7 @@ export interface ReservationRunLedger {
   readonly launching?: boolean
   readonly kind: "reflection" | "dream"
   readonly trigger: "step-count" | "compaction" | "manual" | "dream"
-  readonly origin?: "manual" | "idle" | "shutdown"
+  readonly origin?: "manual" | "idle" | "shutdown" | "pressure"
   readonly pid?: number
   readonly processStart?: string | null
   readonly childPid?: number
@@ -55,7 +55,7 @@ export function parseReservationRunLedger(value: unknown): ReservationRunLedger 
     throw new Error("Invalid reservation run trigger")
   }
   if ((kind === "dream") !== (trigger === "dream")) throw new Error("Reservation run kind and trigger disagree")
-  if (trigger === "dream" && value.origin !== "manual" && value.origin !== "idle" && value.origin !== "shutdown") {
+  if (trigger === "dream" && value.origin !== "manual" && value.origin !== "idle" && value.origin !== "shutdown" && value.origin !== "pressure") {
     throw new Error("Dream run origin is required")
   }
   const requiredStrings = ["startedAt", "worktreeDir", "worktreeBranch", "baseSha", "gitFilePath", "gitFileSnapshot", "commonConfigPath"] as const
