@@ -1,3 +1,14 @@
+## 2026-08-18 — Keep shipped skills on the Senpi task roster
+
+Shared skill copies now translate Oracle review lanes to `unspecified-high`,
+Oracle debugging and plan lanes to `deep`, and omit raw team leads that the
+Senpi harness supplies itself. Native DAG examples use a real category, and
+the compatibility banner no longer advertises the nonexistent `git` category.
+
+The generated skill guard derives valid named agents and categories from the
+runtime registries, so future shared-skill or native-skill drift fails before
+shipping. Shared OpenCode skill sources remain unchanged.
+
 ## 2026-08-18 — Follow the Senpi 2026.8.18 host contract
 
 The adapter peer and development dependency now require Senpi `2026.8.18`,
