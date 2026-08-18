@@ -46,6 +46,7 @@ export function prepareReflectionCandidateSpawn(input: ReflectionSpawnInput) {
     env: input.env,
     mergePolicy: input.mergePolicy,
     skillsUsageSource: join(input.identity.paths.runtime, "skills-usage.json"),
+    memoryUsageSource: join(input.identity.paths.runtime, "memory-usage.json"),
     dreamStateSource: join(input.identity.paths.runtime, "dream", "state.json"),
     peoplePolicy: {
       enabled: input.config.memory?.agents[input.identity.id]?.people?.enabled
