@@ -4,8 +4,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { resolveMemoryIdentity } from "@oh-my-opencode/memory-core"
-import { buildIdentityPaths } from "@oh-my-opencode/memory-core"
+import { buildIdentityPaths, GitMemoryRepo, resolveMemoryIdentity } from "@oh-my-opencode/memory-core"
 import type { MemoryIdentityRuntime } from "./identity-runtime"
 
 import { createMemoryIdentityContext, type MemoryIdentityContext } from "./context"
@@ -21,6 +20,7 @@ import {
   type MemoryStatusResult,
   type RefreshMemoryStatusInput,
 } from "./status"
+import { MEMORY_PRESSURE_METADATA_TOKEN } from "./prompt"
 import { createMemoryWiring } from "./wiring"
 const roots: string[] = []
 
@@ -28,6 +28,59 @@ afterEach(() => {
   for (const root of roots.splice(0)) {
     rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
   }
+})
+
+describe("memory pressure compile wiring", () => {
+  test("#given a bound fixture repo below pressure #when a committed write crosses the threshold #then the next real compile refresh adds pressure metadata without truncating memory", async () => {
+    const root = realpathSync.native(await mkdtemp(join(tmpdir(), "omo-memory-pressure-wiring-")))
+    roots.push(root)
+    const identity = "pressure-agent"
+    const paths = buildIdentityPaths(root, identity)
+    const header = "---\ndescription: Persona\n---\n"
+    const repo = new GitMemoryRepo({ dir: paths.repo, agentId: identity })
+    await repo.init({
+      seedFiles: [{ relativePath: "system/persona.md", content: `${header}small\n` }],
+    })
+    const context = createMemoryIdentityContext({
+      identity,
+      identityPaths: paths,
+      binding: { identity, repoPathHash: "hash", boundAt: 1 },
+    })
+    const pi = new MemoryFakeExtensionAPI()
+    createMemoryWiring({
+      sessions: new Map([["session-pressure", { context }]]),
+      loadConfig: () => loadedMemoryConfig(memorySettings({ compile_warn_tokens: 100 })),
+      cwd: () => root,
+      env: {},
+    }).registerStatic(pi, componentContext())
+    const eventCtx = sessionContext("session-pressure")
+
+    const [below] = await pi.dispatch(
+      "before_agent_start",
+      { type: "before_agent_start", prompt: "continue", systemPrompt: "BASE" },
+      eventCtx,
+    )
+    await writeFile(
+      join(repo.dir, "system/persona.md"),
+      `${header}${"Z".repeat(400 - Buffer.byteLength(header, "utf8"))}`,
+    )
+    await repo.commitWrite(["system/persona.md"], "grow system memory", {
+      agentId: identity,
+      authorName: "Pressure Agent",
+    })
+    const [pressured] = await pi.dispatch(
+      "before_agent_start",
+      { type: "before_agent_start", prompt: "continue", systemPrompt: "BASE" },
+      eventCtx,
+    )
+
+    const belowPrompt = (below as { systemPrompt?: string } | undefined)?.systemPrompt ?? ""
+    const pressuredPrompt = (pressured as { systemPrompt?: string } | undefined)?.systemPrompt ?? ""
+    expect(belowPrompt).not.toContain(MEMORY_PRESSURE_METADATA_TOKEN)
+    expect(pressuredPrompt).toContain("100/100")
+    expect(pressuredPrompt).toContain("100%")
+    expect(pressuredPrompt).toContain("Z".repeat(300))
+  }, 30_000)
 })
 
 describe("memory footer wiring", () => {
