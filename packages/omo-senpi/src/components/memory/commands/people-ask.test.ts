@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test"
 
+import type { SenpiModelPort } from "@oh-my-opencode/senpi-task"
+
 import { MemoryFakeExtensionAPI } from "../memory.test-support"
 import { fakeCommandContext, fakeDeps, invoke } from "./commands.test-support"
 import { registerPeopleCommand } from "./people"
-import { hasNoEvidence, type PeopleAskEvidence, type PeopleAskRequest } from "./people-ask"
+import { createPeopleAskRunner, hasNoEvidence, type PeopleAskEvidence, type PeopleAskRequest } from "./people-ask"
 import { peopleFixture } from "./people.test-support"
 
 describe("/people --ask", () => {
@@ -65,4 +67,27 @@ describe("/people --ask", () => {
     expect(hasNoEvidence(evidence)).toBe(false)
     expect(ctx.ui.notifications).toEqual([{ message: text, level: "info" }])
   }, 30_000)
+
+  test("#given senpiCommand and senpiPrefixArgs #when the people-ask child runs #then the answer starts with the prefix marker", async () => {
+    const model: SenpiModelPort = { provider: "omo-mock", id: "mock-1" }
+    const runner = createPeopleAskRunner({
+      config: { categories: { quick: { model: "omo-mock/mock-1" } } },
+      registry: {
+        getAvailable: () => [model],
+        find: (provider, modelId) =>
+          provider === model.provider && modelId === model.id ? model : undefined,
+      },
+      senpiCommand: "/bin/echo",
+      senpiPrefixArgs: ["PEOPLE-PREFIX-MARKER"],
+    })
+
+    const answer = await runner({
+      slug: "jane-doe",
+      displayName: "Jane Doe",
+      question: "how does jane review?",
+      evidence: { card: ["IDENTITY: staff engineer"], observations: [], searchHits: [] },
+    })
+
+    expect(answer.startsWith("PEOPLE-PREFIX-MARKER")).toBe(true)
+  })
 })
