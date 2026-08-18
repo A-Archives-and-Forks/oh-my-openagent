@@ -22,7 +22,7 @@ A stored definition is a plain dag definition JSON file named `<name>.json` in o
   "key": "nightly-audit",
   "name": "Nightly audit",
   "nodes": [
-    { "id": "audit", "category": "explore", "prompt": "Audit docs/ for stale claims; write findings to /tmp/audit-{{key}}.md." },
+    { "id": "audit", "category": "unspecified-low", "prompt": "Audit docs/ for stale claims; write findings to /tmp/audit-{{key}}.md." },
     { "id": "verify", "category": "quick", "prompt": "Verify each finding in /tmp/audit-{{key}}.md against src/.", "dependsOn": ["audit"] }
   ]
 }
