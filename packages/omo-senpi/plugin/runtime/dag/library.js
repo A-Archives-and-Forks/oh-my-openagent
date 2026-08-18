@@ -30,14 +30,14 @@ function libraryDirs() {
   return dirs
 }
 
-function readDefinitionText(name, dirs) {
+async function readDefinitionText(name, dirs) {
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)) {
     throw new Error(`dag library: invalid definition name "${name}" (letters, digits, dot, dash, underscore).`)
   }
   const read = kernel("read")
   for (const dir of dirs) {
     try {
-      return read(`${dir}/${name}.json`)
+      return await read(`${dir}/${name}.json`)
     } catch {
     }
   }
@@ -64,8 +64,8 @@ function fillPlaceholders(value, vars) {
   return value
 }
 
-export function load(name, options) {
-  const text = readDefinitionText(name, libraryDirs())
+export async function load(name, options) {
+  const text = await readDefinitionText(name, libraryDirs())
   const definition = JSON.parse(text)
   if (typeof definition.key !== "string" || definition.key === "") {
     throw new Error(`dag library: definition "${name}" needs a non-empty string key (the base idempotency key).`)
@@ -79,7 +79,7 @@ export function load(name, options) {
 }
 
 export async function start(name, options) {
-  const definition = load(name, options)
+  const definition = await load(name, options)
   const response = await kernel("tool").dag({ action: "start", definition })
   const runId = response?.details?.run_id ?? response?.run_id
   if (typeof runId !== "string" || runId === "") {

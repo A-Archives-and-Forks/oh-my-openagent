@@ -40,7 +40,7 @@ const run = await lib.start("nightly-audit")
 const result = await run.done()
 ```
 
-`load(name)` returns the filled definition without starting it; `start(name)` loads and starts in one call and returns the same handle shape as `sdk.start` (`run_id`, `done()`, `cancel(reason)`).
+`await lib.load(name)` returns the filled definition without starting it; `await lib.start(name)` loads and starts in one call and returns the same handle shape as `sdk.start` (`run_id`, `done()`, `cancel(reason)`). Both are async — the kernel's `read` global is async, so never call them un-awaited.
 
 ## Key rotation — the one rule that matters
 

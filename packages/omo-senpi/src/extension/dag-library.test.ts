@@ -12,7 +12,7 @@ import { join } from "node:path"
 type DagCall = Record<string, unknown>
 
 type DagLibraryModule = {
-  load: (name: string, options?: { suffix?: string }) => Record<string, unknown>
+  load: (name: string, options?: { suffix?: string }) => Promise<Record<string, unknown>>
   start: (name: string, options?: { suffix?: string }) => Promise<{
     readonly run_id: string
     readonly done: () => Promise<unknown>
@@ -33,7 +33,7 @@ const NIGHTLY = {
 
 function installGlobals(envMap: Record<string, string | undefined>): DagCall[] {
   const calls: DagCall[] = []
-  Reflect.set(globalThis, "read", (path: string) => readFileSync(path, "utf8"))
+  Reflect.set(globalThis, "read", async (path: string) => readFileSync(path, "utf8"))
   Reflect.set(globalThis, "env", (key?: string) => (key === undefined ? envMap : envMap[key]))
   Reflect.set(globalThis, "tool", {
     dag: async (args: DagCall) => {
@@ -91,7 +91,7 @@ describe("dag definition library", () => {
       installGlobals(envMap)
       const library = await loadLibrary()
 
-      const definition = library.load("nightly", { suffix: "20260818" })
+      const definition = await library.load("nightly", { suffix: "20260818" })
 
       expect(definition.key).toBe("nightly-audit-20260818")
       expect(definition.name).toBe("Nightly audit")
@@ -106,7 +106,7 @@ describe("dag definition library", () => {
       installGlobals(envMap)
       const library = await loadLibrary()
 
-      const definition = library.load("nightly")
+      const definition = await library.load("nightly")
 
       expect(definition.key).toMatch(/^nightly-audit-\d{8}-\d{6}$/)
     })
@@ -116,7 +116,7 @@ describe("dag definition library", () => {
       installGlobals(envMap)
       const library = await loadLibrary()
 
-      expect(library.load("nightly", { suffix: "" }).key).toBe("nightly-audit")
+      expect((await library.load("nightly", { suffix: "" })).key).toBe("nightly-audit")
     })
   })
 
@@ -129,16 +129,16 @@ describe("dag definition library", () => {
       installGlobals(envMap)
       const library = await loadLibrary()
 
-      expect(library.load("only-home", { suffix: "" }).name).toBe("from-home")
-      expect(library.load("shadowed", { suffix: "" }).name).toBe("from-lib")
+      expect((await library.load("only-home", { suffix: "" })).name).toBe("from-home")
+      expect((await library.load("shadowed", { suffix: "" })).name).toBe("from-lib")
     })
 
     it("#then a missing name fails listing the searched dirs", async () => {
       installGlobals(envMap)
       const library = await loadLibrary()
 
-      expect(() => library.load("ghost")).toThrow(/ghost/)
-      expect(() => library.load("ghost")).toThrow(/\.omo\/dags/)
+      await expect(library.load("ghost")).rejects.toThrow(/ghost/)
+      await expect(library.load("ghost")).rejects.toThrow(/\.omo\/dags/)
     })
 
     it("#then a definition without a nodes array fails before any host round-trip", async () => {
@@ -146,7 +146,7 @@ describe("dag definition library", () => {
       installGlobals(envMap)
       const library = await loadLibrary()
 
-      expect(() => library.load("broken")).toThrow(/nodes/)
+      await expect(library.load("broken")).rejects.toThrow(/nodes/)
     })
   })
 
