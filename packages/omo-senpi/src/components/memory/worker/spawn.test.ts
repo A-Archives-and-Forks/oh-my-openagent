@@ -3,8 +3,10 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { isAbsolute, join } from "node:path"
 
-import type { FactsPayload, ReflectionWorktree, ReservedRun } from "@oh-my-opencode/memory-core"
+import { buildIdentityPaths, type FactsPayload, type ReflectionWorktree, type ReservedRun } from "@oh-my-opencode/memory-core"
 
+import { loadedMemoryConfig, memorySettings } from "../memory.test-support"
+import { prepareReflectionCandidateSpawn } from "./reflection-spawn-input"
 import { prepareFactsSpawn, prepareReflectionSpawn } from "./spawn"
 import { existsSync, realpathSync } from "node:fs"
 
@@ -135,6 +137,38 @@ describe("dream token budget launch contract", () => {
         { path: "system/small.md", bytes: 8, tokens: 2 },
       ],
     })
+  })
+
+  test("#given configured compile pressure #when the production candidate assembly prepares a dream #then budget and target reuse the shared soft ratio", async () => {
+    const base = await root()
+    await mkdir(join(base, "system"), { recursive: true })
+    await writeFile(join(base, "system", "persona.md"), "P".repeat(16))
+    const identityPaths = buildIdentityPaths(base, "agent-test")
+    const worktree = {
+      dir: base,
+      commonConfigPath: join(base, "config"),
+    } as unknown as ReflectionWorktree
+
+    const prepared = await prepareReflectionCandidateSpawn({
+      run: {
+        runId: "dream-config-1",
+        request: { trigger: "dream", origin: "manual", conversationIds: [], snapshots: [] },
+      },
+      worktree,
+      mergePolicy: "auto",
+      category: "quick",
+      candidate: { model: "provider/model" },
+      attempt: 1,
+      hardDeadlineAt: Date.now() + 10_000,
+      config: loadedMemoryConfig(memorySettings({ compile_warn_tokens: 101 })).config,
+      identity: { id: "agent-test", safeSlug: "agent-test", paths: identityPaths },
+      env: {},
+      senpiCommand: "/custom/senpi",
+    })
+
+    expect(prepared.env.SYSTEM_TOKEN_BUDGET).toBe("101")
+    expect(prepared.env.SYSTEM_TOKEN_TARGET).toBe("80")
+    expect(JSON.parse(await readFile(prepared.env.SYSTEM_TOKENS_PATH!, "utf8"))).toMatchObject({ totalTokens: 4 })
   })
 })
 
