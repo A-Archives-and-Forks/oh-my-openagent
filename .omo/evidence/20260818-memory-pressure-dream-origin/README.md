@@ -46,9 +46,12 @@ Outputs:
 
 ## Bundle verification
 
-`node packages/omo-senpi/plugin/scripts/build-extension.mjs` completed and `git diff --exit-code -- packages/omo-senpi/plugin/extensions` confirmed the committed generated bundles are current.
+The initial macOS generation completed successfully; CI then correctly identified that the committed artifact needed the Linux source digest used by the freshness gate. The bundle was regenerated in Linux arm64 with Node 24 and Bun 1.3.14, matching the compatibility job, and `build-extension.mjs --check` reported the extension current.
 
-Full output: [`bundle-build.txt`](./bundle-build.txt)
+Outputs:
+
+- [`bundle-build.txt`](./bundle-build.txt) - initial local generation
+- [`linux-bundle-check.txt`](./linux-bundle-check.txt) - final CI-compatible Linux freshness check
 
 ## Acceptance mapping
 
