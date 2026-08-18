@@ -76,6 +76,7 @@ export function registerMemoryStatic(input: {
     resolveContext,
     cache: promptCache,
     searchExposure: () => toolExposure === "search",
+    resolveCompileWarnTokens: () => loadCommandSettings().settings.compile_warn_tokens,
     resolveNudgeTurns: (repo, sessionId, identity) => nudgeWiring.nudgeTurns(repo, sessionId, identity),
     resolveSoulNotice: async (repo, sessionId, identity) => {
       const context = resolveContext(sessionId)
