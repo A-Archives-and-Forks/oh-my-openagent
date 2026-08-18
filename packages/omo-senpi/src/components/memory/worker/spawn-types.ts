@@ -13,6 +13,7 @@ export interface ReflectionSpawnPaths {
   readonly skillsUsage?: string
   readonly dreamState?: string
   readonly dreamPolicy?: string
+  readonly systemTokens?: string
   readonly dreamTarget?: string
 }
 
@@ -40,6 +41,8 @@ export interface ReflectionSpawnArgs {
   readonly origin?: "manual" | "idle" | "shutdown" | "pressure"
   readonly mergePolicy?: "auto" | "integration"
   readonly targetDoc?: string
+  readonly systemTokenBudget?: number
+  readonly systemTokenTarget?: number
   readonly worktree?: ReflectionWorktree
   readonly command: string
   readonly args: readonly string[]
@@ -116,6 +119,8 @@ export interface PrepareReflectionSpawnInput {
   readonly skillsUsageSource: string
   readonly dreamStateSource: string
   readonly peoplePolicy: DreamPeoplePolicy
+  readonly systemTokenBudget?: number
+  readonly systemTokenTarget?: number
   readonly senpiCommand?: string
   readonly chmodFile?: (path: string, mode: number) => Promise<void>
 }

@@ -9,6 +9,7 @@ import {
   type ReservedRun,
 } from "@oh-my-opencode/memory-core"
 
+import { estimateSystemTokens } from "../commands/tokens"
 import type {
   FactsSpawnArgs,
   PrepareFactsSpawnInput,
@@ -25,10 +26,14 @@ export async function prepareReflectionSpawn(input: PrepareReflectionSpawnInput)
   const persona = join(sessionDir, "reflection-persona.md")
   const prompt = join(sessionDir, "reflection-task.md")
   const isDream = input.run.request.trigger === "dream"
+  if (isDream && (input.systemTokenBudget === undefined || input.systemTokenTarget === undefined)) {
+    throw new TypeError("dream spawn requires a system token budget and target")
+  }
   const dreamPaths = isDream ? {
     skillsUsage: join(sessionDir, "skills-usage.json"),
     dreamState: join(sessionDir, "dream-state.json"),
     dreamPolicy: join(sessionDir, "dream-policy.json"),
+    systemTokens: join(sessionDir, "system-tokens.json"),
   } : undefined
   const payloadPaths = [
     transcript,
@@ -54,6 +59,7 @@ export async function prepareReflectionSpawn(input: PrepareReflectionSpawnInput)
       copyJsonOrEmpty(input.skillsUsageSource, dreamPaths.skillsUsage),
       copyJsonOrEmpty(input.dreamStateSource, dreamPaths.dreamState),
       writeFile(dreamPaths.dreamPolicy, `${JSON.stringify({ version: 1, people: input.peoplePolicy }, null, 2)}\n`, "utf8"),
+      writeSystemTokenEstimate(input.worktree.dir, dreamPaths.systemTokens),
     ]),
   ])
   await Promise.all(payloadPaths.map((path) => chmod(path, 0o400)))
@@ -79,6 +85,9 @@ export async function prepareReflectionSpawn(input: PrepareReflectionSpawnInput)
       SKILLS_USAGE_PATH: dreamPaths.skillsUsage,
       DREAM_STATE_PATH: dreamPaths.dreamState,
       DREAM_POLICY_PATH: dreamPaths.dreamPolicy,
+      SYSTEM_TOKENS_PATH: dreamPaths.systemTokens,
+      SYSTEM_TOKEN_BUDGET: String(input.systemTokenBudget),
+      SYSTEM_TOKEN_TARGET: String(input.systemTokenTarget),
       ...(dreamTarget === undefined ? {} : { DREAM_TARGET_PATH: dreamTarget }),
     }),
     SENPI_MEMORY_REFLECTION: "1",
@@ -122,6 +131,10 @@ export async function prepareReflectionSpawn(input: PrepareReflectionSpawnInput)
     ...(input.run.request.trigger === "dream" ? { origin: input.run.request.origin } : {}),
     mergePolicy: input.mergePolicy,
     ...(input.run.request.targetDoc === undefined ? {} : { targetDoc: input.run.request.targetDoc }),
+    ...(isDream ? {
+      systemTokenBudget: input.systemTokenBudget,
+      systemTokenTarget: input.systemTokenTarget,
+    } : {}),
     worktree: input.worktree,
     command: launch.command,
     args: [...launch.prefixArgs, ...args],
@@ -237,6 +250,11 @@ function buildTaskPrompt(run: ReservedRun, worktree: string, transcript: string)
     "Do not modify Git administration files. Finish with a clean worktree.",
     `Trigger: ${run.request.trigger}${focus}`,
   ].join("\n")
+}
+
+async function writeSystemTokenEstimate(repoDir: string, destination: string): Promise<void> {
+  const estimate = await estimateSystemTokens(repoDir)
+  await writeFile(destination, `${JSON.stringify({ totalTokens: estimate.totalTokens, files: estimate.files }, null, 2)}\n`, "utf8")
 }
 
 async function copyJsonOrEmpty(source: string, destination: string): Promise<void> {
