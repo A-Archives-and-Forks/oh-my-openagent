@@ -74,8 +74,9 @@ export async function load(name, options) {
     throw new Error(`dag library: definition "${name}" needs a non-empty nodes array.`)
   }
   const suffix = options?.suffix
-  const finalKey = suffix === "" ? definition.key : `${definition.key}-${suffix ?? utcVars("", new Date()).datetime}`
-  return { ...fillPlaceholders(definition, utcVars(finalKey, new Date())), key: finalKey }
+  const now = new Date()
+  const finalKey = suffix === "" ? definition.key : `${definition.key}-${suffix ?? utcVars("", now).datetime}`
+  return { ...fillPlaceholders(definition, utcVars(finalKey, now)), key: finalKey }
 }
 
 export async function start(name, options) {
