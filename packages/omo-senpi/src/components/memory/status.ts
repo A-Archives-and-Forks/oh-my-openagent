@@ -7,6 +7,7 @@ import type { MemoryIdentityContext } from "./context"
 import { readReflectionHealth } from "./worker/health"
 
 export const MEMORY_STATUS_KEY = "memory"
+export const MEMORY_PRESSURE_SOFT_RATIO = 0.8
 /** Footer budget: the assembled line drops optional segments right-to-left past this width. */
 export const MEMORY_STATUS_MAX_WIDTH = 60
 /** A streak at or above this many consecutive failures earns the `!N` badge. */
@@ -163,7 +164,7 @@ async function readStreak(context: MemoryIdentityContext): Promise<number> {
   }
 }
 
-async function estimateSystemTokens(repo: GitRepoForStatus, head: string): Promise<number> {
+export async function estimateSystemTokens(repo: GitRepoForStatus, head: string): Promise<number> {
   const paths = await repo.lsTree(head)
   const systemMarkdownPaths = paths.filter(isSystemMarkdown)
   if (systemMarkdownPaths.length === 0) return 0
