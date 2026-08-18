@@ -1,3 +1,21 @@
+## 2026-08-18 — Follow the Senpi 2026.8.18-2 host contract
+
+The adapter peer and development dependency now require Senpi `2026.8.18-2`,
+and the task engine's peer and development pins move with it. The 2026.8.18-2
+host fixes Cursor exec-bridge recovery: symbol-keyed exec markers survive
+model-recovery snapshot cloning, so side-effecting tool calls are not executed
+twice; late bridge events stay bound to their originating run; and active
+goals re-engage after a settings hot-reload. Cursor CLI OAuth bootstraps
+native credentials by default, and GPT-5.6 Sol/Sol Fast models default to a
+400k-token context window.
+
+This bump does not add or alter adapter behavior beyond the inherited host
+fixes. The provider registry contract was re-verified: builtin provider IDs
+are unchanged between 2026.8.18 and 2026.8.18-2 (senpi-pin and package-shape
+suites green). Conflict zones are the adapter and task manifests, the
+workspace lockfile, package-shape and senpi-pin expectations, and the
+provider-map provenance comment.
+
 ## 2026-08-18 — Follow the Senpi 2026.8.18 host contract
 
 The adapter peer and development dependency now require Senpi `2026.8.18`,
