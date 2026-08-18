@@ -28,6 +28,8 @@ export interface ReservationRunLedger {
   readonly deadlineAt: number
   readonly mergePolicy: "auto" | "integration"
   readonly targetDoc?: string
+  readonly systemTokenBudget?: number
+  readonly systemTokenTarget?: number
   readonly worktreeDir: string
   readonly worktreeBranch: string
   readonly baseSha: string
@@ -70,6 +72,15 @@ export function parseReservationRunLedger(value: unknown): ReservationRunLedger 
   if (value.mergePolicy !== "auto" && value.mergePolicy !== "integration") throw new Error("Invalid reservation merge policy")
   if (value.targetDoc !== undefined && (kind !== "dream" || typeof value.targetDoc !== "string")) {
     throw new Error("Invalid dream target document")
+  }
+  for (const field of ["systemTokenBudget", "systemTokenTarget"] as const) {
+    if (value[field] !== undefined
+      && (kind !== "dream" || !Number.isInteger(value[field]) || Number(value[field]) <= 0)) {
+      throw new Error(`Invalid dream ${field}`)
+    }
+  }
+  if ((value.systemTokenBudget === undefined) !== (value.systemTokenTarget === undefined)) {
+    throw new Error("Dream token budget metadata is incomplete")
   }
   if (!optionalPid(value.pid) || !optionalIdentity(value.processStart) || !optionalPid(value.childPid) || !optionalIdentity(value.childProcessStart)) {
     throw new Error("Invalid reservation process identity")

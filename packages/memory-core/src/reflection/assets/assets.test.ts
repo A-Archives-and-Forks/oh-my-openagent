@@ -22,6 +22,12 @@ describe("dream persona asset", () => {
     expect(loaded).toBe(source)
     expect(packaged).toBe(source)
   })
+
+  it("#given the dream persona #when parsed as sections #then the machine budget-contract anchor is embedded", () => {
+    const { sections } = loadDreamPersona()
+
+    expect(sections.some((section) => section.heading === "System Token Budget Contract")).toBe(true)
+  })
 })
 
 describe("reflection persona asset", () => {
