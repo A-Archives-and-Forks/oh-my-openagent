@@ -96,7 +96,7 @@ async function addMemoryPressureMetadata(
   const softThreshold = Math.floor(MEMORY_PRESSURE_SOFT_RATIO * compileWarnTokens)
   if (estimate < softThreshold) return block
   const percentage = Math.floor((estimate / compileWarnTokens) * 100)
-  const line = `- ${MEMORY_PRESSURE_METADATA_TOKEN} system/ ~${estimate}/${compileWarnTokens} tokens (${percentage}% of advisory) - trim or demote stale system/ blocks via the memory tool or run /dream`
+  const line = `- ${MEMORY_PRESSURE_METADATA_TOKEN} system/ ~${estimate}/${compileWarnTokens} tokens (${percentage}% of advisory); trim or demote stale system/ blocks via the memory tool or run /dream`
   const metadataEnd = block.lastIndexOf("</memory_metadata>")
   if (metadataEnd < 0) return `${block}\n${line}`
   return `${block.slice(0, metadataEnd)}${line}\n${block.slice(metadataEnd)}`
