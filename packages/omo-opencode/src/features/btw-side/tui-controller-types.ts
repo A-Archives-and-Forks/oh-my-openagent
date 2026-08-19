@@ -1,4 +1,5 @@
 export type BtwPromptRef = {
+  readonly hasAttachments: boolean
   readonly input: string
   set: (input: string) => void
   submit: () => void

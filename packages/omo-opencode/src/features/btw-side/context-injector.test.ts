@@ -3,6 +3,8 @@ import { describe, expect, it, mock } from "bun:test"
 import { unsafeTestValue } from "../../../../../test-support/unsafe-test-value"
 import {
   BTW_BOUNDARY_SENTINEL,
+  BTW_PARENT_CONTEXT_MAX_BYTES,
+  BTW_PARENT_CONTEXT_MAX_MESSAGES,
   createBtwSideContextInjectorHook,
 } from "./context-injector"
 import {
@@ -413,5 +415,57 @@ describe("createBtwSideContextInjectorHook", () => {
     // then
     expect(output.messages).toEqual(sideMessages)
     expect(output.messages[0].parts[0].text).toBe("answer without inherited context")
+  })
+
+  it("#given an oversized parent prefix #when a side request transforms #then inherited context stays within byte and message budgets", async () => {
+    // given
+    const sideSessionID = "ses_side"
+    const parentSessionID = "ses_parent"
+    const parentMessages = Array.from({ length: 100 }, (_, index) =>
+      createMessage({
+        id: `msg_parent_${index}`,
+        sessionID: parentSessionID,
+        role: index % 2 === 0 ? "user" : "assistant",
+        text: `${index}:${"x".repeat(4096)}`,
+      }),
+    )
+    const boundaryMessageID = "msg_parent_99"
+    const client = createClient({
+      sideSessionID,
+      parentSessionID,
+      boundaryMessageID,
+      parentMessages,
+    })
+    const hook = createBtwSideContextInjectorHook({
+      client: unsafeTestValue(client),
+    })
+    const output = unsafeTestValue({
+      messages: [
+        createMessage({
+          id: "msg_side_1",
+          sessionID: sideSessionID,
+          role: "user",
+          text: "use bounded context",
+        }),
+      ],
+    })
+
+    // when
+    await hook["experimental.chat.messages.transform"]!({}, output)
+
+    // then
+    const inherited = output.messages.filter(
+      (message: TestMessage) => message.info.sessionID === parentSessionID,
+    )
+    const inheritedBytes = new TextEncoder().encode(
+      JSON.stringify(inherited),
+    ).byteLength
+    expect(inherited.length).toBeLessThanOrEqual(
+      BTW_PARENT_CONTEXT_MAX_MESSAGES,
+    )
+    expect(inheritedBytes).toBeLessThanOrEqual(
+      BTW_PARENT_CONTEXT_MAX_BYTES,
+    )
+    expect(inherited.at(-1)?.info.id).toBe(boundaryMessageID)
   })
 })

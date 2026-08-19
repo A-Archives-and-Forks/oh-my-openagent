@@ -17,12 +17,14 @@ function createDeferred<T>() {
   return { promise, resolve, reject }
 }
 
-function createPromptRef(input: string): BtwPromptRef & {
+function createPromptRef(input: string, hasAttachments = false): BtwPromptRef & {
+  readonly hasAttachments: boolean
   readonly submitted: () => number
 } {
   let currentInput = input
   let submitCount = 0
   return {
+    hasAttachments,
     get input() {
       return currentInput
     },
@@ -147,6 +149,23 @@ describe("createBtwSideController", () => {
     expect(sidePrompt.input).toBe("what changed?")
     expect(sidePrompt.submitted()).toBe(1)
     expect(harness.navigations).toEqual(["ses_side"])
+  })
+
+  it("#given an attachment-bearing BTW draft #when start runs #then the complete parent draft is preserved and rejected", async () => {
+    // given
+    const harness = createHarness()
+    const parentPrompt = createPromptRef("/btw describe this image", true)
+
+    // when
+    await harness.controller.startFromPrompt(parentPrompt)
+
+    // then
+    expect(harness.createSession).not.toHaveBeenCalled()
+    expect(parentPrompt.input).toBe("/btw describe this image")
+    expect(harness.navigations).toEqual([])
+    expect(harness.toasts).toContain(
+      "BTW supports text-only drafts. Remove attachments before starting BTW.",
+    )
   })
 
   it("#given side creation is pending #when BTW starts twice #then only one temporary session is created", async () => {

@@ -24,8 +24,9 @@ question after the side view appears.
 1. OMO records a stable message boundary in the current conversation.
 2. The TUI creates a visually empty temporary session with the same model and
    agent.
-3. The model receives the main conversation through that boundary as read-only
-   background. The inherited messages are not written into the side transcript.
+3. The model receives the most recent main-conversation context through that
+   boundary as read-only background, capped at 64 messages and 64 KiB. The
+   inherited messages are not written into the side transcript.
 4. The main conversation keeps running independently.
 5. Closing BTW aborts any active side turn and deletes the temporary session.
 
@@ -57,6 +58,8 @@ The prompt status area reports these states:
 ## Boundaries
 
 - BTW is available after the current session has at least one stable message.
+- BTW drafts are text-only. If the composer has an attachment, remove it before
+  starting BTW; the parent draft and attachment remain untouched.
 - Only one BTW conversation can be open at a time.
 - A BTW conversation cannot open another BTW conversation.
 - File and external-state changes are discouraged unless the side request asks

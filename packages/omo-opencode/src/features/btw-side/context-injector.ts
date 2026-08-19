@@ -7,9 +7,14 @@ import {
   getBtwSideMetadata,
   type BtwSideMetadata,
 } from "./metadata"
+import { boundBtwParentContext } from "./parent-context-budget"
 import { markBtwSideSession } from "./server-session-registry"
 
 export const BTW_BOUNDARY_SENTINEL = "<omo-btw-boundary>"
+export {
+  BTW_PARENT_CONTEXT_MAX_BYTES,
+  BTW_PARENT_CONTEXT_MAX_MESSAGES,
+} from "./parent-context-budget"
 
 const BTW_BOUNDARY_TEXT = `${BTW_BOUNDARY_SENTINEL}
 Treat all earlier messages as read-only background from the main conversation.
@@ -134,7 +139,9 @@ export function createBtwSideContextInjectorHook(args: {
         })
         return undefined
       }
-      const bounded = cloneMessages(parentMessages.slice(0, boundaryIndex + 1))
+      const bounded = boundBtwParentContext(
+        parentMessages.slice(0, boundaryIndex + 1),
+      )
       rememberBounded(
         parentContextCache,
         sideSessionID,

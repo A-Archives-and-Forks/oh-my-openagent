@@ -117,6 +117,35 @@ Pending creation navigation re-review:
   OpenCode package typecheck and pinned Bun 1.3.12 build:
   pass
 
+  Final nine-file affected-domain gate:
+  69 pass, 0 fail
+
+  Final repository typecheck:
+  pass
+
+Context-budget and attachment re-review:
+
+  Failing-first results:
+  missing context-budget exports; attachment-bearing draft created a side
+
+  Context injector, controller, and wiring regressions:
+  25 pass, 0 fail
+
+  Production context-budget driver:
+
+    {"messages":15,"bytes":64226,"maxBytes":65536,"boundary":"msg_99"}
+
+  Production attachment driver:
+
+    {"hasAttachments":true,"prepared":false,"input":"/btw describe image","parts":1,"toasts":["BTW supports text-only drafts. Remove attachments before starting BTW."]}
+
+  This proves inherited context preserves the stable boundary inside explicit
+  64-message and 64-KiB budgets. Attachment-bearing drafts are rejected without
+  clearing text or attachments from the parent composer.
+
+  OpenCode package typecheck and pinned Bun 1.3.12 build:
+  pass
+
 Orphaned side nesting re-review:
 
   Failing-first cache result:

@@ -37,6 +37,12 @@ export function prepareBtwSideStart(
     dependencies.showToast("BTW is unavailable before the session starts.")
     return undefined
   }
+  if (promptRef.hasAttachments) {
+    dependencies.showToast(
+      "BTW supports text-only drafts. Remove attachments before starting BTW.",
+    )
+    return undefined
+  }
 
   const originalDraft = promptRef.input
   const parsed = parseBtwQuestion(originalDraft)

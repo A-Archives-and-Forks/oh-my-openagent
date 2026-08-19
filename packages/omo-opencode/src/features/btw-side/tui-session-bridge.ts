@@ -33,6 +33,9 @@ export function currentTuiSessionID(api: TuiPluginApi): string | undefined {
 
 export function adaptTuiPromptRef(promptRef: TuiPromptRef): BtwPromptRef {
   return {
+    get hasAttachments() {
+      return promptRef.current.parts.length > 0
+    },
     get input() {
       return promptRef.current.input
     },
