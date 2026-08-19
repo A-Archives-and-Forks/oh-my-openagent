@@ -7,6 +7,7 @@ import type {
 
 import { log } from "../../shared/logger"
 import { getBtwSideMetadata } from "./metadata"
+import { createBtwAdoptionGuard } from "./tui-adoption-guard"
 import {
   createBtwSideController,
 } from "./tui-controller"
@@ -48,6 +49,9 @@ export async function registerBtwSideTui<Node>(
   const controller = createBtwSideController(
     createBtwControllerDependencies(api),
   )
+  const adoptionGuard = createBtwAdoptionGuard(() =>
+    currentTuiSessionID(api),
+  )
 
   function adoptSideSession(sessionID: string): Promise<void> | undefined {
     if (controller.state().phase !== "closed") return
@@ -70,6 +74,7 @@ export async function registerBtwSideTui<Node>(
               "Unable to read BTW session metadata",
             )
         const metadata = getBtwSideMetadata(session)
+        if (!adoptionGuard.canApply(sessionID)) return
         hydratedSessions.add(sessionID)
         if (!metadata) return
         controller.adopt(metadata.parent_session_id, sessionID)
@@ -79,7 +84,9 @@ export async function registerBtwSideTui<Node>(
           parentSessionID: metadata.parent_session_id,
         })
       } catch (error) {
-        adoptionFailures.add(sessionID)
+        if (adoptionGuard.canApply(sessionID)) {
+          adoptionFailures.add(sessionID)
+        }
         log("[btw-side] Failed to adopt side session", {
           sessionID,
           error,
@@ -229,10 +236,12 @@ export async function registerBtwSideTui<Node>(
   })
 
   const unsubscribeDeleted = api.event.on("session.deleted", (event) => {
+    adoptionGuard.markDeleted(event.properties.info.id)
     controller.handleSessionDeleted(event.properties.info.id)
   })
 
   api.lifecycle.onDispose(async () => {
+    adoptionGuard.dispose()
     unregisterSlashCommand()
     for (const unregister of unregisterKeymap) unregister()
     unsubscribeDeleted()

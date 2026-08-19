@@ -117,8 +117,32 @@ Pending creation navigation re-review:
   OpenCode package typecheck and pinned Bun 1.3.12 build:
   pass
 
+  Final eight-file affected-domain gate:
+  63 pass, 0 fail
+
+  Final repository typecheck:
+  pass
+
   Final seven-file affected-domain gate:
   62 pass, 0 fail
 
   Final repository typecheck:
+  pass
+
+Delayed adoption re-review:
+
+  Failing-first guard result:
+  missing `tui-adoption-guard` module
+
+  Guard and TUI wiring regressions:
+  2 pass, 0 fail
+
+  Production guard driver:
+
+    {"initial":true,"afterNavigation":false,"afterDeletion":false,"afterDispose":false}
+
+  This proves that delayed metadata can only adopt the still-current session
+  and is discarded after navigation, deletion, or TUI disposal.
+
+  OpenCode package typecheck and pinned Bun 1.3.12 build:
   pass
