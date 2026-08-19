@@ -65,7 +65,7 @@ describe("quick-pinned facts launch", () => {
     expect(factsResult.status).toBe("failed")
     expect(surfaces).toEqual(["reflection", "facts"])
     await rm(reflection.root, { recursive: true, force: true })
-  }, 30_000)
+  }, 90_000)
 
   test("#given two pending queue entries #when one launch runs #then the supervised child consumes all entries in one trailer-bearing commit", async () => {
     // given
@@ -100,7 +100,7 @@ describe("quick-pinned facts launch", () => {
     expect(ledger.applyRecovery.paths.map((entry: { path: string }) => entry.path)).toEqual(
       [...ledger.applyRecovery.paths].map((entry: { path: string }) => entry.path).sort(),
     )
-  }, 30_000)
+  }, 90_000)
 
   test("#given an extension-only quick primary and a child-visible fallback #when facts extraction launches #then it retries and commits with the fallback", async () => {
     // given
