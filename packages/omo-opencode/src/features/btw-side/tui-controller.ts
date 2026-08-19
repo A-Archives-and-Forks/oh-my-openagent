@@ -10,6 +10,8 @@ import {
 import { createBtwPromptQueue } from "./tui-prompt-queue"
 import { prepareBtwSideStart } from "./tui-side-start"
 
+const MAX_DELETED_SESSION_TOMBSTONES = 512
+
 export function createBtwSideController(
   dependencies: BtwSideControllerDependencies,
 ) {
@@ -19,7 +21,21 @@ export function createBtwSideController(
   let skipClosingParentNavigation = false
   const activeCreationOperations = new Set<Promise<void>>()
   const closedWaiters = new Set<() => void>()
+  const deletedSessionIDs = new Set<string>()
   const promptQueue = createBtwPromptQueue()
+
+  function rememberDeletedSession(sessionID: string): void {
+    if (
+      !deletedSessionIDs.has(sessionID) &&
+      deletedSessionIDs.size >= MAX_DELETED_SESSION_TOMBSTONES
+    ) {
+      const oldestSessionID = deletedSessionIDs.values().next().value
+      if (oldestSessionID !== undefined) {
+        deletedSessionIDs.delete(oldestSessionID)
+      }
+    }
+    deletedSessionIDs.add(sessionID)
+  }
 
   function setState(nextState: BtwSideState): void {
     currentState = nextState
@@ -88,6 +104,13 @@ export function createBtwSideController(
 
     try {
       const sideSession = await dependencies.createSession(prepared.createInput)
+      if (deletedSessionIDs.delete(sideSession.id)) {
+        if (!disposed) restoreDraftIfUnchanged()
+        if (isCreatingGeneration(creatingGeneration)) {
+          setState({ phase: "closed" })
+        }
+        return
+      }
       if (disposed || !isCreatingGeneration(creatingGeneration)) {
         if (disposed) {
           setState({ phase: "closed" })
@@ -233,6 +256,7 @@ export function createBtwSideController(
   }
 
   function handleSessionDeleted(sessionID: string): void {
+    rememberDeletedSession(sessionID)
     if (currentState.phase === "creating") {
       if (sessionID === currentState.parentSessionID) {
         setState({ phase: "closed" })

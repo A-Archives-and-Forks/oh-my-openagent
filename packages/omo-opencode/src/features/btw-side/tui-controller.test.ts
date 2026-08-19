@@ -354,6 +354,30 @@ describe("createBtwSideController", () => {
     )
   })
 
+  it("#given a pending side is deleted before create resolves #when the response arrives #then the deleted route never opens", async () => {
+    // given
+    const created = createDeferred<{ id: string; title: string }>()
+    const harness = createHarness({
+      createSession: () => created.promise,
+    })
+    const prompt = createPromptRef("/btw deleted remotely")
+    const start = harness.controller.startFromPrompt(prompt)
+    harness.controller.handleSessionDeleted("ses_side")
+
+    // when
+    created.resolve({
+      id: "ses_side",
+      title: "BTW",
+    })
+    await start
+
+    // then
+    expect(harness.controller.state()).toEqual({ phase: "closed" })
+    expect(harness.navigations).toEqual([])
+    expect(harness.deleted).toEqual([])
+    expect(prompt.input).toBe("/btw deleted remotely")
+  })
+
   it("#given an active side #when toggle runs twice #then it switches parent and side without creating another session", async () => {
     // given
     const harness = createHarness()
