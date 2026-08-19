@@ -207,14 +207,24 @@ describe("createBtwSideController", () => {
     )
 
     // when
-    await harness.controller.dispose()
+    let disposed = false
+    const disposal = harness.controller.dispose().then(() => {
+      disposed = true
+    })
+    await Promise.resolve()
+
+    // then
+    expect(disposed).toBe(false)
+
+    // when
     created.resolve({
       id: "ses_side",
       title: "BTW · Implement BTW",
     })
-    await start
+    await Promise.all([start, disposal])
 
     // then
+    expect(disposed).toBe(true)
     expect(harness.deleted).toEqual(["ses_side"])
     expect(harness.navigations).toEqual([])
     expect(harness.controller.state()).toEqual({ phase: "closed" })

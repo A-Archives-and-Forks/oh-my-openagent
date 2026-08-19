@@ -17,6 +17,7 @@ export function createBtwSideController(
   let stateGeneration = 0
   let disposed = false
   let skipClosingParentNavigation = false
+  let activeCreationFinished: Promise<void> | undefined
   const closedWaiters = new Set<() => void>()
   const promptQueue = createBtwPromptQueue()
 
@@ -74,6 +75,11 @@ export function createBtwSideController(
       parentSessionID: prepared.parentSessionID,
     })
     const creatingGeneration = stateGeneration
+    let resolveCreationFinished!: () => void
+    const creationFinished = new Promise<void>((resolve) => {
+      resolveCreationFinished = resolve
+    })
+    activeCreationFinished = creationFinished
 
     try {
       const sideSession = await dependencies.createSession(prepared.createInput)
@@ -112,6 +118,11 @@ export function createBtwSideController(
       if (prepared.consumeDraft) promptRef.set(prepared.originalDraft)
       setState({ phase: "closed" })
       dependencies.showToast("Unable to start BTW.")
+    } finally {
+      if (activeCreationFinished === creationFinished) {
+        activeCreationFinished = undefined
+      }
+      resolveCreationFinished()
     }
   }
 
@@ -294,7 +305,9 @@ export function createBtwSideController(
     dispose: async (): Promise<void> => {
       disposed = true
       if (currentState.phase === "creating") {
+        const creationFinished = activeCreationFinished
         setState({ phase: "closed" })
+        if (creationFinished) await creationFinished
         return
       }
       if (currentState.phase === "closing") {

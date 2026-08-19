@@ -123,6 +123,24 @@ Pending creation navigation re-review:
   Final repository typecheck:
   pass
 
+Disposal-during-create re-review:
+
+  Failing-first controller result:
+  19 pass, 1 fail
+
+  Controller and wiring regressions:
+  21 pass, 0 fail
+
+  Production controller driver:
+
+    {"before":{"disposalComplete":false,"deleted":[]},"after":{"disposalComplete":true,"deleted":["ses_side"]}}
+
+  This proves normal TUI disposal waits for pending side creation and the
+  late-created session's deletion before lifecycle shutdown completes.
+
+  OpenCode package typecheck and pinned Bun 1.3.12 build:
+  pass
+
   Final pinned Bun 1.3.12 twelve-file affected-domain gate:
   93 pass, 0 fail
 
