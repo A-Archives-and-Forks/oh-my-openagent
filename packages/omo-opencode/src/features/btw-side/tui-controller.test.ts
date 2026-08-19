@@ -1,0 +1,340 @@
+import { describe, expect, it, mock } from "bun:test"
+
+import { BTW_SIDE_METADATA_KEY } from "./metadata"
+import { createBtwSideController } from "./tui-controller"
+import type {
+  BtwPromptRef,
+  BtwSideControllerDependencies,
+} from "./tui-controller-types"
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (error: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
+function createPromptRef(input: string): BtwPromptRef & {
+  readonly submitted: () => number
+} {
+  let currentInput = input
+  let submitCount = 0
+  return {
+    get input() {
+      return currentInput
+    },
+    set(nextInput) {
+      currentInput = nextInput
+    },
+    submit() {
+      submitCount += 1
+    },
+    submitted: () => submitCount,
+  }
+}
+
+function createHarness(overrides?: Partial<BtwSideControllerDependencies>) {
+  let currentSessionID = "ses_parent"
+  const navigations: string[] = []
+  const deleted: string[] = []
+  const aborted: string[] = []
+  const toasts: string[] = []
+  const parentSession = {
+    id: "ses_parent",
+    title: "Implement BTW",
+    agent: "sisyphus",
+    model: {
+      providerID: "openai",
+      id: "gpt-5.4",
+    },
+  }
+  const parentMessages = [
+    {
+      info: {
+        id: "msg_parent_user",
+        role: "user" as const,
+      },
+    },
+    {
+      info: {
+        id: "msg_parent_done",
+        role: "assistant" as const,
+        time: {
+          completed: 2,
+        },
+      },
+    },
+    {
+      info: {
+        id: "msg_parent_partial",
+        role: "assistant" as const,
+        time: {},
+      },
+    },
+  ]
+  const createSession = mock(async () => ({
+    id: "ses_side",
+    title: "BTW · Implement BTW",
+  }))
+  const dependencies: BtwSideControllerDependencies = {
+    getCurrentSessionID: () => currentSessionID,
+    getSession: (sessionID) =>
+      sessionID === parentSession.id ? parentSession : undefined,
+    getMessages: (sessionID) =>
+      sessionID === parentSession.id ? parentMessages : [],
+    createSession,
+    navigateSession: (sessionID) => {
+      currentSessionID = sessionID
+      navigations.push(sessionID)
+    },
+    abortSession: async (sessionID) => {
+      aborted.push(sessionID)
+    },
+    deleteSession: async (sessionID) => {
+      deleted.push(sessionID)
+    },
+    showToast: (message) => {
+      toasts.push(message)
+    },
+    requestRender: () => undefined,
+    ...overrides,
+  }
+  const controller = createBtwSideController(dependencies)
+  return {
+    controller,
+    createSession,
+    navigations,
+    deleted,
+    aborted,
+    toasts,
+    currentSessionID: () => currentSessionID,
+  }
+}
+
+describe("createBtwSideController", () => {
+  it("#given an inline BTW draft #when the side prompt mounts #then only the empty temporary side receives the question", async () => {
+    // given
+    const harness = createHarness()
+    const parentPrompt = createPromptRef("/btw what changed?")
+    const sidePrompt = createPromptRef("")
+
+    // when
+    await harness.controller.startFromPrompt(parentPrompt)
+    harness.controller.attachPromptRef("ses_side", sidePrompt)
+
+    // then
+    expect(harness.createSession).toHaveBeenCalledTimes(1)
+    expect(harness.createSession.mock.calls[0]?.[0]).toMatchObject({
+      title: "BTW · Implement BTW",
+      agent: "sisyphus",
+      model: {
+        providerID: "openai",
+        id: "gpt-5.4",
+      },
+      metadata: {
+        [BTW_SIDE_METADATA_KEY]: {
+          version: 1,
+          parent_session_id: "ses_parent",
+          boundary_message_id: "msg_parent_done",
+        },
+      },
+    })
+    expect(parentPrompt.input).toBe("")
+    expect(parentPrompt.submitted()).toBe(0)
+    expect(sidePrompt.input).toBe("what changed?")
+    expect(sidePrompt.submitted()).toBe(1)
+    expect(harness.navigations).toEqual(["ses_side"])
+  })
+
+  it("#given side creation is pending #when BTW starts twice #then only one temporary session is created", async () => {
+    // given
+    const created = createDeferred<{
+      id: string
+      title: string
+    }>()
+    const createSession = mock(() => created.promise)
+    const harness = createHarness({ createSession })
+    const firstPrompt = createPromptRef("/btw first")
+    const secondPrompt = createPromptRef("/btw second")
+
+    // when
+    const firstStart = harness.controller.startFromPrompt(firstPrompt)
+    const secondStart = harness.controller.startFromPrompt(secondPrompt)
+    created.resolve({
+      id: "ses_side",
+      title: "BTW · Implement BTW",
+    })
+    await Promise.all([firstStart, secondStart])
+
+    // then
+    expect(createSession).toHaveBeenCalledTimes(1)
+    expect(secondPrompt.input).toBe("/btw second")
+    expect(harness.toasts).toContain("BTW is already starting.")
+  })
+
+  it("#given side creation is pending #when the TUI disposes #then the late session is deleted without navigation", async () => {
+    // given
+    const created = createDeferred<{
+      id: string
+      title: string
+    }>()
+    const createSession = mock(() => created.promise)
+    const harness = createHarness({ createSession })
+    const start = harness.controller.startFromPrompt(
+      createPromptRef("/btw cancelled"),
+    )
+
+    // when
+    await harness.controller.dispose()
+    created.resolve({
+      id: "ses_side",
+      title: "BTW · Implement BTW",
+    })
+    await start
+
+    // then
+    expect(harness.deleted).toEqual(["ses_side"])
+    expect(harness.navigations).toEqual([])
+    expect(harness.controller.state()).toEqual({ phase: "closed" })
+  })
+
+  it("#given an active side #when toggle runs twice #then it switches parent and side without creating another session", async () => {
+    // given
+    const harness = createHarness()
+    await harness.controller.startFromPrompt(createPromptRef("/btw"))
+    expect(harness.currentSessionID()).toBe("ses_side")
+
+    // when
+    harness.controller.toggle()
+    harness.controller.toggle()
+
+    // then
+    expect(harness.navigations).toEqual([
+      "ses_side",
+      "ses_parent",
+      "ses_side",
+    ])
+    expect(harness.createSession).toHaveBeenCalledTimes(1)
+  })
+
+  it("#given an active side #when close runs #then it returns to the parent and deletes the side", async () => {
+    // given
+    const harness = createHarness()
+    await harness.controller.startFromPrompt(createPromptRef("/btw"))
+
+    // when
+    await harness.controller.close()
+
+    // then
+    expect(harness.aborted).toEqual(["ses_side"])
+    expect(harness.navigations).toEqual(["ses_side", "ses_parent"])
+    expect(harness.deleted).toEqual(["ses_side"])
+    expect(harness.controller.state()).toEqual({ phase: "closed" })
+  })
+
+  it("#given an active side #when navigation leaves both related sessions #then the side is discarded", async () => {
+    // given
+    const harness = createHarness()
+    await harness.controller.startFromPrompt(createPromptRef("/btw"))
+
+    // when
+    await harness.controller.handleNavigation("ses_unrelated")
+
+    // then
+    expect(harness.deleted).toEqual(["ses_side"])
+    expect(harness.controller.state()).toEqual({ phase: "closed" })
+  })
+
+  it("#given an active side is deleted externally #when the event arrives #then the parent route is restored", async () => {
+    // given
+    const harness = createHarness()
+    await harness.controller.startFromPrompt(createPromptRef("/btw"))
+
+    // when
+    harness.controller.handleSessionDeleted("ses_side")
+
+    // then
+    expect(harness.navigations).toEqual(["ses_side", "ses_parent"])
+    expect(harness.controller.state()).toEqual({ phase: "closed" })
+  })
+
+  it("#given close races an external delete #when local deletion reports failure #then closed state is not resurrected", async () => {
+    // given
+    const deleteStarted = createDeferred<void>()
+    const deletion = createDeferred<void>()
+    const harness = createHarness({
+      deleteSession: async () => {
+        deleteStarted.resolve()
+        return deletion.promise
+      },
+    })
+    await harness.controller.startFromPrompt(createPromptRef("/btw"))
+
+    // when
+    const close = harness.controller.close()
+    await deleteStarted.promise
+    harness.controller.handleSessionDeleted("ses_side")
+    deletion.reject(new Error("already deleted"))
+    await close
+
+    // then
+    expect(harness.controller.state()).toEqual({ phase: "closed" })
+    expect(harness.toasts).not.toContain("Unable to close BTW.")
+  })
+
+  it("#given side deletion fails #when close runs #then the parent remains usable and the orphan is disclosed", async () => {
+    // given
+    const harness = createHarness({
+      deleteSession: async () => {
+        throw new Error("delete failed")
+      },
+    })
+    await harness.controller.startFromPrompt(createPromptRef("/btw"))
+
+    // when
+    await harness.controller.close()
+
+    // then
+    expect(harness.navigations).toEqual(["ses_side", "ses_parent"])
+    expect(harness.controller.state()).toEqual({ phase: "closed" })
+    expect(harness.toasts).toContain(
+      "Unable to delete BTW. Delete the abandoned side session manually.",
+    )
+  })
+
+  it("#given an adopted side #when the second TUI disposes #then it leaves the owned session intact", async () => {
+    // given
+    const harness = createHarness()
+    harness.controller.adopt("ses_parent", "ses_side")
+
+    // when
+    await harness.controller.dispose()
+
+    // then
+    expect(harness.deleted).toEqual([])
+    expect(harness.aborted).toEqual([])
+    expect(harness.controller.state()).toEqual({ phase: "closed" })
+  })
+
+  it("#given side creation fails #when BTW starts #then the original parent draft is restored", async () => {
+    // given
+    const harness = createHarness({
+      createSession: async () => {
+        throw new Error("create failed")
+      },
+    })
+    const parentPrompt = createPromptRef("/btw keep this question")
+
+    // when
+    await harness.controller.startFromPrompt(parentPrompt)
+
+    // then
+    expect(parentPrompt.input).toBe("/btw keep this question")
+    expect(harness.navigations).toEqual([])
+    expect(harness.controller.state()).toEqual({ phase: "closed" })
+    expect(harness.toasts).toContain("Unable to start BTW.")
+  })
+})

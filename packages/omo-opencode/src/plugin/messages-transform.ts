@@ -30,6 +30,7 @@ type MessageWithParts = {
 
 type MessagesTransformOutput = { messages: MessageWithParts[] }
 type MessagesTransformHooks = {
+  btwSideContextInjector?: CreatedHooks["btwSideContextInjector"]
   contextInjectorMessagesTransform?: CreatedHooks["contextInjectorMessagesTransform"]
   teamModeStatusInjector?: CreatedHooks["teamModeStatusInjector"]
   teamMailboxInjector?: CreatedHooks["teamMailboxInjector"]
@@ -49,6 +50,7 @@ type ModelIdentifier = {
 }
 
 const MESSAGES_TRANSFORM_HOOKS = [
+  { key: "btwSideContextInjector", name: "btwSideContextInjector" },
   { key: "contextInjectorMessagesTransform", name: "contextInjectorMessagesTransform" },
   { key: "teamModeStatusInjector", name: "teamModeStatusInjector" },
   { key: "teamMailboxInjector", name: "teamMailboxInjector" },
