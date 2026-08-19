@@ -13,28 +13,40 @@ function createDeferred<T>() {
 describe("createBtwParentValidator", () => {
   it("#given a persisted side #when its parent is remote or deleted during lookup #then only an existing parent validates", async () => {
     // given
-    const remoteResults = [false, true]
-    const fetchExists = mock(async () => remoteResults.shift() ?? false)
+    const remoteResults: Array<"retry" | "exists"> = [
+      "retry",
+      "exists",
+    ]
+    const fetchStatus = mock(async () => remoteResults.shift() ?? "missing")
     const validator = createBtwParentValidator({
       localExists: () => false,
-      fetchExists,
+      fetchStatus,
     })
 
     // then
-    expect(await validator.exists("ses_parent")).toBe(false)
     expect(await validator.exists("ses_parent")).toBe(true)
+    expect(fetchStatus).toHaveBeenCalledTimes(2)
 
     // given
-    const deferred = createDeferred<boolean>()
+    const missingValidator = createBtwParentValidator({
+      localExists: () => false,
+      fetchStatus: async () => "missing",
+    })
+
+    // then
+    expect(await missingValidator.exists("ses_missing")).toBe(false)
+
+    // given
+    const deferred = createDeferred<"exists">()
     const racingValidator = createBtwParentValidator({
       localExists: () => false,
-      fetchExists: () => deferred.promise,
+      fetchStatus: () => deferred.promise,
     })
     const validation = racingValidator.exists("ses_deleted_parent")
 
     // when
     racingValidator.markDeleted("ses_deleted_parent")
-    deferred.resolve(true)
+    deferred.resolve("exists")
 
     // then
     expect(await validation).toBe(false)

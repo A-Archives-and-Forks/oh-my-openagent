@@ -348,6 +348,8 @@ describe("createBtwSideContextInjectorHook", () => {
     })
     await hook["experimental.chat.messages.transform"]!({}, firstOutput)
     expect(isTrackedBtwSideSession(sideSessionID)).toBe(true)
+    expect(firstOutput.messages[0].info.id).toBe("msg_parent_1")
+    expect(metadataAttempts).toBe(2)
 
     // when
     await hook["experimental.chat.messages.transform"]!({}, secondOutput)
@@ -359,7 +361,7 @@ describe("createBtwSideContextInjectorHook", () => {
     expect(isTrackedBtwSideSession(sideSessionID)).toBe(true)
   })
 
-  it("#given a transient normal-session metadata error #when retry confirms no BTW metadata #then provisional restrictions are cleared", async () => {
+  it("#given a transient normal-session metadata error #when immediate retry confirms no BTW metadata #then the turn remains unrestricted", async () => {
     // given
     const sessionID = "ses_normal"
     let attempts = 0
@@ -391,12 +393,43 @@ describe("createBtwSideContextInjectorHook", () => {
     await hook["experimental.chat.messages.transform"]!({}, output())
 
     // then
-    expect(isTrackedBtwSideSession(sessionID)).toBe(true)
+    expect(isTrackedBtwSideSession(sessionID)).toBe(false)
+    expect(attempts).toBe(2)
+  })
+
+  it("#given persistent metadata errors #when a request cannot be classified #then the turn is rejected before tools or idle", async () => {
+    // given
+    const sessionID = "ses_unclassified"
+    const hook = createBtwSideContextInjectorHook({
+      client: unsafeTestValue({
+        session: {
+          get: async () => ({
+            error: {
+              name: "TemporaryError",
+            },
+          }),
+        },
+      }),
+    })
+    const output = unsafeTestValue({
+      messages: [
+        createMessage({
+          id: "msg_unclassified",
+          sessionID,
+          role: "user",
+          text: "do not run unclassified",
+        }),
+      ],
+    })
 
     // when
-    await hook["experimental.chat.messages.transform"]!({}, output())
+    const transform =
+      hook["experimental.chat.messages.transform"]!({}, output)
 
     // then
+    await expect(transform).rejects.toThrow(
+      "Unable to classify session for BTW isolation.",
+    )
     expect(isTrackedBtwSideSession(sessionID)).toBe(false)
   })
 

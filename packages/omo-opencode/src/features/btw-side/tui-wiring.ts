@@ -57,19 +57,20 @@ export async function registerBtwSideTui<Node>(
   const parentValidator = createBtwParentValidator({
     localExists: (sessionID) =>
       api.state.session.get(sessionID) !== undefined,
-    fetchExists: async (sessionID) => {
+    fetchStatus: async (sessionID) => {
       try {
         const response = await api.client.session.get({
           sessionID,
           directory: api.state.path.directory,
         })
-        return response.error === undefined && response.data !== undefined
+        if (response.error !== undefined) return "retry"
+        return response.data !== undefined ? "exists" : "missing"
       } catch (error) {
         log("[btw-side] Failed to validate parent session", {
           sessionID,
           error,
         })
-        return false
+        return "retry"
       }
     },
   })

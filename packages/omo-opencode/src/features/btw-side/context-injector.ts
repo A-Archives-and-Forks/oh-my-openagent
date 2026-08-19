@@ -8,17 +8,15 @@ import {
   type BtwSideMetadata,
 } from "./metadata"
 import { boundBtwParentContext } from "./parent-context-budget"
-import {
-  clearBtwProvisionalRestriction,
-  markBtwSessionProvisionallyRestricted,
-  markBtwSideSession,
-} from "./server-session-registry"
+import { markBtwSideSession } from "./server-session-registry"
 
 export const BTW_BOUNDARY_SENTINEL = "<omo-btw-boundary>"
 export {
   BTW_PARENT_CONTEXT_MAX_BYTES,
   BTW_PARENT_CONTEXT_MAX_MESSAGES,
 } from "./parent-context-budget"
+
+const MAX_METADATA_LOOKUP_ATTEMPTS = 2
 
 const BTW_BOUNDARY_TEXT = `${BTW_BOUNDARY_SENTINEL}
 Treat all earlier messages as read-only background from the main conversation.
@@ -88,41 +86,47 @@ export function createBtwSideContextInjectorHook(args: {
     const cached = metadataCache.get(sessionID)
     if (cached !== undefined) return cached ?? undefined
 
-    try {
-      const response = await args.client.session.get({
-        path: { id: sessionID },
-      })
-      if (isRecord(response) && response["error"] !== undefined) {
-        throw new Error("Unable to read BTW session metadata", {
-          cause: response["error"],
+    let lastError: unknown
+    for (
+      let attempt = 1;
+      attempt <= MAX_METADATA_LOOKUP_ATTEMPTS;
+      attempt += 1
+    ) {
+      try {
+        const response = await args.client.session.get({
+          path: { id: sessionID },
+        })
+        if (isRecord(response) && response["error"] !== undefined) {
+          throw new Error("Unable to read BTW session metadata", {
+            cause: response["error"],
+          })
+        }
+        const session = normalizeSDKResponse<SessionWithMetadata | undefined>(
+          response,
+          undefined,
+          { preferResponseOnMissingData: true },
+        )
+        const metadata = getBtwSideMetadata(session)
+        if (metadata) markBtwSideSession(sessionID)
+        rememberBounded(
+          metadataCache,
+          sessionID,
+          metadata ?? null,
+          MAX_METADATA_CACHE_ENTRIES,
+        )
+        return metadata
+      } catch (error) {
+        lastError = error
+        log("[btw-side] Failed to read side session metadata", {
+          sessionID,
+          attempt,
+          error,
         })
       }
-      const session = normalizeSDKResponse<SessionWithMetadata | undefined>(
-        response,
-        undefined,
-        { preferResponseOnMissingData: true },
-      )
-      const metadata = getBtwSideMetadata(session)
-      if (metadata) {
-        markBtwSideSession(sessionID)
-      } else {
-        clearBtwProvisionalRestriction(sessionID)
-      }
-      rememberBounded(
-        metadataCache,
-        sessionID,
-        metadata ?? null,
-        MAX_METADATA_CACHE_ENTRIES,
-      )
-      return metadata
-    } catch (error) {
-      markBtwSessionProvisionallyRestricted(sessionID)
-      log("[btw-side] Failed to read side session metadata", {
-        sessionID,
-        error,
-      })
-      return undefined
     }
+    throw new Error("Unable to classify session for BTW isolation.", {
+      cause: lastError,
+    })
   }
 
   async function loadParentContext(
