@@ -117,6 +117,31 @@ Pending creation navigation re-review:
   OpenCode package typecheck and pinned Bun 1.3.12 build:
   pass
 
+  Final pinned Bun 1.3.12 eleven-file affected-domain gate:
+  91 pass, 0 fail
+
+  Final repository typecheck:
+  pass
+
+Fatal classification propagation and CI fix:
+
+  Failing-first pinned Bun 1.3.12 result:
+  29 pass, 1 fail
+
+  Corrected pinned Bun context/transform regressions:
+  30 pass, 0 fail
+
+  Production messages-transform driver:
+
+    {"propagated":"Unable to classify session for BTW isolation."}
+
+  This proves persistent classification failure escapes the per-hook safe
+  runner and stops the request before tools or idle consumers. The Ubuntu CI
+  expectation now reflects immediate retry injecting two messages.
+
+  OpenCode package typecheck and pinned Bun 1.3.12 build:
+  pass
+
   Final eleven-file affected-domain gate:
   90 pass, 0 fail
 

@@ -355,7 +355,7 @@ describe("createBtwSideContextInjectorHook", () => {
     await hook["experimental.chat.messages.transform"]!({}, secondOutput)
 
     // then
-    expect(firstOutput.messages).toHaveLength(1)
+    expect(firstOutput.messages).toHaveLength(2)
     expect(secondOutput.messages[0].info.id).toBe("msg_parent_1")
     expect(metadataAttempts).toBe(2)
     expect(isTrackedBtwSideSession(sideSessionID)).toBe(true)

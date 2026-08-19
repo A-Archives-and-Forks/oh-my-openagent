@@ -42,6 +42,7 @@ type MessagesTransformHookKey = keyof MessagesTransformHooks
 type MessagesTransformHookEntry = {
   readonly key: MessagesTransformHookKey
   readonly name: string
+  readonly fatal?: boolean
 }
 type UserMessageInfo = Extract<Message, { role: "user" }>
 type ModelIdentifier = {
@@ -50,7 +51,11 @@ type ModelIdentifier = {
 }
 
 const MESSAGES_TRANSFORM_HOOKS = [
-  { key: "btwSideContextInjector", name: "btwSideContextInjector" },
+  {
+    key: "btwSideContextInjector",
+    name: "btwSideContextInjector",
+    fatal: true,
+  },
   { key: "contextInjectorMessagesTransform", name: "contextInjectorMessagesTransform" },
   { key: "teamModeStatusInjector", name: "teamModeStatusInjector" },
   { key: "teamMailboxInjector", name: "teamMailboxInjector" },
@@ -243,9 +248,15 @@ export function createMessagesTransformHandler(args: {
 }): (input: Record<string, never>, output: MessagesTransformOutput) => Promise<void> {
   return async (input, output): Promise<void> => {
     for (const hook of MESSAGES_TRANSFORM_HOOKS) {
+      const handler =
+        args.hooks[hook.key]?.["experimental.chat.messages.transform"]
+      if (hook.fatal) {
+        if (handler) await Promise.resolve(handler(input, output))
+        continue
+      }
       await runMessagesTransformHookSafely(
         hook.name,
-        args.hooks[hook.key]?.["experimental.chat.messages.transform"],
+        handler,
         input,
         output,
       )
