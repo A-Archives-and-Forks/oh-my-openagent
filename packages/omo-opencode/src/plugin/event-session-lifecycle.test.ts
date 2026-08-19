@@ -14,6 +14,7 @@ import { resetBtwSideSessionRegistryForTesting } from "../features/btw-side/serv
 import {
   handleSessionCreatedEvent,
   handleSessionDeletedEvent,
+  shouldDispatchOpenClawSessionEvent,
 } from "./event-session-lifecycle"
 
 function createHarness() {
@@ -130,5 +131,34 @@ describe("BTW server session lifecycle", () => {
     expect(getMainSessionID()).toBe("ses_parent")
     expect(harness.onSessionDeleted).not.toHaveBeenCalled()
     expect(harness.disconnectSession).toHaveBeenCalledWith("ses_side")
+  })
+
+  it("#given a tracked BTW root session #when OpenClaw dispatch is considered #then side events are suppressed", async () => {
+    // given
+    const harness = createHarness()
+    await handleSessionCreatedEvent({
+      event: unsafeTestValue({
+        type: "session.created",
+        properties: {
+          info: sideInfo(),
+        },
+      }),
+      props: {
+        info: sideInfo(),
+      },
+      tmuxIntegrationEnabled: false,
+      pluginConfig: unsafeTestValue({}),
+      pluginContext: unsafeTestValue({}),
+      managers: harness.managers,
+      firstMessageVariantGate: harness.gate,
+    })
+
+    // when
+    const sideAllowed = shouldDispatchOpenClawSessionEvent("ses_side")
+    const parentAllowed = shouldDispatchOpenClawSessionEvent("ses_parent")
+
+    // then
+    expect(sideAllowed).toBe(false)
+    expect(parentAllowed).toBe(true)
   })
 })

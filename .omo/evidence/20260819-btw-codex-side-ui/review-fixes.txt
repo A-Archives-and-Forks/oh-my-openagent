@@ -1,0 +1,72 @@
+Surface: Codex review fixes in OpenCode 1.18.18
+
+Failing-first regression:
+
+  create-plugin-module sidebar-disabled test:
+    ENOENT: tui.json did not exist
+
+  event-session-lifecycle test:
+    Export named 'shouldDispatchOpenClawSessionEvent' not found
+
+  Result: 13 pass, 2 fail
+
+After the fixes:
+
+  bun test \
+    packages/omo-opencode/src/testing/create-plugin-module.test.ts \
+    packages/omo-opencode/src/plugin/event-session-lifecycle.test.ts
+
+  Result: 17 pass, 0 fail
+
+  bun run --cwd packages/omo-opencode typecheck
+
+  Result: pass
+
+Final affected-domain gate:
+
+  Seven BTW, lifecycle, startup, transform, and TUI test files:
+  59 pass, 0 fail
+
+  bun run typecheck
+
+  Result: pass
+
+Real sidebar-disabled TUI:
+
+  - OpenCode ran with `tui.sidebar.enabled: false`.
+  - The OMO sidebar was absent.
+  - `/btw` remained the first slash autocomplete result.
+  - `/btw review isolation` opened a clean side session.
+  - The side model returned `SIDE-CONTEXT-PROOF`.
+  - The prompt displayed:
+    `BTW from main · main ready · ctrl+/ switch · ctrl+c close`.
+  - Physical Ctrl+C returned to the parent and deleted the side.
+
+OpenClaw dispatch driver:
+
+  - Marked `ses_side_review` as a BTW side session.
+  - Dispatched `session.idle` for `ses_side_review` and
+    `ses_parent_review` through the production
+    `dispatchOpenClawSessionEvent`.
+  - The localhost probe received exactly one event:
+
+    OPENCLAW_EVENT {"event":"stop","sessionId":"ses_parent_review",...}
+
+  - No event for `ses_side_review` reached the probe.
+
+Isolation and teardown:
+
+  46731 released
+  46732 released
+  46733 released
+  46734 released
+  review_tui_sessions=1
+
+All OpenCode processes used evidence-local XDG data, config, cache, and state
+directories. The shared real DB was read only.
+
+Cubic:
+
+  Cubic completed neutral because the repository reached its monthly review
+  limit (80,038 of 80,000 reviewed lines). The GitHub check output records
+  `AI review line limit reached`; it resumes on 1 September 2026.

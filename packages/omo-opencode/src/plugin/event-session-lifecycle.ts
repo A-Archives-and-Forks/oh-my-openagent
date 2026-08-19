@@ -22,6 +22,7 @@ import type { Managers } from "../create-managers";
 import type { FirstMessageVariantGate, PluginEventContext } from "./event-types";
 import {
   forgetBtwSideSession,
+  isTrackedBtwSideSession,
   trackBtwSideSession,
 } from "../features/btw-side";
 
@@ -37,6 +38,10 @@ export function isCompactionAgent(agent: string): boolean {
   return agent.trim().toLowerCase() === "compaction";
 }
 
+export function shouldDispatchOpenClawSessionEvent(sessionID: string): boolean {
+  return !isTrackedBtwSideSession(sessionID);
+}
+
 export async function dispatchOpenClawSessionEvent(args: {
   pluginConfig: OhMyOpenCodeConfig;
   pluginContext: PluginEventContext;
@@ -44,7 +49,12 @@ export async function dispatchOpenClawSessionEvent(args: {
   rawEvent: string;
   sessionID: string;
 }): Promise<void> {
-  if (!args.pluginConfig.openclaw) return;
+  if (
+    !args.pluginConfig.openclaw ||
+    !shouldDispatchOpenClawSessionEvent(args.sessionID)
+  ) {
+    return;
+  }
 
   await dispatchOpenClawEvent({
     config: args.pluginConfig.openclaw,

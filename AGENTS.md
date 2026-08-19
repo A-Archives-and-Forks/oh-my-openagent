@@ -120,7 +120,7 @@ pluginModule.server(input, options)   # serverPlugin() in packages/omo-opencode/
   ├─→ injectServerAuthIntoClient()    # auth headers into shared SDK client
   ├─→ loadPluginConfig()              # JSONC parse → user/project merge → Zod validate → migrate
   ├─→ recordPluginTelemetry()         # plugin-load telemetry
-  ├─→ ensureTuiPluginEntry()          # if tui.sidebar.enabled !== false
+  ├─→ ensureTuiPluginEntry()          # always; BTW remains available when sidebar is disabled
   ├─→ initLiveServerRoute() + setLiveParentWakeRoutingDisabled() + warmLiveServerProbe()  # live-listener wake routing
   ├─→ selectRuntimeSecuritySkills() + createRuntimeSkillSourceServer()  # runtime security-skill source
   ├─→ initI18n()                      # load locale strings (packages/omo-opencode/src/locales/)
