@@ -123,6 +123,24 @@ Pending creation navigation re-review:
   Final repository typecheck:
   pass
 
+Deleted parent tombstone re-review:
+
+  Failing-first guard result:
+  expected false, received true
+
+  Cache, guard, and wiring regressions:
+  3 pass, 0 fail
+
+  Production guard driver:
+
+    {"before":true,"afterParentDeletion":false}
+
+  This proves fetched or cached side metadata cannot re-adopt a parent whose
+  deletion event has already been observed.
+
+  OpenCode package typecheck and pinned Bun 1.3.12 build:
+  pass
+
 Persisted side re-adoption re-review:
 
   Failing-first cache result:

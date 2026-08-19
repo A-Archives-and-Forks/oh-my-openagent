@@ -30,5 +30,14 @@ describe("createBtwAdoptionGuard", () => {
 
     // then
     expect(disposedGuard.canApply("ses_side")).toBe(false)
+
+    // when
+    const deletedParentGuard = createBtwAdoptionGuard(() => "ses_side")
+    deletedParentGuard.markDeleted("ses_parent")
+
+    // then
+    expect(
+      deletedParentGuard.canApply("ses_side", "ses_parent"),
+    ).toBe(false)
   })
 })

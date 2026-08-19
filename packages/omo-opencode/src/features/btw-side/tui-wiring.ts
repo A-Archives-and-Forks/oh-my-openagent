@@ -58,7 +58,13 @@ export async function registerBtwSideTui<Node>(
     if (controller.state().phase !== "closed") return
     const cached = adoptionCache.read(sessionID)
     if (cached.hydrated) {
-      if (cached.metadata && adoptionGuard.canApply(sessionID)) {
+      if (
+        cached.metadata &&
+        adoptionGuard.canApply(
+          sessionID,
+          cached.metadata.parent_session_id,
+        )
+      ) {
         controller.adopt(cached.metadata.parent_session_id, sessionID)
       }
       return
@@ -81,7 +87,14 @@ export async function registerBtwSideTui<Node>(
               "Unable to read BTW session metadata",
             )
         const metadata = getBtwSideMetadata(session)
-        if (!adoptionGuard.canApply(sessionID)) return
+        if (
+          !adoptionGuard.canApply(
+            sessionID,
+            metadata?.parent_session_id,
+          )
+        ) {
+          return
+        }
         adoptionCache.write(sessionID, metadata)
         if (!metadata) return
         controller.adopt(metadata.parent_session_id, sessionID)
