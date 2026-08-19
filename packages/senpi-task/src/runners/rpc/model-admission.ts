@@ -57,11 +57,42 @@ function admissionFailure(model: string, message: string, cause?: unknown): Runn
   })
 }
 
+function readCatalog(model: string, result: ModelCatalogProbeResult): ProbedCatalog {
+  if (result.timedOut) throw admissionFailure(model, "catalog probe timed out")
+  if (result.code !== 0) {
+    const detail = result.stderr.trim().slice(-2_000)
+    throw admissionFailure(model, `catalog probe exited ${result.code}${detail.length === 0 ? "" : `: ${detail}`}`)
+  }
+  return { models: parseModelCatalog(result.stdout), stderrTail: result.stderr.trim().slice(-1_000) }
+}
+
+function absenceFailure(model: string, confirmed: ProbedCatalog): RunnerError {
+  return admissionFailure(
+    model,
+    `model is not visible in the child profile after a confirming re-probe (probed catalog has ${confirmed.models.size} models${
+      confirmed.stderrTail.length === 0 ? "" : `; child stderr: ${confirmed.stderrTail}`
+    }); forward its provider extension or child-visible settings`,
+  )
+}
+
+/**
+ * `--list-models` exits 0 with whatever providers resolved inside its OWN budget, so an exit-0
+ * catalog is a lower bound on what the child can reach, never proof of absence: repeated identical
+ * probes on one machine returned 1359, 541, 1071 and 1067 catalog lines, all exit 0. A missing model
+ * is therefore an UNCONFIRMED verdict. It is settled by one fresh probe that bypasses the cache, and
+ * the catalog that lacked the model is dropped so it can never reject that model again from cache.
+ */
 export function createRpcModelAdmission(options: RpcModelAdmissionOptions = {}): RpcModelAdmission {
   const buildSpawn = options.buildSpawn ?? buildRpcModelCatalogSpawn
   const probe = options.probe ?? probeModelCatalog
   const now = options.now ?? Date.now
   const catalogs = new Map<string, CachedCatalog>()
+  const probeCatalog = (descriptor: RpcSpawnDescriptor, model: string): Promise<ProbedCatalog> => (
+    probe(descriptor).then((result) => readCatalog(model, result))
+  )
+  const evict = (key: string, catalog: Promise<ProbedCatalog>): void => {
+    if (catalogs.get(key)?.catalog === catalog) catalogs.delete(key)
+  }
 
   return async (spec) => {
     const model = spec.model?.trim()
@@ -71,29 +102,21 @@ export function createRpcModelAdmission(options: RpcModelAdmissionOptions = {}):
     const cached = catalogs.get(key)
     let catalog = cached !== undefined && now() - cached.cachedAt < MODEL_CATALOG_CACHE_TTL_MS ? cached.catalog : undefined
     if (catalog === undefined) {
-      catalog = probe(descriptor).then((result) => {
-        if (result.timedOut) throw admissionFailure(model, "catalog probe timed out")
-        if (result.code !== 0) {
-          const detail = result.stderr.trim().slice(-2_000)
-          throw admissionFailure(model, `catalog probe exited ${result.code}${detail.length === 0 ? "" : `: ${detail}`}`)
-        }
-        return { models: parseModelCatalog(result.stdout), stderrTail: result.stderr.trim().slice(-1_000) }
-      })
+      catalog = probeCatalog(descriptor, model)
       catalogs.set(key, { catalog, cachedAt: now() })
     }
+    let observed: ProbedCatalog
     try {
-      const available = await catalog
-      if (!available.models.has(model)) {
-        throw admissionFailure(
-          model,
-          `model is not visible in the child profile (probed catalog has ${available.models.size} models${
-            available.stderrTail.length === 0 ? "" : `; child stderr: ${available.stderrTail}`
-          }); forward its provider extension or child-visible settings`,
-        )
-      }
+      observed = await catalog
     } catch (error) {
-      catalogs.delete(key)
+      evict(key, catalog)
       throw error
     }
+    if (observed.models.has(model)) return
+    evict(key, catalog)
+    const confirming = probeCatalog(descriptor, model)
+    const confirmed = await confirming
+    if (!confirmed.models.has(model)) throw absenceFailure(model, confirmed)
+    catalogs.set(key, { catalog: confirming, cachedAt: now() })
   }
 }
