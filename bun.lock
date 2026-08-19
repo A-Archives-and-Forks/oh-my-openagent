@@ -65,18 +65,18 @@
         "typescript": "^7.0.2",
       },
       "optionalDependencies": {
-        "oh-my-opencode-darwin-arm64": "5.0.0-beta.11",
-        "oh-my-opencode-darwin-x64": "5.0.0-beta.11",
-        "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.11",
-        "oh-my-opencode-linux-arm64": "5.0.0-beta.11",
-        "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.11",
-        "oh-my-opencode-linux-x64": "5.0.0-beta.11",
-        "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.11",
-        "oh-my-opencode-linux-x64-musl": "5.0.0-beta.11",
-        "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.11",
-        "oh-my-opencode-windows-arm64": "5.0.0-beta.11",
-        "oh-my-opencode-windows-x64": "5.0.0-beta.11",
-        "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.11",
+        "oh-my-opencode-darwin-arm64": "5.0.0-beta.12",
+        "oh-my-opencode-darwin-x64": "5.0.0-beta.12",
+        "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.12",
+        "oh-my-opencode-linux-arm64": "5.0.0-beta.12",
+        "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.12",
+        "oh-my-opencode-linux-x64": "5.0.0-beta.12",
+        "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.12",
+        "oh-my-opencode-linux-x64-musl": "5.0.0-beta.12",
+        "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.12",
+        "oh-my-opencode-windows-arm64": "5.0.0-beta.12",
+        "oh-my-opencode-windows-x64": "5.0.0-beta.12",
+        "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.12",
       },
     },
     "packages/agents-md-core": {
@@ -184,7 +184,7 @@
     },
     "packages/omo-codex": {
       "name": "@oh-my-opencode/omo-codex",
-      "version": "5.0.0-beta.11",
+      "version": "5.0.0-beta.12",
       "dependencies": {
         "@oh-my-opencode/utils": "workspace:*",
       },
@@ -202,7 +202,7 @@
     },
     "packages/omo-native": {
       "name": "omo-ai",
-      "version": "5.0.0-0.beta.11",
+      "version": "5.0.0-0.beta.12",
       "bin": {
         "omo": "bin/omo.js",
       },
@@ -248,7 +248,7 @@
     },
     "packages/omo-senpi": {
       "name": "@oh-my-opencode/omo-senpi",
-      "version": "5.0.0-beta.11",
+      "version": "5.0.0-beta.12",
       "dependencies": {
         "@code-yeongyu/lsp-daemon": "file:../lsp-daemon",
         "@earendil-works/pi-tui": "0.84.2",
@@ -1387,6 +1387,30 @@
     "object-inspect": ["object-inspect@1.13.4", "", {}, "sha512-W67iLl4J2EXEGTbfeHCffrjDfitvLANg0UlX3wFUUSTx92KXRFegMHUVgSqE+wvhAbi4WqjGg9czysTV2Epbew=="],
 
     "obug": ["obug@2.1.3", "", {}, "sha512-9miFgM2OFba7hB+pRgvtV84pYTBaoTHohvmIgiRt6dRIzbwEOIaNaP+dIlGs2fNFoB0SeISs0Jz5WFVRid6Xyg=="],
+
+    "oh-my-opencode-darwin-arm64": ["oh-my-opencode-darwin-arm64@5.0.0-beta.12", "", { "os": "darwin", "cpu": "arm64" }, "sha512-W8YmTXR/FuTSVxEqxZ5vDi5G5GT9kYzKbxHjxF/1rUPSWqO4vDzZlh52LiZKfuFamipChefiXw5hDLIvWqD15g=="],
+
+    "oh-my-opencode-darwin-x64": ["oh-my-opencode-darwin-x64@5.0.0-beta.12", "", { "os": "darwin", "cpu": "x64" }, "sha512-92mFYJi/0d3n4lxDwX3MG0X491JnTopARVJ968aQ9667nzZXjNX2iWzdbleSHyiODi7PiCBez0egH/+vBQe7EA=="],
+
+    "oh-my-opencode-darwin-x64-baseline": ["oh-my-opencode-darwin-x64-baseline@5.0.0-beta.12", "", { "os": "darwin", "cpu": "x64" }, "sha512-JJSXtY4fsnEWrbM8phLJe/jDETOI6ai8WVEYTUpFsRZnan6zcJZOYV6bvc7n7FkeDGDrmoQEWfU6BVr/a11KWA=="],
+
+    "oh-my-opencode-linux-arm64": ["oh-my-opencode-linux-arm64@5.0.0-beta.12", "", { "os": "linux", "cpu": "arm64" }, "sha512-OZmGWddm/0/9rUPb6pOmcihWxbOki3GnsJ+/CFFhN2ximjSrvQMOcWF3hjbCfJZ6bCEujUwgIA9CYPctxJ+44A=="],
+
+    "oh-my-opencode-linux-arm64-musl": ["oh-my-opencode-linux-arm64-musl@5.0.0-beta.12", "", { "os": "linux", "cpu": "arm64" }, "sha512-8cWW61AaGmSCVdRCAx/ms4w1MGFNrbmL9HokFY0e5TE8PaBQSfv0iR4E1sDk+OvoMKc8FZRoRVknWzJXQXToig=="],
+
+    "oh-my-opencode-linux-x64": ["oh-my-opencode-linux-x64@5.0.0-beta.12", "", { "os": "linux", "cpu": "x64" }, "sha512-MbujmQNzgJK4OemP2y/Iny2X8EDbBDlKNmvxrcpY27At8rXi5hR6AfFEqTPnmbAjQJNEB0j7CtQLMcn1LHgWjA=="],
+
+    "oh-my-opencode-linux-x64-baseline": ["oh-my-opencode-linux-x64-baseline@5.0.0-beta.12", "", { "os": "linux", "cpu": "x64" }, "sha512-NkjeiZUm4lUrh9jByts8ganARBb4xlbIN8TvQveeA49AcZ4D4pmWkoDltZPeo2uIpdhKkKb3LXkQ3sfCoO8tZg=="],
+
+    "oh-my-opencode-linux-x64-musl": ["oh-my-opencode-linux-x64-musl@5.0.0-beta.12", "", { "os": "linux", "cpu": "x64" }, "sha512-t5fzlBtTnNt9JzaqSfJpGHJ3pavVZw5TBz5gpxoxcKgXSAhHGH1a9Uw2Do+r7OR2UBM5DT6Rofvzmo5qzV1ehg=="],
+
+    "oh-my-opencode-linux-x64-musl-baseline": ["oh-my-opencode-linux-x64-musl-baseline@5.0.0-beta.12", "", { "os": "linux", "cpu": "x64" }, "sha512-bdodJbFEAz87hCuTAOgsN2HfpTzbHOqtDT36yyzVoK61RsNwQPIzDp/+j6jaBAvZpEnEeGq8IaPW+tVCuixP/Q=="],
+
+    "oh-my-opencode-windows-arm64": ["oh-my-opencode-windows-arm64@5.0.0-beta.12", "", { "os": "win32", "cpu": "arm64" }, "sha512-OkaF/kFmL6VKfIalBM2UThn6GVpRypn0CkIf+YZN1u2rEYMTfpqWK1JlFJGiEM4O4QOLESE1GFk5WEIUhYG6DQ=="],
+
+    "oh-my-opencode-windows-x64": ["oh-my-opencode-windows-x64@5.0.0-beta.12", "", { "os": "win32", "cpu": "x64" }, "sha512-jzIEvG1cYEomWeK4bDg5VToUwCrB6sp+HnNoU/gSX8AzVDvK9nWWi7BrVGOEdwGr8kv9Wz8yujqBYBV7yZ+7vA=="],
+
+    "oh-my-opencode-windows-x64-baseline": ["oh-my-opencode-windows-x64-baseline@5.0.0-beta.12", "", { "os": "win32", "cpu": "x64" }, "sha512-aLOWmc+f62Jiqd1QXy7JZlvsriOz6azK+VyZK2Vsej5YaopRO6ltxh7++Sm3irhNIDaQAVflhsFwIthrdx4PXQ=="],
 
     "omo-ai": ["omo-ai@workspace:packages/omo-native"],
 
