@@ -374,6 +374,36 @@ describe("createBtwSideController", () => {
     expect(harness.controller.state()).toEqual({ phase: "closed" })
   })
 
+  it("#given disposal occurs during close #when abort is still pending #then disposal awaits side deletion", async () => {
+    // given
+    const aborted = createDeferred<void>()
+    const harness = createHarness({
+      abortSession: () => aborted.promise,
+    })
+    await harness.controller.startFromPrompt(createPromptRef("/btw"))
+    const close = harness.controller.close()
+    let disposed = false
+    const dispose = harness.controller.dispose().then(() => {
+      disposed = true
+    })
+
+    // when
+    await Promise.resolve()
+
+    // then
+    expect(disposed).toBe(false)
+    expect(harness.deleted).toEqual([])
+
+    // when
+    aborted.resolve()
+    await close
+    await dispose
+
+    // then
+    expect(disposed).toBe(true)
+    expect(harness.deleted).toEqual(["ses_side"])
+  })
+
   it("#given close is waiting on abort #when the parent is deleted #then side cleanup still finishes without stale navigation", async () => {
     // given
     const aborted = createDeferred<void>()

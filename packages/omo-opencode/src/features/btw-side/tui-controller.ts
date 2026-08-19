@@ -299,6 +299,7 @@ export function createBtwSideController(
       }
       if (currentState.phase === "closing") {
         skipClosingParentNavigation = true
+        await waitUntilClosed()
         return
       }
       if (currentState.phase !== "open") return
