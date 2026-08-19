@@ -264,7 +264,10 @@ export function createBtwSideController(
     if (dependencies.getCurrentSessionID() !== currentState.sideSessionID) {
       return false
     }
-    return promptQueue.input(currentState.sideSessionID).length === 0
+    return (
+      promptQueue.input(currentState.sideSessionID).length === 0 &&
+      !promptQueue.hasAttachments(currentState.sideSessionID)
+    )
   }
 
   function adopt(parentSessionID: string, sideSessionID: string): void {

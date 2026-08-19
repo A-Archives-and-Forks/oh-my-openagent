@@ -309,6 +309,22 @@ describe("createBtwSideController", () => {
     expect(harness.controller.state()).toEqual({ phase: "closed" })
   })
 
+  it("#given an attachment-only side composer #when close availability is checked #then Ctrl+C does not intercept the draft", async () => {
+    // given
+    const harness = createHarness()
+    await harness.controller.startFromPrompt(createPromptRef("/btw"))
+    harness.controller.attachPromptRef(
+      "ses_side",
+      createPromptRef("", true),
+    )
+
+    // when
+    const canClose = harness.controller.canCloseCurrentSide()
+
+    // then
+    expect(canClose).toBe(false)
+  })
+
   it("#given close is waiting on abort #when navigation leaves BTW #then cleanup does not steal focus", async () => {
     // given
     const aborted = createDeferred<void>()

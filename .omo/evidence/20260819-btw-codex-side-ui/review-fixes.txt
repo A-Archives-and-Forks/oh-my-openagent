@@ -117,10 +117,43 @@ Pending creation navigation re-review:
   OpenCode package typecheck and pinned Bun 1.3.12 build:
   pass
 
+  Final pinned Bun 1.3.12 twelve-file affected-domain gate:
+  93 pass, 0 fail
+
+  Final repository typecheck:
+  pass
+
   Final pinned Bun 1.3.12 eleven-file affected-domain gate:
   91 pass, 0 fail
 
   Final repository typecheck:
+  pass
+
+Final route, attachment, and team-tool re-review:
+
+  Failing-first controller/tool results:
+  34 pass, 2 fail
+
+  Controller, route bridge, wiring, and tool regressions:
+  38 pass, 0 fail
+
+  Production route driver:
+
+    {"before":true,"after":false}
+
+  Production attachment-close driver:
+
+    {"canClose":false}
+
+  Production existing-team guard driver:
+
+    {"blocked":"BTW side conversations cannot delegate work.","readOnlyAllowed":true}
+
+  This proves `/btw` cannot continue on a route changed during adoption,
+  attachment-only drafts are not consumed by Ctrl+C, and existing-team mutation
+  tools are blocked while read-only team status remains available.
+
+  OpenCode package typecheck and pinned Bun 1.3.12 build:
   pass
 
 Fatal classification propagation and CI fix:

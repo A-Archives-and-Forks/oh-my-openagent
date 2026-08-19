@@ -23,6 +23,9 @@ export function createBtwPromptQueue() {
     input(sessionID: string): string {
       return promptRefs.get(sessionID)?.input ?? ""
     },
+    hasAttachments(sessionID: string): boolean {
+      return promptRefs.get(sessionID)?.hasAttachments ?? false
+    },
     clear(sessionID: string): void {
       promptRefs.delete(sessionID)
       pendingQuestions.delete(sessionID)

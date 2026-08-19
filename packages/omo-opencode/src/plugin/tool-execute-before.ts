@@ -19,6 +19,13 @@ const BTW_DELEGATION_TOOLS = new Set([
   "task",
   "call_omo_agent",
   "team_create",
+  "team_send_message",
+  "team_task_create",
+  "team_task_update",
+  "team_shutdown_request",
+  "team_approve_shutdown",
+  "team_reject_shutdown",
+  "team_delete",
 ])
 
 function isPureSleepCommand(command: string): boolean {

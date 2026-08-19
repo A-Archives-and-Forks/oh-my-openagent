@@ -28,7 +28,18 @@ describe("createToolExecuteBeforeHandler", () => {
     })
 
     //#when
-    const runs = ["task", "call_omo_agent", "team_create"].map((tool) =>
+    const runs = [
+      "task",
+      "call_omo_agent",
+      "team_create",
+      "team_send_message",
+      "team_task_create",
+      "team_task_update",
+      "team_shutdown_request",
+      "team_approve_shutdown",
+      "team_reject_shutdown",
+      "team_delete",
+    ].map((tool) =>
       handler(
         { tool, sessionID, callID: `call_${tool}` },
         { args: {} as Record<string, unknown> },

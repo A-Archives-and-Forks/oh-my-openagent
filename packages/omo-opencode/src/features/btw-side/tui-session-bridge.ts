@@ -31,6 +31,13 @@ export function currentTuiSessionID(api: TuiPluginApi): string | undefined {
   return typeof sessionID === "string" ? sessionID : undefined
 }
 
+export function isCurrentTuiSession(
+  api: TuiPluginApi,
+  sessionID: string | undefined,
+): boolean {
+  return currentTuiSessionID(api) === sessionID
+}
+
 export function adaptTuiPromptRef(promptRef: TuiPromptRef): BtwPromptRef {
   return {
     get hasAttachments() {

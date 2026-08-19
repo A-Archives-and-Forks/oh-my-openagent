@@ -18,6 +18,7 @@ import {
   adaptTuiPromptRef,
   createBtwControllerDependencies,
   currentTuiSessionID,
+  isCurrentTuiSession,
   parentTuiStatusLabel,
   unwrapTuiData,
 } from "./tui-session-bridge"
@@ -156,6 +157,7 @@ export async function registerBtwSideTui<Node>(
     log("[btw-side] TUI open command invoked")
     const sessionID = currentTuiSessionID(api)
     if (sessionID) await adoptSideSession(sessionID)
+    if (!isCurrentTuiSession(api, sessionID)) return
     const cachedSession = sessionID
       ? adoptionCache.read(sessionID)
       : { hydrated: false as const }
