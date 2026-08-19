@@ -227,6 +227,35 @@ describe("createBtwSideController", () => {
     expect(prompt.input).toBe("/btw cancelled by navigation")
   })
 
+  it("#given side creation is pending #when the parent is deleted #then the late session is deleted without stale targets", async () => {
+    // given
+    const created = createDeferred<{
+      id: string
+      title: string
+    }>()
+    const createSession = mock(() => created.promise)
+    const harness = createHarness({ createSession })
+    const prompt = createPromptRef("/btw cancelled by deletion")
+    const start = harness.controller.startFromPrompt(prompt)
+
+    // when
+    harness.controller.handleSessionDeleted("ses_parent")
+    created.resolve({
+      id: "ses_side",
+      title: "BTW · Implement BTW",
+    })
+    await start
+
+    // then
+    expect(harness.deleted).toEqual(["ses_side"])
+    expect(harness.navigations).toEqual([])
+    expect(harness.controller.state()).toEqual({ phase: "closed" })
+    expect(prompt.input).toBe("/btw cancelled by deletion")
+    expect(harness.toasts).toContain(
+      "BTW cancelled because its main session was deleted.",
+    )
+  })
+
   it("#given an active side #when toggle runs twice #then it switches parent and side without creating another session", async () => {
     // given
     const harness = createHarness()
@@ -257,6 +286,46 @@ describe("createBtwSideController", () => {
     // then
     expect(harness.aborted).toEqual(["ses_side"])
     expect(harness.navigations).toEqual(["ses_side", "ses_parent"])
+    expect(harness.deleted).toEqual(["ses_side"])
+    expect(harness.controller.state()).toEqual({ phase: "closed" })
+  })
+
+  it("#given close is waiting on abort #when navigation leaves BTW #then cleanup does not steal focus", async () => {
+    // given
+    const aborted = createDeferred<void>()
+    const harness = createHarness({
+      abortSession: () => aborted.promise,
+    })
+    await harness.controller.startFromPrompt(createPromptRef("/btw"))
+    const close = harness.controller.close()
+
+    // when
+    await harness.controller.handleNavigation("ses_other")
+    aborted.resolve()
+    await close
+
+    // then
+    expect(harness.navigations).toEqual(["ses_side"])
+    expect(harness.deleted).toEqual(["ses_side"])
+    expect(harness.controller.state()).toEqual({ phase: "closed" })
+  })
+
+  it("#given close is waiting on abort #when the parent is deleted #then side cleanup still finishes without stale navigation", async () => {
+    // given
+    const aborted = createDeferred<void>()
+    const harness = createHarness({
+      abortSession: () => aborted.promise,
+    })
+    await harness.controller.startFromPrompt(createPromptRef("/btw"))
+    const close = harness.controller.close()
+
+    // when
+    harness.controller.handleSessionDeleted("ses_parent")
+    aborted.resolve()
+    await close
+
+    // then
+    expect(harness.navigations).toEqual(["ses_side"])
     expect(harness.deleted).toEqual(["ses_side"])
     expect(harness.controller.state()).toEqual({ phase: "closed" })
   })

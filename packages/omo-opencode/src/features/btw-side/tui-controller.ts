@@ -16,6 +16,7 @@ export function createBtwSideController(
   let currentState: BtwSideState = { phase: "closed" }
   let stateGeneration = 0
   let disposed = false
+  let skipClosingParentNavigation = false
   const promptQueue = createBtwPromptQueue()
 
   function setState(nextState: BtwSideState): void {
@@ -117,6 +118,7 @@ export function createBtwSideController(
   async function close(): Promise<void> {
     if (currentState.phase !== "open") return
     const openState = currentState
+    skipClosingParentNavigation = false
     const closingState = {
       phase: "closing",
       parentSessionID: openState.parentSessionID,
@@ -131,7 +133,9 @@ export function createBtwSideController(
       showToast: dependencies.showToast,
     })
     if (!isClosingGeneration(closingGeneration)) return
-    dependencies.navigateSession(openState.parentSessionID)
+    if (!skipClosingParentNavigation) {
+      dependencies.navigateSession(openState.parentSessionID)
+    }
     const deleted = await deleteBtwSide({
       sessionID: openState.sideSessionID,
       deleteSession: dependencies.deleteSession,
@@ -155,6 +159,15 @@ export function createBtwSideController(
     if (currentState.phase === "creating") {
       if (sessionID !== currentState.parentSessionID) {
         setState({ phase: "closed" })
+      }
+      return
+    }
+    if (currentState.phase === "closing") {
+      if (
+        sessionID !== currentState.parentSessionID &&
+        sessionID !== currentState.sideSessionID
+      ) {
+        skipClosingParentNavigation = true
       }
       return
     }
@@ -190,6 +203,22 @@ export function createBtwSideController(
   }
 
   function handleSessionDeleted(sessionID: string): void {
+    if (currentState.phase === "creating") {
+      if (sessionID === currentState.parentSessionID) {
+        setState({ phase: "closed" })
+        dependencies.showToast(
+          "BTW cancelled because its main session was deleted.",
+        )
+      }
+      return
+    }
+    if (
+      currentState.phase === "closing" &&
+      sessionID === currentState.parentSessionID
+    ) {
+      skipClosingParentNavigation = true
+      return
+    }
     if (
       currentState.phase !== "open" &&
       currentState.phase !== "closing"
@@ -250,6 +279,10 @@ export function createBtwSideController(
       disposed = true
       if (currentState.phase === "creating") {
         currentState = { phase: "closed" }
+        return
+      }
+      if (currentState.phase === "closing") {
+        skipClosingParentNavigation = true
         return
       }
       if (currentState.phase !== "open") return
