@@ -181,6 +181,18 @@ export function createBtwSideController(
       if (dependencies.getCurrentSessionID() === sessionID) {
         dependencies.navigateSession(parentSessionID)
       }
+      return
+    }
+    if (sessionID === currentState.parentSessionID) {
+      const sideSessionID = currentState.sideSessionID
+      promptQueue.clear(sideSessionID)
+      setState({ phase: "closed" })
+      if (dependencies.getCurrentSessionID() === sessionID) {
+        dependencies.navigateSession(sideSessionID)
+      }
+      dependencies.showToast(
+        "BTW detached because its main session was deleted.",
+      )
     }
   }
 

@@ -70,3 +70,31 @@ Cubic:
   Cubic completed neutral because the repository reached its monthly review
   limit (80,038 of 80,000 reviewed lines). The GitHub check output records
   `AI review line limit reached`; it resumes on 1 September 2026.
+
+Latest Codex re-review:
+
+  Failing-first deletion regressions:
+  14 pass, 2 fail
+
+  After metadata-aware deletion and parent-detach handling:
+  16 pass, 0 fail
+
+  Reattached deletion production driver:
+
+    {"mainSessionID":"ses_parent_review","tmuxDeleted":0,"disconnected":1}
+
+  This proves persisted BTW metadata suppresses primary tmux deletion handling
+  even when the in-process registry starts empty.
+
+  Parent deletion production controller driver:
+
+    {"state":{"phase":"closed"},"current":"ses_side_review","navigations":[],"toasts":["BTW detached because its main session was deleted."]}
+
+  This proves deleting the parent removes stale switching targets while leaving
+  the currently displayed side transcript stable.
+
+  Final seven-file affected-domain gate:
+  61 pass, 0 fail
+
+  Final repository typecheck and pinned Bun 1.3.12 build:
+  pass

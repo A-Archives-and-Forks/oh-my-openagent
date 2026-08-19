@@ -133,6 +133,30 @@ describe("BTW server session lifecycle", () => {
     expect(harness.disconnectSession).toHaveBeenCalledWith("ses_side")
   })
 
+  it("#given a persisted BTW root reattaches after restart #when it is deleted #then metadata still suppresses primary integrations", async () => {
+    // given
+    const harness = createHarness()
+    setMainSession("ses_parent")
+
+    // when
+    await handleSessionDeletedEvent({
+      props: {
+        info: sideInfo(),
+      },
+      tmuxIntegrationEnabled: true,
+      pluginConfig: unsafeTestValue({}),
+      pluginContext: unsafeTestValue({}),
+      managers: harness.managers,
+      firstMessageVariantGate: harness.gate,
+      clearModelFallbackSession: () => undefined,
+    })
+
+    // then
+    expect(getMainSessionID()).toBe("ses_parent")
+    expect(harness.onSessionDeleted).not.toHaveBeenCalled()
+    expect(harness.disconnectSession).toHaveBeenCalledWith("ses_side")
+  })
+
   it("#given a tracked BTW root session #when OpenClaw dispatch is considered #then side events are suppressed", async () => {
     // given
     const harness = createHarness()

@@ -22,6 +22,7 @@ import type { Managers } from "../create-managers";
 import type { FirstMessageVariantGate, PluginEventContext } from "./event-types";
 import {
   forgetBtwSideSession,
+  getBtwSideMetadata,
   isTrackedBtwSideSession,
   trackBtwSideSession,
 } from "../features/btw-side";
@@ -121,7 +122,12 @@ export async function handleSessionDeletedEvent(args: {
   clearModelFallbackSession: (sessionID: string) => void;
 }): Promise<void> {
   const sessionID = resolveSessionEventID(args.props);
-  const isBtwSideSession = sessionID ? forgetBtwSideSession(sessionID) : false;
+  const sessionInfo = args.props?.info as {
+    metadata?: Record<string, unknown>;
+  } | undefined;
+  const isBtwSideSession = sessionID
+    ? forgetBtwSideSession(sessionID) || getBtwSideMetadata(sessionInfo) !== undefined
+    : false;
   if (!isBtwSideSession && sessionID === getMainSessionID()) setMainSession(undefined);
   if (!sessionID) return;
 

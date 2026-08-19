@@ -261,6 +261,23 @@ describe("createBtwSideController", () => {
     expect(harness.controller.state()).toEqual({ phase: "closed" })
   })
 
+  it("#given the parent is deleted externally #when the side is visible #then stale switching controls are detached", async () => {
+    // given
+    const harness = createHarness()
+    await harness.controller.startFromPrompt(createPromptRef("/btw"))
+
+    // when
+    harness.controller.handleSessionDeleted("ses_parent")
+    harness.controller.toggle()
+
+    // then
+    expect(harness.navigations).toEqual(["ses_side"])
+    expect(harness.controller.state()).toEqual({ phase: "closed" })
+    expect(harness.toasts).toContain(
+      "BTW detached because its main session was deleted.",
+    )
+  })
+
   it("#given close races an external delete #when local deletion reports failure #then closed state is not resurrected", async () => {
     // given
     const deleteStarted = createDeferred<void>()
