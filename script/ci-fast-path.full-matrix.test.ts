@@ -233,7 +233,16 @@ describe("full-matrix workflow wiring", () => {
         // then
         expect(heavySteps.length).toBeGreaterThan(0)
         for (const step of heavySteps) {
-          expect(String(step["if"])).toContain(UBUNTU_OR_FULL_MATRIX)
+          const condition = String(step["if"])
+          const ubuntuFirst =
+            condition.includes(UBUNTU_OR_FULL_MATRIX) ||
+            // A step already pinned to ubuntu can never reach a non-ubuntu leg.
+            condition.includes("matrix.os == 'ubuntu-latest' &&") ||
+            condition.endsWith("matrix.os == 'ubuntu-latest'")
+          expect({ step: step["name"] ?? step["uses"], ubuntuFirst }).toEqual({
+            step: step["name"] ?? step["uses"],
+            ubuntuFirst: true,
+          })
         }
       },
     )
