@@ -230,6 +230,52 @@ describe("createBtwSideController", () => {
     expect(harness.controller.state()).toEqual({ phase: "closed" })
   })
 
+  it("#given two cancelled creations remain pending #when the TUI disposes #then every late side is deleted before disposal returns", async () => {
+    // given
+    const firstCreated = createDeferred<{ id: string; title: string }>()
+    const secondCreated = createDeferred<{ id: string; title: string }>()
+    let creationIndex = 0
+    const harness = createHarness({
+      createSession: () => {
+        creationIndex += 1
+        return creationIndex === 1
+          ? firstCreated.promise
+          : secondCreated.promise
+      },
+    })
+    const firstStart = harness.controller.startFromPrompt(
+      createPromptRef("/btw first"),
+    )
+    await harness.controller.handleNavigation("ses_other")
+    const secondStart = harness.controller.startFromPrompt(
+      createPromptRef("/btw second"),
+    )
+    let disposed = false
+    const disposal = harness.controller.dispose().then(() => {
+      disposed = true
+    })
+
+    // when
+    secondCreated.resolve({ id: "ses_side_second", title: "Second" })
+    await secondStart
+    await Promise.resolve()
+
+    // then
+    expect(disposed).toBe(false)
+    expect(harness.deleted).toEqual(["ses_side_second"])
+
+    // when
+    firstCreated.resolve({ id: "ses_side_first", title: "First" })
+    await Promise.all([firstStart, disposal])
+
+    // then
+    expect(disposed).toBe(true)
+    expect(harness.deleted).toEqual([
+      "ses_side_second",
+      "ses_side_first",
+    ])
+  })
+
   it("#given side creation is pending #when navigation leaves the parent #then the late session is deleted without stealing focus", async () => {
     // given
     const created = createDeferred<{
@@ -353,6 +399,39 @@ describe("createBtwSideController", () => {
     expect(harness.navigations).toEqual(["ses_side"])
     expect(harness.deleted).toEqual(["ses_side"])
     expect(harness.controller.state()).toEqual({ phase: "closed" })
+  })
+
+  it("#given navigation cleanup loses its closing generation #when a new side opens #then old cleanup preserves the new state", async () => {
+    // given
+    const aborted = createDeferred<void>()
+    let creationIndex = 0
+    const harness = createHarness({
+      createSession: async () => {
+        creationIndex += 1
+        return {
+          id: creationIndex === 1 ? "ses_side_old" : "ses_side_new",
+          title: "BTW",
+        }
+      },
+      abortSession: () => aborted.promise,
+    })
+    await harness.controller.startFromPrompt(createPromptRef("/btw old"))
+    const navigation = harness.controller.handleNavigation("ses_other")
+    harness.controller.handleSessionDeleted("ses_side_old")
+    await harness.controller.startFromPrompt(createPromptRef("/btw new"))
+
+    // when
+    aborted.resolve()
+    await navigation
+
+    // then
+    expect(harness.controller.state()).toEqual({
+      phase: "open",
+      parentSessionID: "ses_parent",
+      sideSessionID: "ses_side_new",
+      owned: true,
+    })
+    expect(harness.deleted).toEqual([])
   })
 
   it("#given a controller transition is closing #when a consumer awaits closed #then it resolves on the exact state change", async () => {

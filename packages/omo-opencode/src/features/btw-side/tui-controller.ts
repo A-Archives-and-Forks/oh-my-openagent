@@ -17,7 +17,7 @@ export function createBtwSideController(
   let stateGeneration = 0
   let disposed = false
   let skipClosingParentNavigation = false
-  let activeCreationFinished: Promise<void> | undefined
+  const activeCreationOperations = new Set<Promise<void>>()
   const closedWaiters = new Set<() => void>()
   const promptQueue = createBtwPromptQueue()
 
@@ -79,7 +79,7 @@ export function createBtwSideController(
     const creationFinished = new Promise<void>((resolve) => {
       resolveCreationFinished = resolve
     })
-    activeCreationFinished = creationFinished
+    activeCreationOperations.add(creationFinished)
 
     try {
       const sideSession = await dependencies.createSession(prepared.createInput)
@@ -119,9 +119,7 @@ export function createBtwSideController(
       setState({ phase: "closed" })
       dependencies.showToast("Unable to start BTW.")
     } finally {
-      if (activeCreationFinished === creationFinished) {
-        activeCreationFinished = undefined
-      }
+      activeCreationOperations.delete(creationFinished)
       resolveCreationFinished()
     }
   }
@@ -208,19 +206,23 @@ export function createBtwSideController(
       sideSessionID: openState.sideSessionID,
       owned: openState.owned,
     })
+    const closingGeneration = stateGeneration
     if (openState.owned) {
       await abortBtwSide({
         sessionID: openState.sideSessionID,
         abortSession: dependencies.abortSession,
         showToast: dependencies.showToast,
       })
+      if (!isClosingGeneration(closingGeneration)) return
       await deleteBtwSide({
         sessionID: openState.sideSessionID,
         deleteSession: dependencies.deleteSession,
         showToast: dependencies.showToast,
         failureMessage: "Unable to discard BTW.",
       })
+      if (!isClosingGeneration(closingGeneration)) return
     }
+    if (!isClosingGeneration(closingGeneration)) return
     promptQueue.clear(openState.sideSessionID)
     setState({ phase: "closed" })
   }
@@ -304,23 +306,18 @@ export function createBtwSideController(
     waitUntilClosed,
     dispose: async (): Promise<void> => {
       disposed = true
+      const pendingCreations = [...activeCreationOperations]
       if (currentState.phase === "creating") {
-        const creationFinished = activeCreationFinished
         setState({ phase: "closed" })
-        if (creationFinished) await creationFinished
-        return
-      }
-      if (currentState.phase === "closing") {
+      } else if (currentState.phase === "closing") {
         skipClosingParentNavigation = true
         await waitUntilClosed()
-        return
-      }
-      if (currentState.phase !== "open") return
-      if (currentState.owned) {
+      } else if (currentState.phase === "open" && currentState.owned) {
         await handleNavigation("")
-        return
+      } else if (currentState.phase === "open") {
+        setState({ phase: "closed" })
       }
-      setState({ phase: "closed" })
+      await Promise.all(pendingCreations)
     },
   }
 }
