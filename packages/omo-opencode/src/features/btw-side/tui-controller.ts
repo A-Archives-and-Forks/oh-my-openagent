@@ -17,12 +17,24 @@ export function createBtwSideController(
   let stateGeneration = 0
   let disposed = false
   let skipClosingParentNavigation = false
+  const closedWaiters = new Set<() => void>()
   const promptQueue = createBtwPromptQueue()
 
   function setState(nextState: BtwSideState): void {
     currentState = nextState
     stateGeneration += 1
+    if (nextState.phase === "closed") {
+      for (const resolve of closedWaiters) resolve()
+      closedWaiters.clear()
+    }
     if (!disposed) dependencies.requestRender()
+  }
+
+  function waitUntilClosed(): Promise<void> {
+    if (currentState.phase === "closed") return Promise.resolve()
+    return new Promise((resolve) => {
+      closedWaiters.add(resolve)
+    })
   }
 
   function isClosingGeneration(generation: number): boolean {
@@ -67,7 +79,7 @@ export function createBtwSideController(
       const sideSession = await dependencies.createSession(prepared.createInput)
       if (disposed || !isCreatingGeneration(creatingGeneration)) {
         if (disposed) {
-          currentState = { phase: "closed" }
+          setState({ phase: "closed" })
         } else if (prepared.consumeDraft) {
           promptRef.set(prepared.originalDraft)
         }
@@ -90,7 +102,7 @@ export function createBtwSideController(
       dependencies.navigateSession(sideSession.id)
     } catch {
       if (disposed) {
-        currentState = { phase: "closed" }
+        setState({ phase: "closed" })
         return
       }
       if (!isCreatingGeneration(creatingGeneration)) {
@@ -275,10 +287,11 @@ export function createBtwSideController(
     handleSessionDeleted,
     canCloseCurrentSide,
     adopt,
+    waitUntilClosed,
     dispose: async (): Promise<void> => {
       disposed = true
       if (currentState.phase === "creating") {
-        currentState = { phase: "closed" }
+        setState({ phase: "closed" })
         return
       }
       if (currentState.phase === "closing") {

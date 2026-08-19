@@ -118,9 +118,33 @@ Pending creation navigation re-review:
   pass
 
   Final eleven-file affected-domain gate:
+  89 pass, 0 fail
+
+  Final repository typecheck:
+  pass
+
+  Final eleven-file affected-domain gate:
   88 pass, 0 fail
 
   Final repository typecheck:
+  pass
+
+Direct persisted-side switch re-review:
+
+  Failing-first result:
+  `waitUntilClosed` was unavailable
+
+  Controller, parent-validator, and wiring regressions:
+  20 pass, 0 fail
+
+  Production controller driver:
+
+    {"phase":"open","parentSessionID":"ses_parent_b","sideSessionID":"ses_side_b","owned":false}
+
+  This proves direct navigation from one adopted side to another awaits the old
+  side's exact closed transition before adopting the current persisted side.
+
+  OpenCode package typecheck and pinned Bun 1.3.12 build:
   pass
 
   Final ten-file affected-domain gate:

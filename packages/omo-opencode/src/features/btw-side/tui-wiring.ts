@@ -230,7 +230,6 @@ export async function registerBtwSideTui<Node>(
             value.ref?.(promptRef)
             if (promptRef) {
               promptRefs.set(value.session_id, promptRef)
-              void adoptSideSession(value.session_id)
               log("[btw-side] TUI prompt ref attached", {
                 sessionID: value.session_id,
               })
@@ -238,7 +237,23 @@ export async function registerBtwSideTui<Node>(
                 value.session_id,
                 adaptTuiPromptRef(promptRef),
               )
-              void controller.handleNavigation(value.session_id)
+              void (async () => {
+                await controller.handleNavigation(value.session_id)
+                const state = controller.state()
+                const isRelated =
+                  state.phase === "creating"
+                    ? value.session_id === state.parentSessionID
+                    : state.phase === "open" ||
+                        state.phase === "closing"
+                      ? value.session_id === state.parentSessionID ||
+                        value.session_id === state.sideSessionID
+                      : false
+                if (isRelated) return
+                await controller.waitUntilClosed()
+                if (currentTuiSessionID(api) === value.session_id) {
+                  await adoptSideSession(value.session_id)
+                }
+              })()
               return
             }
             promptRefs.delete(value.session_id)

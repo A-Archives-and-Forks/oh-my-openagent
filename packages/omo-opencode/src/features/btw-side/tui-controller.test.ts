@@ -329,6 +329,35 @@ describe("createBtwSideController", () => {
     expect(harness.controller.state()).toEqual({ phase: "closed" })
   })
 
+  it("#given a controller transition is closing #when a consumer awaits closed #then it resolves on the exact state change", async () => {
+    // given
+    const aborted = createDeferred<void>()
+    const harness = createHarness({
+      abortSession: () => aborted.promise,
+    })
+    await harness.controller.startFromPrompt(createPromptRef("/btw"))
+    const close = harness.controller.close()
+    let resolved = false
+    const closed = harness.controller.waitUntilClosed().then(() => {
+      resolved = true
+    })
+
+    // when
+    await Promise.resolve()
+
+    // then
+    expect(resolved).toBe(false)
+
+    // when
+    aborted.resolve()
+    await close
+    await closed
+
+    // then
+    expect(resolved).toBe(true)
+    expect(harness.controller.state()).toEqual({ phase: "closed" })
+  })
+
   it("#given close is waiting on abort #when the parent is deleted #then side cleanup still finishes without stale navigation", async () => {
     // given
     const aborted = createDeferred<void>()
