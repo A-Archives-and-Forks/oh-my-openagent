@@ -119,6 +119,14 @@ export function registerMemoryStatic(input: {
       const context = activeSession.current === undefined ? undefined : resolveContext(activeSession.current)
       if (context !== undefined) soulNoticeWiring.onCommit(context, commit)
     },
+    // Read per call rather than latched at registration: the gate is presentation-only, so a
+    // config edit takes effect on the next write instead of at the next restart.
+    writeNotice: {
+      get enabled(): boolean {
+        return resolveWriteNoticeEnabled(loadCommandSettings, activeSession, resolveContext)
+      },
+      resolveSessionId: () => activeSession.current,
+    },
   })
   registerMemoryGuard(pi, ctx, {
     getContext: (eventContext) => {
@@ -194,6 +202,23 @@ export function registerMemoryStatic(input: {
   })
   triggerWiring.register(pi)
   dreamTriggerWiring.register(pi)
+}
+
+/** memory.write_notice.enabled for the bound identity, honouring its per-agent override. */
+function resolveWriteNoticeEnabled(
+  loadCommandSettings: () => MemoryCommandSettings,
+  activeSession: { current?: string },
+  resolveContext: (sessionId: string) => MemoryIdentityContext | undefined,
+): boolean {
+  try {
+    const settings = loadCommandSettings().settings
+    const identity = activeSession.current === undefined ? undefined : resolveContext(activeSession.current)?.identity
+    const override = identity === undefined ? undefined : settings.agents[identity]?.write_notice
+    return override?.enabled ?? settings.write_notice.enabled
+  } catch {
+    // Presentation must never depend on config health: an unreadable config keeps the default on.
+    return true
+  }
 }
 
 function asCommandIdentity(identity: MemoryIdentityContext | undefined): MemoryCommandIdentity | undefined {
