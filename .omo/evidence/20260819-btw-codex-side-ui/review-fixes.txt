@@ -118,9 +118,38 @@ Pending creation navigation re-review:
   pass
 
   Final pinned Bun 1.3.12 twelve-file affected-domain gate:
+  97 pass, 0 fail
+
+  Final repository typecheck:
+  pass
+
+  Final pinned Bun 1.3.12 twelve-file affected-domain gate:
   96 pass, 0 fail
 
   Final repository typecheck:
+  pass
+
+Draft ownership and non-session teardown re-review:
+
+  Failing-first result:
+  draft overwrite plus missing teardown cleanup
+
+  Controller and wiring regressions:
+  24 pass, 0 fail
+
+  Production late-draft driver:
+
+    {"draft":"new parent draft","deleted":["side"]}
+
+  Production non-session cleanup driver:
+
+    {"state":{"phase":"closed"},"deleted":["side"]}
+
+  This proves late cancelled creation cannot overwrite a newer parent draft,
+  and leaving session routes triggers owned-side cleanup rather than retaining
+  or reopening the temporary side.
+
+  OpenCode package typecheck and pinned Bun 1.3.12 build:
   pass
 
   Final pinned Bun 1.3.12 twelve-file affected-domain gate:

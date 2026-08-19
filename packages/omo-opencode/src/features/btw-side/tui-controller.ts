@@ -69,6 +69,11 @@ export function createBtwSideController(
 
     const prepared = prepareBtwSideStart(dependencies, promptRef)
     if (!prepared) return
+    const restoreDraftIfUnchanged = (): void => {
+      if (prepared.consumeDraft && promptRef.input.length === 0) {
+        promptRef.set(prepared.originalDraft)
+      }
+    }
     if (prepared.consumeDraft) promptRef.set("")
     setState({
       phase: "creating",
@@ -86,8 +91,8 @@ export function createBtwSideController(
       if (disposed || !isCreatingGeneration(creatingGeneration)) {
         if (disposed) {
           setState({ phase: "closed" })
-        } else if (prepared.consumeDraft) {
-          promptRef.set(prepared.originalDraft)
+        } else {
+          restoreDraftIfUnchanged()
         }
         try {
           await dependencies.deleteSession(sideSession.id)
@@ -112,10 +117,10 @@ export function createBtwSideController(
         return
       }
       if (!isCreatingGeneration(creatingGeneration)) {
-        if (prepared.consumeDraft) promptRef.set(prepared.originalDraft)
+        restoreDraftIfUnchanged()
         return
       }
-      if (prepared.consumeDraft) promptRef.set(prepared.originalDraft)
+      restoreDraftIfUnchanged()
       setState({ phase: "closed" })
       dependencies.showToast("Unable to start BTW.")
     } finally {

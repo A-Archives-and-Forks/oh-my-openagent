@@ -302,6 +302,29 @@ describe("createBtwSideController", () => {
     expect(prompt.input).toBe("/btw cancelled by navigation")
   })
 
+  it("#given a cancelled creation #when the parent draft changes before the server replies #then late cleanup preserves the newer draft", async () => {
+    // given
+    const created = createDeferred<{ id: string; title: string }>()
+    const harness = createHarness({
+      createSession: () => created.promise,
+    })
+    const prompt = createPromptRef("/btw old draft")
+    const start = harness.controller.startFromPrompt(prompt)
+    await harness.controller.handleNavigation("ses_other")
+    prompt.set("new parent draft")
+
+    // when
+    created.resolve({
+      id: "ses_side",
+      title: "BTW",
+    })
+    await start
+
+    // then
+    expect(prompt.input).toBe("new parent draft")
+    expect(harness.deleted).toEqual(["ses_side"])
+  })
+
   it("#given side creation is pending #when the parent is deleted #then the late session is deleted without stale targets", async () => {
     // given
     const created = createDeferred<{

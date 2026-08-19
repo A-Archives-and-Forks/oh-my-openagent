@@ -261,6 +261,9 @@ export async function registerBtwSideTui<Node>(
             }
             promptRefs.delete(value.session_id)
             controller.attachPromptRef(value.session_id, undefined)
+            void controller.handleNavigation(
+              currentTuiSessionID(api) ?? "",
+            )
           },
           right: api.ui.Slot({
             name: "session_prompt_right",

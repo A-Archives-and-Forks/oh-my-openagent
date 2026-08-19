@@ -54,6 +54,7 @@ type TestSlotRegistration = {
 describe("registerBtwSideTui", () => {
   it("#given a real-shaped TUI API #when inline BTW runs #then a side session opens and both status surfaces render", async () => {
     // given
+    let routeName = "session"
     let routeSessionID = "ses_parent"
     let promptInput = "/btw explain the parent"
     const layers: TestLayer[] = []
@@ -61,7 +62,14 @@ describe("registerBtwSideTui", () => {
     const slots: TestSlotRegistration[] = []
     const disposers: Array<() => void | Promise<void>> = []
     const toasts: string[] = []
-    const deleteSession = mock(async () => ({ data: true }))
+    let resolveDeleted!: () => void
+    const deleted = new Promise<void>((resolve) => {
+      resolveDeleted = resolve
+    })
+    const deleteSession = mock(async () => {
+      resolveDeleted()
+      return { data: true }
+    })
     const createSession = mock(async () => ({
       data: {
         id: "ses_side",
@@ -84,6 +92,9 @@ describe("registerBtwSideTui", () => {
       focus: () => undefined,
       submit: () => undefined,
     }
+    const promptRefCallbacks: Array<
+      (ref: typeof promptRef | undefined) => void
+    > = []
     const api = unsafeTestValue({
       state: {
         path: {
@@ -135,6 +146,11 @@ describe("registerBtwSideTui", () => {
       },
       route: {
         get current() {
+          if (routeName !== "session") {
+            return {
+              name: routeName,
+            }
+          }
           return {
             name: "session",
             params: {
@@ -172,8 +188,9 @@ describe("registerBtwSideTui", () => {
       },
       ui: {
         Prompt: (props: {
-          ref?: (ref: typeof promptRef) => void
+          ref?: (ref: typeof promptRef | undefined) => void
         }) => {
+          if (props.ref) promptRefCallbacks.push(props.ref)
           props.ref?.(promptRef)
           return {
             tag: "prompt",
@@ -301,5 +318,13 @@ describe("registerBtwSideTui", () => {
     )
     expect(disposers).toHaveLength(1)
     expect(deleteSession).not.toHaveBeenCalled()
+
+    // when
+    routeName = "home"
+    promptRefCallbacks.at(-1)?.(undefined)
+    await deleted
+
+    // then
+    expect(deleteSession).toHaveBeenCalledTimes(1)
   })
 })
