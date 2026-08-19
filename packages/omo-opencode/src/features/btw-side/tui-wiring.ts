@@ -7,6 +7,7 @@ import type {
 
 import { log } from "../../shared/logger"
 import { getBtwSideMetadata } from "./metadata"
+import { createBtwAdoptionCache } from "./tui-adoption-cache"
 import { createBtwAdoptionGuard } from "./tui-adoption-guard"
 import {
   createBtwSideController,
@@ -42,7 +43,7 @@ export async function registerBtwSideTui<Node>(
 ): Promise<void> {
   log("[btw-side] TUI registration started")
   const promptRefs = new Map<string, TuiPromptRef>()
-  const hydratedSessions = new Set<string>()
+  const adoptionCache = createBtwAdoptionCache()
   const adoptionRequests = new Map<string, Promise<void>>()
   const reattachingSessions = new Set<string>()
   const adoptionFailures = new Set<string>()
@@ -55,7 +56,13 @@ export async function registerBtwSideTui<Node>(
 
   function adoptSideSession(sessionID: string): Promise<void> | undefined {
     if (controller.state().phase !== "closed") return
-    if (hydratedSessions.has(sessionID)) return
+    const cached = adoptionCache.read(sessionID)
+    if (cached.hydrated) {
+      if (cached.metadata && adoptionGuard.canApply(sessionID)) {
+        controller.adopt(cached.metadata.parent_session_id, sessionID)
+      }
+      return
+    }
     const pending = adoptionRequests.get(sessionID)
     if (pending) return pending
     reattachingSessions.add(sessionID)
@@ -75,7 +82,7 @@ export async function registerBtwSideTui<Node>(
             )
         const metadata = getBtwSideMetadata(session)
         if (!adoptionGuard.canApply(sessionID)) return
-        hydratedSessions.add(sessionID)
+        adoptionCache.write(sessionID, metadata)
         if (!metadata) return
         controller.adopt(metadata.parent_session_id, sessionID)
         api.renderer.requestRender()
@@ -237,6 +244,7 @@ export async function registerBtwSideTui<Node>(
 
   const unsubscribeDeleted = api.event.on("session.deleted", (event) => {
     adoptionGuard.markDeleted(event.properties.info.id)
+    adoptionCache.removeForDeletion(event.properties.info.id)
     controller.handleSessionDeleted(event.properties.info.id)
   })
 
