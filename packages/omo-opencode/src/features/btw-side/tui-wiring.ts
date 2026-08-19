@@ -9,6 +9,7 @@ import { log } from "../../shared/logger"
 import { getBtwSideMetadata } from "./metadata"
 import { createBtwAdoptionCache } from "./tui-adoption-cache"
 import { createBtwAdoptionGuard } from "./tui-adoption-guard"
+import { createBtwParentValidator } from "./tui-parent-validator"
 import {
   createBtwSideController,
 } from "./tui-controller"
@@ -53,24 +54,57 @@ export async function registerBtwSideTui<Node>(
   const adoptionGuard = createBtwAdoptionGuard(() =>
     currentTuiSessionID(api),
   )
+  const parentValidator = createBtwParentValidator({
+    localExists: (sessionID) =>
+      api.state.session.get(sessionID) !== undefined,
+    fetchExists: async (sessionID) => {
+      try {
+        const response = await api.client.session.get({
+          sessionID,
+          directory: api.state.path.directory,
+        })
+        return response.error === undefined && response.data !== undefined
+      } catch (error) {
+        log("[btw-side] Failed to validate parent session", {
+          sessionID,
+          error,
+        })
+        return false
+      }
+    },
+  })
+
+  async function adoptValidatedMetadata(
+    sessionID: string,
+    parentSessionID: string,
+  ): Promise<void> {
+    if (!adoptionGuard.canApply(sessionID, parentSessionID)) return
+    if (!(await parentValidator.exists(parentSessionID))) return
+    if (!adoptionGuard.canApply(sessionID, parentSessionID)) return
+    controller.adopt(parentSessionID, sessionID)
+    api.renderer.requestRender()
+    log("[btw-side] TUI adopted side session", {
+      sessionID,
+      parentSessionID,
+    })
+  }
 
   function adoptSideSession(sessionID: string): Promise<void> | undefined {
     if (controller.state().phase !== "closed") return
-    const cached = adoptionCache.read(sessionID)
-    if (cached.hydrated) {
-      if (
-        cached.metadata &&
-        adoptionGuard.canApply(
-          sessionID,
-          cached.metadata.parent_session_id,
-        )
-      ) {
-        controller.adopt(cached.metadata.parent_session_id, sessionID)
-      }
-      return
-    }
     const pending = adoptionRequests.get(sessionID)
     if (pending) return pending
+    const cached = adoptionCache.read(sessionID)
+    if (cached.hydrated) {
+      if (!cached.metadata) return
+      const request = adoptValidatedMetadata(
+        sessionID,
+        cached.metadata.parent_session_id,
+      ).finally(() => {
+        adoptionRequests.delete(sessionID)
+      })
+      adoptionRequests.set(sessionID, request)
+      return request
+    }
     reattachingSessions.add(sessionID)
     adoptionFailures.delete(sessionID)
     api.renderer.requestRender()
@@ -89,21 +123,11 @@ export async function registerBtwSideTui<Node>(
         const metadata = getBtwSideMetadata(session)
         if (!adoptionGuard.canApply(sessionID)) return
         adoptionCache.write(sessionID, metadata)
-        if (
-          !adoptionGuard.canApply(
-            sessionID,
-            metadata?.parent_session_id,
-          )
-        ) {
-          return
-        }
         if (!metadata) return
-        controller.adopt(metadata.parent_session_id, sessionID)
-        api.renderer.requestRender()
-        log("[btw-side] TUI adopted side session", {
+        await adoptValidatedMetadata(
           sessionID,
-          parentSessionID: metadata.parent_session_id,
-        })
+          metadata.parent_session_id,
+        )
       } catch (error) {
         if (adoptionGuard.canApply(sessionID)) {
           adoptionFailures.add(sessionID)
@@ -269,6 +293,7 @@ export async function registerBtwSideTui<Node>(
   const unsubscribeDeleted = api.event.on("session.deleted", (event) => {
     adoptionGuard.markDeleted(event.properties.info.id)
     adoptionCache.removeForDeletion(event.properties.info.id)
+    parentValidator.markDeleted(event.properties.info.id)
     controller.handleSessionDeleted(event.properties.info.id)
   })
 
