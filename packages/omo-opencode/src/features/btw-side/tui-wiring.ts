@@ -87,6 +87,8 @@ export async function registerBtwSideTui<Node>(
               "Unable to read BTW session metadata",
             )
         const metadata = getBtwSideMetadata(session)
+        if (!adoptionGuard.canApply(sessionID)) return
+        adoptionCache.write(sessionID, metadata)
         if (
           !adoptionGuard.canApply(
             sessionID,
@@ -95,7 +97,6 @@ export async function registerBtwSideTui<Node>(
         ) {
           return
         }
-        adoptionCache.write(sessionID, metadata)
         if (!metadata) return
         controller.adopt(metadata.parent_session_id, sessionID)
         api.renderer.requestRender()
@@ -130,6 +131,16 @@ export async function registerBtwSideTui<Node>(
     log("[btw-side] TUI open command invoked")
     const sessionID = currentTuiSessionID(api)
     if (sessionID) await adoptSideSession(sessionID)
+    const cachedSession = sessionID
+      ? adoptionCache.read(sessionID)
+      : { hydrated: false as const }
+    if (cachedSession.hydrated && cachedSession.metadata) {
+      api.ui.toast({
+        variant: "warning",
+        message: "BTW is unavailable inside another BTW conversation.",
+      })
+      return
+    }
     if (sessionID && adoptionFailures.has(sessionID)) {
       api.ui.toast({
         variant: "warning",

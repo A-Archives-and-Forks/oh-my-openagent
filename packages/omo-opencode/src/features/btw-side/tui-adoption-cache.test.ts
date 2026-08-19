@@ -4,7 +4,7 @@ import { createBtwSideMetadata } from "./metadata"
 import { createBtwAdoptionCache } from "./tui-adoption-cache"
 
 describe("createBtwAdoptionCache", () => {
-  it("#given persisted BTW metadata #when it is read repeatedly #then re-adoption stays available until side or parent deletion", () => {
+  it("#given persisted BTW metadata #when the parent is deleted #then side identity remains until side deletion", () => {
     // given
     const cache = createBtwAdoptionCache()
     const metadata = createBtwSideMetadata({
@@ -31,6 +31,15 @@ describe("createBtwAdoptionCache", () => {
 
     // when
     cache.removeForDeletion("ses_parent")
+
+    // then
+    expect(cache.read("ses_side")).toEqual({
+      hydrated: true,
+      metadata,
+    })
+
+    // when
+    cache.removeForDeletion("ses_side")
 
     // then
     expect(cache.read("ses_side")).toEqual({ hydrated: false })

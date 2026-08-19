@@ -23,11 +23,6 @@ export function createBtwAdoptionCache() {
     },
     removeForDeletion: (sessionID: string): void => {
       entries.delete(sessionID)
-      for (const [sideSessionID, metadata] of entries) {
-        if (metadata?.parent_session_id === sessionID) {
-          entries.delete(sideSessionID)
-        }
-      }
     },
   }
 }
