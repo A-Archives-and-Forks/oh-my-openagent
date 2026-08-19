@@ -8,13 +8,13 @@
 // the tool-result discipline line is unconditional and lives in memory-core.
 
 import type { EntryRenderer } from "@code-yeongyu/senpi"
-import { touchesSoulPath, type MemoryToolCommit } from "@oh-my-opencode/memory-core"
-import { linesComponent, normalizeRendererText } from "@oh-my-opencode/senpi-task"
+import { SOUL_PATHS, touchesSoulPath, type MemoryToolCommit } from "@oh-my-opencode/memory-core"
 
 import type { MemoryExtensionAPI } from "./capabilities"
 import type { MemoryIdentityContext } from "./context"
 import { MEMORY_MCP_APPLY_PATCH_TOOL_NAME, MEMORY_MCP_TOOL_NAME } from "./tool-metadata"
 import { consumeToolReceipt } from "./tool-receipts"
+import { joinFields, noticeComponent, normalizeRendererText } from "./worker/entry-renderers"
 
 export const SOUL_UPDATED_ENTRY_TYPE = "omo-memory:soul-updated"
 
@@ -24,13 +24,31 @@ export interface SoulUpdatedRecord {
   readonly affectedPaths: readonly string[]
 }
 
-export const renderSoulUpdatedEntry: EntryRenderer<SoulUpdatedRecord> = (entry) => {
+export const renderSoulUpdatedEntry: EntryRenderer<SoulUpdatedRecord> = (entry, options, theme) => {
   const record = entry.data
   if (!record) return undefined
-  return linesComponent([
-    `memory soul updated ${normalizeRendererText(record.sha.slice(0, 7))}: ${normalizeRendererText(record.subject)}`,
-    ...record.affectedPaths.map((path) => normalizeRendererText(path)),
-  ])
+  const sha = normalizeRendererText(record.sha)
+  const paths = record.affectedPaths.map((path) => normalizeRendererText(path))
+  return noticeComponent(
+    {
+      glyph: "●",
+      title: joinFields(["Memory soul updated", sha.slice(0, 7)]),
+      tone: "accent",
+      why: soulWhy(paths),
+      extra: paths.map((path) => ({ text: path, tone: "dim" as const })),
+      detail: joinFields([sha, normalizeRendererText(record.subject)]),
+    },
+    options,
+    theme,
+  )
+}
+
+/** One dim sentence naming which soul files changed; extra lines list every affected path. */
+function soulWhy(paths: readonly string[]): string {
+  const soulFiles = SOUL_PATHS.filter((path) => paths.includes(path))
+  if (soulFiles.length === 0) return "A memory soul file changed."
+  if (soulFiles.length === 1) return `The soul file ${soulFiles[0]} changed.`
+  return `The soul files ${soulFiles.join(" and ")} changed.`
 }
 
 export interface SoulNoticeWiringOptions {
