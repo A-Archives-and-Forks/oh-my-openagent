@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from "bun:test"
+import { afterEach, describe, expect, it, mock } from "bun:test"
 
 import { unsafeTestValue } from "../../../../../test-support/unsafe-test-value"
 import {
@@ -11,6 +11,10 @@ import {
   BTW_SIDE_METADATA_KEY,
   createBtwSideMetadata,
 } from "./metadata"
+import {
+  isTrackedBtwSideSession,
+  resetBtwSideSessionRegistryForTesting,
+} from "./server-session-registry"
 
 type TestPart = {
   id: string
@@ -115,6 +119,10 @@ function createClient(args: {
 }
 
 describe("createBtwSideContextInjectorHook", () => {
+  afterEach(() => {
+    resetBtwSideSessionRegistryForTesting()
+  })
+
   it("#given a normal session #when messages transform runs #then the request is unchanged", async () => {
     // given
     const sessionID = "ses_main"
@@ -339,6 +347,7 @@ describe("createBtwSideContextInjectorHook", () => {
       ],
     })
     await hook["experimental.chat.messages.transform"]!({}, firstOutput)
+    expect(isTrackedBtwSideSession(sideSessionID)).toBe(true)
 
     // when
     await hook["experimental.chat.messages.transform"]!({}, secondOutput)
@@ -347,6 +356,48 @@ describe("createBtwSideContextInjectorHook", () => {
     expect(firstOutput.messages).toHaveLength(1)
     expect(secondOutput.messages[0].info.id).toBe("msg_parent_1")
     expect(metadataAttempts).toBe(2)
+    expect(isTrackedBtwSideSession(sideSessionID)).toBe(true)
+  })
+
+  it("#given a transient normal-session metadata error #when retry confirms no BTW metadata #then provisional restrictions are cleared", async () => {
+    // given
+    const sessionID = "ses_normal"
+    let attempts = 0
+    const hook = createBtwSideContextInjectorHook({
+      client: unsafeTestValue({
+        session: {
+          get: async () => {
+            attempts += 1
+            return attempts === 1
+              ? { error: { name: "TemporaryError" } }
+              : { data: { id: sessionID } }
+          },
+        },
+      }),
+    })
+    const output = () =>
+      unsafeTestValue({
+        messages: [
+          createMessage({
+            id: `msg_${attempts}`,
+            sessionID,
+            role: "user",
+            text: "normal request",
+          }),
+        ],
+      })
+
+    // when
+    await hook["experimental.chat.messages.transform"]!({}, output())
+
+    // then
+    expect(isTrackedBtwSideSession(sessionID)).toBe(true)
+
+    // when
+    await hook["experimental.chat.messages.transform"]!({}, output())
+
+    // then
+    expect(isTrackedBtwSideSession(sessionID)).toBe(false)
   })
 
   it("#given a parent request #when a side session exists #then side messages never enter the parent", async () => {

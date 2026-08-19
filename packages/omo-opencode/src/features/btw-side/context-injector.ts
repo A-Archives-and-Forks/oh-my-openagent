@@ -8,7 +8,11 @@ import {
   type BtwSideMetadata,
 } from "./metadata"
 import { boundBtwParentContext } from "./parent-context-budget"
-import { markBtwSideSession } from "./server-session-registry"
+import {
+  clearBtwProvisionalRestriction,
+  markBtwSessionProvisionallyRestricted,
+  markBtwSideSession,
+} from "./server-session-registry"
 
 export const BTW_BOUNDARY_SENTINEL = "<omo-btw-boundary>"
 export {
@@ -99,7 +103,11 @@ export function createBtwSideContextInjectorHook(args: {
         { preferResponseOnMissingData: true },
       )
       const metadata = getBtwSideMetadata(session)
-      if (metadata) markBtwSideSession(sessionID)
+      if (metadata) {
+        markBtwSideSession(sessionID)
+      } else {
+        clearBtwProvisionalRestriction(sessionID)
+      }
       rememberBounded(
         metadataCache,
         sessionID,
@@ -108,6 +116,7 @@ export function createBtwSideContextInjectorHook(args: {
       )
       return metadata
     } catch (error) {
+      markBtwSessionProvisionallyRestricted(sessionID)
       log("[btw-side] Failed to read side session metadata", {
         sessionID,
         error,
