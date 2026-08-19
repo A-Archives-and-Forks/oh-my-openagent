@@ -49,7 +49,7 @@ export function createMemoryWriteRenderResult(
     if (notice === undefined || context?.isError === true || !deps.enabled()) {
       return plainComponent(resultText(result))
     }
-    return renderWriteNotice(notice, options, theme, (deps.now ?? Date.now)())
+    return renderMemoryWriteNotice(notice, options, theme, (deps.now ?? Date.now)())
   }
 }
 
@@ -67,7 +67,11 @@ function resultText(result: AgentToolResult<MemoryToolResultDetails>): string {
   return ""
 }
 
-function renderWriteNotice(
+/**
+ * The notice row itself, shared with the MCP surface's `omo-memory:write-updated` transcript
+ * entry so both surfaces render byte-identical rows from the same payload.
+ */
+export function renderMemoryWriteNotice(
   notice: MemoryWriteNotice,
   options: { readonly expanded: boolean },
   theme: EntryRenderTheme,
