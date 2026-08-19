@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
-import { GitMemoryRepo } from "@oh-my-opencode/memory-core"
+import { GitMemoryRepo, type GitTreeSizedEntry } from "@oh-my-opencode/memory-core"
 
 import type { MemoryIdentityContext } from "./context"
 import type {
@@ -21,7 +21,7 @@ export async function readMemoryRpcRepoState(
   const [committedAt, subject, systemTokensEstimate] = await Promise.all([
     repo.headCommitTimestamp().catch(() => null),
     repo.headSubject().catch(() => null),
-    estimateSystemTokens(repo, head, tokenEstimates),
+    estimateSystemTokens(asTreeRepo(repo), head, tokenEstimates),
   ])
   return {
     headSha: head,
@@ -41,24 +41,49 @@ async function readDirtyPaths(repo: MemoryRpcGitRepo): Promise<number> {
   }
 }
 
+export interface MemoryRpcTreeRepo {
+  lsTreeSized(revision?: string): Promise<readonly GitTreeSizedEntry[]>
+}
+
+export interface MemoryTreeStats {
+  readonly totalBytes: number
+  readonly fileCount: number
+  readonly systemBytes: number
+  readonly byTopLevel: Record<string, number>
+}
+
 /** Walks `system/*.md` once per commit; a repeat sync on the same HEAD reuses the cached estimate. */
-async function estimateSystemTokens(
-  repo: MemoryRpcGitRepo,
+export async function estimateSystemTokens(
+  repo: MemoryRpcTreeRepo,
   head: string,
   cache: Map<string, number>,
 ): Promise<number> {
   const cached = cache.get(head)
   if (cached !== undefined) return cached
   try {
-    const paths = (await repo.lsTree(head)).filter(isSystemMarkdown)
-    const contents = await Promise.all(paths.map((path) => repo.show(head, path)))
-    const totalBytes = contents.reduce((sum, content) => sum + Buffer.byteLength(content, "utf8"), 0)
+    const totalBytes = (await repo.lsTreeSized(head))
+      .filter((entry) => isSystemMarkdown(entry.path))
+      .reduce((sum, entry) => sum + entry.bytes, 0)
     const estimate = Math.floor(totalBytes / 4)
     cache.set(head, estimate)
     return estimate
   } catch {
     return 0
   }
+}
+
+export function memoryTreeStats(entries: readonly GitTreeSizedEntry[]): MemoryTreeStats {
+  const byTopLevel: Record<string, number> = {}
+  let totalBytes = 0
+  let systemBytes = 0
+  for (const entry of entries) {
+    totalBytes += entry.bytes
+    if (entry.path.startsWith("system/")) systemBytes += entry.bytes
+    const slash = entry.path.indexOf("/")
+    const topLevel = slash === -1 ? entry.path : entry.path.slice(0, slash)
+    byTopLevel[topLevel] = (byTopLevel[topLevel] ?? 0) + entry.bytes
+  }
+  return { totalBytes, fileCount: entries.length, systemBytes, byTopLevel }
 }
 
 function isSystemMarkdown(path: string): boolean {
@@ -135,7 +160,7 @@ export async function readMemoryRpcHealth(context: MemoryIdentityContext): Promi
   }
 }
 
-export function createMemoryRpcGitRepo(repoPath: string): MemoryRpcGitRepo {
+export function createMemoryRpcGitRepo(repoPath: string): MemoryRpcGitRepo & MemoryRpcTreeRepo {
   const repo = new GitMemoryRepo({ dir: repoPath, agentId: "omo-memory-rpc" })
   return {
     head: () => repo.head(),
@@ -143,6 +168,19 @@ export function createMemoryRpcGitRepo(repoPath: string): MemoryRpcGitRepo {
     headSubject: async () => (await repo.log({ limit: 1 }))[0]?.subject ?? null,
     status: (paths) => repo.status(paths ?? []),
     lsTree: (revision, path) => repo.lsTree(revision, path),
+    lsTreeSized: (revision) => repo.lsTreeSized(revision),
     show: (revision, path) => repo.show(revision, path),
   }
+}
+
+function asTreeRepo(repo: MemoryRpcGitRepo): MemoryRpcTreeRepo {
+  const lsTreeSized = (repo as Partial<MemoryRpcTreeRepo>).lsTreeSized
+  if (typeof lsTreeSized !== "function") {
+    return {
+      lsTreeSized: async () => {
+        throw new Error("lsTreeSized unavailable")
+      },
+    }
+  }
+  return { lsTreeSized: (revision) => lsTreeSized.call(repo, revision) }
 }
