@@ -1,4 +1,7 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 
 import type { SenpiModelPort } from "@oh-my-opencode/senpi-task"
 
@@ -7,6 +10,12 @@ import { fakeCommandContext, fakeDeps, invoke } from "./commands.test-support"
 import { registerPeopleCommand } from "./people"
 import { createPeopleAskRunner, hasNoEvidence, type PeopleAskEvidence, type PeopleAskRequest } from "./people-ask"
 import { peopleFixture } from "./people.test-support"
+
+const roots: string[] = []
+
+afterEach(() => {
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+})
 
 describe("/people --ask", () => {
   test("#given no evidence for the person #when --ask runs #then it abstains without launching a child", async () => {
@@ -69,6 +78,15 @@ describe("/people --ask", () => {
   }, 30_000)
 
   test("#given senpiCommand and senpiPrefixArgs #when the people-ask child runs #then the answer starts with the prefix marker", async () => {
+    // The npm install shape spawns the interpreter with the senpi CLI entry inside senpiPrefixArgs.
+    // A printer script stands in for that entry and echoes the args it received: when the prefix is
+    // dropped, the interpreter itself parses the senpi flags instead, which is exactly how the real
+    // failure surfaced as `node: bad option: --fork`. Using process.execPath keeps this portable.
+    const dir = mkdtempSync(join(tmpdir(), "people-ask-prefix-"))
+    roots.push(dir)
+    const printer = join(dir, "printer.mjs")
+    writeFileSync(printer, "process.stdout.write(process.argv.slice(2).join(' '))\n", "utf8")
+
     const model: SenpiModelPort = { provider: "omo-mock", id: "mock-1" }
     const runner = createPeopleAskRunner({
       config: { categories: { quick: { model: "omo-mock/mock-1" } } },
@@ -77,8 +95,8 @@ describe("/people --ask", () => {
         find: (provider, modelId) =>
           provider === model.provider && modelId === model.id ? model : undefined,
       },
-      senpiCommand: "/bin/echo",
-      senpiPrefixArgs: ["PEOPLE-PREFIX-MARKER"],
+      senpiCommand: process.execPath,
+      senpiPrefixArgs: [printer, "PEOPLE-PREFIX-MARKER"],
     })
 
     const answer = await runner({
