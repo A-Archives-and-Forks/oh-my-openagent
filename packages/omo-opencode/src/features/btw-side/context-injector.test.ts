@@ -429,6 +429,9 @@ describe("createBtwSideContextInjectorHook", () => {
         text: `${index}:${"x".repeat(4096)}`,
       }),
     )
+    Object.assign(parentMessages[99].info, {
+      system: "s".repeat(BTW_PARENT_CONTEXT_MAX_BYTES * 2),
+    })
     const boundaryMessageID = "msg_parent_99"
     const client = createClient({
       sideSessionID,

@@ -21,6 +21,54 @@ function cloneMessage(message: MessageWithParts): MessageWithParts {
   }
 }
 
+function boundedString(value: unknown, maxCharacters = 512): string {
+  return typeof value === "string"
+    ? value.slice(0, maxCharacters)
+    : ""
+}
+
+function minimalMessageInfo(info: Message): Message {
+  const source = info as unknown as Record<string, unknown>
+  const minimal: Record<string, unknown> = {
+    id: boundedString(source["id"], 256),
+    sessionID: boundedString(source["sessionID"], 256),
+    role: boundedString(source["role"], 32),
+  }
+  const time = source["time"]
+  if (time && typeof time === "object" && !Array.isArray(time)) {
+    const sourceTime = time as Record<string, unknown>
+    minimal["time"] = {
+      ...(typeof sourceTime["created"] === "number"
+        ? { created: sourceTime["created"] }
+        : {}),
+      ...(typeof sourceTime["completed"] === "number"
+        ? { completed: sourceTime["completed"] }
+        : {}),
+    }
+  }
+  for (const key of [
+    "agent",
+    "modelID",
+    "providerID",
+    "parentID",
+    "mode",
+    "path",
+  ]) {
+    if (typeof source[key] === "string") {
+      minimal[key] = boundedString(source[key])
+    }
+  }
+  const model = source["model"]
+  if (model && typeof model === "object" && !Array.isArray(model)) {
+    const sourceModel = model as Record<string, unknown>
+    minimal["model"] = {
+      providerID: boundedString(sourceModel["providerID"]),
+      modelID: boundedString(sourceModel["modelID"]),
+    }
+  }
+  return minimal as unknown as Message
+}
+
 function truncatedMessage(
   message: MessageWithParts,
   maxBytes: number,
@@ -30,13 +78,14 @@ function truncatedMessage(
     .map((part) => part.text)
     .join("\n")
   const marker = "[Earlier parent message content truncated]\n"
+  const info = minimalMessageInfo(message.info)
   const createCandidate = (tailCharacters: number): MessageWithParts => ({
-    info: { ...message.info },
+    info,
     parts: [
       {
-        id: `${message.info.id}_btw_truncated`,
-        messageID: message.info.id,
-        sessionID: message.info.sessionID,
+        id: `${info.id}_btw_truncated`,
+        messageID: info.id,
+        sessionID: info.sessionID,
         type: "text",
         text: `${marker}${sourceText.slice(-tailCharacters)}`,
         synthetic: true,
@@ -45,7 +94,7 @@ function truncatedMessage(
   })
 
   let best: MessageWithParts = {
-    info: { ...message.info },
+    info,
     parts: [],
   }
   let low = 0

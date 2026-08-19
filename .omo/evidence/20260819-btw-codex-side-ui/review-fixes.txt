@@ -117,10 +117,40 @@ Pending creation navigation re-review:
   OpenCode package typecheck and pinned Bun 1.3.12 build:
   pass
 
+  Final ten-file affected-domain gate:
+  87 pass, 0 fail
+
+  Final repository typecheck:
+  pass
+
   Final nine-file affected-domain gate:
   69 pass, 0 fail
 
   Final repository typecheck:
+  pass
+
+Delegation and oversized metadata re-review:
+
+  Failing-first results:
+  24 pass, 2 fail
+
+  Context injector and tool pre-execution regressions:
+  26 pass, 0 fail
+
+  Production delegation driver:
+
+    {"blocked":"BTW side conversations cannot delegate work.","parentArgs":{"category":"quick","subagent_type":"sisyphus-junior"}}
+
+  Production oversized-metadata driver:
+
+    {"bytes":65536,"maxBytes":65536,"boundary":"msg_boundary","systemRetained":false}
+
+  This proves `task`, `call_omo_agent`, and `team_create` are blocked in tracked
+  BTW sides while normal parent delegation still works. Oversized message info
+  and parts are reduced to the exact byte ceiling while preserving the boundary
+  message identity.
+
+  OpenCode package typecheck and pinned Bun 1.3.12 build:
   pass
 
 Context-budget and attachment re-review:

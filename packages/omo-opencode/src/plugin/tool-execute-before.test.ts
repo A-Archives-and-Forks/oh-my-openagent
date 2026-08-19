@@ -2,8 +2,47 @@ const { afterEach, describe, expect, test } = require("bun:test")
 const { createToolExecuteBeforeHandler } = require("./tool-execute-before")
 const { createToolRegistry } = require("./tool-registry")
 const { resetStorageClient } = require("../tools/session-manager/storage")
+const {
+  markBtwSideSession,
+  resetBtwSideSessionRegistryForTesting,
+} = require("../features/btw-side/server-session-registry")
 
 describe("createToolExecuteBeforeHandler", () => {
+  afterEach(() => {
+    resetBtwSideSessionRegistryForTesting()
+  })
+
+  test("blocks delegation tools in a BTW side session", async () => {
+    //#given
+    const sessionID = "ses_btw_side"
+    markBtwSideSession(sessionID)
+    const handler = createToolExecuteBeforeHandler({
+      ctx: {
+        client: {
+          session: {
+            messages: async () => ({ data: [] }),
+          },
+        },
+      },
+      hooks: {},
+    })
+
+    //#when
+    const runs = ["task", "call_omo_agent", "team_create"].map((tool) =>
+      handler(
+        { tool, sessionID, callID: `call_${tool}` },
+        { args: {} as Record<string, unknown> },
+      ),
+    )
+
+    //#then
+    for (const run of runs) {
+      await expect(run).rejects.toThrow(
+        "BTW side conversations cannot delegate work.",
+      )
+    }
+  })
+
   test("does not execute subagent question blocker hook for question tool", async () => {
     //#given
     const ctx = {
