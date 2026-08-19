@@ -31,6 +31,13 @@ export function createBtwSideController(
     )
   }
 
+  function isCreatingGeneration(generation: number): boolean {
+    return (
+      stateGeneration === generation &&
+      currentState.phase === "creating"
+    )
+  }
+
   function attachPromptRef(sessionID: string, promptRef: BtwPromptRef | undefined): void {
     promptQueue.attach(sessionID, promptRef)
   }
@@ -53,11 +60,16 @@ export function createBtwSideController(
       phase: "creating",
       parentSessionID: prepared.parentSessionID,
     })
+    const creatingGeneration = stateGeneration
 
     try {
       const sideSession = await dependencies.createSession(prepared.createInput)
-      if (disposed) {
-        currentState = { phase: "closed" }
+      if (disposed || !isCreatingGeneration(creatingGeneration)) {
+        if (disposed) {
+          currentState = { phase: "closed" }
+        } else if (prepared.consumeDraft) {
+          promptRef.set(prepared.originalDraft)
+        }
         try {
           await dependencies.deleteSession(sideSession.id)
         } catch {
@@ -78,6 +90,10 @@ export function createBtwSideController(
     } catch {
       if (disposed) {
         currentState = { phase: "closed" }
+        return
+      }
+      if (!isCreatingGeneration(creatingGeneration)) {
+        if (prepared.consumeDraft) promptRef.set(prepared.originalDraft)
         return
       }
       if (prepared.consumeDraft) promptRef.set(prepared.originalDraft)
@@ -136,6 +152,12 @@ export function createBtwSideController(
   }
 
   async function handleNavigation(sessionID: string): Promise<void> {
+    if (currentState.phase === "creating") {
+      if (sessionID !== currentState.parentSessionID) {
+        setState({ phase: "closed" })
+      }
+      return
+    }
     if (currentState.phase !== "open") return
     if (
       sessionID === currentState.parentSessionID ||

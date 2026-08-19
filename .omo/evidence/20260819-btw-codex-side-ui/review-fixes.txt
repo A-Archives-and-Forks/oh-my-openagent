@@ -98,3 +98,27 @@ Latest Codex re-review:
 
   Final repository typecheck and pinned Bun 1.3.12 build:
   pass
+
+Pending creation navigation re-review:
+
+  Failing-first controller result:
+  12 pass, 1 fail
+
+  After generation-bound cancellation:
+  13 pass, 0 fail
+
+  Production controller driver:
+
+    {"state":{"phase":"closed"},"prompt":"/btw slow question","deleted":["ses_late"],"navigations":[]}
+
+  This proves that navigating away while `session.create` is pending restores
+  the parent draft, deletes the late side session, and never steals focus.
+
+  OpenCode package typecheck and pinned Bun 1.3.12 build:
+  pass
+
+  Final seven-file affected-domain gate:
+  62 pass, 0 fail
+
+  Final repository typecheck:
+  pass

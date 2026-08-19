@@ -201,6 +201,32 @@ describe("createBtwSideController", () => {
     expect(harness.controller.state()).toEqual({ phase: "closed" })
   })
 
+  it("#given side creation is pending #when navigation leaves the parent #then the late session is deleted without stealing focus", async () => {
+    // given
+    const created = createDeferred<{
+      id: string
+      title: string
+    }>()
+    const createSession = mock(() => created.promise)
+    const harness = createHarness({ createSession })
+    const prompt = createPromptRef("/btw cancelled by navigation")
+    const start = harness.controller.startFromPrompt(prompt)
+
+    // when
+    await harness.controller.handleNavigation("ses_other")
+    created.resolve({
+      id: "ses_side",
+      title: "BTW · Implement BTW",
+    })
+    await start
+
+    // then
+    expect(harness.deleted).toEqual(["ses_side"])
+    expect(harness.navigations).toEqual([])
+    expect(harness.controller.state()).toEqual({ phase: "closed" })
+    expect(prompt.input).toBe("/btw cancelled by navigation")
+  })
+
   it("#given an active side #when toggle runs twice #then it switches parent and side without creating another session", async () => {
     // given
     const harness = createHarness()
