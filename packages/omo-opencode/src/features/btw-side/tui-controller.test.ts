@@ -289,6 +289,11 @@ describe("createBtwSideController", () => {
 
     // when
     await harness.controller.handleNavigation("ses_other")
+
+    // then
+    expect(prompt.input).toBe("/btw cancelled by navigation")
+
+    // when
     created.resolve({
       id: "ses_side",
       title: "BTW · Implement BTW",

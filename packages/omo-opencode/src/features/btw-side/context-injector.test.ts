@@ -498,7 +498,12 @@ describe("createBtwSideContextInjectorHook", () => {
 
     // then
     expect(output.messages).toEqual(sideMessages)
-    expect(output.messages[0].parts[0].text).toBe("answer without inherited context")
+    expect(output.messages[0].parts[0].text).toContain(
+      BTW_BOUNDARY_SENTINEL,
+    )
+    expect(output.messages[0].parts[1].text).toBe(
+      "answer without inherited context",
+    )
   })
 
   it("#given an oversized parent prefix #when a side request transforms #then inherited context stays within byte and message budgets", async () => {

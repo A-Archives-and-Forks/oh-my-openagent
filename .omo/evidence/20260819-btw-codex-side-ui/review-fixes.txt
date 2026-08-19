@@ -123,6 +123,29 @@ Pending creation navigation re-review:
   Final repository typecheck:
   pass
 
+Boundary fallback and immediate cancellation restore re-review:
+
+  Failing-first result:
+  missing boundary fallback plus delayed draft restoration
+
+  Context, controller, and wiring regressions:
+  34 pass, 0 fail
+
+  Production boundary fallback driver:
+
+    {"messageCount":1,"boundaryPresent":true,"question":"question"}
+
+  Production cancellation driver:
+
+    {"restoredBeforeResponse":"/btw pending","draft":"/btw pending","deleted":["side"]}
+
+  This proves BTW instructions remain present without inherited parent messages,
+  and creation cancellation restores the cleared draft before the server
+  response while retaining late-side cleanup.
+
+  OpenCode package typecheck and pinned Bun 1.3.12 build:
+  pass
+
 Scoped feature inventory re-review:
 
   Feature directory count:

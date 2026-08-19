@@ -19,7 +19,11 @@ export function createBtwSideController(
   let stateGeneration = 0
   let disposed = false
   let skipClosingParentNavigation = false
-  const activeCreationOperations = new Set<Promise<void>>()
+  const activeCreationOperations = new Set<{
+    generation: number
+    finished: Promise<void>
+    restoreDraftIfUnchanged: () => void
+  }>()
   const closedWaiters = new Set<() => void>()
   const deletedSessionIDs = new Set<string>()
   const promptQueue = createBtwPromptQueue()
@@ -100,7 +104,12 @@ export function createBtwSideController(
     const creationFinished = new Promise<void>((resolve) => {
       resolveCreationFinished = resolve
     })
-    activeCreationOperations.add(creationFinished)
+    const creationOperation = {
+      generation: creatingGeneration,
+      finished: creationFinished,
+      restoreDraftIfUnchanged,
+    }
+    activeCreationOperations.add(creationOperation)
 
     try {
       const sideSession = await dependencies.createSession(prepared.createInput)
@@ -147,7 +156,7 @@ export function createBtwSideController(
       setState({ phase: "closed" })
       dependencies.showToast("Unable to start BTW.")
     } finally {
-      activeCreationOperations.delete(creationFinished)
+      activeCreationOperations.delete(creationOperation)
       resolveCreationFinished()
     }
   }
@@ -207,6 +216,12 @@ export function createBtwSideController(
   async function handleNavigation(sessionID: string): Promise<void> {
     if (currentState.phase === "creating") {
       if (sessionID !== currentState.parentSessionID) {
+        const creatingGeneration = stateGeneration
+        for (const operation of activeCreationOperations) {
+          if (operation.generation === creatingGeneration) {
+            operation.restoreDraftIfUnchanged()
+          }
+        }
         setState({ phase: "closed" })
       }
       return
@@ -335,7 +350,9 @@ export function createBtwSideController(
     waitUntilClosed,
     dispose: async (): Promise<void> => {
       disposed = true
-      const pendingCreations = [...activeCreationOperations]
+      const pendingCreations = [...activeCreationOperations].map(
+        (operation) => operation.finished,
+      )
       if (currentState.phase === "creating") {
         setState({ phase: "closed" })
       } else if (currentState.phase === "closing") {

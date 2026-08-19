@@ -198,10 +198,10 @@ export function createBtwSideContextInjectorHook(args: {
       if (!firstSideUserMessage) return
 
       const parentContext = await loadParentContext(sideSessionID, metadata)
-      if (!parentContext) return
-
       prependBoundaryPart(firstSideUserMessage)
-      output.messages.unshift(...parentContext)
+      if (parentContext) {
+        output.messages.unshift(...parentContext)
+      }
     },
   }
 }
