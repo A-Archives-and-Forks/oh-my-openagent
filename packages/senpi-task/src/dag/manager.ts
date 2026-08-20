@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto"
 import * as fs from "node:fs"
 import { join } from "node:path"
 
+import { defaultSignaller } from "../lifecycle/context"
 import { dagDefinitionAmendedEvent, dagRunCreatedEvent, type DagRunEventType } from "./events"
 import { dagDefinitionFingerprint, diffNodeFingerprints, type DagNodeFingerprintInputV1 } from "./fingerprint"
 import { compileDag, type DagCompileError, type DagDefinition, type DagNodeInput } from "./graph"
@@ -617,12 +618,7 @@ function liveLeaseHolder(record: DagRunRecordV1): boolean {
   const leaseRecord = record as DagRunRecordV1 & { readonly leaseHolderPid?: number; readonly previousLeaseHolderPid?: number }
   const pid = leaseRecord.leaseHolderPid ?? leaseRecord.previousLeaseHolderPid
   if (pid === undefined) return false
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch {
-    return false
-  }
+  return defaultSignaller.isAlive(pid)
 }
 
 function materializeAmendedDefinition(
