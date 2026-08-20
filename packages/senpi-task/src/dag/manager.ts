@@ -515,6 +515,15 @@ function amendRun(params: DagAmendParams, context: AmendContext): DagRunRecordV1
   })
   const amended = context.store.readCheckpoint<DagRunRecordV1>(selectedRunId)
   if (amended === null) throw new DagManagerError({ code: "run_not_found", message: `unknown dag run "${selectedRunId}"`, runId: selectedRunId })
+  // The reducer no-ops instead of throwing (see applyDagRunMutation), so an unadvanced fingerprint is
+  // how a lost race surfaces. Report it here, where the WAL is already durable and consistent.
+  if (amended.definitionFingerprint !== definitionFingerprint) {
+    throw new DagManagerError({
+      code: "run_still_active",
+      message: `dag run "${selectedRunId}" changed before the amendment could be applied`,
+      runId: selectedRunId,
+    })
+  }
   return amended
 }
 
@@ -535,24 +544,22 @@ export function applyDagRunMutation(record: DagRunRecordV1, event: DagRunEvent):
   }
   if (event.type !== "dag.definition.amended") return record
   const mutation = event as DagDefinitionAmendedMutationEvent
-  if (record.definitionFingerprint !== event.previousFingerprint) {
-    throw new DagManagerError({ code: "run_still_active", message: "dag run changed before amendment could be applied", runId: record.runId })
-  }
+  // This reducer runs as the journal's applyEvent, and the journal writes the WAL BEFORE applying it
+  // (journal.ts appendPayload). Throwing from here would leave a durable event whose every replay
+  // throws again, wedging the run permanently. So a precondition that no longer holds returns the
+  // record UNCHANGED: replay stays idempotent, and amendRun below turns the unadvanced fingerprint
+  // into the caller's typed refusal. amendRun re-checks all of these before appending, so reaching
+  // one here means the run changed underneath a live amendment.
+  if (record.definitionFingerprint !== event.previousFingerprint) return record
   const mutationNodeIds = new Set(mutation.nodes.map((node) => node.id))
   const removedNodeIds = record.nodes.filter((node) => !mutationNodeIds.has(node.id)).map((node) => node.id)
   const unsafeIds = [...event.changedNodeIds, ...removedNodeIds].filter((id) => {
     const state = record.nodes.find((node) => node.id === id)?.state
     return state === "scheduled" || state === "running"
   })
-  if (unsafeIds.length > 0) {
-    throw new DagManagerError({ code: "amend_running_node", message: `cannot amend scheduled or running nodes: ${unsafeIds.join(", ")}`, runId: record.runId, nodeIds: unsafeIds })
-  }
-  if (record.status === "running") {
-    throw new DagManagerError({ code: "run_still_active", message: `dag run "${record.runId}" is still active`, runId: record.runId })
-  }
-  if (record.status === "paused" && liveLeaseHolder(record)) {
-    throw new DagManagerError({ code: "invalid_amendment", message: `dag run "${record.runId}" is paused by another live lease`, runId: record.runId })
-  }
+  if (unsafeIds.length > 0) return record
+  if (record.status === "running") return record
+  if (record.status === "paused" && liveLeaseHolder(record)) return record
   return {
     ...record,
     name: mutation.definition.name,

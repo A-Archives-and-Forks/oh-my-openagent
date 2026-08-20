@@ -588,6 +588,39 @@ describe("createDagManager amend", () => {
     expect(amendmentEvent.type).toBe("dag.definition.amended")
     expect(replay.snapshot()).toEqual(expected)
   })
+
+  test("#given a durable amendment whose preconditions no longer hold #when the WAL is replayed #then replay no-ops instead of wedging the run forever", async () => {
+    // given a real amendment event on disk. The journal writes the WAL BEFORE running applyEvent, so a
+    // reducer that threw on a stale precondition would leave this event replaying into a throw on every
+    // future recoverCheckpoint - the run could never be read again.
+    const { store, dag } = manager(tempProject())
+    const started = await dag.start({ definition: diamond(), parentSessionId, rootSessionId })
+    const old = completeDiamond(store, started.snapshot.runId)
+    await dag.amend({ runId: started.snapshot.runId, definition: diamond("changed"), parentSessionId })
+
+    // when the record the event replays against violates the amendment's preconditions: the node it
+    // changes is now running, and the fingerprint no longer matches previousFingerprint.
+    const hostile: DagRunRecordV1 = {
+      ...old,
+      status: "running",
+      definitionFingerprint: "stale-fingerprint-that-never-matches",
+      nodes: old.nodes.map((node) => node.id === "B" ? { ...node, state: "running" as const } : node),
+    }
+    store.writeCheckpoint(started.snapshot.runId, { ...hostile, checkpointSeq: 1 })
+    const replay = (): DagRunRecordV1 => createDagJournal<DagRunRecordV1>({
+      store,
+      runId: started.snapshot.runId,
+      initialCheckpoint: hostile,
+      applyEvent: applyDagRunMutation,
+    }).snapshot()
+
+    // then replay is survivable and idempotent: the stale amendment is skipped, not fatal.
+    expect(replay).not.toThrow()
+    const replayed = replay()
+    expect(replayed.definitionFingerprint).toBe("stale-fingerprint-that-never-matches")
+    expect(replayed.nodes.find((node) => node.id === "B")?.state).toBe("running")
+  })
+
 })
 
 describe("createDagManager concurrent starts", () => {
