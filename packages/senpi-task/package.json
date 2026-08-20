@@ -40,6 +40,10 @@
     "./task-renderers": {
       "types": "./src/tools/task/renderers.ts",
       "import": "./src/tools/task/renderers.ts"
+    },
+    "./notice-box": {
+      "types": "./src/notice-box.ts",
+      "import": "./src/notice-box.ts"
     }
   },
   "types": "./src/index.ts",
