@@ -56,8 +56,6 @@ export async function registerBtwSideTui<Node>(
     currentTuiSessionID(api),
   )
   const parentValidator = createBtwParentValidator({
-    localExists: (sessionID) =>
-      api.state.session.get(sessionID) !== undefined,
     fetchStatus: async (sessionID) => {
       try {
         const response = await api.client.session.get({
