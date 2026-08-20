@@ -122,7 +122,7 @@ describe("dependency security", () => {
     expect(opencodePluginDependencies).toMatchObject({
       dependencies: expect.objectContaining({ effect: expect.any(String) }),
     })
-    expect(bunLock.packages?.effect?.[0]).toBe("effect@4.0.0-beta.66")
+    expect(bunLock.packages?.effect?.[0]).toBe("effect@4.0.0-beta.83")
   })
 
   // The scan spawns `git grep -P` over every first-party source and already bounds that spawn at
