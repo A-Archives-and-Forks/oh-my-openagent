@@ -85,7 +85,6 @@ export function createRpcChildHandle(options: CreateRpcChildHandleOptions): Trac
       })
   }, heartbeatIntervalMs)
   heartbeat.unref?.()
-  client.onExit(() => clearInterval(heartbeat))
 
   const settleExit = (built: ChildExitOutcome): void => {
     if (outcome) {
