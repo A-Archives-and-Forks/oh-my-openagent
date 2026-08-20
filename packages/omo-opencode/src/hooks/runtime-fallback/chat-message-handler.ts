@@ -18,6 +18,7 @@ export function createChatMessageHandler(deps: HookDeps) {
     sessionAwaitingFallbackResult,
     sessionFallbackTimeouts,
     sessionStatusRetryKeys,
+    sessionRetryInFlight,
   } = deps
 
   function clearFallbackWatchdog(sessionID: string): void {
@@ -95,6 +96,7 @@ export function createChatMessageHandler(deps: HookDeps) {
       state = createFallbackState(requestedModel)
       sessionStates.set(sessionID, state)
       clearFallbackWatchdog(sessionID)
+      sessionRetryInFlight.delete(sessionID)
       sessionStatusRetryKeys.delete(sessionID)
       return
     }

@@ -18,11 +18,17 @@ The remaining current review thread identified a no-timeout race in `session-sta
 - The repair deletes the just-recorded retry key on the no-timeout in-flight skip path. Accepted events retain their key before async work, preserving existing duplicate protection.
 - `retry-key-inflight-green.txt` passes the exact race: after the first fallback acknowledgement, the repeated status advances from `openai/gpt-5.4` to `google/gemini-2.5-pro`.
 
+The post-CI exact-head Codex review then found a second, independent generation-boundary bug in `chat-message-handler.ts`: manual model/variant reset replaced state and cleared the watchdog but left the old retry-in-flight marker. A retryable failure on the new generation was therefore skipped; the stale dispatch could also later clear a new generation's marker.
+
+- `inflight-generation-red.txt` fails deterministically on the unchanged implementation: reset retains the marker, and completion of the stale deferred message lookup removes a newly started generation's marker.
+- Manual reset now clears the old marker. `auto-retry-dispatch.ts` clears a marker in `finally` only when its captured `FallbackState` is still current, so a stale dispatcher cannot affect a new generation.
+- `inflight-generation-green.txt` passes the two focused files (19 tests, 0 failures), including the deferred old/new dispatcher interleaving without a time-based wait.
+
 ## Verification
 
-- `focused-runtime-fallback-and-prompt-gate.txt`: 398 pass, 0 fail across all runtime-fallback tests, plugin chat-message coverage, and prompt-gate tests.
-- `typecheck.txt` and CI-node-24 `typecheck-node24.txt`: root, scripts, and every package typecheck passed.
-- `build.txt`: `bun run build` completed; `dist/index.js` and declarations exist. `dist-index-sha256.txt` records `e6d3edd79485c7cfcf6edfd8b0fbf54153b95def9a2f390796cba257482c873c`.
+- `focused-runtime-fallback-and-prompt-gate.txt`: 398 pass, 0 fail across all runtime-fallback tests, plugin chat-message coverage, and prompt-gate tests. Post-review `runtime-fallback-after-generation-fix.txt`: 284 pass, 0 fail across the complete runtime-fallback directory.
+- `typecheck.txt` and CI-node-24 `typecheck-node24.txt`: root, scripts, and every package typecheck passed. Post-review `typecheck-generation-fix.txt`: every package typecheck passed.
+- `build.txt` and `build-generation-fix.txt`: `bun run build` completed; the latter freshly built the post-review source surface for QA.
 - `lsp-daemon-tests.txt`: exact vendored daemon suite passed.
 - `root-bun-test.txt`: the full default root suite passed 15,982 tests, skipped 13 platform-gated tests, failed 0. CI-exact Node 24 `root-bun-test-node24-final.txt` passed 13,921 tests, skipped 12 platform-gated tests, failed 0.
 - CI-node-24 `test-codex-node24.txt`: the complete `bun run test:codex` gate passed. Its isolated Node 24/npm 11 toolchain matches CI; a prior Node 22/npm 10 nested-pack attempt is retained locally as `test-codex-first-attempt.txt` and was not treated as a product failure.
@@ -36,6 +42,7 @@ The `opencode-qa` source-built server/API case was selected because this changes
 - `opencode-qa-sse-self-test.txt` passed the isolated SSE probe.
 - `opencode-source-qa.sh` drove the exact freshly built `dist/index.js` with OpenCode 1.18.18, a local fake OpenAI-compatible provider, an authenticated isolated-XDG server, and a pre-subscribed SSE stream.
 - `opencode-source-qa.txt` records HTTP 204, `server.connected`, `session.status`, `message.updated`, and `message.part.updated` carrying `fake response 2`. This proves the changed lifecycle-event surface reached the loaded source-built plugin.
+- Post-review `opencode-source-qa-generation-debug.txt` completed the same source-built isolated-server script against bundle SHA-256 `a35b35707745a54cf4220f4ffb7cbbeece8686cc90125473b48fbf345eaa9abb`: HTTP 204, subscribed `session.status`, `message.updated`, and `message.part.updated` with `fake response 2` all occurred. The first plain invocation exceeded the external 300-second command window before producing a receipt; the instrumented rerun completed every script assertion.
 - The sandbox held one QA session. The real host DB remained exactly 7,586 sessions before and after. The QA sandbox was removed and both its OpenCode and fake-provider processes stopped.
 
 ## Isolated Codex installer QA

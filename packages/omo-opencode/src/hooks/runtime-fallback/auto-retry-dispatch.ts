@@ -237,8 +237,10 @@ export function createAutoRetryDispatcher(
       log(`[${HOOK_NAME}] Auto-retry failed (${source})`, { sessionID, error: String(retryError) })
       return { accepted: false, status: "failed", reason: retryError.message }
     } finally {
-      sessionRetryInFlight.delete(sessionID)
       const ownsFallbackGeneration = isCurrentFallbackGeneration()
+      if (ownsFallbackGeneration) {
+        sessionRetryInFlight.delete(sessionID)
+      }
       if (retryMayHaveBeenAccepted && ownsFallbackGeneration && fallbackState) {
         fallbackState.pendingFallbackPromptMayHaveBeenAccepted = true
       }

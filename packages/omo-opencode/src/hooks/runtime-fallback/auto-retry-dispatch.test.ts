@@ -574,4 +574,70 @@ describe("createAutoRetryDispatcher reserved-session retry (#5109)", () => {
     expect(deps.sessionFallbackTimeouts.has(sessionID)).toBe(false)
     expect(replacementState.currentModel).toBe("google/gemini-2.5-pro")
   })
+
+  test("#given a manual reset starts a new retry while the old dispatcher is awaiting messages #when the old generation completes #then it cannot clear the new generation in-flight marker", async () => {
+    // given
+    const promptCalls = { count: 0 }
+    const deps = createDeps(promptCalls)
+    const sessionID = "session-reset-retry-generation"
+    let releaseStaleLookup: (() => void) | undefined
+    let releaseCurrentLookup: (() => void) | undefined
+    let markStaleLookupStarted: (() => void) | undefined
+    let markCurrentLookupStarted: (() => void) | undefined
+    const staleLookupStarted = new Promise<void>((resolve) => {
+      markStaleLookupStarted = resolve
+    })
+    const currentLookupStarted = new Promise<void>((resolve) => {
+      markCurrentLookupStarted = resolve
+    })
+    const retryResponse = {
+      data: [
+        {
+          info: { role: "user" },
+          parts: [{ type: "text", text: "retry this" }],
+        },
+      ],
+    }
+    let lookupCount = 0
+    deps.ctx.client.session.messages = () => {
+      lookupCount += 1
+      if (lookupCount > 2) return Promise.resolve(retryResponse)
+      return new Promise((resolve) => {
+        if (lookupCount === 1) {
+          markStaleLookupStarted?.()
+          releaseStaleLookup = () => resolve(retryResponse)
+        } else {
+          markCurrentLookupStarted?.()
+          releaseCurrentLookup = () => resolve(retryResponse)
+        }
+      })
+    }
+    const helpers = createAutoRetryHelpers(deps)
+    deps.sessionStates.set(sessionID, createFallbackState("anthropic/claude-opus-4-7"))
+
+    // when
+    const staleRetry = helpers.autoRetryWithFallback(sessionID, "openai/gpt-5.4", undefined, "session.error")
+    await staleLookupStarted
+    const replacementState = createFallbackState("google/gemini-2.5-pro")
+    deps.sessionStates.set(sessionID, replacementState)
+    deps.sessionRetryInFlight.delete(sessionID)
+    const currentRetry = helpers.autoRetryWithFallback(sessionID, "google/gemini-2.5-pro", undefined, "session.error")
+    await currentLookupStarted
+    if (!releaseStaleLookup) throw new Error("stale message lookup did not start")
+    releaseStaleLookup()
+    const staleOutcome = await staleRetry
+
+    // then
+    expect(staleOutcome).toEqual({
+      accepted: false,
+      status: "blocked",
+      reason: "stale fallback generation",
+    })
+    expect(deps.sessionRetryInFlight.has(sessionID)).toBe(true)
+
+    if (!releaseCurrentLookup) throw new Error("current message lookup did not start")
+    releaseCurrentLookup()
+    await currentRetry
+    expect(deps.sessionRetryInFlight.has(sessionID)).toBe(false)
+  })
 })
