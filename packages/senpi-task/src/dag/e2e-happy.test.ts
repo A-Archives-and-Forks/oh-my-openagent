@@ -1,5 +1,5 @@
 // allow: SIZE_OK - one end-to-end fixture proves the assembled manager, scheduler, task manager, wait surface, SDK, and durable store agree across all happy-path graph shapes.
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import * as fs from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -16,6 +16,12 @@ import { createDagManager, type DagManager, type DagRunRecordV1, type DagStartRe
 import { createDagScheduler, type DagScheduler } from "./scheduler"
 import { createDagFileStore, type DagFileStore } from "./store"
 import type { DagRunEvent, DagRunId } from "./types"
+
+// bunfig preloads test-setup.ts to raise the default timeout, but Bun honours a preload's
+// setDefaultTimeout only for the FIRST test file of a run; every later file silently reverts to
+// the built-in 5000ms. Windows job 96304719047 in run 32328567654 measured the diamond case at
+// 5759ms against that 5000ms floor. Set the floor here, where Bun does honour it.
+setDefaultTimeout(process.platform === "win32" ? 60_000 : 20_000)
 
 const cleanupRoots: string[] = []
 const parentSessionId = "session-e2e-parent"
@@ -336,7 +342,7 @@ describe("DAG happy-path end to end", () => {
     ])
     expect(Object.values(result.nodes).every((node) => node.state === "completed" && node.output.startsWith("output:"))).toBe(true)
     assertArtifacts(fixture, result.runId, input.key, input.nodes.map((node) => node.id))
-  }, process.platform === "win32" ? 15_000 : 5_000)
+  })
 
   test("#given a completed run key #when the identical definition starts again #then the same run is reused without a second run file or event", async () => {
     // given
