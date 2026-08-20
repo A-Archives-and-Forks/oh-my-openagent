@@ -76,6 +76,10 @@ export function createSessionStatusHandler(
         sessionRetryInFlight.delete(sessionID)
       } else {
         log(`[${HOOK_NAME}] session.status retry skipped - retry already in flight`, { sessionID })
+        seenRetryKeys?.delete(retryKey)
+        if (seenRetryKeys?.size === 0) {
+          sessionStatusRetryKeys.delete(sessionID)
+        }
         return
       }
     }

@@ -342,6 +342,82 @@ describe("createSessionStatusHandler", () => {
     SessionCategoryRegistry.clear()
   })
 
+  it("#given a no-timeout fallback dispatch is in flight #when the fallback retry status repeats after acknowledgement #then it advances instead of retaining the skipped key", async () => {
+    // given
+    SessionCategoryRegistry.clear()
+    const sessionID = "session-status-in-flight-key-recovery"
+    SessionCategoryRegistry.register(sessionID, "test")
+
+    const deps = createDeps()
+    deps.config.timeout_seconds = 0
+    const abortCalls: string[] = []
+    const retryCalls: Array<{ sessionID: string; model: string; source: string }> = []
+    const helpers = createHelpers(abortCalls, retryCalls)
+    const retryStarted = Promise.withResolvers<void>()
+    const releaseFirstRetry = Promise.withResolvers<void>()
+    let firstRetry = true
+    helpers.autoRetryWithFallback = async (retrySessionID, retryModel, _resolvedAgent, source) => {
+      retryCalls.push({ sessionID: retrySessionID, model: retryModel, source })
+      if (firstRetry) {
+        firstRetry = false
+        deps.sessionRetryInFlight.add(retrySessionID)
+        retryStarted.resolve()
+        await releaseFirstRetry.promise
+        deps.sessionRetryInFlight.delete(retrySessionID)
+      }
+      return { accepted: true, status: "dispatched" }
+    }
+    const handler = createSessionStatusHandler(deps, helpers, deps.sessionStatusRetryKeys)
+    const fallbackRetryStatus = {
+      type: "retry",
+      attempt: 1,
+      message: "AI_APICallError: 5-hour usage limit reached",
+    }
+
+    // when
+    const firstStatus = handler({
+      sessionID,
+      model: "anthropic/claude-opus-4-7",
+      status: fallbackRetryStatus,
+    })
+    await retryStarted.promise
+    await handler({
+      sessionID,
+      model: "openai/gpt-5.4",
+      status: fallbackRetryStatus,
+    })
+    releaseFirstRetry.resolve()
+    await firstStatus
+    await createChatMessageHandler(deps)(
+      {
+        sessionID,
+        model: { providerID: "openai", modelID: "gpt-5.4" },
+      },
+      { message: {} },
+    )
+    await handler({
+      sessionID,
+      model: "openai/gpt-5.4",
+      status: fallbackRetryStatus,
+    })
+
+    // then
+    expect(abortCalls).toEqual([sessionID, sessionID])
+    expect(retryCalls).toEqual([
+      {
+        sessionID,
+        model: "openai/gpt-5.4",
+        source: "session.status",
+      },
+      {
+        sessionID,
+        model: "google/gemini-2.5-pro",
+        source: "session.status",
+      },
+    ])
+    SessionCategoryRegistry.clear()
+  })
+
   it("#given pending fallback prompt may already be accepted #when provider retry status arrives #then it keeps waiting for that accepted prompt", async () => {
     // given
     SessionCategoryRegistry.clear()
