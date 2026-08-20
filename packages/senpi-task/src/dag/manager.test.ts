@@ -4,10 +4,12 @@ import * as fs from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { dagNodeRetriedEvent } from "./events"
 import type { DagDefinition } from "./graph"
-import { DagManagerError, createDagManager } from "./manager"
+import { createDagJournal } from "./journal"
+import { applyDagRunMutation, DagManagerError, createDagManager, type DagRunRecordV1 } from "./manager"
 import { createDagFileStore } from "./store"
-import type { DagNodeId, DagRunId } from "./types"
+import type { DagNodeId, DagRunEvent, DagRunId } from "./types"
 
 const cleanupRoots: string[] = []
 const parentSessionId = "ses_parent"
@@ -429,6 +431,158 @@ describe("createDagManager list", () => {
     expect(limited).toHaveLength(2)
     expect(clamped).toHaveLength(3)
     expect(() => dag.list(parentSessionId, { limit: 0 })).toThrow(DagManagerError)
+  })
+})
+
+describe("createDagManager amend", () => {
+  const diamond = (bPrompt = "build b", extraNodes: DagDefinition["nodes"] = []): DagDefinition => ({
+    key: "diamond",
+    name: "diamond",
+    nodes: [
+      { id: "A", prompt: "build a", category: "quick" },
+      { id: "B", prompt: bPrompt, category: "quick", dependsOn: ["A"] },
+      { id: "C", prompt: "build c", category: "quick", dependsOn: ["A"] },
+      { id: "D", prompt: "build d", category: "quick", dependsOn: ["B", "C"] },
+      ...extraNodes,
+    ],
+  })
+
+  function completeDiamond(store: ReturnType<typeof createDagFileStore>, runId: DagRunId): DagRunRecordV1 {
+    const record = store.readCheckpoint<DagRunRecordV1>(runId)
+    if (record === null) throw new Error("missing test checkpoint")
+    const completed: DagRunRecordV1 = {
+      ...record,
+      status: "completed",
+      completedAt: "2026-01-01T00:01:00.000Z",
+      nodes: record.nodes.map((node) => ({
+        ...node,
+        state: "completed" as const,
+        taskId: `task-${node.id}`,
+        attempt: 1,
+        completedAt: "2026-01-01T00:01:00.000Z",
+        resultArtifact: { path: `/results/${node.id}.txt`, bytes: 10, sha256: `sha-${node.id}` },
+      })),
+    }
+    store.writeCheckpoint(runId, completed)
+    return completed
+  }
+
+  test("#given a completed diamond #when B's prompt is amended #then only B and D are invalidated and cached siblings survive", async () => {
+    const { store, dag } = manager(tempProject())
+    const started = await dag.start({ definition: diamond(), parentSessionId, rootSessionId })
+    completeDiamond(store, started.snapshot.runId)
+
+    const amended = await dag.amend({ runId: started.snapshot.runId, definition: diamond("build b differently"), parentSessionId })
+
+    expect(amended.nodes.map((node) => ({ id: node.id as string, state: node.state, taskId: node.taskId, attempt: node.attempt, execAttempt: node.execAttempt }))).toEqual([
+      { id: "A", state: "completed", taskId: "task-A", attempt: 1, execAttempt: undefined },
+      { id: "B", state: "pending", taskId: "task-B", attempt: 1, execAttempt: 1 },
+      { id: "C", state: "completed", taskId: "task-C", attempt: 1, execAttempt: undefined },
+      { id: "D", state: "pending", taskId: "task-D", attempt: 1, execAttempt: 1 },
+    ])
+    expect((amended.nodes[0] as typeof amended.nodes[number] & { resultArtifact?: unknown })?.resultArtifact).toBeDefined()
+    expect((amended.nodes[2] as typeof amended.nodes[number] & { resultArtifact?: unknown })?.resultArtifact).toBeDefined()
+    expect(amended.nodes[1]?.error).toBeUndefined()
+    expect(amended.amendHistory).toHaveLength(1)
+    expect(store.readEvents(started.snapshot.runId, 0, { limit: 10 }).events.at(-1)?.type).toBe("dag.definition.amended")
+
+    const reused = await dag.start({ definition: diamond("build b differently"), parentSessionId, rootSessionId })
+    expect(reused.reused).toBe(true)
+    const original = dag.start({ definition: diamond(), parentSessionId, rootSessionId })
+    await expect(original).rejects.toMatchObject({ code: "definition_conflict" })
+  })
+
+  test("#given changed or invalid graph members #when amended #then running nodes and dangling removals are typed refusals while leaf removal is legal", async () => {
+    const { store, dag } = manager(tempProject())
+    const started = await dag.start({ definition: diamond(), parentSessionId, rootSessionId })
+    const completed = completeDiamond(store, started.snapshot.runId)
+    store.writeCheckpoint(started.snapshot.runId, {
+      ...completed,
+      status: "running",
+      completedAt: undefined,
+      nodes: completed.nodes.map((node) => node.id === "B" ? { ...node, state: "running" as const } : node),
+    })
+
+    await expect(dag.amend({ runId: started.snapshot.runId, definition: diamond("changed"), parentSessionId }))
+      .rejects.toMatchObject({ code: "amend_running_node", nodeIds: ["B"] })
+
+    store.writeCheckpoint(started.snapshot.runId, completed)
+    await expect(dag.amend({ runId: started.snapshot.runId, definition: {
+      ...diamond(),
+      nodes: diamond().nodes.filter((node) => node.id !== "A"),
+    }, parentSessionId })).rejects.toMatchObject({ code: "invalid_amendment" })
+
+    const withoutD = { ...diamond(), nodes: diamond().nodes.filter((node) => node.id !== "D") }
+    const amended = await dag.amend({ key: "diamond", definition: withoutD, parentSessionId })
+    expect(amended.nodes.map((node) => node.id as string)).toEqual(["A", "B", "C"])
+  })
+
+  test("#given a completed run #when a node is added #then compiled projections are replaced so the new node is admissible", async () => {
+    const { store, dag } = manager(tempProject())
+    const started = await dag.start({ definition: diamond(), parentSessionId, rootSessionId })
+    completeDiamond(store, started.snapshot.runId)
+
+    const amended = await dag.amend({
+      runId: started.snapshot.runId,
+      definition: diamond("build b", [{ id: "E", prompt: "build e", category: "quick", dependsOn: ["D"] }]),
+      parentSessionId,
+    })
+
+    expect(amended.nodes.find((node) => node.id === "E")).toMatchObject({ state: "pending", attempt: 0 })
+    expect(amended.waves.map((wave) => wave.nodeIds.map((id) => id as string))).toEqual([["A"], ["B", "C"], ["D"], ["E"]])
+    expect(amended.edges.map((edge) => ({ from: edge.from as string, to: edge.to as string }))).toContainEqual({ from: "D", to: "E" })
+  })
+
+  test("#given a materialized run #when changed and added nodes are amended #then skills rematerialize once for only those nodes", async () => {
+    const project = tempProject()
+    const store = createDagFileStore({ project_dir: project })
+    const calls: string[][] = []
+    const dag = createDagManager({
+      store,
+      materializeSkills: ({ definition: input }) => {
+        calls.push(input.nodes.map((node) => node.id))
+        return { nodes: input.nodes.map((node) => ({ nodeId: node.id, effectivePrompt: `skill:${node.prompt}` })) }
+      },
+    })
+    const started = await dag.start({ definition: diamond(), parentSessionId, rootSessionId })
+    completeDiamond(store, started.snapshot.runId)
+
+    const amended = await dag.amend({
+      runId: started.snapshot.runId,
+      definition: diamond("changed", [{ id: "E", prompt: "build e", category: "quick", dependsOn: ["D"] }]),
+      parentSessionId,
+    })
+
+    expect(calls).toEqual([["A", "B", "C", "D"], ["B", "E"]])
+    expect(amended.definition.nodes.find((node) => node.id === "A")?.effectivePrompt).toBe("skill:build a")
+    expect(amended.definition.nodes.find((node) => node.id === "B")?.effectivePrompt).toBe("skill:changed")
+    expect(amended.definition.nodes.find((node) => node.id === "E")?.effectivePrompt).toBe("skill:build e")
+  })
+
+  test("#given invalid selectors or a missing run #when amended #then invalid_arguments and run_not_found are returned", async () => {
+    const { dag } = manager(tempProject())
+    await expect(dag.amend({ runId: "run-missing" as DagRunId, key: "missing", definition: diamond(), parentSessionId }))
+      .rejects.toMatchObject({ code: "invalid_arguments" })
+    await expect(dag.amend({ runId: "run-missing" as DagRunId, definition: diamond(), parentSessionId }))
+      .rejects.toMatchObject({ code: "run_not_found" })
+  })
+
+  test("#given amended and retried WAL events #when replayed from the old checkpoint #then the shared reducer rebuilds the identical checkpoint", async () => {
+    const { store, dag } = manager(tempProject())
+    const started = await dag.start({ definition: diamond(), parentSessionId, rootSessionId })
+    const old = completeDiamond(store, started.snapshot.runId)
+    const amended = await dag.amend({ runId: started.snapshot.runId, definition: diamond("changed"), parentSessionId })
+    const amendmentEvent = store.readEvents(started.snapshot.runId, 1, { limit: 10 }).events[0] as DagRunEvent
+    const retriedPayload = dagNodeRetriedEvent({ nodeId: "B" as DagNodeId, priorTaskId: "task-B", execAttempt: 2, promptChanged: false })
+    const journal = createDagJournal<DagRunRecordV1>({ store, runId: started.snapshot.runId, initialCheckpoint: amended, applyEvent: applyDagRunMutation })
+    journal.append(retriedPayload)
+    const expected = journal.snapshot()
+
+    store.writeCheckpoint(started.snapshot.runId, { ...old, checkpointSeq: 1 })
+    const replay = createDagJournal<DagRunRecordV1>({ store, runId: started.snapshot.runId, initialCheckpoint: old, applyEvent: applyDagRunMutation })
+
+    expect(amendmentEvent.type).toBe("dag.definition.amended")
+    expect(replay.snapshot()).toEqual(expected)
   })
 })
 
