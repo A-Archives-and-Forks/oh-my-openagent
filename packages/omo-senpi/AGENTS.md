@@ -90,7 +90,15 @@ Task-component QA in this package: `packages/omo-senpi/scripts/qa/task-13.test.t
 
 ## Evidence Rules
 
-Live Senpi QA evidence goes under `.omo/evidence/omo-senpi-adapter/`, one subdirectory per change or task. Record:
+Live Senpi QA evidence goes under `.omo/evidence/omo-senpi-adapter/`, one subdirectory per change or task. Resolve that subdirectory with the `senpi-qa` skill's script rather than typing it, so a stray root such as `local-ignore/qa-evidence/` cannot absorb the run:
+
+```sh
+ev="$(node .agents/skills/senpi-qa/scripts/resolve-evidence-dir.mjs \
+  --repo-root "$(git rev-parse --show-toplevel)" --slug <YYYYMMDD>-<short-slug>)"
+mkdir -p "$ev"
+```
+
+The script returns the absolute path and creates nothing; it rejects separators, `.`/`..`, traversal, absolute paths, and a non-git root. Record:
 
 - what command or manual action was run;
 - what behavior it was meant to prove;
@@ -98,4 +106,4 @@ Live Senpi QA evidence goes under `.omo/evidence/omo-senpi-adapter/`, one subdir
 - isolation proof, especially the sandbox `SENPI_CODING_AGENT_DIR` and whether the real Senpi agent dir stayed untouched;
 - omitted or redacted material, especially raw logs that could contain secrets.
 
-Do not claim live Senpi QA from unit tests alone. `bun run test:senpi` is the package gate; the scripts in `scripts/qa/` are the real harness proof.
+Do not claim live Senpi QA from unit tests alone. `bun run test:senpi` is the package gate; the scripts in `scripts/qa/` are the real harness proof. The `senpi-qa` skill (`.agents/skills/senpi-qa/`) routes a change to the right driver and owns the evidence-path contract.

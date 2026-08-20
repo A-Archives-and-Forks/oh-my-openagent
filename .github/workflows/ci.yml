@@ -402,6 +402,7 @@ jobs:
           npm pack --pack-destination "$PACK_DIR" packages/omo-senpi/plugin
           npm --prefix packages/lsp-daemon test -- test/daemon-roundtrip.test.ts
           bunx tsgo --noEmit -p packages/omo-senpi/tsconfig.json
+          bun test ./.agents/skills/senpi-qa/scripts/resolve-evidence-dir.test.mjs
           bun test packages/omo-senpi
 
       - name: Write job summary
@@ -413,7 +414,7 @@ jobs:
           JOB_SUMMARY_DETAILS: |
             - Builds the local-path Senpi adapter package artifacts.
             - Builds the shared LSP daemon once before staging Senpi artifacts.
-            - Packs the generated Pi package and runs hermetic Senpi type/tests.
+            - Packs the generated Pi package and runs hermetic Senpi and QA-contract tests.
             - Covers Linux/macOS socket and Windows named-pipe daemon smoke.
           JOB_SUMMARY_NEXT: Inspect the first omo-senpi build, sync, directive, or package test failure for this OS.
         run: GITHUB_STEP_SUMMARY="$GITHUB_STEP_SUMMARY" bash .github/scripts/write-job-summary.sh
