@@ -1,3 +1,11 @@
+## 2026-08-21 — Add mass-ulw trigger aliases
+
+The mass-ulw keyword detector now also fires on `ulw mass`, `ulwmass`, `mulw`, and
+`meth` (any case, space/hyphen variants), alongside the existing `mass ulw` /
+`massulw` / `mass-ulw` spellings. `MASS_ULW_PATTERN` becomes
+`/\b(?:mass[\s-]*ulw(?!-)|ulw[\s-]*mass|mulw|meth)\b/i`; the `ulw(?!-)` guard,
+all suppressions, and both injection paths are unchanged.
+
 ## 2026-08-20 — Render transcript notices in the Senpi notice-box family
 
 Fallback architect announcements, task completion and liveness cards, and memory reflection, health, soul, accepted-turn, and write notices now share the Senpi-canonical padded `customMessageBg` block. Titles retain semantic tone and bold emphasis, body rows stay dim, and diagnostic detail remains expanded-only.
