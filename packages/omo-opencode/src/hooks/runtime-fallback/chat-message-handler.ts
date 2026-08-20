@@ -4,6 +4,9 @@ import { parseModelString } from "@oh-my-opencode/model-core"
 import { HOOK_NAME } from "./constants"
 import { log } from "../../shared/logger"
 import { createFallbackState, isModelInCooldown, stringifyRuntimeModelWithVariant } from "./fallback-state"
+import { buildRetryModelPayload } from "./retry-model-payload"
+import { resolveRuntimeModelSettings } from "./runtime-model-settings"
+import { getSessionAgent } from "../../features/claude-code-session-state"
 
 declare function clearTimeout(timeout: RuntimeFallbackTimeout): void
 
@@ -53,6 +56,8 @@ export function createChatMessageHandler(deps: HookDeps) {
     }
     if (parsedModel.variant) {
       message.variant = parsedModel.variant
+    } else {
+      delete message.variant
     }
   }
 
@@ -100,7 +105,13 @@ export function createChatMessageHandler(deps: HookDeps) {
       !state.pendingFallbackModel &&
       !isModelInCooldown(state.originalModel, state, config.cooldown_seconds)
     ) {
-      const activeModel = state.originalModel
+      const primaryPayload = buildRetryModelPayload(
+        state.originalModel,
+        resolveRuntimeModelSettings(sessionID, input.agent ?? getSessionAgent(sessionID), deps.pluginConfig),
+      )
+      const activeModel = primaryPayload
+        ? stringifyRuntimeModelWithVariant(primaryPayload.model, primaryPayload.variant) ?? state.originalModel
+        : state.originalModel
       log(`[${HOOK_NAME}] Restoring preferred primary model`, {
         sessionID,
         from: state.currentModel,

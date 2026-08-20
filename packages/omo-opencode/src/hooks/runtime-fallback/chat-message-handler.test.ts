@@ -168,10 +168,55 @@ describe("createChatMessageHandler runtime fallback model override", () => {
     })
   })
 
+  test("#given an explicit-variant fallback and a base primary #when cooldown restoration runs #then the fallback-only variant is removed", async () => {
+    // given
+    const deps = createDeps()
+    deps.config.restore_primary_after_cooldown = true
+    const sessionID = "session-clear-fallback-only-variant"
+    const state = createFallbackState("openai/gpt-5.4")
+    state.currentModel = "anthropic/claude-opus-4-7(high)"
+    state.fallbackIndex = 0
+    deps.sessionStates.set(sessionID, state)
+    const handler = createChatMessageHandler(deps)
+    const output: {
+      message: {
+        model?: { providerID: string; modelID: string }
+        variant?: string
+      }
+    } = { message: { variant: "high" } }
+
+    // when
+    await handler(
+      {
+        sessionID,
+        model: {
+          providerID: "anthropic",
+          modelID: "claude-opus-4-7",
+        },
+      },
+      output,
+    )
+
+    // then
+    expect(output.message).toEqual({
+      model: {
+        providerID: "openai",
+        modelID: "gpt-5.4",
+      },
+    })
+  })
+
   test("#given an inherited primary variant #when cooldown restoration runs #then the inherited variant remains applied", async () => {
     // given
     const deps = createDeps()
     deps.config.restore_primary_after_cooldown = true
+    deps.pluginConfig = {
+      agents: {
+        sisyphus: {
+          variant: "high",
+        },
+      },
+    }
     const sessionID = "session-restore-inherited-primary-variant"
     const state = createFallbackState("openai/gpt-5.4")
     state.currentModel = "anthropic/claude-opus-4-7(high)"
@@ -189,6 +234,7 @@ describe("createChatMessageHandler runtime fallback model override", () => {
     await handler(
       {
         sessionID,
+        agent: "sisyphus",
         model: {
           providerID: "anthropic",
           modelID: "claude-opus-4-7",
