@@ -224,8 +224,11 @@ class TaskManagerImpl implements TaskManager {
     })
   }
 
+  // The LAST match wins: a retried DAG node claims the same (kind,runId,nodeId) under a new
+  // execAttempt-scoped fingerprint, and task ids sort by creation, so the newest claim is the live
+  // one. The superseded record keeps its dag owner marker (spawn-time launcher stripping reads it).
   findOwnedTask(owner: DagTaskOwnerKey): TaskRecord | undefined {
-    return this.#options.store.list().records.find((record) =>
+    return this.#options.store.list().records.findLast((record) =>
       record.owner?.kind === owner.kind &&
       record.owner.runId === owner.runId &&
       record.owner.nodeId === owner.nodeId,
@@ -236,6 +239,10 @@ class TaskManagerImpl implements TaskManager {
     const record = this.findOwnedTask(owner)
     if (record === undefined) return undefined
     if (record.owner?.fingerprint !== owner.fingerprint) {
+      // A settled record cannot be re-run in place, so a differing fingerprint on it is a retry:
+      // ownership moves to the fresh task. Only a LIVE task with a different fingerprint is a
+      // genuine conflict between two callers over one running child.
+      if (isTerminalRecord(record)) return undefined
       return {
         kind: "owner_conflict",
         task_id: record.task_id,

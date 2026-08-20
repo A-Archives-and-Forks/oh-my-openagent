@@ -6,7 +6,7 @@ import { relative } from "node:path"
 import type { ManagerStartSpec, TaskManager } from "../manager/types"
 import type { TaskRecord, TaskStatus } from "../state"
 import { resolveDagNodeExecutionMode, type DagExecutionModeSources } from "./execution-mode"
-import { dagFingerprint } from "./fingerprint"
+import { dagFingerprint, ownerFingerprintInput } from "./fingerprint"
 import {
   dagNodeTaskAttachedEvent,
   dagNodeTransitionedEvent,
@@ -18,7 +18,9 @@ import {
   dagWaveStartedEvent,
 } from "./events"
 import { createDagJournal, type DagJournal, type DagJournalListener } from "./journal"
-import type { DagPersistedNode, DagRunRecordV1 } from "./manager"
+import { applyDagRunMutation, type DagMaterializeSkills, type DagPersistedNode, type DagRunRecordV1 } from "./manager"
+import { retryDagNodes, type DagRetryOptions, type DagRunReentry } from "./node-retry"
+import { sendToDagNode, type DagNodeSendResult } from "./node-send"
 import type { OwnedStartResult } from "./owner"
 import { persistDagNodeResult, readDagNodeResult, type DagNodeResultArtifact } from "./results"
 import type { DagFileStore } from "./store"
@@ -33,6 +35,14 @@ import type {
   DagRunEvent,
   DagRunId,
 } from "./types"
+
+// The per-node control verbs live beside the scheduler but keep one public entry point: callers
+// import the whole run surface (run, cancel, retry, send, re-entry) from here.
+export { DAG_NODE_CONTROL_ERROR_CODES, DagNodeControlError } from "./node-control-context"
+export type { DagNodeControlErrorCode } from "./node-control-context"
+export { reenterDagRun } from "./node-retry"
+export type { DagRetryOptions, DagRunReentry } from "./node-retry"
+export type { DagNodeSendResult } from "./node-send"
 
 const TERMINAL_NODE_STATES: ReadonlySet<DagNodeState> = new Set([
   "completed",
@@ -49,6 +59,12 @@ export type DagSchedulerOptions = {
   readonly ancestry?: { readonly depth: number }
   readonly subscriberRing?: number
   readonly nodeSpawnPolicy?: DagNodeSpawnPolicy
+  // Skill materialization for a retry that carries a prompt override (it re-runs the amend path).
+  readonly materializeSkills?: DagMaterializeSkills
+  // Lease identity for the control verbs: a run leased by a DIFFERENT live process is not ours to
+  // retry. Defaults to this process and the lifecycle port's signal-0 probe.
+  readonly hostPid?: number
+  readonly isProcessAlive?: (pid: number) => boolean
   readonly now?: () => number
 }
 
@@ -73,6 +89,18 @@ export type DagScheduler = {
   readonly snapshot: () => DagRunRecordV1
   readonly subscribe: (listener: DagJournalListener) => () => void
   readonly whenIdle: () => Promise<void>
+  /**
+   * Returns failed, cancelled, or skipped nodes to a fresh attempt and re-enters the run through a
+   * NEW scheduler. Safe to call on a settled instance: it reads the durable record, not this
+   * instance's spent state machine.
+   */
+  readonly retryNode: (
+    runId: DagRunId,
+    nodeIds?: readonly DagNodeId[],
+    options?: DagRetryOptions,
+  ) => DagRunReentry
+  /** Steers a running child, revives a finished resident one, or refuses with node_not_continuable. */
+  readonly sendToNode: (runId: DagRunId, nodeId: DagNodeId, message: string) => Promise<DagNodeSendResult>
 }
 
 type DagSchedulerObserver = (scheduler: DagScheduler) => void
@@ -172,6 +200,8 @@ export function createDagScheduler(options: DagSchedulerOptions): DagScheduler {
     snapshot: journal.snapshot,
     subscribe: journal.subscribe,
     whenIdle: journal.whenIdle,
+    retryNode: (runId, nodeIds, retryOptions) => retryDagNodes(options, runId, nodeIds, retryOptions),
+    sendToNode: (runId, nodeId, message) => sendToDagNode(options, runId, nodeId, message),
   }
   for (const observer of schedulerObservers.get(options.taskManager) ?? []) observer(scheduler)
   return scheduler
@@ -260,6 +290,26 @@ export function applyDagSchedulerEvent(
           : node),
         updatedAt: event.at,
       }
+    // Re-entry rearms the run: completedAt is stamped on every terminal status above, so leaving it
+    // in place would report a settle that no longer describes this run through projectSnapshot.
+    case "dag.run.resumed": {
+      const { completedAt: _completedAt, ...running } = record
+      return { ...running, status: "running", generation: event.generation, updatedAt: event.at }
+    }
+    // A revived child runs again on its own session: no new task, no attempt bump, just the node
+    // leaving its terminal state so the revive watcher can fold the new outcome.
+    case "dag.node.steered":
+      if (event.delivery !== "revive") return { ...record, updatedAt: event.at }
+      return {
+        ...record,
+        nodes: record.nodes.map((node) => node.id === event.nodeId ? { ...node, taskId: event.taskId } : node),
+        updatedAt: event.at,
+      }
+    // The retry and amend record mutations live in ONE shared reducer with the manager so a journal
+    // replay through either entry point rebuilds an identical checkpoint.
+    case "dag.node.retried":
+    case "dag.definition.amended":
+      return { ...applyDagRunMutation(record, event), updatedAt: event.at }
     default:
       return { ...record, updatedAt: event.at }
   }
@@ -602,11 +652,18 @@ function startSpec(context: SchedulerContext, nodeId: DagNodeId): ManagerStartSp
 
 function owner(context: SchedulerContext, nodeId: DagNodeId) {
   const record = context.journal.snapshot()
+  const execAttempt = nodeById(record, nodeId).execAttempt
   return {
     kind: "dag" as const,
     runId: record.runId,
     nodeId,
-    fingerprint: dagFingerprint({ definitionFingerprint: record.definitionFingerprint, nodeId }),
+    // execAttempt (NOT the display attempt) scopes the owner identity: a retried or
+    // amend-invalidated node claims a new one, while an untouched node keeps the legacy value.
+    fingerprint: dagFingerprint(ownerFingerprintInput({
+      definitionFingerprint: record.definitionFingerprint,
+      nodeId,
+      ...(execAttempt === undefined ? {} : { execAttempt }),
+    })),
   }
 }
 
@@ -643,13 +700,30 @@ function taskFailure(status: Exclude<TaskStatus, "completed" | "pending" | "runn
 }
 
 function transitionedNode(node: DagNode, state: DagNodeState, at: string, error?: DagNodeError): DagNode {
+  // Leaving a terminal state for a new execution (a revived child) drops the previous outcome:
+  // error, completion time, and result metadata all describe the attempt that just ended, and the
+  // durable artifact stays readable on disk until the new attempt overwrites it.
+  const base = state === "running" && TERMINAL_NODE_STATES.has(node.state)
+    ? clearedTerminalOutcome(node)
+    : node
   return {
-    ...node,
+    ...base,
     state,
     ...(state === "running" && node.startedAt === undefined ? { startedAt: at } : {}),
     ...(TERMINAL_NODE_STATES.has(state) ? { completedAt: at } : {}),
     ...(error === undefined ? {} : { error }),
   }
+}
+
+function clearedTerminalOutcome(node: DagNode): DagNode {
+  const {
+    error: _error,
+    completedAt: _completedAt,
+    runStats: _runStats,
+    resultArtifact: _resultArtifact,
+    ...cleared
+  } = node as DagNodeWithResult
+  return cleared
 }
 
 function errorMessage(error: unknown): string {
