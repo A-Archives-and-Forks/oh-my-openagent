@@ -418,6 +418,46 @@ describe("createSessionStatusHandler", () => {
     SessionCategoryRegistry.clear()
   })
 
+  it("#given a first retry status arrives during an in-flight fallback #when the identical status repeats after the in-flight marker clears #then the first key was not retained", async () => {
+    // given
+    SessionCategoryRegistry.clear()
+    const sessionID = "session-status-first-in-flight-key"
+    SessionCategoryRegistry.register(sessionID, "test")
+    const deps = createDeps()
+    deps.config.timeout_seconds = 0
+    deps.sessionStates.set(sessionID, createFallbackState("anthropic/claude-opus-4-7"))
+    deps.sessionRetryInFlight.add(sessionID)
+    const abortCalls: string[] = []
+    const retryCalls: Array<{ sessionID: string; model: string; source: string }> = []
+    const handler = createSessionStatusHandler(deps, createHelpers(abortCalls, retryCalls), deps.sessionStatusRetryKeys)
+    const status = {
+      type: "retry",
+      attempt: 1,
+      message: "AI_APICallError: 5-hour usage limit reached",
+    }
+
+    // when
+    await handler({ sessionID, model: "anthropic/claude-opus-4-7", status })
+
+    // then
+    expect(deps.sessionStatusRetryKeys.has(sessionID)).toBe(false)
+
+    // when
+    deps.sessionRetryInFlight.delete(sessionID)
+    await handler({ sessionID, model: "anthropic/claude-opus-4-7", status })
+
+    // then
+    expect(abortCalls).toEqual([sessionID])
+    expect(retryCalls).toEqual([
+      {
+        sessionID,
+        model: "openai/gpt-5.4",
+        source: "session.status",
+      },
+    ])
+    SessionCategoryRegistry.clear()
+  })
+
   it("#given pending fallback prompt may already be accepted #when provider retry status arrives #then it keeps waiting for that accepted prompt", async () => {
     // given
     SessionCategoryRegistry.clear()

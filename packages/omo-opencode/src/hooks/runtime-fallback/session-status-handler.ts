@@ -56,15 +56,12 @@ export function createSessionStatusHandler(
 
     const retryModel = model ?? "unknown"
     const retryKey = `${retryModel}:${extractRetryAttempt(status.attempt, retryMessage)}:${normalizeRetryStatusMessage(retryMessage)}`
-    const seenRetryKeys = sessionStatusRetryKeys.get(sessionID)
-    if (seenRetryKeys?.has(retryKey)) {
+    const seenRetryKeys = sessionStatusRetryKeys.get(sessionID) ?? new Set<string>()
+    if (seenRetryKeys.has(retryKey)) {
       return
     }
-    if (seenRetryKeys) {
-      seenRetryKeys.add(retryKey)
-    } else {
-      sessionStatusRetryKeys.set(sessionID, new Set([retryKey]))
-    }
+    seenRetryKeys.add(retryKey)
+    sessionStatusRetryKeys.set(sessionID, seenRetryKeys)
 
     if (sessionRetryInFlight.has(sessionID)) {
       if (timeoutEnabled) {
