@@ -485,6 +485,10 @@ describe("createDagManager amend", () => {
     expect(amended.nodes[1]?.error).toBeUndefined()
     expect(amended.amendHistory).toHaveLength(1)
     expect(store.readEvents(started.snapshot.runId, 0, { limit: 10 }).events.at(-1)?.type).toBe("dag.definition.amended")
+    // Observe surfaces (/dag, widget, omo.dag.updated) read the projected snapshot, so the amend
+    // history has to survive the projection or the "amended xN" marker can never render.
+    expect(dag.snapshot(started.snapshot.runId, parentSessionId).amendHistory).toHaveLength(1)
+    expect(dag.snapshot(started.snapshot.runId, parentSessionId).nodes[1]?.attempt).toBe(1)
 
     const reused = await dag.start({ definition: diamond("build b differently"), parentSessionId, rootSessionId })
     expect(reused.reused).toBe(true)

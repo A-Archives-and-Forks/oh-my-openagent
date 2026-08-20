@@ -206,6 +206,9 @@ export type DagRunSnapshot = {
   readonly bottlenecks: readonly DagBottleneck[]
   readonly diagnostics: readonly DagDiagnostic[]
   readonly counts: DagNodeCounts
+  // One entry per accepted amendment. Observe surfaces read this projection, so it must carry the
+  // history rather than making them reach for the raw record. Absent on never-amended runs.
+  readonly amendHistory?: readonly unknown[]
 }
 
 export const DAG_NODE_TRANSITION_REASONS = [

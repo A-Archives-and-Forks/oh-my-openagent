@@ -688,6 +688,7 @@ function projectSnapshot(record: DagRunRecordV1): DagRunSnapshot {
     bottlenecks: record.bottlenecks,
     diagnostics: record.diagnostics,
     counts: countNodes(record.nodes),
+    ...(record.amendHistory === undefined ? {} : { amendHistory: record.amendHistory }),
   }
 }
 
