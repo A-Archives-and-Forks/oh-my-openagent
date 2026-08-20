@@ -8,7 +8,7 @@ import { OmoTaskSettingsSchema } from "@oh-my-opencode/omo-config-core"
 
 import { createTaskManager } from "../manager/manager"
 import type { ManagedChildHandle } from "../manager/child-handle"
-import type { ChildPlanner, ManagedRunner, ManagedStartSpec } from "../manager/types"
+import type { AdmitResident, ChildPlanner, ManagedRunner, ManagedStartSpec } from "../manager/types"
 import { createTaskRecordStore } from "../store"
 import type { DagDefinition, DagNodeInput } from "./graph"
 import { createDagWaitSurface, type DagRunResult } from "./handle"
@@ -90,7 +90,7 @@ type E2eFixture = {
   readonly running: (runId: DagRunId) => Promise<DagRunRecordV1>
 }
 
-function e2eFixture(): E2eFixture {
+function e2eFixture(options: { readonly admit?: AdmitResident } = {}): E2eFixture {
   const project = tempProject()
   const store = createDagFileStore({ project_dir: project })
   const taskStore = createTaskRecordStore({ project_dir: project })
@@ -101,6 +101,7 @@ function e2eFixture(): E2eFixture {
     planner,
     config: OmoTaskSettingsSchema.parse({ default_concurrency: 16, max_depth: 1 }),
     cwd: project,
+    ...(options.admit === undefined ? {} : { admit: options.admit }),
   })
   let nextRun = 0
   const manager = createDagManager({
@@ -209,6 +210,22 @@ function assertArtifacts(fixture: E2eFixture, runId: DagRunId, key: string, node
 
 function runFiles(store: DagFileStore): readonly string[] {
   return fs.readdirSync(store.paths.runs).filter((entry) => entry.endsWith(".json")).sort()
+}
+
+function within<T>(promise: Promise<T>, ms = 200): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms)
+    void promise.then(
+      (value) => {
+        clearTimeout(timeout)
+        resolve(value)
+      },
+      (error: unknown) => {
+        clearTimeout(timeout)
+        reject(error)
+      },
+    )
+  })
 }
 
 describe("DAG happy-path end to end", () => {
@@ -392,5 +409,50 @@ describe("DAG happy-path end to end", () => {
       ["verify"],
     ]))
     assertArtifacts(fixture, started.details.run_id, "sdk-flow", ["spec", "implement", "verify"])
+  })
+
+  test("#given all first-wave starts hit the resident child cap #when the shipped SDK waits #then it returns the terminal residency failures instead of hanging", async () => {
+    // given
+    const fixture = e2eFixture({
+      admit: () => Promise.resolve({ kind: "rejected", message: "resident child cap reached" }),
+    })
+    Reflect.set(globalThis, "tool", {
+      dag: async (args: { readonly action: string; readonly definition?: DagDefinition; readonly run_id?: string }) => {
+        if (args.action === "start" && args.definition !== undefined) {
+          const started = await fixture.start(args.definition)
+          return { details: { kind: "started", run_id: started.snapshot.runId, reused: started.reused, snapshot: started.snapshot } }
+        }
+        if (args.action === "wait" && args.run_id !== undefined) {
+          const result = await fixture.wait(args.run_id as DagRunId)
+          return { details: { kind: "waited", run_id: args.run_id, result } }
+        }
+        throw new Error(`unexpected SDK action ${args.action}`)
+      },
+    })
+    const sdk = await import(`${sdkPath}?residency-denied`) as {
+      readonly start: (definition: DagDefinition) => Promise<{ readonly run_id: DagRunId }>
+      readonly wait: (runId: string) => Promise<{ readonly details: { readonly result: DagRunResult } }>
+    }
+    const input = definition("sdk-residency-denied", [
+      categoryNode("first"),
+      agentNode("second"),
+    ])
+
+    // when
+    const started = await sdk.start(input)
+    const waited = await within(sdk.wait(started.run_id))
+
+    // then
+    expect(waited.details.result.status).toBe("failed")
+    expect(Object.fromEntries(
+      Object.entries(waited.details.result.nodes).map(([id, result]) => [
+        id,
+        result.state === "failed" ? result.error.code : result.state,
+      ]),
+    )).toEqual({
+      first: "residency_denied",
+      second: "residency_denied",
+    })
+    expect(fixture.events(started.run_id).at(-1)?.type).toBe("dag.run.failed")
   })
 })
