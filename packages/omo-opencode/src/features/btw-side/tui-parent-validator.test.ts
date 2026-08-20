@@ -51,4 +51,23 @@ describe("createBtwParentValidator", () => {
     // then
     expect(await validation).toBe(false)
   })
+
+  it("#given a remotely deleted parent #when a persisted side is adopted again #then it revalidates instead of trusting a prior success", async () => {
+    // given
+    const remoteResults: Array<"exists" | "missing"> = ["exists", "missing"]
+    const fetchStatus = mock(async () => remoteResults.shift() ?? "missing")
+    const validator = createBtwParentValidator({
+      localExists: () => false,
+      fetchStatus,
+    })
+
+    // when
+    const initiallyValid = await validator.exists("ses_parent")
+    const validAfterRemoteDeletion = await validator.exists("ses_parent")
+
+    // then
+    expect(initiallyValid).toBe(true)
+    expect(validAfterRemoteDeletion).toBe(false)
+    expect(fetchStatus).toHaveBeenCalledTimes(2)
+  })
 })
