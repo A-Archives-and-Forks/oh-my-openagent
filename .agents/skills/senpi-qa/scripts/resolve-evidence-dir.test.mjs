@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, test } from "bun:test"
+import { spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, relative } from "node:path"
+import { fileURLToPath } from "node:url"
 
 import { EVIDENCE_RELATIVE_ROOT, resolveEvidenceDir } from "./resolve-evidence-dir.mjs"
 
 const cleanupRoots = []
+const cliPath = fileURLToPath(new URL("./resolve-evidence-dir.mjs", import.meta.url))
 
 afterEach(() => {
   for (const root of cleanupRoots.splice(0)) rmSync(root, { recursive: true, force: true })
@@ -103,5 +106,26 @@ describe("resolveEvidenceDir", () => {
     expect(() => resolveEvidenceDir({ repoRoot, slug: "local-ignore/qa-evidence/x" })).toThrow(
       /local-ignore\/qa-evidence\/x/,
     )
+  })
+
+  test("#given the documented Node CLI #when valid and invalid slugs run #then stdout and exit codes enforce the contract", () => {
+    // given
+    const repoRoot = makeGitRoot()
+
+    // when
+    const valid = spawnSync("node", [cliPath, "--repo-root", repoRoot, "--slug", "20260820-node-cli"], {
+      encoding: "utf8",
+    })
+    const invalid = spawnSync(
+      "node",
+      [cliPath, "--repo-root", repoRoot, "--slug", "local-ignore/qa-evidence/x"],
+      { encoding: "utf8" },
+    )
+
+    // then
+    expect(valid.status).toBe(0)
+    expect(valid.stdout.trim()).toBe(join(repoRoot, EVIDENCE_RELATIVE_ROOT, "20260820-node-cli"))
+    expect(invalid.status).toBe(1)
+    expect(invalid.stderr).toContain("local-ignore/qa-evidence/x")
   })
 })

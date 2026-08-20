@@ -15,6 +15,7 @@
 // Prints the absolute path to stdout. Exit 0 iff the root is a git worktree and the slug is safe.
 import { existsSync } from "node:fs"
 import { join, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
 
 export const EVIDENCE_RELATIVE_ROOT = join(".omo", "evidence", "omo-senpi-adapter")
 
@@ -43,7 +44,10 @@ export function resolveEvidenceDir({ repoRoot, slug }) {
   return resolve(repoRoot, EVIDENCE_RELATIVE_ROOT, slug)
 }
 
-if (import.meta.main) {
+const isDirectRun =
+  process.argv[1] !== undefined && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))
+
+if (isDirectRun) {
   const args = process.argv.slice(2)
   const read = (flag) => {
     const at = args.indexOf(flag)
