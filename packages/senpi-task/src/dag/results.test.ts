@@ -206,14 +206,18 @@ describe("persistDagNodeResult durable node artifacts", () => {
 
     const originalWriteSync = fs.writeSync
     const fault = new Error("simulated partial write fault")
-    const writeSpy = spyOn(fs, "writeSync").mockImplementation((fd: number, data: string | Uint8Array, ...args: unknown[]): number => {
+    const faultingWriteSync = (fd: number, data: string | Uint8Array, ...args: unknown[]): number => {
       if (typeof data === "string" && data.includes("second attempt body that will crash")) {
         const partial = data.slice(0, Math.floor(data.length / 2))
         originalWriteSync(fd, partial)
         throw fault
       }
-      return originalWriteSync(fd, data, ...args)
-    })
+      if (typeof data === "string") {
+        return originalWriteSync(fd, data, ...(args as [(number | null)?, BufferEncoding?]))
+      }
+      return originalWriteSync(fd, data, ...(args as [(number | null)?, (number | null)?, (number | null)?]))
+    }
+    const writeSpy = spyOn(fs, "writeSync").mockImplementation(faultingWriteSync as unknown as typeof fs.writeSync)
 
     // when
     let outcome: ReturnType<typeof persistDagNodeResult> | undefined
