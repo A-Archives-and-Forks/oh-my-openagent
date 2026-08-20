@@ -7,10 +7,13 @@ import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { detectHarnesses, needsSetupSuggestion } from "../bin/lib/setup-detect.js"
 import { formatSetupReport } from "../bin/lib/setup-report.js"
+import { rmSyncEbusyTolerant, teardownRoots, withDatabase } from "./teardown.test-support"
 
-// Bun 1.3.12 (the pinned CI runtime) ships no node:sqlite at all, so the module loads lazily and the
-// fixtures that need a real database skip there. Production degrades the same way: setup-detect.js
-// falls back to file-presence detection when the import throws.
+// Older Bun runtimes ship no node:sqlite at all, so the module loads lazily and the fixtures that
+// need a real database skip there. Production degrades the same way: setup-detect.js falls back to
+// file-presence detection when the import throws. The pinned CI runtime is now Bun 1.4.0, which does
+// provide node:sqlite on Windows too, so these fixtures really open database files under the temp
+// root - see teardown.test-support.ts for why teardown has to own those handles.
 const SQLITE_AVAILABLE = await (async () => {
   try {
     await import("node:sqlite")
@@ -40,18 +43,20 @@ function write(path: string, content: string): void {
 async function createDatabase(path: string, version: number, rows: Array<[string, string, string | null]>): Promise<void> {
   mkdirSync(dirname(path), { recursive: true })
   const DatabaseSync = await loadDatabaseSync()
-  const db = new DatabaseSync(path)
-  db.exec(`
-    CREATE TABLE auth_schema_version (id INTEGER PRIMARY KEY, version INTEGER NOT NULL);
-    INSERT INTO auth_schema_version VALUES (1, ${version});
-    CREATE TABLE auth_credentials (
-      id INTEGER PRIMARY KEY, provider TEXT NOT NULL, credential_type TEXT NOT NULL,
-      data TEXT NOT NULL, disabled_cause TEXT DEFAULT NULL
-    );
-  `)
-  const insert = db.prepare("INSERT INTO auth_credentials (provider, credential_type, data, disabled_cause) VALUES (?, ?, ?, ?)")
-  for (const [provider, type, disabled] of rows) insert.run(provider, type, "SQLITE-SECRET", disabled)
-  db.close()
+  // withDatabase closes the handle on every exit path (including a throwing exec/run) and tracks it
+  // for teardown, so no Windows file handle inside the temp root can outlive the fixture.
+  withDatabase(new DatabaseSync(path), (db) => {
+    db.exec(`
+      CREATE TABLE auth_schema_version (id INTEGER PRIMARY KEY, version INTEGER NOT NULL);
+      INSERT INTO auth_schema_version VALUES (1, ${version});
+      CREATE TABLE auth_credentials (
+        id INTEGER PRIMARY KEY, provider TEXT NOT NULL, credential_type TEXT NOT NULL,
+        data TEXT NOT NULL, disabled_cause TEXT DEFAULT NULL
+      );
+    `)
+    const insert = db.prepare("INSERT INTO auth_credentials (provider, credential_type, data, disabled_cause) VALUES (?, ?, ?, ?)")
+    for (const [provider, type, disabled] of rows) insert.run(provider, type, "SQLITE-SECRET", disabled)
+  })
 }
 
 function createFixture(): Fixture {
@@ -141,12 +146,18 @@ function runLauncher(launcher: string, fixture: Fixture, args: string[], tty = f
     ...process.env, HOME: fixture.home, SENPI_CODING_AGENT_DIR: fixture.agentDir,
     XDG_DATA_HOME: fixture.xdg,
   }
-  if (!tty) return spawnSync(process.execPath, [launcher, ...args], { encoding: "utf8", env })
-  return spawnSync("python3", [TTY_DRIVER, "", "", process.execPath, launcher, ...args], { encoding: "utf8", env })
+  // spawnSync only returns after the child has exited and been reaped, so no live child owns the
+  // fixture root by the time teardown runs; teardownRoots absorbs the Windows kernel lag that can
+  // still keep the exited child's handles attached for a few milliseconds.
+  const result = !tty
+    ? spawnSync(process.execPath, [launcher, ...args], { encoding: "utf8", env })
+    : spawnSync("python3", [TTY_DRIVER, "", "", process.execPath, launcher, ...args], { encoding: "utf8", env })
+  if (result.error) throw result.error
+  return result
 }
 
 afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+  teardownRoots(roots)
 })
 
 describe("omo setup sibling detection", () => {
@@ -190,7 +201,9 @@ describe("omo setup sibling detection", () => {
       for (const [name, storePath] of cases) {
         const fixture = createFixture()
         await populateAll(fixture)
-        rmSync(storePath(fixture))
+        // Same Windows handle residue as teardown: the sqlite fixture file was just closed, so retry
+        // only on EBUSY. force stays off - a missing store must still fail this assertion loudly.
+        rmSyncEbusyTolerant(storePath(fixture), { recursive: false, force: false })
         const report = formatSetupReport(await detect(fixture))
         expect(report).toContain(`${name} | no | none | none |`)
       }
