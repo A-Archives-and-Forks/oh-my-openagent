@@ -132,16 +132,25 @@ are snake_case (the same wire convention as `omo.task.updated`); optional fields
         {
           "id": "...", "label": "...", "prompt": "...", "depends_on": ["..."],
           "state": "...", "attempt": 1, "created_at": "...",
-          "task_id": "...", "started_at": "...", "completed_at": "..."
+          "task_id": "...", "started_at": "...", "completed_at": "...",
+          "last_error": { "code": "...", "message": "..." }
         }
       ],
       "edges": [ { "from": "...", "to": "..." } ],
-      "waves": [ { "index": 0, "node_ids": ["..."] } ]
+      "waves": [ { "index": 0, "node_ids": ["..."] } ],
+      "amend_count": 2   // present only once the run has accepted an amendment
     }
   ],
   "truncated_runs": 3   // present only when runs were cut at the 256-run cap
 }
 ```
+
+Per-node `attempt` counts task attachments, so it rises on a retry and also on a pure reattach after
+a restart. A viewer that wants "how many times was this node deliberately re-run" should read the
+`dag.node.retried` events, not `attempt`. `last_error` carries the failure of the LAST settled
+attempt and is absent once a retry puts the node back in flight, so a node showing both
+`state: "running"` and no `last_error` is a retry in progress. Run-level `amend_count` is the number
+of accepted amendments and is absent on runs that were never amended.
 
 ## Emission rules
 
