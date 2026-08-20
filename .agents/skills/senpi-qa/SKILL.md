@@ -19,9 +19,9 @@ count as live QA here: `bun run test:senpi` is the package gate, the drivers in
   and the PR cannot cite.
 - **The real agent dir stays untouched.** The live drivers build their own
   isolated `SENPI_CODING_AGENT_DIR` and deliberately IGNORE a caller-provided
-  one, so `~/.senpi/agent` is never written. `drive.mjs` proves this by comparing
-  a credential digest (`auth.json`, `models.json`, `settings.json`, `trust.json`)
-  before and after. Report that digest pair as the isolation proof.
+  one, so `~/.senpi/agent` is never used as the sandbox. Report the driver's
+  `realSenpiUntouched` / changed-path fields and the isolated agent-dir path;
+  treat a whole-directory digest as supporting evidence, not proof by itself.
 - **No binary means SKIP, not silence.** When `senpi` is absent the live drivers
   report `SKIP` or `FAIL` in their final JSON rather than degrading to the real
   home. A `SKIP` is not a pass — say so in the evidence README.
@@ -47,7 +47,7 @@ and a message naming the offending slug.
 | You changed… | Run | Proves |
 |---|---|---|
 | Any adapter code, as the fast precondition | `node packages/omo-senpi/scripts/qa/drive.mjs --self-test` | the driver + isolation harness itself works |
-| Adapter wiring reaching a live session | `node packages/omo-senpi/scripts/qa/drive.mjs` | a real senpi run with the plugin loaded, credential digest unchanged |
+| Adapter wiring reaching a live session | `node packages/omo-senpi/scripts/qa/drive.mjs` | a real senpi run with the plugin loaded, isolated agent dir, and no attributed real-home changes |
 | Task lifecycle (single + batch) | `SENPI_BIN="$(command -v senpi)" node packages/omo-senpi/scripts/qa/task-e2e.mjs` | live task start/stream/terminal states |
 | Team delivery, shutdown, reclaim, restart recovery | `SENPI_BIN="$(command -v senpi)" node packages/omo-senpi/scripts/qa/team-e2e.mjs` | injection delivery and exactly-once recovery |
 | Task RPC driver scripts | `node packages/omo-senpi/scripts/qa/task-rpc-e2e.mjs --self-test` | the RPC surface contract |
@@ -74,6 +74,7 @@ bun run test:senpi
 Every run leaves `$ev/README.md` a reviewer can read without rerunning anything.
 The required sections are the repo-wide evidence rules in the root
 [`AGENTS.md`](../../../AGENTS.md) (what was tested / observed / why it is enough /
-what was omitted). For Senpi, the isolation proof is the credential digest pair
-and the sandbox agent dir path, and the README also carries a cleanup receipt:
-sandboxes removed, child PIDs terminal, no temp path left behind.
+what was omitted). For Senpi, record the driver's changed-path/isolation fields
+and sandbox agent-dir path. Some drivers report sandbox paths without removing
+them; the caller must delete every task-owned sandbox and verify child PIDs are
+terminal before writing the cleanup receipt.

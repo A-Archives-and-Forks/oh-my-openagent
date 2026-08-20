@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, relative } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -127,5 +127,23 @@ describe("resolveEvidenceDir", () => {
     expect(valid.stdout.trim()).toBe(join(repoRoot, EVIDENCE_RELATIVE_ROOT, "20260820-node-cli"))
     expect(invalid.status).toBe(1)
     expect(invalid.stderr).toContain("local-ignore/qa-evidence/x")
+  })
+
+  test("#given a symlink to the documented Node CLI #when invoked #then the entrypoint still enforces the contract", () => {
+    // given
+    const repoRoot = makeGitRoot()
+    const symlinkPath = join(repoRoot, "resolve-evidence-dir.mjs")
+    symlinkSync(cliPath, symlinkPath)
+
+    // when
+    const result = spawnSync(
+      "node",
+      [symlinkPath, "--repo-root", repoRoot, "--slug", "20260820-symlink-cli"],
+      { encoding: "utf8" },
+    )
+
+    // then
+    expect(result.status).toBe(0)
+    expect(result.stdout.trim()).toBe(join(repoRoot, EVIDENCE_RELATIVE_ROOT, "20260820-symlink-cli"))
   })
 })

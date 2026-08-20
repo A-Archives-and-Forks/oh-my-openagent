@@ -13,7 +13,7 @@
 //   node resolve-evidence-dir.mjs --repo-root "$(git rev-parse --show-toplevel)" --slug 20260820-my-run
 //
 // Prints the absolute path to stdout. Exit 0 iff the root is a git worktree and the slug is safe.
-import { existsSync } from "node:fs"
+import { existsSync, realpathSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -45,7 +45,7 @@ export function resolveEvidenceDir({ repoRoot, slug }) {
 }
 
 const isDirectRun =
-  process.argv[1] !== undefined && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))
+  process.argv[1] !== undefined && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
 
 if (isDirectRun) {
   const args = process.argv.slice(2)
