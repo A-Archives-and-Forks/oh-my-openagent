@@ -145,6 +145,41 @@ describe("createFallbackTimeoutHelpers", () => {
     helpers.clearSessionFallbackTimeout(sessionID)
   })
 
+  test("#given a timeout belongs to an older state generation #when that generation is replaced before its callback runs #then it never aborts the replacement request", async () => {
+    // given
+    const sessionID = "session-timeout-replaced-before-callback"
+    SessionCategoryRegistry.register(sessionID, "test")
+    const deps = createDeps()
+    deps.options = {
+      session_timeout_ms: 1,
+    }
+    deps.sessionStates.set(sessionID, createFallbackState("openai/gpt-5.4"))
+    let abortCalls = 0
+    let retryCalls = 0
+    const helpers = createFallbackTimeoutHelpers(
+      deps,
+      async () => {
+        abortCalls += 1
+      },
+      async () => {
+        retryCalls += 1
+        return { accepted: true, status: "dispatched" }
+      },
+    )
+    const clock = installRuntimeFallbackTestClock()
+    helpers.scheduleSessionFallbackTimeout(sessionID)
+
+    // when
+    const replacementState = createFallbackState("google/gemini-2.5-pro")
+    deps.sessionStates.set(sessionID, replacementState)
+    await clock.advanceBy(1)
+
+    // then
+    expect(abortCalls).toBe(0)
+    expect(retryCalls).toBe(0)
+    expect(replacementState.currentModel).toBe("google/gemini-2.5-pro")
+  })
+
   test("#given timeout callback awaits abort #when manual model change replaces state #then the stale generation never dispatches", async () => {
     // given
     const sessionID = "session-timeout-stale-generation"
