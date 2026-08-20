@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { realpathSync } from "node:fs"
+import { rmEfaultTolerant } from "./teardown.test-support"
 
 import type { ThemeColor } from "@code-yeongyu/senpi"
 import { GitMemoryRepo, buildIdentityPaths } from "@oh-my-opencode/memory-core"
@@ -52,7 +53,7 @@ function disposition(inputId: string, value: "handled" | "queued" | "started" | 
 }
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
+  await Promise.all(roots.splice(0).map((root) => rmEfaultTolerant(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 describe("createMemoryNudgeWiring", () => {
@@ -143,7 +144,7 @@ describe("createMemoryNudgeWiring", () => {
   test("#given a threshold on an identity with no repository yet #when nudge state resolves #then the fresh-session baseline is used without requiring git history", async () => {
     // given
     const { context } = await fixture()
-    await rm(context.identityPaths.repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+    await rmEfaultTolerant(context.identityPaths.repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
     const repo = new GitMemoryRepo({ dir: context.identityPaths.repo, agentId: context.identity })
     const pi = new MemoryFakeExtensionAPI()
     const wiring = createMemoryNudgeWiring({
