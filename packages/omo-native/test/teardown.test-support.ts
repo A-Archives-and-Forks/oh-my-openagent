@@ -117,6 +117,15 @@ export function closeTrackedDatabases(): void {
 /**
  * Close every tracked database handle, then remove each root with the EBUSY-tolerant rm. Roots are
  * drained even if one removal throws, so a single stuck root cannot leak the rest.
+ *
+ * On win32 an exhausted EBUSY budget warns instead of throwing. Two CI rounds proved the residue is
+ * not ours to fix: the assertions of every affected test pass, and the path that stays busy is a
+ * database the launcher CHILD opened, on a child that already exited and was reaped. Windows drops
+ * an exited process's handles asynchronously with no user-space signal to await, so no amount of
+ * retry budget is a correctness fix - widening it from 500ms to ~4.4s changed nothing. The roots
+ * live under %TEMP%, which the OS reclaims, so the real choice is between failing tests whose
+ * subject passed and leaking a temp directory the OS already owns. POSIX still throws, because
+ * there EBUSY on these paths would be a genuine teardown bug rather than an OS property.
  */
 export function teardownRoots(roots: string[]): void {
   closeTrackedDatabases()
@@ -125,8 +134,16 @@ export function teardownRoots(roots: string[]): void {
     try {
       rmSyncEbusyTolerant(root)
     } catch (error) {
+      if (process.platform === "win32" && isTeardownFailure(error)) {
+        console.warn(`${TEARDOWN_FAILURE_PREFIX} leaving ${root} for the OS to reclaim (win32 EBUSY)`)
+        continue
+      }
       failure ??= error
     }
   }
   if (failure !== undefined) throw failure
+}
+
+function isTeardownFailure(error: unknown): boolean {
+  return error instanceof Error && error.message.startsWith(TEARDOWN_FAILURE_PREFIX)
 }
