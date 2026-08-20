@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { createHash } from "node:crypto"
 import { spawnSync } from "node:child_process"
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -69,23 +69,25 @@ function createFixture(): Fixture {
   return { root, home, agentDir, xdg }
 }
 
-async function populateAll(fixture: Fixture): Promise<void> {
-  write(join(fixture.agentDir, "auth.json"), JSON.stringify({
+type StoreKey = "senpi" | "opencode" | "oh-my-pi" | "gajae-code"
+
+async function populateAll(fixture: Fixture, skip?: StoreKey): Promise<void> {
+  if (skip !== "senpi") write(join(fixture.agentDir, "auth.json"), JSON.stringify({
     "senpi-beta": { type: "oauth", access: "SENPI-SECRET" },
     "senpi-alpha": { type: "api_key", key: "SENPI-SECRET" },
   }))
   write(join(fixture.agentDir, "models.json"), JSON.stringify({ providers: {
     "senpi-model-b": {}, "senpi-model-a": {},
   } }))
-  write(join(fixture.xdg, "opencode", "auth.json"), JSON.stringify({
+  if (skip !== "opencode") write(join(fixture.xdg, "opencode", "auth.json"), JSON.stringify({
     "open-oauth": { type: "oauth", access: "OPENCODE-SECRET" },
     "open-api": { type: "api", key: "OPENCODE-SECRET" },
   }))
-  await createDatabase(join(fixture.home, ".omp", "agent", "agent.db"), 7, [
+  if (skip !== "oh-my-pi") await createDatabase(join(fixture.home, ".omp", "agent", "agent.db"), 7, [
     ["omp-api", "api_key", null], ["omp-disabled", "oauth", "expired"],
   ])
   write(join(fixture.home, ".omp", "agent", "models.db"), "models-fixture")
-  await createDatabase(join(fixture.home, ".gjc", "agent", "agent.db"), 4, [
+  if (skip !== "gajae-code") await createDatabase(join(fixture.home, ".gjc", "agent", "agent.db"), 4, [
     ["gjc-oauth", "oauth", null],
   ])
   write(join(fixture.home, ".gjc", "agent", "config.yml"), [
@@ -100,20 +102,6 @@ async function detect(fixture: Fixture, overrides = {}) {
     env: { SENPI_CODING_AGENT_DIR: fixture.agentDir, XDG_DATA_HOME: fixture.xdg },
     ...overrides,
   })
-}
-
-function makeStoreAbsent(path: string): void {
-  try {
-    rmSync(path)
-  } catch (error) {
-    const code = error !== null && typeof error === "object" && "code" in error ? error.code : undefined
-    if (code !== "EBUSY") throw error
-    // Windows can keep an unlinked SQLite file busy after DatabaseSync.close(), while still allowing
-    // an atomic rename. Detection only requires the store to be unreachable at its canonical path;
-    // the renamed residue stays under the fixture root for teardownRoots to reclaim later.
-    renameSync(path, `${path}.absent`)
-  }
-  expect(existsSync(path)).toBe(false)
 }
 
 function snapshotTree(root: string): { files: string[]; hashes: Record<string, string> } {
@@ -214,10 +202,12 @@ describe("omo setup sibling detection", () => {
       ] as const
       for (const [name, storePath] of cases) {
         const fixture = createFixture()
-        await populateAll(fixture)
-        // A surviving store would make the following "installed no" assertion meaningless. If
-        // Windows still refuses unlink after close, move the file away from the canonical path.
-        makeStoreAbsent(storePath(fixture))
+        // Never create this harness's store, rather than creating it and deleting it back out.
+        // Deleting was the weaker fixture: it depended on Windows releasing a just-closed SQLite
+        // handle, which it refuses to do for both unlink and rename while an exited child's handle
+        // lingers. "Absent" is what this test means, so build it absent.
+        await populateAll(fixture, name)
+        expect(existsSync(storePath(fixture))).toBe(false)
         const report = formatSetupReport(await detect(fixture))
         expect(report).toContain(`${name} | no | none | none |`)
       }
