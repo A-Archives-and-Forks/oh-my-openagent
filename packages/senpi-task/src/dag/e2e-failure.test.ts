@@ -42,10 +42,16 @@ import {
 } from "./manager"
 import { createDagRecovery } from "./recovery"
 import { persistDagNodeResult } from "./results"
-import { createDagScheduler, type DagScheduler } from "./scheduler"
+import {
+  createDagScheduler,
+  reenterDagRun,
+  type DagNodeSendResult,
+  type DagRunReentry,
+  type DagScheduler,
+} from "./scheduler"
 import { createDagSkillMaterializer } from "./skills"
 import { createDagFileStore, type DagFileStore } from "./store"
-import type { DagRunEvent, DagRunId } from "./types"
+import type { DagNodeId, DagRunEvent, DagRunId } from "./types"
 
 // bunfig preloads test-setup.ts to raise the default timeout, but Bun honours a preload's
 // setDefaultTimeout only for the FIRST test file of a run; every later file silently reverts to
@@ -142,9 +148,22 @@ type ControlledHandle = {
 }
 
 function controlledHandle(taskId: string): ControlledHandle {
-  const outcome = deferred<ScriptedOutcome>()
+  // Outcomes are queued, not overwritten: the first waitForOutcome() takes the first settle, and a
+  // revived child re-tracked under a new run epoch takes the NEXT one instead of replaying it.
+  const pending: ScriptedOutcome[] = []
+  const waiters: Array<(outcome: ScriptedOutcome) => void> = []
+  const settle = (value: ScriptedOutcome): void => {
+    const waiter = waiters.shift()
+    if (waiter === undefined) pending.push(value)
+    else waiter(value)
+  }
+  const waitForOutcome = (): Promise<ScriptedOutcome> => {
+    const ready = pending.shift()
+    if (ready !== undefined) return Promise.resolve(ready)
+    return new Promise<ScriptedOutcome>((resolve) => waiters.push(resolve))
+  }
   return {
-    settle: outcome.resolve,
+    settle,
     handle: {
       task_id: taskId,
       sessionId: `child-${taskId}`,
@@ -153,7 +172,7 @@ function controlledHandle(taskId: string): ControlledHandle {
       followUp: () => Promise.resolve(),
       abort: () => Promise.resolve(),
       subscribe: () => () => undefined,
-      waitForOutcome: () => outcome.promise,
+      waitForOutcome,
       lastAssistantText: () => undefined,
       dispose: () => Promise.resolve(),
     },
@@ -255,6 +274,9 @@ type E2eFixture = {
   readonly wait: (runId: DagRunId) => Promise<DagRunResult>
   readonly running: (runId: DagRunId) => Promise<DagRunRecordV1>
   readonly events: (runId: DagRunId) => readonly DagRunEvent[]
+  readonly retry: (runId: DagRunId, nodeIds?: readonly DagNodeId[]) => DagRunReentry
+  readonly amend: (input: DagDefinition, runId: DagRunId) => Promise<DagRunReentry>
+  readonly send: (runId: DagRunId, nodeId: DagNodeId, message: string) => Promise<DagNodeSendResult>
 }
 
 function e2eFixture(options: E2eFixtureOptions = {}): E2eFixture {
@@ -321,8 +343,50 @@ function e2eFixture(options: E2eFixtureOptions = {}): E2eFixture {
       return running
     },
     events: (runId) => manager.history({ runId, parentSessionId, limit: 256 }).events,
+    // The runtime's re-entry seam in miniature: control verbs run against the CURRENT durable
+    // record, and the fresh scheduler they build replaces the settled one in the map.
+    retry(runId, nodeIds) {
+      const controls = nodeControls(runId)
+      const reentry = nodeIds === undefined ? controls.retryNode(runId) : controls.retryNode(runId, nodeIds)
+      register(runId, reentry)
+      return reentry
+    },
+    async amend(input, runId) {
+      await manager.amend({ runId, definition: input, parentSessionId })
+      const reentry = reenterDagRun({
+        store,
+        taskManager,
+        initialRecord: manager.record(runId, parentSessionId),
+      })
+      register(runId, reentry)
+      return reentry
+    },
+    send: (runId, nodeId, message) => nodeControls(runId).sendToNode(runId, nodeId, message),
+  }
+
+  function nodeControls(runId: DagRunId): DagScheduler {
+    const existing = schedulers.get(runId)
+    if (existing !== undefined) return existing
+    const fresh = createDagScheduler({
+      store,
+      taskManager,
+      initialRecord: manager.record(runId, parentSessionId),
+    })
+    schedulers.set(runId, fresh)
+    return fresh
+  }
+
+  function register(runId: DagRunId, reentry: DagRunReentry): void {
+    schedulers.set(runId, reentry.scheduler)
+    runs.set(runId, reentry.run)
   }
 }
+
+// Skill materialization with no skills to load: effectivePrompt tracks the submitted prompt, which
+// is exactly what createDagSkillMaterializer produces for a node with no load_skills.
+const identityMaterializer: ReturnType<typeof createDagSkillMaterializer> = ({ definition: input }) => ({
+  nodes: input.nodes.map((node) => ({ nodeId: node.id, effectivePrompt: node.prompt })),
+})
 
 function makeTool(name: string): ToolDefinition {
   return {
@@ -785,5 +849,217 @@ for (let seq = 1; seq <= stopAt; seq += 1) {
       join(store.paths.results, liveRun),
       join(store.paths.root, "skills", `${liveRun}.json`),
     ]) expect(fs.existsSync(path)).toBe(true)
+  })
+})
+
+describe("DAG retry, amend, and revive end to end", () => {
+  test("#given a failed node in a completed-upstream run #when retried #then the run completes and every upstream task id is reused untouched", async () => {
+    // given
+    const runner = new ControlledRunner()
+    const fixture = e2eFixture({ runner })
+    const input = definition("retry-after-failure", [
+      categoryNode("upstream"),
+      categoryNode("flaky", ["upstream"]),
+      categoryNode("downstream", ["flaky"]),
+    ])
+    const started = await fixture.start(input)
+    const runId = started.snapshot.runId
+    await runner.whenStarted(1)
+    runner.settle("upstream", completed("upstream"))
+    await runner.whenStarted(2)
+    runner.settle("flaky", failed("flaky"))
+    const failedResult = await fixture.wait(runId)
+    const upstreamTaskId = failedResult.snapshot.nodes.find((entry) => entry.id === "upstream")?.taskId
+
+    // when
+    const reentry = fixture.retry(runId)
+    await runner.whenStarted(3)
+    runner.settle("flaky", completed("flaky"))
+    await runner.whenStarted(4)
+    runner.settle("downstream", completed("downstream"))
+    const record = await reentry.run
+    const result = await fixture.wait(runId)
+
+    // then
+    expect(failedResult.status).toBe("failed")
+    expect(failedResult.nodes.downstream?.state).toBe("skipped")
+    expect(record.status).toBe("completed")
+    expect(result.status).toBe("completed")
+    expect(result.snapshot.nodes.map((entry) => `${entry.id}:${entry.state}`)).toEqual([
+      "upstream:completed",
+      "flaky:completed",
+      "downstream:completed",
+    ])
+    expect(result.snapshot.nodes.find((entry) => entry.id === "upstream")?.taskId).toBe(upstreamTaskId)
+    expect(runner.startedSpecs.filter((spec) => spec.prompt === "do upstream")).toHaveLength(1)
+    expect(runner.startedSpecs.filter((spec) => spec.prompt === "do flaky")).toHaveLength(2)
+    expect(result.snapshot.nodes.find((entry) => entry.id === "flaky")?.execAttempt).toBe(1)
+    expect(fixture.events(runId).some((event) => event.type === "dag.node.retried")).toBe(true)
+    expect(fixture.events(runId).some((event) => event.type === "dag.run.resumed")).toBe(true)
+    expect(fs.readFileSync(fixture.store.paths.result(runId, "flaky"), "utf8")).toBe("output:flaky")
+  })
+
+  test("#given a node that fails twice #when retried twice #then each attempt owns a distinct child and the last one settles the run", async () => {
+    // given
+    const runner = new ControlledRunner()
+    const fixture = e2eFixture({ runner })
+    const started = await fixture.start(definition("retry-twice", [categoryNode("stubborn")]))
+    const runId = started.snapshot.runId
+    await runner.whenStarted(1)
+    runner.settle("stubborn", failed("stubborn"))
+    await fixture.wait(runId)
+
+    // when
+    const first = fixture.retry(runId)
+    await runner.whenStarted(2)
+    runner.settle("stubborn", failed("stubborn"))
+    expect((await first.run).status).toBe("failed")
+    const second = fixture.retry(runId)
+    await runner.whenStarted(3)
+    runner.settle("stubborn", completed("stubborn"))
+    const record = await second.run
+
+    // then
+    expect(record.status).toBe("completed")
+    expect(record.nodes[0]).toMatchObject({ state: "completed", execAttempt: 2 })
+    const taskIds = runner.startedSpecs.map((spec) => spec.taskId)
+    expect(new Set(taskIds).size).toBe(3)
+    expect(record.nodes[0]?.taskId).toBe(taskIds[2])
+    expect(fs.readFileSync(fixture.store.paths.result(runId, "stubborn"), "utf8")).toBe("output:stubborn")
+  })
+
+  test("#given a node failed by the residency cap #when retried after the storm clears #then it runs and the run completes", async () => {
+    // given - admission denies while the cap is full and no sibling can free a slot, minting residency_denied
+    let capOpen = false
+    const runner = new ControlledRunner()
+    const admit: AdmitResident = () => capOpen
+      ? Promise.resolve({ kind: "admitted" })
+      : Promise.resolve({ kind: "rejected", message: "resident child cap reached" })
+    const fixture = e2eFixture({ runner, admit })
+    const started = await fixture.start(definition("residency-rescue", [categoryNode("stormy")]))
+    const runId = started.snapshot.runId
+    const stormed = await fixture.wait(runId)
+
+    // when
+    capOpen = true
+    const reentry = fixture.retry(runId)
+    await runner.whenStarted(1)
+    runner.settle("stormy", completed("stormy"))
+    const record = await reentry.run
+
+    // then
+    expect(stormed.status).toBe("failed")
+    expect(stormed.nodes.stormy).toMatchObject({ state: "failed", error: { code: "residency_denied" } })
+    expect(record.status).toBe("completed")
+    expect(record.nodes[0]?.state).toBe("completed")
+  })
+
+  test("#given a failed node #when its prompt is amended #then only it and its dependents re-run on re-entry", async () => {
+    // given
+    // The harness always wires a skill materializer (dag-runtime does), and it is what re-derives a
+    // changed node's effectivePrompt at amend, so the fixture mirrors that wiring here.
+    const runner = new ControlledRunner()
+    const fixture = e2eFixture({ runner, materializeSkills: identityMaterializer })
+    const original = definition("amend-after-failure", [
+      categoryNode("stable"),
+      categoryNode("wrong", ["stable"]),
+      categoryNode("after", ["wrong"]),
+    ])
+    const started = await fixture.start(original)
+    const runId = started.snapshot.runId
+    await runner.whenStarted(1)
+    runner.settle("stable", completed("stable"))
+    await runner.whenStarted(2)
+    runner.settle("wrong", failed("wrong"))
+    await fixture.wait(runId)
+    const stableTaskId = fixture.manager.record(runId, parentSessionId).nodes.find((entry) => entry.id === "stable")?.taskId
+
+    // when
+    const amended = definition("amend-after-failure", [
+      categoryNode("stable"),
+      categoryNode("wrong", ["stable"], { prompt: "do wrong-fixed" }),
+      categoryNode("after", ["wrong"]),
+    ])
+    const reentry = await fixture.amend(amended, runId)
+    await runner.whenStarted(3)
+    runner.settle("wrong-fixed", completed("wrong-fixed"))
+    await runner.whenStarted(4)
+    runner.settle("after", completed("after"))
+    const record = await reentry.run
+
+    // then
+    expect(record.status).toBe("completed")
+    expect(record.nodes.map((entry) => `${entry.id}:${entry.state}`)).toEqual([
+      "stable:completed",
+      "wrong:completed",
+      "after:completed",
+    ])
+    expect(record.nodes.find((entry) => entry.id === "stable")?.taskId).toBe(stableTaskId)
+    expect(runner.startedSpecs.map((spec) => spec.prompt)).toEqual([
+      "do stable",
+      "do wrong",
+      "do wrong-fixed",
+      "do after",
+    ])
+    expect(record.amendHistory).toHaveLength(1)
+  })
+
+  test("#given a settled run #when an amendment adds a node #then the added node executes on re-entry", async () => {
+    // given
+    const runner = new ControlledRunner()
+    const fixture = e2eFixture({ runner })
+    const original = definition("amend-add-node", [categoryNode("first")])
+    const started = await fixture.start(original)
+    const runId = started.snapshot.runId
+    await runner.whenStarted(1)
+    runner.settle("first", completed("first"))
+    await fixture.wait(runId)
+
+    // when
+    const grown = definition("amend-add-node", [categoryNode("first"), categoryNode("second", ["first"])])
+    const reentry = await fixture.amend(grown, runId)
+    await runner.whenStarted(2)
+    runner.settle("second", completed("second"))
+    const record = await reentry.run
+
+    // then
+    expect(record.status).toBe("completed")
+    expect(record.nodes.map((entry) => `${entry.id}:${entry.state}`)).toEqual(["first:completed", "second:completed"])
+    expect(runner.startedSpecs.map((spec) => spec.prompt)).toEqual(["do first", "do second"])
+    expect(fs.readFileSync(fixture.store.paths.result(runId, "second"), "utf8")).toBe("output:second")
+  })
+
+  test("#given a failed node whose child is still resident #when send revives it #then the child continues in place and the node reaches completed once", async () => {
+    // given
+    const runner = new ControlledRunner()
+    const fixture = e2eFixture({ runner })
+    const started = await fixture.start(definition("revive-resident", [categoryNode("stuck")]))
+    const runId = started.snapshot.runId
+    await runner.whenStarted(1)
+    runner.settle("stuck", failed("stuck"))
+    const failedResult = await fixture.wait(runId)
+    const taskId = failedResult.snapshot.nodes[0]?.taskId ?? ""
+
+    // when
+    const sent = await fixture.send(runId, "stuck" as DagNodeId, "try the other approach")
+    runner.settle("stuck", completed("stuck-revived"))
+    await sent.settled
+
+    // then
+    expect(failedResult.status).toBe("failed")
+    expect(sent).toMatchObject({ delivery: "revive", nodeId: "stuck", taskId })
+    const record = fixture.manager.record(runId, parentSessionId)
+    expect(record.nodes[0]).toMatchObject({ state: "completed", taskId })
+    expect(record.nodes[0]?.error).toBeUndefined()
+    expect(runner.startedSpecs).toHaveLength(1)
+    expect(fixture.events(runId).filter((event) =>
+      event.type === "dag.node.transitioned" && event.nodeId === "stuck" && event.to === "completed",
+    )).toHaveLength(1)
+    expect(fixture.events(runId)).toContainEqual(expect.objectContaining({
+      type: "dag.node.steered",
+      nodeId: "stuck",
+      delivery: "revive",
+    }))
+    expect(fs.readFileSync(fixture.store.paths.result(runId, "stuck"), "utf8")).toBe("output:stuck-revived")
   })
 })

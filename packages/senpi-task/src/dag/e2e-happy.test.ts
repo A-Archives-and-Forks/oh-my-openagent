@@ -1,5 +1,5 @@
 // allow: SIZE_OK - one end-to-end fixture proves the assembled manager, scheduler, task manager, wait surface, SDK, and durable store agree across all happy-path graph shapes.
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import * as fs from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -13,9 +13,20 @@ import { createTaskRecordStore } from "../store"
 import type { DagDefinition, DagNodeInput } from "./graph"
 import { createDagWaitSurface, type DagRunResult } from "./handle"
 import { createDagManager, type DagManager, type DagRunRecordV1, type DagStartResult } from "./manager"
-import { createDagScheduler, type DagScheduler } from "./scheduler"
+import {
+  createDagScheduler,
+  type DagNodeSendResult,
+  type DagRunReentry,
+  type DagScheduler,
+} from "./scheduler"
 import { createDagFileStore, type DagFileStore } from "./store"
-import type { DagRunEvent, DagRunId } from "./types"
+import type { DagNodeId, DagRunEvent, DagRunId } from "./types"
+
+// bunfig preloads test-setup.ts to raise the default timeout, but Bun honours a preload's
+// setDefaultTimeout only for the FIRST test file of a run; every later file silently reverts to
+// the built-in 5000ms. Windows job 96304719047 in run 32328567654 measured the diamond case at
+// 5759ms against that 5000ms floor. Set the floor here, where Bun does honour it.
+setDefaultTimeout(process.platform === "win32" ? 60_000 : 20_000)
 
 const cleanupRoots: string[] = []
 const parentSessionId = "session-e2e-parent"
@@ -44,6 +55,75 @@ function tempProject(): string {
   const root = fs.mkdtempSync(join(tmpdir(), "senpi-dag-e2e-"))
   cleanupRoots.push(root)
   return root
+}
+
+// A child whose outcome the test settles by hand, so a node can be observed mid-flight (steered,
+// cancelled) instead of completing the instant it starts.
+type HeldChild = {
+  readonly handle: ManagedChildHandle
+  readonly settle: (outcome: { readonly status: "completed"; readonly finalResponse: string }) => void
+  readonly steered: string[]
+}
+
+class HeldRunner implements ManagedRunner {
+  readonly startedSpecs: ManagedStartSpec[] = []
+  readonly children = new Map<string, HeldChild>()
+  readonly #startWaiters: Array<{ readonly count: number; readonly resolve: () => void }> = []
+
+  start(spec: ManagedStartSpec): Promise<ManagedChildHandle> {
+    this.startedSpecs.push(spec)
+    const name = spec.prompt.replace(/^do /, "")
+    // Outcomes are queued, not overwritten: a settle that lands before the manager first observes
+    // the outcome still reaches that observer, and a later attempt takes the NEXT settle.
+    type HeldOutcome = { readonly status: "completed"; readonly finalResponse: string }
+    const pending: HeldOutcome[] = []
+    const waiters: Array<(outcome: HeldOutcome) => void> = []
+    const steered: string[] = []
+    const child: HeldChild = {
+      steered,
+      settle: (value) => {
+        const waiter = waiters.shift()
+        if (waiter === undefined) pending.push(value)
+        else waiter(value)
+      },
+      handle: {
+        task_id: spec.taskId,
+        sessionId: `child-${spec.taskId}`,
+        pid: undefined,
+        steer: async (text) => {
+          steered.push(text)
+        },
+        followUp: async (text) => {
+          steered.push(text)
+        },
+        abort: () => Promise.resolve(),
+        subscribe: () => () => undefined,
+        waitForOutcome: () => {
+          const ready = pending.shift()
+          if (ready !== undefined) return Promise.resolve(ready)
+          return new Promise<HeldOutcome>((resolve) => waiters.push(resolve))
+        },
+        lastAssistantText: () => undefined,
+        dispose: () => Promise.resolve(),
+      },
+    }
+    this.children.set(name, child)
+    for (const waiter of [...this.#startWaiters]) {
+      if (this.startedSpecs.length >= waiter.count) waiter.resolve()
+    }
+    return Promise.resolve(child.handle)
+  }
+
+  whenStarted(count: number): Promise<void> {
+    if (this.startedSpecs.length >= count) return Promise.resolve()
+    return new Promise((resolve) => this.#startWaiters.push({ count, resolve }))
+  }
+
+  child(name: string): HeldChild {
+    const child = this.children.get(name)
+    if (child === undefined) throw new Error(`missing held child ${name}`)
+    return child
+  }
 }
 
 class ScriptedRunner implements ManagedRunner {
@@ -88,16 +168,21 @@ type E2eFixture = {
   readonly wait: (runId: DagRunId) => Promise<DagRunResult>
   readonly events: (runId: DagRunId) => readonly DagRunEvent[]
   readonly running: (runId: DagRunId) => Promise<DagRunRecordV1>
+  readonly cancel: (runId: DagRunId, reason?: string) => Promise<void>
+  readonly attached: (runId: DagRunId, nodeId: DagNodeId) => Promise<void>
+  readonly retry: (runId: DagRunId) => DagRunReentry
+  readonly send: (runId: DagRunId, nodeId: DagNodeId, message: string) => Promise<DagNodeSendResult>
 }
 
-function e2eFixture(options: { readonly admit?: AdmitResident } = {}): E2eFixture {
+function e2eFixture(options: { readonly admit?: AdmitResident; readonly runner?: ManagedRunner } = {}): E2eFixture {
   const project = tempProject()
   const store = createDagFileStore({ project_dir: project })
   const taskStore = createTaskRecordStore({ project_dir: project })
   const runner = new ScriptedRunner()
+  const activeRunner = options.runner ?? runner
   const taskManager = createTaskManager({
     store: taskStore,
-    runners: { "in-process": runner, process: runner },
+    runners: { "in-process": activeRunner, process: activeRunner },
     planner,
     config: OmoTaskSettingsSchema.parse({ default_concurrency: 16, max_depth: 1 }),
     cwd: project,
@@ -148,6 +233,41 @@ function e2eFixture(options: { readonly admit?: AdmitResident } = {}): E2eFixtur
       if (running === undefined) throw new Error(`missing run promise for ${runId}`)
       return running
     },
+    cancel: (runId, reason) => controls(runId).cancel(runId, reason),
+    // Event-driven: the child is attached once its task-attached event is journaled, which is what
+    // makes the node addressable by the control verbs.
+    attached: (runId, nodeId) => new Promise<void>((resolve) => {
+      const scheduler = controls(runId)
+      const record = manager.record(runId, parentSessionId)
+      if (record.nodes.some((entry) => entry.id === nodeId && entry.taskId !== undefined)) {
+        resolve()
+        return
+      }
+      const unsubscribe = scheduler.subscribe((event) => {
+        if (event.type !== "dag.node.task-attached" || event.nodeId !== nodeId) return
+        unsubscribe()
+        resolve()
+      })
+    }),
+    retry(runId) {
+      const reentry = controls(runId).retryNode(runId)
+      schedulers.set(runId, reentry.scheduler)
+      runs.set(runId, reentry.run)
+      return reentry
+    },
+    send: (runId, nodeId, message) => controls(runId).sendToNode(runId, nodeId, message),
+  }
+
+  function controls(runId: DagRunId): DagScheduler {
+    const existing = schedulers.get(runId)
+    if (existing !== undefined) return existing
+    const fresh = createDagScheduler({
+      store,
+      taskManager,
+      initialRecord: manager.record(runId, parentSessionId),
+    })
+    schedulers.set(runId, fresh)
+    return fresh
   }
 }
 
@@ -336,7 +456,7 @@ describe("DAG happy-path end to end", () => {
     ])
     expect(Object.values(result.nodes).every((node) => node.state === "completed" && node.output.startsWith("output:"))).toBe(true)
     assertArtifacts(fixture, result.runId, input.key, input.nodes.map((node) => node.id))
-  }, process.platform === "win32" ? 15_000 : 5_000)
+  })
 
   test("#given a completed run key #when the identical definition starts again #then the same run is reused without a second run file or event", async () => {
     // given
@@ -454,5 +574,69 @@ describe("DAG happy-path end to end", () => {
       second: "residency_denied",
     })
     expect(fixture.events(started.run_id).at(-1)?.type).toBe("dag.run.failed")
+  })
+})
+
+describe("DAG node control end to end", () => {
+  test("#given a running node #when a message is sent #then the live child receives it and the node keeps running to completion", async () => {
+    // given
+    const runner = new HeldRunner()
+    const fixture = e2eFixture({ runner })
+    const started = await fixture.start(definition("steer-running", [categoryNode("worker")]))
+    const runId = started.snapshot.runId
+    await runner.whenStarted(1)
+    await fixture.attached(runId, "worker" as DagNodeId)
+
+    // when
+    const sent = await fixture.send(runId, "worker" as DagNodeId, "prefer the smaller diff")
+
+    // then
+    expect(sent.delivery).toBe("steer")
+    expect(runner.child("worker").steered).toEqual(["prefer the smaller diff"])
+    expect(fixture.manager.record(runId, parentSessionId).nodes[0]?.state).toBe("running")
+    expect(fixture.events(runId)).toContainEqual(expect.objectContaining({
+      type: "dag.node.steered",
+      nodeId: "worker",
+      delivery: "steer",
+    }))
+
+    // and the steered child still settles the node normally
+    runner.child("worker").settle({ status: "completed", finalResponse: "output:worker" })
+    const result = await fixture.wait(runId)
+    expect(result.status).toBe("completed")
+    expect(result.nodes.worker).toMatchObject({ state: "completed", output: "output:worker" })
+  })
+
+  test("#given a settled run #when retry is followed immediately by wait #then wait blocks until the NEW settle", async () => {
+    // given
+    const runner = new HeldRunner()
+    const fixture = e2eFixture({ runner })
+    const started = await fixture.start(definition("wait-rearm", [categoryNode("first"), categoryNode("second", ["first"])]))
+    const runId = started.snapshot.runId
+    await runner.whenStarted(1)
+    await fixture.cancel(runId, "operator stop")
+    const cancelled = await fixture.wait(runId)
+
+    // when - no await between retry and wait: the synchronous dag.run.resumed must already be durable
+    const reentry = fixture.retry(runId)
+    const rearmed = fixture.wait(runId)
+    let settledEarly = false
+    void rearmed.then(() => {
+      settledEarly = true
+    })
+    await runner.whenStarted(2)
+    const beforeNewSettle = settledEarly
+
+    // then
+    runner.child("first").settle({ status: "completed", finalResponse: "output:first" })
+    await runner.whenStarted(3)
+    runner.child("second").settle({ status: "completed", finalResponse: "output:second" })
+    await reentry.run
+    const result = await rearmed
+    expect(cancelled.status).toBe("cancelled")
+    expect(beforeNewSettle).toBe(false)
+    expect(result.status).toBe("completed")
+    expect(result.nodes.first).toMatchObject({ state: "completed", output: "output:first" })
+    expect(result.nodes.second).toMatchObject({ state: "completed", output: "output:second" })
   })
 })

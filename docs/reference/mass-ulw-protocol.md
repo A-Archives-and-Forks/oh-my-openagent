@@ -34,7 +34,7 @@ Four extension-event channels exist. Only one of them is sequenced.
 
 ### `omo.dag.event`
 
-Every payload is the FLAT intersection of the envelope and one of the 14 journaled payload types.
+Every payload is the FLAT intersection of the envelope and one of the 17 journaled payload types.
 `type`, `seq`, and the payload fields are siblings on one object, not nested.
 
 Envelope fields, present on every event:
@@ -53,7 +53,7 @@ The `lane` distinction: `boundary` marks state transitions and run lifecycle, jo
 seq. `activity` is the live-telemetry lane name used by stream classification; the actual
 `DagActivityEvent` payloads are unsequenced and travel on `omo.dag.activity`, never here.
 
-The 14 journaled payload types (`DAG_RUN_EVENT_TYPES`), with their fields beyond the envelope:
+The 17 journaled payload types (`DAG_RUN_EVENT_TYPES`), with their fields beyond the envelope:
 
 | `type` | Payload fields |
 | --- | --- |
@@ -69,6 +69,9 @@ The 14 journaled payload types (`DAG_RUN_EVENT_TYPES`), with their fields beyond
 | `dag.node.transitioned` | `nodeId`, `from`, `to`, `reason` (`{kind}` object, `task_queued` adds `queuePosition`) |
 | `dag.node.task-attached` | `nodeId`, `taskId`, `attempt` |
 | `dag.node.reused` | `nodeId`, `taskId`, `sourceRunId` |
+| `dag.node.retried` | `nodeId`, `priorTaskId?`, `execAttempt`, `promptChanged` |
+| `dag.node.steered` | `nodeId`, `taskId`, `delivery` (`"steer"` \| `"revive"`) |
+| `dag.definition.amended` | `previousFingerprint`, `fingerprint`, `changedNodeIds`, `addedNodeIds`, `invalidatedNodeIds` |
 | `dag.diagnostic.added` | `diagnostic` (`route_fallback` \| `node_flag` \| `run_flag`) |
 | `dag.stream.overflow` | `droppedCount`, `recoverAfterSeq` (see the recovery rules below) |
 
@@ -129,16 +132,30 @@ are snake_case (the same wire convention as `omo.task.updated`); optional fields
         {
           "id": "...", "label": "...", "prompt": "...", "depends_on": ["..."],
           "state": "...", "attempt": 1, "created_at": "...",
-          "task_id": "...", "started_at": "...", "completed_at": "..."
+          "task_id": "...", "started_at": "...", "completed_at": "...",
+          "last_error": { "code": "...", "message": "..." }
         }
       ],
       "edges": [ { "from": "...", "to": "..." } ],
-      "waves": [ { "index": 0, "node_ids": ["..."] } ]
+      "waves": [ { "index": 0, "node_ids": ["..."] } ],
+      "amend_count": 2   // present only once the run has accepted an amendment
     }
   ],
   "truncated_runs": 3   // present only when runs were cut at the 256-run cap
 }
 ```
+
+Compatibility: the three node-control event types and the snapshot fields below are strictly
+ADDITIVE. `schemaVersion` stays `1` per this document's own versioning policy — every new field is
+optional and absent (never `null`) when inapplicable, no existing field was renamed, reordered, or
+removed, and consumers that ignore unknown event types and unknown fields keep working untouched.
+
+Per-node `attempt` counts task attachments, so it rises on a retry and also on a pure reattach after
+a restart. A viewer that wants "how many times was this node deliberately re-run" should read the
+`dag.node.retried` events, not `attempt`. `last_error` carries the failure of the LAST settled
+attempt and is absent once a retry puts the node back in flight, so a node showing both
+`state: "running"` and no `last_error` is a retry in progress. Run-level `amend_count` is the number
+of accepted amendments and is absent on runs that were never amended.
 
 ## Emission rules
 

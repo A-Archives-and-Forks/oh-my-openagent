@@ -35,6 +35,9 @@ type DagSdkModule = {
   snapshot: (runId: string) => Promise<unknown>
   wait: (runId: string) => Promise<unknown>
   cancel: (runId: string, reason?: string) => Promise<unknown>
+  retry: (runId: string, nodeIds?: string | string[], opts?: { prompt?: string }) => Promise<unknown>
+  send: (runId: string, nodeId: string, message: string) => Promise<unknown>
+  amend: (runIdOrKeySelector: string, definition: Record<string, unknown>) => Promise<unknown>
 }
 
 const sdkPath = join(import.meta.dir, "../../plugin/runtime/dag/sdk.js")
@@ -175,6 +178,70 @@ describe("dag eval sdk", () => {
           },
         })
       })
+    })
+  })
+
+  describe("#when retry is called with node ids and a prompt override", () => {
+    it("#then it emits action=retry with run_id, node_ids, and prompt", async () => {
+      const calls = installToolStub(() => ({ details: { kind: "retried", run_id: "run-10" } }))
+      const sdk = await loadSdk()
+
+      await sdk.retry("run-10", ["a", "b"], { prompt: "Try again" })
+
+      expect(calls).toEqual([
+        { action: "retry", run_id: "run-10", node_ids: ["a", "b"], prompt: "Try again" },
+      ])
+    })
+  })
+
+  describe("#when retry is called with a single node id", () => {
+    it("#then it emits action=retry with run_id and node_id", async () => {
+      const calls = installToolStub(() => ({ details: { kind: "retried", run_id: "run-11" } }))
+      const sdk = await loadSdk()
+
+      await sdk.retry("run-11", "a")
+
+      expect(calls).toEqual([{ action: "retry", run_id: "run-11", node_id: "a" }])
+    })
+  })
+
+  describe("#when retry is called with no node ids", () => {
+    it("#then it emits action=retry with only run_id", async () => {
+      const calls = installToolStub(() => ({ details: { kind: "retried", run_id: "run-12" } }))
+      const sdk = await loadSdk()
+
+      await sdk.retry("run-12")
+
+      expect(calls).toEqual([{ action: "retry", run_id: "run-12" }])
+    })
+  })
+
+  describe("#when send is called", () => {
+    it("#then it emits action=send with run_id, node_id, and message", async () => {
+      const calls = installToolStub(() => ({ details: { kind: "sent", run_id: "run-13" } }))
+      const sdk = await loadSdk()
+
+      await sdk.send("run-13", "a", "Keep going")
+
+      expect(calls).toEqual([
+        { action: "send", run_id: "run-13", node_id: "a", message: "Keep going" },
+      ])
+    })
+  })
+
+  describe("#when amend is called", () => {
+    it("#then it emits action=amend with run_id and the new definition", async () => {
+      const calls = installToolStub(() => ({ details: { kind: "amended", run_id: "run-14" } }))
+      const sdk = await loadSdk()
+      const definition = {
+        key: "amended",
+        name: "Amended",
+        nodes: [{ id: "a", prompt: "A", category: "quick" }],
+      }
+
+      await sdk.amend("run-14", definition)
+
+      expect(calls).toEqual([{ action: "amend", run_id: "run-14", definition }])
     })
   })
 
