@@ -25,11 +25,20 @@ export type RmSyncEbusyTolerantDeps = {
   sleep?: SleepSyncFn
   ebusyAttempts?: number
   ebusyDelayMs?: number
+  ebusyMaxDelayMs?: number
 }
 
 const DEFAULT_OPTIONS: TeardownRmOptions = { recursive: true, force: true }
-const DEFAULT_EBUSY_ATTEMPTS = 10
+// A flat 10 x 50ms (500ms) budget was measured insufficient on windows-latest: CI still reported
+// `teardown-failure: EBUSY persisted after 10 attempts` for roots whose launcher child had already
+// exited and been reaped, including a `.omp/agent/agent.db` the child opened read-only. Windows
+// drops an exited process's handles asynchronously and a loaded runner can take seconds, so the
+// delay now escalates (50, 100, 200, then 400ms) for a worst case of ~4.4s per stuck path. The
+// budget is still finite and still escalates loudly, so a genuine leak fails rather than hangs, and
+// POSIX never enters the retry at all.
+const DEFAULT_EBUSY_ATTEMPTS = 14
 const DEFAULT_EBUSY_DELAY_MS = 50
+const DEFAULT_EBUSY_MAX_DELAY_MS = 400
 
 function defaultSleepSync(ms: number): void {
   Bun.sleepSync(ms)
@@ -58,6 +67,7 @@ export function rmSyncEbusyTolerant(
   const sleep = deps.sleep ?? defaultSleepSync
   const attempts = deps.ebusyAttempts ?? DEFAULT_EBUSY_ATTEMPTS
   const delayMs = deps.ebusyDelayMs ?? DEFAULT_EBUSY_DELAY_MS
+  const maxDelayMs = deps.ebusyMaxDelayMs ?? DEFAULT_EBUSY_MAX_DELAY_MS
   let lastError: unknown
   for (let attempt = 0; attempt < attempts; attempt += 1) {
     try {
@@ -66,7 +76,7 @@ export function rmSyncEbusyTolerant(
     } catch (error) {
       if (errorCode(error) !== "EBUSY") throw error
       lastError = error
-      if (attempt + 1 < attempts) sleep(delayMs)
+      if (attempt + 1 < attempts) sleep(Math.min(delayMs * 2 ** attempt, maxDelayMs))
     }
   }
   throw teardownFailure(path, attempts, lastError)
