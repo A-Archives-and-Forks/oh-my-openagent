@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { createHash } from "node:crypto"
 import { spawnSync } from "node:child_process"
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { detectHarnesses, needsSetupSuggestion } from "../bin/lib/setup-detect.js"
 import { formatSetupReport } from "../bin/lib/setup-report.js"
-import { rmSyncEbusyTolerant, teardownRoots, withDatabase } from "./teardown.test-support"
+import { teardownRoots, withDatabase } from "./teardown.test-support"
 
 // Older Bun runtimes ship no node:sqlite at all, so the module loads lazily and the fixtures that
 // need a real database skip there. Production degrades the same way: setup-detect.js falls back to
@@ -100,6 +100,20 @@ async function detect(fixture: Fixture, overrides = {}) {
     env: { SENPI_CODING_AGENT_DIR: fixture.agentDir, XDG_DATA_HOME: fixture.xdg },
     ...overrides,
   })
+}
+
+function makeStoreAbsent(path: string): void {
+  try {
+    rmSync(path)
+  } catch (error) {
+    const code = error !== null && typeof error === "object" && "code" in error ? error.code : undefined
+    if (code !== "EBUSY") throw error
+    // Windows can keep an unlinked SQLite file busy after DatabaseSync.close(), while still allowing
+    // an atomic rename. Detection only requires the store to be unreachable at its canonical path;
+    // the renamed residue stays under the fixture root for teardownRoots to reclaim later.
+    renameSync(path, `${path}.absent`)
+  }
+  expect(existsSync(path)).toBe(false)
 }
 
 function snapshotTree(root: string): { files: string[]; hashes: Record<string, string> } {
@@ -201,9 +215,9 @@ describe("omo setup sibling detection", () => {
       for (const [name, storePath] of cases) {
         const fixture = createFixture()
         await populateAll(fixture)
-        // Same Windows handle residue as teardown: the sqlite fixture file was just closed, so retry
-        // only on EBUSY. force stays off - a missing store must still fail this assertion loudly.
-        rmSyncEbusyTolerant(storePath(fixture), { recursive: false, force: false })
+        // A surviving store would make the following "installed no" assertion meaningless. If
+        // Windows still refuses unlink after close, move the file away from the canonical path.
+        makeStoreAbsent(storePath(fixture))
         const report = formatSetupReport(await detect(fixture))
         expect(report).toContain(`${name} | no | none | none |`)
       }

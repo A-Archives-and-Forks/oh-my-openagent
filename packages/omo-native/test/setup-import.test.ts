@@ -82,7 +82,7 @@ function fixture(): Fixture {
 function run(item: Fixture, args: string[], ttyInput?: string) {
   const before = sourceSnapshot(item)
   const env = {
-    ...process.env, HOME: item.home, SENPI_CODING_AGENT_DIR: item.agentDir,
+    ...process.env, HOME: item.home, USERPROFILE: item.home, SENPI_CODING_AGENT_DIR: item.agentDir,
     XDG_DATA_HOME: item.xdg,
   }
   // spawnSync only returns after the child exited and was reaped, so teardown never races a live
@@ -169,8 +169,12 @@ describe("omo setup credential inheritance", () => {
     ])
 
     const result = run(item, ["setup", "--yes"])
+    const output = `${result.stdout}${result.stderr}`
 
     expect(result.status).toBe(0)
+    expect(output).not.toContain("could not inspect agent.db")
+    expect(output).toContain("imported: 2")
+    expect(existsSync(join(item.agentDir, "auth.json"))).toBe(true)
     expect(auth(item)).toEqual({
       google: { type: "api_key", key: secrets[0] },
       openai: { type: "api_key", key: secrets[1] },
