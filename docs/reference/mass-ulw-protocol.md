@@ -145,6 +145,11 @@ are snake_case (the same wire convention as `omo.task.updated`); optional fields
 }
 ```
 
+Compatibility: the three node-control event types and the snapshot fields below are strictly
+ADDITIVE. `schemaVersion` stays `1` per this document's own versioning policy — every new field is
+optional and absent (never `null`) when inapplicable, no existing field was renamed, reordered, or
+removed, and consumers that ignore unknown event types and unknown fields keep working untouched.
+
 Per-node `attempt` counts task attachments, so it rises on a retry and also on a pure reattach after
 a restart. A viewer that wants "how many times was this node deliberately re-run" should read the
 `dag.node.retried` events, not `attempt`. `last_error` carries the failure of the LAST settled
