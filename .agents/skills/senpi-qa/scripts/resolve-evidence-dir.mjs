@@ -45,7 +45,9 @@ export function resolveEvidenceDir({ repoRoot, slug }) {
 }
 
 const isDirectRun =
-  process.argv[1] !== undefined && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
+  process.argv[1] !== undefined &&
+  existsSync(process.argv[1]) &&
+  realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
 
 if (isDirectRun) {
   const args = process.argv.slice(2)

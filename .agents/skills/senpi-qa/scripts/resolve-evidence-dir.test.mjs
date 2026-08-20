@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, relative } from "node:path"
-import { fileURLToPath } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 
 import { EVIDENCE_RELATIVE_ROOT, resolveEvidenceDir } from "./resolve-evidence-dir.mjs"
 
@@ -145,5 +145,27 @@ describe("resolveEvidenceDir", () => {
     // then
     expect(result.status).toBe(0)
     expect(result.stdout.trim()).toBe(join(repoRoot, EVIDENCE_RELATIVE_ROOT, "20260820-symlink-cli"))
+  })
+
+  test("#given an embedding runner with a missing argv path #when the module is imported #then exports still load", () => {
+    // given
+    const missingEntrypoint = join(tmpdir(), `missing-senpi-qa-entrypoint-${process.pid}.mjs`)
+    const moduleUrl = pathToFileURL(cliPath).href
+
+    // when
+    const result = spawnSync(
+      "node",
+      [
+        "--input-type=module",
+        "--eval",
+        `process.argv[1] = ${JSON.stringify(missingEntrypoint)}; await import(${JSON.stringify(moduleUrl)})`,
+      ],
+      { encoding: "utf8" },
+    )
+
+    // then
+    expect(result.status).toBe(0)
+    expect(result.stdout).toBe("")
+    expect(result.stderr).toBe("")
   })
 })
