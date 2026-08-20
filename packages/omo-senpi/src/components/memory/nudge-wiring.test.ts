@@ -280,29 +280,23 @@ function bold(text: string): string {
 
 const PLAIN_THEME = {
   fg: (_color: ThemeColor, text: string) => text,
-  italic: (text: string) => text,
+  bg: (_color: "customMessageBg", text: string) => text,
 }
 
 function recordingTheme(): {
-  readonly theme: { fg: (color: ThemeColor, text: string) => string; italic: (text: string) => string }
+  readonly theme: { fg: (color: ThemeColor, text: string) => string; bg: (color: "customMessageBg", text: string) => string }
   readonly colors: ThemeColor[]
-  readonly italics: string[]
 } {
   const colors: ThemeColor[] = []
-  const italics: string[] = []
   return {
     theme: {
       fg: (color: ThemeColor, text: string) => {
         colors.push(color)
         return text
       },
-      italic: (text: string) => {
-        italics.push(text)
-        return text
-      },
+      bg: (_color: "customMessageBg", text: string) => text,
     },
     colors,
-    italics,
   }
 }
 
@@ -316,10 +310,17 @@ function acceptedTurns(over: Partial<AcceptedTurnsRecord> = {}): AcceptedTurnsRe
   }
 }
 
+function renderAccepted(record: AcceptedTurnsRecord, expanded = false): string[] {
+  return renderAcceptedTurnsEntry({ data: record } as never, { expanded }, PLAIN_THEME as never)!
+    .render(120)
+    .slice(1, -1)
+    .map((line) => line.slice(1).trimEnd())
+}
+
 describe("renderAcceptedTurnsEntry", () => {
   test("#given an accepted-turns record #when it renders collapsed #then a muted notice leads with the turn count", () => {
     // when
-    const lines = renderAcceptedTurnsEntry({ data: acceptedTurns() } as never, { expanded: false }, PLAIN_THEME as never)!.render(120)
+    const lines = renderAccepted(acceptedTurns())
 
     // then
     expect(lines).toEqual([
@@ -331,11 +332,7 @@ describe("renderAcceptedTurnsEntry", () => {
 
   test("#given a single accepted turn #when it renders #then the turn noun is singular", () => {
     // when
-    const lines = renderAcceptedTurnsEntry(
-      { data: acceptedTurns({ priorUserTurns: 1, sessionBaselineTurns: 0 }) } as never,
-      { expanded: false },
-      PLAIN_THEME as never,
-    )!.render(120)
+    const lines = renderAccepted(acceptedTurns({ priorUserTurns: 1, sessionBaselineTurns: 0 }))
 
     // then
     expect(lines[0]).toBe(bold("· Memory accepted turns · 1 turn"))
@@ -344,7 +341,7 @@ describe("renderAcceptedTurnsEntry", () => {
 
   test("#when it renders expanded #then the detail row carries the session id", () => {
     // when
-    const lines = renderAcceptedTurnsEntry({ data: acceptedTurns() } as never, { expanded: true }, PLAIN_THEME as never)!.render(120)
+    const lines = renderAccepted(acceptedTurns(), true)
 
     // then
     expect(lines).toEqual([
@@ -357,10 +354,18 @@ describe("renderAcceptedTurnsEntry", () => {
 
   test("#when it renders collapsed #then the session id stays off the notice", () => {
     // when
-    const lines = renderAcceptedTurnsEntry({ data: acceptedTurns() } as never, { expanded: false }, PLAIN_THEME as never)!.render(120)
+    const lines = renderAccepted(acceptedTurns())
 
     // then
     expect(lines).not.toContain("session session-1")
+  })
+
+  test("#when rendered with a background theme #then every padded line carries customMessageBg", () => {
+    const component = renderAcceptedTurnsEntry({ data: acceptedTurns() } as never, { expanded: false }, {
+      fg: (_color: ThemeColor, text: string) => text,
+      bg: (_color: "customMessageBg", text: string) => `<notice-bg>${text}</notice-bg>`,
+    } as never)
+    for (const line of component!.render(120)) expect(line).toMatch(/^<notice-bg>.*<\/notice-bg>$/u)
   })
 
   test("#when coloured #then the title is muted and the secondary rows are dim", () => {
@@ -371,7 +376,6 @@ describe("renderAcceptedTurnsEntry", () => {
     renderAcceptedTurnsEntry({ data: acceptedTurns() } as never, { expanded: true }, recorder.theme as never)!.render(120)
 
     // then
-    expect(recorder.colors).toEqual(["muted", "dim", "dim", "dim"])
-    expect(recorder.italics).toHaveLength(1)
+    expect(recorder.colors).toEqual(["dim", "dim", "dim", "dim"])
   })
 })

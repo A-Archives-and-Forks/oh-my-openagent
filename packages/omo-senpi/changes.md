@@ -1,3 +1,9 @@
+## 2026-08-20 — Render transcript notices in the Senpi notice-box family
+
+Fallback architect announcements, task completion and liveness cards, and memory reflection, health, soul, accepted-turn, and write notices now share the Senpi-canonical padded `customMessageBg` block. Titles retain semantic tone and bold emphasis, body rows stay dim, and diagnostic detail remains expanded-only.
+
+Compact category warnings and normal tool result rows remain unchanged.
+
 ## 2026-08-19 — Follow the Senpi 2026.8.19 host contract
 
 **What changed.** The adapter peer and development dependency now require Senpi

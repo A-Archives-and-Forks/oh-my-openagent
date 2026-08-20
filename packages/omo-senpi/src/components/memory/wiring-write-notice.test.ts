@@ -64,7 +64,7 @@ const RESULT = {
   },
 }
 
-const THEME = { fg: (_color: string, text: string) => text, italic: (text: string) => text }
+const THEME = { fg: (_color: string, text: string) => text, bg: (_color: string, text: string) => text }
 
 function lines(renderResult: (...args: readonly unknown[]) => { render(width: number): string[] }): string[] {
   return renderResult(RESULT, { expanded: false, isPartial: false }, THEME, { isError: false }).render(200)
