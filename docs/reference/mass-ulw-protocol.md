@@ -34,7 +34,7 @@ Four extension-event channels exist. Only one of them is sequenced.
 
 ### `omo.dag.event`
 
-Every payload is the FLAT intersection of the envelope and one of the 14 journaled payload types.
+Every payload is the FLAT intersection of the envelope and one of the 17 journaled payload types.
 `type`, `seq`, and the payload fields are siblings on one object, not nested.
 
 Envelope fields, present on every event:
@@ -53,7 +53,7 @@ The `lane` distinction: `boundary` marks state transitions and run lifecycle, jo
 seq. `activity` is the live-telemetry lane name used by stream classification; the actual
 `DagActivityEvent` payloads are unsequenced and travel on `omo.dag.activity`, never here.
 
-The 14 journaled payload types (`DAG_RUN_EVENT_TYPES`), with their fields beyond the envelope:
+The 17 journaled payload types (`DAG_RUN_EVENT_TYPES`), with their fields beyond the envelope:
 
 | `type` | Payload fields |
 | --- | --- |
@@ -69,6 +69,9 @@ The 14 journaled payload types (`DAG_RUN_EVENT_TYPES`), with their fields beyond
 | `dag.node.transitioned` | `nodeId`, `from`, `to`, `reason` (`{kind}` object, `task_queued` adds `queuePosition`) |
 | `dag.node.task-attached` | `nodeId`, `taskId`, `attempt` |
 | `dag.node.reused` | `nodeId`, `taskId`, `sourceRunId` |
+| `dag.node.retried` | `nodeId`, `priorTaskId?`, `execAttempt`, `promptChanged` |
+| `dag.node.steered` | `nodeId`, `taskId`, `delivery` (`"steer"` \| `"revive"`) |
+| `dag.definition.amended` | `previousFingerprint`, `fingerprint`, `changedNodeIds`, `addedNodeIds`, `invalidatedNodeIds` |
 | `dag.diagnostic.added` | `diagnostic` (`route_fallback` \| `node_flag` \| `run_flag`) |
 | `dag.stream.overflow` | `droppedCount`, `recoverAfterSeq` (see the recovery rules below) |
 
