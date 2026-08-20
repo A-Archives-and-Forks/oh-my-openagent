@@ -208,7 +208,19 @@ export type DagRunSnapshot = {
   readonly counts: DagNodeCounts
   // One entry per accepted amendment. Observe surfaces read this projection, so it must carry the
   // history rather than making them reach for the raw record. Absent on never-amended runs.
-  readonly amendHistory?: readonly unknown[]
+  readonly amendHistory?: readonly AmendRecord[]
+}
+
+// One entry per accepted amendment. Defined here rather than in manager.ts so the snapshot, the wire
+// payload, and the /dag renderer share one shape instead of three independent `unknown[]` widenings;
+// it depends only on DagNodeId, which lives in this module, so no import cycle is introduced.
+export type AmendRecord = {
+  readonly at: string
+  readonly previousFingerprint: string
+  readonly fingerprint: string
+  readonly changedNodeIds: readonly DagNodeId[]
+  readonly addedNodeIds: readonly DagNodeId[]
+  readonly invalidatedNodeIds: readonly DagNodeId[]
 }
 
 export const DAG_NODE_TRANSITION_REASONS = [

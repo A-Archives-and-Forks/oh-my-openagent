@@ -11,6 +11,7 @@ import { createDagJournal, type DagJournalCheckpoint } from "./journal"
 import type { DagEventPage, DagFileStore } from "./store"
 import { DAG_SETTINGS_DEFAULTS } from "./types"
 import type {
+  AmendRecord,
   DagBottleneck,
   DagDiagnostic,
   DagEdge,
@@ -90,14 +91,7 @@ export type DagPersistedDefinition = {
   readonly nodes: readonly DagPersistedNode[]
 }
 
-export type AmendRecord = {
-  readonly at: string
-  readonly previousFingerprint: string
-  readonly fingerprint: string
-  readonly changedNodeIds: readonly DagNodeId[]
-  readonly addedNodeIds: readonly DagNodeId[]
-  readonly invalidatedNodeIds: readonly DagNodeId[]
-}
+export type { AmendRecord } from "./types"
 
 export type DagRunRecordV1 = DagJournalCheckpoint & {
   readonly runId: DagRunId
