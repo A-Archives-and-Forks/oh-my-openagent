@@ -30,11 +30,17 @@ A third exact-head Codex P2 found that the first retry status in a session had n
 - The handler now creates or retrieves one `Set`, records it in the map, and rolls back through that same set.
 - `first-retry-key-inflight-green.txt` passes 11/0. It starts with an empty retry-key map, skips the first in-flight status, then proves the identical status dispatches `openai/gpt-5.4` after the marker clears.
 
+A fourth exact-head Codex P2 found that reused internal continuation text bypassed the empty-parts synthetic continuation path and therefore lacked the runtime-fallback acknowledgement marker. The chat adapter correctly skips internal-only prompts unless that marker is present, leaving the fallback generation pending.
+
+- `reused-internal-retry-marker-red.txt` shows a fetched internal continuation retains its id and internal marker but lacks `OMO_RUNTIME_FALLBACK_RETRY` before this fix.
+- Reused parts with the pre-existing internal-initiator marker now receive only the missing fallback marker. Their text, id, and unrelated real-user parts are otherwise unchanged; parts already marked as fallback retries are not duplicated.
+- `reused-internal-retry-marker-green.txt` passes 42/0 across the dispatcher and chat adapter: the reuse path preserves `messageID`, part id, and internal marker while making the adapter acknowledge runtime fallback.
+
 ## Verification
 
-- `focused-runtime-fallback-and-prompt-gate.txt`: 398 pass, 0 fail across all runtime-fallback tests, plugin chat-message coverage, and prompt-gate tests. Post-review `runtime-fallback-after-generation-fix.txt`: 284 pass, 0 fail; final `runtime-fallback-after-first-key-fix.txt`: 285 pass, 0 fail across the complete runtime-fallback directory.
-- `typecheck.txt` and CI-node-24 `typecheck-node24.txt`: root, scripts, and every package typecheck passed. Post-review `typecheck-generation-fix.txt` and `typecheck-first-key-fix.txt`: every package typecheck passed.
-- `build.txt`, `build-generation-fix.txt`, and `build-first-key-fix.txt`: `bun run build` completed; each post-review build freshly produced the source surface used for QA.
+- `focused-runtime-fallback-and-prompt-gate.txt`: 398 pass, 0 fail across all runtime-fallback tests, plugin chat-message coverage, and prompt-gate tests. Post-review `runtime-fallback-after-generation-fix.txt`: 284 pass, 0 fail; `runtime-fallback-after-first-key-fix.txt`: 285 pass, 0 fail; final `runtime-fallback-after-reused-internal-fix.txt`: 286 pass, 0 fail across the complete runtime-fallback directory.
+- `typecheck.txt` and CI-node-24 `typecheck-node24.txt`: root, scripts, and every package typecheck passed. Post-review `typecheck-generation-fix.txt`, `typecheck-first-key-fix.txt`, and `typecheck-reused-internal-fix.txt`: every package typecheck passed.
+- `build.txt`, `build-generation-fix.txt`, `build-first-key-fix.txt`, and `build-reused-internal-fix.txt`: `bun run build` completed; each post-review build freshly produced the source surface used for QA.
 - `lsp-daemon-tests.txt`: exact vendored daemon suite passed.
 - `root-bun-test.txt`: the full default root suite passed 15,982 tests, skipped 13 platform-gated tests, failed 0. CI-exact Node 24 `root-bun-test-node24-final.txt` passed 13,921 tests, skipped 12 platform-gated tests, failed 0.
 - CI-node-24 `test-codex-node24.txt`: the complete `bun run test:codex` gate passed. Its isolated Node 24/npm 11 toolchain matches CI; a prior Node 22/npm 10 nested-pack attempt is retained locally as `test-codex-first-attempt.txt` and was not treated as a product failure.
@@ -50,6 +56,7 @@ The `opencode-qa` source-built server/API case was selected because this changes
 - `opencode-source-qa.txt` records HTTP 204, `server.connected`, `session.status`, `message.updated`, and `message.part.updated` carrying `fake response 2`. This proves the changed lifecycle-event surface reached the loaded source-built plugin.
 - Post-review `opencode-source-qa-generation-debug.txt` completed the same source-built isolated-server script against bundle SHA-256 `a35b35707745a54cf4220f4ffb7cbbeece8686cc90125473b48fbf345eaa9abb`: HTTP 204, subscribed `session.status`, `message.updated`, and `message.part.updated` with `fake response 2` all occurred. The first plain invocation exceeded the external 300-second command window before producing a receipt; the instrumented rerun completed every script assertion.
 - Final `opencode-source-qa-first-key-fix-debug.txt` completed those same original assertions against bundle SHA-256 `4810df1471f549f9a6804d11b40b34d8f9501106f5cf482618591e6e568b5f21`; only the external health-probe wrapper was bounded, preventing a local CLI health request from blocking the harness. HTTP 204, all required SSE events, one sandbox session, host DB 7,586 -> 7,586, and full sandbox/process cleanup passed.
+- `opencode-source-qa-reused-internal-fix-debug.txt` repeated the original assertions against bundle SHA-256 `717f15c9bb50c10b01bf33be9badd3774c33babbc3e82cf097a737b5f570bc2b`: HTTP 204, all required SSE events, one sandbox session, host DB 7,586 -> 7,586, and full sandbox/process cleanup passed.
 - The sandbox held one QA session. The real host DB remained exactly 7,586 sessions before and after. The QA sandbox was removed and both its OpenCode and fake-provider processes stopped.
 
 ## Isolated Codex installer QA

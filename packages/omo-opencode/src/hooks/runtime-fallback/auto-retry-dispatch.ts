@@ -4,7 +4,12 @@ import { log } from "../../shared/logger"
 import { getSessionAgent, resolveRegisteredAgentName } from "../../features/claude-code-session-state"
 import { buildRetryModelPayload } from "./retry-model-payload"
 import { getLastUserRetryPayload } from "./last-user-retry-parts"
-import { createRuntimeFallbackRetryTextPart } from "../../shared/runtime-fallback-retry-marker"
+import {
+  createRuntimeFallbackRetryTextPart,
+  hasRuntimeFallbackRetryMarker,
+  OMO_RUNTIME_FALLBACK_RETRY_MARKER,
+} from "../../shared/runtime-fallback-retry-marker"
+import { hasInternalInitiatorMarker } from "../../shared/internal-initiator-marker"
 import {
   dispatchInternalPrompt,
   isInternalPromptDispatchAccepted,
@@ -95,7 +100,11 @@ export function createAutoRetryDispatcher(
       const usingFetchedUserParts = originalRetryMetadata.parts.length > 0
       const retryParts =
         fetchedParts.length > 0
-          ? fetchedParts
+          ? fetchedParts.map((part) => (
+              hasInternalInitiatorMarker(part.text) && !hasRuntimeFallbackRetryMarker(part.text)
+                ? { ...part, text: `${part.text}\n${OMO_RUNTIME_FALLBACK_RETRY_MARKER}` }
+                : part
+            ))
           : (() => {
               log(
                 `[${HOOK_NAME}] No user message parts found for auto-retry (${source}); using synthetic continuation`,
