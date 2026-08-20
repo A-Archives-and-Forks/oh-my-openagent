@@ -4,9 +4,10 @@
 // single-consumption test pins that invariant with a counting wrapper around the REAL consumer.
 import { afterEach, describe, expect, test } from "bun:test"
 import { realpathSync } from "node:fs"
-import { access, mkdtemp, rm, writeFile } from "node:fs/promises"
+import { access, mkdtemp, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { rmEfaultTolerant } from "./teardown.test-support"
 
 import type { ThemeColor } from "@code-yeongyu/senpi"
 import { buildIdentityPaths } from "@oh-my-opencode/memory-core"
@@ -27,7 +28,7 @@ const IDENTITY = "memory-notice-agent"
 const roots: string[] = []
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
+  await Promise.all(roots.splice(0).map((root) => rmEfaultTolerant(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })))
 })
 
 async function fixture(): Promise<{ context: MemoryIdentityContext }> {
