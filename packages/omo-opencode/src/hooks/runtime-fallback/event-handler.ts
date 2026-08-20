@@ -14,8 +14,8 @@ import { isAbortError } from "../../shared/is-abort-error"
 import { resolveFallbackBootstrapModel } from "./fallback-bootstrap-model"
 import { dispatchFallbackRetry } from "./fallback-retry-dispatcher"
 import { createSessionStatusHandler } from "./session-status-handler"
-import { resolveAgentVariant } from "../../shared/agent-variant"
 import { buildRetryModelPayload } from "./retry-model-payload"
+import { resolveRuntimeModelSettings } from "./runtime-model-settings"
 import { resolveMessageEventSessionID, resolveSessionEventID } from "../../shared/event-session-id"
 import { normalizeModelToCanonicalString } from "./normalize-model"
 
@@ -43,15 +43,21 @@ function resolvePreferredSessionModel(
   agent: string | undefined,
   pluginConfig: HookDeps["pluginConfig"],
 ): string | undefined {
+  const registeredCategory = SessionCategoryRegistry.get(sessionID)
+  const registeredCategoryModel = registeredCategory
+    ? pluginConfig?.categories?.[registeredCategory]?.model
+    : undefined
+  if (typeof registeredCategoryModel === "string") return registeredCategoryModel
+
   const agentConfig = agent && pluginConfig?.agents
     ? pluginConfig.agents[agent]
     : undefined
   if (typeof agentConfig?.model === "string") return agentConfig.model
 
-  const category = typeof agentConfig?.category === "string"
+  const agentCategory = typeof agentConfig?.category === "string"
     ? agentConfig.category
-    : SessionCategoryRegistry.get(sessionID)
-  const categoryModel = category ? pluginConfig?.categories?.[category]?.model : undefined
+    : undefined
+  const categoryModel = agentCategory ? pluginConfig?.categories?.[agentCategory]?.model : undefined
   return typeof categoryModel === "string" ? categoryModel : undefined
 }
 
@@ -89,14 +95,10 @@ export function createEventHandler(deps: HookDeps, helpers: AutoRetryHelpers) {
     if (sessionID && model) {
       log(`[${HOOK_NAME}] Session created with model`, { sessionID, model })
       const preferredModel = resolvePreferredSessionModel(sessionID, agent, pluginConfig)
-      const inheritedReasoning = agent && pluginConfig
-        ? resolveAgentVariant(pluginConfig, agent)
-        : undefined
+      const runtimeModelSettings = resolveRuntimeModelSettings(sessionID, agent, pluginConfig)
       const fallbackIndex = preferredModel && preferredModel !== model
         ? getFallbackModelsForSession(sessionID, agent, pluginConfig).findIndex((fallbackModel) => {
-            const payload = buildRetryModelPayload(fallbackModel, {
-              reasoning: inheritedReasoning,
-            })
+            const payload = buildRetryModelPayload(fallbackModel, runtimeModelSettings)
             return payload
               ? areRuntimeModelsEquivalent(
                   stringifyRuntimeModelWithVariant(payload.model, payload.variant),

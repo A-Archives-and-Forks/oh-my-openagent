@@ -1,8 +1,9 @@
-import { describe, expect, it } from "bun:test"
+import { afterEach, describe, expect, it } from "bun:test"
 import type { HookDeps, RuntimeFallbackPluginInput } from "./types"
 import type { AutoRetryHelpers } from "./auto-retry"
 import { createFallbackState } from "./fallback-state"
 import { createEventHandler } from "./event-handler"
+import { SessionCategoryRegistry } from "../../shared/session-category-registry"
 
 function createContext(): RuntimeFallbackPluginInput {
   return {
@@ -59,6 +60,10 @@ function createHelpers(deps: HookDeps, abortCalls: string[], clearCalls: string[
     cleanupStaleSessions: () => {},
   }
 }
+
+afterEach(() => {
+  SessionCategoryRegistry.clear()
+})
 
 describe("createEventHandler", () => {
   it("#given a session retry dedupe key #when session.stop fires #then the retry dedupe key is cleared", async () => {
@@ -337,6 +342,54 @@ describe("createEventHandler", () => {
         },
       },
     }
+    const abortCalls: string[] = []
+    const clearCalls: string[] = []
+    const handler = createEventHandler(deps, createHelpers(deps, abortCalls, clearCalls))
+
+    // when
+    await handler({
+      event: {
+        type: "session.created",
+        properties: {
+          info: {
+            id: sessionID,
+            agent: "sisyphus",
+            model: {
+              id: "gpt-5.4",
+              providerID: "openai",
+              variant: "high",
+            },
+          },
+        },
+      },
+    })
+
+    // then
+    const created = deps.sessionStates.get(sessionID)
+    expect(created?.originalModel).toBe("anthropic/claude-opus-4-7")
+    expect(created?.currentModel).toBe("openai/gpt-5.4(high)")
+    expect(created?.fallbackIndex).toBe(0)
+  })
+
+  it("#given session.created on a registered-category fallback #when that category supplies the effective reasoning #then the active fallback is indexed with the category identity", async () => {
+    // given
+    const sessionID = "session-registered-category-fallback-created"
+    const deps = createDeps()
+    deps.pluginConfig = {
+      agents: {
+        sisyphus: {
+          reasoning: "low",
+        },
+      },
+      categories: {
+        deep: {
+          model: "anthropic/claude-opus-4-7",
+          reasoning: "high",
+          fallback_models: ["openai/gpt-5.4", "google/gemini-2.5-pro"],
+        },
+      },
+    }
+    SessionCategoryRegistry.register(sessionID, "deep")
     const abortCalls: string[] = []
     const clearCalls: string[] = []
     const handler = createEventHandler(deps, createHelpers(deps, abortCalls, clearCalls))
