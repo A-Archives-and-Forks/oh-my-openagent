@@ -209,19 +209,18 @@ function amendRetryPrompt(
     name: record.definition.name,
     nodes: record.definition.nodes.map((node) => definitionNode(node, node.id === nodeId ? prompt : node.prompt)),
   }
-  // The rejection lands on a later tick, so it only enriches the message of a refusal the
-  // synchronous fingerprint check has already decided on.
-  let rejection: unknown
+  // amendRun mutates the checkpoint synchronously before its async wrapper yields, so the fresh
+  // fingerprint is the decision. The rejection itself settles on a later tick and can never be
+  // observed from this synchronous verb, so it is deliberately not consulted: a swallowed rejection
+  // always leaves the fingerprint untouched, which is exactly the refusal below.
   void manager
     .amend({ runId: record.runId, definition, parentSessionId: record.parentSessionId })
-    .catch((error: unknown) => {
-      rejection = error
-    })
+    .catch(() => undefined)
   const applied = readRecord(options.store, record.runId)
   if (applied === null || applied.definitionFingerprint === record.definitionFingerprint) {
     throw new DagNodeControlError({
       code: "invalid_arguments",
-      message: `dag node "${nodeId}" prompt override was rejected${rejection === undefined ? "" : `: ${controlErrorMessage(rejection)}`}`,
+      message: `dag node "${nodeId}" prompt override was rejected`,
       runId: record.runId,
       nodeIds: [nodeId],
     })

@@ -1030,6 +1030,8 @@ function settledFixture(
   manager: FakeTaskManager,
   states: NodeOverrides,
   overrides: Partial<DagRunRecordV1> = {},
+  // Lease-ownership seams: injected so a lease test cannot pass by coincidence with the real pid.
+  lease: { readonly hostPid?: number; readonly isProcessAlive?: (pid: number) => boolean } = {},
 ) {
   const store = createDagFileStore({ project_dir: tempProject() })
   const base = recordFor(input)
@@ -1043,7 +1045,14 @@ function settledFixture(
   }
   store.writeCheckpoint(runId, initialRecord)
   let eventTime = Date.parse("2026-08-14T00:00:10.000Z")
-  const scheduler = createDagScheduler({ store, taskManager: manager, initialRecord, now: () => eventTime++ })
+  const scheduler = createDagScheduler({
+    store,
+    taskManager: manager,
+    initialRecord,
+    now: () => eventTime++,
+    ...(lease.hostPid === undefined ? {} : { hostPid: lease.hostPid }),
+    ...(lease.isProcessAlive === undefined ? {} : { isProcessAlive: lease.isProcessAlive }),
+  })
   const events = (): readonly DagRunEvent[] => store.readEvents(runId, 0, { limit: 200 }).events
   // The durable checkpoint, not the settled instance's in-memory snapshot: control verbs journal
   // through a fresh journal, and every downstream reader (wait, snapshot, TUI) reads the record.
@@ -1052,7 +1061,7 @@ function settledFixture(
     if (record === null) throw new Error("missing durable checkpoint")
     return record
   }
-  return { scheduler, store, events, durable, initialRecord }
+  return { scheduler, store, events, durable, initialRecord, runId }
 }
 
 describe("DAG scheduler node controls", () => {
@@ -1239,15 +1248,24 @@ describe("DAG scheduler node controls", () => {
     expect(events()).toEqual([])
   })
 
-  test("#given another live process holds the lease #when retry is requested #then it refuses with run_not_owned", () => {
-    // given
+  test("#given a foreign pid holds the lease and is alive #when retry is requested for THIS run #then it refuses with run_not_owned naming that pid", () => {
+    // given — the pid must differ from hostPid and be reported ALIVE, otherwise the guard is a no-op.
+    // Both are injected so the assertion cannot pass by coincidence with the running process.
     const manager = new FakeTaskManager()
-    const { scheduler } = settledFixture(definition([node("broken")]), manager, {
+    const foreignPid = 424242
+    const probed: number[] = []
+    const { scheduler, runId } = settledFixture(definition([node("broken")]), manager, {
       broken: { state: "failed", taskId: "task-broken", attempt: 1 },
-    }, { leaseHolderPid: process.pid + 0 } as Partial<DagRunRecordV1>)
+    }, { leaseHolderPid: foreignPid } as Partial<DagRunRecordV1>, {
+      hostPid: foreignPid + 1,
+      isProcessAlive: (pid: number) => {
+        probed.push(pid)
+        return true
+      },
+    })
 
-    // when
-    const refusal = () => scheduler.retryNode("other-run" as DagRunId, ["broken" as DagNodeId])
+    // when — the REAL run id, so execution reaches the lease block instead of the run-mismatch branch.
+    const refusal = () => scheduler.retryNode(runId, ["broken" as DagNodeId])
 
     // then
     expect(refusal).toThrow(DagNodeControlError)
@@ -1255,7 +1273,28 @@ describe("DAG scheduler node controls", () => {
       refusal()
     } catch (error) {
       expect((error as DagNodeControlError).code).toBe("run_not_owned")
+      expect((error as DagNodeControlError).message).toContain(String(foreignPid))
     }
+    expect(probed).toContain(foreignPid)
+  })
+
+  test("#given the lease pid is dead #when retry is requested #then the guard lets it through and the node re-runs", () => {
+    // given — same foreign pid, but reported DEAD: the guard must NOT refuse, proving it gates on
+    // liveness rather than on the pid field being present at all.
+    const manager = new FakeTaskManager()
+    const foreignPid = 424242
+    const { scheduler, runId, events } = settledFixture(definition([node("broken")]), manager, {
+      broken: { state: "failed", taskId: "task-broken", attempt: 1 },
+    }, { leaseHolderPid: foreignPid } as Partial<DagRunRecordV1>, {
+      hostPid: foreignPid + 1,
+      isProcessAlive: () => false,
+    })
+
+    // when
+    scheduler.retryNode(runId, ["broken" as DagNodeId])
+
+    // then
+    expect(events().some((event) => event.type === "dag.node.retried")).toBe(true)
   })
 
   test("#given a running node #when send delivers a steer #then the node stays running and the journal records delivery steer", async () => {
@@ -1391,6 +1430,34 @@ describe("DAG scheduler node controls", () => {
     expect(types.indexOf("dag.definition.amended")).toBeLessThan(types.indexOf("dag.node.retried"))
     expect(events().find((event) => event.type === "dag.node.retried")).toMatchObject({ promptChanged: true })
     expect(manager.startedSpecs.map((spec) => spec.prompt)).toEqual(["do broken differently", "do dependent"])
+  })
+
+  test("#given a prompt override the definition compiler rejects #when retried #then the refusal is total: invalid_arguments, nothing journaled, no task started", () => {
+    // given — a REAL rejection reachable from amendRetryPrompt: compileDag enforces max_prompt_bytes
+    // (default 262144), and amendRetryPrompt compiles against the defaults, so an oversized prompt
+    // makes manager.amend reject and leaves the definition fingerprint untouched. That unchanged
+    // fingerprint is the only signal the synchronous verb has, and the guard under test is what turns
+    // it into a caller-visible refusal instead of a silent retry on the unamended definition.
+    const manager = new FakeTaskManager()
+    const { scheduler, events, runId: id } = settledFixture(definition([node("broken")]), manager, {
+      broken: { state: "failed", taskId: "task-broken", attempt: 1 },
+    })
+    const oversized = "x".repeat(262145)
+
+    // when
+    const refusal = () => scheduler.retryNode(id, ["broken" as DagNodeId], { prompt: oversized })
+
+    // then
+    expect(refusal).toThrow(DagNodeControlError)
+    try {
+      refusal()
+    } catch (error) {
+      expect((error as DagNodeControlError).code).toBe("invalid_arguments")
+      expect((error as DagNodeControlError).message).toContain("prompt override was rejected")
+    }
+    // Total refusal: the node stays failed rather than half-retried against the old prompt.
+    expect(events().some((event) => event.type === "dag.node.retried")).toBe(false)
+    expect(manager.startedSpecs).toEqual([])
   })
 
   test("#given a prompt override with more than one target #when retried #then it refuses with invalid_arguments", () => {
