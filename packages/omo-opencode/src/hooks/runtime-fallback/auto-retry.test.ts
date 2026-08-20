@@ -140,6 +140,7 @@ describe("createAutoRetryHelpers", () => {
     // that the user never typed (see #4085 / Discord report).
     expect(firstPart["synthetic"]).toBe(true)
     expect(String(firstPart["text"] ?? "")).toContain("OMO_INTERNAL_INITIATOR")
+    expect(String(firstPart["text"] ?? "")).toContain("OMO_RUNTIME_FALLBACK_RETRY")
   })
 
   test("#given a persisted user message with id and part ids #when auto retry runs #then the fallback prompt reuses the original messageID and part ids", async () => {
