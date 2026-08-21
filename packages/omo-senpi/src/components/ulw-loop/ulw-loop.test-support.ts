@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { execFileSync } from "node:child_process"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -128,6 +128,8 @@ export async function withEnvAsync<T>(patch: Record<string, string | undefined>,
 export function createTempOmoBin(stdout = activeStatus(), name = "omo"): { dir: string; bin: string; cleanup: () => void } {
   const nodeExecutable = resolveNodeExecutable()
   const dir = mkdtempSync(join(tmpdir(), "omo-senpi-ulw-loop-"))
+  // The default plan lookup gates the spawn, so a fixture that expects the toolkit to run needs a ledger dir.
+  mkdirSync(join(dir, ".omo", "ulw-loop"), { recursive: true })
   const bin = join(dir, process.platform === "win32" ? `${name}.cmd` : name)
   const runner = join(dir, `${name}-runner.cjs`)
   writeFileSync(
@@ -167,6 +169,8 @@ export function createTempStderrFloodScript(
   stdout = activeStatus(),
 ): { dir: string; script: string; cleanup: () => void } {
   const dir = mkdtempSync(join(tmpdir(), "omo-senpi-ulw-loop-flood-"))
+  // The default plan lookup gates the spawn, so a fixture that expects the toolkit to run needs a ledger dir.
+  mkdirSync(join(dir, ".omo", "ulw-loop"), { recursive: true })
   const script = join(dir, "flood.js")
   writeFileSync(
     script,
@@ -216,6 +220,8 @@ export async function registerWithRunner(outputs: string[], logger = createLogge
   await createUlwLoopComponent({
     resolveOmoBin: () => "/tmp/omo",
     runCommand: runner.run,
+    // Fixture cwds are synthetic paths; the real `.omo/ulw-loop` lookup is covered by its own suite.
+    planDirExists: () => true,
   }).register(pi, { logger, config: { getFlag: () => false } })
   return { pi, logger, calls: runner.calls }
 }
