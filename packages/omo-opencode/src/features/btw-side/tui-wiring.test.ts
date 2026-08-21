@@ -334,6 +334,41 @@ describe("registerBtwSideTui", () => {
     )
   })
 
+  it("#given the picker opened without its parent prompt #when another route gains a prompt before New BTW #then creation stays unavailable", async () => {
+    // given
+    const harness = createPickerHarness()
+    const startFromPrompt = mock(async () => true)
+    const controller = unsafeTestValue({
+      adopt: () => undefined,
+      startFromPrompt,
+    })
+    let promptLookupCount = 0
+    await openBtwPicker({
+      api: harness.api,
+      controller,
+      activePromptRef: () => {
+        promptLookupCount += 1
+        return promptLookupCount === 1
+          ? undefined
+          : harness.promptRef
+      },
+    })
+    const newSide = harness.dialogSelections[0]?.options.find(
+      (option) => option.title === "New BTW",
+    )
+
+    // when
+    if (newSide) {
+      await harness.dialogSelections[0]?.onSelect?.(newSide)
+    }
+
+    // then
+    expect(startFromPrompt).not.toHaveBeenCalled()
+    expect(harness.toasts).toContain(
+      "BTW is unavailable before the session starts.",
+    )
+  })
+
   it("#given retained BTW metadata #when the bare command opens #then the catalog lists the parent and every retained side", async () => {
     // given
     const harness = createPickerHarness()

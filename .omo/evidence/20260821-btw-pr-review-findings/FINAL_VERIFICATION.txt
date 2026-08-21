@@ -2,7 +2,7 @@ FINAL VERIFICATION
 
 bun test ./packages/omo-opencode/src/features/btw-side
 exit 0
-73 pass, 0 fail, 220 expectations, 11 files
+74 pass, 0 fail, 223 expectations, 11 files
 exact output: artifacts/btw-tests.junit.xml
 
 bun test ./script/web-terminal-visual-qa.test.ts

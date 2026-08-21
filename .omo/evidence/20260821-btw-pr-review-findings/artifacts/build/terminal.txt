@@ -1,7 +1,7 @@
 
   omo-task.js  0.89 MB  (entry point)
 
-Bundled 280 modules in 19ms
+Bundled 280 modules in 13ms
 
   omo-member.js  173.24 KB  (entry point)
 

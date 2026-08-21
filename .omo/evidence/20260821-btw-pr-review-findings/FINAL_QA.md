@@ -9,6 +9,8 @@
 - Focused GREEN checks then proved:
   - the newer draft survives catalog completion;
   - New BTW metadata keeps the encoded `ses_parent`;
+  - picker browsing works without a prompt ref, while New BTW remains
+    unavailable instead of consuming a different route's composer;
   - an Escape after 1,001 ms starts a new pair, while the next Escape after
     99 ms returns once.
 - The real TUI returned from the side to Main after two Escape presses 500 ms

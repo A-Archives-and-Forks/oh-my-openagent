@@ -91,7 +91,7 @@ export async function openBtwPicker(args: {
     const selection = parseBtwPickerValue(value)
     if (!selection) return
     if (selection.type === "new") {
-      const promptRef = pickerPromptRef ?? args.activePromptRef()
+      const promptRef = pickerPromptRef
       if (!promptRef) {
         args.api.ui.toast({
           variant: "warning",
