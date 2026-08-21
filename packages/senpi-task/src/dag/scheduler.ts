@@ -124,6 +124,8 @@ type AttachedTaskSettlement =
 type AttachedTask = {
   readonly nodeId: DagNodeId
   readonly settled: Promise<AttachedTaskSettlement>
+  readonly folded: Promise<void>
+  readonly resolveFolded: () => void
 }
 
 type PendingTerminalResult = {
@@ -145,6 +147,9 @@ type SchedulerContext = {
   readonly pendingErrors: Map<DagNodeId, DagNodeError>
   readonly pendingTerminalResults: Map<DagNodeId, PendingTerminalResult>
   readonly attachedTaskIds: Map<DagNodeId, string>
+  readonly attachedTasks: Map<DagNodeId, AttachedTask>
+  readonly settlementChanged: () => Promise<void>
+  readonly resolveSettlementChanged: () => void
   readonly cancellationRequested: Promise<void>
   readonly resolveCancellationRequested: () => void
   readonly cancellationCompleted: Promise<void>
@@ -161,6 +166,7 @@ export function createDagScheduler(options: DagSchedulerOptions): DagScheduler {
   const pendingTerminalResults = new Map<DagNodeId, PendingTerminalResult>()
   const cancellationRequested = deferredSignal()
   const cancellationCompleted = deferredSignal()
+  const settlementChanged = repeatableSignal()
   const journal = createDagJournal<DagRunRecordV1>({
     store: options.store,
     runId: options.initialRecord.runId,
@@ -185,6 +191,9 @@ export function createDagScheduler(options: DagSchedulerOptions): DagScheduler {
     pendingErrors,
     pendingTerminalResults,
     attachedTaskIds: new Map(),
+    attachedTasks: new Map(),
+    settlementChanged: settlementChanged.wait,
+    resolveSettlementChanged: settlementChanged.resolve,
     cancellationRequested: cancellationRequested.promise,
     resolveCancellationRequested: cancellationRequested.resolve,
     cancellationCompleted: cancellationCompleted.promise,
@@ -201,7 +210,15 @@ export function createDagScheduler(options: DagSchedulerOptions): DagScheduler {
     subscribe: journal.subscribe,
     whenIdle: journal.whenIdle,
     retryNode: (runId, nodeIds, retryOptions) => retryDagNodes(options, runId, nodeIds, retryOptions),
-    sendToNode: (runId, nodeId, message) => sendToDagNode(options, runId, nodeId, message),
+    sendToNode: (runId, nodeId, message) => sendToDagNode(
+      options,
+      runId,
+      nodeId,
+      message,
+      (revivedNodeId, taskId) => context.journal.snapshot().status === "running"
+        ? watchRevivedInScheduler(context, revivedNodeId, taskId)
+        : undefined,
+    ),
   }
   for (const observer of schedulerObservers.get(options.taskManager) ?? []) observer(scheduler)
   return scheduler
@@ -416,19 +433,30 @@ async function runWaves(context: SchedulerContext): Promise<DagRunRecordV1> {
     context.journal.append(dagRunStartedEvent({ generation: context.journal.snapshot().generation }))
   }
 
-  for (const wave of context.journal.snapshot().waves) {
-    if (context.cancellationStarted) return cancelledSnapshot(context)
-    applyDependentSkipCascade(context)
-    const runnable = wave.nodeIds.filter((nodeId) => isRunnable(context.journal.snapshot(), nodeId))
-    if (runnable.length === 0) continue
+  for (;;) {
+    for (const wave of context.journal.snapshot().waves) {
+      if (context.cancellationStarted) return cancelledSnapshot(context)
+      applyDependentSkipCascade(context)
+      const runnable = wave.nodeIds.filter((nodeId) => isRunnable(context.journal.snapshot(), nodeId))
+      if (runnable.length === 0) continue
 
-    for (const nodeId of runnable) transition(context, nodeId, "scheduled", { kind: "scheduled" })
-    context.journal.append(dagWaveStartedEvent({ waveIndex: wave.index, nodeIds: runnable }))
-    if (!await admitAndSettleWave(context, runnable)) return cancelledSnapshot(context)
-    context.journal.append(dagWaveCompletedEvent({ waveIndex: wave.index, nodeIds: runnable }))
+      for (const nodeId of runnable) transition(context, nodeId, "scheduled", { kind: "scheduled" })
+      context.journal.append(dagWaveStartedEvent({ waveIndex: wave.index, nodeIds: runnable }))
+      if (!await admitAndSettleWave(context, runnable)) return cancelledSnapshot(context)
+      context.journal.append(dagWaveCompletedEvent({ waveIndex: wave.index, nodeIds: runnable }))
+    }
+
+    applyDependentSkipCascade(context)
+    const current = context.journal.snapshot()
+    if (current.nodes.every((node) => TERMINAL_NODE_STATES.has(node.state))) break
+    if (context.attachedTasks.size === 0) {
+      throw new Error(`DAG run "${current.runId}" cannot terminalize while nodes are active`)
+    }
+    while (context.attachedTasks.size > 0) {
+      if (!await settleOne(context)) return cancelledSnapshot(context)
+    }
   }
 
-  applyDependentSkipCascade(context)
   const snapshot = context.journal.snapshot()
   const failed = primaryFailure(snapshot)
   if (failed !== undefined) {
@@ -442,7 +470,7 @@ async function runWaves(context: SchedulerContext): Promise<DagRunRecordV1> {
 
 async function admitAndSettleWave(context: SchedulerContext, nodeIds: readonly DagNodeId[]): Promise<boolean> {
   let awaitingAdmission = [...nodeIds]
-  const attached = new Map<DagNodeId, AttachedTask>()
+  const attached = context.attachedTasks
 
   while (awaitingAdmission.length > 0) {
     if (context.cancellationStarted) return false
@@ -468,11 +496,11 @@ async function admitAndSettleWave(context: SchedulerContext, nodeIds: readonly D
       }
       const { result } = settled.value
       if (context.cancellationStarted) {
-        if (result.kind === "started") attachStarted(context, attached, nodeId, result)
+        if (result.kind === "started") attachStarted(context, nodeId, result)
       } else if (result.kind === "residency_denied") {
         denied.push(nodeId)
       } else {
-        attachOrFail(context, attached, nodeId, result)
+        attachOrFail(context, nodeId, result)
       }
     }
     if (context.cancellationStarted) return false
@@ -485,18 +513,17 @@ async function admitAndSettleWave(context: SchedulerContext, nodeIds: readonly D
       awaitingAdmission = []
       break
     }
-    await settleOne(context, attached)
+    await settleOne(context)
   }
 
   while (attached.size > 0) {
-    if (!await settleOne(context, attached)) return false
+    if (!await settleOne(context)) return false
   }
   return true
 }
 
 function attachOrFail(
   context: SchedulerContext,
-  attached: Map<DagNodeId, AttachedTask>,
   nodeId: DagNodeId,
   result: Exclude<OwnedStartResult, { readonly kind: "residency_denied" }>,
 ): void {
@@ -506,12 +533,11 @@ function attachOrFail(
     return
   }
 
-  attachStarted(context, attached, nodeId, result)
+  attachStarted(context, nodeId, result)
 }
 
 function attachStarted(
   context: SchedulerContext,
-  attached: Map<DagNodeId, AttachedTask>,
   nodeId: DagNodeId,
   result: Extract<OwnedStartResult, { readonly kind: "started" }>,
 ): void {
@@ -532,27 +558,54 @@ function attachStarted(
     transition(context, nodeId, "running", result.reused ? { kind: "resumed" } : { kind: "started" })
   }
   context.attachedTaskIds.set(nodeId, result.task_id)
-  attached.set(nodeId, {
+  attachTaskSettlement(context, nodeId, result.task_id)
+}
+
+function attachTaskSettlement(context: SchedulerContext, nodeId: DagNodeId, taskId: string): AttachedTask {
+  const folded = deferredSignal()
+  const task: AttachedTask = {
     nodeId,
-    settled: context.taskManager.waitFor(result.task_id).then(
+    settled: context.taskManager.waitFor(taskId).then(
       (record): AttachedTaskSettlement => ({ nodeId, kind: "record", record }),
       (error: unknown): AttachedTaskSettlement => ({ nodeId, kind: "error", error }),
     ),
-  })
+    folded: folded.promise,
+    resolveFolded: folded.resolve,
+  }
+  context.attachedTasks.set(nodeId, task)
+  context.resolveSettlementChanged()
+  return task
 }
 
-async function settleOne(context: SchedulerContext, attached: Map<DagNodeId, AttachedTask>): Promise<boolean> {
+async function watchRevivedInScheduler(
+  context: SchedulerContext,
+  nodeId: DagNodeId,
+  taskId: string,
+): Promise<void> {
+  context.attachedTaskIds.set(nodeId, taskId)
+  const task = attachTaskSettlement(context, nodeId, taskId)
+  await task.folded
+}
+
+async function settleOne(context: SchedulerContext): Promise<boolean> {
   const settled = await Promise.race([
-    ...[...attached.values()].map((entry) => entry.settled),
+    ...[...context.attachedTasks.values()].map((entry) => entry.settled),
+    context.settlementChanged().then(() => null),
     context.cancellationRequested.then(() => undefined),
   ])
+  if (settled === null) return true
   if (settled === undefined || context.cancellationStarted) return false
-  attached.delete(settled.nodeId)
+  const task = context.attachedTasks.get(settled.nodeId)
+  context.attachedTasks.delete(settled.nodeId)
   context.attachedTaskIds.delete(settled.nodeId)
-  if (settled.kind === "error") {
-    failNode(context, settled.nodeId, "task_error", errorMessage(settled.error))
-  } else {
-    foldTaskOutcome(context, settled.nodeId, settled.record)
+  try {
+    if (settled.kind === "error") {
+      failNode(context, settled.nodeId, "task_error", errorMessage(settled.error))
+    } else {
+      foldTaskOutcome(context, settled.nodeId, settled.record)
+    }
+  } finally {
+    task?.resolveFolded()
   }
   return true
 }
@@ -748,6 +801,18 @@ function nodeById(record: DagRunRecordV1, nodeId: DagNodeId): DagNode {
   const node = record.nodes.find((entry) => entry.id === nodeId)
   if (node === undefined) throw new Error(`unknown DAG node "${nodeId}"`)
   return node
+}
+
+function repeatableSignal(): { readonly wait: () => Promise<void>; readonly resolve: () => void } {
+  let signal = deferredSignal()
+  return {
+    wait: () => signal.promise,
+    resolve: () => {
+      const current = signal
+      signal = deferredSignal()
+      current.resolve()
+    },
+  }
 }
 
 function deferredSignal(): { readonly promise: Promise<void>; readonly resolve: () => void } {
