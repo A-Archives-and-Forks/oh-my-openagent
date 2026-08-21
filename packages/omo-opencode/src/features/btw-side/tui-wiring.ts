@@ -13,7 +13,9 @@ import { createBtwParentValidator } from "./tui-parent-validator"
 import {
   createBtwSideController,
 } from "./tui-controller"
+import { parseBtwQuestion } from "./btw-command-draft"
 import { registerBtwSideKeymap } from "./tui-keymap"
+import { openBtwPicker } from "./tui-picker"
 import {
   adaptTuiPromptRef,
   createBtwControllerDependencies,
@@ -156,27 +158,10 @@ export async function registerBtwSideTui<Node>(
     const sessionID = currentTuiSessionID(api)
     if (sessionID) await adoptSideSession(sessionID)
     if (!isCurrentTuiSession(api, sessionID)) return
-    const cachedSession = sessionID
-      ? adoptionCache.read(sessionID)
-      : { hydrated: false as const }
-    if (cachedSession.hydrated && cachedSession.metadata) {
-      api.ui.toast({
-        variant: "warning",
-        message: "BTW is unavailable inside another BTW conversation.",
-      })
-      return
-    }
     if (sessionID && adoptionFailures.has(sessionID)) {
       api.ui.toast({
         variant: "warning",
         message: "Unable to verify whether this is a BTW conversation.",
-      })
-      return
-    }
-    if (controller.state().phase !== "closed") {
-      api.ui.toast({
-        variant: "warning",
-        message: "BTW is unavailable inside another BTW conversation.",
       })
       return
     }
@@ -188,7 +173,16 @@ export async function registerBtwSideTui<Node>(
       })
       return
     }
-    await controller.startFromPrompt(adaptTuiPromptRef(promptRef))
+    const parsed = parseBtwQuestion(promptRef.current.input)
+    if (parsed.consumeDraft && parsed.question.length > 0) {
+      await controller.startFromPrompt(adaptTuiPromptRef(promptRef))
+      return
+    }
+    await openBtwPicker({
+      api,
+      controller,
+      activePromptRef,
+    })
   }
 
   const unregisterSlashCommand =
@@ -197,7 +191,7 @@ export async function registerBtwSideTui<Node>(
         title: "BTW side conversation",
         value: "omo.btw.slash",
         description:
-          "Start a temporary side conversation without interrupting the main turn",
+          "Start or switch retained side conversations without interrupting the main turn",
         category: "Session",
         enabled: true,
         slash: {
