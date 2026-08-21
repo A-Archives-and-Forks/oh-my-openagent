@@ -18,6 +18,7 @@ describe("omo-senpi ulw-loop continuation routing through the idle coordinator",
     const outputs = [activeStatus()]
     await createUlwLoopComponent({
       resolveOmoBin: () => "/tmp/omo",
+      planDirExists: () => true,
       runCommand: async (_bin, _args, _options) => ({ code: 0, stdout: outputs.shift() ?? activeStatus() }),
     }).register(pi, { logger, config: { getFlag: () => false }, idleCoordinator })
 
@@ -40,6 +41,7 @@ describe("omo-senpi ulw-loop continuation routing through the idle coordinator",
     const outputs = [activeStatus()]
     await createUlwLoopComponent({
       resolveOmoBin: () => "/tmp/omo",
+      planDirExists: () => true,
       runCommand: async (_bin, _args, _options) => ({ code: 0, stdout: outputs.shift() ?? activeStatus() }),
     }).register(pi, { logger, config: { getFlag: () => false }, idleCoordinator })
 
@@ -82,6 +84,7 @@ describe("omo-senpi ulw-loop continuation routing through the idle coordinator",
       const idleCoordinator = new IdleInjectionCoordinator((message) => delivered.push(message.content))
       await createUlwLoopComponent({
         resolveOmoBin: () => "/tmp/omo",
+        planDirExists: () => true,
         runCommand: async () => ({ code: 0, stdout: activeStatus() }),
       }).register(pi, { logger, config: { getFlag: () => false }, idleCoordinator })
 
