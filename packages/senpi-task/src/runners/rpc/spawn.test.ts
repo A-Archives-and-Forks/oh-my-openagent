@@ -1,6 +1,6 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs"
 import { homedir, tmpdir } from "node:os"
-import { dirname, isAbsolute, join, sep } from "node:path"
+import { dirname, isAbsolute, join, relative, sep } from "node:path"
 import { describe, expect, test } from "bun:test"
 
 import { buildChildArgs, buildRpcSpawn, detectBunBinary, resolveChildSessionDir, resolveSenpiExecutable } from "./spawn"
@@ -70,6 +70,36 @@ describe("resolveSenpiExecutable", () => {
     expect(resolved).toBeNull()
   })
 
+  test("#given a relative SENPI_BIN #when resolving #then the validated executable is returned as a canonical absolute path", () => {
+    const root = mkdtempSync(join(tmpdir(), "senpi-relative-override-"))
+    const executable = join(root, "senpi")
+    writeFileSync(executable, "")
+    try {
+      const override = relative(process.cwd(), executable)
+      const resolved = resolveSenpiExecutable({ ...runtime, parentEnv: { SENPI_BIN: override } })
+      expect(resolved).toBe(realpathSync.native(executable))
+      if (resolved === null) throw new Error("relative SENPI_BIN did not resolve")
+      expect(isAbsolute(resolved)).toBe(true)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test("#given a relative PATH entry #when resolving #then the validated executable is returned as a canonical absolute path", () => {
+    const root = mkdtempSync(join(tmpdir(), "senpi-relative-path-"))
+    const executable = join(root, "senpi")
+    writeFileSync(executable, "")
+    try {
+      const pathEntry = relative(process.cwd(), root)
+      const resolved = resolveSenpiExecutable({ ...runtime, parentEnv: { PATH: pathEntry } })
+      expect(resolved).toBe(realpathSync.native(executable))
+      if (resolved === null) throw new Error("relative PATH entry did not resolve")
+      expect(isAbsolute(resolved)).toBe(true)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   test("#given no SENPI_BIN and an empty PATH #when resolving a node runtime #then no executable is found", () => {
     // when
     const resolved = resolveSenpiExecutable({ ...runtime, parentEnv: { PATH: "" } })
@@ -88,7 +118,7 @@ describe("resolveSenpiExecutable", () => {
     const sibling = join(root, "senpi")
     writeFileSync(sibling, "")
     try {
-      expect(resolveSenpiExecutable({ ...runtime, isBunBinary: true, execPath, parentEnv: {} })).toBe(sibling)
+      expect(resolveSenpiExecutable({ ...runtime, isBunBinary: true, execPath, parentEnv: {} })).toBe(realpathSync.native(sibling))
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -165,7 +195,7 @@ describe("buildRpcSpawn spawn strategy", () => {
       // then
       expect(descriptor.command).toBe("C:\\Program Files\\nodejs\\node.exe")
       expect(descriptor.args).toEqual([
-        cli,
+        realpathSync.native(cli),
         "--mode",
         "rpc",
         "--no-extensions",
@@ -199,7 +229,7 @@ describe("buildRpcSpawn spawn strategy", () => {
       )
 
       expect(descriptor.command).toBe("C:\\Program Files\\nodejs\\node.exe")
-      expect(descriptor.args[0]).toBe(cli)
+      expect(descriptor.args[0]).toBe(realpathSync.native(cli))
       expect(descriptor.args).not.toContain("/fallback/rpc-entry.js")
     } finally {
       rmSync(root, { recursive: true, force: true })

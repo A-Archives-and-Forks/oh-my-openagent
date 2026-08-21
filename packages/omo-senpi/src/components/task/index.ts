@@ -8,11 +8,13 @@ import {
   createTaskSendTool,
   createTaskTool,
   defaultResolveCallerSessionId,
+  evaluateSpawnPolicy,
   isTeamMemberProcess,
   resolveTeamRuntimeDirs,
   teamStorageBaseDir,
   toTeamCoreConfig,
   type LeadDeliveryJournal,
+  type SkillLoader,
   type TaskSendTeamRouting,
   type TeamToolsService,
 } from "@oh-my-opencode/senpi-task"
@@ -21,6 +23,7 @@ import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../
 import { CATEGORY_UNAVAILABLE_MESSAGE_TYPE } from "./category-unavailable-warning"
 import { registerTaskCommands } from "./commands"
 import { registerDagCommands } from "./dag-commands"
+import { createDagReloadSource } from "./dag-reload-source"
 import { createDagRuntime, type DagRuntime } from "./dag-runtime"
 import { createDagTool } from "./dag-tool"
 import { composeTaskEngine, type TaskEngine } from "./engine"
@@ -36,6 +39,7 @@ import { createSkillInvocationTracker, type SkillInvocationTracker } from "./ski
 import { wireSessionStartProcessSweep } from "./process-sweep"
 import { createTaskStatusUi } from "./status-ui"
 import { missingTaskCapabilities } from "./surface"
+import { createTaskSkillLoader } from "./task-skill-loader"
 
 const TASK_ENABLED_FLAG = "omo-task"
 
@@ -45,6 +49,7 @@ export interface TaskComponentOptions {
   // Project root the task engine anchors its state dir + omo.json load to. Defaults to the cwd the
   // host reports for THIS session; injectable so tests never write task state into the repo tree.
   readonly loadConfig?: typeof loadSenpiOmoConfig
+  readonly loadSkills?: SkillLoader
   readonly resolveCwd?: () => string
 }
 
@@ -73,11 +78,13 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
 
       const cwd = options.resolveCwd?.() ?? sessionCwd(pi)
       const loaded = loadConfig({ cwd })
+      const loadSkills = options.loadSkills ?? createTaskSkillLoader()
 
       const engine = composeTaskEngine({
         pi,
         omoConfig: loaded.config,
         cwd,
+        loadSkills,
         sharedParentTools: () => ctx.getCapturedTools?.() ?? [],
         ...(ctx.idleCoordinator !== undefined && { coordinator: ctx.idleCoordinator }),
       })
@@ -91,6 +98,18 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
         pi,
         engine,
         logger: ctx.logger,
+        nodeSpawnPolicy: (node) =>
+          evaluateSpawnPolicy(
+            {
+              manager: engine.manager,
+              omoConfig: engine.omoConfig,
+              agents: engine.agents,
+              resolveSkillInvocations: (sessionId: string) => skillInvocations.stateFor(sessionId),
+            },
+            node.subagentType,
+            node.prompt,
+            node.parentSessionId,
+          ),
         ...(ctx.idleCoordinator === undefined ? {} : { coordinator: ctx.idleCoordinator }),
       })
       registerTaskTools(pi, engine, teamTools.service, teamTools.leadPollers.resolveDefaultTeamRunId, skillInvocations, dagRuntime)
@@ -134,6 +153,10 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
           reconcileTeamMailbox: teamTools.reconcileTeamMailbox,
           leadPollers: teamTools.leadPollers,
           resumptionChannels,
+          dagReloadSource: createDagReloadSource({
+            manager: dagRuntime.manager,
+            sessionId: () => engine.runtime.sessionId(),
+          }),
         })
       })
     },
@@ -187,6 +210,7 @@ function registerTaskTools(
       manager,
       omoConfig: engine.omoConfig,
       agents: engine.agents,
+      loadSkills: engine.loadSkills,
       resolveSkillInvocations: (sessionId: string) => skillInvocations.stateFor(sessionId),
     }),
   })
@@ -211,6 +235,9 @@ function registerDagTool(pi: SenpiExtensionAPI, engine: TaskEngine, runtime: Dag
       rootSessionId: sessionId,
       wait: runtime.wait,
       cancel: runtime.cancel,
+      retry: runtime.retry,
+      send: runtime.send,
+      amend: runtime.amend,
     }),
   })
 }

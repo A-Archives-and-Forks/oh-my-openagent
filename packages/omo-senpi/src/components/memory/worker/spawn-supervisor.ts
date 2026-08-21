@@ -87,6 +87,8 @@ export async function runReflectionChild(
       deadlineAt: prepared.hardDeadlineAt + graceMs,
       mergePolicy: metadata.mergePolicy,
       ...(metadata.targetDoc === undefined ? {} : { targetDoc: metadata.targetDoc }),
+      ...(metadata.systemTokenBudget === undefined ? {} : { systemTokenBudget: metadata.systemTokenBudget }),
+      ...(metadata.systemTokenTarget === undefined ? {} : { systemTokenTarget: metadata.systemTokenTarget }),
       worktreeDir: metadata.worktree.dir,
       worktreeBranch: metadata.worktree.branch,
       baseSha: metadata.worktree.baseSha,
@@ -206,6 +208,9 @@ async function runSupervisedChild(input: {
   const supervisor = spawn(process.execPath, [input.supervisorPath ?? defaultSupervisorPath(), input.runDir], {
     detached: true,
     stdio: "ignore",
+    // win32 gives a detached child its own console, which flashes an empty terminal window on the
+    // user's desktop for every reflection run. CREATE_NO_WINDOW keeps the detachment, drops the window.
+    windowsHide: true,
   })
   supervisor.unref()
   const outcomePath = join(input.runDir, "outcome.json")

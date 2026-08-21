@@ -5,7 +5,7 @@ import { join } from "node:path"
 import { defaultSignaller } from "../lifecycle/context"
 import type { ManagerStartSpec, TaskManager } from "../manager/types"
 import type { TaskRecord, TaskStatus } from "../state"
-import { dagFingerprint } from "./fingerprint"
+import { dagFingerprint, ownerFingerprintInput } from "./fingerprint"
 import {
   dagNodeReusedEvent,
   dagNodeTaskAttachedEvent,
@@ -17,7 +17,7 @@ import { createDagJournal, type DagJournal } from "./journal"
 import type { DagPersistedNode, DagRunRecordV1 } from "./manager"
 import type { DagTaskOwner, OwnedStartResult } from "./owner"
 import { readDagNodeResult } from "./results"
-import { applyDagSchedulerEvent, createDagScheduler } from "./scheduler"
+import { applyDagSchedulerEvent, createDagScheduler, type DagNodeSpawnPolicy } from "./scheduler"
 import type { DagFileStore } from "./store"
 import type { DagNodeError, DagNodeErrorCode, DagNodeId, DagRunEvent, DagRunId } from "./types"
 
@@ -45,6 +45,7 @@ export type DagRecoveryOptions = {
   readonly isProcessAlive?: (pid: number) => boolean
   readonly now?: () => number
   readonly subscriberRing?: number
+  readonly nodeSpawnPolicy?: DagNodeSpawnPolicy
   readonly stopAdmission?: (runId: DagRunId) => void
   readonly reattach?: (runId: DagRunId, taskId: string) => void
 }
@@ -59,6 +60,7 @@ type RecoveryContext = Required<Pick<DagRecoveryOptions, "store" | "taskManager"
   readonly isProcessAlive: (pid: number) => boolean
   readonly now: () => number
   readonly subscriberRing?: number
+  readonly nodeSpawnPolicy?: DagNodeSpawnPolicy
   readonly stopAdmission?: (runId: DagRunId) => void
   readonly reattach?: (runId: DagRunId, taskId: string) => void
 }
@@ -79,6 +81,7 @@ export function createDagRecovery(options: DagRecoveryOptions): DagRecovery {
     isProcessAlive: options.isProcessAlive ?? defaultSignaller.isAlive,
     now: options.now ?? Date.now,
     ...(options.subscriberRing === undefined ? {} : { subscriberRing: options.subscriberRing }),
+    ...(options.nodeSpawnPolicy === undefined ? {} : { nodeSpawnPolicy: options.nodeSpawnPolicy }),
     ...(options.stopAdmission === undefined ? {} : { stopAdmission: options.stopAdmission }),
     ...(options.reattach === undefined ? {} : { reattach: options.reattach }),
   }
@@ -154,6 +157,7 @@ async function resumeClaimedRun(context: RecoveryContext, claimed: RecoverableRe
       taskManager: context.taskManager,
       initialRecord: journal.snapshot(),
       ...(context.subscriberRing === undefined ? {} : { subscriberRing: context.subscriberRing }),
+      ...(context.nodeSpawnPolicy === undefined ? {} : { nodeSpawnPolicy: context.nodeSpawnPolicy }),
       now: context.now,
     })
     const record = await scheduler.run()
@@ -308,9 +312,8 @@ function applyRecoveryEvent(
   },
 ): DagRunRecordV1 {
   if (event.type === "dag.run.paused") return { ...record, status: "paused", updatedAt: event.at }
-  if (event.type === "dag.run.resumed") {
-    return { ...record, status: "running", generation: event.generation, updatedAt: event.at }
-  }
+  // dag.run.resumed is owned by the scheduler reducer now (it also clears the stale completedAt),
+  // so recovery no longer forks that transition.
   return applyDagSchedulerEvent(record, event, pendingErrors, terminalResults)
 }
 
@@ -383,11 +386,19 @@ function startSpec(record: DagRunRecordV1, nodeId: DagNodeId): ManagerStartSpec 
 }
 
 function taskOwner(record: DagRunRecordV1, nodeId: DagNodeId): DagTaskOwner {
+  // Keyed on the persisted execAttempt, NEVER the display attempt: reattach bumps the display
+  // attempt with no new execution, and an attempt-keyed fingerprint would then compute a value the
+  // persisted owner record does not hold - a spurious owner_conflict on an untouched resume.
+  const execAttempt = nodeById(record, nodeId).execAttempt
   return {
     kind: "dag",
     runId: record.runId,
     nodeId,
-    fingerprint: dagFingerprint({ definitionFingerprint: record.definitionFingerprint, nodeId }),
+    fingerprint: dagFingerprint(ownerFingerprintInput({
+      definitionFingerprint: record.definitionFingerprint,
+      nodeId,
+      ...(execAttempt === undefined ? {} : { execAttempt }),
+    })),
   }
 }
 

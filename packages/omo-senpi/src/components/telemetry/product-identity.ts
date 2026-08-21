@@ -10,8 +10,19 @@ import {
 import { CURATED_READONLY_AGENT_NAMES } from "@oh-my-opencode/senpi-task/agents-builtin"
 import { BUILTIN_CATEGORY_DEFAULTS } from "@oh-my-opencode/senpi-task/category-builtins"
 import { resolveAgentHome } from "../agent-home/resolve-agent-home"
+import { CATEGORY_CONFIG_SCHEMA } from "./category-config-schema"
+import { KNOWN_MODELS, KNOWN_PROVIDERS, type KnownProvider } from "./model-vocabulary"
+import { buildDelegationCompletedSchema } from "./delegation-schema"
+import { PARALLELISM_SUMMARY_SCHEMA } from "./parallelism-schema"
 
 export const OMO_NATIVE_POSTHOG_API_KEY = "phc_r6UYQzNZcGYSzKw4PxCiVrZepGqV3dw9qcvcKtRNUWAn"
+
+// Schema version shared by every native client. One constant, because two hardcoded literals in two
+// clients half-apply a bump: a session row and a task row would disagree about their own schema.
+export const OMO_NATIVE_SCHEMA_VERSION = 2
+
+export { KNOWN_MODELS, KNOWN_PROVIDERS } from "./model-vocabulary"
+export type { KnownProvider } from "./model-vocabulary"
 
 export type OmoNativePropertyType = "boolean" | "number" | "string"
 
@@ -31,35 +42,10 @@ function enumProperty<const Values extends readonly string[]>(values: Values): R
   return Object.freeze({ type: "string", values: Object.freeze(values) })
 }
 
-export const KNOWN_MODELS = Object.freeze({
-  anthropic: Object.freeze(["claude-fable-5", "claude-haiku-4-5", "claude-opus-5", "claude-sonnet-5"]),
-  "anthropic-api": Object.freeze(["claude-fable-5", "claude-haiku-4-5", "claude-opus-5", "claude-sonnet-5"]),
-  deepseek: Object.freeze(["deepseek-v4-flash", "deepseek-v4-pro"]),
-  google: Object.freeze(["gemini-3.6-flash"]),
-  "github-copilot": Object.freeze([
-    "claude-fable-5", "claude-haiku-4-5", "claude-opus-5", "claude-sonnet-5", "gpt-5.6-sol",
-    "gpt-5.6-terra",
-  ]),
-  "kimi-for-coding": Object.freeze(["k3", "kimi-for-coding-highspeed", "kimi-k3"]),
-  moonshotai: Object.freeze(["kimi-k3"]),
-  openai: Object.freeze(["gpt-5.6-luna-fast", "gpt-5.6-sol", "gpt-5.6-terra"]),
-  opencode: Object.freeze(["claude-opus-5", "claude-sonnet-5", "gpt-5.6-sol", "kimi-k3"]),
-  "opencode-go": Object.freeze(["deepseek-v4-pro", "kimi-k3", "minimax-m2.7", "minimax-m3"]),
-  "quotio-openai": Object.freeze(["gpt-5.6-luna-fast", "gpt-5.6-sol", "gpt-5.6-terra"]),
-  vercel: Object.freeze([
-    "claude-fable-5", "claude-haiku-4-5", "claude-opus-5", "claude-sonnet-5", "deepseek-v4-flash",
-    "deepseek-v4-pro", "gemini-3.6-flash", "gpt-5.6-sol", "gpt-5.6-terra", "kimi-k3", "minimax-m2.7",
-    "minimax-m3",
-  ]),
-  xai: Object.freeze(["grok-4.20-0309-non-reasoning"]),
-} as const)
-
-export type KnownProvider = keyof typeof KNOWN_MODELS
-export const KNOWN_PROVIDERS = Object.freeze(Object.keys(KNOWN_MODELS) as KnownProvider[])
 export const CURATED_AGENTS = Object.freeze([...CURATED_READONLY_AGENT_NAMES])
 export const BUILTIN_CATEGORY_NAMES = Object.freeze(BUILTIN_CATEGORY_DEFAULTS.map(({ name }) => name))
 export const BUILTIN_SKILL_NAMES = Object.freeze([
-  "ast-grep", "coding-agent-sessions", "data-scientist", "debugging", "frontend", "git-master",
+  "ast-grep", "coding-agent-sessions", "dag-library", "data-scientist", "debugging", "frontend", "git-master",
   "give-me-tips", "hyperplan", "init-deep", "lsp-setup", "mass-ulw", "onboarding", "programming", "refactor",
   "remove-ai-slops",
   "review-work", "start-work", "ultimate-browsing", "ultrawork", "ulw-loop", "ulw-plan", "ulw-research",
@@ -85,6 +71,9 @@ export const OMO_NATIVE_EVENT_SCHEMAS = Object.freeze({
     provider_count: NUMBER_PROPERTY,
     providers: STRING_PROPERTY,
     reason: enumProperty(["startup", "reload", "new", "resume", "fork"] as const),
+    // Device-reported IANA zone. A timezone signal, never a country signal: countries share zones,
+    // span zones, and users override them. Country comes from PostHog's server-side GeoIP.
+    timezone: STRING_PROPERTY,
   }),
   prompt_submitted: Object.freeze({
     "$session_id": STRING_PROPERTY,
@@ -133,24 +122,12 @@ export const OMO_NATIVE_EVENT_SCHEMAS = Object.freeze({
     "$session_id": STRING_PROPERTY,
     feature: enumProperty(["goal_tool", "team_create", "memory_tool"] as const),
   }),
-  parallelism_summary: Object.freeze({
-    "$session_id": STRING_PROPERTY,
-    clock_anomalies: NUMBER_PROPERTY,
-    dropped_calls: NUMBER_PROPERTY,
-    eval_only_duration_ms: NUMBER_PROPERTY,
-    eval_only_waves: NUMBER_PROPERTY,
-    incomplete_calls: NUMBER_PROPERTY,
-    measured_turn_duration_ms_total: NUMBER_PROPERTY,
-    mixed_waves: NUMBER_PROPERTY,
-    modeled_wallclock_saved_ms: NUMBER_PROPERTY,
-    non_eval_joined_calls: NUMBER_PROPERTY,
-    non_eval_saved_round_trips: NUMBER_PROPERTY,
-    non_eval_wave_size_histogram: STRING_PROPERTY,
-    non_eval_waves_multi: NUMBER_PROPERTY,
-    non_eval_waves_total: NUMBER_PROPERTY,
-    schema_kind: enumProperty(["parallelism_v1"] as const),
-    upper_bound_saved_ms: NUMBER_PROPERTY,
+  parallelism_summary: PARALLELISM_SUMMARY_SCHEMA,
+  delegation_completed: buildDelegationCompletedSchema({
+    providers: [...KNOWN_PROVIDERS, "custom"],
+    models: [...new Set(Object.values(KNOWN_MODELS).flat()), "custom"],
   }),
+  category_config: CATEGORY_CONFIG_SCHEMA,
 } as const)
 
 export const OMO_NATIVE_PROPERTY_ALLOWLISTS = Object.freeze(Object.fromEntries(

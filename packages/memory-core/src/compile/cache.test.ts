@@ -36,7 +36,7 @@ describe("MemoryBlockCache", () => {
     // then
     expect(second).toBe(first)
     expect(cache.size).toBe(1)
-  })
+  }, WINDOWS_INTEGRATION_TEST_TIMEOUT)
 
   it("#given either template content or HEAD changes #when compiled #then each stable key retains only its latest revision", async () => {
     // given
@@ -104,7 +104,7 @@ describe("MemoryBlockCache", () => {
     expect(second).not.toBe(first)
     expect(second).toContain("- AGENT_ID: other-agent")
     expect(cache.size).toBe(2)
-  })
+  }, WINDOWS_INTEGRATION_TEST_TIMEOUT)
 
   it("#given template content #when hashed #then the structure version participates in sha256", () => {
     // given / when / then
