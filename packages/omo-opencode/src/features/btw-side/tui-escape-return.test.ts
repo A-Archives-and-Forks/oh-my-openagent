@@ -332,4 +332,64 @@ describe("registerBtwSideKeymap escape return", () => {
     // then
     expect(returnToParent).not.toHaveBeenCalled()
   })
+
+  it("#given one pending Escape #when a held Escape repeats #then a later press starts a fresh sequence", () => {
+    // given
+    let keyInterceptor:
+      | ((context: KeyInputContext<KeyEvent>) => void)
+      | undefined
+    const returnToParent = mock(() => undefined)
+    registerBtwSideKeymap(unsafeTestValue({
+      api: {
+        keymap: {
+          registerLayer: () => () => undefined,
+          intercept: (
+            _name: string,
+            interceptor: (context: KeyInputContext<KeyEvent>) => void,
+          ) => {
+            keyInterceptor = interceptor
+            return () => undefined
+          },
+          clearPendingSequence: () => undefined,
+        },
+        mode: {
+          current: () => "base",
+        },
+        ui: {
+          dialog: {
+            open: false,
+          },
+        },
+      },
+      controller: {
+        state: () => ({ phase: "closed" }),
+        canCloseCurrentSide: () => false,
+        close: async () => undefined,
+      },
+      activePromptRef: () => undefined,
+      openBtw: async () => undefined,
+      openPicker: async () => undefined,
+      isCurrentSideIdle: () => true,
+      returnToParent,
+    }))
+    const sendEscape = (eventType: "press" | "repeat") => {
+      keyInterceptor?.(unsafeTestValue({
+        event: {
+          name: "escape",
+          eventType,
+        },
+        setData: () => undefined,
+        getData: () => undefined,
+        consume: () => undefined,
+      }))
+    }
+
+    // when
+    sendEscape("press")
+    sendEscape("repeat")
+    sendEscape("press")
+
+    // then
+    expect(returnToParent).not.toHaveBeenCalled()
+  })
 })

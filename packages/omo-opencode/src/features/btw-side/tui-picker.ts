@@ -21,14 +21,14 @@ export async function openBtwPicker(args: {
   api: TuiPluginApi
   controller: BtwSideController
   activePromptRef: () => TuiPromptRef | undefined
-}): Promise<void> {
+}): Promise<boolean> {
   const currentSessionID = currentTuiSessionID(args.api)
   if (!currentSessionID) {
     args.api.ui.toast({
       variant: "warning",
       message: "BTW is unavailable before the session starts.",
     })
-    return
+    return false
   }
 
   let loaded: Awaited<ReturnType<typeof loadBtwSessionCatalog>>
@@ -47,14 +47,21 @@ export async function openBtwPicker(args: {
       variant: "error",
       message: "Unable to list BTW conversations.",
     })
-    return
+    return false
+  }
+  if (!loaded.catalog && loaded.truncated) {
+    args.api.ui.toast({
+      variant: "warning",
+      message: "The BTW list is too large to show completely.",
+    })
+    return false
   }
   if (!loaded.catalog) {
     args.api.ui.toast({
       variant: "warning",
       message: "This BTW conversation no longer has a main session.",
     })
-    return
+    return false
   }
   if (loaded.truncated) {
     args.api.ui.toast({
@@ -63,8 +70,8 @@ export async function openBtwPicker(args: {
     })
   }
 
-  for (const side of loaded.catalog.sides) {
-    args.controller.adopt(loaded.catalog.main.id, side.id)
+  for (const [index, side] of loaded.catalog.sides.entries()) {
+    args.controller.adopt(loaded.catalog.main.id, side.id, index + 1)
   }
   const picker = buildBtwPickerOptions(
     loaded.catalog,
@@ -84,7 +91,6 @@ export async function openBtwPicker(args: {
     if (!selection) return
     if (selection.type === "new") {
       const promptRef = args.activePromptRef()
-      args.api.ui.dialog.clear()
       if (!promptRef) {
         args.api.ui.toast({
           variant: "warning",
@@ -92,7 +98,10 @@ export async function openBtwPicker(args: {
         })
         return
       }
-      await args.controller.startFromPrompt(adaptTuiPromptRef(promptRef))
+      const started = await args.controller.startFromPrompt(
+        adaptTuiPromptRef(promptRef),
+      )
+      if (started) args.api.ui.dialog.clear()
       return
     }
 
@@ -128,4 +137,5 @@ export async function openBtwPicker(args: {
       onSelect: (option) => select(option.value),
     }),
   )
+  return true
 }

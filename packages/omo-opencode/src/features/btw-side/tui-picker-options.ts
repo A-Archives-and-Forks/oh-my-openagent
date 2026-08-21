@@ -8,6 +8,7 @@ export type BtwPickerOption = {
   value: string
   description: string
   category: string
+  disabled?: boolean
 }
 
 export type BtwPickerSelection =
@@ -68,6 +69,17 @@ export function buildBtwPickerOptions(
       description: catalog.main.id,
       category: "Main conversation",
     },
+    ...(catalog.sides.length === 0
+      ? [
+          {
+            title: "No retained BTW sessions yet",
+            value: "empty",
+            description: "Choose New BTW to start one",
+            category: "Retained BTW sessions",
+            disabled: true,
+          },
+        ]
+      : []),
     ...catalog.sides.map((side, index) => ({
       title: `BTW #${index + 1} · ${sideSummary(side.title)}`,
       value: sessionValue(side.id),

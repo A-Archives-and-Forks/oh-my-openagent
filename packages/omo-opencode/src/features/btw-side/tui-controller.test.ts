@@ -708,6 +708,7 @@ describe("createBtwSideController", () => {
 
     // then
     expect(harness.navigations).toEqual(["ses_side"])
+    expect(harness.deleted).toEqual(["ses_side"])
     expect(harness.controller.state()).toEqual({ phase: "closed" })
     expect(harness.toasts).toContain(
       "BTW detached because its main session was deleted.",
@@ -781,6 +782,55 @@ describe("createBtwSideController", () => {
     // then
     expect(harness.deleted).toEqual([])
     expect(harness.aborted).toEqual([])
+    expect(harness.controller.state()).toEqual({ phase: "closed" })
+  })
+
+  it("#given catalog adoption arrives out of order #when canonical numbers are supplied #then status numbering matches picker order", () => {
+    // given
+    const harness = createHarness()
+    harness.controller.adopt("ses_parent", "ses_side_2")
+
+    // when
+    harness.controller.adopt("ses_parent", "ses_side_1", 1)
+    harness.controller.adopt("ses_parent", "ses_side_2", 2)
+
+    // then
+    expect(harness.controller.sideNumber("ses_side_1")).toBe(1)
+    expect(harness.controller.sideNumber("ses_side_2")).toBe(2)
+  })
+
+  it("#given a sibling remains #when close and disposal overlap #then disposal resolves after the current side closes", async () => {
+    // given
+    const deletion = createDeferred<void>()
+    let sideIndex = 0
+    const harness = createHarness({
+      createSession: async () => {
+        sideIndex += 1
+        return {
+          id: `ses_side_${sideIndex}`,
+          title: `BTW ${sideIndex}`,
+        }
+      },
+      deleteSession: async () => deletion.promise,
+    })
+    await harness.controller.startFromPrompt(
+      createPromptRef("/btw first"),
+    )
+    harness.controller.toggle()
+    await harness.controller.startFromPrompt(
+      createPromptRef("/btw second"),
+    )
+    harness.controller.toggle()
+    harness.controller.toggle()
+    const close = harness.controller.close()
+    const dispose = harness.controller.dispose()
+
+    // when
+    deletion.resolve()
+    await Promise.all([close, dispose])
+
+    // then
+    expect(harness.deleted).toEqual([])
     expect(harness.controller.state()).toEqual({ phase: "closed" })
   })
 

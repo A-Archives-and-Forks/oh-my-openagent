@@ -66,13 +66,25 @@ type TestDialogSelectProps = {
   onSelect?: (option: TestDialogOption) => void | Promise<void>
 }
 
-function createPickerHarness(promptInput = "/btw") {
+function createPickerHarness(
+  promptInput = "/btw",
+  parentMessages = [
+    {
+      id: "msg_parent",
+      role: "user",
+      time: {
+        created: 1,
+      },
+    },
+  ],
+) {
   let routeSessionID = "ses_parent"
   let currentPromptInput = promptInput
   const layers: TestLayer[] = []
   const slots: TestSlotRegistration[] = []
   const dialogSelections: TestDialogSelectProps[] = []
   const toasts: string[] = []
+  let dialogClears = 0
   const sessions = [
     {
       id: "ses_parent",
@@ -146,15 +158,7 @@ function createPickerHarness(promptInput = "/btw") {
       session: {
         get: (sessionID: string) =>
           sessions.find((session) => session.id === sessionID),
-        messages: () => [
-          {
-            id: "msg_parent",
-            role: "user",
-            time: {
-              created: 1,
-            },
-          },
-        ],
+        messages: () => parentMessages,
         status: () => ({
           type: "idle",
         }),
@@ -236,7 +240,9 @@ function createPickerHarness(promptInput = "/btw") {
         replace: (render: () => unknown) => {
           render()
         },
-        clear: () => undefined,
+        clear: () => {
+          dialogClears += 1
+        },
         get open() {
           return dialogSelections.length > 0
         },
@@ -282,6 +288,7 @@ function createPickerHarness(promptInput = "/btw") {
     toasts,
     currentSessionID: () => routeSessionID,
     promptInput: () => currentPromptInput,
+    dialogClears: () => dialogClears,
   }
 }
 
@@ -365,6 +372,7 @@ describe("registerBtwSideTui", () => {
     // then
     expect(harness.dialogSelections).toHaveLength(1)
     expect(harness.createSession).not.toHaveBeenCalled()
+    expect(harness.promptInput()).toBe("")
   })
 
   it("#given retained BTW options #when a side is selected #then the dialog clears and that session opens", async () => {
@@ -420,6 +428,36 @@ describe("registerBtwSideTui", () => {
     expect(harness.createSession).toHaveBeenCalledTimes(1)
     expect(harness.currentSessionID()).toBe("ses_new_side")
     expect(harness.promptInput()).toBe("")
+  })
+
+  it("#given New BTW cannot establish a stable boundary #when selected #then the picker stays open for another choice", async () => {
+    // given
+    const harness = createPickerHarness("/btw", [])
+    await registerBtwSideTui(harness.api, harness.solid)
+    harness.slots[0]?.slots.session_prompt?.({}, {
+      session_id: "ses_parent",
+      visible: true,
+      disabled: false,
+    })
+    const openCommand = harness.layers
+      .flatMap((layer) => layer.commands ?? [])
+      .find((command) => command.name === "omo.btw.open")
+    await openCommand?.run?.()
+    const newSide = harness.dialogSelections[0]?.options.find(
+      (option) => option.title === "New BTW",
+    )
+
+    // when
+    if (newSide) {
+      await harness.dialogSelections[0]?.onSelect?.(newSide)
+    }
+
+    // then
+    expect(harness.createSession).not.toHaveBeenCalled()
+    expect(harness.dialogClears()).toBe(0)
+    expect(harness.toasts).toContain(
+      "BTW is unavailable before the session starts.",
+    )
   })
 
   it("#given a deleted picker row #when it is selected #then a precise warning appears and the picker refreshes", async () => {
@@ -651,7 +689,6 @@ describe("registerBtwSideTui", () => {
     await openCommand?.run?.()
 
     // then
-    expect(layers.every((layer) => layer.mode === "base")).toBe(true)
     expect(openCommand).toMatchObject({
       namespace: "palette",
       enabled: true,
@@ -714,9 +751,11 @@ describe("registerBtwSideTui", () => {
     const sideStatus = slotRegistration?.slots.session_prompt_right?.({}, {
       session_id: "ses_side",
     }) as TestNode
-    expect(parentStatus.children).toContain("BTW open · ctrl+/ switch")
+    expect(parentStatus.children).toContain(
+      "BTW retained · ctrl+/ picker",
+    )
     expect(sideStatus.children).toContain(
-      "BTW from main · main ready · ctrl+/ switch · ctrl+c close",
+      "BTW side · main ready · esc esc return · ctrl+/ picker · ctrl+c delete",
     )
     expect(disposers).toHaveLength(1)
     expect(deleteSession).not.toHaveBeenCalled()

@@ -92,7 +92,6 @@ export async function registerBtwSideTui<Node>(
   }
 
   function adoptSideSession(sessionID: string): Promise<void> | undefined {
-    if (controller.state().phase !== "closed") return
     const pending = adoptionRequests.get(sessionID)
     if (pending) return pending
     const cached = adoptionCache.read(sessionID)
@@ -178,19 +177,26 @@ export async function registerBtwSideTui<Node>(
       await controller.startFromPrompt(adaptTuiPromptRef(promptRef))
       return
     }
+    const opened = await openBtwPicker({
+      api,
+      controller,
+      activePromptRef,
+    })
+    if (opened && parsed.consumeDraft) {
+      promptRef.set({
+        ...promptRef.current,
+        input: "",
+      })
+    }
+  }
+
+  const showBtwPicker = async (): Promise<void> => {
     await openBtwPicker({
       api,
       controller,
       activePromptRef,
     })
   }
-
-  const showBtwPicker = (): Promise<void> =>
-    openBtwPicker({
-      api,
-      controller,
-      activePromptRef,
-    })
 
   const unregisterSlashCommand =
     api.command?.register(() => [
@@ -220,7 +226,9 @@ export async function registerBtwSideTui<Node>(
       return (
         sessionID !== undefined &&
         controller.side(sessionID) !== undefined &&
-        api.state.session.status(sessionID)?.type === "idle"
+        api.state.session.status(sessionID)?.type !== "busy" &&
+        api.state.session.permission(sessionID).length === 0 &&
+        api.state.session.question(sessionID).length === 0
       )
     },
     returnToParent: controller.returnToParent,
@@ -262,7 +270,9 @@ export async function registerBtwSideTui<Node>(
                         value.session_id === state.sideSessionID
                       : false
                 if (isRelated) return
-                await controller.waitUntilClosed()
+                if (state.phase === "closing") {
+                  await controller.waitUntilClosed()
+                }
                 if (currentTuiSessionID(api) === value.session_id) {
                   await adoptSideSession(value.session_id)
                 }
@@ -296,12 +306,15 @@ export async function registerBtwSideTui<Node>(
           state.phase === "open" &&
           value.session_id === state.parentSessionID
         ) {
-          label = "BTW open · ctrl+/ switch"
+          label = "BTW retained · ctrl+/ picker"
         } else if (
           state.phase === "open" &&
           value.session_id === state.sideSessionID
         ) {
-          label = `BTW from main · ${parentTuiStatusLabel(api, state.parentSessionID)} · ctrl+/ switch · ctrl+c close`
+          const sideNumber = controller.sideNumber(state.sideSessionID)
+          const sideLabel =
+            sideNumber === undefined ? "BTW side" : `BTW #${sideNumber}`
+          label = `${sideLabel} · ${parentTuiStatusLabel(api, state.parentSessionID)} · esc esc return · ctrl+/ picker · ctrl+c delete`
         } else if (
           state.phase === "closing" &&
           value.session_id === state.sideSessionID

@@ -84,4 +84,36 @@ describe("buildBtwPickerOptions", () => {
     expect(result.options[0]?.title).toBe("Main · Untitled conversation")
     expect(result.options[1]?.title).toBe("BTW #1 · Untitled side")
   })
+
+  it("#given no retained sides #when options build #then an explanatory disabled row points to New BTW", () => {
+    // given
+    const catalog: BtwSessionCatalog = {
+      main: {
+        id: "ses_parent",
+        title: "Main",
+        time: {
+          created: 1,
+          updated: 1,
+        },
+      },
+      sides: [],
+    }
+
+    // when
+    const result = buildBtwPickerOptions(catalog, "ses_parent")
+
+    // then
+    expect(result.options).toEqual([
+      expect.objectContaining({
+        title: "Main · Main",
+      }),
+      expect.objectContaining({
+        title: "No retained BTW sessions yet",
+        disabled: true,
+      }),
+      expect.objectContaining({
+        title: "New BTW",
+      }),
+    ])
+  })
 })

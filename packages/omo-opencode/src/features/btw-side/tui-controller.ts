@@ -28,6 +28,7 @@ export function createBtwSideController(
   const closedWaiters = new Set<() => void>()
   const deletedSessionIDs = new Set<string>()
   const retainedSides = new Map<string, BtwSideRecord>()
+  const sideNumbers = new Map<string, number>()
   const promptQueue = createBtwPromptQueue()
 
   function rememberDeletedSession(sessionID: string): void {
@@ -109,8 +110,8 @@ export function createBtwSideController(
       ?? currentSessionID
   }
 
-  async function startFromPrompt(promptRef: BtwPromptRef): Promise<void> {
-    if (disposed) return
+  async function startFromPrompt(promptRef: BtwPromptRef): Promise<boolean> {
+    if (disposed) return false
     if (
       currentState.phase === "creating" ||
       currentState.phase === "closing"
@@ -120,7 +121,7 @@ export function createBtwSideController(
           ? "BTW is already starting."
           : "BTW is still closing.",
       )
-      return
+      return false
     }
 
     const previousState = currentState
@@ -129,7 +130,7 @@ export function createBtwSideController(
       promptRef,
       rootParentForCurrentSession(),
     )
-    if (!prepared) return
+    if (!prepared) return false
     const restoreDraftIfUnchanged = (): void => {
       if (prepared.consumeDraft && promptRef.input.length === 0) {
         promptRef.set(prepared.originalDraft)
@@ -159,7 +160,7 @@ export function createBtwSideController(
         if (isCreatingGeneration(creatingGeneration)) {
           setState(previousState)
         }
-        return
+        return false
       }
       if (disposed || !isCreatingGeneration(creatingGeneration)) {
         if (disposed) {
@@ -173,7 +174,7 @@ export function createBtwSideController(
         } catch {
           dependencies.showToast("Unable to remove cancelled BTW.")
         }
-        return
+        return false
       }
       if (prepared.question.length > 0) {
         promptQueue.queue(sideSession.id, prepared.question)
@@ -189,18 +190,20 @@ export function createBtwSideController(
         ...retainedSide,
       })
       dependencies.navigateSession(sideSession.id)
+      return true
     } catch {
       if (disposed) {
         setState({ phase: "closed" })
-        return
+        return false
       }
       if (!isCreatingGeneration(creatingGeneration)) {
         restoreDraftIfUnchanged()
-        return
+        return false
       }
       restoreDraftIfUnchanged()
       setState(previousState)
       dependencies.showToast("Unable to start BTW.")
+      return false
     } finally {
       activeCreationOperations.delete(creationOperation)
       resolveCreationFinished()
@@ -252,6 +255,7 @@ export function createBtwSideController(
     if (!isClosingGeneration(closingGeneration)) return
     if (!deleted) {
       promptQueue.clear(openState.sideSessionID)
+      setState({ phase: "closed" })
       setState(stateForSession(openState.parentSessionID))
       dependencies.showToast(
         "Unable to delete BTW. Delete the abandoned side session manually.",
@@ -259,7 +263,9 @@ export function createBtwSideController(
       return
     }
     retainedSides.delete(openState.sideSessionID)
+    sideNumbers.delete(openState.sideSessionID)
     promptQueue.clear(openState.sideSessionID)
+    setState({ phase: "closed" })
     setState(stateForSession(openState.parentSessionID))
   }
 
@@ -302,6 +308,7 @@ export function createBtwSideController(
     const deletedSide = retainedSides.get(sessionID)
     if (deletedSide) {
       retainedSides.delete(sessionID)
+      sideNumbers.delete(sessionID)
       promptQueue.clear(sessionID)
       if (dependencies.getCurrentSessionID() === sessionID) {
         dependencies.navigateSession(deletedSide.parentSessionID)
@@ -320,8 +327,29 @@ export function createBtwSideController(
           : undefined
       for (const side of detachedSides) {
         if (side.sideSessionID === closingSideID) continue
+        const sideNumber = sideNumbers.get(side.sideSessionID)
         retainedSides.delete(side.sideSessionID)
+        sideNumbers.delete(side.sideSessionID)
         promptQueue.clear(side.sideSessionID)
+        void deleteBtwSide({
+          sessionID: side.sideSessionID,
+          deleteSession: dependencies.deleteSession,
+          showToast: dependencies.showToast,
+          failureMessage:
+            "Unable to delete BTW after Main was removed. Delete the abandoned side session manually.",
+        }).then((deleted) => {
+          if (deleted || disposed) return
+          retainedSides.set(side.sideSessionID, side)
+          if (sideNumber !== undefined) {
+            sideNumbers.set(side.sideSessionID, sideNumber)
+          }
+          if (
+            dependencies.getCurrentSessionID() ===
+            side.sideSessionID
+          ) {
+            setState(stateForSession(side.sideSessionID))
+          }
+        })
       }
       if (closingSideID) {
         skipClosingParentNavigation = true
@@ -346,13 +374,20 @@ export function createBtwSideController(
     )
   }
 
-  function adopt(parentSessionID: string, sideSessionID: string): void {
+  function adopt(
+    parentSessionID: string,
+    sideSessionID: string,
+    sideNumber?: number,
+  ): void {
     const retainedSide: BtwSideRecord = {
       parentSessionID,
       sideSessionID,
       owned: false,
     }
     retainedSides.set(sideSessionID, retainedSide)
+    if (sideNumber !== undefined) {
+      sideNumbers.set(sideSessionID, sideNumber)
+    }
     if (dependencies.getCurrentSessionID() === sideSessionID) {
       setState({
         phase: "open",
@@ -379,6 +414,8 @@ export function createBtwSideController(
     sides: (): BtwSideRecord[] => [...retainedSides.values()],
     side: (sessionID: string): BtwSideRecord | undefined =>
       retainedSides.get(sessionID),
+    sideNumber: (sessionID: string): number | undefined =>
+      sideNumbers.get(sessionID),
     rootParent: (sessionID: string): string =>
       retainedSides.get(sessionID)?.parentSessionID ?? sessionID,
     startFromPrompt,
@@ -401,6 +438,7 @@ export function createBtwSideController(
       } else if (currentState.phase === "closing") {
         skipClosingParentNavigation = true
         await waitUntilClosed()
+        setState({ phase: "closed" })
       } else if (currentState.phase === "open") {
         setState({ phase: "closed" })
       }

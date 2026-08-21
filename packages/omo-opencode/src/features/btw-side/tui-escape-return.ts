@@ -18,7 +18,7 @@ export function createBtwEscapeReturn(args: {
       context.event.eventType !== "press" ||
       context.event.name !== "escape"
     ) {
-      if (context.event.eventType === "press") reset()
+      if (context.event.eventType !== "release") reset()
       return
     }
     if (args.isDialogOpen() || !args.isCurrentSideIdle()) {
