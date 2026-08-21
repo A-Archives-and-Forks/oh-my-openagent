@@ -34,6 +34,7 @@ export async function sendToDagNode(
   runId: DagRunId,
   nodeId: DagNodeId,
   message: string,
+  watchRevived?: (nodeId: DagNodeId, taskId: string) => Promise<void> | undefined,
 ): Promise<DagNodeSendResult> {
   const record = ownedRecord(options, runId)
   const node = record.nodes.find((entry) => entry.id === nodeId)
@@ -63,7 +64,7 @@ export async function sendToDagNode(
     callerSessionId: record.parentSessionId,
     allScope: true,
   })
-  return foldSendOutcome(options, record, node, taskId, outcome)
+  return foldSendOutcome(options, record, node, taskId, outcome, watchRevived)
 }
 
 function foldSendOutcome(
@@ -72,6 +73,7 @@ function foldSendOutcome(
   node: DagNode,
   taskId: string,
   outcome: SendOutcome,
+  watchRevived?: (nodeId: DagNodeId, taskId: string) => Promise<void> | undefined,
 ): DagNodeSendResult {
   const runId = record.runId
   const nodeId = node.id
@@ -87,7 +89,12 @@ function foldSendOutcome(
       const journal = controlJournal(options, record)
       journal.append(dagNodeSteeredEvent({ nodeId, taskId, delivery: "revive" }))
       journal.append(dagNodeTransitionedEvent({ nodeId, from: node.state, to: "running", reason: { kind: "revived" } }))
-      return { nodeId, taskId, delivery: "revive", settled: watchRevivedTask(options, nodeId, taskId) }
+      return {
+        nodeId,
+        taskId,
+        delivery: "revive",
+        settled: watchRevived?.(nodeId, taskId) ?? watchRevivedTask(options, nodeId, taskId),
+      }
     }
     case "one_shot_agent":
       throw new DagNodeControlError({
