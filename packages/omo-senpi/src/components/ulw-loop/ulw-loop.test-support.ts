@@ -35,6 +35,18 @@ export function createLogger(): ComponentLogger & { entries: RecordedLog[] } {
   }
 }
 
+export const TEST_SESSION_ID = "test-session"
+
+// The status probe is session-scoped and fails closed without a session identity, so every event context
+// that expects the toolkit to be consulted must carry the host session id the real Senpi host provides.
+export function sessionEventCtx(cwd: string, extra: Record<string, unknown> = {}): Record<string, unknown> {
+  return { cwd, sessionManager: { getSessionId: () => TEST_SESSION_ID }, ...extra }
+}
+
+export function statusArgsFor(sessionId = TEST_SESSION_ID): string[] {
+  return ["ulw-loop", "status", "--json", "--session-id", sessionId]
+}
+
 export function activeStatus(id = "G001"): string {
   return JSON.stringify({
     ok: true,

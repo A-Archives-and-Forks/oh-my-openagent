@@ -12,11 +12,14 @@ const scriptPath = fileURLToPath(import.meta.url)
 const repoRoot = join(dirname(scriptPath), "../../../..")
 const toolkitExecutable = process.platform === "win32" ? "omo-agent-toolkit.cmd" : "omo-agent-toolkit"
 const toolkitBin = join(repoRoot, "packages/omo-senpi/plugin/runtime/agent-toolkit", toolkitExecutable)
+// Senpi never puts a session id on the extension host's process.env, so the host-with-no-session-identity
+// scenario is the one that actually models production. It must never continue an unscoped run.
+const NO_SESSION = "--no-session"
 
 if (process.argv[2] === "--extension-child") {
   const sessionId = process.argv[3]
   if (!sessionId) throw new Error("extension child requires a session id")
-  const result = await runExtensionChild(sessionId)
+  const result = await runExtensionChild(sessionId === NO_SESSION ? null : sessionId)
   process.stdout.write(`${JSON.stringify(result)}\n`)
   process.exit(0)
 }
@@ -45,7 +48,7 @@ try {
   assert(!paths.unrelatedPlan, "session B unexpectedly owns a plan")
   assert(!paths.sharedRootPlan, "cwd-global root plan was created")
 
-  result = { sessionA, sessionB, paths }
+  result = { sessionA, sessionB, paths, noSessionHost: runNoSessionScenario() }
 } finally {
   rmSync(sharedCwd, { recursive: true, force: true })
 }
@@ -58,6 +61,31 @@ process.stdout.write(
     cleanup: { removedSharedCwd: true },
   })}\n`,
 )
+
+// Legacy/unscoped runs live at `.omo/ulw-loop/goals.json` and are visible to every session sharing the
+// cwd. A host that cannot name its own session must report inactive rather than adopt that run.
+function runNoSessionScenario() {
+  const cwd = mkdtempSync(join(tmpdir(), "omo-senpi-no-session-"))
+  try {
+    runToolkit(
+      ["ulw-loop", "create-goals", "--brief", "- An unscoped legacy run nobody owns", "--json"],
+      cwd,
+      null,
+      0,
+    )
+    const unscopedPlan = existsSync(join(cwd, ".omo/ulw-loop/goals.json"))
+    assert(unscopedPlan, "the unscoped legacy plan fixture was not created")
+
+    const child = runChild(cwd, NO_SESSION)
+    assert(
+      child.messageCount === 0,
+      `host without session identity continued ${child.messageCount} times, expected 0`,
+    )
+    return { sessionId: null, messageCount: child.messageCount, unscopedPlan }
+  } finally {
+    rmSync(cwd, { recursive: true, force: true })
+  }
+}
 
 async function runExtensionChild(sessionId) {
   const [{ FakeExtensionAPI }, { createUlwLoopComponent }] = await Promise.all([
@@ -85,7 +113,8 @@ async function runExtensionChild(sessionId) {
     { type: "agent_end" },
     {
       cwd: process.cwd(),
-      sessionManager: { getSessionId: () => sessionId },
+      // A host with no session identity exposes no session id at all, exactly like the real extension host.
+      ...(sessionId === null ? {} : { sessionManager: { getSessionId: () => sessionId } }),
     },
   )
 
@@ -99,7 +128,7 @@ async function runExtensionChild(sessionId) {
 function runChild(cwd, sessionId) {
   const child = spawnSync(process.execPath, [scriptPath, "--extension-child", sessionId], {
     cwd,
-    env: sessionEnv(sessionId),
+    env: sessionEnv(sessionId === NO_SESSION ? null : sessionId),
     encoding: "utf8",
     timeout: 30_000,
   })
@@ -123,11 +152,14 @@ function runToolkit(args, cwd, sessionId, expectedStatus) {
   return child.stdout
 }
 
+// `sessionId === null` reproduces the real extension host: no session variable of any kind in the env.
 function sessionEnv(sessionId) {
-  const env = { ...process.env, PI_SESSION_ID: sessionId }
+  const env = { ...process.env }
   delete env.OMO_ULW_LOOP_SESSION_ID
   delete env.CODEX_SESSION_ID
   delete env.CODEX_THREAD_ID
+  delete env.PI_SESSION_ID
+  if (sessionId !== null) env.PI_SESSION_ID = sessionId
   return env
 }
 

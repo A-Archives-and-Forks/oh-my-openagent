@@ -12,6 +12,8 @@ import {
   readRealCwd,
   readRunnerArgv,
   readRunnerRuntime,
+  sessionEventCtx,
+  statusArgsFor,
   withEnv,
   withEnvAsync,
 } from "./ulw-loop.test-support"
@@ -132,12 +134,12 @@ describe("omo-senpi ulw-loop default registration through the toolkit chain", ()
         const results = await pi.dispatch(
           "input",
           { type: "input", text: "continue", source: "interactive", streamingBehavior: "steer" },
-          { cwd: fake.dir },
+          sessionEventCtx(fake.dir),
         )
 
         expect(results).toHaveLength(1)
         expect(results[0]).toMatchObject({ action: "transform" })
-        expect(readRunnerArgv(fake.dir)).toEqual(["ulw-loop", "status", "--json"])
+        expect(readRunnerArgv(fake.dir)).toEqual(statusArgsFor())
       })
     } finally {
       fake.cleanup()
@@ -158,7 +160,7 @@ describe("omo-senpi ulw-loop default registration through the toolkit chain", ()
         const results = await pi.dispatch(
           "input",
           { type: "input", text: "continue", source: "interactive", streamingBehavior: "steer" },
-          { cwd: fake.dir },
+          sessionEventCtx(fake.dir),
         )
 
         expect(results).toEqual([{ action: "continue" }])
