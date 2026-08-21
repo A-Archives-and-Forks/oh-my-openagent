@@ -6,12 +6,37 @@
 // (senpi packages/senpi-codemode/src/kernels/js/worker-runtime.js). Python cells cannot import ESM
 // and call tool.dag({...}) directly instead; there is no Python counterpart to this file.
 
-function callDag(args) {
+// The dag tool reports a refusal in-band: it resolves with { details: { kind: "error", error: { code,
+// message, ... } } } and no run_id (see packages/omo-senpi/src/components/task/dag-tool-contract.ts).
+// Every action funnels through here so a refusal reaches the cell as the tool's own code and message
+// rather than as a downstream symptom such as a missing run_id.
+function throwIfToolError(action, response) {
+  if (response?.details?.kind !== "error") return response
+  const error = response.details.error
+  const code = typeof error?.code === "string" && error.code !== "" ? error.code : undefined
+  const message = typeof error?.message === "string" && error.message !== "" ? error.message : undefined
+  const detail =
+    code === undefined && message === undefined
+      ? firstContentText(response) ?? "the dag tool reported an error with no details."
+      : [code, message].filter((part) => part !== undefined).join(": ")
+  throw new Error(`dag ${action} failed: ${detail}`)
+}
+
+function firstContentText(response) {
+  const content = response?.content
+  if (!Array.isArray(content)) return undefined
+  for (const entry of content) {
+    if (typeof entry?.text === "string" && entry.text !== "") return entry.text
+  }
+  return undefined
+}
+
+async function callDag(args) {
   const proxy = globalThis.tool
   if (proxy === undefined || proxy === null || typeof proxy.dag !== "function") {
     throw new Error("The dag sdk requires the eval kernel's global `tool` proxy; it is unavailable here.")
   }
-  return proxy.dag(args)
+  return throwIfToolError(args.action, await proxy.dag(args))
 }
 
 class DagDefinitionBuilder {
