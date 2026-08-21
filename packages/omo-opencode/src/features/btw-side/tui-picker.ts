@@ -30,7 +30,6 @@ export async function openBtwPicker(args: {
     })
     return false
   }
-
   let loaded: Awaited<ReturnType<typeof loadBtwSessionCatalog>>
   try {
     loaded = await loadBtwSessionCatalog({
@@ -90,7 +89,11 @@ export async function openBtwPicker(args: {
     const selection = parseBtwPickerValue(value)
     if (!selection) return
     if (selection.type === "new") {
-      const promptRef = args.activePromptRef()
+      const currentSessionID = currentTuiSessionID(args.api)
+      const promptRef =
+        currentSessionID === selection.parentSessionID
+          ? args.activePromptRef()
+          : undefined
       if (!promptRef) {
         args.api.ui.toast({
           variant: "warning",
@@ -100,6 +103,7 @@ export async function openBtwPicker(args: {
       }
       const started = await args.controller.startFromPrompt(
         adaptTuiPromptRef(promptRef),
+        selection.parentSessionID,
       )
       if (started) args.api.ui.dialog.clear()
       return

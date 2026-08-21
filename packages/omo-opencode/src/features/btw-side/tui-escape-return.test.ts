@@ -3,9 +3,47 @@ import type { KeyEvent } from "@opentui/core"
 import type { KeyInputContext } from "@opentui/keymap"
 
 import { unsafeTestValue } from "../../../../../test-support/unsafe-test-value"
+import { createBtwEscapeReturn } from "./tui-escape-return"
 import { registerBtwSideKeymap } from "./tui-keymap"
 
 describe("registerBtwSideKeymap escape return", () => {
+  it("#given the first Escape has expired #when Escape is pressed again #then it starts a fresh pair", () => {
+    // given
+    let now = 0
+    const returnToParent = mock(() => undefined)
+    const escapeReturn = createBtwEscapeReturn({
+      isCurrentSideIdle: () => true,
+      isDialogOpen: () => false,
+      clearPending: () => undefined,
+      returnToParent,
+      now: () => now,
+    })
+    const sendEscape = () => {
+      escapeReturn.handle(unsafeTestValue({
+        event: {
+          name: "escape",
+          eventType: "press",
+        },
+        consume: () => undefined,
+      }))
+    }
+    sendEscape()
+
+    // when
+    now = 1_001
+    sendEscape()
+
+    // then
+    expect(returnToParent).not.toHaveBeenCalled()
+
+    // when
+    now = 1_100
+    sendEscape()
+
+    // then
+    expect(returnToParent).toHaveBeenCalledTimes(1)
+  })
+
   it("#given an idle visible side #when Escape is pressed twice consecutively #then only the second press returns to the parent", () => {
     // given
     let keyInterceptor:

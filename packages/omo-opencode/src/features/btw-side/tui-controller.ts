@@ -110,7 +110,10 @@ export function createBtwSideController(
       ?? currentSessionID
   }
 
-  async function startFromPrompt(promptRef: BtwPromptRef): Promise<boolean> {
+  async function startFromPrompt(
+    promptRef: BtwPromptRef,
+    parentSessionID = rootParentForCurrentSession(),
+  ): Promise<boolean> {
     if (disposed) return false
     if (
       currentState.phase === "creating" ||
@@ -128,7 +131,7 @@ export function createBtwSideController(
     const prepared = prepareBtwSideStart(
       dependencies,
       promptRef,
-      rootParentForCurrentSession(),
+      parentSessionID,
     )
     if (!prepared) return false
     const restoreDraftIfUnchanged = (): void => {
