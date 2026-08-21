@@ -415,9 +415,10 @@ describe("omo-senpi ultrawork component", () => {
   })
 
   it("#given embedded directive #when inspected #then keeps the senpi-native tool contract", () => {
-    // then: the senpi surface HAS goal/todo/task/team tools — the codex-derived
+    // then: the senpi surface HAS todo/task/team tools — the codex-derived
     // embed used to strip exactly these blocks out of the injected directive.
-    expect(SENPI_ULTRAWORK_DIRECTIVE).toContain("create_goal")
+    // The goal-registration mandate was removed from the directive by product
+    // decision, so create_goal is no longer part of this contract.
     expect(SENPI_ULTRAWORK_DIRECTIVE).toContain("`todo`")
     expect(SENPI_ULTRAWORK_DIRECTIVE).toContain("team_create")
   })
