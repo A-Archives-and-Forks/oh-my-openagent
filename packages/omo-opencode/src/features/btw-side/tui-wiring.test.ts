@@ -2,6 +2,7 @@ import { describe, expect, it, mock } from "bun:test"
 
 import { unsafeTestValue } from "../../../../../test-support/unsafe-test-value"
 import { BTW_SIDE_METADATA_KEY } from "./metadata"
+import { openBtwPicker } from "./tui-picker"
 import { registerBtwSideTui } from "./tui-wiring"
 
 type TestCommand = {
@@ -304,6 +305,35 @@ function createPickerHarness(
 }
 
 describe("registerBtwSideTui", () => {
+  it("#given an existing route without a prompt ref #when the picker opens #then retained sessions remain selectable", async () => {
+    // given
+    const harness = createPickerHarness()
+    const controller = unsafeTestValue({
+      adopt: () => undefined,
+      startFromPrompt: async () => false,
+    })
+
+    // when
+    const opened = await openBtwPicker({
+      api: harness.api,
+      controller,
+      activePromptRef: () => undefined,
+    })
+
+    // then
+    expect(opened).toBe(true)
+    expect(harness.dialogSelections[0]?.options).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: expect.stringContaining("Main"),
+        }),
+        expect.objectContaining({
+          title: expect.stringContaining("first retained question"),
+        }),
+      ]),
+    )
+  })
+
   it("#given retained BTW metadata #when the bare command opens #then the catalog lists the parent and every retained side", async () => {
     // given
     const harness = createPickerHarness()

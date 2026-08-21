@@ -1,8 +1,0 @@
-Review follow-up main context.
-fake response 2
-Hephaestus - Deep Agent  gpt-fake  768ms
-
-Hephaestus - Deep Agent  gpt-fake OpenAI
-BTW retained  ctrl+/ picker
-
-[REDACTED]/.omo/evidence/20260821-btw-pr-review-findings/project

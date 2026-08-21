@@ -16,7 +16,8 @@
 - Isolated SQLite contained:
   - Main `ses_fdd7cb126ffeqrc131gwQ89nzb`;
   - side `ses_fdd7cabfbffeGtC15w2KGCTaWN`, whose metadata parent is Main.
-- Host OpenCode session count was `7614` before and `7614` after.
+- Host OpenCode session count was `7620` before and `7620` after the final
+  captured run.
 
 ## Why it is enough
 
@@ -31,5 +32,5 @@ isolation.
 - Raw host OMO logs contain unrelated concurrent activity and were not copied.
 - Fake-model request bodies were not copied because deterministic responses
   and session metadata were sufficient.
-- The isolated database, package caches, temporary HOME, and unsanitized
-  terminal capture are removed after the committed evidence is staged.
+- The isolated database, package caches, and temporary HOME are removed after
+  their exact query and terminal outputs are captured under `artifacts/`.

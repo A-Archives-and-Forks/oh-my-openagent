@@ -2,28 +2,34 @@ FINAL VERIFICATION
 
 bun test ./packages/omo-opencode/src/features/btw-side
 exit 0
-72 pass, 0 fail, 217 expectations, 11 files
+73 pass, 0 fail, 220 expectations, 11 files
+exact output: artifacts/btw-tests.junit.xml
 
 bun test ./script/web-terminal-visual-qa.test.ts
 exit 0
 7 pass, 0 fail, 38 expectations, 1 file
+exact output: artifacts/qa-helper-tests.junit.xml
 
 bun run typecheck
 exit 0
 root, script, and every package typecheck completed cleanly
+exact output: artifacts/typecheck.txt
 
 bun run build
 exit 0
 production server, TUI, CLI, schema, Codex, Senpi, and declaration builds
 completed cleanly
+exact outputs: artifacts/build/terminal-ansi.txt, artifacts/build/terminal.txt
 
 real isolated OpenCode 1.18.18 TUI
 exit 0
 Main and one retained side were created; two Escape presses 500 ms apart
 returned to Main; isolated metadata linked the side to Main
+exact output: artifacts/tui-esc/
 
 host OpenCode database
-7614 sessions before, 7614 sessions after
+7620 sessions before, 7620 sessions after the final captured run
+exact outputs: artifacts/host-db-count.txt, artifacts/sqlite-isolated.json
 
 runtime cleanup
 local mock stopped; isolated database, caches, temporary HOME, and unsanitized

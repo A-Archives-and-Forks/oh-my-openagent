@@ -25,7 +25,18 @@ sqlite3 [isolated opencode.db] [session metadata query]
 sqlite3 [host opencode.db] "SELECT count(*) FROM session;"
 ```
 
-## Real artifact
+## Exact captured output artifacts
 
-`committed/esc-window/terminal-excerpt.txt` is the sanitized xterm.js capture
-excerpt.
+- `artifacts/btw-tests.junit.xml`
+- `artifacts/qa-helper-tests.junit.xml`
+- `artifacts/typecheck.txt`
+- `artifacts/build/terminal-ansi.txt`
+- `artifacts/build/terminal.txt`
+- `artifacts/sqlite-isolated.json`
+- `artifacts/host-db-count.txt`
+- `artifacts/tui-esc/terminal.txt`
+- `artifacts/tui-esc/terminal-ansi.txt`
+- `artifacts/tui-esc/terminal.png`
+
+The TUI helper redacted the task-worktree path before writing the committed
+TUI outputs. Machine-local metadata was omitted.
