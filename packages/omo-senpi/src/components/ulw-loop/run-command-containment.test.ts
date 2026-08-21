@@ -11,6 +11,7 @@ describe("omo-senpi ulw-loop run-command failure containment", () => {
     const logger = createLogger()
     await createUlwLoopComponent({
       resolveOmoBin: () => "/tmp/omo",
+      planDirExists: () => true,
       runCommand: () => {
         throw einval
       },
@@ -35,6 +36,7 @@ describe("omo-senpi ulw-loop run-command failure containment", () => {
     const logger = createLogger()
     await createUlwLoopComponent({
       resolveOmoBin: () => "/tmp/omo",
+      planDirExists: () => true,
       runCommand: async () => ({ code: 127, stdout: "" }),
     }).register(pi, { logger, config: { getFlag: () => false } })
 
@@ -49,6 +51,7 @@ describe("omo-senpi ulw-loop run-command failure containment", () => {
     const logger = createLogger()
     await createUlwLoopComponent({
       resolveOmoBin: () => "/tmp/omo",
+      planDirExists: () => true,
       runCommand: () => Promise.reject(new Error("spawn EINVAL")),
     }).register(pi, { logger, config: { getFlag: () => false } })
 

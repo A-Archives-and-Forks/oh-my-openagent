@@ -66,6 +66,9 @@ describe("session_start component ordering", () => {
       createUlwLoopComponent({
         resolveOmoBin: () => "/tmp/omo-agent-toolkit",
         runCommand: async () => ({ code: 0, stdout: activeStatus() }),
+        // This fixture asserts handler ordering; seeding a real `.omo` ledger would also flip the
+        // onboarding/advisor state the test pins, so the plan lookup is stubbed active instead.
+        planDirExists: () => true,
       }),
     ]
     for (const component of components) await component.register(pi, componentContext)

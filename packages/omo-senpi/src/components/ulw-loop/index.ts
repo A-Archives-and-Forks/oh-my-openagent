@@ -1,9 +1,16 @@
+import { existsSync } from "node:fs"
+import { join } from "node:path"
+
 import { findContinuableBoulderWork } from "../start-work-continuation/boulder-eligibility"
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
 import { createUlwLoopFooterStatus, type UlwLoopFooterStatusOptions } from "./footer-status"
 import { resolveOmoBin, runOmoCommand } from "./omo-command"
 
 const STATUS_ARGS = ["ulw-loop", "status", "--json"] as const
+// Every ulw-loop plan lives under `<cwd>/.omo/ulw-loop`, unscoped as `goals.json` and session-scoped as
+// `<sessionId>/goals.json` (omo-codex ulw-loop `paths.ts`), and the toolkit resolves its repo root from the
+// cwd it is spawned in (`cli-commands.ts`). A missing directory therefore rules out a plan for every scope.
+const ULW_LOOP_PLAN_DIR = join(".omo", "ulw-loop")
 const CONTINUATION_LIMIT = 8
 const STEERING_REMINDER = [
   "<omo-senpi-ulw-loop>",
@@ -20,6 +27,7 @@ const CONTINUATION_PROMPT = [
 export interface UlwLoopComponentOptions {
   resolveOmoBin?: () => string | null
   runCommand?: (bin: string, args: readonly string[], options: { cwd: string }) => Promise<{ code: number; stdout: string }>
+  planDirExists?: (cwd: string) => boolean
   footerStatus?: UlwLoopFooterStatusOptions
 }
 
@@ -36,6 +44,7 @@ interface ActiveStatus {
 }
 
 type RunCommand = NonNullable<UlwLoopComponentOptions["runCommand"]>
+type PlanDirLookup = NonNullable<UlwLoopComponentOptions["planDirExists"]>
 
 export function createUlwLoopComponent(options: UlwLoopComponentOptions = {}): OmoSenpiComponent {
   return {
@@ -50,6 +59,7 @@ export function createUlwLoopComponent(options: UlwLoopComponentOptions = {}): O
       }
 
       const runCommand = options.runCommand ?? runOmoCommand
+      const planDirExists = options.planDirExists ?? ulwLoopPlanDirExists
       const footerStatus = createUlwLoopFooterStatus(options.footerStatus)
       const state = {
         consecutiveContinuations: 0,
@@ -57,7 +67,7 @@ export function createUlwLoopComponent(options: UlwLoopComponentOptions = {}): O
       }
 
       pi.on("session_start", async (_payload, eventCtx) => {
-        const status = await readActiveStatus(omoBin, runCommand, cwdFromContext(eventCtx), ctx)
+        const status = await readActiveStatus(omoBin, runCommand, planDirExists, cwdFromContext(eventCtx), ctx)
         footerStatus.sync(eventCtx, status?.active ?? false)
       })
 
@@ -68,7 +78,7 @@ export function createUlwLoopComponent(options: UlwLoopComponentOptions = {}): O
         state.consecutiveContinuations = 0
         state.previousStatusRaw = undefined
         if (payload.streamingBehavior === undefined) return { action: "continue" }
-        const status = await readActiveStatus(omoBin, runCommand, cwdFromContext(eventCtx), ctx)
+        const status = await readActiveStatus(omoBin, runCommand, planDirExists, cwdFromContext(eventCtx), ctx)
         footerStatus.sync(eventCtx, status?.active ?? false)
         if (status === null || !status.active) return { action: "continue" }
         return {
@@ -94,7 +104,7 @@ export function createUlwLoopComponent(options: UlwLoopComponentOptions = {}): O
           return
         }
 
-        const status = await readActiveStatus(omoBin, runCommand, cwd, ctx)
+        const status = await readActiveStatus(omoBin, runCommand, planDirExists, cwd, ctx)
         footerStatus.sync(eventCtx, status?.active ?? false)
         if (status === null) {
           return
@@ -116,7 +126,7 @@ export function createUlwLoopComponent(options: UlwLoopComponentOptions = {}): O
 
       pi.on("tool_result", async (payload, eventCtx) => {
         if (!shouldRefreshFooterAfterToolResult(payload)) return
-        const status = await readActiveStatus(omoBin, runCommand, cwdFromContext(eventCtx), ctx)
+        const status = await readActiveStatus(omoBin, runCommand, planDirExists, cwdFromContext(eventCtx), ctx)
         footerStatus.sync(eventCtx, status?.active ?? false)
       })
 
@@ -155,12 +165,22 @@ function deliverContinuation(pi: SenpiExtensionAPI, ctx: ComponentContext): void
   )
 }
 
+function ulwLoopPlanDirExists(cwd: string): boolean {
+  return existsSync(join(cwd, ULW_LOOP_PLAN_DIR))
+}
+
 async function readActiveStatus(
   omoBin: string,
   runCommand: RunCommand,
+  planDirExists: PlanDirLookup,
   cwd: string,
   ctx: ComponentContext,
 ): Promise<ActiveStatus | null> {
+  // Spawning the toolkit costs two node startups (`bin/omo-agent-toolkit.js` re-spawns `cli.js`), and the
+  // input hook is awaited inside `emitInput` before the submitted message is committed. Without a ledger
+  // directory the toolkit can only answer ULW_LOOP_PLAN_MISSING, so answer inactive without paying for it.
+  if (!planDirExists(cwd)) return { raw: "", active: false }
+
   let result: { code: number; stdout: string }
   try {
     result = await runCommand(omoBin, STATUS_ARGS, { cwd })
