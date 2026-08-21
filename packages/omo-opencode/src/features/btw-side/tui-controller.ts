@@ -1,6 +1,7 @@
 import type {
   BtwPromptRef,
   BtwSideControllerDependencies,
+  BtwSideRecord,
   BtwSideState,
 } from "./tui-controller-types"
 import {
@@ -26,6 +27,7 @@ export function createBtwSideController(
   }>()
   const closedWaiters = new Set<() => void>()
   const deletedSessionIDs = new Set<string>()
+  const retainedSides = new Map<string, BtwSideRecord>()
   const promptQueue = createBtwPromptQueue()
 
   function rememberDeletedSession(sessionID: string): void {
@@ -76,18 +78,57 @@ export function createBtwSideController(
     promptQueue.attach(sessionID, promptRef)
   }
 
+  function latestSideForParent(parentSessionID: string): BtwSideRecord | undefined {
+    return [...retainedSides.values()]
+      .reverse()
+      .find((side) => side.parentSessionID === parentSessionID)
+  }
+
+  function stateForSession(sessionID: string | undefined): BtwSideState {
+    if (!sessionID) return { phase: "closed" }
+    const side = retainedSides.get(sessionID)
+    if (side) {
+      return {
+        phase: "open",
+        ...side,
+      }
+    }
+    const retained = latestSideForParent(sessionID)
+    return retained
+      ? {
+          phase: "open",
+          ...retained,
+        }
+      : { phase: "closed" }
+  }
+
+  function rootParentForCurrentSession(): string | undefined {
+    const currentSessionID = dependencies.getCurrentSessionID()
+    if (!currentSessionID) return undefined
+    return retainedSides.get(currentSessionID)?.parentSessionID
+      ?? currentSessionID
+  }
+
   async function startFromPrompt(promptRef: BtwPromptRef): Promise<void> {
     if (disposed) return
-    if (currentState.phase !== "closed") {
+    if (
+      currentState.phase === "creating" ||
+      currentState.phase === "closing"
+    ) {
       dependencies.showToast(
         currentState.phase === "creating"
           ? "BTW is already starting."
-          : "A BTW conversation is already open.",
+          : "BTW is still closing.",
       )
       return
     }
 
-    const prepared = prepareBtwSideStart(dependencies, promptRef)
+    const previousState = currentState
+    const prepared = prepareBtwSideStart(
+      dependencies,
+      promptRef,
+      rootParentForCurrentSession(),
+    )
     if (!prepared) return
     const restoreDraftIfUnchanged = (): void => {
       if (prepared.consumeDraft && promptRef.input.length === 0) {
@@ -116,7 +157,7 @@ export function createBtwSideController(
       if (deletedSessionIDs.delete(sideSession.id)) {
         if (!disposed) restoreDraftIfUnchanged()
         if (isCreatingGeneration(creatingGeneration)) {
-          setState({ phase: "closed" })
+          setState(previousState)
         }
         return
       }
@@ -125,6 +166,7 @@ export function createBtwSideController(
           setState({ phase: "closed" })
         } else {
           restoreDraftIfUnchanged()
+          setState(previousState)
         }
         try {
           await dependencies.deleteSession(sideSession.id)
@@ -136,11 +178,15 @@ export function createBtwSideController(
       if (prepared.question.length > 0) {
         promptQueue.queue(sideSession.id, prepared.question)
       }
-      setState({
-        phase: "open",
+      const retainedSide: BtwSideRecord = {
         parentSessionID: prepared.parentSessionID,
         sideSessionID: sideSession.id,
         owned: true,
+      }
+      retainedSides.set(sideSession.id, retainedSide)
+      setState({
+        phase: "open",
+        ...retainedSide,
       })
       dependencies.navigateSession(sideSession.id)
     } catch {
@@ -153,7 +199,7 @@ export function createBtwSideController(
         return
       }
       restoreDraftIfUnchanged()
-      setState({ phase: "closed" })
+      setState(previousState)
       dependencies.showToast("Unable to start BTW.")
     } finally {
       activeCreationOperations.delete(creationOperation)
@@ -174,8 +220,11 @@ export function createBtwSideController(
   }
 
   async function close(): Promise<void> {
-    if (currentState.phase !== "open") return
-    const openState = currentState
+    const currentSessionID = dependencies.getCurrentSessionID()
+    const openState = currentSessionID
+      ? retainedSides.get(currentSessionID)
+      : undefined
+    if (!openState) return
     skipClosingParentNavigation = false
     const closingState = {
       phase: "closing",
@@ -203,14 +252,15 @@ export function createBtwSideController(
     if (!isClosingGeneration(closingGeneration)) return
     if (!deleted) {
       promptQueue.clear(openState.sideSessionID)
-      setState({ phase: "closed" })
+      setState(stateForSession(openState.parentSessionID))
       dependencies.showToast(
         "Unable to delete BTW. Delete the abandoned side session manually.",
       )
       return
     }
+    retainedSides.delete(openState.sideSessionID)
     promptQueue.clear(openState.sideSessionID)
-    setState({ phase: "closed" })
+    setState(stateForSession(openState.parentSessionID))
   }
 
   async function handleNavigation(sessionID: string): Promise<void> {
@@ -222,7 +272,7 @@ export function createBtwSideController(
             operation.restoreDraftIfUnchanged()
           }
         }
-        setState({ phase: "closed" })
+        setState(stateForSession(sessionID))
       }
       return
     }
@@ -235,39 +285,7 @@ export function createBtwSideController(
       }
       return
     }
-    if (currentState.phase !== "open") return
-    if (
-      sessionID === currentState.parentSessionID ||
-      sessionID === currentState.sideSessionID
-    ) {
-      return
-    }
-    const openState = currentState
-    setState({
-      phase: "closing",
-      parentSessionID: openState.parentSessionID,
-      sideSessionID: openState.sideSessionID,
-      owned: openState.owned,
-    })
-    const closingGeneration = stateGeneration
-    if (openState.owned) {
-      await abortBtwSide({
-        sessionID: openState.sideSessionID,
-        abortSession: dependencies.abortSession,
-        showToast: dependencies.showToast,
-      })
-      if (!isClosingGeneration(closingGeneration)) return
-      await deleteBtwSide({
-        sessionID: openState.sideSessionID,
-        deleteSession: dependencies.deleteSession,
-        showToast: dependencies.showToast,
-        failureMessage: "Unable to discard BTW.",
-      })
-      if (!isClosingGeneration(closingGeneration)) return
-    }
-    if (!isClosingGeneration(closingGeneration)) return
-    promptQueue.clear(openState.sideSessionID)
-    setState({ phase: "closed" })
+    setState(stateForSession(sessionID))
   }
 
   function handleSessionDeleted(sessionID: string): void {
@@ -281,34 +299,34 @@ export function createBtwSideController(
       }
       return
     }
-    if (
-      currentState.phase === "closing" &&
-      sessionID === currentState.parentSessionID
-    ) {
-      skipClosingParentNavigation = true
-      return
-    }
-    if (
-      currentState.phase !== "open" &&
-      currentState.phase !== "closing"
-    ) {
-      return
-    }
-    if (sessionID === currentState.sideSessionID) {
-      const parentSessionID = currentState.parentSessionID
-      promptQueue.clear(currentState.sideSessionID)
-      setState({ phase: "closed" })
+    const deletedSide = retainedSides.get(sessionID)
+    if (deletedSide) {
+      retainedSides.delete(sessionID)
+      promptQueue.clear(sessionID)
       if (dependencies.getCurrentSessionID() === sessionID) {
-        dependencies.navigateSession(parentSessionID)
+        dependencies.navigateSession(deletedSide.parentSessionID)
       }
+      setState(stateForSession(deletedSide.parentSessionID))
       return
     }
-    if (sessionID === currentState.parentSessionID) {
-      const sideSessionID = currentState.sideSessionID
-      promptQueue.clear(sideSessionID)
-      setState({ phase: "closed" })
-      if (dependencies.getCurrentSessionID() === sessionID) {
-        dependencies.navigateSession(sideSessionID)
+    const detachedSides = [...retainedSides.values()].filter(
+      (side) => side.parentSessionID === sessionID,
+    )
+    if (detachedSides.length > 0) {
+      const closingSideID =
+        currentState.phase === "closing" &&
+        sessionID === currentState.parentSessionID
+          ? currentState.sideSessionID
+          : undefined
+      for (const side of detachedSides) {
+        if (side.sideSessionID === closingSideID) continue
+        retainedSides.delete(side.sideSessionID)
+        promptQueue.clear(side.sideSessionID)
+      }
+      if (closingSideID) {
+        skipClosingParentNavigation = true
+      } else {
+        setState({ phase: "closed" })
       }
       dependencies.showToast(
         "BTW detached because its main session was deleted.",
@@ -317,32 +335,57 @@ export function createBtwSideController(
   }
 
   function canCloseCurrentSide(): boolean {
-    if (currentState.phase !== "open") return false
-    if (dependencies.getCurrentSessionID() !== currentState.sideSessionID) {
-      return false
-    }
+    const currentSessionID = dependencies.getCurrentSessionID()
+    const currentSide = currentSessionID
+      ? retainedSides.get(currentSessionID)
+      : undefined
+    if (!currentSide) return false
     return (
-      promptQueue.input(currentState.sideSessionID).length === 0 &&
-      !promptQueue.hasAttachments(currentState.sideSessionID)
+      promptQueue.input(currentSide.sideSessionID).length === 0 &&
+      !promptQueue.hasAttachments(currentSide.sideSessionID)
     )
   }
 
   function adopt(parentSessionID: string, sideSessionID: string): void {
-    if (currentState.phase !== "closed") return
-    setState({
-      phase: "open",
+    const retainedSide: BtwSideRecord = {
       parentSessionID,
       sideSessionID,
       owned: false,
+    }
+    retainedSides.set(sideSessionID, retainedSide)
+    if (dependencies.getCurrentSessionID() === sideSessionID) {
+      setState({
+        phase: "open",
+        ...retainedSide,
+      })
+    }
+  }
+
+  function returnToParent(): void {
+    const currentSessionID = dependencies.getCurrentSessionID()
+    const currentSide = currentSessionID
+      ? retainedSides.get(currentSessionID)
+      : undefined
+    if (!currentSide) return
+    dependencies.navigateSession(currentSide.parentSessionID)
+    setState({
+      phase: "open",
+      ...currentSide,
     })
   }
 
   return {
     state: (): BtwSideState => currentState,
+    sides: (): BtwSideRecord[] => [...retainedSides.values()],
+    side: (sessionID: string): BtwSideRecord | undefined =>
+      retainedSides.get(sessionID),
+    rootParent: (sessionID: string): string =>
+      retainedSides.get(sessionID)?.parentSessionID ?? sessionID,
     startFromPrompt,
     attachPromptRef,
     toggle,
     close,
+    returnToParent,
     handleNavigation,
     handleSessionDeleted,
     canCloseCurrentSide,
@@ -358,8 +401,6 @@ export function createBtwSideController(
       } else if (currentState.phase === "closing") {
         skipClosingParentNavigation = true
         await waitUntilClosed()
-      } else if (currentState.phase === "open" && currentState.owned) {
-        await handleNavigation("")
       } else if (currentState.phase === "open") {
         setState({ phase: "closed" })
       }
