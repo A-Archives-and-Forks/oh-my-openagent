@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test"
+import { execFileSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -6,6 +7,7 @@ import { join } from "node:path"
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import { ULW_LOOP_FOOTER_FRAMES } from "./footer-status"
 import { createUlwLoopComponent } from "./index"
+import { toSpawnTarget } from "./omo-command"
 import {
   activeStatus,
   changingActiveStatuses,
@@ -14,6 +16,41 @@ import {
   isTransformResult,
   registerWithRunner,
 } from "./ulw-loop.test-support"
+
+describe("omo-senpi ulw-loop continuation session isolation", () => {
+  it("#given Windows staged toolkit #when resolving its spawn target #then uses cmd.exe with the .cmd wrapper", () => {
+    const bin = stagedToolkitBin("win32")
+
+    expect(bin).toEndWith("omo-agent-toolkit.cmd")
+    expect(toSpawnTarget(bin, ["ulw-loop", "status", "--json"], "win32")).toEqual({
+      command: "cmd.exe",
+      args: ["/d", "/s", "/c", bin, "ulw-loop", "status", "--json"],
+    })
+  })
+
+  it("#given two independent sessions share one cwd #when the child-process probe runs #then only the owner continues", () => {
+    const output = execFileSync(
+      process.execPath,
+      [join(import.meta.dir, "../../../scripts/qa/probe-cross-session.mjs")],
+      {
+        encoding: "utf8",
+        timeout: 60_000,
+      },
+    )
+
+    expect(JSON.parse(output)).toMatchObject({
+      verdict: "PASS",
+      sessionA: { messageCount: 1 },
+      sessionB: { messageCount: 0 },
+      paths: {
+        ownerPlan: true,
+        unrelatedPlan: false,
+        sharedRootPlan: false,
+      },
+      cleanup: { removedSharedCwd: true },
+    })
+  })
+})
 
 describe("omo-senpi ulw-loop continuation", () => {
   it("#given no omo binary #when input and agent_end fire #then the component stays inert for the session", async () => {
@@ -223,6 +260,11 @@ describe("omo-senpi ulw-loop continuation", () => {
     }
   })
 })
+
+function stagedToolkitBin(platform: NodeJS.Platform = process.platform): string {
+  const executable = platform === "win32" ? "omo-agent-toolkit.cmd" : "omo-agent-toolkit"
+  return join(import.meta.dir, "../../../plugin/runtime/agent-toolkit", executable)
+}
 
 describe("omo-senpi ulw-loop plan directory guard", () => {
   function withTempCwd(run: (cwd: string) => Promise<void>): Promise<void> {

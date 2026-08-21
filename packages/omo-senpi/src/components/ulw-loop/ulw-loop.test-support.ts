@@ -122,6 +122,8 @@ export function withEnv<T>(patch: Record<string, string | undefined>, run: () =>
 }
 
 export async function withEnvAsync<T>(patch: Record<string, string | undefined>, run: () => Promise<T>): Promise<T> {
+  // Keep process-global mutations scoped to synchronous invocation. Holding them
+  // across await points races other Bun test files that share this process.
   return withEnv(patch, run)
 }
 
