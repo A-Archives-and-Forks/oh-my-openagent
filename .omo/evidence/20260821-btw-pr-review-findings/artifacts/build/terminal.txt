@@ -5,15 +5,15 @@ Bundled 280 modules in 13ms
 
   omo-member.js  173.24 KB  (entry point)
 
-Bundled 94 modules in 7ms
+Bundled 94 modules in 6ms
 
   omo-memory-mcp.js  97.19 KB  (entry point)
 
-Bundled 125 modules in 8ms
+Bundled 125 modules in 7ms
 
   memory-run-supervisor.mjs  29.19 KB  (entry point)
 
-Bundled 112 modules in 10ms
+Bundled 112 modules in 8ms
 
   omo-init-deep-advisor.js  64.27 KB  (entry point)
 

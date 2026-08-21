@@ -2,7 +2,7 @@ FINAL VERIFICATION
 
 bun test ./packages/omo-opencode/src/features/btw-side
 exit 0
-74 pass, 0 fail, 223 expectations, 11 files
+75 pass, 0 fail, 224 expectations, 11 files
 exact redacted output: artifacts/btw-tests/terminal-ansi.txt
 
 bun test ./script/web-terminal-visual-qa.test.ts
@@ -27,9 +27,16 @@ Main and one retained side were created; two Escape presses 500 ms apart
 returned to Main; isolated metadata linked the side to Main
 exact output: artifacts/tui-esc/
 
+mandatory tmux TUI smoke
+exit 0
+OpenCode 1.18.18 rendered, send-keys reached the composer, tmux tore down, and
+the host database remained unchanged
+exact output: artifacts/tmux-smoke-host-db.txt
+
 host OpenCode database
-7620 sessions before, 7620 sessions after the final captured run
-exact outputs: artifacts/host-db-count.txt, artifacts/sqlite-isolated.json
+7628 sessions before, 7628 sessions after the recorded tmux smoke
+exact outputs: artifacts/tmux-smoke-host-db.txt,
+artifacts/sqlite-isolated.json
 
 runtime cleanup
 local mock stopped; isolated database, caches, temporary HOME, and unsanitized

@@ -9,6 +9,8 @@
   injected clock.
 - Real OpenCode 1.18.18 TUI against the task-worktree build, isolated XDG
   directories, and a local fake OpenAI Responses server.
+- Mandatory `opencode-qa` tmux TUI smoke, including render, send-keys,
+  teardown, and real-database isolation assertions.
 - A real Main prompt, one retained BTW side, and two Escape presses 500 ms
   apart.
 - Isolated SQLite session metadata and host OpenCode database counts.
@@ -33,11 +35,11 @@ sqlite3 [host opencode.db] "SELECT count(*) FROM session;"
 - `artifacts/build/terminal-ansi.txt`
 - `artifacts/build/terminal.txt`
 - `artifacts/sqlite-isolated.json`
-- `artifacts/host-db-count.txt`
+- `artifacts/tmux-smoke-host-db.txt`
 - `artifacts/tui-esc/terminal.txt`
 - `artifacts/tui-esc/terminal-ansi.txt`
 - `artifacts/tui-esc/terminal.png`
 
 The TUI helper redacted the task-worktree path before writing the committed
 TUI outputs. JUnit hostnames were replaced with `[REDACTED]` while preserving
-all 74 BTW and 7 QA-helper test cases. Machine-local metadata was omitted.
+all 75 BTW and 7 QA-helper test cases. Machine-local metadata was omitted.

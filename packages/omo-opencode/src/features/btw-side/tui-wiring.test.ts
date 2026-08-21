@@ -356,6 +356,9 @@ describe("registerBtwSideTui", () => {
     const newSide = harness.dialogSelections[0]?.options.find(
       (option) => option.title === "New BTW",
     )
+    harness.api.route.navigate("session", {
+      sessionID: "ses_other",
+    })
 
     // when
     if (newSide) {
@@ -367,6 +370,47 @@ describe("registerBtwSideTui", () => {
     expect(harness.toasts).toContain(
       "BTW is unavailable before the session starts.",
     )
+  })
+
+  it("#given the parent prompt remounts while its picker stays open #when New BTW is selected #then creation uses the active replacement prompt", async () => {
+    // given
+    const harness = createPickerHarness()
+    const startFromPrompt = mock(async () => true)
+    const controller = unsafeTestValue({
+      adopt: () => undefined,
+      startFromPrompt,
+    })
+    let activePromptRef = harness.promptRef
+    await openBtwPicker({
+      api: harness.api,
+      controller,
+      activePromptRef: () => activePromptRef,
+    })
+    const replacementPromptRef = unsafeTestValue({
+      focused: true,
+      current: {
+        input: "replacement parent draft",
+        parts: [],
+      },
+      set: () => undefined,
+      reset: () => undefined,
+      blur: () => undefined,
+      focus: () => undefined,
+      submit: () => undefined,
+    })
+    activePromptRef = replacementPromptRef
+    const newSide = harness.dialogSelections[0]?.options.find(
+      (option) => option.title === "New BTW",
+    )
+
+    // when
+    if (newSide) {
+      await harness.dialogSelections[0]?.onSelect?.(newSide)
+    }
+
+    // then
+    const promptRef = startFromPrompt.mock.calls[0]?.[0]
+    expect(promptRef?.input).toBe("replacement parent draft")
   })
 
   it("#given retained BTW metadata #when the bare command opens #then the catalog lists the parent and every retained side", async () => {
@@ -545,7 +589,7 @@ describe("registerBtwSideTui", () => {
     expect(harness.promptInput()).toBe("")
   })
 
-  it("#given a picker opened for Main #when the route changes before New BTW selection #then creation keeps the encoded parent", async () => {
+  it("#given a picker opened for Main #when the route changes before New BTW selection #then stale creation stays unavailable", async () => {
     // given
     const harness = createPickerHarness()
     harness.sessions.push({
@@ -579,13 +623,10 @@ describe("registerBtwSideTui", () => {
     }
 
     // then
-    expect(harness.createSession.mock.calls[0]?.[0]).toMatchObject({
-      metadata: {
-        [BTW_SIDE_METADATA_KEY]: {
-          parent_session_id: "ses_parent",
-        },
-      },
-    })
+    expect(harness.createSession).not.toHaveBeenCalled()
+    expect(harness.toasts).toContain(
+      "BTW is unavailable before the session starts.",
+    )
   })
 
   it("#given New BTW cannot establish a stable boundary #when selected #then the picker stays open for another choice", async () => {

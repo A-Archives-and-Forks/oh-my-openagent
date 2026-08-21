@@ -11,6 +11,7 @@
   - New BTW metadata keeps the encoded `ses_parent`;
   - picker browsing works without a prompt ref, while New BTW remains
     unavailable instead of consuming a different route's composer;
+  - same-parent prompt remounts use the current active replacement ref;
   - an Escape after 1,001 ms starts a new pair, while the next Escape after
     99 ms returns once.
 - The real TUI returned from the side to Main after two Escape presses 500 ms
@@ -18,8 +19,10 @@
 - Isolated SQLite contained:
   - Main `ses_fdd7cb126ffeqrc131gwQ89nzb`;
   - side `ses_fdd7cabfbffeGtC15w2KGCTaWN`, whose metadata parent is Main.
-- Host OpenCode session count was `7620` before and `7620` after the final
-  captured run.
+- Mandatory tmux smoke rendered OpenCode 1.18.18, accepted send-keys, tore down
+  the tmux session, and kept the host session count at `7628`.
+- Host OpenCode session count was `7628` immediately before and after the
+  recorded tmux smoke.
 
 ## Why it is enough
 
