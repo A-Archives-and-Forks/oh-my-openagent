@@ -1,16 +1,20 @@
 import type { KeyEvent } from "@opentui/core"
 import type { KeyInputContext } from "@opentui/keymap"
 
+const DOUBLE_ESCAPE_MAX_INTERVAL_MS = 1_000
+
 export function createBtwEscapeReturn(args: {
   isCurrentSideIdle: () => boolean
   isDialogOpen: () => boolean
   clearPending: () => void
   returnToParent: () => void
+  now?: () => number
 }) {
-  let firstEscapePending = false
+  const now = args.now ?? Date.now
+  let firstEscapeAt: number | undefined
 
   function reset(): void {
-    firstEscapePending = false
+    firstEscapeAt = undefined
   }
 
   function handle(context: KeyInputContext<KeyEvent>): void {
@@ -25,8 +29,12 @@ export function createBtwEscapeReturn(args: {
       reset()
       return
     }
-    if (!firstEscapePending) {
-      firstEscapePending = true
+    const pressedAt = now()
+    if (
+      firstEscapeAt === undefined ||
+      pressedAt - firstEscapeAt > DOUBLE_ESCAPE_MAX_INTERVAL_MS
+    ) {
+      firstEscapeAt = pressedAt
       return
     }
 

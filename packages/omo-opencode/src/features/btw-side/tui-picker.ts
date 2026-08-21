@@ -30,6 +30,15 @@ export async function openBtwPicker(args: {
     })
     return false
   }
+  const pickerPromptRef = args.activePromptRef()
+  if (!pickerPromptRef) {
+    args.api.ui.toast({
+      variant: "warning",
+      message: "BTW is unavailable before the session starts.",
+    })
+    return false
+  }
+  const retainedPromptRef: TuiPromptRef = pickerPromptRef
 
   let loaded: Awaited<ReturnType<typeof loadBtwSessionCatalog>>
   try {
@@ -90,16 +99,9 @@ export async function openBtwPicker(args: {
     const selection = parseBtwPickerValue(value)
     if (!selection) return
     if (selection.type === "new") {
-      const promptRef = args.activePromptRef()
-      if (!promptRef) {
-        args.api.ui.toast({
-          variant: "warning",
-          message: "BTW is unavailable before the session starts.",
-        })
-        return
-      }
       const started = await args.controller.startFromPrompt(
-        adaptTuiPromptRef(promptRef),
+        adaptTuiPromptRef(retainedPromptRef),
+        selection.parentSessionID,
       )
       if (started) args.api.ui.dialog.clear()
       return

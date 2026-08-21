@@ -172,7 +172,8 @@ export async function registerBtwSideTui<Node>(
       })
       return
     }
-    const parsed = parseBtwQuestion(promptRef.current.input)
+    const originalInput = promptRef.current.input
+    const parsed = parseBtwQuestion(originalInput)
     if (parsed.consumeDraft && parsed.question.length > 0) {
       await controller.startFromPrompt(adaptTuiPromptRef(promptRef))
       return
@@ -182,7 +183,11 @@ export async function registerBtwSideTui<Node>(
       controller,
       activePromptRef,
     })
-    if (opened && parsed.consumeDraft) {
+    if (
+      opened &&
+      parsed.consumeDraft &&
+      promptRef.current.input === originalInput
+    ) {
       promptRef.set({
         ...promptRef.current,
         input: "",
