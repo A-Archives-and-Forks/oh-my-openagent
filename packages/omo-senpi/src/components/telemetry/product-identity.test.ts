@@ -18,6 +18,7 @@ import {
   maskProviderAndModel,
 } from "./product-identity"
 import { MAX_TRACKED_CALLS } from "./wave-assembler"
+import { CATEGORY_FALLBACK_CHAINS } from "../../../../senpi-task/src/category/fallback-chains"
 import { BUILTIN_CATEGORY_DEFAULTS, CURATED_READONLY_AGENT_NAMES } from "@oh-my-opencode/senpi-task"
 import { UNCONFIGURED_POSTHOG_API_KEY, getTelemetryApiKey, isConfiguredTelemetryApiKey } from "@oh-my-opencode/telemetry-core"
 
@@ -109,6 +110,29 @@ describe("OmO Native product identity", () => {
     expect(maskProviderAndModel(provider, knownModel ?? "")).toEqual({ provider, model_id: knownModel })
     expect(maskProviderAndModel(provider, "user-defined-model")).toEqual({ provider, model_id: "custom" })
     expect(maskProviderAndModel("user-provider", knownModel ?? "")).toEqual({ provider: "custom", model_id: "custom" })
+  })
+
+  test("#given every provider and model rung in CATEGORY_FALLBACK_CHAINS #when masked #then no shipped rung collapses to custom, while an arbitrary user provider and model still mask to custom", () => {
+    // given: every (provider, model) pair a shipped builtin category can actually execute
+    const shippedRungs = Object.values(CATEGORY_FALLBACK_CHAINS).flatMap((chain) =>
+      chain.flatMap((rung) => rung.providers.map((provider) => ({ provider, model: rung.model }))),
+    )
+    expect(shippedRungs.length).toBeGreaterThan(0)
+
+    // when: each rung is masked for export
+    const collapsed = shippedRungs.filter(({ provider, model }) => {
+      const masked = maskProviderAndModel(provider, model)
+      return masked.provider === "custom" || masked.model_id === "custom"
+    })
+
+    // then: no executable rung is exportable only as custom/custom - that is what makes the
+    // per-country category-model insight readable instead of a wall of `custom`
+    expect(collapsed).toEqual([])
+    // and: a model known under one provider stays custom under a provider that does not ship it
+    expect(maskProviderAndModel("deepseek", "claude-opus-5").model_id).toBe("custom")
+    // and: arbitrary user-configured providers and models never leave the machine
+    expect(maskProviderAndModel("my-gateway", "my-finetune")).toEqual({ provider: "custom", model_id: "custom" })
+    expect(maskProviderAndModel("anthropic", "my-finetune")).toEqual({ provider: "anthropic", model_id: "custom" })
   })
 
   test("#given senpi-task builtins #when telemetry allowlists are loaded #then names exactly match imported sources", () => {
