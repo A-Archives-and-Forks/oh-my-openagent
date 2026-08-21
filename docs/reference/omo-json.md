@@ -100,6 +100,7 @@ No default profiles ship. A profile exists only when you write one under `profil
   "task": {},           // task engine settings
   "teams": {},          // record<string, TeamSpec>
   "models": {},         // record<string, ModelCatalogEntry>, shared model catalog
+  "git_master": { "commit_footer": true, "include_co_authored_by": true }, // commit attribution (Senpi harness)
   "telemetry": { "enabled": true }, // Senpi telemetry, enabled by default
   "[opencode]": {},     // OpenCode plugin config, freeform (see configuration.md)
   "[senpi]": {},        // Senpi-only overrides, typed base keys
@@ -114,7 +115,7 @@ Source: `packages/omo-config-core/src/schema/config.ts`.
 
 ### Harness blocks
 
-`[opencode]` is a freeform record: it carries the full OpenCode plugin configuration documented in [`docs/reference/configuration.md`](./configuration.md) (background tasks, tmux, hooks, skills, and every other plugin key), and the strict schema does not validate its contents. `[senpi]` and `[codex]` are typed blocks accepting the shared base keys (`categories`, `agents`, `codegraph`, `task`, `teams`, `models`, `memory`, `telemetry`), so a harness-specific override stays schema-checked.
+`[opencode]` is a freeform record: it carries the full OpenCode plugin configuration documented in [`docs/reference/configuration.md`](./configuration.md) (background tasks, tmux, hooks, skills, and every other plugin key), and the strict schema does not validate its contents. `[senpi]` and `[codex]` are typed blocks accepting the shared base keys (`categories`, `agents`, `codegraph`, `git_master`, `task`, `teams`, `models`, `memory`, `telemetry`), so a harness-specific override stays schema-checked.
 
 Security invariant: the OpenCode plugin honors `mcp_env_allowlist` and `browser_automation_engine.playwright_mcp_args` only from the user layer, including the user layer's own active profile block. Project layers cannot extend them.
 
@@ -133,6 +134,27 @@ The optional `telemetry` block controls OmO Native product telemetry in Senpi. `
 ```
 
 The block may also appear at the shared top level or in profile layers and follows the normal resolution order. Because typed config objects are strict, an older `@oh-my-opencode/omo-config-core` version that predates this key rejects a file containing `telemetry` instead of ignoring it. See [Mixed-version compatibility](#mixed-version-compatibility) before sharing one config across versions.
+
+### `git_master` (Senpi harness)
+
+The optional `git_master` block controls commit attribution in Senpi (`schema/git-master.ts`). When the agent works with the `git-master` skill — reading it in the main session or loading it into a task child via `load_skills` — omo appends a commit-attribution directive to the skill content based on these settings.
+
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| `commit_footer` | boolean \| string | `true` | Adds the "Ultraworked with [omo](https://github.com/code-yeongyu/oh-my-openagent)" footer to commit messages. A string replaces the builtin footer text; `false` disables the footer. |
+| `include_co_authored_by` | boolean | `true` | Adds the `Co-authored-by: sisyphus-dev-ai <sisyphus-dev-ai@users.noreply.github.com>` trailer ([sisyphus-dev-ai](https://github.com/sisyphus-dev-ai)) to commit messages. |
+
+Both attributions ship enabled by default. To opt out of the co-author trailer:
+
+```jsonc
+{
+  "git_master": {
+    "include_co_authored_by": false
+  }
+}
+```
+
+The block may live at the shared top level, in `[senpi]`, or in profile layers, and follows the normal resolution order. The OpenCode plugin keeps its own `git_master` key inside the freeform `[opencode]` block (see [configuration.md](./configuration.md)); this typed section applies to the Senpi harness.
 
 ### `models` (shared catalog)
 
