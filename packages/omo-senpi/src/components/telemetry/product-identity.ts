@@ -10,9 +10,19 @@ import {
 import { CURATED_READONLY_AGENT_NAMES } from "@oh-my-opencode/senpi-task/agents-builtin"
 import { BUILTIN_CATEGORY_DEFAULTS } from "@oh-my-opencode/senpi-task/category-builtins"
 import { resolveAgentHome } from "../agent-home/resolve-agent-home"
+import { CATEGORY_CONFIG_SCHEMA } from "./category-config-schema"
+import { KNOWN_MODELS, KNOWN_PROVIDERS, type KnownProvider } from "./model-vocabulary"
+import { buildDelegationCompletedSchema } from "./delegation-schema"
 import { PARALLELISM_SUMMARY_SCHEMA } from "./parallelism-schema"
 
 export const OMO_NATIVE_POSTHOG_API_KEY = "phc_r6UYQzNZcGYSzKw4PxCiVrZepGqV3dw9qcvcKtRNUWAn"
+
+// Schema version shared by every native client. One constant, because two hardcoded literals in two
+// clients half-apply a bump: a session row and a task row would disagree about their own schema.
+export const OMO_NATIVE_SCHEMA_VERSION = 2
+
+export { KNOWN_MODELS, KNOWN_PROVIDERS } from "./model-vocabulary"
+export type { KnownProvider } from "./model-vocabulary"
 
 export type OmoNativePropertyType = "boolean" | "number" | "string"
 
@@ -32,51 +42,6 @@ function enumProperty<const Values extends readonly string[]>(values: Values): R
   return Object.freeze({ type: "string", values: Object.freeze(values) })
 }
 
-// Provider -> exportable model ids. The vocabulary must cover every rung a shipped builtin category
-// can actually execute (`CATEGORY_FALLBACK_CHAINS`), otherwise the category-model insight reads as a
-// wall of `custom` exactly on the rungs the product routes to; `product-identity.test.ts` pins that
-// coverage. Masking stays PROVIDER-SPECIFIC: a model listed under one provider is still `custom`
-// under a provider that does not ship it, and arbitrary user models are always `custom`.
-export const KNOWN_MODELS = Object.freeze({
-  "alibaba-token-plan": Object.freeze(["qwen3.6-flash", "qwen3.8-max-preview"]),
-  "alibaba-token-plan-cn": Object.freeze(["qwen3.8-max-preview"]),
-  anthropic: Object.freeze(["claude-fable-5", "claude-haiku-4-5", "claude-opus-5", "claude-sonnet-5"]),
-  "anthropic-api": Object.freeze(["claude-fable-5", "claude-haiku-4-5", "claude-opus-5", "claude-sonnet-5"]),
-  "bailian-coding-plan": Object.freeze(["qwen3.6-flash"]),
-  deepseek: Object.freeze(["deepseek-v4-flash", "deepseek-v4-pro"]),
-  google: Object.freeze(["gemini-3.1-pro", "gemini-3.6-flash"]),
-  "github-copilot": Object.freeze([
-    "claude-fable-5", "claude-haiku-4-5", "claude-opus-5", "claude-sonnet-5", "gemini-3.1-pro",
-    "gpt-5.6-sol", "gpt-5.6-terra", "grok-4.6",
-  ]),
-  "kimi-coding": Object.freeze(["k3", "kimi-for-coding-highspeed", "kimi-k3"]),
-  "kimi-for-coding": Object.freeze(["k3", "kimi-for-coding-highspeed", "kimi-k3"]),
-  moonshotai: Object.freeze(["kimi-k3"]),
-  openai: Object.freeze(["gpt-5.6-luna-fast", "gpt-5.6-sol", "gpt-5.6-terra"]),
-  "openai-codex": Object.freeze(["gpt-5.6-luna-fast", "gpt-5.6-sol", "gpt-5.6-terra"]),
-  opencode: Object.freeze([
-    "claude-fable-5", "claude-opus-5", "claude-sonnet-5", "gemini-3.1-pro", "gpt-5.6-sol",
-    "gpt-5.6-terra", "grok-4.6", "kimi-k3",
-  ]),
-  "opencode-go": Object.freeze([
-    "deepseek-v4-pro", "glm-5.2", "kimi-k3", "mimo-v2.5-pro", "minimax-m2.7", "minimax-m3",
-  ]),
-  "quotio-openai": Object.freeze(["gpt-5.6-luna-fast", "gpt-5.6-sol", "gpt-5.6-terra"]),
-  "qwen-token-plan": Object.freeze(["qwen3.6-flash", "qwen3.8-max-preview"]),
-  "qwen-token-plan-cn": Object.freeze(["qwen3.8-max-preview"]),
-  vercel: Object.freeze([
-    "claude-fable-5", "claude-haiku-4-5", "claude-opus-5", "claude-sonnet-5", "deepseek-v4-flash",
-    "deepseek-v4-pro", "gemini-3.1-pro", "gemini-3.6-flash", "glm-5.2", "gpt-5.6-sol",
-    "gpt-5.6-terra", "grok-4.6", "kimi-k3", "mimo-v2.5-pro", "minimax-m2.7", "minimax-m3",
-    "qwen3.6-flash",
-  ]),
-  xai: Object.freeze(["grok-4.20-0309-non-reasoning", "grok-4.6"]),
-  xiaomi: Object.freeze(["mimo-v2.5-pro"]),
-  "zai-coding-plan": Object.freeze(["glm-5.2"]),
-} as const)
-
-export type KnownProvider = keyof typeof KNOWN_MODELS
-export const KNOWN_PROVIDERS = Object.freeze(Object.keys(KNOWN_MODELS) as KnownProvider[])
 export const CURATED_AGENTS = Object.freeze([...CURATED_READONLY_AGENT_NAMES])
 export const BUILTIN_CATEGORY_NAMES = Object.freeze(BUILTIN_CATEGORY_DEFAULTS.map(({ name }) => name))
 export const BUILTIN_SKILL_NAMES = Object.freeze([
@@ -106,6 +71,9 @@ export const OMO_NATIVE_EVENT_SCHEMAS = Object.freeze({
     provider_count: NUMBER_PROPERTY,
     providers: STRING_PROPERTY,
     reason: enumProperty(["startup", "reload", "new", "resume", "fork"] as const),
+    // Device-reported IANA zone. A timezone signal, never a country signal: countries share zones,
+    // span zones, and users override them. Country comes from PostHog's server-side GeoIP.
+    timezone: STRING_PROPERTY,
   }),
   prompt_submitted: Object.freeze({
     "$session_id": STRING_PROPERTY,
@@ -155,6 +123,11 @@ export const OMO_NATIVE_EVENT_SCHEMAS = Object.freeze({
     feature: enumProperty(["goal_tool", "team_create", "memory_tool"] as const),
   }),
   parallelism_summary: PARALLELISM_SUMMARY_SCHEMA,
+  delegation_completed: buildDelegationCompletedSchema({
+    providers: [...KNOWN_PROVIDERS, "custom"],
+    models: [...new Set(Object.values(KNOWN_MODELS).flat()), "custom"],
+  }),
+  category_config: CATEGORY_CONFIG_SCHEMA,
 } as const)
 
 export const OMO_NATIVE_PROPERTY_ALLOWLISTS = Object.freeze(Object.fromEntries(
