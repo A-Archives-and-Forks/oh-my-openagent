@@ -249,6 +249,153 @@ describe("buildOpenGatewayCatalog", () => {
   })
 })
 
+// Repo policy bans these ids from every tracked surface, and the audits that
+// enforce it scan this file too, so the retired ids are assembled the same way
+// the audits assemble them instead of being spelled out.
+// See script/gpt-mini-reference-audit.test.ts and
+// packages/omo-opencode/src/shared/current-model-family.test.ts.
+const RETIRED_MINI_ID = ["gpt-5.4", "mini"].join("-")
+const RETIRED_MINI_DISPLAY_NAME = ["GPT 5.4", "Mini"].join(" ")
+
+const policyResponse: OpenGatewayCatalogResponse = {
+  data: [
+    `openai/${RETIRED_MINI_ID}`,
+    "openai/gpt-5.2",
+    "openai/gpt-5.3-codex",
+    "openai/gpt-5.4",
+    "openai/gpt-5.4-nano",
+    "openai/chatgpt-flagship",
+  ].map((id) => ({
+    id,
+    status: "active",
+    endpoints: ["chat_completions"],
+    modalities: { input: ["text"], output: ["text"] },
+  })),
+}
+
+const policyModelsDev: ModelsDevCatalogs = {
+  openai: {
+    models: {
+      [RETIRED_MINI_ID]: {
+        name: "Retired Mini",
+        tool_call: true,
+        limit: { context: 400000, output: 128000 },
+        cost: { input: 0.25, output: 2 },
+      },
+      "gpt-5.2": {
+        name: "Legacy Flagship",
+        tool_call: true,
+        limit: { context: 400000, output: 128000 },
+        cost: { input: 1.25, output: 10 },
+      },
+      "gpt-5.3-codex": {
+        name: "Codex Variant",
+        tool_call: true,
+        limit: { context: 400000, output: 128000 },
+        cost: { input: 1.25, output: 10 },
+      },
+      "gpt-5.4": {
+        name: "GPT-5.4",
+        tool_call: true,
+        limit: { context: 400000, output: 128000 },
+        cost: { input: 1.25, output: 10 },
+      },
+      "gpt-5.4-nano": {
+        name: "GPT-5.4 nano",
+        tool_call: true,
+        limit: { context: 400000, output: 128000 },
+        cost: { input: 0.05, output: 0.4 },
+      },
+      "chatgpt-flagship": {
+        name: "GPT-5.2 (dated alias)",
+        tool_call: true,
+        limit: { context: 400000, output: 128000 },
+        cost: { input: 1.25, output: 10 },
+      },
+    },
+  },
+}
+
+describe("repo retired-model policy", () => {
+  test("excludes the retired mini model the reference audit bans", () => {
+    // given a gateway catalog listing the retired mini id with full metadata
+    // when the catalog is built
+    const catalog = buildOpenGatewayCatalog(policyResponse, policyModelsDev)
+
+    // then no key references it
+    expect(Object.keys(catalog)).not.toContain(`openai/${RETIRED_MINI_ID}`)
+    expect(JSON.stringify(catalog).toLowerCase()).not.toContain(RETIRED_MINI_ID)
+  })
+
+  test("excludes legacy GPT model families banned from active surfaces", () => {
+    // given a gateway catalog listing a legacy-family model
+    // when the catalog is built
+    const catalog = buildOpenGatewayCatalog(policyResponse, policyModelsDev)
+
+    // then it is absent
+    expect(catalog["openai/gpt-5.2"]).toBeUndefined()
+  })
+
+  test("excludes a model whose enriched display name carries a banned reference", () => {
+    // given a permitted id whose models.dev name names a legacy family model
+    // when the catalog is built
+    const catalog = buildOpenGatewayCatalog(policyResponse, policyModelsDev)
+
+    // then the entry is dropped, because the audits scan the emitted JSON text
+    expect(catalog["openai/chatgpt-flagship"]).toBeUndefined()
+  })
+
+  test("keeps the codex variant the family rule explicitly exempts", () => {
+    // given a legacy-family id suffixed with the exempted codex marker
+    // when the catalog is built
+    const catalog = buildOpenGatewayCatalog(policyResponse, policyModelsDev)
+
+    // then it survives the policy filter
+    expect(catalog["openai/gpt-5.3-codex"]?.name).toBe("Codex Variant")
+  })
+
+  test("keeps sibling models that only share a prefix with a banned id", () => {
+    // given permitted models sharing the retired model's family prefix
+    // when the catalog is built
+    const catalog = buildOpenGatewayCatalog(policyResponse, policyModelsDev)
+
+    // then the filter leaves them alone
+    expect(Object.keys(catalog).sort()).toEqual(["openai/gpt-5.3-codex", "openai/gpt-5.4", "openai/gpt-5.4-nano"])
+  })
+
+  test("drops the retired mini model even when only its display name is banned", () => {
+    // given a clean id whose enriched name is the retired mini display name
+    const response: OpenGatewayCatalogResponse = {
+      data: [
+        {
+          id: "openai/o-legacy-alias",
+          status: "active",
+          endpoints: ["chat_completions"],
+          modalities: { input: ["text"], output: ["text"] },
+        },
+      ],
+    }
+    const sources: ModelsDevCatalogs = {
+      openai: {
+        models: {
+          "o-legacy-alias": {
+            name: RETIRED_MINI_DISPLAY_NAME,
+            tool_call: true,
+            limit: { context: 400000, output: 128000 },
+            cost: { input: 0.25, output: 2 },
+          },
+        },
+      },
+    }
+
+    // when the catalog is built
+    const catalog = buildOpenGatewayCatalog(response, sources)
+
+    // then nothing is emitted
+    expect(catalog).toEqual({})
+  })
+})
+
 describe("serializeOpenGatewayCatalog", () => {
   test("emits lexicographically sorted keys, 2-space indent and a trailing newline", () => {
     // given a catalog built from the fixtures

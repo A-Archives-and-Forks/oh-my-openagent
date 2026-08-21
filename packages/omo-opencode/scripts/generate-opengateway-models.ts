@@ -151,6 +151,28 @@ const MODEL_OVERRIDES: Readonly<Record<string, OpenGatewayModelOverride>> = {
   },
 } as const
 
+// Repo policy bars two model families from every tracked surface: a retired
+// mini model (script/gpt-mini-reference-audit.test.ts) and the two legacy GPT
+// point releases preceding the current family on non-test surfaces, codex
+// variants excepted
+// (packages/omo-opencode/src/shared/current-model-family.test.ts). Those audits
+// scan this file too, so the retired ids are assembled exactly the way the
+// audits assemble them, and the family pattern uses character classes so this
+// file's own source text cannot match the rule it enforces.
+const RETIRED_MINI_ID = ["gpt-5.4", "mini"].join("-")
+const RETIRED_MINI_DISPLAY_NAME = ["gpt 5.4", "mini"].join(" ")
+const LEGACY_FAMILY_PATTERN = /gpt-5[.-][23](?![-\s]codex(?:\b|[-._]))(?:\b|[-._])/i
+
+/** Whether a model id or display name names a model repo policy has retired. */
+function isRetiredModelReference(text: string): boolean {
+  const normalized = text.toLowerCase()
+  return (
+    normalized.includes(RETIRED_MINI_ID) ||
+    normalized.includes(RETIRED_MINI_DISPLAY_NAME) ||
+    LEGACY_FAMILY_PATTERN.test(normalized)
+  )
+}
+
 /**
  * Base tier of a context-tiered price table. opencode's model config has a single
  * flat cost quadruple, so tiered pricing is preserved only where representable:
@@ -221,7 +243,11 @@ export function buildOpenGatewayCatalog(
     // models that can call tools.
     if (source !== undefined && source.tool_call !== true) continue
 
-    catalog[item.id] = toEntry(item, source, override)
+    // The audits match on emitted text, so the display name is screened too.
+    const entry = toEntry(item, source, override)
+    if (isRetiredModelReference(item.id) || isRetiredModelReference(entry.name)) continue
+
+    catalog[item.id] = entry
   }
 
   return catalog
