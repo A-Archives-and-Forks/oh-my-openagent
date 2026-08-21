@@ -199,7 +199,7 @@ function createPickerHarness(promptInput = "/btw") {
         return () => undefined
       },
       intercept: () => () => undefined,
-      clearPending: () => undefined,
+      clearPendingSequence: () => undefined,
     },
     mode: {
       current: () => "base",

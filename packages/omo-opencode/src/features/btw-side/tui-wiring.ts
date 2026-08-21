@@ -185,6 +185,13 @@ export async function registerBtwSideTui<Node>(
     })
   }
 
+  const showBtwPicker = (): Promise<void> =>
+    openBtwPicker({
+      api,
+      controller,
+      activePromptRef,
+    })
+
   const unregisterSlashCommand =
     api.command?.register(() => [
       {
@@ -202,11 +209,21 @@ export async function registerBtwSideTui<Node>(
       },
     ]) ?? (() => undefined)
 
-  const unregisterKeymap = registerBtwSideKeymap({
+  const keymapRegistration = registerBtwSideKeymap({
     api,
     controller,
     activePromptRef,
     openBtw,
+    openPicker: showBtwPicker,
+    isCurrentSideIdle: () => {
+      const sessionID = currentTuiSessionID(api)
+      return (
+        sessionID !== undefined &&
+        controller.side(sessionID) !== undefined &&
+        api.state.session.status(sessionID)?.type === "idle"
+      )
+    },
+    returnToParent: controller.returnToParent,
   })
 
   api.slots.register({
@@ -224,6 +241,7 @@ export async function registerBtwSideTui<Node>(
           ref: (promptRef) => {
             value.ref?.(promptRef)
             if (promptRef) {
+              keymapRegistration.resetEscapeSequence()
               promptRefs.set(value.session_id, promptRef)
               log("[btw-side] TUI prompt ref attached", {
                 sessionID: value.session_id,
@@ -251,6 +269,7 @@ export async function registerBtwSideTui<Node>(
               })()
               return
             }
+            keymapRegistration.resetEscapeSequence()
             promptRefs.delete(value.session_id)
             controller.attachPromptRef(value.session_id, undefined)
             void controller.handleNavigation(
@@ -313,7 +332,7 @@ export async function registerBtwSideTui<Node>(
   api.lifecycle.onDispose(async () => {
     adoptionGuard.dispose()
     unregisterSlashCommand()
-    for (const unregister of unregisterKeymap) unregister()
+    for (const unregister of keymapRegistration.unregister) unregister()
     unsubscribeDeleted()
     await controller.dispose()
   })
