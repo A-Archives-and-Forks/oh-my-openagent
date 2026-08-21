@@ -27,8 +27,8 @@ sqlite3 [host opencode.db] "SELECT count(*) FROM session;"
 
 ## Exact captured output artifacts
 
-- `artifacts/btw-tests.junit.xml`
-- `artifacts/qa-helper-tests.junit.xml`
+- `artifacts/btw-tests/terminal-ansi.txt`
+- `artifacts/qa-helper-tests/terminal-ansi.txt`
 - `artifacts/typecheck.txt`
 - `artifacts/build/terminal-ansi.txt`
 - `artifacts/build/terminal.txt`
@@ -39,4 +39,5 @@ sqlite3 [host opencode.db] "SELECT count(*) FROM session;"
 - `artifacts/tui-esc/terminal.png`
 
 The TUI helper redacted the task-worktree path before writing the committed
-TUI outputs. Machine-local metadata was omitted.
+TUI outputs. JUnit hostnames were replaced with `[REDACTED]` while preserving
+all 74 BTW and 7 QA-helper test cases. Machine-local metadata was omitted.

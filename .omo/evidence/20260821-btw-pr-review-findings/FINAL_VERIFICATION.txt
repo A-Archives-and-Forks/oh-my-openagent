@@ -3,12 +3,12 @@ FINAL VERIFICATION
 bun test ./packages/omo-opencode/src/features/btw-side
 exit 0
 74 pass, 0 fail, 223 expectations, 11 files
-exact output: artifacts/btw-tests.junit.xml
+exact redacted output: artifacts/btw-tests/terminal-ansi.txt
 
 bun test ./script/web-terminal-visual-qa.test.ts
 exit 0
 7 pass, 0 fail, 38 expectations, 1 file
-exact output: artifacts/qa-helper-tests.junit.xml
+exact redacted output: artifacts/qa-helper-tests/terminal-ansi.txt
 
 bun run typecheck
 exit 0

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <testsuites name="bun test" tests="74" assertions="223" failures="0" skipped="0" time="0.263175">
-  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-wiring.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-wiring.test.ts" tests="12" assertions="41" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
-    <testsuite name="registerBtwSideTui" file="packages/omo-opencode/src/features/btw-side/tui-wiring.test.ts" line="307" tests="12" assertions="41" failures="0" skipped="0" time="0.008" hostname="SungSooui-MacBookPro.local">
+  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-wiring.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-wiring.test.ts" tests="12" assertions="41" failures="0" skipped="0" time="0" hostname="[REDACTED]">
+    <testsuite name="registerBtwSideTui" file="packages/omo-opencode/src/features/btw-side/tui-wiring.test.ts" line="307" tests="12" assertions="41" failures="0" skipped="0" time="0.008" hostname="[REDACTED]">
       <testcase name="#given an existing route without a prompt ref #when the picker opens #then retained sessions remain selectable" classname="registerBtwSideTui" time="0.004156" file="packages/omo-opencode/src/features/btw-side/tui-wiring.test.ts" line="308" assertions="2" />
       <testcase name="#given the picker opened without its parent prompt #when another route gains a prompt before New BTW #then creation stays unavailable" classname="registerBtwSideTui" time="0.001516" file="packages/omo-opencode/src/features/btw-side/tui-wiring.test.ts" line="337" assertions="2" />
       <testcase name="#given retained BTW metadata #when the bare command opens #then the catalog lists the parent and every retained side" classname="registerBtwSideTui" time="0.001354" file="packages/omo-opencode/src/features/btw-side/tui-wiring.test.ts" line="372" assertions="2" />
@@ -16,27 +16,27 @@
       <testcase name="#given a real-shaped TUI API #when inline BTW runs #then a side session opens and both status surfaces render" classname="registerBtwSideTui" time="0.001855" file="packages/omo-opencode/src/features/btw-side/tui-wiring.test.ts" line="660" assertions="16" />
     </testsuite>
   </testsuite>
-  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-adoption-guard.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-adoption-guard.test.ts" tests="1" assertions="5" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
-    <testsuite name="createBtwAdoptionGuard" file="packages/omo-opencode/src/features/btw-side/tui-adoption-guard.test.ts" line="5" tests="1" assertions="5" failures="0" skipped="0" time="0.001" hostname="SungSooui-MacBookPro.local">
+  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-adoption-guard.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-adoption-guard.test.ts" tests="1" assertions="5" failures="0" skipped="0" time="0" hostname="[REDACTED]">
+    <testsuite name="createBtwAdoptionGuard" file="packages/omo-opencode/src/features/btw-side/tui-adoption-guard.test.ts" line="5" tests="1" assertions="5" failures="0" skipped="0" time="0.001" hostname="[REDACTED]">
       <testcase name="#given a delayed metadata lookup #when route, deletion, or disposal changes #then stale adoption is rejected" classname="createBtwAdoptionGuard" time="0.001602" file="packages/omo-opencode/src/features/btw-side/tui-adoption-guard.test.ts" line="6" assertions="5" />
     </testsuite>
   </testsuite>
-  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-parent-validator.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-parent-validator.test.ts" tests="2" assertions="7" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
-    <testsuite name="createBtwParentValidator" file="packages/omo-opencode/src/features/btw-side/tui-parent-validator.test.ts" line="13" tests="2" assertions="7" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
+  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-parent-validator.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-parent-validator.test.ts" tests="2" assertions="7" failures="0" skipped="0" time="0" hostname="[REDACTED]">
+    <testsuite name="createBtwParentValidator" file="packages/omo-opencode/src/features/btw-side/tui-parent-validator.test.ts" line="13" tests="2" assertions="7" failures="0" skipped="0" time="0" hostname="[REDACTED]">
       <testcase name="#given a persisted side #when its parent is remote or deleted during lookup #then only an existing parent validates" classname="createBtwParentValidator" time="0.000376" file="packages/omo-opencode/src/features/btw-side/tui-parent-validator.test.ts" line="14" assertions="4" />
       <testcase name="#given stale local parent state #when the remote parent was deleted #then adoption requires remote confirmation" classname="createBtwParentValidator" time="0.000194" file="packages/omo-opencode/src/features/btw-side/tui-parent-validator.test.ts" line="52" assertions="3" />
     </testsuite>
   </testsuite>
-  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-keymap.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-keymap.test.ts" tests="4" assertions="8" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
-    <testsuite name="registerBtwSideKeymap" file="packages/omo-opencode/src/features/btw-side/tui-keymap.test.ts" line="24" tests="4" assertions="8" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
+  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-keymap.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-keymap.test.ts" tests="4" assertions="8" failures="0" skipped="0" time="0" hostname="[REDACTED]">
+    <testsuite name="registerBtwSideKeymap" file="packages/omo-opencode/src/features/btw-side/tui-keymap.test.ts" line="24" tests="4" assertions="8" failures="0" skipped="0" time="0" hostname="[REDACTED]">
       <testcase name="#given retained BTW sessions #when switch bindings register #then every Ctrl slash encoding opens the picker" classname="registerBtwSideKeymap" time="0.000291" file="packages/omo-opencode/src/features/btw-side/tui-keymap.test.ts" line="25" assertions="3" />
       <testcase name="#given xterm encodes Ctrl slash as control underscore #when intercepted #then the picker command dispatches before host handling" classname="registerBtwSideKeymap" time="0.00049" file="packages/omo-opencode/src/features/btw-side/tui-keymap.test.ts" line="89" assertions="2" />
       <testcase name="#given xterm emits the Ctrl slash control byte #when raw input arrives #then parsing is stopped and the picker opens" classname="registerBtwSideKeymap" time="0.000638" file="packages/omo-opencode/src/features/btw-side/tui-keymap.test.ts" line="151" assertions="2" />
       <testcase name="#given the parser drops xterm Ctrl slash #when raw stdin receives it #then BTW opens the picker once" classname="registerBtwSideKeymap" time="0.00051" file="packages/omo-opencode/src/features/btw-side/tui-keymap.test.ts" line="205" assertions="1" />
     </testsuite>
   </testsuite>
-  <testsuite name="packages/omo-opencode/src/features/btw-side/context-injector.test.ts" file="packages/omo-opencode/src/features/btw-side/context-injector.test.ts" tests="9" assertions="28" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
-    <testsuite name="createBtwSideContextInjectorHook" file="packages/omo-opencode/src/features/btw-side/context-injector.test.ts" line="121" tests="9" assertions="28" failures="0" skipped="0" time="0.001" hostname="SungSooui-MacBookPro.local">
+  <testsuite name="packages/omo-opencode/src/features/btw-side/context-injector.test.ts" file="packages/omo-opencode/src/features/btw-side/context-injector.test.ts" tests="9" assertions="28" failures="0" skipped="0" time="0" hostname="[REDACTED]">
+    <testsuite name="createBtwSideContextInjectorHook" file="packages/omo-opencode/src/features/btw-side/context-injector.test.ts" line="121" tests="9" assertions="28" failures="0" skipped="0" time="0.001" hostname="[REDACTED]">
       <testcase name="#given a normal session #when messages transform runs #then the request is unchanged" classname="createBtwSideContextInjectorHook" time="0.000515" file="packages/omo-opencode/src/features/btw-side/context-injector.test.ts" line="126" assertions="2" />
       <testcase name="#given a side session #when messages transform runs #then bounded parent context precedes one boundary sentinel" classname="createBtwSideContextInjectorHook" time="0.000789" file="packages/omo-opencode/src/features/btw-side/context-injector.test.ts" line="156" assertions="4" />
       <testcase name="#given a persisted first side turn #when a second turn transforms #then bounded parent context is injected again" classname="createBtwSideContextInjectorHook" time="0.000239" file="packages/omo-opencode/src/features/btw-side/context-injector.test.ts" line="220" assertions="3" />
@@ -48,31 +48,31 @@
       <testcase name="#given an oversized parent prefix #when a side request transforms #then inherited context stays within byte and message budgets" classname="createBtwSideContextInjectorHook" time="0.001451" file="packages/omo-opencode/src/features/btw-side/context-injector.test.ts" line="509" assertions="3" />
     </testsuite>
   </testsuite>
-  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-session-catalog.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-session-catalog.test.ts" tests="5" assertions="9" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
-    <testsuite name="loadBtwSessionCatalog" file="packages/omo-opencode/src/features/btw-side/tui-session-catalog.test.ts" line="38" tests="2" assertions="4" failures="0" skipped="0" time="0.002" hostname="SungSooui-MacBookPro.local">
+  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-session-catalog.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-session-catalog.test.ts" tests="5" assertions="9" failures="0" skipped="0" time="0" hostname="[REDACTED]">
+    <testsuite name="loadBtwSessionCatalog" file="packages/omo-opencode/src/features/btw-side/tui-session-catalog.test.ts" line="38" tests="2" assertions="4" failures="0" skipped="0" time="0.002" hostname="[REDACTED]">
       <testcase name="#given a full first response #when the catalog loads #then it widens the limit until every retained side is visible" classname="loadBtwSessionCatalog" time="0.002247" file="packages/omo-opencode/src/features/btw-side/tui-session-catalog.test.ts" line="39" assertions="3" />
       <testcase name="#given a full maximum response #when the catalog loads #then it reports possible truncation" classname="loadBtwSessionCatalog" time="0.000469" file="packages/omo-opencode/src/features/btw-side/tui-session-catalog.test.ts" line="79" assertions="1" />
     </testsuite>
-    <testsuite name="classifyBtwSessionCatalog" file="packages/omo-opencode/src/features/btw-side/tui-session-catalog.test.ts" line="105" tests="3" assertions="5" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
+    <testsuite name="classifyBtwSessionCatalog" file="packages/omo-opencode/src/features/btw-side/tui-session-catalog.test.ts" line="105" tests="3" assertions="5" failures="0" skipped="0" time="0" hostname="[REDACTED]">
       <testcase name="#given mixed metadata rows #when a parent catalog is classified #then only valid matching sides remain oldest first" classname="classifyBtwSessionCatalog" time="0.000335" file="packages/omo-opencode/src/features/btw-side/tui-session-catalog.test.ts" line="106" assertions="2" />
       <testcase name="#given a retained side route #when its catalog is classified #then it resolves the original parent scope" classname="classifyBtwSessionCatalog" time="0.000137" file="packages/omo-opencode/src/features/btw-side/tui-session-catalog.test.ts" line="153" assertions="2" />
       <testcase name="#given a stale side whose parent row is missing #when classified #then no unsafe navigation catalog is returned" classname="classifyBtwSessionCatalog" time="0.000287" file="packages/omo-opencode/src/features/btw-side/tui-session-catalog.test.ts" line="180" assertions="1" />
     </testsuite>
   </testsuite>
-  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-picker-options.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-picker-options.test.ts" tests="3" assertions="6" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
-    <testsuite name="buildBtwPickerOptions" file="packages/omo-opencode/src/features/btw-side/tui-picker-options.test.ts" line="6" tests="3" assertions="6" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
+  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-picker-options.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-picker-options.test.ts" tests="3" assertions="6" failures="0" skipped="0" time="0" hostname="[REDACTED]">
+    <testsuite name="buildBtwPickerOptions" file="packages/omo-opencode/src/features/btw-side/tui-picker-options.test.ts" line="6" tests="3" assertions="6" failures="0" skipped="0" time="0" hostname="[REDACTED]">
       <testcase name="#given retained sides #when options build #then Main stable numbers summaries and New BTW are distinct" classname="buildBtwPickerOptions" time="0.000543" file="packages/omo-opencode/src/features/btw-side/tui-picker-options.test.ts" line="7" assertions="3" />
       <testcase name="#given untitled rows #when options build #then readable fallbacks replace empty labels" classname="buildBtwPickerOptions" time="0.000479" file="packages/omo-opencode/src/features/btw-side/tui-picker-options.test.ts" line="57" assertions="2" />
       <testcase name="#given no retained sides #when options build #then an explanatory disabled row points to New BTW" classname="buildBtwPickerOptions" time="0.000259" file="packages/omo-opencode/src/features/btw-side/tui-picker-options.test.ts" line="88" assertions="1" />
     </testsuite>
   </testsuite>
-  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-adoption-cache.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-adoption-cache.test.ts" tests="1" assertions="5" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
-    <testsuite name="createBtwAdoptionCache" file="packages/omo-opencode/src/features/btw-side/tui-adoption-cache.test.ts" line="6" tests="1" assertions="5" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
+  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-adoption-cache.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-adoption-cache.test.ts" tests="1" assertions="5" failures="0" skipped="0" time="0" hostname="[REDACTED]">
+    <testsuite name="createBtwAdoptionCache" file="packages/omo-opencode/src/features/btw-side/tui-adoption-cache.test.ts" line="6" tests="1" assertions="5" failures="0" skipped="0" time="0" hostname="[REDACTED]">
       <testcase name="#given persisted BTW metadata #when the parent is deleted #then side identity remains until side deletion" classname="createBtwAdoptionCache" time="0.000618" file="packages/omo-opencode/src/features/btw-side/tui-adoption-cache.test.ts" line="7" assertions="5" />
     </testsuite>
   </testsuite>
-  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-controller.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-controller.test.ts" tests="29" assertions="99" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
-    <testsuite name="createBtwSideController" file="packages/omo-opencode/src/features/btw-side/tui-controller.test.ts" line="119" tests="29" assertions="99" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
+  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-controller.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-controller.test.ts" tests="29" assertions="99" failures="0" skipped="0" time="0" hostname="[REDACTED]">
+    <testsuite name="createBtwSideController" file="packages/omo-opencode/src/features/btw-side/tui-controller.test.ts" line="119" tests="29" assertions="99" failures="0" skipped="0" time="0" hostname="[REDACTED]">
       <testcase name="#given an inline BTW draft #when the side prompt mounts #then only the empty temporary side receives the question" classname="createBtwSideController" time="0.000418" file="packages/omo-opencode/src/features/btw-side/tui-controller.test.ts" line="120" assertions="7" />
       <testcase name="#given an attachment-bearing BTW draft #when start runs #then the complete parent draft is preserved and rejected" classname="createBtwSideController" time="0.000179" file="packages/omo-opencode/src/features/btw-side/tui-controller.test.ts" line="154" assertions="4" />
       <testcase name="#given side creation is pending #when BTW starts twice #then only one temporary session is created" classname="createBtwSideController" time="0.000201" file="packages/omo-opencode/src/features/btw-side/tui-controller.test.ts" line="171" assertions="3" />
@@ -104,13 +104,13 @@
       <testcase name="#given side creation fails #when BTW starts #then the original parent draft is restored" classname="createBtwSideController" time="0.000195" file="packages/omo-opencode/src/features/btw-side/tui-controller.test.ts" line="837" assertions="4" />
     </testsuite>
   </testsuite>
-  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-session-bridge.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-session-bridge.test.ts" tests="1" assertions="2" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
-    <testsuite name="isCurrentTuiSession" file="packages/omo-opencode/src/features/btw-side/tui-session-bridge.test.ts" line="5" tests="1" assertions="2" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
+  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-session-bridge.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-session-bridge.test.ts" tests="1" assertions="2" failures="0" skipped="0" time="0" hostname="[REDACTED]">
+    <testsuite name="isCurrentTuiSession" file="packages/omo-opencode/src/features/btw-side/tui-session-bridge.test.ts" line="5" tests="1" assertions="2" failures="0" skipped="0" time="0" hostname="[REDACTED]">
       <testcase name="#given an adoption lookup #when the route changes #then the original session is stale" classname="isCurrentTuiSession" time="0.00093" file="packages/omo-opencode/src/features/btw-side/tui-session-bridge.test.ts" line="6" assertions="2" />
     </testsuite>
   </testsuite>
-  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-escape-return.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-escape-return.test.ts" tests="7" assertions="13" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
-    <testsuite name="registerBtwSideKeymap escape return" file="packages/omo-opencode/src/features/btw-side/tui-escape-return.test.ts" line="9" tests="7" assertions="13" failures="0" skipped="0" time="0" hostname="SungSooui-MacBookPro.local">
+  <testsuite name="packages/omo-opencode/src/features/btw-side/tui-escape-return.test.ts" file="packages/omo-opencode/src/features/btw-side/tui-escape-return.test.ts" tests="7" assertions="13" failures="0" skipped="0" time="0" hostname="[REDACTED]">
+    <testsuite name="registerBtwSideKeymap escape return" file="packages/omo-opencode/src/features/btw-side/tui-escape-return.test.ts" line="9" tests="7" assertions="13" failures="0" skipped="0" time="0" hostname="[REDACTED]">
       <testcase name="#given the first Escape has expired #when Escape is pressed again #then it starts a fresh pair" classname="registerBtwSideKeymap escape return" time="0.000253" file="packages/omo-opencode/src/features/btw-side/tui-escape-return.test.ts" line="10" assertions="2" />
       <testcase name="#given an idle visible side #when Escape is pressed twice consecutively #then only the second press returns to the parent" classname="registerBtwSideKeymap escape return" time="0.000192" file="packages/omo-opencode/src/features/btw-side/tui-escape-return.test.ts" line="47" assertions="4" />
       <testcase name="#given a busy visible side #when Escape is pressed #then host interruption remains unconsumed" classname="registerBtwSideKeymap escape return" time="0.000143" file="packages/omo-opencode/src/features/btw-side/tui-escape-return.test.ts" line="126" assertions="3" />
