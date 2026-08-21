@@ -109,7 +109,7 @@ The dag is not the only fan-out surface, and picking the wrong one strands the r
 
 - **Chained dags** (the multi-run composition above) when the work is stage-shaped: every stage is a static graph and you synthesize between stages. Journaled resume, idempotent keys, and the `/dag` view come free.
 - **A `team_create` team** when workers must talk DURING the work: broadcasting leads the moment they surface, multi-round debate, or members accumulating investigation context across re-tasking. A dag node takes ONE prompt at dispatch; `send` can steer or revive that node's child afterwards, but the graph has no mid-run conversation between nodes.
-- **ulw-research requests go to the team path.** Cross-critique and expand loops are team mechanics; use a dag for the independent harvest stages only.
+- **ulw-research requests go to the team path.** Cross-critique and expand loops are team mechanics; use a dag for the independent harvest stages only. Its delivery gates - rendered-page visual QA, then the proofread pass - bind any report or PDF deliverable no matter which path produced it.
 
 ## Node prompt contract
 
@@ -136,8 +136,9 @@ Rules that make node prompts obeyed:
 
 **Every graph that changes code ends with at least one verification node** depending on ALL producer nodes. Real runs without one ship unverified work: the synthesis node's own claim is not evidence.
 
-- The verification node runs the REAL check - the test command, the build, the endpoint call - and reports the captured output, not a summary of confidence.
+- The verification node runs the REAL check - the test command, the build, the endpoint call - and reports the captured output.
 - Its prompt names the exact invocation and the binary observable that decides PASS vs FAIL.
+- **A paginated deliverable - PDF, DOCX, deck, print HTML - is verified by its rendered pages, not by binary probes.** File size, keyword grep, and page count are claims about a file, not about what a reader sees. The verification node renders EVERY page to an image and inspects each one for blank or near-empty pages, wrong page breaks, orphaned keep-together blocks, split tables, and clipped text, then fixes and re-renders until the pages are clean. Sampling a few pages is not verification: the defect sits on the page nobody opened.
 - **Node outputs are claims until verified.** A downstream node that builds on an upstream result re-checks the specific facts it depends on (the file exists, the test passes, the symbol is exported) before trusting them.
 
 ## Failure playbook
