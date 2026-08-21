@@ -14,6 +14,7 @@ const REQUIRED_DIRECTIVE_MARKERS = [
   "<ultrawork-mode>",
   "ULTRAWORK MODE ENABLED!",
   "# Parallel execution",
+  "create_goal",
   "# Stop rules",
   "team_create",
 ]

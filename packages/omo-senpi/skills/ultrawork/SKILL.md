@@ -134,7 +134,14 @@ A known procedure — however many steps — and questions about work you
 are delegating never justify a planner: plan directly in the notepad.
 Never spawn the planner before the discovery wave has returned.
 
-## 1. Define binding success criteria
+## 1. Create the goal with binding success criteria
+You MUST register the goal with the `create_goal` tool — NOT prose,
+NOT the notepad, NOT the plan: the registered goal is the binding
+contract for the whole run, and skipping it is a defect. Call it with
+exactly `objective`; do not include `status`. Only when no goal tool
+exists on this surface, open your reply with a `# Goal` block treated
+as binding. Goals are unlimited; never invent a numeric budget or
+limit.
 Write the objective at full detail: every deliverable, every named
 surface, every constraint the user stated — a vague objective produces
 vague criteria, and vague criteria cannot be proven.
@@ -156,6 +163,14 @@ The criteria MUST list, upfront:
 
 These scenarios are the contract. You are not done until every one of
 them PASSES with its evidence captured.
+Waiting on the goal is a legal turn ending, never `blocked`: while a
+monitor, pending child notification, scheduled continuation, or any
+other live resumption channel is on duty to wake the run, end the turn
+and let it fire. `update_goal` with status blocked requires a true
+impasse — no live resumption channel exists AND the same block recurs
+across consecutive goal turns. Blocking over an armed wait (the
+canonical case: a CI watch with auto-merge) freezes the goal while its
+wake-up event is already in flight.
 
 ## 2. Open the durable notepad
 Run: `NOTE=$(mktemp -t ulw-$(date +%Y%m%d-%H%M%S).XXXXXX.md)`. Echo the
@@ -170,7 +185,7 @@ Started: <ISO timestamp>
 <every step you will take, in order, broken to atomic actions>
 
 ## Success criteria + QA scenarios
-<copied from step 1>
+<copied from the goal>
 
 ## Now
 <the single step in progress>
@@ -418,8 +433,8 @@ wave is launched, end your turn or keep doing independent root work —
 each child's completion arrives as an injected notification carrying
 its final result. Every spawned child must reach terminal status
 (`completed`, `failed`, `blocked`, or explicitly recorded
-inconclusive) before any dependent todo transition, implementation
-tool call, plan drafting, approval-gate work, PR
+inconclusive) before any dependent todo transition, goal continuation,
+implementation tool call, plan drafting, approval-gate work, PR
 handoff, or final response. Silence is not terminal status.
 Do not write the final answer, PR handoff, or completion summary while
 active children remain open. When a child stays silent past its
@@ -447,8 +462,8 @@ Procedure (NON-NEGOTIABLE):
 1. Spawn a reviewer child via `task` with a self-contained reviewer
    assignment in `prompt` — `subagent_type: "momus"` for read-only
    review, or a reviewer-shaped `category` when the review must run
-   code. Pass: objective, success-criteria, scenario evidence, full
-   diff, notepad path.
+   code. Pass: goal, success-criteria, scenario evidence, full diff,
+   notepad path.
 2. Verify each reviewer concern yourself. A concern blocks only when
    it names a success criterion the evidence fails; record concerns
    that cite no criterion as notes with a one-line reason — fixed or
