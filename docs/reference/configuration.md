@@ -791,6 +791,8 @@ Configure git commit behavior:
 { "git_master": { "commit_footer": true, "include_co_authored_by": true } }
 ```
 
+This key configures the OpenCode plugin inside `[opencode]`. The Senpi harness reads the typed shared `git_master` section instead, documented in the [omo.json reference](./omo-json.md#git_master-senpi-harness).
+
 ### Comment Checker
 
 Customize the comment quality checker:
