@@ -278,11 +278,11 @@ Task engine settings. The whole object is optional, but `provider_concurrency`, 
 | Field | Type | Default |
 |-------|------|---------|
 | `default_execution_mode` | `in-process \| process` | `in-process` |
-| `default_concurrency` | positive int | `5` |
-| `provider_concurrency` | record<string, positive int> | unset |
-| `model_concurrency` | record<string, positive int> | unset |
+| `default_concurrency` | non-negative int (0 = unlimited) | `5` |
+| `provider_concurrency` | record<string, non-negative int (0 = unlimited)> | unset |
+| `model_concurrency` | record<string, non-negative int (0 = unlimited)> | unset |
 | `max_depth` | int >= 0 | `1` |
-| `residency_max_children` | positive int or `"unlimited"` | effective default `max(8, availableParallelism() * 3)` |
+| `residency_max_children` | non-negative int or `"unlimited"` (0 = unlimited) | effective default `max(8, availableParallelism() * 3)` |
 | `ttl_ms` | positive int | `86400000` (24h) |
 | `state_dir` | string | unset (runtime uses `<project>/.omo/senpi-task`) |
 | `reattach_on_reconcile` | boolean | unset |
