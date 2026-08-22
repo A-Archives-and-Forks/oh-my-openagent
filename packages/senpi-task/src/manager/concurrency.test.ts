@@ -79,6 +79,43 @@ describe("TaskConcurrency", () => {
     expect(concurrency.getLimit("anthropic/sonnet")).toBe(3)
   })
 
+  test("#given a zero limit at each precedence level #when resolving the limit #then zero means unbounded", () => {
+    // given
+    const byDefault = new TaskConcurrency({ default_concurrency: 0 })
+    const byProvider = new TaskConcurrency({ default_concurrency: 1, provider_concurrency: { anthropic: 0 } })
+    const byModel = new TaskConcurrency({
+      default_concurrency: 1,
+      provider_concurrency: { anthropic: 1 },
+      model_concurrency: { "anthropic/opus": 0 },
+    })
+
+    // when
+    const limits = [
+      byDefault.getLimit("anthropic/claude"),
+      byProvider.getLimit("anthropic/claude"),
+      byModel.getLimit("anthropic/opus"),
+    ]
+
+    // then
+    expect(limits).toEqual([
+      Number.POSITIVE_INFINITY,
+      Number.POSITIVE_INFINITY,
+      Number.POSITIVE_INFINITY,
+    ])
+  })
+
+  test("#given a zero default limit #when many tasks acquire #then slots never fill and nothing queues", () => {
+    // given
+    const concurrency = new TaskConcurrency({ default_concurrency: 0 })
+
+    // when
+    for (let index = 0; index < 32; index += 1) concurrency.acquire("anthropic/claude", `st_0000000${index}`)
+
+    // then
+    expect(concurrency.hasFreeSlot("anthropic/claude")).toBe(true)
+    expect(concurrency.getCount("anthropic/claude")).toBe(0)
+  })
+
   test("#given different models #when both acquire under a shared default limit #then each keeps its own count", () => {
     // given
     const concurrency = new TaskConcurrency({ default_concurrency: 1 })
