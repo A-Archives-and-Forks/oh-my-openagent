@@ -38,6 +38,7 @@ export const OmoTaskDagSettingsSchema = z.object({
 export const OmoTaskSettingsSchema = z.object({
   default_execution_mode: z.enum(["in-process", "process"]).default("in-process"),
   default_concurrency: z.number().int().nonnegative().default(5),
+  global_concurrency: z.number().int().nonnegative().default(8),
   provider_concurrency: z.record(z.string(), z.number().int().nonnegative()).optional(),
   model_concurrency: z.record(z.string(), z.number().int().nonnegative()).optional(),
   max_depth: z.number().int().nonnegative().default(1),
@@ -86,6 +87,7 @@ export const OmoTaskWarningsLayerSchema = z.object({
 export const OmoTaskSettingsLayerSchema = z.object({
   default_execution_mode: z.enum(["in-process", "process"]).optional(),
   default_concurrency: z.number().int().nonnegative().optional(),
+  global_concurrency: z.number().int().nonnegative().optional(),
   provider_concurrency: z.record(z.string(), z.number().int().nonnegative()).optional(),
   model_concurrency: z.record(z.string(), z.number().int().nonnegative()).optional(),
   max_depth: z.number().int().nonnegative().optional(),
@@ -112,5 +114,6 @@ export function resolveOmoTaskSettings(
   return OmoTaskSettingsSchema.parse({
     ...record,
     residency_max_children: record["residency_max_children"] ?? Math.max(8, resolveParallelism() * 3),
+    global_concurrency: record["global_concurrency"] ?? Math.max(8, resolveParallelism() * 2),
   })
 }

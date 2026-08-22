@@ -96,6 +96,13 @@ function foldSendOutcome(
         settled: watchRevived?.(nodeId, taskId) ?? watchRevivedTask(options, nodeId, taskId),
       }
     }
+    case "capacity_deferred":
+      throw new DagNodeControlError({
+        code: "node_not_continuable",
+        message: `dag node "${nodeId}" could not revive: ${outcome.reason}`,
+        runId,
+        nodeIds: [nodeId],
+      })
     case "one_shot_agent":
       throw new DagNodeControlError({
         code: "node_not_continuable",

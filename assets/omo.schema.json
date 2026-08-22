@@ -849,6 +849,12 @@
           "minimum": 0,
           "maximum": 9007199254740991
         },
+        "global_concurrency": {
+          "default": 8,
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
         "provider_concurrency": {
           "type": "object",
           "propertyNames": {
@@ -1059,6 +1065,7 @@
       "required": [
         "default_execution_mode",
         "default_concurrency",
+        "global_concurrency",
         "max_depth",
         "residency_max_children",
         "ttl_ms",
@@ -12592,6 +12599,11 @@
               "minimum": 0,
               "maximum": 9007199254740991
             },
+            "global_concurrency": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
             "provider_concurrency": {
               "type": "object",
               "propertyNames": {
@@ -14184,6 +14196,11 @@
               ]
             },
             "default_concurrency": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "global_concurrency": {
               "type": "integer",
               "minimum": 0,
               "maximum": 9007199254740991
@@ -15786,6 +15803,11 @@
                 ]
               },
               "default_concurrency": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "global_concurrency": {
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991
@@ -27318,6 +27340,11 @@
                     "minimum": 0,
                     "maximum": 9007199254740991
                   },
+                  "global_concurrency": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
                   "provider_concurrency": {
                     "type": "object",
                     "propertyNames": {
@@ -28910,6 +28937,11 @@
                     ]
                   },
                   "default_concurrency": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "global_concurrency": {
                     "type": "integer",
                     "minimum": 0,
                     "maximum": 9007199254740991
