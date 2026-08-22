@@ -1,3 +1,20 @@
+## 2026-08-22 — One exception-free keyword table for every ULW skill pointer
+
+The mass-ulw and ulw-skill-pointers components were the same mechanism written twice, and the
+detectors carried `ulw(?!-)` lookaheads that silently swallowed overlapping mentions: "mass
+ulw-loop" fired neither mass-ulw nor ultrawork. They are replaced by a single `skill-pointers`
+component holding one uniform target table (mass-ulw with its aliases, ulw-plan, ulw-loop,
+ulw-research) with no cross-keyword exceptions — overlapping keywords all fire, each matched
+skill gets its own hidden pointer, and the ultrawork trigger likewise drops `(?!-)` so any
+`ulw` mention arms it. Typing "mass ulw-loop" now loads ultrawork + mass-ulw + ulw-loop
+together; "ulw plan" loads ultrawork + the ulw-plan skill.
+
+CustomTypes stay stable (`omo-mass-ulw:skill-pointer`, `omo-ulw-loop/-research:skill-pointer`;
+new `omo-ulw-plan:skill-pointer`). The per-component flags `omo-senpi-mass-ulw-disabled` and
+`omo-senpi-ulw-skill-pointers-disabled` are replaced by `omo-senpi-skill-pointers-disabled`.
+Only structural dedup remains: extension-source inputs, a raw `/skill:` command for the same
+skill, expanded skill blocks, and the `<ultrawork-mode>` tag-pair guard.
+
 ## 2026-08-22 — Load every skill a composite ULW invocation names
 
 "mass ulw loop" armed ultrawork and pointed at the mass-ulw skill, but nothing loaded the
