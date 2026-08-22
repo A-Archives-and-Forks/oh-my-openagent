@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { join } from "node:path"
+import { join, win32 } from "node:path"
 import {
   findBunBinary,
   isUnderBunGlobalTree,
@@ -189,7 +189,7 @@ describe("bun runtime re-exec", () => {
     describe("#when the host is Windows", () => {
       test("#then the .exe spelling is discovered", () => {
         // given
-        const winBun = join(WIN_HOME, ".bun", "bin", "bun.exe")
+        const winBun = win32.join(WIN_HOME, ".bun", "bin", "bun.exe")
         // when
         const found = findBunBinary({
           env: {},
@@ -199,6 +199,20 @@ describe("bun runtime re-exec", () => {
         })
         // then
         expect(found).toBe(winBun)
+      })
+
+      test("#then semicolon-delimited PATH entries are searched", () => {
+        // given
+        const onPath = win32.join("C:\\", "tools", "bun.EXE")
+        // when
+        const found = findBunBinary({
+          env: { PATH: `C:\\nowhere;C:\\tools` },
+          homedir: () => WIN_HOME,
+          platform: "win32",
+          exists: existsOnly(onPath),
+        })
+        // then
+        expect(found).toBe(onPath)
       })
     })
 
