@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { join, win32 } from "node:path"
+import { posix, win32 } from "node:path"
 import {
   findBunBinary,
   isUnderBunGlobalTree,
@@ -39,7 +39,7 @@ describe("bun runtime re-exec", () => {
     describe("#when the script sits inside the default bun global tree", () => {
       test("#then it is recognized as a bun global install", () => {
         // given
-        const script = bunTreePackage(join(POSIX_HOME, ".bun"))
+        const script = bunTreePackage(posix.join(POSIX_HOME, ".bun"))
         // when
         const under = isUnderBunGlobalTree(script, {
           env: {},
@@ -90,7 +90,7 @@ describe("bun runtime re-exec", () => {
         }
         // when / then
         expect(isUnderBunGlobalTree(bunTreePackage(relocated), options)).toBe(true)
-        expect(isUnderBunGlobalTree(bunTreePackage(join(POSIX_HOME, ".bun")), options)).toBe(false)
+        expect(isUnderBunGlobalTree(bunTreePackage(posix.join(POSIX_HOME, ".bun")), options)).toBe(false)
       })
 
       test("#then redundant separators in BUN_INSTALL still match", () => {
@@ -156,8 +156,8 @@ describe("bun runtime re-exec", () => {
       test("#then that binary wins over the home default", () => {
         // given
         const relocated = "/opt/bunroot"
-        const preferred = join(relocated, "bin", "bun")
-        const fallback = join(POSIX_HOME, ".bun", "bin", "bun")
+        const preferred = posix.join(relocated, "bin", "bun")
+        const fallback = posix.join(POSIX_HOME, ".bun", "bin", "bun")
         // when
         const found = findBunBinary({
           env: { BUN_INSTALL: relocated },
@@ -234,8 +234,8 @@ describe("bun runtime re-exec", () => {
   })
 
   describe("#given the re-exec decision table", () => {
-    const bunPath = join(POSIX_HOME, ".bun", "bin", "bun")
-    const treeScript = bunTreePackage(join(POSIX_HOME, ".bun"))
+    const bunPath = posix.join(POSIX_HOME, ".bun", "bin", "bun")
+    const treeScript = bunTreePackage(posix.join(POSIX_HOME, ".bun"))
     const plainScript = "/usr/local/lib/node_modules/omo-ai/bin/omo.js"
 
     function decide(overrides: {
@@ -300,7 +300,7 @@ describe("bun runtime re-exec", () => {
       test("#then a relocated BUN_INSTALL tree is honored", () => {
         // given
         const relocated = "/opt/bunroot"
-        const relocatedBun = join(relocated, "bin", "bun")
+        const relocatedBun = posix.join(relocated, "bin", "bun")
         // when
         const decision = decide({
           scriptPath: bunTreePackage(relocated),
@@ -330,8 +330,8 @@ describe("bun runtime re-exec", () => {
   })
 
   describe("#given the executing re-exec entry point", () => {
-    const bunPath = join(POSIX_HOME, ".bun", "bin", "bun")
-    const treeScript = bunTreePackage(join(POSIX_HOME, ".bun"))
+    const bunPath = posix.join(POSIX_HOME, ".bun", "bin", "bun")
+    const treeScript = bunTreePackage(posix.join(POSIX_HOME, ".bun"))
 
     test("#then the script and its arguments are handed to bun with inherited stdio", () => {
       // given
