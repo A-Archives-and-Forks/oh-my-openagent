@@ -15,6 +15,7 @@ import { createOmoNativeTelemetryComponent } from "../components/telemetry"
 import { createTodoFanoutReminderComponent } from "../components/todo-fanout-reminder"
 import { createUltraworkComponent } from "../components/ultrawork"
 import { createUlwLoopComponent } from "../components/ulw-loop"
+import { createUlwSkillPointersComponent } from "../components/ulw-skill-pointers"
 import type { OmoSenpiComponent } from "./types"
 
 export function createOmoSenpiComponents(taskComponent: OmoSenpiComponent): OmoSenpiComponent[] {
@@ -26,6 +27,7 @@ export function createOmoSenpiComponents(taskComponent: OmoSenpiComponent): OmoS
     createOmoNativeTelemetryComponent(),
     createUltraworkComponent(),
     createMassUlwComponent(),
+    createUlwSkillPointersComponent(),
     createStartWorkContinuationComponent(),
     createUlwLoopComponent(),
     createTodoFanoutReminderComponent(),

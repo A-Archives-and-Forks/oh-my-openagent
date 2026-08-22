@@ -1,3 +1,16 @@
+## 2026-08-22 — Load every skill a composite ULW invocation names
+
+"mass ulw loop" armed ultrawork and pointed at the mass-ulw skill, but nothing loaded the
+ulw-loop skill the phrase names; "mass ulw research" had the same gap. The new
+`ulw-skill-pointers` component detects `ulw loop` / `ulw-loop` / `ulwloop` and the research
+equivalents (any case) and injects one hidden skill pointer per matched skill, so a composite
+invocation now loads ultrawork, mass-ulw, and the named skill together.
+
+Suppressions mirror mass-ulw per skill — extension-source inputs, a raw `/skill:` command for
+the same skill, and an already-expanded skill block never re-inject — and queued prompts carry
+the pointers appended inside the one message so the group survives senpi's one-at-a-time queue
+drain. Gated by `omo-senpi-ulw-skill-pointers-disabled`.
+
 ## 2026-08-21 — Follow the Senpi 2026.8.21 host contract
 
 The adapter peer and development dependency now require Senpi `2026.8.21`, and the
