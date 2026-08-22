@@ -36,6 +36,7 @@ export type FakeHandle = {
   subscribeCount(): number
   unsubscribeCount(): number
   waitForSubscription(): Promise<void>
+  waitForUnsubscription(): Promise<void>
 }
 
 export function makeHandle(taskId: string, pid?: number): FakeHandle {
@@ -51,6 +52,7 @@ export function makeHandle(taskId: string, pid?: number): FakeHandle {
   let subscribeCalls = 0
   let unsubscribeCalls = 0
   const subscriptionWaiters: Array<() => void> = []
+  const unsubscriptionWaiters: Array<() => void> = []
   const handle: ManagedChildHandle = {
     task_id: taskId,
     sessionId: `sess-${taskId}`,
@@ -68,6 +70,7 @@ export function makeHandle(taskId: string, pid?: number): FakeHandle {
       listeners.add(listener)
       return () => {
         unsubscribeCalls += 1
+        for (const resolve of unsubscriptionWaiters.splice(0)) resolve()
         listeners.delete(listener)
       }
     },
@@ -95,6 +98,9 @@ export function makeHandle(taskId: string, pid?: number): FakeHandle {
     waitForSubscription: () => subscribeCalls > 0
       ? Promise.resolve()
       : new Promise((resolve) => subscriptionWaiters.push(resolve)),
+    waitForUnsubscription: () => unsubscribeCalls > 0
+      ? Promise.resolve()
+      : new Promise((resolve) => unsubscriptionWaiters.push(resolve)),
   }
 }
 
