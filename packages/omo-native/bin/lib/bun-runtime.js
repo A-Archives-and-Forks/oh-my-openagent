@@ -4,9 +4,9 @@ import { homedir as osHomedir } from "node:os"
 import { delimiter, join } from "node:path"
 import { propagateResult } from "./child-process.js"
 
-// A bun global install lives under <BUN_ROOT>/install/global/, and `bun add -g` links its bin
-// through a symlink in <BUN_ROOT>/bin. The link target is what identifies the install, so every
-// comparison below runs on a real path.
+// A bun global install lives under <BUN_ROOT>/install/global/, and `bun add -g` links the launcher
+// into <BUN_ROOT>/bin. The link TARGET is what identifies the install, so every comparison below
+// runs on a real path.
 const GLOBAL_TREE_MARKER = "/install/global/"
 
 // Both sides of the tree comparison are reduced to one spelling: backslashes become forward
@@ -41,7 +41,8 @@ function binaryName(platform) {
 
 /**
  * True when the executed script belongs to a Bun global install. The caller passes the script's
- * REAL path: `~/.bun/bin/omo` is a symlink into the tree, so the link itself never matches.
+ * REAL path: the launcher is reached through a symlink under the bun root's bin directory, and
+ * that link lives outside the global tree, so the link path itself never matches.
  */
 export function isUnderBunGlobalTree(scriptRealPath, options = {}) {
   const env = options.env ?? process.env
