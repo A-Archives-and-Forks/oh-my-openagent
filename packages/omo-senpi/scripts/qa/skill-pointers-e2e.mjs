@@ -8,32 +8,45 @@ import { createSandbox, digestDirectory, seedSandbox } from "./drive.mjs"
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const mockProviderEntry = join(scriptDir, "mock-provider", "index.ts")
 
+const MASS_ULW_MARKER = "<omo-mass-ulw-pointer>"
+const ULW_PLAN_MARKER = "<omo-ulw-plan-pointer>"
 const ULW_LOOP_MARKER = "<omo-ulw-loop-pointer>"
 const ULW_RESEARCH_MARKER = "<omo-ulw-research-pointer>"
 
 const SCENARIOS = [
   {
-    name: "mass-ulw-loop",
-    prompt: "mass ulw loop please orchestrate the docs refresh",
-    expectHidden: [{ customType: "omo-ulw-loop:skill-pointer", markers: [ULW_LOOP_MARKER, "ulw-loop/SKILL.md", "read tool"] }],
-    forbidMarkers: [ULW_RESEARCH_MARKER],
-    expectTranscriptMarkers: ["<omo-mass-ulw-pointer>", "<ultrawork-mode>"],
+    name: "overlap-mass-ulw-loop",
+    prompt: "mass ulw-loop ship the refactor",
+    expectHidden: [
+      { customType: "omo-mass-ulw:skill-pointer", markers: [MASS_ULW_MARKER, "mass-ulw/SKILL.md", "dag tool"] },
+      { customType: "omo-ulw-loop:skill-pointer", markers: [ULW_LOOP_MARKER, "ulw-loop/SKILL.md", "read tool"] },
+    ],
+    forbidMarkers: [ULW_PLAN_MARKER, ULW_RESEARCH_MARKER],
+    expectTranscriptMarkers: ["<ultrawork-mode>"],
+  },
+  {
+    name: "ulw-plan",
+    prompt: "go ulw plan the migration",
+    expectHidden: [{ customType: "omo-ulw-plan:skill-pointer", markers: [ULW_PLAN_MARKER, "ulw-plan/SKILL.md", "read tool"] }],
+    forbidMarkers: [MASS_ULW_MARKER, ULW_LOOP_MARKER, ULW_RESEARCH_MARKER],
+    expectTranscriptMarkers: ["<ultrawork-mode>"],
   },
   {
     name: "mass-ulw-research",
     prompt: "mass ulw research the gateway options",
     expectHidden: [
-      { customType: "omo-ulw-research:skill-pointer", markers: [ULW_RESEARCH_MARKER, "ulw-research/SKILL.md", "read tool"] },
+      { customType: "omo-mass-ulw:skill-pointer", markers: [MASS_ULW_MARKER, "mass-ulw/SKILL.md"] },
+      { customType: "omo-ulw-research:skill-pointer", markers: [ULW_RESEARCH_MARKER, "ulw-research/SKILL.md"] },
     ],
-    forbidMarkers: [ULW_LOOP_MARKER],
-    expectTranscriptMarkers: ["<omo-mass-ulw-pointer>", "<ultrawork-mode>"],
+    forbidMarkers: [ULW_PLAN_MARKER, ULW_LOOP_MARKER],
+    expectTranscriptMarkers: ["<ultrawork-mode>"],
   },
   {
     name: "plain-mass-ulw",
     prompt: "mass ulw please orchestrate the docs refresh",
-    expectHidden: [],
-    forbidMarkers: [ULW_LOOP_MARKER, ULW_RESEARCH_MARKER],
-    expectTranscriptMarkers: ["<omo-mass-ulw-pointer>"],
+    expectHidden: [{ customType: "omo-mass-ulw:skill-pointer", markers: [MASS_ULW_MARKER, "mass-ulw/SKILL.md"] }],
+    forbidMarkers: [ULW_PLAN_MARKER, ULW_LOOP_MARKER, ULW_RESEARCH_MARKER],
+    expectTranscriptMarkers: ["<ultrawork-mode>"],
   },
 ]
 

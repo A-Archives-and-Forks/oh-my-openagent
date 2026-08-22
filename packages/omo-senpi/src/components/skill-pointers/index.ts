@@ -1,39 +1,55 @@
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
 import { getBuiltinSkillsRoot } from "../telemetry/product-identity"
 
+export const MASS_ULW_CUSTOM_TYPE = "omo-mass-ulw:skill-pointer"
+export const ULW_PLAN_CUSTOM_TYPE = "omo-ulw-plan:skill-pointer"
 export const ULW_LOOP_CUSTOM_TYPE = "omo-ulw-loop:skill-pointer"
 export const ULW_RESEARCH_CUSTOM_TYPE = "omo-ulw-research:skill-pointer"
-export const ULW_SKILL_POINTERS_DISABLED_FLAG = "omo-senpi-ulw-skill-pointers-disabled"
+export const SKILL_POINTERS_DISABLED_FLAG = "omo-senpi-skill-pointers-disabled"
 
 const SKILL_COMMAND_PREFIX = "/skill:"
 
-interface UlwSkillPointerTarget {
+interface SkillPointerTarget {
   readonly skillName: string
   readonly customType: string
   readonly pattern: RegExp
   readonly expandedBlockPattern: RegExp
-  readonly summary: string
+  readonly instruction: string
 }
 
-// Composite invocations ("mass ulw loop", "mass ulw research") must load EVERY matching
-// surface at once: ultrawork arms on `ulw`, mass-ulw fires on `mass ulw`, and these
-// patterns load the named skill itself. `\b` on both edges keeps `mulw loop`,
-// `ulw-looper`, and `ulwloops` from matching; `[\s-]*` accepts `ulw loop`, `ulw-loop`,
-// and `ulwloop` alike.
-const TARGETS: readonly UlwSkillPointerTarget[] = [
+// One uniform keyword table, no cross-keyword exceptions: every pattern matches
+// independently and overlapping mentions all fire ("mass ulw-loop" injects the mass-ulw
+// AND ulw-loop pointers while the ultrawork component arms on the same text). `\b` on
+// both edges is the only boundary rule; `[\s-]*` accepts spaced, hyphenated, and fused
+// spellings alike.
+const TARGETS: readonly SkillPointerTarget[] = [
+  {
+    skillName: "mass-ulw",
+    customType: MASS_ULW_CUSTOM_TYPE,
+    pattern: /\b(?:mass[\s-]*ulw|ulw[\s-]*mass|mulw|meth)\b/i,
+    expandedBlockPattern: /<skill\s+name="mass-ulw"/i,
+    instruction: "orchestrate the requested work as a dependency graph of child agents with the dag tool",
+  },
+  {
+    skillName: "ulw-plan",
+    customType: ULW_PLAN_CUSTOM_TYPE,
+    pattern: /\bulw[\s-]*plan\b/i,
+    expandedBlockPattern: /<skill\s+name="ulw-plan"/i,
+    instruction: "run the explore-first planning workflow and produce one decision-complete work plan",
+  },
   {
     skillName: "ulw-loop",
     customType: ULW_LOOP_CUSTOM_TYPE,
     pattern: /\bulw[\s-]*loop\b/i,
     expandedBlockPattern: /<skill\s+name="ulw-loop"/i,
-    summary: "run the goal-driven ultrawork loop with evidence-bound execution",
+    instruction: "run the goal-driven ultrawork loop with evidence-bound execution",
   },
   {
     skillName: "ulw-research",
     customType: ULW_RESEARCH_CUSTOM_TYPE,
     pattern: /\bulw[\s-]*research\b/i,
     expandedBlockPattern: /<skill\s+name="ulw-research"/i,
-    summary: "orchestrate team-first maximum-saturation research",
+    instruction: "orchestrate team-first maximum-saturation research",
   },
 ]
 
@@ -46,13 +62,13 @@ interface SenpiInputEvent {
 
 type SenpiInputEventResult = { action: "continue" } | { action: "transform"; text: string }
 
-export function matchedUlwSkillNames(text: string): string[] {
+export function matchedSkillPointerNames(text: string): string[] {
   return TARGETS.filter((target) => target.pattern.test(text)).map((target) => target.skillName)
 }
 
-export function createUlwSkillPointersComponent(): OmoSenpiComponent {
+export function createSkillPointersComponent(): OmoSenpiComponent {
   return {
-    name: "ulw-skill-pointers",
+    name: "skill-pointers",
     register(pi: SenpiExtensionAPI, ctx: ComponentContext): void {
       pi.on("input", (payload: unknown): SenpiInputEventResult => handleInput(pi, payload, ctx))
     },
@@ -60,7 +76,7 @@ export function createUlwSkillPointersComponent(): OmoSenpiComponent {
 }
 
 function handleInput(pi: SenpiExtensionAPI, payload: unknown, ctx: ComponentContext): SenpiInputEventResult {
-  if (ctx.config.getFlag(ULW_SKILL_POINTERS_DISABLED_FLAG) === true) {
+  if (ctx.config.getFlag(SKILL_POINTERS_DISABLED_FLAG) === true) {
     return { action: "continue" }
   }
 
@@ -103,9 +119,9 @@ function handleInput(pi: SenpiExtensionAPI, payload: unknown, ctx: ComponentCont
   return { action: "continue" }
 }
 
-function skillPointer(target: UlwSkillPointerTarget): string {
+function skillPointer(target: SkillPointerTarget): string {
   const skillsRoot = getBuiltinSkillsRoot()
-  return `<omo-${target.skillName}-pointer>The user asked for ${target.skillName}. Read the ${target.skillName} skill at ${skillsRoot}${target.skillName}/SKILL.md with the read tool and follow it: ${target.summary}.</omo-${target.skillName}-pointer>`
+  return `<omo-${target.skillName}-pointer>The user asked for ${target.skillName}. Read the ${target.skillName} skill at ${skillsRoot}${target.skillName}/SKILL.md with the read tool and follow it: ${target.instruction}.</omo-${target.skillName}-pointer>`
 }
 
 function skillCommandName(text: string): string | undefined {
