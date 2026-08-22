@@ -15,7 +15,7 @@ const DEFAULT_LIMIT = 5
 // Port of omo's background-agent ConcurrencyManager (FIFO keying + defaults), adapted to a
 // synchronous callback grant so the manager can decide running-vs-pending at start() time.
 // Key precedence: explicit model override > provider override > model string. A 0 limit means
-// unbounded (kept for parity though the omo.json schema forbids it).
+// unbounded, at any precedence level; the omo.json schema accepts 0 as that explicit sentinel.
 export class TaskConcurrency {
   readonly #config: TaskConcurrencyConfig
   readonly #counts = new Map<string, number>()
