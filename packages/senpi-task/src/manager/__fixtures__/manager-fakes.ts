@@ -24,7 +24,7 @@ export function tempProject(): string {
 }
 
 export function settings(overrides: Record<string, unknown> = {}): OmoTaskSettings {
-  return OmoTaskSettingsSchema.parse(overrides)
+  return OmoTaskSettingsSchema.parse({ global_concurrency: 0, ...overrides })
 }
 
 export type FakeHandle = {
