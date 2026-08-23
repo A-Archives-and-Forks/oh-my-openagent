@@ -90,7 +90,7 @@ Before launching agents, collect these inputs. Extract from conversation history
 </required_inputs>
 
 
-Review PRs and branches from a dedicated review worktree only: create or attach one with `git worktree add <path> <branch>` before collecting changed files, diff, file contents, or running checks. The main worktree is read-only context; never checkout, test, or edit the review branch there.
+Review PRs and branches from a dedicated review worktree only: create or attach one with `git worktree add <path> <branch>` before collecting changed files, diff, file contents, or running checks, then immediately lock it with `git worktree lock <path> --reason "review:<pr-or-branch>"`. The main worktree is read-only context; never checkout, test, or edit the review branch there.
 
 **Auto-collection sequence:**
 
@@ -531,6 +531,8 @@ OUTPUT FORMAT:
 ```
 
 ---
+
+Before waiting for agents, tear down the review worktree: run `git worktree unlock <path>` followed by `git worktree remove <path>`. The periodic sweep recovers trees abandoned mid-review; locked trees are skipped by the sweep, so a crashed review leaves a recoverable marker rather than an invisible leak.
 
 ## Phase 2: Wait & Collect
 
