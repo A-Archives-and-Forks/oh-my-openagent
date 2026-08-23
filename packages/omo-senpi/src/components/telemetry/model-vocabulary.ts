@@ -1,8 +1,17 @@
 // Provider -> exportable model ids. The vocabulary must cover every rung a shipped builtin category
 // can actually execute (`CATEGORY_FALLBACK_CHAINS`), otherwise the category-model insight reads as a
 // wall of `custom` exactly on the rungs the product routes to; `product-identity.test.ts` pins that
-// coverage. Masking stays PROVIDER-SPECIFIC: a model listed under one provider is still `custom`
-// under a provider that does not ship it, and arbitrary user models are always `custom`.
+// coverage.
+//
+// Masking treats the two halves differently, because they carry different privacy weight:
+//   - PROVIDER is user-authored configuration. A provider name outside this map is always `custom`;
+//     a self-hosted gateway's name can identify a company or a person and never leaves the machine.
+//   - MODEL ID is a public product name. It is exported whenever it matches this vocabulary exactly,
+//     regardless of which provider routed it, so a shipped model reached through OpenRouter, LiteLLM,
+//     or a private gateway is still readable as that model instead of collapsing to `custom`.
+// A model id that is NOT in this vocabulary - a fine-tune, an internal codename, any user-authored
+// name - is always `custom`. That boundary is the privacy contract published in
+// `docs/reference/senpi-telemetry.md`; changing it means changing that disclosure too.
 export const KNOWN_MODELS = Object.freeze({
   "alibaba-token-plan": Object.freeze(["qwen3.6-flash", "qwen3.8-max-preview"]),
   "alibaba-token-plan-cn": Object.freeze(["qwen3.8-max-preview"]),
@@ -43,3 +52,8 @@ export const KNOWN_MODELS = Object.freeze({
 
 export type KnownProvider = keyof typeof KNOWN_MODELS
 export const KNOWN_PROVIDERS = Object.freeze(Object.keys(KNOWN_MODELS) as KnownProvider[])
+
+// Flat union of every model id above: the exportable model vocabulary, independent of provider.
+export const ALL_KNOWN_MODEL_IDS: ReadonlySet<string> = Object.freeze(
+  new Set(Object.values(KNOWN_MODELS).flat()),
+)

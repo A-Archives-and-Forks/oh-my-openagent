@@ -11,7 +11,7 @@ import { CURATED_READONLY_AGENT_NAMES } from "@oh-my-opencode/senpi-task/agents-
 import { BUILTIN_CATEGORY_DEFAULTS } from "@oh-my-opencode/senpi-task/category-builtins"
 import { resolveAgentHome } from "../agent-home/resolve-agent-home"
 import { CATEGORY_CONFIG_SCHEMA } from "./category-config-schema"
-import { KNOWN_MODELS, KNOWN_PROVIDERS, type KnownProvider } from "./model-vocabulary"
+import { ALL_KNOWN_MODEL_IDS, KNOWN_MODELS, KNOWN_PROVIDERS, type KnownProvider } from "./model-vocabulary"
 import { buildDelegationCompletedSchema } from "./delegation-schema"
 import { PARALLELISM_SUMMARY_SCHEMA } from "./parallelism-schema"
 
@@ -21,7 +21,7 @@ export const OMO_NATIVE_POSTHOG_API_KEY = "phc_r6UYQzNZcGYSzKw4PxCiVrZepGqV3dw9q
 // clients half-apply a bump: a session row and a task row would disagree about their own schema.
 export const OMO_NATIVE_SCHEMA_VERSION = 2
 
-export { KNOWN_MODELS, KNOWN_PROVIDERS } from "./model-vocabulary"
+export { ALL_KNOWN_MODEL_IDS, KNOWN_MODELS, KNOWN_PROVIDERS } from "./model-vocabulary"
 export type { KnownProvider } from "./model-vocabulary"
 
 export type OmoNativePropertyType = "boolean" | "number" | "string"
@@ -176,12 +176,23 @@ export function hashSessionId(rawId: string): string {
   return createHash("sha256").update(salt).update(rawId).digest("hex")
 }
 
+/**
+ * Mask a provider/model pair for export.
+ *
+ * The two halves carry different privacy weight, so they are masked by different rules:
+ * - `provider` is user-authored configuration. Anything outside `KNOWN_PROVIDERS` becomes `custom`,
+ *   because a self-hosted gateway name can identify a company or a person.
+ * - `model_id` is a public product name. It survives whenever it matches the shipped vocabulary
+ *   exactly, no matter which provider routed it, so a known model reached through OpenRouter,
+ *   LiteLLM, or a private gateway stays readable instead of collapsing to `custom`.
+ *
+ * A model id outside the vocabulary - a fine-tune, an internal codename - is always `custom`.
+ * This is the contract published in `docs/reference/senpi-telemetry.md`.
+ */
 export function maskProviderAndModel(provider: string, modelId: string): { provider: string; model_id: string } {
-  const knownProvider = isKnownProvider(provider)
-  const knownModels: readonly string[] | undefined = knownProvider ? KNOWN_MODELS[provider] : undefined
   return {
-    provider: knownProvider ? provider : "custom",
-    model_id: knownModels?.includes(modelId) === true ? modelId : "custom",
+    provider: isKnownProvider(provider) ? provider : "custom",
+    model_id: ALL_KNOWN_MODEL_IDS.has(modelId) ? modelId : "custom",
   }
 }
 

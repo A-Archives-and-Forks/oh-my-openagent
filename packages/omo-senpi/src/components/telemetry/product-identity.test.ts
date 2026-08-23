@@ -110,7 +110,36 @@ describe("OmO Native product identity", () => {
 
     expect(maskProviderAndModel(provider, knownModel ?? "")).toEqual({ provider, model_id: knownModel })
     expect(maskProviderAndModel(provider, "user-defined-model")).toEqual({ provider, model_id: "custom" })
-    expect(maskProviderAndModel("user-provider", knownModel ?? "")).toEqual({ provider: "custom", model_id: "custom" })
+    // the provider name is what is private here - it is masked, while the public model id survives
+    expect(maskProviderAndModel("user-provider", knownModel ?? "")).toEqual({
+      provider: "custom",
+      model_id: knownModel,
+    })
+  })
+
+  test("#given a publicly known model routed through an unknown gateway provider #when masked #then the model id is exported while the provider stays custom", () => {
+    // given: users route shipped models through OpenRouter, LiteLLM, or a self-hosted gateway.
+    // The gateway name is user-configured and private; the model id is a public product name.
+    // when/then: the private half is masked and the public half survives, so the dashboard can
+    // read real model preference instead of a wall of `custom/custom`.
+    expect(maskProviderAndModel("openrouter", "claude-opus-5")).toEqual({
+      provider: "custom",
+      model_id: "claude-opus-5",
+    })
+    expect(maskProviderAndModel("my-gateway", "gpt-5.6-sol")).toEqual({
+      provider: "custom",
+      model_id: "gpt-5.6-sol",
+    })
+  })
+
+  test("#given a private or fine-tuned model name #when masked #then it never leaves the machine regardless of provider", () => {
+    // This is the privacy guard the disclosure in docs/reference/senpi-telemetry.md promises:
+    // only exact matches against the shipped public vocabulary are exported. Anything the user
+    // named themselves - a fine-tune, an internal codename - is still `custom`.
+    expect(maskProviderAndModel("my-gateway", "my-finetune")).toEqual({ provider: "custom", model_id: "custom" })
+    expect(maskProviderAndModel("anthropic", "my-finetune")).toEqual({ provider: "anthropic", model_id: "custom" })
+    expect(maskProviderAndModel("openrouter", "acme-internal/claude-opus-5-ft").model_id).toBe("custom")
+    expect(maskProviderAndModel("my-gateway", "").model_id).toBe("custom")
   })
 
   test("#given every provider and model rung in CATEGORY_FALLBACK_CHAINS #when masked #then no shipped rung collapses to custom, while an arbitrary user provider and model still mask to custom", () => {
@@ -129,9 +158,10 @@ describe("OmO Native product identity", () => {
     // then: no executable rung is exportable only as custom/custom - that is what makes the
     // per-country category-model insight readable instead of a wall of `custom`
     expect(collapsed).toEqual([])
-    // and: a model known under one provider stays custom under a provider that does not ship it
-    expect(maskProviderAndModel("deepseek", "claude-opus-5").model_id).toBe("custom")
-    // and: arbitrary user-configured providers and models never leave the machine
+    // and: a public model id is exported even through a provider that does not ship it, because the
+    // id is a product name rather than user-authored text
+    expect(maskProviderAndModel("deepseek", "claude-opus-5").model_id).toBe("claude-opus-5")
+    // and: arbitrary user-configured provider and model names never leave the machine
     expect(maskProviderAndModel("my-gateway", "my-finetune")).toEqual({ provider: "custom", model_id: "custom" })
     expect(maskProviderAndModel("anthropic", "my-finetune")).toEqual({ provider: "anthropic", model_id: "custom" })
   })
