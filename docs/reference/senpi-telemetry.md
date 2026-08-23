@@ -235,7 +235,17 @@ The following never leaves your machine:
 - Git identities or environment variable values
 - Raw hostnames or IP addresses in the application-authored payload (the transport connection still exposes its sending IP to PostHog for geoip enrichment)
 - Custom (non-builtin) skill names
-- Custom provider or model names, which are masked to `custom`
+- Custom provider names, which are always masked to `custom` — including the name of a self-hosted, proxy, or internal gateway
+- Custom model names — any model id that is not an exact match for a publicly shipped model, such as a fine-tune, a private deployment name, or an internal codename — which are masked to `custom`
+
+How provider and model are masked differs, because they carry different privacy weight:
+
+| Field | Rule |
+|---|---|
+| `provider` | Exported only when it is one of the providers OmO itself ships. Every other value, including a self-hosted or proxy gateway name, is exported as `custom`. |
+| `model_id` | Exported when it exactly matches OmO's published model vocabulary (`claude-opus-5`, `gpt-5.6-sol`, and the other public product names listed in the tables above), **regardless of which provider routed it**. Any other value is exported as `custom`. |
+
+The practical consequence: routing a publicly known model through an unknown gateway reports `custom/claude-opus-5` rather than `custom/custom`. The gateway name — the user-authored half — is still withheld, while the model id is a public product name shared by every user running that model. A model name you chose yourself is never exported.
 
 A structural allowlist enforces this rather than relying on discipline: any property key not in the allowlist is dropped before send, and any string value on a key ending in `_text`, `_path`, or `_prompt` is rejected regardless of allowlisting.
 
