@@ -43,3 +43,13 @@ proof.
 
 Symlinked tmpdirs (macOS `/var` vs `/private/var`) remain distinct strings — pre-existing,
 unchanged by this fix, and not a separator problem.
+
+
+## Follow-up (same branch lineage, PR 7155's successor)
+
+Windows CI after the parse-boundary fix exposed two sibling separator gaps, both in the same feature:
+
+- `sweepRepo` reported `resolveRepoRoot()`'s git output verbatim — git emits forward separators on Windows, so `REPO <root>` never matched native-path expectations. Fixed: `normalize()` at the use site (`repo-root-drive.json`: reported root is in native normalized form).
+- Test assertions compared raw porcelain strings (always forward-slashed) with `path.join` paths, and parse fixtures asserted POSIX literals verbatim. Fixed with a `toPosix` helper for porcelain comparisons and `path.normalize`-wrapped fixture expectations.
+
+Module suite 20/20 and `tsgo --noEmit` exit 0 after the follow-up. The platform gate remains this PR's `test (windows-latest, 1/2)`.

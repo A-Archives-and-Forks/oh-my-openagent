@@ -104,6 +104,9 @@ function decisionFor(report: WorktreeSweepRepoReport, worktreePath: string) {
   return classification
 }
 
+/** git porcelain output always uses forward separators, even on Windows. */
+const toPosix = (value: string): string => value.split(path.sep).join("/")
+
 describe("parseWorktreeList", () => {
   test("parses main worktree, locked reason, detached, and prunable records", () => {
     const porcelain = [
@@ -131,7 +134,7 @@ describe("parseWorktreeList", () => {
 
     expect(records).toHaveLength(4)
     expect(records[0]).toEqual({
-      path: "/repos/omo",
+      path: path.normalize("/repos/omo"),
       head: "1111111111111111111111111111111111111111",
       branch: "main",
       detached: false,
@@ -145,17 +148,15 @@ describe("parseWorktreeList", () => {
     expect(records[2]?.branch).toBeUndefined()
     expect(records[3]?.prunable).toBe(true)
     // First record is the main worktree and is always excluded from candidates.
-    expect(linkedWorktrees(records).map((record) => record.path)).toEqual([
-      "/tmp/wt-a",
-      "/tmp/wt-b",
-      "/tmp/wt-gone",
-    ])
+    expect(linkedWorktrees(records).map((record) => record.path)).toEqual(
+      ["/tmp/wt-a", "/tmp/wt-b", "/tmp/wt-gone"].map(path.normalize),
+    )
   })
 
   test("accepts output without a trailing blank line", () => {
     const records = parseWorktreeList("worktree /a\nHEAD 1\nbranch refs/heads/main")
     expect(records).toHaveLength(1)
-    expect(records[0]?.path).toBe("/a")
+    expect(records[0]?.path).toBe(path.normalize("/a"))
   })
 
   test("normalizes worktree paths so separator and dot segments cannot split identity", () => {
@@ -255,7 +256,7 @@ describe("sweepWorktrees classification", () => {
 
     // Dry-run removed nothing.
     expect(await fs.stat(merged)).toBeTruthy()
-    expect(git(repo, ["worktree", "list", "--porcelain"])).toContain(missing)
+    expect(git(repo, ["worktree", "list", "--porcelain"])).toContain(toPosix(missing))
   })
 
   test("detects the default branch through origin/HEAD when present", async () => {
@@ -357,9 +358,9 @@ describe("sweepWorktrees --apply", () => {
     await expect(fs.stat(merged)).rejects.toThrow()
     expect(await fs.stat(kept)).toBeTruthy()
     const porcelain = git(repo, ["worktree", "list", "--porcelain"])
-    expect(porcelain).not.toContain(missing)
-    expect(porcelain).not.toContain(merged)
-    expect(porcelain).toContain(kept)
+    expect(porcelain).not.toContain(toPosix(missing))
+    expect(porcelain).not.toContain(toPosix(merged))
+    expect(porcelain).toContain(toPosix(kept))
   })
 
   test("leaves locked and dirty worktrees in place even under --apply", async () => {
