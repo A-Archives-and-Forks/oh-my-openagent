@@ -210,7 +210,7 @@ describe("omo launcher", () => {
         expect(result.status).toBe(0)
 
         const brand = JSON.parse(capture(fixture).env.SENPI_BRAND ?? "{}")
-        expect(brand.name).toBe("omo")
+        expect(brand.name).toBe("OmO")
         expect(brand.configDir).toBe(".omo")
         expect(brand.flatLayout).toBe(false)
         expect(brand.envPrefix).toBe("OMO")

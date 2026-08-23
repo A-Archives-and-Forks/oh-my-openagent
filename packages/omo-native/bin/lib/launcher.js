@@ -29,7 +29,7 @@ function isSelfUpdate(args) {
 function brandProfile() {
   const update = updateTarget()
   return {
-    name: "omo",
+    name: "OmO",
     displayVersion: packageManifest().version,
     configDir: ".omo",
     // Engine state lives at the canonical `~/.omo/agent`, never directly under the config
