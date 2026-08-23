@@ -530,10 +530,6 @@ OUTPUT FORMAT:
 """)
 ```
 
----
-
-Before waiting for agents, tear down the review worktree: run `git worktree unlock <path>` followed by `git worktree remove <path>`. The periodic sweep recovers trees abandoned mid-review; locked trees are skipped by the sweep, so a crashed review leaves a recoverable marker rather than an invisible leak.
-
 ## Phase 2: Wait & Collect
 
 After launching all 5 agents in one turn, wait for completions in bounded
@@ -562,6 +558,8 @@ agent if safe, keep the lane INCONCLUSIVE, and emit the final aggregate
 review result with the incomplete lane named. Do not spin in repeated
 wait/followup cycles. Do not use `multi_agent_v1.send_input` as an interrupt; queued
 followups are not cancellation.
+
+After ALL 5 lanes reach a terminal state and before delivering the verdict, tear down the review worktree: run `git worktree unlock <path>` followed by `git worktree remove <path>`. The lanes above run inside that worktree, so removing it earlier destroys their working directory; a crashed review leaves the locked tree as a recoverable marker for manual cleanup.
 
 ---
 

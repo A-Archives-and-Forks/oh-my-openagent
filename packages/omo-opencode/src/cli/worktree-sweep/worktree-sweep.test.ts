@@ -412,7 +412,7 @@ describe("worktreeSweep output", () => {
 
     const originalWrite = process.stderr.write.bind(process.stderr)
     process.stderr.write = ((chunk: unknown) => {
-      originalWrite(chunk)
+      originalWrite(String(chunk))
       return true
     }) as typeof process.stderr.write
     let exitCode: number
