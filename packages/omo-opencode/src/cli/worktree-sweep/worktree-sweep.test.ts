@@ -157,6 +157,13 @@ describe("parseWorktreeList", () => {
     expect(records).toHaveLength(1)
     expect(records[0]?.path).toBe("/a")
   })
+
+  test("normalizes worktree paths so separator and dot segments cannot split identity", () => {
+    const records = parseWorktreeList(
+      ["worktree /tmp/sweep/./wt-x", "HEAD 1", "branch refs/heads/main"].join("\n"),
+    )
+    expect(records[0]?.path).toBe(path.normalize("/tmp/sweep/wt-x"))
+  })
 })
 
 describe("isExcludedPath", () => {
