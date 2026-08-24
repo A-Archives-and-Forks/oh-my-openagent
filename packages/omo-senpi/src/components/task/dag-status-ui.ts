@@ -52,6 +52,10 @@ export interface DagStatusUiDeps {
   readonly runtime: DagStatusUiRuntime
   readonly debounceMs?: number
   readonly timers?: DagStatusUiTimers
+  // Visible terminal width seam; defaults to process.stdout.columns like the task widget.
+  readonly terminalWidth?: () => number | undefined
+  // Local rendering time for live node elapsed labels and deterministic tests.
+  readonly now?: () => number
 }
 
 export interface DagStatusUi {
@@ -75,6 +79,7 @@ const TERMINAL_RUN_STATUSES: ReadonlySet<string> = new Set(["completed", "failed
 export function createDagStatusUi(deps: DagStatusUiDeps): DagStatusUi {
   const timers = deps.timers ?? globalTimers
   const debounceMs = deps.debounceMs ?? DEFAULT_DEBOUNCE_MS
+  const now = deps.now ?? Date.now
   // runId -> nodeId -> latest activity text. Latest-wins: an entry is replaced, never appended to.
   const liveActivity = new Map<string, Map<string, string>>()
   let pending: TimerHandle | undefined
@@ -88,7 +93,9 @@ export function createDagStatusUi(deps: DagStatusUiDeps): DagStatusUi {
       return
     }
     const runs = liveRuns()
-    const rows = runs.flatMap((run) => runRows(run, liveActivity.get(run.runId)))
+    const maxWidth = deps.terminalWidth?.() ?? process.stdout.columns
+    const renderedAt = now()
+    const rows = runs.flatMap((run) => runRows(run, liveActivity.get(run.runId), { maxWidth, now: renderedAt }))
     pruneActivity(runs)
     if (rows.length === 0) {
       clearLiveRefresh()
