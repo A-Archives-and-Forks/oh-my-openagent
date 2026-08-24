@@ -1,3 +1,14 @@
+## 2026-08-24 — Pin OmO beta.19 to Senpi 2026.8.24
+
+The OmO Native launcher, adapter peers/dev dependencies, task engine, root
+development dependency, and package-shape tests now move in lockstep to
+`@code-yeongyu/senpi` 2026.8.24. This release carries the Bun 1.4 redirect-body
+cleanup fix for environments whose Undici body lacks `dump()`, plus the audited
+Senpi dependency refresh.
+
+The exact pin is part of the shipped runtime contract and is synchronized before
+the beta.19 publishing workflow stamps package versions.
+
 ## 2026-08-24 — Refresh compatible dependencies
 
 The beta.19 release refreshes the compatible direct dependency lines used by the
