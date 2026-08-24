@@ -1,3 +1,22 @@
+## 2026-08-24 — Refresh compatible dependencies
+
+The beta.19 release refreshes the compatible direct dependency lines used by the
+OpenCode, TUI, matching, telemetry, and Senpi adapter surfaces: OpenCode
+SDK/plugin 1.18.22, OpenTUI 0.5.8, Picomatch 4.0.7, PostHog Node 5.51.1, and
+TypeBox 1.3.18. The Bun lockfile is regenerated from those manifest pins.
+The dependency security and Codex component package-shape tests now assert the
+new Picomatch 4.0.7 floor instead of pinning the previous safe floor.
+
+The clean-install warnings reported against beta.18 were also reproduced and
+audited. Bun intentionally does not let a dependency grant trust to its own
+transitive lifecycle scripts, so adding package-local `trustedDependencies`
+would be ineffective and was rejected. `@google/genai` runs a declared no-op
+preinstall and `protobufjs` runs a compatibility-warning-only postinstall; both
+are safe to leave blocked. The Anthropic peer warning remains an intentional
+tradeoff: the required `@anthropic-ai/sdk >=0.93.0` line pulls Node credential
+modules into the browser bundle, while the retained 0.91.1 pin passes the
+browser-safety gate.
+
 ## 2026-08-20 — Demand parent-side verification of DAG completions
 
 A DAG node's completion summary was delivered to the orchestrating parent as if
