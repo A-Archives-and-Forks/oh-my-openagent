@@ -4,6 +4,8 @@ The beta.19 release refreshes the compatible direct dependency lines used by the
 OpenCode, TUI, matching, telemetry, and Senpi adapter surfaces: OpenCode
 SDK/plugin 1.18.22, OpenTUI 0.5.8, Picomatch 4.0.7, PostHog Node 5.51.1, and
 TypeBox 1.3.18. The Bun lockfile is regenerated from those manifest pins.
+The dependency security and Codex component package-shape tests now assert the
+new Picomatch 4.0.7 floor instead of pinning the previous safe floor.
 
 The clean-install warnings reported against beta.18 were also reproduced and
 audited. Bun intentionally does not let a dependency grant trust to its own
