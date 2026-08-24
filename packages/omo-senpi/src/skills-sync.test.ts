@@ -50,6 +50,9 @@ const NATIVE_SENPI_SKILL_NAMES: Record<string, true> = {
 }
 const namePattern = /^[a-z0-9-]{1,64}$/
 const forbiddenTokenPattern = /\b(?:codex|multi_agent|spawn_agent)\b/i
+// The ulw-loop CLI literally accepts `--codex-goal-json`; that interface name is not Codex
+// guidance, so mask it before scanning for leaked harness tokens.
+const cliInterfaceFlagPattern = /--codex-goal-json/g
 const taskTargetPattern = /\b(subagent_type|category)["']?\s*[=:]\s*["']([a-z0-9-]+)["']/g
 
 function listDirectoryNames(path: string): string[] {
@@ -145,7 +148,7 @@ describe("OMO Senpi scoped skill sync", () => {
       if (!existsSync(skillRoot)) continue
 
       for (const file of listFiles(skillRoot)) {
-        const content = readFileSync(file, "utf8")
+        const content = readFileSync(file, "utf8").replace(cliInterfaceFlagPattern, "")
         if (forbiddenTokenPattern.test(content)) {
           leaks.push(relative(repoRoot, file))
         }
