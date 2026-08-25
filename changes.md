@@ -1,3 +1,10 @@
+## 2026-08-25 — Release OmO beta.20 with Senpi 2026.8.25
+
+OmO release metadata and platform package pins advance from beta.19 to beta.20,
+with the native, adapter, task-engine, and package-shape Senpi contract aligned to
+`@code-yeongyu/senpi` 2026.8.25. The Bun lockfile is regenerated for the exact
+release dependency graph.
+
 ## 2026-08-24 — Pin OmO beta.19 to Senpi 2026.8.24
 
 The OmO Native launcher, adapter peers/dev dependencies, task engine, root
