@@ -1,28 +1,28 @@
 {
-	"name": "@code-yeongyu/codex-start-work-continuation",
+	"name": "@code-yeongyu/codex-ulw-execute-continuation",
 	"version": "5.0.0-beta.19",
-	"description": "Codex Stop hook continuation injector for omo-codex start-work plans.",
+	"description": "Codex Stop hook continuation injector for omo-codex ulw-execute plans.",
 	"type": "module",
 	"packageManager": "npm@11.12.1",
 	"license": "MIT",
-	"homepage": "https://github.com/code-yeongyu/codex-start-work-continuation",
+	"homepage": "https://github.com/code-yeongyu/codex-ulw-execute-continuation",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/code-yeongyu/codex-start-work-continuation.git"
+		"url": "git+https://github.com/code-yeongyu/codex-ulw-execute-continuation.git"
 	},
 	"bugs": {
-		"url": "https://github.com/code-yeongyu/codex-start-work-continuation/issues"
+		"url": "https://github.com/code-yeongyu/codex-ulw-execute-continuation/issues"
 	},
 	"keywords": [
 		"codex",
 		"codex-plugin",
-		"start-work",
+		"ulw-execute",
 		"continuation",
 		"hooks",
 		"boulder"
 	],
 	"bin": {
-		"omo-start-work-continuation": "./dist/cli.js"
+		"omo-ulw-execute-continuation": "./dist/cli.js"
 	},
 	"scripts": {
 		"build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && bun build src/cli.ts --target node --format esm --outfile dist/cli.js",

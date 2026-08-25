@@ -17,7 +17,7 @@ const subcommand = process.argv[3];
 if (command === "hook" && (subcommand === "stop" || subcommand === "subagent-stop")) {
 	await runHookCli();
 } else {
-	process.stderr.write("Usage: omo-start-work-continuation hook <stop|subagent-stop>\n");
+	process.stderr.write("Usage: omo-ulw-execute-continuation hook <stop|subagent-stop>\n");
 	process.exitCode = 1;
 }
 

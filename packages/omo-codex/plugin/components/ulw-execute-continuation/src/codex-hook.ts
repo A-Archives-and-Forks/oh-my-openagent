@@ -1,6 +1,6 @@
 import type { ContinuationState } from "./boulder-reader.js";
 import { readContinuationState } from "./boulder-reader.js";
-import { START_WORK_CONTINUATION_DIRECTIVE } from "./directive.js";
+import { ULW_EXECUTE_CONTINUATION_DIRECTIVE } from "./directive.js";
 import type { ReadonlyFileSystem, StopHookEventName, StopHookOutput, StopInput } from "./types.js";
 
 export function runStopHook(input: unknown, fs: ReadonlyFileSystem): string {
@@ -33,14 +33,14 @@ function renderDirective(state: ContinuationState, sessionId: string): string {
 		LEDGER_PATH: state.ledgerPath,
 		SESSION_ID: sessionId,
 	} as const;
-	let rendered = START_WORK_CONTINUATION_DIRECTIVE;
+	let rendered = ULW_EXECUTE_CONTINUATION_DIRECTIVE;
 	for (const [placeholder, value] of Object.entries(replacements)) {
 		rendered = rendered.replaceAll(`{{${placeholder}}}`, value);
 	}
 	return rendered;
 }
 
-const EXTERNAL_BLOCKER_MARKER = "<start-work-blocked-external>";
+const EXTERNAL_BLOCKER_MARKER = "<ulw-execute-blocked-external>";
 const ULTRAWORK_OPENER = "ULTRAWORK MODE ENABLED!";
 
 // The marker alone is not enough to end the turn. `directive.md` requires the exact blocker and

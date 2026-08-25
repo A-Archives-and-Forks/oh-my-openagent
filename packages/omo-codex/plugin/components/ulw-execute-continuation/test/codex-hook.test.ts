@@ -14,7 +14,7 @@ afterEach(() => {
 	for (const root of cleanupRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-describe("start-work Stop hook", () => {
+describe("ulw-execute Stop hook", () => {
 	it("#given stop hook is already active #when hook runs #then returns empty output", () => {
 		// given
 		const fs = createMemoryFs();
@@ -71,7 +71,7 @@ describe("start-work Stop hook", () => {
 		const input = {
 			...createStopInput(workspace),
 			last_assistant_message: [
-				"<start-work-blocked-external>",
+				"<ulw-execute-blocked-external>",
 				"Blocker: the staging deploy credential is missing.",
 				"Resume when a valid credential is provisioned.",
 			].join("\n"),
@@ -95,7 +95,7 @@ describe("start-work Stop hook", () => {
 			...createStopInput(workspace),
 			last_assistant_message: [
 				"ULTRAWORK MODE ENABLED!",
-				"<start-work-blocked-external>",
+				"<ulw-execute-blocked-external>",
 				"Blocker: the staging deploy credential is missing.",
 			].join("\n"),
 		};
@@ -118,7 +118,7 @@ describe("start-work Stop hook", () => {
 		const fs = createMemoryFs();
 		const input = {
 			...createStopInput(workspace),
-			last_assistant_message: "<start-work-blocked-external>",
+			last_assistant_message: "<ulw-execute-blocked-external>",
 		};
 
 		// when
@@ -137,7 +137,7 @@ describe("start-work Stop hook", () => {
 		const fs = createMemoryFs();
 		const input = {
 			...createStopInput(workspace),
-			last_assistant_message: ["ULTRAWORK MODE ENABLED!", "<start-work-blocked-external>", "   "].join("\n"),
+			last_assistant_message: ["ULTRAWORK MODE ENABLED!", "<ulw-execute-blocked-external>", "   "].join("\n"),
 		};
 
 		// when
@@ -156,7 +156,7 @@ describe("start-work Stop hook", () => {
 		const fs = createMemoryFs();
 		const input = {
 			...createStopInput(workspace),
-			last_assistant_message: ["Next turn I may need to emit", "<start-work-blocked-external>"].join("\n"),
+			last_assistant_message: ["Next turn I may need to emit", "<ulw-execute-blocked-external>"].join("\n"),
 		};
 
 		// when

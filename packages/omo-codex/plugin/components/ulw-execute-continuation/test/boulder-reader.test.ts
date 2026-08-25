@@ -11,7 +11,7 @@ afterEach(() => {
 	for (const root of cleanupRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-describe("start-work plan checklist consumption", () => {
+describe("ulw-execute plan checklist consumption", () => {
 	it("#given scaffold headings and canonical numbered rows #when parsed #then structured totals and next label match", () => {
 		// given
 		const planPath = createPlan(SCAFFOLD_PLAN_MARKDOWN);
@@ -242,7 +242,7 @@ describe("start-work plan checklist consumption", () => {
 	});
 });
 
-describe("start-work boulder state reader", () => {
+describe("ulw-execute boulder state reader", () => {
 	it("#given active codex work with remaining checklist #when state is read #then continuation fields match baseline", () => {
 		// given
 		const workspace = createWorkspace({
@@ -258,7 +258,7 @@ describe("start-work boulder state reader", () => {
 			planName: "launch-plan",
 			planPath: join(workspace, ".omo", "plans", "plan.md"),
 			boulderPath: join(workspace, ".omo", "boulder.json"),
-			ledgerPath: join(workspace, ".omo", "start-work", "ledger.jsonl"),
+			ledgerPath: join(workspace, ".omo", "ulw-execute", "ledger.jsonl"),
 			worktreePath: null,
 			checklist: {
 				completed: 2,

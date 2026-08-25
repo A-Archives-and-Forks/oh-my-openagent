@@ -50,7 +50,7 @@ export function readContinuationState(cwd: string, sessionId: string): Continuat
 		planName: work.planName,
 		planPath,
 		boulderPath,
-		ledgerPath: join(cwd, ".omo", "start-work", "ledger.jsonl"),
+		ledgerPath: join(cwd, ".omo", "ulw-execute", "ledger.jsonl"),
 		worktreePath: work.worktreePath ?? null,
 		checklist,
 	};

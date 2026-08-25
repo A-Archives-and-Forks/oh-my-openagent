@@ -12,7 +12,7 @@ afterEach(() => {
 	for (const root of cleanupRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
-describe("start-work continuation CLI", () => {
+describe("ulw-execute continuation CLI", () => {
 	it("#given valid Stop stdin #when CLI runs #then stdout contains block JSON", () => {
 		// given
 		const cwd = createWorkspace(["codex:s1"]);
