@@ -1116,7 +1116,7 @@ jobs:
         uses: actions/download-artifact@v7
         with:
           pattern: release-binaries*
-          path: dist/release-binaries
+          path: .omo/release-binaries
           merge-multiple: true
 
       - name: Upload release assets
@@ -1128,8 +1128,8 @@ jobs:
           VERSION: ${{ needs.release-metadata.outputs.version }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          ls -la dist/release-binaries/
-          gh release upload "v${VERSION}" dist/release-binaries/omo-* dist/release-binaries/SHA256SUMS --clobber
+          ls -la .omo/release-binaries/
+          gh release upload "v${VERSION}" .omo/release-binaries/omo-* .omo/release-binaries/SHA256SUMS --clobber
 
       - name: Verify uploaded assets
         # Intentionally ungated: release assets are part of the release

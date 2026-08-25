@@ -295,7 +295,7 @@ describe("sidecar parity set", () => {
 })
 
 describe("embedded manifest parity (darwin-arm64)", () => {
-  const builtBinary = join(repoRoot, "dist", "release-binaries", "omo-darwin-arm64")
+  const builtBinary = join(repoRoot, ".omo", "release-binaries", "omo-darwin-arm64")
 
   test(
     "#given the darwin-arm64 sidecar payload #when embedded and probed #then the embedded set equals the expected parity set",

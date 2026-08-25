@@ -166,9 +166,9 @@ describe("test workflows", () => {
     const downloadStagesReleaseBinaries =
       downloadStep.includes("actions/download-artifact@") &&
       downloadStep.includes("pattern: release-binaries") &&
-      downloadStep.includes("path: dist/release-binaries")
+      downloadStep.includes("path: .omo/release-binaries")
     const uploadClobbersAssets = uploadStep.includes(
-      'gh release upload "v${VERSION}" dist/release-binaries/omo-* dist/release-binaries/SHA256SUMS --clobber',
+      'gh release upload "v${VERSION}" .omo/release-binaries/omo-* .omo/release-binaries/SHA256SUMS --clobber',
     )
     const uploadSourcesVersionFromMetadata = uploadStep.includes(
       "VERSION: ${{ needs.release-metadata.outputs.version }}",
@@ -182,7 +182,7 @@ describe("test workflows", () => {
 
     // #then
     expect(stepsFollowReleaseCreation, "release-binary steps must live inside the release job after Create GitHub release").toBe(true)
-    expect(downloadStagesReleaseBinaries, "the release job must stage every per-target binary under dist/release-binaries").toBe(true)
+    expect(downloadStagesReleaseBinaries, "the release job must stage every per-target binary under .omo/release-binaries").toBe(true)
     expect(uploadClobbersAssets, "asset upload must clobber so reruns stay idempotent").toBe(true)
     expect(uploadSourcesVersionFromMetadata, "asset upload must source the release version from release-metadata").toBe(true)
     expect(verifyRedownloadsEveryAsset, "verification must re-download every uploaded asset from the GitHub release").toBe(true)
