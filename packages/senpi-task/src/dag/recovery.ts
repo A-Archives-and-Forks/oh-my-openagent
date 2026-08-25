@@ -1,4 +1,4 @@
-// allow: SIZE_OK - recovery keeps lease claiming, node reconciliation, and resumed wave admission in one crash-safety boundary.
+// allow: SIZE_OK - recovery keeps lease claiming, node reconciliation, and resumed frontier admission in one crash-safety boundary.
 import * as fs from "node:fs"
 import { join } from "node:path"
 

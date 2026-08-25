@@ -31,8 +31,10 @@ const LIST_DEFAULT_LIMIT = 100
 const LIST_MAX_LIMIT = 256
 
 // Fixed scheduler identity of this engine: the fingerprint must change if these semantics change.
+// waveAdmission moved strict-barrier -> dependency-frontier on 2026-08-25 (dag_530ad299): old
+// runs keyed under the barrier fingerprint are deliberately not reused by the new semantics.
 const SCHEDULER_FINGERPRINT_INPUT = {
-  waveAdmission: "strict-barrier",
+  waveAdmission: "dependency-frontier",
   failurePolicy: "continue-independent",
   dependencyData: "filesystem-only",
 } as const
