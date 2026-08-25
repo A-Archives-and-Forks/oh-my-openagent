@@ -62,8 +62,22 @@ describe("embedded runtime provisioning", () => {
       entries: [{ relPath: "CHANGELOG.md", sha256: sha(content), mode: 0o644, size: Buffer.byteLength(content) }],
     }
     const runtime = join(root, "runtime")
-    await provisionEmbeddedRuntime(manifest, [{ name: "omo-runtime/CHANGELOG.md", text: async () => content }] as any[], runtime)
+    await provisionEmbeddedRuntime(manifest, [{ name: "omo-runtime/CHANGELOG.md", arrayBuffer: async () => new TextEncoder().encode(content).buffer }] as any[], runtime)
     expect(readFileSync(join(runtime, "CHANGELOG.md"), "utf8")).toBe(content)
+  })
+
+  test("materializes non-utf8 embedded bytes without a text round-trip", async () => {
+    const root = temp()
+    const bytes = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0xff, 0xfe, 0x00, 0xc3])
+    const manifest: EmbeddedManifest = {
+      omoAiVersion: "9.2.1",
+      enginePin: "2026.8.24",
+      manifestSha: "binary-manifest",
+      entries: [{ relPath: "assets/clankolas.png", sha256: createHash("sha256").update(bytes).digest("hex"), mode: 0o644, size: bytes.byteLength }],
+    }
+    const runtime = join(root, "runtime")
+    await provisionEmbeddedRuntime(manifest, [{ name: "omo-runtime/assets/clankolas.png", arrayBuffer: async () => bytes.buffer }] as any[], runtime)
+    expect(new Uint8Array(readFileSync(join(runtime, "assets/clankolas.png")))).toEqual(bytes)
   })
 
   test("materializes files with sha256 and mode, then skips on matching marker", async () => {
@@ -75,7 +89,7 @@ describe("embedded runtime provisioning", () => {
       manifestSha: "manifest-sha",
       entries: [{ relPath: "package.json", sha256: sha(content), mode: 0o644, size: Buffer.byteLength(content) }],
     }
-    const embedded = [{ name: "package.json", text: async () => content }] as any[]
+    const embedded = [{ name: "package.json", arrayBuffer: async () => new TextEncoder().encode(content).buffer }] as any[]
     const runtime = join(root, "runtime")
     await provisionEmbeddedRuntime(manifest, embedded, runtime)
     expect(readFileSync(join(runtime, "package.json"), "utf8")).toBe(content)

@@ -12,7 +12,12 @@ import { detectHarnesses } from "./bin/lib/setup-detect.js"
 import { printSetupReport } from "./bin/lib/setup-report.js"
 import { delimiter } from "node:path"
 
-type EmbeddedFile = Blob & { name: string; arrayBuffer?: () => Promise<ArrayBuffer>; text?: () => Promise<string> }
+type EmbeddedFile = Blob & {
+  name: string
+  arrayBuffer?: () => Promise<ArrayBuffer>
+  bytes?: () => Promise<Uint8Array>
+  text?: () => Promise<string>
+}
 export type EmbeddedManifestEntry = { relPath: string; sha256: string; mode: number; size: number }
 export type EmbeddedManifest = { omoAiVersion: string; enginePin: string; manifestSha: string; entries: EmbeddedManifestEntry[] }
 
@@ -80,8 +85,10 @@ async function embeddedText(file: EmbeddedFile): Promise<string> {
   throw new Error(`embedded asset ${file.name} cannot be read`)
 }
 
-function embeddedBytes(_file: EmbeddedFile, content: string): Uint8Array {
-  return new TextEncoder().encode(content)
+async function embeddedBytes(file: EmbeddedFile): Promise<Uint8Array> {
+  if (file.bytes) return file.bytes()
+  if (file.arrayBuffer) return new Uint8Array(await file.arrayBuffer())
+  throw new Error(`embedded asset ${file.name} cannot be read as bytes`)
 }
 
 export async function selectRuntimeManifest(embedded: EmbeddedFile[]): Promise<EmbeddedFile | undefined> {
@@ -110,8 +117,7 @@ export async function provisionEmbeddedRuntime(manifest: EmbeddedManifest, embed
   for (const entry of manifest.entries) {
     const file = byPath.get(entry.relPath.replace(/^\.\//, ""))
     if (!file) throw new Error(`embedded asset missing: ${entry.relPath}`)
-    const content = await embeddedText(file)
-    const bytes = embeddedBytes(file, content)
+    const bytes = await embeddedBytes(file)
     if (bytes.byteLength !== entry.size || createHash("sha256").update(bytes).digest("hex") !== entry.sha256) {
       throw new Error(`embedded asset integrity mismatch: ${entry.relPath}`)
     }

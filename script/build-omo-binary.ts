@@ -578,7 +578,7 @@ export async function buildReleaseBinary(
   if (!existsSync(compileEntry)) {
     throw new Error(`compile entry is missing: ${compileEntry}`)
   }
-  const outDir = options.outDir ?? join(repoRoot, "dist", "release-binaries")
+  const outDir = options.outDir ?? join(repoRoot, ".omo", "release-binaries")
   const workRoot = mkdtempSync(join(tmpdir(), `omo-binary-${target.target}-`))
   try {
     const stagedRoot = join(workRoot, EMBEDDED_PAYLOAD_ROOT)
