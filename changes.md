@@ -10,6 +10,10 @@ the provenance-safe CI gate reported stale generated output for the beta.20
 release-state SHA. The generated payloads now match the release metadata and
 must remain synchronized with the exact Senpi dependency and skill inventory.
 
+The staged native-payload test now normalizes Windows CRLF before checking the
+shipped `.gitignore` contract. The file content remains `/plugin/`; checkout
+line-ending policy no longer creates a false release-gate failure on Windows.
+
 ## 2026-08-24 — Pin OmO beta.19 to Senpi 2026.8.24
 
 The OmO Native launcher, adapter peers/dev dependencies, task engine, root
