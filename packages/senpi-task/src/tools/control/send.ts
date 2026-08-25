@@ -1,4 +1,5 @@
-import type { ToolDefinition } from "@code-yeongyu/senpi"
+import type { defineTool, ToolDefinition } from "@code-yeongyu/senpi"
+import type { TSchema } from "typebox"
 
 import { runTeamSend } from "../team/messaging"
 import type { TeamToolsService } from "../team/types"
@@ -121,13 +122,19 @@ export type MemberScopedTaskSendDeps = {
   readonly resolveCallerSessionId?: CallerSessionResolver
 }
 
-export function createMemberScopedTaskSendTool(deps: MemberScopedTaskSendDeps): ToolDefinition<typeof MemberScopedTaskSendParams, SendResultDetails> & ToolDefinition<any, any, any> {
+// senpi declares AnyToolDefinition privately, so mirror defineTool's declared return type instead
+// of hand-rolling `ToolDefinition<any, any, any>`: a senpi bump that widens or narrows that
+// intersection propagates here rather than silently drifting from the engine's own shape. The
+// import is type-only, so it is erased and never binds this module to the engine barrel.
+type DefinedTool<TParams extends TSchema, TDetails> = ReturnType<typeof defineTool<TParams, TDetails>>
+
+export function createMemberScopedTaskSendTool(
+  deps: MemberScopedTaskSendDeps,
+): DefinedTool<typeof MemberScopedTaskSendParams, SendResultDetails> {
   const resolveCaller = deps.resolveCallerSessionId ?? defaultResolveCallerSessionId
   // Returned as a plain literal: senpi's defineTool is an identity helper for type inference
   // (pinned by the senpi API tripwire), so wrapping here would only statically bind this module
-  // to the engine barrel. The function's return type and the cast below mirror defineTool's
-  // declared return (ToolDefinition<...> & AnyToolDefinition) so downstream assignability is
-  // unchanged - the cast is type-level only, defineTool was identity at runtime.
+  // to the engine barrel. The cast below is type-level only — defineTool was identity at runtime.
   const tool: ToolDefinition<typeof MemberScopedTaskSendParams, SendResultDetails> = {
     name: "task_send",
     label: "Task Send",
@@ -142,5 +149,5 @@ export function createMemberScopedTaskSendTool(deps: MemberScopedTaskSendDeps): 
     renderCall: (args, theme) => renderMemberScopedTaskSendCall(args, theme),
     renderResult: (result, options, theme) => renderTaskSendResult(result, options, theme),
   }
-  return tool as ToolDefinition<typeof MemberScopedTaskSendParams, SendResultDetails> & ToolDefinition<any, any, any>
+  return tool as DefinedTool<typeof MemberScopedTaskSendParams, SendResultDetails>
 }
