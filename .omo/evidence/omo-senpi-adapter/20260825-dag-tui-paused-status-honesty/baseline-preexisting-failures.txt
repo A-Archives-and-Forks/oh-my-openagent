@@ -1,0 +1,6 @@
+(fail) createInitDeepAdvisorComponent > #given fake timers #when session_start fires #then ui.select waits for setTimeout zero [423.56ms]
+
+ 112 pass
+ 11 fail
+ 225 expect() calls
+Ran 123 tests across 11 files. [20.58s]
