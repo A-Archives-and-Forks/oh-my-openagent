@@ -114,3 +114,12 @@ scheduler header all describe dependency semantics.
 | `gate-typecheck.txt` | Type gate output |
 | `gate-omo-senpi-task-component.txt` | Consumer wiring gate output |
 | `omo-senpi-adapter/20260825-dag-dep-frontier/` | Live senpi driver evidence (sanctioned path) |
+
+## Post-rebase re-verification (2026-08-25, dev moved to f91a4c252)
+
+`perf/senpi-task-lazy-barrel` (#7274) landed mid-flight and made the PR DIRTY. Rebased onto
+`origin/dev` @ `f91a4c252`: the fix commit applied cleanly; the bundle commit conflicted on
+`omo-task.js` (expected - the barrel perf also flows into the bundle) and was resolved by
+REGENERATING via `build-extension.mjs`, never hand-merging minified output. Re-run gates on
+the rebased tree: `bun test packages/senpi-task` = 1753 pass / 1 skip / 0 fail (the +3 tests
+vs the first capture are #7274's new file); dag suite 250 pass / 0 fail. Auto-merge re-armed.
