@@ -198,6 +198,72 @@ describe("runRows width awareness", () => {
   })
 })
 
+describe("runRows paused run header honesty", () => {
+  const LIVE_PID = 4242
+  const DEAD_PID = 4243
+  const isProcessAlive = (pid: number): boolean => pid === LIVE_PID
+
+  it("#given a paused run whose lease holder is alive #when rendering #then the header reads resuming under the neutral icon", () => {
+    // given a run paused by session shutdown that a live process has already claimed for resume
+    const nodes = [node({ id: "alpha", state: "running", startedAt: iso(-30_000) })]
+
+    // when
+    const rendered = runRows(
+      snapshot({ runId: "dag_1", status: "paused", leaseHolderPid: LIVE_PID, nodes }),
+      undefined,
+      { now: NOW, maxWidth: 120, isProcessAlive },
+    )
+
+    // then the header stops claiming paused and stops wearing the pause glyph
+    expect(rendered[0]).toContain("resuming")
+    expect(rendered[0]).not.toContain("paused")
+    expect(rendered[0].startsWith("· ")).toBe(true)
+    expect(rendered[0]).not.toContain("⏸")
+    // then the genuinely running lane keeps its own running icon
+    expect(rendered[1]).toContain("▶")
+  })
+
+  it("#given a paused run with no live lease and running nodes #when rendering #then the header reads suspended with the active count", () => {
+    // given a dead lease holder over two nodes still recorded as running
+    const nodes = [
+      node({ id: "alpha", state: "running", startedAt: iso(-30_000) }),
+      node({ id: "beta", state: "running", startedAt: iso(-20_000) }),
+      node({ id: "gamma", state: "completed", startedAt: iso(-60_000), completedAt: iso(-40_000) }),
+    ]
+
+    // when
+    const rendered = runRows(
+      snapshot({ runId: "dag_1", status: "paused", leaseHolderPid: DEAD_PID, nodes }),
+      undefined,
+      { now: NOW, maxWidth: 200, isProcessAlive },
+    )
+
+    // then the header names the suspension and how many lanes are stranded in it
+    expect(rendered[0]).toContain("suspended · 2 active")
+    expect(rendered[0]).not.toContain("⏸")
+    expect(rendered[0].startsWith("· ")).toBe(true)
+  })
+
+  it("#given a paused run with no live lease and no running nodes #when rendering #then the header still reads paused under the neutral icon", () => {
+    // given a dead lease holder over a wave that never started
+    const nodes = [node({ id: "alpha", state: "pending" }), node({ id: "beta", state: "blocked" })]
+
+    // when
+    const rendered = runRows(
+      snapshot({ runId: "dag_1", status: "paused", leaseHolderPid: DEAD_PID, nodes }),
+      undefined,
+      { now: NOW, maxWidth: 120, isProcessAlive },
+    )
+
+    // then
+    expect(rendered[0]).toContain("paused")
+    expect(rendered[0]).not.toContain("suspended")
+    expect(rendered[0]).not.toContain("resuming")
+    expect(rendered[0].startsWith("· ")).toBe(true)
+    expect(rendered[0]).not.toContain("⏸")
+  })
+})
+
 describe("runRows activity semantics", () => {
   it("#given a running node with live activity #when rendering #then the row shows it after the route", () => {
     // given
