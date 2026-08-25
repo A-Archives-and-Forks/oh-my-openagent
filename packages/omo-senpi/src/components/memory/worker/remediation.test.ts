@@ -44,6 +44,37 @@ describe("reflectionRemediation", () => {
     })
   })
 
+  describe("#given a bubblewrap sandbox setup failure", () => {
+    // bwrap dies inside its own setup, before the reflection child exists, and the run directory
+    // is already pruned by the time the hint is rendered - so child-stderr.log is a dead pointer.
+    test("#when remediated #then the hint names the sandbox setting instead of the deleted child log", () => {
+      // when
+      const hint = reflectionRemediation("child_exit", "bwrap: setting up uid map: Permission denied")
+
+      // then
+      expect(hint).toContain("memory.reflection.sandbox")
+      expect(hint).not.toContain("child-stderr.log")
+    })
+
+    test("#when the uid-map denial arrives without the bwrap prefix #then the sandbox hint still fires", () => {
+      // when
+      const hint = reflectionRemediation("child_exit", "setting up uid map: Permission denied")
+
+      // then
+      expect(hint).toContain("memory.reflection.sandbox")
+      expect(hint).not.toContain("child-stderr.log")
+    })
+
+    test("#when bwrap fails setting up the namespace itself #then the sandbox hint fires and offers the host fix", () => {
+      // when
+      const hint = reflectionRemediation("child_exit", "bwrap: setting up namespace: Operation not permitted")
+
+      // then
+      expect(hint).toContain("memory.reflection.sandbox")
+      expect(hint).toContain("user namespace")
+    })
+  })
+
   describe("#given the pre-existing failure taxonomies", () => {
     test("#when the child could not see the model #then the category/model hint is kept", () => {
       expect(reflectionRemediation("child_exit", "Model not found: apitopia/kimi")).toContain("memory.reflection")
