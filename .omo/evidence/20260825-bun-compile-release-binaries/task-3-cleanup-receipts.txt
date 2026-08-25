@@ -1,12 +1,12 @@
 Task 3 cleanup receipts (2026-08-25)
 
 Fresh isolated QA root:
-/tmp/omo-task3-green.fFBaX1
+/tmp/omo-task3-authoritative.BfFkDq
 Fresh real-home receipt:
-/tmp/omo-task3-green-real.GADkS2
+/tmp/omo-task3-authoritative-real.WPonlA
 
-Removed after transcription:
-rm -rf /tmp/omo-task3-green.fFBaX1 /tmp/omo-task3-green-real.GADkS2 /tmp/omo-task3-green-root /tmp/omo-task3-green-receipt /tmp/task3-native-check.mjs
+Removed after evidence transcription:
+rm -rf /tmp/omo-task3-authoritative.BfFkDq /tmp/omo-task3-authoritative-real.WPonlA /tmp/omo-task3-authoritative-root /tmp/omo-task3-authoritative-receipt
 
 Builder cleanup observed:
 - omo-binary-darwin-arm64-* staging root
