@@ -12,6 +12,12 @@ omo-senpi plugin payload produced by `bun run build:omo-native` (gitignored, nev
   - `launcher.js` — `runLauncher()` dispatch, senpi environment/brand/update routing
   - `agent-dir.js` — `canonicalAgentDir()`, `adoptLegacyFlatState()`, legacy flat-dir migration
   - `setup-detect.js` / `setup-import.js` / `setup-models.js` / `setup-report.js` — harness detection, SQLite read-only import, provider mapping, report rendering
+  - `setup-detect-cache.js` / `setup-detect-refresh.js` — the interactive launch's setup-suggestion cache: a
+    synchronous, fail-open read of `harness-detect-cache.json` in the canonical agent dir, fingerprinted over
+    every detection input (`detectedFilePaths`, mtime+size) with a TTL; a stale or missing cache never blocks
+    the engine spawn - it is rebuilt by a detached, unref'd refresh child (`setup-detect-refresh.js`, the only
+    writer) while the launch answers from the cached or empty value. `omo setup` and `omo doctor` always run
+    full live detection and never read the cache.
   - `bun-runtime.js` / `child-process.js` — `maybeReexecUnderBun`, `findBunBinary`, `spawnNode`
   - `bun-bin-shim.js` — `ensureBunBinShim`: keeps the user-facing bun-global bin an sh shim that
     execs bun directly (POSIX only, self-healing across `bun add -g` updates, fail-open)
