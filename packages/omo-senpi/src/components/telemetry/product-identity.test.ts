@@ -24,27 +24,25 @@ import { MAX_TRACKED_CALLS } from "./wave-assembler"
 import { CATEGORY_FALLBACK_CHAINS } from "../../../../senpi-task/src/category/fallback-chains"
 import { BUILTIN_CATEGORY_DEFAULTS, CURATED_READONLY_AGENT_NAMES } from "@oh-my-opencode/senpi-task"
 import { UNCONFIGURED_POSTHOG_API_KEY, getTelemetryApiKey, isConfiguredTelemetryApiKey } from "@oh-my-opencode/telemetry-core"
-import { AGENT_DIR_ENV_NAMES } from "../agent-home/resolve-agent-home"
 
-const agentDirEnvSnapshots: Record<string, string | undefined> = Object.fromEntries(
-  AGENT_DIR_ENV_NAMES.map((name) => [name, process.env[name]]),
-)
+const originalAgentDirs = {
+  OMO_CODING_AGENT_DIR: process.env.OMO_CODING_AGENT_DIR,
+  SENPI_CODING_AGENT_DIR: process.env.SENPI_CODING_AGENT_DIR,
+  PI_CODING_AGENT_DIR: process.env.PI_CODING_AGENT_DIR,
+} as const
 // Attribution env is ambient too: a dev-tree OmO Desktop service exports OMO_NATIVE_SURFACE/
-// OMO_NATIVE_INSTALL_ID to every child, and without pinning them the "no env attribution" case
+// OMO_NATIVE_INSTALL_ID to every child, and without restoring them the "no env attribution" case
 // would silently read the host's desktop attribution.
-const ATTRIBUTION_ENV_NAMES = ["OMO_NATIVE_SURFACE", "OMO_NATIVE_INSTALL_ID"] as const
-const attributionEnvSnapshots: Record<string, string | undefined> = Object.fromEntries(
-  ATTRIBUTION_ENV_NAMES.map((name) => [name, process.env[name]]),
-)
+const originalAttributionEnv = {
+  OMO_NATIVE_SURFACE: process.env.OMO_NATIVE_SURFACE,
+  OMO_NATIVE_INSTALL_ID: process.env.OMO_NATIVE_INSTALL_ID,
+} as const
 const temporaryRoots: string[] = []
 
 afterEach(() => {
-  for (const [name, snapshot] of [
-    ...Object.entries(agentDirEnvSnapshots),
-    ...Object.entries(attributionEnvSnapshots),
-  ]) {
-    if (snapshot === undefined) delete process.env[name]
-    else process.env[name] = snapshot
+  for (const [name, value] of Object.entries({ ...originalAgentDirs, ...originalAttributionEnv })) {
+    if (value === undefined) delete process.env[name]
+    else process.env[name] = value
   }
   for (const root of temporaryRoots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
@@ -52,9 +50,9 @@ afterEach(() => {
 function useTemporaryAgentDir(): string {
   const root = mkdtempSync(join(tmpdir(), "omo-native-identity-"))
   temporaryRoots.push(root)
-  // Pin every agent-dir env name: an ambient OMO_CODING_AGENT_DIR on a developer host wins the
-  // resolution loop over the SENPI_ name this fixture used to set, breaking isolation.
-  for (const name of AGENT_DIR_ENV_NAMES) process.env[name] = root
+  process.env.OMO_CODING_AGENT_DIR = root
+  process.env.SENPI_CODING_AGENT_DIR = root
+  process.env.PI_CODING_AGENT_DIR = root
   return root
 }
 
@@ -267,7 +265,8 @@ describe("OmO Native product identity", () => {
 
   test("#given no env attribution #when attribution is resolved #then surface is cli and a 64-hex install id is persisted once", () => {
     const agentDir = useTemporaryAgentDir()
-    for (const name of ATTRIBUTION_ENV_NAMES) delete process.env[name]
+    delete process.env.OMO_NATIVE_SURFACE
+    delete process.env.OMO_NATIVE_INSTALL_ID
 
     const first = getOmoNativeAttribution()
 
