@@ -52,6 +52,20 @@ describe("embedded runtime provisioning", () => {
     await expect(selectRuntimeManifest([senpiManifest, omoManifest] as any[])).resolves.toBe(omoManifest as any)
   })
 
+  test("materializes files whose embedded names carry the omo-runtime prefix", async () => {
+    const root = temp()
+    const content = "hello changelog\n"
+    const manifest: EmbeddedManifest = {
+      omoAiVersion: "9.2.1",
+      enginePin: "2026.8.24",
+      manifestSha: "prefixed-manifest",
+      entries: [{ relPath: "CHANGELOG.md", sha256: sha(content), mode: 0o644, size: Buffer.byteLength(content) }],
+    }
+    const runtime = join(root, "runtime")
+    await provisionEmbeddedRuntime(manifest, [{ name: "omo-runtime/CHANGELOG.md", text: async () => content }] as any[], runtime)
+    expect(readFileSync(join(runtime, "CHANGELOG.md"), "utf8")).toBe(content)
+  })
+
   test("materializes files with sha256 and mode, then skips on matching marker", async () => {
     const root = temp()
     const content = "hello runtime\n"

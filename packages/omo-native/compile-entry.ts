@@ -103,7 +103,10 @@ export async function provisionEmbeddedRuntime(manifest: EmbeddedManifest, embed
   mkdirSync(runtimeDir, { recursive: true })
   const marker = join(runtimeDir, ".provisioned")
   if (readFileIfExists(marker)?.trim() === manifest.manifestSha) return
-  const byPath = new Map(embedded.map((file) => [file.name.replace(/^\.\//, ""), file]))
+  const byPath = new Map(embedded.map((file) => [
+    file.name.replace(/^\.\//, "").replace(/^omo-runtime\//, ""),
+    file,
+  ]))
   for (const entry of manifest.entries) {
     const file = byPath.get(entry.relPath.replace(/^\.\//, ""))
     if (!file) throw new Error(`embedded asset missing: ${entry.relPath}`)
