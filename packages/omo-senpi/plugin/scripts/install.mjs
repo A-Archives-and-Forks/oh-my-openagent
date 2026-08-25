@@ -54,6 +54,7 @@ function localLauncherCmdPath(homeDir = homedir2()) {
 function renderLocalLauncher(options) {
   const brand = {
     name: "OmO",
+    command: "omo",
     displayVersion: options.version ?? "local",
     configDir: ".omo",
     flatLayout: false,

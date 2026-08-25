@@ -30,6 +30,7 @@ function brandProfile() {
   const update = updateTarget()
   return {
     name: "OmO",
+    command: "omo",
     displayVersion: packageManifest().version,
     configDir: ".omo",
     // Engine state lives at the canonical `~/.omo/agent`, never directly under the config
