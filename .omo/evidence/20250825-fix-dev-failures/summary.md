@@ -1,6 +1,6 @@
 # Dev failure repair evidence — 2026-08-25
 
-Base: `origin/dev` at `d2132a6d1`
+Base: `origin/dev` at `d2132a6d1`, then revalidated after syncing the branch with current `origin/dev`.
 
 ## Baseline
 
@@ -41,3 +41,8 @@ under the package suite. Its local budget is now 60 seconds; focused runs prove 
 - TypeScript diagnostics: no errors on all changed TypeScript files.
 - Parallel-only CodeGraph and staging timeouts were reproduced green in isolation twice and classified
   as host contention, not source regressions.
+- Post-sync `bun run test:senpi`: 2,238 pass, 1 Windows-only skip, 0 fail; resolver tests 10 pass.
+- Post-sync remaining matrix: omo-opencode 8,413 tests pass; omo-codex 338 pass; senpi-task 1,748
+  pass; shared-skills 80 pass; prompts-core 26 pass; all three tsgo checks exit 0.
+- The `createTaskResumeInfoHook` line containing `(pass)` and `Error:` was a pass output, not a
+  failure; the process exit code and summary are authoritative.
