@@ -114,8 +114,8 @@ On darwin/linux the launcher therefore keeps that user-facing bin as a tiny `#!/
 (`bin/lib/bun-bin-shim.js`) that execs bun on the real `bin/omo.js` directly:
 
 - the check runs on node boots only (a bun process already arrived through the shim), costs one
-  lstat on the happy path, and is fail-open: any error leaves the launch untouched and only
-  `OMO_DEBUG` narrates it;
+  lstat per boot plus a few-hundred-byte read when the bin is already a shim, and is fail-open:
+  any error leaves the launch untouched and only `OMO_DEBUG` narrates it;
 - only bun's own link to this install is replaced - a foreign file, a foreign symlink, or a
   missing bin is never touched, and nothing is created from nothing;
 - `bun add -g` rewrites the bin link back to a symlink on every update, and the next launch

@@ -8,7 +8,7 @@ import { bunRoot, findBunBinary, isUnderBunGlobalTree } from "./bun-runtime.js"
 const SHIM_VERSION = 1
 const SHIM_MARKER = "omo-ai bun launcher shim"
 
-export function quoteForShell(value) {
+function quoteForShell(value) {
   return `'${value.replaceAll("'", "'\\''")}'`
 }
 
