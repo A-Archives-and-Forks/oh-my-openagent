@@ -37,7 +37,7 @@ The baked catalog:
   explorers, research librarians, and focused review agents are routed by the work rather than
   forced through one general-purpose persona.
 - **The Senpi component layer**: startup config and migration, native status, onboarding,
-  init-deep advising, anonymous telemetry, ultrawork arming, start-work continuation, ulw-loop
+  init-deep advising, anonymous telemetry, ultrawork arming, ulw-execute continuation, ulw-loop
   continuation, todo fan-out reminders, fallback architecture, comment checking, ast-grep, LSP,
   task delegation, memory, and live config watching cooperate as independent components.
 - **Senpi-native skills**: `init-deep`, `ultrawork`, `ulw-loop`, `ulw-plan`, `ulw-research`,
