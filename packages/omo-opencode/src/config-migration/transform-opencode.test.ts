@@ -125,7 +125,7 @@ describe("OpenCode config migration transform", () => {
     }
   })
 
-  test("#given an identical profile subtree and a sidecar recording a reverted migration #when transformed #then only the profile delta and user-left value are retained", () => {
+  test("#given an identical profile subtree and a sidecar recording a reverted migration #when transformed #then agent-only profile data is omitted", () => {
     // given
     const root: DiscoveredLegacyConfigSource = {
       baseRoot: "/home/alice/.config/opencode",
