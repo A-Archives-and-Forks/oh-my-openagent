@@ -14,6 +14,10 @@ The staged native-payload test now normalizes Windows CRLF before checking the
 shipped `.gitignore` contract. The file content remains `/plugin/`; checkout
 line-ending policy no longer creates a false release-gate failure on Windows.
 
+The embedded-runtime provisioning test now treats POSIX file mode assertions as
+POSIX-only. Windows does not expose the same `0o644` mode bits, while byte
+content, SHA-256 validation, and marker-based skip behavior remain covered.
+
 ## 2026-08-24 — Pin OmO beta.19 to Senpi 2026.8.24
 
 The OmO Native launcher, adapter peers/dev dependencies, task engine, root

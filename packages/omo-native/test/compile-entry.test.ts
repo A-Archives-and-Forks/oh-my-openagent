@@ -142,7 +142,9 @@ describe("embedded runtime provisioning", () => {
     const runtime = join(root, "runtime")
     await provisionEmbeddedRuntime(manifest, embedded, runtime)
     expect(readFileSync(join(runtime, "package.json"), "utf8")).toBe(content)
-    expect(statSync(join(runtime, "package.json")).mode & 0o777).toBe(0o644)
+    if (process.platform !== "win32") {
+      expect(statSync(join(runtime, "package.json")).mode & 0o777).toBe(0o644)
+    }
     expect(readFileSync(join(runtime, ".provisioned"), "utf8")).toBe("manifest-sha\n")
     writeFileSync(join(runtime, "package.json"), "changed\n")
     await provisionEmbeddedRuntime(manifest, embedded, runtime)
