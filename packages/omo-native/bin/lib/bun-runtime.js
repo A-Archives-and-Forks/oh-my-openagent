@@ -20,7 +20,7 @@ function pathApi(platform) {
   return platform === "win32" ? win32 : posix
 }
 
-function bunRoot(env, homedir, platform) {
+export function bunRoot(env, homedir, platform) {
   return env.BUN_INSTALL ? env.BUN_INSTALL : pathApi(platform).join(homedir(), ".bun")
 }
 
