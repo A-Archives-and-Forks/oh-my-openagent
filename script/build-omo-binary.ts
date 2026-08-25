@@ -15,6 +15,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -253,7 +254,9 @@ export function reportEmbeddedPayload(stageDir: string): EmbeddedPayloadReport {
       manifest: RuntimeManifest | null
     }
     if (parsed.manifest === null) {
-      throw new Error("embedded payload probe found no runtime manifest")
+      throw new Error(
+        `embedded payload probe found no runtime manifest (${parsed.names.length} files embedded). The bun on PATH likely predates directory --asset support, which is accepted silently and dropped - resolve a bun >= 1.4 and retry.`,
+      )
     }
     const relPaths = parsed.names
       .map((name) => relPathForEmbeddedName(name))
@@ -537,7 +540,14 @@ export async function buildReleaseBinary(
   const outDir = options.outDir ?? join(repoRoot, "dist", "release-binaries")
   const workRoot = mkdtempSync(join(tmpdir(), `omo-binary-${target.target}-`))
   try {
-    const stageDir = join(workRoot, EMBEDDED_PAYLOAD_ROOT)
+    const stagedRoot = join(workRoot, EMBEDDED_PAYLOAD_ROOT)
+    mkdirSync(stagedRoot, { recursive: true })
+    // Canonicalize the staging directory before it reaches bun: TMPDIR is a
+    // symlinked path on macOS (/var/folders -> /private/var/folders) and the
+    // handoff between the bundler and the compile step must agree on one
+    // spelling. Basename is preserved, so embedded names stay
+    // `${EMBEDDED_PAYLOAD_ROOT}/<relPath>`.
+    const stageDir = realpathSync(stagedRoot)
     stageSidecarPayload(target, stageDir, options.omoAiVersion)
 
     const manifest = await buildRuntimeManifest(stageDir, {
@@ -552,6 +562,21 @@ export async function buildReleaseBinary(
 
     mkdirSync(outDir, { recursive: true })
     const binaryPath = join(outDir, target.binaryName)
+
+    // Probe BEFORE the expensive target compile: a bun that predates the
+    // directory `--asset` flag (e.g. 1.3.14) ignores it silently and exits 0,
+    // which would otherwise ship an asset-less binary. The probe runs the same
+    // toolchain against the same stage, so it fails loud within seconds
+    // instead of after a full cross-compile.
+    const embedded = reportEmbeddedPayload(stageDir)
+    const expected = collectStagedFiles(stageDir)
+    const missing = expected.filter((relPath) => !embedded.relPaths.includes(relPath))
+    if (missing.length > 0) {
+      throw new Error(
+        `embedded payload is incomplete for ${target.target}: ${missing.length} of ${expected.length} sidecar files were not embedded (first missing: ${missing[0]}). The bun on PATH likely predates directory --asset support - resolve a bun >= 1.4 and retry.`,
+      )
+    }
+
     // Flags mirror senpi's own scripts.build:binary (node_modules/@code-yeongyu/senpi/package.json).
     runCommand(
       "bun",
@@ -569,18 +594,6 @@ export async function buildReleaseBinary(
       ],
       repoRoot,
     )
-
-    // A bun that predates directory `--asset` support silently emits an
-    // asset-less binary; probing the same stage with the same toolchain turns
-    // that into a loud failure instead of a broken release asset.
-    const embedded = reportEmbeddedPayload(stageDir)
-    const expected = collectStagedFiles(stageDir)
-    const missing = expected.filter((relPath) => !embedded.relPaths.includes(relPath))
-    if (missing.length > 0) {
-      throw new Error(
-        `embedded payload is incomplete for ${target.target}: ${missing.length} of ${expected.length} sidecar files were not embedded (first missing: ${missing[0]}). Check that the bun on PATH supports directory --asset embedding.`,
-      )
-    }
 
     assertBinarySizeBudget(target.target, binaryPath)
     const size = statSync(binaryPath).size
