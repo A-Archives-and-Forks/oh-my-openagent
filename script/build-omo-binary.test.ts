@@ -17,8 +17,11 @@ import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import {
   assertBinarySizeBudget,
+  assertEngineGraphBundled,
   EMBEDDED_PAYLOAD_ROOT,
+  ENGINE_MINIMUM_MODULES,
   MAX_BINARY_BYTES,
+  parseBundledModuleCount,
   RELEASE_BINARY_TARGETS,
   buildRuntimeManifest,
   collectStagedFiles,
@@ -368,6 +371,44 @@ describe("plugin staging isolation guard", () => {
     expect(staged.length).toBeGreaterThan(0)
     rmSync(stageDir, { recursive: true, force: true })
   }, 600_000)
+})
+
+describe("engine graph bundling", () => {
+  test("#given real bun build output #when parsed #then the module count is extracted", () => {
+    // given
+    const output = "\n [447ms]  bundle  3995 modules\n\n [132ms]  compile  /tmp/x\n"
+
+    // when / then
+    expect(parseBundledModuleCount(output)).toBe(3995)
+    expect(assertEngineGraphBundled(output)).toBe(3995)
+  })
+
+  test("#given output without a module-count line #when asserted #then the build fails loud rather than guessing", () => {
+    // given
+    const output = "\n [132ms]  compile  /tmp/x\n"
+
+    // when / then
+    expect(parseBundledModuleCount(output)).toBeUndefined()
+    expect(() => assertEngineGraphBundled(output)).toThrow(/could not read the bundled module count/)
+  })
+
+  test("#given an engine-less bundle #when asserted #then it fails naming the literal-import requirement", () => {
+    // given - a launcher-only graph, as produced when the entry's import loses
+    // static traceability through a const indirection or runtime-resolved URL
+    const output = "\n   [4ms]  bundle  7 modules\n"
+
+    // when / then
+    expect(() => assertEngineGraphBundled(output)).toThrow(
+      /engine graph is missing.*inline string literal/s,
+    )
+  })
+
+  test("#given the engine floor #when compared to both observed shapes #then it separates them", () => {
+    // given - measured: engine-bundled ≈ 4001 modules, launcher-only ≈ 7
+    // when / then
+    expect(ENGINE_MINIMUM_MODULES).toBeLessThan(4001)
+    expect(ENGINE_MINIMUM_MODULES).toBeGreaterThan(7)
+  })
 })
 
 describe("staged file collection", () => {

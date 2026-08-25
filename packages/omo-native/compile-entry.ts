@@ -16,6 +16,18 @@ type EmbeddedFile = Blob & { name: string; arrayBuffer?: () => Promise<ArrayBuff
 export type EmbeddedManifestEntry = { relPath: string; sha256: string; mode: number; size: number }
 export type EmbeddedManifest = { omoAiVersion: string; enginePin: string; manifestSha: string; entries: EmbeddedManifestEntry[] }
 
+// The engine is imported via a RELATIVE string LITERAL, inlined at both import
+// sites, and both properties are load-bearing:
+//  - `@code-yeongyu/senpi/dist/cli.js` is not in senpi's exports map (only ".",
+//    "./rpc-entry", "./client"), so the bare subpath fails exports enforcement
+//    at build time.
+//  - bun's bundler only traces import() whose argument is a literal: a
+//    module-level const or a runtime-resolved URL (import.meta.resolve +
+//    pathToFileURL) drops the entire engine graph from the binary (1 module
+//    bundled instead of ≈4000) and the latter also fails to resolve inside
+//    $bunfs. Do NOT refactor these two literals into an indirection.
+// Probe receipts: .omo/evidence/20260825-bun-compile-release-binaries/
+
 const earlyCommands = new Set(["install", "remove", "list", "config", "auth", "app-server"])
 const selfUpdateTargets = new Set(["self", "senpi", "omo"])
 const engineUpdateTargets = new Set(["--extensions", "--models"])
@@ -126,8 +138,7 @@ async function main(): Promise<void> {
     if (await runCompiledLauncher(process.argv.slice(2), execDir)) return
     process.argv.splice(2, process.argv.length - 2, ...buildSenpiArgs(process.argv.slice(2), execDir))
     Object.assign(process.env, remapSenpiEnvironment(process.env, execDir))
-    // @ts-expect-error The compiled Bun graph resolves this deep entry; senpi does not expose declarations for it.
-    await import("@code-yeongyu/senpi/dist/cli.js")
+    await import("../../node_modules/@code-yeongyu/senpi/dist/cli.js") // literal: see import note above
     return
   }
   const manifestFile = embedded.find((file) => file.name.endsWith("runtime-manifest.json"))
@@ -147,8 +158,7 @@ async function main(): Promise<void> {
   if (await runCompiledLauncher(process.argv.slice(2), dirname(process.execPath), manifest.enginePin)) return
   process.argv.splice(2, process.argv.length - 2, ...buildSenpiArgs(process.argv.slice(2), dirname(process.execPath)))
   Object.assign(process.env, remapSenpiEnvironment(process.env, dirname(process.execPath)))
-  // @ts-expect-error The compiled Bun graph resolves this deep entry; senpi does not expose declarations for it.
-  await import("@code-yeongyu/senpi/dist/cli.js")
+  await import("../../node_modules/@code-yeongyu/senpi/dist/cli.js") // literal: see import note above
 }
 
 if (import.meta.main) await main()

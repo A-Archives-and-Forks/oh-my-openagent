@@ -452,6 +452,47 @@ function runCommand(command: string, args: readonly string[], cwd: string): void
   }
 }
 
+function runCommandCaptured(command: string, args: readonly string[], cwd: string): string {
+  const result = spawnSync(command, [...args], { cwd, encoding: "utf8" })
+  if (result.error !== undefined) throw result.error
+  if (result.status !== 0) {
+    throw new Error(
+      `${command} ${args.join(" ")} failed with exit code ${result.status ?? 1}:\n${result.stdout}\n${result.stderr}`,
+    )
+  }
+  return result.stdout
+}
+
+/**
+ * bun reports the bundled module count as `bundle <n> modules`. The engine
+ * graph is ~4000 modules; an entry whose senpi import lost static traceability
+ * (const indirection, runtime-resolved URL) bundles ~7. If the line cannot be
+ * parsed at all the build fails rather than guessing - a bun output format
+ * change must be a loud failure, not a silently engine-less binary.
+ */
+export function parseBundledModuleCount(bunBuildOutput: string): number | undefined {
+  const match = /bundle\s+(\d+)\s+modules/.exec(bunBuildOutput)
+  return match === null ? undefined : Number.parseInt(match[1]!, 10)
+}
+
+/** Floor far below the ~4000-module engine graph, far above the ~7-module launcher-only graph. */
+export const ENGINE_MINIMUM_MODULES = 1000
+
+export function assertEngineGraphBundled(bunBuildOutput: string): number {
+  const modules = parseBundledModuleCount(bunBuildOutput)
+  if (modules === undefined) {
+    throw new Error(
+      `could not read the bundled module count from bun's output - refusing to ship a binary whose engine graph may be missing:\n${bunBuildOutput}`,
+    )
+  }
+  if (modules < ENGINE_MINIMUM_MODULES) {
+    throw new Error(
+      `only ${modules} modules were bundled (expected >= ${ENGINE_MINIMUM_MODULES}): the senpi engine graph is missing from the binary. The compile entry's engine import must stay an inline string literal - bun does not trace import() through consts or runtime-resolved URLs.`,
+    )
+  }
+  return modules
+}
+
 function stagePluginPayload(stageDir: string, staged: Set<string>): void {
   const pluginStageRoot = mkdtempSync(join(tmpdir(), "omo-plugin-stage-"))
   try {
@@ -578,24 +619,32 @@ export async function buildReleaseBinary(
     }
 
     // Flags mirror senpi's own scripts.build:binary (node_modules/@code-yeongyu/senpi/package.json).
-    runCommand(
-      "bun",
-      [
-        "build",
-        "--compile",
-        `--target=${target.bunTarget}`,
-        "--compile-autoload-package-json",
-        "--no-compile-autoload-dotenv",
-        "--no-compile-autoload-bunfig",
-        `--asset=${stageDir}`,
-        compileEntry,
-        "--outfile",
-        binaryPath,
-      ],
-      repoRoot,
-    )
+    // A binary that fails post-compile verification must not survive on disk.
+    let compileOutput: string
+    try {
+      compileOutput = runCommandCaptured(
+        "bun",
+        [
+          "build",
+          "--compile",
+          `--target=${target.bunTarget}`,
+          "--compile-autoload-package-json",
+          "--no-compile-autoload-dotenv",
+          "--no-compile-autoload-bunfig",
+          `--asset=${stageDir}`,
+          compileEntry,
+          "--outfile",
+          binaryPath,
+        ],
+        repoRoot,
+      )
+      assertEngineGraphBundled(compileOutput)
+      assertBinarySizeBudget(target.target, binaryPath)
+    } catch (error) {
+      rmSync(binaryPath, { force: true })
+      throw error
+    }
 
-    assertBinarySizeBudget(target.target, binaryPath)
     const size = statSync(binaryPath).size
     const sha256 = sha256OfFile(binaryPath)
     appendFileSync(join(outDir, "SHA256SUMS"), `${sha256}  ${target.binaryName}\n`, "utf8")
