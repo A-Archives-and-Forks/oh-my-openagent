@@ -114,6 +114,10 @@ export type DagRunRecordV1 = DagJournalCheckpoint & {
   readonly bottlenecks: readonly DagBottleneck[]
   readonly diagnostics: readonly DagDiagnostic[]
   readonly amendHistory?: readonly AmendRecord[]
+  // Resume lease: recovery claims a paused run by writing the claiming host pid here and drops the
+  // field on shutdown pause (see recovery.ts). Absent on records written before the lease existed.
+  readonly leaseHolderPid?: number
+  readonly previousLeaseHolderPid?: number
 }
 
 export type DagRunSummary = {
@@ -616,8 +620,7 @@ function transitiveDependents(edges: readonly DagEdge[], seeds: readonly DagNode
 }
 
 function liveLeaseHolder(record: DagRunRecordV1): boolean {
-  const leaseRecord = record as DagRunRecordV1 & { readonly leaseHolderPid?: number; readonly previousLeaseHolderPid?: number }
-  const pid = leaseRecord.leaseHolderPid ?? leaseRecord.previousLeaseHolderPid
+  const pid = record.leaseHolderPid ?? record.previousLeaseHolderPid
   if (pid === undefined) return false
   return defaultSignaller.isAlive(pid)
 }
@@ -690,6 +693,7 @@ function projectSnapshot(record: DagRunRecordV1): DagRunSnapshot {
     diagnostics: record.diagnostics,
     counts: countNodes(record.nodes),
     ...(record.amendHistory === undefined ? {} : { amendHistory: record.amendHistory }),
+    ...(record.leaseHolderPid === undefined ? {} : { leaseHolderPid: record.leaseHolderPid }),
   }
 }
 
