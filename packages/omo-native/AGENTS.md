@@ -13,6 +13,8 @@ omo-senpi plugin payload produced by `bun run build:omo-native` (gitignored, nev
   - `agent-dir.js` — `canonicalAgentDir()`, `adoptLegacyFlatState()`, legacy flat-dir migration
   - `setup-detect.js` / `setup-import.js` / `setup-models.js` / `setup-report.js` — harness detection, SQLite read-only import, provider mapping, report rendering
   - `bun-runtime.js` / `child-process.js` — `maybeReexecUnderBun`, `findBunBinary`, `spawnNode`
+  - `bun-bin-shim.js` — `ensureBunBinShim`: keeps the user-facing bun-global bin an sh shim that
+    execs bun directly (POSIX only, self-healing across `bun add -g` updates, fail-open)
   - `doctor.js`, `package-paths.js`, `provider-map.json`, `legacy-bun-global-migration.js`
 - **agent state lives in ONE canonical directory: `~/.omo/agent`.** `bin/lib/agent-dir.js` owns that answer (`canonicalAgentDir`), and the launcher, `omo doctor`, `omo setup` and the locally installed launcher (`packages/omo-senpi/src/install/local-launcher.ts`) all resolve it from there - never by composing their own default. An explicit `OMO_CODING_AGENT_DIR` (or legacy `SENPI_CODING_AGENT_DIR` / `PI_CODING_AGENT_DIR`) still wins, and `adoptLegacyFlatState` carries state left in the pre-unification flat `~/.omo` layout forward once, so unifying the location never reads as another reset.
 - `bin/omo-agent-toolkit.js` - internal delegate to the staged toolkit runtime, NOT an npm bin
