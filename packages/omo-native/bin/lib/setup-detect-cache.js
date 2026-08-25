@@ -80,6 +80,9 @@ export function spawnSetupSuggestionRefresh() {
       stdio: "ignore",
       windowsHide: true,
     })
+    // A failed spawn reports through an async `error` event, and an unhandled one would take the
+    // launcher down mid-launch; absorbing it keeps this best-effort refresh genuinely fail-open.
+    child.on("error", () => {})
     child.unref()
   } catch {
     // The refresh is best-effort by contract; nothing about this launch depends on it.
