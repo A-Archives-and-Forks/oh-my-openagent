@@ -5,7 +5,8 @@ import { runDoctor } from "./doctor.js"
 import { migrateLegacyBunGlobalManifest } from "./legacy-bun-global-migration.js"
 import { adoptLegacyFlatState, canonicalAgentDir } from "./agent-dir.js"
 import { nearestNodeBin, packageManifest, packageRoot, readJson, resolveSenpi, updateTarget } from "./package-paths.js"
-import { detectHarnesses, needsSetupSuggestion } from "./setup-detect.js"
+import { detectHarnesses } from "./setup-detect.js"
+import { readSetupSuggestionCache, spawnSetupSuggestionRefresh } from "./setup-detect-cache.js"
 import { printSetupReport } from "./setup-report.js"
 
 const earlyCommands = new Set(["install", "remove", "list", "config", "auth", "app-server"])
@@ -30,6 +31,7 @@ function brandProfile() {
   const update = updateTarget()
   return {
     name: "OmO",
+    command: "omo",
     displayVersion: packageManifest().version,
     configDir: ".omo",
     // Engine state lives at the canonical `~/.omo/agent`, never directly under the config
@@ -116,6 +118,18 @@ function reportLegacyFlatAdoption() {
   console.error(`omo: carried forward settings from the legacy ~/.omo layout (${moved})`)
 }
 
+/**
+ * The interactive banner's sibling-credential hint is advisory, so it must never gate the engine
+ * spawn. It is answered synchronously from the suggestion cache; a stale or missing cache kicks
+ * off a detached refresh (the launcher itself never writes the cache) and still answers this
+ * launch from the cached or empty value. Any cache failure behaves as no-siblings: fail-open.
+ */
+function setupSuggestionForLaunch() {
+  const cached = readSetupSuggestionCache()
+  if (!cached.fresh) spawnSetupSuggestionRefresh()
+  return cached.suggestion === true
+}
+
 export async function runLauncher(args = process.argv.slice(2)) {
   migrateLegacyBunGlobalManifest()
   reportLegacyFlatAdoption()
@@ -152,7 +166,7 @@ export async function runLauncher(args = process.argv.slice(2)) {
   }
   if (isInteractiveDefault(args)) {
     console.error(`omo (omo-ai beta ${packageManifest().version})`)
-    if (process.stdout.isTTY === true && needsSetupSuggestion(await detectHarnesses())) {
+    if (process.stdout.isTTY === true && setupSuggestionForLaunch()) {
       console.error("omo: sibling credentials detected; run `omo setup` to review them")
     }
   }
