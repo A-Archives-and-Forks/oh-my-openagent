@@ -28,6 +28,27 @@ tradeoff: the required `@anthropic-ai/sdk >=0.93.0` line pulls Node credential
 modules into the browser bundle, while the retained 0.91.1 pin passes the
 browser-safety gate.
 
+
+## 2026-08-23 — Surface attribution + shared install id on every omo-native event (schema v3)
+
+**What:** `OMO_NATIVE_SCHEMA_VERSION` bumps to 3. `telemetry-core` event clients spread
+`product.additionalProperties` into the shared property block (fixed identity keys still win).
+`product-identity.ts` gains `getOmoNativeAttribution`/`withOmoNativeAttribution`: `surface`
+(`cli` | `desktop`, from `OMO_NATIVE_SURFACE`) and `install_id` (random 64-hex file beside the
+session-id salt; `OMO_NATIVE_INSTALL_ID` env wins when valid). Both the session client and the
+component's privacy facade attach them, so every event carries attribution. Test fixtures
+(`withTempAgentDir`, `useTemporaryAgentDir`) now pin all three agent-dir env names — an ambient
+`OMO_CODING_AGENT_DIR` used to leak real-home writes out of tests. Docs updated in
+`docs/reference/senpi-telemetry.md`.
+
+**Why:** The OmO Desktop app drives the bundled runtime over RPC; without attribution those
+turns counted as CLI adoption and the 264 RPC users could not be split. The install id is the
+agent-home file shared with the desktop host, so CLI and Desktop join without deriving anything
+from the machine.
+
+**A future refactor or sync must not break:** attribution must never derive from hostname,
+hardware, or accounts; keep both capture paths (session client + facade) attributed or events
+disagree about their own schema.
 ## 2026-08-20 — Demand parent-side verification of DAG completions
 
 A DAG node's completion summary was delivered to the orchestrating parent as if

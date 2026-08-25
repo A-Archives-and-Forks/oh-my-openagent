@@ -206,6 +206,15 @@ Identity is machine-level, not person-level:
 
 Because identity is machine-level, a shared machine conflates its users into one id. That's an accepted, documented limitation, not a bug.
 
+### Surface attribution and install ids (schema version 3)
+
+Every event carries two shared attribution properties as of schema version 3:
+
+- `surface` is `cli` for standalone CLI sessions, or `desktop` when the runtime is embedded in OmO Desktop. The Desktop host sets `OMO_NATIVE_SURFACE=desktop` in the child environment; anything else is the CLI. A Desktop-driven turn is Desktop usage, not CLI adoption, and must never be counted as one.
+- `install_id` is a random 64-hex value stored (like the session-id salt) under the agent home at `omo-senpi/omo-native/install-id`, created with mode 0600 on first use. It is generated locally and derived from nothing: not the hostname, not hardware, not accounts. The standalone CLI and the Desktop-bundled runtime on one machine converge on the same file, which is what joins the two surfaces without fingerprinting the machine. A valid `OMO_NATIVE_INSTALL_ID` env value overrides the file, so a Desktop host can pin a remote (SSH/WSL) runtime to the local installation's id; a malformed override is ignored.
+
+Rows written before schema version 3 carry neither property. Segment on `schema_version` when mixing eras.
+
 ## SDK-added properties
 
 PostHog's node client attaches `$lib` and `$lib_version` to every event. Since schema version 2 the client omits the `$geoip_disable` flag, so PostHog may add derived location properties such as `$geoip_country_code` after ingestion; before schema version 2 that flag was set and no location was derived. These are SDK or service metadata, not authored by the omo-senpi client, so they don't appear in the allowlists above. They're listed here so an auditor comparing captured and ingested payloads against the schema isn't surprised.
