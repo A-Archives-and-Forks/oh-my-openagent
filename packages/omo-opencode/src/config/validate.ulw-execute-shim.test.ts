@@ -1,10 +1,13 @@
 import { describe, expect, it } from "bun:test"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, relative } from "node:path"
 
-import { validatePluginConfig } from "./validate"
-import { _flushForTesting, _resetLoggerForTesting, _setLoggerForTesting } from "../shared/logger"
+import {
+  _resetDeprecationWarningSinkForTesting,
+  _setDeprecationWarningSinkForTesting,
+  validatePluginConfig,
+} from "./validate"
 
 // Deprecation shim contract (plan todo 5c): the old `start_work` config key is
 // accepted for one release. Each config layer whose raw view still contains
@@ -68,18 +71,12 @@ function writeJsonc(path: string, config: unknown): void {
 }
 
 function captureDeprecationWarnings<T>(run: () => T): { readonly result: T; readonly warnings: readonly string[] } {
-  const logDir = mkdtempSync(join(tmpdir(), "omo-config-ulw-execute-shim-log-"))
-  const logFile = join(logDir, "log.txt")
-  _setLoggerForTesting({ filePath: logFile })
+  const warnings: string[] = []
+  _setDeprecationWarningSinkForTesting((message) => warnings.push(message))
   try {
-    const result = run()
-    _flushForTesting()
-    const contents = existsSync(logFile) ? readFileSync(logFile, "utf-8") : ""
-    const warnings = contents.split("\n").filter((line) => line.includes(DEPRECATION_MESSAGE))
-    return { result, warnings }
+    return { result: run(), warnings }
   } finally {
-    _resetLoggerForTesting()
-    rmSync(logDir, { recursive: true, force: true })
+    _resetDeprecationWarningSinkForTesting()
   }
 }
 

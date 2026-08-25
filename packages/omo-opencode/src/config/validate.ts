@@ -134,10 +134,20 @@ function materializeAgentModelChains(config: OhMyOpenCodeConfig): OhMyOpenCodeCo
 
 const START_WORK_DEPRECATION_MESSAGE = 'config key "start_work" is deprecated, rename to "ulw_execute" - will be removed next release'
 
+let deprecationWarningSink: (message: string) => void = log
+
+export function _setDeprecationWarningSinkForTesting(sink: (message: string) => void): void {
+  deprecationWarningSink = sink
+}
+
+export function _resetDeprecationWarningSinkForTesting(): void {
+  deprecationWarningSink = log
+}
+
 function warnLegacyUlwExecuteKey(views: readonly OmoOpenCodeConfigView[]): void {
   for (const view of views) {
     if (!Object.hasOwn(view.config, "start_work")) continue
-    log(`[config] ${shortPath(view.path)}: ${START_WORK_DEPRECATION_MESSAGE}`)
+    deprecationWarningSink(`[config] ${shortPath(view.path)}: ${START_WORK_DEPRECATION_MESSAGE}`)
   }
 }
 
