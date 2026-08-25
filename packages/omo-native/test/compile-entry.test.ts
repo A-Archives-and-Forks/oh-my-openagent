@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs"
 import { createHash } from "node:crypto"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import {
   buildSenpiArgs,
+  isProvisionedExecutable,
   provisionEmbeddedRuntime,
   remapSenpiEnvironment,
+  runCompiledLauncher,
   selectRuntimeManifest,
   versionLine,
   updateLine,
@@ -32,6 +34,16 @@ describe("compiled omo entry launcher parity", () => {
     expect(versionLine({ version: "9.2.1" }, "2026.8.24")).toBe("omo 9.2.1 (engine: senpi 2026.8.24)")
   })
 
+  test("realpath-equivalent executable and expected paths skip re-exec", () => {
+    const root = temp()
+    const executable = join(root, "omo")
+    const expected = join(root, "runtime", "omo")
+    writeFileSync(executable, "binary")
+    mkdirSync(join(root, "runtime"), { recursive: true })
+    symlinkSync(executable, expected)
+    expect(isProvisionedExecutable(expected, executable)).toBe(true)
+  })
+
   test("self-update prints the curl reinstall command", () => {
     expect(updateLine("darwin-arm64")).toContain("curl -fsSL")
     expect(updateLine("darwin-arm64")).toContain("omo-darwin-arm64")
@@ -50,6 +62,20 @@ describe("embedded runtime provisioning", () => {
     const senpiManifest = { name: "runtime/lsp-daemon/dist/.omo-runtime-manifest.json", text: async () => JSON.stringify({ files: [] }) }
     const omoManifest = { name: "omo-runtime/runtime-manifest.json", text: async () => JSON.stringify({ omoAiVersion: "9.2.1", enginePin: "2026.8.24" }) }
     await expect(selectRuntimeManifest([senpiManifest, omoManifest] as any[])).resolves.toBe(omoManifest as any)
+  })
+
+  test("version uses the manifest engine pin without a provisioned senpi package", async () => {
+    const root = temp()
+    writeFileSync(join(root, "package.json"), JSON.stringify({ version: "9.2.1" }))
+    const output: string[] = []
+    const originalLog = console.log
+    console.log = (value?: unknown) => { output.push(String(value)) }
+    try {
+      await runCompiledLauncher(["--version"], root, "2026.8.24")
+    } finally {
+      console.log = originalLog
+    }
+    expect(output).toEqual(["omo 9.2.1 (engine: senpi 2026.8.24)"])
   })
 
   test("materializes files whose embedded names carry the omo-runtime prefix", async () => {

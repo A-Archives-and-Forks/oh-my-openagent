@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { spawn } from "node:child_process"
@@ -49,6 +49,14 @@ export function versionLine(packageJson: { version: string }, enginePin: string)
 
 export function updateLine(target: string): string {
   return `omo is updated via curl: curl -fsSL https://github.com/code-yeongyu/oh-my-openagent/releases/latest/download/omo-${target} -o omo && chmod +x omo`
+}
+
+export function isProvisionedExecutable(execPath: string, expectedPath: string): boolean {
+  try {
+    return realpathSync(execPath) === realpathSync(expectedPath)
+  } catch {
+    return resolve(execPath) === resolve(expectedPath)
+  }
 }
 
 export function remapSenpiEnvironment(source: NodeJS.ProcessEnv = process.env, execDir: string): NodeJS.ProcessEnv {
@@ -141,9 +149,8 @@ function isSelfUpdate(args: string[]): boolean {
   return rest.every((arg) => arg.startsWith("-") || selfUpdateTargets.has(arg))
 }
 
-export async function runCompiledLauncher(args: string[], execDir: string, enginePin?: string): Promise<boolean> {
+export async function runCompiledLauncher(args: string[], execDir: string, enginePin = "unknown"): Promise<boolean> {
   const packageJson = readJson(join(execDir, "package.json"))
-  enginePin ??= readJson(join(execDir, "node_modules", "@code-yeongyu", "senpi", "package.json")).version
   migrateLegacyBunGlobalManifest(execDir)
   adoptLegacyFlatState()
   const command = args[0]
@@ -169,7 +176,7 @@ async function main(): Promise<void> {
   if (!manifestFile) throw new Error("embedded runtime-manifest.json is missing")
   const manifest = JSON.parse(await embeddedText(manifestFile)) as EmbeddedManifest
   const expected = join(homedir(), ".omo", "binary-runtime", manifest.omoAiVersion, process.platform === "win32" ? "omo.exe" : "omo")
-  if (resolve(process.execPath) !== resolve(expected)) {
+  if (!isProvisionedExecutable(process.execPath, expected)) {
     await provisionEmbeddedRuntime(manifest, embedded, dirname(expected))
     writeFileSync(expected, readFileSync(process.execPath))
     chmodSync(expected, 0o755)
