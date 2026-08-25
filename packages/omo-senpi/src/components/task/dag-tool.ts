@@ -38,7 +38,7 @@ export type {
 } from "./dag-tool-contract"
 
 const DESCRIPTION = [
-  "Run a dependency graph of child tasks in one call: nodes execute in parallel waves, and a node starts only after every node it dependsOn has finished.",
+  "Run a dependency graph of child tasks in one call: a node starts only after every node it dependsOn has finished, and unrelated nodes run in parallel up to the resident-child cap.",
   "dependsOn is ordering ONLY - no upstream output is substituted into a downstream prompt, so each prompt must stand alone.",
   "Each node targets EITHER category OR subagent_type, never both; model is an explicit override valid only alongside subagent_type.",
   "start is idempotent per definition key: re-starting the same key with the same graph reuses the run instead of duplicating it.",
