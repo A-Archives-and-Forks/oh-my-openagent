@@ -25,7 +25,7 @@
     "CLAUDE.md: omo doctor",
     "packages/omo-codex/README.md: omo get-local-version",
     "packages/omo-native/AGENTS.md: /bin/omo",
-    "packages/omo-native/AGENTS.md: omo doctor",
+    "packages/omo-native/AGENTS.md: omo doctor x2",
     "packages/omo-native/bin/lib/agent-dir.js: omo doctor",
     "packages/omo-native/test/bun-bin-shim.test.ts: /bin/omo x8",
     "packages/omo-native/test/bun-runtime.test.ts: /bin/omo x2",
