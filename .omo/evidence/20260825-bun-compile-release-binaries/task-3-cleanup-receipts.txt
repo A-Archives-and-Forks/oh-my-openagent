@@ -1,10 +1,16 @@
 Task 3 cleanup receipts (2026-08-25)
 
-Current-binary rerun did not start: the required executable was absent at:
-/tmp/work-binary-assets/.omo/release-binaries/omo-darwin-arm64
+Fresh isolated QA root:
+/tmp/omo-task3-green.fFBaX1
+Fresh real-home receipt:
+/tmp/omo-task3-green-real.GADkS2
 
-Read-only search performed under:
-- /tmp/work-binary-assets
-- /tmp
+Removed after transcription:
+rm -rf /tmp/omo-task3-green.fFBaX1 /tmp/omo-task3-green-real.GADkS2 /tmp/omo-task3-green-root /tmp/omo-task3-green-receipt /tmp/task3-native-check.mjs
 
-No temporary QA root was created. No binary was executed. No user-file quarantine attributes were changed. No real agent directory was used.
+Builder cleanup observed:
+- omo-binary-darwin-arm64-* staging root
+- omo-plugin-stage-* root
+- omo-embed-probe-* root
+
+No user-file quarantine attributes were changed. No real agent directory was used as HOME or OMO_CODING_AGENT_DIR.
