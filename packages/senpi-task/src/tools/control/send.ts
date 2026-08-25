@@ -1,4 +1,4 @@
-import { defineTool, type ToolDefinition } from "@code-yeongyu/senpi"
+import type { ToolDefinition } from "@code-yeongyu/senpi"
 
 import { runTeamSend } from "../team/messaging"
 import type { TeamToolsService } from "../team/types"
@@ -121,9 +121,14 @@ export type MemberScopedTaskSendDeps = {
   readonly resolveCallerSessionId?: CallerSessionResolver
 }
 
-export function createMemberScopedTaskSendTool(deps: MemberScopedTaskSendDeps) {
+export function createMemberScopedTaskSendTool(deps: MemberScopedTaskSendDeps): ToolDefinition<typeof MemberScopedTaskSendParams, SendResultDetails> & ToolDefinition<any, any, any> {
   const resolveCaller = deps.resolveCallerSessionId ?? defaultResolveCallerSessionId
-  return defineTool<typeof MemberScopedTaskSendParams, SendResultDetails>({
+  // Returned as a plain literal: senpi's defineTool is an identity helper for type inference
+  // (pinned by the senpi API tripwire), so wrapping here would only statically bind this module
+  // to the engine barrel. The function's return type and the cast below mirror defineTool's
+  // declared return (ToolDefinition<...> & AnyToolDefinition) so downstream assignability is
+  // unchanged - the cast is type-level only, defineTool was identity at runtime.
+  const tool: ToolDefinition<typeof MemberScopedTaskSendParams, SendResultDetails> = {
     name: "task_send",
     label: "Task Send",
     description: MEMBER_SCOPED_DESCRIPTION,
@@ -136,5 +141,6 @@ export function createMemberScopedTaskSendTool(deps: MemberScopedTaskSendDeps) {
       }),
     renderCall: (args, theme) => renderMemberScopedTaskSendCall(args, theme),
     renderResult: (result, options, theme) => renderTaskSendResult(result, options, theme),
-  })
+  }
+  return tool as ToolDefinition<typeof MemberScopedTaskSendParams, SendResultDetails> & ToolDefinition<any, any, any>
 }

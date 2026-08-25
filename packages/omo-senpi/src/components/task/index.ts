@@ -10,6 +10,7 @@ import {
   defaultResolveCallerSessionId,
   evaluateSpawnPolicy,
   isTeamMemberProcess,
+  loadPiTui,
   resolveTeamRuntimeDirs,
   teamStorageBaseDir,
   toTeamCoreConfig,
@@ -57,7 +58,12 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
   const loadConfig = options.loadConfig ?? loadSenpiOmoConfig
   return {
     name: "task",
-    register(pi: SenpiExtensionAPI, ctx: ComponentContext): void {
+    async register(pi: SenpiExtensionAPI, ctx: ComponentContext): Promise<void> {
+      // Warm the pi-tui lazy boundary before any tool/renderer registration: the render helpers in
+      // senpi-task read the pi-tui namespace synchronously from render callbacks, which can fire
+      // as soon as the component's tools are live. Spawned rpc children skip the render path
+      // entirely, and the load itself is memoized, so this costs one small module load per process.
+      await loadPiTui()
       if (isTeamMemberProcess()) return
 
       // Unconditional omo process hygiene (T16): fires on session_start before any
