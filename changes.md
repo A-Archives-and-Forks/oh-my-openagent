@@ -5,6 +5,11 @@ with the native, adapter, task-engine, and package-shape Senpi contract aligned 
 `@code-yeongyu/senpi` 2026.8.25. The Bun lockfile is regenerated for the exact
 release dependency graph.
 
+The committed Senpi extension and Codex installer bundles were regenerated after
+the provenance-safe CI gate reported stale generated output for the beta.20
+release-state SHA. The generated payloads now match the release metadata and
+must remain synchronized with the exact Senpi dependency and skill inventory.
+
 ## 2026-08-24 — Pin OmO beta.19 to Senpi 2026.8.24
 
 The OmO Native launcher, adapter peers/dev dependencies, task engine, root

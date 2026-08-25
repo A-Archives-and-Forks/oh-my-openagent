@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-codex-install:475155d5e39ca774e5cf86194fee97439fd9c4f3624a85e946a994d5493e4629:fda97218e12fb55452f666f13e54fdfa16c50e8635c08c003fa3135dad1ed510
+// omo-codex-install:475155d5e39ca774e5cf86194fee97439fd9c4f3624a85e946a994d5493e4629:1c7c73a68c1147fffd78df8bfc0126f38e77464c42debb2efd312e3997209eff
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
