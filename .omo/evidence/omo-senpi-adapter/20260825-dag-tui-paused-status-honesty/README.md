@@ -134,3 +134,21 @@ set for a plain run.
 - No secrets, tokens, auth headers, env dumps, or credentials appear in any
   artifact. Temp paths and a transient child pid are the only machine-specific
   values recorded.
+
+## Post-rebase re-verification
+
+PR #7320 (`fix/dag-recovery-nonblocking`, touching `recovery.ts`, `scheduler.ts`,
+and the tracked `omo-task.js` bundle) merged to dev while this PR was in review,
+making the branch conflicting. Resolved per the smart-rebase contract: the only
+conflict was the generated bundle, resolved by regenerating it from this branch's
+source; no semantic conflict existed.
+
+Re-verified on the rebased tree against the new dev:
+
+- `tsgo -p packages/senpi-task` and `tsgo -p packages/omo-senpi` both exit 0.
+- `green-post-rebase.txt`: 728 pass / 0 fail across the omo-senpi task component
+  and senpi-task dag suites (the two extra tests vs the earlier 726 are dev's
+  new `recovery-nonblocking` cases, now running in the shared scope).
+- `post-rebase/dag-paused-header-qa.json`: the live driver still PASSes with the
+  same honest headers; the lease write/read path in the changed `recovery.ts`
+  still carries `leaseHolderPid` (write at claim, clear on shutdown pause).
