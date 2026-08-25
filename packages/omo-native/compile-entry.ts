@@ -84,6 +84,21 @@ function embeddedBytes(_file: EmbeddedFile, content: string): Uint8Array {
   return new TextEncoder().encode(content)
 }
 
+export async function selectRuntimeManifest(embedded: EmbeddedFile[]): Promise<EmbeddedFile | undefined> {
+  const exact = embedded.find((file) => file.name === "omo-runtime/runtime-manifest.json")
+  if (exact) return exact
+  for (const file of embedded) {
+    if (!file.name.endsWith("runtime-manifest.json")) continue
+    try {
+      const parsed = JSON.parse(await embeddedText(file))
+      if (typeof parsed?.omoAiVersion === "string" && typeof parsed?.enginePin === "string") return file
+    } catch {
+      // Non-manifest assets with a similar name are not candidates.
+    }
+  }
+  return undefined
+}
+
 export async function provisionEmbeddedRuntime(manifest: EmbeddedManifest, embedded: EmbeddedFile[], runtimeDir: string): Promise<void> {
   mkdirSync(runtimeDir, { recursive: true })
   const marker = join(runtimeDir, ".provisioned")
@@ -141,7 +156,7 @@ async function main(): Promise<void> {
     await import("../../node_modules/@code-yeongyu/senpi/dist/cli.js") // literal: see import note above
     return
   }
-  const manifestFile = embedded.find((file) => file.name.endsWith("runtime-manifest.json"))
+  const manifestFile = await selectRuntimeManifest(embedded)
   if (!manifestFile) throw new Error("embedded runtime-manifest.json is missing")
   const manifest = JSON.parse(await embeddedText(manifestFile)) as EmbeddedManifest
   const expected = join(homedir(), ".omo", "binary-runtime", manifest.omoAiVersion, process.platform === "win32" ? "omo.exe" : "omo")

@@ -7,6 +7,7 @@ import {
   buildSenpiArgs,
   provisionEmbeddedRuntime,
   remapSenpiEnvironment,
+  selectRuntimeManifest,
   versionLine,
   updateLine,
   type EmbeddedManifest,
@@ -45,6 +46,12 @@ describe("compiled omo entry launcher parity", () => {
 })
 
 describe("embedded runtime provisioning", () => {
+  test("selects the omo manifest when senpi also embeds an unrelated manifest", async () => {
+    const senpiManifest = { name: "runtime/lsp-daemon/dist/.omo-runtime-manifest.json", text: async () => JSON.stringify({ files: [] }) }
+    const omoManifest = { name: "omo-runtime/runtime-manifest.json", text: async () => JSON.stringify({ omoAiVersion: "9.2.1", enginePin: "2026.8.24" }) }
+    await expect(selectRuntimeManifest([senpiManifest, omoManifest] as any[])).resolves.toBe(omoManifest as any)
+  })
+
   test("materializes files with sha256 and mode, then skips on matching marker", async () => {
     const root = temp()
     const content = "hello runtime\n"
