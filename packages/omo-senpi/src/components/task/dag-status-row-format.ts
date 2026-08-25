@@ -42,6 +42,9 @@ export interface DagStatusRunSnapshot {
   readonly status: string
   readonly nodes: readonly DagStatusNode[]
   readonly waves: readonly DagStatusWave[]
+  // Resume lease owner, written by the dag recovery claim and cleared on shutdown pause. A paused
+  // run still carrying a LIVE pid is mid-resume, not idle; absent on legacy records.
+  readonly leaseHolderPid?: number
 }
 
 export interface DagRunRowsOptions {
@@ -49,6 +52,8 @@ export interface DagRunRowsOptions {
   readonly maxWidth?: number
   // Rendering time for live elapsed labels; defaults to Date.now().
   readonly now?: number
+  // Liveness probe for the resume lease holder; defaults to a signal-0 existence check.
+  readonly isProcessAlive?: (pid: number) => boolean
 }
 
 const TERMINAL_NODE_STATES: ReadonlySet<string> = new Set(["completed", "failed", "cancelled", "skipped"])
@@ -76,10 +81,14 @@ const NODE_ICONS: Readonly<Record<string, string>> = {
   paused: "⏸",
 }
 
+// The run-level pause family is deliberately neutral: a ⏸ beside a lane rendering ▶ reads as a
+// contradiction during the resume-reconcile window, so the header claims nothing about motion.
+const PAUSED_RUN_ICON = "·"
+
 export function runRows(run: DagStatusRunSnapshot, activity: ReadonlyMap<string, string> | undefined, options?: DagRunRowsOptions): string[] {
   const renderedAt = options?.now ?? Date.now()
   const maxWidth = boundedRowWidth(options?.maxWidth)
-  const rows = [runHeaderRow(run)]
+  const rows = [runHeaderRow(run, options?.isProcessAlive ?? isProcessAlive)]
   const shown = selectNodeRows(run.nodes)
   for (const node of shown) rows.push(nodeRow(node, activity, renderedAt, maxWidth))
   const overflow = run.nodes.length - shown.length
@@ -121,10 +130,32 @@ function selectNodeRows(nodes: readonly DagStatusNode[]): readonly DagStatusNode
   return ordered.slice(0, Math.max(MAX_NODE_ROWS, runningCount))
 }
 
-function runHeaderRow(run: DagStatusRunSnapshot): string {
-  const icon = NODE_ICONS[run.status] ?? "○"
+function runHeaderRow(run: DagStatusRunSnapshot, isAlive: (pid: number) => boolean): string {
+  const paused = run.status === "paused"
+  const icon = paused ? PAUSED_RUN_ICON : (NODE_ICONS[run.status] ?? "○")
   const name = excerptRendererText(normalizeRendererText(run.name), LABEL_MAX)
-  return `${icon} ${name} ${normalizeRendererText(run.status)} ${waveLabel(run)} ${countsLabel(run)}`
+  const status = paused ? pausedStatusText(run, isAlive) : normalizeRendererText(run.status)
+  return `${icon} ${name} ${status} ${waveLabel(run)} ${countsLabel(run)}`
+}
+
+// Priority is deliberate. A live lease means another process already claimed this run and is
+// reconciling it, so "paused" would be stale by the time it is painted. Without that lease, nodes
+// still recorded as running are stranded work the header must own rather than hide behind "paused".
+function pausedStatusText(run: DagStatusRunSnapshot, isAlive: (pid: number) => boolean): string {
+  if (run.leaseHolderPid !== undefined && isAlive(run.leaseHolderPid)) return "resuming"
+  const running = run.nodes.reduce((count, node) => count + (node.state === "running" ? 1 : 0), 0)
+  return running > 0 ? `suspended · ${running} active` : "paused"
+}
+
+// Signal 0 probes existence without delivering anything. ESRCH is the only "gone" answer: EPERM
+// means the pid exists under another uid, which still counts as a live lease holder.
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== "ESRCH"
+  }
 }
 
 // Current wave = the first wave still holding a nonterminal node; a fully settled run reads y/y.
