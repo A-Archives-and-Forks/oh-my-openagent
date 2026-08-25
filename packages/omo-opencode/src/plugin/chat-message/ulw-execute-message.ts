@@ -4,13 +4,13 @@ import type {
   ChatMessageHooks,
   ChatMessageInput,
   ChatMessageHandlerOutput,
-  StartWorkHookOutput,
+  UlwExecuteHookOutput,
   WorkStartingCommand,
 } from "./types"
 
-const START_WORK_TEMPLATE_MARKER = "You are starting an Atlas work session."
+const ULW_EXECUTE_TEMPLATE_MARKER = "You are starting an Atlas work session."
 
-export function isStartWorkHookOutput(value: unknown): value is StartWorkHookOutput {
+export function isUlwExecuteHookOutput(value: unknown): value is UlwExecuteHookOutput {
   if (typeof value !== "object" || value === null) return false
   const record = value as Record<string, unknown>
   const partsValue = record.parts
@@ -22,14 +22,14 @@ export function isStartWorkHookOutput(value: unknown): value is StartWorkHookOut
   })
 }
 
-export function isStartWorkFallbackTemplate(promptText: string): boolean {
+export function isUlwExecuteFallbackTemplate(promptText: string): boolean {
   return (
     promptText.includes("<session-context>") &&
-    promptText.includes(START_WORK_TEMPLATE_MARKER)
+    promptText.includes(ULW_EXECUTE_TEMPLATE_MARKER)
   )
 }
 
-export function clearStoppedContinuationBeforeWorkStart(
+export function clearStoppedContinuationBeforeUlwExecute(
   hooks: ChatMessageHooks,
   sessionID: string,
   command: WorkStartingCommand,
@@ -43,18 +43,18 @@ export function clearStoppedContinuationBeforeWorkStart(
   }
 }
 
-export async function runStartWorkHookIfApplicable(
+export async function runUlwExecuteHookIfApplicable(
   hooks: ChatMessageHooks,
   input: ChatMessageInput,
   output: ChatMessageHandlerOutput,
 ): Promise<void> {
-  if (!hooks.startWork || !isStartWorkHookOutput(output)) {
+  if (!hooks.ulwExecute || !isUlwExecuteHookOutput(output)) {
     return
   }
 
   const promptText = extractPromptText(output.parts)
-  if (isStartWorkFallbackTemplate(promptText)) {
-    clearStoppedContinuationBeforeWorkStart(hooks, input.sessionID, "start-work")
+  if (isUlwExecuteFallbackTemplate(promptText)) {
+    clearStoppedContinuationBeforeUlwExecute(hooks, input.sessionID, "ulw-execute")
   }
-  await hooks.startWork["chat.message"]?.(input, output)
+  await hooks.ulwExecute["chat.message"]?.(input, output)
 }

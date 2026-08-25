@@ -12,36 +12,36 @@ import {
 } from "../../features/claude-code-session-state"
 import { detectWorktreePath } from "./worktree-detector"
 import { parseUserRequest } from "./parse-user-request"
-import { buildStartWorkContextInfo } from "./context-info-builder"
+import { buildUlwExecuteContextInfo } from "./context-info-builder"
 import { createPrDeliveryBlock, createWorktreeActiveBlock } from "./worktree-block"
 import { findRecentSessionPlanPath } from "./session-plan-affinity"
 
-export const HOOK_NAME = "start-work" as const
-const START_WORK_TEMPLATE_MARKER = "You are starting an Atlas work session."
-const CONTEXT_INFO_MARKER = "<!-- omo-start-work-context -->"
+export const HOOK_NAME = "ulw-execute" as const
+const ULW_EXECUTE_TEMPLATE_MARKER = "You are starting an Atlas work session."
+const CONTEXT_INFO_MARKER = "<!-- omo-ulw-execute-context -->"
 const COMMAND_INSTRUCTION_OPEN = "<command-instruction>"
 const COMMAND_INSTRUCTION_CLOSE = "</command-instruction>"
 const SESSION_CONTEXT_OPEN = "<session-context>"
 const SESSION_CONTEXT_CLOSE = "</session-context>"
 const RUNTIME_PLACEHOLDER_PATTERN = /\$SESSION_ID|\$TIMESTAMP/g
 
-interface StartWorkHookInput {
+interface UlwExecuteHookInput {
   sessionID: string
   messageID?: string
 }
 
-interface StartWorkCommandExecuteBeforeInput {
+interface UlwExecuteCommandExecuteBeforeInput {
   sessionID: string
   command: string
   arguments: string
 }
 
-interface StartWorkHookOutput {
+interface UlwExecuteHookOutput {
   message?: Record<string, unknown>
   parts: Array<{ type: string; text?: string }>
 }
 
-type TextPart = StartWorkHookOutput["parts"][number]
+type TextPart = UlwExecuteHookOutput["parts"][number]
 
 interface TextEntry {
   readonly part: TextPart
@@ -60,21 +60,21 @@ function findFrameworkSessionContextRanges(text: string): readonly TextRange[] {
   let searchFrom = 0
 
   while (searchFrom < text.length) {
-    const markerIndex = text.indexOf(START_WORK_TEMPLATE_MARKER, searchFrom)
+    const markerIndex = text.indexOf(ULW_EXECUTE_TEMPLATE_MARKER, searchFrom)
     if (markerIndex < 0) break
 
     const instructionOpen = text.lastIndexOf(COMMAND_INSTRUCTION_OPEN, markerIndex)
     const instructionBodyStart = instructionOpen + COMMAND_INSTRUCTION_OPEN.length
     const instructionClose = text.indexOf(
       COMMAND_INSTRUCTION_CLOSE,
-      markerIndex + START_WORK_TEMPLATE_MARKER.length,
+      markerIndex + ULW_EXECUTE_TEMPLATE_MARKER.length,
     )
     if (
       instructionOpen < searchFrom
       || instructionClose < 0
       || text.slice(instructionBodyStart, markerIndex).trim() !== ""
     ) {
-      searchFrom = markerIndex + START_WORK_TEMPLATE_MARKER.length
+      searchFrom = markerIndex + ULW_EXECUTE_TEMPLATE_MARKER.length
       continue
     }
 
@@ -154,10 +154,10 @@ function resolveWorktreeContext(
   }
 }
 
-export function createStartWorkHook(ctx: PluginInput) {
-  const processStartWork = async (
-    input: StartWorkHookInput,
-    output: StartWorkHookOutput,
+export function createUlwExecuteHook(ctx: PluginInput) {
+  const processUlwExecute = async (
+    input: UlwExecuteHookInput,
+    output: UlwExecuteHookOutput,
   ): Promise<void> => {
     const parts = output.parts
     const promptText =
@@ -169,12 +169,12 @@ export function createStartWorkHook(ctx: PluginInput) {
 
     if (
       !promptText.includes("<session-context>")
-      || !promptText.includes(START_WORK_TEMPLATE_MARKER)
+      || !promptText.includes(ULW_EXECUTE_TEMPLATE_MARKER)
     ) {
       return
     }
 
-    log(`[${HOOK_NAME}] Processing start-work command`, { sessionID: input.sessionID })
+    log(`[${HOOK_NAME}] Processing ulw-execute command`, { sessionID: input.sessionID })
     const activeAgent = isAgentRegistered("atlas")
       ? "atlas"
       : "sisyphus"
@@ -200,7 +200,7 @@ export function createStartWorkHook(ctx: PluginInput) {
           availablePlans: findPrometheusPlans(ctx.directory),
         })
 
-    const contextInfo = buildStartWorkContextInfo({
+    const contextInfo = buildUlwExecuteContextInfo({
       ctx,
       explicitPlanName,
       existingState,
@@ -243,14 +243,14 @@ export function createStartWorkHook(ctx: PluginInput) {
   }
 
   return {
-    "chat.message": async (input: StartWorkHookInput, output: StartWorkHookOutput): Promise<void> => {
-      await processStartWork(input, output)
+    "chat.message": async (input: UlwExecuteHookInput, output: UlwExecuteHookOutput): Promise<void> => {
+      await processUlwExecute(input, output)
     },
     "command.execute.before": async (
-      input: StartWorkCommandExecuteBeforeInput,
-      output: StartWorkHookOutput,
+      input: UlwExecuteCommandExecuteBeforeInput,
+      output: UlwExecuteHookOutput,
     ): Promise<void> => {
-      await processStartWork(input, output)
+      await processUlwExecute(input, output)
     },
   }
 }

@@ -7,14 +7,14 @@ import { tmpdir } from "node:os"
 import { randomUUID } from "node:crypto"
 import { readBoulderState, clearBoulderState } from "../../features/boulder-state"
 import { unsafeTestValue } from "../../../../../test-support/unsafe-test-value"
-import { createStartWorkHook } from "./start-work-hook"
-import { START_WORK_TEMPLATE } from "../../features/builtin-commands/templates/start-work"
+import { createUlwExecuteHook } from "./ulw-execute-hook"
+import { ULW_EXECUTE_TEMPLATE } from "../../features/builtin-commands/templates/ulw-execute"
 import { createPrDeliveryBlock } from "./worktree-block"
 
-describe("start-work hook platform session ids", () => {
+describe("ulw-execute hook platform session ids", () => {
   let testDir: string
 
-  function createStartWorkPrompt(): string {
+  function createUlwExecutePrompt(): string {
     return `<command-instruction>
 You are starting an Atlas work session.
 </command-instruction>
@@ -23,7 +23,7 @@ You are starting an Atlas work session.
   }
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `start-work-hook-session-prefix-${randomUUID()}`)
+    testDir = join(tmpdir(), `ulw-execute-hook-session-prefix-${randomUUID()}`)
     mkdirSync(join(testDir, ".omo", "plans"), { recursive: true })
     clearBoulderState(testDir)
   })
@@ -35,10 +35,10 @@ You are starting an Atlas work session.
     }
   })
 
-  test("#given raw chat session id #when processing start-work template #then boulder stores opencode-prefixed id", async () => {
+  test("#given raw chat session id #when processing ulw-execute template #then boulder stores opencode-prefixed id", async () => {
     // given
     writeFileSync(join(testDir, ".omo", "plans", "work.md"), "# Work\n- [ ] First task\n")
-    const hook = createStartWorkHook(unsafeTestValue<Parameters<typeof createStartWorkHook>[0]>({
+    const hook = createUlwExecuteHook(unsafeTestValue<Parameters<typeof createUlwExecuteHook>[0]>({
       directory: testDir,
       client: {
         session: {
@@ -47,7 +47,7 @@ You are starting an Atlas work session.
       },
     }))
     const output = {
-      parts: [{ type: "text", text: createStartWorkPrompt() }],
+      parts: [{ type: "text", text: createUlwExecutePrompt() }],
     }
 
     // when
@@ -62,7 +62,7 @@ You are starting an Atlas work session.
     // given
     writeFileSync(join(testDir, ".omo", "plans", "work.md"), "# Work\n- [ ] First task\n")
     const sessionMessageIds: string[] = []
-    const hook = createStartWorkHook(unsafeTestValue<Parameters<typeof createStartWorkHook>[0]>({
+    const hook = createUlwExecuteHook(unsafeTestValue<Parameters<typeof createUlwExecuteHook>[0]>({
       directory: testDir,
       client: {
         session: {
@@ -74,7 +74,7 @@ You are starting an Atlas work session.
       },
     }))
     const output = {
-      parts: [{ type: "text", text: createStartWorkPrompt() }],
+      parts: [{ type: "text", text: createUlwExecutePrompt() }],
     }
 
     // when
@@ -86,10 +86,10 @@ You are starting an Atlas work session.
   })
 })
 
-describe("start-work PR delivery flags", () => {
+describe("ulw-execute PR delivery flags", () => {
   let testDir: string
 
-  function createStartWorkPromptWithArgs(args: string): string {
+  function createUlwExecutePromptWithArgs(args: string): string {
     return `<command-instruction>
 You are starting an Atlas work session.
 </command-instruction>
@@ -104,7 +104,7 @@ ${args}
   }
 
   function createHookForDir(dir: string) {
-    return createStartWorkHook(unsafeTestValue<Parameters<typeof createStartWorkHook>[0]>({
+    return createUlwExecuteHook(unsafeTestValue<Parameters<typeof createUlwExecuteHook>[0]>({
       directory: dir,
       client: {
         session: {
@@ -115,7 +115,7 @@ ${args}
   }
 
   beforeEach(() => {
-    testDir = join(tmpdir(), `start-work-hook-pr-delivery-${randomUUID()}`)
+    testDir = join(tmpdir(), `ulw-execute-hook-pr-delivery-${randomUUID()}`)
     mkdirSync(join(testDir, ".omo", "plans"), { recursive: true })
     writeFileSync(join(testDir, ".omo", "plans", "work.md"), "# Work\n- [ ] First task\n")
     clearBoulderState(testDir)
@@ -135,7 +135,7 @@ ${args}
     // given - the expected branch is pinned independently of the production
     // parser: createPrDeliveryBlock only renders the shipped copy for flags
     // the test itself chose, so a hook/parser branch flip cannot pass
-    const prompt = createStartWorkPromptWithArgs(`work ${flag}`)
+    const prompt = createUlwExecutePromptWithArgs(`work ${flag}`)
     const selectedBlock = createPrDeliveryBlock(flags, undefined)
     const rejectedBlock = createPrDeliveryBlock(
       { makePr: !flags.makePr, ship: !flags.ship },
@@ -158,7 +158,7 @@ ${args}
 
   test("#given no delivery flags #when processing #then no PR delivery block is injected", async () => {
     // given - a plain work request renders neither shipped delivery branch
-    const prompt = createStartWorkPromptWithArgs("work")
+    const prompt = createUlwExecutePromptWithArgs("work")
     const hook = createHookForDir(testDir)
     const output = { parts: [{ type: "text", text: prompt }] }
 
@@ -182,7 +182,7 @@ ${args}
     // given
     const hook = createHookForDir(testDir)
     const output = {
-      parts: [{ type: "text", text: createStartWorkPromptWithArgs("work --make-pr") }],
+      parts: [{ type: "text", text: createUlwExecutePromptWithArgs("work --make-pr") }],
     }
 
     // when
@@ -194,11 +194,11 @@ ${args}
   })
 })
 
-describe("start-work template label matches the activated agent (#5499)", () => {
-  test("#given /start-work activates Atlas #when reading the shipped template header #then it carries the marker the hook gates on", () => {
-    // /start-work activates the atlas agent (see createStartWorkHook), and the
+describe("ulw-execute template label matches the activated agent (#5499)", () => {
+  test("#given /ulw-execute activates Atlas #when reading the shipped template header #then it carries the marker the hook gates on", () => {
+    // /ulw-execute activates the atlas agent (see createUlwExecuteHook), and the
     // hook only fires on messages containing this marker, so the shipped
     // template must keep it (#5499).
-    expect(START_WORK_TEMPLATE).toContain("You are starting an Atlas work session.")
+    expect(ULW_EXECUTE_TEMPLATE).toContain("You are starting an Atlas work session.")
   })
 })

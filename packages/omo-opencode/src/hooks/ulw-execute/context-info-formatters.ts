@@ -79,7 +79,7 @@ Session ID: ${sessionId}
 ${optionList}
 
 Use the Question tool to ask the user which plan to resume.
-- If the user chooses one option, run /start-work {plan-name} for that plan.
+- If the user chooses one option, run /ulw-execute {plan-name} for that plan.
 - If the user chooses to start a new plan, proceed with cold-start auto-selection flow.
 </system-reminder>`
 }

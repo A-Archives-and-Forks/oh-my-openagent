@@ -6,7 +6,7 @@ import {
   selectActiveWork,
 } from "../../features/boulder-state"
 import { log } from "../../shared/logger"
-import { HOOK_NAME } from "./start-work-hook"
+import { HOOK_NAME } from "./ulw-execute-hook"
 import { buildAutoSelectedPlanContextInfoOnly, buildExistingSessionContext } from "./context-info-formatters"
 import { buildMissingPlanContext, findPlanByName } from "./plan-selection"
 import { createNewWorkOrInitialize } from "./work-initializer"

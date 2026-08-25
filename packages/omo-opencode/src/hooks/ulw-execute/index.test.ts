@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { tmpdir } from "node:os"
 import { randomUUID } from "node:crypto"
-import { createStartWorkHook } from "./index"
+import { createUlwExecuteHook } from "./index"
 import { createAtlasHook } from "../atlas"
 import {
   writeBoulderState,
@@ -17,12 +17,12 @@ import * as sessionState from "../../features/claude-code-session-state"
 import * as worktreeDetector from "./worktree-detector"
 import { unsafeTestValue } from "../../../../../test-support/unsafe-test-value"
 
-describe("start-work hook", () => {
+describe("ulw-execute hook", () => {
   let testDir: string
   let omoDir: string
 
   function createMockPluginInput() {
-    return unsafeTestValue<Parameters<typeof createStartWorkHook>[0]>({
+    return unsafeTestValue<Parameters<typeof createUlwExecuteHook>[0]>({
       directory: testDir,
       client: {
         session: {
@@ -32,7 +32,7 @@ describe("start-work hook", () => {
     })
   }
 
-  function createStartWorkPrompt(options?: {
+  function createUlwExecutePrompt(options?: {
     sessionContext?: string
     userRequest?: string
   }): string {
@@ -52,7 +52,7 @@ You are starting an Atlas work session.
     sessionState._resetForTesting()
     sessionState.registerAgentName("atlas")
     sessionState.registerAgentName("sisyphus")
-    testDir = join(tmpdir(), `start-work-test-${randomUUID()}`)
+    testDir = join(tmpdir(), `ulw-execute-test-${randomUUID()}`)
     omoDir = join(testDir, ".omo")
     if (!existsSync(testDir)) {
       mkdirSync(testDir, { recursive: true })
@@ -72,9 +72,9 @@ You are starting an Atlas work session.
   })
 
   describe("chat.message handler", () => {
-    test("should ignore non-start-work commands", async () => {
-      // given - hook and non-start-work message
-      const hook = createStartWorkHook(createMockPluginInput())
+    test("should ignore non-ulw-execute commands", async () => {
+      // given - hook and non-ulw-execute message
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         parts: [{ type: "text", text: "Just a regular message" }],
       }
@@ -89,9 +89,9 @@ You are starting an Atlas work session.
       expect(output.parts[0].text).toBe("Just a regular message")
     })
 
-    test("should ignore plain session-context blocks without the start-work marker", async () => {
+    test("should ignore plain session-context blocks without the ulw-execute marker", async () => {
       // given
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         parts: [{ type: "text", text: "<session-context>Some context here</session-context>" }],
       }
@@ -107,14 +107,14 @@ You are starting an Atlas work session.
       expect(readBoulderState(testDir)).toBeNull()
     })
 
-    test("should detect start-work command via session-context tag", async () => {
-      // given - hook and start-work message
-      const hook = createStartWorkHook(createMockPluginInput())
+    test("should detect ulw-execute command via session-context tag", async () => {
+      // given - hook and ulw-execute message
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         parts: [
           {
             type: "text",
-            text: createStartWorkPrompt({ sessionContext: "Some context here" }),
+            text: createUlwExecutePrompt({ sessionContext: "Some context here" }),
           },
         ],
       }
@@ -126,7 +126,7 @@ You are starting an Atlas work session.
       )
 
       // then - output should be modified with context info (idempotence-marker guarded)
-      expect(output.parts[0].text).toContain("<!-- omo-start-work-context -->")
+      expect(output.parts[0].text).toContain("<!-- omo-ulw-execute-context -->")
     })
 
     test("should inject resume info when existing boulder state found", async () => {
@@ -142,9 +142,9 @@ You are starting an Atlas work session.
       }
       writeBoulderState(testDir, state)
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
-        parts: [{ type: "text", text: createStartWorkPrompt() }],
+        parts: [{ type: "text", text: createUlwExecutePrompt() }],
       }
 
       // when
@@ -168,7 +168,7 @@ You are starting an Atlas work session.
       writeFileSync(planAPath, "# Plan A\n- [ ] Task 1")
       writeFileSync(planBPath, "# Plan B\n- [ ] Task 2")
 
-      const hook = createStartWorkHook(unsafeTestValue<Parameters<typeof createStartWorkHook>[0]>({
+      const hook = createUlwExecuteHook(unsafeTestValue<Parameters<typeof createUlwExecuteHook>[0]>({
         directory: testDir,
         client: {
           session: {
@@ -187,7 +187,7 @@ You are starting an Atlas work session.
         },
       }))
       const output = {
-        parts: [{ type: "text", text: createStartWorkPrompt() }],
+        parts: [{ type: "text", text: createUlwExecutePrompt() }],
       }
 
       // when
@@ -220,7 +220,7 @@ You are starting an Atlas work session.
         plan_name: "old-plan",
       })
 
-      const hook = createStartWorkHook(unsafeTestValue<Parameters<typeof createStartWorkHook>[0]>({
+      const hook = createUlwExecuteHook(unsafeTestValue<Parameters<typeof createUlwExecuteHook>[0]>({
         directory: testDir,
         client: {
           session: {
@@ -239,7 +239,7 @@ You are starting an Atlas work session.
         },
       }))
       const output = {
-        parts: [{ type: "text", text: createStartWorkPrompt() }],
+        parts: [{ type: "text", text: createUlwExecutePrompt() }],
       }
 
       // when
@@ -265,7 +265,7 @@ You are starting an Atlas work session.
       writeFileSync(planAPath, "# Plan A\n- [ ] Task A")
       writeFileSync(planBPath, "# Plan B\n- [ ] Task B")
 
-      const hook = createStartWorkHook(unsafeTestValue<Parameters<typeof createStartWorkHook>[0]>({
+      const hook = createUlwExecuteHook(unsafeTestValue<Parameters<typeof createUlwExecuteHook>[0]>({
         directory: testDir,
         client: {
           session: {
@@ -289,7 +289,7 @@ You are starting an Atlas work session.
         },
       }))
       const output = {
-        parts: [{ type: "text", text: createStartWorkPrompt() }],
+        parts: [{ type: "text", text: createUlwExecutePrompt() }],
       }
 
       // when
@@ -306,12 +306,12 @@ You are starting an Atlas work session.
 
     test("should replace $SESSION_ID placeholder", async () => {
       // given - hook and message with placeholder
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         parts: [
           {
             type: "text",
-            text: createStartWorkPrompt({ sessionContext: "Session: $SESSION_ID" }),
+            text: createUlwExecutePrompt({ sessionContext: "Session: $SESSION_ID" }),
           },
         ],
       }
@@ -329,12 +329,12 @@ You are starting an Atlas work session.
 
     test("should replace $TIMESTAMP placeholder", async () => {
       // given - hook and message with placeholder
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         parts: [
           {
             type: "text",
-            text: createStartWorkPrompt({ sessionContext: "Time: $TIMESTAMP" }),
+            text: createUlwExecutePrompt({ sessionContext: "Time: $TIMESTAMP" }),
           },
         ],
       }
@@ -363,9 +363,9 @@ You are starting an Atlas work session.
       const plan2Path = join(plansDir, "plan-incomplete.md")
       writeFileSync(plan2Path, "# Plan Incomplete\n- [ ] Task 1\n- [x] Task 2")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
-        parts: [{ type: "text", text: createStartWorkPrompt() }],
+        parts: [{ type: "text", text: createUlwExecutePrompt() }],
       }
 
       // when
@@ -390,9 +390,9 @@ You are starting an Atlas work session.
       const plan2Path = join(plansDir, "plan-b.md")
       writeFileSync(plan2Path, "# Plan B\n- [ ] Task 2")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
-        parts: [{ type: "text", text: createStartWorkPrompt() }],
+        parts: [{ type: "text", text: createUlwExecutePrompt() }],
       }
 
       // when
@@ -429,12 +429,12 @@ You are starting an Atlas work session.
       }
       writeBoulderState(testDir, staleState)
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         parts: [
           {
             type: "text",
-            text: createStartWorkPrompt({ userRequest: "new-plan" }),
+            text: createUlwExecutePrompt({ userRequest: "new-plan" }),
           },
         ],
       }
@@ -458,12 +458,12 @@ You are starting an Atlas work session.
       const planPath = join(plansDir, "my-feature-plan.md")
       writeFileSync(planPath, "# My Feature Plan\n- [ ] Task 1")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         parts: [
           {
             type: "text",
-            text: createStartWorkPrompt({ userRequest: "my-feature-plan ultrawork" }),
+            text: createUlwExecutePrompt({ userRequest: "my-feature-plan ultrawork" }),
           },
         ],
       }
@@ -487,12 +487,12 @@ You are starting an Atlas work session.
       const planPath = join(plansDir, "api-refactor.md")
       writeFileSync(planPath, "# API Refactor\n- [ ] Task 1")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         parts: [
           {
             type: "text",
-            text: createStartWorkPrompt({ userRequest: "api-refactor ulw" }),
+            text: createUlwExecutePrompt({ userRequest: "api-refactor ulw" }),
           },
         ],
       }
@@ -516,12 +516,12 @@ You are starting an Atlas work session.
       const planPath = join(plansDir, "2026-01-15-feature-implementation.md")
       writeFileSync(planPath, "# Feature Implementation\n- [ ] Task 1")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         parts: [
           {
             type: "text",
-            text: createStartWorkPrompt({ userRequest: "feature-implementation" }),
+            text: createUlwExecutePrompt({ userRequest: "feature-implementation" }),
           },
         ],
       }
@@ -545,12 +545,12 @@ You are starting an Atlas work session.
       const planPath = join(plansDir, "my-feature-plan.md")
       writeFileSync(planPath, "# My Feature Plan\n- [ ] Task 1")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         parts: [
           {
             type: "text",
-            text: createStartWorkPrompt({ userRequest: "\"my feature plan\"" }),
+            text: createUlwExecutePrompt({ userRequest: "\"my feature plan\"" }),
           },
         ],
       }
@@ -574,12 +574,12 @@ You are starting an Atlas work session.
       const planPath = join(plansDir, "결제-플로우.md")
       writeFileSync(planPath, "# 결제 플로우\n- [ ] 작업 1")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         parts: [
           {
             type: "text",
-            text: createStartWorkPrompt({ userRequest: "결제 플로우" }),
+            text: createUlwExecutePrompt({ userRequest: "결제 플로우" }),
           },
         ],
       }
@@ -603,12 +603,12 @@ You are starting an Atlas work session.
       const planPath = join(plansDir, "支払い-フロー.md")
       writeFileSync(planPath, "# 支払い フロー\n- [ ] タスク 1")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         parts: [
           {
             type: "text",
-            text: createStartWorkPrompt({ userRequest: "支払い フロー" }),
+            text: createUlwExecutePrompt({ userRequest: "支払い フロー" }),
           },
         ],
       }
@@ -632,12 +632,12 @@ You are starting an Atlas work session.
       const planPath = join(plansDir, "checkout-flow.md")
       writeFileSync(planPath, "# Checkout Flow\n- [ ] Task 1")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         parts: [
           {
             type: "text",
-            text: createStartWorkPrompt({ userRequest: "checkout flow" }),
+            text: createUlwExecutePrompt({ userRequest: "checkout flow" }),
           },
         ],
       }
@@ -661,12 +661,12 @@ You are starting an Atlas work session.
       const planPath = join(plansDir, "v2-결제-flow.md")
       writeFileSync(planPath, "# v2 결제 flow\n- [ ] Task 1")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         parts: [
           {
             type: "text",
-            text: createStartWorkPrompt({ userRequest: "v2 결제 flow" }),
+            text: createUlwExecutePrompt({ userRequest: "v2 결제 flow" }),
           },
         ],
       }
@@ -684,13 +684,13 @@ You are starting an Atlas work session.
   })
 
   describe("session agent management", () => {
-    test("should update session agent to Atlas when start-work command is triggered", async () => {
+    test("should update session agent to Atlas when ulw-execute command is triggered", async () => {
       // given
       const updateSpy = spyOn(sessionState, "updateSessionAgent")
       
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
-        parts: [{ type: "text", text: createStartWorkPrompt() }],
+        parts: [{ type: "text", text: createUlwExecutePrompt() }],
       }
 
       // when
@@ -706,10 +706,10 @@ You are starting an Atlas work session.
 
     test("should stamp the outgoing message with Atlas config key so OpenCode can resolve the agent", async () => {
       // given
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         message: {} as Record<string, unknown>,
-        parts: [{ type: "text", text: createStartWorkPrompt() }],
+        parts: [{ type: "text", text: createUlwExecutePrompt() }],
       }
 
       // when
@@ -723,14 +723,14 @@ You are starting an Atlas work session.
     })
 
     test("should switch to Atlas even when current session is Sisyphus (regression: #3155)", async () => {
-      // given: user runs /start-work while in a Sisyphus session
-      // atlas is registered, so /start-work must always hand off to atlas
+      // given: user runs /ulw-execute while in a Sisyphus session
+      // atlas is registered, so /ulw-execute must always hand off to atlas
       sessionState.updateSessionAgent("ses-sisyphus-to-atlas", "sisyphus")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         message: {} as Record<string, unknown>,
-        parts: [{ type: "text", text: createStartWorkPrompt() }],
+        parts: [{ type: "text", text: createUlwExecutePrompt() }],
       }
 
       await hook["chat.message"](
@@ -749,10 +749,10 @@ You are starting an Atlas work session.
       sessionState.registerAgentName("sisyphus")
       sessionState.updateSessionAgent("ses-prometheus-to-sisyphus", "sisyphus")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         message: {} as Record<string, unknown>,
-        parts: [{ type: "text", text: createStartWorkPrompt() }],
+        parts: [{ type: "text", text: createUlwExecutePrompt() }],
       }
 
       // when
@@ -777,10 +777,10 @@ You are starting an Atlas work session.
       mkdirSync(plansDir, { recursive: true })
       writeFileSync(join(plansDir, "worker-plan.md"), "# Plan\n- [ ] Task 1")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         message: {} as Record<string, unknown>,
-        parts: [{ type: "text", text: createStartWorkPrompt() }],
+        parts: [{ type: "text", text: createUlwExecutePrompt() }],
       }
 
       // when
@@ -812,10 +812,10 @@ You are starting an Atlas work session.
         agent: "prometheus",
       })
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         message: {} as Record<string, unknown>,
-        parts: [{ type: "text", text: createStartWorkPrompt() }],
+        parts: [{ type: "text", text: createUlwExecutePrompt() }],
       }
 
       // when
@@ -829,7 +829,7 @@ You are starting an Atlas work session.
       expect(readBoulderState(testDir)?.agent).toBe("sisyphus")
     })
 
-    test("#given start-work hands the session to Atlas #when Atlas later receives session.idle #then the same session continues the selected plan", async () => {
+    test("#given ulw-execute hands the session to Atlas #when Atlas later receives session.idle #then the same session continues the selected plan", async () => {
       // given
       const plansDir = join(testDir, ".omo", "plans")
       mkdirSync(plansDir, { recursive: true })
@@ -849,15 +849,15 @@ You are starting an Atlas work session.
           },
         },
       })
-      const startWorkHook = createStartWorkHook(ctx)
+      const ulwExecuteHook = createUlwExecuteHook(ctx)
       const atlasHook = createAtlasHook(ctx)
       const output = {
         message: {} as Record<string, unknown>,
-        parts: [{ type: "text", text: createStartWorkPrompt({ userRequest: "atlas-plan" }) }],
+        parts: [{ type: "text", text: createUlwExecutePrompt({ userRequest: "atlas-plan" }) }],
       }
 
       // when
-      await startWorkHook["chat.message"]({ sessionID: "session-123" }, output)
+      await ulwExecuteHook["chat.message"]({ sessionID: "session-123" }, output)
       await atlasHook.handler({ event: { type: "session.idle", properties: { sessionID: "session-123" } } })
 
       // then
@@ -868,7 +868,7 @@ You are starting an Atlas work session.
       promptAsyncMock.mockRestore()
     })
 
-    test("#given start-work hands the session to Atlas but background work is still running #when that work finishes #then Atlas resumes via retry for the same session", async () => {
+    test("#given ulw-execute hands the session to Atlas but background work is still running #when that work finishes #then Atlas resumes via retry for the same session", async () => {
       // given
       const plansDir = join(testDir, ".omo", "plans")
       mkdirSync(plansDir, { recursive: true })
@@ -919,7 +919,7 @@ You are starting an Atlas work session.
           },
         },
       })
-      const startWorkHook = createStartWorkHook(ctx)
+      const ulwExecuteHook = createUlwExecuteHook(ctx)
       const atlasHook = createAtlasHook(ctx, {
         directory: testDir,
         backgroundManager: unsafeTestValue<NonNullable<Parameters<typeof createAtlasHook>[1]>["backgroundManager"]>({
@@ -928,7 +928,7 @@ You are starting an Atlas work session.
       })
       const output = {
         message: {} as Record<string, unknown>,
-        parts: [{ type: "text", text: createStartWorkPrompt({ userRequest: "atlas-plan" }) }],
+        parts: [{ type: "text", text: createUlwExecutePrompt({ userRequest: "atlas-plan" }) }],
       }
 
       async function firePendingTimers(): Promise<void> {
@@ -943,7 +943,7 @@ You are starting an Atlas work session.
 
       try {
         // when
-        await startWorkHook["chat.message"]({ sessionID: "session-123" }, output)
+        await ulwExecuteHook["chat.message"]({ sessionID: "session-123" }, output)
         await atlasHook.handler({ event: { type: "session.idle", properties: { sessionID: "session-123" } } })
         expect(promptAsyncMock).toHaveBeenCalledTimes(0)
         expect(capturedTimers.size).toBe(1)
@@ -983,9 +983,9 @@ You are starting an Atlas work session.
       mkdirSync(plansDir, { recursive: true })
       writeFileSync(join(plansDir, "my-plan.md"), "# Plan\n- [ ] Task 1")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
-        parts: [{ type: "text", text: createStartWorkPrompt() }],
+        parts: [{ type: "text", text: createUlwExecutePrompt() }],
       }
 
       // when
@@ -1002,9 +1002,9 @@ You are starting an Atlas work session.
       writeFileSync(join(plansDir, "my-plan.md"), "# Plan\n- [ ] Task 1")
       detectSpy.mockReturnValue("/validated/worktree")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
-        parts: [{ type: "text", text: createStartWorkPrompt({ userRequest: "--worktree /validated/worktree" }) }],
+        parts: [{ type: "text", text: createUlwExecutePrompt({ userRequest: "--worktree /validated/worktree" }) }],
       }
 
       // when
@@ -1022,9 +1022,9 @@ You are starting an Atlas work session.
       writeFileSync(join(plansDir, "my-plan.md"), "# Plan\n- [ ] Task 1")
       detectSpy.mockReturnValue("/valid/wt")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
-        parts: [{ type: "text", text: createStartWorkPrompt({ userRequest: "--worktree /valid/wt" }) }],
+        parts: [{ type: "text", text: createUlwExecutePrompt({ userRequest: "--worktree /valid/wt" }) }],
       }
 
       // when
@@ -1042,9 +1042,9 @@ You are starting an Atlas work session.
       writeFileSync(join(plansDir, "my-plan.md"), "# Plan\n- [ ] Task 1")
       // detectSpy already returns null by default
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
-        parts: [{ type: "text", text: createStartWorkPrompt({ userRequest: "--worktree /nonexistent/wt" }) }],
+        parts: [{ type: "text", text: createUlwExecutePrompt({ userRequest: "--worktree /nonexistent/wt" }) }],
       }
 
       // when
@@ -1069,9 +1069,9 @@ You are starting an Atlas work session.
       writeBoulderState(testDir, existingState)
       detectSpy.mockReturnValue("/new/wt")
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
-        parts: [{ type: "text", text: createStartWorkPrompt({ userRequest: "--worktree /new/wt" }) }],
+        parts: [{ type: "text", text: createUlwExecutePrompt({ userRequest: "--worktree /new/wt" }) }],
       }
 
       // when
@@ -1096,9 +1096,9 @@ You are starting an Atlas work session.
       }
       writeBoulderState(testDir, existingState)
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
-        parts: [{ type: "text", text: createStartWorkPrompt() }],
+        parts: [{ type: "text", text: createUlwExecutePrompt() }],
       }
 
       // when
@@ -1125,9 +1125,9 @@ You are starting an Atlas work session.
         worktree_path: worktreeDir,
       })
 
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
-        parts: [{ type: "text", text: createStartWorkPrompt() }],
+        parts: [{ type: "text", text: createUlwExecutePrompt() }],
       }
 
       try {
@@ -1145,7 +1145,7 @@ You are starting an Atlas work session.
   })
 
   // Regression coverage for #4480 — on an error-retry path OpenCode may
-  // re-issue the start-work template alongside the already-processed text,
+  // re-issue the ulw-execute template alongside the already-processed text,
   // producing multiple text parts (or a second <session-context> block) with
   // un-substituted $SESSION_ID / $TIMESTAMP literals. The hook must substitute
   // across every text part, and must not stack a second contextInfo block.
@@ -1154,16 +1154,16 @@ You are starting an Atlas work session.
       // given - retry-style multi-part input where a second template was re-
       // issued after the first part was already substituted by an earlier
       // hook firing
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
         parts: [
           {
             type: "text",
-            text: createStartWorkPrompt({ sessionContext: "Session: ses-abc123\nTimestamp: 2026-01-01T00:00:00Z" }),
+            text: createUlwExecutePrompt({ sessionContext: "Session: ses-abc123\nTimestamp: 2026-01-01T00:00:00Z" }),
           },
           {
             type: "text",
-            text: createStartWorkPrompt({ sessionContext: "Session: $SESSION_ID\nTimestamp: $TIMESTAMP" }),
+            text: createUlwExecutePrompt({ sessionContext: "Session: $SESSION_ID\nTimestamp: $TIMESTAMP" }),
           },
         ],
       }
@@ -1184,13 +1184,13 @@ You are starting an Atlas work session.
 
     test("should not append contextInfo twice when hook fires more than once", async () => {
       // given - hook fires once
-      const hook = createStartWorkHook(createMockPluginInput())
+      const hook = createUlwExecuteHook(createMockPluginInput())
       const output = {
-        parts: [{ type: "text", text: createStartWorkPrompt() }],
+        parts: [{ type: "text", text: createUlwExecutePrompt() }],
       }
       await hook["chat.message"]({ sessionID: "session-double" }, output)
       const firstRunText = output.parts[0].text ?? ""
-      const firstMarkerCount = (firstRunText.match(/<!-- omo-start-work-context -->/g) ?? []).length
+      const firstMarkerCount = (firstRunText.match(/<!-- omo-ulw-execute-context -->/g) ?? []).length
       expect(firstMarkerCount).toBe(1)
 
       // when - the same output re-enters the hook (e.g. retry, or
@@ -1199,7 +1199,7 @@ You are starting an Atlas work session.
 
       // then - the marker must still appear exactly once
       const secondRunText = output.parts[0].text ?? ""
-      const secondMarkerCount = (secondRunText.match(/<!-- omo-start-work-context -->/g) ?? []).length
+      const secondMarkerCount = (secondRunText.match(/<!-- omo-ulw-execute-context -->/g) ?? []).length
       expect(secondMarkerCount).toBe(1)
     })
   })

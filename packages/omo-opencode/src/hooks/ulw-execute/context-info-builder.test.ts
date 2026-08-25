@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { randomUUID } from "node:crypto"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
-import { buildStartWorkContextInfo } from "./context-info-builder"
+import { buildUlwExecuteContextInfo } from "./context-info-builder"
 import {
   addBoulderWork,
   createBoulderState,
@@ -17,7 +17,7 @@ import {
 } from "../../features/boulder-state"
 import * as boulderState from "../../features/boulder-state"
 
-describe("buildStartWorkContextInfo", () => {
+describe("buildUlwExecuteContextInfo", () => {
   let testDirectory = ""
 
   function createPluginInput() {
@@ -64,7 +64,7 @@ describe("buildStartWorkContextInfo", () => {
     })
 
     // when
-    const contextInfo = buildStartWorkContextInfo({
+    const contextInfo = buildUlwExecuteContextInfo({
       ctx: createPluginInput(),
       explicitPlanName: null,
       existingState: readExistingState(),
@@ -89,7 +89,7 @@ describe("buildStartWorkContextInfo", () => {
     writeBoulderState(testDirectory, initialState)
 
     // when
-    const contextInfo = buildStartWorkContextInfo({
+    const contextInfo = buildUlwExecuteContextInfo({
       ctx: createPluginInput(),
       explicitPlanName: null,
       existingState: readExistingState(),
@@ -121,7 +121,7 @@ describe("buildStartWorkContextInfo", () => {
     })
 
     // when
-    const contextInfo = buildStartWorkContextInfo({
+    const contextInfo = buildUlwExecuteContextInfo({
       ctx: createPluginInput(),
       explicitPlanName: "explicit-plan-a",
       existingState: readExistingState(),
@@ -149,7 +149,7 @@ describe("buildStartWorkContextInfo", () => {
     const coldStartPlanPath = writePlan("cold-start-plan", "## TODOs\n- [ ] 1. Cold start")
 
     // when
-    const contextInfo = buildStartWorkContextInfo({
+    const contextInfo = buildUlwExecuteContextInfo({
       ctx: createPluginInput(),
       explicitPlanName: null,
       existingState: null,
@@ -174,7 +174,7 @@ describe("buildStartWorkContextInfo", () => {
     const preferredPlanPath = writePlan("preferred-plan", "## TODOs\n- [ ] 1. Preferred")
 
     // when
-    const contextInfo = buildStartWorkContextInfo({
+    const contextInfo = buildUlwExecuteContextInfo({
       ctx: createPluginInput(),
       explicitPlanName: null,
       existingState: null,
@@ -205,7 +205,7 @@ describe("buildStartWorkContextInfo", () => {
     writeBoulderState(testDirectory, initialState)
 
     // when
-    const contextInfo = buildStartWorkContextInfo({
+    const contextInfo = buildUlwExecuteContextInfo({
       ctx: createPluginInput(),
       explicitPlanName: null,
       existingState: readExistingState(),
@@ -250,7 +250,7 @@ describe("buildStartWorkContextInfo", () => {
     selectActiveWork(testDirectory, activeWorkId)
 
     // when
-    const contextInfo = buildStartWorkContextInfo({
+    const contextInfo = buildUlwExecuteContextInfo({
       ctx: createPluginInput(),
       explicitPlanName: "completed-plan",
       existingState: readExistingState(),
@@ -276,7 +276,7 @@ describe("buildStartWorkContextInfo", () => {
     writeBoulderState(testDirectory, initialState)
 
     // when
-    const contextInfo = buildStartWorkContextInfo({
+    const contextInfo = buildUlwExecuteContextInfo({
       ctx: createPluginInput(),
       explicitPlanName: null,
       existingState: readExistingState(),
@@ -299,7 +299,7 @@ describe("buildStartWorkContextInfo", () => {
     const actualPlanPath = writePlan("full-site-audit-fix-plan", "## TODOs\n- [ ] 1. Fix audit findings")
 
     // when
-    const contextInfo = buildStartWorkContextInfo({
+    const contextInfo = buildUlwExecuteContextInfo({
       ctx: createPluginInput(),
       explicitPlanName: "mot-vat-notifications-plan",
       existingState: null,
@@ -325,7 +325,7 @@ describe("buildStartWorkContextInfo", () => {
     writePlan("second-candidate-plan", "## TODOs\n- [ ] 1. Second task")
 
     // when
-    const contextInfo = buildStartWorkContextInfo({
+    const contextInfo = buildUlwExecuteContextInfo({
       ctx: createPluginInput(),
       explicitPlanName: "unmatched-plan",
       existingState: null,
@@ -376,7 +376,7 @@ describe("buildStartWorkContextInfo", () => {
     }
 
     // when
-    buildStartWorkContextInfo({
+    buildUlwExecuteContextInfo({
       ctx: createPluginInput(),
       explicitPlanName: "new-plan-c",
       existingState: readExistingState(),
@@ -401,12 +401,12 @@ describe("buildStartWorkContextInfo", () => {
   })
 
   describe("notepad scaffolding side-effect", () => {
-    test("#given single incomplete plan and no active work #when buildStartWorkContextInfo auto-selects it #then scaffolds .omo/notepads/<plan-basename>/{learnings,decisions,issues,problems}.md", () => {
+    test("#given single incomplete plan and no active work #when buildUlwExecuteContextInfo auto-selects it #then scaffolds .omo/notepads/<plan-basename>/{learnings,decisions,issues,problems}.md", () => {
       // given
       writePlan("auto-scaffold-plan", "## TODOs\n- [ ] 1. Auto task")
 
       // when
-      buildStartWorkContextInfo({
+      buildUlwExecuteContextInfo({
         ctx: createPluginInput(),
         explicitPlanName: null,
         existingState: null,
@@ -430,7 +430,7 @@ describe("buildStartWorkContextInfo", () => {
       writePlan("explicit-scaffold-plan", "## TODOs\n- [ ] 1. Explicit task")
 
       // when
-      buildStartWorkContextInfo({
+      buildUlwExecuteContextInfo({
         ctx: createPluginInput(),
         explicitPlanName: "explicit-scaffold-plan",
         existingState: null,
@@ -456,7 +456,7 @@ describe("buildStartWorkContextInfo", () => {
       writeBoulderState(testDirectory, initialState)
 
       // when
-      buildStartWorkContextInfo({
+      buildUlwExecuteContextInfo({
         ctx: createPluginInput(),
         explicitPlanName: null,
         existingState: readExistingState(),
@@ -489,7 +489,7 @@ describe("buildStartWorkContextInfo", () => {
       })
 
       // when
-      buildStartWorkContextInfo({
+      buildUlwExecuteContextInfo({
         ctx: createPluginInput(),
         explicitPlanName: null,
         existingState: readExistingState(),

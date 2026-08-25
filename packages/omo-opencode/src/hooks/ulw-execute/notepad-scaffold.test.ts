@@ -46,10 +46,10 @@ describe("ensureNotepadScaffold", () => {
     const problems = readFileSync(join(notepadDir, "problems.md"), "utf8")
 
 
-    expect(learnings).toContain("Auto-scaffolded by /start-work")
-    expect(decisions).toContain("Auto-scaffolded by /start-work")
-    expect(issues).toContain("Auto-scaffolded by /start-work")
-    expect(problems).toContain("Auto-scaffolded by /start-work")
+    expect(learnings).toContain("Auto-scaffolded by /ulw-execute")
+    expect(decisions).toContain("Auto-scaffolded by /ulw-execute")
+    expect(issues).toContain("Auto-scaffolded by /ulw-execute")
+    expect(problems).toContain("Auto-scaffolded by /ulw-execute")
 
     expect(result.created).toContain("learnings.md")
     expect(result.created).toContain("decisions.md")

@@ -119,7 +119,7 @@ export async function findRecentSessionPlanPath(input: {
       }
     }
   } catch (error) {
-    log("[start-work] Failed to inspect session history for preferred plan", {
+    log("[ulw-execute] Failed to inspect session history for preferred plan", {
       sessionID: input.sessionID,
       error: String(error),
     })

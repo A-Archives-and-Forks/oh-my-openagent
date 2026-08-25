@@ -3,7 +3,7 @@
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { log } from "../../shared/logger"
-import { HOOK_NAME } from "./start-work-hook"
+import { HOOK_NAME } from "./ulw-execute-hook"
 
 export const NOTEPAD_FILES = [
   "learnings.md",
@@ -29,7 +29,7 @@ const NOTEPAD_LABELS: Readonly<Record<NotepadFileName, string>> = {
 }
 
 const NOTEPAD_FOOTER =
-  "_Auto-scaffolded by /start-work. Append new entries below - never overwrite._"
+  "_Auto-scaffolded by /ulw-execute. Append new entries below - never overwrite._"
 
 function buildHeader(
   fileName: NotepadFileName,

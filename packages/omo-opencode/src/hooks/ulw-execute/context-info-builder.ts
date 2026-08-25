@@ -16,9 +16,9 @@ import {
   shouldResumeExistingState,
   shouldResumeSingleWorkOption,
 } from "./plan-discovery-context"
-import { HOOK_NAME } from "./start-work-hook"
+import { HOOK_NAME } from "./ulw-execute-hook"
 
-export function buildStartWorkContextInfo(params: {
+export function buildUlwExecuteContextInfo(params: {
   readonly ctx: PluginInput
   readonly explicitPlanName: string | null
   readonly existingState: ReturnType<typeof readBoulderState>
