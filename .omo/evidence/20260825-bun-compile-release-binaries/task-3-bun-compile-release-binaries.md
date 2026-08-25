@@ -2,35 +2,31 @@
 
 ## WHAT WAS TESTED
 
-Fresh rerun on 2026-08-25 against the requested rebuilt binary:
+Fresh six-scenario rerun on 2026-08-25 against the requested binary:
 
 - Binary: `/tmp/work-binary-assets/.omo/release-binaries/omo-darwin-arm64`
 - Size: 111765538 bytes
 - Build-reported embedded sidecars: 1158
-- Fresh isolated QA root: `/tmp/omo-task3-final.unM5Za`
-- Fresh HOME, XDG_CONFIG_HOME, XDG_DATA_HOME, XDG_STATE_HOME, XDG_CACHE_HOME, and OMO_CODING_AGENT_DIR were used for every invocation.
+- Fresh isolated QA root: `/tmp/omo-task3-pass.PoZaUn`
+- Fresh HOME, XDG_CONFIG_HOME, XDG_DATA_HOME, XDG_STATE_HOME, XDG_CACHE_HOME, and OMO_CODING_AGENT_DIR were used.
 
-The two prior BLOCKED runs drove the two fixes now present:
+The three prior BLOCKED runs drove three fixes:
 
-1. `58065b777` selected the exact top-level `omo-runtime/runtime-manifest.json`, avoiding the unrelated Senpi manifest.
-2. `09347ec2f` normalized embedded asset paths by stripping the `omo-runtime/` prefix.
+1. `58065b777` selected the exact top-level `omo-runtime/runtime-manifest.json`.
+2. `09347ec2f` normalized embedded asset paths by stripping `omo-runtime/`.
+3. `ab509291a` preserved binary embedded assets using bytes/raw arrayBuffer access.
 
-This run confirms both prior blockers are past: the binary selects the intended manifest and finds `CHANGELOG.md`. It reaches the next provisioning failure on binary asset integrity.
-
-Commands driven against a copied real executable:
-
-```sh
-omo-darwin-arm64 --version                 # twice
-omo-darwin-arm64 doctor
-omo-darwin-arm64 --print hello
-python3 packages/omo-native/test/tty-driver.py '' '' omo-darwin-arm64 --version
-```
+This run was against the stated rebuilt binary, but its compiled runtime still executes the pre-fix text conversion path. The source worktree contains the third fix, while the supplied binary's runtime stack still shows `embeddedText` at the provisioning call site.
 
 ## OBSERVED OUTPUT
 
-The first and second `--version` runs both exited 1 with empty stdout. Exact error:
+Both first-run and second-run `--version` invocations exited 1 with empty stdout:
 
 ```text
+706066 |     const content = await embeddedText(file);
+706067 |     const bytes = embeddedBytes(file, content);
+706068 |       throw new Error(`embedded asset integrity mismatch: ${entry.relPath}`);
+                     ^
 error: embedded asset integrity mismatch: assets/clankolas.png
       at provisionEmbeddedRuntime (/$bunfs/root/omo-darwin-arm64:706068:13)
       at async main2 (/$bunfs/root/omo-darwin-arm64:706141:35)
@@ -38,50 +34,38 @@ error: embedded asset integrity mismatch: assets/clankolas.png
 Bun v1.4.0-canary.1+b58cd4685 (macOS arm64)
 ```
 
-Provisioning did begin and materialized initial text assets, including `CHANGELOG.md` and `README.md`, before reaching the PNG. The failure is caused by the provisioner reading every embedded asset through text conversion before hashing/writing it; the manifest contains binary PNG bytes.
-
-All four live entry points produced the same integrity failure:
-
-- `--version` first run: exit 1
-- `--version` second run: exit 1
-- `doctor`: exit 1
-- `--print hello`: exit 1
-- PTY `--version`: exit 1, with the same error plus PTY ANSI formatting
+The binary selected the intended manifest and found normalized text assets; it materialized `CHANGELOG.md` and `README.md` before failing on the PNG. The same integrity error occurred for `doctor`, `--print hello`, and the PTY invocation.
 
 ## SCENARIO RESULTS
 
 | Scenario | Result | Observable |
 | --- | --- | --- |
-| (a) first-run self-provisioning, exact stamped version, second-run consistency | **BLOCKED** | Both runs exit 1; no stamped version line, `.provisioned` marker, or provisioned `omo` executable is produced. |
-| (b) doctor/setup report + engine pin | **BLOCKED** | `doctor` exits 1 during provisioning with `embedded asset integrity mismatch: assets/clankolas.png`; no engine pin report. |
-| (c) plugin-loaded marker | **BLOCKED** | `--print hello` exits 1 before engine/plugin startup with the same integrity error. |
-| (d) provisioned-path PTY round-trip, native not pipe fallback | **BLOCKED** | PTY driver exits 1 during provisioning; there is no completed provisioned path from which to load the native prebuild, so pipe-vs-native cannot be asserted. |
-| (e) real `~/.omo` / `~/.senpi` untouched proof | **BLOCKED** | The binary itself used only fresh isolated directories, but the real-home newer-file receipt contained concurrent activity under `/Users/yeongyu/.omo/agent`; therefore a clean untouched PASS cannot honestly be claimed. No `.senpi` paths appeared in the receipt. |
-| (f) copied provisioned dir without sibling `package.json` | **BLOCKED** | No valid provisioned executable was produced. The attempted copied directory had no `omo` binary, so the intended silent `0.0.0` negative control was unreachable. |
+| (a) first-run self-provisioning, exact stamped version, second-run consistency | **BLOCKED** | Both runs exit 1; no exact stamped version line, `.provisioned` marker, or provisioned `omo` executable. |
+| (b) doctor/setup report + engine pin | **BLOCKED** | `doctor` exits 1 during provisioning on `assets/clankolas.png`; no engine pin report. |
+| (c) plugin-loaded marker | **BLOCKED** | `--print hello` exits 1 before engine/plugin startup. |
+| (d) provisioned-path PTY round-trip, native not pipe fallback | **BLOCKED** | PTY driver exits 1 during provisioning; no completed provisioned path exists for native PTY verification. |
+| (e) real `~/.omo` / `~/.senpi` untouched proof | **BLOCKED** | The binary used only fresh isolated directories, but the real-home newer-file receipt contained concurrent activity under `/Users/yeongyu/.omo/agent`; therefore a clean untouched PASS cannot honestly be claimed. No `.senpi` paths appeared. |
+| (f) copied provisioned dir without sibling `package.json` | **BLOCKED** | No provisioned executable was produced; the copied partial directory had no `omo`, so the intended silent `0.0.0` control was unreachable. |
 
-No PASS is claimed: the binary reaches the next real provisioning defect but does not complete scenario (a), which is prerequisite for the provisioned-path scenarios and the negative control.
+No PASS is claimed. The exact requested binary is not behaviorally consistent with the claimed third fix, so the six acceptance scenarios cannot complete.
 
 ## WHY THIS IS ENOUGH
 
-This is a fresh execution of the real rebuilt darwin-arm64 bare executable at the requested path, not a source-level substitute. The two earlier defects are demonstrably fixed: the wrong-manifest error is gone, and the `CHANGELOG.md` missing-asset error is gone. The deterministic next failure is emitted by the compiled provisioner while processing the first binary PNG and is reproduced across both version runs, doctor, plugin probe, and PTY invocation.
-
-The exact failing asset identifies the required follow-up: use byte-preserving access (`arrayBuffer()`/bytes) for embedded assets, rather than converting binary assets through `text()` before integrity verification and materialization.
-
-The task write scope permits only task-3 evidence and scratch, so implementation was not edited here.
+This is a fresh execution of the real bare darwin-arm64 executable at the requested path, with all state redirected to fresh temporary directories. The prior wrong-manifest and missing-asset-path failures are past. The remaining failure is deterministic and visible in the compiled binary's own stack: it still calls `embeddedText(file)` before `embeddedBytes`, which corrupts binary assets. Rebuilding the binary from the byte-preserving source, then rerunning this matrix, is required for PASS.
 
 ## CLEANUP RECEIPTS
 
-Fresh QA root and real-home receipt used:
+Actual paths used:
 
 ```text
-/tmp/omo-task3-final.unM5Za
-/tmp/omo-task3-final-real.XXXXXX
+/tmp/omo-task3-pass.PoZaUn
+/tmp/omo-task3-pass-real.XkU26o
 ```
 
-The actual receipt path was recorded in scratch before cleanup. Cleanup performed after transcription:
+Cleanup command after transcription:
 
 ```sh
-rm -rf /tmp/omo-task3-final.unM5Za /tmp/omo-task3-final-real.* /tmp/omo-task3-final-root /tmp/omo-task3-final-receipt
+rm -rf /tmp/omo-task3-pass.PoZaUn /tmp/omo-task3-pass-real.XkU26o /tmp/omo-task3-pass-root /tmp/omo-task3-pass-receipt /tmp/omo-task3-pass-paths
 ```
 
-The builder's own temporary staging, plugin-stage, and embed-probe directories were cleaned by its `finally` paths. The requested binary under `.omo/release-binaries` was left untouched. No quarantine attributes were stripped and no real agent directory was used as an execution target.
+The requested binary under `.omo/release-binaries` was not modified. No quarantine attributes were stripped and no real agent directory was used as an execution target.

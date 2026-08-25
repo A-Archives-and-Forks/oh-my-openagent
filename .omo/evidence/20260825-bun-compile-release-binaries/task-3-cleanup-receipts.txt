@@ -1,17 +1,13 @@
 Task 3 cleanup receipts (2026-08-25)
 
 Fresh isolated QA root:
-/tmp/omo-task3-final.unM5Za
-
-Fresh real-home receipt was created under:
-/tmp/omo-task3-final-real.*
+/tmp/omo-task3-pass.PoZaUn
+Fresh real-home receipt:
+/tmp/omo-task3-pass-real.XkU26o
 
 Removed after evidence transcription:
-rm -rf /tmp/omo-task3-final.unM5Za /tmp/omo-task3-final-real.* /tmp/omo-task3-final-root /tmp/omo-task3-final-receipt
+rm -rf /tmp/omo-task3-pass.PoZaUn /tmp/omo-task3-pass-real.XkU26o /tmp/omo-task3-pass-root /tmp/omo-task3-pass-receipt /tmp/omo-task3-pass-paths
 
-The build script's finally cleanup paths removed its temporary roots:
-- omo-binary-darwin-arm64-*
-- omo-plugin-stage-*
-- omo-embed-probe-*
-
+Builder temporary staging, plugin-stage, and embed-probe roots were cleaned by their finally paths.
+The requested binary under .omo/release-binaries was left untouched.
 No user-file quarantine attributes were changed. No real agent directory was used as HOME or OMO_CODING_AGENT_DIR.
