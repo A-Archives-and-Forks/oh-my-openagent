@@ -23,19 +23,27 @@ import { CATEGORY_FALLBACK_CHAINS } from "../../../../senpi-task/src/category/fa
 import { BUILTIN_CATEGORY_DEFAULTS, CURATED_READONLY_AGENT_NAMES } from "@oh-my-opencode/senpi-task"
 import { UNCONFIGURED_POSTHOG_API_KEY, getTelemetryApiKey, isConfiguredTelemetryApiKey } from "@oh-my-opencode/telemetry-core"
 
-const originalAgentDir = process.env.SENPI_CODING_AGENT_DIR
+const originalAgentDirs = {
+  OMO_CODING_AGENT_DIR: process.env.OMO_CODING_AGENT_DIR,
+  SENPI_CODING_AGENT_DIR: process.env.SENPI_CODING_AGENT_DIR,
+  PI_CODING_AGENT_DIR: process.env.PI_CODING_AGENT_DIR,
+} as const
 const temporaryRoots: string[] = []
 
 afterEach(() => {
-  if (originalAgentDir === undefined) delete process.env.SENPI_CODING_AGENT_DIR
-  else process.env.SENPI_CODING_AGENT_DIR = originalAgentDir
+  for (const [name, value] of Object.entries(originalAgentDirs)) {
+    if (value === undefined) delete process.env[name]
+    else process.env[name] = value
+  }
   for (const root of temporaryRoots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
 function useTemporaryAgentDir(): string {
   const root = mkdtempSync(join(tmpdir(), "omo-native-identity-"))
   temporaryRoots.push(root)
+  process.env.OMO_CODING_AGENT_DIR = root
   process.env.SENPI_CODING_AGENT_DIR = root
+  process.env.PI_CODING_AGENT_DIR = root
   return root
 }
 
