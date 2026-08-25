@@ -57,7 +57,7 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
   const loadConfig = options.loadConfig ?? loadSenpiOmoConfig
   return {
     name: "task",
-    register(pi: SenpiExtensionAPI, ctx: ComponentContext): void {
+    async register(pi: SenpiExtensionAPI, ctx: ComponentContext): Promise<void> {
       if (isTeamMemberProcess()) return
 
       // Unconditional omo process hygiene (T16): fires on session_start before any

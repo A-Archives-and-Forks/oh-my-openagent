@@ -230,8 +230,10 @@ describe("createDagStatusUi.syncNow", () => {
     // when
     dagUi.syncNow()
 
-    // then
-    expect(rowsOf(ui)[0]).toContain("⏸")
+    // then the run header takes the neutral pause-family icon and still reads paused with no
+    // live lease and no running node, while node icons keep their own per-state glyphs
+    expect(rowsOf(ui)[0]).toContain("paused")
+    expect(rowsOf(ui)[0]).not.toContain("⏸")
     expect(rowsOf(ui).slice(1)).toEqual(["  ⊘ a · category:quick", "  ⊘ b · category:quick"])
   })
 
