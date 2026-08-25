@@ -2,98 +2,71 @@
 
 ## WHAT WAS TESTED
 
-Attempted the approved real-binary end-to-end drive in the task worktree `/tmp/work-binary-assets` on 2026-08-25:
+Fresh rerun on 2026-08-25 against the rebuilt binary:
+
+- Binary: `/tmp/work-binary-assets/dist/release-binaries/omo-darwin-arm64`
+- Size: 111765538 bytes
+- Build-reported embedded sidecars: 1158
+- Fresh isolated root: `/tmp/omo-task3-e2e.kk5nAF`
+- Fresh HOME/XDG/agent dirs were used for every invocation.
+
+The earlier BLOCKED run (manifest selection) led to commit `58065b777`, which selects the exact top-level `omo-runtime/runtime-manifest.json`. This rerun confirms that blocker is fixed and reaches provisioning.
+
+Commands driven against the copied real binary:
 
 ```sh
-bun run script/build-omo-binary.ts \
-  --target darwin-arm64 \
-  --omo-version 0.0.0-plan \
-  --omo-ai-version 0.0.0-0.plan
+omo-darwin-arm64 --version                 # twice
+omo-darwin-arm64 doctor
+omo-darwin-arm64 --print hello
+python3 packages/omo-native/test/tty-driver.py '' '' omo-darwin-arm64 --version
 ```
 
-The build completed successfully and emitted:
+## OBSERVED OUTPUT (RED before / current rebuilt binary)
+
+The first and second `--version` runs both exited 1 with empty stdout. Exact error:
 
 ```text
-built darwin-arm64: /private/tmp/work-binary-assets/dist/release-binaries/omo-darwin-arm64 (111765538 bytes, 1158 embedded sidecar files)
-```
-
-The binary was copied to a fresh download directory and invoked with all required isolation variables set to fresh directories:
-
-```sh
-HOME=/tmp/task3-20260825/home
-XDG_CONFIG_HOME=/tmp/task3-20260825/config
-XDG_DATA_HOME=/tmp/task3-20260825/data
-XDG_STATE_HOME=/tmp/task3-20260825/state
-XDG_CACHE_HOME=/tmp/task3-20260825/cache
-OMO_CODING_AGENT_DIR=/tmp/task3-20260825/agent
-/tmp/task3-20260825/download/omo-darwin-arm64 --version
-```
-
-## OBSERVED OUTPUT (RED before / live binary)
-
-Both first and second `--version` executions exited 1 with empty stdout. Exact stderr from each run:
-
-```text
-706116 |     return;
-706117 |   }
-706118 |   const manifestFile = embedded.find((file) => file.name.endsWith("runtime-manifest.json"));
-706119 |   if (!manifestFile)
-706120 |     throw new Error("embedded runtime-manifest.json is missing");
-706121 |   const expected = join128(homedir31(), ".omo", "binary-runtime", manifest.omoAiVersion, "omo");
-                                   ^
-TypeError: The "paths[3]" property must be of type string, got undefined
- code: "ERR_INVALID_ARG_TYPE"
-
-      at main2 (/$bunfs/root/omo-darwin-arm64:706121:27)
+error: embedded asset missing: CHANGELOG.md
+      at provisionEmbeddedRuntime (/$bunfs/root/omo-darwin-arm64:706061:13)
+      at main2 (/$bunfs/root/omo-darwin-arm64:706138:35)
 
 Bun v1.4.0-canary.1+b58cd4685 (macOS arm64)
 ```
 
-The isolated runtime directory was not created:
+The same error occurred for `doctor`, the scripted plugin probe, and the PTY driver. The failing source path is the provisioner lookup:
 
-```text
-find: /tmp/task3-20260825/home/.omo/binary-runtime/0.0.0-0.plan: No such file or directory
+```ts
+const byPath = new Map(embedded.map((file) => [file.name.replace(/^\.\//, ""), file]))
+const file = byPath.get(entry.relPath.replace(/^\.\//, ""))
 ```
 
-Inspection of the compiled binary confirms the failure mechanism: the embedded payload includes Senpi’s unrelated `runtime/lsp-daemon/dist/.omo-runtime-manifest.json`, and the compile entry uses `embedded.find((file) => file.name.endsWith("runtime-manifest.json"))`. That predicate can select the unrelated manifest before the required top-level `omo-runtime/runtime-manifest.json`; the selected JSON has no `omoAiVersion`, producing the exact `path.join` error above.
+The manifest entry is `CHANGELOG.md`, while the compile asset namespace retains the `omo-runtime/` prefix. Provisioning therefore fails before it can write the executable or any sidecar.
 
 ## SCENARIO RESULTS
 
-| Scenario | Result | Evidence |
+| Scenario | Result | Observable |
 | --- | --- | --- |
-| (a) first-run self-provisioning, exact stamped version, second-run consistency | BLOCKED before provisioning | Both invocations exit 1; no isolated runtime directory exists. |
-| (b) `doctor` / setup report and engine pin | NOT RUN | Scenario (a) reveals a pre-provisioning launcher defect; running further commands cannot establish the required provisioned-path proof. |
-| (c) scripted non-interactive engine invocation and plugin marker | NOT RUN | Same blocker. |
-| (d) provisioned-path PTY round-trip, native prebuild and no pipe fallback | NOT RUN | Same blocker; no provisioned engine path exists. |
-| (e) real-home isolation proof | PARTIAL / NOT A PASS | The run was pointed only at fresh `/tmp/task3-20260825/*` directories and did not provision. A complete before/after receipt is therefore not a substitute for the requested successful isolation scenario. |
-| (f) negative control: remove sibling package.json and capture silent `0.0.0` | NOT RUN | The binary fails earlier while selecting the wrong embedded manifest, so the intended sibling-package negative control is unreachable. |
+| (a) first-run self-provisioning, exact stamped version, second-run consistency | **BLOCKED** | Both runs exit 1; no version line; no provisioned `omo` or manifest materialization. |
+| (b) doctor/setup report + engine pin | **BLOCKED** | `doctor` exits 1 with the same `embedded asset missing: CHANGELOG.md` error. |
+| (c) plugin-loaded marker | **BLOCKED** | `--print hello` exits 1 during provisioning, before engine/plugin startup. |
+| (d) provisioned-path PTY round-trip, native not pipe fallback | **BLOCKED** | PTY driver exits 1 with the same provisioning error; no provisioned path exists from which to load native PTY. |
+| (e) real `~/.omo` / `~/.senpi` untouched proof | **BLOCKED** | Controlled invocations used isolated HOME, but the real-home receipt had concurrent newer activity under `/Users/yeongyu/.omo/agent`; a clean untouched PASS cannot be asserted from this run. No `.senpi` changes were observed. |
+| (f) copied provisioned dir without sibling `package.json` | **BLOCKED** | No valid provisioned directory was produced. The attempted copy had no `omo` executable, so the intended silent `0.0.0` control was unreachable. |
 
-No GREEN-after result is claimed. The requested PASS on (a)-(e) and expected-failure capture on (f) cannot be honestly recorded from this binary.
+No PASS is claimed: the rebuilt binary reaches the next provisioning defect, but does not complete scenario (a), which is prerequisite for (b)-(d) and (f).
 
 ## WHY THIS IS ENOUGH
 
-This is a real compiled executable produced by the approved build command, not a source-level substitute. The failure is deterministic across two isolated first-run invocations and occurs at the embedded-runtime handoff before any user or agent state is touched. The exact runtime stack excerpt identifies the faulty observable and the source predicate that causes it. Fixing the manifest selection to identify the exact top-level runtime manifest, rebuilding, and rerunning this task is required before the six-scenario acceptance criteria can be met.
+This is a fresh execution of the real rebuilt darwin-arm64 bare executable, not a source substitute. The manifest-selection fix is demonstrably active because the prior unrelated-manifest failure disappeared. The deterministic next failure is emitted by the real compiled provisioner and is identical across the first-run, second-run, doctor, plugin, and PTY paths. The exact manifest entry and lookup mismatch identify the required follow-up fix: normalize embedded names by removing the known `omo-runtime/` payload prefix (or construct the lookup key with that prefix) before provisioning.
 
-The issue is outside this task's permitted write scope (only task-3 evidence and `/tmp` scratch may be written), so no implementation file was edited here.
+The task write scope permits only task-3 evidence and scratch, so implementation was not edited here.
 
 ## CLEANUP RECEIPTS
 
-Temporary QA root used:
+Temporary root and receipt were removed after transcription:
 
-```text
-rm -rf /tmp/task3-20260825 /tmp/task3-stage.ts /tmp/task3-probe.ts /tmp/task3-probe /tmp/task3-probe-build.log /tmp/task3-build.log /tmp/homedir.ts /tmp/homedir
+```sh
+rm -rf /tmp/omo-task3-e2e.kk5nAF /tmp/omo-task3-real-receipt.dYhays /tmp/omo-task3-current-root /tmp/omo-task3-real-receipt
 ```
 
-The removed QA root contained only fresh isolated HOME/XDG/agent/download directories and captured command output. The build script's temporary staging, plugin-stage, embedded-probe, and any other build scratch directories were removed by the builder's `finally` cleanup paths. The binary remains in the worktree's ignored `dist/release-binaries/` output for reproducibility; it is not a committed evidence file.
-
-Real-home pre-run receipt file:
-
-```text
-/tmp/task3-20260825/receipt-before
-```
-
-The isolated environment variables were set before both invocations. No quarantine attributes were changed on any user file. The pre-existing unrelated worktree modification was preserved untouched:
-
-```text
-.omo/evidence/20260816-remove-omo-telemetry-command/tui-pass/terminal-ansi.txt
-```
+Build outputs under `dist/release-binaries` were left untouched. No quarantine attributes were stripped and no real agent directory was used as an execution target.
