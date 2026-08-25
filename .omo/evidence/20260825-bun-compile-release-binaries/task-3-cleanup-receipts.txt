@@ -1,0 +1,28 @@
+Task 3 cleanup receipts (2026-08-25)
+
+QA scratch root created:
+/tmp/task3-20260825
+
+Fresh isolated directories created under that root:
+- home
+- config
+- data
+- state
+- cache
+- agent
+- download
+
+The build script removed its own mkdtemp roots in finally blocks:
+- omo-binary-darwin-arm64-*
+- omo-plugin-stage-*
+- omo-embed-probe-*
+
+Task-owned scratch removed after evidence transcription:
+rm -rf /tmp/task3-20260825 /tmp/task3-stage.ts /tmp/task3-probe.ts /tmp/task3-probe /tmp/task3-probe-build.log /tmp/task3-build.log /tmp/homedir.ts /tmp/homedir
+
+Post-cleanup checks:
+test ! -e /tmp/task3-20260825
+test ! -e /tmp/task3-stage.ts
+test ! -e /tmp/task3-probe
+
+No user-file quarantine attributes were stripped. No real agent directory was used.
