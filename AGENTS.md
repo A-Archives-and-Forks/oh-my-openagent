@@ -94,7 +94,7 @@ oh-my-opencode/                      # workspace root (no root src/ — it moved
 │   ├── omo-codex/                   # Codex CLI Light edition; vendored Codex plugin `omo` + TS installer + telemetry (`lazycodex` repo/bin identity, `lazycodex-ai` live npm alias)
 │   ├── omo-senpi/                   # Senpi native TS extension adapter (local-path Pi package); 18 components incl. task + memory + init-deep-advisor (drives senpi-task + omo-config-core)
 │   ├── omo-native/                  # npm `omo-ai` distribution (BETA channel): launcher spawning the pinned senpi engine + `canonicalAgentDir()` (~/.omo/agent)
-│   ├── senpi-task/                  # Senpi-coupled task engine: state machine, store, in-process/RPC runners, lifecycle, completion, teams, wave-based DAG engine (src/dag/, largest subsystem); 4 task + 6 lead-team tools (the `dag` tool is registered by omo-senpi)
+│   ├── senpi-task/                  # Senpi-coupled task engine: state machine, store, in-process/RPC runners, lifecycle, completion, teams, dependency-frontier DAG engine (src/dag/, largest subsystem); 4 task + 6 lead-team tools (the `dag` tool is registered by omo-senpi)
 │   ├── pi-goal/ pi-webfetch/        # Standalone Pi adapters: Codex-style goal tracking + bounded URL retrieval
 │   ├── utils/ model-core/ prompts-core/ rules-engine/ agents-md-core/ comment-checker-core/ hashline-core/ boulder-state/ memory-core/ telemetry-core/ lsp-core/ mcp-stdio-core/ tmux-core/ claude-code-compat-core/ skills-loader-core/ mcp-client-core/ openclaw-core/ team-core/ delegate-core/ omo-config-core/   # 20 Core (pure-TS) pkgs
 │   ├── lsp-tools-mcp/ git-bash-mcp/ lsp-daemon/ ast-grep-mcp/   # 4 MCP-layer pkgs (stdio); LSP packages consume lsp-core + mcp-stdio-core
@@ -278,7 +278,7 @@ Schema autocomplete: `"$schema": "https://raw.githubusercontent.com/code-yeongyu
 | External notifications | `packages/omo-opencode/src/openclaw/` | Bidirectional: outbound (event → HTTP/shell), inbound (Discord/Telegram daemon → tmux send-keys) |
 | Skill-embedded MCP | `packages/omo-opencode/src/features/skill-mcp-manager/` | Tier-3 MCPs (per-session, stdio + HTTP) |
 | Shared per-user LSP daemon (Codex) | `packages/lsp-daemon/` | Unix-socket / named-pipe daemon + stdio MCP proxy consuming `packages/lsp-core/` + `packages/mcp-stdio-core/` |
-| Wave-based DAG engine | `packages/senpi-task/src/dag/` | 34 files / ~14k LOC; WAL + fingerprint recovery; the `dag` tool is registered by omo-senpi |
+| Dependency-frontier DAG engine | `packages/senpi-task/src/dag/` | 35 files / ~14k LOC; WAL + fingerprint recovery; node admission keyed on dependsOn completion + free slot (waves informational only); the `dag` tool is registered by omo-senpi |
 | Regenerate OpenGateway model catalog | `packages/omo-opencode/scripts/` | Writes tracked `src/features/opengateway-provider/opengateway-models.json`; distinct from `build:model-capabilities` |
 | Senpi live QA drivers | `packages/omo-senpi/scripts/qa/` | Lanes: task/team/rpc/resume/memory/components/runtimes; sandbox + digest isolation, `--self-test` |
 
