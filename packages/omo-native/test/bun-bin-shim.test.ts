@@ -106,6 +106,12 @@ function nodeInterpreter(): string | undefined {
 
 const NODE = nodeInterpreter()
 const POSIX_ONLY = process.platform === "win32" || !NODE
+// The unit surface drives the module with `platform: "linux"`, so the module spells its paths with
+// posix.join while the fixtures below spell theirs with the HOST's path.join. On Windows those two
+// spellings never meet - `/home/dev/.bun/bin/bun` against `\home\dev\.bun\bin\bun` - and every
+// lookup misses. Mirroring the module's own darwin/linux gate is the honest fix: the repair itself
+// returns `skipped-platform` on Windows, so there is no Windows behaviour here left to cover.
+const NON_POSIX_HOST = process.platform === "win32"
 
 type Fixture = {
   root: string
@@ -234,7 +240,7 @@ describe("bun launcher bin shim", () => {
     })
   })
 
-  describe("#given a stock bun bin symlink pointing at this install", () => {
+  describe.skipIf(NON_POSIX_HOST)("#given a stock bun bin symlink pointing at this install", () => {
     test("#then it is replaced by an executable shim through an atomic rename", () => {
       // given
       const scriptPath = bunTreePackage(join(POSIX_HOME, ".bun"))
@@ -287,7 +293,7 @@ describe("bun launcher bin shim", () => {
     })
   })
 
-  describe("#given the bin path is not ours to touch", () => {
+  describe.skipIf(NON_POSIX_HOST)("#given the bin path is not ours to touch", () => {
     test("#then a symlink into another package is left alone", () => {
       // given
       const scriptPath = bunTreePackage(join(POSIX_HOME, ".bun"))
@@ -378,7 +384,7 @@ describe("bun launcher bin shim", () => {
     })
   })
 
-  describe("#given the repair path fails", () => {
+  describe.skipIf(NON_POSIX_HOST)("#given the repair path fails", () => {
     test("#then the failure is swallowed and never breaks the launch", () => {
       // given
       const scriptPath = bunTreePackage(join(POSIX_HOME, ".bun"))
