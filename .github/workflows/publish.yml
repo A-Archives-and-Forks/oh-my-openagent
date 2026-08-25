@@ -1115,7 +1115,7 @@ jobs:
         if: inputs.skip_platform != true
         uses: actions/download-artifact@v7
         with:
-          pattern: release-binaries*
+          pattern: release-binary-*
           path: .omo/release-binaries
           merge-multiple: true
 
@@ -1129,6 +1129,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ls -la .omo/release-binaries/
+          # Generate the combined checksum file from the 12 downloaded binaries:
+          # each matrix leg uploads only its own omo-* binary (per-leg SHA256SUMS
+          # would collide under merge-multiple), so the release job owns the
+          # release-level SHA256SUMS covering every binary.
+          (cd .omo/release-binaries && shasum -a 256 omo-* > SHA256SUMS)
+          cat .omo/release-binaries/SHA256SUMS
           gh release upload "v${VERSION}" .omo/release-binaries/omo-* .omo/release-binaries/SHA256SUMS --clobber
 
       - name: Verify uploaded assets

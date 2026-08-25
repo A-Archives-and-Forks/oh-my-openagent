@@ -45,14 +45,14 @@ describe("compiled omo entry launcher parity", () => {
   })
 
   test("self-update prints the curl reinstall command", () => {
-    expect(updateLine("darwin-arm64")).toContain("curl -fsSL")
-    expect(updateLine("darwin-arm64")).toContain("omo-darwin-arm64")
+    expect(updateLine("darwin", "arm64")).toContain("curl")
+    expect(updateLine("darwin", "arm64")).toContain("omo-darwin-arm64")
   })
 
   test("package-root environment values point into the provisioned runtime", () => {
     const env = remapSenpiEnvironment({ OMO_BIN: "/old", SENPI_BIN: "/old-senpi", PATH: "/bin" }, "/provisioned")
-    expect(env.OMO_AGENT_TOOLKIT_BIN).toBe(join("/provisioned", "bin", "omo-agent-toolkit.js"))
-    expect(env.OMO_BIN).toBe(join("/provisioned", "bin", "omo.js"))
+    expect(env.OMO_AGENT_TOOLKIT_BIN).toBe(join("/provisioned", "plugin", "runtime", "agent-toolkit", process.platform === "win32" ? "omo-agent-toolkit.cmd" : "omo-agent-toolkit"))
+    expect(env.OMO_BIN).toBe(join("/provisioned", process.platform === "win32" ? "omo.exe" : "omo"))
     expect(env.OMO_CODING_AGENT_DIR).toBeDefined()
   })
 })

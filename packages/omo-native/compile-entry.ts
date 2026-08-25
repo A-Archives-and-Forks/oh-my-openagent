@@ -53,8 +53,16 @@ export function versionLine(packageJson: { version: string }, enginePin: string)
   return `omo ${packageJson.version} (engine: senpi ${enginePin})`
 }
 
-export function updateLine(target: string): string {
-  return `omo is updated via curl: curl -fsSL https://github.com/code-yeongyu/oh-my-openagent/releases/latest/download/omo-${target} -o omo && chmod +x omo`
+export function updateAssetSlug(platform: NodeJS.Platform, arch: string): string {
+  const os = platform === "win32" ? "windows" : platform
+  const slug = `omo-${os}-${arch}`
+  return platform === "win32" ? `${slug}.exe` : slug
+}
+
+export function updateLine(platform: NodeJS.Platform, arch: string): string {
+  const asset = updateAssetSlug(platform, arch)
+  const dest = platform === "win32" ? "omo.exe" : "omo"
+  return `omo is updated via curl: curl -fsSL https://github.com/code-yeongyu/oh-my-openagent/releases/latest/download/${asset} -o ${dest} && chmod +x ${dest}`
 }
 
 export function isProvisionedExecutable(execPath: string, expectedPath: string): boolean {
@@ -69,7 +77,7 @@ export function remapSenpiEnvironment(source: NodeJS.ProcessEnv = process.env, e
   const env = { ...source }
   delete env.OMO_BIN
   delete env.SENPI_BIN
-  env.OMO_AGENT_TOOLKIT_BIN = join(execDir, "bin", "omo-agent-toolkit.js")
+  env.OMO_AGENT_TOOLKIT_BIN = join(execDir, "plugin", "runtime", "agent-toolkit", process.platform === "win32" ? "omo-agent-toolkit.cmd" : "omo-agent-toolkit")
   const agentDir = canonicalAgentDir(env)
   env.OMO_CODING_AGENT_DIR = agentDir
   env.SENPI_CODING_AGENT_DIR = agentDir
@@ -80,7 +88,7 @@ export function remapSenpiEnvironment(source: NodeJS.ProcessEnv = process.env, e
   env.SENPI_BRAND = JSON.stringify({
     name: "OmO", command: "omo", displayVersion,
     configDir: ".omo", flatLayout: false, envPrefix: "OMO", userAgent: "omo", originator: "omo",
-    update: { packageName: "omo-ai", distTag: "beta", command: updateLine(process.platform), changelogUrl: "https://github.com/code-yeongyu/oh-my-openagent/releases" },
+    update: { packageName: "omo-ai", distTag: "beta", command: updateLine(process.platform, process.arch), changelogUrl: "https://github.com/code-yeongyu/oh-my-openagent/releases" },
   })
   const binDir = nearestNodeBin(execDir)
   if (binDir) {
@@ -89,7 +97,7 @@ export function remapSenpiEnvironment(source: NodeJS.ProcessEnv = process.env, e
     const shim = join(binDir, process.platform === "win32" ? "senpi.cmd" : "senpi")
     if (existsSync(shim)) env.SENPI_BIN = shim
   }
-  env.OMO_BIN = join(execDir, "bin", "omo.js")
+  env.OMO_BIN = join(execDir, process.platform === "win32" ? "omo.exe" : "omo")
   return env
 }
 
@@ -186,7 +194,7 @@ export async function runCompiledLauncher(args: string[], execDir: string, engin
   }
   if (command === "setup") { printSetupReport(await detectHarnesses()); process.exitCode = 0; return true }
   if ((command === "--version" || command === "-v") && args.length === 1) { console.log(versionLine(packageJson, enginePin ?? "unknown")); return true }
-  if (isSelfUpdate(args)) { console.log(updateLine(process.platform)); return true }
+  if (isSelfUpdate(args)) { console.log(updateLine(process.platform, process.arch)); return true }
   return false
 }
 

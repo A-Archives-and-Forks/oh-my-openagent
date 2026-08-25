@@ -381,7 +381,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: release-binary-${{ matrix.platform }}
-          path: .omo/release-binaries/
+          path: .omo/release-binaries/omo-*
           retention-days: 1
           if-no-files-found: error
 
