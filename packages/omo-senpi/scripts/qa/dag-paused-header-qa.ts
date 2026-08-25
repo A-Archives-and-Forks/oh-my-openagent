@@ -69,7 +69,7 @@ function seedRunningRun(store: ReturnType<typeof createDagFileStore>): void {
   })
 }
 
-function widgetRows(store: ReturnType<typeof createDagFileStore>, isAliveOverride?: number): readonly string[] {
+function widgetRows(store: ReturnType<typeof createDagFileStore>): readonly string[] {
   const manager = createDagManager({ store })
   let captured: readonly string[] = []
   const ui = createDagStatusUi({
@@ -89,7 +89,6 @@ function widgetRows(store: ReturnType<typeof createDagFileStore>, isAliveOverrid
     timers: { set: () => 0, clear: () => undefined },
     terminalWidth: () => 200,
   })
-  void isAliveOverride
   ui.syncNow()
   ui.dispose()
   return captured
