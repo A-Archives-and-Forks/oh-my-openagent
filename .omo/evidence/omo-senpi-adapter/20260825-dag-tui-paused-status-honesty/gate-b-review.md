@@ -67,3 +67,12 @@ per-node rows.
 ## Verdict
 
 Gate B: PASS after one self-found fix.
+
+## Gate C record: SKIPPED (quota/availability)
+
+No `cubic-dev-ai[bot]` review ever appeared on PR #7322: the review list is
+empty and Cubic's own check entry reports `skipping` (3s). A bounded wait of 5
+minutes after the PR went up produced zero reviews. Per the work-with-pr loop
+this is the one sanctioned skip condition, recorded rather than silently
+passed. Issues were never a reason to skip and none were found by any other
+gate.
