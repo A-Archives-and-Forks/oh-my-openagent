@@ -5,7 +5,7 @@ import { join } from "node:path"
 
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import type { ComponentContext } from "../../extension/types"
-import { createStartWorkContinuationComponent } from "./index"
+import { createUlwExecuteContinuationComponent } from "./index"
 
 const roots: string[] = []
 
@@ -14,7 +14,7 @@ afterEach(() => {
 })
 
 function activeWorkspace(): string {
-  const root = mkdtempSync(join(tmpdir(), "senpi-start-work-hidden-"))
+  const root = mkdtempSync(join(tmpdir(), "senpi-ulw-execute-hidden-"))
   roots.push(root)
   mkdirSync(join(root, ".omo", "plans"), { recursive: true })
   writeFileSync(join(root, ".omo", "plans", "task.md"), "## TODOs\n- [ ] 1. Task one\n")
@@ -47,11 +47,11 @@ function eventCtx(root: string): unknown {
   return { cwd: root, sessionManager: { getSessionId: () => "qa-s1" } }
 }
 
-describe("start-work continuation hidden delivery", () => {
+describe("ulw-execute continuation hidden delivery", () => {
   it("#given active work #when idle agent_end fires #then continuation is a hidden followUp", async () => {
     const root = activeWorkspace()
     const pi = new FakeExtensionAPI()
-    await createStartWorkContinuationComponent().register(pi, {
+    await createUlwExecuteContinuationComponent().register(pi, {
       logger: logger(),
       config: { getFlag: () => false },
     })
@@ -62,7 +62,7 @@ describe("start-work continuation hidden delivery", () => {
     expect(pi.messages).toEqual([
       {
         message: {
-          customType: "omo-senpi:start-work-continuation",
+          customType: "omo-senpi:ulw-execute-continuation",
           content: expect.stringContaining("Plan file:"),
           display: false,
         },
@@ -74,7 +74,7 @@ describe("start-work continuation hidden delivery", () => {
   it("#given active work #when input is idle versus queued #then only queued text is transformed", async () => {
     const root = activeWorkspace()
     const pi = new FakeExtensionAPI()
-    await createStartWorkContinuationComponent().register(pi, {
+    await createUlwExecuteContinuationComponent().register(pi, {
       logger: logger(),
       config: { getFlag: () => false },
     })

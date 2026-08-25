@@ -6,7 +6,7 @@ import { describe, expect, it } from "bun:test"
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import { IdleInjectionCoordinator } from "../../extension/idle-injection-coordinator"
 import type { ComponentContext } from "../../extension/types"
-import { createStartWorkContinuationComponent } from "./index"
+import { createUlwExecuteContinuationComponent } from "./index"
 
 const cleanupRoots: string[] = []
 
@@ -17,10 +17,10 @@ function cleanupAll(): void {
 }
 
 function createTempWorkspace(): string {
-  const root = mkdtempSync(join(tmpdir(), "senpi-start-work-"))
+  const root = mkdtempSync(join(tmpdir(), "senpi-ulw-execute-"))
   cleanupRoots.push(root)
   mkdirSync(join(root, ".omo", "plans"), { recursive: true })
-  mkdirSync(join(root, ".omo", "start-work"), { recursive: true })
+  mkdirSync(join(root, ".omo", "ulw-execute"), { recursive: true })
   return root
 }
 
@@ -58,13 +58,13 @@ function makeCoordinator(): {
   return { coordinator, delivered }
 }
 
-describe("omo-senpi start-work-continuation", () => {
+describe("omo-senpi ulw-execute-continuation", () => {
   it("#given no boulder state #when agent_end fires #then stays quiet", async () => {
     const root = createTempWorkspace()
     const pi = new FakeExtensionAPI()
     const logger = createLogger()
     const { coordinator, delivered } = makeCoordinator()
-    await createStartWorkContinuationComponent().register(pi, {
+    await createUlwExecuteContinuationComponent().register(pi, {
       logger,
       config: { getFlag: () => false },
       idleCoordinator: coordinator,
@@ -82,7 +82,7 @@ describe("omo-senpi start-work-continuation", () => {
     const pi = new FakeExtensionAPI()
     const logger = createLogger()
     const { coordinator, delivered } = makeCoordinator()
-    await createStartWorkContinuationComponent().register(pi, {
+    await createUlwExecuteContinuationComponent().register(pi, {
       logger,
       config: { getFlag: () => false },
       idleCoordinator: coordinator,
@@ -113,7 +113,7 @@ describe("omo-senpi start-work-continuation", () => {
     })
     const pi = new FakeExtensionAPI()
     const { coordinator, delivered } = makeCoordinator()
-    await createStartWorkContinuationComponent().register(pi, {
+    await createUlwExecuteContinuationComponent().register(pi, {
       logger: createLogger(),
       config: { getFlag: () => false },
       idleCoordinator: coordinator,
@@ -143,7 +143,7 @@ describe("omo-senpi start-work-continuation", () => {
     })
     const pi = new FakeExtensionAPI()
     const { coordinator, delivered } = makeCoordinator()
-    await createStartWorkContinuationComponent().register(pi, {
+    await createUlwExecuteContinuationComponent().register(pi, {
       logger: createLogger(),
       config: { getFlag: () => false },
       idleCoordinator: coordinator,
@@ -174,7 +174,7 @@ describe("omo-senpi start-work-continuation", () => {
     })
     const pi = new FakeExtensionAPI()
     const { coordinator, delivered } = makeCoordinator()
-    await createStartWorkContinuationComponent().register(pi, {
+    await createUlwExecuteContinuationComponent().register(pi, {
       logger: createLogger(),
       config: { getFlag: () => false },
       idleCoordinator: coordinator,
@@ -211,7 +211,7 @@ describe("omo-senpi start-work-continuation", () => {
     })
     const pi = new FakeExtensionAPI()
     const { coordinator, delivered } = makeCoordinator()
-    await createStartWorkContinuationComponent().register(pi, {
+    await createUlwExecuteContinuationComponent().register(pi, {
       logger: createLogger(),
       config: { getFlag: () => false },
       idleCoordinator: coordinator,
@@ -246,7 +246,7 @@ describe("omo-senpi start-work-continuation", () => {
     })
     const pi = new FakeExtensionAPI()
     const { coordinator, delivered } = makeCoordinator()
-    await createStartWorkContinuationComponent().register(pi, {
+    await createUlwExecuteContinuationComponent().register(pi, {
       logger: createLogger(),
       config: { getFlag: () => false },
       idleCoordinator: coordinator,
@@ -281,7 +281,7 @@ describe("omo-senpi start-work-continuation", () => {
     })
     const pi = new FakeExtensionAPI()
     const { coordinator, delivered } = makeCoordinator()
-    await createStartWorkContinuationComponent().register(pi, {
+    await createUlwExecuteContinuationComponent().register(pi, {
       logger: createLogger(),
       config: { getFlag: () => false },
       idleCoordinator: coordinator,
@@ -313,7 +313,7 @@ describe("omo-senpi start-work-continuation", () => {
     })
     const pi = new FakeExtensionAPI()
     const { coordinator, delivered } = makeCoordinator()
-    await createStartWorkContinuationComponent().register(pi, {
+    await createUlwExecuteContinuationComponent().register(pi, {
       logger: createLogger(),
       config: { getFlag: () => false },
       idleCoordinator: coordinator,
@@ -346,7 +346,7 @@ describe("omo-senpi start-work-continuation", () => {
     writeBoulderJson(root, baseState)
     const pi = new FakeExtensionAPI()
     const { coordinator, delivered } = makeCoordinator()
-    await createStartWorkContinuationComponent().register(pi, {
+    await createUlwExecuteContinuationComponent().register(pi, {
       logger: createLogger(),
       config: { getFlag: () => false },
       idleCoordinator: coordinator,
@@ -384,7 +384,7 @@ describe("omo-senpi start-work-continuation", () => {
     writeBoulderJson(root, baseState)
     const pi = new FakeExtensionAPI()
     const { coordinator, delivered } = makeCoordinator()
-    await createStartWorkContinuationComponent().register(pi, {
+    await createUlwExecuteContinuationComponent().register(pi, {
       logger: createLogger(),
       config: { getFlag: () => false },
       idleCoordinator: coordinator,
@@ -407,7 +407,7 @@ describe("omo-senpi start-work-continuation", () => {
     expect(delivered).toHaveLength(9)
   })
 
-  it("#given eligible boulder work #when user input arrives #then appends start-work steering reminder", async () => {
+  it("#given eligible boulder work #when user input arrives #then appends ulw-execute steering reminder", async () => {
     const root = createTempWorkspace()
     writePlan(root, "t", "## TODOs\n- [ ] 1. Task one\n")
     writeBoulderJson(root, {
@@ -426,7 +426,7 @@ describe("omo-senpi start-work-continuation", () => {
       },
     })
     const pi = new FakeExtensionAPI()
-    await createStartWorkContinuationComponent().register(pi, {
+    await createUlwExecuteContinuationComponent().register(pi, {
       logger: createLogger(),
       config: { getFlag: () => false },
     })
@@ -441,7 +441,7 @@ describe("omo-senpi start-work-continuation", () => {
     const result = results[0]
     expect(result).toMatchObject({ action: "transform" })
     if (result && typeof result === "object" && "text" in result) {
-      expect(result.text).toContain("<omo-senpi-start-work>")
+      expect(result.text).toContain("<omo-senpi-ulw-execute>")
       expect(result.text).toContain("hello")
     }
   })
@@ -465,7 +465,7 @@ describe("omo-senpi start-work-continuation", () => {
       },
     })
     const pi = new FakeExtensionAPI()
-    await createStartWorkContinuationComponent().register(pi, {
+    await createUlwExecuteContinuationComponent().register(pi, {
       logger: createLogger(),
       config: { getFlag: () => false },
     })
@@ -483,7 +483,7 @@ describe("omo-senpi start-work-continuation", () => {
     const root = createTempWorkspace()
     const pi = new FakeExtensionAPI()
     const { coordinator, delivered } = makeCoordinator()
-    await createStartWorkContinuationComponent().register(pi, {
+    await createUlwExecuteContinuationComponent().register(pi, {
       logger: createLogger(),
       config: { getFlag: () => false },
       idleCoordinator: coordinator,
