@@ -64,6 +64,29 @@ describe("embedded runtime provisioning", () => {
     await expect(selectRuntimeManifest([senpiManifest, omoManifest] as any[])).resolves.toBe(omoManifest as any)
   })
 
+  test("compiled doctor resolves package artifacts from the provided execDir", async () => {
+    const root = temp()
+    writeFileSync(join(root, "package.json"), JSON.stringify({ version: "9.2.1" }))
+    for (const artifact of ["plugin/package.json", "plugin/extensions/omo.js", "plugin/runtime/lsp-daemon/dist/cli.js", "plugin/runtime/agent-toolkit/cli.js"]) {
+      const path = join(root, artifact)
+      mkdirSync(join(path, ".."), { recursive: true })
+      writeFileSync(path, "fixture\n")
+    }
+    const output: string[] = []
+    const originalLog = console.log
+    const originalExitCode = process.exitCode
+    console.log = (value?: unknown) => { output.push(String(value)) }
+    process.exitCode = undefined
+    try {
+      await runCompiledLauncher(["doctor"], root, "2026.8.24", root)
+    } finally {
+      console.log = originalLog
+      process.exitCode = originalExitCode
+    }
+    expect(output.join("\n")).toContain("PASS plugin manifest: plugin/package.json")
+    expect(output.join("\n")).toContain("INFO omo 9.2.1 (engine: senpi 2026.8.24)")
+  })
+
   test("version uses the manifest engine pin without a provisioned senpi package", async () => {
     const root = temp()
     writeFileSync(join(root, "package.json"), JSON.stringify({ version: "9.2.1" }))

@@ -8,7 +8,7 @@ import { migrateLegacyBunGlobalManifest } from "./bin/lib/legacy-bun-global-migr
 import { adoptLegacyFlatState, canonicalAgentDir } from "./bin/lib/agent-dir.js"
 import { nearestNodeBin, readJson } from "./bin/lib/package-paths.js"
 import { runDoctor } from "./bin/lib/doctor.js"
-import { detectHarnesses } from "./bin/lib/setup-detect.js"
+import { detectHarnesses, needsSetupSuggestion } from "./bin/lib/setup-detect.js"
 import { printSetupReport } from "./bin/lib/setup-report.js"
 import { delimiter } from "node:path"
 
@@ -36,6 +36,12 @@ export type EmbeddedManifest = { omoAiVersion: string; enginePin: string; manife
 const earlyCommands = new Set(["install", "remove", "list", "config", "auth", "app-server"])
 const selfUpdateTargets = new Set(["self", "senpi", "omo"])
 const engineUpdateTargets = new Set(["--extensions", "--models"])
+const doctorArtifacts = [
+  ["plugin manifest", "plugin/package.json"],
+  ["extension", "plugin/extensions/omo.js"],
+  ["lsp-daemon runtime", "plugin/runtime/lsp-daemon/dist/cli.js"],
+  ["agent-toolkit runtime", "plugin/runtime/agent-toolkit/cli.js"],
+] as const
 
 export function buildSenpiArgs(args: string[], execDir: string): string[] {
   const command = args[0]
@@ -141,6 +147,23 @@ function readFileIfExists(path: string): string | undefined {
   try { return readFileSync(path, "utf8") } catch { return undefined }
 }
 
+function runCompiledDoctor(inventory: Awaited<ReturnType<typeof detectHarnesses>>, execDir: string, enginePin: string): void {
+  let failed = false
+  const lines: string[] = []
+  for (const [label, artifact] of doctorArtifacts) {
+    if (existsSync(join(execDir, artifact))) lines.push(`PASS ${label}: ${artifact}`)
+    else {
+      lines.push(`FAIL ${label}: missing ${artifact}`)
+      failed = true
+    }
+  }
+  const packageJson = readJson(join(execDir, "package.json"))
+  lines.push(`INFO omo ${packageJson.version} (engine: senpi ${enginePin})`)
+  if (needsSetupSuggestion(inventory)) lines.push("INFO no credentials found; run omo setup to review sibling stores")
+  console.log(lines.join("\n"))
+  process.exitCode = failed ? 1 : 0
+}
+
 function isSelfUpdate(args: string[]): boolean {
   if (args[0] !== "update") return false
   const rest = args.slice(1)
@@ -149,13 +172,18 @@ function isSelfUpdate(args: string[]): boolean {
   return rest.every((arg) => arg.startsWith("-") || selfUpdateTargets.has(arg))
 }
 
-export async function runCompiledLauncher(args: string[], execDir: string, enginePin = "unknown"): Promise<boolean> {
+export async function runCompiledLauncher(args: string[], execDir: string, enginePin = "unknown", compiledPackageRoot?: string): Promise<boolean> {
   const packageJson = readJson(join(execDir, "package.json"))
   migrateLegacyBunGlobalManifest(execDir)
   adoptLegacyFlatState()
   const command = args[0]
   if (command === "ulw-loop") { spawn(process.execPath, [join(execDir, "plugin/runtime/agent-toolkit/ulw-loop/cli.js"), ...args.slice(1)], { stdio: "inherit" }); return true }
-  if (command === "doctor") { runDoctor(await detectHarnesses()); return true }
+  if (command === "doctor") {
+    const inventory = await detectHarnesses()
+    if (compiledPackageRoot) runCompiledDoctor(inventory, compiledPackageRoot, enginePin)
+    else runDoctor(inventory)
+    return true
+  }
   if (command === "setup") { printSetupReport(await detectHarnesses()); process.exitCode = 0; return true }
   if ((command === "--version" || command === "-v") && args.length === 1) { console.log(versionLine(packageJson, enginePin ?? "unknown")); return true }
   if (isSelfUpdate(args)) { console.log(updateLine(process.platform)); return true }
@@ -186,7 +214,7 @@ async function main(): Promise<void> {
   }
   // Inspector and custom execArgv isolation is unsupported in compiled binaries; the provisioned
   // executable delegates to the engine in-process as required by the native startup contract.
-  if (await runCompiledLauncher(process.argv.slice(2), dirname(process.execPath), manifest.enginePin)) return
+  if (await runCompiledLauncher(process.argv.slice(2), dirname(process.execPath), manifest.enginePin, dirname(process.execPath))) return
   process.argv.splice(2, process.argv.length - 2, ...buildSenpiArgs(process.argv.slice(2), dirname(process.execPath)))
   Object.assign(process.env, remapSenpiEnvironment(process.env, dirname(process.execPath)))
   await import("../../node_modules/@code-yeongyu/senpi/dist/cli.js") // literal: see import note above
