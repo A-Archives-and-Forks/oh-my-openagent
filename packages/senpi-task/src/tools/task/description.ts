@@ -38,7 +38,7 @@ export function buildTaskToolDescription(input: DescriptionInput): string {
   const gatedLine =
     gatedAgents.length === 0
       ? ""
-      : `\n  Plan-gated agents (spawnable only after the user explicitly requests the ulw-plan workflow, a .omo/plans/*.md plan artifact was touched in this session, and start-work was never invoked): ${gatedAgents.map((agent) => agent.name).join(", ")}`
+      : `\n  Plan-gated agents (spawnable only after the user explicitly requests the ulw-plan workflow, a .omo/plans/*.md plan artifact was touched in this session, and ulw-execute was never invoked): ${gatedAgents.map((agent) => agent.name).join(", ")}`
   const momusNotice =
     gatedAgents.length === 0
       ? ""
