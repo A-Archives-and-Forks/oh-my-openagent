@@ -197,7 +197,7 @@ describe("createCleanMcpEnvironment", () => {
   describe("undefined value handling", () => {
     it("skips undefined values from process.env", () => {
       // given - process.env can have undefined values in TypeScript
-      const envWithUndefined = { ...process.env, UNDEFINED_VAR: undefined }
+      const envWithUndefined = { UNDEFINED_VAR: undefined }
 
       // when
       const cleanEnv = createCleanMcpEnvironment({}, envWithUndefined)
