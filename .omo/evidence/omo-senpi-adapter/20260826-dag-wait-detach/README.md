@@ -18,7 +18,7 @@ The dag tool's `wait` action no longer blocks the session turn by default:
 - `drive-self-test.json`: `drive.mjs --self-test` rc=0 (isolation harness works).
 - `drive-live.json`: `"result": "PASS"`, `realSenpiUntouched: true`, `providedSenpiCodingAgentDir: "IGNORED"`, sandbox agent dir under the driver's own tmp root.
 
-Unit/e2e gates (repo root): `bun test packages/senpi-task` 1758 pass / 1 skip (Windows) / 0 fail; `bun test packages/omo-senpi` 2286 pass / 1 skip / 5 fail — all 5 pre-existing env-sensitive failures (see PR body for the baseline attribution); `tsgo --noEmit` clean on both packages; `build-extension.mjs --check` current.
+Unit/e2e gates (repo root): `bun test packages/senpi-task` 1758 pass / 1 skip (Windows) / 0 fail; `bun test packages/omo-senpi` 2291 pass / 1 skip / 0 fail on the branch and 0 fail on a pristine origin/dev baseline worktree — an earlier first run's 5 fails were not reproducible on either tree (env flakiness, not caused by this change); `tsgo --noEmit` clean on both packages; `build-extension.mjs --check` current, including after the dev merge (bundle conflict resolved by regeneration).
 
 ## Why this is enough
 
