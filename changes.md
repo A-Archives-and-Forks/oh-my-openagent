@@ -1,3 +1,32 @@
+## 2026-08-26 — Stop the omo launcher from orphaning its engine
+
+The native launcher chain blocked in `spawnSync` at both of its layers: `bin/omo.js` waiting on the
+engine, and the bun re-exec waiting on the bun launcher. No JavaScript runs while `spawnSync`
+blocks, so a launcher that received `SIGTERM` died on the spot and the engine below it was
+reparented to pid 1, still holding the terminal and still running. Those orphans are what later
+surface as stdin `EIO` crashes and as engine processes lingering for days.
+
+Both layers now go through one asynchronous spawn helper. It forwards `SIGTERM` and `SIGHUP` to the
+child, waits for the child to finish its own shutdown within a bounded grace window (10 seconds,
+overridable with `OMO_SIGNAL_GRACE_MS`), and re-raises the signal on itself if the child ignores it,
+so a supervisor still observes the death it asked for. `SIGINT` is not forwarded, because the tty
+delivers it to the entire foreground process group already and a second delivery would interrupt the
+engine twice; the launcher merely stops dying underneath it. Exit-status fidelity is unchanged - the
+child's exit code passes through, and a child killed by a signal still makes the launcher die by
+that same signal. Windows installs no signal handlers, where POSIX signal delivery does not exist.
+
+`omo doctor` now also names the orphans that earlier launcher versions left behind: interactive
+engine processes reparented to pid 1, reported with pid, age and tty. Cleaning them up is an
+explicit per-pid action, `omo doctor --reap <pid> [pid...]`, which re-reads the live process table
+and refuses any pid that is not an orphaned interactive engine at that moment - a live session, an
+`--mode` rpc or app-server engine, or anything that is not an engine at all. There is deliberately
+no pattern-matching kill.
+
+Real-surface QA drives the whole chain on a pty whose session leader outlives the launcher (so the
+kernel's own `SIGHUP` on session teardown cannot be mistaken for a fix), on both the node chain and
+the three-deep bun chain a `bun add -g omo-ai` install has. Evidence:
+`.omo/evidence/20260826-launcher-signal-forward/`.
+
 ## 2026-08-26 — Release OmO beta.21 with Senpi 2026.8.26
 
 Hotfix release: OmO release metadata and platform package pins advance from

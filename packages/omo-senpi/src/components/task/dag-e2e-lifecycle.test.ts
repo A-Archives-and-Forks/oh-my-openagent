@@ -182,6 +182,9 @@ type RuntimeFixtureOptions = {
   readonly coordinator?: IdleInjectionCoordinator
   readonly attach?: boolean
   readonly awaitAttach?: boolean
+  // Session id the fixture's engine reports; defaults to the module-wide sessionId. An adoption
+  // test attaches under a DIFFERENT id to model fork/compaction/restart re-homing (#7316).
+  readonly sessionId?: string
 }
 
 type RuntimeFixture = {
@@ -226,7 +229,7 @@ async function runtimeFixture(options: RuntimeFixtureOptions = {}): Promise<Runt
   engine.runtime.captureFrom({
     mode: "tui",
     ui: fakeUi(widgetCalls),
-    sessionManager: { getSessionId: () => sessionId },
+    sessionManager: { getSessionId: () => options.sessionId ?? sessionId },
     isIdle: () => options.idle ?? false,
   })
   const bridgeTimers = new ManualTimers()
@@ -481,6 +484,85 @@ describe("assembled DAG lifecycle end to end", () => {
     expect(result.nodes.resume).toEqual(expect.objectContaining({ state: "completed", output: "resumed output" }))
     expect(store.readEvents(runId, 0, { limit: 256 }).events.map((event) => event.type)).toContain("dag.run.resumed")
     restarted.runtime.dispose()
+  })
+
+  test("#given a paused run whose owner session is gone #when a fresh session id attaches over a dead lease #then it adopts, re-homes, and completes the run", async () => {
+    // given a run paused by its original session, whose process has since died (#7316)
+    const project = fs.mkdtempSync(join(tmpdir(), "omo-dag-lifecycle-adopt-"))
+    cleanupRoots.push(project)
+    const runId = "dag-lifecycle-adopt" as DagRunId
+    await seedPendingRun(project, runId)
+    const first = await runtimeFixture({ project, attach: false })
+    pauseForShutdown(first.runtime)
+    first.runtime.dispose()
+    const store = createFileStore({ project_dir: project }, { fsync: false })
+    const paused = store.readCheckpoint<DagRunRecordV1 & { readonly previousLeaseHolderPid?: number }>(runId)
+    if (paused === null) throw new Error("expected paused checkpoint")
+    store.writeCheckpoint(runId, { ...paused, previousLeaseHolderPid: 2_147_483_647 })
+
+    // when a session with a NEW id attaches (fork / compaction / restart under a new id)
+    const adopterRunner = new ControlledRunner()
+    const adopter = await runtimeFixture({ project, runner: adopterRunner, sessionId: "session-adopter", awaitAttach: false })
+    const adopted = await Promise.race([
+      adopterRunner.whenStarted(1).then(() => true),
+      // Today attach resolves WITHOUT adopting the foreign run, so the race falls through false.
+      adopter.attached.then(() => false),
+    ])
+
+    // then the adopter schedules the orphaned node instead of skipping it as foreign
+    expect(adopted).toBe(true)
+    adopterRunner.children[0]?.settle("adopted output")
+    await adopter.attached
+    expect(adopter.runtime.manager.list("session-adopter").some((run) => run.runId === runId)).toBe(true)
+    const result = await adopter.runtime.wait(runId, "session-adopter")
+    expect(result.status).toBe("completed")
+    expect(result.nodes.resume).toEqual(expect.objectContaining({ state: "completed", output: "adopted output" }))
+    expect(store.readCheckpoint<DagRunRecordV1>(runId)?.parentSessionId).toBe("session-adopter")
+    adopter.runtime.dispose()
+  })
+
+  test("#given a paused run recovering on session start #when the bridge emits its first dag snapshot #then it reflects the recovered run, never the pre-recovery pause", async () => {
+    // given a paused run with a dead predecessor lease, exactly as a host restart leaves it
+    const project = fs.mkdtempSync(join(tmpdir(), "omo-dag-lifecycle-snapshot-"))
+    cleanupRoots.push(project)
+    const runId = "dag-lifecycle-first-snapshot" as DagRunId
+    await seedPendingRun(project, runId)
+    const first = await runtimeFixture({ project, attach: false })
+    pauseForShutdown(first.runtime)
+    first.runtime.dispose()
+    const store = createFileStore({ project_dir: project }, { fsync: false })
+    const paused = store.readCheckpoint<DagRunRecordV1 & { readonly previousLeaseHolderPid?: number }>(runId)
+    if (paused === null) throw new Error("expected paused checkpoint")
+    store.writeCheckpoint(runId, { ...paused, previousLeaseHolderPid: 2_147_483_647 })
+
+    const runner = new ControlledRunner()
+    const fixture = await runtimeFixture({ project, runner, attach: false })
+    const statusOf = (event: { readonly name: string; readonly data: unknown }): string | undefined => {
+      if (event.name !== "omo.dag.updated") return undefined
+      const payload = event.data as { readonly runs?: ReadonlyArray<{ readonly run_id?: string; readonly status?: string }> }
+      return payload.runs?.find((run) => run.run_id === runId)?.status
+    }
+
+    // when the bridge flush window fires while recovery is still reconciling (#7316 defect 1)
+    const attaching = fixture.runtime.attach()
+    fixture.bridgeTimers.flush(50)
+    const preRecovery = fixture.rpc.events
+      .map(statusOf)
+      .filter((status): status is string => status !== undefined)
+
+    await runner.whenStarted(1)
+    runner.children[0]?.settle("first snapshot output")
+    await attaching
+    fixture.bridgeTimers.flush(50)
+
+    // then no consumer ever observed the stale pre-recovery pause, and the final snapshot is live
+    expect(preRecovery).not.toContain("paused")
+    const statuses = fixture.rpc.events
+      .map(statusOf)
+      .filter((status): status is string => status !== undefined)
+    expect(statuses.length).toBeGreaterThan(0)
+    expect(statuses.at(-1)).toBe("completed")
+    fixture.runtime.dispose()
   })
 
   test("#given an eval-cell waiter that is abandoned #when a later cell re-attaches and calls done #then the shipped handle returns the result", async () => {
