@@ -1,4 +1,4 @@
-// allow: SIZE_OK - the six lifecycle scenarios share one assembled-runtime fixture so compaction, restart, detach, wake batching, viewer catch-up, and snapshot dedup are proven through the same adapter surface.
+// allow: SIZE_OK - the lifecycle scenarios share one assembled-runtime fixture so compaction, restart, detach, wake batching, detached tool wait, viewer catch-up, and snapshot dedup are proven through the same adapter surface.
 import { afterEach, describe, expect, spyOn, test } from "bun:test"
 import * as fs from "node:fs"
 import { tmpdir } from "node:os"
@@ -45,6 +45,17 @@ function deferred<T>() {
   let resolve = (_value: T): void => undefined
   const promise = new Promise<T>((done) => { resolve = done })
   return { promise, resolve }
+}
+
+// Failure ceiling, not synchronization: proves a promise settles promptly (or fails for blocking),
+// matching the bounded-wait convention from senpi-task.
+function within<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_resolve, reject) => {
+      setTimeout(() => reject(new Error(`did not settle within ${ms}ms`)), ms)
+    }),
+  ])
 }
 
 type ControlledChild = {
@@ -650,6 +661,47 @@ describe("assembled DAG lifecycle end to end", () => {
     expect(deliveries[0]?.content).toContain("wake second")
   })
 
+  test("#given a live run #when the dag TOOL waits with the default detach #then it returns immediately and the settle still delivers the terminal wake", async () => {
+    // given
+    const scheduled: Array<() => void> = []
+    const deliveries: Array<{ readonly content: string; readonly deliverAs: string }> = []
+    const coordinator = new IdleInjectionCoordinator(
+      (message, options) => { deliveries.push({ content: message.content, deliverAs: options.deliverAs }) },
+      { scheduleFlush: (flush) => scheduled.push(flush) },
+    )
+    const fixture = await runtimeFixture({ coordinator, idle: false })
+    const runId = await fixture.start("wake-detached")
+    await fixture.runner.whenStarted(1)
+
+    // when the model-facing default wait runs against a live run
+    const waiting = runDagTool(toolDeps(fixture.runtime), { action: "wait", run_id: runId })
+    const outcome = await within(waiting, 250).then(
+      (result) => ({ kind: "resolved" as const, result }),
+      () => ({ kind: "blocked" as const }),
+    )
+    if (outcome.kind === "blocked") {
+      // release the blocked call so the fixture tears down cleanly, then fail for the right reason
+      fixture.runner.children[0]?.settle("release the blocked wait")
+      await waiting
+      throw new Error("the default wait blocked until settle instead of detaching")
+    }
+
+    // then it detached with the live snapshot, before the child settled
+    const waited = outcome.result
+    if (waited.details.kind !== "detached") throw new Error(`expected detached wait, received ${waited.details.kind}`)
+    expect(waited.details.snapshot.status).toBe("running")
+
+    // and when the run settles, the terminal wake still flushes through the coordinator
+    fixture.runner.children[0]?.settle("detached wake output")
+    await fixture.runtime.wait(runId, sessionId)
+    expect(scheduled).toHaveLength(1)
+    scheduled[0]?.()
+    expect(deliveries).toHaveLength(1)
+    expect(deliveries[0]?.deliverAs).toBe("steer")
+    expect(deliveries[0]?.content).toContain("wake detached")
+    expect(deliveries[0]?.content).toContain("completed")
+  })
+
   test("#given the reference viewer attached to a live adapter run #when the run completes #then catch-up and live delivery contain zero gaps and zero duplicates", async () => {
     // given
     const fixture = await runtimeFixture()
@@ -732,7 +784,7 @@ describe("assembled DAG retry lifecycle end to end", () => {
     fixture.runner.children[3]?.settle("left retried")
     await fixture.runner.whenStarted(5)
     fixture.runner.children[4]?.settle("join output")
-    const waited = await runDagTool(toolDeps(fixture.runtime), { action: "wait", run_id: runId })
+    const waited = await runDagTool(toolDeps(fixture.runtime), { action: "wait", run_id: runId, detach: false })
 
     // then
     if (waited.details.kind !== "waited") throw new Error(`expected wait, received ${waited.details.kind}`)
