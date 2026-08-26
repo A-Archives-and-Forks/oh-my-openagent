@@ -327,7 +327,9 @@ async function main() {
       const sessionTranscript = readSessionTranscript(seeded.sessionDir)
       result = assertScenario(run, sessionTranscript, scenario.expectWarning)
     } finally {
-      rmSync(seeded.sandbox.root, { recursive: true, force: true })
+      // The SIGKILLed RPC child can leave a grandchild flushing late writes into the sandbox;
+      // without retries rmSync races them and dies ENOTEMPTY on macOS.
+      rmSync(seeded.sandbox.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 })
     }
     if (existsSync(seeded.sandbox.root)) result.result = "FAIL"
     reports.push({ label: scenario.label, result })
