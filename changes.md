@@ -1,3 +1,12 @@
+## 2026-08-26 — Release OmO beta.21 with Senpi 2026.8.26
+
+Hotfix release: OmO release metadata and platform package pins advance from
+beta.20 to beta.21 with the Senpi contract aligned to `@code-yeongyu/senpi`
+2026.8.26 (compaction liveness + anthropic sdk peer alignment), carrying the
+pi-tui/senpi cross-bundle lazy warm-up fix and status-widget render containment
+from #7354. The Bun lockfile is regenerated for the exact release dependency
+graph.
+
 ## 2026-08-25 — Release OmO beta.20 with Senpi 2026.8.25
 
 OmO release metadata and platform package pins advance from beta.19 to beta.20,
