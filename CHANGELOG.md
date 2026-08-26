@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CodeGraph upgraded to 1.5.0; managed 1.0.1 and 1.4.1 runtimes re-provision automatically, while existing project stores remain compatible without a manual re-index.
 - Opt-in CodeGraph shared daemon across all three adapters: `codegraph.daemon` config key (default false) on OpenCode and Codex, `OMO_CODEGRAPH_DAEMON=1` on Senpi, plus `codegraph.excluded_roots` parity. (PR #6251)
 - Process hygiene: parent-liveness watchdogs exit MCP server processes when their parent dies, new lsp daemons reap older-version daemons at startup, and a startup family sweep removes orphaned codegraph and lsp processes on every adapter. (PR #6262)
+- `omo doctor` reports stale orphaned engines: interactive senpi engine processes whose launcher died underneath them (reparented to pid 1) are listed with pid, age and tty. Terminating them is an explicit, per-pid opt-in - `omo doctor --reap <pid> [pid...]` - which refuses any pid that is not an orphaned interactive engine at the moment of the request (a live session, an `--mode` rpc/app-server engine, or anything that is not an engine at all). Nothing is ever matched and killed by pattern.
 
 ### Changed
 

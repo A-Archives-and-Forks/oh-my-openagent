@@ -26,7 +26,11 @@ omo-senpi plugin payload produced by `bun run build:omo-native` (gitignored, nev
     to the whole foreground process group) but is still waited out. Never reintroduce `spawnSync` here.
   - `bun-bin-shim.js` — `ensureBunBinShim`: keeps the user-facing bun-global bin an sh shim that
     execs bun directly (POSIX only, self-healing across `bun add -g` updates, fail-open)
-  - `doctor.js`, `package-paths.js`, `provider-map.json`, `legacy-bun-global-migration.js`
+  - `doctor.js` — diagnostics plus stale-orphan detection: `classifyEngineProcesses` splits live
+    engines into stale (interactive, PPID 1), attached and managed (`--mode`), and
+    `reapStaleEngines` terminates ONLY explicitly named pids that are still stale at request time.
+    Pattern-killing is forbidden.
+  - `package-paths.js`, `provider-map.json`, `legacy-bun-global-migration.js`
 - **agent state lives in ONE canonical directory: `~/.omo/agent`.** `bin/lib/agent-dir.js` owns that answer (`canonicalAgentDir`), and the launcher, `omo doctor`, `omo setup` and the locally installed launcher (`packages/omo-senpi/src/install/local-launcher.ts`) all resolve it from there - never by composing their own default. An explicit `OMO_CODING_AGENT_DIR` (or legacy `SENPI_CODING_AGENT_DIR` / `PI_CODING_AGENT_DIR`) still wins, and `adoptLegacyFlatState` carries state left in the pre-unification flat `~/.omo` layout forward once, so unifying the location never reads as another reset.
 - `bin/omo-agent-toolkit.js` - internal delegate to the staged toolkit runtime, NOT an npm bin
 - `test/` - package-contract and launcher tests; `pty-signal-qa.py` is the real-surface QA harness

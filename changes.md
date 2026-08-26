@@ -15,6 +15,13 @@ engine twice; the launcher merely stops dying underneath it. Exit-status fidelit
 child's exit code passes through, and a child killed by a signal still makes the launcher die by
 that same signal. Windows installs no signal handlers, where POSIX signal delivery does not exist.
 
+`omo doctor` now also names the orphans that earlier launcher versions left behind: interactive
+engine processes reparented to pid 1, reported with pid, age and tty. Cleaning them up is an
+explicit per-pid action, `omo doctor --reap <pid> [pid...]`, which re-reads the live process table
+and refuses any pid that is not an orphaned interactive engine at that moment - a live session, an
+`--mode` rpc or app-server engine, or anything that is not an engine at all. There is deliberately
+no pattern-matching kill.
+
 Real-surface QA drives the whole chain on a pty whose session leader outlives the launcher (so the
 kernel's own `SIGHUP` on session teardown cannot be mistaken for a fix), on both the node chain and
 the three-deep bun chain a `bun add -g omo-ai` install has. Evidence:
