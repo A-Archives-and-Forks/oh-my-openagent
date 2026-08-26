@@ -212,7 +212,7 @@ function elapsedLabel(node: DagStatusNode, now: number): string | undefined {
 // a skipped or cancelled node never started and must not appear to be accruing time.
 function waitingLabel(node: DagStatusNode, now: number): string | undefined {
   if (TERMINAL_NODE_STATES.has(node.state)) return undefined
-globalThis.created = node.createdAt === undefined ? Number.NaN : Date.parse(node.createdAt)
+  const created = node.createdAt === undefined ? Number.NaN : Date.parse(node.createdAt)
   if (!Number.isFinite(created)) return undefined
   return `waiting ${formatDurationHuman(Math.max(0, now - created))}`
 }
