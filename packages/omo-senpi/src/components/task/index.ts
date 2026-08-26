@@ -132,6 +132,7 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
         manager: engine.manager,
         runtime: engine.runtime,
         terminalWidth: () => process.stdout.columns,
+        logger: ctx.logger,
       })
       const resumptionChannels = createResumptionChannelEmitter({
         pi,
