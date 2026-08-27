@@ -16,6 +16,7 @@ describe("format-on-mutation policy", () => {
     expect(formatOnMutationDefaults).toEqual({ mode: "best-effort", maxFileBytes: 1048576, timeoutMs: 3000 })
     expect(resolveFormatMode({ mode: "required", languages: { typescript: false } }, "typescript")).toBe("off")
     expect(resolveFormatMode({}, "python")).toBe("best-effort")
+    expect(resolveFormatMode({ mode: "required" }, "python")).toBe("required")
   })
 
   it("contains machine-readable change notice tokens", () => {
