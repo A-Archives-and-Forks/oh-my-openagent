@@ -3,6 +3,7 @@ import { join } from "node:path"
 
 const senpiRoot = join(import.meta.dir, "..", "node_modules", "@code-yeongyu", "senpi", "dist", "core", "extensions", "builtin", "claude-sdk-oauth")
 
+// This imports the installed Senpi runtime so the committed Bun patch is exercised after CI install.
 describe("claude-sdk-oauth result-before-replay", () => {
   test("surfaces the SDK result cause and classifies it as a query failure", async () => {
     const [{ ClaudeSdkOauthSessionRegistry, overrideSessionRegistryBoundary, resetSessionRegistryBoundary }, { submitSessionTurn }, { sanitizeCloseCause }] = await Promise.all([
