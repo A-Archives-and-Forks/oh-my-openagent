@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { existsSync, mkdtempSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -87,6 +87,46 @@ describe("durable thread receipts", () => {
     const restarted = createReceiptStore({ directory })
     expect(restarted.begin(input())).toEqual({ kind: "uncertain", code: "idempotency_uncertain" })
     expect(deliveries).toBe(1)
+  })
+
+  test("degrades to uncertain when the side effect throws and never retries it", async () => {
+    const directory = root()
+    const store = createReceiptStore({ directory })
+    let deliveries = 0
+    await expect(store.execute(input(), async () => {
+      deliveries++
+      throw new Error("transport exploded mid-delivery")
+    })).rejects.toThrow("transport exploded mid-delivery")
+    expect(deliveries).toBe(1)
+
+    // The SAME store instance must not report in_progress: that state is unreachable
+    // forever (no owner will ever complete it) and it hides a may-have-landed effect.
+    expect(store.begin(input())).toEqual({ kind: "uncertain", code: "idempotency_uncertain" })
+    expect(store.execute(input(), async () => {
+      deliveries++
+      return { delivered: true }
+    })).resolves.toEqual({ kind: "uncertain", code: "idempotency_uncertain" })
+    expect(deliveries).toBe(1)
+  })
+
+  test("records the failing side effect note on the durable uncertain receipt", async () => {
+    const directory = root()
+    const store = createReceiptStore({ directory })
+    await expect(store.execute(input(), async () => {
+      throw new Error("transport exploded mid-delivery")
+    })).rejects.toThrow("transport exploded mid-delivery")
+
+    const receiptsDir = join(directory, "receipts")
+    const files = readdirSync(receiptsDir).filter((entry) => entry.endsWith(".json"))
+    expect(files).toHaveLength(1)
+    const persisted = JSON.parse(readFileSync(join(receiptsDir, files[0] as string), "utf8")) as Record<string, unknown>
+    expect(persisted.status).toBe("uncertain")
+    expect(persisted.error_note).toContain("transport exploded mid-delivery")
+
+    // A restart sees the same durable verdict, and list() surfaces it unchanged.
+    const restarted = createReceiptStore({ directory })
+    expect(restarted.begin(input())).toEqual({ kind: "uncertain", code: "idempotency_uncertain" })
+    expect(restarted.list()[0]?.status).toBe("uncertain")
   })
 
   test("retains receipts for thirty days and expires older records", () => {

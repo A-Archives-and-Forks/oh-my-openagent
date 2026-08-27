@@ -46,6 +46,8 @@ export type CompletedReceipt = Omit<PreparedReceipt, "status"> & {
 
 export type UncertainReceipt = Omit<PreparedReceipt, "status"> & {
   readonly status: "uncertain"
+  /** Why the operation became undecidable, when a failing side effect named a cause. */
+  readonly error_note?: string
 }
 
 export type DurableReceipt = PreparedReceipt | CompletedReceipt | UncertainReceipt
@@ -84,6 +86,8 @@ export type ReceiptStore = {
   readonly instance_id: string
   readonly begin: (input: ReceiptInput) => ReceiptBeginResult
   readonly complete: (admission: ReceiptBeginResult, result: unknown) => void
+  /** Mark an accepted operation undecidable: the effect may or may not have landed. */
+  readonly abandon: (admission: ReceiptBeginResult, errorNote: string) => void
   readonly execute: (input: ReceiptInput, sideEffect: (operationId: string) => Promise<unknown>) => Promise<ReceiptExecuteResult>
   readonly list: () => readonly DurableReceipt[]
   readonly prune: () => number
@@ -180,7 +184,18 @@ export function createReceiptStore(options: ReceiptStoreOptions): ReceiptStore {
   ): Promise<ReceiptExecuteResult> {
     const admission = begin(input)
     if (admission.kind !== "accepted") return admission
-    const result = await sideEffect(admission.operation_id)
+    let result: unknown
+    try {
+      result = await sideEffect(admission.operation_id)
+    } catch (error) {
+      // A thrown side effect is genuinely undecidable: it may have landed before it threw.
+      // Deleting the receipt would license a silent double delivery on retry, and leaving it
+      // prepared strands this key on idempotency_in_progress for the whole retention window
+      // (no owner will ever complete it). Recording uncertain is the only honest verdict, and
+      // it matches the never-auto-retry contract the post-restart path already enforces.
+      abandon(admission, describeError(error))
+      throw error
+    }
     if (options.crash_after_accept === true) throw new Error("receipt crash injection after native accept")
     complete(admission, result)
     return { kind: "completed", deduplicated: false, result }
@@ -211,7 +226,39 @@ export function createReceiptStore(options: ReceiptStoreOptions): ReceiptStore {
     return removed
   }
 
-  return { directory: receiptsDir, instance_id: instanceId, begin, complete, execute, list, prune }
+  /**
+   * Transition this instance's prepared receipt to uncertain. Ownership is re-verified under
+   * the same lock `complete` uses; a receipt this instance no longer owns is left untouched
+   * so a concurrent restart's verdict is never overwritten.
+   */
+  function abandon(admission: ReceiptBeginResult, errorNote: string): void {
+    if (admission.kind !== "accepted") return
+    const path = receiptPath(receiptsDir, admission.caller_session_id, admission.tool, admission.effective_key)
+    const lockName = `${pathKey(admission.caller_session_id, admission.tool, admission.effective_key)}.lock`
+    if (!acquireLock(locksDir, lockName)) return
+    try {
+      const current = readReceipt(path)
+      if (
+        current === null ||
+        current.status !== "prepared" ||
+        current.owner_instance_id !== instanceId ||
+        current.operation_id !== admission.operation_id
+      ) {
+        return
+      }
+      const uncertain: UncertainReceipt = {
+        ...current,
+        status: "uncertain",
+        error_note: errorNote,
+        updated_at: new Date(now()).toISOString(),
+      }
+      atomicWrite(path, uncertain)
+    } finally {
+      rmSync(join(locksDir, lockName), { recursive: true, force: true })
+    }
+  }
+
+  return { directory: receiptsDir, instance_id: instanceId, begin, complete, abandon, execute, list, prune }
 }
 
 function classify(
@@ -327,6 +374,10 @@ function isReceipt(value: unknown): value is DurableReceipt {
     typeof record.updated_at === "string" &&
     typeof record.expires_at === "string" &&
     (record.status === "prepared" || record.status === "completed" || record.status === "uncertain")
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function isCode(error: unknown, code: string): boolean {
