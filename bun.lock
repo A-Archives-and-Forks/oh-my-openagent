@@ -429,7 +429,7 @@
     "@code-yeongyu/comment-checker",
   ],
   "patchedDependencies": {
-    "@code-yeongyu/senpi@2026.8.26": "patches/@code-yeongyu%2Fsenpi@2026.8.26.patch",
+    "@code-yeongyu/senpi@2026.8.26-2": "patches/@code-yeongyu%2Fsenpi@2026.8.26-2.patch",
   },
   "overrides": {
     "@earendil-works/pi-agent-core": "0.84.2",
