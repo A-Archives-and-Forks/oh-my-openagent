@@ -1,3 +1,10 @@
+## 2026-08-27 — Align the Senpi adapter with 2026.8.27
+
+`packages/omo-senpi/package.json` now requires the exact published
+`@code-yeongyu/senpi` `2026.8.27` release for both its optional peer and
+development dependency. Keep the peer, dev dependency, root patched-dependency
+key, and generated lockfile aligned with the native runtime pin.
+
 ## 2026-08-26 — Normalize ULW CLI pointer paths across platforms
 
 The ulw-loop skill pointer now normalizes the resolved executable path to

@@ -1,3 +1,131 @@
+## 2026-08-27 — Release OmO Native beta.23 with Senpi 2026.8.27
+
+This release advances the OmO Native engine contract from Senpi `2026.8.26-2`
+to `2026.8.27`. The version is exact-pinned in the native package, adapter
+peers, task runtime, package-shape contracts, compiled-entry fixtures, and
+the generated dependency lock. The package remains beta-channel-only:
+install or upgrade it with `npm i -g omo-ai@beta` or the equivalent Bun
+command; the intentionally unchanged `latest` tag is not the update channel.
+
+### JavaScript-first eval composition
+
+The eval guidance now teaches JavaScript as the primary composition surface.
+The first example cell establishes state in the persistent JavaScript kernel;
+the next example fans out independent session-tool calls with
+`await Promise.all(...)`; a later example shows the explicit cross-language
+escape hatch when the JavaScript kernel is occupied by detached work. This
+aligns the examples with the runtime's persistent-kernel and bounded-parallel
+execution model, allowing an agent to reuse state and schedule independent
+work without first translating the workflow into a separate shell script.
+
+`parallel(thunks)` executes asynchronous thunks through a bounded worker pool
+and preserves result order while allowing concurrent progress. The default
+pool width is four, and `pipeline(items, ...stages)` creates sequential stage
+barriers while using the same bounded fan-out inside each stage. This note
+does not claim a percentage speedup: the repository contains instrumentation
+for wall-clock savings and round-trip counts, but no committed cross-version
+benchmark that would justify one.
+
+### Persistent JavaScript kernel state
+
+JavaScript cells continue to share one session-scoped kernel, so values
+created in one cell remain available to the next cell. State persistence now
+rewrites only top-level declarations, including destructuring bindings and
+uninitialized declarations, while leaving declaration-shaped text inside
+strings, comments, and nested function bodies untouched. This makes the
+state-carrying transform safe for examples, templates, regular expressions,
+and nested implementation snippets.
+
+The JavaScript worker path remains the normal execution mode. When the worker
+entry cannot be loaded, the runtime can use its controlled inline fallback;
+the fallback preserves the language-level contract without requiring a
+build-time worker file to remain at its original source path. Kernel state is
+isolated per language, so resetting a Python kernel does not reset JavaScript
+state.
+
+### Busy kernels and cross-language continuation
+
+A detached cell keeps its language kernel busy until it reaches a terminal
+state. A second eval request in that language receives a diagnostic that
+identifies the occupied cell and its available output context, then lists
+each idle enabled kernel that can continue the work. This converts a vague
+same-language contention error into an explicit scheduling decision. If no
+other interpreter is idle, the diagnostic does not invent an escape route.
+
+JavaScript is always available on supported Node runtimes. Python, Ruby, and
+Julia remain optional capability-gated interpreters: their absence is
+reported as a capability gap rather than making the JavaScript path
+unavailable. This preserves a fast default while keeping polyglot workflows
+possible when the corresponding interpreter is installed.
+
+### Detached-cell lifecycle and diagnostics
+
+Detached execution remains an explicit lifecycle rather than a hidden
+background promise. A cell can be created, started, detached, completed,
+failed, stopped, or inspected through `peek`; each terminal transition is
+reported once. Completion notifications are delivered as internal,
+model-visible messages instead of synthetic user-input queue entries, so
+background eval status cannot masquerade as a user steering message.
+
+Detached overflow notices carry plain absolute spill paths, which the regular
+agent read surface can consume directly. The `local://` scheme remains an
+in-cell kernel helper for session-local artifacts and is not presented as an
+agent-facing file path. A wall-clock hard limit, defaulting to 1800 seconds,
+continues to run across detachment and bridge calls; reaching it interrupts
+the cell and settles it as cancelled instead of leaving unbounded work
+behind.
+
+### Tool orchestration and observability
+
+Tools invoked from inside an eval cell continue through the session's real
+tool execution surface. Reserved helpers such as `agent`, `output`, and
+`tool_schema` use their dedicated bridge path, while recursive eval remains
+rejected. The runtime records one bounded `senpi.eval.execution` event per
+settled cell, including wall time, kernel time, terminal status, detached
+status, nested tool-call counts, and bounded per-tool aggregates. The
+external projection excludes prompts, arguments, call identifiers, errors,
+and result previews.
+
+The OmO Native telemetry adapter accepts versioned full-detail eval events,
+reduces them to scalar rollups, correlates cells to their owning sessions,
+and fails closed on duplicate ownership or malformed metadata. Eval-only
+waves remain separated from non-eval waves so modeled savings cannot be
+inflated by mixing unlike execution modes. These metrics make composition
+behavior observable without turning an unmeasured model into a promised
+benchmark.
+
+### Failure recovery and compatibility
+
+The JavaScript kernel recovers from worker crashes by settling the active
+cell, retiring the failed worker, and preparing a fresh worker for the next
+cell. Session-generation fencing prevents callbacks from retired sessions
+from emitting into a newer session. Subprocess-backed languages continue to
+gate execution on interpreter readiness so startup time does not consume the
+cell's execution budget.
+
+The supported runtime contract remains Node `>=24`. JavaScript is available
+without a separately installed interpreter; optional languages are detected
+independently. OmO Native's launcher continues to support explicit runtime
+selection through `OMO_RUNTIME=node` or `OMO_RUNTIME=bun`, with loop guards
+preventing accidental re-execution of an already selected runtime. Bun 1.4
+remains the release/build toolchain, while the codemode package keeps its
+Node-compatible boundary and does not depend on Bun-only APIs.
+
+### Upgrade and verification notes
+
+This is a package-chain update, not a session-data reset. Existing settings,
+credentials, sessions, permissions, and enabled extensions remain outside the
+package replacement. The exact Senpi version is carried consistently through
+the native runtime, adapter peer/dev dependencies, task-engine pins,
+compiled-entry identity tests, and lockfile.
+
+The release was verified against the Senpi `2026.8.27` registry identity and
+isolated CLI checks, OmO Native package-shape and pin contracts, the
+Senpi-adapter test suite, strict type checking, native payload staging, and
+the compiled runtime identity check. No percentage latency claim is made
+because no cross-version benchmark is committed; users can inspect the
+versioned eval telemetry for their own workloads.
+
 ## 2026-08-26 — Stop the omo launcher from orphaning its engine
 
 The MCP environment cleaner now accepts an optional ambient environment map,
