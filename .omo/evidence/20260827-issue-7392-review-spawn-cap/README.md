@@ -19,14 +19,24 @@
   the focused suite reported 12 pass and 1 expected failure.
 - After the implementation, the focused suite passed 13/13 and the full
   component suite passed 426/426.
+- A post-creation P1 found that MultiAgentV2 places code-reviewer and QA roles
+  in `message` instead of `agent_type`. Failing-first coverage produced 13 pass
+  and 2 expected failures for those roles.
+- After recognizing the two message-only roles, the full component suite passed
+  428/428.
 - TypeScript, Biome, component build, root typecheck, and root build completed
   successfully.
 - The built hook CLI allowed reviewer attempts 1 through 3, denied attempt 4
   with `4/3`, kept the reviewer counter at 3, and kept the global fan-out
   counter at 3.
+- The built hook CLI repeated the same proof for message-only
+  `lazycodex-code-reviewer` and `lazycodex-qa-executor` events. Each role kept a
+  count of 3, and the global counter remained at the six allowed spawns.
 - Malformed hook input remained a no-op with exit code 0.
 - The isolated app-server turn completed and emitted plugin hook completion for
   `sessionStart`, `userPromptSubmit`, and `stop`.
+- The isolated app-server proof was rerun after the MultiAgentV2 fix with the
+  same completed hook set.
 - The real `~/.codex/config.toml` hash was unchanged before and after QA.
 
 ## Why this is enough

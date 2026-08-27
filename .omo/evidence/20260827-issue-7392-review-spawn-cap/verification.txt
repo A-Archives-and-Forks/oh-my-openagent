@@ -35,6 +35,23 @@ Repository gates
   bun run build: pass
   git diff --check: pass
 
+Post-creation P1
+----------------
+Finding:
+  MultiAgentV2 omits agent_type and names code-reviewer and QA roles in message.
+
+Failing first:
+  Test Files  1 failed (1)
+  Tests       2 failed | 13 passed (15)
+  Both message-only roles allowed the fourth spawn.
+
+After fix:
+  Test Files  40 passed (40)
+  Tests       428 passed (428)
+  component typecheck + Biome + build: pass
+  bun run typecheck: pass
+  bun run build: pass
+
 Canonical Codex gate
 --------------------
   bun run test:codex: attempted three times

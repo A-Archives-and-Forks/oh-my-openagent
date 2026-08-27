@@ -166,6 +166,23 @@ describe("applySpawnGuards review repetition cap", () => {
 
 		expect(applySpawnGuards(reviewSpawn)).toBe("");
 	});
+
+	it.each(["lazycodex-code-reviewer", "lazycodex-qa-executor"])(
+		"#given a MultiAgentV2 %s message #when it spawns four times #then applies the reviewer cap",
+		(agentType) => {
+			writeGoals();
+			const reviewSpawn = payload("spawn_agent", {
+				message: `Delegate this final-quality lane to ${agentType}`,
+			});
+
+			expect(applySpawnGuards(reviewSpawn)).toBe("");
+			expect(applySpawnGuards(reviewSpawn)).toBe("");
+			expect(applySpawnGuards(reviewSpawn)).toBe("");
+
+			const fourth = deny(applySpawnGuards(reviewSpawn));
+			expect(fourth.permissionDecisionReason).toContain(`${agentType} 4/3`);
+		},
+	);
 });
 
 describe("applySpawnGuards gate-artifact guard", () => {

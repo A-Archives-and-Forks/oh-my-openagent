@@ -14,7 +14,11 @@ const SPAWN_TOOL_TOKENS = new Set(["spawn_agent", "collaborationspawn_agent", "c
 const DEFAULT_FANOUT_LIMIT = 60;
 const DEFAULT_REVIEW_SPAWN_LIMIT = 3;
 const REVIEW_AGENT_TYPES = new Set(["lazycodex-code-reviewer", "lazycodex-qa-executor", "lazycodex-gate-reviewer"]);
-const GATE_MESSAGE_PATTERN = /lazycodex-gate-reviewer|final gate review/i;
+const REVIEW_MESSAGE_PATTERNS = [
+	{ agentType: "lazycodex-code-reviewer", pattern: /\blazycodex-code-reviewer\b/i },
+	{ agentType: "lazycodex-qa-executor", pattern: /\blazycodex-qa-executor\b/i },
+	{ agentType: "lazycodex-gate-reviewer", pattern: /lazycodex-gate-reviewer|final gate review/i },
+] as const;
 
 export function applySpawnGuards(payload: PreToolUsePayload): string {
 	if (payload.hook_event_name !== "PreToolUse" || !SPAWN_TOOL_TOKENS.has(payload.tool_name)) return "";
@@ -107,7 +111,8 @@ function reviewAgentType(toolInput: unknown): string | null {
 	const agentType = record["agent_type"];
 	if (typeof agentType === "string" && REVIEW_AGENT_TYPES.has(agentType)) return agentType;
 	const message = record["message"];
-	return typeof message === "string" && GATE_MESSAGE_PATTERN.test(message) ? "lazycodex-gate-reviewer" : null;
+	if (typeof message !== "string") return null;
+	return REVIEW_MESSAGE_PATTERNS.find(({ pattern }) => pattern.test(message))?.agentType ?? null;
 }
 
 function deny(reason: string): string {
