@@ -1,0 +1,56 @@
+# Issue 7392: Review Spawn Cap QA
+
+## What was tested
+
+- The `ulw-loop` pre-tool-use spawn guard was exercised through its focused
+  Vitest suite before and after the fix.
+- The complete `ulw-loop` component test, typecheck, Biome, and build gates
+  were run.
+- Root repository typecheck and build were run.
+- The built component CLI was driven with help, malformed input, and four
+  repeated code-reviewer spawn events against an isolated fixture.
+- A real `codex app-server` turn was driven with a locally installed plugin and
+  local mock model in an isolated `CODEX_HOME`.
+- The canonical `bun run test:codex` gate was attempted three times.
+
+## What was observed
+
+- Before the implementation, the fourth same-reviewer spawn remained allowed:
+  the focused suite reported 12 pass and 1 expected failure.
+- After the implementation, the focused suite passed 13/13 and the full
+  component suite passed 426/426.
+- TypeScript, Biome, component build, root typecheck, and root build completed
+  successfully.
+- The built hook CLI allowed reviewer attempts 1 through 3, denied attempt 4
+  with `4/3`, kept the reviewer counter at 3, and kept the global fan-out
+  counter at 3.
+- Malformed hook input remained a no-op with exit code 0.
+- The isolated app-server turn completed and emitted plugin hook completion for
+  `sessionStart`, `userPromptSubmit`, and `stop`.
+- The real `~/.codex/config.toml` hash was unchanged before and after QA.
+
+## Why this is enough
+
+The regression test pins the new machine-consumed boundary and its reset on a
+new goal attempt. The full component gates cover the surrounding plan,
+checkpoint, hook, and CLI behavior. Driving the built hook CLI proves the
+observable pre-tool-use result rather than relying on source inspection. The
+app-server run proves the locally built plugin still installs and participates
+in a real Codex turn under isolation.
+
+## Known gate gap
+
+`bun run test:codex` reached the packaging ship check, where `npm pack
+--dry-run` invoked the root prepare build after workspace dev dependencies had
+been removed. An unrelated Codex component then failed with
+`TS2688: Cannot find type definition file for 'node'`. The failure moved
+between `git-bash` and `ulw-loop` depending on component build order and was
+reproduced after three clean attempts. Restoring workspace dev dependencies
+made root typecheck and build pass. No assertion in the changed component
+failed.
+
+## What was omitted
+
+Raw environment dumps, authentication data, user configuration contents, and
+temporary sandbox paths were not recorded. Only reviewer-relevant outcomes and
+the unchanged-host-config isolation result are included.

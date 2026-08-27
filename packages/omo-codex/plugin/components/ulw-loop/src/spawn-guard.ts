@@ -12,6 +12,8 @@ import type { UlwLoopPlan } from "./types.js";
 // dotted token observed live in the task-1 probe (hook-tool-tokens.txt).
 const SPAWN_TOOL_TOKENS = new Set(["spawn_agent", "collaborationspawn_agent", "collaboration.spawn_agent"]);
 const DEFAULT_FANOUT_LIMIT = 60;
+const DEFAULT_REVIEW_SPAWN_LIMIT = 3;
+const REVIEW_AGENT_TYPES = new Set(["lazycodex-code-reviewer", "lazycodex-qa-executor", "lazycodex-gate-reviewer"]);
 const GATE_MESSAGE_PATTERN = /lazycodex-gate-reviewer|final gate review/i;
 
 export function applySpawnGuards(payload: PreToolUsePayload): string {
@@ -19,11 +21,13 @@ export function applySpawnGuards(payload: PreToolUsePayload): string {
 	const stateDir = ulwLoopDir(payload.cwd, { sessionId: payload.session_id });
 	const plan = readPlan(join(stateDir, "goals.json"));
 	if (plan === null) return "";
-	const fanOutDenial = consumeFanOutBudget(stateDir);
-	if (fanOutDenial !== null) return deny(fanOutDenial);
+	const reviewDenial = consumeReviewSpawnBudget(payload, plan, stateDir);
+	if (reviewDenial !== null) return deny(reviewDenial);
 	const missingArtifact = missingGateArtifact(payload, plan);
 	if (missingArtifact !== null)
 		return deny(`spawn code-review + QA first; gate audits their artifacts: missing ${missingArtifact}`);
+	const fanOutDenial = consumeFanOutBudget(stateDir);
+	if (fanOutDenial !== null) return deny(fanOutDenial);
 	return "";
 }
 
@@ -45,10 +49,30 @@ export async function runSpawnGuardCli(stdin: NodeJS.ReadableStream, stdout: Nod
 function consumeFanOutBudget(stateDir: string): string | null {
 	const counterPath = join(stateDir, "spawn-count.json");
 	const count = readCount(counterPath) + 1;
-	writeFileSync(counterPath, JSON.stringify({ count }));
 	const limit = fanOutLimit();
-	if (count <= limit) return null;
-	return `ulw-loop spawn fan-out cap reached (${count}/${limit}). Consolidate work into the agents already running, or raise OMO_SPAWN_FANOUT_LIMIT if this volume is intentional.`;
+	if (count > limit)
+		return `ulw-loop spawn fan-out cap reached (${count}/${limit}). Consolidate work into the agents already running, or raise OMO_SPAWN_FANOUT_LIMIT if this volume is intentional.`;
+	writeFileSync(counterPath, JSON.stringify({ count }));
+	return null;
+}
+
+function consumeReviewSpawnBudget(payload: PreToolUsePayload, plan: UlwLoopPlan, stateDir: string): string | null {
+	const agentType = reviewAgentType(payload.tool_input);
+	if (agentType === null) return null;
+	const goal =
+		plan.goals.find((candidate) => candidate.id === plan.activeGoalId) ??
+		plan.goals.find((candidate) => isFinalRunCompletionCandidate(plan, candidate));
+	if (goal === undefined) return null;
+	const counterPath = join(stateDir, "review-spawn-counts.json");
+	const counts = readCounts(counterPath);
+	const key = `${agentType}:${goal.id}:a${goal.attempt}`;
+	const count = (counts[key] ?? 0) + 1;
+	const limit = reviewSpawnLimit();
+	if (count > limit)
+		return `ulw-loop reviewer no-progress cap reached (${agentType} ${count}/${limit}) for ${goal.id} attempt ${goal.attempt}. Consolidate existing review findings, or checkpoint and start a new attempt after concrete progress.`;
+	counts[key] = count;
+	writeFileSync(counterPath, JSON.stringify(counts));
+	return null;
 }
 
 function missingGateArtifact(payload: PreToolUsePayload, plan: UlwLoopPlan): string | null {
@@ -74,12 +98,16 @@ function missingGateArtifact(payload: PreToolUsePayload, plan: UlwLoopPlan): str
 }
 
 function isGateReviewerSpawn(toolInput: unknown): boolean {
-	if (typeof toolInput !== "object" || toolInput === null) return false;
+	return reviewAgentType(toolInput) === "lazycodex-gate-reviewer";
+}
+
+function reviewAgentType(toolInput: unknown): string | null {
+	if (typeof toolInput !== "object" || toolInput === null) return null;
 	const record = toolInput as Record<string, unknown>;
 	const agentType = record["agent_type"];
-	if (typeof agentType === "string") return agentType === "lazycodex-gate-reviewer";
+	if (typeof agentType === "string" && REVIEW_AGENT_TYPES.has(agentType)) return agentType;
 	const message = record["message"];
-	return typeof message === "string" && GATE_MESSAGE_PATTERN.test(message);
+	return typeof message === "string" && GATE_MESSAGE_PATTERN.test(message) ? "lazycodex-gate-reviewer" : null;
 }
 
 function deny(reason: string): string {
@@ -98,6 +126,13 @@ function fanOutLimit(): number {
 	if (raw === undefined) return DEFAULT_FANOUT_LIMIT;
 	const parsed = Number.parseInt(raw, 10);
 	return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_FANOUT_LIMIT;
+}
+
+function reviewSpawnLimit(): number {
+	const raw = process.env["OMO_ULW_LOOP_REVIEW_SPAWN_LIMIT"];
+	if (raw === undefined) return DEFAULT_REVIEW_SPAWN_LIMIT;
+	const parsed = Number.parseInt(raw, 10);
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_REVIEW_SPAWN_LIMIT;
 }
 
 function isNonEmptyFile(path: string): boolean {
@@ -124,6 +159,21 @@ function readCount(counterPath: string): number {
 		return typeof parsed["count"] === "number" && parsed["count"] >= 0 ? parsed["count"] : 0;
 	} catch (error) {
 		if (error instanceof Error) return 0;
+		throw error;
+	}
+}
+
+function readCounts(counterPath: string): Record<string, number> {
+	try {
+		const parsed: unknown = JSON.parse(readFileSync(counterPath, "utf8"));
+		if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+		const counts: Record<string, number> = {};
+		for (const [key, value] of Object.entries(parsed)) {
+			if (typeof value === "number" && value >= 0) counts[key] = value;
+		}
+		return counts;
+	} catch (error) {
+		if (error instanceof Error) return {};
 		throw error;
 	}
 }

@@ -9,16 +9,21 @@ import { applySpawnGuards } from "../src/spawn-guard.ts";
 
 let workDir: string;
 let originalLimit: string | undefined;
+let originalReviewLimit: string | undefined;
 
 beforeEach(async () => {
 	workDir = await mkdtemp(join(tmpdir(), "ulw-spawn-guard-"));
 	originalLimit = process.env["OMO_SPAWN_FANOUT_LIMIT"];
+	originalReviewLimit = process.env["OMO_ULW_LOOP_REVIEW_SPAWN_LIMIT"];
 	delete process.env["OMO_SPAWN_FANOUT_LIMIT"];
+	delete process.env["OMO_ULW_LOOP_REVIEW_SPAWN_LIMIT"];
 });
 
 afterEach(async () => {
 	if (originalLimit === undefined) delete process.env["OMO_SPAWN_FANOUT_LIMIT"];
 	else process.env["OMO_SPAWN_FANOUT_LIMIT"] = originalLimit;
+	if (originalReviewLimit === undefined) delete process.env["OMO_ULW_LOOP_REVIEW_SPAWN_LIMIT"];
+	else process.env["OMO_ULW_LOOP_REVIEW_SPAWN_LIMIT"] = originalReviewLimit;
 	await rm(workDir, { recursive: true, force: true });
 });
 
@@ -129,6 +134,37 @@ describe("applySpawnGuards fan-out cap", () => {
 		const second = applySpawnGuards(payload("collaborationspawn_agent", { message: "scan" }));
 
 		expect(deny(second).permissionDecisionReason).toContain("2/1");
+	});
+});
+
+describe("applySpawnGuards review repetition cap", () => {
+	it("#given one goal attempt #when the same reviewer spawns four times #then denies until the attempt advances", () => {
+		writeGoals();
+		const reviewSpawn = payload("spawn_agent", {
+			agent_type: "lazycodex-code-reviewer",
+			message: "review the current diff",
+		});
+
+		expect(applySpawnGuards(reviewSpawn)).toBe("");
+		expect(applySpawnGuards(reviewSpawn)).toBe("");
+		expect(applySpawnGuards(reviewSpawn)).toBe("");
+
+		const fourth = applySpawnGuards(reviewSpawn);
+		expect(fourth).not.toBe("");
+		expect(deny(fourth).permissionDecisionReason).toContain("4/3");
+		const counter = JSON.parse(readFileSync(join(sessionDir(), "spawn-count.json"), "utf8"));
+		expect(counter.count).toBe(3);
+
+		const goalsPath = join(sessionDir(), "goals.json");
+		const plan = JSON.parse(readFileSync(goalsPath, "utf8")) as {
+			goals: Array<{ attempt: number }>;
+		};
+		const [goal] = plan.goals;
+		if (goal === undefined) throw new Error("fixture must include a goal");
+		goal.attempt = 2;
+		writeFileSync(goalsPath, JSON.stringify(plan));
+
+		expect(applySpawnGuards(reviewSpawn)).toBe("");
 	});
 });
 

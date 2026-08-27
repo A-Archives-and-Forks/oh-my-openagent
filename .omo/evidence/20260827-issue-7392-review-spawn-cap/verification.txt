@@ -1,0 +1,47 @@
+Issue 7392 verification
+=======================
+
+Failing first
+-------------
+Command:
+  bunx vitest run test/spawn-guard.test.ts
+
+Observed before implementation:
+  Test Files  1 failed (1)
+  Tests       1 failed | 12 passed (13)
+  AssertionError: expected '' not to be ''
+  The fourth reviewer spawn was still allowed.
+
+Focused and component gates
+---------------------------
+Focused after implementation:
+  Test Files  1 passed (1)
+  Tests       13 passed (13)
+
+Full component:
+  npm test
+  Test Files  40 passed (40)
+  Tests       426 passed (426)
+
+Component check:
+  npm run check
+  tsc --noEmit: pass
+  biome check .: pass, 82 files
+  tsc -p tsconfig.build.json: pass
+
+Repository gates
+----------------
+  bun run typecheck: pass
+  bun run build: pass
+  git diff --check: pass
+
+Canonical Codex gate
+--------------------
+  bun run test:codex: attempted three times
+  Changed component tests and plugin build passed before the ship check.
+  Ship check failure:
+    npm pack --dry-run invoked root prepare after workspace dev dependency
+    pruning.
+    TS2688: Cannot find type definition file for 'node'.
+  This was a setup failure in unrelated component packaging, not a changed
+  component assertion.

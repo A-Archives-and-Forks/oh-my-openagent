@@ -1,0 +1,56 @@
+Issue 7392 manual QA
+====================
+
+Surface
+-------
+Built Codex ulw-loop component CLI:
+  node components/ulw-loop/dist/cli.js hook pre-tool-use-spawn
+
+Help
+----
+`--help` printed the supported hook and ulw-loop command usage.
+
+Bad input
+---------
+Malformed JSON input:
+  exit=0
+  output=<empty>
+
+Repeated reviewer spawns
+------------------------
+Input agent type:
+  lazycodex-code-reviewer
+
+Observed:
+  attempt=1 output=<allow>
+  attempt=2 output=<allow>
+  attempt=3 output=<allow>
+  attempt=4 permissionDecision=deny
+  reason includes:
+    reviewer no-progress cap reached
+    4/3
+    goal g1 attempt 1
+
+Persisted state:
+  review-spawn-counts.json:
+    lazycodex-code-reviewer:g1:a1 = 3
+  spawn-count.json:
+    count = 3
+
+This proves the denied fourth reviewer does not consume the global fan-out
+budget.
+
+Real Codex app-server
+---------------------
+The project Codex QA driver installed the local plugin into an isolated
+`CODEX_HOME`, used a local mock model, and completed one app-server turn.
+
+Observed plugin hook events:
+  sessionStart: completed
+  userPromptSubmit: completed
+  stop: completed
+
+Isolation:
+  real ~/.codex/config.toml unchanged
+  isolated CODEX_HOME removed after the run
+  no real model API call
