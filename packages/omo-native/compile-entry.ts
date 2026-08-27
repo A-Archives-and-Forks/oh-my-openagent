@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { spawn } from "node:child_process"
@@ -70,6 +70,18 @@ export function isProvisionedExecutable(execPath: string, expectedPath: string):
     return realpathSync(execPath) === realpathSync(expectedPath)
   } catch {
     return resolve(execPath) === resolve(expectedPath)
+  }
+}
+
+export function materializeProvisionedExecutable(sourcePath: string, destinationPath: string): void {
+  const temporaryPath = `${destinationPath}.tmp-${process.pid}`
+  try {
+    rmSync(temporaryPath, { force: true })
+    copyFileSync(sourcePath, temporaryPath)
+    chmodSync(temporaryPath, 0o755)
+    renameSync(temporaryPath, destinationPath)
+  } finally {
+    rmSync(temporaryPath, { force: true })
   }
 }
 
@@ -214,8 +226,7 @@ async function main(): Promise<void> {
   const expected = join(homedir(), ".omo", "binary-runtime", manifest.omoAiVersion, process.platform === "win32" ? "omo.exe" : "omo")
   if (!isProvisionedExecutable(process.execPath, expected)) {
     await provisionEmbeddedRuntime(manifest, embedded, dirname(expected))
-    writeFileSync(expected, readFileSync(process.execPath))
-    chmodSync(expected, 0o755)
+    materializeProvisionedExecutable(process.execPath, expected)
     const child = spawn(expected, process.argv.slice(2), { env: process.env, stdio: "inherit" })
     await new Promise<void>((resolvePromise) => child.on("close", (code) => { process.exitCode = code ?? 1; resolvePromise() }))
     return

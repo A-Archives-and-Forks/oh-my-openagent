@@ -25,6 +25,12 @@ the binary's required `libstdc++` runtime package inside Alpine before running
 the version check. These changes keep the smoke gate strict while matching the
 actual Windows home-directory and musl runtime contracts.
 
+The compiled OmO launcher now materializes its first-run Windows executable by
+copying it to a temporary non-executable path and renaming it into place. This
+avoids opening the final running `.exe` destination directly, which Windows can
+reject with `EBUSY`, while retaining hash-checked provisioning and cleaning the
+temporary path after the move.
+
 ## 2026-08-27 — Keep Windows LSP daemon stamping safe with spaced runtimes
 
 The LSP daemon build helper now disables shell execution when invoking an
