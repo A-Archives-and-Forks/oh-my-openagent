@@ -203,7 +203,7 @@ jobs:
         if: needs.ci-mode.outputs.run_heavy == 'true' && runner.os != 'Windows' && (matrix.os == 'ubuntu-latest' || needs.ci-mode.outputs.full_matrix == 'true')
         run: |
           bun test packages/senpi-task/src/runners/rpc-process.windows.test.ts packages/utils/src/codegraph-provision-upgrade.test.ts packages/senpi-task/src/__adversarial__/chaos-bench.test.ts packages/omo-codex/src/install/install-codex-legacy-agent-purge.test.ts script/codex-installer-version.test.ts packages/shared-skills/provenance-gate.test.ts packages/omo-codex/src/install/install-codex-mcp-manifest.test.ts packages/senpi-task/src/dag/scheduler.test.ts
-          bun --config=bunfig.root.parallel.toml test --parallel --no-isolate --max-concurrency=8
+          bun --config=bunfig.root.parallel.toml test
 
       - name: Run tests
         if: needs.ci-mode.outputs.run_heavy == 'true' && matrix.shard == '1/2' && (matrix.os == 'ubuntu-latest' || needs.ci-mode.outputs.full_matrix == 'true')
@@ -217,7 +217,7 @@ jobs:
         run: |
           bun test packages/senpi-task/src/runners/rpc-process.windows.test.ts packages/utils/src/codegraph-provision-upgrade.test.ts packages/senpi-task/src/__adversarial__/chaos-bench.test.ts packages/omo-codex/src/install/install-codex-legacy-agent-purge.test.ts script/codex-installer-version.test.ts packages/shared-skills/provenance-gate.test.ts packages/omo-codex/src/install/install-codex-mcp-manifest.test.ts packages/senpi-task/src/dag/scheduler.test.ts
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          bun --config=bunfig.win2.parallel.toml test --parallel --no-isolate --max-concurrency=8
+          bun --config=bunfig.win2.parallel.toml test --parallel
 
       - name: Write job summary
         if: always()

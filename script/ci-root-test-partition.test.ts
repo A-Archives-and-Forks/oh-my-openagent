@@ -86,17 +86,24 @@ describe("root test CI partition", () => {
     }
   })
 
-  test("#given the Linux and macOS legs #when root tests run #then the quarantine precedes the parallel remainder", () => {
+  test("#given the Linux and macOS legs #when root tests run #then the quarantine precedes the serial remainder", () => {
     const job = rootTestJob()
     const posixStep = job.slice(
       job.indexOf("runner.os != 'Windows'"),
       job.indexOf("matrix.shard == '1/2'"),
     )
 
+    // The POSIX remainder stays serial. `bun test --parallel` implies --isolate,
+    // which re-ran the heavy preload per file across ~1,550 files and OOM-killed
+    // the 7 GB ubuntu runner at ~8 min with every test passing; --no-isolate
+    // instead leaked module state between files (category-routing, coordinator
+    // guard, boulder-state failures). Plain serial `bun test` is the shape this
+    // suite passed with for years; the quarantine-first split stays.
     expect(posixStep).toContain(serialQuarantineCommand())
-    expect(posixStep).toContain("bun --config=bunfig.root.parallel.toml test --parallel")
+    expect(posixStep).toContain("bun --config=bunfig.root.parallel.toml test\n")
+    expect(posixStep).not.toContain("bun --config=bunfig.root.parallel.toml test --parallel")
     expect(posixStep.indexOf(serialQuarantineCommand())).toBeLessThan(
-      posixStep.indexOf("bun --config=bunfig.root.parallel.toml test --parallel"),
+      posixStep.indexOf("bun --config=bunfig.root.parallel.toml test"),
     )
   })
 
@@ -106,27 +113,6 @@ describe("root test CI partition", () => {
       "packages/omo-senpi/**",
     )
     expect(quotedPatterns(readFileSync(win2ConfigPath, "utf8"))).toContain("packages/omo-senpi/**")
-  })
-
-  test("#given 2-core hosted runners #when a parallel leg is rendered #then isolate-per-file mode is disabled and concurrency is capped", () => {
-    const job = rootTestJob()
-    // `bun test --parallel` implies --isolate, which re-runs the heavy preload
-    // (omo-opencode graph + pi-tui/senpi barrel warm) per test file. Across
-    // ~1,550 files that is tens of minutes of pure overhead plus per-file
-    // registry churn, which OOM-kills the 7 GB ubuntu runner at ~8 min and
-    // pushes macOS past its 30 min timeout. The suite has always tolerated a
-    // shared registry (plain serial `bun test` ran that way for years), and
-    // cross-process isolation is already owned by the quarantine list plus
-    // per-worker XDG/HOME, so --no-isolate restores the proven semantics.
-    const parallelCommands = [...job.matchAll(/bun --config=\S+ test --parallel[^\n]*/g)].map(
-      (match) => match[0],
-    )
-
-    expect(parallelCommands).toHaveLength(2)
-    for (const command of parallelCommands) {
-      expect(command).toContain("--no-isolate")
-      expect(command).toContain("--max-concurrency=8")
-    }
   })
 
   test("#given measured package groups #when the matrix command is rendered #then native file sharding is not used", () => {
