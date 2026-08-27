@@ -34,7 +34,12 @@ function session(...fixtureArgs: string[]) {
   return api;
 }
 async function until(s: ReturnType<typeof session>, predicate: (out: string) => boolean) {
-  const deadline = Date.now() + 3000;
+  // 15s, not 3s: the file's first `spawn("bun", ...)` on a cold Windows CI runner
+  // (bun.exe cold launch + AV scan + fixture adapter spawn) was observed at just
+  // over 3s (dev run 33064234392: first READY wait failed at 3024ms while the
+  // warm sessions of later tests passed). `until` returns as soon as the
+  // predicate holds, so the raise costs nothing on the green path.
+  const deadline = Date.now() + 15_000;
   while (!predicate(s.output) && Date.now() < deadline) await Bun.sleep(10);
   expect(predicate(s.output)).toBe(true);
 }
@@ -49,14 +54,14 @@ test("full session emits stop snapshot, stack and capped variables", async () =>
   expect((s.output.match(/^v\d+\t/gm) ?? []).length).toBe(100);
   s.command("terminate"); await until(s, out => out.includes("EXIT:"));
   s.command("quit");
-});
+}, 60_000);
 
 test("byte cap reports dropped bytes", async () => {
   const s = session();
   await until(s, out => out.includes("READY: launch"));
   s.command("vars 8"); await until(s, out => out.includes("TRUNCATED: rows dropped=") && out.includes("bytes dropped="));
   s.command("quit");
-});
+}, 60_000);
 
 test("unverified breakpoint and timeout are classified", async () => {
   const s = session();
@@ -65,4 +70,4 @@ test("unverified breakpoint and timeout are classified", async () => {
   const t = session("--no-answer");
   await until(t, out => out.includes("ERR: timeout"));
   s.command("quit"); t.command("quit");
-});
+}, 60_000);
