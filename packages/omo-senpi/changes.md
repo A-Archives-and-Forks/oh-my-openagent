@@ -14,6 +14,14 @@ budget even though the queue contract completes correctly. This changes only the
 test deadline; mailbox bounds, ordering, persistence, and production retry
 behavior remain unchanged.
 
+## 2026-08-27 — Preserve the full Windows model-admission test budget
+
+The task RPC model-admission parity tests now pass their calculated timeout
+through Bun's supported timeout option object. This preserves the intended
+`PROBE_TIMEOUT_MS * 3 + 20_000` budget on Windows instead of allowing the
+legacy numeric argument form to be capped by the runner's default test
+deadline. Production probe behavior is unchanged.
+
 ## 2026-08-27 — Keep thread persistence and DAP portable on Windows
 
 The thread mailbox and durable receipt stores now use the shared atomic-write
