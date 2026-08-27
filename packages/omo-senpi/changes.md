@@ -5,6 +5,15 @@
 development dependency. Keep the peer, dev dependency, root patched-dependency
 key, and generated lockfile aligned with the native runtime pin.
 
+## 2026-08-27 — Allow the mailbox durability stress test to finish on Windows
+
+The mailbox cap-and-restart test now has a 15-second per-test budget. It performs
+128 durable atomic queue writes plus a second byte-cap queue on Windows, where
+filesystem write and rename latency can exceed Bun's default five-second test
+budget even though the queue contract completes correctly. This changes only the
+test deadline; mailbox bounds, ordering, persistence, and production retry
+behavior remain unchanged.
+
 ## 2026-08-27 — Keep thread persistence and DAP portable on Windows
 
 The thread mailbox and durable receipt stores now use the shared atomic-write
