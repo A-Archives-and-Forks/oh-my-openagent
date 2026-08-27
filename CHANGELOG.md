@@ -38,6 +38,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking**: the OpenCode plugin, Senpi adapter, and Codex codegraph loader no longer read `oh-my-openagent.json[c]` / `oh-my-opencode.json[c]` or `~/.omo/config.jsonc` at runtime; the first startup migrates them into `~/.omo/omo.jsonc` (existing values win, skipped values become diagnostics) and moves the sources into the migration backup directory. Older strict config cores reject a newer `omo.jsonc` containing `models` / `profiles` / harness blocks; restore the legacy files from `~/.omo/migration-backup-*` when downgrading.
 - **Breaking**: `shared/<name>` skill invocations and `disabled_skills: ["shared/<name>"]` entries no longer resolve. Skills from the shared catalog now register under their bare name (e.g. `ulw-plan`, `frontend`). Update configs and prompts to use bare names. (PR #6180)
 
+### Post-beta.23 merge follow-ups
+
+The following pull requests merged after the beta.23 release note was authored
+and are recorded here so the changelog remains connected to the final `dev`
+history:
+
+- LSP formatting now flows through `lsp-core` and the daemon, with typed
+  no-op/unavailable results and a default cap of six resident idle clients.
+  (PR #7428, merge `f356d17816aad57eb248b42a2f30ec0f1b14fde8`)
+- Senpi config-watch re-registration is deferred and coalesced, and duplicate
+  extension instances stand down instead of recursively rebuilding watchers.
+  (PR #7420, merge `8776e80252cbf91127b1b8c1865a11da10e8bb38`)
+- Codex GPT-5.6 context-window contracts are aligned at 650k tokens across
+  catalogs, migration fallbacks, post-compact budgeting, and installers.
+  (PR #7429, merge `a5bb28c604c9fe57c5c59ac00968fe8514881cf4`)
+- Windows DAP drive-letter paths and durable mailbox/receipt persistence are
+  portable across the release path, including the merged beta.23 source-state
+  release update. (PR #7432, merge `c6b1d190e6c52bc1689ba08b138f64e2e54712fb`;
+  PR #7427, merge `b9631886e4ad8922324d3a0977274735b5729be9`)
+- Senpi mutation handling now shares path extraction and single-flight state,
+  uses daemon-first formatting with bounded fallback, and runs diagnostics
+  before comment-checker feedback. (PR #7430, merge
+  `5c2f56b997c13d056ad56c196be32b9e8e37a298`)
+
 ### Fixed
 
 - Windows DAP script paths with drive letters are no longer misclassified as `host:port` endpoints, and thread mailbox/receipt persistence now tolerates the Windows `fsync` behavior while retaining atomic writes.

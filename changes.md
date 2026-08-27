@@ -16,6 +16,16 @@ Focused regression coverage includes the real DAP fixture session, Windows
 drive-letter classification, atomic-write replacement with injected `EPERM`
 from `fsync`, mailbox persistence, and durable receipt lifecycle behavior.
 
+## 2026-08-27 — Record post-beta.23 merged follow-ups
+
+The root product changelog now records the pull requests merged after the
+beta.23 release note was authored: LSP formatting and resident-client caps
+(`#7428`), config-watch duplicate-load stand-down (`#7420`), the Codex GPT-5.6
+650k context-window contract (`#7429`), Windows portability and the beta.23
+source-state merge (`#7432`, `#7427`), and the Senpi daemon-first
+post-mutation pipeline (`#7430`). The entries include their merge commits so
+the release note remains traceable to the final `dev` history.
+
 ## 2026-08-27 — Release OmO Native beta.23 with Senpi 2026.8.27
 
 This release advances the OmO Native engine contract from Senpi `2026.8.26-2`
