@@ -14,6 +14,26 @@ afterEach(cleanupProjects)
 const iso = (): string => new Date().toISOString()
 
 describe("TaskManager outcome guards", () => {
+  test("#given a nonterminal record #when an outcome tries to settle waiters and the record then becomes terminal #then the waiter remains armed until terminal settlement", async () => {
+    // given
+    const { manager, store, inProcess } = makeManager({})
+    const started = await manager.start(baseSpec())
+    if (started.kind !== "started") throw new Error("expected started")
+    const waiter = manager.waitFor(started.task_id)
+    const current = store.load(started.task_id)
+    if (current === null || current === undefined) throw new Error("expected record")
+    store.replace({ ...current, status: "pending" })
+
+    // when - the outcome reaches #settleWaiters while the record is still nonterminal
+    inProcess.handles.get(started.task_id)?.settle({ status: "completed", finalResponse: "late" })
+    await Promise.resolve()
+    expect(manager.waiterKeyCount()).toBe(1)
+    await manager.cancelTask(started.task_id)
+
+    // then
+    expect(await waiter).toMatchObject({ status: "cancelled" })
+  })
+
   test("#given a running resident child #when suspension forgets its handle and the abort settles cancelled #then the record stays running+persisted_only and no waiter settles with a terminal", async () => {
     // given
     const { manager, store, inProcess } = makeManager({})
