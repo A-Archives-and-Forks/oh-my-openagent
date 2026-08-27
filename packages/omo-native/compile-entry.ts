@@ -73,7 +73,16 @@ export function isProvisionedExecutable(execPath: string, expectedPath: string):
   }
 }
 
-export function materializeProvisionedExecutable(sourcePath: string, destinationPath: string): void {
+export function materializeProvisionedExecutable(
+  sourcePath: string,
+  destinationPath: string,
+  platform = process.platform,
+): void {
+  if (platform === "win32") {
+    copyFileSync(sourcePath, destinationPath)
+    chmodSync(destinationPath, 0o755)
+    return
+  }
   const temporaryPath = `${destinationPath}.tmp-${process.pid}`
   try {
     rmSync(temporaryPath, { force: true })

@@ -26,10 +26,10 @@ the version check. These changes keep the smoke gate strict while matching the
 actual Windows home-directory and musl runtime contracts.
 
 The compiled OmO launcher now materializes its first-run Windows executable by
-copying it to a temporary non-executable path and renaming it into place. This
-avoids opening the final running `.exe` destination directly, which Windows can
-reject with `EBUSY`, while retaining hash-checked provisioning and cleaning the
-temporary path after the move.
+copying it directly with the platform file-copy API, because Windows rejects
+renaming a newly copied `.exe` into place with `EPERM` even when the
+destination did not previously exist. POSIX keeps the temporary-copy and
+atomic-rename path. Both branches retain hash-checked provisioning and cleanup.
 
 Windows CI now gives the Codex installer integration test and the seven-node
 DAG failure E2E their observed platform-specific execution budgets. The
