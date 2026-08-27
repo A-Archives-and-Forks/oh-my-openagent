@@ -15,6 +15,13 @@ Windows rejects directory handles. The DAP client now distinguishes a real
 fixture adapter launches instead of attempting a socket connection to drive
 `C:`. The existing POSIX durability behavior remains unchanged.
 
+## 2026-08-27 — Regenerate both Senpi extension entry points after merge
+
+The generated `omo.js` and `omo-task.js` entry points are refreshed from the
+current source after the post-beta.23 merges. This removes conflict-marker
+content that had remained in `omo-task.js` and keeps both tracked entry points
+aligned with the source component set consumed by the release build.
+
 ## 2026-08-26 — Normalize ULW CLI pointer paths across platforms
 
 The ulw-loop skill pointer now normalizes the resolved executable path to
