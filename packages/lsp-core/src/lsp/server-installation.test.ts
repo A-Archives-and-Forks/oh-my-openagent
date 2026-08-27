@@ -348,3 +348,29 @@ describe("isServerInstalled compatibility", () => {
 		expect(isServerInstalled(["node", "server.js"], root)).toBe(true);
 	});
 });
+
+describe("resolveServerBinary node fallback", () => {
+	test("#given a node command missing from PATH #when resolving #then the name is kept so the server stays selectable", () => {
+		// given: a user-configured server such as { command: ["node", "my-ls.js"] } must keep
+		// working, matching the node allowance isServerInstalled() has always had.
+		const root = makeTempRoot("lsp-node-fallback-");
+		process.env["PATH"] = join(root, "definitely-empty");
+
+		// when
+		const resolved = resolveServerBinary(["node", "server.js"], root);
+
+		// then: unresolved rather than rewritten, so the spawn still goes through node
+		expect(resolved).toBe("node");
+		expect(isServerInstalled(["node", "server.js"], root)).toBe(true);
+	});
+
+	test("#given a node command present on PATH #when resolving #then the PATH entry still wins", () => {
+		// given
+		const pathDir = makeTempRoot("lsp-node-on-path-");
+		const pathBinary = writeExecutable(join(pathDir, "node"));
+		process.env["PATH"] = pathDir;
+
+		// when / then
+		expect(resolveServerBinary(["node", "server.js"])).toBe(pathBinary);
+	});
+});

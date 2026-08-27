@@ -191,6 +191,13 @@ export function resolveServerBinary(
 		resolved = resolveLocal(cmd, workingDirectory, suffixes, options.stopAt);
 	}
 	resolved ??= resolveFromPath(cmd, suffixes, platform, options.pathEnv);
+	// A configured server may be launched through the interpreter itself, e.g.
+	// { command: ["node", "my-ls.js"] }. isServerInstalled() has always treated bare `node`
+	// as available regardless of PATH, so keep those servers selectable instead of
+	// regressing them into a not_installed result. The name is returned unresolved so the
+	// spawn still goes through `node`; rewriting it to process.execPath would silently
+	// substitute a different interpreter (bun) for the one the config asked for.
+	if (resolved === null && cmd === "node") resolved = cmd;
 
 	resolutionCache.set(cacheKey, resolved);
 	return resolved;
@@ -207,6 +214,5 @@ export function isServerInstalled(
 	options: ResolveServerBinaryOptions = {},
 ): boolean {
 	if (command.length === 0) return false;
-	if (resolveServerBinary(command, workingDirectory, options) !== null) return true;
-	return command[0] === "node";
+	return resolveServerBinary(command, workingDirectory, options) !== null;
 }
