@@ -4,10 +4,16 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs"
 import { createConnection } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { processSnapshot, cleanupReceipt, waitGone, processAlive } from "./common.mjs"
-import { ensureHost } from "/Users/yeongyu/local-workspaces/senpi-thread-tools/packages/coding-agent/src/modes/rpc/host-ensure.ts"
-import { VERSION } from "/Users/yeongyu/local-workspaces/senpi-thread-tools/packages/coding-agent/src/config.ts"
-import { EXTENSION_EVENTS_CAPABILITY } from "/Users/yeongyu/local-workspaces/senpi-thread-tools/packages/coding-agent/src/modes/rpc/custom-capability.ts"
+import { processSnapshot, cleanupReceipt, waitGone, processAlive, EVIDENCE_ROOT, SENPI_ROOT } from "./common.mjs"
+
+// These three modules live in the SENPI checkout, not this one, so they are resolved from
+// SENPI_ROOT at runtime. Static specifiers would hard-code one machine's layout and fail
+// module resolution everywhere else; dynamic import() keeps the same product-source binding
+// (a rename still breaks this script) while honouring THREAD_QA_SENPI_ROOT.
+const CODING_AGENT = join(SENPI_ROOT, "packages", "coding-agent")
+const { ensureHost } = await import(join(CODING_AGENT, "src", "modes", "rpc", "host-ensure.ts"))
+const { VERSION } = await import(join(CODING_AGENT, "src", "config.ts"))
+const { EXTENSION_EVENTS_CAPABILITY } = await import(join(CODING_AGENT, "src", "modes", "rpc", "custom-capability.ts"))
 
 // Mirrors host-ensure.ts REQUIRED_CAPABILITIES (module-private there); the extension_events
 // half is imported from product source so a rename breaks this script instead of silently
@@ -64,10 +70,10 @@ function classifyRefusal({ refusal, handshake, pidFileOwnsSocket }) {
 
 const root = mkdtempSync(join(tmpdir(), "omo-thread-t14-handshake-"))
 const before = processSnapshot()
-const evidence = "/Users/yeongyu/sisyphuslabs/.omo/evidence/thread-tools/task-14"
+const evidence = EVIDENCE_ROOT
 mkdirSync(evidence, { recursive: true })
 try {
-  const script = "/Users/yeongyu/local-workspaces/senpi-thread-tools/packages/coding-agent/scripts/qa-rpc-socket/ensure-host.mjs"
+  const script = join(CODING_AGENT, "scripts", "qa-rpc-socket", "ensure-host.mjs")
   const result = await new Promise((resolve) => {
     const child = spawn(process.execPath, [script], { stdio: ["ignore", "pipe", "pipe"] })
     let stdout = "", stderr = ""
@@ -81,7 +87,7 @@ try {
   // The fixture is incompatible on BOTH axes the product checks in isCompatible():
   // serverVersion !== VERSION, and the REQUIRED_CAPABILITIES set is missing extension_events.
   const socket = join(root, "unmanaged.sock")
-  const fixture = "/Users/yeongyu/local-workspaces/senpi-thread-tools/packages/coding-agent/test/fixtures/rpc-host-fixture.mjs"
+  const fixture = join(CODING_AGENT, "test", "fixtures", "rpc-host-fixture.mjs")
   const fixtureVersion = "0.0.0-t14-stale"
   const fixtureCapabilities = ["multi_session"] // extension_events deliberately absent
   const unmanaged = spawn("node", [fixture, socket, fixtureVersion, fixtureCapabilities.join(",")], { stdio: "ignore" })

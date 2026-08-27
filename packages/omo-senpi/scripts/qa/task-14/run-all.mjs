@@ -3,8 +3,10 @@ import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { spawn } from "node:child_process"
 
+import { EVIDENCE_ROOT } from "./common.mjs"
+
 const dir = new URL("./", import.meta.url).pathname
-const evidence = "/Users/yeongyu/sisyphuslabs/.omo/evidence/thread-tools/task-14"
+const evidence = EVIDENCE_ROOT
 mkdirSync(evidence, { recursive: true })
 const scenarios = ["kill-mid-turn", "version-capability", "queued-resume", "uncertain-operation"]
 const output = []
