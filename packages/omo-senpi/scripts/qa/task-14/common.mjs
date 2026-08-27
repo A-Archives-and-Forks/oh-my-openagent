@@ -4,8 +4,10 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 export const OMO_ROOT = new URL("../../../", import.meta.url).pathname
-export const SENPI_ROOT = "/Users/yeongyu/local-workspaces/senpi-thread-tools"
-export const EVIDENCE_ROOT = "/Users/yeongyu/sisyphuslabs/.omo/evidence/thread-tools/task-14"
+// Same override seam as the thread-tools harness: the defaults are this author's checkout
+// layout, but every path a foreign machine cannot have is redirectable by env.
+export const SENPI_ROOT = process.env.THREAD_QA_SENPI_ROOT ?? "/Users/yeongyu/local-workspaces/senpi-thread-tools"
+export const EVIDENCE_ROOT = process.env.THREAD_QA_EVIDENCE_ROOT ?? "/Users/yeongyu/sisyphuslabs/.omo/evidence/thread-tools/task-14"
 
 export function scratch(label) {
   const root = mkdtempSync(join(tmpdir(), `omo-thread-t14-${label}-`))
