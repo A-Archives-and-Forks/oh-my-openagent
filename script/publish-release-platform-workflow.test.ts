@@ -430,6 +430,7 @@ describe("release binary asset lane in the platform publish workflow", () => {
     // glibc leg execs natively, musl leg runs in an alpine container
     expect(job).toContain("omo-linux-arm64")
     expect(job).toContain("alpine:")
+    expect(job).toContain("apk add --no-cache libstdc++")
     // same exact version-line contract as the build-job smoke
     expect(job).toContain("(engine: senpi ${ENGINE_PIN})")
     expect(job).toContain("binary-runtime/${OMO_AI_VERSION}")

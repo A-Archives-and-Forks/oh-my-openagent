@@ -35,6 +35,8 @@ The compiled Windows child now identifies its launched executable from
 self-provisioning and the resulting `AssignProcessToJobObject` loop. Windows
 first-run provisioning now continues in-process after materialization, while
 POSIX keeps the child reexec handoff.
+The dedicated Linux arm64 Alpine smoke lane now installs `libstdc++` before
+executing the musl binary, matching the x64 musl smoke contract.
 
 Windows CI now gives the Codex installer integration test and the seven-node
 DAG failure E2E their observed platform-specific execution budgets. The
