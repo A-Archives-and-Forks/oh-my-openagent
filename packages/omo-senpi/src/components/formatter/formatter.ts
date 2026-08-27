@@ -6,6 +6,7 @@ import { resolveServerBinary } from "@oh-my-opencode/lsp-core"
 import { callPackagedDaemonTool } from "../lsp/daemon-tool-client"
 import { extractMutatedFilePaths, MUTATION_TOOL_NAMES, runSingleFlight, type PostMutationEvent } from "../post-mutation/post-mutation"
 
+// Mutation formatting is intentionally opt-in through project markers and fail-open by default.
 export const formatOnMutationDefaults = { mode: "best-effort", maxFileBytes: 1_048_576, timeoutMs: 3_000 } as const
 export type FormatMode = "off" | "best-effort" | "required"
 export type FormatterTool = "biome" | "prettier" | "rustfmt" | "gofmt" | "ruff"
