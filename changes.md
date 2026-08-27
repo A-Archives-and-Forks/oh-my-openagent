@@ -16,6 +16,15 @@ Focused regression coverage includes the real DAP fixture session, Windows
 drive-letter classification, atomic-write replacement with injected `EPERM`
 from `fsync`, mailbox persistence, and durable receipt lifecycle behavior.
 
+## 2026-08-27 — Keep Windows LSP daemon stamping safe with spaced runtimes
+
+The LSP daemon build helper now disables shell execution when invoking an
+absolute runtime path such as `C:\Program Files\nodejs\node.exe`, while keeping
+shell lookup for bare `tsc` and `bun` commands on Windows. The release builder
+therefore reaches the version-stamping step instead of letting the shell split
+the runtime path at `C:\Program`. The command-policy regression tests cover
+absolute Windows paths, bare package commands, and POSIX execution.
+
 ## 2026-08-27 — Record post-beta.23 merged follow-ups
 
 The root product changelog now records the pull requests merged after the
