@@ -1,0 +1,25 @@
+lane1-single-load complete
+
+omo-senpi ulw-loop inactive; omo binary not found undefined
+omo-senpi ast-grep skipped: staged MCP runtime is missing {
+  component: 'ast-grep',
+  entry: 'E:\\contributor\\omo-configwatch-fix\\.omo\\evidence\\omo-senpi-adapter\\20260827-config-watch-standdown\\.stage\\fixed-a\\runtime\\ast-grep-mcp\\cli.js'
+}
+omo-senpi component registration failed {
+  component: 'task',
+  error: Error: Cannot find module 'E:\contributor\omo-configwatch-fix\.omo\evidence\omo-senpi-adapter\20260827-config-watch-standdown\.stage\fixed-a\extensions\omo-task.js'
+      at createEsmNotFoundErr (node:internal/modules/cjs/loader:1554:15)
+      at finalizeEsmResolution (node:internal/modules/cjs/loader:1543:9)
+      at Module._resolveFilename (node:internal/modules/cjs/loader:1478:16)
+      at wrapResolveFilename (node:internal/modules/cjs/loader:1071:27)
+      at resolveForCJSWithHooks (node:internal/modules/cjs/loader:1122:12)
+      at require.resolve (node:internal/modules/helpers:171:31)
+      at jitiResolve (E:\contributor\omo-configwatch-fix\node_modules\.bun\@code-yeongyu+senpi@2026.8.26-2+13a0fcddb4b6e049\node_modules\@code-yeongyu\senpi\node_modules\jiti\dist\jiti.cjs:1:176713)
+      at jitiRequire (E:\contributor\omo-configwatch-fix\node_modules\.bun\@code-yeongyu+senpi@2026.8.26-2+13a0fcddb4b6e049\node_modules\@code-yeongyu\senpi\node_modules\jiti\dist\jiti.cjs:1:178658)
+      at import (E:\contributor\omo-configwatch-fix\node_modules\.bun\@code-yeongyu+senpi@2026.8.26-2+13a0fcddb4b6e049\node_modules\@code-yeongyu\senpi\node_modules\jiti\dist\jiti.cjs:1:187724)
+      at E:/contributor/omo-configwatch-fix/.omo/evidence/omo-senpi-adapter/20260827-config-watch-standdown/.stage/fixed-a/extensions/omo.js:3:977062 {
+    code: 'MODULE_NOT_FOUND',
+    path: '\\\\?\\E:\\contributor\\omo-configwatch-fix\\.omo\\evidence\\omo-senpi-adapter\\20260827-config-watch-standdown\\.stage\\fixed-a\\package.json'
+  }
+}
+omo-senpi ulw-execute-continuation skipped { reason: 'not-continuable' }
