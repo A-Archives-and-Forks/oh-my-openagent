@@ -1,5 +1,11 @@
 ## 2026-08-26 — Stop the omo launcher from orphaning its engine
 
+The MCP environment cleaner now accepts an optional ambient environment map,
+so callers and tests can represent absent variables without mutating
+`process.env`; the default runtime path remains unchanged. This keeps
+undefined environment entries out of spawned stdio MCP environments across
+Bun platforms.
+
 The native launcher chain blocked in `spawnSync` at both of its layers: `bin/omo.js` waiting on the
 engine, and the bun re-exec waiting on the bun launcher. No JavaScript runs while `spawnSync`
 blocks, so a launcher that received `SIGTERM` died on the spot and the engine below it was

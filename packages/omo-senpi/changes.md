@@ -1,3 +1,10 @@
+## 2026-08-26 — Normalize ULW CLI pointer paths across platforms
+
+The ulw-loop skill pointer now normalizes the resolved executable path to
+POSIX separators before embedding it in the machine-consumed command sentence.
+Windows Senpi compatibility therefore receives the same canonical path shape as
+POSIX while the actual executable path remains unchanged.
+
 ## 2026-08-25 — Name the executable in the local-launcher brand profile
 
 The sibling-store local launcher now injects `command: "omo"` on the `SENPI_BRAND`
