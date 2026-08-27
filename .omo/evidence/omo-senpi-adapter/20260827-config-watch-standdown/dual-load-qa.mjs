@@ -146,57 +146,73 @@ if (!existsSync(senpiBin)) {
   process.exit(1)
 }
 
-const stage = join(scriptDir, ".stage")
-rmSync(stage, { recursive: true, force: true })
-const fixedOverrides = new Map()
-const prefixOverrides = bundlesAt(process.env.PREFIX_REVISION ?? "c45968dfc~1")
-const fixedBundle = readFileSync(join(pluginRoot, "extensions", "omo.js"), "utf8")
-const prefixBundle = prefixOverrides.get("omo.js")
-if (prefixBundle.includes("standing down")) throw new Error("pre-fix bundle unexpectedly contains the fix")
-if (!fixedBundle.includes("standing down")) throw new Error("fixed bundle is missing the fix")
-const copies = {
-  fixedA: join(stage, "fixed-a"),
-  fixedB: join(stage, "fixed-b"),
-  prefixA: join(stage, "prefix-a"),
-  prefixB: join(stage, "prefix-b"),
-}
-makePluginCopy(copies.fixedA, fixedOverrides)
-makePluginCopy(copies.fixedB, fixedOverrides)
-makePluginCopy(copies.prefixA, prefixOverrides)
-makePluginCopy(copies.prefixB, prefixOverrides)
+// The complete setup (bundle extraction, staging) and every lane run inside one
+// guarded block: ANY unexpected error — a shallow checkout breaking the git
+// extraction, a copy failure mid-stage — persists a FAIL result to final.json
+// and cleans the stage before exiting, so the committed evidence always
+// describes the observed run instead of leaving a stale PASS behind.
+let summary
+try {
+  const stage = join(scriptDir, ".stage")
+  rmSync(stage, { recursive: true, force: true })
+  const fixedOverrides = new Map()
+  const prefixOverrides = bundlesAt(process.env.PREFIX_REVISION ?? "c45968dfc~1")
+  const fixedBundle = readFileSync(join(pluginRoot, "extensions", "omo.js"), "utf8")
+  const prefixBundle = prefixOverrides.get("omo.js")
+  if (prefixBundle.includes("standing down")) throw new Error("pre-fix bundle unexpectedly contains the fix")
+  if (!fixedBundle.includes("standing down")) throw new Error("fixed bundle is missing the fix")
+  const copies = {
+    fixedA: join(stage, "fixed-a"),
+    fixedB: join(stage, "fixed-b"),
+    prefixA: join(stage, "prefix-a"),
+    prefixB: join(stage, "prefix-b"),
+  }
+  makePluginCopy(copies.fixedA, fixedOverrides)
+  makePluginCopy(copies.fixedB, fixedOverrides)
+  makePluginCopy(copies.prefixA, prefixOverrides)
+  makePluginCopy(copies.prefixB, prefixOverrides)
 
-const lanes = [
-  runLane("lane1-single-load", {
-    packagesPlugin: copies.fixedA,
-    expect: { status: 0, standDown: false, rangeError: false, registrationFailure: false },
-  }),
-  runLane("lane2-dual-fixed", {
-    packagesPlugin: copies.fixedA,
-    extraExtension: copies.fixedB,
-    expect: { status: 0, standDown: true, rangeError: false, registrationFailure: false },
-  }),
-  runLane("lane3-dual-prefix", {
-    packagesPlugin: copies.prefixA,
-    extraExtension: copies.prefixB,
-    expect: { standDown: false, rangeError: true },
-  }),
-]
+  const lanes = [
+    runLane("lane1-single-load", {
+      packagesPlugin: copies.fixedA,
+      expect: { status: 0, standDown: false, rangeError: false, registrationFailure: false },
+    }),
+    runLane("lane2-dual-fixed", {
+      packagesPlugin: copies.fixedA,
+      extraExtension: copies.fixedB,
+      expect: { status: 0, standDown: true, rangeError: false, registrationFailure: false },
+    }),
+    runLane("lane3-dual-prefix", {
+      packagesPlugin: copies.prefixA,
+      extraExtension: copies.prefixB,
+      expect: { standDown: false, rangeError: true },
+    }),
+  ]
 
-rmSync(stage, { recursive: true, force: true })
-const after = {
-  senpiAgentCredentials: credentialDigest(realSenpiAgentDir),
-  omoAgentCredentials: credentialDigest(realOmoAgentDir),
-}
-const realSenpiUntouched = before.senpiAgentCredentials === after.senpiAgentCredentials
-const realOmoAgentUntouched = before.omoAgentCredentials === after.omoAgentCredentials
-const summary = {
-  // Isolation is part of the verdict: a lane that touched a real agent dir
-  // fails the whole run even when every behavioral assertion passed.
-  result: lanes.every((lane) => lane.result === "PASS") && realSenpiUntouched && realOmoAgentUntouched ? "PASS" : "FAIL",
-  senpiBin,
-  lanes,
-  realSenpiUntouched,
-  realOmoAgentUntouched,
+  rmSync(stage, { recursive: true, force: true })
+  const after = {
+    senpiAgentCredentials: credentialDigest(realSenpiAgentDir),
+    omoAgentCredentials: credentialDigest(realOmoAgentDir),
+  }
+  const realSenpiUntouched = before.senpiAgentCredentials === after.senpiAgentCredentials
+  const realOmoAgentUntouched = before.omoAgentCredentials === after.omoAgentCredentials
+  summary = {
+    // Isolation is part of the verdict: a lane that touched a real agent dir
+    // fails the whole run even when every behavioral assertion passed.
+    result: lanes.every((lane) => lane.result === "PASS") && realSenpiUntouched && realOmoAgentUntouched ? "PASS" : "FAIL",
+    senpiBin,
+    lanes,
+    realSenpiUntouched,
+    realOmoAgentUntouched,
+  }
+} catch (error) {
+  rmSync(join(scriptDir, ".stage"), { recursive: true, force: true })
+  summary = {
+    result: "FAIL",
+    reason: error instanceof Error ? error.message : String(error),
+    senpiBin,
+    lanes: [],
+  }
 }
 writeFileSync(join(scriptDir, "final.json"), `${JSON.stringify(summary, null, 2)}\n`)
 console.log(JSON.stringify(summary, null, 2))

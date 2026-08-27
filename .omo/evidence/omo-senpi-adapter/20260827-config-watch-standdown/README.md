@@ -33,6 +33,13 @@ extension cannot pass as a live probe.
 
 Run with: `node .omo/evidence/omo-senpi-adapter/20260827-config-watch-standdown/dual-load-qa.mjs`
 
+Every terminal outcome is persisted to `final.json` before exit: a missing
+senpi binary records `SKIP` (checked before anything is staged), any setup or
+runtime error (shallow checkout breaking the git bundle extraction, copy
+failure, ...) records `FAIL` with the error reason and cleans `.stage`, and the
+aggregate PASS verdict includes both real-agent-dir untouched checks. All four
+paths were exercised against this script: forced SKIP (`SENPI_BIN=/nonexistent`),
+forced setup failure (`PREFIX_REVISION=deadbeef…`), and two full green runs.
 ## What was observed
 
 Final JSON: `final.json` (verbatim driver output). Summary:
