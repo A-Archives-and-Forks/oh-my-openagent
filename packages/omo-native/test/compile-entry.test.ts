@@ -12,6 +12,7 @@ import {
   runningExecutablePath,
   runCompiledLauncher,
   selectRuntimeManifest,
+  shouldReexecAfterProvisioning,
   versionLine,
   updateLine,
   type EmbeddedManifest,
@@ -30,6 +31,8 @@ describe("compiled omo entry launcher parity", () => {
     )
     expect(runningExecutablePath("bun", "/usr/local/bin/bun", "win32")).toBe("/usr/local/bin/bun")
     expect(runningExecutablePath("/runtime/omo", "/usr/local/bin/bun", "darwin")).toBe("/usr/local/bin/bun")
+    expect(shouldReexecAfterProvisioning("win32")).toBe(false)
+    expect(shouldReexecAfterProvisioning("darwin")).toBe(true)
   })
 
   test("early commands pass through without an extension", () => {
@@ -78,6 +81,19 @@ describe("embedded runtime provisioning", () => {
     materializeProvisionedExecutable(source, destination, "win32")
 
     expect(readFileSync(destination, "utf8")).toBe("compiled binary")
+  })
+
+  test("does not overwrite an existing Windows provisioned executable", () => {
+    const root = temp()
+    const source = join(root, "source.exe")
+    const destination = join(root, "runtime", "omo.exe")
+    mkdirSync(join(root, "runtime"), { recursive: true })
+    writeFileSync(source, "new binary")
+    writeFileSync(destination, "existing binary")
+
+    materializeProvisionedExecutable(source, destination, "win32")
+
+    expect(readFileSync(destination, "utf8")).toBe("existing binary")
   })
 
   test("materializes the executable through a temporary non-executable path on POSIX", () => {
