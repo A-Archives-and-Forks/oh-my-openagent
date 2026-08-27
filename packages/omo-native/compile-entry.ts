@@ -79,6 +79,7 @@ export function materializeProvisionedExecutable(
   platform = process.platform,
 ): void {
   if (platform === "win32") {
+    if (existsSync(destinationPath)) return
     copyFileSync(sourcePath, destinationPath)
     chmodSync(destinationPath, 0o755)
     return
@@ -100,6 +101,10 @@ export function runningExecutablePath(
   platform = process.platform,
 ): string {
   return platform === "win32" && argv0.toLowerCase().endsWith(".exe") ? argv0 : execPath
+}
+
+export function shouldReexecAfterProvisioning(platform = process.platform): boolean {
+  return platform !== "win32"
 }
 
 export function remapSenpiEnvironment(source: NodeJS.ProcessEnv = process.env, execDir: string): NodeJS.ProcessEnv {
@@ -242,18 +247,22 @@ async function main(): Promise<void> {
   const manifest = JSON.parse(await embeddedText(manifestFile)) as EmbeddedManifest
   const runningExecutable = runningExecutablePath()
   const expected = join(homedir(), ".omo", "binary-runtime", manifest.omoAiVersion, process.platform === "win32" ? "omo.exe" : "omo")
+  let execDir = dirname(runningExecutable)
   if (!isProvisionedExecutable(runningExecutable, expected)) {
     await provisionEmbeddedRuntime(manifest, embedded, dirname(expected))
     materializeProvisionedExecutable(runningExecutable, expected)
-    const child = spawn(expected, process.argv.slice(2), { env: process.env, stdio: "inherit" })
-    await new Promise<void>((resolvePromise) => child.on("close", (code) => { process.exitCode = code ?? 1; resolvePromise() }))
-    return
+    if (shouldReexecAfterProvisioning()) {
+      const child = spawn(expected, process.argv.slice(2), { env: process.env, stdio: "inherit" })
+      await new Promise<void>((resolvePromise) => child.on("close", (code) => { process.exitCode = code ?? 1; resolvePromise() }))
+      return
+    }
+    execDir = dirname(expected)
   }
   // Inspector and custom execArgv isolation is unsupported in compiled binaries; the provisioned
   // executable delegates to the engine in-process as required by the native startup contract.
-  if (await runCompiledLauncher(process.argv.slice(2), dirname(process.execPath), manifest.enginePin, dirname(process.execPath))) return
-  process.argv.splice(2, process.argv.length - 2, ...buildSenpiArgs(process.argv.slice(2), dirname(process.execPath)))
-  Object.assign(process.env, remapSenpiEnvironment(process.env, dirname(process.execPath)))
+  if (await runCompiledLauncher(process.argv.slice(2), execDir, manifest.enginePin, execDir)) return
+  process.argv.splice(2, process.argv.length - 2, ...buildSenpiArgs(process.argv.slice(2), execDir))
+  Object.assign(process.env, remapSenpiEnvironment(process.env, execDir))
   await import("../../node_modules/@code-yeongyu/senpi/dist/cli.js") // literal: see import note above
 }
 
