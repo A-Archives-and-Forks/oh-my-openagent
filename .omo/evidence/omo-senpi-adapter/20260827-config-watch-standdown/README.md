@@ -34,6 +34,27 @@ Final JSON: `final.json` (verbatim driver output). Summary:
 
 ## Package gate
 
+### Green run in a supported environment (Linux)
+
+The mandatory chained gate was run to completion on WSL Ubuntu 22.04.4 LTS with
+the CI-pinned toolchain (bun `1.4.0`, node `v24.6.0`) against a fresh clone of
+this exact branch head (`874f807920d9347d75ce3925b7cfadfd1d6a39e0`):
+
+```
+TOOLCHAIN: bun 1.4.0 / node v24.6.0 / Ubuntu 22.04.4 LTS
+HEAD: 874f807920d9347d75ce3925b7cfadfd1d6a39e0
+bun run test:senpi -> GATE_EXIT=0
+  bun test packages/omo-senpi: 2404 pass / 7 skip / 0 fail (2411 tests, 321 files)
+  resolve-evidence-dir contract: 10 pass / 0 fail
+```
+
+Full verbatim output: `linux-gate-test-senpi.log` (this directory). The 7 skips
+are the suite's own Windows-only process-mode guards. This confirms the 14
+`components/thread/*` failures recorded below are Windows-host environment
+artifacts, not defects: the identical files pass 0-fail on Linux.
+
+### Windows host runs (initial, superseded by the Linux run above)
+
 - `bun test packages/omo-senpi/src/components/config-watch/` — 36 pass / 0 fail (includes the two new regression tests: identity-guarded synchronous echo host, deferral/coalescing of the READY re-registration).
 - `tsgo --noEmit -p packages/omo-senpi/tsconfig.json` — clean.
 - `bun test ./.agents/skills/senpi-qa/scripts/resolve-evidence-dir.test.mjs` — 10 pass / 0 fail.
