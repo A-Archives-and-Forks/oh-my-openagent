@@ -1,3 +1,21 @@
+## 2026-08-27 — Keep Windows persistence and DAP paths portable
+
+The shared atomic-write helper now opens temporary files with a writable
+descriptor, tolerates filesystem-specific `fsync` limitations, uses unique
+temporary names, and skips parent-directory `fsync` on Windows where directory
+handles reject that operation. The thread mailbox and durable receipt stores
+now use that helper rather than maintaining divergent atomic-write code.
+
+The zero-dependency DAP client now accepts only numeric `host:port` strings as
+socket adapter specs. Windows drive-letter paths such as
+`C:\workspace\fixture-adapter.mjs` remain executable script paths. This fixes
+the real adapter launch path without increasing polling deadlines or masking
+transport errors.
+
+Focused regression coverage includes the real DAP fixture session, Windows
+drive-letter classification, atomic-write replacement with injected `EPERM`
+from `fsync`, mailbox persistence, and durable receipt lifecycle behavior.
+
 ## 2026-08-27 — Release OmO Native beta.23 with Senpi 2026.8.27
 
 This release advances the OmO Native engine contract from Senpi `2026.8.26-2`

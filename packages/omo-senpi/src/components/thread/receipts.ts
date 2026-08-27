@@ -1,17 +1,14 @@
 import {
-  closeSync,
   existsSync,
-  fsyncSync,
   mkdirSync,
-  openSync,
   readFileSync,
   readdirSync,
-  renameSync,
   rmSync,
-  writeFileSync,
 } from "node:fs"
 import { createHash, randomUUID } from "node:crypto"
 import { join } from "node:path"
+
+import { writeFileAtomically } from "@oh-my-opencode/utils/atomic-write"
 
 import type { ThreadToolName } from "./contracts"
 
@@ -336,21 +333,7 @@ function acquireLock(directory: string, name: string): boolean {
 }
 
 function atomicWrite(path: string, receipt: DurableReceipt): void {
-  const temporary = `${path}.${process.pid}.${randomUUID()}.tmp`
-  writeFileSync(temporary, JSON.stringify(receipt), { encoding: "utf8", mode: 0o600 })
-  const fd = openSync(temporary, "r")
-  try {
-    fsyncSync(fd)
-  } finally {
-    closeSync(fd)
-  }
-  renameSync(temporary, path)
-  const directoryFd = openSync(join(path, ".."), "r")
-  try {
-    fsyncSync(directoryFd)
-  } finally {
-    closeSync(directoryFd)
-  }
+  writeFileAtomically(path, JSON.stringify(receipt))
 }
 
 function readReceipt(path: string): DurableReceipt | null {
