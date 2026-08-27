@@ -5,6 +5,16 @@
 development dependency. Keep the peer, dev dependency, root patched-dependency
 key, and generated lockfile aligned with the native runtime pin.
 
+## 2026-08-27 — Keep thread persistence and DAP portable on Windows
+
+The thread mailbox and durable receipt stores now use the shared atomic-write
+implementation, which opens a writable temporary file, tolerates the Windows
+filesystem's allowed `fsync` limitations, and avoids directory `fsync` where
+Windows rejects directory handles. The DAP client now distinguishes a real
+`host:port` adapter endpoint from a Windows drive-letter script path, so the
+fixture adapter launches instead of attempting a socket connection to drive
+`C:`. The existing POSIX durability behavior remains unchanged.
+
 ## 2026-08-26 — Normalize ULW CLI pointer paths across platforms
 
 The ulw-loop skill pointer now normalizes the resolved executable path to

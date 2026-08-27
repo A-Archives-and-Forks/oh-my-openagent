@@ -6,6 +6,12 @@ const dir = import.meta.dir;
 const client = join(dir, "dap.mjs");
 const fixture = join(dir, "fixture-adapter.mjs");
 
+test("treats Windows drive-letter paths as executable specs, not host-port specs", async () => {
+  const { isTcpAdapterSpec } = await import("./dap.mjs");
+  expect(isTcpAdapterSpec("C:\\workspace\\fixture-adapter.mjs")).toBe(false);
+  expect(isTcpAdapterSpec("127.0.0.1:5678")).toBe(true);
+});
+
 function frame(message: unknown) {
   const body = Buffer.from(JSON.stringify(message));
   return Buffer.concat([Buffer.from(`Content-Length: ${body.length}\r\n\r\n`), body]);

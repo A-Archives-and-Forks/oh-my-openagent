@@ -1,5 +1,7 @@
-import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
+
+import { writeFileAtomically } from "@oh-my-opencode/utils/atomic-write"
 
 import { threadToolFailure, type ThreadErrorCode } from "./errors"
 
@@ -66,21 +68,7 @@ export function createOrderedDeliveryMailbox(options: MailboxOptions): OrderedDe
   const maxBytes = options.max_bytes ?? MAILBOX_MAX_BYTES
 
   function persist(): void {
-    const temporary = `${statePath}.${process.pid}.tmp`
-    writeFileSync(temporary, JSON.stringify(state), { mode: 0o600 })
-    const file = openSync(temporary, "r")
-    try {
-      fsyncSync(file)
-    } finally {
-      closeSync(file)
-    }
-    renameSync(temporary, statePath)
-    const directory = openSync(options.directory, "r")
-    try {
-      fsyncSync(directory)
-    } finally {
-      closeSync(directory)
-    }
+    writeFileAtomically(statePath, JSON.stringify(state))
   }
 
   function queueFor(target: string): MailboxItem[] {

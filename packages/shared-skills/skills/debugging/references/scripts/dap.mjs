@@ -8,6 +8,14 @@ import { stdin, stdout, stderr, env } from "node:process";
 export const MAX_ROWS = 100;
 export const MAX_OUTPUT_BYTES = 32 * 1024;
 
+export function isTcpAdapterSpec(spec) {
+  const separator = spec.lastIndexOf(":");
+  return separator > 0 &&
+    !spec.includes("/") &&
+    !spec.includes("\\") &&
+    /^\d+$/.test(spec.slice(separator + 1));
+}
+
 export class DapFrameParser {
   constructor() { this.buffer = Buffer.alloc(0); }
   push(chunk) {
@@ -98,9 +106,9 @@ function connectTransport(write, read, close = read) {
 }
 function connectSocket(socket) { connectTransport(socket, socket, socket); }
 async function startAdapter(spec) {
-  if (spec.includes(":" ) && !spec.startsWith("/")) {
-    const [host, portText] = spec.split(":");
-    const socket = createConnection(Number(portText), host);
+  if (isTcpAdapterSpec(spec)) {
+    const separator = spec.lastIndexOf(":");
+    const socket = createConnection(Number(spec.slice(separator + 1)), spec.slice(0, separator));
     connectSocket(socket);
     await new Promise((resolve, reject) => { socket.once("connect", resolve); socket.once("error", reject); });
   } else {
