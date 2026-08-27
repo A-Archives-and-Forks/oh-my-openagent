@@ -59,14 +59,26 @@ describe("compiled omo entry launcher parity", () => {
 })
 
 describe("embedded runtime provisioning", () => {
-  test("materializes the executable through a temporary non-executable path", () => {
+  test("materializes the executable directly on Windows", () => {
     const root = temp()
     const source = join(root, "source.exe")
     const destination = join(root, "runtime", "omo.exe")
     mkdirSync(join(root, "runtime"), { recursive: true })
     writeFileSync(source, "compiled binary")
 
-    materializeProvisionedExecutable(source, destination)
+    materializeProvisionedExecutable(source, destination, "win32")
+
+    expect(readFileSync(destination, "utf8")).toBe("compiled binary")
+  })
+
+  test("materializes the executable through a temporary non-executable path on POSIX", () => {
+    const root = temp()
+    const source = join(root, "source.exe")
+    const destination = join(root, "runtime", "omo.exe")
+    mkdirSync(join(root, "runtime"), { recursive: true })
+    writeFileSync(source, "compiled binary")
+
+    materializeProvisionedExecutable(source, destination, "darwin")
 
     expect(readFileSync(destination, "utf8")).toBe("compiled binary")
     expect(existsSync(`${destination}.tmp-${process.pid}`)).toBe(false)
