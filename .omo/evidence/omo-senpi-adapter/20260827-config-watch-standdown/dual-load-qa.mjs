@@ -135,6 +135,17 @@ const before = {
   omoAgentCredentials: credentialDigest(realOmoAgentDir),
 }
 
+// The dependency check runs BEFORE anything is staged, and the SKIP result is
+// persisted to final.json so a dependency-free rerun can never leave a stale
+// PASS in the committed evidence or a populated .stage behind.
+if (!existsSync(senpiBin)) {
+  const skip = { result: "SKIP", reason: "senpi-binary-unavailable", senpiBin }
+  writeFileSync(join(scriptDir, "final.json"), `${JSON.stringify(skip, null, 2)}\n`)
+  rmSync(join(scriptDir, ".stage"), { recursive: true, force: true })
+  console.log(JSON.stringify(skip))
+  process.exit(1)
+}
+
 const stage = join(scriptDir, ".stage")
 rmSync(stage, { recursive: true, force: true })
 const fixedOverrides = new Map()
@@ -153,11 +164,6 @@ makePluginCopy(copies.fixedA, fixedOverrides)
 makePluginCopy(copies.fixedB, fixedOverrides)
 makePluginCopy(copies.prefixA, prefixOverrides)
 makePluginCopy(copies.prefixB, prefixOverrides)
-
-if (!existsSync(senpiBin)) {
-  console.log(JSON.stringify({ result: "SKIP", reason: "senpi-binary-unavailable", senpiBin }))
-  process.exit(1)
-}
 
 const lanes = [
   runLane("lane1-single-load", {
@@ -181,12 +187,16 @@ const after = {
   senpiAgentCredentials: credentialDigest(realSenpiAgentDir),
   omoAgentCredentials: credentialDigest(realOmoAgentDir),
 }
+const realSenpiUntouched = before.senpiAgentCredentials === after.senpiAgentCredentials
+const realOmoAgentUntouched = before.omoAgentCredentials === after.omoAgentCredentials
 const summary = {
-  result: lanes.every((lane) => lane.result === "PASS") ? "PASS" : "FAIL",
+  // Isolation is part of the verdict: a lane that touched a real agent dir
+  // fails the whole run even when every behavioral assertion passed.
+  result: lanes.every((lane) => lane.result === "PASS") && realSenpiUntouched && realOmoAgentUntouched ? "PASS" : "FAIL",
   senpiBin,
   lanes,
-  realSenpiUntouched: before.senpiAgentCredentials === after.senpiAgentCredentials,
-  realOmoAgentUntouched: before.omoAgentCredentials === after.omoAgentCredentials,
+  realSenpiUntouched,
+  realOmoAgentUntouched,
 }
 writeFileSync(join(scriptDir, "final.json"), `${JSON.stringify(summary, null, 2)}\n`)
 console.log(JSON.stringify(summary, null, 2))

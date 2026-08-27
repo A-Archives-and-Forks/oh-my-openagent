@@ -7,10 +7,17 @@ file:///E:/contributor/omo-configwatch-fix/node_modules/.bun/@code-yeongyu+senpi
 
 RangeError: Maximum call stack size exceeded
 
+Exception in PromiseRejectCallback:
+file:///E:/contributor/omo-configwatch-fix/node_modules/.bun/@code-yeongyu+senpi@2026.8.26-2+13a0fcddb4b6e049/node_modules/@code-yeongyu/senpi/dist/core/event-bus.js:19
+            };
+            ^
+
+RangeError: Maximum call stack size exceeded
+
 omo-senpi ulw-execute-continuation skipped { reason: 'not-continuable' }
 omo-senpi ulw-loop continuation skipped { reason: 'inactive' }
 memory facts sandbox degraded {
-  identity: 'project-ddcc24db',
-  runId: 'facts-6bc84e7ea484-1',
+  identity: 'project-befcbb2d',
+  runId: 'facts-bdcca1fc8dff-1',
   warning: 'facts sandbox unavailable on win32: platform is unsupported; running unsandboxed because policy is auto'
 }
