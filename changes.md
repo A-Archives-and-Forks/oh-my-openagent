@@ -30,6 +30,9 @@ copying it directly with the platform file-copy API, because Windows rejects
 renaming a newly copied `.exe` into place with `EPERM` even when the
 destination did not previously exist. POSIX keeps the temporary-copy and
 atomic-rename path. Both branches retain hash-checked provisioning and cleanup.
+The compiled Windows child now identifies its launched executable from
+`process.argv[0]` rather than Bun's original compile path, preventing repeated
+self-provisioning and the resulting `AssignProcessToJobObject` loop.
 
 Windows CI now gives the Codex installer integration test and the seven-node
 DAG failure E2E their observed platform-specific execution budgets. The

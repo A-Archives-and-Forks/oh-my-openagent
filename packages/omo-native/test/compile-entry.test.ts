@@ -9,6 +9,7 @@ import {
   materializeProvisionedExecutable,
   provisionEmbeddedRuntime,
   remapSenpiEnvironment,
+  runningExecutablePath,
   runCompiledLauncher,
   selectRuntimeManifest,
   versionLine,
@@ -23,6 +24,14 @@ const sha = (value: string) => createHash("sha256").update(value).digest("hex")
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
 
 describe("compiled omo entry launcher parity", () => {
+  test("uses the launched Windows executable path for self-provisioning identity", () => {
+    expect(runningExecutablePath("C:\\runtime\\omo.exe", "B:\\~BUN\\root\\omo.exe", "win32")).toBe(
+      "C:\\runtime\\omo.exe",
+    )
+    expect(runningExecutablePath("bun", "/usr/local/bin/bun", "win32")).toBe("/usr/local/bin/bun")
+    expect(runningExecutablePath("/runtime/omo", "/usr/local/bin/bun", "darwin")).toBe("/usr/local/bin/bun")
+  })
+
   test("early commands pass through without an extension", () => {
     expect(buildSenpiArgs(["install", "x"], "/provisioned")).toEqual(["install", "x"])
   })
