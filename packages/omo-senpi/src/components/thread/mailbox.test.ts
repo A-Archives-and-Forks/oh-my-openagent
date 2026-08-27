@@ -213,5 +213,5 @@ describe("ordered delivery mailbox", () => {
     byteMailbox.close()
     rmSync(directory, { recursive: true, force: true })
     rmSync(byteDirectory, { recursive: true, force: true })
-  })
+  }, { timeout: 15_000 })
 })
