@@ -94,6 +94,14 @@ export function materializeProvisionedExecutable(
   }
 }
 
+export function runningExecutablePath(
+  argv0 = process.argv[0],
+  execPath = process.execPath,
+  platform = process.platform,
+): string {
+  return platform === "win32" && argv0.toLowerCase().endsWith(".exe") ? argv0 : execPath
+}
+
 export function remapSenpiEnvironment(source: NodeJS.ProcessEnv = process.env, execDir: string): NodeJS.ProcessEnv {
   const env = { ...source }
   delete env.OMO_BIN
@@ -232,10 +240,11 @@ async function main(): Promise<void> {
   const manifestFile = await selectRuntimeManifest(embedded)
   if (!manifestFile) throw new Error("embedded runtime-manifest.json is missing")
   const manifest = JSON.parse(await embeddedText(manifestFile)) as EmbeddedManifest
+  const runningExecutable = runningExecutablePath()
   const expected = join(homedir(), ".omo", "binary-runtime", manifest.omoAiVersion, process.platform === "win32" ? "omo.exe" : "omo")
-  if (!isProvisionedExecutable(process.execPath, expected)) {
+  if (!isProvisionedExecutable(runningExecutable, expected)) {
     await provisionEmbeddedRuntime(manifest, embedded, dirname(expected))
-    materializeProvisionedExecutable(process.execPath, expected)
+    materializeProvisionedExecutable(runningExecutable, expected)
     const child = spawn(expected, process.argv.slice(2), { env: process.env, stdio: "inherit" })
     await new Promise<void>((resolvePromise) => child.on("close", (code) => { process.exitCode = code ?? 1; resolvePromise() }))
     return
