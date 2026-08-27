@@ -32,7 +32,14 @@ describe("DAP framing", () => {
 });
 
 function session(...fixtureArgs: string[]) {
-  const child = spawn("bun", [client], { cwd: dir, env: { ...process.env, DAP_TIMEOUT_MS: "300", ...(fixtureArgs.includes("--no-answer") ? { DAP_FIXTURE_NO_ANSWER: "1" } : {}) } });
+  // 300ms request timeout ONLY for the --no-answer session, whose test asserts the
+  // timeout classification and needs it to fire fast. Answering sessions get 5s:
+  // the vars-8 fixture response is ~130KB over a pipe, and on a loaded Windows CI
+  // runner that transfer exceeded 300ms, so the request timed out and TRUNCATED
+  // output could never appear (run 33065571760: byte-cap test burned its full
+  // 15s wait while vars-7's ~5KB response stayed under 300ms and passed).
+  const noAnswer = fixtureArgs.includes("--no-answer");
+  const child = spawn("bun", [client], { cwd: dir, env: { ...process.env, DAP_TIMEOUT_MS: noAnswer ? "300" : "5000", ...(noAnswer ? { DAP_FIXTURE_NO_ANSWER: "1" } : {}) } });
   let output = "";
   child.stdout.on("data", data => { output += data.toString(); });
   const api = { child, get output() { return output; }, command(line: string) { child.stdin.write(`${line}\n`); } };
@@ -40,7 +47,12 @@ function session(...fixtureArgs: string[]) {
   return api;
 }
 async function until(s: ReturnType<typeof session>, predicate: (out: string) => boolean) {
-  const deadline = Date.now() + 3000;
+  // 15s, not 3s: the file's first `spawn("bun", ...)` on a cold Windows CI runner
+  // (bun.exe cold launch + AV scan + fixture adapter spawn) was observed at just
+  // over 3s (dev run 33064234392: first READY wait failed at 3024ms while the
+  // warm sessions of later tests passed). `until` returns as soon as the
+  // predicate holds, so the raise costs nothing on the green path.
+  const deadline = Date.now() + 15_000;
   while (!predicate(s.output) && Date.now() < deadline) await Bun.sleep(10);
   expect(predicate(s.output)).toBe(true);
 }
@@ -55,14 +67,14 @@ test("full session emits stop snapshot, stack and capped variables", async () =>
   expect((s.output.match(/^v\d+\t/gm) ?? []).length).toBe(100);
   s.command("terminate"); await until(s, out => out.includes("EXIT:"));
   s.command("quit");
-});
+}, 60_000);
 
 test("byte cap reports dropped bytes", async () => {
   const s = session();
   await until(s, out => out.includes("READY: launch"));
   s.command("vars 8"); await until(s, out => out.includes("TRUNCATED: rows dropped=") && out.includes("bytes dropped="));
   s.command("quit");
-});
+}, 60_000);
 
 test("unverified breakpoint and timeout are classified", async () => {
   const s = session();
@@ -71,4 +83,4 @@ test("unverified breakpoint and timeout are classified", async () => {
   const t = session("--no-answer");
   await until(t, out => out.includes("ERR: timeout"));
   s.command("quit"); t.command("quit");
-});
+}, 60_000);
