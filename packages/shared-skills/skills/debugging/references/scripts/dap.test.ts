@@ -26,7 +26,14 @@ describe("DAP framing", () => {
 });
 
 function session(...fixtureArgs: string[]) {
-  const child = spawn("bun", [client], { cwd: dir, env: { ...process.env, DAP_TIMEOUT_MS: "300", ...(fixtureArgs.includes("--no-answer") ? { DAP_FIXTURE_NO_ANSWER: "1" } : {}) } });
+  // 300ms request timeout ONLY for the --no-answer session, whose test asserts the
+  // timeout classification and needs it to fire fast. Answering sessions get 5s:
+  // the vars-8 fixture response is ~130KB over a pipe, and on a loaded Windows CI
+  // runner that transfer exceeded 300ms, so the request timed out and TRUNCATED
+  // output could never appear (run 33065571760: byte-cap test burned its full
+  // 15s wait while vars-7's ~5KB response stayed under 300ms and passed).
+  const noAnswer = fixtureArgs.includes("--no-answer");
+  const child = spawn("bun", [client], { cwd: dir, env: { ...process.env, DAP_TIMEOUT_MS: noAnswer ? "300" : "5000", ...(noAnswer ? { DAP_FIXTURE_NO_ANSWER: "1" } : {}) } });
   let output = "";
   child.stdout.on("data", data => { output += data.toString(); });
   const api = { child, get output() { return output; }, command(line: string) { child.stdin.write(`${line}\n`); } };
