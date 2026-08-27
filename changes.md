@@ -31,6 +31,12 @@ avoids opening the final running `.exe` destination directly, which Windows can
 reject with `EBUSY`, while retaining hash-checked provisioning and cleaning the
 temporary path after the move.
 
+Windows CI now gives the Codex installer integration test and the seven-node
+DAG failure E2E their observed platform-specific execution budgets. The
+assertions and event-driven behavior remain unchanged; only the test harness
+deadlines are widened from the prior 60-second and 15-second ceilings that
+expired on the full Windows matrix.
+
 ## 2026-08-27 — Keep Windows LSP daemon stamping safe with spaced runtimes
 
 The LSP daemon build helper now disables shell execution when invoking an
