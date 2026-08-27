@@ -16,6 +16,15 @@ Focused regression coverage includes the real DAP fixture session, Windows
 drive-letter classification, atomic-write replacement with injected `EPERM`
 from `fsync`, mailbox persistence, and durable receipt lifecycle behavior.
 
+## 2026-08-27 — Keep platform smoke tests aligned with runtime requirements
+
+The release-binary smoke harness now exports `USERPROFILE` alongside the
+isolated Git Bash `HOME` on Windows so Node's `os.homedir()` resolves the same
+directory used by the provisioning assertion. Linux x64 musl smoke now installs
+the binary's required `libstdc++` runtime package inside Alpine before running
+the version check. These changes keep the smoke gate strict while matching the
+actual Windows home-directory and musl runtime contracts.
+
 ## 2026-08-27 — Keep Windows LSP daemon stamping safe with spaced runtimes
 
 The LSP daemon build helper now disables shell execution when invoking an
@@ -24,7 +33,6 @@ shell lookup for bare `tsc` and `bun` commands on Windows. The release builder
 therefore reaches the version-stamping step instead of letting the shell split
 the runtime path at `C:\Program`. The command-policy regression tests cover
 absolute Windows paths, bare package commands, and POSIX execution.
-
 ## 2026-08-27 — Record post-beta.23 merged follow-ups
 
 The root product changelog now records the pull requests merged after the
