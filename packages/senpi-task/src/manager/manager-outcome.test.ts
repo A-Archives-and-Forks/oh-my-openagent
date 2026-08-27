@@ -119,6 +119,26 @@ describe("TaskManager outcome guards", () => {
     expect(record?.residency_state).toBe("disposed")
   })
 
+  test("#given a child with no assistant turn #when a false empty completion settles #then the record errors instead of completing", async () => {
+    // given - the runner incorrectly reports a clean completion even though the child session only
+    // contains its initiating user prompt and produced no assistant turn.
+    const { manager, store, inProcess } = makeManager({})
+    const started = await manager.start(baseSpec())
+    if (started.kind !== "started") throw new Error("expected started")
+    const taskId = started.task_id
+    const waiter = manager.waitFor(taskId)
+
+    // when
+    inProcess.handles.get(taskId)?.settle({ status: "completed", finalResponse: "" })
+    await flush()
+
+    // then
+    const record = await waiter
+    expect(record.status).toBe("error")
+    expect(record.error_message).toContain("no assistant output")
+    expect(store.load(taskId)?.status).toBe("error")
+  })
+
   test("#given a running resident child #when it completes normally #then the record completes and the waiter settles with the terminal record", async () => {
     // given
     const { manager, store, inProcess } = makeManager({})
