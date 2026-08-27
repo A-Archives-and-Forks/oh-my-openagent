@@ -47,7 +47,7 @@ export const OmoConfigProfileSchema = z.object({
 }).strict()
 
 export const OmoConfigSchema = z.object({
-  formatOnMutation: OmoFormatOnMutationSchema.default(() => OmoFormatOnMutationSchema.parse({})),
+  formatOnMutation: OmoFormatOnMutationSchema.optional(),
   $schema: z.string().optional(),
   categories: OmoCategoriesConfigSchema.optional(),
   agents: OmoAgentsConfigSchema.optional(),

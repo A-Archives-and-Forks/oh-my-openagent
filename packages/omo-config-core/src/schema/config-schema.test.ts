@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test"
 import { OmoConfigSchema } from "../index"
 
 describe("omo config schema", () => {
-  test("#given no formatOnMutation config #when parsed #then formatter defaults are available", () => {
-    expect(OmoConfigSchema.parse({}).formatOnMutation).toEqual({ mode: "best-effort", maxFileBytes: 1048576, timeoutMs: 3000 })
+  test("#given an empty formatOnMutation config #when parsed #then formatter defaults are available", () => {
+    expect(OmoConfigSchema.parse({ formatOnMutation: {} }).formatOnMutation).toEqual({ mode: "best-effort", maxFileBytes: 1048576, timeoutMs: 3000 })
   })
 
   test("#given formatOnMutation overrides #when parsed #then mode limits and language map survive", () => {
