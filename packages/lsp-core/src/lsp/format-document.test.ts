@@ -107,6 +107,25 @@ describe("formatDocumentWithClient", () => {
 		expect(readFileSync(filePath, "utf-8")).toBe(original);
 	});
 
+	it("#given the file shrinks after the server computed its edits #when the edits are applied #then the stale edit is rejected instead of corrupting the file", async () => {
+		// given
+		const { filePath } = workspaceWith("sample.ts", "const a=1\nconst b=2\n");
+		const staleEdits: TextEdit[] = [
+			{ range: { start: { line: 1, character: 0 }, end: { line: 1, character: 9 } }, newText: "const b = 2;" },
+		];
+		const racingClient = {
+			async formatDocument() {
+				writeFileSync(filePath, "short\n", "utf-8");
+				return staleEdits;
+			},
+			async openFile() {},
+		} as Pick<LspClient, "formatDocument" | "openFile"> as LspClient;
+
+		// when / then
+		await expect(formatDocumentWithClient(racingClient, filePath)).rejects.toThrow(/outside line/);
+		expect(readFileSync(filePath, "utf-8")).toBe("short\n");
+	});
+
 	it("#given a formatted document #when the write completes #then no temporary file is left behind", async () => {
 		// given
 		const { root, filePath } = workspaceWith("sample.ts", "const a=1\n");
