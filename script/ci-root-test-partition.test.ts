@@ -108,6 +108,27 @@ describe("root test CI partition", () => {
     expect(quotedPatterns(readFileSync(win2ConfigPath, "utf8"))).toContain("packages/omo-senpi/**")
   })
 
+  test("#given 2-core hosted runners #when a parallel leg is rendered #then isolate-per-file mode is disabled and concurrency is capped", () => {
+    const job = rootTestJob()
+    // `bun test --parallel` implies --isolate, which re-runs the heavy preload
+    // (omo-opencode graph + pi-tui/senpi barrel warm) per test file. Across
+    // ~1,550 files that is tens of minutes of pure overhead plus per-file
+    // registry churn, which OOM-kills the 7 GB ubuntu runner at ~8 min and
+    // pushes macOS past its 30 min timeout. The suite has always tolerated a
+    // shared registry (plain serial `bun test` ran that way for years), and
+    // cross-process isolation is already owned by the quarantine list plus
+    // per-worker XDG/HOME, so --no-isolate restores the proven semantics.
+    const parallelCommands = [...job.matchAll(/bun --config=\S+ test --parallel[^\n]*/g)].map(
+      (match) => match[0],
+    )
+
+    expect(parallelCommands).toHaveLength(2)
+    for (const command of parallelCommands) {
+      expect(command).toContain("--no-isolate")
+      expect(command).toContain("--max-concurrency=8")
+    }
+  })
+
   test("#given measured package groups #when the matrix command is rendered #then native file sharding is not used", () => {
     const job = rootTestJob()
 
