@@ -15,11 +15,21 @@ exported by `packages/omo-senpi/scripts/qa/drive.mjs` (`createSandbox`,
 provider (`--provider omo-mock --model mock-1`, `PI_OFFLINE=1`), and no real
 credentials.
 
+Each lane stages the COMPLETE generated plugin tree (extensions incl.
+`omo-task.js` and siblings, skills, staged `runtime/`, manifest) via a full
+`cpSync` of `packages/omo-senpi/plugin`, so every component registers; the
+pre-fix lanes then overlay ALL generated extension bundles from the parent of
+the fix commit (`c45968dfc~1`), keeping the crashing extension a pure
+single-generation artifact. Lanes claiming a healthy lifecycle additionally
+assert that NO `component registration failed` line appears in the output
+(`registrationFailure: false` in `final.json`), so a partially initialized
+extension cannot pass as a live probe.
+
 | Lane | Setup | Proves |
 |---|---|---|
-| `lane1-single-load` | fixed plugin loaded once via settings `packages` | fix does not regress the normal single-instance lifecycle |
-| `lane2-dual-fixed` | fixed plugin via `packages` + second fixed copy via `--extension` | duplicate load degrades gracefully: stand-down warning, session completes |
-| `lane3-dual-prefix` | PRE-FIX bundle (extracted with `git show HEAD~1:packages/omo-senpi/plugin/extensions/omo.js`) in both positions | failing-first: reproduces the reported `RangeError: Maximum call stack size exceeded` from `rebuildWatchers` |
+| `lane1-single-load` | fixed plugin loaded once via settings `packages` | fix does not regress the normal single-instance lifecycle (all components registered, no registration failures) |
+| `lane2-dual-fixed` | fixed plugin via `packages` + second fixed copy via `--extension` | duplicate load degrades gracefully: stand-down warning, session completes, no registration failures |
+| `lane3-dual-prefix` | complete PRE-FIX plugin (all bundles from `c45968dfc~1`) in both positions | failing-first: reproduces the reported `RangeError: Maximum call stack size exceeded` from `rebuildWatchers` |
 
 Run with: `node .omo/evidence/omo-senpi-adapter/20260827-config-watch-standdown/dual-load-qa.mjs`
 
@@ -27,8 +37,8 @@ Run with: `node .omo/evidence/omo-senpi-adapter/20260827-config-watch-standdown/
 
 Final JSON: `final.json` (verbatim driver output). Summary:
 
-- `lane1-single-load` PASS — exit 0, no stand-down warning, no RangeError (`lane1-single-load.output.txt`).
-- `lane2-dual-fixed` PASS — exit 0, output contains `omo config-watch superseded by another omo extension instance; standing down`, no RangeError (`lane2-dual-fixed.output.txt`).
+- `lane1-single-load` PASS — exit 0, no stand-down warning, no RangeError, no component registration failures (`lane1-single-load.output.txt`).
+- `lane2-dual-fixed` PASS — exit 0, output contains `omo config-watch superseded by another omo extension instance; standing down`, no RangeError, no component registration failures (`lane2-dual-fixed.output.txt`).
 - `lane3-dual-prefix` PASS — output contains `OmO exiting due to uncaughtException: RangeError: Maximum call stack size exceeded` with the `rebuildWatchers` frames from the issue report (`lane3-dual-prefix.output.txt`). Note: senpi exits 0 even from its uncaughtException handler, so the lane pins the RangeError text, not the exit code.
 - Isolation: `realSenpiUntouched: true` and `realOmoAgentUntouched: true` — credential digests (`auth.json`, `models.json`, `settings.json` minus volatile stamps, `trust.json`) of the real `~/.senpi/agent` and `~/.omo/agent` are byte-identical before and after all lanes. Sandbox roots (`%TEMP%\omo-senpi-qa-*`) are deleted by the driver in a `finally` block; each lane's sandbox agent-dir path is recorded in `final.json`.
 

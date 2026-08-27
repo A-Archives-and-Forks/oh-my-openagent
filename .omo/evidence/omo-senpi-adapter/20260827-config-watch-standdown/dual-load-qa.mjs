@@ -9,8 +9,10 @@
 //   lane2-dual-fixed  : fixed plugin via packages + fixed copy via -e -> stand-down warning, session completes
 //   lane3-dual-prefix : PRE-FIX bundle in both positions              -> reproduces the reported RangeError
 //
-// Lane 3 is the failing-first proof: the pre-fix bundle is extracted from the PR's
-// parent commit (git show HEAD~1:packages/omo-senpi/plugin/extensions/omo.js).
+// Lane 3 is the failing-first proof: the pre-fix bundles are extracted from the
+// parent of the fix commit (c45968dfc = "fix(omo-senpi): stop config-watch rebuild
+// recursion under duplicate extension loads"), i.e. the origin/dev base the PR
+// branched from. Override with PREFIX_REVISION if the branch is rebased.
 import { execFileSync, spawnSync } from "node:child_process"
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
@@ -28,13 +30,42 @@ const { createSandbox, seedSandbox, credentialDigest } = await import(pathToFile
 
 const STANDDOWN = "superseded by another omo extension instance; standing down"
 const RANGE_ERROR = "Maximum call stack size exceeded"
+const REGISTRATION_FAILURE = "component registration failed"
 
-function makePluginCopy(targetDir, bundleSource) {
-  mkdirSync(join(targetDir, "extensions"), { recursive: true })
-  const manifest = JSON.parse(readFileSync(join(pluginRoot, "package.json"), "utf8"))
-  writeFileSync(join(targetDir, "package.json"), JSON.stringify(manifest, null, 2))
-  cpSync(join(pluginRoot, "skills"), join(targetDir, "skills"), { recursive: true })
-  writeFileSync(join(targetDir, "extensions", "omo.js"), bundleSource)
+// Generated extension bundles that exist as tracked build outputs; the pre-fix
+// lanes overwrite ALL of them from the parent commit so the crashing extension
+// is exactly what shipped there, not a mixed-generation hybrid.
+const GENERATED_EXTENSION_BUNDLES = [
+  "omo.js",
+  "omo-task.js",
+  "omo-member.js",
+  "omo-memory-mcp.js",
+  "memory-run-supervisor.mjs",
+  "omo-init-deep-advisor.js",
+]
+
+// Full-fidelity plugin copy: the COMPLETE generated plugin tree (extensions,
+// skills, staged runtime/, manifest) so every component registers, then the
+// requested generation of each extension bundle is laid on top.
+function makePluginCopy(targetDir, bundleOverrides) {
+  mkdirSync(targetDir, { recursive: true })
+  cpSync(pluginRoot, targetDir, { recursive: true })
+  for (const [relName, content] of bundleOverrides) {
+    writeFileSync(join(targetDir, "extensions", relName), content)
+  }
+}
+
+function bundlesAt(revision) {
+  const overrides = new Map()
+  for (const name of GENERATED_EXTENSION_BUNDLES) {
+    const content = execFileSync("git", ["show", `${revision}:packages/omo-senpi/plugin/extensions/${name}`], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      maxBuffer: 64 * 1024 * 1024,
+    })
+    overrides.set(name, content)
+  }
+  return overrides
 }
 
 function runLane(name, { packagesPlugin, extraExtension, expect }) {
@@ -78,13 +109,17 @@ function runLane(name, { packagesPlugin, extraExtension, expect }) {
       signal: run.signal ?? null,
       standDown: output.includes(STANDDOWN),
       rangeError: output.includes(RANGE_ERROR),
+      registrationFailure: output.includes(REGISTRATION_FAILURE),
       sandboxAgentDir: sandbox.agentDir,
     }
     // `status` is recorded but only asserted when the lane expects one: senpi
     // exits 0 even from the uncaughtException handler, so the crash lane pins
-    // the RangeError text instead of the exit code.
+    // the RangeError text instead of the exit code. Lanes that claim a healthy
+    // lifecycle also fail on ANY component registration error, so a partially
+    // initialized extension can never pass as a live probe.
     const pass =
       (expect.status === undefined || observed.status === expect.status) &&
+      (expect.registrationFailure === undefined || observed.registrationFailure === expect.registrationFailure) &&
       observed.standDown === expect.standDown &&
       observed.rangeError === expect.rangeError
     return { name, result: pass ? "PASS" : "FAIL", expect, observed }
@@ -102,12 +137,10 @@ const before = {
 
 const stage = join(scriptDir, ".stage")
 rmSync(stage, { recursive: true, force: true })
+const fixedOverrides = new Map()
+const prefixOverrides = bundlesAt(process.env.PREFIX_REVISION ?? "c45968dfc~1")
 const fixedBundle = readFileSync(join(pluginRoot, "extensions", "omo.js"), "utf8")
-const prefixBundle = execFileSync("git", ["show", "HEAD~1:packages/omo-senpi/plugin/extensions/omo.js"], {
-  cwd: repoRoot,
-  encoding: "utf8",
-  maxBuffer: 64 * 1024 * 1024,
-})
+const prefixBundle = prefixOverrides.get("omo.js")
 if (prefixBundle.includes("standing down")) throw new Error("pre-fix bundle unexpectedly contains the fix")
 if (!fixedBundle.includes("standing down")) throw new Error("fixed bundle is missing the fix")
 const copies = {
@@ -116,10 +149,10 @@ const copies = {
   prefixA: join(stage, "prefix-a"),
   prefixB: join(stage, "prefix-b"),
 }
-makePluginCopy(copies.fixedA, fixedBundle)
-makePluginCopy(copies.fixedB, fixedBundle)
-makePluginCopy(copies.prefixA, prefixBundle)
-makePluginCopy(copies.prefixB, prefixBundle)
+makePluginCopy(copies.fixedA, fixedOverrides)
+makePluginCopy(copies.fixedB, fixedOverrides)
+makePluginCopy(copies.prefixA, prefixOverrides)
+makePluginCopy(copies.prefixB, prefixOverrides)
 
 if (!existsSync(senpiBin)) {
   console.log(JSON.stringify({ result: "SKIP", reason: "senpi-binary-unavailable", senpiBin }))
@@ -129,12 +162,12 @@ if (!existsSync(senpiBin)) {
 const lanes = [
   runLane("lane1-single-load", {
     packagesPlugin: copies.fixedA,
-    expect: { status: 0, standDown: false, rangeError: false },
+    expect: { status: 0, standDown: false, rangeError: false, registrationFailure: false },
   }),
   runLane("lane2-dual-fixed", {
     packagesPlugin: copies.fixedA,
     extraExtension: copies.fixedB,
-    expect: { status: 0, standDown: true, rangeError: false },
+    expect: { status: 0, standDown: true, rangeError: false, registrationFailure: false },
   }),
   runLane("lane3-dual-prefix", {
     packagesPlugin: copies.prefixA,
