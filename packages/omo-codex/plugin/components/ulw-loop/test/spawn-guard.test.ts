@@ -186,6 +186,22 @@ describe("applySpawnGuards review repetition cap", () => {
 });
 
 describe("applySpawnGuards gate-artifact guard", () => {
+	it("#given a mixed-role V2 gate prompt #when guarded #then prioritizes the gate role", () => {
+		writeGoals();
+
+		const output = applySpawnGuards(
+			payload("spawn_agent", {
+				message: "Act as lazycodex-gate-reviewer; audit the lazycodex-code-reviewer report",
+			}),
+		);
+
+		expect(output).not.toBe("");
+		expect(deny(output).permissionDecisionReason).toContain("g1-code-review.md");
+		const counters = JSON.parse(readFileSync(join(sessionDir(), "review-spawn-counts.json"), "utf8"));
+		expect(counters["lazycodex-gate-reviewer:g1:a1"]).toBe(1);
+		expect(counters["lazycodex-code-reviewer:g1:a1"]).toBeUndefined();
+	});
+
 	it("#given a gate spawn by agent_type without artifacts #when guarded #then denies naming the missing path", () => {
 		writeGoals();
 

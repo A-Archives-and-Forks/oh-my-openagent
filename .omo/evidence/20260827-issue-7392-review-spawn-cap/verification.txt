@@ -52,6 +52,24 @@ After fix:
   bun run typecheck: pass
   bun run build: pass
 
+Mixed-role P1
+-------------
+Finding:
+  A gate prompt that also names the code-review report matched the code-reviewer
+  pattern first and bypassed the gate artifact prerequisite.
+
+Failing first:
+  Test Files  1 failed (1)
+  Tests       1 failed | 15 passed (16)
+  The mixed-role gate prompt was allowed.
+
+After fix:
+  Test Files  40 passed (40)
+  Tests       429 passed (429)
+  component typecheck + Biome + build: pass
+  bun run typecheck: pass
+  bun run build: pass
+
 Canonical Codex gate
 --------------------
   bun run test:codex: attempted three times

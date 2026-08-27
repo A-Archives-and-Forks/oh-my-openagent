@@ -24,6 +24,11 @@
   and 2 expected failures for those roles.
 - After recognizing the two message-only roles, the full component suite passed
   428/428.
+- A second P1 showed that mixed-role gate prompts could be classified as a
+  code-reviewer because the classifier used pattern order. Failing-first
+  coverage produced 15 pass and 1 expected failure.
+- Prioritizing the restrictive gate role made the full component suite pass
+  429/429.
 - TypeScript, Biome, component build, root typecheck, and root build completed
   successfully.
 - The built hook CLI allowed reviewer attempts 1 through 3, denied attempt 4
@@ -32,11 +37,16 @@
 - The built hook CLI repeated the same proof for message-only
   `lazycodex-code-reviewer` and `lazycodex-qa-executor` events. Each role kept a
   count of 3, and the global counter remained at the six allowed spawns.
+- A mixed message naming both gate-reviewer and code-reviewer was classified as
+  gate-reviewer, denied for the missing code-review artifact, and charged only
+  the gate-reviewer counter.
 - Malformed hook input remained a no-op with exit code 0.
 - The isolated app-server turn completed and emitted plugin hook completion for
   `sessionStart`, `userPromptSubmit`, and `stop`.
 - The isolated app-server proof was rerun after the MultiAgentV2 fix with the
   same completed hook set.
+- It was rerun again after gate-role prioritization with the same completed hook
+  set and host-config isolation.
 - The real `~/.codex/config.toml` hash was unchanged before and after QA.
 
 ## Why this is enough

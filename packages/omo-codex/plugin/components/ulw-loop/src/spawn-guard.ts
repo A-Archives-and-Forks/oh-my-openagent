@@ -15,9 +15,9 @@ const DEFAULT_FANOUT_LIMIT = 60;
 const DEFAULT_REVIEW_SPAWN_LIMIT = 3;
 const REVIEW_AGENT_TYPES = new Set(["lazycodex-code-reviewer", "lazycodex-qa-executor", "lazycodex-gate-reviewer"]);
 const REVIEW_MESSAGE_PATTERNS = [
+	{ agentType: "lazycodex-gate-reviewer", pattern: /lazycodex-gate-reviewer|final gate review/i },
 	{ agentType: "lazycodex-code-reviewer", pattern: /\blazycodex-code-reviewer\b/i },
 	{ agentType: "lazycodex-qa-executor", pattern: /\blazycodex-qa-executor\b/i },
-	{ agentType: "lazycodex-gate-reviewer", pattern: /lazycodex-gate-reviewer|final gate review/i },
 ] as const;
 
 export function applySpawnGuards(payload: PreToolUsePayload): string {

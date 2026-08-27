@@ -56,6 +56,20 @@ Persisted state:
   each reviewer count = 3
   global spawn count = 6
 
+Mixed-role gate priority
+------------------------
+Input message:
+  Act as lazycodex-gate-reviewer; audit the lazycodex-code-reviewer report
+
+Observed:
+  permissionDecision=deny
+  reason names missing .omo/evidence/g1-code-review.md
+  lazycodex-gate-reviewer:g1:a1 = 1
+  lazycodex-code-reviewer:g1:a1 remained 3 from the earlier dedicated test
+
+This proves a mixed prompt uses the restrictive gate path instead of consuming
+the code-reviewer quota.
+
 Real Codex app-server
 ---------------------
 The project Codex QA driver installed the local plugin into an isolated
@@ -68,6 +82,9 @@ Observed plugin hook events:
 
 The app-server run was repeated after the MultiAgentV2 role-detection change
 with the same completed event set.
+
+It was repeated again after mixed-role gate prioritization with the same
+completed event set and isolation result.
 
 Isolation:
   real ~/.codex/config.toml unchanged
