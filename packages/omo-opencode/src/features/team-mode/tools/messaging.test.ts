@@ -815,6 +815,65 @@ describe("createTeamSendMessageTool", () => {
     expect(unread.map((message) => message.body)).toEqual(["unread after shutdown"])
   })
 
+  test("#given a queued fallback team was deleted #when the prompt gate clears #then the obsolete wake is cancelled", async () => {
+    // given
+    const fixture = await createTeamFixture()
+    const probeDispatched = createDeferred<void>()
+    const promptTexts: string[] = []
+    const client = {
+      session: {
+        promptAsync: async (input: { body: { parts: Array<{ text?: string }> } }) => {
+          const text = input.body.parts[0]?.text ?? ""
+          promptTexts.push(text)
+          if (text === "deleted-team queue probe") probeDispatched.resolve(undefined)
+        },
+      },
+    }
+    const liveTool = createTeamSendMessageTool(fixture.config, client)
+
+    await dispatchInternalPrompt({
+      mode: "async",
+      client,
+      sessionID: fixture.memberTwoSessionId,
+      source: "test-blocker",
+      input: {
+        path: { id: fixture.memberTwoSessionId },
+        body: { parts: [{ type: "text", text: "blocker" }] },
+        query: { directory: resolveBaseDir(fixture.config) },
+      },
+    })
+    await liveTool.execute({
+      teamRunId: fixture.teamRunId,
+      to: "m2",
+      body: "unread before deletion",
+    }, fixture.toolContext(fixture.memberOneSessionId))
+    await rm(path.join(resolveBaseDir(fixture.config), "runtime", fixture.teamRunId), {
+      recursive: true,
+      force: true,
+    })
+
+    const probeResult = await dispatchInternalPrompt({
+      mode: "async",
+      client,
+      sessionID: fixture.memberTwoSessionId,
+      source: "test-deleted-team-probe",
+      queueBehavior: "enqueue",
+      input: {
+        path: { id: fixture.memberTwoSessionId },
+        body: { parts: [{ type: "text", text: "deleted-team queue probe" }] },
+        query: { directory: resolveBaseDir(fixture.config) },
+      },
+    })
+    expect(probeResult.status).toBe("queued")
+
+    // when
+    expect(releasePromptAsyncReservation(fixture.memberTwoSessionId, "test-blocker")).toBe(true)
+    await waitForEvent(probeDispatched.promise, "queue probe after team deletion")
+
+    // then
+    expect(promptTexts).toEqual(["blocker", "deleted-team queue probe"])
+  })
+
   test("#given live delivery queued a rapid-message wake #when recipient idle fires immediately #then the idle hint does not start a third reply", async () => {
     // given
     const fixture = await createTeamFixture()

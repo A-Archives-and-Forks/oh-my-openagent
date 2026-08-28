@@ -7,7 +7,7 @@
 - RED: timed out waiting for the queued fallback wake.
 - REVIEW RED: the second delivery overlapped the accepted live prompt, and an
   acknowledged message still dispatched its queued fallback wake.
-- GREEN: focused 37/37, related 65/65, prompt gate 66/66,
+- GREEN: focused 38/38, related 66/66, prompt gate 66/66,
   typecheck/build pass.
 - Real server: healthy; `team_create` and `team_send_message` registered; SSE
   connected; host sessions unchanged at 7928. The corrected run preserved the
@@ -25,7 +25,8 @@ of the accepted prompt hold, and cancellation after exact-message ack. Related
 tests cover prompt-route invariants. Message-specific dedupe coverage proves
 that acknowledging an older coalescible message does not strand a newer one.
 Transient revalidation errors remain queued for retry instead of cancelling the
-wake. Docker proves the shipped tool surface.
+wake, while missing team state cancels the obsolete entry. Docker proves the
+shipped tool surface.
 
 ## What was omitted
 

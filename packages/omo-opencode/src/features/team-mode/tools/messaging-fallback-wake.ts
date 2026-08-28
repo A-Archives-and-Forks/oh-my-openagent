@@ -69,6 +69,21 @@ async function shouldDispatchFallbackMailboxWake(input: {
     const unread = await listUnreadMessages(input.teamRunId, input.recipientName, input.config)
     return unread.some((message) => message.messageId === input.messageId)
   } catch (error) {
+    if (
+      typeof error === "object"
+      && error !== null
+      && "code" in error
+      && error.code === "ENOENT"
+    ) {
+      log("[team-mailbox] fallback mailbox wake cancelled because team state no longer exists", {
+        teamRunId: input.teamRunId,
+        recipient: input.recipientName,
+        recipientSessionId: input.recipientSessionId,
+        messageId: input.messageId,
+      })
+      return false
+    }
+
     log("[team-mailbox] fallback mailbox wake revalidation failed, retaining queued wake", {
       teamRunId: input.teamRunId,
       recipient: input.recipientName,

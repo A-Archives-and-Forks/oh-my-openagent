@@ -29,3 +29,8 @@ $ bun test packages/utils/src/prompt-async-gate.test.ts --test-name-pattern 'que
 error: timed out waiting for queued prompt after transient revalidation failure
 (fail) dispatchInternalPrompt > #given queued dispatch revalidation fails transiently #when the queue retries #then the prompt remains queued and dispatches
 REVALIDATION_RED_EXIT=1
+
+$ bun test packages/omo-opencode/src/features/team-mode/tools/messaging.test.ts --test-name-pattern 'queued fallback team was deleted'
+error: timed out waiting for queue probe after team deletion
+(fail) createTeamSendMessageTool > #given a queued fallback team was deleted #when the prompt gate clears #then the obsolete wake is cancelled
+DELETED_TEAM_RED_EXIT=1

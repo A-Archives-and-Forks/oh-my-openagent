@@ -5,8 +5,8 @@ Failing first
 
 After fix
 ---------
-  focused messaging: 37 pass, 0 fail
-  related messaging/idle-wake/prompt-route: 65 pass, 0 fail
+  focused messaging: 38 pass, 0 fail
+  related messaging/idle-wake/prompt-route: 66 pass, 0 fail
   prompt gate core: 66 pass, 0 fail
   CI regressions: auto-retry 13 pass; tmux ordering 2 pass
   bun run typecheck: pass
