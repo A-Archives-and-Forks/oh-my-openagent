@@ -255,14 +255,14 @@ describe("live-server-route", () => {
       expect(isPreSendConnectionFailure(err)).toBe(true)
     })
 
-    test("#given TypeError with 'fetch failed' message #when isPreSendConnectionFailure called #then returns true", () => {
+    test("#given ambiguous 'fetch failed' without a connection code #when classified #then returns false", () => {
       const err = new TypeError("fetch failed")
-      expect(isPreSendConnectionFailure(err)).toBe(true)
+      expect(isPreSendConnectionFailure(err)).toBe(false)
     })
 
-    test("#given TypeError with 'Unable to connect' message #when isPreSendConnectionFailure called #then returns true", () => {
+    test("#given ambiguous 'Unable to connect' without a connection code #when classified #then returns false", () => {
       const err = new TypeError("Unable to connect to 127.0.0.1:1")
-      expect(isPreSendConnectionFailure(err)).toBe(true)
+      expect(isPreSendConnectionFailure(err)).toBe(false)
     })
 
     test("#given ENOTFOUND error #when isPreSendConnectionFailure called #then returns true", () => {

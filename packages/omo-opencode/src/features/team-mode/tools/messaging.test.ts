@@ -1229,7 +1229,7 @@ describe("createTeamSendMessageTool", () => {
     expect(memberTwoInbox.filter((entry) => entry.endsWith(".json") && !entry.startsWith("."))).toHaveLength(1)
   })
 
-  test("#given fallback wake fails non-retryably #when live delivery falls back #then the unread message remains without another retry", async () => {
+  test("#given fallback wake fails ambiguously #when live delivery falls back #then it does not retry a possibly accepted request", async () => {
     // given
     const fixture = await createTeamFixture()
     let promptCalls = 0
@@ -1237,7 +1237,7 @@ describe("createTeamSendMessageTool", () => {
       session: {
         promptAsync: async () => {
           promptCalls += 1
-          throw new Error("network down")
+          throw new TypeError("fetch failed")
         },
       },
     } satisfies LiveDeliveryClient

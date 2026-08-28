@@ -361,13 +361,6 @@ export function isPreSendConnectionFailure(error: unknown): boolean {
     }
   }
 
-  if (error instanceof TypeError) {
-    const msg = error.message
-    if (msg.includes("fetch failed") || msg.includes("Unable to connect")) {
-      return true
-    }
-  }
-
   return false
 }
 
