@@ -110,14 +110,17 @@ export async function dispatchAfterSessionIdle<TInput>(args: {
     }
 
     const dispatchDecision = shouldDispatch?.()
-    if (
-      dispatchDecision === false
-      || (
-        dispatchDecision !== undefined
-        && typeof dispatchDecision !== "boolean"
-        && await dispatchDecision === false
+    const resolvedDispatchDecision = (
+      dispatchDecision !== undefined
+      && typeof dispatchDecision !== "boolean"
+    )
+      ? await withDispatchTimeout(
+        dispatchDecision,
+        dispatchTimeoutMs,
+        `[prompt-async-gate] ${sessionName} shouldDispatch`,
       )
-    ) {
+      : dispatchDecision
+    if (resolvedDispatchDecision === false) {
       log(`[prompt-async-gate] ${sessionName} cancelled before dispatch`, { sessionID, source })
       return { status: "cancelled" }
     }

@@ -17,6 +17,7 @@ Real OpenCode surface
   final transient-retry bundle run: pass
   final deleted-team bundle run: pass
   final exact-message bundle run: pass
+  final bounded-validation bundle run: pass
 The bundle reached the real tool surface; the module seam proved hold
 preservation and obsolete-wake cancellation.
 Captured command output:

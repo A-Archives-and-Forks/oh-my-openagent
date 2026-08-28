@@ -40,3 +40,8 @@ Expected path: "code"
 Unable to find property
 (fail) readUnreadMessageById > #given the exact unread path cannot be read #when it is inspected #then the read error is preserved for retry
 UNREADABLE_MESSAGE_RED_EXIT=1
+
+$ bun test packages/utils/src/prompt-async-gate.test.ts --test-name-pattern 'queued dispatch revalidation never settles'
+error: timed out waiting for bounded queued revalidation
+(fail) dispatchInternalPrompt > #given queued dispatch revalidation never settles #when the dispatch timeout elapses #then the prompt remains queued for retry
+STALLED_REVALIDATION_RED_EXIT=1

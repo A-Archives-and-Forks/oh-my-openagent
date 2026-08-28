@@ -7,7 +7,7 @@
 - RED: timed out waiting for the queued fallback wake.
 - REVIEW RED: the second delivery overlapped the accepted live prompt, and an
   acknowledged message still dispatched its queued fallback wake.
-- GREEN: focused 38/38, related 66/66, prompt gate 66/66,
+- GREEN: focused 38/38, related 66/66, prompt gate 67/67,
   typecheck/build pass.
 - Real server: healthy; `team_create` and `team_send_message` registered; SSE
   connected; host sessions unchanged at 7928. The corrected run preserved the
@@ -16,8 +16,8 @@
   `artifacts/focused-tests.txt`, `artifacts/related-tests.txt`,
   `artifacts/typecheck-build.txt`, `artifacts/real-opencode.txt`, and
   `artifacts/real-fallback-run.txt`, `artifacts/prompt-gate-tests.txt`,
-  `artifacts/ci-regressions.txt`, `artifacts/exact-message-tests.txt`, and
-  `artifacts/review-correction-run.txt`.
+  `artifacts/ci-regressions.txt`, `artifacts/exact-message-tests.txt`,
+  `artifacts/senpi-artifact-check.txt`, and `artifacts/review-correction-run.txt`.
 
 ## Why it is enough
 
@@ -29,6 +29,7 @@ Transient revalidation errors remain queued for retry instead of cancelling the
 wake, while missing team state cancels the obsolete entry. Docker proves the
 shipped tool surface. Exact-message reads preserve filesystem errors instead of
 turning an unreadable inbox entry into a false acknowledgement.
+Asynchronous revalidation is bounded by the existing dispatch timeout.
 
 ## What was omitted
 

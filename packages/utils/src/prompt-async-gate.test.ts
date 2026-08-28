@@ -214,6 +214,38 @@ describe("dispatchInternalPrompt", () => {
     expect(promptCalls).toBe(1)
   })
 
+  test("#given queued dispatch revalidation never settles #when the dispatch timeout elapses #then the prompt remains queued for retry", async () => {
+    // given
+    let promptCalls = 0
+    const client = {
+      session: {
+        promptAsync: async () => {
+          promptCalls += 1
+        },
+      },
+    }
+
+    // when
+    const result = await waitForPromise(dispatchInternalPrompt({
+      mode: "async",
+      client,
+      sessionID: "ses_queue_stalled_revalidation",
+      input: {
+        path: { id: "ses_queue_stalled_revalidation" },
+        body: { parts: [{ type: "text", text: "stalled validation" }] },
+      },
+      source: "test:queue-stalled-revalidation",
+      settleMs: 0,
+      queueRetryMs: 50,
+      dispatchTimeoutMs: 5,
+      shouldDispatch: () => new Promise<boolean>(() => {}),
+    }), "bounded queued revalidation")
+
+    // then
+    expect(result.status).toBe("queued")
+    expect(promptCalls).toBe(0)
+  })
+
   test("#given duplicate queued prompts for one session #when the session becomes idle #then the dispatcher coalesces them into one prompt", async () => {
     // given
     let status = "busy"

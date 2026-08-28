@@ -3,4 +3,4 @@ bun test v1.3.14
 2 pass
 0 fail
 2 expect() calls
-Ran 2 tests across 1 file. [729.00ms]
+Ran 2 tests across 1 file. [759.00ms]
