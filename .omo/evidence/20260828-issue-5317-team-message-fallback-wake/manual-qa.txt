@@ -18,6 +18,8 @@ Real OpenCode surface
   final deleted-team bundle run: pass
   final exact-message bundle run: pass
   final bounded-validation bundle run: pass
+  final pending-ack bundle run: pass
+  live Senpi adapter driver: pass
 The bundle reached the real tool surface; the module seam proved hold
 preservation and obsolete-wake cancellation.
 Captured command output:

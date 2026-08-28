@@ -684,6 +684,69 @@ describe("createTeamSendMessageTool", () => {
     expect(promptTexts).toEqual(["blocker", "queue probe"])
   })
 
+  test("#given a queued fallback message is pending acknowledgement #when the prompt gate clears #then the obsolete wake is cancelled", async () => {
+    // given
+    const fixture = await createTeamFixture()
+    const probeDispatched = createDeferred<void>()
+    const promptTexts: string[] = []
+    const client = {
+      session: {
+        promptAsync: async (input: { body: { parts: Array<{ text?: string }> } }) => {
+          const text = input.body.parts[0]?.text ?? ""
+          promptTexts.push(text)
+          if (text === "pending-ack queue probe") probeDispatched.resolve(undefined)
+        },
+      },
+    }
+    const liveTool = createTeamSendMessageTool(fixture.config, client)
+
+    await dispatchInternalPrompt({
+      mode: "async",
+      client,
+      sessionID: fixture.memberTwoSessionId,
+      source: "test-blocker",
+      input: {
+        path: { id: fixture.memberTwoSessionId },
+        body: { parts: [{ type: "text", text: "blocker" }] },
+        query: { directory: resolveBaseDir(fixture.config) },
+      },
+    })
+    await liveTool.execute({
+      teamRunId: fixture.teamRunId,
+      to: "m2",
+      body: "pending acknowledgement",
+    }, fixture.toolContext(fixture.memberOneSessionId))
+    const injection = await pollAndBuildInjection(
+      fixture.memberTwoSessionId,
+      "m2",
+      fixture.teamRunId,
+      fixture.config,
+      "turn-with-pending-ack",
+    )
+    expect(injection.injected).toBe(true)
+
+    const probeResult = await dispatchInternalPrompt({
+      mode: "async",
+      client,
+      sessionID: fixture.memberTwoSessionId,
+      source: "test-pending-ack-probe",
+      queueBehavior: "enqueue",
+      input: {
+        path: { id: fixture.memberTwoSessionId },
+        body: { parts: [{ type: "text", text: "pending-ack queue probe" }] },
+        query: { directory: resolveBaseDir(fixture.config) },
+      },
+    })
+    expect(probeResult.status).toBe("queued")
+
+    // when
+    expect(releasePromptAsyncReservation(fixture.memberTwoSessionId, "test-blocker")).toBe(true)
+    await waitForEvent(probeDispatched.promise, "queue probe after pending acknowledgement")
+
+    // then
+    expect(promptTexts).toEqual(["blocker", "pending-ack queue probe"])
+  })
+
   test("#given generic fallback wakes cover two messages #when the first is acknowledged #then the second message still wakes", async () => {
     // given
     const fixture = await createTeamFixture()

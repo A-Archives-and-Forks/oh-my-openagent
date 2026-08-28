@@ -66,6 +66,10 @@ async function shouldDispatchFallbackMailboxWake(input: {
       return false
     }
 
+    if (recipient.pendingInjectedMessageIds.includes(input.messageId)) {
+      return false
+    }
+
     const unread = await readUnreadMessageById(
       input.teamRunId,
       input.recipientName,

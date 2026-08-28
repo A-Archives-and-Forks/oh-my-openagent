@@ -7,7 +7,7 @@
 - RED: timed out waiting for the queued fallback wake.
 - REVIEW RED: the second delivery overlapped the accepted live prompt, and an
   acknowledged message still dispatched its queued fallback wake.
-- GREEN: focused 38/38, related 66/66, prompt gate 67/67,
+- GREEN: focused 39/39, related 67/67, prompt gate 67/67,
   typecheck/build pass.
 - Real server: healthy; `team_create` and `team_send_message` registered; SSE
   connected; host sessions unchanged at 7928. The corrected run preserved the
@@ -30,6 +30,9 @@ wake, while missing team state cancels the obsolete entry. Docker proves the
 shipped tool surface. Exact-message reads preserve filesystem errors instead of
 turning an unreadable inbox entry into a false acknowledgement.
 Asynchronous revalidation is bounded by the existing dispatch timeout.
+Messages already pending acknowledgement cancel their redundant queued wake.
+The regenerated Senpi artifacts have live harness evidence under
+`.omo/evidence/omo-senpi-adapter/20260828-issue-5317-team-message-fallback-wake/`.
 
 ## What was omitted
 
