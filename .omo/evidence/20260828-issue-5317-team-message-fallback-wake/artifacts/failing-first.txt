@@ -9,3 +9,13 @@ error: timed out waiting for pending-delivery fallback mailbox wake
 (fail) createTeamSendMessageTool > #given a message waits behind pending live delivery #when that prompt clears #then a queued wake exposes the waiting message
 1 tests failed
 RELEASE_RED_EXIT=1
+
+$ bun test packages/omo-opencode/src/features/team-mode/tools/messaging.test.ts
+Expected: 1
+Received: 2
+(fail) createTeamSendMessageTool > #given a message waits behind pending live delivery #when that prompt clears #then a queued wake exposes the waiting message
+error: timed out waiting for queue probe after cancelled fallback wake
+(fail) createTeamSendMessageTool > #given a queued fallback message was already injected #when the prompt gate clears #then the obsolete wake is cancelled
+33 pass
+2 fail
+REVIEW_CORRECTION_RED_EXIT=1

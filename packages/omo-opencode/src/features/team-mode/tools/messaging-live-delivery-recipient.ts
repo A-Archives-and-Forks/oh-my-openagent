@@ -1,9 +1,5 @@
 import type { TeamModeConfig } from "../../../config/schema/team-mode"
-import {
-  dispatchInternalPrompt,
-  isInternalPromptDispatchAccepted,
-  releasePromptAsyncReservation,
-} from "../../../hooks/shared/prompt-async-gate"
+import { dispatchInternalPrompt, isInternalPromptDispatchAccepted } from "../../../hooks/shared/prompt-async-gate"
 import { log } from "../../../shared/logger"
 import { isAmbiguousPostDispatchPromptFailure } from "../../../shared/prompt-failure-classifier"
 import { applyMemberSessionRouting, buildMemberPromptBody } from "../member-session-routing"
@@ -11,6 +7,7 @@ import { buildEnvelope } from "@oh-my-opencode/team-core/team-mailbox/poll"
 import { commitDeliveryReservation } from "@oh-my-opencode/team-core/team-mailbox/reservation"
 import type { Message, RuntimeState } from "@oh-my-opencode/team-core/types"
 import type { LiveDeliveryClient } from "./messaging-live-delivery-client"
+import { enqueueFallbackMailboxWake } from "./messaging-fallback-wake"
 import type { DeliveryReservation } from "./messaging-live-delivery-reservation"
 import { releaseReservationSafely } from "./messaging-live-delivery-reservation"
 import { markLiveDeliveryPending } from "./messaging-live-delivery-state"
@@ -57,6 +54,7 @@ export async function deliverLiveToRecipient(input: {
         teamRunId,
         recipientName,
         messageId: message.messageId,
+        config,
       })
     }
     return
@@ -148,6 +146,7 @@ export async function deliverLiveToRecipient(input: {
         teamRunId,
         recipientName,
         messageId: message.messageId,
+        config,
       })
       return
     }
@@ -179,39 +178,6 @@ export async function deliverLiveToRecipient(input: {
       messageId: message.messageId,
     })
   }
-}
-
-async function enqueueFallbackMailboxWake(input: {
-  readonly client: LiveDeliveryClient
-  readonly recipientMember: RuntimeMember
-  readonly recipientSessionId: string
-  readonly directory: string
-  readonly teamRunId: string
-  readonly recipientName: string
-  readonly messageId: string
-}): Promise<void> {
-  releasePromptAsyncReservation(input.recipientSessionId, "team-live-delivery")
-  const promptResult = await dispatchInternalPrompt({
-    mode: "async",
-    client: input.client,
-    sessionID: input.recipientSessionId,
-    source: "team-live-delivery-fallback",
-    queueBehavior: "enqueue",
-    input: {
-      path: { id: input.recipientSessionId },
-      body: buildMemberPromptBody(input.recipientMember, "You have a new team message in your mailbox."),
-      query: { directory: input.recipientMember.worktreePath ?? input.directory },
-    },
-  })
-  if (isInternalPromptDispatchAccepted(promptResult)) return
-
-  log("[team-mailbox] fallback mailbox wake was not accepted", {
-    status: promptResult.status,
-    teamRunId: input.teamRunId,
-    recipient: input.recipientName,
-    recipientSessionId: input.recipientSessionId,
-    messageId: input.messageId,
-  })
 }
 
 async function markLiveDeliveryAcceptedLike(input: {

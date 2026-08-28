@@ -11,7 +11,11 @@ Real OpenCode surface
   SSE server.connected: yes
   host sessions: 7928 -> 7928
   host config mounted: no
-The bundle reached the real tool surface; the module seam proved behavior.
+  team-live-delivery early reservation releases: 0
+  fallback dispatched after blocker expiry: yes
+The bundle reached the real tool surface; the module seam proved hold
+preservation and obsolete-wake cancellation.
 Captured command output:
   artifacts/real-opencode.txt
   artifacts/real-fallback-run.txt
+  artifacts/review-correction-run.txt

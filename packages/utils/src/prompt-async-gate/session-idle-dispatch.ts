@@ -23,7 +23,7 @@ export async function dispatchAfterSessionIdle<TInput>(args: {
   readonly dispatchTimeoutMs: number
   readonly checkStatus: boolean
   readonly checkToolState: boolean
-  readonly shouldDispatch?: () => boolean
+  readonly shouldDispatch?: () => boolean | Promise<boolean>
   readonly dispatch: (input: TInput) => Promise<unknown>
 }): Promise<InternalPromptDispatchResult> {
   const {
@@ -109,7 +109,7 @@ export async function dispatchAfterSessionIdle<TInput>(args: {
       return { status: "active" }
     }
 
-    if (shouldDispatch?.() === false) {
+    if (await shouldDispatch?.() === false) {
       log(`[prompt-async-gate] ${sessionName} cancelled before dispatch`, { sessionID, source })
       return { status: "cancelled" }
     }
