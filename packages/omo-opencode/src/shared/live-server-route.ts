@@ -336,7 +336,17 @@ export function isPreSendConnectionFailure(error: unknown): boolean {
     return false
   }
 
-  const CONNECTION_CODES = new Set(["ECONNREFUSED", "ENOTFOUND", "EAI_AGAIN"])
+  const CONNECTION_CODES = new Set([
+    "ECONNREFUSED",
+    "ENOTFOUND",
+    "EAI_AGAIN",
+    "ENETUNREACH",
+    "EHOSTUNREACH",
+    "ENETDOWN",
+    "EHOSTDOWN",
+    "EADDRNOTAVAIL",
+    "UND_ERR_CONNECT_TIMEOUT",
+  ])
 
   const self = error as NodeJS.ErrnoException
   if (self.code && CONNECTION_CODES.has(self.code)) {

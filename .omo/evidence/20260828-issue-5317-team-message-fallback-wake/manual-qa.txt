@@ -24,6 +24,7 @@ Real OpenCode surface
   final reservation-race blocker bundle run: pass
   final retry-invariant blocker bundle run: pass
   final durable-retry bundle run: pass
+  final connection-classifier bundle run: pass
   live Senpi adapter driver: pass
 The bundle reached the real tool surface; the module seam proved hold
 preservation and obsolete-wake cancellation.

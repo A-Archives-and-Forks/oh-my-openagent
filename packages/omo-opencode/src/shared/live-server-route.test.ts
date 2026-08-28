@@ -275,6 +275,22 @@ describe("live-server-route", () => {
       expect(isPreSendConnectionFailure(err)).toBe(true)
     })
 
+    test("#given definite connect-phase network errors #when isPreSendConnectionFailure called #then each returns true", () => {
+      const connectionCodes = [
+        "ENETUNREACH",
+        "EHOSTUNREACH",
+        "ENETDOWN",
+        "EHOSTDOWN",
+        "EADDRNOTAVAIL",
+        "UND_ERR_CONNECT_TIMEOUT",
+      ]
+
+      for (const code of connectionCodes) {
+        const err = Object.assign(new Error(`connect ${code}`), { code })
+        expect(isPreSendConnectionFailure(err)).toBe(true)
+      }
+    })
+
     test("#given AbortError #when isPreSendConnectionFailure called #then returns false", () => {
       const err = Object.assign(new Error("The operation was aborted"), { name: "AbortError" })
       expect(isPreSendConnectionFailure(err)).toBe(false)

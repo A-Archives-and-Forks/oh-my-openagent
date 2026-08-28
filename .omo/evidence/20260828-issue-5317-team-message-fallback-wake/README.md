@@ -39,6 +39,8 @@ remain visible, revalidation is time-bounded, and retry classification no
 longer clears the conservative dispatch hold.
 Mailbox fallback wakes opt into capped exponential backoff instead of the
 global drop, and delayed durable entries rotate behind unrelated prompts.
+Definite host/network-unreachable and connect-timeout failures also enter that
+durable retry path.
 The regenerated Senpi artifacts have live harness evidence under
 `.omo/evidence/omo-senpi-adapter/20260828-issue-5317-team-message-fallback-wake/`.
 

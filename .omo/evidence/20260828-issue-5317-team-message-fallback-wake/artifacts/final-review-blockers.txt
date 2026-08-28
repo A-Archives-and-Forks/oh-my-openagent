@@ -29,6 +29,11 @@ error: timed out waiting for durable wake after transient failures
 0 pass, 1 fail
 DURABLE_RETRY_RED_EXIT=1
 
+$ bun test packages/omo-opencode/src/shared/live-server-route.test.ts --test-name-pattern 'definite connect-phase network errors'
+Expected true; received false for ENETUNREACH
+0 pass, 1 fail
+CONNECTION_CLASSIFIER_RED_EXIT=1
+
 Current green gates
 -------------------
 
@@ -43,6 +48,9 @@ $ bun test packages/team-core/src/team-mailbox/inbox.test.ts
 
 $ bun test packages/omo-opencode/src/hooks/team-session-events/team-idle-wake-hint-pending-delivery-verify.test.ts
 2 pass, 0 fail, 6 expect() calls
+
+$ bun test packages/omo-opencode/src/shared/live-server-route.test.ts
+32 pass, 0 fail, 67 expect() calls
 
 $ bun run typecheck
 TYPECHECK_EXIT=0
@@ -67,3 +75,5 @@ Observed behavior
 - Mailbox fallback wakes use capped exponential backoff beyond the global
   three-failure limit, rotate behind unrelated prompts, and remain queued
   until dispatch succeeds or exact-message revalidation cancels them.
+- Definite connect-phase failures include network/host unreachable, network
+  down, unavailable local address, and Undici connect timeout codes.

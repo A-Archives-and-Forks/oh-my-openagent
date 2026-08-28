@@ -1266,7 +1266,10 @@ describe("createTeamSendMessageTool", () => {
       session: {
         promptAsync: async () => {
           promptCalls += 1
-          if (promptCalls < 5) throw new TypeError("fetch failed")
+          if (promptCalls < 5) {
+            const code = promptCalls % 2 === 0 ? "EHOSTUNREACH" : "ENETUNREACH"
+            throw Object.assign(new Error(`connect ${code}`), { code })
+          }
           fallbackDispatched.resolve(undefined)
         },
       },
