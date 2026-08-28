@@ -18,7 +18,11 @@
   `artifacts/real-fallback-run.txt`, `artifacts/prompt-gate-tests.txt`,
   `artifacts/ci-regressions.txt`, `artifacts/exact-message-tests.txt`,
   `artifacts/senpi-artifact-check.txt`, `artifacts/review-correction-run.txt`,
-  and `artifacts/final-review-blockers.txt`.
+  `artifacts/final-review-blockers.txt`, and
+  `artifacts/post-merge-validation.txt`.
+- Current-`dev` merge validation: team/classifier 72/72, prompt gate 70/70,
+  typecheck/build pass, Senpi 2419 pass with one Windows-only skip, and the
+  disposable OpenCode run completed both sends with no NDJSON errors.
 
 ## Why it is enough
 
@@ -41,6 +45,8 @@ Mailbox fallback wakes opt into capped exponential backoff instead of the
 global drop, and delayed durable entries rotate behind unrelated prompts.
 Definite host/network-unreachable and connect-timeout failures also enter that
 durable retry path.
+The post-merge rerun proves current `dev` did not regress the corrected route;
+the disposable container left the host OpenCode session count at 7933.
 The regenerated Senpi artifacts have live harness evidence under
 `.omo/evidence/omo-senpi-adapter/20260828-issue-5317-team-message-fallback-wake/`.
 

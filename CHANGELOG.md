@@ -64,6 +64,8 @@ history:
 
 ### Fixed
 
+- Senpi engine pin `2026.8.28`: repairs the beta.23 shared interactive host regressions — Shift+Tab no longer prints `Thinking level: [object Promise]` and `/settings` thinking options render, user messages no longer render twice, resuming a session held by a live shared host attaches instead of failing with `session_path_in_use`, and the compiled JavaScript/Python eval kernels resolve their runtime assets again.
+
 - Windows DAP script paths with drive letters are no longer misclassified as `host:port` endpoints, and thread mailbox/receipt persistence now tolerates the Windows `fsync` behavior while retaining atomic writes.
 - The `omo` launcher no longer orphans the engine when it is signaled. Both spawn layers (`node bin/omo.js` -> engine, and the bun re-exec in between) waited in `spawnSync`, where no JS handler can run, so a `SIGTERM`ed launcher died instantly and left the engine reparented to pid 1 - where it kept running, held the terminal, and eventually accumulated as a zombie session. The launcher now waits asynchronously, forwards `SIGTERM`/`SIGHUP` to the child, gives it a bounded grace window (10s, `OMO_SIGNAL_GRACE_MS`) to run its own graceful shutdown, and re-raises the signal on itself if the child ignores it. `SIGINT` is deliberately not forwarded - the terminal already delivers it to the whole foreground process group - but the launcher still waits instead of dying under the engine. Exit fidelity is unchanged: the child's exit code passes through, and a child killed by a signal still makes the launcher die by that same signal.
 
