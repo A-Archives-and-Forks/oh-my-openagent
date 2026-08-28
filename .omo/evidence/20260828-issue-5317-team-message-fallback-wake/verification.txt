@@ -1,28 +1,12 @@
 Failing first
 -------------
-Command:
-  bun test packages/omo-opencode/src/features/team-mode/tools/messaging.test.ts
-
-Observed:
-  error: timed out waiting for queued fallback mailbox wake
-  1 test failed
-  corrected failing path used an independent prompt-gate blocker
+  messaging.test.ts: timed out waiting for queued fallback mailbox wake
+  corrected gate-blocker path: 1 failed
 
 After fix
 ---------
-Focused messaging:
-  33 pass
-  0 fail
-
-Related messaging, idle-wake, and prompt-route suites:
-  61 pass
-  0 fail
-
-Project checks:
+  focused messaging: 33 pass, 0 fail
+  related messaging/idle-wake/prompt-route: 61 pass, 0 fail
   bun run typecheck: pass
   bun run build: pass
   git diff --check: pass
-
-Scope:
-  packages/omo-opencode/src/features/team-mode/tools/messaging-live-delivery-recipient.ts
-  packages/omo-opencode/src/features/team-mode/tools/messaging.test.ts

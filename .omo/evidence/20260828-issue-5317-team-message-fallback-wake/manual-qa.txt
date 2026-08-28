@@ -1,36 +1,14 @@
 Deterministic module surface
 ----------------------------
-1. Reserve the idle recipient's internal prompt gate with a synthetic blocker.
-2. Execute team_send_message to that recipient.
-3. Confirm the full message remains unread after live-delivery fallback.
-4. Release the blocker.
-5. Await the exact second prompt event with a bounded timeout.
-6. Poll the mailbox injection seam.
-
-Observed:
-  prompt calls before release: 1
-  queued fallback wake dispatched after release: yes
+  reserve idle recipient gate; send; confirm unread; release blocker
+  queued wake dispatched: yes
   unread message injected after wake: yes
-
 Real OpenCode surface
 ---------------------
-Runtime:
-  disposable Docker container
-  OpenCode 1.18.4
-  local plugin bundle: dist/index.js
-  unified project config: team mode enabled
-
-Observed:
-  /global/health: healthy
-  local plugin configured: yes
-  team_create registered: yes
-  team_send_message registered: yes
-  SSE server.connected observed: yes
-
-Isolation:
-  host session count before: 7928
-  host session count after: 7928
-  host config mounted into container: no
-
-This proves the shipped local bundle reaches the real OpenCode tool surface,
-while the deterministic module driver proves the changed fallback behavior.
+  disposable Docker, OpenCode 1.18.4, local dist/index.js
+  health: healthy
+  team_create/team_send_message registered: yes
+  SSE server.connected: yes
+  host sessions: 7928 -> 7928
+  host config mounted: no
+The bundle reached the real tool surface; the module seam proved behavior.
