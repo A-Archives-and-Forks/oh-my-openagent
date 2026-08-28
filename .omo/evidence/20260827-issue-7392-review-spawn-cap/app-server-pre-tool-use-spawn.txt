@@ -33,6 +33,17 @@ Observed after driving the spawn tool
   (lazycodex-code-reviewer 4/3) for g1 attempt 1
 - real ~/.codex/config.toml: unchanged
 
+Post-merge verification
+-----------------------
+- Merged current upstream/dev without conflicts.
+- Focused spawn-guard suite: 16 passed, 0 failed.
+- Component TypeScript, Biome, and build checks: passed.
+- Root typecheck: passed.
+- Root build: passed.
+- `bun run test:codex` again reached the documented third-party-notice
+  packaging gap, where npm's prepare build runs after workspace development
+  dependencies are removed. No changed-component assertion failed.
+
 Why it is enough
 ----------------
 The first-party app-server notification stream proves Codex matched the
