@@ -2,7 +2,7 @@
 ## What was tested
 - Deterministic prompt-gate fallback and mailbox injection.
 - Focused and related tests, typecheck, and build.
-- Disposable OpenCode 1.18.4 with the local bundle and team mode.
+- Disposable OpenCode 1.18.4 with the CI-Bun 1.4.0 local bundle and team mode.
 ## What was observed
 - RED: timed out waiting for the queued fallback wake.
 - REVIEW RED: the second delivery overlapped the accepted live prompt, and an
