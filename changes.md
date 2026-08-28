@@ -1,3 +1,15 @@
+## 2026-08-28 — Pin Senpi 2026.8.28 for the shared interactive host hotfix
+
+`packages/omo-native/package.json`, `packages/omo-senpi/package.json`, and the
+root `package.json` now require the exact published `@code-yeongyu/senpi`
+`2026.8.28` release. The engine hotfix repairs the beta.23 shared-host
+regressions: Shift+Tab no longer prints `Thinking level: [object Promise]`
+and the low/med/high options render again, user messages no longer render
+twice, and resuming a session held by a live shared host attaches instead of
+failing with `session_path_in_use`. The release also carries the compiled
+eval-kernel asset resolution fix, restoring the JavaScript and Python eval
+kernels in compiled binaries.
+
 ## 2026-08-27 — Keep Windows persistence and DAP paths portable
 
 The shared atomic-write helper now opens temporary files with a writable

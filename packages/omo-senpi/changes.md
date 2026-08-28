@@ -1,3 +1,12 @@
+## 2026-08-28 — Align the Senpi adapter with 2026.8.28
+
+`packages/omo-senpi/package.json` now requires the exact published
+`@code-yeongyu/senpi` `2026.8.28` release for both its optional peer and
+development dependency, matching the native runtime pin. The engine release
+repairs the beta.23 shared interactive host regressions (thinking-level
+cycling, duplicate user-message rendering, and resume of host-held sessions)
+and restores the compiled eval kernels.
+
 ## 2026-08-27 — Align the Senpi adapter with 2026.8.27
 
 `packages/omo-senpi/package.json` now requires the exact published
