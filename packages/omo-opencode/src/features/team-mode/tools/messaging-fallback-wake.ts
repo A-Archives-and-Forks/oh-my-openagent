@@ -5,7 +5,7 @@ import {
 } from "../../../hooks/shared/prompt-async-gate"
 import { log } from "../../../shared/logger"
 import { buildMemberPromptBody } from "../member-session-routing"
-import { listUnreadMessages } from "@oh-my-opencode/team-core/team-mailbox/inbox"
+import { readUnreadMessageById } from "@oh-my-opencode/team-core/team-mailbox/inbox"
 import { loadRuntimeState } from "@oh-my-opencode/team-core/team-state-store/store"
 import type { RuntimeState } from "@oh-my-opencode/team-core/types"
 import type { LiveDeliveryClient } from "./messaging-live-delivery-client"
@@ -66,8 +66,13 @@ async function shouldDispatchFallbackMailboxWake(input: {
       return false
     }
 
-    const unread = await listUnreadMessages(input.teamRunId, input.recipientName, input.config)
-    return unread.some((message) => message.messageId === input.messageId)
+    const unread = await readUnreadMessageById(
+      input.teamRunId,
+      input.recipientName,
+      input.messageId,
+      input.config,
+    )
+    return unread !== undefined
   } catch (error) {
     if (
       typeof error === "object"

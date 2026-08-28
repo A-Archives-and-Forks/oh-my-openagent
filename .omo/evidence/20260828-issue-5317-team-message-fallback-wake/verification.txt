@@ -9,6 +9,7 @@ After fix
   related messaging/idle-wake/prompt-route: 66 pass, 0 fail
   prompt gate core: 66 pass, 0 fail
   CI regressions: auto-retry 13 pass; tmux ordering 2 pass
+  exact message read: 2 pass, 0 fail
   bun run typecheck: pass
   bun run build: pass
   git diff --check: pass
@@ -21,4 +22,5 @@ Captured command output:
   artifacts/real-fallback-run.txt
   artifacts/prompt-gate-tests.txt
   artifacts/ci-regressions.txt
+  artifacts/exact-message-tests.txt
   artifacts/review-correction-run.txt

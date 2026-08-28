@@ -16,7 +16,8 @@
   `artifacts/focused-tests.txt`, `artifacts/related-tests.txt`,
   `artifacts/typecheck-build.txt`, `artifacts/real-opencode.txt`, and
   `artifacts/real-fallback-run.txt`, `artifacts/prompt-gate-tests.txt`,
-  `artifacts/ci-regressions.txt`, and `artifacts/review-correction-run.txt`.
+  `artifacts/ci-regressions.txt`, `artifacts/exact-message-tests.txt`, and
+  `artifacts/review-correction-run.txt`.
 
 ## Why it is enough
 
@@ -26,7 +27,8 @@ tests cover prompt-route invariants. Message-specific dedupe coverage proves
 that acknowledging an older coalescible message does not strand a newer one.
 Transient revalidation errors remain queued for retry instead of cancelling the
 wake, while missing team state cancels the obsolete entry. Docker proves the
-shipped tool surface.
+shipped tool surface. Exact-message reads preserve filesystem errors instead of
+turning an unreadable inbox entry into a false acknowledgement.
 
 ## What was omitted
 

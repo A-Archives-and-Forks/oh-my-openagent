@@ -51,3 +51,23 @@ describe("listUnreadMessages", () => {
     expect(unreadMessages.map((message) => message.body)).toEqual(["earlier", "later"])
   })
 })
+
+describe("readUnreadMessageById", () => {
+  test("#given the exact unread path cannot be read #when it is inspected #then the read error is preserved for retry", async () => {
+    // given
+    const config = TeamModeConfigSchema.parse({ base_dir: await createBaseDirectory() })
+    const teamRunId = randomUUID()
+    const messageId = randomUUID()
+    const inboxDir = getInboxDir(resolveBaseDir(config), teamRunId, "m1")
+    await mkdir(path.join(inboxDir, `${messageId}.json`), { recursive: true })
+    const { readUnreadMessageById } = await import("./inbox")
+
+    // when
+    const result = Promise.resolve().then(
+      () => readUnreadMessageById(teamRunId, "m1", messageId, config),
+    )
+
+    // then
+    await expect(result).rejects.toHaveProperty("code")
+  })
+})

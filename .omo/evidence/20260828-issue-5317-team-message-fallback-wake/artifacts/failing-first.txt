@@ -34,3 +34,9 @@ $ bun test packages/omo-opencode/src/features/team-mode/tools/messaging.test.ts 
 error: timed out waiting for queue probe after team deletion
 (fail) createTeamSendMessageTool > #given a queued fallback team was deleted #when the prompt gate clears #then the obsolete wake is cancelled
 DELETED_TEAM_RED_EXIT=1
+
+$ bun test packages/team-core/src/team-mailbox/inbox.test.ts --test-name-pattern 'exact unread path cannot be read'
+Expected path: "code"
+Unable to find property
+(fail) readUnreadMessageById > #given the exact unread path cannot be read #when it is inspected #then the read error is preserved for retry
+UNREADABLE_MESSAGE_RED_EXIT=1

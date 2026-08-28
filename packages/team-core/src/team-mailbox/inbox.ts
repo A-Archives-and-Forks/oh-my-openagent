@@ -48,6 +48,54 @@ async function readInboxMessage(
   }
 }
 
+export async function readUnreadMessageById(
+  teamRunId: string,
+  memberName: string,
+  messageId: string,
+  config: TeamModeConfig,
+): Promise<Message | undefined> {
+  const inboxDir = getInboxDir(resolveBaseDir(config), teamRunId, memberName)
+  const fileName = `${messageId}.json`
+  const messageContext = { memberName, teamRunId, fileName }
+  let fileContent: string
+
+  try {
+    fileContent = await readFile(path.join(inboxDir, fileName), "utf8")
+  } catch (error) {
+    if (isMissingDirectoryError(error)) {
+      return undefined
+    }
+
+    log("team mailbox exact message read failed", {
+      event: "team-mailbox-exact-message-read-failed",
+      ...messageContext,
+      error: error instanceof Error ? error.message : String(error),
+    })
+    throw error
+  }
+
+  try {
+    const parsedMessage = MessageSchema.safeParse(JSON.parse(fileContent))
+    if (parsedMessage.success) {
+      return parsedMessage.data
+    }
+
+    log("team mailbox skipped malformed exact message", {
+      event: "team-mailbox-malformed-exact-message",
+      ...messageContext,
+      issues: parsedMessage.error.issues,
+    })
+  } catch (error) {
+    log("team mailbox skipped malformed exact message", {
+      event: "team-mailbox-malformed-exact-message",
+      ...messageContext,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  }
+
+  return undefined
+}
+
 export async function listUnreadMessages(
   teamRunId: string,
   memberName: string,
