@@ -1225,6 +1225,34 @@ describe("createTeamSendMessageTool", () => {
     expect(memberTwoInbox.filter((entry) => entry.endsWith(".json") && !entry.startsWith("."))).toHaveLength(1)
   })
 
+  test("#given fallback wake fails non-retryably #when live delivery falls back #then the unread message remains without another retry", async () => {
+    // given
+    const fixture = await createTeamFixture()
+    let promptCalls = 0
+    const failingClient = {
+      session: {
+        promptAsync: async () => {
+          promptCalls += 1
+          throw new Error("network down")
+        },
+      },
+    } satisfies LiveDeliveryClient
+    const liveTool = createTeamSendMessageTool(fixture.config, failingClient)
+
+    // when
+    await liveTool.execute({
+      teamRunId: fixture.teamRunId,
+      to: "m2",
+      body: "non-retryable ping",
+    }, fixture.toolContext(fixture.memberOneSessionId))
+
+    // then
+    expect(promptCalls).toBe(1)
+    const inboxDir = getInboxDir(resolveBaseDir(fixture.config), fixture.teamRunId, "m2")
+    const inboxEntries = (await readdir(inboxDir)).filter((entry) => entry.endsWith(".json") && !entry.startsWith("."))
+    expect(inboxEntries).toHaveLength(1)
+  })
+
   test("inbox stays intact when live delivery fails so the fallback path still works", async () => {
     // given
     const fixture = await createTeamFixture()
@@ -1234,7 +1262,7 @@ describe("createTeamSendMessageTool", () => {
       session: {
         promptAsync: async () => {
           promptCalls += 1
-          if (promptCalls < 3) throw new TypeError("fetch failed")
+          if (promptCalls < 2) throw new TypeError("fetch failed")
           fallbackDispatched.resolve(undefined)
         },
       },
@@ -1257,7 +1285,7 @@ describe("createTeamSendMessageTool", () => {
     )
 
     // then
-    expect(promptCalls).toBe(3)
+    expect(promptCalls).toBe(2)
     expect(injection.injected).toBe(true)
     expect(injection.content).toContain("ping")
     const inboxDir = getInboxDir(resolveBaseDir(fixture.config), fixture.teamRunId, "m2")

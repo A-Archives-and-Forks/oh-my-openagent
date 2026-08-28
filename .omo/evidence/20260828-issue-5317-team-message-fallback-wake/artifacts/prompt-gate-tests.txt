@@ -1,6 +1,6 @@
 $ bun test packages/utils/src/prompt-async-gate*.test.ts
 bun test v1.3.14
-67 pass
-0 fail
-167 expect() calls
-Ran 67 tests across 8 files. [1.60s]
+ 69 pass
+ 0 fail
+ 173 expect() calls
+Ran 69 tests across 8 files. [1113.00ms]

@@ -54,8 +54,10 @@ export {
   DEFAULT_PROMPT_DISPATCH_TIMEOUT_MS,
   DEFAULT_PROMPT_GATE_MESSAGES_FETCH_TIMEOUT_MS,
   DEFAULT_PROMPT_QUEUE_RETRY_MS,
+  DEFAULT_PROMPT_REVALIDATION_TIMEOUT_MS,
   DEFAULT_PROMPT_SEMANTIC_DEDUPE_HOLD_MS,
   _setPromptGateMessagesFetchTimeoutMsForTesting,
+  _setPromptGateRevalidationTimeoutMsForTesting,
 } from "./prompt-async-gate/timing"
 
 export type {

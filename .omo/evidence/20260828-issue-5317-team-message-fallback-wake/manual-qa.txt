@@ -9,7 +9,7 @@ Real OpenCode surface
   health: healthy
   team_create/team_send_message registered: yes
   SSE server.connected: yes
-  host sessions: 7929 -> 7929
+  host sessions: 7933 -> 7933
   host config mounted: no
   team-live-delivery early reservation releases: 0
   fallback dispatched after blocker expiry: yes
@@ -20,6 +20,9 @@ Real OpenCode surface
   final bounded-validation bundle run: pass
   final pending-ack bundle run: pass
   final transport-retry bundle run: pass
+  final bounded-queue blocker bundle run: pass
+  final reservation-race blocker bundle run: pass
+  final retry-invariant blocker bundle run: pass
   live Senpi adapter driver: pass
 The bundle reached the real tool surface; the module seam proved hold
 preservation and obsolete-wake cancellation.

@@ -71,7 +71,12 @@ export type InternalPromptDispatchResult =
   | { readonly status: "reserved"; readonly reservedBy: string }
   | { readonly status: "cancelled" }
   | { readonly status: "unavailable" }
-  | { readonly status: "failed"; readonly error: unknown; readonly dispatchAttempted: boolean }
+  | {
+    readonly status: "failed"
+    readonly error: unknown
+    readonly dispatchAttempted: boolean
+    readonly queueRetryable?: boolean
+  }
 
 export type PromptAsyncGateResult = InternalPromptDispatchResult
 

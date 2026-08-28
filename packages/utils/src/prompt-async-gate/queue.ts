@@ -13,6 +13,8 @@ const promptQueues = new Map<string, QueuedInternalPrompt[]>()
 const promptQueueDraining = new Set<string>()
 const promptQueueInFlight = new Map<string, QueuedInternalPrompt>()
 const promptQueueTimers = new Map<string, unknown>()
+const promptQueueRetryableFailures = new Map<number, number>()
+const MAX_QUEUED_RETRYABLE_FAILURES = 3
 let promptQueueSequence = 0
 
 setExpiredReservationHandler((sessionID) => {
@@ -75,6 +77,7 @@ export function schedulePromptQueueDrain(sessionID: string, delayMs: number): vo
 }
 
 function removePromptQueueEntry(sessionID: string, entry: QueuedInternalPrompt): void {
+  promptQueueRetryableFailures.delete(entry.id)
   const queue = promptQueues.get(sessionID)
   if (!queue) {
     return
@@ -115,6 +118,7 @@ export function clearPromptQueueStateForTesting(): void {
   promptQueues.clear()
   promptQueueDraining.clear()
   promptQueueInFlight.clear()
+  promptQueueRetryableFailures.clear()
   for (const timer of promptQueueTimers.values()) {
     clearTimeout(timer)
   }
@@ -160,10 +164,29 @@ async function drainPromptQueue(sessionID: string, awaitedEntry?: QueuedInternal
         promptQueueInFlight.delete(sessionID)
       }
 
+      const retryableQueuedFailure = result.status === "failed"
+        && (!result.dispatchAttempted || result.queueRetryable === true)
+      if (retryableQueuedFailure) {
+        const failureCount = (promptQueueRetryableFailures.get(entry.id) ?? 0) + 1
+        if (failureCount >= MAX_QUEUED_RETRYABLE_FAILURES) {
+          log("[prompt-async-gate] dropping queued prompt after repeated retryable failures", {
+            sessionID,
+            source: entry.source,
+            failureCount,
+          })
+          removePromptQueueEntry(sessionID, entry)
+          if (awaitedEntry?.id === entry.id) {
+            awaitedResult = result
+          }
+          continue
+        }
+        promptQueueRetryableFailures.set(entry.id, failureCount)
+      }
+
       if (
         result.status === "active"
         || result.status === "reserved"
-        || (result.status === "failed" && !result.dispatchAttempted)
+        || retryableQueuedFailure
       ) {
         const queued = queuedResult(
           entry,

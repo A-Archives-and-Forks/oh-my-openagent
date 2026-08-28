@@ -7,6 +7,7 @@ import { log } from "../logger"
 import { getInboxDir, resolveBaseDir } from "../team-registry/paths"
 import { MessageSchema } from "../types"
 import type { Message } from "../types"
+import { buildDeliveryReservation } from "./reservation"
 
 function isInboxMessageFile(entry: Dirent): boolean {
   return entry.isFile() && entry.name.endsWith(".json") && !entry.name.startsWith(".")
@@ -55,25 +56,37 @@ export async function readUnreadMessageById(
   config: TeamModeConfig,
 ): Promise<Message | undefined> {
   const inboxDir = getInboxDir(resolveBaseDir(config), teamRunId, memberName)
-  const fileName = `${messageId}.json`
-  const messageContext = { memberName, teamRunId, fileName }
-  let fileContent: string
+  const reservation = buildDeliveryReservation(inboxDir, messageId)
+  const candidatePaths = [reservation.inboxPath, reservation.reservedPath]
+  let fileContent: string | undefined
+  let fileName = `${messageId}.json`
 
-  try {
-    fileContent = await readFile(path.join(inboxDir, fileName), "utf8")
-  } catch (error) {
-    if (isMissingDirectoryError(error)) {
-      return undefined
+  for (const candidatePath of candidatePaths) {
+    try {
+      fileContent = await readFile(candidatePath, "utf8")
+      fileName = path.basename(candidatePath)
+      break
+    } catch (error) {
+      if (isMissingDirectoryError(error)) {
+        continue
+      }
+
+      log("team mailbox exact message read failed", {
+        event: "team-mailbox-exact-message-read-failed",
+        memberName,
+        teamRunId,
+        fileName: path.basename(candidatePath),
+        error: error instanceof Error ? error.message : String(error),
+      })
+      throw error
     }
-
-    log("team mailbox exact message read failed", {
-      event: "team-mailbox-exact-message-read-failed",
-      ...messageContext,
-      error: error instanceof Error ? error.message : String(error),
-    })
-    throw error
   }
 
+  if (fileContent === undefined) {
+    return undefined
+  }
+
+  const messageContext = { memberName, teamRunId, fileName }
   try {
     const parsedMessage = MessageSchema.safeParse(JSON.parse(fileContent))
     if (parsedMessage.success) {
