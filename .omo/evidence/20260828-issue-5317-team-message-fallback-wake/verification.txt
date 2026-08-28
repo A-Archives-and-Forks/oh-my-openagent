@@ -10,3 +10,9 @@ After fix
   bun run typecheck: pass
   bun run build: pass
   git diff --check: pass
+
+Captured command output:
+  artifacts/failing-first.txt
+  artifacts/focused-tests.txt
+  artifacts/related-tests.txt
+  artifacts/typecheck-build.txt

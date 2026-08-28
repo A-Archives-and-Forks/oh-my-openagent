@@ -12,3 +12,5 @@ Real OpenCode surface
   host sessions: 7928 -> 7928
   host config mounted: no
 The bundle reached the real tool surface; the module seam proved behavior.
+Captured command output:
+  artifacts/real-opencode.txt

@@ -8,6 +8,9 @@
 - GREEN: focused 33/33, related 61/61, typecheck/build pass.
 - Real server: healthy; `team_create` and `team_send_message` registered; SSE
   connected; host sessions unchanged at 7928.
+- Captured outputs: `artifacts/failing-first.txt`,
+  `artifacts/focused-tests.txt`, `artifacts/related-tests.txt`,
+  `artifacts/typecheck-build.txt`, and `artifacts/real-opencode.txt`.
 
 ## Why it is enough
 

@@ -1,0 +1,5 @@
+$ bun test packages/omo-opencode/src/features/team-mode/tools/messaging.test.ts
+error: timed out waiting for queued fallback mailbox wake
+(fail) createTeamSendMessageTool > #given live delivery falls back for an idle recipient #when the prompt gate clears #then a queued wake exposes the unread message
+1 tests failed
+CORRECTED_RED_EXIT=1

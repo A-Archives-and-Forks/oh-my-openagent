@@ -1,0 +1,12 @@
+$ docker run --rm -v "$PWD:/workspaces/oh-my-openagent" -e OPENCODE_SERVER_PASSWORD=<redacted> -e OPENCODE_CONFIG_DIR=/workspaces/oh-my-openagent/.local-ignore/qa-5317/opencode-config omo-qa opencode serve --hostname 0.0.0.0 --port 4096
+HEALTH={"healthy":true,"version":"1.18.4"}
+CONFIG_PLUGIN=["file:///workspaces/oh-my-openagent/dist/index.js"]
+TOOL_MATCHES=["team_create","team_send_message"]
+
+$ bash scripts/sse-hook-probe.sh --attach http://127.0.0.1:42173 --password <redacted> --directory /workspaces/oh-my-openagent/.local-ignore/qa-5317 --event server.connected --timeout 30
+first matching event: {"type":"server.connected"}
+PASS: observed 'server.connected'
+
+HOST_SESSION_COUNT_BEFORE=7928
+HOST_SESSION_COUNT_AFTER=7928
+HOST_CONFIG_MOUNTED=no
