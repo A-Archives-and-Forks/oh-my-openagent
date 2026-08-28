@@ -12,9 +12,10 @@ export type FormatMode = "off" | "best-effort" | "required"
 export type FormatterTool = "biome" | "prettier" | "rustfmt" | "gofmt" | "ruff"
 export type Formatter = { readonly tool: FormatterTool; readonly command: string; readonly args: readonly string[] }
 
-// Sentinel for "the child never started": distinct from any real exit code so the caller can
-// report the formatter as missing instead of treating it as a failed format run.
-const SPAWN_FAILED = -1
+// Sentinel for "the child never started": a non-numeric variant so no real exit code —
+// including negative Windows NTSTATUS-style codes — can be mistaken for it. The caller
+// reports the formatter as missing instead of treating it as a failed format run.
+type ChildExit = number | "spawn-failed"
 
 export function resolveFormatMode(config: { mode?: FormatMode; languages?: Record<string, boolean> }, language: string): FormatMode {
   if (config.languages?.[language] === false) return "off"
@@ -98,17 +99,17 @@ async function formatOne(filePath: string, formatter: Formatter, cwd: string, ti
     return { status: "missing", added: 0, removed: 0 }
   }
   const exit = await Promise.race([childExit(child), new Promise<"timeout">(resolve => setTimeout(() => { child.kill("SIGKILL"); resolve("timeout") }, timeoutMs))])
-  if (exit === SPAWN_FAILED) return { status: "missing", added: 0, removed: 0 }
+  if (exit === "spawn-failed") return { status: "missing", added: 0, removed: 0 }
   if (exit !== 0) { writeFileSync(filePath, before); return { status: "unchanged", added: 0, removed: 0 } }
   const after = readFileSync(filePath, "utf8")
   if (after === before) return { status: "unchanged", added: 0, removed: 0 }
   return { status: "formatted", added: Math.max(0, after.split("\n").length - before.split("\n").length), removed: Math.max(0, before.split("\n").length - after.split("\n").length) }
 }
-function childExit(child: ReturnType<typeof spawn>): Promise<number> {
+function childExit(child: ReturnType<typeof spawn>): Promise<ChildExit> {
   return new Promise(resolve => {
     child.once("exit", code => resolve(code ?? 1))
     // A child that fails to spawn emits "error" and never "exit". Without this listener Node
     // re-throws it as an uncaughtException, so one unspawnable formatter kills the whole agent.
-    child.once("error", () => resolve(SPAWN_FAILED))
+    child.once("error", () => resolve("spawn-failed"))
   })
 }
