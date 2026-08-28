@@ -229,6 +229,7 @@ export async function dispatchInternalPrompt<TInput = PromptAsyncInput>(
       checkStatus: args.checkStatus !== false,
       checkToolState: args.checkToolState !== false,
       shouldDispatch: args.shouldDispatch,
+      retryDispatchFailure: args.retryDispatchFailure,
       dispatch: (dispatchInput) => dispatchWithPathCompatibility(dispatch, dispatchInput),
     })
     if (
@@ -264,6 +265,7 @@ export async function dispatchInternalPrompt<TInput = PromptAsyncInput>(
       checkStatus: args.checkStatus !== false,
       checkToolState: args.checkToolState !== false,
       shouldDispatch: args.shouldDispatch,
+      retryDispatchFailure: args.retryDispatchFailure,
       dispatch: async (_dispatchInput: unknown) => dispatchWithPathCompatibility(dispatch, input),
     })
   }
@@ -287,6 +289,7 @@ export async function dispatchInternalPrompt<TInput = PromptAsyncInput>(
     checkStatus: args.checkStatus !== false,
     checkToolState: args.checkToolState !== false,
     shouldDispatch: args.shouldDispatch,
+    retryDispatchFailure: args.retryDispatchFailure,
     dispatch: (dispatchInput) => dispatchWithPathCompatibility(dispatch, dispatchInput),
   })
   if (

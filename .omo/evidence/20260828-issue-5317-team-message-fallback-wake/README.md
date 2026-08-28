@@ -10,7 +10,7 @@
 - GREEN: focused 39/39, related 67/67, prompt gate 67/67,
   typecheck/build pass.
 - Real server: healthy; `team_create` and `team_send_message` registered; SSE
-  connected; host sessions unchanged at 7928. The corrected run preserved the
+  connected; host sessions unchanged at 7929. The corrected run preserved the
   live-delivery hold and dispatched fallback only after the blocker expired.
 - Captured outputs: `artifacts/failing-first.txt`,
   `artifacts/focused-tests.txt`, `artifacts/related-tests.txt`,
@@ -31,6 +31,8 @@ shipped tool surface. Exact-message reads preserve filesystem errors instead of
 turning an unreadable inbox entry into a false acknowledgement.
 Asynchronous revalidation is bounded by the existing dispatch timeout.
 Messages already pending acknowledgement cancel their redundant queued wake.
+Classified pre-send connection failures retain the fallback queue entry until a
+wake is accepted.
 The regenerated Senpi artifacts have live harness evidence under
 `.omo/evidence/omo-senpi-adapter/20260828-issue-5317-team-message-fallback-wake/`.
 

@@ -51,3 +51,8 @@ Expected: ["blocker", "pending-ack queue probe"]
 Received: ["blocker", "You have a new team message in your mailbox.", "pending-ack queue probe"]
 (fail) createTeamSendMessageTool > #given a queued fallback message is pending acknowledgement #when the prompt gate clears #then the obsolete wake is cancelled
 PENDING_ACK_RED_EXIT=1
+
+$ bun test packages/omo-opencode/src/features/team-mode/tools/messaging.test.ts --test-name-pattern 'inbox stays intact when live delivery fails'
+error: timed out waiting for fallback wake after pre-send transport failure
+(fail) createTeamSendMessageTool > inbox stays intact when live delivery fails so the fallback path still works
+TRANSPORT_RETRY_RED_EXIT=1

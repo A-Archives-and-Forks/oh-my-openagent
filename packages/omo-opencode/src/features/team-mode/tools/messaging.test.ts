@@ -1228,9 +1228,15 @@ describe("createTeamSendMessageTool", () => {
   test("inbox stays intact when live delivery fails so the fallback path still works", async () => {
     // given
     const fixture = await createTeamFixture()
+    const fallbackDispatched = createDeferred<void>()
+    let promptCalls = 0
     const failingClient = {
       session: {
-        promptAsync: async () => { throw new Error("network down") },
+        promptAsync: async () => {
+          promptCalls += 1
+          if (promptCalls < 3) throw new TypeError("fetch failed")
+          fallbackDispatched.resolve(undefined)
+        },
       },
     } satisfies LiveDeliveryClient
     const liveTool = createTeamSendMessageTool(fixture.config, failingClient)
@@ -1241,8 +1247,19 @@ describe("createTeamSendMessageTool", () => {
       to: "m2",
       body: "ping",
     }, fixture.toolContext(fixture.memberOneSessionId))
+    await waitForEvent(fallbackDispatched.promise, "fallback wake after pre-send transport failure")
+    const injection = await pollAndBuildInjection(
+      fixture.memberTwoSessionId,
+      "m2",
+      fixture.teamRunId,
+      fixture.config,
+      "turn-after-transport-retry",
+    )
 
     // then
+    expect(promptCalls).toBe(3)
+    expect(injection.injected).toBe(true)
+    expect(injection.content).toContain("ping")
     const inboxDir = getInboxDir(resolveBaseDir(fixture.config), fixture.teamRunId, "m2")
     const inboxEntries = (await readdir(inboxDir)).filter((entry) => entry.endsWith(".json") && !entry.startsWith("."))
     expect(inboxEntries).toHaveLength(1)

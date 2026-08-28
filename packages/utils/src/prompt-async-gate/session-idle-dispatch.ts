@@ -24,6 +24,7 @@ export async function dispatchAfterSessionIdle<TInput>(args: {
   readonly checkStatus: boolean
   readonly checkToolState: boolean
   readonly shouldDispatch?: () => boolean | Promise<boolean>
+  readonly retryDispatchFailure?: (error: unknown) => boolean
   readonly dispatch: (input: TInput) => Promise<unknown>
 }): Promise<InternalPromptDispatchResult> {
   const {
@@ -40,6 +41,7 @@ export async function dispatchAfterSessionIdle<TInput>(args: {
     checkStatus,
     checkToolState,
     shouldDispatch,
+    retryDispatchFailure,
     dispatch,
   } = args
 
@@ -141,6 +143,9 @@ export async function dispatchAfterSessionIdle<TInput>(args: {
     log(`[prompt-async-gate] ${sessionName} dispatched`, { sessionID, source })
     return { status: "dispatched", response }
   } catch (error) {
+    if (dispatchAttempted && retryDispatchFailure?.(error) === true) {
+      dispatchAttempted = false
+    }
     if (dispatchAttempted) {
       rememberRecentPromptDispatch({
         sessionID,

@@ -3,6 +3,7 @@ import {
   dispatchInternalPrompt,
   isInternalPromptDispatchAccepted,
 } from "../../../hooks/shared/prompt-async-gate"
+import { isPreSendConnectionFailure } from "../../../shared/live-server-route"
 import { log } from "../../../shared/logger"
 import { buildMemberPromptBody } from "../member-session-routing"
 import { readUnreadMessageById } from "@oh-my-opencode/team-core/team-mailbox/inbox"
@@ -30,6 +31,7 @@ export async function enqueueFallbackMailboxWake(input: {
     dedupeKey: `team-live-delivery-fallback:${input.messageId}`,
     queueBehavior: "enqueue",
     shouldDispatch: () => shouldDispatchFallbackMailboxWake(input),
+    retryDispatchFailure: isPreSendConnectionFailure,
     input: {
       path: { id: input.recipientSessionId },
       body: buildMemberPromptBody(input.recipientMember, "You have a new team message in your mailbox."),
