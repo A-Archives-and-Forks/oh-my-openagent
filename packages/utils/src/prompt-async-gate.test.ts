@@ -171,6 +171,49 @@ describe("dispatchInternalPrompt", () => {
     expect(promptCalls).toBe(1)
   })
 
+  test("#given queued dispatch revalidation fails transiently #when the queue retries #then the prompt remains queued and dispatches", async () => {
+    // given
+    let validationCalls = 0
+    let promptCalls = 0
+    let resolvePrompt: (() => void) | undefined
+    const promptSeen = new Promise<void>((resolve) => {
+      resolvePrompt = resolve
+    })
+    const client = {
+      session: {
+        promptAsync: async () => {
+          promptCalls += 1
+          resolvePrompt?.()
+        },
+      },
+    }
+
+    // when
+    const result = await dispatchInternalPrompt({
+      mode: "async",
+      client,
+      sessionID: "ses_queue_transient_revalidation",
+      input: {
+        path: { id: "ses_queue_transient_revalidation" },
+        body: { parts: [{ type: "text", text: "retry validation" }] },
+      },
+      source: "test:queue-transient-revalidation",
+      settleMs: 0,
+      queueRetryMs: 1,
+      shouldDispatch: async () => {
+        validationCalls += 1
+        if (validationCalls === 1) throw new Error("transient validation failure")
+        return true
+      },
+    })
+    await waitForPromise(promptSeen, "queued prompt after transient revalidation failure")
+
+    // then
+    expect(result.status).toBe("queued")
+    expect(validationCalls).toBe(2)
+    expect(promptCalls).toBe(1)
+  })
+
   test("#given duplicate queued prompts for one session #when the session becomes idle #then the dispatcher coalesces them into one prompt", async () => {
     // given
     let status = "busy"

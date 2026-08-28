@@ -14,6 +14,7 @@ Real OpenCode surface
   team-live-delivery early reservation releases: 0
   fallback dispatched after blocker expiry: yes
   final message-specific dedupe bundle run: pass
+  final transient-retry bundle run: pass
 The bundle reached the real tool surface; the module seam proved hold
 preservation and obsolete-wake cancellation.
 Captured command output:

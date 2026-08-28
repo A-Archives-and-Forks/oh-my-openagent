@@ -159,7 +159,11 @@ async function drainPromptQueue(sessionID: string, awaitedEntry?: QueuedInternal
         promptQueueInFlight.delete(sessionID)
       }
 
-      if (result.status === "active" || result.status === "reserved") {
+      if (
+        result.status === "active"
+        || result.status === "reserved"
+        || (result.status === "failed" && !result.dispatchAttempted)
+      ) {
         const queued = queuedResult(
           entry,
           1,

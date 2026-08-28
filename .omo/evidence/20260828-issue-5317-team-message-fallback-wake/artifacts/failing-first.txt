@@ -24,3 +24,8 @@ $ bun test packages/omo-opencode/src/features/team-mode/tools/messaging.test.ts 
 error: timed out waiting for second message fallback wake
 (fail) createTeamSendMessageTool > #given generic fallback wakes cover two messages #when the first is acknowledged #then the second message still wakes
 COALESCED_RED_EXIT=1
+
+$ bun test packages/utils/src/prompt-async-gate.test.ts --test-name-pattern 'queued dispatch revalidation fails transiently'
+error: timed out waiting for queued prompt after transient revalidation failure
+(fail) dispatchInternalPrompt > #given queued dispatch revalidation fails transiently #when the queue retries #then the prompt remains queued and dispatches
+REVALIDATION_RED_EXIT=1
