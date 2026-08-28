@@ -125,6 +125,15 @@ export async function deliverLiveToRecipient(input: {
         recipient: recipientName,
         messageId: message.messageId,
       })
+      await enqueueFallbackMailboxWake({
+        client,
+        recipientMember,
+        recipientSessionId,
+        directory,
+        teamRunId,
+        recipientName,
+        messageId: message.messageId,
+      })
       return
     }
     await markLiveDeliveryAcceptedLike({
@@ -155,6 +164,38 @@ export async function deliverLiveToRecipient(input: {
       messageId: message.messageId,
     })
   }
+}
+
+async function enqueueFallbackMailboxWake(input: {
+  readonly client: LiveDeliveryClient
+  readonly recipientMember: RuntimeMember
+  readonly recipientSessionId: string
+  readonly directory: string
+  readonly teamRunId: string
+  readonly recipientName: string
+  readonly messageId: string
+}): Promise<void> {
+  const promptResult = await dispatchInternalPrompt({
+    mode: "async",
+    client: input.client,
+    sessionID: input.recipientSessionId,
+    source: "team-live-delivery-fallback",
+    queueBehavior: "enqueue",
+    input: {
+      path: { id: input.recipientSessionId },
+      body: buildMemberPromptBody(input.recipientMember, "You have a new team message in your mailbox."),
+      query: { directory: input.recipientMember.worktreePath ?? input.directory },
+    },
+  })
+  if (isInternalPromptDispatchAccepted(promptResult)) return
+
+  log("[team-mailbox] fallback mailbox wake was not accepted", {
+    status: promptResult.status,
+    teamRunId: input.teamRunId,
+    recipient: input.recipientName,
+    recipientSessionId: input.recipientSessionId,
+    messageId: input.messageId,
+  })
 }
 
 async function markLiveDeliveryAcceptedLike(input: {

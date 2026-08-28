@@ -15,7 +15,11 @@ import {
   clearAllSessionPromptParams,
   getSessionPromptParams,
 } from "../../../shared/session-prompt-params-state"
-import { releaseAllPromptAsyncReservationsForTesting } from "../../../hooks/shared/prompt-async-gate"
+import {
+  dispatchInternalPrompt,
+  releaseAllPromptAsyncReservationsForTesting,
+  releasePromptAsyncReservation,
+} from "../../../hooks/shared/prompt-async-gate"
 import { DEFAULT_SESSION_IDLE_SETTLE_MS } from "@oh-my-opencode/utils/session-idle-settle"
 import { listUnreadMessages } from "@oh-my-opencode/team-core/team-mailbox/inbox"
 import { pollAndBuildInjection } from "@oh-my-opencode/team-core/team-mailbox/poll"
@@ -504,6 +508,59 @@ describe("createTeamSendMessageTool", () => {
     const unread = await listUnreadMessages(fixture.teamRunId, "m2", fixture.config)
     expect(unread).toHaveLength(1)
     expect(unread[0]?.body).toBe("second ping")
+  })
+
+  test("#given live delivery falls back for an idle recipient #when the prompt gate clears #then a queued wake exposes the unread message", async () => {
+    // given
+    const fixture = await createTeamFixture()
+    const fallbackWakeDispatched = createDeferred<void>()
+    let promptCalls = 0
+    const client = {
+      session: {
+        promptAsync: async () => {
+          promptCalls += 1
+          if (promptCalls === 2) fallbackWakeDispatched.resolve(undefined)
+        },
+      },
+    }
+    const liveTool = createTeamSendMessageTool(fixture.config, client)
+
+    await dispatchInternalPrompt({
+      mode: "async",
+      client,
+      sessionID: fixture.memberTwoSessionId,
+      source: "test-blocker",
+      input: {
+        path: { id: fixture.memberTwoSessionId },
+        body: { parts: [{ type: "text", text: "blocker" }] },
+        query: { directory: resolveBaseDir(fixture.config) },
+      },
+    })
+    await liveTool.execute({
+      teamRunId: fixture.teamRunId,
+      to: "m2",
+      body: "fallback ping",
+    }, fixture.toolContext(fixture.memberOneSessionId))
+
+    expect(promptCalls).toBe(1)
+    const unread = await listUnreadMessages(fixture.teamRunId, "m2", fixture.config)
+    expect(unread.map((message) => message.body)).toEqual(["fallback ping"])
+
+    // when
+    expect(releasePromptAsyncReservation(fixture.memberTwoSessionId, "test-blocker")).toBe(true)
+    await waitForEvent(fallbackWakeDispatched.promise, "queued fallback mailbox wake")
+    const injection = await pollAndBuildInjection(
+      fixture.memberTwoSessionId,
+      "m2",
+      fixture.teamRunId,
+      fixture.config,
+      "turn-after-fallback-wake",
+    )
+
+    // then
+    expect(promptCalls).toBe(2)
+    expect(injection.injected).toBe(true)
+    expect(injection.content).toContain("fallback ping")
   })
 
   test("#given live delivery deferred a rapid message #when recipient idle wake fires immediately #then the wake hint does not start a second reply", async () => {
