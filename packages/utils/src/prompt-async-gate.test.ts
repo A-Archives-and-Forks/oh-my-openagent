@@ -271,6 +271,74 @@ describe("dispatchInternalPrompt", () => {
     expect(promptCalls).toBe(1)
   })
 
+  test("#given a durable queued wake fails beyond the global cap #when another prompt waits #then the wake backs off without starving or disappearing", async () => {
+    // given
+    let validationCalls = 0
+    const promptTexts: string[] = []
+    let resolveDurablePrompt: (() => void) | undefined
+    const durablePromptSeen = new Promise<void>((resolve) => {
+      resolveDurablePrompt = resolve
+    })
+    let resolveNextPrompt: (() => void) | undefined
+    const nextPromptSeen = new Promise<void>((resolve) => {
+      resolveNextPrompt = resolve
+    })
+    const client = {
+      session: {
+        promptAsync: async (input: { body: { parts: Array<{ text: string }> } }) => {
+          const text = input.body.parts[0]?.text
+          if (!text) return
+          promptTexts.push(text)
+          if (text === "durable wake") resolveDurablePrompt?.()
+          if (text === "next prompt") resolveNextPrompt?.()
+        },
+      },
+    }
+
+    // when
+    const first = await dispatchInternalPrompt({
+      mode: "async",
+      client,
+      sessionID: "ses_queue_durable_revalidation",
+      input: {
+        path: { id: "ses_queue_durable_revalidation" },
+        body: { parts: [{ type: "text", text: "durable wake" }] },
+      },
+      source: "test:queue-durable-revalidation",
+      durableRetry: true,
+      settleMs: 0,
+      postDispatchHoldMs: 0,
+      queueRetryMs: 1,
+      shouldDispatch: async () => {
+        validationCalls += 1
+        if (validationCalls <= 4) throw new Error("transient validation failure")
+        return true
+      },
+    })
+    await dispatchInternalPrompt({
+      mode: "async",
+      client,
+      sessionID: "ses_queue_durable_revalidation",
+      input: {
+        path: { id: "ses_queue_durable_revalidation" },
+        body: { parts: [{ type: "text", text: "next prompt" }] },
+      },
+      source: "test:queue-after-durable-revalidation",
+      settleMs: 0,
+      postDispatchHoldMs: 0,
+      queueRetryMs: 1,
+    })
+    await Promise.all([
+      waitForPromise(nextPromptSeen, "prompt behind durable revalidation failure"),
+      waitForPromise(durablePromptSeen, "durable wake after transient failures"),
+    ])
+
+    // then
+    expect(first.status).toBe("queued")
+    expect(validationCalls).toBe(5)
+    expect(promptTexts).toEqual(["next prompt", "durable wake"])
+  })
+
   test("#given queued dispatch revalidation never settles #when the revalidation cap elapses #then the prompt remains queued for retry", async () => {
     // given
     let promptCalls = 0

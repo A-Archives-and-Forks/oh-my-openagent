@@ -24,11 +24,16 @@ Expected dispatchAttempted true; received false
 0 pass, 1 fail
 RETRY_INVARIANT_RED_EXIT=1
 
+$ bun test packages/utils/src/prompt-async-gate.test.ts --test-name-pattern 'durable queued wake fails beyond'
+error: timed out waiting for durable wake after transient failures
+0 pass, 1 fail
+DURABLE_RETRY_RED_EXIT=1
+
 Current green gates
 -------------------
 
 $ bun test packages/utils/src/prompt-async-gate*.test.ts
-69 pass, 0 fail, 173 expect() calls
+70 pass, 0 fail, 176 expect() calls
 
 $ bun test packages/omo-opencode/src/features/team-mode/tools/messaging.test.ts packages/omo-opencode/src/hooks/team-session-events/team-idle-wake-hint.test.ts packages/omo-opencode/src/hooks/team-session-events/team-idle-wake-hint-delivering-loss.test.ts packages/omo-opencode/src/hooks/team-session-events/team-idle-wake-hint-leader.test.ts packages/omo-opencode/src/shared/prompt-async-route-audit.test.ts
 68 pass, 0 fail, 217 expect() calls
@@ -59,3 +64,6 @@ Observed behavior
 - Retry classification retains the queue entry without clearing semantic
   dedupe or the post-dispatch reservation hold.
 - Non-retryable fallback failures remain covered separately and do not retry.
+- Mailbox fallback wakes use capped exponential backoff beyond the global
+  three-failure limit, rotate behind unrelated prompts, and remain queued
+  until dispatch succeeds or exact-message revalidation cancels them.

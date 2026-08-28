@@ -30,6 +30,7 @@ export async function enqueueFallbackMailboxWake(input: {
     source: "team-live-delivery-fallback",
     dedupeKey: `team-live-delivery-fallback:${input.messageId}`,
     queueBehavior: "enqueue",
+    durableRetry: true,
     shouldDispatch: () => shouldDispatchFallbackMailboxWake(input),
     retryDispatchFailure: isPreSendConnectionFailure,
     input: {

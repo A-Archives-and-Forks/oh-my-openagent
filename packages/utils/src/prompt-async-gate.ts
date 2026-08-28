@@ -266,6 +266,7 @@ export async function dispatchInternalPrompt<TInput = PromptAsyncInput>(
       queueRetryMs,
       checkStatus: args.checkStatus !== false,
       checkToolState: args.checkToolState !== false,
+      durableRetry: args.durableRetry === true,
       shouldDispatch: args.shouldDispatch,
       retryDispatchFailure: args.retryDispatchFailure,
       dispatch: async (_dispatchInput: unknown) => dispatchWithPathCompatibility(dispatch, input),

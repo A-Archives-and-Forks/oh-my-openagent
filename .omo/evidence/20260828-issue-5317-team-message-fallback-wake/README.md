@@ -7,7 +7,7 @@
 - RED: timed out waiting for the queued fallback wake.
 - REVIEW RED: the second delivery overlapped the accepted live prompt, and an
   acknowledged message still dispatched its queued fallback wake.
-- GREEN: focused 40/40, related 68/68, prompt gate 69/69,
+- GREEN: focused 40/40, related 68/68, prompt gate 70/70,
   typecheck/build pass.
 - Real server: healthy; `team_create` and `team_send_message` registered; SSE
   connected; host sessions unchanged at 7933. The corrected run preserved the
@@ -37,6 +37,8 @@ wake is accepted.
 Retryable queue failures are capped at three attempts, reservation-slot reads
 remain visible, revalidation is time-bounded, and retry classification no
 longer clears the conservative dispatch hold.
+Mailbox fallback wakes opt into capped exponential backoff instead of the
+global drop, and delayed durable entries rotate behind unrelated prompts.
 The regenerated Senpi artifacts have live harness evidence under
 `.omo/evidence/omo-senpi-adapter/20260828-issue-5317-team-message-fallback-wake/`.
 

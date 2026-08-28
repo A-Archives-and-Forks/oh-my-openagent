@@ -120,10 +120,14 @@ function createDeferred<T>(): Deferred<T> {
   return { promise, resolve: resolvePromise }
 }
 
-async function waitForEvent<T>(promise: Promise<T>, description: string): Promise<T> {
+async function waitForEvent<T>(
+  promise: Promise<T>,
+  description: string,
+  timeoutMs = TEST_EVENT_TIMEOUT_MS,
+): Promise<T> {
   let timeoutID: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_resolve, reject) => {
-    timeoutID = realSetTimeout(() => reject(new Error(`timed out waiting for ${description}`)), TEST_EVENT_TIMEOUT_MS)
+    timeoutID = realSetTimeout(() => reject(new Error(`timed out waiting for ${description}`)), timeoutMs)
   })
 
   try {
@@ -1262,7 +1266,7 @@ describe("createTeamSendMessageTool", () => {
       session: {
         promptAsync: async () => {
           promptCalls += 1
-          if (promptCalls < 2) throw new TypeError("fetch failed")
+          if (promptCalls < 5) throw new TypeError("fetch failed")
           fallbackDispatched.resolve(undefined)
         },
       },
@@ -1275,7 +1279,11 @@ describe("createTeamSendMessageTool", () => {
       to: "m2",
       body: "ping",
     }, fixture.toolContext(fixture.memberOneSessionId))
-    await waitForEvent(fallbackDispatched.promise, "fallback wake after pre-send transport failure")
+    await waitForEvent(
+      fallbackDispatched.promise,
+      "fallback wake after pre-send transport failure",
+      12_000,
+    )
     const injection = await pollAndBuildInjection(
       fixture.memberTwoSessionId,
       "m2",
@@ -1285,13 +1293,13 @@ describe("createTeamSendMessageTool", () => {
     )
 
     // then
-    expect(promptCalls).toBe(2)
+    expect(promptCalls).toBe(5)
     expect(injection.injected).toBe(true)
     expect(injection.content).toContain("ping")
     const inboxDir = getInboxDir(resolveBaseDir(fixture.config), fixture.teamRunId, "m2")
     const inboxEntries = (await readdir(inboxDir)).filter((entry) => entry.endsWith(".json") && !entry.startsWith("."))
     expect(inboxEntries).toHaveLength(1)
-  })
+  }, 15_000)
 
   test("#given live delivery promptAsync fails ambiguously #when delivery handles the accepted-like failure #then it marks pending without inbox retry", async () => {
     // given
