@@ -11,6 +11,10 @@
   repeated code-reviewer spawn events against an isolated fixture.
 - A real `codex app-server` turn was driven with a locally installed plugin and
   local mock model in an isolated `CODEX_HOME`.
+- A second real app-server turn registered a synthetic flattened V2
+  `collaborationspawn_agent` tool, preloaded the fourth code-reviewer attempt,
+  and required the changed `PreToolUse` hook to block it before client-side
+  execution.
 - The canonical `bun run test:codex` gate was attempted three times.
 
 ## What was observed
@@ -47,7 +51,14 @@
   same completed hook set.
 - It was rerun again after gate-role prioritization with the same completed hook
   set and host-config isolation.
+- The spawn-specific app-server turn emitted `hook/started` and
+  `hook/completed` for `preToolUse` from
+  `pre-tool-use-guarding-ulw-loop-spawns.json`. The completed hook status was
+  `blocked`, Codex surfaced the `lazycodex-code-reviewer 4/3` reason to the
+  next model response, and the dynamic tool client received zero calls.
 - The real `~/.codex/config.toml` hash was unchanged before and after QA.
+- Redacted structured output is recorded in
+  `app-server-pre-tool-use-spawn.txt`.
 
 ## Why this is enough
 
@@ -56,7 +67,9 @@ new goal attempt. The full component gates cover the surrounding plan,
 checkpoint, hook, and CLI behavior. Driving the built hook CLI proves the
 observable pre-tool-use result rather than relying on source inspection. The
 app-server run proves the locally built plugin still installs and participates
-in a real Codex turn under isolation.
+in a real Codex turn under isolation. The spawn-specific turn additionally
+proves the exact matcher, flattened V2 tool token, hook payload path, blocking
+result, and denial propagation through first-party app-server notifications.
 
 ## Known gate gap
 
