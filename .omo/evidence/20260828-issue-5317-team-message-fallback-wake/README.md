@@ -5,12 +5,13 @@
 - Disposable OpenCode 1.18.4 with the local bundle and team mode.
 ## What was observed
 - RED: timed out waiting for the queued fallback wake.
-- GREEN: focused 33/33, related 61/61, typecheck/build pass.
+- GREEN: focused 34/34, related 62/62, typecheck/build pass.
 - Real server: healthy; `team_create` and `team_send_message` registered; SSE
   connected; host sessions unchanged at 7928.
 - Captured outputs: `artifacts/failing-first.txt`,
   `artifacts/focused-tests.txt`, `artifacts/related-tests.txt`,
-  `artifacts/typecheck-build.txt`, and `artifacts/real-opencode.txt`.
+  `artifacts/typecheck-build.txt`, `artifacts/real-opencode.txt`, and
+  `artifacts/real-fallback-run.txt`.
 
 ## Why it is enough
 

@@ -5,8 +5,8 @@ Failing first
 
 After fix
 ---------
-  focused messaging: 33 pass, 0 fail
-  related messaging/idle-wake/prompt-route: 61 pass, 0 fail
+  focused messaging: 34 pass, 0 fail
+  related messaging/idle-wake/prompt-route: 62 pass, 0 fail
   bun run typecheck: pass
   bun run build: pass
   git diff --check: pass
@@ -16,3 +16,4 @@ Captured command output:
   artifacts/focused-tests.txt
   artifacts/related-tests.txt
   artifacts/typecheck-build.txt
+  artifacts/real-fallback-run.txt

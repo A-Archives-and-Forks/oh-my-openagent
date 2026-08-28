@@ -14,3 +14,4 @@ Real OpenCode surface
 The bundle reached the real tool surface; the module seam proved behavior.
 Captured command output:
   artifacts/real-opencode.txt
+  artifacts/real-fallback-run.txt

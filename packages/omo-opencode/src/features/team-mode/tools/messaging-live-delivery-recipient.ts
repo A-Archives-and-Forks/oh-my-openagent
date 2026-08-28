@@ -1,5 +1,9 @@
 import type { TeamModeConfig } from "../../../config/schema/team-mode"
-import { dispatchInternalPrompt, isInternalPromptDispatchAccepted } from "../../../hooks/shared/prompt-async-gate"
+import {
+  dispatchInternalPrompt,
+  isInternalPromptDispatchAccepted,
+  releasePromptAsyncReservation,
+} from "../../../hooks/shared/prompt-async-gate"
 import { log } from "../../../shared/logger"
 import { isAmbiguousPostDispatchPromptFailure } from "../../../shared/prompt-failure-classifier"
 import { applyMemberSessionRouting, buildMemberPromptBody } from "../member-session-routing"
@@ -37,12 +41,24 @@ export async function deliverLiveToRecipient(input: {
     directory,
   } = input
 
+  const recipientSessionId = recipientMember.sessionId
   if (recipientMember.pendingInjectedMessageIds.length > 0) {
     await releaseReservationSafely(reservation, {
       teamRunId,
       recipient: recipientName,
       messageId: message.messageId,
     })
+    if (recipientSessionId) {
+      await enqueueFallbackMailboxWake({
+        client,
+        recipientMember,
+        recipientSessionId,
+        directory,
+        teamRunId,
+        recipientName,
+        messageId: message.messageId,
+      })
+    }
     return
   }
 
@@ -62,7 +78,6 @@ export async function deliverLiveToRecipient(input: {
     return
   }
 
-  const recipientSessionId = recipientMember.sessionId
   if (!recipientSessionId) {
     log("[team-mailbox] live delivery unavailable, falling back to inbox injection", {
       reason: "missing-session-id",
@@ -175,6 +190,7 @@ async function enqueueFallbackMailboxWake(input: {
   readonly recipientName: string
   readonly messageId: string
 }): Promise<void> {
+  releasePromptAsyncReservation(input.recipientSessionId, "team-live-delivery")
   const promptResult = await dispatchInternalPrompt({
     mode: "async",
     client: input.client,

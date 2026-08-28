@@ -484,7 +484,7 @@ describe("createTeamSendMessageTool", () => {
     expect(unread[0]?.body).toBe("ping while busy")
   })
 
-  test("#given rapid live deliveries to one recipient #when the first prompt just dispatched #then the next message waits for mailbox injection", async () => {
+  test("#given rapid live deliveries to one recipient #when the first prompt just dispatched #then the next message queues a mailbox wake", async () => {
     // given
     const fixture = await createTeamFixture()
     const { client, calls } = createRecordingClient()
@@ -503,7 +503,7 @@ describe("createTeamSendMessageTool", () => {
     }, fixture.toolContext(fixture.memberOneSessionId))
 
     // then
-    expect(calls).toHaveLength(1)
+    expect(calls).toHaveLength(2)
     expect(calls[0]?.parts[0]?.text).toContain("first ping")
     const unread = await listUnreadMessages(fixture.teamRunId, "m2", fixture.config)
     expect(unread).toHaveLength(1)
@@ -563,7 +563,53 @@ describe("createTeamSendMessageTool", () => {
     expect(injection.content).toContain("fallback ping")
   })
 
-  test("#given live delivery deferred a rapid message #when recipient idle wake fires immediately #then the wake hint does not start a second reply", async () => {
+  test("#given a message waits behind pending live delivery #when that prompt clears #then a queued wake exposes the waiting message", async () => {
+    // given
+    const fixture = await createTeamFixture()
+    const fallbackWakeDispatched = createDeferred<void>()
+    let promptCalls = 0
+    const client = {
+      session: {
+        promptAsync: async () => {
+          promptCalls += 1
+          if (promptCalls === 2) fallbackWakeDispatched.resolve(undefined)
+        },
+      },
+    }
+    const liveTool = createTeamSendMessageTool(fixture.config, client)
+
+    await liveTool.execute({
+      teamRunId: fixture.teamRunId,
+      to: "m2",
+      body: "live ping",
+    }, fixture.toolContext(fixture.memberOneSessionId))
+    await liveTool.execute({
+      teamRunId: fixture.teamRunId,
+      to: "m2",
+      body: "waiting ping",
+    }, fixture.toolContext(fixture.memberOneSessionId))
+
+    expect(promptCalls).toBe(2)
+    const unread = await listUnreadMessages(fixture.teamRunId, "m2", fixture.config)
+    expect(unread.map((message) => message.body)).toEqual(["waiting ping"])
+
+    // when
+    await waitForEvent(fallbackWakeDispatched.promise, "pending-delivery fallback mailbox wake")
+    const injection = await pollAndBuildInjection(
+      fixture.memberTwoSessionId,
+      "m2",
+      fixture.teamRunId,
+      fixture.config,
+      "turn-after-pending-fallback-wake",
+    )
+
+    // then
+    expect(promptCalls).toBe(2)
+    expect(injection.injected).toBe(true)
+    expect(injection.content).toContain("waiting ping")
+  })
+
+  test("#given live delivery queued a rapid-message wake #when recipient idle fires immediately #then the idle hint does not start a third reply", async () => {
     // given
     const fixture = await createTeamFixture()
     const { client, calls } = createRecordingClient()
@@ -594,7 +640,7 @@ describe("createTeamSendMessageTool", () => {
     })
 
     // then
-    expect(calls).toHaveLength(1)
+    expect(calls).toHaveLength(2)
     expect(calls[0]?.parts[0]?.text).toContain("first ping")
     const unread = await listUnreadMessages(fixture.teamRunId, "m2", fixture.config)
     expect(unread).toHaveLength(1)
