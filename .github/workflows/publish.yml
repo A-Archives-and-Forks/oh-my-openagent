@@ -745,7 +745,7 @@ jobs:
             PENDING=("${STILL_PENDING[@]}")
 
             if [ "$attempt" -ge "$ATTEMPTS" ]; then
-              echo "::error::Missing platform package(s) after ${ATTEMPTS} attempts; refusing to publish wrappers."
+              echo "::error::Missing platform package(s); refusing to publish wrappers. Still absent after ${ATTEMPTS} attempts:"
               for pkg in "${PENDING[@]}"; do
                 echo "::error::  ${pkg}@${VERSION}"
               done

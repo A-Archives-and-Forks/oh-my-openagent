@@ -16,6 +16,8 @@ that could drift from what ships.
 - `gate-test.sh` - the harness (also runnable standalone)
 - `gate-test-output.txt` - captured run of all four cases
 - `actionlint.txt` - workflow lint, the repo's own `lint-workflows` gate
+- `workflow-contract-test.txt` - `script/publish-release-platform-workflow.test.ts`, the repo's
+  own assertion that this gate still refuses to publish wrappers
 - `registry-headers-200.txt`, `registry-headers-404.txt` - root-cause evidence
 
 ## What was observed
@@ -31,6 +33,17 @@ runner's bash 5.x for empty-array-under-`set -u` semantics:
 | D | `curl` itself exits nonzero (network) | treated as pending, no crash | PASS - `000` is not read as absence |
 
 `actionlint` exit 0.
+
+### Regression caught in CI and fixed
+
+The first push failed `test (ubuntu-latest, 2/2)`:
+`script/publish-release-platform-workflow.test.ts` asserts the workflow contains the literal
+string `Missing platform package(s); refusing to publish wrappers.`, and the first draft had
+rewritten that message to interpolate the attempt count mid-sentence, breaking the substring
+match. The contract string is now preserved verbatim and the attempt count moved to trailing
+context, so the guard keeps proving the gate refuses to publish wrappers. That suite is
+14 pass / 0 fail (`workflow-contract-test.txt`); the test was NOT relaxed to accommodate the
+change.
 
 ### Root cause
 
