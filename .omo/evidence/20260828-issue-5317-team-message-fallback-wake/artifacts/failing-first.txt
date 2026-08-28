@@ -19,3 +19,8 @@ error: timed out waiting for queue probe after cancelled fallback wake
 33 pass
 2 fail
 REVIEW_CORRECTION_RED_EXIT=1
+
+$ bun test packages/omo-opencode/src/features/team-mode/tools/messaging.test.ts --test-name-pattern 'generic fallback wakes cover two messages'
+error: timed out waiting for second message fallback wake
+(fail) createTeamSendMessageTool > #given generic fallback wakes cover two messages #when the first is acknowledged #then the second message still wakes
+COALESCED_RED_EXIT=1

@@ -7,7 +7,7 @@
 - RED: timed out waiting for the queued fallback wake.
 - REVIEW RED: the second delivery overlapped the accepted live prompt, and an
   acknowledged message still dispatched its queued fallback wake.
-- GREEN: focused 36/36, related 64/64, prompt gate 65/65,
+- GREEN: focused 37/37, related 65/65, prompt gate 65/65,
   typecheck/build pass.
 - Real server: healthy; `team_create` and `team_send_message` registered; SSE
   connected; host sessions unchanged at 7928. The corrected run preserved the
@@ -15,14 +15,16 @@
 - Captured outputs: `artifacts/failing-first.txt`,
   `artifacts/focused-tests.txt`, `artifacts/related-tests.txt`,
   `artifacts/typecheck-build.txt`, `artifacts/real-opencode.txt`, and
-  `artifacts/real-fallback-run.txt`, `artifacts/prompt-gate-tests.txt`, and
-  `artifacts/review-correction-run.txt`.
+  `artifacts/real-fallback-run.txt`, `artifacts/prompt-gate-tests.txt`,
+  `artifacts/ci-regressions.txt`, and `artifacts/review-correction-run.txt`.
 
 ## Why it is enough
 
 The regressions cover the failed reservation-to-wake transition, preservation
 of the accepted prompt hold, and cancellation after exact-message ack. Related
-tests cover prompt-route invariants, and Docker proves the shipped tool surface.
+tests cover prompt-route invariants. Message-specific dedupe coverage proves
+that acknowledging an older coalescible message does not strand a newer one.
+Docker proves the shipped tool surface.
 
 ## What was omitted
 

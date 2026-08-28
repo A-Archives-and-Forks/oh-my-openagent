@@ -5,9 +5,10 @@ Failing first
 
 After fix
 ---------
-  focused messaging: 36 pass, 0 fail
-  related messaging/idle-wake/prompt-route: 64 pass, 0 fail
+  focused messaging: 37 pass, 0 fail
+  related messaging/idle-wake/prompt-route: 65 pass, 0 fail
   prompt gate core: 65 pass, 0 fail
+  CI regressions: auto-retry 13 pass; tmux ordering 2 pass
   bun run typecheck: pass
   bun run build: pass
   git diff --check: pass
@@ -19,4 +20,5 @@ Captured command output:
   artifacts/typecheck-build.txt
   artifacts/real-fallback-run.txt
   artifacts/prompt-gate-tests.txt
+  artifacts/ci-regressions.txt
   artifacts/review-correction-run.txt

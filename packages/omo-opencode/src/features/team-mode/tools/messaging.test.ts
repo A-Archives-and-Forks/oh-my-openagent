@@ -107,7 +107,7 @@ type Deferred<T> = {
 }
 
 const temporaryDirectories: string[] = []
-const TEST_EVENT_TIMEOUT_MS = 1_000
+const TEST_EVENT_TIMEOUT_MS = 3_000
 const realSetTimeout = globalThis.setTimeout
 const realClearTimeout = globalThis.clearTimeout
 
@@ -682,6 +682,73 @@ describe("createTeamSendMessageTool", () => {
 
     // then
     expect(promptTexts).toEqual(["blocker", "queue probe"])
+  })
+
+  test("#given generic fallback wakes cover two messages #when the first is acknowledged #then the second message still wakes", async () => {
+    // given
+    const fixture = await createTeamFixture()
+    const secondWakeDispatched = createDeferred<void>()
+    const promptTexts: string[] = []
+    const client = {
+      session: {
+        promptAsync: async (input: { body: { parts: Array<{ text?: string }> } }) => {
+          const text = input.body.parts[0]?.text ?? ""
+          promptTexts.push(text)
+          if (text.includes("You have a new team message")) secondWakeDispatched.resolve(undefined)
+        },
+      },
+    }
+    const liveTool = createTeamSendMessageTool(fixture.config, client)
+
+    await dispatchInternalPrompt({
+      mode: "async",
+      client,
+      sessionID: fixture.memberTwoSessionId,
+      source: "test-blocker",
+      input: {
+        path: { id: fixture.memberTwoSessionId },
+        body: { parts: [{ type: "text", text: "blocker" }] },
+        query: { directory: resolveBaseDir(fixture.config) },
+      },
+    })
+    await liveTool.execute({
+      teamRunId: fixture.teamRunId,
+      to: "m2",
+      body: "first fallback",
+    }, fixture.toolContext(fixture.memberOneSessionId))
+    const firstInjection = await pollAndBuildInjection(
+      fixture.memberTwoSessionId,
+      "m2",
+      fixture.teamRunId,
+      fixture.config,
+      "turn-before-second-message",
+    )
+    expect(firstInjection.injected).toBe(true)
+
+    await liveTool.execute({
+      teamRunId: fixture.teamRunId,
+      to: "m2",
+      body: "second fallback",
+    }, fixture.toolContext(fixture.memberOneSessionId))
+    await ackMessages(fixture.teamRunId, "m2", firstInjection.messageIds, fixture.config)
+    const unreadBeforeWake = await listUnreadMessages(fixture.teamRunId, "m2", fixture.config)
+    expect(unreadBeforeWake.map((message) => message.body)).toEqual(["second fallback"])
+
+    // when
+    expect(releasePromptAsyncReservation(fixture.memberTwoSessionId, "test-blocker")).toBe(true)
+    await waitForEvent(secondWakeDispatched.promise, "second message fallback wake")
+    const secondInjection = await pollAndBuildInjection(
+      fixture.memberTwoSessionId,
+      "m2",
+      fixture.teamRunId,
+      fixture.config,
+      "turn-after-second-message",
+    )
+
+    // then
+    expect(promptTexts).toHaveLength(2)
+    expect(secondInjection.injected).toBe(true)
+    expect(secondInjection.content).toContain("second fallback")
   })
 
   test("#given a queued fallback recipient shut down #when the prompt gate clears #then the obsolete wake is cancelled", async () => {

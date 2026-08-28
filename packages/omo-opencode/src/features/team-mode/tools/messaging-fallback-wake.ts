@@ -27,6 +27,7 @@ export async function enqueueFallbackMailboxWake(input: {
     client: input.client,
     sessionID: input.recipientSessionId,
     source: "team-live-delivery-fallback",
+    dedupeKey: `team-live-delivery-fallback:${input.messageId}`,
     queueBehavior: "enqueue",
     shouldDispatch: () => shouldDispatchFallbackMailboxWake(input),
     input: {

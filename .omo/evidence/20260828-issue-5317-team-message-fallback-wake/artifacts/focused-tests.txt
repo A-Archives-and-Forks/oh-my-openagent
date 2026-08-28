@@ -1,6 +1,6 @@
 $ bun test packages/omo-opencode/src/features/team-mode/tools/messaging.test.ts
 bun test v1.3.14
-36 pass
+37 pass
 0 fail
-118 expect() calls
-Ran 36 tests across 1 file. [6.78s]
+124 expect() calls
+Ran 37 tests across 1 file. [13.24s]

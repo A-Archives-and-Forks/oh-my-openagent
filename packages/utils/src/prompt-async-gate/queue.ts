@@ -182,11 +182,7 @@ async function drainPromptQueue(sessionID: string, awaitedEntry?: QueuedInternal
         break
       }
 
-      const nextDispatchDelay = result.status === "dispatched"
-        || (result.status === "failed" && result.dispatchAttempted)
-        ? entry.postDispatchHoldMs
-        : undefined
-      schedulePromptQueueDrain(sessionID, nextDispatchDelay ?? 0)
+      schedulePromptQueueDrain(sessionID, entry.postDispatchHoldMs)
       break
     }
   } finally {
