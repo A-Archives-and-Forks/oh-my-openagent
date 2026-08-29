@@ -7,7 +7,7 @@ import type { Server, Socket } from "node:net"
 
 import { preflightMemoryModels, resetModelPreflightCacheForTests } from "./model-preflight"
 import type { MemoryModelChain } from "./memory-model-attempts"
-import { identityMatches, killIfAlive, pidAlive, pidTerminalWithin, readPidFileWhenWritten, readPidWhenWritten } from "./process-liveness.test-support"
+import { identityMatches, killIfAlive, pidAlive, pidTerminalWithin, readPidFileWhenWritten, readPidWhenWritten, waitForFileToExist } from "./process-liveness.test-support"
 
 const roots: string[] = []
 
@@ -194,6 +194,7 @@ process.stdout.write("builtin/fallback\\n")
     const grandchildScript = join(item.root, "grandchild.mjs")
     const wrapperPidPath = join(item.root, "wrapper.pid")
     const grandchildPidPath = join(item.root, "grandchild.pid")
+    const grandchildConnectedPath = join(item.root, "grandchild.connected")
     await writeFile(wrapper, `
 import { spawn } from "node:child_process"
 import { connect } from "node:net"
@@ -210,6 +211,7 @@ import { connect } from "node:net"
 import { writeFileSync } from "node:fs"
 writeFileSync(process.env.GRANDCHILD_PID_PATH, String(process.pid))
 const control = connect({ host: "127.0.0.1", port: Number(process.env.CONTROL_PORT) })
+control.once("connect", () => writeFileSync(process.env.GRANDCHILD_CONNECTED_PATH, "connected\\n"))
 control.once("close", () => process.exit(0))
 control.once("error", () => process.exit(0))
 `, "utf8")
@@ -241,6 +243,7 @@ control.once("error", () => process.exit(0))
           CONTROL_PORT: String(address.port),
           WRAPPER_PID_PATH: wrapperPidPath,
           GRANDCHILD_PID_PATH: grandchildPidPath,
+          GRANDCHILD_CONNECTED_PATH: grandchildConnectedPath,
           GRANDCHILD_SCRIPT: grandchildScript,
         },
         configSources: [{ path: item.config, exists: true }],
@@ -266,6 +269,9 @@ control.once("error", () => process.exit(0))
       grandchildIdentityForCleanup = grandchildIdentity
       expect(pidAlive(wrapperPid)).toBe(false)
       expect(identityMatches(grandchildIdentity) && pidAlive(grandchildIdentity.pid)).toBe(true)
+      // The grandchild writes its pid file BEFORE connect(); awaiting its explicit connected
+      // marker guarantees the control snapshot below contains its socket on every runner.
+      expect(await waitForFileToExist(grandchildConnectedPath, HELPER_EXIT_BOUND_MS)).toBe(true)
       const helperClosures = [...connections].map((socket) => new Promise<void>((resolve) => {
         if (socket.destroyed) return resolve()
         socket.once("close", () => resolve())
