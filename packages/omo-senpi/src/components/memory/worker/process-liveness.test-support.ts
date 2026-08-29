@@ -59,6 +59,10 @@ export type ProcessIdentity = Readonly<{ pid: number; command: string }>
 function commandForPid(pid: number): string | null {
   try {
     if (process.platform === "linux") return readFileSync(`/proc/${String(pid)}/cmdline`, "utf8").replaceAll("\\0", " ").trim()
+    if (process.platform === "win32") {
+      const out = execFileSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", `(Get-CimInstance Win32_Process -Filter "ProcessId=${String(pid)}").CommandLine`], { encoding: "utf8" }).trim()
+      return out === "" ? null : out
+    }
     return execFileSync("ps", ["-p", String(pid), "-o", "command="], { encoding: "utf8" }).trim()
   } catch {
     return null
