@@ -28,7 +28,7 @@ reader.getRowObjects();                  // array of plain row objects
   `Bun.XML.parse`, `Bun.TOML.parse`, `Bun.Archive` for tarballs.
 - nodejs-polars is NOT part of this skill's toolkit: its API lags the Python release by
   major versions (option objects that work in Python throw napi type errors). Polars work
-  belongs to the uv lane.
+  belongs to the Python kernel (below).
 
 ## Persistent kernel, Python (the default Python surface)
 
@@ -65,7 +65,7 @@ uv run --with duckdb --with polars --with pyarrow --with numpy python -c "<code>
 - Reach for it when there is no kernel, or when a heavy, crash-prone one-shot should not
   run inside (and possibly take down) the kernel.
 - Include exactly the packages the code imports, plus pyarrow whenever `.pl()` is used.
-- Each invocation pays process spawn plus imports (~0.5s warm) and re-reads its inputs —
+- Each invocation pays process spawn plus imports (roughly 0.3s warm) and re-reads its inputs —
   fine for one-shots, wasteful for exploration loops.
 - Past a few lines, a temp file beats `-c` quoting: write the script, `uv run script.py`.
 

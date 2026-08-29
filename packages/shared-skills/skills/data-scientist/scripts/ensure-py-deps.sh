@@ -18,7 +18,8 @@ if ! command -v "$PYTHON_BIN" >/dev/null 2>&1 && [ ! -x "$PYTHON_BIN" ]; then
   exit 1
 fi
 
-TAG="$("$PYTHON_BIN" -c 'import sys; print(f"cp{sys.version_info[0]}{sys.version_info[1]}")')"
+TAG="$("$PYTHON_BIN" -c 'import sys; print(f"cp{sys.version_info[0]}{sys.version_info[1]}")')" \
+  || { log "not a working python interpreter: $PYTHON_BIN"; exit 1; }
 CACHE_DIR="${OMO_DATA_SCIENTIST_CACHE:-$HOME/.cache/omo-data-scientist}"
 SITE_DIR="$CACHE_DIR/py-$TAG"
 
