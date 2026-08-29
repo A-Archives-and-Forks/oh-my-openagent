@@ -66,6 +66,12 @@ function commandForPid(pid: number): string | null {
   }
 }
 
+/** Snapshots a live process's command identity; null when the pid is gone or unreadable. */
+export function captureIdentity(pid: number): ProcessIdentity | null {
+  const command = commandForPid(pid)
+  return command === null ? null : { pid, command }
+}
+
 export function identityMatches(identity: ProcessIdentity): boolean {
   const command = commandForPid(identity.pid)
   return command !== null && command === identity.command

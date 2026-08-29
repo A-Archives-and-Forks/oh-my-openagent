@@ -9,7 +9,7 @@ import type { Server, Socket } from "node:net"
 import { tmpdir } from "node:os"
 import { basename, dirname, join } from "node:path"
 
-import { pidAlive, readPidFileWhenWritten } from "./process-liveness.test-support"
+import { captureIdentity, pidAlive, pidTerminalWithin, readPidFileWhenWritten } from "./process-liveness.test-support"
 
 const holdLockFixture = join(import.meta.dir, "__fixtures__", "hold-lock.ts")
 const READY_TIMEOUT_MS = 10_000
@@ -165,10 +165,17 @@ child.stdout.on("data", (chunk) => {
       // when
       await wrapperExit
 
-      // then: the exit marker is the original holder's own terminal signal; the pid it wrote is
-      // gone afterwards. A substitute process could never produce either.
+      // then: the exit marker is the original holder's own terminal signal. The marker write
+      // precedes the process's actual exit by a beat, so termination is awaited event-first
+      // (the /proc watcher on linux, a bounded liveness probe elsewhere) instead of being
+      // asserted from a single point-in-time probe.
+      const holderIdentity = captureIdentity(holderPid)
       await waitForFile(marker, EXIT_TIMEOUT_MS)
-      expect(pidAlive(holderPid)).toBe(false)
+      if (holderIdentity !== null) {
+        expect(await pidTerminalWithin(holderIdentity, EXIT_TIMEOUT_MS)).toBe(true)
+      } else {
+        expect(pidAlive(holderPid)).toBe(false)
+      }
     } finally {
       wrapper.kill("SIGKILL")
       if (holderPid !== null && pidAlive(holderPid)) {

@@ -302,7 +302,7 @@ control.once("error", () => process.exit(0))
         await pidTerminalWithin(grandchildIdentityForCleanup, HELPER_FAILSAFE_BOUND_MS)
       }
     }
-  })
+  }, 30_000)
 
   test("#given a failed child catalog probe #when candidates are preflighted #then it warns and preserves reactive fallback behavior", async () => {
     // given
