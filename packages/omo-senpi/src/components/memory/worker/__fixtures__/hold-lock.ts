@@ -12,17 +12,9 @@ const record = await createLockRecord("facts-finalize", { runId: "hold-lock-fixt
 await acquireLock(lockPath, record, { waitTimeoutMs: 10_000, retryDelayMs: 10 })
 process.stdout.write("held\n")
 
-// A killed test runner closes the child's stdin, but keep a PPID watchdog as a fallback for runtimes
-// that do not deliver the pipe close event after reparenting.
-const parentPid = process.ppid
-const watchdog = setInterval(() => {
-  if (process.ppid === 1 || process.ppid !== parentPid) process.exit(0)
-}, 1_000)
-watchdog.unref()
-
 await new Promise<void>((resolve) => {
   process.stdin.once("end", resolve)
   process.stdin.once("close", resolve)
+  process.stdin.once("error", resolve)
   process.stdin.resume()
 })
-clearInterval(watchdog)
