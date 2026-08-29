@@ -1,6 +1,6 @@
 ---
 name: data-scientist
-description: "Expert data processing with a hybrid engine strategy: resident-kernel DuckDB first (persistent js/py eval kernels where the harness has them, bun/uv one-shots elsewhere), Python Polars/numpy/matplotlib through uv where they win, and per-action placement judgment (in-memory vs streaming vs remote-in-place). Triggers: 'analyze the data', 'what is in this CSV/parquet/json', 'summarize this', 'group by', 'filter rows', 'sort by', 'join these files', 'merge datasets', 'time series trend', 'compare yesterday and today', 'distribution/histogram', 'correlation', 'clean duplicates', 'handle missing values', 'dataset larger than RAM', 'SQL query on files', 'DataFrame operations', 'chart/plot this data', DuckDB vs Polars selection, quick data exploration CLI. NOT for plain text/code inspection, configs, or tiny inline math."
+description: "Expert data processing with a hybrid engine strategy: resident-kernel engines first - DuckDB plus a resident Python stack (Polars/numpy/matplotlib) in persistent js/py eval kernels where the harness has them, bun/uv one-shots elsewhere - and per-action placement judgment (in-memory vs streaming vs remote-in-place). Triggers: 'analyze the data', 'what is in this CSV/parquet/json', 'summarize this', 'group by', 'filter rows', 'sort by', 'join these files', 'merge datasets', 'time series trend', 'compare yesterday and today', 'distribution/histogram', 'correlation', 'clean duplicates', 'handle missing values', 'dataset larger than RAM', 'SQL query on files', 'DataFrame operations', 'chart/plot this data', DuckDB vs Polars selection, quick data exploration CLI. NOT for plain text/code inspection, configs, or tiny inline math."
 ---
 
 # Data Scientist: Hybrid-Engine Data Processing
@@ -18,11 +18,13 @@ difference dominates the session.
 
 1. **JavaScript kernel (Bun)**: run `scripts/ensure-js-deps.sh` once; it prints the absolute
    import path for `@duckdb/node-api`. Dynamic-import it, connect once, query across cells.
-2. **Python kernel**: `import duckdb` (plus numpy/matplotlib) directly when resident — probe
-   with a try-import and fall back to the uv lane instead of installing into the kernel's
-   interpreter.
-3. **uv lane** (`uv run --with ...`): escalate when the work needs Polars, a library the
-   kernel lacks, or isolation for a heavy one-shot.
+2. **Python kernel**: the default surface for Python work. duckdb/numpy/matplotlib are
+   typically resident; Polars and pyarrow come from `scripts/ensure-py-deps.sh`, which
+   installs them once into a user cache keyed to the kernel's interpreter —
+   `sys.path.insert` the printed directory and import. The interpreter itself is never
+   mutated.
+3. **uv lane** (`uv run --with ...`): isolation for a heavy or crash-prone one-shot that
+   should not take the kernel down.
 4. **No kernel** (plain-shell harness): the same engines as one-shots — `bun -e` for
    DuckDB-js, `uv run python -c` for the Python stack — batching several questions per
    process.
@@ -34,9 +36,10 @@ Per-surface patterns and pitfalls: read `references/execution-surfaces.md` befor
 - **DuckDB** for SQL-shaped work: direct file queries, joins, aggregation, subqueries,
   window functions. It queries CSV/Parquet/JSON in place without loading, spills to disk
   past its memory limit, and reads remote files with the same syntax.
-- **Polars (Python, uv lane)** when the pipeline is DataFrame-shaped: expression-chain
-  transforms, reshapes, streaming datasets past RAM. Read `references/polars-lane.md` —
-  the current 1.x API differs from widely-memorized older spellings.
+- **Polars** when the pipeline is DataFrame-shaped: expression-chain transforms, reshapes,
+  streaming datasets past RAM — resident in the Python kernel via `ensure-py-deps.sh`.
+  Read `references/polars-lane.md` — the current 1.x API differs from widely-memorized
+  older spellings.
 - **numpy** when numeric work goes beyond SQL/DataFrame aggregation: statistical tests,
   linear algebra, FFT, random sampling.
 - **matplotlib** for every chart — read `references/visualization.md` first; it carries the

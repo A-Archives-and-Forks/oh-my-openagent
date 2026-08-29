@@ -30,32 +30,43 @@ reader.getRowObjects();                  // array of plain row objects
   major versions (option objects that work in Python throw napi type errors). Polars work
   belongs to the uv lane.
 
-## Persistent kernel, Python
+## Persistent kernel, Python (the default Python surface)
 
-Probe first, then use what is resident:
+duckdb, numpy, and matplotlib are typically resident — import and use them directly.
+Polars and pyarrow rarely ship with a kernel, so inject them once per session (run from the
+skill directory; the script installs on first use, then just prints the path):
 
 ```python
-import importlib.util
-have = {m: importlib.util.find_spec(m) is not None for m in ("duckdb", "numpy", "matplotlib", "polars", "pyarrow")}
+import subprocess, sys
+site = subprocess.run(["bash", "scripts/ensure-py-deps.sh", sys.executable],
+                      capture_output=True, text=True, check=True).stdout.strip()
+sys.path.insert(0, site)
+import polars as pl
+import pyarrow
 ```
 
-- `duckdb.sql("SELECT ... FROM 'data.csv'")` queries files in place. `.pl()` converts to
-  Polars via Arrow only when polars and pyarrow are both present; in a bare kernel keep
-  results in DuckDB or fetch plain Python values (`.fetchall()`).
+- The install goes to a user cache keyed to the kernel's interpreter version; the
+  interpreter itself is never mutated (it is frequently an externally-managed system
+  Python, and mutating it breaks other tools).
+- After injection the whole Python stack is resident: `duckdb.sql(...).pl()` hands off via
+  Arrow, `duckdb.register(name, df)` goes the other way, and Polars lazy pipelines run
+  in-kernel across cells.
+- `duckdb.sql("SELECT ... FROM 'data.csv'")` queries files in place; without the injection,
+  keep results in DuckDB or fetch plain Python values (`.fetchall()`).
 - matplotlib figures render natively in kernels that display rich output; also save a PNG so
   the artifact survives the session.
-- A missing module means: use the uv lane. Do not install into the kernel's interpreter —
-  it is frequently an externally-managed system Python, and mutating it breaks other tools.
 
-## uv lane (any surface)
+## uv lane (fallback and isolation)
 
 ```bash
 uv run --with duckdb --with polars --with pyarrow --with numpy python -c "<code>"
 ```
 
+- Reach for it when there is no kernel, or when a heavy, crash-prone one-shot should not
+  run inside (and possibly take down) the kernel.
 - Include exactly the packages the code imports, plus pyarrow whenever `.pl()` is used.
-- The first run resolves packages (seconds); later runs hit the cache and pay roughly half a
-  second of process overhead — acceptable for one-shots, wasteful for exploration loops.
+- Each invocation pays process spawn plus imports (~0.5s warm) and re-reads its inputs —
+  fine for one-shots, wasteful for exploration loops.
 - Past a few lines, a temp file beats `-c` quoting: write the script, `uv run script.py`.
 
 ## No kernel at all
@@ -72,8 +83,9 @@ uv run scripts/quick-query.py data.csv "SELECT ..."    # zero-code CLI fallback
 
 Start on the resident kernel. Move a step down when a concrete need appears:
 
-- Polars API needed (see `polars-lane.md`) — uv lane.
-- Library missing from the kernel — uv lane.
+- polars/pyarrow missing from the kernel — inject via `ensure-py-deps.sh` (above), not a
+  uv one-shot.
 - Crash-prone or memory-hungry one-shot that should not take the kernel down — uv lane.
+- No kernel on this harness — one-shot recipes above.
 - Data lives remotely or exceeds local RAM — read `placement.md` and move the query, not
   the data.
