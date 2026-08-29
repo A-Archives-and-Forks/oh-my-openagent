@@ -76,7 +76,7 @@ export function createLspComponent(options: LspComponentOptions = {}): OmoSenpiC
 				);
 			}
 
-			registerLspTools(pi);
+			registerLspTools(pi, cwd);
 
 			pi.on("tool_result", async (event, eventCtx) => {
 					const parsed = isToolResultLike(event) ? event : undefined;
@@ -117,7 +117,7 @@ function registerLspFlags(pi: SenpiExtensionAPI): void {
 	});
 }
 
-function registerLspTools(pi: SenpiExtensionAPI): void {
+function registerLspTools(pi: SenpiExtensionAPI, cwd: string): void {
 	for (const tool of [
 		lsp_diagnostics,
 		lsp_goto_definition,
@@ -126,7 +126,7 @@ function registerLspTools(pi: SenpiExtensionAPI): void {
 		lsp_prepare_rename,
 		lsp_rename,
 	]) {
-		pi.registerTool(withPackagedDaemonRuntime(tool));
+		pi.registerTool(withPackagedDaemonRuntime(tool, cwd));
 	}
 }
 
@@ -141,7 +141,7 @@ type LspTool = {
 	): Promise<unknown>;
 };
 
-function withPackagedDaemonRuntime<TTool extends LspTool>(tool: TTool): TTool {
+function withPackagedDaemonRuntime<TTool extends LspTool>(tool: TTool, cwd: string): TTool {
 	return {
 		...tool,
 		async execute(
@@ -152,7 +152,7 @@ function withPackagedDaemonRuntime<TTool extends LspTool>(tool: TTool): TTool {
 			ctx?: unknown,
 		): Promise<unknown> {
 			const args = isRecord(rawParams) ? rawParams : {};
-			return callPackagedDaemonTool(tool.name, args, signal === undefined ? {} : { signal });
+			return callPackagedDaemonTool(tool.name, args, { cwd, ...(signal === undefined ? {} : { signal }) });
 		},
 	};
 }

@@ -56,24 +56,18 @@ describe("Senpi packaged daemon runtime resolver", () => {
     const projectDir = await mkdtemp(join(tmpdir(), "omo-senpi-context-project-"))
     const homeDir = await mkdtemp(join(tmpdir(), "omo-senpi-context-home-"))
     tempDirs.push(projectDir, homeDir)
-    const originalCwd = process.cwd()
-    const originalHome = process.env.HOME
     const signal = AbortSignal.abort("test-abort")
 
-    try {
-      process.chdir(projectDir)
-      process.env.HOME = homeDir
+    // when
+    const result = await callPackagedDaemonTool(
+      "lsp_goto_definition",
+      { filePath: "x.ts", line: 1, character: 0 },
+      { cwd: projectDir, homeDir, signal },
+      pathToFileURL(fixture.extensionPath).href,
+    )
 
-      // when
-      const result = await callPackagedDaemonTool(
-        "lsp_goto_definition",
-        { filePath: "x.ts", line: 1, character: 0 },
-        { signal },
-        pathToFileURL(fixture.extensionPath).href,
-      )
-
-      // then
-      expect(result?.content[0]?.text).toBe(
+    // then
+    expect(result?.content[0]?.text).toBe(
         JSON.stringify({
           name: "goto_definition",
           args: { filePath: "x.ts", line: 1, character: 0 },
@@ -87,12 +81,7 @@ describe("Senpi packaged daemon runtime resolver", () => {
           signalAborted: true,
           signalReason: "test-abort",
         }),
-      )
-    } finally {
-      process.chdir(originalCwd)
-      if (originalHome === undefined) delete process.env.HOME
-      else process.env.HOME = originalHome
-    }
+    )
   })
 
   test("#given all six Senpi LSP names #when executing through the packaged client #then canonical Core tool names are used", async () => {
