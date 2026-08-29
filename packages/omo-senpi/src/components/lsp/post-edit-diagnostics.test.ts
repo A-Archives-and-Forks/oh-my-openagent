@@ -3,7 +3,7 @@ import type { PostEditDiagnosticsOutcome } from "@oh-my-opencode/lsp-core/post-e
 
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import type { ComponentContext } from "../../extension/types"
-import { createLspComponent, createLspPostEditSessionState, handlePostEditDiagnosticsToolResult } from "./index"
+import { createLspComponent, createLspDiagnosticsRunner, createLspPostEditSessionState, handlePostEditDiagnosticsToolResult } from "./index"
 
 interface WidgetCall {
   readonly key: string
@@ -46,6 +46,18 @@ function setup(): TestContext {
 }
 
 describe("omo-senpi lsp post-edit diagnostics", () => {
+  it("#given the Senpi session cwd #when the default diagnostics runner is created #then daemon calls use that cwd", async () => {
+    const calls: Array<{ name: string; cwd?: string }> = []
+    const runner = createLspDiagnosticsRunner("/session/project", async (name, _args, options) => {
+      calls.push({ name, cwd: options?.cwd })
+      return { content: [{ type: "text", text: "No diagnostics found" }] }
+    })
+
+    await runner("src/file.ts")
+
+    expect(calls).toEqual([{ name: "lsp_diagnostics", cwd: "/session/project" }])
+  })
+
   it("#given post-edit diagnostics with errors #when a write tool result arrives #then model-visible diagnostics are injected", async () => {
     // given
     const event = mutationEvent("src/broken.ts")

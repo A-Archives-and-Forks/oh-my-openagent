@@ -53,11 +53,16 @@ const cachedClients = new Map<string, Promise<DaemonClientModule>>();
 export async function callPackagedDaemonTool(
 		name: string,
 		args: Record<string, unknown>,
-		options: { readonly signal?: AbortSignal; readonly cwd?: string; readonly homeDir?: string } = {},
+		options: {
+		readonly signal?: AbortSignal;
+		readonly cwd?: string;
+		readonly homeDir?: string;
+		readonly env?: Record<string, string | undefined>;
+	} = {},
 		importerUrl = import.meta.url,
 ): Promise<ToolExecutionResult> {
 	const client = await loadPackagedDaemonClient(importerUrl);
-	const context = currentSenpiRequestContext(options.cwd, options.homeDir);
+	const context = currentSenpiRequestContext(options.cwd, options.homeDir, options.env);
 	return client.callToolViaDaemon(toDaemonToolName(name), args, { context, signal: options.signal });
 }
 
@@ -65,9 +70,13 @@ export function clearPackagedDaemonToolClientCache(): void {
 	cachedClients.clear();
 }
 
-function currentSenpiRequestContext(cwdInput?: string, homeDir?: string): LspRequestContext {
+function currentSenpiRequestContext(
+	cwdInput?: string,
+	homeDir?: string,
+	env: Record<string, string | undefined> = process.env,
+): LspRequestContext {
 	const cwd = canonicalCwd(cwdInput);
-	const home = resolve(homeDir ?? process.env.HOME?.trim() ?? homedir());
+	const home = resolve(homeDir ?? (env.HOME?.trim() || homedir()));
 	return {
 		cwd,
 		projectConfigPaths: [join(cwd, ".pi", "lsp-client.json")],

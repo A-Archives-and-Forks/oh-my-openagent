@@ -55,11 +55,11 @@ export { createLspPostEditSessionState };
 
 export function createLspComponent(options: LspComponentOptions = {}): OmoSenpiComponent {
 	const postEditState = options.postEdit?.state ?? createLspPostEditSessionState();
-	const runPostEditDiagnostics = options.postEdit?.runDiagnostics ?? runLspDiagnosticsForPostEdit;
 	return {
 		name: "lsp",
 		register(pi, ctx) {
 			const cwd = pi.cwd ?? process.cwd();
+			const runPostEditDiagnostics = options.postEdit?.runDiagnostics ?? createLspDiagnosticsRunner(cwd);
 			const formatMutation = options.formatter ?? createFormatterStep({
 				config: loadSenpiOmoConfig({ cwd }).config.formatOnMutation,
 				markers: markerCwd => listProjectMarkers(markerCwd),
@@ -160,7 +160,7 @@ function withPackagedDaemonRuntime<TTool extends LspTool>(tool: TTool, cwd: stri
 export async function handlePostEditDiagnosticsToolResult(
 	event: unknown,
 	ctx?: unknown,
-	runDiagnostics: DiagnosticsRunner = runLspDiagnosticsForPostEdit,
+	runDiagnostics: DiagnosticsRunner = createLspDiagnosticsRunner(process.cwd()),
 	state: LspPostEditSessionState = DEFAULT_POST_EDIT_SESSION_STATE,
 ): Promise<ToolResultHandlerResult | undefined> {
 	if (!isToolResultLike(event)) return undefined;
@@ -176,9 +176,13 @@ export async function handlePostEditDiagnosticsToolResult(
 	return result?.content ? { content: result.content } : undefined;
 }
 
-async function runLspDiagnosticsForPostEdit(filePath: string): Promise<PostEditDiagnosticsOutcome> {
-	const result = await callPackagedDaemonTool("lsp_diagnostics", { filePath, severity: "error" });
-	return postEditOutcomeFromDaemonResult(result);
+type DaemonToolCaller = typeof callPackagedDaemonTool;
+
+export function createLspDiagnosticsRunner(cwd: string, callDaemonTool: DaemonToolCaller = callPackagedDaemonTool): DiagnosticsRunner {
+	return async (filePath: string): Promise<PostEditDiagnosticsOutcome> => {
+		const result = await callDaemonTool("lsp_diagnostics", { filePath, severity: "error" }, { cwd });
+		return postEditOutcomeFromDaemonResult(result);
+	};
 }
 
 function postEditOutcomeFromDaemonResult(result: {
