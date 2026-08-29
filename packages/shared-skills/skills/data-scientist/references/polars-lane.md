@@ -59,7 +59,7 @@ print(duckdb.sql('SELECT category, SUM(rev) AS total FROM shaped GROUP BY 1').pl
 ```
 
 - `.pl()` requires pyarrow in the package set, or it raises `ModuleNotFoundError`.
-- Never `.df()`: it returns a pandas frame, and pandas is banned and absent.
+- Never `.df()`: it requires pandas (raising without it), and pandas is banned and absent.
 
 ## Streaming past RAM
 

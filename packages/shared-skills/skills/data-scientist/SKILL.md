@@ -73,7 +73,7 @@ Sizing heuristics and recipes: `references/placement.md`.
 
 - **NEVER use pandas.** DuckDB and Polars beat it decisively on every workload this skill
   covers, and the environments this skill assumes do not ship it — `.df()` on a DuckDB
-  result returns a pandas frame and crashes; convert with `.pl()` via Arrow instead.
+  result raises unless pandas is installed; convert with `.pl()` via Arrow instead.
 - Excel files are not read directly: export to CSV or Parquet first.
 
 ## Output contract
