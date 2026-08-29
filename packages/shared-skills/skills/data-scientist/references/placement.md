@@ -44,7 +44,7 @@ so the resident table is the working set, not the raw file.
 
   Aggregations, sorts, and window functions run out-of-core: slower, but bounded.
 - Bigger than RAM, DataFrame-shaped: Polars streaming (`collect(engine="streaming")` on a
-  lazy plan) in the uv lane.
+  lazy plan) in the resident kernel — or a uv one-shot on kernel-less harnesses.
 - Manual chunked loops (read N rows, process, repeat) are the last resort — the engines'
   own out-of-core paths are faster and simpler than hand-rolled chunking.
 
