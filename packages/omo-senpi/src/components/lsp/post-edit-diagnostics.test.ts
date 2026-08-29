@@ -3,7 +3,7 @@ import type { PostEditDiagnosticsOutcome } from "@oh-my-opencode/lsp-core/post-e
 
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import type { ComponentContext } from "../../extension/types"
-import { createLspComponent, createLspDiagnosticsRunner, createLspPostEditSessionState, handlePostEditDiagnosticsToolResult } from "./index"
+import { createLspComponent, createLspPostEditSessionState, handlePostEditDiagnosticsToolResult } from "./index"
 
 interface WidgetCall {
   readonly key: string
@@ -46,16 +46,22 @@ function setup(): TestContext {
 }
 
 describe("omo-senpi lsp post-edit diagnostics", () => {
-  it("#given the Senpi session cwd #when the default diagnostics runner is created #then daemon calls use that cwd", async () => {
+  it("#given a session pi cwd #when the real LSP component handles a mutation #then default post-edit diagnostics use that cwd", async () => {
+    const sessionCwd = "/session/project"
     const calls: Array<{ name: string; cwd?: string }> = []
-    const runner = createLspDiagnosticsRunner("/session/project", async (name, _args, options) => {
-      calls.push({ name, cwd: options?.cwd })
-      return { content: [{ type: "text", text: "No diagnostics found" }] }
-    })
+    const test = setup()
+    test.pi.cwd = sessionCwd
 
-    await runner("src/file.ts")
+    createLspComponent({
+      callDaemonTool: async (name, _args, options) => {
+        calls.push({ name, cwd: options?.cwd })
+        return { content: [{ type: "text", text: "No diagnostics found" }] }
+      },
+    }).register(test.pi, test.ctx)
 
-    expect(calls).toEqual([{ name: "lsp_diagnostics", cwd: "/session/project" }])
+    await test.pi.dispatch("tool_result", mutationEvent("src/file.ts"), sessionContext("session-1"))
+
+    expect(calls).toEqual([{ name: "lsp_diagnostics", cwd: sessionCwd }])
   })
 
   it("#given post-edit diagnostics with errors #when a write tool result arrives #then model-visible diagnostics are injected", async () => {

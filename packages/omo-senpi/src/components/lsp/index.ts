@@ -47,6 +47,7 @@ interface LspComponentOptions {
 		readonly runDiagnostics?: DiagnosticsRunner;
 		readonly state?: LspPostEditSessionState;
 	};
+	readonly callDaemonTool?: DaemonToolCaller;
 }
 
 const DEFAULT_POST_EDIT_SESSION_STATE = createLspPostEditSessionState();
@@ -59,7 +60,7 @@ export function createLspComponent(options: LspComponentOptions = {}): OmoSenpiC
 		name: "lsp",
 		register(pi, ctx) {
 			const cwd = pi.cwd ?? process.cwd();
-			const runPostEditDiagnostics = options.postEdit?.runDiagnostics ?? createLspDiagnosticsRunner(cwd);
+			const runPostEditDiagnostics = options.postEdit?.runDiagnostics ?? createLspDiagnosticsRunner(cwd, options.callDaemonTool);
 			const formatMutation = options.formatter ?? createFormatterStep({
 				config: loadSenpiOmoConfig({ cwd }).config.formatOnMutation,
 				markers: markerCwd => listProjectMarkers(markerCwd),
