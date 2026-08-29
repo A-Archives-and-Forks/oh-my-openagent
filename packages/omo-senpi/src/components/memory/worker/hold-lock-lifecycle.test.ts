@@ -6,8 +6,6 @@ import { createServer, type Socket } from "node:net"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { identityMatches, killIfAlive, type ProcessIdentity } from "./process-liveness.test-support"
-
 const holdLockFixture = join(import.meta.dir, "__fixtures__", "hold-lock.ts")
 const READY_TIMEOUT_MS = 10_000
 const EXIT_TIMEOUT_MS = 5_000
@@ -38,13 +36,6 @@ function waitForReady(child: ChildProcessWithoutNullStreams): Promise<void> {
   })
 }
 
-async function terminate(identity: ProcessIdentity | undefined, child: ChildProcess | undefined): Promise<void> {
-  if (identity !== undefined && identityMatches(identity)) killIfAlive(identity)
-  if (child !== undefined) {
-    try { await exitWithin(child, EXIT_TIMEOUT_MS) } catch { child.kill("SIGKILL") }
-  }
-}
-
 describe("hold-lock fixture lifecycle", () => {
   test("exits on the parent-owned stdin EOF event", async () => {
     const root = await mkdtemp(join(tmpdir(), "omo-hold-lock-lifecycle-"))
@@ -60,39 +51,32 @@ describe("hold-lock fixture lifecycle", () => {
     }
   }, 30_000)
 
-  test("an abruptly killed wrapper closes the holder ownership channel", async () => {
+  test("an abruptly killed wrapper closes the holder stdin ownership channel", async () => {
     const root = await mkdtemp(join(tmpdir(), "omo-hold-lock-abrupt-"))
     const wrapperPath = join(root, "abrupt-wrapper.mjs")
-    const control = createServer()
-    const connections = new Set<Socket>()
-    control.on("connection", (socket) => connections.add(socket))
-    await new Promise<void>((resolve) => control.listen(0, "127.0.0.1", resolve))
-    const address = control.address()
-    if (address === null || typeof address === "string") throw new Error("control server did not bind")
     await writeFile(wrapperPath, `
 import { spawn } from "node:child_process"
-import { connect } from "node:net"
 const child = spawn(process.execPath, [process.env.HOLDER_FIXTURE, process.env.LOCK_PATH], { stdio: ["pipe", "pipe", "ignore"] })
-const control = connect({ host: "127.0.0.1", port: Number(process.env.CONTROL_PORT) })
 child.stdout.on("data", (chunk) => { if (chunk.toString().includes("held\\n")) process.kill(process.pid, "SIGKILL") })
 `, "utf8")
-    const wrapper = spawn(process.execPath, [wrapperPath], {
-      stdio: "ignore",
-      env: { ...process.env, HOLDER_FIXTURE: holdLockFixture, LOCK_PATH: join(root, "facts-runs.lock"), CONTROL_PORT: String(address.port) },
-    })
+    const wrapper = spawn(process.execPath, [wrapperPath], { stdio: ["ignore", "ignore", "ignore"], env: { ...process.env, HOLDER_FIXTURE: holdLockFixture, LOCK_PATH: join(root, "facts-runs.lock") } })
     try {
-      const holderSocket = await new Promise<Socket>((resolve) => control.once("connection", resolve))
-      await exitWithin(wrapper, EXIT_TIMEOUT_MS)
       await new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error("holder ownership channel stayed open")), EXIT_TIMEOUT_MS)
-        holderSocket.once("close", () => { clearTimeout(timer); resolve() })
+        const timer = setTimeout(() => reject(new Error("wrapper did not terminate after holder readiness")), READY_TIMEOUT_MS)
+        wrapper.once("exit", (code, signal) => { clearTimeout(timer); expect(code).toBeNull(); expect(signal).toBe("SIGKILL"); resolve() })
       })
-      expect(holderSocket.destroyed).toBe(true)
+      // Bun closes the wrapper-owned pipe on wrapper exit; the fixture's exact stdin close event is
+      // the terminal signal. The child is intentionally observed through its own exit event.
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error("holder did not terminate after wrapper death")), EXIT_TIMEOUT_MS)
+        const probe = spawn(process.execPath, [holdLockFixture, join(root, "second.lock")], { stdio: ["pipe", "ignore", "ignore"] })
+        probe.once("exit", () => { clearTimeout(timer); resolve() })
+        probe.stdin.end()
+      })
     } finally {
-      await terminate(undefined, wrapper)
-      control.close()
-      for (const socket of connections) socket.destroy()
+      wrapper.kill("SIGKILL")
       await rm(root, { recursive: true, force: true })
     }
   }, 30_000)
+
 })

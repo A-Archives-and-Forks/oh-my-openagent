@@ -222,7 +222,7 @@ control.once("error", () => process.exit(0))
     })
     const address = control.address()
     if (address === null || typeof address === "string") throw new Error("control listener has no tcp port")
-    const knownPids: number[] = []
+    const knownPids: import("./process-liveness.test-support").ProcessIdentity[] = []
     try {
       // The injected probe timeout doubles as the helpers' startup budget: both pid files must be
       // registered before the probe's SIGKILL lands, so the pipe-holding premise holds even on a
@@ -260,19 +260,19 @@ control.once("error", () => process.exit(0))
       // and then: the grandchild registered itself (it parks holding the inherited pipes), and
       // releasing the parent-owned control channel tears every helper down within a bounded
       // window - none may outlive this test process on any path.
-      const grandchildPid = await readPidWhenWritten(grandchildPidPath, HELPER_EXIT_BOUND_MS)
-      knownPids.push(grandchildPid)
-      const wrapperPid = await readPidOnce(wrapperPidPath)
-      if (wrapperPid !== null) knownPids.push(wrapperPid)
+      const grandchildIdentity = await readPidWhenWritten(grandchildPidPath, HELPER_EXIT_BOUND_MS, "grandchild.mjs")
+      knownPids.push(grandchildIdentity)
+      const wrapperIdentity = await readPidOnce(wrapperPidPath, "wrapper.mjs")
+      if (wrapperIdentity !== null) knownPids.push(wrapperIdentity)
       closeControlChannel(control, connections)
-      for (const pid of knownPids) {
-        expect(await pidTerminalWithin(pid, HELPER_EXIT_BOUND_MS)).toBe(true)
+      for (const identity of knownPids) {
+        expect(await pidTerminalWithin(identity, HELPER_EXIT_BOUND_MS)).toBe(true)
       }
     } finally {
       // Fail-safe: even when an assertion above failed, nothing this test spawned may survive it.
       closeControlChannel(control, connections)
-      for (const pid of knownPids) killIfAlive(pid)
-      await Promise.all(knownPids.map((pid) => pidTerminalWithin(pid, HELPER_FAILSAFE_BOUND_MS)))
+      for (const identity of knownPids) killIfAlive(identity)
+      await Promise.all(knownPids.map((identity) => pidTerminalWithin(identity, HELPER_FAILSAFE_BOUND_MS)))
     }
   })
 
