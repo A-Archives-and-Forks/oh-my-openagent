@@ -19,6 +19,9 @@ await new Promise<void>((resolve) => {
   const done = (): void => {
     const marker = process.env.EXIT_MARKER
     if (marker !== undefined) writeFileSync(marker, "exited\n")
+    // A still-open stdin holds the event loop after a control-channel exit; release it so the
+    // process can actually terminate on every ownership-loss path.
+    process.stdin.destroy()
     resolve()
   }
   process.stdin.once("end", done)

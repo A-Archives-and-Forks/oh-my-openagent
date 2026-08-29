@@ -66,16 +66,6 @@ function commandForPid(pid: number): string | null {
   }
 }
 
-export function waitForFileEvent(path: string, boundMs: number): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const watcher = watch(dirname(path), (_event, name) => {
-      if (name !== basename(path)) return
-      void readFile(path).then(() => { clearTimeout(timer); watcher.close(); resolve() }).catch(() => undefined)
-    })
-    const timer = setTimeout(() => { watcher.close(); reject(new Error(`file event never arrived for ${path}`)) }, boundMs)
-  })
-}
-
 export function identityMatches(identity: ProcessIdentity): boolean {
   const command = commandForPid(identity.pid)
   return command !== null && command === identity.command
@@ -86,10 +76,48 @@ export function pidTerminalWithin(identity: ProcessIdentity, boundMs: number): P
   if (process.platform !== "linux") return new Promise((resolve) => setTimeout(() => resolve(!pidAlive(identity.pid)), boundMs))
   return new Promise((resolve) => {
     let settled = false
-    const finish = (result: boolean): void => { if (settled) return; settled = true; clearTimeout(timer); watcher.close(); resolve(result) }
+    let watcher: ReturnType<typeof watch>
+    const finish = (result: boolean): void => { if (settled) return; settled = true; clearTimeout(timer); watcher?.close(); resolve(result) }
     const timer = setTimeout(() => finish(false), boundMs)
-    const watcher = watch(`/proc/${String(identity.pid)}`, () => { if (!identityMatches(identity) || !pidAlive(identity.pid)) finish(true) })
+    try {
+      watcher = watch(`/proc/${String(identity.pid)}`, () => { if (!identityMatches(identity) || !pidAlive(identity.pid)) finish(true) })
+    } catch {
+      // The target exited between the liveness probe and watcher creation; a missing /proc entry
+      // is itself the terminal signal.
+      finish(!pidAlive(identity.pid))
+      return
+    }
     watcher.on("error", () => finish(!pidAlive(identity.pid)))
+  })
+}
+
+/** Reads a pid file written by a foreign helper once it appears, without requiring the process to still be alive. */
+export function readPidFileWhenWritten(path: string, boundMs: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    let watcher: ReturnType<typeof watch>
+    const finish = (error?: Error, pid?: number): void => {
+      clearTimeout(timer)
+      watcher?.close()
+      if (error !== undefined) reject(error)
+      else if (pid !== undefined) resolve(pid)
+    }
+    const timer = setTimeout(() => finish(new Error(`pid file never appeared: ${path}`)), boundMs)
+    const tryRead = (): void => {
+      void readFile(path, "utf8").then((content) => {
+        const raw = Number(content.trim())
+        if (Number.isInteger(raw) && raw > 0) finish(undefined, raw)
+      }).catch((error: unknown) => {
+        if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) finish(error as Error)
+      })
+    }
+    try {
+      watcher = watch(dirname(path), (_event, name) => { if (name === basename(path)) tryRead() })
+    } catch (error) {
+      finish(error as Error)
+      return
+    }
+    watcher.on("error", () => undefined)
+    tryRead()
   })
 }
 
