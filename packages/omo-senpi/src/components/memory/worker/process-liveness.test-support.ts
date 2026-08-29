@@ -2,7 +2,7 @@
 // probes, pid-file readers for foreign (non-child) writers, bounded child-termination waits,
 // and fail-safe kills so a failed assertion can never leak a spawned process.
 
-import { existsSync, readFileSync, watch } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import { execFileSync } from "node:child_process"
 import type { ChildProcess } from "node:child_process"
@@ -77,23 +77,10 @@ export function identityMatches(identity: ProcessIdentity): boolean {
 }
 
 export function pidTerminalWithin(identity: ProcessIdentity, boundMs: number): Promise<boolean> {
-  if (!identityMatches(identity) || !pidAlive(identity.pid)) return Promise.resolve(true)
-  if (process.platform !== "linux") return new Promise((resolve) => setTimeout(() => resolve(!pidAlive(identity.pid)), boundMs))
-  return new Promise((resolve) => {
-    let settled = false
-    let watcher: ReturnType<typeof watch>
-    const finish = (result: boolean): void => { if (settled) return; settled = true; clearTimeout(timer); watcher?.close(); resolve(result) }
-    const timer = setTimeout(() => finish(false), boundMs)
-    try {
-      watcher = watch(`/proc/${String(identity.pid)}`, () => { if (!identityMatches(identity) || !pidAlive(identity.pid)) finish(true) })
-    } catch {
-      // The target exited between the liveness probe and watcher creation; a missing /proc entry
-      // is itself the terminal signal.
-      finish(!pidAlive(identity.pid))
-      return
-    }
-    watcher.on("error", () => finish(!pidAlive(identity.pid)))
-  })
+  // Watching /proc/<pid> cannot detect termination: a zombie keeps its /proc entry present (and
+  // procfs does not deliver reliable fs events), so a watcher can sleep through the death it
+  // waits for. The zombie-aware liveness probe is the only correct oracle on every platform.
+  return probeUntil(() => !identityMatches(identity) || !pidAlive(identity.pid), boundMs)
 }
 
 /**
