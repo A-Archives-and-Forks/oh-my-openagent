@@ -31,7 +31,7 @@ const TARGETS: readonly SkillPointerTarget[] = [
     customType: MASS_ULW_CUSTOM_TYPE,
     pattern: /\b(?:mass[\s-]*ulw|ulw[\s-]*mass|mulw|meth)\b/i,
     expandedBlockPattern: /<skill\s+name="mass-ulw"/i,
-    instruction: "orchestrate the requested work as a dependency graph of child agents with the dag tool",
+    instruction: "orchestrate the requested work as a dependency graph of child agents by composing the spec in an eval cell with the workflow tool",
   },
   {
     skillName: "ulw-plan",
