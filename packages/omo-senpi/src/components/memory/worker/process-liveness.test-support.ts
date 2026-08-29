@@ -2,10 +2,9 @@
 // probes, pid-file readers for foreign (non-child) writers, bounded child-termination waits,
 // and fail-safe kills so a failed assertion can never leak a spawned process.
 
-import { readFileSync, watch } from "node:fs"
+import { existsSync, readFileSync, watch } from "node:fs"
 import { readFile } from "node:fs/promises"
 import { execFileSync } from "node:child_process"
-import { dirname, basename } from "node:path"
 import type { ChildProcess } from "node:child_process"
 
 /**
@@ -97,62 +96,63 @@ export function pidTerminalWithin(identity: ProcessIdentity, boundMs: number): P
   })
 }
 
-/** Reads a pid file written by a foreign helper once it appears, without requiring the process to still be alive. */
-export function readPidFileWhenWritten(path: string, boundMs: number): Promise<number> {
-  return new Promise((resolve, reject) => {
-    let watcher: ReturnType<typeof watch>
-    const finish = (error?: Error, pid?: number): void => {
-      clearTimeout(timer)
-      watcher?.close()
-      if (error !== undefined) reject(error)
-      else if (pid !== undefined) resolve(pid)
-    }
-    const timer = setTimeout(() => finish(new Error(`pid file never appeared: ${path}`)), boundMs)
-    const tryRead = (): void => {
-      void readFile(path, "utf8").then((content) => {
-        const raw = Number(content.trim())
-        if (Number.isInteger(raw) && raw > 0) finish(undefined, raw)
-      }).catch((error: unknown) => {
-        if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) finish(error as Error)
-      })
-    }
-    try {
-      watcher = watch(dirname(path), (_event, name) => { if (name === basename(path)) tryRead() })
-    } catch (error) {
-      finish(error as Error)
-      return
-    }
-    watcher.on("error", () => undefined)
-    tryRead()
-  })
+/**
+ * Bounded condition probe: resolves true once `condition` holds, false once `boundMs` elapsed.
+ * This is the sanctioned fallback for waiting on FOREIGN processes/files, where no OS-level
+ * event exists (fs.watch is unreliable on some platforms - events can arrive late or never).
+ * It is never an ordering oracle: callers assert on the condition outcome, not on elapsed time.
+ */
+export async function probeUntil(condition: () => boolean | Promise<boolean>, boundMs: number, intervalMs = 25): Promise<boolean> {
+  const deadline = Date.now() + boundMs
+  for (;;) {
+    if (await condition()) return true
+    if (Date.now() >= deadline) return false
+    await new Promise<void>((resolve) => setTimeout(resolve, intervalMs))
+  }
 }
 
-/** Polls a pid file written by a foreign helper and snapshots its command identity. */
-export function readPidWhenWritten(path: string, boundMs: number, expectedCommand?: string): Promise<ProcessIdentity> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => finish(new Error(`helper pid never appeared at ${path}`)), boundMs)
-    const directory = dirname(path)
-    const filename = basename(path)
-    const watcher = watch(directory, (_event, name) => {
-      if (name !== filename) return
-      void readIdentity().then((identity) => { if (identity !== null) finish(undefined, identity) }).catch(finish)
-    })
-    const finish = (error?: Error, identity?: ProcessIdentity): void => {
-      clearTimeout(timer)
-      watcher.close()
-      if (error !== undefined) reject(error)
-      else if (identity !== undefined) resolve(identity)
-    }
-    const readIdentity = async (): Promise<ProcessIdentity | null> => {
+/** Waits until a file exists (bounded probe; see probeUntil). */
+export function waitForFileToExist(path: string, boundMs: number): Promise<boolean> {
+  return probeUntil(() => existsSync(path), boundMs)
+}
+
+/** Reads a pid file written by a foreign helper once it appears, without requiring the process to still be alive. */
+export async function readPidFileWhenWritten(path: string, boundMs: number): Promise<number> {
+  let pid: number | null = null
+  const found = await probeUntil(async () => {
+    try {
       const raw = Number((await readFile(path, "utf8")).trim())
-      if (!Number.isInteger(raw) || raw <= 0) return null
-      const command = commandForPid(raw)
-      return command !== null && (expectedCommand === undefined || command.includes(expectedCommand)) ? { pid: raw, command } : null
+      if (Number.isInteger(raw) && raw > 0) {
+        pid = raw
+        return true
+      }
+    } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error
     }
-    void readIdentity().then((identity) => { if (identity !== null) finish(undefined, identity) }).catch((error: unknown) => {
-      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) finish(error as Error)
-    })
-  })
+    return false
+  }, boundMs)
+  if (!found || pid === null) throw new Error(`pid file never appeared: ${path}`)
+  return pid
+}
+
+/** Reads a pid file written by a foreign helper and snapshots its command identity. */
+export async function readPidWhenWritten(path: string, boundMs: number, expectedCommand?: string): Promise<ProcessIdentity> {
+  let identity: ProcessIdentity | null = null
+  const found = await probeUntil(() => {
+    let raw: number
+    try {
+      raw = Number(readFileSync(path, "utf8").trim())
+    } catch {
+      return false
+    }
+    if (!Number.isInteger(raw) || raw <= 0) return false
+    const command = commandForPid(raw)
+    if (command === null || (expectedCommand !== undefined && !command.includes(expectedCommand))) return false
+    identity = { pid: raw, command }
+    return true
+  }, boundMs)
+  if (!found || identity === null) throw new Error(`helper pid never appeared at ${path}`)
+  return identity
 }
 
 /** Single identity read; null when absent or the process no longer matches. */

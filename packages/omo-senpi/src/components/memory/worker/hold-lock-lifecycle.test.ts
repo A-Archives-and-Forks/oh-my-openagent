@@ -1,15 +1,14 @@
 import { describe, expect, test } from "bun:test"
 import { spawn } from "node:child_process"
 import type { ChildProcess, ChildProcessWithoutNullStreams } from "node:child_process"
-import { existsSync, watch } from "node:fs"
-import type { FSWatcher } from "node:fs"
+import { existsSync } from "node:fs"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { createServer } from "node:net"
 import type { Server, Socket } from "node:net"
 import { tmpdir } from "node:os"
-import { basename, dirname, join } from "node:path"
+import { join } from "node:path"
 
-import { captureIdentity, pidAlive, pidTerminalWithin, readPidFileWhenWritten } from "./process-liveness.test-support"
+import { captureIdentity, killIfAlive, pidAlive, pidTerminalWithin, readPidFileWhenWritten, waitForFileToExist } from "./process-liveness.test-support"
 
 const holdLockFixture = join(import.meta.dir, "__fixtures__", "hold-lock.ts")
 const READY_TIMEOUT_MS = 10_000
@@ -38,27 +37,6 @@ function waitForReady(child: ChildProcessWithoutNullStreams): Promise<void> {
     }
     child.stdout.on("data", onData)
     child.once("exit", () => reject(new Error("lock holder exited before readiness")))
-  })
-}
-
-function waitForFile(path: string, boundMs: number): Promise<void> {
-  if (existsSync(path)) return Promise.resolve()
-  return new Promise((resolve, reject) => {
-    let watcher: FSWatcher
-    const timer = setTimeout(() => { watcher.close(); reject(new Error(`file never appeared: ${path}`)) }, boundMs)
-    try {
-      watcher = watch(dirname(path), (_event, name) => {
-        if (name !== basename(path)) return
-        clearTimeout(timer)
-        watcher.close()
-        resolve()
-      })
-    } catch (error) {
-      clearTimeout(timer)
-      reject(error as Error)
-      return
-    }
-    watcher.on("error", (error) => { clearTimeout(timer); reject(error) })
   })
 }
 
@@ -109,9 +87,10 @@ describe("hold-lock fixture lifecycle", () => {
       for (const socket of connections) socket.destroy()
       control.close()
 
-      // then
-      await waitForFile(marker, EXIT_TIMEOUT_MS)
+      // then: the child's own exit is the terminal event; the fixture writes the marker before
+      // releasing its parking promise, so the marker is on disk once the exit lands.
       expect((await exit).signal).toBeNull()
+      expect(existsSync(marker)).toBe(true)
     } finally {
       child.kill("SIGKILL")
       control.close()
@@ -158,9 +137,12 @@ child.stdout.on("data", (chunk) => {
       if (wrapper.exitCode !== null || wrapper.signalCode !== null) { onExit(wrapper.exitCode, wrapper.signalCode); return }
       wrapper.once("exit", onExit)
     })
-    let holderPid: number | null = null
+    let holderIdentityForCleanup: import("./process-liveness.test-support").ProcessIdentity | null = null
     try {
-      holderPid = await readPidFileWhenWritten(holderPidPath, READY_TIMEOUT_MS)
+      const holderPid = await readPidFileWhenWritten(holderPidPath, READY_TIMEOUT_MS)
+      // The holder is alive at this point (the wrapper dies only after writing the pid file), so
+      // the identity snapshot doubles as the fail-safe's PID-reuse guard.
+      holderIdentityForCleanup = captureIdentity(holderPid)
 
       // when
       await wrapperExit
@@ -169,18 +151,15 @@ child.stdout.on("data", (chunk) => {
       // precedes the process's actual exit by a beat, so termination is awaited event-first
       // (the /proc watcher on linux, a bounded liveness probe elsewhere) instead of being
       // asserted from a single point-in-time probe.
-      const holderIdentity = captureIdentity(holderPid)
-      await waitForFile(marker, EXIT_TIMEOUT_MS)
-      if (holderIdentity !== null) {
-        expect(await pidTerminalWithin(holderIdentity, EXIT_TIMEOUT_MS)).toBe(true)
+      expect(await waitForFileToExist(marker, EXIT_TIMEOUT_MS)).toBe(true)
+      if (holderIdentityForCleanup !== null) {
+        expect(await pidTerminalWithin(holderIdentityForCleanup, EXIT_TIMEOUT_MS)).toBe(true)
       } else {
         expect(pidAlive(holderPid)).toBe(false)
       }
     } finally {
       wrapper.kill("SIGKILL")
-      if (holderPid !== null && pidAlive(holderPid)) {
-        try { process.kill(holderPid, "SIGKILL") } catch { /* already gone */ }
-      }
+      if (holderIdentityForCleanup !== null) killIfAlive(holderIdentityForCleanup)
       await rm(root, { recursive: true, force: true })
     }
   }, 30_000)

@@ -1,14 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { watch } from "node:fs"
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
+import { mkdtemp, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { basename, dirname, join } from "node:path"
+import { join } from "node:path"
 import { createServer } from "node:net"
 import type { Server, Socket } from "node:net"
 
 import { preflightMemoryModels, resetModelPreflightCacheForTests } from "./model-preflight"
 import type { MemoryModelChain } from "./memory-model-attempts"
-import { identityMatches, killIfAlive, pidAlive, pidTerminalWithin, readPidWhenWritten } from "./process-liveness.test-support"
+import { identityMatches, killIfAlive, pidAlive, pidTerminalWithin, readPidFileWhenWritten, readPidWhenWritten } from "./process-liveness.test-support"
 
 const roots: string[] = []
 
@@ -224,26 +223,6 @@ control.once("error", () => process.exit(0))
     const address = control.address()
     if (address === null || typeof address === "string") throw new Error("control listener has no tcp port")
     let grandchildIdentityForCleanup: import("./process-liveness.test-support").ProcessIdentity | null = null
-    const waitForPidFile = async (path: string, boundMs: number): Promise<number> => {
-      const startedAt = Date.now()
-      for (;;) {
-        try {
-          const raw = Number((await readFile(path, "utf8")).trim())
-          if (Number.isInteger(raw) && raw > 0) return raw
-        } catch (error) {
-          if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error
-        }
-        if (Date.now() - startedAt > boundMs) throw new Error(`pid file never appeared: ${path}`)
-        await new Promise<void>((resolve) => {
-          const watcher = watch(dirname(path), (_event, name) => {
-            if (name !== basename(path)) return
-            watcher.close()
-            resolve()
-          })
-          watcher.on("error", () => { watcher.close(); resolve() })
-        })
-      }
-    }
     try {
       // The injected probe timeout doubles as the helpers' startup budget: both pid files must be
       // registered before the probe's SIGKILL lands, so the pipe-holding premise holds even on a
@@ -282,7 +261,7 @@ control.once("error", () => process.exit(0))
       // Production must have killed the launcher; the grandchild must still be alive holding the
       // inherited pipes (otherwise the degradation premise never held); and releasing the
       // parent-owned control channel must take the original grandchild down with it.
-      const wrapperPid = await waitForPidFile(wrapperPidPath, HELPER_EXIT_BOUND_MS)
+      const wrapperPid = await readPidFileWhenWritten(wrapperPidPath, HELPER_EXIT_BOUND_MS)
       const grandchildIdentity = await readPidWhenWritten(grandchildPidPath, HELPER_EXIT_BOUND_MS, "grandchild.mjs")
       grandchildIdentityForCleanup = grandchildIdentity
       expect(pidAlive(wrapperPid)).toBe(false)
