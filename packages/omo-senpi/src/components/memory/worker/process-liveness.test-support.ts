@@ -2,9 +2,10 @@
 // probes, pid-file readers for foreign (non-child) writers, bounded child-termination waits,
 // and fail-safe kills so a failed assertion can never leak a spawned process.
 
-import { readFileSync } from "node:fs"
+import { readFileSync, watch } from "node:fs"
 import { readFile } from "node:fs/promises"
 import { execFileSync } from "node:child_process"
+import { dirname, basename } from "node:path"
 import type { ChildProcess } from "node:child_process"
 
 /**
@@ -65,6 +66,16 @@ function commandForPid(pid: number): string | null {
   }
 }
 
+export function waitForFileEvent(path: string, boundMs: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const watcher = watch(dirname(path), (_event, name) => {
+      if (name !== basename(path)) return
+      void readFile(path).then(() => { clearTimeout(timer); watcher.close(); resolve() }).catch(() => undefined)
+    })
+    const timer = setTimeout(() => { watcher.close(); reject(new Error(`file event never arrived for ${path}`)) }, boundMs)
+  })
+}
+
 export function identityMatches(identity: ProcessIdentity): boolean {
   const command = commandForPid(identity.pid)
   return command !== null && command === identity.command
@@ -80,23 +91,31 @@ export async function pidTerminalWithin(identity: ProcessIdentity, boundMs: numb
 }
 
 /** Polls a pid file written by a foreign helper and snapshots its command identity. */
-export async function readPidWhenWritten(path: string, boundMs: number, expectedCommand?: string): Promise<ProcessIdentity> {
-  const deadline = Date.now() + boundMs
-  for (;;) {
-    try {
-      const raw = Number((await readFile(path, "utf8")).trim())
-      if (Number.isInteger(raw) && raw > 0) {
-        const command = commandForPid(raw)
-        if (command !== null && (expectedCommand === undefined || command.includes(expectedCommand))) {
-          return { pid: raw, command }
-        }
-      }
-    } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error
+export function readPidWhenWritten(path: string, boundMs: number, expectedCommand?: string): Promise<ProcessIdentity> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => finish(new Error(`helper pid never appeared at ${path}`)), boundMs)
+    const directory = dirname(path)
+    const filename = basename(path)
+    const watcher = watch(directory, (_event, name) => {
+      if (name !== filename) return
+      void readIdentity().then((identity) => { if (identity !== null) finish(undefined, identity) }).catch(finish)
+    })
+    const finish = (error?: Error, identity?: ProcessIdentity): void => {
+      clearTimeout(timer)
+      watcher.close()
+      if (error !== undefined) reject(error)
+      else if (identity !== undefined) resolve(identity)
     }
-    if (Date.now() >= deadline) throw new Error(`helper pid never appeared at ${path}`)
-    await Bun.sleep(5)
-  }
+    const readIdentity = async (): Promise<ProcessIdentity | null> => {
+      const raw = Number((await readFile(path, "utf8")).trim())
+      if (!Number.isInteger(raw) || raw <= 0) return null
+      const command = commandForPid(raw)
+      return command !== null && (expectedCommand === undefined || command.includes(expectedCommand)) ? { pid: raw, command } : null
+    }
+    void readIdentity().then((identity) => { if (identity !== null) finish(undefined, identity) }).catch((error: unknown) => {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) finish(error as Error)
+    })
+  })
 }
 
 /** Single identity read; null when absent or the process no longer matches. */

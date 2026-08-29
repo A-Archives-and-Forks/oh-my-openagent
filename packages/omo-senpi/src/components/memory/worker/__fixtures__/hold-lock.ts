@@ -3,6 +3,9 @@
 // owners) cannot reclaim it while the test is running. The test normally kills the child; readiness is
 // signalled on stdout, never timed.
 
+import { writeFileSync } from "node:fs"
+import { connect } from "node:net"
+
 import { acquireLock, createLockRecord } from "@oh-my-opencode/memory-core"
 
 const lockPath = process.argv[2]
@@ -13,8 +16,19 @@ await acquireLock(lockPath, record, { waitTimeoutMs: 10_000, retryDelayMs: 10 })
 process.stdout.write("held\n")
 
 await new Promise<void>((resolve) => {
-  process.stdin.once("end", resolve)
-  process.stdin.once("close", resolve)
-  process.stdin.once("error", resolve)
+  const done = (): void => {
+    const marker = process.env.EXIT_MARKER
+    if (marker !== undefined) writeFileSync(marker, "exited\n")
+    resolve()
+  }
+  process.stdin.once("end", done)
+  process.stdin.once("close", done)
+  process.stdin.once("error", done)
   process.stdin.resume()
+  const port = process.env.CONTROL_PORT
+  if (port !== undefined) {
+    const control = connect({ host: "127.0.0.1", port: Number(port) })
+    control.once("close", done)
+    control.once("error", done)
+  }
 })
