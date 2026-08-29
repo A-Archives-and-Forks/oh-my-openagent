@@ -81,13 +81,15 @@ export function identityMatches(identity: ProcessIdentity): boolean {
   return command !== null && command === identity.command
 }
 
-export async function pidTerminalWithin(identity: ProcessIdentity, boundMs: number): Promise<boolean> {
-  const deadline = Date.now() + boundMs
-  for (;;) {
-    if (!identityMatches(identity) || !pidAlive(identity.pid)) return true
-    if (Date.now() >= deadline) return false
-    await Bun.sleep(10)
-  }
+export function pidTerminalWithin(identity: ProcessIdentity, boundMs: number): Promise<boolean> {
+  if (!identityMatches(identity) || !pidAlive(identity.pid)) return Promise.resolve(true)
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => settle(false), boundMs)
+    const watcher = watch(dirname(`/proc/${String(identity.pid)}`), () => {
+      if (!identityMatches(identity) || !pidAlive(identity.pid)) settle(true)
+    })
+    const settle = (result: boolean): void => { clearTimeout(timer); watcher.close(); resolve(result) }
+  })
 }
 
 /** Polls a pid file written by a foreign helper and snapshots its command identity. */
