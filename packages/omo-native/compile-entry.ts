@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { spawn } from "node:child_process"
@@ -73,6 +73,22 @@ export function isProvisionedExecutable(execPath: string, expectedPath: string):
   }
 }
 
+/**
+ * True when the destination already holds this exact executable.
+ *
+ * Compares size only: the POSIX write path below is temp-then-rename, so a
+ * destination is never partially written, and rehashing ~114MB on every launch
+ * would reintroduce the cost this guard exists to remove.
+ */
+function provisionedExecutableMatches(sourcePath: string, destinationPath: string): boolean {
+  try {
+    if (!existsSync(destinationPath)) return false
+    return statSync(destinationPath).size === statSync(sourcePath).size
+  } catch {
+    return false
+  }
+}
+
 export function materializeProvisionedExecutable(
   sourcePath: string,
   destinationPath: string,
@@ -84,6 +100,7 @@ export function materializeProvisionedExecutable(
     chmodSync(destinationPath, 0o755)
     return
   }
+  if (provisionedExecutableMatches(sourcePath, destinationPath)) return
   const temporaryPath = `${destinationPath}.tmp-${process.pid}`
   try {
     rmSync(temporaryPath, { force: true })
@@ -103,8 +120,16 @@ export function runningExecutablePath(
   return platform === "win32" && argv0.toLowerCase().endsWith(".exe") ? argv0 : execPath
 }
 
-export function shouldReexecAfterProvisioning(platform = process.platform): boolean {
-  return platform !== "win32"
+/**
+ * Provisioning always continues in the already-started process.
+ *
+ * The engine module graph is bundled into this executable, so running it does
+ * not require being the provisioned copy. Re-executing that copy cost a second
+ * full process startup on EVERY launch from a normal install path, because the
+ * running executable is never the provisioned one.
+ */
+export function shouldReexecAfterProvisioning(_platform = process.platform): boolean {
+  return false
 }
 
 export function remapSenpiEnvironment(source: NodeJS.ProcessEnv = process.env, execDir: string): NodeJS.ProcessEnv {
@@ -115,6 +140,12 @@ export function remapSenpiEnvironment(source: NodeJS.ProcessEnv = process.env, e
   const agentDir = canonicalAgentDir(env)
   env.OMO_CODING_AGENT_DIR = agentDir
   env.SENPI_CODING_AGENT_DIR = agentDir
+  // The engine resolves its package dir from PACKAGE_DIR before falling back to
+  // dirname(process.execPath). Provisioning now continues in-process, so execPath
+  // stays at the user's install path while the payload lives under execDir - pin
+  // the root explicitly rather than relying on the running image's location.
+  env.OMO_PACKAGE_DIR = execDir
+  env.SENPI_PACKAGE_DIR = execDir
   env.OMO_NATIVE = "1"
   env.SENPI_RUNTIME = process.versions.bun ? "bun" : "node"
   let displayVersion = "unknown"

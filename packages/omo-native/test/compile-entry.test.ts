@@ -32,7 +32,26 @@ describe("compiled omo entry launcher parity", () => {
     expect(runningExecutablePath("bun", "/usr/local/bin/bun", "win32")).toBe("/usr/local/bin/bun")
     expect(runningExecutablePath("/runtime/omo", "/usr/local/bin/bun", "darwin")).toBe("/usr/local/bin/bun")
     expect(shouldReexecAfterProvisioning("win32")).toBe(false)
-    expect(shouldReexecAfterProvisioning("darwin")).toBe(true)
+    expect(shouldReexecAfterProvisioning("darwin")).toBe(false)
+  })
+
+  test("pins the engine package dir to the provisioned root, not the running executable", () => {
+    // In-process continuation leaves process.execPath at the user's install path
+    // (e.g. ~/.bun/bin/omob), while the plugin payload lives under the provisioned
+    // root. The engine's getPackageDir() consults PACKAGE_DIR before falling back
+    // to dirname(process.execPath), so the launcher must pin it explicitly.
+    const env = remapSenpiEnvironment({}, "/provisioned/root")
+    expect(env.OMO_PACKAGE_DIR ?? env.SENPI_PACKAGE_DIR).toBe("/provisioned/root")
+  })
+
+  test("provisioning never re-execs: the engine runs in the already-started process", () => {
+    // Re-exec cost a full second process startup on EVERY run launched from a
+    // non-provisioned path (the normal install location), because the running
+    // executable is never the provisioned copy. The bundled engine graph is
+    // already inside this process, so provisioning continues in-process.
+    for (const platform of ["darwin", "linux", "win32"] as const) {
+      expect(shouldReexecAfterProvisioning(platform)).toBe(false)
+    }
   })
 
   test("early commands pass through without an extension", () => {
@@ -94,6 +113,37 @@ describe("embedded runtime provisioning", () => {
     materializeProvisionedExecutable(source, destination, "win32")
 
     expect(readFileSync(destination, "utf8")).toBe("existing binary")
+  })
+
+  test("skips re-copying an identical provisioned executable on POSIX", () => {
+    const root = temp()
+    const source = join(root, "source.exe")
+    const destination = join(root, "runtime", "omo.exe")
+    mkdirSync(join(root, "runtime"), { recursive: true })
+    writeFileSync(source, "compiled binary")
+
+    materializeProvisionedExecutable(source, destination, "darwin")
+    const first = statSync(destination).mtimeMs
+
+    materializeProvisionedExecutable(source, destination, "darwin")
+
+    // Copying ~114MB on every launch was the dominant cold-start cost; an
+    // unchanged destination must not be rewritten.
+    expect(statSync(destination).mtimeMs).toBe(first)
+    expect(readFileSync(destination, "utf8")).toBe("compiled binary")
+  })
+
+  test("still replaces a provisioned executable whose contents differ on POSIX", () => {
+    const root = temp()
+    const source = join(root, "source.exe")
+    const destination = join(root, "runtime", "omo.exe")
+    mkdirSync(join(root, "runtime"), { recursive: true })
+    writeFileSync(source, "new binary")
+    writeFileSync(destination, "stale binary of different length")
+
+    materializeProvisionedExecutable(source, destination, "darwin")
+
+    expect(readFileSync(destination, "utf8")).toBe("new binary")
   })
 
   test("materializes the executable through a temporary non-executable path on POSIX", () => {
