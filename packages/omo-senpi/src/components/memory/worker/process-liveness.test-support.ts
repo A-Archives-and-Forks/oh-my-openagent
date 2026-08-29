@@ -83,12 +83,13 @@ export function identityMatches(identity: ProcessIdentity): boolean {
 
 export function pidTerminalWithin(identity: ProcessIdentity, boundMs: number): Promise<boolean> {
   if (!identityMatches(identity) || !pidAlive(identity.pid)) return Promise.resolve(true)
+  if (process.platform !== "linux") return new Promise((resolve) => setTimeout(() => resolve(!pidAlive(identity.pid)), boundMs))
   return new Promise((resolve) => {
-    const timer = setTimeout(() => settle(false), boundMs)
-    const watcher = watch(dirname(`/proc/${String(identity.pid)}`), () => {
-      if (!identityMatches(identity) || !pidAlive(identity.pid)) settle(true)
-    })
-    const settle = (result: boolean): void => { clearTimeout(timer); watcher.close(); resolve(result) }
+    let settled = false
+    const finish = (result: boolean): void => { if (settled) return; settled = true; clearTimeout(timer); watcher.close(); resolve(result) }
+    const timer = setTimeout(() => finish(false), boundMs)
+    const watcher = watch(`/proc/${String(identity.pid)}`, () => { if (!identityMatches(identity) || !pidAlive(identity.pid)) finish(true) })
+    watcher.on("error", () => finish(!pidAlive(identity.pid)))
   })
 }
 
