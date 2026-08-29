@@ -25,7 +25,7 @@ Reading this file is not planning. Before `start`, write the run plan in one bre
 - **By file domain** - when one component spans disjoint file sets, one node per set.
 - **By phase** - collect lanes (investigate, in parallel) -> verify lanes (falsify the collections) -> synthesize (turn verified facts into the deliverable).
 
-**Default shape is fan-out, then fan-in.** N parallel lanes with no dependencies, then one synthesis node that depends on all of them. The synthesis node starts cheap too (`quick` or `unspecified-low`): merging verified pieces is mechanical unless the merge itself needs judgment. A 2-node graph with no dependency between the nodes is not a dag - use plain parallel `task` spawns instead. Reach for `dag` when ordering itself is the point.
+**Default shape is fan-out, then fan-in.** N parallel lanes with no dependencies, then one synthesis node that depends on all of them. The synthesis node starts cheap too (`quick` or `unspecified-low`): merging verified pieces is mechanical unless the merge itself needs judgment. A 2-node graph with no dependency between the nodes is not a dag - use plain parallel `task` spawns instead. Reach for `workflow` when ordering itself is the point.
 
 **Mass harvests: nodes are not units of work.** When a research or scan wave must cover thousands of sources or files (a 10,000-source harvest is legitimate when the work demands it), shard items INTO nodes instead of one node per item: each `quick` node owns a batch sized by its report contract - collect ~50-200 items and write ONE bounded file report (<= 5k tokens) to a ledger path - so `N_nodes = ceil(total_items / items_per_node)`. Under the default caps that is ~100k items per session before touching a knob; past one run's cap, chain runs with the multi-run composition below and give every run its own aggregator node, so synthesis reads per-run digests, never raw node outputs.
 
@@ -65,7 +65,7 @@ A graph whose every node is `deep` is a routing failure: it pays the most expens
 
 ## Eval orchestration patterns
 
-The dag surface is built to be driven from an eval cell: the JS SDK is a thin proxy over the `dag` tool, and a settled run returns every node's output text to the cell (`result.nodes[id].output`). That makes the cell the meta-orchestrator AROUND runs, not just a launcher. The patterns below are all standard practice - use them.
+The dag surface is built to be driven from an eval cell: the JS SDK is a thin proxy over the `workflow` tool, and a settled run returns every node's output text to the cell (`result.nodes[id].output`). That makes the cell the meta-orchestrator AROUND runs, not just a launcher. The patterns below are all standard practice - use them.
 
 **Data-driven graph construction.** Build the node list in a loop from runtime data, so fan-out width is decided by what actually exists, not by what you guessed up front:
 
@@ -132,7 +132,7 @@ Rules that make node prompts obeyed:
 - **Emphasis lives in the words.** UPPERCASE, **bold**, and strong declarative verbs for load-bearing rules. No emojis, no banner dividers, no decoration - the worker reads decorated sections as flavor and skips them.
 - **One role per node.** A node that investigates does not also fix; a node that writes does not also review its own work. Role-stacked prompts produce workers that grade their own homework.
 
-**The `start` result audits this contract.** Every `dag` `start` returns advisory `warnings` when a node prompt is missing its TASK:/STOP WHEN markers or the graph has no verification node. Warnings never block the run - treat them as defects in your definition: cancel, fix the prompts, and start again under a NEW key.
+**The `start` result audits this contract.** Every `workflow` `start` returns advisory `warnings` when a node prompt is missing its TASK:/STOP WHEN markers or the graph has no verification node. Warnings never block the run - treat them as defects in your definition: cancel, fix the prompts, and start again under a NEW key.
 
 ## Verification wave
 
