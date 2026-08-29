@@ -32,26 +32,15 @@ describe("compiled omo entry launcher parity", () => {
     expect(runningExecutablePath("bun", "/usr/local/bin/bun", "win32")).toBe("/usr/local/bin/bun")
     expect(runningExecutablePath("/runtime/omo", "/usr/local/bin/bun", "darwin")).toBe("/usr/local/bin/bun")
     expect(shouldReexecAfterProvisioning("win32")).toBe(false)
-    expect(shouldReexecAfterProvisioning("darwin")).toBe(false)
+    expect(shouldReexecAfterProvisioning("darwin")).toBe(true)
   })
 
-  test("pins the engine package dir to the provisioned root, not the running executable", () => {
-    // In-process continuation leaves process.execPath at the user's install path
-    // (e.g. ~/.bun/bin/omob), while the plugin payload lives under the provisioned
-    // root. The engine's getPackageDir() consults PACKAGE_DIR before falling back
-    // to dirname(process.execPath), so the launcher must pin it explicitly.
+  test("pins the engine package dir to the provisioned root", () => {
+    // Defence in depth alongside the re-exec: PACKAGE_DIR is consulted by
+    // getPackageDir() ahead of dirname(process.execPath), so the engine stays
+    // correct on any path that reaches it without having been re-executed.
     const env = remapSenpiEnvironment({}, "/provisioned/root")
     expect(env.OMO_PACKAGE_DIR ?? env.SENPI_PACKAGE_DIR).toBe("/provisioned/root")
-  })
-
-  test("provisioning never re-execs: the engine runs in the already-started process", () => {
-    // Re-exec cost a full second process startup on EVERY run launched from a
-    // non-provisioned path (the normal install location), because the running
-    // executable is never the provisioned copy. The bundled engine graph is
-    // already inside this process, so provisioning continues in-process.
-    for (const platform of ["darwin", "linux", "win32"] as const) {
-      expect(shouldReexecAfterProvisioning(platform)).toBe(false)
-    }
   })
 
   test("early commands pass through without an extension", () => {

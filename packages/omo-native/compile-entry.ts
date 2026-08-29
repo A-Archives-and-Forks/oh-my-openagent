@@ -121,15 +121,16 @@ export function runningExecutablePath(
 }
 
 /**
- * Provisioning always continues in the already-started process.
+ * Re-exec the provisioned copy so the process runs FROM the runtime directory.
  *
- * The engine module graph is bundled into this executable, so running it does
- * not require being the provisioned copy. Re-executing that copy cost a second
- * full process startup on EVERY launch from a normal install path, because the
- * running executable is never the provisioned one.
+ * Several bundled libraries resolve resources beside the running image - the
+ * engine's package dir, the pty loader's package.json version read, and the
+ * clipboard helper's require root. Anchoring the process next to the unpacked
+ * payload keeps all of them correct. The per-run cost is now just the spawn:
+ * materializeProvisionedExecutable skips the ~114MB copy once it is in place.
  */
-export function shouldReexecAfterProvisioning(_platform = process.platform): boolean {
-  return false
+export function shouldReexecAfterProvisioning(platform = process.platform): boolean {
+  return platform !== "win32"
 }
 
 export function remapSenpiEnvironment(source: NodeJS.ProcessEnv = process.env, execDir: string): NodeJS.ProcessEnv {
