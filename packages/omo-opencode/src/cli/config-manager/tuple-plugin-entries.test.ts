@@ -5,6 +5,7 @@ import { join } from "node:path"
 
 import { addPluginToOpenCodeConfig } from "./add-plugin-to-opencode-config"
 import { resetConfigContext } from "./config-context"
+import { detectCurrentConfig } from "./detect-current-config"
 import * as pluginNameWithVersion from "./plugin-name-with-version"
 
 describe("addPluginToOpenCodeConfig - tuple plugin entries", () => {
@@ -84,6 +85,40 @@ describe("addPluginToOpenCodeConfig - tuple plugin entries", () => {
     expect(result.success).toBe(true)
     const savedConfig = JSON.parse(readFileSync(configPath, "utf-8"))
     expect(savedConfig.plugin).toEqual(["other-plugin", ["oh-my-openagent", { verbose: true }]])
+  })
+
+  it("#given a tuple entry alongside our entry #when detecting the current config #then the install is still detected", () => {
+    // given
+    const configPath = join(testConfigDir, "opencode.json")
+    writeFileSync(
+      configPath,
+      JSON.stringify({ plugin: [["some-plugin@1.2.3", { enabled: true }], "oh-my-openagent@3.11.0"] }, null, 2) + "\n",
+      "utf-8",
+    )
+
+    // when
+    const result = detectCurrentConfig()
+
+    // then
+    expect(result.isInstalled).toBe(true)
+    expect(result.installedVersion).toBe("3.11.0")
+  })
+
+  it("#given our plugin declared as a tuple #when detecting the current config #then the pinned version is read from the entry name", () => {
+    // given
+    const configPath = join(testConfigDir, "opencode.json")
+    writeFileSync(
+      configPath,
+      JSON.stringify({ plugin: [["oh-my-openagent@3.11.0", { verbose: true }]] }, null, 2) + "\n",
+      "utf-8",
+    )
+
+    // when
+    const result = detectCurrentConfig()
+
+    // then
+    expect(result.isInstalled).toBe(true)
+    expect(result.installedVersion).toBe("3.11.0")
   })
 
   it("#given a tuple entry pinned above the install version #when adding the plugin #then the downgrade is blocked", async () => {
