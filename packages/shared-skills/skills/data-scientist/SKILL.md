@@ -60,7 +60,7 @@ a direct scan. Then place the work:
   re-scan into milliseconds.
 - **Query in place / stream** when the question is single-pass, or the data exceeds RAM:
   DuckDB reads files directly (`FROM 'data.csv'`); past RAM, cap DuckDB's memory and let it
-  spill, or use Polars' streaming engine in the uv lane. NEVER load a larger-than-RAM
+  spill, or use Polars' streaming engine in the Python kernel. NEVER load a larger-than-RAM
   dataset fully into memory — swapping stalls the whole machine, while streaming merely
   takes longer.
 - **Query remotely, in place** when the data lives elsewhere: DuckDB reads http(s)/S3

@@ -3,7 +3,8 @@
 When the work is DataFrame-shaped, Polars is the right engine — and it runs in the resident
 Python kernel by default. Kernels rarely ship polars/pyarrow preinstalled, so inject them
 once per session; the install lands in a user cache keyed to the kernel's interpreter, and
-the interpreter itself is never mutated:
+the interpreter itself is never mutated (run with the skill directory as cwd, or spell out
+the script's absolute path):
 
 ```python
 import subprocess, sys
