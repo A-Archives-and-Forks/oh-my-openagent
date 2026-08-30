@@ -119,6 +119,29 @@ function isSelfUpdate(args: string[]): boolean {
   return rest.every((arg) => arg.startsWith("-") || selfUpdateTargets.has(arg))
 }
 
+export function answerCompiledFastPath(args: string[], manifest: Pick<EmbeddedManifest, "omoAiVersion" | "enginePin">): boolean {
+  if ((args[0] === "--version" || args[0] === "-v") && args.length === 1) {
+    console.log(versionLine({ version: manifest.omoAiVersion }, manifest.enginePin))
+    return true
+  }
+  if (isSelfUpdate(args)) {
+    console.log(updateLine(process.platform, process.arch))
+    return true
+  }
+  return false
+}
+
+export function shouldPrintCompiledBanner(args: string[], stderrIsTTY: boolean): boolean {
+  if (!stderrIsTTY) return false
+  if (args.includes("-p") || args.includes("--print") || args.includes("--mode")) return false
+  const command = args[0]
+  if (command === undefined) return true
+  if (earlyCommands.has(command)) return false
+  if (command === "update" || command === "doctor" || command === "setup" || command === "ulw-loop") return false
+  if (command === "--version" || command === "-v") return false
+  return true
+}
+
 export async function runCompiledLauncher(args: string[], execDir: string, enginePin = "unknown", compiledPackageRoot?: string): Promise<boolean> {
   const packageJson = readJson(join(execDir, "package.json"))
   migrateLegacyBunGlobalManifest(execDir)
@@ -150,6 +173,7 @@ async function main(): Promise<void> {
   const manifestFile = await selectRuntimeManifest(embedded)
   if (!manifestFile) throw new Error("embedded runtime-manifest.json is missing")
   const manifest = JSON.parse(await embeddedText(manifestFile)) as EmbeddedManifest
+  if (answerCompiledFastPath(process.argv.slice(2), manifest)) return
   const runningExecutable = runningExecutablePath()
   const expected = join(homedir(), ".omo", "binary-runtime", manifest.omoAiVersion, process.platform === "win32" ? "omo.exe" : "omo")
   let execDir = dirname(runningExecutable)
@@ -166,6 +190,9 @@ async function main(): Promise<void> {
   // Inspector and custom execArgv isolation is unsupported in compiled binaries; the provisioned
   // executable delegates to the engine in-process as required by the native startup contract.
   if (await runCompiledLauncher(process.argv.slice(2), execDir, manifest.enginePin, execDir)) return
+  if (shouldPrintCompiledBanner(process.argv.slice(2), process.stderr.isTTY === true)) {
+    console.error(`omo (omo-ai beta ${manifest.omoAiVersion})`)
+  }
   process.argv.splice(2, process.argv.length - 2, ...buildSenpiArgs(process.argv.slice(2), execDir))
   Object.assign(process.env, remapSenpiEnvironment(process.env, execDir))
   await import("../../node_modules/@code-yeongyu/senpi/dist/cli.js") // literal: see import note above
