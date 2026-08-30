@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test"
 import { readFileSync } from "node:fs"
+import { fileURLToPath } from "node:url"
 import {
   childEnv,
   createChildRegistry,
@@ -381,7 +382,10 @@ describe("spawnInheritingStdio", () => {
     expect(calls.length).toBe(1)
     expect(call?.args).toEqual(["test", "packages/omo-senpi"])
     expect(call?.options.env?.[REENTRY_ENV_VAR]).toBe("1")
-    expect(call?.options.env?.PATH).toBe(process.env.PATH)
+    const spawnEnv = call?.options.env ?? {}
+    const pathKey = Object.keys(spawnEnv).find((key) => key.toUpperCase() === "PATH") ?? "PATH"
+    expect(spawnEnv[pathKey]).toBeDefined()
+    expect(spawnEnv[pathKey]).toBe(process.env[pathKey])
     expect(call?.options.detached).toBe(process.platform !== "win32")
     expect(call?.options.stdio).toBe("inherit")
   })
@@ -408,7 +412,7 @@ describe("spawnInheritingStdio", () => {
 describe("main entry re-entry guard", () => {
   it("#given the active marker in the environment #when the script runs as a real subprocess #then it exits 1 without spawning a group", async () => {
     // given
-    const script = new URL("./test-fast.ts", import.meta.url).pathname
+    const script = fileURLToPath(new URL("./test-fast.ts", import.meta.url))
 
     // when — a real process, so a deleted guard would actually launch the groups
     const child = Bun.spawn([process.execPath, "run", script], {
