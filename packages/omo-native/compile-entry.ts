@@ -185,13 +185,21 @@ async function main(): Promise<void> {
   const manifestFile = await selectRuntimeManifest(embedded)
   if (!manifestFile) throw new Error("embedded runtime-manifest.json is missing")
   const manifest = JSON.parse(await embeddedText(manifestFile)) as EmbeddedManifest
-  if (answerCompiledFastPath(process.argv.slice(2), manifest)) return
   const runningExecutable = runningExecutablePath()
   const expected = join(homedir(), ".omo", "binary-runtime", manifest.omoAiVersion, process.platform === "win32" ? "omo.exe" : "omo")
   let execDir = dirname(runningExecutable)
-  if (!isProvisionedExecutable(runningExecutable, expected)) {
+  // Materialize the provisioned runtime BEFORE answering the informational fast-path.
+  // First-run provisioning must happen even for `--version`/`-v`: the release smoke test
+  // asserts the provisioned binary exists after `--version`, and provisioning used to be a
+  // side effect of the (now-skipped) re-exec. Only the re-exec (relocate) is deferred here,
+  // so an already-provisioned install keeps the fast-path's no-re-exec speed.
+  const needsProvisioning = !isProvisionedExecutable(runningExecutable, expected)
+  if (needsProvisioning) {
     await provisionEmbeddedRuntime(manifest, embedded, dirname(expected))
     materializeProvisionedExecutable(runningExecutable, expected)
+  }
+  if (answerCompiledFastPath(process.argv.slice(2), manifest)) return
+  if (needsProvisioning) {
     if (shouldReexecAfterProvisioning()) {
       const child = spawn(expected, process.argv.slice(2), { env: process.env, stdio: "inherit" })
       await new Promise<void>((resolvePromise) => child.on("close", (code) => { process.exitCode = code ?? 1; resolvePromise() }))
