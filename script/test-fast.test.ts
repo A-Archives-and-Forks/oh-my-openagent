@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test"
+import { readFileSync } from "node:fs"
 import {
   childEnv,
   createChildRegistry,
@@ -180,6 +181,65 @@ describe("signalExitCode", () => {
     // given / when / then
     expect(signalExitCode("SIGINT")).toBe(130)
     expect(signalExitCode("SIGTERM")).toBe(143)
+  })
+})
+
+describe("partition tiling", () => {
+  const quotedPatterns = (config: string): readonly string[] =>
+    [...config.matchAll(/"([^"]+\/\*\*)"/g)].map((match) => match[1] ?? "")
+
+  const packageDir = (value: string): string | undefined =>
+    /^(packages\/[^/]+)/.exec(value)?.[1]
+
+  it("#given win2 hides what the sibling groups own #when the two configs are diffed #then the extra ignores tile the non-root-rest groups exactly", () => {
+    // given
+    const base = readFileSync(new URL("../bunfig.toml", import.meta.url), "utf8")
+    const win2 = readFileSync(new URL("../bunfig.win2.toml", import.meta.url), "utf8")
+    const basePatterns = new Set(quotedPatterns(base))
+
+    // when
+    const extraDirs = new Set(
+      quotedPatterns(win2)
+        .filter((pattern) => !basePatterns.has(pattern))
+        .map(packageDir)
+        .filter((dir): dir is string => dir !== undefined),
+    )
+    const groupDirs = new Set(
+      testFastGroups()
+        .filter((group) => group.name !== "root-rest")
+        .flatMap((group) => group.args.map(packageDir))
+        .filter((dir): dir is string => dir !== undefined),
+    )
+
+    // then — no gap (a package no group runs) and no overlap (a package two groups run)
+    expect([...extraDirs].sort()).toEqual([...groupDirs].sort())
+    expect(groupDirs.size).toBeGreaterThan(0)
+  })
+
+  it("#given every base ignore is unconditional #when win2 is read #then it keeps all of them", () => {
+    // given
+    const base = readFileSync(new URL("../bunfig.toml", import.meta.url), "utf8")
+    const win2 = readFileSync(new URL("../bunfig.win2.toml", import.meta.url), "utf8")
+
+    // when
+    const win2Patterns = quotedPatterns(win2)
+
+    // then
+    for (const pattern of quotedPatterns(base)) expect(win2Patterns).toContain(pattern)
+  })
+
+  it("#given each package is owned by one group #when the sibling groups are listed #then no package dir repeats", () => {
+    // given
+    const siblingArgs = testFastGroups()
+      .filter((group) => group.name !== "root-rest")
+      .flatMap((group) => group.args.map(packageDir))
+      .filter((dir): dir is string => dir !== undefined)
+
+    // when
+    const unique = new Set(siblingArgs)
+
+    // then
+    expect(unique.size).toBe(siblingArgs.length)
   })
 })
 
