@@ -1,7 +1,6 @@
 import { InvalidArgumentError, type Command } from "commander"
 
 import { boulder } from "./boulder"
-import { codexUsage } from "./codex-usage"
 import { codexUlwLoop } from "./codex-ulw-loop"
 import { refreshModelCapabilities } from "./refresh-model-capabilities"
 import { worktreeSweep } from "./worktree-sweep"
@@ -33,20 +32,6 @@ export function configureRuntimeCommands(program: Command): void {
     .description("Show version information")
     .action(() => {
       console.log(`${PLUGIN_NAME} v${VERSION}`)
-    })
-
-  program
-    .command("usage")
-    .description("Show OpenAI Codex plan, quota windows, credits, and reset times")
-    .option("--json", "Output structured JSON result")
-    .addHelpText("after", `
-Examples:
-  $ omo-agent-toolkit usage
-  $ omo-agent-toolkit usage --json
-`)
-    .action(async (options: { readonly json?: boolean }) => {
-      const exitCode = await codexUsage({ json: options.json ?? false })
-      process.exit(exitCode)
     })
 
   program
