@@ -224,32 +224,76 @@ describe("partition tiling", () => {
   const quotedPatterns = (config: string): readonly string[] =>
     [...config.matchAll(/"([^"]+\/\*\*)"/g)].map((match) => match[1] ?? "")
 
-  const packageDir = (value: string): string | undefined =>
-    /^(packages\/[^/]+)/.exec(value)?.[1]
+  /**
+   * Scopes are compared verbatim, never collapsed to their package dir: a win2
+   * ignore of `packages/x/src/**` while a group runs all of `packages/x` is a
+   * real overlap, and the reverse is a real coverage gap. Collapsing to
+   * `packages/x` reports both as a perfect tiling.
+   */
+  const ignoredScopes = (base: string, win2: string): readonly string[] => {
+    const basePatterns = new Set(quotedPatterns(base))
+    return quotedPatterns(win2).filter((pattern) => !basePatterns.has(pattern))
+  }
+
+  const groupScopes = (groups: readonly TestFastGroup[]): readonly string[] =>
+    groups
+      .filter((group) => group.name !== "root-rest")
+      .flatMap((group) => group.args)
+      .filter((arg) => arg.startsWith("packages/"))
+      .map((arg) => (arg.endsWith("/**") ? arg : `${arg}/**`))
+
+  const sorted = (values: readonly string[]): readonly string[] => [...values].sort()
 
   it("#given win2 hides what the sibling groups own #when the two configs are diffed #then the extra ignores tile the non-root-rest groups exactly", () => {
     // given
     const base = readFileSync(new URL("../bunfig.toml", import.meta.url), "utf8")
     const win2 = readFileSync(new URL("../bunfig.win2.toml", import.meta.url), "utf8")
-    const basePatterns = new Set(quotedPatterns(base))
 
     // when
-    const extraDirs = new Set(
-      quotedPatterns(win2)
-        .filter((pattern) => !basePatterns.has(pattern))
-        .map(packageDir)
-        .filter((dir): dir is string => dir !== undefined),
-    )
-    const groupDirs = new Set(
-      testFastGroups()
-        .filter((group) => group.name !== "root-rest")
-        .flatMap((group) => group.args.map(packageDir))
-        .filter((dir): dir is string => dir !== undefined),
+    const ignored = ignoredScopes(base, win2)
+    const owned = groupScopes(testFastGroups())
+
+    // then — the canonical tiling is whole packages on both sides, compared verbatim
+    expect(sorted(owned)).toEqual([
+      "packages/memory-core/**",
+      "packages/omo-opencode/**",
+      "packages/omo-senpi/**",
+    ])
+    expect(sorted(ignored)).toEqual(sorted(owned))
+  })
+
+  it("#given a win2 ignore narrowed below a package a group runs whole #when the tiling is checked #then the overlap outside that subtree is reported", () => {
+    // given — win2 hides only src/, so packages/omo-senpi/test/** runs in BOTH groups
+    const base = readFileSync(new URL("../bunfig.toml", import.meta.url), "utf8")
+    const win2 = readFileSync(new URL("../bunfig.win2.toml", import.meta.url), "utf8").replace(
+      '"packages/omo-senpi/**"',
+      '"packages/omo-senpi/src/**"',
     )
 
-    // then — no gap (a package no group runs) and no overlap (a package two groups run)
-    expect([...extraDirs].sort()).toEqual([...groupDirs].sort())
-    expect(groupDirs.size).toBeGreaterThan(0)
+    // when
+    const ignored = ignoredScopes(base, win2)
+
+    // then
+    expect(ignored).toContain("packages/omo-senpi/src/**")
+    expect(sorted(ignored)).not.toEqual(sorted(groupScopes(testFastGroups())))
+  })
+
+  it("#given a group argument narrowed below the package win2 hides whole #when the tiling is checked #then the uncovered subtree is reported", () => {
+    // given — the senpi group runs only src/, so packages/omo-senpi/test/** runs NOWHERE
+    const base = readFileSync(new URL("../bunfig.toml", import.meta.url), "utf8")
+    const win2 = readFileSync(new URL("../bunfig.win2.toml", import.meta.url), "utf8")
+    const narrowed = testFastGroups().map((group) =>
+      group.name === "senpi"
+        ? { ...group, args: ["test", "packages/omo-senpi/src"] }
+        : group,
+    )
+
+    // when
+    const owned = groupScopes(narrowed)
+
+    // then
+    expect(owned).toContain("packages/omo-senpi/src/**")
+    expect(sorted(owned)).not.toEqual(sorted(ignoredScopes(base, win2)))
   })
 
   it("#given every base ignore is unconditional #when win2 is read #then it keeps all of them", () => {
@@ -264,18 +308,15 @@ describe("partition tiling", () => {
     for (const pattern of quotedPatterns(base)) expect(win2Patterns).toContain(pattern)
   })
 
-  it("#given each package is owned by one group #when the sibling groups are listed #then no package dir repeats", () => {
+  it("#given each scope is owned by one group #when the sibling groups are listed #then no scope repeats", () => {
     // given
-    const siblingArgs = testFastGroups()
-      .filter((group) => group.name !== "root-rest")
-      .flatMap((group) => group.args.map(packageDir))
-      .filter((dir): dir is string => dir !== undefined)
+    const siblingScopes = groupScopes(testFastGroups())
 
     // when
-    const unique = new Set(siblingArgs)
+    const unique = new Set(siblingScopes)
 
     // then
-    expect(unique.size).toBe(siblingArgs.length)
+    expect(unique.size).toBe(siblingScopes.length)
   })
 })
 
