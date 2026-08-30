@@ -31,22 +31,100 @@ export function testFastGroups(): TestFastGroup[] {
   ]
 }
 
-const spawnInheritingStdio: SpawnTestGroup = (group) =>
-  new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, group.args, {
-      stdio: "inherit",
-      env: childEnv(process.env),
-    })
-    child.once("error", reject)
-    child.once("exit", (code) => {
-      console.log(`[test-fast] ${group.name}: exit ${code ?? 1}`)
-      resolve(code ?? 1)
-    })
-  })
+/** Minimal view of a spawned child the registry needs; keeps fakes cheap in tests. */
+export interface ChildHandle {
+  readonly pid?: number | undefined
+  kill(signal: NodeJS.Signals): boolean
+}
 
-export async function runTestFast(
-  spawnGroup: SpawnTestGroup = spawnInheritingStdio,
-): Promise<number> {
+export type KillProcessGroup = (negatedPid: number, signal: NodeJS.Signals) => void
+
+export interface ChildRegistry {
+  add(child: ChildHandle): void
+  remove(child: ChildHandle): void
+  hasLiveChildren(): boolean
+  killAll(signal: NodeJS.Signals, kill: KillProcessGroup): void
+}
+
+const SIGNAL_NUMBERS = { SIGINT: 2, SIGTERM: 15 } as const
+export type TerminationSignal = keyof typeof SIGNAL_NUMBERS
+
+export function signalExitCode(signal: TerminationSignal): number {
+  return 128 + SIGNAL_NUMBERS[signal]
+}
+
+const SHUTDOWN_GRACE_MS = 5_000
+
+/**
+ * Forwards the parent's termination signal to every group, waits out a grace
+ * period, then SIGKILLs whatever is still running. Without the escalation a
+ * `bun test` child drains its own shutdown for seconds after the parent has
+ * already exited, which is exactly the orphan this guards against.
+ */
+export async function shutdownChildren(
+  registry: ChildRegistry,
+  signal: TerminationSignal,
+  kill: KillProcessGroup,
+  waitGrace: () => Promise<void> = () =>
+    new Promise((resolve) => void setTimeout(resolve, SHUTDOWN_GRACE_MS)),
+): Promise<void> {
+  registry.killAll(signal, kill)
+  await waitGrace()
+  if (registry.hasLiveChildren()) registry.killAll("SIGKILL", kill)
+}
+
+/**
+ * Tracks live group children so a parent signal takes the whole tree down with
+ * it. POSIX children are spawned detached, so signalling `-pid` reaches the
+ * bun process AND everything it spawned; win32 has no process groups, so the
+ * child handle kills itself.
+ */
+export function createChildRegistry(platform: NodeJS.Platform): ChildRegistry {
+  const live = new Set<ChildHandle>()
+  return {
+    add: (child) => void live.add(child),
+    remove: (child) => void live.delete(child),
+    hasLiveChildren: () => live.size > 0,
+    killAll: (signal, kill) => {
+      for (const child of live) {
+        if (child.pid === undefined) continue
+        if (platform === "win32") {
+          child.kill(signal)
+          continue
+        }
+        try {
+          kill(-child.pid, signal)
+        } catch (error) {
+          // The child raced us to exit; nothing left to signal.
+          if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error
+        }
+      }
+    },
+  }
+}
+
+function spawnInheritingStdio(registry: ChildRegistry): SpawnTestGroup {
+  return (group) =>
+    new Promise((resolve, reject) => {
+      const child = spawn(process.execPath, group.args, {
+        stdio: "inherit",
+        env: childEnv(process.env),
+        detached: process.platform !== "win32",
+      })
+      registry.add(child)
+      child.once("error", (error) => {
+        registry.remove(child)
+        reject(error)
+      })
+      child.once("exit", (code) => {
+        registry.remove(child)
+        console.log(`[test-fast] ${group.name}: exit ${code ?? 1}`)
+        resolve(code ?? 1)
+      })
+    })
+}
+
+export async function runTestFast(spawnGroup: SpawnTestGroup): Promise<number> {
   const groups = testFastGroups()
   console.log(
     `[test-fast] running ${groups.length} groups in parallel: ${groups
@@ -64,5 +142,14 @@ if (import.meta.main) {
     )
     process.exit(1)
   }
-  process.exitCode = await runTestFast()
+  const registry = createChildRegistry(process.platform)
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    process.once(signal, () => {
+      console.error(`[test-fast] ${signal} received: terminating group children`)
+      void shutdownChildren(registry, signal, (pid, forwarded) =>
+        void process.kill(pid, forwarded),
+      ).then(() => process.exit(signalExitCode(signal)))
+    })
+  }
+  process.exitCode = await runTestFast(spawnInheritingStdio(registry))
 }
