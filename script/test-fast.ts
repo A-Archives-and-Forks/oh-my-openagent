@@ -7,6 +7,19 @@ export interface TestFastGroup {
 
 export type SpawnTestGroup = (group: TestFastGroup) => Promise<number>
 
+/** Marker exported to every spawned group so a nested run refuses to recurse. */
+export const REENTRY_ENV_VAR = "OMO_TEST_FAST_ACTIVE"
+
+export function isReentry(env: Readonly<Record<string, string | undefined>>): boolean {
+  return (env[REENTRY_ENV_VAR] ?? "") !== ""
+}
+
+export function childEnv(
+  parent: Readonly<Record<string, string | undefined>>,
+): Record<string, string | undefined> {
+  return { ...parent, [REENTRY_ENV_VAR]: "1" }
+}
+
 export function testFastGroups(): TestFastGroup[] {
   return [
     {
@@ -20,7 +33,10 @@ export function testFastGroups(): TestFastGroup[] {
 
 const spawnInheritingStdio: SpawnTestGroup = (group) =>
   new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, group.args, { stdio: "inherit" })
+    const child = spawn(process.execPath, group.args, {
+      stdio: "inherit",
+      env: childEnv(process.env),
+    })
     child.once("error", reject)
     child.once("exit", (code) => {
       console.log(`[test-fast] ${group.name}: exit ${code ?? 1}`)
@@ -42,5 +58,11 @@ export async function runTestFast(
 }
 
 if (import.meta.main) {
+  if (isReentry(process.env)) {
+    console.error(
+      `[test-fast] re-entry blocked: ${REENTRY_ENV_VAR} is set; refusing to recurse`,
+    )
+    process.exit(1)
+  }
   process.exitCode = await runTestFast()
 }
