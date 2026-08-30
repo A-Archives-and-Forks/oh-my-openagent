@@ -21,6 +21,11 @@ import { runDoctor } from "./bin/lib/doctor.js"
 import { detectHarnesses, needsSetupSuggestion } from "./bin/lib/setup-detect.js"
 import { printSetupReport } from "./bin/lib/setup-report.js"
 import { delimiter } from "node:path"
+import { registerBunOAuthFlows } from "../../node_modules/@code-yeongyu/senpi/node_modules/@earendil-works/pi-ai/dist/bun-oauth.js"
+
+// Register statically bundled OAuth flows before loading senpi's CLI graph.
+// Bun's compiled filesystem cannot resolve the opaque dynamic cursor loader.
+registerBunOAuthFlows()
 
 // The engine is imported via a RELATIVE string LITERAL, inlined at both import
 // sites, and both properties are load-bearing:
