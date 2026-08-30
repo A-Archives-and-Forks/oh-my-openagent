@@ -52,6 +52,9 @@ export interface ChildRegistry {
 const SIGNAL_NUMBERS = { SIGINT: 2, SIGTERM: 15 } as const
 export type TerminationSignal = keyof typeof SIGNAL_NUMBERS
 
+const isErrnoException = (error: unknown): error is NodeJS.ErrnoException =>
+  error instanceof Error && "code" in error && typeof error.code === "string"
+
 export function signalExitCode(signal: TerminationSignal): number {
   return 128 + SIGNAL_NUMBERS[signal]
 }
@@ -99,7 +102,7 @@ export function createChildRegistry(platform: NodeJS.Platform): ChildRegistry {
           kill(-child.pid, signal)
         } catch (error) {
           // The child raced us to exit; nothing left to signal.
-          if ((error as NodeJS.ErrnoException).code !== "ESRCH") throw error
+          if (!isErrnoException(error) || error.code !== "ESRCH") throw error
         }
       }
     },
