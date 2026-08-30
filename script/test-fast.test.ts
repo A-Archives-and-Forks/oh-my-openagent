@@ -465,6 +465,46 @@ describe("runTestFast", () => {
     expect(exit).toBe(1)
   })
 
+  it("#given one group whose spawn errors #when the run aborts #then the surviving sibling groups are shut down before the error propagates", async () => {
+    // given — detached siblings keep running unless someone signals them
+    const shutdownAt: string[] = []
+    const running = new Set<string>()
+    const spawnFailure = new Error("spawn ENOENT")
+    const spawnGroup = async (group: TestFastGroup) => {
+      if (group.name === "root-rest") throw spawnFailure
+      running.add(group.name)
+      // Never settles: a detached sibling is still running when the failure lands.
+      await new Promise<never>(() => {})
+      return 0
+    }
+
+    // when
+    const failure = await runTestFast(spawnGroup, capturingLogger([]), () => {
+      shutdownAt.push([...running].sort().join(","))
+    }).then(
+      (exit) => `resolved:${exit}`,
+      (error: unknown) => error,
+    )
+
+    // then
+    expect(failure).toBe(spawnFailure)
+    expect(shutdownAt).toEqual(["opencode-memory,senpi"])
+  })
+
+  it("#given every group exits normally #when the run completes #then no shutdown is triggered", async () => {
+    // given
+    const shutdowns: string[] = []
+
+    // when
+    const exit = await runTestFast(async () => 0, capturingLogger([]), () =>
+      void shutdowns.push("shutdown"),
+    )
+
+    // then
+    expect(exit).toBe(0)
+    expect(shutdowns).toEqual([])
+  })
+
   it("#given an injected logger #when the runner starts #then the banner goes to the logger and never to stdout", async () => {
     // given
     const lines: string[] = []

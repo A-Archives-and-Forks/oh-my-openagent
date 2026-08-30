@@ -174,9 +174,16 @@ export function spawnInheritingStdio(
     })
 }
 
+/**
+ * Runs every group in parallel. A rejected group (a failed spawn) aborts the
+ * `Promise.all` while its detached siblings are still running, so the failure
+ * path shuts the survivors down before the error propagates and the parent
+ * exits; otherwise those siblings outlive the run as orphans.
+ */
 export async function runTestFast(
   spawnGroup: SpawnTestGroup,
   log: LogLine = console.log,
+  shutdownSurvivors: () => void | Promise<void> = () => {},
 ): Promise<number> {
   const groups = testFastGroups()
   log(
@@ -184,8 +191,13 @@ export async function runTestFast(
       .map((group) => group.name)
       .join(", ")}`,
   )
-  const exits = await Promise.all(groups.map(spawnGroup))
-  return exits.every((exit) => exit === 0) ? 0 : 1
+  try {
+    const exits = await Promise.all(groups.map(spawnGroup))
+    return exits.every((exit) => exit === 0) ? 0 : 1
+  } catch (error) {
+    await shutdownSurvivors()
+    throw error
+  }
 }
 
 if (import.meta.main) {
@@ -196,13 +208,21 @@ if (import.meta.main) {
     process.exit(1)
   }
   const registry = createChildRegistry(process.platform)
+  const killGroup: KillProcessGroup = (pid, forwarded) => void process.kill(pid, forwarded)
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.once(signal, () => {
       console.error(`[test-fast] ${signal} received: terminating group children`)
-      void shutdownChildren(registry, signal, (pid, forwarded) =>
-        void process.kill(pid, forwarded),
-      ).then(() => process.exit(signalExitCode(signal)))
+      void shutdownChildren(registry, signal, killGroup).then(() =>
+        process.exit(signalExitCode(signal)),
+      )
     })
   }
-  process.exitCode = await runTestFast(spawnInheritingStdio(registry, console.log))
+  process.exitCode = await runTestFast(
+    spawnInheritingStdio(registry, console.log),
+    console.log,
+    () => {
+      console.error("[test-fast] group failed to start: terminating surviving groups")
+      return shutdownChildren(registry, "SIGTERM", killGroup)
+    },
+  )
 }
