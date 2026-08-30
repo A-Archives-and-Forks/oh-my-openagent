@@ -4,19 +4,23 @@ import { createHash } from "node:crypto"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import {
+  answerCompiledFastPath,
   buildSenpiArgs,
+  remapSenpiEnvironment,
+  runCompiledLauncher,
+  shouldPrintCompiledBanner,
+  updateLine,
+  versionLine,
+} from "../compile-entry"
+import {
   isProvisionedExecutable,
   materializeProvisionedExecutable,
   provisionEmbeddedRuntime,
-  remapSenpiEnvironment,
   runningExecutablePath,
-  runCompiledLauncher,
   selectRuntimeManifest,
   shouldReexecAfterProvisioning,
-  versionLine,
-  updateLine,
   type EmbeddedManifest,
-} from "../compile-entry"
+} from "../compile-runtime"
 
 const roots: string[] = []
 const temp = () => { const root = mkdtempSync(join(homedir(), "omo-compile-entry-test-")); roots.push(root); return root }
@@ -75,6 +79,75 @@ describe("compiled omo entry launcher parity", () => {
     expect(env.OMO_AGENT_TOOLKIT_BIN).toBe(join("/provisioned", "plugin", "runtime", "agent-toolkit", process.platform === "win32" ? "omo-agent-toolkit.cmd" : "omo-agent-toolkit"))
     expect(env.OMO_BIN).toBe(join("/provisioned", process.platform === "win32" ? "omo.exe" : "omo"))
     expect(env.OMO_CODING_AGENT_DIR).toBeDefined()
+  })
+})
+
+describe("pre-provisioning fast paths", () => {
+  const manifest: EmbeddedManifest = { omoAiVersion: "9.9.9", enginePin: "2026.1.1", manifestSha: "m", entries: [] }
+
+  const captureLog = (run: () => boolean): { handled: boolean; output: string[] } => {
+    const output: string[] = []
+    const originalLog = console.log
+    console.log = (value?: unknown) => { output.push(String(value)) }
+    try {
+      return { handled: run(), output }
+    } finally {
+      console.log = originalLog
+    }
+  }
+
+  test("answers --version from the embedded manifest before provisioning", () => {
+    const { handled, output } = captureLog(() => answerCompiledFastPath(["--version"], manifest))
+    expect(handled).toBe(true)
+    expect(output).toEqual(["omo 9.9.9 (engine: senpi 2026.1.1)"])
+  })
+
+  test("-v answers while --version with extra arguments falls through", () => {
+    expect(captureLog(() => answerCompiledFastPath(["-v"], manifest)).handled).toBe(true)
+    const extra = captureLog(() => answerCompiledFastPath(["--version", "--json"], manifest))
+    expect(extra.handled).toBe(false)
+    expect(extra.output).toEqual([])
+  })
+
+  test("self-update spellings answer with the curl line while engine updates fall through", () => {
+    const selfUpdate = captureLog(() => answerCompiledFastPath(["update"], manifest))
+    expect(selfUpdate.handled).toBe(true)
+    expect(selfUpdate.output[0]).toContain("curl")
+    expect(captureLog(() => answerCompiledFastPath(["update", "self"], manifest)).handled).toBe(true)
+    expect(captureLog(() => answerCompiledFastPath(["update", "--extensions"], manifest)).handled).toBe(false)
+  })
+
+  test("ordinary commands never fast-path", () => {
+    const result = captureLog(() => answerCompiledFastPath(["chat"], manifest))
+    expect(result.handled).toBe(false)
+    expect(result.output).toEqual([])
+  })
+
+  test("fast-path version line matches the provisioned launcher's line for the same stamp", async () => {
+    const root = temp()
+    writeFileSync(join(root, "package.json"), JSON.stringify({ version: manifest.omoAiVersion }))
+    const fast = captureLog(() => answerCompiledFastPath(["--version"], manifest))
+    const provisionedOutput: string[] = []
+    const originalLog = console.log
+    console.log = (value?: unknown) => { provisionedOutput.push(String(value)) }
+    try {
+      await runCompiledLauncher(["--version"], root, manifest.enginePin)
+    } finally {
+      console.log = originalLog
+    }
+    expect(fast.output).toEqual(provisionedOutput)
+  })
+
+  test("banner gate requires a tty and an interactive-default launch", () => {
+    expect(shouldPrintCompiledBanner(["chat"], true)).toBe(true)
+    expect(shouldPrintCompiledBanner([], true)).toBe(true)
+    expect(shouldPrintCompiledBanner(["chat"], false)).toBe(false)
+    expect(shouldPrintCompiledBanner(["-p", "hi"], true)).toBe(false)
+    expect(shouldPrintCompiledBanner(["--print", "hi"], true)).toBe(false)
+    expect(shouldPrintCompiledBanner(["--mode", "rpc"], true)).toBe(false)
+    expect(shouldPrintCompiledBanner(["install", "x"], true)).toBe(false)
+    expect(shouldPrintCompiledBanner(["--version"], true)).toBe(false)
+    expect(shouldPrintCompiledBanner(["update"], true)).toBe(false)
   })
 })
 
