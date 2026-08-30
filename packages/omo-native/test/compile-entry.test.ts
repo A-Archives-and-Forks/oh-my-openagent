@@ -3,20 +3,16 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, sym
 import { createHash } from "node:crypto"
 import { homedir } from "node:os"
 import { join } from "node:path"
+import { buildSenpiArgs, remapSenpiEnvironment, runCompiledLauncher, updateLine, versionLine } from "../compile-entry"
 import {
-  buildSenpiArgs,
   isProvisionedExecutable,
   materializeProvisionedExecutable,
   provisionEmbeddedRuntime,
-  remapSenpiEnvironment,
   runningExecutablePath,
-  runCompiledLauncher,
   selectRuntimeManifest,
   shouldReexecAfterProvisioning,
-  versionLine,
-  updateLine,
   type EmbeddedManifest,
-} from "../compile-entry"
+} from "../compile-runtime"
 
 const roots: string[] = []
 const temp = () => { const root = mkdtempSync(join(homedir(), "omo-compile-entry-test-")); roots.push(root); return root }
