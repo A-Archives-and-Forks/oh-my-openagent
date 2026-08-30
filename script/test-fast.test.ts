@@ -244,6 +244,8 @@ describe("partition tiling", () => {
 })
 
 describe("runTestFast", () => {
+  const capturingLogger = (lines: string[]) => (line: string) => void lines.push(line)
+
   it("#given three fixed test groups #when the runner starts #then every group is launched before any exit is released", async () => {
     // given
     const order: string[] = []
@@ -255,7 +257,7 @@ describe("runTestFast", () => {
     }
 
     // when
-    const exit = await runTestFast(spawnGroup)
+    const exit = await runTestFast(spawnGroup, capturingLogger([]))
 
     // then
     expect(testFastGroups().length).toBe(3)
@@ -271,9 +273,33 @@ describe("runTestFast", () => {
       group.name === "root-rest" ? 3 : 0
 
     // when
-    const exit = await runTestFast(spawnGroup)
+    const exit = await runTestFast(spawnGroup, capturingLogger([]))
 
     // then
     expect(exit).toBe(1)
+  })
+
+  it("#given an injected logger #when the runner starts #then the banner goes to the logger and never to stdout", async () => {
+    // given
+    const lines: string[] = []
+    const stdoutWrites: string[] = []
+    const originalWrite = process.stdout.write.bind(process.stdout)
+    process.stdout.write = ((chunk: string | Uint8Array) => {
+      stdoutWrites.push(String(chunk))
+      return true
+    }) as typeof process.stdout.write
+
+    // when
+    try {
+      await runTestFast(async () => 0, capturingLogger(lines))
+    } finally {
+      process.stdout.write = originalWrite
+    }
+
+    // then
+    expect(lines).toEqual([
+      "[test-fast] running 3 groups in parallel: opencode-memory, root-rest, senpi",
+    ])
+    expect(stdoutWrites.join("")).not.toContain("[test-fast]")
   })
 })

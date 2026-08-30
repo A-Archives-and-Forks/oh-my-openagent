@@ -7,6 +7,9 @@ export interface TestFastGroup {
 
 export type SpawnTestGroup = (group: TestFastGroup) => Promise<number>
 
+/** Injected so unit tests capture progress lines instead of printing production output. */
+export type LogLine = (line: string) => void
+
 /** Marker exported to every spawned group so a nested run refuses to recurse. */
 export const REENTRY_ENV_VAR = "OMO_TEST_FAST_ACTIVE"
 
@@ -103,7 +106,7 @@ export function createChildRegistry(platform: NodeJS.Platform): ChildRegistry {
   }
 }
 
-function spawnInheritingStdio(registry: ChildRegistry): SpawnTestGroup {
+function spawnInheritingStdio(registry: ChildRegistry, log: LogLine): SpawnTestGroup {
   return (group) =>
     new Promise((resolve, reject) => {
       const child = spawn(process.execPath, group.args, {
@@ -118,15 +121,18 @@ function spawnInheritingStdio(registry: ChildRegistry): SpawnTestGroup {
       })
       child.once("exit", (code) => {
         registry.remove(child)
-        console.log(`[test-fast] ${group.name}: exit ${code ?? 1}`)
+        log(`[test-fast] ${group.name}: exit ${code ?? 1}`)
         resolve(code ?? 1)
       })
     })
 }
 
-export async function runTestFast(spawnGroup: SpawnTestGroup): Promise<number> {
+export async function runTestFast(
+  spawnGroup: SpawnTestGroup,
+  log: LogLine = console.log,
+): Promise<number> {
   const groups = testFastGroups()
-  console.log(
+  log(
     `[test-fast] running ${groups.length} groups in parallel: ${groups
       .map((group) => group.name)
       .join(", ")}`,
@@ -151,5 +157,5 @@ if (import.meta.main) {
       ).then(() => process.exit(signalExitCode(signal)))
     })
   }
-  process.exitCode = await runTestFast(spawnInheritingStdio(registry))
+  process.exitCode = await runTestFast(spawnInheritingStdio(registry, console.log))
 }
