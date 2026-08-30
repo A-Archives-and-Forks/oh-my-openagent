@@ -35,6 +35,14 @@ describe("compiled omo entry launcher parity", () => {
     expect(shouldReexecAfterProvisioning("darwin")).toBe(true)
   })
 
+  test("pins the engine package dir to the provisioned root", () => {
+    // Defence in depth alongside the re-exec: PACKAGE_DIR is consulted by
+    // getPackageDir() ahead of dirname(process.execPath), so the engine stays
+    // correct on any path that reaches it without having been re-executed.
+    const env = remapSenpiEnvironment({}, "/provisioned/root")
+    expect(env.OMO_PACKAGE_DIR ?? env.SENPI_PACKAGE_DIR).toBe("/provisioned/root")
+  })
+
   test("early commands pass through without an extension", () => {
     expect(buildSenpiArgs(["install", "x"], "/provisioned")).toEqual(["install", "x"])
   })
@@ -94,6 +102,37 @@ describe("embedded runtime provisioning", () => {
     materializeProvisionedExecutable(source, destination, "win32")
 
     expect(readFileSync(destination, "utf8")).toBe("existing binary")
+  })
+
+  test("skips re-copying an identical provisioned executable on POSIX", () => {
+    const root = temp()
+    const source = join(root, "source.exe")
+    const destination = join(root, "runtime", "omo.exe")
+    mkdirSync(join(root, "runtime"), { recursive: true })
+    writeFileSync(source, "compiled binary")
+
+    materializeProvisionedExecutable(source, destination, "darwin")
+    const first = statSync(destination).mtimeMs
+
+    materializeProvisionedExecutable(source, destination, "darwin")
+
+    // Copying ~114MB on every launch was the dominant cold-start cost; an
+    // unchanged destination must not be rewritten.
+    expect(statSync(destination).mtimeMs).toBe(first)
+    expect(readFileSync(destination, "utf8")).toBe("compiled binary")
+  })
+
+  test("still replaces a provisioned executable whose contents differ on POSIX", () => {
+    const root = temp()
+    const source = join(root, "source.exe")
+    const destination = join(root, "runtime", "omo.exe")
+    mkdirSync(join(root, "runtime"), { recursive: true })
+    writeFileSync(source, "new binary")
+    writeFileSync(destination, "stale binary of different length")
+
+    materializeProvisionedExecutable(source, destination, "darwin")
+
+    expect(readFileSync(destination, "utf8")).toBe("new binary")
   })
 
   test("materializes the executable through a temporary non-executable path on POSIX", () => {
