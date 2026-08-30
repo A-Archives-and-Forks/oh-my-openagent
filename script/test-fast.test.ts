@@ -105,10 +105,26 @@ describe("child registry", () => {
     expect(groupKills).toEqual([])
   })
 
-  it("#given a child that already exited #when the registry kills all #then the reaped child is not signalled", () => {
-    // given
+  it("#given a POSIX group whose leader already exited #when the registry kills all #then the retained process group is still signalled", () => {
+    // given — a detached group outlives its leader, so the PGID must survive the exit event
     const registry = createChildRegistry("linux")
     const groupKills: number[] = []
+    const selfKills: string[] = []
+    const leader = fakeChild(101, selfKills)
+    registry.add(leader)
+    registry.add(fakeChild(202, selfKills))
+    registry.remove(leader)
+
+    // when
+    registry.killAll("SIGTERM", (pid) => groupKills.push(pid))
+
+    // then
+    expect(groupKills).toEqual([-101, -202])
+  })
+
+  it("#given a win32 child that already exited #when the registry kills all #then the reaped handle is not signalled", () => {
+    // given — win32 has no process groups, so a dead handle really is nothing left to kill
+    const registry = createChildRegistry("win32")
     const selfKills: string[] = []
     const first = fakeChild(101, selfKills)
     registry.add(first)
@@ -116,10 +132,10 @@ describe("child registry", () => {
     registry.remove(first)
 
     // when
-    registry.killAll("SIGTERM", (pid) => groupKills.push(pid))
+    registry.killAll("SIGTERM", () => {})
 
     // then
-    expect(groupKills).toEqual([-202])
+    expect(selfKills).toEqual(["202:SIGTERM"])
   })
 
   it("#given a kill that throws ESRCH for a raced child #when the registry kills all #then the remaining children are still signalled", () => {
@@ -142,19 +158,39 @@ describe("child registry", () => {
 })
 
 describe("shutdownChildren", () => {
-  it("#given children that exit during the grace period #when the parent shuts down #then no SIGKILL escalation happens", async () => {
-    // given
+  it("#given a leader that exits while a descendant ignores the signal #when the grace period elapses #then the retained group is SIGKILLed", async () => {
+    // given — the leader's "exit" fires first; its process group still holds a live descendant
     const registry = createChildRegistry("linux")
     const sent: string[] = []
-    const child = { pid: 101, kill: () => true }
-    registry.add(child)
+    const leader = { pid: 101, kill: () => true }
+    registry.add(leader)
     const kill: KillProcessGroup = (pid, signal) => void sent.push(`${pid}:${signal}`)
 
-    // when — the grace wait is where a real child's "exit" event lands
-    await shutdownChildren(registry, "SIGINT", kill, async () => registry.remove(child))
+    // when — the grace wait is where the leader's exit event lands
+    await shutdownChildren(registry, "SIGTERM", kill, async () => registry.remove(leader))
 
     // then
-    expect(sent).toEqual(["-101:SIGINT"])
+    expect(sent).toEqual(["-101:SIGTERM", "-101:SIGKILL"])
+  })
+
+  it("#given win32 children that exited during the grace period #when the parent shuts down #then nothing is escalated", async () => {
+    // given
+    const registry = createChildRegistry("win32")
+    const selfKills: string[] = []
+    const child = {
+      pid: 101,
+      kill: (signal: NodeJS.Signals) => {
+        selfKills.push(`101:${signal}`)
+        return true
+      },
+    }
+    registry.add(child)
+
+    // when
+    await shutdownChildren(registry, "SIGTERM", () => {}, async () => registry.remove(child))
+
+    // then
+    expect(selfKills).toEqual(["101:SIGTERM"])
   })
 
   it("#given a child still alive after the grace period #when the parent shuts down #then it is SIGKILLed before the parent exits", async () => {

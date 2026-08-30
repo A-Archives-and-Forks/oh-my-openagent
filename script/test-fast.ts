@@ -45,7 +45,7 @@ export type KillProcessGroup = (negatedPid: number, signal: NodeJS.Signals) => v
 export interface ChildRegistry {
   add(child: ChildHandle): void
   remove(child: ChildHandle): void
-  hasLiveChildren(): boolean
+  hasSignalTargets(): boolean
   killAll(signal: NodeJS.Signals, kill: KillProcessGroup): void
 }
 
@@ -63,9 +63,10 @@ const SHUTDOWN_GRACE_MS = 5_000
 
 /**
  * Forwards the parent's termination signal to every group, waits out a grace
- * period, then SIGKILLs whatever is still running. Without the escalation a
- * `bun test` child drains its own shutdown for seconds after the parent has
- * already exited, which is exactly the orphan this guards against.
+ * period, then SIGKILLs whatever is still running. Escalation keys off the
+ * registry's retained signal targets, not leader liveness: a POSIX group leader
+ * routinely exits while a descendant that swallowed SIGTERM keeps draining, and
+ * that descendant is exactly the orphan this guards against.
  */
 export async function shutdownChildren(
   registry: ChildRegistry,
@@ -76,32 +77,38 @@ export async function shutdownChildren(
 ): Promise<void> {
   registry.killAll(signal, kill)
   await waitGrace()
-  if (registry.hasLiveChildren()) registry.killAll("SIGKILL", kill)
+  if (registry.hasSignalTargets()) registry.killAll("SIGKILL", kill)
 }
 
 /**
- * Tracks live group children so a parent signal takes the whole tree down with
- * it. POSIX children are spawned detached, so signalling `-pid` reaches the
- * bun process AND everything it spawned; win32 has no process groups, so the
- * child handle kills itself.
+ * Tracks group children so a parent signal takes the whole tree down with it.
+ * POSIX children are spawned detached, so signalling `-pid` reaches the bun
+ * process AND everything it spawned. The PGID is retained past the leader's
+ * exit because the group outlives its leader; dropping it there is what lets a
+ * SIGTERM-ignoring descendant escape the SIGKILL escalation. win32 has no
+ * process groups, so only the live handle can kill itself.
  */
 export function createChildRegistry(platform: NodeJS.Platform): ChildRegistry {
   const live = new Set<ChildHandle>()
+  const retainedGroups = new Set<number>()
+  const isPosix = platform !== "win32"
   return {
-    add: (child) => void live.add(child),
+    add: (child) => {
+      live.add(child)
+      if (isPosix && child.pid !== undefined) retainedGroups.add(child.pid)
+    },
     remove: (child) => void live.delete(child),
-    hasLiveChildren: () => live.size > 0,
+    hasSignalTargets: () => (isPosix ? retainedGroups.size > 0 : live.size > 0),
     killAll: (signal, kill) => {
-      for (const child of live) {
-        if (child.pid === undefined) continue
-        if (platform === "win32") {
-          child.kill(signal)
-          continue
-        }
+      if (!isPosix) {
+        for (const child of live) if (child.pid !== undefined) child.kill(signal)
+        return
+      }
+      for (const pid of retainedGroups) {
         try {
-          kill(-child.pid, signal)
+          kill(-pid, signal)
         } catch (error) {
-          // The child raced us to exit; nothing left to signal.
+          // The group raced us to exit; nothing left to signal.
           if (!isErrnoException(error) || error.code !== "ESRCH") throw error
         }
       }
