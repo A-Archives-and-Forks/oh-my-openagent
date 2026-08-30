@@ -1,3 +1,21 @@
+diff --git a/dist/cli.js b/dist/cli.js
+--- a/dist/cli.js
++++ b/dist/cli.js
+@@ -1,5 +1,6 @@
+ #!/usr/bin/env node
+ import "./valid-cwd.js";
++import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
+ import { spawn, spawnSync } from "node:child_process";
+ import { existsSync, realpathSync } from "node:fs";
+ import { join } from "node:path";
+@@ -51,6 +52,7 @@ function reexecUnderBunIfNeeded() {
+ if (reexecUnderBunIfNeeded()) {
+     process.exit();
+ }
++registerBunOAuthFlows();
+ // Must run before cli-main is loaded, by either path: it caches the engine graph this process
+ // imports on the fast path below, and it publishes NODE_COMPILE_CACHE so a spawned cli-main child
+ // inherits this process's cache directory instead of resolving and re-filling its own.
 diff --git a/dist/core/extensions/builtin/claude-sdk-oauth/session-registry-pump.js b/dist/core/extensions/builtin/claude-sdk-oauth/session-registry-pump.js
 --- a/dist/core/extensions/builtin/claude-sdk-oauth/session-registry-pump.js
 +++ b/dist/core/extensions/builtin/claude-sdk-oauth/session-registry-pump.js
@@ -21,4 +39,39 @@ diff --git a/dist/core/extensions/builtin/claude-sdk-oauth/session-registry-pump
 +            throw new SessionTurnAttributionError(describeUnclaimedResult(message));
          }
          return false;
+     }
+diff --git a/dist/core/extensions/builtin/hooks/trust-storage.js b/dist/core/extensions/builtin/hooks/trust-storage.js
+--- a/dist/core/extensions/builtin/hooks/trust-storage.js
++++ b/dist/core/extensions/builtin/hooks/trust-storage.js
+@@ -1,4 +1,5 @@
+-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
++import { randomUUID } from "node:crypto";
++import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+ import { dirname, join } from "node:path";
+ import lockfile from "proper-lockfile";
+ import { CONFIG_DIR_NAME, getAgentDir } from "../../../../config.js";
+@@ -10,13 +11,22 @@ export class FileHookStateStorage {
+         this.projectStatePath = join(options.cwd, CONFIG_DIR_NAME, "hooks-state.json");
+     }
+     read(scope) {
+-        return withHookStateFileLock(statePathForScope(scope, this.globalStatePath, this.projectStatePath), (path) => readHookTrustStateJson(existsSync(path) ? readFileSync(path, "utf-8") : undefined));
++        const path = statePathForScope(scope, this.globalStatePath, this.projectStatePath);
++        return readHookTrustStateJson(existsSync(path) ? readFileSync(path, "utf-8") : undefined);
+     }
+     update(scope, updater) {
+         return withHookStateFileLock(statePathForScope(scope, this.globalStatePath, this.projectStatePath), (path) => {
+             const current = readHookTrustStateJson(existsSync(path) ? readFileSync(path, "utf-8") : undefined);
+             const next = updater(current);
+-            writeFileSync(path, serializeHookTrustState(next), "utf-8");
++            const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
++            try {
++                writeFileSync(tempPath, serializeHookTrustState(next), "utf-8");
++                renameSync(tempPath, path);
++            }
++            catch (error) {
++                rmSync(tempPath, { force: true });
++                throw error;
++            }
+             return next;
+         });
      }
