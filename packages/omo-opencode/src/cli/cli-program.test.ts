@@ -129,3 +129,22 @@ test("program registers runtime commands", async () => {
   // then
   expect(registersRuntimeCommands).toBe(true)
 })
+
+test("runtime commands register Codex usage with machine-readable output", async () => {
+  // given
+  const runtimeCommandsSource = await readFile(
+    path.resolve(import.meta.dir, "runtime-commands.ts"),
+    "utf-8",
+  )
+
+  // when
+  const usageBlock = runtimeCommandsSource.match(
+    /program\s*\n\s*\.command\("usage"\)([\s\S]*?)\.action\(/,
+  )
+
+  // then
+  expect(usageBlock).not.toBeNull()
+  expect(usageBlock?.[1]).toContain('.option("--json"')
+  expect(runtimeCommandsSource).toContain('import { codexUsage } from "./codex-usage"')
+  expect(runtimeCommandsSource).toContain("await codexUsage({ json: options.json ?? false })")
+})
