@@ -3,12 +3,17 @@ import { readFileSync } from "node:fs"
 import {
   childEnv,
   createChildRegistry,
+  type ChildHandle,
+  type ChildLifecycleEvents,
   isReentry,
   type KillProcessGroup,
   REENTRY_ENV_VAR,
   runTestFast,
   shutdownChildren,
   signalExitCode,
+  type SpawnChildProcess,
+  spawnInheritingStdio,
+  type SpawnGroupOptions,
   testFastGroups,
   type TestFastGroup,
 } from "./test-fast"
@@ -317,6 +322,110 @@ describe("partition tiling", () => {
 
     // then
     expect(unique.size).toBe(siblingScopes.length)
+  })
+})
+
+describe("spawnInheritingStdio", () => {
+  /** Records the spawn contract and lets the test drive the child's lifecycle events. */
+  const recordingSpawner = () => {
+    const calls: {
+      command: string
+      args: readonly string[]
+      options: SpawnGroupOptions
+    }[] = []
+    const listeners: {
+      [E in keyof ChildLifecycleEvents]: ((payload: ChildLifecycleEvents[E]) => void)[]
+    } = { error: [], exit: [] }
+    const spawner: SpawnChildProcess = (command, args, options) => {
+      calls.push({ command, args, options })
+      const once = <E extends keyof ChildLifecycleEvents>(
+        event: E,
+        listener: (payload: ChildLifecycleEvents[E]) => void,
+      ): unknown => {
+        listeners[event].push(listener)
+        return undefined
+      }
+      return { pid: 4242, kill: () => true, once }
+    }
+    return { calls, listeners, spawner }
+  }
+
+  const trackingRegistry = () => {
+    const added: ChildHandle[] = []
+    const removed: ChildHandle[] = []
+    return {
+      added,
+      removed,
+      registry: {
+        add: (child: ChildHandle) => void added.push(child),
+        remove: (child: ChildHandle) => void removed.push(child),
+        hasSignalTargets: () => added.length > removed.length,
+        killAll: () => {},
+      },
+    }
+  }
+
+  it("#given a group to run #when the child is spawned #then it carries the re-entry marker, platform detach and inherited stdio", () => {
+    // given
+    const { calls, spawner } = recordingSpawner()
+    const { registry } = trackingRegistry()
+
+    // when
+    void spawnInheritingStdio(registry, () => {}, spawner)({
+      name: "senpi",
+      args: ["test", "packages/omo-senpi"],
+    })
+
+    // then
+    const call = calls[0]
+    expect(calls.length).toBe(1)
+    expect(call?.args).toEqual(["test", "packages/omo-senpi"])
+    expect(call?.options.env?.[REENTRY_ENV_VAR]).toBe("1")
+    expect(call?.options.env?.PATH).toBe(process.env.PATH)
+    expect(call?.options.detached).toBe(process.platform !== "win32")
+    expect(call?.options.stdio).toBe("inherit")
+  })
+
+  it("#given a spawned group #when the child starts #then it is registered and deregistered on exit", async () => {
+    // given
+    const { listeners, spawner } = recordingSpawner()
+    const { added, removed, registry } = trackingRegistry()
+
+    // when
+    const exit = spawnInheritingStdio(registry, () => {}, spawner)({
+      name: "senpi",
+      args: ["test"],
+    })
+    expect(added.map((child) => child.pid)).toEqual([4242])
+    for (const notifyExit of listeners.exit) notifyExit(7)
+
+    // then
+    expect(await exit).toBe(7)
+    expect(removed.map((child) => child.pid)).toEqual([4242])
+  })
+})
+
+describe("main entry re-entry guard", () => {
+  it("#given the active marker in the environment #when the script runs as a real subprocess #then it exits 1 without spawning a group", async () => {
+    // given
+    const script = new URL("./test-fast.ts", import.meta.url).pathname
+
+    // when — a real process, so a deleted guard would actually launch the groups
+    const child = Bun.spawn([process.execPath, "run", script], {
+      env: { ...process.env, [REENTRY_ENV_VAR]: "1" },
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ])
+
+    // then
+    expect(exitCode).toBe(1)
+    expect(stderr).toContain("re-entry blocked")
+    expect(stdout).not.toContain("running 3 groups")
   })
 })
 

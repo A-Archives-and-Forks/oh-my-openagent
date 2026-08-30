@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process"
+import { spawn, type SpawnOptions } from "node:child_process"
 
 export interface TestFastGroup {
   readonly name: string
@@ -116,10 +116,47 @@ export function createChildRegistry(platform: NodeJS.Platform): ChildRegistry {
   }
 }
 
-function spawnInheritingStdio(registry: ChildRegistry, log: LogLine): SpawnTestGroup {
+/** The spawn contract this script depends on; the seam unit tests substitute. */
+export type SpawnGroupOptions = SpawnOptions
+
+/** The two lifecycle events this script subscribes to, with their payloads. */
+export interface ChildLifecycleEvents {
+  readonly error: Error
+  readonly exit: number | null
+}
+
+export interface SpawnedChild extends ChildHandle {
+  once<E extends keyof ChildLifecycleEvents>(
+    event: E,
+    listener: (payload: ChildLifecycleEvents[E]) => void,
+  ): unknown
+}
+
+export type SpawnChildProcess = (
+  command: string,
+  args: readonly string[],
+  options: SpawnGroupOptions,
+) => SpawnedChild
+
+/** Selects node's three-argument overload; the bare `spawn` symbol carries a
+ * two-argument overload that is not assignable to the seam. */
+const spawnChildProcess: SpawnChildProcess = (command, args, options) =>
+  spawn(command, args, options)
+
+/**
+ * Every group child inherits the parent's stdio, carries the re-entry marker so
+ * a nested run refuses to recurse, and is detached on POSIX so the registry can
+ * signal its whole process group. All three are load-bearing, so the spawn call
+ * is injectable and asserted rather than trusted.
+ */
+export function spawnInheritingStdio(
+  registry: ChildRegistry,
+  log: LogLine,
+  spawnChild: SpawnChildProcess = spawnChildProcess,
+): SpawnTestGroup {
   return (group) =>
     new Promise((resolve, reject) => {
-      const child = spawn(process.execPath, group.args, {
+      const child = spawnChild(process.execPath, group.args, {
         stdio: "inherit",
         env: childEnv(process.env),
         detached: process.platform !== "win32",
