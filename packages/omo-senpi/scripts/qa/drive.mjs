@@ -168,8 +168,8 @@ function runSenpi(senpiBin, sandbox, prompt, script, extraEnv = {}) {
 
 function main() {
   const providedSenpiCodingAgentDir = process.env.SENPI_CODING_AGENT_DIR ? "IGNORED" : "unset"
-  const beforeDigest = digestDirectory(realSenpiAgentDir)
-  const beforeSenpiSnapshot = snapshotDirectory(realSenpiAgentDir)
+  const beforeDigest = credentialDigest(realSenpiAgentDir)
+  const beforeSenpiSnapshot = snapshotProtectedState(realSenpiAgentDir)
   const beforeOmoSnapshot = snapshotProtectedState(realOmoAgentDir)
   const beforeSenpiProtectedState = snapshotProtectedState(realSenpiAgentDir)
   const beforeOmoProtectedState = snapshotProtectedState(realOmoAgentDir)
@@ -235,8 +235,8 @@ function main() {
 }
 
 function printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, beforeSenpiSnapshot, beforeOmoSnapshot, beforeSenpiProtectedState, beforeOmoProtectedState, sandbox, providedSenpiCodingAgentDir }) {
-  const afterDigest = digestDirectory(realSenpiAgentDir)
-  const realSenpiObservedChangedPaths = changedSnapshotPaths(beforeSenpiSnapshot, snapshotDirectory(realSenpiAgentDir))
+  const afterDigest = credentialDigest(realSenpiAgentDir)
+  const realSenpiObservedChangedPaths = changedSnapshotPaths(beforeSenpiSnapshot, snapshotProtectedState(realSenpiAgentDir))
   const realOmoObservedChangedPaths = changedSnapshotPaths(beforeOmoSnapshot, snapshotProtectedState(realOmoAgentDir))
   const realSenpiChangedPaths = changedSnapshotPaths(beforeSenpiProtectedState, snapshotProtectedState(realSenpiAgentDir))
   const realOmoChangedPaths = changedSnapshotPaths(beforeOmoProtectedState, snapshotProtectedState(realOmoAgentDir))
@@ -248,7 +248,7 @@ function printResult({ result, reason, ultraworkInjected, commentChecker, before
     realSenpiUntouched: realSenpiChangedPaths.length === 0,
     realSenpiChangedPaths,
     realSenpiObservedChangedPaths,
-    realSenpiWholeTreeDigestUntouched: beforeDigest === afterDigest,
+    realSenpiCredentialDigestUntouched: beforeDigest === afterDigest,
     realOmoUntouched: realOmoChangedPaths.length === 0,
     realOmoChangedPaths,
     realOmoObservedChangedPaths,
