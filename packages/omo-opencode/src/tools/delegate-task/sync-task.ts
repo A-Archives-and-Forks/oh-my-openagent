@@ -33,11 +33,14 @@ export async function executeSyncTask(
     | Awaited<ReturnType<ExecutorContext["manager"]["reserveSubagentSpawn"]>>
     | undefined
   let concurrencyAcquired = false
-  const concurrencyModel = categoryModel ? `${categoryModel.providerID}/${categoryModel.modelID}` : agentToUse
+  const concurrencyModel = categoryModel && typeof categoryModel.providerID === "string" && typeof categoryModel.modelID === "string"
+    ? `${categoryModel.providerID}/${categoryModel.modelID}`
+    : typeof agentToUse === "string" ? agentToUse : "default"
+  const manager = executorCtx?.manager
 
   try {
-    if (typeof executorCtx.manager.acquireSyncSubagentConcurrency === "function") {
-      await executorCtx.manager.acquireSyncSubagentConcurrency(concurrencyModel)
+    if (typeof manager?.acquireSyncSubagentConcurrency === "function") {
+      await manager.acquireSyncSubagentConcurrency(concurrencyModel)
       concurrencyAcquired = true
     }
     const spawn = await reserveSyncSubagentSpawn(executorCtx, parentContext)
@@ -172,15 +175,15 @@ export async function executeSyncTask(
       // Aborting an already-idle session emits no error event (opencode re-publishes
       // session.idle), so handedBackSyncSessions is the signal the enforcer keys on;
       // the abort still cancels the child's opencode-side background jobs.
-      if (typeof client.session.abort === "function") {
+      if (typeof client?.session?.abort === "function") {
         void client.session.abort({ path: { id: syncSessionID } }).catch((error: unknown) => {
           log(`[task] Failed to abort completed sync session:`, error)
         })
       }
       scheduleSyncSessionDeletion(client, syncSessionID)
     }
-    if (concurrencyAcquired && typeof executorCtx.manager.releaseSyncSubagentConcurrency === "function") {
-      executorCtx.manager.releaseSyncSubagentConcurrency(concurrencyModel)
+    if (concurrencyAcquired && typeof manager?.releaseSyncSubagentConcurrency === "function") {
+      manager.releaseSyncSubagentConcurrency(concurrencyModel)
     }
   }
 }
