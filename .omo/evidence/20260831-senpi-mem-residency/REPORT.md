@@ -39,6 +39,17 @@ Commits: `e7768de54`, `3fa909e17`, `cd157168d`
 
 The worktree is clean after push. Branch push succeeded to `origin/fix/senpi-mem-task-residency`. PR is open and the prescribed remote macOS test is green.
 
+## Mutation-proof overlapping-send verification
+
+- **Mutation RED:** temporarily changed `pendingSends` from `Map<string, number>` back to the old `Set<string>` implementation in commit `3507fb6b4`, pushed it, and ran the serialized remote scope. The capture was:
+  - `2 tests failed`
+  - in-process overlap: expected pending state `true` after send #1 settled, received `false`
+  - rpc overlap: expected pending state `true` after send #1 settled, received `false`
+  - total: `1781 pass`, `1 skip`, `2 fail`
+- **Restored GREEN:** reset to the counter implementation at `bc722b447`, pushed it, and reran the same remote scope. The capture was `1783 pass`, `1 skip`, `0 fail`.
+
+The corrected test uses independent completion gates, awaits send #1 before asserting pending state remains true, then releases and awaits send #2 before asserting false. No sleeps or real timers are used.
+
 ## Eviction/send race blocker correction
 
 The race fix was implemented in commits `06d3a81f5` (RED tests), `92f53583a` (implementation), and `52843c1d7` (rebased bundle regeneration; current dev included PR #7533). Eviction now acquires a synchronous per-task claim before teardown awaits; sends/revives acquire the same task arbitration and receive a typed `not_continuable` refusal when eviction owns it. In-flight sends use a per-task counter, and sweep failures log the task id and error.
