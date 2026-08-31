@@ -1,0 +1,9 @@
+Command:
+bun install --frozen-lockfile
+bun run test:senpi
+
+Machine: gorky
+Bun: 1.4.0
+Result: exit 0
+
+The gate built the lsp-daemon, ast-grep MCP, Senpi plugin artifacts, and ran the Senpi adapter package tests plus the evidence-directory tests. No npm command was used by the migrated lsp-daemon build path.
