@@ -95,3 +95,56 @@ Host respawn evidence gathered from host sources (upstream trees fetched via Git
   this PR advances rather than fixes #6547.
 - `onIdleTimeout` remains un-awaited and the idle clock arms on message arrival, not handler
   completion (pre-existing shape, unchanged by #6548 and by this PR).
+
+## Adjacent regression found post-review: codegraph unavailable stub (commit `158d5dcaf`)
+
+Incorporating #6548 made the previously-inert default idle timer a real teardown
+(`input.destroy()`), so every caller that inherits `DEFAULT_IDLE_TIMEOUT_MS`
+changed behavior. Full sweep of `runJsonRpcStdioServer` call sites found one
+default-inheritor on a no-respawn host:
+
+- `packages/omo-codex/plugin/components/codegraph/src/mcp-unavailable.ts` — the
+  codex "codegraph unavailable" stub inherited the 10-min default and would die
+  mid-session on codex (no respawn). **Fixed: explicit `idleTimeoutMs: 0`.**
+- `mcp-bridge.ts` was reported as a second call site but is **not a caller** —
+  it drives `createParentWatchdog` + manual forward loops and has no idle timer
+  to configure; no edit was possible or needed.
+- `omo-senpi/src/mcp/memory-server.ts` also inherits the default — senpi host
+  (respawn evidenced, verdict row 4), and exactly where the audit said #6548
+  "would start working"; left on the default deliberately.
+
+TDD: RED at test-only commit `3dcdf2244` (CI-style invocation
+`cd packages/omo-codex/plugin/components/codegraph && bun test ./test/serve-unavailable-idle.test.ts`):
+
+```
+(fail) unavailable codegraph MCP idle teardown > #given the codex host (no respawn for exited stdio servers) #when the unavailable stub starts #then the idle timeout is disabled [503.70ms]
+Expected to contain: { event: "stdio_started", data: ObjectContaining { idle_timeout_ms: 0 } }
+Received: [ { event: "stdio_started", data: { cwd: "...", idle_timeout_ms: 600000 } } ]
+```
+
+GREEN at `158d5dcaf`: same invocation, `1 pass / 0 fail`.
+Component suite delta (parent `478dd4184` -> tip `158d5dcaf`, same remote clone,
+`bun test ./test`): `47 pass / 31 fail / 78 tests / 25 files` ->
+`48 pass / 31 fail / 79 tests / 26 files` — exactly +1 passing test, zero new
+failures. The 31 failures reproduce identically at the parent commit and are
+clone-environment artifacts (no plugin `npm ci`); CI's codex-compatibility job
+installs plugin deps and ran these tests green on this PR before this commit.
+Component `tsc --noEmit`: exit 0.
+
+mcp-stdio-core gained a pin that an explicitly-zero idle timeout creates no
+timer (`idle_timeout` never logged, loop parks on a held-open pipe); suites
+green: `336 pass / 2 skip / 0 fail` (mcp-stdio-core + ast-grep-mcp).
+
+Committed dist: the component's `dist/serve.js` + `dist/cli.js` ship committed.
+The component-local build script produces different bundler path comments than
+the committed artifacts (261-line churn); the artifacts' producing invocation is
+the plugin-level `bun run --cwd packages/omo-codex/plugin build` (what CI runs).
+Rebuilt that way: dist delta is exactly the fix (`idleTimeoutMs: 0`,
+`log: options.lifecycleLog`) plus the previously-desynced #6548
+`config.input.destroy()` line — the committed dist had been stale since the
+cherry-pick.
+
+Process note: one local `bun test --dry-run` was attempted for discovery;
+bun 1.4.0 executes tests under `--dry-run`, so it ran ~3 local tests
+unintentionally before being killed. No local results were used as evidence;
+all RED/GREEN numbers above are from the remote runner.
