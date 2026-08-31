@@ -2,7 +2,7 @@ import type { BackgroundTaskConfig } from "../../config/schema"
 import type { OpencodeClient } from "./constants"
 
 export const DEFAULT_MAX_SUBAGENT_DEPTH = 3
-export const DEFAULT_MAX_LIVE_DESCENDANTS_PER_ROOT = 5
+export const DEFAULT_MAX_LIVE_DESCENDANTS_PER_ROOT = 24
 
 export interface SubagentSpawnContext {
   rootSessionID: string
