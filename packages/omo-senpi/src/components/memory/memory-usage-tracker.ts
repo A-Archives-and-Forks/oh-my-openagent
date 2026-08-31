@@ -1,6 +1,5 @@
 import { relative, resolve, sep } from "node:path"
 
-import type { ComponentLogger } from "../../extension/types"
 import {
   createMemoryUsageLockRecord,
   incrementMemoryUsageBatch,
@@ -30,7 +29,6 @@ export class MemoryUsageTracker {
   private readonly paths: MemoryUsageLedgerPath
   private readonly repoDir: string
   private readonly now: () => Date
-  private readonly logger?: ComponentLogger
   private pending = new Map<string, number>()
   private timer: ReturnType<typeof setTimeout> | undefined
   private flushPromise: Promise<void> | undefined
@@ -39,12 +37,10 @@ export class MemoryUsageTracker {
     readonly paths: MemoryUsageLedgerPath
     readonly repoDir: string
     readonly now?: () => Date
-    readonly logger?: ComponentLogger
   }) {
     this.paths = options.paths
     this.repoDir = options.repoDir
     this.now = options.now ?? (() => new Date())
-    this.logger = options.logger
   }
 
   /** Records a memory-file read. Paths outside the repo or under excluded dirs are ignored. */

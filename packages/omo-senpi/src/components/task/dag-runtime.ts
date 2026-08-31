@@ -146,7 +146,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
     if ((deliveredSeq.get(event.runId) ?? 0) >= event.seq) return
     deliveredSeq.set(event.runId, event.seq)
     deliverDurableEvent(durableEventListener, event)
-    for (const listener of runListeners.get(event.runId) ?? []) deliverDurableEvent(listener, event)
+    for (const listener of runListeners.get(event.runId) ?? []) deliverDurableEvent(listener, event, deps.logger)
   }
   const stopObservingSchedulers = observeDagSchedulers(taskManager, (scheduler) => {
     scheduler.subscribe(publishSchedulerEvent)
@@ -543,19 +543,19 @@ function publishDurableEvents(
     const page = store.readEvents(runId, sinceSeq, { limit: EVENT_PAGE_SIZE })
     for (const event of page.events) {
       delivered.set(runId, event.seq)
-      deliverDurableEvent(onEvent, event)
-      for (const listener of listeners.get(runId) ?? []) deliverDurableEvent(listener, event)
+      deliverDurableEvent(onEvent, event, deps.logger)
+      for (const listener of listeners.get(runId) ?? []) deliverDurableEvent(listener, event, deps.logger)
     }
     if (!page.hasMore) return
     sinceSeq = page.nextSinceSeq
   }
 }
 
-function deliverDurableEvent(listener: (event: DagRunEvent) => void, event: DagRunEvent): void {
+function deliverDurableEvent(listener: (event: DagRunEvent) => void, event: DagRunEvent, logger: ComponentLogger): void {
   try {
     listener(event)
   } catch (error) {
-    console.error("DAG runtime subscriber failed", error)
+    logger.error("DAG runtime subscriber failed", error)
   }
 }
 
