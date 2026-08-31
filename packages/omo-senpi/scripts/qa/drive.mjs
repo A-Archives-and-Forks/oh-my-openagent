@@ -63,10 +63,11 @@ export function snapshotDirectory(root) {
   if (!existsSync(root)) return new Map()
   const files = []
   collectFiles(root, files)
-  return new Map(files.sort().map((file) => [
-    file.slice(root.length + 1),
-    createHash("sha256").update(readFileSync(file)).digest("hex"),
-  ]))
+  return new Map(files.sort().map((file) => {
+    const relative = file.slice(root.length + 1)
+    const bytes = relative === "settings.json" ? credentialBytes(file, "settings.json") : readFileSync(file)
+    return [relative, createHash("sha256").update(bytes).digest("hex")]
+  }))
 }
 
 export function changedSnapshotPaths(before, after) {
