@@ -50,7 +50,13 @@ describe("teamModeSkill gating", () => {
     const body = teamModeSkill.template
 
     // when
-    const leadOnlyTools = ["team_create", "team_delete", "team_shutdown_request"]
+    const leadOnlyTools = [
+      "team_create",
+      "team_delete",
+      "team_shutdown_request",
+      "team_approve_shutdown",
+      "team_reject_shutdown",
+    ]
     const universalTools = [
       "team_send_message",
       "team_task_create",
@@ -58,6 +64,7 @@ describe("teamModeSkill gating", () => {
       "team_task_update",
       "team_task_get",
       "team_status",
+      "team_list",
     ]
 
     // then
