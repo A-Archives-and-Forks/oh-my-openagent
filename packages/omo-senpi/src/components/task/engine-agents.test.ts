@@ -161,7 +161,9 @@ describe("task engine builtin agent overlay", () => {
 
     // then
     expect(engine.agents["momus"]?.disable).toBe(true)
-    expect(advertisedAgentNames(engine)).toBe("explore, librarian")
+    expect(advertisedAgentNames(engine)).toBe(
+      "explore, librarian, omo-senpi-code-reviewer, omo-senpi-gate-reviewer, omo-senpi-qa-executor",
+    )
     expect(advertisedPlanGatedAgentNames(engine)).toBe("metis")
   })
 })
