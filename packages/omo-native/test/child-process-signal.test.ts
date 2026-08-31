@@ -311,8 +311,11 @@ await maybeReexecUnderBun({
         SIGNAL_LOG: signalLog,
         READY_FILE: readyFile,
         PARENT_LOG: join(root, "parent.log"),
+        PID_FILE: join(root, "child.pid"),
       })
       await waitForFile(readyFile)
+      fixturePids.push(parent.pid, Number(readFileSync(join(root, "child.pid"), "utf8")))
+      allFixturePids.push(...fixturePids.slice(-2))
 
       process.kill(parent.pid, "SIGTERM")
 
