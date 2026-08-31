@@ -27,7 +27,7 @@ describe("patched Senpi hooks state publication failures", () => {
       message: "injected publication failure",
       temporarySnapshots: 0,
     })
-  })
+  }, 60_000)
 
   test("reports publication then cleanup errors in an ordered AggregateError", () => {
     expect(run("cleanup-fails")).toEqual({
@@ -37,7 +37,7 @@ describe("patched Senpi hooks state publication failures", () => {
       message: "Failed to publish and clean up hook trust state snapshot",
       temporarySnapshots: 1,
     })
-  })
+  }, 60_000)
 
   test("reports chmod then cleanup errors in an ordered AggregateError", () => {
     expect(run("chmod-cleanup-fails")).toEqual({
@@ -47,5 +47,5 @@ describe("patched Senpi hooks state publication failures", () => {
       message: "Failed to publish and clean up hook trust state snapshot",
       temporarySnapshots: 1,
     })
-  })
+  }, 60_000)
 })

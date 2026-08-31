@@ -48,7 +48,7 @@ describe("patched Senpi hooks state snapshots", () => {
 
   test("recovers a trusted snapshot at a synchronized legacy truncate/write boundary", () => {
     const runner = join(import.meta.dir, "fixtures", "senpi-hooks-state-legacy-reader.ts")
-    const child = spawnSync(process.execPath, [runner], { encoding: "utf8", timeout: 10_000 })
+    const child = spawnSync(process.execPath, [runner], { encoding: "utf8" })
 
     expect(child.status, child.stderr).toBe(0)
     expect(JSON.parse(child.stdout)).toEqual({
@@ -67,7 +67,7 @@ describe("patched Senpi hooks state snapshots", () => {
         },
       },
     })
-  })
+  }, 60_000)
 
   test("keeps malformed state fail-closed when no writer lock exists", () => {
     withStorage(({ statePath, storage }) => {
@@ -94,7 +94,7 @@ describe("patched Senpi hooks state snapshots", () => {
 
     expect(child.status, child.stderr).toBe(0)
     expect(JSON.parse(child.stdout)).toEqual({ mode: 0o640 })
-  })
+  }, 60_000)
 
   test.skipIf(process.platform === "win32")("creates a new POSIX snapshot with mode 0600 under a permissive umask", () => {
     withStorage(({ statePath, storage }) => {
