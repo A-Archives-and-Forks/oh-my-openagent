@@ -21,9 +21,11 @@ import {
   selectRecallCandidates,
 } from "@oh-my-opencode/memory-core"
 
-import type { ComponentLogger, SenpiExtensionAPI } from "../../extension/types"
+import type { ComponentLogger } from "../../extension/types"
+import type { MemoryExtensionAPI } from "./capabilities"
 import type { MemoryIdentityContext } from "./context"
 import { MEMORY_NOTICE_CUSTOM_TYPE } from "./prompt"
+import { renderRecallEntry, type MemoryRecallRecord } from "./recall-notice"
 
 export const RECALL_CUSTOM_TYPE = "omo-memorian:recall"
 
@@ -53,7 +55,7 @@ export interface MemoryRecallWiringOptions {
 }
 
 export interface MemoryRecallWiring {
-  register(pi: SenpiExtensionAPI): void
+  register(pi: MemoryExtensionAPI): void
 }
 
 // A memory worker child must never receive recall hints: it reasons ABOUT memory, and an injected
@@ -66,7 +68,7 @@ export function createMemoryRecallWiring(options: MemoryRecallWiringOptions): Me
   const ledgerFor = options.ledgerFor ?? ((context) => new RecallLedger(context.identityPaths.recallLedger))
   const appendReceipt = options.appendReceipt ?? appendRecallReceipt
 
-  async function handle(payload: unknown, eventCtx: unknown): Promise<{ message: RecallMessage } | undefined> {
+  async function handle(payload: unknown, eventCtx: unknown): Promise<RecallInjection | undefined> {
     if (!isBeforeAgentStart(payload)) return undefined
     if (CHILD_SENTINELS.some((sentinel) => options.env[sentinel] === "1")) return undefined
     const session = readSession(eventCtx)
@@ -109,14 +111,24 @@ export function createMemoryRecallWiring(options: MemoryRecallWiringOptions): Me
       queries,
       injected: candidates.map((candidate) => ({ path: candidate.path, score: candidate.score })),
     })
-    return { message: { customType: RECALL_CUSTOM_TYPE, content, display: false } }
+    return {
+      result: { message: { customType: RECALL_CUSTOM_TYPE, content, display: false } },
+      paths: candidates.map((candidate) => candidate.path),
+    }
   }
 
   return {
     register(pi): void {
+      pi.registerEntryRenderer(RECALL_CUSTOM_TYPE, renderRecallEntry)
       pi.on("before_agent_start", async (payload, eventCtx) => {
         try {
-          return await handle(payload, eventCtx)
+          const result = await handle(payload, eventCtx)
+          if (result !== undefined) {
+            // Visible half of the injection: the model-facing message is display:false, so without
+            // this entry the user would see a memory-shaped answer with no trace of the hint.
+            pi.appendEntry(RECALL_CUSTOM_TYPE, { paths: result.paths } satisfies MemoryRecallRecord)
+          }
+          return result?.result
         } catch (error) {
           // Read-only advice: any failure skips the injection and leaves the turn untouched.
           options.logger?.warn("omo-senpi memory recall skipped", { error: describe(error) })
@@ -127,10 +139,15 @@ export function createMemoryRecallWiring(options: MemoryRecallWiringOptions): Me
   }
 }
 
-interface RecallMessage {
-  readonly customType: typeof RECALL_CUSTOM_TYPE
-  readonly content: string
-  readonly display: false
+interface RecallInjection {
+  readonly result: {
+    readonly message: {
+      readonly customType: typeof RECALL_CUSTOM_TYPE
+      readonly content: string
+      readonly display: false
+    }
+  }
+  readonly paths: readonly string[]
 }
 
 /** Hard ceiling on the injected block, applied to the rendered text as whole lines. */

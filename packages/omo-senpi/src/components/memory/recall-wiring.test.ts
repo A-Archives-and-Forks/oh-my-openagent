@@ -143,6 +143,35 @@ describe("createMemoryRecallWiring", () => {
     expect(result?.systemPrompt).toBeUndefined()
   }, 30_000)
 
+  test("#given a recall hit #when the handler finishes #then a rendered transcript entry names the surfaced path", async () => {
+    // given
+    const { repo, context } = await fixture()
+    const pi = new MemoryFakeExtensionAPI()
+    wiringFor({ repo, identity: context }).register(pi)
+
+    // when
+    await dispatch(pi, eventContext([userEntry("m1", "how do we handle kubernetes rollouts here")]))
+
+    // then
+    expect(pi.entryRenderers.map((registration) => registration.customType)).toContain(RECALL_CUSTOM_TYPE)
+    expect(pi.entries).toEqual([
+      { customType: RECALL_CUSTOM_TYPE, data: { paths: ["reference/kubernetes-rollouts.md"] } },
+    ])
+  }, 30_000)
+
+  test("#given no recall hit #when before_agent_start dispatches #then no transcript entry is appended", async () => {
+    // given
+    const { repo, context } = await fixture()
+    const pi = new MemoryFakeExtensionAPI()
+    wiringFor({ repo, identity: context }).register(pi)
+
+    // when
+    await dispatch(pi, eventContext([userEntry("m1", "zzzqqq unrelated chatter")]))
+
+    // then
+    expect(pi.entries).toEqual([])
+  }, 30_000)
+
   test("#given recall disabled by config #when before_agent_start dispatches #then no message is returned", async () => {
     // given
     const { repo, context } = await fixture()
