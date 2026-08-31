@@ -126,6 +126,20 @@ describe("task engine builtin agent overlay", () => {
     expect(engine.agents["explore"]?.executionMode).toBe("in-process")
   })
 
+  test("#given a process override for a reviewer agent #when the engine resolves agents #then in-process execution remains pinned", () => {
+    // given
+    const cwd = tempProject()
+    writeOmoJson(cwd, { agents: { "omo-senpi-code-reviewer": { execution_mode: "process" } } })
+
+    // when
+    const engine = composeIn(cwd)
+
+    // then
+    expect(engine.agents["omo-senpi-code-reviewer"]?.executionMode).toBe("in-process")
+    expect(engine.agents["omo-senpi-qa-executor"]?.executionMode).toBe("in-process")
+    expect(engine.agents["omo-senpi-gate-reviewer"]?.executionMode).toBe("in-process")
+  })
+
   test("#given a process-mode user agent #when the engine resolves agents #then its execution mode remains configurable", () => {
     // given
     const cwd = tempProject()
