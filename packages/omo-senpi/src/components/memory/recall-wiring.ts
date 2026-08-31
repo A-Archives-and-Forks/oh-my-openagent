@@ -26,6 +26,25 @@ import type { MemoryExtensionAPI } from "./capabilities"
 import type { MemoryIdentityContext } from "./context"
 import { MEMORY_NOTICE_CUSTOM_TYPE } from "./prompt"
 import { renderRecallEntry, type MemoryRecallRecord } from "./recall-notice"
+import { resolveMemorySettings } from "./identity-runtime"
+
+export interface ResolvedMemoryRecallSettings {
+  readonly enabled: boolean
+  readonly max_items: number
+  readonly budget_tokens: number
+  readonly excerpt_chars: number
+  readonly min_score?: number
+  readonly exclude: readonly string[]
+}
+
+/** Base recall block under the bound agent's layer override, mirroring the nudge/reflection pattern. */
+export function resolveAgentRecallSettings(
+  settings: OmoMemorySettings | undefined,
+  agentId: string,
+): ResolvedMemoryRecallSettings {
+  const resolved = resolveMemorySettings(settings)
+  return { ...resolved.recall, ...resolved.agents[agentId]?.recall }
+}
 
 export const RECALL_CUSTOM_TYPE = "omo-memorian:recall"
 
@@ -44,7 +63,7 @@ const EXCLUDED_CUSTOM_TYPES: ReadonlySet<string> = new Set([RECALL_CUSTOM_TYPE, 
 
 export interface MemoryRecallWiringOptions {
   readonly resolveContext: (sessionId: string) => MemoryIdentityContext | undefined
-  /** Read per call so a config reload takes effect on the next turn. */
+  /** Full memory settings; the bound agent's recall override is applied internally. */
   readonly resolveSettings: () => OmoMemorySettings
   readonly env: Record<string, string | undefined>
   readonly createRepo?: (context: MemoryIdentityContext) => GitMemoryRepo
@@ -76,7 +95,7 @@ export function createMemoryRecallWiring(options: MemoryRecallWiringOptions): Me
     const context = options.resolveContext(session.id)
     if (context === undefined) return undefined
 
-    const recall = options.resolveSettings().recall
+    const recall = resolveAgentRecallSettings(options.resolveSettings(), context.identity)
     if (recall.enabled === false) return undefined
 
     const texts = recentTexts(session.entries)

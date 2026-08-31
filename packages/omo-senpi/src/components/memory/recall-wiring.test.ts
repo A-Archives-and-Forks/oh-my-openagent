@@ -172,6 +172,29 @@ describe("createMemoryRecallWiring", () => {
     expect(pi.entries).toEqual([])
   }, 30_000)
 
+  test("#given a per-agent recall override #when before_agent_start dispatches #then the override beats the base block", async () => {
+    // given
+    const { repo, context } = await fixture()
+    const pi = new MemoryFakeExtensionAPI()
+    const settings = memorySettings({
+      agents: {
+        [IDENTITY]: { recall: { enabled: false } },
+      },
+    })
+    createMemoryRecallWiring({
+      resolveContext: () => context,
+      resolveSettings: () => settings,
+      createRepo: () => repo,
+      env: {},
+    }).register(pi)
+
+    // when
+    const result = await dispatch(pi, eventContext([userEntry("m1", "how do we handle kubernetes rollouts here")]))
+
+    // then
+    expect(result).toBeUndefined()
+  }, 30_000)
+
   test("#given recall disabled by config #when before_agent_start dispatches #then no message is returned", async () => {
     // given
     const { repo, context } = await fixture()
