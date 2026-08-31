@@ -90,6 +90,12 @@ function senpiGate(): Record<string, unknown> {
 		codeReview: { ...BASE_GATE.codeReview, by: "omo-senpi-code-reviewer" },
 		manualQa: { ...BASE_GATE.manualQa, by: "omo-senpi-qa-executor" },
 		gateReview: { ...BASE_GATE.gateReview, by: "omo-senpi-gate-reviewer" },
+		criteriaCoverage: {
+			...BASE_GATE.criteriaCoverage,
+			originalIntent: "User wanted the senpi surface to accept honest reviewer attribution.",
+			desiredOutcome: "A gate naming the omo-senpi reviewers validates on the omo-senpi surface.",
+			userOutcomeReview: "The senpi-surface gate passed with truthful reviewer identities.",
+		},
 	});
 }
 
