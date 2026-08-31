@@ -162,3 +162,8 @@ export function invalidatePackage(
   }
 }
 
+/** @deprecated Use invalidatePackage instead - this nukes ALL plugins */
+export function invalidateCache(): boolean {
+  log("[auto-update-checker] WARNING: invalidateCache is deprecated, use invalidatePackage")
+  return invalidatePackage()
+}
