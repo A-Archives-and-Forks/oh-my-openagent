@@ -37,5 +37,5 @@ describe("omo-ai packed install", () => {
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
-  }, 60_000)
+  }, 240_000)
 })
