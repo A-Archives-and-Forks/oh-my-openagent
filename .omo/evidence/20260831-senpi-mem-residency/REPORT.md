@@ -39,6 +39,12 @@ Commits: `e7768de54`, `3fa909e17`, `cd157168d`
 
 The worktree is clean after push. Branch push succeeded to `origin/fix/senpi-mem-task-residency`. PR is open and the prescribed remote macOS test is green.
 
+## Eviction/send race blocker correction
+
+The race fix was implemented in commits `06d3a81f5` (RED tests), `92f53583a` (implementation), and `52843c1d7` (rebased bundle regeneration; current dev included PR #7533). Eviction now acquires a synchronous per-task claim before teardown awaits; sends/revives acquire the same task arbitration and receive a typed `not_continuable` refusal when eviction owns it. In-flight sends use a per-task counter, and sweep failures log the task id and error.
+
+The required serialized verification at SHA `fd1aa8f54` passed with **1783 passed, 1 skipped, 0 failed**. The later type-narrowing correction and bundle regeneration are at `34567b637` and `52843c1d7`; the current rerun at `52843c1d7` also passed **1783 passed, 1 skipped, 0 failed**.
+
 ## Follow-up CI correction
 
 The first Ubuntu full-suite run exposed two branch-caused issues: the idle test title still used RED-era wording, and its fake clock (`960,000`) was earlier than the fixture timestamp (`1,000,000`), so the record was correctly retained. The test now uses the contract title, an injected scheduler (no real timer), and `1,000,000 + 16 minutes` as its injected clock. The scheduler assertion pins the 15-minute interval. The manager registry fixture was also completed for typecheck.
