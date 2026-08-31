@@ -406,6 +406,39 @@ describe("idle timeout", () => {
       killQuietly(child.pid)
     }
   })
+
+  test("#given an explicitly zero idle timeout #when the server idles on a held-open pipe #then no idle timer is created", async () => {
+    // Callers on no-respawn hosts (codex: lsp proxy, git_bash, the codegraph
+    // unavailable stub) pin idleTimeoutMs: 0 and rely on zero meaning "no
+    // timer at all": the loop must park until stdin closes or the parent
+    // dies — never be torn down by a default timer that became live in #6548.
+    const input = new PassThrough()
+    const output = new PassThrough()
+    const events: string[] = []
+    const served = runJsonRpcStdioServer({
+      input,
+      output,
+      handlerOptions: undefined,
+      idleTimeoutMs: 0,
+      handler: async () => successResponse("idle", { acknowledged: true }),
+      log: (event) => {
+        events.push(event)
+      },
+    })
+
+    const outcome = await Promise.race([
+      served.then(() => "settled" as const),
+      Bun.sleep(500).then(() => "parked" as const),
+    ])
+    // Teardown of the held-open pipe is test cleanup; keep the rejection it
+    // provokes handled so the suite cannot fail on an unhandled error.
+    served.catch(() => {})
+    input.destroy()
+
+    expect(outcome).toBe("parked")
+    expect(events).toContain("stdio_started")
+    expect(events).not.toContain("idle_timeout")
+  })
 })
 
 describe("isProcessAlive", () => {

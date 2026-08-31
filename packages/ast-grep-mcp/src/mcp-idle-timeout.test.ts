@@ -62,6 +62,9 @@ describe("ast_grep MCP idle timeout", () => {
       served.then(() => "settled" as const),
       Bun.sleep(500).then(() => "hung" as const),
     ]);
+    // Cleanup of the held-open pipe; keep the provoked rejection handled so
+    // the suite cannot fail on an unhandled error after the assertions.
+    served.catch(() => {});
     input.destroy();
 
     // then
