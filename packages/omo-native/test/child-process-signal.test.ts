@@ -9,6 +9,7 @@ const SOURCE_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)))
 const CHILD_PROCESS_MODULE = join(SOURCE_ROOT, "bin", "lib", "child-process.js")
 const BUN_RUNTIME_MODULE = join(SOURCE_ROOT, "bin", "lib", "bun-runtime.js")
 const roots: string[] = []
+const fixturePids: number[] = []
 
 function writeFile(path: string, content: string): void {
   mkdirSync(dirname(path), { recursive: true })
@@ -28,7 +29,8 @@ function createRoot(): string {
  */
 function gracefulChildSource(options: { exitCode: number; drainMs: number }): string {
   return `
-import { appendFileSync } from "node:fs"
+import { appendFileSync, writeFileSync } from "node:fs"
+writeFileSync(process.env.PID_FILE, String(process.pid))
 const record = process.env.SIGNAL_LOG
 for (const signal of ["SIGTERM", "SIGHUP", "SIGINT"]) {
   process.on(signal, () => {
@@ -46,7 +48,8 @@ setInterval(() => {}, 1000)
  */
 function ignoringChildSource(): string {
   return `
-import { appendFileSync } from "node:fs"
+import { appendFileSync, writeFileSync } from "node:fs"
+writeFileSync(process.env.PID_FILE, String(process.pid))
 for (const signal of ["SIGTERM", "SIGHUP"]) {
   process.on(signal, () => {
     appendFileSync(process.env.SIGNAL_LOG, signal + "\\n")
@@ -63,7 +66,8 @@ setInterval(() => {}, 1000)
  */
 function signalDeathChildSource(): string {
   return `
-import { appendFileSync } from "node:fs"
+import { appendFileSync, writeFileSync } from "node:fs"
+writeFileSync(process.env.PID_FILE, String(process.pid))
 appendFileSync(process.env.READY_FILE, "ready\\n")
 setInterval(() => {}, 1000)
 `
@@ -125,6 +129,7 @@ type Harness = {
   signalLog: string
   readyFile: string
   parentLog: string
+  pidFile: string
   env: NodeJS.ProcessEnv
 }
 
@@ -137,12 +142,14 @@ function createHarness(childSource: string): Harness {
   const signalLog = join(root, "signals.log")
   const readyFile = join(root, "ready")
   const parentLog = join(root, "parent.log")
+  const pidFile = join(root, "child.pid")
   return {
     parentPath,
     signalLog,
     readyFile,
     parentLog,
-    env: { SIGNAL_LOG: signalLog, READY_FILE: readyFile, PARENT_LOG: parentLog },
+    pidFile,
+    env: { SIGNAL_LOG: signalLog, READY_FILE: readyFile, PARENT_LOG: parentLog, PID_FILE: pidFile },
   }
 }
 
@@ -175,6 +182,7 @@ describePosix("launcher child signal forwarding", () => {
         const harness = createHarness(ignoringChildSource())
         const parent = startParent(harness.parentPath, { ...harness.env, OMO_SIGNAL_GRACE_MS: "400" })
         await waitForFile(harness.readyFile)
+        fixturePids.push(parent.pid, Number(readFileSync(harness.pidFile, "utf8")))
 
         process.kill(parent.pid, signal)
 
@@ -194,6 +202,7 @@ describePosix("launcher child signal forwarding", () => {
       const harness = createHarness(gracefulChildSource({ exitCode: 0, drainMs: 200 }))
       const parent = startParent(harness.parentPath, harness.env)
       await waitForFile(harness.readyFile)
+      fixturePids.push(parent.pid, Number(readFileSync(harness.pidFile, "utf8")))
 
       process.kill(parent.pid, "SIGINT")
       await new Promise((resolveWait) => setTimeout(resolveWait, 500))
@@ -205,6 +214,10 @@ describePosix("launcher child signal forwarding", () => {
       process.kill(parent.pid, "SIGKILL")
       await parent.exit
     }, 30_000)
+  })
+
+  test("#then no fixture process survives any signal scenario", () => {
+    for (const pid of fixturePids) expect(() => process.kill(pid, 0)).toThrow()
   })
 
   describe("#given an engine child that exits on its own #when it returns a non-zero code", () => {
