@@ -114,7 +114,15 @@ function reviewAgentType(toolInput: unknown): string | null {
 	if (typeof agentType === "string" && REVIEW_AGENT_TYPE_SET.has(agentType)) return agentType;
 	const message = record["message"];
 	if (typeof message !== "string") return null;
-	const namedReviewer = REVIEW_AGENT_TYPES.find((name) => message.toLowerCase().includes(name));
+	const normalizedMessage = message.toLowerCase();
+	const explicitReviewer = REVIEW_AGENT_TYPES.map((name) => ({
+		name,
+		index: normalizedMessage.indexOf(`act as ${name}`),
+	}))
+		.filter(({ index }) => index >= 0)
+		.sort((left, right) => left.index - right.index)[0]?.name;
+	if (explicitReviewer !== undefined) return explicitReviewer;
+	const namedReviewer = REVIEW_AGENT_TYPES.find((name) => normalizedMessage.includes(name));
 	if (namedReviewer !== undefined) return namedReviewer;
 	return GATE_MESSAGE_PATTERN.test(message) ? "lazycodex-gate-reviewer" : null;
 }

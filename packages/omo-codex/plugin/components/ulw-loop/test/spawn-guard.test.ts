@@ -183,6 +183,28 @@ describe("applySpawnGuards review repetition cap", () => {
 			expect(fourth.permissionDecisionReason).toContain(`${agentType} 4/3`);
 		},
 	);
+
+	it("#given exhausted code reviews and an explicit QA assignment #when a mixed V2 prompt is guarded #then charges the QA role", () => {
+		writeGoals();
+		const codeReview = payload("collaboration.spawn_agent", {
+			message: "Act as lazycodex-code-reviewer; review the current diff",
+		});
+
+		expect(applySpawnGuards(codeReview)).toBe("");
+		expect(applySpawnGuards(codeReview)).toBe("");
+		expect(applySpawnGuards(codeReview)).toBe("");
+
+		const output = applySpawnGuards(
+			payload("collaboration.spawn_agent", {
+				message: "Act as lazycodex-qa-executor; verify the lazycodex-code-reviewer finding",
+			}),
+		);
+		expect(output).toBe("");
+
+		const counters = JSON.parse(readFileSync(join(sessionDir(), "review-spawn-counts.json"), "utf8"));
+		expect(counters["lazycodex-code-reviewer:g1:a1"]).toBe(3);
+		expect(counters["lazycodex-qa-executor:g1:a1"]).toBe(1);
+	});
 });
 
 describe("applySpawnGuards gate-artifact guard", () => {
