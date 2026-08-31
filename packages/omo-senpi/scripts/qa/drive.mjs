@@ -22,6 +22,7 @@ const commentCheckerHeader = "comment-checker found issues in"
 // dropping its volatile interactive-session stamps (tipsHistory, lastChangelogVersion): a concurrent
 // host TUI rewrites those on its own lifecycle events, which cannot identify QA pollution.
 const CREDENTIAL_FILES = ["auth.json", "models.json", "settings.json", "trust.json"]
+const PROTECTED_STATE_FILES = [...CREDENTIAL_FILES, "models-store.json", "hooks-state.json"]
 
 export function credentialDigest(agentDir) {
   const hash = createHash("sha256")
@@ -47,6 +48,14 @@ function credentialBytes(path, name) {
   } catch {
     return content
   }
+}
+
+export function snapshotProtectedState(root) {
+  return new Map(PROTECTED_STATE_FILES.map((name) => {
+    const path = join(root, name)
+    const bytes = existsSync(path) ? credentialBytes(path, name) : Buffer.from("absent")
+    return [name, createHash("sha256").update(bytes).digest("hex")]
+  }))
 }
 
 export function snapshotDirectory(root) {
@@ -161,6 +170,8 @@ function main() {
   const beforeDigest = digestDirectory(realSenpiAgentDir)
   const beforeSenpiSnapshot = snapshotDirectory(realSenpiAgentDir)
   const beforeOmoSnapshot = snapshotDirectory(realOmoAgentDir)
+  const beforeSenpiProtectedState = snapshotProtectedState(realSenpiAgentDir)
+  const beforeOmoProtectedState = snapshotProtectedState(realOmoAgentDir)
   const sandbox = createSandbox()
   let commentChecker = "NOT-RUN"
   let ultraworkInjected = false
@@ -174,14 +185,14 @@ function main() {
     if (senpiBin.includes("/") && !existsSync(senpiBin)) {
       result = "SKIP"
       reason = "senpi-binary-unavailable"
-      return printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, beforeSenpiSnapshot, beforeOmoSnapshot, sandbox, providedSenpiCodingAgentDir })
+      return printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, beforeSenpiSnapshot, beforeOmoSnapshot, beforeSenpiProtectedState, beforeOmoProtectedState, sandbox, providedSenpiCodingAgentDir })
     }
 
     const resolvedSenpi = senpiBin.includes("/") ? senpiBin : findOnPath(senpiBin)
     if (resolvedSenpi === null) {
       result = "SKIP"
       reason = "senpi-binary-unavailable"
-      return printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, beforeSenpiSnapshot, beforeOmoSnapshot, sandbox, providedSenpiCodingAgentDir })
+      return printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, beforeSenpiSnapshot, beforeOmoSnapshot, beforeSenpiProtectedState, beforeOmoProtectedState, sandbox, providedSenpiCodingAgentDir })
     }
 
     const ultrawork = runSenpi(resolvedSenpi, sandbox, "ulw please respond", {
@@ -216,25 +227,31 @@ function main() {
     }
 
     result = ultraworkInjected && (commentChecker === "PASS" || commentChecker === "SKIPPED-no-binary") ? "PASS" : "FAIL"
-    return printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, beforeSenpiSnapshot, beforeOmoSnapshot, sandbox, providedSenpiCodingAgentDir })
+    return printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, beforeSenpiSnapshot, beforeOmoSnapshot, beforeSenpiProtectedState, beforeOmoProtectedState, sandbox, providedSenpiCodingAgentDir })
   } finally {
     rmSync(sandbox.root, { recursive: true, force: true })
   }
 }
 
-function printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, beforeSenpiSnapshot, beforeOmoSnapshot, sandbox, providedSenpiCodingAgentDir }) {
+function printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, beforeSenpiSnapshot, beforeOmoSnapshot, beforeSenpiProtectedState, beforeOmoProtectedState, sandbox, providedSenpiCodingAgentDir }) {
   const afterDigest = digestDirectory(realSenpiAgentDir)
-  const realSenpiChangedPaths = changedSnapshotPaths(beforeSenpiSnapshot, snapshotDirectory(realSenpiAgentDir))
-  const realOmoChangedPaths = changedSnapshotPaths(beforeOmoSnapshot, snapshotDirectory(realOmoAgentDir))
+  const realSenpiObservedChangedPaths = changedSnapshotPaths(beforeSenpiSnapshot, snapshotDirectory(realSenpiAgentDir))
+  const realOmoObservedChangedPaths = changedSnapshotPaths(beforeOmoSnapshot, snapshotDirectory(realOmoAgentDir))
+  const realSenpiChangedPaths = changedSnapshotPaths(beforeSenpiProtectedState, snapshotProtectedState(realSenpiAgentDir))
+  const realOmoChangedPaths = changedSnapshotPaths(beforeOmoProtectedState, snapshotProtectedState(realOmoAgentDir))
   const payload = {
     result,
     ...(reason ? { reason } : {}),
     ultraworkInjected,
     commentChecker,
-    realSenpiUntouched: beforeDigest === afterDigest && realSenpiChangedPaths.length === 0,
+    realSenpiUntouched: realSenpiChangedPaths.length === 0,
     realSenpiChangedPaths,
+    realSenpiObservedChangedPaths,
+    realSenpiWholeTreeDigestUntouched: beforeDigest === afterDigest,
     realOmoUntouched: realOmoChangedPaths.length === 0,
     realOmoChangedPaths,
+    realOmoObservedChangedPaths,
+    protectedStateFiles: PROTECTED_STATE_FILES,
     realHomesChecked: [realSenpiAgentDir, realOmoAgentDir],
     providedSenpiCodingAgentDir,
     sandboxAgentDir: sandbox.agentDir,
