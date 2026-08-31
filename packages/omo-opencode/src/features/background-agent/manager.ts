@@ -2373,7 +2373,7 @@ The task was re-queued on a fallback model after a retryable failure.
         subagentSessions.delete(task.sessionId)
         clearDelegatedChildSessionBootstrap(task.sessionId)
         SessionCategoryRegistry.remove(task.sessionId)
-        const deleteSession = this.client.session.delete
+        const deleteSession = this.client.session.delete?.bind(this.client.session)
         if (typeof deleteSession === "function") {
           await deleteSession({ path: { id: task.sessionId } }).catch((error: unknown) => {
             log("[background-agent] Failed to delete completed subagent session:", { sessionID: task.sessionId, error: String(error) })

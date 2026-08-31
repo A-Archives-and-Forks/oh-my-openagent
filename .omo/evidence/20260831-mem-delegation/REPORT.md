@@ -2,28 +2,50 @@
 
 Branch: `fix/mem-delegation-lifecycle`
 
-## RED
+## Initial RED
 
-- Fix 1: existing `reserveSubagentSpawn` test demonstrated multiple root descendants were accepted without a cap.
-- Fix 2: existing sync delegation path had no `ConcurrencyManager.acquire`; the regression test was expected to observe concurrent sync launches beyond the configured gate.
-- Fix 3: fake-client regression test expected one `messages()` call during repeated idle polls; pre-fix behavior fetched once per tick.
-- Fix 4: completion lifecycle tests observed abort/registry cleanup but no delayed `session.delete`, and `session.deleted` cleanup was conditional for background sessions.
+- Fix 1: unbounded `reserveSubagentSpawn` accepted unlimited descendants.
+- Fix 2: sync delegation bypassed `ConcurrencyManager`.
+- Fix 3: sync polling fetched the entire transcript every tick.
+- Fix 4: delegated sessions were aborted but not deleted and lifecycle sets did not fully drain.
 
-RED was captured before implementation while auditing the branch. The remote runner is the authoritative test environment per task instructions.
+## Regression RED and GREEN
 
-## GREEN
+### B1 - continuation message-ID anchor
 
-Remote command (required runner):
+- RED: a newest-100 transcript page with a full-transcript count anchor (>=100) never passed the count gate, so continuation completion could starve forever.
+- GREEN: continuation records `anchorMessageID` from the newest full-transcript message and the poller accepts a bounded page when it contains messages after that ID. Full remote suite passed.
+
+### B2 - nested sync concurrency reentrancy
+
+- RED: a nested sync delegation under `defaultConcurrency: 1` waited on the parent-held slot.
+- GREEN: only root-level sync delegations acquire the gate; nested sync delegations rely on the root slot and descendant guard. Full remote suite passed.
+
+### B3 - revival-safe deletion timers
+
+- RED: an untracked completion deletion timer could delete a revived live continuation at the original deadline.
+- GREEN: deletion timers are tracked by session ID; continuation start cancels the pending timer and completion schedules a fresh grace-period deletion. Full remote suite passed.
+
+### Remote GREEN
+
+Required command:
 
 ```text
-bun /tmp/omo-mac-test.mjs fix/mem-delegation-lifecycle -- packages/omo-opencode/src/features/background-agent packages/omo-opencode/src/tools/delegate-task
+MAC_TEST_TIMEOUT_S=2700 bun /tmp/omo-mac-test2.mjs fix/mem-delegation-lifecycle -- packages/omo-opencode/src/features/background-agent packages/omo-opencode/src/tools/delegate-task
 ```
 
-Result: the required remote runner was invoked twice (full touched scopes, then bounded new/regression tests) but both executions exceeded the runner timeouts (1200s and 600s respectively) without returning a test exit code. No local `bun test` was run, per hard rule.
+Result:
 
-## Notes
+```text
+1230 pass
+0 fail
+3022 expect() calls
+Ran 1230 tests across 101 files
+```
 
-- `background_task.maxLiveDescendantsPerRoot` defaults to `5`, matching the existing default background concurrency limit. `0` means unlimited, matching the existing concurrency convention.
-- Sync session deletion is delayed by `TASK_CLEANUP_DELAY_MS` so full-session read-back and continuation paths retain their grace window.
-- Parent wake inspection caches one loaded transcript briefly, preventing multiple same-wake checks from issuing separate full fetches.
-- Local `tsgo` was attempted; this fresh worktree lacks installed workspace dependency/type declarations, producing pre-existing module-resolution diagnostics.
+## Final design notes
+
+- `background_task.maxLiveDescendantsPerRoot` defaults to `24`, intentionally above the `ConcurrencyManager` scheduler so legitimate tasks queue rather than fail. `0` disables the guard.
+- Sync session deletion follows `TASK_CLEANUP_DELAY_MS` to preserve full-session read-back and continuation grace windows.
+- Parent wake inspection has no cross-check transcript cache; each distinct wake check observes fresh history. Transcript reads remain bounded where the new polling path uses `limit: 100`.
+- Existing tests were left unmodified.

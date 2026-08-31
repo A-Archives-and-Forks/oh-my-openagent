@@ -108,6 +108,7 @@ export async function executeSyncContinuation(
   if (!continuationID) {
     throw new Error("task_id is required to continue a sync task")
   }
+  cancelSyncSessionDeletion(continuationID)
   const taskId = `resume_sync_${continuationID.slice(0, 8)}`
   const startTime = new Date()
 
@@ -134,7 +135,6 @@ export async function executeSyncContinuation(
     resumeVariant = resumeContext.resumeVariant
     anchorMessageCount = resumeContext.anchorMessageCount
     anchorMessageID = resumeContext.anchorMessageID
-    cancelSyncSessionDeletion(continuationID)
 
     const resumeModelForMetadata = resumeModel && resumeVariant !== undefined
       ? { ...resumeModel, variant: resumeVariant }
