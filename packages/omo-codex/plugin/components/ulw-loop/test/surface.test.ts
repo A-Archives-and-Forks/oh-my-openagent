@@ -29,9 +29,9 @@ describe("resolveToolkitSurface", () => {
 	it("#given the env override #when a conflicting marker exists #then the env wins", async () => {
 		await writeFile(join(markerDir, "surface.json"), '{"surface":"omo-senpi"}\n', "utf8");
 
-		expect(
-			resolveToolkitSurface({ env: { OMO_AGENT_TOOLKIT_SURFACE: "lazycodex" }, entryDir: markerDir }),
-		).toBe("lazycodex");
+		expect(resolveToolkitSurface({ env: { OMO_AGENT_TOOLKIT_SURFACE: "lazycodex" }, entryDir: markerDir })).toBe(
+			"lazycodex",
+		);
 	});
 
 	it("#given an omo-senpi env override without marker #when resolved #then returns omo-senpi", () => {
@@ -51,9 +51,9 @@ describe("resolveToolkitSurface", () => {
 	it("#given an unknown env value #when a valid marker exists #then the marker still applies", async () => {
 		await writeFile(join(markerDir, "surface.json"), '{"surface":"omo-senpi"}\n', "utf8");
 
-		expect(
-			resolveToolkitSurface({ env: { OMO_AGENT_TOOLKIT_SURFACE: "bogus" }, entryDir: markerDir }),
-		).toBe("omo-senpi");
+		expect(resolveToolkitSurface({ env: { OMO_AGENT_TOOLKIT_SURFACE: "bogus" }, entryDir: markerDir })).toBe(
+			"omo-senpi",
+		);
 	});
 });
 
