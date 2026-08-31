@@ -113,3 +113,12 @@ third-party packaging setup failure: an aggregate build lost `@types/node`
 before the ulw-loop build. Running the aggregate plugin build directly after
 the install passed. No changed component test, typecheck, lint, or build
 failed.
+
+Latest current-dev merge:
+  upstream/dev: 00fc6bdb8
+  component: 41 files passed, 447 tests passed.
+  component check: TypeScript, Biome (84 files), and build passed.
+  app-server self-test: pass.
+  isolated local-plugin app-server: pass.
+  hooks fired: sessionStart, userPromptSubmit, stop.
+  real ~/.codex/config.toml: unchanged.
