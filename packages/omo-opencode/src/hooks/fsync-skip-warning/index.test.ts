@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "bun:test"
+import { afterEach, beforeEach, describe, expect, it } from "bun:test"
 
 import { classifyPathEnvironment } from "../../shared/classify-path-environment"
 import { clearAllSkips, recordFsyncSkip } from "../../shared/fsync-skip-tracker"
@@ -18,6 +18,10 @@ async function advanceClockPastNow(): Promise<void> {
 describe("createFsyncSkipWarningHook", () => {
   beforeEach(() => {
     clearAllSkips()
+    stopFsyncSkipWarningCleanup()
+  })
+
+  afterEach(() => {
     stopFsyncSkipWarningCleanup()
   })
 

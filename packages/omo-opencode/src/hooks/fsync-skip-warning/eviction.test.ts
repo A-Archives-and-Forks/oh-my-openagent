@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { unsafeTestValue } from "../../../../../test-support/unsafe-test-value"
 import {
   createFsyncSkipWarningHook,
@@ -47,6 +47,10 @@ function installSweepHarness() {
 
 describe("fsync-skip-warning startTimesByCallId eviction", () => {
   let restore: (() => void) | undefined
+
+  beforeEach(() => {
+    stopFsyncSkipWarningCleanup()
+  })
 
   afterEach(() => {
     stopFsyncSkipWarningCleanup()
