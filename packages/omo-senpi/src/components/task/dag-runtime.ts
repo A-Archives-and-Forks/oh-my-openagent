@@ -105,7 +105,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
       baseStore.writeCheckpoint(runId, checkpoint)
       mutationListener()
       if (!schedulers.has(runId)) {
-        publishDurableEvents(baseStore, runId, deliveredSeq, runListeners, durableEventListener)
+        publishDurableEvents(baseStore, runId, deliveredSeq, runListeners, durableEventListener, deps.logger)
       }
     },
   }
@@ -145,7 +145,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
   const publishSchedulerEvent = (event: DagRunEvent): void => {
     if ((deliveredSeq.get(event.runId) ?? 0) >= event.seq) return
     deliveredSeq.set(event.runId, event.seq)
-    deliverDurableEvent(durableEventListener, event)
+    deliverDurableEvent(durableEventListener, event, deps.logger)
     for (const listener of runListeners.get(event.runId) ?? []) deliverDurableEvent(listener, event, deps.logger)
   }
   const stopObservingSchedulers = observeDagSchedulers(taskManager, (scheduler) => {
@@ -537,6 +537,7 @@ function publishDurableEvents(
   delivered: Map<DagRunId, number>,
   listeners: ReadonlyMap<DagRunId, ReadonlySet<(event: DagRunEvent) => void>>,
   onEvent: (event: DagRunEvent) => void,
+  logger: ComponentLogger,
 ): void {
   let sinceSeq = delivered.get(runId) ?? 0
   for (;;) {
