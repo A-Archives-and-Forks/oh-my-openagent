@@ -544,8 +544,8 @@ function publishDurableEvents(
     const page = store.readEvents(runId, sinceSeq, { limit: EVENT_PAGE_SIZE })
     for (const event of page.events) {
       delivered.set(runId, event.seq)
-      deliverDurableEvent(onEvent, event, deps.logger)
-      for (const listener of listeners.get(runId) ?? []) deliverDurableEvent(listener, event, deps.logger)
+      deliverDurableEvent(onEvent, event, logger)
+      for (const listener of listeners.get(runId) ?? []) deliverDurableEvent(listener, event, logger)
     }
     if (!page.hasMore) return
     sinceSeq = page.nextSinceSeq

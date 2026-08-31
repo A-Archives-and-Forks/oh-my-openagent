@@ -98,3 +98,10 @@ export async function resolveRecentPromptContextForSession(
   }
 }
 
+export async function resolveRecentModelForSession(
+  ctx: PluginInput,
+  sessionID: string
+): Promise<ModelInfo | undefined> {
+  const context = await resolveRecentPromptContextForSession(ctx, sessionID)
+  return context.model
+}

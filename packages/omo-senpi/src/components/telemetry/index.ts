@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs"
 import { resolveAgentHome } from "../agent-home/resolve-agent-home"
+import { join } from "node:path"
 import type { OmoSenpiComponent } from "../../extension/types"
 import {
   DEFAULT_POSTHOG_API_KEY,
