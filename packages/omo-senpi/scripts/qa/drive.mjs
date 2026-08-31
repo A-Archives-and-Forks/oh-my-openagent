@@ -170,7 +170,7 @@ function main() {
   const providedSenpiCodingAgentDir = process.env.SENPI_CODING_AGENT_DIR ? "IGNORED" : "unset"
   const beforeDigest = digestDirectory(realSenpiAgentDir)
   const beforeSenpiSnapshot = snapshotDirectory(realSenpiAgentDir)
-  const beforeOmoSnapshot = snapshotDirectory(realOmoAgentDir)
+  const beforeOmoSnapshot = snapshotProtectedState(realOmoAgentDir)
   const beforeSenpiProtectedState = snapshotProtectedState(realSenpiAgentDir)
   const beforeOmoProtectedState = snapshotProtectedState(realOmoAgentDir)
   const sandbox = createSandbox()
@@ -237,7 +237,7 @@ function main() {
 function printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, beforeSenpiSnapshot, beforeOmoSnapshot, beforeSenpiProtectedState, beforeOmoProtectedState, sandbox, providedSenpiCodingAgentDir }) {
   const afterDigest = digestDirectory(realSenpiAgentDir)
   const realSenpiObservedChangedPaths = changedSnapshotPaths(beforeSenpiSnapshot, snapshotDirectory(realSenpiAgentDir))
-  const realOmoObservedChangedPaths = changedSnapshotPaths(beforeOmoSnapshot, snapshotDirectory(realOmoAgentDir))
+  const realOmoObservedChangedPaths = changedSnapshotPaths(beforeOmoSnapshot, snapshotProtectedState(realOmoAgentDir))
   const realSenpiChangedPaths = changedSnapshotPaths(beforeSenpiProtectedState, snapshotProtectedState(realSenpiAgentDir))
   const realOmoChangedPaths = changedSnapshotPaths(beforeOmoProtectedState, snapshotProtectedState(realOmoAgentDir))
   const payload = {
