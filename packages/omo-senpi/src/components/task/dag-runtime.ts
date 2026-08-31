@@ -105,7 +105,7 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
       baseStore.writeCheckpoint(runId, checkpoint)
       mutationListener()
       if (!schedulers.has(runId)) {
-        publishDurableEvents(baseStore, runId, deliveredSeq, runListeners, durableEventListener, deps.logger)
+        publishDurableEvents(baseStore, runId, deliveredSeq, runListeners, durableEventListener)
       }
     },
   }
@@ -145,8 +145,8 @@ export function createDagRuntime(deps: DagRuntimeDeps): DagRuntime {
   const publishSchedulerEvent = (event: DagRunEvent): void => {
     if ((deliveredSeq.get(event.runId) ?? 0) >= event.seq) return
     deliveredSeq.set(event.runId, event.seq)
-    deliverDurableEvent(durableEventListener, event, deps.logger)
-    for (const listener of runListeners.get(event.runId) ?? []) deliverDurableEvent(listener, event, deps.logger)
+    deliverDurableEvent(durableEventListener, event)
+    for (const listener of runListeners.get(event.runId) ?? []) deliverDurableEvent(listener, event)
   }
   const stopObservingSchedulers = observeDagSchedulers(taskManager, (scheduler) => {
     scheduler.subscribe(publishSchedulerEvent)
@@ -537,26 +537,25 @@ function publishDurableEvents(
   delivered: Map<DagRunId, number>,
   listeners: ReadonlyMap<DagRunId, ReadonlySet<(event: DagRunEvent) => void>>,
   onEvent: (event: DagRunEvent) => void,
-  logger: ComponentLogger,
 ): void {
   let sinceSeq = delivered.get(runId) ?? 0
   for (;;) {
     const page = store.readEvents(runId, sinceSeq, { limit: EVENT_PAGE_SIZE })
     for (const event of page.events) {
       delivered.set(runId, event.seq)
-      deliverDurableEvent(onEvent, event, logger)
-      for (const listener of listeners.get(runId) ?? []) deliverDurableEvent(listener, event, logger)
+      deliverDurableEvent(onEvent, event)
+      for (const listener of listeners.get(runId) ?? []) deliverDurableEvent(listener, event)
     }
     if (!page.hasMore) return
     sinceSeq = page.nextSinceSeq
   }
 }
 
-function deliverDurableEvent(listener: (event: DagRunEvent) => void, event: DagRunEvent, logger: ComponentLogger): void {
+function deliverDurableEvent(listener: (event: DagRunEvent) => void, event: DagRunEvent): void {
   try {
     listener(event)
   } catch (error) {
-    logger.error("DAG runtime subscriber failed", error)
+    console.error("DAG runtime subscriber failed", error)
   }
 }
 
