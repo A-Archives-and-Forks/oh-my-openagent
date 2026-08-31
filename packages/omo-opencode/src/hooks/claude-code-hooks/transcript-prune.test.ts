@@ -3,8 +3,8 @@ import { existsSync } from "fs"
 import { unsafeTestValue } from "../../../../../test-support/unsafe-test-value"
 import {
   buildTranscriptFromSession,
-  clearTranscriptCache,
   hasTranscriptCacheEntry,
+  stopTranscriptCacheCleanup,
 } from "./transcript"
 
 const TRANSCRIPT_CACHE_TTL_MS = 5 * 60 * 1000
@@ -59,9 +59,9 @@ describe("transcript cache idle prune", () => {
   let restore: (() => void) | undefined
 
   afterEach(() => {
+    stopTranscriptCacheCleanup()
     restore?.()
     restore = undefined
-    clearTranscriptCache()
   })
 
   test("#given a cached transcript snapshot #when the TTL elapses without another build #then a background sweep drops the entry and temp file", async () => {
