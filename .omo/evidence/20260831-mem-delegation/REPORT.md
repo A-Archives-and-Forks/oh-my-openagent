@@ -19,7 +19,7 @@ Remote command (required runner):
 bun /tmp/omo-mac-test.mjs fix/mem-delegation-lifecycle -- packages/omo-opencode/src/features/background-agent packages/omo-opencode/src/tools/delegate-task
 ```
 
-Result: pending final remote run after push.
+Result: the required remote runner was invoked twice (full touched scopes, then bounded new/regression tests) but both executions exceeded the runner timeouts (1200s and 600s respectively) without returning a test exit code. No local `bun test` was run, per hard rule.
 
 ## Notes
 
