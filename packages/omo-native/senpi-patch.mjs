@@ -1,9 +1,24 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
+import { createRequire } from "node:module"
 import { fileURLToPath } from "node:url"
 
 const packageRoot = dirname(fileURLToPath(import.meta.url))
-const senpiRoot = join(packageRoot, "node_modules", "@code-yeongyu", "senpi")
+const require = createRequire(join(packageRoot, "package.json"))
+let senpiRoot
+try {
+  const searchPaths = require.resolve.paths("@code-yeongyu/senpi") ?? []
+  for (const searchPath of searchPaths) {
+    const candidate = join(searchPath, "@code-yeongyu", "senpi")
+    if (existsSync(join(candidate, "package.json"))) {
+      senpiRoot = candidate
+      break
+    }
+  }
+  if (senpiRoot === undefined) throw new Error("package root not found in module graph")
+} catch (error) {
+  throw new Error("omo-ai: unable to resolve the installed @code-yeongyu/senpi package", { cause: error })
+}
 
 const transforms = {
   "dist/core/extensions/builtin/claude-sdk-oauth/session-registry-pump.js": [
@@ -42,8 +57,12 @@ const transforms = {
 
 for (const [relative, replacements] of Object.entries(transforms)) {
   const path = join(senpiRoot, relative)
-  if (!existsSync(path)) continue
+  if (!existsSync(path)) throw new Error(`omo-ai: installed Senpi target is missing: ${relative}`)
   let source = readFileSync(path, "utf8")
+  const alreadyTransformed = relative.endsWith("trust-storage.js")
+    ? source.includes("isCompleteHookStateSnapshot")
+    : source.includes("describeUnclaimedResult")
+  if (alreadyTransformed) continue
   for (const [from, to] of replacements) {
     if (source.includes(to)) continue
     if (!source.includes(from)) throw new Error(`omo-ai: unsupported Senpi ${relative}`)

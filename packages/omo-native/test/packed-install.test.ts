@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { createRequire } from "node:module"
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -22,8 +23,18 @@ describe("omo-ai packed install", () => {
       writeFileSync(join(consumer, "package.json"), JSON.stringify({ name: "omo-ai-consumer", private: true }))
       const install = Bun.spawnSync(["bun", "add", "--trust", join(root, tarball!)], { cwd: consumer, stdout: "pipe", stderr: "pipe" })
       expect(install.exitCode).toBe(0)
-      const installedScript = join(consumer, "node_modules", "omo-ai", "senpi-patch.mjs")
+      const installedPackageRoot = join(consumer, "node_modules", "omo-ai")
+      const installedScript = join(installedPackageRoot, "senpi-patch.mjs")
       expect(readFileSync(installedScript, "utf8")).toContain("isCompleteHookStateSnapshot")
+
+      const consumerRequire = createRequire(join(installedPackageRoot, "package.json"))
+      const searchPaths = consumerRequire.resolve.paths("@code-yeongyu/senpi") ?? []
+      const senpiRoot = searchPaths.map((searchPath) => join(searchPath, "@code-yeongyu", "senpi")).find((candidate) => existsSync(join(candidate, "package.json")))
+      expect(senpiRoot).toBeDefined()
+      const trustStorage = readFileSync(join(senpiRoot!, "dist/core/extensions/builtin/hooks/trust-storage.js"), "utf8")
+      const sessionRegistryPump = readFileSync(join(senpiRoot!, "dist/core/extensions/builtin/claude-sdk-oauth/session-registry-pump.js"), "utf8")
+      expect(trustStorage).toContain("isCompleteHookStateSnapshot")
+      expect(sessionRegistryPump).toContain("describeUnclaimedResult")
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
