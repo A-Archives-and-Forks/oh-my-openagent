@@ -148,6 +148,12 @@ function sessionMessageOf(entry: unknown): SessionMessage | undefined {
   if (!isRecord(body)) return undefined
   const role = stringOf(body.role)
   if (role === undefined) return undefined
+  // Extension-injected content, never conversation. The journal feeds BOTH the facts queue payload
+  // and the reflection/dream snapshot, so admitting a role-custom message here would let an
+  // injected omo-memorian:recall hint be extracted back into memory as if the session had said it.
+  // Senpi writes these as `custom_message` entries (already dropped by the type gate); this covers
+  // the role-custom `message` shape forks and older writers can leave behind.
+  if (role === "custom") return undefined
   return { id, role, body }
 }
 
