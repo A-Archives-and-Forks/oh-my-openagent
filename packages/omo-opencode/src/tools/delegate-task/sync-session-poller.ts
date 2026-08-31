@@ -31,6 +31,18 @@ function isActiveSessionStatus(status: { type: string } | undefined): boolean {
   return status !== undefined && ACTIVE_SESSION_STATUSES.has(status.type)
 }
 
+function hasMessagesAfterAnchor(
+  messages: SessionMessage[],
+  anchorMessageID: string | undefined,
+  anchorMessageCount: number | undefined,
+): boolean {
+  if (anchorMessageID !== undefined) {
+    const anchorIndex = messages.findIndex((message) => message.info?.id === anchorMessageID)
+    return anchorIndex === -1 || anchorIndex < messages.length - 1
+  }
+  return anchorMessageCount === undefined || messages.length > anchorMessageCount
+}
+
 async function fetchSessionMessages(
   client: OpencodeClient,
   sessionID: string
@@ -132,8 +144,11 @@ export async function pollSyncSession(
       }
 
       if (finalMessages) {
-        const hasNewMessages =
-          input.anchorMessageCount === undefined || finalMessages.length > input.anchorMessageCount
+        const hasNewMessages = hasMessagesAfterAnchor(
+          finalMessages,
+          input.anchorMessageID,
+          input.anchorMessageCount,
+        )
         if (hasNewMessages && isSessionComplete(finalMessages)) {
           log("[task] Abort detected after session already completed", { sessionID: input.sessionID })
           return null
@@ -194,12 +209,7 @@ export async function pollSyncSession(
       continue
     }
 
-    if (input.anchorMessageID !== undefined) {
-      const anchorIndex = messages.findIndex((message) => message.info?.id === input.anchorMessageID)
-      if (anchorIndex === messages.length - 1) continue
-    } else if (input.anchorMessageCount !== undefined && messages.length <= input.anchorMessageCount) {
-      continue
-    }
+    if (!hasMessagesAfterAnchor(messages, input.anchorMessageID, input.anchorMessageCount)) continue
 
     const sessionError = getTerminalSessionError(messages)
     if (sessionError) {

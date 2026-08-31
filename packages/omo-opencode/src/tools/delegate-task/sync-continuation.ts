@@ -189,6 +189,7 @@ export async function executeSyncContinuation(
        toastManager.removeTask(taskId)
      }
      const errorMessage = promptError instanceof Error ? promptError.message : String(promptError)
+     scheduleSyncSessionDeletion(client, continuationID)
      return `Failed to send continuation prompt: ${errorMessage}\n\nTask ID: ${continuationID}`
    }
 
@@ -265,7 +266,9 @@ ${buildTaskMetadataBlock({
            log(`[task] Failed to abort completed sync continuation session:`, error)
          })
        }
-       scheduleSyncSessionDeletion(client, continuationID)
      }
+     // Every terminal continuation path must restore the cleanup grace timer,
+     // including prompt/poll failures after revival cancelled the old timer.
+     scheduleSyncSessionDeletion(client, continuationID)
    }
 }
