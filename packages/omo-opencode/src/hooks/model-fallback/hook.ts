@@ -71,12 +71,6 @@ export function clearSessionFallbackChain(
   controller.clearSessionFallbackChain(sessionID)
 }
 
-export function getSessionFallbackChain(
-  controller: Pick<ModelFallbackStateController, "getSessionFallbackChain">,
-  sessionID: string,
-): FallbackEntry[] | undefined {
-  return controller.getSessionFallbackChain(sessionID)
-}
 
 /**
  * Sets a pending model fallback for a session.

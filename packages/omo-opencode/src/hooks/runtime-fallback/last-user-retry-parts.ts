@@ -12,12 +12,6 @@ export type LastUserRetryPayload = {
   tools?: Record<string, boolean>
 }
 
-export function getLastUserRetryParts(
-  messagesResponse: unknown,
-  sessionID?: string,
-): RetryPart[] {
-  return getLastUserRetryPayload(messagesResponse, sessionID).retryParts
-}
 
 export function getLastUserRetryPayload(
   messagesResponse: unknown,

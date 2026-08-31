@@ -12,8 +12,6 @@ import { subagentSessions } from "../../features/claude-code-session-state"
 import { resolveMessageEventSessionID } from "../../shared/event-session-id"
 import { normalizeModelToCanonicalString } from "./normalize-model"
 
-export { hasVisibleAssistantResponse } from "./visible-assistant-response"
-
 export function createMessageUpdateHandler(deps: HookDeps, helpers: AutoRetryHelpers) {
   const { ctx, config, pluginConfig, sessionStates, sessionLastAccess, sessionRetryInFlight, sessionAwaitingFallbackResult, sessionStatusRetryKeys } = deps
   const checkVisibleResponse = hasVisibleAssistantResponse(extractAutoRetrySignal)
