@@ -45,6 +45,19 @@ counter was absent. The exact Senpi gate completed with exit 0, Bun 1.4.0
 freshness passed, and a fresh real adapter run preserved protected host state.
 See `alias-live-adapter.redacted.json`.
 
+## Newest upstream re-verification
+
+After merging upstream through `b5cbae3fb`, Bun 1.4.0 rebuilt and verified the
+staged runtimes and all six Senpi extensions. The exact Senpi gate completed
+with 2464 pass, one Windows-only skip, zero failures, and 7914 assertions; the
+evidence resolver passed 10 tests.
+
+The real driver was then rerun from that exact tree. Its self-test passed and
+the live adapter reported `result=PASS`, ultrawork injection, and a passing
+comment checker. It reported no protected Senpi/OMO state changes and an
+unchanged credential digest. One unrelated OpenClaw session log changed as
+volatile background activity and was not attributed to the adapter run.
+
 ## What was omitted
 
 Temporary sandbox paths, raw environment values, credentials, authentication

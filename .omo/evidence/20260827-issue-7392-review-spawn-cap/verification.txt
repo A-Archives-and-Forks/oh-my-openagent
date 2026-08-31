@@ -167,3 +167,34 @@ After fix:
   omo-senpi-code-reviewer 4/3; no LazyCodex counter.
   Isolated Codex app-server and real Senpi adapter: pass; protected host state
   unchanged.
+
+Newest-upstream re-verification
+-------------------------------
+Exact integrated upstream:
+  b5cbae3fb8778a06f70aa7aada35c8be72f0dba0
+
+Aggregate Codex plugin:
+  335 pass, 0 fail.
+
+Root gates:
+  bun run typecheck: pass.
+  bun run build: pass.
+
+Bun 1.4 Senpi gate:
+  all staged runtimes and six extensions current.
+  2464 pass, one Windows-only skip, 0 fail, 7914 assertions.
+  evidence resolver: 10 pass, 0 fail.
+
+Live surfaces from the exact tree:
+  Codex app-server driver self-test: pass.
+  Isolated local-plugin app-server: pass.
+  Completed hooks: sessionStart, userPromptSubmit, stop.
+  Real ~/.codex/config.toml digest unchanged:
+    6f9a9998e39f4f8c47e225e81801ecb2c183136a
+  Senpi driver self-test: pass.
+  Real Senpi adapter: result=PASS; ultrawork injected; comment checker passed.
+  Senpi protected paths: unchanged.
+  Senpi credential digest: unchanged.
+  Real OMO protected paths: unchanged.
+  One unrelated OpenClaw session log was observed as volatile background
+  activity and was not attributed to the adapter run.

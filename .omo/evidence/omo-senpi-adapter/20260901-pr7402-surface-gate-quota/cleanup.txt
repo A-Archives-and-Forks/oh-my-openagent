@@ -14,3 +14,10 @@ CROSS-SURFACE ALIAS FOLLOW-UP CLEANUP PASS
 - built alias fixture removed
 - isolated Bun 1.4.0 runtime removed
 - matching alias sandbox/fixture processes after cleanup: 0
+
+NEWEST-UPSTREAM RE-VERIFICATION CLEANUP PASS
+
+- live adapter sandbox removed
+- task-owned typings installer terminated
+- matching newest-upstream sandbox processes after cleanup: 0
+- matching newest-upstream temporary paths after cleanup: 0

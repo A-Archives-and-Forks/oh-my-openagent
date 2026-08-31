@@ -113,6 +113,13 @@ component passed 449 tests. The rebuilt staged toolkit denied attempt 4 as
 `omo-senpi-code-reviewer 4/3` with no LazyCodex counter. Current isolated
 Codex and Senpi runs passed. See `alias-canonicalization.txt`.
 
+After the final upstream merge through `b5cbae3fb`, the aggregate Codex plugin
+passed 335 tests, root typecheck/build passed, and the Bun 1.4 Senpi gate
+passed 2464 tests with one Windows-only skip and zero failures. The exact tree
+was then driven again through isolated Codex and Senpi: Codex completed
+`sessionStart`, `userPromptSubmit`, and `stop`; Senpi returned `PASS`; and both
+reported protected host state unchanged. See `verification.txt`.
+
 ## What was omitted
 
 Raw environment dumps, authentication data, user configuration contents, and
