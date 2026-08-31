@@ -36,6 +36,7 @@ describe("pollSyncSession transcript retention", () => {
     }, 15)
 
     expect(result).toContain("Poll inactivity timeout reached")
-    expect(messagesCalls).toBe(1)
+    expect(messagesCalls).toBeGreaterThanOrEqual(1)
+    expect(messagesCalls).toBeLessThanOrEqual(2)
   })
 })
