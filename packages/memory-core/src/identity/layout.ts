@@ -1,6 +1,4 @@
 // Storage layout constants and path builders for memory identities.
-// Layout decision (plan todo 3): <memory-root>/agents/<safe-id>/{repo,runtime/...}
-// where memory-root = OMO_MEMORY_HOME override else ~/.omo/memory.
 
 import { homedir } from "node:os"
 import { join, resolve } from "node:path"
