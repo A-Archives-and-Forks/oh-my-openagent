@@ -118,6 +118,7 @@ type FakeOptions = {
   readonly startFailureNodeIds?: readonly string[]
   readonly startFailureKinds?: Readonly<Record<string, StartFailureKind>>
   readonly queuedNodeIds?: readonly string[]
+  readonly promoteBeforeAttachNodeIds?: readonly string[]
   readonly rejectCancelNodeIds?: readonly string[]
   readonly cancelErrors?: Readonly<Record<string, Error>>
   readonly cancelStarted?: () => void
@@ -235,6 +236,9 @@ class FakeTaskManager implements TaskManager {
     this.maxResidents = Math.max(this.maxResidents, this.#residents)
     const taskId = `task-${this.#taskCounter}`
     const queued = this.#options.queuedNodeIds?.includes(nodeId) === true
+    // The real queue can grant and launch between startOwned's snapshot and attachStarted: the
+    // returned result still says "pending" while the record already reads "running".
+    const promotedBeforeAttach = this.#options.promoteBeforeAttachNodeIds?.includes(nodeId) === true
     const completion = deferred<TaskRecord>()
     const task: MutableTask = {
       completion,
@@ -249,7 +253,7 @@ class FakeTaskManager implements TaskManager {
         model: "fake-model",
         notify_on_terminal: true,
         owner,
-        status: queued ? "pending" : "running",
+        status: promotedBeforeAttach ? "running" : queued ? "pending" : "running",
         residency_state: "resident",
         created_at: "2026-08-14T00:00:00.000Z",
         updated_at: "2026-08-14T00:00:00.000Z",
@@ -272,9 +276,9 @@ class FakeTaskManager implements TaskManager {
       kind: "started",
       reused: false,
       task_id: taskId,
-      status: queued ? "pending" : "running",
+      status: queued || promotedBeforeAttach ? "pending" : "running",
       name: nodeId,
-      ...(queued ? { queue_position: 3 } : {}),
+      ...(queued || promotedBeforeAttach ? { queue_position: 3 } : {}),
     }
   }
 
@@ -1049,6 +1053,35 @@ describe("DAG scheduler dependency-frontier admission", () => {
     const result = await within(running)
     expect(result.nodes.find((entry) => entry.id === "a")?.state).toBe("completed")
     expect(manager.listenerCount()).toBe(0)
+  })
+
+  test("#given the queue promotes the child before its watch is armed #when the node attaches #then the arm-time check transitions it to running", async () => {
+    // given: startOwned's pending snapshot is stale — the record already runs, and the child
+    // emits no further events, so only a level-triggered check at arm time can observe it
+    const manager = new FakeTaskManager({ promoteBeforeAttachNodeIds: ["a"], autoComplete: false })
+    const { scheduler, events } = schedulerFixture(definition([node("a")]), manager)
+    const transitioned = deferred<void>()
+    scheduler.subscribe((event) => {
+      if (event.type === "dag.node.transitioned" && event.nodeId === "a" && event.to === "running") transitioned.resolve()
+    })
+
+    // when
+    const running = scheduler.run()
+    await within(transitioned.promise)
+
+    // then
+    expect(events()).toContainEqual(expect.objectContaining({
+      type: "dag.node.transitioned",
+      nodeId: "a",
+      from: "scheduled",
+      to: "running",
+      reason: { kind: "started" },
+    }))
+    expect(scheduler.snapshot().nodes.find((entry) => entry.id === "a")?.startedAt).toBeDefined()
+    expect(manager.listenerCount()).toBe(0)
+    manager.complete("a")
+    const result = await within(running)
+    expect(result.nodes.find((entry) => entry.id === "a")?.state).toBe("completed")
   })
 
   test("#given a queued child that terminalizes without ever running #when the run settles #then no running transition is journaled and the watch is released", async () => {

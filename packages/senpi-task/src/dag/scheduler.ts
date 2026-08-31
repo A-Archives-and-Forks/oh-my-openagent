@@ -694,7 +694,7 @@ function attachStarted(
 // record; the first one observed after the record flips to running folds into the transition.
 function watchQueuedPromotion(context: SchedulerContext, nodeId: DagNodeId, taskId: string): void {
   disposePromotionWatch(context, nodeId)
-  const unsubscribe = context.taskManager.subscribeChild(taskId, () => {
+  const foldPromotion = (): void => {
     if (context.cancellationStarted) return
     if (context.taskManager.get(taskId)?.status !== "running") return
     disposePromotionWatch(context, nodeId)
@@ -703,8 +703,13 @@ function watchQueuedPromotion(context: SchedulerContext, nodeId: DagNodeId, task
     // dragged back to running (that path is reserved for explicit revives).
     if (nodeById(context.journal.snapshot(), nodeId).state !== "scheduled") return
     transition(context, nodeId, "running", { kind: "started" })
-  })
+  }
+  const unsubscribe = context.taskManager.subscribeChild(taskId, foldPromotion)
   context.promotionWatches.set(nodeId, unsubscribe)
+  // Level-triggered arm check: the queue can grant, launch, and flip the record to running between
+  // startOwned's pending snapshot and this arm point, and a live-handle subscription never replays
+  // missed events - without this a node promoted in that window sits "scheduled" until terminal.
+  foldPromotion()
 }
 
 function disposePromotionWatch(context: SchedulerContext, nodeId: DagNodeId): void {
