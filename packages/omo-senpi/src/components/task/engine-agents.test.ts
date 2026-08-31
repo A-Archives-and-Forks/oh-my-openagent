@@ -64,8 +64,17 @@ describe("task engine builtin agent overlay", () => {
     const engine = composeIn(tempProject())
 
     // then
-    expect(Object.keys(engine.agents).sort()).toEqual(["explore", "librarian", "metis", "momus"])
+    expect(Object.keys(engine.agents).sort()).toEqual([
+      "explore",
+      "librarian",
+      "metis",
+      "momus",
+      "omo-senpi-code-reviewer",
+      "omo-senpi-gate-reviewer",
+      "omo-senpi-qa-executor",
+    ])
     expect(engine.agents["explore"]?.executionMode).toBe("in-process")
+    expect(engine.agents["omo-senpi-code-reviewer"]?.executionMode).toBe("in-process")
   })
 
   test("#given an omo.json model override for a builtin agent #when the engine resolves agents #then the model wins and the builtin prompt and allowlist survive", () => {
@@ -92,7 +101,16 @@ describe("task engine builtin agent overlay", () => {
     const engine = composeIn(cwd)
 
     // then
-    expect(Object.keys(engine.agents).sort()).toEqual(["explore", "librarian", "metis", "momus", "scout"])
+    expect(Object.keys(engine.agents).sort()).toEqual([
+      "explore",
+      "librarian",
+      "metis",
+      "momus",
+      "omo-senpi-code-reviewer",
+      "omo-senpi-gate-reviewer",
+      "omo-senpi-qa-executor",
+      "scout",
+    ])
     expect(engine.agents["scout"]?.prompt).toBe("Scout the repo.")
   })
 
@@ -127,7 +145,9 @@ describe("task engine builtin agent overlay", () => {
     const engine = composeIn(tempProject())
 
     // when / then
-    expect(advertisedAgentNames(engine)).toBe("explore, librarian")
+    expect(advertisedAgentNames(engine)).toBe(
+      "explore, librarian, omo-senpi-code-reviewer, omo-senpi-gate-reviewer, omo-senpi-qa-executor",
+    )
     expect(advertisedPlanGatedAgentNames(engine)).toBe("metis, momus")
   })
 
