@@ -82,15 +82,17 @@ describe.each(flavors)("steering engine over the %s runner fake", (flavor) => {
   })
 
   test("#given two overlapping sends #when the first settles #then pending state remains true until the second settles", async () => {
-    let release!: () => void
-    const gate = new Promise<void>((resolve) => { release = resolve })
+    let releaseFirst!: () => void
+    let releaseSecond!: () => void
+    const firstGate = new Promise<void>((resolve) => { releaseFirst = resolve })
+    const secondGate = new Promise<void>((resolve) => { releaseSecond = resolve })
     const harness = makeHarness()
     const record = harness.seedRecord()
     toRunning(harness, record)
     let started = 0
     let bothStarted!: () => void
     const startedSignal = new Promise<void>((resolve) => { bothStarted = resolve })
-    const fake = makeFakeHandle(record.task_id, flavor, { followUpGate: gate, onFollowUpStart: () => {
+    const fake = makeFakeHandle(record.task_id, flavor, { followUpGates: [firstGate, secondGate], onFollowUpStart: () => {
       started += 1
       if (started === 2) bothStarted()
     } })
@@ -99,8 +101,11 @@ describe.each(flavors)("steering engine over the %s runner fake", (flavor) => {
     const second = harness.engine.sendToTask({ idOrName: record.task_id, message: "two" })
     await startedSignal
     expect(harness.engine.hasPendingSends(record.task_id)).toBe(true)
-    release()
-    await Promise.all([first, second])
+    releaseFirst()
+    await first
+    expect(harness.engine.hasPendingSends(record.task_id)).toBe(true)
+    releaseSecond()
+    await second
     expect(harness.engine.hasPendingSends(record.task_id)).toBe(false)
   })
 

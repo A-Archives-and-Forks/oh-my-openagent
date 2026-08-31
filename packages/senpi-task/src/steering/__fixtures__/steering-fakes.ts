@@ -37,6 +37,7 @@ export type FakeHandleOptions = {
   // (protocol-client rejects send after isExited). Proves teardown survives an abort rejection.
   readonly abortRejects?: boolean
   readonly followUpGate?: Promise<void>
+  readonly followUpGates?: readonly Promise<void>[]
   readonly onFollowUpStart?: () => void
 }
 
@@ -47,6 +48,7 @@ export function makeFakeHandle(taskId: string, flavor: RunnerFlavor, options: Fa
   const followUpCalls: string[] = []
   const abortCalls: number[] = []
   let lastText: string | undefined
+  let followUpIndex = 0
   const handle: ManagedChildHandle = {
     task_id: taskId,
     sessionId: `sess-${taskId}`,
@@ -57,7 +59,8 @@ export function makeFakeHandle(taskId: string, flavor: RunnerFlavor, options: Fa
     followUp: async (text) => {
       followUpCalls.push(text)
       options.onFollowUpStart?.()
-      await options.followUpGate
+      const gate = options.followUpGates?.[followUpIndex++] ?? options.followUpGate
+      await gate
     },
     abort: async () => {
       abortCalls.push(abortCalls.length + 1)
