@@ -163,7 +163,7 @@ function createHarness(childSource: string): Harness {
   }
 }
 
-afterEach(() => {
+afterEach(async () => {
   for (const pid of fixturePids) {
     try {
       process.kill(pid, "SIGKILL")
