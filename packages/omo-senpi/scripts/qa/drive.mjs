@@ -36,8 +36,8 @@ export function credentialDigest(agentDir) {
   return hash.digest("hex")
 }
 
-function credentialBytes(path, name) {
-  const content = readFileSync(path)
+function credentialBytes(path, name, readFile = readFileSync) {
+  const content = readFile(path)
   if (name !== "settings.json") return content
   try {
     const settings = JSON.parse(content.toString("utf8"))
@@ -59,15 +59,21 @@ export function snapshotProtectedState(root) {
   }))
 }
 
-export function snapshotDirectory(root) {
+export function snapshotDirectory(root, { readdir = readdirSync, readFile = readFileSync } = {}) {
   if (!existsSync(root)) return new Map()
   const files = []
-  collectFiles(root, files)
-  return new Map(files.sort().map((file) => {
+  collectFiles(root, files, readdir)
+  const snapshot = new Map()
+  for (const file of files.sort()) {
     const relative = file.slice(root.length + 1)
-    const bytes = relative === "settings.json" ? credentialBytes(file, "settings.json") : readFileSync(file)
-    return [relative, createHash("sha256").update(bytes).digest("hex")]
-  }))
+    try {
+      const bytes = relative === "settings.json" ? credentialBytes(file, "settings.json", readFile) : readFile(file)
+      snapshot.set(relative, createHash("sha256").update(bytes).digest("hex"))
+    } catch (error) {
+      if (!isTransientSnapshotEntryError(error)) throw error
+    }
+  }
+  return snapshot
 }
 
 export function changedSnapshotPaths(before, after) {
@@ -88,17 +94,22 @@ export function classifyObservedChanges(paths) {
   return { volatile, protectedState, other }
 }
 
-export function digestDirectory(root) {
+export function digestDirectory(root, { readdir = readdirSync, readFile = readFileSync } = {}) {
   if (!existsSync(root)) return "absent"
   const files = []
-  collectFiles(root, files)
+  collectFiles(root, files, readdir)
   const hash = createHash("sha256")
   for (const file of files.sort()) {
     const rel = file.slice(root.length + 1)
-    hash.update(rel)
-    hash.update("\0")
-    hash.update(createHash("sha256").update(readFileSync(file)).digest("hex"))
-    hash.update("\0")
+    try {
+      const fileDigest = createHash("sha256").update(readFile(file)).digest("hex")
+      hash.update(rel)
+      hash.update("\0")
+      hash.update(fileDigest)
+      hash.update("\0")
+    } catch (error) {
+      if (!isTransientSnapshotEntryError(error)) throw error
+    }
   }
   return hash.digest("hex")
 }
@@ -284,12 +295,23 @@ function printResult({ result, reason, ultraworkInjected, commentChecker, before
   console.log(JSON.stringify(payload))
 }
 
-function collectFiles(root, files) {
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
+function collectFiles(root, files, readdir = readdirSync) {
+  let entries
+  try {
+    entries = readdir(root, { withFileTypes: true })
+  } catch (error) {
+    if (isTransientSnapshotEntryError(error)) return
+    throw error
+  }
+  for (const entry of entries) {
     const path = join(root, entry.name)
-    if (entry.isDirectory()) collectFiles(path, files)
+    if (entry.isDirectory()) collectFiles(path, files, readdir)
     else if (entry.isFile()) files.push(path)
   }
+}
+
+function isTransientSnapshotEntryError(error) {
+  return error?.code === "ENOENT" || error?.code === "ENOTDIR"
 }
 
 function readSandboxText(root) {
