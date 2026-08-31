@@ -13,7 +13,10 @@ import type { DagRunRecordV1 } from "./manager"
 import type { DagTaskOwner, OwnedStartResult } from "./owner"
 import { createDagWaitSurface } from "./handle"
 import type { DagExecutionModeSources } from "./execution-mode"
-import { applyDagSchedulerEvent, createDagScheduler, DagNodeControlError, type DagNodeSpawnPolicy } from "./scheduler"
+import { controlJournal } from "./node-control-context"
+import { dagNodeTransitionedEvent } from "./events"
+import { persistDagNodeResult } from "./results"
+import { applyDagSchedulerEvent, createDagScheduler, DagNodeControlError, type DagNodeSpawnPolicy, type DagSchedulerOptions } from "./scheduler"
 import { createDagJournal } from "./journal"
 import { createDagFileStore, type DagFileStore } from "./store"
 import type { DagNode, DagNodeId, DagRunEvent, DagRunId } from "./types"
@@ -1638,5 +1641,78 @@ describe("DAG scheduler control-event replay", () => {
       live.nodes.map((entry) => `${entry.id}:${entry.state}:${entry.execAttempt ?? 0}`),
     )
     expect(replayed.snapshot().completedAt).toBe(live.completedAt)
+  })
+})
+
+describe("DAG scheduler terminal-run send gate (#7412)", () => {
+  test("#given a completed run #when send would revive a finished child #then it refuses before touching the child and the checkpoint stays terminal", async () => {
+    // given - the dag_923ad20e shape: the run completed, every node completed, children finished
+    // resident. A revive here would journal running nodes under a completed run - a checkpoint no
+    // recovery path can ever claim again (resume only claims "paused").
+    const manager = new FakeTaskManager()
+    const { scheduler, events, durable } = settledFixture(definition([node("done-node")]), manager, {
+      "done-node": { state: "completed", taskId: "task-done-node", attempt: 1 },
+    }, { status: "completed" })
+    manager.seed("done-node", "completed", "task-done-node")
+
+    // when / then - refused with the existing retry-family vocabulary.
+    await expect(scheduler.sendToNode(runId, "done-node" as DagNodeId, "keep going")).rejects.toMatchObject({
+      code: "node_not_continuable",
+    })
+
+    // and - the refusal happened BEFORE the task layer: no revive side effect, no journal append.
+    expect(manager.sends).toHaveLength(0)
+    expect(durable().status).toBe("completed")
+    expect(durable().nodes[0]?.state).toBe("completed")
+    expect(events().filter((event) => event.type === "dag.node.steered")).toHaveLength(0)
+  })
+
+  test("#given a cancelled run with a completed node #when send would revive its child #then it refuses and the checkpoint stays cancelled", async () => {
+    // given - cancellation is an explicit stop: a child that finished before the cancel must not
+    // be revivable through the run.
+    const manager = new FakeTaskManager()
+    const { scheduler, durable } = settledFixture(definition([node("early")]), manager, {
+      early: { state: "completed", taskId: "task-early", attempt: 1 },
+    }, { status: "cancelled" })
+    manager.seed("early", "completed", "task-early")
+
+    // when / then
+    await expect(scheduler.sendToNode(runId, "early" as DagNodeId, "one more pass")).rejects.toMatchObject({
+      code: "node_not_continuable",
+    })
+    expect(manager.sends).toHaveLength(0)
+    expect(durable().status).toBe("cancelled")
+    expect(durable().nodes[0]?.state).toBe("completed")
+  })
+
+  test("#given a stale control journal #when it re-appends an already-journaled terminal transition #then the WAL keeps exactly one completed event", () => {
+    // given - two journal instances over one run: the fresh one journals the completion, the stale
+    // one still caches the node as running (the dag_923ad20e seq38 completed->completed shape).
+    const manager = new FakeTaskManager()
+    const { store, events, durable, initialRecord } = settledFixture(definition([node("dup")]), manager, {
+      dup: { state: "running", taskId: "task-dup", attempt: 1 },
+    })
+    const seeded = manager.seed("dup", "completed", "task-dup")
+    const options: DagSchedulerOptions = { store, taskManager: manager, initialRecord }
+    const stale = controlJournal(options, durable())
+    const persisted = persistDagNodeResult({
+      store,
+      runId,
+      nodeId: "dup" as DagNodeId,
+      record: seeded,
+      now: () => Date.parse("2026-08-14T00:00:11.000Z"),
+    })
+    expect(persisted.kind).not.toBe("failed")
+    const fresh = controlJournal(options, durable())
+    fresh.append(dagNodeTransitionedEvent({ nodeId: "dup" as DagNodeId, from: "running", to: "completed", reason: { kind: "succeeded" } }))
+
+    // when - the stale instance re-appends the same terminal transition.
+    const duplicate = stale.append(dagNodeTransitionedEvent({ nodeId: "dup" as DagNodeId, from: "running", to: "completed", reason: { kind: "succeeded" } }))
+
+    // then - the locked recover saw the durable truth and dropped the duplicate.
+    expect(duplicate).toBeUndefined()
+    const completions = events().filter((event) => event.type === "dag.node.transitioned" && event.to === "completed")
+    expect(completions).toHaveLength(1)
+    expect(durable().nodes[0]?.state).toBe("completed")
   })
 })
