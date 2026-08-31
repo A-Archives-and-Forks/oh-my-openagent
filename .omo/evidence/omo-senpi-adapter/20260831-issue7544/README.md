@@ -23,6 +23,8 @@
   environment overrides.
 - The dedicated marker skips parent task recovery, while a
   `SENPI_CODING_AGENT_SESSION_DIR` parent override alone still reconciles.
+- A marked child with a captured session id continues the recovery chain and
+  still reconciles its own tasks and pending notifications.
 - The live adapter driver reported `realSenpiUntouched: true`, empty attributed
   real-home changes, and no task-owned leaks.
 - Each remote work directory returned its cleanup sentinel after removal.
@@ -41,3 +43,5 @@ The aggregate `task-rpc-e2e.mjs` driver was run in an isolated sandbox but
 terminated with `SIGTERM` before its first task record was persisted. It was not
 used as passing evidence. Raw environment, credential, and process logs were
 not copied here; the live driver reported protected real-home state unchanged.
+
+The captured nested-session regression is recorded in `nested-rpc-green.txt`.
