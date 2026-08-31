@@ -23,14 +23,15 @@ describe("renderRecallMessage", () => {
 
     // then
     expect(message).toBe(
-      "<recalled-memory>\n" +
+      '<recalled-memory source="[[reference/a.md]]">\n' +
         "A stored memory surfaced. It is a hint, not current state — verify before relying on it; read the source path for full context.\n" +
-        '- [[reference/a.md]] — Deploy · "the ingress gateway is flaky"\n' +
+        "Deploy\n" +
+        '"the ingress gateway is flaky"\n' +
         "</recalled-memory>",
     )
   })
 
-  it("#given several candidates #when the message is rendered #then one bullet per candidate keeps order", () => {
+  it("#given several candidates #when the message is rendered #then one sourced block per candidate keeps order", () => {
     // given
     const candidates = [
       candidate("notes/b.md", "Kubernetes notes", "first"),
@@ -41,15 +42,18 @@ describe("renderRecallMessage", () => {
     const message = renderRecallMessage(candidates)
 
     // then
-    const lines = message.split("\n")
-    expect(lines).toHaveLength(5)
-    expect(lines[0]).toBe("<recalled-memory>")
-    expect(lines[1]).toBe(
-      "A stored memory surfaced. It is a hint, not current state — verify before relying on it; read the source path for full context.",
+    expect(message).toBe(
+      '<recalled-memory source="[[notes/b.md]]">\n' +
+        "A stored memory surfaced. It is a hint, not current state — verify before relying on it; read the source path for full context.\n" +
+        "Kubernetes notes\n" +
+        '"first"\n' +
+        "</recalled-memory>\n" +
+      '<recalled-memory source="[[people/alice.md]]">\n' +
+        "A stored memory surfaced. It is a hint, not current state — verify before relying on it; read the source path for full context.\n" +
+        "Alice the backend lead\n" +
+        '"second"\n' +
+        "</recalled-memory>",
     )
-    expect(lines[2]).toBe('- [[notes/b.md]] — Kubernetes notes · "first"')
-    expect(lines[3]).toBe('- [[people/alice.md]] — Alice the backend lead · "second"')
-    expect(lines[4]).toBe("</recalled-memory>")
   })
 
   it("#given a rendered message #when the shape is inspected #then no trailing newline is appended", () => {
