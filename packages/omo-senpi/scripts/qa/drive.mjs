@@ -13,6 +13,7 @@ const repoRoot = resolve(packageRoot, "..", "..")
 const pluginRoot = join(packageRoot, "plugin")
 const mockProviderEntry = join(scriptDir, "mock-provider", "index.ts")
 const realSenpiAgentDir = join(homedir(), ".senpi", "agent")
+const realOmoAgentDir = join(homedir(), ".omo", "agent")
 const commentCheckerHeader = "comment-checker found issues in"
 
 // Isolation is proven by these four files staying byte-identical: a live dev machine writes
@@ -46,6 +47,22 @@ function credentialBytes(path, name) {
   } catch {
     return content
   }
+}
+
+export function snapshotDirectory(root) {
+  if (!existsSync(root)) return new Map()
+  const files = []
+  collectFiles(root, files)
+  return new Map(files.sort().map((file) => [
+    file.slice(root.length + 1),
+    createHash("sha256").update(readFileSync(file)).digest("hex"),
+  ]))
+}
+
+export function changedSnapshotPaths(before, after) {
+  return [...new Set([...before.keys(), ...after.keys()])]
+    .filter((path) => before.get(path) !== after.get(path))
+    .sort()
 }
 
 export function digestDirectory(root) {
@@ -142,6 +159,8 @@ function runSenpi(senpiBin, sandbox, prompt, script, extraEnv = {}) {
 function main() {
   const providedSenpiCodingAgentDir = process.env.SENPI_CODING_AGENT_DIR ? "IGNORED" : "unset"
   const beforeDigest = digestDirectory(realSenpiAgentDir)
+  const beforeSenpiSnapshot = snapshotDirectory(realSenpiAgentDir)
+  const beforeOmoSnapshot = snapshotDirectory(realOmoAgentDir)
   const sandbox = createSandbox()
   let commentChecker = "NOT-RUN"
   let ultraworkInjected = false
@@ -155,14 +174,14 @@ function main() {
     if (senpiBin.includes("/") && !existsSync(senpiBin)) {
       result = "SKIP"
       reason = "senpi-binary-unavailable"
-      return printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, sandbox, providedSenpiCodingAgentDir })
+      return printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, beforeSenpiSnapshot, beforeOmoSnapshot, sandbox, providedSenpiCodingAgentDir })
     }
 
     const resolvedSenpi = senpiBin.includes("/") ? senpiBin : findOnPath(senpiBin)
     if (resolvedSenpi === null) {
       result = "SKIP"
       reason = "senpi-binary-unavailable"
-      return printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, sandbox, providedSenpiCodingAgentDir })
+      return printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, beforeSenpiSnapshot, beforeOmoSnapshot, sandbox, providedSenpiCodingAgentDir })
     }
 
     const ultrawork = runSenpi(resolvedSenpi, sandbox, "ulw please respond", {
@@ -197,20 +216,26 @@ function main() {
     }
 
     result = ultraworkInjected && (commentChecker === "PASS" || commentChecker === "SKIPPED-no-binary") ? "PASS" : "FAIL"
-    return printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, sandbox, providedSenpiCodingAgentDir })
+    return printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, beforeSenpiSnapshot, beforeOmoSnapshot, sandbox, providedSenpiCodingAgentDir })
   } finally {
     rmSync(sandbox.root, { recursive: true, force: true })
   }
 }
 
-function printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, sandbox, providedSenpiCodingAgentDir }) {
+function printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, beforeSenpiSnapshot, beforeOmoSnapshot, sandbox, providedSenpiCodingAgentDir }) {
   const afterDigest = digestDirectory(realSenpiAgentDir)
+  const realSenpiChangedPaths = changedSnapshotPaths(beforeSenpiSnapshot, snapshotDirectory(realSenpiAgentDir))
+  const realOmoChangedPaths = changedSnapshotPaths(beforeOmoSnapshot, snapshotDirectory(realOmoAgentDir))
   const payload = {
     result,
     ...(reason ? { reason } : {}),
     ultraworkInjected,
     commentChecker,
-    realSenpiUntouched: beforeDigest === afterDigest,
+    realSenpiUntouched: beforeDigest === afterDigest && realSenpiChangedPaths.length === 0,
+    realSenpiChangedPaths,
+    realOmoUntouched: realOmoChangedPaths.length === 0,
+    realOmoChangedPaths,
+    realHomesChecked: [realSenpiAgentDir, realOmoAgentDir],
     providedSenpiCodingAgentDir,
     sandboxAgentDir: sandbox.agentDir,
     sandboxCwd: sandbox.cwd,
