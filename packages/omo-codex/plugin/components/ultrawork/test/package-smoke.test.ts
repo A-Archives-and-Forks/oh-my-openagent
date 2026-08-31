@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ULTRAWORK_DIRECTIVE } from "../src/directive.js";
 import {
 	collectHookCommandsFromValue,
 	readJsonFile,
@@ -9,6 +8,7 @@ import {
 	requireFiles,
 	requireScripts,
 } from "../../test-support/package-smoke-fixture.js";
+import { ULTRAWORK_DIRECTIVE } from "../src/directive.js";
 
 describe("codex ultrawork package metadata", () => {
 	it("#given package metadata #when inspected #then hook ships as bundled CLI", () => {
