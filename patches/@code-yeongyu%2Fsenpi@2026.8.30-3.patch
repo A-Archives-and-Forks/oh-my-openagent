@@ -1,25 +1,8 @@
-diff --git a/dist/cli.js b/dist/cli.js
---- a/dist/cli.js
-+++ b/dist/cli.js
-@@ -1,5 +1,6 @@
- #!/usr/bin/env node
- import "./valid-cwd.js";
-+import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
- import { spawn, spawnSync } from "node:child_process";
- import { existsSync, realpathSync } from "node:fs";
- import { join } from "node:path";
-@@ -51,6 +52,7 @@ function reexecUnderBunIfNeeded() {
- if (reexecUnderBunIfNeeded()) {
-     process.exit();
- }
-+registerBunOAuthFlows();
- // Must run before cli-main is loaded, by either path: it caches the engine graph this process
- // imports on the fast path below, and it publishes NODE_COMPILE_CACHE so a spawned cli-main child
- // inherits this process's cache directory instead of resolving and re-filling its own.
 diff --git a/dist/core/extensions/builtin/claude-sdk-oauth/session-registry-pump.js b/dist/core/extensions/builtin/claude-sdk-oauth/session-registry-pump.js
+index 2417da2..013ed5f 100644
 --- a/dist/core/extensions/builtin/claude-sdk-oauth/session-registry-pump.js
 +++ b/dist/core/extensions/builtin/claude-sdk-oauth/session-registry-pump.js
-@@ -69,6 +69,11 @@
+@@ -69,6 +69,11 @@ function finishTurn(registry, entry, turn, message) {
          registry.closeSession(entry.senpiSessionId, "abort_uncertain");
      turn.resolve({ uuid: turn.uuid, messages: turn.messages, aborted: turn.aborted });
  }
@@ -31,7 +14,7 @@ diff --git a/dist/core/extensions/builtin/claude-sdk-oauth/session-registry-pump
  function handleMessage(registry, entry, message) {
      // A forked query mints a NEW session id (forkSession: true + resume): the
      // init message carries it, and it must be persisted BEFORE any turn-state
-@@ -87,7 +92,7 @@
+@@ -87,7 +92,7 @@ function handleMessage(registry, entry, message) {
          else if (message.type === "stream_event")
              bufferBeforeReplay(registry, entry, turn, message);
          else if (message.type === "result") {
@@ -41,16 +24,17 @@ diff --git a/dist/core/extensions/builtin/claude-sdk-oauth/session-registry-pump
          return false;
      }
 diff --git a/dist/core/extensions/builtin/hooks/trust-storage.js b/dist/core/extensions/builtin/hooks/trust-storage.js
+index 764d426..1ca1bb3 100644
 --- a/dist/core/extensions/builtin/hooks/trust-storage.js
 +++ b/dist/core/extensions/builtin/hooks/trust-storage.js
 @@ -1,4 +1,5 @@
 -import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 +import { randomUUID } from "node:crypto";
-+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
++import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
  import { dirname, join } from "node:path";
  import lockfile from "proper-lockfile";
  import { CONFIG_DIR_NAME, getAgentDir } from "../../../../config.js";
-@@ -10,13 +11,22 @@ export class FileHookStateStorage {
+@@ -10,13 +11,29 @@ export class FileHookStateStorage {
          this.projectStatePath = join(options.cwd, CONFIG_DIR_NAME, "hooks-state.json");
      }
      read(scope) {
@@ -60,17 +44,25 @@ diff --git a/dist/core/extensions/builtin/hooks/trust-storage.js b/dist/core/ext
      }
      update(scope, updater) {
          return withHookStateFileLock(statePathForScope(scope, this.globalStatePath, this.projectStatePath), (path) => {
-             const current = readHookTrustStateJson(existsSync(path) ? readFileSync(path, "utf-8") : undefined);
+-            const current = readHookTrustStateJson(existsSync(path) ? readFileSync(path, "utf-8") : undefined);
++            const stateExists = existsSync(path);
++            const current = readHookTrustStateJson(stateExists ? readFileSync(path, "utf-8") : undefined);
++            const mode = stateExists ? statSync(path).mode & 0o777 : 0o600;
              const next = updater(current);
 -            writeFileSync(path, serializeHookTrustState(next), "utf-8");
 +            const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
 +            try {
-+                writeFileSync(tempPath, serializeHookTrustState(next), "utf-8");
++                writeFileSync(tempPath, serializeHookTrustState(next), { encoding: "utf-8", mode });
 +                renameSync(tempPath, path);
 +            }
-+            catch (error) {
-+                rmSync(tempPath, { force: true });
-+                throw error;
++            catch (publicationError) {
++                try {
++                    rmSync(tempPath, { force: true });
++                }
++                catch (cleanupError) {
++                    throw new AggregateError([publicationError, cleanupError], "Failed to publish and clean up hook trust state snapshot");
++                }
++                throw publicationError;
 +            }
              return next;
          });

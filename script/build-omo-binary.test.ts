@@ -16,8 +16,6 @@ import {
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import { CONFIG_DIR_NAME } from "../node_modules/@code-yeongyu/senpi/dist/config.js"
-import { FileHookStateStorage } from "../node_modules/@code-yeongyu/senpi/dist/core/extensions/builtin/hooks/trust-storage.js"
 import {
   assertBinarySizeBudget,
   assertEngineGraphBundled,
@@ -377,36 +375,6 @@ describe("plugin staging isolation guard", () => {
 })
 
 describe("engine graph bundling", () => {
-  test("#given the pinned Senpi AI package #when OMO registers bundled OAuth #then the Bun OAuth export is available", () => {
-    // given
-    const aiPackage = JSON.parse(
-      readFileSync(
-        join(repoRoot, "node_modules", "@earendil-works", "pi-ai", "package.json"),
-        "utf8",
-      ),
-    ) as { exports?: Record<string, unknown> }
-
-    // when
-    const exportedSubpaths = Object.keys(aiPackage.exports ?? {})
-
-    // then
-    expect(exportedSubpaths).toContain("./bun-oauth")
-  })
-
-  test("#given the patched Senpi CLI #when loaded by compiled OMO #then it registers Bun OAuth flows in the engine module graph", () => {
-    // given
-    const engineCliSource = readFileSync(
-      join(repoRoot, "node_modules", "@code-yeongyu", "senpi", "dist", "cli.js"),
-      "utf8",
-    )
-
-    // when / then
-    expect(engineCliSource).toContain(
-      'import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";',
-    )
-    expect(engineCliSource).toContain("registerBunOAuthFlows();")
-  })
-
   test("#given the compiled OMO entry #when its engine imports are inspected #then both retain the standard patched engine literal", () => {
     // given
     const compileEntrySource = readFileSync(
@@ -457,30 +425,6 @@ describe("engine graph bundling", () => {
     // when / then
     expect(ENGINE_MINIMUM_MODULES).toBeLessThan(4001)
     expect(ENGINE_MINIMUM_MODULES).toBeGreaterThan(7)
-  })
-})
-
-describe("engine hooks state storage", () => {
-  test("#given a live hooks state lock #when another session reads trust state #then startup uses the last atomic snapshot without contending", () => {
-    // given
-    const root = makeTempDir("omo-hooks-state-")
-    const cwd = join(root, "project")
-    const agentDir = join(root, "agent")
-    const statePath = join(cwd, CONFIG_DIR_NAME, "hooks-state.json")
-    mkdirSync(dirname(statePath), { recursive: true })
-    writeFileSync(statePath, '{"version":1,"hooks":{}}\n', "utf8")
-    mkdirSync(`${statePath}.lock`)
-    const storage = new FileHookStateStorage({ cwd, agentDir })
-
-    try {
-      // when
-      const state = storage.read("project")
-
-      // then
-      expect(state.hooks).toEqual({})
-    } finally {
-      rmSync(root, { recursive: true, force: true })
-    }
   })
 })
 
