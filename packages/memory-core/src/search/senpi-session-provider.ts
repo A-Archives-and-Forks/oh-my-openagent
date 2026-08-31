@@ -117,6 +117,11 @@ function toDocument(entry: Record<string, unknown>, conversationId: string): Sea
   if (!isRecord(message)) return undefined
   const role = typeof message.role === "string" ? message.role : undefined
   if (!role) return undefined
+  // Extension-injected content, never conversation. Senpi persists these as `custom_message`
+  // entries today (already skipped above by the type gate), but session files are parsed without
+  // validation, so forks and older writers can carry the same payload as a role-custom message
+  // entry. Search must not re-surface an injected memory hint as if the user or agent said it.
+  if (role === "custom") return undefined
 
   const mapped = mapContent(message.content)
   const toolName = typeof message.toolName === "string" ? message.toolName : undefined
