@@ -16,7 +16,7 @@ import { buildTaskMetadataBlock } from "../../features/tool-metadata-store/task-
 import { getTaskID } from "./task-id"
 import { resolveMetadataModel } from "./resolve-metadata-model"
 import { log } from "../../shared/logger"
-import { scheduleSyncSessionDeletion } from "./sync-session-cleanup"
+import { cancelSyncSessionDeletion, scheduleSyncSessionDeletion } from "./sync-session-cleanup"
 
 type ResumeModel = { providerID: string; modelID: string }
 
@@ -25,6 +25,7 @@ type ResumeContext = {
   resumeModel?: ResumeModel
   resumeVariant?: string
   anchorMessageCount?: number
+  anchorMessageID?: string
 }
 
 function shouldAttemptPollErrorRecovery(pollError: string): boolean {
@@ -71,11 +72,12 @@ async function resolveResumeContext(
             : undefined),
           resumeVariant: info.variant,
           anchorMessageCount: messages.length,
+          anchorMessageID: messages.at(-1)?.info?.id,
         }
       }
     }
 
-    return { anchorMessageCount: messages.length }
+    return { anchorMessageCount: messages.length, anchorMessageID: messages.at(-1)?.info?.id }
   } catch (error) {
     if (!(error instanceof Error)) throw error
     const resumeMessageDir = getMessageDir(continuationID)
@@ -122,6 +124,7 @@ export async function executeSyncContinuation(
   let resumeModel: ResumeModel | undefined
   let resumeVariant: string | undefined
   let anchorMessageCount: number | undefined
+  let anchorMessageID: string | undefined
   let handedBackToParent = false
 
   try {
@@ -130,6 +133,8 @@ export async function executeSyncContinuation(
     resumeModel = resumeContext.resumeModel
     resumeVariant = resumeContext.resumeVariant
     anchorMessageCount = resumeContext.anchorMessageCount
+    anchorMessageID = resumeContext.anchorMessageID
+    cancelSyncSessionDeletion(continuationID)
 
     const resumeModelForMetadata = resumeModel && resumeVariant !== undefined
       ? { ...resumeModel, variant: resumeVariant }
@@ -194,6 +199,7 @@ export async function executeSyncContinuation(
         toastManager,
         taskId,
         anchorMessageCount,
+        anchorMessageID,
       }, syncPollTimeoutMs)
       if (pollError && shouldAttemptPollErrorRecovery(pollError)) {
         if (anchorMessageCount === undefined) {

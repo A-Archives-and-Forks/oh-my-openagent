@@ -51,6 +51,7 @@ export async function pollSyncSession(
     toastManager: { removeTask: (id: string) => void } | null | undefined
     taskId: string | undefined
     anchorMessageCount?: number
+    anchorMessageID?: string
     maxAssistantTurns?: number
     hasActiveChildBackgroundTasks?: (sessionID: string) => boolean
     hasPendingParentWake?: (sessionID: string) => boolean
@@ -193,7 +194,10 @@ export async function pollSyncSession(
       continue
     }
 
-    if (input.anchorMessageCount !== undefined && messages.length <= input.anchorMessageCount) {
+    if (input.anchorMessageID !== undefined) {
+      const anchorIndex = messages.findIndex((message) => message.info?.id === input.anchorMessageID)
+      if (anchorIndex === messages.length - 1) continue
+    } else if (input.anchorMessageCount !== undefined && messages.length <= input.anchorMessageCount) {
       continue
     }
 

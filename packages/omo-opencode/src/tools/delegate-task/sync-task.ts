@@ -1,4 +1,4 @@
-import { handedBackSyncSessions } from "../../features/claude-code-session-state"
+import { handedBackSyncSessions, subagentSessions } from "../../features/claude-code-session-state"
 import { getTaskToastManager } from "../../features/task-toast-manager"
 import type { ModelFallbackInfo } from "../../features/task-toast-manager/types"
 import type { FallbackEntry } from "../../shared/model-requirements"
@@ -39,7 +39,7 @@ export async function executeSyncTask(
   const manager = executorCtx?.manager
 
   try {
-    if (typeof manager?.acquireSyncSubagentConcurrency === "function") {
+    if (!subagentSessions.has(parentContext.sessionID) && typeof manager?.acquireSyncSubagentConcurrency === "function") {
       await manager.acquireSyncSubagentConcurrency(concurrencyModel)
       concurrencyAcquired = true
     }
