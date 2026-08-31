@@ -41,6 +41,7 @@ function registryFor(handle: ManagedChildHandle, pendingSteering: readonly unkno
     residentTaskIds: () => [handle.task_id],
     forget: () => undefined,
     hasPendingSends: (taskId: string) => taskId === handle.task_id && pendingSteering.length > 0,
+    get: () => undefined,
   }
   return createManagerResidencyRegistry(() => manager)
 }

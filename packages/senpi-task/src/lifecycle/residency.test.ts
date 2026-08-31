@@ -20,7 +20,7 @@ function iso(offsetMs: number): string {
 describe("admitResident (residency cap + LRU eviction)", () => {
   test("#given a terminal resident idle beyond the retention window #when no spawn reaches the cap #then it currently survives forever", async () => {
     const store = tempStore()
-    seedRecord(store, { task_id: "st_00000009", status: "completed", residency_state: "resident", updated_at: iso(0) })
+    seedRecord(store, { task_id: "st_00000009", status: "completed", residency_state: "resident", updated_at: iso(0), host_pid: process.pid })
     const registry = new FakeRegistry()
     const handle = fakeHandle("st_00000009", "in-process", [])
     registry.add(handle)
