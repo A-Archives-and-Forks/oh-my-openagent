@@ -32,6 +32,7 @@ type ParentWakeSessionInspectorOptions = {
 
 export class ParentWakeSessionInspector {
   private recentParentSessionActivity: Map<string, number> = new Map()
+  private messageCache: Map<string, { loadedAt: number; messages: ParentWakeSessionMessage[] | undefined }> = new Map()
 
   constructor(
     private readonly client: ParentWakeSessionInspectorClient,
@@ -103,16 +104,21 @@ export class ParentWakeSessionInspector {
 
   shutdown(): void {
     this.recentParentSessionActivity.clear()
+    this.messageCache.clear()
   }
 
   private async loadMessages(sessionID: string): Promise<ParentWakeSessionMessage[] | undefined> {
+    const cached = this.messageCache.get(sessionID)
+    if (cached && Date.now() - cached.loadedAt < 100) return cached.messages
     try {
       const messagesResp = await this.client.session.messages({
         path: { id: sessionID },
         query: { directory: this.options.directory },
       })
       const fallback: ParentWakeSessionMessage[] = []
-      return normalizeSDKResponse(messagesResp, fallback)
+      const messages = normalizeSDKResponse(messagesResp, fallback)
+      this.messageCache.set(sessionID, { loadedAt: Date.now(), messages })
+      return messages
     } catch (error) {
       const errorText = error instanceof Error ? `${error.name}: ${error.message}` : getErrorText(error) || String(error)
       log("[background-agent] Failed to inspect parent session messages for wake safety:", {

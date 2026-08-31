@@ -16,6 +16,7 @@ import { buildTaskMetadataBlock } from "../../features/tool-metadata-store/task-
 import { getTaskID } from "./task-id"
 import { resolveMetadataModel } from "./resolve-metadata-model"
 import { log } from "../../shared/logger"
+import { scheduleSyncSessionDeletion } from "./sync-session-cleanup"
 
 type ResumeModel = { providerID: string; modelID: string }
 
@@ -258,6 +259,7 @@ ${buildTaskMetadataBlock({
            log(`[task] Failed to abort completed sync continuation session:`, error)
          })
        }
+       scheduleSyncSessionDeletion(client, continuationID)
      }
    }
 }

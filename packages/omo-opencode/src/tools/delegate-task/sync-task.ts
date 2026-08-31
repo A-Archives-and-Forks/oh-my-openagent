@@ -3,6 +3,7 @@ import { getTaskToastManager } from "../../features/task-toast-manager"
 import type { ModelFallbackInfo } from "../../features/task-toast-manager/types"
 import type { FallbackEntry } from "../../shared/model-requirements"
 import { log } from "../../shared/logger"
+import { scheduleSyncSessionDeletion } from "./sync-session-cleanup"
 import { formatDetailedError } from "./error-formatting"
 import type { ExecutorContext, ParentContext } from "./executor-types"
 import { reserveSyncSubagentSpawn } from "./sync-spawn-reservation"
@@ -31,8 +32,14 @@ export async function executeSyncTask(
   let spawnReservation:
     | Awaited<ReturnType<ExecutorContext["manager"]["reserveSubagentSpawn"]>>
     | undefined
+  let concurrencyAcquired = false
+  const concurrencyModel = categoryModel ? `${categoryModel.providerID}/${categoryModel.modelID}` : agentToUse
 
   try {
+    if (typeof executorCtx.manager.acquireSyncSubagentConcurrency === "function") {
+      await executorCtx.manager.acquireSyncSubagentConcurrency(concurrencyModel)
+      concurrencyAcquired = true
+    }
     const spawn = await reserveSyncSubagentSpawn(executorCtx, parentContext)
     spawnReservation = spawn.reservation
     const { spawnContext } = spawn
@@ -170,6 +177,10 @@ export async function executeSyncTask(
           log(`[task] Failed to abort completed sync session:`, error)
         })
       }
+      scheduleSyncSessionDeletion(client, syncSessionID)
+    }
+    if (concurrencyAcquired && typeof executorCtx.manager.releaseSyncSubagentConcurrency === "function") {
+      executorCtx.manager.releaseSyncSubagentConcurrency(concurrencyModel)
     }
   }
 }

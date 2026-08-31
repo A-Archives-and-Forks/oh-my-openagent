@@ -66,6 +66,7 @@ export async function pollSyncSession(
   let timedOut = false
   let assistantTurnCount = 0
   let lastSeenAssistantId: string | undefined
+  let lastTerminalCheckStatus: string | undefined
   const childSettleMs = input.childWakeGraceMs ?? CHILD_WAKE_GRACE_MS
   let childWaitAssistantId: string | undefined
   let childSettleStartedAt = 0
@@ -166,8 +167,16 @@ export async function pollSyncSession(
 
     if (isActiveSessionStatus(sessionStatus)) {
       inactiveStart = Date.now()
+      lastTerminalCheckStatus = undefined
       continue
     }
+
+    // Idle/gone status is stable while the server is settling. Avoid repeatedly
+    // materializing the full transcript; only inspect it on the transition into
+    // a non-active status, then wait for a new active turn before checking again.
+    const terminalCheckStatus = sessionStatus?.type ?? "gone"
+    if (lastTerminalCheckStatus === terminalCheckStatus) continue
+    lastTerminalCheckStatus = terminalCheckStatus
 
     let messages: SessionMessage[]
     try {
