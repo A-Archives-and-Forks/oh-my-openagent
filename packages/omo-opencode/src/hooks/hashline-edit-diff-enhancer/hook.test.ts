@@ -4,6 +4,7 @@ import { tmpdir } from "os"
 import { join } from "path"
 import { unsafeTestValue } from "../../../../../test-support/unsafe-test-value"
 import { createHashlineEditDiffEnhancerHook } from "./hook"
+import { stopPendingCaptureCleanup } from "./pending-captures"
 
 const STALE_TIMEOUT_MS = 5 * 60 * 1000
 
@@ -56,6 +57,7 @@ describe("hashline pendingCaptures eviction", () => {
   let restore: (() => void) | undefined
 
   afterEach(() => {
+    stopPendingCaptureCleanup()
     restore?.()
     restore = undefined
   })
