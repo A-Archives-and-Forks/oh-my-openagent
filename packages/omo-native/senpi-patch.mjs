@@ -1,0 +1,45 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
+
+const packageRoot = dirname(fileURLToPath(import.meta.url))
+const senpiRoot = join(packageRoot, "node_modules", "@code-yeongyu", "senpi")
+
+const transforms = {
+  "dist/core/extensions/builtin/claude-sdk-oauth/session-registry-pump.js": [
+    [
+      'throw new SessionTurnAttributionError("Claude SDK OAuth result arrived before replay claim");',
+      'throw new SessionTurnAttributionError(describeUnclaimedResult(message));',
+    ],
+    [
+      'function handleMessage(registry, entry, message) {',
+      'function describeUnclaimedResult(message) {\n    const errors = Array.isArray(message.errors) ? message.errors : [];\n    const detail = errors.length > 0 ? String(errors[0]) : typeof message.result === "string" ? message.result : typeof message.error === "string" ? message.error : typeof message.terminal_reason === "string" ? message.terminal_reason : undefined;\n    return `Claude SDK OAuth query result${typeof message.subtype === "string" ? ` (${message.subtype})` : ""}${detail ? `: ${detail}` : ""}`;\n}\nfunction handleMessage(registry, entry, message) {',
+    ],
+  ],
+  "dist/core/extensions/builtin/hooks/trust-storage.js": [
+    [
+      'import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";',
+      'import { randomUUID } from "node:crypto";\nimport { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";',
+    ],
+    [
+      'return withHookStateFileLock(statePathForScope(scope, this.globalStatePath, this.projectStatePath), (path) => readHookTrustStateJson(existsSync(path) ? readFileSync(path, "utf-8") : undefined));',
+      'const path = statePathForScope(scope, this.globalStatePath, this.projectStatePath);\n        const input = existsSync(path) ? readFileSync(path, "utf-8") : undefined;\n        if (isCompleteHookStateSnapshot(input)) {\n            return readHookTrustStateJson(input);\n        }\n        if (existsSync(`${path}.lock`)) {\n            return withHookStateFileLock(path, (lockedPath) => readHookTrustStateJson(existsSync(lockedPath) ? readFileSync(lockedPath, "utf-8") : undefined));\n        }\n        return readHookTrustStateJson(existsSync(path) ? readFileSync(path, "utf-8") : undefined);',
+    ],
+    [
+      'function acquireHookStateLockSync(path) {',
+      'function isCompleteHookStateSnapshot(input) {\n    if (input === undefined || input.trim() === "") return false;\n    try {\n        const parsed = JSON.parse(input);\n        return isRecord(parsed) && parsed.version === 1 && isRecord(parsed.hooks);\n    } catch {\n        return false;\n    }\n}\nfunction acquireHookStateLockSync(path) {',
+    ],
+  ],
+}
+
+for (const [relative, replacements] of Object.entries(transforms)) {
+  const path = join(senpiRoot, relative)
+  if (!existsSync(path)) continue
+  let source = readFileSync(path, "utf8")
+  for (const [from, to] of replacements) {
+    if (source.includes(to)) continue
+    if (!source.includes(from)) throw new Error(`omo-ai: unsupported Senpi ${relative}`)
+    source = source.replace(from, to)
+  }
+  writeFileSync(path, source)
+}
