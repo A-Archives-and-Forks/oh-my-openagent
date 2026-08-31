@@ -1,4 +1,6 @@
 import type { TaskRecord } from "../state"
+import { log } from "@oh-my-opencode/utils"
+
 import { acquireSessionAdmissionLease, type AdmissionLeaseTiming } from "./admission-lease"
 import { nowIso, TERMINAL_STATUSES, type LifecycleContext } from "./context"
 import { destroyResidentTask } from "./destroy"
@@ -77,8 +79,12 @@ export async function reclaimIdleResidents(context: LifecycleContext): Promise<r
       Date.parse(fresh.updated_at) > cutoff ||
       context.registry.hasPendingSends(fresh.task_id)
     ) continue
-    await destroyResidentTask(context, fresh.task_id, "evict")
-    evicted.push(fresh.task_id)
+    try {
+      await destroyResidentTask(context, fresh.task_id, "evict")
+      evicted.push(fresh.task_id)
+    } catch (error) {
+      log("senpi-task idle resident eviction failed", { taskId: fresh.task_id, error: String(error) })
+    }
   }
   return evicted
 }
@@ -93,7 +99,9 @@ export function startIdleResidentReclaimer(
     running = true
     void reclaimIdleResidents(context)
       .then(() => cleanupExpired())
-      .catch(() => undefined)
+      .catch((error) => {
+        log("senpi-task idle resident sweep failed", { error: String(error) })
+      })
       .finally(() => { running = false })
   }, RESIDENT_IDLE_SWEEP_INTERVAL_MS)
   timer.unref?.()

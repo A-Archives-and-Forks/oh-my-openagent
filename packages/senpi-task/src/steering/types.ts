@@ -18,6 +18,9 @@ export type ReviveReservation =
 
 export type SteeringPort = {
   readonly store: TaskRecordStore
+  tryBeginSend?(taskId: string): boolean
+  endSend?(taskId: string): void
+  isEvicting?(taskId: string): boolean
   liveHandle(taskId: string): ManagedChildHandle | undefined
   dequeuePending(taskId: string): boolean
   reserveForRevive(taskId: string): ReviveReservation

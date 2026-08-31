@@ -40,6 +40,13 @@ export type ResidencyRegistry = {
   forget(taskId: string): void
   // A terminal resident with a queued send must NOT be evicted (codex is_unloadable parity).
   hasPendingSends(taskId: string): boolean
+  // Synchronous per-task arbitration held across async teardown. Eviction and sends are mutually
+  // exclusive; callers that lose the race must not touch the child handle.
+  tryClaimEviction?(taskId: string): boolean
+  releaseEviction?(taskId: string): void
+  isEvicting?(taskId: string): boolean
+  tryBeginSend?(taskId: string): boolean
+  endSend?(taskId: string): void
 }
 
 // Injectable OS-process signalling so unit tests never spawn real children. Defaults use
