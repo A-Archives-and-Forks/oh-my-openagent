@@ -75,6 +75,18 @@ export function changedSnapshotPaths(before, after) {
     .sort()
 }
 
+export function classifyObservedChanges(paths) {
+  const volatile = []
+  const protectedState = []
+  const other = []
+  for (const path of paths) {
+    if (path.startsWith("sessions/") || path.startsWith("cache/") || path.startsWith("logs/") || path.endsWith(".log")) volatile.push(path)
+    else if (PROTECTED_STATE_FILES.includes(path)) protectedState.push(path)
+    else other.push(path)
+  }
+  return { volatile, protectedState, other }
+}
+
 export function digestDirectory(root) {
   if (!existsSync(root)) return "absent"
   const files = []
@@ -169,8 +181,8 @@ function runSenpi(senpiBin, sandbox, prompt, script, extraEnv = {}) {
 function main() {
   const providedSenpiCodingAgentDir = process.env.SENPI_CODING_AGENT_DIR ? "IGNORED" : "unset"
   const beforeDigest = credentialDigest(realSenpiAgentDir)
-  const beforeSenpiSnapshot = snapshotProtectedState(realSenpiAgentDir)
-  const beforeOmoSnapshot = snapshotProtectedState(realOmoAgentDir)
+  const beforeSenpiSnapshot = snapshotDirectory(realSenpiAgentDir)
+  const beforeOmoSnapshot = snapshotDirectory(realOmoAgentDir)
   const beforeSenpiProtectedState = snapshotProtectedState(realSenpiAgentDir)
   const beforeOmoProtectedState = snapshotProtectedState(realOmoAgentDir)
   const sandbox = createSandbox()
@@ -236,10 +248,16 @@ function main() {
 
 function printResult({ result, reason, ultraworkInjected, commentChecker, beforeDigest, beforeSenpiSnapshot, beforeOmoSnapshot, beforeSenpiProtectedState, beforeOmoProtectedState, sandbox, providedSenpiCodingAgentDir }) {
   const afterDigest = credentialDigest(realSenpiAgentDir)
-  const realSenpiObservedChangedPaths = changedSnapshotPaths(beforeSenpiSnapshot, snapshotProtectedState(realSenpiAgentDir))
-  const realOmoObservedChangedPaths = changedSnapshotPaths(beforeOmoSnapshot, snapshotProtectedState(realOmoAgentDir))
-  const realSenpiChangedPaths = changedSnapshotPaths(beforeSenpiProtectedState, snapshotProtectedState(realSenpiAgentDir))
-  const realOmoChangedPaths = changedSnapshotPaths(beforeOmoProtectedState, snapshotProtectedState(realOmoAgentDir))
+  const afterSenpiSnapshot = snapshotDirectory(realSenpiAgentDir)
+  const afterOmoSnapshot = snapshotDirectory(realOmoAgentDir)
+  const realSenpiObservedChangedPaths = changedSnapshotPaths(beforeSenpiSnapshot, afterSenpiSnapshot)
+  const realOmoObservedChangedPaths = changedSnapshotPaths(beforeOmoSnapshot, afterOmoSnapshot)
+  const senpiObserved = classifyObservedChanges(realSenpiObservedChangedPaths)
+  const omoObserved = classifyObservedChanges(realOmoObservedChangedPaths)
+  const realSenpiChangedPaths = [...senpiObserved.protectedState, ...senpiObserved.other].sort()
+  const realOmoChangedPaths = [...omoObserved.protectedState, ...omoObserved.other].sort()
+  const realSenpiProtectedChangedPaths = changedSnapshotPaths(beforeSenpiProtectedState, snapshotProtectedState(realSenpiAgentDir))
+  const realOmoProtectedChangedPaths = changedSnapshotPaths(beforeOmoProtectedState, snapshotProtectedState(realOmoAgentDir))
   const payload = {
     result,
     ...(reason ? { reason } : {}),
@@ -248,10 +266,14 @@ function printResult({ result, reason, ultraworkInjected, commentChecker, before
     realSenpiUntouched: realSenpiChangedPaths.length === 0,
     realSenpiChangedPaths,
     realSenpiObservedChangedPaths,
+    realSenpiVolatileChangedPaths: senpiObserved.volatile,
+    realSenpiProtectedChangedPaths,
     realSenpiCredentialDigestUntouched: beforeDigest === afterDigest,
     realOmoUntouched: realOmoChangedPaths.length === 0,
     realOmoChangedPaths,
     realOmoObservedChangedPaths,
+    realOmoVolatileChangedPaths: omoObserved.volatile,
+    realOmoProtectedChangedPaths,
     protectedStateFiles: PROTECTED_STATE_FILES,
     realHomesChecked: [realSenpiAgentDir, realOmoAgentDir],
     providedSenpiCodingAgentDir,
