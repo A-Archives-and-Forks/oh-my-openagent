@@ -104,6 +104,15 @@ function startParent(parentPath: string, env: NodeJS.ProcessEnv): ParentRun {
   return { pid: child.pid ?? -1, exit }
 }
 
+async function waitForProcessGone(pid: number, timeoutMs = 15_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    try { process.kill(pid, 0) } catch { return }
+    await new Promise((resolveWait) => setTimeout(resolveWait, 10))
+  }
+  throw new Error(`process ${pid} is still alive`)
+}
+
 async function waitForFile(path: string, timeoutMs = 15_000): Promise<void> {
   const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
@@ -159,7 +168,7 @@ afterEach(() => {
     try {
       process.kill(pid, "SIGKILL")
     } catch {}
-    expect(() => process.kill(pid, 0)).toThrow()
+    await waitForProcessGone(pid)
   }
   fixturePids.splice(0)
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
@@ -226,8 +235,8 @@ describePosix("launcher child signal forwarding", () => {
     }, 30_000)
   })
 
-  afterAll(() => {
-    for (const pid of allFixturePids) expect(() => process.kill(pid, 0)).toThrow()
+  afterAll(async () => {
+    for (const pid of allFixturePids) await waitForProcessGone(pid)
   })
 
   describe("#given an engine child that exits on its own #when it returns a non-zero code", () => {
@@ -290,7 +299,7 @@ import { maybeReexecUnderBun } from ${JSON.stringify(BUN_RUNTIME_MODULE)}
 await maybeReexecUnderBun({
   scriptPath: ${JSON.stringify(childPath)},
   argv: ["node", ${JSON.stringify(childPath)}],
-  env: { OMO_RUNTIME: "bun", PATH: ${JSON.stringify(binDir)} },
+  env: { OMO_RUNTIME: "bun", PATH: ${JSON.stringify(binDir)}, PID_FILE: ${JSON.stringify(join(root, "child.pid"))} },
   versions: {},
   homedir: () => ${JSON.stringify(join(root, "home"))},
 })
