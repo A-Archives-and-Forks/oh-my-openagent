@@ -26,6 +26,14 @@ const transforms = {
       'const path = statePathForScope(scope, this.globalStatePath, this.projectStatePath);\n        const input = existsSync(path) ? readFileSync(path, "utf-8") : undefined;\n        if (isCompleteHookStateSnapshot(input)) {\n            return readHookTrustStateJson(input);\n        }\n        if (existsSync(`${path}.lock`)) {\n            return withHookStateFileLock(path, (lockedPath) => readHookTrustStateJson(existsSync(lockedPath) ? readFileSync(lockedPath, "utf-8") : undefined));\n        }\n        return readHookTrustStateJson(existsSync(path) ? readFileSync(path, "utf-8") : undefined);',
     ],
     [
+      'const current = readHookTrustStateJson(existsSync(path) ? readFileSync(path, "utf-8") : undefined);',
+      'const stateExists = existsSync(path);\n            const current = readHookTrustStateJson(stateExists ? readFileSync(path, "utf-8") : undefined);\n            const mode = stateExists ? statSync(path).mode & 0o777 : 0o600;',
+    ],
+    [
+      'writeFileSync(path, serializeHookTrustState(next), "utf-8");',
+      'const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`;\n            try {\n                writeFileSync(tempPath, serializeHookTrustState(next), { encoding: "utf-8", mode });\n                chmodSync(tempPath, mode);\n                renameSync(tempPath, path);\n            }\n            catch (publicationError) {\n                try {\n                    rmSync(tempPath, { force: true });\n                }\n                catch (cleanupError) {\n                    throw new AggregateError([publicationError, cleanupError], "Failed to publish and clean up hook trust state snapshot");\n                }\n                throw publicationError;\n            }',
+    ],
+    [
       'function acquireHookStateLockSync(path) {',
       'function isCompleteHookStateSnapshot(input) {\n    if (input === undefined || input.trim() === "") return false;\n    try {\n        const parsed = JSON.parse(input);\n        return isRecord(parsed) && parsed.version === 1 && isRecord(parsed.hooks);\n    } catch {\n        return false;\n    }\n}\nfunction acquireHookStateLockSync(path) {',
     ],
