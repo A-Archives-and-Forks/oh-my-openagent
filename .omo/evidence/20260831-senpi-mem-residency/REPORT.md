@@ -38,3 +38,9 @@ Commits: `e7768de54`, `3fa909e17`, `cd157168d`
 ## Working tree / remote
 
 The worktree is clean after push. Branch push succeeded to `origin/fix/senpi-mem-task-residency`. PR is open and the prescribed remote macOS test is green.
+
+## Follow-up CI correction
+
+The first Ubuntu full-suite run exposed two branch-caused issues: the idle test title still used RED-era wording, and its fake clock (`960,000`) was earlier than the fixture timestamp (`1,000,000`), so the record was correctly retained. The test now uses the contract title, an injected scheduler (no real timer), and `1,000,000 + 16 minutes` as its injected clock. The scheduler assertion pins the 15-minute interval. The manager registry fixture was also completed for typecheck.
+
+After regenerating `omo-task.js`, the required serialized remote command completed at SHA `906597525` with **1777 passed, 1 skipped, 0 failed**. The replacement PR CI run passed all required checks: Ubuntu test shards 1/2 and 2/2, macOS and Windows test shards, typecheck, build, and Senpi compatibility on Ubuntu/macOS/Windows.
