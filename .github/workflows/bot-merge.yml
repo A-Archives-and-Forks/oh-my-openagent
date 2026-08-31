@@ -28,3 +28,17 @@ jobs:
             --json state,mergeable,statusCheckRollup \
             --jq '{state,mergeable,failing:[.statusCheckRollup[]|select(.conclusion=="FAILURE")|.name]}'
           gh pr merge "${{ inputs.pr }}" --repo "${{ github.repository }}" --merge
+
+      - name: Write job summary
+        if: always()
+        run: |
+          {
+            echo "## Bot Merge"
+            echo
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Result | \`${{ job.status }}\` |"
+            echo "| PR | \`#${{ inputs.pr }}\` |"
+            echo "| Workflow | \`${{ github.workflow }}\` |"
+            echo "| Event | \`${{ github.event_name }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
