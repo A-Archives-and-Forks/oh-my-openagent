@@ -50,13 +50,8 @@ describe("teamModeSkill gating", () => {
     const body = teamModeSkill.template
 
     // when
-    const leadOnlyTools = [
-      "team_create",
-      "team_delete",
-      "team_shutdown_request",
-      "team_approve_shutdown",
-      "team_reject_shutdown",
-    ]
+    const leadOnlyTools = ["team_create", "team_delete", "team_shutdown_request"]
+    const leadOrTargetMemberShutdownTools = ["team_approve_shutdown", "team_reject_shutdown"]
     const universalTools = [
       "team_send_message",
       "team_task_create",
@@ -64,14 +59,11 @@ describe("teamModeSkill gating", () => {
       "team_task_update",
       "team_task_get",
       "team_status",
-      "team_list",
     ]
+    const globalQueryTools = ["team_list"]
 
     // then
-    for (const toolName of leadOnlyTools) {
-      expect(body).toContain(toolName)
-    }
-    for (const toolName of universalTools) {
+    for (const toolName of [...leadOnlyTools, ...leadOrTargetMemberShutdownTools, ...universalTools, ...globalQueryTools]) {
       expect(body).toContain(toolName)
     }
   })
