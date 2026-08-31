@@ -25,7 +25,7 @@ function run(command, args) {
 
 try {
   await mkdir(tempDist, { recursive: true })
-  run("bun", ["x", "tsc", "-p", "tsconfig.build.json", "--outDir", tempDist])
+  run("tsc", ["-p", "tsconfig.build.json", "--outDir", tempDist])
   run("bun", ["build", "src/cli.ts", "src/index.ts", "src/client.ts", "--outdir", tempDist, "--target", "node", "--format", "esm"])
   run(process.execPath, ["scripts/stamp-dist-version.mjs", tempDist])
   if (!existsSync(join(tempDist, "cli.js"))) throw new Error(`build completed without ${join(tempDist, "cli.js")}`)
