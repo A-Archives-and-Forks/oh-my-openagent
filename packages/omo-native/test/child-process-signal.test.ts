@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test"
+import { afterAll, afterEach, describe, expect, test } from "bun:test"
 import { spawn } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -10,6 +10,7 @@ const CHILD_PROCESS_MODULE = join(SOURCE_ROOT, "bin", "lib", "child-process.js")
 const BUN_RUNTIME_MODULE = join(SOURCE_ROOT, "bin", "lib", "bun-runtime.js")
 const roots: string[] = []
 const fixturePids: number[] = []
+const allFixturePids: number[] = []
 
 function writeFile(path: string, content: string): void {
   mkdirSync(dirname(path), { recursive: true })
@@ -154,6 +155,13 @@ function createHarness(childSource: string): Harness {
 }
 
 afterEach(() => {
+  for (const pid of fixturePids) {
+    try {
+      process.kill(pid, "SIGKILL")
+    } catch {}
+    expect(() => process.kill(pid, 0)).toThrow()
+  }
+  fixturePids.splice(0)
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
@@ -183,6 +191,7 @@ describePosix("launcher child signal forwarding", () => {
         const parent = startParent(harness.parentPath, { ...harness.env, OMO_SIGNAL_GRACE_MS: "400" })
         await waitForFile(harness.readyFile)
         fixturePids.push(parent.pid, Number(readFileSync(harness.pidFile, "utf8")))
+        allFixturePids.push(...fixturePids.slice(-2))
 
         process.kill(parent.pid, signal)
 
@@ -203,6 +212,7 @@ describePosix("launcher child signal forwarding", () => {
       const parent = startParent(harness.parentPath, harness.env)
       await waitForFile(harness.readyFile)
       fixturePids.push(parent.pid, Number(readFileSync(harness.pidFile, "utf8")))
+      allFixturePids.push(...fixturePids.slice(-2))
 
       process.kill(parent.pid, "SIGINT")
       await new Promise((resolveWait) => setTimeout(resolveWait, 500))
@@ -216,8 +226,8 @@ describePosix("launcher child signal forwarding", () => {
     }, 30_000)
   })
 
-  test("#then no fixture process survives any signal scenario", () => {
-    for (const pid of fixturePids) expect(() => process.kill(pid, 0)).toThrow()
+  afterAll(() => {
+    for (const pid of allFixturePids) expect(() => process.kill(pid, 0)).toThrow()
   })
 
   describe("#given an engine child that exits on its own #when it returns a non-zero code", () => {
@@ -242,8 +252,11 @@ describePosix("launcher child signal forwarding", () => {
       const parentPath = join(root, "parent.mjs")
       writeFile(parentPath, parentSource(childPath))
       const readyFile = join(root, "ready")
-      const parent = startParent(parentPath, { READY_FILE: readyFile, PARENT_LOG: join(root, "parent.log") })
+      const pidFile = join(root, "child.pid")
+      const parent = startParent(parentPath, { READY_FILE: readyFile, PARENT_LOG: join(root, "parent.log"), PID_FILE: pidFile })
       await waitForFile(readyFile)
+      fixturePids.push(parent.pid, Number(readFileSync(pidFile, "utf8")))
+      allFixturePids.push(...fixturePids.slice(-2))
 
       // The child is the only member of the launcher's descendant tree here, so killing it by pid
       // exercises the death-by-signal path without signaling the launcher.
