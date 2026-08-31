@@ -1,4 +1,5 @@
 import type { SessionShutdownEvent } from "@code-yeongyu/senpi"
+import { OMO_SENPI_TASK_RPC_CHILD } from "@oh-my-opencode/senpi-task"
 import type { ComponentContext, SenpiExtensionAPI } from "../../extension/types"
 import type { TaskEngine } from "./engine"
 import type { LeadPollerLifecycle } from "./lead-poller-lifecycle"
@@ -40,6 +41,7 @@ export function wireEventBridge(
   wireReloadGuard(pi, engine.manager, state.dagReloadSource)
 
   pi.on("session_start", async (_payload, eventCtx) => {
+    if (process.env[OMO_SENPI_TASK_RPC_CHILD] === "1") return
     engine.runtime.captureFrom(asLiveContext(eventCtx))
     const sessionId = engine.runtime.sessionId()
     transitions.onSessionStart(sessionId)
