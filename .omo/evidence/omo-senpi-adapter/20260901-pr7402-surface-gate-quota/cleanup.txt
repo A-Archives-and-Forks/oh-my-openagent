@@ -1,0 +1,8 @@
+PR 7402 STAGED SENPI GATE QUOTA CLEANUP PASS
+
+- live adapter sandbox removed
+- task-owned LSP daemon terminated
+- task-owned typings installer terminated
+- built-surface fixture removed
+- isolated Bun runtime removed
+- matching sandbox/fixture processes after cleanup: 0

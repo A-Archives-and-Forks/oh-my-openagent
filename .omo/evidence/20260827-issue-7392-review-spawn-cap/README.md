@@ -88,6 +88,23 @@ reproduced after three clean attempts. Restoring workspace dev dependencies
 made root typecheck and build pass. No assertion in the changed component
 failed.
 
+## Surface-aware generic gate follow-up
+
+A later review found that the generic `final gate review` fallback always used
+the LazyCodex gate identity, even from the staged Senpi toolkit. The new
+failing-first test alternated generic and explicit Senpi gate spawns and proved
+the fourth spawn remained allowed because two counters were used.
+
+The fallback now selects the gate identity through the existing active-toolkit
+surface resolver. The identical test passed, the complete component passed 448
+tests, root Bun 1.4.0 typecheck/build passed, and the Senpi gate passed 2461
+tests with zero failures. The built staged toolkit allowed attempts 1-3 and
+denied attempt 4 as `omo-senpi-gate-reviewer 4/3`, with no LazyCodex gate
+counter. Current isolated Codex and Senpi runs passed with protected host state
+unchanged. Distilled proof is in `surface-gate-quota.txt`; canonical Senpi
+evidence is under
+`.omo/evidence/omo-senpi-adapter/20260901-pr7402-surface-gate-quota/`.
+
 ## What was omitted
 
 Raw environment dumps, authentication data, user configuration contents, and

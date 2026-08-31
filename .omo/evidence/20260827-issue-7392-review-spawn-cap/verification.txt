@@ -122,3 +122,26 @@ Latest current-dev merge:
   isolated local-plugin app-server: pass.
   hooks fired: sessionStart, userPromptSubmit, stop.
   real ~/.codex/config.toml: unchanged.
+
+Surface-aware generic gate P2
+-----------------------------
+Finding:
+  The generic `final gate review` form always used the LazyCodex gate identity,
+  so the staged Senpi generic and explicit forms split one quota.
+
+Failing first:
+  npm test -- test/spawn-guard.test.ts -t 'staged Senpi surface'
+  1 failed, 19 skipped.
+  The fourth alternating spawn returned no denial.
+
+After fix:
+  Identical focused test: 1 pass, 0 fail.
+  Spawn-guard file: 20 pass, 0 fail.
+  Full component: 41 files passed, 448 tests passed.
+  Component TypeScript, Biome, and build: pass.
+  Root Bun 1.4.0 typecheck and build: pass.
+  Senpi gate: 2461 pass, one Windows skip, 0 fail, 7906 assertions.
+  Built staged surface: first three allowed; fourth denied as
+  omo-senpi-gate-reviewer 4/3; no LazyCodex counter.
+  Isolated Codex app-server and real Senpi adapter: pass; protected host state
+  unchanged.

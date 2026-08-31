@@ -5,7 +5,12 @@ import type { PreToolUsePayload } from "./codex-hook.js";
 import { parsePreToolUsePayload } from "./codex-hook.js";
 import { isFinalRunCompletionCandidate } from "./goal-status.js";
 import { ulwLoopAttemptEvidenceDir, ulwLoopDir } from "./paths.js";
-import { GATE_REVIEWER_AGENT_NAMES, REVIEWER_ROLES_BY_SURFACE } from "./surface.js";
+import {
+	GATE_REVIEWER_AGENT_NAMES,
+	REVIEWER_ROLES_BY_SURFACE,
+	resolveToolkitSurface,
+	reviewerRolesFor,
+} from "./surface.js";
 import type { UlwLoopPlan } from "./types.js";
 
 // spawn_agent = v1; collaborationspawn_agent = the delimiter-free flattened v2
@@ -124,7 +129,7 @@ function reviewAgentType(toolInput: unknown): string | null {
 	if (explicitReviewer !== undefined) return explicitReviewer;
 	const namedReviewer = REVIEW_AGENT_TYPES.find((name) => normalizedMessage.includes(name));
 	if (namedReviewer !== undefined) return namedReviewer;
-	return GATE_MESSAGE_PATTERN.test(message) ? "lazycodex-gate-reviewer" : null;
+	return GATE_MESSAGE_PATTERN.test(message) ? reviewerRolesFor(resolveToolkitSurface()).gateReview : null;
 }
 
 function deny(reason: string): string {

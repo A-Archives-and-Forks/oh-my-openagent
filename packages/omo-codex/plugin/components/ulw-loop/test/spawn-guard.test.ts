@@ -10,13 +10,16 @@ import { applySpawnGuards } from "../src/spawn-guard.ts";
 let workDir: string;
 let originalLimit: string | undefined;
 let originalReviewLimit: string | undefined;
+let originalToolkitSurface: string | undefined;
 
 beforeEach(async () => {
 	workDir = await mkdtemp(join(tmpdir(), "ulw-spawn-guard-"));
 	originalLimit = process.env["OMO_SPAWN_FANOUT_LIMIT"];
 	originalReviewLimit = process.env["OMO_ULW_LOOP_REVIEW_SPAWN_LIMIT"];
+	originalToolkitSurface = process.env["OMO_AGENT_TOOLKIT_SURFACE"];
 	delete process.env["OMO_SPAWN_FANOUT_LIMIT"];
 	delete process.env["OMO_ULW_LOOP_REVIEW_SPAWN_LIMIT"];
+	delete process.env["OMO_AGENT_TOOLKIT_SURFACE"];
 });
 
 afterEach(async () => {
@@ -24,6 +27,8 @@ afterEach(async () => {
 	else process.env["OMO_SPAWN_FANOUT_LIMIT"] = originalLimit;
 	if (originalReviewLimit === undefined) delete process.env["OMO_ULW_LOOP_REVIEW_SPAWN_LIMIT"];
 	else process.env["OMO_ULW_LOOP_REVIEW_SPAWN_LIMIT"] = originalReviewLimit;
+	if (originalToolkitSurface === undefined) delete process.env["OMO_AGENT_TOOLKIT_SURFACE"];
+	else process.env["OMO_AGENT_TOOLKIT_SURFACE"] = originalToolkitSurface;
 	await rm(workDir, { recursive: true, force: true });
 });
 
@@ -263,6 +268,28 @@ describe("applySpawnGuards gate-artifact guard", () => {
 		const output = applySpawnGuards(payload("spawn_agent", { message: "run the FINAL GATE REVIEW now" }));
 
 		expect(deny(output).permissionDecision).toBe("deny");
+	});
+
+	it("#given the staged Senpi surface #when generic and explicit gate spawns alternate #then they share one cap", () => {
+		writeGoals();
+		process.env["OMO_AGENT_TOOLKIT_SURFACE"] = "omo-senpi";
+		mkdirSync(join(workDir, ".omo", "evidence"), { recursive: true });
+		writeFileSync(join(workDir, ".omo", "evidence", "g1-code-review.md"), "report\n");
+		writeFileSync(join(workDir, ".omo", "evidence", "g1-manual-qa.md"), "matrix\n");
+		const genericGate = payload("spawn_agent", { message: "run the final gate review now" });
+		const explicitGate = payload("spawn_agent", {
+			message: "Act as omo-senpi-gate-reviewer; audit the final evidence",
+		});
+
+		expect(applySpawnGuards(genericGate)).toBe("");
+		expect(applySpawnGuards(explicitGate)).toBe("");
+		expect(applySpawnGuards(genericGate)).toBe("");
+
+		const fourth = deny(applySpawnGuards(explicitGate));
+		expect(fourth.permissionDecisionReason).toContain("omo-senpi-gate-reviewer 4/3");
+		const counters = JSON.parse(readFileSync(join(sessionDir(), "review-spawn-counts.json"), "utf8"));
+		expect(counters["omo-senpi-gate-reviewer:g1:a1"]).toBe(3);
+		expect(counters["lazycodex-gate-reviewer:g1:a1"]).toBeUndefined();
 	});
 
 	it("#given v1 artifacts on disk #when the gate spawns #then allows", () => {
