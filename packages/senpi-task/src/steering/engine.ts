@@ -20,6 +20,8 @@ const TASK_OUTPUT_SUGGESTION = "Use task_output to read the final result."
 const NOT_FOUND_SUGGESTION = "Use /tasks to see available tasks, or task_output to read a known task."
 
 export function createSteeringEngine(port: SteeringPort): SteeringEngine {
+  const pendingSends = new Set<string>()
+
   // Prelaunch steering is DURABLE: messages sent to a still-pending (queued) child append to the
   // record's pending_steering via store.mutate, so the queue survives a process restart (and a
   // session shutdown that suspends the pending child) and drains, in persisted order, when the
@@ -78,8 +80,13 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
   }
 
   async function steerRunning(record: TaskRecord, handle: ManagedChildHandle, message: string, deliverAs: SendDelivery): Promise<SendOutcome> {
-    if (deliverAs === "steer") await handle.steer(message)
-    else await handle.followUp(message)
+    pendingSends.add(record.task_id)
+    try {
+      if (deliverAs === "steer") await handle.steer(message)
+      else await handle.followUp(message)
+    } finally {
+      pendingSends.delete(record.task_id)
+    }
     // The run epoch scopes this send to the run it steered: a later revive starts a fresh epoch,
     // and counting sends per epoch is what keeps a new run's messages off the prior run's tally.
     port.store.appendEvent(record.task_id, {
@@ -90,8 +97,10 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
   }
 
   async function reviveTerminal(record: TaskRecord, handle: ManagedChildHandle, message: string): Promise<SendOutcome> {
+    pendingSends.add(record.task_id)
     const reservation = port.reserveForRevive(record.task_id)
     if (!reservation.ok) {
+      pendingSends.delete(record.task_id)
       return { kind: "capacity_deferred", task_id: record.task_id, reason: "Task capacity is full; retry explicitly." }
     }
     try {
@@ -105,6 +114,8 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
     } catch (error) {
       reservation.release()
       throw error
+    } finally {
+      pendingSends.delete(record.task_id)
     }
   }
 
@@ -128,6 +139,10 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
       payload: { queue_position: position, deliverAs, run_epoch: updated.notification.run_epoch },
     })
     return { kind: "queued", task_id: record.task_id, queue_position: position }
+  }
+
+  function hasPendingSends(taskId: string): boolean {
+    return pendingSends.has(taskId) || (tryLoad(taskId)?.pending_steering?.length ?? 0) > 0
   }
 
   function dropPending(taskId: string): void {
@@ -264,7 +279,7 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
     })
   }
 
-  return { sendToTask, interruptTask, cancelTask, notifyStarted, dropPending }
+  return { sendToTask, interruptTask, cancelTask, notifyStarted, hasPendingSends, dropPending }
 }
 
 function oneShotPolicyDenial(record: TaskRecord): SendOutcome | undefined {

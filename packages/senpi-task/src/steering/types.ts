@@ -70,6 +70,7 @@ export type CancelOutcome =
   | { readonly kind: "not_found"; readonly reason: string }
 
 export type SteeringEngine = {
+  hasPendingSends(taskId: string): boolean
   sendToTask(input: SendInput): Promise<SendOutcome>
   interruptTask(idOrName: string): Promise<InterruptOutcome>
   cancelTask(idOrName: string, reason?: string, options?: CancelOptions): Promise<CancelOutcome>

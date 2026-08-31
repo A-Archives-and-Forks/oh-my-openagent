@@ -211,6 +211,7 @@ export type TaskManager = {
   interruptTask(idOrName: string): Promise<InterruptOutcome>
   cancelTask(idOrName: string, reason?: string, options?: CancelOptions): Promise<CancelOutcome>
   get(taskId: string): TaskRecord | undefined
+  hasPendingSends?(taskId: string): boolean
   list(scope: ListScope): readonly ListedTask[]
   waitFor(taskId: string, options?: { readonly signal?: AbortSignal }): Promise<TaskRecord>
   // Live read of the manager-owned run-stats accumulator. Snapshot and live TUI surfaces need

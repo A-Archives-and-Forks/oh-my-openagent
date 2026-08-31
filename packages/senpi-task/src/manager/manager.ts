@@ -462,6 +462,10 @@ class TaskManagerImpl implements TaskManager {
     return this.#tryLoad(taskId) ?? undefined
   }
 
+  hasPendingSends(taskId: string): boolean {
+    return this.#steering.hasPendingSends?.(taskId) ?? false
+  }
+
   list(scope: ListScope): readonly ListedTask[] {
     const records = this.#options.store.list().records
     const filtered = scope.scope === "all" ? records : records.filter((record) => inSession(record, scope.session_id))

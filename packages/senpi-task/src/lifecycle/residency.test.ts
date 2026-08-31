@@ -26,10 +26,10 @@ describe("admitResident (residency cap + LRU eviction)", () => {
     registry.add(handle)
     const lifecycle = createTaskLifecycle({ store, registry, config: settings({ residency_max_children: 42 }), now: () => 16 * 60 * 1000 })
 
-    // There is no idle sweep API yet; admission below capacity leaves this terminal resident pinned.
-    expect((await lifecycle.admitResident("parent-1")).kind).toBe("admitted")
-    expect(store.load("st_00000009")?.residency_state).toBe("resident")
-    expect(handle.disposed()).toBe(false)
+    await lifecycle.reclaimIdleResidents?.()
+    expect(store.load("st_00000009")?.residency_state).toBe("evicted")
+    expect(handle.disposed()).toBe(true)
+    lifecycle.dispose?.()
   })
 
   test("#given residents below the cap #when admitting #then it is admitted with no eviction", async () => {
