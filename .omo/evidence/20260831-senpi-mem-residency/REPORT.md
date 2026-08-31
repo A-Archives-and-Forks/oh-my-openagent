@@ -43,4 +43,10 @@ The worktree is clean after push. Branch push succeeded to `origin/fix/senpi-mem
 
 The first Ubuntu full-suite run exposed two branch-caused issues: the idle test title still used RED-era wording, and its fake clock (`960,000`) was earlier than the fixture timestamp (`1,000,000`), so the record was correctly retained. The test now uses the contract title, an injected scheduler (no real timer), and `1,000,000 + 16 minutes` as its injected clock. The scheduler assertion pins the 15-minute interval. The manager registry fixture was also completed for typecheck.
 
-After regenerating `omo-task.js`, the required serialized remote command completed at SHA `906597525` with **1777 passed, 1 skipped, 0 failed**. The replacement PR CI run passed all required checks: Ubuntu test shards 1/2 and 2/2, macOS and Windows test shards, typecheck, build, and Senpi compatibility on Ubuntu/macOS/Windows.
+After regenerating both plugin bundles on top of the rebased `origin/dev` (including PR #7533's `omo.js`), `build-extension.mjs --check` passed. The required serialized remote command completed at SHA `fd1aa8f54` with **1783 passed, 1 skipped, 0 failed**.
+
+## Eviction/send race TDD
+
+- **RED:** commit `06d3a81f5` added deterministic regressions for (a) a steer beginning after the final idle observation while eviction is claimed, (b) a revive arriving during claimed teardown, and (c) overlapping sends where the first completion must not clear pending state while the second remains active.
+- **GREEN:** commit `92f53583a` implements the per-task mutual claim, typed refusal, counted pending sends, and sweep failure logging. The subsequent bundle commit is `fd1aa8f54` after rebasing onto current `origin/dev`.
+- The replacement PR CI run passed all required checks: Ubuntu test shards 1/2 and 2/2, macOS and Windows test shards, typecheck, build, and Senpi compatibility on Ubuntu/macOS/Windows.
