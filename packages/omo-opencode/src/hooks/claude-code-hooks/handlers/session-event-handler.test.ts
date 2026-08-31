@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 
 import { ContextCollector } from "../../../features/context-injector"
 import { cacheToolInput, getToolInput, stopToolInputCacheCleanup } from "../tool-input-cache"
-import { buildTranscriptFromSession, hasTranscriptCacheEntry } from "../transcript"
+import { buildTranscriptFromSession, hasTranscriptCacheEntry, stopTranscriptCacheCleanup } from "../transcript"
 import {
   clearAllSessionHookState,
   sessionFirstMessageProcessed,
@@ -23,6 +23,7 @@ function createMockClient() {
 describe("createSessionEventHandler", () => {
   afterEach(() => {
     clearAllSessionHookState()
+    stopTranscriptCacheCleanup()
   })
 
   test("#given deleted session with retained caches #when session deleted arrives #then per-session resources are cleared", async () => {

@@ -40,31 +40,35 @@ async function sendPlainPrompt(hook: KeywordHook, sessionID: string): Promise<vo
 }
 
 describe("keyword-detector defaultModeUltraworkInjectedSessions eviction", () => {
+  let hook: KeywordHook | undefined
+
   beforeEach(() => {
     _resetForTesting()
   })
 
   afterEach(() => {
+    hook?.dispose?.()
+    hook = undefined
     _resetForTesting()
   })
 
   test("#given default ultrawork already injected #when session.deleted arrives #then the next prompt can inject again", async () => {
     //#given
     const toastMessages: string[] = []
-    const hook = createHook(toastMessages)
+    hook = createHook(toastMessages)
     const sessionID = "ses_default_ulw_deleted"
 
-    await sendPlainPrompt(hook, sessionID)
+    await sendPlainPrompt(hook!, sessionID)
     expect(toastMessages).toHaveLength(1)
     toastMessages.length = 0
-    await sendPlainPrompt(hook, sessionID)
+    await sendPlainPrompt(hook!, sessionID)
     expect(toastMessages).toHaveLength(0)
 
     //#when
-    await hook.event?.({
+    await hook!.event?.({
       event: { type: "session.deleted", properties: { sessionID } },
     })
-    await sendPlainPrompt(hook, sessionID)
+    await sendPlainPrompt(hook!, sessionID)
 
     //#then
     expect(toastMessages).toHaveLength(1)
@@ -73,16 +77,16 @@ describe("keyword-detector defaultModeUltraworkInjectedSessions eviction", () =>
   test("#given default ultrawork already injected #when dispose runs #then later sessions are not pinned by the old set", async () => {
     //#given
     const toastMessages: string[] = []
-    const hook = createHook(toastMessages)
+    hook = createHook(toastMessages)
     const sessionID = "ses_default_ulw_dispose"
 
-    await sendPlainPrompt(hook, sessionID)
+    await sendPlainPrompt(hook!, sessionID)
     expect(toastMessages).toHaveLength(1)
     toastMessages.length = 0
 
     //#when
-    hook.dispose?.()
-    await sendPlainPrompt(hook, sessionID)
+    hook!.dispose?.()
+    await sendPlainPrompt(hook!, sessionID)
 
     //#then
     expect(toastMessages).toHaveLength(1)
@@ -91,15 +95,15 @@ describe("keyword-detector defaultModeUltraworkInjectedSessions eviction", () =>
   test("#given more injected sessions than the cap #when another session is injected #then the oldest session can inject again", async () => {
     //#given
     const toastMessages: string[] = []
-    const hook = createHook(toastMessages)
+    hook = createHook(toastMessages)
 
     for (let index = 0; index <= SESSION_CAP; index += 1) {
-      await sendPlainPrompt(hook, `ses_default_ulw_cap_${index}`)
+      await sendPlainPrompt(hook!, `ses_default_ulw_cap_${index}`)
     }
     toastMessages.length = 0
 
     //#when
-    await sendPlainPrompt(hook, "ses_default_ulw_cap_0")
+    await sendPlainPrompt(hook!, "ses_default_ulw_cap_0")
 
     //#then
     expect(toastMessages).toHaveLength(1)
