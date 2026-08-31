@@ -415,6 +415,67 @@ describe("createMemoryRecallWiring", () => {
     expect(pi.entries).toEqual([{ customType: RECALL_CUSTOM_TYPE, data: { paths: [injectedPath] } }])
   }, 30_000)
 
+  test("#given a receipt writer that always fails #when before_agent_start dispatches #then the message is still emitted and the path is surfaced", async () => {
+    // given: the ledger is healthy, only the append-only receipt trail is unavailable
+    const { repo, context } = await fixture()
+    const logs: Array<{ message: string; details?: unknown }> = []
+    const pi = new MemoryFakeExtensionAPI()
+    wiringFor({
+      repo,
+      identity: context,
+      logs,
+      appendReceipt: async () => {
+        throw new Error("receipts unavailable")
+      },
+    }).register(pi)
+
+    // when
+    const result = await dispatch(pi, eventContext([userEntry("m1", KUBERNETES_PROMPT)]))
+
+    // then: fail-open applies to bookkeeping too — the receipt failure never consumes the recall
+    expect(result?.message?.customType).toBe(RECALL_CUSTOM_TYPE)
+    expect(pi.entries).toEqual([
+      { customType: RECALL_CUSTOM_TYPE, data: { paths: [ROLLOUTS_PATH] } },
+    ])
+    expect(await new RecallLedger(context.identityPaths.recallLedger).surfacedPaths(SESSION_ID)).toEqual(
+      new Set([ROLLOUTS_PATH]),
+    )
+    expect(
+      await dispatch(pi, eventContext([userEntry("m1", KUBERNETES_PROMPT)])),
+    ).toBeUndefined()
+    expect(logs.some((log) => log.message.includes("recall"))).toBe(true)
+  }, 30_000)
+
+  test("#given a ledger that cannot record surfaced paths #when before_agent_start dispatches #then the message is still emitted and the path stays re-eligible", async () => {
+    // given: markSurfaced always fails, so nothing can be recorded as surfaced
+    const { repo, context } = await fixture()
+    const logs: Array<{ message: string; details?: unknown }> = []
+    const pi = new MemoryFakeExtensionAPI()
+    class UnwritableLedger extends RecallLedger {
+      override async markSurfaced(): Promise<void> {
+        throw new Error("ledger write failed")
+      }
+    }
+    wiringFor({
+      repo,
+      identity: context,
+      logs,
+      ledgerFor: (identity) => new UnwritableLedger(identity.identityPaths.recallLedger),
+    }).register(pi)
+
+    // when
+    const result = await dispatch(pi, eventContext([userEntry("m1", KUBERNETES_PROMPT)]))
+    const second = await dispatch(pi, eventContext([userEntry("m1", KUBERNETES_PROMPT)]))
+
+    // then: the hint is delivered, and because the path was never recorded it surfaces again
+    expect(result?.message?.customType).toBe(RECALL_CUSTOM_TYPE)
+    expect(await new RecallLedger(context.identityPaths.recallLedger).surfacedPaths(SESSION_ID)).toEqual(
+      new Set<string>(),
+    )
+    expect(second?.message?.customType).toBe(RECALL_CUSTOM_TYPE)
+    expect(logs.some((log) => log.message.includes("recall"))).toBe(true)
+  }, 30_000)
+
   test("#given a corpus load failure #when before_agent_start dispatches #then the turn is unaffected and the failure is logged", async () => {
     // given
     const { repo, context } = await fixture()

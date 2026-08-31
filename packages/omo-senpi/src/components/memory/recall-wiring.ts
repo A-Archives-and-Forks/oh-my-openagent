@@ -7,8 +7,10 @@
 // systemPrompt: this module returns `message` only, so the compiled memory projection and the
 // provider prompt cache are never touched by a recall hit.
 //
-// The hint is read-only advice, so EVERY step is fail-open: an unreadable memory repo, a corrupt
-// ledger, or a receipt write failure drops the injection and logs, and the turn proceeds untouched.
+// The hint is read-only advice, so EVERY step is fail-open: an unreadable memory repo or a
+// corrupt corpus drops the injection and logs, and the turn proceeds untouched. Bookkeeping is
+// even weaker than that: the injection is composed before the ledger or receipt runs, so a
+// bookkeeping failure is logged and the hint is still delivered.
 
 import type { OmoMemorySettings } from "@oh-my-opencode/omo-config-core"
 import {
@@ -123,22 +125,48 @@ export function createMemoryRecallWiring(options: MemoryRecallWiringOptions): Me
 
     const included = withinBudget(candidates, recall.budget_tokens)
     if (included.length === 0) return undefined
-    const content = included.map(renderRecallCandidate).join("\n")
-
-    await ledger.markSurfaced(
-      session.id,
-      included.map((candidate) => ({ path: candidate.path, hash: corpus.revision ?? "unknown" })),
-    )
-    await appendReceipt(context.identityPaths.recallReceipts, {
-      sessionId: session.id,
-      at: new Date().toISOString(),
-      queries,
-      injected: included.map((candidate) => ({ path: candidate.path, score: candidate.score })),
-    })
-    return {
-      result: { message: { customType: RECALL_CUSTOM_TYPE, content, display: false } },
+    // The message is composed BEFORE any bookkeeping runs: marking and receipt-writing are
+    // advisory, so their failure must never consume or suppress an already-planned recall.
+    const injection: RecallInjection = {
+      result: {
+        message: {
+          customType: RECALL_CUSTOM_TYPE,
+          content: included.map(renderRecallCandidate).join("\n"),
+          display: false,
+        },
+      },
       paths: included.map((candidate) => candidate.path),
     }
+
+    try {
+      await ledger.markSurfaced(
+        session.id,
+        included.map((candidate) => ({ path: candidate.path, hash: corpus.revision ?? "unknown" })),
+      )
+    } catch (error) {
+      // Fail-open: an unrecorded path simply stays eligible for the next turn.
+      options.logger?.warn("omo-senpi memory recall ledger mark skipped", {
+        sessionId: session.id,
+        error: describe(error),
+      })
+    }
+
+    try {
+      await appendReceipt(context.identityPaths.recallReceipts, {
+        sessionId: session.id,
+        at: new Date().toISOString(),
+        queries,
+        injected: included.map((candidate) => ({ path: candidate.path, score: candidate.score })),
+      })
+    } catch (error) {
+      // Fail-open: the audit trail is best-effort and never gates the injection.
+      options.logger?.warn("omo-senpi memory recall receipt skipped", {
+        sessionId: session.id,
+        error: describe(error),
+      })
+    }
+
+    return injection
   }
 
   return {
