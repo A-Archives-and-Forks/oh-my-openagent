@@ -98,7 +98,10 @@ export function createMemoryRecallWiring(options: MemoryRecallWiringOptions): Me
     const recall = resolveAgentRecallSettings(options.resolveSettings(), context.identity)
     if (recall.enabled === false) return undefined
 
-    const texts = recentTexts(session.entries)
+    // The current turn's prompt is NOT in the branch yet at before_agent_start, so a branch-only
+    // window would miss the first turn entirely and trail one turn behind afterwards. The event
+    // payload carries it, and it is the newest text by definition.
+    const texts = plannerTexts(promptText(payload), session.entries)
     if (texts.length === 0) return undefined
     const queries = planRecallQueries(texts)
     if (queries.length === 0) return undefined
@@ -234,6 +237,20 @@ function textOf(content: unknown): string {
 
 function isBeforeAgentStart(payload: unknown): boolean {
   return isRecord(payload) && payload.type === "before_agent_start"
+}
+
+/** The raw user prompt of the turn being started, or undefined when it carries no text. */
+function promptText(payload: unknown): string | undefined {
+  if (!isRecord(payload)) return undefined
+  const prompt = payload.prompt
+  if (typeof prompt !== "string" || prompt.trim().length === 0) return undefined
+  return prompt
+}
+
+/** Newest-first planner window: the live prompt ahead of the branch, still bounded by the window. */
+function plannerTexts(prompt: string | undefined, entries: readonly unknown[]): string[] {
+  if (prompt === undefined) return recentTexts(entries)
+  return [prompt, ...recentTexts(entries).slice(0, RECALL_TEXT_WINDOW - 1)]
 }
 
 function defaultCreateRepo(context: MemoryIdentityContext): GitMemoryRepo {

@@ -57,8 +57,8 @@ async function fixture(): Promise<Fixture> {
   return { repo, context }
 }
 
-function beforeAgentStart(): unknown {
-  return { type: "before_agent_start", prompt: "hello", systemPrompt: "SYSTEM" }
+function beforeAgentStart(prompt = "hello"): unknown {
+  return { type: "before_agent_start", prompt, systemPrompt: "SYSTEM" }
 }
 
 type BranchEntry = Record<string, unknown>
@@ -114,8 +114,9 @@ function wiringFor(input: WiringInput) {
 async function dispatch(
   pi: MemoryFakeExtensionAPI,
   ctx: unknown,
+  prompt?: string,
 ): Promise<BeforeAgentStartEventResult | undefined> {
-  const results = await pi.dispatch("before_agent_start", beforeAgentStart(), ctx)
+  const results = await pi.dispatch("before_agent_start", beforeAgentStart(prompt), ctx)
   return results.find((result) => result !== undefined) as BeforeAgentStartEventResult | undefined
 }
 
@@ -141,6 +142,20 @@ describe("createMemoryRecallWiring", () => {
     expect(result?.message?.display).toBe(false)
     expect(String(result?.message?.content)).toContain("reference/kubernetes-rollouts.md")
     expect(result?.systemPrompt).toBeUndefined()
+  }, 30_000)
+
+  test("#given an empty branch on the first turn #when before_agent_start dispatches #then the event prompt drives the recall query", async () => {
+    // given: the very first turn, so the session branch has no entries yet
+    const { repo, context } = await fixture()
+    const pi = new MemoryFakeExtensionAPI()
+    wiringFor({ repo, identity: context }).register(pi)
+
+    // when
+    const result = await dispatch(pi, eventContext([]), "how do we handle kubernetes rollouts here")
+
+    // then
+    expect(result?.message?.customType).toBe(RECALL_CUSTOM_TYPE)
+    expect(String(result?.message?.content)).toContain("reference/kubernetes-rollouts.md")
   }, 30_000)
 
   test("#given a recall hit #when the handler finishes #then a rendered transcript entry names the surfaced path", async () => {
@@ -276,14 +291,15 @@ describe("createMemoryRecallWiring", () => {
     const pi = new MemoryFakeExtensionAPI()
     wiringFor({ repo, identity: context }).register(pi)
 
-    // when: the only kubernetes text in the branch lives inside memory-owned hidden entries
+    // when: the only kubernetes text anywhere in the input lives inside memory-owned hidden
+    // entries, and the live prompt carries stopwords only, so a hit would have to come from them
     const result = await dispatch(
       pi,
       eventContext([
         customMessageEntry("c1", RECALL_CUSTOM_TYPE, "<recalled-memory>kubernetes rollouts</recalled-memory>"),
         customMessageEntry("c2", MEMORY_NOTICE_CUSTOM_TYPE, "<memory_notice>kubernetes rollouts</memory_notice>"),
-        userEntry("m1", "zzzqqq unrelated chatter"),
       ]),
+      "so what is it that we should do",
     )
 
     // then
