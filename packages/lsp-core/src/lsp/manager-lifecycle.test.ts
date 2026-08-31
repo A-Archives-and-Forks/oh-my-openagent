@@ -86,7 +86,8 @@ function delay(ms: number): Promise<void> {
 interface HarnessOptions {
 	readonly maxResidentClients?: number;
 	readonly stopDelayMs?: number;
-	readonly initializeError?: Error;
+	/** Leading generations whose initialize() rejects; later generations start cleanly. */
+	readonly initializeFailures?: number;
 	/** Generations at or above this index report alive; earlier ones emulate a crash-looping server. */
 	readonly aliveFromGeneration?: number;
 }
@@ -103,6 +104,7 @@ function managerHarness(options: HarnessOptions = {}): {
 	const generations = new Map<string, number>();
 	const aliveFrom = options.aliveFromGeneration ?? 1;
 	const stopDelayMs = options.stopDelayMs ?? 0;
+	const initializeFailures = options.initializeFailures ?? 0;
 	const manager = new LspManager({
 		maxResidentClients: options.maxResidentClients ?? 6,
 		reaperIntervalMs: 60_000,
@@ -114,7 +116,7 @@ function managerHarness(options: HarnessOptions = {}): {
 			const client = new RecordingFakeClient(root, log, {
 				stopDelayMs,
 				alive: generation >= aliveFrom,
-				...(options.initializeError === undefined ? {} : { initializeError: options.initializeError }),
+				...(generation <= initializeFailures ? { initializeError: new Error("initialize boom") } : {}),
 			});
 			clients.push(client);
 			return client as unknown as LspClient;
@@ -178,7 +180,7 @@ describe("LspManager pending-stop tombstones", () => {
 		// given
 		const { manager, log } = managerHarness({
 			stopDelayMs: SLOW_STOP_MS,
-			initializeError: new Error("initialize boom"),
+			initializeFailures: 1,
 		});
 		try {
 			const failing = manager.getClient("/root-fail", SERVER);
