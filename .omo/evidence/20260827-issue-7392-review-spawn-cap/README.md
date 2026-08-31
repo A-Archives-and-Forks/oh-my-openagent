@@ -9,12 +9,18 @@
 - Root repository typecheck and build were run.
 - The built component CLI was driven with help, malformed input, and four
   repeated code-reviewer spawn events against an isolated fixture.
+- A post-review regression used the ordinary article-bearing form
+  `Act as a lazycodex-qa-executor` in a mixed code-review/QA prompt and proved
+  it charges the explicit QA role instead of the earlier role mention.
 - A real `codex app-server` turn was driven with a locally installed plugin and
   local mock model in an isolated `CODEX_HOME`.
 - A second real app-server turn registered a synthetic flattened V2
   `collaborationspawn_agent` tool, preloaded the fourth code-reviewer attempt,
   and required the changed `PreToolUse` hook to block it before client-side
   execution.
+- The latest local-plugin app-server rerun completed successfully and again
+  observed `sessionStart`, `userPromptSubmit`, and `stop` hooks with the real
+  host config unchanged.
 - The canonical `bun run test:codex` gate was attempted three times.
 
 ## What was observed

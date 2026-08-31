@@ -196,7 +196,7 @@ describe("applySpawnGuards review repetition cap", () => {
 
 		const output = applySpawnGuards(
 			payload("collaboration.spawn_agent", {
-				message: "Act as lazycodex-qa-executor; verify the lazycodex-code-reviewer finding",
+				message: "Act as a lazycodex-qa-executor; verify the lazycodex-code-reviewer finding",
 			}),
 		);
 		expect(output).toBe("");

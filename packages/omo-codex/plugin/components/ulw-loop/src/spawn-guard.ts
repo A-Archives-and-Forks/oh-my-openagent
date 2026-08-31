@@ -117,7 +117,7 @@ function reviewAgentType(toolInput: unknown): string | null {
 	const normalizedMessage = message.toLowerCase();
 	const explicitReviewer = REVIEW_AGENT_TYPES.map((name) => ({
 		name,
-		index: normalizedMessage.indexOf(`act as ${name}`),
+		index: normalizedMessage.search(new RegExp(`\\bact as (?:an? )?${name}\\b`)),
 	}))
 		.filter(({ index }) => index >= 0)
 		.sort((left, right) => left.index - right.index)[0]?.name;

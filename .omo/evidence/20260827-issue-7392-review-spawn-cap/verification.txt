@@ -80,3 +80,36 @@ Canonical Codex gate
     TS2688: Cannot find type definition file for 'node'.
   This was a setup failure in unrelated component packaging, not a changed
   component assertion.
+
+Article-bearing role P1
+-----------------------
+Finding:
+  Typical MultiAgentV2 prompts say `Act as a lazycodex-qa-executor`.
+  Explicit-role parsing recognized only the article-free form, so a mixed
+  prompt fell back to the earlier code-reviewer mention and charged 4/3.
+
+Identical failing-first command:
+  npm test -- test/spawn-guard.test.ts
+
+Observed before implementation:
+  Test Files  1 failed (1)
+  Tests       1 failed | 18 passed (19)
+  The explicit QA spawn was denied as lazycodex-code-reviewer 4/3.
+
+After fix:
+  Focused suite: 19 passed, 0 failed.
+  Full component: 41 files passed, 447 tests passed.
+  Component check: TypeScript, Biome (84 files), and build passed.
+
+Latest real Codex surface:
+  app-server driver self-test: pass.
+  Isolated local-plugin app-server turn: pass.
+  Hooks fired: sessionStart, userPromptSubmit, stop.
+  Real ~/.codex/config.toml: unchanged.
+
+The canonical Codex gate was retried twice after restoring the plugin
+workspace install. Both attempts reproduced the already-documented
+third-party packaging setup failure: an aggregate build lost `@types/node`
+before the ulw-loop build. Running the aggregate plugin build directly after
+the install passed. No changed component test, typecheck, lint, or build
+failed.
