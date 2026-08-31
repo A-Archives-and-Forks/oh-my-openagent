@@ -176,9 +176,15 @@ export function createMemoryRecallWiring(options: MemoryRecallWiringOptions): Me
         try {
           const result = await handle(payload, eventCtx)
           if (result !== undefined) {
-            // Visible half of the injection: the model-facing message is display:false, so without
-            // this entry the user would see a memory-shaped answer with no trace of the hint.
-            pi.appendEntry(RECALL_CUSTOM_TYPE, { paths: result.paths } satisfies MemoryRecallRecord)
+            try {
+              // Visible half of the injection: the model-facing message is display:false, so without
+              // this entry the user would see a memory-shaped answer with no trace of the hint.
+              pi.appendEntry(RECALL_CUSTOM_TYPE, { paths: result.paths } satisfies MemoryRecallRecord)
+            } catch (error) {
+              // Fail-open: the visible trace is best-effort bookkeeping — its failure must never
+              // suppress a recall the ledger and receipt already recorded as delivered.
+              options.logger?.warn("omo-senpi memory recall trace entry skipped", { error: describe(error) })
+            }
           }
           return result?.result
         } catch (error) {

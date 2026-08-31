@@ -476,6 +476,24 @@ describe("createMemoryRecallWiring", () => {
     expect(logs.some((log) => log.message.includes("recall"))).toBe(true)
   }, 30_000)
 
+  test("#given a transcript trace writer that always fails #when before_agent_start dispatches #then the message is still returned", async () => {
+    // given: pi.appendEntry (the visible trace) throws — persistence failure or stale context
+    const { repo, context } = await fixture()
+    const logs: Array<{ message: string; details?: unknown }> = []
+    const pi = new MemoryFakeExtensionAPI()
+    pi.appendEntry = () => {
+      throw new Error("entry persistence unavailable")
+    }
+    wiringFor({ repo, identity: context, logs }).register(pi)
+
+    // when
+    const result = await dispatch(pi, eventContext([userEntry("m1", KUBERNETES_PROMPT)]))
+
+    // then: the trace is best-effort — its failure never suppresses the model-facing recall
+    expect(result?.message?.customType).toBe(RECALL_CUSTOM_TYPE)
+    expect(logs.some((log) => log.message.includes("recall"))).toBe(true)
+  }, 30_000)
+
   test("#given a corpus load failure #when before_agent_start dispatches #then the turn is unaffected and the failure is logged", async () => {
     // given
     const { repo, context } = await fixture()
