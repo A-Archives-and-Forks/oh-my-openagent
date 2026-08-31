@@ -145,3 +145,25 @@ After fix:
   omo-senpi-gate-reviewer 4/3; no LazyCodex counter.
   Isolated Codex app-server and real Senpi adapter: pass; protected host state
   unchanged.
+
+Cross-surface explicit alias P2
+-------------------------------
+Finding:
+  Explicit LazyCodex and Senpi spellings for one reviewer lane persisted
+  separate counters on the staged Senpi surface.
+
+Failing first:
+  npm test -- test/spawn-guard.test.ts -t 'LazyCodex and Senpi aliases alternate'
+  1 failed, 20 skipped; attempt 4 returned no denial.
+
+After fix:
+  Identical focused test: 1 pass, 0 fail.
+  Spawn-guard file: 21 pass, 0 fail.
+  Full component: 41 files passed, 449 tests passed.
+  Component TypeScript, Biome, and build: pass.
+  Root Bun 1.4.0 typecheck and build: pass.
+  Exact detached Senpi gate: exit 0; Bun 1.4.0 bundle freshness passed.
+  Built staged surface: first three allowed; fourth denied as
+  omo-senpi-code-reviewer 4/3; no LazyCodex counter.
+  Isolated Codex app-server and real Senpi adapter: pass; protected host state
+  unchanged.

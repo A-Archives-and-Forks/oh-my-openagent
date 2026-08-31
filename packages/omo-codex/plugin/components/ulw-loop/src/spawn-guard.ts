@@ -116,7 +116,8 @@ function reviewAgentType(toolInput: unknown): string | null {
 	if (typeof toolInput !== "object" || toolInput === null) return null;
 	const record = toolInput as Record<string, unknown>;
 	const agentType = record["agent_type"];
-	if (typeof agentType === "string" && REVIEW_AGENT_TYPE_SET.has(agentType)) return agentType;
+	if (typeof agentType === "string" && REVIEW_AGENT_TYPE_SET.has(agentType))
+		return activeSurfaceReviewerAlias(agentType);
 	const message = record["message"];
 	if (typeof message !== "string") return null;
 	const normalizedMessage = message.toLowerCase();
@@ -126,10 +127,20 @@ function reviewAgentType(toolInput: unknown): string | null {
 	}))
 		.filter(({ index }) => index >= 0)
 		.sort((left, right) => left.index - right.index)[0]?.name;
-	if (explicitReviewer !== undefined) return explicitReviewer;
+	if (explicitReviewer !== undefined) return activeSurfaceReviewerAlias(explicitReviewer);
 	const namedReviewer = REVIEW_AGENT_TYPES.find((name) => normalizedMessage.includes(name));
-	if (namedReviewer !== undefined) return namedReviewer;
+	if (namedReviewer !== undefined) return activeSurfaceReviewerAlias(namedReviewer);
 	return GATE_MESSAGE_PATTERN.test(message) ? reviewerRolesFor(resolveToolkitSurface()).gateReview : null;
+}
+
+function activeSurfaceReviewerAlias(reviewer: string): string {
+	const activeRoles = reviewerRolesFor(resolveToolkitSurface());
+	for (const roles of Object.values(REVIEWER_ROLES_BY_SURFACE)) {
+		if (reviewer === roles.codeReview) return activeRoles.codeReview;
+		if (reviewer === roles.manualQa) return activeRoles.manualQa;
+		if (reviewer === roles.gateReview) return activeRoles.gateReview;
+	}
+	return reviewer;
 }
 
 function deny(reason: string): string {

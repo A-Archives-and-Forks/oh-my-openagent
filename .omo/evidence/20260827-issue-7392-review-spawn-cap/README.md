@@ -105,6 +105,14 @@ unchanged. Distilled proof is in `surface-gate-quota.txt`; canonical Senpi
 evidence is under
 `.omo/evidence/omo-senpi-adapter/20260901-pr7402-surface-gate-quota/`.
 
+The next review found that explicit LazyCodex and Senpi reviewer aliases still
+split a single logical lane. All supported `agent_type`, explicit-assignment,
+and message aliases now canonicalize by reviewer lane through the active
+surface. The alternating alias test failed first and then passed; the complete
+component passed 449 tests. The rebuilt staged toolkit denied attempt 4 as
+`omo-senpi-code-reviewer 4/3` with no LazyCodex counter. Current isolated
+Codex and Senpi runs passed. See `alias-canonicalization.txt`.
+
 ## What was omitted
 
 Raw environment dumps, authentication data, user configuration contents, and

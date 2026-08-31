@@ -292,6 +292,27 @@ describe("applySpawnGuards gate-artifact guard", () => {
 		expect(counters["lazycodex-gate-reviewer:g1:a1"]).toBeUndefined();
 	});
 
+	it("#given the staged Senpi surface #when LazyCodex and Senpi aliases alternate #then one reviewer lane owns the cap", () => {
+		writeGoals();
+		process.env["OMO_AGENT_TOOLKIT_SURFACE"] = "omo-senpi";
+		const senpiReviewer = payload("spawn_agent", {
+			message: "Act as omo-senpi-code-reviewer; inspect the current diff",
+		});
+		const lazycodexReviewer = payload("spawn_agent", {
+			message: "Act as lazycodex-code-reviewer; inspect the current diff",
+		});
+
+		expect(applySpawnGuards(senpiReviewer)).toBe("");
+		expect(applySpawnGuards(lazycodexReviewer)).toBe("");
+		expect(applySpawnGuards(senpiReviewer)).toBe("");
+
+		const fourth = deny(applySpawnGuards(lazycodexReviewer));
+		expect(fourth.permissionDecisionReason).toContain("omo-senpi-code-reviewer 4/3");
+		const counters = JSON.parse(readFileSync(join(sessionDir(), "review-spawn-counts.json"), "utf8"));
+		expect(counters["omo-senpi-code-reviewer:g1:a1"]).toBe(3);
+		expect(counters["lazycodex-code-reviewer:g1:a1"]).toBeUndefined();
+	});
+
 	it("#given v1 artifacts on disk #when the gate spawns #then allows", () => {
 		writeGoals();
 		mkdirSync(join(workDir, ".omo", "evidence"), { recursive: true });

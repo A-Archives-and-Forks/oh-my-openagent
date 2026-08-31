@@ -35,6 +35,16 @@ The live sandbox, built-surface fixture, isolated Bun runtime, LSP daemon, and
 typings installer were removed. No matching task-owned process survived.
 See `cleanup.txt`.
 
+## Cross-surface explicit alias follow-up
+
+All explicit aliases for a reviewer lane now canonicalize through the active
+surface. On the rebuilt staged Senpi toolkit, alternating Senpi and LazyCodex
+code-review aliases allowed attempts 1-3 and denied attempt 4 as
+`omo-senpi-code-reviewer 4/3`; the Senpi counter remained 3 and the LazyCodex
+counter was absent. The exact Senpi gate completed with exit 0, Bun 1.4.0
+freshness passed, and a fresh real adapter run preserved protected host state.
+See `alias-live-adapter.redacted.json`.
+
 ## What was omitted
 
 Temporary sandbox paths, raw environment values, credentials, authentication
