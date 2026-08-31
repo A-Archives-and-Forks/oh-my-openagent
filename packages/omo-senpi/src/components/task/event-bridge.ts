@@ -41,9 +41,9 @@ export function wireEventBridge(
   wireReloadGuard(pi, engine.manager, state.dagReloadSource)
 
   pi.on("session_start", async (_payload, eventCtx) => {
-    if (process.env[OMO_SENPI_TASK_RPC_CHILD] === "1") return
     engine.runtime.captureFrom(asLiveContext(eventCtx))
     const sessionId = engine.runtime.sessionId()
+    if (process.env[OMO_SENPI_TASK_RPC_CHILD] === "1" && sessionId === undefined) return
     transitions.onSessionStart(sessionId)
     const reconciliation = await engine.lifecycle.reconcileOnSessionStart(sessionId)
     const livenessRecords = new Map<string, ReturnType<typeof engine.manager.get>>()
