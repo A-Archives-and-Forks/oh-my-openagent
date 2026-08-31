@@ -12,7 +12,7 @@ type Result = {
   temporarySnapshots: number
 }
 
-function run(scenario: "cleanup-succeeds" | "cleanup-fails"): Result {
+function run(scenario: "cleanup-succeeds" | "cleanup-fails" | "chmod-cleanup-fails"): Result {
   const child = spawnSync(process.execPath, [runner, scenario], { encoding: "utf8" })
   expect(child.status, child.stderr).toBe(0)
   return JSON.parse(child.stdout) as Result
@@ -34,6 +34,16 @@ describe("patched Senpi hooks state publication failures", () => {
       isPublicationError: false,
       isAggregateError: true,
       errors: ["publication", "cleanup"],
+      message: "Failed to publish and clean up hook trust state snapshot",
+      temporarySnapshots: 1,
+    })
+  })
+
+  test("reports chmod then cleanup errors in an ordered AggregateError", () => {
+    expect(run("chmod-cleanup-fails")).toEqual({
+      isPublicationError: false,
+      isAggregateError: true,
+      errors: ["chmod", "cleanup"],
       message: "Failed to publish and clean up hook trust state snapshot",
       temporarySnapshots: 1,
     })
