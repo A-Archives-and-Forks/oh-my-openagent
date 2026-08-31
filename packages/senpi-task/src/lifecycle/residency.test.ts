@@ -18,6 +18,20 @@ function iso(offsetMs: number): string {
 }
 
 describe("admitResident (residency cap + LRU eviction)", () => {
+  test("#given a terminal resident idle beyond the retention window #when no spawn reaches the cap #then it currently survives forever", async () => {
+    const store = tempStore()
+    seedRecord(store, { task_id: "st_00000009", status: "completed", residency_state: "resident", updated_at: iso(0) })
+    const registry = new FakeRegistry()
+    const handle = fakeHandle("st_00000009", "in-process", [])
+    registry.add(handle)
+    const lifecycle = createTaskLifecycle({ store, registry, config: settings({ residency_max_children: 42 }), now: () => 16 * 60 * 1000 })
+
+    // There is no idle sweep API yet; admission below capacity leaves this terminal resident pinned.
+    expect((await lifecycle.admitResident("parent-1")).kind).toBe("admitted")
+    expect(store.load("st_00000009")?.residency_state).toBe("resident")
+    expect(handle.disposed()).toBe(false)
+  })
+
   test("#given residents below the cap #when admitting #then it is admitted with no eviction", async () => {
     // given
     const store = tempStore()
