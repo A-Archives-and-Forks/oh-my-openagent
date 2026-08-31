@@ -4,6 +4,7 @@ import {
   createFsyncSkipWarningHook,
   FSYNC_SKIP_START_TTL_MS,
   hasFsyncSkipStartTime,
+  stopFsyncSkipWarningCleanup,
 } from "./index"
 
 function installSweepHarness() {
@@ -48,6 +49,7 @@ describe("fsync-skip-warning startTimesByCallId eviction", () => {
   let restore: (() => void) | undefined
 
   afterEach(() => {
+    stopFsyncSkipWarningCleanup()
     restore?.()
     restore = undefined
   })

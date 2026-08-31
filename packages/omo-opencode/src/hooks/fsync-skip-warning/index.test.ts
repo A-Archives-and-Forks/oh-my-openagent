@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "bun:test"
 
 import { classifyPathEnvironment } from "../../shared/classify-path-environment"
 import { clearAllSkips, recordFsyncSkip } from "../../shared/fsync-skip-tracker"
-import { createFsyncSkipWarningHook } from "./index"
+import { createFsyncSkipWarningHook, stopFsyncSkipWarningCleanup } from "./index"
 
 /**
  * The hook drains skips with a strict `timestamp > startTimestamp` comparison against `Date.now()`.
@@ -18,6 +18,7 @@ async function advanceClockPastNow(): Promise<void> {
 describe("createFsyncSkipWarningHook", () => {
   beforeEach(() => {
     clearAllSkips()
+    stopFsyncSkipWarningCleanup()
   })
 
   it("records callID start timestamp in tool.execute.before", async () => {
