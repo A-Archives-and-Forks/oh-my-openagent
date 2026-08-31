@@ -114,7 +114,7 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
       reservation.commit()
       return { kind: "revived", task_id: record.task_id, run_epoch: revived.notification.run_epoch }
     } catch (error) {
-      reservation?.release()
+      if (reservation?.ok === true) reservation.release()
       throw error
     } finally {
       endSend(record.task_id)
