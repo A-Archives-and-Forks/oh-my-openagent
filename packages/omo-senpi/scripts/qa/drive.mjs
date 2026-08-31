@@ -44,6 +44,7 @@ function credentialBytes(path, name) {
     if (typeof settings !== "object" || settings === null || Array.isArray(settings)) return content
     delete settings.tipsHistory
     delete settings.lastChangelogVersion
+    delete settings.modelLastOnThinkingLevels
     return JSON.stringify(settings)
   } catch {
     return content
