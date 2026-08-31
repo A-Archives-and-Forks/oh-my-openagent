@@ -199,9 +199,10 @@ describe("SenpiSessionProvider", () => {
     expect(results.map((result) => result.messageId)).toEqual(["v1"])
   })
 
-  it("#given extension-injected custom messages #when mapped #then they are not searchable transcript content", () => {
-    // given: an omo-memorian recall hint, persisted both as the custom_message entry senpi writes
-    // today and as the role-custom message entry older or forked session files can carry.
+  it("#given extension-injected custom messages #when mapped #then only memory-owned channels are hidden and other custom content stays searchable", () => {
+    // given: an omo-memorian recall hint (persisted both as the custom_message entry senpi writes
+    // today and as the role-custom message entry older or forked session files can carry) plus
+    // ANOTHER extension's custom message, which is real conversation-shaped content.
     const root = sessionsRoot()
     writeSession(join(root, "--tmp-project--"), "sess-recall.jsonl", [
       header("sess-recall"),
@@ -227,16 +228,34 @@ describe("SenpiSessionProvider", () => {
           display: false,
         },
       }),
+      JSON.stringify({
+        type: "message",
+        id: "m2",
+        parentId: "m1",
+        timestamp: "2026-08-05T17:09:05.000Z",
+        message: {
+          role: "custom",
+          customType: "vendor-banner:notice",
+          content: [{ type: "text", text: "sponsor banner copy for another extension" }],
+          display: false,
+        },
+      }),
     ])
     const provider = new SenpiSessionProvider({ sessionsDir: root })
 
     // when
     const conversations = provider.listConversations()
-    const results = searchTranscripts(provider, "kubernetes", { includeHidden: true })
+    const recallHits = searchTranscripts(provider, "kubernetes", { includeHidden: true })
+    const bannerHits = searchTranscripts(provider, "sponsor banner", { includeHidden: true })
 
-    // then
-    expect(conversations[0]?.messages.map((document) => document.id)).toEqual(["u1"])
-    expect(results).toEqual([])
+    // then: the memory-owned hint is hidden, the foreign custom message survives
+    expect(conversations[0]?.messages.map((document) => document.id)).toEqual(["u1", "m2"])
+    expect(conversations[0]?.messages[1]).toMatchObject({
+      messageType: "custom",
+      content: "sponsor banner copy for another extension",
+    })
+    expect(recallHits).toEqual([])
+    expect(bannerHits.map((result) => result.messageId)).toEqual(["m2"])
   })
 
   it("#given a missing sessions directory or non-jsonl files #when listed #then reading is empty and never throws", () => {
