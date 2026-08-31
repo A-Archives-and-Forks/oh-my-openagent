@@ -5,6 +5,7 @@ import type { PreToolUsePayload } from "./codex-hook.js";
 import { parsePreToolUsePayload } from "./codex-hook.js";
 import { isFinalRunCompletionCandidate } from "./goal-status.js";
 import { ulwLoopAttemptEvidenceDir, ulwLoopDir } from "./paths.js";
+import { GATE_REVIEWER_AGENT_NAMES, REVIEWER_ROLES_BY_SURFACE } from "./surface.js";
 import type { UlwLoopPlan } from "./types.js";
 
 // spawn_agent = v1; collaborationspawn_agent = the delimiter-free flattened v2
@@ -13,12 +14,13 @@ import type { UlwLoopPlan } from "./types.js";
 const SPAWN_TOOL_TOKENS = new Set(["spawn_agent", "collaborationspawn_agent", "collaboration.spawn_agent"]);
 const DEFAULT_FANOUT_LIMIT = 60;
 const DEFAULT_REVIEW_SPAWN_LIMIT = 3;
-const REVIEW_AGENT_TYPES = new Set(["lazycodex-code-reviewer", "lazycodex-qa-executor", "lazycodex-gate-reviewer"]);
-const REVIEW_MESSAGE_PATTERNS = [
-	{ agentType: "lazycodex-gate-reviewer", pattern: /lazycodex-gate-reviewer|final gate review/i },
-	{ agentType: "lazycodex-code-reviewer", pattern: /\blazycodex-code-reviewer\b/i },
-	{ agentType: "lazycodex-qa-executor", pattern: /\blazycodex-qa-executor\b/i },
+const GATE_MESSAGE_PATTERN = /lazycodex-gate-reviewer|omo-senpi-gate-reviewer|final gate review/i;
+const REVIEW_AGENT_TYPES = [
+	...Object.values(REVIEWER_ROLES_BY_SURFACE).map((roles) => roles.gateReview),
+	...Object.values(REVIEWER_ROLES_BY_SURFACE).map((roles) => roles.codeReview),
+	...Object.values(REVIEWER_ROLES_BY_SURFACE).map((roles) => roles.manualQa),
 ] as const;
+const REVIEW_AGENT_TYPE_SET = new Set<string>(REVIEW_AGENT_TYPES);
 
 export function applySpawnGuards(payload: PreToolUsePayload): string {
 	if (payload.hook_event_name !== "PreToolUse" || !SPAWN_TOOL_TOKENS.has(payload.tool_name)) return "";
@@ -53,11 +55,10 @@ export async function runSpawnGuardCli(stdin: NodeJS.ReadableStream, stdout: Nod
 function consumeFanOutBudget(stateDir: string): string | null {
 	const counterPath = join(stateDir, "spawn-count.json");
 	const count = readCount(counterPath) + 1;
-	const limit = fanOutLimit();
-	if (count > limit)
-		return `ulw-loop spawn fan-out cap reached (${count}/${limit}). Consolidate work into the agents already running, or raise OMO_SPAWN_FANOUT_LIMIT if this volume is intentional.`;
 	writeFileSync(counterPath, JSON.stringify({ count }));
-	return null;
+	const limit = fanOutLimit();
+	if (count <= limit) return null;
+	return `ulw-loop spawn fan-out cap reached (${count}/${limit}). Consolidate work into the agents already running, or raise OMO_SPAWN_FANOUT_LIMIT if this volume is intentional.`;
 }
 
 function consumeReviewSpawnBudget(payload: PreToolUsePayload, plan: UlwLoopPlan, stateDir: string): string | null {
@@ -102,17 +103,20 @@ function missingGateArtifact(payload: PreToolUsePayload, plan: UlwLoopPlan): str
 }
 
 function isGateReviewerSpawn(toolInput: unknown): boolean {
-	return reviewAgentType(toolInput) === "lazycodex-gate-reviewer";
+	const agentType = reviewAgentType(toolInput);
+	return agentType !== null && GATE_REVIEWER_AGENT_NAMES.has(agentType);
 }
 
 function reviewAgentType(toolInput: unknown): string | null {
 	if (typeof toolInput !== "object" || toolInput === null) return null;
 	const record = toolInput as Record<string, unknown>;
 	const agentType = record["agent_type"];
-	if (typeof agentType === "string" && REVIEW_AGENT_TYPES.has(agentType)) return agentType;
+	if (typeof agentType === "string" && REVIEW_AGENT_TYPE_SET.has(agentType)) return agentType;
 	const message = record["message"];
 	if (typeof message !== "string") return null;
-	return REVIEW_MESSAGE_PATTERNS.find(({ pattern }) => pattern.test(message))?.agentType ?? null;
+	const namedReviewer = REVIEW_AGENT_TYPES.find((name) => message.toLowerCase().includes(name));
+	if (namedReviewer !== undefined) return namedReviewer;
+	return GATE_MESSAGE_PATTERN.test(message) ? "lazycodex-gate-reviewer" : null;
 }
 
 function deny(reason: string): string {
