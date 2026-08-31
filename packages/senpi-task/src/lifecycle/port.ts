@@ -97,6 +97,15 @@ export function getLifecycleReattachPorts(store: TaskRecordStore): LifecycleReat
   return registeredReattachPorts.get(store)
 }
 
+export type IdleReclaimerTimer = {
+  unref?(): void
+}
+
+export type IdleReclaimerScheduler = {
+  setInterval(callback: () => void, delayMs: number): IdleReclaimerTimer
+  clearInterval(timer: IdleReclaimerTimer): void
+}
+
 export type LifecycleDeps = {
   readonly store: TaskRecordStore
   readonly registry: ResidencyRegistry
@@ -116,6 +125,8 @@ export type LifecycleDeps = {
   readonly dequeuePending?: (taskId: string) => void
   // Test seam for bounded admission-lease timing and deterministic contention.
   readonly reconcileAdmission?: BatchAdmissionOptions
+  // Injectable timer seam keeps lifecycle tests deterministic and prevents test-created timers.
+  readonly idleReclaimerScheduler?: IdleReclaimerScheduler
 }
 
 export function injectedLifecycleReattachPorts(deps: LifecycleDeps): LifecycleReattachPorts | undefined {

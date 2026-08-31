@@ -1,5 +1,3 @@
-import { clearInterval, setInterval } from "node:timers"
-
 import type { TaskRecord } from "../state"
 import { acquireSessionAdmissionLease, type AdmissionLeaseTiming } from "./admission-lease"
 import { nowIso, TERMINAL_STATUSES, type LifecycleContext } from "./context"
@@ -90,7 +88,7 @@ export function startIdleResidentReclaimer(
   cleanupExpired: () => Promise<unknown> = async () => undefined,
 ): () => void {
   let running = false
-  const timer = setInterval(() => {
+  const timer = context.idleReclaimerScheduler.setInterval(() => {
     if (running) return
     running = true
     void reclaimIdleResidents(context)
@@ -99,7 +97,7 @@ export function startIdleResidentReclaimer(
       .finally(() => { running = false })
   }, RESIDENT_IDLE_SWEEP_INTERVAL_MS)
   timer.unref?.()
-  return () => clearInterval(timer)
+  return () => context.idleReclaimerScheduler.clearInterval(timer)
 }
 
 // Oldest-first scan (updated_at is touched on every steer/revive, so it tracks recency of use). The
