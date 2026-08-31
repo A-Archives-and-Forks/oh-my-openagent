@@ -5,7 +5,13 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import type { BeforeAgentStartEventResult } from "@code-yeongyu/senpi"
-import { GitMemoryRepo, buildIdentityPaths } from "@oh-my-opencode/memory-core"
+import {
+  GitMemoryRepo,
+  RecallLedger,
+  appendRecallReceipt,
+  buildIdentityPaths,
+  renderRecallMessage,
+} from "@oh-my-opencode/memory-core"
 
 import { MemoryFakeExtensionAPI, memorySettings } from "./memory.test-support"
 import { createMemoryBinding } from "./binding"
@@ -32,7 +38,19 @@ interface Fixture {
   readonly context: MemoryIdentityContext
 }
 
-async function fixture(): Promise<Fixture> {
+const ROLLOUTS_PATH = "reference/kubernetes-rollouts.md"
+const ROLLOUTS_DESCRIPTION = "How the team ships kubernetes rollouts"
+const ROLLOUTS_BODY =
+  "Always drain kubernetes nodes before a rollout, then verify the deployment health endpoint.\n"
+const DRAINS_PATH = "notes/kubernetes-drains.md"
+const DRAINS_DESCRIPTION = "Kubernetes drain checklist"
+const DRAINS_BODY =
+  "Drain kubernetes nodes and check the deployment health endpoint before any rollout.\n"
+const KUBERNETES_PROMPT = "how do we handle kubernetes rollouts here"
+
+async function fixture(
+  extraSeedFiles: readonly { relativePath: string; content: string }[] = [],
+): Promise<Fixture> {
   const dir = realpathSync.native(await mkdtemp(join(tmpdir(), "memory-recall-")))
   tempDirs.push(dir)
   const repo = new GitMemoryRepo({ dir: join(dir, "repo"), agentId: IDENTITY })
@@ -43,10 +61,10 @@ async function fixture(): Promise<Fixture> {
         content: "---\ndescription: Persona\n---\nsystem text\n",
       },
       {
-        relativePath: "reference/kubernetes-rollouts.md",
-        content:
-          "---\ndescription: How the team ships kubernetes rollouts\n---\nAlways drain kubernetes nodes before a rollout, then verify the deployment health endpoint.\n",
+        relativePath: ROLLOUTS_PATH,
+        content: `---\ndescription: ${ROLLOUTS_DESCRIPTION}\n---\n${ROLLOUTS_BODY}`,
       },
+      ...extraSeedFiles,
     ],
   })
   const context = createMemoryIdentityContext({
@@ -87,6 +105,8 @@ interface WiringInput {
   readonly recall?: Partial<ReturnType<typeof memorySettings>["recall"]>
   readonly env?: Record<string, string | undefined>
   readonly logs?: Array<{ message: string; details?: unknown }>
+  readonly ledgerFor?: (context: MemoryIdentityContext) => RecallLedger
+  readonly appendReceipt?: typeof appendRecallReceipt
 }
 
 function wiringFor(input: WiringInput) {
@@ -99,6 +119,8 @@ function wiringFor(input: WiringInput) {
     resolveSettings: () => settings,
     createRepo: () => input.repo,
     env: input.env ?? {},
+    ...(input.ledgerFor === undefined ? {} : { ledgerFor: input.ledgerFor }),
+    ...(input.appendReceipt === undefined ? {} : { appendReceipt: input.appendReceipt }),
     ...(input.logs === undefined
       ? {}
       : {
@@ -324,17 +346,73 @@ describe("createMemoryRecallWiring", () => {
     ])
   }, 30_000)
 
-  test("#given a tiny token budget #when the block is rendered #then the content is truncated to the four-chars-per-token budget", async () => {
-    // given
+  test("#given a budget smaller than one whole block #when before_agent_start dispatches #then nothing is injected and nothing is marked", async () => {
+    // given: 10 tokens = 40 chars, far below one whole candidate block
     const { repo, context } = await fixture()
     const pi = new MemoryFakeExtensionAPI()
     wiringFor({ repo, identity: context, recall: { ...memorySettings().recall, budget_tokens: 10 } }).register(pi)
 
     // when
-    const result = await dispatch(pi, eventContext([userEntry("m1", "how do we handle kubernetes rollouts here")]))
+    const result = await dispatch(pi, eventContext([userEntry("m1", KUBERNETES_PROMPT)]))
+
+    // then: dropping a candidate means dropping it whole, not slicing the block
+    expect(result).toBeUndefined()
+    expect(pi.entries).toEqual([])
+    expect(await new RecallLedger(context.identityPaths.recallLedger).surfacedPaths(SESSION_ID)).toEqual(
+      new Set<string>(),
+    )
+    await expect(readFile(context.identityPaths.recallReceipts, "utf8")).rejects.toThrow()
+  }, 30_000)
+
+  test("#given a budget that fits only the first whole block #when before_agent_start dispatches #then exactly that candidate is injected and recorded", async () => {
+    // given: a second matching candidate, so the mid budget has a whole block to drop
+    const { repo, context } = await fixture([
+      {
+        relativePath: DRAINS_PATH,
+        content: `---\ndescription: ${DRAINS_DESCRIPTION}\n---\n${DRAINS_BODY}`,
+      },
+    ])
+    const rolloutBlock = renderRecallMessage([
+      { path: ROLLOUTS_PATH, description: ROLLOUTS_DESCRIPTION, excerpt: ROLLOUTS_BODY.trim(), score: 0 },
+    ])
+    const drainBlock = renderRecallMessage([
+      { path: DRAINS_PATH, description: DRAINS_DESCRIPTION, excerpt: DRAINS_BODY.trim(), score: 0 },
+    ])
+    // One whole block fits with slack; two joined blocks cannot.
+    const budgetTokens = Math.ceil((Math.max(rolloutBlock.length, drainBlock.length) + 4) / 4)
+
+    // control: the same corpus under the default budget selects both candidates
+    const control = new MemoryFakeExtensionAPI()
+    wiringFor({
+      repo,
+      identity: context,
+      ledgerFor: (identity) => new RecallLedger(join(identity.identityPaths.recallLedger, "control")),
+      appendReceipt: async () => {},
+    }).register(control)
+    const controlResult = await dispatch(control, eventContext([userEntry("m1", KUBERNETES_PROMPT)]))
+    expect(String(controlResult?.message?.content).match(/<recalled-memory source="/g)).toHaveLength(2)
+
+    const pi = new MemoryFakeExtensionAPI()
+    wiringFor({ repo, identity: context, recall: { ...memorySettings().recall, budget_tokens: budgetTokens } }).register(pi)
+
+    // when
+    const result = await dispatch(pi, eventContext([userEntry("m1", KUBERNETES_PROMPT)]))
 
     // then
-    expect(String(result?.message?.content).length).toBeLessThanOrEqual(40)
+    const content = String(result?.message?.content)
+    expect(content.match(/<recalled-memory source="/g)).toHaveLength(1)
+    expect(content.endsWith("</recalled-memory>")).toBe(true)
+    const injectedPath = content.slice(content.indexOf("[[") + 2, content.indexOf("]]"))
+    expect([ROLLOUTS_PATH, DRAINS_PATH]).toContain(injectedPath)
+
+    // the ledger, the receipt and the transcript entry name only the injected candidate
+    expect(await new RecallLedger(context.identityPaths.recallLedger).surfacedPaths(SESSION_ID)).toEqual(
+      new Set([injectedPath]),
+    )
+    const receipts = await readFile(context.identityPaths.recallReceipts, "utf8")
+    const receipt = JSON.parse(receipts.trim().split("\n")[0] ?? "{}")
+    expect(receipt.injected).toEqual([expect.objectContaining({ path: injectedPath })])
+    expect(pi.entries).toEqual([{ customType: RECALL_CUSTOM_TYPE, data: { paths: [injectedPath] } }])
   }, 30_000)
 
   test("#given a corpus load failure #when before_agent_start dispatches #then the turn is unaffected and the failure is logged", async () => {

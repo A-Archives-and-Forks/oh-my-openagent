@@ -17,8 +17,9 @@ import {
   RecallLedger,
   appendRecallReceipt,
   planRecallQueries,
-  renderRecallMessage,
+  renderRecallCandidate,
   selectRecallCandidates,
+  type RecallCandidate,
 } from "@oh-my-opencode/memory-core"
 
 import type { ComponentLogger } from "../../extension/types"
@@ -120,22 +121,23 @@ export function createMemoryRecallWiring(options: MemoryRecallWiringOptions): Me
     })
     if (candidates.length === 0) return undefined
 
-    const content = withinBudget(renderRecallMessage(candidates), recall.budget_tokens)
-    if (content.length === 0) return undefined
+    const included = withinBudget(candidates, recall.budget_tokens)
+    if (included.length === 0) return undefined
+    const content = included.map(renderRecallCandidate).join("\n")
 
     await ledger.markSurfaced(
       session.id,
-      candidates.map((candidate) => ({ path: candidate.path, hash: corpus.revision ?? "unknown" })),
+      included.map((candidate) => ({ path: candidate.path, hash: corpus.revision ?? "unknown" })),
     )
     await appendReceipt(context.identityPaths.recallReceipts, {
       sessionId: session.id,
       at: new Date().toISOString(),
       queries,
-      injected: candidates.map((candidate) => ({ path: candidate.path, score: candidate.score })),
+      injected: included.map((candidate) => ({ path: candidate.path, score: candidate.score })),
     })
     return {
       result: { message: { customType: RECALL_CUSTOM_TYPE, content, display: false } },
-      paths: candidates.map((candidate) => candidate.path),
+      paths: included.map((candidate) => candidate.path),
     }
   }
 
@@ -172,11 +174,25 @@ interface RecallInjection {
   readonly paths: readonly string[]
 }
 
-/** Hard ceiling on the injected block, applied to the rendered text as whole lines. */
-function withinBudget(block: string, budgetTokens: number): string {
+/**
+ * Longest prefix of WHOLE candidate blocks whose joined length stays inside the budget. A block is
+ * never sliced mid-candidate: when not even one block fits, nothing is injected at all.
+ */
+function withinBudget(
+  candidates: readonly RecallCandidate[],
+  budgetTokens: number,
+): RecallCandidate[] {
   const maxChars = Math.max(0, budgetTokens) * CHARS_PER_TOKEN
-  if (block.length <= maxChars) return block
-  return block.slice(0, maxChars).trimEnd()
+  const included: RecallCandidate[] = []
+  let length = 0
+  for (const candidate of candidates) {
+    const blockLength = renderRecallCandidate(candidate).length
+    const separator = included.length === 0 ? 0 : "\n".length
+    if (length + separator + blockLength > maxChars) break
+    included.push(candidate)
+    length += separator + blockLength
+  }
+  return included
 }
 
 interface RecallSession {
