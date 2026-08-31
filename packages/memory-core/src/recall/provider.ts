@@ -1,4 +1,5 @@
-// Recall corpus provider: reads committed non-system memory files from HEAD.
+// Recall corpus provider: reads committed memory files from HEAD, excluding only the
+// repo-root reserved `system/` tree.
 //
 // Compile-from-committed invariant: every read goes through repo.show at the
 // HEAD revision captured up front; the working tree is never consulted, so
@@ -18,12 +19,14 @@ export interface RecallCorpus {
   readonly documents: readonly RecallDocument[]
 }
 
-const SYSTEM_PATH_SEGMENT = "system"
+const RESERVED_SYSTEM_TREE = "system/"
 const MEMORY_FILE_EXTENSION = ".md"
 
 function isRecallCandidatePath(path: string): boolean {
   if (!path.endsWith(MEMORY_FILE_EXTENSION)) return false
-  return !path.split("/").includes(SYSTEM_PATH_SEGMENT)
+  // The exclusion is the reserved ROOT tree only: `reference/system/deploy.md` is ordinary user
+  // memory, so matching the segment anywhere would silently hide recallable files.
+  return !path.startsWith(RESERVED_SYSTEM_TREE)
 }
 
 export async function loadRecallCorpus(repo: GitMemoryRepo): Promise<RecallCorpus> {

@@ -76,6 +76,31 @@ describe("loadRecallCorpus", () => {
     expect(alice?.body).toContain("Owns the ingest pipeline.")
   }, GIT_INTEGRATION_TEST_TIMEOUT)
 
+  it("#given a committed file whose path merely contains a system segment #when the corpus is loaded #then only the reserved root system tree is excluded", async () => {
+    // given: reference/system/deploy.md is a normal memory file; system/persona.md is reserved
+    const dir = realpathSync.native(await mkdtemp(join(tmpdir(), "recall-system-tree-")))
+    tempDirs.push(dir)
+    const repo = new GitMemoryRepo({ dir, agentId: "recall-agent" })
+    await repo.init({
+      seedFiles: [
+      {
+        relativePath: "reference/system/deploy.md",
+        content: "---\ndescription: Deployment notes under a system-named folder\n---\nRoll forward on failure.\n",
+      },
+      {
+        relativePath: "system/persona.md",
+        content: "---\ndescription: Persona\n---\nsystem body\n",
+      },
+      ],
+    })
+
+    // when
+    const corpus = await loadRecallCorpus(repo)
+
+    // then
+    expect(corpus.documents.map((document) => document.path)).toEqual(["reference/system/deploy.md"])
+  }, GIT_INTEGRATION_TEST_TIMEOUT)
+
   it("#given uncommitted working-tree edits #when the corpus is loaded #then only committed HEAD content is visible", async () => {
     // given
     const { dir, repo } = await createRepo()
