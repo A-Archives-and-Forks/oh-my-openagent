@@ -21,6 +21,7 @@ import {
   releaseAllPromptAsyncReservationsForTesting,
   releasePromptAsyncReservation,
 } from "../../../hooks/shared/prompt-async-gate"
+import { DEFAULT_SESSION_IDLE_SETTLE_MS } from "@oh-my-opencode/utils/session-idle-settle"
 import { ackMessages } from "@oh-my-opencode/team-core/team-mailbox/ack"
 import { listUnreadMessages } from "@oh-my-opencode/team-core/team-mailbox/inbox"
 import { pollAndBuildInjection } from "@oh-my-opencode/team-core/team-mailbox/poll"
@@ -1017,6 +1018,46 @@ describe("createTeamSendMessageTool", () => {
     expect(calls[0].agent).toBe("atlas")
     expect(calls[0].model).toEqual({ providerID: "anthropic", modelID: "claude-opus-4-7" })
     expect(calls[0].variant).toBe("high")
+  })
+
+  test("live delivery uses the ambient idle-settle default when no settle value is injected", async () => {
+    const settleTimerScheduled = createDeferred<void>()
+    const acceleratedSetTimeout = new Proxy(realSetTimeout, {
+      apply(target, thisArg, args) {
+        if (args[1] === DEFAULT_SESSION_IDLE_SETTLE_MS) {
+          settleTimerScheduled.resolve(undefined)
+          args[1] = 0
+        }
+        return Reflect.apply(target, thisArg, args)
+      },
+    })
+    const setTimeoutSpy = spyOn(globalThis, "setTimeout").mockImplementation(acceleratedSetTimeout)
+
+    try {
+      // given
+      const fixture = await createTeamFixture()
+      const { client, calls } = createRecordingClient()
+      const liveTool = createProductionTeamSendMessageTool(
+        fixture.config,
+        client,
+        defaultTeamSendMessageToolDeps,
+      )
+
+      // when
+      const delivery = liveTool.execute({
+        teamRunId: fixture.teamRunId,
+        to: "m2",
+        body: "ambient default ping",
+      }, fixture.toolContext(fixture.memberOneSessionId))
+      await waitForEvent(settleTimerScheduled.promise, "live delivery idle-settle timer")
+      await delivery
+
+      // then
+      expect(calls).toHaveLength(1)
+      expect(calls[0]?.parts[0]?.text).toContain("ambient default ping")
+    } finally {
+      setTimeoutSpy.mockRestore()
+    }
   })
 
   test("live delivery uses the registered agent alias when the runtime stores a config-key agent name", async () => {
