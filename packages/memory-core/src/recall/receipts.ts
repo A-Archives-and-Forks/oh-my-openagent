@@ -2,7 +2,7 @@
 // pass (queries planned, candidates injected, session and time). Parents are
 // created on demand; the file is created owner-private (mode 0o600).
 
-import { appendFile, mkdir } from "node:fs/promises"
+import { appendFile, mkdir } from "../fs/resilient"
 import { dirname } from "node:path"
 
 export interface RecallReceipt {
