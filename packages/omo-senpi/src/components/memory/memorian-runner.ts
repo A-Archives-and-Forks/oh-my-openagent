@@ -102,10 +102,17 @@ export class MemorianGateRunner {
     // Prefer the settle-time snapshot: reading the ctx from this detached task races session dispose.
     const registry = input.modelRegistry ?? this.options.resolveModelRegistry()
     const resolution = resolveReflectionModel(QUICK_CATEGORY, loaded.config, registry)
-    if (resolution.kind === "category_unavailable") {
-      // Same decision as the facts extractor: the gate is quick-pinned and never falls back to a
-      // pricier category, because an advisory read must not cost more than the turn it advises.
-      this.options.logger?.warn("memorian gate quick category unavailable", { cause: resolution.cause })
+    // STRICTER than the facts extractor: `category_unavailable` is not the only unavailable answer.
+    // resolveReflectionModel also has a beyond-category ladder (registry_fallback / session_inherit)
+    // that resolves ANY usable registry model when the quick chain is dead, and it marks those
+    // resolutions with a `source`. Category-sourced resolutions carry no `source`. The gate is
+    // quick-PINNED with no fallback: an advisory read of a turn that already ended must never land
+    // on an arbitrary, possibly frontier-priced model, so anything outside the category counts as
+    // unavailable - warn and skip.
+    if (resolution.kind === "category_unavailable" || resolution.source !== undefined) {
+      this.options.logger?.warn("memorian gate quick category unavailable", {
+        cause: resolution.kind === "category_unavailable" ? resolution.cause : resolution.source,
+      })
       return { status: "skipped" }
     }
 

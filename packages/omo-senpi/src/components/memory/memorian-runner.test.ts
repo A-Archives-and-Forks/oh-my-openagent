@@ -154,6 +154,37 @@ describe("MemorianGateRunner", () => {
     expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID)).toEqual([])
   }, 30_000)
 
+  test("#given no quick category but another usable registry model #when the runner launches #then it warns, skips and never rides the beyond-category ladder", async () => {
+    // given: resolveReflectionModel's beyond-category ladder resolves ANY usable registry model when
+    // the quick chain is dead. The gate is quick-PINNED: an advisory read must never launch on an
+    // arbitrary (possibly frontier-priced) model behind the operator's back.
+    const { identityPaths } = await fixture()
+    const warnings: string[] = []
+    let spawned = 0
+    const other: SenpiModelPort = { provider: "omo-mock", id: "expensive-1" }
+    const runner = new MemorianGateRunner(runnerOptions(identityPaths, {
+      loadConfig: () => ({ config: { categories: {} }, diagnostics: [], layers: [], sources: [] }),
+      resolveModelRegistry: () => ({
+        getAvailable: () => [other],
+        find: (provider, modelId) => (provider === other.provider && modelId === other.id ? other : undefined),
+      }),
+      logger: { info: () => undefined, warn: (message) => warnings.push(message), error: () => undefined },
+      sandbox: (args) => {
+        spawned += 1
+        return args
+      },
+    }))
+
+    // when
+    const result = await runner.launch(launchInput())
+
+    // then
+    expect(result.status).toBe("skipped")
+    expect(spawned).toBe(0)
+    expect(warnings).toEqual(["memorian gate quick category unavailable"])
+    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID)).toEqual([])
+  }, 30_000)
+
   test("#given a launch already in flight #when a second trigger arrives #then only one child runs", async () => {
     // given
     const { root, identityPaths } = await fixture()
