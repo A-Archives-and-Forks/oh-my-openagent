@@ -10,7 +10,7 @@ import { createShutdownDrain, type ShutdownDrainInput, type ShutdownEvaluator } 
 import { type SkillsUsageTracker } from "./skills-usage"
 import { type MemoryUsageTracker } from "./memory-usage"
 import { createMemoryNoticeWiring } from "./memory-notice-wiring"
-import { createMemorianGateWiring } from "./memorian-wiring"
+import { createMemorianGateWiring, type MemorianGateWiring } from "./memorian-wiring"
 import { resolveMemoryModelRegistry } from "./model-registry-resolver"
 import { createMemoryRecallWiring } from "./recall-wiring"
 import { branchEntryCount } from "./wiring-context"
@@ -74,10 +74,16 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     },
   })
 
+  // Late-bound because the two wirings are mutually dependent by design: recall's drain needs the
+  // gate's epoch to reject a superseded payload, and the gate needs recall's collection to launch.
+  // The gate wiring is constructed immediately below, so every call through this ref lands after it.
+  const gateWiringRef: { current?: MemorianGateWiring } = {}
+
   const recallWiring = createMemoryRecallWiring({
     resolveContext,
     resolveSettings: () => resolveMemorySettings(options.loadConfig({ cwd: options.cwd() }).config.memory),
     env: options.env,
+    currentCompactionEpoch: (sessionId) => gateWiringRef.current?.currentCompactionEpoch(sessionId) ?? 0,
     ...(options.logger === undefined ? {} : { logger: options.logger }),
   })
   // The settle half of the recall channel: collection feeds the gate child, and the gate's pending
@@ -92,6 +98,7 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     runnerFor: memorianRunnerFor,
     ...(options.logger === undefined ? {} : { logger: options.logger }),
   })
+  gateWiringRef.current = memorianGateWiring
 
   async function flushSkillsUsageTrackers(signal?: AbortSignal): Promise<void> {
     for (const tracker of skillsUsageTrackersRef.current.values()) {

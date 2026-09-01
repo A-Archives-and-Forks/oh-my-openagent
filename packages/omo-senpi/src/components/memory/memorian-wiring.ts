@@ -63,6 +63,12 @@ export interface MemorianGateWiring {
   onSettled(eventCtx: unknown): void
   /** Accepted compaction: the pending nudges judged a transcript that no longer exists. */
   onCompactionAccepted(sessionId: string): void
+  /**
+   * The session's live compaction epoch. The consumption side (recall's before_agent_start drain)
+   * reads it to reject a pending payload stamped with a superseded epoch, which is what makes the
+   * write-versus-compaction race harmless instead of merely narrow.
+   */
+  currentCompactionEpoch(sessionId: string): number
   /** Resolves once every launch started so far has finished; tests await this instead of sleeping. */
   whenIdle(): Promise<void>
 }
@@ -147,8 +153,15 @@ export function createMemorianGateWiring(options: MemorianGateWiringOptions): Me
         // take() is read-and-delete, so consuming and discarding IS the drop. A pending payload
         // that outlived its transcript would advise the next turn about a conversation the
         // compaction has already rewritten.
-        await pendingFor(context).take(sessionId)
+        // The bump above already happened, so this take() passes the NEW epoch: a pre-compaction
+        // payload is rejected-and-deleted and a post-bump one is consumed-and-discarded. Both are
+        // the drop this handler exists to perform.
+        await pendingFor(context).take(sessionId, { currentEpoch: epochOf(sessionId) })
       })
+    },
+
+    currentCompactionEpoch(sessionId: string): number {
+      return epochOf(sessionId)
     },
 
     async whenIdle(): Promise<void> {

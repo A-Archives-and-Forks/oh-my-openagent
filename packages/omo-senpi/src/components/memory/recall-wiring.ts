@@ -65,12 +65,19 @@ export interface MemoryRecallWiringOptions {
   readonly corpusCache?: RecallCorpusCache
   readonly ledgerFor?: (context: MemoryIdentityContext) => RecallLedger
   readonly pendingFor?: (context: MemoryIdentityContext) => PendingNudgesPort
+  /**
+   * The session's live compaction epoch, owned by the memorian gate wiring. A pending payload is
+   * stamped with the epoch its judge ran under, so passing the live one here is what rejects a
+   * verdict about a transcript a compaction has since rewritten. Absent means "never compacted",
+   * matching the gate wiring's own default for an unknown session.
+   */
+  readonly currentCompactionEpoch?: (sessionId: string) => number
   readonly logger?: ComponentLogger
 }
 
 /** The pending handoff the gate writes and this turn drains; `take` is read-and-delete. */
 export interface PendingNudgesPort {
-  take(sessionId: string): Promise<RecallNudge[]>
+  take(sessionId: string, options: { readonly currentEpoch: number }): Promise<RecallNudge[]>
 }
 
 /** One line of the judge's transcript window: both roles, oldest first. */
@@ -193,7 +200,9 @@ export function createMemoryRecallWiring(options: MemoryRecallWiringOptions): Me
     if (context === undefined) return undefined
     if (resolveAgentRecallSettings(options.resolveSettings(), context.identity).enabled === false) return undefined
 
-    const nudges = await pendingFor(context).take(session.id)
+    const nudges = await pendingFor(context).take(session.id, {
+      currentEpoch: options.currentCompactionEpoch?.(session.id) ?? 0,
+    })
     if (nudges.length === 0) return undefined
 
     // Composed BEFORE any bookkeeping: marking is advisory, so its failure must never consume or
