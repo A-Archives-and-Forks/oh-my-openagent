@@ -202,7 +202,13 @@ export class TranscriptJournal {
 
   async backfillReflectionByteOffset(entries: readonly TranscriptEntry[]): Promise<ReflectionTranscriptState> {
     const state = await this.readStateUnlocked()
-    await this.writeStateUnlocked(state, entries)
+    await this.writeStateUnlocked({
+      ...state,
+      reflected_through_byte_offset: state.reflected_through_byte_offset
+        ?? (state.reflected_through_message_id === undefined
+          ? 0
+          : reflectedThroughByteOffset(entries, state.reflected_through_message_id)),
+    }, entries)
     return this.readStateUnlocked()
   }
 
