@@ -75,7 +75,7 @@ describe("reflection cursor", () => {
     expect(state.last_reflection_started_at).toBe("2026-08-09T12:00:01.000Z")
     expect(state.last_reflection_succeeded_at).toBe("2026-08-09T12:00:03.000Z")
     const transcript = await readFile(join(journal.options.journalDir, "transcript.jsonl"), "utf8")
-    expect(state.reflected_through_byte_offset).toBe(Buffer.byteLength(transcript.split("\\n").slice(0, 3).join("\\n") + "\\n", "utf8"))
+    expect(state.reflected_through_byte_offset).toBe(Buffer.byteLength(transcript.split("\n").slice(0, 3).join("\n") + "\n", "utf8"))
   })
 
   it("#given a captured snapshot #when reflection fails #then the cursor remains retryable", async () => {
