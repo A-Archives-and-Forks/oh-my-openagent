@@ -150,10 +150,11 @@ export function createMemoryRuntimeWiring(
     const settings = resolveMemorySettings(options.loadConfig({ cwd: options.cwd() }).config.memory)
     // The gate adds no sandbox knob of its own: it rides the reflection policy the facts child uses.
     const sandboxPolicy = settings.agents[identity.identity]?.reflection?.sandbox ?? settings.reflection.sandbox
+    // No resolveModelRegistry here on purpose: the gate runner consumes ONLY the registry snapshot
+    // its settle handler captured, because this runner's launches outlive the senpi ctx.
     const runner = options.createMemorianRunner?.(identity) ?? new MemorianGateRunner({
       identityPaths: identity.identityPaths,
       loadConfig: () => options.loadConfig({ cwd: options.cwd() }),
-      resolveModelRegistry,
       env: options.env,
       sandbox: buildMemorianSandboxTransform({
         policy: sandboxPolicy as SandboxPolicy,

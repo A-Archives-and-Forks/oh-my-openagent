@@ -65,12 +65,17 @@ function runnerOptions(
       layers: [],
       sources: [],
     }),
-    resolveModelRegistry: () => ({
-      getAvailable: () => [MODEL],
-      find: (provider, modelId) => (provider === MODEL.provider && modelId === MODEL.id ? MODEL : undefined),
-    }),
     env: {},
     ...overrides,
+  }
+}
+
+/** The settle-time snapshot production always passes; the runner has no other registry source. */
+function registrySnapshot(model: SenpiModelPort = MODEL) {
+  return {
+    getAvailable: () => [model],
+    find: (provider: string, modelId: string) =>
+      (provider === model.provider && modelId === model.id ? model : undefined),
   }
 }
 
@@ -81,6 +86,7 @@ function launchInput(overrides: Partial<Parameters<MemorianGateRunner["launch"]>
     surfaced: new Set<string>(),
     maxItems: 2,
     transcript: [{ role: "user" as const, text: "how do we handle kubernetes rollouts" }],
+    modelRegistry: registrySnapshot(),
     ...overrides,
   }
 }
@@ -102,31 +108,48 @@ describe("MemorianGateRunner", () => {
     ])
   }, 30_000)
 
-  test("#given a snapshotted registry on the input #when the ctx resolver would throw stale #then the launch still succeeds", async () => {
-    // given: production hands the runner a registry captured synchronously at settle, so the
-    // detached launch must never fall back to reading the (now disposed) senpi ctx.
+  test("#given a snapshotted registry on the input #when the ctx behind it is already disposed #then the launch still succeeds", async () => {
+    // given: production hands the runner a registry captured synchronously at settle. The runner
+    // holds no ctx-reading seam at all, so the snapshot is the whole story of how it resolves.
     const { root, identityPaths } = await fixture()
     const stub = stubChild(root, WRITE_ONE_NUDGE)
-    const runner = new MemorianGateRunner(runnerOptions(identityPaths, {
-      ...stub,
-      resolveModelRegistry: () => {
-        throw new Error("This extension ctx is stale after session replacement or reload.")
-      },
-    }))
+    const runner = new MemorianGateRunner(runnerOptions(identityPaths, stub))
 
     // when
-    const result = await runner.launch(launchInput({
-      modelRegistry: {
-        getAvailable: () => [MODEL],
-        find: (provider, modelId) => (provider === MODEL.provider && modelId === MODEL.id ? MODEL : undefined),
-      },
-    }))
+    const result = await runner.launch(launchInput({ modelRegistry: registrySnapshot() }))
 
     // then
     expect(result.status).toBe("nudged")
     expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID)).toEqual([
       { path: CANDIDATE_PATH, hint: "Drain nodes before a rollout." },
     ])
+  }, 30_000)
+
+  test("#given no registry snapshot on the input #when the runner launches #then it warns, skips and spawns nothing", async () => {
+    // given: the settle handler is the ONLY place allowed to read the senpi ctx. When its
+    // synchronous snapshot came back unavailable the detached runner has no legal source left:
+    // consulting a resolver here would read a ctx the host disposed the moment the handler returned.
+    const { root, identityPaths } = await fixture()
+    const stub = stubChild(root, WRITE_ONE_NUDGE)
+    const warnings: string[] = []
+    let spawned = 0
+    const runner = new MemorianGateRunner(runnerOptions(identityPaths, {
+      ...stub,
+      logger: { info: () => undefined, warn: (message) => warnings.push(message), error: () => undefined },
+      sandbox: (args) => {
+        spawned += 1
+        return args
+      },
+    }))
+
+    // when: the settle snapshot came back unavailable
+    const result = await runner.launch(launchInput({ modelRegistry: undefined }))
+
+    // then
+    expect(result.status).toBe("skipped")
+    expect(spawned).toBe(0)
+    expect(warnings).toEqual(["memorian gate registry snapshot unavailable"])
+    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID)).toEqual([])
   }, 30_000)
 
   test("#given the quick category cannot resolve #when the runner launches #then it warns, skips and spawns nothing", async () => {
@@ -136,7 +159,6 @@ describe("MemorianGateRunner", () => {
     let spawned = 0
     const runner = new MemorianGateRunner(runnerOptions(identityPaths, {
       loadConfig: () => ({ config: { categories: {} }, diagnostics: [], layers: [], sources: [] }),
-      resolveModelRegistry: () => ({ getAvailable: () => [], find: () => undefined }),
       logger: { info: () => undefined, warn: (message) => warnings.push(message), error: () => undefined },
       sandbox: (args) => {
         spawned += 1
@@ -145,7 +167,9 @@ describe("MemorianGateRunner", () => {
     }))
 
     // when
-    const result = await runner.launch(launchInput())
+    const result = await runner.launch(launchInput({
+      modelRegistry: { getAvailable: () => [], find: () => undefined },
+    }))
 
     // then
     expect(result.status).toBe("skipped")
@@ -164,10 +188,6 @@ describe("MemorianGateRunner", () => {
     const other: SenpiModelPort = { provider: "omo-mock", id: "expensive-1" }
     const runner = new MemorianGateRunner(runnerOptions(identityPaths, {
       loadConfig: () => ({ config: { categories: {} }, diagnostics: [], layers: [], sources: [] }),
-      resolveModelRegistry: () => ({
-        getAvailable: () => [other],
-        find: (provider, modelId) => (provider === other.provider && modelId === other.id ? other : undefined),
-      }),
       logger: { info: () => undefined, warn: (message) => warnings.push(message), error: () => undefined },
       sandbox: (args) => {
         spawned += 1
@@ -176,7 +196,7 @@ describe("MemorianGateRunner", () => {
     }))
 
     // when
-    const result = await runner.launch(launchInput())
+    const result = await runner.launch(launchInput({ modelRegistry: registrySnapshot(other) }))
 
     // then
     expect(result.status).toBe("skipped")

@@ -36,7 +36,6 @@ const TERMINATION_GRACE_MS = 2_000
 export interface MemorianGateRunnerOptions {
   readonly identityPaths: MemoryIdentityPaths
   readonly loadConfig: () => SenpiOmoConfigResult
-  readonly resolveModelRegistry: () => SenpiModelRegistryPort<SenpiModelPort> | undefined
   readonly env: NodeJS.ProcessEnv
   readonly deadlineMs?: number
   readonly sandbox?: MemorianSandbox
@@ -55,9 +54,9 @@ export interface MemorianGateLaunchInput {
   readonly transcript: readonly MemorianTranscriptTurn[]
   /**
    * The model registry captured SYNCHRONOUSLY at settle, before the host disposed the senpi ctx.
-   * The gate launch is fire-and-forget, so by the time it runs the ctx-reading resolver would throw
-   * `assertActive`'s stale error and silently fail the launch. When present this snapshot is
-   * authoritative and the resolver is never consulted.
+   * The gate launch is fire-and-forget, so by the time it runs any ctx-reading resolver would throw
+   * `assertActive`'s stale error. This snapshot is therefore the runner's ONLY registry source:
+   * absent means the settle-time capture came back unavailable, and the launch is skipped.
    */
   readonly modelRegistry?: SenpiModelRegistryPort<SenpiModelPort> | undefined
   /**
@@ -105,10 +104,15 @@ export class MemorianGateRunner {
 
   private async launchOnce(input: MemorianGateLaunchInput): Promise<MemorianGateLaunchResult> {
     if (input.candidates.length === 0 || input.maxItems <= 0) return { status: "skipped" }
+    // The settle handler's snapshot is authoritative. There is deliberately NO resolver fallback:
+    // this task runs after the host disposed the senpi ctx, so any late read throws the stale-ctx
+    // error and the only honest answer to a missing snapshot is to skip the advisory run.
+    if (input.modelRegistry === undefined) {
+      this.options.logger?.warn("memorian gate registry snapshot unavailable", { sessionId: input.sessionId })
+      return { status: "skipped" }
+    }
     const loaded = this.options.loadConfig()
-    // Prefer the settle-time snapshot: reading the ctx from this detached task races session dispose.
-    const registry = input.modelRegistry ?? this.options.resolveModelRegistry()
-    const resolution = resolveReflectionModel(QUICK_CATEGORY, loaded.config, registry)
+    const resolution = resolveReflectionModel(QUICK_CATEGORY, loaded.config, input.modelRegistry)
     // STRICTER than the facts extractor: `category_unavailable` is not the only unavailable answer.
     // resolveReflectionModel also has a beyond-category ladder (registry_fallback / session_inherit)
     // that resolves ANY usable registry model when the quick chain is dead, and it marks those

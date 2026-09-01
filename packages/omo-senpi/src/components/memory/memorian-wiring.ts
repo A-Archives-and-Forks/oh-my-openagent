@@ -21,7 +21,10 @@ export interface MemorianGatePort {
     readonly surfaced: ReadonlySet<string>
     readonly maxItems: number
     readonly transcript: readonly RecallTranscriptTurn[]
-    /** Captured at settle, before the host disposed the ctx the registry lives on. */
+    /**
+     * Captured at settle, before the host disposed the ctx the registry lives on. Absent means the
+     * capture was unavailable, and the runner skips rather than reading a disposed ctx.
+     */
     readonly modelRegistry?: SenpiModelRegistryPort<SenpiModelPort> | undefined
     /** The session's compaction epoch at launch time. */
     readonly compactionEpoch?: number
@@ -102,7 +105,9 @@ export function createMemorianGateWiring(options: MemorianGateWiringOptions): Me
       try {
         modelRegistry = options.resolveModelRegistry?.(eventCtx)
       } catch (error) {
-        // Fail-open: an unreadable registry only means the runner resolves the category itself.
+        // This capture is the runner's ONLY registry source; an unreadable ctx therefore means the
+        // launch will skip. Warn here and let the runner report the skip: no ctx read may be retried
+        // from the detached task.
         options.logger?.warn("omo-senpi memorian gate registry snapshot skipped", { error: describe(error) })
       }
       const session = options.snapshotSession(eventCtx)
