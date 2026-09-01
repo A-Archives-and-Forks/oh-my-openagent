@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import { aggregateQualityGateDefects } from "./quality-gate-aggregate.js";
 import { isWithinAttemptDir } from "./paths.js";
 import {
 	emptyBlockers,
@@ -157,6 +158,7 @@ function referencedArtifacts(
 
 export function validateQualityGate(input: unknown, opts?: ValidateQualityGateOptions): UlwLoopQualityGate {
 	const surface = opts?.reviewerSurface ?? "lazycodex";
+	aggregateQualityGateDefects(input, opts);
 	const gate = section(input, "qualityGate");
 	const requiredSections = REQUIRED_GATE_SECTIONS_BY_SURFACE[surface];
 	for (const sectionName of requiredSections) section(gate[sectionName], sectionName);
