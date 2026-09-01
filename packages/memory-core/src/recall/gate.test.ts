@@ -286,6 +286,31 @@ describe("PendingNudges", () => {
     expect(await store.take("a:b?c")).toEqual([{ path: "reference/a.md", hint: "alpha" }])
   })
 
+  it("#given a written payload #when deleted #then only that session's file is removed", async () => {
+    // given: the gate writer needs to retract its OWN just-written payload without reading it back
+    const dir = await createPendingDir()
+    const store = new PendingNudges(dir)
+    await store.write("session-1", [{ path: "reference/a.md", hint: "alpha" }])
+    await store.write("session-2", [{ path: "reference/b.md", hint: "beta" }])
+
+    // when
+    await store.delete("session-1")
+
+    // then
+    expect(await readdir(dir)).toEqual(["session-2.json"])
+    expect(await store.take("session-2")).toEqual([{ path: "reference/b.md", hint: "beta" }])
+  })
+
+  it("#given no payload for the session #when deleted #then it is a silent no-op", async () => {
+    // given
+    const dir = await createPendingDir()
+    const store = new PendingNudges(dir)
+
+    // when / then: retraction must never throw on the write path it guards
+    await store.delete("session-1")
+    expect(await readdir(dir)).toEqual([])
+  })
+
   it("#given no nudges #when written #then nothing is stored", async () => {
     // given
     const dir = await createPendingDir()

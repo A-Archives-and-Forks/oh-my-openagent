@@ -148,6 +148,15 @@ export class PendingNudges {
     return payload.nudges.map((nudge) => ({ path: nudge.path, hint: nudge.hint }))
   }
 
+  /**
+   * Targeted retraction of one session's payload. Unlike take() this reads nothing back: the caller
+   * is the writer retracting its own just-written file (a compaction that landed during the write),
+   * so parsing it would only add a failure mode. Best-effort, like every other pending-file removal.
+   */
+  async delete(sessionId: string): Promise<void> {
+    await removeQuietly(this.sessionFilePath(sessionId))
+  }
+
   private sessionFilePath(sessionId: string): string {
     return join(this.dir, `${sanitizeSessionFilename(sessionId)}.json`)
   }
