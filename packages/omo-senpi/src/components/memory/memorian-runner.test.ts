@@ -304,6 +304,42 @@ appendFileSync(process.env.MEMORIAN_NUDGE_PATH, JSON.stringify({ path: "notes/ne
     expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID)).toEqual([])
   }, 30_000)
 
+  test("#given a compaction accepted DURING the pending write #when the write completes #then the landed file is retracted", async () => {
+    // given: the pre-write epoch check passes, then write() awaits fs work. A compaction accepted in
+    // that window bumps the epoch and its own pending-drop finds no file yet - so the rename lands a
+    // pre-compaction nudge that nothing would ever remove. The runner must re-check AFTER the write.
+    const { root, identityPaths } = await fixture()
+    const stub = stubChild(root, WRITE_ONE_NUDGE)
+    const warnings: string[] = []
+    const real = new PendingNudges(identityPaths.recallPending)
+    let epoch = 4
+    const runner = new MemorianGateRunner(runnerOptions(identityPaths, {
+      ...stub,
+      logger: { info: () => undefined, warn: (message) => warnings.push(message), error: () => undefined },
+      pendingNudges: {
+        write: async (sessionId, nudges) => {
+          // The compaction lands while the write is still in flight: the epoch bumps here, and the
+          // compaction's own pending-drop runs before this rename ever creates the file.
+          epoch = 5
+          await real.write(sessionId, nudges)
+        },
+        delete: (sessionId) => real.delete(sessionId),
+      },
+    }))
+
+    // when
+    const result = await runner.launch(launchInput({
+      compactionEpoch: 4,
+      currentCompactionEpoch: () => epoch,
+    }))
+
+    // then
+    expect(result.status).toBe("skipped")
+    expect(warnings).toEqual(["memorian gate nudges dropped after compaction"])
+    expect(existsSync(join(identityPaths.recallPending, `${SESSION_ID}.json`))).toBe(false)
+    expect(await real.take(SESSION_ID)).toEqual([])
+  }, 30_000)
+
   test("#given an unchanged compaction epoch #when the child finishes #then the nudges are written as usual", async () => {
     // given
     const { root, identityPaths } = await fixture()

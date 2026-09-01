@@ -38,6 +38,8 @@ export interface MemorianGateRunnerOptions {
   readonly loadConfig: () => SenpiOmoConfigResult
   readonly env: NodeJS.ProcessEnv
   readonly deadlineMs?: number
+  /** Seam for the pending store; production builds it from identityPaths.recallPending. */
+  readonly pendingNudges?: Pick<PendingNudges, "write" | "delete">
   readonly sandbox?: MemorianSandbox
   /** QA stubbing seam, mirroring the facts runner: the pair replaces the resolved senpi launcher. */
   readonly senpiCommand?: string
@@ -152,22 +154,35 @@ export class MemorianGateRunner {
         maxItems: input.maxItems,
       })
       if (nudges.length === 0) return { status: "empty" }
+      const pending = this.options.pendingNudges ?? new PendingNudges(this.options.identityPaths.recallPending)
+      // Cheap early-out: a compaction already accepted needs no file to be written at all. The
+      // judged transcript no longer exists, so writing would advise the next turn about a
+      // conversation the compaction already rewrote - exactly what onCompactionAccepted's pending
+      // drop prevents for verdicts that landed BEFORE the compaction.
+      if (isStaleAfterCompaction(input)) return this.dropAfterCompaction(input)
+      await pending.write(input.sessionId, nudges)
+      // Revalidate AFTER the write: write() awaits mkdir/prune/writeFile/rename, and a compaction
+      // accepted inside that window bumps the epoch while its own pending drop still sees no file.
+      // Only this second check can retract the payload that landed a moment later. Between the two
+      // checks every interleaving is covered: a bump before this read is retracted here, a bump
+      // after the rename is dropped by onCompactionAccepted.
       if (isStaleAfterCompaction(input)) {
-        // The judged transcript no longer exists: writing now would advise the next turn about a
-        // conversation the compaction already rewrote - exactly what onCompactionAccepted's
-        // pending drop prevents for verdicts that landed BEFORE the compaction.
-        this.options.logger?.warn("memorian gate nudges dropped after compaction", {
-          sessionId: input.sessionId,
-          launchedAtEpoch: input.compactionEpoch,
-        })
-        return { status: "skipped" }
+        await pending.delete(input.sessionId)
+        return this.dropAfterCompaction(input)
       }
-      await new PendingNudges(this.options.identityPaths.recallPending).write(input.sessionId, nudges)
       return { status: "nudged", nudges }
     } finally {
       // Scratch only: the NDJSON has been read, so nothing here survives the run.
       await rm(runDir, { recursive: true, force: true }).catch(() => undefined)
     }
+  }
+
+  private dropAfterCompaction(input: MemorianGateLaunchInput): MemorianGateLaunchResult {
+    this.options.logger?.warn("memorian gate nudges dropped after compaction", {
+      sessionId: input.sessionId,
+      launchedAtEpoch: input.compactionEpoch,
+    })
+    return { status: "skipped" }
   }
 }
 
