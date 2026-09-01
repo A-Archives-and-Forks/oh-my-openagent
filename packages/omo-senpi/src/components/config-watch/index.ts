@@ -12,6 +12,10 @@ const CONFIG_WATCH_RELOADED = "config-watch:reloaded"
 const CONFIG_WATCH_REJECTED = "config-watch:rejected"
 const SESSION_SHUTDOWN = "session_shutdown"
 const OMO_REGISTRATION_ID = "omo"
+// Bounded retry budget per distinct rejected payload. senpi rejects on the
+// same synchronous stack that delivered REGISTER, so an unbounded re-emit
+// recurses until RangeError whenever the rejection is deterministic.
+const MAX_REJECTION_RETRIES = 3
 
 type ConfigWatchRegistration = {
   readonly id: "omo"
@@ -113,9 +117,63 @@ export function createConfigWatchComponent(options: ConfigWatchComponentOptions 
         }
       }
       let registration = createRegistration()
-      const emitRegistration = (): void => events.emit(CONFIG_WATCH_REGISTER, registration)
+      // Marks the payload currently being self-emitted: a synchronous rejection
+      // swaps `registration` for a refreshed one BEFORE our own REGISTER
+      // listener sees the original payload, so identity against the current
+      // registration alone would misread our own emission as a foreign one.
+      let emittingRegistration: ConfigWatchRegistration | undefined
+      const emitRegistration = (): void => {
+        const payload = registration
+        emittingRegistration = payload
+        try {
+          events.emit(CONFIG_WATCH_REGISTER, payload)
+        } finally {
+          emittingRegistration = undefined
+        }
+      }
+      let retryTimer: ReturnType<typeof setTimeout> | undefined
+      let rejectionFingerprint: string | undefined
+      let rejectionRetries = 0
+      const clearRetryTimer = (): void => {
+        if (retryTimer !== undefined) clearTimeout(retryTimer)
+        retryTimer = undefined
+      }
+      // Never emit REGISTER from inside a senpi event dispatch: rebuildWatchers
+      // emits READY on the same synchronous stack as REGISTER, so a direct
+      // re-emit recurses until RangeError whenever senpi's identity guard
+      // cannot stop the echo (two live omo extension instances alternate
+      // payload identities). One coalescing timer serves both the READY
+      // re-registration and the rejection retry; the action is identical.
+      // No unref(): a 0ms timer is self-draining (and dispose clears it),
+      // while an unref'd one-shot timer can be starved indefinitely under Bun
+      // on Windows — observed as a senpi-compatibility CI hang.
+      const scheduleEmitRegistration = (): void => {
+        clearRetryTimer()
+        retryTimer = setTimeout(() => {
+          retryTimer = undefined
+          emitRegistration()
+        }, 0)
+      }
       const unsubscribes = [
-        events.on(CONFIG_WATCH_READY, emitRegistration),
+        // senpi emits READY after every watcher rebuild, including the rebuild
+        // caused by this component's own registration; re-register so the watch
+        // survives a config-reload host restart that emptied its registrations.
+        events.on(CONFIG_WATCH_READY, scheduleEmitRegistration),
+        events.on(CONFIG_WATCH_REGISTER, (payload) => {
+          if (payload === registration || payload === emittingRegistration) return
+          if (!isRecord(payload) || payload.id !== OMO_REGISTRATION_ID) return
+          // Another live omo extension instance registered the same id (e.g. a
+          // dev plugin in senpi settings packages plus the omo launcher's
+          // bundled --extension). senpi keeps only the LAST registration and
+          // its re-registration guard compares payload identity, so two live
+          // instances would rebuild-echo forever. The superseded instance
+          // stands down; the last registrant keeps the watch.
+          ctx.logger.warn("omo config-watch superseded by another omo extension instance; standing down", {
+            hint: "two omo extensions are loaded in this senpi process (e.g. a local dev plugin in senpi settings packages plus the omo launcher's bundled extension); remove one",
+          })
+          dispose()
+          if (releasePrevious === dispose) releasePrevious = undefined
+        }),
         events.on(CONFIG_WATCH_RELOADED, (payload) => {
           if (!isReloaded(payload) || payload.registrationId !== OMO_REGISTRATION_ID) return
           ctx.logger.info("omo config hot-reloaded", { paths: payload.paths, pathCount: payload.paths.length })
@@ -131,11 +189,33 @@ export function createConfigWatchComponent(options: ConfigWatchComponentOptions 
           // A new ancestor .omo directory is initially covered only by its
           // parent creation watch. Refresh targets after rejection so its file
           // watcher sees the repair without resetting sticky validation state.
+          // Never re-register synchronously: senpi emits REJECTED on the same
+          // synchronous stack as REGISTER, so a direct re-emit recurses until
+          // stack overflow when the rejection is deterministic (e.g. a target
+          // covering the senpi agent dir). Defer the retry to a fresh task and
+          // cap it per payload fingerprint; a changed payload (the repair
+          // landing) resets the budget.
           registration = createRegistration()
-          emitRegistration()
+          const fingerprint = JSON.stringify(registration.targets)
+          if (fingerprint !== rejectionFingerprint) {
+            rejectionFingerprint = fingerprint
+            rejectionRetries = 0
+          }
+          if (rejectionRetries >= MAX_REJECTION_RETRIES) {
+            ctx.logger.warn("omo config hot-reload retry budget exhausted", {
+              fingerprintTargetCount: registration.targets.length,
+              maxRejectionRetries: MAX_REJECTION_RETRIES,
+            })
+            return
+          }
+          rejectionRetries += 1
+          scheduleEmitRegistration()
         }),
       ]
-      const dispose = (): void => release(unsubscribes)
+      const dispose = (): void => {
+        clearRetryTimer()
+        release(unsubscribes)
+      }
       releasePrevious = dispose
       pi.on(SESSION_SHUTDOWN, () => {
         dispose()

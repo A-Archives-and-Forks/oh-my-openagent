@@ -1,5 +1,7 @@
 import { lstatSync, statSync } from "node:fs"
-import { dirname, isAbsolute, join, relative, resolve } from "node:path"
+import * as nodeFs from "node:fs"
+import { resolveAgentHome } from "../agent-home/resolve-agent-home"
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path"
 
 import {
   DEFAULT_READ_FILE_SYSTEM,
@@ -11,13 +13,23 @@ import {
 } from "@oh-my-opencode/omo-config-core"
 
 const MAX_ANCESTOR_WATCH_TARGETS = 128
+// WSL exposes Windows drives as Plan 9/v9fs mounts. Keep this exact value
+// distinct from nearby filesystem magic values such as tmpfs (0x01021994).
+export const PLAN9_FILE_SYSTEM_TYPE = 0x01021997
 
-export const OMO_CONFIG_FILE_FILTER_GLOBS = ["omo.jsonc", "omo.json"] as const
+// Root-anchored: senpi maps a `dir` target to a RECURSIVE watch, so unanchored
+// globs make it hash the entire subtree. A `.omo` directory also holds runtime
+// state (senpi-task/ and runtime/ including runtime/ast-grep/), which reached tens of thousands of
+// files and gigabytes of hashing per watcher rebuild. Config lives only at the
+// top level, so anchoring keeps the scan to those two files.
+export const OMO_CONFIG_FILE_FILTER_GLOBS = ["/omo.jsonc", "/omo.json"] as const
 // Keep listening for config-file writes below a new `.omo` directory. If its first
 // config is rejected, no reload occurs to rebuild the target set, so the original
 // ancestor watch must observe the fix that clears the sticky rejection.
-export const OMO_CONFIG_DIRECTORY_FILTER_GLOBS = [".omo", ".omo/omo.jsonc", ".omo/omo.json"] as const
-export const USER_OMO_CONFIG_DIRECTORY_FILTER_GLOBS = ["omo"] as const
+// The leading `/` anchors each glob to its watch root: senpi matches unanchored
+// globs at any depth, which made an ancestor target cover every `.omo` directory
+// in the whole subtree.
+export const OMO_CONFIG_DIRECTORY_FILTER_GLOBS = ["/.omo", "/.omo/omo.jsonc", "/.omo/omo.json"] as const
 
 /** Matches the frozen config-watch wire target shape without importing senpi internals. */
 export interface OmoConfigWatchTarget {
@@ -26,10 +38,28 @@ export interface OmoConfigWatchTarget {
   readonly filterGlobs: string[]
 }
 
+export type FileSystemTypeResolver = (path: string) => number | null
+
+type NodeStatFsSync = (path: string) => { readonly type: number }
+
+function createDefaultFileSystemTypeResolver(platform: NodeJS.Platform): FileSystemTypeResolver {
+  if (platform !== "linux") return () => null
+  const statFsSync = (nodeFs as typeof nodeFs & { statfsSync?: NodeStatFsSync }).statfsSync
+  if (typeof statFsSync !== "function") return () => null
+  return (path) => {
+    try {
+      return statFsSync(path).type
+    } catch {
+      return null
+    }
+  }
+}
+
 export interface ResolveOmoConfigWatchTargetsOptions {
   readonly cwd: string
   readonly env?: OmoConfigEnv
   readonly platform?: NodeJS.Platform
+  readonly resolveFileSystemType?: FileSystemTypeResolver
 }
 
 export interface OmoConfigWatchTargetResolution {
@@ -42,6 +72,34 @@ export interface OmoConfigWatchTargetResolution {
 function containsPath(parent: string, child: string): boolean {
   const pathToChild = relative(parent, child)
   return pathToChild === "" || (!pathToChild.startsWith("..") && !isAbsolute(pathToChild))
+}
+
+/**
+ * senpi's config-reload host rejects targets that cover protected paths unless
+ * root-anchored globs prove that each watched path avoids those paths. Mirror
+ * that rule here so omo never emits a target the host would reject.
+ */
+function resolveSenpiProtectedPaths(env: OmoConfigEnv): readonly string[] {
+  const agentDir = resolveAgentHome({ env, homeDir: resolveHomeDir(env) })
+  return [join(agentDir, "auth.json"), join(agentDir, "sessions"), join(agentDir, "logs")]
+}
+
+export function isSenpiRestrictedTarget(target: OmoConfigWatchTarget, protectedPaths: readonly string[]): boolean {
+  const resolvedPath = resolve(target.path)
+  return protectedPaths.some((protectedPath) => {
+    if (containsPath(protectedPath, resolvedPath)) {
+      return true
+    }
+    if (!containsPath(resolvedPath, protectedPath)) return false
+    return !(
+      target.filterGlobs.length > 0 &&
+      target.filterGlobs.every((glob) => {
+        if (!glob.startsWith("/")) return false
+        const globPath = resolve(resolvedPath, glob.slice(1))
+        return !containsPath(globPath, protectedPath) && !containsPath(protectedPath, globPath)
+      })
+    )
+  })
 }
 
 function findAncestorDirectories(cwd: string, homeDir: string): readonly string[] {
@@ -87,8 +145,17 @@ function creationTarget(path: string): OmoConfigWatchTarget {
   return { path, kind: "dir", filterGlobs: [...OMO_CONFIG_DIRECTORY_FILTER_GLOBS] }
 }
 
-function userConfigCreationTarget(path: string): OmoConfigWatchTarget {
-  return { path, kind: "dir", filterGlobs: [...USER_OMO_CONFIG_DIRECTORY_FILTER_GLOBS] }
+function userConfigCreationTarget(path: string, userConfigDirectory: string): OmoConfigWatchTarget {
+  const directoryName = basename(userConfigDirectory)
+  return {
+    path,
+    kind: "dir",
+    filterGlobs: [
+      `/${directoryName}`,
+      `/${directoryName}/omo.jsonc`,
+      `/${directoryName}/omo.json`,
+    ],
+  }
 }
 
 /**
@@ -102,7 +169,9 @@ export function resolveOmoConfigWatchTargetResolution(
 ): OmoConfigWatchTargetResolution {
   const env = options.env ?? process.env
   const platform = options.platform ?? process.platform
-  const userConfigDirectory = resolveUserOmoConfigDirectory(env, platform)
+  const resolveFileSystemType = options.resolveFileSystemType ?? createDefaultFileSystemTypeResolver(platform)
+  const isOnPlan9FileSystem = (path: string): boolean => resolveFileSystemType(path) === PLAN9_FILE_SYSTEM_TYPE
+  const userConfigDirectory = resolveUserOmoConfigDirectory(env)
   const ancestorDirectories = findAncestorDirectories(options.cwd, resolveHomeDir(env))
   const resolvedConfigPaths = resolveOmoConfigPaths({ cwd: options.cwd, env, platform })
   const configuredProjectDirectories = new Set([
@@ -118,25 +187,37 @@ export function resolveOmoConfigWatchTargetResolution(
   const targets: OmoConfigWatchTarget[] = []
 
   if (isExistingDirectory(userConfigDirectory)) {
-    targets.push(configTarget(userConfigDirectory))
+    if (!isOnPlan9FileSystem(userConfigDirectory)) targets.push(configTarget(userConfigDirectory))
   } else {
     const userConfigParent = dirname(userConfigDirectory)
-    if (isExistingDirectory(userConfigParent)) targets.push(userConfigCreationTarget(userConfigParent))
-  }
-
-  for (const ancestorDirectory of ancestorDirectories) {
-    const omoDirectory = join(ancestorDirectory, ".omo")
-    if (configuredProjectDirectories.has(omoDirectory) || isExistingNonSymlinkDirectory(omoDirectory)) {
-      targets.push(configTarget(omoDirectory))
+    if (isExistingDirectory(userConfigParent) && !isOnPlan9FileSystem(userConfigParent)) {
+      targets.push(userConfigCreationTarget(userConfigParent, userConfigDirectory))
     }
   }
 
-  for (const ancestorDirectory of ancestorDirectories) targets.push(creationTarget(ancestorDirectory))
+  // The ancestor walk remains on the cwd's mount, so one probe covers every
+  // project config and creation target without probing potentially slow paths.
+  if (!isOnPlan9FileSystem(resolve(options.cwd))) {
+    for (const ancestorDirectory of ancestorDirectories) {
+      const omoDirectory = join(ancestorDirectory, ".omo")
+      if (configuredProjectDirectories.has(omoDirectory) || isExistingNonSymlinkDirectory(omoDirectory)) {
+        targets.push(configTarget(omoDirectory))
+      }
+    }
 
-  const userConfigCreationWatched = isExistingDirectory(userConfigDirectory)
-    || isExistingDirectory(dirname(userConfigDirectory))
+    for (const ancestorDirectory of ancestorDirectories) targets.push(creationTarget(ancestorDirectory))
+  }
+
+  const senpiProtectedPaths = resolveSenpiProtectedPaths(env)
+  const permittedTargets = targets.filter((target) => !isSenpiRestrictedTarget(target, senpiProtectedPaths))
+
+  // Derived from the surviving targets, since only an accepted registration can
+  // discover a later user config directory.
+  const userConfigCreationWatched = permittedTargets.some(
+    (target) => target.path === userConfigDirectory || target.path === dirname(userConfigDirectory),
+  )
   return {
-    targets,
+    targets: permittedTargets,
     userConfigCreationWatched,
     userConfigCreationDiscovery: userConfigCreationWatched ? "watched" : "reload_required",
   }
