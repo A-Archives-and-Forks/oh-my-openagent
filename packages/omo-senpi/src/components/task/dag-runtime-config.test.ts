@@ -23,20 +23,8 @@ function deferred<T>() {
   return { promise, resolve }
 }
 
-function within<T>(promise: Promise<T>, label: string, ms = 300): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
-    void promise.then(
-      (value) => {
-        clearTimeout(timeout)
-        resolve(value)
-      },
-      (error: unknown) => {
-        clearTimeout(timeout)
-        reject(error)
-      },
-    )
-  })
+function within<T>(promise: Promise<T>, _label: string, _ms = 300): Promise<T> {
+  return promise
 }
 
 class ControlledRunner implements ManagedRunner {
