@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { copyFile, open, readFile, rename, rm } from "node:fs/promises"
+import { copyFile, open, readFile, rename, rm } from "../fs/resilient"
 import { isAbsolute, resolve } from "node:path"
 import type { GitExec, GitExecResult } from "./exec"
 import type { GitIndexIdentity } from "./path-state"

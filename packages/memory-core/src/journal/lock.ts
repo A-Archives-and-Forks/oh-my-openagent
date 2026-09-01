@@ -1,4 +1,4 @@
-import { open, readFile, stat, unlink } from "node:fs/promises"
+import { open, readFile, stat, unlink } from "../fs/resilient"
 
 import { getPidLiveness, getProcessStartIdentity } from "../locks"
 

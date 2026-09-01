@@ -3,7 +3,7 @@
 // it describes can never be observed mid-update by a concurrent launcher.
 
 import { randomUUID } from "node:crypto"
-import { mkdir, open, readFile, rename, rm } from "node:fs/promises"
+import { mkdir, open, readFile, rename, rm } from "../fs/resilient"
 import { dirname, join } from "node:path"
 
 import type { MemoryIdentityPaths } from "../identity"

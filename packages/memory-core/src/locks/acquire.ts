@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { link, mkdir, open, readFile, stat, unlink } from "node:fs/promises"
+import { link, mkdir, open, readFile, stat, unlink } from "../fs/resilient"
 import { hostname } from "node:os"
 import path from "node:path"
 

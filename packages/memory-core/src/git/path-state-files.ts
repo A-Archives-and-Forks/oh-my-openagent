@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { chmod, link, lstat, mkdir, open, readFile, rename, rm, rmdir, writeFile } from "node:fs/promises"
+import { chmod, link, lstat, mkdir, open, readFile, rename, rm, rmdir, writeFile } from "../fs/resilient"
 import { basename, dirname, join } from "node:path"
 import { GitPathStateError } from "./path-state"
 
