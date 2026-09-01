@@ -1,5 +1,16 @@
 import { randomUUID } from "node:crypto"
-import { link, mkdir, open, readFile, stat, unlink } from "../fs/resilient"
+import {
+  EINTR_RETRY_CAP,
+  link,
+  mkdir,
+  open,
+  readFile,
+  stat,
+  unlink,
+  writeHandleAll,
+} from "../fs/resilient"
+
+import type { FileHandle } from "../fs/resilient"
 import { hostname } from "node:os"
 import path from "node:path"
 
@@ -61,13 +72,31 @@ async function readOwner(lockPath: string): Promise<OwnerSnapshot | null> {
   }
 }
 
+// Exclusive creates are ambiguous under EINTR (the candidate may exist afterwards), and the
+// candidate name is a per-attempt UUID, so recovery is simply: discard that name and retry
+// with a fresh one. Anything the interrupted open did create is unlinked best-effort.
+async function openFreshCandidate(
+  lockPath: string,
+): Promise<{ readonly candidatePath: string; readonly handle: FileHandle }> {
+  for (let attempt = 0; ; attempt += 1) {
+    const candidatePath = `${lockPath}.candidate-${randomUUID()}`
+    try {
+      return { candidatePath, handle: await open(candidatePath, "wx", 0o600) }
+    } catch (error) {
+      await unlink(candidatePath).catch((unlinkError: unknown) => {
+        if (errorCode(unlinkError) !== "ENOENT") throw unlinkError
+      })
+      if (errorCode(error) !== "EINTR" || attempt >= EINTR_RETRY_CAP) throw error
+    }
+  }
+}
+
 async function publishExclusive(lockPath: string, record: LockRecord): Promise<boolean> {
   await mkdir(path.dirname(lockPath), { recursive: true, mode: 0o700 })
-  const candidatePath = `${lockPath}.candidate-${randomUUID()}`
+  const { candidatePath, handle } = await openFreshCandidate(lockPath)
   try {
-    const handle = await open(candidatePath, "wx", 0o600)
     try {
-      await handle.writeFile(`${JSON.stringify(record)}\n`, "utf8")
+      await writeHandleAll(handle, `${JSON.stringify(record)}\n`, "utf8")
       await handle.sync()
     } finally {
       await handle.close()

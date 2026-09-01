@@ -4,39 +4,24 @@
 // (child reaping in the multi-session shared host), which broke live turns: the notice-lock
 // candidate open in before_agent_start, the per-tool-call guard scandir, and reflection
 // state writes. POSIX defines EINTR as "interrupted before the operation completed", so
-// whole-call retry is the correct recovery for every wrapped call except close(2), whose
-// descriptor state is unspecified after interruption; close maps EINTR to success, matching
-// libuv. Memory-stack code imports fs ONLY through this module (no-direct-node-fs tests).
+// whole-call retry is correct for single-syscall and freshly-opened-descriptor operations.
+// The exceptions each live behind a precise seam:
+// - multi-syscall writes retry per write(2) with offset tracking (write-all.ts),
+// - exclusive ("x"-flag) creates are never auto-retried (creation is ambiguous after EINTR;
+//   the owning protocol recovers, e.g. locks/acquire.ts fresh candidates),
+// - close(2)/asyncDispose map EINTR to success (descriptor state unspecified, per libuv),
+// - FileHandle methods retry only when idempotent (position state forbids replays).
+// Memory-stack code imports fs ONLY through this module (no-direct-node-fs tests).
 
+import { Buffer } from "node:buffer"
 import * as fsSync from "node:fs"
 import * as fsp from "node:fs/promises"
 
-export const EINTR_RETRY_CAP = 128
+import { EINTR_RETRY_CAP, fsErrorCode, retryOnEintr, retryOnEintrSync } from "./retry"
+import { isExclusiveFlag, writeHandleAll, writePathAll } from "./write-all"
 
-function errorCode(error: unknown): string | undefined {
-  if (!(error instanceof Error) || !("code" in error)) return undefined
-  return typeof error.code === "string" ? error.code : undefined
-}
-
-export async function retryOnEintr<T>(operation: () => Promise<T>): Promise<T> {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      return await operation()
-    } catch (error) {
-      if (errorCode(error) !== "EINTR" || attempt >= EINTR_RETRY_CAP) throw error
-    }
-  }
-}
-
-export function retryOnEintrSync<T>(operation: () => T): T {
-  for (let attempt = 0; ; attempt += 1) {
-    try {
-      return operation()
-    } catch (error) {
-      if (errorCode(error) !== "EINTR" || attempt >= EINTR_RETRY_CAP) throw error
-    }
-  }
-}
+export { EINTR_RETRY_CAP, retryOnEintr, retryOnEintrSync } from "./retry"
+export { isExclusiveFlag, writeHandleAll } from "./write-all"
 
 type UnknownFunction = (...args: readonly unknown[]) => unknown
 
@@ -52,10 +37,8 @@ function withSyncRetry(operation: UnknownFunction): UnknownFunction {
   return (...args) => retryOnEintrSync(() => operation(...args))
 }
 
-function resilientNamespace<M extends object>(
-  namespace: M,
-  wrapFunction: (operation: UnknownFunction) => UnknownFunction,
-): M {
+export function resilientNamespace<M extends object>(namespace: M, kind: "async" | "sync"): M {
+  const wrapFunction = kind === "async" ? withAsyncRetry : withSyncRetry
   const cache = new Map<PropertyKey, unknown>()
   return new Proxy(namespace, {
     get(target, property) {
@@ -71,27 +54,32 @@ function resilientNamespace<M extends object>(
   })
 }
 
+const IDEMPOTENT_HANDLE_METHODS = new Set(["stat", "sync", "datasync", "chmod", "chown", "utimes", "truncate"])
+
 export function wrapFileHandle<H extends object>(handle: H): H {
   return new Proxy(handle, {
     get(target, property) {
       const value: unknown = Reflect.get(target, property)
       if (!isFunction(value)) return value
       const invoke = (args: readonly unknown[]): unknown => Reflect.apply(value, target, [...args])
-      if (property === "close") {
+      if (property === "close" || property === Symbol.asyncDispose) {
         return (...args: readonly unknown[]) => {
           const result = invoke(args)
           if (!(result instanceof Promise)) return result
           return result.catch((error: unknown) => {
-            if (errorCode(error) === "EINTR") return undefined
+            if (fsErrorCode(error) === "EINTR") return undefined
             throw error
           })
         }
+      }
+      if (typeof property !== "string" || !IDEMPOTENT_HANDLE_METHODS.has(property)) {
+        return (...args: readonly unknown[]) => invoke(args)
       }
       return (...args: readonly unknown[]) => {
         const result = invoke(args)
         if (!(result instanceof Promise)) return result
         return result.catch((error: unknown) => {
-          if (errorCode(error) !== "EINTR") throw error
+          if (fsErrorCode(error) !== "EINTR") throw error
           return retryOnEintr(async () => invoke(args))
         })
       }
@@ -99,19 +87,18 @@ export function wrapFileHandle<H extends object>(handle: H): H {
   })
 }
 
-const promises = resilientNamespace(fsp, withAsyncRetry)
-const sync = resilientNamespace(fsSync, withSyncRetry)
+const promises = resilientNamespace(fsp, "async")
+const sync = resilientNamespace(fsSync, "sync")
 
 export const {
   access,
-  appendFile,
   chmod,
+  copyFile,
   cp,
   link,
   lstat,
   mkdir,
   mkdtemp,
-  copyFile,
   readFile,
   readdir,
   realpath,
@@ -120,7 +107,6 @@ export const {
   rmdir,
   stat,
   unlink,
-  writeFile,
 } = promises
 
 export const {
@@ -137,8 +123,37 @@ export const {
 
 export const { constants, watch } = fsSync
 
-export const open: typeof fsp.open = async (...args) =>
-  wrapFileHandle(await retryOnEintr(() => fsp.open(...args)))
+export const open: typeof fsp.open = async (...args) => {
+  const openOnce = (): Promise<fsp.FileHandle> => fsp.open(...args)
+  const handle = await (isExclusiveFlag(args[1] ?? "r") ? openOnce() : retryOnEintr(openOnce))
+  return wrapFileHandle(handle)
+}
+
+function isHandleTarget(value: fsSync.PathLike | fsp.FileHandle): value is fsp.FileHandle {
+  return typeof value === "object" && !(value instanceof URL) && !Buffer.isBuffer(value) && "fd" in value
+}
+
+export const writeFile: typeof fsp.writeFile = async (file, data, options) => {
+  if (typeof data !== "string" && !(data instanceof Uint8Array)) {
+    return fsp.writeFile(file, data, options)
+  }
+  if (isHandleTarget(file)) {
+    const encoding = typeof options === "string" ? options : (options?.encoding ?? undefined)
+    return writeHandleAll(file, data, encoding)
+  }
+  return writePathAll(file, data, options ?? undefined, "w")
+}
+
+export const appendFile: typeof fsp.appendFile = async (path, data, options) => {
+  if (typeof data !== "string" && !(data instanceof Uint8Array)) {
+    return fsp.appendFile(path, data, options)
+  }
+  if (isHandleTarget(path)) {
+    const encoding = typeof options === "string" ? options : (options?.encoding ?? undefined)
+    return writeHandleAll(path, data, encoding)
+  }
+  return writePathAll(path, data, options ?? undefined, "a")
+}
 
 // Node parity: existsSync never throws, but unlike node's, transient EINTR is retried
 // instead of being misread as "missing".

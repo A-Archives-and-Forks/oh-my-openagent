@@ -10,6 +10,7 @@ import {
   open,
   readFile,
   readdir,
+  resilientNamespace,
   retryOnEintr,
   retryOnEintrSync,
   rm,
@@ -132,6 +133,78 @@ describe("wrapFileHandle", () => {
     const fake = { fd: 7 }
     const wrapped = wrapFileHandle(fake)
     expect(wrapped.fd).toBe(7)
+  })
+
+  test("does not retry write-family methods whose progress is stateful", async () => {
+    let calls = 0
+    const fake = {
+      write: () => {
+        calls += 1
+        return Promise.reject(eintrError("write"))
+      },
+    }
+    const wrapped = wrapFileHandle(fake)
+    await expect(wrapped.write()).rejects.toThrow("EINTR")
+    expect(calls).toBe(1)
+  })
+
+  test("treats EINTR on async dispose as closed", async () => {
+    const fake = {
+      [Symbol.asyncDispose]: () => Promise.reject(eintrError("close")),
+    }
+    const wrapped = wrapFileHandle(fake)
+    await expect(wrapped[Symbol.asyncDispose]()).resolves.toBeUndefined()
+  })
+})
+
+describe("resilientNamespace", () => {
+  test("retries EINTR through wrapped async namespace functions", async () => {
+    let calls = 0
+    const namespace = {
+      op: async () => {
+        calls += 1
+        if (calls < 3) throw eintrError("open")
+        return "ok"
+      },
+    }
+    const wrapped = resilientNamespace(namespace, "async")
+    expect(await wrapped.op()).toBe("ok")
+    expect(calls).toBe(3)
+  })
+
+  test("retries EINTR through wrapped sync namespace functions", () => {
+    let calls = 0
+    const namespace = {
+      op: () => {
+        calls += 1
+        if (calls < 3) throw eintrError("scandir")
+        return "ok"
+      },
+    }
+    const wrapped = resilientNamespace(namespace, "sync")
+    expect(wrapped.op()).toBe("ok")
+    expect(calls).toBe(3)
+  })
+
+  test("caches wrapped functions and passes non-functions through", () => {
+    const namespace = { op: () => "ok", limit: 42 }
+    const wrapped = resilientNamespace(namespace, "sync")
+    expect(wrapped.op).toBe(wrapped.op)
+    expect(wrapped.limit).toBe(42)
+  })
+
+  test("wraps the native variant alongside its parent function", () => {
+    let nativeCalls = 0
+    const parent = Object.assign(() => "parent", {
+      native: () => {
+        nativeCalls += 1
+        if (nativeCalls < 2) throw eintrError("realpath")
+        return "native"
+      },
+    })
+    const wrapped = resilientNamespace({ realpathSync: parent }, "sync")
+    expect(wrapped.realpathSync.native()).toBe("native")
+    expect(nativeCalls).toBe(2)
   })
 })
 
