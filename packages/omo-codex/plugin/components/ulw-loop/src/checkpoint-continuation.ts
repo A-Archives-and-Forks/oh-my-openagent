@@ -1,6 +1,7 @@
 import { type CheckpointUlwLoopArgs, type CheckpointUlwLoopResult, checkpointUlwLoop } from "./checkpoint.js";
 import { hasFlag, parseCodexGoalJson, readValue } from "./cli-arg-parser.js";
 import { blockedDecisionHandoff, printJson } from "./cli-output.js";
+import { checkpointTemplate } from "./checkpoint-template.js";
 import { buildCodexGoalInstruction, type UlwLoopGoalInstruction } from "./codex-goal-instruction.js";
 import type { UlwLoopScope } from "./paths.js";
 import { startNextUlwLoop, summarizeUlwLoopPlan } from "./plan-crud.js";
@@ -32,6 +33,13 @@ export async function checkpoint(
 	json: boolean,
 	scope?: UlwLoopScope,
 ): Promise<number> {
+	if (hasFlag(argv, "--print-template")) {
+		required(argv, "--goal-id");
+		const template = await checkpointTemplate(repoRoot, scope);
+		if (json) printJson({ ok: true, ...template });
+		else printJson(template);
+		return 0;
+	}
 	const goalId = required(argv, "--goal-id");
 	const statusValue = checkpointStatus(required(argv, "--status"));
 	const evidence = required(argv, "--evidence");
