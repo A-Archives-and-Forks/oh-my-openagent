@@ -171,6 +171,12 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
         await journalWiringFor(identity).reconcileSession(eventCtx)
       }
       factsWiringFor(identity).reconcileExtractor()
+      const dreamSession = runtimeWiring.dreamSessionById(sessionId)
+      if (dreamSession !== undefined) {
+        void dreamTriggerWiring.reconcileSessionStart(dreamSession).catch((error: unknown) => {
+          options.logger?.warn("omo-senpi memory dream session_start reconcile failed", { error: describe(error) })
+        })
+      }
       await reflectionLive.bind(
         pi,
         sessionId,
