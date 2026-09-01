@@ -68,12 +68,13 @@ export async function computeUnreflectedVolumeFast(options: DreamSelectorOptions
     if (state.reflected_through_byte_offset !== undefined) {
       return Math.max(0, transcriptSize - state.reflected_through_byte_offset)
     }
-    if (state.reflected_through_message_id === undefined) return transcriptSize
-    // Legacy journals are parsed once and get their cursor backfilled by getState().
+    // Legacy journals are parsed once; preserve the old payload-byte semantics for this probe
+    // while publishing the offset for all subsequent fires.
     const journal = new TranscriptJournal({ journalDir })
     const journalEntries = await journal.readEntriesSnapshot()
     const backfilled = await journal.backfillReflectionByteOffset(journalEntries)
-    return Math.max(0, transcriptSize - (backfilled.reflected_through_byte_offset ?? 0))
+    const snapshot = captureCursorSnapshot(journalEntries, backfilled)
+    return snapshot === null ? 0 : conversationByteLength(snapshot.entries)
   }))
   return sizes.reduce((total, size) => total + size, 0)
 }

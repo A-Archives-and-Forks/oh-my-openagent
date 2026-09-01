@@ -124,11 +124,12 @@ export function finalizeCursor(
 
 export function reflectedThroughByteOffset(entries: readonly TranscriptEntry[], messageId: string): number {
   let offset = 0
+  let reflectedOffset = 0
   for (const entry of entries) {
     offset += Buffer.byteLength(`${JSON.stringify(entry)}\n`, "utf8")
-    if (entry.source_message_id === messageId) return offset
+    if (entry.source_message_id === messageId) reflectedOffset = offset
   }
-  return offset
+  return reflectedOffset
 }
 
 export function initialReflectionState(): ReflectionTranscriptState {
