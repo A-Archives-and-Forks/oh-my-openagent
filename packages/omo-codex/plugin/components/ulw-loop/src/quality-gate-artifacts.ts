@@ -1,12 +1,8 @@
 import { resolve } from "node:path";
 import { isWithinAttemptDir } from "./paths.js";
-import { invalid, section, stringArray, textField } from "./quality-gate-fields.js";
 import type { ValidateQualityGateOptions } from "./quality-gate.js";
-import type {
-	UlwLoopManualQaArtifactKind,
-	UlwLoopManualQaArtifactRef,
-	UlwLoopManualQaSurface,
-} from "./types.js";
+import { invalid, section, stringArray, textField } from "./quality-gate-fields.js";
+import type { UlwLoopManualQaArtifactKind, UlwLoopManualQaArtifactRef, UlwLoopManualQaSurface } from "./types.js";
 
 export function surfaceField(value: unknown, field: string): UlwLoopManualQaSurface {
 	if (
