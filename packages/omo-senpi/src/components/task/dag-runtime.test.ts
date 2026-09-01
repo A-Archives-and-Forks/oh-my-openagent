@@ -531,7 +531,16 @@ describe("assembled DAG runtime", () => {
     cleanupRoots.push(cwd)
     const abortError = new DOMException("This operation was aborted", "AbortError")
     const runner = new ScriptedRunner(abortError)
-    const pi = new FakeExtensionAPI()
+    const taskAttached = deferred<void>()
+    const pi = Object.assign(new FakeExtensionAPI(), {
+      rpc: {
+        emit: (name: string, data: unknown) => {
+          if (name !== "omo.dag.event" || typeof data !== "object" || data === null) return
+          if ("type" in data && data.type === "dag.node.task-attached") taskAttached.resolve()
+        },
+        handle: () => undefined,
+      },
+    })
     const engine = composeTaskEngine({
       pi,
       omoConfig: loadOmoConfig({ cwd }).config,
@@ -553,6 +562,7 @@ describe("assembled DAG runtime", () => {
       },
     })
     await within(runner.whenStarted(1))
+    await within(taskAttached.promise)
     const unhandled: unknown[] = []
     const onUnhandled = (reason: unknown): void => { unhandled.push(reason) }
     process.on("unhandledRejection", onUnhandled)
