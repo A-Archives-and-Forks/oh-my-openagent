@@ -1,6 +1,6 @@
 WHAT TESTED
-- Before-fix synthetic-load reproduction: launched 40 parallel `yes > /dev/null` generators and ran `bun test packages/omo-senpi/src/components/memory/worker/spawn-supervisor.test.ts` 20 times. The loaded run completed without failure on this host, so the original load flake was not reproduced by that exact 20-run batch.
-- Deterministic RED proof: temporarily removed the publication-aware predicate and ran the same test file against a fixture that writes `publishing.json` and a matching `outcome.json`, then exits before deleting `launch.json`. Exit 1: the authority test failed with `memory run supervisor exited with 1`.
+- Before-fix synthetic-load reproduction: temporarily removed the publication-aware predicate, launched 40 parallel `yes > /dev/null` generators, and ran `bun test packages/omo-senpi/src/components/memory/worker/spawn-supervisor.test.ts`. Exit 1: the authority test failed with `memory run supervisor exited with 1`; the other three tests passed. Load cleanup returned no `yes` processes.
+- Deterministic RED proof: the same old predicate fails against a fixture that writes `publishing.json` and a matching `outcome.json`, then exits before deleting `launch.json`; this isolates the publication-order race. The initial 20-run loaded batch did not reproduce without this direct race fixture.
 - After-fix loaded verification: launched 40 parallel `yes > /dev/null` generators and ran the target file 10 times concurrently. All ten exited 0 and each reported 4 pass / 0 fail.
 - Cleanup: killed all load-generator PIDs and checked `pgrep -fl '(^|/)yes( |$)'`; no output.
 
