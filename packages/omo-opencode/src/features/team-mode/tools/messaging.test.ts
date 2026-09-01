@@ -27,7 +27,7 @@ import { listUnreadMessages } from "@oh-my-opencode/team-core/team-mailbox/inbox
 import { pollAndBuildInjection } from "@oh-my-opencode/team-core/team-mailbox/poll"
 import { BroadcastNotPermittedError } from "@oh-my-opencode/team-core/team-mailbox/send"
 import { getInboxDir, resolveBaseDir } from "@oh-my-opencode/team-core/team-registry/paths"
-import { createRuntimeState, saveRuntimeState } from "@oh-my-opencode/team-core/team-state-store/store"
+import { createRuntimeState, loadRuntimeState, saveRuntimeState } from "@oh-my-opencode/team-core/team-state-store/store"
 import { clearTeamSessionRegistry, registerTeamSession } from "../team-session-registry"
 import type { Message } from "@oh-my-opencode/team-core/types"
 import { MessageSchema } from "@oh-my-opencode/team-core/types"
@@ -1316,7 +1316,10 @@ describe("createTeamSendMessageTool", () => {
         },
       },
     } satisfies LiveDeliveryClient
-    const liveTool = createTeamSendMessageTool(fixture.config, failingClient)
+    const liveTool = createTeamSendMessageTool(fixture.config, failingClient, {
+      loadRuntimeState,
+      liveDeliverySettleMs: 0,
+    })
 
     // when
     await liveTool.execute({
