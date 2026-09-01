@@ -181,12 +181,24 @@ export class PendingNudges {
   }
 
   /**
-   * Targeted retraction of one session's payload. Unlike take() this reads nothing back: the caller
-   * is the writer retracting its own just-written file (a compaction that landed during the write),
-   * so parsing it would only add a failure mode. Best-effort, like every other pending-file removal.
+   * Targeted retraction of one session's payload, for a writer dropping its own just-written file.
+   * The embedded sessionId is verified exactly as take() verifies it: sanitizeSessionFilename maps
+   * distinct session ids onto one filename, so an unguarded unlink would let one session retract
+   * another session's nudges. A mismatch leaves the file for its real owner. Best-effort otherwise,
+   * like every other pending-file removal.
    */
   async delete(sessionId: string): Promise<void> {
-    await removeQuietly(this.sessionFilePath(sessionId))
+    const target = this.sessionFilePath(sessionId)
+    let raw: string
+    try {
+      raw = await readFile(target, "utf8")
+    } catch {
+      return
+    }
+    const payload = parsePendingFile(raw)
+    // An unparsable file belongs to nobody: removing it is the same hygiene take() applies.
+    if (payload !== undefined && payload.sessionId !== sessionId) return
+    await removeQuietly(target)
   }
 
   private sessionFilePath(sessionId: string): string {
