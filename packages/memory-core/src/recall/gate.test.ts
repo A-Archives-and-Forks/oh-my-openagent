@@ -149,11 +149,11 @@ describe("PendingNudges", () => {
     // given
     const dir = await createPendingDir()
     const store = new PendingNudges(dir)
-    await store.write("session-1", [{ path: "reference/a.md", hint: "alpha" }])
+    await store.write("session-1", [{ path: "reference/a.md", hint: "alpha" }], { epoch: 0 })
 
     // when
-    const first = await store.take("session-1")
-    const second = await store.take("session-1")
+    const first = await store.take("session-1", { currentEpoch: 0 })
+    const second = await store.take("session-1", { currentEpoch: 0 })
 
     // then
     expect(first).toEqual([{ path: "reference/a.md", hint: "alpha" }])
@@ -167,18 +167,20 @@ describe("PendingNudges", () => {
     const store = new PendingNudges(dir)
 
     // when
-    await store.write("session-1", [{ path: "reference/a.md", hint: "alpha" }])
+    await store.write("session-1", [{ path: "reference/a.md", hint: "alpha" }], { epoch: 0 })
 
     // then
     const filePath = join(dir, "session-1.json")
     const parsed = JSON.parse(await readFile(filePath, "utf8")) as {
       version: number
       sessionId: string
+      compactionEpoch: number
       writtenAt: string
       nudges: { path: string; hint: string }[]
     }
     expect(parsed.version).toBe(1)
     expect(parsed.sessionId).toBe("session-1")
+    expect(parsed.compactionEpoch).toBe(0)
     expect(parsed.writtenAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
     expect(parsed.nudges).toEqual([{ path: "reference/a.md", hint: "alpha" }])
     if (process.platform !== "win32") {
@@ -195,6 +197,7 @@ describe("PendingNudges", () => {
       `${JSON.stringify({
         version: 1,
         sessionId: "session-2",
+        compactionEpoch: 0,
         writtenAt: new Date().toISOString(),
         nudges: [{ path: "reference/a.md", hint: "alpha" }],
       })}\n`,
@@ -202,7 +205,7 @@ describe("PendingNudges", () => {
     )
 
     // when
-    const taken = await store.take("session-1")
+    const taken = await store.take("session-1", { currentEpoch: 0 })
 
     // then
     expect(taken).toEqual([])
@@ -219,6 +222,7 @@ describe("PendingNudges", () => {
       `${JSON.stringify({
         version: 1,
         sessionId: "session-1",
+        compactionEpoch: 0,
         writtenAt: stale,
         nudges: [{ path: "reference/a.md", hint: "alpha" }],
       })}\n`,
@@ -226,7 +230,7 @@ describe("PendingNudges", () => {
     )
 
     // when
-    const taken = await store.take("session-1")
+    const taken = await store.take("session-1", { currentEpoch: 0 })
 
     // then
     expect(taken).toEqual([])
@@ -245,9 +249,9 @@ describe("PendingNudges", () => {
     )
 
     // when / then
-    expect(await store.take("session-1")).toEqual([])
-    expect(await store.take("session-2")).toEqual([])
-    expect(await store.take("never-written")).toEqual([])
+    expect(await store.take("session-1", { currentEpoch: 0 })).toEqual([])
+    expect(await store.take("session-2", { currentEpoch: 0 })).toEqual([])
+    expect(await store.take("never-written", { currentEpoch: 0 })).toEqual([])
   })
 
   it("#given stale siblings and tmp orphans #when a new payload is written #then only fresh files remain", async () => {
@@ -265,7 +269,7 @@ describe("PendingNudges", () => {
     await utimes(orphanPath, old, old)
 
     // when
-    await store.write("session-1", [{ path: "reference/a.md", hint: "alpha" }])
+    await store.write("session-1", [{ path: "reference/a.md", hint: "alpha" }], { epoch: 0 })
 
     // then
     expect((await readdir(dir)).sort()).toEqual(["fresh-session.json", "session-1.json"])
@@ -277,28 +281,28 @@ describe("PendingNudges", () => {
     const store = new PendingNudges(dir)
 
     // when
-    await store.write("a:b?c", [{ path: "reference/a.md", hint: "alpha" }])
+    await store.write("a:b?c", [{ path: "reference/a.md", hint: "alpha" }], { epoch: 0 })
 
     // then
     const names = await readdir(dir)
     expect(names).toHaveLength(1)
     expect(names[0]).not.toMatch(/[:\\/?*]/)
-    expect(await store.take("a:b?c")).toEqual([{ path: "reference/a.md", hint: "alpha" }])
+    expect(await store.take("a:b?c", { currentEpoch: 0 })).toEqual([{ path: "reference/a.md", hint: "alpha" }])
   })
 
   it("#given a written payload #when deleted #then only that session's file is removed", async () => {
-    // given: the gate writer needs to retract its OWN just-written payload without reading it back
+    // given: the gate writer retracts its OWN just-written payload
     const dir = await createPendingDir()
     const store = new PendingNudges(dir)
-    await store.write("session-1", [{ path: "reference/a.md", hint: "alpha" }])
-    await store.write("session-2", [{ path: "reference/b.md", hint: "beta" }])
+    await store.write("session-1", [{ path: "reference/a.md", hint: "alpha" }], { epoch: 0 })
+    await store.write("session-2", [{ path: "reference/b.md", hint: "beta" }], { epoch: 0 })
 
     // when
     await store.delete("session-1")
 
     // then
     expect(await readdir(dir)).toEqual(["session-2.json"])
-    expect(await store.take("session-2")).toEqual([{ path: "reference/b.md", hint: "beta" }])
+    expect(await store.take("session-2", { currentEpoch: 0 })).toEqual([{ path: "reference/b.md", hint: "beta" }])
   })
 
   it("#given no payload for the session #when deleted #then it is a silent no-op", async () => {
@@ -317,10 +321,79 @@ describe("PendingNudges", () => {
     const store = new PendingNudges(dir)
 
     // when
-    await store.write("session-1", [])
+    await store.write("session-1", [], { epoch: 0 })
 
     // then
     expect(await readdir(dir)).toEqual([])
-    expect(await store.take("session-1")).toEqual([])
+    expect(await store.take("session-1", { currentEpoch: 0 })).toEqual([])
+  })
+
+  it("#given a colliding filename owned by another session #when deleted #then the file survives", async () => {
+    // given: "a:b" and "a/b" sanitize to the same filename, so an unguarded unlink would let one
+    // session retract the other session's payload
+    const dir = await createPendingDir()
+    const store = new PendingNudges(dir)
+    await store.write("a:b", [{ path: "reference/a.md", hint: "alpha" }], { epoch: 0 })
+    const namesBefore = await readdir(dir)
+
+    // when
+    await store.delete("a/b")
+
+    // then
+    expect(await readdir(dir)).toEqual(namesBefore)
+    expect(await store.take("a:b", { currentEpoch: 0 })).toEqual([{ path: "reference/a.md", hint: "alpha" }])
+  })
+})
+
+describe("PendingNudges compaction epoch", () => {
+  it("#given a payload stamped with an older epoch #when taken at the bumped epoch #then nothing returns and the file is deleted", async () => {
+    // given: a compaction landed after the payload was written, so its transcript no longer exists
+    const dir = await createPendingDir()
+    const store = new PendingNudges(dir)
+    await store.write("session-1", [{ path: "reference/a.md", hint: "alpha" }], { epoch: 7 })
+
+    // when
+    const taken = await store.take("session-1", { currentEpoch: 8 })
+
+    // then
+    expect(taken).toEqual([])
+    expect(await readdir(dir)).toEqual([])
+  })
+
+  it("#given a payload stamped with the live epoch #when taken #then the nudges are returned", async () => {
+    // given
+    const dir = await createPendingDir()
+    const store = new PendingNudges(dir)
+    await store.write("session-1", [{ path: "reference/a.md", hint: "alpha" }], { epoch: 7 })
+
+    // when
+    const taken = await store.take("session-1", { currentEpoch: 7 })
+
+    // then
+    expect(taken).toEqual([{ path: "reference/a.md", hint: "alpha" }])
+    expect(await readdir(dir)).toEqual([])
+  })
+
+  it("#given a payload carrying no epoch #when taken #then it is treated as stale and deleted", async () => {
+    // given: the epoch-less shape predates the field and can only come from a pre-release write
+    const dir = await createPendingDir()
+    const store = new PendingNudges(dir)
+    await writeFile(
+      join(dir, "session-1.json"),
+      `${JSON.stringify({
+        version: 1,
+        sessionId: "session-1",
+        writtenAt: new Date().toISOString(),
+        nudges: [{ path: "reference/a.md", hint: "alpha" }],
+      })}\n`,
+      { encoding: "utf8", mode: 0o600 },
+    )
+
+    // when
+    const taken = await store.take("session-1", { currentEpoch: 0 })
+
+    // then
+    expect(taken).toEqual([])
+    expect(await readdir(dir)).toEqual([])
   })
 })
