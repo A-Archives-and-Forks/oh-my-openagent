@@ -4,6 +4,21 @@ import { readdir, stat, unlink } from "../fs/resilient"
 
 export const CANDIDATE_STALE_AGE_MS = 60 * 60 * 1000
 export const CANDIDATE_UNLINK_ATTEMPTS = 3
+export const MAX_TRACKED_LEAKED_CANDIDATES = 8
+
+const knownLeakedCandidates = new Set<string>()
+
+export function trackLeakedCandidate(candidatePath: string): void {
+  knownLeakedCandidates.add(candidatePath)
+}
+
+export function forgetLeakedCandidate(candidatePath: string): void {
+  knownLeakedCandidates.delete(candidatePath)
+}
+
+export function trackedLeakedCandidateCount(): number {
+  return knownLeakedCandidates.size
+}
 
 export interface CandidateSweepOptions {
   readonly unlink?: (path: string) => Promise<void>
@@ -20,6 +35,14 @@ const LEAKED_CANDIDATE_NAME =
 function errorCode(error: unknown): string | undefined {
   if (!(error instanceof Error) || !("code" in error)) return undefined
   return typeof error.code === "string" ? error.code : undefined
+}
+
+function notifyFailure(options: CandidateSweepOptions, candidatePath: string): void {
+  try {
+    options.onFailure?.(candidatePath)
+  } catch {
+    // Cleanup notifications are advisory and must not prevent later candidates from being swept.
+  }
 }
 
 function isSharingError(error: unknown): boolean {
@@ -50,28 +73,31 @@ export async function sweepStaleLockCandidates(
     const candidatePath = path.join(lockDirectory, name)
     try {
       const status = await stat(candidatePath)
-      if (now() - status.mtimeMs <= CANDIDATE_STALE_AGE_MS) continue
+      if (!knownLeakedCandidates.has(candidatePath) && now() - status.mtimeMs <= CANDIDATE_STALE_AGE_MS) continue
       let removed = false
       for (let attempt = 0; attempt < CANDIDATE_UNLINK_ATTEMPTS; attempt += 1) {
         try {
           await (options.unlink ?? unlink)(candidatePath)
+          forgetLeakedCandidate(candidatePath)
           removed = true
           break
         } catch (error) {
           if (errorCode(error) === "ENOENT") {
+            forgetLeakedCandidate(candidatePath)
             removed = true
             break
           }
           const sharing = options.isSharingError?.(error) ?? isSharingError(error)
           if (!sharing) throw error
-          if (attempt + 1 === CANDIDATE_UNLINK_ATTEMPTS) options.onFailure?.(candidatePath)
+          if (attempt + 1 === CANDIDATE_UNLINK_ATTEMPTS) notifyFailure(options, candidatePath)
         }
       }
       if (removed) swept += 1
     } catch (error) {
+      if (errorCode(error) === "ENOENT") forgetLeakedCandidate(candidatePath)
       // A single sharing error must not prevent the remaining candidates from being
       // reclaimed. The outer acquisition deliberately treats sweep failures as advisory.
-      options.onFailure?.(candidatePath)
+      notifyFailure(options, candidatePath)
     }
   }
   return swept

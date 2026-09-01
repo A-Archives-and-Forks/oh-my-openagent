@@ -3,7 +3,12 @@ import { mkdtemp, readdir, rm, utimes, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 
-import { CANDIDATE_STALE_AGE_MS, CANDIDATE_UNLINK_ATTEMPTS, sweepStaleLockCandidates } from "./candidate-sweep"
+import {
+  CANDIDATE_STALE_AGE_MS,
+  CANDIDATE_UNLINK_ATTEMPTS,
+  MAX_TRACKED_LEAKED_CANDIDATES,
+  sweepStaleLockCandidates,
+} from "./candidate-sweep"
 import { acquireLock, createLockRecord, releaseLock, setLockCandidateFsForTests } from "./index"
 
 const temporaryDirectories: string[] = []
@@ -79,6 +84,7 @@ describe("sweepStaleLockCandidates", () => {
     let blockedAttempts = 0
     const swept = await sweepStaleLockCandidates(directory, () => Date.now(), {
       isSharingError: () => true,
+      onFailure: () => { throw new Error("advisory callback failure") },
       unlink: async (candidatePath) => {
         if (candidatePath.endsWith(blocked)) {
           blockedAttempts += 1
@@ -95,10 +101,9 @@ describe("sweepStaleLockCandidates", () => {
     expect((await readdir(directory)).sort()).toEqual([blocked])
   })
 
-  test("#given candidate cleanup keeps failing #when a lock is acquired twice #then acquisition succeeds and the leaked candidate is reclaimed next time", async () => {
+  test("#given persistent sharing failure #when many acquire/release cycles run #then leaked candidates stay bounded and clear on the next healthy acquisition", async () => {
     const directory = await createLocksDirectory()
     const lockPath = path.join(directory, "resource.lock")
-    const first = await createLockRecord("memory-write", {})
     let attempts = 0
     const restore = setLockCandidateFsForTests({
       isSharingError: () => true,
@@ -110,20 +115,21 @@ describe("sweepStaleLockCandidates", () => {
       },
     })
     try {
-      await acquireLock(lockPath, first)
+      for (let index = 0; index < MAX_TRACKED_LEAKED_CANDIDATES * 2; index += 1) {
+        const record = await createLockRecord("memory-write", {})
+        await acquireLock(lockPath, record)
+        await releaseLock(lockPath, record)
+      }
+      const leakedDuringFailure = (await readdir(directory)).filter((name) => name.includes(".candidate-"))
+      expect(leakedDuringFailure).toHaveLength(MAX_TRACKED_LEAKED_CANDIDATES)
+      expect(attempts).toBeGreaterThanOrEqual(MAX_TRACKED_LEAKED_CANDIDATES * CANDIDATE_UNLINK_ATTEMPTS)
     } finally {
       restore()
     }
-    await releaseLock(lockPath, first)
-    const leaked = (await readdir(directory)).find((name) => name.includes(".candidate-"))
-    expect(leaked).toBeDefined()
-    expect(attempts).toBe(CANDIDATE_UNLINK_ATTEMPTS)
 
-    await utimes(path.join(directory, leaked!), 0, 0)
-    const second = await createLockRecord("memory-write", {})
-    await acquireLock(lockPath, second)
-    await releaseLock(lockPath, second)
-
+    const healthy = await createLockRecord("memory-write", {})
+    await acquireLock(lockPath, healthy)
+    await releaseLock(lockPath, healthy)
     expect((await readdir(directory)).filter((name) => name.includes(".candidate-"))).toEqual([])
   })
 

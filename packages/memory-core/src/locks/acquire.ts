@@ -14,7 +14,14 @@ import type { FileHandle } from "../fs/resilient"
 import { hostname } from "node:os"
 import path from "node:path"
 
-import { CANDIDATE_UNLINK_ATTEMPTS, sweepStaleLockCandidates } from "./candidate-sweep"
+import {
+  CANDIDATE_UNLINK_ATTEMPTS,
+  MAX_TRACKED_LEAKED_CANDIDATES,
+  forgetLeakedCandidate,
+  trackedLeakedCandidateCount,
+  sweepStaleLockCandidates,
+  trackLeakedCandidate,
+} from "./candidate-sweep"
 import type { LockRecord } from "./lock-record"
 import { parseLockRecord } from "./lock-record"
 import { getPidLiveness, getProcessStartIdentity } from "./process-identity"
@@ -58,12 +65,24 @@ async function unlinkCandidate(candidatePath: string): Promise<boolean> {
   for (let attempt = 0; attempt < CANDIDATE_UNLINK_ATTEMPTS; attempt += 1) {
     try {
       await (candidateFs.unlink ?? unlink)(candidatePath)
+      forgetLeakedCandidate(candidatePath)
       return true
     } catch (error) {
-      if (errorCode(error) === "ENOENT") return true
+      if (errorCode(error) === "ENOENT") {
+        forgetLeakedCandidate(candidatePath)
+        return true
+      }
       const sharing = isUnlinkSharingError(error, candidateFs.isSharingError)
-      if (!sharing) throw error
-      if (attempt + 1 === CANDIDATE_UNLINK_ATTEMPTS) return false
+      if (!sharing) {
+        trackLeakedCandidate(candidatePath)
+        rearmCandidateSweep(path.dirname(candidatePath))
+        throw error
+      }
+      if (attempt + 1 === CANDIDATE_UNLINK_ATTEMPTS) {
+        trackLeakedCandidate(candidatePath)
+        rearmCandidateSweep(path.dirname(candidatePath))
+        return false
+      }
     }
   }
   return false
@@ -113,7 +132,26 @@ async function openFreshCandidate(
   }
 }
 
+async function publishExclusiveFallback(lockPath: string, record: LockRecord): Promise<boolean> {
+  try {
+    const handle = await open(lockPath, "wx", 0o600)
+    try {
+      await writeHandleAll(handle, `${JSON.stringify(record)}\n`, "utf8")
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
+    return true
+  } catch (error) {
+    if (errorCode(error) === "EEXIST") return false
+    throw error
+  }
+}
+
 async function publishExclusive(lockPath: string, record: LockRecord): Promise<boolean> {
+  if (trackedLeakedCandidateCount() >= MAX_TRACKED_LEAKED_CANDIDATES) {
+    return publishExclusiveFallback(lockPath, record)
+  }
   await mkdir(path.dirname(lockPath), { recursive: true, mode: 0o700 })
   const { candidatePath, handle } = await openFreshCandidate(lockPath)
   try {
