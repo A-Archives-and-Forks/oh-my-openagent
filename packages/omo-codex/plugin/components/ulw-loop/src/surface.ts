@@ -34,12 +34,11 @@ export const GATE_REVIEWER_AGENT_NAMES: ReadonlySet<string> = new Set(
 
 export type UlwLoopGateSection = "codeReview" | "manualQa" | "gateReview" | "iteration" | "criteriaCoverage";
 
-export const REQUIRED_GATE_SECTIONS_BY_SURFACE: Readonly<
-	Record<UlwLoopToolkitSurface, readonly UlwLoopGateSection[]>
-> = {
-	lazycodex: ["codeReview", "manualQa", "gateReview", "iteration", "criteriaCoverage"],
-	"omo-senpi": ["manualQa", "gateReview", "iteration", "criteriaCoverage"],
-};
+export const REQUIRED_GATE_SECTIONS_BY_SURFACE: Readonly<Record<UlwLoopToolkitSurface, readonly UlwLoopGateSection[]>> =
+	{
+		lazycodex: ["codeReview", "manualQa", "gateReview", "iteration", "criteriaCoverage"],
+		"omo-senpi": ["manualQa", "gateReview", "iteration", "criteriaCoverage"],
+	};
 
 export const GATE_SECTION_BY_ACCEPTOR: Readonly<
 	Record<UlwLoopToolkitSurface, Readonly<Partial<Record<UlwLoopGateSection, readonly string[]>>>>

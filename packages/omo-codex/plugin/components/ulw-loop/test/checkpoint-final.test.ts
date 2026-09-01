@@ -7,6 +7,12 @@ import { startNextUlwLoop } from "../src/plan-crud.js";
 import { criterion, expectCode, goal, passGoal, plan, repoWith, snapshot } from "./fixtures/checkpoint-builders.js";
 import { MISSING_ARTIFACT_PATH, qualityGateJson } from "./fixtures/quality-gate-builder.js";
 
+function requiredSection(gate: Record<string, Record<string, unknown>>, key: string): Record<string, unknown> {
+	const section = gate[key];
+	if (section === undefined) throw new Error(`missing gate section: ${key}`);
+	return section;
+}
+
 describe("checkpointUlwLoop final story surface resolution", () => {
 	beforeEach(() => {
 		delete process.env["OMO_AGENT_TOOLKIT_SURFACE"];
@@ -21,10 +27,13 @@ describe("checkpointUlwLoop final story surface resolution", () => {
 		const repo = await repoWith(
 			plan([passGoal("G001", { status: "complete" }), passGoal("G002")], { activeGoalId: "G002" }),
 		);
-		const gate = JSON.parse(await qualityGateJson(repo, undefined, "G001-finished", "omo-senpi")) as Record<string, Record<string, unknown>>;
+		const gate = JSON.parse(await qualityGateJson(repo, undefined, "G001-finished", "omo-senpi")) as Record<
+			string,
+			Record<string, unknown>
+		>;
 		delete gate["codeReview"];
-		gate["manualQa"]["by"] = "main-session";
-		gate["gateReview"]["by"] = "category:deep";
+		requiredSection(gate, "manualQa")["by"] = "main-session";
+		requiredSection(gate, "gateReview")["by"] = "category:deep";
 
 		const result = await checkpointUlwLoop(repo, {
 			goalId: "G002",
@@ -42,10 +51,13 @@ describe("checkpointUlwLoop final story surface resolution", () => {
 		const repo = await repoWith(
 			plan([passGoal("G001", { status: "complete" }), passGoal("G002")], { activeGoalId: "G002" }),
 		);
-		const gate = JSON.parse(await qualityGateJson(repo, undefined, "G001-finished", "omo-senpi")) as Record<string, Record<string, unknown>>;
+		const gate = JSON.parse(await qualityGateJson(repo, undefined, "G001-finished", "omo-senpi")) as Record<
+			string,
+			Record<string, unknown>
+		>;
 		delete gate["codeReview"];
-		gate["manualQa"]["by"] = "main-session";
-		gate["gateReview"]["by"] = "category:deep";
+		requiredSection(gate, "manualQa")["by"] = "main-session";
+		requiredSection(gate, "gateReview")["by"] = "category:deep";
 
 		await expectCode(
 			() =>

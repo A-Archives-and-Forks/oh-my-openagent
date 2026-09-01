@@ -58,7 +58,10 @@ function missingGateArtifact(payload: PreToolUsePayload, plan: UlwLoopPlan): str
 	if (goal === undefined || goal.status === "complete") return null;
 	if (!goal.successCriteria.every((criterion) => criterion.status === "pass")) return null;
 	const scope = { sessionId: payload.session_id } as const;
-	const requiredArtifacts = resolveToolkitSurface() === "omo-senpi" ? [`${goal.id}-manual-qa.md`] : [`${goal.id}-code-review.md`, `${goal.id}-manual-qa.md`];
+	const requiredArtifacts =
+		resolveToolkitSurface() === "omo-senpi"
+			? [`${goal.id}-manual-qa.md`]
+			: [`${goal.id}-code-review.md`, `${goal.id}-manual-qa.md`];
 	if (plan.evidenceLayoutVersion === 2) {
 		const attemptDir = ulwLoopAttemptEvidenceDir(goal.id, goal.attempt, scope);
 		for (const name of requiredArtifacts) {

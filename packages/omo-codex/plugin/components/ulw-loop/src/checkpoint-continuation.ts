@@ -1,7 +1,7 @@
 import { type CheckpointUlwLoopArgs, type CheckpointUlwLoopResult, checkpointUlwLoop } from "./checkpoint.js";
+import { checkpointTemplate } from "./checkpoint-template.js";
 import { hasFlag, parseCodexGoalJson, readValue } from "./cli-arg-parser.js";
 import { blockedDecisionHandoff, printJson } from "./cli-output.js";
-import { checkpointTemplate } from "./checkpoint-template.js";
 import { buildCodexGoalInstruction, type UlwLoopGoalInstruction } from "./codex-goal-instruction.js";
 import type { UlwLoopScope } from "./paths.js";
 import { startNextUlwLoop, summarizeUlwLoopPlan } from "./plan-crud.js";

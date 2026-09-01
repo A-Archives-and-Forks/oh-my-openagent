@@ -69,6 +69,13 @@ function senpiGate(overrides: Record<string, unknown> = {}): Record<string, unkn
 	};
 }
 
+function section(input: Record<string, unknown>, key: string): Record<string, unknown> {
+	const value = input[key];
+	if (typeof value !== "object" || value === null || Array.isArray(value))
+		throw new Error(`missing object section: ${key}`);
+	return value as Record<string, unknown>;
+}
+
 function errorFor(input: unknown): UlwLoopError {
 	try {
 		validateQualityGate(input, { reviewerSurface: "omo-senpi" });
@@ -86,21 +93,25 @@ describe("validateQualityGate omo-senpi surface", () => {
 
 	it("#given a senpi gate with codeReview #when validated #then it rejects the forbidden codeReview lane", () => {
 		const error = errorFor(senpiGate({ codeReview: { by: "anything" } }));
-		expect(error.details?.field).toContain("codeReview");
+		expect(error.details?.["field"]).toContain("codeReview");
 		expect(error.message).toContain("omo-senpi gate has no codeReview lane");
 	});
 
 	it.each(["category:deep", "category:unspecified-high", "category:unspecified-low"])(
 		"#given gateReview.by %s #when validated on senpi #then it accepts the category role",
 		(by) => {
-			expect(() => validateQualityGate(senpiGate({ gateReview: { ...senpiGate().gateReview, by } }), { reviewerSurface: "omo-senpi" })).not.toThrow();
+			expect(() =>
+				validateQualityGate(senpiGate({ gateReview: { ...section(senpiGate(), "gateReview"), by } }), {
+					reviewerSurface: "omo-senpi",
+				}),
+			).not.toThrow();
 		},
 	);
 
 	it.each(["omo-senpi-gate-reviewer", "lazycodex-gate-reviewer", "arbitrary"])(
 		"#given gateReview.by %s #when validated on senpi #then it rejects the non-category role",
 		(by) => {
-			const error = errorFor(senpiGate({ gateReview: { ...senpiGate().gateReview, by } }));
+			const error = errorFor(senpiGate({ gateReview: { ...section(senpiGate(), "gateReview"), by } }));
 			expect(error.message).toContain("gateReview.by");
 		},
 	);

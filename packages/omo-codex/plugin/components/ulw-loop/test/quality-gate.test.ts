@@ -113,6 +113,8 @@ describe("validateQualityGate", () => {
 			"manualQa",
 			"surface",
 		]);
+		expect("codeReview" in gate).toBe(true);
+		if (!("codeReview" in gate)) throw new Error("expected lazycodex codeReview section");
 		expect(gate.codeReview.codeQualityStatus).toBe("CLEAR");
 		expect(gate).toMatchObject({
 			criteriaCoverage: { totalCriteria: 9, passCount: 9, userOutcomeReview: expect.stringContaining("user") },
@@ -128,6 +130,8 @@ describe("validateQualityGate", () => {
 		const gate = validateQualityGate(parsed, FS_OPTS);
 
 		// then
+		expect("codeReview" in gate).toBe(true);
+		if (!("codeReview" in gate)) throw new Error("expected lazycodex codeReview section");
 		expect(gate.codeReview.recommendation).toBe("APPROVE");
 		expect(gate.manualQa.artifactRefs).toHaveLength(5);
 	});

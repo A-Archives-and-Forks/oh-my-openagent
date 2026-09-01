@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
-import { isRecord } from "./quality-gate-fields.js";
 import type { ValidateQualityGateOptions } from "./quality-gate.js";
+import { isRecord } from "./quality-gate-fields.js";
 import { UlwLoopError } from "./types.js";
 
 type Defect = { readonly field: string; readonly message: string };
@@ -10,11 +10,15 @@ function add(defects: Defect[], field: string, message: string): void {
 	if (defects.length < 25) defects.push({ field, message });
 }
 function text(value: unknown, field: string, defects: Defect[]): void {
-	if (typeof value !== "string" || value.trim() === "") add(defects, field, `Final quality gate requires non-empty ${field}.`);
+	if (typeof value !== "string" || value.trim() === "")
+		add(defects, field, `Final quality gate requires non-empty ${field}.`);
 	else if (PLACEHOLDER.test(value.trim())) add(defects, field, `Final quality gate rejects placeholder ${field}.`);
 }
 function section(value: unknown, field: string, defects: Defect[]): Record<string, unknown> {
-	if (!isRecord(value)) { add(defects, field, `Final quality gate is missing ${field} evidence.`); return {}; }
+	if (!isRecord(value)) {
+		add(defects, field, `Final quality gate is missing ${field} evidence.`);
+		return {};
+	}
 	return value;
 }
 
@@ -26,20 +30,30 @@ export function aggregateQualityGateDefects(input: unknown, opts: ValidateQualit
 	const review = section(gate["gateReview"], "gateReview", defects);
 	text(manual["evidence"], "manualQa.evidence", defects);
 	text(review["evidence"], "gateReview.evidence", defects);
-	if (review["recommendation"] !== "APPROVE") add(defects, "gateReview.recommendation", "gateReview.recommendation must be APPROVE.");
+	if (review["recommendation"] !== "APPROVE")
+		add(defects, "gateReview.recommendation", "gateReview.recommendation must be APPROVE.");
 	const artifacts = Array.isArray(manual["artifactRefs"]) ? manual["artifactRefs"] : [];
 	for (const [index, item] of artifacts.entries()) {
 		if (!isRecord(item)) continue;
 		const path = item["path"];
 		if (typeof path !== "string" || path.trim() === "") continue;
 		if (opts?.repoRoot !== undefined && opts.fs !== undefined && !opts.fs.existsSync(resolve(opts.repoRoot, path)))
-			add(defects, `manualQa.artifactRefs[${index}].path`, `manualQa.artifactRefs[${index}].path must point to an existing artifact.`);
+			add(
+				defects,
+				`manualQa.artifactRefs[${index}].path`,
+				`manualQa.artifactRefs[${index}].path must point to an existing artifact.`,
+			);
 	}
 	if (defects.length === 0) return;
 	const truncated = defects.length === 25 && countPotentialDefects(gate, opts) > 25;
 	const fields = defects.map(({ field, message }) => ({ field, message }));
-	const message = [`Final quality gate has ${fields.length}${truncated ? "+" : ""} validation defects:`, ...fields.map((item) => `- ${item.field}: ${item.message}`)].join("\n");
-	throw new UlwLoopError(message, "ULW_LOOP_QUALITY_GATE_INVALID", { details: { field: fields[0]?.field, fields, ...(truncated ? { truncated: true } : {}) } });
+	const message = [
+		`Final quality gate has ${fields.length}${truncated ? "+" : ""} validation defects:`,
+		...fields.map((item) => `- ${item.field}: ${item.message}`),
+	].join("\n");
+	throw new UlwLoopError(message, "ULW_LOOP_QUALITY_GATE_INVALID", {
+		details: { field: fields[0]?.field, fields, ...(truncated ? { truncated: true } : {}) },
+	});
 }
 
 function countPotentialDefects(gate: Record<string, unknown>, opts: ValidateQualityGateOptions | undefined): number {
@@ -50,6 +64,14 @@ function countPotentialDefects(gate: Record<string, unknown>, opts: ValidateQual
 	if (typeof review["evidence"] !== "string" || PLACEHOLDER.test(review["evidence"] as string)) count += 1;
 	if (review["recommendation"] !== "APPROVE") count += 1;
 	const refs = Array.isArray(manual["artifactRefs"]) ? manual["artifactRefs"] : [];
-	for (const item of refs) if (isRecord(item) && typeof item["path"] === "string" && opts?.repoRoot && opts.fs && !opts.fs.existsSync(resolve(opts.repoRoot, item["path"] as string))) count += 1;
+	for (const item of refs)
+		if (
+			isRecord(item) &&
+			typeof item["path"] === "string" &&
+			opts?.repoRoot &&
+			opts.fs &&
+			!opts.fs.existsSync(resolve(opts.repoRoot, item["path"] as string))
+		)
+			count += 1;
 	return count;
 }

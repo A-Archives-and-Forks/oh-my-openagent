@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
-import { aggregateQualityGateDefects } from "./quality-gate-aggregate.js";
 import { isWithinAttemptDir } from "./paths.js";
+import { aggregateQualityGateDefects } from "./quality-gate-aggregate.js";
 import {
 	emptyBlockers,
 	invalid,
@@ -11,11 +11,7 @@ import {
 	textField,
 } from "./quality-gate-fields.js";
 import { adversarialVerdict, codeQualityStatusField, passedVerdict } from "./quality-gate-verdicts.js";
-import {
-	GATE_SECTION_BY_ACCEPTOR,
-	REQUIRED_GATE_SECTIONS_BY_SURFACE,
-	type UlwLoopToolkitSurface,
-} from "./surface.js";
+import { GATE_SECTION_BY_ACCEPTOR, REQUIRED_GATE_SECTIONS_BY_SURFACE, type UlwLoopToolkitSurface } from "./surface.js";
 import type {
 	UlwLoopManualQaArtifactKind,
 	UlwLoopManualQaArtifactRef,
@@ -170,7 +166,8 @@ export function validateQualityGate(input: unknown, opts?: ValidateQualityGateOp
 	const coverage = section(gate["criteriaCoverage"], "criteriaCoverage");
 	const manualQaBy = reviewerAcceptorField(manualQa["by"], surface, "manualQa");
 	const gateReviewBy = reviewerAcceptorField(gateReview["by"], surface, "gateReview");
-	if (surface === "lazycodex") reviewerRoleField(section(gate["codeReview"], "codeReview")["by"], "lazycodex-code-reviewer", "codeReview.by");
+	if (surface === "lazycodex")
+		reviewerRoleField(section(gate["codeReview"], "codeReview")["by"], "lazycodex-code-reviewer", "codeReview.by");
 	const totalCriteria = numberField(coverage["totalCriteria"], "criteriaCoverage.totalCriteria");
 	const passCount = numberField(coverage["passCount"], "criteriaCoverage.passCount");
 	if (passCount < totalCriteria)
@@ -232,7 +229,6 @@ export function validateQualityGate(input: unknown, opts?: ValidateQualityGateOp
 		},
 	};
 }
-
 
 function parseSurfaceEvidence(
 	value: unknown,

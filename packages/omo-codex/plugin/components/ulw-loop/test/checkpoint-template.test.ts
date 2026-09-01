@@ -34,21 +34,30 @@ async function run(args: string[]): Promise<Record<string, unknown>> {
 
 describe("checkpoint --print-template", () => {
 	it("#given an active senpi v2 plan #when printed with only goal-id #then emits the senpi gate skeleton", async () => {
-		await writePlan(repo, plan([goal({ id: "G001", attempt: 2 })], { evidenceLayoutVersion: 2, activeGoalId: "G001", codexObjective: "Exact objective from goals.json" }));
+		await writePlan(
+			repo,
+			plan([goal({ id: "G001", attempt: 2 })], {
+				evidenceLayoutVersion: 2,
+				activeGoalId: "G001",
+				codexObjective: "Exact objective from goals.json",
+			}),
+		);
 		process.env["OMO_AGENT_TOOLKIT_SURFACE"] = "omo-senpi";
 		const result = await run(["--print-template", "--goal-id", "G001", "--json"]);
-		const gate = result.qualityGateTemplate as Record<string, unknown>;
+		const gate = result["qualityGateTemplate"] as Record<string, unknown>;
 		expect(Object.keys(gate)).toEqual(["manualQa", "gateReview", "iteration", "criteriaCoverage"]);
-		expect((gate.manualQa as Record<string, unknown>).by).toBe("main-session");
-		expect((gate.gateReview as Record<string, unknown>).by).toBe("category:deep");
-		expect(result.codexGoalTemplate).toEqual({ goal: { objective: "Exact objective from goals.json", status: "complete" } });
-		expect(result.attemptDir).toBe(".omo/evidence/ulw/session/G001/a2");
+		expect((gate["manualQa"] as Record<string, unknown>)["by"]).toBe("main-session");
+		expect((gate["gateReview"] as Record<string, unknown>)["by"]).toBe("category:deep");
+		expect(result["codexGoalTemplate"]).toEqual({
+			goal: { objective: "Exact objective from goals.json", status: "complete" },
+		});
+		expect(result["attemptDir"]).toBe(".omo/evidence/ulw/session/G001/a2");
 	});
 
 	it("#given a v1 plan #when printed without status #then exits successfully and gives v1 guidance", async () => {
 		await writePlan(repo, plan([goal({ id: "G001" })]));
 		const result = await run(["--print-template", "--goal-id", "G001", "--json"]);
-		expect(result.guidance).toContain("evidence-layout v1");
+		expect(result["guidance"]).toContain("evidence-layout v1");
 		expect(result).not.toHaveProperty("attemptDir");
 	});
 });
