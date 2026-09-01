@@ -1,11 +1,11 @@
 /// <reference types="bun-types" />
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { spawnSync } from "node:child_process"
 import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
 import { PACKAGE_NAME } from "../constants"
+import { findPluginEntry } from "./plugin-entry"
 import { LEGACY_PLUGIN_NAME, PLUGIN_NAME } from "../../../shared/plugin-identity"
 
 type PluginEntryResult = {
@@ -22,26 +22,31 @@ function normalizePathForAssertion(filePath: string): string {
 function runFindPluginEntry(
   directory: string,
   envOverrides: Record<string, string | undefined> = {},
-): { status: number | null; stdout: string; stderr: string } {
-  const command = [
-    `import { findPluginEntry } from ${JSON.stringify("./packages/omo-opencode/src/hooks/auto-update-checker/checker/plugin-entry")};`,
-    `const result = findPluginEntry(${JSON.stringify(directory)});`,
-    "console.log(JSON.stringify(result));",
-  ].join("")
+): { status: number; stdout: string; stderr: string } {
+  const originalEnvironment = new Map<string, string | undefined>()
+  for (const [key, value] of Object.entries(envOverrides)) {
+    originalEnvironment.set(key, process.env[key])
+    if (value === undefined) {
+      delete process.env[key]
+    } else {
+      process.env[key] = value
+    }
+  }
 
-  const execution = spawnSync(process.execPath, ["-e", command], {
-    cwd: process.cwd(),
-    env: {
-      ...process.env,
-      ...envOverrides,
-    },
-    encoding: "utf-8",
-  })
-
-  return {
-    status: execution.status,
-    stdout: execution.stdout,
-    stderr: execution.stderr,
+  try {
+    return {
+      status: 0,
+      stdout: `${JSON.stringify(findPluginEntry(directory))}\n`,
+      stderr: "",
+    }
+  } finally {
+    for (const [key, value] of originalEnvironment) {
+      if (value === undefined) {
+        delete process.env[key]
+      } else {
+        process.env[key] = value
+      }
+    }
   }
 }
 
