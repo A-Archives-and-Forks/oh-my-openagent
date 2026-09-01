@@ -6,10 +6,12 @@
 // ledger, the hint shape and the configured cap.
 //
 // Accepted nudges wait in a per-session pending file until the next turn injects
-// them. The payload is self-describing ({ version, sessionId, writtenAt,
-// nudges }) so a filename collision from session-id sanitization can never hand
-// one session another session's nudges, and so a payload nobody consumed expires
-// instead of surfacing days later.
+// them. The payload is self-describing ({ version, sessionId, compactionEpoch,
+// writtenAt, nudges }) so a filename collision from session-id sanitization can
+// never hand one session another session's nudges, so a payload nobody consumed
+// expires instead of surfacing days later, and so a verdict about a transcript a
+// compaction has since rewritten is rejected AT CONSUMPTION rather than raced
+// against by the writer.
 
 import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises"
 import { join } from "node:path"
@@ -34,8 +36,24 @@ export interface RecallNudge {
 export interface PendingNudgesFile {
   readonly version: typeof PENDING_NUDGES_VERSION
   readonly sessionId: string
+  /**
+   * The session's compaction epoch when the judge's verdict was written. A payload is only valid
+   * while the live epoch still equals it: any bump means the judged transcript was replaced.
+   * Absent only in pre-release payloads, which take() therefore treats as stale.
+   */
+  readonly compactionEpoch?: number
   readonly writtenAt: string
   readonly nudges: readonly RecallNudge[]
+}
+
+export interface PendingNudgesWriteOptions {
+  /** The session's compaction epoch as captured by the launch that produced these nudges. */
+  readonly epoch: number
+}
+
+export interface PendingNudgesTakeOptions {
+  /** The session's live compaction epoch, read by the consumer at injection time. */
+  readonly currentEpoch: number
 }
 
 export interface ValidateNudgesOptions {
@@ -104,7 +122,11 @@ export class PendingNudges {
     this.dir = dir
   }
 
-  async write(sessionId: string, nudges: readonly RecallNudge[]): Promise<void> {
+  async write(
+    sessionId: string,
+    nudges: readonly RecallNudge[],
+    options: PendingNudgesWriteOptions,
+  ): Promise<void> {
     if (nudges.length === 0) return
 
     const target = this.sessionFilePath(sessionId)
@@ -113,6 +135,7 @@ export class PendingNudges {
     const payload: PendingNudgesFile = {
       version: PENDING_NUDGES_VERSION,
       sessionId,
+      compactionEpoch: options.epoch,
       writtenAt: new Date().toISOString(),
       nudges: nudges.map((nudge) => ({ path: nudge.path, hint: nudge.hint })),
     }
@@ -125,8 +148,16 @@ export class PendingNudges {
    * Consume the session's pending nudges. The embedded sessionId must match:
    * a mismatch means a sanitized-filename collision, so the file is left for its
    * real owner. An expired payload is dropped and deleted.
+   *
+   * Staleness is decided HERE, not by the writer. A compaction accepted at any
+   * point after the judge started - including inside the writer's own
+   * mkdir/prune/write/rename window - bumps the session's epoch, so a payload
+   * stamped with anything but the live epoch judged a transcript that no longer
+   * exists and is deleted unread. That makes correctness independent of who wins
+   * the write-versus-compaction race. An epoch-less payload can only come from a
+   * pre-release write and is treated the same way.
    */
-  async take(sessionId: string): Promise<RecallNudge[]> {
+  async take(sessionId: string, options: PendingNudgesTakeOptions): Promise<RecallNudge[]> {
     const target = this.sessionFilePath(sessionId)
     let raw: string
     try {
@@ -143,6 +174,7 @@ export class PendingNudges {
     if (payload.sessionId !== sessionId) return []
 
     await removeQuietly(target)
+    if (payload.compactionEpoch !== options.currentEpoch) return []
     const writtenAt = Date.parse(payload.writtenAt)
     if (!Number.isFinite(writtenAt) || Date.now() - writtenAt > PENDING_TTL_MS) return []
     return payload.nudges.map((nudge) => ({ path: nudge.path, hint: nudge.hint }))
@@ -210,6 +242,7 @@ function parsePendingFile(raw: string): PendingNudgesFile | undefined {
   const record = value as Record<string, unknown>
   if (record.version !== PENDING_NUDGES_VERSION) return undefined
   if (typeof record.sessionId !== "string" || record.sessionId.length === 0) return undefined
+  if (record.compactionEpoch !== undefined && typeof record.compactionEpoch !== "number") return undefined
   if (typeof record.writtenAt !== "string") return undefined
   if (!Array.isArray(record.nudges)) return undefined
   const nudges: RecallNudge[] = []
@@ -221,6 +254,7 @@ function parsePendingFile(raw: string): PendingNudgesFile | undefined {
   return {
     version: PENDING_NUDGES_VERSION,
     sessionId: record.sessionId,
+    ...(record.compactionEpoch === undefined ? {} : { compactionEpoch: record.compactionEpoch }),
     writtenAt: record.writtenAt,
     nudges,
   }
