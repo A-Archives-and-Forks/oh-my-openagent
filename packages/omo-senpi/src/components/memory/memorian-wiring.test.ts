@@ -58,7 +58,8 @@ function gate(input: {
   readonly logs?: Array<{ message: string, details?: unknown }>
 }) {
   return createMemorianGateWiring({
-    collectCandidates: input.collect,
+    snapshotSession: () => ({ id: SESSION_ID, entries: [] }),
+    collectCandidatesFromSnapshot: input.collect,
     resolveContext: (sessionId) => (sessionId === SESSION_ID ? input.identity : undefined),
     runnerFor: () => ({
       launch: input.launch ?? (async (launchInput) => {
@@ -151,7 +152,8 @@ describe("createMemorianGateWiring onSettled", () => {
     const logs: Array<{ message: string, details?: unknown }> = []
     const wiring = createMemorianGateWiring({
       // Collection is handed the snapshot, never the live ctx.
-      collectCandidates: async () => collected(identity),
+      snapshotSession: () => ({ id: SESSION_ID, entries: [] }),
+      collectCandidatesFromSnapshot: async () => collected(identity),
       resolveContext: () => identity,
       runnerFor: () => ({
         launch: async (launchInput) => {
@@ -176,6 +178,53 @@ describe("createMemorianGateWiring onSettled", () => {
     expect(logs).toEqual([])
     expect(launches).toHaveLength(1)
     expect(launches[0]?.modelRegistry).toBe(registry)
+  })
+
+  test("#given an incomplete session snapshot #when the ctx is invalidated after the handler returns #then the gate no-ops with a warning and never rereads the ctx", async () => {
+    // given: snapshotSession returns undefined for a ctx that carries no usable session. The
+    // detached task must NOT fall back to collectCandidates(eventCtx): by then the host has run
+    // AgentSession dispose and every ctx read throws.
+    const identity = await context()
+    let stale = false
+    let ctxReads = 0
+    const eventCtx = {
+      get session(): unknown {
+        ctxReads += 1
+        if (stale) throw new Error("This extension ctx is stale after session replacement or reload.")
+        return undefined
+      },
+    }
+    const launches: Launch[] = []
+    const logs: Array<{ message: string, details?: unknown }> = []
+    const wiring = createMemorianGateWiring({
+      snapshotSession: (ctx) => {
+        void (ctx as { session?: unknown }).session
+        return undefined
+      },
+      collectCandidatesFromSnapshot: async () => collected(identity),
+      resolveContext: () => identity,
+      runnerFor: () => ({
+        launch: async (launchInput) => {
+          launches.push(launchInput)
+          return { status: "empty" as const }
+        },
+      }),
+      logger: {
+        info: (message, details) => logs.push({ message, details }),
+        warn: (message, details) => logs.push({ message, details }),
+        error: (message, details) => logs.push({ message, details }),
+      },
+    })
+
+    // when: the handler returns, THEN the host disposes the ctx
+    wiring.onSettled(eventCtx)
+    stale = true
+    await wiring.whenIdle()
+
+    // then: clean no-op - exactly the one synchronous snapshot read, no launch, one warning
+    expect(ctxReads).toBe(1)
+    expect(launches).toEqual([])
+    expect(logs.map((entry) => entry.message)).toEqual(["omo-senpi memorian gate session snapshot incomplete"])
   })
 
   test("#given a settle #when the handler returns #then it never waits on the gate child", async () => {

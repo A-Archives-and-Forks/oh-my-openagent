@@ -83,7 +83,6 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
   // The settle half of the recall channel: collection feeds the gate child, and the gate's pending
   // nudges are what recallWiring's before_agent_start handler injects on the NEXT turn.
   const memorianGateWiring = createMemorianGateWiring({
-    collectCandidates: (eventCtx) => recallWiring.collectCandidates(eventCtx),
     // The gate launch is fire-and-forget, so every ctx read must happen synchronously inside the
     // settle handler: the host disposes the ctx the moment that handler returns.
     snapshotSession: (eventCtx) => recallWiring.snapshotSession(eventCtx),

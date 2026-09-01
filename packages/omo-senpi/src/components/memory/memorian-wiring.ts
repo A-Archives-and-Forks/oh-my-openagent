@@ -27,12 +27,17 @@ export interface MemorianGatePort {
 }
 
 export interface MemorianGateWiringOptions {
-  /** Settle-time lexical collection; undefined already means disabled, sentinel, or no match. */
-  readonly collectCandidates: (eventCtx: unknown) => Promise<CollectedRecallCandidates | undefined>
-  /** Synchronous ctx read, called before the launch detaches. */
-  readonly snapshotSession?: (eventCtx: unknown) => RecallSessionSnapshot | undefined
-  /** Collection over the captured snapshot; consumes no ctx. */
-  readonly collectCandidatesFromSnapshot?: (
+  /**
+   * Synchronous ctx read, called before the launch detaches. Required, and the ONLY seam that ever
+   * touches the event ctx: there is deliberately no ctx-reading collection fallback, because the
+   * detached task runs after the host disposed the ctx.
+   */
+  readonly snapshotSession: (eventCtx: unknown) => RecallSessionSnapshot | undefined
+  /**
+   * Collection over the captured snapshot; consumes no ctx. Undefined already means disabled,
+   * sentinel, or no match.
+   */
+  readonly collectCandidatesFromSnapshot: (
     snapshot: RecallSessionSnapshot,
   ) => Promise<CollectedRecallCandidates | undefined>
   readonly resolveContext: (sessionId: string) => MemoryIdentityContext | undefined
@@ -86,12 +91,18 @@ export function createMemorianGateWiring(options: MemorianGateWiringOptions): Me
         // Fail-open: an unreadable registry only means the runner resolves the category itself.
         options.logger?.warn("omo-senpi memorian gate registry snapshot skipped", { error: describe(error) })
       }
-      const session = options.snapshotSession?.(eventCtx)
+      const session = options.snapshotSession(eventCtx)
+      if (session === undefined) {
+        // No usable session snapshot means there is nothing the detached task could legally read:
+        // rereading eventCtx here would hit the disposed ctx. A missed advisory nudge is the
+        // designed degradation.
+        options.logger?.warn("omo-senpi memorian gate session snapshot incomplete")
+        return
+      }
       const collectFromSnapshot = options.collectCandidatesFromSnapshot
       track(async () => {
-        const collected = session !== undefined && collectFromSnapshot !== undefined
-          ? await collectFromSnapshot(session)
-          : await options.collectCandidates(eventCtx)
+        // Everything below is a plain captured value; eventCtx is intentionally NOT in this closure.
+        const collected = await collectFromSnapshot(session)
         if (collected === undefined) return
         await options.runnerFor(collected.context).launch({
           sessionId: collected.sessionId,
