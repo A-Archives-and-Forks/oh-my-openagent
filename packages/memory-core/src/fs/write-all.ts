@@ -6,12 +6,25 @@
 
 import { Buffer } from "node:buffer"
 import { constants } from "node:fs"
+import type * as fsSync from "node:fs"
 import * as fsp from "node:fs/promises"
 
-import { fsErrorCode, retryOnEintr } from "./retry"
+import { fsErrorCode, retryOnEintr, retryOnEintrSync } from "./retry"
 
 export interface WritableHandle {
   write(buffer: Uint8Array, offset?: number): Promise<{ readonly bytesWritten: number }>
+}
+
+// Exclusive creates are ambiguous under EINTR (the file may exist afterwards), so they get
+// exactly one attempt and the owning protocol recovers; shareable opens retry freely.
+export function openSyncWithExclusivePolicy<Mode, Result>(
+  rawOpen: (path: fsSync.PathLike, flags: fsSync.OpenMode, mode?: Mode) => Result,
+  path: fsSync.PathLike,
+  flags: fsSync.OpenMode,
+  mode?: Mode,
+): Result {
+  if (isExclusiveFlag(flags)) return rawOpen(path, flags, mode)
+  return retryOnEintrSync(() => rawOpen(path, flags, mode))
 }
 
 export function isExclusiveFlag(flag: string | number | undefined): boolean {

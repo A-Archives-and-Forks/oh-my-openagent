@@ -6,7 +6,7 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 
 import { appendFile, writeFile } from "./resilient"
-import { isExclusiveFlag, writeHandleAll } from "./write-all"
+import { isExclusiveFlag, openSyncWithExclusivePolicy, writeHandleAll } from "./write-all"
 
 function eintrError(syscall: string): NodeJS.ErrnoException {
   const error = new Error(`EINTR: interrupted system call, ${syscall}`) as NodeJS.ErrnoException
@@ -95,6 +95,29 @@ describe("handle-target options", () => {
     await writeFile(fake as never, "payload", { flush: true })
     expect(Buffer.concat(written).toString("utf8")).toBe("payload")
     expect(synced).toBe(1)
+  })
+})
+
+describe("openSyncWithExclusivePolicy", () => {
+  test("gives exclusive creates exactly one attempt so an ambiguous EINTR propagates", () => {
+    let calls = 0
+    const rawOpen = (): number => {
+      calls += 1
+      throw eintrError("open")
+    }
+    expect(() => openSyncWithExclusivePolicy(rawOpen, "/tmp/x", "wx")).toThrow("EINTR")
+    expect(calls).toBe(1)
+  })
+
+  test("retries shareable opens on transient EINTR", () => {
+    let calls = 0
+    const rawOpen = (): number => {
+      calls += 1
+      if (calls < 3) throw eintrError("open")
+      return 7
+    }
+    expect(openSyncWithExclusivePolicy(rawOpen, "/tmp/x", "r")).toBe(7)
+    expect(calls).toBe(3)
   })
 })
 

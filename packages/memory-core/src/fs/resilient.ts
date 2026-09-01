@@ -18,10 +18,10 @@ import * as fsSync from "node:fs"
 import * as fsp from "node:fs/promises"
 
 import { fsErrorCode, retryOnEintr, retryOnEintrSync } from "./retry"
-import { isExclusiveFlag, writeHandleAll, writePathAll } from "./write-all"
+import { isExclusiveFlag, openSyncWithExclusivePolicy, writeHandleAll, writePathAll } from "./write-all"
 
 export { EINTR_RETRY_CAP, retryOnEintr, retryOnEintrSync } from "./retry"
-export { isExclusiveFlag, writeHandleAll } from "./write-all"
+export { isExclusiveFlag, openSyncWithExclusivePolicy, writeHandleAll } from "./write-all"
 
 type UnknownFunction = (...args: readonly unknown[]) => unknown
 
@@ -112,13 +112,17 @@ export const {
 export const {
   accessSync,
   chmodSync,
+  fsyncSync,
+  linkSync,
   lstatSync,
   mkdirSync,
   readFileSync,
   readdirSync,
   realpathSync,
   statSync,
+  unlinkSync,
   writeFileSync,
+  writeSync,
 } = sync
 
 export const { constants, watch } = fsSync
@@ -158,6 +162,19 @@ export const appendFile: typeof fsp.appendFile = async (path, data, options) => 
     return
   }
   return writePathAll(path, data, options ?? undefined, "a")
+}
+
+export const openSync: typeof fsSync.openSync = (path, flags, mode) =>
+  openSyncWithExclusivePolicy(fsSync.openSync, path, flags, mode ?? undefined)
+
+// close(2) leaves the descriptor state unspecified after EINTR, so retrying risks closing
+// a reused fd; treat EINTR as closed, matching wrapFileHandle's close mapping.
+export function closeSync(fd: number): void {
+  try {
+    fsSync.closeSync(fd)
+  } catch (error) {
+    if (fsErrorCode(error) !== "EINTR") throw error
+  }
 }
 
 // Node parity: existsSync never throws, but unlike node's, transient EINTR is retried
