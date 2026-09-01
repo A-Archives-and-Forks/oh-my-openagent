@@ -1,5 +1,9 @@
 # POST review-blocker fixes — live re-run pass
 
+> **SUPERSEDED — see `post-review-fixes-2.md`.** Two further blockers (the runner's residual
+> `resolveModelRegistry` fallback and the epoch TOCTOU across `PendingNudges.write`) were fixed
+> afterwards and the driver re-run: 7/7 PASS (`live-gate-postreview2/`).
+
 Follow-up to `post-stale-ctx-fix.md`. Three review blockers plus one packaging gap, each fixed
 TDD RED-first on `feat/memorian-gate`:
 
