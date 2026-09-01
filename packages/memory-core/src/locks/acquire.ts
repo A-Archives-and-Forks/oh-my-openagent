@@ -47,6 +47,21 @@ function errorCode(error: unknown): string | undefined {
   return typeof error.code === "string" ? error.code : undefined
 }
 
+function isUnlinkSharingError(error: unknown): boolean {
+  if (process.platform !== "win32") return false
+  const code = errorCode(error)
+  return code === "EBUSY" || code === "EPERM" || code === "EACCES"
+}
+
+async function unlinkCandidate(candidatePath: string): Promise<void> {
+  await unlink(candidatePath).catch((error: unknown) => {
+    // Windows may deny unlink while another filesystem observer still has the just-closed
+    // candidate open without delete sharing. The candidate is not the lock (the hard link is),
+    // so leaving it for the age-based sweeper cannot affect ownership or mutual exclusion.
+    if (errorCode(error) !== "ENOENT" && !isUnlinkSharingError(error)) throw error
+  })
+}
+
 function delay(milliseconds: number, signal?: AbortSignal): Promise<void> {
   signal?.throwIfAborted()
   return new Promise((resolve, reject) => {
@@ -84,9 +99,7 @@ async function openFreshCandidate(
     try {
       return { candidatePath, handle: await open(candidatePath, "wx", 0o600) }
     } catch (error) {
-      await unlink(candidatePath).catch((unlinkError: unknown) => {
-        if (errorCode(unlinkError) !== "ENOENT") throw unlinkError
-      })
+      await unlinkCandidate(candidatePath)
       if (errorCode(error) !== "EINTR" || attempt >= EINTR_RETRY_CAP) throw error
     }
   }
@@ -111,9 +124,7 @@ async function publishExclusive(lockPath: string, record: LockRecord): Promise<b
       throw error
     }
   } finally {
-    await unlink(candidatePath).catch((error: unknown) => {
-      if (errorCode(error) !== "ENOENT") throw error
-    })
+    await unlinkCandidate(candidatePath)
   }
 }
 
