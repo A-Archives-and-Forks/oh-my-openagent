@@ -54,6 +54,35 @@ describe("checkpoint --print-template", () => {
 		expect(result["attemptDir"]).toBe(".omo/evidence/ulw/session/G001/a2");
 	});
 
+	it("#given an active v2 plan #when printed without any goal id #then targets the active goal", async () => {
+		await writePlan(
+			repo,
+			plan([goal({ id: "G001", attempt: 1 })], {
+				evidenceLayoutVersion: 2,
+				activeGoalId: "G001",
+				codexObjective: "Exact objective from goals.json",
+			}),
+		);
+		process.env["OMO_AGENT_TOOLKIT_SURFACE"] = "omo-senpi";
+		const result = await run(["--print-template", "--json"]);
+		const gate = result["qualityGateTemplate"] as Record<string, unknown>;
+		expect(Object.keys(gate)).toEqual(["manualQa", "gateReview", "iteration", "criteriaCoverage"]);
+		expect(result["attemptDir"]).toBe(".omo/evidence/ulw/session/G001/a1");
+	});
+
+	it("#given two goals #when printed with an explicit non-active goal id #then targets that goal's attempt dir", async () => {
+		await writePlan(
+			repo,
+			plan([goal({ id: "G001", attempt: 1 }), goal({ id: "G002", attempt: 3 })], {
+				evidenceLayoutVersion: 2,
+				activeGoalId: "G001",
+				codexObjective: "Exact objective from goals.json",
+			}),
+		);
+		const result = await run(["--print-template", "--goal-id", "G002", "--json"]);
+		expect(result["attemptDir"]).toBe(".omo/evidence/ulw/session/G002/a3");
+	});
+
 	it("#given a v1 plan #when printed without status #then exits successfully and gives v1 guidance", async () => {
 		await writePlan(repo, plan([goal({ id: "G001" })]));
 		const result = await run(["--print-template", "--goal-id", "G001", "--json"]);

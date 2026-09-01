@@ -2,6 +2,7 @@ import { type UlwLoopScope, ulwLoopAttemptEvidenceDir } from "./paths.js";
 import { readUlwLoopPlan } from "./plan-io.js";
 import { resolveToolkitSurface, type UlwLoopToolkitSurface } from "./surface.js";
 import type { UlwLoopPlan } from "./types.js";
+import { UlwLoopError } from "./types.js";
 
 export interface CheckpointTemplate {
 	readonly qualityGateTemplate: Record<string, unknown>;
@@ -102,9 +103,16 @@ function gateTemplate(surface: UlwLoopToolkitSurface, base: string): Record<stri
 	};
 }
 
-export async function checkpointTemplate(repoRoot: string, scope?: UlwLoopScope): Promise<CheckpointTemplate> {
+export async function checkpointTemplate(
+	repoRoot: string,
+	scope?: UlwLoopScope,
+	goalId?: string,
+): Promise<CheckpointTemplate> {
 	const plan: UlwLoopPlan = await readUlwLoopPlan(repoRoot, scope);
-	const active = plan.goals.find((goal) => goal.id === plan.activeGoalId);
+	const targetId = goalId ?? plan.activeGoalId;
+	const active = plan.goals.find((goal) => goal.id === targetId);
+	if (goalId !== undefined && active === undefined)
+		throw new UlwLoopError(`Unknown ulw-loop id: ${goalId}.`, "ULW_LOOP_GOAL_NOT_FOUND", { details: { goalId } });
 	const hasAttempt = plan.evidenceLayoutVersion === 2 && active !== undefined;
 	const attemptDir = hasAttempt ? ulwLoopAttemptEvidenceDir(active.id, active.attempt, scope) : ".omo/evidence";
 	return {

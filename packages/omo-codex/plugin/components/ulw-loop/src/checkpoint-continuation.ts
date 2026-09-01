@@ -34,8 +34,7 @@ export async function checkpoint(
 	scope?: UlwLoopScope,
 ): Promise<number> {
 	if (hasFlag(argv, "--print-template")) {
-		required(argv, "--goal-id");
-		const template = await checkpointTemplate(repoRoot, scope);
+		const template = await checkpointTemplate(repoRoot, scope, readValue(argv, "--goal-id"));
 		if (json) printJson({ ok: true, ...template });
 		else printJson(template);
 		return 0;
