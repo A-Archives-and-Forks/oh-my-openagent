@@ -23,6 +23,10 @@ export interface MemorianGatePort {
     readonly transcript: readonly RecallTranscriptTurn[]
     /** Captured at settle, before the host disposed the ctx the registry lives on. */
     readonly modelRegistry?: SenpiModelRegistryPort<SenpiModelPort> | undefined
+    /** The session's compaction epoch at launch time. */
+    readonly compactionEpoch?: number
+    /** The session's live compaction epoch, read again before the verdict is persisted. */
+    readonly currentCompactionEpoch?: () => number
   }): Promise<unknown>
 }
 
@@ -64,6 +68,16 @@ export function createMemorianGateWiring(options: MemorianGateWiringOptions): Me
   const pendingFor = options.pendingFor
     ?? ((context: MemoryIdentityContext) => new PendingNudges(context.identityPaths.recallPending))
   const inFlight = new Set<Promise<void>>()
+  // Per-session compaction epoch. A gate child judges ONE transcript; when a compaction is accepted
+  // while that child is still running, the pending-file drop in onCompactionAccepted cannot help -
+  // the write has not happened yet. The epoch is the in-flight half of the same policy: stamped at
+  // launch, bumped on accept, compared before the write. In-memory only, because it guards a
+  // process-local in-flight launch and a restart leaves nothing in flight to guard.
+  const compactionEpochs = new Map<string, number>()
+
+  function epochOf(sessionId: string): number {
+    return compactionEpochs.get(sessionId) ?? 0
+  }
 
   function track(task: () => Promise<void>): void {
     const promise = task()
@@ -100,12 +114,15 @@ export function createMemorianGateWiring(options: MemorianGateWiringOptions): Me
         return
       }
       const collectFromSnapshot = options.collectCandidatesFromSnapshot
+      const launchedAtEpoch = epochOf(session.id)
       track(async () => {
         // Everything below is a plain captured value; eventCtx is intentionally NOT in this closure.
         const collected = await collectFromSnapshot(session)
         if (collected === undefined) return
         await options.runnerFor(collected.context).launch({
           sessionId: collected.sessionId,
+          compactionEpoch: launchedAtEpoch,
+          currentCompactionEpoch: () => epochOf(collected.sessionId),
           candidates: collected.candidates,
           surfaced: collected.surfaced,
           maxItems: collected.maxItems,
@@ -116,6 +133,9 @@ export function createMemorianGateWiring(options: MemorianGateWiringOptions): Me
     },
 
     onCompactionAccepted(sessionId: string): void {
+      // Bump FIRST and unconditionally: an in-flight child must be invalidated even when the
+      // identity context can no longer be resolved for the pending-file drop below.
+      compactionEpochs.set(sessionId, epochOf(sessionId) + 1)
       const context = options.resolveContext(sessionId)
       if (context === undefined) return
       track(async () => {

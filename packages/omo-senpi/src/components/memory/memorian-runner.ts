@@ -60,6 +60,13 @@ export interface MemorianGateLaunchInput {
    * authoritative and the resolver is never consulted.
    */
   readonly modelRegistry?: SenpiModelRegistryPort<SenpiModelPort> | undefined
+  /**
+   * The session's compaction epoch as of THIS launch. The child judges one transcript; a compaction
+   * accepted while it runs replaces that transcript, so the verdict must not survive it.
+   */
+  readonly compactionEpoch?: number
+  /** Reads the session's live epoch at write time; a bump means a compaction landed mid-flight. */
+  readonly currentCompactionEpoch?: () => number
 }
 
 export type MemorianGateLaunchResult =
@@ -141,6 +148,16 @@ export class MemorianGateRunner {
         maxItems: input.maxItems,
       })
       if (nudges.length === 0) return { status: "empty" }
+      if (isStaleAfterCompaction(input)) {
+        // The judged transcript no longer exists: writing now would advise the next turn about a
+        // conversation the compaction already rewrote - exactly what onCompactionAccepted's
+        // pending drop prevents for verdicts that landed BEFORE the compaction.
+        this.options.logger?.warn("memorian gate nudges dropped after compaction", {
+          sessionId: input.sessionId,
+          launchedAtEpoch: input.compactionEpoch,
+        })
+        return { status: "skipped" }
+      }
       await new PendingNudges(this.options.identityPaths.recallPending).write(input.sessionId, nudges)
       return { status: "nudged", nudges }
     } finally {
@@ -204,6 +221,11 @@ async function readNudges(path: string): Promise<string> {
     // A silent judge writes no file at all; that is the documented default, not an error.
     return ""
   }
+}
+
+function isStaleAfterCompaction(input: MemorianGateLaunchInput): boolean {
+  if (input.compactionEpoch === undefined || input.currentCompactionEpoch === undefined) return false
+  return input.currentCompactionEpoch() !== input.compactionEpoch
 }
 
 function passthrough(spawnArgs: MemorianSpawnArgs): MemorianSpawnArgs {

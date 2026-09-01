@@ -91,15 +91,63 @@ describe("createMemorianGateWiring onSettled", () => {
     await wiring.whenIdle()
 
     // then
-    expect(launches).toEqual([
-      {
-        sessionId: SESSION_ID,
-        candidates: CANDIDATES,
-        surfaced: new Set<string>(),
-        maxItems: 2,
-        transcript: [{ role: "user", text: "how do we handle kubernetes rollouts" }],
+    expect(launches).toHaveLength(1)
+    expect(launches[0]).toMatchObject({
+      sessionId: SESSION_ID,
+      candidates: CANDIDATES,
+      surfaced: new Set<string>(),
+      maxItems: 2,
+      transcript: [{ role: "user", text: "how do we handle kubernetes rollouts" }],
+    })
+  })
+
+  test("#given a gate child in flight #when a compaction is accepted mid-flight #then the launch's epoch check reports the verdict as stale", async () => {
+    // given: a child judging transcript T1 can finish AFTER a compaction rewrote T1. The wiring
+    // stamps the launch with the session's compaction epoch and exposes the live one, so the
+    // runner can discard a verdict that outlived its transcript.
+    const identity = await context()
+    const launches: Launch[] = []
+    let observedInFlight: { captured: number, current: number } | undefined
+    const wiring = gate({
+      collect: async () => collected(identity),
+      launches,
+      identity,
+      launch: async (launchInput) => {
+        launches.push(launchInput)
+        // Simulate the mid-flight compaction: it lands while the child is still running.
+        wiring.onCompactionAccepted(SESSION_ID)
+        observedInFlight = {
+          captured: launchInput.compactionEpoch ?? -1,
+          current: launchInput.currentCompactionEpoch?.() ?? -1,
+        }
+        return { status: "empty" as const }
       },
-    ])
+    })
+
+    // when
+    wiring.onSettled({})
+    await wiring.whenIdle()
+
+    // then
+    expect(launches).toHaveLength(1)
+    expect(observedInFlight).toBeDefined()
+    expect(observedInFlight?.current).toBeGreaterThan(observedInFlight?.captured ?? 0)
+  })
+
+  test("#given no compaction #when a gate child runs to completion #then the captured and live epochs match", async () => {
+    // given
+    const identity = await context()
+    const launches: Launch[] = []
+    const wiring = gate({ collect: async () => collected(identity), launches, identity })
+
+    // when
+    wiring.onSettled({})
+    await wiring.whenIdle()
+
+    // then
+    const launch = launches[0]
+    expect(launch?.compactionEpoch).toBe(0)
+    expect(launch?.currentCompactionEpoch?.()).toBe(0)
   })
 
   test("#given no collected candidates #when a turn settles #then no gate child launches", async () => {

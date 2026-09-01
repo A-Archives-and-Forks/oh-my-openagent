@@ -257,6 +257,52 @@ appendFileSync(process.env.MEMORIAN_NUDGE_PATH, JSON.stringify({ path: "notes/ne
     expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID)).toEqual([])
   }, 30_000)
 
+  test("#given a compaction accepted mid-flight #when the child finishes #then the stale nudges are discarded instead of written", async () => {
+    // given: the child judged transcript T1; a compaction accepted while it ran rewrote that
+    // transcript, so its verdict now advises a conversation that no longer exists.
+    const { root, identityPaths } = await fixture()
+    const stub = stubChild(root, WRITE_ONE_NUDGE)
+    const warnings: string[] = []
+    let epoch = 7
+    const runner = new MemorianGateRunner(runnerOptions(identityPaths, {
+      ...stub,
+      logger: { info: () => undefined, warn: (message) => warnings.push(message), error: () => undefined },
+    }))
+
+    // when: the epoch advances while the child runs
+    const result = await runner.launch(launchInput({
+      compactionEpoch: epoch,
+      currentCompactionEpoch: () => {
+        epoch = 8
+        return epoch
+      },
+    }))
+
+    // then
+    expect(result.status).toBe("skipped")
+    expect(warnings).toEqual(["memorian gate nudges dropped after compaction"])
+    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID)).toEqual([])
+  }, 30_000)
+
+  test("#given an unchanged compaction epoch #when the child finishes #then the nudges are written as usual", async () => {
+    // given
+    const { root, identityPaths } = await fixture()
+    const stub = stubChild(root, WRITE_ONE_NUDGE)
+    const runner = new MemorianGateRunner(runnerOptions(identityPaths, stub))
+
+    // when
+    const result = await runner.launch(launchInput({
+      compactionEpoch: 3,
+      currentCompactionEpoch: () => 3,
+    }))
+
+    // then
+    expect(result.status).toBe("nudged")
+    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID)).toEqual([
+      { path: CANDIDATE_PATH, hint: "Drain nodes before a rollout." },
+    ])
+  }, 30_000)
+
   test("#given a completed run #when the runner finishes #then the run directory is removed", async () => {
     // given
     const { root, identityPaths } = await fixture()
