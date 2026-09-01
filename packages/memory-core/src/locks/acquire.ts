@@ -14,6 +14,7 @@ import type { FileHandle } from "../fs/resilient"
 import { hostname } from "node:os"
 import path from "node:path"
 
+import { sweepStaleLockCandidates } from "./candidate-sweep"
 import type { LockRecord } from "./lock-record"
 import { parseLockRecord } from "./lock-record"
 import { getPidLiveness, getProcessStartIdentity } from "./process-identity"
@@ -106,7 +107,7 @@ async function publishExclusive(lockPath: string, record: LockRecord): Promise<b
       await link(candidatePath, lockPath)
       return true
     } catch (error) {
-      if (errorCode(error) === "EEXIST") return false
+      if (isCandidatePublishRace(error)) return false
       throw error
     }
   } finally {
@@ -115,6 +116,16 @@ async function publishExclusive(lockPath: string, record: LockRecord): Promise<b
     })
   }
 }
+
+// EEXIST: another contender published first. ENOENT: this candidate vanished mid-publish,
+// which only another process's stale-candidate sweep can cause after CANDIDATE_STALE_AGE_MS;
+// both are lost races the caller retries with a fresh candidate, never protocol failures.
+export function isCandidatePublishRace(error: unknown): boolean {
+  const code = errorCode(error)
+  return code === "EEXIST" || code === "ENOENT"
+}
+
+const sweptLockDirectories = new Set<string>()
 
 async function isProvenDead(owner: LockRecord): Promise<boolean> {
   if (owner.hostname !== hostname()) return false
@@ -163,6 +174,13 @@ export async function acquireLock(
   const waitTimeoutMs = options.waitTimeoutMs ?? 0
   const retryDelayMs = options.retryDelayMs ?? 25
   if (waitTimeoutMs < 0 || retryDelayMs <= 0) throw new Error("lock wait options must be positive")
+  const lockDirectory = path.dirname(lockPath)
+  if (!sweptLockDirectories.has(lockDirectory)) {
+    sweptLockDirectories.add(lockDirectory)
+    // Opportunistic hygiene, once per process per directory: a failed sweep must never
+    // block or fail the acquisition it rides on.
+    await sweepStaleLockCandidates(lockDirectory).catch(() => undefined)
+  }
   const deadline = Date.now() + waitTimeoutMs
 
   for (;;) {
