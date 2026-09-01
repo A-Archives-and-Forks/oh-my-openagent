@@ -111,6 +111,7 @@ describe("validateQualityGate", () => {
 			"gateReview",
 			"iteration",
 			"manualQa",
+			"surface",
 		]);
 		expect(gate.codeReview.codeQualityStatus).toBe("CLEAR");
 		expect(gate).toMatchObject({

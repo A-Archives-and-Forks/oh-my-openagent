@@ -10,7 +10,11 @@ import {
 	textField,
 } from "./quality-gate-fields.js";
 import { adversarialVerdict, codeQualityStatusField, passedVerdict } from "./quality-gate-verdicts.js";
-import { reviewerRolesFor, type UlwLoopToolkitSurface } from "./surface.js";
+import {
+	GATE_SECTION_BY_ACCEPTOR,
+	REQUIRED_GATE_SECTIONS_BY_SURFACE,
+	type UlwLoopToolkitSurface,
+} from "./surface.js";
 import type {
 	UlwLoopManualQaArtifactKind,
 	UlwLoopManualQaArtifactRef,
@@ -41,6 +45,19 @@ function reviewerRoleField(value: unknown, expected: string, field: string): str
 	const actual = textField(value, field);
 	if (actual !== expected) invalid(`${field} must be ${expected}.`, field);
 	return expected;
+}
+
+function reviewerAcceptorField(
+	value: unknown,
+	surface: UlwLoopToolkitSurface,
+	sectionName: "manualQa" | "gateReview",
+): string {
+	const field = `${sectionName}.by`;
+	const actual = textField(value, field);
+	const accepted = GATE_SECTION_BY_ACCEPTOR[surface][sectionName];
+	if (accepted === undefined || !accepted.includes(actual))
+		invalid(`${field} must be one of ${accepted?.join(", ") ?? "the configured reviewers"}.`, field);
+	return actual;
 }
 
 function surfaceField(value: unknown, field: string): UlwLoopManualQaSurface {
@@ -139,13 +156,19 @@ function referencedArtifacts(
 }
 
 export function validateQualityGate(input: unknown, opts?: ValidateQualityGateOptions): UlwLoopQualityGate {
-	const reviewerRoles = reviewerRolesFor(opts?.reviewerSurface ?? "lazycodex");
+	const surface = opts?.reviewerSurface ?? "lazycodex";
 	const gate = section(input, "qualityGate");
-	const codeReview = section(gate["codeReview"], "codeReview");
+	const requiredSections = REQUIRED_GATE_SECTIONS_BY_SURFACE[surface];
+	for (const sectionName of requiredSections) section(gate[sectionName], sectionName);
+	if (surface === "omo-senpi" && gate["codeReview"] !== undefined)
+		invalid("omo-senpi gate has no codeReview lane.", "codeReview");
 	const manualQa = section(gate["manualQa"], "manualQa");
 	const gateReview = section(gate["gateReview"], "gateReview");
 	const iteration = section(gate["iteration"], "iteration");
 	const coverage = section(gate["criteriaCoverage"], "criteriaCoverage");
+	const manualQaBy = reviewerAcceptorField(manualQa["by"], surface, "manualQa");
+	const gateReviewBy = reviewerAcceptorField(gateReview["by"], surface, "gateReview");
+	if (surface === "lazycodex") reviewerRoleField(section(gate["codeReview"], "codeReview")["by"], "lazycodex-code-reviewer", "codeReview.by");
 	const totalCriteria = numberField(coverage["totalCriteria"], "criteriaCoverage.totalCriteria");
 	const passCount = numberField(coverage["passCount"], "criteriaCoverage.passCount");
 	if (passCount < totalCriteria)
@@ -154,21 +177,11 @@ export function validateQualityGate(input: unknown, opts?: ValidateQualityGateOp
 	const byId = artifactMap(artifactRefs);
 	const surfaceEvidence = parseSurfaceEvidence(manualQa["surfaceEvidence"], byId);
 	const adversarialCases = parseAdversarialCases(manualQa["adversarialCases"], byId);
-	const codeReportPath = textField(codeReview["reportPath"], "codeReview.reportPath");
 	const gateReportPath = textField(gateReview["reportPath"], "gateReview.reportPath");
-	checkFile(codeReportPath, "codeReview.reportPath", opts);
 	checkFile(gateReportPath, "gateReview.reportPath", opts);
-	return {
-		codeReview: {
-			by: reviewerRoleField(codeReview["by"], reviewerRoles.codeReview, "codeReview.by"),
-			recommendation: literal(codeReview["recommendation"], "APPROVE", "codeReview.recommendation"),
-			codeQualityStatus: codeQualityStatusField(codeReview["codeQualityStatus"], "codeReview.codeQualityStatus"),
-			reportPath: codeReportPath,
-			evidence: textField(codeReview["evidence"], "codeReview.evidence"),
-			blockers: emptyBlockers(codeReview["blockers"], "codeReview.blockers"),
-		},
+	const common = {
 		manualQa: {
-			by: reviewerRoleField(manualQa["by"], reviewerRoles.manualQa, "manualQa.by"),
+			by: manualQaBy,
 			status: literal(manualQa["status"], "passed", "manualQa.status"),
 			evidence: textField(manualQa["evidence"], "manualQa.evidence"),
 			surfaceEvidence,
@@ -176,7 +189,7 @@ export function validateQualityGate(input: unknown, opts?: ValidateQualityGateOp
 			artifactRefs,
 		},
 		gateReview: {
-			by: reviewerRoleField(gateReview["by"], reviewerRoles.gateReview, "gateReview.by"),
+			by: gateReviewBy,
 			recommendation: literal(gateReview["recommendation"], "APPROVE", "gateReview.recommendation"),
 			reportPath: gateReportPath,
 			evidence: textField(gateReview["evidence"], "gateReview.evidence"),
@@ -200,7 +213,24 @@ export function validateQualityGate(input: unknown, opts?: ValidateQualityGateOp
 			),
 		},
 	};
+	if (surface === "omo-senpi") return { surface, ...common };
+	const codeReview = section(gate["codeReview"], "codeReview");
+	const codeReportPath = textField(codeReview["reportPath"], "codeReview.reportPath");
+	checkFile(codeReportPath, "codeReview.reportPath", opts);
+	return {
+		surface,
+		...common,
+		codeReview: {
+			by: "lazycodex-code-reviewer",
+			recommendation: literal(codeReview["recommendation"], "APPROVE", "codeReview.recommendation"),
+			codeQualityStatus: codeQualityStatusField(codeReview["codeQualityStatus"], "codeReview.codeQualityStatus"),
+			reportPath: codeReportPath,
+			evidence: textField(codeReview["evidence"], "codeReview.evidence"),
+			blockers: emptyBlockers(codeReview["blockers"], "codeReview.blockers"),
+		},
+	};
 }
+
 
 function parseSurfaceEvidence(
 	value: unknown,
