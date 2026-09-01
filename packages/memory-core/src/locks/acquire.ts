@@ -16,9 +16,7 @@ import path from "node:path"
 
 import {
   CANDIDATE_UNLINK_ATTEMPTS,
-  MAX_TRACKED_LEAKED_CANDIDATES,
   forgetLeakedCandidate,
-  trackedLeakedCandidateCount,
   sweepStaleLockCandidates,
   trackLeakedCandidate,
 } from "./candidate-sweep"
@@ -132,26 +130,7 @@ async function openFreshCandidate(
   }
 }
 
-async function publishExclusiveFallback(lockPath: string, record: LockRecord): Promise<boolean> {
-  try {
-    const handle = await open(lockPath, "wx", 0o600)
-    try {
-      await writeHandleAll(handle, `${JSON.stringify(record)}\n`, "utf8")
-      await handle.sync()
-    } finally {
-      await handle.close()
-    }
-    return true
-  } catch (error) {
-    if (errorCode(error) === "EEXIST") return false
-    throw error
-  }
-}
-
 async function publishExclusive(lockPath: string, record: LockRecord): Promise<boolean> {
-  if (trackedLeakedCandidateCount() >= MAX_TRACKED_LEAKED_CANDIDATES) {
-    return publishExclusiveFallback(lockPath, record)
-  }
   await mkdir(path.dirname(lockPath), { recursive: true, mode: 0o700 })
   const { candidatePath, handle } = await openFreshCandidate(lockPath)
   try {

@@ -4,7 +4,6 @@ import { readdir, stat, unlink } from "../fs/resilient"
 
 export const CANDIDATE_STALE_AGE_MS = 60 * 60 * 1000
 export const CANDIDATE_UNLINK_ATTEMPTS = 3
-export const MAX_TRACKED_LEAKED_CANDIDATES = 8
 
 const knownLeakedCandidates = new Set<string>()
 
@@ -16,9 +15,6 @@ export function forgetLeakedCandidate(candidatePath: string): void {
   knownLeakedCandidates.delete(candidatePath)
 }
 
-export function trackedLeakedCandidateCount(): number {
-  return knownLeakedCandidates.size
-}
 
 export interface CandidateSweepOptions {
   readonly unlink?: (path: string) => Promise<void>
@@ -64,7 +60,12 @@ export async function sweepStaleLockCandidates(
   try {
     names = await readdir(lockDirectory)
   } catch (error) {
-    if (errorCode(error) === "ENOENT") return 0
+    if (errorCode(error) === "ENOENT") {
+      for (const candidatePath of knownLeakedCandidates) {
+        if (path.dirname(candidatePath) === lockDirectory) forgetLeakedCandidate(candidatePath)
+      }
+      return 0
+    }
     throw error
   }
   let swept = 0

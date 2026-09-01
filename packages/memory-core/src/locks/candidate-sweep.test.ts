@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { mkdtemp, readdir, rm, utimes, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readdir, rm, utimes, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
 
 import {
   CANDIDATE_STALE_AGE_MS,
   CANDIDATE_UNLINK_ATTEMPTS,
-  MAX_TRACKED_LEAKED_CANDIDATES,
   sweepStaleLockCandidates,
+  trackLeakedCandidate,
 } from "./candidate-sweep"
 import { acquireLock, createLockRecord, releaseLock, setLockCandidateFsForTests } from "./index"
 
@@ -101,29 +101,38 @@ describe("sweepStaleLockCandidates", () => {
     expect((await readdir(directory)).sort()).toEqual([blocked])
   })
 
-  test("#given persistent sharing failure #when many acquire/release cycles run #then leaked candidates stay bounded and clear on the next healthy acquisition", async () => {
+  test("#given persistent sharing failure #when repeated acquisitions run #then every tracked leak is retried and healthy acquisition reclaims them", async () => {
     const directory = await createLocksDirectory()
     const lockPath = path.join(directory, "resource.lock")
-    let attempts = 0
+    const attemptsByPath = new Map<string, number>()
+    let failing = true
     const restore = setLockCandidateFsForTests({
       isSharingError: () => true,
-      unlink: async () => {
-        attempts += 1
+      unlink: async (candidatePath) => {
+        attemptsByPath.set(candidatePath, (attemptsByPath.get(candidatePath) ?? 0) + 1)
+        if (!failing) {
+          await rm(candidatePath, { force: true })
+          return
+        }
         const error = new Error("sharing") as NodeJS.ErrnoException
         error.code = "EPERM"
         throw error
       },
     })
     try {
-      for (let index = 0; index < MAX_TRACKED_LEAKED_CANDIDATES * 2; index += 1) {
-        const record = await createLockRecord("memory-write", {})
-        await acquireLock(lockPath, record)
-        await releaseLock(lockPath, record)
-      }
-      const leakedDuringFailure = (await readdir(directory)).filter((name) => name.includes(".candidate-"))
-      expect(leakedDuringFailure).toHaveLength(MAX_TRACKED_LEAKED_CANDIDATES)
-      expect(attempts).toBeGreaterThanOrEqual(MAX_TRACKED_LEAKED_CANDIDATES * CANDIDATE_UNLINK_ATTEMPTS)
+      const first = await createLockRecord("memory-write", {})
+      await acquireLock(lockPath, first)
+      await releaseLock(lockPath, first)
+      const afterFirst = (await readdir(directory)).filter((name) => name.includes(".candidate-"))
+      expect(afterFirst.length).toBeGreaterThan(0)
+
+      const second = await createLockRecord("memory-write", {})
+      await acquireLock(lockPath, second)
+      await releaseLock(lockPath, second)
+      const firstPath = path.join(directory, afterFirst[0]!)
+      expect(attemptsByPath.get(firstPath)).toBe(CANDIDATE_UNLINK_ATTEMPTS * 2)
     } finally {
+      failing = false
       restore()
     }
 
@@ -131,6 +140,20 @@ describe("sweepStaleLockCandidates", () => {
     await acquireLock(lockPath, healthy)
     await releaseLock(lockPath, healthy)
     expect((await readdir(directory)).filter((name) => name.includes(".candidate-"))).toEqual([])
+  })
+
+  test("#given a tracked candidate directory disappears #when the sweep sees ENOENT #then the path is untracked", async () => {
+    const directory = await createLocksDirectory()
+    const name = "gone.lock.candidate-11111111-aaaa-bbbb-cccc-000000000012"
+    const candidatePath = path.join(directory, name)
+    await writeFile(candidatePath, "{}", "utf8")
+    trackLeakedCandidate(candidatePath)
+    await rm(directory, { recursive: true, force: true })
+    await sweepStaleLockCandidates(directory)
+    await mkdir(directory, { recursive: true })
+    await writeFile(candidatePath, "{}", "utf8")
+    expect(await sweepStaleLockCandidates(directory)).toBe(0)
+    expect((await readdir(directory)).includes(name)).toBe(true)
   })
 
   test("#given a stale candidate #when the first lock in that directory is acquired #then the candidate is swept", async () => {
