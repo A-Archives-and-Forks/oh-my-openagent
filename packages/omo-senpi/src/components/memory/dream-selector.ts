@@ -44,7 +44,7 @@ import {
   type DreamSelection,
 } from "./dream-scoring"
 
-interface LoadedConversation {
+export interface LoadedConversation {
   readonly conversationId: string
   readonly entries: readonly TranscriptEntry[]
   readonly stepsSinceLastSuccessfulReflection: number
@@ -80,7 +80,7 @@ export async function selectRecentDreamConversations(
   return selectLoadedConversations(recent, options, mode)
 }
 
-function selectLoadedConversations(
+export function selectLoadedConversations(
   conversations: readonly LoadedConversation[],
   options: DreamSelectorOptions,
   mode: DreamSelectionMode,
@@ -112,7 +112,7 @@ function selectLoadedConversations(
   })
 }
 
-async function loadConversations(transcriptsDir: string): Promise<LoadedConversation[]> {
+export async function loadConversations(transcriptsDir: string): Promise<LoadedConversation[]> {
   const entries = await readdir(transcriptsDir, { withFileTypes: true }).catch((error: unknown) => {
     if (errorCode(error) === "ENOENT") return []
     throw error
