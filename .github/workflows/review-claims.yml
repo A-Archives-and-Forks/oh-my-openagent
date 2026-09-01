@@ -42,7 +42,7 @@ jobs:
             } else {
               core.info('No active review claim labels. Gate is green.');
             }
-      - name: Workflow summary
+      - name: Write job summary
         if: always()
         shell: bash
         run: |
@@ -92,7 +92,7 @@ jobs:
             }
             await github.rest.pulls.requestReviewers({ owner, repo, pull_number: pr.number, reviewers: [claimer] });
             core.info(`Requested review from claimer ${claimer}.`);
-      - name: Workflow summary
+      - name: Write job summary
         if: always()
         shell: bash
         run: |
@@ -170,7 +170,7 @@ jobs:
                 }
               }
             }
-      - name: Workflow summary
+      - name: Write job summary
         if: always()
         shell: bash
         run: |
@@ -253,7 +253,7 @@ jobs:
                 }
               }
             }
-      - name: Workflow summary
+      - name: Write job summary
         if: always()
         shell: bash
         run: |
