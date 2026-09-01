@@ -160,12 +160,14 @@ export class MemorianGateRunner {
       // conversation the compaction already rewrote - exactly what onCompactionAccepted's pending
       // drop prevents for verdicts that landed BEFORE the compaction.
       if (isStaleAfterCompaction(input)) return this.dropAfterCompaction(input)
-      await pending.write(input.sessionId, nudges)
-      // Revalidate AFTER the write: write() awaits mkdir/prune/writeFile/rename, and a compaction
-      // accepted inside that window bumps the epoch while its own pending drop still sees no file.
-      // Only this second check can retract the payload that landed a moment later. Between the two
-      // checks every interleaving is covered: a bump before this read is retracted here, a bump
-      // after the rename is dropped by onCompactionAccepted.
+      // The launch epoch travels INSIDE the payload, which is what makes the write/compaction race
+      // unwinnable-but-harmless: whoever wins, the consumer compares the stamped epoch against the
+      // session's live one and refuses a verdict whose transcript a compaction has replaced.
+      await pending.write(input.sessionId, nudges, { epoch: input.compactionEpoch ?? 0 })
+      // Best-effort hygiene ONLY: a compaction accepted inside write()'s fs window bumps the epoch
+      // while its own pending drop still sees no file, so retracting here keeps the directory clean.
+      // Correctness no longer depends on this check - the payload's epoch is now authoritative at
+      // take() - so losing this race costs nothing.
       if (isStaleAfterCompaction(input)) {
         await pending.delete(input.sessionId)
         return this.dropAfterCompaction(input)
