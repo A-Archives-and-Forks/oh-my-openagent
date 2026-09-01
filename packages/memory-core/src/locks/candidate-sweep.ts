@@ -3,6 +3,13 @@ import path from "node:path"
 import { readdir, stat, unlink } from "../fs/resilient"
 
 export const CANDIDATE_STALE_AGE_MS = 60 * 60 * 1000
+export const CANDIDATE_UNLINK_ATTEMPTS = 3
+
+export interface CandidateSweepOptions {
+  readonly unlink?: (path: string) => Promise<void>
+  readonly isSharingError?: (error: unknown) => boolean
+  readonly onFailure?: (path: string) => void
+}
 
 // Lock DOMAIN names may legally contain ".candidate-" (runFinalizationLockPath permits dots
 // and hyphens in run ids), so only the exact UUID-suffixed shape publishExclusive generates
@@ -15,6 +22,12 @@ function errorCode(error: unknown): string | undefined {
   return typeof error.code === "string" ? error.code : undefined
 }
 
+function isSharingError(error: unknown): boolean {
+  if (process.platform !== "win32") return false
+  const code = errorCode(error)
+  return code === "EBUSY" || code === "EPERM" || code === "EACCES"
+}
+
 // Crashed contenders leak `<lock>.candidate-<uuid>` files: publishExclusive unlinks its
 // candidate in a finally block, but SIGKILL mid-publish skips it. Nothing ever reads a
 // candidate after publish, so age is the only liveness signal the sweeper needs; live lock
@@ -22,6 +35,7 @@ function errorCode(error: unknown): string | undefined {
 export async function sweepStaleLockCandidates(
   lockDirectory: string,
   now: () => number = Date.now,
+  options: CandidateSweepOptions = {},
 ): Promise<number> {
   let names: readonly string[]
   try {
@@ -37,10 +51,27 @@ export async function sweepStaleLockCandidates(
     try {
       const status = await stat(candidatePath)
       if (now() - status.mtimeMs <= CANDIDATE_STALE_AGE_MS) continue
-      await unlink(candidatePath)
-      swept += 1
+      let removed = false
+      for (let attempt = 0; attempt < CANDIDATE_UNLINK_ATTEMPTS; attempt += 1) {
+        try {
+          await (options.unlink ?? unlink)(candidatePath)
+          removed = true
+          break
+        } catch (error) {
+          if (errorCode(error) === "ENOENT") {
+            removed = true
+            break
+          }
+          const sharing = options.isSharingError?.(error) ?? isSharingError(error)
+          if (!sharing) throw error
+          if (attempt + 1 === CANDIDATE_UNLINK_ATTEMPTS) options.onFailure?.(candidatePath)
+        }
+      }
+      if (removed) swept += 1
     } catch (error) {
-      if (errorCode(error) !== "ENOENT") throw error
+      // A single sharing error must not prevent the remaining candidates from being
+      // reclaimed. The outer acquisition deliberately treats sweep failures as advisory.
+      options.onFailure?.(candidatePath)
     }
   }
   return swept
