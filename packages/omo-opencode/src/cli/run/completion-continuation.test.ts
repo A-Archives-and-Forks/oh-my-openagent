@@ -114,6 +114,7 @@ describe("checkCompletionConditions continuation coverage", () => {
     writeFileSync(
       join(directory, ".omo", "boulder.json"),
       JSON.stringify({
+        status: "idle",
         active_plan: null,
         started_at: new Date().toISOString(),
         session_ids: ["test-session"],
