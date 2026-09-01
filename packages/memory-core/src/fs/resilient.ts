@@ -17,7 +17,7 @@ import { Buffer } from "node:buffer"
 import * as fsSync from "node:fs"
 import * as fsp from "node:fs/promises"
 
-import { EINTR_RETRY_CAP, fsErrorCode, retryOnEintr, retryOnEintrSync } from "./retry"
+import { fsErrorCode, retryOnEintr, retryOnEintrSync } from "./retry"
 import { isExclusiveFlag, writeHandleAll, writePathAll } from "./write-all"
 
 export { EINTR_RETRY_CAP, retryOnEintr, retryOnEintrSync } from "./retry"
@@ -138,8 +138,11 @@ export const writeFile: typeof fsp.writeFile = async (file, data, options) => {
     return fsp.writeFile(file, data, options)
   }
   if (isHandleTarget(file)) {
-    const encoding = typeof options === "string" ? options : (options?.encoding ?? undefined)
-    return writeHandleAll(file, data, encoding)
+    const parsed = typeof options === "string" ? { encoding: options } : (options ?? {})
+    parsed.signal?.throwIfAborted()
+    await writeHandleAll(file, data, parsed.encoding ?? undefined, parsed.signal)
+    if (parsed.flush === true) await retryOnEintr(() => file.sync())
+    return
   }
   return writePathAll(file, data, options ?? undefined, "w")
 }
@@ -149,8 +152,10 @@ export const appendFile: typeof fsp.appendFile = async (path, data, options) => 
     return fsp.appendFile(path, data, options)
   }
   if (isHandleTarget(path)) {
-    const encoding = typeof options === "string" ? options : (options?.encoding ?? undefined)
-    return writeHandleAll(path, data, encoding)
+    const parsed = typeof options === "string" ? { encoding: options } : (options ?? {})
+    await writeHandleAll(path, data, parsed.encoding ?? undefined)
+    if (parsed.flush === true) await retryOnEintr(() => path.sync())
+    return
   }
   return writePathAll(path, data, options ?? undefined, "a")
 }

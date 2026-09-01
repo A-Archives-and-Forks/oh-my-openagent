@@ -23,10 +23,12 @@ export async function writeHandleAll(
   handle: WritableHandle,
   data: string | Uint8Array,
   encoding?: BufferEncoding,
+  signal?: AbortSignal,
 ): Promise<void> {
   const buffer = typeof data === "string" ? Buffer.from(data, encoding ?? "utf8") : data
   let offset = 0
   while (offset < buffer.length) {
+    signal?.throwIfAborted()
     const { bytesWritten } = await retryOnEintr(() => handle.write(buffer, offset))
     if (bytesWritten <= 0) throw new Error(`fs write made no progress at offset ${offset}`)
     offset += bytesWritten
@@ -40,6 +42,7 @@ type PathWriteOptions =
       readonly mode?: string | number
       readonly flag?: string | number
       readonly flush?: boolean
+      readonly signal?: AbortSignal
     }
   | null
   | undefined
@@ -51,13 +54,14 @@ export async function writePathAll(
   defaultFlag: string,
 ): Promise<void> {
   const parsed = typeof options === "string" ? { encoding: options } : (options ?? {})
+  parsed.signal?.throwIfAborted()
   const flag = parsed.flag ?? defaultFlag
   const openOnce = (): Promise<fsp.FileHandle> => fsp.open(path, flag, parsed.mode)
   // Exclusive creates are ambiguous under EINTR (the file may exist afterwards), so the
   // protocol owning that pathname handles recovery; only shareable opens are retried here.
   const handle = await (isExclusiveFlag(flag) ? openOnce() : retryOnEintr(openOnce))
   try {
-    await writeHandleAll(handle, data, parsed.encoding ?? "utf8")
+    await writeHandleAll(handle, data, parsed.encoding ?? "utf8", parsed.signal)
     if (parsed.flush === true) await retryOnEintr(() => handle.sync())
   } finally {
     await handle.close().catch((error: unknown) => {

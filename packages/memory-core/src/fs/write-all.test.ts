@@ -42,6 +42,62 @@ describe("writeHandleAll", () => {
   })
 })
 
+describe("abort signals", () => {
+  test("an already-aborted signal rejects writeFile before any mutation", async () => {
+    const file = path.join(await (async () => {
+      const directory = await mkdtemp(path.join(tmpdir(), "write-abort-"))
+      abortDirectories.push(directory)
+      return directory
+    })(), "never.txt")
+    await expect(writeFile(file, "x", { signal: AbortSignal.abort() })).rejects.toThrow()
+    await expect(readFile(file, "utf8")).rejects.toThrow("ENOENT")
+  })
+
+  test("an abort between partial writes stops the handle write loop", async () => {
+    const controller = new AbortController()
+    let calls = 0
+    const fake = {
+      write: (buffer: Uint8Array, offset?: number) => {
+        calls += 1
+        controller.abort()
+        void buffer
+        void offset
+        return Promise.resolve({ bytesWritten: 2 })
+      },
+    }
+    await expect(writeHandleAll(fake, "abcdef", "utf8", controller.signal)).rejects.toThrow()
+    expect(calls).toBe(1)
+  })
+})
+
+const abortDirectories: string[] = []
+afterEach(async () => {
+  for (const directory of abortDirectories.splice(0)) {
+    await rm(directory, { recursive: true, force: true })
+  }
+})
+
+describe("handle-target options", () => {
+  test("flush: true syncs the target handle after the write completes", async () => {
+    let synced = 0
+    const written: Buffer[] = []
+    const fake = {
+      fd: 3,
+      write: (buffer: Uint8Array, offset?: number) => {
+        written.push(Buffer.from(buffer.subarray(offset ?? 0)))
+        return Promise.resolve({ bytesWritten: buffer.length - (offset ?? 0) })
+      },
+      sync: () => {
+        synced += 1
+        return Promise.resolve()
+      },
+    }
+    await writeFile(fake as never, "payload", { flush: true })
+    expect(Buffer.concat(written).toString("utf8")).toBe("payload")
+    expect(synced).toBe(1)
+  })
+})
+
 describe("isExclusiveFlag", () => {
   test("classifies string and numeric open flags", () => {
     expect(isExclusiveFlag("wx")).toBe(true)
