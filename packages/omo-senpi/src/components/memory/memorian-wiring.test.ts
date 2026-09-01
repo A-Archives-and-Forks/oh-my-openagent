@@ -306,7 +306,7 @@ describe("createMemorianGateWiring onCompactionAccepted", () => {
     // given: the nudges judged the pre-compaction transcript, which no longer exists
     const identity = await context()
     const pending = new PendingNudges(identity.identityPaths.recallPending)
-    await pending.write(SESSION_ID, [{ path: CANDIDATE_PATH, hint: "Drain nodes first." }])
+    await pending.write(SESSION_ID, [{ path: CANDIDATE_PATH, hint: "Drain nodes first." }], { epoch: 0 })
     const wiring = gate({ collect: async () => undefined, launches: [], identity })
 
     // when
@@ -314,14 +314,14 @@ describe("createMemorianGateWiring onCompactionAccepted", () => {
     await wiring.whenIdle()
 
     // then
-    expect(await pending.take(SESSION_ID)).toEqual([])
+    expect(await pending.take(SESSION_ID, { currentEpoch: 0 })).toEqual([])
   })
 
   test("#given another session's pending nudges #when a compaction is accepted #then they survive untouched", async () => {
     // given
     const identity = await context()
     const pending = new PendingNudges(identity.identityPaths.recallPending)
-    await pending.write("other-session", [{ path: CANDIDATE_PATH, hint: "Drain nodes first." }])
+    await pending.write("other-session", [{ path: CANDIDATE_PATH, hint: "Drain nodes first." }], { epoch: 0 })
     const wiring = gate({ collect: async () => undefined, launches: [], identity })
 
     // when
@@ -329,8 +329,34 @@ describe("createMemorianGateWiring onCompactionAccepted", () => {
     await wiring.whenIdle()
 
     // then
-    expect(await pending.take("other-session")).toEqual([
+    expect(await pending.take("other-session", { currentEpoch: 0 })).toEqual([
       { path: CANDIDATE_PATH, hint: "Drain nodes first." },
     ])
+  })
+})
+
+describe("createMemorianGateWiring currentCompactionEpoch", () => {
+  test("#given an untouched session #when its epoch is read #then it is the launch-time default", async () => {
+    // given: the consumer needs the SAME epoch source the launch stamps into the payload
+    const identity = await context()
+    const wiring = gate({ collect: async () => undefined, launches: [], identity })
+
+    // when / then
+    expect(wiring.currentCompactionEpoch(SESSION_ID)).toBe(0)
+  })
+
+  test("#given accepted compactions #when the epoch is read #then it reflects every bump for that session alone", async () => {
+    // given
+    const identity = await context()
+    const wiring = gate({ collect: async () => undefined, launches: [], identity })
+
+    // when
+    wiring.onCompactionAccepted(SESSION_ID)
+    wiring.onCompactionAccepted(SESSION_ID)
+    await wiring.whenIdle()
+
+    // then
+    expect(wiring.currentCompactionEpoch(SESSION_ID)).toBe(2)
+    expect(wiring.currentCompactionEpoch("other-session")).toBe(0)
   })
 })

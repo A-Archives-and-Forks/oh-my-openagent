@@ -103,7 +103,7 @@ describe("MemorianGateRunner", () => {
 
     // then
     expect(result.status).toBe("nudged")
-    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID)).toEqual([
+    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID, { currentEpoch: 0 })).toEqual([
       { path: CANDIDATE_PATH, hint: "Drain nodes before a rollout." },
     ])
   }, 30_000)
@@ -120,7 +120,7 @@ describe("MemorianGateRunner", () => {
 
     // then
     expect(result.status).toBe("nudged")
-    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID)).toEqual([
+    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID, { currentEpoch: 0 })).toEqual([
       { path: CANDIDATE_PATH, hint: "Drain nodes before a rollout." },
     ])
   }, 30_000)
@@ -149,7 +149,7 @@ describe("MemorianGateRunner", () => {
     expect(result.status).toBe("skipped")
     expect(spawned).toBe(0)
     expect(warnings).toEqual(["memorian gate registry snapshot unavailable"])
-    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID)).toEqual([])
+    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID, { currentEpoch: 0 })).toEqual([])
   }, 30_000)
 
   test("#given the quick category cannot resolve #when the runner launches #then it warns, skips and spawns nothing", async () => {
@@ -175,7 +175,7 @@ describe("MemorianGateRunner", () => {
     expect(result.status).toBe("skipped")
     expect(spawned).toBe(0)
     expect(warnings).toHaveLength(1)
-    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID)).toEqual([])
+    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID, { currentEpoch: 0 })).toEqual([])
   }, 30_000)
 
   test("#given no quick category but another usable registry model #when the runner launches #then it warns, skips and never rides the beyond-category ladder", async () => {
@@ -202,7 +202,7 @@ describe("MemorianGateRunner", () => {
     expect(result.status).toBe("skipped")
     expect(spawned).toBe(0)
     expect(warnings).toEqual(["memorian gate quick category unavailable"])
-    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID)).toEqual([])
+    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID, { currentEpoch: 0 })).toEqual([])
   }, 30_000)
 
   test("#given a launch already in flight #when a second trigger arrives #then only one child runs", async () => {
@@ -243,7 +243,7 @@ appendFileSync(process.env.MEMORIAN_NUDGE_PATH, JSON.stringify({ path: "notes/ne
 
     // then
     expect(result.status).toBe("empty")
-    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID)).toEqual([])
+    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID, { currentEpoch: 0 })).toEqual([])
   }, 30_000)
 
   test("#given a crashing gate child #when the runner launches #then it reports the skip without throwing and writes no pending", async () => {
@@ -257,7 +257,7 @@ appendFileSync(process.env.MEMORIAN_NUDGE_PATH, JSON.stringify({ path: "notes/ne
 
     // then
     expect(result.status).toBe("failed")
-    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID)).toEqual([])
+    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID, { currentEpoch: 0 })).toEqual([])
   }, 30_000)
 
   test("#given a child that outlives the deadline #when the runner launches #then the run is abandoned with no pending nudges", async () => {
@@ -274,7 +274,7 @@ appendFileSync(process.env.MEMORIAN_NUDGE_PATH, JSON.stringify({ path: "notes/ne
 
     // then
     expect(result.status).toBe("failed")
-    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID)).toEqual([])
+    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID, { currentEpoch: 0 })).toEqual([])
   }, 30_000)
 
   test("#given a compaction accepted mid-flight #when the child finishes #then the stale nudges are discarded instead of written", async () => {
@@ -301,7 +301,32 @@ appendFileSync(process.env.MEMORIAN_NUDGE_PATH, JSON.stringify({ path: "notes/ne
     // then
     expect(result.status).toBe("skipped")
     expect(warnings).toEqual(["memorian gate nudges dropped after compaction"])
-    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID)).toEqual([])
+    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID, { currentEpoch: 0 })).toEqual([])
+  }, 30_000)
+
+  test("#given a launch epoch #when the nudges are written #then the payload carries that epoch", async () => {
+    // given: the epoch travels IN the payload, so the consumer - not the writer - decides staleness
+    const { root, identityPaths } = await fixture()
+    const stub = stubChild(root, WRITE_ONE_NUDGE)
+    const seen: number[] = []
+    const real = new PendingNudges(identityPaths.recallPending)
+    const runner = new MemorianGateRunner(runnerOptions(identityPaths, {
+      ...stub,
+      pendingNudges: {
+        write: async (sessionId, nudges, options) => {
+          seen.push(options.epoch)
+          await real.write(sessionId, nudges, options)
+        },
+        delete: (sessionId) => real.delete(sessionId),
+      },
+    }))
+
+    // when
+    const result = await runner.launch(launchInput({ compactionEpoch: 9, currentCompactionEpoch: () => 9 }))
+
+    // then
+    expect(result.status).toBe("nudged")
+    expect(seen).toEqual([9])
   }, 30_000)
 
   test("#given a compaction accepted DURING the pending write #when the write completes #then the landed file is retracted", async () => {
@@ -317,11 +342,11 @@ appendFileSync(process.env.MEMORIAN_NUDGE_PATH, JSON.stringify({ path: "notes/ne
       ...stub,
       logger: { info: () => undefined, warn: (message) => warnings.push(message), error: () => undefined },
       pendingNudges: {
-        write: async (sessionId, nudges) => {
+        write: async (sessionId, nudges, options) => {
           // The compaction lands while the write is still in flight: the epoch bumps here, and the
           // compaction's own pending-drop runs before this rename ever creates the file.
           epoch = 5
-          await real.write(sessionId, nudges)
+          await real.write(sessionId, nudges, options)
         },
         delete: (sessionId) => real.delete(sessionId),
       },
@@ -337,7 +362,38 @@ appendFileSync(process.env.MEMORIAN_NUDGE_PATH, JSON.stringify({ path: "notes/ne
     expect(result.status).toBe("skipped")
     expect(warnings).toEqual(["memorian gate nudges dropped after compaction"])
     expect(existsSync(join(identityPaths.recallPending, `${SESSION_ID}.json`))).toBe(false)
-    expect(await real.take(SESSION_ID)).toEqual([])
+    expect(await real.take(SESSION_ID, { currentEpoch: epoch })).toEqual([])
+  }, 30_000)
+
+  test("#given a compaction that lands mid-write and no post-write retraction #when the next turn takes #then the stale payload is never consumed", async () => {
+    // given: the reviewer's exact interleaving. The pre-write check passes, write() yields, the
+    // compaction bumps the epoch inside that yield and its own pending-drop finds no file, then the
+    // rename lands. This store deliberately performs NO retraction at all, so only the consumption
+    // point can reject the payload - which is what makes correctness independent of the race.
+    const { root, identityPaths } = await fixture()
+    const stub = stubChild(root, WRITE_ONE_NUDGE)
+    const real = new PendingNudges(identityPaths.recallPending)
+    let epoch = 4
+    const runner = new MemorianGateRunner(runnerOptions(identityPaths, {
+      ...stub,
+      pendingNudges: {
+        write: async (sessionId, nudges, options) => {
+          // Yield mid-write, exactly where rename has not happened yet.
+          await Promise.resolve()
+          epoch = 5
+          await real.write(sessionId, nudges, options)
+        },
+        // The best-effort retraction is disabled: the epoch check at take() must stand alone.
+        delete: async () => undefined,
+      },
+    }))
+
+    // when
+    await runner.launch(launchInput({ compactionEpoch: 4, currentCompactionEpoch: () => epoch }))
+
+    // then: the next turn reads the live (bumped) epoch and the pre-compaction verdict never lands
+    expect(await real.take(SESSION_ID, { currentEpoch: epoch })).toEqual([])
+    expect(existsSync(join(identityPaths.recallPending, `${SESSION_ID}.json`))).toBe(false)
   }, 30_000)
 
   test("#given an unchanged compaction epoch #when the child finishes #then the nudges are written as usual", async () => {
@@ -352,9 +408,9 @@ appendFileSync(process.env.MEMORIAN_NUDGE_PATH, JSON.stringify({ path: "notes/ne
       currentCompactionEpoch: () => 3,
     }))
 
-    // then
+    // then: the payload carries the launch epoch, so the next turn at epoch 3 consumes it
     expect(result.status).toBe("nudged")
-    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID)).toEqual([
+    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID, { currentEpoch: 3 })).toEqual([
       { path: CANDIDATE_PATH, hint: "Drain nodes before a rollout." },
     ])
   }, 30_000)
