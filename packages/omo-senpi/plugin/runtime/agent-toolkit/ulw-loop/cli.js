@@ -634,9 +634,6 @@ function requireEssentialCriteriaPass(goal) {
   });
 }
 
-// packages/omo-codex/plugin/components/ulw-loop/src/quality-gate.ts
-import { resolve as resolve3 } from "node:path";
-
 // packages/omo-codex/plugin/components/ulw-loop/src/quality-gate-aggregate.ts
 import { resolve as resolve2 } from "node:path";
 
@@ -681,8 +678,7 @@ function literal(value, expected, field) {
 // packages/omo-codex/plugin/components/ulw-loop/src/quality-gate-aggregate.ts
 var PLACEHOLDER = /^(?:<replace:[^>]+>|placeholder|todo|tbd|n\/a|stub)$/i;
 function add(defects, field, message) {
-  if (defects.length < 25)
-    defects.push({ field, message });
+  defects.push({ field, message });
 }
 function text(value, field, defects) {
   if (typeof value !== "string" || value.trim() === "")
@@ -720,8 +716,8 @@ function aggregateQualityGateDefects(input, opts) {
   }
   if (defects.length === 0)
     return;
-  const truncated = defects.length === 25 && countPotentialDefects(gate, opts) > 25;
-  const fields = defects.map(({ field, message: message2 }) => ({ field, message: message2 }));
+  const truncated = defects.length > 25;
+  const fields = defects.slice(0, 25).map(({ field, message: message2 }) => ({ field, message: message2 }));
   const message = [
     `Final quality gate has ${fields.length}${truncated ? "+" : ""} validation defects:`,
     ...fields.map((item) => `- ${item.field}: ${item.message}`)
@@ -731,21 +727,80 @@ function aggregateQualityGateDefects(input, opts) {
     details: { field: fields[0]?.field, fields, ...truncated ? { truncated: true } : {} }
   });
 }
-function countPotentialDefects(gate, opts) {
-  let count = 0;
-  const manual = isRecord(gate["manualQa"]) ? gate["manualQa"] : {};
-  const review = isRecord(gate["gateReview"]) ? gate["gateReview"] : {};
-  if (typeof manual["evidence"] !== "string" || PLACEHOLDER.test(manual["evidence"]))
-    count += 1;
-  if (typeof review["evidence"] !== "string" || PLACEHOLDER.test(review["evidence"]))
-    count += 1;
-  if (review["recommendation"] !== "APPROVE")
-    count += 1;
-  const refs = Array.isArray(manual["artifactRefs"]) ? manual["artifactRefs"] : [];
-  for (const item of refs)
-    if (isRecord(item) && typeof item["path"] === "string" && opts?.repoRoot && opts.fs && !opts.fs.existsSync(resolve2(opts.repoRoot, item["path"])))
-      count += 1;
-  return count;
+
+// packages/omo-codex/plugin/components/ulw-loop/src/quality-gate-artifacts.ts
+import { resolve as resolve3 } from "node:path";
+function surfaceField(value, field) {
+  if (value === "cli" || value === "http" || value === "tmux" || value === "browser" || value === "gui" || value === "data")
+    return value;
+  invalid(`${field} must be a supported manual QA surface.`, field);
+}
+function kindField(value, field) {
+  if (value === "cli-transcript" || value === "log" || value === "screenshot" || value === "image" || value === "http-dump" || value === "data-diff")
+    return value;
+  invalid(`${field} must be a supported artifact kind.`, field);
+}
+function artifactCompatible(surface, kind) {
+  switch (surface) {
+    case "cli":
+    case "tmux":
+      return kind === "cli-transcript" || kind === "log";
+    case "http":
+      return kind === "http-dump";
+    case "browser":
+    case "gui":
+      return kind === "screenshot" || kind === "image";
+    case "data":
+      return kind === "data-diff";
+    default:
+      invalid("manualQa.surfaceEvidence has an unsupported surface.", "manualQa.surfaceEvidence.surface");
+  }
+}
+function checkFile(path, field, opts) {
+  if (opts?.repoRoot === undefined || opts.fs === undefined)
+    return;
+  const absolute = resolve3(opts.repoRoot, path);
+  if (!opts.fs.existsSync(absolute))
+    invalid(`${field} must point to an existing artifact.`, field);
+  if (opts.fs.statSync(absolute).size <= 0)
+    invalid(`${field} must point to a non-empty artifact.`, field);
+  if (opts.currentAttemptDir !== undefined && opts.repoRoot !== undefined) {
+    const attemptRoot = resolve3(opts.repoRoot, opts.currentAttemptDir);
+    if (!isWithinAttemptDir(absolute, attemptRoot))
+      invalid(`${field} (${path}) must point to an artifact from the current attempt (${opts.currentAttemptDir}).`, field);
+  }
+}
+function artifactMap(refs) {
+  const byId = new Map;
+  for (const ref of refs) {
+    if (byId.has(ref.id))
+      invalid(`manualQa.artifactRefs contains duplicate ${ref.id}.`, "manualQa.artifactRefs");
+    byId.set(ref.id, ref);
+  }
+  return byId;
+}
+function parseArtifactRefs(value, opts) {
+  if (!Array.isArray(value) || value.length === 0)
+    invalid("manualQa.artifactRefs must not be empty.", "manualQa.artifactRefs");
+  return value.map((item, index) => {
+    const ref = section(item, `manualQa.artifactRefs[${index}]`);
+    const path = textField(ref["path"], `manualQa.artifactRefs[${index}].path`);
+    checkFile(path, `manualQa.artifactRefs[${index}].path`, opts);
+    return {
+      id: textField(ref["id"], `manualQa.artifactRefs[${index}].id`),
+      kind: kindField(ref["kind"], `manualQa.artifactRefs[${index}].kind`),
+      description: textField(ref["description"], `manualQa.artifactRefs[${index}].description`),
+      path
+    };
+  });
+}
+function referencedArtifacts(value, field, byId) {
+  return stringArray(value, field).map((id) => {
+    const artifact = byId.get(id);
+    if (artifact === undefined)
+      invalid(`${field} references unknown artifact ${id}.`, field);
+    return artifact;
+  });
 }
 
 // packages/omo-codex/plugin/components/ulw-loop/src/quality-gate-verdicts.ts
@@ -887,78 +942,6 @@ function reviewerAcceptorField(value, surface, sectionName) {
   if (accepted === undefined || !accepted.includes(actual))
     invalid(`${field} must be one of ${accepted?.join(", ") ?? "the configured reviewers"}.`, field);
   return actual;
-}
-function surfaceField(value, field) {
-  if (value === "cli" || value === "http" || value === "tmux" || value === "browser" || value === "gui" || value === "data")
-    return value;
-  invalid(`${field} must be a supported manual QA surface.`, field);
-}
-function kindField(value, field) {
-  if (value === "cli-transcript" || value === "log" || value === "screenshot" || value === "image" || value === "http-dump" || value === "data-diff")
-    return value;
-  invalid(`${field} must be a supported artifact kind.`, field);
-}
-function artifactCompatible(surface, kind) {
-  switch (surface) {
-    case "cli":
-    case "tmux":
-      return kind === "cli-transcript" || kind === "log";
-    case "http":
-      return kind === "http-dump";
-    case "browser":
-    case "gui":
-      return kind === "screenshot" || kind === "image";
-    case "data":
-      return kind === "data-diff";
-    default:
-      invalid("manualQa.surfaceEvidence has an unsupported surface.", "manualQa.surfaceEvidence.surface");
-  }
-}
-function checkFile(path, field, opts) {
-  if (opts?.repoRoot === undefined || opts.fs === undefined)
-    return;
-  const absolute = resolve3(opts.repoRoot, path);
-  if (!opts.fs.existsSync(absolute))
-    invalid(`${field} must point to an existing artifact.`, field);
-  if (opts.fs.statSync(absolute).size <= 0)
-    invalid(`${field} must point to a non-empty artifact.`, field);
-  if (opts.currentAttemptDir !== undefined && opts.repoRoot !== undefined) {
-    const attemptRoot = resolve3(opts.repoRoot, opts.currentAttemptDir);
-    if (!isWithinAttemptDir(absolute, attemptRoot))
-      invalid(`${field} (${path}) must point to an artifact from the current attempt (${opts.currentAttemptDir}).`, field);
-  }
-}
-function artifactMap(refs) {
-  const byId = new Map;
-  for (const ref of refs) {
-    if (byId.has(ref.id))
-      invalid(`manualQa.artifactRefs contains duplicate ${ref.id}.`, "manualQa.artifactRefs");
-    byId.set(ref.id, ref);
-  }
-  return byId;
-}
-function parseArtifactRefs(value, opts) {
-  if (!Array.isArray(value) || value.length === 0)
-    invalid("manualQa.artifactRefs must not be empty.", "manualQa.artifactRefs");
-  return value.map((item, index) => {
-    const ref = section(item, `manualQa.artifactRefs[${index}]`);
-    const path = textField(ref["path"], `manualQa.artifactRefs[${index}].path`);
-    checkFile(path, `manualQa.artifactRefs[${index}].path`, opts);
-    return {
-      id: textField(ref["id"], `manualQa.artifactRefs[${index}].id`),
-      kind: kindField(ref["kind"], `manualQa.artifactRefs[${index}].kind`),
-      description: textField(ref["description"], `manualQa.artifactRefs[${index}].description`),
-      path
-    };
-  });
-}
-function referencedArtifacts(value, field, byId) {
-  return stringArray(value, field).map((id) => {
-    const artifact = byId.get(id);
-    if (artifact === undefined)
-      invalid(`${field} references unknown artifact ${id}.`, field);
-    return artifact;
-  });
 }
 function validateQualityGate(input, opts) {
   const surface = opts?.reviewerSurface ?? "lazycodex";
@@ -1546,9 +1529,12 @@ function gateTemplate(surface, base) {
     ...common
   };
 }
-async function checkpointTemplate(repoRoot, scope) {
+async function checkpointTemplate(repoRoot, scope, goalId) {
   const plan = await readUlwLoopPlan(repoRoot, scope);
-  const active = plan.goals.find((goal) => goal.id === plan.activeGoalId);
+  const targetId = goalId ?? plan.activeGoalId;
+  const active = plan.goals.find((goal) => goal.id === targetId);
+  if (goalId !== undefined && active === undefined)
+    throw new UlwLoopError(`Unknown ulw-loop id: ${goalId}.`, "ULW_LOOP_GOAL_NOT_FOUND", { details: { goalId } });
   const hasAttempt = plan.evidenceLayoutVersion === 2 && active !== undefined;
   const attemptDir = hasAttempt ? ulwLoopAttemptEvidenceDir(active.id, active.attempt, scope) : ".omo/evidence";
   return {
@@ -1570,7 +1556,7 @@ var ULW_LOOP_HELP = `Usage:
   omo-agent-toolkit ulw-loop complete-goals [--retry-failed] [--json]
   omo-agent-toolkit ulw-loop criteria --goal-id <id> [--json]
   omo-agent-toolkit ulw-loop record-evidence --goal-id <id> --criterion-id <id> --status pass|fail|blocked --evidence "..." [--notes "..."] [--json]
-  omo-agent-toolkit ulw-loop checkpoint --print-template [--json]
+  omo-agent-toolkit ulw-loop checkpoint --print-template [--goal-id <id>] [--json]
   omo-agent-toolkit ulw-loop checkpoint --goal-id <id> --status complete|failed|blocked --evidence "..." --codex-goal-json <...> [--quality-gate-json <...>] [--no-advance] [--json]
   omo-agent-toolkit ulw-loop steer --kind <kind> ... --evidence "..." --rationale "..." [--proposals-json <json-or-path>] [--json]
   omo-agent-toolkit ulw-loop add-goal --title "..." --objective "..." [--json]
@@ -2015,8 +2001,7 @@ async function checkpointAndContinue(repoRoot, args, scope) {
 }
 async function checkpoint(repoRoot, argv, json, scope) {
   if (hasFlag(argv, "--print-template")) {
-    required2(argv, "--goal-id");
-    const template = await checkpointTemplate(repoRoot, scope);
+    const template = await checkpointTemplate(repoRoot, scope, readValue(argv, "--goal-id"));
     if (json)
       printJson({ ok: true, ...template });
     else
@@ -3516,7 +3501,8 @@ function missingGateArtifact(payload, plan) {
   if (!goal3.successCriteria.every((criterion) => criterion.status === "pass"))
     return null;
   const scope = { sessionId: payload.session_id };
-  const requiredArtifacts = resolveToolkitSurface() === "omo-senpi" ? [`${goal3.id}-manual-qa.md`] : [`${goal3.id}-code-review.md`, `${goal3.id}-manual-qa.md`];
+  const surface = resolveToolkitSurface();
+  const requiredArtifacts = surface === "omo-senpi" ? [`${goal3.id}-manual-qa.md`] : [`${goal3.id}-code-review.md`, `${goal3.id}-manual-qa.md`];
   if (plan.evidenceLayoutVersion === 2) {
     const attemptDir = ulwLoopAttemptEvidenceDir(goal3.id, goal3.attempt, scope);
     for (const name of requiredArtifacts) {
@@ -3526,7 +3512,6 @@ function missingGateArtifact(payload, plan) {
     }
     return null;
   }
-  const surface = resolveToolkitSurface();
   const flatReport = `.omo/evidence/${goal3.id}-code-review.md`;
   if (surface !== "omo-senpi" && !isNonEmptyFile(join3(payload.cwd, flatReport)))
     return flatReport;
