@@ -102,9 +102,12 @@ describe("assembled DAG runtime configuration", () => {
       },
     })
     await within(runner.started.promise, "node start")
+    // The ring-1 subscriber may drop the task-attached event itself, but its durable overflow is
+    // appended only after that admission burst is journaled. Use the shipped overflow as the
+    // admission barrier before allowing the child to settle.
+    const overflow = await within(overflowDelivered.promise, "configured subscriber overflow")
     runner.outcome.resolve({ status: "completed", finalResponse: "done" })
     await within(runtime.wait(started.snapshot.runId, sessionId), "run completion")
-    const overflow = await within(overflowDelivered.promise, "configured subscriber overflow")
 
     // then
     expect(overflow.droppedCount).toBeGreaterThan(0)
