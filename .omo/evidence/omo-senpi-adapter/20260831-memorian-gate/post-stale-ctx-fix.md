@@ -1,5 +1,9 @@
 # POST stale-ctx fix — live re-run pass
 
+> **SUPERSEDED — see `post-review-fixes.md`.** Three review blockers found after this capture
+> (quick-category fallback leak, post-handler `eventCtx` reread, in-flight gate surviving
+> compaction) were fixed and the driver re-run: **7/7 PASS** (`live-gate-postreview/`).
+
 Follow-up to the live QA verdict in `README.md`. Fix commits on `feat/memorian-gate`:
 
 | Commit | What |
