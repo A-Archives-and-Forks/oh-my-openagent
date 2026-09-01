@@ -63,3 +63,4 @@ Conventions for human contributors and AI agents working on this repository.
 
 - `npm test` (vitest --run) / `npm run test:watch`; focused: `bunx vitest run test/<file>.test.ts`
 - `npm run typecheck` / `npm run lint` / `npm run build` (`tsc -p tsconfig.build.json`) / `npm run check`
+- These stay npm even though the repo root is bun-driven: `.github/workflows/ci.yml` runs this component as `npm --prefix "$component" run check` (the loop selects every component whose `package.json` declares `scripts.check`, which includes this one), `scripts.check` itself shells `npm run build`, and the surrounding plugin tree is installed with `npm --prefix packages/omo-codex/plugin ci` in both `ci.yml` and `publish.yml`. Run the bun equivalents (`bun run test`, `bunx tsc -p tsconfig.build.json`, `bunx biome check .`) locally if you prefer, but do not rewrite this section to bun-only while CI invokes npm here.
