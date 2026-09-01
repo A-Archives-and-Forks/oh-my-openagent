@@ -1,12 +1,5 @@
-import type { TaskRecord, TaskStatus } from "../state"
-import type { PersistedTaskEvent } from "../store"
-
-// Resolved from omo.json task.notification (config-core OmoTaskNotificationSchema). Kept structural so
-// this module stays harness-neutral; the omo-senpi composition (todo 17) feeds the parsed config.
-export type NotificationConfig = {
-  readonly wake_idle_parent: boolean
-  readonly deliver_as: "steer" | "followUp"
-}
+import type { ResolvedModelRecord, TaskRecord, TaskRunStats, TaskStatus } from "../state"
+import type { ListTaskRecordsResult, PersistedTaskEvent } from "../store"
 
 export type TransitionReason = "compacting" | "session_switching" | "session_shutdown"
 
@@ -20,29 +13,43 @@ export type ParentState =
 
 export type RoutingDecision =
   | { readonly kind: "wake" }
-  | { readonly kind: "queue_silently" }
-  | { readonly kind: "deliver_streaming"; readonly deliverAs: "steer" | "followUp" }
+  | { readonly kind: "deliver_streaming" }
   | { readonly kind: "buffer"; readonly reason: TransitionReason }
 
 export type CompletionDetails = {
   readonly task_id: string
   readonly name: string
   readonly status: TaskStatus
+  readonly category?: string
+  readonly agent_type?: string
+  readonly model: string
+  readonly requested_model?: ResolvedModelRecord
+  readonly fallback_models?: readonly ResolvedModelRecord[]
+  readonly resolved_model?: ResolvedModelRecord
   readonly duration_ms: number
   readonly tokens?: number
-  readonly final_response_head: string
+  readonly run_stats?: TaskRunStats
+  readonly final_response: string
+  readonly final_response_file?: string
   readonly continuation_hint: string
+  // Present only when the completed task was a DAG node child, so the parent can address the exact
+  // node it must re-verify or correct.
+  readonly dag?: {
+    readonly run_id: string
+    readonly node_id: string
+  }
 }
 
 // Structurally compatible with senpi sendMessage(Pick<CustomMessage,"customType"|"content"|"display"|
 // "details">, {triggerTurn, deliverAs}). One message carries one or many completions (batching).
+// Delivery is UNCONDITIONAL STEER: every delivered notification triggers a turn and steers into the
+// running turn at the next tool-call boundary; the adapter batches all ready messages into ONE steer.
 export type ParentNotifierMessage = {
   readonly customType: "senpi-task.completion"
   readonly content: string
   readonly display: boolean
   readonly details: readonly CompletionDetails[]
   readonly triggerTurn?: boolean
-  readonly deliverAs?: "steer" | "followUp"
 }
 
 // SYNCHRONOUS enqueue seam. senpi pi.sendMessage returns void and swallows async delivery errors, so
@@ -53,14 +60,23 @@ export type ParentNotifier = {
 
 export type CompletionNotifierStore = {
   readonly load: (taskId: string) => TaskRecord | null
+  readonly list: () => ListTaskRecordsResult
   readonly replace: (record: TaskRecord) => void
+  // Locked re-read + conditional write. Notification bookkeeping MUST go through this so a
+  // concurrent residency/host_pid claim is never erased by a stale whole-record replace.
+  readonly mutate: (taskId: string, mutation: (record: TaskRecord) => TaskRecord) => TaskRecord | null
   readonly appendEvent: (taskId: string, event: PersistedTaskEvent) => string
 }
+
+export type CompletionRetrySchedule = (fn: () => void, delayMs: number) => () => void
 
 export type CompletionNotifierDeps = {
   readonly notifier: ParentNotifier
   readonly store: CompletionNotifierStore
-  readonly config: NotificationConfig
+  readonly stateDir?: string
+  readonly schedule?: CompletionRetrySchedule
+  readonly getParentState?: () => ParentState
+  readonly getCurrentSessionId?: () => string | undefined
 }
 
 export type CompletionRequest = {
@@ -72,7 +88,7 @@ export type CompletionRequest = {
 
 export type SkipReason = "sync-task" | "non-notifying-terminal" | "not-terminal" | "already-notified"
 
-export type DeliveredDecision = "wake" | "queue_silently" | "deliver_streaming"
+export type DeliveredDecision = "wake" | "deliver_streaming"
 
 export type NotifyResult =
   | { readonly kind: "skipped"; readonly reason: SkipReason }
@@ -85,6 +101,14 @@ export type FlushInput = {
   readonly replaced: boolean
 }
 
+export type ReconcileUnnotifiedNotificationsInput = {
+  readonly sessionId: string
+  readonly parentState: ParentState
+}
+
+/** @deprecated Pre-rename alias kept for the omo-senpi caller until todo 18 updates it. */
+export type ReconcileFailedNotificationsInput = ReconcileUnnotifiedNotificationsInput
+
 export type FlushResult =
   | { readonly kind: "flushed"; readonly count: number }
   | { readonly kind: "dropped"; readonly count: number }
@@ -94,5 +118,8 @@ export type FlushResult =
 export type CompletionNotifier = {
   notifyTerminal(request: CompletionRequest): NotifyResult
   flushBuffered(input: FlushInput): FlushResult
+  reconcileUnnotifiedNotifications(input: ReconcileUnnotifiedNotificationsInput): void
+  /** Thin alias of reconcileUnnotifiedNotifications for the pre-rename omo-senpi caller (todo 18). */
+  reconcileFailedNotifications(input: ReconcileUnnotifiedNotificationsInput): void
   bufferedCount(sessionId: string): number
 }

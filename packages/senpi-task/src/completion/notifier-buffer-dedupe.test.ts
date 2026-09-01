@@ -1,11 +1,10 @@
 import { describe, expect, test } from "bun:test"
 
 import { createCompletionNotifier } from "./notifier"
-import type { NotificationConfig, ParentNotifier, ParentNotifierMessage, ParentState } from "./types"
+import type { ParentNotifier, ParentNotifierMessage, ParentState } from "./types"
 import type { TaskRecord } from "../state"
 import type { PersistedTaskEvent } from "../store"
 
-const wakeConfig: NotificationConfig = { wake_idle_parent: true, deliver_as: "followUp" }
 
 function bufferedRecord(): TaskRecord {
   return {
@@ -21,6 +20,7 @@ function bufferedRecord(): TaskRecord {
     created_at: "2026-07-06T01:00:00.000Z",
     updated_at: "2026-07-06T01:00:03.000Z",
     final_response: "final",
+    notify_on_terminal: false,
     notification: { run_epoch: 0, notified_epoch: -1 },
   }
 }
@@ -32,7 +32,15 @@ function fakeStore(seed: TaskRecord) {
     replace: (record: TaskRecord): void => {
       records.set(record.task_id, record)
     },
+    mutate: (taskId: string, mutation: (record: TaskRecord) => TaskRecord): TaskRecord | null => {
+      const current = records.get(taskId)
+      if (current === undefined) return null
+      const next = mutation(current)
+      if (next !== current) records.set(taskId, next)
+      return next
+    },
     appendEvent: (_taskId: string, _event: PersistedTaskEvent): string => "log.jsonl",
+    list: () => ({ records: [...records.values()], diagnostics: [] }),
   }
 }
 
@@ -46,7 +54,7 @@ describe("completion notifier buffered dedupe (W1-V F5)", () => {
     // given a compacting parent so both notifyTerminal calls route to the buffer
     const record = bufferedRecord()
     const { notifier: parent, calls } = fakeNotifier()
-    const notifier = createCompletionNotifier({ notifier: parent, store: fakeStore(record), config: wakeConfig })
+    const notifier = createCompletionNotifier({ notifier: parent, store: fakeStore(record) })
     const compacting: ParentState = { kind: "compacting" }
 
     // when notifyTerminal fires twice for the same terminal (task,epoch) before a flush

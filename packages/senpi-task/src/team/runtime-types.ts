@@ -1,12 +1,13 @@
-import type { ToolDefinition } from "@code-yeongyu/senpi"
 import type { RuntimeState } from "@oh-my-opencode/team-core/types"
 
+import type { TaskLifecycle } from "../lifecycle"
 import type { ManagerStartSpec, StartResult } from "../manager"
-import type { TaskRecord } from "../state"
+import type { ResolvedModelRecord, TaskRecord } from "../state"
 import type { CancelOutcome } from "../steering"
 import type { StateDirConfig } from "../store"
 import type { OmoTaskSettings } from "@oh-my-opencode/omo-config-core"
 import type { MemberTaskMap } from "./member-map"
+import type { RuntimeMemberStatus } from "./member-projection"
 
 export type SenpiTeamRuntimeErrorCode =
   | "bounds_exceeded"
@@ -41,6 +42,15 @@ export type TeamRuntimeManagerPort = {
   getResidentHandle(taskId: string): { readonly sessionId: string | undefined } | undefined
 }
 
+export type TeamMemberExtensionConfig = {
+  readonly entryPath: string
+  readonly inheritedExtensions?: readonly string[]
+}
+
+export type SpawnMemberExtensionConfig = TeamMemberExtensionConfig & {
+  readonly teamConfig: string
+}
+
 export type CreateTeamDeps = {
   readonly manager: TeamRuntimeManagerPort
   readonly stateDir: StateDirConfig
@@ -48,23 +58,40 @@ export type CreateTeamDeps = {
   readonly leadSessionId: string
   readonly spawnDepth: number
   readonly now?: () => number
-  // Optional per-member tool injection (todo 24 binds the pre-scoped `team_send_message`). Absent in
-  // the runtime layer's own tests; the spawner forwards whatever it returns via memberScopedTools. The
-  // team run id is threaded so the binder can run-scope the member's send tool (it is not known until
-  // createRuntimeState mints it, so the caller cannot bind it up front).
-  readonly memberScopedTools?: (memberName: string, teamRunId: string) => readonly ToolDefinition[]
+  readonly memberExtension?: TeamMemberExtensionConfig
   // Injectable member-sidecar writer (defaults to the atomic writeMemberTaskMap). Present so tests can
   // force the pre-activation write to fail and exercise the create rollback.
   readonly writeMemberMap?: (runtimeDir: string, map: MemberTaskMap) => Promise<void>
 }
 
+export type CreatedMemberRole =
+  | { readonly kind: "category"; readonly category: string }
+  | { readonly kind: "subagent_type"; readonly subagentType: string }
+
+// Caller-facing view of one spawned member: identity and live status from the runtime state, the
+// role from the spec, the resolved model captured at spawn, and a bounded prompt excerpt.
+export type CreatedMemberInfo = {
+  readonly name: string
+  readonly taskId: string
+  readonly status: RuntimeMemberStatus
+  readonly role: CreatedMemberRole
+  readonly model?: ResolvedModelRecord
+  readonly promptExcerpt?: string
+  readonly taskSummary?: string
+}
+
 export type CreateTeamResult = {
   readonly runtimeState: RuntimeState
   readonly memberTaskIds: MemberTaskMap
+  readonly members: readonly CreatedMemberInfo[]
 }
 
 export type DeleteTeamDeps = {
-  readonly manager: Pick<TeamRuntimeManagerPort, "cancelTask">
+  readonly manager: Pick<TeamRuntimeManagerPort, "cancelTask" | "get">
+  // Lifecycle single-writer destruction port. Team deletion routes terminal-resident members
+  // through it directly because terminal `cancelTask` is an intentional noop (completed residents
+  // stay revivable outside deletion).
+  readonly destruction: Pick<TaskLifecycle, "destroyResidentTask">
   readonly stateDir: StateDirConfig
   readonly taskSettings: OmoTaskSettings
 }

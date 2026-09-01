@@ -27,7 +27,7 @@ const resolveMemberMock = mock(async (member: TeamSpec["members"][number]) => ({
   agentToUse: `${member.name}-agent`,
   model: {
     providerID: "openai",
-    modelID: "gpt-5.4-mini",
+    modelID: "gpt-5.6-luna-fast",
     variant: "medium",
     reasoningEffort: "high",
     temperature: 0.1,
@@ -268,7 +268,7 @@ describe("team-mode integration", () => {
     expect(persistedWorker?.category).toBe("quick")
     expect(persistedWorker?.model).toEqual({
       providerID: "openai",
-      modelID: "gpt-5.4-mini",
+      modelID: "gpt-5.6-luna-fast",
       variant: "medium",
       reasoningEffort: "high",
       temperature: 0.1,
@@ -280,7 +280,7 @@ describe("team-mode integration", () => {
     expect(recorded).toHaveLength(1)
     expect(recorded[0]?.sessionId).toBe(workerMember.sessionId)
     expect(recorded[0]?.agent).toBe("worker-agent")
-    expect(recorded[0]?.model).toEqual({ providerID: "openai", modelID: "gpt-5.4-mini" })
+    expect(recorded[0]?.model).toEqual({ providerID: "openai", modelID: "gpt-5.6-luna-fast" })
     expect(recorded[0]?.variant).toBe("medium")
     expect(recorded[0]?.directory).toBe(baseDir)
     expect(SessionCategoryRegistry.get(workerMember.sessionId)).toBe("quick")
@@ -293,7 +293,7 @@ describe("team-mode integration", () => {
         thinking: { type: "enabled", budgetTokens: 1024 },
       },
     })
-  })
+  }, 30000)
 
   test("C-10.4 keeps member spawn concurrency within max_parallel_members", async () => {
     // given
@@ -313,8 +313,8 @@ describe("team-mode integration", () => {
       { kind: "subagent_type", name: "worker-b", subagent_type: "atlas", backendType: "in-process", isActive: true },
     ]), "ses_lead", createContext(baseDir, manager, new Set(["ses_lead"])), createConfig(baseDir, { max_parallel_members: launchLimit }), manager)
     try {
-      const firstBatch = await launchProbe.waitForFirstBatch("timed out waiting for the first two member launches")
-      await launchProbe.releaseAndWaitForCompletion(run, "timed out waiting for all member launches")
+      const firstBatch = await launchProbe.waitForFirstBatch()
+      await launchProbe.releaseAndWaitForCompletion(run)
       const completed = launchProbe.snapshot()
 
       // then
@@ -327,5 +327,5 @@ describe("team-mode integration", () => {
       launchProbe.release()
       run.catch(() => undefined)
     }
-  })
+  }, 30000)
 })

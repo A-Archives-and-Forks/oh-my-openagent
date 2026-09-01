@@ -1,11 +1,16 @@
 import { mkdir } from "node:fs/promises"
 
-import type { ToolDefinition } from "@code-yeongyu/senpi"
 import type { TeamSpec } from "@oh-my-opencode/team-core/types"
 
 import type { ManagerStartSpec, StartResult } from "../manager"
+import type { ResolvedModelRecord } from "../state"
+import { assembleMemberExtensions } from "./member-extensions"
 import { projectMemberStatus, type RuntimeMemberStatus } from "./member-projection"
-import { SenpiTeamRuntimeError, type TeamRuntimeManagerPort } from "./runtime-types"
+import {
+  SenpiTeamRuntimeError,
+  type SpawnMemberExtensionConfig,
+  type TeamRuntimeManagerPort,
+} from "./runtime-types"
 
 type TeamMember = TeamSpec["members"][number]
 
@@ -13,6 +18,7 @@ export type SpawnedMember = {
   readonly taskId: string
   readonly sessionId?: string
   readonly status: RuntimeMemberStatus
+  readonly resolvedModel?: ResolvedModelRecord
 }
 
 export type SpawnMembersInput = {
@@ -24,7 +30,7 @@ export type SpawnMembersInput = {
   readonly maxParallel: number
   readonly deadlineAt: number
   readonly now: () => number
-  readonly memberScopedTools?: (memberName: string, teamRunId: string) => readonly ToolDefinition[]
+  readonly memberExtension?: SpawnMemberExtensionConfig
 }
 
 export type SpawnMembersResult = {
@@ -38,10 +44,10 @@ export function memberTaskName(teamRunId: string, memberName: string): string {
 
 /**
  * Spawns team members as senpi-task children through the manager, capped at `maxParallel` cooperating
- * workers over a shared index, enforcing the create deadline before each pull. Members are ALWAYS
- * in-process (v1) and run in the background. The FIRST failure (a rejected start, a thrown start, or
- * a deadline breach) flips the shared flag so the remaining workers drain out and the caller rolls
- * back the members already spawned.
+ * workers over a shared index, enforcing the create deadline before each pull. Members run as durable
+ * background processes so their sessions remain recoverable across parent or child crashes. The FIRST
+ * failure (a rejected start, a thrown start, or a deadline breach) flips the shared flag so the remaining
+ * workers drain out and the caller rolls back the members already spawned.
  */
 export async function spawnTeamMembers(input: SpawnMembersInput): Promise<SpawnMembersResult> {
   const spawned = new Map<string, SpawnedMember>()
@@ -103,23 +109,52 @@ async function spawnOneMember(input: SpawnMembersInput, member: TeamMember): Pro
   const record = input.manager.get(result.task_id)
   const sessionId = input.manager.getResidentHandle(result.task_id)?.sessionId ?? record?.child_session_id
   const status = projectMemberStatus(record?.status ?? (result.status === "pending" ? "pending" : "running"))
-  return { taskId: result.task_id, ...(sessionId !== undefined ? { sessionId } : {}), status }
+  const resolvedModel = result.resolved_model ?? record?.resolved_model
+  return {
+    taskId: result.task_id,
+    ...(sessionId !== undefined ? { sessionId } : {}),
+    status,
+    ...(resolvedModel !== undefined ? { resolvedModel } : {}),
+  }
 }
 
 function buildMemberStartSpec(input: SpawnMembersInput, member: TeamMember): ManagerStartSpec {
-  const scopedTools = input.memberScopedTools?.(member.name, input.teamRunId)
+  const launch = input.memberExtension
+  const extensions = launch === undefined
+    ? undefined
+    : assembleMemberExtensions(launch.entryPath, launch.inheritedExtensions)
   return {
-    prompt: member.prompt ?? `You are team member '${member.name}' in team '${input.spec.name}'.`,
+    prompt: buildMemberPrompt(input.spec, member),
     parent_session_id: input.leadSessionId,
     root_session_id: input.leadSessionId,
     depth: input.spawnDepth,
     name: memberTaskName(input.teamRunId, member.name),
-    execution_mode: "in-process",
+    execution_mode: "process",
     run_in_background: true,
     ...(member.kind === "category" ? { category: member.category } : { subagent_type: member.subagent_type }),
+    ...(member.task_summary !== undefined ? { task_summary: member.task_summary } : {}),
     ...(member.worktreePath !== undefined ? { cwd: member.worktreePath } : {}),
-    ...(scopedTools !== undefined ? { memberScopedTools: scopedTools } : {}),
+    ...(extensions !== undefined ? { extensions } : {}),
+    ...(launch !== undefined ? {
+      memberEnv: {
+        SENPI_TASK_MEMBER: `${input.teamRunId}::${member.name}`,
+        SENPI_TASK_TEAM_CONFIG: launch.teamConfig,
+      },
+    } : {}),
   }
+}
+
+// Every member bootstrap frames the injection protocol FIRST so members end their initial turn while
+// remaining resident; later lead mail steers into that same session's running turn.
+function buildMemberPrompt(spec: TeamSpec, member: TeamMember): string {
+  const role = member.prompt ?? `You are team member '${member.name}' in team '${spec.name}'.`
+  return [
+    `You are '${member.name}', a member of team '${spec.name}' running under the senpi-task team runtime.`,
+    "Work arrives as injected messages from the lead and other members; coordinate with task_send.",
+    "After completing any immediate instructions below, report with task_send, then end your turn. Injected messages revive this resident session with more work.",
+    "When you finish assigned work, task_send the lead a summary, then end your turn and wait for an injected message.",
+    role,
+  ].join("\n\n")
 }
 
 function describeStartResult(result: Exclude<StartResult, { kind: "started" }>): string {

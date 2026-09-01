@@ -1,46 +1,70 @@
-import { loadOmoConfig } from "@oh-my-opencode/omo-config-core"
+import { loadSenpiOmoConfig } from "../config-resolution"
 import {
+  TEAM_LEAD_SENTINEL,
   buildLeadTeamTools,
+  createLeadDeliveryJournal,
   createTaskCancelTool,
-  createTaskInterruptTool,
-  createTaskListTool,
   createTaskOutputTool,
   createTaskSendTool,
   createTaskTool,
-  createTaskWaitTool,
   defaultResolveCallerSessionId,
+  evaluateSpawnPolicy,
+  isTeamMemberProcess,
+  loadPiTui,
+  resolveTeamRuntimeDirs,
+  teamStorageBaseDir,
+  toTeamCoreConfig,
+  type LeadDeliveryJournal,
+  type SkillLoader,
+  type TaskSendTeamRouting,
+  type TeamToolsService,
 } from "@oh-my-opencode/senpi-task"
 
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
-import { shouldWarnDualConfig, DUAL_CONFIG_WARNING } from "./coexistence"
+import { CATEGORY_UNAVAILABLE_MESSAGE_TYPE } from "./category-unavailable-warning"
 import { registerTaskCommands } from "./commands"
+import { registerDagCommands } from "./dag-commands"
+import { createDagReloadSource } from "./dag-reload-source"
+import { createDagRuntime, type DagRuntime } from "./dag-runtime"
+import { createDagTool } from "./dag-tool"
 import { composeTaskEngine, type TaskEngine } from "./engine"
-import { detectOpencodeConfig } from "./opencode-config"
+import { TASK_USAGE_HINT_FLAG, wireEventBridge } from "./event-bridge"
+import { createLeadPollerLifecycle, type LeadPollerLifecycle } from "./lead-poller-lifecycle"
+import { TEAM_MEMBER_LIVENESS_MESSAGE_TYPE } from "./member-liveness"
 import { TASK_COMPLETION_MESSAGE_TYPE } from "./parent-notifier"
-import { renderTaskCompletion } from "./renderers"
-import { TEAM_MESSAGE_MESSAGE_TYPE, createTeamMessageNotifier } from "./team-message-notifier"
-import { renderTeamMessage } from "./team-renderers"
+import { renderCategoryUnavailable, renderTaskCompletion, renderTeamMemberLiveness } from "./renderers"
+import { createResumptionChannelEmitter } from "./resumption-channel-emitter"
 import { createTeamMailboxReconciler, createTeamService } from "./team-service"
-import type { LiveTaskContext } from "./runtime-context"
-import { createSessionTransitionBridge, type SessionTransitionBridge } from "./session-transition-bridge"
-import { createTaskStatusUi, type TaskStatusUi } from "./status-ui"
+import { createSessionTransitionBridge } from "./session-transition-bridge"
+import { createSkillInvocationTracker, type SkillInvocationTracker } from "./skill-invocation-tracker"
+import { wireSessionStartProcessSweep } from "./process-sweep"
+import { createTaskStatusUi } from "./status-ui"
 import { missingTaskCapabilities } from "./surface"
-import { createOncePerSessionGuard, TASK_USAGE_GUIDANCE } from "./usage-guidance"
+import { createTaskSkillLoader } from "./task-skill-loader"
 
 const TASK_ENABLED_FLAG = "omo-task"
-const TASK_USAGE_HINT_FLAG = "omo-task-usage-hint"
+
+export { wireEventBridge } from "./event-bridge"
 
 export interface TaskComponentOptions {
-  // Project root the task engine anchors its state dir + omo.json load to. Defaults to the senpi
-  // launch cwd; injectable so tests never write task state into the repo working tree.
+  // Project root the task engine anchors its state dir + omo.json load to. Defaults to the cwd the
+  // host reports for THIS session; injectable so tests never write task state into the repo tree.
+  readonly loadConfig?: typeof loadSenpiOmoConfig
+  readonly loadSkills?: SkillLoader
   readonly resolveCwd?: () => string
 }
 
 export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenpiComponent {
-  const resolveCwd = options.resolveCwd ?? (() => process.cwd())
+  const loadConfig = options.loadConfig ?? loadSenpiOmoConfig
   return {
     name: "task",
-    register(pi: SenpiExtensionAPI, ctx: ComponentContext): void {
+    async register(pi: SenpiExtensionAPI, ctx: ComponentContext): Promise<void> {
+      if (isTeamMemberProcess()) return
+
+      // Unconditional omo process hygiene (T16): fires on session_start before any
+      // flag/capability gate can skip the rest of the component.
+      wireSessionStartProcessSweep(pi, ctx)
+
       registerTaskFlags(pi)
       if (pi.getFlag(TASK_ENABLED_FLAG) === false) {
         ctx.logger.info("omo-senpi task component disabled by flag")
@@ -53,38 +77,113 @@ export function createTaskComponent(options: TaskComponentOptions = {}): OmoSenp
         return
       }
 
-      const cwd = resolveCwd()
-      const loaded = loadOmoConfig({ cwd })
-      if (loaded.diagnostics.length > 0) {
-        ctx.logger.warn("omo-senpi task component using default config after omo.json load issues", {
-          diagnostics: loaded.diagnostics.map((diagnostic) => diagnostic.message),
-        })
-      }
+      // The task runtime ships as its own bundle (omo-task.js) with its own copy of the lazy
+      // pi-tui module state; compose's warm-up only reaches the omo.js copy. Warming here keeps
+      // this bundle's dynamic import alive through minification and covers a standalone load.
+      await loadPiTui()
+
+      const cwd = options.resolveCwd?.() ?? sessionCwd(pi)
+      const loaded = loadConfig({ cwd })
+      const loadSkills = options.loadSkills ?? createTaskSkillLoader()
 
       const engine = composeTaskEngine({
         pi,
         omoConfig: loaded.config,
         cwd,
+        loadSkills,
         sharedParentTools: () => ctx.getCapturedTools?.() ?? [],
         ...(ctx.idleCoordinator !== undefined && { coordinator: ctx.idleCoordinator }),
       })
 
       pi.registerMessageRenderer?.(TASK_COMPLETION_MESSAGE_TYPE, renderTaskCompletion)
-      pi.registerMessageRenderer?.(TEAM_MESSAGE_MESSAGE_TYPE, renderTeamMessage)
-      registerTaskTools(pi, engine)
-      const reconcileTeamMailbox = registerTeamTools(pi, ctx, engine)
+      pi.registerMessageRenderer?.(TEAM_MEMBER_LIVENESS_MESSAGE_TYPE, renderTeamMemberLiveness)
+      pi.registerMessageRenderer?.(CATEGORY_UNAVAILABLE_MESSAGE_TYPE, renderCategoryUnavailable)
+      const teamTools = createTeamToolContext(pi, ctx, engine)
+      const skillInvocations = createSkillInvocationTracker(pi)
+      const dagRuntime = createDagRuntime({
+        pi,
+        engine,
+        logger: ctx.logger,
+        nodeSpawnPolicy: (node) =>
+          evaluateSpawnPolicy(
+            {
+              manager: engine.manager,
+              omoConfig: engine.omoConfig,
+              agents: engine.agents,
+              resolveSkillInvocations: (sessionId: string) => skillInvocations.stateFor(sessionId),
+            },
+            node.subagentType,
+            node.prompt,
+            node.parentSessionId,
+          ),
+        ...(ctx.idleCoordinator === undefined ? {} : { coordinator: ctx.idleCoordinator }),
+      })
+      registerTaskTools(pi, engine, teamTools.service, teamTools.leadPollers.resolveDefaultTeamRunId, skillInvocations, dagRuntime)
+      registerTeamTools(pi, teamTools)
+      registerRemovedTeamWaitHint(pi)
       registerTaskCommands(pi, engine.manager)
+      registerDagCommands(pi, {
+        list: dagRuntime.manager.list,
+        snapshot: dagRuntime.manager.snapshot,
+        taskRecord: dagRuntime.taskRecord,
+      })
 
-      const statusUi = createTaskStatusUi({ manager: engine.manager, runtime: engine.runtime })
-      engine.onStoreMutation(() => statusUi.scheduleSync())
+      const statusUi = createTaskStatusUi({
+        manager: engine.manager,
+        runtime: engine.runtime,
+        terminalWidth: () => process.stdout.columns,
+        logger: ctx.logger,
+      })
+      const resumptionChannels = createResumptionChannelEmitter({
+        pi,
+        manager: engine.manager,
+        sessionId: () => engine.runtime.sessionId(),
+        stateDir: {
+          project_dir: cwd,
+          ...(engine.settings.state_dir !== undefined ? { task: { state_dir: engine.settings.state_dir } } : {}),
+        },
+        settings: engine.settings,
+      })
+      engine.onStoreMutation(() => {
+        statusUi.scheduleSync()
+        dagRuntime.sync()
+        void resumptionChannels.emitIfChanged().catch((error: unknown) => {
+          ctx.logger.warn("omo-senpi task resumption-channel emission failed", {
+            error: error instanceof Error ? error.message : String(error),
+          })
+        })
+      })
       const transitions = createSessionTransitionBridge({ runtime: engine.runtime, notifier: engine.notifier })
 
-      wireEventBridge(pi, ctx, engine, statusUi, transitions, {
-        warnDualConfig: shouldWarnDualConfig({ sources: loaded.sources, hasOpencodeConfig: detectOpencodeConfig(cwd) }),
-        reconcileTeamMailbox,
+      wireDagLifecycle(pi, dagRuntime, () => {
+        wireEventBridge(pi, ctx, engine, statusUi, transitions, {
+          reconcileTeamMailbox: teamTools.reconcileTeamMailbox,
+          leadPollers: teamTools.leadPollers,
+          resumptionChannels,
+          dagReloadSource: createDagReloadSource({
+            manager: dagRuntime.manager,
+            sessionId: () => engine.runtime.sessionId(),
+          }),
+        })
       })
     },
   }
+}
+
+// senpi loads one extension instance per session and builds its ExtensionAPI with that session's
+// cwd. A multi-session host keeps every session in ONE process, so process.cwd() is the process
+// launch directory: anchoring there collapses every session's task state into a single store and
+// hides child artifacts from the host's per-project readers. It remains the fallback only for
+// hosts that predate `cwd` on the extension API.
+function sessionCwd(pi: SenpiExtensionAPI): string {
+  return typeof pi.cwd === "string" && pi.cwd.length > 0 ? pi.cwd : process.cwd()
+}
+
+function registerRemovedTeamWaitHint(pi: SenpiExtensionAPI): void {
+  pi.registerRemovedToolHint?.(
+    "team_wait",
+    "team_wait was removed - team messages arrive as steered notifications; send updates with task_send and end your turn.",
+  )
 }
 
 function registerTaskFlags(pi: SenpiExtensionAPI): void {
@@ -103,157 +202,106 @@ function registerTaskFlags(pi: SenpiExtensionAPI): void {
 // senpi-task tool factories return fully-typed ToolDefinitions whose typed renderCall breaks a plain
 // structural assignment to the registerTool(Record) seam; spreading each into a fresh object literal
 // lands it through the record-shaped registration boundary without a cast (no behavioural change).
-function registerTaskTools(pi: SenpiExtensionAPI, engine: TaskEngine): void {
+function registerTaskTools(
+  pi: SenpiExtensionAPI,
+  engine: TaskEngine,
+  teamService: TeamToolsService,
+  resolveDefaultTeamRunId: TaskSendTeamRouting["resolveDefaultTeamRunId"],
+  skillInvocations: SkillInvocationTracker,
+  dagRuntime: DagRuntime,
+): void {
   const resolveCallerSessionId = defaultResolveCallerSessionId
   const manager = engine.manager
-  pi.registerTool({ ...createTaskTool({ manager, omoConfig: engine.omoConfig, agents: engine.agents }) })
-  pi.registerTool({ ...createTaskSendTool({ manager, resolveCallerSessionId }) })
-  pi.registerTool({ ...createTaskWaitTool({ manager, waitConfig: engine.settings.wait, resolveCallerSessionId }) })
-  pi.registerTool({ ...createTaskInterruptTool({ manager }) })
+  pi.registerTool({
+    ...createTaskTool({
+      manager,
+      omoConfig: engine.omoConfig,
+      agents: engine.agents,
+      loadSkills: engine.loadSkills,
+      resolveSkillInvocations: (sessionId: string) => skillInvocations.stateFor(sessionId),
+    }),
+  })
+  pi.registerTool({
+    ...createTaskSendTool({
+      manager,
+      resolveCallerSessionId,
+      teamRouting: { service: teamService, from: TEAM_LEAD_SENTINEL, ...(resolveDefaultTeamRunId !== undefined ? { resolveDefaultTeamRunId } : {}) },
+    }),
+  })
   pi.registerTool({ ...createTaskCancelTool({ manager }) })
-  pi.registerTool({ ...createTaskListTool({ manager, resolveCallerSessionId }) })
   pi.registerTool({ ...createTaskOutputTool({ manager, stateDir: engine.stateDir, resolveCallerSessionId }) })
+  registerDagTool(pi, engine, dagRuntime)
 }
 
-// The 12 lead-only team tools, bound to the live task engine + the idle-coordinator-backed lead
-// notifier so a team lead-message wake shares the completion push's one-wake-per-idle-edge. Registered
-// only on the lead (current) session; the manager's shared-tool filter strips the whole team_* family
-// from member children, and only the pre-scoped member team_send_message is re-added (see team-service).
-function registerTeamTools(pi: SenpiExtensionAPI, ctx: ComponentContext, engine: TaskEngine): () => Promise<void> {
-  const leadNotifier = createTeamMessageNotifier(pi, ctx.idleCoordinator)
+function registerDagTool(pi: SenpiExtensionAPI, engine: TaskEngine, runtime: DagRuntime): void {
+  const sessionId = (): string => engine.runtime.sessionId() ?? ""
+  pi.registerTool({
+    ...createDagTool({
+      manager: runtime.manager,
+      parentSessionId: sessionId,
+      rootSessionId: sessionId,
+      wait: runtime.wait,
+      cancel: runtime.cancel,
+      retry: runtime.retry,
+      send: runtime.send,
+      amend: runtime.amend,
+    }),
+  })
+}
+
+export function wireDagLifecycle(
+  pi: SenpiExtensionAPI,
+  runtime: Pick<DagRuntime, "attach" | "detach" | "pauseForShutdown" | "dispose">,
+  wireTaskLifecycle: () => void,
+): void {
+  pi.on("session_shutdown", () => runtime.pauseForShutdown())
+  wireTaskLifecycle()
+  pi.on("session_start", () => runtime.attach())
+  pi.on("session_before_switch", () => runtime.detach())
+  pi.on("session_shutdown", () => runtime.dispose())
+}
+
+function createTeamToolContext(
+  pi: SenpiExtensionAPI,
+  ctx: ComponentContext,
+  engine: TaskEngine,
+): TeamToolContext {
   const serviceDeps = {
     manager: engine.manager,
+    destruction: engine.lifecycle,
     runtime: engine.runtime,
     settings: engine.settings,
     omoConfig: engine.omoConfig,
     cwd: engine.runtime.cwd(),
     agentNames: new Set(Object.keys(engine.agents)),
-    leadNotifier,
   }
   const service = createTeamService(serviceDeps)
-  for (const tool of buildLeadTeamTools({ service })) pi.registerTool({ ...tool })
-  return createTeamMailboxReconciler(serviceDeps)
+  const stateDir = {
+    project_dir: serviceDeps.cwd,
+    ...(engine.settings.state_dir !== undefined ? { task: { state_dir: engine.settings.state_dir } } : {}),
+  }
+  const deliveryJournal = createLeadDeliveryJournal()
+  const leadPollers = createLeadPollerLifecycle({
+    listTeams: service.listTeams,
+    runtime: engine.runtime,
+    config: toTeamCoreConfig(engine.settings, teamStorageBaseDir(stateDir)),
+    runtimeDir: (teamRunId) => resolveTeamRuntimeDirs(stateDir, teamRunId).runtimeDir,
+    deliveryJournal,
+    appendTaskEvent: engine.appendTaskEvent,
+    pi,
+    logger: ctx.logger,
+    ...(ctx.idleCoordinator !== undefined ? { coordinator: ctx.idleCoordinator } : {}),
+  })
+  return { service, reconcileTeamMailbox: createTeamMailboxReconciler(serviceDeps), deliveryJournal, leadPollers }
 }
 
-interface EventBridgeState {
-  readonly warnDualConfig: boolean
-  // Restores crash-dangling delivery reservations to unread on first session_start (W3-V F1a).
+type TeamToolContext = {
+  readonly service: TeamToolsService
   readonly reconcileTeamMailbox: () => Promise<void>
+  readonly deliveryJournal: LeadDeliveryJournal
+  readonly leadPollers: LeadPollerLifecycle
 }
 
-// The task event handlers (pi-task event-bridge parity): session_start reconciles once per process
-// (F6), restores runtime context, and flushes any completion buffered while the session was away;
-// session_before_switch/before_compact mark the parent transition so completions buffer instead of
-// injecting mid-transition (todo 18 inherited obligation); session_compact resumes the same session
-// and flushes its buffer; session_shutdown tears residents down; model_select refreshes the inherited
-// model registry; before_agent_start injects once-per-session usage guidance. Every handler refreshes
-// the captured UI so the footer/widget follow the live session.
-export function wireEventBridge(
-  pi: SenpiExtensionAPI,
-  ctx: ComponentContext,
-  engine: TaskEngine,
-  statusUi: TaskStatusUi,
-  transitions: SessionTransitionBridge,
-  state: EventBridgeState,
-): void {
-  let firstSessionStart = true
-  let warnedDualConfig = false
-  const guidanceGuard = createOncePerSessionGuard()
-
-  pi.on("session_start", async (_payload, eventCtx) => {
-    engine.runtime.captureFrom(asLiveContext(eventCtx))
-    transitions.onSessionStart(engine.runtime.sessionId())
-    if (firstSessionStart) {
-      firstSessionStart = false
-      await engine.lifecycle.reconcileOnSessionStart()
-      await reconcileTeamMailboxBestEffort(ctx, state)
-    }
-    if (state.warnDualConfig && !warnedDualConfig) {
-      warnedDualConfig = true
-      notifyOrLog(engine, ctx, DUAL_CONFIG_WARNING)
-    }
-    statusUi.scheduleSync()
-  })
-
-  pi.on("session_before_switch", (_payload, eventCtx) => {
-    engine.runtime.captureFrom(asLiveContext(eventCtx))
-    transitions.onBeforeSwitch(engine.runtime.sessionId())
-    // Fail-closed on switch: drop the captured ui so a background store mutation in the switch window
-    // cannot drive syncNow through the previous session's handle until the next session_start re-captures.
-    engine.runtime.clearUi()
-  })
-
-  pi.on("session_before_compact", (_payload, eventCtx) => {
-    engine.runtime.captureFrom(asLiveContext(eventCtx))
-    transitions.onBeforeCompact(engine.runtime.sessionId())
-  })
-
-  pi.on("session_compact", (_payload, eventCtx) => {
-    engine.runtime.captureFrom(asLiveContext(eventCtx))
-    transitions.onCompact(engine.runtime.sessionId())
-    statusUi.scheduleSync()
-  })
-
-  pi.on("session_shutdown", async (_payload, eventCtx) => {
-    engine.runtime.captureFrom(asLiveContext(eventCtx))
-    transitions.onShutdown(engine.runtime.sessionId())
-    engine.runtime.clearUi()
-    await engine.lifecycle.teardownOnSessionShutdown()
-  })
-
-  pi.on("model_select", (_payload, eventCtx) => {
-    engine.runtime.captureFrom(asLiveContext(eventCtx))
-    statusUi.scheduleSync()
-  })
-
-  pi.on("before_agent_start", (_payload, eventCtx) => {
-    engine.runtime.captureFrom(asLiveContext(eventCtx))
-    if (ctx.config.getFlag(TASK_USAGE_HINT_FLAG) === false) return undefined
-    const sessionId = sessionIdOf(eventCtx)
-    if (!guidanceGuard(sessionId)) return undefined
-    pi.sendMessage(
-      { customType: "senpi-task.usage", content: TASK_USAGE_GUIDANCE, display: false, details: {} },
-      {},
-    )
-    return undefined
-  })
-}
-
-// The reconciler is already best-effort per team internally; this top-level guard keeps a reclaim
-// failure from ever aborting the first session_start handler.
-async function reconcileTeamMailboxBestEffort(ctx: ComponentContext, state: EventBridgeState): Promise<void> {
-  try {
-    await state.reconcileTeamMailbox()
-  } catch (error) {
-    ctx.logger.warn("omo-senpi task session-start team mailbox reclaim failed", {
-      error: error instanceof Error ? error.message : String(error),
-    })
-  }
-}
-
-function notifyOrLog(engine: TaskEngine, ctx: ComponentContext, message: string): void {
-  const ui = engine.runtime.ui()
-  if (ui !== undefined) {
-    ui.notify(message, "warning")
-    return
-  }
-  ctx.logger.warn(message)
-}
-
-function asLiveContext(value: unknown): LiveTaskContext {
-  return typeof value === "object" && value !== null ? (value as LiveTaskContext) : {}
-}
-
-function sessionIdOf(value: unknown): string {
-  if (typeof value === "object" && value !== null) {
-    const sessionManager = Reflect.get(value, "sessionManager")
-    if (typeof sessionManager === "object" && sessionManager !== null) {
-      const getSessionId = Reflect.get(sessionManager, "getSessionId")
-      if (typeof getSessionId === "function") {
-        const id = (getSessionId as () => unknown).call(sessionManager)
-        if (typeof id === "string") return id
-      }
-    }
-  }
-  return "unknown-session"
+function registerTeamTools(pi: SenpiExtensionAPI, context: TeamToolContext): void {
+  for (const tool of buildLeadTeamTools({ service: context.service })) pi.registerTool({ ...tool })
 }

@@ -11,16 +11,17 @@ function pendingRecord(): TaskRecord {
     depth: 0,
     execution_mode: "direct",
     model: "gpt-5.2",
+    notify_on_terminal: false,
   })
 }
 
 describe("transitionTaskRecord lifecycle graph", () => {
-  test("#given pending task #when terminal transitions arrive before start #then they are rejected", () => {
+  test("#given pending task #when running-only terminals (complete/fail/interrupt) arrive before start #then they are rejected", () => {
     // given
+    // cancel-from-pending is legal (see the w2trans suite below); complete/fail/interrupt stay running-only.
     const terminalTransitions: readonly TaskTransition[] = [
       { type: "complete", timestamp: "2026-07-06T00:00:00.000Z", final_response: "done" },
       { type: "fail", timestamp: "2026-07-06T00:00:00.000Z", error_message: "failed" },
-      { type: "cancel", timestamp: "2026-07-06T00:00:00.000Z", error_message: "cancelled" },
       { type: "interrupt", timestamp: "2026-07-06T00:00:00.000Z", error_message: "interrupted" },
     ]
 
@@ -28,11 +29,10 @@ describe("transitionTaskRecord lifecycle graph", () => {
     const results = terminalTransitions.map((transition) => transitionTaskRecord(pendingRecord(), transition))
 
     // then
-    expect(results.map((result) => result.applied)).toEqual([false, false, false, false])
-    expect(results.map((result) => result.record.status)).toEqual(["pending", "pending", "pending", "pending"])
+    expect(results.map((result) => result.applied)).toEqual([false, false, false])
+    expect(results.map((result) => result.record.status)).toEqual(["pending", "pending", "pending"])
     const auditTypes: readonly string[] = results.map((result) => result.audit.type)
     expect(auditTypes).toEqual([
-      "invalid_transition_ignored",
       "invalid_transition_ignored",
       "invalid_transition_ignored",
       "invalid_transition_ignored",
@@ -64,6 +64,36 @@ describe("transitionTaskRecord lifecycle graph", () => {
       "cancelled",
       "interrupted",
     ])
+  })
+
+  test("#given a running rpc child killed by signal #when the fail transition carries killed #then the record persists killed:true", () => {
+    // given
+    const running = transitionTaskRecord(pendingRecord(), { type: "start", timestamp: "2026-07-06T00:00:00.000Z", pid: 1234 }).record
+
+    // when
+    const killed = transitionTaskRecord(running, {
+      type: "fail",
+      timestamp: "2026-07-06T00:00:01.000Z",
+      error_message: "RPC child killed by signal SIGKILL (pid=1234)",
+      killed: true,
+    })
+
+    // then
+    expect(killed.applied).toBe(true)
+    expect(killed.record.status).toBe("error")
+    expect(killed.record.killed).toBe(true)
+  })
+
+  test("#given a plain (non-signal) failure #when the fail transition omits killed #then killed stays absent (a record fact)", () => {
+    // given
+    const running = transitionTaskRecord(pendingRecord(), { type: "start", timestamp: "2026-07-06T00:00:00.000Z", pid: 1234 }).record
+
+    // when
+    const failed = transitionTaskRecord(running, { type: "fail", timestamp: "2026-07-06T00:00:01.000Z", error_message: "boom" })
+
+    // then
+    expect(failed.record.status).toBe("error")
+    expect(failed.record.killed).toBeUndefined()
   })
 
   test("#given pending or running task #when normal lose transition arrives #then lost is rejected", () => {
@@ -209,5 +239,227 @@ describe("transitionTaskRecord lifecycle graph", () => {
     expect(lateComplete.applied).toBe(false)
     expect(lateComplete.record.status).toBe("interrupted")
     expect(lateComplete.audit.type).toBe("late_transition_ignored")
+  })
+})
+
+describe("transitionTaskRecord cancel-from-pending", () => {
+  test(" w2trans #given pending task #when cancel transition arrives #then it is applied and status becomes cancelled", () => {
+    // given
+    const pending = pendingRecord()
+
+    // when
+    const result = transitionTaskRecord(pending, { type: "cancel", timestamp: "2026-07-06T00:00:01.000Z" })
+
+    // then
+    expect(result.applied).toBe(true)
+    expect(result.record.status).toBe("cancelled")
+    expect(result.audit.type).toBe("transition_applied")
+  })
+
+  test(" w2trans #given pending task #when interrupt transition arrives #then it is rejected as invalid (running-only)", () => {
+    // given
+    const pending = pendingRecord()
+
+    // when
+    const result = transitionTaskRecord(pending, {
+      type: "interrupt",
+      timestamp: "2026-07-06T00:00:01.000Z",
+      error_message: "interrupted",
+    })
+
+    // then
+    expect(result.applied).toBe(false)
+    expect(result.record.status).toBe("pending")
+    expect(result.audit.type).toBe("invalid_transition_ignored")
+  })
+
+  test(" w2trans #given running task #when cancel transition arrives #then it is still applied (regression)", () => {
+    // given
+    const running = transitionTaskRecord(pendingRecord(), {
+      type: "start",
+      timestamp: "2026-07-06T00:00:00.000Z",
+      pid: 1234,
+    }).record
+
+    // when
+    const result = transitionTaskRecord(running, {
+      type: "cancel",
+      timestamp: "2026-07-06T00:00:01.000Z",
+      error_message: "cancelled",
+    })
+
+    // then
+    expect(result.applied).toBe(true)
+    expect(result.record.status).toBe("cancelled")
+  })
+
+  test(" w2trans #given terminal task (completed or cancelled) #when cancel arrives #then it is rejected by terminal idempotence", () => {
+    // given
+    const running = transitionTaskRecord(pendingRecord(), {
+      type: "start",
+      timestamp: "2026-07-06T00:00:00.000Z",
+      pid: 1234,
+    }).record
+    const completed = transitionTaskRecord(running, {
+      type: "complete",
+      timestamp: "2026-07-06T00:00:01.000Z",
+      final_response: "done",
+    }).record
+    const cancelled = transitionTaskRecord(running, {
+      type: "cancel",
+      timestamp: "2026-07-06T00:00:01.000Z",
+      error_message: "cancelled",
+    }).record
+    const cancelTransition: TaskTransition = {
+      type: "cancel",
+      timestamp: "2026-07-06T00:00:02.000Z",
+      error_message: "double cancel",
+    }
+
+    // when
+    const completedCancel = transitionTaskRecord(completed, cancelTransition)
+    const cancelledCancel = transitionTaskRecord(cancelled, cancelTransition)
+
+    // then
+    expect(completedCancel.applied).toBe(false)
+    expect(completedCancel.record.status).toBe("completed")
+    expect(completedCancel.audit.type).toBe("late_transition_ignored")
+    expect(cancelledCancel.applied).toBe(false)
+    expect(cancelledCancel.record.status).toBe("cancelled")
+    expect(cancelledCancel.audit.type).toBe("late_transition_ignored")
+  })
+
+  test(" w2trans #given pending task #when cancel carries error_message #then the reason is stamped onto the cancelled record", () => {
+    // given
+    const pending = pendingRecord()
+
+    // when
+    const result = transitionTaskRecord(pending, {
+      type: "cancel",
+      timestamp: "2026-07-06T00:00:01.000Z",
+      error_message: "cancelled while queued",
+    })
+
+    // then
+    expect(result.applied).toBe(true)
+    expect(result.record.status).toBe("cancelled")
+    expect(result.record.error_message).toBe("cancelled while queued")
+  })
+})
+
+describe("transitionTaskRecord suspension residency", () => {
+  test("#given a running record with host and child pids #when persist_only arrives #then status and run epoch survive while both pids clear", () => {
+    // given
+    const started = transitionTaskRecord(pendingRecord(), {
+      type: "start",
+      timestamp: "2026-07-06T00:00:00.000Z",
+      pid: 4321,
+    }).record
+    const running: TaskRecord = {
+      ...started,
+      host_pid: 777,
+      notification: { run_epoch: 3, notified_epoch: 1 },
+    }
+
+    // when
+    const result = transitionTaskRecord(running, {
+      type: "persist_only",
+      timestamp: "2026-07-06T00:00:01.000Z",
+    })
+
+    // then
+    expect(result.applied).toBe(true)
+    expect(result.record.status).toBe("running")
+    expect(result.record.residency_state).toBe("persisted_only")
+    expect(result.record.host_pid).toBeUndefined()
+    expect("host_pid" in result.record).toBe(false)
+    expect(result.record.pid).toBeUndefined()
+    expect("pid" in result.record).toBe(false)
+    expect(result.record.notification).toEqual({ run_epoch: 3, notified_epoch: 1 })
+  })
+
+  test("#given a running rpc record #when detach_rpc arrives #then the last pid is retained for orphan detection while host ownership clears", () => {
+    // given
+    const started = transitionTaskRecord(pendingRecord(), {
+      type: "start",
+      timestamp: "2026-07-06T00:00:00.000Z",
+      pid: 4321,
+    }).record
+    const running: TaskRecord = { ...started, host_pid: 777 }
+
+    // when
+    const result = transitionTaskRecord(running, {
+      type: "detach_rpc",
+      timestamp: "2026-07-06T00:00:01.000Z",
+    })
+
+    // then
+    expect(result.applied).toBe(true)
+    expect(result.record.status).toBe("running")
+    expect(result.record.residency_state).toBe("rpc_detached")
+    expect(result.record.host_pid).toBeUndefined()
+    expect("host_pid" in result.record).toBe(false)
+    expect(result.record.pid).toBe(4321)
+  })
+
+  test("#given a completed record with terminal fields and run stats #when persist_only arrives #then every terminal fact survives", () => {
+    // given
+    const runStats = { runtime_ms: 1200, turns: 2, tool_calls: 3, output_tokens: 10 }
+    const running = transitionTaskRecord(pendingRecord(), {
+      type: "start",
+      timestamp: "2026-07-06T00:00:00.000Z",
+      pid: 4321,
+    }).record
+    const completed: TaskRecord = {
+      ...transitionTaskRecord(running, {
+        type: "complete",
+        timestamp: "2026-07-06T00:00:01.000Z",
+        final_response: "shipped",
+        run_stats: runStats,
+      }).record,
+      host_pid: 777,
+    }
+
+    // when
+    const result = transitionTaskRecord(completed, {
+      type: "persist_only",
+      timestamp: "2026-07-06T00:00:02.000Z",
+    })
+
+    // then
+    expect(result.applied).toBe(true)
+    expect(result.record.status).toBe("completed")
+    expect(result.record.residency_state).toBe("persisted_only")
+    expect(result.record.final_response).toBe("shipped")
+    expect(result.record.run_stats).toEqual(runStats)
+    expect(result.record.host_pid).toBeUndefined()
+  })
+
+  test("#given a suspended running record #when a late complete arrives #then terminal fields still land and residency stays suspended", () => {
+    // given
+    const running = transitionTaskRecord(pendingRecord(), {
+      type: "start",
+      timestamp: "2026-07-06T00:00:00.000Z",
+      pid: 4321,
+    }).record
+    const suspended = transitionTaskRecord(
+      { ...running, host_pid: 777 },
+      { type: "persist_only", timestamp: "2026-07-06T00:00:01.000Z" },
+    ).record
+
+    // when
+    const lateComplete = transitionTaskRecord(suspended, {
+      type: "complete",
+      timestamp: "2026-07-06T00:00:02.000Z",
+      final_response: "finished while suspended",
+      run_stats: { runtime_ms: 50, turns: 1, tool_calls: 0 },
+    })
+
+    // then
+    expect(lateComplete.applied).toBe(true)
+    expect(lateComplete.record.status).toBe("completed")
+    expect(lateComplete.record.residency_state).toBe("persisted_only")
+    expect(lateComplete.record.final_response).toBe("finished while suspended")
+    expect(lateComplete.record.run_stats).toEqual({ runtime_ms: 50, turns: 1, tool_calls: 0 })
   })
 })

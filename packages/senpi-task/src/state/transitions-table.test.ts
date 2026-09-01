@@ -22,7 +22,7 @@ const expectedNormalTransitionTable: Record<
     start: { expectedApplied: true, expectedStatus: "running", expectedAudit: "transition_applied" },
     complete: { expectedApplied: false, expectedStatus: "pending", expectedAudit: "invalid_transition_ignored" },
     fail: { expectedApplied: false, expectedStatus: "pending", expectedAudit: "invalid_transition_ignored" },
-    cancel: { expectedApplied: false, expectedStatus: "pending", expectedAudit: "invalid_transition_ignored" },
+    cancel: { expectedApplied: true, expectedStatus: "cancelled", expectedAudit: "transition_applied" },
     interrupt: { expectedApplied: false, expectedStatus: "pending", expectedAudit: "invalid_transition_ignored" },
     lose: { expectedApplied: false, expectedStatus: "pending", expectedAudit: "invalid_transition_ignored" },
   },
@@ -48,6 +48,7 @@ function pendingRecord(): TaskRecord {
     depth: 0,
     execution_mode: "direct",
     model: "gpt-5.2",
+    notify_on_terminal: false,
   })
 }
 

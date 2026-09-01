@@ -1,11 +1,10 @@
 import { describe, expect, test } from "bun:test"
 
 import { createCompletionNotifier } from "./notifier"
-import type { NotificationConfig, ParentNotifier, ParentNotifierMessage, ParentState } from "./types"
+import type { ParentNotifier, ParentNotifierMessage, ParentState } from "./types"
 import type { TaskRecord } from "../state"
 import type { PersistedTaskEvent } from "../store"
 
-const wakeConfig: NotificationConfig = { wake_idle_parent: true, deliver_as: "followUp" }
 
 function baseRecord(overrides: Partial<TaskRecord> = {}): TaskRecord {
   return {
@@ -21,6 +20,7 @@ function baseRecord(overrides: Partial<TaskRecord> = {}): TaskRecord {
     created_at: "2026-07-06T01:00:00.000Z",
     updated_at: "2026-07-06T01:00:03.000Z",
     final_response: "the final answer",
+    notify_on_terminal: false,
     notification: { run_epoch: 0, notified_epoch: -1 },
     ...overrides,
   }
@@ -32,19 +32,29 @@ function fakeStore(seed: readonly TaskRecord[]) {
   const records = new Map<string, TaskRecord>()
   for (const record of seed) records.set(record.task_id, record)
   const events: AppendedEvent[] = []
-  const replaced: TaskRecord[] = []
+  const mutated: TaskRecord[] = []
   const store = {
     load: (taskId: string): TaskRecord | null => records.get(taskId) ?? null,
+    list: () => ({ records: [...records.values()], diagnostics: [] }),
     replace: (record: TaskRecord): void => {
       records.set(record.task_id, record)
-      replaced.push(record)
+    },
+    mutate: (taskId: string, mutation: (record: TaskRecord) => TaskRecord): TaskRecord | null => {
+      const current = records.get(taskId)
+      if (current === undefined) return null
+      const next = mutation(current)
+      if (next !== current) {
+        records.set(taskId, next)
+        mutated.push(next)
+      }
+      return next
     },
     appendEvent: (taskId: string, event: PersistedTaskEvent): string => {
       events.push({ taskId, event })
       return `${taskId}.jsonl`
     },
   }
-  return { store, events, replaced, records }
+  return { store, events, mutated, records }
 }
 
 type EnqueueCall = ParentNotifierMessage
@@ -68,9 +78,9 @@ describe("createCompletionNotifier - exactly-once epoch contract", () => {
   test("#given double terminal replay #when notified twice #then exactly one delivery", () => {
     // given
     const record = baseRecord()
-    const { store, replaced } = fakeStore([record])
+    const { store, mutated } = fakeStore([record])
     const { notifier, calls } = fakeNotifier()
-    const completion = createCompletionNotifier({ notifier, store, config: wakeConfig })
+    const completion = createCompletionNotifier({ notifier, store })
 
     // when
     const first = completion.notifyTerminal({ record, parentState: { kind: "idle" }, runInBackground: true })
@@ -80,15 +90,15 @@ describe("createCompletionNotifier - exactly-once epoch contract", () => {
     expect(first).toEqual({ kind: "delivered", decision: "wake" })
     expect(second).toEqual({ kind: "skipped", reason: "already-notified" })
     expect(calls).toHaveLength(1)
-    expect(replaced.at(-1)?.notification.notified_epoch).toBe(0)
+    expect(mutated.at(-1)?.notification.notified_epoch).toBe(0)
   })
 
   test("#given revived task at epoch 1 #when second completion arrives #then it notifies again", () => {
     // given
     const record = baseRecord({ notification: { run_epoch: 1, notified_epoch: 0 } })
-    const { store, replaced } = fakeStore([record])
+    const { store, mutated } = fakeStore([record])
     const { notifier, calls } = fakeNotifier()
-    const completion = createCompletionNotifier({ notifier, store, config: wakeConfig })
+    const completion = createCompletionNotifier({ notifier, store })
 
     // when
     const result = completion.notifyTerminal({ record, parentState: { kind: "idle" }, runInBackground: true })
@@ -96,7 +106,7 @@ describe("createCompletionNotifier - exactly-once epoch contract", () => {
     // then
     expect(result).toEqual({ kind: "delivered", decision: "wake" })
     expect(calls).toHaveLength(1)
-    expect(replaced.at(-1)?.notification.notified_epoch).toBe(1)
+    expect(mutated.at(-1)?.notification.notified_epoch).toBe(1)
   })
 
   test("#given persisted notified_epoch #when notified after resume #then no re-notify", () => {
@@ -104,7 +114,7 @@ describe("createCompletionNotifier - exactly-once epoch contract", () => {
     const record = baseRecord({ notification: { run_epoch: 0, notified_epoch: 0 } })
     const { store } = fakeStore([record])
     const { notifier, calls } = fakeNotifier()
-    const completion = createCompletionNotifier({ notifier, store, config: wakeConfig })
+    const completion = createCompletionNotifier({ notifier, store })
 
     // when
     const result = completion.notifyTerminal({ record, parentState: { kind: "idle" }, runInBackground: true })
@@ -121,7 +131,7 @@ describe("createCompletionNotifier - gating", () => {
     const record = baseRecord()
     const { store } = fakeStore([record])
     const { notifier, calls } = fakeNotifier()
-    const completion = createCompletionNotifier({ notifier, store, config: wakeConfig })
+    const completion = createCompletionNotifier({ notifier, store })
 
     // when
     const result = completion.notifyTerminal({ record, parentState: { kind: "idle" }, runInBackground: false })
@@ -137,7 +147,7 @@ describe("createCompletionNotifier - gating", () => {
     const interrupted = baseRecord({ status: "interrupted", final_response: undefined })
     const { store } = fakeStore([cancelled])
     const { notifier, calls } = fakeNotifier()
-    const completion = createCompletionNotifier({ notifier, store, config: wakeConfig })
+    const completion = createCompletionNotifier({ notifier, store })
 
     // when
     const cancelResult = completion.notifyTerminal({ record: cancelled, parentState: { kind: "idle" }, runInBackground: true })
@@ -154,7 +164,7 @@ describe("createCompletionNotifier - gating", () => {
     const record = baseRecord({ status: "running", final_response: undefined })
     const { store } = fakeStore([record])
     const { notifier } = fakeNotifier()
-    const completion = createCompletionNotifier({ notifier, store, config: wakeConfig })
+    const completion = createCompletionNotifier({ notifier, store })
 
     // when
     const result = completion.notifyTerminal({ record, parentState: { kind: "idle" }, runInBackground: true })
@@ -165,45 +175,36 @@ describe("createCompletionNotifier - gating", () => {
 })
 
 describe("createCompletionNotifier - routing table", () => {
-  function route(parentState: ParentState, config: NotificationConfig) {
+  function route(parentState: ParentState) {
     const record = baseRecord()
     const { store } = fakeStore([record])
     const { notifier, calls } = fakeNotifier()
-    const completion = createCompletionNotifier({ notifier, store, config })
+    const completion = createCompletionNotifier({ notifier, store })
     const result = completion.notifyTerminal({ record, parentState, runInBackground: true })
     return { result, calls, completion }
   }
 
-  test("#given idle parent with wake #when delivered #then triggerTurn payload recorded", () => {
+  test("#given idle parent #when delivered #then triggerTurn payload recorded unconditionally", () => {
     // when
-    const { result, calls } = route({ kind: "idle" }, { wake_idle_parent: true, deliver_as: "followUp" })
+    const { result, calls } = route({ kind: "idle" })
 
-    // then
+    // then an idle parent always wakes with a triggerTurn payload
     expect(result).toEqual({ kind: "delivered", decision: "wake" })
     expect(calls[0]?.triggerTurn).toBe(true)
   })
 
-  test("#given idle parent without wake #when delivered #then queued silently without triggerTurn", () => {
+  test("#given streaming parent #when delivered #then triggerTurn payload recorded for the batched steer", () => {
     // when
-    const { result, calls } = route({ kind: "idle" }, { wake_idle_parent: false, deliver_as: "followUp" })
+    const { result, calls } = route({ kind: "streaming" })
 
-    // then
-    expect(result).toEqual({ kind: "delivered", decision: "queue_silently" })
-    expect(calls[0]?.triggerTurn).toBeUndefined()
-  })
-
-  test("#given streaming parent #when delivered #then followUp deliverAs is set", () => {
-    // when
-    const { result, calls } = route({ kind: "streaming" }, { wake_idle_parent: true, deliver_as: "followUp" })
-
-    // then
+    // then a streaming completion also guarantees a turn; the adapter steers the batched injection
     expect(result).toEqual({ kind: "delivered", decision: "deliver_streaming" })
-    expect(calls[0]?.deliverAs).toBe("followUp")
+    expect(calls[0]?.triggerTurn).toBe(true)
   })
 
   test("#given compacting parent #when notified #then buffered without delivery", () => {
     // when
-    const { result, calls } = route({ kind: "compacting" }, wakeConfig)
+    const { result, calls } = route({ kind: "compacting" })
 
     // then
     expect(result).toEqual({ kind: "buffered", reason: "compacting" })
@@ -212,7 +213,7 @@ describe("createCompletionNotifier - routing table", () => {
 
   test("#given session_switching parent #when notified #then buffered without delivery", () => {
     // when
-    const { result, calls } = route({ kind: "session_switching" }, wakeConfig)
+    const { result, calls } = route({ kind: "session_switching" })
 
     // then
     expect(result).toEqual({ kind: "buffered", reason: "session_switching" })
@@ -225,9 +226,9 @@ describe("createCompletionNotifier - buffering, flush, batching", () => {
     // given
     const first = baseRecord({ task_id: "st_aaaa", name: "one" })
     const second = baseRecord({ task_id: "st_bbbb", name: "two" })
-    const { store, replaced } = fakeStore([first, second])
+    const { store, mutated } = fakeStore([first, second])
     const { notifier, calls } = fakeNotifier()
-    const completion = createCompletionNotifier({ notifier, store, config: wakeConfig })
+    const completion = createCompletionNotifier({ notifier, store })
     completion.notifyTerminal({ record: first, parentState: { kind: "compacting" }, runInBackground: true })
     completion.notifyTerminal({ record: second, parentState: { kind: "compacting" }, runInBackground: true })
 
@@ -239,15 +240,15 @@ describe("createCompletionNotifier - buffering, flush, batching", () => {
     expect(calls).toHaveLength(1)
     expect(calls[0]?.triggerTurn).toBe(true)
     expect(calls[0]?.details).toHaveLength(2)
-    expect(replaced.map((record) => record.notification.notified_epoch)).toEqual([0, 0])
+    expect(mutated.map((record) => record.notification.notified_epoch)).toEqual([0, 0])
   })
 
   test("#given buffered completion #when the session was replaced #then it is dropped, not delivered", () => {
     // given
     const record = baseRecord()
-    const { store, events, replaced } = fakeStore([record])
+    const { store, events, mutated } = fakeStore([record])
     const { notifier, calls } = fakeNotifier()
-    const completion = createCompletionNotifier({ notifier, store, config: wakeConfig })
+    const completion = createCompletionNotifier({ notifier, store })
     completion.notifyTerminal({ record, parentState: { kind: "session_shutdown" }, runInBackground: true })
 
     // when
@@ -256,7 +257,7 @@ describe("createCompletionNotifier - buffering, flush, batching", () => {
     // then
     expect(flush).toEqual({ kind: "dropped", count: 1 })
     expect(calls).toHaveLength(0)
-    expect(replaced).toHaveLength(0)
+    expect(mutated).toHaveLength(0)
     expect(events.some((entry) => entry.event.type === "notification_dropped")).toBe(true)
   })
 
@@ -265,7 +266,7 @@ describe("createCompletionNotifier - buffering, flush, batching", () => {
     const record = baseRecord()
     const { store } = fakeStore([record])
     const { notifier } = fakeNotifier()
-    const completion = createCompletionNotifier({ notifier, store, config: wakeConfig })
+    const completion = createCompletionNotifier({ notifier, store })
 
     // when
     const flush = completion.flushBuffered({ sessionId: "parent-session", replaced: false })
@@ -279,9 +280,9 @@ describe("createCompletionNotifier - notifier failure contract", () => {
   test("#given first enqueue throws but retry succeeds #when delivered #then one retry lands and epoch advances", () => {
     // given
     const record = baseRecord()
-    const { store, replaced } = fakeStore([record])
+    const { store, mutated } = fakeStore([record])
     const { notifier, calls } = fakeNotifier(1)
-    const completion = createCompletionNotifier({ notifier, store, config: wakeConfig })
+    const completion = createCompletionNotifier({ notifier, store })
 
     // when
     const result = completion.notifyTerminal({ record, parentState: { kind: "idle" }, runInBackground: true })
@@ -289,15 +290,15 @@ describe("createCompletionNotifier - notifier failure contract", () => {
     // then
     expect(result).toEqual({ kind: "delivered", decision: "wake" })
     expect(calls).toHaveLength(1)
-    expect(replaced.at(-1)?.notification.notified_epoch).toBe(0)
+    expect(mutated.at(-1)?.notification.notified_epoch).toBe(0)
   })
 
   test("#given enqueue throws twice #when delivered #then failure recorded and epoch not advanced", () => {
     // given
     const record = baseRecord()
-    const { store, events, replaced } = fakeStore([record])
+    const { store, events, mutated } = fakeStore([record])
     const { notifier, calls } = fakeNotifier(2)
-    const completion = createCompletionNotifier({ notifier, store, config: wakeConfig })
+    const completion = createCompletionNotifier({ notifier, store })
 
     // when
     const result = completion.notifyTerminal({ record, parentState: { kind: "idle" }, runInBackground: true })
@@ -306,7 +307,7 @@ describe("createCompletionNotifier - notifier failure contract", () => {
     expect(result).toEqual({ kind: "failed" })
     expect(calls).toHaveLength(0)
     expect(events.some((entry) => entry.event.type === "notification_failed")).toBe(true)
-    const persisted = replaced.at(-1)
+    const persisted = mutated.at(-1)
     expect(persisted?.notification.notification_failed_epoch).toBe(0)
     expect(persisted?.notification.notified_epoch).toBe(-1)
   })
