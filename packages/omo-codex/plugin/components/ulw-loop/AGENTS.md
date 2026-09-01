@@ -47,7 +47,8 @@ Conventions for human contributors and AI agents working on this repository.
 - `src/cli.ts`: bin entry (`omo-ulw-loop`, `ulw`, `ulw-loop` all map to `dist/cli.js`); documented invocation form `omo-agent-toolkit ulw-loop <subcommand>`.
 - `src/cli-commands.ts`: subcommand dispatch (`ULW_LOOP_SUBCOMMANDS`, `ulwLoopCommand`, flag/value readers).
 - `src/plan-io.ts`: plan persistence, append-only `ledger.jsonl`, `withUlwLoopMutationLock`.
-- `src/quality-gate.ts` (266 LOC), `src/checkpoint.ts` (260), `src/steering.ts` (227): state-transition hotspots (evidence containment, checkpoint reconciliation, steering mutations).
+- `src/quality-gate.ts` (188 LOC), `src/checkpoint.ts` (247), `src/steering.ts` (203): state-transition hotspots (evidence containment, checkpoint reconciliation, steering mutations).
+- `src/quality-gate-artifacts.ts`: artifact-ref / surface-kind primitives shared by the gate validator; `src/quality-gate-aggregate.ts`: non-throwing defect pre-pass that aggregates every gate defect into one error.
 - `src/codex-hook.ts`: UserPromptSubmit steering injection + `create_goal` budget guard.
 - `src/spawn-guard.ts`, `src/stop-resume-hook.ts`: spawn guards, Stop auto-resume.
 - `src/surface.ts`: toolkit surface + reviewer-identity resolution (`lazycodex` default; staged `surface.json` marker or `OMO_AGENT_TOOLKIT_SURFACE` selects `omo-senpi`).

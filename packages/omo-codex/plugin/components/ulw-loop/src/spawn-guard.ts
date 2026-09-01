@@ -58,10 +58,9 @@ function missingGateArtifact(payload: PreToolUsePayload, plan: UlwLoopPlan): str
 	if (goal === undefined || goal.status === "complete") return null;
 	if (!goal.successCriteria.every((criterion) => criterion.status === "pass")) return null;
 	const scope = { sessionId: payload.session_id } as const;
+	const surface = resolveToolkitSurface();
 	const requiredArtifacts =
-		resolveToolkitSurface() === "omo-senpi"
-			? [`${goal.id}-manual-qa.md`]
-			: [`${goal.id}-code-review.md`, `${goal.id}-manual-qa.md`];
+		surface === "omo-senpi" ? [`${goal.id}-manual-qa.md`] : [`${goal.id}-code-review.md`, `${goal.id}-manual-qa.md`];
 	if (plan.evidenceLayoutVersion === 2) {
 		const attemptDir = ulwLoopAttemptEvidenceDir(goal.id, goal.attempt, scope);
 		for (const name of requiredArtifacts) {
@@ -70,7 +69,6 @@ function missingGateArtifact(payload: PreToolUsePayload, plan: UlwLoopPlan): str
 		}
 		return null;
 	}
-	const surface = resolveToolkitSurface();
 	const flatReport = `.omo/evidence/${goal.id}-code-review.md`;
 	if (surface !== "omo-senpi" && !isNonEmptyFile(join(payload.cwd, flatReport))) return flatReport;
 	if (surface === "omo-senpi") {

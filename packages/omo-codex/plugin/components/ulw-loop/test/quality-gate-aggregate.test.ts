@@ -52,4 +52,50 @@ describe("aggregated quality gate validation", () => {
 			);
 		}
 	});
+
+	it("#given more than twenty-five defects #when validating #then caps the list and flags truncation", () => {
+		const refs = Array.from({ length: 30 }, (_, index) => ({
+			id: `ref-${index}`,
+			kind: "cli-transcript",
+			description: "artifact",
+			path: `does-not-exist-${index}.txt`,
+		}));
+		const gate = {
+			manualQa: {
+				by: "main-session",
+				status: "passed",
+				evidence: "real evidence",
+				surfaceEvidence: [],
+				adversarialCases: [],
+				artifactRefs: refs,
+			},
+			gateReview: {
+				by: "category:deep",
+				recommendation: "APPROVE",
+				reportPath: "test/fixtures/artifacts/gate-review.md",
+				evidence: "gate evidence",
+				blockers: [],
+			},
+			iteration: { fullRerun: true, status: "passed", rerunCommands: ["test"], evidence: "rerun" },
+			criteriaCoverage: {
+				totalCriteria: 1,
+				passCount: 1,
+				originalIntent: "intent",
+				desiredOutcome: "outcome",
+				userOutcomeReview: "review",
+				adversarialClassesCovered: ["none"],
+			},
+		};
+		try {
+			validateQualityGate(gate, opts);
+			throw new Error("expected validation failure");
+		} catch (error) {
+			expect(error).toBeInstanceOf(UlwLoopError);
+			if (!(error instanceof UlwLoopError)) throw error;
+			const fields = error.details?.["fields"];
+			expect(Array.isArray(fields) && fields.length).toBe(25);
+			expect(error.details?.["truncated"]).toBe(true);
+			expect(error.message).toContain("25+");
+		}
+	});
 });

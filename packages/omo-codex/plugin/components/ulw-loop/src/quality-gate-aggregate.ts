@@ -7,7 +7,7 @@ type Defect = { readonly field: string; readonly message: string };
 const PLACEHOLDER = /^(?:<replace:[^>]+>|placeholder|todo|tbd|n\/a|stub)$/i;
 
 function add(defects: Defect[], field: string, message: string): void {
-	if (defects.length < 25) defects.push({ field, message });
+	defects.push({ field, message });
 }
 function text(value: unknown, field: string, defects: Defect[]): void {
 	if (typeof value !== "string" || value.trim() === "")
@@ -45,8 +45,8 @@ export function aggregateQualityGateDefects(input: unknown, opts: ValidateQualit
 			);
 	}
 	if (defects.length === 0) return;
-	const truncated = defects.length === 25 && countPotentialDefects(gate, opts) > 25;
-	const fields = defects.map(({ field, message }) => ({ field, message }));
+	const truncated = defects.length > 25;
+	const fields = defects.slice(0, 25).map(({ field, message }) => ({ field, message }));
 	const message = [
 		`Final quality gate has ${fields.length}${truncated ? "+" : ""} validation defects:`,
 		...fields.map((item) => `- ${item.field}: ${item.message}`),
@@ -54,24 +54,4 @@ export function aggregateQualityGateDefects(input: unknown, opts: ValidateQualit
 	throw new UlwLoopError(message, "ULW_LOOP_QUALITY_GATE_INVALID", {
 		details: { field: fields[0]?.field, fields, ...(truncated ? { truncated: true } : {}) },
 	});
-}
-
-function countPotentialDefects(gate: Record<string, unknown>, opts: ValidateQualityGateOptions | undefined): number {
-	let count = 0;
-	const manual = isRecord(gate["manualQa"]) ? gate["manualQa"] : {};
-	const review = isRecord(gate["gateReview"]) ? gate["gateReview"] : {};
-	if (typeof manual["evidence"] !== "string" || PLACEHOLDER.test(manual["evidence"] as string)) count += 1;
-	if (typeof review["evidence"] !== "string" || PLACEHOLDER.test(review["evidence"] as string)) count += 1;
-	if (review["recommendation"] !== "APPROVE") count += 1;
-	const refs = Array.isArray(manual["artifactRefs"]) ? manual["artifactRefs"] : [];
-	for (const item of refs)
-		if (
-			isRecord(item) &&
-			typeof item["path"] === "string" &&
-			opts?.repoRoot &&
-			opts.fs &&
-			!opts.fs.existsSync(resolve(opts.repoRoot, item["path"] as string))
-		)
-			count += 1;
-	return count;
 }
