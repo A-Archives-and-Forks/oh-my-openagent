@@ -9,7 +9,7 @@
 
 import { spawn } from "node:child_process"
 import { randomUUID } from "node:crypto"
-import { mkdir, readFile, rm } from "node:fs/promises"
+import { mkdir, readFile, rm } from "@oh-my-opencode/memory-core/fs"
 import { join } from "node:path"
 
 import {

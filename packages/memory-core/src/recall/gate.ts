@@ -13,7 +13,7 @@
 // compaction has since rewritten is rejected AT CONSUMPTION rather than raced
 // against by the writer.
 
-import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises"
+import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "../fs/resilient"
 import { join } from "node:path"
 
 import { sanitizeSessionFilename } from "./ledger"
