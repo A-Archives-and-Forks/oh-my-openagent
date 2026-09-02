@@ -1,6 +1,7 @@
 import type { OmoConfig } from "@oh-my-opencode/omo-config-core"
 
 import { DEFAULT_CATEGORIES, resolveCategory, type SenpiModelPort, type SenpiModelRegistryPort } from "../category"
+import { findExactAgentModel } from "./agent-model-registry"
 import type { ResolvedModelRecord } from "../state"
 
 export type AgentCategoryTuning = {
@@ -27,23 +28,21 @@ export type ResolveAgentCategoryInput<TModel extends SenpiModelPort> = {
 // `resolveCategory` fails closed when the registry's available-model container is unparseable,
 // which would strip categorized agents of the find-only degradation the direct-model path keeps
 // ("an unparseable available set keeps the find-only behavior" in resolve-agent.ts). Recover the
-// first listed category's builtin default straight from `find` so a junk availability payload
-// cannot make a model the registry can serve unreachable.
+// first listed category's model straight from `find` so a junk availability payload cannot make a
+// model the registry can serve unreachable. `findExactAgentModel` is the direct-model path's own
+// validator: it rejects a registry return that is not actually a model, so a malformed container
+// cannot launder an error envelope into a resolved selection.
 function findOnlyCategoryModel<TModel extends SenpiModelPort>(
   input: ResolveAgentCategoryInput<TModel>,
 ): AgentCategorySelection | undefined {
   if (Array.isArray(input.registry.getAvailable())) return undefined
   const fallbackModel = firstCategoryDefaultModel(input.categories, input.omoConfig)
   if (fallbackModel === undefined) return undefined
-  const separatorIndex = fallbackModel.indexOf("/")
-  if (separatorIndex <= 0 || separatorIndex === fallbackModel.length - 1) return undefined
-  const provider = fallbackModel.slice(0, separatorIndex)
-  const modelId = fallbackModel.slice(separatorIndex + 1)
-  const found = input.registry.find(provider, modelId)
-  if (found === undefined || found === null) return undefined
+  const found = findExactAgentModel(fallbackModel, input.registry)
+  if (found === undefined) return undefined
   return {
-    provider,
-    modelId,
+    provider: found.provider,
+    modelId: found.modelId,
     ...(input.configuredTuning.variant !== undefined ? { variant: input.configuredTuning.variant } : {}),
     ...(input.configuredTuning.reasoningEffort !== undefined
       ? { reasoningEffort: input.configuredTuning.reasoningEffort }

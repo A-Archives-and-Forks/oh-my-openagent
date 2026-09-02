@@ -241,4 +241,20 @@ describe("resolveAgent category stage", () => {
     if (resolution.kind !== "model_unavailable") return
     expect(resolution.attemptedModel).toBe("openai/my-custom-model")
   })
+
+  test("#given a malformed availability container #when find returns a non-model object #then the agent refuses it instead of laundering it into a model", () => {
+    // given: find() hands back an error envelope, not a model. The direct-model path validates the
+    // shape via findExactAgentModel and reports model_unavailable; the category path must match.
+    const definition: AgentDefinition = { name: "probe", categories: ["deep"] }
+    const junkRegistry = {
+      getAvailable: (): unknown => ({ notAnArray: true }),
+      find: (): unknown => ({ error: "quota exceeded", retryAfter: 30 }),
+    }
+
+    // when
+    const resolution = resolveAgent("probe", { probe: definition }, junkRegistry)
+
+    // then
+    expect(resolution.kind).toBe("model_unavailable")
+  })
 })
