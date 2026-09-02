@@ -97,7 +97,7 @@ export function resolveAgent<TModel extends SenpiModelPort>(
     const fallbackProvider = fallbackHead?.providers[0]
     const attemptedModel = definition.model
       ?? firstConfiguredModel(definition)
-      ?? firstCategoryDefaultModel(definition.categories)
+      ?? firstCategoryDefaultModel(definition.categories, options.omoConfig)
       ?? (fallbackHead !== undefined && fallbackProvider !== undefined
         ? `${fallbackProvider}/${fallbackHead.model}`
         : undefined)
@@ -153,7 +153,7 @@ export function resolveAgent<TModel extends SenpiModelPort>(
         },
       )
     }
-    attemptedModel = attemptedModel ?? firstCategoryDefaultModel(definition.categories)
+    attemptedModel = attemptedModel ?? firstCategoryDefaultModel(definition.categories, options.omoConfig)
   }
 
   if (availableModels !== undefined && fallbackChain !== undefined) {

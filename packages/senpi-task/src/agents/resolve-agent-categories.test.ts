@@ -226,4 +226,19 @@ describe("resolveAgent category stage", () => {
     if (resolution.kind !== "resolved") return
     expect(resolution.model).toBe("anthropic/claude-opus-5")
   })
+
+  test("#given a user category model override that is unavailable #when resolution fails #then the attempted model names the user model, not the builtin", () => {
+    // given: the user pointed deep at their own model; neither it nor the builtin is in the registry.
+    const definition: AgentDefinition = { name: "probe", categories: ["deep"] }
+    const omoConfig = { categories: { deep: { model: "openai/my-custom-model" } } } as OmoConfig
+    const unrelatedRegistry = registry([model("google", "gemini-3.1-pro")])
+
+    // when
+    const resolution = resolveAgent("probe", { probe: definition }, unrelatedRegistry, { omoConfig })
+
+    // then: troubleshooting must point at what the user configured.
+    expect(resolution.kind).toBe("model_unavailable")
+    if (resolution.kind !== "model_unavailable") return
+    expect(resolution.attemptedModel).toBe("openai/my-custom-model")
+  })
 })

@@ -33,7 +33,7 @@ function findOnlyCategoryModel<TModel extends SenpiModelPort>(
   input: ResolveAgentCategoryInput<TModel>,
 ): AgentCategorySelection | undefined {
   if (Array.isArray(input.registry.getAvailable())) return undefined
-  const fallbackModel = firstCategoryDefaultModel(input.categories)
+  const fallbackModel = firstCategoryDefaultModel(input.categories, input.omoConfig)
   if (fallbackModel === undefined) return undefined
   const separatorIndex = fallbackModel.indexOf("/")
   if (separatorIndex <= 0 || separatorIndex === fallbackModel.length - 1) return undefined
@@ -52,9 +52,19 @@ function findOnlyCategoryModel<TModel extends SenpiModelPort>(
 }
 
 // The model the agent would have run on had a category resolved: the first listed category's
-// builtin default. Feeds `attemptedModel` on the model_unavailable and no-registry paths.
-export function firstCategoryDefaultModel(categories: readonly string[] | undefined): string | undefined {
+// model. A user `categories.<name>.model` outranks the builtin default so a failure names what the
+// user actually configured instead of a builtin they never chose. Feeds `attemptedModel` on the
+// model_unavailable and no-registry paths.
+export function firstCategoryDefaultModel(
+  categories: readonly string[] | undefined,
+  omoConfig?: OmoConfig,
+): string | undefined {
+  const userCategories = omoConfig?.categories
   for (const name of categories ?? []) {
+    const userModel = userCategories !== undefined && Object.hasOwn(userCategories, name)
+      ? userCategories[name]?.model
+      : undefined
+    if (userModel !== undefined) return userModel
     const builtin = Object.hasOwn(DEFAULT_CATEGORIES, name) ? DEFAULT_CATEGORIES[name] : undefined
     if (builtin?.model !== undefined) return builtin.model
   }
