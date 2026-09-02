@@ -92,6 +92,7 @@ describe("recall re-ingestion guard", () => {
     // then
     expect(projections.map((projection) => projection.messageId)).toEqual(["u1", "a1"])
     expect(JSON.stringify(projections)).not.toContain("recalled-memory")
+    expect(JSON.stringify(projections)).not.toContain("SENTINEL_HINT")
     expect(JSON.stringify(projections)).not.toContain("memory_notice")
   })
 
@@ -113,6 +114,8 @@ describe("recall re-ingestion guard", () => {
     // then
     expect(factsEntries.map((entry) => entry.source_message_id)).toEqual(["u1", "a1"])
     expect(JSON.stringify(factsEntries)).not.toContain("recalled-memory")
+    expect(JSON.stringify(factsEntries)).not.toContain("SENTINEL_HINT")
     expect(JSON.stringify(snapshot)).not.toContain("recalled-memory")
+    expect(JSON.stringify(snapshot)).not.toContain("SENTINEL_HINT")
   }, 30_000)
 })
