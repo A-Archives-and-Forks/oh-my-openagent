@@ -14,6 +14,7 @@ import { TranscriptJournal, buildIdentityPaths } from "@oh-my-opencode/memory-co
 
 import { createMemoryJournalWiring, projectSessionEntries } from "./journal-wiring"
 import { MEMORY_NOTICE_CUSTOM_TYPE } from "./prompt"
+import { NUDGED_ENTRY_TYPE } from "./memorian-notice"
 import { RECALL_CUSTOM_TYPE } from "./recall-wiring"
 import { rmSyncEfaultTolerant } from "./teardown.test-support"
 
@@ -41,6 +42,12 @@ function branch(): readonly Record<string, unknown>[] {
       customType: RECALL_CUSTOM_TYPE,
       content: RECALL_TEXT,
       display: false,
+    },
+    {
+      type: "custom",
+      id: "n1",
+      customType: NUDGED_ENTRY_TYPE,
+      data: { version: 1, nudges: [{ path: "memory/sentinel.md", hint: "SENTINEL_HINT" }] },
     },
     {
       type: "custom_message",
