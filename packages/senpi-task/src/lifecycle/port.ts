@@ -77,6 +77,10 @@ export type ReattachResult =
   | { readonly ok: true }
   | { readonly ok: false; readonly kind: "already_attached" | "failed"; readonly reason: string }
 
+export type DetachedRevivalResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly reason: string }
+
 export type CapacityReservation =
   | { readonly ok: false }
   | { readonly ok: true; release(): void }
@@ -92,6 +96,7 @@ export type LifecycleReattachPorts = {
 }
 
 const registeredReattachPorts = new WeakMap<TaskRecordStore, LifecycleReattachPorts>()
+const registeredDetachedRevivals = new WeakMap<TaskRecordStore, (taskId: string) => Promise<DetachedRevivalResult>>()
 
 export function registerLifecycleReattachPorts(
   store: TaskRecordStore,
@@ -102,6 +107,19 @@ export function registerLifecycleReattachPorts(
 
 export function getLifecycleReattachPorts(store: TaskRecordStore): LifecycleReattachPorts | undefined {
   return registeredReattachPorts.get(store)
+}
+
+export function registerLifecycleDetachedRevival(
+  store: TaskRecordStore,
+  revive: (taskId: string) => Promise<DetachedRevivalResult>,
+): void {
+  registeredDetachedRevivals.set(store, revive)
+}
+
+export function getLifecycleDetachedRevival(
+  store: TaskRecordStore,
+): ((taskId: string) => Promise<DetachedRevivalResult>) | undefined {
+  return registeredDetachedRevivals.get(store)
 }
 
 export type IdleReclaimerTimer = {

@@ -1,4 +1,5 @@
 import type { ManagedChildHandle } from "../manager/child-handle"
+import type { DetachedRevivalResult } from "../lifecycle/port"
 import type { TaskRecord, TaskRunStats, TaskStatus } from "../state"
 import type { TaskRecordStore } from "../store"
 
@@ -24,6 +25,7 @@ export type SteeringPort = {
   liveHandle(taskId: string): ManagedChildHandle | undefined
   dequeuePending(taskId: string): boolean
   reserveForRevive(taskId: string): ReviveReservation
+  reviveDetached?(taskId: string): Promise<DetachedRevivalResult>
   readonly destruction: DestructionPort
   // Snapshot of the manager-owned run-stats accumulator for a live task, attached to the cancel
   // transition steering performs (the manager's later outcome transition is late-transition

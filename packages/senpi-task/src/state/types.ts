@@ -179,6 +179,9 @@ export type TaskRecord = TaskRecordInput & {
   readonly residency_state: ResidencyState
   readonly created_at: string
   readonly updated_at: string
+  // Stable timestamp for the terminal run. Residency claims may refresh updated_at, but must not
+  // extend the retention window of a completed run.
+  readonly terminal_at?: string
   readonly pid?: number
   // Pid of the host process that spawned (and owns) this child. Lets a sibling process in the same
   // project distinguish "previous process died" from "a live process still owns this child" during

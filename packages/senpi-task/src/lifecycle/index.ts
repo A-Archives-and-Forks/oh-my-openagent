@@ -4,6 +4,7 @@ export type { ResidentSummary } from "./errors"
 export { getLifecycleReattachPorts, registerLifecycleReattachPorts } from "./port"
 export type {
   DestroyCause,
+  DetachedRevivalResult,
   LifecycleDeps,
   LifecycleReattachPorts,
   ProcessSignaller,
