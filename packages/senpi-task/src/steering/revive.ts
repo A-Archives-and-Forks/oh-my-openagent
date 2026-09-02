@@ -97,17 +97,27 @@ async function deliverRevivedTerminal(
       const epoch = revivedForUncertainty.notification.run_epoch
       // Fence the marker on the exact generation this revival wrote. A concurrent cancel/interrupt
       // that already won the terminal transition on this epoch owns the record; leave it untouched.
+      // The marker write must be exception-safe: the reservation is committed or released exactly
+      // once on every path, including a record-lock failure inside the fenced mutate.
       let marked = false
-      port.store.mutate(record.task_id, (fresh) => {
-        if (
-          fresh.status !== "running" ||
-          fresh.residency_state !== "resident" ||
-          fresh.host_pid !== revivedForUncertainty.host_pid ||
-          fresh.notification.run_epoch !== epoch
-        ) return fresh
-        marked = true
-        return { ...fresh, revive_delivery_uncertain: { run_epoch: epoch, message_sha256: messageSha256(message) } }
-      })
+      try {
+        port.store.mutate(record.task_id, (fresh) => {
+          if (
+            fresh.status !== "running" ||
+            fresh.residency_state !== "resident" ||
+            fresh.host_pid !== revivedForUncertainty.host_pid ||
+            fresh.notification.run_epoch !== epoch
+          ) return fresh
+          marked = true
+          return { ...fresh, revive_delivery_uncertain: { run_epoch: epoch, message_sha256: messageSha256(message) } }
+        })
+      } catch (markError) {
+        reservation.release()
+        return lazyRevivalFailure(
+          record,
+          `unacknowledged delivery could not be recorded: ${markError instanceof Error ? markError.message : String(markError)}`,
+        )
+      }
       if (marked) {
         reservation.commit()
         port.store.appendEvent(record.task_id, {

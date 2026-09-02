@@ -451,6 +451,58 @@ describe("task_send lazy terminal RPC revival", () => {
     expect(current?.revive_delivery_uncertain).toBeUndefined()
   })
 
+  test("#given a revived child that exits before acknowledging followUp #when the fenced marker write throws #then the reservation is released exactly once and no marker is written", async () => {
+    const project = mkdtempSync(join(tmpdir(), "senpi-task-steering-uncertain-mutate-throws-"))
+    roots.push(project)
+    const baseStore = createTaskRecordStore({ project_dir: project })
+    const record = detachedTerminal(baseStore)
+    let live = false
+    let destroys = 0
+    let commits = 0
+    let releases = 0
+    let armed = false
+    // The fenced uncertainty write hits a record-lock failure (e.g. lock timeout under contention).
+    const store = {
+      ...baseStore,
+      mutate(taskId: string, update: (fresh: TaskRecord) => TaskRecord) {
+        if (armed) throw new Error("record lock timed out")
+        return baseStore.mutate(taskId, update)
+      },
+    }
+    const handle: ManagedChildHandle = {
+      ...fakeHandle(record.task_id, []),
+      hasExited: () => true,
+      followUp: async () => {
+        armed = true
+        throw new Error("RPC process exited before response")
+      },
+    }
+    const port: SteeringPort = {
+      store,
+      liveHandle: () => (live ? handle : undefined),
+      reserveForRevive: () => ({ ok: true, commit: () => { commits += 1 }, release: () => { releases += 1 } }),
+      reviveDetached: async () => {
+        live = true
+        baseStore.mutate(record.task_id, (fresh) => ({ ...fresh, residency_state: "resident", host_pid: 6000 }))
+        return { ok: true }
+      },
+      rollbackDetachedRevival: () => "not_owner",
+      dequeuePending: () => false,
+      destruction: { destroyResidentTask: async () => { destroys += 1 } },
+      runStatsSnapshot: () => undefined,
+      now: () => Date.parse("2026-09-02T00:00:00.000Z"),
+    }
+    const engine = createSteeringEngine(port)
+
+    const outcome = await engine.sendToTask({ idOrName: record.task_id, message: "apply once" })
+
+    expect(outcome.kind).toBe("not_continuable")
+    expect(commits).toBe(0)
+    expect(releases).toBe(1)
+    expect(destroys).toBe(0)
+    expect(baseStore.load(record.task_id)?.revive_delivery_uncertain).toBeUndefined()
+  })
+
   test("#given persistence of the revived running record throws #when task_send delivers #then it rolls back before delivery", async () => {
     const project = mkdtempSync(join(tmpdir(), "senpi-task-steering-persistence-failure-"))
     roots.push(project)
