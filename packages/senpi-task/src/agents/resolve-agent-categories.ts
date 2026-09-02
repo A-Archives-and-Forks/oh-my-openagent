@@ -50,6 +50,7 @@ export function resolveAgentCategoryModel<TModel extends SenpiModelPort>(
   const { spec } = winner
   const categoryReasoning = spec.reasoning ?? spec.reasoningEffort ?? spec.variant
   const chain = agentModelChain(resolutions.map((resolution) => resolution.spec))
+
   return {
     provider: spec.provider,
     modelId: spec.modelId,
@@ -64,18 +65,46 @@ export function resolveAgentCategoryModel<TModel extends SenpiModelPort>(
 }
 
 type CategorySpecChain = {
+  readonly provider: string
+  readonly modelId: string
+  readonly variant?: string
+  readonly reasoning?: string
+  readonly reasoningEffort?: string
   readonly requested_model?: ResolvedModelRecord
   readonly fallback_models?: readonly ResolvedModelRecord[]
 }
 
+type RuntimeChain = {
+  readonly requested_model?: ResolvedModelRecord
+  readonly fallback_models?: readonly ResolvedModelRecord[]
+}
+
+// A category's own `requested_model` is its chain HEAD, which is not the model it selected when an
+// earlier rung was unavailable. Leading with that head would advertise a model the registry cannot
+// serve, so each spec contributes its SELECTED model first and its remaining rungs after.
+function selectedFirstRecords(spec: CategorySpecChain): readonly ResolvedModelRecord[] {
+  const display = `${spec.provider}/${spec.modelId}`
+  const reasoning = spec.reasoning ?? spec.reasoningEffort ?? spec.variant
+  const selected: ResolvedModelRecord = {
+    source: "agent",
+    provider: spec.provider,
+    model_id: spec.modelId,
+    display,
+    ...(reasoning !== undefined ? { variant: reasoning, reasoning } : {}),
+  }
+  const rest = [spec.requested_model, ...(spec.fallback_models ?? [])]
+    .filter((record): record is ResolvedModelRecord => record !== undefined && record.display !== display)
+  return [selected, ...rest]
+}
+
 // Winner chain first, then every later resolved category's chain, deduplicated by display and
 // re-stamped as an agent-sourced record (the child ran because of the agent, not a category call).
-function agentModelChain(specs: readonly CategorySpecChain[]): CategorySpecChain {
+function agentModelChain(specs: readonly CategorySpecChain[]): RuntimeChain {
   const records: ResolvedModelRecord[] = []
   const seen = new Set<string>()
   for (const spec of specs) {
-    for (const record of [spec.requested_model, ...(spec.fallback_models ?? [])]) {
-      if (record === undefined || seen.has(record.display)) continue
+    for (const record of selectedFirstRecords(spec)) {
+      if (seen.has(record.display)) continue
       seen.add(record.display)
       records.push({ ...record, source: "agent" })
     }
