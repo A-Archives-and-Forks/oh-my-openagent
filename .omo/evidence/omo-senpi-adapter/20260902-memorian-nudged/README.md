@@ -4,8 +4,8 @@ HEAD under test: `b2a3b29cf8dbb94a28801ab16bacbba0ace7f990`
 
 | criterion | route | artifact | PASS/FAIL |
 |---|---|---|---|
-| C001 HAPPY persisted turn-2 record has one `omo-memorian:nudged`, zero `omo-memorian:recall` entries, and one hidden recall message | real senpi two-turn `-p --mode json` with isolated sandbox and `SENPI_BIN` stub child; persisted session then used with `--session` resume | `C001-happy/session.jsonl`, `C001-happy/transcript.txt` | PASS |
-| C001 HAPPY visible xterm.js TUI notice before turn-2 reply | real xterm.js web-terminal resume capture | `C001-happy/tui.png`, `C001-happy/cleanup.txt` | FAIL: resumed buffer was blank with senpi 2026.9.2 |
+| C001 HAPPY persisted turn-2 record has one `omo-memorian:nudged`, zero `omo-memorian:recall` entries, and one hidden recall message | same LIVE interactive session as the screenshot (session.jsonl is that session's file) | `C001-happy/session.jsonl`, `C001-happy/transcript.txt` | PASS |
+| C001 HAPPY visible xterm.js TUI notice before turn-2 reply | LIVE two-turn interactive senpi session in the xterm.js harness (mock provider, omo plugin, SENPI_BIN stub gate child); turn 1 names the seeded token, turn 2 shows the notice before the reply | `C001-happy/tui.png`, `C001-happy/transcript.txt`, `C001-happy/transcript-ansi.txt`, `C001-happy/session.jsonl`, `C001-happy/stub-child-invocations.jsonl`, `C001-happy/cleanup.txt` | PASS (lead recapture; the earlier `--session` resume route rendered a blank buffer and was discarded) |
 | C002 skipped gate appears once after three settled turns when quick category is unavailable | isolated skipped-category fixture with lexical candidates | `C002-edge/skipped-session.jsonl`, `C002-edge/skipped-tui.png` | PASS (fixture/renderer surface) |
 | C002 silent child produces no gate or nudged records across two turns | silent-child fixture | `C002-edge/silent-session.jsonl` | PASS (zero records) |
 | C002 malformed notice records render nothing | focused renderer tests on gorky | `C002-edge/malformed-render.test.txt` | PASS |
