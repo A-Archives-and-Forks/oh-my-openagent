@@ -67,7 +67,7 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
     if (record.status === "pending") return enqueuePending(record, input.message, deliverAs)
     if (port.isEvicting?.(record.task_id) === true) return evictionRefusal(record.task_id)
 
-    const mode = messageability(record.status, record.residency_state, record.execution_mode)
+    const mode = messageability(record.status, record.residency_state, record.execution_mode, record.killed)
     if (mode === "not-continuable") {
       return { kind: "not_continuable", task_id: record.task_id, reason: notContinuableReason(record), suggestion: TASK_OUTPUT_SUGGESTION }
     }

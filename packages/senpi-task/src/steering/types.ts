@@ -3,7 +3,7 @@ import type { DetachedRevivalResult } from "../lifecycle/port"
 import type { TaskRecord, TaskRunStats, TaskStatus } from "../state"
 import type { TaskRecordStore } from "../store"
 
-export type DestructionCause = "cancel" | "cancel_without_abort" | "fallback_handoff"
+export type DestructionCause = "cancel" | "cancel_without_abort" | "fallback_handoff" | "revive_failure"
 
 // Structural port implemented by lifecycle (todo 12). Steering delegates ALL child destruction here
 // and NEVER calls dispose()/terminate()/SIGTERM itself (the dispose single-writer rule). Idempotent.
@@ -25,7 +25,8 @@ export type SteeringPort = {
   liveHandle(taskId: string): ManagedChildHandle | undefined
   dequeuePending(taskId: string): boolean
   reserveForRevive(taskId: string): ReviveReservation
-  reviveDetached?(taskId: string): Promise<DetachedRevivalResult>
+  reserveForDetachedRevive?(record: TaskRecord): ReviveReservation
+  reviveDetached?(taskId: string, reservation?: ReviveReservation): Promise<DetachedRevivalResult>
   readonly destruction: DestructionPort
   // Snapshot of the manager-owned run-stats accumulator for a live task, attached to the cancel
   // transition steering performs (the manager's later outcome transition is late-transition

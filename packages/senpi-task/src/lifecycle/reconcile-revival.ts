@@ -15,6 +15,7 @@ import type { ReconcileOutcome } from "./types"
 export { beginLocalReclamation } from "./reconcile-reclamation"
 
 const SUSPENDED_RESIDENCIES = new Set(["persisted_only", "rpc_detached"])
+// `interrupted` is terminal by status, but remains in the revival set here for in-flight session recovery.
 const SESSION_REVIVABLE_STATUSES = new Set(["pending", "running", "interrupted"])
 
 type RevivalCandidate = {

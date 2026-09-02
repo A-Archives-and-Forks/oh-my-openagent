@@ -1,4 +1,4 @@
-import type { TaskRecord } from "../state"
+import { transitionTaskRecord, type TaskRecord } from "../state"
 import { delay, nowIso, type LifecycleContext } from "./context"
 import type { ReconcileOutcome } from "./types"
 
@@ -18,14 +18,28 @@ export async function detachTerminalResident(
     }
   }
 
-  const transition = context.store.transition(record.task_id, {
-    type: record.execution_mode === "process" ? "detach_rpc" : "persist_only",
-    timestamp: nowIso(context),
+  let applied = false
+  context.store.mutate(record.task_id, (fresh) => {
+    if (
+      fresh.residency_state !== "resident" ||
+      fresh.host_pid !== context.hostPid ||
+      fresh.updated_at !== record.updated_at ||
+      hasLiveHandle(context, record.task_id)
+    ) return fresh
+    const transition = transitionTaskRecord(fresh, {
+      type: fresh.execution_mode === "process" ? "detach_rpc" : "persist_only",
+      timestamp: nowIso(context),
+    })
+    if (!transition.applied) return fresh
+    applied = true
+    return transition.record
   })
-  if (!transition.applied) {
-    return { task_id: record.task_id, kind: "foreign_live_owner", reason: "terminal detach lost ownership" }
-  }
+  if (!applied) return { task_id: record.task_id, kind: "deferred", reason: "foreign_live_owner" }
   return { task_id: record.task_id, kind: "resumed", reason: "terminal resident detached" }
+}
+
+function hasLiveHandle(context: LifecycleContext, taskId: string): boolean {
+  return context.registry.get(taskId) !== undefined || context.registry.entries().some((handle) => handle.task_id === taskId)
 }
 
 export async function terminateClaimedPid(context: LifecycleContext, record: TaskRecord): Promise<boolean> {

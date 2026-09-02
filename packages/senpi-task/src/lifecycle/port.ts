@@ -16,6 +16,7 @@ export type DestroyCause =
   | "ttl"
   | "reconcile_lost"
   | "fallback_handoff"
+  | "revive_failure"
 
 // The teardown surface the destruction port operates against. In production this wraps a live
 // ManagedChildHandle (in-process) or an rpc child handle (rpc); tests inject fakes. ONLY lifecycle
@@ -77,6 +78,11 @@ export type ReattachResult =
   | { readonly ok: true }
   | { readonly ok: false; readonly kind: "already_attached" | "failed"; readonly reason: string }
 
+export type DetachedRevivalReservation = {
+  commit(): void
+  release(): void
+}
+
 export type DetachedRevivalResult =
   | { readonly ok: true }
   | { readonly ok: false; readonly reason: string }
@@ -96,7 +102,7 @@ export type LifecycleReattachPorts = {
 }
 
 const registeredReattachPorts = new WeakMap<TaskRecordStore, LifecycleReattachPorts>()
-const registeredDetachedRevivals = new WeakMap<TaskRecordStore, (taskId: string) => Promise<DetachedRevivalResult>>()
+const registeredDetachedRevivals = new WeakMap<TaskRecordStore, (taskId: string, reservation: DetachedRevivalReservation) => Promise<DetachedRevivalResult>>()
 
 export function registerLifecycleReattachPorts(
   store: TaskRecordStore,
@@ -111,14 +117,14 @@ export function getLifecycleReattachPorts(store: TaskRecordStore): LifecycleReat
 
 export function registerLifecycleDetachedRevival(
   store: TaskRecordStore,
-  revive: (taskId: string) => Promise<DetachedRevivalResult>,
+  revive: (taskId: string, reservation: DetachedRevivalReservation) => Promise<DetachedRevivalResult>,
 ): void {
   registeredDetachedRevivals.set(store, revive)
 }
 
 export function getLifecycleDetachedRevival(
   store: TaskRecordStore,
-): ((taskId: string) => Promise<DetachedRevivalResult>) | undefined {
+): ((taskId: string, reservation: DetachedRevivalReservation) => Promise<DetachedRevivalResult>) | undefined {
   return registeredDetachedRevivals.get(store)
 }
 

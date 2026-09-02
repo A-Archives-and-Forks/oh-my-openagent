@@ -131,6 +131,33 @@ describe("destroyResidentTask (the single-writer destruction port)", () => {
     expect(readEvents(store, "st_0000000c")).toContain("evicted")
   })
 
+  test("#given a revived terminal rpc resident #when revival fails #then the destruction port tears it down and rolls it back to detached", async () => {
+    const store = tempStore()
+    const record = seedRecord(store, {
+      task_id: "st_0000000a",
+      status: "completed",
+      residency_state: "resident",
+      execution_mode: "process",
+    })
+    const preserved: typeof record = { ...record, final_response: "saved", terminal_at: "2026-09-01T00:00:00.000Z" }
+    store.replace(preserved)
+    const registry = new FakeRegistry()
+    const order: CallLog = []
+    registry.add(fakeHandle(record.task_id, "rpc", order, { pid: 4242 }))
+    const lifecycle = createTaskLifecycle({ store, registry, config: settings() })
+
+    await lifecycle.destroyResidentTask(record.task_id, "revive_failure")
+
+    expect(order).toEqual(["terminate:st_0000000a", "dispose:st_0000000a"])
+    expect(registry.forgotten).toContain(record.task_id)
+    expect(store.load(record.task_id)).toMatchObject({
+      status: "completed",
+      residency_state: "rpc_detached",
+      final_response: "saved",
+      terminal_at: preserved.terminal_at,
+    })
+  })
+
   test("#given no resident handle #when destroyed twice #then it is idempotent and never throws", async () => {
     // given
     const store = tempStore()

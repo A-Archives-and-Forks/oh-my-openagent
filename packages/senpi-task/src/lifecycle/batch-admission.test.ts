@@ -156,11 +156,11 @@ describe("admitSuspendedBatch (capacity-aware batch admission)", () => {
   })
 
   test("#given the lease is displaced mid-batch #when the holder re-reads it before each mutation #then it aborts the remaining claims", async () => {
-    // given: three candidates and a lease whose ownership flips after the first fencing check
+    // given: three non-terminal candidates and a lease whose ownership flips after the first fencing check
     const store = tempStore()
-    seedRecord(store, { task_id: "st_00000060", status: "completed", residency_state: "persisted_only", updated_at: iso(0) })
-    seedRecord(store, { task_id: "st_00000061", status: "completed", residency_state: "persisted_only", updated_at: iso(10) })
-    seedRecord(store, { task_id: "st_00000062", status: "completed", residency_state: "persisted_only", updated_at: iso(20) })
+    seedRecord(store, { task_id: "st_00000060", status: "running", residency_state: "persisted_only", updated_at: iso(0) })
+    seedRecord(store, { task_id: "st_00000061", status: "running", residency_state: "persisted_only", updated_at: iso(10) })
+    seedRecord(store, { task_id: "st_00000062", status: "running", residency_state: "persisted_only", updated_at: iso(20) })
     const context = contextFor(store, 8)
     let ownershipChecks = 0
     let released = false
@@ -180,10 +180,14 @@ describe("admitSuspendedBatch (capacity-aware batch admission)", () => {
     // when
     const result = await admitSuspendedBatch(context, "parent-1", { acquireLease })
 
-    // then: terminal records are not candidates, so the displaced lease is never consulted
-    expect(result.lease).toBe("acquired")
-    expect(result.outcomes).toEqual([])
-    expect(store.load("st_00000062")?.residency_state).toBe("persisted_only")
+    // then: the first candidate is claimed, and the displaced lease fences the remaining mutations
+    expect(result.lease).toBe("lease_lost")
+    expect(result.outcomes).toEqual([
+      { task_id: "st_00000062", kind: "claimed" },
+      { task_id: "st_00000061", kind: "deferred", reason: "lease_lost" },
+      { task_id: "st_00000060", kind: "deferred", reason: "lease_lost" },
+    ])
+    expect(store.load("st_00000062")?.residency_state).toBe("resident")
     expect(store.load("st_00000061")?.residency_state).toBe("persisted_only")
     expect(store.load("st_00000060")?.residency_state).toBe("persisted_only")
     expect(released).toBe(true)

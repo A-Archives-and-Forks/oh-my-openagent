@@ -167,6 +167,14 @@ async function reconcileLegacyTerminal(context: LifecycleContext, record: TaskRe
     return { task_id: record.task_id, kind: record.status === "lost" ? "lost" : "resumed", reason: `already ${record.status}` }
   }
   if (record.residency_state !== "resident") return { task_id: record.task_id, kind: "resumed" }
+  if (newestSessionPath(context, record.task_id) === undefined) {
+    await destroyResidentTask(context, record.task_id, "reconcile_lost")
+    return {
+      task_id: record.task_id,
+      kind: "resumed",
+      reason: "terminal without transcript disposed; persisted result preserved",
+    }
+  }
   return detachTerminalResident(context, record)
 }
 

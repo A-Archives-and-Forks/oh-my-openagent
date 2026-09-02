@@ -30,6 +30,10 @@ describe("terminal rpc messageability", () => {
     expect(messageability("running", "rpc_detached", "process")).toBe("not-continuable")
     expect(messageability("completed", "persisted_only", "in-process")).toBe("not-continuable")
   })
+
+  test("#given a killed terminal error rpc record #when classified #then it is not-continuable", () => {
+    expect(messageability("error", "rpc_detached", "process", true)).toBe("not-continuable")
+  })
 })
 
 describe("terminal_at lifecycle anchor", () => {
@@ -74,5 +78,43 @@ describe("terminal_at lifecycle anchor", () => {
     }, "record.json")
 
     expect(parsed).toMatchObject({ terminal_at: "2026-09-02T00:00:01.000Z" })
+  })
+
+  test("#given a legacy terminal record without terminal_at #when it is parsed #then updated_at becomes the frozen terminal anchor", () => {
+    const parsed = parseTaskRecord({
+      task_id: "st_75500009",
+      status: "error",
+      residency_state: "rpc_detached",
+      parent_session_id: "parent",
+      root_session_id: "root",
+      depth: 1,
+      execution_mode: "process",
+      model: "anthropic/claude",
+      notify_on_terminal: false,
+      created_at: "2026-09-01T00:00:00.000Z",
+      updated_at: "2026-09-01T00:00:01.000Z",
+      notification: { run_epoch: 0, notified_epoch: -1 },
+    }, "record.json")
+
+    expect(parsed.terminal_at).toBe("2026-09-01T00:00:01.000Z")
+  })
+
+  test("#given a legacy non-terminal record without terminal_at #when it is parsed #then no terminal anchor is added", () => {
+    const parsed = parseTaskRecord({
+      task_id: "st_7550000a",
+      status: "running",
+      residency_state: "resident",
+      parent_session_id: "parent",
+      root_session_id: "root",
+      depth: 1,
+      execution_mode: "process",
+      model: "anthropic/claude",
+      notify_on_terminal: false,
+      created_at: "2026-09-01T00:00:00.000Z",
+      updated_at: "2026-09-01T00:00:01.000Z",
+      notification: { run_epoch: 0, notified_epoch: -1 },
+    }, "record.json")
+
+    expect(parsed.terminal_at).toBeUndefined()
   })
 })

@@ -1,6 +1,12 @@
 import type { Messageability, ResidencyState, TaskStatus } from "./types"
 
-export function messageability(status: TaskStatus, residencyState: ResidencyState, executionMode?: string): Messageability {
+export function messageability(
+  status: TaskStatus,
+  residencyState: ResidencyState,
+  executionMode?: string,
+  killed?: boolean,
+): Messageability {
+  if (killed === true) return "not-continuable"
   // Persisted-only children keep the session-resume contract. A terminal RPC child is different:
   // its completed transcript can be reattached lazily when task_send explicitly targets it.
   if (residencyState === "disposed" || residencyState === "persisted_only") return "not-continuable"

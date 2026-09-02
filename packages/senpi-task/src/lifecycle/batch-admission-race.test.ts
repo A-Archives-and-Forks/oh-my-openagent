@@ -78,16 +78,18 @@ describe("admitSuspendedBatch two-OS-process race", () => {
       }
       const results = outputs.map(parseRaceResult)
       const claimed = results.flatMap((result) => result.claimed)
+      const nonTerminalIds = ids.filter((_, index) => index % 2 === 0)
+      const terminalIds = ids.filter((_, index) => index % 2 === 1)
       expect(new Set(claimed).size).toBe(claimed.length)
-      expect(claimed).toHaveLength(4)
+      expect(new Set(claimed)).toEqual(new Set(nonTerminalIds))
 
       // and the persisted state agrees: exactly 4 residents, 4 terminal records still suspended, none lost
       const fresh = createTaskRecordStore({ project_dir: store.stateDir, task: { state_dir: store.stateDir } })
       const records = fresh.list().records.filter((record) => record.parent_session_id === "parent-1")
-      expect(records.filter((record) => record.residency_state === "resident")).toHaveLength(4)
-      expect(
-        records.filter((record) => record.residency_state === "persisted_only" || record.residency_state === "rpc_detached"),
-      ).toHaveLength(4)
+      expect(new Set(records.filter((record) => record.residency_state === "resident").map((record) => record.task_id))).toEqual(new Set(nonTerminalIds))
+      expect(new Set(records
+        .filter((record) => record.residency_state === "persisted_only" || record.residency_state === "rpc_detached")
+        .map((record) => record.task_id))).toEqual(new Set(terminalIds))
 
       // and every claim is stamped with one of the two CHILD pids - proof the claims crossed processes
       const childPids = new Set(results.map((result) => result.pid))
