@@ -8,7 +8,7 @@ HEAD under test: `b2a3b29cf8dbb94a28801ab16bacbba0ace7f990`
 | C001 HAPPY visible xterm.js TUI notice before turn-2 reply | real xterm.js web-terminal resume capture | `C001-happy/tui.png`, `C001-happy/cleanup.txt` | FAIL: resumed buffer was blank with senpi 2026.9.2 |
 | C002 skipped gate appears once after three settled turns when quick category is unavailable | isolated skipped-category fixture with lexical candidates | `C002-edge/skipped-session.jsonl`, `C002-edge/skipped-tui.png` | PASS (fixture/renderer surface) |
 | C002 silent child produces no gate or nudged records across two turns | silent-child fixture | `C002-edge/silent-session.jsonl` | PASS (zero records) |
-| C002 malformed notice records render nothing | focused renderer tests on gorky | `C003-regression/malformed-render.test.txt` | PASS |
+| C002 malformed notice records render nothing | focused renderer tests on gorky | `C002-edge/malformed-render.test.txt` | PASS |
 | C003 recall reingestion and sentinel behavior | focused Bun tests on gorky | `C003-regression/reingestion-test.txt` | PASS |
 | C003 memory suites | Bun test on gorky | `C003-regression/bun-test.txt` | PASS: 1682 pass, 6 skip, 0 fail |
 | C003 TypeScript | `bun x tsgo --noEmit -p packages/omo-senpi/tsconfig.json` on gorky | `C003-regression/tsgo.txt` | PASS |
