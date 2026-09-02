@@ -206,4 +206,24 @@ describe("resolveAgent category stage", () => {
     const chain = [resolution.requested_model, ...(resolution.fallback_models ?? [])]
     expect(chain[0]?.display).toBe("zai-coding-plan/glm-5.3")
   })
+
+  test("#given a malformed available-model container #when find still resolves the category model #then the agent keeps the find-only fallback", () => {
+    // given: getAvailable() returns a non-array (unparseable), but find() works. The direct-model
+    // path documents this degradation, so a categorized agent must not lose it.
+    const definition: AgentDefinition = { name: "probe", categories: ["unspecified-high"] }
+    const available = [model("anthropic", "claude-opus-5")]
+    const malformedRegistry = {
+      getAvailable: (): unknown => ({ notAnArray: true }),
+      find: (provider: string, modelId: string) =>
+        available.find((candidate) => candidate.provider === provider && candidate.id === modelId),
+    }
+
+    // when
+    const resolution = resolveAgent("probe", { probe: definition }, malformedRegistry)
+
+    // then
+    expect(resolution.kind).toBe("resolved")
+    if (resolution.kind !== "resolved") return
+    expect(resolution.model).toBe("anthropic/claude-opus-5")
+  })
 })

@@ -24,6 +24,33 @@ export type ResolveAgentCategoryInput<TModel extends SenpiModelPort> = {
   readonly configuredTuning: AgentCategoryTuning
 }
 
+// `resolveCategory` fails closed when the registry's available-model container is unparseable,
+// which would strip categorized agents of the find-only degradation the direct-model path keeps
+// ("an unparseable available set keeps the find-only behavior" in resolve-agent.ts). Recover the
+// first listed category's builtin default straight from `find` so a junk availability payload
+// cannot make a model the registry can serve unreachable.
+function findOnlyCategoryModel<TModel extends SenpiModelPort>(
+  input: ResolveAgentCategoryInput<TModel>,
+): AgentCategorySelection | undefined {
+  if (Array.isArray(input.registry.getAvailable())) return undefined
+  const fallbackModel = firstCategoryDefaultModel(input.categories)
+  if (fallbackModel === undefined) return undefined
+  const separatorIndex = fallbackModel.indexOf("/")
+  if (separatorIndex <= 0 || separatorIndex === fallbackModel.length - 1) return undefined
+  const provider = fallbackModel.slice(0, separatorIndex)
+  const modelId = fallbackModel.slice(separatorIndex + 1)
+  const found = input.registry.find(provider, modelId)
+  if (found === undefined || found === null) return undefined
+  return {
+    provider,
+    modelId,
+    ...(input.configuredTuning.variant !== undefined ? { variant: input.configuredTuning.variant } : {}),
+    ...(input.configuredTuning.reasoningEffort !== undefined
+      ? { reasoningEffort: input.configuredTuning.reasoningEffort }
+      : {}),
+  }
+}
+
 // The model the agent would have run on had a category resolved: the first listed category's
 // builtin default. Feeds `attemptedModel` on the model_unavailable and no-registry paths.
 export function firstCategoryDefaultModel(categories: readonly string[] | undefined): string | undefined {
@@ -45,7 +72,7 @@ export function resolveAgentCategoryModel<TModel extends SenpiModelPort>(
     .map((name) => resolveCategory(name, input.omoConfig, input.registry))
     .filter((resolution) => resolution.kind === "resolved")
   const winner = resolutions[0]
-  if (winner === undefined) return undefined
+  if (winner === undefined) return findOnlyCategoryModel(input)
 
   const { spec } = winner
   const categoryReasoning = spec.reasoning ?? spec.reasoningEffort ?? spec.variant
