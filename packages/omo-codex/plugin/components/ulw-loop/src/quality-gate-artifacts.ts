@@ -1,7 +1,14 @@
 import { resolve } from "node:path";
 import { isWithinAttemptDir } from "./paths.js";
 import type { ValidateQualityGateOptions } from "./quality-gate.js";
-import { invalid, section, stringArray, textField } from "./quality-gate-fields.js";
+import {
+	invalid,
+	isPoisoned,
+	markPoisonedArtifactKind,
+	section,
+	stringArray,
+	textField,
+} from "./quality-gate-fields.js";
 import type { UlwLoopManualQaArtifactKind, UlwLoopManualQaArtifactRef, UlwLoopManualQaSurface } from "./types.js";
 
 export function surfaceField(value: unknown, field: string): UlwLoopManualQaSurface {
@@ -15,8 +22,8 @@ export function surfaceField(value: unknown, field: string): UlwLoopManualQaSurf
 	)
 		return value;
 	invalid(`${field} must be a supported manual QA surface.`, field);
+	return "cli";
 }
-
 export function kindField(value: unknown, field: string): UlwLoopManualQaArtifactKind {
 	if (
 		value === "cli-transcript" ||
@@ -28,8 +35,8 @@ export function kindField(value: unknown, field: string): UlwLoopManualQaArtifac
 	)
 		return value;
 	invalid(`${field} must be a supported artifact kind.`, field);
+	return "log";
 }
-
 export function artifactCompatible(surface: UlwLoopManualQaSurface, kind: UlwLoopManualQaArtifactKind): boolean {
 	switch (surface) {
 		case "cli":
@@ -44,24 +51,26 @@ export function artifactCompatible(surface: UlwLoopManualQaSurface, kind: UlwLoo
 			return kind === "data-diff";
 		default:
 			invalid("manualQa.surfaceEvidence has an unsupported surface.", "manualQa.surfaceEvidence.surface");
+			return false;
 	}
 }
-
 export function checkFile(path: string, field: string, opts?: ValidateQualityGateOptions): void {
-	if (opts?.repoRoot === undefined || opts.fs === undefined) return;
+	if (opts?.repoRoot === undefined || opts.fs === undefined || isPoisoned(field)) return;
 	const absolute = resolve(opts.repoRoot, path);
-	if (!opts.fs.existsSync(absolute)) invalid(`${field} must point to an existing artifact.`, field);
-	if (opts.fs.statSync(absolute).size <= 0) invalid(`${field} must point to a non-empty artifact.`, field);
-	if (opts.currentAttemptDir !== undefined && opts.repoRoot !== undefined) {
-		const attemptRoot = resolve(opts.repoRoot, opts.currentAttemptDir);
-		if (!isWithinAttemptDir(absolute, attemptRoot))
-			invalid(
-				`${field} (${path}) must point to an artifact from the current attempt (${opts.currentAttemptDir}).`,
-				field,
-			);
+	if (!opts.fs.existsSync(absolute)) {
+		invalid(`${field} must point to an existing artifact.`, field);
+		return;
 	}
+	if (opts.fs.statSync(absolute).size <= 0) invalid(`${field} must point to a non-empty artifact.`, field);
+	if (
+		opts.currentAttemptDir !== undefined &&
+		!isWithinAttemptDir(absolute, resolve(opts.repoRoot, opts.currentAttemptDir))
+	)
+		invalid(
+			`${field} (${path}) must point to an artifact from the current attempt (${opts.currentAttemptDir}).`,
+			field,
+		);
 }
-
 export function artifactMap(refs: readonly UlwLoopManualQaArtifactRef[]): Map<string, UlwLoopManualQaArtifactRef> {
 	const byId = new Map<string, UlwLoopManualQaArtifactRef>();
 	for (const ref of refs) {
@@ -70,34 +79,44 @@ export function artifactMap(refs: readonly UlwLoopManualQaArtifactRef[]): Map<st
 	}
 	return byId;
 }
-
 export function parseArtifactRefs(
 	value: unknown,
 	opts?: ValidateQualityGateOptions,
 ): readonly UlwLoopManualQaArtifactRef[] {
-	if (!Array.isArray(value) || value.length === 0)
+	if (!Array.isArray(value) || value.length === 0) {
 		invalid("manualQa.artifactRefs must not be empty.", "manualQa.artifactRefs");
-	return value.map((item, index) => {
-		const ref = section(item, `manualQa.artifactRefs[${index}]`);
-		const path = textField(ref["path"], `manualQa.artifactRefs[${index}].path`);
-		checkFile(path, `manualQa.artifactRefs[${index}].path`, opts);
-		return {
-			id: textField(ref["id"], `manualQa.artifactRefs[${index}].id`),
-			kind: kindField(ref["kind"], `manualQa.artifactRefs[${index}].kind`),
-			description: textField(ref["description"], `manualQa.artifactRefs[${index}].description`),
-			path,
-		};
+		return [];
+	}
+	return value.flatMap((item, index) => {
+		const prefix = `manualQa.artifactRefs[${index}]`;
+		const ref = section(item, prefix);
+		if (isPoisoned(prefix)) return [];
+		const pathField = `${prefix}.path`;
+		const idField = `${prefix}.id`;
+		const kindFieldName = `${prefix}.kind`;
+		const descriptionField = `${prefix}.description`;
+		const path = textField(ref["path"], pathField);
+		const id = textField(ref["id"], idField);
+		const kind = kindField(ref["kind"], kindFieldName);
+		if (isPoisoned(kindFieldName)) markPoisonedArtifactKind(id);
+		const description = textField(ref["description"], descriptionField);
+		checkFile(path, pathField, opts);
+		return [{ id, kind, description, path }];
 	});
 }
-
 export function referencedArtifacts(
 	value: unknown,
 	field: string,
 	byId: ReadonlyMap<string, UlwLoopManualQaArtifactRef>,
 ): readonly UlwLoopManualQaArtifactRef[] {
-	return stringArray(value, field).map((id) => {
+	const ids = stringArray(value, field);
+	if (isPoisoned(field)) return [];
+	return ids.flatMap((id) => {
 		const artifact = byId.get(id);
-		if (artifact === undefined) invalid(`${field} references unknown artifact ${id}.`, field);
-		return artifact;
+		if (artifact === undefined) {
+			invalid(`${field} references unknown artifact ${id}.`, field);
+			return [];
+		}
+		return [artifact];
 	});
 }
