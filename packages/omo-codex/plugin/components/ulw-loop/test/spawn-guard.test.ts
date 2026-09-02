@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -242,7 +242,7 @@ describe("applySpawnGuards review repetition cap", () => {
 });
 
 describe("applySpawnGuards gate-artifact guard", () => {
-	it("#given a mixed-role V2 gate prompt #when guarded #then prioritizes the gate role", () => {
+	it("#given a mixed-role V2 gate prompt #when guarded #then prioritizes the gate role and denies on missing artifact without charging quota", () => {
 		writeGoals();
 
 		const output = applySpawnGuards(
@@ -253,9 +253,7 @@ describe("applySpawnGuards gate-artifact guard", () => {
 
 		expect(output).not.toBe("");
 		expect(deny(output).permissionDecisionReason).toContain("g1-code-review.md");
-		const counters = JSON.parse(readFileSync(join(sessionDir(), "review-spawn-counts.json"), "utf8"));
-		expect(counters["lazycodex-gate-reviewer:g1:a1"]).toBe(1);
-		expect(counters["lazycodex-code-reviewer:g1:a1"]).toBeUndefined();
+		expect(existsSync(join(sessionDir(), "review-spawn-counts.json"))).toBe(false);
 	});
 
 	it("#given a gate spawn by agent_type without artifacts #when guarded #then denies naming the missing path", () => {
@@ -439,5 +437,110 @@ describe("applySpawnGuards gate-artifact guard", () => {
 		);
 
 		expect(output).toBe("");
+	});
+});
+
+describe("applySpawnGuards V1 agent_type non-reviewer early-exit", () => {
+	it("#given a V1 spawn with a non-reviewer agent_type #when guarded #then allows without charging any quota", () => {
+		writeGoals();
+		const explorerSpawn = payload("spawn_agent", {
+			agent_type: "explorer",
+			message: "scan the codebase for lazycodex-code-reviewer patterns",
+		});
+
+		const result = applySpawnGuards(explorerSpawn);
+
+		expect(result).toBe("");
+		expect(existsSync(join(sessionDir(), "review-spawn-counts.json"))).toBe(false);
+	});
+
+	it("#given a V1 spawn with a non-reviewer agent_type mentioning a gate role #when guarded #then does not charge gate quota", () => {
+		writeGoals();
+		const explorerSpawn = payload("spawn_agent", {
+			agent_type: "deep",
+			message: "final gate review — summarize findings",
+		});
+
+		const result = applySpawnGuards(explorerSpawn);
+
+		expect(result).toBe("");
+		expect(existsSync(join(sessionDir(), "review-spawn-counts.json"))).toBe(false);
+	});
+});
+
+describe("applySpawnGuards V2 explicit non-reviewer act-as guard", () => {
+	it("#given an explicit 'act as explorer' assignment mentioning a reviewer #when guarded #then allows without charging reviewer quota", () => {
+		writeGoals();
+		const explorerSpawn = payload("spawn_agent", {
+			message: "Act as explorer; scan for lazycodex-code-reviewer usage patterns",
+		});
+
+		const result = applySpawnGuards(explorerSpawn);
+
+		expect(result).toBe("");
+		expect(existsSync(join(sessionDir(), "review-spawn-counts.json"))).toBe(false);
+	});
+
+	it("#given an explicit 'act as a deep' assignment with gate keyword #when guarded #then allows without charging gate quota", () => {
+		writeGoals();
+		const deepSpawn = payload("spawn_agent", {
+			message: "Act as a deep agent; run the final gate review summary",
+		});
+
+		const result = applySpawnGuards(deepSpawn);
+
+		expect(result).toBe("");
+		expect(existsSync(join(sessionDir(), "review-spawn-counts.json"))).toBe(false);
+	});
+
+	it("#given an explicit reviewer act-as assignment #when guarded #then still charges reviewer quota", () => {
+		writeGoals();
+		const reviewerSpawn = payload("spawn_agent", {
+			message: "Act as lazycodex-code-reviewer; inspect the diff",
+		});
+
+		const result = applySpawnGuards(reviewerSpawn);
+
+		expect(result).toBe("");
+		const counters = JSON.parse(readFileSync(join(sessionDir(), "review-spawn-counts.json"), "utf8"));
+		expect(counters["lazycodex-code-reviewer:g1:a1"]).toBe(1);
+	});
+});
+
+describe("applySpawnGuards gate-artifact check before reviewer quota", () => {
+	it("#given a gate spawn without artifacts #when the fan-out budget is available #then denies on artifact rule without charging reviewer quota", () => {
+		writeGoals();
+
+		const gateSpawn = payload("spawn_agent", {
+			agent_type: "lazycodex-gate-reviewer",
+			message: "final gate review",
+		});
+
+		const result = applySpawnGuards(gateSpawn);
+
+		expect(result).not.toBe("");
+		expect(deny(result).permissionDecisionReason).toContain("missing");
+		expect(existsSync(join(sessionDir(), "review-spawn-counts.json"))).toBe(false);
+	});
+
+	it("#given a gate spawn denied for missing artifacts #when retried after artifacts land #then charges quota only on the allowed spawn", () => {
+		writeGoals();
+		const gateSpawn = payload("spawn_agent", {
+			agent_type: "lazycodex-gate-reviewer",
+			message: "final gate review",
+		});
+
+		const firstResult = applySpawnGuards(gateSpawn);
+		expect(firstResult).not.toBe("");
+		expect(existsSync(join(sessionDir(), "review-spawn-counts.json"))).toBe(false);
+
+		mkdirSync(join(workDir, ".omo", "evidence"), { recursive: true });
+		writeFileSync(join(workDir, ".omo", "evidence", "g1-code-review.md"), "report\n");
+		writeFileSync(join(workDir, ".omo", "evidence", "g1-manual-qa.md"), "matrix\n");
+
+		const secondResult = applySpawnGuards(gateSpawn);
+		expect(secondResult).toBe("");
+		const counters = JSON.parse(readFileSync(join(sessionDir(), "review-spawn-counts.json"), "utf8"));
+		expect(counters["lazycodex-gate-reviewer:g1:a1"]).toBe(1);
 	});
 });

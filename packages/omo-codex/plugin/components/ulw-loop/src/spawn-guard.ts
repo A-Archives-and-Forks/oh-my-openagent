@@ -1,5 +1,6 @@
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { randomBytes } from "node:crypto";
 
 import type { PreToolUsePayload } from "./codex-hook.js";
 import { parsePreToolUsePayload } from "./codex-hook.js";
@@ -34,11 +35,11 @@ export function applySpawnGuards(payload: PreToolUsePayload): string {
 	if (plan === null) return "";
 	const fanOutPeek = peekFanOutBudget(stateDir);
 	if (fanOutPeek !== null) return deny(fanOutPeek);
-	const reviewDenial = consumeReviewSpawnBudget(payload, plan, stateDir);
-	if (reviewDenial !== null) return deny(reviewDenial);
 	const missingArtifact = missingGateArtifact(payload, plan);
 	if (missingArtifact !== null)
 		return deny(`spawn code-review + QA first; gate audits their artifacts: missing ${missingArtifact}`);
+	const reviewDenial = consumeReviewSpawnBudget(payload, plan, stateDir);
+	if (reviewDenial !== null) return deny(reviewDenial);
 	const fanOutDenial = consumeFanOutBudget(stateDir);
 	if (fanOutDenial !== null) return deny(fanOutDenial);
 	return "";
@@ -74,7 +75,7 @@ function peekFanOutBudget(stateDir: string): string | null {
 function consumeFanOutBudget(stateDir: string): string | null {
 	const counterPath = join(stateDir, "spawn-count.json");
 	const count = readCount(counterPath) + 1;
-	writeFileSync(counterPath, JSON.stringify({ count }));
+	atomicWriteJson(counterPath, { count });
 	const limit = fanOutLimit();
 	if (count <= limit) return null;
 	return `ulw-loop spawn fan-out cap reached (${count}/${limit}). Consolidate work into the agents already running, or raise OMO_SPAWN_FANOUT_LIMIT if this volume is intentional.`;
@@ -95,7 +96,7 @@ function consumeReviewSpawnBudget(payload: PreToolUsePayload, plan: UlwLoopPlan,
 	if (count > limit)
 		return `ulw-loop reviewer no-progress cap reached (${agentType} ${count}/${limit}) for ${goal.id} attempt ${goal.attempt}. Consolidate existing review findings, or checkpoint and start a new attempt after concrete progress.`;
 	counts[key] = count;
-	writeFileSync(counterPath, JSON.stringify(counts));
+	atomicWriteJson(counterPath, counts);
 	return null;
 }
 
@@ -137,18 +138,30 @@ function reviewAgentType(toolInput: unknown): string | null {
 	if (typeof toolInput !== "object" || toolInput === null) return null;
 	const record = toolInput as Record<string, unknown>;
 	const agentType = record["agent_type"];
-	if (typeof agentType === "string" && REVIEW_AGENT_TYPE_SET.has(agentType))
+	if (typeof agentType === "string") {
+		// V1: agent_type is present — only reviewer types proceed; any other type is not a review spawn.
+		if (!REVIEW_AGENT_TYPE_SET.has(agentType)) return null;
 		return activeSurfaceReviewerAlias(agentType);
+	}
 	const message = record["message"];
 	if (typeof message !== "string") return null;
 	const normalizedMessage = message.toLowerCase();
-	const explicitReviewer = REVIEW_AGENT_TYPES.map((name) => ({
-		name,
-		index: normalizedMessage.search(new RegExp(`\\bact as (?:an? )?${name}\\b`)),
-	}))
+	// Explicit "act as <role>" assignment takes priority. If the assigned role is not a reviewer,
+	// treat the spawn as non-review so a message that merely mentions a reviewer name does not
+	// accidentally charge that reviewer's quota.
+	const allRoleNames = [...REVIEW_AGENT_TYPES];
+	const explicitAssignment = allRoleNames
+		.map((name) => ({
+			name,
+			index: normalizedMessage.search(new RegExp(`\\bact as (?:an? )?${name}\\b`)),
+		}))
 		.filter(({ index }) => index >= 0)
-		.sort((left, right) => left.index - right.index)[0]?.name;
-	if (explicitReviewer !== undefined) return activeSurfaceReviewerAlias(explicitReviewer);
+		.sort((left, right) => left.index - right.index)[0];
+	if (explicitAssignment !== undefined) return activeSurfaceReviewerAlias(explicitAssignment.name);
+	// Check for an explicit "act as <non-reviewer-role>" assignment. If found, the spawn is not a
+	// review spawn even if the message body mentions a reviewer name.
+	const nonReviewerActAs = /\bact as (?:an? )?\S+/.test(normalizedMessage);
+	if (nonReviewerActAs) return null;
 	const namedReviewer = REVIEW_AGENT_TYPES.find((name) => normalizedMessage.includes(name));
 	if (namedReviewer !== undefined) return activeSurfaceReviewerAlias(namedReviewer);
 	return GATE_MESSAGE_PATTERN.test(message) ? reviewerRolesFor(resolveToolkitSurface()).gateReview : null;
@@ -162,6 +175,12 @@ function activeSurfaceReviewerAlias(reviewer: string): string {
 		if (reviewer === roles.gateReview) return activeRoles.gateReview;
 	}
 	return reviewer;
+}
+
+function atomicWriteJson(targetPath: string, data: unknown): void {
+	const tmp = join(dirname(targetPath), `.tmp-${randomBytes(6).toString("hex")}`);
+	writeFileSync(tmp, JSON.stringify(data));
+	renameSync(tmp, targetPath);
 }
 
 function deny(reason: string): string {
