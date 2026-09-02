@@ -13,7 +13,6 @@ let originalReviewLimit: string | undefined;
 let originalToolkitSurface: string | undefined;
 
 beforeEach(async () => {
-	delete process.env["OMO_AGENT_TOOLKIT_SURFACE"];
 	workDir = await mkdtemp(join(tmpdir(), "ulw-spawn-guard-"));
 	originalLimit = process.env["OMO_SPAWN_FANOUT_LIMIT"];
 	originalReviewLimit = process.env["OMO_ULW_LOOP_REVIEW_SPAWN_LIMIT"];
