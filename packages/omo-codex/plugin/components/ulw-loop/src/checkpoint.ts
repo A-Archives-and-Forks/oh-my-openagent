@@ -3,19 +3,11 @@ import { existsSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
-	canReconcileActiveFinalTaskScopedAggregateSnapshot,
-	canReconcileCompletedTaskScopedAggregateSnapshot,
-	codexSnapshotMismatchError,
 	combineCheckpointValidationErrors,
-} from "./checkpoint-reconciliation.js";
-import { readCodexGoalSnapshotInput, reconcileCodexGoalSnapshot } from "./codex-goal-snapshot.js";
+	validateCheckpointCodexGoal,
+} from "./checkpoint-codex-validation.js";
 import { requireAllCriteriaPass, requireAllPlanCriteriaPass, requireEssentialCriteriaPass } from "./evidence.js";
-import {
-	codexGoalMode,
-	compatibleCodexObjectives,
-	expectedCodexObjective,
-	isFinalRunCompletionCandidate,
-} from "./goal-status.js";
+import { codexGoalMode, isFinalRunCompletionCandidate } from "./goal-status.js";
 import type { UlwLoopScope } from "./paths.js";
 import { ulwLoopAttemptEvidenceDir } from "./paths.js";
 import { appendLedger, readUlwLoopPlan, withUlwLoopMutationLock, writePlan } from "./plan-io.js";
@@ -54,9 +46,6 @@ const QUALITY_GATE_FS = { existsSync, statSync } as const;
 
 function ulwLoopFail(message: string, code: string): never {
 	throw new UlwLoopError(message, code);
-}
-function normalizeObjective(value: string): string {
-	return value.replace(/\s+/g, " ").trim();
 }
 function nonEmptyEvidence(value: string): string {
 	const trimmed = value.trim();
@@ -179,52 +168,19 @@ export async function checkpointUlwLoop(
 				requireAllValidationBatchesClosed(plan, goal.id);
 			} else if (aggregate) requireEssentialCriteriaPass(goal);
 			else requireAllCriteriaPass(goal);
-			const snapshot = await readCodexGoalSnapshotInput(args.codexGoalJson, repoRoot);
-			const reconciliation = reconcileCodexGoalSnapshot(snapshot, {
-				expectedObjective: expectedCodexObjective(plan, goal),
-				...(aggregate ? { acceptedObjectives: compatibleCodexObjectives(plan) } : {}),
-				allowedStatuses: aggregate ? (final ? ["complete"] : ["active"]) : ["complete"],
-				requireSnapshot: true,
-				requireComplete: !aggregate || final,
-			});
-			codexGoal = reconciliation.snapshot.raw;
 			let codexValidationError: UlwLoopError | undefined;
-			if (!reconciliation.ok) {
-				const objective = snapshot?.objective;
-				const mismatchedTaskObjective =
-					snapshot?.available === true &&
-					objective !== undefined &&
-					normalizeObjective(objective) !== normalizeObjective(expectedCodexObjective(plan, goal));
-				const completedTaskScoped =
-					mismatchedTaskObjective &&
-					snapshot.status === "complete" &&
-					(await canReconcileCompletedTaskScopedAggregateSnapshot(
-						repoRoot,
-						plan,
-						goal,
-						objective,
-						evidence,
-						scope,
-					));
-				const activeFinalTaskScoped =
-					mismatchedTaskObjective &&
-					snapshot.status === "active" &&
-					(await canReconcileActiveFinalTaskScopedAggregateSnapshot(
-						repoRoot,
-						plan,
-						goal,
-						objective,
-						evidence,
-						scope,
-					));
-				const taskScoped = completedTaskScoped || activeFinalTaskScoped;
-				if (!taskScoped)
-					codexValidationError = codexSnapshotMismatchError({
-						reconciliation,
-						snapshot,
-						expectedObjective: expectedCodexObjective(plan, goal),
-						taskScopedHint: { goal, aggregate, final },
-					});
+			try {
+				codexGoal = await validateCheckpointCodexGoal({
+					repoRoot,
+					plan,
+					goal,
+					raw: args.codexGoalJson,
+					evidence,
+					...(scope === undefined ? {} : { scope }),
+				});
+			} catch (error) {
+				if (!(error instanceof UlwLoopError)) throw error;
+				codexValidationError = error;
 			}
 			if (closesBatch) requireBatchFinalReady(plan, goal);
 			if (closesBatch && args.qualityGateJson === undefined)
