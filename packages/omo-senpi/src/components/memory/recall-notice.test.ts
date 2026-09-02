@@ -31,6 +31,16 @@ describe("renderMemorianNudgedEntry", () => {
   test("#given malformed nudges #when rendered #then nothing is drawn", () => {
     expect(renderMemorianNudgedEntry({ data: { version: 1, nudges: [] } } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
     expect(renderMemorianNudgedEntry({ data: { version: 1, nudges: [{ path: "a", hint: 4 }] } } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
+    expect(renderMemorianNudgedEntry({ data: null } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
+  })
+
+  test("#given a hint that normalizes to nothing or exceeds the gate budget #when rendered #then nothing is drawn", () => {
+    const blank = { version: 1, nudges: [{ path: "memory/a.md", hint: "   \u001b[31m\t" }] }
+    expect(renderMemorianNudgedEntry({ data: blank } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
+    const overlong = { version: 1, nudges: [{ path: "memory/a.md", hint: "x".repeat(201) }] }
+    expect(renderMemorianNudgedEntry({ data: overlong } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
+    const atBudget = { version: 1, nudges: [{ path: "memory/a.md", hint: "y".repeat(200) }] }
+    expect(renderMemorianNudgedEntry({ data: atBudget } as never, { expanded: false }, PLAIN_THEME as never)).toBeDefined()
   })
 })
 
@@ -40,6 +50,21 @@ describe("renderMemorianGateEntry", () => {
     const component = renderMemorianGateEntry({ data: record } as never, { expanded: false }, PLAIN_THEME as never)
     expect(component).toBeDefined()
     expect(component!.render(120).join("\\n")).toContain("Memorian gate skipped")
+  })
+
+  test("#given a null or count-malformed gate record #when rendered #then nothing is drawn and nothing throws", () => {
+    for (const data of [
+      null,
+      { version: 1, status: "skipped", cause: "x" },
+      { version: 1, status: "skipped", cause: "x", candidateCount: "2" },
+      { version: 1, status: "skipped", cause: "x", candidateCount: Number.NaN },
+      { version: 1, status: "skipped", cause: "x", candidateCount: Number.POSITIVE_INFINITY },
+      { version: 1, status: "skipped", cause: "x", candidateCount: 1.5 },
+      { version: 1, status: "failed", cause: "x", candidateCount: -1 },
+    ]) {
+      expect(() => renderMemorianGateEntry({ data } as never, { expanded: false }, PLAIN_THEME as never)).not.toThrow()
+      expect(renderMemorianGateEntry({ data } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
+    }
   })
 
   test("#given a dropped gate #when rendered #then nothing is drawn", () => {
