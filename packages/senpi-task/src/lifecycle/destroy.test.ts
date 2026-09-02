@@ -202,6 +202,42 @@ describe("destroyResidentTask (the single-writer destruction port)", () => {
     lifecycle.dispose?.()
   })
 
+  test("#given a revived terminal claim #when the same owner cancelled the revived epoch first #then rollback leaves the cancellation untouched", () => {
+    const store = tempStore()
+    const prior = seedRecord(store, {
+      task_id: "st_0000000f",
+      status: "completed",
+      residency_state: "rpc_detached",
+      execution_mode: "process",
+      run_epoch: 4,
+      updated_at: "2026-09-01T00:00:00.000Z",
+    })
+    const withTerminalFacts = { ...prior, final_response: "saved answer", terminal_at: "2026-09-01T00:00:00.000Z" }
+    // The revival wrote {running, resident, epoch 5}; a user cancel then won the terminal transition
+    // on that SAME epoch under the same host before rollback ran.
+    store.replace({
+      ...withTerminalFacts,
+      status: "cancelled",
+      residency_state: "resident",
+      host_pid: 6000,
+      error_message: "cancelled by user",
+      notification: { ...prior.notification, run_epoch: 5 },
+    })
+    const lifecycle = createTaskLifecycle({ store, registry: new FakeRegistry(), config: settings(), hostPid: 6000, now: () => Date.parse("2026-09-02T00:00:00.000Z") })
+
+    const result = lifecycle.rollbackDetachedRevival(withTerminalFacts)
+    const current = store.load(prior.task_id)
+
+    expect(result).toBe("not_owner")
+    expect(current).toMatchObject({
+      status: "cancelled",
+      residency_state: "resident",
+      host_pid: 6000,
+      error_message: "cancelled by user",
+      notification: { run_epoch: 5 },
+    })
+  })
+
   test("#given a revived terminal claim #when rollback owns the new epoch #then it restores terminal facts and clears residency", () => {
     const store = tempStore()
     const prior = seedRecord(store, {

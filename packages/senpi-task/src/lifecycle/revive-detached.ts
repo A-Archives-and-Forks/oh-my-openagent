@@ -14,9 +14,13 @@ export function rollbackDetachedRevival(
 ): DetachedRevivalRollbackResult {
   let rolledBack = false
   context.store.mutate(prior.task_id, (fresh) => {
+    // Roll back ONLY the exact generation this revival wrote: our host, still resident, the epoch we
+    // minted, and still running. A concurrent cancel/interrupt on that epoch has already won the
+    // terminal transition; restoring the stale prior record would undo the user's action.
     if (
       fresh.host_pid !== context.hostPid ||
       fresh.residency_state !== "resident" ||
+      fresh.status !== "running" ||
       fresh.notification.run_epoch !== prior.notification.run_epoch + 1
     ) return fresh
     rolledBack = true

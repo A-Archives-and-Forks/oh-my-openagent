@@ -94,19 +94,30 @@ async function deliverRevivedTerminal(
     // the revived epoch intact and let outcome tracking terminalize it instead of sending twice.
     const revivedForUncertainty = revived
     if (rollbackOnFailure && priorRecord !== undefined && revivedForUncertainty !== undefined && handle.hasExited?.() === true) {
-      reservation.commit()
-      port.store.mutate(record.task_id, (fresh) => ({
-        ...fresh,
-        revive_delivery_uncertain: {
-          run_epoch: revivedForUncertainty.notification.run_epoch,
-          message_sha256: messageSha256(message),
-        },
-      }))
-      port.store.appendEvent(record.task_id, {
-        type: "revive_delivery_uncertain",
-        payload: { run_epoch: revivedForUncertainty.notification.run_epoch, message_sha256: messageSha256(message) },
+      const epoch = revivedForUncertainty.notification.run_epoch
+      // Fence the marker on the exact generation this revival wrote. A concurrent cancel/interrupt
+      // that already won the terminal transition on this epoch owns the record; leave it untouched.
+      let marked = false
+      port.store.mutate(record.task_id, (fresh) => {
+        if (
+          fresh.status !== "running" ||
+          fresh.residency_state !== "resident" ||
+          fresh.host_pid !== revivedForUncertainty.host_pid ||
+          fresh.notification.run_epoch !== epoch
+        ) return fresh
+        marked = true
+        return { ...fresh, revive_delivery_uncertain: { run_epoch: epoch, message_sha256: messageSha256(message) } }
       })
-      return deliveryUncertain(record, revivedForUncertainty.notification.run_epoch)
+      if (marked) {
+        reservation.commit()
+        port.store.appendEvent(record.task_id, {
+          type: "revive_delivery_uncertain",
+          payload: { run_epoch: epoch, message_sha256: messageSha256(message) },
+        })
+        return deliveryUncertain(record, epoch)
+      }
+      reservation.release()
+      return lazyRevivalFailure(record, "the revived run was terminalized before the message was acknowledged")
     }
     if (rollbackOnFailure && priorRecord !== undefined) await bestEffortRollback(port, priorRecord)
     reservation.release()

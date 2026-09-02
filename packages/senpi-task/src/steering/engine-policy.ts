@@ -59,12 +59,14 @@ export function lazyRevivalFailure(record: TaskRecord, reason: string): SendOutc
 }
 
 export function buildRevived(record: TaskRecord, timestamp: string): TaskRecord {
-  // run_stats and terminal_at describe the FINISHED run; both must not cross into the new run.
+  // run_stats, terminal_at, and any unacknowledged-delivery marker describe the FINISHED run; none
+  // may cross into the new run (a stale marker would otherwise ride every later epoch).
   const {
     final_response: _final,
     error_message: _error,
     run_stats: _stats,
     terminal_at: _terminalAt,
+    revive_delivery_uncertain: _uncertain,
     ...rest
   } = record
   return {

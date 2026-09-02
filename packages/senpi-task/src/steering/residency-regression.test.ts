@@ -12,6 +12,7 @@ import type { RpcChildHandle } from "../runners/types"
 import type { ManagedChildHandle } from "../manager/child-handle"
 import type { SteeringPort } from "./types"
 import { createSteeringEngine } from "./engine"
+import { buildRevived } from "./engine-policy"
 import { createTaskLifecycle } from "../lifecycle/create"
 import { FakeRegistry, settings } from "../lifecycle/__fixtures__/lifecycle-fakes"
 
@@ -386,6 +387,68 @@ describe("task_send lazy terminal RPC revival", () => {
 
     expect(repeated).toMatchObject({ kind: "delivery_uncertain", task_id: record.task_id, run_epoch: 1 })
     expect(followUpCalls).toBe(1)
+  })
+
+  test("#given a record carrying an unacknowledged-delivery marker #when a new run is built #then the marker does not ride into the new epoch", () => {
+    const project = mkdtempSync(join(tmpdir(), "senpi-task-steering-marker-clear-"))
+    roots.push(project)
+    const store = createTaskRecordStore({ project_dir: project })
+    const record = detachedTerminal(store)
+    const marked: TaskRecord = {
+      ...record,
+      revive_delivery_uncertain: { run_epoch: record.notification.run_epoch, message_sha256: "ab".repeat(32) },
+    }
+
+    const revived = buildRevived(marked, "2026-09-02T00:00:00.000Z")
+
+    expect(revived.notification.run_epoch).toBe(record.notification.run_epoch + 1)
+    expect("revive_delivery_uncertain" in revived).toBe(false)
+  })
+
+  test("#given a revived child that exits before acknowledging followUp #when a cancel already terminalized that epoch #then no uncertainty marker is written and the cancel is preserved", async () => {
+    const project = mkdtempSync(join(tmpdir(), "senpi-task-steering-uncertain-fence-"))
+    roots.push(project)
+    const store = createTaskRecordStore({ project_dir: project })
+    const record = detachedTerminal(store)
+    let live = false
+    let destroys = 0
+    let commits = 0
+    let releases = 0
+    const handle: ManagedChildHandle = {
+      ...fakeHandle(record.task_id, []),
+      hasExited: () => true,
+      followUp: async () => {
+        // The cancel wins the terminal transition on the revived epoch while the RPC is in flight.
+        store.mutate(record.task_id, (fresh) => ({ ...fresh, status: "cancelled", error_message: "cancelled by user" }))
+        throw new Error("RPC process exited before response")
+      },
+    }
+    const port: SteeringPort = {
+      store,
+      liveHandle: () => (live ? handle : undefined),
+      reserveForRevive: () => ({ ok: true, commit: () => { commits += 1 }, release: () => { releases += 1 } }),
+      reviveDetached: async () => {
+        live = true
+        store.mutate(record.task_id, (fresh) => ({ ...fresh, residency_state: "resident", host_pid: 6000 }))
+        return { ok: true }
+      },
+      rollbackDetachedRevival: () => "not_owner",
+      dequeuePending: () => false,
+      destruction: { destroyResidentTask: async () => { destroys += 1 } },
+      runStatsSnapshot: () => undefined,
+      now: () => Date.parse("2026-09-02T00:00:00.000Z"),
+    }
+    const engine = createSteeringEngine(port)
+
+    const outcome = await engine.sendToTask({ idOrName: record.task_id, message: "apply once" })
+
+    expect(outcome.kind).toBe("not_continuable")
+    expect(destroys).toBe(0)
+    expect(commits).toBe(0)
+    expect(releases).toBe(1)
+    const current = store.load(record.task_id)
+    expect(current).toMatchObject({ status: "cancelled", error_message: "cancelled by user", notification: { run_epoch: 1 } })
+    expect(current?.revive_delivery_uncertain).toBeUndefined()
   })
 
   test("#given persistence of the revived running record throws #when task_send delivers #then it rolls back before delivery", async () => {
