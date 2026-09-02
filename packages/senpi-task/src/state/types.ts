@@ -100,6 +100,11 @@ export type TaskNotification = {
   readonly liveness_notified_epoch?: number
 }
 
+export type ReviveDeliveryUncertainty = {
+  readonly run_epoch: number
+  readonly message_sha256: string
+}
+
 // The shape persisted today: process-mode children respawn over RPC from cwd alone, with
 // extensions/member_env carried as untrusted launch inputs (the store parser discards them).
 // RPC respawn may keep consuming this shape; in-process rebuild must NOT (see SpawnSpecV1).
@@ -196,6 +201,7 @@ export type TaskRecord = TaskRecordInput & {
   readonly killed?: boolean
   readonly run_stats?: TaskRunStats
   readonly notification: TaskNotification
+  readonly revive_delivery_uncertain?: ReviveDeliveryUncertainty
 }
 
 export type TaskTransition =

@@ -85,7 +85,9 @@ async function terminateOrphan(context: LifecycleContext, taskId: string, orphan
 
 function recordRevivalFailure(context: LifecycleContext, taskId: string): void {
   context.store.mutate(taskId, (fresh) => {
-    if (fresh.residency_state !== "resident") return fresh
+    // Ownership is always checked against this lifecycle context so a foreign resident cannot be
+    // stripped while a previous owner is being torn down.
+    if (fresh.host_pid !== context.hostPid || fresh.residency_state !== "resident") return fresh
     const { host_pid: _hostPid, ...rest } = fresh
     return {
       ...rest,

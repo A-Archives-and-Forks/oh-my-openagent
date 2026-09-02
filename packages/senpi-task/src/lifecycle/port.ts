@@ -87,6 +87,8 @@ export type DetachedRevivalResult =
   | { readonly ok: true }
   | { readonly ok: false; readonly reason: string }
 
+export type DetachedRevivalRollbackResult = "rolled_back" | "not_owner"
+
 export type CapacityReservation =
   | { readonly ok: false }
   | { readonly ok: true; release(): void }
@@ -103,6 +105,7 @@ export type LifecycleReattachPorts = {
 
 const registeredReattachPorts = new WeakMap<TaskRecordStore, LifecycleReattachPorts>()
 const registeredDetachedRevivals = new WeakMap<TaskRecordStore, (taskId: string, reservation: DetachedRevivalReservation) => Promise<DetachedRevivalResult>>()
+const registeredDetachedRevivalRollbacks = new WeakMap<TaskRecordStore, (prior: TaskRecord) => DetachedRevivalRollbackResult>()
 
 export function registerLifecycleReattachPorts(
   store: TaskRecordStore,
@@ -126,6 +129,19 @@ export function getLifecycleDetachedRevival(
   store: TaskRecordStore,
 ): ((taskId: string, reservation: DetachedRevivalReservation) => Promise<DetachedRevivalResult>) | undefined {
   return registeredDetachedRevivals.get(store)
+}
+
+export function registerLifecycleDetachedRevivalRollback(
+  store: TaskRecordStore,
+  rollback: (prior: TaskRecord) => DetachedRevivalRollbackResult,
+): void {
+  registeredDetachedRevivalRollbacks.set(store, rollback)
+}
+
+export function getLifecycleDetachedRevivalRollback(
+  store: TaskRecordStore,
+): ((prior: TaskRecord) => DetachedRevivalRollbackResult) | undefined {
+  return registeredDetachedRevivalRollbacks.get(store)
 }
 
 export type IdleReclaimerTimer = {

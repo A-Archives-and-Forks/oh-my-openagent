@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, test } from "bun:test"
@@ -253,20 +253,31 @@ describe("task_send lazy terminal RPC revival", () => {
     lifecycle.dispose?.()
   })
 
-  test("#given a revived child whose followUp throws #when task_send delivers #then it rolls back through destruction and returns not-continuable", async () => {
+  test("#given a revived child whose followUp rejects while alive #when task_send delivers #then it destroys, restores terminal status, and remains lazily revivable", async () => {
     const project = mkdtempSync(join(tmpdir(), "senpi-task-steering-followup-failure-"))
     roots.push(project)
     const store = createTaskRecordStore({ project_dir: project })
     const record = detachedTerminal(store)
-    const followUps: string[] = []
     let live = false
-    let destroyed = 0
+    let attempts = 0
     const handle: ManagedChildHandle = {
-      ...fakeHandle(record.task_id, followUps),
+      ...fakeHandle(record.task_id, []),
+      hasExited: () => false,
       followUp: async () => {
-        throw new Error("delivery failed")
+        attempts += 1
+        if (attempts === 1) throw new Error("delivery refused")
       },
     }
+    const registry = new FakeRegistry()
+    registry.add({
+      task_id: record.task_id,
+      kind: "rpc",
+      pid: 7000,
+      abort: async () => undefined,
+      terminate: async () => undefined,
+      dispose: async () => { live = false },
+    })
+    const lifecycle = createTaskLifecycle({ store, registry, config: settings(), hostPid: 6000 })
     const port: SteeringPort = {
       store,
       liveHandle: () => (live ? handle : undefined),
@@ -277,27 +288,104 @@ describe("task_send lazy terminal RPC revival", () => {
         return { ok: true }
       },
       dequeuePending: () => false,
-      destruction: {
-        destroyResidentTask: async (taskId) => {
-          destroyed += 1
-          live = false
-          store.mutate(taskId, (fresh) => {
-            const { host_pid: _hostPid, ...rest } = fresh
-            return { ...rest, residency_state: "rpc_detached" }
-          })
-        },
-      },
+      destruction: lifecycle,
       runStatsSnapshot: () => undefined,
       now: () => Date.parse("2026-09-02T00:00:00.000Z"),
     }
+    const engine = createSteeringEngine(port)
 
-    const outcome = await createSteeringEngine(port).sendToTask({ idOrName: record.task_id, message: "retry" })
+    const failed = await engine.sendToTask({ idOrName: record.task_id, message: "retry" })
+    const restored = store.load(record.task_id)
 
-    expect(outcome.kind).toBe("not_continuable")
-    expect(destroyed).toBe(1)
+    expect(failed.kind).toBe("not_continuable")
+    expect(attempts).toBe(1)
     expect(live).toBe(false)
-    expect(store.load(record.task_id)?.residency_state).toBe("rpc_detached")
-    expect(followUps).toEqual([])
+    expect(restored).toMatchObject({
+      status: "completed",
+      residency_state: "rpc_detached",
+      final_response: "first pass",
+      terminal_at: "2026-09-01T00:00:00.000Z",
+      notification: { run_epoch: record.notification.run_epoch },
+    })
+    expect(restored?.host_pid).toBeUndefined()
+
+    const retried = await engine.sendToTask({ idOrName: record.task_id, message: "retry" })
+
+    expect(retried.kind).toBe("revived")
+    expect(attempts).toBe(2)
+    expect(store.load(record.task_id)?.status).toBe("running")
+    lifecycle.dispose?.()
+  })
+
+  test("#given a revived child that exits before acknowledging followUp #when task_send rejects #then delivery is uncertain and the message is not automatically re-sent", async () => {
+    const project = mkdtempSync(join(tmpdir(), "senpi-task-steering-followup-exit-"))
+    roots.push(project)
+    const store = createTaskRecordStore({ project_dir: project })
+    const record = detachedTerminal(store)
+    let live = false
+    let followUpCalls = 0
+    let destroys = 0
+    let rollbacks = 0
+    let commits = 0
+    const handle: ManagedChildHandle = {
+      ...fakeHandle(record.task_id, []),
+      hasExited: () => true,
+      followUp: async () => {
+        followUpCalls += 1
+        throw new Error("RPC process exited before response")
+      },
+    }
+    const port: SteeringPort = {
+      store,
+      liveHandle: () => (live ? handle : undefined),
+      reserveForRevive: () => ({ ok: true, commit: () => { commits += 1 }, release: () => undefined }),
+      reviveDetached: async () => {
+        live = true
+        store.mutate(record.task_id, (fresh) => ({ ...fresh, residency_state: "resident", host_pid: 6000 }))
+        return { ok: true }
+      },
+      rollbackDetachedRevival: () => {
+        rollbacks += 1
+        return "rolled_back"
+      },
+      dequeuePending: () => false,
+      destruction: { destroyResidentTask: async () => { destroys += 1 } },
+      runStatsSnapshot: () => undefined,
+      now: () => Date.parse("2026-09-02T00:00:00.000Z"),
+    }
+    const engine = createSteeringEngine(port)
+
+    const outcome = await engine.sendToTask({ idOrName: record.task_id, message: "apply once" })
+
+    expect(outcome).toMatchObject({ kind: "delivery_uncertain", task_id: record.task_id, run_epoch: 1 })
+    expect(destroys).toBe(0)
+    expect(rollbacks).toBe(0)
+    expect(commits).toBe(1)
+    expect(store.load(record.task_id)).toMatchObject({
+      status: "running",
+      residency_state: "resident",
+      host_pid: 6000,
+      notification: { run_epoch: 1 },
+    })
+    const events = readFileSync(join(store.stateDir, "logs", `${record.task_id}.jsonl`), "utf8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as { type: string; payload: Record<string, unknown> })
+    expect(events).toContainEqual({
+      type: "revive_delivery_uncertain",
+      payload: {
+        run_epoch: 1,
+        message_sha256: "ff0cc3cc76308748ee4ec96214d396b920bdb9b0e2c0373bca86a727fc5f65ce",
+      },
+    })
+
+    // An identical resend against the same unacknowledged run epoch is deduplicated by the durable
+    // marker on the record (not by handle liveness), so it reports the same uncertain outcome and
+    // never reaches followUp again.
+    const repeated = await engine.sendToTask({ idOrName: record.task_id, message: "apply once" })
+
+    expect(repeated).toMatchObject({ kind: "delivery_uncertain", task_id: record.task_id, run_epoch: 1 })
+    expect(followUpCalls).toBe(1)
   })
 
   test("#given persistence of the revived running record throws #when task_send delivers #then it rolls back before delivery", async () => {

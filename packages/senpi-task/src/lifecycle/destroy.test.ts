@@ -138,6 +138,7 @@ describe("destroyResidentTask (the single-writer destruction port)", () => {
       status: "completed",
       residency_state: "resident",
       execution_mode: "process",
+      host_pid: process.pid,
     })
     const preserved: typeof record = { ...record, final_response: "saved", terminal_at: "2026-09-01T00:00:00.000Z" }
     store.replace(preserved)
@@ -156,6 +157,94 @@ describe("destroyResidentTask (the single-writer destruction port)", () => {
       final_response: "saved",
       terminal_at: preserved.terminal_at,
     })
+  })
+
+  test("#given a revived terminal claim #when a foreign owner claims it during destruction #then rollback leaves the foreign claim untouched", async () => {
+    const store = tempStore()
+    const prior = seedRecord(store, {
+      task_id: "st_0000000d",
+      status: "completed",
+      residency_state: "rpc_detached",
+      execution_mode: "process",
+      run_epoch: 0,
+    })
+    const revived = {
+      ...prior,
+      status: "running" as const,
+      residency_state: "resident" as const,
+      host_pid: 6000,
+      notification: { ...prior.notification, run_epoch: 1 },
+    }
+    store.replace(revived)
+    const registry = new FakeRegistry()
+    registry.add({
+      task_id: prior.task_id,
+      kind: "rpc",
+      pid: 7001,
+      abort: async () => undefined,
+      terminate: async () => undefined,
+      dispose: async () => {
+        store.replace({ ...revived, host_pid: 7000 })
+      },
+    })
+    const lifecycle = createTaskLifecycle({ store, registry, config: settings(), hostPid: 6000 })
+
+    await lifecycle.destroyResidentTask(prior.task_id, "revive_failure")
+    const result = lifecycle.rollbackDetachedRevival(prior)
+
+    expect(result).toBe("not_owner")
+    expect(store.load(prior.task_id)).toMatchObject({
+      status: "running",
+      residency_state: "resident",
+      host_pid: 7000,
+      notification: { run_epoch: 1 },
+    })
+    lifecycle.dispose?.()
+  })
+
+  test("#given a revived terminal claim #when rollback owns the new epoch #then it restores terminal facts and clears residency", () => {
+    const store = tempStore()
+    const prior = seedRecord(store, {
+      task_id: "st_0000000e",
+      status: "completed",
+      residency_state: "rpc_detached",
+      execution_mode: "process",
+      run_epoch: 4,
+      updated_at: "2026-09-01T00:00:00.000Z",
+    })
+    const withTerminalFacts = {
+      ...prior,
+      final_response: "saved answer",
+      error_message: "old error",
+      run_stats: { runtime_ms: 10, turns: 2, tool_calls: 1 },
+      killed: false,
+      terminal_at: "2026-09-01T00:00:00.000Z",
+    }
+    store.replace({
+      ...withTerminalFacts,
+      status: "running",
+      residency_state: "resident",
+      host_pid: 6000,
+      notification: { ...prior.notification, run_epoch: 5 },
+    })
+    const lifecycle = createTaskLifecycle({ store, registry: new FakeRegistry(), config: settings(), hostPid: 6000, now: () => Date.parse("2026-09-02T00:00:00.000Z") })
+
+    const result = lifecycle.rollbackDetachedRevival(withTerminalFacts)
+    const restored = store.load(prior.task_id)
+
+    expect(result).toBe("rolled_back")
+    expect(restored).toMatchObject({
+      status: "completed",
+      final_response: "saved answer",
+      error_message: "old error",
+      run_stats: { runtime_ms: 10, turns: 2, tool_calls: 1 },
+      killed: false,
+      terminal_at: "2026-09-01T00:00:00.000Z",
+      residency_state: "rpc_detached",
+      notification: { run_epoch: 4 },
+    })
+    expect(restored?.host_pid).toBeUndefined()
+    lifecycle.dispose?.()
   })
 
   test("#given no resident handle #when destroyed twice #then it is idempotent and never throws", async () => {

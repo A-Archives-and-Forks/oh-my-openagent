@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto"
+
 import { interactionPolicyForAgent } from "../agents"
 import type { TaskRecord } from "../state"
 import type { SendInput, SendOutcome } from "./types"
@@ -33,6 +35,20 @@ export function notContinuableReason(record: TaskRecord): string {
   return `Task ${record.task_id} is ${record.status} and can no longer be continued.`
 }
 
+export function messageSha256(message: string): string {
+  return createHash("sha256").update(message, "utf8").digest("hex")
+}
+
+export function deliveryUncertain(record: TaskRecord, runEpoch: number): SendOutcome {
+  return {
+    kind: "delivery_uncertain",
+    task_id: record.task_id,
+    run_epoch: runEpoch,
+    reason: "child exited before acknowledging the message; inspect task_output before resending",
+    suggestion: "Do not resend automatically; inspect task_output first.",
+  }
+}
+
 export function lazyRevivalFailure(record: TaskRecord, reason: string): SendOutcome {
   return {
     kind: "not_continuable",
@@ -44,7 +60,13 @@ export function lazyRevivalFailure(record: TaskRecord, reason: string): SendOutc
 
 export function buildRevived(record: TaskRecord, timestamp: string): TaskRecord {
   // run_stats and terminal_at describe the FINISHED run; both must not cross into the new run.
-  const { final_response: _final, error_message: _error, run_stats: _stats, terminal_at: _terminalAt, ...rest } = record
+  const {
+    final_response: _final,
+    error_message: _error,
+    run_stats: _stats,
+    terminal_at: _terminalAt,
+    ...rest
+  } = record
   return {
     ...rest,
     status: "running",

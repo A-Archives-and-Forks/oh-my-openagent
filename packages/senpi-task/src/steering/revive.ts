@@ -1,9 +1,9 @@
 import { log } from "@oh-my-opencode/utils"
 
 import type { ManagedChildHandle } from "../manager/child-handle"
-import { getLifecycleDetachedRevival } from "../lifecycle/port"
+import { getLifecycleDetachedRevival, getLifecycleDetachedRevivalRollback } from "../lifecycle/port"
 import type { TaskRecord } from "../state"
-import { buildRevived, lazyRevivalFailure } from "./engine-policy"
+import { buildRevived, deliveryUncertain, lazyRevivalFailure, messageSha256 } from "./engine-policy"
 import type { ReviveReservation, SendOutcome, SteeringPort } from "./types"
 
 export async function reviveTerminal(
@@ -80,14 +80,34 @@ async function deliverRevivedTerminal(
   if (!reservation.ok) {
     return { kind: "capacity_deferred", task_id: record.task_id, reason: "Task capacity is full; retry explicitly." }
   }
+  let revived: TaskRecord | undefined
   try {
-    const revived = buildRevived(record, nowIso())
+    revived = buildRevived(record, nowIso())
     port.store.replace(revived)
     port.store.appendEvent(record.task_id, { type: "revived", payload: { run_epoch: revived.notification.run_epoch } })
     await handle.followUp(message)
     reservation.commit()
     return { kind: "revived", task_id: record.task_id, run_epoch: revived.notification.run_epoch }
   } catch (error) {
+    // A live child rejected the RPC before consuming the prompt, so teardown + rollback makes an
+    // explicit retry safe. An exited child may have accepted it before the response was lost; keep
+    // the revived epoch intact and let outcome tracking terminalize it instead of sending twice.
+    const revivedForUncertainty = revived
+    if (rollbackOnFailure && priorRecord !== undefined && revivedForUncertainty !== undefined && handle.hasExited?.() === true) {
+      reservation.commit()
+      port.store.mutate(record.task_id, (fresh) => ({
+        ...fresh,
+        revive_delivery_uncertain: {
+          run_epoch: revivedForUncertainty.notification.run_epoch,
+          message_sha256: messageSha256(message),
+        },
+      }))
+      port.store.appendEvent(record.task_id, {
+        type: "revive_delivery_uncertain",
+        payload: { run_epoch: revivedForUncertainty.notification.run_epoch, message_sha256: messageSha256(message) },
+      })
+      return deliveryUncertain(record, revivedForUncertainty.notification.run_epoch)
+    }
     if (rollbackOnFailure && priorRecord !== undefined) await bestEffortRollback(port, priorRecord)
     reservation.release()
     return lazyRevivalFailure(record, error instanceof Error ? error.message : String(error))
@@ -95,22 +115,21 @@ async function deliverRevivedTerminal(
 }
 
 async function bestEffortRollback(port: SteeringPort, priorRecord: TaskRecord): Promise<void> {
+  const rollback = port.rollbackDetachedRevival ?? getLifecycleDetachedRevivalRollback(port.store)
+  if (rollback !== undefined) {
+    try {
+      rollback(priorRecord)
+    } catch (error) {
+      log("senpi-task lazy revival rollback failed", {
+        taskId: priorRecord.task_id,
+        error: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
   try {
     await port.destruction.destroyResidentTask(priorRecord.task_id, "revive_failure")
   } catch (error) {
     log("senpi-task lazy revival destruction failed", {
-      taskId: priorRecord.task_id,
-      error: error instanceof Error ? error.message : String(error),
-    })
-  }
-  try {
-    port.store.replace({
-      ...priorRecord,
-      residency_state: "rpc_detached",
-      updated_at: new Date(port.now()).toISOString(),
-    })
-  } catch (error) {
-    log("senpi-task lazy revival rollback failed", {
       taskId: priorRecord.task_id,
       error: error instanceof Error ? error.message : String(error),
     })

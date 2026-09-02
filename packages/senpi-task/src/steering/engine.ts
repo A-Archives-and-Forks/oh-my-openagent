@@ -15,6 +15,8 @@ import {
   type SteeringPort,
 } from "./types"
 import {
+  deliveryUncertain,
+  messageSha256,
   notContinuableReason,
   oneShotPolicyDenial,
   scopeDenied,
@@ -71,6 +73,14 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
     if (mode === "not-continuable") {
       return { kind: "not_continuable", task_id: record.task_id, reason: notContinuableReason(record), suggestion: TASK_OUTPUT_SUGGESTION }
     }
+    const uncertain = record.revive_delivery_uncertain
+    if (
+      record.status === "running" &&
+      uncertain?.run_epoch === record.notification.run_epoch &&
+      uncertain.message_sha256 === messageSha256(input.message)
+    ) {
+      return deliveryUncertain(record, record.notification.run_epoch)
+    }
     const handle = port.liveHandle(record.task_id)
     if (handle === undefined) {
       if (record.residency_state === "rpc_detached" && record.execution_mode === "process") {
@@ -81,6 +91,14 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
         task_id: record.task_id,
         reason: `Task ${record.task_id} has no resident session in this process.`,
         suggestion: TASK_OUTPUT_SUGGESTION,
+      }
+    }
+    if (handle.hasExited?.() === true) {
+      return {
+        kind: "not_continuable",
+        task_id: record.task_id,
+        reason: `Task ${record.task_id} exited before its last message was acknowledged.`,
+        suggestion: "Inspect task_output before resending.",
       }
     }
 

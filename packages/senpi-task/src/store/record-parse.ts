@@ -59,6 +59,7 @@ export function parseTaskRecord(value: unknown, path: string, warnings?: string[
   const taskSeq = readOptionalNumber(value, "task_seq")
   const configGeneration = readOptionalNumber(value, "config_generation")
   const backgroundMode = readOptionalBackgroundMode(value)
+  const reviveDeliveryUncertain = parseOptionalReviveDeliveryUncertainty(value)
 
   return {
     task_id: parseTaskId(readString(value, "task_id")),
@@ -100,6 +101,17 @@ export function parseTaskRecord(value: unknown, path: string, warnings?: string[
     ...(taskSeq === undefined ? {} : { task_seq: taskSeq }),
     ...(configGeneration === undefined ? {} : { config_generation: configGeneration }),
     ...(backgroundMode === undefined ? {} : { background_mode: backgroundMode }),
+    ...(reviveDeliveryUncertain === undefined ? {} : { revive_delivery_uncertain: reviveDeliveryUncertain }),
+  }
+}
+
+function parseOptionalReviveDeliveryUncertainty(record: Record<string, unknown>): TaskRecord["revive_delivery_uncertain"] {
+  const value = record["revive_delivery_uncertain"]
+  if (value === undefined) return undefined
+  if (!isRecord(value)) throw new Error("revive_delivery_uncertain is not an object")
+  return {
+    run_epoch: readNumber(value, "run_epoch"),
+    message_sha256: readString(value, "message_sha256"),
   }
 }
 
