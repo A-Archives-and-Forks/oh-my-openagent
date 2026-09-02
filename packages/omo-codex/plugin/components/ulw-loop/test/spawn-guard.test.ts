@@ -144,6 +144,33 @@ describe("applySpawnGuards fan-out cap", () => {
 	});
 });
 
+describe("applySpawnGuards fan-out cap + reviewer quota interaction", () => {
+	it("#given fan-out cap exhausted #when a reviewer spawns #then denies without charging reviewer quota", () => {
+		writeGoals();
+		process.env["OMO_SPAWN_FANOUT_LIMIT"] = "3";
+
+		// exhaust the fan-out cap with non-reviewer spawns
+		expect(applySpawnGuards(payload("spawn_agent", { message: "scan" }))).toBe("");
+		expect(applySpawnGuards(payload("spawn_agent", { message: "scan" }))).toBe("");
+		expect(applySpawnGuards(payload("spawn_agent", { message: "scan" }))).toBe("");
+
+		// reviewer spawn while cap is exhausted — must deny without incrementing reviewer count
+		const reviewSpawn = payload("spawn_agent", {
+			agent_type: "lazycodex-code-reviewer",
+			message: "review the current diff",
+		});
+		const result = applySpawnGuards(reviewSpawn);
+		expect(result).not.toBe("");
+		expect(deny(result).permissionDecisionReason).toContain("4/3");
+
+		// reviewer quota must be untouched — a subsequent spawn after raising the limit must succeed
+		process.env["OMO_SPAWN_FANOUT_LIMIT"] = "10";
+		expect(applySpawnGuards(reviewSpawn)).toBe("");
+		const counters = JSON.parse(readFileSync(join(sessionDir(), "review-spawn-counts.json"), "utf8"));
+		expect(counters["lazycodex-code-reviewer:g1:a1"]).toBe(1);
+	});
+});
+
 describe("applySpawnGuards review repetition cap", () => {
 	it("#given one goal attempt #when the same reviewer spawns four times #then denies until the attempt advances", () => {
 		writeGoals();

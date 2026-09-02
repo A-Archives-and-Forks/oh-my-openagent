@@ -32,6 +32,8 @@ export function applySpawnGuards(payload: PreToolUsePayload): string {
 	const stateDir = ulwLoopDir(payload.cwd, { sessionId: payload.session_id });
 	const plan = readPlan(join(stateDir, "goals.json"));
 	if (plan === null) return "";
+	const fanOutPeek = peekFanOutBudget(stateDir);
+	if (fanOutPeek !== null) return deny(fanOutPeek);
 	const reviewDenial = consumeReviewSpawnBudget(payload, plan, stateDir);
 	if (reviewDenial !== null) return deny(reviewDenial);
 	const missingArtifact = missingGateArtifact(payload, plan);
@@ -53,6 +55,18 @@ export async function runSpawnGuardCli(stdin: NodeJS.ReadableStream, stdout: Nod
 	} catch (error) {
 		if (error instanceof Error) return;
 	}
+}
+
+// Read-only fan-out eligibility check. Returns a denial reason when the next
+// spawn would exceed the limit, without incrementing the counter. Call this
+// before charging any per-reviewer quota so a saturated global cap cannot
+// silently consume reviewer allowances for spawns that will never run.
+function peekFanOutBudget(stateDir: string): string | null {
+	const counterPath = join(stateDir, "spawn-count.json");
+	const count = readCount(counterPath) + 1;
+	const limit = fanOutLimit();
+	if (count <= limit) return null;
+	return `ulw-loop spawn fan-out cap reached (${count}/${limit}). Consolidate work into the agents already running, or raise OMO_SPAWN_FANOUT_LIMIT if this volume is intentional.`;
 }
 
 // Per-session spawn counter; depth/lineage tracking is descoped — this is a
