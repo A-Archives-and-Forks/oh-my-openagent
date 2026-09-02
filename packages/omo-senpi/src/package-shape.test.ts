@@ -85,11 +85,11 @@ describe("omo-senpi package shape", () => {
       typecheck: "tsgo --noEmit -p tsconfig.json",
       test: "bun test src/**/*.test.ts",
     })
-    expect(peerDependencies["@code-yeongyu/senpi"]).toBe("2026.9.2-3")
+    expect(peerDependencies["@code-yeongyu/senpi"]).toBe("2026.9.2-4")
     expect(peerDependenciesMeta["@code-yeongyu/senpi"]).toMatchObject({ optional: true })
-    expect(devDependencies["@code-yeongyu/senpi"]).toBe("2026.9.2-3")
-    expect(rootPatchedDependencies["@code-yeongyu/senpi@2026.9.2-3"]).toBe(
-      "patches/@code-yeongyu%2Fsenpi@2026.9.2-3.patch",
+    expect(devDependencies["@code-yeongyu/senpi"]).toBe("2026.9.2-4")
+    expect(rootPatchedDependencies["@code-yeongyu/senpi@2026.9.2-4"]).toBe(
+      "patches/@code-yeongyu%2Fsenpi@2026.9.2-4.patch",
     )
     expect(dependencies).toMatchObject({
       "@oh-my-opencode/utils": "workspace:*",
