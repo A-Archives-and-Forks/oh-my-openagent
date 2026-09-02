@@ -1,0 +1,27 @@
+{
+  "title": "Memorian gate skipped notice",
+  "connector": "xterm-node-pty",
+  "colorPath": "xterm.js (true color; not tmux)",
+  "browserCapture": "captured",
+  "source": {
+    "kind": "command",
+    "label": "xterm.js rendering of captured skipped gate notice"
+  },
+  "interaction": [],
+  "redaction": {
+    "builtInRules": 7,
+    "literalRules": 0,
+    "regexRules": 0
+  },
+  "dimensions": {
+    "cols": 120,
+    "rows": 32
+  },
+  "cleanup": "pty pid 43123 killed",
+  "files": {
+    "png": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/memorian-nudged-trace/.omo/evidence/omo-senpi-adapter/20260902-memorian-nudged/C002-edge/skipped-visual/terminal.png",
+    "text": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/memorian-nudged-trace/.omo/evidence/omo-senpi-adapter/20260902-memorian-nudged/C002-edge/skipped-visual/terminal.txt",
+    "ansi": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/memorian-nudged-trace/.omo/evidence/omo-senpi-adapter/20260902-memorian-nudged/C002-edge/skipped-visual/terminal-ansi.txt",
+    "metadata": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/memorian-nudged-trace/.omo/evidence/omo-senpi-adapter/20260902-memorian-nudged/C002-edge/skipped-visual/metadata.json"
+  }
+}
