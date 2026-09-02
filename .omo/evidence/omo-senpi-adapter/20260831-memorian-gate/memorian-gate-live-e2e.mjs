@@ -251,7 +251,8 @@ function stubInvocations(logPath) {
   for (const line of readFileSync(logPath, "utf8").split("\n")) {
     if (line.trim() === "") continue
     try {
-      out.push(JSON.parse(line))
+      const invocation = JSON.parse(line)
+      if (invocation.memorianSentinel === "1") out.push(invocation)
     } catch {
       // A truncated tail line is not an invocation record.
     }
