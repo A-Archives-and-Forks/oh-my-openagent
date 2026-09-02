@@ -17,13 +17,13 @@
 
 ## What was observed
 
-The source CI failure was one test timeout after `6459.54ms`: it waited for an overflow created only by an implicit one-node scheduler startup burst. Ubuntu and macOS passed in the same run.
+The source CI log states two distinct timing facts: Bun emitted `^ this test timed out after 5000ms.`; the runner's final case line reported `[6459.54ms]`, including delayed termination and cleanup after that timeout. The test waited for an overflow created only by an implicit one-node scheduler startup burst. Ubuntu and macOS passed in the same run.
 
 The repair creates an explicit two-node admission burst before the scheduler awaits either controlled child. The child start gate holds that known state until the already-subscribed RPC sink receives the overflow; the test then releases and completes both children. The assertions still require a positive dropped count, the expected recovery cursor, shipped RPC delivery, and the exact durable WAL event.
 
 The focused test passed: 1 pass, 0 fail, 3 expectations. The adjacent suite passed: 30 pass, 0 fail, 115 expectations. Both typechecks exited 0 without diagnostics. The full package gate passed: 2530 pass, 1 documented Windows process-mode skip, 0 fail, 8063 expectations, 2531 tests across 334 files. Its evidence resolver suite also passed: 10 pass, 0 fail, 31 expectations.
 
-The real adapter driver reported `PASS`, `ultraworkInjected: true`, `commentChecker: PASS`, `realSenpiUntouched: true`, `realOmoUntouched: true`, no changed real-home paths, and an isolated sandbox. The driver removed its own sandbox. The task driver reported all spawned PIDs gone; its nine task-owned sandbox roots were then removed and verified absent.
+The committed complete driver result records `PASS`, `ultraworkInjected: true`, `commentChecker: PASS`, `realSenpiUntouched: true`, `realOmoUntouched: true`, no changed real-home paths, protected state file names, both real homes checked, and the isolated `sandboxAgentDir` and `sandboxCwd`. The driver removed its own sandbox. The task driver reported all spawned PIDs gone; its nine task-owned sandbox roots were then removed and verified absent.
 
 The optional task lifecycle driver returned `FAIL` on existing checks `followup_revive`, `task_output_peek`, `jsonl_sequence`, `resume_revived_resident`, `resume_finished_steerable`, and `resume_ttl_not_revived`. This PR has no runtime-source diff, and the driver simultaneously observed writes from the active parent Senpi session. Its raw transcripts are intentionally retained only in the ignored task evidence directory because they contain session metadata. This result is not used to claim task-lifecycle success.
 

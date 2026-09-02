@@ -8,7 +8,7 @@ Repair the Windows-only timeout in `packages/omo-senpi/src/components/task/dag-r
 
 - GitHub Actions run: `33605988668`
 - Failing job: `100170026847` (`senpi-compatibility (windows-latest)`)
-- Exact failure: `assembled DAG runtime configuration > #given subscriber_ring is one #when the assembled runtime emits a burst #then the shipped RPC subscriber receives a durable overflow` timed out after Bun's 5-second test watchdog at `6459.54ms`.
+- Exact failed-log facts: Bun emitted `^ this test timed out after 5000ms.`; the runner's final case line reported `[6459.54ms]`, including delayed termination and cleanup after that timeout.
 - The same run passed the Ubuntu and macOS Senpi compatibility jobs. The failure occurred after the surrounding DAG RPC handler tests passed and before later DAG tests ran.
 - Current `origin/dev` is `d20c167da`; the task-owned branch is `fix/windows-dag-runtime-overflow-sync`.
 
@@ -26,9 +26,9 @@ The test creates only an implicit scheduler startup burst and awaits an external
 - [x] Run `bun run test:senpi` once with CI-pinned Bun and record output.
 - [x] Drive the real Senpi adapter in strict isolation with the canonical `senpi-qa` evidence resolver; record command, observed JSON, isolated agent path, real-home proof, cleanup receipt, and omission policy under `.omo/evidence/omo-senpi-adapter/20260902-windows-dag-runtime-overflow-sync/`. The optional live task driver exposed unrelated baseline/environment findings; its raw session-bearing transcript is omitted from the commit and the passing isolated adapter driver is the live QA claim.
 - [x] Review and commit only the minimal test repair and evidence.
-- [>] Push the atomic branch, open its PR to `dev`, and apply `ci:full-matrix`.
-- [ ] Wait for the new full Windows Senpi compatibility job and all other CI checks. Read and resolve every failure.
-- [ ] Wait for Cubic review, resolve any valid finding, and leave the green/review-clean PR unmerged as explicitly requested.
+- [x] Push the atomic branch, open PR #7647 to `dev`, and apply `ci:full-matrix`.
+- [x] Wait for the first full Windows Senpi compatibility job and all other CI checks; run `33608916045` passed, including the repaired Windows Senpi test.
+- [>] Address the two valid evidence-review findings, push the existing branch, then wait for a fresh full matrix and Cubic review. Leave the PR unmerged as explicitly requested.
 
 ## Expected changed files
 
