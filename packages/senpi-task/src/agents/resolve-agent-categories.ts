@@ -1,0 +1,89 @@
+import type { OmoConfig } from "@oh-my-opencode/omo-config-core"
+
+import { DEFAULT_CATEGORIES, resolveCategory, type SenpiModelPort, type SenpiModelRegistryPort } from "../category"
+import type { ResolvedModelRecord } from "../state"
+
+export type AgentCategoryTuning = {
+  readonly variant?: string
+  readonly reasoningEffort?: string
+}
+
+export type AgentCategorySelection = {
+  readonly provider: string
+  readonly modelId: string
+  readonly variant?: string
+  readonly reasoningEffort?: string
+  readonly requested_model?: ResolvedModelRecord
+  readonly fallback_models?: readonly ResolvedModelRecord[]
+}
+
+export type ResolveAgentCategoryInput<TModel extends SenpiModelPort> = {
+  readonly categories: readonly string[]
+  readonly omoConfig: OmoConfig
+  readonly registry: SenpiModelRegistryPort<TModel>
+  readonly configuredTuning: AgentCategoryTuning
+}
+
+// The model the agent would have run on had a category resolved: the first listed category's
+// builtin default. Feeds `attemptedModel` on the model_unavailable and no-registry paths.
+export function firstCategoryDefaultModel(categories: readonly string[] | undefined): string | undefined {
+  for (const name of categories ?? []) {
+    const builtin = Object.hasOwn(DEFAULT_CATEGORIES, name) ? DEFAULT_CATEGORIES[name] : undefined
+    if (builtin?.model !== undefined) return builtin.model
+  }
+  return undefined
+}
+
+// Categories supply the MODEL only: prompt_append, tools, temperature, top_p, maxTokens and
+// thinking from the category config are deliberately dropped so the agent keeps its own persona.
+// The first category that resolves wins; every later category that also resolves extends the
+// runtime retry chain, so "deep -> unspecified-high" is both a resolve-time and a runtime fallback.
+export function resolveAgentCategoryModel<TModel extends SenpiModelPort>(
+  input: ResolveAgentCategoryInput<TModel>,
+): AgentCategorySelection | undefined {
+  const resolutions = input.categories
+    .map((name) => resolveCategory(name, input.omoConfig, input.registry))
+    .filter((resolution) => resolution.kind === "resolved")
+  const winner = resolutions[0]
+  if (winner === undefined) return undefined
+
+  const { spec } = winner
+  const categoryReasoning = spec.reasoning ?? spec.reasoningEffort ?? spec.variant
+  const chain = agentModelChain(resolutions.map((resolution) => resolution.spec))
+  return {
+    provider: spec.provider,
+    modelId: spec.modelId,
+    ...(input.configuredTuning.variant !== undefined
+      ? { variant: input.configuredTuning.variant }
+      : categoryReasoning !== undefined ? { variant: categoryReasoning } : {}),
+    ...(input.configuredTuning.reasoningEffort !== undefined
+      ? { reasoningEffort: input.configuredTuning.reasoningEffort }
+      : {}),
+    ...chain,
+  }
+}
+
+type CategorySpecChain = {
+  readonly requested_model?: ResolvedModelRecord
+  readonly fallback_models?: readonly ResolvedModelRecord[]
+}
+
+// Winner chain first, then every later resolved category's chain, deduplicated by display and
+// re-stamped as an agent-sourced record (the child ran because of the agent, not a category call).
+function agentModelChain(specs: readonly CategorySpecChain[]): CategorySpecChain {
+  const records: ResolvedModelRecord[] = []
+  const seen = new Set<string>()
+  for (const spec of specs) {
+    for (const record of [spec.requested_model, ...(spec.fallback_models ?? [])]) {
+      if (record === undefined || seen.has(record.display)) continue
+      seen.add(record.display)
+      records.push({ ...record, source: "agent" })
+    }
+  }
+  const [requested, ...fallbacks] = records
+  if (requested === undefined) return {}
+  return {
+    requested_model: requested,
+    ...(fallbacks.length > 0 ? { fallback_models: fallbacks } : {}),
+  }
+}
