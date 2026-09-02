@@ -6,6 +6,7 @@ import {
 	canReconcileActiveFinalTaskScopedAggregateSnapshot,
 	canReconcileCompletedTaskScopedAggregateSnapshot,
 	codexSnapshotMismatchError,
+	combineCheckpointValidationErrors,
 } from "./checkpoint-reconciliation.js";
 import { readCodexGoalSnapshotInput, reconcileCodexGoalSnapshot } from "./codex-goal-snapshot.js";
 import { requireAllCriteriaPass, requireAllPlanCriteriaPass, requireEssentialCriteriaPass } from "./evidence.js";
@@ -187,6 +188,7 @@ export async function checkpointUlwLoop(
 				requireComplete: !aggregate || final,
 			});
 			codexGoal = reconciliation.snapshot.raw;
+			let codexValidationError: UlwLoopError | undefined;
 			if (!reconciliation.ok) {
 				const objective = snapshot?.objective;
 				const mismatchedTaskObjective =
@@ -217,23 +219,34 @@ export async function checkpointUlwLoop(
 					));
 				const taskScoped = completedTaskScoped || activeFinalTaskScoped;
 				if (!taskScoped)
-					throw codexSnapshotMismatchError({ reconciliation, snapshot, expectedObjective: expectedCodexObjective(plan, goal), taskScopedHint: { goal, aggregate, final } });
+					codexValidationError = codexSnapshotMismatchError({
+						reconciliation,
+						snapshot,
+						expectedObjective: expectedCodexObjective(plan, goal),
+						taskScopedHint: { goal, aggregate, final },
+					});
 			}
 			if (closesBatch) requireBatchFinalReady(plan, goal);
 			if (closesBatch && args.qualityGateJson === undefined)
 				throw new UlwLoopError("Validation batch final checkpoint requires --quality-gate-json.", "ULW_LOOP_VALIDATION_BATCH_GATE_REQUIRED");
 			if (final) aggregateCompletion = makeAggregateCompletion(now, evidence, codexGoal);
 			if (final || aggregateCompletion !== undefined || closesBatch) {
-				qualityGate = validateQualityGate(await readJsonInput(args.qualityGateJson, repoRoot), {
-					repoRoot,
-					fs: QUALITY_GATE_FS,
-					reviewerSurface: resolveToolkitSurface(),
-					...(plan.evidenceLayoutVersion === 2
-						? { currentAttemptDir: ulwLoopAttemptEvidenceDir(goal.id, goal.attempt, scope) }
-						: {}),
-				});
-				requireBatchGate(plan, goal, qualityGate);
+				try {
+					qualityGate = validateQualityGate(await readJsonInput(args.qualityGateJson, repoRoot), {
+						repoRoot,
+						fs: QUALITY_GATE_FS,
+						reviewerSurface: resolveToolkitSurface(),
+						...(plan.evidenceLayoutVersion === 2
+							? { currentAttemptDir: ulwLoopAttemptEvidenceDir(goal.id, goal.attempt, scope) }
+							: {}),
+					});
+					requireBatchGate(plan, goal, qualityGate);
+				} catch (error) {
+					if (!(error instanceof UlwLoopError) || codexValidationError === undefined) throw error;
+					throw combineCheckpointValidationErrors(codexValidationError, error);
+				}
 			}
+			if (codexValidationError !== undefined) throw codexValidationError;
 			goal.status = "complete";
 			goal.completedAt = now;
 			goal.evidence = evidence;
