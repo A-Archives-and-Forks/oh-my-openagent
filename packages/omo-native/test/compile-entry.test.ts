@@ -76,6 +76,12 @@ describe("compiled omo entry launcher parity", () => {
     expect(isProvisionedExecutable(runningExecutablePath(expected, `${expected} (deleted)`, "linux"), expected)).toBe(true)
   })
 
+  test("re-exec source contract uses signal-aware child execution", () => {
+    const source = readFileSync(new URL("../compile-entry.ts", import.meta.url), "utf8")
+    expect(source).toContain('import { propagateResult, runChild } from "./bin/lib/child-process.js"')
+    expect(source).not.toContain("spawn(expected")
+  })
+
   test("pins the engine package dir to the provisioned root", () => {
     // Defence in depth alongside the re-exec: PACKAGE_DIR is consulted by
     // getPackageDir() ahead of dirname(process.execPath), so the engine stays
