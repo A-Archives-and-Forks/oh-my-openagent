@@ -252,7 +252,7 @@ function stubInvocations(logPath) {
     if (line.trim() === "") continue
     try {
       const invocation = JSON.parse(line)
-      if (invocation.memorianSentinel === "1" && typeof invocation.nudgePath === "string") out.push(invocation)
+      if (invocation.memorianSentinel === "1" && typeof invocation.nudgePath === "string" && invocation.argv?.includes("--tools") && invocation.argv?.[invocation.argv.indexOf("--tools") + 1] === "nudge,read") out.push(invocation)
     } catch {
       // A truncated tail line is not an invocation record.
     }
