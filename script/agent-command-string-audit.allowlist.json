@@ -37,7 +37,6 @@
     "packages/omo-opencode/src/cli/doctor/checks/codex-components.ts: omo doctor",
     "packages/omo-opencode/src/cli/doctor/checks/tools.ts: omo doctor",
     "packages/omo-senpi/plugin/README.md: omo install",
-    "packages/utils/src/codegraph-workspace.test.ts: =omo",
     "script/install-codex-dev.ts: omo get-local-version",
     "script/omo-ai-publish-shape.test.ts: /bin/omo",
     "script/qa/codex-marketplace-e2e.sh: =omo"
