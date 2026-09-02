@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import type { OmoConfig } from "@oh-my-opencode/omo-config-core"
 
+import { CODE_REVIEWER_AGENT } from "./builtin/code-reviewer"
+import { GATE_REVIEWER_AGENT } from "./builtin/gate-reviewer"
+import { QA_EXECUTOR_AGENT } from "./builtin/qa-executor"
 import { resolveAgent } from "./resolve-agent"
 import type { AgentDefinition } from "./types"
 
@@ -167,5 +170,21 @@ describe("resolveAgent category stage", () => {
 
     // then
     expect(result.attemptedModel).toBe("openai/gpt-5.6-sol")
+  })
+
+  test("#given the ulw reviewer builtins #when reading their definitions #then each declares its ordered model-policy categories", () => {
+    // given / when
+    const declared = {
+      [CODE_REVIEWER_AGENT.name]: CODE_REVIEWER_AGENT.categories,
+      [QA_EXECUTOR_AGENT.name]: QA_EXECUTOR_AGENT.categories,
+      [GATE_REVIEWER_AGENT.name]: GATE_REVIEWER_AGENT.categories,
+    }
+
+    // then
+    expect(declared).toEqual({
+      "omo-senpi-code-reviewer": ["unspecified-high"],
+      "omo-senpi-qa-executor": ["deep", "unspecified-low"],
+      "omo-senpi-gate-reviewer": ["deep", "unspecified-high"],
+    })
   })
 })
