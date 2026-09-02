@@ -1,3 +1,14 @@
+## 2026-09-02 — Build missing prebuilt inputs in the omo-native release staging
+
+The omo-native plugin staging now builds `packages/lsp-daemon/dist` and
+`packages/ast-grep-mcp/dist/cli.js` through the canonical root scripts
+(`build:lsp-daemon`, `build:ast-grep-mcp`) whenever they are absent before
+consuming them. The publish-platform workflow installs dependencies with
+`--ignore-scripts`, so the root prepare build never produced these artifacts
+there and every beta.32 platform build failed with ENOENT on the lsp-daemon
+dist. Prebuilt artifacts are still reused untouched when present, and the
+staged payload checks are unchanged.
+
 ## 2026-09-02 — Give the legacy daemon fixture a cold-Windows readiness budget
 
 The Codex installer test fixture's event-driven readiness wait now allows 30
