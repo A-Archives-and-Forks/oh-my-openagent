@@ -1,6 +1,6 @@
-import { existsSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
-import { join, dirname } from "node:path";
 import { randomBytes } from "node:crypto";
+import { existsSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 import type { PreToolUsePayload } from "./codex-hook.js";
 import { parsePreToolUsePayload } from "./codex-hook.js";
