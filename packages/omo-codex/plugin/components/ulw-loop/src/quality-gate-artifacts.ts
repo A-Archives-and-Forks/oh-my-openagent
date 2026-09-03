@@ -11,6 +11,9 @@ import {
 } from "./quality-gate-fields.js";
 import type { UlwLoopManualQaArtifactKind, UlwLoopManualQaArtifactRef, UlwLoopManualQaSurface } from "./types.js";
 
+const SUPPORTED_SURFACES = "cli, http, tmux, browser, gui, data";
+const SUPPORTED_KINDS = "cli-transcript, log, screenshot, image, http-dump, data-diff";
+
 export function surfaceField(value: unknown, field: string): UlwLoopManualQaSurface {
 	if (
 		value === "cli" ||
@@ -21,7 +24,7 @@ export function surfaceField(value: unknown, field: string): UlwLoopManualQaSurf
 		value === "data"
 	)
 		return value;
-	invalid(`${field} must be a supported manual QA surface.`, field);
+	invalid(`${field} must be a supported manual QA surface (${SUPPORTED_SURFACES}).`, field);
 	return "cli";
 }
 export function kindField(value: unknown, field: string): UlwLoopManualQaArtifactKind {
@@ -34,7 +37,10 @@ export function kindField(value: unknown, field: string): UlwLoopManualQaArtifac
 		value === "data-diff"
 	)
 		return value;
-	invalid(`${field} must be a supported artifact kind.`, field);
+	invalid(
+		`${field} must be a supported artifact kind (${SUPPORTED_KINDS}); review/QA reports belong in codeReview.reportPath or gateReview.reportPath, not artifactRefs.`,
+		field,
+	);
 	return "log";
 }
 export function artifactCompatible(surface: UlwLoopManualQaSurface, kind: UlwLoopManualQaArtifactKind): boolean {

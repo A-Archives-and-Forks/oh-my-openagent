@@ -168,8 +168,16 @@ function parseSurfaceEvidence(
 		for (const artifact of artifacts) {
 			if (isPoisoned(`manualQa.surfaceEvidence[${index}].surface`) || isPoisonedArtifactKind(artifact.id)) continue;
 			if (!artifactCompatible(surface, artifact.kind)) {
+				const compatibleKinds =
+					surface === "cli" || surface === "tmux"
+						? "cli-transcript, log"
+						: surface === "http"
+							? "http-dump"
+							: surface === "browser" || surface === "gui"
+								? "screenshot, image"
+								: "data-diff";
 				invalid(
-					`manualQa.surfaceEvidence ${surface} artifact ${artifact.kind} is incompatible.`,
+					`manualQa.surfaceEvidence ${surface} artifact ${artifact.kind} is incompatible; surface "${surface}" accepts artifact kinds: ${compatibleKinds}.`,
 					"manualQa.surfaceEvidence",
 				);
 			}
