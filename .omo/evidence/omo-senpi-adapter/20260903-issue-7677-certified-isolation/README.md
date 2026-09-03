@@ -1,33 +1,21 @@
 # Issue #7677 bounded live isolation certification
 
-Canonical acceptance evidence for final merged source head `92821b3855371c44d9085c27dfcb295e46bb7817`. Source implementation was committed separately at `0d003f8ab6db96c4f32035146ff028ed3a147109`; `origin/dev` advanced during verification, was merged at `c07e5cb3b`, and the upstream QA compatibility export was restored at `836f37cce` before the final gate and live run.
+Canonical acceptance evidence for source head `a0aff6422546ac1267b88dd1b0ff8144421e5483`, with refreshed evidence committed separately. The source head includes merged `origin/dev` at `05a1fbcc7` and the isolation race remediation commit `a0aff6422`. Evidence files are tracked and committed; no ignored evidence path was force-added.
 
 ## What was tested
 
-- Deterministic RED covered the absent scoped lane, SKIP falsely certifying, the broad observation remaining truncated, post-open directory replacement, stale/external descriptor traversal, root-open ENOENT/ENOTDIR races, and locale-sensitive non-ASCII ordering (`red-first.txt`).
-- Seven focused suites on the final source head passed: 66 tests, 260 assertions, including the newly merged x-search consumer of the existing driver exports (`focused-seven-suites-66-tests.log`).
-- The driver self-test, package typecheck, exact changed-file Biome check, no-excuse audit, and changed-file LSP diagnostics passed.
-- The authoritative post-merge `bun run test:senpi` passed with 2,670 tests, 7 platform skips, 0 failures, followed by the evidence resolver's 10 passing tests (`full-test-senpi-summary.txt`).
-- The installed real Senpi binary ran `drive.mjs` from the exact final source head (`real-driver-command.txt`, `real-driver.jsonl`).
+- Deterministic RED then GREEN covered raw directory-descriptor close failure, persistent regular files named `sessions`, `cache`, or `logs`, replacement symlink non-dereference, primary-error precedence, descriptor identity, root races, bounded traversal, and certification semantics (`red-first.txt`, focused suite log).
+- Seven focused isolation/task-13/upstream-compatibility suites passed: 69 tests, 267 assertions.
+- Driver self-test, package typecheck, exact changed-file Biome, no-excuse audit, and changed-file LSP diagnostics passed.
+- The authoritative `bun run test:senpi` passed with 2680 tests passing, 7 platform skips, 0 failures, followed by the evidence resolver's 10 passing tests (`full-test-senpi-summary.txt`).
+- The installed real Senpi binary ran `drive.mjs` from source head `a0aff6422546ac1267b88dd1b0ff8144421e5483` (`real-driver-command.txt`, `real-driver.jsonl`).
 
 ## What was observed
 
-The real driver returned operational `result:"PASS"`, with ultrawork injection and comment-checker behavior both passing. The independent controlled lane returned `isolationCertified:true` because:
+The real driver returned operational `result:PASS`, with `isolationCertified:true`, while retaining honest broad-home semantics: `realHomeIsolationCertified:false`, `realSenpiNonvolatileObservationComplete:false`, and `realSenpiNonvolatileObservationTruncated:true`. The controlled lane was complete, untruncated, error-free, and reported zero changed paths across the default Senpi/OMO agent roots and XDG config/data roots. The real Senpi home remained fail-closed because its broad observation exceeded the 64 MiB limit; this was not repurposed as certification.
 
-- the real QA child emitted an in-process receipt proving exact `HOME`, `USERPROFILE`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_CACHE_HOME`, and `SENPI_CODING_AGENT_DIR` routing to the generated sandbox;
-- the controlled default Senpi agent root, default OMO agent root, XDG config root, and XDG data root were all observed before and after under the unchanged global limits of 10,000 files, 20,000 entries, and 67,108,864 bytes;
-- those observations were complete, untruncated, error-free, and reported exactly zero changed paths.
-
-The original broad real-home lane was not repurposed as proof. It still reports `realHomeIsolationCertified:false`, `realSenpiNonvolatileObservationComplete:false`, and `realSenpiNonvolatileObservationTruncated:true`, with zero observed changed paths. That remains honest fail-closed evidence that a 64 MiB-truncated historical home cannot certify itself.
-
-## Why it is enough
-
-The certification lane proves the child's actual environment rather than inferring isolation from launcher source. Deliberately seeded protected and persistent decoys under both synthetic default agent roots detect fallback from the explicit agent directory; complete XDG config/data observations detect persistent writes through those environment lanes. Operational success is required for certification, so a missing binary or absent environment receipt cannot pass.
-
-Traversal is bound to a no-follow directory descriptor, checks descriptor identity/type against the initial metadata before enumeration, uses descriptor-relative children, and rechecks descriptor plus logical-path identity after traversal. Runtimes without a portable descriptor path fail closed as `DIRECTORY_IDENTITY_UNAVAILABLE`. Root disappearance after the initial lstat is a replacement, never complete absence. Canonical paths and errors use locale-independent code-point ordering after separator normalization. Existing volatile filtering, directory markers, protected-symlink rejection, observation-domain validation, and primary-error precedence remain covered.
+The implementation now observes entry type before applying volatility filtering, hashes regular files through `O_RDONLY|O_NOFOLLOW`, fails closed when no-follow support is unavailable, and surfaces raw directory-descriptor close errors when traversal has no primary failure. Existing directory-handle close behavior and primary-error precedence remain covered.
 
 ## Scope and omissions
 
-`origin/dev` at `7e8ce5e147434677d76152b52e8306e96bcaefa6` is merged. Relative to that base, scope checks show zero changes in `script/**`, `scripts/**`, native packages/manifests, package manifests, lock/pins/patches, OAuth, CI, generated bundles, and unrelated source (`repository-integrity.txt`).
-
-The prior `c42f893c9` run is retained as historical fail-closed broad-scan proof but is explicitly superseded as acceptance evidence. Raw credential values, protected hashes, auth headers, model transcripts, environment dumps, user-specific absolute paths, and random sandbox names are omitted. The live payload is sanitized while retaining all deciding machine fields.
+`origin/dev` at `05a1fbcc7` was fetched and merged before the source fix. Restricted-scope checks prove zero changes in script/script directories, native/manifests, locks/pins/patches, OAuth, CI, generated bundles, and unrelated source relative to the merged base (`repository-integrity.txt`). Raw credentials, auth headers, transcripts, environment dumps, absolute user paths, and temporary sandbox names are sanitized or omitted.

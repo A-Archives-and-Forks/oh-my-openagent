@@ -1,3 +1,3 @@
 Command: node packages/omo-senpi/scripts/qa/drive.mjs --self-test
-Source head: 92821b3855371c44d9085c27dfcb295e46bb7817
+Source head: a0aff6422546ac1267b88dd1b0ff8144421e5483
 SELF-TEST OK

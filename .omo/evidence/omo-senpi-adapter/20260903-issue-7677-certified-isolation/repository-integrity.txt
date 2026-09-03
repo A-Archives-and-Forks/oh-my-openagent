@@ -1,21 +1,20 @@
-Source head: 92821b3855371c44d9085c27dfcb295e46bb7817
-Fetched and merged origin/dev: 7e8ce5e147434677d76152b52e8306e96bcaefa6
-origin/dev is an ancestor of the final source head.
+Source head: a0aff6422546ac1267b88dd1b0ff8144421e5483
+Fetched and merged origin/dev: 05a1fbcc7
+origin/dev is an ancestor of the source head.
 git diff --check: PASS
 Restricted path checks relative to merged origin/dev (expected zero):
-script-and-scripts: 0
-native-and-manifests: 0
-lock-pins-patches: 0
-oauth: 0
-ci: 0
-generated: 0
-unrelated-source: 0
-Branch-owned acceptance-remediation source paths (source commits 0d003f8ab and 836f37cce; excludes merged upstream files):
-packages/omo-senpi/scripts/qa/drive.mjs
-packages/omo-senpi/scripts/qa/environment-receipt.ts
-packages/omo-senpi/scripts/qa/isolation-certification.test.mjs
+script/**: 0
+scripts/**: 0
+packages/native manifests: 0
+package manifests: 0
+lock/pins/patches: 0
+OAuth: 0
+CI: 0
+generated bundles: 0
+unrelated source: 0
+
+Intended source/test diff only:
+packages/omo-senpi/scripts/qa/isolation-file-readers.mjs
 packages/omo-senpi/scripts/qa/isolation-review-blockers.test.mjs
-packages/omo-senpi/scripts/qa/isolation-state-races.test.mjs
 packages/omo-senpi/scripts/qa/isolation-state.mjs
-packages/omo-senpi/scripts/qa/isolation-ultrabrain-blockers.test.mjs
-packages/omo-senpi/scripts/qa/task-13.test.ts
+packages/omo-senpi/scripts/qa/isolation-ultrabrain-blockers.test.mjs (pre-existing issue branch change)

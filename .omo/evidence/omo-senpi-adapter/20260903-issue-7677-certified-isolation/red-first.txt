@@ -1,20 +1,8 @@
-Initial RED (certification lane absent):
-Expected: false
-Received: true
-SyntaxError: Export named 'scopedIsolationVerdict' not found in module '<repo>/packages/omo-senpi/scripts/qa/isolation-state.mjs'.
-Expected: false
-Received: true
-4 tests failed:
- 1 error
+RED/GREEN receipt for source head a0aff6422546ac1267b88dd1b0ff8144421e5483
 
-Oracle D1/D2/E1/E2 RED:
-Expected: false
-Received: true
-(fail) #given the root vanishes after its initial identity check #when directory open reports absence #then the snapshot fails closed as replacement [0.47ms]
-Expected: false
-Received: true
-(fail) #given directory open returns a stale external descriptor #when traversal binds identity #then it fails closed without reading the external tree [0.41ms]
-Expected: false
-Received: true
-(fail) #given an opened directory is replaced after its identity check #when traversal finishes #then the snapshot fails closed [0.48ms]
-(fail) #given non-ASCII canonical paths #when snapshots and errors are ordered #then code-point order is independent of host locale [0.44ms]
+RED: deterministic closeDirectorySync ECLOSE on an otherwise successful empty snapshot returned complete:true; a regular file named sessions was omitted; a replacement symlink target was dereferenced.
+
+GREEN: the same injected cases now return complete:false with structured ECLOSE, retain the regular sessions entry as persistent, and report targetDereferenced:false. Existing primary-error precedence and directory-handle close tests remain green.
+
+Command: bun test <seven focused isolation/task-13/upstream-compatibility suites>
+Result: 69 pass, 0 fail, 267 assertions.

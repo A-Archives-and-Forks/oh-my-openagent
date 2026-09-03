@@ -1,3 +1,3 @@
-Command: bunx biome check <eight changed QA source/test files>
-Source head: 92821b3855371c44d9085c27dfcb295e46bb7817
-Checked 8 files in 16ms. No fixes applied.
+Command: bunx biome check <five isolation QA source/test files>
+Source head: a0aff6422546ac1267b88dd1b0ff8144421e5483
+Checked 5 files in 19ms. No fixes applied.

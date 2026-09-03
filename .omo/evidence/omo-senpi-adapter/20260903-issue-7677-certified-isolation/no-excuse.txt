@@ -1,3 +1,3 @@
-Command: bun run packages/shared-skills/skills/programming/scripts/typescript/check-no-excuse-rules.ts <changed TS files>
-Source head: 92821b3855371c44d9085c27dfcb295e46bb7817
-No violations in 2 file(s).
+Command: bun run packages/omo-senpi/plugin/skills/programming/scripts/typescript/check-no-excuse-rules.ts packages/omo-senpi/scripts/qa/task-13.test.ts
+Source head: a0aff6422546ac1267b88dd1b0ff8144421e5483
+No violations in 1 file(s). Changed .mjs files are outside the checker input contract.
