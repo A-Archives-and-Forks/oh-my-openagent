@@ -100,7 +100,7 @@ if (findings.includes("critical")) {
 
 **Completion wakes drive the cell.** Call `start` and return; node completions and settle wake the session, and the wake handler builds the next run. `snapshot(run_id)` is a one-off read for a midpoint decision. Use `wait()` only inside a detached cell.
 
-Two caveats:
+One caveat:
 
 - Node outputs are stored and returned IN FULL, with no truncation - when embedding an output into a later prompt, quote or summarize the relevant part. Pasting an unbounded output into a prompt drowns it.
 
