@@ -13,7 +13,10 @@ import {
 } from "node:fs";
 
 const HASH_CHUNK_BYTES = 64 * 1024;
-const NO_FOLLOW_READ_FLAGS = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0);
+const NO_FOLLOW_READ_FLAGS =
+	constants.O_NOFOLLOW === undefined
+		? undefined
+		: constants.O_RDONLY | constants.O_NOFOLLOW;
 
 export const FILE_IO = {
 	closeSync,
@@ -35,7 +38,9 @@ export function hashFileBounded(
 	let bytesRead = 0;
 	let result;
 	try {
-		fd = io.openSync(file.path, "r");
+		if (NO_FOLLOW_READ_FLAGS === undefined)
+			throw snapshotError("NO_FOLLOW_UNAVAILABLE");
+		fd = io.openSync(file.path, NO_FOLLOW_READ_FLAGS);
 		const opened = fileMetadata(io.fstatSync(fd, { bigint: true }));
 		const openingError = changedMetadataCode(file.metadata, opened);
 		if (openingError !== undefined)
@@ -190,6 +195,8 @@ function readProtectedAbsentRace(path, io) {
 	let fd;
 	let result;
 	try {
+		if (NO_FOLLOW_READ_FLAGS === undefined)
+			throw snapshotError("NO_FOLLOW_UNAVAILABLE");
 		fd = io.openSync(path, NO_FOLLOW_READ_FLAGS);
 		result = { error: "FILE_REPLACED" };
 	} catch (error) {

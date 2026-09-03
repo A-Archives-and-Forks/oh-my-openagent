@@ -8,6 +8,7 @@ import {
 	openSync,
 	rmSync,
 	statSync,
+	symlinkSync,
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -403,6 +404,27 @@ test("#given directory traversal and close both fail #when the tree is snapshott
 	}
 });
 
+test("#given successful raw directory traversal and descriptor close failure #when the tree is snapshotted #then the close error surfaces", () => {
+	// Given
+	const root = mkdtempSync(join(tmpdir(), "omo-senpi-raw-directory-close-"));
+	try {
+		const io = {
+			closeDirectorySync() {
+				throw codedError("ECLOSE");
+			},
+		};
+
+		// When
+		const result = snapshotDirectory(root, LIMITS, io);
+
+		// Then
+		expect(result.complete).toBe(false);
+		expect(result.errors).toEqual([{ path: ".", code: "ECLOSE" }]);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("#given successful directory traversal and close failure #when the tree is snapshotted #then the close error surfaces", () => {
 	// Given
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-directory-close-"));
@@ -428,5 +450,63 @@ test("#given successful directory traversal and close failure #when the tree is 
 		expect(result.errors).toEqual([{ path: ".", code: "ECLOSE" }]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("#given a regular file uses a volatile directory name #when the tree is snapshotted #then it remains observable and persistent", () => {
+	// Given
+	const root = mkdtempSync(join(tmpdir(), "omo-senpi-volatile-name-file-"));
+	try {
+		writeFileSync(join(root, "sessions"), "persistent");
+
+		// When
+		const result = snapshotDirectory(root, LIMITS);
+
+		// Then
+		expect(result.complete).toBe(true);
+		expect(result.snapshot.has("sessions")).toBe(true);
+		expect(result.errors).toEqual([]);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("#given a regular file is replaced by a symlink before hashing #when the tree is snapshotted #then the symlink target is never dereferenced", () => {
+	// Given
+	const root = mkdtempSync(join(tmpdir(), "omo-senpi-file-symlink-race-"));
+	const target = mkdtempSync(join(tmpdir(), "omo-senpi-file-symlink-target-"));
+	try {
+		const path = join(root, "state.json");
+		const targetPath = join(target, "secret");
+		writeFileSync(path, "safe");
+		writeFileSync(targetPath, "secret");
+		let targetDereferenced = false;
+		const io = {
+			openSync(file, flags) {
+				if (file === path || file.endsWith("/state.json")) {
+					rmSync(file);
+					symlinkSync(targetPath, file);
+					try {
+						const fd = openSync(file, flags);
+						targetDereferenced = true;
+						return fd;
+					} catch (error) {
+						if (error.code !== "ELOOP") throw error;
+						throw error;
+					}
+				}
+				return openSync(file, flags);
+			},
+		};
+
+		// When
+		const result = snapshotDirectory(root, LIMITS, io);
+
+		// Then
+		expect(result.complete).toBe(false);
+		expect(targetDereferenced).toBe(false);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+		rmSync(target, { recursive: true, force: true });
 	}
 });

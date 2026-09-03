@@ -355,12 +355,6 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 				relative(state.root, path),
 				state.pathStyle,
 			);
-			if (VOLATILE_SUBTREES.has(rel) || rel.endsWith(".log")) continue;
-			state.entries += 1;
-			if (state.entries > limits.maxEntries) {
-				state.truncated = true;
-				return;
-			}
 			entries.push({ entry, path, rel });
 		}
 		entries.sort((left, right) => compareCanonicalText(left.rel, right.rel));
@@ -379,6 +373,14 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 					state.errors.push({ path: rel, code: "FILE_REPLACED" });
 					continue;
 				}
+				if (VOLATILE_SUBTREES.has(rel)) continue;
+			}
+			state.entries += 1;
+			if (state.entries > limits.maxEntries) {
+				state.truncated = true;
+				return;
+			}
+			if (pathStat.isDirectory()) {
 				collectFilesBounded(path, state, boundPath);
 				if (state.truncated) return;
 				continue;
@@ -387,6 +389,7 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 				state.errors.push({ path: rel, code: "UNSUPPORTED_ENTRY" });
 				continue;
 			}
+			if (pathStat.isFile() && rel.endsWith(".log")) continue;
 			if (state.files >= limits.maxFiles) {
 				state.truncated = true;
 				return;
@@ -448,7 +451,13 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 			if (!traversalFailed && state.errors.length === errorsBeforeTraversal)
 				state.errors.push({ path: currentRel, code: errorCode(error) });
 		}
-		if (directoryFd !== undefined) closeDirectoryFd(directoryFd, io);
+		const primaryFailed =
+			traversalFailed || state.errors.length !== errorsBeforeTraversal;
+		if (directoryFd !== undefined) {
+			const closeError = closeDirectoryFd(directoryFd, io);
+			if (!primaryFailed && closeError !== undefined)
+				state.errors.push({ path: currentRel, code: closeError });
+		}
 	}
 }
 
@@ -474,9 +483,10 @@ function directoryDescriptorPath(fd) {
 function closeDirectoryFd(fd, io) {
 	try {
 		(io.closeDirectorySync ?? FILE_IO.closeSync)(fd);
-	} catch {
-		// The primary open/identity failure remains authoritative.
+	} catch (error) {
+		return errorCode(error);
 	}
+	return undefined;
 }
 
 function protectedFileIo(readFileOrIo) {
