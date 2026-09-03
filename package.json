@@ -248,8 +248,5 @@
   },
   "trustedDependencies": [
     "@code-yeongyu/comment-checker"
-  ],
-  "patchedDependencies": {
-    "@code-yeongyu/senpi@2026.9.3-2": "patches/@code-yeongyu%2Fsenpi@2026.9.3-2.patch"
-  }
+  ]
 }

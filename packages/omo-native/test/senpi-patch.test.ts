@@ -8,7 +8,6 @@ import { fileURLToPath } from "node:url"
 const PACKAGE_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)))
 const PATCH_SCRIPT = join(PACKAGE_ROOT, "bin", "senpi-patch.mjs")
 const BUNDLED_ANTHROPIC_MESSAGES = "node_modules/@earendil-works/pi-ai/dist/api/anthropic-messages.js"
-const PUMP_RELATIVE = "dist/core/extensions/builtin/claude-sdk-oauth/session-registry-pump.js"
 const FLOOR = "2.1.251"
 
 const roots: string[] = []
@@ -31,16 +30,6 @@ function anthropicMessagesSource(claudeCodeVersion: string): string {
   ].join("\n")
 }
 
-function pumpSource(): string {
-  return [
-    "class SessionTurnAttributionError extends Error {}",
-    "function handleMessage(registry, entry, message) {",
-    '  throw new SessionTurnAttributionError("Claude SDK OAuth result arrived before replay claim");',
-    "}",
-    "",
-  ].join("\n")
-}
-
 function createFixture(claudeCodeVersion: string): Fixture {
   const root = mkdtempSync(join(tmpdir(), "omo-senpi-patch-"))
   roots.push(root)
@@ -52,9 +41,6 @@ function createFixture(claudeCodeVersion: string): Fixture {
   const anthropicMessages = join(root, BUNDLED_ANTHROPIC_MESSAGES)
   mkdirSync(dirname(anthropicMessages), { recursive: true })
   writeFileSync(anthropicMessages, anthropicMessagesSource(claudeCodeVersion))
-  const pump = join(root, PUMP_RELATIVE)
-  mkdirSync(dirname(pump), { recursive: true })
-  writeFileSync(pump, pumpSource())
   return { root, anthropicMessages }
 }
 
@@ -72,12 +58,11 @@ afterEach(() => {
 describe("senpi-patch claudeCodeVersion floor", () => {
   describe("#given a bundled pi-ai claudeCodeVersion below the 2.1.251 floor", () => {
     describe("#when the patch script runs as postinstall does", () => {
-      test("#then the version is rewritten to the floor and the pump transform still applies", () => {
+      test("#then the version is rewritten to the floor", () => {
         const fixture = createFixture("2.1.75")
         const result = runPatch(fixture.root)
         expect(result.status).toBe(0)
         expect(readFileSync(fixture.anthropicMessages, "utf8")).toBe(anthropicMessagesSource(FLOOR))
-        expect(readFileSync(join(fixture.root, PUMP_RELATIVE), "utf8")).toContain("describeUnclaimedResult")
       })
     })
   })
