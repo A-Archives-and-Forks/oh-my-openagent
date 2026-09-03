@@ -27,7 +27,12 @@ import {
 	snapshotProtectedState,
 } from "./isolation-state.mjs";
 
-export { credentialDigest, digestDirectory } from "./isolation-state.mjs";
+export {
+	changedSnapshotPaths,
+	credentialDigest,
+	digestDirectory,
+	snapshotDirectory,
+} from "./isolation-state.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(scriptDir, "..", "..");
