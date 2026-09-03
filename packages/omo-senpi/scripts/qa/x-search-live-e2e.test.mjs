@@ -9,19 +9,22 @@ import { createScrubbedEnvironment, observeChildXSearchCall, resolveSenpiBin, sc
 describe("x-search live QA isolation helpers", () => {
   test("resolves SENPI_BIN, then the peer dependency, then PATH", () => {
     const root = mkdtempSync(join(tmpdir(), "omo-x-search-bin-test-"))
-    const requested = join(root, "requested-senpi")
-    const peer = join(root, "node_modules", ".bin", "senpi")
+    const win32 = process.platform === "win32"
+    const shim = win32 ? "senpi.cmd" : "senpi"
+    const requested = join(root, win32 ? "requested-senpi.cmd" : "requested-senpi")
+    const peer = join(root, "node_modules", ".bin", shim)
     const pathDir = join(root, "path")
     mkdirSync(join(root, "node_modules", ".bin"), { recursive: true })
     mkdirSync(pathDir, { recursive: true })
-    for (const path of [requested, peer, join(pathDir, "senpi")]) writeFileSync(path, "#!/bin/sh\nprintf '2026.9.2-4\\n'\n", { mode: 0o755 })
+    const body = win32 ? "@echo 2026.9.2-4\n" : "#!/bin/sh\nprintf '2026.9.2-4\\n'\n"
+    for (const path of [requested, peer, join(pathDir, shim)]) writeFileSync(path, body, { mode: 0o755 })
     try {
       expect(resolveSenpiBin({ root, cwd: root, env: { SENPI_BIN: requested, PATH: pathDir } })).toEqual({ path: requested, source: "SENPI_BIN" })
       rmSync(requested)
       expect(resolveSenpiBin({ root, cwd: root, env: { SENPI_BIN: requested, PATH: pathDir } })).toEqual({ path: peer, source: "peer-dependency" })
       rmSync(peer)
-      expect(resolveSenpiBin({ root, cwd: root, env: { SENPI_BIN: requested, PATH: pathDir } })).toEqual({ path: join(pathDir, "senpi"), source: "PATH", warning: expect.any(String) })
-      expect(senpiVersion(join(pathDir, "senpi"))).toBe("2026.9.2-4")
+      expect(resolveSenpiBin({ root, cwd: root, env: { SENPI_BIN: requested, PATH: pathDir } })).toEqual({ path: join(pathDir, shim), source: "PATH", warning: expect.any(String) })
+      expect(senpiVersion(join(pathDir, shim))).toBe("2026.9.2-4")
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

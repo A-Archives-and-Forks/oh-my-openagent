@@ -2,6 +2,7 @@ import {
 	artifactCompatible,
 	artifactMap,
 	checkFile,
+	compatibleKindsFor,
 	parseArtifactRefs,
 	referencedArtifacts,
 	surfaceField,
@@ -169,7 +170,7 @@ function parseSurfaceEvidence(
 			if (isPoisoned(`manualQa.surfaceEvidence[${index}].surface`) || isPoisonedArtifactKind(artifact.id)) continue;
 			if (!artifactCompatible(surface, artifact.kind)) {
 				invalid(
-					`manualQa.surfaceEvidence ${surface} artifact ${artifact.kind} is incompatible.`,
+					`manualQa.surfaceEvidence ${surface} artifact ${artifact.kind} is incompatible; surface "${surface}" accepts artifact kinds: ${compatibleKindsFor(surface).join(", ")}.`,
 					"manualQa.surfaceEvidence",
 				);
 			}
