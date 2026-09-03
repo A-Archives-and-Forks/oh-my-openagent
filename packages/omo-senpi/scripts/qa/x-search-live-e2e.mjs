@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 import { randomBytes } from "node:crypto"
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { accessSync, constants, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { delimiter, dirname, join, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { createSandbox, seedSandbox, snapshotDirectory, changedSnapshotPaths, credentialDigest } from "./drive.mjs"
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
+const repoRoot = resolve(scriptDir, "../../../../")
 const mockProviderEntry = join(scriptDir, "task-e2e-mock-provider.ts")
 const realAgentDir = join(homedir(), ".senpi", "agent")
 const sourceAuth = join(homedir(), ".omo", "agent", "auth.json")
@@ -57,14 +58,42 @@ function scrubSecrets(text) {
     .replace(/(?:XAI_API_KEY|GROK_[A-Z0-9_]+)=\S+/g, "$1=[REDACTED]")
 }
 
-function findSenpi() {
-  const requested = process.env.SENPI_BIN?.trim() || "senpi"
-  if (requested.includes("/")) return existsSync(requested) ? requested : null
-  for (const dir of (process.env.PATH ?? "").split(delimiter)) {
-    const candidate = resolve(dir || ".", requested)
-    if (existsSync(candidate)) return candidate
+function executable(path) {
+  try {
+    accessSync(path, constants.X_OK)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function resolveSenpiBin({ env = process.env, root = repoRoot, cwd = process.cwd() } = {}) {
+  const requested = env.SENPI_BIN?.trim()
+  if (requested) {
+    const candidate = resolve(cwd, requested)
+    if (executable(candidate)) return { path: candidate, source: "SENPI_BIN" }
+  }
+
+  const peer = resolve(root, "node_modules/.bin/senpi")
+  if (executable(peer)) return { path: peer, source: "peer-dependency" }
+
+  for (const dir of (env.PATH ?? "").split(delimiter)) {
+    const candidate = resolve(dir || ".", "senpi")
+    if (executable(candidate)) return { path: candidate, source: "PATH", warning: "Using PATH senpi fallback; peer-dependency binary was unavailable." }
   }
   return null
+}
+
+export function senpiVersion(path) {
+  if (!path) return null
+  const result = spawnSync(path, ["--version"], { encoding: "utf8", timeout: 10000 })
+  if (result.status !== 0) return null
+  return String(result.stdout ?? "").split(/\r?\n/, 1)[0].trim() || null
+}
+
+export function scenarioTarget(scenario) {
+  if (scenario === "explore" || scenario === "librarian") return { subagent_type: scenario }
+  return { category: "quick" }
 }
 
 function scriptFor(scenario) {
@@ -73,22 +102,34 @@ function scriptFor(scenario) {
   const childSteps = scenario === "explore"
     ? [{ type: "tool_call", name: "tool_search", arguments: { query: "X posts" } }, { type: "tool_call", name: "x_search", arguments: { query: "xAI Grok CLI", from_date: yesterday } }, { type: "text", text: "Report the observed x_search call outcome." }]
     : [{ type: "tool_call", name: "tool_search", arguments: { query: "X posts" } }, { type: "tool_call", name: "x_search", arguments: { query: "xAI Grok CLI", from_date: yesterday } }, { type: "text", text: "Return the preceding x_search results verbatim." }]
-  const target = { category: "quick" }
+  const target = scenarioTarget(scenario)
   return {
     parentSteps: [{ type: "tool_call", name: "task", arguments: { ...target, prompt: `Call the x_search tool with query "xAI Grok CLI" and from_date ${yesterday}; return its text verbatim`, run_in_background: false, name: `${scenario}-x-search` } }, { type: "text", text: `${scenario} root QA complete` }],
     childSteps,
   }
 }
 
-function observedToolCalls(transcript) {
+export function observedToolCalls(transcript) {
   const calls = []
   const seen = new Set()
-  for (const line of transcript.split(/\r?\n/)) {
-    if (!line.includes('"type":"tool_execution_end"')) continue
+  const lines = transcript.split(/\r?\n/)
+  const childCalls = lines.flatMap((line) => {
+    try {
+      const event = JSON.parse(line)
+      return event?.type === "tool_execution" && typeof event.payload?.tool === "string" ? [event.payload.tool] : []
+    } catch {
+      return []
+    }
+  })
+  const candidates = childCalls.length > 0 ? childCalls : lines.flatMap((line) => {
+    if (!line.includes('"type":"tool_execution_end"')) return []
     const match = line.match(/"toolName":"([^"]+)"/)
-    if (match && !seen.has(match[1])) {
-      seen.add(match[1])
-      calls.push(match[1])
+    return match ? [match[1]] : []
+  })
+  for (const name of candidates) {
+    if (!seen.has(name)) {
+      seen.add(name)
+      calls.push(name)
     }
   }
   return calls
@@ -133,6 +174,20 @@ export function observeChildXSearchCall(transcript) {
   return { observed: false, source: "child-tool-execution", outcome: "not-observed" }
 }
 
+export function observeTaskAgentType(transcript) {
+  for (const line of transcript.split(/\r?\n/)) {
+    try {
+      const event = JSON.parse(line)
+      if (event?.type !== "tool_execution_end" || event.toolName !== "task") continue
+      const details = event.result?.details
+      if (typeof details?.subagent_type === "string") return details.subagent_type
+      if (typeof details?.agent_type === "string") return details.agent_type
+      if (typeof details?.category === "string") return details.category
+    } catch {}
+  }
+  return undefined
+}
+
 function readSandboxTranscript(root) {
   const chunks = []
   const walk = (dir) => {
@@ -173,7 +228,9 @@ function runScenario(scenario, prompt, outDir) {
     sandboxExtensionPath = join(sandboxExtensionDir, "x-probe-tool.mjs")
     writeFileSync(sandboxExtensionPath, `export default function register(pi) { pi.registerTool({ name: "x_probe_tool", label: "Data probe", description: "Analyze the data with a local probe for catalog QA.", parameters: { type: "object", properties: {}, required: [] }, exposure: "search", searchKeywords: ["analyze the data"], allowLazyActivation: true, execute: async () => ({ content: [{ type: "text", text: "probe" }] }) }) }\n`)
   }
-  const senpi = findSenpi()
+  const senpiInfo = resolveSenpiBin()
+  const senpi = senpiInfo?.path ?? null
+  const version = senpiVersion(senpi)
   let run = { status: null, stdout: "", stderr: "" }
   if (senpi) {
     const common = ["-e", mockProviderEntry, ...(sandboxExtensionPath ? ["-e", sandboxExtensionPath] : []), "-p", "--mode", "json", "--provider", "omo-mock", "--model", "mock-1", "--session-dir", join(sandbox.root, "sessions")]
@@ -193,6 +250,7 @@ function runScenario(scenario, prompt, outDir) {
   const changed = changedSnapshotPaths(before, after)
   const xSearchCalls = countToolExecutions(transcript, "x_search")
   const childXSearchCallOutcome = scenario === "explore" ? observeChildXSearchCall(transcript) : null
+  const agentType = observeTaskAgentType(transcript)
   const skillLoaded = skillHasX(transcript)
   const toolCalls = observedToolCalls(transcript)
   const searched = toolSearchResults(transcript)
@@ -203,18 +261,23 @@ function runScenario(scenario, prompt, outDir) {
   } : null
   const payload = {
     scenario, result: senpi === null ? "SKIP" : (run.status === 0 ? "PASS" : "FAIL"),
+    senpiBin: senpi,
+    senpiVersion: version,
+    ...(senpiInfo?.warning ? { senpiWarning: senpiInfo.warning } : {}),
     ...(senpi === null ? { reason: "senpi-binary-unavailable" } : {}),
     prompt, yesterday, realSenpiUntouched: changed.length === 0, realSenpiChangedPaths: changed,
     realSenpiCredentialDigestUntouched: beforeCredentials === credentialDigest(realAgentDir),
     isolatedAgentDir: sandbox.agentDir, isolatedCwd: sandbox.cwd,
     envScrubbed: scrubbed, spawnedEnvHasXai: Object.keys(scrubbedEnv).some((key) => /^(XAI|GROK)_/.test(key)),
     toolCalls,
+    agentType: agentType ?? null,
     ...(childXSearchCallOutcome ? { xSearchCallOutcome: childXSearchCallOutcome } : {}),
     toolResults: { noToolsMatched: negativeSearches?.noToolsMatched ?? false, controlMatched: negativeSearches?.controlMatched ?? false, tool_searchExecuted: negativeSearches?.tool_searchExecuted ?? false, controlQuery: scenario === "negative" ? NEGATIVE_CONTROL_QUERY : undefined, xSearchExecutions: xSearchCalls, xSearchResults: (transcript.match(/x_search results:/g) ?? []).length, xComUrls: (transcript.match(/https?:\/\/x\.com\/\S+/g) ?? []).length, unavailable: scenario === "explore" && childXSearchCallOutcome?.outcome === "denied" },
     negativePath: scenario === "negative" ? { kind: "sandbox-extension", extension: "x_probe_tool", exposure: "search", source: "QA sandbox", shippedSkillQuery: NEGATIVE_CONTROL_QUERY, xQueryScope: "mcp", controlQueryScope: "extension", xaiInvolved: false, mcpInvolved: false } : undefined,
     ...(scenario === "negative" ? { xSearchSkillListed: skillLoaded } : {}),
     registrationCount: (transcript.match(/x-search registered/g) ?? []).length,
-    verdict: { noXSearch: scenario === "negative" ? !skillLoaded && xSearchCalls === 0 : undefined, negativeToolSearch: scenario === "negative" ? negativeSearches?.tool_searchExecuted && negativeSearches.noToolsMatched && negativeSearches.controlMatched : undefined, positive: scenario !== "negative" && scenario !== "explore" ? (transcript.match(/x_search results:/g) ?? []).length >= 1 : undefined, exploreUnavailable: scenario === "explore" ? childXSearchCallOutcome?.outcome === "denied" && (transcript.match(/x_search results:/g) ?? []).length === 0 : undefined, reload: scenario === "reload" ? transcript.includes("/reload") && (transcript.match(/x_search results:/g) ?? []).length >= 2 && (transcript.match(/x-search registered/g) ?? []).length === 3 : undefined },
+    observedOutcome: scenario === "explore" ? (childXSearchCallOutcome?.outcome === "denied" ? "denied" : childXSearchCallOutcome?.outcome === "not-observed" ? "absent" : "success") : ((transcript.match(/x_search results:/g) ?? []).length >= 1 ? "success" : "absent"),
+    verdict: { noXSearch: scenario === "negative" ? !skillLoaded && xSearchCalls === 0 : undefined, negativeToolSearch: scenario === "negative" ? negativeSearches?.tool_searchExecuted && negativeSearches.noToolsMatched && negativeSearches.controlMatched : undefined, positive: scenario !== "negative" && scenario !== "explore" ? (transcript.match(/x_search results:/g) ?? []).length >= 1 : undefined, exploreUnavailable: scenario === "explore" ? (childXSearchCallOutcome?.outcome === "denied" || childXSearchCallOutcome?.outcome === "not-observed") && (transcript.match(/x_search results:/g) ?? []).length === 0 : undefined, reload: scenario === "reload" ? transcript.includes("/reload") && (transcript.match(/x_search results:/g) ?? []).length >= 2 && (transcript.match(/x-search registered/g) ?? []).length === 3 : undefined },
     senpiExit: run.status, senpiSignal: run.signal ?? null,
     transcript: `transcript-${scenario}.txt`, cleanup,
   }

@@ -4,9 +4,28 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { createScrubbedEnvironment, observeChildXSearchCall, seedXaiCredential, shredSeededCredential, skillHasX } from "./x-search-live-e2e.mjs"
+import { createScrubbedEnvironment, observeChildXSearchCall, resolveSenpiBin, scenarioTarget, seedXaiCredential, senpiVersion, shredSeededCredential, skillHasX } from "./x-search-live-e2e.mjs"
 
 describe("x-search live QA isolation helpers", () => {
+  test("resolves SENPI_BIN, then the peer dependency, then PATH", () => {
+    const root = mkdtempSync(join(tmpdir(), "omo-x-search-bin-test-"))
+    const requested = join(root, "requested-senpi")
+    const peer = join(root, "node_modules", ".bin", "senpi")
+    const pathDir = join(root, "path")
+    mkdirSync(join(root, "node_modules", ".bin"), { recursive: true })
+    mkdirSync(pathDir, { recursive: true })
+    for (const path of [requested, peer, join(pathDir, "senpi")]) writeFileSync(path, "#!/bin/sh\nprintf '2026.9.2-4\\n'\n", { mode: 0o755 })
+    try {
+      expect(resolveSenpiBin({ root, cwd: root, env: { SENPI_BIN: requested, PATH: pathDir } })).toEqual({ path: requested, source: "SENPI_BIN" })
+      rmSync(requested)
+      expect(resolveSenpiBin({ root, cwd: root, env: { SENPI_BIN: requested, PATH: pathDir } })).toEqual({ path: peer, source: "peer-dependency" })
+      rmSync(peer)
+      expect(resolveSenpiBin({ root, cwd: root, env: { SENPI_BIN: requested, PATH: pathDir } })).toEqual({ path: join(pathDir, "senpi"), source: "PATH", warning: expect.any(String) })
+      expect(senpiVersion(join(pathDir, "senpi"))).toBe("2026.9.2-4")
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
   test("uses the observed child x_search execution outcome", () => {
     const denied = observeChildXSearchCall(JSON.stringify({ type: "tool_execution", payload: { tool: "x_search", is_error: true } }))
     expect(denied).toEqual({ observed: true, source: "child-tool-execution", isError: true, outcome: "denied" })
@@ -17,6 +36,12 @@ describe("x-search live QA isolation helpers", () => {
   })
   test("detects x_search in a tool execution transcript", () => {
     expect(skillHasX('{"toolName":"x_search"}')).toBe(true)
+  })
+
+  test("maps each live scenario to its intended task target", () => {
+    expect(scenarioTarget("explore")).toEqual({ subagent_type: "explore" })
+    expect(scenarioTarget("librarian")).toEqual({ subagent_type: "librarian" })
+    expect(scenarioTarget("quick")).toEqual({ category: "quick" })
   })
 
   test("keeps the negative catalog control query distinct from X posts", () => {
