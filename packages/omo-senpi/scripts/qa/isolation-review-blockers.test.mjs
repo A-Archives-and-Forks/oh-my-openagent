@@ -216,8 +216,8 @@ test("#given bounded observation root enumeration fails #when snapshotDirectory 
 					throw codedError(code);
 				},
 			});
-			expect(scan.complete).toBe(true);
-			expect(scan.errors).toEqual([]);
+			expect(scan.complete).toBe(false);
+			expect(scan.errors).toEqual([{ path: ".", code: "FILE_REPLACED" }]);
 		}
 	} finally {
 		rmSync(root, { recursive: true, force: true });

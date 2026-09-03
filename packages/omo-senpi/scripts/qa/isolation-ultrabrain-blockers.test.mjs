@@ -177,11 +177,13 @@ test("#given an enumerated directory is replaced by an external symlink before r
 		writeFileSync(join(state, "stable"), "same");
 		writeFileSync(join(outside, "stable"), "same");
 		let replaced = false;
+		let directoryOpens = 0;
 
 		// When
 		const scan = snapshotDirectory(root, LIMITS, {
 			opendirSync(path) {
-				if (!replaced && path === state) {
+				directoryOpens += 1;
+				if (!replaced && directoryOpens === 2) {
 					replaced = true;
 					renameSync(state, moved);
 					symlinkSync(outside, state);

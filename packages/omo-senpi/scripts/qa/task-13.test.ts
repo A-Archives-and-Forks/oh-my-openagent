@@ -334,7 +334,18 @@ describe("task 13 senpi QA scripts", () => {
 			expect(payload.providedSenpiCodingAgentDir).toBe("IGNORED");
 			expect(payload.sandboxAgentDir).not.toBe(callerAgentDir);
 			expect(String(payload.sandboxAgentDir)).toContain("omo-senpi-qa-");
-			expect(payload.isolationCertified).toBe(true);
+			expect(payload.isolationCertified).toBe(false);
+			expect(payload.realHomeIsolationCertified).toBe(true);
+			expect(payload.certificationEnvironmentObserved).toBe(false);
+			expect(payload.certificationRootsComplete).toBe(true);
+			expect(payload.certificationRootsTruncated).toBe(false);
+			expect(payload.certificationChangedPaths).toEqual([]);
+			expect(payload.certificationErrors).toEqual([]);
+			expect(payload.certificationLimits).toEqual({
+				maxFiles: 10_000,
+				maxBytes: 67_108_864,
+				maxEntries: 20_000,
+			});
 			expect(payload.realSenpiUntouched).toBe(true);
 			expect(payload.realSenpiChangedPaths).toEqual([]);
 			expect(payload.realSenpiProtectedStateComplete).toBe(true);

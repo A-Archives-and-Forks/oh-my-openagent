@@ -1,6 +1,6 @@
 // allow: SIZE_OK - bounded snapshots and their canonical verdict share one normalization contract.
 import { createHash } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
+import { constants, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import {
 	errorCode,
@@ -89,63 +89,30 @@ export function snapshotDirectory(
 	const state = {
 		root,
 		pathStyle,
-		files: [],
-		directories: [],
+		snapshot: new Map(),
+		files: 0,
 		errors: [],
 		entries: 0,
+		bytesRead: 0,
 		truncated: false,
-	};
-	collectFilesBounded(
-		root,
-		state,
-		{
+		limits: {
 			maxFiles: limits.maxFiles,
+			maxBytes: limits.maxBytes,
 			maxEntries: limits.maxEntries ?? OBSERVATION_LIMITS.maxEntries,
 		},
 		io,
-	);
-	const snapshot = new Map(
-		state.directories.map((path) => [path, "directory"]),
-	);
-	let bytesRead = 0;
-	for (const file of state.files.sort((left, right) =>
-		left.rel.localeCompare(right.rel),
-	)) {
-		const remainingBytes = limits.maxBytes - bytesRead;
-		if (file.size > remainingBytes) {
-			state.truncated = true;
-			break;
-		}
-		const result =
-			file.kind === "symlink"
-				? hashSymlinkBounded(file, { remainingBytes, io })
-				: hashFileBounded(file, {
-						remainingBytes,
-						io,
-						normalizeCredential: credentialBytes,
-					});
-		bytesRead += result.bytesRead;
-		if (result.truncated) {
-			state.truncated = true;
-			break;
-		}
-		if (result.error !== undefined) {
-			if (!isTransientSnapshotEntryError({ code: result.error }))
-				state.errors.push({ path: file.rel, code: result.error });
-			continue;
-		}
-		snapshot.set(file.rel, result.digest);
-	}
+	};
+	collectFilesBounded(root, state);
 	return {
 		snapshot: new Map(
-			[...snapshot.entries()].sort(([left], [right]) =>
-				left.localeCompare(right),
+			[...state.snapshot.entries()].sort(([left], [right]) =>
+				compareCanonicalText(left, right),
 			),
 		),
 		complete: !state.truncated && state.errors.length === 0,
 		truncated: state.truncated,
 		errors: state.errors.sort(compareSnapshotErrors),
-		bytesRead,
+		bytesRead: state.bytesRead,
 		domain: "nonvolatile-home",
 	};
 }
@@ -158,7 +125,7 @@ export function changedSnapshotPaths(
 	return [...new Set([...before.keys(), ...after.keys()])]
 		.filter((path) => before.get(path) !== after.get(path))
 		.map((path) => canonicalRelativePath(path, pathStyle))
-		.sort();
+		.sort(compareCanonicalText);
 }
 
 export function classifyObservedChanges(paths, pathStyle = NATIVE_PATH_STYLE) {
@@ -178,9 +145,50 @@ export function classifyObservedChanges(paths, pathStyle = NATIVE_PATH_STYLE) {
 		else other.add(path);
 	}
 	return {
-		volatile: [...volatile].sort(),
-		protectedState: [...protectedState].sort(),
-		other: [...other].sort(),
+		volatile: [...volatile].sort(compareCanonicalText),
+		protectedState: [...protectedState].sort(compareCanonicalText),
+		other: [...other].sort(compareCanonicalText),
+	};
+}
+
+export function scopedIsolationVerdict(observations) {
+	const changedPaths = observations
+		.flatMap(({ name, before, after }) =>
+			changedSnapshotPaths(before.snapshot, after.snapshot).map(
+				(path) => `${name}/${path}`,
+			),
+		)
+		.sort(compareCanonicalText);
+	const errors = observations
+		.flatMap(({ name, before, after }) => [
+			...before.errors.map((error) => ({
+				root: name,
+				phase: "before",
+				...error,
+			})),
+			...after.errors.map((error) => ({
+				root: name,
+				phase: "after",
+				...error,
+			})),
+		])
+		.sort(compareScopedErrors);
+	const complete = observations.every(
+		({ before, after }) =>
+			observationComplete(before) && observationComplete(after),
+	);
+	return {
+		certified: complete && changedPaths.length === 0,
+		complete,
+		truncated: observations.some(
+			({ before, after }) => before.truncated || after.truncated,
+		),
+		changedPaths,
+		errors,
+		bytesRead: observations.reduce(
+			(total, { before, after }) => total + before.bytesRead + after.bytesRead,
+			0,
+		),
 	};
 }
 
@@ -204,7 +212,7 @@ export function isolationVerdict({
 			...observed.protectedState,
 			...observed.other,
 		]),
-	].sort();
+	].sort(compareCanonicalText);
 	return {
 		changedPaths,
 		untouched:
@@ -262,14 +270,15 @@ function credentialBytes(content, name) {
 	}
 }
 
-function collectFilesBounded(currentRoot, state, limits, io) {
+function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
+	const { io, limits } = state;
 	const currentRel = canonicalRelativePath(
 		relative(state.root, currentRoot) || ".",
 		state.pathStyle,
 	);
 	let beforeOpen;
 	try {
-		beforeOpen = io.lstatSync(currentRoot, { bigint: true });
+		beforeOpen = io.lstatSync(boundRoot, { bigint: true });
 	} catch (error) {
 		if (!isTransientSnapshotEntryError(error))
 			state.errors.push({ path: currentRel, code: errorCode(error) });
@@ -285,33 +294,59 @@ function collectFilesBounded(currentRoot, state, limits, io) {
 		return;
 	}
 	const beforeMetadata = fileMetadata(beforeOpen);
+	let directoryFd;
 	let directory;
 	try {
-		directory = io.opendirSync(currentRoot);
-	} catch (error) {
-		if (!isTransientSnapshotEntryError(error) || currentRoot !== state.root)
-			state.errors.push({
-				path: currentRel,
-				code: isTransientSnapshotEntryError(error)
-					? "FILE_REPLACED"
-					: errorCode(error),
+		if (
+			constants.O_DIRECTORY === undefined ||
+			constants.O_NOFOLLOW === undefined
+		)
+			throw Object.assign(new Error("DIRECTORY_IDENTITY_UNAVAILABLE"), {
+				code: "DIRECTORY_IDENTITY_UNAVAILABLE",
 			});
+		directoryFd = (io.openDirectorySync ?? FILE_IO.openSync)(
+			boundRoot,
+			constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
+		);
+		const opened = (io.fstatDirectorySync ?? FILE_IO.fstatSync)(directoryFd, {
+			bigint: true,
+		});
+		const openedMetadata = fileMetadata(opened);
+		if (
+			!opened.isDirectory() ||
+			beforeMetadata.dev !== openedMetadata.dev ||
+			beforeMetadata.ino !== openedMetadata.ino
+		)
+			throw Object.assign(new Error("FILE_REPLACED"), {
+				code: "FILE_REPLACED",
+			});
+		const descriptorRoot = directoryDescriptorPath(directoryFd);
+		if (descriptorRoot === null)
+			throw Object.assign(new Error("DIRECTORY_IDENTITY_UNAVAILABLE"), {
+				code: "DIRECTORY_IDENTITY_UNAVAILABLE",
+			});
+		directory = io.opendirSync(descriptorRoot);
+		assertDirectoryPathIdentity(currentRoot, beforeMetadata, io);
+	} catch (error) {
+		state.errors.push({
+			path: currentRel,
+			code: isTransientSnapshotEntryError(error)
+				? "FILE_REPLACED"
+				: errorCode(error),
+		});
+		if (directoryFd !== undefined) closeDirectoryFd(directoryFd, io);
 		return;
 	}
 	const errorsBeforeTraversal = state.errors.length;
 	let traversalFailed = false;
 	try {
-		const afterOpen = io.lstatSync(currentRoot, { bigint: true });
-		const afterMetadata = fileMetadata(afterOpen);
-		if (
-			!afterOpen.isDirectory() ||
-			beforeMetadata.dev !== afterMetadata.dev ||
-			beforeMetadata.ino !== afterMetadata.ino
-		)
-			throw Object.assign(new Error("FILE_REPLACED"), {
-				code: "FILE_REPLACED",
+		const descriptorRoot = directoryDescriptorPath(directoryFd);
+		if (descriptorRoot === null)
+			throw Object.assign(new Error("DIRECTORY_IDENTITY_UNAVAILABLE"), {
+				code: "DIRECTORY_IDENTITY_UNAVAILABLE",
 			});
-		state.directories.push(currentRel);
+		state.snapshot.set(currentRel, "directory");
+		const entries = [];
 		while (true) {
 			const entry = directory.readSync();
 			if (entry === null) break;
@@ -326,9 +361,14 @@ function collectFilesBounded(currentRoot, state, limits, io) {
 				state.truncated = true;
 				return;
 			}
+			entries.push({ entry, path, rel });
+		}
+		entries.sort((left, right) => compareCanonicalText(left.rel, right.rel));
+		for (const { entry, path, rel } of entries) {
+			const boundPath = join(descriptorRoot, entry.name);
 			let pathStat;
 			try {
-				pathStat = io.lstatSync(path, { bigint: true });
+				pathStat = io.lstatSync(boundPath, { bigint: true });
 			} catch (error) {
 				if (!isTransientSnapshotEntryError(error))
 					state.errors.push({ path: rel, code: errorCode(error) });
@@ -339,25 +379,65 @@ function collectFilesBounded(currentRoot, state, limits, io) {
 					state.errors.push({ path: rel, code: "FILE_REPLACED" });
 					continue;
 				}
-				collectFilesBounded(path, state, limits, io);
+				collectFilesBounded(path, state, boundPath);
 				if (state.truncated) return;
-			} else if (pathStat.isFile() || pathStat.isSymbolicLink()) {
-				if (state.files.length >= limits.maxFiles) {
-					state.truncated = true;
-					return;
-				}
-				const metadata = fileMetadata(pathStat);
-				state.files.push({
-					path,
-					rel,
-					kind: pathStat.isSymbolicLink() ? "symlink" : "file",
-					size: boundedSize(metadata.size),
-					metadata,
-				});
-			} else {
-				state.errors.push({ path: rel, code: "UNSUPPORTED_ENTRY" });
+				continue;
 			}
+			if (!pathStat.isFile() && !pathStat.isSymbolicLink()) {
+				state.errors.push({ path: rel, code: "UNSUPPORTED_ENTRY" });
+				continue;
+			}
+			if (state.files >= limits.maxFiles) {
+				state.truncated = true;
+				return;
+			}
+			state.files += 1;
+			const metadata = fileMetadata(pathStat);
+			const file = {
+				path: boundPath,
+				rel,
+				kind: pathStat.isSymbolicLink() ? "symlink" : "file",
+				size: boundedSize(metadata.size),
+				metadata,
+			};
+			const remainingBytes = limits.maxBytes - state.bytesRead;
+			if (file.size > remainingBytes) {
+				state.truncated = true;
+				return;
+			}
+			const result =
+				file.kind === "symlink"
+					? hashSymlinkBounded(file, { remainingBytes, io })
+					: hashFileBounded(file, {
+							remainingBytes,
+							io,
+							normalizeCredential: credentialBytes,
+						});
+			state.bytesRead += result.bytesRead;
+			if (result.truncated) {
+				state.truncated = true;
+				return;
+			}
+			if (result.error !== undefined) {
+				if (!isTransientSnapshotEntryError({ code: result.error }))
+					state.errors.push({ path: rel, code: result.error });
+				continue;
+			}
+			state.snapshot.set(rel, result.digest);
 		}
+		const finished = (io.fstatDirectorySync ?? FILE_IO.fstatSync)(directoryFd, {
+			bigint: true,
+		});
+		const finishedMetadata = fileMetadata(finished);
+		if (
+			!finished.isDirectory() ||
+			beforeMetadata.dev !== finishedMetadata.dev ||
+			beforeMetadata.ino !== finishedMetadata.ino
+		)
+			throw Object.assign(new Error("FILE_REPLACED"), {
+				code: "FILE_REPLACED",
+			});
+		assertDirectoryPathIdentity(currentRoot, beforeMetadata, io);
 	} catch (error) {
 		traversalFailed = true;
 		state.errors.push({ path: currentRel, code: errorCode(error) });
@@ -368,6 +448,34 @@ function collectFilesBounded(currentRoot, state, limits, io) {
 			if (!traversalFailed && state.errors.length === errorsBeforeTraversal)
 				state.errors.push({ path: currentRel, code: errorCode(error) });
 		}
+		if (directoryFd !== undefined) closeDirectoryFd(directoryFd, io);
+	}
+}
+
+function assertDirectoryPathIdentity(path, expected, io) {
+	const current = io.lstatSync(path, { bigint: true });
+	const metadata = fileMetadata(current);
+	if (
+		!current.isDirectory() ||
+		expected.dev !== metadata.dev ||
+		expected.ino !== metadata.ino
+	)
+		throw Object.assign(new Error("FILE_REPLACED"), {
+			code: "FILE_REPLACED",
+		});
+}
+
+function directoryDescriptorPath(fd) {
+	if (process.platform === "linux") return `/proc/self/fd/${fd}`;
+	if (process.platform === "darwin") return `/dev/fd/${fd}`;
+	return null;
+}
+
+function closeDirectoryFd(fd, io) {
+	try {
+		(io.closeDirectorySync ?? FILE_IO.closeSync)(fd);
+	} catch {
+		// The primary open/identity failure remains authoritative.
 	}
 }
 
@@ -390,8 +498,23 @@ function boundedSize(size) {
 
 function compareSnapshotErrors(left, right) {
 	return (
-		left.path.localeCompare(right.path) || left.code.localeCompare(right.code)
+		compareCanonicalText(left.path, right.path) ||
+		compareCanonicalText(left.code, right.code)
 	);
+}
+
+function compareScopedErrors(left, right) {
+	return (
+		compareCanonicalText(left.root, right.root) ||
+		compareCanonicalText(left.phase, right.phase) ||
+		compareSnapshotErrors(left, right)
+	);
+}
+
+function compareCanonicalText(left, right) {
+	if (left < right) return -1;
+	if (left > right) return 1;
+	return 0;
 }
 
 function collectFiles(root, files, readdir, isRoot = false) {

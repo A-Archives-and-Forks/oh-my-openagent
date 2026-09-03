@@ -22,6 +22,7 @@ import {
 	isolationVerdict,
 	OBSERVATION_LIMITS,
 	PROTECTED_STATE_FILES,
+	scopedIsolationVerdict,
 	snapshotDirectory,
 	snapshotProtectedState,
 } from "./isolation-state.mjs";
@@ -33,9 +34,11 @@ const packageRoot = resolve(scriptDir, "..", "..");
 const repoRoot = resolve(packageRoot, "..", "..");
 const pluginRoot = join(packageRoot, "plugin");
 const mockProviderEntry = join(scriptDir, "mock-provider", "index.ts");
+const environmentReceiptEntry = join(scriptDir, "environment-receipt.ts");
 const realSenpiAgentDir = join(homedir(), ".senpi", "agent");
 const realOmoAgentDir = join(homedir(), ".omo", "agent");
 const commentCheckerHeader = "comment-checker found issues in";
+const environmentReceiptFile = ".omo-senpi-qa-environment.json";
 
 // The isolation verdict combines protected snapshots with every observed nonvolatile change.
 // Bounded recursive observations remain explicit and never claim whole-home completeness.
@@ -134,6 +137,8 @@ function runSenpi(senpiBin, sandbox, prompt, script, extraEnv = {}) {
 		senpiBin,
 		[
 			"-e",
+			environmentReceiptEntry,
+			"-e",
 			mockProviderEntry,
 			"-p",
 			"--provider",
@@ -164,6 +169,68 @@ function runSenpi(senpiBin, sandbox, prompt, script, extraEnv = {}) {
 	);
 }
 
+function seedCertificationRoots(sandbox) {
+	for (const agentDir of [
+		join(sandbox.homeDir, ".senpi", "agent"),
+		join(sandbox.homeDir, ".omo", "agent"),
+	]) {
+		mkdirp(agentDir);
+		for (const name of PROTECTED_STATE_FILES)
+			writeFileSync(join(agentDir, name), "{}\n");
+		writeFileSync(join(agentDir, "persistent-state.json"), "{}\n");
+	}
+	for (const root of [
+		sandbox.xdgConfigHome,
+		sandbox.xdgDataHome,
+		sandbox.xdgCacheHome,
+	])
+		writeFileSync(join(root, ".qa-sentinel"), "controlled\n");
+}
+
+function snapshotCertificationRoots(sandbox) {
+	return [
+		{
+			name: "HOME_DEFAULT_SENPI_AGENT",
+			path: join(sandbox.homeDir, ".senpi", "agent"),
+		},
+		{
+			name: "HOME_DEFAULT_OMO_AGENT",
+			path: join(sandbox.homeDir, ".omo", "agent"),
+		},
+		{ name: "XDG_CONFIG_HOME", path: sandbox.xdgConfigHome },
+		{ name: "XDG_DATA_HOME", path: sandbox.xdgDataHome },
+	].map(({ name, path }) => ({
+		name,
+		path,
+		snapshot: snapshotDirectory(path),
+	}));
+}
+
+function certificationEnvironmentObserved(sandbox) {
+	const receiptPath = join(sandbox.cwd, environmentReceiptFile);
+	if (!existsSync(receiptPath)) return false;
+	let receipt;
+	try {
+		receipt = JSON.parse(readFileSync(receiptPath, "utf8"));
+	} catch (error) {
+		if (error instanceof SyntaxError) return false;
+		throw error;
+	}
+	if (typeof receipt !== "object" || receipt === null || Array.isArray(receipt))
+		return false;
+	const expected = {
+		HOME: sandbox.homeDir,
+		USERPROFILE: sandbox.homeDir,
+		XDG_CONFIG_HOME: sandbox.xdgConfigHome,
+		XDG_DATA_HOME: sandbox.xdgDataHome,
+		XDG_CACHE_HOME: sandbox.xdgCacheHome,
+		SENPI_CODING_AGENT_DIR: sandbox.agentDir,
+	};
+	return Object.entries(expected).every(
+		([name, value]) => receipt[name] === value,
+	);
+}
+
 function main() {
 	const providedSenpiCodingAgentDir = process.env.SENPI_CODING_AGENT_DIR
 		? "IGNORED"
@@ -175,6 +242,7 @@ function main() {
 		omoObserved: snapshotDirectory(realOmoAgentDir),
 	};
 	const sandbox = createSandbox();
+	let certificationBefore;
 	let commentChecker = "NOT-RUN";
 	let ultraworkInjected = false;
 	let result = "FAIL";
@@ -182,6 +250,8 @@ function main() {
 
 	try {
 		seedSandbox(sandbox);
+		seedCertificationRoots(sandbox);
+		certificationBefore = snapshotCertificationRoots(sandbox);
 
 		const senpiBin = process.env.SENPI_BIN?.trim() || "senpi";
 		if (senpiBin.includes("/") && !existsSync(senpiBin)) {
@@ -193,6 +263,7 @@ function main() {
 				ultraworkInjected,
 				commentChecker,
 				isolationBefore,
+				certificationBefore,
 				sandbox,
 				providedSenpiCodingAgentDir,
 			});
@@ -210,6 +281,7 @@ function main() {
 				ultraworkInjected,
 				commentChecker,
 				isolationBefore,
+				certificationBefore,
 				sandbox,
 				providedSenpiCodingAgentDir,
 			});
@@ -264,6 +336,7 @@ function main() {
 			ultraworkInjected,
 			commentChecker,
 			isolationBefore,
+			certificationBefore,
 			sandbox,
 			providedSenpiCodingAgentDir,
 		});
@@ -278,6 +351,7 @@ function printResult({
 	ultraworkInjected,
 	commentChecker,
 	isolationBefore,
+	certificationBefore,
 	sandbox,
 	providedSenpiCodingAgentDir,
 }) {
@@ -309,12 +383,36 @@ function printResult({
 		afterObserved: omoObservedAfter,
 		observedChangedPaths: realOmoObservedChangedPaths,
 	});
+	const certificationAfter = snapshotCertificationRoots(sandbox);
+	const certificationVerdict = scopedIsolationVerdict(
+		certificationBefore.map(({ name, snapshot }, index) => ({
+			name,
+			before: snapshot,
+			after: certificationAfter[index].snapshot,
+		})),
+	);
+	const environmentObserved = certificationEnvironmentObserved(sandbox);
+	const realHomeIsolationCertified =
+		senpiVerdict.untouched && omoVerdict.untouched;
 	const payload = {
 		result,
 		...(reason ? { reason } : {}),
 		ultraworkInjected,
 		commentChecker,
-		isolationCertified: senpiVerdict.untouched && omoVerdict.untouched,
+		isolationCertified:
+			result === "PASS" &&
+			environmentObserved &&
+			certificationVerdict.certified,
+		realHomeIsolationCertified,
+		certificationLane: "controlled-environment-roots",
+		certificationEnvironmentObserved: environmentObserved,
+		certificationRoots: certificationBefore.map(({ name }) => name),
+		certificationRootsComplete: certificationVerdict.complete,
+		certificationRootsTruncated: certificationVerdict.truncated,
+		certificationChangedPaths: certificationVerdict.changedPaths,
+		certificationErrors: certificationVerdict.errors,
+		certificationBytesRead: certificationVerdict.bytesRead,
+		certificationLimits: OBSERVATION_LIMITS,
 		realSenpiUntouched: senpiVerdict.untouched,
 		realSenpiChangedPaths: senpiVerdict.changedPaths,
 		realSenpiProtectedStateComplete:

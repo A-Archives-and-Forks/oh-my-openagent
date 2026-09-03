@@ -2,8 +2,10 @@
 import { expect, test } from "bun:test";
 import {
 	closeSync,
+	constants,
 	fstatSync,
 	lstatSync,
+	mkdirSync,
 	mkdtempSync,
 	opendirSync,
 	openSync,
@@ -153,7 +155,7 @@ test("#given an enumerated entry vanishes before stat #when the bounded complete
 			readFileSync,
 			readSync,
 			statSync(file, options) {
-				if (!removed && file === path) {
+				if (!removed && (file === path || file.endsWith("/vanished.tmp"))) {
 					removed = true;
 					rmSync(path);
 					const error = new Error("entry vanished");
@@ -187,7 +189,7 @@ test("#given replacement between initial stat and open #when snapshotted #then p
 			let replaced = false;
 			const io = {
 				openSync(file, flags) {
-					if (!replaced && file === path) {
+					if (!replaced && (file === path || file.endsWith(`/${name}`))) {
 						replaced = true;
 						renameSync(path, join(root, `${name}.old`));
 						writeFileSync(path, "BBBB");
@@ -277,6 +279,138 @@ test("#given ENOENT stat then open success and close failure #when absence races
 		});
 		expect(snapshot.errors).toEqual([
 			{ path: "auth.json", code: "FILE_REPLACED" },
+		]);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("#given the root vanishes after its initial identity check #when directory open reports absence #then the snapshot fails closed as replacement", () => {
+	const root = mkdtempSync(join(tmpdir(), "omo-senpi-root-open-race-"));
+	try {
+		const scan = snapshotDirectory(
+			root,
+			{ maxFiles: 10, maxBytes: 1024, maxEntries: 10 },
+			{
+				opendirSync() {
+					throw codedError("ENOENT");
+				},
+			},
+		);
+
+		expect(scan.complete).toBe(false);
+		expect(scan.errors).toEqual([{ path: ".", code: "FILE_REPLACED" }]);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("#given directory open returns a stale external descriptor #when traversal binds identity #then it fails closed without reading the external tree", () => {
+	const root = mkdtempSync(join(tmpdir(), "omo-senpi-directory-descriptor-"));
+	const state = join(root, "state");
+	const external = mkdtempSync(
+		join(tmpdir(), "omo-senpi-external-descriptor-"),
+	);
+	try {
+		mkdirSync(state);
+		writeFileSync(join(external, "private.txt"), "private");
+		const externalFd = openSync(
+			external,
+			constants.O_RDONLY | (constants.O_DIRECTORY ?? 0),
+		);
+		let suppliedExternalFd = false;
+		const scan = snapshotDirectory(
+			root,
+			{ maxFiles: 10, maxBytes: 1024, maxEntries: 10 },
+			{
+				openDirectorySync(path, flags) {
+					if (
+						(path === state || path.endsWith("/state")) &&
+						!suppliedExternalFd
+					) {
+						suppliedExternalFd = true;
+						return externalFd;
+					}
+					return openSync(path, flags);
+				},
+			},
+		);
+		if (!suppliedExternalFd) closeSync(externalFd);
+
+		expect(scan.complete).toBe(false);
+		expect(scan.errors).toContainEqual({
+			path: "state",
+			code: "FILE_REPLACED",
+		});
+		expect(scan.snapshot.has("state/private.txt")).toBe(false);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+		rmSync(external, { recursive: true, force: true });
+	}
+});
+
+test("#given an opened directory is replaced after its identity check #when traversal finishes #then the snapshot fails closed", () => {
+	const root = mkdtempSync(join(tmpdir(), "omo-senpi-post-open-directory-"));
+	const state = join(root, "state");
+	const oldState = join(root, "state-old");
+	try {
+		mkdirSync(state);
+		let replaced = false;
+		let directoryOpens = 0;
+		const scan = snapshotDirectory(
+			root,
+			{ maxFiles: 10, maxBytes: 1024, maxEntries: 10 },
+			{
+				opendirSync(path) {
+					directoryOpens += 1;
+					const directory = opendirSync(path);
+					if (directoryOpens !== 2) return directory;
+					return {
+						readSync() {
+							if (!replaced) {
+								replaced = true;
+								renameSync(state, oldState);
+								mkdirSync(state);
+								writeFileSync(join(state, "new.txt"), "new");
+							}
+							return directory.readSync();
+						},
+						closeSync() {
+							directory.closeSync();
+						},
+					};
+				},
+			},
+		);
+
+		expect(scan.complete).toBe(false);
+		expect(scan.errors).toContainEqual({
+			path: "state",
+			code: "FILE_REPLACED",
+		});
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("#given non-ASCII canonical paths #when snapshots and errors are ordered #then code-point order is independent of host locale", () => {
+	const root = mkdtempSync(join(tmpdir(), "omo-senpi-canonical-order-"));
+	try {
+		writeFileSync(join(root, "z"), "z");
+		writeFileSync(join(root, "ä"), "a");
+		const scan = snapshotDirectory(
+			root,
+			{ maxFiles: 10, maxBytes: 1024, maxEntries: 10 },
+			{
+				openSync() {
+					throw codedError("EIO");
+				},
+			},
+		);
+
+		expect(scan.errors).toEqual([
+			{ path: "z", code: "EIO" },
+			{ path: "ä", code: "EIO" },
 		]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
