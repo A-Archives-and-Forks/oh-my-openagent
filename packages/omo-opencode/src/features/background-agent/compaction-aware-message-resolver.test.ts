@@ -307,4 +307,27 @@ describe("resolvePromptContextFromSessionMessages", () => {
       tools: { bash: true },
     })
   })
+
+  test("#given session message info with a flat variant #when converted #then the stored message keeps the variant", () => {
+    // given
+    const messages = [
+      {
+        info: {
+          agent: "sisyphus",
+          providerID: "openai",
+          modelID: "gpt-5.5",
+          variant: "max",
+        },
+      },
+    ]
+
+    // when
+    const result = resolvePromptContextFromSessionMessages(messages)
+
+    // then
+    expect(result).toEqual({
+      agent: "sisyphus",
+      model: { providerID: "openai", modelID: "gpt-5.5", variant: "max" },
+    })
+  })
 })
