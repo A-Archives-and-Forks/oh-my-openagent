@@ -106,7 +106,7 @@ count.
 For TUI visual QA, render the terminal through the real xterm.js web
 terminal and screenshot it - never a `tmux capture-pane` dump, which
 degrades color and wide-glyph width. In this repo:
-`node script/qa/web-terminal-visual-qa.mjs --title "<surface>" --command "<cmd>" --input "{Enter}" --evidence-dir <dir>`
+`bun script/qa/web-terminal-visual-qa.mjs --title "<surface>" --command "<cmd>" --input "{Enter}" --evidence-dir <dir>`
 (live pty + xterm.js in Chrome; `--from-file <capture>` replays a raw
 stream). Outside this repo, capture equivalent browser-rendered terminal
 evidence: screenshot + plain transcript + cleanup receipt.
