@@ -1,7 +1,7 @@
 import type { AgentToolUpdateCallback } from "@code-yeongyu/senpi"
 
 import type { TaskManager } from "../../manager"
-import { createChildProgress } from "../../progress"
+import { createChildProgress, type ChildProgressTarget } from "../../progress"
 import { composeStatusLine, formatStatusTarget, taskIdentityLabel } from "../../status-line"
 import { startedDetail, type StartedResult } from "./batch-item-details"
 import type { ResolvedSpawnItem, TaskSkillSummary, TaskToolDetails } from "./types"
@@ -39,8 +39,6 @@ export function trackBatchProgress(input: BatchProgressInput): BatchProgressTrac
     start,
     progress: createChildProgress(start.result.task_id, progressTarget(start), startedAt),
   }))
-  const first = input.live[0]
-  if (first === undefined) return NO_PROGRESS
 
   let timer: ReturnType<typeof setTimeout> | undefined
   let emittedAt = 0
@@ -52,7 +50,7 @@ export function trackBatchProgress(input: BatchProgressInput): BatchProgressTrac
     onUpdate({
       content: [{ type: "text", text: rows.map((row, index) => `${index + 1}. ${rowText(row, settled)}`).join("\n") }],
       details: {
-        task_id: first.result.task_id,
+        task_id: input.live[0]?.result.task_id ?? "",
         status: "running",
         mode: "spawn",
         run_in_background: false,
@@ -90,8 +88,12 @@ export function trackBatchProgress(input: BatchProgressInput): BatchProgressTrac
       schedule()
     },
     stop() {
+      if (timer !== undefined) {
+        clearTimeout(timer)
+        timer = undefined
+        emit()
+      }
       closed = true
-      if (timer !== undefined) clearTimeout(timer)
       for (const unsubscribe of unsubscribes) unsubscribe()
     },
   }
@@ -118,7 +120,7 @@ function rowText(row: { readonly start: LiveBatchStart; readonly progress: Progr
   return last.length === 0 ? details.progress.activity : `${details.progress.activity}\n   ${last}`
 }
 
-function progressTarget(start: LiveBatchStart) {
+function progressTarget(start: LiveBatchStart): ChildProgressTarget {
   const { item, result } = start
   return {
     ...(item.kind === "category" ? { category: item.category } : { agentType: item.subagentType }),
