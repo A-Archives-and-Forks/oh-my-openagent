@@ -1,0 +1,15 @@
+Command:
+bun test script/ci-root-test-partition.test.ts
+
+Observed:
+error: windows telemetry contract: missing post-test capture
+(fail) root test CI partition > #given Windows root-test telemetry #when the matrix is rendered #then post-test state is captured
+
+Result:
+10 pass
+1 fail
+42 expect() calls
+
+This is the required failing-first contract signal. An earlier bootstrap
+attempt stopped before test execution because the fresh worktree had no
+dependencies; it is not counted as RED evidence.
