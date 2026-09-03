@@ -6,7 +6,6 @@ import {
 	lstatSync,
 	opendirSync,
 	openSync,
-	readdirSync,
 	readFileSync,
 	readlinkSync,
 	readSync,
@@ -20,13 +19,13 @@ const NO_FOLLOW_READ_FLAGS =
 		: constants.O_RDONLY | constants.O_NOFOLLOW;
 
 export const FILE_IO = {
+	noFollowReadFlags: NO_FOLLOW_READ_FLAGS,
 	closeSync,
 	fstatSync,
 	lstatSync,
 	openSync,
 	opendirSync,
 	readFileSync,
-	readdirSync,
 	readlinkSync,
 	readSync,
 	statSync,
@@ -40,9 +39,9 @@ export function hashFileBounded(
 	let bytesRead = 0;
 	let result;
 	try {
-		if (NO_FOLLOW_READ_FLAGS === undefined)
+		if (io.noFollowReadFlags === undefined)
 			throw snapshotError("NO_FOLLOW_UNAVAILABLE");
-		fd = io.openSync(file.path, NO_FOLLOW_READ_FLAGS);
+		fd = io.openSync(file.path, io.noFollowReadFlags);
 		const opened = fileMetadata(io.fstatSync(fd, { bigint: true }));
 		const openingError = changedMetadataCode(file.metadata, opened);
 		if (openingError !== undefined)
@@ -143,7 +142,9 @@ export function readProtectedFileStable(path, io) {
 	let fd;
 	let result;
 	try {
-		fd = io.openSync(path, NO_FOLLOW_READ_FLAGS);
+		if (io.noFollowReadFlags === undefined)
+			throw snapshotError("NO_FOLLOW_UNAVAILABLE");
+		fd = io.openSync(path, io.noFollowReadFlags);
 		const opened = fileMetadata(io.fstatSync(fd, { bigint: true }));
 		const openingError = changedMetadataCode(beforePath, opened);
 		if (openingError !== undefined)
@@ -202,9 +203,9 @@ function readProtectedAbsentRace(path, io) {
 	let fd;
 	let result;
 	try {
-		if (NO_FOLLOW_READ_FLAGS === undefined)
+		if (io.noFollowReadFlags === undefined)
 			throw snapshotError("NO_FOLLOW_UNAVAILABLE");
-		fd = io.openSync(path, NO_FOLLOW_READ_FLAGS);
+		fd = io.openSync(path, io.noFollowReadFlags);
 		result = { error: "FILE_REPLACED" };
 	} catch (error) {
 		result =
