@@ -1,13 +1,13 @@
 ---
 name: mass-ulw
-description: Drive dependency-ordered child work through the native workflow tool, one run per phase or wave chained from an eval cell, recovering inside a run with retry, amend, and send. Use when the user asks for mass-ulw, a DAG of tasks, fan-out/fan-in work, or multi-agent execution where some tasks must wait on others.
+description: Drive dependency-ordered child work through the native workflow tool, one run per phase, recovering inside a run with retry, amend, and send. Use when the user asks for mass-ulw, a DAG of tasks, fan-out/fan-in work, or multi-agent execution where some tasks must wait on others.
 metadata:
   short-description: Dependency-graph orchestration of child agents
 ---
 
 # mass-ulw
 
-Use this skill when the user asks for `mass-ulw`, a task DAG, staged fan-out, or any multi-agent job where real dependencies exist: task C needs A and B finished first. For fully independent workers, plain parallel `task` spawns are simpler. Reach for `workflow` when the ordering itself is the point. A run covers ONE phase's dependency-ordered lanes; define the next phase as a NEW run (or `amend` when only the definition changed) in the cell from what the settled run proved. NEVER fold a multi-phase job into one graph. Under `ulw-loop` or `ulw-execute`, that contract owns the goal, criteria, evidence, and checkpoints; this skill owns only how each phase's run is defined, driven, and recovered.
+Use this skill when the user asks for `mass-ulw`, a task DAG, staged fan-out, or any multi-agent job where real dependencies exist: task C needs A and B finished first. For fully independent workers, plain parallel `task` spawns are simpler. Reach for `workflow` when the ordering itself is the point. A run covers ONE phase's dependency-ordered lanes; define the next phase as a NEW run (or `amend` when only the definition changed) in the cell from what the settled run proved. Under `ulw-loop` or `ulw-execute`, that contract owns the goal, criteria, evidence, and checkpoints; this skill owns only how each phase's run is defined, driven, and recovered.
 
 ## Planning - MANDATORY first step
 

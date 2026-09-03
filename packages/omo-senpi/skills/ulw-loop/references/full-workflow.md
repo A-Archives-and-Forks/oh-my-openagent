@@ -47,11 +47,6 @@ Every worker prompt MUST carry: goal + exact files in scope; the PIN + failing-f
 omo-senpi subagent reliability:
 - Senpi's native spawn surface is the `task` tool. Use `task({ prompt, subagent_type | category, run_in_background: true })` for one worker or `task({ tasks: [...], run_in_background: true })` for a parallel batch. Never substitute external app-server threads or another harness.
 - Paste only the context the child needs into `prompt`; full parent history is not inherited automatically.
-- Plan and reviewer agents may run for a long time; spawn them in the background and keep doing independent root work.
-- For work likely to exceed one wait cycle, require the child to send `WORKING: <task> - <current phase>` before long reading, testing, or review passes, and `BLOCKED: <reason>` only when it cannot progress.
-- While any child is active, keep the parent visibly alive with active subagent count, task ids, latest `WORKING:` phase, and whether the parent is waiting for injected completion.
-- Track spawned task ids locally. Progress and completion arrive as injected notifications. Use `task_output` for at most one midpoint status or transcript check per child, never a polling loop.
-- If a live child needs context or correction, use `task_send`. Fallback only when the child completed without the deliverable, explicitly reported `BLOCKED:`, or is no longer running. Then record inconclusive, do not count it as pass/review approval, stop it with `task_cancel` if safe, and spawn a smaller native `task` with the missing deliverable.
 
 ## Artifacts
 - `.omo/ulw-loop/brief.md`: original brief and durable constraints.
