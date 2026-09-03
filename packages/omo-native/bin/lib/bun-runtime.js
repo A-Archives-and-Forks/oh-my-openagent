@@ -1,3 +1,4 @@
+import { execFile as nodeExecFile } from "node:child_process"
 import { existsSync, realpathSync } from "node:fs"
 import { homedir as osHomedir } from "node:os"
 import { posix, win32 } from "node:path"
@@ -7,6 +8,15 @@ import { propagateResult, runChild } from "./child-process.js"
 // into <BUN_ROOT>/bin. The link TARGET is what identifies the install, so every comparison below
 // runs on a real path.
 const GLOBAL_TREE_MARKER = "/install/global/"
+
+// The oldest bun the engine is known to run on: node:sqlite parity and the worker_threads compat the
+// JS eval kernel relies on both landed in 1.4. A bun found lying around on an npm-installed machine
+// is only trusted from here up; anything older leaves the launch on node, which always works.
+export const BUN_MIN_VERSION = "1.4.0"
+
+// `bun --version` answers in a few milliseconds; a probe that has not answered by now is a broken
+// binary, and the launch simply proceeds on node.
+const VERSION_PROBE_TIMEOUT_MS = 3_000
 
 // Both sides of the tree comparison are reduced to one spelling: backslashes become forward
 // slashes so Windows paths match, and repeated separators collapse because BUN_INSTALL is
@@ -67,8 +77,8 @@ function pathExtensions(env, platform) {
 }
 
 /**
- * Locates the bun binary this machine would run. Absence is a normal answer - a user who installed
- * omo with npm has no bun, and the launcher simply stays on node.
+ * Locates the bun binary this machine would run. Absence is a normal answer - a machine without bun
+ * simply keeps the launcher on node.
  */
 export function findBunBinary(options = {}) {
   const env = options.env ?? process.env
@@ -98,23 +108,69 @@ export function findBunBinary(options = {}) {
   return undefined
 }
 
+/** True when a `bun --version` answer is at least BUN_MIN_VERSION; missing or unparseable never is. */
+export function bunVersionSatisfies(version) {
+  if (typeof version !== "string") return false
+  const match = /^(\d+)\.(\d+)/.exec(version)
+  if (match === null) return false
+  const [floorMajor, floorMinor] = BUN_MIN_VERSION.split(".").map(Number)
+  const major = Number(match[1])
+  const minor = Number(match[2])
+  return major > floorMajor || (major === floorMajor && minor >= floorMinor)
+}
+
+/**
+ * Asks a bun binary for its version. Every failure - a binary that cannot start, prints nothing, or
+ * hangs past the bounded timeout - resolves to undefined, which the decision reads as "not a bun we
+ * can trust". Asynchronous like every other spawn in this launcher: nothing here may block the
+ * event loop, so a signal arriving mid-probe is still handled.
+ */
+export function probeBunVersion(bunPath, options = {}) {
+  const execFile = options.execFile ?? nodeExecFile
+  const env = options.env ?? process.env
+  return new Promise((resolve) => {
+    execFile(
+      bunPath,
+      ["--version"],
+      { encoding: "utf8", env, timeout: VERSION_PROBE_TIMEOUT_MS, windowsHide: true },
+      (error, stdout) => {
+        if (error) {
+          resolve(undefined)
+          return
+        }
+        const version = String(stdout).trim()
+        resolve(version === "" ? undefined : version)
+      },
+    )
+  })
+}
+
 /**
  * The whole policy in one place, first match wins:
- *   1. already on bun            -> stay (the loop guard; without it a re-exec would recurse)
- *   2. OMO_RUNTIME=node          -> stay (explicit user override beats detection)
- *   3. OMO_RUNTIME=bun + bun     -> re-exec
- *   4. bun global install + bun  -> re-exec (the reason this module exists)
- *   5. anything else             -> stay
+ *   1. already on bun                  -> stay (the loop guard; without it a re-exec would recurse)
+ *   2. OMO_RUNTIME=node                -> stay (explicit user override beats detection)
+ *   3. no bun binary anywhere          -> stay (npm-only machines never notice this module)
+ *   4. OMO_RUNTIME=bun                 -> re-exec (explicit opt-in, no version floor)
+ *   5. bun global install              -> re-exec (the bun that installed omo is the bun to run it)
+ *   6. any other install, bun >= 1.4   -> re-exec (a machine that has bun runs omo on bun)
+ *   7. an older bun                    -> stay
+ *
+ * Rules 5 and 6 differ only in cost: a bun-global install already proved its bun, so it never pays
+ * for the version probe, while an npm, project-local or bunx install probes the discovered binary
+ * once per node boot before trusting it.
  */
-export function resolveBunReexec(input) {
+export async function resolveBunReexec(input) {
   const env = input.env ?? process.env
   const versions = input.versions ?? process.versions
   if (versions.bun) return { reexec: false }
   const requested = env.OMO_RUNTIME
   if (requested === "node") return { reexec: false }
-  if (requested !== "bun" && !isUnderBunGlobalTree(input.scriptPath, input)) return { reexec: false }
   const bunPath = findBunBinary(input)
   if (!bunPath) return { reexec: false }
+  if (requested === "bun" || isUnderBunGlobalTree(input.scriptPath, input)) return { reexec: true, bunPath }
+  const probe = input.bunVersion ?? probeBunVersion
+  const version = await probe(bunPath, { env })
+  if (!bunVersionSatisfies(version)) return { reexec: false }
   return { reexec: true, bunPath }
 }
 
@@ -130,7 +186,7 @@ export function resolveBunReexec(input) {
  * would fail the very launch this re-exec is meant to make work.
  */
 export async function maybeReexecUnderBun(input) {
-  const decision = resolveBunReexec(input)
+  const decision = await resolveBunReexec(input)
   if (!decision.reexec) return false
   const run = input.spawn ?? runChild
   const propagate = input.propagate ?? propagateResult
