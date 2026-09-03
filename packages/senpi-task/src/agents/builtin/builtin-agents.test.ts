@@ -24,6 +24,7 @@ const EXPECTED_TOOL_ALLOWLIST = [
   "lsp_find_references",
   "lsp_symbols",
 ] as const
+const EXPECTED_LIBRARIAN_TOOL_ALLOWLIST = [...EXPECTED_TOOL_ALLOWLIST, "x_search"] as const
 
 const EXPECTED_REVIEWER_TOOL_ALLOWLIST = [...EXPECTED_TOOL_ALLOWLIST, "write"] as const
 
@@ -64,15 +65,18 @@ describe("builtin curated agents", () => {
   })
 
 
-  test("#given every curated definition #when inspecting tool rules #then exactly the 9 literal allow-true rules are present", () => {
+  test("#given every curated definition #when inspecting tool rules #then the expected literal allow-true rules are present", () => {
     for (const definition of CURATED_READONLY_AGENT_DEFAULTS) {
-      expect(definition.tools).toHaveLength(EXPECTED_TOOL_ALLOWLIST.length)
+      const expected = definition.name === "librarian" ? EXPECTED_LIBRARIAN_TOOL_ALLOWLIST : EXPECTED_TOOL_ALLOWLIST
+      expect(definition.tools).toHaveLength(expected.length)
       const patterns = (definition.tools ?? []).map((rule) => rule.pattern)
-      expect([...patterns].sort()).toEqual([...EXPECTED_TOOL_ALLOWLIST].sort())
+      expect([...patterns].sort()).toEqual([...expected].sort())
       for (const rule of definition.tools ?? []) {
         expect(rule.allow).toBe(true)
       }
     }
+    const explore = CURATED_READONLY_AGENT_DEFAULTS.find((definition) => definition.name === "explore")
+    expect(explore?.tools?.some((rule) => rule.pattern === "x_search")).toBe(false)
   })
 
   test("#given every reviewer definition #when inspecting tool rules #then the curated allowlist plus write is present", () => {
