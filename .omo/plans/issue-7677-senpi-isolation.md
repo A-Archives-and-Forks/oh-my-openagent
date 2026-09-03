@@ -41,5 +41,5 @@ Reference: read-only `omo-pr7500-postmerge-cleanup` at `f4a4fc8613f1f1153f27ca3b
 - [x] GREEN: append a directory close error only when traversal has no primary error.
 - [x] GREEN: require complete nonvolatile-domain observations, account for symlinks/unsupported entries, and distinguish POSIX from Windows paths.
 - [x] Run focused suites, self-test, typecheck, Biome, LSP/no-excuse, real driver, extension freshness, and final full Senpi gate.
-- [ ] Commit the source remediation separately with OMO attribution.
-- [ ] Update sanitized final-source-head evidence and repository-scope proofs, then commit the evidence refresh.
+- [x] Commit the source remediation separately with OMO attribution at `ba455bc1c9a60acc354915f909d89fd2cb338dc4`.
+- [x] Update sanitized final-source-head evidence and repository-scope proofs; only the evidence-only attributed commit remains.
