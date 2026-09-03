@@ -1,0 +1,1 @@
+Cleanup receipt: all three drivers reported isolated seeded auth.json overwritten and removed; real ~/.senpi/agent credential digest unchanged and realSenpiChangedPaths=[] for quick, librarian, and explore. Temporary sandboxes were removed by the driver.

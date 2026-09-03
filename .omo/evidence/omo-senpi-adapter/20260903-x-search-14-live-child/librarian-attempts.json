@@ -1,0 +1,17 @@
+{
+  "scenario": "librarian",
+  "attempts": [
+    {
+      "attempt": 1,
+      "result": "PASS",
+      "verdict": true,
+      "xSearchResults": 1
+    },
+    {
+      "attempt": 2,
+      "result": "PASS",
+      "verdict": true,
+      "xSearchResults": 1
+    }
+  ]
+}

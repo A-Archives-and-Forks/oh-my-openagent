@@ -1,0 +1,35 @@
+{
+  "scenario": "child",
+  "result": "PASS",
+  "prompt": "Spawn task for x_search child QA",
+  "yesterday": "2026-09-02",
+  "realSenpiUntouched": true,
+  "realSenpiChangedPaths": [],
+  "realSenpiCredentialDigestUntouched": true,
+  "isolatedAgentDir": "/private/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/omo-senpi-qa-kXRTM2/agent",
+  "isolatedCwd": "/private/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/omo-senpi-qa-kXRTM2/project",
+  "envScrubbed": [],
+  "spawnedEnvHasXai": false,
+  "toolCalls": [
+    "tool_search",
+    "x_search"
+  ],
+  "toolResults": {
+    "noToolsMatched": false,
+    "xSearchResults": 1,
+    "xComUrls": 28,
+    "unavailable": false
+  },
+  "registrationCount": 1,
+  "verdict": {
+    "positive": true
+  },
+  "senpiExit": 0,
+  "senpiSignal": null,
+  "transcript": "transcript-child.txt",
+  "cleanup": {
+    "path": "/private/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/omo-senpi-qa-kXRTM2/agent/auth.json",
+    "overwrittenBytes": 946,
+    "removed": true
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "scenario": "explore",
+  "result": "PASS",
+  "prompt": "Spawn task for x_search child QA",
+  "yesterday": "2026-09-02",
+  "realSenpiUntouched": true,
+  "realSenpiChangedPaths": [],
+  "realSenpiCredentialDigestUntouched": true,
+  "isolatedAgentDir": "/private/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/omo-senpi-qa-MB1xjb/agent",
+  "isolatedCwd": "/private/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/omo-senpi-qa-MB1xjb/project",
+  "envScrubbed": [],
+  "spawnedEnvHasXai": false,
+  "toolCalls": [
+    "task"
+  ],
+  "xSearchCallOutcome": {
+    "observed": true,
+    "source": "child-tool-execution",
+    "isError": true,
+    "outcome": "denied"
+  },
+  "toolResults": {
+    "noToolsMatched": false,
+    "todoToolsMatched": false,
+    "xSearchResults": 0,
+    "xComUrls": 0,
+    "unavailable": true
+  },
+  "registrationCount": 1,
+  "verdict": {
+    "exploreUnavailable": true
+  },
+  "senpiExit": 0,
+  "senpiSignal": null,
+  "transcript": "transcript-explore.txt",
+  "cleanup": {
+    "path": "/private/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/omo-senpi-qa-MB1xjb/agent/auth.json",
+    "overwrittenBytes": 946,
+    "removed": true
+  }
+}
