@@ -1,0 +1,4 @@
+
+cleanup: seeded xai auth copies overwritten with random bytes and removed; sandbox roots removed by driver; no live processes retained.
+Final verification: all sandbox roots were removed by runScenario; seeded xai auth.json copies were shredded (946 bytes overwritten) before removal; no live QA processes remain.
+Negative limitation: the installed senpi -e 2026.8.27 surface reported "Tool tool_search not found" for both scripted catalog queries, so no match/no-match result was asserted or fabricated; env scrubbing and zero x_search execution were observed.
