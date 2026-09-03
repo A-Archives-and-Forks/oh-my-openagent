@@ -31,6 +31,9 @@ permissions:
 jobs:
   soak:
     runs-on: windows-latest
+    env:
+      SOAK_ITERATIONS_RAN: "0"
+      SOAK_FAILED_ITERATION: none
     steps:
       - uses: actions/checkout@v7
 
@@ -142,6 +145,7 @@ jobs:
           $telemetryDirectory = Join-Path $env:RUNNER_TEMP "windows-flake-soak-telemetry"
           $phases = @($targets[$target])
           for ($iteration = 1; $iteration -le $iterationCount; $iteration++) {
+            "SOAK_ITERATIONS_RAN=$iteration" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             foreach ($phase in $phases) {
               $invocation = "$target-iteration-$iteration-$($phase.Phase)"
               & .github/scripts/windows-ci-telemetry.ps1 `
@@ -150,6 +154,7 @@ jobs:
                 -TestArguments $phase.Arguments
               $iterationExitCode = $LASTEXITCODE
               if ($iterationExitCode -ne 0) {
+                "SOAK_FAILED_ITERATION=$iteration" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
                 Write-Error "Windows soak target '$target' failed at iteration $iteration (phase '$($phase.Phase)')."
                 exit $iterationExitCode
               }
@@ -163,3 +168,18 @@ jobs:
           name: windows-flake-soak-${{ inputs.target }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/windows-flake-soak-telemetry/*.json
           if-no-files-found: warn
+
+      - name: Write job summary
+        if: always()
+        shell: bash
+        env:
+          JOB_SUMMARY_TITLE: Windows flake soak (${{ inputs.target }})
+          JOB_SUMMARY_STATUS: ${{ job.status }}
+          JOB_SUMMARY_DETAILS: |
+            - Selected target: `${{ inputs.target }}`.
+            - Requested iterations: `${{ inputs.iterations }}`.
+            - Iterations actually run: `${{ env.SOAK_ITERATIONS_RAN }}`.
+            - Failed iteration: `${{ env.SOAK_FAILED_ITERATION }}`.
+            - Telemetry artifact: `windows-flake-soak-${{ inputs.target }}-${{ github.run_id }}-${{ github.run_attempt }}` in this workflow run's **Artifacts** section.
+          JOB_SUMMARY_NEXT: Download the telemetry artifact from this workflow run and inspect the JSON for the failed iteration.
+        run: GITHUB_STEP_SUMMARY="$GITHUB_STEP_SUMMARY" bash .github/scripts/write-job-summary.sh
