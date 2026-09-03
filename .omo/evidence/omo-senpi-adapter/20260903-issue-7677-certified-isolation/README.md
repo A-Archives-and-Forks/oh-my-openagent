@@ -1,21 +1,23 @@
 # Issue #7677 bounded live isolation certification
 
-Canonical acceptance evidence for source head `a0aff6422546ac1267b88dd1b0ff8144421e5483`, with refreshed evidence committed separately. The source head includes merged `origin/dev` at `05a1fbcc7` and the isolation race remediation commit `a0aff6422`. Evidence files are tracked and committed; no ignored evidence path was force-added.
+Canonical acceptance evidence for final source head `509929c8266467ce1a8a07f4ea5a027461436149`. The review provenance is explicit: reviewed exact head `d2489baeeb51973d456d0f6ea06b758a75961a81` is evidence-only relative to original source fix commit `a0aff6422546ac1267b88dd1b0ff8144421e5483` for all source-bearing paths. The exact empty source-only diff and the actual `origin/dev` ancestor `05a1fbcc7ce310734d6646cdee2d80855bdb3506` are recorded in `exact-head-provenance.txt` and `repository-integrity.txt`.
 
-## What was tested
+## What was fixed and tested
 
-- Deterministic RED then GREEN covered raw directory-descriptor close failure, persistent regular files named `sessions`, `cache`, or `logs`, replacement symlink non-dereference, primary-error precedence, descriptor identity, root races, bounded traversal, and certification semantics (`red-first.txt`, focused suite log).
-- Seven focused isolation/task-13/upstream-compatibility suites passed: 69 tests, 267 assertions.
-- Driver self-test, package typecheck, exact changed-file Biome, no-excuse audit, and changed-file LSP diagnostics passed.
-- The authoritative `bun run test:senpi` passed with 2680 tests passing, 7 platform skips, 0 failures, followed by the evidence resolver's 10 passing tests (`full-test-senpi-summary.txt`).
-- The installed real Senpi binary ran `drive.mjs` from source head `a0aff6422546ac1267b88dd1b0ff8144421e5483` (`real-driver-command.txt`, `real-driver.jsonl`).
+- Volatile `*.log` regular files are classified before entry-budget accounting, matching volatile directory handling.
+- Directory enumeration stops after bounded nonvolatile lookahead instead of materializing every entry.
+- Final directory metadata detects persistent entries created or removed during traversal.
+- Post-open setup failures close both the directory handle and raw descriptor while retaining primary-error precedence.
+- Final regular-file identity uses no-follow metadata, so a post-read replacement symlink is never dereferenced.
+- Only direct `ENOENT` represents a missing root; root `ENOTDIR` fails closed in bounded snapshots and directory digests.
+- Deterministic RED receipts for all seven findings and the GREEN focused run are recorded in `red-first.txt` and `focused-seven-suites-76-tests.log`.
+- The authoritative `bun run test:senpi` passed with 2687 tests, 7 platform skips, and 0 failures, followed by 10 passing evidence-resolver tests.
+- Typecheck, exact changed-file Biome, no-excuse, changed-file LSP diagnostics, driver self-test, and the installed real Senpi driver all passed.
 
-## What was observed
+## Live isolation outcome
 
-The real driver returned operational `result:PASS`, with `isolationCertified:true`, while retaining honest broad-home semantics: `realHomeIsolationCertified:false`, `realSenpiNonvolatileObservationComplete:false`, and `realSenpiNonvolatileObservationTruncated:true`. The controlled lane was complete, untruncated, error-free, and reported zero changed paths across the default Senpi/OMO agent roots and XDG config/data roots. The real Senpi home remained fail-closed because its broad observation exceeded the 64 MiB limit; this was not repurposed as certification.
+The real driver returned operational `result:PASS` with `isolationCertified:true`. The controlled environment-root lane was complete, untruncated, error-free, and had zero changed paths. Broad real-home observation remained honestly fail-closed because the Senpi home exceeded the 64 MiB bound; it was not repurposed as certification. Absolute user paths and temporary sandbox names are sanitized in `real-driver.jsonl`.
 
-The implementation now observes entry type before applying volatility filtering, hashes regular files through `O_RDONLY|O_NOFOLLOW`, fails closed when no-follow support is unavailable, and surfaces raw directory-descriptor close errors when traversal has no primary failure. Existing directory-handle close behavior and primary-error precedence remain covered.
+## Integrity
 
-## Scope and omissions
-
-`origin/dev` at `05a1fbcc7` was fetched and merged before the source fix. Restricted-scope checks prove zero changes in script/script directories, native/manifests, locks/pins/patches, OAuth, CI, generated bundles, and unrelated source relative to the merged base (`repository-integrity.txt`). Raw credentials, auth headers, transcripts, environment dumps, absolute user paths, and temporary sandbox names are sanitized or omitted.
+Restricted integrity is measured from the actual `origin/dev` ancestor `05a1fbcc7ce310734d6646cdee2d80855bdb3506`, not merely from the original source fix. The reviewed head has zero drift in script/script directories, native files, manifests, lock/pins/patches, OAuth, CI workflows, and generated bundles. The only final source delta after `d2489baeeb51973d456d0f6ea06b758a75961a81` is the five listed isolation source/test files. `sha256.txt` covers every evidence artifact, including the force-added `exact-head-provenance.txt`.
