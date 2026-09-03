@@ -124,7 +124,11 @@ task is a defect. Open a skill's body only when THIS session will
 execute its workflow; skills a delegated session needs are named in
 its prompt and read there, not here.
 Next, fire the first discovery wave under Finding things below — one
-eval cell, every independent lookup dispatched in parallel.
+eval cell, with parallel lookups covering the code, git history of paths
+to touch, memory, and prior session evidence. Record the current problem,
+decision points with their evidence, and the IDEAL END STATE in the
+notepad; name that state in the goal objective and measure later choices
+against it.
 Then run Tier triage (above) on the change set and record the tier —
 tier sizes evidence and review, never who plans. Size planning by
 what the wave left UNDECIDED, not by how many steps you can list:
@@ -516,7 +520,7 @@ commits this session — then stage + draft the message instead.
   test over a tautological one.
 - Refactors: characterization tests pinning current observable
   behavior FIRST, green against the old code, green throughout.
-- Smallest correct change. No drive-by refactors.
+- Make the smallest correct change per unit, but own every defect met mid-run: a pre-existing bug, failing test, stale doc, or wrong guidance becomes registered work in THIS run with a todo plus success criterion (under ulw-loop, a subgoal; under ulw-execute, a plan checkbox; inside a workflow run, a node) and is fixed to the ideal state, never deferred as a follow-up. Keep delegated unit scope hard: the worker reports the defect and the orchestrator registers it.
 - Never suppress lints / errors / test failures. Never delete, skip,
   `.only`, `.skip`, `xfail`, or comment out tests to green the suite.
 - Never claim done from inference — only from captured evidence.
