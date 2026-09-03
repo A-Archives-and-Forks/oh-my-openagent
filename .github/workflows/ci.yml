@@ -667,6 +667,10 @@ jobs:
         if: needs.ci-mode.outputs.run_heavy == 'true'
         run: node script/verify-omo-ai-payload.mjs
 
+      - name: Verify packed omo-ai consumer
+        if: needs.ci-mode.outputs.run_heavy == 'true'
+        run: node packages/omo-native/test/packed-consumer.mjs
+
       - name: Dry-run publish
         if: needs.ci-mode.outputs.run_heavy == 'true'
         run: npm publish --dry-run --ignore-scripts --tag beta
