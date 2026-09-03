@@ -1,7 +1,7 @@
 /// <reference types="bun-types" />
 
 import { realpathSync } from "node:fs"
-import { join } from "node:path"
+import { join, resolve, sep } from "node:path"
 import { pathToFileURL } from "node:url"
 
 import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
@@ -104,6 +104,9 @@ describe("gitToplevel", () => {
 
     // then
     expect(toplevel).toBe(realpathSync(root))
+    // git prints forward slashes on every platform; the helper hands back a native path.
+    expect(toplevel).toBe(resolve(toplevel ?? ""))
+    if (sep === "\\") expect(toplevel).not.toContain("/")
   })
 })
 
