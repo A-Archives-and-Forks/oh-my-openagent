@@ -37,7 +37,7 @@ const TARGETS: readonly SkillPointerTarget[] = [
     customType: MASS_ULW_CUSTOM_TYPE,
     pattern: new RegExp(String.raw`\b${MASS_ALIAS}\b`, "i"),
     expandedBlockPattern: /<skill\s+name="mass-ulw"/i,
-    instruction: "dispatch each phase's dependency-ordered lanes as one run of the workflow tool composed in an eval cell, start a new run per phase rather than one graph for the whole job, and let the ulw-loop or ulw-execute contract own the goal",
+    instruction: "dispatch each phase's dependency-ordered lanes as one run of the workflow tool composed in an eval cell, start a new run per phase rather than one graph for the whole job, and when a ulw-loop or ulw-execute contract is active let it own the goal",
   },
   {
     skillName: "ulw-plan",

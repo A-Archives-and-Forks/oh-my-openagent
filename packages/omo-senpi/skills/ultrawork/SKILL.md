@@ -113,7 +113,11 @@ evidence: screenshot + plain transcript + cleanup receipt.
 
 # Bootstrap (DO ALL FOUR BEFORE ANY OTHER WORK — NO SKIPPING)
 
-When a ulw-loop or ulw-execute skill pointer accompanies this directive, that contract owns goal state and the notepad: ulw-loop uses the loop CLI's goals and ledger, while ulw-execute uses Boulder and `.omo/ulw-execute/ledger.jsonl`; its checklist is the plan.
+When a ulw-loop pointer or the ulw-execute skill accompanies this
+directive, that contract supersedes bootstrap sections 1-3: its state
+owns the goal and is the notepad (the loop CLI's goals and ledger, or
+Boulder plus `.omo/ulw-execute/ledger.jsonl`), and its checklist is
+the plan.
 
 ## 0. Survey the skills, gather context, then size the work
 First, survey the loaded skill list and read the description of each
@@ -413,9 +417,29 @@ injection-driven: your mail reaches them as injected follow-ups, and
 they reply with `task_send({ to: "lead", ... })`.
 
 # Child execution and transitions
-Every child prompt starts with `TASK: <imperative assignment>` and names `DELIVERABLE`, `SCOPE`, `VERIFY`, and `STOP WHEN`; state that it is executable, not a context handoff, and include only needed context. For long work, require `WORKING: <task> - <current phase>` before long passes and `BLOCKED: <reason>` only when progress is impossible. Treat status as progress, not timeout; a running child remains alive. If it completes without the deliverable, answers ack-only, or stops, send one follow-up; if still silent or ack-only, record the lane inconclusive (never approval/pass), cancel if safe, and respawn smaller when needed.
+Every child prompt starts with `TASK: <imperative assignment>` and
+names `DELIVERABLE`, `SCOPE`, `VERIFY`, and `STOP WHEN`; state that it
+is executable, not a context handoff, and include only needed context.
+For long work, require `WORKING: <task> - <current phase>` before long
+passes and `BLOCKED: <reason>` only when progress is impossible. Treat
+status as progress, not timeout; a running child remains alive. If it
+completes without the deliverable, answers ack-only, or stops, send
+one follow-up; if still silent or ack-only, record the lane
+inconclusive (never approval/pass), cancel if safe, and respawn
+smaller when needed.
 
-Do not mark a todo `done` while an active child owns its evidence or start dependent work before audit, research, or review is integrated or explicitly inconclusive. Launch independent children first, then keep independent root work or end the turn; every child must reach terminal status (`completed`, `failed`, `blocked`, or recorded inconclusive) before dependent todo transitions, implementation, planning, approval gates, handoff, or final response. Silence is not terminal. Do not finalize while children remain open. If a child stays silent, peek once with `task_output({ mode: "tail" })`, then demand `TASK STILL ACTIVE: return <deliverable> or BLOCKED: <reason>`; after four silent or ack-only checks, close it as inconclusive and respawn smaller only if required.
+Do not mark a todo `done` while an active child owns its evidence or
+start dependent work before audit, research, or review is integrated
+or explicitly inconclusive. Launch independent children first, then
+keep independent root work or end the turn; every child must reach
+terminal status (`completed`, `failed`, `blocked`, or recorded
+inconclusive) before dependent todo transitions, implementation,
+planning, approval gates, handoff, or final response. Silence is not
+terminal. Do not finalize while children remain open. If a child stays
+silent, peek once with `task_output({ mode: "tail" })`, then demand
+`TASK STILL ACTIVE: return <deliverable> or BLOCKED: <reason>`; after
+four silent or ack-only checks, close it as inconclusive and respawn
+smaller only if required.
 
 # Verification gate (TRIGGERED, NOT OPTIONAL)
 
@@ -481,7 +505,14 @@ commits this session — then stage + draft the message instead.
   test over a tautological one.
 - Refactors: characterization tests pinning current observable
   behavior FIRST, green against the old code, green throughout.
-- Make the smallest correct change per unit, but own every defect met mid-run: a pre-existing bug, failing test, stale doc, or wrong guidance becomes registered work in THIS run with a todo plus success criterion (under ulw-loop, a subgoal; under ulw-execute, a plan checkbox; inside a workflow run, a node) and is fixed to the ideal state, never deferred as a follow-up. Keep delegated unit scope hard: the worker reports the defect and the orchestrator registers it.
+- Make the smallest correct change per unit, but own every defect met
+  mid-run: a pre-existing bug, failing test, stale doc, or wrong
+  guidance becomes registered work in THIS run with a todo plus
+  success criterion (under ulw-loop, a subgoal; under ulw-execute, a
+  plan checkbox; inside a workflow run, a node) and is fixed to the
+  ideal state, never deferred as a follow-up. Keep delegated unit
+  scope hard: the worker reports the defect and the orchestrator
+  registers it.
 - Never suppress lints / errors / test failures. Never delete, skip,
   `.only`, `.skip`, `xfail`, or comment out tests to green the suite.
 - Never claim done from inference — only from captured evidence.
