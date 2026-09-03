@@ -20,7 +20,7 @@ const VARIANTS = ["v1", "v2"];
 const CARRIERS = ["fast", "reasoning"];
 
 function parseArgs(argv) {
-  const out = { mode: "record", variants: VARIANTS, carriers: CARRIERS, withGrokCli: false, report: false };
+  const out = { mode: "record", variants: VARIANTS, carriers: CARRIERS, withGrokCli: false, report: false, timeoutMs: 120000 };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--with-grok-cli") out.withGrokCli = true;
@@ -34,10 +34,13 @@ function parseArgs(argv) {
       else if (key === "carriers") out.carriers = value.split(",").filter(Boolean);
       else if (key === "capusd") out.capUsd = Number(value);
       else if (key === "out") out.out = value;
+      else if (key === "authfile") out.authFile = value;
+      else if (key === "timeoutms") out.timeoutMs = Number(value);
       else throw new Error(`unknown flag ${arg}`);
     } else throw new Error(`unexpected argument ${arg}`);
   }
   if (!out.queries || !out.out || !["record", "offline"].includes(out.mode)) throw new Error("--queries, --mode record|offline, and --out are required");
+  if (!Number.isFinite(out.timeoutMs) || out.timeoutMs <= 0) throw new Error("--timeout-ms must be a positive number");
   if (!out.variants.every((v) => VARIANTS.includes(v)) || !out.carriers.every((c) => CARRIERS.includes(c))) throw new Error("invalid variants or carriers");
   return out;
 }
@@ -54,9 +57,9 @@ function keyFor(query, lane, variant, carrier, request) {
 }
 function emptyMetrics() { return { jaccard: null, recall: null, x_search_calls: null }; }
 function normalizeIds(value) { return extractTweetIds(value); }
-function laneResult(value, referenceIds, status) {
+function laneResult(value, referenceIds, status, errors = value?.errors) {
   const ids = status === "ok" ? normalizeIds(value) : [];
-  return { status, ids, ...status === "ok" ? { jaccard: jaccard(ids, referenceIds), recall: recall(ids, referenceIds), x_search_calls: value?.usage?.server_side_tool_usage_details?.x_search_calls ?? value?.usage?.xSearchCalls ?? null } : emptyMetrics() };
+  return { status, ...(status === "ok" ? {} : { error: errors?.length ? errors.join("; ") : `lane completed with status ${status}` }), ids, ...status === "ok" ? { jaccard: jaccard(ids, referenceIds), recall: recall(ids, referenceIds), x_search_calls: value?.usage?.server_side_tool_usage_details?.x_search_calls ?? value?.usage?.xSearchCalls ?? null } : emptyMetrics() };
 }
 
 async function loadFixture(fixturesDir, query, lane, variant, carrier, request) {
@@ -74,7 +77,26 @@ async function loadFixture(fixturesDir, query, lane, variant, carrier, request) 
   return null;
 }
 
-async function runGrok(query, variant, carrier, runDate) {
+async function probeGrokLogin() {
+  return new Promise((resolveResult) => {
+    const child = spawn("/Users/yeongyu/.grok/bin/grok", ["--no-auto-update", "-p", "ping", "--output-format", "json", "--max-turns", "1"], { stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "", stderr = "", settled = false;
+    const finish = (value) => { if (!settled) { settled = true; resolveResult(value); } };
+    child.stdout.on("data", (x) => { stdout += x; }); child.stderr.on("data", (x) => { stderr += x; });
+    const timer = setTimeout(() => { child.kill("SIGKILL"); finish({ status: "blocked_auth", reason: "sign-in prompt or probe timeout (orchestrator verified not logged in at 06:42Z)", errors: ["sign-in prompt or probe timeout (orchestrator verified not logged in at 06:42Z)"] }); }, 30000);
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      const blocked = /Sign in|Open this URL/i.test(`${stdout}\n${stderr}`);
+      finish(blocked
+        ? { status: "blocked_auth", reason: "sign-in prompt", errors: ["grok CLI requires sign-in"] }
+        : code === 0
+          ? { status: "ok", reason: "login probe succeeded", errors: [] }
+          : { status: "error", reason: `login probe exited ${code}`, errors: [`grok CLI login probe exited ${code}`] });
+    });
+  });
+}
+
+async function runGrok(query, variant, carrier, runDate, timeoutMs) {
   if (process.env.OMO_X_SEARCH_BACKTEST_NO_NETWORK === "1") throw new Error("OMO_X_SEARCH_BACKTEST_NO_NETWORK: network disabled");
   const prompt = requestFor(query, variant, carrier, runDate).input[0].content;
   const args = ["--no-auto-update", "-p", prompt, "--output-format", "json", "--disable-web-search", "--max-turns", "1", "--always-approve", "--no-memory", "--no-subagents"];
@@ -83,25 +105,31 @@ async function runGrok(query, variant, carrier, runDate) {
     let stdout = "", stderr = "", settled = false;
     const finish = (value) => { if (!settled) { settled = true; resolveResult(value); } };
     child.stdout.on("data", (x) => { stdout += x; }); child.stderr.on("data", (x) => { stderr += x; });
-    const timer = setTimeout(() => { child.kill("SIGKILL"); finish({ status: "error", errors: ["grok CLI timed out after 120s"] }); }, 120000);
+    const timer = setTimeout(() => { child.kill("SIGKILL"); finish({ status: "error", errors: [`grok CLI timed out after ${timeoutMs}ms`] }); }, timeoutMs);
     child.on("close", (code) => { clearTimeout(timer); const blocked = /Sign in|Open this URL/i.test(stderr); finish({ status: blocked ? "blocked_auth" : code === 0 ? "ok" : "error", stdout: stdout.trim(), errors: stderr ? [stderr.trim()] : [] }); });
   });
 }
 
-async function runApi(request, bearer) {
-  const result = await performXSearch({ fetch, bearer, body: request, endpoint: X_SEARCH_ENDPOINT, deadlineMs: 120000 });
+async function runApi(request, bearer, timeoutMs) {
+  const result = await performXSearch({ fetch, bearer, body: request, endpoint: X_SEARCH_ENDPOINT, deadlineMs: timeoutMs });
   if (result.ok) return { status: "ok", response: result.raw, errors: [] };
   return { status: result.code === "AUTH" ? "blocked_auth" : "error", errors: [result.message] };
 }
-async function runWeb(query, bearer) {
+async function runWeb(query, bearer, timeoutMs) {
   const body = { model: CARRIER_MODELS.fast.model, input: [{ role: "user", content: `Search the web for: ${query.query}` }], tools: [{ type: "web_search" }], tool_choice: "required", max_turns: 1, parallel_tool_calls: false, max_output_tokens: 4000, store: false };
-  const result = await performXSearch({ fetch, bearer, body, endpoint: X_SEARCH_ENDPOINT, deadlineMs: 120000 });
+  const result = await performXSearch({ fetch, bearer, body, endpoint: X_SEARCH_ENDPOINT, deadlineMs: timeoutMs });
   if (result.ok) return { status: "ok", response: result.raw, errors: [] };
   return { status: result.code === "AUTH" ? "blocked_auth" : "error", errors: [result.message] };
 }
 
 async function main(argv = process.argv.slice(2)) {
   const options = parseArgs(argv);
+  let bearer = process.env.XAI_API_KEY;
+  if (!bearer && options.authFile) {
+    const auth = JSON.parse(await readFile(resolve(options.authFile), "utf8"));
+    bearer = auth?.xai?.access;
+  }
+  if (!bearer) throw new Error("AUTH: missing XAI_API_KEY or --auth-file with .xai.access");
   const querySet = JSON.parse(await readFile(resolve(options.queries), "utf8"));
   if (!validateQuerySet(querySet)) throw new Error("invalid query set");
   const runDate = process.env.X_SEARCH_RUN_DATE ?? DEFAULT_RUN_DATE;
@@ -109,7 +137,10 @@ async function main(argv = process.argv.slice(2)) {
   await mkdir(fixturesDir, { recursive: true });
   const capUsd = options.capUsd ?? querySet.cap_usd ?? Infinity;
   let state = { spentUsd: 0, reservedUsd: 0, capUsd, status: "ok" };
+  let fixtureCostTicks = 0;
   const reports = [];
+  let grokProbe = null;
+  if (options.withGrokCli && options.mode === "record") grokProbe = await probeGrokLogin();
   for (const query of querySet.queries) {
     const referenceIds = extractTweetIds(query.reference_urls ?? []);
     const lanes = {};
@@ -119,10 +150,13 @@ async function main(argv = process.argv.slice(2)) {
         const includeLiveGrok = options.withGrokCli && options.mode === "record";
         if (lane === "grok-cli" && !includeLiveGrok && options.mode === "record") continue;
         let raw = await loadFixture(fixturesDir, query, lane, variant, carrier, request);
+        if (lane === "grok-cli" && raw?.grokProbe && !grokProbe) grokProbe = raw.grokProbe;
         if (options.mode === "offline") {
-          if (!raw) lanes[`${lane}:${variant}:${carrier}`] = { status: "missing_fixture", ...emptyMetrics() };
+          if (!raw) lanes[`${lane}:${variant}:${carrier}`] = { status: "missing_fixture", error: "fixture not found", ...emptyMetrics() };
           else {
-            const value = laneResult(raw.response ?? raw.stdout ?? raw, referenceIds, raw.status ?? "ok");
+            const fixtureUsage = raw.response?.usage ?? raw.usage;
+            if (Number.isFinite(fixtureUsage?.cost_in_usd_ticks)) fixtureCostTicks += fixtureUsage.cost_in_usd_ticks;
+            const value = laneResult(raw.response ?? raw.stdout ?? raw, referenceIds, raw.status ?? "ok", raw.errors);
             if (lane === "web" && value.status === "ok" && typeof (raw.response ?? raw).text === "string") value.jaccard = webOverlap((raw.response ?? raw).text, query.web_terms);
             lanes[`${lane}:${variant}:${carrier}`] = value;
           }
@@ -130,21 +164,27 @@ async function main(argv = process.argv.slice(2)) {
         }
         if (!raw) {
           const guard = costGuard(state);
-          if (!guard.canSchedule) { lanes[`${lane}:${variant}:${carrier}`] = { status: "skipped_cost_cap", ...emptyMetrics() }; continue; }
+          if (!guard.canSchedule) { lanes[`${lane}:${variant}:${carrier}`] = { status: "skipped_cost_cap", error: "reservation guard reached cap", ...emptyMetrics() }; continue; }
           state.reservedUsd += PER_CALL_CEILING_USD;
-          const bearer = process.env.XAI_API_KEY;
           let executed;
           if (process.env.OMO_X_SEARCH_BACKTEST_NO_NETWORK === "1") throw new Error("OMO_X_SEARCH_BACKTEST_NO_NETWORK: network disabled");
-          if (lane === "grok-cli") executed = await runGrok(query, variant, carrier, runDate);
-          else if (!bearer) executed = { status: "error", errors: ["missing XAI_API_KEY"] };
-          else if (lane === "web") executed = await runWeb(query, bearer);
-          else executed = await runApi(request, bearer);
+          if (lane === "grok-cli") executed = grokProbe?.status === "blocked_auth" ? grokProbe : await runGrok(query, variant, carrier, runDate, options.timeoutMs);
+          else if (!bearer) executed = { status: "error", errors: ["missing xAI credential"] };
+          else if (lane === "web") executed = await runWeb(query, bearer, options.timeoutMs);
+          else executed = await runApi(request, bearer, options.timeoutMs);
           const usage = executed.response?.usage;
-          state = reconcileCost({ ...state, reservedUsd: Math.max(0, state.reservedUsd - PER_CALL_CEILING_USD) }, usage?.cost_in_usd_ticks);
-          raw = { request, ...executed, usage: usage ?? {}, recordedAt: new Date().toISOString() };
+          const reconciled = usage?.cost_in_usd_ticks === undefined
+            ? { ...state, reservedUsd: Math.max(0, state.reservedUsd - PER_CALL_CEILING_USD) }
+            : reconcileCost({ ...state, reservedUsd: Math.max(0, state.reservedUsd - PER_CALL_CEILING_USD) }, usage.cost_in_usd_ticks);
+          state = reconciled;
+          raw = { queryId: query.id, lane, variant, carrier, request, ...executed, ...(lane === "grok-cli" && grokProbe ? { grokProbe } : {}), usage: usage ?? {}, recordedAt: new Date().toISOString() };
           await writeFile(join(fixturesDir, `${keyFor(query, lane, variant, carrier, request)}.json`), JSON.stringify(redactSecrets(raw, bearer), null, 2));
         }
-        lanes[`${lane}:${variant}:${carrier}`] = laneResult(raw.response ?? raw.stdout ?? raw, referenceIds, raw.status ?? "ok");
+        if (lane === "grok-cli" && grokProbe?.status === "blocked_auth" && raw.status !== "blocked_auth") {
+          raw = { ...raw, status: "blocked_auth", error: grokProbe.reason, errors: grokProbe.errors, grokProbe };
+          await writeFile(join(fixturesDir, `${keyFor(query, lane, variant, carrier, request)}.json`), JSON.stringify(redactSecrets(raw, bearer), null, 2));
+        }
+        lanes[`${lane}:${variant}:${carrier}`] = laneResult(raw.response ?? raw.stdout ?? raw, referenceIds, raw.status ?? "ok", raw.errors);
       }
     }
     reports.push({ id: query.id, split: query.split, reference: referenceIds, lanes });
@@ -155,8 +195,10 @@ async function main(argv = process.argv.slice(2)) {
     for (const lane of LANES) lanes[lane] = lanes[`${lane}:${chosen.variant}:${chosen.carrier}`] ?? { status: "missing_fixture", ...emptyMetrics() };
     return { ...report, chosen: `${chosen.variant}:${chosen.carrier}`, lanes };
   });
-  const report = { run: { status: state.status, mode: options.mode, runDate, queries: querySet.queries.length }, tuning: { chosen, calibration: scoreSplit(reports, "calibration", chosen) }, cost: { cap_usd: capUsd, spent_usd: state.spentUsd, within_cap: state.status !== "cap_exceeded" && state.spentUsd <= capUsd }, queries: scored, aggregate: aggregates(scored) };
-  await mkdir(outDir, { recursive: true }); await writeFile(join(outDir, "report.json"), JSON.stringify(redactSecrets(report, process.env.XAI_API_KEY), null, 2));
+  const estimatedUsd = options.mode === "offline" ? fixtureCostTicks * 1e-10 : state.spentUsd;
+  const costSource = options.mode === "offline" ? "fixtures" : "live";
+  const report = { run: { status: state.status, mode: options.mode, runDate, timestamp: new Date().toISOString(), queries: querySet.queries.length }, ...(grokProbe ? { grokProbe } : {}), tuning: { chosen, calibration: scoreSplit(reports, "calibration", chosen) }, cost: { cap_usd: capUsd, estimated_usd: estimatedUsd, source: costSource, within_cap: state.status !== "cap_exceeded" && estimatedUsd <= capUsd }, queries: scored, aggregate: aggregates(scored) };
+  await mkdir(outDir, { recursive: true }); await writeFile(join(outDir, "report.json"), JSON.stringify(redactSecrets(report, bearer), null, 2));
   if (options.report) await writeFile(join(outDir, "report.md"), markdown(report));
   if (state.status === "cap_exceeded") process.exitCode = 4;
 }
