@@ -24,10 +24,18 @@ afterEach(async () => {
 })
 
 describe("x-search conditional skill staging", () => {
-  test("#given no staged copy #when --check runs #then it fails as missing", { timeout: STAGING_TEST_TIMEOUT_MS }, async () => {
+  test("#given no staged copy #when --check runs #then it skips with a notice for a fresh checkout", { timeout: STAGING_TEST_TIMEOUT_MS }, async () => {
     const fixture = await makeFixture()
 
-    await assert.rejects(checkXSearchSkillStaged(fixture), /missing/)
+    const result = await checkXSearchSkillStaged(fixture)
+
+    assert.deepEqual(result, {
+      ok: true,
+      skipped: true,
+      reason: "not staged locally",
+      sourceSkill: fixture.sourceSkill,
+      targetSkill: fixture.targetSkill,
+    })
   })
 
   test("#given a staged copy #when --check runs #then it passes and the bytes match the source", { timeout: STAGING_TEST_TIMEOUT_MS }, async () => {

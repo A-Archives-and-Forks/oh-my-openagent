@@ -38,7 +38,7 @@ export async function checkXSearchSkillStaged(options = {}) {
     targetStat = await stat(targetSkill)
   } catch (error) {
     if (isErrno(error, "ENOENT")) {
-      throw new Error(`x-search conditional skill stale: staged SKILL.md is missing: ${targetSkill}`)
+      return { ok: true, skipped: true, reason: "not staged locally", sourceSkill, targetSkill }
     }
     throw error
   }
@@ -77,7 +77,11 @@ if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.a
   try {
     if (process.argv.includes("--check")) {
       const result = await checkXSearchSkillStaged()
-      console.log(`x-search conditional skill is current: ${result.targetSkill}`)
+      if (result.skipped) {
+        console.log(`x-search conditional skill not staged locally; skipping freshness check: ${result.targetSkill}`)
+      } else {
+        console.log(`x-search conditional skill is current: ${result.targetSkill}`)
+      }
     } else {
       const result = await stageXSearchSkill()
       console.log(`Staged x-search conditional skill: ${result.targetSkill}`)
