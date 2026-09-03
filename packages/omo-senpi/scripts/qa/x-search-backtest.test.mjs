@@ -3,15 +3,16 @@ import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { buildXSearchRequest, CARRIER_MODELS, PROMPT_VARIANTS } from "../../src/components/x-search/client.ts";
 import { fixtureKey, materializeDates } from "./x-search-backtest-core.mjs";
 
-const ROOT = new URL("./", import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL("./", import.meta.url));
 const CLI = join(ROOT, "x-search-backtest.mjs");
 
 function run(args, env = {}) {
   return new Promise((resolve) => {
-    const child = spawn("bun", [CLI, ...args], { cwd: join(ROOT, "../../../../.."), env: { ...process.env, XAI_API_KEY: "test-secret", ...env } });
+    const child = spawn(process.execPath, [CLI, ...args], { cwd: join(ROOT, "../../../../.."), env: { ...process.env, XAI_API_KEY: "test-secret", ...env } });
     let stdout = "", stderr = "";
     child.stdout.on("data", (chunk) => { stdout += chunk; });
     child.stderr.on("data", (chunk) => { stderr += chunk; });

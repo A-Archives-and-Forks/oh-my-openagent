@@ -3,9 +3,10 @@ import { randomBytes } from "node:crypto"
 import { spawnSync } from "node:child_process"
 import { accessSync, constants, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
-import { delimiter, dirname, join, resolve } from "node:path"
+import { delimiter, dirname, extname, join, resolve } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { createSandbox, seedSandbox, snapshotDirectory, changedSnapshotPaths, credentialDigest } from "./drive.mjs"
+import { resolveSenpiInvocation } from "./team-e2e-runtime.mjs"
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(scriptDir, "../../../../")
@@ -67,26 +68,67 @@ function executable(path) {
   }
 }
 
-export function resolveSenpiBin({ env = process.env, root = repoRoot, cwd = process.cwd() } = {}) {
-  const requested = env.SENPI_BIN?.trim()
-  if (requested) {
-    const candidate = resolve(cwd, requested)
-    if (executable(candidate)) return { path: candidate, source: "SENPI_BIN" }
-  }
+function senpiCandidates(bin, pathExt) {
+  if (process.platform !== "win32" || extname(bin) !== "") return [bin]
+  // PATHEXT is conventionally upper-case while npm writes lower-case launchers (senpi.cmd);
+  // the file system is case-insensitive, so probe the lower-case spelling first to return the
+  // path as it is written on disk.
+  const extensions = (pathExt?.trim() || ".COM;.EXE;.BAT;.CMD")
+    .split(";")
+    .map((extension) => extension.trim().toLowerCase())
+    .filter((extension) => extension.length > 0)
+  return [...extensions.map((extension) => `${bin}${extension}`), bin]
+}
 
-  const peer = resolve(root, "node_modules/.bin/senpi")
-  if (executable(peer)) return { path: peer, source: "peer-dependency" }
-
-  for (const dir of (env.PATH ?? "").split(delimiter)) {
-    const candidate = resolve(dir || ".", "senpi")
-    if (executable(candidate)) return { path: candidate, source: "PATH", warning: "Using PATH senpi fallback; peer-dependency binary was unavailable." }
+function resolveExecutable(bin, pathExt) {
+  for (const candidate of senpiCandidates(bin, pathExt)) {
+    if (executable(candidate)) return candidate
   }
   return null
 }
 
+export function resolveSenpiBin({ env = process.env, root = repoRoot, cwd = process.cwd() } = {}) {
+  const requested = env.SENPI_BIN?.trim()
+  if (requested) {
+    const candidate = resolveExecutable(resolve(cwd, requested), env.PATHEXT)
+    if (candidate) return { path: candidate, source: "SENPI_BIN" }
+  }
+
+  const peer = resolveExecutable(resolve(root, "node_modules/.bin/senpi"), env.PATHEXT)
+  if (peer) return { path: peer, source: "peer-dependency" }
+
+  for (const dir of (env.PATH ?? "").split(delimiter)) {
+    const candidate = resolveExecutable(resolve(dir || ".", "senpi"), env.PATHEXT)
+    if (candidate) return { path: candidate, source: "PATH", warning: "Using PATH senpi fallback; peer-dependency binary was unavailable." }
+  }
+  return null
+}
+
+function quoteForCmd(arg) {
+  return `"${String(arg).replace(/"/g, '\\"')}"`
+}
+
+// A Windows senpi launcher is a .cmd shim that spawnSync cannot execute directly. Prefer the
+// package CLI behind the shim (the same mapping the team QA runtime uses); when the shim has
+// no adjacent package CLI (bare fixtures), run it through the command interpreter instead.
+export function spawnSenpi(path, args, options) {
+  const ext = extname(path).toLowerCase()
+  if (process.platform !== "win32" || (ext !== ".cmd" && ext !== ".bat")) return spawnSync(path, args, options)
+  try {
+    const { command, prefixArgs } = resolveSenpiInvocation(path)
+    if (command !== path) return spawnSync(command, [...prefixArgs, ...args], options)
+  } catch {
+    // fall through to the interpreter
+  }
+  // cmd.exe /S strips the first and last quote of the /C argument, so the whole command line
+  // is wrapped in one extra pair of quotes (the same shape Node's shell: true produces).
+  const commandLine = `"${[path, ...args].map(quoteForCmd).join(" ")}"`
+  return spawnSync(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", commandLine], { ...options, windowsVerbatimArguments: true })
+}
+
 export function senpiVersion(path) {
   if (!path) return null
-  const result = spawnSync(path, ["--version"], { encoding: "utf8", timeout: 10000 })
+  const result = spawnSenpi(path, ["--version"], { encoding: "utf8", timeout: 10000 })
   if (result.status !== 0) return null
   return String(result.stdout ?? "").split(/\r?\n/, 1)[0].trim() || null
 }
@@ -235,12 +277,12 @@ function runScenario(scenario, prompt, outDir) {
   if (senpi) {
     const common = ["-e", mockProviderEntry, ...(sandboxExtensionPath ? ["-e", sandboxExtensionPath] : []), "-p", "--mode", "json", "--provider", "omo-mock", "--model", "mock-1", "--session-dir", join(sandbox.root, "sessions")]
     const runOptions = { cwd: sandbox.cwd, env: scrubbedEnv, encoding: "utf8", timeout: 120000, maxBuffer: 64 * 1024 * 1024 }
-    const runs = [spawnSync(senpi, [...common, prompt], runOptions)]
+    const runs = [spawnSenpi(senpi, [...common, prompt], runOptions)]
     if (scenario === "reload") {
       writeFileSync(join(sandbox.cwd, "mock-script.json"), `${JSON.stringify(scriptFor("reload-initial"))}\n`)
-      runs.push(spawnSync(senpi, [...common, "--continue", "/reload"], runOptions))
+      runs.push(spawnSenpi(senpi, [...common, "--continue", "/reload"], runOptions))
       writeFileSync(join(sandbox.cwd, "mock-script.json"), `${JSON.stringify(scriptFor(scenario))}\n`)
-      runs.push(spawnSync(senpi, [...common, "--continue", prompt], runOptions))
+      runs.push(spawnSenpi(senpi, [...common, "--continue", prompt], runOptions))
     }
     run = { status: (runs[0]?.status === 0 && runs.at(-1)?.status === 0) ? 0 : 1, stdout: runs.map((item) => item.stdout ?? "").join("\n"), stderr: runs.map((item) => item.stderr ?? "").join("\n") }
   }
