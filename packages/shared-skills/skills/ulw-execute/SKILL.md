@@ -52,7 +52,7 @@ Do ALL of this immediately after the plan is selected, BEFORE the first implemen
 
 1. **Set the goal, in detail.** When a goal tool is available (`create_goal`), call it with a DETAILED objective: the plan name and path, the concrete end state, the phase and task counts, the delivery mode (direct, `--make-pr`, or `--ship`), and how completion will be verified. One work session = one goal. No goal tool -> record the same objective as the first ledger entry.
 2. **Register every phase and task as todos.** Mirror the plan into the todo/plan tool of your harness: one phase per plan wave, one todo per column-zero checkbox (including the final verification wave). Register ALL of them up front - never keep tasks in memory only.
-3. **Keep them current at every moment.** Mark a todo in_progress when its work dispatches and done immediately after its verification passes. Never batch-complete at the end, never execute work that is not a registered todo; discovered work — a pre-existing bug, failing test, stale doc, or wrong guidance — is appended to the plan as a checkbox, mirrored as a todo before it runs, and fixed to the ideal state, never deferred as a follow-up. The todo list, Boulder state, and plan checkboxes must always tell the same story.
+3. **Keep them current at every moment.** Mark a todo in_progress when its work dispatches and done immediately after its verification passes. Never batch-complete at the end, never execute work that is not a registered todo; discovered work — a pre-existing bug, failing test, stale doc, or wrong guidance — is appended to the plan as a checkbox, mirrored as a todo before it runs, and fixed to the ideal state, never deferred as a follow-up. A worker that meets a defect outside its assigned files reports it instead of fixing it; only the orchestrator appends the checkbox and dispatches it to a correctly scoped unit. The todo list, Boulder state, and plan checkboxes must always tell the same story.
 
 ## Phase 1: Select the plan
 
@@ -95,7 +95,7 @@ Write `.omo/boulder.json` before implementation starts. Prefix session ids with 
 }
 ```
 
-Every phase (plan wave) runs in its own task-owned worktree: before the wave's first dispatch, `git worktree add <repo>-wt/<plan>-<wave> <branch off the integration base>` (or verify a `--worktree` path with `git worktree list --porcelain`), store the absolute path as `worktree_path`, run every edit, command, test, and evidence capture inside it; the wave lands on the integration base once its checkboxes are verified (direct merge, or the PR under `--make-pr`/`--ship`), and the next wave branches from that landed base.
+Every phase (plan wave) runs in its own task-owned worktree with its own goal: before the wave's first dispatch, record the wave's goal — its checkboxes and their acceptance criteria — as a ledger entry, then `git worktree add <repo>-wt/<plan>-<wave> <branch off the integration base>` (or verify a `--worktree` path with `git worktree list --porcelain`), store the absolute path as `worktree_path`, run every edit, command, test, and evidence capture inside it; the wave lands on the integration base once its checkboxes are verified (direct merge, or the PR under `--make-pr`/`--ship`), and the next wave branches from that landed base.
 
 ## Parallel delivery lanes (teams and worktrees)
 
