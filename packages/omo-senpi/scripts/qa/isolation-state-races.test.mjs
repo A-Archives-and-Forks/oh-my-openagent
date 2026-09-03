@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import {
 	closeSync,
 	fstatSync,
+	lstatSync,
 	mkdtempSync,
 	opendirSync,
 	openSync,
@@ -48,7 +49,7 @@ test("#given a same-size in-place overwrite after an observation read #when meta
 		expect(scan.bytesRead).toBe(4);
 		expect(scan.complete).toBe(false);
 		expect(scan.errors).toEqual([{ path: "state.json", code: "FILE_CHANGED" }]);
-		expect(scan.snapshot.size).toBe(0);
+		expect([...scan.snapshot.keys()]).toEqual(["."]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -170,7 +171,7 @@ test("#given an enumerated entry vanishes before stat #when the bounded complete
 		expect(scan.complete).toBe(true);
 		expect(scan.truncated).toBe(false);
 		expect(scan.errors).toEqual([]);
-		expect(scan.snapshot.size).toBe(0);
+		expect([...scan.snapshot.keys()]).toEqual(["."]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -262,13 +263,13 @@ test("#given ENOENT stat then open success and close failure #when absence races
 		const path = join(root, "auth.json");
 		let firstStat = true;
 		const snapshot = snapshotProtectedState(root, {
-			statSync(file, options) {
+			lstatSync(file, options) {
 				if (file === path && firstStat) {
 					firstStat = false;
 					writeFileSync(path, "AAAA");
 					throw codedError("ENOENT");
 				}
-				return statSync(file, options);
+				return lstatSync(file, options);
 			},
 			closeSync() {
 				throw codedError("ECLOSE");

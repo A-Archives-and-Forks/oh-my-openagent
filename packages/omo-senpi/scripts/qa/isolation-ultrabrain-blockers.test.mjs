@@ -1,7 +1,11 @@
 import { expect, test } from "bun:test";
 import {
+	mkdirSync,
 	mkdtempSync,
+	opendirSync,
+	openSync,
 	readlinkSync,
+	renameSync,
 	rmSync,
 	symlinkSync,
 	unlinkSync,
@@ -13,7 +17,9 @@ import {
 	changedSnapshotPaths,
 	classifyObservedChanges,
 	isolationVerdict,
+	protectedSnapshotsUntouched,
 	snapshotDirectory,
+	snapshotProtectedState,
 } from "./isolation-state.mjs";
 
 const LIMITS = { maxFiles: 10, maxBytes: 1024, maxEntries: 10 };
@@ -29,6 +35,7 @@ function completeObserved() {
 		truncated: false,
 		errors: [],
 		bytesRead: 0,
+		domain: "nonvolatile-home",
 	};
 }
 
@@ -149,10 +156,87 @@ test("#given a symlink escapes the observation root #when its target contents ch
 		// Then
 		expect(before.complete).toBe(true);
 		expect(after.complete).toBe(true);
-		expect([...before.snapshot.keys()]).toEqual(["outside-link"]);
+		expect([...before.snapshot.keys()]).toEqual([".", "outside-link"]);
 		expect(before.snapshot.get("outside-link")).toBe(
 			after.snapshot.get("outside-link"),
 		);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+		rmSync(outside, { recursive: true, force: true });
+	}
+});
+
+test("#given an enumerated directory is replaced by an external symlink before recursive open #when observed #then traversal fails closed without dereferencing", () => {
+	// Given
+	const root = mkdtempSync(join(tmpdir(), "omo-senpi-directory-race-"));
+	const outside = mkdtempSync(join(tmpdir(), "omo-senpi-directory-outside-"));
+	const state = join(root, "state");
+	const moved = join(root, "state-old");
+	try {
+		mkdirSync(state);
+		writeFileSync(join(state, "stable"), "same");
+		writeFileSync(join(outside, "stable"), "same");
+		let replaced = false;
+
+		// When
+		const scan = snapshotDirectory(root, LIMITS, {
+			opendirSync(path) {
+				if (!replaced && path === state) {
+					replaced = true;
+					renameSync(state, moved);
+					symlinkSync(outside, state);
+				}
+				return opendirSync(path);
+			},
+		});
+
+		// Then
+		expect(scan.complete).toBe(false);
+		expect(scan.errors).toEqual([{ path: "state", code: "FILE_REPLACED" }]);
+		expect(scan.snapshot.has("state/stable")).toBe(false);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+		rmSync(outside, { recursive: true, force: true });
+	}
+});
+
+test("#given protected state is an external symlink #when its target changes #then protected reads never follow it and fail closed", () => {
+	// Given
+	const root = mkdtempSync(join(tmpdir(), "omo-senpi-protected-link-"));
+	const outside = mkdtempSync(join(tmpdir(), "omo-senpi-protected-target-"));
+	const target = join(outside, "private.json");
+	try {
+		writeFileSync(target, "before-private-content");
+		const authPath = join(root, "auth.json");
+		symlinkSync(target, authPath);
+		let protectedOpens = 0;
+		const io = {
+			openSync(path, flags) {
+				if (path === authPath) protectedOpens += 1;
+				return openSync(path, flags);
+			},
+		};
+		const before = snapshotProtectedState(root, io);
+
+		// When
+		writeFileSync(target, "after-private-content");
+		const after = snapshotProtectedState(root, io);
+
+		// Then
+		expect(before.complete).toBe(false);
+		expect(after.complete).toBe(false);
+		expect(before.errors).toContainEqual({
+			path: "auth.json",
+			code: "UNSUPPORTED_ENTRY",
+		});
+		expect(after.errors).toContainEqual({
+			path: "auth.json",
+			code: "UNSUPPORTED_ENTRY",
+		});
+		expect(before.snapshot.has("auth.json")).toBe(false);
+		expect(after.snapshot.has("auth.json")).toBe(false);
+		expect(protectedOpens).toBe(0);
+		expect(protectedSnapshotsUntouched(before, after)).toBe(false);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 		rmSync(outside, { recursive: true, force: true });

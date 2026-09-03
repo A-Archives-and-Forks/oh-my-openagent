@@ -90,6 +90,7 @@ export function snapshotDirectory(
 		root,
 		pathStyle,
 		files: [],
+		directories: [],
 		errors: [],
 		entries: 0,
 		truncated: false,
@@ -103,7 +104,9 @@ export function snapshotDirectory(
 		},
 		io,
 	);
-	const snapshot = new Map();
+	const snapshot = new Map(
+		state.directories.map((path) => [path, "directory"]),
+	);
 	let bytesRead = 0;
 	for (const file of state.files.sort((left, right) =>
 		left.rel.localeCompare(right.rel),
@@ -134,7 +137,11 @@ export function snapshotDirectory(
 		snapshot.set(file.rel, result.digest);
 	}
 	return {
-		snapshot,
+		snapshot: new Map(
+			[...snapshot.entries()].sort(([left], [right]) =>
+				left.localeCompare(right),
+			),
+		),
 		complete: !state.truncated && state.errors.length === 0,
 		truncated: state.truncated,
 		errors: state.errors.sort(compareSnapshotErrors),
@@ -256,87 +263,110 @@ function credentialBytes(content, name) {
 }
 
 function collectFilesBounded(currentRoot, state, limits, io) {
+	const currentRel = canonicalRelativePath(
+		relative(state.root, currentRoot) || ".",
+		state.pathStyle,
+	);
+	let beforeOpen;
+	try {
+		beforeOpen = io.lstatSync(currentRoot, { bigint: true });
+	} catch (error) {
+		if (!isTransientSnapshotEntryError(error))
+			state.errors.push({ path: currentRel, code: errorCode(error) });
+		else if (currentRoot !== state.root)
+			state.errors.push({ path: currentRel, code: "FILE_REPLACED" });
+		return;
+	}
+	if (!beforeOpen.isDirectory()) {
+		state.errors.push({
+			path: currentRel,
+			code: currentRoot === state.root ? "UNSUPPORTED_ENTRY" : "FILE_REPLACED",
+		});
+		return;
+	}
+	const beforeMetadata = fileMetadata(beforeOpen);
 	let directory;
 	try {
 		directory = io.opendirSync(currentRoot);
 	} catch (error) {
-		if (!isTransientSnapshotEntryError(error)) {
+		if (!isTransientSnapshotEntryError(error) || currentRoot !== state.root)
 			state.errors.push({
-				path: canonicalRelativePath(
-					relative(state.root, currentRoot) || ".",
-					state.pathStyle,
-				),
-				code: errorCode(error),
+				path: currentRel,
+				code: isTransientSnapshotEntryError(error)
+					? "FILE_REPLACED"
+					: errorCode(error),
 			});
-		}
 		return;
 	}
 	const errorsBeforeTraversal = state.errors.length;
 	let traversalFailed = false;
 	try {
+		const afterOpen = io.lstatSync(currentRoot, { bigint: true });
+		const afterMetadata = fileMetadata(afterOpen);
+		if (
+			!afterOpen.isDirectory() ||
+			beforeMetadata.dev !== afterMetadata.dev ||
+			beforeMetadata.ino !== afterMetadata.ino
+		)
+			throw Object.assign(new Error("FILE_REPLACED"), {
+				code: "FILE_REPLACED",
+			});
+		state.directories.push(currentRel);
 		while (true) {
 			const entry = directory.readSync();
 			if (entry === null) break;
-			state.entries += 1;
-			if (state.entries > limits.maxEntries) {
-				state.truncated = true;
-				return;
-			}
 			const path = join(currentRoot, entry.name);
 			const rel = canonicalRelativePath(
 				relative(state.root, path),
 				state.pathStyle,
 			);
-			if (entry.isDirectory()) {
-				if (VOLATILE_SUBTREES.has(rel)) continue;
+			if (VOLATILE_SUBTREES.has(rel) || rel.endsWith(".log")) continue;
+			state.entries += 1;
+			if (state.entries > limits.maxEntries) {
+				state.truncated = true;
+				return;
+			}
+			let pathStat;
+			try {
+				pathStat = io.lstatSync(path, { bigint: true });
+			} catch (error) {
+				if (!isTransientSnapshotEntryError(error))
+					state.errors.push({ path: rel, code: errorCode(error) });
+				continue;
+			}
+			if (pathStat.isDirectory()) {
+				if (!entry.isDirectory()) {
+					state.errors.push({ path: rel, code: "FILE_REPLACED" });
+					continue;
+				}
 				collectFilesBounded(path, state, limits, io);
 				if (state.truncated) return;
-			} else if (entry.isFile() && rel.endsWith(".log")) {
-			} else if (entry.isFile() || entry.isSymbolicLink()) {
+			} else if (pathStat.isFile() || pathStat.isSymbolicLink()) {
 				if (state.files.length >= limits.maxFiles) {
 					state.truncated = true;
 					return;
 				}
-				try {
-					const metadata = fileMetadata(io.lstatSync(path, { bigint: true }));
-					state.files.push({
-						path,
-						rel,
-						kind: entry.isSymbolicLink() ? "symlink" : "file",
-						size: boundedSize(metadata.size),
-						metadata,
-					});
-				} catch (error) {
-					if (!isTransientSnapshotEntryError(error)) {
-						state.errors.push({ path: rel, code: errorCode(error) });
-					}
-				}
+				const metadata = fileMetadata(pathStat);
+				state.files.push({
+					path,
+					rel,
+					kind: pathStat.isSymbolicLink() ? "symlink" : "file",
+					size: boundedSize(metadata.size),
+					metadata,
+				});
 			} else {
 				state.errors.push({ path: rel, code: "UNSUPPORTED_ENTRY" });
 			}
 		}
 	} catch (error) {
 		traversalFailed = true;
-		state.errors.push({
-			path: canonicalRelativePath(
-				relative(state.root, currentRoot) || ".",
-				state.pathStyle,
-			),
-			code: errorCode(error),
-		});
+		state.errors.push({ path: currentRel, code: errorCode(error) });
 	} finally {
 		try {
 			directory.closeSync();
 		} catch (error) {
-			if (!traversalFailed && state.errors.length === errorsBeforeTraversal) {
-				state.errors.push({
-					path: canonicalRelativePath(
-						relative(state.root, currentRoot) || ".",
-						state.pathStyle,
-					),
-					code: errorCode(error),
-				});
-			}
+			if (!traversalFailed && state.errors.length === errorsBeforeTraversal)
+				state.errors.push({ path: currentRel, code: errorCode(error) });
 		}
 	}
 }
@@ -382,6 +412,7 @@ function collectFiles(root, files, readdir, isRoot = false) {
 
 function observationComplete(observation) {
 	return (
+		observation.domain === "nonvolatile-home" &&
 		observation.complete &&
 		!observation.truncated &&
 		observation.errors.length === 0

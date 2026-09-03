@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
 	closeSync,
+	constants,
 	fstatSync,
 	lstatSync,
 	opendirSync,
@@ -12,6 +13,7 @@ import {
 } from "node:fs";
 
 const HASH_CHUNK_BYTES = 64 * 1024;
+const NO_FOLLOW_READ_FLAGS = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0);
 
 export const FILE_IO = {
 	closeSync,
@@ -120,24 +122,26 @@ export function hashSymlinkBounded(file, { remainingBytes, io }) {
 }
 
 export function readProtectedFileStable(path, io) {
-	let beforePath;
+	let beforePathStat;
 	try {
-		beforePath = fileMetadata(io.statSync(path, { bigint: true }));
+		beforePathStat = io.lstatSync(path, { bigint: true });
 	} catch (error) {
 		if (errorCode(error) !== "ENOENT") return { error: errorCode(error) };
 		return readProtectedAbsentRace(path, io);
 	}
+	if (!beforePathStat.isFile()) return { error: "UNSUPPORTED_ENTRY" };
+	const beforePath = fileMetadata(beforePathStat);
 	let fd;
 	let result;
 	try {
-		fd = io.openSync(path, "r");
+		fd = io.openSync(path, NO_FOLLOW_READ_FLAGS);
 		const opened = fileMetadata(io.fstatSync(fd, { bigint: true }));
 		const openingError = changedMetadataCode(beforePath, opened);
 		if (openingError !== undefined)
-			diagnoseOpeningRace(path, opened, openingError, io);
+			diagnoseOpeningRace(path, opened, openingError, io, "lstatSync");
 		const content = io.readFileSync(fd);
 		const finished = fileMetadata(io.fstatSync(fd, { bigint: true }));
-		const afterPath = fileMetadata(io.statSync(path, { bigint: true }));
+		const afterPath = fileMetadata(io.lstatSync(path, { bigint: true }));
 		if (!sameIdentity(finished, afterPath))
 			throw snapshotError("FILE_REPLACED");
 		if (
@@ -186,7 +190,7 @@ function readProtectedAbsentRace(path, io) {
 	let fd;
 	let result;
 	try {
-		fd = io.openSync(path, "r");
+		fd = io.openSync(path, NO_FOLLOW_READ_FLAGS);
 		result = { error: "FILE_REPLACED" };
 	} catch (error) {
 		result =

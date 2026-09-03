@@ -63,9 +63,76 @@ test("#given nested nonvolatile files within bounds #when scanned #then the rele
 		expect(scan.errors).toEqual([]);
 		expect(scan.bytesRead).toBe(3);
 		expect(scan.domain).toBe("nonvolatile-home");
-		expect([...scan.snapshot.keys()]).toEqual(["settings.json"]);
+		expect([...scan.snapshot.keys()]).toEqual([".", "settings.json"]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("#given volatile root entries precede one persistent file #when scanned at exact budgets #then volatility consumes no budget", () => {
+	const root = mkdtempSync(join(tmpdir(), "omo-senpi-volatile-budget-"));
+	try {
+		mkdirSync(join(root, "sessions"));
+		writeFileSync(join(root, "sessions", "x"), "volatile");
+		writeFileSync(join(root, "stable"), "stable");
+
+		const scan = snapshotDirectory(root, {
+			maxEntries: 1,
+			maxFiles: 1,
+			maxBytes: 100,
+		});
+
+		expect(scan.complete).toBe(true);
+		expect(scan.truncated).toBe(false);
+		expect(scan.bytesRead).toBe(6);
+		expect([...scan.snapshot.keys()]).toEqual([".", "stable"]);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("#given a missing root and empty directories #when snapshots are compared #then persistent directory creation and deletion are observed", () => {
+	const parent = mkdtempSync(join(tmpdir(), "omo-senpi-directory-identity-"));
+	const root = join(parent, "agent");
+	try {
+		const missing = snapshotDirectory(root);
+		mkdirSync(root);
+		const emptyRoot = snapshotDirectory(root);
+		mkdirSync(join(root, "nested"));
+		const nestedCreated = snapshotDirectory(root);
+		rmSync(join(root, "nested"), { recursive: true });
+		const nestedDeleted = snapshotDirectory(root);
+
+		expect(missing.complete).toBe(true);
+		expect(emptyRoot.complete).toBe(true);
+		expect(changedSnapshotPaths(missing.snapshot, emptyRoot.snapshot)).toEqual([
+			".",
+		]);
+		expect(
+			changedSnapshotPaths(emptyRoot.snapshot, nestedCreated.snapshot),
+		).toEqual(["nested"]);
+		expect(
+			changedSnapshotPaths(nestedCreated.snapshot, nestedDeleted.snapshot),
+		).toEqual(["nested"]);
+		const protectedState = {
+			snapshot: new Map(),
+			complete: true,
+			errors: [],
+		};
+		const verdict = isolationState.isolationVerdict({
+			beforeProtected: protectedState,
+			afterProtected: protectedState,
+			beforeObserved: missing,
+			afterObserved: emptyRoot,
+			observedChangedPaths: changedSnapshotPaths(
+				missing.snapshot,
+				emptyRoot.snapshot,
+			),
+		});
+		expect(verdict.changedPaths).toEqual(["."]);
+		expect(verdict.untouched).toBe(false);
+	} finally {
+		rmSync(parent, { recursive: true, force: true });
 	}
 });
 
@@ -80,7 +147,7 @@ test("#given a tree beyond the file bound #when observed #then truncation is exp
 		expect(scan.complete).toBe(false);
 		expect(scan.truncated).toBe(true);
 		expect(scan.errors).toEqual([]);
-		expect(scan.snapshot.size).toBe(1);
+		expect(scan.snapshot.size).toBe(2);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -138,7 +205,7 @@ test("#given files exceed the byte budget #when observed #then descriptor reads 
 		expect(scan.complete).toBe(false);
 		expect(scan.truncated).toBe(true);
 		expect(scan.errors).toEqual([]);
-		expect([...scan.snapshot.keys()]).toEqual(["a.bin"]);
+		expect([...scan.snapshot.keys()]).toEqual([".", "a.bin"]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -174,7 +241,7 @@ test("#given a file shrinks after traversal #when observed #then short read is e
 
 		expect(scan.complete).toBe(false);
 		expect(scan.errors).toEqual([{ path: "state.json", code: "SHORT_READ" }]);
-		expect(scan.snapshot.size).toBe(0);
+		expect([...scan.snapshot.keys()]).toEqual(["."]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -209,7 +276,7 @@ test("#given a file grows while hashing #when observed #then growth is explicit 
 
 		expect(scan.complete).toBe(false);
 		expect(scan.errors).toEqual([{ path: "state.json", code: "FILE_CHANGED" }]);
-		expect(scan.snapshot.size).toBe(0);
+		expect([...scan.snapshot.keys()]).toEqual(["."]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -248,7 +315,7 @@ test("#given a path is replaced after open #when observed #then replacement is e
 		expect(scan.errors).toEqual([
 			{ path: "state.json", code: "FILE_REPLACED" },
 		]);
-		expect(scan.snapshot.size).toBe(0);
+		expect([...scan.snapshot.keys()]).toEqual(["."]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
@@ -280,7 +347,7 @@ test("#given one file exceeds the byte budget #when observed #then truncation oc
 		expect(scan.complete).toBe(false);
 		expect(scan.truncated).toBe(true);
 		expect(scan.errors).toEqual([]);
-		expect(scan.snapshot.size).toBe(0);
+		expect([...scan.snapshot.keys()]).toEqual(["."]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

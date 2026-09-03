@@ -3,6 +3,7 @@ import { expect, test } from "bun:test";
 import {
 	closeSync,
 	fstatSync,
+	lstatSync,
 	mkdtempSync,
 	openSync,
 	rmSync,
@@ -39,6 +40,7 @@ function completeObserved() {
 		truncated: false,
 		errors: [],
 		bytesRead: 0,
+		domain: "nonvolatile-home",
 	};
 }
 
@@ -51,6 +53,34 @@ function buildVerdict(beforeProtected, afterProtected, observedChangedPaths) {
 		observedChangedPaths,
 	});
 }
+
+test("#given missing or arbitrary observation domains #when the canonical verdict is built #then untouched fails closed", () => {
+	// Given
+	const protectedState = completeProtected();
+	const valid = completeObserved();
+	const { domain: _missingDomain, ...missingDomain } = valid;
+	const arbitraryDomain = { ...valid, domain: "whole-home" };
+
+	// When
+	const missingBefore = isolationVerdict({
+		beforeProtected: protectedState,
+		afterProtected: protectedState,
+		beforeObserved: missingDomain,
+		afterObserved: valid,
+		observedChangedPaths: [],
+	});
+	const arbitraryAfter = isolationVerdict({
+		beforeProtected: protectedState,
+		afterProtected: protectedState,
+		beforeObserved: valid,
+		afterObserved: arbitraryDomain,
+		observedChangedPaths: [],
+	});
+
+	// Then
+	expect(missingBefore.untouched).toBe(false);
+	expect(arbitraryAfter.untouched).toBe(false);
+});
 
 test("#given direct, protected-observed, persistent-observed, and volatile changes #when the canonical verdict is built #then only volatile paths are excluded from the sorted union", () => {
 	// Given
@@ -170,7 +200,7 @@ test("#given bounded observation root enumeration fails #when snapshotDirectory 
 	try {
 		for (const code of ["EACCES", "EIO"]) {
 			// When
-			const scan = snapshotDirectory(join(root, "missing"), LIMITS, {
+			const scan = snapshotDirectory(root, LIMITS, {
 				opendirSync() {
 					throw codedError(code);
 				},
@@ -245,12 +275,23 @@ test("#given pre-open metadata changed and current-path diagnostic stat fails #w
 								? { ...metadata, ino: metadata.ino + 1n }
 								: { ...metadata, size: metadata.size + 1n };
 						},
-						statSync(file, options) {
-							statCalls += 1;
-							if (file === path && statCalls > 1)
-								throw codedError(diagnosticCode);
-							return statSync(file, options);
-						},
+						...(kind === "protected"
+							? {
+									lstatSync(file, options) {
+										statCalls += 1;
+										if (file === path && statCalls > 1)
+											throw codedError(diagnosticCode);
+										return lstatSync(file, options);
+									},
+								}
+							: {
+									statSync(file, options) {
+										statCalls += 1;
+										if (file === path && statCalls > 1)
+											throw codedError(diagnosticCode);
+										return statSync(file, options);
+									},
+								}),
 					};
 
 					// When
