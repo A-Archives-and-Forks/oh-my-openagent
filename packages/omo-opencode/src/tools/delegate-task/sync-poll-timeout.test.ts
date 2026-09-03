@@ -93,13 +93,16 @@ describe("syncPollTimeoutMs threading", () => {
             messages: async () => {
               messageCallCount++
               return {
-                data: [
-                  { info: { id: "msg_001", role: "user", time: { created: 1000 } } },
-                  {
-                    info: { id: "msg_002", role: "assistant", time: { created: 2000 }, finish: "stop" },
-                    parts: [{ type: "text", text: "done" }],
-                  },
-                ],
+                data:
+                  statusCallCount >= 3
+                    ? [
+                        { info: { id: "msg_001", role: "user", time: { created: 1000 } } },
+                        {
+                          info: { id: "msg_002", role: "assistant", time: { created: 2000 }, finish: "stop" },
+                          parts: [{ type: "text", text: "done" }],
+                        },
+                      ]
+                    : [{ info: { id: "msg_001", role: "user", time: { created: 1000 } } }],
               }
             },
             status: async () => {
@@ -122,7 +125,7 @@ describe("syncPollTimeoutMs threading", () => {
           expect(result).toBeNull()
           expect(abortCount).toBe(0)
           expect(statusCallCount).toBe(3)
-          expect(messageCallCount).toBe(1)
+          expect(messageCallCount).toBe(3)
         })
       })
     })
