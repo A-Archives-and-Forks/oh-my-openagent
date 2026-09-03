@@ -231,9 +231,7 @@ export async function pollSyncSession(
 
     // Completion is only judged once the session has left its active status; a busy child
     // whose last assistant turn merely looks finished is still working.
-    if (isActive) continue
-
-    if (isSessionComplete(messages)) {
+    if (!isActive && isSessionComplete(messages)) {
       if (isAwaitingChildContinuation(currentAssistantId)) {
         continue
       }
@@ -241,7 +239,9 @@ export async function pollSyncSession(
       break
     }
 
-    // Count new assistant turns to circuit-break infinite loops
+    // Count new assistant turns to circuit-break infinite loops. This runs while the status
+    // is still active too: a child looping through tool calls never leaves "busy", and every
+    // new turn resets the inactivity timer above, so the turn budget is its only bound.
     const lastAssistant = [...messages].reverse().find((m) => m.info?.role === "assistant")
     if (lastAssistant?.info?.id && lastAssistant.info.id !== lastSeenAssistantId) {
       lastSeenAssistantId = lastAssistant.info.id
@@ -257,6 +257,8 @@ export async function pollSyncSession(
         return `Task aborted: subagent exceeded ${maxTurns} assistant turns without completing. This usually indicates an infinite tool-call loop. Session ID: ${input.sessionID}`
       }
     }
+
+    if (isActive) continue
 
     const hasAssistantText = messages.some((m) => {
       if (m.info?.role !== "assistant") return false
