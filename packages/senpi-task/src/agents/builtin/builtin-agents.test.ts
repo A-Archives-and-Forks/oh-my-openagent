@@ -68,15 +68,16 @@ describe("builtin curated agents", () => {
   test("#given every curated definition #when inspecting tool rules #then the expected literal allow-true rules are present", () => {
     for (const definition of CURATED_READONLY_AGENT_DEFAULTS) {
       const expected = definition.name === "librarian" ? EXPECTED_LIBRARIAN_TOOL_ALLOWLIST : EXPECTED_TOOL_ALLOWLIST
-      expect(definition.tools).toHaveLength(expected.length)
+      const expectedDenied = definition.name === "explore" ? ["x_search"] : []
+      expect(definition.tools).toHaveLength(expected.length + expectedDenied.length)
       const patterns = (definition.tools ?? []).map((rule) => rule.pattern)
-      expect([...patterns].sort()).toEqual([...expected].sort())
+      expect([...patterns].sort()).toEqual([...expected, ...expectedDenied].sort())
       for (const rule of definition.tools ?? []) {
-        expect(rule.allow).toBe(true)
+        expect(rule.allow).toBe(!expectedDenied.includes(rule.pattern))
       }
     }
     const explore = CURATED_READONLY_AGENT_DEFAULTS.find((definition) => definition.name === "explore")
-    expect(explore?.tools?.some((rule) => rule.pattern === "x_search")).toBe(false)
+    expect(explore?.tools?.some((rule) => rule.pattern === "x_search" && rule.allow === false)).toBe(true)
   })
 
   test("#given every reviewer definition #when inspecting tool rules #then the curated allowlist plus write is present", () => {
