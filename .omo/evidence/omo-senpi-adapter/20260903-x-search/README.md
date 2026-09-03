@@ -2,14 +2,32 @@
 
 Slug: `.omo/evidence/omo-senpi-adapter/20260903-x-search/`
 Host for this index: `mengmotaHost` (todo 16 docs + bundle refresh).
-Worktree HEAD at index time: `c6832b89c993475e74da4f026019b2c5e68945ce` (`feat/omo-senpi-x-search`).
+Worktree HEAD at index time: `8bac24cbf` (`feat/omo-senpi-x-search`).
 Committed plugin bundle (last commit that wrote `plugin/extensions/omo.js`): `a76863f75c4640b5cacf8f4afb95dd3c3b5a2988` (`build(omo-senpi): register x-search and stage its conditional skill`).
 `bun run build:senpi-plugin` on 2026-09-03T07:25:50Z exited 0; tracked `plugin/extensions/*.js` sha256 unchanged (`omo.js` `0db5b8966fe45cd6760ca52f89cc01272ddcdce5185cdb9d9c8f0b6db7f58e68`). Docs/bundle git commit is orchestrator-owned (`docs(omo-senpi): document x-search and refresh the plugin bundle`); that SHA is not recorded here yet.
-Full gate (`bun run test:senpi`, `bun test packages/senpi-task`, tsgo) is orchestrator-owned on mengmotaMac as `16-gate/` — not present at index time.
+Full gate evidence is in `16-gate/` on `mengmotaMac`: `test-senpi.txt` recorded 2627 pass / 0 fail at `1b46e0033`; `test-senpi-task.txt` recorded 1839 pass / 0 fail at `9dc1e4b4c`; `test-senpi-rebased.txt` recorded 2629 pass / 1 fail intermediate (the explore rule-count pin was fixed in `9e7a5aaa1`); and `test-senpi-final.txt` recorded 2630 pass / 0 fail plus senpi-task 1840 pass / 0 fail and tsgo OK at `9e7a5aaa1` on `mengmotaMac`.
 
 Format per root `AGENTS.md` evidence bullets (WHAT WAS TESTED / OBSERVED / WHY IT IS ENOUGH / OMITTED). No tokens, auth.json bodies, or API keys are copied into this index.
 
 Todo dirs listed: 16 (01–13 and 15–16 live under this slug; **14 lives in a sibling slug** noted below).
+
+## F3
+
+- **WHAT WAS TESTED:** First F3 live run against the pre-rebase tree using senpi `2026.9.2-4`.
+- **WHAT WAS OBSERVED:** Positive and child runs passed with real `x_search results:` headers; two billable `x_search` calls were used. Artifacts: `F3/`.
+- **WHY IT IS ENOUGH:** Proves the peer-dependency senpi binary can discover and execute the extension search tool in the initial live QA.
+- **WHAT WAS OMITTED:** Explore scenario and unredacted credentials/transcripts; sandbox auth copies were shredded.
+
+## F3-final
+
+- **WHAT WAS TESTED:** Final rebased tree at `9e7a5aaa1` with senpi `2026.9.3-2` after dev's peer bump, using the live positive, quick child, and explore scenarios.
+- **WHAT WAS OBSERVED:** Positive returned 7 results across 28 URLs; quick child produced 1 `x_search results:` header; explore was denied with `isError`; two billable calls were made; sandboxes were shredded. Artifacts: `F3-final/`.
+- **WHY IT IS ENOUGH:** Confirms tool discovery, root execution, child execution, curated explore denial, billing bound, and credential/sandbox cleanup on the final rebased tree.
+- **WHAT WAS OMITTED:** Unredacted credentials and transcripts; explore made no billable network call.
+
+## Version note
+
+PATH senpi `2026.8.27` indexes only MCP tools in `tool_search`, so extension tools with `exposure: "search"` are not discoverable there. The plugin's peer floor (`2026.9.2-4`, now `2026.9.3-2`) indexes extension exposure; the driver resolves `node_modules/.bin/senpi` by default and records `senpiBin`/`senpiVersion`.
 
 ## 01-params
 
