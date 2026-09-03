@@ -14,6 +14,9 @@
 - TDD RED:
   `bun test script/ci-root-test-partition.test.ts` against the contract before
   telemetry implementation.
+- Senpi coverage TDD RED:
+  `bun test script/ci-root-test-partition.test.ts` after adding the Windows
+  Senpi telemetry contract and before changing `.github/workflows/ci.yml`.
 - Contract GREEN:
   `bun test script/ci-root-test-partition.test.ts`.
 - Required local gate:
@@ -51,6 +54,25 @@
   returned exit code `0`, and the full CI run remained green.
 - RED failed for the intended reason with the exact diagnostic:
   `windows telemetry contract: missing post-test capture`.
+- Six of nine observed `windows-latest` failures occurred in
+  `senpi-compatibility`, while only three occurred in the instrumented root
+  test shards. The Senpi failures included `memory run supervisor > released
+  child`, `reflection and dream run reconciliation`, `ordered delivery
+  mailbox`, and three `assembled DAG runtime` cases.
+- Run
+  [33703009335](https://github.com/code-yeongyu/oh-my-openagent/actions/runs/33703009335)
+  failed in `senpi-compatibility (windows-latest)` on `assembled DAG runtime >
+  #given an unknown node skill` and produced no Senpi telemetry because that
+  job was not instrumented.
+- The Senpi coverage RED failed with
+  `Windows Senpi compatibility tests must be telemetry-wrapped`, received
+  workflow step index `-1`, and exited `1`. The full RED and GREEN outputs are
+  appended to `tdd-red.txt`.
+- After the workflow change, the focused GREEN passed 16 tests with 93
+  expectations and exited `0`.
+- The coverage-extension two-file gate passed 37 tests with 151 expectations,
+  and `actionlint -shellcheck= .github/workflows/ci.yml` exited `0` with no
+  output.
 - The focused GREEN run passed 15 tests with 81 expectations.
 - The final required two-file run passed 36 tests with 139 expectations.
 - `actionlint -shellcheck=` exited 0 with no output.
@@ -75,6 +97,14 @@ captured the expected fields for all three real Windows Bun invocations while
 all 18 jobs passed. Together, the contract tests, isolated live Senpi run, and
 downloaded Windows artifacts cover both the collector contract and its
 observable behavior in the required CI environment.
+
+The coverage extension applies that same collector to the flaky
+`bun test packages/omo-senpi` invocation on Windows only. It leaves the
+Linux/macOS Bash step unchanged, preserves the preceding Windows build, pack,
+daemon test, typecheck, and evidence-resolver order, exits with the wrapped
+test's real status, and uploads `senpi-compatibility.json` from a separate
+non-gating `if: always()` artifact step. This closes the larger uncovered
+surface represented by six of the nine observed Windows failures.
 
 ## What was omitted
 
