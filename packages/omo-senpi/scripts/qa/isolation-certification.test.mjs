@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
 	changedSnapshotPaths,
-	directoryIdentityAvailable,
 	isolationVerdict,
 	scopedIsolationVerdict,
 	snapshotDirectory,
@@ -12,7 +11,7 @@ import {
 
 const TINY_LIMITS = { maxFiles: 10, maxBytes: 4, maxEntries: 10 };
 const protectedState = { snapshot: new Map(), complete: true, errors: [] };
-const fdIt = test.skipIf(!directoryIdentityAvailable());
+const fdIt = test.skipIf(process.platform !== "linux");
 
 fdIt(
 	"#given an incomplete broad real-home observation and complete controlled roots #when verdicts are built #then broad certification fails closed while the scoped lane certifies",

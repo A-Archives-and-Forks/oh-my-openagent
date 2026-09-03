@@ -16,7 +16,6 @@ import { join } from "node:path";
 import {
 	changedSnapshotPaths,
 	classifyObservedChanges,
-	directoryIdentityAvailable,
 	isolationVerdict,
 	protectedSnapshotsUntouched,
 	snapshotDirectory,
@@ -24,7 +23,7 @@ import {
 } from "./isolation-state.mjs";
 
 const LIMITS = { maxFiles: 10, maxBytes: 1024, maxEntries: 10 };
-const fdIt = test.skipIf(!directoryIdentityAvailable());
+const fdIt = test.skipIf(process.platform !== "linux");
 
 function completeProtected() {
 	return { snapshot: new Map(), complete: true, errors: [] };

@@ -12,10 +12,59 @@ import {
 } from "./isolation-state.mjs";
 
 const LIMITS = { maxFiles: 10, maxBytes: 1024, maxEntries: 10 };
+const linuxIt = test.skipIf(process.platform !== "linux");
+const unsupportedNativeIt = test.skipIf(process.platform === "linux");
 
 function codedError(code) {
 	return Object.assign(new Error(code), { code });
 }
+
+linuxIt(
+	"#given a native Linux runtime #when directory identity is checked #then secure traversal support is active",
+	() => {
+		expect(directoryIdentityAvailable()).toBe(true);
+	},
+);
+
+unsupportedNativeIt(
+	"#given an unsupported native runtime claims Linux #when a missing root is created #then the claim cannot elevate traversal support",
+	() => {
+		const parent = mkdtempSync(join(tmpdir(), "omo-senpi-native-capability-"));
+		try {
+			const root = join(parent, "missing");
+			const before = snapshotDirectory(root, LIMITS, { platform: "linux" });
+			mkdirSync(root);
+			writeFileSync(join(root, "created.json"), "mutated");
+			const after = snapshotDirectory(root, LIMITS, { platform: "linux" });
+			const protectedState = {
+				snapshot: new Map(),
+				complete: true,
+				errors: [],
+			};
+
+			expect(before.complete).toBe(false);
+			expect(before.errors).toEqual([
+				{ path: ".", code: "DIRECTORY_IDENTITY_UNAVAILABLE" },
+			]);
+			expect(after.complete).toBe(false);
+			expect(after.errors).toEqual(before.errors);
+			expect(
+				scopedIsolationVerdict([{ name: "HOME", before, after }]).certified,
+			).toBe(false);
+			expect(
+				isolationVerdict({
+					beforeProtected: protectedState,
+					afterProtected: protectedState,
+					beforeObserved: before,
+					afterObserved: after,
+					observedChangedPaths: [],
+				}).untouched,
+			).toBe(false);
+		} finally {
+			rmSync(parent, { recursive: true, force: true });
+		}
+	},
+);
 
 test("#given Darwin lacks incremental descriptor enumeration #when isolation is observed #then capability failure is explicit and cannot certify", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-darwin-descriptor-"));

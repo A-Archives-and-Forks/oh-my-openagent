@@ -21,7 +21,7 @@ import * as isolationState from "./isolation-state.mjs";
 
 const { changedSnapshotPaths, snapshotDirectory, snapshotProtectedState } =
 	isolationState;
-const fdIt = test.skipIf(!isolationState.directoryIdentityAvailable());
+const fdIt = test.skipIf(process.platform !== "linux");
 const noFollowIt = test.skipIf(constants.O_NOFOLLOW === undefined);
 
 noFollowIt(

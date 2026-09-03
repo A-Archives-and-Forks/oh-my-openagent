@@ -28,7 +28,7 @@ const {
 } = isolationState;
 
 const LIMITS = { maxFiles: 10, maxBytes: 1024, maxEntries: 10 };
-const fdIt = test.skipIf(!isolationState.directoryIdentityAvailable());
+const fdIt = test.skipIf(process.platform !== "linux");
 
 function codedError(code) {
 	return Object.assign(new Error(code), { code });
@@ -347,9 +347,10 @@ test("#given a non-directory root component #when snapshotDirectory runs #then t
 		expect(result.errors).toEqual([
 			{
 				path: ".",
-				code: isolationState.directoryIdentityAvailable()
-					? "ENOTDIR"
-					: "DIRECTORY_IDENTITY_UNAVAILABLE",
+				code:
+					process.platform === "linux"
+						? "ENOTDIR"
+						: "DIRECTORY_IDENTITY_UNAVAILABLE",
 			},
 		]);
 	} finally {

@@ -83,6 +83,7 @@ export function protectedSnapshotsUntouched(before, after) {
 
 export function directoryIdentityAvailable(platform = process.platform) {
 	return (
+		process.platform === "linux" &&
 		platform === "linux" &&
 		constants.O_DIRECTORY !== undefined &&
 		constants.O_NOFOLLOW !== undefined

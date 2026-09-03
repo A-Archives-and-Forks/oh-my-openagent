@@ -154,7 +154,7 @@ function parseLastJsonLine(stdout: string): Record<string, unknown> {
 	return JSON.parse(line);
 }
 
-const fdIt = test.skipIf(!directoryIdentityAvailable());
+const fdIt = test.skipIf(process.platform !== "linux");
 
 describe("task 13 senpi QA scripts", () => {
 	test("#given QA scripts resolve PATH binaries #when source is inspected #then they do not shell out through command lookup", () => {
