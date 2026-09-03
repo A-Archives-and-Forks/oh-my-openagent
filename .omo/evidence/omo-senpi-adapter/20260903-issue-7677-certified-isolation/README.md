@@ -1,6 +1,6 @@
 # Issue #7677 bounded live isolation certification
 
-Canonical acceptance evidence for final merged source head `836f37cce8ba2865eea213889dacd01b699d40f7`. Source implementation was committed separately at `0d003f8ab6db96c4f32035146ff028ed3a147109`; `origin/dev` advanced during verification, was merged at `c07e5cb3b`, and the upstream QA compatibility export was restored at `836f37cce` before the final gate and live run.
+Canonical acceptance evidence for final merged source head `92821b3855371c44d9085c27dfcb295e46bb7817`. Source implementation was committed separately at `0d003f8ab6db96c4f32035146ff028ed3a147109`; `origin/dev` advanced during verification, was merged at `c07e5cb3b`, and the upstream QA compatibility export was restored at `836f37cce` before the final gate and live run.
 
 ## What was tested
 
@@ -28,6 +28,6 @@ Traversal is bound to a no-follow directory descriptor, checks descriptor identi
 
 ## Scope and omissions
 
-`origin/dev` at `cda52da52ff841be64823f23ba95139c0cd71fcd` is merged. Relative to that base, scope checks show zero changes in `script/**`, `scripts/**`, native packages/manifests, package manifests, lock/pins/patches, OAuth, CI, generated bundles, and unrelated source (`repository-integrity.txt`).
+`origin/dev` at `7e8ce5e147434677d76152b52e8306e96bcaefa6` is merged. Relative to that base, scope checks show zero changes in `script/**`, `scripts/**`, native packages/manifests, package manifests, lock/pins/patches, OAuth, CI, generated bundles, and unrelated source (`repository-integrity.txt`).
 
 The prior `c42f893c9` run is retained as historical fail-closed broad-scan proof but is explicitly superseded as acceptance evidence. Raw credential values, protected hashes, auth headers, model transcripts, environment dumps, user-specific absolute paths, and random sandbox names are omitted. The live payload is sanitized while retaining all deciding machine fields.
