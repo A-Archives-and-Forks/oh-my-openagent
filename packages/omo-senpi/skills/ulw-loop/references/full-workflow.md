@@ -126,7 +126,7 @@ Loop per goal. Cap at 5 cycles per goal. Cap identical same-criterion failures a
    - PASS: `omo-agent-toolkit ulw-loop record-evidence --goal-id <id> --criterion-id <id> --status pass --evidence "<observable> @tree:<short-tree> | <cleanup receipt>" --json`
    - FAIL: `omo-agent-toolkit ulw-loop record-evidence --goal-id <id> --criterion-id <id> --status fail --evidence "<observable> @tree:<short-tree> | <cleanup receipt>" --notes "<diagnosis>" --json`
    - BLOCKED: `omo-agent-toolkit ulw-loop record-evidence --goal-id <id> --criterion-id <id> --status blocked --evidence "<observable>" --notes "<safety/blocker/leftover-state>" --json`
-9. If actual does not match expected, diagnose, respawn the right-sized worker with the failure context to fix minimally, and rerun the SAME criterion (including a fresh cleanup).
+9. If actual does not match expected, diagnose, respawn the right-sized worker with the failure context to fix at the root cause, and rerun the SAME criterion (including a fresh cleanup).
 10. After 3 same-criterion failures, exit the goal with diagnosis.
 11. After 5 cycles on one goal without required criteria passing, checkpoint failed.
 12. Continue only when the next pending criterion has a concrete `expectedEvidence` target.
@@ -185,7 +185,7 @@ Use steering only for structured evidence-backed mutation. Reject natural-langua
 
 | Kind | When to use | Required fields |
 |------|-------------|-----------------|
-| add_subgoal | Real blocker found; new story required | `--title`, `--objective`, `--evidence`, `--rationale` |
+| add_subgoal | Any defect met mid-run, pre-existing included, or a real blocker; it becomes a story fixed to the ideal state, never a follow-up note. | `--title`, `--objective`, `--evidence`, `--rationale` |
 | split_subgoal | Story too large; needs decomposition | `--goal-id`, `--children` JSON, `--evidence`, `--rationale` |
 | reorder_pending | Discovered dependency order | `--order` JSON array of ids, `--evidence`, `--rationale` |
 | revise_pending_wording | Title/objective ambiguous | `--goal-id`, `--title?`, `--objective?`, `--evidence`, `--rationale` |

@@ -29,12 +29,7 @@ When the injected ultrawork directive accompanies this skill, its goal/notepad/t
 - If `omo-agent-toolkit ulw-loop create-goals` says the existing aggregate is already complete, start unrelated new work with a fresh `--session-id <new-id>` instead of steering or forcing the completed default state. Use `--force` only to intentionally overwrite completed evidence.
 - Every success criterion needs observable evidence from a real surface: a channel (terminal/TUI via the xterm.js web terminal, HTTP, browser, computer-use) or, for CLI- or data-shaped criteria, an auxiliary surface (CLI stdout, DB diff, parsed config dump).
 - Evidence is bound to the tree it was captured at (`git rev-parse --short "HEAD^{tree}"`); it goes stale only when tracked content changes — a rebase or amend that keeps the tree identical keeps it valid. When the tree differs, re-run at the current HEAD and re-record, never relabel or regenerate. Record only after cleanup receipts exist.
-- Delegate code edits, test writes, fixes, and QA execution to right-sized omo-senpi subagents through the native `task` tool.
-- Plan and reviewer agents may run for a long time; spawn them with `run_in_background: true` and keep doing independent root work.
-- For work likely to exceed one wait cycle, require the child to send `WORKING: <task> - <current phase>` before long reading, testing, or review passes, and `BLOCKED: <reason>` only when it cannot progress.
-- Track spawned task ids locally. Completion and progress arrive as injected notifications; use `task_output` for at most one midpoint status or transcript check per child, never a polling loop.
-- While children run, surface the active subagent count, task ids, and latest `WORKING:` phase.
-- If a live child needs context or correction, send it with `task_send`. Fallback only when the child completed without the deliverable, explicitly reported `BLOCKED:`, or is no longer running; then record inconclusive and spawn a smaller native `task` with the missing deliverable.
+- Delegate code edits, test writes, fixes, and QA execution to right-sized omo-senpi subagents through the native `task` tool or through `workflow` nodes when the phase's lanes carry ordering.
 - Use `git-master` for git-tracked edits: inspect recent and touched-path commit history, then commit each verified work unit atomically in the repository's observed language, scope, and message style with only that unit's files staged. Never carry verified units into a later omnibus commit.
 
 ## Team mode: decide it, do not default to it
