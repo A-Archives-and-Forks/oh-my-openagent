@@ -5,7 +5,10 @@ import {
 	fstatSync,
 	lstatSync,
 	mkdtempSync,
+	opendirSync,
 	openSync,
+	readSync,
+	renameSync,
 	rmSync,
 	statSync,
 	symlinkSync,
@@ -225,22 +228,119 @@ test("#given bounded observation root enumeration fails #when snapshotDirectory 
 	}
 });
 
-test("#given digest enumeration and reads fail through injected seams #when digestDirectory runs #then transient absence is tolerated and inaccessible IO propagates", () => {
+test("#given persistent entries exceed maxEntries #when the directory is enumerated #then readSync stops after bounded lookahead", () => {
+	// Given
+	const root = mkdtempSync(join(tmpdir(), "omo-senpi-entry-enumeration-"));
+	try {
+		for (let index = 0; index < 8; index += 1)
+			writeFileSync(join(root, `persistent-${index}`), "x");
+		let readCalls = 0;
+		const io = {
+			opendirSync(path) {
+				const directory = opendirSync(path);
+				return {
+					readSync() {
+						readCalls += 1;
+						return directory.readSync();
+					},
+					closeSync: () => directory.closeSync(),
+				};
+			},
+		};
+
+		// When
+		const result = snapshotDirectory(root, { ...LIMITS, maxEntries: 1 }, io);
+
+		// Then
+		expect({
+			readCalls,
+			complete: result.complete,
+			truncated: result.truncated,
+		}).toEqual({ readCalls: 2, complete: false, truncated: true });
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("#given a persistent file appears after enumeration #when final directory metadata is checked #then the snapshot fails closed", () => {
+	// Given
+	const root = mkdtempSync(join(tmpdir(), "omo-senpi-late-persistent-"));
+	try {
+		let fstatCalls = 0;
+		const io = {
+			fstatDirectorySync(fd, options) {
+				fstatCalls += 1;
+				if (fstatCalls === 2)
+					writeFileSync(join(root, "late-persistent"), "late");
+				const metadata = fstatSync(fd, options);
+				return fstatCalls === 1
+					? metadata
+					: {
+							...metadata,
+							mtimeNs: metadata.mtimeNs + 1n,
+							isDirectory: () => true,
+						};
+			},
+		};
+
+		// When
+		const result = snapshotDirectory(root, LIMITS, io);
+
+		// Then
+		expect(result.complete).toBe(false);
+		expect(result.errors).toEqual([{ path: ".", code: "FILE_CHANGED" }]);
+		expect(result.snapshot.has("late-persistent")).toBe(false);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("#given a non-directory root component #when snapshotDirectory runs #then ENOTDIR fails closed", () => {
+	// Given
+	const parent = mkdtempSync(join(tmpdir(), "omo-senpi-enotdir-snapshot-"));
+	try {
+		const file = join(parent, "file");
+		writeFileSync(file, "not a directory");
+
+		// When
+		const result = snapshotDirectory(join(file, "agent"), LIMITS);
+
+		// Then
+		expect(result.complete).toBe(false);
+		expect(result.errors).toEqual([{ path: ".", code: "ENOTDIR" }]);
+	} finally {
+		rmSync(parent, { recursive: true, force: true });
+	}
+});
+
+test("#given a non-directory root component #when digestDirectory runs #then ENOTDIR is not reported as absence", () => {
+	// Given
+	const parent = mkdtempSync(join(tmpdir(), "omo-senpi-enotdir-digest-"));
+	try {
+		const file = join(parent, "file");
+		writeFileSync(file, "not a directory");
+
+		// When / Then
+		expect(() => digestDirectory(join(file, "agent"))).toThrow("ENOTDIR");
+	} finally {
+		rmSync(parent, { recursive: true, force: true });
+	}
+});
+
+test("#given digest enumeration fails through injected seams #when digestDirectory runs #then only ENOENT is absence and other IO propagates", () => {
 	// Given
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-digest-io-"));
 	try {
-		for (const code of ["ENOENT", "ENOTDIR"]) {
-			expect(
-				digestDirectory(root, {
-					readdir() {
-						throw codedError(code);
-					},
-				}),
-			).toBe("absent");
-		}
+		expect(
+			digestDirectory(root, {
+				readdir() {
+					throw codedError("ENOENT");
+				},
+			}),
+		).toBe("absent");
 
 		// When / Then
-		for (const code of ["EACCES", "EIO"]) {
+		for (const code of ["ENOTDIR", "EACCES", "EIO"]) {
 			expect(() =>
 				digestDirectory(root, {
 					readdir() {
@@ -404,6 +504,57 @@ test("#given directory traversal and close both fail #when the tree is snapshott
 	}
 });
 
+test("#given post-open directory replacement and failing closes #when setup aborts #then both handles close and replacement remains primary", () => {
+	// Given
+	const root = mkdtempSync(join(tmpdir(), "omo-senpi-directory-setup-race-"));
+	try {
+		let rootStats = 0;
+		let directoryCloseCalls = 0;
+		let descriptorCloseCalls = 0;
+		const io = {
+			lstatSync(path, options) {
+				const metadata = lstatSync(path, options);
+				rootStats += 1;
+				return rootStats === 1
+					? metadata
+					: { ...metadata, ino: metadata.ino + 1n, isDirectory: () => true };
+			},
+			opendirSync(path) {
+				const directory = opendirSync(path);
+				return {
+					readSync: () => directory.readSync(),
+					closeSync() {
+						directoryCloseCalls += 1;
+						directory.closeSync();
+						throw codedError("EDIRECTORY_CLOSE");
+					},
+				};
+			},
+			closeDirectorySync(fd) {
+				descriptorCloseCalls += 1;
+				closeSync(fd);
+				throw codedError("EDESCRIPTOR_CLOSE");
+			},
+		};
+
+		// When
+		const result = snapshotDirectory(root, LIMITS, io);
+
+		// Then
+		expect({
+			directoryCloseCalls,
+			descriptorCloseCalls,
+			errors: result.errors,
+		}).toEqual({
+			directoryCloseCalls: 1,
+			descriptorCloseCalls: 1,
+			errors: [{ path: ".", code: "FILE_REPLACED" }],
+		});
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("#given successful raw directory traversal and descriptor close failure #when the tree is snapshotted #then the close error surfaces", () => {
 	// Given
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-raw-directory-close-"));
@@ -468,6 +619,50 @@ test("#given a regular file uses a volatile directory name #when the tree is sna
 		expect(result.errors).toEqual([]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("#given a regular file becomes a symlink after reading #when final identity is checked #then the symlink target is never dereferenced", () => {
+	// Given
+	const root = mkdtempSync(join(tmpdir(), "omo-senpi-post-read-symlink-"));
+	const target = mkdtempSync(join(tmpdir(), "omo-senpi-post-read-target-"));
+	try {
+		const path = join(root, "state.json");
+		const oldPath = join(root, "state.old");
+		const targetPath = join(target, "secret");
+		writeFileSync(path, "safe");
+		writeFileSync(targetPath, "secret");
+		let replaced = false;
+		let targetDereferenced = false;
+		const io = {
+			readSync(fd, buffer, offset, length, position) {
+				const count = readSync(fd, buffer, offset, length, position);
+				if (!replaced) {
+					replaced = true;
+					renameSync(path, oldPath);
+					symlinkSync(targetPath, path);
+				}
+				return count;
+			},
+			statSync(file, options) {
+				if (file === path || file.endsWith("/state.json"))
+					targetDereferenced = true;
+				return statSync(file, options);
+			},
+		};
+
+		// When
+		const result = snapshotDirectory(root, LIMITS, io);
+
+		// Then
+		expect(targetDereferenced).toBe(false);
+		expect(result.complete).toBe(false);
+		expect(result.errors).toEqual([
+			{ path: "state.json", code: "FILE_REPLACED" },
+		]);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+		rmSync(target, { recursive: true, force: true });
 	}
 });
 

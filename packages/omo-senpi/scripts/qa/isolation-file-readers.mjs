@@ -64,7 +64,9 @@ export function hashFileBounded(
 			bytesRead += count;
 		}
 		const finished = fileMetadata(io.fstatSync(fd, { bigint: true }));
-		const pathMetadata = fileMetadata(io.statSync(file.path, { bigint: true }));
+		const pathMetadata = fileMetadata(
+			io.lstatSync(file.path, { bigint: true }),
+		);
 		if (!sameIdentity(finished, pathMetadata))
 			throw snapshotError("FILE_REPLACED");
 		if (
@@ -176,9 +178,12 @@ export function errorCode(error) {
 		: "UNKNOWN";
 }
 
+export function isMissingSnapshotEntryError(error) {
+	return errorCode(error) === "ENOENT";
+}
+
 export function isTransientSnapshotEntryError(error) {
-	const code = errorCode(error);
-	return code === "ENOENT" || code === "ENOTDIR";
+	return isMissingSnapshotEntryError(error) || errorCode(error) === "ENOTDIR";
 }
 
 export function fileMetadata(stat) {

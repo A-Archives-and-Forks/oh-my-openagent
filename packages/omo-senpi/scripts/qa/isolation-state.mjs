@@ -8,6 +8,7 @@ import {
 	fileMetadata,
 	hashFileBounded,
 	hashSymlinkBounded,
+	isMissingSnapshotEntryError,
 	isTransientSnapshotEntryError,
 	readProtectedFileStable,
 } from "./isolation-file-readers.mjs";
@@ -280,10 +281,17 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 	try {
 		beforeOpen = io.lstatSync(boundRoot, { bigint: true });
 	} catch (error) {
-		if (!isTransientSnapshotEntryError(error))
-			state.errors.push({ path: currentRel, code: errorCode(error) });
-		else if (currentRoot !== state.root)
+		if (isMissingSnapshotEntryError(error)) {
+			if (currentRoot !== state.root)
+				state.errors.push({ path: currentRel, code: "FILE_REPLACED" });
+		} else if (
+			currentRoot !== state.root &&
+			isTransientSnapshotEntryError(error)
+		) {
 			state.errors.push({ path: currentRel, code: "FILE_REPLACED" });
+		} else {
+			state.errors.push({ path: currentRel, code: errorCode(error) });
+		}
 		return;
 	}
 	if (!beforeOpen.isDirectory()) {
@@ -334,6 +342,7 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 				? "FILE_REPLACED"
 				: errorCode(error),
 		});
+		if (directory !== undefined) closeDirectoryHandle(directory);
 		if (directoryFd !== undefined) closeDirectoryFd(directoryFd, io);
 		return;
 	}
@@ -355,10 +364,6 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 				relative(state.root, path),
 				state.pathStyle,
 			);
-			entries.push({ entry, path, rel });
-		}
-		entries.sort((left, right) => compareCanonicalText(left.rel, right.rel));
-		for (const { entry, path, rel } of entries) {
 			const boundPath = join(descriptorRoot, entry.name);
 			let pathStat;
 			try {
@@ -375,11 +380,16 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 				}
 				if (VOLATILE_SUBTREES.has(rel)) continue;
 			}
+			if (pathStat.isFile() && rel.endsWith(".log")) continue;
 			state.entries += 1;
 			if (state.entries > limits.maxEntries) {
 				state.truncated = true;
 				return;
 			}
+			entries.push({ entry, path, rel, pathStat, boundPath });
+		}
+		entries.sort((left, right) => compareCanonicalText(left.rel, right.rel));
+		for (const { path, rel, pathStat, boundPath } of entries) {
 			if (pathStat.isDirectory()) {
 				collectFilesBounded(path, state, boundPath);
 				if (state.truncated) return;
@@ -389,7 +399,6 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 				state.errors.push({ path: rel, code: "UNSUPPORTED_ENTRY" });
 				continue;
 			}
-			if (pathStat.isFile() && rel.endsWith(".log")) continue;
 			if (state.files >= limits.maxFiles) {
 				state.truncated = true;
 				return;
@@ -441,16 +450,26 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 				code: "FILE_REPLACED",
 			});
 		assertDirectoryPathIdentity(currentRoot, beforeMetadata, io);
+		if (
+			state.errors.length === errorsBeforeTraversal &&
+			(beforeMetadata.size !== finishedMetadata.size ||
+				beforeMetadata.mtimeNs !== finishedMetadata.mtimeNs ||
+				beforeMetadata.ctimeNs !== finishedMetadata.ctimeNs)
+		)
+			throw Object.assign(new Error("FILE_CHANGED"), {
+				code: "FILE_CHANGED",
+			});
 	} catch (error) {
 		traversalFailed = true;
 		state.errors.push({ path: currentRel, code: errorCode(error) });
 	} finally {
-		try {
-			directory.closeSync();
-		} catch (error) {
-			if (!traversalFailed && state.errors.length === errorsBeforeTraversal)
-				state.errors.push({ path: currentRel, code: errorCode(error) });
-		}
+		const directoryCloseError = closeDirectoryHandle(directory);
+		if (
+			directoryCloseError !== undefined &&
+			!traversalFailed &&
+			state.errors.length === errorsBeforeTraversal
+		)
+			state.errors.push({ path: currentRel, code: directoryCloseError });
 		const primaryFailed =
 			traversalFailed || state.errors.length !== errorsBeforeTraversal;
 		if (directoryFd !== undefined) {
@@ -478,6 +497,15 @@ function directoryDescriptorPath(fd) {
 	if (process.platform === "linux") return `/proc/self/fd/${fd}`;
 	if (process.platform === "darwin") return `/dev/fd/${fd}`;
 	return null;
+}
+
+function closeDirectoryHandle(directory) {
+	try {
+		directory.closeSync();
+	} catch (error) {
+		return errorCode(error);
+	}
+	return undefined;
 }
 
 function closeDirectoryFd(fd, io) {
@@ -532,7 +560,8 @@ function collectFiles(root, files, readdir, isRoot = false) {
 	try {
 		entries = readdir(root, { withFileTypes: true });
 	} catch (error) {
-		if (isTransientSnapshotEntryError(error)) return !isRoot;
+		if (isMissingSnapshotEntryError(error)) return !isRoot;
+		if (!isRoot && isTransientSnapshotEntryError(error)) return true;
 		throw error;
 	}
 	for (const entry of entries) {

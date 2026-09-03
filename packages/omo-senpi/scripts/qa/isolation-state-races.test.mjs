@@ -141,7 +141,7 @@ test("#given only volatile settings stamps change #when bounded complete-tree sn
 	}
 });
 
-test("#given an enumerated entry vanishes before stat #when the bounded complete-tree snapshot runs #then the transient entry is tolerated", () => {
+test("#given an enumerated entry vanishes before stat #when final directory metadata is checked #then the mutation fails closed without an entry error", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-transient-entry-"));
 	try {
 		const path = join(root, "vanished.tmp");
@@ -154,7 +154,7 @@ test("#given an enumerated entry vanishes before stat #when the bounded complete
 			opendirSync,
 			readFileSync,
 			readSync,
-			statSync(file, options) {
+			lstatSync(file, options) {
 				if (!removed && (file === path || file.endsWith("/vanished.tmp"))) {
 					removed = true;
 					rmSync(path);
@@ -162,7 +162,7 @@ test("#given an enumerated entry vanishes before stat #when the bounded complete
 					error.code = "ENOENT";
 					throw error;
 				}
-				return statSync(file, options);
+				return lstatSync(file, options);
 			},
 		};
 		const scan = snapshotDirectory(
@@ -170,9 +170,9 @@ test("#given an enumerated entry vanishes before stat #when the bounded complete
 			{ maxFiles: 10, maxBytes: 1024, maxEntries: 10 },
 			io,
 		);
-		expect(scan.complete).toBe(true);
+		expect(scan.complete).toBe(false);
 		expect(scan.truncated).toBe(false);
-		expect(scan.errors).toEqual([]);
+		expect(scan.errors).toEqual([{ path: ".", code: "FILE_CHANGED" }]);
 		expect([...scan.snapshot.keys()]).toEqual(["."]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });

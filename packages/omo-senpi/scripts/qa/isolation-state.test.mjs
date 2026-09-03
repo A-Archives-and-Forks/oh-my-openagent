@@ -91,6 +91,27 @@ test("#given volatile root entries precede one persistent file #when scanned at 
 	}
 });
 
+test("#given a volatile log precedes one persistent file #when scanned at the entry limit #then the log consumes no entry budget", () => {
+	const root = mkdtempSync(join(tmpdir(), "omo-senpi-volatile-log-budget-"));
+	try {
+		writeFileSync(join(root, "a.log"), "volatile");
+		writeFileSync(join(root, "stable"), "stable");
+
+		const scan = snapshotDirectory(root, {
+			maxEntries: 1,
+			maxFiles: 1,
+			maxBytes: 100,
+		});
+
+		expect(scan.complete).toBe(true);
+		expect(scan.truncated).toBe(false);
+		expect(scan.bytesRead).toBe(6);
+		expect([...scan.snapshot.keys()]).toEqual([".", "stable"]);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
 test("#given a missing root and empty directories #when snapshots are compared #then persistent directory creation and deletion are observed", () => {
 	const parent = mkdtempSync(join(tmpdir(), "omo-senpi-directory-identity-"));
 	const root = join(parent, "agent");
