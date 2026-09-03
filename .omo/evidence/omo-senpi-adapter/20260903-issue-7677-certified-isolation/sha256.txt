@@ -1,0 +1,13 @@
+e898a4ceb29a6c251e147d6192320b87dea3c20143dffb7aed83df0cdf4b005d  .omo/evidence/omo-senpi-adapter/20260903-issue-7677-certified-isolation/biome.txt
+e836d209cb76aa613da40ae669dea96040bcc085fb4003f00dea99b8f91d5e0b  .omo/evidence/omo-senpi-adapter/20260903-issue-7677-certified-isolation/driver-self-test.txt
+9245583bebd3ceea640e47b7e379ecf7fe1a4a85d31e1e8f61530c86d6ba811b  .omo/evidence/omo-senpi-adapter/20260903-issue-7677-certified-isolation/focused-seven-suites-66-tests.log
+721a78424ff107f47174085291591a2c6e9e71ede1d28d865f8c7b164e5c89eb  .omo/evidence/omo-senpi-adapter/20260903-issue-7677-certified-isolation/full-test-senpi-summary.txt
+a7c7eda4e98d79f13a7045b72e611b7c57f1da3d6b86cb4970a87bf7f88c836e  .omo/evidence/omo-senpi-adapter/20260903-issue-7677-certified-isolation/lsp-diagnostics.txt
+dac17a7182c2441a8eb70a9afbecaa1046c163509886136cd2e0d06f700cb915  .omo/evidence/omo-senpi-adapter/20260903-issue-7677-certified-isolation/no-excuse.txt
+2a7a62314ab4a3d11140fa9cdcf6e14ff3bf694bb9ce44944a3a36b274a74980  .omo/evidence/omo-senpi-adapter/20260903-issue-7677-certified-isolation/README.md
+55f9accf0b77aa6b4f578484090ce9028beb00cd8e6b5837fc302c29fcdd0fbf  .omo/evidence/omo-senpi-adapter/20260903-issue-7677-certified-isolation/real-driver-command.txt
+ad93d6c0b9f4e58068f60ff420490cba36edaa953721884864e7ff604bf2e18c  .omo/evidence/omo-senpi-adapter/20260903-issue-7677-certified-isolation/real-driver.jsonl
+b6051f8c2edce9fcfc9b7648b397b6ed1299551569b9401c70f7ac2e8a397166  .omo/evidence/omo-senpi-adapter/20260903-issue-7677-certified-isolation/red-first.txt
+367cc9afc1f5816baedf8e306d80b2762939f63836f74f4b5c7f1f4f78925ef7  .omo/evidence/omo-senpi-adapter/20260903-issue-7677-certified-isolation/repository-integrity.txt
+6807546ad8e83ca6fa4ee5e8e8174085cc4799354357ecadeffefd1c953ec316  .omo/evidence/omo-senpi-adapter/20260903-issue-7677-certified-isolation/source-head.txt
+a71ab46a452929ed4168efdfa8562470677112b103f8eb46163d3e00afd0f88a  .omo/evidence/omo-senpi-adapter/20260903-issue-7677-certified-isolation/typecheck.txt

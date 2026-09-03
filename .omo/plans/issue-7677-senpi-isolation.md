@@ -53,3 +53,14 @@ Reference: read-only `omo-pr7500-postmerge-cleanup` at `f4a4fc8613f1f1153f27ca3b
 - [x] Commit source and regressions separately with OMO attribution at `c42f893c953df103a38c42820568ccde34fcc215`.
 - [x] Produce a new head-specific 53-test receipt set and clearly supersede the old 40-test and 48-test receipts.
 - [x] Run fresh self-test, real driver, package typecheck, exact Biome, LSP/no-excuse, one full Senpi gate, and integrity checks.
+
+## Acceptance certification remediation at `b9500ddfc`
+
+- [x] RED: retain the broad real-home scan's fail-closed truncation and prove a separate complete scoped-root verdict can certify independently.
+- [x] RED: prove post-open directory replacement fails closed after traversal and all canonical path/error ordering is locale-independent.
+- [x] GREEN: add a controlled live certification lane over the synthetic HOME and XDG roots, seeded with decoy default Senpi/OMO persistent state under the existing global bounds.
+- [x] GREEN: capture the real QA child's selected HOME/USERPROFILE/XDG/SENPI agent environment and require exact sandbox routing plus operational PASS for certification.
+- [x] GREEN: bind traversal to no-follow directory descriptors, fail root-open/ABA races closed, revalidate identity/type after traversal, and use canonical code-point ordering.
+- [x] Run focused suites, driver self-test, package typecheck, exact Biome, LSP/no-excuse, one authoritative post-merge `bun run test:senpi`, and a fresh live driver from the exact source head.
+- [x] Fetch and merge advanced `origin/dev`; retain the upstream drive export contract and prove restricted/unrelated surfaces unchanged relative to the updated base.
+- [x] Commit source/regressions with OMO attribution, then refresh sanitized canonical evidence for a separate attributed evidence commit.

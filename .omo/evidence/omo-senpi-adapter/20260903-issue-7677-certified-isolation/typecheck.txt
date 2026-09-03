@@ -1,0 +1,3 @@
+Command: ./node_modules/.bin/tsgo --noEmit -p packages/omo-senpi/tsconfig.json
+Source head: 836f37cce8ba2865eea213889dacd01b699d40f7
+Exit: 0

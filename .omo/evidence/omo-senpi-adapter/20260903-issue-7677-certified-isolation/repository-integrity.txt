@@ -1,0 +1,21 @@
+Source head: 836f37cce8ba2865eea213889dacd01b699d40f7
+Fetched and merged origin/dev: cda52da52ff841be64823f23ba95139c0cd71fcd
+origin/dev is an ancestor of the final source head.
+git diff --check: PASS
+Restricted path checks relative to merged origin/dev (expected zero):
+script-and-scripts: 0
+native-and-manifests: 0
+lock-pins-patches: 0
+oauth: 0
+ci: 0
+generated: 0
+unrelated-source: 0
+Branch-owned acceptance-remediation source paths (source commits 0d003f8ab and 836f37cce; excludes merged upstream files):
+packages/omo-senpi/scripts/qa/drive.mjs
+packages/omo-senpi/scripts/qa/environment-receipt.ts
+packages/omo-senpi/scripts/qa/isolation-certification.test.mjs
+packages/omo-senpi/scripts/qa/isolation-review-blockers.test.mjs
+packages/omo-senpi/scripts/qa/isolation-state-races.test.mjs
+packages/omo-senpi/scripts/qa/isolation-state.mjs
+packages/omo-senpi/scripts/qa/isolation-ultrabrain-blockers.test.mjs
+packages/omo-senpi/scripts/qa/task-13.test.ts

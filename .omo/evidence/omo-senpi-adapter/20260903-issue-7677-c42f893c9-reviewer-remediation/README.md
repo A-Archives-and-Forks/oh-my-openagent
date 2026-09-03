@@ -1,6 +1,8 @@
 # Issue #7677 reviewer remediation at c42f893c9
 
-This directory is the canonical fresh receipt set for source head `c42f893c953df103a38c42820568ccde34fcc215`. It supersedes both earlier issue #7677 directories, including the original 40-test receipt and the later 48-test Oracle receipt. No result here relies on either prior run.
+> SUPERSEDED AS ACCEPTANCE EVIDENCE: this run remains the honest fail-closed proof that the broad real-home scan withholds certification at its 64 MiB bound. Use `../20260903-issue-7677-certified-isolation/` for the complete controlled live certification lane on the merged final source head.
+
+This directory is the historical receipt set for source head `c42f893c953df103a38c42820568ccde34fcc215`. It supersedes both earlier issue #7677 directories, including the original 40-test receipt and the later 48-test Oracle receipt. No result here relies on either prior run.
 
 ## Fixed contracts
 
