@@ -124,6 +124,7 @@ function mergeStoredMessages(
     merged.model = {
       providerID: checkpoint.model.providerID,
       modelID: checkpoint.model.modelID,
+      ...(checkpoint.model.variant ? { variant: checkpoint.model.variant } : {}),
     }
   }
 
