@@ -39,7 +39,8 @@ export function gitIsRepo(root: string): boolean {
 export function gitToplevel(cwd: string): string | null {
   try {
     const output = run(cwd, ["rev-parse", "--show-toplevel"]).trim()
-    return output.length === 0 ? null : output
+    // git prints forward slashes even on Windows; callers join and compare with node:path.
+    return output.length === 0 ? null : resolve(output)
   } catch {
     return null
   }
