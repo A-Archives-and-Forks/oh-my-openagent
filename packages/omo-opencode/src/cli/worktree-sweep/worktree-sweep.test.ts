@@ -423,9 +423,11 @@ describe("sweepWorktrees --apply", () => {
     const kept = path.join(base, "wt-kept")
 
     await addMergedWorktree(repo, "merged-branch", merged)
-    await addMergedWorktree(repo, "missing-branch", missing)
+    const mergedMetadata = git(merged, ["rev-parse", "--absolute-git-dir"]).trim()
+    const missingMetadata = path.join(path.dirname(mergedMetadata), "missing-fixture")
+    await fs.cp(mergedMetadata, missingMetadata, { recursive: true })
+    await fs.writeFile(path.join(missingMetadata, "gitdir"), `${path.join(missing, ".git")}\n`)
     await addUnmergedWorktree(repo, "unmerged-branch", kept)
-    await fs.rm(missing, { recursive: true, force: true })
 
     const result = await sweepWorktrees({ repos: [repo], apply: true })
 
@@ -433,6 +435,7 @@ describe("sweepWorktrees --apply", () => {
     const report = result.repos[0]!
     expect(report.removed).toEqual([merged])
     expect(report.failed).toEqual([])
+    expect(decisionFor(report, missing).decision).toBe("PRUNE")
 
     await expect(fs.stat(merged)).rejects.toThrow()
     expect(await fs.stat(kept)).toBeTruthy()

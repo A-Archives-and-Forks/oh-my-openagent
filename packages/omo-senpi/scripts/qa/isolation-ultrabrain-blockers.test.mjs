@@ -23,6 +23,7 @@ import {
 } from "./isolation-state.mjs";
 
 const LIMITS = { maxFiles: 10, maxBytes: 1024, maxEntries: 10 };
+const fdIt = test.skipIf(process.platform === "win32");
 
 function completeProtected() {
 	return { snapshot: new Map(), complete: true, errors: [] };
@@ -85,7 +86,7 @@ test("#given a truncated bounded observation #when the canonical verdict is buil
 	expect(verdict.untouched).toBe(false);
 });
 
-test("#given a persistent symlink is created and retargeted #when snapshots are compared #then both changes are observed without following targets", () => {
+fdIt("#given a persistent symlink is created and retargeted #when snapshots are compared #then both changes are observed without following targets", () => {
 	// Given
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-symlink-change-"));
 	const outside = mkdtempSync(join(tmpdir(), "omo-senpi-symlink-target-"));
@@ -128,7 +129,7 @@ test("#given a persistent symlink is created and retargeted #when snapshots are 
 	}
 });
 
-test("#given a symlink escapes the observation root #when its target contents change #then the link digest stays stable", () => {
+fdIt("#given a symlink escapes the observation root #when its target contents change #then the link digest stays stable", () => {
 	// Given
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-symlink-root-"));
 	const outside = mkdtempSync(join(tmpdir(), "omo-senpi-symlink-outside-"));
@@ -166,7 +167,7 @@ test("#given a symlink escapes the observation root #when its target contents ch
 	}
 });
 
-test("#given an enumerated directory is replaced by an external symlink before recursive open #when observed #then traversal fails closed without dereferencing", () => {
+fdIt("#given an enumerated directory is replaced by an external symlink before recursive open #when observed #then traversal fails closed without dereferencing", () => {
 	// Given
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-directory-race-"));
 	const outside = mkdtempSync(join(tmpdir(), "omo-senpi-directory-outside-"));

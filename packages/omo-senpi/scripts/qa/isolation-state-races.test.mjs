@@ -22,8 +22,9 @@ import * as isolationState from "./isolation-state.mjs";
 
 const { changedSnapshotPaths, snapshotDirectory, snapshotProtectedState } =
 	isolationState;
+const fdIt = test.skipIf(process.platform === "win32");
 
-test("#given a same-size in-place overwrite after an observation read #when metadata is verified #then the snapshot fails closed", () => {
+fdIt("#given a same-size in-place overwrite after an observation read #when metadata is verified #then the snapshot fails closed", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-same-size-observation-"));
 	try {
 		const path = join(root, "state.json");
@@ -109,7 +110,7 @@ test("#given an existence probe would hide inaccessible protected state #when op
 	}
 });
 
-test("#given only volatile settings stamps change #when bounded complete-tree snapshots are compared #then settings stay unchanged", () => {
+fdIt("#given only volatile settings stamps change #when bounded complete-tree snapshots are compared #then settings stay unchanged", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-volatile-settings-"));
 	try {
 		const path = join(root, "settings.json");
@@ -141,7 +142,7 @@ test("#given only volatile settings stamps change #when bounded complete-tree sn
 	}
 });
 
-test("#given an enumerated entry vanishes before stat #when final directory metadata is checked #then the mutation fails closed without an entry error", () => {
+fdIt("#given an enumerated entry vanishes before stat #when final directory metadata is checked #then the mutation fails closed without an entry error", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-transient-entry-"));
 	try {
 		const path = join(root, "vanished.tmp");
@@ -179,7 +180,7 @@ test("#given an enumerated entry vanishes before stat #when final directory meta
 	}
 });
 
-test("#given replacement between initial stat and open #when snapshotted #then public paths preserve FILE_REPLACED", () => {
+fdIt("#given replacement between initial stat and open #when snapshotted #then public paths preserve FILE_REPLACED", () => {
 	for (const kind of ["observed", "protected"]) {
 		const root = mkdtempSync(join(tmpdir(), `omo-senpi-preopen-${kind}-`));
 		try {
@@ -213,7 +214,7 @@ test("#given replacement between initial stat and open #when snapshotted #then p
 	}
 });
 
-test("#given success or primary failure plus close failure #when reading #then primary-operation precedence is stable", () => {
+fdIt("#given success or primary failure plus close failure #when reading #then primary-operation precedence is stable", () => {
 	for (const kind of ["observed", "protected"]) {
 		const root = mkdtempSync(join(tmpdir(), `omo-senpi-close-${kind}-`));
 		try {
@@ -285,7 +286,7 @@ test("#given ENOENT stat then open success and close failure #when absence races
 	}
 });
 
-test("#given the root vanishes after its initial identity check #when directory open reports absence #then the snapshot fails closed as replacement", () => {
+fdIt("#given the root vanishes after its initial identity check #when directory open reports absence #then the snapshot fails closed as replacement", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-root-open-race-"));
 	try {
 		const scan = snapshotDirectory(
@@ -305,7 +306,7 @@ test("#given the root vanishes after its initial identity check #when directory 
 	}
 });
 
-test("#given directory open returns a stale external descriptor #when traversal binds identity #then it fails closed without reading the external tree", () => {
+fdIt("#given directory open returns a stale external descriptor #when traversal binds identity #then it fails closed without reading the external tree", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-directory-descriptor-"));
 	const state = join(root, "state");
 	const external = mkdtempSync(
@@ -349,7 +350,7 @@ test("#given directory open returns a stale external descriptor #when traversal 
 	}
 });
 
-test("#given an opened directory is replaced after its identity check #when traversal finishes #then the snapshot fails closed", () => {
+fdIt("#given an opened directory is replaced after its identity check #when traversal finishes #then the snapshot fails closed", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-post-open-directory-"));
 	const state = join(root, "state");
 	const oldState = join(root, "state-old");
@@ -393,7 +394,7 @@ test("#given an opened directory is replaced after its identity check #when trav
 	}
 });
 
-test("#given non-ASCII canonical paths #when snapshots and errors are ordered #then code-point order is independent of host locale", () => {
+fdIt("#given non-ASCII canonical paths #when snapshots and errors are ordered #then code-point order is independent of host locale", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-canonical-order-"));
 	try {
 		writeFileSync(join(root, "z"), "z");

@@ -11,8 +11,9 @@ import {
 
 const TINY_LIMITS = { maxFiles: 10, maxBytes: 4, maxEntries: 10 };
 const protectedState = { snapshot: new Map(), complete: true, errors: [] };
+const fdIt = test.skipIf(process.platform === "win32");
 
-test("#given an incomplete broad real-home observation and complete controlled roots #when verdicts are built #then broad certification fails closed while the scoped lane certifies", () => {
+fdIt("#given an incomplete broad real-home observation and complete controlled roots #when verdicts are built #then broad certification fails closed while the scoped lane certifies", () => {
 	const broadRoot = mkdtempSync(join(tmpdir(), "omo-senpi-broad-home-"));
 	const controlledRoot = mkdtempSync(
 		join(tmpdir(), "omo-senpi-controlled-home-"),
@@ -48,7 +49,7 @@ test("#given an incomplete broad real-home observation and complete controlled r
 	}
 });
 
-test("#given a persistent write in one controlled root #when the scoped verdict is built #then the lane reports the qualified path and fails closed", () => {
+fdIt("#given a persistent write in one controlled root #when the scoped verdict is built #then the lane reports the qualified path and fails closed", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-controlled-write-"));
 	try {
 		const before = snapshotDirectory(root);

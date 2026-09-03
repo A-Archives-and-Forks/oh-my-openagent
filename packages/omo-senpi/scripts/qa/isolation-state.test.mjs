@@ -20,6 +20,7 @@ import * as isolationState from "./isolation-state.mjs";
 
 const { changedSnapshotPaths, snapshotDirectory, snapshotProtectedState } =
 	isolationState;
+const fdIt = test.skipIf(process.platform === "win32");
 
 test("#given protected and volatile files #when snapshots are compared #then only protected path changes affect isolation", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-protected-state-"));
@@ -42,7 +43,7 @@ test("#given protected and volatile files #when snapshots are compared #then onl
 	}
 });
 
-test("#given nested nonvolatile files within bounds #when scanned #then the relevant observation domain is complete", () => {
+fdIt("#given nested nonvolatile files within bounds #when scanned #then the relevant observation domain is complete", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-tree-scan-"));
 	try {
 		mkdirSync(join(root, "sessions"), { recursive: true });
@@ -69,7 +70,7 @@ test("#given nested nonvolatile files within bounds #when scanned #then the rele
 	}
 });
 
-test("#given volatile root entries precede one persistent file #when scanned at exact budgets #then volatility consumes no budget", () => {
+fdIt("#given volatile root entries precede one persistent file #when scanned at exact budgets #then volatility consumes no budget", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-volatile-budget-"));
 	try {
 		mkdirSync(join(root, "sessions"));
@@ -91,7 +92,7 @@ test("#given volatile root entries precede one persistent file #when scanned at 
 	}
 });
 
-test("#given a volatile log precedes one persistent file #when scanned at the entry limit #then the log consumes no entry budget", () => {
+fdIt("#given a volatile log precedes one persistent file #when scanned at the entry limit #then the log consumes no entry budget", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-volatile-log-budget-"));
 	try {
 		writeFileSync(join(root, "a.log"), "volatile");
@@ -112,7 +113,7 @@ test("#given a volatile log precedes one persistent file #when scanned at the en
 	}
 });
 
-test("#given a missing root and empty directories #when snapshots are compared #then persistent directory creation and deletion are observed", () => {
+fdIt("#given a missing root and empty directories #when snapshots are compared #then persistent directory creation and deletion are observed", () => {
 	const parent = mkdtempSync(join(tmpdir(), "omo-senpi-directory-identity-"));
 	const root = join(parent, "agent");
 	try {
@@ -157,7 +158,7 @@ test("#given a missing root and empty directories #when snapshots are compared #
 	}
 });
 
-test("#given a tree beyond the file bound #when observed #then truncation is explicit and never complete", () => {
+fdIt("#given a tree beyond the file bound #when observed #then truncation is explicit and never complete", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-tree-bound-"));
 	try {
 		writeFileSync(join(root, "a.jsonl"), "a\n");
@@ -198,7 +199,7 @@ test("#given identical protected read failures #when snapshots are compared #the
 	}
 });
 
-test("#given files exceed the byte budget #when observed #then descriptor reads never exceed maxBytes", () => {
+fdIt("#given files exceed the byte budget #when observed #then descriptor reads never exceed maxBytes", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-byte-bound-"));
 	try {
 		writeFileSync(join(root, "a.bin"), "1234");
@@ -232,7 +233,7 @@ test("#given files exceed the byte budget #when observed #then descriptor reads 
 	}
 });
 
-test("#given a file shrinks after traversal #when observed #then short read is explicit and incomplete", () => {
+fdIt("#given a file shrinks after traversal #when observed #then short read is explicit and incomplete", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-short-read-"));
 	try {
 		const path = join(root, "state.json");
@@ -268,7 +269,7 @@ test("#given a file shrinks after traversal #when observed #then short read is e
 	}
 });
 
-test("#given a file grows while hashing #when observed #then growth is explicit and incomplete", () => {
+fdIt("#given a file grows while hashing #when observed #then growth is explicit and incomplete", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-growth-"));
 	try {
 		const path = join(root, "state.json");
@@ -303,7 +304,7 @@ test("#given a file grows while hashing #when observed #then growth is explicit 
 	}
 });
 
-test("#given a path is replaced after open #when observed #then replacement is explicit and incomplete", () => {
+fdIt("#given a path is replaced after open #when observed #then replacement is explicit and incomplete", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-replacement-"));
 	try {
 		const path = join(root, "state.json");
@@ -342,7 +343,7 @@ test("#given a path is replaced after open #when observed #then replacement is e
 	}
 });
 
-test("#given one file exceeds the byte budget #when observed #then truncation occurs without reading or BYTE_LIMIT errors", () => {
+fdIt("#given one file exceeds the byte budget #when observed #then truncation occurs without reading or BYTE_LIMIT errors", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-oversized-observation-"));
 	try {
 		writeFileSync(join(root, "state.json"), "12345");

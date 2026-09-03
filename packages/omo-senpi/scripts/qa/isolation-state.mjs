@@ -84,12 +84,17 @@ export function protectedSnapshotsUntouched(before, after) {
 export function snapshotDirectory(
 	root,
 	limits = OBSERVATION_LIMITS,
-	{ pathStyle = NATIVE_PATH_STYLE, ...ioOverrides } = {},
+	{
+		pathStyle = NATIVE_PATH_STYLE,
+		platform = process.platform,
+		...ioOverrides
+	} = {},
 ) {
 	const io = { ...FILE_IO, ...ioOverrides };
 	const state = {
 		root,
 		pathStyle,
+		platform,
 		snapshot: new Map(),
 		files: 0,
 		errors: [],
@@ -328,12 +333,12 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 			throw Object.assign(new Error("FILE_REPLACED"), {
 				code: "FILE_REPLACED",
 			});
-		const descriptorRoot = directoryDescriptorPath(directoryFd);
+		const descriptorRoot = directoryDescriptorPath(directoryFd, state.platform);
 		if (descriptorRoot === null)
 			throw Object.assign(new Error("DIRECTORY_IDENTITY_UNAVAILABLE"), {
 				code: "DIRECTORY_IDENTITY_UNAVAILABLE",
 			});
-		directory = io.opendirSync(descriptorRoot);
+		directory = openDescriptorDirectory(descriptorRoot, state.platform, io);
 		assertDirectoryPathIdentity(currentRoot, beforeMetadata, io);
 	} catch (error) {
 		state.errors.push({
@@ -349,7 +354,7 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 	const errorsBeforeTraversal = state.errors.length;
 	let traversalFailed = false;
 	try {
-		const descriptorRoot = directoryDescriptorPath(directoryFd);
+		const descriptorRoot = directoryDescriptorPath(directoryFd, state.platform);
 		if (descriptorRoot === null)
 			throw Object.assign(new Error("DIRECTORY_IDENTITY_UNAVAILABLE"), {
 				code: "DIRECTORY_IDENTITY_UNAVAILABLE",
@@ -493,10 +498,24 @@ function assertDirectoryPathIdentity(path, expected, io) {
 		});
 }
 
-function directoryDescriptorPath(fd) {
-	if (process.platform === "linux") return `/proc/self/fd/${fd}`;
-	if (process.platform === "darwin") return `/dev/fd/${fd}`;
+function directoryDescriptorPath(fd, platform) {
+	if (platform === "linux") return `/proc/self/fd/${fd}`;
+	if (platform === "darwin") return `/dev/fd/${fd}`;
 	return null;
+}
+
+function openDescriptorDirectory(descriptorRoot, platform, io) {
+	if (platform !== "darwin") return io.opendirSync(descriptorRoot);
+	const entries = io.readdirSync(descriptorRoot, { withFileTypes: true });
+	let index = 0;
+	return {
+		readSync() {
+			const entry = entries[index];
+			index += 1;
+			return entry ?? null;
+		},
+		closeSync() {},
+	};
 }
 
 function closeDirectoryHandle(directory) {
