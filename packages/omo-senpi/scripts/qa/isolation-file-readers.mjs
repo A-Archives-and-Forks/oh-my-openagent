@@ -2,9 +2,11 @@ import { createHash } from "node:crypto";
 import {
 	closeSync,
 	fstatSync,
+	lstatSync,
 	opendirSync,
 	openSync,
 	readFileSync,
+	readlinkSync,
 	readSync,
 	statSync,
 } from "node:fs";
@@ -14,9 +16,11 @@ const HASH_CHUNK_BYTES = 64 * 1024;
 export const FILE_IO = {
 	closeSync,
 	fstatSync,
+	lstatSync,
 	openSync,
 	opendirSync,
 	readFileSync,
+	readlinkSync,
 	readSync,
 	statSync,
 };
@@ -45,21 +49,7 @@ export function hashFileBounded(
 				file.size - bytesRead,
 				remainingBytes - bytesRead,
 			);
-			let count;
-			try {
-				count = io.readSync(fd, buffer, 0, requested, bytesRead);
-			} catch (readError) {
-				let shrank = false;
-				try {
-					shrank =
-						fileMetadata(io.fstatSync(fd, { bigint: true })).size <
-						file.metadata.size;
-				} catch {
-					// The diagnostic cannot replace the primary read error.
-				}
-				if (shrank) throw snapshotError("SHORT_READ");
-				throw readError;
-			}
+			const count = io.readSync(fd, buffer, 0, requested, bytesRead);
 			if (count === 0) throw snapshotError("SHORT_READ");
 			const chunk = buffer.subarray(0, count);
 			hash.update(chunk);
@@ -101,6 +91,32 @@ export function hashFileBounded(
 		}
 	}
 	return result;
+}
+
+export function hashSymlinkBounded(file, { remainingBytes, io }) {
+	try {
+		const opened = fileMetadata(io.lstatSync(file.path, { bigint: true }));
+		const openingError = changedMetadataCode(file.metadata, opened);
+		if (openingError !== undefined)
+			diagnoseOpeningRace(file.path, opened, openingError, io, "lstatSync");
+		const target = Buffer.from(
+			io.readlinkSync(file.path, { encoding: "buffer" }),
+		);
+		if (target.length > remainingBytes)
+			return { bytesRead: 0, truncated: true };
+		const finished = fileMetadata(io.lstatSync(file.path, { bigint: true }));
+		const changed = changedMetadataCode(opened, finished);
+		if (changed !== undefined) throw snapshotError(changed);
+		return {
+			bytesRead: target.length,
+			digest: createHash("sha256")
+				.update("symlink\0")
+				.update(target)
+				.digest("hex"),
+		};
+	} catch (error) {
+		return { bytesRead: 0, error: errorCode(error) };
+	}
 }
 
 export function readProtectedFileStable(path, io) {
@@ -189,10 +205,16 @@ function readProtectedAbsentRace(path, io) {
 	return result;
 }
 
-function diagnoseOpeningRace(path, opened, openingError, io) {
+function diagnoseOpeningRace(
+	path,
+	opened,
+	openingError,
+	io,
+	statMethod = "statSync",
+) {
 	let currentPath;
 	try {
-		currentPath = fileMetadata(io.statSync(path, { bigint: true }));
+		currentPath = fileMetadata(io[statMethod](path, { bigint: true }));
 	} catch {
 		throw snapshotError(openingError);
 	}

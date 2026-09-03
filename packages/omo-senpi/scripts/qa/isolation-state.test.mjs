@@ -42,22 +42,28 @@ test("#given protected and volatile files #when snapshots are compared #then onl
 	}
 });
 
-test("#given nested files within the observation bounds #when scanned #then the full-tree observation is complete", () => {
+test("#given nested nonvolatile files within bounds #when scanned #then the relevant observation domain is complete", () => {
 	const root = mkdtempSync(join(tmpdir(), "omo-senpi-tree-scan-"));
 	try {
 		mkdirSync(join(root, "sessions"), { recursive: true });
 		writeFileSync(join(root, "settings.json"), "{}\n");
-		writeFileSync(join(root, "sessions", "active.jsonl"), "event\n");
+		writeFileSync(
+			join(root, "sessions", "active.jsonl"),
+			"volatile-content-beyond-byte-budget\n",
+		);
 
-		const scan = snapshotDirectory(root);
+		const scan = snapshotDirectory(root, {
+			maxFiles: 1,
+			maxBytes: 3,
+			maxEntries: 2,
+		});
 
 		expect(scan.complete).toBe(true);
 		expect(scan.truncated).toBe(false);
 		expect(scan.errors).toEqual([]);
-		expect([...scan.snapshot.keys()]).toEqual([
-			"sessions/active.jsonl",
-			"settings.json",
-		]);
+		expect(scan.bytesRead).toBe(3);
+		expect(scan.domain).toBe("nonvolatile-home");
+		expect([...scan.snapshot.keys()]).toEqual(["settings.json"]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}

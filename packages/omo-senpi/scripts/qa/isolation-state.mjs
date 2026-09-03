@@ -7,6 +7,7 @@ import {
 	FILE_IO,
 	fileMetadata,
 	hashFileBounded,
+	hashSymlinkBounded,
 	isTransientSnapshotEntryError,
 	readProtectedFileStable,
 } from "./isolation-file-readers.mjs";
@@ -30,6 +31,8 @@ export const OBSERVATION_LIMITS = {
 	maxBytes: 64 * 1024 * 1024,
 	maxEntries: 20_000,
 };
+const NATIVE_PATH_STYLE = process.platform === "win32" ? "windows" : "posix";
+const VOLATILE_SUBTREES = new Set(["sessions", "cache", "logs"]);
 
 export function credentialDigest(agentDir, { readFile = readFileSync } = {}) {
 	const hash = createHash("sha256");
@@ -80,10 +83,17 @@ export function protectedSnapshotsUntouched(before, after) {
 export function snapshotDirectory(
 	root,
 	limits = OBSERVATION_LIMITS,
-	ioOverrides = {},
+	{ pathStyle = NATIVE_PATH_STYLE, ...ioOverrides } = {},
 ) {
 	const io = { ...FILE_IO, ...ioOverrides };
-	const state = { root, files: [], errors: [], entries: 0, truncated: false };
+	const state = {
+		root,
+		pathStyle,
+		files: [],
+		errors: [],
+		entries: 0,
+		truncated: false,
+	};
 	collectFilesBounded(
 		root,
 		state,
@@ -103,12 +113,19 @@ export function snapshotDirectory(
 			state.truncated = true;
 			break;
 		}
-		const result = hashFileBounded(file, {
-			remainingBytes,
-			io,
-			normalizeCredential: credentialBytes,
-		});
+		const result =
+			file.kind === "symlink"
+				? hashSymlinkBounded(file, { remainingBytes, io })
+				: hashFileBounded(file, {
+						remainingBytes,
+						io,
+						normalizeCredential: credentialBytes,
+					});
 		bytesRead += result.bytesRead;
+		if (result.truncated) {
+			state.truncated = true;
+			break;
+		}
 		if (result.error !== undefined) {
 			if (!isTransientSnapshotEntryError({ code: result.error }))
 				state.errors.push({ path: file.rel, code: result.error });
@@ -122,22 +139,27 @@ export function snapshotDirectory(
 		truncated: state.truncated,
 		errors: state.errors.sort(compareSnapshotErrors),
 		bytesRead,
+		domain: "nonvolatile-home",
 	};
 }
 
-export function changedSnapshotPaths(before, after) {
+export function changedSnapshotPaths(
+	before,
+	after,
+	pathStyle = NATIVE_PATH_STYLE,
+) {
 	return [...new Set([...before.keys(), ...after.keys()])]
 		.filter((path) => before.get(path) !== after.get(path))
-		.map(canonicalRelativePath)
+		.map((path) => canonicalRelativePath(path, pathStyle))
 		.sort();
 }
 
-export function classifyObservedChanges(paths) {
+export function classifyObservedChanges(paths, pathStyle = NATIVE_PATH_STYLE) {
 	const volatile = new Set();
 	const protectedState = new Set();
 	const other = new Set();
 	for (const rawPath of paths) {
-		const path = canonicalRelativePath(rawPath);
+		const path = canonicalRelativePath(rawPath, pathStyle);
 		if (
 			path.startsWith("sessions/") ||
 			path.startsWith("cache/") ||
@@ -155,16 +177,20 @@ export function classifyObservedChanges(paths) {
 	};
 }
 
-export function isolationVerdict(
+export function isolationVerdict({
 	beforeProtected,
 	afterProtected,
+	beforeObserved,
+	afterObserved,
 	observedChangedPaths,
-) {
+	pathStyle = NATIVE_PATH_STYLE,
+}) {
 	const directProtected = changedSnapshotPaths(
 		beforeProtected.snapshot,
 		afterProtected.snapshot,
+		pathStyle,
 	);
-	const observed = classifyObservedChanges(observedChangedPaths);
+	const observed = classifyObservedChanges(observedChangedPaths, pathStyle);
 	const changedPaths = [
 		...new Set([
 			...directProtected,
@@ -177,6 +203,8 @@ export function isolationVerdict(
 		untouched:
 			beforeProtected.complete &&
 			afterProtected.complete &&
+			observationComplete(beforeObserved) &&
+			observationComplete(afterObserved) &&
 			changedPaths.length === 0,
 	};
 }
@@ -189,7 +217,10 @@ export function digestDirectory(
 	if (!collectFiles(root, files, readdir, true)) return "absent";
 	const hash = createHash("sha256");
 	for (const file of files.sort()) {
-		const rel = canonicalRelativePath(file.slice(root.length + 1));
+		const rel = canonicalRelativePath(
+			file.slice(root.length + 1),
+			NATIVE_PATH_STYLE,
+		);
 		try {
 			const fileDigest = createHash("sha256")
 				.update(readFile(file))
@@ -231,12 +262,17 @@ function collectFilesBounded(currentRoot, state, limits, io) {
 	} catch (error) {
 		if (!isTransientSnapshotEntryError(error)) {
 			state.errors.push({
-				path: canonicalRelativePath(relative(state.root, currentRoot) || "."),
+				path: canonicalRelativePath(
+					relative(state.root, currentRoot) || ".",
+					state.pathStyle,
+				),
 				code: errorCode(error),
 			});
 		}
 		return;
 	}
+	const errorsBeforeTraversal = state.errors.length;
+	let traversalFailed = false;
 	try {
 		while (true) {
 			const entry = directory.readSync();
@@ -247,45 +283,60 @@ function collectFilesBounded(currentRoot, state, limits, io) {
 				return;
 			}
 			const path = join(currentRoot, entry.name);
+			const rel = canonicalRelativePath(
+				relative(state.root, path),
+				state.pathStyle,
+			);
 			if (entry.isDirectory()) {
+				if (VOLATILE_SUBTREES.has(rel)) continue;
 				collectFilesBounded(path, state, limits, io);
 				if (state.truncated) return;
-			} else if (entry.isFile()) {
+			} else if (entry.isFile() && rel.endsWith(".log")) {
+			} else if (entry.isFile() || entry.isSymbolicLink()) {
 				if (state.files.length >= limits.maxFiles) {
 					state.truncated = true;
 					return;
 				}
 				try {
-					const metadata = fileMetadata(io.statSync(path, { bigint: true }));
+					const metadata = fileMetadata(io.lstatSync(path, { bigint: true }));
 					state.files.push({
 						path,
-						rel: canonicalRelativePath(relative(state.root, path)),
+						rel,
+						kind: entry.isSymbolicLink() ? "symlink" : "file",
 						size: boundedSize(metadata.size),
 						metadata,
 					});
 				} catch (error) {
 					if (!isTransientSnapshotEntryError(error)) {
-						state.errors.push({
-							path: canonicalRelativePath(relative(state.root, path)),
-							code: errorCode(error),
-						});
+						state.errors.push({ path: rel, code: errorCode(error) });
 					}
 				}
+			} else {
+				state.errors.push({ path: rel, code: "UNSUPPORTED_ENTRY" });
 			}
 		}
 	} catch (error) {
+		traversalFailed = true;
 		state.errors.push({
-			path: canonicalRelativePath(relative(state.root, currentRoot) || "."),
+			path: canonicalRelativePath(
+				relative(state.root, currentRoot) || ".",
+				state.pathStyle,
+			),
 			code: errorCode(error),
 		});
 	} finally {
 		try {
 			directory.closeSync();
 		} catch (error) {
-			state.errors.push({
-				path: canonicalRelativePath(relative(state.root, currentRoot) || "."),
-				code: errorCode(error),
-			});
+			if (!traversalFailed && state.errors.length === errorsBeforeTraversal) {
+				state.errors.push({
+					path: canonicalRelativePath(
+						relative(state.root, currentRoot) || ".",
+						state.pathStyle,
+					),
+					code: errorCode(error),
+				});
+			}
 		}
 	}
 }
@@ -329,6 +380,14 @@ function collectFiles(root, files, readdir, isRoot = false) {
 	return true;
 }
 
-function canonicalRelativePath(path) {
-	return path.replaceAll("\\", "/");
+function observationComplete(observation) {
+	return (
+		observation.complete &&
+		!observation.truncated &&
+		observation.errors.length === 0
+	);
+}
+
+function canonicalRelativePath(path, pathStyle) {
+	return pathStyle === "windows" ? path.replaceAll("\\", "/") : path;
 }

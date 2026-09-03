@@ -334,6 +334,7 @@ describe("task 13 senpi QA scripts", () => {
 			expect(payload.providedSenpiCodingAgentDir).toBe("IGNORED");
 			expect(payload.sandboxAgentDir).not.toBe(callerAgentDir);
 			expect(String(payload.sandboxAgentDir)).toContain("omo-senpi-qa-");
+			expect(payload.isolationCertified).toBe(true);
 			expect(payload.realSenpiUntouched).toBe(true);
 			expect(payload.realSenpiChangedPaths).toEqual([]);
 			expect(payload.realSenpiProtectedStateComplete).toBe(true);
@@ -344,14 +345,28 @@ describe("task 13 senpi QA scripts", () => {
 			expect(payload.realOmoProtectedErrors).toEqual([]);
 			expect(payload.realSenpiObservedChangedPaths).toEqual([]);
 			expect(payload.realOmoObservedChangedPaths).toEqual([]);
-			expect(typeof payload.realSenpiObservationComplete).toBe("boolean");
-			expect(typeof payload.realSenpiObservationTruncated).toBe("boolean");
-			expect(payload.realSenpiObservationErrors).toEqual([]);
-			expect(typeof payload.realSenpiObservationBytesRead).toBe("number");
-			expect(typeof payload.realOmoObservationComplete).toBe("boolean");
-			expect(typeof payload.realOmoObservationTruncated).toBe("boolean");
-			expect(payload.realOmoObservationErrors).toEqual([]);
-			expect(typeof payload.realOmoObservationBytesRead).toBe("number");
+			expect(payload.realSenpiObservationDomain).toBe("nonvolatile-home");
+			expect(typeof payload.realSenpiNonvolatileObservationComplete).toBe(
+				"boolean",
+			);
+			expect(typeof payload.realSenpiNonvolatileObservationTruncated).toBe(
+				"boolean",
+			);
+			expect(payload.realSenpiNonvolatileObservationErrors).toEqual([]);
+			expect(typeof payload.realSenpiNonvolatileObservationBytesRead).toBe(
+				"number",
+			);
+			expect(payload.realOmoObservationDomain).toBe("nonvolatile-home");
+			expect(typeof payload.realOmoNonvolatileObservationComplete).toBe(
+				"boolean",
+			);
+			expect(typeof payload.realOmoNonvolatileObservationTruncated).toBe(
+				"boolean",
+			);
+			expect(payload.realOmoNonvolatileObservationErrors).toEqual([]);
+			expect(typeof payload.realOmoNonvolatileObservationBytesRead).toBe(
+				"number",
+			);
 			expect(payload.protectedStateFiles).toEqual([
 				"auth.json",
 				"settings.json",

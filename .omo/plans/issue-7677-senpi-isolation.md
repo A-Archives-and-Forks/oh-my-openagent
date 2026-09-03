@@ -29,4 +29,17 @@ Reference: read-only `omo-pr7500-postmerge-cleanup` at `f4a4fc8613f1f1153f27ca3b
 - [x] Run one serialized `bun run test:senpi`, package typecheck, exact scoped Biome check, LSP/no-excuse, and extension freshness.
 - [x] Complete JSON/secret/diff checks and prove zero diff for `script/**`, manifests/pins/patches/compile/OAuth/generated/unrelated surfaces.
 - [x] Record sanitized evidence explaining issue #7677 and why closed PR #7540 was replaced rather than reopened.
-- [x] Complete final measurement/review; only attribution commit and clean-state proof remain.
+- [x] Complete final measurement/review and initial attributed delivery.
+
+## Oracle remediation at `eef42638f`
+
+- [x] Re-read exact-head reader/traversal implementations and existing error-precedence tests.
+- [x] RED: prove a thrown observed-file read error survives a successful shrink diagnostic.
+- [x] RED: prove a directory traversal error survives close failure and close-only failure still surfaces.
+- [x] RED: prove observation errors/truncation withhold certification, symlinks are bounded without dereference, and path style is explicit.
+- [x] GREEN: preserve the primary file-read error without changing zero-byte SHORT_READ behavior.
+- [x] GREEN: append a directory close error only when traversal has no primary error.
+- [x] GREEN: require complete nonvolatile-domain observations, account for symlinks/unsupported entries, and distinguish POSIX from Windows paths.
+- [x] Run focused suites, self-test, typecheck, Biome, LSP/no-excuse, real driver, extension freshness, and final full Senpi gate.
+- [ ] Commit the source remediation separately with OMO attribution.
+- [ ] Update sanitized final-source-head evidence and repository-scope proofs, then commit the evidence refresh.

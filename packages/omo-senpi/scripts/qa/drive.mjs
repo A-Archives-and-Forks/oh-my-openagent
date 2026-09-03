@@ -295,21 +295,26 @@ function printResult({
 	);
 	const senpiObserved = classifyObservedChanges(realSenpiObservedChangedPaths);
 	const omoObserved = classifyObservedChanges(realOmoObservedChangedPaths);
-	const senpiVerdict = isolationVerdict(
-		isolationBefore.senpiProtected,
-		senpiProtectedAfter,
-		realSenpiObservedChangedPaths,
-	);
-	const omoVerdict = isolationVerdict(
-		isolationBefore.omoProtected,
-		omoProtectedAfter,
-		realOmoObservedChangedPaths,
-	);
+	const senpiVerdict = isolationVerdict({
+		beforeProtected: isolationBefore.senpiProtected,
+		afterProtected: senpiProtectedAfter,
+		beforeObserved: isolationBefore.senpiObserved,
+		afterObserved: senpiObservedAfter,
+		observedChangedPaths: realSenpiObservedChangedPaths,
+	});
+	const omoVerdict = isolationVerdict({
+		beforeProtected: isolationBefore.omoProtected,
+		afterProtected: omoProtectedAfter,
+		beforeObserved: isolationBefore.omoObserved,
+		afterObserved: omoObservedAfter,
+		observedChangedPaths: realOmoObservedChangedPaths,
+	});
 	const payload = {
 		result,
 		...(reason ? { reason } : {}),
 		ultraworkInjected,
 		commentChecker,
+		isolationCertified: senpiVerdict.untouched && omoVerdict.untouched,
 		realSenpiUntouched: senpiVerdict.untouched,
 		realSenpiChangedPaths: senpiVerdict.changedPaths,
 		realSenpiProtectedStateComplete:
@@ -334,25 +339,27 @@ function printResult({
 		realOmoVolatileChangedPaths: omoObserved.volatile,
 		realOmoProtectedObservedChangedPaths: omoObserved.protectedState,
 		realOmoOtherObservedChangedPaths: omoObserved.other,
-		realSenpiObservationComplete:
+		realSenpiObservationDomain: senpiObservedAfter.domain,
+		realSenpiNonvolatileObservationComplete:
 			isolationBefore.senpiObserved.complete && senpiObservedAfter.complete,
-		realSenpiObservationTruncated:
+		realSenpiNonvolatileObservationTruncated:
 			isolationBefore.senpiObserved.truncated || senpiObservedAfter.truncated,
-		realSenpiObservationErrors: [
+		realSenpiNonvolatileObservationErrors: [
 			...isolationBefore.senpiObserved.errors,
 			...senpiObservedAfter.errors,
 		],
-		realSenpiObservationBytesRead:
+		realSenpiNonvolatileObservationBytesRead:
 			isolationBefore.senpiObserved.bytesRead + senpiObservedAfter.bytesRead,
-		realOmoObservationComplete:
+		realOmoObservationDomain: omoObservedAfter.domain,
+		realOmoNonvolatileObservationComplete:
 			isolationBefore.omoObserved.complete && omoObservedAfter.complete,
-		realOmoObservationTruncated:
+		realOmoNonvolatileObservationTruncated:
 			isolationBefore.omoObserved.truncated || omoObservedAfter.truncated,
-		realOmoObservationErrors: [
+		realOmoNonvolatileObservationErrors: [
 			...isolationBefore.omoObserved.errors,
 			...omoObservedAfter.errors,
 		],
-		realOmoObservationBytesRead:
+		realOmoNonvolatileObservationBytesRead:
 			isolationBefore.omoObserved.bytesRead + omoObservedAfter.bytesRead,
 		protectedStateFiles: PROTECTED_STATE_FILES,
 		observationLimits: OBSERVATION_LIMITS,

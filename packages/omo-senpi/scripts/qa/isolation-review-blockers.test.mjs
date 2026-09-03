@@ -1,3 +1,4 @@
+// allow: SIZE_OK - this blocker suite keeps every isolation error-precedence regression together.
 import { expect, test } from "bun:test";
 import {
 	closeSync,
@@ -31,13 +32,33 @@ function completeProtected(entries = []) {
 	return { snapshot: new Map(entries), complete: true, errors: [] };
 }
 
+function completeObserved() {
+	return {
+		snapshot: new Map(),
+		complete: true,
+		truncated: false,
+		errors: [],
+		bytesRead: 0,
+	};
+}
+
+function buildVerdict(beforeProtected, afterProtected, observedChangedPaths) {
+	return isolationVerdict({
+		beforeProtected,
+		afterProtected,
+		beforeObserved: completeObserved(),
+		afterObserved: completeObserved(),
+		observedChangedPaths,
+	});
+}
+
 test("#given direct, protected-observed, persistent-observed, and volatile changes #when the canonical verdict is built #then only volatile paths are excluded from the sorted union", () => {
 	// Given
 	const before = completeProtected([["auth.json", "before"]]);
 	const after = completeProtected([["auth.json", "after"]]);
 
 	// When
-	const verdict = isolationVerdict(before, after, [
+	const verdict = buildVerdict(before, after, [
 		"sessions/live.jsonl",
 		"nested/persistent.json",
 		"auth.json",
@@ -58,8 +79,8 @@ test("#given only explicitly volatile observed writes #when the canonical verdic
 	const after = completeProtected([["auth.json", "stable"]]);
 
 	// When
-	const verdict = isolationVerdict(before, after, [
-		"cache\\index.json",
+	const verdict = buildVerdict(before, after, [
+		"cache/index.json",
 		"logs/run.log",
 		"sessions/live.jsonl",
 	]);
@@ -80,8 +101,8 @@ test("#given a protected change or incomplete protected snapshot #when the canon
 	};
 
 	// When
-	const changedVerdict = isolationVerdict(stable, changed, []);
-	const incompleteVerdict = isolationVerdict(stable, incomplete, []);
+	const changedVerdict = buildVerdict(stable, changed, []);
+	const incompleteVerdict = buildVerdict(stable, incomplete, []);
 
 	// Then
 	expect(changedVerdict.changedPaths).toEqual(["auth.json"]);
@@ -102,7 +123,7 @@ test("#given POSIX and Windows-shaped observed paths #when changes are classifie
 	];
 
 	// When
-	const classified = classifyObservedChanges(paths);
+	const classified = classifyObservedChanges(paths, "windows");
 
 	// Then
 	expect(classified.volatile).toEqual([
@@ -276,6 +297,94 @@ test("#given a primary read error and failing shrink diagnostic #when an observe
 		// Then
 		expect(result.complete).toBe(false);
 		expect(result.errors).toEqual([{ path: "state.json", code: "EREAD" }]);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("#given a primary read error and a successful shrink diagnostic #when an observed file is hashed #then the primary read error is preserved", () => {
+	// Given
+	const root = mkdtempSync(join(tmpdir(), "omo-senpi-read-shrink-"));
+	const path = join(root, "state.json");
+	try {
+		writeFileSync(path, "AAAA");
+		let fstatCalls = 0;
+		const io = {
+			openSync,
+			closeSync,
+			statSync,
+			readSync() {
+				throw codedError("EIO");
+			},
+			fstatSync(fd, options) {
+				fstatCalls += 1;
+				const metadata = fstatSync(fd, options);
+				return fstatCalls === 1 ? metadata : { ...metadata, size: 0n };
+			},
+		};
+
+		// When
+		const result = snapshotDirectory(root, LIMITS, io);
+
+		// Then
+		expect(result.complete).toBe(false);
+		expect(result.errors).toEqual([{ path: "state.json", code: "EIO" }]);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("#given directory traversal and close both fail #when the tree is snapshotted #then the traversal error remains primary", () => {
+	// Given
+	const root = mkdtempSync(join(tmpdir(), "omo-senpi-directory-primary-"));
+	try {
+		const io = {
+			opendirSync() {
+				return {
+					readSync() {
+						throw codedError("EIO");
+					},
+					closeSync() {
+						throw codedError("ECLOSE");
+					},
+				};
+			},
+		};
+
+		// When
+		const result = snapshotDirectory(root, LIMITS, io);
+
+		// Then
+		expect(result.complete).toBe(false);
+		expect(result.errors).toEqual([{ path: ".", code: "EIO" }]);
+	} finally {
+		rmSync(root, { recursive: true, force: true });
+	}
+});
+
+test("#given successful directory traversal and close failure #when the tree is snapshotted #then the close error surfaces", () => {
+	// Given
+	const root = mkdtempSync(join(tmpdir(), "omo-senpi-directory-close-"));
+	try {
+		const io = {
+			opendirSync() {
+				return {
+					readSync() {
+						return null;
+					},
+					closeSync() {
+						throw codedError("ECLOSE");
+					},
+				};
+			},
+		};
+
+		// When
+		const result = snapshotDirectory(root, LIMITS, io);
+
+		// Then
+		expect(result.complete).toBe(false);
+		expect(result.errors).toEqual([{ path: ".", code: "ECLOSE" }]);
 	} finally {
 		rmSync(root, { recursive: true, force: true });
 	}
