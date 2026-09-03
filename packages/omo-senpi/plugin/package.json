@@ -25,6 +25,7 @@
   "files": [
     "extensions",
     "skills",
+    "skills-conditional",
     "runtime",
     "scripts/install.mjs",
     "README.md",
