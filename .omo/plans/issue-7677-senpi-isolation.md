@@ -43,3 +43,13 @@ Reference: read-only `omo-pr7500-postmerge-cleanup` at `f4a4fc8613f1f1153f27ca3b
 - [x] Run focused suites, self-test, typecheck, Biome, LSP/no-excuse, real driver, extension freshness, and final full Senpi gate.
 - [x] Commit the source remediation separately with OMO attribution at `ba455bc1c9a60acc354915f909d89fd2cb338dc4`.
 - [x] Update sanitized final-source-head evidence and repository-scope proofs; only the evidence-only attributed commit remains.
+
+## Final reviewer remediation at `9e8ec6eb9`
+
+- [x] RED: reproduce volatile maxEntries consumption and missing/arbitrary observation-domain certification.
+- [x] RED: prove missing/empty directory identity, recursive directory-to-symlink replacement, and protected-state symlink dereference defects.
+- [x] GREEN: filter volatility before all budgets and require the exact `nonvolatile-home` domain before certification.
+- [x] GREEN: snapshot persistent directory markers, validate recursive directory identity/type, and fail protected symlinks closed without opening targets.
+- [x] Commit source and regressions separately with OMO attribution at `c42f893c953df103a38c42820568ccde34fcc215`.
+- [x] Produce a new head-specific 53-test receipt set and clearly supersede the old 40-test and 48-test receipts.
+- [x] Run fresh self-test, real driver, package typecheck, exact Biome, LSP/no-excuse, one full Senpi gate, and integrity checks.

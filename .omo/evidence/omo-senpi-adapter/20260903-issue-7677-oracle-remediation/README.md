@@ -1,5 +1,7 @@
 # Issue #7677 Oracle remediation
 
+> SUPERSEDED: this 48-test receipt predates the final reviewer blockers. Use `../20260903-issue-7677-c42f893c9-reviewer-remediation/`, generated fresh for source head `c42f893c953df103a38c42820568ccde34fcc215`.
+
 ## Reviewer findings remediated
 
 This follow-up fixes every code-quality Oracle and ultrabrain blocker reported against `eef42638f`:

@@ -1,5 +1,7 @@
 # Issue #7677: Senpi QA isolation evidence
 
+> SUPERSEDED: this original 40-test receipt is historical only. Use `../20260903-issue-7677-c42f893c9-reviewer-remediation/`, generated fresh for source head `c42f893c953df103a38c42820568ccde34fcc215`.
+
 ## What was tested
 
 - Deterministic RED: the two new isolation suites failed because `./isolation-state.mjs` did not exist (0 pass, 2 fail).
