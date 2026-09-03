@@ -1,17 +1,16 @@
 {
   "scenario": "negative",
   "result": "PASS",
-  "prompt": "Run the negative catalog check.",
+  "senpiBin": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/x-search/node_modules/.bin/senpi",
+  "senpiVersion": "2026.9.2-4",
+  "prompt": "Run negative x_search catalog QA",
   "yesterday": "2026-09-02",
   "realSenpiUntouched": true,
   "realSenpiChangedPaths": [],
   "realSenpiCredentialDigestUntouched": true,
-  "isolatedAgentDir": "/private/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/omo-senpi-qa-nS0pKC/agent",
-  "isolatedCwd": "/private/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/omo-senpi-qa-nS0pKC/project",
-  "envScrubbed": [
-    "GROK_TOKEN",
-    "XAI_API_KEY"
-  ],
+  "isolatedAgentDir": "/private/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/omo-senpi-qa-67iyFf/agent",
+  "isolatedCwd": "/private/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/omo-senpi-qa-67iyFf/project",
+  "envScrubbed": [],
   "spawnedEnvHasXai": false,
   "toolCalls": [
     "tool_search"

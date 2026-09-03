@@ -1,11 +1,7 @@
-# Todo 14 live child evidence
+# Live child x-search evidence
 
-This sibling evidence directory records the live child QA runs for todo 14.
+These S3 live runs use the worktree peer-dependency binary `node_modules/.bin/senpi`, version 2026.9.2-4, and the rebuilt `packages/omo-senpi/plugin/extensions/*.js` bundle. The driver now maps `explore` and `librarian` to direct curated `subagent_type` targets; `quick` remains category-routed. Reports record the task result's observed child agent type.
 
-- `quick.json` records the quick child lane with an observed `x_search results:` header.
-- `librarian-attempts.json` records every librarian attempt (verdict and `xSearchResults` per attempt); `librarian.json` is the selected passing run.
-- `explore.json` records zero `x_search results:` headers. The explore denial observation is pending the c13-final driver update: this directory must not treat scripted prose as proof. The builtin denylist unit pin remains in `packages/senpi-task/src/agents/builtin/builtin-agents.test.ts` (explore has no `x_search` rule).
-- `unit-test.txt` is the raw combined Bun transcript for the three required test files.
-- `green.txt` records the test command and raw pass/fail/expect counts.
+The earlier files in this evidence directory were mislabeled legacy runs: their explore and librarian root turns both used `{ category: "quick" }`, so they actually exercised quick children. The rebuilt rerun fixes that: explore is the curated child and its x_search call is denied with zero result headers; librarian is the curated child and produces one result header; quick produces one result header.
 
-All persisted transcripts are scrubbed before saving. The isolated credential copy is shredded by the driver after each run; no token values are included here.
+`librarian-attempts.json` preserves the selected passing attempt. All transcripts are scrubbed, sandbox auth copies are shredded, sandbox roots are removed, and the real credential store is unchanged.

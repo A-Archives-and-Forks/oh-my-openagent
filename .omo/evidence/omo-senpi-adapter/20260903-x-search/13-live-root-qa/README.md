@@ -1,7 +1,9 @@
-# Todo 13 live root QA
+# Live root x-search QA
 
-What was tested: `bun test packages/omo-senpi/scripts/qa/x-search-live-e2e.test.mjs` and the new driver against the real `senpi` binary with the freshly staged plugin. Negative, positive, and reload scenario outputs are under the scenario directories.
+Runs use the worktree peer-dependency binary `node_modules/.bin/senpi`, version 2026.9.2-4. The driver records its absolute `senpiBin` and first-line `senpiVersion` in every scenario report.
 
-Observed: negative reports no x-search and no conditional x-search skill; positive reports tool_search activation followed by one real x_search execution and x.com results; reload reports two executions across a session continuation/reload sequence and three registrations (one per process load). Every run reports `realSenpiUntouched=true` and seeded credentials are shredded before sandbox removal.
+- Negative: `tool_search` executed; X posts returned `No tools matched`, while the extension control query matched `x_probe_tool`; zero x_search calls.
+- Positive: transcript-derived `toolCalls` are `["tool_search", "x_search"]`, with one real `x_search results:` header.
+- Reload: two real x_search results headers across the continuation sequence, with three registrations.
 
-Omitted: credential values, auth contents, and unredacted environment/transcript material.
+All runs report the real Senpi credential store untouched. Seeded xAI auth copies were shredded before sandbox removal, and evidence contains no credential values.

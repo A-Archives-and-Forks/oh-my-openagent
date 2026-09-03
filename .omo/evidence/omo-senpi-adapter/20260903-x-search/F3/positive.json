@@ -1,15 +1,15 @@
 {
-  "scenario": "reload",
+  "scenario": "positive",
   "result": "PASS",
   "senpiBin": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/x-search/node_modules/.bin/senpi",
   "senpiVersion": "2026.9.2-4",
-  "prompt": "Run reload x_search catalog QA",
+  "prompt": "Run positive x_search catalog QA",
   "yesterday": "2026-09-02",
   "realSenpiUntouched": true,
   "realSenpiChangedPaths": [],
   "realSenpiCredentialDigestUntouched": true,
-  "isolatedAgentDir": "/private/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/omo-senpi-qa-c8AX0l/agent",
-  "isolatedCwd": "/private/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/omo-senpi-qa-c8AX0l/project",
+  "isolatedAgentDir": "/private/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/omo-senpi-qa-QGRFd9/agent",
+  "isolatedCwd": "/private/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/omo-senpi-qa-QGRFd9/project",
   "envScrubbed": [],
   "spawnedEnvHasXai": false,
   "toolCalls": [
@@ -21,20 +21,19 @@
     "controlMatched": false,
     "tool_searchExecuted": false,
     "xSearchExecutions": 0,
-    "xSearchResults": 2,
-    "xComUrls": 56,
+    "xSearchResults": 1,
+    "xComUrls": 28,
     "unavailable": false
   },
-  "registrationCount": 3,
+  "registrationCount": 1,
   "verdict": {
-    "positive": true,
-    "reload": true
+    "positive": true
   },
   "senpiExit": 0,
   "senpiSignal": null,
-  "transcript": "transcript-reload.txt",
+  "transcript": "transcript-positive.txt",
   "cleanup": {
-    "path": "/private/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/omo-senpi-qa-c8AX0l/agent/auth.json",
+    "path": "/private/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/omo-senpi-qa-QGRFd9/agent/auth.json",
     "overwrittenBytes": 946,
     "removed": true
   }
