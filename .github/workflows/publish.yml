@@ -417,20 +417,33 @@ jobs:
 
           git fetch origin "${BASE_REF}" --tags
 
+          BASE_HEAD="$(git rev-parse "origin/${BASE_REF}")"
+
+          # A release commit may only be REUSED when it is the current base head. A stamp that
+          # sits behind the head belongs to an earlier, abandoned attempt: its tree predates every
+          # merge since, so publishing it would ship a version whose contents nobody reviewed under
+          # that number (2026-09-04: a beta.41 retry re-selected the first attempt's stamp, whose
+          # tree lacked the senpi engine bump; only gate-reuse's CI check kept it off npm). Fail
+          # closed and ask for a fresh version number instead of restamping over a live one.
+          reuse_or_refuse() {
+            local candidate="$1" origin_desc="$2"
+            if [ "$candidate" = "$BASE_HEAD" ]; then
+              echo "release_sha=${candidate}" >> "$GITHUB_OUTPUT"
+              echo "needs_push=false" >> "$GITHUB_OUTPUT"
+              echo "${origin_desc} is the current origin/${BASE_REF} head: ${candidate}"
+              exit 0
+            fi
+            echo "::error::${origin_desc} (${candidate}) is stale: origin/${BASE_REF} has moved to ${BASE_HEAD}. Refusing to publish a tree that predates the base head. Bump to an unused version so a fresh release commit is stamped on the current head."
+            exit 1
+          }
+
           if git rev-parse -q --verify "refs/tags/v${VERSION}" >/dev/null; then
-            RELEASE_SHA="$(git rev-list --max-count=1 "refs/tags/v${VERSION}")"
-            echo "release_sha=${RELEASE_SHA}" >> "$GITHUB_OUTPUT"
-            echo "needs_push=false" >> "$GITHUB_OUTPUT"
-            echo "Release tag v${VERSION} already exists locally at ${RELEASE_SHA}"
-            exit 0
+            reuse_or_refuse "$(git rev-list --max-count=1 "refs/tags/v${VERSION}")" "Release tag v${VERSION}"
           fi
 
           RELEASE_SHA="$(git rev-list --max-count=1 --grep="^release: v${VERSION}$" "origin/${BASE_REF}" 2>/dev/null || true)"
           if [ -n "$RELEASE_SHA" ]; then
-            echo "release_sha=${RELEASE_SHA}" >> "$GITHUB_OUTPUT"
-            echo "needs_push=false" >> "$GITHUB_OUTPUT"
-            echo "Release commit already exists on origin/${BASE_REF}: ${RELEASE_SHA}"
-            exit 0
+            reuse_or_refuse "$RELEASE_SHA" "Release commit for v${VERSION}"
           fi
 
           git checkout -B "$RELEASE_BRANCH" "origin/${BASE_REF}"
