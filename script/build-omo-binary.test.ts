@@ -480,4 +480,16 @@ describe("omob build info stamping", () => {
     expect(stamped.buildInfo).toEqual(buildInfo)
     expect(stamped.manifestSha).not.toBe(bare.manifestSha)
   })
+
+  test("#given no build info #when the runtime manifest is built #then its key order matches the release contract", async () => {
+    const stageDir = makeTempDir("omo-manifest-keyorder-")
+    mkdirSync(join(stageDir, "theme"), { recursive: true })
+    writeFileSync(join(stageDir, "theme", "dark.json"), "{}\n")
+
+    const bare = await buildRuntimeManifest(stageDir, { omoAiVersion: "1.2.3", enginePin: "2026.8.24" })
+
+    // release manifest key order — a reordering would change the embedded JSON bytes
+    expect(Object.keys(bare)).toEqual(["omoAiVersion", "enginePin", "manifestSha", "entries"])
+    expect("buildInfo" in bare).toBe(false)
+  })
 })

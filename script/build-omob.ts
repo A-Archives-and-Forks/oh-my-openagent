@@ -49,7 +49,6 @@ export function parseOmobArgs(argv: readonly string[], platform: string, arch: s
 		const value = argv[index + 1]
 		if (argument === "--senpi-ref" || argument === "--omo-ref" || argument === "--cache-dir" || argument === "--install-dir" || argument === "--name" || argument === "--target" || argument === "--senpi-url") {
 			if (value === undefined) throw new Error(`${argument} requires a value`)
-			const key = argument.slice(2).replaceAll("-", "") as "senpiRef" | "omoRef" | "cacheDir" | "installDir" | "name" | "target"
 			const normalizedKey = argument === "--senpi-ref" ? "senpiRef" : argument === "--omo-ref" ? "omoRef" : argument === "--cache-dir" ? "cacheDir" : argument === "--install-dir" ? "installDir" : argument === "--name" ? "name" : argument === "--senpi-url" ? "senpiUrl" : "target"
 			;(options as Record<string, unknown>)[normalizedKey] = value
 			index += 1
@@ -137,14 +136,15 @@ function ensureCacheClone(url: string, directory: string, ref: string, skipFetch
 		const fetchArgs = ref.startsWith("origin/") ? ["--prune", "origin", ref.slice("origin/".length)] : ["--prune", "origin"]
 		run("git", ["fetch", ...fetchArgs], directory)
 	}
-	// A cache checkout must land on the exact ref tree: force-reset and drop
-	// any leftovers from a previous ref (staged swaps, ignored build outputs).
-	run("git", ["submodule", "update", "--init", "--recursive"], directory)
+	// A cache checkout must land on the exact ref tree: drop leftovers from a previous
+	// ref (tracked deletions, staged swaps). `clean -ffd` deliberately omits `-x`, so
+	// ignored build outputs and node_modules survive for cache reuse.
 	run("git", ["clean", "-ffd"], directory)
-	// Re-point submodules at the switched ref and drop any stale checked-out state.
-	run("git", ["submodule", "update", "--init", "--recursive"], directory)
 	run("git", ["checkout", "--force", ref], directory)
 	run("git", ["reset", "--hard", ref], directory)
+	// checkout/reset do not recurse, so submodule pointers only match the ref AFTER it
+	// lands; omo materializes plugin skills from these upstreams during its build.
+	run("git", ["submodule", "update", "--init", "--recursive", "--force"], directory)
 	const commit = runCaptured("git", ["rev-parse", "HEAD"], directory)
 	return { directory, commit }
 }
@@ -163,17 +163,24 @@ function readCommitInfo(directory: string, ref: string): CommitInfo {
 	return { commit, committedAt, branch }
 }
 
-function buildSenpiPackage(senpiDir: string, cacheDir: string, ref: string): string {
+function buildSenpiPackage(senpiDir: string, cacheDir: string): string {
 	run("bun", ["install"], senpiDir)
 	materializeNestedLockDeps(senpiDir)
 	run("bun", ["run", "build:bun"], senpiDir)
 	// Stage the bundled workspaces exactly like the release pipeline, then pack.
 	run("node", [join("scripts", "prepare-senpi-bundled-workspaces.mjs")], senpiDir)
+	// The tarball name carries senpi's package version, so a version bump would leave
+	// two candidates in a reused cache and an arbitrary pick would install the OLD
+	// engine under the NEW provenance stamp. Start from an empty directory every time.
 	const tarballDir = join(cacheDir, "tarballs")
+	rmSync(tarballDir, { recursive: true, force: true })
 	mkdirSync(tarballDir, { recursive: true })
 	run("bun", ["pm", "pack", "--destination", tarballDir], join(senpiDir, "packages", "coding-agent"))
-	const tarballName = readdirSync(tarballDir).find((name) => name.endsWith(".tgz"))
-	if (tarballName === undefined) throw new Error("bun pm pack produced no senpi tarball")
+	const tarballs = readdirSync(tarballDir).filter((name) => name.endsWith(".tgz"))
+	if (tarballs.length !== 1) {
+		throw new Error(`expected exactly one senpi tarball in ${tarballDir}, found ${tarballs.length}: ${tarballs.join(", ")}`)
+	}
+	const tarballName = tarballs[0] as string
 	// Isolated production install: the tarball plus its registry deps, resolved under
 	// a dedicated root so the resulting tree can be dropped into omo's node_modules.
 	const installRoot = join(cacheDir, "senpi-install")
@@ -226,6 +233,18 @@ function nestHoistedDeps(installRoot: string): void {
 	mkdirSync(senpiNodeModules, { recursive: true })
 	for (const entry of readdirSync(topLevel)) {
 		if (entry.startsWith(".") || entry === "@code-yeongyu") continue
+		// A scope directory may already exist under the package from bundling; moving the
+		// whole scope would silently drop its hoisted siblings, so merge child by child.
+		if (entry.startsWith("@")) {
+			const scopeTarget = join(senpiNodeModules, entry)
+			mkdirSync(scopeTarget, { recursive: true })
+			for (const child of readdirSync(join(topLevel, entry))) {
+				const childTarget = join(scopeTarget, child)
+				if (existsSync(childTarget)) continue
+				renameSync(join(topLevel, entry, child), childTarget)
+			}
+			continue
+		}
 		const from = join(topLevel, entry)
 		const to = join(senpiNodeModules, entry)
 		if (existsSync(to)) continue
@@ -280,7 +299,7 @@ const senpiUrl = options.senpiUrl ?? DEFAULT_SENPI_URL
 		engine: { commit: senpiInfo.commit, committedAt: senpiInfo.committedAt, branch: senpiInfo.branch },
 	}
 
-	const builtSenpiRoot = buildSenpiPackage(senpi.directory, options.cacheDir, options.senpiRef)
+	const builtSenpiRoot = buildSenpiPackage(senpi.directory, options.cacheDir)
 	// The omo prepare chain materializes gitignored plugin/skills from the shared-skills
 	// upstream submodules; a caller's OMO_SKIP_MATERIALIZE=1 would skip that and break the
 	// build, so the dev-binary install always runs the full materialization.
@@ -323,7 +342,9 @@ const senpiUrl = options.senpiUrl ?? DEFAULT_SENPI_URL
 		const installed = installBinary(result.binaryPath, options.installDir, options.name)
 		console.log(`installed ${installed} (${result.size} bytes)`)
 	}
-	pruneOmobRuntimes(options.keep, omoAiVersion)
+	// Pruning is only safe once the new binary is in place: a --skip-install run would
+	// otherwise delete the runtime a still-installed (possibly running) omob depends on.
+	if (!options.skipInstall) pruneOmobRuntimes(options.keep, omoAiVersion)
 	const lines = [buildInfo.command + " dev build", `omo   ${omoInfo.commit} ${omoInfo.committedAt} (${omoInfo.branch})`, `senpi ${senpiInfo.commit} ${senpiInfo.committedAt} (${senpiInfo.branch})`]
 	console.log(lines.join("\n"))
 	return 0
