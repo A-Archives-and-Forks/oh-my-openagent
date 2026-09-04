@@ -160,7 +160,22 @@ function buildSenpiPackage(senpiDir: string, cacheDir: string, ref: string): str
 	mkdirSync(installRoot, { recursive: true })
 	writeFileSync(join(installRoot, "package.json"), `${JSON.stringify({ private: true, dependencies: { "@code-yeongyu/senpi": `file:../tarballs/${tarballName}` } }, undefined, "\t")}\n`)
 	run("bun", ["install", "--production", "--ignore-scripts"], installRoot)
+	nestHoistedDeps(installRoot)
 	return join(installRoot, "node_modules", "@code-yeongyu", "senpi")
+}
+
+/** Moves the isolated install's hoisted deps under the senpi package, mirroring the published nested layout. */
+function nestHoistedDeps(installRoot: string): void {
+	const senpiNodeModules = join(installRoot, "node_modules", "@code-yeongyu", "senpi", "node_modules")
+	const topLevel = join(installRoot, "node_modules")
+	mkdirSync(senpiNodeModules, { recursive: true })
+	for (const entry of readdirSync(topLevel)) {
+		if (entry.startsWith(".") || entry === "@code-yeongyu") continue
+		const from = join(topLevel, entry)
+		const to = join(senpiNodeModules, entry)
+		if (existsSync(to)) continue
+		renameSync(from, to)
+	}
 }
 
 function swapSenpi(omoDir: string, builtSenpiRoot: string): void {
