@@ -1,6 +1,6 @@
 ---
 name: ulw-research
-description: "Team-first maximum-saturation research orchestration. ALWAYS asks which final format to render (PDF+DOCX default), then stands up a max-size cooperating team (team_create): one member per axis plus skeptic/red-team members for ultradebate/hyperdebate cross-critique, explore/librarian lanes, live journaling, an EXPAND loop until leads run dry, claims proven by code or the claim-graph gate, and a cited synthesis with charts/Mermaid/assets behind visual-QA and `writing` proofread gates. ACTIVATES ONLY on an explicit user demand for research: the word 'ulw-research' in any prefix form, any 'ulw' research wording including combined invocations like 'mass ulw research', 'ultradebate' or 'hyperdebate' research requests, or an explicit request for research / deep research / an ultra-precise investigation, in any language. Never self-activates for ordinary questions, debugging, or implementation context-gathering. While active it overrides exploration-bounding defaults: exhaustive coverage is the goal."
+description: "Runs maximum-saturation research with a cooperating team, claim-graph gating, and a cited, QA'd deliverable. Use when the user explicitly asks for research or a deep investigation, including any 'ulw' research wording."
 metadata:
   short-description: Team-default saturation research with debate cross-critique and cited synthesis
 ---
