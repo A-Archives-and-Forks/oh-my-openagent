@@ -24,6 +24,7 @@ export interface OmobOptions {
 	readonly name: string
 	readonly target: string
 	readonly keep: number
+	readonly senpiUrl: string
 	readonly skipFetch: boolean
 	readonly skipInstall: boolean
 }
@@ -43,10 +44,10 @@ export function parseOmobArgs(argv: readonly string[], platform: string, arch: s
 	for (let index = 0; index < argv.length; index += 1) {
 		const argument = argv[index]
 		const value = argv[index + 1]
-		if (argument === "--senpi-ref" || argument === "--omo-ref" || argument === "--cache-dir" || argument === "--install-dir" || argument === "--name" || argument === "--target") {
+		if (argument === "--senpi-ref" || argument === "--omo-ref" || argument === "--cache-dir" || argument === "--install-dir" || argument === "--name" || argument === "--target" || argument === "--senpi-url") {
 			if (value === undefined) throw new Error(`${argument} requires a value`)
 			const key = argument.slice(2).replaceAll("-", "") as "senpiRef" | "omoRef" | "cacheDir" | "installDir" | "name" | "target"
-			const normalizedKey = argument === "--senpi-ref" ? "senpiRef" : argument === "--omo-ref" ? "omoRef" : argument === "--cache-dir" ? "cacheDir" : argument === "--install-dir" ? "installDir" : argument === "--name" ? "name" : "target"
+			const normalizedKey = argument === "--senpi-ref" ? "senpiRef" : argument === "--omo-ref" ? "omoRef" : argument === "--cache-dir" ? "cacheDir" : argument === "--install-dir" ? "installDir" : argument === "--name" ? "name" : argument === "--senpi-url" ? "senpiUrl" : "target"
 			;(options as Record<string, unknown>)[normalizedKey] = value
 			index += 1
 		} else if (argument === "--keep") {
@@ -71,6 +72,7 @@ export function parseOmobArgs(argv: readonly string[], platform: string, arch: s
 		name: options.name ?? "omob",
 		target: options.target ?? hostTargetFor(platform, arch),
 		keep: options.keep ?? 2,
+		senpiUrl: options.senpiUrl ?? DEFAULT_SENPI_URL,
 		skipFetch: options.skipFetch,
 		skipInstall: options.skipInstall,
 	}
@@ -116,7 +118,11 @@ function ensureCacheClone(url: string, directory: string, ref: string, skipFetch
 	if (!existsSync(join(directory, ".git"))) {
 		run("git", ["clone", "--filter=blob:none", url, directory], dirname(directory))
 	}
-	if (!skipFetch) run("git", ["fetch", "--prune", "origin", ref.replace(/^origin\//, "")], directory)
+	if (!skipFetch) {
+		// Branch refs fetch a single refspec; raw SHAs need the whole history.
+		const fetchArgs = ref.startsWith("origin/") ? ["--prune", "origin", ref.slice("origin/".length)] : ["--prune", "origin"]
+		run("git", ["fetch", ...fetchArgs], directory)
+	}
 	run("git", ["checkout", "--force", ref], directory)
 	run("git", ["reset", "--hard", ref], directory)
 	const commit = runCaptured("git", ["rev-parse", "HEAD"], directory)
@@ -152,7 +158,7 @@ function buildSenpiPackage(senpiDir: string, cacheDir: string, ref: string): str
 	const installRoot = join(cacheDir, "senpi-install")
 	rmSync(installRoot, { recursive: true, force: true })
 	mkdirSync(installRoot, { recursive: true })
-	writeFileSync(join(installRoot, "package.json"), `${JSON.stringify({ private: true, dependencies: { "@code-yeongyu/senpi": `file:${join(tarballDir, tarballName)}` } }, undefined, "\t")}\n`)
+	writeFileSync(join(installRoot, "package.json"), `${JSON.stringify({ private: true, dependencies: { "@code-yeongyu/senpi": `file:../tarballs/${tarballName}` } }, undefined, "\t")}\n`)
 	run("bun", ["install", "--production", "--ignore-scripts"], installRoot)
 	return join(installRoot, "node_modules", "@code-yeongyu", "senpi")
 }
@@ -192,7 +198,8 @@ function installBinary(binaryPath: string, installDir: string, name: string): st
 
 async function main(argv: readonly string[]): Promise<number> {
 	const options = parseOmobArgs(argv, process.platform, process.arch, homedir())
-	const senpiUrl = runCaptured("git", ["remote", "get-url", "origin"], repoRoot).replace(/\.git$/, "")
+	const DEFAULT_SENPI_URL = "https://github.com/code-yeongyu/senpi.git"
+const senpiUrl = options.senpiUrl ?? DEFAULT_SENPI_URL
 	const senpi = ensureCacheClone(senpiUrl, join(options.cacheDir, "senpi"), options.senpiRef, options.skipFetch)
 	const omo = ensureCacheClone(runCaptured("git", ["remote", "get-url", "origin"], repoRoot), join(options.cacheDir, "omo"), options.omoRef, options.skipFetch)
 
