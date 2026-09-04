@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { redactUrl } from "./redact"
+import { containsSecretLikeMaterial, redactUrl } from "./redact"
 
 describe("redactUrl", () => {
   describe("#given an https url carrying a token", () => {
@@ -87,6 +87,21 @@ describe("redactUrl", () => {
       // then
       expect(redacted).toContain("https://***:***@github.com/acme/memory.git")
       expect(redacted).not.toContain("abc123")
+    })
+  })
+
+  describe("#given secret-like material in sync output", () => {
+    it("#then redactUrl masks the same material recognized by the predicate", () => {
+      // given
+      const value = "token=abc123 and AKIA1234567890ABCDEF"
+
+      // when
+      const redacted = redactUrl(value)
+
+      // then
+      expect(containsSecretLikeMaterial(value)).toBe(true)
+      expect(redacted).toBe("*** and ***")
+      expect(containsSecretLikeMaterial(redacted)).toBe(false)
     })
   })
 

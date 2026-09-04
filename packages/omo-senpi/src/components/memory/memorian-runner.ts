@@ -40,6 +40,8 @@ import type { SenpiOmoConfigResult } from "../config-resolution"
 import type { RecallTranscriptTurn } from "./recall-wiring"
 import { resolveReflectionModel, type ReflectionModelResolution } from "./worker/resolve-model"
 import { createMemorianNudgeTool, MEMORIAN_NUDGE_TOOL_NAME } from "./memorian-nudge-tool"
+import { buildMemorianPrompt, memorianCandidatesPayload, renderTranscriptWindow } from "./memorian-prompt"
+import { abortAndDispose } from "./memorian-lifecycle"
 
 const QUICK_CATEGORY = "quick"
 /** The gate advises a turn that already ended; anything slower than this is worthless. */
@@ -105,9 +107,12 @@ export type MemorianGateLaunchResult =
   | { readonly status: "dropped"; readonly cause?: string; readonly model?: string; readonly candidateCount?: number }
   | { readonly status: "nudged"; readonly nudges: readonly RecallNudge[]; readonly model?: string }
 
+type LaunchState = { cancelled: boolean }
+
 export class MemorianGateRunner {
   private activeLaunch: Promise<MemorianGateLaunchResult> | undefined
   private activeHandle: ChildHandle | undefined
+  private activeState: LaunchState | undefined
 
   constructor(private readonly options: MemorianGateRunnerOptions) {}
 
@@ -117,19 +122,24 @@ export class MemorianGateRunner {
    */
   async launch(input: MemorianGateLaunchInput): Promise<MemorianGateLaunchResult> {
     if (this.activeLaunch !== undefined) return { status: "active" }
-    const operation = this.launchOnce(input).catch((error: unknown) => {
+    const state: LaunchState = { cancelled: false }
+    const operation = this.launchOnce(input, state).catch((error: unknown) => {
       this.options.logger?.warn("memorian gate launch failed", { error: describe(error) })
       return { status: "failed", cause: "child_failed" } as const
     })
     this.activeLaunch = operation
+    this.activeState = state
     try {
       return await operation
     } finally {
-      if (this.activeLaunch === operation) this.activeLaunch = undefined
+      if (this.activeLaunch === operation) {
+        this.activeLaunch = undefined
+        this.activeState = undefined
+      }
     }
   }
 
-  private async launchOnce(input: MemorianGateLaunchInput): Promise<MemorianGateLaunchResult> {
+  private async launchOnce(input: MemorianGateLaunchInput, state: LaunchState): Promise<MemorianGateLaunchResult> {
     if (input.candidates.length === 0 || input.maxItems <= 0) return { status: "skipped", cause: "no_candidates", candidateCount: input.candidates.length }
     // The settle handler's snapshot is authoritative. There is deliberately NO resolver fallback:
     // this task runs after the host disposed the senpi ctx, so any late read throws the stale-ctx
@@ -156,7 +166,7 @@ export class MemorianGateRunner {
 
     const runId = randomUUID()
     const accepted: RecallNudge[] = []
-    const judged = await this.runJudge(input, resolution, runId, accepted)
+    const judged = await this.runJudge(input, resolution, runId, accepted, state)
     if (judged.status === "failed") return judged
     // Defence in depth: the closure already validated every recorded nudge at call time, and this
     // re-validation is a no-op for already-validated input (it also drops duplicate paths should
@@ -195,6 +205,8 @@ export class MemorianGateRunner {
    * the race resolves the launch immediately, never waiting for a turn that will not settle.
    */
   async cancel(): Promise<void> {
+    const state = this.activeState
+    if (state !== undefined) state.cancelled = true
     const handle = this.activeHandle
     if (handle === undefined) {
       await this.activeLaunch
@@ -212,23 +224,34 @@ export class MemorianGateRunner {
     resolution: Extract<ReflectionModelResolution, { readonly kind: "resolved" }>,
     runId: string,
     accepted: RecallNudge[],
+    state: LaunchState,
   ): Promise<{ readonly status: "completed" } | Extract<MemorianGateLaunchResult, { readonly status: "failed" }>> {
-    const runDir = join(this.options.identityPaths.recall, "runs", runId); await mkdir(runDir, { recursive: true, mode: 0o700 })
-    // Auditable artifacts, NOT inputs: the child receives both inline in its prompt and holds no
-    // read tool. The run dir is kept after the run so a live or finished judge can be inspected.
-    await Promise.all([
-      writeFile(join(runDir, "candidates.json"), `${JSON.stringify(memorianCandidatesPayload(input), null, 2)}\n`, { encoding: "utf8", mode: 0o600 }),
-      writeFile(join(runDir, "transcript-window.txt"), renderTranscriptWindow(input.transcript), { encoding: "utf8", mode: 0o600 }),
-    ])
+    let deadlineTimer: ReturnType<typeof setTimeout> | undefined
+    let deadlineReached = false
+    const deadline = new Promise<"deadline">((resolve) => {
+      deadlineTimer = setTimeout(() => {
+        deadlineReached = true
+        resolve("deadline")
+      }, Math.max(0, this.options.deadlineMs ?? DEFAULT_DEADLINE_MS))
+      deadlineTimer.unref?.()
+    })
+    const setup = (async (): Promise<ChildHandle> => {
+      const runDir = join(this.options.identityPaths.recall, "runs", runId)
+      await mkdir(runDir, { recursive: true, mode: 0o700 })
+      // Auditable artifacts, NOT inputs: the child receives both inline in its prompt and holds no
+      // read tool. The run dir is kept after the run so a live or finished judge can be inspected.
+      await Promise.all([
+        writeFile(join(runDir, "candidates.json"), `${JSON.stringify(memorianCandidatesPayload(input), null, 2)}\n`, { encoding: "utf8", mode: 0o600 }),
+        writeFile(join(runDir, "transcript-window.txt"), renderTranscriptWindow(input.transcript), { encoding: "utf8", mode: 0o600 }),
+      ])
 
-    const taskRuntime = await import("#omo-task-runtime"); const runner = this.options.createRunner?.(
-      this.options.createSession === undefined ? {} : { createSession: this.options.createSession },
-    ) ?? taskRuntime.createInProcessJudgeRunner(
-      this.options.createSession === undefined ? {} : { createSession: this.options.createSession },
-    )
-    let handle: ChildHandle
-    try {
-      handle = await runner.start({
+      const taskRuntime = await import("#omo-task-runtime")
+      const runner = this.options.createRunner?.(
+        this.options.createSession === undefined ? {} : { createSession: this.options.createSession },
+      ) ?? taskRuntime.createInProcessJudgeRunner(
+        this.options.createSession === undefined ? {} : { createSession: this.options.createSession },
+      )
+      return runner.start({
         taskId: `memorian-${runId}`,
         cwd: runDir,
         sessionDir: runDir,
@@ -254,39 +277,51 @@ export class MemorianGateRunner {
         promptEnvelope: "bare",
         prompt: buildMemorianPrompt(input),
       })
-    } catch (error) {
-      // InProcessRunner.start maps every construction failure to a typed session-create-failed;
-      // depth is a fixed 1 here, so creation is the only failure this path can name.
-      this.options.logger?.warn("memorian gate child session creation failed", { error: describe(error), runId })
-      return { status: "failed", cause: "session_create_failed", model: resolution.model, candidateCount: input.candidates.length }
-    }
-
-    this.activeHandle = handle
-    let deadlineTimer: ReturnType<typeof setTimeout> | undefined
-    const deadline = new Promise<"deadline">((resolve) => {
-      deadlineTimer = setTimeout(() => {
-        resolve("deadline")
-      }, Math.max(0, this.options.deadlineMs ?? DEFAULT_DEADLINE_MS))
-      deadlineTimer.unref?.()
-    })
+    })()
+    const setupResult = setup.then(
+      (handle) => {
+        if (deadlineReached || state.cancelled) {
+          void abortAndDispose(handle, this.options.logger, runId)
+          return undefined
+        }
+        this.activeHandle = handle
+        this.activeState = state
+        return handle
+      },
+      (error: unknown) => {
+        if (deadlineReached || state.cancelled) return undefined
+        throw error
+      },
+    )
     try {
-      const settled = await Promise.race([handle.waitForIdle(), deadline])
-      if (settled === "deadline") {
+      const settled = await Promise.race([setupResult, deadline])
+      if (settled === "deadline" || settled === undefined) {
         this.options.logger?.warn("memorian gate deadline exceeded", { runId })
-        await abortAndDispose(handle, this.options.logger, runId)
+        if (settled === "deadline") state.cancelled = true
+        const handle = this.activeHandle
+        if (handle !== undefined) await abortAndDispose(handle, this.options.logger, runId)
         return { status: "failed", cause: "deadline", model: resolution.model, candidateCount: input.candidates.length }
       }
-      // A completed turn is judged on its nudge calls (the caller validates `accepted`); anything
-      // else - a provider failure, an aborted turn that was not the deadline - is a child failure.
-      if (settled.status !== "completed") {
+      const turn = await Promise.race([settled.waitForIdle(), deadline])
+      if (turn === "deadline") {
+        this.options.logger?.warn("memorian gate deadline exceeded", { runId })
+        await abortAndDispose(settled, this.options.logger, runId)
+        return { status: "failed", cause: "deadline", model: resolution.model, candidateCount: input.candidates.length }
+      }
+      if (turn.status !== "completed") {
         return { status: "failed", cause: "child_failed", model: resolution.model, candidateCount: input.candidates.length }
       }
       return { status: "completed" }
+    } catch (error) {
+      this.options.logger?.warn("memorian gate child session creation failed", { error: describe(error), runId })
+      return { status: "failed", cause: "session_create_failed", model: resolution.model, candidateCount: input.candidates.length }
     } finally {
       clearTimeout(deadlineTimer)
-      if (this.activeHandle === handle) this.activeHandle = undefined
-      // One-shot judge: the session is torn down whether the turn completed or the deadline won.
-      handle.dispose()
+      const handle = this.activeHandle
+      if (handle !== undefined) {
+        this.activeHandle = undefined
+        handle.dispose()
+      }
     }
   }
 
@@ -299,57 +334,9 @@ export class MemorianGateRunner {
   }
 }
 
-function memorianCandidatesPayload(input: MemorianGateLaunchInput): {
-  readonly version: 1
-  readonly maxItems: number
-  readonly candidates: readonly { readonly path: string; readonly description: string; readonly excerpt: string; readonly score: number }[]
-  readonly surfaced: readonly string[]
-} {
-  return {
-    version: 1,
-    maxItems: input.maxItems,
-    candidates: input.candidates.map((candidate) => ({
-      path: candidate.path,
-      description: candidate.description,
-      excerpt: candidate.excerpt,
-      score: candidate.score,
-    })),
-    surfaced: [...input.surfaced],
-  }
-}
-
-/** The judge's single user message: both inputs inline, no files, no read tool. */
-function buildMemorianPrompt(input: MemorianGateLaunchInput): string {
-  return [
-    "<memorian-input>",
-    "<candidates>",
-    JSON.stringify(memorianCandidatesPayload(input), null, 2),
-    "</candidates>",
-    "<transcript-window>",
-    renderTranscriptWindow(input.transcript).trimEnd(),
-    "</transcript-window>",
-    "</memorian-input>",
-  ].join("\n")
-}
-
-/** Both roles, oldest first: the judge compares what the user asked against what the agent said. */
-function renderTranscriptWindow(turns: readonly { readonly role: string; readonly text: string }[]): string {
-  return `${turns.map((turn) => `${turn.role}: ${turn.text}`).join("\n\n")}\n`
-}
-
 function isStaleAfterCompaction(input: MemorianGateLaunchInput): boolean {
   if (input.compactionEpoch === undefined || input.currentCompactionEpoch === undefined) return false
   return input.currentCompactionEpoch() !== input.compactionEpoch
-}
-
-async function abortAndDispose(handle: ChildHandle, logger: ComponentLogger | undefined, runId: string): Promise<void> {
-  try {
-    await handle.abort()
-  } catch (error) {
-    logger?.warn("memorian gate abort failed", { error: describe(error), runId })
-  } finally {
-    handle.dispose()
-  }
 }
 
 function describe(error: unknown): string {

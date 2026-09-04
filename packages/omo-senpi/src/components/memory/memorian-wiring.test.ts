@@ -56,6 +56,8 @@ function gate(input: {
   readonly launches: Launch[]
   readonly identity?: MemoryIdentityContext
   readonly launch?: MemorianGatePort["launch"]
+  readonly cancel?: () => Promise<void>
+  readonly whenIdle?: () => Promise<void>
   readonly logs?: Array<{ message: string, details?: unknown }>
   readonly entries?: Array<{ customType: string; data: unknown }>
 }) {
@@ -68,6 +70,8 @@ function gate(input: {
         input.launches.push(launchInput)
         return { status: "empty" as const }
       }),
+      ...(input.cancel === undefined ? {} : { cancel: input.cancel }),
+      ...(input.whenIdle === undefined ? {} : { whenIdle: input.whenIdle }),
     }),
     ...(input.logs === undefined
       ? {}
@@ -325,6 +329,30 @@ describe("createMemorianGateWiring onSettled", () => {
     expect(returned).toBeUndefined()
     released()
     await wiring.whenIdle()
+  })
+})
+
+describe("createMemorianGateWiring shutdown", () => {
+  test("#given an active session #when shutdown runs #then the runner cancels, drains, and clears its compaction epoch", async () => {
+    // given
+    const identity = await context()
+    const calls: string[] = []
+    const wiring = gate({
+      collect: async () => undefined,
+      launches: [],
+      identity,
+      cancel: async () => { calls.push("cancel") },
+      whenIdle: async () => { calls.push("idle") },
+    })
+    wiring.onCompactionAccepted(SESSION_ID)
+    expect(wiring.currentCompactionEpoch(SESSION_ID)).toBe(1)
+
+    // when
+    await wiring.onSessionShutdown(SESSION_ID)
+
+    // then
+    expect(calls).toEqual(["cancel", "idle"])
+    expect(wiring.currentCompactionEpoch(SESSION_ID)).toBe(0)
   })
 })
 

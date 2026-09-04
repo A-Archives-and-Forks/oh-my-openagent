@@ -20,6 +20,10 @@ export function containsSecretLikeMaterial(value: string): boolean {
   return SECRET_PATTERNS.some((pattern) => pattern.test(value))
 }
 
+function redactSecretLikeMaterial(value: string): string {
+  return SECRET_PATTERNS.reduce((redacted, pattern) => redacted.replace(pattern, MASK), value)
+}
+
 /**
  * `scheme://user:pass@` and `scheme://user@` inside arbitrary text.
  *
@@ -45,11 +49,11 @@ const SCP_USERINFO = /(^|[\s'"(<])([^\s:/@]+)@([^\s:/@]+):(?=[^\s]*\/)/g
  */
 export function redactUrl(value: string): string {
   if (!value) return ""
-  return value
+  return redactSecretLikeMaterial(value
     .replace(URL_USERINFO, (_match, scheme: string, _user: string, password?: string) =>
       password === undefined ? `${scheme}${MASK}@` : `${scheme}${MASK}:${MASK}@`,
     )
     .replace(SCP_USERINFO, (_match, prefix: string, _user: string, host: string) =>
       `${prefix}${MASK}@${host}:`,
-    )
+    ))
 }

@@ -345,6 +345,18 @@ describe("InProcessRunner", () => {
     })
   })
 
+  test("#given handle construction touches a broken subscription #when start is called #then the created session is disposed before start rejects", async () => {
+    const fake = createFakeSession()
+    const broken: ChildSession = {
+      ...fake.session,
+      subscribe: () => { throw new Error("subscribe failed") },
+    }
+    const runner = new InProcessRunner({ createSession: async () => broken })
+
+    await expect(runner.start(baseSpec())).rejects.toThrow("subscribe failed")
+    expect(fake.disposeCount).toBe(1)
+  })
+
   test("#given a prompt that throws #when the child runs #then a typed failure is recorded, the child stays resident, and no rejection escapes", async () => {
     process.on("unhandledRejection", onUnhandled)
     const cause = new Error("prompt boom")

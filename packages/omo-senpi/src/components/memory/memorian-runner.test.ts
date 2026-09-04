@@ -11,10 +11,11 @@ import {
   type MemoryIdentityPaths,
   type RecallCandidate,
 } from "@oh-my-opencode/memory-core"
-import type { ChildModelRegistry, ChildSession, ChildSessionListener, CreateChildSession } from "@oh-my-opencode/senpi-task"
+import type { ChildHandle, ChildModelRegistry, ChildSession, ChildSessionListener, CreateChildSession } from "@oh-my-opencode/senpi-task"
 
 import { ModelRegistry, ModelRuntime } from "../../senpi-test-runtime"
 import { MemorianGateRunner } from "./memorian-runner"
+import type { MemorianNudgeTool } from "./memorian-nudge-tool"
 import { rmEfaultTolerant } from "./teardown.test-support"
 
 const IDENTITY = "memorian-agent"
@@ -32,21 +33,12 @@ const CANDIDATES: readonly RecallCandidate[] = [
   { path: CANDIDATE_PATH, description: "Rollout policy", excerpt: "drain first", score: 1 },
 ]
 
-/** The judge's 2-arg execute contract; the fake session drives it the way the senpi engine would. */
-type NudgeExecute = (toolCallId: string, params: { readonly path: string; readonly hint: string }) => Promise<{
-  readonly content: readonly { readonly type: string; readonly text: string }[]
-  readonly isError?: boolean
-}>
-
 async function callNudge(options: CreateAgentSessionOptions, path: string, hint: string): Promise<{ readonly text: string; readonly isError: boolean }> {
-  const tool = options.customTools?.find((candidate) => candidate.name === "nudge")
+  const tool = options.customTools?.find((candidate): candidate is MemorianNudgeTool => candidate.name === "nudge")
   if (tool === undefined) throw new Error("nudge tool missing from the child session options")
-  // The child surface carries the nudge closure as a full ToolDefinition (5-arg execute); the fake
-  // session drives the judge's own 2-arg contract, exactly the subset the closure implements.
-  const execute = tool.execute as unknown as NudgeExecute
-  const result = await execute("call-1", { path, hint })
+  const result = await tool.execute("call-1", { path, hint })
   const text = result.content.find((part) => part.type === "text")?.text ?? ""
-  return { text, isError: result.isError === true }
+  return { text, isError: "isError" in result && result.isError === true }
 }
 
 /**
@@ -107,7 +99,9 @@ function scriptedSession(script: (options: CreateAgentSessionOptions) => Promise
     async prompt(text) {
       promptTexts.push(text)
       onPrompted?.()
-      await script(captured as CreateAgentSessionOptions)
+      const options = captured
+      if (options === undefined) throw new Error("session options were not captured")
+      await script(options)
       // The turn's assistant text lands only after the script ran, mirroring a judge that answers
       // after its tool calls: the baseline the handle captured at beginTurn stays undefined.
       assistantText = "Judged."
@@ -313,12 +307,12 @@ describe("MemorianGateRunner", () => {
     expect([firstResult.status, secondResult.status].sort()).toEqual(["active", "nudged"])
   })
 
-  test("#given a child that fabricates a path #when the nudge tool rejects it #then nothing is pending and the run is empty", async () => {
+  test("#given a child that nudges the same valid candidate twice #when the runner validates the result #then one pending nudge is written", async () => {
     // given
     const { identityPaths } = await fixture()
     const stub = scriptedSession(async (options) => {
-      const rejected = await callNudge(options, "notes/never-offered.md", "nope")
-      if (!rejected.isError) throw new Error("a fabricated path must be rejected")
+      await nudgeOnce(options)
+      await nudgeOnce(options)
     })
     const runner = new MemorianGateRunner(runnerOptions(identityPaths, { createSession: stub.createSession }))
 
@@ -328,8 +322,10 @@ describe("MemorianGateRunner", () => {
     const result = await pending
 
     // then
-    expect(result.status).toBe("empty")
-    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID, { currentEpoch: 0 })).toEqual([])
+    expect(result.status).toBe("nudged")
+    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID, { currentEpoch: 0 })).toEqual([
+      { path: CANDIDATE_PATH, hint: "Drain nodes before a rollout." },
+    ])
   })
 
   test("#given a child session that cannot be created #when the runner launches #then the failure names the creation cause", async () => {
@@ -365,20 +361,102 @@ describe("MemorianGateRunner", () => {
     expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID, { currentEpoch: 0 })).toEqual([])
   })
 
-  test("#given a child that never settles #when the deadline fires #then the run fails with the deadline cause and no pending nudges", async () => {
-    // given: the turn stays open forever; the abort deadline is the only way out.
+  test("#given child setup never resolves #when the whole-launch deadline fires #then the latch releases and a late handle is disposed", async () => {
+    // given
     const { identityPaths } = await fixture()
-    const hung = scriptedSession(() => new Promise<void>(() => undefined))
+    let resolveStart: ((handle: ChildHandle) => void) | undefined
+    let disposed = 0
+    const lateHandle: ChildHandle = {
+      task_id: "late",
+      sessionId: "late",
+      steer: async () => undefined,
+      followUp: async () => undefined,
+      abort: async () => undefined,
+      subscribe: () => () => undefined,
+      waitForIdle: async () => ({ status: "cancelled" }),
+      lastAssistantText: () => undefined,
+      dispose: () => { disposed += 1 },
+    }
     const runner = new MemorianGateRunner(runnerOptions(identityPaths, {
-      createSession: hung.createSession,
-      deadlineMs: 200,
+      deadlineMs: 5,
+      createRunner: () => ({ start: async () => new Promise<ChildHandle>((resolve) => { resolveStart = resolve }) }),
     }))
 
     // when
     const result = await runner.launch(launchInput())
+    resolveStart?.(lateHandle)
+    await Promise.resolve()
 
     // then
     expect(result).toMatchObject({ status: "failed", cause: "deadline" })
+    expect((await runner.launch(launchInput())).status).not.toBe("active")
+    expect(disposed).toBe(1)
+  })
+
+  test("#given a child that never settles #when the deadline fires #then the child is aborted and disposed", async () => {
+    // given
+    const { identityPaths } = await fixture()
+    let resolveIdle: (() => void) | undefined
+    let resolveAbort: (() => void) | undefined
+    let resolveDispose: (() => void) | undefined
+    const aborted = new Promise<void>((resolve) => { resolveAbort = resolve })
+    const disposed = new Promise<void>((resolve) => { resolveDispose = resolve })
+    const handle: ChildHandle = {
+      task_id: "hung",
+      sessionId: "hung",
+      steer: async () => undefined,
+      followUp: async () => undefined,
+      abort: async () => { resolveAbort?.(); resolveIdle?.() },
+      subscribe: () => () => undefined,
+      waitForIdle: () => new Promise((resolve) => { resolveIdle = () => resolve({ status: "cancelled" }) }),
+      lastAssistantText: () => undefined,
+      dispose: () => { resolveDispose?.() },
+    }
+    const runner = new MemorianGateRunner(runnerOptions(identityPaths, {
+      createRunner: () => ({ start: async () => handle }),
+      deadlineMs: 20,
+    }))
+
+    // when
+    const result = await runner.launch(launchInput())
+    await Promise.all([aborted, disposed])
+
+    // then
+    expect(result).toMatchObject({ status: "failed", cause: "deadline" })
+  })
+
+  test("#given a child in flight #when cancel is called #then it aborts and disposes without writing a late nudge", async () => {
+    // given
+    const { identityPaths } = await fixture()
+    let release: (() => void) | undefined
+    let aborted = 0
+    let disposed = 0
+    const handle: ChildHandle = {
+      task_id: "cancelled",
+      sessionId: "cancelled",
+      steer: async () => undefined,
+      followUp: async () => undefined,
+      abort: async () => { aborted += 1; release?.() },
+      subscribe: () => () => undefined,
+      waitForIdle: () => new Promise((resolve) => { release = () => resolve({ status: "cancelled" }) }),
+      lastAssistantText: () => undefined,
+      dispose: () => { disposed += 1 },
+    }
+    const runner = new MemorianGateRunner(runnerOptions(identityPaths, {
+      createRunner: () => ({ start: async () => handle }),
+      deadlineMs: 1000,
+    }))
+
+    // when
+    const pending = runner.launch(launchInput())
+    await Promise.resolve()
+    await runner.cancel()
+    const result = await pending
+
+    // then
+    expect(result).toMatchObject({ status: "failed" })
+    expect(aborted).toBe(1)
+    expect(disposed).toBe(1)
     expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID, { currentEpoch: 0 })).toEqual([])
   })
 
