@@ -78,4 +78,3 @@ export function gate(input: {
   if (input.entries !== undefined) wiring.attachEntrySink((customType, data) => input.entries?.push({ customType, data }))
   return wiring
 }
-

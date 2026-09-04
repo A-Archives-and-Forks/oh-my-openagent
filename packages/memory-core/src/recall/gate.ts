@@ -16,6 +16,7 @@ import { mkdir, readFile, readdir, rename, rm, stat, writeFile } from "../fs/res
 import { join } from "node:path"
 
 import { sanitizeSessionFilename } from "./ledger"
+import { containsSecretLikeMaterial } from "../sync/redact"
 
 export const PENDING_NUDGES_VERSION = 1
 
@@ -228,6 +229,7 @@ function parseNudge(value: unknown): RecallNudge | undefined {
   const { path, hint } = record
   if (typeof path !== "string" || path.length === 0) return undefined
   if (typeof hint !== "string" || hint.length === 0) return undefined
+  if (!isValidHint(hint) || containsSecretLikeMaterial(hint)) return undefined
   return { path, hint }
 }
 

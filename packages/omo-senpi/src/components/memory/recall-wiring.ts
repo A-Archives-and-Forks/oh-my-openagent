@@ -129,8 +129,8 @@ export interface MemoryRecallWiring {
 
 // A memory worker child must never receive recall hints: it reasons ABOUT memory, and an injected
 // hint would both pollute its transcript and re-enter memory on the next extraction pass. The
-// memorian sentinel is here for the sharper reason: a gate child that received nudges would judge
-// the hints it exists to produce, and would spawn a gate over its own transcript.
+// reflection and facts sentinels are here for the sharper reason: those children must not judge
+// or consume the hints produced by the memorian gate.
 const CHILD_SENTINELS = ["SENPI_MEMORY_REFLECTION", "SENPI_MEMORY_FACTS"] as const
 
 /**

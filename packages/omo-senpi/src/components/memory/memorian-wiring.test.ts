@@ -256,4 +256,3 @@ describe("createMemorianGateWiring onSettled", () => {
     await wiring.whenIdle()
   })
 })
-
