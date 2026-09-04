@@ -1,6 +1,6 @@
 ---
 name: ultrawork
-description: Binding ultrawork mode directive for omo-senpi. When a prompt contains ultrawork or ulw, the omo input hook injects the full directive as a hidden custom message (customType omo-ultrawork:directive, display false) ahead of the user's text, which is left untouched; a prompt queued while the agent is streaming instead carries the directive appended inside that same message. The directive is present in the conversation context; on the idle path it is not shown in the visible prompt, while a queued prompt carries the directive visibly (exactly as before this change). When the directive is already present in the conversation, do not read this file again - this file is that same directive. Read this file only when ultrawork mode is requested and the directive is not already present in the conversation.
+description: "The binding ultrawork-mode directive. This file IS the directive; read it only when ultrawork mode is requested and the directive is not already in the conversation."
 metadata:
   short-description: Binding ultrawork mode directive
 ---
@@ -70,19 +70,21 @@ exercises the surface; capture the artifact.
      xterm.js web terminal (see the TUI visual QA note below). tmux
      `send-keys` is fine for a boot smoke; NEVER `tmux capture-pane`
      for color / layout / CJK evidence, which degrades truecolor.
-  3. Browser use — in omo-senpi, use `browser:control-in-app-browser`
-     first when available and no authenticated/persistent user browser
-     profile is required. Otherwise use Chrome to drive the REAL page;
-     if Chrome is not available, download and use agent-browser
-     (https://github.com/vercel-labs/agent-browser). Capture action
-     log + screenshot path. Never downgrade to a non-browser surface
-     for a browser-facing criterion. NEVER clear cookies, cache, or
-     site data (`Network.clearBrowserCookies`, `Storage.clearCookies`,
+  3. Browser use — drive the REAL page from the eval js kernel:
+     `new Bun.WebView()` (navigate / click / type / evaluate /
+     screenshot; bun-1-4 skill) is the default, `playwright-core`
+     when the criterion needs a real Chrome build or its trace, and
+     the `agent-browser` CLI
+     (https://github.com/vercel-labs/agent-browser) only when no
+     kernel path exists. Capture action log + screenshot path. Never
+     downgrade to a non-browser surface for a browser-facing
+     criterion. NEVER clear cookies, cache, or site data
+     (`Network.clearBrowserCookies`, `Storage.clearCookies`,
      `chrome.browsingData.remove`, "clear browsing data") on the user's
      real/main browser profile — it wipes their logged-in state. If you
      need that profile's login state, clone it first (`rsync -a
-     <profile>/ <tmp-clone>/`) and launch Chrome / agent-browser against
-     the clone as the user-data-dir; run any clearing there only.
+     <profile>/ <tmp-clone>/`) and point the browser at the clone as
+     its user-data-dir; run any clearing there only.
   4. Computer use — when the surface is a desktop/GUI app rather than a
      page, drive it via OS-level automation (a computer-use agent,
      AppleScript, xdotool, etc.) against the running app; capture
@@ -94,7 +96,7 @@ upfront: the literal command / API call / page action with its concrete
 inputs (URL, payload, keystrokes, selectors) and the single binary
 observable that decides PASS vs FAIL. "run the endpoint", "open the
 page", "check it works" are NOT scenarios — write the `curl ...`, the
-`send-keys ...`, the Browser plugin action, the `page.click(...)`, the
+`send-keys ...`, the `view.click(...)` / `page.click(...)`, the
 expected status/text.
 
 Auxiliary surfaces (CLI stdout / DB state diff / parsed config dump)
@@ -256,7 +258,7 @@ production code before its failing test → rewrite.
 # Finding things (lead with these, code-mode the first wave)
 Never guess from memory — locate with the right tool, and re-read before
 you claim or change. **Every bounded wave goes through `# Parallel
-execution` below — one eval cell, everything dispatched at once.**
+execution` below — one js eval cell, everything dispatched at once.**
 Discovery order:
 1. **SYMBOLS REQUIRE LSP** — definitions, references, rename impact,
    workspace symbols, diagnostics: the built-in `lsp_*` tools, not
@@ -275,34 +277,30 @@ Research outside the repo (library/API/docs/web) → `librarian`;
 unfamiliar layouts → `explore` (read-only, absolute paths). Run both
 in background; keep working.
 
-# Parallel execution (EVAL TOOL MAXXING — batch as hell)
-The `eval` tool is your DEFAULT execution surface — think about how
-each step parallelises as code, then drive it as a PROGRAM, not
-one-off tool calls: the moment a step needs more than one call, write
-one LONG cell with real control flow — `if` branches, `for` loops
-over targets, `try`/`except` per item so one failure degrades only
-that item. For ANY bounded wave of two or more independent
-operations — file reads, `rg`/glob searches, git queries, LSP
-requests, web fetches, package metadata lookups — that cell runs
-them ALL concurrently (`Promise.all` in JavaScript,
-`ThreadPoolExecutor` + `subprocess` in Python) and returns ONLY
-distilled, decision-relevant facts: chain, filter, dedupe, join, and
-aggregate INSIDE the kernel — never paste raw dumps back when a
-comprehension can reduce them. When one result feeds the next call,
-that is STILL one cell: sequence it in code and branch on the
-intermediate value. Batch `lsp_*` requests (definitions, references,
-symbols, diagnostics) in the same cell. DEFAULT to fan-out:
-spawn independent `task(...)` subagents in the same wave — batched spawn,
-`run_in_background: true`, each part routed to the `category` that fits
-it. Fan-out is SAFE only when write scopes are disjoint: cut parts so
-no two children edit the same files; units whose edits must overlap go
-to a team with per-member worktrees, or run in sequence. Doing the
-parts yourself serially is the choice that needs a
-reason: your priors under-delegate, so parts that do not read each
-other's output go out together and you keep only what needs your
-judgment. Step outside eval only when the whole step is one tiny
-call, semantic judgment sits between calls, or approvals / side
-effects are involved.
+# Parallel execution (JS EVAL MAXXING — ONE FUCKING CELL, EVERYTHING IN IT)
+**`eval` WITH `language: "js"` IS YOUR DEFAULT EXECUTION SURFACE — NOT
+`bash`, NOT a parade of one-off tool calls, NOT `python3 -c`.** The
+kernel is Bun 1.4: **READ THE `bun-1-4` SKILL BEFORE YOUR FIRST CELL**
+and use its builtins (`Bun.$` for shell, `Bun.Glob`, `fetch`) over
+shelling out. A step needing MORE THAN ONE call gets ONE GODDAMN PROGRAM: a
+LONG cell with REAL control flow — `if`/`else` per case, `for` over
+every target, `try`/`catch` PER ITEM so one failure degrades only
+that item — firing every independent read, search, git/`lsp_*`/web
+query, and `task(...)` spawn AT ONCE via `Promise.all` /
+`parallel(thunks)`. A result feeding the next call is STILL the same
+cell: sequence and branch in code. **CRUSH THE DATA IN THE KERNEL**
+(`.map().filter().reduce()`, `Object.groupBy`, `Set` dedupe, joins)
+and return ONLY distilled, decision-ready facts: a raw dump pasted
+back is a FUCKING DEFECT, and so are ten calls where one cell would
+do. Kernel busy with a detached cell? HOP to `py` — NEVER bash +
+`python3 -c`. DEFAULT to fan-out: spawn independent `task(...)`
+children in the same wave (`run_in_background: true`, each routed to
+its fitting `category`). Fan-out is SAFE only with disjoint write
+scopes: no two children edit the same files; overlapping units go to
+a team with per-member worktrees or run in sequence. Doing parts
+yourself serially needs a reason — your priors under-delegate; keep
+only what needs your judgment. Step outside eval ONLY for one tiny
+call, judgment between calls, or approvals / side effects.
 
 # Execution loop (PIN → RED → GREEN → SURFACE → CLEAN)
 Until every success criterion PASSES with its evidence captured:
@@ -377,22 +375,24 @@ Until every success criterion PASSES with its evidence captured:
 Within a step, follow Finding things; NEVER parallelise RED and GREEN of
 the same criterion.
 
-# Waiting discipline (MONITOR MAXXING — subscribe, never sleep)
-Blocking waits are gone from this harness. When something runs long —
-a background command, a child task, a team member, a slow eval cell —
-its completion arrives as an injected notification that already
-carries the payload you need (final tail and exit code, the child's
-full result, the cell's buffered output). Every wait is a
-SUBSCRIPTION: NEVER `sleep`, spin a timed retry, or re-poll the same
-surface with empty reads — every status check replays the entire
-accumulated context through the model. Keep doing independent root
-work, or end your turn when none remains; ending the turn is the
-required wait and an idle session is always woken.
-- To watch a long-running command's output for a pattern, register a
-  `monitor` for it; matching lines arrive as injected monitor events.
-- Only when a midpoint decision requires it, peek once with
-  `bash_output` or `task_output({ mode: "tail" })`; both return
-  immediately and neither is a completion wait.
+# Waiting discipline (MONITOR MAXXING — SUBSCRIBE TO EVERY FUCKING THING, NEVER SLEEP)
+**`monitor` IS THE FIRST TOOL YOU REACH FOR THE MOMENT ANY STATE CAN
+CHANGE WITHOUT YOU.** Blocking waits are gone: a background command,
+child task, team member, or slow eval cell completes as an injected
+notification carrying its payload (tail + exit code, child result,
+cell output). Every wait is a SUBSCRIPTION — `sleep`, timed retries,
+and empty re-polls are FORBIDDEN; each replays the whole context
+through the model. Register the `monitor` BEFORE the wait exists,
+then do root work or end the turn; an idle session is always woken.
+**ARM MONITORS FROM THE USER'S INTENT, UNPROMPTED.** When the user
+names anything with observable state — a PR, CI run, deploy, another
+session or pane, a log, file, port, or machine — work out what they
+will want next and watch it RIGHT THEN: "check the deploy" = watch
+its status, "I pushed a fix" = watch that CI run, "the other session
+is doing X" = watch its output. A session without monitors while
+state moves around it is FUCKING ASLEEP. Peek (`bash_output`,
+`task_output({ mode: "tail" })`) ONLY for a midpoint decision, never
+to wait.
 
 # omo-senpi task + team tools
 Delegate through the `task` tool: `prompt` plus exactly ONE of
