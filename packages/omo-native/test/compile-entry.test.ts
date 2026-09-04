@@ -4,6 +4,7 @@ import { createHash } from "node:crypto"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import {
+  compiledBannerLines,
   answerCompiledFastPath,
   buildSenpiArgs,
   remapSenpiEnvironment,
@@ -443,5 +444,50 @@ describe("omob provenance degrades sanely", () => {
     expect(updateHint(info)).toBe("rebuild with: bun run omob")
     expect(updateHint(malformed, "darwin", "arm64")).toBe(updateLine("darwin", "arm64"))
     expect(updateHint(undefined, "darwin", "arm64")).toBe(updateLine("darwin", "arm64"))
+  })
+})
+
+describe("compiledBannerLines", () => {
+  const stampedInfo = {
+    command: "omob",
+    omo: { commit: "c6e7dd7fb0f993336ed61c62acc5d55c6ada8bfc", committedAt: "2026-09-04T10:17:49+09:00", branch: "dev" },
+    engine: { commit: "7fd18dfeec7a7db89a983b2c3cb90835b8c3c5f7", committedAt: "2026-09-04T10:49:12+09:00", branch: "main" },
+  }
+
+  test("#given a stamped dev build #when the banner renders #then it prints the same provenance as --version", () => {
+    const lines = compiledBannerLines({ omoAiVersion: "0.0.0-omob.c6e7dd7.7fd18df", buildInfo: stampedInfo })
+
+    // The requirement: banner, --version and doctor all show full SHAs, ISO dates and branches.
+    expect(lines).toEqual([
+      "omob dev build",
+      "omo   c6e7dd7fb0f993336ed61c62acc5d55c6ada8bfc 2026-09-04T10:17:49+09:00 (dev)",
+      "senpi 7fd18dfeec7a7db89a983b2c3cb90835b8c3c5f7 2026-09-04T10:49:12+09:00 (main)",
+    ])
+    // guards against a regression to short SHAs / a missing date or branch
+    expect(lines.join("\n")).toContain("c6e7dd7fb0f993336ed61c62acc5d55c6ada8bfc")
+    expect(lines.some((line) => line.includes("c6e7dd7 "))).toBe(false)
+  })
+
+  test("#given a release build with no build info #when the banner renders #then it keeps the release one-liner", () => {
+    expect(compiledBannerLines({ omoAiVersion: "5.0.0-beta.40", buildInfo: undefined })).toEqual([
+      "omo (omo-ai beta 5.0.0-beta.40)",
+    ])
+  })
+
+  test("#given malformed build info #when the banner renders #then it degrades to the release one-liner", () => {
+    const malformed = { command: "omob", omo: { commit: "nope", committedAt: "", branch: "" }, engine: {} }
+
+    expect(compiledBannerLines({ omoAiVersion: "5.0.0-beta.40", buildInfo: malformed })).toEqual([
+      "omo (omo-ai beta 5.0.0-beta.40)",
+    ])
+  })
+
+  test("#given a build stamped with another command name #when the banner renders #then it uses that name", () => {
+    const lines = compiledBannerLines({
+      omoAiVersion: "0.0.0-omob.c6e7dd7.7fd18df",
+      buildInfo: { ...stampedInfo, command: "omoq" },
+    })
+
+    expect(lines[0]).toBe("omoq dev build")
   })
 })
