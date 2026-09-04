@@ -36,12 +36,12 @@ export function buildSandboxTransform(input: {
   readonly which?: (command: string) => string | undefined
   readonly probe?: (executable: string) => SandboxUsability
 }): SandboxTransform {
-  const agentDir = resolveAgentHome({ env: input.env })
-  // Grant only senpi's lock directories where the platform supports absent-path grants; the agent directory itself remains read-only.
-  const lockPaths = input.platform === "darwin" ? senpiAgentLockPaths(agentDir) : []
+  // The reflection child needs no lock grant: identity-runtime already lists the whole agent
+  // directory under runtimeWrites, so senpi's settings/auth/hooks-state locks are writable there.
+  // Resolving the agent home here would read process-wide state the caller never passed and, on a
+  // host whose agent dir does not exist yet, degrade the sandbox to identity.
   return buildPathSandboxTransform({
     surface: "reflection",
-    lockPaths,
     policy: input.policy,
     writableDirs: [
       input.worktreeDir,
