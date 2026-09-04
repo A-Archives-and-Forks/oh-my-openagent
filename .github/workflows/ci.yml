@@ -482,6 +482,24 @@ jobs:
           npm --prefix packages/lsp-daemon test -- test/daemon-roundtrip.test.ts
           bunx tsgo --noEmit -p packages/omo-senpi/tsconfig.json
           bun test ./.agents/skills/senpi-qa/scripts/resolve-evidence-dir.test.mjs
+          echo "::group::Fixture-vs-rebuild diagnostic (temporary)"
+          set +e
+          bun test --preload ./script/ci-keep-build-temps.preload.ts packages/omo-senpi/plugin/scripts/build-extension.test.mjs 2>&1 | grep -E '^\s*[0-9]+ (pass|fail)|\(fail\)'
+          set -e
+          ls -d .build-check-* .build-extension-test-* 2>/dev/null || echo '<no kept trees>'
+          node -e '
+            const fs=require("fs");const dirs=fs.readdirSync(".").filter(d=>/^\.build-(check|extension-test)-/.test(d));
+            const body=t=>t.slice(t.indexOf("\n",t.indexOf("// omo:"))+1);const mk=t=>(t.match(/\/\/ omo:[^\n]*/)||["?"])[0];
+            const files=[];for(const d of dirs){const p=d+"/omo-task.js";if(fs.existsSync(p)){const t=fs.readFileSync(p,"utf8");files.push({d,mk:mk(t).slice(0,60),len:body(t).length,t})}}
+            for(const f of files)console.log(f.d.padEnd(34),f.mk,f.len);
+            const byBody=new Map();for(const f of files){const k=body(f.t);byBody.set(k,(byBody.get(k)||[]).concat(f.d))}
+            console.log("distinct omo-task.js bodies:",byBody.size);
+            const vs=[...byBody.keys()];if(vs.length>=2){const a=vs[0].split(";"),b=vs[1].split(";");let i=0;while(i<a.length&&i<b.length&&a[i]===b[i])i++;console.log("firstDivergent",i,"/",a.length,b.length);console.log("A:",(a[i]||"").slice(0,700));console.log("B:",(b[i]||"").slice(0,700));
+              const imp=t=>new Set([...t.matchAll(/from"([^"]+)"|import\("([^"]+)"\)|require\("([^"]+)"\)/g)].map(m=>m[1]||m[2]||m[3]));const ia=imp(vs[0]),ib=imp(vs[1]);
+              console.log("externals only in A:",[...ia].filter(x=>!ib.has(x)).join(","));console.log("externals only in B:",[...ib].filter(x=>!ia.has(x)).join(","));}
+          '
+          rm -rf .build-check-* .build-extension-test-*
+          echo "::endgroup::"
           bun test packages/omo-senpi
 
       - name: Run Senpi compatibility tests with Windows telemetry

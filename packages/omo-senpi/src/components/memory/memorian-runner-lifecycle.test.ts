@@ -30,13 +30,23 @@ describe("MemorianGateRunner", () => {
       lastAssistantText: () => undefined,
       dispose: () => { disposed += 1; resolveDisposed?.() },
     }
+    // The deadline must fire only AFTER runner.start() has been invoked: setup does file writes and a
+    // sidecar import first, and on a slow runner a wall-clock deadline can beat start() itself, in
+    // which case there is no late handle to dispose and the scenario is vacuous. Gate on the start
+    // signal, then let a short deadline win the race against a start promise that never resolves.
+    let resolveStarted: (() => void) | undefined
+    const started = new Promise<void>((resolve) => { resolveStarted = resolve })
     const runner = new MemorianGateRunner(runnerOptions(identityPaths, {
-      deadlineMs: 5,
-      createRunner: () => ({ start: async () => new Promise<ChildHandle>((resolve) => { resolveStart = resolve }) }),
+      deadlineMs: 250,
+      createRunner: () => ({
+        start: async () => new Promise<ChildHandle>((resolve) => { resolveStart = resolve; resolveStarted?.() }),
+      }),
     }))
 
     // when
-    const result = await runner.launch(launchInput())
+    const launched = runner.launch(launchInput())
+    await Promise.race([started, new Promise<never>((_, reject) => setTimeout(() => reject(new Error("runner.start was never invoked")), 5_000))])
+    const result = await launched
     resolveStart?.(lateHandle)
     // The late handle is torn down inside the setup continuation; await that signal, never a tick count.
     await Promise.race([lateDisposed, new Promise<never>((_, reject) => setTimeout(() => reject(new Error("late handle was never disposed")), 5_000))])
