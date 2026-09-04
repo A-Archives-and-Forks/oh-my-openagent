@@ -10,8 +10,8 @@
 // sanitize to the same slug still map to distinct directories.
 
 import { createHash } from "node:crypto"
-import { existsSync } from "node:fs"
 import { basename, join, resolve as resolvePath } from "node:path"
+import { existsSync } from "../fs/resilient"
 import { AGENTS_DIRNAME, buildIdentityPaths, resolveMemoryRoot, type MemoryIdentityPaths } from "./layout"
 
 export const AUTO_AGENT_VALUE = "auto"
