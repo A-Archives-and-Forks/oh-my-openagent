@@ -8,7 +8,7 @@ end-to-end without cutting a release.
 ```bash
 bun run omob                       # latest origin/main + origin/dev
 bun run omob --senpi-ref origin/feat/x --omo-ref abc1234
-bun run omob --skip-install        # build only, into ~/.omo/omob/out
+bun run omob --skip-install        # build only, into ~/.cache/omob/out
 ```
 
 Behavior:

@@ -70,7 +70,7 @@ export function parseOmobArgs(argv: readonly string[], platform: string, arch: s
 	return {
 		senpiRef: options.senpiRef ?? "origin/main",
 		omoRef: options.omoRef ?? "origin/dev",
-		cacheDir: options.cacheDir ?? join(homeDir, ".omo", "omob"),
+		cacheDir: options.cacheDir ?? join(homeDir, ".cache", "omob"),
 		installDir: options.installDir ?? join(homeDir, ".local", "bin"),
 		name: options.name ?? "omob",
 		target: options.target ?? hostTargetFor(platform, arch),

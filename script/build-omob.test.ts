@@ -12,7 +12,7 @@ describe("parseOmobArgs", () => {
 		expect(parsed.keep).toBe(2)
 		expect(parsed.target).toBe("darwin-arm64")
 		expect(parsed.installDir).toBe("/home/dev/.local/bin")
-		expect(parsed.cacheDir).toBe("/home/dev/.omo/omob")
+		expect(parsed.cacheDir).toBe("/home/dev/.cache/omob")
 		expect(parsed.skipFetch).toBe(false)
 		expect(parsed.skipInstall).toBe(false)
 	})
