@@ -105,6 +105,16 @@ describe("redactUrl", () => {
     })
   })
 
+  describe("#given common credential forms", () => {
+    it("#then password assignments, bearer headers, and OpenAI keys are recognized", () => {
+      for (const value of [
+        "password=hunter2",
+        "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.abc",
+        "sk-proj-AAAABBBBCCCCDDDD",
+      ]) expect(containsSecretLikeMaterial(value)).toBe(true)
+    })
+  })
+
   describe("#given repeated secret-like material", () => {
     it("#then every AWS-style key is masked", () => {
       const value = "AKIA1234567890ABCDEF and AKIAABCDEFGHIJKLMNOP"
@@ -131,6 +141,19 @@ describe("redactUrl", () => {
       const value = "token=aaa token=bbb"
       expect(containsSecretLikeMaterial(value)).toBe(true)
       expect(containsSecretLikeMaterial(value)).toBe(true)
+    })
+  })
+
+  describe("#given malformed PEM-shaped input", () => {
+    it("#then redaction completes within a bounded time and real PEM blocks remain masked", () => {
+      const hostile = `-----BEGIN ${"A".repeat(100_000)}-----${"B".repeat(100_000)}`
+      const started = performance.now()
+      const redacted = redactUrl(hostile)
+      expect(performance.now() - started).toBeLessThan(500)
+      expect(redacted).toBe(hostile)
+
+      const pem = "-----BEGIN PRIVATE KEY-----secret-----END PRIVATE KEY-----"
+      expect(redactUrl(pem)).toBe("***")
     })
   })
 

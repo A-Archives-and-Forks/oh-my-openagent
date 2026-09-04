@@ -117,6 +117,19 @@ describe("createMemorianNudgeTool", () => {
     expect(accepted).toEqual([])
   })
 
+  for (const [label, hint] of [
+    ["password assignment", "password=hunter2"],
+    ["bearer authorization", "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.abc"],
+    ["OpenAI key", "sk-proj-AAAABBBBCCCCDDDD"],
+  ] as const) {
+    test(`#given a ${label} hint #when nudge is called #then an error result returns and nothing is recorded`, async () => {
+      const { accepted, tool } = launch()
+      const result = await tool.execute("call-1", params(CANDIDATE_PATH, hint))
+      expect(result.isError).toBe(true)
+      expect(accepted).toEqual([])
+    })
+  }
+
   test("#given a multiline hint #when nudge is called #then an error result returns and nothing is recorded", async () => {
     // given
     const { accepted, tool } = launch()
