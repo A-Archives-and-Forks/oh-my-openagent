@@ -16,6 +16,12 @@ export {
 } from "./sandbox-contracts"
 export type { SandboxUsability } from "./sandbox-platform"
 
+export const SENPI_AGENT_LOCK_FILES = ["settings.json.lock", "auth.json.lock", "hooks-state.json.lock"] as const
+
+export function senpiAgentLockPaths(agentDir: string): string[] {
+  return SENPI_AGENT_LOCK_FILES.map((file) => join(agentDir, file))
+}
+
 export function buildSandboxTransform(input: {
   readonly policy: SandboxPolicy
   readonly worktreeDir: string
@@ -30,8 +36,12 @@ export function buildSandboxTransform(input: {
   readonly which?: (command: string) => string | undefined
   readonly probe?: (executable: string) => SandboxUsability
 }): SandboxTransform {
+  const agentDir = resolveAgentHome({ env: input.env })
+  // Grant only senpi's lock directories where the platform supports absent-path grants; the agent directory itself remains read-only.
+  const lockPaths = input.platform === "darwin" ? senpiAgentLockPaths(agentDir) : []
   return buildPathSandboxTransform({
     surface: "reflection",
+    lockPaths,
     policy: input.policy,
     writableDirs: [
       input.worktreeDir,
@@ -52,7 +62,7 @@ export function buildSandboxTransform(input: {
 
 /**
  * The memorian gate child gets the facts child's confinement: its run dir is the only writable
- * tree, senpi's own settings/auth locks stay takeable, and the read-only payload files are granted
+ * tree, senpi's own settings/auth/hooks-state locks stay takeable, and the read-only payload files are granted
  * explicitly. Same `memory.reflection.sandbox` policy - the gate adds no knob of its own.
  */
 export function buildMemorianSandboxTransform(input: {
@@ -70,7 +80,8 @@ export function buildMemorianSandboxTransform(input: {
       surface: "memorian",
       policy: input.policy,
       writableDirs: [spawnArgs.paths.runDir],
-      lockPaths: [join(agentDir, "settings.json.lock"), join(agentDir, "auth.json.lock")],
+      // Grant only senpi's lock directories; the agent directory itself remains read-only.
+      lockPaths: senpiAgentLockPaths(agentDir),
       payloadPaths: [spawnArgs.paths.candidates, spawnArgs.paths.transcript],
       fallbackDir: spawnArgs.paths.runDir,
       foreignRoots: input.foreignRoots,
@@ -96,14 +107,15 @@ export function buildFactsSandboxTransform(input: {
   readonly probe?: (executable: string) => SandboxUsability
 }): FactsSandbox {
   return (spawnArgs) => {
-    // The child only needs to take senpi's own settings/auth locks; the agent dir itself stays
+    // The child only needs senpi's settings/auth/hooks-state locks; the agent dir itself stays
     // read-only so auth.json and settings.json cannot be rewritten by a misbehaving child.
     const agentDir = resolveAgentHome({ env: spawnArgs.env })
     const transform = buildPathSandboxTransform<FactsSpawnArgs>({
       surface: "facts",
       policy: input.policy,
       writableDirs: [spawnArgs.paths.runDir],
-      lockPaths: [join(agentDir, "settings.json.lock"), join(agentDir, "auth.json.lock")],
+      // Grant only senpi's lock directories; the agent directory itself remains read-only.
+      lockPaths: senpiAgentLockPaths(agentDir),
       payloadPaths: [spawnArgs.paths.payload],
       fallbackDir: spawnArgs.paths.runDir,
       foreignRoots: input.foreignRoots,
