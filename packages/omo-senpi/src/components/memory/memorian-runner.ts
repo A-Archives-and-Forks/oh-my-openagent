@@ -182,8 +182,9 @@ export class MemorianGateRunner {
     // judged transcript no longer exists, so writing would advise the next turn about a
     // conversation the compaction already rewrote - exactly what onCompactionAccepted's pending
     // drop prevents for verdicts that landed BEFORE the compaction.
-    if (state.cancelled) return this.dropAfterCancellation(input)
-    if (isStaleAfterCompaction(input)) return this.dropAfterCompaction(input)
+    if (state.cancelled || isStaleAfterCompaction(input)) return state.cancelled
+      ? { status: "dropped", cause: "cancelled", candidateCount: input.candidates.length }
+      : this.dropAfterCompaction(input)
     // The launch epoch travels INSIDE the payload, which is what makes the write/compaction race
     // unwinnable-but-harmless: whoever wins, the consumer compares the stamped epoch against the
     // session's live one and refuses a verdict whose transcript a compaction has replaced.
@@ -192,13 +193,11 @@ export class MemorianGateRunner {
     // while its own pending drop still sees no file, so retracting here keeps the directory clean.
     // Correctness no longer depends on this check - the payload's epoch is now authoritative at
     // take() - so losing this race costs nothing.
-    if (state.cancelled) {
+    if (state.cancelled || isStaleAfterCompaction(input)) {
       await pending.delete(input.sessionId)
-      return this.dropAfterCancellation(input)
-    }
-    if (isStaleAfterCompaction(input)) {
-      await pending.delete(input.sessionId)
-      return this.dropAfterCompaction(input)
+      return state.cancelled
+        ? { status: "dropped", cause: "cancelled", candidateCount: input.candidates.length }
+        : this.dropAfterCompaction(input)
     }
     return { status: "nudged", nudges, model: resolution.model }
   }
@@ -328,13 +327,6 @@ export class MemorianGateRunner {
         handle.dispose()
       }
     }
-  }
-
-  private dropAfterCancellation(input: MemorianGateLaunchInput): MemorianGateLaunchResult {
-    this.options.logger?.warn("memorian gate nudges dropped after cancellation", {
-      sessionId: input.sessionId,
-    })
-    return { status: "dropped", cause: "cancelled", candidateCount: input.candidates.length }
   }
 
   private dropAfterCompaction(input: MemorianGateLaunchInput): MemorianGateLaunchResult {
