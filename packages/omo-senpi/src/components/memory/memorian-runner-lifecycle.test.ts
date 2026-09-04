@@ -76,6 +76,40 @@ describe("MemorianGateRunner", () => {
     expect(result).toMatchObject({ status: "failed", cause: "deadline" })
   })
 
+  test("#given a completed child blocked on persistence #when cancel is called #then the pending payload is retracted", async () => {
+    // given
+    const { identityPaths } = await fixture()
+    const child = scriptedSession(async (options) => { await nudgeOnce(options) })
+    let releaseWrite: (() => void) | undefined
+    let resolveWriteEntered: (() => void) | undefined
+    const writeEntered = new Promise<void>((resolve) => { resolveWriteEntered = resolve })
+    const pendingNudges = {
+      write: async () => {
+        resolveWriteEntered?.()
+        await new Promise<void>((resolve) => { releaseWrite = resolve })
+      },
+      delete: async () => { releaseWrite?.() },
+    }
+    const runner = new MemorianGateRunner(runnerOptions(identityPaths, {
+      createSession: child.createSession,
+      pendingNudges,
+      deadlineMs: 1000,
+    }))
+
+    // when
+    const launch = runner.launch(launchInput())
+    await child.whenPrompted()
+    child.resolve()
+    await writeEntered
+    const cancelling = runner.cancel()
+    releaseWrite?.()
+    await cancelling
+    const result = await launch
+
+    // then
+    expect(result).toMatchObject({ status: "dropped", cause: "cancelled" })
+  })
+
   test("#given a child in flight #when cancel is called #then it aborts and disposes without writing a late nudge", async () => {
     // given
     const { identityPaths } = await fixture()
