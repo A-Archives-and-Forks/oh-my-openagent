@@ -473,6 +473,7 @@ describe("omob build info stamping", () => {
 
   test("#given build info #when the runtime manifest is built #then it records build info and changes the digest", async () => {
     const stageDir = makeTempDir("omo-manifest-buildinfo-")
+    mkdirSync(join(stageDir, "theme"), { recursive: true })
     writeFileSync(join(stageDir, "theme", "dark.json"), "{}\n")
     const bare = await buildRuntimeManifest(stageDir, { omoAiVersion: "1.2.3", enginePin: "2026.8.24" })
     const stamped = await buildRuntimeManifest(stageDir, { omoAiVersion: "1.2.3", enginePin: "2026.8.24", buildInfo })
