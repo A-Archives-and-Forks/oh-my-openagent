@@ -1,5 +1,6 @@
 import { afterAll, afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import { appendFile, cp, mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -49,7 +50,7 @@ function outputPathsIn(root) {
  */
 async function sharedOutputs() {
   sharedBuildPromise ??= (async () => {
-    const root = await mkdtemp(join(repoRoot, ".build-extension-test-shared-"))
+    const root = await mkdtemp(join(tmpdir(), "omo-senpi-extension-test-shared-"))
     const paths = outputPathsIn(root)
     const build = await buildExtension(paths)
     return { root, ...paths, ...build }
@@ -59,7 +60,7 @@ async function sharedOutputs() {
 
 async function mutableOutputs() {
   const shared = await sharedOutputs()
-  const root = await mkdtemp(join(repoRoot, ".build-extension-test-"))
+  const root = await mkdtemp(join(tmpdir(), "omo-senpi-extension-test-"))
   perTestRoots.push(root)
   await cp(shared.root, root, { recursive: true })
   return { root, ...outputPathsIn(root), mainInputs: shared.mainInputs, taskInputs: shared.taskInputs }
