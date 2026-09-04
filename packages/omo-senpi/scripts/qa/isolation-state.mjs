@@ -1,7 +1,7 @@
 // allow: SIZE_OK - bounded snapshots and their canonical verdict share one normalization contract.
 import { createHash } from "node:crypto";
 import { constants, readdirSync, readFileSync } from "node:fs";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import {
 	errorCode,
 	FILE_IO,
@@ -282,8 +282,13 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 		beforeOpen = io.lstatSync(boundRoot, { bigint: true });
 	} catch (error) {
 		if (isMissingSnapshotEntryError(error)) {
-			if (currentRoot !== state.root)
+			if (currentRoot !== state.root) {
 				state.errors.push({ path: currentRel, code: "FILE_REPLACED" });
+			} else {
+				const boundaryError = missingRootBoundaryError(boundRoot, error, io);
+				if (boundaryError !== undefined)
+					state.errors.push({ path: currentRel, code: boundaryError });
+			}
 		} else if (
 			currentRoot !== state.root &&
 			isTransientSnapshotEntryError(error)
@@ -474,6 +479,15 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 			if (!primaryFailed && closeError !== undefined)
 				state.errors.push({ path: currentRel, code: closeError });
 		}
+	}
+}
+
+function missingRootBoundaryError(path, missingError, io) {
+	try {
+		const parent = io.lstatSync(dirname(path), { bigint: true });
+		return parent.isDirectory() ? undefined : errorCode(missingError);
+	} catch (error) {
+		return isMissingSnapshotEntryError(error) ? undefined : errorCode(error);
 	}
 }
 
