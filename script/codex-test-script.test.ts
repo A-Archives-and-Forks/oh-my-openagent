@@ -12,7 +12,7 @@ describe("Codex compatibility test script", () => {
 
     // #when
     const lspBuildIndex = packageManifest.indexOf("bun run build:lsp-tools-mcp")
-    const lspTestIndex = packageManifest.indexOf("npm --prefix packages/lsp-tools-mcp test")
+    const lspTestIndex = packageManifest.indexOf("bun run --cwd packages/lsp-tools-mcp test")
     const testsLspAfterBuild = lspBuildIndex >= 0 && lspTestIndex > lspBuildIndex
 
     // #then
@@ -25,7 +25,7 @@ describe("Codex compatibility test script", () => {
 
     // #when
     const lspDaemonBuildIndex = testCodexScript.indexOf("bun run build:lsp-daemon")
-    const pluginBuildIndex = testCodexScript.indexOf("bun run --cwd packages/omo-codex/plugin build")
+    const pluginBuildIndex = testCodexScript.indexOf("bun run build:codex-plugin")
     const installerTestIndex = testCodexScript.indexOf("packages/omo-codex/src/install/install-codex-packaged.test.ts")
     const buildsLspDaemonBeforePluginAndInstallerTests =
       lspDaemonBuildIndex >= 0 &&

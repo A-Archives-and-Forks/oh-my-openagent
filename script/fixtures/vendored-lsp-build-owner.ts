@@ -11,7 +11,7 @@ await ensureVendoredLspDaemonBuilt({
   lockRoot,
   log: () => {},
   runCommand: async (_command, args) => {
-    if (args[0] === "ci") {
+    if (args[0] === "install") {
       console.log("OWNER_READY")
       await new Promise<never>(() => {})
     }

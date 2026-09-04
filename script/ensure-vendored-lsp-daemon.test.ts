@@ -46,7 +46,7 @@ describe("ensureVendoredLspDaemonBuilt", () => {
     let installCount = 0
 
     const runCommand: RunVendoredLspCommand = async (_command, args) => {
-      if (args[0] === "ci") {
+      if (args[0] === "install") {
         installCount += 1
         if (installCount === 1) {
           firstInstallStarted.resolve()
@@ -105,7 +105,7 @@ describe("ensureVendoredLspDaemonBuilt", () => {
         timeoutMs: 1_000,
         log: () => {},
         runCommand: async (_command, args) => {
-          if (args[0] === "ci") {
+          if (args[0] === "install") {
             installCount += 1
           } else {
             await mkdir(join(packageDir, "dist"), { recursive: true })
@@ -151,7 +151,7 @@ describe("ensureVendoredLspDaemonBuilt", () => {
         log: () => {},
         runCommand: async (_command, args, options) => {
           budgets.push(options.timeoutMs)
-          if (args[0] === "ci") {
+          if (args[0] === "install") {
             now += 400
           } else {
             await mkdir(join(packageDir, "dist"), { recursive: true })
@@ -168,7 +168,7 @@ describe("ensureVendoredLspDaemonBuilt", () => {
     expect(budgets).toEqual([1_000, 600])
   })
 
-  it("#given npm ci fails #when the helper builds #then the failure rejects instead of continuing tests", async () => {
+  it("#given bun install fails #when the helper builds #then the failure rejects instead of continuing tests", async () => {
     // given
     const root = await mkdtemp(join(tmpdir(), "omo-lsp-command-failure-"))
     temporaryRoots.push(root)
@@ -184,7 +184,7 @@ describe("ensureVendoredLspDaemonBuilt", () => {
     })
 
     // then
-    await expect(result).rejects.toThrow("lsp-daemon npm ci failed with exit code 7")
+    await expect(result).rejects.toThrow("lsp-daemon bun install failed with exit code 7")
   })
 
   it("#given install exhausts the operation deadline #when build would start #then the aggregate deadline rejects", async () => {
@@ -212,13 +212,13 @@ describe("ensureVendoredLspDaemonBuilt", () => {
       })
 
       // then
-      await expect(result).rejects.toThrow("timed out during npm run build")
+      await expect(result).rejects.toThrow("timed out during bun run build")
     } finally {
       Date.now = originalNow
     }
   })
 
-  it("#given npm spawn fails #when the helper builds #then the original spawn diagnostic is preserved", async () => {
+  it("#given bun spawn fails #when the helper builds #then the original spawn diagnostic is preserved", async () => {
     // given
     const root = await mkdtemp(join(tmpdir(), "omo-lsp-spawn-error-"))
     temporaryRoots.push(root)
@@ -237,10 +237,10 @@ describe("ensureVendoredLspDaemonBuilt", () => {
     })
 
     // then
-    await expect(result).rejects.toThrow("lsp-daemon npm ci failed: spawn EACCES")
+    await expect(result).rejects.toThrow("lsp-daemon bun install failed: spawn EACCES")
   })
 
-  it("#given npm is terminated by a signal #when the helper builds #then the signal is reported", async () => {
+  it("#given bun is terminated by a signal #when the helper builds #then the signal is reported", async () => {
     // given
     const root = await mkdtemp(join(tmpdir(), "omo-lsp-signal-"))
     temporaryRoots.push(root)
@@ -260,7 +260,7 @@ describe("ensureVendoredLspDaemonBuilt", () => {
 
     // then
     await expect(result).rejects.toThrow(
-      "lsp-daemon npm ci failed with signal SIGTERM",
+      "lsp-daemon bun install failed with signal SIGTERM",
     )
   })
 })
