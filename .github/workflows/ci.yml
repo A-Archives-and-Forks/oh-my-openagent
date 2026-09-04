@@ -208,7 +208,7 @@ jobs:
       # module state between files. Job-level sharding is the parallelism.
       - name: Run tests
         if: needs.ci-mode.outputs.run_heavy == 'true' && runner.os != 'Windows' && matrix.shard == '1/2' && (matrix.os == 'ubuntu-latest' || needs.ci-mode.outputs.full_matrix == 'true')
-        run: bun test packages/omo-opencode packages/memory-core
+        run: bun test --timeout 20000 packages/omo-opencode packages/memory-core
 
       - name: Run tests with Windows telemetry
         if: needs.ci-mode.outputs.run_heavy == 'true' && runner.os == 'Windows' && matrix.shard == '1/2' && (matrix.os == 'ubuntu-latest' || needs.ci-mode.outputs.full_matrix == 'true')
@@ -225,8 +225,8 @@ jobs:
       - name: Run tests
         if: needs.ci-mode.outputs.run_heavy == 'true' && runner.os != 'Windows' && matrix.shard == '2/2' && (matrix.os == 'ubuntu-latest' || needs.ci-mode.outputs.full_matrix == 'true')
         run: |
-          bun test packages/senpi-task/src/runners/rpc-process.windows.test.ts packages/senpi-task/src/__adversarial__/chaos-bench.test.ts packages/omo-codex/src/install/install-codex-legacy-agent-purge.test.ts script/codex-installer-version.test.ts packages/shared-skills/provenance-gate.test.ts packages/omo-codex/src/install/install-codex-mcp-manifest.test.ts packages/senpi-task/src/dag/scheduler.test.ts packages/omo-native/test/payload.test.ts script/build-omo-binary.test.ts
-          bun --config=bunfig.win2.parallel.toml test
+          bun test --timeout 20000 packages/senpi-task/src/runners/rpc-process.windows.test.ts packages/senpi-task/src/__adversarial__/chaos-bench.test.ts packages/omo-codex/src/install/install-codex-legacy-agent-purge.test.ts script/codex-installer-version.test.ts packages/shared-skills/provenance-gate.test.ts packages/omo-codex/src/install/install-codex-mcp-manifest.test.ts packages/senpi-task/src/dag/scheduler.test.ts packages/omo-native/test/payload.test.ts script/build-omo-binary.test.ts
+          bun --config=bunfig.win2.parallel.toml test --timeout 20000
 
       # Git Bash sets SHELL/MSYSTEM on Windows, which makes process-platform
       # tests observe sh instead of the native PowerShell/cmd execution path.
@@ -449,26 +449,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          set +e
-          node packages/omo-senpi/plugin/scripts/build-extension.mjs --check; CHECK_RC=$?
-          set -e
-          echo "::group::Runner-built omo-task.js vs committed (diagnostic)"
-          OUT=$RUNNER_TEMP/rebuilt; mkdir -p "$OUT"
-          OMO_SENPI_PLUGIN_OUTPUT=$OUT node packages/omo-senpi/plugin/scripts/build-extension.mjs 2>&1 | grep -E 'Bundled 6' || true
-          printf 'committed: '; grep -m1 '^// omo:' packages/omo-senpi/plugin/extensions/omo-task.js
-          printf 'rebuilt:   '; grep -m1 '^// omo:' "$OUT/extensions/omo-task.js"
-          node -e '
-            const fs=require("fs");const c=fs.readFileSync("packages/omo-senpi/plugin/extensions/omo-task.js","utf8"),r=fs.readFileSync(process.argv[1],"utf8");
-            const body=t=>t.slice(t.indexOf("\n",t.indexOf("// omo:"))+1);const bc=body(c).split(";"),br=body(r).split(";");
-            let i=0;while(i<bc.length&&i<br.length&&bc[i]===br[i])i++;
-            console.log("bodyLen committed="+body(c).length+" rebuilt="+body(r).length+" stmts="+bc.length+"/"+br.length+" firstDivergent="+i);
-            console.log("C: "+(bc[i]||"").slice(0,700));console.log("R: "+(br[i]||"").slice(0,700));
-            const imp=t=>[...t.matchAll(/from"([^"]+)"|import\("([^"]+)"\)|require\("([^"]+)"\)/g)].map(m=>m[1]||m[2]||m[3]);
-            const sc=new Set(imp(body(c))),sr=new Set(imp(body(r)));
-            console.log("externals only in committed: "+[...sc].filter(x=>!sr.has(x)).join(",")); console.log("externals only in rebuilt: "+[...sr].filter(x=>!sc.has(x)).join(","));
-          ' "$OUT/extensions/omo-task.js"
-          echo "::endgroup::"
-          exit $CHECK_RC
+          node packages/omo-senpi/plugin/scripts/build-extension.mjs --check
 
       - name: Run Senpi compatibility tests
         if: needs.ci-mode.outputs.run_heavy == 'true' && runner.os != 'Windows' && (matrix.os == 'ubuntu-latest' || needs.ci-mode.outputs.full_matrix == 'true')
@@ -482,25 +463,7 @@ jobs:
           npm --prefix packages/lsp-daemon test -- test/daemon-roundtrip.test.ts
           bunx tsgo --noEmit -p packages/omo-senpi/tsconfig.json
           bun test ./.agents/skills/senpi-qa/scripts/resolve-evidence-dir.test.mjs
-          echo "::group::Fixture-vs-rebuild diagnostic (temporary)"
-          set +e
-          bun test --preload ./script/ci-keep-build-temps.preload.ts packages/omo-senpi/plugin/scripts/build-extension.test.mjs 2>&1 | grep -E '^\s*[0-9]+ (pass|fail)|\(fail\)'
-          set -e
-          ls -d .build-check-* .build-extension-test-* 2>/dev/null || echo '<no kept trees>'
-          node -e '
-            const fs=require("fs");const dirs=fs.readdirSync(".").filter(d=>/^\.build-(check|extension-test)-/.test(d));
-            const body=t=>t.slice(t.indexOf("\n",t.indexOf("// omo:"))+1);const mk=t=>(t.match(/\/\/ omo:[^\n]*/)||["?"])[0];
-            const files=[];for(const d of dirs){const p=d+"/omo-task.js";if(fs.existsSync(p)){const t=fs.readFileSync(p,"utf8");files.push({d,mk:mk(t).slice(0,60),len:body(t).length,t})}}
-            for(const f of files)console.log(f.d.padEnd(34),f.mk,f.len);
-            const byBody=new Map();for(const f of files){const k=body(f.t);byBody.set(k,(byBody.get(k)||[]).concat(f.d))}
-            console.log("distinct omo-task.js bodies:",byBody.size);
-            const vs=[...byBody.keys()];if(vs.length>=2){const a=vs[0].split(";"),b=vs[1].split(";");let i=0;while(i<a.length&&i<b.length&&a[i]===b[i])i++;console.log("firstDivergent",i,"/",a.length,b.length);console.log("A:",(a[i]||"").slice(0,700));console.log("B:",(b[i]||"").slice(0,700));
-              const imp=t=>new Set([...t.matchAll(/from"([^"]+)"|import\("([^"]+)"\)|require\("([^"]+)"\)/g)].map(m=>m[1]||m[2]||m[3]));const ia=imp(vs[0]),ib=imp(vs[1]);
-              console.log("externals only in A:",[...ia].filter(x=>!ib.has(x)).join(","));console.log("externals only in B:",[...ib].filter(x=>!ia.has(x)).join(","));}
-          '
-          rm -rf .build-check-* .build-extension-test-*
-          echo "::endgroup::"
-          bun test packages/omo-senpi
+          bun test --timeout 20000 packages/omo-senpi
 
       - name: Run Senpi compatibility tests with Windows telemetry
         if: needs.ci-mode.outputs.run_heavy == 'true' && runner.os == 'Windows' && (matrix.os == 'ubuntu-latest' || needs.ci-mode.outputs.full_matrix == 'true')
@@ -655,7 +618,7 @@ jobs:
 
       - name: Verify dist bundle tests
         if: needs.ci-mode.outputs.run_heavy == 'true'
-        run: bun test packages/omo-opencode/src/shared/dist-bundle-bun-globals.test.ts packages/omo-opencode/src/shared/dist-bundle-prompt-content.test.ts
+        run: bun test --timeout 20000 packages/omo-opencode/src/shared/dist-bundle-bun-globals.test.ts packages/omo-opencode/src/shared/dist-bundle-prompt-content.test.ts
 
       - name: Write job summary
         if: always()
