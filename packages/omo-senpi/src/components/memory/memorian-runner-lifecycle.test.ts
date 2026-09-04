@@ -17,6 +17,8 @@ describe("MemorianGateRunner", () => {
     const { identityPaths } = await fixture()
     let resolveStart: ((handle: ChildHandle) => void) | undefined
     let disposed = 0
+    let resolveDisposed: (() => void) | undefined
+    const lateDisposed = new Promise<void>((resolve) => { resolveDisposed = resolve })
     const lateHandle: ChildHandle = {
       task_id: "late",
       sessionId: "late",
@@ -26,7 +28,7 @@ describe("MemorianGateRunner", () => {
       subscribe: () => () => undefined,
       waitForIdle: async () => ({ status: "cancelled" }),
       lastAssistantText: () => undefined,
-      dispose: () => { disposed += 1 },
+      dispose: () => { disposed += 1; resolveDisposed?.() },
     }
     const runner = new MemorianGateRunner(runnerOptions(identityPaths, {
       deadlineMs: 5,
@@ -36,7 +38,8 @@ describe("MemorianGateRunner", () => {
     // when
     const result = await runner.launch(launchInput())
     resolveStart?.(lateHandle)
-    await Promise.resolve()
+    // The late handle is torn down inside the setup continuation; await that signal, never a tick count.
+    await Promise.race([lateDisposed, new Promise<never>((_, reject) => setTimeout(() => reject(new Error("late handle was never disposed")), 5_000))])
 
     // then
     expect(result).toMatchObject({ status: "failed", cause: "deadline" })
