@@ -17,22 +17,24 @@ CloakBrowser (stealth Chromium) <- CDP port 9242 -> agent-browser CLI
 
 CloakBrowser runs in a dedicated Python venv. Cross-platform: macOS, Linux, and Windows all supported by both tools (use the venv path convention for your OS).
 
+The venv lives at a fixed path so every session reuses one stealth-Chromium download instead of creating a new venv per working directory, and every command below calls its interpreter by absolute path — no `activate` step to forget.
+
 ```bash
 # CloakBrowser (MIT wrapper source; separate binary license, pin 0.5.7):
-uv venv .cloak-venv --python 3.13
-# macOS/Linux: source .cloak-venv/bin/activate    Windows: .cloak-venv\Scripts\activate
-uv pip install "cloakbrowser==0.5.7"
-python -c "import cloakbrowser; cloakbrowser.ensure_binary()"   # downloads stealth Chromium on first import
+VENV="$HOME/.agents/cloak-venv"          # Windows: %USERPROFILE%\.agents\cloak-venv
+uv venv "$VENV" --python 3.13
+uv pip install --python "$VENV/bin/python" "cloakbrowser==0.5.7"
+"$VENV/bin/python" -c "import cloakbrowser; cloakbrowser.ensure_binary()"   # downloads stealth Chromium on first import
 
 # agent-browser (Apache-2.0, pin 0.34.0):
-npm i -g agent-browser@0.34.0 && agent-browser install
+bun add -g agent-browser@0.34.0 && agent-browser install
 agent-browser --version   # 0.34.0
 ```
 
 Verify CloakBrowser:
 
 ```bash
-python -c "import cloakbrowser; print(cloakbrowser.__version__, cloakbrowser.CHROMIUM_VERSION, cloakbrowser.binary_info()['installed'])"
+"$VENV/bin/python" -c "import cloakbrowser; print(cloakbrowser.__version__, cloakbrowser.CHROMIUM_VERSION, cloakbrowser.binary_info()['installed'])"
 # -> 0.5.7  <chromium-version>  True
 ```
 
@@ -119,6 +121,6 @@ lsof -ti:9242 | xargs kill -9
 # agent-browser can't connect:
 curl -s http://127.0.0.1:9242/json/version | head -5   # empty -> CloakBrowser not running
 # Update either tool:
-uv pip install --upgrade "cloakbrowser==0.5.7" && python -c "import cloakbrowser; cloakbrowser.ensure_binary()"
-npm i -g agent-browser@0.34.0
+uv pip install --python "$HOME/.agents/cloak-venv/bin/python" --upgrade "cloakbrowser==0.5.7" && "$HOME/.agents/cloak-venv/bin/python" -c "import cloakbrowser; cloakbrowser.ensure_binary()"
+bun add -g agent-browser@0.34.0
 ```
