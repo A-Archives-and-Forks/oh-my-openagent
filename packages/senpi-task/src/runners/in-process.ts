@@ -149,7 +149,12 @@ export class InProcessRunner {
         ...(spec.instructions !== undefined && { instructions: spec.instructions }),
       })
 
-    return createChildHandle({ taskId: spec.taskId, session, promptText })
+    try {
+      return createChildHandle({ taskId: spec.taskId, session, promptText })
+    } catch (error) {
+      session.dispose()
+      throw error
+    }
   }
 
   // Rebuild a persisted child from its session transcript WITHOUT replaying its prompt. The tool

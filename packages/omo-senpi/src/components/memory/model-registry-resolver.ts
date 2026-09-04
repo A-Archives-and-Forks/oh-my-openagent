@@ -1,5 +1,3 @@
-import { ModelRegistry } from "@code-yeongyu/senpi"
-
 import type { ChildModelRegistry } from "@oh-my-opencode/senpi-task"
 
 export type { ChildModelRegistry }
@@ -14,7 +12,11 @@ export type { ChildModelRegistry }
 export function resolveMemoryModelRegistry(eventContext: unknown): ChildModelRegistry | undefined {
   if (!isRecord(eventContext)) return undefined
   const registry = eventContext.modelRegistry
-  return registry instanceof ModelRegistry ? registry : undefined
+  return isModelRegistry(registry) ? registry : undefined
+}
+
+function isModelRegistry(value: unknown): value is ChildModelRegistry {
+  return isRecord(value) && typeof value.find === "function" && typeof value.getProviderAuth === "function"
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
