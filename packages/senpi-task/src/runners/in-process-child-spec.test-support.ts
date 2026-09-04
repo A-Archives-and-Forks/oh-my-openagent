@@ -3,11 +3,17 @@ import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
-import { createReadToolDefinition, type CreateAgentSessionOptions, type ToolDefinition } from "@code-yeongyu/senpi"
+import type { CreateAgentSessionOptions, ToolDefinition } from "@code-yeongyu/senpi"
 
+import { senpiBarrel } from "../lazy/senpi-barrel"
 import type { ChildSession, ChildSessionListener, ChildSpec } from "./in-process"
 
-const sampleParameters = createReadToolDefinition(process.cwd()).parameters
+// This helper lives under src/ (not a `.test.ts` file), so it is covered by the static import
+// guard: the barrel value goes through the lazy boundary the rest of senpi-task uses. The test
+// preload (test-support/warm-lazy-runtime.ts) warms it before any module body here runs.
+export type { CreateAgentSessionOptions }
+
+const sampleParameters = senpiBarrel().createReadToolDefinition(process.cwd()).parameters
 
 export function makeTool(name: string, onExecute?: () => void): ToolDefinition {
   return {
