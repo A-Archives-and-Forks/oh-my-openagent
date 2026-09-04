@@ -1116,28 +1116,45 @@ jobs:
           PREVIOUS_LAZYCODEX_VERSION: ${{ steps.lazycodex-release-state.outputs.previous_lazycodex_version }}
           GH_TOKEN: ${{ secrets.LAZYCODEX_SYNC_TOKEN }}
         run: |
+          # pipefail matters: an empty tag list is indistinguishable from "no releases
+          # exist yet" and would resolve to --latest, so a failed `gh release list`
+          # must fail the step instead of silently mis-assigning the badge.
+          set -euo pipefail
+
           {
             printf '%s\n' "Synced Codex Light marketplace payload from oh-my-openagent v${VERSION}."
             printf '%s\n' ""
             printf '%s\n' "Compared against: lazycodex-ai@${PREVIOUS_LAZYCODEX_VERSION}"
           } > /tmp/lazycodex-release-notes.md
 
+          LATEST_FLAG="$(gh release list --repo code-yeongyu/lazycodex --exclude-drafts --limit 1000 --json tagName --jq '.[].tagName' | bun script/release-latest-flag.ts "$VERSION")"
           gh release view "v${VERSION}" --repo code-yeongyu/lazycodex >/dev/null 2>&1 || \
-            gh release create "v${VERSION}" --repo code-yeongyu/lazycodex --target main --title "v${VERSION}" --notes-file /tmp/lazycodex-release-notes.md
+            gh release create "v${VERSION}" "$LATEST_FLAG" --repo code-yeongyu/lazycodex --target main --title "v${VERSION}" --notes-file /tmp/lazycodex-release-notes.md
 
       - name: Create GitHub release
-        # Always a full release marked Latest, never `--prerelease`, on every
-        # channel: the npm dist-tag (beta/next) already carries the channel
-        # semantics, and every shipping version is `5.0.0-beta.N`. A GitHub
-        # pre-release is skipped by `releases/latest`, which the compiled omo
-        # binary's self-update hint (`releases/latest/download/<asset>`) resolves
-        # against, so a suffix-driven pre-release flag pins users to a stale build.
+        # Always a full release, never `--prerelease`, on every channel: the npm
+        # dist-tag (beta/next) already carries the channel semantics, and every
+        # shipping version is `5.0.0-beta.N`.
+        #
+        # The Latest badge is decided by `script/release-latest-flag.ts` from the
+        # highest ALREADY PUBLISHED semver, not by creation order. `gh release
+        # create` can only send make_latest true/false, so a bare `--latest`
+        # would hand the badge to an older-line hotfix dispatched after a newer
+        # release. That badge is load-bearing: `releases/latest/download/<asset>`
+        # is the URL the compiled omo binary's self-update hint resolves against
+        # (packages/omo-native/compile-entry.ts).
         env:
           VERSION: ${{ needs.release-metadata.outputs.version }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # pipefail matters: an empty tag list is indistinguishable from "no releases
+          # exist yet" and would resolve to --latest, so a failed `gh release list`
+          # must fail the step instead of silently mis-assigning the badge.
+          set -euo pipefail
+
+          LATEST_FLAG="$(gh release list --exclude-drafts --limit 1000 --json tagName --jq '.[].tagName' | bun script/release-latest-flag.ts "$VERSION")"
           gh release view "v${VERSION}" >/dev/null 2>&1 || \
-            gh release create "v${VERSION}" --latest --title "v${VERSION}" --notes-file /tmp/changelog.md
+            gh release create "v${VERSION}" "$LATEST_FLAG" --title "v${VERSION}" --notes-file /tmp/changelog.md
 
       - name: Download release-binary artifacts
         if: inputs.skip_platform != true
