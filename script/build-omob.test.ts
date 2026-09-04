@@ -318,6 +318,11 @@ describe("ensureCacheClone submodule ordering", () => {
 			ensureCacheClone(`file://${superBare}`, cache, "origin/dev", false)
 			expect(read()).toBe("v2")
 
+			// A raw SHA is not a fetchable refspec either; resolving it must still work.
+			const olderSha = spawnSync("git", ["rev-parse", "origin/dev~1"], { cwd: cache, encoding: "utf8" }).stdout.trim()
+			ensureCacheClone(`file://${superBare}`, cache, olderSha, false)
+			expect(read()).toBe("v1")
+
 			for (const key of Object.keys(fixtureEnv)) delete process.env[key]
 			Object.assign(process.env, restoreEnv)
 		} finally {

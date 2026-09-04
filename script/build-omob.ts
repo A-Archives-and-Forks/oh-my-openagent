@@ -185,8 +185,12 @@ export function ensureCacheClone(url: string, directory: string, ref: string, sk
 		run("git", ["clone", "--recurse-submodules", "--shallow-submodules", url, directory], dirname(directory))
 	}
 	if (!skipFetch) {
-		// Branch refs fetch a single refspec; raw SHAs need the whole history.
-		const fetchArgs = ref.startsWith("origin/") ? ["--prune", "origin", ref.slice("origin/".length)] : ["--prune", "origin"]
+		// A plain `origin/<branch>` narrows the fetch to that one refspec. Anything else —
+		// a raw SHA, or a revision expression such as `origin/dev~1` — is not a refspec git
+		// can fetch, so fall back to fetching every branch and resolving locally.
+		const branch = ref.startsWith("origin/") ? ref.slice("origin/".length) : ""
+		const isPlainBranch = branch !== "" && !/[~^:@\\]|\.\.|^-/.test(branch)
+		const fetchArgs = isPlainBranch ? ["--prune", "origin", branch] : ["--prune", "origin"]
 		run("git", ["fetch", ...fetchArgs], directory)
 	}
 	// A cache checkout must land on the exact ref tree: drop leftovers from a previous
