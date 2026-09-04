@@ -1126,16 +1126,18 @@ jobs:
             gh release create "v${VERSION}" --repo code-yeongyu/lazycodex --target main --title "v${VERSION}" --notes-file /tmp/lazycodex-release-notes.md
 
       - name: Create GitHub release
+        # Always a full release marked Latest, never `--prerelease`, on every
+        # channel: the npm dist-tag (beta/next) already carries the channel
+        # semantics, and every shipping version is `5.0.0-beta.N`. A GitHub
+        # pre-release is skipped by `releases/latest`, which the compiled omo
+        # binary's self-update hint (`releases/latest/download/<asset>`) resolves
+        # against, so a suffix-driven pre-release flag pins users to a stale build.
         env:
           VERSION: ${{ needs.release-metadata.outputs.version }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          RELEASE_FLAGS=()
-          if [[ "$VERSION" == *"-"* ]]; then
-            RELEASE_FLAGS+=(--prerelease)
-          fi
           gh release view "v${VERSION}" >/dev/null 2>&1 || \
-            gh release create "v${VERSION}" "${RELEASE_FLAGS[@]}" --title "v${VERSION}" --notes-file /tmp/changelog.md
+            gh release create "v${VERSION}" --latest --title "v${VERSION}" --notes-file /tmp/changelog.md
 
       - name: Download release-binary artifacts
         if: inputs.skip_platform != true

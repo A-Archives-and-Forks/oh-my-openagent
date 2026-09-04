@@ -86,14 +86,22 @@ describe("omo-ai publish workflow shape", () => {
     expect(versionRun).toContain('DIST_TAG=$(printf \'%s\' "$VERSION" | cut -d\'-\' -f2 | cut -d\'.\' -f1)')
   })
 
-  test("marks GitHub releases as prereleases exactly when the version has a prerelease suffix", () => {
-    // given
+  test("creates every GitHub release as a full latest release, never a pre-release", () => {
+    // given: every shipping version is `5.0.0-beta.N`, and `releases/latest` (the compiled
+    // binary's self-update source) skips pre-releases, so a suffix-driven `--prerelease` flag
+    // pins `releases/latest` to whatever was last created without it.
     const releaseRun = namedStep("release", "Create GitHub release").run ?? ""
 
-    // when / then
-    expect(releaseRun).toContain('if [[ "$VERSION" == *"-"* ]]; then')
-    expect(releaseRun).toContain("RELEASE_FLAGS+=(--prerelease)")
-    expect(releaseRun).toContain('gh release create "v${VERSION}" "${RELEASE_FLAGS[@]}"')
+    // when
+    const createCommand = releaseRun
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => line.startsWith("gh release create "))
+
+    // then
+    expect(createCommand).toBeDefined()
+    expect(createCommand).toContain("--latest")
+    expect(releaseRun).not.toContain("--prerelease")
   })
 
   test("maps every root release to a unique ordered prerelease", () => {
