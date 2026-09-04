@@ -105,6 +105,35 @@ describe("redactUrl", () => {
     })
   })
 
+  describe("#given repeated secret-like material", () => {
+    it("#then every AWS-style key is masked", () => {
+      const value = "AKIA1234567890ABCDEF and AKIAABCDEFGHIJKLMNOP"
+      const redacted = redactUrl(value)
+      expect(redacted).toBe("*** and ***")
+      expect(containsSecretLikeMaterial(redacted)).toBe(false)
+    })
+
+    it("#then every token pair is masked", () => {
+      const value = "token=aaa token=bbb"
+      const redacted = redactUrl(value)
+      expect(redacted).toBe("*** ***")
+      expect(containsSecretLikeMaterial(redacted)).toBe(false)
+    })
+
+    it("#then repeated secrets and URL userinfo are masked", () => {
+      const value = "token=aaa https://alice:password@example.test token=bbb"
+      const redacted = redactUrl(value)
+      expect(redacted).toBe("*** https://***:***@example.test ***")
+      expect(containsSecretLikeMaterial(redacted)).toBe(false)
+    })
+
+    it("#then repeated predicate checks remain true", () => {
+      const value = "token=aaa token=bbb"
+      expect(containsSecretLikeMaterial(value)).toBe(true)
+      expect(containsSecretLikeMaterial(value)).toBe(true)
+    })
+  })
+
   describe("#given an empty url", () => {
     it("#then the empty string is returned", () => {
       expect(redactUrl("")).toBe("")

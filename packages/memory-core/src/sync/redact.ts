@@ -9,19 +9,22 @@
 
 const MASK = "***"
 
-const SECRET_PATTERNS = [
-  /\bAKIA[0-9A-Z]{16}\b/,
-  /\b(?:bearer|token|api[_-]?key|secret)\s*[=:]\s*\S+/i,
-  /-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/i,
-  /\b(?:ghp|github_pat|glpat|xox[baprs])-[-_A-Za-z0-9]+\b/,
+const SECRET_PATTERN_SOURCES = [
+  ["\\bAKIA[0-9A-Z]{16}\\b", ""],
+  ["\\b(?:bearer|token|api[_-]?key|secret)\\s*[=:]\\s*\\S+", "i"],
+  ["-----BEGIN [^-]+-----[\\s\\S]*?-----END [^-]+-----", "i"],
+  ["\\b(?:ghp|github_pat|glpat|xox[baprs])-[-_A-Za-z0-9]+\\b", ""],
 ] as const
+
+const SECRET_PATTERNS = SECRET_PATTERN_SOURCES.map(([source, flags]) => new RegExp(source, flags))
+const SECRET_REPLACERS = SECRET_PATTERN_SOURCES.map(([source, flags]) => new RegExp(source, `${flags}g`))
 
 export function containsSecretLikeMaterial(value: string): boolean {
   return SECRET_PATTERNS.some((pattern) => pattern.test(value))
 }
 
 function redactSecretLikeMaterial(value: string): string {
-  return SECRET_PATTERNS.reduce((redacted, pattern) => redacted.replace(pattern, MASK), value)
+  return SECRET_REPLACERS.reduce((redacted, pattern) => redacted.replace(pattern, MASK), value)
 }
 
 /**
