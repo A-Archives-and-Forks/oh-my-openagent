@@ -69,6 +69,12 @@ export function updateAssetSlug(platform: NodeJS.Platform, arch: string): string
   return platform === "win32" ? `${slug}.exe` : slug
 }
 
+/** A dev build is refreshed by rebuilding it; only release binaries come from the curl line. */
+export function updateHint(rawBuildInfo: unknown, platform: NodeJS.Platform = process.platform, arch: string = process.arch): string {
+  const info = parseBuildInfo(rawBuildInfo)
+  return info === undefined ? updateLine(platform, arch) : `rebuild with: bun run ${info.command}`
+}
+
 export function updateLine(platform: NodeJS.Platform, arch: string): string {
   const asset = updateAssetSlug(platform, arch)
   const dest = platform === "win32" ? "omo.exe" : "omo"
@@ -152,7 +158,7 @@ export function answerCompiledFastPath(args: string[], manifest: Pick<EmbeddedMa
     return true
   }
   if (isSelfUpdate(args)) {
-    console.log(updateLine(process.platform, process.arch))
+    console.log(updateHint(manifest.buildInfo))
     return true
   }
   return false
@@ -170,7 +176,7 @@ export function shouldPrintCompiledBanner(args: string[], stderrIsTTY: boolean):
 }
 
 export async function runCompiledLauncher(args: string[], execDir: string, enginePin = "unknown", compiledPackageRoot?: string): Promise<boolean> {
-  const packageJson = readJson(join(execDir, "package.json"))
+  const packageJson = readJson(join(execDir, "package.json")) as { version: string; omoBuild?: unknown }
   migrateLegacyBunGlobalManifest(execDir)
   adoptLegacyFlatState()
   const command = args[0]
@@ -183,7 +189,7 @@ export async function runCompiledLauncher(args: string[], execDir: string, engin
   }
   if (command === "setup") { printSetupReport(await detectHarnesses()); process.exitCode = 0; return true }
   if ((command === "--version" || command === "-v") && args.length === 1) { console.log(versionLine(packageJson, enginePin ?? "unknown")); return true }
-  if (isSelfUpdate(args)) { console.log(updateLine(process.platform, process.arch)); return true }
+  if (isSelfUpdate(args)) { console.log(updateHint(packageJson.omoBuild)); return true }
   return false
 }
 
@@ -226,8 +232,10 @@ async function main(): Promise<void> {
   // executable delegates to the engine in-process as required by the native startup contract.
   if (await runCompiledLauncher(process.argv.slice(2), execDir, manifest.enginePin, execDir)) return
   if (shouldPrintCompiledBanner(process.argv.slice(2), process.stderr.isTTY === true)) {
-    if (parseBuildInfo(manifest.buildInfo) !== undefined) {
-      console.error(`omob dev build (${manifest.omoAiVersion})`)
+    const bannerInfo = parseBuildInfo(manifest.buildInfo)
+    if (bannerInfo !== undefined) {
+      // Same provenance contract as --version and doctor: full SHAs, ISO commit dates, branches.
+      for (const line of versionLines(bannerInfo)) console.error(line)
     } else {
       console.error(`omo (omo-ai beta ${manifest.omoAiVersion})`)
     }

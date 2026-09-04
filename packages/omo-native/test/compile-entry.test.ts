@@ -10,6 +10,7 @@ import {
   runCompiledLauncher,
   shouldPrintCompiledBanner,
   updateLine,
+  updateHint,
   versionLine,
 } from "../compile-entry"
 import { loadOpenAICodexOAuth } from "../../../node_modules/@code-yeongyu/senpi/node_modules/@earendil-works/pi-ai/dist/auth/oauth/load.js"
@@ -407,5 +408,40 @@ describe("omob branded build labels", () => {
     expect(brand.command).toBe("omob")
     expect(brand.displayVersion).toBe("omo@c6e7dd7 2026-09-04 10:17 +09:00 · senpi@7fd18df 2026-09-04 10:49 +09:00")
     expect(brand.update?.command).toContain("omob")
+  })
+})
+
+describe("omob provenance degrades sanely", () => {
+  const malformed = { command: "omob", omo: { commit: "not-a-sha", committedAt: "nope", branch: "" }, engine: {} }
+
+  test("remapSenpiEnvironment falls back to the plain version and omo command for malformed build info", () => {
+    const root = temp()
+    const execDir = join(root, "runtime")
+    mkdirSync(execDir, { recursive: true })
+    writeFileSync(join(execDir, "package.json"), JSON.stringify({ name: "omo", version: "5.0.0-beta.40", omoBuild: malformed }))
+
+    const env = remapSenpiEnvironment({}, execDir)
+    const brand = JSON.parse(env.SENPI_BRAND ?? "{}") as { command?: string; displayVersion?: string }
+
+    expect(brand.displayVersion).toBe("5.0.0-beta.40")
+    expect(brand.command).toBe("omo")
+  })
+
+  test("versionLine falls back to the release one-liner for malformed build info", () => {
+    expect(versionLine({ version: "5.0.0-beta.40", omoBuild: malformed }, "2026.9.4")).toBe(
+      "omo 5.0.0-beta.40 (engine: senpi 2026.9.4)",
+    )
+  })
+
+  test("updateHint tells dev builds to rebuild and release builds to curl", () => {
+    const info = {
+      command: "omob",
+      omo: { commit: "c6e7dd7fb0f993336ed61c62acc5d55c6ada8bfc", committedAt: "2026-09-04T10:17:49+09:00", branch: "dev" },
+      engine: { commit: "7fd18dfeec7a7db89a983b2c3cb90835b8c3c5f7", committedAt: "2026-09-04T10:49:12+09:00", branch: "main" },
+    }
+
+    expect(updateHint(info)).toBe("rebuild with: bun run omob")
+    expect(updateHint(malformed, "darwin", "arm64")).toBe(updateLine("darwin", "arm64"))
+    expect(updateHint(undefined, "darwin", "arm64")).toBe(updateLine("darwin", "arm64"))
   })
 })
