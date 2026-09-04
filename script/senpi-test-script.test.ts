@@ -116,6 +116,9 @@ describe("Senpi compatibility test script", () => {
         await mkdir(join(pluginRoot, "skills", skillName), { recursive: true })
         await writeFile(join(pluginRoot, "skills", skillName, "SKILL.md"), `# ${skillName}\n`)
       }
+      // Credential-gated skill: staged outside pi.skills but still a required payload artifact.
+      await mkdir(join(pluginRoot, "skills-conditional", "x-search"), { recursive: true })
+      await writeFile(join(pluginRoot, "skills-conditional", "x-search", "SKILL.md"), "# x-search\n")
       await writeFile(join(pluginRoot, "package.json"), JSON.stringify({ name: "@code-yeongyu/omo-senpi" }))
       await writeFile(join(pluginRoot, "extensions", "omo.js"), "export default {}\n")
       await writeFile(join(pluginRoot, "extensions", "omo-task.js"), "export const createTaskComponent = () => ({})\n")
