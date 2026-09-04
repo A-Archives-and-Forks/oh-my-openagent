@@ -92,7 +92,8 @@ describe("checkExtensionCurrent", () => {
       memoryMcpOutputPath: outputs.memoryMcpOutputPath,
       supervisorOutputPath: outputs.supervisorOutputPath,
     })
-    expect(check.ok).toBe(true)
+    // Compare the whole result so a failure names the stale artifact instead of printing "false".
+    expect(check).toMatchObject({ ok: true })
   })
 
   test("#given an empty output directory #when extensions are built #then all runtime personas match their sources", async () => {
