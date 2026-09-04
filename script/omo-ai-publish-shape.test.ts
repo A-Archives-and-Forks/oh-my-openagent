@@ -114,6 +114,7 @@ describe("omo-ai publish workflow shape", () => {
       expect(resolveLine).toContain("gh release list")
       expect(resolveLine).toContain("--exclude-drafts")
       expect(resolveLine).toContain('bun script/release-latest-flag.ts "$VERSION"')
+      expect(run).toContain("set -euo pipefail")
     }
   })
 

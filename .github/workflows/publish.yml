@@ -1116,6 +1116,11 @@ jobs:
           PREVIOUS_LAZYCODEX_VERSION: ${{ steps.lazycodex-release-state.outputs.previous_lazycodex_version }}
           GH_TOKEN: ${{ secrets.LAZYCODEX_SYNC_TOKEN }}
         run: |
+          # pipefail matters: an empty tag list is indistinguishable from "no releases
+          # exist yet" and would resolve to --latest, so a failed `gh release list`
+          # must fail the step instead of silently mis-assigning the badge.
+          set -euo pipefail
+
           {
             printf '%s\n' "Synced Codex Light marketplace payload from oh-my-openagent v${VERSION}."
             printf '%s\n' ""
@@ -1142,6 +1147,11 @@ jobs:
           VERSION: ${{ needs.release-metadata.outputs.version }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # pipefail matters: an empty tag list is indistinguishable from "no releases
+          # exist yet" and would resolve to --latest, so a failed `gh release list`
+          # must fail the step instead of silently mis-assigning the badge.
+          set -euo pipefail
+
           LATEST_FLAG="$(gh release list --exclude-drafts --limit 1000 --json tagName --jq '.[].tagName' | bun script/release-latest-flag.ts "$VERSION")"
           gh release view "v${VERSION}" >/dev/null 2>&1 || \
             gh release create "v${VERSION}" "$LATEST_FLAG" --title "v${VERSION}" --notes-file /tmp/changelog.md
