@@ -449,7 +449,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node packages/omo-senpi/plugin/scripts/build-extension.mjs --check
+          set +e
+          node packages/omo-senpi/plugin/scripts/build-extension.mjs --check; CHECK_RC=$?
+          set -e
+          echo "::group::Runner-built omo-task.js vs committed (diagnostic)"
+          OUT=$RUNNER_TEMP/rebuilt; mkdir -p "$OUT"
+          OMO_SENPI_PLUGIN_OUTPUT=$OUT node packages/omo-senpi/plugin/scripts/build-extension.mjs 2>&1 | grep -E 'Bundled 6' || true
+          printf 'committed: '; grep -m1 '^// omo:' packages/omo-senpi/plugin/extensions/omo-task.js
+          printf 'rebuilt:   '; grep -m1 '^// omo:' "$OUT/extensions/omo-task.js"
+          node -e '
+            const fs=require("fs");const c=fs.readFileSync("packages/omo-senpi/plugin/extensions/omo-task.js","utf8"),r=fs.readFileSync(process.argv[1],"utf8");
+            const body=t=>t.slice(t.indexOf("\n",t.indexOf("// omo:"))+1);const bc=body(c).split(";"),br=body(r).split(";");
+            let i=0;while(i<bc.length&&i<br.length&&bc[i]===br[i])i++;
+            console.log("bodyLen committed="+body(c).length+" rebuilt="+body(r).length+" stmts="+bc.length+"/"+br.length+" firstDivergent="+i);
+            console.log("C: "+(bc[i]||"").slice(0,700));console.log("R: "+(br[i]||"").slice(0,700));
+            const imp=t=>[...t.matchAll(/from"([^"]+)"|import\("([^"]+)"\)|require\("([^"]+)"\)/g)].map(m=>m[1]||m[2]||m[3]);
+            const sc=new Set(imp(body(c))),sr=new Set(imp(body(r)));
+            console.log("externals only in committed: "+[...sc].filter(x=>!sr.has(x)).join(",")); console.log("externals only in rebuilt: "+[...sr].filter(x=>!sc.has(x)).join(","));
+          ' "$OUT/extensions/omo-task.js"
+          echo "::endgroup::"
+          exit $CHECK_RC
 
       - name: Run Senpi compatibility tests
         if: needs.ci-mode.outputs.run_heavy == 'true' && runner.os != 'Windows' && (matrix.os == 'ubuntu-latest' || needs.ci-mode.outputs.full_matrix == 'true')
