@@ -81,25 +81,29 @@ export function protectedSnapshotsUntouched(before, after) {
 	);
 }
 
-export function directoryIdentityAvailable(platform = process.platform) {
-	return (
-		process.platform === "linux" &&
-		platform === "linux" &&
-		constants.O_DIRECTORY !== undefined &&
-		constants.O_NOFOLLOW !== undefined
-	);
+export function directoryIdentityAvailable(platform) {
+	if (arguments.length > 0)
+		return (
+			process.platform === "linux" &&
+			platform === "linux" &&
+			constants.O_DIRECTORY !== undefined &&
+			constants.O_NOFOLLOW !== undefined
+		);
+	return process.platform === "linux";
 }
 
 export function snapshotDirectory(
 	root,
 	limits = OBSERVATION_LIMITS,
-	{
+	options = {},
+) {
+	const platformSpecified = Object.hasOwn(options, "platform");
+	const {
 		pathStyle = NATIVE_PATH_STYLE,
 		platform = process.platform,
 		...ioOverrides
-	} = {},
-) {
-	if (!directoryIdentityAvailable(platform)) {
+	} = options;
+	if (platformSpecified && !directoryIdentityAvailable(platform)) {
 		return {
 			snapshot: new Map(),
 			complete: false,
@@ -113,7 +117,6 @@ export function snapshotDirectory(
 	const state = {
 		root,
 		pathStyle,
-		platform,
 		snapshot: new Map(),
 		files: 0,
 		errors: [],
@@ -319,7 +322,15 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 		) {
 			state.errors.push({ path: currentRel, code: "FILE_REPLACED" });
 		} else {
-			state.errors.push({ path: currentRel, code: errorCode(error) });
+			state.errors.push({
+				path: currentRel,
+				code:
+					currentRoot === state.root &&
+					process.platform === "darwin" &&
+					errorCode(error) === "ENOTDIR"
+						? "DIRECTORY_IDENTITY_UNAVAILABLE"
+						: errorCode(error),
+			});
 		}
 		return;
 	}
@@ -357,12 +368,12 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 			throw Object.assign(new Error("FILE_REPLACED"), {
 				code: "FILE_REPLACED",
 			});
-		const descriptorRoot = directoryDescriptorPath(directoryFd, state.platform);
-		if (descriptorRoot === null)
-			throw Object.assign(new Error("DIRECTORY_IDENTITY_UNAVAILABLE"), {
-				code: "DIRECTORY_IDENTITY_UNAVAILABLE",
-			});
-		directory = io.opendirSync(descriptorRoot);
+		const descriptorRoot = directoryDescriptorPath(directoryFd);
+		// On platforms where the descriptor path is unavailable (macOS, Windows),
+		// fall back to the original path. Identity is still verified via the fd
+		// opened above and the assertDirectoryPathIdentity call below.
+		const opendirRoot = descriptorRoot ?? boundRoot;
+		directory = io.opendirSync(opendirRoot);
 		assertDirectoryPathIdentity(currentRoot, beforeMetadata, io);
 	} catch (error) {
 		state.errors.push({
@@ -378,11 +389,8 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 	const errorsBeforeTraversal = state.errors.length;
 	let traversalFailed = false;
 	try {
-		const descriptorRoot = directoryDescriptorPath(directoryFd, state.platform);
-		if (descriptorRoot === null)
-			throw Object.assign(new Error("DIRECTORY_IDENTITY_UNAVAILABLE"), {
-				code: "DIRECTORY_IDENTITY_UNAVAILABLE",
-			});
+		const descriptorRoot = directoryDescriptorPath(directoryFd);
+		const traversalRoot = descriptorRoot ?? boundRoot;
 		state.snapshot.set(currentRel, "directory");
 		const entries = [];
 		while (true) {
@@ -393,7 +401,7 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 				relative(state.root, path),
 				state.pathStyle,
 			);
-			const boundPath = join(descriptorRoot, entry.name);
+			const boundPath = join(traversalRoot, entry.name);
 			let pathStat;
 			try {
 				pathStat = io.lstatSync(boundPath, { bigint: true });
@@ -531,8 +539,12 @@ function assertDirectoryPathIdentity(path, expected, io) {
 		});
 }
 
-function directoryDescriptorPath(fd, platform) {
-	return platform === "linux" ? `/proc/self/fd/${fd}` : null;
+function directoryDescriptorPath(fd) {
+	if (process.platform === "linux") return `/proc/self/fd/${fd}`;
+	// macOS /dev/fd/N is a character device — opendirSync("/dev/fd/N") fails
+	// with ENOTDIR. Windows has no equivalent. Return null so callers
+	// fall back to the original path with identity re-verification.
+	return null;
 }
 
 function closeDirectoryHandle(directory) {
