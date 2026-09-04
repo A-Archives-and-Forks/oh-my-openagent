@@ -102,18 +102,18 @@ export async function ensureVendoredLspDaemonBuilt(
       }
 
       log(
-        "[test-setup] vendored lsp-daemon dist missing; building once via `npm ci && npm run build`...",
+        "[test-setup] vendored lsp-daemon dist missing; building once via `bun install && bun run build`...",
       )
 
-      const installResult = await runCommand("npm", ["ci"], {
+      const installResult = await runCommand("bun", ["install"], {
         cwd: options.packageDir,
-        timeoutMs: remainingMs(deadline, "npm ci"),
+        timeoutMs: remainingMs(deadline, "bun install"),
       })
-      assertCommandSucceeded(installResult, "npm ci")
+      assertCommandSucceeded(installResult, "bun install")
 
-      const buildResult = await runCommand("npm", ["run", "build"], {
+      const buildResult = await runCommand("bun", ["run", "build"], {
         cwd: options.packageDir,
-        timeoutMs: remainingMs(deadline, "npm run build"),
+        timeoutMs: remainingMs(deadline, "bun run build"),
       })
       assertCommandSucceeded(buildResult, "build")
       if (!pathExists(outputPath)) {
