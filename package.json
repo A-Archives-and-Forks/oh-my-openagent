@@ -70,6 +70,8 @@
     "packages/git-bash-mcp/dist",
     "packages/shared-skills/package.json",
     "packages/shared-skills/index.mjs",
+    "packages/shared-skills/skill-source-filter.d.ts",
+    "packages/shared-skills/skill-source-filter.mjs",
     "packages/shared-skills/skills",
     "packages/omo-codex/THIRD-PARTY-NOTICES.md",
     "packages/omo-codex/marketplace.json",
