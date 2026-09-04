@@ -320,8 +320,7 @@ export class MemorianGateRunner {
       this.options.logger?.warn("memorian gate child session creation failed", { error: describe(error), runId })
       return { status: "failed", cause: "session_create_failed", model: resolution.model, candidateCount: input.candidates.length }
     } finally {
-      clearTimeout(deadlineTimer)
-      const handle = this.activeHandle
+      const handle = (clearTimeout(deadlineTimer), this.activeHandle)
       if (handle !== undefined) {
         this.activeHandle = undefined
         handle.dispose()
