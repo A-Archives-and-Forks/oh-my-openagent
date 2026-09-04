@@ -344,15 +344,20 @@ test("#given a non-directory root component #when snapshotDirectory runs #then t
 
 		// Then
 		expect(result.complete).toBe(false);
-		expect(result.errors).toEqual([
-			{
-				path: ".",
-				code:
-					process.platform === "linux"
-						? "ENOTDIR"
-						: "DIRECTORY_IDENTITY_UNAVAILABLE",
-			},
-		]);
+		// The root stat fails BEFORE directory identity binding is attempted, so the platform's own
+		// errno wins on every host. Linux reports ENOTDIR for a file used as a path component;
+		// macOS also reports ENOTDIR, which isolation-state.mjs remaps to
+		// DIRECTORY_IDENTITY_UNAVAILABLE (darwin only); Windows has no ENOTDIR for this case and
+		// reports ENOENT - the same absence mapping the digestDirectory case below pins. A
+		// two-way linux/other split collapsed macOS and Windows together and was only ever
+		// validated on macOS.
+		const platformRootError =
+			process.platform === "win32"
+				? "ENOENT"
+				: process.platform === "darwin"
+					? "DIRECTORY_IDENTITY_UNAVAILABLE"
+					: "ENOTDIR";
+		expect(result.errors).toEqual([{ path: ".", code: platformRootError }]);
 	} finally {
 		rmSync(parent, { recursive: true, force: true });
 	}
