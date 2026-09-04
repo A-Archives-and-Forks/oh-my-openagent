@@ -35,19 +35,22 @@ type FakeSessionControls = {
   disposeCount: number
   lastText: { value: string | undefined }
   promptCalls: number
+  promptTexts: string[]
 }
 
 function createFakeSession(sessionId = "child-session-1"): FakeSessionControls {
   const listeners = new Set<ChildSessionListener>()
   const steerCalls: string[] = []
   const followUpCalls: string[] = []
+  const promptTexts: string[] = []
   const lastText = { value: undefined as string | undefined }
   const counters = { abortCalls: 0, disposeCount: 0, promptCalls: 0 }
   let settle: { resolve: () => void; reject: (error: unknown) => void } | undefined
   const session: ChildSession = {
     sessionId,
-    prompt() {
+    prompt(text: string) {
       counters.promptCalls += 1
+      promptTexts.push(text)
       return new Promise<void>((resolve, reject) => {
         settle = { resolve, reject }
       })
@@ -77,6 +80,7 @@ function createFakeSession(sessionId = "child-session-1"): FakeSessionControls {
     steerCalls,
     followUpCalls,
     lastText,
+    promptTexts,
     get abortCalls() {
       return counters.abortCalls
     },
@@ -415,5 +419,98 @@ describe("InProcessRunner thinking level", () => {
 
     // then
     expect(captured?.thinkingLevel).toBeUndefined()
+  })
+})
+
+describe("InProcessRunner child system prompt", () => {
+  test("#given a spec carrying a system prompt #when the child session is created #then the minimal loader returns it in place of the default", async () => {
+    // given
+    let captured: CreateAgentSessionOptions | undefined
+    const fake = createFakeSession()
+    const runner = new InProcessRunner({
+      createSession: async (options) => {
+        captured = options
+        return fake.session
+      },
+    })
+
+    // when
+    const handle = await runner.start(baseSpec({ systemPrompt: "# Memorian\n\nYou judge turns." }))
+    fake.resolvePrompt()
+    await handle.waitForIdle()
+
+    // then
+    expect(captured?.resourceLoader?.getSystemPrompt()).toBe("# Memorian\n\nYou judge turns.")
+  })
+
+  test("#given a spec without a system prompt #when the child session is created #then the minimal loader keeps returning none", async () => {
+    // given
+    let captured: CreateAgentSessionOptions | undefined
+    const fake = createFakeSession()
+    const runner = new InProcessRunner({
+      createSession: async (options) => {
+        captured = options
+        return fake.session
+      },
+    })
+
+    // when
+    const handle = await runner.start(baseSpec())
+    fake.resolvePrompt()
+    await handle.waitForIdle()
+
+    // then
+    expect(captured?.resourceLoader?.getSystemPrompt()).toBeUndefined()
+  })
+})
+
+describe("InProcessRunner prompt envelope", () => {
+  test("#given a bare envelope #when the child starts #then the spec prompt is delivered verbatim with no ancestry wrapper", async () => {
+    // given
+    const fake = createFakeSession()
+    const runner = new InProcessRunner({ createSession: async () => fake.session })
+    const prompt = "<memorian-input>\ncandidates and transcript only\n</memorian-input>"
+
+    // when
+    const handle = await runner.start(baseSpec({ prompt, promptEnvelope: "bare" }))
+    fake.resolvePrompt()
+    await handle.waitForIdle()
+
+    // then
+    expect(fake.promptTexts).toEqual([prompt])
+  })
+
+  test("#given no envelope #when the child starts #then the subagent ancestry lines wrap the prompt", async () => {
+    // given
+    const fake = createFakeSession()
+    const runner = new InProcessRunner({ createSession: async () => fake.session })
+
+    // when
+    const handle = await runner.start(baseSpec({ prompt: "do the work" }))
+    fake.resolvePrompt()
+    await handle.waitForIdle()
+
+    // then
+    expect(fake.promptTexts).toHaveLength(1)
+    const prompt = fake.promptTexts[0] ?? ""
+    expect(prompt).toContain("You are running as an omo senpi-task child")
+    expect(prompt).toContain("Task id: task-1")
+    expect(prompt).toContain("Task:\ndo the work")
+  })
+
+  test("#given an explicit subagent envelope #when the child starts #then the ancestry wrapper applies exactly like the default", async () => {
+    // given
+    const fake = createFakeSession()
+    const runner = new InProcessRunner({ createSession: async () => fake.session })
+
+    // when
+    const handle = await runner.start(baseSpec({ prompt: "do the work", promptEnvelope: "subagent" }))
+    fake.resolvePrompt()
+    await handle.waitForIdle()
+
+    // then
+    const prompt = fake.promptTexts[0] ?? ""
+    expect(prompt).toContain("You are running as an omo senpi-task child")
+    expect(prompt).toContain("Task:\ndo the work")
   })
 })
