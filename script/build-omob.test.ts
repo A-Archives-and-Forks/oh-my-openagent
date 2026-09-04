@@ -1,6 +1,7 @@
 // Contract tests for script/build-omob.ts.
 
 import { describe, expect, test } from "bun:test"
+import { join } from "node:path"
 import { deriveOmobAiVersion, hostTargetFor, parseOmobArgs, planRuntimePrune, selectPruneEntries } from "./build-omob"
 
 describe("parseOmobArgs", () => {
@@ -11,8 +12,8 @@ describe("parseOmobArgs", () => {
 		expect(parsed.name).toBe("omob")
 		expect(parsed.keep).toBe(2)
 		expect(parsed.target).toBe("darwin-arm64")
-		expect(parsed.installDir).toBe("/home/dev/.local/bin")
-		expect(parsed.cacheDir).toBe("/home/dev/.cache/omob")
+		expect(parsed.installDir).toBe(join("/home/dev", ".local", "bin"))
+		expect(parsed.cacheDir).toBe(join("/home/dev", ".cache", "omob"))
 		expect(parsed.skipFetch).toBe(false)
 		expect(parsed.skipInstall).toBe(false)
 	})

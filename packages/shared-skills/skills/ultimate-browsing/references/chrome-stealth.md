@@ -43,8 +43,9 @@ Verify CloakBrowser:
 NEVER clear cookies, cache, or site data (`Network.clearBrowserCookies`, `Storage.clearCookies`, `chrome.browsingData.remove`, "clear browsing data") on the user's real/main browser profile — it wipes their logged-in state everywhere. If you need that profile's login state, clone it first (`rsync -a <profile>/ <tmp-clone>/`) and launch with the clone as the user-data-dir; run any clearing on the clone only.
 
 ```bash
-# 1. Launch CloakBrowser with CDP on :9242 (background). With the venv active:
-python -c "import asyncio,cloakbrowser; asyncio.run(cloakbrowser.launch_async(headless=False, stealth_args=True, args=['--remote-debugging-port=9242']))" &
+# 1. Launch CloakBrowser with CDP on :9242 (background). cloakbrowser lives only in the venv,
+#    so call its interpreter by absolute path — this works in any shell, activated or not:
+"$HOME/.agents/cloak-venv/bin/python" -c "import asyncio,cloakbrowser; asyncio.run(cloakbrowser.launch_async(headless=False, stealth_args=True, args=['--remote-debugging-port=9242']))" &
 
 # 2. CloakBrowser launches tabless -> agent-browser would say "No page found".
 #    Open the first tab via CDP before any agent-browser command:
