@@ -15,7 +15,7 @@ function probeWithExisting(existing: readonly string[]): DirectoryProbe & { read
   const calls: string[] = []
   return {
     calls,
-    directoryExists(path: string): boolean {
+    exists(path: string): boolean {
       calls.push(path)
       return existing.includes(path)
     },
