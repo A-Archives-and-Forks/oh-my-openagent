@@ -93,12 +93,28 @@ function canonicalExecutable(candidate: string): string | null {
 const SENPI_PACKAGE_NAME = "@code-yeongyu/senpi"
 const MANIFEST_WALK_MAX_LEVELS = 3
 
-function readRunningEngineVersion(): string | undefined {
-  try {
-    const pkg = JSON.parse(readFileSync(require.resolve(`${SENPI_PACKAGE_NAME}/package.json`), "utf8")) as {
-      version?: unknown
+export function readEngineVersionFromResolvePaths(paths: readonly string[]): string | undefined {
+  for (const dir of paths) {
+    try {
+      const pkg = JSON.parse(readFileSync(join(dir, "@code-yeongyu", "senpi", "package.json"), "utf8")) as {
+        name?: unknown
+        version?: unknown
+      }
+      if (pkg.name === SENPI_PACKAGE_NAME && typeof pkg.version === "string" && pkg.version.length > 0) {
+        return pkg.version
+      }
+    } catch {
+      // Missing or invalid manifest at this resolution path; keep scanning.
     }
-    return typeof pkg.version === "string" && pkg.version.length > 0 ? pkg.version : undefined
+  }
+  return undefined
+}
+
+export function readRunningEngineVersion(): string | undefined {
+  const fromPaths = readEngineVersionFromResolvePaths(require.resolve.paths(SENPI_PACKAGE_NAME) ?? [])
+  if (fromPaths !== undefined) return fromPaths
+  try {
+    return readCandidateSenpiVersion(require.resolve(SENPI_PACKAGE_NAME))
   } catch {
     return undefined
   }

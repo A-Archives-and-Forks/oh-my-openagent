@@ -1,9 +1,18 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
+import { createRequire } from "node:module"
 import { homedir, tmpdir } from "node:os"
 import { delimiter, dirname, isAbsolute, join, relative, sep } from "node:path"
 import { describe, expect, test } from "bun:test"
 
-import { buildChildArgs, buildRpcSpawn, detectBunBinary, resolveChildSessionDir, resolveSenpiExecutable } from "./spawn"
+import {
+  buildChildArgs,
+  buildRpcSpawn,
+  detectBunBinary,
+  readEngineVersionFromResolvePaths,
+  readRunningEngineVersion,
+  resolveChildSessionDir,
+  resolveSenpiExecutable,
+} from "./spawn"
 
 const SESSION_DIR_ENV = "SENPI_CODING_AGENT_SESSION_DIR"
 
@@ -227,6 +236,56 @@ describe("resolveSenpiExecutable", () => {
     } finally {
       rmSync(install.root, { recursive: true, force: true })
     }
+  })
+})
+
+describe("readEngineVersionFromResolvePaths", () => {
+  test("#given a later path with the senpi manifest #when reading #then it returns that version", () => {
+    const tmpA = mkdtempSync(join(tmpdir(), "senpi-engine-version-empty-"))
+    const tmpB = mkdtempSync(join(tmpdir(), "senpi-engine-version-hit-"))
+    mkdirSync(join(tmpB, "@code-yeongyu", "senpi"), { recursive: true })
+    writeFileSync(
+      join(tmpB, "@code-yeongyu", "senpi", "package.json"),
+      JSON.stringify({ name: "@code-yeongyu/senpi", version: "1.2.3" }),
+    )
+    try {
+      expect(readEngineVersionFromResolvePaths([tmpA, tmpB])).toBe("1.2.3")
+    } finally {
+      rmSync(tmpA, { recursive: true, force: true })
+      rmSync(tmpB, { recursive: true, force: true })
+    }
+  })
+
+  test("#given only a different-name manifest #when reading #then it returns undefined", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "senpi-engine-version-other-"))
+    mkdirSync(join(tmp, "@code-yeongyu", "senpi"), { recursive: true })
+    writeFileSync(
+      join(tmp, "@code-yeongyu", "senpi", "package.json"),
+      JSON.stringify({ name: "not-senpi", version: "9.9.9" }),
+    )
+    try {
+      expect(readEngineVersionFromResolvePaths([tmp])).toBeUndefined()
+    } finally {
+      rmSync(tmp, { recursive: true, force: true })
+    }
+  })
+})
+
+describe("readRunningEngineVersion", () => {
+  test("#given the installed engine manifest #when reading #then it matches the package version", () => {
+    const require = createRequire(import.meta.url)
+    let expected: string | undefined
+    for (const dir of require.resolve.paths("@code-yeongyu/senpi") ?? []) {
+      const manifest = join(dir, "@code-yeongyu", "senpi", "package.json")
+      if (!existsSync(manifest)) continue
+      const pkg = JSON.parse(readFileSync(manifest, "utf8")) as { version?: unknown }
+      if (typeof pkg.version === "string" && pkg.version.length > 0) {
+        expected = pkg.version
+        break
+      }
+    }
+    expect(expected).toBeDefined()
+    expect(readRunningEngineVersion()).toBe(expected)
   })
 })
 
