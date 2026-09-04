@@ -95,7 +95,7 @@ export function isOmobRuntimeDir(name: string): boolean {
 export function selectPruneEntries(entries: readonly PruneEntry[], keep: number): string[] {
 	const omob = entries.filter((entry) => isOmobRuntimeDir(entry.name))
 	const sorted = omob.slice().sort((left, right) => right.mtimeMs - left.mtimeMs)
-	return sorted.slice(Math.max(0, keep)).map((entry) => entry.name)
+	return sorted.slice(Math.max(0, keep)).reverse().map((entry) => entry.name)
 }
 
 function run(command: string, args: readonly string[], cwd: string, env: NodeJS.ProcessEnv = process.env): void {

@@ -42,7 +42,7 @@ export function shortSha(commit: string): string {
 function humanCommitDate(iso: string): string {
 	const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(.*)$/.exec(iso)
 	if (match === null) return iso
-	return `${match[1]} ${match[2]}:${match[3]}${match[4]}`
+	return `${match[1]} ${match[2]}:${match[3]}${match[4] ? ` ${match[4]}` : ""}`
 }
 
 /** One-line label the TUI header shows instead of a version. */
