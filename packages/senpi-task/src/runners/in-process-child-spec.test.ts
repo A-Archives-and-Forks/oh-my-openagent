@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { rmSync } from "node:fs"
 import { InProcessRunner, RunnerError } from "./in-process"
 import { baseSpec, createFakeSession, makeTool, tmpSessionDirs } from "./in-process-child-spec.test-support"
+import type { CreateAgentSessionOptions } from "./in-process-child-spec.test-support"
 import type { ChildSession } from "./in-process"
 
 const unhandled: unknown[] = []
