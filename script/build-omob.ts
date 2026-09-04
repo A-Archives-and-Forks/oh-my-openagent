@@ -149,7 +149,7 @@ function readCommitInfo(directory: string, ref: string): CommitInfo {
 	const commit = runCaptured("git", ["rev-parse", "HEAD"], directory)
 	const committedAt = runCaptured("git", ["log", "-1", "--format=%cI"], directory)
 	const rawBranch = runCaptured("git", ["rev-parse", "--abbrev-ref", ref], directory).trim()
-	const branch = rawBranch === "HEAD" || rawBranch === "" ? ref.replace(/^origin\//, "") : rawBranch
+	const branch = (rawBranch === "HEAD" || rawBranch === "" ? ref : rawBranch).replace(/^origin\//, "")
 	return { commit, committedAt, branch }
 }
 
