@@ -377,3 +377,35 @@ describe("embedded runtime provisioning", () => {
     expect(readFileSync(join(runtime, "package.json"), "utf8")).toBe("changed\n")
   })
 })
+
+describe("omob branded build labels", () => {
+  const buildInfo = {
+    command: "omob",
+    omo: { commit: "c6e7dd7fb0f993336ed61c62acc5d55c6ada8bfc", committedAt: "2026-09-04T10:17:49+09:00", branch: "dev" },
+    engine: { commit: "7fd18dfeec7a7db89a983b2c3cb90835b8c3c5f7", committedAt: "2026-09-04T10:49:12+09:00", branch: "main" },
+  }
+
+  test("versionLine prints full shas and commit dates for dev builds", () => {
+    const line = versionLine({ version: "0.0.0-omob.c6e7dd7.7fd18df", omoBuild: buildInfo }, "2026.8.26-2")
+    expect(line).toContain("c6e7dd7fb0f993336ed61c62acc5d55c6ada8bfc")
+    expect(line).toContain("2026-09-04T10:17:49+09:00")
+    expect(line).toContain("7fd18dfeec7a7db89a983b2c3cb90835b8c3c5f7")
+    expect(line).toContain("(dev)")
+    expect(line).toContain("(main)")
+  })
+
+  test("remapSenpiEnvironment brands dev builds with the label and command", () => {
+    const root = temp()
+    const execDir = join(root, "runtime")
+    mkdirSync(execDir, { recursive: true })
+    writeFileSync(
+      join(execDir, "package.json"),
+      JSON.stringify({ name: "omo", version: "0.0.0-omob.c6e7dd7.7fd18df", omoBuild: buildInfo }),
+    )
+    const env = remapSenpiEnvironment({}, execDir)
+    const brand = JSON.parse(env.SENPI_BRAND ?? "{}") as { command?: string; displayVersion?: string; update?: { command?: string } }
+    expect(brand.command).toBe("omob")
+    expect(brand.displayVersion).toBe("omo@c6e7dd7 2026-09-04 10:17 +09:00 · senpi@7fd18df 2026-09-04 10:49 +09:00")
+    expect(brand.update?.command).toContain("omob")
+  })
+})

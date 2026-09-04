@@ -454,3 +454,29 @@ describe("staged file collection", () => {
     rmSync(stageDir, { recursive: true, force: true })
   })
 })
+
+describe("omob build info stamping", () => {
+  const buildInfo = {
+    command: "omob",
+    omo: { commit: "c6e7dd7fb0f993336ed61c62acc5d55c6ada8bfc", committedAt: "2026-09-04T10:17:49+09:00", branch: "dev" },
+    engine: { commit: "7fd18dfeec7a7db89a983b2c3cb90835b8c3c5f7", committedAt: "2026-09-04T10:49:12+09:00", branch: "main" },
+  }
+
+  test("#given build info #when the sidecar package.json is stamped #then it carries omoBuild", () => {
+    const stamped = JSON.parse(createStampedPackageJson("0.0.0-omob.c6e7dd7.7fd18df", buildInfo)) as Record<string, unknown>
+    expect(stamped.omoBuild).toEqual(buildInfo)
+  })
+
+  test("#given no build info #when stamped #then the release shape stays byte-identical", () => {
+    expect(createStampedPackageJson("9.9.9-0.test")).toBe(`${JSON.stringify({ name: "omo", version: "9.9.9-0.test" }, null, 2)}\n`)
+  })
+
+  test("#given build info #when the runtime manifest is built #then it records build info and changes the digest", async () => {
+    const stageDir = makeTempDir("omo-manifest-buildinfo-")
+    writeFileSync(join(stageDir, "theme", "dark.json"), "{}\n")
+    const bare = await buildRuntimeManifest(stageDir, { omoAiVersion: "1.2.3", enginePin: "2026.8.24" })
+    const stamped = await buildRuntimeManifest(stageDir, { omoAiVersion: "1.2.3", enginePin: "2026.8.24", buildInfo })
+    expect(stamped.buildInfo).toEqual(buildInfo)
+    expect(stamped.manifestSha).not.toBe(bare.manifestSha)
+  })
+})
