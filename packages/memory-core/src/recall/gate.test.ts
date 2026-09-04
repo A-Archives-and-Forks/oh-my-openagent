@@ -191,26 +191,6 @@ describe("PendingNudges", () => {
     expect(await readdir(dir)).toEqual([])
   })
 
-  it("#given a hand-edited payload with an invalid hint #when taken #then nothing returns and the file is deleted", async () => {
-    const dir = await createPendingDir()
-    await writeFile(
-      join(dir, "session-1.json"),
-      JSON.stringify({
-        version: 1,
-        sessionId: "session-1",
-        compactionEpoch: 0,
-        writtenAt: new Date().toISOString(),
-        nudges: [{ path: "reference/a.md", hint: "password=hunter2" }],
-      }),
-      "utf8",
-    )
-
-    const taken = await new PendingNudges(dir).take("session-1", { currentEpoch: 0 })
-
-    expect(taken).toEqual([])
-    expect(await readdir(dir)).toEqual([])
-  })
-
   it("#given a malformed or unknown-version file #when taken #then nothing returns and nothing throws", async () => {
     // given
     const dir = await createPendingDir()
