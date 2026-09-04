@@ -148,6 +148,7 @@ function readCommitInfo(directory: string, ref: string): CommitInfo {
 
 function buildSenpiPackage(senpiDir: string, cacheDir: string, ref: string): string {
 	run("bun", ["install"], senpiDir)
+	materializeNestedLockDeps(senpiDir)
 	run("bun", ["run", "build:bun"], senpiDir)
 	// Stage the bundled workspaces exactly like the release pipeline, then pack.
 	run("node", [join("scripts", "prepare-senpi-bundled-workspaces.mjs")], senpiDir)
@@ -168,6 +169,40 @@ function buildSenpiPackage(senpiDir: string, cacheDir: string, ref: string): str
 }
 
 /** Moves the isolated install's hoisted deps under the senpi package, mirroring the published nested layout. */
+/**
+ * senpi's publish staging (prepare-senpi-bundled-workspaces.mjs) reads npm lock
+ * entries shaped "packages/<workspace>/node_modules/<pkg>" and expects those
+ * packages installed INSIDE the workspace directory. A bun workspace install
+ * hoists everything, so materialize the nested layout from the lock: every
+ * package the lock nests under a workspace is copied from the hoisted root
+ * install into <workspace>/node_modules.
+ */
+function materializeNestedLockDeps(senpiRoot: string): void {
+	const lockPath = join(senpiRoot, "package-lock.json")
+	if (!existsSync(lockPath)) throw new Error("senpi cache clone has no package-lock.json")
+	const lock = JSON.parse(readFileSync(lockPath, "utf8")) as {
+		packages?: Record<string, { optional?: boolean }>
+	}
+	const rootNm = join(senpiRoot, "node_modules")
+	for (const entry of Object.keys(lock.packages ?? {})) {
+		// Shape: packages/<workspace>/node_modules/<pkg> — skip root-level deps, workspace manifests, and anything deeper.
+		const match = /^packages\/([^/]+)\/node_modules\/(.+)$/.exec(entry)
+		if (match === null) continue
+		const [, workspaceName, pkgName] = match
+		if (pkgName.includes("node_modules/")) continue
+		const optional = lock.packages?.[entry]?.optional === true
+		const sourcePath = join(rootNm, pkgName)
+		if (!existsSync(sourcePath)) {
+			if (optional) continue
+			throw new Error(`bun install produced no hoisted ${pkgName} required by packages/${workspaceName} (lock entry ${entry})`)
+		}
+		const nestedPath = join(senpiRoot, "packages", workspaceName, "node_modules", pkgName)
+		if (existsSync(nestedPath)) continue
+		mkdirSync(dirname(nestedPath), { recursive: true })
+		cpSync(sourcePath, nestedPath, { recursive: true })
+	}
+}
+
 function nestHoistedDeps(installRoot: string): void {
 	const senpiNodeModules = join(installRoot, "node_modules", "@code-yeongyu", "senpi", "node_modules")
 	const topLevel = join(installRoot, "node_modules")
