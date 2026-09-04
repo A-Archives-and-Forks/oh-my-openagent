@@ -29,10 +29,19 @@ test("#given a same-size in-place overwrite after an observation read #when meta
 		const path = join(root, "state.json");
 		writeFileSync(path, "AAAA");
 		let mutated = false;
+		let fileFd;
 		const io = {
-			openSync,
+			openSync(file, flags) {
+				fileFd = openSync(file, flags);
+				return fileFd;
+			},
 			closeSync,
-			fstatSync,
+			fstatSync(fd, options) {
+				const metadata = fstatSync(fd, options);
+				return fd === fileFd && mutated
+					? { ...metadata, mtimeNs: metadata.mtimeNs + 1n }
+					: metadata;
+			},
 			statSync,
 			readSync(fd, buffer, offset, length, position) {
 				const count = readSync(fd, buffer, offset, length, position);
@@ -63,6 +72,7 @@ test("#given a same-size in-place overwrite after a protected read #when metadat
 		const path = join(root, "auth.json");
 		writeFileSync(path, "AAAA");
 		let mutated = false;
+		let fileFd;
 		const readFile = (file) => {
 			const content = readFileSync(file);
 			if (!mutated) {
@@ -70,6 +80,16 @@ test("#given a same-size in-place overwrite after a protected read #when metadat
 				writeFileSync(path, "BBBB");
 			}
 			return content;
+		};
+		readFile.openSync = (file, flags) => {
+			fileFd = openSync(file, flags);
+			return fileFd;
+		};
+		readFile.fstatSync = (fd, options) => {
+			const metadata = fstatSync(fd, options);
+			return fd === fileFd && mutated
+				? { ...metadata, mtimeNs: metadata.mtimeNs + 1n }
+				: metadata;
 		};
 		const snapshot = snapshotProtectedState(root, readFile);
 		expect(snapshot.complete).toBe(false);
@@ -147,10 +167,32 @@ test("#given an enumerated entry vanishes before stat #when final directory meta
 		const path = join(root, "vanished.tmp");
 		writeFileSync(path, "temporary");
 		let removed = false;
+		let rootFd;
 		const io = {
-			openSync,
+			openSync(file, flags) {
+				const fd = openSync(file, flags);
+				if (file === root) rootFd = fd;
+				return fd;
+			},
+			openDirectorySync(file, flags) {
+				const fd = openSync(file, flags);
+				if (file === root) rootFd = fd;
+				return fd;
+			},
 			closeSync,
 			fstatSync,
+			fstatDirectorySync(fd, options) {
+				const metadata = fstatSync(fd, options);
+				return fd === rootFd && removed
+					? new Proxy(metadata, {
+							get(target, property) {
+								return property === "size"
+									? BigInt(target.size) + 1n
+									: target[property];
+							},
+						})
+					: metadata;
+			},
 			opendirSync,
 			readFileSync,
 			readSync,

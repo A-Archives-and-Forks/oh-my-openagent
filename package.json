@@ -1,6 +1,6 @@
 {
   "name": "oh-my-opencode",
-  "version": "5.0.0-beta.40",
+  "version": "5.0.0-beta.41",
   "description": "The Best AI Agent Harness - Batteries-Included OpenCode Plugin with Multi-Model Orchestration, Parallel Background Agents, and Crafted LSP/AST Tools",
   "main": "./dist/index.js",
   "types": "dist/index.d.ts",
@@ -70,6 +70,8 @@
     "packages/git-bash-mcp/dist",
     "packages/shared-skills/package.json",
     "packages/shared-skills/index.mjs",
+    "packages/shared-skills/skill-source-filter.d.ts",
+    "packages/shared-skills/skill-source-filter.mjs",
     "packages/shared-skills/skills",
     "packages/omo-codex/THIRD-PARTY-NOTICES.md",
     "packages/omo-codex/marketplace.json",
@@ -181,7 +183,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@code-yeongyu/senpi": "2026.9.4-2",
+    "@code-yeongyu/senpi": "2026.9.4-3",
     "@oh-my-opencode/agents-md-core": "workspace:*",
     "@oh-my-opencode/ast-grep-mcp": "workspace:*",
     "@oh-my-opencode/boulder-state": "workspace:*",
@@ -222,18 +224,18 @@
     "typescript": "^7.0.2"
   },
   "optionalDependencies": {
-    "oh-my-opencode-darwin-arm64": "5.0.0-beta.40",
-    "oh-my-opencode-darwin-x64": "5.0.0-beta.40",
-    "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.40",
-    "oh-my-opencode-linux-arm64": "5.0.0-beta.40",
-    "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.40",
-    "oh-my-opencode-linux-x64": "5.0.0-beta.40",
-    "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.40",
-    "oh-my-opencode-linux-x64-musl": "5.0.0-beta.40",
-    "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.40",
-    "oh-my-opencode-windows-arm64": "5.0.0-beta.40",
-    "oh-my-opencode-windows-x64": "5.0.0-beta.40",
-    "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.40"
+    "oh-my-opencode-darwin-arm64": "5.0.0-beta.41",
+    "oh-my-opencode-darwin-x64": "5.0.0-beta.41",
+    "oh-my-opencode-darwin-x64-baseline": "5.0.0-beta.41",
+    "oh-my-opencode-linux-arm64": "5.0.0-beta.41",
+    "oh-my-opencode-linux-arm64-musl": "5.0.0-beta.41",
+    "oh-my-opencode-linux-x64": "5.0.0-beta.41",
+    "oh-my-opencode-linux-x64-baseline": "5.0.0-beta.41",
+    "oh-my-opencode-linux-x64-musl": "5.0.0-beta.41",
+    "oh-my-opencode-linux-x64-musl-baseline": "5.0.0-beta.41",
+    "oh-my-opencode-windows-arm64": "5.0.0-beta.41",
+    "oh-my-opencode-windows-x64": "5.0.0-beta.41",
+    "oh-my-opencode-windows-x64-baseline": "5.0.0-beta.41"
   },
   "overrides": {
     "@earendil-works/pi-agent-core": "0.84.2",

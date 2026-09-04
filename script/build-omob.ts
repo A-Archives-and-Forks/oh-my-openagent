@@ -10,7 +10,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { homedir, tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import { parseBuildInfo, type OmoBuildInfo } from "../packages/omo-native/build-info"
+import { parseBuildInfo, versionLines, type OmoBuildInfo } from "../packages/omo-native/build-info"
 import { RELEASE_BINARY_TARGETS } from "./build-omo-binary"
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
@@ -125,15 +125,72 @@ function runCaptured(command: string, args: readonly string[], cwd: string): str
 	return result.stdout.trim()
 }
 
-function ensureCacheClone(url: string, directory: string, ref: string, skipFetch: boolean): { readonly directory: string; readonly commit: string } {
+export interface CacheLock {
+	readonly path: string
+	release(): void
+}
+
+/** True when a process with this pid exists; signal 0 only probes. */
+function processIsAlive(pid: number): boolean {
+	try {
+		process.kill(pid, 0)
+		return true
+	} catch (error) {
+		return (error as NodeJS.ErrnoException).code === "EPERM"
+	}
+}
+
+/**
+ * Takes an exclusive lock on the shared build cache. The clone, isolated install, tarball
+ * directory and output directory are all shared mutable state, so two concurrent builds
+ * would interleave and could pack one run's engine under another run's provenance stamp.
+ * Fail fast instead, naming the holder. A lock left by a dead process is reclaimed.
+ */
+export function acquireCacheLock(cacheDir: string, pid: number = process.pid): CacheLock {
+	mkdirSync(cacheDir, { recursive: true })
+	const path = join(cacheDir, ".lock")
+	const claim = (): void => writeFileSync(path, `${pid}\n`, { flag: "wx" })
+	try {
+		claim()
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
+		const holder = Number.parseInt(readFileSync(path, "utf8").trim(), 10)
+		if (Number.isFinite(holder) && holder !== pid && processIsAlive(holder)) {
+			throw new Error(
+				`another omob build is running (pid ${holder}); lock: ${path}. Wait for it to finish, or remove the lock if that process is gone.`,
+			)
+		}
+		// Stale lock: the owner died without releasing it.
+		rmSync(path, { force: true })
+		claim()
+	}
+	let released = false
+	const release = (): void => {
+		if (released) return
+		released = true
+		try {
+			if (existsSync(path) && readFileSync(path, "utf8").trim() === String(pid)) rmSync(path, { force: true })
+		} catch {
+			// A best-effort release must never mask the build's own outcome.
+		}
+	}
+	return { path, release }
+}
+
+export function ensureCacheClone(url: string, directory: string, ref: string, skipFetch: boolean): { readonly directory: string; readonly commit: string } {
 	mkdirSync(dirname(directory), { recursive: true })
 	if (!existsSync(join(directory, ".git"))) {
+		// --recurse-submodules bootstraps the submodules; the post-reset sync below is the
+		// single place that points them at the requested ref, on this and every later run.
 		run("git", ["clone", "--recurse-submodules", "--shallow-submodules", url, directory], dirname(directory))
-		run("git", ["submodule", "update", "--init", "--recursive"], directory)
 	}
 	if (!skipFetch) {
-		// Branch refs fetch a single refspec; raw SHAs need the whole history.
-		const fetchArgs = ref.startsWith("origin/") ? ["--prune", "origin", ref.slice("origin/".length)] : ["--prune", "origin"]
+		// A plain `origin/<branch>` narrows the fetch to that one refspec. Anything else —
+		// a raw SHA, or a revision expression such as `origin/dev~1` — is not a refspec git
+		// can fetch, so fall back to fetching every branch and resolving locally.
+		const branch = ref.startsWith("origin/") ? ref.slice("origin/".length) : ""
+		const isPlainBranch = branch !== "" && !/[~^:@\\]|\.\.|^-/.test(branch)
+		const fetchArgs = isPlainBranch ? ["--prune", "origin", branch] : ["--prune", "origin"]
 		run("git", ["fetch", ...fetchArgs], directory)
 	}
 	// A cache checkout must land on the exact ref tree: drop leftovers from a previous
@@ -163,24 +220,37 @@ function readCommitInfo(directory: string, ref: string): CommitInfo {
 	return { commit, committedAt, branch }
 }
 
+/**
+ * Packs senpi into an empty directory and returns the sole tarball name.
+ *
+ * The tarball name carries senpi's package version, so a reused cache that kept the previous
+ * version's tarball would offer two candidates; picking either arbitrarily can install the OLD
+ * engine under the NEW provenance stamp. Start empty and require exactly one result.
+ */
+export function packSoleSenpiTarball(tarballDir: string, pack: () => void): string {
+	rmSync(tarballDir, { recursive: true, force: true })
+	mkdirSync(tarballDir, { recursive: true })
+	pack()
+	// readdirSync order is filesystem-defined; sort so the diagnostic is reproducible.
+	const tarballs = readdirSync(tarballDir)
+		.filter((name) => name.endsWith(".tgz"))
+		.sort()
+	if (tarballs.length !== 1) {
+		throw new Error(`expected exactly one senpi tarball in ${tarballDir}, found ${tarballs.length}: ${tarballs.join(", ")}`)
+	}
+	return tarballs[0] as string
+}
+
 function buildSenpiPackage(senpiDir: string, cacheDir: string): string {
 	run("bun", ["install"], senpiDir)
 	materializeNestedLockDeps(senpiDir)
 	run("bun", ["run", "build:bun"], senpiDir)
 	// Stage the bundled workspaces exactly like the release pipeline, then pack.
 	run("node", [join("scripts", "prepare-senpi-bundled-workspaces.mjs")], senpiDir)
-	// The tarball name carries senpi's package version, so a version bump would leave
-	// two candidates in a reused cache and an arbitrary pick would install the OLD
-	// engine under the NEW provenance stamp. Start from an empty directory every time.
 	const tarballDir = join(cacheDir, "tarballs")
-	rmSync(tarballDir, { recursive: true, force: true })
-	mkdirSync(tarballDir, { recursive: true })
-	run("bun", ["pm", "pack", "--destination", tarballDir], join(senpiDir, "packages", "coding-agent"))
-	const tarballs = readdirSync(tarballDir).filter((name) => name.endsWith(".tgz"))
-	if (tarballs.length !== 1) {
-		throw new Error(`expected exactly one senpi tarball in ${tarballDir}, found ${tarballs.length}: ${tarballs.join(", ")}`)
-	}
-	const tarballName = tarballs[0] as string
+	const tarballName = packSoleSenpiTarball(tarballDir, () =>
+		run("bun", ["pm", "pack", "--destination", tarballDir], join(senpiDir, "packages", "coding-agent")),
+	)
 	// Isolated production install: the tarball plus its registry deps, resolved under
 	// a dedicated root so the resulting tree can be dropped into omo's node_modules.
 	const installRoot = join(cacheDir, "senpi-install")
@@ -287,7 +357,19 @@ function installBinary(binaryPath: string, installDir: string, name: string): st
 
 async function main(argv: readonly string[]): Promise<number> {
 	const options = parseOmobArgs(argv, process.platform, process.arch, homedir())
-const senpiUrl = options.senpiUrl ?? DEFAULT_SENPI_URL
+	const lock = acquireCacheLock(options.cacheDir)
+	const releaseOnExit = (): void => lock.release()
+	process.once("exit", releaseOnExit)
+	try {
+		return await runBuild(options)
+	} finally {
+		process.off("exit", releaseOnExit)
+		lock.release()
+	}
+}
+
+async function runBuild(options: OmobOptions): Promise<number> {
+	const senpiUrl = options.senpiUrl ?? DEFAULT_SENPI_URL
 	const senpi = ensureCacheClone(senpiUrl, join(options.cacheDir, "senpi"), options.senpiRef, options.skipFetch)
 	const omo = ensureCacheClone(runCaptured("git", ["remote", "get-url", "origin"], repoRoot), join(options.cacheDir, "omo"), options.omoRef, options.skipFetch)
 
@@ -345,8 +427,9 @@ const senpiUrl = options.senpiUrl ?? DEFAULT_SENPI_URL
 	// Pruning is only safe once the new binary is in place: a --skip-install run would
 	// otherwise delete the runtime a still-installed (possibly running) omob depends on.
 	if (!options.skipInstall) pruneOmobRuntimes(options.keep, omoAiVersion)
-	const lines = [buildInfo.command + " dev build", `omo   ${omoInfo.commit} ${omoInfo.committedAt} (${omoInfo.branch})`, `senpi ${senpiInfo.commit} ${senpiInfo.committedAt} (${senpiInfo.branch})`]
-	console.log(lines.join("\n"))
+	// versionLines is the single formatter for provenance output; --version, doctor, the
+	// startup banner and this summary must never drift apart.
+	console.log(versionLines(buildInfo).join("\n"))
 	return 0
 }
 
