@@ -119,13 +119,16 @@ function runCaptured(command: string, args: readonly string[], cwd: string): str
 function ensureCacheClone(url: string, directory: string, ref: string, skipFetch: boolean): { readonly directory: string; readonly commit: string } {
 	mkdirSync(dirname(directory), { recursive: true })
 	if (!existsSync(join(directory, ".git"))) {
-		run("git", ["clone", "--filter=blob:none", url, directory], dirname(directory))
+		run("git", ["clone", url, directory], dirname(directory))
 	}
 	if (!skipFetch) {
 		// Branch refs fetch a single refspec; raw SHAs need the whole history.
 		const fetchArgs = ref.startsWith("origin/") ? ["--prune", "origin", ref.slice("origin/".length)] : ["--prune", "origin"]
 		run("git", ["fetch", ...fetchArgs], directory)
 	}
+	// A cache checkout must land on the exact ref tree: force-reset and drop
+	// any leftovers from a previous ref (staged swaps, ignored build outputs).
+	run("git", ["clean", "-ffd"], directory)
 	run("git", ["checkout", "--force", ref], directory)
 	run("git", ["reset", "--hard", ref], directory)
 	const commit = runCaptured("git", ["rev-parse", "HEAD"], directory)
