@@ -34,6 +34,11 @@ describe("renderMemorianNudgedEntry", () => {
     expect(renderMemorianNudgedEntry({ data: null } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
   })
 
+  test("#given a multiline hint #when rendered #then nothing is drawn", () => {
+    const multiline = { version: 1, nudges: [{ path: "memory/a.md", hint: "first\nsecond" }] }
+    expect(renderMemorianNudgedEntry({ data: multiline } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
+  })
+
   test("#given a hint that normalizes to nothing or exceeds the gate budget #when rendered #then nothing is drawn", () => {
     const blank = { version: 1, nudges: [{ path: "memory/a.md", hint: "   \u001b[31m\t" }] }
     expect(renderMemorianNudgedEntry({ data: blank } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()

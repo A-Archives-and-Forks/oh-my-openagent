@@ -1,5 +1,5 @@
 import type { EntryRenderer } from "@code-yeongyu/senpi"
-import { NUDGE_HINT_MAX_CHARS } from "@oh-my-opencode/memory-core"
+import { isValidHint, NUDGE_HINT_MAX_CHARS } from "@oh-my-opencode/memory-core"
 
 import { joinFields, noticeComponent, normalizeRendererText } from "./worker/entry-renderers"
 
@@ -54,7 +54,7 @@ export const renderMemorianNudgedEntry: EntryRenderer<MemorianNudgedRecord> = (e
 function normalizeNudge(value: unknown): { readonly path: string; readonly hint: string } | undefined {
   if (!isRecord(value)) return undefined
   if (typeof value.path !== "string" || typeof value.hint !== "string") return undefined
-  if (value.hint.length > NUDGE_HINT_MAX_CHARS) return undefined
+  if (value.hint.length > NUDGE_HINT_MAX_CHARS || !isValidHint(value.hint)) return undefined
   const path = normalizeRendererText(value.path)
   const hint = normalizeRendererText(value.hint)
   if (path.length === 0 || hint.length === 0) return undefined

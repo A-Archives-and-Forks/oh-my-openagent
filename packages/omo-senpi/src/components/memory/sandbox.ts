@@ -1,7 +1,7 @@
 import { join } from "node:path"
 
 import { resolveAgentHome } from "../agent-home/resolve-agent-home"
-import type { FactsSandbox, FactsSpawnArgs, MemorianSandbox, MemorianSpawnArgs } from "./worker/spawn"
+import type { FactsSandbox, FactsSpawnArgs } from "./worker/spawn"
 import {
   SandboxUnavailableError,
   type SandboxPolicy,
@@ -58,43 +58,6 @@ export function buildSandboxTransform(input: {
     which: input.which,
     probe: input.probe,
   })
-}
-
-/**
- * The memorian gate child gets the facts child's confinement: its run dir is the only writable
- * tree, senpi's own settings/auth/hooks-state locks stay takeable, and the read-only payload files are granted
- * explicitly. Same `memory.reflection.sandbox` policy - the gate adds no knob of its own.
- */
-export function buildMemorianSandboxTransform(input: {
-  readonly policy: SandboxPolicy
-  readonly foreignRoots?: readonly string[]
-  readonly onWarning?: (warning: string, spawnArgs: MemorianSpawnArgs) => void
-  readonly errorRethrow?: (error: SandboxUnavailableError) => never
-  readonly platform?: NodeJS.Platform
-  readonly which?: (command: string) => string | undefined
-  readonly probe?: (executable: string) => SandboxUsability
-}): MemorianSandbox {
-  return (spawnArgs) => {
-    const agentDir = resolveAgentHome({ env: spawnArgs.env })
-    const transform = buildPathSandboxTransform<MemorianSpawnArgs>({
-      surface: "memorian",
-      policy: input.policy,
-      writableDirs: [spawnArgs.paths.runDir],
-      // Grant only senpi's lock directories; the agent directory itself remains read-only.
-      lockPaths: senpiAgentLockPaths(agentDir),
-      payloadPaths: [spawnArgs.paths.candidates, spawnArgs.paths.transcript],
-      fallbackDir: spawnArgs.paths.runDir,
-      foreignRoots: input.foreignRoots,
-      command: spawnArgs.command,
-      env: spawnArgs.env,
-      errorRethrow: input.errorRethrow,
-      platform: input.platform,
-      which: input.which,
-      probe: input.probe,
-    })
-    if (transform.warning !== undefined) input.onWarning?.(transform.warning, spawnArgs)
-    return transform(spawnArgs)
-  }
 }
 
 export function buildFactsSandboxTransform(input: {

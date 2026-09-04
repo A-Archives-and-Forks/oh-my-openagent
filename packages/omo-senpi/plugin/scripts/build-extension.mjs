@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process"
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
 import { builtinModules } from "node:module"
 import { dirname, join } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -177,7 +178,11 @@ export async function checkExtensionCurrent(options = {}) {
     return { ok: false, reason: "missing-output", output: advisorRuntimeOutput }
   }
 
-  const tempRoot = await mkdtemp(join(repoRoot, ".build-check-"))
+  // Rebuild OUTSIDE the repository: an output tree inside repoRoot is a transient sibling of the
+  // sources being hashed, and on some CI runners the sidecar built into it differed from a build
+  // into an external directory (673 vs 672 modules, same inputs). tmpdir keeps the check's own
+  // artifacts out of the tree it verifies.
+  const tempRoot = await mkdtemp(join(tmpdir(), "omo-senpi-build-check-"))
   const expectedOutput = join(tempRoot, "omo.js")
   const expectedTaskOutput = join(tempRoot, "omo-task.js")
   const expectedMemberOutput = join(tempRoot, "omo-member.js")
