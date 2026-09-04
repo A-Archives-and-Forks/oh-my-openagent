@@ -23,6 +23,8 @@ import {
   ENGINE_MINIMUM_MODULES,
   MAX_BINARY_BYTES,
   parseBundledModuleCount,
+  PLUGIN_PAYLOAD_DIRECTORIES,
+  PLUGIN_PAYLOAD_FILES,
   RELEASE_BINARY_TARGETS,
   buildRuntimeManifest,
   collectStagedFiles,
@@ -33,6 +35,7 @@ import {
   resolveExpectedSidecarRelPaths,
   RUNTIME_MANIFEST_REL_PATH,
 } from "./build-omo-binary"
+import { PAYLOAD_DIRECTORIES, PAYLOAD_FILES } from "./build-omo-native"
 import ptyFixture from "./release-binary-pty-fixture.json"
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
@@ -434,6 +437,16 @@ describe("engine graph bundling", () => {
     // when / then
     expect(ENGINE_MINIMUM_MODULES).toBeLessThan(4001)
     expect(ENGINE_MINIMUM_MODULES).toBeGreaterThan(7)
+  })
+})
+
+// Regression: this list mirrors build-omo-native's payload allowlist by hand, so a directory added
+// there (skills-conditional) silently stayed out of the compiled binary's embedded plugin.
+describe("plugin payload mirror", () => {
+  test("#given the native payload lists #when compared with the binary's copies #then both stay identical", () => {
+    // when / then
+    expect(PLUGIN_PAYLOAD_DIRECTORIES).toEqual(PAYLOAD_DIRECTORIES)
+    expect(PLUGIN_PAYLOAD_FILES).toEqual(PAYLOAD_FILES)
   })
 })
 

@@ -347,9 +347,9 @@ function engineSidecarSources(): SidecarSource[] {
   return sources
 }
 
-// Mirrors PAYLOAD_DIRECTORIES / PAYLOAD_FILES in script/build-omo-native.ts.
-const PLUGIN_PAYLOAD_DIRECTORIES = ["extensions", "skills", "runtime"] as const
-const PLUGIN_PAYLOAD_FILES = ["package.json", "README.md", "NOTICE", "LICENSE"] as const
+// Mirrors PAYLOAD_DIRECTORIES / PAYLOAD_FILES in script/build-omo-native.ts (locked by build-omo-binary.test.ts).
+export const PLUGIN_PAYLOAD_DIRECTORIES = ["extensions", "skills", "skills-conditional", "runtime"] as const
+export const PLUGIN_PAYLOAD_FILES = ["package.json", "README.md", "NOTICE", "LICENSE"] as const
 
 const EXPORT_HTML_KEEP = new Set([
   "template.html",
