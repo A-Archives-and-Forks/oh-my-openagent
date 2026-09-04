@@ -36,8 +36,11 @@ export function hostTargetFor(platform: string, arch: string): string {
 	throw new Error(`unsupported host platform: ${platform} ${arch}`)
 }
 
+const DEFAULT_SENPI_URL = "https://github.com/code-yeongyu/senpi.git"
+
 export function parseOmobArgs(argv: readonly string[], platform: string, arch: string, homeDir: string): OmobOptions {
-	const options: { senpiRef?: string; omoRef?: string; cacheDir?: string; installDir?: string; name?: string; target?: string; keep?: number; skipFetch: boolean; skipInstall: boolean } = {
+	const options: { senpiRef?: string; omoRef?: string; cacheDir?: string; installDir?: string; name?: string; target?: string; senpiUrl?: string; keep?: number; skipFetch: boolean; skipInstall: boolean } = {
+		senpiUrl: undefined,
 		skipFetch: false,
 		skipInstall: false,
 	}
@@ -213,7 +216,6 @@ function installBinary(binaryPath: string, installDir: string, name: string): st
 
 async function main(argv: readonly string[]): Promise<number> {
 	const options = parseOmobArgs(argv, process.platform, process.arch, homedir())
-	const DEFAULT_SENPI_URL = "https://github.com/code-yeongyu/senpi.git"
 const senpiUrl = options.senpiUrl ?? DEFAULT_SENPI_URL
 	const senpi = ensureCacheClone(senpiUrl, join(options.cacheDir, "senpi"), options.senpiRef, options.skipFetch)
 	const omo = ensureCacheClone(runCaptured("git", ["remote", "get-url", "origin"], repoRoot), join(options.cacheDir, "omo"), options.omoRef, options.skipFetch)
