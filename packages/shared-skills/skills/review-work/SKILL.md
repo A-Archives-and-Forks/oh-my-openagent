@@ -1,6 +1,6 @@
 ---
 name: review-work
-description: "Reviews completed work from five angles (goal, code quality, security, QA execution, context) before handoff. Use before a PR handoff or when the user asks to review or verify changes."
+description: "Post-implementation gate review: run manual QA on the real surface yourself, then launch ONE gate reviewer (never a panel) to audit goal, constraints, code quality, security, missed context, and QA evidence. Use before a PR handoff or when the user explicitly asks to review completed work."
 ---
 ## Codex Harness Tool Compatibility
 
