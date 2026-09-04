@@ -243,3 +243,12 @@ export function createChildHandle(input: CreateChildHandleInput): ChildHandle {
 export function createRestoredChildHandle(input: CreateRestoredChildHandleInput): ChildHandle {
   return createTrackedChildHandle(input.taskId, input.session).handle
 }
+
+// The pre-admission counterpart of rpc/start-cleanup.ts: when handle construction itself throws,
+// the session that createSession() already opened belongs to nobody - no handle exists, so neither
+// the manager nor the lifecycle destruction port can ever reach it. Discarding it here keeps that
+// teardown inside the handle-definition module that owns dispose delegation, so the single-writer
+// rule still holds: lifecycle remains the only INVOKER for admitted handles.
+export function discardUnstartedChildSession(session: ChildSession): void {
+  session.dispose()
+}

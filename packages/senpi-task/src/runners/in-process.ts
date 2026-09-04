@@ -4,7 +4,13 @@ import type { CreateAgentSessionOptions, ToolDefinition } from "@code-yeongyu/se
 
 import type { ResolvedModelRecord } from "../state"
 import { loadSenpiBarrel } from "../lazy/senpi-barrel"
-import { createChildHandle, createRestoredChildHandle, type ChildHandle, type ChildSession } from "./in-process/child-handle"
+import {
+  createChildHandle,
+  createRestoredChildHandle,
+  discardUnstartedChildSession,
+  type ChildHandle,
+  type ChildSession,
+} from "./in-process/child-handle"
 import { buildChildSessionOptions, requireChildSessionDir, resolveMemberScopedToolNames } from "./in-process/child-options"
 import { RunnerError } from "./in-process/runner-error"
 import { buildSubagentPrompt } from "./in-process/subagent-prompt"
@@ -152,7 +158,7 @@ export class InProcessRunner {
     try {
       return createChildHandle({ taskId: spec.taskId, session, promptText })
     } catch (error) {
-      session.dispose()
+      discardUnstartedChildSession(session)
       throw error
     }
   }
