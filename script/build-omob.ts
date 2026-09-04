@@ -2,7 +2,7 @@
 // script/build-omob.ts
 // Builds a single-file dev binary ("omob") from the latest tracked senpi (origin/main)
 // and omo (origin/dev) commits and installs it under the omob name. Dev builds share
-// ~/.omo state with a regular omo install; only the binary and its provisioned
+// ~/.omo state with a regular omo installation; only the binary and its provisioned
 // runtime dir are namespaced by the commit pair.
 
 import { spawnSync } from "node:child_process"
