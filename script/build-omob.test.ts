@@ -225,7 +225,7 @@ describe("packSoleSenpiTarball", () => {
 					writeFileSync(join(tarballDir, "a-1.0.0.tgz"), "x")
 					writeFileSync(join(tarballDir, "b-2.0.0.tgz"), "x")
 				}),
-			).toThrow(/found 2: a-1\.0\.0\.tgz, b-2\.0\.0\.tgz/)
+			).toThrow(/found 2: a-1\.0\.0\.tgz, b-2\.0\.0\.tgz/) // sorted, so the message is deterministic
 		} finally {
 			rmSync(cacheDir, { recursive: true, force: true })
 		}
@@ -247,12 +247,21 @@ describe("packSoleSenpiTarball", () => {
 })
 
 describe("ensureCacheClone submodule ordering", () => {
+	// git refuses file:// submodule transport by default (CVE-2022-39253), and
+	// ensureCacheClone shells out with process.env, so the allowance has to live there for
+	// the subject under test too — not only in this helper.
+	const fixtureEnv = {
+		GIT_CONFIG_COUNT: "3",
+		GIT_CONFIG_KEY_0: "protocol.file.allow",
+		GIT_CONFIG_VALUE_0: "always",
+		GIT_CONFIG_KEY_1: "user.email",
+		GIT_CONFIG_VALUE_1: "t@example.com",
+		GIT_CONFIG_KEY_2: "user.name",
+		GIT_CONFIG_VALUE_2: "Test",
+	} as const
+
 	const git = (args: readonly string[], cwd: string): void => {
-		const result = spawnSync("git", [...args], {
-			cwd,
-			encoding: "utf8",
-			env: { ...process.env, GIT_CONFIG_COUNT: "3", GIT_CONFIG_KEY_0: "protocol.file.allow", GIT_CONFIG_VALUE_0: "always", GIT_CONFIG_KEY_1: "user.email", GIT_CONFIG_VALUE_1: "t@example.com", GIT_CONFIG_KEY_2: "user.name", GIT_CONFIG_VALUE_2: "Test" },
-		})
+		const result = spawnSync("git", [...args], { cwd, encoding: "utf8", env: { ...process.env, ...fixtureEnv } })
 		if (result.status !== 0) throw new Error(`git ${args.join(" ")} failed in ${cwd}: ${result.stdout}${result.stderr}`)
 	}
 
@@ -292,7 +301,9 @@ describe("ensureCacheClone submodule ordering", () => {
 			git(["clone", "-q", "--bare", superWork, superBare], rootDir)
 
 			const cache = join(rootDir, "cache", "omo")
-            const read = (): string => readFileSync(join(cache, "upstreams", "skill", "SKILL.md"), "utf8").trim()
+			const read = (): string => readFileSync(join(cache, "upstreams", "skill", "SKILL.md"), "utf8").trim()
+			const restoreEnv = { ...process.env }
+			Object.assign(process.env, fixtureEnv)
 
 			// fresh clone at the tip: submodule must be at v2
 			ensureCacheClone(`file://${superBare}`, cache, "origin/dev", false)
@@ -306,6 +317,9 @@ describe("ensureCacheClone submodule ordering", () => {
 			// and forward again
 			ensureCacheClone(`file://${superBare}`, cache, "origin/dev", false)
 			expect(read()).toBe("v2")
+
+			for (const key of Object.keys(fixtureEnv)) delete process.env[key]
+			Object.assign(process.env, restoreEnv)
 		} finally {
 			rmSync(rootDir, { recursive: true, force: true })
 		}

@@ -227,7 +227,10 @@ export function packSoleSenpiTarball(tarballDir: string, pack: () => void): stri
 	rmSync(tarballDir, { recursive: true, force: true })
 	mkdirSync(tarballDir, { recursive: true })
 	pack()
-	const tarballs = readdirSync(tarballDir).filter((name) => name.endsWith(".tgz"))
+	// readdirSync order is filesystem-defined; sort so the diagnostic is reproducible.
+	const tarballs = readdirSync(tarballDir)
+		.filter((name) => name.endsWith(".tgz"))
+		.sort()
 	if (tarballs.length !== 1) {
 		throw new Error(`expected exactly one senpi tarball in ${tarballDir}, found ${tarballs.length}: ${tarballs.join(", ")}`)
 	}
