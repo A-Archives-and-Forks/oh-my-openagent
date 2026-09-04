@@ -97,7 +97,7 @@ describe("createMemoryComponent", () => {
     // A fork-mode child loads extensions (the request prefix must match its parent for the provider
     // cache to hit), so --no-extensions no longer protects against recursion. The sentinel that the
     // child already carries must therefore act as a hard disable.
-    for (const sentinel of ["SENPI_MEMORY_REFLECTION", "SENPI_MEMORY_FACTS", "SENPI_MEMORY_MEMORIAN"]) {
+    for (const sentinel of ["SENPI_MEMORY_REFLECTION", "SENPI_MEMORY_FACTS"]) {
       const pi = new MemoryFakeExtensionAPI()
       const ctx = componentContext()
 

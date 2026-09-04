@@ -131,7 +131,7 @@ export interface MemoryRecallWiring {
 // hint would both pollute its transcript and re-enter memory on the next extraction pass. The
 // memorian sentinel is here for the sharper reason: a gate child that received nudges would judge
 // the hints it exists to produce, and would spawn a gate over its own transcript.
-const CHILD_SENTINELS = ["SENPI_MEMORY_REFLECTION", "SENPI_MEMORY_FACTS", "SENPI_MEMORY_MEMORIAN"] as const
+const CHILD_SENTINELS = ["SENPI_MEMORY_REFLECTION", "SENPI_MEMORY_FACTS"] as const
 
 /**
  * Provenance recorded next to a surfaced path. The ledger keys on the path alone - the hash exists
