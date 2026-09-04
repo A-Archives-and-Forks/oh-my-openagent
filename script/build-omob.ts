@@ -11,7 +11,7 @@ import { homedir, tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { parseBuildInfo, type OmoBuildInfo } from "../packages/omo-native/build-info"
-import { RELEASE_BINARY_TARGETS, buildReleaseBinary } from "./build-omo-binary"
+import { RELEASE_BINARY_TARGETS } from "./build-omo-binary"
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(scriptDir, "..")
@@ -282,12 +282,32 @@ const senpiUrl = options.senpiUrl ?? DEFAULT_SENPI_URL
 	const target = RELEASE_BINARY_TARGETS.find((entry) => entry.target === options.target)
 	if (target === undefined) throw new Error(`unknown target: ${options.target}`)
 	const omoAiVersion = deriveOmobAiVersion(omoInfo.commit, senpiInfo.commit)
-	const result = await buildReleaseBinary(target, {
-		omoVersion: omoAiVersion,
-		omoAiVersion,
-		outDir: join(options.cacheDir, "out"),
-		buildInfo,
-	})
+	const outDir = join(options.cacheDir, "out")
+	rmSync(outDir, { recursive: true, force: true })
+	// Build INSIDE the cache clone: build-omo-binary.ts derives repoRoot from its own
+	// location, so only the clone's script sees the swapped engine + the clone's install.
+	run(
+		"bun",
+		[
+			"run",
+			join("script", "build-omo-binary.ts"),
+			"--target",
+			target.target,
+			"--omo-version",
+			omoAiVersion,
+			"--omo-ai-version",
+			omoAiVersion,
+			"--out-dir",
+			outDir,
+			"--build-info",
+			JSON.stringify(buildInfo),
+		],
+		omo.directory,
+		installEnv,
+	)
+	const binaryPath = join(outDir, target.binaryName)
+	if (!existsSync(binaryPath)) throw new Error(`build-omo-binary produced no binary at ${binaryPath}`)
+	const result = { binaryPath, size: statSync(binaryPath).size }
 
 	if (!options.skipInstall) {
 		const installed = installBinary(result.binaryPath, options.installDir, options.name)
