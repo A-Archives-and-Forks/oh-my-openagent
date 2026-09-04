@@ -1,7 +1,7 @@
 import type { AgentToolResult, ToolDefinition } from "@code-yeongyu/senpi"
 import { Type, type Static } from "typebox"
 
-import { isValidHint, type RecallNudge } from "@oh-my-opencode/memory-core"
+import { containsSecretLikeMaterial, isValidHint, type RecallNudge } from "@oh-my-opencode/memory-core"
 
 export const MEMORIAN_NUDGE_TOOL_NAME = "nudge"
 
@@ -83,6 +83,9 @@ function rejectNudge(params: Static<typeof MemorianNudgeParams>, input: Memorian
   }
   if (!isValidHint(params.hint)) {
     return "The hint must be one non-empty line of at most 200 characters."
+  }
+  if (containsSecretLikeMaterial(params.hint)) {
+    return "The hint was rejected because it contains secret-like material."
   }
   if (input.accepted.length >= input.maxItems) {
     return `The maxItems limit (${input.maxItems}) for this run has been reached.`

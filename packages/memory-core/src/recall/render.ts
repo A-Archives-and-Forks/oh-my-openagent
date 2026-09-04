@@ -18,7 +18,7 @@ export function renderNudgeBlock(nudge: RecallNudge): string {
   return [
     `<recalled-memory source="[[${nudge.path}]]">`,
     RECALL_HINT_HEADER,
-    nudge.hint,
+    nudge.hint.replaceAll("<", "&lt;").replaceAll(">", "&gt;"),
     "</recalled-memory>",
   ].join("\n")
 }

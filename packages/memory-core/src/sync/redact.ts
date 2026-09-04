@@ -9,6 +9,17 @@
 
 const MASK = "***"
 
+const SECRET_PATTERNS = [
+  /\bAKIA[0-9A-Z]{16}\b/,
+  /\b(?:bearer|token|api[_-]?key|secret)\s*[=:]\s*\S+/i,
+  /-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/i,
+  /\b(?:ghp|github_pat|glpat|xox[baprs])-[-_A-Za-z0-9]+\b/,
+] as const
+
+export function containsSecretLikeMaterial(value: string): boolean {
+  return SECRET_PATTERNS.some((pattern) => pattern.test(value))
+}
+
 /**
  * `scheme://user:pass@` and `scheme://user@` inside arbitrary text.
  *

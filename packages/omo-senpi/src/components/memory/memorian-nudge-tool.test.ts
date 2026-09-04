@@ -107,6 +107,16 @@ describe("createMemorianNudgeTool", () => {
     expect(accepted).toEqual([])
   })
 
+  test("#given a secret-bearing hint #when nudge is called #then an error result names the secret rule and nothing is recorded", async () => {
+    const { tool, accepted } = launch()
+    const result = await tool.execute("call-1", { path: CANDIDATE_PATH, hint: "Use AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE." })
+    expect(result.isError).toBe(true)
+    const first = result.content[0]
+    expect(first?.type).toBe("text")
+    if (first?.type === "text") expect(first.text).toContain("secret-like material")
+    expect(accepted).toEqual([])
+  })
+
   test("#given a multiline hint #when nudge is called #then an error result returns and nothing is recorded", async () => {
     // given
     const { accepted, tool } = launch()
