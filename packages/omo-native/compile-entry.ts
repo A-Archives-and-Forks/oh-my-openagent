@@ -132,7 +132,7 @@ function runCompiledDoctor(inventory: Awaited<ReturnType<typeof detectHarnesses>
     }
   }
   const packageJson = readJson(join(execDir, "package.json"))
-  lines.push(`INFO omo ${packageJson.version} (engine: senpi ${enginePin})`)
+  for (const line of versionLine(packageJson, enginePin).split("\n")) lines.push(`INFO ${line}`)
   if (needsSetupSuggestion(inventory)) lines.push("INFO no credentials found; run omo setup to review sibling stores")
   console.log(lines.join("\n"))
   process.exitCode = failed ? 1 : 0
