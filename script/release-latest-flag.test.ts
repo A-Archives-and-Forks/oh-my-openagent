@@ -1,6 +1,7 @@
 /// <reference types="bun-types" />
 
 import { describe, expect, test } from "bun:test"
+import { readFileSync } from "node:fs"
 import { resolveLatestFlag } from "./release-latest-flag"
 
 const RELEASED = ["v5.0.0-beta.40", "v5.0.0-beta.39", "v5.0.0-beta.20", "v5.0.0-beta.19", "v4.19.4", "_pr-attachments"]
@@ -69,5 +70,27 @@ describe("resolveLatestFlag", () => {
     // given / when / then
     expect(() => resolveLatestFlag("next", RELEASED)).toThrow()
     expect(() => resolveLatestFlag("5.0.0-beta.41+build.7", RELEASED)).toThrow()
+  })
+})
+
+describe("local publish path", () => {
+  test("#given the local publish script #when it creates a release #then it passes a resolved flag from the published tags", () => {
+    // given: publish.ts is the second release-creation path, so the badge rule must not be
+    // reimplemented or omitted there. It has no importable seam (top-level side effects), so the
+    // machine-consumed facts are pinned from source.
+    const source = readFileSync(new URL("./publish.ts", import.meta.url), "utf8")
+
+    // when
+    const createLine = source
+      .split("\n")
+      .map((line) => line.trim())
+      .find((line) => line.includes("gh release create"))
+
+    // then
+    expect(source).toContain('import { resolveLatestFlag } from "./release-latest-flag"')
+    expect(source).toContain("gh release list --exclude-drafts")
+    expect(createLine).toContain("${latestFlag}")
+    expect(createLine).not.toContain("--prerelease")
+    expect(createLine).not.toContain("--latest ")
   })
 })
