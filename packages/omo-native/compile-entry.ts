@@ -15,6 +15,7 @@ import {
   type EmbeddedManifest,
 } from "./compile-runtime"
 import { propagateResult, runChild } from "./bin/lib/child-process.js"
+import { buildLabel, parseBuildInfo, versionLines } from "./build-info"
 import { migrateLegacyBunGlobalManifest } from "./bin/lib/legacy-bun-global-migration.js"
 import { adoptLegacyFlatState, canonicalAgentDir } from "./bin/lib/agent-dir.js"
 import { nearestNodeBin, readJson } from "./bin/lib/package-paths.js"
@@ -56,7 +57,9 @@ export function buildSenpiArgs(args: string[], execDir: string): string[] {
   return ["--extension", join(execDir, "plugin"), ...args]
 }
 
-export function versionLine(packageJson: { version: string }, enginePin: string): string {
+export function versionLine(packageJson: { version: string; omoBuild?: unknown }, enginePin: string): string {
+  const info = parseBuildInfo(packageJson.omoBuild)
+  if (info !== undefined) return versionLines(info).join("\n")
   return `omo ${packageJson.version} (engine: senpi ${enginePin})`
 }
 
@@ -90,11 +93,22 @@ export function remapSenpiEnvironment(source: NodeJS.ProcessEnv = process.env, e
   env.OMO_NATIVE = "1"
   env.SENPI_RUNTIME = process.versions.bun ? "bun" : "node"
   let displayVersion = "unknown"
-  try { displayVersion = readJson(join(execDir, "package.json")).version } catch { /* test fixtures may omit the sibling manifest */ }
+  let devCommand: string | undefined
+  let devUpdateCommand: string | undefined
+  try {
+    const stamped = readJson(join(execDir, "package.json")) as { version?: string; omoBuild?: unknown }
+    displayVersion = typeof stamped.version === "string" ? stamped.version : "unknown"
+    const info = parseBuildInfo(stamped.omoBuild)
+    if (info !== undefined) {
+      devCommand = info.command
+      devUpdateCommand = `rebuild with: bun run ${info.command}`
+      displayVersion = buildLabel(info)
+    }
+  } catch { /* test fixtures may omit the sibling manifest */ }
   env.SENPI_BRAND = JSON.stringify({
-    name: "OmO", command: "omo", displayVersion,
+    name: "OmO", command: devCommand ?? "omo", displayVersion,
     configDir: ".omo", flatLayout: false, envPrefix: "OMO", userAgent: "omo", originator: "omo",
-    update: { packageName: "omo-ai", distTag: "beta", command: updateLine(process.platform, process.arch), changelogUrl: "https://github.com/code-yeongyu/oh-my-openagent/releases" },
+    update: { packageName: "omo-ai", distTag: "beta", command: devUpdateCommand ?? updateLine(process.platform, process.arch), changelogUrl: "https://github.com/code-yeongyu/oh-my-openagent/releases" },
   })
   const binDir = nearestNodeBin(execDir)
   if (binDir) {
@@ -118,7 +132,7 @@ function runCompiledDoctor(inventory: Awaited<ReturnType<typeof detectHarnesses>
     }
   }
   const packageJson = readJson(join(execDir, "package.json"))
-  lines.push(`INFO omo ${packageJson.version} (engine: senpi ${enginePin})`)
+  for (const line of versionLine(packageJson, enginePin).split("\n")) lines.push(`INFO ${line}`)
   if (needsSetupSuggestion(inventory)) lines.push("INFO no credentials found; run omo setup to review sibling stores")
   console.log(lines.join("\n"))
   process.exitCode = failed ? 1 : 0
@@ -132,9 +146,9 @@ function isSelfUpdate(args: string[]): boolean {
   return rest.every((arg) => arg.startsWith("-") || selfUpdateTargets.has(arg))
 }
 
-export function answerCompiledFastPath(args: string[], manifest: Pick<EmbeddedManifest, "omoAiVersion" | "enginePin">): boolean {
+export function answerCompiledFastPath(args: string[], manifest: Pick<EmbeddedManifest, "omoAiVersion" | "enginePin" | "buildInfo">): boolean {
   if ((args[0] === "--version" || args[0] === "-v") && args.length === 1) {
-    console.log(versionLine({ version: manifest.omoAiVersion }, manifest.enginePin))
+    console.log(versionLine({ version: manifest.omoAiVersion, omoBuild: manifest.buildInfo }, manifest.enginePin))
     return true
   }
   if (isSelfUpdate(args)) {
@@ -212,7 +226,11 @@ async function main(): Promise<void> {
   // executable delegates to the engine in-process as required by the native startup contract.
   if (await runCompiledLauncher(process.argv.slice(2), execDir, manifest.enginePin, execDir)) return
   if (shouldPrintCompiledBanner(process.argv.slice(2), process.stderr.isTTY === true)) {
-    console.error(`omo (omo-ai beta ${manifest.omoAiVersion})`)
+    if (parseBuildInfo(manifest.buildInfo) !== undefined) {
+      console.error(`omob dev build (${manifest.omoAiVersion})`)
+    } else {
+      console.error(`omo (omo-ai beta ${manifest.omoAiVersion})`)
+    }
   }
   process.argv.splice(2, process.argv.length - 2, ...buildSenpiArgs(process.argv.slice(2), execDir))
   Object.assign(process.env, remapSenpiEnvironment(process.env, execDir))
