@@ -1,15 +1,20 @@
-import type { SenpiModelPort, SenpiModelRegistryPort } from "@oh-my-opencode/senpi-task"
+import { ModelRegistry } from "@code-yeongyu/senpi"
 
-export function resolveMemoryModelRegistry(
-  eventContext: unknown,
-): SenpiModelRegistryPort<SenpiModelPort> | undefined {
+import type { ChildModelRegistry } from "@oh-my-opencode/senpi-task"
+
+export type { ChildModelRegistry }
+
+/**
+ * The settle-time model registry snapshot: the CONCRETE senpi ModelRegistry off the live ctx, not
+ * a structural port. An in-process child session threads this exact instance into
+ * createAgentSession, where senpi needs the real class (auth storage, model runtime, dynamic
+ * providers) - a narrowed port could not cross that boundary, and sharing the instance is what
+ * makes engine skew between the parent and the judge impossible.
+ */
+export function resolveMemoryModelRegistry(eventContext: unknown): ChildModelRegistry | undefined {
   if (!isRecord(eventContext)) return undefined
   const registry = eventContext.modelRegistry
-  return isModelRegistry(registry) ? registry : undefined
-}
-
-function isModelRegistry(value: unknown): value is SenpiModelRegistryPort<SenpiModelPort> {
-  return isRecord(value) && typeof value.getAvailable === "function" && typeof value.find === "function"
+  return registry instanceof ModelRegistry ? registry : undefined
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

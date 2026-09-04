@@ -5,33 +5,46 @@
 // semantics - resolveReflectionModel("quick"), warn+skip when the category cannot resolve, no
 // fallback ladder, one activeLaunch latch - but carries NO durable machinery: there is no queue, no
 // failure store and no run ledger, because a gate run that dies is simply a turn without a nudge.
-// The run directory is scratch and is removed once the NDJSON has been read.
+//
+// The judge runs IN-PROCESS through senpi-task's InProcessRunner, exactly like the curated
+// read-only agents: the child's ResourceLoader has no builtin extensions (no hooks lock can fail
+// under it), and it shares the parent snapshot's modelRegistry/authStorage/modelRuntime so engine
+// skew is impossible. Its single input is INLINED in the prompt - the candidates payload plus the
+// transcript window - so the child needs no file access and no read tool; its single output is the
+// nudge closure, which validates against the launch input synchronously and records accepted
+// nudges into an array this runner owns. The run directory holds the same payload as
+// human-auditable artifacts and is KEPT after the run (pruning is a deliberate non-goal).
 
-import { spawn } from "node:child_process"
 import { randomUUID } from "node:crypto"
-import { mkdir, readFile, rm } from "@oh-my-opencode/memory-core/fs"
+import { mkdir, writeFile } from "@oh-my-opencode/memory-core/fs"
 import { join } from "node:path"
 
 import {
   PendingNudges,
-  parseNudgeLines,
+  loadMemorianPersona,
   validateNudges,
   type MemoryIdentityPaths,
   type RecallCandidate,
   type RecallNudge,
 } from "@oh-my-opencode/memory-core"
-import type { SenpiModelPort, SenpiModelRegistryPort } from "@oh-my-opencode/senpi-task"
+import {
+  InProcessRunner,
+  findModelReference,
+  type ChildHandle,
+  type ChildModelRegistry,
+  type CreateChildSession,
+} from "@oh-my-opencode/senpi-task"
 
+import { resolveAgentHome } from "../agent-home/resolve-agent-home"
 import type { ComponentLogger } from "../../extension/types"
 import type { SenpiOmoConfigResult } from "../config-resolution"
-import { resolveReflectionModel } from "./worker/resolve-model"
-import { prepareMemorianSpawn } from "./worker/spawn"
-import type { MemorianSandbox, MemorianSpawnArgs, MemorianTranscriptTurn } from "./worker/spawn"
+import type { RecallTranscriptTurn } from "./recall-wiring"
+import { resolveReflectionModel, type ReflectionModelResolution } from "./worker/resolve-model"
+import { createMemorianNudgeTool, MEMORIAN_NUDGE_TOOL_NAME } from "./memorian-nudge-tool"
 
 const QUICK_CATEGORY = "quick"
 /** The gate advises a turn that already ended; anything slower than this is worthless. */
 const DEFAULT_DEADLINE_MS = 5 * 60_000
-const TERMINATION_GRACE_MS = 2_000
 
 export interface MemorianGateRunnerOptions {
   readonly identityPaths: MemoryIdentityPaths
@@ -40,10 +53,12 @@ export interface MemorianGateRunnerOptions {
   readonly deadlineMs?: number
   /** Seam for the pending store; production builds it from identityPaths.recallPending. */
   readonly pendingNudges?: Pick<PendingNudges, "write" | "delete">
-  readonly sandbox?: MemorianSandbox
-  /** QA stubbing seam, mirroring the facts runner: the pair replaces the resolved senpi launcher. */
-  readonly senpiCommand?: string
-  readonly senpiPrefixArgs?: readonly string[]
+  /**
+   * QA stubbing seam, mirroring the facts runner's injectable launcher: the pair replaces the
+   * child session construction so a fake session can emit tool calls. Production leaves it unset
+   * and the InProcessRunner creates a real senpi session.
+   */
+  readonly createSession?: CreateChildSession
   readonly logger?: ComponentLogger
 }
 
@@ -53,14 +68,14 @@ export interface MemorianGateLaunchInput {
   /** Paths already surfaced this session; the parent re-checks them after the child answers. */
   readonly surfaced: ReadonlySet<string>
   readonly maxItems: number
-  readonly transcript: readonly MemorianTranscriptTurn[]
+  readonly transcript: readonly RecallTranscriptTurn[]
   /**
    * The model registry captured SYNCHRONOUSLY at settle, before the host disposed the senpi ctx.
    * The gate launch is fire-and-forget, so by the time it runs any ctx-reading resolver would throw
    * `assertActive`'s stale error. This snapshot is therefore the runner's ONLY registry source:
    * absent means the settle-time capture came back unavailable, and the launch is skipped.
    */
-  readonly modelRegistry?: SenpiModelRegistryPort<SenpiModelPort> | undefined
+  readonly modelRegistry?: ChildModelRegistry | undefined
   /**
    * The session's compaction epoch as of THIS launch. The child judges one transcript; a compaction
    * accepted while it runs replaces that transcript, so the verdict must not survive it.
@@ -70,6 +85,9 @@ export interface MemorianGateLaunchInput {
   readonly currentCompactionEpoch?: () => number
 }
 
+/** Precise failure causes: which stage of the in-process launch died. */
+export type MemorianGateFailureCause = "session_create_failed" | "deadline" | "child_failed"
+
 export type MemorianGateLaunchResult =
   /** Another gate run holds the latch; this trigger is dropped. */
   | { readonly status: "active" }
@@ -77,8 +95,13 @@ export type MemorianGateLaunchResult =
   | { readonly status: "skipped"; readonly cause?: string; readonly model?: string; readonly candidateCount?: number }
   /** The child ran and said nothing the parent accepted. */
   | { readonly status: "empty" }
-  /** The child crashed or outran its deadline. */
-  | { readonly status: "failed"; readonly cause?: string; readonly model?: string; readonly candidateCount?: number }
+  /** The child session could not be created, outran its deadline, or its turn failed. */
+  | {
+    readonly status: "failed"
+    readonly cause?: MemorianGateFailureCause
+    readonly model?: string
+    readonly candidateCount?: number
+  }
   | { readonly status: "dropped"; readonly cause?: string; readonly model?: string; readonly candidateCount?: number }
   | { readonly status: "nudged"; readonly nudges: readonly RecallNudge[]; readonly model?: string }
 
@@ -130,53 +153,127 @@ export class MemorianGateRunner {
       return { status: "skipped", cause: "quick_category_unavailable", candidateCount: input.candidates.length }
     }
 
-    const runDir = join(this.options.identityPaths.recall, "runs", randomUUID())
+    const runId = randomUUID()
+    const accepted: RecallNudge[] = []
+    const judged = await this.runJudge(input, resolution, runId, accepted)
+    if (judged.status === "failed") return judged
+    // Defence in depth: the closure already validated every recorded nudge at call time, and this
+    // re-validation is a no-op for already-validated input (it also drops duplicate paths should
+    // the judge repeat one after an accepted call).
+    const nudges = validateNudges(accepted, {
+      candidates: new Set(input.candidates.map((candidate) => candidate.path)),
+      surfaced: input.surfaced,
+      maxItems: input.maxItems,
+    })
+    if (nudges.length === 0) return { status: "empty" }
+    const pending = this.options.pendingNudges ?? new PendingNudges(this.options.identityPaths.recallPending)
+    // Cheap early-out: a compaction already accepted needs no file to be written at all. The
+    // judged transcript no longer exists, so writing would advise the next turn about a
+    // conversation the compaction already rewrote - exactly what onCompactionAccepted's pending
+    // drop prevents for verdicts that landed BEFORE the compaction.
+    if (isStaleAfterCompaction(input)) return this.dropAfterCompaction(input)
+    // The launch epoch travels INSIDE the payload, which is what makes the write/compaction race
+    // unwinnable-but-harmless: whoever wins, the consumer compares the stamped epoch against the
+    // session's live one and refuses a verdict whose transcript a compaction has replaced.
+    await pending.write(input.sessionId, nudges, { epoch: input.compactionEpoch ?? 0 })
+    // Best-effort hygiene ONLY: a compaction accepted inside write()'s fs window bumps the epoch
+    // while its own pending drop still sees no file, so retracting here keeps the directory clean.
+    // Correctness no longer depends on this check - the payload's epoch is now authoritative at
+    // take() - so losing this race costs nothing.
+    if (isStaleAfterCompaction(input)) {
+      await pending.delete(input.sessionId)
+      return this.dropAfterCompaction(input)
+    }
+    return { status: "nudged", nudges, model: resolution.model }
+  }
+
+  /**
+   * Run the judge as an in-process child session and await its single turn. This owns the whole
+   * per-run working set: the run dir, its auditable artifacts, and the child session. The absolute
+   * deadline replaces the old SIGTERM/SIGKILL escalation: an abort timer fires handle.abort() and
+   * the race resolves the launch immediately, never waiting for a turn that will not settle.
+   */
+  private async runJudge(
+    input: MemorianGateLaunchInput,
+    resolution: Extract<ReflectionModelResolution, { readonly kind: "resolved" }>,
+    runId: string,
+    accepted: RecallNudge[],
+  ): Promise<{ readonly status: "completed" } | Extract<MemorianGateLaunchResult, { readonly status: "failed" }>> {
+    const runDir = join(this.options.identityPaths.recall, "runs", runId)
     await mkdir(runDir, { recursive: true, mode: 0o700 })
+    // Auditable artifacts, NOT inputs: the child receives both inline in its prompt and holds no
+    // read tool. The run dir is kept after the run so a live or finished judge can be inspected.
+    await Promise.all([
+      writeFile(join(runDir, "candidates.json"), `${JSON.stringify(memorianCandidatesPayload(input), null, 2)}\n`, { encoding: "utf8", mode: 0o600 }),
+      writeFile(join(runDir, "transcript-window.txt"), renderTranscriptWindow(input.transcript), { encoding: "utf8", mode: 0o600 }),
+    ])
+
+    const runner = new InProcessRunner(
+      this.options.createSession === undefined ? {} : { createSession: this.options.createSession },
+    )
+    let handle: ChildHandle
     try {
-      const spawnArgs = await prepareMemorianSpawn({
-        runDir,
-        candidates: input.candidates,
-        surfaced: [...input.surfaced],
-        maxItems: input.maxItems,
-        transcript: input.transcript,
-        model: resolution.model,
-        ...(resolution.thinking === undefined ? {} : { thinking: resolution.thinking }),
-        hardDeadlineAt: Date.now() + (this.options.deadlineMs ?? DEFAULT_DEADLINE_MS),
-        env: this.options.env,
-        ...(this.options.senpiCommand === undefined ? {} : { senpiCommand: this.options.senpiCommand }),
-        ...(this.options.senpiPrefixArgs === undefined ? {} : { senpiPrefixArgs: this.options.senpiPrefixArgs }),
+      handle = await runner.start({
+        taskId: `memorian-${runId}`,
+        cwd: runDir,
+        sessionDir: runDir,
+        agentDir: resolveAgentHome({ env: this.options.env }),
+        modelRegistry: input.modelRegistry,
+        model: input.modelRegistry === undefined
+          ? undefined
+          : findModelReference(input.modelRegistry, resolution.model),
+        ...(resolution.thinking === undefined ? {} : { thinkingLevel: resolution.thinking }),
+        toolAllowlist: [MEMORIAN_NUDGE_TOOL_NAME],
+        memberScopedTools: [
+          createMemorianNudgeTool({
+            candidates: new Set(input.candidates.map((candidate) => candidate.path)),
+            surfaced: input.surfaced,
+            maxItems: input.maxItems,
+            accepted,
+          }),
+        ],
+        depth: 1,
+        parentSessionId: input.sessionId,
+        rootSessionId: input.sessionId,
+        systemPrompt: loadMemorianPersona(),
+        promptEnvelope: "bare",
+        prompt: buildMemorianPrompt(input),
       })
-      const prepared = await (this.options.sandbox ?? passthrough)(spawnArgs)
-      const completed = await runMemorianChild(prepared)
-      if (!completed) return { status: "failed", cause: "child_failed", model: resolution.model, candidateCount: input.candidates.length }
-      const nudges = validateNudges(parseNudgeLines(await readNudges(prepared.paths.nudges)), {
-        candidates: new Set(input.candidates.map((candidate) => candidate.path)),
-        surfaced: input.surfaced,
-        maxItems: input.maxItems,
-      })
-      if (nudges.length === 0) return { status: "empty" }
-      const pending = this.options.pendingNudges ?? new PendingNudges(this.options.identityPaths.recallPending)
-      // Cheap early-out: a compaction already accepted needs no file to be written at all. The
-      // judged transcript no longer exists, so writing would advise the next turn about a
-      // conversation the compaction already rewrote - exactly what onCompactionAccepted's pending
-      // drop prevents for verdicts that landed BEFORE the compaction.
-      if (isStaleAfterCompaction(input)) return this.dropAfterCompaction(input)
-      // The launch epoch travels INSIDE the payload, which is what makes the write/compaction race
-      // unwinnable-but-harmless: whoever wins, the consumer compares the stamped epoch against the
-      // session's live one and refuses a verdict whose transcript a compaction has replaced.
-      await pending.write(input.sessionId, nudges, { epoch: input.compactionEpoch ?? 0 })
-      // Best-effort hygiene ONLY: a compaction accepted inside write()'s fs window bumps the epoch
-      // while its own pending drop still sees no file, so retracting here keeps the directory clean.
-      // Correctness no longer depends on this check - the payload's epoch is now authoritative at
-      // take() - so losing this race costs nothing.
-      if (isStaleAfterCompaction(input)) {
-        await pending.delete(input.sessionId)
-        return this.dropAfterCompaction(input)
+    } catch (error) {
+      // InProcessRunner.start maps every construction failure to a typed session-create-failed;
+      // depth is a fixed 1 here, so creation is the only failure this path can name.
+      this.options.logger?.warn("memorian gate child session creation failed", { error: describe(error), runId })
+      return { status: "failed", cause: "session_create_failed", model: resolution.model, candidateCount: input.candidates.length }
+    }
+
+    let deadlineTimer: ReturnType<typeof setTimeout> | undefined
+    const deadline = new Promise<"deadline">((resolve) => {
+      deadlineTimer = setTimeout(() => {
+        // Fire-and-forget: the launch result no longer depends on the abort completing, but the
+        // turn must still be cancelled so a hung judge cannot outlive its caller.
+        handle.abort().catch((error: unknown) => {
+          this.options.logger?.warn("memorian gate deadline abort failed", { error: describe(error), runId })
+        })
+        resolve("deadline")
+      }, Math.max(0, this.options.deadlineMs ?? DEFAULT_DEADLINE_MS))
+      deadlineTimer.unref?.()
+    })
+    try {
+      const settled = await Promise.race([handle.waitForIdle(), deadline])
+      if (settled === "deadline") {
+        this.options.logger?.warn("memorian gate deadline exceeded", { runId })
+        return { status: "failed", cause: "deadline", model: resolution.model, candidateCount: input.candidates.length }
       }
-      return { status: "nudged", nudges, model: resolution.model }
+      // A completed turn is judged on its nudge calls (the caller validates `accepted`); anything
+      // else - a provider failure, an aborted turn that was not the deadline - is a child failure.
+      if (settled.status !== "completed") {
+        return { status: "failed", cause: "child_failed", model: resolution.model, candidateCount: input.candidates.length }
+      }
+      return { status: "completed" }
     } finally {
-      // Scratch only: the NDJSON has been read, so nothing here survives the run.
-      await rm(runDir, { recursive: true, force: true }).catch(() => undefined)
+      clearTimeout(deadlineTimer)
+      // One-shot judge: the session is torn down whether the turn completed or the deadline won.
+      handle.dispose()
     }
   }
 
@@ -189,69 +286,47 @@ export class MemorianGateRunner {
   }
 }
 
-/**
- * Run the detached child under an absolute deadline. Resolves false for any non-clean end (crash,
- * non-zero exit, deadline, spawn failure); the caller turns that into a silent skip.
- */
-async function runMemorianChild(spawnArgs: MemorianSpawnArgs): Promise<boolean> {
-  const child = spawn(spawnArgs.command, [...spawnArgs.args], {
-    cwd: spawnArgs.cwd,
-    env: spawnArgs.env,
-    detached: spawnArgs.detached,
-    stdio: "ignore",
-    windowsHide: true,
-  })
-  return await new Promise<boolean>((resolve) => {
-    let settled = false
-    const settle = (value: boolean): void => {
-      if (settled) return
-      settled = true
-      clearTimeout(deadline)
-      clearTimeout(grace)
-      resolve(value)
-    }
-    let grace: ReturnType<typeof setTimeout> | undefined
-    const deadline = setTimeout(() => {
-      kill(child, "SIGTERM")
-      grace = setTimeout(() => {
-        kill(child, "SIGKILL")
-        settle(false)
-      }, TERMINATION_GRACE_MS)
-      grace.unref?.()
-    }, Math.max(0, spawnArgs.hardDeadlineAt - Date.now()))
-    deadline.unref?.()
-    child.once("error", () => settle(false))
-    child.once("close", (code) => settle(code === 0))
-  })
-}
-
-function kill(child: { readonly pid?: number, kill: (signal: NodeJS.Signals) => boolean }, signal: NodeJS.Signals): void {
-  try {
-    // The child is detached, so it leads its own process group: signal the GROUP or a senpi that
-    // spawned helpers would leave them behind.
-    if (child.pid !== undefined && process.platform !== "win32") process.kill(-child.pid, signal)
-    else child.kill(signal)
-  } catch {
-    // Already gone.
+function memorianCandidatesPayload(input: MemorianGateLaunchInput): {
+  readonly version: 1
+  readonly maxItems: number
+  readonly candidates: readonly { readonly path: string; readonly description: string; readonly excerpt: string; readonly score: number }[]
+  readonly surfaced: readonly string[]
+} {
+  return {
+    version: 1,
+    maxItems: input.maxItems,
+    candidates: input.candidates.map((candidate) => ({
+      path: candidate.path,
+      description: candidate.description,
+      excerpt: candidate.excerpt,
+      score: candidate.score,
+    })),
+    surfaced: [...input.surfaced],
   }
 }
 
-async function readNudges(path: string): Promise<string> {
-  try {
-    return await readFile(path, "utf8")
-  } catch {
-    // A silent judge writes no file at all; that is the documented default, not an error.
-    return ""
-  }
+/** The judge's single user message: both inputs inline, no files, no read tool. */
+function buildMemorianPrompt(input: MemorianGateLaunchInput): string {
+  return [
+    "<memorian-input>",
+    "<candidates>",
+    JSON.stringify(memorianCandidatesPayload(input), null, 2),
+    "</candidates>",
+    "<transcript-window>",
+    renderTranscriptWindow(input.transcript).trimEnd(),
+    "</transcript-window>",
+    "</memorian-input>",
+  ].join("\n")
+}
+
+/** Both roles, oldest first: the judge compares what the user asked against what the agent said. */
+function renderTranscriptWindow(turns: readonly { readonly role: string; readonly text: string }[]): string {
+  return `${turns.map((turn) => `${turn.role}: ${turn.text}`).join("\n\n")}\n`
 }
 
 function isStaleAfterCompaction(input: MemorianGateLaunchInput): boolean {
   if (input.compactionEpoch === undefined || input.currentCompactionEpoch === undefined) return false
   return input.currentCompactionEpoch() !== input.compactionEpoch
-}
-
-function passthrough(spawnArgs: MemorianSpawnArgs): MemorianSpawnArgs {
-  return spawnArgs
 }
 
 function describe(error: unknown): string {

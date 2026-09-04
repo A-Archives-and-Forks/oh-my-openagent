@@ -1,9 +1,8 @@
-// Memorian gate output contract: the judge child speaks only through the nudge
-// tool, which appends NDJSON {path, hint} lines. The parent is authoritative:
-// every line is re-parsed fail-closed (a malformed line drops, never poisons the
-// batch, following parseFactsExtractionJsonl's precedent inverted to skip
-// instead of throw) and re-validated against the candidate set, the session
-// ledger, the hint shape and the configured cap.
+// Memorian gate output contract: the in-process judge child speaks only through the nudge
+// tool, whose closure records each accepted nudge against the launch input. The parent is
+// authoritative: every collected nudge is re-validated against the candidate set, the session
+// ledger, the hint shape and the configured cap (defence in depth - the closure already
+// enforced the same rules at call time).
 //
 // Accepted nudges wait in a per-session pending file until the next turn injects
 // them. The payload is self-describing ({ version, sessionId, compactionEpoch,
@@ -66,24 +65,18 @@ export interface ValidateNudgesOptions {
 }
 
 /**
+ * Hint budget predicate, shared with the in-process judge's nudge tool: one factual sentence,
+ * non-empty, at most `NUDGE_HINT_MAX_CHARS`, on a single line.
+ */
+export function isValidHint(hint: string): boolean {
+  if (hint.length === 0 || hint.length > NUDGE_HINT_MAX_CHARS) return false
+  return !/[\r\n]/.test(hint)
+}
+
+/**
  * Parse the nudge NDJSON file fail-closed per line: an unparsable or
  * non-conforming line is dropped and the remaining lines still count.
  */
-export function parseNudgeLines(raw: string): RecallNudge[] {
-  const nudges: RecallNudge[] = []
-  for (const line of raw.split(/\r?\n/)) {
-    if (line.trim().length === 0) continue
-    let value: unknown
-    try {
-      value = JSON.parse(line)
-    } catch {
-      continue
-    }
-    const nudge = parseNudge(value)
-    if (nudge !== undefined) nudges.push(nudge)
-  }
-  return nudges
-}
 
 /**
  * Parent-side validation of judge output. Order is preserved so the cap keeps
@@ -227,11 +220,6 @@ export class PendingNudges {
       await removeQuietly(candidate)
     }
   }
-}
-
-function isValidHint(hint: string): boolean {
-  if (hint.length === 0 || hint.length > NUDGE_HINT_MAX_CHARS) return false
-  return !/[\r\n]/.test(hint)
 }
 
 function parseNudge(value: unknown): RecallNudge | undefined {

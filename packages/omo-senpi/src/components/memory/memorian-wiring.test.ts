@@ -6,6 +6,7 @@ import { join } from "node:path"
 
 import { PendingNudges, buildIdentityPaths, type RecallCandidate } from "@oh-my-opencode/memory-core"
 
+import { ModelRegistry, ModelRuntime } from "../../senpi-test-runtime"
 import { createMemoryBinding } from "./binding"
 import { createMemoryIdentityContext, type MemoryIdentityContext } from "./context"
 import { createMemorianGateWiring, type MemorianGatePort } from "./memorian-wiring"
@@ -214,7 +215,7 @@ describe("createMemorianGateWiring onSettled", () => {
     // given: the real senpi ctx is invalidated by AgentSession dispose the moment the settle
     // handler returns, so any ctx read from the detached task throws assertActive's stale error.
     const identity = await context()
-    const registry = { getAvailable: () => [], find: () => undefined }
+    const registry = new ModelRegistry(ModelRuntime.createSync({ modelsPath: null }))
     let stale = false
     const eventCtx = {
       get modelRegistry(): unknown {
