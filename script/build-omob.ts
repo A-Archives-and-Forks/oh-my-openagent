@@ -119,7 +119,8 @@ function runCaptured(command: string, args: readonly string[], cwd: string): str
 function ensureCacheClone(url: string, directory: string, ref: string, skipFetch: boolean): { readonly directory: string; readonly commit: string } {
 	mkdirSync(dirname(directory), { recursive: true })
 	if (!existsSync(join(directory, ".git"))) {
-		run("git", ["clone", url, directory], dirname(directory))
+		run("git", ["clone", "--recurse-submodules", "--shallow-submodules", url, directory], dirname(directory))
+		run("git", ["submodule", "update", "--init", "--recursive"], directory)
 	}
 	if (!skipFetch) {
 		// Branch refs fetch a single refspec; raw SHAs need the whole history.
@@ -128,7 +129,10 @@ function ensureCacheClone(url: string, directory: string, ref: string, skipFetch
 	}
 	// A cache checkout must land on the exact ref tree: force-reset and drop
 	// any leftovers from a previous ref (staged swaps, ignored build outputs).
+	run("git", ["submodule", "update", "--init", "--recursive"], directory)
 	run("git", ["clean", "-ffd"], directory)
+	// Re-point submodules at the switched ref and drop any stale checked-out state.
+	run("git", ["submodule", "update", "--init", "--recursive"], directory)
 	run("git", ["checkout", "--force", ref], directory)
 	run("git", ["reset", "--hard", ref], directory)
 	const commit = runCaptured("git", ["rev-parse", "HEAD"], directory)
@@ -267,7 +271,12 @@ const senpiUrl = options.senpiUrl ?? DEFAULT_SENPI_URL
 	}
 
 	const builtSenpiRoot = buildSenpiPackage(senpi.directory, options.cacheDir, options.senpiRef)
-	run("bun", ["install"], omo.directory)
+	// The omo prepare chain materializes gitignored plugin/skills from the shared-skills
+	// upstream submodules; a caller's OMO_SKIP_MATERIALIZE=1 would skip that and break the
+	// build, so the dev-binary install always runs the full materialization.
+	const installEnv: NodeJS.ProcessEnv = { ...process.env }
+	delete installEnv.OMO_SKIP_MATERIALIZE
+	run("bun", ["install"], omo.directory, installEnv)
 	swapSenpi(omo.directory, builtSenpiRoot)
 
 	const target = RELEASE_BINARY_TARGETS.find((entry) => entry.target === options.target)
