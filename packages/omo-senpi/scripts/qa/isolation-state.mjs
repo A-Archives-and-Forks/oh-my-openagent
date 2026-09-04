@@ -81,11 +81,38 @@ export function protectedSnapshotsUntouched(before, after) {
 	);
 }
 
+export function directoryIdentityAvailable(platform) {
+	if (arguments.length > 0)
+		return (
+			process.platform === "linux" &&
+			platform === "linux" &&
+			constants.O_DIRECTORY !== undefined &&
+			constants.O_NOFOLLOW !== undefined
+		);
+	return process.platform === "linux";
+}
+
 export function snapshotDirectory(
 	root,
 	limits = OBSERVATION_LIMITS,
-	{ pathStyle = NATIVE_PATH_STYLE, ...ioOverrides } = {},
+	options = {},
 ) {
+	const platformSpecified = Object.hasOwn(options, "platform");
+	const {
+		pathStyle = NATIVE_PATH_STYLE,
+		platform = process.platform,
+		...ioOverrides
+	} = options;
+	if (platformSpecified && !directoryIdentityAvailable(platform)) {
+		return {
+			snapshot: new Map(),
+			complete: false,
+			truncated: false,
+			errors: [{ path: ".", code: "DIRECTORY_IDENTITY_UNAVAILABLE" }],
+			bytesRead: 0,
+			domain: "nonvolatile-home",
+		};
+	}
 	const io = { ...FILE_IO, ...ioOverrides };
 	const state = {
 		root,
@@ -295,7 +322,15 @@ function collectFilesBounded(currentRoot, state, boundRoot = currentRoot) {
 		) {
 			state.errors.push({ path: currentRel, code: "FILE_REPLACED" });
 		} else {
-			state.errors.push({ path: currentRel, code: errorCode(error) });
+			state.errors.push({
+				path: currentRel,
+				code:
+					currentRoot === state.root &&
+					process.platform === "darwin" &&
+					errorCode(error) === "ENOTDIR"
+						? "DIRECTORY_IDENTITY_UNAVAILABLE"
+						: errorCode(error),
+			});
 		}
 		return;
 	}
