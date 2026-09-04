@@ -96,6 +96,16 @@ export function isOmobRuntimeDir(name: string): boolean {
 	return name.startsWith(OMOB_RUNTIME_PREFIX)
 }
 
+/**
+ * Prune plan for a build about to provision `currentVersion`: that version owns one
+ * of the `keep` slots (whether or not its dir exists yet), so only `keep - 1` OTHER
+ * dev runtimes survive. Release runtimes are never touched.
+ */
+export function planRuntimePrune(entries: readonly PruneEntry[], keep: number, currentVersion: string): string[] {
+	const others = entries.filter((entry) => entry.name !== currentVersion)
+	return selectPruneEntries(others, Math.max(0, keep - 1))
+}
+
 /** Names of dev runtime dirs to delete: omob dirs beyond the newest `keep`. Release runtimes are never touched. */
 export function selectPruneEntries(entries: readonly PruneEntry[], keep: number): string[] {
 	const omob = entries.filter((entry) => isOmobRuntimeDir(entry.name))
@@ -232,14 +242,14 @@ function swapSenpi(omoDir: string, builtSenpiRoot: string): void {
 	run("bun", [join("packages", "omo-native", "bin", "senpi-patch.mjs")], omoDir, { ...process.env, OMO_SENPI_PATCH_ROOT: target })
 }
 
-function pruneOmobRuntimes(keep: number): void {
+function pruneOmobRuntimes(keep: number, currentVersion: string): void {
 	const runtimeRoot = join(homedir(), ".omo", "binary-runtime")
 	if (!existsSync(runtimeRoot)) return
 	const entries: PruneEntry[] = readdirSync(runtimeRoot).map((name) => {
 		const stats = statSync(join(runtimeRoot, name))
 		return { name, mtimeMs: stats.mtimeMs }
 	})
-	for (const name of selectPruneEntries(entries, keep)) {
+	for (const name of planRuntimePrune(entries, keep, currentVersion)) {
 		rmSync(join(runtimeRoot, name), { recursive: true, force: true })
 		console.log(`pruned dev runtime ${name}`)
 	}
@@ -313,7 +323,7 @@ const senpiUrl = options.senpiUrl ?? DEFAULT_SENPI_URL
 		const installed = installBinary(result.binaryPath, options.installDir, options.name)
 		console.log(`installed ${installed} (${result.size} bytes)`)
 	}
-	pruneOmobRuntimes(options.keep)
+	pruneOmobRuntimes(options.keep, omoAiVersion)
 	const lines = [buildInfo.command + " dev build", `omo   ${omoInfo.commit} ${omoInfo.committedAt} (${omoInfo.branch})`, `senpi ${senpiInfo.commit} ${senpiInfo.committedAt} (${senpiInfo.branch})`]
 	console.log(lines.join("\n"))
 	return 0
