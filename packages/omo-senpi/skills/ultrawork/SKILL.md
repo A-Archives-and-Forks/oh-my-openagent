@@ -279,10 +279,10 @@ in background; keep working.
 
 # Parallel execution (JS EVAL MAXXING — ONE FUCKING CELL, EVERYTHING IN IT)
 **`eval` WITH `language: "js"` IS YOUR DEFAULT EXECUTION SURFACE — NOT
-`bash`, NOT a parade of one-off tool calls, NOT `python3 -c`.** The
-kernel is Bun 1.4: **READ THE `bun-1-4` SKILL BEFORE YOUR FIRST CELL**
-and use its builtins (`Bun.$` for shell, `Bun.Glob`, `fetch`) over
-shelling out. A step needing MORE THAN ONE call gets ONE GODDAMN PROGRAM: a
+`bash`, NOT a parade of one-off tool calls, NOT `python3 -c`.** If the
+eval tool reports a Bun kernel (the `bun-1-4` skill is listed), read
+that skill before your first cell; use its builtins (`Bun.$` for shell,
+`Bun.Glob`, `fetch`) over shelling out. A step needing MORE THAN ONE call gets ONE GODDAMN PROGRAM: a
 LONG cell with REAL control flow — `if`/`else` per case, `for` over
 every target, `try`/`catch` PER ITEM so one failure degrades only
 that item — firing every independent read, search, git/`lsp_*`/web
