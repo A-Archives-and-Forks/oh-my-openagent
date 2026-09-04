@@ -164,6 +164,16 @@ export function answerCompiledFastPath(args: string[], manifest: Pick<EmbeddedMa
   return false
 }
 
+/**
+ * The startup banner's provenance lines. A stamped dev build renders the same full SHAs,
+ * ISO commit dates and branches as `--version` and `doctor`; anything else keeps the
+ * release one-liner.
+ */
+export function compiledBannerLines(manifest: Pick<EmbeddedManifest, "omoAiVersion" | "buildInfo">): string[] {
+  const info = parseBuildInfo(manifest.buildInfo)
+  return info === undefined ? [`omo (omo-ai beta ${manifest.omoAiVersion})`] : versionLines(info)
+}
+
 export function shouldPrintCompiledBanner(args: string[], stderrIsTTY: boolean): boolean {
   if (!stderrIsTTY) return false
   if (args.includes("-p") || args.includes("--print") || args.includes("--mode")) return false
@@ -232,13 +242,7 @@ async function main(): Promise<void> {
   // executable delegates to the engine in-process as required by the native startup contract.
   if (await runCompiledLauncher(process.argv.slice(2), execDir, manifest.enginePin, execDir)) return
   if (shouldPrintCompiledBanner(process.argv.slice(2), process.stderr.isTTY === true)) {
-    const bannerInfo = parseBuildInfo(manifest.buildInfo)
-    if (bannerInfo !== undefined) {
-      // Same provenance contract as --version and doctor: full SHAs, ISO commit dates, branches.
-      for (const line of versionLines(bannerInfo)) console.error(line)
-    } else {
-      console.error(`omo (omo-ai beta ${manifest.omoAiVersion})`)
-    }
+    for (const line of compiledBannerLines(manifest)) console.error(line)
   }
   process.argv.splice(2, process.argv.length - 2, ...buildSenpiArgs(process.argv.slice(2), execDir))
   Object.assign(process.env, remapSenpiEnvironment(process.env, execDir))
