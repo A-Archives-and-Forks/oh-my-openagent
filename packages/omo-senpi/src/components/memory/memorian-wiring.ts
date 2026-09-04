@@ -35,6 +35,8 @@ export interface MemorianGatePort {
     /** The session's live compaction epoch, read again before the verdict is persisted. */
     readonly currentCompactionEpoch?: () => number
   }): Promise<unknown>
+  cancel?(): Promise<void>
+  whenIdle?(): Promise<void>
 }
 
 export interface MemorianGateWiringOptions {
@@ -69,6 +71,10 @@ export interface MemorianGateWiring {
   attachEntrySink(appendEntry: (customType: string, data?: unknown) => void): void
   /** Accepted compaction: the pending nudges judged a transcript that no longer exists. */
   onCompactionAccepted(sessionId: string): void
+  /**
+   * Cancels and drains the judge for a session before its identity is released.
+   */
+  onSessionShutdown(sessionId: string): Promise<void>
   /**
    * The session's live compaction epoch. The consumption side (recall's before_agent_start drain)
    * reads it to reject a pending payload stamped with a superseded epoch, which is what makes the
@@ -167,6 +173,15 @@ export function createMemorianGateWiring(options: MemorianGateWiringOptions): Me
           }
         }
       })
+    },
+
+    async onSessionShutdown(sessionId: string): Promise<void> {
+      compactionEpochs.delete(sessionId)
+      const context = options.resolveContext(sessionId)
+      if (context === undefined) return
+      const runner = options.runnerFor(context)
+      await runner.cancel?.()
+      await runner.whenIdle?.()
     },
 
     onCompactionAccepted(sessionId: string): void {
