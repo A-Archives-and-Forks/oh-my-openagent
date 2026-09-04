@@ -32,7 +32,7 @@ The memory architecture - the git-backed memory filesystem, the memory tool sema
 | `soul-notice.ts` | Soul-edit notice entry type + renderer: commits touching `system/persona.md` or `system/identity.md` emit a non-model-facing `appendEntry` notice, gated by `soul.edit_notice`. |
 | `memory-notice-wiring.ts` | Shared commit-notice consumer. Reads each MCP tool receipt EXACTLY ONCE per `tool_result` (receipts are read-and-delete, so a second read finds nothing) and fans that one read out to the soul notice (`soul.edit_notice`) and the `omo-memory:write-updated` entry (`write_notice.enabled`), which reuses the direct surface's renderer. The direct surface emits no write entry: its `renderResult` already draws that row. |
 | `shutdown-drain.ts` | Session-shutdown journal drain under a hard budget. |
-| `sandbox.ts` | Seatbelt/bwrap sandbox transform for reflection children (`required|auto|off`, default `auto`). |
+| `sandbox.ts` | Seatbelt/bwrap sandbox transform for reflection children (`required|auto|off`, default `auto`); grants settings.json.lock, auth.json.lock, and hooks-state.json.lock so senpi hooks trust-state locking works while the agent directory remains read-only. |
 | `commands/` | Thirteen slash commands (`MEMORY_COMMAND_NAMES`: `/memory`, `/memfs`, `/remember`, `/init`, `/doctor`, `/recompile`, `/memory-repository`, `/sleeptime`, `/reflect`, `/dream`, `/search`, `/people`, `/facts`); read-only output never enters model context. `/facts retry [--conversation <id>]` is the ONLY unpark path; it never touches queue files or either watermark. See `commands/AGENTS.md`. |
 | `palace/` | Self-contained HTML memory viewer. See `palace/AGENTS.md`. |
 | `guard.ts` | Soft cross-identity guard via `tool_call` (file tools only; bash advisory-only). |
