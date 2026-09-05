@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, watch, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -149,13 +149,23 @@ export async function waitForEventCount(
 	predicate: (event: RecordedEvent) => boolean,
 	count: number,
 ): Promise<readonly RecordedEvent[]> {
-	const deadline = Date.now() + 2_000;
-	while (Date.now() < deadline) {
-		const matches = readEvents(path).filter(predicate);
-		if (matches.length >= count) return matches;
-		await new Promise((resolve) => setTimeout(resolve, 10));
-	}
-	return readEvents(path).filter(predicate);
+	return new Promise((resolve) => {
+		let settled = false;
+		const watcher = watch(path, { persistent: false }, () => {
+			const matches = readEvents(path).filter(predicate);
+			if (matches.length >= count) finish(matches);
+		});
+		const timeout = setTimeout(() => finish(readEvents(path).filter(predicate)), 2_000);
+		const finish = (matches: readonly RecordedEvent[]): void => {
+			if (settled) return;
+			settled = true;
+			clearTimeout(timeout);
+			watcher.close();
+			resolve(matches);
+		};
+		const initial = readEvents(path).filter(predicate);
+		if (initial.length >= count) finish(initial);
+	});
 }
 
 function isRecordedEvent(value: unknown): value is RecordedEvent {

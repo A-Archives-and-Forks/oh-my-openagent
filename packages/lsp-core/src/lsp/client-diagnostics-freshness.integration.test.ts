@@ -240,6 +240,7 @@ describe("LspClient diagnostics freshness", () => {
 						trigger: "didOpen",
 						version: 1,
 						diagnostics: [diagnostic("push-fallback")],
+						awaitClientDelivery: true,
 					},
 				],
 				diagnosticResponses: [{ error: { code: -32601, message: "Method not found" } }],
@@ -247,7 +248,14 @@ describe("LspClient diagnostics freshness", () => {
 			{ diagnosticsFreshnessTimeoutMs: 500, versionlessPublishQuiescenceMs: 5 },
 		);
 
-		const result = await context.client.diagnostics(context.source);
+		const pending = context.client.diagnostics(context.source);
+		const [delivery] = await waitForEventCount(
+			context.events,
+			(event) => event.type === "clientResponse" && event.method === "workspace/configuration",
+			1,
+		);
+		expect(delivery).toBeDefined();
+		const result = await pending;
 
 		expect(result.items).toEqual([diagnostic("push-fallback")]);
 	});
