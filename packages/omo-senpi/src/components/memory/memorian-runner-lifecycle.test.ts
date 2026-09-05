@@ -172,6 +172,7 @@ describe("MemorianGateRunner", () => {
     let resolveStart: ((handle: ChildHandle) => void) | undefined
     let resolveStarted: (() => void) | undefined
     let resolveDisposed: (() => void) | undefined
+    let releaseAbort: (() => void) | undefined
     let aborted = 0
     let disposed = 0
     const started = new Promise<void>((resolve) => { resolveStarted = resolve })
@@ -181,7 +182,7 @@ describe("MemorianGateRunner", () => {
       sessionId: "setup-cancelled",
       steer: async () => undefined,
       followUp: async () => undefined,
-      abort: async () => { aborted += 1 },
+      abort: async () => { aborted += 1; await new Promise<void>((resolve) => { releaseAbort = resolve }) },
       subscribe: () => () => undefined,
       waitForIdle: async () => ({ status: "cancelled" }),
       lastAssistantText: () => undefined,
@@ -199,6 +200,11 @@ describe("MemorianGateRunner", () => {
     await Promise.race([started, new Promise<never>((_, reject) => setTimeout(() => reject(new Error("runner.start was never invoked")), 5_000))])
     const cancelling = runner.cancel()
     resolveStart?.(lateHandle)
+    let cancellationResolved = false
+    void cancelling.then(() => { cancellationResolved = true })
+    await Promise.resolve()
+    expect(cancellationResolved).toBe(false)
+    releaseAbort?.()
     await Promise.race([lateDisposed, new Promise<never>((_, reject) => setTimeout(() => reject(new Error("late handle was never disposed")), 5_000))])
     await cancelling
     const result = await launched

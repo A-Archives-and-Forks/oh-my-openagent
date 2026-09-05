@@ -123,7 +123,8 @@ describe("MemorianGateRunner", () => {
     const result = await runner.launch(launchInput())
 
     // then
-    expect(result).toMatchObject({ status: "failed", cause: "session_create_failed" })
+    expect(result).toMatchObject({ status: "failed", cause: "session_create_failed", reason: "redacted" })
+    expect(result.runId).toMatch(/^[0-9a-f-]{36}$/)
     const creationLog = warnings.find((entry) => entry.message === "memorian gate child session creation failed")
     expect(creationLog).toBeDefined()
     expect(creationLog?.details).toMatchObject({ error: "redacted" })
