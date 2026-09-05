@@ -43,8 +43,7 @@ export class FactsExtractorRunner {
   private readonly now: () => Date
   private readonly terminal: FactsTerminalWrites
   private readonly failureReader: FactsFailureReadPort
-  private activeLaunch: Promise<FactsLaunchResult> | undefined
-  private activeState: { cancel?: () => void } | undefined
+  private activeLaunch: Promise<FactsLaunchResult> | undefined; private activeCancel: (() => void) | undefined
 
   constructor(private readonly options: FactsExtractorRunnerOptions) {
     this.queue = options.queue ?? new FactsQueue({ identityPaths: options.identity.paths })
@@ -72,17 +71,11 @@ export class FactsExtractorRunner {
     try {
       return await operation
     } finally {
-      if (this.activeLaunch === operation) {
-        this.activeLaunch = undefined
-        this.activeState = undefined
-      }
+      if (this.activeLaunch === operation) { this.activeLaunch = undefined; this.activeCancel = undefined }
     }
   }
 
-  async cancelActive(): Promise<void> {
-    this.activeState?.cancel?.()
-    await this.activeLaunch
-  }
+  async cancelActive(): Promise<void> { this.activeCancel?.(); await this.activeLaunch }
 
   async reconcilePending(signal?: AbortSignal): Promise<FactsLaunchResult> {
     const active = await this.reconcileRuns()
@@ -97,8 +90,6 @@ export class FactsExtractorRunner {
     const pending = await this.queue.listPending()
     if (isAborted()) return { status: "skipped" }
     if (pending.length === 0) return { status: "empty" }
-    // FAIL-CLOSED: an unreadable ledger aborts the launch. Treating it as "no failures" would
-    // relaunch every parked batch forever - the incident this gating exists to prevent.
     const ledger = await readLaunchableFailures(this.failureReader, (message, fields) =>
       this.options.logger?.warn(message, fields),
     )
@@ -106,16 +97,9 @@ export class FactsExtractorRunner {
     const selection = selectLaunchable(pending, ledger.failures, this.now())
     if (selection.selected.length === 0) return { status: "empty" }
     const entries: readonly FactsQueueEntry[] = selection.selected
-    const loaded = this.options.loadConfig()
-    const modelRegistry = this.options.resolveModelRegistry()
-    const resolution = resolveReflectionModel("quick", loaded.config, modelRegistry)
+    const loaded = this.options.loadConfig(); const deadlineMs = this.options.deadlineMs ?? FACTS_DEADLINE_MS
+    const modelRegistry = this.options.resolveModelRegistry(); const resolution = resolveReflectionModel("quick", loaded.config, modelRegistry)
     const childModelRegistry = isChildModelRegistry(modelRegistry) ? modelRegistry : undefined
-    // `category_unavailable` is not the only unavailable answer. resolveReflectionModel also has a
-    // beyond-category ladder (registry_fallback / session_inherit) that resolves ANY usable registry
-    // model when the quick chain is dead, and it marks those resolutions with a `source`.
-    // Category-sourced resolutions carry no `source`. This surface is quick-PINNED with no fallback:
-    // an unattended extraction must never land on an arbitrary, possibly frontier-priced model, so
-    // anything outside the category counts as unavailable and takes the same skip path.
     if (childModelRegistry === undefined || resolution.kind === "category_unavailable" || resolution.source !== undefined) {
       const cause = resolution.kind === "category_unavailable" ? resolution.cause : resolution.source
       this.options.logger?.warn("facts extractor quick category unavailable", { cause })
@@ -131,12 +115,7 @@ export class FactsExtractorRunner {
     const repo = new GitMemoryRepo({ dir: this.options.identity.paths.repo, agentId: this.options.identity.id })
     if (!existsSync(join(repo.dir, ".git"))) await repo.init({ seedFiles: buildDefaultSeedFiles() })
     const people = await readFactsPeoplePayload(repo.dir)
-    const envelope = {
-      version: 1,
-      identity: this.options.identity.id,
-      today: this.now().toISOString().slice(0, 10),
-      ...people,
-    } as const
+    const envelope = { version: 1, identity: this.options.identity.id, today: this.now().toISOString().slice(0, 10), ...people } as const
     const capped = selectCappedFactsBatch({ entries, envelope, now: this.now() })
     const envelopeRefused = await classifyOversizePayload({
       terminal: this.terminal,
@@ -155,22 +134,19 @@ export class FactsExtractorRunner {
       })
       return { status: "empty" }
     }
-    const batch: readonly FactsQueueEntry[] = capped.selected
-    const batchId = (this.options.createBatchId ?? randomUUID)()
-    const launchedAt = this.now().getTime()
-    if (isAborted()) return { status: "skipped" }
+    const batch: readonly FactsQueueEntry[] = capped.selected; const batchId = (this.options.createBatchId ?? randomUUID)()
+    const launchedAt = this.now().getTime(); if (isAborted()) return { status: "skipped" }
     const runDir = await reserveFactsRunDir({
       factsDir: this.options.identity.paths.facts,
       locksDir: this.options.identity.paths.locks,
       entries: batch,
       batchId,
       launchedAt,
-      deadlineMs: this.options.deadlineMs ?? FACTS_DEADLINE_MS,
+      deadlineMs,
       terminationGraceMs: this.options.terminationGraceMs,
     })
     if (runDir === undefined) return { status: "active" }
-    const runId = basename(runDir)
-    const payload: FactsPayload = { ...envelope, entries: batch }
+    const runId = basename(runDir); const payload: FactsPayload = { ...envelope, entries: batch }
     if (isAborted()) return { status: "skipped" }
     try {
       const cancelled = await launchFactsInProcess({
@@ -185,14 +161,10 @@ export class FactsExtractorRunner {
         batchId,
         queued: queueKeys(batch),
         launchedAt,
-        deadlineMs: this.options.deadlineMs ?? FACTS_DEADLINE_MS,
-        onState: (state) => { this.activeState = state },
+        deadlineMs,
+        onState: (state) => { this.activeCancel = state.cancel }
       })
-      if (cancelled) {
-        const ledger = await readRunJson<FactsRunLedger>(join(runDir, "ledger.json"))
-        await this.terminal.abandon(runDir, ledger, "session_shutdown")
-        return { status: "failed", runId }
-      }
+      if (cancelled) return this.abandonCancelledRun(runDir, runId)
     } catch (error) {
       const reason: FactsFailureReason = "child_exit"
       await this.terminal.fail({
@@ -238,11 +210,6 @@ export class FactsExtractorRunner {
     return active
   }
 
-  /**
-   * Retention pruning. Always OUTSIDE the finalize lock (the prune path takes each run's finalize
-   * lock itself, non-blocking) and never allowed to fail a run: retention is best effort, the
-   * outcome it follows is already published.
-   */
   private async prune(): Promise<void> {
     try {
       await pruneTerminalFactsRuns({
@@ -255,11 +222,15 @@ export class FactsExtractorRunner {
     }
   }
 
+  private async abandonCancelledRun(runDir: string, runId: string): Promise<FactsLaunchResult> {
+    const ledger = await readRunJson<FactsRunLedger>(join(runDir, "ledger.json"))
+    await this.terminal.abandon(runDir, ledger, "session_shutdown")
+    return { status: "failed", runId }
+  }
+
   private async finalizeRun(runDir: string, repo: GitMemoryRepo): Promise<FactsLaunchResult> {
     const ledger = await readRunJson<FactsRunLedger>(join(runDir, "ledger.json"))
     const record = await createLockRecord("facts-finalize", { runId: ledger.runId })
-    // The prune below runs only after this lock is released: it takes each run's finalize lock
-    // itself, and a run holding its own finalize lock could never be pruned from inside it.
     const finalizeLock = runFinalizationLockPath(this.options.identity.paths.locks, ledger.runId)
     const result = await withLock<FactsLaunchResult>(finalizeLock, record, async () => {
       const finalPath = join(runDir, "final.json")
@@ -287,7 +258,6 @@ export class FactsExtractorRunner {
       waitTimeoutMs: WRITER_WAIT_MS,
     })
   }
-
 }
 
 function isChildModelRegistry(value: unknown): value is ChildModelRegistry {

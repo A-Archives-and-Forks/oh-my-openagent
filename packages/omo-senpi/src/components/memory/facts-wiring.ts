@@ -1,5 +1,5 @@
 // Facts queue wiring: publishes a durable queue entry on successful settle and
-// re-lists leftover entries at session_start so a crashed extractor run is relaunchable.
+// reconciles leftover entries at session_start, launching any relaunchable work.
 // Journal wiring is NOT extended here: it keeps its existing AppendResult contract.
 
 import { join } from "node:path"
@@ -19,6 +19,7 @@ const DISABLED: FactsEnqueueResult = { enqueued: false, reason: "no-new-entries"
 export interface FactsExtractorPort {
   launchPending(signal?: AbortSignal): Promise<unknown>
   reconcilePending(signal?: AbortSignal): Promise<unknown>
+  cancelActive?(): Promise<void>
 }
 
 export interface MemoryFactsWiringOptions {
@@ -42,6 +43,7 @@ export interface MemoryFactsWiring {
   reconcilePending(): Promise<FactsQueueEntry[]>
   /** Fire facts-run reconciliation without blocking session_start on the child. */
   reconcileExtractor(): void
+  cancelActive(): Promise<void>
   /** Terminal SUCCESS only: drops the batch and advances the consumed watermark. */
   markConsumed(entries: readonly FactsQueueEntry[]): Promise<void>
 }
@@ -108,6 +110,10 @@ export function createMemoryFactsWiring(options: MemoryFactsWiringOptions): Memo
 
     reconcileExtractor(): void {
       if (options.factsEnabled()) fire("reconcile")
+    },
+
+    async cancelActive(): Promise<void> {
+      await options.extractor?.cancelActive?.()
     },
 
     async markConsumed(entries: readonly FactsQueueEntry[]): Promise<void> {

@@ -2,7 +2,7 @@
 // disposing the runtime, so the drain owns a hard budget: an absolute deadline propagated
 // with a shared AbortSignal into every step. Shutdown enqueues the final transcript delta but
 // never launches facts: an in-process extractor cannot outlive this session. Pending work is
-// launched by the next session_start reconcile path, never by fire-and-forget continuation.
+// launched by the next session_start reconcile path.
 
 import type { ComponentLogger } from "../../extension/types"
 

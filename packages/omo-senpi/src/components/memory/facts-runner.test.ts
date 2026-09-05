@@ -8,6 +8,21 @@ import { FactsExtractorRunner } from "./facts-runner"
 import { enqueue, fixture, onlyRunDir, runnerOptions } from "./facts-runner.test-support"
 import { writeRunJsonAtomic } from "./worker/run-artifacts"
 describe("quick-pinned facts launch", () => {
+  test("#given no facts deadline override #when the batch launches #then the ledger deadline is fifteen minutes after launch", async () => {
+    // given
+    const { root, identity, queue } = await fixture()
+    const { deadlineMs: _deadlineMs, ...withoutDeadline } = runnerOptions(root, identity, queue, "fact", {})
+    const runner = new FactsExtractorRunner(withoutDeadline)
+
+    // when
+    const result = await runner.launchPending()
+    const runDir = await onlyRunDir(identity)
+    const ledger = JSON.parse(await readFile(join(runDir, "ledger.json"), "utf8")) as { hardDeadlineAt: number; startedAt: string }
+
+    // then
+    expect(result.status).toBe("committed")
+    expect(ledger.hardDeadlineAt - Date.parse(ledger.startedAt)).toBe(15 * 60_000)
+  }, 30_000)
   test("#given quick cannot resolve #when pending facts are launched #then no child spawns and the queue stays intact with one warning", async () => {
     // given
     const { root, identity, queue } = await fixture()

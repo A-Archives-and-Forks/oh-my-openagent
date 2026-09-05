@@ -79,6 +79,8 @@ describe("runInProcessMemoryChild", () => {
     let releaseSetup: (() => void) | undefined
     const setupReleased = new Promise<void>((resolve) => { releaseSetup = resolve })
     let startCalls = 0
+    let resolveSetupContinuation: (() => void) | undefined
+    const setupContinuation = new Promise<void>((resolve) => { resolveSetupContinuation = resolve })
     const resultPromise = runInProcessMemoryChild({
       runId: "setup-deadline",
       deadlineMs: 1,
@@ -91,13 +93,14 @@ describe("runInProcessMemoryChild", () => {
       }),
       setup: () => setupReleased,
       buildStart: () => startSpec(),
+      onSetupSettled: () => { resolveSetupContinuation?.() },
     })
 
     // when: the deadline wins before setup is released
     const result = await resultPromise
     releaseSetup?.()
     await setupReleased
-    await new Promise<void>((resolve) => queueMicrotask(resolve))
+    await setupContinuation
 
     // then
     expect(result).toEqual({ status: "failed", cause: "deadline" })

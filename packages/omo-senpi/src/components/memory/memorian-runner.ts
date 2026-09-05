@@ -282,7 +282,12 @@ export class MemorianGateRunner {
       this.options.logger?.warn("memorian gate deadline exceeded", { runId })
     }
     if (result.status === "failed") {
-      return { ...result, model: resolution.model, candidateCount: input.candidates.length }
+      return {
+        status: "failed",
+        cause: result.cause === "cancelled" ? "deadline" : result.cause,
+        model: resolution.model,
+        candidateCount: input.candidates.length,
+      }
     }
     return result
   }

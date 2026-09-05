@@ -203,6 +203,8 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
     async onSessionShutdown(input: ShutdownDrainInput): Promise<void> {
       reflectionLive.shutdown(options.sessions.get(input.sessionId)?.context?.identity)
       await memorianGateWiring.onSessionShutdown(input.sessionId)
+      const identity = resolveContext(input.sessionId)
+      if (identity !== undefined) await factsWiringFor(identity).cancelActive?.()
       await shutdownDrain.run(input)
     },
 
