@@ -3,7 +3,7 @@ import { existsSync } from "node:fs"
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { FactsFailureStore, FactsQueue, GitMemoryRepo, factsQueuePaths } from "@oh-my-opencode/memory-core"
-import type { SenpiModelPort } from "@oh-my-opencode/senpi-task"
+import type { ChildSpec, SenpiModelPort } from "@oh-my-opencode/senpi-task"
 import { FactsExtractorRunner } from "./facts-runner"
 import { enqueue, fixture, onlyRunDir, runnerOptions } from "./facts-runner.test-support"
 import { writeRunJsonAtomic } from "./worker/run-artifacts"
@@ -108,6 +108,42 @@ describe("quick-pinned facts launch", () => {
       [...ledger.applyRecovery.paths].map((entry: { path: string }) => entry.path).sort(),
     )
   }, 90_000)
+
+  test("#given the registry disappears after launch capture #when facts extraction starts #then the child uses the captured registry and model", async () => {
+    // given
+    const { root, identity, queue } = await fixture()
+    const base = runnerOptions(root, identity, queue, "fact", {})
+    const model = { provider: "omo-mock", id: "mock-1" }
+    const registry = {
+      getAvailable: () => [model],
+      find: (provider: string, modelId: string) => provider === model.provider && modelId === model.id ? model : undefined,
+      getProviderAuth: () => undefined,
+    }
+    let calls = 0
+    let started: ChildSpec | undefined
+    const runner = new FactsExtractorRunner({
+      ...base,
+      resolveModelRegistry: () => {
+        calls += 1
+        return calls === 1 ? registry : undefined
+      },
+      createRunner: (options) => ({
+        start: async (spec) => {
+          started = spec
+          return base.createRunner?.(options).start(spec) ?? Promise.reject(new Error("runner missing"))
+        },
+      }),
+    })
+
+    // when
+    const result = await runner.launchPending()
+
+    // then
+    expect(result.status).toBe("committed")
+    expect(calls).toBe(1)
+    expect(started?.modelRegistry).toBeDefined()
+    expect(started?.model).toMatchObject({ provider: model.provider, id: model.id })
+  }, 30_000)
 
   test("#given a quick primary absent from the registry and a present fallback #when facts extraction launches #then the fallback launches as attempt 2 and commits", async () => {
     // given

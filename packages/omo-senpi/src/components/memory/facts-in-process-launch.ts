@@ -11,45 +11,53 @@ import type { ChildModelRegistry } from "@oh-my-opencode/senpi-task"
 import { updateRunLedger, writeRunJsonAtomic, type RunOutcome, type RunAttempt } from "./worker/run-artifacts"
 import type { FactsExtractorRunnerOptions } from "./facts-runner-types"
 
-type TaskRuntime = typeof import("#omo-task-runtime")
+type ResolvedChildModel = NonNullable<StartChildInput["model"]>
 
 type FactsInProcessLaunchInput = {
   readonly runId: string
   readonly runDir: string
   readonly payload: FactsPayload
   readonly resolution: Extract<ReflectionModelResolution, { readonly kind: "resolved" }>
+  readonly modelRegistry?: ReturnType<FactsExtractorRunnerOptions["resolveModelRegistry"]>
   readonly options: FactsExtractorRunnerOptions
   readonly env: NodeJS.ProcessEnv
   readonly configSources: readonly { readonly path: string; readonly exists: boolean }[]
   readonly batchId: string
   readonly queued: readonly FactsQueuedKey[]
   readonly launchedAt: number
+  readonly deadlineMs: number
+  readonly onState?: (state: InProcessMemoryChildState) => void
 }
 
-export async function launchFactsInProcess(input: FactsInProcessLaunchInput): Promise<void> {
+export async function launchFactsInProcess(input: FactsInProcessLaunchInput): Promise<boolean> {
   const candidates: readonly [ReflectionModelCandidate, ...ReflectionModelCandidate[]] = [
     { model: input.resolution.model, ...(input.resolution.thinking === undefined ? {} : { thinking: input.resolution.thinking }) },
     ...input.resolution.fallbacks,
   ]
-  const registry = input.options.resolveModelRegistry()
+  const registry = input.modelRegistry
   const taskRuntime = await import("#omo-task-runtime")
   const tried: string[] = []
   for (const [index, candidate] of candidates.entries()) {
     const attempt = index + 1
     tried.push(candidate.model)
-    if (registry === undefined || taskRuntime.findModelReference(registry, candidate.model) === undefined) {
+    const model = registry === undefined || !isModelFinder(registry)
+      ? undefined
+      : taskRuntime.findModelReference<ResolvedChildModel>(registry, candidate.model)
+    if (registry === undefined || model === undefined || model === null) {
       input.options.logger?.warn("facts model candidate skipped because it is not visible in the live registry", {
         model: candidate.model,
         attempt,
       })
       continue
     }
-    const result = await launchCandidate(input, candidate, attempt, candidates[index + 1] === undefined ? undefined : {
+    const result = await launchCandidate(input, candidate, model, attempt, candidates[index + 1] === undefined ? undefined : {
       attempt: attempt + 1,
       model: candidates[index + 1].model,
       ...(candidates[index + 1].thinking === undefined ? {} : { thinking: candidates[index + 1].thinking }),
     })
-    if (result.status === "completed" || result.cause !== "session_create_failed") return
+    if (result.status === "completed") return false
+    if (result.cause === "cancelled") return true
+    if (result.cause !== "session_create_failed") return false
   }
   throw new Error(`No facts model candidate launched; tried: ${tried.length === 0 ? candidates.map((candidate) => candidate.model).join(", ") : tried.join(", ")}`)
 }
@@ -57,6 +65,7 @@ export async function launchFactsInProcess(input: FactsInProcessLaunchInput): Pr
 async function launchCandidate(
   input: FactsInProcessLaunchInput,
   candidate: ReflectionModelCandidate,
+  model: ResolvedChildModel,
   attempt: number,
   _nextAttempt: RunAttempt | undefined,
 ): Promise<MemoryChildResult> {
@@ -65,9 +74,10 @@ async function launchCandidate(
   const extractionPath = join(input.runDir, "extraction.jsonl")
   const state: InProcessMemoryChildState = { cancelled: false }
   const tool = createFactsRecordTool({ extractionPath, state })
+  input.onState?.(state)
   const result = await runInProcessMemoryChild({
     runId: input.runId,
-    deadlineMs: input.options.deadlineMs,
+    deadlineMs: input.deadlineMs,
     state,
     logger: input.options.logger,
     ...(input.options.createRunner === undefined ? {} : { createRunner: input.options.createRunner }),
@@ -89,9 +99,14 @@ async function launchCandidate(
         // therefore treats a missing child identity as unknown liveness and abandons, not fails.
       })
     },
-    buildStart: (taskRuntime) => buildStart(input, candidate, payloadText, tool, taskRuntime),
+    buildStart: () => buildStart(input, candidate, model, payloadText, tool),
     onHandle: () => undefined,
+    ...(input.onState === undefined ? {} : { onState: input.onState }),
   })
+  if (result.status === "failed" && result.cause === "cancelled") {
+    tool.deactivate()
+    return result
+  }
   const timedOut = result.status === "failed" && result.cause === "deadline"
   const outcome: RunOutcome = timedOut
     ? { version: 1, runId: input.runId, attempt, finishedAt: new Date().toISOString(), childExit: { code: null, signal: null }, timedOut: true }
@@ -104,19 +119,18 @@ async function launchCandidate(
 function buildStart(
   input: FactsInProcessLaunchInput,
   candidate: ReflectionModelCandidate,
+  model: ResolvedChildModel,
   payloadText: string,
   tool: ReturnType<typeof createFactsRecordTool>,
-  taskRuntime: TaskRuntime,
 ): StartChildInput {
-  const registry = input.options.resolveModelRegistry()
-  const childRegistry = isChildModelRegistry(registry) ? registry : undefined
+  const childRegistry = isChildModelRegistry(input.modelRegistry) ? input.modelRegistry : undefined
   return {
     taskId: `facts-${input.runId}`,
     cwd: input.runDir,
     sessionDir: input.runDir,
     agentDir: resolveAgentHome({ env: input.env }),
     modelRegistry: childRegistry,
-    model: childRegistry === undefined ? undefined : taskRuntime.findModelReference(childRegistry, candidate.model),
+    model,
     ...(candidate.thinking === undefined ? {} : { thinkingLevel: candidate.thinking }),
     toolAllowlist: [FACTS_RECORD_TOOL_NAME],
     memberScopedTools: [tool],
@@ -127,6 +141,10 @@ function buildStart(
     promptEnvelope: "bare",
     prompt: `Extract durable facts from this payload and record each accepted fact with ${FACTS_RECORD_TOOL_NAME}.\n\n${payloadText}`,
   }
+}
+
+function isModelFinder(value: unknown): value is { readonly find: (provider: string, modelId: string) => ResolvedChildModel | undefined } {
+  return value !== null && typeof value === "object" && "find" in value && typeof value.find === "function"
 }
 
 function isChildModelRegistry(value: unknown): value is ChildModelRegistry {

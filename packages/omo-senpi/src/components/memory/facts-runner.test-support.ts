@@ -97,6 +97,7 @@ export function runnerOptions(
       find: (provider, modelId) => models.find((candidate) =>
         provider === candidate.provider && modelId === candidate.id
       ),
+      getProviderAuth: () => undefined,
     }),
     deadlineMs: 10_000,
     // Fresh per launch, exactly like production `randomUUID`: a pinned batchId would hide the
