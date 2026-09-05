@@ -1,0 +1,148 @@
+import { describe, expect, test } from "bun:test"
+import type { ChildHandle, ChildSpec } from "@oh-my-opencode/senpi-task"
+
+import { runInProcessMemoryChild, type InProcessMemoryChildState } from "./in-process-memory-child"
+
+function handle(overrides: Partial<ChildHandle> = {}): ChildHandle {
+  return {
+    task_id: "memory-child",
+    sessionId: "memory-child",
+    steer: async () => undefined,
+    followUp: async () => undefined,
+    abort: async () => undefined,
+    subscribe: () => () => undefined,
+    waitForIdle: async () => ({ status: "completed", finalResponse: "" }),
+    lastAssistantText: () => undefined,
+    dispose: () => undefined,
+    ...overrides,
+  }
+}
+
+function startSpec(): ChildSpec {
+  return {
+    taskId: "memory-child",
+    cwd: "/tmp/memory-child",
+    sessionDir: "/tmp/memory-child",
+    depth: 1,
+    parentSessionId: "parent",
+    rootSessionId: "parent",
+    prompt: "prompt",
+  }
+}
+
+function state(): InProcessMemoryChildState {
+  return { cancelled: false }
+}
+
+describe("runInProcessMemoryChild", () => {
+  test("#given start is pending after invocation #when the deadline fires #then a late handle is aborted and disposed once", async () => {
+    // given
+    let resolveStart: ((child: ChildHandle) => void) | undefined
+    let resolveStarted: (() => void) | undefined
+    const started = new Promise<void>((resolve) => { resolveStarted = resolve })
+    let aborted = 0
+    let disposed = 0
+    let resolveDisposed: (() => void) | undefined
+    const disposedSignal = new Promise<void>((resolve) => { resolveDisposed = resolve })
+    const late = handle({
+      abort: async () => { aborted += 1 },
+      dispose: () => { disposed += 1; resolveDisposed?.() },
+    })
+    const resultPromise = runInProcessMemoryChild({
+      runId: "deadline",
+      deadlineMs: 1,
+      state: state(),
+      createRunner: () => ({
+        start: async () => {
+          resolveStarted?.()
+          return await new Promise<ChildHandle>((resolve) => { resolveStart = resolve })
+        },
+      }),
+      setup: async () => undefined,
+      buildStart: () => startSpec(),
+    })
+    await started
+    const result = await resultPromise
+
+    // when: the start promise is released after the deadline has already won
+    resolveStart?.(late)
+    await disposedSignal
+
+    // then
+    expect(result).toEqual({ status: "failed", cause: "deadline" })
+    expect(aborted).toBe(1)
+    expect(disposed).toBe(1)
+  })
+
+  test("#given cancellation before start resolves #when the late handle arrives #then it is disposed without onHandle", async () => {
+    // given
+    const childState = state()
+    let resolveStart: ((child: ChildHandle) => void) | undefined
+    let resolveStarted: (() => void) | undefined
+    const started = new Promise<void>((resolve) => { resolveStarted = resolve })
+    let disposed = 0
+    let observed = 0
+    const resultPromise = runInProcessMemoryChild({
+      runId: "cancelled",
+      deadlineMs: 10_000,
+      state: childState,
+      createRunner: () => ({
+        start: async () => {
+          resolveStarted?.()
+          return await new Promise<ChildHandle>((resolve) => { resolveStart = resolve })
+        },
+      }),
+      setup: async () => undefined,
+      buildStart: () => startSpec(),
+      onHandle: () => { observed += 1 },
+    })
+    await started
+    childState.cancelled = true
+
+    // when: the late start resolves after cancellation has been observed
+    resolveStart?.(handle({ dispose: () => { disposed += 1 } }))
+    const result = await resultPromise
+
+    // then
+    expect(result).toEqual({ status: "failed", cause: "deadline" })
+    expect(observed).toBe(0)
+    expect(disposed).toBe(1)
+  })
+
+  test("#given start rejects before the deadline #when the child is launched #then session creation failure is returned", async () => {
+    // given
+    const result = await runInProcessMemoryChild({
+      runId: "create-failed",
+      deadlineMs: 10_000,
+      state: state(),
+      createRunner: () => ({ start: async () => { throw new Error("boot failed") } }),
+      setup: async () => undefined,
+      buildStart: () => startSpec(),
+    })
+
+    // when: the runner attempts to start the child
+
+    // then
+    expect(result).toEqual({ status: "failed", cause: "session_create_failed" })
+  })
+
+  test("#given a child that completes #when the launch settles #then onHandle is called once", async () => {
+    // given
+    let observed = 0
+    const result = await runInProcessMemoryChild({
+      runId: "completed",
+      deadlineMs: 10_000,
+      state: state(),
+      createRunner: () => ({ start: async () => handle() }),
+      setup: async () => undefined,
+      buildStart: () => startSpec(),
+      onHandle: () => { observed += 1 },
+    })
+
+    // when: the child finishes
+
+    // then
+    expect(result).toEqual({ status: "completed" })
+    expect(observed).toBe(1)
+  })
+})
