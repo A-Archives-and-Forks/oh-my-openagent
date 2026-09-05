@@ -152,7 +152,7 @@ describe("MemorianGateRunner", () => {
     const result = await pending
 
     // then
-    expect(result).toMatchObject({ status: "failed" })
+    expect(result).toMatchObject({ status: "dropped", cause: "cancelled" })
     expect(aborted).toBe(1)
     expect(disposed).toBe(1)
     expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID, { currentEpoch: 0 })).toEqual([])

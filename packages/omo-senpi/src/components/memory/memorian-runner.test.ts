@@ -191,7 +191,8 @@ describe("MemorianGateRunner", () => {
     const result = await runner.launch(launchInput())
 
     // then
-    expect(result).toMatchObject({ status: "failed", cause: "child_failed" })
+    expect(result).toMatchObject({ status: "failed", cause: "child_failed", reason: "provider exploded" })
+    expect(result.runId).toMatch(/^[0-9a-f-]{36}$/)
     expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID, { currentEpoch: 0 })).toEqual([])
   })
 
