@@ -1165,7 +1165,7 @@ describe("buildAgent with category and skills", () => {
     const agent = resolveAgentSkills(buildAgent(source["test-agent"], TEST_MODEL))
 
     // #then - category's built-in model is applied
-    expect(agent.model).toBe("anthropic/claude-opus-5")
+    expect(agent.model).toBe("anthropic/claude-fable-5-1")
   })
 
   test("agent with category and existing model keeps existing model", () => {
