@@ -102,14 +102,14 @@ Check the \`skill\` tool for available skills and their descriptions. For EVERY 
 task(
   category="[selected-category]",
   load_skills=["skill-1", "skill-2"],  // Include ALL relevant skills - ESPECIALLY user-installed ones
-  run_in_background=false,
+  run_in_background=true,
   prompt="..."
 )
 \`\`\`
 
 **ANTI-PATTERN (will produce poor results):**
 \`\`\`typescript
-task(category="...", load_skills=[], run_in_background=false, prompt="...")  // Empty load_skills without justification
+task(category="...", load_skills=[], run_in_background=true, prompt="...")  // Empty load_skills without justification
 \`\`\`
 
 ---
@@ -124,10 +124,10 @@ Any task involving UI, UX, CSS, styling, layout, animation, design, or frontend 
 
 \`\`\`typescript
 // CORRECT: Visual work → visual-engineering category
-task(category="visual-engineering", load_skills=["frontend"], run_in_background=false, prompt="Redesign the sidebar layout with new spacing...")
+task(category="visual-engineering", load_skills=["frontend"], run_in_background=true, prompt="Redesign the sidebar layout with new spacing...")
 
 // WRONG: Visual work in wrong category - WILL PRODUCE INFERIOR RESULTS
-task(category="quick", load_skills=[], run_in_background=false, prompt="Redesign the sidebar layout with new spacing...")
+task(category="quick", load_skills=[], run_in_background=true, prompt="Redesign the sidebar layout with new spacing...")
 \`\`\`
 
 | Task Domain | MUST Use Category |
