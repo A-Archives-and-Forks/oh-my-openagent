@@ -3,11 +3,9 @@ import { getProcessStartIdentity, loadFactsPersona, serializeFactsPayload, type 
 import { join } from "node:path"
 
 import { resolveAgentHome } from "../agent-home/resolve-agent-home"
-import { runInProcessMemoryChild, type InProcessMemoryChildState, type StartChildInput } from "./in-process-memory-child"
+import { runInProcessMemoryChild, type InProcessMemoryChildState, type MemoryChildResult, type StartChildInput } from "./in-process-memory-child"
 import { createFactsRecordTool, FACTS_RECORD_TOOL_NAME } from "./facts-record-tool"
 import type { FactsQueuedKey } from "./facts-failure-recording"
-import { resolveAndPreflightMemoryLaunch, type ResolveAndPreflightMemoryLaunch } from "./worker/memory-launch-preflight"
-import type { ReflectionChildResult } from "./worker/spawn"
 import { type ReflectionModelCandidate, type ReflectionModelResolution } from "./worker/resolve-model"
 import type { ChildModelRegistry } from "@oh-my-opencode/senpi-task"
 import { updateRunLedger, writeRunJsonAtomic, type RunOutcome, type RunAttempt } from "./worker/run-artifacts"
@@ -26,7 +24,6 @@ type FactsInProcessLaunchInput = {
   readonly batchId: string
   readonly queued: readonly FactsQueuedKey[]
   readonly launchedAt: number
-  readonly resolveAndPreflightLaunch?: ResolveAndPreflightMemoryLaunch
 }
 
 export async function launchFactsInProcess(input: FactsInProcessLaunchInput): Promise<void> {
@@ -34,18 +31,27 @@ export async function launchFactsInProcess(input: FactsInProcessLaunchInput): Pr
     { model: input.resolution.model, ...(input.resolution.thinking === undefined ? {} : { thinking: input.resolution.thinking }) },
     ...input.resolution.fallbacks,
   ]
-  const launch = input.resolveAndPreflightLaunch ?? resolveAndPreflightMemoryLaunch
-  await launch({
-    candidates,
-    senpiCommand: input.options.senpiCommand,
-    senpiPrefixArgs: input.options.senpiPrefixArgs,
-    env: input.env,
-    envFlag: "SENPI_MEMORY_FACTS",
-    configSources: input.configSources,
-    warn: (message, details) => input.options.logger?.warn(message, details),
-    surfaceName: "facts",
-    attempt: (candidate, attempt, nextAttempt) => launchCandidate(input, candidate, attempt, nextAttempt),
-  })
+  const registry = input.options.resolveModelRegistry()
+  const taskRuntime = await import("#omo-task-runtime")
+  const tried: string[] = []
+  for (const [index, candidate] of candidates.entries()) {
+    const attempt = index + 1
+    tried.push(candidate.model)
+    if (registry === undefined || taskRuntime.findModelReference(registry, candidate.model) === undefined) {
+      input.options.logger?.warn("facts model candidate skipped because it is not visible in the live registry", {
+        model: candidate.model,
+        attempt,
+      })
+      continue
+    }
+    const result = await launchCandidate(input, candidate, attempt, candidates[index + 1] === undefined ? undefined : {
+      attempt: attempt + 1,
+      model: candidates[index + 1].model,
+      ...(candidates[index + 1].thinking === undefined ? {} : { thinking: candidates[index + 1].thinking }),
+    })
+    if (result.status === "completed" || result.cause !== "session_create_failed") return
+  }
+  throw new Error(`No facts model candidate launched; tried: ${tried.length === 0 ? candidates.map((candidate) => candidate.model).join(", ") : tried.join(", ")}`)
 }
 
 async function launchCandidate(
@@ -53,7 +59,7 @@ async function launchCandidate(
   candidate: ReflectionModelCandidate,
   attempt: number,
   _nextAttempt: RunAttempt | undefined,
-): Promise<ReflectionChildResult> {
+): Promise<MemoryChildResult> {
   const payloadText = serializeFactsPayload(input.payload)
   const payloadPath = join(input.runDir, "facts-payload.json")
   const extractionPath = join(input.runDir, "extraction.jsonl")
@@ -92,9 +98,7 @@ async function launchCandidate(
     : { version: 1, runId: input.runId, attempt, finishedAt: new Date().toISOString(), childExit: { code: result.status === "completed" ? 0 : 1, signal: null }, timedOut: false }
   await writeRunJsonAtomic(join(input.runDir, "outcome.json"), outcome)
   tool.deactivate()
-  if (result.status === "completed") return { code: 0, signal: null, stdout: "", stderr: "", timedOut: false }
-  if (result.cause === "deadline") return { code: null, signal: null, stdout: "", stderr: "", timedOut: true }
-  return { code: 1, signal: null, stdout: "", stderr: "Error: Model \"${candidate.model}\" not found. Use --list-models to see available models.\n", timedOut: false }
+  return result
 }
 
 function buildStart(

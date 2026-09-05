@@ -172,7 +172,6 @@ export class FactsExtractorRunner {
         batchId,
         queued: queueKeys(batch),
         launchedAt,
-        ...(this.options.resolveAndPreflightLaunch === undefined ? {} : { resolveAndPreflightLaunch: this.options.resolveAndPreflightLaunch }),
       })
     } catch (error) {
       const reason: FactsFailureReason = "child_exit"

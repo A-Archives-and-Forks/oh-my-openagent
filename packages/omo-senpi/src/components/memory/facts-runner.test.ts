@@ -6,8 +6,6 @@ import { FactsFailureStore, FactsQueue, GitMemoryRepo, factsQueuePaths } from "@
 import type { SenpiModelPort } from "@oh-my-opencode/senpi-task"
 import { FactsExtractorRunner } from "./facts-runner"
 import { enqueue, fixture, onlyRunDir, runnerOptions } from "./facts-runner.test-support"
-import type { ResolveAndPreflightMemoryLaunch } from "./worker/memory-launch-preflight"
-import { createRunnerHarness } from "./worker/runner.test-support"
 import { writeRunJsonAtomic } from "./worker/run-artifacts"
 describe("quick-pinned facts launch", () => {
   test("#given quick cannot resolve #when pending facts are launched #then no child spawns and the queue stays intact with one warning", async () => {
@@ -76,33 +74,6 @@ describe("quick-pinned facts launch", () => {
     expect(state.entries[0]?.lastFailureId).toMatch(/^preflight-[0-9a-f-]{36}$/)
   }, 30_000)
 
-  test("#given one injected launch-preflight seam #when reflection and facts launch #then both surfaces route through it", async () => {
-    // given
-    const surfaces: string[] = []
-    const observe: ResolveAndPreflightMemoryLaunch = async (input) => {
-      surfaces.push(input.surfaceName)
-      throw new Error(`observed ${input.surfaceName}`)
-    }
-    const reflection = await createRunnerHarness({
-      childMode: "commit",
-      resolveAndPreflightLaunch: observe,
-    })
-    const { root, identity, queue } = await fixture()
-    const facts = new FactsExtractorRunner(runnerOptions(root, identity, queue, "fact", {
-      resolveAndPreflightLaunch: observe,
-    }))
-
-    // when
-    const reflectionResult = await reflection.runner.launch(reflection.run)
-    const factsResult = await facts.launchPending()
-
-    // then
-    expect(reflectionResult).toMatchObject({ outcome: "failed", detail: "observed reflection" })
-    expect(factsResult.status).toBe("failed")
-    expect(surfaces).toEqual(["reflection", "facts"])
-    await rm(reflection.root, { recursive: true, force: true })
-  }, 90_000)
-
   test("#given two pending queue entries #when one launch runs #then the supervised child consumes all entries in one trailer-bearing commit", async () => {
     // given
     const { root, identity, queue } = await fixture()
@@ -138,13 +109,30 @@ describe("quick-pinned facts launch", () => {
     )
   }, 90_000)
 
-  test("#given an extension-only quick primary and a child-visible fallback #when facts extraction launches #then it retries and commits with the fallback", async () => {
+  test("#given a quick primary absent from the registry and a present fallback #when facts extraction launches #then the fallback launches as attempt 2 and commits", async () => {
     // given
     const { root, identity, queue } = await fixture()
-    const base = runnerOptions(root, identity, queue, "model-fallback")
+    const warnings: string[] = []
+    const base = runnerOptions(root, identity, queue, "model-fallback", {
+      logger: {
+        info: () => undefined,
+        warn: (message) => warnings.push(message),
+        error: () => undefined,
+      },
+    })
+    let primaryLookups = 0
     const runner = new FactsExtractorRunner({
       ...base,
-      deadlineMs: 45_000,
+      resolveModelRegistry: () => ({
+        getAvailable: () => [{ provider: "extension-only", id: "primary" }, { provider: "omo-mock", id: "mock-1" }],
+        find: (provider, modelId) => {
+          if (provider === "extension-only") {
+            primaryLookups += 1
+            return primaryLookups === 1 ? { provider, id: modelId } : undefined
+          }
+          return provider === "omo-mock" && modelId === "mock-1" ? { provider, id: modelId } : undefined
+        },
+      }),
     })
 
     // when
@@ -153,11 +141,10 @@ describe("quick-pinned facts launch", () => {
     const final = JSON.parse(await readFile(join(runDir, "final.json"), "utf8"))
 
     // then
-    expect({ status: result.status, detail: final.detail }).toEqual({
-      status: "committed",
-      detail: undefined,
-    })
+    expect({ status: result.status, detail: final.detail }).toEqual({ status: "committed", detail: undefined })
     expect(JSON.parse(await readFile(join(runDir, "ledger.json"), "utf8"))).toMatchObject({ attempt: 2, model: "omo-mock/mock-1" })
+    expect(JSON.parse(await readFile(join(runDir, "outcome.json"), "utf8"))).toMatchObject({ attempt: 2 })
+    expect(warnings.filter((message) => message.includes("facts model candidate skipped"))).toHaveLength(1)
     expect(await queue.listPending()).toHaveLength(0)
   }, 60_000)
 

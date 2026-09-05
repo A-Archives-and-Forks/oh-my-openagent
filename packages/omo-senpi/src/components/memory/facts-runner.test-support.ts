@@ -1,5 +1,4 @@
 import { afterEach, expect } from "bun:test"
-import { writeFileSync } from "node:fs"
 import { randomUUID } from "node:crypto"
 import { existsSync } from "node:fs"
 import { appendFile, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises"
@@ -70,13 +69,7 @@ export function runnerOptions(
   mode: "fact" | "empty" | "malformed" | "fail" | "person" | "model-fallback" | "timeout",
   overrides: Partial<FactsExtractorRunnerOptions> = {},
 ): FactsExtractorRunnerOptions {
-  const fallbackModels: readonly SenpiModelPort[] = [
-    { provider: "extension-only", id: "primary" },
-    AVAILABLE_MODEL,
-  ]
-  const models = mode === "model-fallback" ? fallbackModels : [AVAILABLE_MODEL]
-  const senpiLauncher = join(root, "fake-senpi.mjs")
-  writeFileSync(senpiLauncher, `process.stdout.write(${JSON.stringify(`${models.map((candidate) => `${candidate.provider}/${candidate.id}`).join("\n")}\n`)})\n`, "utf8")
+  const models = [AVAILABLE_MODEL]
   let inProcessAttempts = 0
   return {
     identity,
@@ -106,15 +99,12 @@ export function runnerOptions(
       ),
     }),
     deadlineMs: 10_000,
-    senpiCommand: process.execPath,
-    senpiPrefixArgs: [senpiLauncher],
     // Fresh per launch, exactly like production `randomUUID`: a pinned batchId would hide the
     // failure-identity collision that pruned-name reuse used to cause.
     createBatchId: () => randomUUID(),
     createRunner: (): InProcessRunnerLike => ({
       start: async (spec: ChildSpec): Promise<ChildHandle> => {
         inProcessAttempts += 1
-        if (mode === "model-fallback" && inProcessAttempts === 1) throw new Error("first model unavailable")
         if (mode === "fail") throw new Error("facts child failed")
         if (mode === "timeout") return await new Promise<ChildHandle>(() => undefined)
         const tool = createFactsRecordTool({ extractionPath: join(spec.cwd, "extraction.jsonl") })

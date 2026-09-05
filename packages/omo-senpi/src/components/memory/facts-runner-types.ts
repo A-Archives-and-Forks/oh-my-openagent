@@ -4,7 +4,6 @@ import type { CreateChildSession, InProcessRunnerLike, SenpiModelPort, SenpiMode
 import type { ComponentLogger } from "../../extension/types"
 import type { SenpiOmoConfigResult } from "../config-resolution"
 import type { FactsFailurePort, FactsQueuedKey } from "./facts-failure-recording"
-import type { ResolveAndPreflightMemoryLaunch } from "./worker/memory-launch-preflight"
 
 export type FactsLaunchResult =
   | { readonly status: "empty" | "active" | "skipped" }
@@ -20,10 +19,7 @@ export interface FactsExtractorRunnerOptions {
   readonly logger?: ComponentLogger
   readonly env?: NodeJS.ProcessEnv
   readonly deadlineMs?: number
-  readonly senpiCommand?: string
-  readonly senpiPrefixArgs?: readonly string[]
   readonly terminationGraceMs?: number
-  readonly resolveAndPreflightLaunch?: ResolveAndPreflightMemoryLaunch
   readonly now?: () => Date
   readonly createBatchId?: () => string
   readonly withWriterLock?: <T>(operation: () => Promise<T>, attempt: number) => Promise<T>
