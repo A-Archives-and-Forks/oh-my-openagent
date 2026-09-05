@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test"
 import { CATEGORY_MODEL_REQUIREMENTS } from "./model-requirements"
 
 describe("category routing policy", () => {
-  test("visual-engineering prioritizes Opus max, Kimi K3 max, GLM 5.2 max, then Sol medium", () => {
+  test("visual-engineering prioritizes Opus max, Kimi K3 max, GLM 5.2 max, Astra high, then Sol medium", () => {
     // given
     const visual = CATEGORY_MODEL_REQUIREMENTS["visual-engineering"]
 
@@ -29,6 +29,11 @@ describe("category routing policy", () => {
       },
       {
         providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+        model: "gpt-6-astra",
+        variant: "high",
+      },
+      {
+        providers: ["openai", "openai-codex", "github-copilot", "opencode"],
         model: "gpt-5.6-sol",
         variant: "medium",
       }
@@ -44,6 +49,11 @@ describe("category routing policy", () => {
 
     // then
     expect(chain).toEqual([
+      {
+        providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+        model: "gpt-6-astra",
+        variant: "high",
+      },
       {
         providers: ["openai", "openai-codex", "github-copilot", "opencode"],
         model: "gpt-5.6-sol",
@@ -158,6 +168,11 @@ describe("category routing policy", () => {
 
     // then
     expect(highChain).toEqual([
+      {
+        providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+        model: "gpt-6-astra",
+        variant: "high",
+      },
       {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
         model: "claude-opus-5",

@@ -2,12 +2,23 @@ import { describe, expect, test } from "bun:test"
 import { CATEGORY_MODEL_REQUIREMENTS } from "./model-requirements"
 
 describe("CATEGORY_MODEL_REQUIREMENTS", () => {
-  test("ultrabrain is gpt-5.6-sol max on every rung", () => {
+  test("ultrabrain routes GPT-6 Astra max before the existing Sol max fallbacks", () => {
+    expect(CATEGORY_MODEL_REQUIREMENTS.ultrabrain.fallbackChain).toEqual([
+      { providers: ["openai", "openai-codex"], model: "gpt-6-astra", variant: "max" },
+      { providers: ["github-copilot"], model: "gpt-6-astra", variant: "max" },
+      { providers: ["openai", "openai-codex", "opencode"], model: "gpt-6-astra", variant: "max" },
+      { providers: ["openai", "openai-codex"], model: "gpt-5.6-sol", variant: "max" },
+      { providers: ["github-copilot"], model: "gpt-5.6-sol", variant: "max" },
+      { providers: ["openai", "openai-codex", "opencode"], model: "gpt-5.6-sol", variant: "max" },
+    ])
+  })
+
+  test("ultrabrain keeps gpt-5.6-sol max on every fallback rung", () => {
     // given
     const requirement = CATEGORY_MODEL_REQUIREMENTS["ultrabrain"]
 
     // when
-    const chain = requirement.fallbackChain
+    const chain = requirement.fallbackChain.filter(({ model }) => model === "gpt-5.6-sol")
 
     // then
     expect(chain).toEqual([
@@ -29,12 +40,19 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     ])
   })
 
-  test("deep is a single sol-family medium rung", () => {
+  test("deep routes GPT-6 Astra high before the Sol medium fallback", () => {
+    expect(CATEGORY_MODEL_REQUIREMENTS.deep.fallbackChain).toEqual([
+      { providers: ["openai", "openai-codex", "github-copilot", "opencode"], model: "gpt-6-astra", variant: "high" },
+      { providers: ["openai", "openai-codex", "github-copilot", "opencode"], model: "gpt-5.6-sol", variant: "medium" },
+    ])
+  })
+
+  test("deep is a single sol-family medium fallback rung", () => {
     // given
     const requirement = CATEGORY_MODEL_REQUIREMENTS["deep"]
 
     // when
-    const chain = requirement.fallbackChain
+    const chain = requirement.fallbackChain.filter(({ model }) => model === "gpt-5.6-sol")
 
     // then
     expect(chain).toEqual([
@@ -46,7 +64,13 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     ])
   })
 
-  test("visual-engineering follows the approved 4-rung chain", () => {
+  test("visual-engineering puts GPT-6 Astra high before Sol medium", () => {
+    expect(CATEGORY_MODEL_REQUIREMENTS["visual-engineering"].fallbackChain.at(-2)).toEqual({
+      providers: ["openai", "openai-codex", "github-copilot", "opencode"], model: "gpt-6-astra", variant: "high",
+    })
+  })
+
+  test("visual-engineering follows the approved 5-rung chain", () => {
     // given
     const requirement = CATEGORY_MODEL_REQUIREMENTS["visual-engineering"]
 
@@ -69,6 +93,11 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
         providers: ["zai-coding-plan", "opencode-go"],
         model: "glm-5.2",
         variant: "max",
+      },
+      {
+        providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+        model: "gpt-6-astra",
+        variant: "high",
       },
       {
         providers: ["openai", "openai-codex", "github-copilot", "opencode"],
@@ -170,7 +199,7 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     ])
   })
 
-  test("unspecified-high follows the approved opus-first 3-rung chain", () => {
+  test("unspecified-high follows the approved Astra-first 4-rung chain", () => {
     // given
     const requirement = CATEGORY_MODEL_REQUIREMENTS["unspecified-high"]
 
@@ -179,6 +208,11 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
 
     // then
     expect(chain).toEqual([
+      {
+        providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+        model: "gpt-6-astra",
+        variant: "high",
+      },
       {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
         model: "claude-opus-5",

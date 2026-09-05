@@ -1,3 +1,7 @@
+## 2026-09-05 — Route GPT-6 Astra through model-core and frontier agent families
+
+GPT-6 Astra is now the high-effort top rung for the visual-engineering, ultrabrain, deep, and unspecified-high category routes, with the existing GPT-5.6 Sol lanes retained as fallbacks. Model-core recognizes Astra's capability limits and canonicalizes OpenAI fast-tier IDs, while omo-opencode treats Astra as a GPT-5.6-class frontier model for prompts, reasoning, tool-schema protection, delegation, and native Sisyphus routing.
+
 ## 2026-09-04 — Ship the conditional x-search skill and stop the startup log line
 
 The published omo-ai payload never contained `plugin/skills-conditional/x-search/SKILL.md`. The
