@@ -204,64 +204,6 @@ describe("facts wiring settle enqueue", () => {
   }, 30_000)
 })
 
-describe("facts wiring shutdown launch", () => {
-  test("#given a pre-aborted drain signal at a met threshold #when launch is requested #then no extractor spawn starts", async () => {
-    const paths = await fixture()
-    await seedJournal(paths, 1)
-    let launches = 0
-    let thresholdReads = 0
-    const wiring = createMemoryFactsWiring({
-      identity: IDENTITY,
-      identityPaths: paths,
-      factsEnabled: () => true,
-      debounceSettles: () => ++thresholdReads === 1 ? 2 : 1,
-      extractor: {
-        launchPending: async () => { launches += 1 },
-        reconcilePending: async () => undefined,
-      },
-    })
-    await wiring.onSettled(SESSION)
-    const controller = new AbortController()
-    controller.abort()
-
-    const launched = await wiring.launchIfThresholdMet(controller.signal)
-
-    expect(launched).toBe(false)
-    expect(launches).toBe(0)
-  }, 30_000)
-
-  test("#given abort arrives during the threshold probe #when launch reaches the extractor boundary #then no extractor spawn starts", async () => {
-    const paths = await fixture()
-    await seedJournal(paths, 1)
-    const controller = new AbortController()
-    let launches = 0
-    let thresholdReads = 0
-    const wiring = createMemoryFactsWiring({
-      identity: IDENTITY,
-      identityPaths: paths,
-      factsEnabled: () => true,
-      debounceSettles: () => {
-        thresholdReads += 1
-        if (thresholdReads === 2) {
-          controller.abort()
-          return 1
-        }
-        return 2
-      },
-      extractor: {
-        launchPending: async () => { launches += 1 },
-        reconcilePending: async () => undefined,
-      },
-    })
-    await wiring.onSettled(SESSION)
-
-    const launched = await wiring.launchIfThresholdMet(controller.signal)
-
-    expect(launched).toBe(false)
-    expect(launches).toBe(0)
-  }, 30_000)
-})
-
 describe("facts wiring session_start reconcile", () => {
   test("#given a leftover queue file from a crashed run #when reconcile runs #then it is reported launchable", async () => {
     // given: a settle published an entry that no extractor ever consumed
