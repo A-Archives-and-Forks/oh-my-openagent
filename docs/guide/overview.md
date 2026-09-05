@@ -213,7 +213,7 @@ You can override specific agents or categories in your config:
     "unspecified-high": { "model": "openai/gpt-6-astra", "variant": "high" },
 
     // Prose and documentation
-    "writing": { "model": "kimi-for-coding/kimi-k3", "variant": "low" },
+    "writing": { "model": "anthropic/claude-fable-5-1", "variant": "medium" },
   },
 }
 ```

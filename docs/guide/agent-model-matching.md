@@ -445,7 +445,7 @@ No built-in agent or category chain lists `vercel` (or `quotio-openai`) on any r
     "quick": { "model": "kimi-for-coding/kimi-for-coding-highspeed" },
     "unspecified-high": { "model": "openai/gpt-6-astra", "variant": "high" },
     "unspecified-low": { "model": "opencode-go/kimi-k2.7-code" },
-    "writing": { "model": "opencode-go/kimi-k3", "variant": "low" },
+    "writing": { "model": "anthropic/claude-fable-5-1", "variant": "medium" },
   },
 
   "background_task": {
@@ -500,7 +500,7 @@ Cheapest full-stack path. Hephaestus won't activate — accept that trade-off.
     "unspecified-high": { "model": "opencode-go/kimi-k3" },
     "unspecified-low": { "model": "opencode-go/kimi-k2.7-code" },
     "quick": { "model": "opencode-go/minimax-m2.7" },
-    "writing": { "model": "opencode-go/kimi-k3", "variant": "low" },
+    "writing": { "model": "anthropic/claude-fable-5-1", "variant": "medium" },
   },
 }
 ```

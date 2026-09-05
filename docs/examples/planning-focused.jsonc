@@ -75,7 +75,7 @@
       },
 
       // Documentation from plans
-      "writing": { "model": "kimi-for-coding/kimi-k3", "reasoning": "low" },
+      "writing": { "model": "anthropic/claude-fable-5-1", "reasoning": "medium" },
 
       // Visual architecture
       "visual-engineering": { "model": "anthropic/claude-fable-5-1", "reasoning": "max" },
