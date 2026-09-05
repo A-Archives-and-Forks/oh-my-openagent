@@ -87,6 +87,7 @@ describe("MemorianGateRunner", () => {
 
     // then
     expect(result).toMatchObject({ status: "failed", cause: "deadline" })
+    expect(result.runId).toMatch(/^[0-9a-f-]{36}$/)
   })
 
   test("#given a completed child blocked on persistence #when cancel is called #then the pending payload is retracted", async () => {
@@ -172,17 +173,19 @@ describe("MemorianGateRunner", () => {
     let resolveStart: ((handle: ChildHandle) => void) | undefined
     let resolveStarted: (() => void) | undefined
     let resolveDisposed: (() => void) | undefined
+    let resolveAbortEntered: (() => void) | undefined
     let releaseAbort: (() => void) | undefined
     let aborted = 0
     let disposed = 0
     const started = new Promise<void>((resolve) => { resolveStarted = resolve })
+    const abortEntered = new Promise<void>((resolve) => { resolveAbortEntered = resolve })
     const lateDisposed = new Promise<void>((resolve) => { resolveDisposed = resolve })
     const lateHandle: ChildHandle = {
       task_id: "setup-cancelled",
       sessionId: "setup-cancelled",
       steer: async () => undefined,
       followUp: async () => undefined,
-      abort: async () => { aborted += 1; await new Promise<void>((resolve) => { releaseAbort = resolve }) },
+      abort: async () => { aborted += 1; resolveAbortEntered?.(); await new Promise<void>((resolve) => { releaseAbort = resolve }) },
       subscribe: () => () => undefined,
       waitForIdle: async () => ({ status: "cancelled" }),
       lastAssistantText: () => undefined,
@@ -199,11 +202,15 @@ describe("MemorianGateRunner", () => {
     const launched = runner.launch(launchInput())
     await Promise.race([started, new Promise<never>((_, reject) => setTimeout(() => reject(new Error("runner.start was never invoked")), 5_000))])
     const cancelling = runner.cancel()
-    resolveStart?.(lateHandle)
     let cancellationResolved = false
+    let launchResolved = false
     void cancelling.then(() => { cancellationResolved = true })
-    await Promise.resolve()
+    void launched.then(() => { launchResolved = true })
+    resolveStart?.(lateHandle)
+    await Promise.race([abortEntered, new Promise<never>((_, reject) => setTimeout(() => reject(new Error("late handle abort was never entered")), 5_000))])
+    await new Promise<void>((resolve) => setImmediate(resolve))
     expect(cancellationResolved).toBe(false)
+    expect(launchResolved).toBe(false)
     releaseAbort?.()
     await Promise.race([lateDisposed, new Promise<never>((_, reject) => setTimeout(() => reject(new Error("late handle was never disposed")), 5_000))])
     await cancelling
