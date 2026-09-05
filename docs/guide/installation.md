@@ -240,7 +240,7 @@ Map their answer to:
    - **no** → `--claude=no`
 
 2. **Do you have an OpenAI/ChatGPT Plus Subscription?**
-   - **yes** → `--openai=yes` (enables OpenAI routes; Hephaestus prefers GPT-5.6 Sol and Momus prefers GPT-5.6 Terra when available, both falling back to GPT-5.6 Sol)
+   - **yes** → `--openai=yes` (enables OpenAI routes; the `ultrabrain`, `deep`, and `unspecified-high` categories start on GPT-6 Astra, Hephaestus prefers GPT-5.6 Sol, and Momus prefers GPT-5.6 Terra, both falling back to GPT-5.6 Sol)
    - **no** → `--openai=no` (default)
 
 3. **Will you integrate Gemini models?**
@@ -558,12 +558,12 @@ When Z.ai is the primary provider, the most important fallbacks are:
 | ---------------------- | -------------------------- |
 | **Sisyphus**           | `zai-coding-plan/glm-5.2`  |
 | **visual-engineering** | `zai-coding-plan/glm-5.2`  |
-| **unspecified-high**   | `zai-coding-plan/glm-5.2`  |
+| **unspecified-high**   | `zai-coding-plan/glm-5.3`  |
 | **Multimodal-Looker**  | `zai-coding-plan/glm-4.6v` |
 
 ##### OpenCode Zen
 
-OpenCode Zen provides access to `opencode/` prefixed models including `opencode/claude-opus-5`, `opencode/gpt-5.6-sol`, `opencode/gpt-5-nano`, `opencode/glm-5.2`, `opencode/big-pickle`, `opencode/minimax-m2.7`, and `opencode/minimax-m2.7-highspeed`.
+OpenCode Zen provides access to `opencode/` prefixed models including `opencode/claude-opus-5`, `opencode/gpt-6-astra`, `opencode/gpt-5.6-sol`, `opencode/gpt-5-nano`, `opencode/glm-5.2`, `opencode/big-pickle`, `opencode/minimax-m2.7`, and `opencode/minimax-m2.7-highspeed`.
 
 When OpenCode Zen is the best available provider, common examples:
 
@@ -599,7 +599,8 @@ Not all models behave the same way. Understanding "similar" families helps you m
 
 | Model             | Provider(s)                      | Notes                                                                                                       |
 | ----------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| **GPT-5.6 Sol**   | openai, vercel                   | Preferred when available for Hephaestus and `ultrabrain`, with role-specific effort levels; first fallback for `deep`. |
+| **GPT-6 Astra**   | openai, openai-codex, github-copilot, opencode | OpenAI's most capable model and the recommended GPT flagship. Default for `ultrabrain`, `deep`, and `unspecified-high` (high effort). `gpt-6-astra-fast` is the Fast-mode variant. Manual override option for Hephaestus, Oracle, and Momus. |
+| **GPT-5.6 Sol**   | openai, vercel                   | Default for Hephaestus at medium effort; the fallback rung under Astra for `ultrabrain` (max) and `deep` (medium). |
 | **GPT-5.6 Terra** | openai, vercel                   | GPT-5.6 mid-tier. Default for Momus (high) and an optional balanced override elsewhere.                    |
 | **GPT-5.6 Luna**  | openai, vercel                   | GPT-5.6 light tier. Default for the `unspecified-low` category (xhigh).                                    |
 | **GPT-5.6 Sol override paths** | openai, github-copilot, opencode, vercel | Default for Oracle and the first GPT-5.6 Sol-family fallback for Hephaestus, Momus, `deep`, and `ultrabrain`. |

@@ -330,7 +330,7 @@ Profiles are inert until activated (see [Profile activation](#profile-activation
 
 ### Model references and model strings
 
-`model` accepts either a catalog alias or a provider-prefixed string. Reasoning levels can be written inline with a `:level` suffix, for example `openai/gpt-5.6-sol:xhigh`. The suffix is canonical; the older `model(xhigh)` and `model xhigh` forms remain accepted during the back-compat window and are normalized by migration.
+`model` accepts either a catalog alias or a provider-prefixed string. Reasoning levels can be written inline with a `:level` suffix, for example `openai/gpt-6-astra:xhigh`. The suffix is canonical; the older `model(xhigh)` and `model xhigh` forms remain accepted during the back-compat window and are normalized by migration.
 
 `models` is the shared ordered chain shape used by categories, agents, and harness blocks. Each entry may be a string or a model object. Object entries use the canonical fields documented above, including `reasoning` and `provider_options`.
 

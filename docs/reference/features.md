@@ -63,7 +63,7 @@ review gates rather than relying on prose-only instructions.
 Run agents in the background and continue working:
 
 - Have GPT debug while Claude tries different approaches
-- Opus 5 handles visual work while GPT-5.6 Sol tackles deep reasoning
+- Opus 5 handles visual work while GPT-6 Astra tackles deep reasoning
 - Fire massive parallel searches, continue implementation, use results when ready
 
 ```
@@ -161,12 +161,12 @@ By combining these two concepts, you can generate optimal agents through `task`.
 | Category             | Default Model                   | Use Cases                                                                                                                   |
 | -------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `visual-engineering` | `anthropic/claude-opus-5` (max) | Frontend, UI/UX, design, styling, animation                                                                                |
-| `ultrabrain`         | `openai/gpt-5.6-sol` (xhigh)    | Deep logical reasoning, complex architecture decisions requiring extensive analysis                                         |
-| `deep`               | `openai/gpt-5.6-sol` (medium)   | Goal-oriented autonomous problem-solving on hairy problems requiring deep research. ONE goal + ONE deliverable per call — multiple goals must fan out as parallel `deep` calls, never bundled into one. |
+| `ultrabrain`         | `openai/gpt-6-astra` (high)     | Deep logical reasoning, complex architecture decisions requiring extensive analysis. Falls back to `gpt-5.6-sol` (max).     |
+| `deep`               | `openai/gpt-6-astra` (high)     | Goal-oriented autonomous problem-solving on hairy problems requiring deep research. ONE goal + ONE deliverable per call — multiple goals must fan out as parallel `deep` calls, never bundled into one. |
 | `artistry`           | `anthropic/claude-fable-5` (xhigh) | Highly creative/artistic tasks, novel ideas                                                                                 |
 | `quick`              | `kimi-for-coding/kimi-for-coding-highspeed` | Trivial tasks - single file changes, typo fixes, simple modifications                                                  |
 | `unspecified-low`    | `xai/grok-4.6` (xhigh)          | Tasks that don't fit other categories, low effort required                                                                  |
-| `unspecified-high`   | `kimi-for-coding/kimi-k3` (max) | Tasks that don't fit other categories, high effort required                                                               |
+| `unspecified-high`   | `openai/gpt-6-astra` (high)     | Tasks that don't fit other categories, high effort required. Falls back to Claude Opus 5, GLM 5.3, then Kimi K3.          |
 | `writing`            | `kimi-for-coding/kimi-k3` (low) | Documentation, prose, technical writing                                                                                     |
 
 ### Usage
@@ -600,7 +600,7 @@ You can create powerful specialized agents by combining Categories and Skills.
 
 - **Category**: `ultrabrain`
 - **load_skills**: `[]` (pure reasoning)
-- **Effect**: Uses GPT-5.6 Sol at xhigh effort through OpenAI or Vercel when available, at high effort through GitHub Copilot, and retains an xhigh Sol rung through OpenAI, OpenCode, or Vercel before non-GPT fallbacks.
+- **Effect**: Uses GPT-6 Astra at high effort through OpenAI or OpenAI Codex when available, then GitHub Copilot, then OpenCode. When Astra is unavailable it walks the same provider order on GPT-5.6 Sol at max effort. The chain is GPT-only.
 
 #### The Maintainer (Quick Fixes)
 
