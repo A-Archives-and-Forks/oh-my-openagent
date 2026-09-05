@@ -94,7 +94,7 @@ describe("OpenAI GPT fast capability aliases", () => {
 
     expect(alias).toMatchObject({
       requestedModelID: "openai/gpt-5.6-sol-fast",
-      canonicalModelID: modelID.includes("gpt-6-astra") ? "gpt-6-astra" : "gpt-5.6-sol",
+      canonicalModelID: "gpt-5.6-sol",
       supportsTemperature: false,
       diagnostics: {
         resolutionMode: "alias-backed",
@@ -120,7 +120,7 @@ describe("OpenAI GPT fast capability aliases", () => {
 
     expect(alias).toMatchObject({
       requestedModelID: modelID,
-      canonicalModelID: "gpt-5.6-sol",
+      canonicalModelID: modelID.includes("gpt-6-astra") ? "gpt-6-astra" : "gpt-5.6-sol",
       supportsTemperature: false,
       diagnostics: {
         resolutionMode: "alias-backed",
