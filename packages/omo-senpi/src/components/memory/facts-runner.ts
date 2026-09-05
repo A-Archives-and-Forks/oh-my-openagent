@@ -62,12 +62,6 @@ export class FactsExtractorRunner {
     })
   }
 
-  /**
-   * Launches pending facts work and DRAINS: a capped payload splits one backlog into several
-   * runs, so every success immediately attempts the next batch instead of waiting for another
-   * settle. The existing `activeLaunch` latch spans the whole drain, so a concurrent caller is
-   * still refused with `active` and only one launch ever runs.
-   */
   async launchPending(signal?: AbortSignal): Promise<FactsLaunchResult> {
     if (signal?.aborted === true) return { status: "skipped" }
     if (this.activeLaunch !== undefined) return { status: "active" }
@@ -124,8 +118,6 @@ export class FactsExtractorRunner {
 
     const repo = new GitMemoryRepo({ dir: this.options.identity.paths.repo, agentId: this.options.identity.id })
     if (!existsSync(join(repo.dir, ".git"))) await repo.init({ seedFiles: buildDefaultSeedFiles() })
-    // The people fields are part of the measured envelope, so they are read BEFORE the cap
-    // decides which entries fit - and the run dir is reserved for the SELECTED entries only.
     const people = await readFactsPeoplePayload(repo.dir)
     const envelope = {
       version: 1,
@@ -134,8 +126,6 @@ export class FactsExtractorRunner {
       ...people,
     } as const
     const capped = selectCappedFactsBatch({ entries, envelope, now: this.now() })
-    // Ledger-only classification, BEFORE any reservation: an entry that cannot ever fit parks
-    // now, so a failing launch path can never lose the verdict.
     const envelopeRefused = await classifyOversizePayload({
       terminal: this.terminal,
       envelope,

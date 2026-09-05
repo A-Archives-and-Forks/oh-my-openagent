@@ -1,6 +1,7 @@
 import { afterEach, expect } from "bun:test"
+import { writeFileSync } from "node:fs"
 import { randomUUID } from "node:crypto"
-import { existsSync, writeFileSync } from "node:fs"
+import { existsSync } from "node:fs"
 import { appendFile, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -21,8 +22,6 @@ import { createFactsRecordTool } from "./facts-record-tool"
 import type { FactsRunLedger } from "./facts-runner-types"
 
 export const AVAILABLE_MODEL: SenpiModelPort = { provider: "omo-mock", id: "mock-1" }
-export const childFixture = join(import.meta.dir, "worker", "__fixtures__", "facts-child.ts")
-export const supervisorFixture = join(import.meta.dir, "worker", "memory-run-supervisor.ts")
 const tempDirs: string[] = []
 
 afterEach(async () => {
@@ -76,13 +75,9 @@ export function runnerOptions(
     AVAILABLE_MODEL,
   ]
   const models = mode === "model-fallback" ? fallbackModels : [AVAILABLE_MODEL]
-  let inProcessAttempts = 0
   const senpiLauncher = join(root, "fake-senpi.mjs")
-  writeFileSync(
-    senpiLauncher,
-    `process.stdout.write(${JSON.stringify(`${models.map((candidate) => `${candidate.provider}/${candidate.id}`).join("\n")}\n`)})\n`,
-    "utf8",
-  )
+  writeFileSync(senpiLauncher, `process.stdout.write(${JSON.stringify(`${models.map((candidate) => `${candidate.provider}/${candidate.id}`).join("\n")}\n`)})\n`, "utf8")
+  let inProcessAttempts = 0
   return {
     identity,
     queue,
@@ -111,8 +106,6 @@ export function runnerOptions(
       ),
     }),
     deadlineMs: 10_000,
-    terminationGraceMs: 100,
-    supervisorPath: supervisorFixture,
     senpiCommand: process.execPath,
     senpiPrefixArgs: [senpiLauncher],
     // Fresh per launch, exactly like production `randomUUID`: a pinned batchId would hide the

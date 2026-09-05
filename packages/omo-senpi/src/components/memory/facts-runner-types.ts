@@ -5,7 +5,6 @@ import type { ComponentLogger } from "../../extension/types"
 import type { SenpiOmoConfigResult } from "../config-resolution"
 import type { FactsFailurePort, FactsQueuedKey } from "./facts-failure-recording"
 import type { ResolveAndPreflightMemoryLaunch } from "./worker/memory-launch-preflight"
-import type { FactsSandbox } from "./worker/spawn"
 
 export type FactsLaunchResult =
   | { readonly status: "empty" | "active" | "skipped" }
@@ -14,20 +13,17 @@ export type FactsLaunchResult =
 
 export interface FactsExtractorRunnerOptions {
   readonly identity: MemoryIdentity
-  readonly queue?: FactsQueue
   readonly cwd: string
+  readonly queue?: FactsQueue
   readonly loadConfig: () => SenpiOmoConfigResult
   readonly resolveModelRegistry: () => SenpiModelRegistryPort<SenpiModelPort> | undefined
   readonly logger?: ComponentLogger
   readonly env?: NodeJS.ProcessEnv
   readonly deadlineMs?: number
-  readonly terminationGraceMs?: number
-  readonly maxOutputBytes?: number
   readonly senpiCommand?: string
   readonly senpiPrefixArgs?: readonly string[]
+  readonly terminationGraceMs?: number
   readonly resolveAndPreflightLaunch?: ResolveAndPreflightMemoryLaunch
-  readonly supervisorPath?: string
-  readonly sandbox?: FactsSandbox
   readonly now?: () => Date
   readonly createBatchId?: () => string
   readonly withWriterLock?: <T>(operation: () => Promise<T>, attempt: number) => Promise<T>

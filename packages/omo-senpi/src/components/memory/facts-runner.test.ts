@@ -13,7 +13,6 @@ describe("quick-pinned facts launch", () => {
   test("#given quick cannot resolve #when pending facts are launched #then no child spawns and the queue stays intact with one warning", async () => {
     // given
     const { root, identity, queue } = await fixture()
-    let spawnCount = 0
     const warnings: string[] = []
     const runner = new FactsExtractorRunner({
       identity,
@@ -26,10 +25,6 @@ describe("quick-pinned facts launch", () => {
         warn: (message) => warnings.push(message),
         error: () => undefined,
       },
-      sandbox: (args) => {
-        spawnCount += 1
-        return args
-      },
     })
 
     // when
@@ -37,7 +32,6 @@ describe("quick-pinned facts launch", () => {
 
     // then
     expect(result.status).toBe("skipped")
-    expect(spawnCount).toBe(0)
     expect(warnings).toHaveLength(1)
     expect(await queue.listPending()).toHaveLength(1)
   }, 30_000)
@@ -49,7 +43,6 @@ describe("quick-pinned facts launch", () => {
     // possibly frontier-priced model.
     const { root, identity, queue } = await fixture()
     const beyondCategory: SenpiModelPort = { provider: "other-provider", id: "expensive-1" }
-    let spawnCount = 0
     const warnings: string[] = []
     const runner = new FactsExtractorRunner({
       identity,
@@ -66,10 +59,6 @@ describe("quick-pinned facts launch", () => {
         warn: (message) => warnings.push(message),
         error: () => undefined,
       },
-      sandbox: (args) => {
-        spawnCount += 1
-        return args
-      },
     })
 
     // when
@@ -78,7 +67,6 @@ describe("quick-pinned facts launch", () => {
     // then: identical skip semantics to the `category_unavailable` path - one warning, no child,
     // no run dir, queue intact, and the preflight-scoped failure/backoff record still lands.
     expect(result.status).toBe("skipped")
-    expect(spawnCount).toBe(0)
     expect(warnings).toHaveLength(1)
     expect(await queue.listPending()).toHaveLength(1)
     expect(existsSync(join(identity.paths.facts, "runs"))).toBe(false)
