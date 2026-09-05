@@ -211,7 +211,7 @@ describe("resolveAgent category stage", () => {
     // given: getAvailable() returns a non-array (unparseable), but find() works. The direct-model
     // path documents this degradation, so a categorized agent must not lose it.
     const definition: AgentDefinition = { name: "probe", categories: ["unspecified-high"] }
-    const available = [model("anthropic", "claude-opus-5")]
+    const available = [model("openai", "gpt-6-astra")]
     const malformedRegistry = {
       getAvailable: (): unknown => ({ notAnArray: true }),
       find: (provider: string, modelId: string) =>
@@ -224,7 +224,7 @@ describe("resolveAgent category stage", () => {
     // then
     expect(resolution.kind).toBe("resolved")
     if (resolution.kind !== "resolved") return
-    expect(resolution.model).toBe("anthropic/claude-opus-5")
+    expect(resolution.model).toBe("openai/gpt-6-astra")
   })
 
   test("#given a user category model override that is unavailable #when resolution fails #then the attempted model names the user model, not the builtin", () => {
