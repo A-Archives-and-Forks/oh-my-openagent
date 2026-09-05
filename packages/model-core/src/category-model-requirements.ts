@@ -28,9 +28,9 @@ export const CATEGORY_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
   },
   ultrabrain: {
     fallbackChain: [
-      { providers: ["openai", "openai-codex"], model: "gpt-6-astra", variant: "high" },
-      { providers: ["github-copilot"], model: "gpt-6-astra", variant: "high" },
-      { providers: ["openai", "openai-codex", "opencode"], model: "gpt-6-astra", variant: "high" },
+      { providers: ["openai", "openai-codex"], model: "gpt-6-astra", variant: "max" },
+      { providers: ["github-copilot"], model: "gpt-6-astra", variant: "max" },
+      { providers: ["openai", "openai-codex", "opencode"], model: "gpt-6-astra", variant: "max" },
       { providers: ["openai", "openai-codex"], model: "gpt-5.6-sol", variant: "max" },
       { providers: ["github-copilot"], model: "gpt-5.6-sol", variant: "max" },
       { providers: ["openai", "openai-codex", "opencode"], model: "gpt-5.6-sol", variant: "max" }

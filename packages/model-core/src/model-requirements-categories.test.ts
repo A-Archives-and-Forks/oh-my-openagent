@@ -4,9 +4,9 @@ import { CATEGORY_MODEL_REQUIREMENTS } from "./model-requirements"
 describe("CATEGORY_MODEL_REQUIREMENTS", () => {
   test("ultrabrain routes GPT-6 Astra high before the existing Sol max fallbacks", () => {
     expect(CATEGORY_MODEL_REQUIREMENTS.ultrabrain.fallbackChain).toEqual([
-      { providers: ["openai", "openai-codex"], model: "gpt-6-astra", variant: "high" },
-      { providers: ["github-copilot"], model: "gpt-6-astra", variant: "high" },
-      { providers: ["openai", "openai-codex", "opencode"], model: "gpt-6-astra", variant: "high" },
+      { providers: ["openai", "openai-codex"], model: "gpt-6-astra", variant: "max" },
+      { providers: ["github-copilot"], model: "gpt-6-astra", variant: "max" },
+      { providers: ["openai", "openai-codex", "opencode"], model: "gpt-6-astra", variant: "max" },
       { providers: ["openai", "openai-codex"], model: "gpt-5.6-sol", variant: "max" },
       { providers: ["github-copilot"], model: "gpt-5.6-sol", variant: "max" },
       { providers: ["openai", "openai-codex", "opencode"], model: "gpt-5.6-sol", variant: "max" },
