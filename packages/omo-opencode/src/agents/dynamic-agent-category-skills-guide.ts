@@ -118,9 +118,9 @@ task(category="...", load_skills=[], run_in_background=true, prompt="...")  // E
 
 Every delegation MUST use the category that matches the task's domain. Mismatched categories produce measurably worse output because each category runs on a model optimized for that specific domain.
 
-**VISUAL WORK = ALWAYS \`visual-engineering\`. NO EXCEPTIONS.**
+**ANY VISUAL RELATION = ALWAYS \`visual-engineering\`. NO EXCEPTIONS.**
 
-Any task involving UI, UX, CSS, styling, layout, animation, design, or frontend components MUST go to \`visual-engineering\`. Never delegate visual work to \`quick\`, \`unspecified-*\`, or any other category.
+Any task with even a minor visual relationship — including UI, UX, CSS, styling, layout, animation, design, frontend components, screenshots, diagrams, visual polish, or presentation — MUST go to \`visual-engineering\`. Never delegate it to \`quick\`, \`unspecified-*\`, or any other category.
 
 \`\`\`typescript
 // CORRECT: Visual work → visual-engineering category

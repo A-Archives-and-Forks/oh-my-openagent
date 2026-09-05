@@ -146,7 +146,7 @@ Here's a practical starting `~/.omo/omo.jsonc`. OpenCode plugin settings live in
       // writing - docs/prose
       "writing": { "model": "kimi-for-coding/kimi-k3", "reasoning": "low" },
 
-      // visual-engineering - Opus 5, then Kimi K3 and GLM 5.2
+      // visual-engineering - Fable 5.1 max, then Opus 5 max and Kimi K3 max
       "visual-engineering": {
         "model": "anthropic/claude-opus-5",
         "reasoning": "max",
@@ -349,7 +349,7 @@ Domain-specific model delegation used by the `task()` tool. When Sisyphus delega
 
 | Category             | Default Model                   | Description                                    |
 | -------------------- | ------------------------------- | ---------------------------------------------- |
-| `visual-engineering` | `anthropic/claude-opus-5` (max) | Frontend, UI/UX, design, animation            |
+| `visual-engineering` | `anthropic/claude-fable-5-1` (max) | Frontend, UI/UX, design, animation            |
 | `ultrabrain`         | `openai/gpt-6-astra` (max)      | Deep logical reasoning, complex architecture. Falls back to `gpt-5.6-sol` (max). |
 | `deep`               | `openai/gpt-6-astra` (high)     | Autonomous problem-solving, thorough research. Falls back to `gpt-5.6-sol` (medium). |
 | `artistry`           | `anthropic/claude-fable-5` (xhigh) | Creative/unconventional approaches             |

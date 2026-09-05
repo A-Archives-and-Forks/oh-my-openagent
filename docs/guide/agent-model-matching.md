@@ -266,15 +266,14 @@ Used by: Hephaestus, Oracle, Momus (GPT-6 Astra), `deep`, `ultrabrain`, `unspeci
 
 ### Visual Engineering Chain
 
-The built-in `visual-engineering` category starts with Claude Opus 5 and does not require Gemini:
+The built-in `visual-engineering` category starts with Claude Fable 5.1:
 
 | Priority | Model | Provider | Why |
 |---|---|---|---|
 | 1 | `claude-opus-5` (`max`) | `anthropic`, `anthropic-api`, `github-copilot`, `opencode` | Primary UI/UX, CSS, design-token, and layout model. |
-| 2 | `kimi-k3` (`max`) | `opencode-go`, `kimi-for-coding`, `moonshotai`, `opencode` | Current visual fallback when Opus 5 is unavailable. |
-| 3 | `glm-5.2` (`max`) | `zai-coding-plan`, `opencode-go` | GLM visual fallback. |
-| 4 | `gpt-6-astra` (`high`) | `openai`, `openai-codex`, `github-copilot`, `opencode` | GPT visual fallback once the Claude, Kimi, and GLM rungs are exhausted. |
-| 5 | `gpt-5.6-sol` (`medium`) | `openai`, `openai-codex`, `github-copilot`, `opencode` | Final built-in visual fallback. |
+| 1 | `claude-fable-5-1` (`max`) | `anthropic`, `anthropic-api`, `github-copilot`, `opencode` | Primary visual model. |
+| 2 | `claude-opus-5` (`max`) | `anthropic`, `anthropic-api`, `github-copilot`, `opencode` | Visual fallback when Fable 5.1 is unavailable. |
+| 3 | `kimi-k3` (`max`) | `opencode-go`, `kimi-for-coding`, `moonshotai`, `opencode` | Final built-in visual fallback. |
 
 Gemini 3.1 Pro remains a visual-capable explicit override where a provider exposes it. Gemini 3.6 Flash remains useful for fast writing and documentation work, but neither model is the current `visual-engineering` default chain.
 

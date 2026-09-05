@@ -78,7 +78,7 @@
       "writing": { "model": "kimi-for-coding/kimi-k3", "reasoning": "low" },
 
       // Visual architecture
-      "visual-engineering": { "model": "anthropic/claude-opus-5", "reasoning": "max" },
+      "visual-engineering": { "model": "anthropic/claude-fable-5-1", "reasoning": "max" },
 
       // Deep research and analysis
       "deep": { "model": "openai/gpt-6-astra", "reasoning": "high" },

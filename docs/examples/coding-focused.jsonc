@@ -62,7 +62,7 @@
       "unspecified-high": { "model": "openai/gpt-6-astra", "reasoning": "high" },
 
       // Visual work
-      "visual-engineering": { "model": "anthropic/claude-opus-5", "reasoning": "max" },
+      "visual-engineering": { "model": "anthropic/claude-fable-5-1", "reasoning": "max" },
 
       // Deep autonomous work
       "deep": { "model": "openai/gpt-6-astra", "reasoning": "high" },
