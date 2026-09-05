@@ -108,7 +108,7 @@ describe("reflection worker OS sandbox", () => {
     const realAgentDir = realpathSync(agentDir)
     expect(profile).toContain(`(allow file-write* (subpath ${JSON.stringify(realAgentDir)}))`)
     for (const lock of ["settings.json.lock", "auth.json.lock", "hooks-state.json.lock"]) {
-      expect(join(realAgentDir, lock).startsWith(`${realAgentDir}/`)).toBe(true)
+      expect(dirname(join(realAgentDir, lock))).toBe(realAgentDir)
     }
   }, 30_000)
 

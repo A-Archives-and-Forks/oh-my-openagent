@@ -53,7 +53,7 @@ async function seedJournal(paths: MemoryIdentityPaths, count: number): Promise<v
 
 async function queueFileCount(paths: MemoryIdentityPaths): Promise<number> {
   const names = await readdir(paths.factsQueue).catch(() => [] as string[])
-  return names.filter((name) => name.endsWith(".json") && name !== "consumed.json").length
+  return names.filter((name) => name.endsWith(".json") && name !== "consumed.json" && name !== "claims.json").length
 }
 
 function wiringFor(paths: MemoryIdentityPaths, enabled: boolean) {
