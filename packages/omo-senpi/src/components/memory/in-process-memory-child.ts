@@ -34,8 +34,9 @@ export async function runInProcessMemoryChild(input: RunInProcessMemoryChildInpu
     }, Math.max(0, input.deadlineMs ?? DEFAULT_DEADLINE_MS))
     deadlineTimer.unref?.()
   })
-  const setup = (async (): Promise<ChildHandle> => {
+  const setup = (async (): Promise<ChildHandle | undefined> => {
     await input.setup()
+    if (deadlineReached || input.state.cancelled) return undefined
     const taskRuntime = await import("#omo-task-runtime")
     const runner = input.createRunner?.(
       input.createSession === undefined ? {} : { createSession: input.createSession },
@@ -46,6 +47,7 @@ export async function runInProcessMemoryChild(input: RunInProcessMemoryChildInpu
   })()
   const setupResult = setup.then(
     (handle) => {
+      if (handle === undefined) return undefined
       if (deadlineReached || input.state.cancelled) {
         void abortAndDispose(handle, input.logger, input.runId)
         return undefined

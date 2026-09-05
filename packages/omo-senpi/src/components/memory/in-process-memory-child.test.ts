@@ -74,6 +74,36 @@ describe("runInProcessMemoryChild", () => {
     expect(disposed).toBe(1)
   })
 
+  test("#given setup still pending when the deadline fires #when setup later resolves #then runner.start is never invoked", async () => {
+    // given
+    let releaseSetup: (() => void) | undefined
+    const setupReleased = new Promise<void>((resolve) => { releaseSetup = resolve })
+    let startCalls = 0
+    const resultPromise = runInProcessMemoryChild({
+      runId: "setup-deadline",
+      deadlineMs: 1,
+      state: state(),
+      createRunner: () => ({
+        start: async () => {
+          startCalls += 1
+          return handle()
+        },
+      }),
+      setup: () => setupReleased,
+      buildStart: () => startSpec(),
+    })
+
+    // when: the deadline wins before setup is released
+    const result = await resultPromise
+    releaseSetup?.()
+    await setupReleased
+    await new Promise<void>((resolve) => queueMicrotask(resolve))
+
+    // then
+    expect(result).toEqual({ status: "failed", cause: "deadline" })
+    expect(startCalls).toBe(0)
+  })
+
   test("#given cancellation before start resolves #when the late handle arrives #then it is disposed without onHandle", async () => {
     // given
     const childState = state()
