@@ -52,8 +52,8 @@ export const CATEGORY_FALLBACK_CHAINS: Readonly<Record<string, readonly Delegate
   artistry: [
     {
       providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
-      model: "claude-fable-5",
-      variant: "xhigh",
+      model: "claude-fable-5-1",
+      variant: "max",
     },
     {
       providers: ["kimi-coding", "kimi-for-coding", "moonshotai", "opencode-go"],
