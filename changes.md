@@ -1,3 +1,36 @@
+## 2026-09-05 — Give ultrabrain, deep, and unspecified-high GPT-6 Astra prompt appends and make Astra their real default
+
+The three category prompt appends now have GPT-6 Astra variants in both editions
+(`packages/senpi-task/src/category/openai-categories.ts` and
+`packages/omo-opencode/src/tools/delegate-task/openai-categories.ts`), selected by `isGpt6Model` through
+the existing `resolvePromptAppend` hook. Each append is a delta over senpi's `gpt-6-astra` core preset
+rather than a restatement of it: ultrabrain states the success criteria of a max-effort hard-logic
+answer (evidence cited from this turn, executable claims executed, a self-falsification pass, rejected
+alternatives and open assumptions named, one decision-complete recommendation); deep keeps one goal and
+one deliverable with a generous exploration budget, the goal as authorization, numbered steps as one
+atomic task, and the harness fact that a question ends the turn unfinished; unspecified-high asks for a
+survey of the whole affected surface (callers, sibling modules, tests, docs, schemas, config, CI, git
+history), at least two weighed approaches, and delivery across every surface found. The previous
+ultrabrain append prescribed a "Bottom line" response format that the Astra preset bans as a stock
+phrase; deep on Astra fell through to the generic append because `isGpt5_5OrLaterModel` never matched
+`gpt-6`.
+
+The prompts only reach Astra when the category resolves to it, and `resolveModelForDelegateTask` picks
+the builtin `config.model` before the fallback chain, so the chain-only routing change in #7790 left
+`gpt-5.6-sol` as the effective default wherever Sol was available. The builtin defaults now read
+`ultrabrain` = `openai/gpt-6-astra` max, `deep` and `unspecified-high` = `openai/gpt-6-astra` high, and
+`unspecified-high` moved from the anthropic category file into the openai one in both editions
+(`anthropic-categories.ts` is deleted from omo-opencode). senpi-task's independent chain transcription
+(`fallback-chains.ts`) mirrors the #7790 model-core chains for visual-engineering, ultrabrain, deep, and
+unspecified-high. `requiresModel` accepts a list: `ultrabrain` and `deep` (senpi-task) and `deep`
+(omo-opencode) open on `gpt-6-astra` OR `gpt-5.6-sol`, so a registry with either flagship keeps them and
+one with neither still never falls through to a cross-family model. The task tool description renders a
+list gate as `(requires gpt-6-astra or gpt-5.6-sol)`.
+
+omo-senpi telemetry adds `gpt-6-astra` to the exportable model vocabulary for the providers that ship an
+Astra rung, since a shipped rung must never mask to `custom`, and `docs/reference/senpi-telemetry.md`
+carries the regenerated schema block.
+
 ## 2026-09-05 — Route GPT-6 Astra through model-core and frontier agent families
 
 GPT-6 Astra is now the high-effort top rung for the visual-engineering, ultrabrain, deep, and unspecified-high category routes, with the existing GPT-5.6 Sol lanes retained as fallbacks. Model-core recognizes Astra's capability limits and canonicalizes OpenAI fast-tier IDs, while omo-opencode treats Astra as a GPT-5.6-class frontier model for prompts, reasoning, tool-schema protection, delegation, and native Sisyphus routing.

@@ -91,7 +91,7 @@ describe("category activation gating", () => {
     })
   })
 
-  describe("#given a builtin category gated on gpt-5.6-sol", () => {
+  describe("#given a builtin category gated on gpt-6-astra or gpt-5.6-sol", () => {
     test("#when the registry offers only cross-family models #then ultrabrain is unavailable and never falls back", () => {
       // given
       const models = registry(MODELS_THE_PRE_GATING_CHAINS_WOULD_HAVE_ACCEPTED)
@@ -102,11 +102,27 @@ describe("category activation gating", () => {
       // then
       expect(result.kind).toBe("model_unavailable")
       if (result.kind !== "model_unavailable") throw new Error("Expected model_unavailable")
-      expect(result.attemptedModel).toBe("openai/gpt-5.6-sol")
+      expect(result.attemptedModel).toBe("openai/gpt-6-astra")
       expect(result.availableCategories).not.toContain("ultrabrain")
     })
 
-    test("#when the registry offers gpt-5.6-sol #then ultrabrain resolves at max", () => {
+    test("#when the registry offers gpt-6-astra alone #then ultrabrain resolves on it at max", () => {
+      // given
+      const models = registry([model("openai", "gpt-6-astra")])
+
+      // when
+      const result = resolveCategory("ultrabrain", {}, models)
+
+      // then
+      expect(result.kind).toBe("resolved")
+      if (result.kind !== "resolved") throw new Error("Expected resolved")
+      expect(result.spec.provider).toBe("openai")
+      expect(result.spec.modelId).toBe("gpt-6-astra")
+      expect(result.spec.variant).toBe("max")
+      expect(result.availableCategories).toContain("ultrabrain")
+    })
+
+    test("#when the registry offers gpt-5.6-sol alone #then ultrabrain falls back to the sol rung at max", () => {
       // given
       const models = registry([model("openai", "gpt-5.6-sol")])
 
@@ -136,7 +152,7 @@ describe("category activation gating", () => {
     })
   })
 
-  describe("#given a builtin category gated on gpt-5.6-sol via the deep chain", () => {
+  describe("#given a builtin category gated on gpt-6-astra or gpt-5.6-sol via the deep chain", () => {
     test("#when the registry offers only cross-family models #then deep is unavailable and never falls back", () => {
       // given
       const models = registry(MODELS_THE_PRE_GATING_CHAINS_WOULD_HAVE_ACCEPTED)
@@ -147,11 +163,27 @@ describe("category activation gating", () => {
       // then
       expect(result.kind).toBe("model_unavailable")
       if (result.kind !== "model_unavailable") throw new Error("Expected model_unavailable")
-      expect(result.attemptedModel).toBe("openai/gpt-5.6-sol")
+      expect(result.attemptedModel).toBe("openai/gpt-6-astra")
       expect(result.availableCategories).not.toContain("deep")
     })
 
-    test("#when the registry offers gpt-5.6-sol #then deep resolves at medium", () => {
+    test("#when the registry offers gpt-6-astra alone #then deep resolves on it at high", () => {
+      // given
+      const models = registry([model("openai", "gpt-6-astra")])
+
+      // when
+      const result = resolveCategory("deep", {}, models)
+
+      // then
+      expect(result.kind).toBe("resolved")
+      if (result.kind !== "resolved") throw new Error("Expected resolved")
+      expect(result.spec.provider).toBe("openai")
+      expect(result.spec.modelId).toBe("gpt-6-astra")
+      expect(result.spec.variant).toBe("high")
+      expect(result.availableCategories).toContain("deep")
+    })
+
+    test("#when the registry offers gpt-5.6-sol alone #then deep falls back to the sol rung at medium", () => {
       // given
       const models = registry([model("openai", "gpt-5.6-sol")])
 
@@ -230,6 +262,18 @@ describe("category activation gating", () => {
     test("#when ultrabrain resolves #then an unrelated vendor model must not open the sol gate", () => {
       // given
       const models = registry([model("custom", "unrelated/gpt-5.6-sol")])
+
+      // when
+      const result = resolveCategory("ultrabrain", {}, models)
+
+      // then
+      expect(result.kind).toBe("model_unavailable")
+      expect(result.availableCategories).not.toContain("ultrabrain")
+    })
+
+    test("#when ultrabrain resolves #then an unrelated vendor model must not open the astra gate", () => {
+      // given
+      const models = registry([model("custom", "unrelated/gpt-6-astra")])
 
       // when
       const result = resolveCategory("ultrabrain", {}, models)

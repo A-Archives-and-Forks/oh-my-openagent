@@ -19,6 +19,11 @@ export const CATEGORY_FALLBACK_CHAINS: Readonly<Record<string, readonly Delegate
     { providers: ["zai-coding-plan", "opencode-go"], model: "glm-5.2", variant: "max" },
     {
       providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+      model: "gpt-6-astra",
+      variant: "high",
+    },
+    {
+      providers: ["openai", "openai-codex", "github-copilot", "opencode"],
       model: "gpt-5.6-sol",
       variant: "medium",
     }
@@ -31,11 +36,19 @@ export const CATEGORY_FALLBACK_CHAINS: Readonly<Record<string, readonly Delegate
     }
   ],
   ultrabrain: [
+    { providers: ["openai", "openai-codex"], model: "gpt-6-astra", variant: "max" },
+    { providers: ["github-copilot"], model: "gpt-6-astra", variant: "max" },
+    { providers: ["openai", "openai-codex", "opencode"], model: "gpt-6-astra", variant: "max" },
     { providers: ["openai", "openai-codex"], model: "gpt-5.6-sol", variant: "max" },
     { providers: ["github-copilot"], model: "gpt-5.6-sol", variant: "max" },
     { providers: ["openai", "openai-codex", "opencode"], model: "gpt-5.6-sol", variant: "max" }
   ],
   deep: [
+    {
+      providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+      model: "gpt-6-astra",
+      variant: "high",
+    },
     {
       providers: ["openai", "openai-codex", "github-copilot", "opencode"],
       model: "gpt-5.6-sol",
@@ -98,6 +111,11 @@ export const CATEGORY_FALLBACK_CHAINS: Readonly<Record<string, readonly Delegate
     { providers: ["xiaomi", "opencode-go"], model: "mimo-v2.5-pro", variant: "max" }
   ],
   "unspecified-high": [
+    {
+      providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+      model: "gpt-6-astra",
+      variant: "high",
+    },
     {
       providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
       model: "claude-opus-5",
