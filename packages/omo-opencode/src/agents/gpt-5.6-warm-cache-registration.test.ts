@@ -27,7 +27,7 @@ describe("Momus GPT-5.6 warm-cache registration", () => {
     const config = pendingAgentConfigs.get("momus")
 
     // then
-    expect(config?.model).toBe("github-copilot/gpt-5.6-terra")
+    expect(config?.model).toBe("github-copilot/gpt-6-astra")
     expect(config?.variant).toBe("high")
   })
 })
