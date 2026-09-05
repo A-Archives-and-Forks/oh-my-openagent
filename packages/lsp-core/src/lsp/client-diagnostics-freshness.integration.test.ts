@@ -9,6 +9,7 @@ import {
 	diagnostic,
 	readEvents,
 	waitForEventCount,
+	waitForEventCountBySubscription,
 } from "./workspace-apply-edit-test-support.js";
 
 const harness = createWorkspaceEditTestHarness();
@@ -249,7 +250,7 @@ describe("LspClient diagnostics freshness", () => {
 		);
 
 		const pending = context.client.diagnostics(context.source);
-		const [delivery] = await waitForEventCount(
+		const [delivery] = await waitForEventCountBySubscription(
 			context.events,
 			(event) => event.type === "clientResponse" && event.method === "workspace/configuration",
 			1,
