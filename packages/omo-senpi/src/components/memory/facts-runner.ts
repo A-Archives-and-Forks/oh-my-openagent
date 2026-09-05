@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 import { existsSync } from "@oh-my-opencode/memory-core/fs"
 import { basename, join } from "node:path"
+import type { ChildModelRegistry } from "@oh-my-opencode/senpi-task"
 
 import {
   FactsFailureStore,
@@ -31,7 +32,7 @@ const WRITER_WAIT_MS = 2_000
 
 export type { FactsExtractorRunnerOptions, FactsLaunchResult } from "./facts-runner-types"
 import type { FactsExtractorRunnerOptions, FactsFinalRecord, FactsLaunchResult, FactsRunLedger } from "./facts-runner-types"
-import { describe, finalResult, queueKeys, reserveFactsRunDir } from "./facts-run-storage"
+import { describe, FACTS_DEADLINE_MS, finalResult, queueKeys, reserveFactsRunDir } from "./facts-run-storage"
 import { finalizeClaimedFactsRun } from "./facts-run-finalize"
 import { reconcileFactsRuns } from "./facts-run-reconcile"
 import { sweepTerminalFactsRuns } from "./facts-run-cleanup"
@@ -43,6 +44,7 @@ export class FactsExtractorRunner {
   private readonly terminal: FactsTerminalWrites
   private readonly failureReader: FactsFailureReadPort
   private activeLaunch: Promise<FactsLaunchResult> | undefined
+  private activeState: { cancel?: () => void } | undefined
 
   constructor(private readonly options: FactsExtractorRunnerOptions) {
     this.queue = options.queue ?? new FactsQueue({ identityPaths: options.identity.paths })
@@ -70,8 +72,16 @@ export class FactsExtractorRunner {
     try {
       return await operation
     } finally {
-      if (this.activeLaunch === operation) this.activeLaunch = undefined
+      if (this.activeLaunch === operation) {
+        this.activeLaunch = undefined
+        this.activeState = undefined
+      }
     }
+  }
+
+  async cancelActive(): Promise<void> {
+    this.activeState?.cancel?.()
+    await this.activeLaunch
   }
 
   async reconcilePending(signal?: AbortSignal): Promise<FactsLaunchResult> {
@@ -97,14 +107,16 @@ export class FactsExtractorRunner {
     if (selection.selected.length === 0) return { status: "empty" }
     const entries: readonly FactsQueueEntry[] = selection.selected
     const loaded = this.options.loadConfig()
-    const resolution = resolveReflectionModel("quick", loaded.config, this.options.resolveModelRegistry())
+    const modelRegistry = this.options.resolveModelRegistry()
+    const resolution = resolveReflectionModel("quick", loaded.config, modelRegistry)
+    const childModelRegistry = isChildModelRegistry(modelRegistry) ? modelRegistry : undefined
     // `category_unavailable` is not the only unavailable answer. resolveReflectionModel also has a
     // beyond-category ladder (registry_fallback / session_inherit) that resolves ANY usable registry
     // model when the quick chain is dead, and it marks those resolutions with a `source`.
     // Category-sourced resolutions carry no `source`. This surface is quick-PINNED with no fallback:
     // an unattended extraction must never land on an arbitrary, possibly frontier-priced model, so
     // anything outside the category counts as unavailable and takes the same skip path.
-    if (resolution.kind === "category_unavailable" || resolution.source !== undefined) {
+    if (childModelRegistry === undefined || resolution.kind === "category_unavailable" || resolution.source !== undefined) {
       const cause = resolution.kind === "category_unavailable" ? resolution.cause : resolution.source
       this.options.logger?.warn("facts extractor quick category unavailable", { cause })
       await this.terminal.preflightFail(
@@ -153,7 +165,7 @@ export class FactsExtractorRunner {
       entries: batch,
       batchId,
       launchedAt,
-      deadlineMs: this.options.deadlineMs,
+      deadlineMs: this.options.deadlineMs ?? FACTS_DEADLINE_MS,
       terminationGraceMs: this.options.terminationGraceMs,
     })
     if (runDir === undefined) return { status: "active" }
@@ -161,18 +173,26 @@ export class FactsExtractorRunner {
     const payload: FactsPayload = { ...envelope, entries: batch }
     if (isAborted()) return { status: "skipped" }
     try {
-      await launchFactsInProcess({
+      const cancelled = await launchFactsInProcess({
         runId,
         runDir,
         payload,
         resolution,
+        modelRegistry: childModelRegistry,
         options: this.options,
         env: this.options.env ?? process.env,
         configSources: loaded.sources,
         batchId,
         queued: queueKeys(batch),
         launchedAt,
+        deadlineMs: this.options.deadlineMs ?? FACTS_DEADLINE_MS,
+        onState: (state) => { this.activeState = state },
       })
+      if (cancelled) {
+        const ledger = await readRunJson<FactsRunLedger>(join(runDir, "ledger.json"))
+        await this.terminal.abandon(runDir, ledger, "session_shutdown")
+        return { status: "failed", runId }
+      }
     } catch (error) {
       const reason: FactsFailureReason = "child_exit"
       await this.terminal.fail({
@@ -268,4 +288,9 @@ export class FactsExtractorRunner {
     })
   }
 
+}
+
+function isChildModelRegistry(value: unknown): value is ChildModelRegistry {
+  return value !== null && typeof value === "object" && "getProviderAuth" in value
+    && typeof value.getProviderAuth === "function"
 }
