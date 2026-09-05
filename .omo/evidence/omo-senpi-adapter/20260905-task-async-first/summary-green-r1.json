@@ -1,0 +1,41 @@
+{
+  "rollup": {
+    "variant": "new",
+    "request": "r1",
+    "samples": 3,
+    "background": 0,
+    "foreground_or_mixed": 0,
+    "no_task_call": 0,
+    "http_errors": 3
+  },
+  "rows": [
+    {
+      "sample": 1,
+      "ms": 284,
+      "http": 429,
+      "verdict": "http_429",
+      "task_calls": [],
+      "other_tool_calls": [],
+      "message_text": "{\"detail\":\"Rate limit exceeded\"}"
+    },
+    {
+      "sample": 2,
+      "ms": 119,
+      "http": 429,
+      "verdict": "http_429",
+      "task_calls": [],
+      "other_tool_calls": [],
+      "message_text": "{\"detail\":\"Rate limit exceeded\"}"
+    },
+    {
+      "sample": 3,
+      "ms": 130,
+      "http": 429,
+      "verdict": "http_429",
+      "task_calls": [],
+      "other_tool_calls": [],
+      "message_text": "{\"detail\":\"Rate limit exceeded\"}"
+    }
+  ],
+  "request_text": "We are in the oh-my-openagent monorepo (packages/senpi-task, packages/omo-senpi, packages/omo-opencode). Three independent research tracks, then a combined report: (1) find every test file under packages/senpi-task that uses fixed sleeps or timers to wait for async behavior and list them with line numbers; (2) explain how packages/omo-opencode delivers background task completions to the parent session, citing files; (3) list every changes.md and CHANGELOG.md tracker in the repo with the path each one covers. Hand each track to a subagent, then write the combined report. Also: I want the ultrabrain category to review the combined report before you finish."
+}
