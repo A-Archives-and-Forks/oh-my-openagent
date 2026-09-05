@@ -6,7 +6,8 @@ import { resolveModelWithFallback } from "./model-resolver"
 describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
   test("ultrabrain, deep, and unspecified-high prefer Copilot Astra when available", () => {
     const availableModels = new Set(["github-copilot/gpt-6-astra", "github-copilot/gpt-5.6-sol"])
-    for (const requirement of [CATEGORY_MODEL_REQUIREMENTS.ultrabrain, CATEGORY_MODEL_REQUIREMENTS.deep, CATEGORY_MODEL_REQUIREMENTS["unspecified-high"]]) {
+    expect(resolveModelWithFallback({ fallbackChain: CATEGORY_MODEL_REQUIREMENTS.ultrabrain.fallbackChain, availableModels, systemDefaultModel: "system/default" })).toMatchObject({ model: "github-copilot/gpt-6-astra", variant: "max" })
+    for (const requirement of [CATEGORY_MODEL_REQUIREMENTS.deep, CATEGORY_MODEL_REQUIREMENTS["unspecified-high"]]) {
       expect(resolveModelWithFallback({ fallbackChain: requirement.fallbackChain, availableModels, systemDefaultModel: "system/default" })).toMatchObject({ model: "github-copilot/gpt-6-astra", variant: "high" })
     }
   })
@@ -32,7 +33,7 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
     {
       name: "ultrabrain",
       requirement: CATEGORY_MODEL_REQUIREMENTS.ultrabrain,
-      expectedModel: "github-copilot/gpt-5.6-sol",
+      expectedModel: "github-copilot/gpt-6-astra",
       expectedVariant: "max",
     },
     {

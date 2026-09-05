@@ -169,6 +169,11 @@ describe("category routing policy", () => {
     // then
     expect(highChain).toEqual([
       {
+        providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+        model: "gpt-6-astra",
+        variant: "high",
+      },
+      {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
         model: "claude-opus-5",
         variant: "xhigh",
