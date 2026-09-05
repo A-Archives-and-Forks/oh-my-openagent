@@ -228,9 +228,9 @@ You can override specific agents or categories in your config:
 
 **GPT models** (explicit reasoning, principle-driven):
 
-- GPT-6 Astra — OpenAI's most capable model; default for `ultrabrain` (max), `deep` (high), and `unspecified-high` (high), with `gpt-6-astra-fast` as the Fast-mode variant
+- GPT-6 Astra — OpenAI's most capable model; default for Momus (xhigh, high on Copilot), `ultrabrain` (max), `deep` (high), and `unspecified-high` (high), with `gpt-6-astra-fast` as the Fast-mode variant
 - GPT-5.6 Sol — default for Hephaestus at medium effort; the fallback rung under Astra for `ultrabrain` (max) and `deep` (medium)
-- GPT-5.6 Terra — balanced mid-tier; preferred for Momus (high) and available as an explicit override elsewhere
+- GPT-5.6 Terra — balanced mid-tier; an explicit override, no longer a default for any agent
 - Grok 4.6 — default for the `unspecified-low` category (xhigh)
 - GPT-5.6 Sol override paths — deep coding powerhouse, default for Oracle and the first GPT fallback for GPT-5.6-native roles
 - GPT 5.6 Luna Fast — fast and cheap utility fallback after the Kimi high-speed quick default

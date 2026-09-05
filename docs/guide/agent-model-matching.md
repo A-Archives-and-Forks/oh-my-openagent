@@ -158,7 +158,7 @@ You don't need every provider. You need the right two.
 | Subscription | Cost | What You Get | Covers |
 |---|---|---|---|
 | **OpenCode Go** | $10/mo | `kimi-k3`, `glm-5.2`, `minimax-m2.5`, `minimax-m2.7`, `minimax-m3`, `mimo-v2-pro`, `qwen3.7-plus`, `qwen3.6-plus` | Claude-family alternatives (Kimi, GLM), Gemini-family alternatives (Qwen), utility/retrieval (MiniMax) |
-| **OpenAI Plus/Pro** | $20+/mo | `gpt-6-astra`, `gpt-6-astra-fast`, `gpt-5.4`, `gpt-5.4-pro`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna` | GPT-native agents (Hephaestus, Oracle, Momus), GPT-6 Astra category defaults (`deep`, `ultrabrain`, `unspecified-high`), GPT fallbacks for model-flexible agents |
+| **OpenAI Plus/Pro** | $20+/mo | `gpt-6-astra`, `gpt-6-astra-fast`, `gpt-5.4`, `gpt-5.4-pro`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna` | GPT-native agents (Hephaestus, Oracle, Momus on GPT-6 Astra), GPT-6 Astra category defaults (`deep`, `ultrabrain`, `unspecified-high`), GPT fallbacks for model-flexible agents |
 
 ### Why this specific combination
 
@@ -250,13 +250,13 @@ The priorities below include manual model choices. They are not a literal copy o
 
 ### GPT Family (principle-driven, autonomous)
 
-Used by: Hephaestus, Oracle, Momus, `deep`, `ultrabrain`, `unspecified-high` (top rung), `quick`, Atlas (GPT path). `unspecified-low` falls back to GPT-5.6 Terra after Grok 4.6.
+Used by: Hephaestus, Oracle, Momus (GPT-6 Astra), `deep`, `ultrabrain`, `unspecified-high` (top rung), `quick`, Atlas (GPT path). `unspecified-low` falls back to GPT-5.6 Terra after Grok 4.6.
 
 | Priority | Model | Provider | Why |
 |---|---|---|---|
-| 1 | **`gpt-6-astra` (high / xhigh / max) - RECOMMENDED GPT FLAGSHIP** | `openai`, `openai-codex`, `github-copilot`, `opencode` | OpenAI's most capable model, 1,050,000-token context. Default for `ultrabrain` (max), `deep` (high), and `unspecified-high` (high). Reasoning efforts are low/medium/high/xhigh/max; `none` and `minimal` aren't supported and map to low. `gpt-6-astra-fast` is the Fast-mode variant. Available as a manual override for Hephaestus, Oracle, and Momus. |
+| 1 | **`gpt-6-astra` (high / xhigh / max) - RECOMMENDED GPT FLAGSHIP** | `openai`, `openai-codex`, `github-copilot`, `opencode` | OpenAI's most capable model, 1,050,000-token context. Default for Momus (xhigh, high on Copilot), `ultrabrain` (max), `deep` (high), and `unspecified-high` (high). Reasoning efforts are low/medium/high/xhigh/max; `none` and `minimal` aren't supported and map to low. `gpt-6-astra-fast` is the Fast-mode variant. Available as a manual override for Hephaestus and Oracle. |
 | 1 | `gpt-5.6-sol` (xhigh / high / medium) | `openai`, `openai-codex`, `github-copilot`, `opencode` | The GPT-5.6 flagship and the automatic fallback rung under Astra in the GPT categories. Default for Hephaestus and Oracle. |
-| 1 | `gpt-5.6-terra` (xhigh / high) | `openai`, `openai-codex`, `github-copilot` | GPT-5.6 mid-tier. Default for Momus (high) and an optional balanced override elsewhere. |
+| 1 | `gpt-5.6-terra` (xhigh / high) | `openai`, `openai-codex`, `github-copilot` | GPT-5.6 mid-tier. No longer a default for any agent; an optional balanced override. |
 | 1 | `gpt-5.6-luna` (xhigh) | `openai`, `openai-codex` | GPT-5.6 light tier. Not the `unspecified-low` default; that category now starts at Grok 4.6. |
 | 2 | `gpt-5.4` / `gpt-5.4-pro` (pro / xhigh / high / medium) | `openai`, `github-copilot`, `opencode` | Previous flagship generation available as an explicit manual or catalog choice, not an active Hephaestus fallback. |
 | 3 | **DeepSeek — LIMITED ALTERNATIVE** (`deepseek-v4-pro`) | `deepseek`, `opencode-go` | Approved in the `unspecified-low` fallback chain, but not a substitute for the GPT-only (Astra, then Sol) `deep` category. |
@@ -308,7 +308,7 @@ Exact current runtime chains from [`agent-model-requirements.ts`](../../packages
 | **multimodal-looker** | `gpt-5.6-sol` | `openai\|openai-codex\|opencode/gpt-5.6-sol (low)` → `opencode-go/kimi-k3` → `zai-coding-plan/glm-4.6v` → `openai\|openai-codex\|github-copilot\|opencode/gpt-5-nano`
 | **prometheus** | `claude-fable-5` | `anthropic\|github-copilot\|opencode/claude-fable-5 (xhigh)` → `opencode-go\|kimi-for-coding\|moonshotai\|opencode/kimi-k3 (max)`
 | **metis** | `claude-opus-5` | `anthropic\|github-copilot\|opencode/claude-opus-5 (high)` → `opencode-go\|kimi-for-coding\|moonshotai\|opencode/kimi-k3 (low)`
-| **momus** | `gpt-5.6-terra` | `openai\|openai-codex/gpt-5.6-terra (high)` → `github-copilot/gpt-5.6-terra (high)` → `openai\|openai-codex\|opencode/gpt-5.6-sol (xhigh)` → `github-copilot/gpt-5.6-sol (high)` → `anthropic\|github-copilot\|opencode/claude-opus-5 (max)` → `google\|github-copilot\|opencode/gemini-3.1-pro (high)` → `opencode-go/glm-5.2`
+| **momus** | `gpt-6-astra` | `openai\|openai-codex/gpt-6-astra (xhigh)` → `github-copilot/gpt-6-astra (high)` → `openai\|openai-codex\|opencode/gpt-6-astra (high)` → `anthropic\|github-copilot\|opencode/claude-opus-5 (max)` → `google\|github-copilot\|opencode/gemini-3.1-pro (high)` → `opencode-go/glm-5.2`
 | **atlas** | `claude-sonnet-5` | `anthropic\|github-copilot\|opencode/claude-sonnet-5` → `opencode-go/kimi-k3` → `openai\|openai-codex\|github-copilot\|opencode/gpt-5.6-sol (medium)` → `opencode-go/minimax-m3` → `minimax-coding-plan\|minimax-cn-coding-plan/MiniMax-M3` → `opencode-go/minimax-m2.7`
 | **sisyphus-junior** | `claude-sonnet-5` | `anthropic\|github-copilot\|opencode/claude-sonnet-5` → `opencode-go/kimi-k3` → `openai\|openai-codex\|github-copilot\|opencode/gpt-5.6-sol (medium)` → `opencode-go/minimax-m3` → `minimax-coding-plan\|minimax-cn-coding-plan/MiniMax-M3` → `opencode-go/minimax-m2.7` → `opencode/big-pickle`
 
@@ -335,9 +335,9 @@ Principle-driven, explicit reasoning, deep technical capability. Best for agents
 
 | Model             | Strengths                                                                                       |
 | ----------------- | ----------------------------------------------------------------------------------------------- |
-| **GPT-6 Astra**   | OpenAI's most capable model and the recommended GPT flagship. Default for `ultrabrain` (max), `deep` (high), and `unspecified-high` (high). Efforts low/medium/high/xhigh/max; `gpt-6-astra-fast` is the Fast-mode variant. Manual override option for GPT-native agents. |
+| **GPT-6 Astra**   | OpenAI's most capable model and the recommended GPT flagship. Default for Momus (xhigh, high on Copilot), `ultrabrain` (max), `deep` (high), and `unspecified-high` (high). Efforts low/medium/high/xhigh/max; `gpt-6-astra-fast` is the Fast-mode variant. Manual override option for the other GPT-native agents. |
 | **GPT-5.6 Sol**   | The GPT-5.6 flagship. Default for Hephaestus; the fallback rung under Astra in `ultrabrain` and `deep`. |
-| **GPT-5.6 Terra** | GPT-5.6 mid-tier. Default for Momus (high) and an optional balanced override elsewhere. |
+| **GPT-5.6 Terra** | GPT-5.6 mid-tier. No longer a default for any agent; an optional balanced override. |
 | **GPT-5.6 Luna**  | GPT-5.6 light tier. No longer the `unspecified-low` default (that is Grok 4.6 xhigh). |
 | **GPT-5.6 Sol override paths** | High intelligence, strategic reasoning. Default for Oracle and a key fallback for Atlas. |
 | **GPT 5.6 Luna Fast**  | Fast + strong reasoning. Utility fallback after the Kimi high-speed quick default. |

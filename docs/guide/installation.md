@@ -240,7 +240,7 @@ Map their answer to:
    - **no** → `--claude=no`
 
 2. **Do you have an OpenAI/ChatGPT Plus Subscription?**
-   - **yes** → `--openai=yes` (enables OpenAI routes; the `ultrabrain` (max), `deep` (high), and `unspecified-high` (high) categories start on GPT-6 Astra, Hephaestus prefers GPT-5.6 Sol, and Momus prefers GPT-5.6 Terra, both falling back to GPT-5.6 Sol)
+   - **yes** → `--openai=yes` (enables OpenAI routes; the `ultrabrain` (max), `deep` (high), and `unspecified-high` (high) categories start on GPT-6 Astra, Momus starts on GPT-6 Astra (xhigh), and Hephaestus prefers GPT-5.6 Sol)
    - **no** → `--openai=no` (default)
 
 3. **Will you integrate Gemini models?**
@@ -599,11 +599,11 @@ Not all models behave the same way. Understanding "similar" families helps you m
 
 | Model             | Provider(s)                      | Notes                                                                                                       |
 | ----------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| **GPT-6 Astra**   | openai, openai-codex, github-copilot, opencode | OpenAI's most capable model and the recommended GPT flagship. Default for `ultrabrain` (max), `deep` (high), and `unspecified-high` (high). `gpt-6-astra-fast` is the Fast-mode variant. Manual override option for Hephaestus, Oracle, and Momus. |
+| **GPT-6 Astra**   | openai, openai-codex, github-copilot, opencode | OpenAI's most capable model and the recommended GPT flagship. Default for Momus (xhigh, high on Copilot), `ultrabrain` (max), `deep` (high), and `unspecified-high` (high). `gpt-6-astra-fast` is the Fast-mode variant. Manual override option for Hephaestus and Oracle. |
 | **GPT-5.6 Sol**   | openai, openai-codex, github-copilot, opencode | Default for Hephaestus at medium effort; the fallback rung under Astra for `ultrabrain` (max) and `deep` (medium). |
-| **GPT-5.6 Terra** | openai, openai-codex, github-copilot | GPT-5.6 mid-tier. Default for Momus (high) and an optional balanced override elsewhere.                    |
+| **GPT-5.6 Terra** | openai, openai-codex, github-copilot | GPT-5.6 mid-tier. No longer a default for any agent; an optional balanced override.                    |
 | **GPT-5.6 Luna**  | openai, openai-codex             | GPT-5.6 light tier. Not the `unspecified-low` default: that category starts at `xai\|github-copilot\|opencode/grok-4.6 (xhigh)`, then `gpt-5.6-terra (high)`. |
-| **GPT-5.6 Sol override paths** | openai, openai-codex, github-copilot, opencode | Default for Oracle and the first GPT-5.6 Sol-family fallback for Hephaestus, Momus, `deep`, and `ultrabrain`. |
+| **GPT-5.6 Sol override paths** | openai, openai-codex, github-copilot, opencode | Default for Oracle and the first GPT-5.6 Sol-family fallback for Hephaestus, `deep`, and `ultrabrain`. |
 | **GPT 5.6 Luna Fast**  | openai, openai-codex | Fast + strong reasoning. Utility fallback after the Kimi high-speed quick default.                  |
 | **GPT-5-Nano**    | openai, openai-codex, github-copilot, opencode | Ultra-cheap, fast. Good for simple utility tasks.                                                           |
 
@@ -651,7 +651,7 @@ Priority: **Claude > GPT > Claude-like models**
 | -------------- | ---------------------- | -------------------------------------- | ------------------------------------------------------ |
 | **Hephaestus** | Deep autonomous worker | openai\|openai-codex\|github-copilot\|opencode/gpt-5.6-sol (medium) | "Codex on steroids." GPT-only chain. Requires GPT access. |
 | **Oracle**     | Architecture/debugging | openai\|openai-codex\|opencode/gpt-5.6-sol (xhigh) → github-copilot/gpt-5.6-sol (high) → google\|github-copilot\|opencode/gemini-3.1-pro (high) → anthropic\|github-copilot\|opencode/claude-opus-5 (max) → opencode-go/glm-5.2 | High-IQ strategic backup. GPT preferred. |
-| **Momus**      | High-accuracy reviewer | openai\|openai-codex/gpt-5.6-terra (high) → github-copilot/gpt-5.6-terra (high) → openai\|openai-codex\|opencode/gpt-5.6-sol (xhigh) → github-copilot/gpt-5.6-sol (high) → anthropic\|github-copilot\|opencode/claude-opus-5 (max) → google\|github-copilot\|opencode/gemini-3.1-pro (high) → opencode-go/glm-5.2 | Verification agent. GPT preferred. |
+| **Momus**      | High-accuracy reviewer | openai\|openai-codex/gpt-6-astra (xhigh) → github-copilot/gpt-6-astra (high) → openai\|openai-codex\|opencode/gpt-6-astra (high) → anthropic\|github-copilot\|opencode/claude-opus-5 (max) → google\|github-copilot\|opencode/gemini-3.1-pro (high) → opencode-go/glm-5.2 | Verification agent. GPT preferred. |
 
 **Utility Agents** (speed over intelligence — do not "upgrade" them):
 

@@ -1,3 +1,21 @@
+## 2026-09-05 — Replace momus's GPT-5.6 rungs with GPT-6 Astra
+
+Momus is the reviewer, so it gets Astra's deepest practical tier instead of the GPT-5.6 pair it used to
+lead with. Its chain now opens on `openai|openai-codex/gpt-6-astra (xhigh)`, then
+`github-copilot/gpt-6-astra (high)` because GitHub Copilot serves every Copilot GPT reasoning model
+through a backend that hangs above `high`, then `openai|openai-codex|opencode/gpt-6-astra (high)` so an
+opencode-only account still lands on Astra. The two Terra rungs and the two Sol rungs are gone rather
+than demoted — the request was a replacement — and the non-GPT tail (`claude-opus-5 (max)` →
+`gemini-3.1-pro (high)` → `glm-5.2`) is untouched and in the same order. Both independent chain
+transcriptions move together: model-core's `AGENT_MODEL_REQUIREMENTS` and senpi-task's hand-mirrored
+`AGENT_FALLBACK_CHAINS`, whose pinned length for momus drops from 7 to 6.
+
+No prompt gating change was needed: `createMomusAgent` already routes GPT-6 through `isGpt6Model` to the
+GPT-5.6-tuned prompt at high reasoning effort and high text verbosity, and the chain's `xhigh` arrives
+separately as the resolved variant. The installer's generated config follows the chain, so an
+OpenAI-only setup now writes `openai/gpt-6-astra` xhigh with `openai/gpt-6-astra` high beneath it, and a
+Copilot-only setup writes `github-copilot/gpt-6-astra` high with the Opus and Gemini rungs beneath.
+
 ## 2026-09-05 — Give ultrabrain, deep, and unspecified-high GPT-6 Astra prompt appends and make Astra their real default
 
 The three category prompt appends now have GPT-6 Astra variants in both editions
