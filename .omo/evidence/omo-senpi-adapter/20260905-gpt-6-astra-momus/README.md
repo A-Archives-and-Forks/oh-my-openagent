@@ -80,3 +80,14 @@ resolve to) instead of only the bare native id.
 - No secrets, tokens, env dumps, or auth headers appear in any artifact; the logs are test output only.
 - The remote temp directories (`/tmp/astra-momus-red`, `/tmp/astra-momus-<date>`) were deleted after the
   receipts were pulled.
+
+## bunshin receipt
+
+```
+$ rm -rf /tmp/astra-momus-red /tmp/astra-momus-20260905; echo RM_EXIT=$?; ls -d /tmp/astra-momus-* 2>&1 | head
+RM_EXIT=0
+ls: /tmp/astra-momus-*: No such file or directory
+```
+
+Machine: `mengmotaMac` (macos/aarch64, online), driven through the bunshin SDK; `bun test` and
+`bun run typecheck:packages` never ran on the authoring workstation.
