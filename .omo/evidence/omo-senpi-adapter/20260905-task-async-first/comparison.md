@@ -13,6 +13,6 @@ Real model: gpt-6-astra via the ChatGPT codex backend (senpi openai-codex path),
 | preset-only/r2 | 3 | 2 | 1 | 0 | 0 | deep:true / deep:true / deep:absent |
 | green/r2 | 3 | 3 | 0 | 0 | 0 | deep:true / deep:true / deep:true |
 | green/r3 | 3 | 3 | 0 | 0 | 0 | ultrabrain:true / ultrabrain:true / ultrabrain:true |
-| green/r1 | 3 | 0 | 0 | 0 | 3 | http_429 / http_429 / http_429 |
+| green/r1 | 3 | 3 | 0 | 0 | 0 | deep+deep+deep:True(items [True, True, True]) / deep+deep+deep:True(items [True, True, True]) / deep+deep+deep:True(items [True, True, True]) |
 
-old = senpi main preset before #1381 + omo dev task text before this PR. preset-only = senpi #1381 preset + OLD omo task text (the tool guideline "only for parallel independent work; the default waits" and the schema "false (default)" still pulled one of three spawns back). new = senpi main 82ef1fd31 (#1381) + this PR's task text. r1 new hit HTTP 429 (rate limit) on all three attempts; rerun recorded below if it completed.
+old = senpi main preset before #1381 + omo dev task text before this PR. preset-only = senpi #1381 preset + OLD omo task text (the tool guideline "only for parallel independent work; the default waits" and the schema "false (default)" still pulled one of three spawns back). new = senpi main 82ef1fd31 (#1381) + this PR's task text. r1 new first hit HTTP 429 three times; the rerun above completed 3/3 background. In every r1 sample the model set run_in_background=true on each batch item and omitted the top-level flag, which senpi-task validation hoists to a batch-wide true. old r1 is not listed: the only old-text r1 run used a stub prompt written by a subagent and was discarded.
