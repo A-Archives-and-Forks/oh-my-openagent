@@ -112,6 +112,11 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
     })
   })
 
+  test("Copilot keeps the GPT-6 Astra max tier because no Copilot cap applies", () => {
+    const entries = CATEGORY_MODEL_REQUIREMENTS.ultrabrain.fallbackChain.filter(({ model, providers }) => model === "gpt-6-astra" && providers.includes("github-copilot"))
+    expect(entries).toEqual([{ providers: ["github-copilot"], model: "gpt-6-astra", variant: "max" }])
+  })
+
   test("Copilot is never included in a GPT-5.6 xhigh rung", () => {
     // given
     const requirements = [
