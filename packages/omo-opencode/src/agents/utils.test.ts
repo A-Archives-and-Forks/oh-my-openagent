@@ -1284,8 +1284,8 @@ describe("buildAgent with category and skills", () => {
     const agent = resolveAgentSkills(buildAgent(source["test-agent"], TEST_MODEL))
 
     // #then - category's built-in model and skills are applied
-    expect(agent.model).toBe("openai/gpt-5.6-sol")
-    expect(agent.variant).toBe("xhigh")
+    expect(agent.model).toBe("openai/gpt-6-astra")
+    expect(agent.variant).toBe("max")
     const prompt = agent.prompt ?? ""
     const skillContent = frontendSkillContent()
     expect(prompt).toContain(skillContent)
