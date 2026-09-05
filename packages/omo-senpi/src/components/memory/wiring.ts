@@ -117,11 +117,6 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
         if (signal.aborted) return
         await flushSkillsUsageTrackers(signal)
       },
-      launchFacts: async (sessionId, signal) => {
-        const identity = resolveContext(sessionId)
-        if (identity === undefined || signal.aborted) return
-        await factsWiringFor(identity).launchIfThresholdMet(signal)
-      },
     },
   })
 
