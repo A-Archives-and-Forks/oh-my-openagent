@@ -129,6 +129,8 @@ describe("MemorianGateRunner", () => {
     let release: (() => void) | undefined
     let aborted = 0
     let disposed = 0
+    let resolveAdmitted: (() => void) | undefined
+    const admitted = new Promise<void>((resolve) => { resolveAdmitted = resolve })
     const handle: ChildHandle = {
       task_id: "cancelled",
       sessionId: "cancelled",
@@ -136,20 +138,70 @@ describe("MemorianGateRunner", () => {
       followUp: async () => undefined,
       abort: async () => { aborted += 1; release?.() },
       subscribe: () => () => undefined,
-      waitForIdle: () => new Promise((resolve) => { release = () => resolve({ status: "cancelled" }) }),
+      waitForIdle: () => {
+        const wait = new Promise<{ readonly status: "cancelled" }>((resolve) => {
+          release = () => resolve({ status: "cancelled" })
+        })
+        resolveAdmitted?.()
+        return wait
+      },
       lastAssistantText: () => undefined,
-      dispose: () => { disposed += 1 },
+      dispose: () => { if (disposed > 0) return; disposed += 1 },
     }
     const runner = new MemorianGateRunner(runnerOptions(identityPaths, {
       createRunner: () => ({ start: async () => handle }),
-      deadlineMs: 1000,
+      deadlineMs: 5000,
+    }))
+
+    // when: waitForIdle is only armed after the handle is admitted
+    const pending = runner.launch(launchInput())
+    await Promise.race([admitted, new Promise<never>((_, reject) => setTimeout(() => reject(new Error("handle was never admitted")), 5_000))])
+    await runner.cancel()
+    const result = await pending
+
+    // then
+    expect(result).toMatchObject({ status: "dropped", cause: "cancelled" })
+    expect(aborted).toBe(1)
+    expect(disposed).toBe(1)
+    expect(await new PendingNudges(identityPaths.recallPending).take(SESSION_ID, { currentEpoch: 0 })).toEqual([])
+  })
+
+  test("#given child setup is still deferred #when cancel is requested then the handle resolves #then the late handle is dropped without a pending payload", async () => {
+    // given
+    const { identityPaths } = await fixture()
+    let resolveStart: ((handle: ChildHandle) => void) | undefined
+    let resolveStarted: (() => void) | undefined
+    let resolveDisposed: (() => void) | undefined
+    let aborted = 0
+    let disposed = 0
+    const started = new Promise<void>((resolve) => { resolveStarted = resolve })
+    const lateDisposed = new Promise<void>((resolve) => { resolveDisposed = resolve })
+    const lateHandle: ChildHandle = {
+      task_id: "setup-cancelled",
+      sessionId: "setup-cancelled",
+      steer: async () => undefined,
+      followUp: async () => undefined,
+      abort: async () => { aborted += 1 },
+      subscribe: () => () => undefined,
+      waitForIdle: async () => ({ status: "cancelled" }),
+      lastAssistantText: () => undefined,
+      dispose: () => { if (disposed > 0) return; disposed += 1; resolveDisposed?.() },
+    }
+    const runner = new MemorianGateRunner(runnerOptions(identityPaths, {
+      deadlineMs: 5000,
+      createRunner: () => ({
+        start: async () => new Promise<ChildHandle>((resolve) => { resolveStart = resolve; resolveStarted?.() }),
+      }),
     }))
 
     // when
-    const pending = runner.launch(launchInput())
-    await Promise.resolve()
-    await runner.cancel()
-    const result = await pending
+    const launched = runner.launch(launchInput())
+    await Promise.race([started, new Promise<never>((_, reject) => setTimeout(() => reject(new Error("runner.start was never invoked")), 5_000))])
+    const cancelling = runner.cancel()
+    resolveStart?.(lateHandle)
+    await Promise.race([lateDisposed, new Promise<never>((_, reject) => setTimeout(() => reject(new Error("late handle was never disposed")), 5_000))])
+    await cancelling
+    const result = await launched
 
     // then
     expect(result).toMatchObject({ status: "dropped", cause: "cancelled" })
