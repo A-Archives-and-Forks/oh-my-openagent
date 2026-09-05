@@ -90,7 +90,7 @@ describe("resolveCategory", () => {
     const resolved = expectResolved(result)
     expect(resolved.spec.provider).toBe("anthropic")
     expect(resolved.spec.modelId).toBe("claude-opus-4-7")
-    expect(resolved.spec.variant).toBe("low")
+    expect(resolved.spec.variant).toBe("max")
     expect(resolved.spec.prompt_append).not.toBe("fixture-overlay")
     expect(resolved.spec.prompt_append).toEndWith("\n\nfixture-overlay")
   })
@@ -262,7 +262,7 @@ describe("resolveCategory", () => {
     const resolved = expectResolved(result)
     expect(resolved.spec.provider).toBe("openai-codex")
     expect(resolved.spec.modelId).toBe("gpt-5.6-luna-fast")
-    expect(resolved.spec.variant).toBe("max")
+    expect(resolved.spec.variant).toBe("low")
     expect(resolved.modelSelection.matchedFallback).toBe(true)
     expect(resolved.modelSelection.fallbackEntry).toEqual({
       providers: ["openai-codex"],
@@ -302,7 +302,7 @@ describe("resolveCategory", () => {
     const resolved = expectResolved(result)
     expect(resolved.spec.provider).toBe("opencode-go")
     expect(resolved.spec.modelId).toBe("kimi-k3")
-    expect(resolved.spec.variant).toBe("low")
+    expect(resolved.spec.variant).toBe("max")
     expect(resolved.modelSelection.matchedFallback).toBe(true)
     expect(resolved.modelSelection.fallbackEntry).toEqual({
       providers: ["kimi-coding", "kimi-for-coding", "moonshotai", "opencode-go"],
