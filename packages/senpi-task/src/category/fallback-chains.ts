@@ -26,7 +26,7 @@ export const CATEGORY_FALLBACK_CHAINS: Readonly<Record<string, readonly Delegate
     {
       providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
       model: "claude-fable-5-1",
-      variant: "xhigh",
+      variant: "max",
     }
   ],
   ultrabrain: [
