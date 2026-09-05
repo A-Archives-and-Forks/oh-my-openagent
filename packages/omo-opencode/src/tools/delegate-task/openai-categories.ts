@@ -1,4 +1,4 @@
-import { isGpt5_5Model, isGpt5_6Model } from "../../agents/types"
+import { isGpt5_5Model, isGpt5_6Model, isGpt6Model } from "../../agents/types"
 import type { BuiltinCategoryDefinition } from "./builtin-category-definition"
 
 const ULTRABRAIN_CATEGORY_PROMPT_APPEND = `<Category_Context>
@@ -67,7 +67,7 @@ The orchestrator chose this category because the task benefits from depth over s
 </Category_Context>`
 
 export function resolveDeepCategoryPromptAppend(model: string | undefined): string {
-  if (model && (isGpt5_5Model(model) || isGpt5_6Model(model))) {
+  if (model && (isGpt5_5Model(model) || isGpt5_6Model(model) || isGpt6Model(model))) {
     return DEEP_CATEGORY_PROMPT_APPEND_GPT_5_5
   }
   return DEEP_CATEGORY_PROMPT_APPEND

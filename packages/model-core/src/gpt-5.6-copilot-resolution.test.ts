@@ -3,7 +3,19 @@ import { describe, expect, test } from "bun:test"
 import { AGENT_MODEL_REQUIREMENTS, CATEGORY_MODEL_REQUIREMENTS } from "./model-requirements"
 import { resolveModelWithFallback } from "./model-resolver"
 
-describe("GitHub Copilot GPT-5.6 resolution", () => {
+describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
+  test("ultrabrain, deep, and unspecified-high prefer Copilot Astra when available", () => {
+    const availableModels = new Set(["github-copilot/gpt-6-astra", "github-copilot/gpt-5.6-sol"])
+    for (const requirement of [CATEGORY_MODEL_REQUIREMENTS.ultrabrain, CATEGORY_MODEL_REQUIREMENTS.deep, CATEGORY_MODEL_REQUIREMENTS["unspecified-high"]]) {
+      expect(resolveModelWithFallback({ fallbackChain: requirement.fallbackChain, availableModels, systemDefaultModel: "system/default" })).toMatchObject({ model: "github-copilot/gpt-6-astra", variant: "high" })
+    }
+  })
+
+  test("ultrabrain and deep fall back to Copilot Sol when Astra is absent", () => {
+    const availableModels = new Set(["github-copilot/gpt-5.6-sol"])
+    expect(resolveModelWithFallback({ fallbackChain: CATEGORY_MODEL_REQUIREMENTS.ultrabrain.fallbackChain, availableModels, systemDefaultModel: "system/default" })).toMatchObject({ model: "github-copilot/gpt-5.6-sol", variant: "max" })
+    expect(resolveModelWithFallback({ fallbackChain: CATEGORY_MODEL_REQUIREMENTS.deep.fallbackChain, availableModels, systemDefaultModel: "system/default" })).toMatchObject({ model: "github-copilot/gpt-5.6-sol", variant: "medium" })
+  })
   const selectionCases = [
     {
       name: "hephaestus",
