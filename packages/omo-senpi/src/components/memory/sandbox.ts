@@ -15,11 +15,6 @@ export {
 } from "./sandbox-contracts"
 export type { SandboxUsability } from "./sandbox-platform"
 
-export const SENPI_AGENT_LOCK_FILES = ["settings.json.lock", "auth.json.lock", "hooks-state.json.lock"] as const
-
-export function senpiAgentLockPaths(agentDir: string): string[] {
-  return SENPI_AGENT_LOCK_FILES.map((file) => join(agentDir, file))
-}
 
 export function buildSandboxTransform(input: {
   readonly policy: SandboxPolicy
