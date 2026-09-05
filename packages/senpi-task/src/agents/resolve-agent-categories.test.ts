@@ -98,7 +98,7 @@ describe("resolveAgent category stage", () => {
     expect(result.resolved_model?.reasoning).toBe("xhigh")
   })
 
-  test("#given a single unspecified-high category #when its chain head is available #then the agent runs on it", () => {
+  test("#given a single unspecified-high category #when only its claude-opus-5 rung is available #then the agent runs on it", () => {
     // given
     const agents = categorizedAgent(["unspecified-high"])
     const models = registry([model("anthropic", "claude-opus-5")])
@@ -146,7 +146,7 @@ describe("resolveAgent category stage", () => {
     const result = expectUnavailable(resolveAgent("categorized", agents, models))
 
     // then
-    expect(result.attemptedModel).toBe("openai/gpt-5.6-sol")
+    expect(result.attemptedModel).toBe("openai/gpt-6-astra")
   })
 
   test("#given a definition model alongside categories #when both are available #then the direct model wins", () => {
@@ -169,7 +169,7 @@ describe("resolveAgent category stage", () => {
     const result = expectUnavailable(resolveAgent("categorized", agents, undefined))
 
     // then
-    expect(result.attemptedModel).toBe("openai/gpt-5.6-sol")
+    expect(result.attemptedModel).toBe("openai/gpt-6-astra")
   })
 
   test("#given the ulw reviewer builtins #when reading their definitions #then each declares its ordered model-policy categories", () => {
@@ -189,7 +189,7 @@ describe("resolveAgent category stage", () => {
   })
 
   test("#given a category whose head model is unavailable #when a later rung wins #then requested_model is the selected model, not the head", () => {
-    // given: unspecified-high's head is anthropic/claude-opus-5; only its glm-5.3 rung exists here.
+    // given: unspecified-high's head is openai/gpt-6-astra; only its glm-5.3 rung exists here.
     const definition: AgentDefinition = { name: "probe", categories: ["unspecified-high"] }
     const glmOnlyRegistry = registry([model("zai-coding-plan", "glm-5.3")])
 
