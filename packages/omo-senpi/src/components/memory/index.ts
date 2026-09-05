@@ -84,7 +84,6 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
         ...(options.refreshStatus === undefined ? {} : { refreshStatus: options.refreshStatus }),
         // Reuse the boot snapshot: registration must not add a loadConfig() call, because the
         // enablement latch depends on the ORDER of reads across boot -> session_start -> reload.
-        toolExposure: bootConfig.tool_exposure,
       })
       wiring.registerStatic(pi, ctx)
       pi.registerEntryRenderer(MEMORY_BINDING_CUSTOM_TYPE, renderMemoryBindingEntry)

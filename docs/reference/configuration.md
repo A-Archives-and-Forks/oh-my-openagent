@@ -607,7 +607,6 @@ Configured under `memory` in `omo.json`, with per-agent overrides under `memory.
   "memory": {
     "enabled": true,
     "agent": "auto",
-    "tool_exposure": "direct",
     "reflection": { "trigger": { "step_count": 25 } },
     "nudge": { "every_user_turns": 10 },
     "dream": { "idle_minutes": 30 },
@@ -622,13 +621,8 @@ Configured under `memory` in `omo.json`, with per-agent overrides under `memory.
 | -------------------- | ---------- | ------------------------------------------------------------------------------- |
 | `enabled`            | `true`     | Master switch for the whole memory component                                     |
 | `agent`              | `"auto"`   | Which agent identity owns the memory repository                                  |
-| `tool_exposure`      | `"direct"` | `direct` registers the memory tools always-on; `search` opts into the MCP server |
 | `compile_warn_tokens`| `30000`    | Warn when the compiled memory block exceeds this many tokens                     |
 | `agents`             | `{}`       | Per-agent overrides; any block below may be overridden field by field            |
-
-`tool_exposure` defaults to `direct` deliberately. The `search` value moves the tools behind
-senpi's `tool_search` catalog through an extension-declared MCP server, which keeps the tool list
-smaller but removes memory entirely if that server fails to start.
 
 #### Reflection
 
