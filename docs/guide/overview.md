@@ -103,7 +103,7 @@ Use Hephaestus when you need deep architectural reasoning, complex debugging acr
 
 - **Multi-model orchestration.** Pure Codex is single-model. OmO routes different tasks to different models automatically. Opus 5 for orchestration and visual work. GPT-6 Astra for deep reasoning. Kimi high-speed for quick tasks. The right brain for the right job.
 - **Background agents.** Fire 5+ agents in parallel. Something Codex simply cannot do. While one agent writes code, another researches patterns, another checks documentation. Like a real dev team.
-- **Category system.** Tasks are routed by intent, not model name. `visual-engineering` starts with Claude Fable 5.1 max, then Claude Opus 5 max and Kimi K3 max. `ultrabrain` prefers GPT-6 Astra max and `deep` GPT-6 Astra high; both fall back to GPT-5.6 Sol. `artistry` starts with Claude Fable 5.1, `quick` with Kimi high-speed, `unspecified-low` with Grok 4.6, `unspecified-high` with GPT-6 Astra, and `writing` with Claude Fable 5.1 medium followed by Kimi K3 max. No manual juggling.
+- **Category system.** Tasks are routed by intent, not model name. `visual-engineering` covers visual design, UI/UX, frontend, styling, animation, and design systems. `ultrabrain` prefers GPT-6 Astra max, while `deep` handles 3D graphics, computer use, browser use, backend, logic, algorithms, CAPTCHA solving, multimodal work, and complex research. No manual juggling.
 - **Accumulated wisdom.** Subagents learn from previous results. Conventions discovered in task 1 are passed to task 5. Mistakes made early aren't repeated. The system gets smarter as it works.
 
 ### Prometheus: The Strategic Planner

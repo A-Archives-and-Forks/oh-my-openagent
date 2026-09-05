@@ -21,6 +21,8 @@ Whatever that check leaves unsettled goes in the answer as an open question with
 export const DEEP_CATEGORY_PROMPT_APPEND_GPT_6_ASTRA = `<Category_Context name="deep">
 The orchestrator routed this task here for depth: one goal, one deliverable, and the time to earn it. The exploration budget is generous: read every file involved, trace callers and dependencies in both directions, and fan out explore and librarian subagents in parallel for the questions a single read wave cannot answer, until you can explain the full mechanism you are about to change; an edit made before that point is the failure this category exists to prevent.
 
+**MUST USE \`deep\` FOR 3D GRAPHICS, COMPUTER USE, BROWSER USE, BACKEND, LOGIC, ALGORITHMS, CAPTCHA SOLVING, AND MULTIMODAL WORK.**
+
 The goal is the authorization. Choose how to reach it yourself, and when it lists numbered steps or phases, deliver all of them in this turn as one task; a proposal, a plan awaiting approval, a simplified version, or a proof of concept is unfinished work. When the steps turn out to be independent problems sharing no reasoning, do the one the goal centers on and return the others as separately delegable items with what you learned. A question ends your turn and hands the task back unfinished, so decide from context, record each assumption in the final message, and stop early only for a blocker you cannot route around: a missing secret, a decision only the user can make, or three materially different attempts that all failed.
 
 Fix the cause: trace at least two levels above the symptom before settling, and prefer the change that makes the failure impossible over the guard that hides it. Depth means understanding the mechanism, so the diff stays as small as the fix allows; on greenfield work choose strong defaults and finish something you would hand to a senior engineer. Close with the delivered change, the evidence that it works, and the assumptions you made.
@@ -59,6 +61,8 @@ You are working on GOAL-ORIENTED AUTONOMOUS tasks.
 
 You are NOT an interactive assistant. You are an autonomous problem-solver.
 
+**MUST USE \`deep\` FOR 3D GRAPHICS, COMPUTER USE, BROWSER USE, BACKEND, LOGIC, ALGORITHMS, CAPTCHA SOLVING, AND MULTIMODAL WORK.**
+
 BEFORE making ANY changes:
 1. Silently explore the codebase extensively (5-15 minutes of reading is normal)
 2. Read related files, trace dependencies, understand the full context
@@ -77,6 +81,8 @@ Minimal status updates. Focus on results, not play-by-play. Report completion wi
 
 export const DEEP_CATEGORY_PROMPT_APPEND_GPT_5_5 = `<Category_Context name="deep">
 You are operating in DEEP mode. This is the category reserved for goal-oriented autonomous work on hairy problems that reward thorough exploration and comprehensive solutions.
+
+**MUST USE \`deep\` FOR 3D GRAPHICS, COMPUTER USE, BROWSER USE, BACKEND, LOGIC, ALGORITHMS, CAPTCHA SOLVING, AND MULTIMODAL WORK.**
 
 The orchestrator chose this category because the task benefits from depth over speed. You should feel empowered to spend the time needed: five to fifteen minutes of silent exploration before the first edit is normal and correct. Rushing to implementation on a deep task is a failure mode, not a feature.
 
@@ -165,7 +171,7 @@ export const OPENAI_CATEGORIES: BuiltinCategoryDefinition[] = [
   {
     name: "deep",
     config: { model: "openai/gpt-6-astra", variant: "high" },
-    description: "Goal-oriented autonomous problem-solving on hairy problems requiring deep research. ONE goal + ONE deliverable per call — multiple goals must fan out as parallel `deep` calls, never bundled into one.",
+    description: "**MANDATORY: USE deep FOR 3D GRAPHICS, COMPUTER USE, BROWSER USE, BACKEND, LOGIC, ALGORITHMS, CAPTCHA SOLVING, AND MULTIMODAL WORK.** Deep autonomous problem-solving for complex research. ONE goal + ONE deliverable per call — multiple goals must fan out as parallel `deep` calls, never bundled into one.",
     promptAppend: DEEP_CATEGORY_PROMPT_APPEND,
     resolvePromptAppend: resolveDeepCategoryPromptAppend,
     requiresModel: GPT_FLAGSHIP_GATE_MODELS,

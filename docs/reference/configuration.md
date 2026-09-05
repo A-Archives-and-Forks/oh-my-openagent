@@ -349,9 +349,9 @@ Domain-specific model delegation used by the `task()` tool. When Sisyphus delega
 
 | Category             | Default Model                   | Description                                    |
 | -------------------- | ------------------------------- | ---------------------------------------------- |
-| `visual-engineering` | `anthropic/claude-fable-5-1` (max) | Frontend, UI/UX, design, animation            |
+| `visual-engineering` | `anthropic/claude-fable-5-1` (max) | Visual design, UI/UX, frontend, styling, animation, design systems |
 | `ultrabrain`         | `openai/gpt-6-astra` (max)      | Deep logical reasoning, complex architecture. Falls back to `gpt-5.6-sol` (max). |
-| `deep`               | `openai/gpt-6-astra` (high)     | Autonomous problem-solving, thorough research. Falls back to `gpt-5.6-sol` (medium). |
+| `deep`               | `openai/gpt-6-astra` (high)     | 3D graphics, computer use, browser use, backend, logic, algorithms, CAPTCHA solving, multimodal, and complex research. Falls back to `gpt-5.6-sol` (medium). |
 | `artistry`           | `anthropic/claude-fable-5` (xhigh) | Creative/unconventional approaches             |
 | `quick`              | `kimi-for-coding/kimi-for-coding-highspeed` | Trivial tasks, typo fixes, single-file changes |
 | `unspecified-low`    | `xai/grok-4.6` (xhigh)          | General tasks, low effort                      |
