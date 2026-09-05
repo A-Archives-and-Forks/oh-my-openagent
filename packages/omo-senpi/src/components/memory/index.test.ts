@@ -155,7 +155,7 @@ describe("createMemoryComponent", () => {
     ])
     // Direct registration is the default surface so memory always works; the exposure-search MCP
     // variant is an explicit opt-in asserted in tool-surface.test.ts.
-    expect(pi.tools.map((tool) => tool.name)).toEqual(["memory", "memory_apply_patch"])
+    expect(pi.tools.map((tool) => tool.name)).toEqual(["memory"])
     expect(pi.mcpServers.map((server) => server.name)).toEqual([])
     expect(pi.entries).toEqual([{
       customType: MEMORY_BINDING_CUSTOM_TYPE,

@@ -37,7 +37,6 @@ function outputPathsIn(root) {
     outputPath: join(root, "omo.js"),
     taskOutputPath: join(root, "omo-task.js"),
     memberOutputPath: join(root, "omo-member.js"),
-    memoryMcpOutputPath: join(root, "omo-memory-mcp.js"),
     supervisorOutputPath: join(root, "memory-run-supervisor.mjs"),
     advisorRuntimeOutputPath: join(root, "omo-init-deep-advisor.js"),
   }
@@ -78,11 +77,10 @@ describe("checkExtensionCurrent", () => {
     const outputs = await sharedOutputs()
 
     // when
-    const mcp = await readFile(outputs.memoryMcpOutputPath, "utf8")
     const supervisor = await readFile(outputs.supervisorOutputPath, "utf8")
 
     // then (Node's ESM loader strips a shebang only at byte 0; a marker above it breaks startup)
-    for (const text of [mcp, supervisor]) {
+    for (const text of [supervisor]) {
       expect(text.startsWith("#!/usr/bin/env node\n")).toBe(true)
       expect(text.indexOf("\n// omo:")).toBeGreaterThan(0)
     }
@@ -90,7 +88,6 @@ describe("checkExtensionCurrent", () => {
     const check = await checkExtensionCurrent({
       outputPath: outputs.outputPath,
       memberOutputPath: outputs.memberOutputPath,
-      memoryMcpOutputPath: outputs.memoryMcpOutputPath,
       supervisorOutputPath: outputs.supervisorOutputPath,
     })
     // Compare the whole result so a failure names the stale artifact instead of printing "false".

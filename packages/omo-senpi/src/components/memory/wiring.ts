@@ -61,17 +61,6 @@ export function createMemoryWiring(options: MemoryWiringOptions): MemoryWiring {
       const override = settings.agents[identity]?.soul
       return override?.edit_notice ?? settings.soul.edit_notice
     },
-    resolveWriteNotice: (identity) => {
-      // Presentation must never depend on config health, matching the direct surface's gate:
-      // an unreadable config keeps the default on.
-      try {
-        const settings = resolveMemorySettings(options.loadConfig({ cwd: options.cwd() }).config.memory)
-        const override = settings.agents[identity]?.write_notice
-        return override?.enabled ?? settings.write_notice.enabled
-      } catch {
-        return true
-      }
-    },
   })
 
   // Late-bound because the two wirings are mutually dependent by design: recall's drain needs the
