@@ -1,18 +1,9 @@
-import type { EntryRenderer } from "@code-yeongyu/senpi"
 import { touchesSoulPath, type MemoryToolCommit } from "@oh-my-opencode/memory-core"
 
 import type { MemoryExtensionAPI } from "./capabilities"
 import type { MemoryIdentityContext } from "./context"
-import { renderMemoryWriteNotice } from "./memory-write-render"
 import { SOUL_UPDATED_ENTRY_TYPE, renderSoulUpdatedEntry, type SoulUpdatedRecord } from "./soul-notice"
-import type { MemoryWriteNotice } from "./tools"
 
-export const MEMORY_WRITE_UPDATED_ENTRY_TYPE = "omo-memory:write-updated"
-
-export const renderMemoryWriteUpdatedEntry: EntryRenderer<MemoryWriteNotice> = (entry, options, theme) => {
-  const record = entry.data
-  return record === undefined ? undefined : renderMemoryWriteNotice(record, options, theme, Date.now())
-}
 export interface MemoryNoticeWiringOptions {
   readonly resolveContext: (sessionId: string) => MemoryIdentityContext | undefined
   readonly resolveEditNotice: (identity: string) => boolean
