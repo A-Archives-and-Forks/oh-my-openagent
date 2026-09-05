@@ -4,6 +4,31 @@ import { getModelCapabilities } from "./model-capabilities"
 import { resolveCompatibleModelSettings } from "./model-settings-compatibility"
 
 describe("resolveCompatibleModelSettings", () => {
+  test("keeps GPT-6 Astra max and maps unsupported effort aliases while dropping temperature", () => {
+    const result = resolveCompatibleModelSettings({
+      providerID: "openai",
+      modelID: "gpt-6-astra",
+      desired: { variant: "max", reasoningEffort: "none", temperature: 0.2 },
+    })
+
+    expect(result).toEqual({
+      variant: "max",
+      reasoningEffort: "low",
+      temperature: undefined,
+      changes: [
+        { field: "reasoningEffort", from: "none", to: "low", reason: "unsupported-by-model-family" },
+        { field: "temperature", from: "0.2", to: undefined, reason: "unsupported-by-model-family" },
+      ],
+    })
+  })
+
+  test("maps GPT-6 Astra minimal reasoning effort to low", () => {
+    expect(resolveCompatibleModelSettings({
+      providerID: "openai-codex",
+      modelID: "gpt-6-astra",
+      desired: { reasoningEffort: "minimal" },
+    }).reasoningEffort).toBe("low")
+  })
   test("keeps supported Claude Opus variant unchanged", () => {
     const result = resolveCompatibleModelSettings({
       providerID: "anthropic",
