@@ -48,7 +48,7 @@ describe("generateModelConfig", () => {
       // #then Copilot GPT routes should not receive variants that hang the provider
       const unsupportedEntries = flattenConfiguredModels(result).filter(
         (entry) =>
-          entry.model.startsWith("github-copilot/gpt-5.") &&
+          /^github-copilot\/gpt-[56][.-]/.test(entry.model) &&
           (entry.variant === "max" || entry.variant === "xhigh")
       )
       expect(unsupportedEntries).toEqual([])
@@ -70,10 +70,11 @@ describe("generateModelConfig", () => {
           },
         ],
       })
-      expect(result.categories?.ultrabrain?.model).toBe("github-copilot/gpt-5.6-sol")
+      // Astra max/high rungs land first; Copilot clamps the max tier to high like the Sol rungs.
+      expect(result.categories?.ultrabrain?.model).toBe("github-copilot/gpt-6-astra")
       expect(result.categories?.ultrabrain?.variant).toBe("high")
-      expect(result.categories?.deep?.model).toBe("github-copilot/gpt-5.6-sol")
-      expect(result.categories?.deep?.variant).toBe("medium")
+      expect(result.categories?.deep?.model).toBe("github-copilot/gpt-6-astra")
+      expect(result.categories?.deep?.variant).toBe("high")
       expect(result.categories?.["unspecified-low"]?.model).toBe("github-copilot/grok-4.6")
       expect(result.categories?.["unspecified-low"]?.variant).toBe("high")
     })
