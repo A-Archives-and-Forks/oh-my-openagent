@@ -8,7 +8,7 @@ rather than a restatement of it: ultrabrain states the success criteria of a max
 answer (evidence cited from this turn, executable claims executed, a self-falsification pass, rejected
 alternatives and open assumptions named, one decision-complete recommendation); deep keeps one goal and
 one deliverable with a generous exploration budget, the goal as authorization, numbered steps as one
-atomic task, and the harness fact that a question ends the turn unfinished; unspecified-high asks for a
+atomic task, fixes trace at least two levels above the symptom to the root cause, and the harness fact that a question ends the turn unfinished; unspecified-high asks for a
 survey of the whole affected surface (callers, sibling modules, tests, docs, schemas, config, CI, git
 history), at least two weighed approaches, and delivery across every surface found. The previous
 ultrabrain append prescribed a "Bottom line" response format that the Astra preset bans as a stock
