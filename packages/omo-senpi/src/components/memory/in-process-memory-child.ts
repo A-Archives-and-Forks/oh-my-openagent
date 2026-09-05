@@ -8,7 +8,7 @@ const DEFAULT_DEADLINE_MS = 5 * 60_000
 type TaskRuntime = typeof import("#omo-task-runtime")
 export type StartChildInput = Parameters<InProcessRunnerLike["start"]>[0]
 export type InProcessMemoryChildState = { cancelled: boolean }
-type MemoryChildResult =
+export type MemoryChildResult =
   | { readonly status: "completed" }
   | { readonly status: "failed"; readonly cause: "session_create_failed" | "deadline" | "child_failed" }
 

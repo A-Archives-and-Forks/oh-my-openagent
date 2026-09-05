@@ -23,13 +23,10 @@ import { drainFactsLaunches } from "./facts-drain"
 import { classifyOversizePayload } from "./facts-oversize"
 import { FactsTerminalWrites } from "./facts-terminal-writes"
 import { readFactsPeoplePayload } from "./facts-people-payload"
-import { SandboxUnavailableError } from "./sandbox-contracts"
-import { launchFactsModelChain } from "./worker/facts-child-launch"
+import { launchFactsInProcess } from "./facts-in-process-launch"
 import { resolveReflectionModel } from "./worker/resolve-model"
 import { readRunJson } from "./worker/run-artifacts"
 
-const QUICK_CATEGORY = "quick"
-const DEFAULT_DEADLINE_MS = 15 * 60_000
 const WRITER_WAIT_MS = 2_000
 
 export type { FactsExtractorRunnerOptions, FactsLaunchResult } from "./facts-runner-types"
@@ -106,7 +103,7 @@ export class FactsExtractorRunner {
     if (selection.selected.length === 0) return { status: "empty" }
     const entries: readonly FactsQueueEntry[] = selection.selected
     const loaded = this.options.loadConfig()
-    const resolution = resolveReflectionModel(QUICK_CATEGORY, loaded.config, this.options.resolveModelRegistry())
+    const resolution = resolveReflectionModel("quick", loaded.config, this.options.resolveModelRegistry())
     // `category_unavailable` is not the only unavailable answer. resolveReflectionModel also has a
     // beyond-category ladder (registry_fallback / session_inherit) that resolves ANY usable registry
     // model when the quick chain is dead, and it marks those resolutions with a `source`.
@@ -174,34 +171,21 @@ export class FactsExtractorRunner {
     const payload: FactsPayload = { ...envelope, entries: batch }
     if (isAborted()) return { status: "skipped" }
     try {
-      const { child } = await launchFactsModelChain({
+      await launchFactsInProcess({
         runId,
         runDir,
         payload,
         resolution,
+        options: this.options,
         env: this.options.env ?? process.env,
         configSources: loaded.sources,
-        warn: (message, details) => this.options.logger?.warn(message, details),
-        senpiCommand: this.options.senpiCommand,
-        senpiPrefixArgs: this.options.senpiPrefixArgs,
-        resolveAndPreflightLaunch: this.options.resolveAndPreflightLaunch,
-        hardDeadlineAt: Date.now() + (this.options.deadlineMs ?? DEFAULT_DEADLINE_MS),
-        terminationGraceMs: this.options.terminationGraceMs,
-        maxOutputBytes: this.options.maxOutputBytes,
-        sandbox: this.options.sandbox,
-        supervisorPath: this.options.supervisorPath,
         batchId,
         queued: queueKeys(batch),
         launchedAt,
+        ...(this.options.resolveAndPreflightLaunch === undefined ? {} : { resolveAndPreflightLaunch: this.options.resolveAndPreflightLaunch }),
       })
-      if (child.timedOut || child.code !== 0) {
-        const reason: FactsFailureReason = child.timedOut ? "deadline_exceeded" : "child_exit"
-        const detail = child.stderr.trim() || "facts child failed"
-        await this.terminal.fail({ runDir, runId, batchId, targets: queueEntryTargets(batch), reason, detail })
-        return { status: "failed", runId }
-      }
     } catch (error) {
-      const reason: FactsFailureReason = error instanceof SandboxUnavailableError ? "sandbox_unavailable" : "child_exit"
+      const reason: FactsFailureReason = "child_exit"
       await this.terminal.fail({
         runDir,
         runId,

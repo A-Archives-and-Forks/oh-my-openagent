@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test"
-import { readFileSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
 
@@ -90,14 +89,21 @@ describe("facts payload byte cap", () => {
     await publish(queue, identity, "session-2", [message("m2", bulk())])
     await publish(queue, identity, "session-3", [message("m3", bulk())])
 
-    // when: the sandbox seam observes each payload file before the terminal write deletes it.
+    // when: the in-process runner observes each inline payload before the terminal write deletes it.
     const options = runnerOptions(root, identity, queue, "fact", { now: () => NOW })
     const payloadBytes: number[] = []
     const result = await new FactsExtractorRunner({
       ...options,
-      sandbox: (args) => {
-        payloadBytes.push(Buffer.byteLength(readFileSync(args.paths.payload, "utf8"), "utf8"))
-        return options.sandbox?.(args) ?? args
+      createRunner: () => {
+        const baseRunner = options.createRunner?.({})
+        if (baseRunner === undefined) throw new Error("facts runner fixture missing")
+        return {
+          start: async (spec) => {
+            const payloadStart = spec.prompt.indexOf("\n\n")
+            payloadBytes.push(Buffer.byteLength(spec.prompt.slice(payloadStart + 2), "utf8"))
+            return baseRunner.start(spec)
+          },
+        }
       },
     }).launchPending()
 

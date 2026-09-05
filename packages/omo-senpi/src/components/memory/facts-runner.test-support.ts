@@ -1,7 +1,7 @@
 import { afterEach, expect } from "bun:test"
 import { randomUUID } from "node:crypto"
 import { existsSync, writeFileSync } from "node:fs"
-import { mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises"
+import { appendFile, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -14,9 +14,10 @@ import {
   type TranscriptEntry,
 } from "@oh-my-opencode/memory-core"
 import { OmoMemorySettingsSchema } from "@oh-my-opencode/omo-config-core"
-import type { SenpiModelPort } from "@oh-my-opencode/senpi-task"
+import type { ChildHandle, ChildSpec, InProcessRunnerLike, SenpiModelPort } from "@oh-my-opencode/senpi-task"
 
 import { FactsExtractorRunner, type FactsExtractorRunnerOptions } from "./facts-runner"
+import { createFactsRecordTool } from "./facts-record-tool"
 import type { FactsRunLedger } from "./facts-runner-types"
 
 export const AVAILABLE_MODEL: SenpiModelPort = { provider: "omo-mock", id: "mock-1" }
@@ -67,7 +68,7 @@ export function runnerOptions(
   root: string,
   identity: MemoryIdentity,
   queue: FactsQueue,
-  mode: "fact" | "empty" | "malformed" | "fail" | "person" | "model-fallback",
+  mode: "fact" | "empty" | "malformed" | "fail" | "person" | "model-fallback" | "timeout",
   overrides: Partial<FactsExtractorRunnerOptions> = {},
 ): FactsExtractorRunnerOptions {
   const fallbackModels: readonly SenpiModelPort[] = [
@@ -75,6 +76,7 @@ export function runnerOptions(
     AVAILABLE_MODEL,
   ]
   const models = mode === "model-fallback" ? fallbackModels : [AVAILABLE_MODEL]
+  let inProcessAttempts = 0
   const senpiLauncher = join(root, "fake-senpi.mjs")
   writeFileSync(
     senpiLauncher,
@@ -116,15 +118,34 @@ export function runnerOptions(
     // Fresh per launch, exactly like production `randomUUID`: a pinned batchId would hide the
     // failure-identity collision that pruned-name reuse used to cause.
     createBatchId: () => randomUUID(),
-    sandbox: (args) => ({
-      ...args,
-      command: process.execPath,
-      args: [
-        childFixture,
-        mode === "model-fallback"
-          ? args.args.includes("extension-only/primary") ? "model-not-found" : "fact"
-          : mode,
-      ],
+    createRunner: (): InProcessRunnerLike => ({
+      start: async (spec: ChildSpec): Promise<ChildHandle> => {
+        inProcessAttempts += 1
+        if (mode === "model-fallback" && inProcessAttempts === 1) throw new Error("first model unavailable")
+        if (mode === "fail") throw new Error("facts child failed")
+        if (mode === "timeout") return await new Promise<ChildHandle>(() => undefined)
+        const tool = createFactsRecordTool({ extractionPath: join(spec.cwd, "extraction.jsonl") })
+        const payloadStart = spec.prompt.indexOf("\n\n")
+        const payload = JSON.parse(spec.prompt.slice(payloadStart + 2)) as { readonly entries: readonly unknown[] }
+        if (mode === "fact" || mode === "model-fallback") {
+          await tool.execute("fact-1", { scope: "project", text: `fixture consumed ${payload.entries.length} queue entries`, date: "2026-08-10" })
+        } else if (mode === "person") {
+          await tool.execute("fact-1", { scope: "person", person: { name: "Mina", aliases: ["Min"] }, text: "Mina prefers concise reviews.", date: "2026-08-10" })
+        } else if (mode === "malformed") {
+          await appendFile(join(spec.cwd, "extraction.jsonl"), '{"scope":"project","person":{"name":"Mina","aliases":[]},"text":"bad","date":"2026-08-10"}\n')
+        }
+        return {
+          task_id: spec.taskId,
+          sessionId: `session-${spec.taskId}`,
+          steer: async () => undefined,
+          followUp: async () => undefined,
+          abort: async () => undefined,
+          subscribe: () => () => undefined,
+          waitForIdle: async () => ({ status: "completed", finalResponse: "" }),
+          lastAssistantText: () => undefined,
+          dispose: async () => undefined,
+        }
+      },
     }),
     now: () => new Date("2026-08-10T12:00:00.000Z"),
     ...overrides,

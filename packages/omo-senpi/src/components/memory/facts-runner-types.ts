@@ -1,5 +1,5 @@
 import type { FactsApplyRecovery, FactsQueue, MemoryIdentity } from "@oh-my-opencode/memory-core"
-import type { SenpiModelPort, SenpiModelRegistryPort } from "@oh-my-opencode/senpi-task"
+import type { CreateChildSession, InProcessRunnerLike, SenpiModelPort, SenpiModelRegistryPort } from "@oh-my-opencode/senpi-task"
 
 import type { ComponentLogger } from "../../extension/types"
 import type { SenpiOmoConfigResult } from "../config-resolution"
@@ -40,6 +40,8 @@ export interface FactsExtractorRunnerOptions {
   /** Post-sentinel artifact deletion seam; tests observe the ordering and inject failures. */
   readonly removeRunArtifact?: (path: string) => Promise<void>
   readonly createPreflightId?: () => string
+  readonly createSession?: CreateChildSession
+  readonly createRunner?: (options: { readonly createSession?: CreateChildSession }) => InProcessRunnerLike
 }
 
 export interface FactsRunLedger {

@@ -1,0 +1,131 @@
+import { chmod, writeFile } from "@oh-my-opencode/memory-core/fs"
+import { getProcessStartIdentity, loadFactsPersona, serializeFactsPayload, type FactsPayload } from "@oh-my-opencode/memory-core"
+import { join } from "node:path"
+
+import { resolveAgentHome } from "../agent-home/resolve-agent-home"
+import { runInProcessMemoryChild, type InProcessMemoryChildState, type StartChildInput } from "./in-process-memory-child"
+import { createFactsRecordTool, FACTS_RECORD_TOOL_NAME } from "./facts-record-tool"
+import type { FactsQueuedKey } from "./facts-failure-recording"
+import { resolveAndPreflightMemoryLaunch, type ResolveAndPreflightMemoryLaunch } from "./worker/memory-launch-preflight"
+import type { ReflectionChildResult } from "./worker/spawn"
+import { type ReflectionModelCandidate, type ReflectionModelResolution } from "./worker/resolve-model"
+import type { ChildModelRegistry } from "@oh-my-opencode/senpi-task"
+import { updateRunLedger, writeRunJsonAtomic, type RunOutcome, type RunAttempt } from "./worker/run-artifacts"
+import type { FactsExtractorRunnerOptions } from "./facts-runner-types"
+
+type TaskRuntime = typeof import("#omo-task-runtime")
+
+type FactsInProcessLaunchInput = {
+  readonly runId: string
+  readonly runDir: string
+  readonly payload: FactsPayload
+  readonly resolution: Extract<ReflectionModelResolution, { readonly kind: "resolved" }>
+  readonly options: FactsExtractorRunnerOptions
+  readonly env: NodeJS.ProcessEnv
+  readonly configSources: readonly { readonly path: string; readonly exists: boolean }[]
+  readonly batchId: string
+  readonly queued: readonly FactsQueuedKey[]
+  readonly launchedAt: number
+  readonly resolveAndPreflightLaunch?: ResolveAndPreflightMemoryLaunch
+}
+
+export async function launchFactsInProcess(input: FactsInProcessLaunchInput): Promise<void> {
+  const candidates: readonly [ReflectionModelCandidate, ...ReflectionModelCandidate[]] = [
+    { model: input.resolution.model, ...(input.resolution.thinking === undefined ? {} : { thinking: input.resolution.thinking }) },
+    ...input.resolution.fallbacks,
+  ]
+  const launch = input.resolveAndPreflightLaunch ?? resolveAndPreflightMemoryLaunch
+  await launch({
+    candidates,
+    senpiCommand: input.options.senpiCommand,
+    senpiPrefixArgs: input.options.senpiPrefixArgs,
+    env: input.env,
+    envFlag: "SENPI_MEMORY_FACTS",
+    configSources: input.configSources,
+    warn: (message, details) => input.options.logger?.warn(message, details),
+    surfaceName: "facts",
+    attempt: (candidate, attempt, nextAttempt) => launchCandidate(input, candidate, attempt, nextAttempt),
+  })
+}
+
+async function launchCandidate(
+  input: FactsInProcessLaunchInput,
+  candidate: ReflectionModelCandidate,
+  attempt: number,
+  _nextAttempt: RunAttempt | undefined,
+): Promise<ReflectionChildResult> {
+  const payloadText = serializeFactsPayload(input.payload)
+  const payloadPath = join(input.runDir, "facts-payload.json")
+  const extractionPath = join(input.runDir, "extraction.jsonl")
+  const state: InProcessMemoryChildState = { cancelled: false }
+  const tool = createFactsRecordTool({ extractionPath, state })
+  const result = await runInProcessMemoryChild({
+    runId: input.runId,
+    deadlineMs: input.options.deadlineMs,
+    state,
+    logger: input.options.logger,
+    ...(input.options.createRunner === undefined ? {} : { createRunner: input.options.createRunner }),
+    ...(input.options.createSession === undefined ? {} : { createSession: input.options.createSession }),
+    setup: async () => {
+      await chmod(payloadPath, 0o600).catch((error: unknown) => {
+        if (!(error instanceof Error) || !("code" in error) || error.code !== "ENOENT") throw error
+      })
+      await writeFile(payloadPath, payloadText, { encoding: "utf8", mode: 0o600 })
+      await chmod(payloadPath, 0o400)
+      await writeFile(extractionPath, "", { encoding: "utf8", mode: 0o600 })
+      await updateRunLedger(join(input.runDir, "ledger.json"), {
+        attempt,
+        model: candidate.model,
+        ...(candidate.thinking === undefined ? {} : { thinking: candidate.thinking }),
+        pid: process.pid,
+        processStart: await getProcessStartIdentity(process.pid),
+        // childPid is intentionally absent: this run is owned by the parent process. Reconciliation
+        // therefore treats a missing child identity as unknown liveness and abandons, not fails.
+      })
+    },
+    buildStart: (taskRuntime) => buildStart(input, candidate, payloadText, tool, taskRuntime),
+    onHandle: () => undefined,
+  })
+  const timedOut = result.status === "failed" && result.cause === "deadline"
+  const outcome: RunOutcome = timedOut
+    ? { version: 1, runId: input.runId, attempt, finishedAt: new Date().toISOString(), childExit: { code: null, signal: null }, timedOut: true }
+    : { version: 1, runId: input.runId, attempt, finishedAt: new Date().toISOString(), childExit: { code: result.status === "completed" ? 0 : 1, signal: null }, timedOut: false }
+  await writeRunJsonAtomic(join(input.runDir, "outcome.json"), outcome)
+  tool.deactivate()
+  if (result.status === "completed") return { code: 0, signal: null, stdout: "", stderr: "", timedOut: false }
+  if (result.cause === "deadline") return { code: null, signal: null, stdout: "", stderr: "", timedOut: true }
+  return { code: 1, signal: null, stdout: "", stderr: "Error: Model \"${candidate.model}\" not found. Use --list-models to see available models.\n", timedOut: false }
+}
+
+function buildStart(
+  input: FactsInProcessLaunchInput,
+  candidate: ReflectionModelCandidate,
+  payloadText: string,
+  tool: ReturnType<typeof createFactsRecordTool>,
+  taskRuntime: TaskRuntime,
+): StartChildInput {
+  const registry = input.options.resolveModelRegistry()
+  const childRegistry = isChildModelRegistry(registry) ? registry : undefined
+  return {
+    taskId: `facts-${input.runId}`,
+    cwd: input.runDir,
+    sessionDir: input.runDir,
+    agentDir: resolveAgentHome({ env: input.env }),
+    modelRegistry: childRegistry,
+    model: childRegistry === undefined ? undefined : taskRuntime.findModelReference(childRegistry, candidate.model),
+    ...(candidate.thinking === undefined ? {} : { thinkingLevel: candidate.thinking }),
+    toolAllowlist: [FACTS_RECORD_TOOL_NAME],
+    memberScopedTools: [tool],
+    depth: 1,
+    parentSessionId: `facts-${input.runId}`,
+    rootSessionId: `facts-${input.runId}`,
+    systemPrompt: loadFactsPersona(),
+    promptEnvelope: "bare",
+    prompt: `Extract durable facts from this payload and record each accepted fact with ${FACTS_RECORD_TOOL_NAME}.\n\n${payloadText}`,
+  }
+}
+
+function isChildModelRegistry(value: unknown): value is ChildModelRegistry {
+  return value !== null && typeof value === "object" && "getProviderAuth" in value
+    && typeof value.getProviderAuth === "function"
+}
