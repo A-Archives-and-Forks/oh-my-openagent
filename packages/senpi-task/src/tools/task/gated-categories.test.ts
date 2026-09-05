@@ -21,7 +21,7 @@ describe("gated category listing", () => {
       const entry = entryFor("ultrabrain", {})
 
       // then
-      expect(entry?.description).toContain("(requires gpt-5.6-sol)")
+      expect(entry?.description).toContain("(requires gpt-6-astra or gpt-5.6-sol)")
     })
 
     test("#when the categories are listed #then deep carries its required model annotation", () => {
@@ -29,7 +29,7 @@ describe("gated category listing", () => {
       const entry = entryFor("deep", {})
 
       // then
-      expect(entry?.description).toContain("(requires gpt-5.6-sol)")
+      expect(entry?.description).toContain("(requires gpt-6-astra or gpt-5.6-sol)")
     })
   })
 

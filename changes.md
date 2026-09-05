@@ -1,3 +1,19 @@
+## 2026-09-05 — Make background the standard spawn in every task-tool prompt surface
+
+The text the model reads about `run_in_background` now says the same thing on both editions: `true` is the
+standard spawn (the call returns at once and the child's result arrives as a message or completion
+notification), `false` blocks the turn and is reserved for a short child whose result gates the very next
+call. Before this, `packages/senpi-task/src/tools/task/description.ts` said "only for parallel independent
+work; the default waits", `params.ts` labelled `false` as the default, `packages/omo-opencode/src/agents/sisyphus/gpt-5-5.ts`
+and `sisyphus-junior/gpt-5-5.ts` prescribed `false` "for synchronous work where the next step depends on
+the result" and a synchronous Oracle even though the same prompt said Oracle runs in the background, and
+`packages/omo-opencode/src/tools/delegate-task/tool-description.ts` allowed `true` "ONLY for parallel
+exploration with 5+ independent queries". Each line is rewritten at its source; runtime defaults are
+unchanged. This is the omo half of the GPT-6 Astra async-first change (senpi #1381 rewrote the preset's
+`## Asynchronous Work` section); a live backtest against gpt-6-astra with the old text showed 6/6
+single-dependent delegations spawned in the foreground, and 1/3 still foreground with the new preset but
+the old tool text. The delegate-task `AGENTS.md` mode table follows.
+
 ## 2026-09-05 — Replace momus's GPT-5.6 rungs with GPT-6 Astra
 
 Momus is the reviewer, so it gets Astra's deepest practical tier instead of the GPT-5.6 pair it used to
