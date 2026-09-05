@@ -133,7 +133,7 @@ task(category="quick", load_skills=[], run_in_background=true, prompt="Redesign 
 | Task Domain | MUST Use Category |
 |---|---|
 | Visual design, UI, styling, animations, layout, design systems | \`visual-engineering\` |
-| Hard logic, architecture decisions, algorithms | \`ultrabrain\` |
+| Hard logic and architecture decisions | \`ultrabrain\` |
 | 3D graphics, computer use, browser use, backend, logic, algorithms, CAPTCHA solving, multimodal, autonomous research + end-to-end implementation | \`deep\` |
 | Single-file typo, trivial config change | \`quick\` |
 
