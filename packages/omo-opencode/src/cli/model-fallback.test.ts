@@ -53,13 +53,9 @@ describe("generateModelConfig", () => {
       )
       expect(unsupportedEntries).toEqual([])
       expect(result.agents?.momus).toEqual({
-        model: "github-copilot/gpt-5.6-terra",
+        model: "github-copilot/gpt-6-astra",
         variant: "high",
         fallback_models: [
-          {
-            model: "github-copilot/gpt-5.6-sol",
-            variant: "high",
-          },
           {
             model: "github-copilot/claude-opus-5",
             variant: "max",
@@ -293,7 +289,7 @@ describe("generateModelConfig", () => {
   })
 
   describe("Momus agent model resolution", () => {
-    test("Momus resolves to gpt-5.6-terra high when OpenAI is available", () => {
+    test("Momus resolves to gpt-6-astra xhigh when OpenAI is available", () => {
       // #given
       const config = createConfig({ hasOpenAI: true })
 
@@ -301,11 +297,11 @@ describe("generateModelConfig", () => {
       const result = generateModelConfig(config)
 
       // #then
-      expect(result.agents?.momus?.model).toBe("openai/gpt-5.6-terra")
-      expect(result.agents?.momus?.variant).toBe("high")
+      expect(result.agents?.momus?.model).toBe("openai/gpt-6-astra")
+      expect(result.agents?.momus?.variant).toBe("xhigh")
       expect(result.agents?.momus?.fallback_models?.[0]).toEqual({
-        model: "openai/gpt-5.6-sol",
-        variant: "xhigh",
+        model: "openai/gpt-6-astra",
+        variant: "high",
       })
     })
   })

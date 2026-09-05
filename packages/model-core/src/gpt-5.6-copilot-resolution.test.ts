@@ -27,7 +27,7 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
     {
       name: "momus",
       requirement: AGENT_MODEL_REQUIREMENTS.momus,
-      expectedModel: "github-copilot/gpt-5.6-terra",
+      expectedModel: "github-copilot/gpt-6-astra",
       expectedVariant: "high",
     },
     {
@@ -51,7 +51,7 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
   ] as const
 
   for (const { name, requirement, expectedModel, expectedVariant } of selectionCases) {
-    test(`${name} selects its Copilot GPT-5.6 model with its configured variant`, () => {
+    test(`${name} selects its Copilot GPT model with its configured variant`, () => {
       // given
       const availableModels = new Set([expectedModel, "github-copilot/gpt-5.5"])
 
@@ -71,9 +71,9 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
     })
   }
 
-  test("warm cache does not pick up transformed Vercel GPT-5.6 now that vercel left the default lanes", () => {
+  test("warm cache does not pick up a transformed Vercel Astra now that vercel left the default lanes", () => {
     // given
-    const availableModels = new Set(["vercel/openai/gpt-5.6-terra"])
+    const availableModels = new Set(["vercel/openai/gpt-6-astra"])
 
     // when
     const result = resolveModelWithFallback({
@@ -90,11 +90,11 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
     })
   })
 
-  test("warm cache prefers the Copilot rung over a transformed Vercel terra", () => {
+  test("warm cache prefers the Copilot rung over a transformed Vercel astra", () => {
     // given
     const availableModels = new Set([
-      "github-copilot/gpt-5.6-terra",
-      "vercel/openai/gpt-5.6-terra",
+      "github-copilot/gpt-6-astra",
+      "vercel/openai/gpt-6-astra",
     ])
 
     // when
@@ -106,7 +106,7 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
 
     // then
     expect(result).toEqual({
-      model: "github-copilot/gpt-5.6-terra",
+      model: "github-copilot/gpt-6-astra",
       source: "provider-fallback",
       variant: "high",
     })
@@ -136,9 +136,9 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
     expect(copilotXhighEntries).toEqual([])
   })
 
-  test("momus uses high for its Copilot Sol fallback when Terra is unavailable", () => {
+  test("momus prefers native Astra xhigh over the Copilot Astra rung when both are available", () => {
     // given
-    const availableModels = new Set(["github-copilot/gpt-5.6-sol"])
+    const availableModels = new Set(["openai-codex/gpt-6-astra", "github-copilot/gpt-6-astra"])
 
     // when
     const result = resolveModelWithFallback({
@@ -149,9 +149,28 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
 
     // then
     expect(result).toEqual({
-      model: "github-copilot/gpt-5.6-sol",
+      model: "openai-codex/gpt-6-astra",
       source: "provider-fallback",
-      variant: "high",
+      variant: "xhigh",
+    })
+  })
+
+  test("momus falls to claude-opus-5 max when no Astra rung is available", () => {
+    // given
+    const availableModels = new Set(["github-copilot/gpt-5.6-sol", "anthropic/claude-opus-5"])
+
+    // when
+    const result = resolveModelWithFallback({
+      fallbackChain: AGENT_MODEL_REQUIREMENTS.momus.fallbackChain,
+      availableModels,
+      systemDefaultModel: "system/default",
+    })
+
+    // then
+    expect(result).toEqual({
+      model: "anthropic/claude-opus-5",
+      source: "provider-fallback",
+      variant: "max",
     })
   })
 
@@ -162,7 +181,7 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
   ] as const
 
   for (const { name, requirement } of fallbackCases) {
-    test(`${name} ignores GPT-5.5 when its GPT-5.6 rungs are unavailable`, () => {
+    test(`${name} ignores GPT-5.5 when its frontier GPT rungs are unavailable`, () => {
       // given
       const availableModels = new Set(["github-copilot/gpt-5.5"])
 
