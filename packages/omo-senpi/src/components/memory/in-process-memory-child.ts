@@ -31,12 +31,13 @@ export async function runInProcessMemoryChild(input: RunInProcessMemoryChildInpu
   let deadlineTimer: ReturnType<typeof setTimeout> | undefined
   let deadlineReached = false
   let resolveCancelled: (() => void) | undefined
-  const cancelled = new Promise<void>((resolve) => { resolveCancelled = resolve })
-  input.onState?.(input.state)
+  let disposal: Promise<void> | undefined
+  const cancelled = new Promise<"cancelled">((resolve) => { resolveCancelled = () => resolve("cancelled") })
   input.state.cancel = () => {
     input.state.cancelled = true
     resolveCancelled?.()
   }
+  input.onState?.(input.state)
   const deadline = new Promise<"deadline">((resolve) => {
     deadlineTimer = setTimeout(() => {
       deadlineReached = true
@@ -44,14 +45,26 @@ export async function runInProcessMemoryChild(input: RunInProcessMemoryChildInpu
     }, Math.max(0, input.deadlineMs ?? DEFAULT_DEADLINE_MS))
     deadlineTimer.unref?.()
   })
+  const expired = (): boolean => deadlineReached || input.state.cancelled
+  const disposeOnce = (handle: ChildHandle, abort: boolean): Promise<void> => {
+    if (disposal !== undefined) return disposal
+    if (abort) {
+      disposal = abortAndDispose(handle, input.logger, input.runId)
+      return disposal
+    }
+    handle.dispose()
+    disposal = Promise.resolve()
+    return disposal
+  }
   const setup = (async (): Promise<ChildHandle | undefined> => {
     await input.setup()
-    if (deadlineReached || input.state.cancelled) {
+    if (expired()) {
       input.onSetupSettled?.()
       return undefined
     }
     input.onSetupSettled?.()
     const taskRuntime = await import("#omo-task-runtime")
+    if (expired()) return undefined
     const runner = input.createRunner?.(
       input.createSession === undefined ? {} : { createSession: input.createSession },
     ) ?? taskRuntime.createInProcessJudgeRunner(
@@ -62,28 +75,40 @@ export async function runInProcessMemoryChild(input: RunInProcessMemoryChildInpu
   const setupResult = setup.then(
     (handle) => {
       if (handle === undefined) return undefined
-      if (deadlineReached || input.state.cancelled) {
-        void abortAndDispose(handle, input.logger, input.runId)
+      if (expired()) {
+        void disposeOnce(handle, true)
         return undefined
       }
       input.onHandle?.(handle)
       return handle
     },
     (error: unknown) => {
-      if (deadlineReached || input.state.cancelled) return undefined
+      if (expired()) return undefined
       throw error
     },
   )
   try {
     const settled = await Promise.race([setupResult, deadline, cancelled])
-    if (settled === "deadline" || settled === undefined) {
-      if (settled === "deadline") input.state.cancel?.()
-      return { status: "failed", cause: settled === "deadline" ? "deadline" : "cancelled" }
+    if (settled === "deadline") {
+      input.state.cancel?.()
+      void setup.then(
+        (handle) => { if (handle !== undefined) void disposeOnce(handle, true) },
+        () => undefined,
+      )
+      return { status: "failed", cause: "deadline" }
+    }
+    if (settled === "cancelled" || settled === undefined) {
+      if (settled === "cancelled") {
+        const handle = await setupResult.catch(() => undefined)
+        if (handle !== undefined) await disposeOnce(handle, true)
+        else if (disposal !== undefined) await disposal
+      }
+      return { status: "failed", cause: deadlineReached && settled !== "cancelled" ? "deadline" : "cancelled" }
     }
     const turn = await Promise.race([settled.waitForIdle(), deadline, cancelled])
-    if (turn === "deadline" || turn === undefined) {
+    if (turn === "deadline" || turn === "cancelled") {
       input.state.cancelled = true
-      await abortAndDispose(settled, input.logger, input.runId)
+      await disposeOnce(settled, true)
       return { status: "failed", cause: turn === "deadline" ? "deadline" : "cancelled" }
     }
     if (turn.status !== "completed") return { status: "failed", cause: "child_failed" }
@@ -97,6 +122,9 @@ export async function runInProcessMemoryChild(input: RunInProcessMemoryChildInpu
   } finally {
     clearTimeout(deadlineTimer)
     input.state.cancel = undefined
-    setupResult.then((handle) => handle?.dispose(), () => undefined)
+    void setup.then(
+      (handle) => { if (handle !== undefined) void disposeOnce(handle, expired()) },
+      () => undefined,
+    )
   }
 }

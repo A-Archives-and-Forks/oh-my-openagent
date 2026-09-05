@@ -2,11 +2,64 @@ import { describe, expect, test } from "bun:test"
 import { existsSync } from "node:fs"
 import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
-import { FactsFailureStore, FactsQueue, GitMemoryRepo, factsQueuePaths } from "@oh-my-opencode/memory-core"
-import type { ChildSpec, SenpiModelPort } from "@oh-my-opencode/senpi-task"
+import { FactsFailureStore, FactsQueue, GitMemoryRepo, buildDefaultSeedFiles, factsQueuePaths } from "@oh-my-opencode/memory-core"
+import type { ChildHandle, ChildSpec, InProcessRunnerLike, SenpiModelPort } from "@oh-my-opencode/senpi-task"
 import { FactsExtractorRunner } from "./facts-runner"
+import { createFactsRecordTool } from "./facts-record-tool"
 import { enqueue, fixture, onlyRunDir, runnerOptions } from "./facts-runner.test-support"
 import { writeRunJsonAtomic } from "./worker/run-artifacts"
+describe("facts launch ownership", () => {
+  test("#given two independent runners #when they launch the same pending entry concurrently #then only one child claims it", async () => {
+    // given
+    const { root, identity, queue } = await fixture()
+    const repo = new GitMemoryRepo({ dir: identity.paths.repo, agentId: identity.id })
+    await repo.init({ seedFiles: buildDefaultSeedFiles() })
+    let starts = 0
+    let releaseChild!: () => void
+    let signalStarted!: () => void
+    const childStarted = new Promise<void>((resolve) => { signalStarted = resolve })
+    const childReleased = new Promise<void>((resolve) => { releaseChild = resolve })
+    const createRunner = (): InProcessRunnerLike => ({
+      start: async (spec: ChildSpec): Promise<ChildHandle> => {
+        starts += 1
+        signalStarted()
+        await childReleased
+        const tool = createFactsRecordTool({ extractionPath: join(spec.cwd, "extraction.jsonl") })
+        const recorded = await tool.execute("fact-1", {
+          scope: "project", text: "The project uses Bun.", date: "2026-08-10",
+        })
+        expect(recorded.isError).not.toBe(true)
+        return {
+          task_id: spec.taskId,
+          sessionId: `session-${spec.taskId}`,
+          steer: async () => undefined,
+          followUp: async () => undefined,
+          abort: async () => undefined,
+          subscribe: () => () => undefined,
+          waitForIdle: async () => ({ status: "completed", finalResponse: "" }),
+          lastAssistantText: () => undefined,
+          dispose: async () => undefined,
+        }
+      },
+    })
+    const options = runnerOptions(root, identity, queue, "fact", { createRunner })
+    const first = new FactsExtractorRunner(options)
+    const second = new FactsExtractorRunner({ ...options, createRunner })
+
+    // when
+    const firstLaunch = first.launchPending()
+    const secondLaunch = second.launchPending()
+    await childStarted
+    releaseChild()
+    const results = await Promise.all([firstLaunch, secondLaunch])
+
+    // then
+    expect(starts).toBe(1)
+    expect(results.filter((result) => result.status === "committed")).toHaveLength(1)
+    expect(await queue.listPending()).toHaveLength(0)
+  }, 30_000)
+})
+
 describe("quick-pinned facts launch", () => {
   test("#given no facts deadline override #when the batch launches #then the ledger deadline is fifteen minutes after launch", async () => {
     // given
@@ -183,6 +236,7 @@ describe("quick-pinned facts launch", () => {
           }
           return provider === "omo-mock" && modelId === "mock-1" ? { provider, id: modelId } : undefined
         },
+        getProviderAuth: () => undefined,
       }),
     })
 

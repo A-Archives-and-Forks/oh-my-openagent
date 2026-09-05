@@ -107,12 +107,13 @@ describe("runInProcessMemoryChild", () => {
     expect(startCalls).toBe(0)
   })
 
-  test("#given cancellation before start resolves #when the late handle arrives #then it is disposed without onHandle", async () => {
+  test("#given cancellation before start resolves #when the late handle arrives #then it is aborted and disposed once without onHandle", async () => {
     // given
     const childState = state()
     let resolveStart: ((child: ChildHandle) => void) | undefined
     let resolveStarted: (() => void) | undefined
     const started = new Promise<void>((resolve) => { resolveStarted = resolve })
+    let aborted = 0
     let disposed = 0
     let observed = 0
     const resultPromise = runInProcessMemoryChild({
@@ -130,15 +131,79 @@ describe("runInProcessMemoryChild", () => {
       onHandle: () => { observed += 1 },
     })
     await started
-    childState.cancelled = true
+    childState.cancel?.()
 
-    // when: the late start resolves after cancellation has been observed
-    resolveStart?.(handle({ dispose: () => { disposed += 1 } }))
+    // when: the late start resolves after cancel has been invoked
+    resolveStart?.(handle({
+      abort: async () => { aborted += 1 },
+      dispose: () => { disposed += 1 },
+    }))
     const result = await resultPromise
 
     // then
-    expect(result).toEqual({ status: "failed", cause: "deadline" })
+    expect(result).toEqual({ status: "failed", cause: "cancelled" })
     expect(observed).toBe(0)
+    expect(aborted).toBe(1)
+    expect(disposed).toBe(1)
+  })
+
+  test("#given setup has settled and runtime import is pending #when cancel is invoked #then runner.start is never invoked", async () => {
+    // given
+    const childState = state()
+    let startCalls = 0
+    const result = await runInProcessMemoryChild({
+      runId: "import-cancel",
+      deadlineMs: 10_000,
+      state: childState,
+      createRunner: () => ({
+        start: async () => {
+          startCalls += 1
+          return handle()
+        },
+      }),
+      setup: async () => undefined,
+      buildStart: () => startSpec(),
+      onSetupSettled: () => { childState.cancel?.() },
+    })
+
+    // when: cancel lands after setup and before start, while the runtime import is in flight
+
+    // then
+    expect(result).toEqual({ status: "failed", cause: "cancelled" })
+    expect(startCalls).toBe(0)
+  })
+
+  test("#given an accepted child whose turn never settles #when cancel is invoked #then abort and dispose finish once before the launch returns", async () => {
+    // given
+    const childState = state()
+    let aborted = 0
+    let disposed = 0
+    let resolveHandled: (() => void) | undefined
+    const handled = new Promise<void>((resolve) => { resolveHandled = resolve })
+    const resultPromise = runInProcessMemoryChild({
+      runId: "idle-cancel",
+      deadlineMs: 10_000,
+      state: childState,
+      createRunner: () => ({
+        start: async () => handle({
+          abort: async () => { aborted += 1 },
+          dispose: () => { disposed += 1 },
+          waitForIdle: async () => await new Promise(() => undefined),
+        }),
+      }),
+      setup: async () => undefined,
+      buildStart: () => startSpec(),
+      onHandle: () => { resolveHandled?.() },
+    })
+    await handled
+
+    // when
+    childState.cancel?.()
+    const result = await resultPromise
+
+    // then
+    expect(result).toEqual({ status: "failed", cause: "cancelled" })
+    expect(aborted).toBe(1)
     expect(disposed).toBe(1)
   })
 

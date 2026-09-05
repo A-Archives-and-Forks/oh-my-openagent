@@ -96,7 +96,10 @@ export class FactsExtractorRunner {
     if (!ledger.ok) return { status: "skipped" }
     const selection = selectLaunchable(pending, ledger.failures, this.now())
     if (selection.selected.length === 0) return { status: "empty" }
-    const entries: readonly FactsQueueEntry[] = selection.selected
+    const claimId = randomUUID()
+    const entries = await this.queue.claim(selection.selected, claimId)
+    if (entries.length === 0) return { status: "active" }
+    const releaseClaim = async (): Promise<void> => this.queue.releaseClaim(entries, claimId)
     const loaded = this.options.loadConfig(); const deadlineMs = this.options.deadlineMs ?? FACTS_DEADLINE_MS
     const modelRegistry = this.options.resolveModelRegistry(); const resolution = resolveReflectionModel("quick", loaded.config, modelRegistry)
     const childModelRegistry = isChildModelRegistry(modelRegistry) ? modelRegistry : undefined
@@ -109,11 +112,18 @@ export class FactsExtractorRunner {
         "quick_category_unavailable",
         cause ?? "unknown",
       )
+      await releaseClaim()
       return { status: "skipped" }
     }
 
-    const repo = new GitMemoryRepo({ dir: this.options.identity.paths.repo, agentId: this.options.identity.id })
-    if (!existsSync(join(repo.dir, ".git"))) await repo.init({ seedFiles: buildDefaultSeedFiles() })
+    let repo: GitMemoryRepo
+    try {
+      repo = new GitMemoryRepo({ dir: this.options.identity.paths.repo, agentId: this.options.identity.id })
+      if (!existsSync(join(repo.dir, ".git"))) await repo.init({ seedFiles: buildDefaultSeedFiles() })
+    } catch (error) {
+      await releaseClaim()
+      throw error
+    }
     const people = await readFactsPeoplePayload(repo.dir)
     const envelope = { version: 1, identity: this.options.identity.id, today: this.now().toISOString().slice(0, 10), ...people } as const
     const capped = selectCappedFactsBatch({ entries, envelope, now: this.now() })
@@ -126,28 +136,49 @@ export class FactsExtractorRunner {
       ...(this.options.createPreflightId === undefined ? {} : { createFailureId: this.options.createPreflightId }),
       warn: (message, fields) => this.options.logger?.warn(message, fields),
     })
-    if (envelopeRefused) return { status: "skipped" }
+    if (envelopeRefused) {
+      await releaseClaim()
+      return { status: "skipped" }
+    }
     if (capped.selected.length === 0) {
       this.options.logger?.warn("facts batch selection carried nothing within the payload cap", {
         pending: entries.length,
         oversized: capped.oversized.length,
       })
+      await releaseClaim()
       return { status: "empty" }
     }
-    const batch: readonly FactsQueueEntry[] = capped.selected; const batchId = (this.options.createBatchId ?? randomUUID)()
-    const launchedAt = this.now().getTime(); if (isAborted()) return { status: "skipped" }
-    const runDir = await reserveFactsRunDir({
-      factsDir: this.options.identity.paths.facts,
-      locksDir: this.options.identity.paths.locks,
-      entries: batch,
-      batchId,
-      launchedAt,
-      deadlineMs,
-      terminationGraceMs: this.options.terminationGraceMs,
-    })
-    if (runDir === undefined) return { status: "active" }
+    const batch: readonly FactsQueueEntry[] = capped.selected
+    await this.queue.releaseClaim(entries.filter((entry) => !batch.includes(entry)), claimId)
+    const batchId = (this.options.createBatchId ?? randomUUID)()
+    const launchedAt = this.now().getTime(); if (isAborted()) {
+      await this.queue.releaseClaim(batch, claimId)
+      return { status: "skipped" }
+    }
+    let runDir: string | undefined
+    try {
+      runDir = await reserveFactsRunDir({
+        factsDir: this.options.identity.paths.facts,
+        locksDir: this.options.identity.paths.locks,
+        entries: batch,
+        batchId,
+        launchedAt,
+        deadlineMs,
+        terminationGraceMs: this.options.terminationGraceMs,
+      })
+    } catch (error) {
+      await this.queue.releaseClaim(batch, claimId)
+      throw error
+    }
+    if (runDir === undefined) {
+      await this.queue.releaseClaim(batch, claimId)
+      return { status: "active" }
+    }
     const runId = basename(runDir); const payload: FactsPayload = { ...envelope, entries: batch }
-    if (isAborted()) return { status: "skipped" }
+    if (isAborted()) {
+      await this.queue.releaseClaim(batch, claimId)
+      return { status: "skipped" }
+    }
     try {
       const cancelled = await launchFactsInProcess({
         runId,
@@ -164,20 +195,32 @@ export class FactsExtractorRunner {
         deadlineMs,
         onState: (state) => { this.activeCancel = state.cancel }
       })
-      if (cancelled) return this.abandonCancelledRun(runDir, runId)
+      if (cancelled) {
+        return await this.abandonCancelledRun(runDir, runId)
+      }
     } catch (error) {
       const reason: FactsFailureReason = "child_exit"
-      await this.terminal.fail({
-        runDir,
-        runId,
-        batchId,
-        targets: queueEntryTargets(batch),
-        reason,
-        detail: describe(error),
-      })
+      try {
+        await this.terminal.fail({
+          runDir,
+          runId,
+          batchId,
+          targets: queueEntryTargets(batch),
+          reason,
+          detail: describe(error),
+        })
+      } finally {
+        await this.queue.releaseClaim(batch, claimId)
+      }
       return { status: "failed", runId }
+    } finally {
+      if (isAborted()) await this.queue.releaseClaim(batch, claimId)
     }
-    return this.finalizeRun(runDir, repo)
+    try {
+      return await this.finalizeRun(runDir, repo)
+    } finally {
+      await this.queue.releaseClaim(batch, claimId)
+    }
   }
 
   private async reconcileRuns(): Promise<boolean> {
