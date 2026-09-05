@@ -9,6 +9,7 @@ import {
   createRestoredChildHandle,
   discardUnstartedChildSession,
   type ChildHandle,
+  type ChildCompletionPolicy,
   type ChildSession,
 } from "./in-process/child-handle"
 import { buildChildSessionOptions, requireChildSessionDir, resolveMemberScopedToolNames } from "./in-process/child-options"
@@ -17,6 +18,7 @@ import { buildSubagentPrompt } from "./in-process/subagent-prompt"
 
 export type {
   ChildHandle,
+  ChildCompletionPolicy,
   ChildSession,
   ChildSessionEvent,
   ChildSessionListener,
@@ -86,6 +88,10 @@ export type ChildSpec = {
    * senpi-task child" lines (the memorian judge persona/payload split).
    */
   readonly promptEnvelope?: "subagent" | "bare"
+  /**
+   * How the settled turn is judged: final-text (default) requires assistant text, turn treats any normally settled turn as completion - for tool-only children whose deliverable is a side effect.
+   */
+  readonly completion?: ChildCompletionPolicy
 }
 
 export type CreateChildSession = (options: CreateAgentSessionOptions) => Promise<ChildSession>
@@ -156,7 +162,12 @@ export class InProcessRunner {
       })
 
     try {
-      return createChildHandle({ taskId: spec.taskId, session, promptText })
+      return createChildHandle({
+        taskId: spec.taskId,
+        session,
+        promptText,
+        ...(spec.completion === undefined ? {} : { completion: spec.completion }),
+      })
     } catch (error) {
       discardUnstartedChildSession(session)
       throw error
@@ -189,7 +200,11 @@ export class InProcessRunner {
       throw new RunnerError({ kind: "session_unavailable", message: sessionResumeMessage(error), cause: error })
     }
 
-    return createRestoredChildHandle({ taskId: spec.taskId, session })
+    return createRestoredChildHandle({
+      taskId: spec.taskId,
+      session,
+      ...(spec.completion === undefined ? {} : { completion: spec.completion }),
+    })
   }
 }
 

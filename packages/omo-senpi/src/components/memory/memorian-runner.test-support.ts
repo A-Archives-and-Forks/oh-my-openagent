@@ -83,7 +83,6 @@ export function scriptedSession(script: (options: CreateAgentSessionOptions) => 
     onPrompted = resolve
   })
   const promptTexts: string[] = []
-  let assistantText: string | undefined
   const listeners = new Set<ChildSessionListener>()
   let created = 0
   const session: ChildSession = {
@@ -94,9 +93,10 @@ export function scriptedSession(script: (options: CreateAgentSessionOptions) => 
       const options = captured
       if (options === undefined) throw new Error("session options were not captured")
       await script(options)
-      // The turn's assistant text lands only after the script ran, mirroring a judge that answers
-      // after its tool calls: the baseline the handle captured at beginTurn stays undefined.
-      assistantText = "Judged."
+      for (const listener of listeners) {
+        listener({ type: "message_end", message: { role: "assistant", content: [{ type: "toolCall", id: "call-1", name: "nudge", arguments: {} }], stopReason: "toolUse" } })
+        listener({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "" }], stopReason: "stop" } })
+      }
       await new Promise<void>((resolve) => {
         settle = resolve
         if (resolveRequested) resolve()
@@ -109,7 +109,7 @@ export function scriptedSession(script: (options: CreateAgentSessionOptions) => 
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
-    getLastAssistantText: () => assistantText,
+    getLastAssistantText: () => undefined,
     dispose() {},
   }
   return {

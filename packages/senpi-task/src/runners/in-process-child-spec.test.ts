@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { rmSync } from "node:fs"
+import { rmSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
 import { InProcessRunner, RunnerError } from "./in-process"
 import { baseSpec, createFakeSession, makeTool, tmpSessionDirs } from "./in-process-child-spec.test-support"
 import type { CreateAgentSessionOptions } from "./in-process-child-spec.test-support"
@@ -22,6 +23,31 @@ afterEach(() => { unhandled.length = 0; while (tmpSessionDirs.length > 0) rmSync
   })
 
 
+
+describe("InProcessRunner completion policy", () => {
+  test('#given a spec with completion "turn" #when the child settles with no assistant output #then start passes the policy through and the handle completes', async () => {
+    const fake = createFakeSession()
+    const runner = new InProcessRunner({ createSession: async () => fake.session })
+    const handle = await runner.start(baseSpec({ completion: "turn" }))
+
+    fake.resolvePrompt()
+
+    expect(await handle.waitForIdle()).toEqual({ status: "completed", finalResponse: "" })
+  })
+
+  test('#given a spec with completion "turn" #when the child settles with no assistant output #then resume passes the policy through and the handle completes', async () => {
+    const fake = createFakeSession()
+    const runner = new InProcessRunner({ createSession: async () => fake.session })
+    const spec = baseSpec({ completion: "turn" })
+    const sessionPath = join(spec.sessionDir, "child.jsonl")
+    writeFileSync(sessionPath, JSON.stringify({ type: "session", version: 3, id: fake.session.sessionId, cwd: spec.cwd }) + "\n")
+
+    const handle = await runner.resume(spec, sessionPath)
+
+    expect(await handle.waitForIdle()).toEqual({ status: "completed", finalResponse: "" })
+    expect(fake.promptCalls).toBe(0)
+  })
+})
 
 describe("InProcessRunner thinking level", () => {
   test("#given a spec carrying a thinking level #when the child session is created #then the level reaches the senpi session options", async () => {

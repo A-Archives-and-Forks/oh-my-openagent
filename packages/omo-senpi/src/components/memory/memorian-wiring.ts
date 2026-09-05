@@ -158,7 +158,7 @@ export function createMemorianGateWiring(options: MemorianGateWiringOptions): Me
           ...(modelRegistry === undefined ? {} : { modelRegistry }),
         })
         if (result !== null && typeof result === "object" && "status" in result) {
-          const outcome = result as { status?: string; cause?: string; model?: string; candidateCount?: number }
+          const outcome = result as { status?: string; cause?: string; model?: string; candidateCount?: number; reason?: string; runId?: string }
           if (outcome.status === "skipped" || outcome.status === "failed" || outcome.status === "dropped") {
             const cause = typeof outcome.cause === "string" ? outcome.cause : "unknown"
             if (outcome.status !== "skipped" || skippedOnce(`${collected.sessionId}:${cause}`)) {
@@ -168,6 +168,8 @@ export function createMemorianGateWiring(options: MemorianGateWiringOptions): Me
                 cause,
                 ...(typeof outcome.model === "string" ? { model: outcome.model } : {}),
                 candidateCount: outcome.candidateCount ?? collected.candidates.length,
+                ...(typeof outcome.reason === "string" ? { reason: outcome.reason } : {}),
+                ...(typeof outcome.runId === "string" ? { runId: outcome.runId } : {}),
               } satisfies MemorianGateRecord)
             }
           }
