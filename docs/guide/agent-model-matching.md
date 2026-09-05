@@ -266,15 +266,14 @@ Used by: Hephaestus, Oracle, Momus (GPT-6 Astra), `deep`, `ultrabrain`, `unspeci
 
 ### Visual Engineering Chain
 
-The built-in `visual-engineering` category starts with Claude Opus 5 and does not require Gemini:
+The built-in `visual-engineering` category starts with Claude Fable 5.1:
 
 | Priority | Model | Provider | Why |
 |---|---|---|---|
 | 1 | `claude-opus-5` (`max`) | `anthropic`, `anthropic-api`, `github-copilot`, `opencode` | Primary UI/UX, CSS, design-token, and layout model. |
-| 2 | `kimi-k3` (`max`) | `opencode-go`, `kimi-for-coding`, `moonshotai`, `opencode` | Current visual fallback when Opus 5 is unavailable. |
-| 3 | `glm-5.2` (`max`) | `zai-coding-plan`, `opencode-go` | GLM visual fallback. |
-| 4 | `gpt-6-astra` (`high`) | `openai`, `openai-codex`, `github-copilot`, `opencode` | GPT visual fallback once the Claude, Kimi, and GLM rungs are exhausted. |
-| 5 | `gpt-5.6-sol` (`medium`) | `openai`, `openai-codex`, `github-copilot`, `opencode` | Final built-in visual fallback. |
+| 1 | `claude-fable-5-1` (`max`) | `anthropic`, `anthropic-api`, `github-copilot`, `opencode` | Primary visual model. |
+| 2 | `claude-opus-5` (`max`) | `anthropic`, `anthropic-api`, `github-copilot`, `opencode` | Visual fallback when Fable 5.1 is unavailable. |
+| 3 | `kimi-k3` (`max`) | `opencode-go`, `kimi-for-coding`, `moonshotai`, `opencode` | Final built-in visual fallback. |
 
 Gemini 3.1 Pro remains a visual-capable explicit override where a provider exposes it. Gemini 3.6 Flash remains useful for fast writing and documentation work, but neither model is the current `visual-engineering` default chain.
 
@@ -390,14 +389,14 @@ When agents delegate work, they don't pick a model name — they pick a **catego
 
 | Category | Used For | Default Model | Full fallback chain |
 | --- | --- | --- | --- |
-| `visual-engineering` | Frontend, UI, CSS, design | `anthropic/claude-opus-5 (max)` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5 (max)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` → `zai-coding-plan\|opencode-go/glm-5.2 (max)` → `openai\|openai-codex\|github-copilot\|opencode/gpt-6-astra (high)` → `openai\|openai-codex\|github-copilot\|opencode/gpt-5.6-sol (medium)` |
+| `visual-engineering` | Frontend, UI, CSS, design | `anthropic/claude-fable-5-1 (max)` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5-1 (max)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5 (max)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` |
 | `ultrabrain` | Maximum reasoning needed | `openai/gpt-6-astra (max)` | `openai\|openai-codex/gpt-6-astra (max)` → `github-copilot/gpt-6-astra (max)` → `openai\|openai-codex\|opencode/gpt-6-astra (max)` → `openai\|openai-codex/gpt-5.6-sol (max)` → `github-copilot/gpt-5.6-sol (max)` → `openai\|openai-codex\|opencode/gpt-5.6-sol (max)` |
 | `deep` | Deep coding, complex logic | `openai/gpt-6-astra (high)` | `openai\|openai-codex\|github-copilot\|opencode/gpt-6-astra (high)` → `openai\|openai-codex\|github-copilot\|opencode/gpt-5.6-sol (medium)` |
-| `artistry` | Creative, novel approaches | `anthropic/claude-fable-5 (xhigh)` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5 (xhigh)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5 (xhigh)` |
+| `artistry` | Creative, novel approaches | `anthropic/claude-fable-5-1 (max)` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5-1 (max)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5 (xhigh)` |
 | `quick` | Simple, fast tasks | `kimi-for-coding/kimi-for-coding-highspeed` | `kimi-for-coding/kimi-for-coding-highspeed` → `openai-codex/gpt-5.6-luna-fast (low)` → `deepseek/deepseek-v4-flash (off)` → `qwen-token-plan\|alibaba-token-plan\|bailian-coding-plan/qwen3.6-flash (low)` → `opencode-go/minimax-m3 (max)` → `opencode-go/minimax-m2.7 (max)` → `xai/grok-4.20-0309-non-reasoning` → `anthropic\|anthropic-api\|github-copilot/claude-haiku-4-5 (off)` |
 | `unspecified-low` | General standard work | `xai/grok-4.6 (xhigh)` | `xai\|github-copilot\|opencode/grok-4.6 (xhigh)` → `openai\|openai-codex\|github-copilot\|opencode/gpt-5.6-terra (high)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-sonnet-5 (low)` → `qwen-token-plan\|alibaba-token-plan\|qwen-token-plan-cn\|alibaba-token-plan-cn/qwen3.8-max-preview (max)` → `deepseek\|opencode-go/deepseek-v4-pro (max)` → `xiaomi\|opencode-go/mimo-v2.5-pro (max)` |
 | `unspecified-high` | General complex work | `openai/gpt-6-astra (high)` | `openai\|openai-codex\|github-copilot\|opencode/gpt-6-astra (high)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5 (xhigh)` → `zai-coding-plan\|opencode-go/glm-5.3 (max)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` |
-| `writing` | Text, docs, prose | `kimi-for-coding/kimi-k3 (low)` | `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (low)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5 (low)` → `google\|github-copilot\|opencode/gemini-3.6-flash` |
+| `writing` | Text, docs, prose | `anthropic/claude-fable-5-1 (medium)` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5-1 (medium)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` |
 
 See the [Orchestration System Guide](./orchestration.md) for how agents dispatch tasks to categories.
 
@@ -446,7 +445,7 @@ No built-in agent or category chain lists `vercel` (or `quotio-openai`) on any r
     "quick": { "model": "kimi-for-coding/kimi-for-coding-highspeed" },
     "unspecified-high": { "model": "openai/gpt-6-astra", "variant": "high" },
     "unspecified-low": { "model": "opencode-go/kimi-k2.7-code" },
-    "writing": { "model": "opencode-go/kimi-k3", "variant": "low" },
+    "writing": { "model": "anthropic/claude-fable-5-1", "variant": "medium" },
   },
 
   "background_task": {
@@ -501,7 +500,7 @@ Cheapest full-stack path. Hephaestus won't activate — accept that trade-off.
     "unspecified-high": { "model": "opencode-go/kimi-k3" },
     "unspecified-low": { "model": "opencode-go/kimi-k2.7-code" },
     "quick": { "model": "opencode-go/minimax-m2.7" },
-    "writing": { "model": "opencode-go/kimi-k3", "variant": "low" },
+    "writing": { "model": "anthropic/claude-fable-5-1", "variant": "medium" },
   },
 }
 ```

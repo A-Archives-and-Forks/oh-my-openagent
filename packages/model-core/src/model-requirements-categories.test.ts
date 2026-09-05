@@ -64,13 +64,13 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     ])
   })
 
-  test("visual-engineering puts GPT-6 Astra high before Sol medium", () => {
-    expect(CATEGORY_MODEL_REQUIREMENTS["visual-engineering"].fallbackChain.at(-2)).toEqual({
-      providers: ["openai", "openai-codex", "github-copilot", "opencode"], model: "gpt-6-astra", variant: "high",
+  test("visual-engineering starts with Fable 5.1 max", () => {
+    expect(CATEGORY_MODEL_REQUIREMENTS["visual-engineering"].fallbackChain.at(0)).toEqual({
+      providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"], model: "claude-fable-5-1", variant: "max",
     })
   })
 
-  test("visual-engineering follows the approved 5-rung chain", () => {
+  test("visual-engineering follows the approved 3-rung chain", () => {
     // given
     const requirement = CATEGORY_MODEL_REQUIREMENTS["visual-engineering"]
 
@@ -81,6 +81,11 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     expect(chain).toEqual([
       {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
+        model: "claude-fable-5-1",
+        variant: "max",
+      },
+      {
+        providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
         model: "claude-opus-5",
         variant: "max",
       },
@@ -88,21 +93,6 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
         providers: ["kimi-for-coding", "moonshotai", "opencode-go", "opencode"],
         model: "kimi-k3",
         variant: "max",
-      },
-      {
-        providers: ["zai-coding-plan", "opencode-go"],
-        model: "glm-5.2",
-        variant: "max",
-      },
-      {
-        providers: ["openai", "openai-codex", "github-copilot", "opencode"],
-        model: "gpt-6-astra",
-        variant: "high",
-      },
-      {
-        providers: ["openai", "openai-codex", "github-copilot", "opencode"],
-        model: "gpt-5.6-sol",
-        variant: "medium",
       }
     ])
   })
@@ -242,7 +232,7 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     expect(chain).toEqual([
       {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
-        model: "claude-fable-5",
+        model: "claude-fable-5-1",
         variant: "xhigh",
       },
       {
@@ -258,7 +248,7 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     ])
   })
 
-  test("writing follows the approved 3-rung chain", () => {
+  test("writing follows the approved 2-rung chain", () => {
     // given
     const requirement = CATEGORY_MODEL_REQUIREMENTS["writing"]
 
@@ -268,18 +258,14 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     // then
     expect(chain).toEqual([
       {
+        providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
+        model: "claude-fable-5-1",
+        variant: "medium",
+      },
+      {
         providers: ["kimi-for-coding", "moonshotai", "opencode-go", "opencode"],
         model: "kimi-k3",
-        variant: "low",
-      },
-      {
-        providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
-        model: "claude-opus-5",
-        variant: "low",
-      },
-      {
-        providers: ["google", "github-copilot", "opencode"],
-        model: "gemini-3.6-flash",
+        variant: "max",
       }
     ])
   })

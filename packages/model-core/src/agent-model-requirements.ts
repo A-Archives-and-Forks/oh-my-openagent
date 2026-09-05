@@ -86,7 +86,7 @@ export const AGENT_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
     fallbackChain: [
       {
         providers: ["anthropic", "github-copilot", "opencode"],
-        model: "claude-fable-5",
+        model: "claude-fable-5-1",
         variant: "xhigh",
       },
       {

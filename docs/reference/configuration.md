@@ -144,9 +144,9 @@ Here's a practical starting `~/.omo/omo.jsonc`. OpenCode plugin settings live in
       "unspecified-high": { "model": "openai/gpt-6-astra", "reasoning": "high" },
 
       // writing - docs/prose
-      "writing": { "model": "kimi-for-coding/kimi-k3", "reasoning": "low" },
+      "writing": { "model": "anthropic/claude-fable-5-1", "reasoning": "medium" },
 
-      // visual-engineering - Opus 5, then Kimi K3 and GLM 5.2
+      // visual-engineering - Fable 5.1 max, then Opus 5 max and Kimi K3 max
       "visual-engineering": {
         "model": "anthropic/claude-opus-5",
         "reasoning": "max",
@@ -349,7 +349,7 @@ Domain-specific model delegation used by the `task()` tool. When Sisyphus delega
 
 | Category             | Default Model                   | Description                                    |
 | -------------------- | ------------------------------- | ---------------------------------------------- |
-| `visual-engineering` | `anthropic/claude-opus-5` (max) | Frontend, UI/UX, design, animation            |
+| `visual-engineering` | `anthropic/claude-fable-5-1` (max) | Frontend, UI/UX, design, animation            |
 | `ultrabrain`         | `openai/gpt-6-astra` (max)      | Deep logical reasoning, complex architecture. Falls back to `gpt-5.6-sol` (max). |
 | `deep`               | `openai/gpt-6-astra` (high)     | Autonomous problem-solving, thorough research. Falls back to `gpt-5.6-sol` (medium). |
 | `artistry`           | `anthropic/claude-fable-5` (xhigh) | Creative/unconventional approaches             |
@@ -453,7 +453,7 @@ This table mirrors the authoritative hardcoded category fallback chains: the cha
 | **Quick** | `kimi-for-coding-highspeed` | `kimi-for-coding/kimi-for-coding-highspeed` → `openai-codex/gpt-5.6-luna-fast (low)` → `deepseek/deepseek-v4-flash (off)` → `qwen-token-plan\|alibaba-token-plan\|bailian-coding-plan/qwen3.6-flash (low)` → `opencode-go/minimax-m3 (max)` → `opencode-go/minimax-m2.7 (max)` → `xai/grok-4.20-0309-non-reasoning` → `anthropic\|anthropic-api\|github-copilot/claude-haiku-4-5 (off)` |
 | **Unspecified Low** | `grok-4.6` | `xai\|github-copilot\|opencode/grok-4.6 (xhigh)` → `openai\|openai-codex\|github-copilot\|opencode/gpt-5.6-terra (high)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-sonnet-5 (low)` → `qwen-token-plan\|alibaba-token-plan\|qwen-token-plan-cn\|alibaba-token-plan-cn/qwen3.8-max-preview (max)` → `deepseek\|opencode-go/deepseek-v4-pro (max)` → `xiaomi\|opencode-go/mimo-v2.5-pro (max)` |
 | **Unspecified High** | `gpt-6-astra` | `openai\|openai-codex\|github-copilot\|opencode/gpt-6-astra (high)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5 (xhigh)` → `zai-coding-plan\|opencode-go/glm-5.3 (max)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` |
-| **Writing** | `kimi-k3` | `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (low)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5 (low)` → `google\|github-copilot\|opencode/gemini-3.6-flash` |
+| **Writing** | `claude-fable-5-1` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5-1 (medium)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` |
 
 Run `bunx oh-my-openagent doctor --verbose` to see effective model resolution for your config.
 

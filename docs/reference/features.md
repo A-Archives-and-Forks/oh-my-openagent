@@ -160,14 +160,14 @@ By combining these two concepts, you can generate optimal agents through `task`.
 
 | Category             | Default Model                   | Use Cases                                                                                                                   |
 | -------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `visual-engineering` | `anthropic/claude-opus-5` (max) | Frontend, UI/UX, design, styling, animation                                                                                |
+| `visual-engineering` | `anthropic/claude-fable-5-1` (max) → `anthropic/claude-opus-5` (max) → `kimi-for-coding/kimi-k3` (max) | Frontend, UI/UX, design, styling, animation                                                                                |
 | `ultrabrain`         | `openai/gpt-6-astra` (max)      | Deep logical reasoning, complex architecture decisions requiring extensive analysis. Falls back to `gpt-5.6-sol` (max).     |
 | `deep`               | `openai/gpt-6-astra` (high)     | Goal-oriented autonomous problem-solving on hairy problems requiring deep research. ONE goal + ONE deliverable per call — multiple goals must fan out as parallel `deep` calls, never bundled into one. |
 | `artistry`           | `anthropic/claude-fable-5` (xhigh) | Highly creative/artistic tasks, novel ideas                                                                                 |
 | `quick`              | `kimi-for-coding/kimi-for-coding-highspeed` | Trivial tasks - single file changes, typo fixes, simple modifications                                                  |
 | `unspecified-low`    | `xai/grok-4.6` (xhigh)          | Tasks that don't fit other categories, low effort required                                                                  |
 | `unspecified-high`   | `openai/gpt-6-astra` (high)     | Tasks that don't fit other categories, high effort required. Falls back to Claude Opus 5, GLM 5.3, then Kimi K3.          |
-| `writing`            | `kimi-for-coding/kimi-k3` (low) | Documentation, prose, technical writing                                                                                     |
+| `writing`            | `anthropic/claude-fable-5-1` (medium) | Documentation, prose, technical writing                                                                                     |
 
 ### Usage
 

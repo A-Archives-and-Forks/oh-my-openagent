@@ -55,14 +55,14 @@ Tools registered via [`createToolRegistry()`](../plugin/tool-registry.ts) in `sr
 
 | Category | Default Model | Source File | Domain |
 |----------|---------------|-------------|--------|
-| `visual-engineering` | anthropic/claude-opus-5 (variant: max) | google-categories.ts | Frontend, UI/UX |
+| `visual-engineering` | anthropic/claude-fable-5-1 (variant: max) | google-categories.ts | Frontend, UI/UX |
 | `ultrabrain` | openai/gpt-6-astra (variant: max) | openai-categories.ts | Hard logic / heavy reasoning; GPT-6 Astra-specific prompt append |
 | `deep` | openai/gpt-6-astra (variant: high) | openai-categories.ts | Autonomous multi-step problem-solving; gated on gpt-6-astra OR gpt-5.6-sol; Astra / GPT-5.5 / generic prompt appends |
-| `artistry` | anthropic/claude-fable-5 (variant: xhigh) | google-categories.ts | Creative / unconventional approaches |
+| `artistry` | anthropic/claude-fable-5-1 (variant: max) | google-categories.ts | Creative / unconventional approaches |
 | `quick` | kimi-for-coding/kimi-for-coding-highspeed | openai-categories.ts | Trivial single-file changes |
 | `unspecified-low` | xai/grok-4.6 (variant: xhigh) | openai-categories.ts | Moderate effort fallback |
 | `unspecified-high` | openai/gpt-6-astra (variant: high) | openai-categories.ts | High effort fallback; GPT-6 Astra-specific prompt append |
-| `writing` | kimi-for-coding/kimi-k3 (variant: low) | kimi-categories.ts | Documentation, prose |
+| `writing` | anthropic/claude-fable-5-1 (variant: medium) | kimi-categories.ts | Documentation, prose |
 
 User-defined categories declared in `categories: { ... }` config override and extend this set.
 
