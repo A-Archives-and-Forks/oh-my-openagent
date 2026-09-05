@@ -1,3 +1,21 @@
+## 2026-09-05 — Sweep the remaining task examples and the delegate schema to background-by-default
+
+The gate review of #7795 found model-facing text that still prescribed `run_in_background=false`: the
+delegate tool's own parameter schema (`packages/omo-opencode/src/tools/delegate-task/tools.ts`, "Use true
+ONLY for parallel exploration; otherwise omit or pass false"), the category/skills delegation guide that
+the GPT-5.5/5.6/6 Sisyphus prompt embeds, the Sisyphus default/gemini and execution examples, the Atlas
+section builder and system-reminder template, the wave-plan template in `delegate-task/constants.ts`
+("IN PARALLEL" waves with `false`), the task-resume-info continuation line, delegate-core's retry
+guidance and its `missing_run_in_background` fix hint, and the GPT Atlas and ultrawork prompts in
+`packages/prompts-core` (Atlas said task execution "blocks for verification"; ultrawork spawned oracle
+and plan synchronously). Every example now shows `run_in_background=true`; the Atlas rule reads "the
+completion notification wakes you to verify; `false` only for a short child whose result gates your very
+next call"; the schema and fix hint carry the same rule as the tool description. Left as they are, on
+purpose: the anti-examples that already say "never wait synchronously for explore/librarian", the
+ralph-loop Oracle review (its continuation flow reads the verdict in the same turn), the refactor
+command template that states it needs the result synchronously, and runtime messages that describe a
+sync call factually.
+
 ## 2026-09-05 — Make background the standard spawn in every task-tool prompt surface
 
 The text the model reads about `run_in_background` now says the same thing on both editions: `true` is the
