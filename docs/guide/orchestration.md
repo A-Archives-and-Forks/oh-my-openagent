@@ -514,7 +514,7 @@ Switch to Hephaestus (Tab → Select Hephaestus) when:
    - "Migrate from MongoDB to PostgreSQL with zero downtime"
 
 4. **You specifically want GPT-native autonomous reasoning**
-   - Hephaestus defaults to GPT-5.6 Sol through OpenAI, GitHub Copilot, Vercel, or OpenCode; pin `openai/gpt-6-astra` to run him on OpenAI's most capable model
+   - Hephaestus defaults to GPT-5.6 Sol through OpenAI, OpenAI Codex, GitHub Copilot, or OpenCode; pin `openai/gpt-6-astra` to run him on OpenAI's most capable model
 
 **When to Use Sisyphus + `ulw`:**
 

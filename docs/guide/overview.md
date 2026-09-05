@@ -95,7 +95,7 @@ Sisyphus works best on Claude Opus 5, Kimi K3/K2.7, and GLM 5.2. GPT-5.4 has its
 
 Named with intentional irony. Anthropic blocked OpenCode from using their API because of this project. So the team built an autonomous GPT-native agent instead.
 
-Hephaestus uses GPT-5.6 Sol at medium effort, trying providers in order: OpenAI, GitHub Copilot, Vercel, OpenCode. Pin `openai/gpt-6-astra` if you want him on OpenAI's most capable model. Give him a goal, not a recipe. He explores the codebase, researches patterns, and executes end-to-end without hand-holding.
+Hephaestus uses GPT-5.6 Sol at medium effort, trying providers in order: OpenAI, OpenAI Codex, GitHub Copilot, OpenCode. Pin `openai/gpt-6-astra` if you want him on OpenAI's most capable model. Give him a goal, not a recipe. He explores the codebase, researches patterns, and executes end-to-end without hand-holding.
 
 Use Hephaestus when you need deep architectural reasoning, complex debugging across many files, or cross-domain knowledge synthesis. Switch to him explicitly when the work benefits from a GPT-native autonomous agent.
 
