@@ -239,7 +239,7 @@ Read this and tell me why it's not just another boilerplate: https://raw.githubu
 | `quick`              | Изменения в одном файле, опечатки     |
 | `ultrabrain`         | Сложная логика, архитектурные решения |
 
-Агент сообщает тип задачи, а обвязка подбирает нужную модель. `ultrabrain` и `deep` направляются в GPT-6 Astra high (OpenAI / OpenAI Codex, затем GitHub Copilot, затем OpenCode), а при недоступности откатываются к GPT-5.6 Sol. Вы ни к чему не прикасаетесь.
+Агент сообщает тип задачи, а обвязка подбирает нужную модель. `ultrabrain` направляется в GPT-6 Astra max, а `deep` в GPT-6 Astra high (OpenAI / OpenAI Codex, затем GitHub Copilot, затем OpenCode), а при недоступности откатываются к GPT-5.6 Sol. Вы ни к чему не прикасаетесь.
 
 ### Совместимость с Claude Code
 

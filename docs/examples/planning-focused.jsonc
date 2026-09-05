@@ -84,7 +84,7 @@
       "deep": { "model": "openai/gpt-6-astra", "reasoning": "high" },
 
       // Strategic reasoning
-      "ultrabrain": { "model": "openai/gpt-6-astra", "reasoning": "high" },
+      "ultrabrain": { "model": "openai/gpt-6-astra", "reasoning": "max" },
 
       // Creative approaches to problems
       "artistry": { "model": "google/gemini-3.1-pro", "reasoning": "high" },

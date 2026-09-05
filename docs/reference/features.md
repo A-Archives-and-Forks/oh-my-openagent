@@ -161,7 +161,7 @@ By combining these two concepts, you can generate optimal agents through `task`.
 | Category             | Default Model                   | Use Cases                                                                                                                   |
 | -------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `visual-engineering` | `anthropic/claude-opus-5` (max) | Frontend, UI/UX, design, styling, animation                                                                                |
-| `ultrabrain`         | `openai/gpt-6-astra` (high)     | Deep logical reasoning, complex architecture decisions requiring extensive analysis. Falls back to `gpt-5.6-sol` (max).     |
+| `ultrabrain`         | `openai/gpt-6-astra` (max)      | Deep logical reasoning, complex architecture decisions requiring extensive analysis. Falls back to `gpt-5.6-sol` (max).     |
 | `deep`               | `openai/gpt-6-astra` (high)     | Goal-oriented autonomous problem-solving on hairy problems requiring deep research. ONE goal + ONE deliverable per call — multiple goals must fan out as parallel `deep` calls, never bundled into one. |
 | `artistry`           | `anthropic/claude-fable-5` (xhigh) | Highly creative/artistic tasks, novel ideas                                                                                 |
 | `quick`              | `kimi-for-coding/kimi-for-coding-highspeed` | Trivial tasks - single file changes, typo fixes, simple modifications                                                  |
@@ -600,7 +600,7 @@ You can create powerful specialized agents by combining Categories and Skills.
 
 - **Category**: `ultrabrain`
 - **load_skills**: `[]` (pure reasoning)
-- **Effect**: Uses GPT-6 Astra at high effort through OpenAI or OpenAI Codex when available, then GitHub Copilot, then OpenCode. When Astra is unavailable it walks the same provider order on GPT-5.6 Sol at max effort. The chain is GPT-only.
+- **Effect**: Uses GPT-6 Astra at max effort through OpenAI or OpenAI Codex when available, then GitHub Copilot, then OpenCode. When Astra is unavailable it walks the same provider order on GPT-5.6 Sol at max effort. The chain is GPT-only.
 
 #### The Maintainer (Quick Fixes)
 

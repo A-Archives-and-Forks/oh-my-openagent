@@ -241,7 +241,7 @@ Sisyphus가 서브에이전트에 위임할 때는 모델을 직접 고르지 �
 | `quick`              | 단일 파일 변경, 오타 수정            |
 | `ultrabrain`         | 어려운 로직, 아키텍처 결정           |
 
-에이전트는 필요한 작업 종류만 말하고, 하네스가 적합한 모델을 고릅니다. `ultrabrain`과 `deep`은 GPT-6 Astra high로 라우팅되고(OpenAI / OpenAI Codex, 그다음 GitHub Copilot, 그다음 OpenCode), 없으면 GPT-5.6 Sol로 넘어갑니다. 당신이 건드릴 건 없습니다.
+에이전트는 필요한 작업 종류만 말하고, 하네스가 적합한 모델을 고릅니다. `ultrabrain`은 GPT-6 Astra max로, `deep`은 GPT-6 Astra high로 라우팅되고(OpenAI / OpenAI Codex, 그다음 GitHub Copilot, 그다음 OpenCode), 없으면 GPT-5.6 Sol로 넘어갑니다. 당신이 건드릴 건 없습니다.
 
 ### Claude Code 호환성
 

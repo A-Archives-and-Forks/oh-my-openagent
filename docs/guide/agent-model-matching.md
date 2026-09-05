@@ -254,7 +254,7 @@ Used by: Hephaestus, Oracle, Momus, `deep`, `ultrabrain`, `unspecified-high` (to
 
 | Priority | Model | Provider | Why |
 |---|---|---|---|
-| 1 | **`gpt-6-astra` (high / xhigh / max) - RECOMMENDED GPT FLAGSHIP** | `openai`, `openai-codex`, `github-copilot`, `opencode` | OpenAI's most capable model, 1,050,000-token context. Default for `ultrabrain`, `deep`, and `unspecified-high` at high effort. Reasoning efforts are low/medium/high/xhigh/max; `none` and `minimal` aren't supported and map to low. `gpt-6-astra-fast` is the Fast-mode variant. Available as a manual override for Hephaestus, Oracle, and Momus. |
+| 1 | **`gpt-6-astra` (high / xhigh / max) - RECOMMENDED GPT FLAGSHIP** | `openai`, `openai-codex`, `github-copilot`, `opencode` | OpenAI's most capable model, 1,050,000-token context. Default for `ultrabrain` (max), `deep` (high), and `unspecified-high` (high). Reasoning efforts are low/medium/high/xhigh/max; `none` and `minimal` aren't supported and map to low. `gpt-6-astra-fast` is the Fast-mode variant. Available as a manual override for Hephaestus, Oracle, and Momus. |
 | 1 | `gpt-5.6-sol` (xhigh / high / medium) | `openai`, `openai-codex`, `github-copilot`, `opencode` | The GPT-5.6 flagship and the automatic fallback rung under Astra in the GPT categories. Default for Hephaestus and Oracle. |
 | 1 | `gpt-5.6-terra` (xhigh / high) | `openai`, `openai-codex`, `github-copilot` | GPT-5.6 mid-tier. Default for Momus (high) and an optional balanced override elsewhere. |
 | 1 | `gpt-5.6-luna` (xhigh) | `openai`, `openai-codex` | GPT-5.6 light tier. Not the `unspecified-low` default; that category now starts at Grok 4.6. |
@@ -335,7 +335,7 @@ Principle-driven, explicit reasoning, deep technical capability. Best for agents
 
 | Model             | Strengths                                                                                       |
 | ----------------- | ----------------------------------------------------------------------------------------------- |
-| **GPT-6 Astra**   | OpenAI's most capable model and the recommended GPT flagship. Default for `ultrabrain`, `deep`, and `unspecified-high` (high effort). Efforts low/medium/high/xhigh/max; `gpt-6-astra-fast` is the Fast-mode variant. Manual override option for GPT-native agents. |
+| **GPT-6 Astra**   | OpenAI's most capable model and the recommended GPT flagship. Default for `ultrabrain` (max), `deep` (high), and `unspecified-high` (high). Efforts low/medium/high/xhigh/max; `gpt-6-astra-fast` is the Fast-mode variant. Manual override option for GPT-native agents. |
 | **GPT-5.6 Sol**   | The GPT-5.6 flagship. Default for Hephaestus; the fallback rung under Astra in `ultrabrain` and `deep`. |
 | **GPT-5.6 Terra** | GPT-5.6 mid-tier. Default for Momus (high) and an optional balanced override elsewhere. |
 | **GPT-5.6 Luna**  | GPT-5.6 light tier. No longer the `unspecified-low` default (that is Grok 4.6 xhigh). |
@@ -391,7 +391,7 @@ When agents delegate work, they don't pick a model name — they pick a **catego
 | Category | Used For | Default Model | Full fallback chain |
 | --- | --- | --- | --- |
 | `visual-engineering` | Frontend, UI, CSS, design | `anthropic/claude-opus-5 (max)` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5 (max)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` → `zai-coding-plan\|opencode-go/glm-5.2 (max)` → `openai\|openai-codex\|github-copilot\|opencode/gpt-6-astra (high)` → `openai\|openai-codex\|github-copilot\|opencode/gpt-5.6-sol (medium)` |
-| `ultrabrain` | Maximum reasoning needed | `openai/gpt-6-astra (high)` | `openai\|openai-codex/gpt-6-astra (high)` → `github-copilot/gpt-6-astra (high)` → `openai\|openai-codex\|opencode/gpt-6-astra (high)` → `openai\|openai-codex/gpt-5.6-sol (max)` → `github-copilot/gpt-5.6-sol (max)` → `openai\|openai-codex\|opencode/gpt-5.6-sol (max)` |
+| `ultrabrain` | Maximum reasoning needed | `openai/gpt-6-astra (max)` | `openai\|openai-codex/gpt-6-astra (max)` → `github-copilot/gpt-6-astra (max)` → `openai\|openai-codex\|opencode/gpt-6-astra (max)` → `openai\|openai-codex/gpt-5.6-sol (max)` → `github-copilot/gpt-5.6-sol (max)` → `openai\|openai-codex\|opencode/gpt-5.6-sol (max)` |
 | `deep` | Deep coding, complex logic | `openai/gpt-6-astra (high)` | `openai\|openai-codex\|github-copilot\|opencode/gpt-6-astra (high)` → `openai\|openai-codex\|github-copilot\|opencode/gpt-5.6-sol (medium)` |
 | `artistry` | Creative, novel approaches | `anthropic/claude-fable-5 (xhigh)` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5 (xhigh)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5 (xhigh)` |
 | `quick` | Simple, fast tasks | `kimi-for-coding/kimi-for-coding-highspeed` | `kimi-for-coding/kimi-for-coding-highspeed` → `openai-codex/gpt-5.6-luna-fast (low)` → `deepseek/deepseek-v4-flash (off)` → `qwen-token-plan\|alibaba-token-plan\|bailian-coding-plan/qwen3.6-flash (low)` → `opencode-go/minimax-m3 (max)` → `opencode-go/minimax-m2.7 (max)` → `xai/grok-4.20-0309-non-reasoning` → `anthropic\|anthropic-api\|github-copilot/claude-haiku-4-5 (off)` |
@@ -442,7 +442,7 @@ No built-in agent or category chain lists `vercel` (or `quotio-openai`) on any r
   "categories": {
     "visual-engineering": { "model": "opencode-go/kimi-k3", "variant": "max" },
     "deep": { "model": "openai/gpt-6-astra", "variant": "high" },
-    "ultrabrain": { "model": "openai/gpt-6-astra", "variant": "high" },
+    "ultrabrain": { "model": "openai/gpt-6-astra", "variant": "max" },
     "quick": { "model": "kimi-for-coding/kimi-for-coding-highspeed" },
     "unspecified-high": { "model": "openai/gpt-6-astra", "variant": "high" },
     "unspecified-low": { "model": "opencode-go/kimi-k2.7-code" },
@@ -475,7 +475,7 @@ Highest quality, highest cost. No surprises.
   "categories": {
     "visual-engineering": { "model": "anthropic/claude-opus-5", "variant": "max" },
     "deep": { "model": "openai/gpt-6-astra", "variant": "high" },
-    "ultrabrain": { "model": "openai/gpt-6-astra", "variant": "high" },
+    "ultrabrain": { "model": "openai/gpt-6-astra", "variant": "max" },
     "unspecified-high": { "model": "anthropic/claude-opus-5", "variant": "xhigh" },
   },
 }

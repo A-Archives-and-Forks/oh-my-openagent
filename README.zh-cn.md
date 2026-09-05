@@ -246,7 +246,7 @@ Read this and tell me why it's not just another boilerplate: https://raw.githubu
 | `quick`              | 单文件修改、修错字     |
 | `ultrabrain`         | 复杂硬核逻辑、架构决策 |
 
-智能体只需要说明要做什么类型的工作，框架就会挑选出最合适的模型去干。`ultrabrain` 和 `deep` 路由到 GPT-6 Astra high（OpenAI / OpenAI Codex，其次 GitHub Copilot，再其次 OpenCode），不可用时回退到 GPT-5.6 Sol。你完全不需要操心。
+智能体只需要说明要做什么类型的工作，框架就会挑选出最合适的模型去干。`ultrabrain` 路由到 GPT-6 Astra max，`deep` 路由到 GPT-6 Astra high（OpenAI / OpenAI Codex，其次 GitHub Copilot，再其次 OpenCode），不可用时回退到 GPT-5.6 Sol。你完全不需要操心。
 
 ### 完全兼容 Claude Code
 

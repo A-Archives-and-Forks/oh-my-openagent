@@ -327,7 +327,7 @@ task({ agent: "claude-opus-5", prompt: "..." }); // Different self-perception
 
 ```typescript
 // NEW: Category describes INTENT, not implementation
-task({ category: "ultrabrain", prompt: "..." }); // "Think strategically" (GPT-6 Astra high, then GPT-5.6 Sol)
+task({ category: "ultrabrain", prompt: "..." }); // "Think strategically" (GPT-6 Astra max, then GPT-5.6 Sol)
 task({ category: "visual-engineering", prompt: "..." }); // "Design beautifully"
 task({ category: "quick", prompt: "..." }); // "Just get it done fast"
 ```

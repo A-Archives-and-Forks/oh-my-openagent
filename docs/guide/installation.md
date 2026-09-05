@@ -240,7 +240,7 @@ Map their answer to:
    - **no** → `--claude=no`
 
 2. **Do you have an OpenAI/ChatGPT Plus Subscription?**
-   - **yes** → `--openai=yes` (enables OpenAI routes; the `ultrabrain`, `deep`, and `unspecified-high` categories start on GPT-6 Astra, Hephaestus prefers GPT-5.6 Sol, and Momus prefers GPT-5.6 Terra, both falling back to GPT-5.6 Sol)
+   - **yes** → `--openai=yes` (enables OpenAI routes; the `ultrabrain` (max), `deep` (high), and `unspecified-high` (high) categories start on GPT-6 Astra, Hephaestus prefers GPT-5.6 Sol, and Momus prefers GPT-5.6 Terra, both falling back to GPT-5.6 Sol)
    - **no** → `--openai=no` (default)
 
 3. **Will you integrate Gemini models?**
@@ -599,7 +599,7 @@ Not all models behave the same way. Understanding "similar" families helps you m
 
 | Model             | Provider(s)                      | Notes                                                                                                       |
 | ----------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| **GPT-6 Astra**   | openai, openai-codex, github-copilot, opencode | OpenAI's most capable model and the recommended GPT flagship. Default for `ultrabrain`, `deep`, and `unspecified-high` (high effort). `gpt-6-astra-fast` is the Fast-mode variant. Manual override option for Hephaestus, Oracle, and Momus. |
+| **GPT-6 Astra**   | openai, openai-codex, github-copilot, opencode | OpenAI's most capable model and the recommended GPT flagship. Default for `ultrabrain` (max), `deep` (high), and `unspecified-high` (high). `gpt-6-astra-fast` is the Fast-mode variant. Manual override option for Hephaestus, Oracle, and Momus. |
 | **GPT-5.6 Sol**   | openai, openai-codex, github-copilot, opencode | Default for Hephaestus at medium effort; the fallback rung under Astra for `ultrabrain` (max) and `deep` (medium). |
 | **GPT-5.6 Terra** | openai, openai-codex, github-copilot | GPT-5.6 mid-tier. Default for Momus (high) and an optional balanced override elsewhere.                    |
 | **GPT-5.6 Luna**  | openai, openai-codex             | GPT-5.6 light tier. Not the `unspecified-low` default: that category starts at `xai\|github-copilot\|opencode/grok-4.6 (xhigh)`, then `gpt-5.6-terra (high)`. |

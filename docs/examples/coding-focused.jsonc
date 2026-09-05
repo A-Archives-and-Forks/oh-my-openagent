@@ -68,7 +68,7 @@
       "deep": { "model": "openai/gpt-6-astra", "reasoning": "high" },
 
       // Architecture decisions
-      "ultrabrain": { "model": "openai/gpt-6-astra", "reasoning": "high" },
+      "ultrabrain": { "model": "openai/gpt-6-astra", "reasoning": "max" },
     },
 
     // High concurrency for parallel agent work

@@ -87,7 +87,7 @@ Sisyphus is your main orchestrator. He plans, delegates to specialists, and driv
 - **Kimi K3** — Strongest Kimi for Sisyphus. Recommended when you can accept its thinking-token cost; the K3 prompt is calibrated to stop overthinking and keep work moving.
 - **Kimi K2.7** — Restrained, outcome-first Kimi fallback for Claude-like orchestration paths.
 - **GLM 5.2** — Solid option, especially via OpenCode Go. Sisyphus uses a GLM-5.2-calibrated prompt and the automatic chain includes `glm-5.2` explicitly, but current evidence is still lighter than Claude/Kimi maintainer validation.
-- **GPT-6 Astra** — OpenAI's most capable model and the recommended GPT flagship. It's the default for the `ultrabrain`, `deep`, and `unspecified-high` categories, and a strong manual override for Hephaestus and Oracle. Hephaestus still defaults to GPT-5.6 Sol.
+- **GPT-6 Astra** — OpenAI's most capable model and the recommended GPT flagship. It's the default for the `ultrabrain` (max), `deep` (high), and `unspecified-high` (high) categories, and a strong manual override for Hephaestus and Oracle. Hephaestus still defaults to GPT-5.6 Sol.
 
 Sisyphus works best on Claude Opus 5, Kimi K3/K2.7, and GLM 5.2. GPT-5.4 has its own prompt, while GPT-5.5 and GPT-5.6 Sol share a model-aware GPT-native prompt family. Hephaestus remains the recommended GPT-5.6 agent because [issue #6074](https://github.com/code-yeongyu/oh-my-openagent/issues/6074) tracks Sisyphus over-orchestration on bounded work.
 
@@ -103,7 +103,7 @@ Use Hephaestus when you need deep architectural reasoning, complex debugging acr
 
 - **Multi-model orchestration.** Pure Codex is single-model. OmO routes different tasks to different models automatically. Opus 5 for orchestration and visual work. GPT-6 Astra for deep reasoning. Kimi high-speed for quick tasks. The right brain for the right job.
 - **Background agents.** Fire 5+ agents in parallel. Something Codex simply cannot do. While one agent writes code, another researches patterns, another checks documentation. Like a real dev team.
-- **Category system.** Tasks are routed by intent, not model name. `visual-engineering` starts with Claude Opus 5 max, then Kimi K3 and GLM 5.2. `ultrabrain` and `deep` prefer GPT-6 Astra high and fall back to GPT-5.6 Sol. `artistry` starts with Claude Fable 5, `quick` with Kimi high-speed, `unspecified-low` with Grok 4.6, `unspecified-high` with GPT-6 Astra, and `writing` with Kimi K3. No manual juggling.
+- **Category system.** Tasks are routed by intent, not model name. `visual-engineering` starts with Claude Opus 5 max, then Kimi K3 and GLM 5.2. `ultrabrain` prefers GPT-6 Astra max and `deep` GPT-6 Astra high; both fall back to GPT-5.6 Sol. `artistry` starts with Claude Fable 5, `quick` with Kimi high-speed, `unspecified-low` with Grok 4.6, `unspecified-high` with GPT-6 Astra, and `writing` with Kimi K3. No manual juggling.
 - **Accumulated wisdom.** Subagents learn from previous results. Conventions discovered in task 1 are passed to task 5. Mistakes made early aren't repeated. The system gets smarter as it works.
 
 ### Prometheus: The Strategic Planner
@@ -194,8 +194,8 @@ You can override specific agents or categories in your config:
       "variant": "max",
     },
 
-    // Hard logic and architecture: GPT-6 Astra high, then GPT-5.6 Sol max
-    "ultrabrain": { "model": "openai/gpt-6-astra", "variant": "high" },
+    // Hard logic and architecture: GPT-6 Astra max, then GPT-5.6 Sol max
+    "ultrabrain": { "model": "openai/gpt-6-astra", "variant": "max" },
 
     // Autonomous research and execution: GPT-6 Astra high, then GPT-5.6 Sol medium
     "deep": { "model": "openai/gpt-6-astra", "variant": "high" },
@@ -228,7 +228,7 @@ You can override specific agents or categories in your config:
 
 **GPT models** (explicit reasoning, principle-driven):
 
-- GPT-6 Astra — OpenAI's most capable model; default for `ultrabrain`, `deep`, and `unspecified-high` at high effort, with `gpt-6-astra-fast` as the Fast-mode variant
+- GPT-6 Astra — OpenAI's most capable model; default for `ultrabrain` (max), `deep` (high), and `unspecified-high` (high), with `gpt-6-astra-fast` as the Fast-mode variant
 - GPT-5.6 Sol — default for Hephaestus at medium effort; the fallback rung under Astra for `ultrabrain` (max) and `deep` (medium)
 - GPT-5.6 Terra — balanced mid-tier; preferred for Momus (high) and available as an explicit override elsewhere
 - Grok 4.6 — default for the `unspecified-low` category (xhigh)

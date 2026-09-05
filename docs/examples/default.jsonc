@@ -55,7 +55,7 @@
       "writing": { "model": "kimi-for-coding/kimi-k3", "reasoning": "low" },
       "visual-engineering": { "model": "anthropic/claude-opus-5", "reasoning": "max" },
       "deep": { "model": "openai/gpt-6-astra", "reasoning": "high" },
-      "ultrabrain": { "model": "openai/gpt-6-astra", "reasoning": "high" },
+      "ultrabrain": { "model": "openai/gpt-6-astra", "reasoning": "max" },
     },
 
     // Conservative concurrency for cost control
