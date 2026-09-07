@@ -155,6 +155,39 @@ describe("readUlwLoopPlan", () => {
 			before: { codexObjective: legacyObjective },
 		});
 	});
+
+	it("readUlwLoopPlan refuses to migrate a legacy aggregate plan outside the mutation lock (no unlocked write on a read path)", async () => {
+		// given: the same legacy plan, but the read is not wrapped in withUlwLoopMutationLock
+		const legacyObjective = "Complete all ulw-loop stories in .omo/ulw-loop/goals.json: G001 Build auth service";
+		await writeRawPlan(repoRoot, makePlan({ codexObjective: legacyObjective }));
+
+		// when
+		let caught: unknown;
+		try {
+			await readUlwLoopPlan(repoRoot);
+		} catch (error) {
+			caught = error;
+		}
+
+		// then: it refuses with a recovery hint and writes nothing
+		expect(caught).toBeInstanceOf(UlwLoopError);
+		expect((caught as UlwLoopError).code).toBe("ULW_LOOP_MIGRATION_REQUIRED");
+		const persisted = JSON.parse(await readFile(ulwLoopGoalsPath(repoRoot), "utf8"));
+		expect(persisted.codexObjective).toBe(legacyObjective);
+		expect(await readLedgerLines(repoRoot)).toHaveLength(0);
+	});
+
+	it("a read of an already-migrated plan outside the lock still succeeds", async () => {
+		// given
+		await writeRawPlan(repoRoot, makePlan({ codexObjective: STABLE_OBJECTIVE }));
+
+		// when
+		const plan = await readUlwLoopPlan(repoRoot);
+
+		// then
+		expect(plan.codexObjective).toBe(STABLE_OBJECTIVE);
+		expect(await readLedgerLines(repoRoot)).toHaveLength(0);
+	});
 });
 
 describe("writePlan", () => {

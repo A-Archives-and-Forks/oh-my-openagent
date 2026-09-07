@@ -96,6 +96,14 @@ export async function readUlwLoopPlan(repoRoot: string, scope?: UlwLoopScope): P
 		(parsed.codexGoalMode ?? "per_story") === "aggregate" &&
 		isLegacyEnumeratedAggregateObjective(previousObjective)
 	) {
+		if (!locks.has(`${repoRoot}\0${ulwLoopRelativeDir(scope)}`)) {
+			// A read path (status/criteria) must not mutate state: mutating here runs
+			// unlocked and a second reader could write a partially-migrated plan.
+			throw new UlwLoopError(
+				`The ulw-loop plan at ${repoRelative(path, repoRoot)} carries a legacy enumerated aggregate objective that must be migrated before reads continue. Run any state-mutating ulw-loop command once (e.g. \`record-evidence\`, \`steer\`, \`checkpoint\`) to migrate it under the state lock, then retry.`,
+				"ULW_LOOP_MIGRATION_REQUIRED",
+			);
+		}
 		const now = iso();
 		parsed.codexObjective = aggregateCodexObjectiveForScope(scope);
 		parsed.codexObjectiveAliases = [...new Set([...(parsed.codexObjectiveAliases ?? []), previousObjective])];
