@@ -10,8 +10,10 @@ import {
 	ulwLoopGoalsPath,
 	ulwLoopLedgerPath,
 	ulwLoopRelativeDir,
+	ulwLoopStateLockPath,
 } from "./paths.js";
 import { planMissingRecovery } from "./plan-missing-recovery.js";
+import { withStateLock } from "./state-lock.js";
 import type { UlwLoopLedgerEntry, UlwLoopPlan } from "./types.js";
 import { iso, ULW_LOOP_DIR, ULW_LOOP_GOALS, ULW_LOOP_LEDGER, UlwLoopError } from "./types.js";
 
@@ -51,8 +53,12 @@ export async function withUlwLoopMutationLock<T>(
 	const fn = typeof scopeOrFn === "function" ? scopeOrFn : maybeFn;
 	if (fn === undefined) throw new UlwLoopError("Missing ulw-loop mutation body.", "ULW_LOOP_LOCK_BODY_MISSING");
 	const lockKey = `${repoRoot}\0${ulwLoopRelativeDir(scope)}`;
+	const lockPath = ulwLoopStateLockPath(repoRoot, scope);
+	// The promise chain orders callers inside this process; the file lock is what
+	// excludes every other process (each CLI invocation) touching the same state dir.
+	const locked = (): Promise<T> => withStateLock(lockPath, fn);
 	const prior = locks.get(lockKey) ?? Promise.resolve(undefined);
-	const run = prior.then(fn, fn);
+	const run = prior.then(locked, locked);
 	// The stored gate resolves to undefined so the map never retains fn's result
 	// (plans/audits), and it removes itself once no newer waiter replaced it —
 	// otherwise a long-lived host leaks one entry per (repo, scope) forever.
@@ -74,7 +80,7 @@ export async function readUlwLoopPlan(repoRoot: string, scope?: UlwLoopScope): P
 		raw = await readFile(path, "utf8");
 	} catch (error) {
 		if (!hasCode(error, "ENOENT")) throw error;
-		const recovery = planMissingRecovery(readSessionDirs(repoRoot));
+		const recovery = planMissingRecovery(listUlwLoopSessionIds(repoRoot));
 		throw new UlwLoopError(
 			`No ulw-loop plan found at ${repoRelative(path, repoRoot)}.\n${recovery.message}`,
 			"ULW_LOOP_PLAN_MISSING",
@@ -110,9 +116,9 @@ export async function readUlwLoopPlan(repoRoot: string, scope?: UlwLoopScope): P
 	return parsed;
 }
 
-// Session dirs are the only recovery hint that matters when a plan is missing: the
-// caller is almost always scoped to a session whose sibling actually holds the plan.
-function readSessionDirs(repoRoot: string): readonly string[] {
+// Session dirs are the only recovery hint that matters when a plan or a scope is
+// missing: the caller is almost always meant to target one of these siblings.
+export function listUlwLoopSessionIds(repoRoot: string): readonly string[] {
 	try {
 		return readdirSync(ulwLoopDir(repoRoot), { withFileTypes: true })
 			.filter((entry) => entry.isDirectory())
