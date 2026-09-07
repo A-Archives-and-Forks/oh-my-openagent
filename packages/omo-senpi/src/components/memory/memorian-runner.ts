@@ -95,7 +95,7 @@ export type MemorianGateLaunchResult =
   /** No candidates, or the quick category could not resolve. */
   | { readonly status: "skipped"; readonly cause?: string; readonly model?: string; readonly candidateCount?: number; readonly runId?: string }
   /** The child ran and said nothing the parent accepted. */
-  | { readonly status: "empty"; readonly runId?: string }
+  | { readonly status: "empty"; readonly runId?: string; readonly model?: string }
   /** The child session could not be created or its turn failed. */
   | {
     readonly status: "failed"
@@ -160,7 +160,7 @@ export class MemorianGateRunner {
     // pinned to the quick category: an advisory read of a turn that already ended must never land
     // on an arbitrary, possibly frontier-priced model, so anything outside the category counts as
     // unavailable - warn and skip. The category's own chain is the judge's fallback ladder: it is
-    // carried into the child (memorian-judge-chain.ts), where the engine rotates rungs mid-turn.
+    // carried into the child (memory-child-model-chain.ts), where the engine rotates rungs mid-turn.
     if (resolution.kind === "category_unavailable" || resolution.source !== undefined) {
       this.options.logger?.warn("memorian gate quick category unavailable", {
         cause: resolution.kind === "category_unavailable" ? resolution.cause : resolution.source,
@@ -180,9 +180,10 @@ export class MemorianGateRunner {
       set state(value) { self.activeState = value },
     }, input, resolution, runId, accepted, state)
     if (judged.status === "failed" || judged.status === "dropped") return judged
+    const model = judged.model ?? resolution.model
     if (state.cancelled) {
-      await overwriteDroppedOutcome(this.options, runId, "cancelled")
-      return { status: "dropped", cause: "cancelled", runId, candidateCount: input.candidates.length }
+      await overwriteDroppedOutcome(this.options, runId, "cancelled", model)
+      return { status: "dropped", cause: "cancelled", model, runId, candidateCount: input.candidates.length }
     }
     // Defence in depth: the closure already validated every recorded nudge at call time, and this
     // re-validation is a no-op for already-validated input (it also drops duplicate paths should
@@ -192,19 +193,19 @@ export class MemorianGateRunner {
       surfaced: input.surfaced,
       maxItems: input.maxItems,
     })
-    if (nudges.length === 0) return { status: "empty" }
+    if (nudges.length === 0) return { status: "empty", runId, model }
     // The judged transcript no longer exists after a compaction; the verdict must not survive it.
     if (state.cancelled || isStaleAfterCompaction(input)) {
       if (state.cancelled) {
-        await overwriteDroppedOutcome(this.options, runId, "cancelled")
-        return { status: "dropped", cause: "cancelled", candidateCount: input.candidates.length }
+        await overwriteDroppedOutcome(this.options, runId, "cancelled", model)
+        return { status: "dropped", cause: "cancelled", model, runId, candidateCount: input.candidates.length }
       }
-      await overwriteDroppedOutcome(this.options, runId, "compaction")
-      return this.dropAfterCompaction(input)
+      await overwriteDroppedOutcome(this.options, runId, "compaction", model)
+      return this.dropAfterCompaction(input, model, runId)
     }
     return judged.partial === true
-      ? { status: "nudged", nudges, model: resolution.model, runId, partial: true }
-      : { status: "nudged", nudges, model: resolution.model, runId }
+      ? { status: "nudged", nudges, model, runId, partial: true }
+      : { status: "nudged", nudges, model, runId }
   }
 
   async cancel(): Promise<void> {
@@ -222,12 +223,12 @@ export class MemorianGateRunner {
     await this.activeLaunch
   }
 
-  private dropAfterCompaction(input: MemorianGateLaunchInput): MemorianGateLaunchResult {
+  private dropAfterCompaction(input: MemorianGateLaunchInput, model: string, runId: string): MemorianGateLaunchResult {
     this.options.logger?.warn("memorian gate nudges dropped after compaction", {
       sessionId: input.sessionId,
       launchedAtEpoch: input.compactionEpoch,
     })
-    return { status: "dropped", cause: "compaction", candidateCount: input.candidates.length }
+    return { status: "dropped", cause: "compaction", model, runId, candidateCount: input.candidates.length }
   }
 }
 
@@ -235,12 +236,14 @@ async function overwriteDroppedOutcome(
   options: MemorianGateRunnerOptions,
   runId: string,
   cause: "cancelled" | "compaction",
+  model: string,
 ): Promise<void> {
   await writeMemorianRunOutcome({
     runDir: join(options.identityPaths.recall, "runs", runId),
     runId,
     status: "dropped",
     cause,
+    model,
     nudged: [],
     now: () => new Date(),
     warn: (message, fields) => options.logger?.warn(message, fields),

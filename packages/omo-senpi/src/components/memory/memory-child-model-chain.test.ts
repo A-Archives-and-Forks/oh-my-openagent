@@ -1,15 +1,12 @@
 import { describe, expect, test } from "bun:test"
 
-import { memorianJudgeChain } from "./memorian-judge-chain"
+import { childModelChainSpec } from "./memory-child-model-chain"
 
-describe("memorianJudgeChain", () => {
+describe("childModelChainSpec", () => {
   test("#given a resolved quick chain #when converted #then the primary selector and the in-category fallback records are produced", () => {
     // given / when
-    const chain = memorianJudgeChain({
-      kind: "resolved",
-      category: "quick",
+    const chain = childModelChainSpec({
       model: "omo-mock/mock-1",
-      thinking: "low",
       fallbacks: [{ model: "omo-mock/mock-2" }, { model: "apitopia/z-ai/glm-5.3", thinking: "high" }],
     })
 
@@ -21,11 +18,12 @@ describe("memorianJudgeChain", () => {
         { provider: "omo-mock", model_id: "mock-2", display: "omo-mock/mock-2", source: "category" },
         { provider: "apitopia", model_id: "z-ai/glm-5.3", display: "apitopia/z-ai/glm-5.3", reasoning: "high", source: "category" },
       ],
+      retry: { maxRetries: 1 },
     })
   })
 
-  test("#given a single-model quick category #when converted #then the fallback list is empty", () => {
-    expect(memorianJudgeChain({ kind: "resolved", category: "quick", model: "omo-mock/mock-1", fallbacks: [] }))
-      .toEqual({ selectedModel: "omo-mock/mock-1", fallbackModels: [] })
+  test("#given a single-model quick category #when converted #then fallback and retry overrides are absent", () => {
+    expect(childModelChainSpec({ model: "omo-mock/mock-1", fallbacks: [] }))
+      .toEqual({ selectedModel: "omo-mock/mock-1" })
   })
 })
