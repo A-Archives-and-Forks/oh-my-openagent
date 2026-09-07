@@ -63,11 +63,11 @@ describe("spawnDaemonProcess", () => {
 			// Compiled-binary style path: under the packaged runtime execPath IS the
 			// omo binary, not a node interpreter, so without BUN_BE_BUN the CLI argv
 			// boots a billable agent session instead of the daemon.
-			resolveExecutable: () => "/opt/omo/payload/bin/omo",
+			resolveExecutable: () => "/opt/omo/payload/omo",
 		});
 
 		expect(observed).toHaveLength(1);
-		expect(observed[0]?.executable).toBe("/opt/omo/payload/bin/omo");
+		expect(observed[0]?.executable).toBe("/opt/omo/payload/omo");
 		expect(observed[0]?.args).toEqual([paths.cliPath, "daemon"]);
 		expect(observed[0]?.options.env).toEqual({ ...process.env, BUN_BE_BUN: "1" });
 	});
