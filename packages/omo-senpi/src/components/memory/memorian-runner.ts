@@ -180,9 +180,10 @@ export class MemorianGateRunner {
       set state(value) { self.activeState = value },
     }, input, resolution, runId, accepted, state)
     if (judged.status === "failed" || judged.status === "dropped") return judged
+    const model = judged.model ?? resolution.model
     if (state.cancelled) {
-      await overwriteDroppedOutcome(this.options, runId, "cancelled", judged.model ?? resolution.model)
-      return { status: "dropped", cause: "cancelled", runId, candidateCount: input.candidates.length }
+      await overwriteDroppedOutcome(this.options, runId, "cancelled", model)
+      return { status: "dropped", cause: "cancelled", model, runId, candidateCount: input.candidates.length }
     }
     // Defence in depth: the closure already validated every recorded nudge at call time, and this
     // re-validation is a no-op for already-validated input (it also drops duplicate paths should
@@ -192,19 +193,19 @@ export class MemorianGateRunner {
       surfaced: input.surfaced,
       maxItems: input.maxItems,
     })
-    if (nudges.length === 0) return { status: "empty", runId, model: judged.model ?? resolution.model }
+    if (nudges.length === 0) return { status: "empty", runId, model }
     // The judged transcript no longer exists after a compaction; the verdict must not survive it.
     if (state.cancelled || isStaleAfterCompaction(input)) {
       if (state.cancelled) {
-        await overwriteDroppedOutcome(this.options, runId, "cancelled", judged.model ?? resolution.model)
-        return { status: "dropped", cause: "cancelled", candidateCount: input.candidates.length }
+        await overwriteDroppedOutcome(this.options, runId, "cancelled", model)
+        return { status: "dropped", cause: "cancelled", model, runId, candidateCount: input.candidates.length }
       }
-      await overwriteDroppedOutcome(this.options, runId, "compaction", judged.model ?? resolution.model)
-      return this.dropAfterCompaction(input)
+      await overwriteDroppedOutcome(this.options, runId, "compaction", model)
+      return this.dropAfterCompaction(input, model, runId)
     }
     return judged.partial === true
-      ? { status: "nudged", nudges, model: judged.model ?? resolution.model, runId, partial: true }
-      : { status: "nudged", nudges, model: judged.model ?? resolution.model, runId }
+      ? { status: "nudged", nudges, model, runId, partial: true }
+      : { status: "nudged", nudges, model, runId }
   }
 
   async cancel(): Promise<void> {
@@ -222,12 +223,12 @@ export class MemorianGateRunner {
     await this.activeLaunch
   }
 
-  private dropAfterCompaction(input: MemorianGateLaunchInput): MemorianGateLaunchResult {
+  private dropAfterCompaction(input: MemorianGateLaunchInput, model: string, runId: string): MemorianGateLaunchResult {
     this.options.logger?.warn("memorian gate nudges dropped after compaction", {
       sessionId: input.sessionId,
       launchedAtEpoch: input.compactionEpoch,
     })
-    return { status: "dropped", cause: "compaction", candidateCount: input.candidates.length }
+    return { status: "dropped", cause: "compaction", model, runId, candidateCount: input.candidates.length }
   }
 }
 
