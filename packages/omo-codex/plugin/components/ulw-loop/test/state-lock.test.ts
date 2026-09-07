@@ -29,7 +29,7 @@ const fs = require("node:fs");
 const [lockPath, holdMs] = process.argv.slice(1);
 fs.mkdirSync(require("node:path").dirname(lockPath), { recursive: true });
 const fd = fs.openSync(lockPath, "wx");
-fs.writeSync(fd, JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }));
+fs.writeSync(fd, JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString(), token: "holder-" + process.pid }));
 fs.closeSync(fd);
 process.stdout.write("HELD\\n");
 setTimeout(() => {
@@ -116,11 +116,59 @@ describe("withStateLock", () => {
 		it("#when acquiring #then the stale lock is reclaimed immediately", async () => {
 			const deadPid = await spawnExitedProcess();
 			mkdirSync(join(workDir, ".omo", "ulw-loop", "s1"), { recursive: true });
-			await writeFile(lockPath, JSON.stringify({ pid: deadPid, createdAt: new Date().toISOString() }));
+			await writeFile(
+				lockPath,
+				JSON.stringify({ pid: deadPid, createdAt: new Date().toISOString(), token: "gone" }),
+			);
 
 			const seenOwner = await withStateLock(lockPath, async () => ownerPid(), { timeoutMs: 1_000 });
 
 			expect(seenOwner).toBe(process.pid);
+		});
+
+		it("#when a legacy record without a token is young #then it is treated as mid-write and waited on, not stolen", async () => {
+			mkdirSync(join(workDir, ".omo", "ulw-loop", "s1"), { recursive: true });
+			await writeFile(lockPath, JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }));
+
+			const attempt = withStateLock(lockPath, async () => "unreachable", { timeoutMs: 150, staleMs: 60_000 });
+
+			await expect(attempt).rejects.toMatchObject({ code: ULW_LOOP_LOCK_TIMEOUT_CODE });
+			expect(existsSync(lockPath)).toBe(true);
+		});
+	});
+
+	describe("#given a live holder whose lock is older than staleMs", () => {
+		it("#when acquiring #then age alone never reclaims it and the waiter fails closed", async () => {
+			await spawnForeignHolder(5_000);
+			const holderPid = ownerPid();
+			const twoMinutesAgo = new Date(Date.now() - 120_000);
+			await utimes(lockPath, twoMinutesAgo, twoMinutesAgo);
+			let bodyRan = false;
+
+			const attempt = withStateLock(
+				lockPath,
+				async () => {
+					bodyRan = true;
+				},
+				{ timeoutMs: 200, staleMs: 60_000 },
+			);
+
+			await expect(attempt).rejects.toMatchObject({ code: ULW_LOOP_LOCK_TIMEOUT_CODE });
+			expect(bodyRan).toBe(false);
+			expect(ownerPid()).toBe(holderPid);
+		});
+	});
+
+	describe("#given the lock changed hands while the body ran", () => {
+		it("#when the original owner releases #then it leaves the successor's lock in place", async () => {
+			const foreign = JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString(), token: "successor" });
+
+			await withStateLock(lockPath, async () => {
+				await writeFile(lockPath, foreign);
+			});
+
+			expect(existsSync(lockPath)).toBe(true);
+			expect(readFileSync(lockPath, "utf8")).toBe(foreign);
 		});
 
 		it("#when the record is unreadable but older than staleMs #then it is reclaimed", async () => {
