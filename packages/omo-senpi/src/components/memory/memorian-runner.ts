@@ -83,7 +83,7 @@ export interface MemorianGateLaunchInput {
 }
 
 /** Precise failure causes: which stage of the in-process launch died. */
-export type MemorianGateFailureCause = "session_create_failed" | "deadline" | "child_failed" | "child_failed_upstream" | "launch_failed"
+export type MemorianGateFailureCause = "session_create_failed" | "child_failed" | "child_failed_upstream" | "launch_failed"
 
 export type MemorianGateLaunchResult =
   /** Another gate run holds the latch; this trigger is dropped. */
@@ -92,7 +92,7 @@ export type MemorianGateLaunchResult =
   | { readonly status: "skipped"; readonly cause?: string; readonly model?: string; readonly candidateCount?: number; readonly runId?: string }
   /** The child ran and said nothing the parent accepted. */
   | { readonly status: "empty"; readonly runId?: string }
-  /** The child session could not be created, outran its deadline, or its turn failed. */
+  /** The child session could not be created or its turn failed. */
   | {
     readonly status: "failed"
     readonly cause?: MemorianGateFailureCause
@@ -101,6 +101,7 @@ export type MemorianGateLaunchResult =
     readonly reason?: string
     readonly runId?: string
   }
+  /** Dropped causes include cancelled, compaction, and deadline (zero accepted nudges). */
   | { readonly status: "dropped"; readonly cause?: string; readonly model?: string; readonly candidateCount?: number; readonly runId?: string }
   | { readonly status: "nudged"; readonly nudges: readonly RecallNudge[]; readonly model?: string; readonly runId: string; readonly partial?: boolean }
 

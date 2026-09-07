@@ -145,7 +145,7 @@ describe("MemorianGateRunner", () => {
     }
   })
 
-  test("#given a child that never nudges and never settles #when the launch deadline fires #then the result is failed with cause deadline", async () => {
+  test("#given a child that never nudges and never settles #when the launch deadline fires #then the result is dropped with cause deadline", async () => {
     // given
     const { identityPaths } = await fixture()
     const stub = scriptedSession(async () => undefined)
@@ -155,7 +155,8 @@ describe("MemorianGateRunner", () => {
     const result = await runner.launch(launchInput({ deadlineMs: 50 }))
 
     // then
-    expect(result).toMatchObject({ status: "failed", cause: "deadline" })
+    expect(result).toMatchObject({ status: "dropped", cause: "deadline" })
+    expect(result.status).not.toBe("nudged")
   })
 
   test("#given an accepted nudge and a compaction epoch bump mid-flight #when the launch deadline fires #then the result is dropped with cause compaction", async () => {

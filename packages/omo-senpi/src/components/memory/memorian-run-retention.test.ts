@@ -94,6 +94,28 @@ describe("pruneMemorianRuns", () => {
     expect(existsSync(join(runsDir, "nudged"))).toBe(false)
   })
 
+  test("#given a dropped deadline dir #when pruning at 20 then 31 days #then it is kept then removed", async () => {
+    const recallDir = await tmp()
+    const runsDir = join(recallDir, "runs")
+    await seed(runsDir, "deadline", 20 * DAY, {
+      "outcome.json": JSON.stringify({
+        version: 1,
+        runId: "deadline",
+        status: "dropped",
+        cause: "deadline",
+        nudged: [],
+        finishedAt: NOW.toISOString(),
+      }),
+    })
+    expect(await pruneMemorianRuns({ recallDir, now: () => NOW })).toEqual({ removed: 0, kept: 1 })
+    expect(existsSync(join(runsDir, "deadline"))).toBe(true)
+    expect(await pruneMemorianRuns({ recallDir, now: () => new Date(NOW.getTime() + 11 * DAY) })).toEqual({
+      removed: 1,
+      kept: 0,
+    })
+    expect(existsSync(join(runsDir, "deadline"))).toBe(false)
+  })
+
   test("#given a 6-day-old failed dir #when pruning #then the dir is kept", async () => {
     const recallDir = await tmp()
     await seed(join(recallDir, "runs"), "failed", 6 * DAY, {

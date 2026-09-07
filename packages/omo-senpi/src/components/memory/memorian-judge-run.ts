@@ -126,7 +126,7 @@ export async function runMemorianJudge(
       host.options.logger?.warn("memorian gate deadline exceeded", { runId, salvaged: accepted.length })
       if (accepted.length > 0) return await record({ status: "completed", partial: true })
       state.cancelled = true
-      return await record({ status: "failed", cause: "deadline", model: resolution.model, candidateCount: input.candidates.length, runId })
+      return await record({ status: "dropped", cause: "deadline", model: resolution.model, candidateCount: input.candidates.length, runId })
     }
     const unsubscribeHandle = settled.subscribe(observeChildEvent)
     const raced = await Promise.race([
@@ -140,7 +140,7 @@ export async function runMemorianJudge(
       await abortAndDispose(settled, host.options.logger, runId)
       if (accepted.length > 0) return await record({ status: "completed", partial: true })
       state.cancelled = true
-      return await record({ status: "failed", cause: "deadline", model: resolution.model, candidateCount: input.candidates.length, runId })
+      return await record({ status: "dropped", cause: "deadline", model: resolution.model, candidateCount: input.candidates.length, runId })
     }
     if (raced.kind === "upstream-failure") {
       const reason = normalizeGateReason(upstreamReason)

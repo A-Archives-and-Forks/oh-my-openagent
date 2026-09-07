@@ -147,7 +147,7 @@ async function readOutcome(runDir: string): Promise<unknown> {
 
 function retentionMs(outcome: unknown, maxAgeMs: number, maxNudgedAgeMs: number): number {
   if (!isRecord(outcome)) return maxAgeMs
-  if (outcome.status === "failed") return maxNudgedAgeMs
+  if (outcome.status === "failed" || (outcome.status === "dropped" && outcome.cause === "deadline")) return maxNudgedAgeMs
   return Array.isArray(outcome.nudged) && outcome.nudged.length > 0 ? maxNudgedAgeMs : maxAgeMs
 }
 
