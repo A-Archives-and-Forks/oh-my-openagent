@@ -160,7 +160,7 @@ export class MemorianGateRunner {
     // pinned to the quick category: an advisory read of a turn that already ended must never land
     // on an arbitrary, possibly frontier-priced model, so anything outside the category counts as
     // unavailable - warn and skip. The category's own chain is the judge's fallback ladder: it is
-    // carried into the child (memorian-judge-chain.ts), where the engine rotates rungs mid-turn.
+    // carried into the child (memory-child-model-chain.ts), where the engine rotates rungs mid-turn.
     if (resolution.kind === "category_unavailable" || resolution.source !== undefined) {
       this.options.logger?.warn("memorian gate quick category unavailable", {
         cause: resolution.kind === "category_unavailable" ? resolution.cause : resolution.source,

@@ -127,10 +127,7 @@ export async function runMemorianJudge(
       return await record({ status: "dropped", cause: "deadline", model: resolution.model, candidateCount: input.candidates.length, runId })
     }
     const classification = classifyJudgeTurn(raced.outcome)
-    const observedModel = raced.outcome.status === "cancelled" || !("model" in raced.outcome)
-      ? undefined
-      : raced.outcome.model
-    const model = typeof observedModel === "string" ? observedModel : undefined
+    const model = raced.outcome.status === "cancelled" ? undefined : raced.outcome.model
     if (classification.status === "failed") {
       const reason = normalizeGateReason(classification.reason)
       host.options.logger?.warn("memorian gate child failed", { runId, cause: classification.cause, reason })
