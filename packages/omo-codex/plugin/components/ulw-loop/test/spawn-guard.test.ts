@@ -552,7 +552,10 @@ describe("applySpawnGuards session state lock", () => {
 	it("#given the state lock held by a live process past the timeout #when guarded #then denies without counting", () => {
 		writeGoals();
 		mkdirSync(sessionDir(), { recursive: true });
-		writeFileSync(lockPath(), JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString() }));
+		writeFileSync(
+			lockPath(),
+			JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString(), token: "live" }),
+		);
 
 		const output = applySpawnGuards(payload("spawn_agent", { message: "scan" }), { lockTimeoutMs: 100 });
 
@@ -565,7 +568,10 @@ describe("applySpawnGuards session state lock", () => {
 	it("#given a stale lock from a dead process #when guarded #then reclaims it and counts normally", () => {
 		writeGoals();
 		mkdirSync(sessionDir(), { recursive: true });
-		writeFileSync(lockPath(), JSON.stringify({ pid: 2147483646, createdAt: "2026-01-01T00:00:00.000Z" }));
+		writeFileSync(
+			lockPath(),
+			JSON.stringify({ pid: 2147483646, createdAt: "2026-01-01T00:00:00.000Z", token: "gone" }),
+		);
 
 		expect(applySpawnGuards(payload("spawn_agent", { message: "scan" }), { lockTimeoutMs: 1000 })).toBe("");
 
