@@ -17,6 +17,14 @@ describe("toolArgTexts", () => {
     expect(texts).not.toContain("-i")
   })
 
+  test("#given command git rebase -i origin/dev | tee log.txt #when toolArgTexts harvests it #then path words appear before git", () => {
+    const texts = toolArgTexts("bash", { command: "git rebase -i origin/dev | tee log.txt" })
+    const gitAt = texts.indexOf("git")
+    const pathAt = texts.findIndex((text) => text === "log.txt" || text === "dev")
+    expect(pathAt).toBeGreaterThanOrEqual(0)
+    expect(gitAt).toBeGreaterThan(pathAt)
+  })
+
   test("keeps grep patterns", () => {
     expect(toolArgTexts("grep", { pattern: "memorian nudged" })).toEqual(["memorian nudged"])
   })

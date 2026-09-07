@@ -15,6 +15,7 @@
 export const MAX_RECALL_QUERIES = 4
 
 const MAX_SINGLE_TERMS = 2
+const MAX_TOOL_SINGLE_TERMS = 2
 const MAX_PHRASES = 2
 const MIN_ASCII_TERM_LENGTH = 3
 const MIN_NON_ASCII_TERM_LENGTH = 2
@@ -51,6 +52,15 @@ const KOREAN_STOPWORDS: ReadonlySet<string> = new Set([
   "해주세요",
 ])
 
+// Ubiquitous command names harvested from tool args; they never occupy tool single slots.
+const COMMAND_STOPWORDS: ReadonlySet<string> = new Set([
+  "awk", "bash", "bun", "bunx", "cat", "cd", "cp", "curl", "echo", "env",
+  "eval", "export", "false", "find", "git", "grep", "head", "jq", "ls",
+  "mkdir", "mv", "node", "npm", "npx", "pnpm", "printf", "read", "rg",
+  "rm", "sed", "set", "sh", "sort", "tail", "tee", "timeout", "true",
+  "uniq", "wc", "xargs", "zsh",
+])
+
 function tokenize(text: string): string[] {
   return text.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []
 }
@@ -71,9 +81,29 @@ interface TermRank {
   readonly length: number
 }
 
-export function planRecallQueries(texts: readonly string[]): readonly string[] {
+export function planRecallQueries(
+  texts: readonly string[],
+  options?: { readonly toolTexts?: readonly string[] },
+): readonly string[] {
   const tokenLists = texts.map(tokenize)
+  const singles = rankedTerms(tokenLists).slice(0, MAX_SINGLE_TERMS).map((entry) => entry.term)
+  const toolTexts = options?.toolTexts
+  if (toolTexts === undefined || toolTexts.length === 0) {
+    return [...singles, ...planPhrases(tokenLists)].slice(0, MAX_RECALL_QUERIES)
+  }
 
+  const userSingles = new Set(singles)
+  const toolTokenLists = toolTexts.map(tokenize)
+  const toolSingles = rankedTerms(toolTokenLists)
+    .filter((entry) => !userSingles.has(entry.term) && !COMMAND_STOPWORDS.has(entry.term))
+    .slice(0, MAX_TOOL_SINGLE_TERMS)
+    .map((entry) => entry.term)
+
+  return [...singles, ...toolSingles, ...planPhrases([...tokenLists, ...toolTokenLists])]
+    .slice(0, MAX_RECALL_QUERIES + MAX_TOOL_SINGLE_TERMS)
+}
+
+function rankedTerms(tokenLists: readonly string[][]): TermRank[] {
   const firstTextIndex = new Map<string, number>()
   const firstSequence = new Map<string, number>()
   const textCount = new Map<string, number>()
@@ -105,18 +135,13 @@ export function planRecallQueries(texts: readonly string[]): readonly string[] {
     }
   }
 
-  const singles = pool
-    .sort(
-      (left, right) =>
-        left.firstTextIndex - right.firstTextIndex
-        || left.textCount - right.textCount
-        || right.length - left.length
-        || left.firstSequence - right.firstSequence,
-    )
-    .slice(0, MAX_SINGLE_TERMS)
-    .map((entry) => entry.term)
-
-  return [...singles, ...planPhrases(tokenLists)].slice(0, MAX_RECALL_QUERIES)
+  return pool.sort(
+    (left, right) =>
+      left.firstTextIndex - right.firstTextIndex
+      || left.textCount - right.textCount
+      || right.length - left.length
+      || left.firstSequence - right.firstSequence,
+  )
 }
 
 /** Quoted bigram phrases from the newest text that has a verbatim kept pair. */

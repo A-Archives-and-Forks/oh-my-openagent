@@ -36,13 +36,13 @@ function commandTexts(command: string): string[] {
     if (containsSecretLikeMaterial(segment)) continue
     const tokens = shellTokens(segment)
     const first = tokens.find((token) => !token.startsWith("-"))
-    if (first !== undefined && isUsable(first)) result.push(first)
     for (const token of tokens) {
       if (token.startsWith("-")) continue
       for (const word of pathChunks(token).flatMap(pathWords)) {
         if (isUsable(word)) result.push(word)
       }
     }
+    if (first !== undefined && isUsable(first)) result.push(first)
     if (result.length >= MAX_TOKENS) break
   }
   return result.slice(0, MAX_TOKENS)
