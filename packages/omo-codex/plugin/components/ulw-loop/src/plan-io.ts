@@ -80,7 +80,7 @@ export async function readUlwLoopPlan(repoRoot: string, scope?: UlwLoopScope): P
 		raw = await readFile(path, "utf8");
 	} catch (error) {
 		if (!hasCode(error, "ENOENT")) throw error;
-		const recovery = planMissingRecovery(readSessionDirs(repoRoot));
+		const recovery = planMissingRecovery(listUlwLoopSessionIds(repoRoot));
 		throw new UlwLoopError(
 			`No ulw-loop plan found at ${repoRelative(path, repoRoot)}.\n${recovery.message}`,
 			"ULW_LOOP_PLAN_MISSING",
@@ -116,9 +116,9 @@ export async function readUlwLoopPlan(repoRoot: string, scope?: UlwLoopScope): P
 	return parsed;
 }
 
-// Session dirs are the only recovery hint that matters when a plan is missing: the
-// caller is almost always scoped to a session whose sibling actually holds the plan.
-function readSessionDirs(repoRoot: string): readonly string[] {
+// Session dirs are the only recovery hint that matters when a plan or a scope is
+// missing: the caller is almost always meant to target one of these siblings.
+export function listUlwLoopSessionIds(repoRoot: string): readonly string[] {
 	try {
 		return readdirSync(ulwLoopDir(repoRoot), { withFileTypes: true })
 			.filter((entry) => entry.isDirectory())
