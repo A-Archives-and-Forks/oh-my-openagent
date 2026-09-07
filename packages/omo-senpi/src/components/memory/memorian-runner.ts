@@ -83,7 +83,7 @@ export interface MemorianGateLaunchInput {
 }
 
 /** Precise failure causes: which stage of the in-process launch died. */
-export type MemorianGateFailureCause = "session_create_failed" | "deadline" | "child_failed" | "launch_failed"
+export type MemorianGateFailureCause = "session_create_failed" | "deadline" | "child_failed" | "child_failed_upstream" | "launch_failed"
 
 export type MemorianGateLaunchResult =
   /** Another gate run holds the latch; this trigger is dropped. */
