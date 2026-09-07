@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
+import { readdir, readFile } from "node:fs/promises"
+import { join } from "node:path"
 import { MemorianGateRunner } from "./memorian-runner"
 import { CANDIDATE_PATH, callNudge, fixture, launchInput, nudgeOnce, roots, runnerOptions, scriptedSession } from "./memorian-runner.test-support"
 import { rmEfaultTolerant } from "./teardown.test-support"
@@ -171,5 +173,21 @@ describe("MemorianGateRunner", () => {
 
     // then
     expect(result).toMatchObject({ status: "dropped", cause: "compaction" })
+  })
+
+  test("#given a completed scripted run #when the runner launches #then outcome.json records status completed", async () => {
+    const { identityPaths } = await fixture()
+    const stub = scriptedSession(async () => undefined)
+    const runner = new MemorianGateRunner(runnerOptions(identityPaths, { createSession: stub.createSession }))
+    const pending = runner.launch(launchInput())
+    stub.resolve()
+    await pending
+    const names = await readdir(join(identityPaths.recall, "runs"))
+    expect(names).toHaveLength(1)
+    const name = names[0]
+    expect(name).toBeDefined()
+    if (name === undefined) return
+    const parsed: unknown = JSON.parse(await readFile(join(identityPaths.recall, "runs", name, "outcome.json"), "utf8"))
+    expect(parsed).toMatchObject({ version: 1, status: "completed" })
   })
 })

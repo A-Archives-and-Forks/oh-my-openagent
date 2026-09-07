@@ -13,7 +13,7 @@
 // transcript window - so the child needs no file access and no read tool; its single output is the
 // nudge closure, which validates against the launch input synchronously and records accepted
 // nudges into an array this runner owns. The run directory holds the same payload as
-// human-auditable artifacts and is KEPT after the run (pruning is a deliberate non-goal).
+// human-auditable artifacts; outcome.json is persisted and aged run dirs are pruned.
 
 import { randomUUID } from "node:crypto"
 
