@@ -176,6 +176,7 @@ describe("omo-senpi skill-pointers component", () => {
       expectPointerInjections(pi, result, [{ customType: MASS_ULW_CUSTOM_TYPE, skillName: "mass-ulw" }])
       const content = pi.messages[0]?.message["content"]
       expect(content).toEndWith("</omo-mass-ulw-pointer>")
+      expect(content).toContain("If the user of this session is asking to run mass-ulw")
     })
 
     it("#when the mass-ulw pointer is injected #then it points at the packaged skill", async () => {
