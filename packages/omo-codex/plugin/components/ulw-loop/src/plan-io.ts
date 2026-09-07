@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createReadStream, readdirSync } from "node:fs";
 import { appendFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { createInterface } from "node:readline";
@@ -20,6 +21,10 @@ import { iso, ULW_LOOP_DIR, ULW_LOOP_GOALS, ULW_LOOP_LEDGER, UlwLoopError } from
 const LEGACY_OBJECTIVE_PREFIX = `Complete all ulw-loop stories in ${ULW_LOOP_DIR}/${ULW_LOOP_GOALS}: `;
 const LEGACY_OBJECTIVE = `Complete all ulw-loop stories listed in ${ULW_LOOP_DIR}/${ULW_LOOP_GOALS}. Use ${ULW_LOOP_DIR}/${ULW_LOOP_LEDGER} as the durable audit trail.`;
 const locks = new Map<string, Promise<undefined>>();
+// Tracks which state dirs the CURRENT async continuation holds, so a read nested
+// inside a locked mutation can tell itself apart from an unlocked read elsewhere
+// in the same process.
+const heldLocks = new AsyncLocalStorage<ReadonlySet<string>>();
 
 function hasCode(error: unknown, code: string): boolean {
 	return error instanceof Error && "code" in error && error.code === code;
@@ -56,7 +61,8 @@ export async function withUlwLoopMutationLock<T>(
 	const lockPath = ulwLoopStateLockPath(repoRoot, scope);
 	// The promise chain orders callers inside this process; the file lock is what
 	// excludes every other process (each CLI invocation) touching the same state dir.
-	const locked = (): Promise<T> => withStateLock(lockPath, fn);
+	const locked = (): Promise<T> =>
+		withStateLock(lockPath, () => heldLocks.run(new Set([...(heldLocks.getStore() ?? []), lockKey]), fn));
 	const prior = locks.get(lockKey) ?? Promise.resolve(undefined);
 	const run = prior.then(locked, locked);
 	// The stored gate resolves to undefined so the map never retains fn's result
@@ -96,6 +102,14 @@ export async function readUlwLoopPlan(repoRoot: string, scope?: UlwLoopScope): P
 		(parsed.codexGoalMode ?? "per_story") === "aggregate" &&
 		isLegacyEnumeratedAggregateObjective(previousObjective)
 	) {
+		if (!(heldLocks.getStore()?.has(`${repoRoot}\0${ulwLoopRelativeDir(scope)}`) ?? false)) {
+			// A read path (status/criteria) must not mutate state: mutating here runs
+			// unlocked and a second reader could write a partially-migrated plan.
+			throw new UlwLoopError(
+				`The ulw-loop plan at ${repoRelative(path, repoRoot)} carries a legacy enumerated aggregate objective that must be migrated before reads continue. Run any state-mutating ulw-loop command once (e.g. \`record-evidence\`, \`steer\`, \`checkpoint\`) to migrate it under the state lock, then retry.`,
+				"ULW_LOOP_MIGRATION_REQUIRED",
+			);
+		}
 		const now = iso();
 		parsed.codexObjective = aggregateCodexObjectiveForScope(scope);
 		parsed.codexObjectiveAliases = [...new Set([...(parsed.codexObjectiveAliases ?? []), previousObjective])];
