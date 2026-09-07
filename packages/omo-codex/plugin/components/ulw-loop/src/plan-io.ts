@@ -10,8 +10,10 @@ import {
 	ulwLoopGoalsPath,
 	ulwLoopLedgerPath,
 	ulwLoopRelativeDir,
+	ulwLoopStateLockPath,
 } from "./paths.js";
 import { planMissingRecovery } from "./plan-missing-recovery.js";
+import { withStateLock } from "./state-lock.js";
 import type { UlwLoopLedgerEntry, UlwLoopPlan } from "./types.js";
 import { iso, ULW_LOOP_DIR, ULW_LOOP_GOALS, ULW_LOOP_LEDGER, UlwLoopError } from "./types.js";
 
@@ -51,8 +53,12 @@ export async function withUlwLoopMutationLock<T>(
 	const fn = typeof scopeOrFn === "function" ? scopeOrFn : maybeFn;
 	if (fn === undefined) throw new UlwLoopError("Missing ulw-loop mutation body.", "ULW_LOOP_LOCK_BODY_MISSING");
 	const lockKey = `${repoRoot}\0${ulwLoopRelativeDir(scope)}`;
+	const lockPath = ulwLoopStateLockPath(repoRoot, scope);
+	// The promise chain orders callers inside this process; the file lock is what
+	// excludes every other process (each CLI invocation) touching the same state dir.
+	const locked = (): Promise<T> => withStateLock(lockPath, fn);
 	const prior = locks.get(lockKey) ?? Promise.resolve(undefined);
-	const run = prior.then(fn, fn);
+	const run = prior.then(locked, locked);
 	// The stored gate resolves to undefined so the map never retains fn's result
 	// (plans/audits), and it removes itself once no newer waiter replaced it —
 	// otherwise a long-lived host leaks one entry per (repo, scope) forever.
