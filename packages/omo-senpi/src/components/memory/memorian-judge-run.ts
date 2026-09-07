@@ -37,15 +37,16 @@ export async function runMemorianJudge(
   runId: string,
   accepted: RecallNudge[],
   state: MemorianGateLaunchState,
-): Promise<{ readonly status: "completed"; readonly partial?: true } | Extract<MemorianGateLaunchResult, { readonly status: "failed" | "dropped" }>> {
+): Promise<{ readonly status: "completed"; readonly partial?: true; readonly model?: string } | Extract<MemorianGateLaunchResult, { readonly status: "failed" | "dropped" }>> {
   const runDir = join(host.options.identityPaths.recall, "runs", runId)
-  const record = async <T extends { readonly status: "completed" | "failed" | "dropped"; readonly cause?: string }>(
+  const record = async <T extends { readonly status: "completed" | "failed" | "dropped"; readonly cause?: string; readonly model?: string }>(
     result: T,
   ): Promise<T> => {
     await writeMemorianRunOutcome({
       runDir,
       runId,
       status: result.status,
+      model: result.model ?? resolution.model,
       ...(result.cause === undefined ? {} : { cause: result.cause }),
       nudged: accepted.map((nudge) => nudge.path),
       now: () => new Date(),
@@ -126,15 +127,19 @@ export async function runMemorianJudge(
       return await record({ status: "dropped", cause: "deadline", model: resolution.model, candidateCount: input.candidates.length, runId })
     }
     const classification = classifyJudgeTurn(raced.outcome)
+    const observedModel = raced.outcome.status === "cancelled" || !("model" in raced.outcome)
+      ? undefined
+      : raced.outcome.model
+    const model = typeof observedModel === "string" ? observedModel : undefined
     if (classification.status === "failed") {
       const reason = normalizeGateReason(classification.reason)
       host.options.logger?.warn("memorian gate child failed", { runId, cause: classification.cause, reason })
-      return await record({ status: "failed", cause: classification.cause, reason, runId, model: resolution.model, candidateCount: input.candidates.length })
+      return await record({ status: "failed", cause: classification.cause, reason, runId, model: model ?? resolution.model, candidateCount: input.candidates.length })
     }
     if (classification.status === "dropped") {
       return await record({ status: "dropped", cause: "cancelled", runId, candidateCount: input.candidates.length })
     }
-    return await record({ status: "completed" })
+    return await record({ status: "completed", ...(model === undefined ? {} : { model }) })
   } catch (error) {
     host.options.logger?.warn("memorian gate child session creation failed", { error: normalizeGateReason(describe(error)), runId })
     return await record({ status: "failed", cause: "session_create_failed", reason: normalizeGateReason(describe(error)), runId, model: resolution.model, candidateCount: input.candidates.length })
