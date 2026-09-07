@@ -95,7 +95,7 @@ export type MemorianGateLaunchResult =
   /** No candidates, or the quick category could not resolve. */
   | { readonly status: "skipped"; readonly cause?: string; readonly model?: string; readonly candidateCount?: number; readonly runId?: string }
   /** The child ran and said nothing the parent accepted. */
-  | { readonly status: "empty"; readonly runId?: string }
+  | { readonly status: "empty"; readonly runId?: string; readonly model?: string }
   /** The child session could not be created or its turn failed. */
   | {
     readonly status: "failed"
@@ -181,7 +181,7 @@ export class MemorianGateRunner {
     }, input, resolution, runId, accepted, state)
     if (judged.status === "failed" || judged.status === "dropped") return judged
     if (state.cancelled) {
-      await overwriteDroppedOutcome(this.options, runId, "cancelled")
+      await overwriteDroppedOutcome(this.options, runId, "cancelled", judged.model ?? resolution.model)
       return { status: "dropped", cause: "cancelled", runId, candidateCount: input.candidates.length }
     }
     // Defence in depth: the closure already validated every recorded nudge at call time, and this
@@ -192,19 +192,19 @@ export class MemorianGateRunner {
       surfaced: input.surfaced,
       maxItems: input.maxItems,
     })
-    if (nudges.length === 0) return { status: "empty" }
+    if (nudges.length === 0) return { status: "empty", runId, model: judged.model ?? resolution.model }
     // The judged transcript no longer exists after a compaction; the verdict must not survive it.
     if (state.cancelled || isStaleAfterCompaction(input)) {
       if (state.cancelled) {
-        await overwriteDroppedOutcome(this.options, runId, "cancelled")
+        await overwriteDroppedOutcome(this.options, runId, "cancelled", judged.model ?? resolution.model)
         return { status: "dropped", cause: "cancelled", candidateCount: input.candidates.length }
       }
-      await overwriteDroppedOutcome(this.options, runId, "compaction")
+      await overwriteDroppedOutcome(this.options, runId, "compaction", judged.model ?? resolution.model)
       return this.dropAfterCompaction(input)
     }
     return judged.partial === true
-      ? { status: "nudged", nudges, model: resolution.model, runId, partial: true }
-      : { status: "nudged", nudges, model: resolution.model, runId }
+      ? { status: "nudged", nudges, model: judged.model ?? resolution.model, runId, partial: true }
+      : { status: "nudged", nudges, model: judged.model ?? resolution.model, runId }
   }
 
   async cancel(): Promise<void> {
@@ -235,12 +235,14 @@ async function overwriteDroppedOutcome(
   options: MemorianGateRunnerOptions,
   runId: string,
   cause: "cancelled" | "compaction",
+  model: string,
 ): Promise<void> {
   await writeMemorianRunOutcome({
     runDir: join(options.identityPaths.recall, "runs", runId),
     runId,
     status: "dropped",
     cause,
+    model,
     nudged: [],
     now: () => new Date(),
     warn: (message, fields) => options.logger?.warn(message, fields),

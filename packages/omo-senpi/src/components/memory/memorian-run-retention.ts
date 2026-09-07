@@ -28,6 +28,7 @@ export interface WriteMemorianRunOutcomeInput {
   readonly runDir: string
   readonly runId: string
   readonly status: MemorianRunStatus
+  readonly model?: string
   readonly cause?: string
   readonly nudged: readonly string[]
   readonly now: () => Date
@@ -57,6 +58,7 @@ export async function writeMemorianRunOutcome(options: WriteMemorianRunOutcomeIn
       version: 1,
       runId: options.runId,
       status: options.status,
+      ...(options.model === undefined ? {} : { model: options.model }),
       ...(options.cause === undefined ? {} : { cause: options.cause }),
       nudged: options.nudged,
       finishedAt: options.now().toISOString(),
