@@ -63,6 +63,20 @@ describe("writeMemorianRunOutcome", () => {
     })
   })
 
+  test("#given a model for a completed run #when writeMemorianRunOutcome runs #then outcome.json records it", async () => {
+    const runDir = join(await tmp(), "run-model")
+    await writeMemorianRunOutcome({
+      runDir,
+      runId: "run-model",
+      status: "completed",
+      model: "omo-mock/healthy-fallback",
+      nudged: [],
+      now: () => NOW,
+    })
+    const parsed: unknown = JSON.parse(await readFile(join(runDir, "outcome.json"), "utf8"))
+    expect(parsed).toMatchObject({ version: 1, runId: "run-model", status: "completed", model: "omo-mock/healthy-fallback" })
+  })
+
   test("#given a runDir that does not exist yet #when writeMemorianRunOutcome runs #then it creates the directory and the file", async () => {
     const runDir = join(await tmp(), "run-x")
     expect(existsSync(runDir)).toBe(false)
