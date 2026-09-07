@@ -330,11 +330,11 @@ describe("MemorianGateRunner upstream fail-fast", () => {
     const result = await pending
 
     // then
-    expect(result).toMatchObject({ status: "failed", cause: "deadline" })
+    expect(result).toMatchObject({ status: "dropped", cause: "deadline" })
     expect(warnings.some((call) => call.message === "memorian gate deadline exceeded")).toBe(true)
   })
 
-  test("#given a pending turn that emits nothing #when the gate awaits it #then the deadline backstop fires", async () => {
+  test("#given a pending turn that emits nothing #when the gate awaits it #then the deadline backstop drops", async () => {
     // given: a genuinely silent child keeps the deadline as its only exit.
     const { identityPaths } = await fixture()
     const stub = scriptedSession(() => new Promise<void>(() => {}))
@@ -346,6 +346,6 @@ describe("MemorianGateRunner upstream fail-fast", () => {
     const result = await pending
 
     // then
-    expect(result).toMatchObject({ status: "failed", cause: "deadline" })
+    expect(result).toMatchObject({ status: "dropped", cause: "deadline" })
   })
 })
