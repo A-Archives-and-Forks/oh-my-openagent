@@ -17,7 +17,7 @@ describe("idle-injection wiring: real producers on one idle edge", () => {
     const delivered: string[] = []
     const scheduled: Array<() => void> = []
     const coordinator = new IdleInjectionCoordinator((message) => delivered.push(message.content), {
-      scheduleFlush: (flush) => scheduled.push(flush),
+      scheduleFlush: (flush) => { scheduled.push(flush) },
     })
 
     const pi = new FakeExtensionAPI()

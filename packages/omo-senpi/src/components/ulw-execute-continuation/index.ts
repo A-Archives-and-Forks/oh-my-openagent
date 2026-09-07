@@ -114,13 +114,19 @@ const ULW_EXECUTE_CONTINUATION_INJECTION_KEY = "omo-senpi-ulw-execute-continuati
 
 function deliverContinuation(pi: SenpiExtensionAPI, ctx: ComponentContext, content: string): void {
   if (ctx.idleCoordinator !== undefined) {
-    ctx.idleCoordinator.enqueue({
+    const accepted = ctx.idleCoordinator.enqueue({
       key: ULW_EXECUTE_CONTINUATION_INJECTION_KEY,
       source: "boulder-continuation",
       customType: "omo-senpi:ulw-execute-continuation",
       content,
       display: false,
     })
+    // Refused = the coordinator retired with the session. The continuation is derived state, not a
+    // durable notification: the next boulder edge re-derives it. Log rather than drop in silence.
+    if (accepted === false) {
+      ctx.logger.warn("omo-senpi ulw execute continuation skipped: idle-injection coordinator retired")
+      return
+    }
     ctx.idleCoordinator.scheduleFlush()
     return
   }

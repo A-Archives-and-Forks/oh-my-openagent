@@ -1,3 +1,11 @@
+## 2026-09-10 — A retired idle-injection queue hands its notifications back instead of dropping them
+
+`session_shutdown` retires the shared `IdleInjectionCoordinator` so an armed 200 ms batch-window flush cannot call the stale generation's `pi.sendMessage` (#7932). Retirement used to clear the queue with no receipt and let a late `enqueue` return as if queued, which turned that crash into permanent silent loss: senpi-task had already persisted `notified_epoch` on the non-throwing enqueue, so a child that finished inside the batch window before a `/reload` was recorded as notified, its injection was discarded, and `reconcileUnnotifiedNotifications` skipped the record forever.
+
+The receipt contract is now explicit. `enqueue` returns accept/refuse; an ACCEPTED injection always gets exactly one receipt (`onFlushed`, or `onDeliveryFailed` on a failed flush and on retirement), and a REFUSED one gets none because ownership never transferred. `retire()` cancels the armed batch-window handle, hands every queued entry `onDeliveryFailed(IdleInjectionRetiredError)`, and clears; the emptied, unrefillable queue is now the SINGLE post-retirement mechanism, so the redundant retirement guards on the flush path are gone. `FlushScheduler` may return a canceller and compose's 200 ms timer is `unref`ed and cancellable like its sibling schedulers.
+
+Producers act on the refusal instead of ignoring it: `parent-notifier.ts` throws (the engine's documented synchronous failure signal) and routes an accepted-then-dropped completion into `CompletionNotifier.recordDeliveryFailure`, team liveness fails the delivery and retries, the lead-poller sink throws so the poller releases its durable delivery reservation, and the ulw/boulder continuations log (derived state, re-derived on the next edge). Mutation-proven tests replace the three unfalsifiable dispose tests, and `completion-reload-recovery.test.ts` drives the real engine composition through a reload to prove the completion is redelivered.
+
 ## 2026-09-10 — Hide question tools from task children
 
 `TASK_CHILD_UI_ONLY_TOOL_NAMES` now lists `request_user_input` and `ask_user_question` next to `memory`, so in-process children do not inherit the parent-only question tools. RPC children get the matching `--no-ask-user` flag from senpi-task.

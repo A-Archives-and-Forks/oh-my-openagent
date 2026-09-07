@@ -645,7 +645,7 @@ describe("assembled DAG lifecycle end to end", () => {
     const deliveries: Array<{ readonly content: string; readonly deliverAs: string }> = []
     const coordinator = new IdleInjectionCoordinator(
       (message, options) => { deliveries.push({ content: message.content, deliverAs: options.deliverAs }) },
-      { scheduleFlush: (flush) => scheduled.push(flush) },
+      { scheduleFlush: (flush) => { scheduled.push(flush) } },
     )
     const fixture = await runtimeFixture({ coordinator, idle: false })
     const first = await fixture.start("wake-first")
@@ -676,7 +676,7 @@ describe("assembled DAG lifecycle end to end", () => {
     const deliveries: Array<{ readonly content: string; readonly deliverAs: string }> = []
     const coordinator = new IdleInjectionCoordinator(
       (message, options) => { deliveries.push({ content: message.content, deliverAs: options.deliverAs }) },
-      { scheduleFlush: (flush) => scheduled.push(flush) },
+      { scheduleFlush: (flush) => { scheduled.push(flush) } },
     )
     const fixture = await runtimeFixture({ coordinator, idle: false })
     const runId = await fixture.start("wake-detached")

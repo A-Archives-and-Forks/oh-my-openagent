@@ -1,4 +1,9 @@
 
+## 2026-09-10 — A batched completion that never landed no longer counts as notified
+
+Delivery is batched on the omo-senpi side, so a returning `ParentNotifier.enqueue` means QUEUED, not delivered, while `notified_epoch` is persisted at that moment. When the idle-injection coordinator retired on `session_shutdown` (`/reload`), the queued injection was dropped and `reconcileUnnotifiedNotifications` then skipped the record forever (`notified_epoch >= run_epoch`): the parent never learned its background task completed.
+
+`CompletionNotifier.recordDeliveryFailure({taskIds, error})` is the out-of-band receipt for that case. It rolls `notified_epoch` back below the epoch, stamps `notification_failed_epoch`, appends `notification_failed`, and re-enters the retry ladder, so the post-reload `session_start` reconcile redelivers. Stale receipts are ignored: a record that already started a new run, a non-notifying terminal (cancel/interrupt), and a record deleted by TTL cleanup are all left untouched. A refused enqueue still throws and takes the existing synchronous failure path.
 ## 2026-09-10 — Keep the user question tools out of child sessions
 
 RPC children now receive `--no-ask-user` immediately after `--no-extensions` so the detached process cannot register `request_user_input` / `ask_user_question`. Headless auto-answer treats `method: "question"` as cancelled (structural request type until the pinned senpi unions include it). Catalog argv is unchanged.

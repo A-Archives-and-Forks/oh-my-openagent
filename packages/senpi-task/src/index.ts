@@ -278,6 +278,7 @@ export type {
   ParentNotifier,
   ParentNotifierMessage,
   ParentState,
+  RecordDeliveryFailureInput,
   RoutingDecision,
   SkipReason,
   TransitionReason,
