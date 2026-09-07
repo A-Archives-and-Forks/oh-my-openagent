@@ -135,6 +135,11 @@ export function spawnDaemonProcess(paths: DaemonPaths, deps: Partial<SpawnDaemon
 			detached: true,
 			stdio: ["ignore", logFd, logFd],
 			windowsHide: true,
+			// Under the packaged runtime execPath is the compiled omo binary, not a
+			// node interpreter; without BUN_BE_BUN it runs its embedded entrypoint, so
+			// the CLI argv boots a billable agent session instead of the daemon
+			// (issue #7914). Inert for node and for the bun interpreter itself.
+			env: { ...process.env, BUN_BE_BUN: "1" },
 		});
 		child.once("spawn", () => closeSync(logFd));
 		child.once("error", (error) => {
