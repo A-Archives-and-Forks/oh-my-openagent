@@ -160,6 +160,34 @@ describe("planRecallQueries", () => {
     expect(singles).not.toContain("oldest")
   })
 
+  it("#given toolTexts cargo then rollout then rollout.md #when queries are planned #then the tool singles are rollout then cargo", () => {
+    // given / when: a non-stoplisted command is first, as recall-wiring's newest-first reverse produces
+    const queries = planRecallQueries(["please continue with the checklist"], {
+      toolTexts: ["cargo", "rollout", "rollout.md"],
+    })
+    const singles = queries.filter((query) => !query.startsWith('"'))
+    // then: path-derived rollout ranks before the command name cargo
+    expect(singles.filter((term) => term === "rollout" || term === "cargo")).toEqual(["rollout", "cargo"])
+  })
+
+  it("#given a user single colliding with cargo #when the remaining tool slot is filled #then the surviving tool single is rollout", () => {
+    // given: cargo is already a user single, so one tool slot is consumed by the collision;
+    // console is a non-path distractor that would otherwise take that remaining slot
+    const userTexts = ["please continue the cargo"]
+    const userSingles = planRecallQueries(userTexts).filter((query) => !query.startsWith('"'))
+    // when
+    const queries = planRecallQueries(userTexts, {
+      toolTexts: ["cargo", "console", "rollout", "rollout.md"],
+    })
+    const toolSingles = queries
+      .filter((query) => !query.startsWith('"'))
+      .filter((term) => !userSingles.includes(term))
+    // then
+    expect(userSingles).toContain("cargo")
+    expect(toolSingles[0]).toBe("rollout")
+    expect(toolSingles).not.toContain("cargo")
+  })
+
   it("#given the same input twice #when queries are planned #then the output is deterministic", () => {
     // given
     const texts = ["Retry the webhook deployment once more", "The webhook keeps timing out"]

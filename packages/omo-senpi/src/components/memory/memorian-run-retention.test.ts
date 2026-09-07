@@ -62,6 +62,28 @@ describe("writeMemorianRunOutcome", () => {
       finishedAt: NOW.toISOString(),
     })
   })
+
+  test("#given a runDir that does not exist yet #when writeMemorianRunOutcome runs #then it creates the directory and the file", async () => {
+    const runDir = join(await tmp(), "run-x")
+    expect(existsSync(runDir)).toBe(false)
+    await writeMemorianRunOutcome({
+      runDir,
+      runId: "run-x",
+      status: "dropped",
+      cause: "deadline",
+      nudged: [],
+      now: () => NOW,
+    })
+    expect(existsSync(join(runDir, "outcome.json"))).toBe(true)
+    const parsed: unknown = JSON.parse(await readFile(join(runDir, "outcome.json"), "utf8"))
+    expect(parsed).toMatchObject({
+      version: 1,
+      runId: "run-x",
+      status: "dropped",
+      cause: "deadline",
+      nudged: [],
+    })
+  })
 })
 
 describe("pruneMemorianRuns", () => {
@@ -130,6 +152,26 @@ describe("pruneMemorianRuns", () => {
     })
     expect(await pruneMemorianRuns({ recallDir, now: () => NOW })).toEqual({ removed: 0, kept: 1 })
     expect(existsSync(join(recallDir, "runs", "failed"))).toBe(true)
+  })
+
+  test("#given a 400-day-old empty dir and an 8-day-old dir with a 1-minute-old file #when pruning #then the empty dir is removed and the fresh-file dir is kept", async () => {
+    const recallDir = await tmp()
+    const runsDir = join(recallDir, "runs")
+    const emptyOld = join(runsDir, "empty-old")
+    const oldFile = join(runsDir, "old-file")
+    await mkdir(emptyOld, { recursive: true })
+    await mkdir(oldFile, { recursive: true })
+    await writeFile(join(oldFile, "candidates.json"), "{}\n")
+    const ancient = new Date(NOW.getTime() - 400 * DAY)
+    const eightDays = new Date(NOW.getTime() - 8 * DAY)
+    const oneMinute = new Date(NOW.getTime() - 60_000)
+    await utimes(emptyOld, ancient, ancient)
+    await utimes(oldFile, eightDays, eightDays)
+    await utimes(join(oldFile, "candidates.json"), oneMinute, oneMinute)
+    const result = await pruneMemorianRuns({ recallDir, now: () => NOW })
+    expect(result).toEqual({ removed: 1, kept: 1 })
+    expect(existsSync(emptyOld)).toBe(false)
+    expect(existsSync(oldFile)).toBe(true)
   })
 
   test("#given a dir whose newest file is 1 minute old #when pruning #then the dir is skipped", async () => {

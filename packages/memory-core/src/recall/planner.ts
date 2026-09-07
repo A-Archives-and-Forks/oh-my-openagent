@@ -20,6 +20,7 @@ const MAX_PHRASES = 2
 const MIN_ASCII_TERM_LENGTH = 3
 const MIN_NON_ASCII_TERM_LENGTH = 2
 const ASCII_ONLY = /^[\x00-\x7f]+$/
+const PATH_LIKE = /\/|\.[a-z0-9]{1,6}$/i
 
 const STOPWORDS: ReadonlySet<string> = new Set([
   "about", "after", "again", "all", "also", "always", "and", "any", "are", "arent",
@@ -94,13 +95,24 @@ export function planRecallQueries(
 
   const userSingles = new Set(singles)
   const toolTokenLists = toolTexts.map(tokenize)
+  const pathDerived = pathDerivedTerms(toolTexts)
   const toolSingles = rankedTerms(toolTokenLists)
     .filter((entry) => !userSingles.has(entry.term) && !COMMAND_STOPWORDS.has(entry.term))
+    .sort((left, right) => Number(pathDerived.has(right.term)) - Number(pathDerived.has(left.term)))
     .slice(0, MAX_TOOL_SINGLE_TERMS)
     .map((entry) => entry.term)
 
   return [...singles, ...toolSingles, ...planPhrases([...tokenLists, ...toolTokenLists])]
     .slice(0, MAX_RECALL_QUERIES + MAX_TOOL_SINGLE_TERMS)
+}
+
+function pathDerivedTerms(toolTexts: readonly string[]): ReadonlySet<string> {
+  const terms = new Set<string>()
+  for (const text of toolTexts) {
+    if (!PATH_LIKE.test(text)) continue
+    for (const term of tokenize(text)) terms.add(term)
+  }
+  return terms
 }
 
 function rankedTerms(tokenLists: readonly string[][]): TermRank[] {

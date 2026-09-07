@@ -61,6 +61,7 @@ export async function writeMemorianRunOutcome(options: WriteMemorianRunOutcomeIn
       nudged: options.nudged,
       finishedAt: options.now().toISOString(),
     }
+    await mkdir(options.runDir, { recursive: true, mode: 0o700 })
     await writeFile(join(options.runDir, OUTCOME_FILE), `${JSON.stringify(payload)}\n`, {
       encoding: "utf8",
       mode: 0o600,
@@ -154,6 +155,7 @@ function retentionMs(outcome: unknown, maxAgeMs: number, maxNudgedAgeMs: number)
 async function newestFileMtime(dir: string): Promise<number | undefined> {
   const names = await readdir(dir).catch(() => undefined)
   if (names === undefined) return undefined
+  if (names.length === 0) return await mtime(dir)
   let newest: number | undefined
   for (const name of names) {
     const stamp = await mtime(join(dir, name))
