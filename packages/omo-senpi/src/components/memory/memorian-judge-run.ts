@@ -5,7 +5,7 @@ import { join } from "node:path"
 
 import { resolveAgentHome } from "../agent-home/resolve-agent-home"
 import { abortAndDispose } from "./memorian-lifecycle"
-import { memorianJudgeChain } from "./memorian-judge-chain"
+import { childModelChainSpec } from "./memory-child-model-chain"
 import { classifyJudgeTurn, normalizeGateReason } from "./memorian-judge-outcome"
 import { buildMemorianJudgeSpec } from "./memorian-judge-spec"
 import { memorianCandidatesPayload, renderTranscriptWindow } from "./memorian-prompt"
@@ -81,7 +81,7 @@ export async function runMemorianJudge(
       runDir,
       agentDir: resolveAgentHome({ env: host.options.env }),
       model: input.modelRegistry === undefined ? undefined : taskRuntime.findModelReference(input.modelRegistry, resolution.model),
-      chain: memorianJudgeChain(resolution),
+      chain: childModelChainSpec({ model: resolution.model, fallbacks: resolution.fallbacks }),
       ...(resolution.thinking === undefined ? {} : { thinkingLevel: resolution.thinking }),
       accepted,
     }))

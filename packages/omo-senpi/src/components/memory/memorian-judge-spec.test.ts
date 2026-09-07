@@ -3,20 +3,21 @@ import type { RecallNudge } from "@oh-my-opencode/memory-core"
 import type { ResolvedModelRecord } from "@oh-my-opencode/senpi-task"
 import { MEMORIAN_NUDGE_TOOL_NAME, type MemorianNudgeTool } from "./memorian-nudge-tool"
 import { buildMemorianJudgeSpec } from "./memorian-judge-spec"
+import type { ChildModelChainSpec } from "./memory-child-model-chain"
 import { CANDIDATE_PATH, launchInput } from "./memorian-runner.test-support"
 
 const HINT = "Drain nodes before a rollout."
 const PRIMARY = "omo-mock/mock-1"
 const FALLBACK: ResolvedModelRecord = { provider: "omo-mock", model_id: "mock-2", display: "omo-mock/mock-2", source: "category" }
 
-function specInput(fallbackModels: readonly ResolvedModelRecord[]) {
+function specInput(chain: ChildModelChainSpec) {
   return {
     launch: launchInput(),
     runId: "run-spec-chain",
     runDir: "/tmp/memorian-spec-run",
     agentDir: "/tmp/memorian-spec-agent",
     model: undefined,
-    chain: { selectedModel: PRIMARY, fallbackModels },
+    chain,
     accepted: [],
   }
 }
@@ -34,7 +35,7 @@ describe("buildMemorianJudgeSpec", () => {
       runDir: "/tmp/memorian-spec-run",
       agentDir: "/tmp/memorian-spec-agent",
       model: undefined,
-      chain: { selectedModel: PRIMARY, fallbackModels: [] },
+      chain: { selectedModel: PRIMARY },
       accepted,
     })
     const nudge = spec.memberScopedTools?.find((tool): tool is MemorianNudgeTool => tool.name === MEMORIAN_NUDGE_TOOL_NAME)
@@ -54,7 +55,7 @@ describe("buildMemorianJudgeSpec", () => {
 
   test("#given a resolved quick chain #when the spec is built #then the child carries the selected model, its in-category fallbacks and a one-retry same-model budget", () => {
     // given / when
-    const spec = buildMemorianJudgeSpec(specInput([FALLBACK]))
+    const spec = buildMemorianJudgeSpec(specInput({ selectedModel: PRIMARY, fallbackModels: [FALLBACK], retry: { maxRetries: 1 } }))
 
     // then: the runtime fallback settings of the child are keyed by the primary selector, and the
     // same-model budget is cut to one retry so a rung costs seconds, not the default ~62s backoff.
@@ -65,7 +66,7 @@ describe("buildMemorianJudgeSpec", () => {
 
   test("#given a single-model quick category #when the spec is built #then no fallback list is attached and the engine's default same-model budget is kept", () => {
     // given / when
-    const spec = buildMemorianJudgeSpec(specInput([]))
+    const spec = buildMemorianJudgeSpec(specInput({ selectedModel: PRIMARY }))
 
     // then
     expect(spec.selectedModel).toBe(PRIMARY)
