@@ -23,6 +23,29 @@ import {
 const TASK_UPDATED_EVENT = "omo.task.updated"
 const MAX_TASK_SNAPSHOTS = 256
 
+type TimerHandle = ReturnType<typeof setTimeout> | number
+
+// Injectable timer seam so the coalescing window is deterministic under test; defaults to global
+// timers, unref'd so a queued flush never holds the host process open.
+export interface TaskRpcTimers {
+  set(callback: () => void, ms: number): TimerHandle
+  clear(handle: TimerHandle): void
+}
+
+export interface TaskRpcBridgeDeps {
+  readonly timers?: TaskRpcTimers
+  readonly coalesceMs?: number
+}
+
+const globalTimers: TaskRpcTimers = {
+  set: (callback, ms) => {
+    const handle = setTimeout(callback, ms)
+    handle.unref?.()
+    return handle
+  },
+  clear: (handle) => clearTimeout(handle),
+}
+
 export interface TaskRpcBridge {
   attach(): void
   sync(): void
@@ -33,7 +56,9 @@ export interface TaskRpcBridge {
 export function wireTaskRpcBridge(
   pi: SenpiExtensionAPI,
   engine: TaskEngine,
+  deps: TaskRpcBridgeDeps = {},
 ): TaskRpcBridge {
+  const timers = deps.timers ?? globalTimers
   const subscriptions = new Map<string, () => void>()
   const liveProgress = new Map<string, TaskLiveProgressSnapshot>()
   let activeSessionId: string | undefined
