@@ -75,6 +75,7 @@ export function createMemorianComposition(
     gate,
     delivery,
     trigger: {
+      onPrompt: trigger.onPrompt,
       onToolCall: trigger.onToolCall,
       onSettled(eventCtx): void {
         trigger.onSettled(eventCtx)
@@ -95,6 +96,7 @@ export function createMemorianComposition(
     },
     registerHooks(hookPi): void {
       registerMemorianHooks(hookPi, {
+        env: options.env,
         trigger,
         delivery,
         resolveContext: runtime.resolveContext,
