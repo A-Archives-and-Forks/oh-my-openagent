@@ -130,6 +130,20 @@ describe("createMemorianNudgeTool", () => {
     })
   }
 
+  // A judge that decided not to nudge still emitted nudge(path, "placeholder"); the closure must
+  // refuse filler at call time and tell the judge to end the run instead.
+  for (const hint of ["placeholder", "<hint>", "TODO", "This is a placeholder", "..."]) {
+    test(`#given the filler hint ${JSON.stringify(hint)} #when nudge is called #then an error result names the filler rule and nothing is recorded`, async () => {
+      const { accepted, tool } = launch()
+      const result = await tool.execute("call-1", params(CANDIDATE_PATH, hint))
+      expect(result.isError).toBe(true)
+      const first = result.content[0]
+      expect(first?.type).toBe("text")
+      if (first?.type === "text") expect(first.text).toContain("filler")
+      expect(accepted).toEqual([])
+    })
+  }
+
   test("#given a multiline hint #when nudge is called #then an error result returns and nothing is recorded", async () => {
     // given
     const { accepted, tool } = launch()
