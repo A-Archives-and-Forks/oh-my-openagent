@@ -635,6 +635,7 @@ export async function buildReleaseBinary(
           "build",
           "--compile",
           `--target=${target.bunTarget}`,
+          "--minify-whitespace",
           "--compile-autoload-package-json",
           "--no-compile-autoload-dotenv",
           "--no-compile-autoload-bunfig",

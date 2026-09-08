@@ -17,7 +17,7 @@ test("#given a worker engine #when compiled and relocated #then two workers star
     writeFileSync(entry, `import { Worker } from "node:worker_threads";
 const path = typeof SENPI_RPC_SESSION_WORKER_ENTRY === "string" ? SENPI_RPC_SESSION_WORKER_ENTRY : "./src/modes/rpc/session-worker.ts";
 await Promise.all([1, 2].map(() => new Promise((resolve, reject) => {
-  const worker = new Worker(path);
+  const worker = new Worker(new URL(path, import.meta.url));
   worker.once("error", reject);
   worker.once("message", async (message) => { await worker.terminate(); resolve(message); });
 })));
