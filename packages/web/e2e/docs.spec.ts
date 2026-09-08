@@ -49,7 +49,7 @@ test.describe("Docs Page", () => {
     // then
     await expect(page).toHaveURL(/\/docs#installation$/)
     await expect(page.locator("#installation")).toBeInViewport()
-    await expect(installationButton).toHaveClass(/bg-primary\/10/)
+    await expect(installationButton).toHaveAttribute("data-active", "true")
   })
 
   test("hash navigation opens the installation section", async ({ page }) => {
@@ -58,7 +58,10 @@ test.describe("Docs Page", () => {
 
     // then
     await expect(page.locator("#installation")).toBeInViewport()
-    await expect(page.getByRole("button", { name: "Installation" })).toHaveClass(/bg-primary\/10/)
+    await expect(page.getByRole("button", { name: "Installation" })).toHaveAttribute(
+      "data-active",
+      "true",
+    )
   })
 
   test("internal docs links point to section hashes", async ({ page }) => {
@@ -82,5 +85,19 @@ test.describe("Docs Page", () => {
     // then
     await expect(page).toHaveURL(/\/ko\/docs#installation$/)
     await expect(page.locator("#installation")).toBeInViewport()
+  })
+
+  test("has no horizontal overflow at 375px", async ({ page }) => {
+    // given
+    await page.setViewportSize({ width: 375, height: 812 })
+    await page.goto("/docs")
+
+    // when
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    )
+
+    // then
+    expect(overflow).toBeLessThanOrEqual(1)
   })
 })

@@ -27,4 +27,18 @@ test.describe("Manifesto Page", () => {
     await expect(ctaLink).toBeVisible()
     await expect(ctaLink).toHaveAttribute("href", "https://github.com/code-yeongyu/oh-my-openagent")
   })
+
+  test("has no horizontal overflow at 375px", async ({ page }) => {
+    // given
+    await page.setViewportSize({ width: 375, height: 812 })
+    await page.goto("/manifesto", { waitUntil: "domcontentloaded", timeout: 45000 })
+
+    // when
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    )
+
+    // then
+    expect(overflow).toBeLessThanOrEqual(1)
+  })
 })
