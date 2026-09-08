@@ -70,7 +70,22 @@ test.describe("Landing Page", () => {
     await expect(grid.getByText("Claude Opus 5 Max")).toBeVisible()
   })
 
-  test("renders the desktop DAG view with 10 nodes across 5 waves", async ({ page }) => {
+  test("renders the desktop DAG view in the hero with 10 nodes across 5 waves", async ({
+    page,
+  }) => {
+    // given
+    await page.goto("/")
+    const dag = page.getByTestId("hero-dag")
+
+    // then
+    await expect(dag.locator("[data-dag-node]")).toHaveCount(10)
+    await expect(dag.locator("[data-dag-wave]")).toHaveCount(5)
+    await expect(dag.getByRole("button", { name: "Fit graph" })).toBeVisible()
+  })
+
+  test("renders the desktop app window with the DAG open in the mass ulw section", async ({
+    page,
+  }) => {
     // given
     await page.goto("/")
     const dag = page.getByTestId("mass-ulw-graph")

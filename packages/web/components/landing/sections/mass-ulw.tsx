@@ -17,7 +17,7 @@ export async function MassUlwSection(): Promise<JSX.Element> {
       className="border-line border-t py-16 lg:py-24"
     >
       <Frame>
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,22rem)_1fr] lg:gap-6">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-10 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] lg:gap-6">
           <Reveal className="lg:sticky lg:top-24 lg:self-start">
             <SectionHeader
               id="mass-title"
@@ -29,6 +29,8 @@ export async function MassUlwSection(): Promise<JSX.Element> {
           </Reveal>
           <Reveal index={1}>
             <MassUlwGraph
+              variant="app"
+              testId="mass-ulw-graph"
               regionLabel={t("dag.region")}
               frame={{
                 windowTitle: t("dag.windowTitle"),

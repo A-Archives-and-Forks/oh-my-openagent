@@ -83,8 +83,8 @@ export function DesktopFrame({
   const feed = feedAt(clockMs)
 
   return (
-    <div className="border-line bg-ink-1 grid grid-rows-[auto_1fr] border">
-      <div className="bg-ink-2 border-line flex h-9 items-center gap-2 border-b px-3">
+    <div className="border-line bg-ink-1 grid min-w-0 grid-rows-[auto_1fr] overflow-hidden border">
+      <div className="bg-ink-2 border-line flex h-9 min-w-0 items-center gap-2 border-b px-3">
         <span aria-hidden="true" className="flex gap-1.5">
           <span className="bg-text-faint size-2 rounded-full" />
           <span className="bg-text-faint size-2 rounded-full" />
@@ -95,7 +95,7 @@ export function DesktopFrame({
         </span>
         <Chip variant="accent">{labels.workflow}</Chip>
       </div>
-      <div className="grid min-h-0 md:grid-cols-[11rem_1fr]">
+      <div className="grid min-h-0 min-w-0 md:grid-cols-[11rem_1fr]">
         <aside className="border-line hidden min-h-0 flex-col border-r md:flex">
           <p className="eyebrow px-3 pt-3 pb-2">{labels.threads}</p>
           <ul className="space-y-px px-1.5">
@@ -121,8 +121,8 @@ export function DesktopFrame({
             ))}
           </ul>
         </aside>
-        <div className="grid min-h-0 grid-rows-[auto_auto_1fr]">
-          <div className="border-line border-b px-4 py-3">
+        <div className="grid min-h-0 min-w-0 grid-rows-[auto_auto_1fr]">
+          <div className="border-line min-w-0 border-b px-4 py-3">
             <div className="flex justify-end">
               <p
                 data-dag-user-turn
@@ -138,10 +138,10 @@ export function DesktopFrame({
               </p>
             </div>
             <p className="text-text-lo mt-2 min-h-4 text-xs" aria-live="polite">
-              {assistantLine === null ? "" : `Sisyphus · ${assistantLine}`}
+              {assistantLine === null ? "" : `orchestrator · ${assistantLine}`}
             </p>
           </div>
-          <div className="border-line flex items-center gap-2 border-b px-3 py-2">
+          <div className="border-line flex min-w-0 items-center gap-2 border-b px-3 py-2">
             <div className="min-w-0 flex-1">
               <p className="text-text-hi truncate text-sm font-medium">{run.name}</p>
               <p data-dag-run-summary className="text-text-lo truncate font-mono text-xs">
@@ -150,7 +150,7 @@ export function DesktopFrame({
             </div>
             <RunStatusChip status={run.status} label={labels.runStatus[run.status]} />
           </div>
-          <div className="relative h-[20rem] min-h-0 md:h-[23rem]">
+          <div className="relative h-[20rem] min-h-0 min-w-0 md:h-[23rem]">
             <div className="absolute inset-0">{children}</div>
             {feed.length === 0 ? null : (
               <ol
@@ -166,7 +166,7 @@ export function DesktopFrame({
                         dagStatus(line.state).dotClass,
                       )}
                     />
-                    <span className="text-text-lo truncate">{line.text}</span>
+                    <span className="text-text-lo min-w-0 truncate">{line.text}</span>
                   </li>
                 ))}
               </ol>
