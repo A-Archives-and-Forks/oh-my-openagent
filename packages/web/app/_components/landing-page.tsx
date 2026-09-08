@@ -11,11 +11,20 @@ import { SisyphusSection } from "@/components/landing/sections/sisyphus"
 import { SubAgentsSection } from "@/components/landing/sections/sub-agents"
 import { TeamModeSection } from "@/components/landing/sections/team-mode"
 import { UltraworkSection } from "@/components/landing/sections/ultrawork"
+import { getStats, FALLBACK_DESCRIPTION } from "@/lib/stats"
 
-export const landingMetadata: Metadata = {
-  title: "Oh My OpenAgent — The Best Agent Harness",
-  description:
-    "Meet Sisyphus: The batteries-included agent that codes like you. Multi-model orchestration, Team Mode, background agents, 60+ lifecycle hooks.",
+export async function generateLandingMetadata(): Promise<Metadata> {
+  let description = FALLBACK_DESCRIPTION
+  try {
+    description = (await getStats()).description
+  } catch (error) {
+    console.warn("Unable to refresh landing metadata; using fallback description", error)
+  }
+
+  return {
+    title: "Oh My OpenAgent — The Best Agent Harness",
+    description,
+  }
 }
 
 export async function LandingPage(): Promise<JSX.Element> {

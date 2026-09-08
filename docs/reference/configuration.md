@@ -277,6 +277,7 @@ Control what tools an agent can use:
 | `edit`               | `ask` / `allow` / `deny`                                                    |
 | `bash`               | `ask` / `allow` / `deny` or per-command: `{ "git": "allow", "rm": "deny" }` |
 | `webfetch`           | `ask` / `allow` / `deny`                                                    |
+| `task`               | `ask` / `allow` / `deny`                                                    |
 | `doom_loop`          | `ask` / `allow` / `deny`                                                    |
 | `external_directory` | `ask` / `allow` / `deny`                                                    |
 
@@ -434,7 +435,7 @@ Capability data comes from provider runtime metadata first. OmO also ships bundl
 | **Librarian** | `gpt-5.6-luna-fast` | `openai\|openai-codex/gpt-5.6-luna-fast (low)` → `deepseek/deepseek-v4-flash (max)` → `opencode-go\|bailian-coding-plan/qwen3.7-plus` → `opencode-go/minimax-m3` → `minimax-coding-plan\|minimax-cn-coding-plan/MiniMax-M3` → `opencode-go/minimax-m2.7` → `anthropic\|github-copilot/claude-haiku-4-5` → `openai\|openai-codex/gpt-5.4-nano`
 | **Explore** | `gpt-5.6-luna-fast` | `openai\|openai-codex/gpt-5.6-luna-fast (low)` → `deepseek/deepseek-v4-flash (max)` → `opencode-go\|bailian-coding-plan/qwen3.7-plus` → `opencode-go/minimax-m3` → `minimax-coding-plan\|minimax-cn-coding-plan/MiniMax-M3` → `opencode-go/minimax-m2.7` → `anthropic\|github-copilot/claude-haiku-4-5` → `openai\|openai-codex/gpt-5.4-nano`
 | **Multimodal Looker** | `gpt-5.6-sol` | `openai\|openai-codex\|opencode/gpt-5.6-sol (low)` → `opencode-go/kimi-k3` → `zai-coding-plan/glm-4.6v` → `openai\|openai-codex\|github-copilot\|opencode/gpt-5-nano`
-| **Prometheus** | `claude-fable-5` | `anthropic\|github-copilot\|opencode/claude-fable-5 (xhigh)` → `opencode-go\|kimi-for-coding\|moonshotai\|opencode/kimi-k3 (max)`
+| **Prometheus** | `claude-fable-5-1` | `anthropic\|github-copilot\|opencode/claude-fable-5-1 (xhigh)` → `opencode-go\|kimi-for-coding\|moonshotai\|opencode/kimi-k3 (max)`
 | **Metis** | `claude-opus-5` | `anthropic\|github-copilot\|opencode/claude-opus-5 (high)` → `opencode-go\|kimi-for-coding\|moonshotai\|opencode/kimi-k3 (low)`
 | **Momus** | `gpt-6-astra` | `openai\|openai-codex/gpt-6-astra (xhigh)` → `github-copilot/gpt-6-astra (high)` → `openai\|openai-codex\|opencode/gpt-6-astra (high)` → `anthropic\|github-copilot\|opencode/claude-opus-5 (max)` → `google\|github-copilot\|opencode/gemini-3.1-pro (high)` → `opencode-go/glm-5.2`
 | **Atlas** | `claude-sonnet-5` | `anthropic\|github-copilot\|opencode/claude-sonnet-5` → `opencode-go/kimi-k3` → `openai\|openai-codex\|github-copilot\|opencode/gpt-5.6-sol (medium)` → `opencode-go/minimax-m3` → `minimax-coding-plan\|minimax-cn-coding-plan/MiniMax-M3` → `opencode-go/minimax-m2.7`
@@ -1280,18 +1281,14 @@ Install [`opencode-antigravity-auth`](https://github.com/NoeFabris/opencode-anti
 
 ##### Split Claude Routing
 
-Provider path affects the effective Claude context limit. Antigravity Claude
-models are the stable 200k lane. Direct Anthropic Claude models are the 1M lane
-for accounts and model IDs that support long context.
+Provider path can change Claude context limits. Confirm the active model's context window with `bunx oh-my-openagent doctor --verbose` rather than assuming 200k vs 1M.
 
-Use Antigravity for cheaper or quota-balanced work where 200k context is enough.
-Use direct Anthropic for long-context planning, review, and research sessions
-where early compaction would lose important context.
+Use Antigravity for cheaper or quota-balanced work. Use direct Anthropic for long-context planning, review, and research sessions when the account, model, and required beta/header setup support a larger window.
 
 ```jsonc
 {
   "agents": {
-    // 200k lane: Google Antigravity Claude.
+    // Google Antigravity Claude.
     "explore": {
       "model": "google/antigravity-claude-sonnet-4-6"
     },
@@ -1299,7 +1296,7 @@ where early compaction would lose important context.
       "model": "google/antigravity-claude-sonnet-4-6"
     },
 
-    // 1M lane: direct Anthropic, only for eligible long-context accounts/models.
+    // Direct Anthropic, only for eligible long-context accounts/models.
     "sisyphus": {
       "model": "anthropic/claude-opus-5",
       "reasoning": "max"
@@ -1314,8 +1311,8 @@ where early compaction would lose important context.
 If you see an error like `prompt is too long ... > 200000`, check whether the
 agent is routed through `google/antigravity-*`. Move that agent to a direct
 `anthropic/*` model only when the account, model, and required beta/header setup
-support 1M context. Keep the Antigravity lane explicit when you want predictable
-200k behavior.
+support a larger context window. Keep the Antigravity path explicit when you want
+that provider's quota and routing behavior.
 
 #### Ollama
 

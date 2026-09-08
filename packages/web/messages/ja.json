@@ -13,7 +13,7 @@
   },
   "footer": {
     "brand": "Oh My OpenAgent",
-    "copyright": "© {year} Oh My OpenAgent. SUL-1.0ライセンスでオープンソースです。",
+    "copyright": "© {year} Oh My OpenAgent. SUL-1.0のソースアベイラブルライセンス。",
     "github": "GitHub",
     "discord": "Discord",
     "documentation": "ドキュメント",
@@ -26,9 +26,9 @@
       "subtitle": "{stars}スター。{downloads}ダウンロード。実戦で証明済み。",
       "githubStars": "{count} GitHub Stars",
       "specializedAgents": "{count}個の専門Agent",
-      "totalDownloads": "累計{count}+ダウンロード",
-      "monthlyDownloads": "月間{count}+ダウンロード",
-      "lifecycleHooks": "{count}+ライフサイクルHooks",
+      "totalDownloads": "{count}ダウンロード",
+      "monthlyDownloads": "{count}ダウンロード",
+      "lifecycleHooks": "{count}ライフサイクルHooks",
       "installCommand": "bunx oh-my-openagent install",
       "codexInstallCommand": "npx lazycodex-ai install",
       "codexLabel": "Codex CLI エディション",
@@ -36,19 +36,25 @@
       "viewOnGitHub": "GitHubで見る"
     },
     "editions": {
-      "title": "2つのエディション、1つの頭脳",
+      "title": "3つのエディション、1つの頭脳",
       "subtitle": "同じオーケストレーションエンジン。ハーネスを選ぶだけ。",
       "ultimate": {
         "name": "Ultimate",
         "platform": "OpenCode",
-        "description": "11エージェント、Team Mode、バックグラウンドタスク、3-tier MCP、60+ライフサイクルフックを備えたフルプラグイン。",
+        "description": "11エージェント、Team Mode、バックグラウンドタスク、3-tier MCP、55ライフサイクルフックを備えたフルプラグイン。",
         "install": "bunx oh-my-openagent install"
       },
       "light": {
         "name": "Light",
         "platform": "Codex CLI",
-        "description": "8コンポーネント — comment-checker, git-bash, LSP, rules, ulw-execute-continuation, telemetry, ultrawork, ulw-loop — Codexイベントに接続。",
+        "description": "11コンポーネント — bootstrap, comment-checker, git-bash, lazycodex-executor-verify, LSP, rules, teammode, telemetry, ultrawork, ulw-execute-continuation, ulw-loop — Codexイベントに接続。",
         "install": "npx lazycodex-ai install"
+      },
+      "senpi": {
+        "name": "Senpi",
+        "platform": "Standalone beta",
+        "description": "OMO拡張を内蔵したネイティブomoコマンド。OpenCodeやCodexホスト不要のスタンドアロン。ベータチャネル専用。",
+        "install": "npm i -g omo-ai@beta"
       }
     },
     "ulw": {
@@ -64,11 +70,11 @@
       "terminalInput": "ulw add authentication to the API",
       "steps": {
         "scanning": "コードベースをスキャン中...",
-        "context": "3個のexploreエージェントを起動中...",
+        "context": "exploreエージェントを起動中...",
         "planning": "実行計画を構築中...",
-        "delegating": "4個の並列エージェントを展開中...",
+        "delegating": "並列エージェントを展開中...",
         "verifying": "検証テストを実行中...",
-        "complete": "完了。847行変更、0個の問題。"
+        "complete": "完了。変更を反映、問題なし。"
       },
       "tagline": "ゼロ介入。完全な自律性。ただ結果。"
     },
@@ -97,7 +103,7 @@
       },
       "boulderTitle": "Session Continuity",
       "boulderDescription": "アクティブな作業はboulder.jsonに追跡されます。停電？システムクラッシュ？関係ありません。止まったそのままの場所から再開できます。",
-      "model": "Claude Opus 5 High"
+      "model": "Claude Opus 5 Max"
     },
     "prometheusAtlas": {
       "badge": "オーケストレーションワークフロー",
@@ -106,7 +112,7 @@
       "prometheus": {
         "name": "Prometheus",
         "role": "Strategic Planner",
-        "model": "Claude Fable 5 XHigh",
+        "model": "Claude Fable 5.1 XHigh",
         "description": "設計者。あなたとインタビューし、コードベースを探索し、詳細な実行計画を作成します。コードは絶対に書きません。MetisとMomusを品質ゲートとして使用します。",
         "features": [
           "知的なインタビューモード",
@@ -118,7 +124,7 @@
       "atlas": {
         "name": "Atlas",
         "role": "Master Executor",
-        "model": "Claude Sonnet 4.6",
+        "model": "Claude Sonnet 5",
         "description": "建設者。検証済みの計画を読み、category+skillsシステムを通じて専門エージェントに委譲します。タスク間の学習を追跡します。独立して検証 — サブエージェントの主張を信じません。",
         "features": [
           "意図ベースのタスクルーティング",
@@ -160,7 +166,7 @@
       "model": "GPT 5.6 Sol Medium"
     },
     "teamMode": {
-      "badge": "v4.0+",
+      "badge": "並列",
       "title": "Team Mode",
       "headline": "複数のエージェント。横並び。並列で。",
       "description": "リードエージェントがカテゴリ特化のメンバーチームを統括します。全員が並列で動き、専用ツールでリアルタイムに通信。tmuxで全メンバーの作業を同時に観察できます。オプトイン — team_mode.enabledを切り替えて再起動。",
@@ -202,7 +208,7 @@
       "oracle": {
         "name": "Oracle",
         "role": "Architecture Consultant",
-        "model": "GPT 5.5 High",
+        "model": "GPT 5.6 Sol xHigh",
         "description": "複雑なデバッグとアーキテクチャ決定。前進の道が明らかでない時。"
       },
       "librarian": {
@@ -220,31 +226,31 @@
       "metis": {
         "name": "Metis",
         "role": "Plan Consultant",
-        "model": "Claude Sonnet 4.6",
+        "model": "Claude Opus 5 High",
         "description": "プランの曖昧さをプロダクションバグになる前に捕捉する。"
       },
       "momus": {
         "name": "Momus",
         "role": "Plan Reviewer",
-        "model": "GPT 5.6 Sol xHigh",
+        "model": "GPT 6 Astra xHigh",
         "description": "容赦ない検証。プランが弾丸不可能な時だけ承認する。"
       },
       "atlas": {
         "name": "Atlas",
         "role": "並列タスク実行",
-        "model": "Claude Sonnet 4.6",
+        "model": "Claude Sonnet 5",
         "description": "依存関係追跡付きで多段階プランをオーケストレーション。専門家に委任し、独立して検証する。"
       },
       "sisyphusJunior": {
         "name": "Sisyphus-Junior",
         "role": "集中タスク実行",
         "model": "カテゴリ別",
-        "description": "Sisyphusと同じ規律、委任なし。証拠ベースのQAで単一タスクを最後まで実行。"
+        "description": "Sisyphusと同じ規律、taskツールのファンアウトなし。証拠ベースのQAで単一タスクを最後まで実行。"
       },
       "multimodalLooker": {
         "name": "Multimodal-Looker",
         "role": "メディア分析",
-        "model": "GPT 5.5 Medium",
+        "model": "GPT 5.6 Sol Low",
         "description": "PDF、画像、図から情報を抽出。全体読みなしで素早く要約を取り出す。"
       },
       "dynamicSystem": {
@@ -312,7 +318,7 @@
     },
     "cta": {
       "title": "ボイラープレートを書くのをやめろ",
-      "subtitle": "Oh My OpenAgentをインストールしてエージェントに任せよう。最初のulwコマンドまであと30秒。",
+      "subtitle": "Oh My OpenAgentをインストールしてエージェントに任せよう。",
       "installCommand": "bunx oh-my-openagent install",
       "installNow": "今すぐインストール",
       "readTheDocs": "ドキュメントを読む"

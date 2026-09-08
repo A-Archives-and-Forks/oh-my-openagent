@@ -13,7 +13,7 @@
   },
   "footer": {
     "brand": "Oh My OpenAgent",
-    "copyright": "© {year} Oh My OpenAgent. Open source under SUL-1.0.",
+    "copyright": "© {year} Oh My OpenAgent. Source-available under SUL-1.0.",
     "github": "GitHub",
     "discord": "Discord",
     "documentation": "Documentation",
@@ -36,19 +36,25 @@
       "viewOnGitHub": "View on GitHub"
     },
     "editions": {
-      "title": "Two Editions, One Brain",
+      "title": "Three Editions, One Brain",
       "subtitle": "Same orchestration engine. Pick your harness.",
       "ultimate": {
         "name": "Ultimate",
         "platform": "OpenCode",
-        "description": "Full plugin with 11 agents, Team Mode, background tasks, 3-tier MCP, and 60+ lifecycle hooks.",
+        "description": "Full plugin with 11 agents, Team Mode, background tasks, 3-tier MCP, and 55 lifecycle hooks.",
         "install": "bunx oh-my-openagent install"
       },
       "light": {
         "name": "Light",
         "platform": "Codex CLI",
-        "description": "8 components — comment-checker, git-bash, LSP, rules, ulw-execute-continuation, telemetry, ultrawork, ulw-loop — wired to Codex events.",
+        "description": "11 components — bootstrap, comment-checker, git-bash, lazycodex-executor-verify, LSP, rules, teammode, telemetry, ultrawork, ulw-execute-continuation, ulw-loop — wired to Codex events.",
         "install": "npx lazycodex-ai install"
+      },
+      "senpi": {
+        "name": "Senpi",
+        "platform": "Standalone beta",
+        "description": "Native omo command with the OMO extension built in. Standalone — no OpenCode or Codex host. Beta channel only.",
+        "install": "npm i -g omo-ai@beta"
       }
     },
     "ulw": {
@@ -64,11 +70,11 @@
       "terminalInput": "ulw add authentication to the API",
       "steps": {
         "scanning": "Scanning codebase...",
-        "context": "Launching 3 explore agents...",
+        "context": "Launching explore agents...",
         "planning": "Building execution plan...",
-        "delegating": "Deploying 4 parallel agents...",
+        "delegating": "Deploying parallel agents...",
         "verifying": "Running verification suite...",
-        "complete": "Done. 847 lines changed, 0 issues."
+        "complete": "Done. Changes landed with no issues."
       },
       "tagline": "Zero intervention. Full autonomy. Just results."
     },
@@ -97,7 +103,7 @@
       },
       "boulderTitle": "Session Continuity",
       "boulderDescription": "Active work tracked in boulder.json. Power outage? System crash? Doesn't matter. Pick up exactly where you stopped.",
-      "model": "Claude Opus 5 High"
+      "model": "Claude Opus 5 Max"
     },
     "prometheusAtlas": {
       "badge": "Orchestration Workflow",
@@ -106,7 +112,7 @@
       "prometheus": {
         "name": "Prometheus",
         "role": "Strategic Planner",
-        "model": "Claude Fable 5 XHigh",
+        "model": "Claude Fable 5.1 XHigh",
         "description": "The architect. Interviews you, explores your codebase, and creates detailed battle plans. Never writes code. Uses Metis and Momus as quality gates.",
         "features": [
           "Intelligent interview mode",
@@ -118,7 +124,7 @@
       "atlas": {
         "name": "Atlas",
         "role": "Master Executor",
-        "model": "Claude Sonnet 4.6",
+        "model": "Claude Sonnet 5",
         "description": "The builder. Reads verified plans, delegates to specialized agents via category+skills system. Tracks learnings across tasks. Verifies independently — never trusts subagent claims.",
         "features": [
           "Intent-based task routing",
@@ -160,7 +166,7 @@
       "model": "GPT 5.6 Sol Medium"
     },
     "teamMode": {
-      "badge": "v4.0+",
+      "badge": "Parallel",
       "title": "Team Mode",
       "headline": "Multiple Agents. Side-by-Side. In Parallel.",
       "description": "A lead agent orchestrates a team of category-specialized members, all running in parallel and communicating through dedicated tools. Watch every member work simultaneously in tmux. Opt-in — flip team_mode.enabled and restart.",
@@ -202,7 +208,7 @@
       "oracle": {
         "name": "Oracle",
         "role": "Architecture Consultant",
-        "model": "GPT 5.5 High",
+        "model": "GPT 5.6 Sol xHigh",
         "description": "Complex debugging and architectural decisions. When the path forward isn't obvious."
       },
       "librarian": {
@@ -220,31 +226,31 @@
       "metis": {
         "name": "Metis",
         "role": "Plan Consultant",
-        "model": "Claude Sonnet 4.6",
+        "model": "Claude Opus 5 High",
         "description": "Catches ambiguities in plans before they become production bugs."
       },
       "momus": {
         "name": "Momus",
         "role": "Plan Reviewer",
-        "model": "GPT 5.6 Sol xHigh",
+        "model": "GPT 6 Astra xHigh",
         "description": "Ruthless validation. Only approves when the plan is bulletproof."
       },
       "atlas": {
         "name": "Atlas",
         "role": "Parallel Task Executor",
-        "model": "Claude Sonnet 4.6",
+        "model": "Claude Sonnet 5",
         "description": "Orchestrates multi-step plans with dependency tracking. Delegates to specialists and verifies independently."
       },
       "sisyphusJunior": {
         "name": "Sisyphus-Junior",
         "role": "Focused Task Executor",
         "model": "Per-category",
-        "description": "Same discipline as Sisyphus, no delegation. Executes single tasks end-to-end with evidence-bound QA."
+        "description": "Same discipline as Sisyphus, no task-tool fan-out. Executes single tasks end-to-end with evidence-bound QA."
       },
       "multimodalLooker": {
         "name": "Multimodal-Looker",
         "role": "Media Analysis",
-        "model": "GPT 5.5 Medium",
+        "model": "GPT 5.6 Sol Low",
         "description": "Extracts information from PDFs, images, and diagrams. Quick summary extraction without full reads."
       },
       "dynamicSystem": {
@@ -312,7 +318,7 @@
     },
     "cta": {
       "title": "Stop Writing Boilerplate",
-      "subtitle": "Install Oh My OpenAgent and let the agents handle it. Your first ulw command is 30 seconds away.",
+      "subtitle": "Install Oh My OpenAgent and let the agents handle it.",
       "installCommand": "bunx oh-my-openagent install",
       "installNow": "Install Now",
       "readTheDocs": "Read the Docs"

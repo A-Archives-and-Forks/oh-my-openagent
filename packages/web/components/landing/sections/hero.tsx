@@ -36,6 +36,12 @@ export async function HeroSection(): Promise<JSX.Element> {
             {t("hero.title")}
             <span className="text-cyan-400">{t("hero.titleHighlight")}</span>
           </h1>
+          <p
+            data-testid="hero-tagline"
+            className="mx-auto max-w-3xl text-lg text-zinc-300 md:text-xl"
+          >
+            {formattedStats.description}
+          </p>
           <p className="mx-auto max-w-3xl text-xl font-light text-zinc-400 md:text-2xl">
             {t("hero.subtitle", {
               stars: formattedStats.stars,
@@ -56,7 +62,7 @@ export async function HeroSection(): Promise<JSX.Element> {
             specializedAgents: t("hero.specializedAgents", { count: "11" }),
             totalDownloads: t("hero.totalDownloads", { count: "{count}" }),
             monthlyDownloads: t("hero.monthlyDownloads", { count: "{count}" }),
-            lifecycleHooks: t("hero.lifecycleHooks", { count: "60+" }),
+            lifecycleHooks: t("hero.lifecycleHooks", { count: "55" }),
           }}
         />
 
