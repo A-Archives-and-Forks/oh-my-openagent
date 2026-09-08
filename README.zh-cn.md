@@ -1,11 +1,8 @@
 > [!NOTE]
 > **OmO 测试版: OmO ❤️ Pi**
 > 使用 `bun install -g omo-ai@beta` 试用。记忆系统、CodeMode、Anthropic 订阅,全部支持。
-
-> [!NOTE]
->
-> [![OmO Herdr DAG - live OmO workflow DAGs in a Herdr side pane](./.github/assets/omo-herdr-dag.png)](https://github.com/jc01rho/omo-herdr-dag)
 > > **运行 `mass ulw` - 以多模型享受 ultracode,并配备更出色的记忆系统。(右侧面板是 [omo-herdr-dag](https://github.com/jc01rho/omo-herdr-dag))**
+
 
 > **Sponsors**
 > 以下是我们的赞助商。感谢您帮助我们完成制作。

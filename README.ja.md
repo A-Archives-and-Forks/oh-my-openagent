@@ -1,11 +1,8 @@
 > [!NOTE]
 > **OmO ベータ: OmO ❤️ Pi**
 > `bun install -g omo-ai@beta` でお試しください。メモリシステム、CodeMode、Anthropic サブスクリプションにすべて対応しています。
-
-> [!NOTE]
->
-> [![OmO Herdr DAG - live OmO workflow DAGs in a Herdr side pane](./.github/assets/omo-herdr-dag.png)](https://github.com/jc01rho/omo-herdr-dag)
 > > **`mass ulw` を実行しましょう - マルチモデルの ultracode を、より良いメモリシステムとともに楽しめます。(右側のパネルは [omo-herdr-dag](https://github.com/jc01rho/omo-herdr-dag) です)**
+
 
 > **Sponsors**
 > 以下は私たちのスポンサーです。制作をご支援いただきありがとうございます。
