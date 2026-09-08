@@ -1,7 +1,7 @@
 import type { AgentToolResult, ToolDefinition } from "@code-yeongyu/senpi"
 import { Type, type Static } from "typebox"
 
-import { containsSecretLikeMaterial, isValidHint, type RecallNudge } from "@oh-my-opencode/memory-core"
+import { containsSecretLikeMaterial, isFillerHint, isValidHint, type RecallNudge } from "@oh-my-opencode/memory-core"
 
 export const MEMORIAN_NUDGE_TOOL_NAME = "nudge"
 
@@ -10,7 +10,7 @@ const MEMORIAN_NUDGE_DESCRIPTION =
 
 export const MemorianNudgeParams = Type.Object({
   path: Type.String({ description: "Memory path copied exactly from the candidates input." }),
-  hint: Type.String({ description: "One factual sentence, at most 200 characters, on a single line. State the memory fact, not a judgment about whether to nudge." }),
+  hint: Type.String({ description: "One factual sentence, at most 200 characters, on a single line. State the memory fact, not a judgment about whether to nudge and never a filler such as 'placeholder'." }),
 }, { additionalProperties: false })
 
 export interface MemorianNudgeToolInput {
@@ -80,6 +80,9 @@ function rejectNudge(params: Static<typeof MemorianNudgeParams>, input: Memorian
   }
   if (params.path === "system/" || params.path.startsWith("system/")) {
     return `"${params.path}" is a system/ path and cannot be nudged.`
+  }
+  if (isFillerHint(params.hint)) {
+    return "The hint is filler, not a memory fact. If no candidate is worth nudging, end the run without calling this tool."
   }
   if (!isValidHint(params.hint)) {
     return "The hint must state a memory fact in one non-empty line of at most 200 characters, not comment on whether the memory is relevant or worth nudging."
