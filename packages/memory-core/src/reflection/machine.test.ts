@@ -1,15 +1,22 @@
 import { describe, expect, it } from "bun:test"
 import type { ReflectionSnapshot, ReflectionTranscriptState } from "../journal"
 import {
-  REFLECTION_PENDING_MAX_BYTES,
-  REFLECTION_PENDING_MAX_CONVERSATIONS,
   completeTransition,
   evaluateTransitions,
-  mergedSnapshotBytes,
   reserveTransition,
   type MachineState,
   type ReflectionRequest,
 } from "./machine"
+
+const REFLECTION_PENDING_MAX_CONVERSATIONS = 32
+const REFLECTION_PENDING_MAX_BYTES = 4 * 1024 * 1024
+
+function pendingRequest(conversationId: string, bytes = 1): ReflectionRequest {
+  return {
+    trigger: "manual", conversationIds: [conversationId],
+    snapshots: [{ conversationId, snapshot: bulkySnapshot(bytes) }],
+  }
+}
 
 /** A snapshot whose serialized entries weigh approximately `bytes`. */
 function bulkySnapshot(bytes: number): ReflectionSnapshot {
@@ -24,7 +31,7 @@ function bulkySnapshot(bytes: number): ReflectionSnapshot {
       captured_at: "2026-08-10T00:00:00.000Z",
       source_line_id: "line",
       source_message_id: "message",
-    }] as unknown as ReflectionSnapshot["entries"],
+    }],
   }
 }
 
@@ -191,7 +198,7 @@ describe("reflection trigger machine", () => {
     const overflow = REFLECTION_PENDING_MAX_CONVERSATIONS + 5
     let state = reserveTransition({}, request("step-count", ["active-conversation"]), "active").state
     for (let index = 0; index < overflow; index += 1) {
-      state = reserveTransition(state, request("step-count", [`conversation-${index}`]), `pending-${index}`).state
+      state = reserveTransition(state, pendingRequest(`conversation-${index}`), `pending-${index}`).state
     }
 
     // then: the union is capped, and eviction drops the oldest first.
@@ -221,12 +228,13 @@ describe("reflection trigger machine", () => {
     const snapshots = state.pending?.request.snapshots ?? []
     expect(snapshots.length).toBeGreaterThan(0)
     expect(snapshots.length).toBeLessThan(30)
-    expect(mergedSnapshotBytes(snapshots)).toBeLessThanOrEqual(REFLECTION_PENDING_MAX_BYTES)
+    expect(Buffer.byteLength(`${JSON.stringify(state.pending, null, 2)}\n`, "utf8")).toBeLessThanOrEqual(REFLECTION_PENDING_MAX_BYTES)
+    expect(state.pending?.request.conversationIds).toEqual(snapshots.map((item) => item.conversationId))
     // eviction is oldest-first, so the newest request always survives.
     expect(snapshots.at(-1)?.conversationId).toBe("conversation-29")
   })
 
-  it("#given a single snapshot larger than the aggregate budget #when it merges #then it is still carried so the request is never emptied", () => {
+  it("#given a single snapshot larger than the aggregate budget #when it first becomes pending #then it is evicted without changing active work", () => {
     const huge: ReflectionRequest = {
       trigger: "manual",
       conversationIds: ["conversation-huge"],
@@ -235,7 +243,44 @@ describe("reflection trigger machine", () => {
     const active = reserveTransition({}, request("step-count"), "active")
     const state = reserveTransition(active.state, huge, "pending").state
 
-    expect(state.pending?.request.snapshots.map((item) => item.conversationId)).toEqual(["conversation-huge"])
+    expect(state.pending?.request.snapshots).toEqual([])
+    expect(state.pending?.request.conversationIds).toEqual([])
+    expect(state.active).toBe(active.state.active)
+  })
+
+  it("#given UTF-8 snapshots and JSON escaping #when the pending byte cap evicts #then the serialized payload fits and keeps the newest suffix", () => {
+    const snapshot = bulkySnapshot(1)
+    const unicode: ReflectionSnapshot = { ...snapshot, entries: [{
+      kind: "assistant", text: '\u00e9\\n\\"'.repeat(200_000), captured_at: "2026-08-10T00:00:00.000Z",
+      source_line_id: "line", source_message_id: "message",
+    }] }
+    let state = reserveTransition({}, pendingRequest("active"), "active").state
+    for (let index = 0; index < 4; index += 1) {
+      const conversationId = `conversation-${index}`
+      state = reserveTransition(state, {
+        trigger: "manual", conversationIds: [conversationId], snapshots: [{ conversationId, snapshot: unicode }],
+      }, `pending-${index}`).state
+    }
+    expect(state.pending?.request.conversationIds).toEqual(["conversation-2", "conversation-3"])
+    expect(Buffer.byteLength(`${JSON.stringify(state.pending, null, 2)}\n`, "utf8")).toBeLessThanOrEqual(REFLECTION_PENDING_MAX_BYTES)
+  })
+
+  it("#given an initial pending request with only conversation ids #when it exceeds the count cap #then ids are bounded too", () => {
+    const active = reserveTransition({}, pendingRequest("active"), "active").state
+    const ids = Array.from({ length: 40 }, (_, index) => `conversation-${index}`)
+    const queued = reserveTransition(active, { trigger: "manual", conversationIds: ids, snapshots: [] }, "pending")
+    expect(queued.state.pending?.request.conversationIds).toEqual(ids.slice(8))
+  })
+
+  it("#given a recaptured oldest pending conversation #when the count cap overflows #then first-seen order determines eviction", () => {
+    let state = reserveTransition({}, pendingRequest("active"), "active").state
+    for (let index = 0; index < 32; index += 1) {
+      state = reserveTransition(state, pendingRequest(`conversation-${index}`), `pending-${index}`).state
+    }
+    state = reserveTransition(state, pendingRequest("conversation-0", 20), "ignored").state
+    state = reserveTransition(state, pendingRequest("conversation-32"), "ignored").state
+    expect(state.pending?.runId).toBe("pending-0")
+    expect(state.pending?.request.conversationIds).toEqual(Array.from({ length: 32 }, (_, index) => `conversation-${index + 1}`))
   })
 
   it("#given interleaved reflection and dream requests #when every bounded event sequence is applied #then at most one active and one pending run exist", () => {
