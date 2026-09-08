@@ -2,7 +2,7 @@
 > **OmO Beta: OmO ❤️ Pi**
 > Try with `bun install -g omo-ai@beta` - Memory System, CodeMode, Anthropic subscriptions. All got covered.
 
-> [!Sponsors]
+> **Sponsors**
 > These are our sponsors. Thank you for helping us build OmO.
 > | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** serves **Kimi K3 Ultrafast at 300 TPS** at the same price as the official list price. Try `opengateway/moonshotai/kimi-k3-ultrafast` today. |
 > | :-----| :----- |
