@@ -40,10 +40,11 @@ export const REQUIRED_GATE_SECTIONS_BY_SURFACE: Readonly<Record<UlwLoopToolkitSu
 		"omo-senpi": ["manualQa", "gateReview", "iteration", "criteriaCoverage"],
 	};
 
-export const OPTIONAL_GATE_SECTIONS_BY_SURFACE: Readonly<Record<UlwLoopToolkitSurface, readonly UlwLoopGateSection[]>> = {
-	lazycodex: ["codeReview"],
-	"omo-senpi": [],
-};
+export const OPTIONAL_GATE_SECTIONS_BY_SURFACE: Readonly<Record<UlwLoopToolkitSurface, readonly UlwLoopGateSection[]>> =
+	{
+		lazycodex: ["codeReview"],
+		"omo-senpi": [],
+	};
 
 export const GATE_SECTION_BY_ACCEPTOR: Readonly<
 	Record<UlwLoopToolkitSurface, Readonly<Partial<Record<UlwLoopGateSection, readonly string[]>>>>
@@ -51,7 +52,13 @@ export const GATE_SECTION_BY_ACCEPTOR: Readonly<
 	lazycodex: {
 		codeReview: [REVIEWER_ROLES_BY_SURFACE.lazycodex.codeReview, "main-session"],
 		manualQa: [REVIEWER_ROLES_BY_SURFACE.lazycodex.manualQa, "main-session"],
-		gateReview: [REVIEWER_ROLES_BY_SURFACE.lazycodex.gateReview, "category:deep", "category:unspecified-high", "category:unspecified-low", "main-session"],
+		gateReview: [
+			REVIEWER_ROLES_BY_SURFACE.lazycodex.gateReview,
+			"category:deep",
+			"category:unspecified-high",
+			"category:unspecified-low",
+			"main-session",
+		],
 	},
 	"omo-senpi": {
 		manualQa: ["main-session"],

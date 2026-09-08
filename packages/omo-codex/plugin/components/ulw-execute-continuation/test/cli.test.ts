@@ -119,11 +119,7 @@ function createWorkspace(sessionIds: readonly string[]): string {
 	return root;
 }
 
-function makePayload(
-	cwd: string,
-	stopHookActive: boolean,
-	eventName: string,
-): Record<string, string | boolean> {
+function makePayload(cwd: string, stopHookActive: boolean, eventName: string): Record<string, string | boolean> {
 	return {
 		session_id: "s1",
 		turn_id: "t1",

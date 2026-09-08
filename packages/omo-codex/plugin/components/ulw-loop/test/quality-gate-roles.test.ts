@@ -133,11 +133,15 @@ describe("validateQualityGate reviewer roles", () => {
 	});
 
 	it("#given a four-section gate #when validated on the default lazycodex surface #then codeReview is optional", () => {
-		expect(() => validateQualityGate(senpiGate({
-		manualQa: { ...BASE_GATE.manualQa, by: "main-session" },
-		gateReview: { ...BASE_GATE.gateReview, by: "category:deep" },
-	}))).not.toThrow();
-});
+		expect(() =>
+			validateQualityGate(
+				senpiGate({
+					manualQa: { ...BASE_GATE.manualQa, by: "main-session" },
+					gateReview: { ...BASE_GATE.gateReview, by: "category:deep" },
+				}),
+			),
+		).not.toThrow();
+	});
 
 	it("#given swapped omo-senpi reviewer roles #when validated on the omo-senpi surface #then section-specific roles are enforced", () => {
 		const swapped = senpiGate({

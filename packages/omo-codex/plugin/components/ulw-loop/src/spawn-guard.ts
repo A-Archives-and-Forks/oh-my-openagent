@@ -36,7 +36,10 @@ export interface SpawnGuardOptions {
 export function applySpawnGuards(payload: PreToolUsePayload, options: SpawnGuardOptions = {}): string {
 	if (payload.hook_event_name !== "PreToolUse" || !SPAWN_TOOL_TOKENS.has(payload.tool_name)) return "";
 	const breaker = readAdmissionBreaker(payload.session_id);
-	if (breaker !== null) return deny(`Subagent admission failed earlier in this session (${breaker}). Do not spawn more workers or reviewers; report the capacity block and wait for the user.`);
+	if (breaker !== null)
+		return deny(
+			`Subagent admission failed earlier in this session (${breaker}). Do not spawn more workers or reviewers; report the capacity block and wait for the user.`,
+		);
 	const scope = { sessionId: payload.session_id } as const;
 	const stateDir = ulwLoopDir(payload.cwd, scope);
 	const plan = readPlan(join(stateDir, "goals.json"));
@@ -69,19 +72,31 @@ function evaluateGuards(payload: PreToolUsePayload, plan: UlwLoopPlan, stateDir:
 	return "";
 }
 
-export async function runSpawnAdmissionRecorderCli(stdin: NodeJS.ReadableStream, stdout: NodeJS.WritableStream): Promise<void> {
+export async function runSpawnAdmissionRecorderCli(
+	stdin: NodeJS.ReadableStream,
+	stdout: NodeJS.WritableStream,
+): Promise<void> {
 	const chunks: Buffer[] = [];
 	for await (const chunk of stdin) chunks.push(Buffer.from(chunk));
 	try {
 		const payload = JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
-		const response = typeof payload["tool_response"] === "string" ? payload["tool_response"] : JSON.stringify(payload["tool_response"] ?? "");
-		if (!/too many active cells|AgentLimitReached|max_threads|max_concurrent_threads_per_session/i.test(response)) return;
+		const response =
+			typeof payload["tool_response"] === "string"
+				? payload["tool_response"]
+				: JSON.stringify(payload["tool_response"] ?? "");
+		if (!/too many active cells|AgentLimitReached|max_threads|max_concurrent_threads_per_session/i.test(response))
+			return;
 		const dataDir = process.env["PLUGIN_DATA"];
 		if (typeof dataDir !== "string" || typeof payload["session_id"] !== "string") return;
 		const markerDir = join(dataDir, "spawn-breaker");
 		mkdirSync(markerDir, { recursive: true });
-		atomicWriteJson(join(markerDir, `${payload["session_id"]}.json`), { reason: response, at: new Date().toISOString() });
-	} catch { /* malformed hook input is ignored */ }
+		atomicWriteJson(join(markerDir, `${payload["session_id"]}.json`), {
+			reason: response,
+			at: new Date().toISOString(),
+		});
+	} catch {
+		/* malformed hook input is ignored */
+	}
 	void stdout;
 }
 
@@ -228,9 +243,13 @@ function readAdmissionBreaker(sessionId: string): string | null {
 	const dataDir = process.env["PLUGIN_DATA"];
 	if (typeof dataDir !== "string") return null;
 	try {
-		const value = JSON.parse(readFileSync(join(dataDir, "spawn-breaker", `${sessionId}.json`), "utf8")) as { reason?: unknown };
+		const value = JSON.parse(readFileSync(join(dataDir, "spawn-breaker", `${sessionId}.json`), "utf8")) as {
+			reason?: unknown;
+		};
 		return typeof value.reason === "string" ? value.reason : "capacity limit";
-	} catch { return null; }
+	} catch {
+		return null;
+	}
 }
 
 function fanOutLimit(): number {

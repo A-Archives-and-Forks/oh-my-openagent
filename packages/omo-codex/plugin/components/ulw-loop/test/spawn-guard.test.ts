@@ -107,16 +107,28 @@ function deny(output: string): { permissionDecision: string; permissionDecisionR
 describe("spawn admission breaker", () => {
 	async function record(response: unknown): Promise<string> {
 		let output = "";
-		const stdout = new Writable({ write(chunk, _encoding, callback) { output += chunk.toString(); callback(); } });
-		await runSpawnAdmissionRecorderCli(Readable.from([JSON.stringify({
-			...payload("spawn_agent", { message: "scan" }),
-			hook_event_name: "PostToolUse", tool_response: response,
-		})]), stdout);
+		const stdout = new Writable({
+			write(chunk, _encoding, callback) {
+				output += chunk.toString();
+				callback();
+			},
+		});
+		await runSpawnAdmissionRecorderCli(
+			Readable.from([
+				JSON.stringify({
+					...payload("spawn_agent", { message: "scan" }),
+					hook_event_name: "PostToolUse",
+					tool_response: response,
+				}),
+			]),
+			stdout,
+		);
 		return output;
 	}
 
 	it.each(["too many active cells", "AgentLimitReached", "max_threads", "max_concurrent_threads_per_session"])(
-		"records %s silently and denies without a plan while isolating other sessions", async (reason) => {
+		"records %s silently and denies without a plan while isolating other sessions",
+		async (reason) => {
 			expect(await record(reason)).toBe("");
 			const marker = JSON.parse(readFileSync(join(workDir, "plugin-data", "spawn-breaker", "s1.json"), "utf8"));
 			expect(Object.keys(marker).sort()).toEqual(["at", "reason"]);
@@ -124,7 +136,8 @@ describe("spawn admission breaker", () => {
 			expect(Number.isFinite(Date.parse(marker.at))).toBe(true);
 			expect(deny(applySpawnGuards(payload("spawn_agent", {}))).permissionDecision).toBe("deny");
 			expect(applySpawnGuards({ ...payload("spawn_agent", {}), session_id: "clean" })).toBe("");
-		});
+		},
+	);
 
 	it("does not record a successful admission", async () => {
 		expect(await record({ agent_id: "worker-1" })).toBe("");
@@ -133,9 +146,14 @@ describe("spawn admission breaker", () => {
 
 	it("denies before artifact, quota, and state lock guards", async () => {
 		writeGoals();
-		writeFileSync(join(sessionDir(), ".state.lock"), JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString(), token: "live" }));
+		writeFileSync(
+			join(sessionDir(), ".state.lock"),
+			JSON.stringify({ pid: process.pid, createdAt: new Date().toISOString(), token: "live" }),
+		);
 		await record("AgentLimitReached");
-		const output = deny(applySpawnGuards(payload("spawn_agent", { agent_type: "lazycodex-gate-reviewer" }), { lockTimeoutMs: 0 }));
+		const output = deny(
+			applySpawnGuards(payload("spawn_agent", { agent_type: "lazycodex-gate-reviewer" }), { lockTimeoutMs: 0 }),
+		);
 		expect(output.permissionDecisionReason).toContain("AgentLimitReached");
 		expect(existsSync(join(sessionDir(), "spawn-count.json"))).toBe(false);
 		expect(existsSync(join(sessionDir(), "review-spawn-counts.json"))).toBe(false);
@@ -143,7 +161,9 @@ describe("spawn admission breaker", () => {
 });
 
 describe("applySpawnGuards fan-out cap", () => {
-	it("defaults to 24 spawns", () => { expect(DEFAULT_FANOUT_LIMIT).toBe(24); });
+	it("defaults to 24 spawns", () => {
+		expect(DEFAULT_FANOUT_LIMIT).toBe(24);
+	});
 	it("#given spawns under the limit #when guarded #then allows and counts", () => {
 		writeGoals();
 
