@@ -90,27 +90,31 @@ export async function reconciliationFixture(trigger: "step-count" | "dream" = "s
 }
 
 /**
- * Retires the fixture's run directory into a COMPLETED earlier generation: a merged `final.json`
- * plus a settled ledger, both stamped at `finishedAt`. The reservation that currently holds the
+ * Retires the fixture's run directory with the selected terminal artifact and its real schema.
+ * Only final.json settles the ledger. The reservation that currently holds the
  * same run id is untouched, so a `finishedAt` before its `reservedAt` reproduces the shadowing
  * shape from issue #7912.
  */
 export async function retireRunGeneration(
   item: Awaited<ReturnType<typeof reconciliationFixture>>,
   finishedAt: string,
+  terminal: "final" | "abandoned" = "final",
 ): Promise<void> {
   await writeRunJsonAtomic(join(item.runDir, "ledger.json"), {
     ...item.ledger,
     startedAt: new Date(Date.parse(finishedAt) - 1_000).toISOString(),
-    finalizePhase: "settled",
-    finalizeOutcome: "merged",
-    finalizedAt: finishedAt,
+    ...(terminal === "final" ? {
+      finalizePhase: "settled",
+      finalizeOutcome: "merged",
+      finalizedAt: finishedAt,
+    } : {}),
   })
-  await writeRunJsonAtomic(join(item.runDir, "final.json"), {
+  await writeRunJsonAtomic(join(item.runDir, `${terminal}.json`), {
     version: 1,
     runId: item.ledger.runId,
-    outcome: "merged",
-    finishedAt,
+    ...(terminal === "final"
+      ? { outcome: "merged", finishedAt }
+      : { outcome: "abandoned_unknown", abandonedAt: finishedAt }),
   })
 }
 
