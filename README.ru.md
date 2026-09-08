@@ -2,12 +2,12 @@
 > **OmO Бета: OmO ❤️ Pi**
 > Попробуйте `bun install -g omo-ai@beta`: система памяти, CodeMode, подписки Anthropic. Всё включено.
 > [![OmO Herdr DAG - live OmO workflow DAGs in a Herdr side pane](./.github/assets/omo-herdr-dag.png)](https://github.com/jc01rho/omo-herdr-dag)
-> > **Запустите `mass ulw` - используйте ultracode с несколькими моделями вместе с улучшенной системой памяти. (Правая панель - [omo-herdr-dag](https://github.com/jc01rho/omo-herdr-dag))**
+> *Запустите `mass ulw` - ultracode с несколькими моделями и улучшенной системой памяти. (Правая панель - [omo-herdr-dag](https://github.com/jc01rho/omo-herdr-dag))*
 
 
 > **Sponsors**
 > Ниже представлены наши спонсоры. Спасибо за помощь в создании проекта.
-> | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** предлагает **Kimi K3 Ultrafast со скоростью 300 TPS** по той же цене, что и официальный прайс. Попробуйте `moonshotai/kimi-k3-ultrafast`. |
+> | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** предлагает **Kimi K3 Ultrafast со скоростью 300 TPS** по той же цене, что и официальный прайс. Попробуйте `moonshotai/kimi-k3-ultrafast`. Сервис переходит на политику отсутствия логов для инференса, так что ваши запросы остаются приватными, а поскольку вы не обращаетесь к провайдеру напрямую, сохраняется анонимность. |
 > | :-----| :----- |
 
 > [!NOTE]

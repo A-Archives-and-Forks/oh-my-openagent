@@ -2,12 +2,12 @@
 > **OmO ベータ: OmO ❤️ Pi**
 > `bun install -g omo-ai@beta` でお試しください。メモリシステム、CodeMode、Anthropic サブスクリプションにすべて対応しています。
 > [![OmO Herdr DAG - live OmO workflow DAGs in a Herdr side pane](./.github/assets/omo-herdr-dag.png)](https://github.com/jc01rho/omo-herdr-dag)
-> > **`mass ulw` を実行しましょう - マルチモデルの ultracode を、より良いメモリシステムとともに楽しめます。(右側のパネルは [omo-herdr-dag](https://github.com/jc01rho/omo-herdr-dag) です)**
+> *`mass ulw` を実行しましょう - マルチモデルの ultracode を、より良いメモリシステムとともに。(右側のパネルは [omo-herdr-dag](https://github.com/jc01rho/omo-herdr-dag) です)*
 
 
 > **Sponsors**
 > 以下は私たちのスポンサーです。制作をご支援いただきありがとうございます。
-> | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** では **Kimi K3 Ultrafast (300 TPS)** を公式価格と同じ料金で提供しています。`moonshotai/kimi-k3-ultrafast` を今すぐお試しください。 |
+> | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** では **Kimi K3 Ultrafast (300 TPS)** を公式価格と同じ料金で提供しています。`moonshotai/kimi-k3-ultrafast` を今すぐお試しください。 推論内容のノーロギングポリシーへの移行を進めており、プライバシーに配慮した利用が可能です。プロバイダーに直接リクエストしないため、匿名性も保てます。 |
 > | :-----| :----- |
 
 > [!NOTE]

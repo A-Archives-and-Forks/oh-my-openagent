@@ -2,11 +2,11 @@
 > **OmO Beta: OmO ❤️ Pi**
 > Try with `bun install -g omo-ai@beta` - Memory System, CodeMode, Anthropic subscriptions. All got covered.
 > [![OmO Herdr DAG - live OmO workflow DAGs in a Herdr side pane](./.github/assets/omo-herdr-dag.png)](https://github.com/jc01rho/omo-herdr-dag)
-> > **Run `mass ulw` - enjoy ultracode with multi-model, together with a better memory system. (The right panel is [omo-herdr-dag](https://github.com/jc01rho/omo-herdr-dag).)**
+> *Run `mass ulw` - enjoy ultracode but multi-model, together with a better memory system. (the right panel is [omo-herdr-dag](https://github.com/jc01rho/omo-herdr-dag).)*
 
 > **Sponsors**
 > These are our sponsors. Thank you for helping us build OmO.
-> | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** serves **Kimi K3 Ultrafast at 300 TPS** at the same price as the official list price. Try `opengateway/moonshotai/kimi-k3-ultrafast` today. |
+> | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** serves **Kimi K3 Ultrafast at 300 TPS** at the same price as the official list price. Try `opengateway/moonshotai/kimi-k3-ultrafast` today. It is moving to a no-logging policy for inference, so your prompts stay private - and since you never request the provider directly, you stay anonymous. |
 > | :-----| :----- |
 
 
