@@ -1,6 +1,26 @@
 import { test, expect } from "@playwright/test"
 
 test.describe("Hero Stats", () => {
+  test("renders the GitHub description as the hero tagline", async ({ page }) => {
+    // given / when
+    await page.goto("/")
+
+    // then
+    const tagline = page.getByTestId("hero-tagline")
+    await expect(tagline).toBeVisible()
+    await expect(tagline).toHaveText(/\S/)
+  })
+
+  test("serves a generated Open Graph image", async ({ request }) => {
+    // given / when
+    const response = await request.get("/opengraph-image")
+
+    // then
+    expect(response.status()).toBe(200)
+    expect(response.headers()["content-type"]).toContain("image/png")
+    expect((await response.body()).length).toBeGreaterThan(10_000)
+  })
+
   test("displays GitHub star count", async ({ page }) => {
     // given
     await page.goto("/")

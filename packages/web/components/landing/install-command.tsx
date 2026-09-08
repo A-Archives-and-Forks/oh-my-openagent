@@ -19,15 +19,15 @@ export function InstallCommand({ command }: { command: string }) {
 
   return (
     <div className="relative rounded-lg border border-zinc-800 bg-black/50 p-4 font-mono text-sm text-zinc-300 shadow-2xl shadow-cyan-500/10 backdrop-blur-sm">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto whitespace-nowrap">
           <span className="text-cyan-500">$</span>
           <span>{command}</span>
         </div>
         <Button
           variant="ghost"
           size="icon"
-          className="h-11 w-11 text-zinc-400 hover:text-white"
+          className="h-11 w-11 shrink-0 text-zinc-400 hover:text-white"
           onClick={copyCommand}
           aria-label="Copy install command"
         >
