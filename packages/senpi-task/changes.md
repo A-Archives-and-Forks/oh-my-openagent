@@ -1,4 +1,8 @@
 
+## 2026-09-08 — Persist team linkage on member task records
+
+Team members spawned by `team_create` now persist `team_run_id`, `team_name`, `team_member_name`, and `team_role: "member"` on their `st_*.json` task records. The parser keeps all four fields optional so records written before this linkage remain compatible.
+
 ## 2026-09-05 — Make run_in_background=true the standard spawn in the task tool's prompt surfaces
 
 `src/tools/task/description.ts` no longer tells the model to use `run_in_background=true` "only for parallel
