@@ -143,8 +143,20 @@ export function createDreamTriggerWiring(options: DreamTriggerWiringOptions): Dr
     const state = timers.get(conversationId)
     if (state === undefined) return
     timers.delete(conversationId)
-    if (!isIdleNow(state.eventCtx)) return
-    const session = options.resolveSession(state.eventCtx)
+    // The host retires the captured event ctx on session replacement or reload, and every probe on a
+    // retired ctx throws. This tick runs from a bare timer with no caller to catch it, so any escaping
+    // throw is an uncaughtException that kills the host: retire the tick instead. A retired ctx is the
+    // expected outcome of a replaced session and stays silent; anything else is reported.
+    let session: DreamTriggerSession | undefined
+    try {
+      if (!isIdleNow(state.eventCtx)) return
+      session = options.resolveSession(state.eventCtx)
+    } catch (error) {
+      if (!isStaleExtensionContextError(error)) {
+        options.logger?.warn("omo-senpi memory dream idle probe failed", { error: describe(error) })
+      }
+      return
+    }
     if (session === undefined || session.conversationId !== conversationId) return
     track(async () => {
       await launch(session, "idle", {})
@@ -199,6 +211,20 @@ function isIdleNow(eventCtx: unknown): boolean {
   const hasPending = eventCtx.hasPendingMessages
   if (typeof isIdle !== "function" || typeof hasPending !== "function") return false
   return Reflect.apply(isIdle, eventCtx, []) === true && Reflect.apply(hasPending, eventCtx, []) === false
+}
+
+/**
+ * Message prefixes the extension runner throws from a retired ctx: the first comes from session
+ * replacement (newSession, fork, switchSession) and the explicit reload path, the second from the
+ * runtime's own reload, which invalidates the previous runner generation with a shorter message.
+ */
+const STALE_EXTENSION_CONTEXT_ERROR_PREFIXES = [
+  "This extension ctx is stale after session replacement or reload.",
+  "stale extension generation after reload",
+] as const
+
+function isStaleExtensionContextError(error: unknown): boolean {
+  return error instanceof Error && STALE_EXTENSION_CONTEXT_ERROR_PREFIXES.some((prefix) => error.message.startsWith(prefix))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
