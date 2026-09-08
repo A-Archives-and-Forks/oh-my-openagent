@@ -27,31 +27,31 @@ An operations ledger read at night. The whole site is one framed sheet of ink ru
 
 ### Palette (dark only — the site has no light theme)
 
-| Role          | Token           | Value                    | Usage                                                                    |
-| ------------- | --------------- | ------------------------ | ------------------------------------------------------------------------ |
-| Ink / 0       | `--ink-0`       | `#09090b`                | Page substrate                                                           |
-| Ink / 1       | `--ink-1`       | `#0e0e11`                | Ledger rows, section bands, command bar                                  |
-| Ink / 2       | `--ink-2`       | `#14141a`                | Hovered row / tile, terminal chrome                                      |
-| Ink / 3       | `--ink-3`       | `#1b1b22`                | Popover, mobile nav sheet, terminal sidebar                              |
-| Text / hi     | `--text-hi`     | `#f5f5f7`                | Display, H1–H3, numerals, primary UI                                     |
-| Text / mid    | `--text-mid`    | `#c3c4c9`                | Body copy, nav links                                                     |
-| Text / lo     | `--text-lo`     | `#8b8c95`                | Captions, metadata, eyebrows                                             |
-| Text / faint  | `--text-faint`  | `#55565e`                | Wave rail numerals, disabled, quiet indices                              |
-| Line / strong | `--line-strong` | `rgba(255,255,255,0.12)` | Focused cell, active tab underline base                                  |
-| Line          | `--line`        | `rgba(255,255,255,0.08)` | Frame, rows, dividers (the default hairline)                             |
-| Line / faint  | `--line-faint`  | `rgba(255,255,255,0.04)` | Dot grid, quiet cell separators                                          |
-| Accent        | `--accent`      | `#00d4ff`                | Prompt glyph, live wires, active state, links on hover, primary CTA fill |
-| Accent / hot  | `--accent-hot`  | `#e6fdff`                | White-hot node core, cursor block, verified flash                        |
-| Accent / dim  | `--accent-dim`  | `#0ea5c4`                | Primary CTA hover fill, edge idle color in the 3D scene                  |
-| Accent / 4    | `--accent-4`    | `rgba(0,212,255,0.04)`   | Row hover tint                                                           |
-| Accent / 8    | `--accent-8`    | `rgba(0,212,255,0.08)`   | Selected tile fill, glass chip fill                                      |
-| Accent / 16   | `--accent-16`   | `rgba(0,212,255,0.16)`   | Node halo, glow wash center                                              |
-| Accent / 32   | `--accent-32`   | `rgba(0,212,255,0.32)`   | 1px inset selection ring, focus ring                                     |
-| Status / ok   | `--status-ok`   | `#10b981`                | Done dots, health                                                        |
-| Status / busy | `--status-busy` | `#f5c451`                | Working dots (terminal, team grid)                                       |
-| Status / err  | `--status-err`  | `#ef4444`                | Blocked / failed dots only                                               |
-| Code / bg     | `--code-bg`     | `#0b0b0e`                | Code blocks, terminal body                                               |
-| Code / fg     | `--code-fg`     | `#cdd6f4`                | Code text                                                                |
+| Role          | Token           | Value                    | Usage                                                                                                                 |
+| ------------- | --------------- | ------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Ink / 0       | `--ink-0`       | `#09090b`                | Page substrate                                                                                                        |
+| Ink / 1       | `--ink-1`       | `#0e0e11`                | Ledger rows, section bands, command bar                                                                               |
+| Ink / 2       | `--ink-2`       | `#14141a`                | Hovered row / tile, terminal chrome                                                                                   |
+| Ink / 3       | `--ink-3`       | `#1b1b22`                | Popover, mobile nav sheet, terminal sidebar                                                                           |
+| Text / hi     | `--text-hi`     | `#f5f5f7`                | Display, H1–H3, numerals, primary UI                                                                                  |
+| Text / mid    | `--text-mid`    | `#c3c4c9`                | Body copy, nav links                                                                                                  |
+| Text / lo     | `--text-lo`     | `#8b8c95`                | Captions, metadata, eyebrows                                                                                          |
+| Text / faint  | `--text-faint`  | `#55565e`                | Wave rail numerals, disabled, quiet indices — decorative only (2.7:1), never for text that carries meaning on its own |
+| Line / strong | `--line-strong` | `rgba(255,255,255,0.12)` | Focused cell, active tab underline base                                                                               |
+| Line          | `--line`        | `rgba(255,255,255,0.08)` | Frame, rows, dividers (the default hairline)                                                                          |
+| Line / faint  | `--line-faint`  | `rgba(255,255,255,0.04)` | Dot grid, quiet cell separators                                                                                       |
+| Accent        | `--accent`      | `#00d4ff`                | Prompt glyph, live wires, active state, links on hover, primary CTA fill                                              |
+| Accent / hot  | `--accent-hot`  | `#e6fdff`                | White-hot node core, cursor block, verified flash                                                                     |
+| Accent / dim  | `--accent-dim`  | `#0ea5c4`                | Primary CTA hover fill, edge idle color in the 3D scene                                                               |
+| Accent / 4    | `--accent-4`    | `rgba(0,212,255,0.04)`   | Row hover tint                                                                                                        |
+| Accent / 8    | `--accent-8`    | `rgba(0,212,255,0.08)`   | Selected tile fill, glass chip fill                                                                                   |
+| Accent / 16   | `--accent-16`   | `rgba(0,212,255,0.16)`   | Node halo, glow wash center                                                                                           |
+| Accent / 32   | `--accent-32`   | `rgba(0,212,255,0.32)`   | 1px inset selection ring, focus ring                                                                                  |
+| Status / ok   | `--status-ok`   | `#10b981`                | Done dots, health                                                                                                     |
+| Status / busy | `--status-busy` | `#f5c451`                | Working dots (terminal, team grid)                                                                                    |
+| Status / err  | `--status-err`  | `#ef4444`                | Blocked / failed dots only                                                                                            |
+| Code / bg     | `--code-bg`     | `#0b0b0e`                | Code blocks, terminal body                                                                                            |
+| Code / fg     | `--code-fg`     | `#cdd6f4`                | Code text                                                                                                             |
 
 ### Ramp rules
 
@@ -212,7 +212,7 @@ All primitives live in `components/ui/*` (existing shadcn shells re-tokened) or 
 
 ### Rules
 
-- Only `transform`, `opacity`, `filter` animate. Height morphs (mobile nav) use `grid-template-rows: 0fr → 1fr` on a wrapper, not `max-height`.
+- Only `transform`, `opacity`, `filter` and the color family (`color`, `background-color`, `border-color`, `fill`, `stroke`) animate — never layout properties (`width`, `height`, `top`, `left`, margin, padding). Height morphs (mobile nav) use `grid-template-rows: 0fr → 1fr` on a wrapper, not `max-height`.
 - Entrance: `.reveal` uses `animation-timeline: view()` (`animation-range: entry 0% entry 40%`) when `@supports (animation-timeline: view())`, else the IntersectionObserver `.is-visible` class. Stagger `calc(var(--index) * 60ms)`. Each element reveals once.
 - Every motion maps to a state or affordance: hover → underline/tint, press → 1px translate, live data → count-up, scene progress → wave lights. Motion on non-interactive decoration is banned (this includes floating shapes, parallax, cursor trails, magnetic buttons, scroll-jacking).
 - No motion library. GSAP, Lottie, `framer-motion` are banned; `motion/react` is allowed only for a `layoutId` shared-layout need, currently unused.
@@ -275,7 +275,7 @@ The GitHub one-liner calls the user "the master of graph engineering". The focal
 - `next/dynamic(() => import("./graph-scene"), { ssr: false })` mounted only when ALL hold: hero IntersectionObserver hit; `requestIdleCallback` fired (fallback 200ms timeout); `!matchMedia("(prefers-reduced-motion: reduce)").matches`; WebGL2 context probe succeeded; `navigator.deviceMemory` ≥ 2 when present; `navigator.connection?.saveData !== true`.
 - Poster `/images/graph-poster.webp` (1600×1000, ≤ 60 KB, rendered from the scene) is the LCP: explicit `width/height`, `fetchPriority="high"`, `sizes` per breakpoint. The canvas fades in over it (opacity 400ms) after its first frame; the poster stays as the fallback for reduced-motion / no-WebGL / low-end / runtime error (ErrorBoundary).
 - Canvas: `dpr={[1, isMobile ? 1.25 : 1.75]}`, `gl={{ antialias: !isMobile, powerPreference: "high-performance", alpha: true }}`, `frameloop="always"` only while the hero is on screen and the tab visible, otherwise `"demand"`; after 20s without interaction, `"demand"` with one `invalidate()` per second to keep the wave loop alive.
-- Budget: the lazy chunk (three + @react-three/fiber + the two drei modules) ≤ 190 KB gzip, recorded in `scripts/check-graph-budget.mjs` and asserted in `web-ci`; three must not appear in the first-load JS of `/` (checked against the `next build` route table). drei is imported per module, never the barrel.
+- Budget: the lazy renderer chunks (three core + @react-three/fiber + react-reconciler + the two drei modules) ≤ 224 KB gzip total, asserted by `scripts/check-graph-budget.mjs` (`bun run check:graph-budget`); three must not appear in the first-load JS of `/` (checked against the app build manifest). Measured 2026-09-08: 209.3 KB gzip across two chunks (163.4 + 45.9); three's core alone is ~150 KB gzip and is irreducible, so the budget is set at measured + 7% headroom rather than the 190 KB first estimate. drei is imported per module, never the barrel.
 - Lighthouse guard: chunk loads after LCP; TBT contribution ≤ 50ms on the mobile preset; the poster keeps CLS at 0.
 
 ## 10. Verification Matrix
