@@ -1,4 +1,12 @@
 > [!NOTE]
+> **OmO Бета: OmO ❤️ Pi**
+> Попробуйте `bun install -g omo-ai@beta`: система памяти, CodeMode, подписки Anthropic. Всё включено.
+
+> [!Sponsors]
+> | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** предлагает **Kimi K3 Ultrafast со скоростью 300 TPS** по той же цене, что и официальный прайс. Попробуйте `moonshotai/kimi-k3-ultrafast`. |
+> | :-----| :----- |
+
+> [!NOTE]
 > **🚀 Первый релиз для Codex: omo теперь доступен в Codex CLI**
 >
 > Никаких сложных JSON-конфигураций. Просто выполните:
@@ -12,16 +20,6 @@
 > **Рефакторинг в сторону мульти-harness агентной ОС**
 >
 > Мы перестраиваем кодовую базу для поддержки нескольких agent harness (OpenCode, Codex, Pi и другие). Если вы хотите внести вклад, пожалуйста, ознакомьтесь с [ROADMAP](./ROADMAP.md) сначала. PR, связанные с ROADMAP, должны использовать метку `ROADMAP`.
-
-> [!TIP]
-> **Building in Public**
->
-> Мейнтейнер разрабатывает и поддерживает oh-my-openagent в режиме реального времени с помощью Jobdori — ИИ-ассистента на базе глубоко кастомизированной версии OpenClaw.
-> Каждая фича, каждый фикс, каждый триаж issue — в прямом эфире в нашем Discord.
->
-> [![Building in Public](./.github/assets/building-in-public.png)](https://discord.gg/PUwSMR9XNk)
->
-> [**→ Смотрите в #building-in-public**](https://discord.gg/PUwSMR9XNk)
 
 
 > [!NOTE]

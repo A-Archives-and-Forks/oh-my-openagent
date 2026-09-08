@@ -1,27 +1,11 @@
 > [!NOTE]
-> **OmO for Codex is here: try LazyCodex**
->
-> We loved Anthropic models enough to get blocked. Now we are backing Codex.
-> If you are an OmO fan but the setup felt like too much, use LazyCodex. OmO for Codex has shipped:
-> ```bash
-> npx lazycodex-ai install
-> ```
-> Learn more at [lazycodex.ai](https://lazycodex.ai).
+> **OmO Beta: OmO ❤️ Pi**
+> Try with `bun install -g omo-ai@beta` - Memory System, CodeMode, Anthropic subscriptions. All got covered.
 
-> [!NOTE]
-> **Multi-Harness Agent OS Refactor in Progress**
->
-> We are restructuring the codebase to support multiple agent harnesses (OpenCode, Codex, Pi, and others). If you are interested in contributing, please read the [ROADMAP](./ROADMAP.md) first. PRs related to roadmap work should use the `ROADMAP` label.
+> [!Sponsors]
+> | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** serves **Kimi K3 Ultrafast at 300 TPS** at the same price as the official list price. Try `opengateway/moonshotai/kimi-k3-ultrafast` today. |
+> | :-----| :----- |
 
-> [!TIP]
-> **Building in Public**
->
-> The maintainer builds and maintains oh-my-openagent in real-time with Jobdori, an AI assistant running on a heavily customized fork of OpenClaw.
-> Every feature, every fix, every issue triage — live in our Discord.
->
-> [![Building in Public](./.github/assets/building-in-public.png)](https://discord.gg/PUwSMR9XNk)
->
-> [**→ Watch it happen in #building-in-public**](https://discord.gg/PUwSMR9XNk)
 
 > [!NOTE]
 >

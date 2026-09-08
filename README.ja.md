@@ -1,4 +1,12 @@
 > [!NOTE]
+> **OmO ベータ: OmO ❤️ Pi**
+> `bun install -g omo-ai@beta` でお試しください。メモリシステム、CodeMode、Anthropic サブスクリプションにすべて対応しています。
+
+> [!Sponsors]
+> | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** では **Kimi K3 Ultrafast (300 TPS)** を公式価格と同じ料金で提供しています。`moonshotai/kimi-k3-ultrafast` を今すぐお試しください。 |
+> | :-----| :----- |
+
+> [!NOTE]
 > **OmO for Codex が登場しました。LazyCodex を試してください**
 >
 > Anthropic のモデルを愛しすぎてブロックまで経験した私たちは、今度は Codex に賭けることにしました。
@@ -12,16 +20,6 @@
 > **マルチハーネスエージェントOSへのリファクタリング進行中**
 >
 > OpenCode、Codex、Piなどの複数エージェントハーネスをサポートするため、コードベースを再構成しています。貢献に興味がある方は、まず[ROADMAP](./ROADMAP.md)をご確認ください。ROADMAP関連のPRには`ROADMAP`ラベルを付けてください。
-
-> [!TIP]
-> **Building in Public**
->
-> メンテナーが Jobdori を使い、oh-my-openagent をリアルタイムで開発・メンテナンスしています。Jobdori は OpenClaw をベースに大幅カスタマイズされた AI アシスタントです。
-> すべての機能開発、修正、Issue トリアージを Discord でライブでご覧いただけます。
->
-> [![Building in Public](./.github/assets/building-in-public.png)](https://discord.gg/PUwSMR9XNk)
->
-> [**→ #building-in-public で確認する**](https://discord.gg/PUwSMR9XNk)
 
 
 > [!NOTE]
