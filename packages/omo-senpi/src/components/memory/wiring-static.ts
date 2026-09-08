@@ -81,7 +81,6 @@ export function registerMemoryStatic(input: {
     nudgeWiring.register(pi)
     noticeWiring.register(pi)
     memorianGateWiring.attachEntrySink((customType, data) => pi.appendEntry(customType, data))
-    input.memorian.registerHooks(pi)
   }
   const promptHandler = createPromptHandler({
     resolveContext,
@@ -105,6 +104,10 @@ export function registerMemoryStatic(input: {
   // senpi merges one message per handler in registration order, so the hint lands last and the
   // prompt handler stays the only writer of systemPrompt.
   if (hasMemoryCapabilities(pi)) recallWiring.register(pi)
+  // Memorian hooks come LAST: their before_agent_start handler never contributes a message, and
+  // registering it after the projection handler keeps handler results ordered projection-first,
+  // the same invariant the recall registration above documents.
+  if (hasMemoryCapabilities(pi)) input.memorian.registerHooks(pi)
   pi.on("session_start", (_payload, eventCtx) => {
     if (eventCtx !== undefined) lastEventCtx.current = eventCtx
   })
