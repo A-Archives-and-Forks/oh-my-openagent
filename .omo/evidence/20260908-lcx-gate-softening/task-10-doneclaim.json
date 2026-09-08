@@ -1,43 +1,28 @@
 {
-  "task": "10 spawn-guard artifacts/fanout + admission breaker",
+  "task": "10 - ulw-loop self-contained CLI build regression",
   "status": "done",
-  "outcome": "Resolved all four verifier defects: wrapped PostToolUse manifest with commandWindows, 21-hook aggregate coverage, manual-QA-only artifacts in both layouts, and session admission denial before plan lookup or other guards.",
+  "outcome": "Component-only builds now produce a self-contained Node ESM CLI after TypeScript emit; aggregate test remains unchanged.",
+  "root_cause": "The tsc-only component build overwrote the aggregate bundle with relative-module imports. origin/dev uses the same tsc-only script; no bundler fallback or new import-shape defect was found.",
   "changed_files": [
-    "packages/omo-codex/plugin/components/ulw-loop/src/spawn-guard.ts",
-    "packages/omo-codex/plugin/components/ulw-loop/test/spawn-guard.test.ts",
-    "packages/omo-codex/plugin/hooks/post-tool-use-recording-spawn-admission.json",
-    "packages/omo-codex/plugin/test/aggregate-manifest.test.mjs",
-    "packages/omo-codex/plugin/test/aggregate-hooks.test.mjs",
-    "packages/omo-codex/plugin/test/hook-status-message.test.mjs",
-    "packages/omo-codex/plugin/test/component-hook-contract-cases.mjs"
+    "packages/omo-codex/plugin/components/ulw-loop/package.json"
   ],
-  "evidence": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/lcx-gate-softening/.omo/evidence/20260908-lcx-gate-softening/task-10-spawn-guard.log",
-  "tests": [
-    "Local tsgo --noEmit -p packages/omo-codex/tsconfig.json: TSGO_EXIT=0.",
-    "Local ulw-loop bun run build: BUILD_EXIT=0 after installing missing plugin dependencies with npm ci --ignore-scripts.",
-    "mengmotaMac: node --test with leading-./ paths for aggregate-manifest.test.mjs, aggregate-hooks.test.mjs, hook-status-message.test.mjs, and component-bundled-cli.test.mjs: 31 passed, 0 failed, TEST_EXIT=0.",
-    "mengmotaMac: ulw-loop bun run test ./test/spawn-guard.test.ts: 40 passed, TEST_EXIT=0.",
-    "Final TypeScript and MJS LSP diagnostics: none. Hook JSON parsing passed; scoped git diff --check exited 0."
+  "verification": {
+    "local_inspection": "RED reproduced five relative imports; GREEN 2 passed, 0 failed (only file-inspection cases).",
+    "typecheck": "tsgo --noEmit -p packages/omo-codex/tsconfig.json: exit 0",
+    "build": "bun run build: exit 0, 45 modules bundled; only node: imports remain",
+    "remote": "gorky: frozen install, aggregate build, subsequent component-only build, node --test test/*.test.mjs: 327 passed, 0 failed, TEST_EXIT=0; self-contained case printed PASS",
+    "diagnostics": "JSON LSP unavailable: Biome not installed. JSON parsing passed."
+  },
+  "remote_context": [
+    "mengmotaMac initial run: 326 passed, 1 unrelated review-work drift failure.",
+    "mengmotaMac next clone: connection reset by peer; used authorized gorky fallback.",
+    "Final snapshot included sibling-owned sync-skills-test-support.mjs and sync-skills.test.mjs changes; this task did not edit them."
   ],
-  "manual_qa": [
-    "cqa_install_local_omo into isolated CODEX_HOME: INSTALL_EXIT=0.",
-    "Exact PostToolUse payload: exit 0, stdout 0 bytes, qa1 marker contains reason and valid at timestamp.",
-    "Exact PreToolUse payload for qa1 without an ulw-loop plan: exit 0, hookSpecificOutput.permissionDecision=deny; only existing camelCase output fields.",
-    "Exact PreToolUse payload for clean qa2: exit 0, stdout 0 bytes, no marker.",
-    "Real ~/.codex/config.toml SHA before and after: b012e531f5aa9fb1bce9003593c3eadf07081fcd."
+  "evidence": [
+    ".omo/evidence/20260908-lcx-gate-softening/task-10-bundle.log",
+    ".omo/evidence/20260908-lcx-gate-softening/task-10-bundle-remote.log"
   ],
-  "cleanup": [
-    "Both remote runs removed /tmp/lcx-t10-20260908; captured ls reports No such file or directory.",
-    "Isolated raw-pipe QA home removed with captured ls receipt.",
-    "No commit, push, checkout, stash, local test run, or agentic probe performed. Unrelated worktree changes left untouched."
-  ],
-  "red_proof": "No new failing-first run claimed; verifier failures supplied the defect baseline.",
-  "runner_adaptations": [
-    "Bun 1.4.0 did not discover the explicitly supplied .test.mjs paths (TEST_EXIT=1 captured). These node:test suites passed under native node --test instead.",
-    "The component imports Vitest, so its declared bun run test script was used rather than Bun's test runner."
-  ],
-  "risks": [
-    "Full plugin-suite verification and unrelated worktree cleanup remain owned by the parent integration task.",
-    "JSON LSP was unavailable because biome was not installed; JSON syntax was verified with Node."
-  ]
+  "prior_task_evidence": ".omo/evidence/20260908-lcx-gate-softening/task-10-spawn-guard.log",
+  "cleanup": "Remote /tmp/lcx-fix10b-20260908 removed after every attempt; ls absence receipts captured.",
+  "constraints": "No commit, push, checkout, stash, local Bun tests, generated-file hand edits, shared-skills edits, or main-checkout changes."
 }
