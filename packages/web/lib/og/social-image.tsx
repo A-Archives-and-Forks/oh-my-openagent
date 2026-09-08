@@ -16,7 +16,7 @@ const rule = {
 
 export function SocialImage({ stats }: { readonly stats: FormattedStatsData }) {
   return (
-    <div
+            <div
       style={{
         display: "flex",
         position: "relative",
@@ -65,18 +65,18 @@ export function SocialImage({ stats }: { readonly stats: FormattedStatsData }) {
             style={{
               display: "flex",
               fontWeight: 500,
-              fontSize: 30,
+              fontSize: 46,
               letterSpacing: -0.6,
               color: textHi,
             }}
           >
-            Oh My OpenAgent
+            OmO
           </div>
           <div
             style={{
               display: "flex",
               fontFamily: "Geist Mono",
-              fontSize: 15,
+              fontSize: 18,
               letterSpacing: 3.2,
               color: textLo,
             }}
@@ -122,7 +122,7 @@ export function SocialImage({ stats }: { readonly stats: FormattedStatsData }) {
           alignItems: "center",
           justifyContent: "space-between",
           fontFamily: "Geist Mono",
-          fontSize: 26,
+          fontSize: 30,
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
@@ -155,9 +155,9 @@ export function MinimalSocialImage({ stats }: { readonly stats: FormattedStatsDa
         fontFamily: "sans-serif",
       }}
     >
-      <div style={{ display: "flex", fontSize: 44, fontWeight: 700 }}>Oh My OpenAgent</div>
-      <div style={{ display: "flex", fontSize: 40, lineHeight: 1.2 }}>{stats.description}</div>
-      <div style={{ display: "flex", fontSize: 30, color: accent }}>
+      <div style={{ display: "flex", fontSize: 64, fontWeight: 700 }}>OmO</div>
+      <div style={{ display: "flex", fontSize: 48, lineHeight: 1.2 }}>{stats.description}</div>
+      <div style={{ display: "flex", fontSize: 36, color: accent }}>
         {stats.stars} stars · omo.dev
       </div>
     </div>
