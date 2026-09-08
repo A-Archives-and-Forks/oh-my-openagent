@@ -1,0 +1,44 @@
+{
+  "task": "5 agent TOMLs to gpt-6-astra + reasoning steps",
+  "changed_files": [
+    "packages/omo-codex/plugin/components/ultrawork/agents/explorer.toml",
+    "packages/omo-codex/plugin/components/ultrawork/agents/librarian.toml",
+    "packages/omo-codex/plugin/components/ultrawork/agents/metis.toml",
+    "packages/omo-codex/plugin/components/ultrawork/agents/momus.toml",
+    "packages/omo-codex/plugin/components/ultrawork/agents/plan.toml",
+    "packages/omo-codex/plugin/components/ultrawork/agents/lazycodex-worker-low.toml",
+    "packages/omo-codex/plugin/components/ultrawork/agents/lazycodex-worker-medium.toml",
+    "packages/omo-codex/plugin/components/ultrawork/agents/lazycodex-worker-high.toml",
+    "packages/omo-codex/plugin/components/ultrawork/agents/lazycodex-qa-executor.toml",
+    "packages/omo-codex/plugin/components/ultrawork/agents/lazycodex-code-reviewer.toml",
+    "packages/omo-codex/plugin/components/ultrawork/agents/lazycodex-clone-fidelity-reviewer.toml",
+    "packages/omo-codex/plugin/components/ultrawork/agents/lazycodex-gate-reviewer.toml",
+    "packages/omo-codex/src/install/managed-agent-reasoning-defaults.ts",
+    "packages/omo-codex/plugin/test/aggregate-agents.test.mjs",
+    "packages/omo-codex/src/install/managed-agent-reasoning-defaults.test.ts"
+  ],
+  "red_proof": "Before edits, rg -c 'model = \"gpt-6-astra\"' packages/omo-codex/plugin/components/ultrawork/agents/*.toml produced no matches (exit 1); all current models were gpt-5.6 variants.",
+  "tests": [
+    "packages/omo-codex/plugin/test/aggregate-agents.test.mjs -> pending remote gate",
+    "packages/omo-codex/src/install/managed-agent-reasoning-defaults.test.ts -> pending remote gate",
+    "packages/omo-codex/src/install/link-cached-plugin-agents.test.ts -> pending remote gate (unchanged; no model-default assertion)",
+    "packages/omo-codex/src/install/lazycodex-install-surface.test.ts -> pending remote gate (unchanged; no model-default assertion)"
+  ],
+  "manual_qa": [
+    ".omo/evidence/20260908-lcx-astra/task-5-agents.log -> twelve agent TOMLs each report exactly one gpt-6-astra model; installer raw-pipe QA deferred to todo 7 because todo 4 rebuilds the committed bundle"
+  ],
+  "acceptance": [
+    "rg -c 'model = \"gpt-6-astra\"' packages/omo-codex/plugin/components/ultrawork/agents/*.toml -> 12 files, each count 1",
+    "git diff --check -> PASS",
+    "tsgo --noEmit -p packages/omo-codex/tsconfig.json -> FAIL: Cannot find type definition file for bun-types"
+  ],
+  "cleanup": [
+    "No commit, push, checkout, stash, or generated bundle edit performed; real ~/.codex and ~/.omo were not modified."
+  ],
+  "risks": [
+    "tsgo local verification is blocked by missing bun-types in the environment; remote gate remains pending.",
+    "Installer raw-pipe QA is deferred to todo 7 because todo 4 owns committed bundle regeneration.",
+    "Pre-existing modifications from parallel lanes are outside this todo and were not changed.",
+    "bun tests were not run locally per instruction."
+  ]
+}

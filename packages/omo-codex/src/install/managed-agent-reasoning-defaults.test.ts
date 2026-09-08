@@ -4,7 +4,7 @@ import { resolveManagedAgentReasoning } from "./managed-agent-reasoning-defaults
 
 describe("resolveManagedAgentReasoning", () => {
 	// given the explorer bundled defaults moved terra/medium -> luna/low
-	const bundled = { bundledModel: "gpt-5.6-luna", bundledEffort: "low" }
+	const bundled = { bundledModel: "gpt-6-astra", bundledEffort: "low" }
 
 	test("#given a preserved terra/medium default #when resolving #then the new bundled effort wins", () => {
 		// when
@@ -43,7 +43,7 @@ describe("resolveManagedAgentReasoning", () => {
 		// when
 		const effort = resolveManagedAgentReasoning({
 			agentName: "custom-unlisted-agent",
-			bundledModel: "gpt-5.6-sol",
+			bundledModel: "gpt-6-astra",
 			bundledEffort: "high",
 			preserved: { model: "gpt-5.6-sol", effort: "medium" },
 		})
@@ -55,7 +55,7 @@ describe("resolveManagedAgentReasoning", () => {
 		// when
 		const effort = resolveManagedAgentReasoning({
 			agentName: "plan",
-			bundledModel: "gpt-5.6-sol",
+			bundledModel: "gpt-6-astra",
 			bundledEffort: "high",
 			preserved: { model: "gpt-5.6-sol", effort: "max" },
 		})
@@ -67,7 +67,7 @@ describe("resolveManagedAgentReasoning", () => {
 		// when
 		const effort = resolveManagedAgentReasoning({
 			agentName: "lazycodex-worker-medium",
-			bundledModel: "gpt-5.6-terra",
+			bundledModel: "gpt-6-astra",
 			bundledEffort: "high",
 			preserved: { model: "gpt-5.6-luna", effort: "max" },
 		})
@@ -79,7 +79,7 @@ describe("resolveManagedAgentReasoning", () => {
 		// when
 		const effort = resolveManagedAgentReasoning({
 			agentName: "lazycodex-qa-executor",
-			bundledModel: "gpt-5.6-luna",
+			bundledModel: "gpt-6-astra",
 			bundledEffort: "high",
 			preserved: { model: "gpt-5.6-terra", effort: "medium" },
 		})
@@ -91,7 +91,7 @@ describe("resolveManagedAgentReasoning", () => {
 		// when
 		const effort = resolveManagedAgentReasoning({
 			agentName: "lazycodex-gate-reviewer",
-			bundledModel: "gpt-5.6-sol",
+			bundledModel: "gpt-6-astra",
 			bundledEffort: "low",
 			preserved: { model: "gpt-5.6-sol", effort: "high" },
 		})
@@ -102,19 +102,19 @@ describe("resolveManagedAgentReasoning", () => {
 	test("#given old high worker and reviewer defaults #when resolving #then each new bundled effort wins", () => {
 		expect(resolveManagedAgentReasoning({
 			agentName: "lazycodex-worker-high",
-			bundledModel: "gpt-5.6-sol",
+			bundledModel: "gpt-6-astra",
 			bundledEffort: "medium",
 			preserved: { model: "gpt-5.6-sol", effort: "max" },
 		})).toBe("medium")
 		expect(resolveManagedAgentReasoning({
 			agentName: "lazycodex-code-reviewer",
-			bundledModel: "gpt-5.6-terra",
+			bundledModel: "gpt-6-astra",
 			bundledEffort: "medium",
 			preserved: { model: "gpt-5.6-sol", effort: "xhigh" },
 		})).toBe("medium")
 		expect(resolveManagedAgentReasoning({
 			agentName: "lazycodex-clone-fidelity-reviewer",
-			bundledModel: "gpt-5.6-terra",
+			bundledModel: "gpt-6-astra",
 			bundledEffort: "high",
 			preserved: { model: "gpt-5.6-sol", effort: "xhigh" },
 		})).toBe("high")
