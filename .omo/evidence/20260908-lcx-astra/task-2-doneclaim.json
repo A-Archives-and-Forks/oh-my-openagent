@@ -1,0 +1,40 @@
+{
+  "task": "2 catalog trio to gpt-6-astra",
+  "changed_files": [
+    "packages/omo-codex/plugin/model-catalog.json",
+    "packages/omo-codex/plugin/scripts/migrate-codex-config/catalog.mjs",
+    "packages/omo-codex/src/install/codex-model-catalog.ts",
+    "packages/omo-codex/scripts/check-model-catalog-parity.mjs",
+    "packages/omo-codex/plugin/test/aggregate-model-catalog.test.mjs",
+    "packages/omo-codex/plugin/test/migrate-codex-config.test.mjs",
+    "packages/omo-codex/scripts/install-config-reasoning.test.mjs",
+    "packages/omo-codex/src/install/codex-config-reasoning.test.ts",
+    "packages/omo-codex/src/version-coherence.test.ts"
+  ],
+  "red_proof": "$ jq -r .current.model packages/omo-codex/plugin/model-catalog.json -> gpt-5.6-sol; node --input-type=module -e '...assert current.model === gpt-6-astra...' -> AssertionError: expected gpt-6-astra, got gpt-5.6-sol (exit 1)",
+  "tests": [
+    "bun test packages/omo-codex/plugin/test/aggregate-model-catalog.test.mjs -> pending remote gate",
+    "bun test packages/omo-codex/plugin/test/migrate-codex-config.test.mjs -> pending remote gate",
+    "bun test packages/omo-codex/scripts/install-config-reasoning.test.mjs -> pending remote gate",
+    "bun test packages/omo-codex/src/install/codex-config-reasoning.test.ts -> pending remote gate",
+    "bun test packages/omo-codex/src/version-coherence.test.ts -> pending remote gate"
+  ],
+  "manual_qa": [
+    ".omo/evidence/20260908-lcx-astra/task-2-catalog.log -> jq reports gpt-6-astra, parity reports MATCH, and the raw-pipe happy/preservation cases seed CODEX_HOME/config.toml in isolated homes and are explicitly deferred to todo 7 pending the final todo 4 bundle",
+    ".omo/evidence/20260908-lcx-astra/task-2-catalog.log -> cqa_assert_real_home_unchanged reports real ~/.codex/config.toml unchanged at digest b012e531f5aa9fb1bce9003593c3eadf07081fcd"
+  ],
+  "acceptance": [
+    "bun packages/omo-codex/scripts/check-model-catalog-parity.mjs -> MATCH",
+    "jq -r .current.model packages/omo-codex/plugin/model-catalog.json -> gpt-6-astra",
+    "node --check packages/omo-codex/plugin/scripts/migrate-codex-config/catalog.mjs && node --check packages/omo-codex/scripts/check-model-catalog-parity.mjs && jq empty packages/omo-codex/plugin/model-catalog.json -> syntax/json: PASS",
+    "tsgo --noEmit -p packages/omo-codex/tsconfig.json -> PASS",
+    "git diff --check -- packages/omo-codex/plugin/model-catalog.json packages/omo-codex/plugin/scripts/migrate-codex-config/catalog.mjs packages/omo-codex/src/install/codex-model-catalog.ts packages/omo-codex/scripts/check-model-catalog-parity.mjs packages/omo-codex/plugin/test/aggregate-model-catalog.test.mjs packages/omo-codex/plugin/test/migrate-codex-config.test.mjs packages/omo-codex/scripts/install-config-reasoning.test.mjs packages/omo-codex/src/install/codex-config-reasoning.test.ts packages/omo-codex/src/version-coherence.test.ts -> PASS",
+    "rg -n '650_000|400000' packages/omo-codex/src/install/codex-model-catalog.ts packages/omo-codex/plugin/model-catalog.json packages/omo-codex/plugin/scripts/migrate-codex-config/catalog.mjs -> gpt-5.5 first legacy profile is 400000 across sources (numeric separators in JS/TS); gpt-5.6-sol legacy profile is 650000 across sources"
+  ],
+  "cleanup": [
+    "codex-qa common.sh EXIT trap ran cqa_cleanup -> isolated CODEX_HOME sandbox was removed; cqa_assert_real_home_unchanged passed"
+  ],
+  "risks": [
+    "Installer raw-pipe post-install assertions are deferred to todo 7 because the committed installer bundle is regenerated and finalized by todo 4; no defect was observed in the owned catalog sources or checks."
+  ]
+}

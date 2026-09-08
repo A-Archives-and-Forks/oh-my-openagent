@@ -1,0 +1,4 @@
+$ jq -r .current.model plugin/model-catalog.json
+gpt-5.6-sol
+$ node RED assertion
+AssertionError: expected gpt-6-astra, got gpt-5.6-sol
