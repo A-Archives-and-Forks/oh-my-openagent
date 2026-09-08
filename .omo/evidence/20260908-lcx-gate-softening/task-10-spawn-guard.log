@@ -1125,3 +1125,476 @@ WHAT WAS OBSERVED: 31 native Node aggregate tests passed; 40 component Vitest te
 WHY IT IS ENOUGH: schema-shaped raw payloads exercised the built CLI, and regression cases cover the reported branch ordering and manual-QA-only artifact defects.
 WHAT WAS OMITTED: no new failing-first capture; no full plugin suite or agentic QA. Bun 1.4.0 rejected direct .test.mjs discovery, so those files ran through native node --test instead. No unrelated worktree cleanup or commits were performed.
 DIAGNOSTICS: final LSP checks on both changed TypeScript files and all four changed MJS files reported no diagnostics. JSON LSP unavailable (biome missing); Node JSON parsing passed. Initial missing Node types were resolved with npm ci --ignore-scripts; subsequent component build exited 0.
+
+============================================================
+failing-first capture (admission breaker)
+============================================================
+machine: mengmotaMac (macos/aarch64 online)
+clone: origin/dev 8bd0c35 PRISTINE_NO_BREAKER=1 INSTALL_EXIT=0
+overlay RED: worktree ulw-loop test/ only (71 files)
+RED: TEST_EXIT=1; 12 failed | 28 passed (40)
+breaker cases failing by name:
+  - records too many active cells silently and denies without a plan while isolating other sessions
+  - records AgentLimitReached silently and denies without a plan while isolating other sessions
+  - records max_threads silently and denies without a plan while isolating other sessions
+  - records max_concurrent_threads_per_session silently and denies without a plan while isolating other sessions
+  - does not record a successful admission
+  - denies before artifact, quota, and state lock guards
+error: TypeError: runSpawnAdmissionRecorderCli is not a function
+overlay GREEN: worktree ulw-loop src/ + package.json + hooks/
+GREEN: TEST_EXIT=0; 40 passed (40)
+cleanup: rm -rf /tmp/lcx-t10red-20260908; RECEIPT_ABSENT=1
+============================================================
+
+failing-first capture (admission breaker)
+machine: mengmotaMac (macos/aarch64 online)
+worktree HEAD: 3451c0a8b (lcx/gate-softening)
+breaker cases in spawn-guard.test.ts: describe('spawn admission breaker'); it.each records %s silently and denies without a plan while isolating other sessions (too many active cells, AgentLimitReached, max_threads, max_concurrent_threads_per_session); it('does not record a successful admission'); it('denies before artifact, quota, and state lock guards'). New PostToolUse handler tests are those three (it.each + 2 its) calling runSpawnAdmissionRecorderCli with hook_event_name PostToolUse.
+
+=== listMachines ===
+mengmotaHost macos/aarch64 offline tags=build,darwin
+vultr-tokyo linux/x86_64 online tags=linux,deploy
+sionicMac macos/aarch64 online tags=topology:mengmota-home
+gorky linux/x86_64 online tags=linux,x86_64,tailscale,sandbox
+mengmotaMac macos/aarch64 online tags=topology:mengmota-home
+
+=== SETUP ===
+exitCode=0
+--- stdout ---
+HOST=mengmotaMac
+WHO=yeongyu
+UNAME=Darwin mengmotaMac 25.6.0 Darwin Kernel Version 25.6.0: Fri Jul 31 19:19:08 PDT 2026; root:xnu-12377.161.14~5/RELEASE_ARM64_T6050 arm64
+BUN_BIN=/Users/yeongyu/.bun/bin/bun
+1.4.0
+2026-09-08T13:41:01Z
+CLONE_HEAD=8bd0c35
+CLONE_BRANCH=dev
+PRISTINE_NO_BREAKER=1
+INSTALL_EXIT=0
++ typescript@7.0.2
++ @clack/prompts@1.7.0
++ @code-yeongyu/comment-checker@0.8.0
++ @modelcontextprotocol/sdk@1.30.0
++ @opencode-ai/plugin@1.18.22
++ @opencode-ai/sdk@1.18.22
++ @opentui/core@0.5.8
++ @opentui/keymap@0.5.8
++ @opentui/solid@0.5.8
++ commander@15.0.0
++ detect-libc@2.1.2
++ diff@9.0.0
++ js-yaml@5.3.0
++ jsonc-parser@3.3.1
++ picocolors@1.1.1
++ picomatch@4.0.7
++ posthog-node@5.51.1
++ zod@4.4.3
+
+595 packages installed [67.25s]
+
+--- stderr ---
+Cloning into '/tmp/lcx-t10red-20260908/omo'...
+Updating files:  90% (9432/10373)
+Updating files:  91% (9440/10373)
+Updating files:  92% (9544/10373)
+Updating files:  93% (9647/10373)
+Updating files:  94% (9751/10373)
+Updating files:  95% (9855/10373)
+Updating files:  96% (9959/10373)
+Updating files:  97% (10062/10373)
+Updating files:  98% (10166/10373)
+Updating files:  99% (10270/10373)
+Updating files: 100% (10373/10373)
+Updating files: 100% (10373/10373), done.
+
+
+=== pushTree TEST only ===
+{"fileCount":71,"path":"/tmp/lcx-t10red-20260908/omo/packages/omo-codex/plugin/components/ulw-loop/test","writtenBytes":350768}
+
+=== RED (prescribed: bun --cwd packages/omo-codex/plugin/components/ulw-loop test ./test/spawn-guard.test.ts 2>&1 | tail -120; echo TEST_EXIT=${PIPESTATUS[0]}) ===
+exitCode=0
+--- stdout ---
+HOST=mengmotaMac
+WHO=yeongyu
+UNAME=Darwin mengmotaMac 25.6.0 Darwin Kernel Version 25.6.0: Fri Jul 31 19:19:08 PDT 2026; root:xnu-12377.161.14~5/RELEASE_ARM64_T6050 arm64
+BUN_BIN=/Users/yeongyu/.bun/bin/bun
+1.4.0
+2026-09-08T13:42:22Z
+    [90m111|[39m   [35mawait[39m [34mrunSpawnAdmissionRecorderCli[39m([33mReadable[39m[33m.[39m[35mfrom[39m([[33mJSON[39m[33m.[39m[34mstringify[39m({
+    [90m   |[39m         [31m^[39m
+    [90m112|[39m    [33m...[39m[34mpayload[39m([32m"spawn_agent"[39m[33m,[39m { message[33m:[39m [32m"scan"[39m })[33m,[39m
+    [90m113|[39m    hook_event_name[33m:[39m [32m"PostToolUse"[39m[33m,[39m tool_response[33m:[39m response[33m,[39m
+[90m [2m❯[22m test/spawn-guard.test.ts:[2m137:9[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/12]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spawn-guard.test.ts[2m > [22mapplySpawnGuards fan-out cap[2m > [22mdefaults to 24 spawns
+[31m[1mAssertionError[22m: expected undefined to be 24 // Object.is equality[39m
+
+[32m- Expected:[39m
+24
+
+[31m+ Received:[39m
+undefined
+
+[36m [2m❯[22m test/spawn-guard.test.ts:[2m146:67[22m[39m
+    [90m144|[39m
+    [90m145|[39m [34mdescribe[39m([32m"applySpawnGuards fan-out cap"[39m[33m,[39m () [33m=>[39m {
+    [90m146|[39m  it("defaults to 24 spawns", () => { expect(DEFAULT_FANOUT_LIMIT).toBe…
+    [90m   |[39m                                                                   [31m^[39m
+    [90m147|[39m  it("#given spawns under the limit #when guarded #then allows and coun…
+    [90m148|[39m   [34mwriteGoals[39m()[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/12]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spawn-guard.test.ts[2m > [22mapplySpawnGuards gate-artifact guard[2m > [22m#given a mixed-role V2 gate prompt #when guarded #then prioritizes the gate role and denies on missing artifact without charging quota
+[31m[1mAssertionError[22m: expected 'spawn code-review + QA first; gate au…' to contain 'g1-manual-qa.md'[39m
+
+Expected: [32m"[7mg1-manual-qa[27m.md"[39m
+Received: [31m"[7mspawn code-review + QA first; gate audits their artifacts: missing .omo/evidence/g1-code-review[27m.md"[39m
+
+[36m [2m❯[22m test/spawn-guard.test.ts:[2m299:49[22m[39m
+    [90m297|[39m
+    [90m298|[39m   [34mexpect[39m(output)[33m.[39mnot[33m.[39m[34mtoBe[39m([32m""[39m)[33m;[39m
+    [90m299|[39m   expect(deny(output).permissionDecisionReason).toContain("g1-manual-q…
+    [90m   |[39m                                                 [31m^[39m
+    [90m300|[39m   expect(existsSync(join(sessionDir(), "review-spawn-counts.json"))).t…
+    [90m301|[39m  })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/12]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spawn-guard.test.ts[2m > [22mapplySpawnGuards gate-artifact guard[2m > [22m#given a gate spawn by agent_type without artifacts #when guarded #then denies naming the missing path
+[31m[1mAssertionError[22m: expected 'spawn code-review + QA first; gate au…' to contain 'g1-manual-qa.md'[39m
+
+Expected: [32m"[7mg1-manual-qa[27m.md"[39m
+Received: [31m"[7mspawn code-review + QA first; gate audits their artifacts: missing .omo/evidence/g1-code-review[27m.md"[39m
+
+[36m [2m❯[22m test/spawn-guard.test.ts:[2m313:43[22m[39m
+    [90m311|[39m   [34mexpect[39m(parsed[33m.[39mpermissionDecision)[33m.[39m[34mtoBe[39m([32m"deny"[39m)[33m;[39m
+    [90m312|[39m   [34mexpect[39m(parsed[33m.[39mpermissionDecisionReason)[33m.[39m[34mtoContain[39m([32m"missing"[39m)[33m;[39m
+    [90m313|[39m   [34mexpect[39m(parsed[33m.[39mpermissionDecisionReason)[33m.[39m[34mtoContain[39m([32m"g1-manual-qa.md"[39m)[33m;[39m
+    [90m   |[39m                                           [31m^[39m
+    [90m314|[39m  })[33m;[39m
+    [90m315|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/12]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spawn-guard.test.ts[2m > [22mapplySpawnGuards gate-artifact guard[2m > [22m#given only v1 manual QA on disk #when the gate spawns #then allows
+[31m[1mAssertionError[22m: expected '{"hookSpecificOutput":{"hookEventName…' to be '' // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[31m+ {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"spawn code-review + QA first; gate audits their artifacts: missing .omo/evidence/g1-code-review.md","additionalContext":"spawn code-review + QA first; gate audits their artifacts: missing .omo/evidence/g1-code-review.md"}}[39m
+[31m+[39m
+
+[36m [2m❯[22m test/spawn-guard.test.ts:[2m423:18[22m[39m
+    [90m421|[39m   )[33m;[39m
+    [90m422|[39m
+    [90m423|[39m   [34mexpect[39m(output)[33m.[39m[34mtoBe[39m([32m""[39m)[33m;[39m
+    [90m   |[39m                  [31m^[39m
+    [90m424|[39m  })[33m;[39m
+    [90m425|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/12]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spawn-guard.test.ts[2m > [22mapplySpawnGuards gate-artifact guard[2m > [22m#given a v2 plan #when the gate spawns without attempt-dir artifacts #then denies naming the attempt path
+[31m[1mAssertionError[22m: expected 'spawn code-review + QA first; gate au…' to contain '.omo/evidence/ulw/s1/g1/a1/g1-manual-…'[39m
+
+Expected: [32m".omo/evidence/ulw/s1/g1/a1/g1-[7mmanual-qa[27m.md"[39m
+Received: [31m"[7mspawn code-review + QA first; gate audits their artifacts: missing [27m.omo/evidence/ulw/s1/g1/a1/g1-[7mcode-review[27m.md"[39m
+
+[36m [2m❯[22m test/spawn-guard.test.ts:[2m435:49[22m[39m
+    [90m433|[39m   )[33m;[39m
+    [90m434|[39m
+    [90m435|[39m   expect(deny(output).permissionDecisionReason).toContain(".omo/eviden…
+    [90m   |[39m                                                 [31m^[39m
+    [90m436|[39m  })[33m;[39m
+    [90m437|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/12]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spawn-guard.test.ts[2m > [22mapplySpawnGuards gate-artifact guard[2m > [22m#given a v2 plan with attempt-dir artifacts #when the gate spawns #then allows
+[31m[1mAssertionError[22m: expected '{"hookSpecificOutput":{"hookEventName…' to be '' // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[31m+ {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"spawn code-review + QA first; gate audits their artifacts: missing .omo/evidence/ulw/s1/g1/a1/g1-code-review.md","additionalContext":"spawn code-review + QA first; gate audits their artifacts: missing .omo/evidence/ulw/s1/g1/a1/g1-code-review.md"}}[39m
+[31m+[39m
+
+[36m [2m❯[22m test/spawn-guard.test.ts:[2m448:18[22m[39m
+    [90m446|[39m   )[33m;[39m
+    [90m447|[39m
+    [90m448|[39m   [34mexpect[39m(output)[33m.[39m[34mtoBe[39m([32m""[39m)[33m;[39m
+    [90m   |[39m                  [31m^[39m
+    [90m449|[39m  })[33m;[39m
+    [90m450|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/12]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m12 failed[39m[22m[2m | [22m[1m[32m28 passed[39m[22m[90m (40)[39m
+[2m   Start at [22m 22:42:23
+[2m   Duration [22m 706ms[2m (transform 203ms, setup 0ms, import 261ms, tests 388ms, environment 0ms)[22m
+
+error: script "test" exited with code 1
+TEST_EXIT=1
+
+--- stderr ---
+
+
+--- RED full (tee) ---
+$ vitest --run ./test/spawn-guard.test.ts
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/private/tmp/lcx-t10red-20260908/omo/packages/omo-codex/plugin/components/ulw-loop[39m
+
+ [31m❯[39m test/spawn-guard.test.ts [2m([22m[2m40 tests[22m[2m | [22m[31m12 failed[39m[2m)[22m[33m 388[2mms[22m[39m
+[31m     [31m×[31m records too many active cells silently and denies without a plan while isolating other sessions[39m[32m 10[2mms[22m[39m
+[31m     [31m×[31m records AgentLimitReached silently and denies without a plan while isolating other sessions[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m records max_threads silently and denies without a plan while isolating other sessions[39m[32m 2[2mms[22m[39m
+[31m     [31m×[31m records max_concurrent_threads_per_session silently and denies without a plan while isolating other sessions[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m does not record a successful admission[39m[32m 1[2mms[22m[39m
+[31m     [31m×[31m denies before artifact, quota, and state lock guards[39m[32m 2[2mms[22m[39m
+[31m     [31m×[31m defaults to 24 spawns[39m[32m 2[2mms[22m[39m
+     [32m✓[39m #given spawns under the limit #when guarded #then allows and counts[32m 4[2mms[22m[39m
+     [32m✓[39m #given the env limit exceeded #when guarded #then denies naming count/limit[32m 6[2mms[22m[39m
+     [32m✓[39m #given no ulw-loop session state #when guarded #then no-ops without counting[32m 1[2mms[22m[39m
+     [32m✓[39m #given a non-spawn tool #when guarded #then no-ops[32m 3[2mms[22m[39m
+     [32m✓[39m #given the observed dotted v2 token #when guarded #then it counts too[32m 4[2mms[22m[39m
+     [32m✓[39m #given fan-out cap exhausted #when a reviewer spawns #then denies without charging reviewer quota[32m 8[2mms[22m[39m
+     [32m✓[39m #given one goal attempt #when the same reviewer spawns four times #then denies until the attempt advances[32m 10[2mms[22m[39m
+     [32m✓[39m #given a MultiAgentV2 lazycodex-code-reviewer message #when it spawns four times #then applies the reviewer cap[32m 10[2mms[22m[39m
+     [32m✓[39m #given a MultiAgentV2 lazycodex-qa-executor message #when it spawns four times #then applies the reviewer cap[32m 8[2mms[22m[39m
+     [32m✓[39m #given exhausted code reviews and an explicit QA assignment #when a mixed V2 prompt is guarded #then charges the QA role[32m 11[2mms[22m[39m
+[31m     [31m×[31m #given a mixed-role V2 gate prompt #when guarded #then prioritizes the gate role and denies on missing artifact without charging quota[39m[32m 13[2mms[22m[39m
+[31m     [31m×[31m #given a gate spawn by agent_type without artifacts #when guarded #then denies naming the missing path[39m[32m 8[2mms[22m[39m
+     [32m✓[39m #given senpi main-session QA is present but code review is absent #when the gate reviewer spawns #then the self-check allows it[32m 27[2mms[22m[39m
+     [32m✓[39m #given senpi QA is absent #when the gate reviewer spawns #then the self-check blocks naming manual QA[32m 3[2mms[22m[39m
+     [32m✓[39m #given an omo-senpi gate spawn with a code-review artifact only #when guarded #then blocks the missing manual QA[32m 4[2mms[22m[39m
+     [32m✓[39m #given an omo-senpi gate reviewer named in the message #when guarded #then still denies[32m 3[2mms[22m[39m
+     [32m✓[39m #given a gate spawn identified by message only #when guarded #then still denies[32m 2[2mms[22m[39m
+     [32m✓[39m #given the staged Senpi surface #when generic and explicit gate spawns alternate #then they share one cap[32m 6[2mms[22m[39m
+     [32m✓[39m #given the staged Senpi surface #when LazyCodex and Senpi aliases alternate #then one reviewer lane owns the cap[32m 6[2mms[22m[39m
+[31m     [31m×[31m #given only v1 manual QA on disk #when the gate spawns #then allows[39m[32m 3[2mms[22m[39m
+[31m     [31m×[31m #given a v2 plan #when the gate spawns without attempt-dir artifacts #then denies naming the attempt path[39m[32m 4[2mms[22m[39m
+[31m     [31m×[31m #given a v2 plan with attempt-dir artifacts #when the gate spawns #then allows[39m[32m 4[2mms[22m[39m
+     [32m✓[39m #given the final goal's criteria are not all pass #when the gate spawns #then no-ops[32m 6[2mms[22m[39m
+     [32m✓[39m #given a non-gate reviewer spawn #when artifacts are missing #then never denies on the artifact rule[32m 10[2mms[22m[39m
+     [32m✓[39m #given a V1 spawn with a non-reviewer agent_type #when guarded #then allows without charging any quota[32m 16[2mms[22m[39m
+     [32m✓[39m #given a V1 spawn with a non-reviewer agent_type mentioning a gate role #when guarded #then does not charge gate quota[32m 14[2mms[22m[39m
+     [32m✓[39m #given an explicit 'act as explorer' assignment mentioning a reviewer #when guarded #then allows without charging reviewer quota[32m 3[2mms[22m[39m
+     [32m✓[39m #given an explicit 'act as a deep' assignment with gate keyword #when guarded #then allows without charging gate quota[32m 3[2mms[22m[39m
+     [32m✓[39m #given an explicit reviewer act-as assignment #when guarded #then still charges reviewer quota[32m 3[2mms[22m[39m
+     [32m✓[39m #given a gate spawn without artifacts #when the fan-out budget is available #then denies on artifact rule without charging reviewer quota[32m 3[2mms[22m[39m
+     [32m✓[39m #given a gate spawn denied for missing artifacts #when retried after artifacts land #then charges quota only on the allowed spawn[32m 5[2mms[22m[39m
+     [32m✓[39m #given the state lock held by a live process past the timeout #when guarded #then denies without counting[32m 149[2mms[22m[39m
+     [32m✓[39m #given a stale lock from a dead process #when guarded #then reclaims it and counts normally[32m 10[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 12 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m test/spawn-guard.test.ts[2m > [22mspawn admission breaker[2m > [22mrecords too many active cells silently and denies without a plan while isolating other sessions
+[41m[1m FAIL [22m[49m test/spawn-guard.test.ts[2m > [22mspawn admission breaker[2m > [22mrecords AgentLimitReached silently and denies without a plan while isolating other sessions
+[41m[1m FAIL [22m[49m test/spawn-guard.test.ts[2m > [22mspawn admission breaker[2m > [22mrecords max_threads silently and denies without a plan while isolating other sessions
+[41m[1m FAIL [22m[49m test/spawn-guard.test.ts[2m > [22mspawn admission breaker[2m > [22mrecords max_concurrent_threads_per_session silently and denies without a plan while isolating other sessions
+[31m[1mTypeError[22m: runSpawnAdmissionRecorderCli is not a function[39m
+[36m [2m❯[22m record test/spawn-guard.test.ts:[2m111:9[22m[39m
+    [90m109|[39m   [35mlet[39m output [33m=[39m [32m""[39m[33m;[39m
+    [90m110|[39m   const stdout = new Writable({ write(chunk, _encoding, callback) { ou…
+    [90m111|[39m   [35mawait[39m [34mrunSpawnAdmissionRecorderCli[39m([33mReadable[39m[33m.[39m[35mfrom[39m([[33mJSON[39m[33m.[39m[34mstringify[39m({
+    [90m   |[39m         [31m^[39m
+    [90m112|[39m    [33m...[39m[34mpayload[39m([32m"spawn_agent"[39m[33m,[39m { message[33m:[39m [32m"scan"[39m })[33m,[39m
+    [90m113|[39m    hook_event_name[33m:[39m [32m"PostToolUse"[39m[33m,[39m tool_response[33m:[39m response[33m,[39m
+[90m [2m❯[22m test/spawn-guard.test.ts:[2m120:17[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/12]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spawn-guard.test.ts[2m > [22mspawn admission breaker[2m > [22mdoes not record a successful admission
+[31m[1mTypeError[22m: runSpawnAdmissionRecorderCli is not a function[39m
+[36m [2m❯[22m record test/spawn-guard.test.ts:[2m111:9[22m[39m
+    [90m109|[39m   [35mlet[39m output [33m=[39m [32m""[39m[33m;[39m
+    [90m110|[39m   const stdout = new Writable({ write(chunk, _encoding, callback) { ou…
+    [90m111|[39m   [35mawait[39m [34mrunSpawnAdmissionRecorderCli[39m([33mReadable[39m[33m.[39m[35mfrom[39m([[33mJSON[39m[33m.[39m[34mstringify[39m({
+    [90m   |[39m         [31m^[39m
+    [90m112|[39m    [33m...[39m[34mpayload[39m([32m"spawn_agent"[39m[33m,[39m { message[33m:[39m [32m"scan"[39m })[33m,[39m
+    [90m113|[39m    hook_event_name[33m:[39m [32m"PostToolUse"[39m[33m,[39m tool_response[33m:[39m response[33m,[39m
+[90m [2m❯[22m test/spawn-guard.test.ts:[2m130:16[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/12]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spawn-guard.test.ts[2m > [22mspawn admission breaker[2m > [22mdenies before artifact, quota, and state lock guards
+[31m[1mTypeError[22m: runSpawnAdmissionRecorderCli is not a function[39m
+[36m [2m❯[22m record test/spawn-guard.test.ts:[2m111:9[22m[39m
+    [90m109|[39m   [35mlet[39m output [33m=[39m [32m""[39m[33m;[39m
+    [90m110|[39m   const stdout = new Writable({ write(chunk, _encoding, callback) { ou…
+    [90m111|[39m   [35mawait[39m [34mrunSpawnAdmissionRecorderCli[39m([33mReadable[39m[33m.[39m[35mfrom[39m([[33mJSON[39m[33m.[39m[34mstringify[39m({
+    [90m   |[39m         [31m^[39m
+    [90m112|[39m    [33m...[39m[34mpayload[39m([32m"spawn_agent"[39m[33m,[39m { message[33m:[39m [32m"scan"[39m })[33m,[39m
+    [90m113|[39m    hook_event_name[33m:[39m [32m"PostToolUse"[39m[33m,[39m tool_response[33m:[39m response[33m,[39m
+[90m [2m❯[22m test/spawn-guard.test.ts:[2m137:9[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/12]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spawn-guard.test.ts[2m > [22mapplySpawnGuards fan-out cap[2m > [22mdefaults to 24 spawns
+[31m[1mAssertionError[22m: expected undefined to be 24 // Object.is equality[39m
+
+[32m- Expected:[39m
+24
+
+[31m+ Received:[39m
+undefined
+
+[36m [2m❯[22m test/spawn-guard.test.ts:[2m146:67[22m[39m
+    [90m144|[39m
+    [90m145|[39m [34mdescribe[39m([32m"applySpawnGuards fan-out cap"[39m[33m,[39m () [33m=>[39m {
+    [90m146|[39m  it("defaults to 24 spawns", () => { expect(DEFAULT_FANOUT_LIMIT).toBe…
+    [90m   |[39m                                                                   [31m^[39m
+    [90m147|[39m  it("#given spawns under the limit #when guarded #then allows and coun…
+    [90m148|[39m   [34mwriteGoals[39m()[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/12]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spawn-guard.test.ts[2m > [22mapplySpawnGuards gate-artifact guard[2m > [22m#given a mixed-role V2 gate prompt #when guarded #then prioritizes the gate role and denies on missing artifact without charging quota
+[31m[1mAssertionError[22m: expected 'spawn code-review + QA first; gate au…' to contain 'g1-manual-qa.md'[39m
+
+Expected: [32m"[7mg1-manual-qa[27m.md"[39m
+Received: [31m"[7mspawn code-review + QA first; gate audits their artifacts: missing .omo/evidence/g1-code-review[27m.md"[39m
+
+[36m [2m❯[22m test/spawn-guard.test.ts:[2m299:49[22m[39m
+    [90m297|[39m
+    [90m298|[39m   [34mexpect[39m(output)[33m.[39mnot[33m.[39m[34mtoBe[39m([32m""[39m)[33m;[39m
+    [90m299|[39m   expect(deny(output).permissionDecisionReason).toContain("g1-manual-q…
+    [90m   |[39m                                                 [31m^[39m
+    [90m300|[39m   expect(existsSync(join(sessionDir(), "review-spawn-counts.json"))).t…
+    [90m301|[39m  })[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/12]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spawn-guard.test.ts[2m > [22mapplySpawnGuards gate-artifact guard[2m > [22m#given a gate spawn by agent_type without artifacts #when guarded #then denies naming the missing path
+[31m[1mAssertionError[22m: expected 'spawn code-review + QA first; gate au…' to contain 'g1-manual-qa.md'[39m
+
+Expected: [32m"[7mg1-manual-qa[27m.md"[39m
+Received: [31m"[7mspawn code-review + QA first; gate audits their artifacts: missing .omo/evidence/g1-code-review[27m.md"[39m
+
+[36m [2m❯[22m test/spawn-guard.test.ts:[2m313:43[22m[39m
+    [90m311|[39m   [34mexpect[39m(parsed[33m.[39mpermissionDecision)[33m.[39m[34mtoBe[39m([32m"deny"[39m)[33m;[39m
+    [90m312|[39m   [34mexpect[39m(parsed[33m.[39mpermissionDecisionReason)[33m.[39m[34mtoContain[39m([32m"missing"[39m)[33m;[39m
+    [90m313|[39m   [34mexpect[39m(parsed[33m.[39mpermissionDecisionReason)[33m.[39m[34mtoContain[39m([32m"g1-manual-qa.md"[39m)[33m;[39m
+    [90m   |[39m                                           [31m^[39m
+    [90m314|[39m  })[33m;[39m
+    [90m315|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/12]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spawn-guard.test.ts[2m > [22mapplySpawnGuards gate-artifact guard[2m > [22m#given only v1 manual QA on disk #when the gate spawns #then allows
+[31m[1mAssertionError[22m: expected '{"hookSpecificOutput":{"hookEventName…' to be '' // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[31m+ {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"spawn code-review + QA first; gate audits their artifacts: missing .omo/evidence/g1-code-review.md","additionalContext":"spawn code-review + QA first; gate audits their artifacts: missing .omo/evidence/g1-code-review.md"}}[39m
+[31m+[39m
+
+[36m [2m❯[22m test/spawn-guard.test.ts:[2m423:18[22m[39m
+    [90m421|[39m   )[33m;[39m
+    [90m422|[39m
+    [90m423|[39m   [34mexpect[39m(output)[33m.[39m[34mtoBe[39m([32m""[39m)[33m;[39m
+    [90m   |[39m                  [31m^[39m
+    [90m424|[39m  })[33m;[39m
+    [90m425|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/12]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spawn-guard.test.ts[2m > [22mapplySpawnGuards gate-artifact guard[2m > [22m#given a v2 plan #when the gate spawns without attempt-dir artifacts #then denies naming the attempt path
+[31m[1mAssertionError[22m: expected 'spawn code-review + QA first; gate au…' to contain '.omo/evidence/ulw/s1/g1/a1/g1-manual-…'[39m
+
+Expected: [32m".omo/evidence/ulw/s1/g1/a1/g1-[7mmanual-qa[27m.md"[39m
+Received: [31m"[7mspawn code-review + QA first; gate audits their artifacts: missing [27m.omo/evidence/ulw/s1/g1/a1/g1-[7mcode-review[27m.md"[39m
+
+[36m [2m❯[22m test/spawn-guard.test.ts:[2m435:49[22m[39m
+    [90m433|[39m   )[33m;[39m
+    [90m434|[39m
+    [90m435|[39m   expect(deny(output).permissionDecisionReason).toContain(".omo/eviden…
+    [90m   |[39m                                                 [31m^[39m
+    [90m436|[39m  })[33m;[39m
+    [90m437|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/12]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m test/spawn-guard.test.ts[2m > [22mapplySpawnGuards gate-artifact guard[2m > [22m#given a v2 plan with attempt-dir artifacts #when the gate spawns #then allows
+[31m[1mAssertionError[22m: expected '{"hookSpecificOutput":{"hookEventName…' to be '' // Object.is equality[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[31m+ {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"spawn code-review + QA first; gate audits their artifacts: missing .omo/evidence/ulw/s1/g1/a1/g1-code-review.md","additionalContext":"spawn code-review + QA first; gate audits their artifacts: missing .omo/evidence/ulw/s1/g1/a1/g1-code-review.md"}}[39m
+[31m+[39m
+
+[36m [2m❯[22m test/spawn-guard.test.ts:[2m448:18[22m[39m
+    [90m446|[39m   )[33m;[39m
+    [90m447|[39m
+    [90m448|[39m   [34mexpect[39m(output)[33m.[39m[34mtoBe[39m([32m""[39m)[33m;[39m
+    [90m   |[39m                  [31m^[39m
+    [90m449|[39m  })[33m;[39m
+    [90m450|[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/12]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m12 failed[39m[22m[2m | [22m[1m[32m28 passed[39m[22m[90m (40)[39m
+[2m   Start at [22m 22:42:23
+[2m   Duration [22m 706ms[2m (transform 203ms, setup 0ms, import 261ms, tests 388ms, environment 0ms)[22m
+
+error: script "test" exited with code 1
+
+
+=== GREEN (same prescribed command after copying src/ + package.json + hooks/) ===
+exitCode=0
+--- stdout ---
+HOST=mengmotaMac
+WHO=yeongyu
+UNAME=Darwin mengmotaMac 25.6.0 Darwin Kernel Version 25.6.0: Fri Jul 31 19:19:08 PDT 2026; root:xnu-12377.161.14~5/RELEASE_ARM64_T6050 arm64
+BUN_BIN=/Users/yeongyu/.bun/bin/bun
+1.4.0
+2026-09-08T13:42:44Z
+$ vitest --run ./test/spawn-guard.test.ts
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/private/tmp/lcx-t10red-20260908/omo/packages/omo-codex/plugin/components/ulw-loop[39m
+
+ [32m✓[39m test/spawn-guard.test.ts [2m([22m[2m40 tests[22m[2m)[22m[33m 317[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m40 passed[39m[22m[90m (40)[39m
+[2m   Start at [22m 22:42:54
+[2m   Duration [22m 1.11s[2m (transform 533ms, setup 0ms, import 580ms, tests 317ms, environment 0ms)[22m
+
+TEST_EXIT=0
+
+--- stderr ---
+
+
+--- GREEN full (tee) ---
+$ vitest --run ./test/spawn-guard.test.ts
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/private/tmp/lcx-t10red-20260908/omo/packages/omo-codex/plugin/components/ulw-loop[39m
+
+ [32m✓[39m test/spawn-guard.test.ts [2m([22m[2m40 tests[22m[2m)[22m[33m 317[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m40 passed[39m[22m[90m (40)[39m
+[2m   Start at [22m 22:42:54
+[2m   Duration [22m 1.11s[2m (transform 533ms, setup 0ms, import 580ms, tests 317ms, environment 0ms)[22m
+
+
+
+=== CLEANUP / receipt ===
+exitCode=0
+--- stdout ---
+RECEIPT_ABSENT=1
+ls: /tmp/lcx-t10red-20260908: No such file or directory
+2026-09-08T13:43:38Z
+
+--- stderr ---
+
