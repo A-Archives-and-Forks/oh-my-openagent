@@ -1,3 +1,7 @@
+## 2026-09-08 — Run the bundled agent toolkit under Bun mode from the packaged binary
+
+`ulw-loop/omo-command.ts` spawns a `.js` toolkit entry through `process.execPath`. Under the packaged runtime (omo-desktop's compiled `omo`, omob) that path IS the omo binary, so without `BUN_BE_BUN` it ran its own embedded entrypoint with the toolkit path as a prompt: `ulw-loop status` exited 1 with `Unknown option: --json`, the hook logged `omo-senpi ulw-loop status ignored { reason: "non-zero-exit" }` on every input, and every desktop thread with a plan read as inactive so no continuation fired. The `.js` spawn target now carries `env: { ...process.env, BUN_BE_BUN: "1" }` (the same guard `lsp-daemon` gained in #7916); plain executables keep their inherited env.
+
 ## 2026-09-07 — Complete a facts child that finishes without assistant prose
 
 Facts extraction records through `record_fact` and often ends the turn with no final assistant text, including when nothing durable was found. The in-process launch now sets `completion: "turn"` so a normally settled turn is success; `stopReason` `error`/`aborted` still fails. Ordinary task children keep the default `final-text` policy.
