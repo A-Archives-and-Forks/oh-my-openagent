@@ -1,9 +1,12 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 
 import type { ManagerStartSpec, StartResult } from "../manager"
+import { cleanupProjects, makeManager } from "../manager/__fixtures__/manager-fakes"
 import { normalizeSenpiTeamSpec } from "./normalize"
 import type { TeamRuntimeManagerPort } from "./runtime-types"
 import { spawnTeamMembers } from "./spawn-members"
+
+afterEach(cleanupProjects)
 
 function fakeManager(captured: ManagerStartSpec[]): TeamRuntimeManagerPort {
   return {
@@ -43,5 +46,37 @@ describe("spawnTeamMembers task_summary", () => {
     // then
     expect(result.failure).toBeUndefined()
     expect(captured[0]?.task_summary).toBe("Investigate the failing test")
+  })
+
+  test("#given a team member #when the team spawn path writes its task record #then the record carries team linkage", async () => {
+    // given
+    const spec = normalizeSenpiTeamSpec(
+      { members: [{ kind: "category", category: "quick", prompt: "work" }] },
+      "demo",
+    )
+    const { manager, store } = makeManager({})
+
+    // when
+    const result = await spawnTeamMembers({
+      spec,
+      teamRunId: "11111111-1111-4111-8111-111111111111",
+      manager,
+      leadSessionId: "lead-session",
+      spawnDepth: 1,
+      maxParallel: 1,
+      deadlineAt: Date.now() + 60_000,
+      now: Date.now,
+    })
+
+    // then
+    if (result.failure !== undefined) throw result.failure
+    const taskId = result.spawned.get(spec.members[0]!.name)?.taskId
+    expect(taskId).toBeDefined()
+    expect(store.load(taskId!)).toMatchObject({
+      team_run_id: "11111111-1111-4111-8111-111111111111",
+      team_name: "demo",
+      team_member_name: spec.members[0]!.name,
+      team_role: "member",
+    })
   })
 })
