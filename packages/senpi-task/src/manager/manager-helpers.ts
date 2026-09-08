@@ -33,6 +33,10 @@ export function buildRecordInput(input: {
     notify_on_terminal: runInBackground,
     ...(spec.task_summary !== undefined ? { task_summary: spec.task_summary } : {}),
     ...(spec.description !== undefined ? { description: spec.description } : {}),
+    ...(spec.team_run_id !== undefined ? { team_run_id: spec.team_run_id } : {}),
+    ...(spec.team_name !== undefined ? { team_name: spec.team_name } : {}),
+    ...(spec.team_member_name !== undefined ? { team_member_name: spec.team_member_name } : {}),
+    ...(spec.team_role !== undefined ? { team_role: spec.team_role } : {}),
     ...(plan.requested_model !== undefined
       ? { requested_model: plan.requested_model }
       : {}),

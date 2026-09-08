@@ -1,3 +1,7 @@
+## 2026-09-08 — Expose team runtime layout and member linkage
+
+Team member task records now carry durable team identity fields, and `packages/team-core/AGENTS.md` documents the runtime state, tasklist, and mailbox paths and JSON shapes consumed by external readers.
+
 ## 2026-09-07 — Make the two Windows-flaky tests from #7898 deterministic
 
 Both tests raced the wall clock and lost on the slowest CI runner. The team-mode case
