@@ -86,6 +86,7 @@ describe("Hephaestus bundled rule model variants", () => {
 				(candidate) => candidate.relativePath === GPT_6_VARIANT_PATH,
 			)?.path;
 			expect(variantPath).toBeDefined();
+			if (!variantPath) throw new Error("expected gpt-6 Hephaestus variant path");
 
 			const output = await runSessionStartHook(sessionStartInput(root, model), {
 				pluginDataRoot: pluginData,
@@ -96,7 +97,7 @@ describe("Hephaestus bundled rule model variants", () => {
 			expect(output).not.toContain(GPT_55_VARIANT_PATH);
 			expect(output).not.toContain(GPT_56_VARIANT_PATH);
 			const context = JSON.parse(output).hookSpecificOutput.additionalContext;
-			const shipped = parseRule(readFileSync(variantPath!, "utf8"));
+			const shipped = parseRule(readFileSync(variantPath, "utf8"));
 			expect(shipped.frontmatter.alwaysApply).toBe(true);
 			expect(context).toContain(shipped.body.trim());
 		},

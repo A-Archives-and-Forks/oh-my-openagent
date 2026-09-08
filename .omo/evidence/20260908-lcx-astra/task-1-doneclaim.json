@@ -2,7 +2,7 @@
   "task": "1 rules-engine gpt-6 Hephaestus variant",
   "task_id": "st_01a080fe",
   "status": "done",
-  "outcome": "Reconciled the real Astra preset into the Codex rule and captured both required remote gates green, including all three named Vitest suites.",
+  "outcome": "Replaced the forbidden non-null assertion in the Hephaestus model variant test with an explicit narrowing guard; Biome and TypeScript checks both pass.",
   "worktree": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/lcx-astra-default-models",
   "branch": "lcx/astra-default-models",
   "changed_files": [
@@ -14,6 +14,9 @@
     "packages/omo-codex/plugin/components/rules/test/hephaestus-model-variant.test.ts"
   ],
   "repair_changed_files": [
+    "packages/omo-codex/plugin/components/rules/test/hephaestus-model-variant.test.ts",
+    ".omo/evidence/20260908-lcx-astra/task-1-hephaestus-gpt6.log",
+    ".omo/evidence/20260908-lcx-astra/task-1-doneclaim.json",
     "packages/omo-codex/plugin/components/rules/bundled-rules/hephaestus/gpt-6.md",
     ".omo/evidence/20260908-lcx-astra/task-1-preset-mapping.md",
     ".omo/evidence/20260908-lcx-astra/task-1-session-start-qa.mjs",
