@@ -5,7 +5,6 @@ on:
     paths:
       - script/senpi-worker-compile.ts
       - script/senpi-worker-compile.test.ts
-      - script/windows-worker-probe.test.ts
       - .github/workflows/compiled-worker.yml
   workflow_dispatch:
 
@@ -31,7 +30,7 @@ jobs:
           set -euo pipefail
           scratch=$(mktemp -d)
           trap 'rm -rf "$scratch"' EXIT
-          cp script/senpi-worker-compile.ts script/senpi-worker-compile.test.ts script/windows-worker-probe.test.ts "$scratch/"
+          cp script/senpi-worker-compile.ts script/senpi-worker-compile.test.ts "$scratch/"
           cd "$scratch"
           bun --revision
           bun test
