@@ -63,6 +63,7 @@ export function createKeywordDetectorHook(
 ) {
   const disabledKeywords = config?.disabled_keywords
   const enabledExpansions = config?.enabled_expansions
+  const explicitUltraworkSessions = new Set<string>()
   function getRuntimeVariant(input: { variant?: string }, message: Record<string, unknown>): string | undefined {
     if (typeof message.variant === "string") {
       return message.variant
@@ -98,6 +99,9 @@ export function createKeywordDetectorHook(
       }
 
       if (looksLikeSlashCommand(promptText)) {
+        if (/^\s*\/stop-continuation(?:\s|$)/i.test(promptText)) {
+          explicitUltraworkSessions.delete(input.sessionID)
+        }
         log(`[keyword-detector] Skipping slash command invocation`, { sessionID: input.sessionID })
         return
       }
@@ -112,6 +116,11 @@ export function createKeywordDetectorHook(
       const cleanText = removeSystemReminders(promptText)
       const modelID = input.model?.modelID
       let detectedKeywords = detectKeywordsWithType(cleanText, currentAgent, modelID, disabledKeywords, enabledExpansions)
+      const explicitUltrawork = detectedKeywords.some((k) => k.type === "ultrawork" || k.type === "hyperplan-ultrawork")
+      if (!explicitUltrawork && explicitUltraworkSessions.has(input.sessionID)) {
+        detectedKeywords.push(...detectKeywordsWithType("ulw", currentAgent, modelID, disabledKeywords, enabledExpansions)
+          .filter((k) => k.type === "ultrawork"))
+      }
       detectedKeywords = suppressComboStandalones(detectedKeywords)
 
       if (isPlannerAgent(currentAgent)) {
@@ -180,7 +189,7 @@ export function createKeywordDetectorHook(
       }
 
       const hasUltrawork = detectedKeywords.some((k) => k.type === "ultrawork")
-      if (hasUltrawork) {
+      if (hasUltrawork && explicitUltrawork) {
         const runtimeVariant = getRuntimeVariant(input, output.message)
         const isRuntimeMax = runtimeVariant === "max"
 
@@ -258,18 +267,33 @@ export function createKeywordDetectorHook(
 
       output.parts[textPartIndex].text = `${originalText}\n\n---\n\n${allMessages}`
 
+      if (explicitUltrawork && (hasUltrawork || hasHyperplanUltrawork) && !explicitUltraworkSessions.has(input.sessionID)) {
+        if (explicitUltraworkSessions.size >= DEFAULT_MODE_ULTRAWORK_SESSION_CAP) {
+          const oldest = explicitUltraworkSessions.values().next().value
+          if (oldest !== undefined) explicitUltraworkSessions.delete(oldest)
+        }
+        explicitUltraworkSessions.add(input.sessionID)
+      }
+
       log(`[keyword-detector] Detected ${detectedKeywords.length} keywords`, {
         sessionID: input.sessionID,
         types: detectedKeywords.map((k) => k.type),
       })
     },
+    clearSession: (sessionID: string): void => {
+      explicitUltraworkSessions.delete(sessionID)
+    },
     event: ({ event }: { event: { type: string; properties?: unknown } }): void => {
       if (event.type !== "session.deleted") return
       const sessionID = resolveSessionEventID(event.properties)
-      if (sessionID) clearDefaultModeUltraworkInjectedSession(sessionID)
+      if (sessionID) {
+        clearDefaultModeUltraworkInjectedSession(sessionID)
+        explicitUltraworkSessions.delete(sessionID)
+      }
     },
     dispose: (): void => {
       clearAllDefaultModeUltraworkInjectedSessions()
+      explicitUltraworkSessions.clear()
     },
   }
 }
