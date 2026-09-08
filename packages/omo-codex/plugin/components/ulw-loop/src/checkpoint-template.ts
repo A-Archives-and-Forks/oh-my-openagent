@@ -31,7 +31,7 @@ function gateTemplate(surface: UlwLoopToolkitSurface, base: string): Record<stri
 		},
 	];
 	const manualQa = {
-		by: surface === "omo-senpi" ? "main-session" : "lazycodex-qa-executor",
+		by: "main-session",
 		status: "passed",
 		evidence: "<replace:manual QA evidence>",
 		surfaceEvidence: [
@@ -68,7 +68,7 @@ function gateTemplate(surface: UlwLoopToolkitSurface, base: string): Record<stri
 	const common = {
 		manualQa,
 		gateReview: {
-			by: surface === "omo-senpi" ? "category:deep" : "lazycodex-gate-reviewer",
+			by: surface === "omo-senpi" ? "category:deep" : "main-session",
 			recommendation: "APPROVE",
 			reportPath: artifactPath(base, "gate-review.md"),
 			evidence: "<replace:gate review evidence>",
@@ -90,18 +90,7 @@ function gateTemplate(surface: UlwLoopToolkitSurface, base: string): Record<stri
 			adversarialClassesCovered: ["<replace:adversarial class>"],
 		},
 	};
-	if (surface === "omo-senpi") return common;
-	return {
-		codeReview: {
-			by: "lazycodex-code-reviewer",
-			recommendation: "APPROVE",
-			codeQualityStatus: "CLEAR",
-			reportPath: artifactPath(base, "code-review.md"),
-			evidence: "<replace:code review evidence>",
-			blockers: [],
-		},
-		...common,
-	};
+	return common;
 }
 
 export async function checkpointTemplate(

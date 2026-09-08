@@ -1,0 +1,1951 @@
+COMMAND bare.json
+{
+  "ok": false,
+  "error": {
+    "code": "ULW_LOOP_QUALITY_GATE_INVALID",
+    "message": "Final quality gate has 2 validation defects:\n- manualQa.artifactRefs[0].path: manualQa.artifactRefs[0].path (.omo/evidence/qa/cli.txt) must point to an artifact from the current attempt (.omo/evidence/ulw/qa/G001-one-goal/a0).\n- gateReview.reportPath: gateReview.reportPath (.omo/evidence/qa/gate.md) must point to an artifact from the current attempt (.omo/evidence/ulw/qa/G001-one-goal/a0).",
+    "details": {
+      "field": "manualQa.artifactRefs[0].path",
+      "fields": [
+        {
+          "field": "manualQa.artifactRefs[0].path",
+          "message": "manualQa.artifactRefs[0].path (.omo/evidence/qa/cli.txt) must point to an artifact from the current attempt (.omo/evidence/ulw/qa/G001-one-goal/a0)."
+        },
+        {
+          "field": "gateReview.reportPath",
+          "message": "gateReview.reportPath (.omo/evidence/qa/gate.md) must point to an artifact from the current attempt (.omo/evidence/ulw/qa/G001-one-goal/a0)."
+        }
+      ]
+    }
+  }
+}
+COMMAND wrapped.json
+{
+  "ok": false,
+  "error": {
+    "code": "ULW_LOOP_QUALITY_GATE_INVALID",
+    "message": "Final quality gate has 2 validation defects:\n- manualQa.artifactRefs[0].path: manualQa.artifactRefs[0].path (.omo/evidence/qa/cli.txt) must point to an artifact from the current attempt (.omo/evidence/ulw/qa/G001-one-goal/a0).\n- gateReview.reportPath: gateReview.reportPath (.omo/evidence/qa/gate.md) must point to an artifact from the current attempt (.omo/evidence/ulw/qa/G001-one-goal/a0).",
+    "details": {
+      "field": "manualQa.artifactRefs[0].path",
+      "fields": [
+        {
+          "field": "manualQa.artifactRefs[0].path",
+          "message": "manualQa.artifactRefs[0].path (.omo/evidence/qa/cli.txt) must point to an artifact from the current attempt (.omo/evidence/ulw/qa/G001-one-goal/a0)."
+        },
+        {
+          "field": "gateReview.reportPath",
+          "message": "gateReview.reportPath (.omo/evidence/qa/gate.md) must point to an artifact from the current attempt (.omo/evidence/ulw/qa/G001-one-goal/a0)."
+        }
+      ]
+    }
+  }
+}
+COMMAND invalid.json
+{
+  "ok": false,
+  "error": {
+    "code": "ULW_LOOP_QUALITY_GATE_INVALID",
+    "message": "Final quality gate has 3 validation defects:\n- gateReview.by: gateReview.by must be one of lazycodex-gate-reviewer, category:deep, category:unspecified-high, category:unspecified-low, main-session.\n- manualQa.artifactRefs[0].path: manualQa.artifactRefs[0].path (.omo/evidence/qa/cli.txt) must point to an artifact from the current attempt (.omo/evidence/ulw/qa/G001-one-goal/a0).\n- gateReview.reportPath: gateReview.reportPath (.omo/evidence/qa/gate.md) must point to an artifact from the current attempt (.omo/evidence/ulw/qa/G001-one-goal/a0).",
+    "details": {
+      "field": "gateReview.by",
+      "fields": [
+        {
+          "field": "gateReview.by",
+          "message": "gateReview.by must be one of lazycodex-gate-reviewer, category:deep, category:unspecified-high, category:unspecified-low, main-session."
+        },
+        {
+          "field": "manualQa.artifactRefs[0].path",
+          "message": "manualQa.artifactRefs[0].path (.omo/evidence/qa/cli.txt) must point to an artifact from the current attempt (.omo/evidence/ulw/qa/G001-one-goal/a0)."
+        },
+        {
+          "field": "gateReview.reportPath",
+          "message": "gateReview.reportPath (.omo/evidence/qa/gate.md) must point to an artifact from the current attempt (.omo/evidence/ulw/qa/G001-one-goal/a0)."
+        }
+      ]
+    }
+  }
+}
+RETRY_COMMAND bare.json
+{
+  "ok": true,
+  "plan": {
+    "version": 1,
+    "evidenceLayoutVersion": 2,
+    "createdAt": "2026-09-08T11:01:22.392Z",
+    "updatedAt": "2026-09-08T11:06:25.419Z",
+    "briefPath": ".omo/ulw-loop/qa/brief.md",
+    "goalsPath": ".omo/ulw-loop/qa/goals.json",
+    "ledgerPath": ".omo/ulw-loop/qa/ledger.jsonl",
+    "codexGoalMode": "aggregate",
+    "goals": [
+      {
+        "id": "G001-one-goal",
+        "title": "one goal",
+        "objective": "one goal",
+        "status": "complete",
+        "successCriteria": [
+          {
+            "id": "C001",
+            "scenario": "happy path for: one goal",
+            "userModel": "happy",
+            "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+            "essential": true,
+            "capturedEvidence": "verified via scratch QA",
+            "status": "pass",
+            "capturedAt": "2026-09-08T11:05:36.928Z"
+          },
+          {
+            "id": "C002",
+            "scenario": "edge case (boundary/empty/malformed)",
+            "userModel": "edge",
+            "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+            "essential": true,
+            "capturedEvidence": "verified via scratch QA",
+            "status": "pass",
+            "capturedAt": "2026-09-08T11:05:36.974Z"
+          },
+          {
+            "id": "C003",
+            "scenario": "regression: adjacent surface still works",
+            "userModel": "regression",
+            "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+            "essential": false,
+            "capturedEvidence": "verified via scratch QA",
+            "status": "pass",
+            "capturedAt": "2026-09-08T11:05:37.019Z"
+          }
+        ],
+        "attempt": 0,
+        "createdAt": "2026-09-08T11:01:22.392Z",
+        "updatedAt": "2026-09-08T11:06:25.419Z",
+        "completedAt": "2026-09-08T11:06:25.419Z",
+        "evidence": "all criteria pass; gate evidence under .omo/evidence/ulw/qa/G001-one-goal/a0"
+      }
+    ],
+    "codexObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa/ledger.jsonl as the audit trail.",
+    "aggregateCompletion": {
+      "status": "complete",
+      "completedAt": "2026-09-08T11:06:25.419Z",
+      "evidence": "all criteria pass; gate evidence under .omo/evidence/ulw/qa/G001-one-goal/a0",
+      "codexGoal": {
+        "goal": {
+          "objective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa/ledger.jsonl as the audit trail.",
+          "status": "complete"
+        }
+      }
+    }
+  },
+  "goal": {
+    "id": "G001-one-goal",
+    "title": "one goal",
+    "objective": "one goal",
+    "status": "complete",
+    "successCriteria": [
+      {
+        "id": "C001",
+        "scenario": "happy path for: one goal",
+        "userModel": "happy",
+        "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+        "essential": true,
+        "capturedEvidence": "verified via scratch QA",
+        "status": "pass",
+        "capturedAt": "2026-09-08T11:05:36.928Z"
+      },
+      {
+        "id": "C002",
+        "scenario": "edge case (boundary/empty/malformed)",
+        "userModel": "edge",
+        "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+        "essential": true,
+        "capturedEvidence": "verified via scratch QA",
+        "status": "pass",
+        "capturedAt": "2026-09-08T11:05:36.974Z"
+      },
+      {
+        "id": "C003",
+        "scenario": "regression: adjacent surface still works",
+        "userModel": "regression",
+        "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+        "essential": false,
+        "capturedEvidence": "verified via scratch QA",
+        "status": "pass",
+        "capturedAt": "2026-09-08T11:05:37.019Z"
+      }
+    ],
+    "attempt": 0,
+    "createdAt": "2026-09-08T11:01:22.392Z",
+    "updatedAt": "2026-09-08T11:06:25.419Z",
+    "completedAt": "2026-09-08T11:06:25.419Z",
+    "evidence": "all criteria pass; gate evidence under .omo/evidence/ulw/qa/G001-one-goal/a0"
+  },
+  "ledgerEntry": {
+    "at": "2026-09-08T11:06:25.419Z",
+    "kind": "aggregate_completed",
+    "goalId": "G001-one-goal",
+    "status": "complete",
+    "evidence": "all criteria pass; gate evidence under .omo/evidence/ulw/qa/G001-one-goal/a0",
+    "codexGoal": {
+      "goal": {
+        "objective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa/ledger.jsonl as the audit trail.",
+        "status": "complete"
+      }
+    },
+    "qualityGate": {
+      "surface": "lazycodex",
+      "manualQa": {
+        "by": "main-session",
+        "status": "passed",
+        "evidence": "QA passed",
+        "surfaceEvidence": [
+          {
+            "id": "cli",
+            "criterionRef": "C001",
+            "surface": "cli",
+            "invocation": "CLI QA",
+            "verdict": "passed",
+            "artifactRefs": [
+              "cli"
+            ]
+          }
+        ],
+        "adversarialCases": [
+          {
+            "id": "edge",
+            "criterionRef": "C002",
+            "scenario": "invalid input",
+            "expectedBehavior": "reject",
+            "verdict": "not_applicable",
+            "reason": "covered",
+            "artifactRefs": [
+              "cli"
+            ]
+          }
+        ],
+        "artifactRefs": [
+          {
+            "id": "cli",
+            "kind": "cli-transcript",
+            "description": "CLI",
+            "path": ".omo/evidence/ulw/qa/G001-one-goal/a0/cli.txt"
+          }
+        ]
+      },
+      "gateReview": {
+        "by": "category:unspecified-high",
+        "recommendation": "APPROVE",
+        "reportPath": ".omo/evidence/ulw/qa/G001-one-goal/a0/gate.md",
+        "evidence": "approved",
+        "blockers": []
+      },
+      "iteration": {
+        "fullRerun": true,
+        "status": "passed",
+        "rerunCommands": [
+          "build"
+        ],
+        "evidence": "passed"
+      },
+      "criteriaCoverage": {
+        "totalCriteria": 3,
+        "passCount": 3,
+        "originalIntent": "one goal",
+        "desiredOutcome": "works",
+        "userOutcomeReview": "works",
+        "adversarialClassesCovered": [
+          "invalid"
+        ]
+      }
+    }
+  },
+  "aggregateCompletion": {
+    "status": "complete",
+    "completedAt": "2026-09-08T11:06:25.419Z",
+    "evidence": "all criteria pass; gate evidence under .omo/evidence/ulw/qa/G001-one-goal/a0",
+    "codexGoal": {
+      "goal": {
+        "objective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa/ledger.jsonl as the audit trail.",
+        "status": "complete"
+      }
+    }
+  },
+  "summary": {
+    "total": 1,
+    "pending": 0,
+    "in_progress": 0,
+    "complete": 1,
+    "failed": 0,
+    "blocked": 0,
+    "review_blocked": 0,
+    "needs_user_decision": 0,
+    "superseded": 0,
+    "criteria": {
+      "total": 3,
+      "pass": 3,
+      "pending": 0,
+      "fail": 0,
+      "blocked": 0
+    }
+  }
+}
+RETRY_COMMAND wrapped.json
+{
+  "ok": false,
+  "error": {
+    "code": "ulw_loop_codex_snapshot_mismatch",
+    "message": "Codex goal status mismatch: expected active, got complete. Completed task-scoped aggregate reconciliation requires the checkpoint goal to be the active in-progress OMO goal, evidence that names that active OMO goal id, names .omo/ulw-loop/goals.json or ledger.jsonl, includes completed implementation plus validation/review evidence, and a get_goal objective that maps to the ulw-loop brief/artifact. If get_goal returns a different completed legacy/thread objective, do not repeat --status complete in this thread. Record a non-terminal blocker with: omo-agent-toolkit ulw-loop checkpoint --goal-id G001-one-goal --status blocked --evidence \"<completed legacy Codex goal blocks create_goal in this thread>\" --codex-goal-json \"<different completed get_goal JSON or path>\". Then continue only from a Codex goal context with no active/completed conflicting goal, in the same repo/worktree, and create the intended goal there.\nRecovery: the Codex goal objective must equal the plan's codexObjective exactly — copy the expected value below into update_goal and re-run get_goal.\nexpected codexObjective: Complete the durable ulw-loop plan in .omo/ulw-loop/qa/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa/ledger.jsonl as the audit trail.\nreceived objective: Complete the durable ulw-loop plan in .omo/ulw-loop/qa/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa/ledger.jsonl as the audit trail.",
+    "details": {
+      "expectedObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa/ledger.jsonl as the audit trail.",
+      "receivedObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa/ledger.jsonl as the audit trail."
+    }
+  }
+}
+RETRY_COMMAND invalid.json
+{
+  "ok": false,
+  "error": {
+    "code": "ulw_loop_codex_snapshot_mismatch",
+    "message": "Codex goal status mismatch: expected active, got complete. Completed task-scoped aggregate reconciliation requires the checkpoint goal to be the active in-progress OMO goal, evidence that names that active OMO goal id, names .omo/ulw-loop/goals.json or ledger.jsonl, includes completed implementation plus validation/review evidence, and a get_goal objective that maps to the ulw-loop brief/artifact. If get_goal returns a different completed legacy/thread objective, do not repeat --status complete in this thread. Record a non-terminal blocker with: omo-agent-toolkit ulw-loop checkpoint --goal-id G001-one-goal --status blocked --evidence \"<completed legacy Codex goal blocks create_goal in this thread>\" --codex-goal-json \"<different completed get_goal JSON or path>\". Then continue only from a Codex goal context with no active/completed conflicting goal, in the same repo/worktree, and create the intended goal there.\nRecovery: the Codex goal objective must equal the plan's codexObjective exactly — copy the expected value below into update_goal and re-run get_goal.\nexpected codexObjective: Complete the durable ulw-loop plan in .omo/ulw-loop/qa/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa/ledger.jsonl as the audit trail.\nreceived objective: Complete the durable ulw-loop plan in .omo/ulw-loop/qa/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa/ledger.jsonl as the audit trail.",
+    "details": {
+      "expectedObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa/ledger.jsonl as the audit trail.",
+      "receivedObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa/ledger.jsonl as the audit trail."
+    }
+  }
+}
+=== SESSION qa2 ===
+{
+  "ok": true,
+  "plan": {
+    "version": 1,
+    "evidenceLayoutVersion": 2,
+    "createdAt": "2026-09-08T11:08:55.508Z",
+    "updatedAt": "2026-09-08T11:08:55.508Z",
+    "briefPath": ".omo/ulw-loop/qa2/brief.md",
+    "goalsPath": ".omo/ulw-loop/qa2/goals.json",
+    "ledgerPath": ".omo/ulw-loop/qa2/ledger.jsonl",
+    "codexGoalMode": "aggregate",
+    "goals": [
+      {
+        "id": "G001-one-goal",
+        "title": "one goal",
+        "objective": "one goal",
+        "status": "pending",
+        "successCriteria": [
+          {
+            "id": "C001",
+            "scenario": "happy path for: one goal",
+            "userModel": "happy",
+            "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+            "essential": true,
+            "capturedEvidence": null,
+            "status": "pending"
+          },
+          {
+            "id": "C002",
+            "scenario": "edge case (boundary/empty/malformed)",
+            "userModel": "edge",
+            "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+            "essential": true,
+            "capturedEvidence": null,
+            "status": "pending"
+          },
+          {
+            "id": "C003",
+            "scenario": "regression: adjacent surface still works",
+            "userModel": "regression",
+            "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+            "essential": false,
+            "capturedEvidence": null,
+            "status": "pending"
+          }
+        ],
+        "attempt": 0,
+        "createdAt": "2026-09-08T11:08:55.508Z",
+        "updatedAt": "2026-09-08T11:08:55.508Z"
+      }
+    ],
+    "codexObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa2/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa2/ledger.jsonl as the audit trail."
+  },
+  "summary": {
+    "total": 1,
+    "pending": 1,
+    "in_progress": 0,
+    "complete": 0,
+    "failed": 0,
+    "blocked": 0,
+    "review_blocked": 0,
+    "needs_user_decision": 0,
+    "superseded": 0,
+    "criteria": {
+      "total": 3,
+      "pass": 0,
+      "pending": 3,
+      "fail": 0,
+      "blocked": 0
+    }
+  }
+}
+{
+  "ok": true,
+  "plan": {
+    "version": 1,
+    "evidenceLayoutVersion": 2,
+    "createdAt": "2026-09-08T11:08:55.508Z",
+    "updatedAt": "2026-09-08T11:08:55.508Z",
+    "briefPath": ".omo/ulw-loop/qa2/brief.md",
+    "goalsPath": ".omo/ulw-loop/qa2/goals.json",
+    "ledgerPath": ".omo/ulw-loop/qa2/ledger.jsonl",
+    "codexGoalMode": "aggregate",
+    "goals": [
+      {
+        "id": "G001-one-goal",
+        "title": "one goal",
+        "objective": "one goal",
+        "status": "pending",
+        "successCriteria": [
+          {
+            "id": "C001",
+            "scenario": "happy path for: one goal",
+            "userModel": "happy",
+            "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+            "essential": true,
+            "capturedEvidence": null,
+            "status": "pending"
+          },
+          {
+            "id": "C002",
+            "scenario": "edge case (boundary/empty/malformed)",
+            "userModel": "edge",
+            "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+            "essential": true,
+            "capturedEvidence": null,
+            "status": "pending"
+          },
+          {
+            "id": "C003",
+            "scenario": "regression: adjacent surface still works",
+            "userModel": "regression",
+            "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+            "essential": false,
+            "capturedEvidence": null,
+            "status": "pending"
+          }
+        ],
+        "attempt": 0,
+        "createdAt": "2026-09-08T11:08:55.508Z",
+        "updatedAt": "2026-09-08T11:08:55.508Z"
+      }
+    ],
+    "codexObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa2/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa2/ledger.jsonl as the audit trail."
+  },
+  "summary": {
+    "total": 1,
+    "pending": 1,
+    "in_progress": 0,
+    "complete": 0,
+    "failed": 0,
+    "blocked": 0,
+    "review_blocked": 0,
+    "needs_user_decision": 0,
+    "superseded": 0,
+    "criteria": {
+      "total": 3,
+      "pass": 0,
+      "pending": 3,
+      "fail": 0,
+      "blocked": 0
+    }
+  },
+  "nextActions": [
+    "plan is evidence-layout v1; artifacts go under .omo/evidence/"
+  ]
+}
+{
+  "ok": false,
+  "error": {
+    "code": "ULW_LOOP_GOAL_ID_REQUIRED",
+    "message": "Missing --goal-id.",
+    "details": {
+      "flag": "--goal-id"
+    }
+  }
+}
+{
+  "ok": false,
+  "error": {
+    "code": "ULW_LOOP_GOAL_ID_REQUIRED",
+    "message": "Missing --goal-id.",
+    "details": {
+      "flag": "--goal-id"
+    }
+  }
+}
+{
+  "ok": false,
+  "error": {
+    "code": "ULW_LOOP_GOAL_ID_REQUIRED",
+    "message": "Missing --goal-id.",
+    "details": {
+      "flag": "--goal-id"
+    }
+  }
+}
+CHECKPOINT qa2 /tmp/wrapped.json
+{
+  "ok": false,
+  "error": {
+    "code": "ULW_LOOP_ARGUMENT_MISSING",
+    "message": "Missing --goal-id.",
+    "details": {
+      "flag": "--goal-id"
+    }
+  }
+}
+=== SESSION qa3 ===
+{
+  "ok": true,
+  "plan": {
+    "version": 1,
+    "evidenceLayoutVersion": 2,
+    "createdAt": "2026-09-08T11:08:55.850Z",
+    "updatedAt": "2026-09-08T11:08:55.850Z",
+    "briefPath": ".omo/ulw-loop/qa3/brief.md",
+    "goalsPath": ".omo/ulw-loop/qa3/goals.json",
+    "ledgerPath": ".omo/ulw-loop/qa3/ledger.jsonl",
+    "codexGoalMode": "aggregate",
+    "goals": [
+      {
+        "id": "G001-one-goal",
+        "title": "one goal",
+        "objective": "one goal",
+        "status": "pending",
+        "successCriteria": [
+          {
+            "id": "C001",
+            "scenario": "happy path for: one goal",
+            "userModel": "happy",
+            "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+            "essential": true,
+            "capturedEvidence": null,
+            "status": "pending"
+          },
+          {
+            "id": "C002",
+            "scenario": "edge case (boundary/empty/malformed)",
+            "userModel": "edge",
+            "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+            "essential": true,
+            "capturedEvidence": null,
+            "status": "pending"
+          },
+          {
+            "id": "C003",
+            "scenario": "regression: adjacent surface still works",
+            "userModel": "regression",
+            "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+            "essential": false,
+            "capturedEvidence": null,
+            "status": "pending"
+          }
+        ],
+        "attempt": 0,
+        "createdAt": "2026-09-08T11:08:55.850Z",
+        "updatedAt": "2026-09-08T11:08:55.850Z"
+      }
+    ],
+    "codexObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa3/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa3/ledger.jsonl as the audit trail."
+  },
+  "summary": {
+    "total": 1,
+    "pending": 1,
+    "in_progress": 0,
+    "complete": 0,
+    "failed": 0,
+    "blocked": 0,
+    "review_blocked": 0,
+    "needs_user_decision": 0,
+    "superseded": 0,
+    "criteria": {
+      "total": 3,
+      "pass": 0,
+      "pending": 3,
+      "fail": 0,
+      "blocked": 0
+    }
+  }
+}
+{
+  "ok": true,
+  "plan": {
+    "version": 1,
+    "evidenceLayoutVersion": 2,
+    "createdAt": "2026-09-08T11:08:55.850Z",
+    "updatedAt": "2026-09-08T11:08:55.850Z",
+    "briefPath": ".omo/ulw-loop/qa3/brief.md",
+    "goalsPath": ".omo/ulw-loop/qa3/goals.json",
+    "ledgerPath": ".omo/ulw-loop/qa3/ledger.jsonl",
+    "codexGoalMode": "aggregate",
+    "goals": [
+      {
+        "id": "G001-one-goal",
+        "title": "one goal",
+        "objective": "one goal",
+        "status": "pending",
+        "successCriteria": [
+          {
+            "id": "C001",
+            "scenario": "happy path for: one goal",
+            "userModel": "happy",
+            "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+            "essential": true,
+            "capturedEvidence": null,
+            "status": "pending"
+          },
+          {
+            "id": "C002",
+            "scenario": "edge case (boundary/empty/malformed)",
+            "userModel": "edge",
+            "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+            "essential": true,
+            "capturedEvidence": null,
+            "status": "pending"
+          },
+          {
+            "id": "C003",
+            "scenario": "regression: adjacent surface still works",
+            "userModel": "regression",
+            "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+            "essential": false,
+            "capturedEvidence": null,
+            "status": "pending"
+          }
+        ],
+        "attempt": 0,
+        "createdAt": "2026-09-08T11:08:55.850Z",
+        "updatedAt": "2026-09-08T11:08:55.850Z"
+      }
+    ],
+    "codexObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa3/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa3/ledger.jsonl as the audit trail."
+  },
+  "summary": {
+    "total": 1,
+    "pending": 1,
+    "in_progress": 0,
+    "complete": 0,
+    "failed": 0,
+    "blocked": 0,
+    "review_blocked": 0,
+    "needs_user_decision": 0,
+    "superseded": 0,
+    "criteria": {
+      "total": 3,
+      "pass": 0,
+      "pending": 3,
+      "fail": 0,
+      "blocked": 0
+    }
+  },
+  "nextActions": [
+    "plan is evidence-layout v1; artifacts go under .omo/evidence/"
+  ]
+}
+{
+  "ok": false,
+  "error": {
+    "code": "ULW_LOOP_GOAL_ID_REQUIRED",
+    "message": "Missing --goal-id.",
+    "details": {
+      "flag": "--goal-id"
+    }
+  }
+}
+{
+  "ok": false,
+  "error": {
+    "code": "ULW_LOOP_GOAL_ID_REQUIRED",
+    "message": "Missing --goal-id.",
+    "details": {
+      "flag": "--goal-id"
+    }
+  }
+}
+{
+  "ok": false,
+  "error": {
+    "code": "ULW_LOOP_GOAL_ID_REQUIRED",
+    "message": "Missing --goal-id.",
+    "details": {
+      "flag": "--goal-id"
+    }
+  }
+}
+CHECKPOINT qa3 /tmp/invalid.json
+{
+  "ok": false,
+  "error": {
+    "code": "ULW_LOOP_ARGUMENT_MISSING",
+    "message": "Missing --goal-id.",
+    "details": {
+      "flag": "--goal-id"
+    }
+  }
+}
+{
+  "ok": true,
+  "plan": {
+    "version": 1,
+    "evidenceLayoutVersion": 2,
+    "createdAt": "2026-09-08T11:08:55.508Z",
+    "updatedAt": "2026-09-08T11:09:43.446Z",
+    "briefPath": ".omo/ulw-loop/qa2/brief.md",
+    "goalsPath": ".omo/ulw-loop/qa2/goals.json",
+    "ledgerPath": ".omo/ulw-loop/qa2/ledger.jsonl",
+    "codexGoalMode": "aggregate",
+    "goals": [
+      {
+        "id": "G001-one-goal",
+        "title": "one goal",
+        "objective": "one goal",
+        "status": "pending",
+        "successCriteria": [
+          {
+            "id": "C001",
+            "scenario": "happy path for: one goal",
+            "userModel": "happy",
+            "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+            "essential": true,
+            "capturedEvidence": "verified via scratch QA",
+            "status": "pass",
+            "capturedAt": "2026-09-08T11:09:43.446Z"
+          },
+          {
+            "id": "C002",
+            "scenario": "edge case (boundary/empty/malformed)",
+            "userModel": "edge",
+            "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+            "essential": true,
+            "capturedEvidence": null,
+            "status": "pending"
+          },
+          {
+            "id": "C003",
+            "scenario": "regression: adjacent surface still works",
+            "userModel": "regression",
+            "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+            "essential": false,
+            "capturedEvidence": null,
+            "status": "pending"
+          }
+        ],
+        "attempt": 0,
+        "createdAt": "2026-09-08T11:08:55.508Z",
+        "updatedAt": "2026-09-08T11:09:43.446Z"
+      }
+    ],
+    "codexObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa2/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa2/ledger.jsonl as the audit trail."
+  },
+  "goal": {
+    "id": "G001-one-goal",
+    "title": "one goal",
+    "objective": "one goal",
+    "status": "pending",
+    "successCriteria": [
+      {
+        "id": "C001",
+        "scenario": "happy path for: one goal",
+        "userModel": "happy",
+        "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+        "essential": true,
+        "capturedEvidence": "verified via scratch QA",
+        "status": "pass",
+        "capturedAt": "2026-09-08T11:09:43.446Z"
+      },
+      {
+        "id": "C002",
+        "scenario": "edge case (boundary/empty/malformed)",
+        "userModel": "edge",
+        "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+        "essential": true,
+        "capturedEvidence": null,
+        "status": "pending"
+      },
+      {
+        "id": "C003",
+        "scenario": "regression: adjacent surface still works",
+        "userModel": "regression",
+        "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+        "essential": false,
+        "capturedEvidence": null,
+        "status": "pending"
+      }
+    ],
+    "attempt": 0,
+    "createdAt": "2026-09-08T11:08:55.508Z",
+    "updatedAt": "2026-09-08T11:09:43.446Z"
+  },
+  "criterion": {
+    "id": "C001",
+    "scenario": "happy path for: one goal",
+    "userModel": "happy",
+    "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+    "essential": true,
+    "capturedEvidence": "verified via scratch QA",
+    "status": "pass",
+    "capturedAt": "2026-09-08T11:09:43.446Z"
+  },
+  "ledgerEntry": {
+    "at": "2026-09-08T11:09:43.446Z",
+    "kind": "evidence_captured",
+    "goalId": "G001-one-goal",
+    "criterionId": "C001",
+    "criterionStatus": "pass",
+    "evidence": "verified via scratch QA",
+    "capturedEvidence": "verified via scratch QA",
+    "before": {
+      "status": "pending"
+    },
+    "after": {
+      "goalId": "G001-one-goal",
+      "criterionId": "C001",
+      "status": "pass",
+      "evidence": "verified via scratch QA",
+      "capturedAt": "2026-09-08T11:09:43.446Z",
+      "prevStatus": "pending"
+    }
+  },
+  "summary": {
+    "total": 1,
+    "pending": 1,
+    "in_progress": 0,
+    "complete": 0,
+    "failed": 0,
+    "blocked": 0,
+    "review_blocked": 0,
+    "needs_user_decision": 0,
+    "superseded": 0,
+    "criteria": {
+      "total": 3,
+      "pass": 1,
+      "pending": 2,
+      "fail": 0,
+      "blocked": 0
+    }
+  }
+}
+{
+  "ok": true,
+  "plan": {
+    "version": 1,
+    "evidenceLayoutVersion": 2,
+    "createdAt": "2026-09-08T11:08:55.508Z",
+    "updatedAt": "2026-09-08T11:09:43.491Z",
+    "briefPath": ".omo/ulw-loop/qa2/brief.md",
+    "goalsPath": ".omo/ulw-loop/qa2/goals.json",
+    "ledgerPath": ".omo/ulw-loop/qa2/ledger.jsonl",
+    "codexGoalMode": "aggregate",
+    "goals": [
+      {
+        "id": "G001-one-goal",
+        "title": "one goal",
+        "objective": "one goal",
+        "status": "pending",
+        "successCriteria": [
+          {
+            "id": "C001",
+            "scenario": "happy path for: one goal",
+            "userModel": "happy",
+            "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+            "essential": true,
+            "capturedEvidence": "verified via scratch QA",
+            "status": "pass",
+            "capturedAt": "2026-09-08T11:09:43.446Z"
+          },
+          {
+            "id": "C002",
+            "scenario": "edge case (boundary/empty/malformed)",
+            "userModel": "edge",
+            "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+            "essential": true,
+            "capturedEvidence": "verified via scratch QA",
+            "status": "pass",
+            "capturedAt": "2026-09-08T11:09:43.491Z"
+          },
+          {
+            "id": "C003",
+            "scenario": "regression: adjacent surface still works",
+            "userModel": "regression",
+            "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+            "essential": false,
+            "capturedEvidence": null,
+            "status": "pending"
+          }
+        ],
+        "attempt": 0,
+        "createdAt": "2026-09-08T11:08:55.508Z",
+        "updatedAt": "2026-09-08T11:09:43.491Z"
+      }
+    ],
+    "codexObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa2/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa2/ledger.jsonl as the audit trail."
+  },
+  "goal": {
+    "id": "G001-one-goal",
+    "title": "one goal",
+    "objective": "one goal",
+    "status": "pending",
+    "successCriteria": [
+      {
+        "id": "C001",
+        "scenario": "happy path for: one goal",
+        "userModel": "happy",
+        "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+        "essential": true,
+        "capturedEvidence": "verified via scratch QA",
+        "status": "pass",
+        "capturedAt": "2026-09-08T11:09:43.446Z"
+      },
+      {
+        "id": "C002",
+        "scenario": "edge case (boundary/empty/malformed)",
+        "userModel": "edge",
+        "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+        "essential": true,
+        "capturedEvidence": "verified via scratch QA",
+        "status": "pass",
+        "capturedAt": "2026-09-08T11:09:43.491Z"
+      },
+      {
+        "id": "C003",
+        "scenario": "regression: adjacent surface still works",
+        "userModel": "regression",
+        "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+        "essential": false,
+        "capturedEvidence": null,
+        "status": "pending"
+      }
+    ],
+    "attempt": 0,
+    "createdAt": "2026-09-08T11:08:55.508Z",
+    "updatedAt": "2026-09-08T11:09:43.491Z"
+  },
+  "criterion": {
+    "id": "C002",
+    "scenario": "edge case (boundary/empty/malformed)",
+    "userModel": "edge",
+    "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+    "essential": true,
+    "capturedEvidence": "verified via scratch QA",
+    "status": "pass",
+    "capturedAt": "2026-09-08T11:09:43.491Z"
+  },
+  "ledgerEntry": {
+    "at": "2026-09-08T11:09:43.491Z",
+    "kind": "evidence_captured",
+    "goalId": "G001-one-goal",
+    "criterionId": "C002",
+    "criterionStatus": "pass",
+    "evidence": "verified via scratch QA",
+    "capturedEvidence": "verified via scratch QA",
+    "before": {
+      "status": "pending"
+    },
+    "after": {
+      "goalId": "G001-one-goal",
+      "criterionId": "C002",
+      "status": "pass",
+      "evidence": "verified via scratch QA",
+      "capturedAt": "2026-09-08T11:09:43.491Z",
+      "prevStatus": "pending"
+    }
+  },
+  "summary": {
+    "total": 1,
+    "pending": 1,
+    "in_progress": 0,
+    "complete": 0,
+    "failed": 0,
+    "blocked": 0,
+    "review_blocked": 0,
+    "needs_user_decision": 0,
+    "superseded": 0,
+    "criteria": {
+      "total": 3,
+      "pass": 2,
+      "pending": 1,
+      "fail": 0,
+      "blocked": 0
+    }
+  }
+}
+{
+  "ok": true,
+  "plan": {
+    "version": 1,
+    "evidenceLayoutVersion": 2,
+    "createdAt": "2026-09-08T11:08:55.508Z",
+    "updatedAt": "2026-09-08T11:09:43.537Z",
+    "briefPath": ".omo/ulw-loop/qa2/brief.md",
+    "goalsPath": ".omo/ulw-loop/qa2/goals.json",
+    "ledgerPath": ".omo/ulw-loop/qa2/ledger.jsonl",
+    "codexGoalMode": "aggregate",
+    "goals": [
+      {
+        "id": "G001-one-goal",
+        "title": "one goal",
+        "objective": "one goal",
+        "status": "pending",
+        "successCriteria": [
+          {
+            "id": "C001",
+            "scenario": "happy path for: one goal",
+            "userModel": "happy",
+            "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+            "essential": true,
+            "capturedEvidence": "verified via scratch QA",
+            "status": "pass",
+            "capturedAt": "2026-09-08T11:09:43.446Z"
+          },
+          {
+            "id": "C002",
+            "scenario": "edge case (boundary/empty/malformed)",
+            "userModel": "edge",
+            "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+            "essential": true,
+            "capturedEvidence": "verified via scratch QA",
+            "status": "pass",
+            "capturedAt": "2026-09-08T11:09:43.491Z"
+          },
+          {
+            "id": "C003",
+            "scenario": "regression: adjacent surface still works",
+            "userModel": "regression",
+            "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+            "essential": false,
+            "capturedEvidence": "verified via scratch QA",
+            "status": "pass",
+            "capturedAt": "2026-09-08T11:09:43.537Z"
+          }
+        ],
+        "attempt": 0,
+        "createdAt": "2026-09-08T11:08:55.508Z",
+        "updatedAt": "2026-09-08T11:09:43.537Z"
+      }
+    ],
+    "codexObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa2/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa2/ledger.jsonl as the audit trail."
+  },
+  "goal": {
+    "id": "G001-one-goal",
+    "title": "one goal",
+    "objective": "one goal",
+    "status": "pending",
+    "successCriteria": [
+      {
+        "id": "C001",
+        "scenario": "happy path for: one goal",
+        "userModel": "happy",
+        "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+        "essential": true,
+        "capturedEvidence": "verified via scratch QA",
+        "status": "pass",
+        "capturedAt": "2026-09-08T11:09:43.446Z"
+      },
+      {
+        "id": "C002",
+        "scenario": "edge case (boundary/empty/malformed)",
+        "userModel": "edge",
+        "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+        "essential": true,
+        "capturedEvidence": "verified via scratch QA",
+        "status": "pass",
+        "capturedAt": "2026-09-08T11:09:43.491Z"
+      },
+      {
+        "id": "C003",
+        "scenario": "regression: adjacent surface still works",
+        "userModel": "regression",
+        "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+        "essential": false,
+        "capturedEvidence": "verified via scratch QA",
+        "status": "pass",
+        "capturedAt": "2026-09-08T11:09:43.537Z"
+      }
+    ],
+    "attempt": 0,
+    "createdAt": "2026-09-08T11:08:55.508Z",
+    "updatedAt": "2026-09-08T11:09:43.537Z"
+  },
+  "criterion": {
+    "id": "C003",
+    "scenario": "regression: adjacent surface still works",
+    "userModel": "regression",
+    "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+    "essential": false,
+    "capturedEvidence": "verified via scratch QA",
+    "status": "pass",
+    "capturedAt": "2026-09-08T11:09:43.537Z"
+  },
+  "ledgerEntry": {
+    "at": "2026-09-08T11:09:43.537Z",
+    "kind": "evidence_captured",
+    "goalId": "G001-one-goal",
+    "criterionId": "C003",
+    "criterionStatus": "pass",
+    "evidence": "verified via scratch QA",
+    "capturedEvidence": "verified via scratch QA",
+    "before": {
+      "status": "pending"
+    },
+    "after": {
+      "goalId": "G001-one-goal",
+      "criterionId": "C003",
+      "status": "pass",
+      "evidence": "verified via scratch QA",
+      "capturedAt": "2026-09-08T11:09:43.537Z",
+      "prevStatus": "pending"
+    }
+  },
+  "summary": {
+    "total": 1,
+    "pending": 1,
+    "in_progress": 0,
+    "complete": 0,
+    "failed": 0,
+    "blocked": 0,
+    "review_blocked": 0,
+    "needs_user_decision": 0,
+    "superseded": 0,
+    "criteria": {
+      "total": 3,
+      "pass": 3,
+      "pending": 0,
+      "fail": 0,
+      "blocked": 0
+    }
+  }
+}
+CHECKPOINT qa2
+{
+  "ok": true,
+  "plan": {
+    "version": 1,
+    "evidenceLayoutVersion": 2,
+    "createdAt": "2026-09-08T11:08:55.508Z",
+    "updatedAt": "2026-09-08T11:09:43.656Z",
+    "briefPath": ".omo/ulw-loop/qa2/brief.md",
+    "goalsPath": ".omo/ulw-loop/qa2/goals.json",
+    "ledgerPath": ".omo/ulw-loop/qa2/ledger.jsonl",
+    "codexGoalMode": "aggregate",
+    "goals": [
+      {
+        "id": "G001-one-goal",
+        "title": "one goal",
+        "objective": "one goal",
+        "status": "complete",
+        "successCriteria": [
+          {
+            "id": "C001",
+            "scenario": "happy path for: one goal",
+            "userModel": "happy",
+            "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+            "essential": true,
+            "capturedEvidence": "verified via scratch QA",
+            "status": "pass",
+            "capturedAt": "2026-09-08T11:09:43.446Z"
+          },
+          {
+            "id": "C002",
+            "scenario": "edge case (boundary/empty/malformed)",
+            "userModel": "edge",
+            "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+            "essential": true,
+            "capturedEvidence": "verified via scratch QA",
+            "status": "pass",
+            "capturedAt": "2026-09-08T11:09:43.491Z"
+          },
+          {
+            "id": "C003",
+            "scenario": "regression: adjacent surface still works",
+            "userModel": "regression",
+            "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+            "essential": false,
+            "capturedEvidence": "verified via scratch QA",
+            "status": "pass",
+            "capturedAt": "2026-09-08T11:09:43.537Z"
+          }
+        ],
+        "attempt": 0,
+        "createdAt": "2026-09-08T11:08:55.508Z",
+        "updatedAt": "2026-09-08T11:09:43.656Z",
+        "completedAt": "2026-09-08T11:09:43.656Z",
+        "evidence": "all criteria pass; gate evidence under .omo/evidence/ulw/qa2/G001-one-goal/a0"
+      }
+    ],
+    "codexObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa2/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa2/ledger.jsonl as the audit trail.",
+    "aggregateCompletion": {
+      "status": "complete",
+      "completedAt": "2026-09-08T11:09:43.656Z",
+      "evidence": "all criteria pass; gate evidence under .omo/evidence/ulw/qa2/G001-one-goal/a0",
+      "codexGoal": {
+        "goal": {
+          "objective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa2/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa2/ledger.jsonl as the audit trail.",
+          "status": "complete"
+        }
+      }
+    }
+  },
+  "goal": {
+    "id": "G001-one-goal",
+    "title": "one goal",
+    "objective": "one goal",
+    "status": "complete",
+    "successCriteria": [
+      {
+        "id": "C001",
+        "scenario": "happy path for: one goal",
+        "userModel": "happy",
+        "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+        "essential": true,
+        "capturedEvidence": "verified via scratch QA",
+        "status": "pass",
+        "capturedAt": "2026-09-08T11:09:43.446Z"
+      },
+      {
+        "id": "C002",
+        "scenario": "edge case (boundary/empty/malformed)",
+        "userModel": "edge",
+        "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+        "essential": true,
+        "capturedEvidence": "verified via scratch QA",
+        "status": "pass",
+        "capturedAt": "2026-09-08T11:09:43.491Z"
+      },
+      {
+        "id": "C003",
+        "scenario": "regression: adjacent surface still works",
+        "userModel": "regression",
+        "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+        "essential": false,
+        "capturedEvidence": "verified via scratch QA",
+        "status": "pass",
+        "capturedAt": "2026-09-08T11:09:43.537Z"
+      }
+    ],
+    "attempt": 0,
+    "createdAt": "2026-09-08T11:08:55.508Z",
+    "updatedAt": "2026-09-08T11:09:43.656Z",
+    "completedAt": "2026-09-08T11:09:43.656Z",
+    "evidence": "all criteria pass; gate evidence under .omo/evidence/ulw/qa2/G001-one-goal/a0"
+  },
+  "ledgerEntry": {
+    "at": "2026-09-08T11:09:43.656Z",
+    "kind": "aggregate_completed",
+    "goalId": "G001-one-goal",
+    "status": "complete",
+    "evidence": "all criteria pass; gate evidence under .omo/evidence/ulw/qa2/G001-one-goal/a0",
+    "codexGoal": {
+      "goal": {
+        "objective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa2/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa2/ledger.jsonl as the audit trail.",
+        "status": "complete"
+      }
+    },
+    "qualityGate": {
+      "surface": "lazycodex",
+      "manualQa": {
+        "by": "main-session",
+        "status": "passed",
+        "evidence": "QA",
+        "surfaceEvidence": [
+          {
+            "id": "cli",
+            "criterionRef": "C001",
+            "surface": "cli",
+            "invocation": "QA",
+            "verdict": "passed",
+            "artifactRefs": [
+              "qa"
+            ]
+          }
+        ],
+        "adversarialCases": [
+          {
+            "id": "edge",
+            "criterionRef": "C002",
+            "scenario": "invalid",
+            "expectedBehavior": "reject",
+            "verdict": "not_applicable",
+            "reason": "covered",
+            "artifactRefs": [
+              "qa"
+            ]
+          }
+        ],
+        "artifactRefs": [
+          {
+            "id": "qa",
+            "kind": "cli-transcript",
+            "description": "QA",
+            "path": ".omo/evidence/ulw/qa2/G001-one-goal/a0/C001.txt"
+          }
+        ]
+      },
+      "gateReview": {
+        "by": "category:unspecified-high",
+        "recommendation": "APPROVE",
+        "reportPath": ".omo/evidence/ulw/qa2/G001-one-goal/a0/gate.md",
+        "evidence": "approved",
+        "blockers": []
+      },
+      "iteration": {
+        "fullRerun": true,
+        "status": "passed",
+        "rerunCommands": [
+          "build"
+        ],
+        "evidence": "passed"
+      },
+      "criteriaCoverage": {
+        "totalCriteria": 3,
+        "passCount": 3,
+        "originalIntent": "one goal",
+        "desiredOutcome": "works",
+        "userOutcomeReview": "works",
+        "adversarialClassesCovered": [
+          "invalid"
+        ]
+      }
+    }
+  },
+  "aggregateCompletion": {
+    "status": "complete",
+    "completedAt": "2026-09-08T11:09:43.656Z",
+    "evidence": "all criteria pass; gate evidence under .omo/evidence/ulw/qa2/G001-one-goal/a0",
+    "codexGoal": {
+      "goal": {
+        "objective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa2/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa2/ledger.jsonl as the audit trail.",
+        "status": "complete"
+      }
+    }
+  },
+  "summary": {
+    "total": 1,
+    "pending": 0,
+    "in_progress": 0,
+    "complete": 1,
+    "failed": 0,
+    "blocked": 0,
+    "review_blocked": 0,
+    "needs_user_decision": 0,
+    "superseded": 0,
+    "criteria": {
+      "total": 3,
+      "pass": 3,
+      "pending": 0,
+      "fail": 0,
+      "blocked": 0
+    }
+  }
+}
+{
+  "ok": true,
+  "plan": {
+    "version": 1,
+    "evidenceLayoutVersion": 2,
+    "createdAt": "2026-09-08T11:08:55.850Z",
+    "updatedAt": "2026-09-08T11:09:43.709Z",
+    "briefPath": ".omo/ulw-loop/qa3/brief.md",
+    "goalsPath": ".omo/ulw-loop/qa3/goals.json",
+    "ledgerPath": ".omo/ulw-loop/qa3/ledger.jsonl",
+    "codexGoalMode": "aggregate",
+    "goals": [
+      {
+        "id": "G001-one-goal",
+        "title": "one goal",
+        "objective": "one goal",
+        "status": "pending",
+        "successCriteria": [
+          {
+            "id": "C001",
+            "scenario": "happy path for: one goal",
+            "userModel": "happy",
+            "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+            "essential": true,
+            "capturedEvidence": "verified via scratch QA",
+            "status": "pass",
+            "capturedAt": "2026-09-08T11:09:43.709Z"
+          },
+          {
+            "id": "C002",
+            "scenario": "edge case (boundary/empty/malformed)",
+            "userModel": "edge",
+            "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+            "essential": true,
+            "capturedEvidence": null,
+            "status": "pending"
+          },
+          {
+            "id": "C003",
+            "scenario": "regression: adjacent surface still works",
+            "userModel": "regression",
+            "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+            "essential": false,
+            "capturedEvidence": null,
+            "status": "pending"
+          }
+        ],
+        "attempt": 0,
+        "createdAt": "2026-09-08T11:08:55.850Z",
+        "updatedAt": "2026-09-08T11:09:43.709Z"
+      }
+    ],
+    "codexObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa3/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa3/ledger.jsonl as the audit trail."
+  },
+  "goal": {
+    "id": "G001-one-goal",
+    "title": "one goal",
+    "objective": "one goal",
+    "status": "pending",
+    "successCriteria": [
+      {
+        "id": "C001",
+        "scenario": "happy path for: one goal",
+        "userModel": "happy",
+        "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+        "essential": true,
+        "capturedEvidence": "verified via scratch QA",
+        "status": "pass",
+        "capturedAt": "2026-09-08T11:09:43.709Z"
+      },
+      {
+        "id": "C002",
+        "scenario": "edge case (boundary/empty/malformed)",
+        "userModel": "edge",
+        "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+        "essential": true,
+        "capturedEvidence": null,
+        "status": "pending"
+      },
+      {
+        "id": "C003",
+        "scenario": "regression: adjacent surface still works",
+        "userModel": "regression",
+        "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+        "essential": false,
+        "capturedEvidence": null,
+        "status": "pending"
+      }
+    ],
+    "attempt": 0,
+    "createdAt": "2026-09-08T11:08:55.850Z",
+    "updatedAt": "2026-09-08T11:09:43.709Z"
+  },
+  "criterion": {
+    "id": "C001",
+    "scenario": "happy path for: one goal",
+    "userModel": "happy",
+    "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+    "essential": true,
+    "capturedEvidence": "verified via scratch QA",
+    "status": "pass",
+    "capturedAt": "2026-09-08T11:09:43.709Z"
+  },
+  "ledgerEntry": {
+    "at": "2026-09-08T11:09:43.709Z",
+    "kind": "evidence_captured",
+    "goalId": "G001-one-goal",
+    "criterionId": "C001",
+    "criterionStatus": "pass",
+    "evidence": "verified via scratch QA",
+    "capturedEvidence": "verified via scratch QA",
+    "before": {
+      "status": "pending"
+    },
+    "after": {
+      "goalId": "G001-one-goal",
+      "criterionId": "C001",
+      "status": "pass",
+      "evidence": "verified via scratch QA",
+      "capturedAt": "2026-09-08T11:09:43.709Z",
+      "prevStatus": "pending"
+    }
+  },
+  "summary": {
+    "total": 1,
+    "pending": 1,
+    "in_progress": 0,
+    "complete": 0,
+    "failed": 0,
+    "blocked": 0,
+    "review_blocked": 0,
+    "needs_user_decision": 0,
+    "superseded": 0,
+    "criteria": {
+      "total": 3,
+      "pass": 1,
+      "pending": 2,
+      "fail": 0,
+      "blocked": 0
+    }
+  }
+}
+{
+  "ok": true,
+  "plan": {
+    "version": 1,
+    "evidenceLayoutVersion": 2,
+    "createdAt": "2026-09-08T11:08:55.850Z",
+    "updatedAt": "2026-09-08T11:09:43.753Z",
+    "briefPath": ".omo/ulw-loop/qa3/brief.md",
+    "goalsPath": ".omo/ulw-loop/qa3/goals.json",
+    "ledgerPath": ".omo/ulw-loop/qa3/ledger.jsonl",
+    "codexGoalMode": "aggregate",
+    "goals": [
+      {
+        "id": "G001-one-goal",
+        "title": "one goal",
+        "objective": "one goal",
+        "status": "pending",
+        "successCriteria": [
+          {
+            "id": "C001",
+            "scenario": "happy path for: one goal",
+            "userModel": "happy",
+            "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+            "essential": true,
+            "capturedEvidence": "verified via scratch QA",
+            "status": "pass",
+            "capturedAt": "2026-09-08T11:09:43.709Z"
+          },
+          {
+            "id": "C002",
+            "scenario": "edge case (boundary/empty/malformed)",
+            "userModel": "edge",
+            "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+            "essential": true,
+            "capturedEvidence": "verified via scratch QA",
+            "status": "pass",
+            "capturedAt": "2026-09-08T11:09:43.753Z"
+          },
+          {
+            "id": "C003",
+            "scenario": "regression: adjacent surface still works",
+            "userModel": "regression",
+            "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+            "essential": false,
+            "capturedEvidence": null,
+            "status": "pending"
+          }
+        ],
+        "attempt": 0,
+        "createdAt": "2026-09-08T11:08:55.850Z",
+        "updatedAt": "2026-09-08T11:09:43.753Z"
+      }
+    ],
+    "codexObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa3/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa3/ledger.jsonl as the audit trail."
+  },
+  "goal": {
+    "id": "G001-one-goal",
+    "title": "one goal",
+    "objective": "one goal",
+    "status": "pending",
+    "successCriteria": [
+      {
+        "id": "C001",
+        "scenario": "happy path for: one goal",
+        "userModel": "happy",
+        "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+        "essential": true,
+        "capturedEvidence": "verified via scratch QA",
+        "status": "pass",
+        "capturedAt": "2026-09-08T11:09:43.709Z"
+      },
+      {
+        "id": "C002",
+        "scenario": "edge case (boundary/empty/malformed)",
+        "userModel": "edge",
+        "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+        "essential": true,
+        "capturedEvidence": "verified via scratch QA",
+        "status": "pass",
+        "capturedAt": "2026-09-08T11:09:43.753Z"
+      },
+      {
+        "id": "C003",
+        "scenario": "regression: adjacent surface still works",
+        "userModel": "regression",
+        "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+        "essential": false,
+        "capturedEvidence": null,
+        "status": "pending"
+      }
+    ],
+    "attempt": 0,
+    "createdAt": "2026-09-08T11:08:55.850Z",
+    "updatedAt": "2026-09-08T11:09:43.753Z"
+  },
+  "criterion": {
+    "id": "C002",
+    "scenario": "edge case (boundary/empty/malformed)",
+    "userModel": "edge",
+    "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+    "essential": true,
+    "capturedEvidence": "verified via scratch QA",
+    "status": "pass",
+    "capturedAt": "2026-09-08T11:09:43.753Z"
+  },
+  "ledgerEntry": {
+    "at": "2026-09-08T11:09:43.753Z",
+    "kind": "evidence_captured",
+    "goalId": "G001-one-goal",
+    "criterionId": "C002",
+    "criterionStatus": "pass",
+    "evidence": "verified via scratch QA",
+    "capturedEvidence": "verified via scratch QA",
+    "before": {
+      "status": "pending"
+    },
+    "after": {
+      "goalId": "G001-one-goal",
+      "criterionId": "C002",
+      "status": "pass",
+      "evidence": "verified via scratch QA",
+      "capturedAt": "2026-09-08T11:09:43.753Z",
+      "prevStatus": "pending"
+    }
+  },
+  "summary": {
+    "total": 1,
+    "pending": 1,
+    "in_progress": 0,
+    "complete": 0,
+    "failed": 0,
+    "blocked": 0,
+    "review_blocked": 0,
+    "needs_user_decision": 0,
+    "superseded": 0,
+    "criteria": {
+      "total": 3,
+      "pass": 2,
+      "pending": 1,
+      "fail": 0,
+      "blocked": 0
+    }
+  }
+}
+{
+  "ok": true,
+  "plan": {
+    "version": 1,
+    "evidenceLayoutVersion": 2,
+    "createdAt": "2026-09-08T11:08:55.850Z",
+    "updatedAt": "2026-09-08T11:09:43.800Z",
+    "briefPath": ".omo/ulw-loop/qa3/brief.md",
+    "goalsPath": ".omo/ulw-loop/qa3/goals.json",
+    "ledgerPath": ".omo/ulw-loop/qa3/ledger.jsonl",
+    "codexGoalMode": "aggregate",
+    "goals": [
+      {
+        "id": "G001-one-goal",
+        "title": "one goal",
+        "objective": "one goal",
+        "status": "pending",
+        "successCriteria": [
+          {
+            "id": "C001",
+            "scenario": "happy path for: one goal",
+            "userModel": "happy",
+            "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+            "essential": true,
+            "capturedEvidence": "verified via scratch QA",
+            "status": "pass",
+            "capturedAt": "2026-09-08T11:09:43.709Z"
+          },
+          {
+            "id": "C002",
+            "scenario": "edge case (boundary/empty/malformed)",
+            "userModel": "edge",
+            "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+            "essential": true,
+            "capturedEvidence": "verified via scratch QA",
+            "status": "pass",
+            "capturedAt": "2026-09-08T11:09:43.753Z"
+          },
+          {
+            "id": "C003",
+            "scenario": "regression: adjacent surface still works",
+            "userModel": "regression",
+            "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+            "essential": false,
+            "capturedEvidence": "verified via scratch QA",
+            "status": "pass",
+            "capturedAt": "2026-09-08T11:09:43.800Z"
+          }
+        ],
+        "attempt": 0,
+        "createdAt": "2026-09-08T11:08:55.850Z",
+        "updatedAt": "2026-09-08T11:09:43.800Z"
+      }
+    ],
+    "codexObjective": "Complete the durable ulw-loop plan in .omo/ulw-loop/qa3/goals.json, including later accepted/appended stories, under the original brief constraints; use .omo/ulw-loop/qa3/ledger.jsonl as the audit trail."
+  },
+  "goal": {
+    "id": "G001-one-goal",
+    "title": "one goal",
+    "objective": "one goal",
+    "status": "pending",
+    "successCriteria": [
+      {
+        "id": "C001",
+        "scenario": "happy path for: one goal",
+        "userModel": "happy",
+        "expectedEvidence": "Replace via revise_criterion with observable happy-path proof for goal 1.",
+        "essential": true,
+        "capturedEvidence": "verified via scratch QA",
+        "status": "pass",
+        "capturedAt": "2026-09-08T11:09:43.709Z"
+      },
+      {
+        "id": "C002",
+        "scenario": "edge case (boundary/empty/malformed)",
+        "userModel": "edge",
+        "expectedEvidence": "Replace via revise_criterion with boundary or malformed-input proof for: one goal.",
+        "essential": true,
+        "capturedEvidence": "verified via scratch QA",
+        "status": "pass",
+        "capturedAt": "2026-09-08T11:09:43.753Z"
+      },
+      {
+        "id": "C003",
+        "scenario": "regression: adjacent surface still works",
+        "userModel": "regression",
+        "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+        "essential": false,
+        "capturedEvidence": "verified via scratch QA",
+        "status": "pass",
+        "capturedAt": "2026-09-08T11:09:43.800Z"
+      }
+    ],
+    "attempt": 0,
+    "createdAt": "2026-09-08T11:08:55.850Z",
+    "updatedAt": "2026-09-08T11:09:43.800Z"
+  },
+  "criterion": {
+    "id": "C003",
+    "scenario": "regression: adjacent surface still works",
+    "userModel": "regression",
+    "expectedEvidence": "Replace via revise_criterion with regression proof for neighboring behavior after: one goal.",
+    "essential": false,
+    "capturedEvidence": "verified via scratch QA",
+    "status": "pass",
+    "capturedAt": "2026-09-08T11:09:43.800Z"
+  },
+  "ledgerEntry": {
+    "at": "2026-09-08T11:09:43.800Z",
+    "kind": "evidence_captured",
+    "goalId": "G001-one-goal",
+    "criterionId": "C003",
+    "criterionStatus": "pass",
+    "evidence": "verified via scratch QA",
+    "capturedEvidence": "verified via scratch QA",
+    "before": {
+      "status": "pending"
+    },
+    "after": {
+      "goalId": "G001-one-goal",
+      "criterionId": "C003",
+      "status": "pass",
+      "evidence": "verified via scratch QA",
+      "capturedAt": "2026-09-08T11:09:43.800Z",
+      "prevStatus": "pending"
+    }
+  },
+  "summary": {
+    "total": 1,
+    "pending": 1,
+    "in_progress": 0,
+    "complete": 0,
+    "failed": 0,
+    "blocked": 0,
+    "review_blocked": 0,
+    "needs_user_decision": 0,
+    "superseded": 0,
+    "criteria": {
+      "total": 3,
+      "pass": 3,
+      "pending": 0,
+      "fail": 0,
+      "blocked": 0
+    }
+  }
+}
+CHECKPOINT qa3
+{
+  "ok": false,
+  "error": {
+    "code": "ULW_LOOP_QUALITY_GATE_INVALID",
+    "message": "Final quality gate has 1 validation defects:\n- gateReview.by: gateReview.by must be one of lazycodex-gate-reviewer, category:deep, category:unspecified-high, category:unspecified-low, main-session.",
+    "details": {
+      "field": "gateReview.by",
+      "fields": [
+        {
+          "field": "gateReview.by",
+          "message": "gateReview.by must be one of lazycodex-gate-reviewer, category:deep, category:unspecified-high, category:unspecified-low, main-session."
+        }
+      ]
+    }
+  }
+}
+
+Expanded command index for the captured fresh-session runs (cwd: /Volumes/mengmotaStorage/local-workspaces/omo-wt/lcx-gate-softening):
+node packages/omo-codex/plugin/components/ulw-loop/dist/cli.js create-goals --session-id qa2 --brief "one goal" --json
+node packages/omo-codex/plugin/components/ulw-loop/dist/cli.js status --json --session-id qa2
+printf verified > .omo/evidence/ulw/qa2/G001-one-goal/a0/C001.txt
+node packages/omo-codex/plugin/components/ulw-loop/dist/cli.js ulw-loop record-evidence --goal-id G001-one-goal --criterion-id C001 --status pass --evidence "verified via scratch QA" --json --session-id qa2
+printf verified > .omo/evidence/ulw/qa2/G001-one-goal/a0/C002.txt
+node packages/omo-codex/plugin/components/ulw-loop/dist/cli.js ulw-loop record-evidence --goal-id G001-one-goal --criterion-id C002 --status pass --evidence "verified via scratch QA" --json --session-id qa2
+printf verified > .omo/evidence/ulw/qa2/G001-one-goal/a0/C003.txt
+node packages/omo-codex/plugin/components/ulw-loop/dist/cli.js ulw-loop record-evidence --goal-id G001-one-goal --criterion-id C003 --status pass --evidence "verified via scratch QA" --json --session-id qa2
+node packages/omo-codex/plugin/components/ulw-loop/dist/cli.js ulw-loop checkpoint --goal-id G001-one-goal --status complete --evidence "all criteria pass; gate evidence under .omo/evidence/ulw/qa2/G001-one-goal/a0" --quality-gate-json /tmp/run.json --codex-goal-json /tmp/g-qa2.json --json --session-id qa2
+Checkpoint input for qa2:
+{
+  "qualityGate": {
+    "manualQa": {
+      "by": "main-session",
+      "status": "passed",
+      "evidence": "QA",
+      "surfaceEvidence": [
+        {
+          "id": "cli",
+          "criterionRef": "C001",
+          "surface": "cli",
+          "invocation": "QA",
+          "verdict": "passed",
+          "artifactRefs": [
+            "qa"
+          ]
+        }
+      ],
+      "adversarialCases": [
+        {
+          "id": "edge",
+          "criterionRef": "C002",
+          "scenario": "invalid",
+          "expectedBehavior": "reject",
+          "verdict": "not_applicable",
+          "reason": "covered",
+          "artifactRefs": [
+            "qa"
+          ]
+        }
+      ],
+      "artifactRefs": [
+        {
+          "id": "qa",
+          "kind": "cli-transcript",
+          "description": "QA",
+          "path": ".omo/evidence/ulw/qa2/G001-one-goal/a0/C001.txt"
+        }
+      ]
+    },
+    "gateReview": {
+      "by": "category:unspecified-high",
+      "recommendation": "APPROVE",
+      "reportPath": ".omo/evidence/ulw/qa2/G001-one-goal/a0/gate.md",
+      "evidence": "approved",
+      "blockers": [],
+      "notes": []
+    },
+    "iteration": {
+      "fullRerun": true,
+      "status": "passed",
+      "rerunCommands": [
+        "build"
+      ],
+      "evidence": "passed"
+    },
+    "criteriaCoverage": {
+      "totalCriteria": 3,
+      "passCount": 3,
+      "originalIntent": "one goal",
+      "desiredOutcome": "works",
+      "userOutcomeReview": "works",
+      "adversarialClassesCovered": [
+        "invalid"
+      ]
+    }
+  }
+}
+node packages/omo-codex/plugin/components/ulw-loop/dist/cli.js create-goals --session-id qa3 --brief "one goal" --json
+node packages/omo-codex/plugin/components/ulw-loop/dist/cli.js status --json --session-id qa3
+printf verified > .omo/evidence/ulw/qa3/G001-one-goal/a0/C001.txt
+node packages/omo-codex/plugin/components/ulw-loop/dist/cli.js ulw-loop record-evidence --goal-id G001-one-goal --criterion-id C001 --status pass --evidence "verified via scratch QA" --json --session-id qa3
+printf verified > .omo/evidence/ulw/qa3/G001-one-goal/a0/C002.txt
+node packages/omo-codex/plugin/components/ulw-loop/dist/cli.js ulw-loop record-evidence --goal-id G001-one-goal --criterion-id C002 --status pass --evidence "verified via scratch QA" --json --session-id qa3
+printf verified > .omo/evidence/ulw/qa3/G001-one-goal/a0/C003.txt
+node packages/omo-codex/plugin/components/ulw-loop/dist/cli.js ulw-loop record-evidence --goal-id G001-one-goal --criterion-id C003 --status pass --evidence "verified via scratch QA" --json --session-id qa3
+node packages/omo-codex/plugin/components/ulw-loop/dist/cli.js ulw-loop checkpoint --goal-id G001-one-goal --status complete --evidence "all criteria pass; gate evidence under .omo/evidence/ulw/qa3/G001-one-goal/a0" --quality-gate-json /tmp/run.json --codex-goal-json /tmp/g-qa3.json --json --session-id qa3
+Checkpoint input for qa3:
+{
+  "manualQa": {
+    "by": "main-session",
+    "status": "passed",
+    "evidence": "QA",
+    "surfaceEvidence": [
+      {
+        "id": "cli",
+        "criterionRef": "C001",
+        "surface": "cli",
+        "invocation": "QA",
+        "verdict": "passed",
+        "artifactRefs": [
+          "qa"
+        ]
+      }
+    ],
+    "adversarialCases": [
+      {
+        "id": "edge",
+        "criterionRef": "C002",
+        "scenario": "invalid",
+        "expectedBehavior": "reject",
+        "verdict": "not_applicable",
+        "reason": "covered",
+        "artifactRefs": [
+          "qa"
+        ]
+      }
+    ],
+    "artifactRefs": [
+      {
+        "id": "qa",
+        "kind": "cli-transcript",
+        "description": "QA",
+        "path": ".omo/evidence/ulw/qa3/G001-one-goal/a0/C001.txt"
+      }
+    ]
+  },
+  "gateReview": {
+    "by": "nobody",
+    "recommendation": "APPROVE",
+    "reportPath": ".omo/evidence/ulw/qa3/G001-one-goal/a0/gate.md",
+    "evidence": "approved",
+    "blockers": [],
+    "notes": []
+  },
+  "iteration": {
+    "fullRerun": true,
+    "status": "passed",
+    "rerunCommands": [
+      "build"
+    ],
+    "evidence": "passed"
+  },
+  "criteriaCoverage": {
+    "totalCriteria": 3,
+    "passCount": 3,
+    "originalIntent": "one goal",
+    "desiredOutcome": "works",
+    "userOutcomeReview": "works",
+    "adversarialClassesCovered": [
+      "invalid"
+    ]
+  }
+}
+Procedural retry note: first goal extraction incorrectly used status.goal instead of status.plan.goals[0]. The corrected runs used G001-one-goal. Payload generation for qa2 wrote the wrapped input successfully, then raised KeyError: gateReview when subsequently accessing the wrapper as a bare gate; the already-written wrapped payload was what the successful qa2 checkpoint consumed. qa3 used the bare gate with by=nobody.

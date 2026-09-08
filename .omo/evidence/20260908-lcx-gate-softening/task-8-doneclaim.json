@@ -1,0 +1,45 @@
+{
+  "task": "8 lazycodex gate softening",
+  "changed_files": [
+    "packages/omo-codex/plugin/components/ulw-loop/src/surface.ts",
+    "packages/omo-codex/plugin/components/ulw-loop/src/quality-gate.ts",
+    "packages/omo-codex/plugin/components/ulw-loop/src/domain-types.ts",
+    "packages/omo-codex/plugin/components/ulw-loop/src/checkpoint.ts",
+    "packages/omo-codex/plugin/components/ulw-loop/src/checkpoint-template.ts",
+    "packages/omo-codex/plugin/components/ulw-loop/src/codex-goal-instruction.ts",
+    "packages/omo-codex/plugin/components/ulw-loop/test/quality-gate-lazycodex-surface.test.ts",
+    "packages/omo-codex/plugin/components/ulw-loop/test/quality-gate-roles.test.ts",
+    "packages/omo-codex/plugin/components/ulw-loop/README.md",
+    "packages/omo-codex/plugin/components/ulw-loop/skills/ulw-loop/references/full-workflow.md"
+  ],
+  "red_proof": ".omo/evidence/20260908-lcx-gate-softening/task-8-red-green.log",
+  "tests": {
+    "tsgo": "exit 0",
+    "build": "exit 0",
+    "focused_remote": "7 files, 43 passed, 0 failed, TEST_EXIT=0"
+  },
+  "manual_qa": {
+    "criteria": "C001,C002,C003 all status pass",
+    "bare_checkpoint": "ok:true",
+    "wrapped_checkpoint": "ok:true (fresh session qa2)",
+    "invalid_acceptor": "ok:false; ULW_LOOP_QUALITY_GATE_INVALID (fresh session qa3). gateReview.by must be one of lazycodex-gate-reviewer, category:deep, category:unspecified-high, category:unspecified-low, main-session.",
+    "artifact_dir": ".omo/evidence/ulw/{qa,qa2,qa3}/G001-one-goal/a0",
+    "transcript": ".omo/evidence/20260908-lcx-gate-softening/task-8-gate.log"
+  },
+  "acceptance": {
+    "1": "pass",
+    "2": "pass",
+    "3": "pass",
+    "4": "pass",
+    "5": "pass (senpi suite)",
+    "6": "pass",
+    "7": "pass",
+    "8": "pass"
+  },
+  "cleanup_receipts": [
+    "/tmp/lcx-t8-fix-20260908 removed"
+  ],
+  "risks": [
+    "Whole-component suite deferred to gate-b."
+  ]
+}
