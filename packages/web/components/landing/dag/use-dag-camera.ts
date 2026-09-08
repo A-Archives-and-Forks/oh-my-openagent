@@ -5,7 +5,9 @@ import { useCallback, useEffect, useRef, useState, type PointerEvent, type RefOb
 import { COLUMN_GAP, NODE_HEIGHT, NODE_WIDTH, type DagLayout } from "./layout"
 import { isClickGesture } from "./motion"
 
-const MIN_SCALE = 0.5
+// Cards must stay legible (mono 10px+ at 0.78); below this the graph pans and follows the
+// live wave instead of shrinking, exactly as the desktop panel does when it is narrow.
+const MIN_SCALE = 0.78
 const MAX_SCALE = 1
 const FIT_PADDING = 16
 

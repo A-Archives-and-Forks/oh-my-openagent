@@ -89,6 +89,8 @@ export async function HeroSection(): Promise<JSX.Element> {
           <div className="reveal lg:col-span-6">
             <div className="overflow-hidden lg:overflow-visible">
               <MassUlwGraph
+                variant="panel"
+                testId="hero-dag"
                 regionLabel={t("dag.region")}
                 frame={{
                   windowTitle: t("dag.windowTitle"),

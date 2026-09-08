@@ -145,7 +145,7 @@ export function DagGraphView({
     <div
       ref={viewportRef}
       data-dag-viewport
-      className="relative h-full w-full cursor-grab touch-pan-y overflow-x-auto overflow-y-hidden select-none active:cursor-grabbing"
+      className="relative h-full w-full cursor-grab touch-pan-y overflow-x-auto overflow-y-auto select-none active:cursor-grabbing"
       onPointerDown={camera.onPointerDown}
       onPointerMove={camera.onPointerMove}
       onPointerUp={camera.onPointerUp}

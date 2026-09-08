@@ -7,7 +7,7 @@
 /*
  * Phosphor Ledger — design tokens (DESIGN.md §2–§7).
  * This file and lib/og/palette.ts are the only places a raw color may appear.
- * app/globals.css is a symlink to this file.
+ * app/globals.css imports this file.
  */
 @theme {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;

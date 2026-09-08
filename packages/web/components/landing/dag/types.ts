@@ -3,7 +3,7 @@ export type DagState = "pending" | "running" | "blocked" | "completed" | "failed
 export interface DagNodeSpec {
   readonly id: string
   readonly label: string
-  /** Agent or category that owns the node (Prometheus, deep, writing …). */
+  /** Role or category that owns the node (planning, deep, writing …). */
   readonly category: string
   /** Model the node runs on; the scenario spreads these on purpose. */
   readonly model: string
