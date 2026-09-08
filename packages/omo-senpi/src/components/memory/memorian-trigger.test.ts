@@ -1,6 +1,13 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
+import { rm } from "node:fs/promises"
 
-import { buildIdentityPaths } from "@oh-my-opencode/memory-core"
+import { buildIdentityPaths, PendingNudges, RecallLedger } from "@oh-my-opencode/memory-core"
+import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
+import { createMemorianDelivery } from "./memorian-delivery"
+import { registerMemorianHooks } from "./memorian-hooks"
+import { memorySettings } from "./memory.test-support"
+import { createMemoryRecallWiring } from "./recall-wiring"
+import { beforeAgentStart, eventContext, fixture, KUBERNETES_PROMPT, ROLLOUTS_PATH, SESSION_ID, userEntry, type BranchEntry } from "./recall-wiring.test-support"
 import { tryAcquireJudgeSlot } from "./memorian-concurrency"
 import { ToolArgWindow } from "./recall-query-planner-tools"
 import { createMemorianTrigger } from "./memorian-trigger"
@@ -128,6 +135,90 @@ test("#given all judge slots are held #when triggered #then it logs judge_cap wi
   trigger.onSettled({}); await trigger.whenIdle(); first?.(); second?.()
   expect(launches).toBe(0)
   expect(logs).toContainEqual({ message: "memorian trigger skipped", details: { sessionId: "session-1", reason: "judge_cap" } })
+})
+
+const promptDirs: string[] = []
+afterEach(async () => {
+  await Promise.all(promptDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
+})
+
+async function promptFixture(entries: readonly BranchEntry[]) {
+  const f = await fixture(promptDirs)
+  const pi = new FakeExtensionAPI()
+  const eventCtx = eventContext(entries)
+  const launches: Parameters<MemorianGatePort["launch"]>[0][] = []
+  const queries: (readonly string[])[] = []
+  const collections: CollectedRecallCandidates[] = []
+  const recall = createMemoryRecallWiring({
+    resolveContext: () => f.context, resolveSettings: memorySettings, createRepo: () => f.repo, env: {},
+  })
+  const argWindow = new ToolArgWindow()
+  argWindow.push(SESSION_ID, ["unrelated tool arguments"])
+  const delivery = createMemorianDelivery({
+    ledgerFor: () => new RecallLedger(f.context.identityPaths.recallLedger),
+    pendingFor: () => new PendingNudges(f.context.identityPaths.recallPending),
+    sendMessage: (message, options) => pi.sendMessage(message, options), appendEntry: () => {},
+  })
+  const trigger = createMemorianTrigger({
+    snapshotSession: recall.snapshotSession, resolveModelRegistry: () => undefined,
+    collectCandidatesFromSnapshot: async (snapshot, extra = []) => {
+      queries.push(extra)
+      const result = await recall.collectCandidatesFromSnapshot(snapshot, extra)
+      if (result !== undefined) collections.push(result)
+      return result
+    },
+    runnerFor: () => ({ launch: async (input) => { launches.push(input); return { status: "empty" } } }),
+    resolveContext: () => f.context, onAccepted: delivery.accept, report: () => {},
+    currentCompactionEpoch: () => 0, argWindow,
+  })
+  registerMemorianHooks(pi, {
+    trigger, delivery, resolveContext: () => f.context, resolveSessionId: () => SESSION_ID, ...{ env: {} },
+  })
+  return { pi, eventCtx, trigger, launches, queries, collections }
+}
+
+describe("memorian prompt events", () => {
+  test.each([
+    { branch: "existing", entries: [userEntry("m1", "kubernetes nodes rollout")] },
+    { branch: "empty", entries: [] },
+  ])("#given an $branch branch without the live prompt #when before_agent_start dispatches #then the prompt collects and reaches the judge", async ({ entries }) => {
+    // given
+    const f = await promptFixture(entries)
+    // when
+    await f.pi.dispatch("before_agent_start", beforeAgentStart(KUBERNETES_PROMPT), f.eventCtx)
+    await f.trigger.whenIdle()
+    // then
+    expect(f.queries).toEqual([[KUBERNETES_PROMPT]])
+    expect(f.launches).toHaveLength(1)
+    expect(f.launches[0]?.candidates.map((candidate) => candidate.path)).toContain(ROLLOUTS_PATH)
+    expect(f.launches[0]?.transcript.at(-1)).toEqual({ role: "user", text: KUBERNETES_PROMPT })
+    expect(f.launches[0]?.deadlineMs).toBeUndefined()
+    expect(f.collections[0]?.transcript.some((turn) => turn.text === KUBERNETES_PROMPT)).toBe(false)
+  })
+
+  test("#given the live prompt already in the branch #when before_agent_start dispatches #then the judge receives no duplicate user turn", async () => {
+    // given
+    const f = await promptFixture([userEntry("m1", KUBERNETES_PROMPT)])
+    // when
+    await f.pi.dispatch("before_agent_start", beforeAgentStart(KUBERNETES_PROMPT), f.eventCtx)
+    await f.trigger.whenIdle()
+    // then
+    expect(f.launches).toHaveLength(1)
+    expect(f.launches[0]?.transcript).toEqual([{ role: "user", text: KUBERNETES_PROMPT }])
+  })
+
+  test("#given unchanged branch candidates #when the prompt turn settles #then only the prompt-origin transcript launches", async () => {
+    // given
+    const f = await promptFixture([userEntry("m1", "kubernetes nodes rollout")])
+    // when
+    await f.pi.dispatch("before_agent_start", beforeAgentStart(KUBERNETES_PROMPT), f.eventCtx)
+    await f.trigger.whenIdle()
+    await f.pi.dispatch("agent_settled", {}, f.eventCtx)
+    await f.trigger.whenIdle()
+    // then
+    expect(f.launches).toHaveLength(1)
+    expect(f.launches[0]?.transcript.at(-1)).toEqual({ role: "user", text: KUBERNETES_PROMPT })
+  })
 })
 
 describe("memorian trigger contract", () => {

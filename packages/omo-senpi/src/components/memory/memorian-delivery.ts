@@ -24,6 +24,8 @@ export interface MemorianDeliveryOptions {
 }
 
 export interface MemorianDelivery {
+  markRunning(sessionId: string): void
+  markSettled(sessionId: string): void
   accept(sessionId: string, context: MemoryIdentityContext, nudges: readonly RecallNudge[], epoch: number): Promise<void>
   onToolResult(sessionId: string, context: MemoryIdentityContext, eventCtx: unknown): Promise<void>
   drainForPrompt(sessionId: string, context: MemoryIdentityContext): RecallNudge[]
@@ -44,6 +46,7 @@ export function createMemorianDelivery(options: MemorianDeliveryOptions): Memori
   const fallbackPicker = createRecallOpenerPicker()
   const pickOpener = options.pickOpener ?? ((sessionId: string) => fallbackPicker.pick(sessionId))
   const forgetOpener = options.forgetOpener ?? ((sessionId: string) => fallbackPicker.forget(sessionId))
+  const runningSessions = new Set<string>()
 
   function stateFor(sessionId: string): DeliveryState {
     const existing = sessions.get(sessionId)
@@ -93,6 +96,9 @@ export function createMemorianDelivery(options: MemorianDeliveryOptions): Memori
     } catch (error) {
       warn("omo-senpi memorian pending write skipped", { sessionId, error })
     }
+    if (runningSessions.has(sessionId) && !state.steering && state.nudges.size > 0) {
+      await steer(sessionId, context, state)
+    }
   }
 
   async function onToolResult(sessionId: string, context: MemoryIdentityContext, eventCtx: unknown): Promise<void> {
@@ -101,11 +107,17 @@ export function createMemorianDelivery(options: MemorianDeliveryOptions): Memori
     if (!isRecord(eventCtx) || typeof eventCtx.hasPendingMessages !== "function") return
     if (Reflect.apply(eventCtx.hasPendingMessages, eventCtx, []) !== false) return
     if (typeof eventCtx.isIdle === "function" && Reflect.apply(eventCtx.isIdle, eventCtx, []) === true) return
+    await steer(sessionId, context, state)
+  }
+
+  async function steer(sessionId: string, context: MemoryIdentityContext, state: DeliveryState): Promise<void> {
     state.steering = true
     try {
       const nudges = [...state.nudges.values()]
       await Promise.resolve(options.sendMessage({ customType: RECALL_CUSTOM_TYPE, content: nudges.map(renderNudgeBlock).join("\n"), display: false }, { deliverAs: "steer" }))
       await markDelivered(sessionId, context, nudges.map((nudge) => nudge.path), "steer")
+    } catch (error: unknown) {
+      warn("omo-senpi memorian steer delivery failed", { sessionId, error: error instanceof Error ? error.message : String(error) })
     } finally {
       state.steering = false
     }
@@ -122,6 +134,7 @@ export function createMemorianDelivery(options: MemorianDeliveryOptions): Memori
   }
 
   async function onCompactionAccepted(sessionId: string, context: MemoryIdentityContext): Promise<void> {
+    runningSessions.delete(sessionId)
     const state = sessions.get(sessionId)
     if (state !== undefined) {
       state.nudges.clear()
@@ -137,6 +150,7 @@ export function createMemorianDelivery(options: MemorianDeliveryOptions): Memori
 
   function onSessionShutdown(sessionId: string): void {
     forgetOpener(sessionId)
+    runningSessions.delete(sessionId)
     const state = sessions.get(sessionId)
     if (state === undefined) return
     state.nudges.clear()
@@ -183,7 +197,11 @@ export function createMemorianDelivery(options: MemorianDeliveryOptions): Memori
     options.logger?.warn(message, details)
   }
 
-  return { accept, onToolResult, drainForPrompt, onCompactionAccepted, onSessionShutdown, markDelivered }
+  return {
+    accept, onToolResult, drainForPrompt, onCompactionAccepted, onSessionShutdown, markDelivered,
+    markRunning(sessionId): void { runningSessions.add(sessionId) },
+    markSettled(sessionId): void { runningSessions.delete(sessionId) },
+  }
 }
 
 function isRecord(value: unknown): value is Record<string, (...args: never[]) => unknown> {
