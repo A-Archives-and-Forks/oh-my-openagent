@@ -101,6 +101,7 @@ export async function retireRunGeneration(
 ): Promise<void> {
   await writeRunJsonAtomic(join(item.runDir, "ledger.json"), {
     ...item.ledger,
+    startedAt: new Date(Date.parse(finishedAt) - 1_000).toISOString(),
     finalizePhase: "settled",
     finalizeOutcome: "merged",
     finalizedAt: finishedAt,

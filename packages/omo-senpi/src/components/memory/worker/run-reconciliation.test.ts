@@ -18,6 +18,8 @@ import {
   commitOrphanWorktree,
   contendedReservation,
   reconciliationFixture as fixture,
+  retireRunGeneration,
+  queuePendingReservation,
   withinPhase,
 } from "./run-reconciliation.test-support"
 
