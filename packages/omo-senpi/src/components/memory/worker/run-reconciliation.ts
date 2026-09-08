@@ -86,9 +86,20 @@ async function reconcilePrelaunch(context: ReconcileContext): Promise<Reflection
   )).active
   if (active?.reservedAt === undefined || active.launcherPid === undefined || active.launcherHostname === undefined) return undefined
   const runDir = join(context.identity.paths.reflection, "runs", active.runId)
-  if (existsSync(join(runDir, "ledger.json"))) return undefined
+  let retiredGeneration = false
+  if (existsSync(join(runDir, "ledger.json"))) {
+    const ledger = parseReservationRunLedger(await readRunJson<unknown>(join(runDir, "ledger.json")))
+    const terminalPath = join(runDir, existsSync(join(runDir, "final.json")) ? "final.json" : "abandoned.json")
+    if (!existsSync(terminalPath)) return undefined
+    const terminal = await readRunJson<{ finishedAt: string }>(terminalPath)
+    const reservedAt = Date.parse(active.reservedAt)
+    retiredGeneration = Date.parse(ledger.startedAt) < reservedAt
+      && Date.parse(terminal.finishedAt) < reservedAt
+      && (ledger.finalizedAt === undefined || Date.parse(ledger.finalizedAt) < reservedAt)
+    if (!retiredGeneration) return undefined
+  }
   const prelaunchPath = join(runDir, "prelaunch.json")
-  if (existsSync(runDir) && !existsSync(prelaunchPath)) return undefined
+  if (!retiredGeneration && existsSync(runDir) && !existsSync(prelaunchPath)) return undefined
   if (context.now() - Date.parse(active.reservedAt) <= 60_000 || active.launcherHostname !== context.hostname()) return undefined
   const liveness = (context.getPidLiveness ?? getPidLiveness)(active.launcherPid)
   let dead = liveness === "dead"
@@ -97,7 +108,8 @@ async function reconcilePrelaunch(context: ReconcileContext): Promise<Reflection
     dead = actual !== null && actual !== active.launcherProcessStart
   }
   if (!dead) return undefined
-  if (existsSync(prelaunchPath)) {
+  // Retired artifacts are historical evidence, not resources owned by this reservation.
+  if (!retiredGeneration && existsSync(prelaunchPath)) {
     const prelaunch = parseRunPrelaunchArtifact(await readRunJson<unknown>(prelaunchPath))
     if (prelaunch.runId !== active.runId) throw new Error("Reflection prelaunch run id does not match reservation")
     const repo = new GitMemoryRepo({ dir: context.identity.paths.repo, agentId: context.identity.id })

@@ -275,12 +275,14 @@ describe("reflection and dream run reconciliation", () => {
     expect((await unknown.journal.getState()).reflected_completed_steps).toBe(0)
   }, 30_000)
 
-  test("#given a retired run dir shadowing a newer dead-launcher reservation #when reconciled #then the stale reservation is completed and pending is promoted", async () => {
+  test.each([true, false])("#given a retired run dir with prelaunch=%s shadowing a newer dead-launcher reservation #when reconciled #then pending is promoted", async (hasPrelaunch) => {
     // given: run-orphan's directory belongs to an EARLIER generation - it is finalized (merged
     // final.json plus a settled ledger) strictly before the reservation that now holds the same
     // run id, whose launcher process is confirmed dead.
     const item = await fixture()
     await retireRunGeneration(item, "2026-08-09T00:00:00.000Z")
+    if (!hasPrelaunch) await rm(join(item.runDir, "prelaunch.json"))
+    const finalBefore = await readFile(join(item.runDir, "final.json"), "utf8")
     await queuePendingReservation(item)
 
     // when
@@ -297,15 +299,16 @@ describe("reflection and dream run reconciliation", () => {
     // then
     expect(results).toEqual([{ runId: "run-orphan", outcome: "failed" }])
     expect(launched).toEqual(["run-pending"])
+    expect(await readFile(join(item.runDir, "final.json"), "utf8")).toBe(finalBefore)
     expect((await item.store.readState()).active?.runId).toBe("run-pending")
     expect((await item.journal.getState()).reflected_completed_steps).toBe(0)
   }, 30_000)
 
-  test("#given a run dir finalized after its own reservation #when reconciled #then the live generation is left untouched", async () => {
+  test.each(["2026-08-10T00:00:00.000Z", "2026-08-10T00:00:30.000Z"])("#given a run dir finalized at %s in its own generation #when reconciled #then it is left untouched", async (finishedAt) => {
     // given: the same shape as the reclaim case except the run directory belongs to THIS
     // reservation - it was finalized after reservedAt - so it must never be reclaimed.
     const item = await fixture()
-    await retireRunGeneration(item, "2026-08-10T00:00:30.000Z")
+    await retireRunGeneration(item, finishedAt)
     const before = await item.store.readState()
 
     // when
