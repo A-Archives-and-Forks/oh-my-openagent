@@ -1,0 +1,835 @@
+EXECUTED RED/GREEN EVIDENCE - TODO 4
+Task: st_01a08154
+Session start: 2026-09-08T14:05:52.245Z
+Session finish: 2026-09-08T14:10:34.564Z
+Machine: mengmotaMac macos/aarch64
+RED source: pristine origin/dev 8bd0c35b3ba532ab0cb0df49ea71467303aa92ba
+GREEN source: pushed lcx/astra-default-models b97e0acdf4264d0d4c989dbb8a41a3808147f3dd
+Remote directory: /tmp/lcx-reda-20260908
+Toolchain: Bun 1.4.0; Node v26.7.0; Darwin arm64
+
+WHAT WAS TESTED
+The exact requested commands below ran once per phase in one SDK session. RED used a fresh dev Git clone after frozen install, plugin dependency install, and generated-skills preparation. Only the branch's changed test files/test support were overlaid (47 files, SHA256-verified). Production files remained dev. GREEN used a forced checkout of the exact pushed branch HEAD in the same disposable clone; test bytes were unchanged. Temporary fixture directories were scoped under the remote directory through TMPDIR.
+
+WHAT WAS OBSERVED
+Bun RED: 9 pass / 11 fail; failures include no inserted caps, managed cap removal, preserved user cap 6, and Astra fallback V2 detection. Node RED: 11 pass / 7 fail, including todo 4 cap cases. GREEN: Bun 20 pass / 0 fail and Node 18 pass / 0 fail. Each RED command TEST_EXIT=1; each GREEN command TEST_EXIT=0. This does not validate or fix the verifier's separate quoted agents.max_threads migration defect.
+
+WHY IT IS ENOUGH
+The captured failing assertion names and assertion differences demonstrate executable RED, not source comparisons or setup failure. The same commands then passed against the branch without edits to tests or product files. Full raw output is retained alongside the requested tail-120 capture, with byte count and SHA256 per command. The shell saves PIPESTATUS[0] before any later command can replace it. Remote read() bytes/artifact streams were decoded to UTF-8 and all retained full-output hashes were verified locally.
+
+WHAT WAS OMITTED
+This is an executed failing-first reconstruction after the branch was authored, not a claim about original implementation-time test order. No local bun test, new tests, product edits, full test:codex rerun, installer/manual hook QA, or fixes for other verify-a3 objections. Existing DoneClaim fields outside red_proof retain their historical results and are not re-certified by this scoped capture. No git commit or push was created.
+
+METHOD DECISION
+Using a pristine dev checkout plus a tests-only overlay was selected over reverting product files in the feature branch: it avoids accidentally running RED against already-modified sources. GREEN checks out the exact pushed branch rather than copying a partial source selection, and git diff --exit-code confirms no tracked mutations after the run.
+
+SETUP AND SOURCE PROVENANCE
+STAGE: frozen-install-dev
+COMMAND: bun install --frozen-lockfile
+STAGE_EXIT=0
+OUTPUT_BYTES=15765 OUTPUT_SHA256=f7c5b386ba58fbf1e20e312566203b3b9992e4fa02ed1c75e7ccabeabc76f6a6
+STAGE: plugin-dependencies-dev
+COMMAND: npm --prefix packages/omo-codex/plugin ci
+STAGE_EXIT=0
+OUTPUT_BYTES=547 OUTPUT_SHA256=fef328c57586a242562ba636fe773d052b8f4d901a329d6a71d32f6b986b1d63
+STAGE: generated-skills-dev
+COMMAND: cd packages/omo-codex/plugin && node scripts/sync-skills.mjs
+STAGE_EXIT=0
+OUTPUT_BYTES=0 OUTPUT_SHA256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+STAGE: test-only-overlay
+COMMAND: tar -xf '/tmp/lcx-reda-20260908/branch-tests.tar' && node --input-type=module -e 'import {readFileSync} from '\''node:fs'\''; import {createHash} from '\''node:crypto'\''; const rows=JSON.parse(readFileSync('\''/tmp/lcx-reda-20260908/test-manifest.json'\'','\''utf8'\'')); for (const row of rows) { const sha=createHash('\''sha256'\'').update(readFileSync(row.path)).digest('\''hex'\''); if(sha!==row.sha256) throw new Error(row.path); } console.log('\''BRANCH_TEST_BYTES_MATCH='\''+rows.length);' && git status --porcelain && git diff --name-only
+STAGE_EXIT=0
+OUTPUT_BYTES=6097 OUTPUT_SHA256=4eaca4ac60fb854f9576fab104e7144149992189cbc4b4519582461422f9ca1c
+STAGE: verify-docs-baseline
+COMMAND: node --input-type=module -e 'import {readFileSync} from '\''node:fs'\''; const baseline=JSON.parse(readFileSync('\''/tmp/lcx-reda-20260908/origin-dev-docs.json'\'','\''utf8'\'')); for (const file of baseline.files) { if(readFileSync(file.path,'\''utf8'\'')!==file.content) throw new Error('\''Remote pristine dev docs differ from local git show origin/dev:'\''+file.path); } console.log('\''ALL_FIVE_DOCS_BYTE_IDENTICAL_TO_LOCAL_GIT_SHOW_ORIGIN_DEV='\''+baseline.revision);'
+STAGE_EXIT=0
+OUTPUT_BYTES=99 OUTPUT_SHA256=3864506f27a8dd284948b769656991fbfefe9dbfb6baf4ee758dd259a028ec5b
+STAGE: checkout-pushed-branch
+COMMAND: git fetch --depth 1 origin lcx/astra-default-models && git checkout -f -B lcx/astra-default-models 'b97e0acdf4264d0d4c989dbb8a41a3808147f3dd' && test "$(git rev-parse HEAD)" = 'b97e0acdf4264d0d4c989dbb8a41a3808147f3dd' && git status --porcelain && git rev-parse HEAD
+STAGE_EXIT=0
+OUTPUT_BYTES=206 OUTPUT_SHA256=3a6c25d3edfd79d597d8463e43873a5b946afa822227ad0bb83aecefa6e6dcd1
+STAGE: generated-skills-branch
+COMMAND: cd packages/omo-codex/plugin && node scripts/sync-skills.mjs
+STAGE_EXIT=0
+OUTPUT_BYTES=0 OUTPUT_SHA256=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+STAGE: verify-source-and-tests-unchanged
+COMMAND: git diff --exit-code && node --input-type=module -e 'import {readFileSync} from '\''node:fs'\''; import {createHash} from '\''node:crypto'\''; const rows=JSON.parse(readFileSync('\''/tmp/lcx-reda-20260908/test-manifest.json'\'','\''utf8'\'')); for (const row of rows) { const sha=createHash('\''sha256'\'').update(readFileSync(row.path)).digest('\''hex'\''); if(sha!==row.sha256) throw new Error(row.path); } console.log('\''BRANCH_TEST_BYTES_UNCHANGED='\''+rows.length);'
+STAGE_EXIT=0
+OUTPUT_BYTES=31 OUTPUT_SHA256=846514b087b8d48347d5e04465e40c71556ac78ea355dfedabd4f086fff18eb6
+
+===== RED: TODO 4 / concurrency-bun =====
+COMMAND: bun test ./packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts ./packages/omo-codex/src/install/codex-subagent-limit-config.test.ts
+CWD: /tmp/lcx-reda-20260908/omo
+CAPTURE: command 2>&1 | tee <full-log> | tail -120; rc=${PIPESTATUS[0]}; echo TEST_EXIT=$rc
+FULL OUTPUT BEGIN (11946 bytes; sha256=b216f1aed60bbfcf0343dc09759fcf6403d0d6ebb7313f3f7d834a35c1406fa1)
+bun test v1.4.0 (34cbb9a40)
+
+packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts:
+10 | 
+11 | describe("codex MultiAgentV2 config", () => {
+12 |   test("#given the former V2 default cap #when normalizing #then removes the cap and preserves the explicit disable", () => {
+13 |     for (const key of ["max_concurrent_threads_per_session", '"max_concurrent_threads_per_session"']) {
+14 |       const content = ensureCodexMultiAgentV2Config(`[features.multi_agent_v2]\nenabled = false\n${key} = 16\n`)
+15 |       expect(Bun.TOML.parse(content)).toEqual({ features: { multi_agent_v2: { enabled: false } } })
+                                           ^
+error: expect(received).toEqual(expected)
+
+  {
+    "features": {
+      "multi_agent_v2": {
+        "enabled": false,
++       "max_concurrent_threads_per_session": 16,
+      },
+    },
+  }
+
+- Expected  - 0
++ Received  + 1
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts:15:39)
+(fail) codex MultiAgentV2 config > #given the former V2 default cap #when normalizing #then removes the cap and preserves the explicit disable [2.02ms]
+44 | 
+45 |     // then
+46 |     const content = await readFile(configPath, "utf8")
+47 |     const parsed = parseToml(content)
+48 |     expect(content).not.toMatch(/^\s*multi_agent_v2\s*=/m)
+49 |     expect(parsed.features.multi_agent_v2).toEqual({
+                                                ^
+error: expect(received).toEqual(expected)
+
+  {
++   "max_concurrent_threads_per_session": 16,
+    "usage_hint_enabled": false,
+  }
+
+- Expected  - 0
++ Received  + 1
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts:49:44)
+(fail) codex MultiAgentV2 config > #given legacy boolean flag and table #when updating config #then output remains valid TOML without enabling V2 [4.36ms]
+(pass) codex MultiAgentV2 config > #given an inline-commented V2 thread cap #when updating config twice #then preserves the line and ordering byte-for-byte [4.10ms]
+(pass) codex MultiAgentV2 config > #given installer config has a escaped quoted V2 header #when updating twice #then preserves the semantic cap without duplication [4.11ms]
+(pass) codex MultiAgentV2 config > #given installer config has a quoted cap key #when updating twice #then preserves the semantic cap without duplication [3.35ms]
+(pass) codex MultiAgentV2 config > #given installer config has a escaped quoted cap key #when updating twice #then preserves the semantic cap without duplication [2.74ms]
+(pass) codex MultiAgentV2 config > #given installer config has a dotted cap key #when updating twice #then preserves the semantic cap without duplication [3.39ms]
+(pass) codex MultiAgentV2 config > #given installer config has a root-qualified dotted cap key #when updating twice #then preserves the semantic cap without duplication [6.52ms]
+174 | 
+175 |     // then
+176 |     const content = await readFile(configPath, "utf8")
+177 |     const parsed = Bun.TOML.parse(content) as { readonly features?: { readonly multi_agent_v2?: unknown } }
+178 |     expect(content).toContain("max_concurrent_threads_per_session = 7")
+179 |     expect(parsed.features?.multi_agent_v2).toBeUndefined()
+                                                  ^
+error: expect(received).toBeUndefined()
+
+Received: {
+  max_concurrent_threads_per_session: 16,
+}
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts:179:45)
+(fail) codex MultiAgentV2 config > #given multiline string contains V2 cap lookalikes #when updating config #then leaves the semantic cap absent [2.84ms]
+203 |       pluginNames: ["omo"],
+204 |     })
+205 | 
+206 |     // then
+207 |     const parsed = parseToml(await readFile(configPath, "utf8"))
+208 |     expect(parsed.features.multi_agent_v2.max_concurrent_threads_per_session).toBeUndefined()
+                                                                                    ^
+error: expect(received).toBeUndefined()
+
+Received: 16
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts:208:79)
+(fail) codex MultiAgentV2 config > #given V2 section multiline value contains a cap lookalike #when updating config #then leaves the cap absent [2.74ms]
+(pass) codex MultiAgentV2 config > #given root-dotted features and string lookalikes #when updating config #then replaces the semantic flag only [1.87ms]
+(pass) codex MultiAgentV2 config > #given root-dotted plugin flag has a multiline value #when updating config #then replaces the whole semantic assignment [2.05ms]
+(pass) codex MultiAgentV2 config > #given multiline string closes after an escaped quote #when updating config #then preserves the following explicit cap [1.42ms]
+311 |       marketplaceSource: { sourceType: "local", source: "/repo/packages/omo-codex" },
+312 |       pluginNames: ["omo"],
+313 |     })
+314 | 
+315 |     const content = await readFile(configPath, "utf8")
+316 |     expect(content).not.toMatch(/^\s*max_threads\s*=/m)
+                              ^
+error: expect(received).not.toMatch(expected)
+
+Expected substring or pattern: not /^\s*max_threads\s*=/m
+Received: "model = \"gpt-6-astra\"\n\n[features]\nmulti_agent = true\nplugin_hooks = true\nplugins = true\n\n[agents]\nmax_threads = 1000\n\n[features.multi_agent_v2]\nmax_concurrent_threads_per_session = 16\n\n[marketplaces.debug]\nlast_updated = \"2026-09-08T14:08:25Z\"\nsource_type = \"local\"\nsource = \"/repo/packages/omo-codex\"\n\n[plugins.\"omo@debug\"]\nenabled = true\n"
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts:316:25)
+(fail) codex MultiAgentV2 config > #given no limits #when updating config #then does not add either thread cap [2.38ms]
+341 |       pluginNames: ["omo"],
+342 |     } as const
+343 | 
+344 |     await updateCodexConfig(updateInput)
+345 |     const managed = await readFile(configPath, "utf8")
+346 |     expect(managed).not.toMatch(/^\s*max_threads\s*=/m)
+                              ^
+error: expect(received).not.toMatch(expected)
+
+Expected substring or pattern: not /^\s*max_threads\s*=/m
+Received: "model = \"gpt-5.5\"\n\n[features.multi_agent_v2]\nmax_concurrent_threads_per_session = 1000\n\n[agents]\nmax_threads = 1000\n\n[features]\nmulti_agent = true\nplugin_hooks = true\nplugins = true\n\n[marketplaces.debug]\nlast_updated = \"2026-09-08T14:08:25Z\"\nsource_type = \"local\"\nsource = \"/repo/packages/omo-codex\"\n\n[plugins.\"omo@debug\"]\nenabled = true\n"
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts:346:25)
+(fail) codex MultiAgentV2 config > #given managed and user thread caps #when updating config #then removes managed values and preserves user values [2.74ms]
+357 |   })
+358 | 
+359 |   test("#given gpt-6-astra with unavailable catalog #when resolving multi-agent mode #then prefers V2", async () => {
+360 |     const root = await mkdtemp(join(tmpdir(), "omo-codex-mav2-gpt6-"))
+361 |     const configPath = join(root, "config.toml")
+362 |     expect(resolveCodexMultiAgentVersion('model = "gpt-6-astra"\n', configPath)).toBe("v2")
+                                                                                       ^
+error: expect(received).toBe(expected)
+
+Expected: "v2"
+Received: null
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts:362:82)
+(fail) codex MultiAgentV2 config > #given gpt-6-astra with unavailable catalog #when resolving multi-agent mode #then prefers V2 [0.61ms]
+387 |       marketplaceSource: { sourceType: "local", source: "/repo/packages/omo-codex" },
+388 |       pluginNames: ["omo"],
+389 |     })
+390 | 
+391 |     const content = await readFile(configPath, "utf8")
+392 |     expect(content).toMatch(/^\s*max_threads\s*=\s*6/m)
+                          ^
+error: expect(received).toMatch(expected)
+
+Expected substring or pattern: /^\s*max_threads\s*=\s*6/m
+Received: "model = \"gpt-5.5\"\n\n[features.multi_agent_v2]\nmax_concurrent_threads_per_session = 8\n\n[agents]\nmax_threads = 1000\n\n[features]\nmulti_agent = true\nplugin_hooks = true\nplugins = true\n\n[marketplaces.debug]\nlast_updated = \"2026-09-08T14:08:25Z\"\nsource_type = \"local\"\nsource = \"/repo/packages/omo-codex\"\n\n[plugins.\"omo@debug\"]\nenabled = true\n"
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts:392:21)
+(fail) codex MultiAgentV2 config > #given user caps #when updating config #then does not raise them [2.67ms]
+422 | 
+423 |     // then
+424 |     const content = await readFile(configPath, "utf8")
+425 |     const parsed = parseToml(content)
+426 |     expect(content).not.toMatch(/^\s*multi_agent_v2\s*=/m)
+427 |     expect(parsed.features.multi_agent_v2).toEqual({
+                                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+    "enabled": false,
++   "max_concurrent_threads_per_session": 16,
+  }
+
+- Expected  - 0
++ Received  + 1
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts:427:44)
+(fail) codex MultiAgentV2 config > #given disabled boolean shorthand #when updating config #then explicit disable is preserved in table form [1.48ms]
+
+packages/omo-codex/src/install/codex-subagent-limit-config.test.ts:
+25 |     // then
+26 |     // The stamped default model is v2-preferred, so Codex would reject a
+27 |     // fresh agents.max_threads while MultiAgentV2 is active.
+28 |     const content = await readFile(configPath, "utf8")
+29 |     expect(content).not.toMatch(/^\s*max_threads\s*=/m)
+30 |     expect(content).not.toContain("[features.multi_agent_v2]")
+                             ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "[features.multi_agent_v2]"
+Received: "model = \"gpt-5.6-sol\"\nmodel_context_window = 650000\nmodel_reasoning_effort = \"high\"\nplan_mode_reasoning_effort = \"xhigh\"\n\n[features]\nmulti_agent = true\nplugin_hooks = true\nplugins = true\n\n[features.multi_agent_v2]\nmax_concurrent_threads_per_session = 16\n\n[marketplaces.debug]\nlast_updated = \"2026-09-08T14:08:25Z\"\nsource_type = \"local\"\nsource = \"/repo/packages/omo-codex\"\n\n[plugins.\"omo@debug\"]\nenabled = true\n"
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-subagent-limit-config.test.ts:30:25)
+(fail) codex subagent limit config > #given empty Codex config #when updating config #then leaves both thread limits unset [1.54ms]
+62 |       agentConfigs: [{ name: "explorer", configFile: "./agents/explorer.toml" }],
+63 |     })
+64 | 
+65 |     // then
+66 |     const content = await readFile(configPath, "utf8")
+67 |     expect(content).toMatch(/^\s*max_threads\s*=\s*6$/m)
+                         ^
+error: expect(received).toMatch(expected)
+
+Expected substring or pattern: /^\s*max_threads\s*=\s*6$/m
+Received: "model = \"gpt-5.5\"\n\n[agents]\nmax_threads = 1000\nmax_depth = 4\n\n[agents.explorer]\nconfig_file = \"./agents/explorer.toml\"\n\n[features]\nmulti_agent = true\nplugin_hooks = true\nplugins = true\n\n[features.multi_agent_v2]\nmax_concurrent_threads_per_session = 16\n\n[marketplaces.debug]\nlast_updated = \"2026-09-08T14:08:25Z\"\nsource_type = \"local\"\nsource = \"/repo/packages/omo-codex\"\n\n[plugins.\"omo@debug\"]\nenabled = true\n"
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-subagent-limit-config.test.ts:67:21)
+(fail) codex subagent limit config > #given existing low agents max_threads #when updating config #then preserves the root cap [1.49ms]
+
+ 9 pass
+ 11 fail
+ 57 expect() calls
+Ran 20 tests across 2 files. [9.12s]
+
+FULL OUTPUT END
+LAST 120 LINES / ACTUAL COMMAND EXIT:
+                                                                                    ^
+error: expect(received).toBeUndefined()
+
+Received: 16
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts:208:79)
+(fail) codex MultiAgentV2 config > #given V2 section multiline value contains a cap lookalike #when updating config #then leaves the cap absent [2.74ms]
+(pass) codex MultiAgentV2 config > #given root-dotted features and string lookalikes #when updating config #then replaces the semantic flag only [1.87ms]
+(pass) codex MultiAgentV2 config > #given root-dotted plugin flag has a multiline value #when updating config #then replaces the whole semantic assignment [2.05ms]
+(pass) codex MultiAgentV2 config > #given multiline string closes after an escaped quote #when updating config #then preserves the following explicit cap [1.42ms]
+311 |       marketplaceSource: { sourceType: "local", source: "/repo/packages/omo-codex" },
+312 |       pluginNames: ["omo"],
+313 |     })
+314 | 
+315 |     const content = await readFile(configPath, "utf8")
+316 |     expect(content).not.toMatch(/^\s*max_threads\s*=/m)
+                              ^
+error: expect(received).not.toMatch(expected)
+
+Expected substring or pattern: not /^\s*max_threads\s*=/m
+Received: "model = \"gpt-6-astra\"\n\n[features]\nmulti_agent = true\nplugin_hooks = true\nplugins = true\n\n[agents]\nmax_threads = 1000\n\n[features.multi_agent_v2]\nmax_concurrent_threads_per_session = 16\n\n[marketplaces.debug]\nlast_updated = \"2026-09-08T14:08:25Z\"\nsource_type = \"local\"\nsource = \"/repo/packages/omo-codex\"\n\n[plugins.\"omo@debug\"]\nenabled = true\n"
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts:316:25)
+(fail) codex MultiAgentV2 config > #given no limits #when updating config #then does not add either thread cap [2.38ms]
+341 |       pluginNames: ["omo"],
+342 |     } as const
+343 | 
+344 |     await updateCodexConfig(updateInput)
+345 |     const managed = await readFile(configPath, "utf8")
+346 |     expect(managed).not.toMatch(/^\s*max_threads\s*=/m)
+                              ^
+error: expect(received).not.toMatch(expected)
+
+Expected substring or pattern: not /^\s*max_threads\s*=/m
+Received: "model = \"gpt-5.5\"\n\n[features.multi_agent_v2]\nmax_concurrent_threads_per_session = 1000\n\n[agents]\nmax_threads = 1000\n\n[features]\nmulti_agent = true\nplugin_hooks = true\nplugins = true\n\n[marketplaces.debug]\nlast_updated = \"2026-09-08T14:08:25Z\"\nsource_type = \"local\"\nsource = \"/repo/packages/omo-codex\"\n\n[plugins.\"omo@debug\"]\nenabled = true\n"
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts:346:25)
+(fail) codex MultiAgentV2 config > #given managed and user thread caps #when updating config #then removes managed values and preserves user values [2.74ms]
+357 |   })
+358 | 
+359 |   test("#given gpt-6-astra with unavailable catalog #when resolving multi-agent mode #then prefers V2", async () => {
+360 |     const root = await mkdtemp(join(tmpdir(), "omo-codex-mav2-gpt6-"))
+361 |     const configPath = join(root, "config.toml")
+362 |     expect(resolveCodexMultiAgentVersion('model = "gpt-6-astra"\n', configPath)).toBe("v2")
+                                                                                       ^
+error: expect(received).toBe(expected)
+
+Expected: "v2"
+Received: null
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts:362:82)
+(fail) codex MultiAgentV2 config > #given gpt-6-astra with unavailable catalog #when resolving multi-agent mode #then prefers V2 [0.61ms]
+387 |       marketplaceSource: { sourceType: "local", source: "/repo/packages/omo-codex" },
+388 |       pluginNames: ["omo"],
+389 |     })
+390 | 
+391 |     const content = await readFile(configPath, "utf8")
+392 |     expect(content).toMatch(/^\s*max_threads\s*=\s*6/m)
+                          ^
+error: expect(received).toMatch(expected)
+
+Expected substring or pattern: /^\s*max_threads\s*=\s*6/m
+Received: "model = \"gpt-5.5\"\n\n[features.multi_agent_v2]\nmax_concurrent_threads_per_session = 8\n\n[agents]\nmax_threads = 1000\n\n[features]\nmulti_agent = true\nplugin_hooks = true\nplugins = true\n\n[marketplaces.debug]\nlast_updated = \"2026-09-08T14:08:25Z\"\nsource_type = \"local\"\nsource = \"/repo/packages/omo-codex\"\n\n[plugins.\"omo@debug\"]\nenabled = true\n"
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts:392:21)
+(fail) codex MultiAgentV2 config > #given user caps #when updating config #then does not raise them [2.67ms]
+422 | 
+423 |     // then
+424 |     const content = await readFile(configPath, "utf8")
+425 |     const parsed = parseToml(content)
+426 |     expect(content).not.toMatch(/^\s*multi_agent_v2\s*=/m)
+427 |     expect(parsed.features.multi_agent_v2).toEqual({
+                                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+    "enabled": false,
++   "max_concurrent_threads_per_session": 16,
+  }
+
+- Expected  - 0
++ Received  + 1
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts:427:44)
+(fail) codex MultiAgentV2 config > #given disabled boolean shorthand #when updating config #then explicit disable is preserved in table form [1.48ms]
+
+packages/omo-codex/src/install/codex-subagent-limit-config.test.ts:
+25 |     // then
+26 |     // The stamped default model is v2-preferred, so Codex would reject a
+27 |     // fresh agents.max_threads while MultiAgentV2 is active.
+28 |     const content = await readFile(configPath, "utf8")
+29 |     expect(content).not.toMatch(/^\s*max_threads\s*=/m)
+30 |     expect(content).not.toContain("[features.multi_agent_v2]")
+                             ^
+error: expect(received).not.toContain(expected)
+
+Expected to not contain: "[features.multi_agent_v2]"
+Received: "model = \"gpt-5.6-sol\"\nmodel_context_window = 650000\nmodel_reasoning_effort = \"high\"\nplan_mode_reasoning_effort = \"xhigh\"\n\n[features]\nmulti_agent = true\nplugin_hooks = true\nplugins = true\n\n[features.multi_agent_v2]\nmax_concurrent_threads_per_session = 16\n\n[marketplaces.debug]\nlast_updated = \"2026-09-08T14:08:25Z\"\nsource_type = \"local\"\nsource = \"/repo/packages/omo-codex\"\n\n[plugins.\"omo@debug\"]\nenabled = true\n"
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-subagent-limit-config.test.ts:30:25)
+(fail) codex subagent limit config > #given empty Codex config #when updating config #then leaves both thread limits unset [1.54ms]
+62 |       agentConfigs: [{ name: "explorer", configFile: "./agents/explorer.toml" }],
+63 |     })
+64 | 
+65 |     // then
+66 |     const content = await readFile(configPath, "utf8")
+67 |     expect(content).toMatch(/^\s*max_threads\s*=\s*6$/m)
+                         ^
+error: expect(received).toMatch(expected)
+
+Expected substring or pattern: /^\s*max_threads\s*=\s*6$/m
+Received: "model = \"gpt-5.5\"\n\n[agents]\nmax_threads = 1000\nmax_depth = 4\n\n[agents.explorer]\nconfig_file = \"./agents/explorer.toml\"\n\n[features]\nmulti_agent = true\nplugin_hooks = true\nplugins = true\n\n[features.multi_agent_v2]\nmax_concurrent_threads_per_session = 16\n\n[marketplaces.debug]\nlast_updated = \"2026-09-08T14:08:25Z\"\nsource_type = \"local\"\nsource = \"/repo/packages/omo-codex\"\n\n[plugins.\"omo@debug\"]\nenabled = true\n"
+
+      at <anonymous> (/private/tmp/lcx-reda-20260908/omo/packages/omo-codex/src/install/codex-subagent-limit-config.test.ts:67:21)
+(fail) codex subagent limit config > #given existing low agents max_threads #when updating config #then preserves the root cap [1.49ms]
+
+ 9 pass
+ 11 fail
+ 57 expect() calls
+Ran 20 tests across 2 files. [9.12s]
+TEST_EXIT=1
+
+TEST_EXIT=1
+
+===== RED: TODO 4 / concurrency-node =====
+COMMAND: cd packages/omo-codex/plugin && node --test test/subagent-limit-migration.test.mjs
+CWD: /tmp/lcx-reda-20260908/omo
+CAPTURE: command 2>&1 | tee <full-log> | tail -120; rc=${PIPESTATUS[0]}; echo TEST_EXIT=$rc
+FULL OUTPUT BEGIN (9501 bytes; sha256=75591773c099cfb38474bce2cb1a890cdb4dc35d28fc014f4ad691f4ecc2f9ae)
+✖ #given SessionStart migration sees an inline-commented V2 cap #when migrating twice #then preserves the line and ordering byte-for-byte (15.119ms)
+✔ #given SessionStart migration sees equivalent V2 header ["features"."multi_agent_v2"] #when migrating twice #then preserves one valid table and the explicit cap (102.933125ms)
+✔ #given SessionStart migration sees equivalent V2 header [ features . multi_agent_v2 ] #when migrating twice #then preserves one valid table and the explicit cap (81.873916ms)
+✔ #given SessionStart migration sees equivalent V2 header ["features"."multi_agent_v\u0032"] #when migrating twice #then preserves one valid table and the explicit cap (89.337083ms)
+✔ #given SessionStart migration sees a quoted cap key #when migrating twice #then preserves the semantic cap without duplication (87.951542ms)
+✔ #given SessionStart migration sees a escaped quoted cap key #when migrating twice #then preserves the semantic cap without duplication (84.867541ms)
+✔ #given SessionStart migration sees a dotted cap key #when migrating twice #then preserves the semantic cap without duplication (74.318958ms)
+✔ #given SessionStart migration sees a root-qualified dotted cap key #when migrating twice #then preserves the semantic cap without duplication (84.88425ms)
+✖ #given multiline string contains V2 cap lookalikes #when SessionStart migrates #then leaves the semantic cap absent (84.427125ms)
+✖ #given V2 section multiline value contains a cap lookalike #when SessionStart migrates #then leaves the cap absent (95.95775ms)
+✔ #given V2 root-dotted disable and cap #when gpt-5.6 SessionStart migrates #then removes disable and V1 agents cap (81.545167ms)
+✔ #given quoted dotted V1 keys under features #when SessionStart migrates #then replaces enabled without a duplicate (80.288625ms)
+✔ #given multiline string closes after an escaped quote #when SessionStart migrates #then preserves the following explicit cap (79.26325ms)
+✔ #given gpt-5.6 session model with no models_cache and an explicit V2 cap #when migrating #then removes agents.max_threads but preserves the cap (2.795625ms)
+✖ #given SessionStart config migration has no V2 cap #when migrating #then leaves the cap unset (3.816791ms)
+✖ #given config without any model #when migrating #then does not introduce agents.max_threads (3.207834ms)
+✖ #given todo 4 cap cases #when migrating #then removes managed caps, preserves user caps, and detects gpt-6 V2 (2.124834ms)
+✖ #given config without any model but an existing low cap #when migrating #then preserves the existing cap (1.697209ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 11
+ℹ fail 7
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1144.681042
+
+✖ failing tests:
+
+test at test/subagent-limit-migration.test.mjs:29:1
+✖ #given SessionStart migration sees an inline-commented V2 cap #when migrating twice #then preserves the line and ordering byte-for-byte (15.119ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  true !== false
+  
+      at TestContext.<anonymous> (file:///private/tmp/lcx-reda-20260908/omo/packages/omo-codex/plugin/test/subagent-limit-migration.test.mjs:61:9)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/subagent-limit-migration.test.mjs:167:1
+✖ #given multiline string contains V2 cap lookalikes #when SessionStart migrates #then leaves the semantic cap absent (84.427125ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  16 !== undefined
+  
+      at TestContext.<anonymous> (file:///private/tmp/lcx-reda-20260908/omo/packages/omo-codex/plugin/test/subagent-limit-migration.test.mjs:187:9)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 16,
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/subagent-limit-migration.test.mjs:190:1
+✖ #given V2 section multiline value contains a cap lookalike #when SessionStart migrates #then leaves the cap absent (95.95775ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  16 !== undefined
+  
+      at TestContext.<anonymous> (file:///private/tmp/lcx-reda-20260908/omo/packages/omo-codex/plugin/test/subagent-limit-migration.test.mjs:208:9)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 16,
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/subagent-limit-migration.test.mjs:316:1
+✖ #given SessionStart config migration has no V2 cap #when migrating #then leaves the cap unset (3.816791ms)
+  AssertionError [ERR_ASSERTION]: The input was expected to not match the regular expression /max_concurrent_threads_per_session\s*=/. Input:
+  
+  'model = "gpt-5.4"\n' +
+    '\n' +
+    '[features.multi_agent_v2]\n' +
+    'max_concurrent_threads_per_session = 16\n' +
+    'enabled = false\n' +
+    '\n' +
+    '[agents]\n' +
+    'max_threads = 1000\n'
+  
+      at TestContext.<anonymous> (file:///private/tmp/lcx-reda-20260908/omo/packages/omo-codex/plugin/test/subagent-limit-migration.test.mjs:333:9)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'model = "gpt-5.4"\n\n[features.multi_agent_v2]\nmax_concurrent_threads_per_session = 16\nenabled = false\n\n[agents]\nmax_threads = 1000\n',
+    expected: /max_concurrent_threads_per_session\s*=/,
+    operator: 'doesNotMatch',
+    diff: 'simple'
+  }
+
+test at test/subagent-limit-migration.test.mjs:337:1
+✖ #given config without any model #when migrating #then does not introduce agents.max_threads (3.207834ms)
+  AssertionError [ERR_ASSERTION]: The input was expected to not match the regular expression /max_concurrent_threads_per_session\s*=/. Input:
+  
+  'model_reasoning_effort = "high"\n' +
+    '\n' +
+    '[agents]\n' +
+    'max_depth = 4\n' +
+    '\n' +
+    '[features.multi_agent_v2]\n' +
+    'max_concurrent_threads_per_session = 16\n'
+  
+      at TestContext.<anonymous> (file:///private/tmp/lcx-reda-20260908/omo/packages/omo-codex/plugin/test/subagent-limit-migration.test.mjs:350:9)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'model_reasoning_effort = "high"\n\n[agents]\nmax_depth = 4\n\n[features.multi_agent_v2]\nmax_concurrent_threads_per_session = 16\n',
+    expected: /max_concurrent_threads_per_session\s*=/,
+    operator: 'doesNotMatch',
+    diff: 'simple'
+  }
+
+test at test/subagent-limit-migration.test.mjs:353:1
+✖ #given todo 4 cap cases #when migrating #then removes managed caps, preserves user caps, and detects gpt-6 V2 (2.124834ms)
+  AssertionError [ERR_ASSERTION]: The input was expected to not match the regular expression /^\s*max_threads\s*=/m. Input:
+  
+  'model = "gpt-6-astra"\n' +
+    '\n' +
+    '[agents]\n' +
+    'max_threads = 1000\n' +
+    '\n' +
+    '[features.multi_agent_v2]\n' +
+    'max_concurrent_threads_per_session = 16\n'
+  
+      at Object.assertResult (file:///private/tmp/lcx-reda-20260908/omo/packages/omo-codex/plugin/test/subagent-limit-migration.test.mjs:359:12)
+      at TestContext.<anonymous> (file:///private/tmp/lcx-reda-20260908/omo/packages/omo-codex/plugin/test/subagent-limit-migration.test.mjs:386:11)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'model = "gpt-6-astra"\n\n[agents]\nmax_threads = 1000\n\n[features.multi_agent_v2]\nmax_concurrent_threads_per_session = 16\n',
+    expected: /^\s*max_threads\s*=/m,
+    operator: 'doesNotMatch',
+    diff: 'simple'
+  }
+
+test at test/subagent-limit-migration.test.mjs:390:1
+✖ #given config without any model but an existing low cap #when migrating #then preserves the existing cap (1.697209ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /max_threads = 6/. Input:
+  
+  'model_reasoning_effort = "high"\n' +
+    '\n' +
+    '[agents]\n' +
+    'max_threads = 1000\n' +
+    'max_depth = 4\n' +
+    '\n' +
+    '[features.multi_agent_v2]\n' +
+    'max_concurrent_threads_per_session = 16\n'
+  
+      at TestContext.<anonymous> (file:///private/tmp/lcx-reda-20260908/omo/packages/omo-codex/plugin/test/subagent-limit-migration.test.mjs:401:9)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'model_reasoning_effort = "high"\n\n[agents]\nmax_threads = 1000\nmax_depth = 4\n\n[features.multi_agent_v2]\nmax_concurrent_threads_per_session = 16\n',
+    expected: /max_threads = 6/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+FULL OUTPUT END
+LAST 120 LINES / ACTUAL COMMAND EXIT:
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 16,
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/subagent-limit-migration.test.mjs:190:1
+✖ #given V2 section multiline value contains a cap lookalike #when SessionStart migrates #then leaves the cap absent (95.95775ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  16 !== undefined
+  
+      at TestContext.<anonymous> (file:///private/tmp/lcx-reda-20260908/omo/packages/omo-codex/plugin/test/subagent-limit-migration.test.mjs:208:9)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 16,
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/subagent-limit-migration.test.mjs:316:1
+✖ #given SessionStart config migration has no V2 cap #when migrating #then leaves the cap unset (3.816791ms)
+  AssertionError [ERR_ASSERTION]: The input was expected to not match the regular expression /max_concurrent_threads_per_session\s*=/. Input:
+  
+  'model = "gpt-5.4"\n' +
+    '\n' +
+    '[features.multi_agent_v2]\n' +
+    'max_concurrent_threads_per_session = 16\n' +
+    'enabled = false\n' +
+    '\n' +
+    '[agents]\n' +
+    'max_threads = 1000\n'
+  
+      at TestContext.<anonymous> (file:///private/tmp/lcx-reda-20260908/omo/packages/omo-codex/plugin/test/subagent-limit-migration.test.mjs:333:9)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'model = "gpt-5.4"\n\n[features.multi_agent_v2]\nmax_concurrent_threads_per_session = 16\nenabled = false\n\n[agents]\nmax_threads = 1000\n',
+    expected: /max_concurrent_threads_per_session\s*=/,
+    operator: 'doesNotMatch',
+    diff: 'simple'
+  }
+
+test at test/subagent-limit-migration.test.mjs:337:1
+✖ #given config without any model #when migrating #then does not introduce agents.max_threads (3.207834ms)
+  AssertionError [ERR_ASSERTION]: The input was expected to not match the regular expression /max_concurrent_threads_per_session\s*=/. Input:
+  
+  'model_reasoning_effort = "high"\n' +
+    '\n' +
+    '[agents]\n' +
+    'max_depth = 4\n' +
+    '\n' +
+    '[features.multi_agent_v2]\n' +
+    'max_concurrent_threads_per_session = 16\n'
+  
+      at TestContext.<anonymous> (file:///private/tmp/lcx-reda-20260908/omo/packages/omo-codex/plugin/test/subagent-limit-migration.test.mjs:350:9)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'model_reasoning_effort = "high"\n\n[agents]\nmax_depth = 4\n\n[features.multi_agent_v2]\nmax_concurrent_threads_per_session = 16\n',
+    expected: /max_concurrent_threads_per_session\s*=/,
+    operator: 'doesNotMatch',
+    diff: 'simple'
+  }
+
+test at test/subagent-limit-migration.test.mjs:353:1
+✖ #given todo 4 cap cases #when migrating #then removes managed caps, preserves user caps, and detects gpt-6 V2 (2.124834ms)
+  AssertionError [ERR_ASSERTION]: The input was expected to not match the regular expression /^\s*max_threads\s*=/m. Input:
+  
+  'model = "gpt-6-astra"\n' +
+    '\n' +
+    '[agents]\n' +
+    'max_threads = 1000\n' +
+    '\n' +
+    '[features.multi_agent_v2]\n' +
+    'max_concurrent_threads_per_session = 16\n'
+  
+      at Object.assertResult (file:///private/tmp/lcx-reda-20260908/omo/packages/omo-codex/plugin/test/subagent-limit-migration.test.mjs:359:12)
+      at TestContext.<anonymous> (file:///private/tmp/lcx-reda-20260908/omo/packages/omo-codex/plugin/test/subagent-limit-migration.test.mjs:386:11)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'model = "gpt-6-astra"\n\n[agents]\nmax_threads = 1000\n\n[features.multi_agent_v2]\nmax_concurrent_threads_per_session = 16\n',
+    expected: /^\s*max_threads\s*=/m,
+    operator: 'doesNotMatch',
+    diff: 'simple'
+  }
+
+test at test/subagent-limit-migration.test.mjs:390:1
+✖ #given config without any model but an existing low cap #when migrating #then preserves the existing cap (1.697209ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /max_threads = 6/. Input:
+  
+  'model_reasoning_effort = "high"\n' +
+    '\n' +
+    '[agents]\n' +
+    'max_threads = 1000\n' +
+    'max_depth = 4\n' +
+    '\n' +
+    '[features.multi_agent_v2]\n' +
+    'max_concurrent_threads_per_session = 16\n'
+  
+      at TestContext.<anonymous> (file:///private/tmp/lcx-reda-20260908/omo/packages/omo-codex/plugin/test/subagent-limit-migration.test.mjs:401:9)
+      at async Test.run (node:internal/test_runner/test:1404:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'model_reasoning_effort = "high"\n\n[agents]\nmax_threads = 1000\nmax_depth = 4\n\n[features.multi_agent_v2]\nmax_concurrent_threads_per_session = 16\n',
+    expected: /max_threads = 6/,
+    operator: 'match',
+    diff: 'simple'
+  }
+TEST_EXIT=1
+
+TEST_EXIT=1
+
+===== GREEN: TODO 4 / concurrency-bun =====
+COMMAND: bun test ./packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts ./packages/omo-codex/src/install/codex-subagent-limit-config.test.ts
+CWD: /tmp/lcx-reda-20260908/omo
+CAPTURE: command 2>&1 | tee <full-log> | tail -120; rc=${PIPESTATUS[0]}; echo TEST_EXIT=$rc
+FULL OUTPUT BEGIN (3293 bytes; sha256=786dc18d362562d0a019c020156d6709d9c2654beacd706d739be5adc59e8bbe)
+bun test v1.4.0 (34cbb9a40)
+
+packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts:
+(pass) codex MultiAgentV2 config > #given the former V2 default cap #when normalizing #then removes the cap and preserves the explicit disable [1.38ms]
+(pass) codex MultiAgentV2 config > #given legacy boolean flag and table #when updating config #then output remains valid TOML without enabling V2 [7.31ms]
+(pass) codex MultiAgentV2 config > #given an inline-commented V2 thread cap #when updating config twice #then preserves the line and ordering byte-for-byte [9.11ms]
+(pass) codex MultiAgentV2 config > #given installer config has a escaped quoted V2 header #when updating twice #then preserves the semantic cap without duplication [2.38ms]
+(pass) codex MultiAgentV2 config > #given installer config has a quoted cap key #when updating twice #then preserves the semantic cap without duplication [2.15ms]
+(pass) codex MultiAgentV2 config > #given installer config has a escaped quoted cap key #when updating twice #then preserves the semantic cap without duplication [2.21ms]
+(pass) codex MultiAgentV2 config > #given installer config has a dotted cap key #when updating twice #then preserves the semantic cap without duplication [1.80ms]
+(pass) codex MultiAgentV2 config > #given installer config has a root-qualified dotted cap key #when updating twice #then preserves the semantic cap without duplication [2.34ms]
+(pass) codex MultiAgentV2 config > #given multiline string contains V2 cap lookalikes #when updating config #then leaves the semantic cap absent [2.63ms]
+(pass) codex MultiAgentV2 config > #given V2 section multiline value contains a cap lookalike #when updating config #then leaves the cap absent [1.18ms]
+(pass) codex MultiAgentV2 config > #given root-dotted features and string lookalikes #when updating config #then replaces the semantic flag only [1.51ms]
+(pass) codex MultiAgentV2 config > #given root-dotted plugin flag has a multiline value #when updating config #then replaces the whole semantic assignment [1.30ms]
+(pass) codex MultiAgentV2 config > #given multiline string closes after an escaped quote #when updating config #then preserves the following explicit cap [1.21ms]
+(pass) codex MultiAgentV2 config > #given no limits #when updating config #then does not add either thread cap [1.14ms]
+(pass) codex MultiAgentV2 config > #given managed and user thread caps #when updating config #then removes managed values and preserves user values [2.21ms]
+(pass) codex MultiAgentV2 config > #given gpt-6-astra with unavailable catalog #when resolving multi-agent mode #then prefers V2 [1.18ms]
+(pass) codex MultiAgentV2 config > #given user caps #when updating config #then does not raise them [1.21ms]
+(pass) codex MultiAgentV2 config > #given disabled boolean shorthand #when updating config #then explicit disable is preserved in table form [1.29ms]
+
+packages/omo-codex/src/install/codex-subagent-limit-config.test.ts:
+(pass) codex subagent limit config > #given empty Codex config #when updating config #then leaves both thread limits unset [1.09ms]
+(pass) codex subagent limit config > #given existing low agents max_threads #when updating config #then preserves the root cap [1.43ms]
+
+ 20 pass
+ 0 fail
+ 71 expect() calls
+Ran 20 tests across 2 files. [764.00ms]
+
+FULL OUTPUT END
+LAST 120 LINES / ACTUAL COMMAND EXIT:
+bun test v1.4.0 (34cbb9a40)
+
+packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts:
+(pass) codex MultiAgentV2 config > #given the former V2 default cap #when normalizing #then removes the cap and preserves the explicit disable [1.38ms]
+(pass) codex MultiAgentV2 config > #given legacy boolean flag and table #when updating config #then output remains valid TOML without enabling V2 [7.31ms]
+(pass) codex MultiAgentV2 config > #given an inline-commented V2 thread cap #when updating config twice #then preserves the line and ordering byte-for-byte [9.11ms]
+(pass) codex MultiAgentV2 config > #given installer config has a escaped quoted V2 header #when updating twice #then preserves the semantic cap without duplication [2.38ms]
+(pass) codex MultiAgentV2 config > #given installer config has a quoted cap key #when updating twice #then preserves the semantic cap without duplication [2.15ms]
+(pass) codex MultiAgentV2 config > #given installer config has a escaped quoted cap key #when updating twice #then preserves the semantic cap without duplication [2.21ms]
+(pass) codex MultiAgentV2 config > #given installer config has a dotted cap key #when updating twice #then preserves the semantic cap without duplication [1.80ms]
+(pass) codex MultiAgentV2 config > #given installer config has a root-qualified dotted cap key #when updating twice #then preserves the semantic cap without duplication [2.34ms]
+(pass) codex MultiAgentV2 config > #given multiline string contains V2 cap lookalikes #when updating config #then leaves the semantic cap absent [2.63ms]
+(pass) codex MultiAgentV2 config > #given V2 section multiline value contains a cap lookalike #when updating config #then leaves the cap absent [1.18ms]
+(pass) codex MultiAgentV2 config > #given root-dotted features and string lookalikes #when updating config #then replaces the semantic flag only [1.51ms]
+(pass) codex MultiAgentV2 config > #given root-dotted plugin flag has a multiline value #when updating config #then replaces the whole semantic assignment [1.30ms]
+(pass) codex MultiAgentV2 config > #given multiline string closes after an escaped quote #when updating config #then preserves the following explicit cap [1.21ms]
+(pass) codex MultiAgentV2 config > #given no limits #when updating config #then does not add either thread cap [1.14ms]
+(pass) codex MultiAgentV2 config > #given managed and user thread caps #when updating config #then removes managed values and preserves user values [2.21ms]
+(pass) codex MultiAgentV2 config > #given gpt-6-astra with unavailable catalog #when resolving multi-agent mode #then prefers V2 [1.18ms]
+(pass) codex MultiAgentV2 config > #given user caps #when updating config #then does not raise them [1.21ms]
+(pass) codex MultiAgentV2 config > #given disabled boolean shorthand #when updating config #then explicit disable is preserved in table form [1.29ms]
+
+packages/omo-codex/src/install/codex-subagent-limit-config.test.ts:
+(pass) codex subagent limit config > #given empty Codex config #when updating config #then leaves both thread limits unset [1.09ms]
+(pass) codex subagent limit config > #given existing low agents max_threads #when updating config #then preserves the root cap [1.43ms]
+
+ 20 pass
+ 0 fail
+ 71 expect() calls
+Ran 20 tests across 2 files. [764.00ms]
+TEST_EXIT=0
+
+TEST_EXIT=0
+
+===== GREEN: TODO 4 / concurrency-node =====
+COMMAND: cd packages/omo-codex/plugin && node --test test/subagent-limit-migration.test.mjs
+CWD: /tmp/lcx-reda-20260908/omo
+CAPTURE: command 2>&1 | tee <full-log> | tail -120; rc=${PIPESTATUS[0]}; echo TEST_EXIT=$rc
+FULL OUTPUT BEGIN (2720 bytes; sha256=f591fd4dd47547c1b9d012e95b4ab6e48a359206d91c868289094695af99a8cd)
+✔ #given SessionStart migration sees an inline-commented V2 cap #when migrating twice #then preserves the line and ordering byte-for-byte (15.999959ms)
+✔ #given SessionStart migration sees equivalent V2 header ["features"."multi_agent_v2"] #when migrating twice #then preserves one valid table and the explicit cap (82.061583ms)
+✔ #given SessionStart migration sees equivalent V2 header [ features . multi_agent_v2 ] #when migrating twice #then preserves one valid table and the explicit cap (75.40075ms)
+✔ #given SessionStart migration sees equivalent V2 header ["features"."multi_agent_v\u0032"] #when migrating twice #then preserves one valid table and the explicit cap (81.304209ms)
+✔ #given SessionStart migration sees a quoted cap key #when migrating twice #then preserves the semantic cap without duplication (79.231834ms)
+✔ #given SessionStart migration sees a escaped quoted cap key #when migrating twice #then preserves the semantic cap without duplication (79.42775ms)
+✔ #given SessionStart migration sees a dotted cap key #when migrating twice #then preserves the semantic cap without duplication (78.014542ms)
+✔ #given SessionStart migration sees a root-qualified dotted cap key #when migrating twice #then preserves the semantic cap without duplication (81.871875ms)
+✔ #given multiline string contains V2 cap lookalikes #when SessionStart migrates #then leaves the semantic cap absent (73.323375ms)
+✔ #given V2 section multiline value contains a cap lookalike #when SessionStart migrates #then leaves the cap absent (69.766375ms)
+✔ #given V2 root-dotted disable and cap #when gpt-5.6 SessionStart migrates #then removes disable and V1 agents cap (78.674917ms)
+✔ #given quoted dotted V1 keys under features #when SessionStart migrates #then replaces enabled without a duplicate (70.213792ms)
+✔ #given multiline string closes after an escaped quote #when SessionStart migrates #then preserves the following explicit cap (70.050666ms)
+✔ #given gpt-5.6 session model with no models_cache and an explicit V2 cap #when migrating #then removes agents.max_threads but preserves the cap (2.032459ms)
+✔ #given SessionStart config migration has no V2 cap #when migrating #then leaves the cap unset (1.929291ms)
+✔ #given config without any model #when migrating #then does not introduce agents.max_threads (1.122833ms)
+✔ #given todo 4 cap cases #when migrating #then removes managed caps, preserves user caps, and detects gpt-6 V2 (2.840625ms)
+✔ #given config without any model but an existing low cap #when migrating #then preserves the existing cap (1.251417ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1022.268125
+
+FULL OUTPUT END
+LAST 120 LINES / ACTUAL COMMAND EXIT:
+✔ #given SessionStart migration sees an inline-commented V2 cap #when migrating twice #then preserves the line and ordering byte-for-byte (15.999959ms)
+✔ #given SessionStart migration sees equivalent V2 header ["features"."multi_agent_v2"] #when migrating twice #then preserves one valid table and the explicit cap (82.061583ms)
+✔ #given SessionStart migration sees equivalent V2 header [ features . multi_agent_v2 ] #when migrating twice #then preserves one valid table and the explicit cap (75.40075ms)
+✔ #given SessionStart migration sees equivalent V2 header ["features"."multi_agent_v\u0032"] #when migrating twice #then preserves one valid table and the explicit cap (81.304209ms)
+✔ #given SessionStart migration sees a quoted cap key #when migrating twice #then preserves the semantic cap without duplication (79.231834ms)
+✔ #given SessionStart migration sees a escaped quoted cap key #when migrating twice #then preserves the semantic cap without duplication (79.42775ms)
+✔ #given SessionStart migration sees a dotted cap key #when migrating twice #then preserves the semantic cap without duplication (78.014542ms)
+✔ #given SessionStart migration sees a root-qualified dotted cap key #when migrating twice #then preserves the semantic cap without duplication (81.871875ms)
+✔ #given multiline string contains V2 cap lookalikes #when SessionStart migrates #then leaves the semantic cap absent (73.323375ms)
+✔ #given V2 section multiline value contains a cap lookalike #when SessionStart migrates #then leaves the cap absent (69.766375ms)
+✔ #given V2 root-dotted disable and cap #when gpt-5.6 SessionStart migrates #then removes disable and V1 agents cap (78.674917ms)
+✔ #given quoted dotted V1 keys under features #when SessionStart migrates #then replaces enabled without a duplicate (70.213792ms)
+✔ #given multiline string closes after an escaped quote #when SessionStart migrates #then preserves the following explicit cap (70.050666ms)
+✔ #given gpt-5.6 session model with no models_cache and an explicit V2 cap #when migrating #then removes agents.max_threads but preserves the cap (2.032459ms)
+✔ #given SessionStart config migration has no V2 cap #when migrating #then leaves the cap unset (1.929291ms)
+✔ #given config without any model #when migrating #then does not introduce agents.max_threads (1.122833ms)
+✔ #given todo 4 cap cases #when migrating #then removes managed caps, preserves user caps, and detects gpt-6 V2 (2.840625ms)
+✔ #given config without any model but an existing low cap #when migrating #then preserves the existing cap (1.251417ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1022.268125
+TEST_EXIT=0
+
+TEST_EXIT=0
+
+FINAL BRANCH SOURCE/TEST CHECK
+BRANCH_TEST_BYTES_UNCHANGED=47
+
+REMOTE CLEANUP RECEIPT
+COMMAND: rm -rf /tmp/lcx-reda-20260908
+dir REMOVED: /tmp/lcx-reda-20260908
+CLEANUP_EXIT=0
+
+PER-TODO EXIT SUMMARY
+{"cleanup_exit": 0, "green": [0, 0], "red": [1, 1], "todo": 4}

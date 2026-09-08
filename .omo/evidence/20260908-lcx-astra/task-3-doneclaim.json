@@ -4,7 +4,7 @@
     "packages/omo-codex/plugin/components/rules/src/post-compact-budget.ts",
     "packages/omo-codex/plugin/components/rules/test/post-compact-budget.test.ts"
   ],
-  "red_proof": "Before editing, rg -n 'gpt-6-astra|gpt-6-astra-fast' packages/omo-codex/plugin/components/rules/src/post-compact-budget.ts packages/omo-codex/plugin/components/rules/test/post-compact-budget.test.ts returned no matches (exit 1); the existing unknown-model path therefore used FALLBACK_CONTEXT_WINDOW_TOKENS = 200_000.",
+  "red_proof": "Executed failing-first reconstruction in task-3-red-green.log (st_01a08154, mengmotaMac): bun --cwd packages/omo-codex/plugin/components/rules test test/post-compact-budget.test.ts against pristine dev 8bd0c35b3ba532ab0cb0df49ea71467303aa92ba with only branch tests overlaid -> 11 passed, 2 failed, TEST_EXIT=1. Both gpt-6-astra and gpt-6-astra-fast named budget assertions expected maxRuleChars 12000 but received 500 from the fallback. The exact same command at pushed branch b97e0acdf4264d0d4c989dbb8a41a3808147f3dd -> 13 passed, TEST_EXIT=0. The capture includes full raw outputs/hashes and /tmp/lcx-reda-20260908 dir REMOVED / CLEANUP_EXIT=0. No product/test edits or local bun test. Historical manual-QA and broader-gate fields below are not re-certified by this scoped run.",
   "tests": [
     "bun test packages/omo-codex/plugin/components/rules -> pending remote gate",
     "tsgo --noEmit -p packages/omo-codex/tsconfig.json -> failed: Cannot find type definition file for 'bun-types' (local dependency environment)"

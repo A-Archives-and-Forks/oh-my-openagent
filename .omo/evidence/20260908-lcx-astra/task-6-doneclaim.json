@@ -7,7 +7,7 @@
     "packages/omo-codex/plugin/components/rules/README.md",
     "packages/omo-codex/plugin/components/ultrawork/README.md"
   ],
-  "red_proof": "Before edits at HEAD 7c1c66c61: `rg -n 'max_threads = 1000|1000 threads' <five files>` -> 1 hit (packages/omo-codex/AGENTS.md:73 '... otherwise defaults it to 16 ... it writes `agents.max_threads = 1000` ...'); `rg -n 'gpt-6-astra' <five files>` -> count=0; `rg -n 'gpt-5.6-sol' <five files>` -> 0 hits (no legacy profile documented). Captured in .omo/evidence/20260908-lcx-astra/task-6-docs.log (RED section).",
+  "red_proof": "Executed prose-only acceptance greps in task-6-red.log (st_01a08154, mengmotaMac; no new prose-pinning tests). RED source is pristine dev 8bd0c35b3ba532ab0cb0df49ea71467303aa92ba, with all five documents byte-verified against local git show origin/dev:<file>: docs.no-forced-1000-cap-guidance and docs.astra-mentioned for all five files fail, TEST_EXIT=1. There are no Sol-default lines in those dev docs; the gpt-5.6-sol grep honestly returns no matches. Same checks at pushed branch b97e0acdf4264d0d4c989dbb8a41a3808147f3dd pass, TEST_EXIT=0: Astra in all five files, Sol mentions legacy-only, no obsolete cap-write or literal = 16 matches. Exact script, raw output hashes, and /tmp/lcx-reda-20260908 dir REMOVED / CLEANUP_EXIT=0 are captured. No product/test edits or local bun test. This literal acceptance evidence does not resolve the separate V2 exception wording objection; other fields retain historical results.",
   "tests": [
     "none changed: todo 6 is prose-only and names no test files; the plan's Verification strategy claims no RED test for prose -> n/a"
   ],

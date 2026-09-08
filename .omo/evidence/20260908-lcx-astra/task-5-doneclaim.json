@@ -15,10 +15,19 @@
   ],
   "red_proof": {
     "machine": "mengmotaMac",
-    "command": "bun test ./packages/omo-codex/src/install/link-cached-plugin-agents-regression.test.ts",
-    "output": "2 pass / 1 fail; Expected: \"high\"; Received: \"xhigh\"; TEST_EXIT=1",
-    "source_before_fix_sha256": "e33d58f3fe640115bf7370340ce1f54d452a1a0b62aedb6ca404808d19a22f29",
-    "raw_output_sha256": "42b6a75271d6a83f050ad76d516a3e9af1cee8d998867b2ab750f4cbc7f94ac0"
+    "task_id": "st_01a08154",
+    "evidence": "task-5-red-green.log",
+    "method": "Executed failing-first reconstruction: pristine dev plus only branch test files, then exact pushed branch, in one remote SDK session without product/test edits.",
+    "red_source": "8bd0c35b3ba532ab0cb0df49ea71467303aa92ba",
+    "green_source": "b97e0acdf4264d0d4c989dbb8a41a3808147f3dd",
+    "command": "bun test ./packages/omo-codex/src/install/managed-agent-reasoning-defaults.test.ts ./packages/omo-codex/src/install/link-cached-plugin-agents-regression.test.ts",
+    "output": "RED: 38 pass / 9 fail, TEST_EXIT=1; GREEN: 47 pass / 0 fail, TEST_EXIT=0. RED failures are managed reasoning assertions; the unchanged relink regression passes against this pristine dev baseline.",
+    "aggregate_command": "cd packages/omo-codex/plugin && node --test test/aggregate-agents.test.mjs",
+    "aggregate_output": "RED: 2 pass / 1 fail, TEST_EXIT=1; named each-role model/effort/evidence assertion expected model gpt-6-astra but received explorer gpt-5.6-luna. GREEN: 3 pass / 0 fail, TEST_EXIT=0.",
+    "aggregate_red_raw_output_sha256": "672b8fb186fde7e571c4f33026b04ce776bb99f85e9266e64697aff984a1d274",
+    "aggregate_green_raw_output_sha256": "bb4f59cccb8eda262bfd086146c53a178eb308afe89e942b91818396b841fc40",
+    "cleanup": "/tmp/lcx-reda-20260908 dir REMOVED; CLEANUP_EXIT=0; receipt included in task-5-red-green.log",
+    "historical_note": "The earlier reasoning-regression RED remains in task-5-regression.log; other fields below retain their historical results and are not re-certified by this scoped capture."
   },
   "green_proof": {
     "machine": "gorky",
