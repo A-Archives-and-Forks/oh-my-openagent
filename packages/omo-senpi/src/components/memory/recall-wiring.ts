@@ -127,6 +127,7 @@ export interface MemoryRecallWiring {
 // reflection and facts sentinels are here for the sharper reason: those children must not judge
 // or consume the hints produced by the memorian gate.
 const CHILD_SENTINELS = ["SENPI_MEMORY_REFLECTION", "SENPI_MEMORY_FACTS"] as const
+const RECALL_PATH_ENTRY_WINDOW = 200
 
 export function createMemoryRecallWiring(options: MemoryRecallWiringOptions): MemoryRecallWiring {
   const corpusCache = options.corpusCache ?? new RecallCorpusCache()
@@ -178,11 +179,20 @@ export function createMemoryRecallWiring(options: MemoryRecallWiringOptions): Me
     const corpus = await corpusCache.load(repo)
     if (corpus.documents.length === 0) return undefined
 
+    // Raw entries include tool calls/results that the judge's text-only window omits.
+    // Serialize the bounded window once; the corpus supplies the exact memory paths to check.
+    const recentEntries = JSON.stringify(session.entries.slice(-RECALL_PATH_ENTRY_WINDOW))
+    const excludePaths = new Set<string>()
+    for (const document of corpus.documents) {
+      if (recentEntries.includes(document.path)) excludePaths.add(document.path)
+    }
+
     const ledger = ledgerFor(context)
     const surfaced = await ledger.surfacedPaths(session.id)
     const candidates = selectRecallCandidates(corpus.documents, queries, {
       maxItems: recall.max_items,
       surfaced,
+      excludePaths,
     })
     if (candidates.length === 0) return undefined
     return {
