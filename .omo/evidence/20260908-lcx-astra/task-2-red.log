@@ -1,4 +1,23 @@
-$ jq -r .current.model plugin/model-catalog.json
+=== ORIGINAL origin/dev catalog JSON ===
 gpt-5.6-sol
-$ node RED assertion
-AssertionError: expected gpt-6-astra, got gpt-5.6-sol
+=== ORIGINAL origin/dev catalog.mjs (FALLBACK_CATALOG.current.model) ===
+	current: {
+		model: "gpt-5.6-sol",
+		model_context_window: 650_000,
+=== ORIGINAL origin/dev codex-model-catalog.ts (default model) ===
+6:  readonly model: string
+=== ORIGINAL origin/dev parity (three source current models) ===
+json=gpt-5.6-sol
+catalog.mjs=gpt-5.6-sol
+typescript=gpt-5.6-sol
+MISMATCH (origin/dev sources use legacy default)
+=== WORKTREE catalog JSON ===
+gpt-6-astra
+=== WORKTREE catalog.mjs (FALLBACK_CATALOG.current.model) ===
+7:	current: {
+8-		model: "gpt-6-astra",
+9-		model_context_window: 600_000,
+=== WORKTREE codex-model-catalog.ts (default model) ===
+6:  readonly model: string
+=== WORKTREE parity ===
+MATCH
