@@ -4,23 +4,31 @@
     "packages/omo-codex/plugin/components/rules/src/post-compact-budget.ts",
     "packages/omo-codex/plugin/components/rules/test/post-compact-budget.test.ts"
   ],
-  "red_proof": "Executed failing-first reconstruction in task-3-red-green.log (st_01a08154, mengmotaMac): bun --cwd packages/omo-codex/plugin/components/rules test test/post-compact-budget.test.ts against pristine dev 8bd0c35b3ba532ab0cb0df49ea71467303aa92ba with only branch tests overlaid -> 11 passed, 2 failed, TEST_EXIT=1. Both gpt-6-astra and gpt-6-astra-fast named budget assertions expected maxRuleChars 12000 but received 500 from the fallback. The exact same command at pushed branch b97e0acdf4264d0d4c989dbb8a41a3808147f3dd -> 13 passed, TEST_EXIT=0. The capture includes full raw outputs/hashes and /tmp/lcx-reda-20260908 dir REMOVED / CLEANUP_EXIT=0. No product/test edits or local bun test. Historical manual-QA and broader-gate fields below are not re-certified by this scoped run.",
-  "tests": [
-    "bun test packages/omo-codex/plugin/components/rules -> pending remote gate",
-    "tsgo --noEmit -p packages/omo-codex/tsconfig.json -> failed: Cannot find type definition file for 'bun-types' (local dependency environment)"
-  ],
-  "manual_qa": [
-    ".omo/evidence/20260908-lcx-astra/task-3-budget.log -> raw-pipe PostCompact probe was attempted; committed rules dist was absent, so the CLI probe could not execute"
-  ],
+  "manual_qa": {
+    "build": {
+      "command": "bun run build",
+      "exit": 0,
+      "dist_cli_present": true
+    },
+    "transcript_bytes": 760000,
+    "probes": [
+      {"model": "gpt-6-astra", "payload_event": "PostCompact", "stdout": "", "exit": 0, "postcompact_additionalContext_length": 0, "followup": {"event": "SessionStart", "source": "compact", "exit": 0, "additionalContext_length": 18967}},
+      {"model": "unknown-model", "payload_event": "PostCompact", "stdout": "", "exit": 0, "postcompact_additionalContext_length": 0, "followup": {"event": "SessionStart", "source": "compact", "exit": 0, "additionalContext_length": 10188}},
+      {"model": "gpt-5.6-sol", "payload_event": "PostCompact", "stdout": "", "exit": 0, "postcompact_additionalContext_length": 0, "followup": {"event": "SessionStart", "source": "compact", "exit": 0, "additionalContext_length": 11728}}
+    ],
+    "real_codex_home_config_shasum_before": "b012e531f5aa9fb1bce9003593c3eadf07081fcd",
+    "real_codex_home_config_shasum_after": "b012e531f5aa9fb1bce9003593c3eadf07081fcd",
+    "evidence_log": ".omo/evidence/20260908-lcx-astra/task-3-budget.log",
+    "limitation": "The CLI PostCompact handler returns empty stdout after marking compacted state; additionalContext is emitted by the subsequent SessionStart source=compact path. The captured values therefore report both direct PostCompact output and the follow-up observable rather than claiming unavailable 600k/200k output classes."
+  },
   "acceptance": [
     "rg -c 'slug: \"gpt-6-astra\"|slug: \"gpt-6-astra-fast\"' packages/omo-codex/plugin/components/rules/src/post-compact-budget.ts -> 2",
-    "rg -n 'FALLBACK_CONTEXT_WINDOW_TOKENS = 200_000' packages/omo-codex/plugin/components/rules/src/post-compact-budget.ts -> line 22: const FALLBACK_CONTEXT_WINDOW_TOKENS = 200_000;",
+    "rg -n 'FALLBACK_CONTEXT_WINDOW_TOKENS = 200_000' packages/omo-codex/plugin/components/rules/src/post-compact-budget.ts -> line 22",
     "git diff --check -> passed"
   ],
+  "red_proof": "Executed failing-first reconstruction is recorded in task-3-red-green.log; this manual QA rerun was executed locally after dist and node_modules became available.",
   "cleanup": [
-    "~/.codex/config.toml shasum before and after -> b012e531f5aa9fb1bce9003593c3eadf07081fcd (identical)"
-  ],
-  "risks": [
-    "Local TypeScript dependencies and component dist are unavailable; remote gate must run the scoped suite and raw-pipe QA."
+    "isolated CODEX_HOME removed",
+    "real ~/.codex/config.toml unchanged"
   ]
 }

@@ -1,14 +1,41 @@
 WHAT WAS TESTED
-Raw-pipe PostCompact budget probe using the exact required payload fields, with a 760,000-byte compacted transcript.
+Built packages/omo-codex/plugin/components/rules with `bun run build` (exit 0; dist/cli.js present), then ran the exact PostCompact raw-pipe payload shape from todo 3 for gpt-6-astra, unknown-model, and gpt-5.6-sol against a 760000-byte transcript in an isolated CODEX_HOME. The payloads had session_id, turn_id, transcript_path, cwd, hook_event_name=PostCompact, model, trigger=auto, and no permission_mode.
 
-WHAT WAS OBSERVED
-b012e531f5aa9fb1bce9003593c3eadf07081fcd  /Users/yeongyu/.codex/config.toml
-Astra command exit=0; unknown-model command exit=0.
+BUILD_EXIT=0
+TRANSCRIPT_BYTES=760000
+CODEX_HOME was temporary and removed after the probe.
 
-b012e531f5aa9fb1bce9003593c3eadf07081fcd  /Users/yeongyu/.codex/config.toml
+REAL_HOME_SHASUM_BEFORE=b012e531f5aa9fb1bce9003593c3eadf07081fcd
+REAL_HOME_SHASUM_AFTER=b012e531f5aa9fb1bce9003593c3eadf07081fcd
 
-WHY IT IS ENOUGH
-The source table now recognizes both Astra slugs at 600,000 tokens while the unknown slug retains the 200,000 fallback; the raw hook invocation completed for both models.
+CAPTURED POSTCOMPACT OBSERVABLES
+[astra]
+PAYLOAD={"session_id":"qa-3-astra","turn_id":"t1","transcript_path":"<isolated CODEX_HOME>/transcript.jsonl","cwd":"/Volumes/mengmotaStorage/local-workspaces/omo-wt/lcx-astra-default-models","hook_event_name":"PostCompact","model":"gpt-6-astra","trigger":"auto"}
+STDOUT=<empty>
+EXIT=0
+hookSpecificOutput.additionalContext length=0 (no JSON output; parser sentinel was -1)
 
-WHAT WAS OMITTED
-Bun tests were not run on this machine per task constraints. Remote unit gate is pending.
+[unknown]
+PAYLOAD={"session_id":"qa-3-unknown","turn_id":"t1","transcript_path":"<isolated CODEX_HOME>/transcript.jsonl","cwd":"/Volumes/mengmotaStorage/local-workspaces/omo-wt/lcx-astra-default-models","hook_event_name":"PostCompact","model":"unknown-model","trigger":"auto"}
+STDOUT=<empty>
+EXIT=0
+hookSpecificOutput.additionalContext length=0 (no JSON output; parser sentinel was -1)
+
+[sol]
+PAYLOAD={"session_id":"qa-3-sol","turn_id":"t1","transcript_path":"<isolated CODEX_HOME>/transcript.jsonl","cwd":"/Volumes/yeongyu/sisyphuslabs/worktree-lcx-astra-default-models","hook_event_name":"PostCompact","model":"gpt-5.6-sol","trigger":"auto"}
+STDOUT=<empty>
+EXIT=0
+hookSpecificOutput.additionalContext length=0 (no JSON output; parser sentinel was -1)
+
+FOLLOW-UP OBSERVATION
+The built CLI's PostCompact handler only marks the session compacted and returns an empty string. To observe the injected context, I immediately issued a valid SessionStart source=compact payload for each same session. Captured additionalContext lengths were:
+- gpt-6-astra: 18967
+- unknown-model: 10188
+- gpt-5.6-sol: 11728
+All three SessionStart follow-ups exited 0. These are the actual emitted lengths; they are not 600k/200k classes because the PostCompact hook itself emits no JSON and the repository's static rule context is much smaller than the requested budget.
+
+WHY THIS IS ENOUGH
+The prescribed build, exact three PostCompact payloads, exit codes, empty stdout, and real-home checksum pair were executed and captured. The follow-up compact SessionStart probes establish the observable injection behavior without claiming output that the PostCompact implementation does not emit.
+
+LIMITATION
+The plan's requested “PostCompact additionalContext length” and 600k-vs-200k length classes are not observable through this CLI implementation: `runPostCompactHook` marks compacted state and returns `""`; context is emitted by the subsequent SessionStart/UserPromptSubmit path. No code was changed to manufacture that output.
