@@ -10,7 +10,7 @@ import { FakeRegistry } from "../lifecycle/__fixtures__/lifecycle-fakes"
 import { categoryPlanner, makeHandle, settings } from "../manager/__fixtures__/manager-fakes"
 import { createTaskManager } from "../manager/manager"
 import type { ManagerStartSpec, TaskManager } from "../manager/types"
-import { createTaskRecord, type TaskRecord, type TaskStatus } from "../state"
+import { createTaskRecord, markRecordLostForReconciliation, type TaskRecord, type TaskStatus } from "../state"
 import { createTaskRecordStore } from "../store"
 import { dagFingerprint, ownerFingerprintInput } from "./fingerprint"
 import { compileDag, type DagDefinition } from "./graph"
@@ -530,10 +530,14 @@ describe("DAG crash recovery", () => {
     })
     const lifecycle = createTaskLifecycle({ store: taskStore, registry: new FakeRegistry(), config, hostPid: 101, now })
     const revived = await lifecycle.reconcileOnSessionStart(parentSessionId)
+    lifecycle.dispose?.()
     expect(revived.outcomes).toContainEqual(expect.objectContaining({ task_id: pending.task_id, kind: "resumed" }))
-    taskStore.transition(pending.task_id, { type: "lose", timestamp: "2026-08-14T00:00:02.000Z", error_message: "host died" })
+    taskStore.mutate(pending.task_id, (fresh) => markRecordLostForReconciliation(fresh, {
+      timestamp: "2026-08-14T00:00:02.000Z", error_message: "host died",
+    }).record)
     const lost = createTaskRecordStore({ project_dir: project }).load(pending.task_id)
     if (lost === null) throw new Error("expected persisted lost task")
+    expect(lost.status).toBe("lost")
     const manager = new RecoveryTaskManager()
     manager.add(lost)
     const store = createDagFileStore({ project_dir: project })
