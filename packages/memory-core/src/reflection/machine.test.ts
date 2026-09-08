@@ -283,6 +283,22 @@ describe("reflection trigger machine", () => {
     expect(state.pending?.request.conversationIds).toEqual(Array.from({ length: 32 }, (_, index) => `conversation-${index + 1}`))
   })
 
+  it("#given legacy oversized pending state #when the dead active run completes #then promotion applies the same bounds", () => {
+    const requests = Array.from({ length: 40 }, (_, index) => pendingRequest(`conversation-${index}`))
+    const pending = { runId: "legacy-pending", request: {
+      trigger: "manual" as const,
+      conversationIds: requests.flatMap((item) => item.conversationIds),
+      snapshots: requests.flatMap((item) => item.snapshots),
+    } }
+    const result = completeTransition({
+      active: { runId: "active", request: pendingRequest("active") }, pending,
+    }, "active", "failed", new Map(), {})
+
+    expect(result.launch?.request.conversationIds).toEqual(pending.request.conversationIds.slice(8))
+    expect(result.launch?.request.snapshots.map((item) => item.conversationId)).toEqual(pending.request.conversationIds.slice(8))
+    expect(result.finalize).toEqual([])
+  })
+
   it("#given interleaved reflection and dream requests #when every bounded event sequence is applied #then at most one active and one pending run exist", () => {
     const candidates = [
       request("step-count"),

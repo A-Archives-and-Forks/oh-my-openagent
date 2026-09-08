@@ -79,6 +79,28 @@ describe("persisted reflection reservation", () => {
     expect((await readdir(identity.paths.reflection)).sort()).toEqual(["pending.json.tmp-directory", "unrelated.tmp-keep"])
   })
 
+  it("#given many large pending captures #when reservations merge on disk #then pending.json stays bounded and no journal cursor advances", async () => {
+    const { identity, journal, store } = await fixture()
+    await store.tryReserve(await captured(journal, "manual"))
+    const snapshot = await journal.captureReflectionSnapshot()
+    if (snapshot === null) throw new Error("expected snapshot")
+    const large: ReflectionSnapshot = { ...snapshot, entries: [{
+      kind: "assistant", text: "x".repeat(512 * 1024), captured_at: "2026-08-10T00:00:00.000Z",
+      source_line_id: "line", source_message_id: "message",
+    }] }
+    for (let index = 0; index < 12; index += 1) {
+      const conversationId = `conversation-${index}`
+      await store.tryReserve({ trigger: "manual", conversationIds: [conversationId], snapshots: [{ conversationId, snapshot: large }] })
+    }
+
+    const persisted = await readFile(join(identity.paths.reflection, "pending.json"), "utf8")
+    expect(Buffer.byteLength(persisted, "utf8")).toBeLessThanOrEqual(4 * 1024 * 1024)
+    expect((await store.readState()).pending?.request.conversationIds).toEqual(
+      Array.from({ length: 7 }, (_, index) => `conversation-${index + 5}`),
+    )
+    expect((await journal.getState()).reflected_completed_steps).toBe(0)
+  })
+
   it("#given an aborted signal #when reservation starts #then active and pending state remain empty", async () => {
     // given
     const { store } = await fixture()
