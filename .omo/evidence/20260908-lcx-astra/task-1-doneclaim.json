@@ -1,0 +1,37 @@
+{
+  "task": "1 rules-engine gpt-6 Hephaestus variant",
+  "changed_files": [
+    "packages/rules-engine/src/engine/finder.ts",
+    "packages/rules-engine/src/engine/finder.test.ts",
+    "packages/rules-engine/src/engine/truncator.ts",
+    "packages/rules-engine/src/engine/truncator.test.ts",
+    "packages/omo-codex/plugin/components/rules/bundled-rules/hephaestus/gpt-6.md",
+    "packages/omo-codex/plugin/components/rules/test/hephaestus-model-variant.test.ts"
+  ],
+  "red_proof": "Remote mengmotaMac, after bun install --frozen-lockfile --ignore-scripts: bun test packages/rules-engine/src/engine/finder.test.ts packages/rules-engine/src/engine/truncator.test.ts packages/omo-codex/plugin/components/rules/test/hephaestus-model-variant.test.ts -> exit 1; the new gpt-6 finder cases received gpt-5.5.md and the new truncator cases received truncated: true / never-truncated false. Full captured output is in .omo/evidence/20260908-lcx-astra/task-1-hephaestus-gpt6.log.",
+  "tests": [
+    "Remote mengmotaMac: bun install --frozen-lockfile --ignore-scripts && bun test packages/rules-engine/src/engine/finder.test.ts packages/rules-engine/src/engine/truncator.test.ts && cd packages/omo-codex/plugin/components/rules && bun test test/hephaestus-model-variant.test.ts -> exit 0; 15 rules-engine tests passed and 9 Hephaestus variant tests passed.",
+    "Remote mengmotaMac: bun install --frozen-lockfile --ignore-scripts && cd packages/omo-codex/plugin/components/rules && bun test -> exit 1; 169 passed, 2 pre-existing failures in codex-hook.test.ts outside this task's files (full result captured in task-1-hephaestus-gpt6.log).",
+    "Local: cd packages/omo-codex/plugin/components/rules && bun run build -> exit 0; dist/cli.js bundled successfully.",
+    "Local: git diff --check -- packages/rules-engine/src/engine/finder.ts packages/rules-engine/src/engine/finder.test.ts packages/rules-engine/src/engine/truncator.ts packages/rules-engine/src/engine/truncator.test.ts packages/omo-codex/plugin/components/rules/test/hephaestus-model-variant.test.ts packages/omo-codex/plugin/components/rules/bundled-rules/hephaestus/gpt-6.md -> exit 0."
+  ],
+  "manual_qa": [
+    ".omo/evidence/20260908-lcx-astra/task-1-hephaestus-gpt6.log -> raw-pipe SessionStart with the exact required payload and model gpt-6-astra emitted hookSpecificOutput.additionalContext containing Instructions from .../bundled-rules/hephaestus/gpt-6.md and based on GPT-6; the identical gpt-5.5 payload emitted the gpt-5.5 rule and not the GPT-6 rule; cqa_assert_real_home_unchanged passed.",
+    ".omo/evidence/20260908-lcx-astra/task-1-hephaestus-gpt6.log -> remote targeted GREEN run ended with exit 0 and both remote temporary directories recorded as dir REMOVED."
+  ],
+  "acceptance": [
+    "rg -o 'gate-reviewer' packages/omo-codex/plugin/components/rules/bundled-rules/hephaestus/gpt-6.md | wc -l -> 0",
+    "rg -ni '\\beval\\b|\\bmonitor\\b' packages/omo-codex/plugin/components/rules/bundled-rules/hephaestus/gpt-6.md -> ABSENT",
+    "Bun.YAML frontmatter parse of packages/omo-codex/plugin/components/rules/bundled-rules/hephaestus/gpt-6.md -> {\"description\":\"OMO Hephaestus Astra discipline for Codex\",\"alwaysApply\":true}",
+    "raw-pipe SessionStart gpt-6-astra through packages/omo-codex/plugin/components/rules/dist/cli.js hook session-start -> additionalContext contained based on GPT-6 and did not contain GPT-5.5; raw-pipe gpt-5.5 -> additionalContext contained GPT-5.5 and did not select gpt-6.md"
+  ],
+  "cleanup": [
+    "Remote RED directory /tmp/lcx-t1-20260908-red-1788860305554/omo REMOVED.",
+    "Remote GREEN directories /tmp/lcx-t1-20260908-green-1788860617301/omo, /tmp/lcx-t1-20260908-green-1788860782704/omo, and /tmp/lcx-t1-20260908-green-1788860868644/omo REMOVED.",
+    "Remote suite directories /tmp/lcx-t1-20260908-suite-1788861082693/omo and /tmp/lcx-t1-20260908-rules-1788861193806/omo REMOVED."
+  ],
+  "risks": [
+    "The full rules component suite has two pre-existing failures outside this task's files: codex-hook.test.ts debug timing stderr expectation and rules-engine consumption performance cache expectation. They were not modified.",
+    "The committed installer bundle was not rebuilt because todo 4 owns bundle regeneration; this task's direct component QA used the freshly built rules dist and deferred installer-surface QA to todo 7."
+  ]
+}
