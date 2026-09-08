@@ -251,3 +251,40 @@ CLEANUP_EXIT=0
 
 PER-TODO EXIT SUMMARY
 {"cleanup_exit": 0, "green": [0], "red": [1], "todo": 6}
+
+===== VERIFY-A4 FIX: V2 agents.max_threads exception (st_01a08167) =====
+Timestamp: 2026-09-08T14:22:01Z
+HEAD: 38718c52acf9987d59dc48281b7777f283475760
+BEFORE: rg -n 'left as is|left alone' <five docs> | cut -c1-200
+packages/omo-codex/plugin/README.md:20:`model-catalog.json` (version `2026-09-08.gpt-6-astra-600k-high`) is the managed default the installer and the SessionStart config migration apply: `gpt-6-astra`
+packages/omo-codex/README.md:38:The installer copies the built plugin into `~/.codex/plugins/cache/sisyphuslabs/omo/<version>/`, writes the local marketplace snapshot under `~/.codex/.tmp/marketplaces
+packages/omo-codex/AGENTS.md:68:- If the selected root `model` (or SessionStart hook `model`, which wins when present) resolves to `multi_agent_version: "v2"` in `CODEX_HOME/models_cache.json` (GPT-6 
+RG_EXIT=0
+BEFORE: lines above that also mention the V2 exception (must be all of them after the fix):
+MATCHING_V2_LINES_EXIT=1
+AFTER: rg -n 'left as is|left alone' <five docs>
+packages/omo-codex/plugin/README.md:20:`model-catalog.json` (version `2026-09-08.gpt-6-astra-600k-high`) is the managed default the installer and the SessionStart config migration apply: `gpt-6-astra`, 600k context window, `high` reasoning, `xhigh` plan-mode reasoning. Managed legacy profiles, including `legacy.gpt-5.6-sol-650k-high` for configs still on `gpt-5.6-sol`, are upgraded to the current values; a root model outside the catalog is preserved. Neither the installer nor the migration writes or raises subagent thread caps (`agents.max_threads`, `features.multi_agent_v2.max_concurrent_threads_per_session`). They remove only the values LazyCodex itself wrote earlier (`1000`, `16`), with one exception: on a `multi_agent_v2`-preferred model such as `gpt-6-astra`, the V1-only `agents.max_threads` key is removed whatever its value, since Codex rejects it under V2. Every other user-set value is left alone.
+packages/omo-codex/AGENTS.md:68:- If the selected root `model` (or SessionStart hook `model`, which wins when present) resolves to `multi_agent_version: "v2"` in `CODEX_HOME/models_cache.json` (GPT-6 Astra and GPT-5.6 terra/sol families), or the catalog is unavailable but the effective session model is `gpt-6*` or `gpt-5.6*` (`prefersMultiAgentV2()`), the guard **clears** managed `enabled = false` / `#26753` comments **and** any `hide_spawn_agent_metadata = false` (written by OMO installers <= 4.15.x; it re-adds agent_type/model properties to spawn_agent and mismatches the reserved schema, 400 on codex-cli 0.144.1), leaving V2 unset so Codex can follow the reserved `collaboration.spawn_agent` schema (lazycodex#118 / oh-my-openagent#6002). On that same V2-preferred signal `ensureSubagentConcurrencyLimit()` also removes `agents.max_threads` (invalid while V2 is active). Thread caps are never inserted or raised: `max_concurrent_threads_per_session` is left alone unless it carries a value LazyCodex itself used to write (`1000` or `16`), in which case the key is removed so Codex stock defaults apply; any other user value is preserved.
+packages/omo-codex/README.md:38:The installer copies the built plugin into `~/.codex/plugins/cache/sisyphuslabs/omo/<version>/`, writes the local marketplace snapshot under `~/.codex/.tmp/marketplaces/sisyphuslabs/plugins/omo/`, copies bundled agent TOMLs into `~/.codex/agents/`, enables `omo@sisyphuslabs` in `~/.codex/config.toml`, and registers the `sisyphuslabs` marketplace from the local built cache. It never enables MultiAgentV2 and never writes or raises subagent thread caps. `agents.max_threads` and `features.multi_agent_v2.max_concurrent_threads_per_session` are not inserted; values LazyCodex wrote in earlier releases (`1000`, `16`) are removed so Codex stock defaults apply. One exception: when the root model prefers `multi_agent_v2` (the `gpt-6-astra` default), the V1-only `agents.max_threads` key is removed whatever its value, because Codex rejects it while V2 is active. Every other user-set value, including your own `max_concurrent_threads_per_session`, is left as is. If an older config used `[features] multi_agent_v2 = false`, the installer preserves that explicit disable as table-form `enabled = false`.
+RG_EXIT=0
+AFTER: matching lines lacking the V2 exception (agents.max_threads + V2/multi_agent_v2 + remov on the same line) -> must be none:
+NO_MAX_THREADS_EXIT=1
+NO_V2_EXIT=1
+NO_REMOVE_EXIT=1
+Original acceptance greps re-run:
+CAP_WRITE_EXIT=1
+LITERAL16_EXIT=1
+packages/omo-codex/plugin/README.md:1
+packages/omo-codex/README.md:2
+packages/omo-codex/plugin/components/ultrawork/README.md:1
+packages/omo-codex/plugin/components/rules/README.md:1
+packages/omo-codex/AGENTS.md:1
+NONLEGACY_SOL_EXIT=1
+dash check on changed lines:
+DASH_EXIT=1
+ packages/omo-codex/README.md        | 2 +-
+ packages/omo-codex/plugin/README.md | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+ M .omo/evidence/20260908-lcx-astra/task-6-red.log
+ M packages/omo-codex/README.md
+ M packages/omo-codex/plugin/README.md
