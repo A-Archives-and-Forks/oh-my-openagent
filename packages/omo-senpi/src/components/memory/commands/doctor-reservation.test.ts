@@ -44,9 +44,9 @@ describe("checkGhostReservation", () => {
   test("#given an old reservation with a dead launcher #then it warns with remediation", async () => {
     const paths = await identityPathsWithActive(GHOST_ACTIVE)
     const check = await checkGhostReservation(paths, { isProcessAlive: () => false })
-    expect(check.level).toBe("warn")
-    expect(check.detail).toContain("ghost active reservation reflection-run-1")
-    expect(check.detail).toContain("reclaims it at session start")
+    expect(check).toMatchObject({ name: "reservation", level: "warn" })
+    expect(check.detail).toContain("reflection-run-1")
+    expect(check.detail).toContain("81327")
   })
 
   test("#given an old reservation with a live launcher #then the check is ok", async () => {
