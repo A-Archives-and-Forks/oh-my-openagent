@@ -252,7 +252,9 @@ async function reconcileNodes(
     if (observed.state !== "scheduled" && observed.state !== "running") continue
 
     const owned = context.taskManager.findOwnedTask(ownerKey(journal.snapshot(), observed.id))
-    let task = observed.taskId === undefined ? owned : context.taskManager.get(observed.taskId) ?? owned
+    // Retrying retains taskId until the next admission batch attaches its replacement. The
+    // newest owner is authoritative even if that replacement launched before the batch committed.
+    let task = owned ?? (observed.taskId === undefined ? undefined : context.taskManager.get(observed.taskId))
     if (task !== undefined && observed.taskId !== task.task_id) attachTask(journal, observed.id, task.task_id)
 
     if (task === undefined && observed.state === "scheduled" && observed.taskId === undefined) {
