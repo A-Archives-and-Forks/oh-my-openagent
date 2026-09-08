@@ -43,13 +43,34 @@ describe("memorian gate notice", () => {
   })
 })
 
-describe("memorian nudged aha moment", () => {
-  test("#given a nudged record #when rendered #then the title celebrates the recollection", () => {
-    const component = renderMemorianNudgedEntry(entry({ version: 1, nudges: [{ path: "a.md", hint: "Use it." }], via: "steer" }), { expanded: false }, theme)
+describe("memorian nudged recollection", () => {
+  test("#given a nudged record with an opener #when rendered #then the opener is the title", () => {
+    const component = renderMemorianNudgedEntry(
+      entry({ version: 1, nudges: [{ path: "a.md", hint: "Use it." }], via: "steer", opener: "Come to think of it —" }),
+      { expanded: false },
+      theme,
+    )
     const rendered = component?.render(120).join("\n")
-    expect(rendered).toContain("✦ Aha moment!")
+    expect(rendered).toContain("✦ Come to think of it —")
+    expect(rendered).not.toContain("Aha moment")
     expect(rendered).toContain("just remembered: Use it.")
     expect(rendered).toContain("a.md")
+  })
+
+  test("#given a nudged record without an opener #when rendered #then the default opener is the title", () => {
+    const component = renderMemorianNudgedEntry(entry({ version: 1, nudges: [{ path: "a.md", hint: "Use it." }], via: "steer" }), { expanded: false }, theme)
+    const rendered = component?.render(120).join("\n")
+    expect(rendered).toContain("✦ Oh, right —")
+    expect(rendered).toContain("just remembered: Use it.")
+  })
+
+  test("#given an invalid opener #when rendered #then the notice still draws with the default opener", () => {
+    for (const opener of ["x".repeat(41), "Oh,\u001b[31m right —", "two\nlines —", 7, ""]) {
+      const component = renderMemorianNudgedEntry(entry({ version: 1, nudges: [{ path: "a.md", hint: "Use it." }], opener }), { expanded: false }, theme)
+      const rendered = component?.render(120).join("\n")
+      expect(rendered).toContain("✦ Oh, right —")
+      expect(rendered).toContain("just remembered: Use it.")
+    }
   })
 
   test("#given a second nudge #when rendered #then the extra hint continues the recollection", () => {

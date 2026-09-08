@@ -193,9 +193,9 @@ describe("memorian observability contract", () => {
       sessionManager: { getSessionId: () => "prompt-session", getBranch: () => [] },
     })
 
-    expect(steerEntries).toEqual([{ version: 1, nudges: [nudge], via: "steer" }])
+    expect(steerEntries).toEqual([{ version: 1, nudges: [nudge], via: "steer", opener: expect.any(String) }])
     await Promise.race([wakeReady, new Promise<void>((_, r) => setTimeout(() => r(new Error("wake ready timeout")), 5000))])
-    expect(wakeEntries).toEqual([{ version: 1, nudges: [nudge], via: "wake" }])
-    expect(pi.entries.map((entry) => entry.data)).toEqual([{ version: 1, nudges: [nudge], via: "prompt" }])
+    expect(wakeEntries).toEqual([{ version: 1, nudges: [nudge], via: "wake", opener: expect.any(String) }])
+    expect(pi.entries.map((entry) => entry.data)).toEqual([{ version: 1, nudges: [nudge], via: "prompt", opener: expect.any(String) }])
   })
 })

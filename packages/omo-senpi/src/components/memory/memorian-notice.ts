@@ -1,6 +1,7 @@
 import type { EntryRenderer } from "@code-yeongyu/senpi"
 import { containsSecretLikeMaterial, isValidHint, NUDGE_HINT_MAX_CHARS } from "@oh-my-opencode/memory-core"
 
+import { DEFAULT_RECALL_OPENER, isValidOpener } from "./memorian-openers"
 import { joinFields, noticeComponent, normalizeRendererText } from "./worker/entry-renderers"
 
 export const NUDGED_ENTRY_TYPE = "omo-memorian:nudged"
@@ -11,6 +12,7 @@ export interface MemorianNudgedRecord {
   readonly version: 1
   readonly nudges: readonly { readonly path: string; readonly hint: string }[]
   readonly via?: "steer" | "wake" | "prompt"
+  readonly opener?: string
 }
 
 export interface MemorianGateRecord {
@@ -39,10 +41,12 @@ export const renderMemorianNudgedEntry: EntryRenderer<unknown> = (entry, options
   const [first, ...rest] = nudges
   if (first === undefined) return undefined
   // The notice is written in the agent's own voice: a nudge is a recollection the agent just had,
-  // not a third-party act report. `via` stays in the record for forensics but is never drawn.
+  // not a third-party act report. `via` stays in the record for forensics but is never drawn. The
+  // opener was picked when the record was written; a record without one (older producers) or with
+  // one that fails the display contract still draws, under the default opener.
   return noticeComponent({
     glyph: "✦",
-    title: "Aha moment!",
+    title: isValidOpener(record.opener) ? normalizeRendererText(record.opener) : DEFAULT_RECALL_OPENER,
     tone: "accent",
     why: `just remembered: ${first.hint}`,
     extra: [
