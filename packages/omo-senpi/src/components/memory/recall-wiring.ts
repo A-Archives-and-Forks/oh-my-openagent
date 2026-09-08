@@ -184,7 +184,10 @@ export function createMemoryRecallWiring(options: MemoryRecallWiringOptions): Me
     const recentEntries = JSON.stringify(session.entries.slice(-RECALL_PATH_ENTRY_WINDOW))
     const excludePaths = new Set<string>()
     for (const document of corpus.documents) {
-      if (recentEntries.includes(document.path)) excludePaths.add(document.path)
+      const path = JSON.stringify(document.path).slice(1, -1).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      // Close at transcript delimiters (including JSON-escaped whitespace), not filename suffixes.
+      const mention = new RegExp(`${path}(?=$|[\\s"'\x60\\])}>:;,!?]|\\\\["nrtbf])`)
+      if (mention.test(recentEntries)) excludePaths.add(document.path)
     }
 
     const ledger = ledgerFor(context)

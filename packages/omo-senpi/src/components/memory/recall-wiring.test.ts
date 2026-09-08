@@ -145,6 +145,57 @@ describe("createMemoryRecallWiring collectCandidates", () => {
   }, 30_000)
 
   test.each([
+    { suffix: ".bak", excluded: false },
+    { suffix: "x", excluded: false },
+    { suffix: "_backup", excluded: false },
+    { suffix: "-backup", excluded: false },
+    { suffix: "/child.md", excluded: false },
+    { suffix: "\uD55C\uAE00", excluded: false },
+    { suffix: "]]", excluded: true },
+    { suffix: "`", excluded: true },
+    { suffix: ")", excluded: true },
+    { suffix: "\nnext line", excluded: true },
+  ])("#given a path with suffix $suffix #when candidates are collected #then filename boundaries determine exclusion", async ({ suffix, excluded }) => {
+    // given
+    const { repo, context } = await fixture(tempDirs, [{
+      relativePath: DRAINS_PATH,
+      content: `---\ndescription: ${DRAINS_DESCRIPTION}\n---\n${DRAINS_BODY}`,
+    }])
+    const wiring = wiringFor({ repo, identity: context, recall: { max_items: 2 } })
+
+    // when
+    const collected = await wiring.collectCandidates(eventContext([
+      assistantEntry("seen", `[[${ROLLOUTS_PATH}${suffix}`),
+      userEntry("m1", KUBERNETES_PROMPT),
+    ]))
+
+    // then
+    expect(collected?.candidates.map((candidate) => candidate.path).sort()).toEqual(
+      (excluded ? [DRAINS_PATH] : [DRAINS_PATH, ROLLOUTS_PATH]).sort(),
+    )
+  }, 30_000)
+
+  test("#given a real absolute memory path in tool arguments #when candidates are collected #then only the absent control remains", async () => {
+    // given
+    const { repo, context } = await fixture(tempDirs, [{
+      relativePath: DRAINS_PATH,
+      content: `---\ndescription: ${DRAINS_DESCRIPTION}\n---\n${DRAINS_BODY}`,
+    }])
+    const wiring = wiringFor({ repo, identity: context, recall: { max_items: 2 } })
+
+    // when
+    const collected = await wiring.collectCandidates(eventContext([
+      { type: "message", id: "seen", message: { role: "assistant", content: [
+        { type: "toolCall", id: "read-absolute", name: "read", arguments: { path: `${repo.dir}/${ROLLOUTS_PATH}` } },
+      ] } },
+      userEntry("m1", KUBERNETES_PROMPT),
+    ]))
+
+    // then
+    expect(collected?.candidates.map((candidate) => candidate.path)).toEqual([DRAINS_PATH])
+  }, 30_000)
+
+  test.each([
     { newerEntries: 199, excluded: true },
     { newerEntries: 200, excluded: false },
   ])("#given a transcript-visible path with $newerEntries newer entries #when collected #then the last 200 entries bound exclusion", async ({ newerEntries, excluded }) => {
