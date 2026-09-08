@@ -30,6 +30,7 @@ import {
 import { classifyRunProcess, signalRecordedProcessGroup, waitUntil as waitForTime } from "./run-liveness"
 import { parseReservationRunLedger, type ReservationRunLedger } from "./reservation-run-ledger"
 import { waitForRunSentinel, type SentinelWaitResult } from "./run-sentinel"
+import { sweepStrandedRunTemporaries } from "./run-temporaries"
 
 export type ReflectionRunReconcileResult = Pick<ReservationRunResult, "runId" | "outcome">
 
@@ -64,9 +65,13 @@ export async function reconcileReflectionRuns(
     const results: ReflectionRunReconcileResult[] = []
     const prelaunch = await reconcilePrelaunch(context)
     if (prelaunch !== undefined) results.push(prelaunch)
+    await sweepStrandedRunTemporaries(
+      join(options.identity.paths.reflection, "completions"), context.now(), context.getPidLiveness,
+    )
     const runsDir = join(options.identity.paths.reflection, "runs")
     for (const name of await directoryNames(runsDir)) {
       const runDir = join(runsDir, name)
+      await sweepStrandedRunTemporaries(runDir, context.now(), context.getPidLiveness)
       if (existsSync(join(runDir, "final.json")) || existsSync(join(runDir, "abandoned.json"))) continue
       if (!existsSync(join(runDir, "ledger.json"))) continue
       const ledger = parseReservationRunLedger(await readRunJson<unknown>(join(runDir, "ledger.json")))
@@ -86,9 +91,30 @@ async function reconcilePrelaunch(context: ReconcileContext): Promise<Reflection
   )).active
   if (active?.reservedAt === undefined || active.launcherPid === undefined || active.launcherHostname === undefined) return undefined
   const runDir = join(context.identity.paths.reflection, "runs", active.runId)
-  if (existsSync(join(runDir, "ledger.json"))) return undefined
+  let retiredGeneration = false
+  if (existsSync(join(runDir, "ledger.json"))) {
+    const ledger = parseReservationRunLedger(await readRunJson<unknown>(join(runDir, "ledger.json")))
+    const hasFinal = existsSync(join(runDir, "final.json"))
+    const terminalPath = join(runDir, hasFinal ? "final.json" : "abandoned.json")
+    if (!existsSync(terminalPath)) return undefined
+    const terminal = await readRunJson<{ finishedAt?: unknown; abandonedAt?: unknown } | null>(terminalPath)
+    const timestamp = hasFinal ? terminal?.finishedAt : terminal?.abandonedAt
+    const terminalAt = typeof timestamp === "string" ? Date.parse(timestamp) : NaN
+    const reservedAt = Date.parse(active.reservedAt)
+    const startedAt = Date.parse(ledger.startedAt)
+    const finalizedAt = ledger.finalizedAt === undefined ? undefined : Date.parse(ledger.finalizedAt)
+    // Corrupt or missing timestamps cannot prove generation ownership. Report them without
+    // mutating state, rather than silently treating NaN comparisons as a current generation.
+    if (![terminalAt, reservedAt, startedAt].every(Number.isFinite)
+      || (finalizedAt !== undefined && !Number.isFinite(finalizedAt))) {
+      throw new TypeError(`Invalid reflection generation timestamps for ${active.runId}`)
+    }
+    retiredGeneration = startedAt < reservedAt && terminalAt < reservedAt
+      && (finalizedAt === undefined || finalizedAt < reservedAt)
+    if (!retiredGeneration) return undefined
+  }
   const prelaunchPath = join(runDir, "prelaunch.json")
-  if (existsSync(runDir) && !existsSync(prelaunchPath)) return undefined
+  if (!retiredGeneration && existsSync(runDir) && !existsSync(prelaunchPath)) return undefined
   if (context.now() - Date.parse(active.reservedAt) <= 60_000 || active.launcherHostname !== context.hostname()) return undefined
   const liveness = (context.getPidLiveness ?? getPidLiveness)(active.launcherPid)
   let dead = liveness === "dead"
@@ -97,7 +123,8 @@ async function reconcilePrelaunch(context: ReconcileContext): Promise<Reflection
     dead = actual !== null && actual !== active.launcherProcessStart
   }
   if (!dead) return undefined
-  if (existsSync(prelaunchPath)) {
+  // Retired artifacts are historical evidence, not resources owned by this reservation.
+  if (!retiredGeneration && existsSync(prelaunchPath)) {
     const prelaunch = parseRunPrelaunchArtifact(await readRunJson<unknown>(prelaunchPath))
     if (prelaunch.runId !== active.runId) throw new Error("Reflection prelaunch run id does not match reservation")
     const repo = new GitMemoryRepo({ dir: context.identity.paths.repo, agentId: context.identity.id })
