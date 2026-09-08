@@ -3,6 +3,7 @@
 > 使用 `bun install -g omo-ai@beta` 试用。记忆系统、CodeMode、Anthropic 订阅,全部支持。
 
 > [!Sponsors]
+> 以下是我们的赞助商。感谢您帮助我们完成制作。
 > | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** 以与官方定价相同的价格提供 **300 TPS 的 Kimi K3 Ultrafast**。立即试用 `moonshotai/kimi-k3-ultrafast`。 |
 > | :-----| :----- |
 

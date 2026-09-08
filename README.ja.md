@@ -3,6 +3,7 @@
 > `bun install -g omo-ai@beta` でお試しください。メモリシステム、CodeMode、Anthropic サブスクリプションにすべて対応しています。
 
 > [!Sponsors]
+> 以下は私たちのスポンサーです。制作をご支援いただきありがとうございます。
 > | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** では **Kimi K3 Ultrafast (300 TPS)** を公式価格と同じ料金で提供しています。`moonshotai/kimi-k3-ultrafast` を今すぐお試しください。 |
 > | :-----| :----- |
 
