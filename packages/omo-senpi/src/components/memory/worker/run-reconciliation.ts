@@ -30,6 +30,7 @@ import {
 import { classifyRunProcess, signalRecordedProcessGroup, waitUntil as waitForTime } from "./run-liveness"
 import { parseReservationRunLedger, type ReservationRunLedger } from "./reservation-run-ledger"
 import { waitForRunSentinel, type SentinelWaitResult } from "./run-sentinel"
+import { sweepStrandedRunTemporaries } from "./run-temporaries"
 
 export type ReflectionRunReconcileResult = Pick<ReservationRunResult, "runId" | "outcome">
 
@@ -64,9 +65,13 @@ export async function reconcileReflectionRuns(
     const results: ReflectionRunReconcileResult[] = []
     const prelaunch = await reconcilePrelaunch(context)
     if (prelaunch !== undefined) results.push(prelaunch)
+    await sweepStrandedRunTemporaries(
+      join(options.identity.paths.reflection, "completions"), context.now(), context.getPidLiveness,
+    )
     const runsDir = join(options.identity.paths.reflection, "runs")
     for (const name of await directoryNames(runsDir)) {
       const runDir = join(runsDir, name)
+      await sweepStrandedRunTemporaries(runDir, context.now(), context.getPidLiveness)
       if (existsSync(join(runDir, "final.json")) || existsSync(join(runDir, "abandoned.json"))) continue
       if (!existsSync(join(runDir, "ledger.json"))) continue
       const ledger = parseReservationRunLedger(await readRunJson<unknown>(join(runDir, "ledger.json")))
