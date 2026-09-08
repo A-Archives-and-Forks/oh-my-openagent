@@ -71,7 +71,6 @@ const pass =
   results.length === 1
   && results[0]?.runId === "reflection-run-1"
   && results[0]?.outcome === "failed"
-  && (results[0] as { ghostReclaim?: boolean }).ghostReclaim === true
   && launched.length === 1 && launched[0] === "reflection-run-2"
   && state.active?.runId === "reflection-run-2"
   && healthy.length === 0

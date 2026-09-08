@@ -1,11 +1,10 @@
 {
   "pass": true,
-  "replicaRoot": "/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/ghost-replica-IsqvYj",
+  "replicaRoot": "/var/folders/h6/w548ypzn1k78_xqndn63y7xc0000gn/T/ghost-replica-RkUYff",
   "results": [
     {
       "runId": "reflection-run-1",
-      "outcome": "failed",
-      "ghostReclaim": true
+      "outcome": "failed"
     }
   ],
   "launched": [
