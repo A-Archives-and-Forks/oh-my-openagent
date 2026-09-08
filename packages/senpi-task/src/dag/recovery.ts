@@ -8,6 +8,7 @@ import type { TaskRecord, TaskStatus } from "../state"
 import { dagFingerprint, ownerFingerprintInput } from "./fingerprint"
 import {
   dagNodeReusedEvent,
+  dagNodeRetriedEvent,
   dagNodeTaskAttachedEvent,
   dagNodeTransitionedEvent,
   dagRunPausedEvent,
@@ -29,6 +30,9 @@ import type {
 } from "./types"
 
 const LIVE_RUN_STATUSES = new Set(["pending", "running"])
+// Bound repeated owner deaths before launch using the durable execution counter, not display
+// attempt. Retries/amendments also consume this budget; recovery never advances it past three.
+const MAX_RECOVERY_READMISSIONS = 3
 
 type RecoverableRecord = DagRunRecordV1 & {
   readonly leaseHolderPid?: number
@@ -301,6 +305,24 @@ async function reconcileNodes(
         transition(journal, observed.id, "running", pendingErrors)
       }
       reattachedTasks.set(observed.id, task.task_id)
+      continue
+    }
+    // Never-started recovery requires absent task-level started_at: TaskManager commits start
+    // BEFORE runner.start, while the DAG node can stay scheduled until the whole admission batch
+    // settles. Thus scheduled alone cannot prove no launch. A launch stamp survives lost and
+    // always falls through to task_lost. Keep the scheduled guard for legacy running nodes whose
+    // records predate started_at; legacy scheduled records without it remain eligible.
+    // Retry returns the node to pending with a new execAttempt-scoped owner fingerprint, so the
+    // scheduler dispatches a fresh child rather than reusing the terminal lost record.
+    if (task.status === "lost" && task.started_at === undefined && observed.state === "scheduled" &&
+      (observed.execAttempt ?? 0) < MAX_RECOVERY_READMISSIONS) {
+      const node = nodeById(journal.snapshot(), observed.id)
+      journal.append(dagNodeRetriedEvent({
+        nodeId: observed.id,
+        ...(observed.taskId === undefined ? {} : { priorTaskId: observed.taskId }),
+        execAttempt: (node.execAttempt ?? 0) + 1,
+        promptChanged: false,
+      }))
       continue
     }
     foldTaskOutcome(context, journal, observed.id, task, pendingErrors, pendingTerminalResults)
