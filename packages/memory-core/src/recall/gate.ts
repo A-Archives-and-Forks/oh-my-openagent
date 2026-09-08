@@ -26,15 +26,6 @@ export const NUDGE_HINT_MAX_CHARS = 200
 /** Decision commentary is not a memory fact. Internal, deliberately not a config knob. */
 const NUDGE_DECISION_LANGUAGE_PATTERN = /\b(?:no\s+stored\s+memory|clears\s+the\s+bar|not?\s+relevant|memor(?:y|ies)\s+(?:(?:is|are)\s+(?:unrelated\s+to|not\s+about)|(?:does|do)\s+not\s+(?:cover|address|pertain))|memor(?:y|ies)\s+covers?\s+.*\s+not\s+the)\b/i
 
-// A stub argument is not a memory fact either. Some judges emit the tool call with a filler hint
-// AFTER deciding not to nudge (observed: `nudge(path, "placeholder")`, drawn in the TUI as
-// "just remembered: placeholder"). Both patterns match the WHOLE hint once its edge punctuation is
-// stripped, so a real sentence that merely contains one of these words still passes.
-const HINT_EDGE_PUNCTUATION_PATTERN = /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu
-const NUDGE_FILLER_HINT_PATTERN = /^(?:(?:this\s+is\s+(?:a|an|the)\s+)?(?:place\s?holder|stub|dummy|filler|sample|example|test|temp(?:orary)?)(?:\s+(?:hint|text|value|sentence|fact|memory))?|hint|todo|tbd|fixme|n\/a|none|null|undefined|string|text|lorem\s+ipsum(?:\s+\S+)*|(?:insert|your)\s+\S+(?:\s+\S+)?\s+here|\S+\s+goes\s+here)$/i
-/** The persona shows the injected block as `<hint>`; a judge may copy a template token verbatim. */
-const NUDGE_TEMPLATE_TOKEN_PATTERN = /^\s*(?:<[^<>]*>|\$?\{[^{}]*\}|\[[^[\]]*\])\s*$/
-
 /** Pending payloads older than this are junk from an abandoned session. */
 const PENDING_TTL_MS = 24 * 60 * 60_000
 
@@ -83,17 +74,7 @@ export interface ValidateNudgesOptions {
  */
 export function isValidHint(hint: string): boolean {
   if (hint.length === 0 || hint.length > NUDGE_HINT_MAX_CHARS) return false
-  return !/[\r\n]/.test(hint) && !NUDGE_DECISION_LANGUAGE_PATTERN.test(hint) && !isFillerHint(hint)
-}
-
-/**
- * True when the hint carries no fact at all: only punctuation, a bare template token, or filler
- * vocabulary ("placeholder", "TODO", "lorem ipsum", ...). Exposed so the nudge tool can name the
- * rule in its rejection; `isValidHint` already folds it in.
- */
-export function isFillerHint(hint: string): boolean {
-  const core = hint.replace(HINT_EDGE_PUNCTUATION_PATTERN, "")
-  return core.length === 0 || NUDGE_TEMPLATE_TOKEN_PATTERN.test(hint) || NUDGE_FILLER_HINT_PATTERN.test(core)
+  return !/[\r\n]/.test(hint) && !NUDGE_DECISION_LANGUAGE_PATTERN.test(hint)
 }
 
 /**
