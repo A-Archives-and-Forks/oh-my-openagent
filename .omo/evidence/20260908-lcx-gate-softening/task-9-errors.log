@@ -1,34 +1,98 @@
-RED proof: quality-gate-fields missing-section text
-64:	invalid(`Final quality gate is missing ${field} evidence.`, field);
-65-	return {};
-66-}
-RED proof: help lacks currentAttemptDir
-no matches
-RED proof: next-action lacks currentAttemptDir
-no matches
-QA raw-pipe scenario (deferred: committed installer bundle not applicable; component dist CLI requires seeded attempt state)
-status --json contract evidence:
-packages/omo-codex/plugin/components/ulw-loop/src/cli-output.ts:19:Every state subcommand needs a session scope: [--session-id <id>] or the session env (OMO_ULW_LOOP_SESSION_ID / CODEX_SESSION_ID / CODEX_THREAD_ID / PI_SESSION_ID); state lives under .omo/ulw-loop/<id>/ and the unscoped root is never used implicitly. `status --json` exposes the currentAttemptDir; put all quality-gate artifacts under it.
-packages/omo-codex/plugin/components/ulw-loop/src/cli-subcommands.ts:68:		const currentAttemptDir =
-packages/omo-codex/plugin/components/ulw-loop/src/cli-subcommands.ts:76:			...(currentAttemptDir === undefined ? {} : { currentAttemptDir }),
-missing-section error contract:
-node:internal/modules/esm/resolve:272
-    throw new ERR_MODULE_NOT_FOUND(
-          ^
+machine: mengmotaMac (macos/aarch64 online)
+listMachines():
+mengmotaHost macos/aarch64 offline
+vultr-tokyo linux/x86_64 online
+sionicMac macos/aarch64 online
+gorky linux/x86_64 online
+mengmotaMac macos/aarch64 online
 
-Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/Volumes/mengmotaStorage/local-workspaces/omo-wt/lcx-gate-softening/packages/omo-codex/plugin/components/ulw-loop/src/types.js' imported from /Volumes/mengmotaStorage/local-workspaces/omo-wt/lcx-gate-softening/packages/omo-codex/plugin/components/ulw-loop/src/quality-gate-fields.ts
-    at finalizeResolution (node:internal/modules/esm/resolve:272:11)
-    at moduleResolve (node:internal/modules/esm/resolve:879:10)
-    at defaultResolve (node:internal/modules/esm/resolve:1006:11)
-    at #cachedDefaultResolve (node:internal/modules/esm/loader:708:20)
-    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:728:38)
-    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:766:56)
-    at #resolve (node:internal/modules/esm/loader:690:17)
-    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:610:35)
-    at ModuleJob.syncLink (node:internal/modules/esm/module_job:277:33)
-    at ModuleJob.link (node:internal/modules/esm/module_job:389:17) {
-  code: 'ERR_MODULE_NOT_FOUND',
-  url: 'file:///Volumes/mengmotaStorage/local-workspaces/omo-wt/lcx-gate-softening/packages/omo-codex/plugin/components/ulw-loop/src/types.js'
-}
+CLONE+INSTALL (pristine origin/dev)
+remote HEAD: 602f721
+INSTALL_EXIT=0
+install shell exitCode=0
+D=/tmp/lcx-t9-20260908
 
-Node.js v26.7.0
+RED: copy ONLY test/quality-gate-fields-messages.test.ts onto the pristine origin/dev clone
+COMMAND: export PATH=$HOME/.bun/bin:$HOME/.local/bin:$PATH; cd /tmp/lcx-t9-20260908/omo && bash -c 'bun --cwd packages/omo-codex/plugin/components/ulw-loop test ./test/quality-gate-fields-messages.test.ts ./test/quality-gate-blockers.test.ts 2>&1 | tail -150; echo TEST_EXIT=${PIPESTATUS[0]}'
+=== RED ===
+exitCode=0
+--- stdout ---
+$ vitest --run ./test/quality-gate-fields-messages.test.ts ./test/quality-gate-blockers.test.ts
+
+ RUN  v4.1.11 /private/tmp/lcx-t9-20260908/omo/packages/omo-codex/plugin/components/ulw-loop
+
+ ✓ test/quality-gate-blockers.test.ts (6 tests) 10ms
+ ❯ test/quality-gate-fields-messages.test.ts (3 tests | 3 failed) 148ms
+     × missing-manualQa error contains accepted input and names bare-object and top-level qualityGate forms 121ms
+     × status next-action text mentions currentAttemptDir 17ms
+     × CLI help mentions currentAttemptDir 2ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/quality-gate-fields-messages.test.ts > quality-gate field and status messages > missing-manualQa error contains accepted input and names bare-object and top-level qualityGate forms
+AssertionError: expected 'Final quality gate has 7 validation d…' to contain 'accepted input'
+
+- Expected
++ Received
+
+- accepted input
++ Final quality gate has 7 validation defects:
++ - manualQa: Final quality gate is missing manualQa evidence.
++ - manualQa.by: Final quality gate requires non-empty manualQa.by.
++ - manualQa.evidence: Final quality gate requires non-empty manualQa.evidence.
++ - manualQa.artifactRefs: manualQa.artifactRefs must not be empty.
++ - manualQa.surfaceEvidence: manualQa.surfaceEvidence must not be empty.
++ - manualQa.adversarialCases: manualQa.adversarialCases must not be empty.
++ - manualQa.status: manualQa.status must be passed.
+
+ ❯ test/quality-gate-fields-messages.test.ts:55:19
+     53|   const message = thrownMessage(() => validateQualityGate(GATE_WITHOUT…
+     54|
+     55|   expect(message).toContain("accepted input");
+       |                   ^
+     56|   expect(message).toContain("bare object");
+     57|   expect(message).toContain('top-level "qualityGate" key');
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  test/quality-gate-fields-messages.test.ts > quality-gate field and status messages > status next-action text mentions currentAttemptDir
+AssertionError: expected 'G001 passes every criterion and is th…' to contain 'currentAttemptDir'
+
+- Expected
++ Received
+
+- currentAttemptDir
++ G001 passes every criterion and is the final story: update_goal complete, then checkpoint --print-template to build the final quality gate.
++ plan is evidence-layout v1; artifacts go under .omo/evidence/
+
+ ❯ test/quality-gate-fields-messages.test.ts:92:46
+     90|   };
+     91|
+     92|   expect(statusNextActions(plan).join("\n")).toContain("currentAttempt…
+       |                                              ^
+     93|  });
+     94|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  test/quality-gate-fields-messages.test.ts > quality-gate field and status messages > CLI help mentions currentAttemptDir
+AssertionError: expected 'Usage:\n  omo-agent-toolkit hook user…' to contain 'currentAttemptDir'
+
+ ❯ test/quality-gate-fields-messages.test.ts:96:25
+     94|
+     95|  it("CLI help mentions currentAttemptDir", () => {
+     96|   expect(ULW_LOOP_HELP).toContain("currentAttemptDir");
+       |                         ^
+     97|  });
+     98| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  3 failed | 6 passed (9)
+   Start at  20:51:33
+   Duration  1.37s (transform 1.21s, setup 0ms, import 1.46s, tests 158ms, environment 0ms)
+
+error: script "test" exited with code 1
+TEST_EXIT=1
