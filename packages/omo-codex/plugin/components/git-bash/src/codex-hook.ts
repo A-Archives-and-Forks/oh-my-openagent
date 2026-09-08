@@ -37,7 +37,8 @@ interface PreToolUseHookOutput {
 
 const BASH_TOOL_NAME = "Bash";
 const REMINDER =
-	"On Windows, prefer the OMO git_bash MCP for shell commands before using built-in exec_command. Use exec_command only when git_bash is unavailable or for non-shell operations.";
+	"On Windows, prefer the OMO git_bash MCP for shell commands before using built-in exec_command. Use exec_command only when git_bash is unavailable or for non-shell operations. " +
+	"In code mode, these tools may be deferred: inspect ALL_TOOLS with exec to discover the actual git_bash run, diagnose, and which_bash tool names, then invoke those names directly before treating git_bash as unavailable.";
 
 export function parsePreToolUsePayload(raw: string): PreToolUsePayload | null {
 	if (raw.trim().length === 0) return null;
