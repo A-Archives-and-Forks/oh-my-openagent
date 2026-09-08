@@ -2,39 +2,8 @@ import { describe, expect, it } from "bun:test"
 
 import type { ManagedChildEvent } from "@oh-my-opencode/senpi-task"
 
-import { taskRecord } from "./event-bridge.test-fixtures"
+import { fakeTaskRpcTimers, taskRecord } from "./event-bridge.test-fixtures"
 import { wireHarness } from "./event-bridge.test-harness"
-import type { TaskRpcTimers } from "./task-rpc-bridge"
-
-// Deterministic stand-in for the coalescing timer: nothing fires until the test advances it, so a
-// burst of progress events is observed exactly as the bridge queued it (no wall-clock dependency).
-function fakeTimers() {
-  const pending = new Map<number, () => void>()
-  let nextHandle = 1
-  let unrefCount = 0
-  const timers: TaskRpcTimers = {
-    set: (callback, _ms) => {
-      const handle = nextHandle++
-      pending.set(handle, callback)
-      unrefCount += 1
-      return handle
-    },
-    clear: (handle) => {
-      if (typeof handle === "number") pending.delete(handle)
-    },
-  }
-  return {
-    timers,
-    pendingCount: () => pending.size,
-    scheduledCount: () => unrefCount,
-    // Fires every timer queued so far; a flush that re-arms is left for the next advance() call.
-    advance: () => {
-      const due = [...pending.entries()]
-      pending.clear()
-      for (const [, callback] of due) callback()
-    },
-  }
-}
 
 function toolStart(toolName: string, path: string): ManagedChildEvent {
   return { type: "tool_execution_start", toolName, args: { path } } as ManagedChildEvent
@@ -52,7 +21,7 @@ function currentTool(entry: { data: unknown } | undefined): string | undefined {
 describe("task RPC bridge progress coalescing", () => {
   it("#given a burst of distinct progress events in one window #when the coalesce timer fires #then exactly one snapshot emits carrying the last progress state", async () => {
     const running = taskRecord({ task_id: "st_burst", status: "running" })
-    const clock = fakeTimers()
+    const clock = fakeTaskRpcTimers()
     const { pi, emitChildEvent } = wireHarness("parent-session", {
       records: { [running.task_id]: running },
       withRpc: true,
@@ -78,7 +47,7 @@ describe("task RPC bridge progress coalescing", () => {
 
   it("#given progress events straddling two coalesce windows #when each window flushes #then two snapshots emit", async () => {
     const running = taskRecord({ task_id: "st_two_windows", status: "running" })
-    const clock = fakeTimers()
+    const clock = fakeTaskRpcTimers()
     const { pi, emitChildEvent } = wireHarness("parent-session", {
       records: { [running.task_id]: running },
       withRpc: true,
@@ -102,7 +71,7 @@ describe("task RPC bridge progress coalescing", () => {
 
   it("#given a pending coalesced flush #when the session shuts down #then no snapshot emits after teardown", async () => {
     const running = taskRecord({ task_id: "st_dispose_pending", status: "running" })
-    const clock = fakeTimers()
+    const clock = fakeTaskRpcTimers()
     const { pi, emitChildEvent } = wireHarness("parent-session", {
       records: { [running.task_id]: running },
       withRpc: true,
@@ -121,7 +90,7 @@ describe("task RPC bridge progress coalescing", () => {
 
   it("#given a queued progress flush #when session_start re-attaches #then the pending timer is cancelled and the attach snapshot emits synchronously", async () => {
     const running = taskRecord({ task_id: "st_attach_order", status: "running" })
-    const clock = fakeTimers()
+    const clock = fakeTaskRpcTimers()
     const { pi, emitChildEvent } = wireHarness("parent-session", {
       records: { [running.task_id]: running },
       withRpc: true,
@@ -142,7 +111,7 @@ describe("task RPC bridge progress coalescing", () => {
 
   it("#given a store mutation #when the bridge syncs #then the snapshot still emits synchronously without waiting on the coalesce timer", async () => {
     const running = taskRecord({ task_id: "st_sync_sync", status: "running" })
-    const clock = fakeTimers()
+    const clock = fakeTaskRpcTimers()
     const harness = wireHarness("parent-session", {
       records: { [running.task_id]: running },
       withRpc: true,
