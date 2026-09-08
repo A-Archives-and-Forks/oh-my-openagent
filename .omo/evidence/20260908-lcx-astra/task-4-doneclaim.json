@@ -1,0 +1,50 @@
+{
+  "task": "4 gpt-6 v2 heuristic + stop forcing caps + bundle regen",
+  "changed_files": [
+    "packages/omo-codex/src/install/codex-multi-agent-v2-config.ts",
+    "packages/omo-codex/plugin/scripts/migrate-codex-config/subagent-limit-guard.mjs",
+    "packages/omo-codex/plugin/scripts/migrate-codex-config/multi-agent-v2-guard.mjs",
+    "packages/omo-codex/src/install/codex-config-toml.test.ts",
+    "packages/omo-codex/src/install/codex-subagent-limit-config.test.ts",
+    "packages/omo-codex/src/install/install-codex-project-local-cleanup.test.ts",
+    "packages/omo-codex/src/install/codex-multi-agent-v2-regression.test.ts",
+    "packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts",
+    "packages/omo-codex/scripts/install-config.test.mjs",
+    "packages/omo-codex/scripts/install-generated-bundle.test.mjs",
+    "packages/omo-codex/plugin/test/migrate-codex-config.test.mjs",
+    "packages/omo-codex/plugin/test/multi-agent-v2-regression.test.mjs",
+    "packages/omo-codex/plugin/test/subagent-limit-migration.test.mjs",
+    "packages/omo-codex/scripts/install-dist/install-local.mjs"
+  ],
+  "red_proof": "mengmotaMac: bun install --frozen-lockfile --ignore-scripts && bun test packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts packages/omo-codex/plugin/test/subagent-limit-migration.test.mjs -> exit 1; 13 pass, 4 fail. New assertions received max_threads = 1000 and max_concurrent_threads_per_session = 16, and a user cap of 6 was raised to 1000. Raw failing output is embedded in .omo/evidence/20260908-lcx-astra/task-4-concurrency.log. The initial plain frozen install failed in the prepare hook before tests because the transferred tree has no .git; that setup failure is recorded separately, not claimed as RED.",
+  "tests": [
+    "mengmotaMac: bun test packages/omo-codex/src/install packages/omo-codex/scripts packages/omo-codex/plugin/test script/codex-install-bundle-freshness.test.ts -> 293 pass, 1 platform skip, 1 out-of-scope failure across 295 tests; all 18 cap/heuristic tests and both bundle-freshness tests passed. A disposable remote Git index contained the uploaded bundle; no commit was created.",
+    "mengmotaMac: node --test packages/omo-codex/scripts/install-config.test.mjs packages/omo-codex/scripts/install-generated-bundle.test.mjs packages/omo-codex/plugin/test/migrate-codex-config.test.mjs packages/omo-codex/plugin/test/multi-agent-v2-regression.test.mjs packages/omo-codex/plugin/test/subagent-limit-migration.test.mjs packages/omo-codex/plugin/test/bootstrap-hooks.test.mjs -> 105 pass, 0 fail.",
+    "./node_modules/.bin/tsgo --noEmit -p packages/omo-codex/tsconfig.json -> exit 0.",
+    "LSP diagnostics on all 14 changed files -> no errors or warnings; the existing unused rm import hint remains in install-codex-project-local-cleanup.test.ts."
+  ],
+  "manual_qa": [
+    "/Volumes/mengmotaStorage/local-workspaces/omo-wt/lcx-astra-default-models/.omo/evidence/20260908-lcx-astra/task-4-concurrency.log -> sourced codex-qa common.sh, installed the regenerated bundle into isolated homes, observed 0 cap matches after seeded 1000 values and preserved max_concurrent_threads_per_session = 4; both installs exited 0.",
+    "/Volumes/mengmotaStorage/local-workspaces/omo-wt/lcx-astra-default-models/.omo/evidence/20260908-lcx-astra/task-4-concurrency.log -> real ~/.codex/config.toml SHA1 remained b012e531f5aa9fb1bce9003593c3eadf07081fcd before and after QA.",
+    "/Volumes/mengmotaStorage/local-workspaces/omo-wt/lcx-astra-default-models/.omo/evidence/20260908-lcx-astra/task-4-concurrency.log -> targeted guard cleanup was chosen over a TOML-wide rewrite to retain catalog precedence, explicit-disable handling, role blocks, and unrelated settings. The plan's V2 exception still removes incompatible agents.max_threads; user V1 caps remain unchanged."
+  ],
+  "acceptance": [
+    "bun run build:codex-install -> exit 0; installer bundle regenerated, not hand-edited.",
+    "working-tree bundle validator using digestCodexInstallerSources(), parseCodexInstallerArtifact(), and SHA256(body) -> SOURCE_AND_BODY_MATCH; source 9ea5152615fe0d7d66fb68f09cbe4f26241131d70e24f0fa19a851ccfba02533, body d5a65bcbc89b34e661f449c6cc64f3bafff32cb6047d2e9af19c594f31f5d864.",
+    "rg -n '1000|= 16\\b' packages/omo-codex/src/install/*.ts packages/omo-codex/plugin/scripts/migrate-codex-config/*.mjs -> cleanup comparisons and test fixtures only; no cap-producing constants or insertion/raise paths remain.",
+    "rg -c '1000' packages/omo-codex --glob '*.test.*' --glob '!**/node_modules/**' -> every remaining match is listed and classified in task-4-concurrency.log; exact managed values appear only as input fixtures or negative assertions, with unrelated numeric fixtures and preserved user 10000 substring matches identified separately.",
+    "rg -n 'CODEX_SUBAGENT_THREAD_LIMIT|max_concurrent_threads_per_session' packages/omo-codex/plugin/components/bootstrap/src -> exit 1, no matches; no bootstrap re-export change required.",
+    "node --check packages/omo-codex/plugin/scripts/migrate-codex-config/subagent-limit-guard.mjs && node --check packages/omo-codex/plugin/scripts/migrate-codex-config/multi-agent-v2-guard.mjs -> exit 0.",
+    "git diff --check -> exit 0; git diff --stat -- packages/omo-codex/scripts/install-dist/install-local.mjs -> bundle included in the uncommitted diff."
+  ],
+  "cleanup": [
+    "mengmotaMac: /tmp/lcx-t4-20260908-red, -green, -mjs, -full, -final, and -mjs-all -> dir REMOVED; receipts captured in task-4-concurrency.log.",
+    "mengmotaMac: /tmp/lcx-t4-20260908-294daf84, -7ed760da, and -6b518e32 -> dir REMOVED; each disposable indexed gate checkout was removed without a commit.",
+    "Both final isolated codex-qa homes -> dir REMOVED; raw receipts are embedded in task-4-concurrency.log.",
+    "git diff --cached --name-only -> empty; HEAD remains 7c1c66c61b83a0dce97e2b30f9d8971a1ff7d881 on lcx/astra-default-models. All deliverable changes remain uncommitted.",
+    "git status --porcelain -- packages/shared-skills -> empty."
+  ],
+  "risks": [
+    "The wider remote gate remains red outside todo 4: packages/omo-codex/src/install/link-cached-plugin-agents-regression.test.ts:18 expects momus effort high but receives xhigh. That file and the agent-reasoning implementation are owned by another lane and were not changed here."
+  ]
+}

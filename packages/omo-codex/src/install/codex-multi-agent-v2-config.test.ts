@@ -6,8 +6,16 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { updateCodexConfig } from "./codex-config-toml"
+import { ensureCodexMultiAgentV2Config, resolveCodexMultiAgentVersion } from "./codex-multi-agent-v2-config"
 
 describe("codex MultiAgentV2 config", () => {
+  test("#given the former V2 default cap #when normalizing #then removes the cap and preserves the explicit disable", () => {
+    for (const key of ["max_concurrent_threads_per_session", '"max_concurrent_threads_per_session"']) {
+      const content = ensureCodexMultiAgentV2Config(`[features.multi_agent_v2]\nenabled = false\n${key} = 16\n`)
+      expect(Bun.TOML.parse(content)).toEqual({ features: { multi_agent_v2: { enabled: false } } })
+    }
+  })
+
   test("#given legacy boolean flag and table #when updating config #then output remains valid TOML without enabling V2", async () => {
     // given
     const root = await mkdtemp(join(tmpdir(), "omo-codex-mav2-valid-toml-"))
@@ -40,7 +48,6 @@ describe("codex MultiAgentV2 config", () => {
     expect(content).not.toMatch(/^\s*multi_agent_v2\s*=/m)
     expect(parsed.features.multi_agent_v2).toEqual({
       usage_hint_enabled: false,
-      max_concurrent_threads_per_session: 16,
     })
   })
 
@@ -141,7 +148,7 @@ describe("codex MultiAgentV2 config", () => {
     })
   }
 
-  test("#given multiline string contains V2 cap lookalikes #when updating config #then writes the absent semantic default", async () => {
+  test("#given multiline string contains V2 cap lookalikes #when updating config #then leaves the semantic cap absent", async () => {
     // given
     const root = await mkdtemp(join(tmpdir(), "omo-codex-mav2-multiline-lookalike-"))
     const configPath = join(root, "config.toml")
@@ -167,12 +174,12 @@ describe("codex MultiAgentV2 config", () => {
 
     // then
     const content = await readFile(configPath, "utf8")
-    const parsed = parseToml(content)
+    const parsed = Bun.TOML.parse(content) as { readonly features?: { readonly multi_agent_v2?: unknown } }
     expect(content).toContain("max_concurrent_threads_per_session = 7")
-    expect(parsed.features.multi_agent_v2.max_concurrent_threads_per_session).toBe(16)
+    expect(parsed.features?.multi_agent_v2).toBeUndefined()
   })
 
-  test("#given V2 section multiline value contains a cap lookalike #when updating config #then writes the absent default", async () => {
+  test("#given V2 section multiline value contains a cap lookalike #when updating config #then leaves the cap absent", async () => {
     // given
     const root = await mkdtemp(join(tmpdir(), "omo-codex-mav2-section-multiline-lookalike-"))
     const configPath = join(root, "config.toml")
@@ -181,7 +188,7 @@ describe("codex MultiAgentV2 config", () => {
       [
         "[features.multi_agent_v2]",
         'notes = """',
-        "max_concurrent_threads_per_session = 7",
+        "max_concurrent_threads_per_session = 16",
         '"""',
         "",
       ].join("\n"),
@@ -198,7 +205,8 @@ describe("codex MultiAgentV2 config", () => {
 
     // then
     const parsed = parseToml(await readFile(configPath, "utf8"))
-    expect(parsed.features.multi_agent_v2.max_concurrent_threads_per_session).toBe(16)
+    expect(parsed.features.multi_agent_v2.max_concurrent_threads_per_session).toBeUndefined()
+    expect(parsed.features.multi_agent_v2.notes).toBe("max_concurrent_threads_per_session = 16\n")
   })
 
   test("#given root-dotted features and string lookalikes #when updating config #then replaces the semantic flag only", async () => {
@@ -291,6 +299,100 @@ describe("codex MultiAgentV2 config", () => {
     expect(content.match(/^\[features\.multi_agent_v2\]$/gm)).toHaveLength(1)
   })
 
+  test("#given no limits #when updating config #then does not add either thread cap", async () => {
+    const root = await mkdtemp(join(tmpdir(), "omo-codex-mav2-no-caps-"))
+    const configPath = join(root, "config.toml")
+    await writeFile(configPath, 'model = "gpt-6-astra"\n')
+
+    await updateCodexConfig({
+      configPath,
+      repoRoot: "/repo/packages/omo-codex",
+      marketplaceName: "debug",
+      marketplaceSource: { sourceType: "local", source: "/repo/packages/omo-codex" },
+      pluginNames: ["omo"],
+    })
+
+    const content = await readFile(configPath, "utf8")
+    expect(content).not.toMatch(/^\s*max_threads\s*=/m)
+    expect(content).not.toMatch(/^\s*max_concurrent_threads_per_session\s*=/m)
+  })
+
+  test("#given managed and user thread caps #when updating config #then removes managed values and preserves user values", async () => {
+    const root = await mkdtemp(join(tmpdir(), "omo-codex-mav2-cap-policy-"))
+    const configPath = join(root, "config.toml")
+    await writeFile(
+      configPath,
+      [
+        'model = "gpt-5.5"',
+        "",
+        "[features.multi_agent_v2]",
+        "max_concurrent_threads_per_session = 1000",
+        "",
+        "[agents]",
+        "max_threads = 1000",
+        "",
+      ].join("\n"),
+    )
+    const updateInput = {
+      configPath,
+      repoRoot: "/repo/packages/omo-codex",
+      marketplaceName: "debug",
+      marketplaceSource: { sourceType: "local", source: "/repo/packages/omo-codex" },
+      pluginNames: ["omo"],
+    } as const
+
+    await updateCodexConfig(updateInput)
+    const managed = await readFile(configPath, "utf8")
+    expect(managed).not.toMatch(/^\s*max_threads\s*=/m)
+    expect(managed).not.toMatch(/^\s*max_concurrent_threads_per_session\s*=/m)
+
+    await writeFile(
+      configPath,
+      ['model = "gpt-6-astra"', "", "[features.multi_agent_v2]", "max_concurrent_threads_per_session = 8", "", "[agents]", "max_threads = 6", ""].join("\n"),
+    )
+    await updateCodexConfig(updateInput)
+    const userValues = await readFile(configPath, "utf8")
+    expect(userValues).not.toMatch(/^\s*max_threads\s*=/m)
+    expect(userValues).toMatch(/^\s*max_concurrent_threads_per_session\s*=\s*8/m)
+  })
+
+  test("#given gpt-6-astra with unavailable catalog #when resolving multi-agent mode #then prefers V2", async () => {
+    const root = await mkdtemp(join(tmpdir(), "omo-codex-mav2-gpt6-"))
+    const configPath = join(root, "config.toml")
+    expect(resolveCodexMultiAgentVersion('model = "gpt-6-astra"\n', configPath)).toBe("v2")
+    expect(resolveCodexMultiAgentVersion('model = "gpt-6-astra-fast"\n', configPath)).toBe("v2")
+    await writeFile(configPath, 'model = "gpt-6-astra"\n')
+
+    await updateCodexConfig({
+      configPath,
+      repoRoot: "/repo/packages/omo-codex",
+      marketplaceName: "debug",
+      marketplaceSource: { sourceType: "local", source: "/repo/packages/omo-codex" },
+      pluginNames: ["omo"],
+    })
+
+    const content = await readFile(configPath, "utf8")
+    expect(content).not.toMatch(/^\s*max_threads\s*=/m)
+  })
+
+  test("#given user caps #when updating config #then does not raise them", async () => {
+    const root = await mkdtemp(join(tmpdir(), "omo-codex-mav2-preserve-caps-"))
+    const configPath = join(root, "config.toml")
+    await writeFile(configPath, ['model = "gpt-5.5"', "", "[features.multi_agent_v2]", "max_concurrent_threads_per_session = 8", "", "[agents]", "max_threads = 6", ""].join("\n"))
+
+    await updateCodexConfig({
+      configPath,
+      repoRoot: "/repo/packages/omo-codex",
+      marketplaceName: "debug",
+      marketplaceSource: { sourceType: "local", source: "/repo/packages/omo-codex" },
+      pluginNames: ["omo"],
+    })
+
+    const content = await readFile(configPath, "utf8")
+    expect(content).toMatch(/^\s*max_threads\s*=\s*6/m)
+    expect(content).toMatch(/^\s*max_concurrent_threads_per_session\s*=\s*8/m)
+  })
+
   test("#given disabled boolean shorthand #when updating config #then explicit disable is preserved in table form", async () => {
     // given
     // A pinned v1 model keeps the explicit disable materializing in table form;
@@ -324,7 +426,6 @@ describe("codex MultiAgentV2 config", () => {
     expect(content).not.toMatch(/^\s*multi_agent_v2\s*=/m)
     expect(parsed.features.multi_agent_v2).toEqual({
       enabled: false,
-      max_concurrent_threads_per_session: 16,
     })
   })
 })
