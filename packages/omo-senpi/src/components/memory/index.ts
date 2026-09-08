@@ -9,6 +9,7 @@ import {
   findLatestMemoryBinding,
   type SessionEntryLike,
 } from "./binding"
+import { logBindReconcileFailure } from "./bind-reconcile-log"
 import { renderMemoryBindingEntry } from "./bindings/entry-renderer"
 import { hasMemoryCapabilities, missingMemoryCapabilities } from "./capabilities"
 import { createMemoryIdentityContext, type MemoryIdentityContext } from "./context"
@@ -83,7 +84,6 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
         ...(options.refreshStatus === undefined ? {} : { refreshStatus: options.refreshStatus }),
         // Reuse the boot snapshot: registration must not add a loadConfig() call, because the
         // enablement latch depends on the ORDER of reads across boot -> session_start -> reload.
-        toolExposure: bootConfig.tool_exposure,
       })
       wiring.registerStatic(pi, ctx)
       pi.registerEntryRenderer(MEMORY_BINDING_CUSTOM_TYPE, renderMemoryBindingEntry)
@@ -133,7 +133,7 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
         // Bind-time reconcile floats past session_start by design, but its rejection must not
         // float: an unhandled rejection is attributed to whatever code is running when it lands.
         void wiring.afterBind(pi, surface.id, state.context, eventCtx).catch((error: unknown) => {
-          ctx.logger.warn("memory bind-time reconcile failed", { error: String(error) })
+          logBindReconcileFailure(ctx.logger, error)
         })
       })
 
@@ -159,10 +159,7 @@ export function resolveMemoryConfig(loaded: SenpiOmoConfigResult): ResolvedMemor
   return resolveMemorySettings(loaded.config.memory)
 }
 
-// A memory child carries one of these sentinels. Today the child also runs --no-extensions, so omo
-// never loads there; a fork-mode child cannot pass --no-extensions (its request prefix must match
-// the parent for the provider cache to hit), so the sentinel is the only thing standing between a
-// forked reflection and unbounded self-triggering recursion.
+// Detached memory workers carry sentinels so their own settles do not recursively trigger memory.
 const CHILD_SENTINELS = ["SENPI_MEMORY_REFLECTION", "SENPI_MEMORY_FACTS"] as const
 
 export function isMemoryChildProcess(env: Record<string, string | undefined>): boolean {

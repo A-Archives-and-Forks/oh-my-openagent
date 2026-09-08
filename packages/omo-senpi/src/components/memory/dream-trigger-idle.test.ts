@@ -146,7 +146,7 @@ describe("dream idle timer matrix", () => {
     expect(f.warnings).toEqual([])
   })
 
-  test("#given a timer armed on a context whose idle probe fails for another reason #when it fires #then the failure is logged instead of thrown", async () => {
+  test("#given a timer armed on a context whose idle probe fails for another reason #when it fires #then the error still propagates", async () => {
     const f = await fixture()
     await settle(f, {
       sessionManager: { getSessionId: () => CONVERSATION },
@@ -155,10 +155,10 @@ describe("dream idle timer matrix", () => {
       },
       hasPendingMessages: () => false,
     })
-    await fireTimer(f)
+    expect(() => f.scheduler.latest().fire()).toThrow("probe exploded")
     expect(f.launches).toHaveLength(0)
     expect(await f.store.readState()).toEqual({})
-    expect(f.warnings).toEqual([{ message: "omo-senpi memory dream idle probe failed", details: { error: "probe exploded" } }])
+    expect(f.warnings).toEqual([])
   })
 
   test("#given a timer whose session resolution hits the retired context #when it fires #then the tick retires silently", async () => {

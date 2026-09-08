@@ -1,3 +1,62 @@
+## 2026-09-08 — A bind superseded by session replacement is a skip, not a failure
+
+`logBindReconcileFailure` classifies senpi's retired-context error ("This extension ctx is stale after session replacement or reload.") the same way it already classifies reflection-lock contention: a recoverable `info` skip with `reason: "session replaced before the bind completed"`. Bind-time reconcile floats past `session_start` by design, so when the host replaces the session mid-bind it retires the ctx that bind was handed and the replacement session runs its own bind - nothing is lost and nothing needs operator attention. Genuinely unexpected errors keep `warn`.
+
+Observed live on omo-desktop (mengmotaHost, packaged runtime under `--mode rpc --multi-session`): every desktop restart that resumed a session logged `memory bind-time reconcile failed` or its downstream `memory reflection launch failed` with that message; the boot with zero resumed sessions was clean until the next session bound.
+
+## 2026-09-08 — Run the bundled agent toolkit under Bun mode from the packaged binary
+
+`ulw-loop/omo-command.ts` spawns a `.js` toolkit entry through `process.execPath`. Under the packaged runtime (omo-desktop's compiled `omo`, omob) that path IS the omo binary, so without `BUN_BE_BUN` it ran its own embedded entrypoint with the toolkit path as a prompt: `ulw-loop status` exited 1 with `Unknown option: --json`, the hook logged `omo-senpi ulw-loop status ignored { reason: "non-zero-exit" }` on every input, and every desktop thread with a plan read as inactive so no continuation fired. The `.js` spawn target now carries `env: { ...process.env, BUN_BE_BUN: "1" }` (the same guard `lsp-daemon` gained in #7916); plain executables keep their inherited env.
+
+## 2026-09-07 — Complete a facts child that finishes without assistant prose
+
+Facts extraction records through `record_fact` and often ends the turn with no final assistant text, including when nothing durable was found. The in-process launch now sets `completion: "turn"` so a normally settled turn is success; `stopReason` `error`/`aborted` still fails. Ordinary task children keep the default `final-text` policy.
+
+## 2026-09-07 — Flush the journal before shutdown cleanup
+
+The session shutdown path now flushes the transcript journal before awaiting memory cleanup, gate cancellation, and facts cancellation, so the fixed 1500 ms shutdown budget cannot skip the durable journal step. Journal-flush budget exhaustion is emitted as an error-level alarm with the session and step details, while optional work keeps its existing informational message. Memorian gate runs now stop promptly when the child reports a terminal upstream 503, `auth_unavailable`, or overloaded provider error; silent children still use the deadline backstop.
+
+## 2026-09-05 — Name `tool.monitor` in the ultrawork directive and drop the polling loop
+
+The Waiting discipline section of `skills/ultrawork/SKILL.md` told the model that
+`monitor` is "the first tool you reach for", but in every session with `eval`
+the direct tool list carries neither `monitor` nor `bash` (senpi withholds both
+since 2026-09-03); the only callable form is `tool.monitor(...)` inside a cell.
+The 2026-09-05 `gpt-6-astra-fast` session traces show the result: a
+subscription appeared only in sessions whose request itself named the CI run or
+the async work, one orchestrator polled `task_output` 35 times with
+`TASK STILL ACTIVE` demands, and another blocked inside eval cells on
+`Bun.spawn` + `setTimeout(kill, 580-880 s)` for installs and test runs. A
+sandboxed backtest against the real model with this directive attached
+(`/tmp/ulw-astra-monitor/monitor-run.ts`, eval-only tool shape) reproduced it:
+no first response registered a subscription across three wait-shaped requests.
+
+Three edits, each at the source of a defect and none appended on top. Waiting
+discipline now names the two call shapes (`tool.monitor({ description, command,
+filter })` for a command or an `until ...; printf 'READY\n'` gate,
+`tool.monitor({ description, path, event })` for a file), states the eval-only
+fact once, lists the conditions (a build, install, or test run finishing; a CI
+check or PR turning green; a deploy landing; a log line; a file appearing; a
+port opening; another session's pane or a remote machine changing state),
+states that the subscription is the whole cost of a wait - `sleep`, timed
+retries, re-polls, a cell that awaits a `--watch` or a spawned process, and a
+child spawned to watch are the forbidden forms, because the multi-round
+backtest showed the model awaiting `gh pr checks --watch` inside a cell or
+handing the wait to a child task once plain polling was ruled out - and keeps
+the unprompted-arming rule, whose duplicate list and the duplicate "register
+before the wait exists" sentence are gone along with the "blocking waits are
+gone" and "every wait is a subscription" restatements. Parallel
+execution scopes `Bun.$` to a command that finishes inside the cell and routes
+anything that can outlive one reply through `tool.monitor`, which is what
+turned the awaited-spawn blocking pattern into a directive-compliant one. Child
+execution loses the "peek once ... after four silent or ack-only checks" loop
+that contradicted the single-midpoint-peek rule and the senpi-task delivery
+contract; a running child is alive, its completion wakes the session, and the
+turn ends instead of polling. `generated-directive.ts` is regenerated by
+`embed-directive.mjs` (forbidden-token guard passed) and `ultrawork.test.ts`
+gains one sentinel: the shipped directive contains `tool.monitor(`, RED on
+`021aaf8cf` and GREEN after. o200k tokens for the directive: 7318 -> 7451.
+
 ## 2026-08-29 — Teach "mass ulw research" the mass path
 
 A combined mass + research invocation collected at team scale instead of mass

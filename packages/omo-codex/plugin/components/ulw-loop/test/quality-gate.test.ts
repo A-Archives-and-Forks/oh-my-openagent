@@ -111,7 +111,10 @@ describe("validateQualityGate", () => {
 			"gateReview",
 			"iteration",
 			"manualQa",
+			"surface",
 		]);
+		expect("codeReview" in gate).toBe(true);
+		if (!("codeReview" in gate)) throw new Error("expected lazycodex codeReview section");
 		expect(gate.codeReview.codeQualityStatus).toBe("CLEAR");
 		expect(gate).toMatchObject({
 			criteriaCoverage: { totalCriteria: 9, passCount: 9, userOutcomeReview: expect.stringContaining("user") },
@@ -127,6 +130,8 @@ describe("validateQualityGate", () => {
 		const gate = validateQualityGate(parsed, FS_OPTS);
 
 		// then
+		expect("codeReview" in gate).toBe(true);
+		if (!("codeReview" in gate)) throw new Error("expected lazycodex codeReview section");
 		expect(gate.codeReview.recommendation).toBe("APPROVE");
 		expect(gate.manualQa.artifactRefs).toHaveLength(5);
 	});
@@ -161,20 +166,60 @@ describe("validateQualityGate", () => {
 		expect(error.message).toContain("missing-artifact");
 	});
 
-	it("#given incompatible surface artifact kind #when validated #then it rejects the gate", () => {
+	it("#given incompatible surface artifact kind #when validated #then it rejects the gate with compatible kinds", () => {
 		// when
 		const error = getQualityGateError(
 			makeGate({
 				manualQa: {
 					...VALID_GATE.manualQa,
-					artifactRefs: [{ ...VALID_GATE.manualQa.artifactRefs[0], kind: "http-dump" }],
+					artifactRefs: [
+						{ ...VALID_GATE.manualQa.artifactRefs[0], kind: "http-dump" },
+						VALID_GATE.manualQa.artifactRefs[1],
+					],
 				},
 			}),
 		);
 
 		// then
 		expect(error.code).toBe("ULW_LOOP_QUALITY_GATE_INVALID");
-		expect(error.message).toContain("cli");
+		expect(error.message).toContain(
+			'manualQa.surfaceEvidence cli artifact http-dump is incompatible; surface "cli" accepts artifact kinds: cli-transcript, log.',
+		);
+	});
+
+	it("#given an unsupported artifact kind #when validated #then it lists allowed kinds and report path guidance", () => {
+		const error = getQualityGateError(
+			makeGate({
+				manualQa: {
+					...VALID_GATE.manualQa,
+					artifactRefs: [
+						{ ...VALID_GATE.manualQa.artifactRefs[0], kind: "review-report" },
+						VALID_GATE.manualQa.artifactRefs[1],
+					],
+				},
+			}),
+		);
+
+		expect(error.code).toBe("ULW_LOOP_QUALITY_GATE_INVALID");
+		expect(error.message).toContain(
+			"manualQa.artifactRefs[0].kind must be a supported artifact kind (cli-transcript, log, screenshot, image, http-dump, data-diff); review/QA reports belong in codeReview.reportPath or gateReview.reportPath, not artifactRefs.",
+		);
+	});
+
+	it("#given an unsupported manual QA surface #when validated #then it lists allowed surfaces", () => {
+		const error = getQualityGateError(
+			makeGate({
+				manualQa: {
+					...VALID_GATE.manualQa,
+					surfaceEvidence: [{ ...VALID_GATE.manualQa.surfaceEvidence[0], surface: "terminal" }],
+				},
+			}),
+		);
+
+		expect(error.code).toBe("ULW_LOOP_QUALITY_GATE_INVALID");
+		expect(error.message).toContain(
+			"manualQa.surfaceEvidence[0].surface must be a supported manual QA surface (cli, http, tmux, browser, gui, data).",
+		);
 	});
 
 	it("#given placeholder evidence and artifact path #when validated #then it rejects placeholders", () => {

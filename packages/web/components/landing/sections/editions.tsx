@@ -15,7 +15,7 @@ export async function EditionsSection(): Promise<JSX.Element> {
           <p className="text-xl text-zinc-400">{t("editions.subtitle")}</p>
         </div>
 
-        <div className="mx-auto grid max-w-4xl grid-cols-1 gap-8 md:grid-cols-2">
+        <div className="mx-auto grid max-w-6xl grid-cols-1 gap-8 md:grid-cols-3">
           <Card className="relative overflow-hidden border-cyan-500/20 bg-zinc-900/50">
             <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 to-transparent" />
             <CardHeader className="relative">
@@ -45,6 +45,22 @@ export async function EditionsSection(): Promise<JSX.Element> {
             </CardHeader>
             <CardContent className="relative">
               <InstallCommand command={t("editions.light.install")} />
+            </CardContent>
+          </Card>
+
+          <Card className="relative overflow-hidden border-amber-500/20 bg-zinc-900/50">
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent" />
+            <CardHeader className="relative">
+              <Badge className="mb-3 w-fit border-amber-500/30 bg-amber-500/10 text-amber-400">
+                {t("editions.senpi.platform")}
+              </Badge>
+              <CardTitle className="text-2xl text-white">{t("editions.senpi.name")}</CardTitle>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                {t("editions.senpi.description")}
+              </p>
+            </CardHeader>
+            <CardContent className="relative">
+              <InstallCommand command={t("editions.senpi.install")} />
             </CardContent>
           </Card>
         </div>
