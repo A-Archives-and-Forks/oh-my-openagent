@@ -138,7 +138,7 @@ describe("validateQualityGate", () => {
 
 	it("#given missing manualQa section #when validated #then it explains accepted input forms", () => {
 		const input = makeGate();
-		delete input.manualQa;
+		delete input["manualQa"];
 
 		const error = getQualityGateError(input);
 
