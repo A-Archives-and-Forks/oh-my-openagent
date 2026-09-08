@@ -2,7 +2,7 @@
 > **OmO 베타: OmO ❤️ Pi**
 > `bun install -g omo-ai@beta`로 사용해보세요. 메모리 시스템, CodeMode, Anthropic 구독까지 전부 지원됩니다.
 > [![OmO Herdr DAG - live OmO workflow DAGs in a Herdr side pane](./.github/assets/omo-herdr-dag.png)](https://github.com/jc01rho/omo-herdr-dag)
-> *mass ulw 를 치세요 - 멀티 모델로 ultracode 를, 더 나은 메모리시스템과 함께 즐길 수 있습니다. (우측의 패널은 [omo-herdr-dag](https://github.com/jc01rho/omo-herdr-dag) 입니다)*
+> *프롬프트에 "mass ulw" 한 줄이면 끝. 당신도 그래프 엔지니어링의 마스터가 됩니다. 멀티 모델 ultracode, 더 나은 메모리 시스템과 함께. (우측의 패널은 [omo-herdr-dag](https://github.com/jc01rho/omo-herdr-dag) 입니다)*
 
 
 > **Sponsors**

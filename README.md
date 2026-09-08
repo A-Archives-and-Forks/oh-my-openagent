@@ -2,7 +2,7 @@
 > **OmO Beta: OmO ❤️ Pi**
 > Try with `bun install -g omo-ai@beta` - Memory System, CodeMode, Anthropic subscriptions. All got covered.
 > [![OmO Herdr DAG - live OmO workflow DAGs in a Herdr side pane](./.github/assets/omo-herdr-dag.png)](https://github.com/jc01rho/omo-herdr-dag)
-> *Run `mass ulw` - enjoy ultracode but multi-model, together with a better memory system. (the right panel is [omo-herdr-dag](https://github.com/jc01rho/omo-herdr-dag).)*
+> *Just type "mass ulw" with your prompt - now you are the master of graph engineering. Multi-model ultracode, together with a better memory system. (The right panel is [omo-herdr-dag](https://github.com/jc01rho/omo-herdr-dag).)*
 
 > **Sponsors**
 > These are our sponsors. They help keep OmO going as a personal side project.
