@@ -110,6 +110,7 @@ export async function checkpointTemplate(
 		"Fill every <replace:...> value with plausible non-empty evidence and use real, non-empty artifact files.",
 		'Passing codex-goal-json example: {"goal":{"objective":"<plan codexObjective verbatim>","status":"complete"}}.',
 		'Passing quality-gate-json example requires gateReview {"by":"category:deep","recommendation":"APPROVE","evidence":"review passed","reportPath":"<attemptDir>/gate-review.md","blockers":[],"notes":[]}, manualQa.artifactRefs objects, iteration, and criteriaCoverage.',
+		...(resolveToolkitSurface() === "lazycodex" ? ["Self-review defaults: manualQa.by and gateReview.by are main-session. Alternatives: manualQa.by accepts lazycodex-qa-executor; gateReview.by accepts lazycodex-gate-reviewer, category:deep, category:unspecified-high, or category:unspecified-low. Optional codeReview.by accepts lazycodex-code-reviewer or main-session."] : []),
 		...(hasAttempt ? [] : ["This plan is evidence-layout v1; artifacts go under .omo/evidence/."]),
 	].join(" ");
 	return {

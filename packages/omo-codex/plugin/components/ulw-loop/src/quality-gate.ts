@@ -42,20 +42,10 @@ export interface ValidateQualityGateOptions {
 	readonly reviewerSurface?: UlwLoopToolkitSurface;
 }
 
-function reviewerRoleField(value: unknown, expected: string, field: string): string {
-	if (typeof value !== "string" || value.trim() === "") {
-		textField(value, field);
-		return expected;
-	}
-	const actual = textField(value, field);
-	if (actual !== expected) invalid(`${field} must be ${expected}.`, field);
-	return expected;
-}
-
 function reviewerAcceptorField(
 	value: unknown,
 	surface: UlwLoopToolkitSurface,
-	sectionName: "manualQa" | "gateReview",
+	sectionName: "codeReview" | "manualQa" | "gateReview",
 ): string {
 	const field = `${sectionName}.by`;
 	const accepted = GATE_SECTION_BY_ACCEPTOR[surface][sectionName];
@@ -92,7 +82,7 @@ function validateQualityGateUncollected(input: unknown, opts?: ValidateQualityGa
 	const gateReviewBy = reviewerAcceptorField(gateReview["by"], surface, "gateReview");
 	const manualQaEvidence = textField(manualQa["evidence"], "manualQa.evidence");
 	const gateReviewEvidence = textField(gateReview["evidence"], "gateReview.evidence");
-	if (codeReview !== undefined) reviewerRoleField(codeReview["by"], "lazycodex-code-reviewer", "codeReview.by");
+
 	const totalCriteria = numberField(coverage["totalCriteria"], "criteriaCoverage.totalCriteria");
 	const passCount = numberField(coverage["passCount"], "criteriaCoverage.passCount");
 	if (!isPoisoned("criteriaCoverage.passCount") && passCount < totalCriteria)
@@ -145,7 +135,7 @@ function validateQualityGateUncollected(input: unknown, opts?: ValidateQualityGa
 		surface,
 		...common,
 		codeReview: {
-			by: "lazycodex-code-reviewer",
+			by: reviewerAcceptorField(codeReview["by"], surface, "codeReview"),
 			recommendation: literal(codeReview["recommendation"], "APPROVE", "codeReview.recommendation"),
 			codeQualityStatus: codeQualityStatusField(codeReview["codeQualityStatus"], "codeReview.codeQualityStatus"),
 			reportPath: codeReportPath,

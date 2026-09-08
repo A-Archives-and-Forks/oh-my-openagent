@@ -134,7 +134,7 @@ function finalSection(
 		"Final story — self-review and manual QA are the default; use the quality gate before update_goal:",
 		"- Run targeted verification for changed behavior.",
 		"- Confirm every manualQa artifact path exists and has non-zero size.",
-		`- Run manual QA yourself and write its artifact under currentAttemptDir. Only if the user explicitly demands strict, rigorous, or high-accuracy review, spawn ${roles.codeReview}, ${roles.manualQa}, and ${roles.gateReview}; otherwise set manualQa.by and gateReview.by to "main-session".`,
+		`- Run manual QA yourself and write its artifact under currentAttemptDir. Only if the user explicitly demands strict, rigorous, or high-accuracy review, spawn ${roles.gateReview}, optionally also ${roles.codeReview} and ${roles.manualQa}; otherwise set manualQa.by and gateReview.by to "main-session".`,
 		"- Require passed manualQa, approved gateReview, passed iteration, and complete criteriaCoverage; include codeReview only when strict review was requested. criteriaCoverage must summarize originalIntent, desiredOutcome, and userOutcomeReview; counts alone are not approval.",
 		"- On a reviewer REJECT, fix only the cited blockers, rerun the affected verification/Manual-QA, and re-review the delta at most TWICE; if blockers remain, record them and surface to the user.",
 		"- If codeQualityStatus is WATCH, include the WATCH notes verbatim in your final user-facing message.",
