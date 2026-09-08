@@ -321,7 +321,7 @@ async function reconcileNodes(
       const node = nodeById(journal.snapshot(), observed.id)
       journal.append(dagNodeRetriedEvent({
         nodeId: observed.id,
-        ...(observed.taskId === undefined ? {} : { priorTaskId: observed.taskId }),
+        priorTaskId: task.task_id,
         execAttempt: (node.execAttempt ?? 0) + 1,
         promptChanged: false,
       }))
