@@ -94,13 +94,23 @@ async function reconcilePrelaunch(context: ReconcileContext): Promise<Reflection
   let retiredGeneration = false
   if (existsSync(join(runDir, "ledger.json"))) {
     const ledger = parseReservationRunLedger(await readRunJson<unknown>(join(runDir, "ledger.json")))
-    const terminalPath = join(runDir, existsSync(join(runDir, "final.json")) ? "final.json" : "abandoned.json")
+    const hasFinal = existsSync(join(runDir, "final.json"))
+    const terminalPath = join(runDir, hasFinal ? "final.json" : "abandoned.json")
     if (!existsSync(terminalPath)) return undefined
-    const terminal = await readRunJson<{ finishedAt: string }>(terminalPath)
+    const terminal = await readRunJson<{ finishedAt?: unknown; abandonedAt?: unknown } | null>(terminalPath)
+    const timestamp = hasFinal ? terminal?.finishedAt : terminal?.abandonedAt
+    const terminalAt = typeof timestamp === "string" ? Date.parse(timestamp) : NaN
     const reservedAt = Date.parse(active.reservedAt)
-    retiredGeneration = Date.parse(ledger.startedAt) < reservedAt
-      && Date.parse(terminal.finishedAt) < reservedAt
-      && (ledger.finalizedAt === undefined || Date.parse(ledger.finalizedAt) < reservedAt)
+    const startedAt = Date.parse(ledger.startedAt)
+    const finalizedAt = ledger.finalizedAt === undefined ? undefined : Date.parse(ledger.finalizedAt)
+    // Corrupt or missing timestamps cannot prove generation ownership. Report them without
+    // mutating state, rather than silently treating NaN comparisons as a current generation.
+    if (![terminalAt, reservedAt, startedAt].every(Number.isFinite)
+      || (finalizedAt !== undefined && !Number.isFinite(finalizedAt))) {
+      throw new TypeError(`Invalid reflection generation timestamps for ${active.runId}`)
+    }
+    retiredGeneration = startedAt < reservedAt && terminalAt < reservedAt
+      && (finalizedAt === undefined || finalizedAt < reservedAt)
     if (!retiredGeneration) return undefined
   }
   const prelaunchPath = join(runDir, "prelaunch.json")
