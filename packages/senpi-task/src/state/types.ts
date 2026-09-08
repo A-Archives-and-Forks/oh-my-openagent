@@ -166,6 +166,10 @@ export type TaskRecordInput = {
   // Durable prelaunch steering queue, drained in order once the child starts. Omitted when empty.
   readonly pending_steering?: readonly PendingSteeringEntry[]
   readonly owner?: DagTaskOwner
+  readonly team_run_id?: string
+  readonly team_name?: string
+  readonly team_member_name?: string
+  readonly team_role?: "member"
   // Session-local spawn ordinal, assigned once per parent session at spawn. A relational key for
   // grouping a logical task's runs; absent on records persisted before ordinals shipped.
   readonly task_seq?: number
