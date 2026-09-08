@@ -16,7 +16,7 @@ const rule = {
 
 export function SocialImage({ stats }: { readonly stats: FormattedStatsData }) {
   return (
-            <div
+    <div
       style={{
         display: "flex",
         position: "relative",
