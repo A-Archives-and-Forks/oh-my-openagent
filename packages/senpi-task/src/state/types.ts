@@ -184,6 +184,10 @@ export type TaskRecord = TaskRecordInput & {
   readonly residency_state: ResidencyState
   readonly created_at: string
   readonly updated_at: string
+  // Durable launch boundary, committed before the first start/respawn runner invocation.
+  // Reattachment and later outcomes (including lost) preserve it. Absent on never-launched tasks
+  // and records written before this field shipped.
+  readonly started_at?: string
   // Stable timestamp for the terminal run. Residency claims may refresh updated_at, but must not
   // extend the retention window of a completed run.
   readonly terminal_at?: string

@@ -571,6 +571,14 @@ class TaskManagerImpl implements TaskManager {
       stateDir: this.#options.store.stateDir,
       runners: this.#options.runners,
       rpcRunner: this.#rpcRespawnRunner,
+      beforeLaunch: () => {
+        // Respawn bypasses start's status transition; persist the same durable launch boundary
+        // without changing the status or epoch that lifecycle reattachment owns.
+        const stamped = this.#options.store.mutate(record.task_id, (fresh) =>
+          fresh.started_at === undefined ? { ...fresh, started_at: nowIso(this.#now) } : fresh,
+        )
+        if (stamped === null) throw new Error(`Task record not found before respawn: ${record.task_id}`)
+      },
       ...(this.#options.trustedRespawnLaunch === undefined
         ? {}
         : { trustedLaunch: this.#options.trustedRespawnLaunch }),
