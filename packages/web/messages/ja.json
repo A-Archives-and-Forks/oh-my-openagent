@@ -49,7 +49,9 @@
           "index": "03",
           "label": "ワーカーが実行"
         }
-      }
+      },
+      "modelsLabel": "すべてのモデルを同時に",
+      "modelsHint": "どんなに複雑な仕事でも、トークンを入れれば片づきます。グラフが各ノードを最適なモデルへ振り分けます。"
     },
     "installTabs": {
       "opencode": "OpenCode",
@@ -75,29 +77,8 @@
     },
     "ulw": {
       "eyebrow": "魔法の言葉",
-      "title": "三文字を打って、席を離れる。",
-      "description": "mass ulw はグラフ全体を実行します。Sisyphus が意図を読み、Prometheus が計画し、Metis と Momus が計画をゲートし、ワーカーが並列ウェーブで実行します。実行は主張ではなく独立検証で終わります。",
-      "terminalTitle": "sisyphus — -zsh — 80x24",
-      "terminalInput": "mass ulw ship the dashboard",
-      "sidebarLabel": "ウェーブ",
-      "waves": {
-        "1": {
-          "label": "wave 1",
-          "agents": "sisyphus",
-          "task": "意図の把握、作業の分割"
-        },
-        "2": {
-          "label": "wave 2",
-          "agents": "prometheus · metis · momus",
-          "task": "計画、抜けの発見、レビュー"
-        },
-        "3": {
-          "label": "wave 3",
-          "agents": "atlas · hephaestus · workers",
-          "task": "並列実行"
-        }
-      },
-      "verified": "verified — 未解決 0 件"
+      "title": "どんな仕事も。すべてのモデルで。ひとつのグラフで。",
+      "description": "トークンを入れるだけ。mass ulw は仕事全体を依存グラフに変え、各ノードに合うモデル — Claude、GPT、Kimi、Grok、GLM — を並べてウェーブ単位で実行し、結果を検証してから止まります。"
     },
     "editions": {
       "eyebrow": "三つのエディション",
@@ -327,10 +308,32 @@
     "cta": {
       "eyebrow": "インストール",
       "title": "ボイラープレートはもう書かない。",
-      "subtitle": "Oh My OpenAgent をインストールし、プロジェクトを開き、mass ulw と打つ。",
+      "subtitle": "Oh My OpenAgent をインストールし、プロジェクトを開いて mass ulw と打つだけ。どんなに複雑な仕事でも — すべてのモデルを同時に、グラフとして。",
       "installCommand": "bunx oh-my-openagent install",
       "installNow": "今すぐインストール",
       "readTheDocs": "ドキュメントを読む"
+    },
+    "dag": {
+      "region": "ワークフローグラフを開いた OmO デスクトップ",
+      "windowTitle": "OmO — ship the dashboard",
+      "threads": "スレッド",
+      "thread1": "ship the dashboard",
+      "thread2": "fix flaky e2e",
+      "thread3": "migrate auth",
+      "workflow": "ワークフロー",
+      "status": {
+        "pending": "待機",
+        "running": "実行中",
+        "completed": "完了"
+      },
+      "assistantPlanning": "5 ウェーブ・10 ノードを計画中",
+      "assistantRunning": "実行中 ·",
+      "assistantDone": "実行完了 — 10/10 検証済み",
+      "wave": "Wave",
+      "done": "完了",
+      "running": "実行中",
+      "fit": "グラフを合わせる",
+      "center": "アクティブなウェーブへ"
     }
   },
   "docs": {

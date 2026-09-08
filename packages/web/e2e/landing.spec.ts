@@ -70,6 +70,21 @@ test.describe("Landing Page", () => {
     await expect(grid.getByText("Claude Opus 5 Max")).toBeVisible()
   })
 
+  test("renders the desktop DAG view with 10 nodes across 5 waves", async ({ page }) => {
+    // given
+    await page.goto("/")
+    const dag = page.getByTestId("mass-ulw-graph")
+
+    // when
+    await dag.scrollIntoViewIfNeeded()
+
+    // then
+    await expect(dag.locator("[data-dag-node]")).toHaveCount(10)
+    await expect(dag.locator("[data-dag-wave]")).toHaveCount(5)
+    await expect(dag.locator("[data-dag-run-summary]")).toContainText("7 models")
+    await expect(dag.getByRole("button", { name: "Fit graph" })).toBeVisible()
+  })
+
   test("mobile nav toggles menu", async ({ page }) => {
     // given
     await page.setViewportSize({ width: 375, height: 800 })

@@ -49,7 +49,9 @@
           "index": "03",
           "label": "워커가 실행"
         }
-      }
+      },
+      "modelsLabel": "모든 모델을 한 번에",
+      "modelsHint": "아무리 복잡한 일이라도 토큰만 넣으면 됩니다. 그래프가 각 노드를 가장 맞는 모델로 라우팅합니다."
     },
     "installTabs": {
       "opencode": "OpenCode",
@@ -75,29 +77,8 @@
     },
     "ulw": {
       "eyebrow": "마법의 단어",
-      "title": "세 글자를 입력하고 자리를 뜨세요.",
-      "description": "mass ulw 는 그래프 전체를 실행합니다. Sisyphus 가 의도를 읽고, Prometheus 가 계획하고, Metis 와 Momus 가 계획을 검문한 뒤 워커들이 병렬 웨이브로 실행합니다. 실행은 주장이 아니라 독립 검증으로 끝납니다.",
-      "terminalTitle": "sisyphus — -zsh — 80x24",
-      "terminalInput": "mass ulw ship the dashboard",
-      "sidebarLabel": "웨이브",
-      "waves": {
-        "1": {
-          "label": "wave 1",
-          "agents": "sisyphus",
-          "task": "의도 파악, 작업 분할"
-        },
-        "2": {
-          "label": "wave 2",
-          "agents": "prometheus · metis · momus",
-          "task": "계획, 빈틈 찾기, 리뷰"
-        },
-        "3": {
-          "label": "wave 3",
-          "agents": "atlas · hephaestus · workers",
-          "task": "병렬 실행"
-        }
-      },
-      "verified": "verified — 미해결 0건"
+      "title": "어떤 일이든. 모든 모델로. 하나의 그래프로.",
+      "description": "토큰만 넣으세요. mass ulw는 일 전체를 의존성 그래프로 바꾸고, 각 노드에 맞는 모델 — Claude, GPT, Kimi, Grok, GLM — 을 나란히 돌려 웨이브 단위로 실행한 뒤, 결과를 검증하고 나서야 멈춥니다."
     },
     "editions": {
       "eyebrow": "세 가지 에디션",
@@ -327,10 +308,32 @@
     "cta": {
       "eyebrow": "설치",
       "title": "보일러플레이트는 이제 그만.",
-      "subtitle": "Oh My OpenAgent 를 설치하고, 프로젝트를 열고, mass ulw 를 입력하세요.",
+      "subtitle": "Oh My OpenAgent를 설치하고, 프로젝트를 열고, mass ulw를 입력하세요. 아무리 복잡한 일이라도 — 모든 모델을 한 번에, 그래프로.",
       "installCommand": "bunx oh-my-openagent install",
       "installNow": "지금 설치",
       "readTheDocs": "문서 읽기"
+    },
+    "dag": {
+      "region": "워크플로우 그래프가 열린 OmO 데스크톱",
+      "windowTitle": "OmO — ship the dashboard",
+      "threads": "스레드",
+      "thread1": "ship the dashboard",
+      "thread2": "fix flaky e2e",
+      "thread3": "migrate auth",
+      "workflow": "워크플로우",
+      "status": {
+        "pending": "대기",
+        "running": "실행 중",
+        "completed": "완료"
+      },
+      "assistantPlanning": "5개 웨이브, 10개 노드로 계획 중",
+      "assistantRunning": "실행 중 ·",
+      "assistantDone": "실행 완료 — 10/10 검증됨",
+      "wave": "Wave",
+      "done": "완료",
+      "running": "실행 중",
+      "fit": "그래프 맞추기",
+      "center": "활성 웨이브로 이동"
     }
   },
   "docs": {

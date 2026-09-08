@@ -49,7 +49,9 @@
           "index": "03",
           "label": "执行者动手"
         }
-      }
+      },
+      "modelsLabel": "所有模型同时上",
+      "modelsHint": "再复杂的任务，投入 token 就能完成。图会把每个节点路由到最合适的模型。"
     },
     "installTabs": {
       "opencode": "OpenCode",
@@ -75,29 +77,8 @@
     },
     "ulw": {
       "eyebrow": "魔法词",
-      "title": "敲三个字母，然后走开。",
-      "description": "mass ulw 会运行整张图。Sisyphus 读取意图，Prometheus 制定计划，Metis 和 Momus 为计划把关，随后执行者以并行波次动手。运行以独立验证结束，而不是以一句“完成”结束。",
-      "terminalTitle": "sisyphus — -zsh — 80x24",
-      "terminalInput": "mass ulw ship the dashboard",
-      "sidebarLabel": "波次",
-      "waves": {
-        "1": {
-          "label": "wave 1",
-          "agents": "sisyphus",
-          "task": "读取意图，拆分工作"
-        },
-        "2": {
-          "label": "wave 2",
-          "agents": "prometheus · metis · momus",
-          "task": "规划、找漏洞、评审"
-        },
-        "3": {
-          "label": "wave 3",
-          "agents": "atlas · hephaestus · workers",
-          "task": "并行执行"
-        }
-      },
-      "verified": "verified — 0 个未解决问题"
+      "title": "任何任务。所有模型。一张图。",
+      "description": "投入 token 即可。mass ulw 把整个任务变成依赖图，为每个节点选用合适的模型 — Claude、GPT、Kimi、Grok、GLM 并行工作 — 按波次执行，验证结果后才停止。"
     },
     "editions": {
       "eyebrow": "三个版本",
@@ -327,10 +308,32 @@
     "cta": {
       "eyebrow": "安装",
       "title": "别再写样板代码。",
-      "subtitle": "安装 Oh My OpenAgent，打开你的项目，输入 mass ulw。",
+      "subtitle": "安装 Oh My OpenAgent，打开项目，输入 mass ulw。再复杂的任务 — 所有模型同时工作，以图的形式。",
       "installCommand": "bunx oh-my-openagent install",
       "installNow": "立即安装",
       "readTheDocs": "阅读文档"
+    },
+    "dag": {
+      "region": "打开工作流图的 OmO 桌面端",
+      "windowTitle": "OmO — ship the dashboard",
+      "threads": "会话",
+      "thread1": "ship the dashboard",
+      "thread2": "fix flaky e2e",
+      "thread3": "migrate auth",
+      "workflow": "工作流",
+      "status": {
+        "pending": "排队",
+        "running": "运行中",
+        "completed": "已完成"
+      },
+      "assistantPlanning": "正在规划 5 个波次、10 个节点",
+      "assistantRunning": "运行中 ·",
+      "assistantDone": "运行完成 — 10/10 已验证",
+      "wave": "Wave",
+      "done": "完成",
+      "running": "运行中",
+      "fit": "适配图形",
+      "center": "定位活动波次"
     }
   },
   "docs": {

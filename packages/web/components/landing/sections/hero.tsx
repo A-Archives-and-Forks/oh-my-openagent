@@ -1,9 +1,10 @@
 import type { JSX } from "react"
 import { getTranslations } from "next-intl/server"
 
-import { GraphHero } from "@/components/landing/graph/graph-hero"
+import { MassUlwGraph } from "@/components/landing/dag/mass-ulw-graph"
 import { CommandBar, type CommandTab } from "@/components/landing/install-command"
 import { Eyebrow } from "@/components/ledger/eyebrow"
+import { Chip } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Link } from "@/i18n/routing"
 import { FALLBACK_FORMATTED_STATS, formatStats, getStats } from "@/lib/stats"
@@ -13,6 +14,9 @@ import { FALLBACK_FORMATTED_STATS, formatStats, getStats } from "@/lib/stats"
  * editorial split: text column left (6 of 12 tracks — the Display H1 must hold two lines), `GraphHero` right. Below lg the graph
  * stacks under the text at ~56vw. Static `--accent-16` wash + `--line-faint` dot grid (§7).
  */
+// Model families present in packages/model-core routing tables (agent chains + categories).
+const MODEL_FAMILIES = ["Claude", "GPT", "Kimi", "Grok", "GLM", "DeepSeek"] as const
+
 export async function HeroSection(): Promise<JSX.Element> {
   const t = await getTranslations("landing")
 
@@ -62,6 +66,17 @@ export async function HeroSection(): Promise<JSX.Element> {
               {formattedStats.description}
             </p>
             <CommandBar tabs={tabs} className="mt-8 max-w-xl" />
+            <div className="mt-6 max-w-xl" data-testid="hero-models">
+              <p className="eyebrow text-text-lo">{t("hero.modelsLabel")}</p>
+              <ul className="mt-3 flex flex-wrap gap-2" aria-label={t("hero.modelsLabel")}>
+                {MODEL_FAMILIES.map((family) => (
+                  <li key={family}>
+                    <Chip>{family}</Chip>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-text-lo mt-3 text-sm leading-[1.55]">{t("hero.modelsHint")}</p>
+            </div>
             <div className="mt-8 flex flex-wrap items-center gap-6">
               <Button size="lg" asChild>
                 <Link href="/docs#installation">{t("hero.getStarted")}</Link>
@@ -72,8 +87,31 @@ export async function HeroSection(): Promise<JSX.Element> {
             </div>
           </div>
           <div className="reveal lg:col-span-6">
-            <div className="h-[56vw] overflow-hidden lg:h-auto lg:overflow-visible">
-              <GraphHero />
+            <div className="overflow-hidden lg:overflow-visible">
+              <MassUlwGraph
+                regionLabel={t("dag.region")}
+                frame={{
+                  windowTitle: t("dag.windowTitle"),
+                  threads: t("dag.threads"),
+                  threadRows: [t("dag.thread1"), t("dag.thread2"), t("dag.thread3")],
+                  workflow: t("dag.workflow"),
+                  runStatus: {
+                    pending: t("dag.status.pending"),
+                    running: t("dag.status.running"),
+                    completed: t("dag.status.completed"),
+                  },
+                  assistantPlanning: t("dag.assistantPlanning"),
+                  assistantRunning: t("dag.assistantRunning"),
+                  assistantDone: t("dag.assistantDone"),
+                }}
+                graph={{
+                  wave: t("dag.wave"),
+                  done: t("dag.done"),
+                  running: t("dag.running"),
+                  fit: t("dag.fit"),
+                  center: t("dag.center"),
+                }}
+              />
             </div>
           </div>
         </div>

@@ -1,23 +1,14 @@
 import type { JSX } from "react"
 import { getTranslations } from "next-intl/server"
 
-import { SectionHeader } from "@/components/landing/section-header"
-import { Terminal, type TerminalWave } from "@/components/landing/terminal"
-import { graphWaves } from "@/components/landing/agents-data"
+import { MassUlwGraph } from "@/components/landing/dag/mass-ulw-graph"
 import { Reveal } from "@/components/landing/motion-wrappers"
+import { SectionHeader } from "@/components/landing/section-header"
 import { Frame } from "@/components/ledger/frame"
 
-/** `sticky-aside` (DESIGN.md §0 StyleGallery): sticky title column beside the terminal. */
+/** `sticky-aside` (DESIGN.md §0 StyleGallery): sticky title column beside the desktop-app DAG view. */
 export async function MassUlwSection(): Promise<JSX.Element> {
   const t = await getTranslations("landing")
-
-  const waves: readonly TerminalWave[] = graphWaves.map((wave) => ({
-    index: String(wave.wave),
-    label: t(`ulw.waves.${wave.wave}.label`),
-    agents: t(`ulw.waves.${wave.wave}.agents`),
-    task: t(`ulw.waves.${wave.wave}.task`),
-    nodeId: wave.firstNodeId,
-  }))
 
   return (
     <section
@@ -37,12 +28,29 @@ export async function MassUlwSection(): Promise<JSX.Element> {
             />
           </Reveal>
           <Reveal index={1}>
-            <Terminal
-              title={t("ulw.terminalTitle")}
-              prompt={t("ulw.terminalInput")}
-              sidebarLabel={t("ulw.sidebarLabel")}
-              waves={waves}
-              verifiedLabel={t("ulw.verified")}
+            <MassUlwGraph
+              regionLabel={t("dag.region")}
+              frame={{
+                windowTitle: t("dag.windowTitle"),
+                threads: t("dag.threads"),
+                threadRows: [t("dag.thread1"), t("dag.thread2"), t("dag.thread3")],
+                workflow: t("dag.workflow"),
+                runStatus: {
+                  pending: t("dag.status.pending"),
+                  running: t("dag.status.running"),
+                  completed: t("dag.status.completed"),
+                },
+                assistantPlanning: t("dag.assistantPlanning"),
+                assistantRunning: t("dag.assistantRunning"),
+                assistantDone: t("dag.assistantDone"),
+              }}
+              graph={{
+                wave: t("dag.wave"),
+                done: t("dag.done"),
+                running: t("dag.running"),
+                fit: t("dag.fit"),
+                center: t("dag.center"),
+              }}
             />
           </Reveal>
         </div>

@@ -49,7 +49,9 @@
           "index": "03",
           "label": "Workers execute"
         }
-      }
+      },
+      "modelsLabel": "Every model at once",
+      "modelsHint": "Any job, however complex. Feed it tokens; the graph routes each node to the model that fits."
     },
     "installTabs": {
       "opencode": "OpenCode",
@@ -75,29 +77,8 @@
     },
     "ulw": {
       "eyebrow": "The magic word",
-      "title": "Type three letters. Walk away.",
-      "description": "mass ulw runs the whole graph. Sisyphus reads the intent, Prometheus plans, Metis and Momus gate the plan, then the workers execute in parallel waves. The run ends with independent verification, not with a claim.",
-      "terminalTitle": "sisyphus — -zsh — 80x24",
-      "terminalInput": "mass ulw ship the dashboard",
-      "sidebarLabel": "Waves",
-      "waves": {
-        "1": {
-          "label": "wave 1",
-          "agents": "sisyphus",
-          "task": "read intent, split the work"
-        },
-        "2": {
-          "label": "wave 2",
-          "agents": "prometheus · metis · momus",
-          "task": "plan, find gaps, review"
-        },
-        "3": {
-          "label": "wave 3",
-          "agents": "atlas · hephaestus · workers",
-          "task": "execute in parallel"
-        }
-      },
-      "verified": "verified — 0 open findings"
+      "title": "Any job. Every model. One graph.",
+      "description": "Feed it tokens. mass ulw turns the whole job into a dependency graph, runs every wave with the right model for each node — Claude, GPT, Kimi, Grok, GLM side by side — and verifies the result before it stops."
     },
     "editions": {
       "eyebrow": "Three editions",
@@ -327,10 +308,32 @@
     "cta": {
       "eyebrow": "Install",
       "title": "Stop writing boilerplate.",
-      "subtitle": "Install Oh My OpenAgent, open your project, type mass ulw.",
+      "subtitle": "Install Oh My OpenAgent, open your project, type mass ulw. Any job, however complex — every model at once, as a graph.",
       "installCommand": "bunx oh-my-openagent install",
       "installNow": "Install now",
       "readTheDocs": "Read the docs"
+    },
+    "dag": {
+      "region": "OmO desktop with the workflow graph open",
+      "windowTitle": "OmO — ship the dashboard",
+      "threads": "Threads",
+      "thread1": "ship the dashboard",
+      "thread2": "fix flaky e2e",
+      "thread3": "migrate auth",
+      "workflow": "Workflow",
+      "status": {
+        "pending": "queued",
+        "running": "running",
+        "completed": "completed"
+      },
+      "assistantPlanning": "planning 10 nodes across 5 waves",
+      "assistantRunning": "running",
+      "assistantDone": "run complete — 10/10 verified",
+      "wave": "Wave",
+      "done": "done",
+      "running": "running",
+      "fit": "Fit graph",
+      "center": "Center active wave"
     }
   },
   "docs": {

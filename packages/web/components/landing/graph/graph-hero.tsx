@@ -8,6 +8,10 @@ import { setFocused } from "./use-graph-focus"
 
 const GraphScene = dynamic(() => import("./graph-scene"), { ssr: false })
 
+// The renderer chunk waits for user intent (pointer/scroll/key) or for the page to settle after
+// load, so the poster carries the first paint and three.js never competes with LCP/TBT.
+const SETTLE_AFTER_LOAD_MS = 4000
+
 class SceneBoundary extends Component<
   { readonly children: ReactNode; readonly onFailure: () => void },
   { failed: boolean }
@@ -106,17 +110,29 @@ export function GraphHero({ className }: { readonly className?: string }) {
       idle = true
       mount()
     }
-    const idleId =
-      typeof window.requestIdleCallback === "function"
-        ? window.requestIdleCallback(onIdle)
-        : window.setTimeout(onIdle, 200)
+    const intentTargets: Array<[EventTarget, string]> = [
+      [element, "pointerenter"],
+      [element, "pointerdown"],
+      [element, "touchstart"],
+      [window, "scroll"],
+      [window, "keydown"],
+    ]
+    for (const [target, type] of intentTargets)
+      target.addEventListener(type, onIdle, { once: true, passive: true })
+    let settleTimer: number | undefined
+    const scheduleSettle = () => {
+      settleTimer = window.setTimeout(onIdle, SETTLE_AFTER_LOAD_MS)
+    }
+    if (document.readyState === "complete") scheduleSettle()
+    else window.addEventListener("load", scheduleSettle, { once: true })
     motion.addEventListener("change", preference)
     narrow.addEventListener("change", resize)
     document.addEventListener("visibilitychange", visibility)
     return () => {
       observer.disconnect()
-      if (typeof window.cancelIdleCallback === "function") window.cancelIdleCallback(idleId)
-      else window.clearTimeout(idleId)
+      for (const [target, type] of intentTargets) target.removeEventListener(type, onIdle)
+      window.removeEventListener("load", scheduleSettle)
+      if (settleTimer !== undefined) window.clearTimeout(settleTimer)
       motion.removeEventListener("change", preference)
       narrow.removeEventListener("change", resize)
       document.removeEventListener("visibilitychange", visibility)
@@ -136,7 +152,7 @@ export function GraphHero({ className }: { readonly className?: string }) {
         width={1600}
         height={1000}
         alt={t("subtitle")}
-        fetchPriority="high"
+        priority
         className="absolute inset-0 h-full w-full object-contain"
         style={{
           opacity: state === "live" ? 0 : 1,
