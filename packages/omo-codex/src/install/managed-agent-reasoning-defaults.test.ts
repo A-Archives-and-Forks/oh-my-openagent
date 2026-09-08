@@ -3,8 +3,65 @@ import { describe, expect, test } from "bun:test"
 import { resolveManagedAgentReasoning } from "./managed-agent-reasoning-defaults"
 
 describe("resolveManagedAgentReasoning", () => {
-	// given the explorer bundled defaults moved terra/medium -> luna/low
 	const bundled = { bundledModel: "gpt-6-astra", bundledEffort: "low" }
+
+	test.each([
+		["explorer", "gpt-5.6-luna", "low", "low"],
+		["librarian", "gpt-5.6-luna", "low", "low"],
+		["metis", "gpt-5.6-sol", "high", "high"],
+		["momus", "gpt-5.6-terra", "high", "high"],
+		["plan", "gpt-5.6-sol", "high", "high"],
+		["lazycodex-worker-low", "gpt-5.6-luna", "high", "high"],
+		["lazycodex-worker-medium", "gpt-5.6-terra", "high", "high"],
+		["lazycodex-worker-high", "gpt-5.6-sol", "medium", "medium"],
+		["lazycodex-code-reviewer", "gpt-5.6-terra", "medium", "medium"],
+		["lazycodex-clone-fidelity-reviewer", "gpt-5.6-terra", "high", "high"],
+		["lazycodex-qa-executor", "gpt-5.6-luna", "high", "high"],
+		["lazycodex-gate-reviewer", "gpt-5.6-sol", "low", "low"],
+		["momus", "gpt-5.5", "xhigh", "high"],
+		["momus", "gpt-5.6-sol", "ultra", "high"],
+		["lazycodex-gate-reviewer", "gpt-5.6-sol", "xhigh", "low"],
+	])("#given %s preserved at %s/%s #when resolving against Astra #then effort is %s", (agentName, model, effort, expected) => {
+		expect(resolveManagedAgentReasoning({
+			agentName,
+			bundledModel: "gpt-6-astra",
+			bundledEffort: expected,
+			preserved: { model, effort },
+		})).toBe(expected)
+	})
+
+	test.each([
+		["momus", "gpt-5.6-terra", "high", "gpt-5.5", "xhigh"],
+		["momus", "gpt-5.6-terra", "high", "gpt-5.6-sol", "ultra"],
+		["explorer", "gpt-5.6-luna", "low", "gpt-5.6-terra", "medium"],
+		["librarian", "gpt-5.6-luna", "low", "gpt-5.6-terra", "medium"],
+		["plan", "gpt-5.6-sol", "high", "gpt-5.6-sol", "max"],
+		["lazycodex-worker-medium", "gpt-5.6-terra", "high", "gpt-5.6-luna", "max"],
+		["lazycodex-worker-high", "gpt-5.6-sol", "medium", "gpt-5.6-sol", "max"],
+		["lazycodex-code-reviewer", "gpt-5.6-terra", "medium", "gpt-5.6-sol", "xhigh"],
+		["lazycodex-clone-fidelity-reviewer", "gpt-5.6-terra", "high", "gpt-5.6-sol", "xhigh"],
+		["lazycodex-qa-executor", "gpt-5.6-luna", "high", "gpt-5.6-terra", "medium"],
+		["lazycodex-gate-reviewer", "gpt-5.6-sol", "low", "gpt-5.6-sol", "xhigh"],
+	])("#given %s cached at %s/%s #when restoring %s/%s #then model-only upgrades retain effort migration", (agentName, bundledModel, bundledEffort, model, effort) => {
+		expect(resolveManagedAgentReasoning({
+			agentName, bundledModel, bundledEffort, preserved: { model, effort },
+		})).toBe(bundledEffort)
+	})
+
+	test.each([
+		["momus", "gpt-5.6-sol", "ultra", "gpt-5.5", "xhigh"],
+		["explorer", "gpt-5.6-terra", "medium", "gpt-5.6-luna-fast", "low"],
+		["lazycodex-gate-reviewer", "gpt-5.6-sol", "high", "gpt-5.6-sol", "xhigh"],
+		["lazycodex-gate-reviewer", "gpt-5.5", "high", "gpt-5.5", "xhigh"],
+		["momus", "custom-model", "high", "gpt-5.5", "xhigh"],
+		["momus", "gpt-6-astra", "medium", "gpt-5.5", "xhigh"],
+		["momus", "gpt-6-astra", "high", "custom-model", "xhigh"],
+		["momus", "gpt-5.6-terra", "high", "gpt-5.6-sol", "xhigh"],
+	])("#given %s bundled at %s/%s with preserved %s/%s #when a pair is non-current or customized #then keeps the effort", (agentName, bundledModel, bundledEffort, model, effort) => {
+		expect(resolveManagedAgentReasoning({
+			agentName, bundledModel, bundledEffort, preserved: { model, effort },
+		})).toBe(effort)
+	})
 
 	test("#given a preserved terra/medium default #when resolving #then the new bundled effort wins", () => {
 		// when

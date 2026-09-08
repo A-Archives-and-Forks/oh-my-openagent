@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-codex-install:9ea5152615fe0d7d66fb68f09cbe4f26241131d70e24f0fa19a851ccfba02533:d5a65bcbc89b34e661f449c6cc64f3bafff32cb6047d2e9af19c594f31f5d864
+// omo-codex-install:b5afc7408180d5c1661c76a4c639607941de5e8b936ae1e99b2a5eba9c66aedd:55ee1891c5647811a3cf5669fec1edd2827cf926fd51d3e4b6b42d9986604202
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -11500,9 +11500,9 @@ function resolveManagedAgentReasoning(input) {
   const latest = steps[steps.length - 1];
   if (latest === undefined)
     return input.preserved.effort;
-  if (input.bundledModel !== latest.current.model || input.bundledEffort !== latest.current.effort) {
+  const bundledMatchesCurrentEffort = input.bundledEffort === latest.current.effort && steps.some((step) => input.bundledModel === step.current.model && input.bundledEffort === step.current.effort);
+  if (!bundledMatchesCurrentEffort)
     return input.preserved.effort;
-  }
   const preservedMatchesAnyStep = steps.some((step) => input.preserved.model === step.previous.model && input.preserved.effort === step.previous.effort);
   return preservedMatchesAnyStep ? latest.current.effort : input.preserved.effort;
 }
