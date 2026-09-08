@@ -5,6 +5,14 @@ describe("live thread socket discovery", () => {
   test("operator override wins", () => {
     expect(resolveThreadSocket({ SENPI_RPC_SOCKET: "/tmp/override.sock" })).toBe("/tmp/override.sock")
   })
+  test("#given the desktop's OMO_RPC_SOCKET_PATH #when no engine RPC_SOCKET is set #then the desktop host socket is used", () => {
+    expect(resolveThreadSocket({ OMO_RPC_SOCKET_PATH: "/h/.omo/agent/rpc-desktop/rpc.sock", OMO_CODING_AGENT_DIR: "/h/.omo/agent" })).toBe("/h/.omo/agent/rpc-desktop/rpc.sock")
+  })
+  test("#given brand and legacy RPC_SOCKET names #when several are set #then the brand name wins and blanks are skipped", () => {
+    expect(resolveThreadSocket({ OMO_RPC_SOCKET: "/brand.sock", SENPI_RPC_SOCKET: "/legacy.sock", OMO_RPC_SOCKET_PATH: "/desktop.sock" })).toBe("/brand.sock")
+    expect(resolveThreadSocket({ OMO_RPC_SOCKET: "  ", PI_RPC_SOCKET: "/pi.sock", OMO_RPC_SOCKET_PATH: "/desktop.sock" })).toBe("/pi.sock")
+    expect(resolveThreadSocket({ OMO_CODING_AGENT_DIR: "/configured" })).toBe("/configured/rpc/rpc.sock")
+  })
   test("canonical and env branches resolve through resolveAgentHome", async () => {
     const { resolveAgentHome } = await import("../agent-home/resolve-agent-home")
     expect(resolveAgentHome({ env: {}, homeDir: "/h", exists: (path) => path === "/h/.omo/agent/settings.json" })).toBe("/h/.omo/agent")
