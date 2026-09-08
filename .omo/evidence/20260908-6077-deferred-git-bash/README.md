@@ -2,7 +2,8 @@
 
 The prior Windows reminder expressed a preference and fallback, but omitted
 deferred discovery. The added sentence conditionally directs code-mode users
-to discover the actual Git Bash names through `ALL_TOOLS` and `exec`.
+to discover the actual Git Bash names through `ALL_TOOLS` and invoke them
+through the `tools` object inside `exec`, not as top-level tool calls.
 The existing seven behavior cases now assert parsed hook fields, not prose.
 
 ## Checks
@@ -16,7 +17,7 @@ The existing seven behavior cases now assert parsed hook fields, not prose.
   version changes were excluded. LSP could not access the sibling worktree;
   compiler checks covered the actual source.
 
-## Real Codex delivery
+## Real Codex delivery and deferred execution
 
 Codex 0.144.6 loaded the built component and unchanged hook registration in a
 cache-only fixture. Native `exec_command` produced the real `Bash` PreToolUse
@@ -25,13 +26,35 @@ command, one marker and context delivery into the next model request passed.
 Context delivery was compared with the built component's structured output,
 not an authored wording literal. Only model responses were scripted.
 
-```json
-{"status":"PASS","codex":"codex-cli 0.144.6","hooks":[{"method":"hook/started","id":"pre-tool-use:0:/qa/codex/plugins/cache/qa/git-bash/1.0.0/hooks/hooks.json:qa_exec","eventName":"preToolUse","status":"running"},{"method":"hook/completed","id":"pre-tool-use:0:/qa/codex/plugins/cache/qa/git-bash/1.0.0/hooks/hooks.json:qa_exec","eventName":"preToolUse","status":"completed"}],"contextDelivered":true,"commandCompleted":true,"requests":2,"markerCount":1,"nativeWindowsTested":false,"deferredExecutionTested":false,"externalModelCalls":0,"appServerExited":true}
+The follow-up enables code mode and a synthetic search-capable model catalog.
+Code mode alone does not defer MCP definitions. The initial Responses request
+has `tool_search` but no Git Bash namespace; nevertheless, `ALL_TOOLS` finds
+`which_bash` and `tools[entry.name]({})` invokes its production handler.
+The catalog follows the [pinned Codex metadata format](https://github.com/openai/codex/blob/rust-v0.144.6/codex-rs/models-manager/models.json),
+with model instructions removed and HTTP-only mock capabilities.
+
+The production Git Bash launcher intentionally exits on Linux. The fixture
+therefore uses the exported production request handler and shared transport,
+adapting only launcher gating. It does not spoof `process.platform` or mock
+the handler: `which_bash` returns the actual Linux `not-required` resolution.
+
+## Reproduce and inspect
+
+Use Node 24.18.0, Bun 1.4.0, the repository QA Docker image, and prepared
+workspace dependencies (`bun run test:codex`). Then run:
+
+```sh
+bash .omo/evidence/20260908-6077-deferred-git-bash/commands.sh
 ```
+
+The committed [commands.sh](commands.sh), [qa.mjs](qa.mjs),
+[mcp-fixture.ts](mcp-fixture.ts), and [model-catalog.json](model-catalog.json)
+are the actual replay inputs. [result.json](result.json) is the exact capture;
+[isolation.txt](isolation.txt) records host config SHA-256 before and after.
 
 The disposable ARM64 container had networking disabled, private HOME/CODEX_HOME
 under `/qa`, and only component/QA artifact mounts. No host credentials or
 configuration were mounted; app-server and container exited. Windows guarding
-used synthetic `OS=Windows_NT`; native Windows, model choice, and deferred
-execution itself were not measured. Raw model requests and local drivers are
-omitted; the capture above retains only the relevant machine fields.
+used synthetic `OS=Windows_NT`; native Windows execution and model choice were
+not measured. Deferred discovery and invocation were measured in real code mode.
+Raw model requests, stderr and generated bundles are omitted.
