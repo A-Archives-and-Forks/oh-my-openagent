@@ -28,7 +28,7 @@ describe("ulw-execute continuation CLI", () => {
 		expect(output.decision).toBe("block");
 	});
 
-	it("#given valid SubagentStop stdin #when CLI runs #then stdout contains block JSON", () => {
+	it("#given valid SubagentStop stdin #when CLI runs #then stdout is empty", () => {
 		// given
 		const cwd = createWorkspace(["codex:s1"]);
 		const payload = JSON.stringify(makePayload(cwd, false, "SubagentStop"));
@@ -39,7 +39,7 @@ describe("ulw-execute continuation CLI", () => {
 		// then
 		if (result.error !== undefined) throw result.error;
 		expect(result.status).toBe(0);
-		expect(result.stdout).toContain('"decision":"block"');
+		expect(result.stdout).toBe("");
 	});
 
 	it("#given active stop hook stdin #when CLI runs #then stdout is empty and exit is zero", () => {
@@ -122,7 +122,7 @@ function createWorkspace(sessionIds: readonly string[]): string {
 function makePayload(
 	cwd: string,
 	stopHookActive: boolean,
-	eventName: "Stop" | "SubagentStop",
+	eventName: string,
 ): Record<string, string | boolean> {
 	return {
 		session_id: "s1",

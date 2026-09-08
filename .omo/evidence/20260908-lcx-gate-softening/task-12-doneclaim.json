@@ -1,0 +1,46 @@
+{
+  "task": "12 ulw-execute-continuation relax + SubagentStop de-wire",
+  "changed_files": [
+    "packages/omo-codex/plugin/.codex-plugin/plugin.json",
+    "packages/omo-codex/plugin/components/ulw-execute-continuation/AGENTS.md",
+    "packages/omo-codex/plugin/components/ulw-execute-continuation/README.md",
+    "packages/omo-codex/plugin/components/ulw-execute-continuation/directive.md",
+    "packages/omo-codex/plugin/components/ulw-execute-continuation/hooks/hooks.json",
+    "packages/omo-codex/plugin/components/ulw-execute-continuation/src/codex-hook.ts",
+    "packages/omo-codex/plugin/components/ulw-execute-continuation/src/types.ts",
+    "packages/omo-codex/plugin/components/ulw-execute-continuation/test/cli.test.ts",
+    "packages/omo-codex/plugin/components/ulw-execute-continuation/test/codex-hook.test.ts",
+    "packages/omo-codex/plugin/hooks/subagent-stop-checking-ulw-execute-continuation.json",
+    "packages/omo-codex/plugin/test/aggregate-hooks.test.mjs",
+    "packages/omo-codex/plugin/test/aggregate-manifest.test.mjs",
+    "packages/omo-codex/plugin/test/component-hook-contract-cases.mjs",
+    "packages/omo-codex/plugin/test/hook-status-message.test.mjs"
+  ],
+  "red_proof": "Remote mengmotaMac RED command `bun test ./components/ulw-execute-continuation/test/codex-hook.test.ts` failed before implementation: the new active-Boulder SubagentStop assertion received `decision:block` instead of `\"\"` at codex-hook.test.ts:77; the updated manifest assertion also reported 21 !== 20 and the aggregate SubagentStop assertion reported 2 !== 1. Full captured output: .omo/evidence/20260908-lcx-gate-softening/task-12-red-correct-path.log.",
+  "tests": [
+    "cd /tmp/lcx-t12-20260908-2eff9a4d/omo/packages/omo-codex/plugin/components/ulw-execute-continuation && bun test -> exit 0; 43 pass, 0 fail",
+    "cd /tmp/lcx-t12-20260908-2eff9a4d/omo/packages/omo-codex/plugin && node --test ./test/aggregate-manifest.test.mjs ./test/aggregate-hooks.test.mjs ./test/hook-status-message.test.mjs -> exit 0; 24 pass, 0 fail",
+    "tsgo --noEmit -p packages/omo-codex/tsconfig.json -> exit 0",
+    "cd /tmp/lcx-t12-20260908-2eff9a4d/omo/packages/omo-codex/plugin/components/ulw-execute-continuation && npm run build --silent -> exit 0"
+  ],
+  "manual_qa": [
+    ".omo/evidence/20260908-lcx-gate-softening/task-12-continuation.log -> raw-pipe Stop payload for an active Boulder emitted JSON decision:block with a reason containing self-review and no all-five wording; exact SubagentStop payload emitted empty stdout; real ~/.codex/config.toml shasum stayed b012e531f5aa9fb1bce9003593c3eadf07081fcd before and after",
+    ".omo/evidence/20260908-lcx-gate-softening/task-12-cleanup.log -> remote QA directory /tmp/lcx-t12-20260908-2eff9a4d reported dir REMOVED"
+  ],
+  "acceptance": [
+    "jq '.hooks|length' packages/omo-codex/plugin/.codex-plugin/plugin.json -> 20",
+    "test ! -e packages/omo-codex/plugin/hooks/subagent-stop-checking-ulw-execute-continuation.json -> yes",
+    "jq -r '.hooks|keys|join(\",\")' packages/omo-codex/plugin/components/ulw-execute-continuation/hooks/hooks.json -> Stop",
+    "rg -c 'review-work` lanes' packages/omo-codex/plugin/components/ulw-execute-continuation/directive.md || true -> no matches",
+    "git diff --check -> PASS",
+    "remote focused component and aggregate suites -> exit 0; 67 tests pass, 0 fail"
+  ],
+  "cleanup": [
+    "/tmp/lcx-t12-20260908-2eff9a4d -> REMOVED by remote `rm -rf ... && test ! -e ...` receipt",
+    "cqa isolated CODEX_HOME sandbox -> removed by common.sh EXIT cleanup; post-trap local existence check -> PASS"
+  ],
+  "risks": [
+    "The full remote bun install lifecycle could not run because the required strict materialize step needs .git, while tree-transfer intentionally excludes .git; the fallback `bun install --frozen-lockfile --ignore-scripts` succeeded and the direct component build/unit suites passed. Full PR-level installer QA remains owned by todo 14.",
+    "No defects in the files owned by this todo were observed; concurrent uncommitted changes in other lanes were not modified."
+  ]
+}

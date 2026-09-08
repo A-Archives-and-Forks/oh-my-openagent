@@ -219,5 +219,27 @@ export function componentHookContractCases(tempRoot) {
 				assert.equal(stdout, "");
 			},
 		},
+		{
+			name: "ulw-execute-continuation subagent-stop compatibility no-op",
+			component: "ulw-execute-continuation",
+			event: "subagent-stop",
+			payload: {
+				hook_event_name: "SubagentStop",
+				agent_id: "agent-task12",
+				agent_type: "lazycodex-worker-low",
+				session_id: "s-task12",
+				turn_id: "t-task12",
+				transcript_path: join(tempRoot, "transcript.jsonl"),
+				agent_transcript_path: join(tempRoot, "agent-transcript.jsonl"),
+				cwd: tempRoot,
+				model: "gpt-5.5",
+				permission_mode: "default",
+				stop_hook_active: false,
+				last_assistant_message: "done",
+			},
+			assertOutput(stdout) {
+				assert.equal(stdout, "");
+			},
+		},
 	];
 }
