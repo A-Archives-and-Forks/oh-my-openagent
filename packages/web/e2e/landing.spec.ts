@@ -6,31 +6,51 @@ test.describe("Landing Page", () => {
     await page.goto("/")
 
     // when
-    const heading = page.getByRole("heading", { name: "The Best Agent Harness", level: 1 })
-    const getStartedButton = page.getByRole("button", { name: "Get Started" })
+    const heading = page.getByRole("heading", { name: /Type mass ulw\./, level: 1 })
+    const getStarted = page.getByRole("link", { name: "Get started" })
+    const readManifesto = page.getByRole("link", { name: "Read the manifesto" })
 
     // then
     await expect(page).toHaveTitle(/Oh My OpenAgent/)
     await expect(heading).toBeVisible()
-    await expect(getStartedButton).toBeVisible()
+    await expect(heading).toContainText("Own the graph.")
+    await expect(getStarted).toBeVisible()
+    await expect(getStarted).toHaveAttribute("href", /\/docs#installation$/)
+    await expect(readManifesto).toBeVisible()
   })
 
-  test("renders install command", async ({ page }) => {
+  test("renders install command with host tabs", async ({ page }) => {
     // given
     await page.goto("/")
+    const hero = page.locator('[data-section="hero"]')
 
     // when
-    const installCommand = page.getByText("bunx oh-my-openagent install").first()
+    const installCommand = hero.getByText("bunx oh-my-openagent install")
 
     // then
     await expect(installCommand).toBeVisible()
+    await expect(hero.getByRole("button", { name: "Copy install command" })).toBeVisible()
+
+    // when
+    await hero.getByRole("tab", { name: "Codex" }).click()
+
+    // then
+    await expect(hero.getByText("npx lazycodex-ai install")).toBeVisible()
+
+    // when
+    await hero.getByRole("tab", { name: "Senpi" }).click()
+
+    // then
+    await expect(hero.getByText("npm i -g omo-ai@beta")).toBeVisible()
   })
 
-  test("renders all rendered agent cards", async ({ page }) => {
+  test("renders the agent bento cells", async ({ page }) => {
     // given
     await page.goto("/")
+    const grid = page.locator("#agents ul")
 
     // when / then
+    await expect(grid.locator("li[id^='agent-']")).toHaveCount(12)
     const agentNames = [
       "Sisyphus",
       "Hephaestus",
@@ -41,10 +61,13 @@ test.describe("Landing Page", () => {
       "Metis",
       "Momus",
       "Atlas",
+      "Sisyphus-Junior",
+      "Multimodal-Looker",
     ]
     for (const name of agentNames) {
-      await expect(page.getByText(name, { exact: true }).first()).toBeVisible()
+      await expect(grid.getByRole("heading", { name, exact: true })).toBeVisible()
     }
+    await expect(grid.getByText("Claude Opus 5 Max")).toBeVisible()
   })
 
   test("mobile nav toggles menu", async ({ page }) => {
@@ -71,7 +94,7 @@ test.describe("Landing Page", () => {
     // when
     await Promise.all([
       page.waitForURL("**/docs", { timeout: 15000 }),
-      page.getByRole("navigation").getByRole("link", { name: "Docs", exact: true }).click(),
+      page.getByRole("banner").getByRole("link", { name: "Docs", exact: true }).click(),
     ])
 
     // then
@@ -86,7 +109,7 @@ test.describe("Landing Page", () => {
     // when
     await Promise.all([
       page.waitForURL("**/manifesto", { timeout: 15000 }),
-      page.getByRole("navigation").getByRole("link", { name: "Manifesto", exact: true }).click(),
+      page.getByRole("banner").getByRole("link", { name: "Manifesto", exact: true }).click(),
     ])
 
     // then

@@ -453,6 +453,11 @@
 }
 
 @layer components {
+  /* §4 docs prose: long tokens wrap, wide code/tables scroll inside their own box */
+  .docs-content {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
   .docs-content h1 {
     @apply mt-8 mb-4 scroll-mt-24 text-4xl font-medium tracking-[-0.025em] first:mt-0;
   }
@@ -487,19 +492,25 @@
     @apply bg-ink-2 text-text-hi rounded-[2px] px-1.5 py-0.5 font-mono text-sm;
   }
   .docs-content pre {
-    @apply border-line bg-code-bg text-code-fg my-4 overflow-x-auto border p-4 font-mono text-sm;
+    @apply border-line bg-code-bg text-code-fg my-4 max-w-full overflow-x-auto border p-4 font-mono text-sm;
+    overflow-wrap: normal;
   }
   .docs-content pre code {
     @apply bg-transparent p-0 text-inherit;
   }
+  .docs-content .docs-table {
+    @apply my-6 max-w-full overflow-x-auto;
+  }
   .docs-content table {
-    @apply border-line my-6 w-full border-collapse border text-sm;
+    @apply border-line my-0 w-full border-collapse border text-sm;
+    overflow-wrap: normal;
   }
   .docs-content thead {
     @apply bg-ink-1;
   }
   .docs-content th {
     @apply border-line text-text-hi border px-3 py-2 text-left font-medium;
+    white-space: nowrap;
   }
   .docs-content td {
     @apply border-line text-text-mid border px-3 py-2;
@@ -509,5 +520,69 @@
   }
   .docs-content strong {
     @apply text-text-hi font-medium;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Landing utilities (appended; tokens above are unchanged). DESIGN.md §3, §5, §7.
+ * ------------------------------------------------------------------------- */
+@layer utilities {
+  /* §3 type roles that repeat across sections */
+  .type-display {
+    font-size: clamp(2.5rem, 1.35rem + 4.4vw, 5.25rem);
+    font-weight: 500;
+    line-height: 0.98;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+  }
+  :where([lang|="ko"], [lang|="ja"], [lang|="zh"]) .type-display {
+    font-size: clamp(2.25rem, 1.25rem + 3.6vw, 4.5rem);
+  }
+  .type-title {
+    font-size: clamp(2rem, 1.3rem + 2.4vw, 3.25rem);
+    font-weight: 500;
+    line-height: 1.04;
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+  }
+  .type-numeral {
+    font-size: clamp(2rem, 1.4rem + 2vw, 2.75rem);
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* §7 hero wash + dot grid — the only gradient decoration on the site, both static */
+  .hero-wash {
+    background-image: radial-gradient(circle at 70% 45%, var(--accent-16), transparent 46%);
+  }
+  .dot-grid {
+    background-image: radial-gradient(var(--line-faint) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+
+  /* §5 Terminal cursor block: 1s steps(1) blink on --accent-hot */
+  .cursor-blink {
+    animation: cursor-blink 1s steps(1) infinite;
+  }
+  @keyframes cursor-blink {
+    50% {
+      opacity: 0;
+    }
+  }
+
+  /* §5 CommandBar: the command scrolls inside its cell without a visible scrollbar */
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .cursor-blink {
+      animation: none;
+    }
   }
 }

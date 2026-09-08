@@ -1,103 +1,92 @@
 import type { JSX } from "react"
 import { getTranslations } from "next-intl/server"
-import { getStats, formatStats, FALLBACK_FORMATTED_STATS } from "@/lib/stats"
-import { HeroStats } from "@/components/landing/hero-stats"
-import { InstallCommand } from "@/components/landing/install-command"
+
+import { GraphHero } from "@/components/landing/graph/graph-hero"
+import { CommandBar, type CommandTab } from "@/components/landing/install-command"
+import { Eyebrow } from "@/components/ledger/eyebrow"
 import { Button } from "@/components/ui/button"
 import { Link } from "@/i18n/routing"
-import { GithubIcon } from "@/components/icons/github-icon"
+import { FALLBACK_FORMATTED_STATS, formatStats, getStats } from "@/lib/stats"
 
+/**
+ * DESIGN.md §4/§9 hero — `cover` pattern: `min-h-[100dvh]`, rows auto / 1fr / auto. At lg an
+ * editorial split: text column left (6 of 12 tracks — the Display H1 must hold two lines), `GraphHero` right. Below lg the graph
+ * stacks under the text at ~56vw. Static `--accent-16` wash + `--line-faint` dot grid (§7).
+ */
 export async function HeroSection(): Promise<JSX.Element> {
   const t = await getTranslations("landing")
 
   let formattedStats = FALLBACK_FORMATTED_STATS
   try {
-    const stats = await getStats()
-    formattedStats = formatStats(stats)
+    formattedStats = formatStats(await getStats())
   } catch {
     formattedStats = FALLBACK_FORMATTED_STATS
   }
 
+  const tabs: readonly CommandTab[] = [
+    {
+      id: "opencode",
+      label: t("installTabs.opencode"),
+      command: t("installTabs.opencodeCommand"),
+    },
+    { id: "codex", label: t("installTabs.codex"), command: t("installTabs.codexCommand") },
+    { id: "senpi", label: t("installTabs.senpi"), command: t("installTabs.senpiCommand") },
+  ]
+
   return (
     <section
       data-section="hero"
-      className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden pt-16"
+      aria-labelledby="hero-title"
+      className="relative grid min-h-[100dvh] grid-rows-[auto_1fr_auto] pt-16"
     >
+      <div aria-hidden="true" className="hero-wash absolute inset-0 -z-10" />
       <div
         aria-hidden="true"
-        className="hero-bg absolute inset-0 z-0 bg-cover bg-center"
-        style={{ backgroundImage: "url(/images/hero.webp)" }}
+        className="dot-grid absolute inset-0 -z-10 [mask-image:linear-gradient(to_bottom,transparent,var(--ink-0)_35%,transparent)]"
       />
-      <div className="absolute inset-0 z-0 bg-gradient-to-b from-black/80 via-black/90 to-[#0a0a0a]" />
-
-      <div className="reveal-on-enter relative z-10 container mx-auto flex flex-col items-center gap-8 px-4 text-center md:px-6">
-        <div className="space-y-4">
-          <h1 className="text-5xl font-bold tracking-tighter text-white md:text-7xl">
-            {t("hero.title")}
-            <span className="text-cyan-400">{t("hero.titleHighlight")}</span>
-          </h1>
-          <p
-            data-testid="hero-tagline"
-            className="mx-auto max-w-3xl text-lg text-zinc-300 md:text-xl"
-          >
-            {formattedStats.description}
-          </p>
-          <p className="mx-auto max-w-3xl text-xl font-light text-zinc-400 md:text-2xl">
-            {t("hero.subtitle", {
-              stars: formattedStats.stars,
-              downloads: formattedStats.totalDownloads,
-            })}
-          </p>
-        </div>
-
-        <HeroStats
-          initialStats={{
-            stars: formattedStats.stars,
-            totalDownloads: formattedStats.totalDownloads,
-            monthlyDownloads: formattedStats.monthlyDownloads,
-            weeklyDownloads: formattedStats.weeklyDownloads,
-          }}
-          labels={{
-            githubStars: t("hero.githubStars", { count: "{count}" }),
-            specializedAgents: t("hero.specializedAgents", { count: "11" }),
-            totalDownloads: t("hero.totalDownloads", { count: "{count}" }),
-            monthlyDownloads: t("hero.monthlyDownloads", { count: "{count}" }),
-            lifecycleHooks: t("hero.lifecycleHooks", { count: "55" }),
-          }}
-        />
-
-        <div className="w-full max-w-md">
-          <InstallCommand command={t("hero.installCommand")} />
-        </div>
-        <div className="w-full max-w-md">
-          <p className="mb-1 text-xs text-zinc-500">{t("hero.codexLabel")}</p>
-          <InstallCommand command={t("hero.codexInstallCommand")} />
-        </div>
-
-        <div className="flex flex-col gap-4 sm:flex-row">
-          <Link href="/docs#installation">
-            <Button
-              size="lg"
-              className="h-12 bg-cyan-500 px-8 text-lg font-bold text-black shadow-sm hover:bg-cyan-600"
+      <div className="mx-auto w-full max-w-[90rem] px-4 sm:px-5 lg:px-8">
+        <div className="grid items-center gap-10 py-16 lg:grid-cols-12 lg:gap-6 lg:py-24">
+          <div className="reveal lg:col-span-6">
+            <Eyebrow rule dot="accent">
+              {t("hero.eyebrow")}
+            </Eyebrow>
+            <h1 id="hero-title" className="type-display text-text-hi mt-6 max-w-6xl">
+              {t("hero.title")}
+              <br />
+              <span>{t("hero.titleHighlight")}</span>
+            </h1>
+            <p
+              data-testid="hero-tagline"
+              className="text-text-mid mt-8 max-w-xl text-lg leading-[1.6]"
             >
-              {t("hero.getStarted")}
-            </Button>
-          </Link>
-          <Link
-            href="https://github.com/code-yeongyu/oh-my-openagent"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Button
-              size="lg"
-              variant="outline"
-              className="h-12 border-zinc-700 px-8 text-lg text-white hover:bg-zinc-800"
-            >
-              <GithubIcon className="mr-2 h-5 w-5" />
-              {t("hero.viewOnGitHub")}
-            </Button>
-          </Link>
+              {formattedStats.description}
+            </p>
+            <CommandBar tabs={tabs} className="mt-8 max-w-xl" />
+            <div className="mt-8 flex flex-wrap items-center gap-6">
+              <Button size="lg" asChild>
+                <Link href="/docs#installation">{t("hero.getStarted")}</Link>
+              </Button>
+              <Button variant="link" size="md" asChild>
+                <Link href="/manifesto">{t("hero.readManifesto")}</Link>
+              </Button>
+            </div>
+          </div>
+          <div className="reveal lg:col-span-6">
+            <div className="h-[56vw] overflow-hidden lg:h-auto lg:overflow-visible">
+              <GraphHero />
+            </div>
+          </div>
         </div>
+      </div>
+      <div className="mx-auto w-full max-w-[90rem] px-4 pb-8 sm:px-5 lg:px-8">
+        <ol className="flex flex-wrap items-center gap-x-8 gap-y-2">
+          {(["wave1", "wave2", "wave3"] as const).map((key) => (
+            <li key={key} className="eyebrow flex items-center gap-2">
+              <span className="text-text-faint tabular-nums">{t(`hero.rail.${key}.index`)}</span>
+              <span>{t(`hero.rail.${key}.label`)}</span>
+            </li>
+          ))}
+        </ol>
       </div>
     </section>
   )
