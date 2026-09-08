@@ -5,19 +5,29 @@
   },
   "nav": {
     "brand": "Oh My OpenAgent",
-    "features": "Features",
-    "agents": "Agents",
-    "docs": "Docs",
-    "manifesto": "Manifesto",
-    "starOnGitHub": "GitHub에서 Star"
+    "agents": "에이전트",
+    "docs": "문서",
+    "manifesto": "매니페스토",
+    "install": "설치",
+    "githubStars": "GitHub 스타 {count}개",
+    "openMenu": "메뉴 열기",
+    "closeMenu": "메뉴 닫기",
+    "primary": "주 메뉴"
   },
   "footer": {
     "brand": "Oh My OpenAgent",
-    "copyright": "© {year} Oh My OpenAgent. SUL-1.0 소스 이용 가능 라이선스.",
+    "copyright": "© {year} Sisyphus Labs · SUL-1.0 소스 공개 라이선스",
+    "product": "제품",
+    "community": "커뮤니티",
+    "legal": "법적 고지",
+    "docs": "문서",
+    "manifesto": "매니페스토",
+    "releases": "릴리스",
     "github": "GitHub",
     "discord": "Discord",
-    "documentation": "Documentation",
-    "manifesto": "Manifesto"
+    "x": "X @justsisyphus",
+    "privacy": "개인정보 처리방침",
+    "terms": "이용약관"
   },
   "landing": {
     "hero": {

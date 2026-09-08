@@ -5,19 +5,29 @@
   },
   "nav": {
     "brand": "Oh My OpenAgent",
-    "features": "功能特性",
     "agents": "Agents",
     "docs": "文档",
     "manifesto": "宣言",
-    "starOnGitHub": "在 GitHub 上标星"
+    "install": "安装",
+    "githubStars": "GitHub {count} 星标",
+    "openMenu": "打开菜单",
+    "closeMenu": "关闭菜单",
+    "primary": "主菜单"
   },
   "footer": {
     "brand": "Oh My OpenAgent",
-    "copyright": "© {year} Oh My OpenAgent。SUL-1.0 源码可用许可。",
+    "copyright": "© {year} Sisyphus Labs · 依据 SUL-1.0 源码可用",
+    "product": "产品",
+    "community": "社区",
+    "legal": "法律",
+    "docs": "文档",
+    "manifesto": "宣言",
+    "releases": "发布",
     "github": "GitHub",
     "discord": "Discord",
-    "documentation": "文档",
-    "manifesto": "宣言"
+    "x": "X @justsisyphus",
+    "privacy": "隐私政策",
+    "terms": "服务条款"
   },
   "landing": {
     "hero": {

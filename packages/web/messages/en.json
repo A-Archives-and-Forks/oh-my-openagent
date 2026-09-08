@@ -5,19 +5,29 @@
   },
   "nav": {
     "brand": "Oh My OpenAgent",
-    "features": "Features",
     "agents": "Agents",
     "docs": "Docs",
     "manifesto": "Manifesto",
-    "starOnGitHub": "Star on GitHub"
+    "install": "Install",
+    "githubStars": "{count} stars on GitHub",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "primary": "Primary"
   },
   "footer": {
     "brand": "Oh My OpenAgent",
-    "copyright": "© {year} Oh My OpenAgent. Source-available under SUL-1.0.",
+    "copyright": "© {year} Sisyphus Labs · Source-available under SUL-1.0",
+    "product": "Product",
+    "community": "Community",
+    "legal": "Legal",
+    "docs": "Docs",
+    "manifesto": "Manifesto",
+    "releases": "Releases",
     "github": "GitHub",
     "discord": "Discord",
-    "documentation": "Documentation",
-    "manifesto": "Manifesto"
+    "x": "X @justsisyphus",
+    "privacy": "Privacy",
+    "terms": "Terms"
   },
   "landing": {
     "hero": {

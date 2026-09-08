@@ -5,19 +5,29 @@
   },
   "nav": {
     "brand": "Oh My OpenAgent",
-    "features": "機能",
     "agents": "エージェント",
     "docs": "ドキュメント",
     "manifesto": "マニフェスト",
-    "starOnGitHub": "GitHubでスターをつける"
+    "install": "インストール",
+    "githubStars": "GitHubスター {count}",
+    "openMenu": "メニューを開く",
+    "closeMenu": "メニューを閉じる",
+    "primary": "メインメニュー"
   },
   "footer": {
     "brand": "Oh My OpenAgent",
-    "copyright": "© {year} Oh My OpenAgent. SUL-1.0のソースアベイラブルライセンス。",
+    "copyright": "© {year} Sisyphus Labs · SUL-1.0 ソースアベイラブル",
+    "product": "プロダクト",
+    "community": "コミュニティ",
+    "legal": "法的情報",
+    "docs": "ドキュメント",
+    "manifesto": "マニフェスト",
+    "releases": "リリース",
     "github": "GitHub",
     "discord": "Discord",
-    "documentation": "ドキュメント",
-    "manifesto": "マニフェスト"
+    "x": "X @justsisyphus",
+    "privacy": "プライバシーポリシー",
+    "terms": "利用規約"
   },
   "landing": {
     "hero": {
