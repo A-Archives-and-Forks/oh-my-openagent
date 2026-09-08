@@ -160,6 +160,8 @@ describe("createMemorianNudgeTool", () => {
   test.each([
     "The fix is on senpi main, not the extension.",
     "senpi monitors have a verified two-flag desync where registry.paused can remain set.",
+    "The regression test does not cover Windows process cleanup.",
+    "The outage is unrelated to the database migration.",
   ])("#given a factual hint %s #when nudge is called #then it is accepted unchanged", async (hint) => {
     const { accepted, tool } = launch()
     const result = await tool.execute("call-fact", params(CANDIDATE_PATH, hint))
