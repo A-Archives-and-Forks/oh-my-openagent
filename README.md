@@ -5,7 +5,7 @@
 > *Run `mass ulw` - enjoy ultracode but multi-model, together with a better memory system. (the right panel is [omo-herdr-dag](https://github.com/jc01rho/omo-herdr-dag).)*
 
 > **Sponsors**
-> These are our sponsors. Thank you for helping us build OmO.
+> These are our sponsors. They help keep OmO going as a personal side project.
 > | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** serves **Kimi K3 Ultrafast at 300 TPS** at the same price as the official list price. Try `opengateway/moonshotai/kimi-k3-ultrafast` today. It enforces a no-logging policy on inference raw content, so your prompts stay private - and since you never request the provider directly, you stay anonymous. |
 > | :-----| :----- |
 
