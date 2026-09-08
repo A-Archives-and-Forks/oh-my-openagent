@@ -122,17 +122,28 @@ export function SocialImage({ stats }: { readonly stats: FormattedStatsData }) {
           alignItems: "center",
           justifyContent: "space-between",
           fontFamily: "Geist Mono",
-          fontSize: 30,
+          fontSize: 24,
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, color: accent }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill={accent} aria-hidden="true">
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              color: accent,
+              fontSize: 48,
+              fontWeight: 500,
+            }}
+          >
+            <svg width="38" height="38" viewBox="0 0 24 24" fill={accent} aria-hidden="true">
               <path d="m12 1 3.4 6.9 7.6 1.1-5.5 5.4 1.3 7.6-6.8-3.6L5.2 22l1.3-7.6L1 9l7.6-1.1Z" />
             </svg>
             {stats.stars} stars
           </div>
-          <div style={{ display: "flex", color: textLo }}>{stats.totalDownloads} downloads</div>
+          <div style={{ display: "flex", color: textLo, fontSize: 24 }}>
+            {stats.totalDownloads} downloads
+          </div>
         </div>
         <div style={{ display: "flex", color: textMid }}>omo.dev</div>
       </div>
@@ -157,7 +168,7 @@ export function MinimalSocialImage({ stats }: { readonly stats: FormattedStatsDa
     >
       <div style={{ display: "flex", fontSize: 64, fontWeight: 700 }}>OmO</div>
       <div style={{ display: "flex", fontSize: 48, lineHeight: 1.2 }}>{stats.description}</div>
-      <div style={{ display: "flex", fontSize: 36, color: accent }}>
+      <div style={{ display: "flex", fontSize: 54, color: accent, fontWeight: 600 }}>
         {stats.stars} stars · omo.dev
       </div>
     </div>
