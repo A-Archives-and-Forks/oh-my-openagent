@@ -1,0 +1,31 @@
+{
+  "task": "6 docs Astra mentions",
+  "changed_files": [
+    "packages/omo-codex/AGENTS.md",
+    "packages/omo-codex/README.md",
+    "packages/omo-codex/plugin/README.md",
+    "packages/omo-codex/plugin/components/rules/README.md",
+    "packages/omo-codex/plugin/components/ultrawork/README.md"
+  ],
+  "red_proof": "Before edits at HEAD 7c1c66c61: `rg -n 'max_threads = 1000|1000 threads' <five files>` -> 1 hit (packages/omo-codex/AGENTS.md:73 '... otherwise defaults it to 16 ... it writes `agents.max_threads = 1000` ...'); `rg -n 'gpt-6-astra' <five files>` -> count=0; `rg -n 'gpt-5.6-sol' <five files>` -> 0 hits (no legacy profile documented). Captured in .omo/evidence/20260908-lcx-astra/task-6-docs.log (RED section).",
+  "tests": [
+    "none changed: todo 6 is prose-only and names no test files; the plan's Verification strategy claims no RED test for prose -> n/a"
+  ],
+  "manual_qa": [
+    "/Volumes/mengmotaStorage/local-workspaces/omo-wt/lcx-astra-default-models/.omo/evidence/20260908-lcx-astra/task-6-docs.log -> RED section shows AGENTS.md:73 with the 16/1000 cap wording and gpt-6-astra count=0; GREEN section shows cap-pattern count=0, '= 16\\b' count=0, rg -c gpt-6-astra = 1 in each of the five files, 3 gpt-5.6-sol lines all containing 'legacy', em/en dash count in added lines = 0, shasum ~/.codex/config.toml b012e531f5aa9fb1bce9003593c3eadf07081fcd before and after"
+  ],
+  "acceptance": [
+    "rg -n 'gpt-5.6-sol' packages/omo-codex/AGENTS.md packages/omo-codex/README.md packages/omo-codex/plugin/README.md packages/omo-codex/plugin/components/rules/README.md packages/omo-codex/plugin/components/ultrawork/README.md -> 3 lines (plugin/README.md:20, README.md:42, AGENTS.md:77), each describing the legacy.gpt-5.6-sol-650k-high managed profile; `| rg -c legacy` -> 3",
+    "rg -n 'max_threads = 1000|1000 threads' <five files> -> count=0",
+    "rg -c 'gpt-6-astra' <five files> -> AGENTS.md:1 README.md:1 plugin/README.md:1 rules/README.md:1 ultrawork/README.md:1",
+    "rg -n '= 16\\b' <five files> -> count=0",
+    "git diff --stat -- <five files> -> 5 files changed, 19 insertions(+), 3 deletions(-); git status shows only these five files modified by this todo"
+  ],
+  "cleanup": [
+    "no temp dirs, processes, or isolated CODEX_HOME created (grep-only QA); shasum ~/.codex/config.toml identical before/after: b012e531f5aa9fb1bce9003593c3eadf07081fcd; no git commit/checkout/stash run"
+  ],
+  "risks": [
+    "Docs now describe the todo 2/4/5 target state (catalog version 2026-09-08.gpt-6-astra-600k-high, legacy.gpt-5.6-sol-650k-high profile, no cap writes, 12 agents on gpt-6-astra, gpt-6.md Hephaestus variant, 600k post-compact budget). At the time of writing those code changes had not landed in this worktree (finder.ts still lists only gpt-5.6; bundled-rules/hephaestus/ has only gpt-5.5.md and gpt-5.6.md); if any lane changes a value (e.g. catalog version string or legacy profile name), the doc text must be re-synced before todo 7 ships.",
+    "AGENTS.md line 3 still says 'Generated: 2026-08-24 / f3642fcda (refresh pass)'; left untouched as outside the todo's stated edits."
+  ]
+}
