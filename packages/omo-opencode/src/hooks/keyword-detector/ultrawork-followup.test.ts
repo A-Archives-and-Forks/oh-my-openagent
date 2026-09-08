@@ -7,6 +7,7 @@ import { unsafeTestValue } from "../../../../../test-support/unsafe-test-value"
 import { _resetForTesting, setMainSession, subagentSessions } from "../../features/claude-code-session-state"
 import { resolveUltraworkOverride } from "../../plugin/ultrawork-model-override"
 import { stopContinuation } from "../../plugin/stop-continuation"
+import { createEventHookDispatcher, createEventHookRunner } from "../../plugin/event-hook-dispatcher"
 import { createKeywordDetectorHook } from "./hook"
 
 let hook: ReturnType<typeof createKeywordDetectorHook>
@@ -53,7 +54,13 @@ describe("explicit ULW session follow-ups", () => {
         rmSync(directory, { recursive: true, force: true })
       }
     }
-    if (reason === "deleted") hook.event({ event: { type: "session.deleted", properties: { info: { id: "main-session" } } } })
+    if (reason === "deleted") {
+      const dispatch = createEventHookDispatcher(
+        unsafeTestValue<Parameters<typeof createEventHookDispatcher>[0]>({ keywordDetector: hook }),
+        createEventHookRunner(),
+      )
+      await dispatch({ event: { type: "session.deleted", properties: { info: { id: "main-session" } } } })
+    }
     if (reason === "disposed") hook.dispose()
     expect(await send("next request")).toEqual({ active: false, override: null })
   })
