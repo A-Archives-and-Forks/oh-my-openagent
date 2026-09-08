@@ -20,6 +20,7 @@ type ToolCallPayload = { readonly toolName: string; readonly input: Record<strin
 type LaunchResult = {
   readonly status: "active" | "skipped" | "failed" | "dropped" | "nudged" | "empty"
   readonly nudges?: readonly RecallNudge[]
+  readonly cause?: string
 }
 type CapturedTrigger = {
   readonly snapshot: RecallSessionSnapshot
@@ -144,6 +145,7 @@ export function createMemorianTrigger(options: MemorianTriggerOptions): Memorian
         options.logger?.info("memorian trigger skipped", { sessionId: collected.sessionId, reason: "judge_cap" })
         return
       }
+      const previousFingerprint = lastFingerprint.get(collected.sessionId)
       lastFingerprint.set(collected.sessionId, fingerprint)
       launchCounts.set(collected.sessionId, count + 1)
       try {
@@ -172,6 +174,12 @@ export function createMemorianTrigger(options: MemorianTriggerOptions): Memorian
         ...(deadlineMs === undefined ? {} : { deadlineMs }),
       })
       if (!isLaunchResult(result)) return
+      // Cooldown did not judge these candidates; retain only the previous reservation.
+      if (result.status === "skipped" && result.cause === "cooldown"
+        && lastFingerprint.get(collected.sessionId) === fingerprint) {
+        if (previousFingerprint === undefined) lastFingerprint.delete(collected.sessionId)
+        else lastFingerprint.set(collected.sessionId, previousFingerprint)
+      }
       if (result.status === "active") {
         keepBusy = true
         trailing.set(collected.sessionId, { ...captured, fingerprint })

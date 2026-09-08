@@ -45,6 +45,9 @@ import { writeMemorianRunOutcome } from "./memorian-run-retention"
 const QUICK_CATEGORY = "quick"
 /** The gate advises a turn that already ended; anything slower than this is worthless. */
 const DEFAULT_DEADLINE_MS = 5 * 60_000
+/** Fixed advisory budget, not config: cap nudge storms at two accepted outcomes per ten minutes. */
+const MAX_NUDGES_PER_WINDOW = 2
+const NUDGE_WINDOW_MS = 600_000
 
 export interface MemorianGateRunnerOptions {
   readonly identityPaths: MemoryIdentityPaths
@@ -92,7 +95,7 @@ export type MemorianGateFailureCause = "session_create_failed" | "child_failed" 
 export type MemorianGateLaunchResult =
   /** Another gate run holds the latch; this trigger is dropped. */
   | { readonly status: "active"; readonly runId?: string }
-  /** No candidates, or the quick category could not resolve. */
+  /** No candidates, unavailable judge prerequisites, or the session's nudge budget is exhausted. */
   | { readonly status: "skipped"; readonly cause?: string; readonly model?: string; readonly candidateCount?: number; readonly runId?: string }
   /** The child ran and said nothing the parent accepted. */
   | { readonly status: "empty"; readonly runId?: string; readonly model?: string }
@@ -115,6 +118,8 @@ export class MemorianGateRunner {
   private activeLaunch: Promise<MemorianGateLaunchResult> | undefined
   private activeHandle: ChildHandle | undefined
   private activeState: MemorianGateLaunchState | undefined
+  // Per-session, not per-identity: compaction keeps the budget; a restart may reset this in-memory history.
+  private readonly acceptedAtBySession = new Map<string, number[]>()
 
   constructor(private readonly options: MemorianGateRunnerOptions) {}
 
@@ -144,6 +149,12 @@ export class MemorianGateRunner {
 
   private async launchOnce(input: MemorianGateLaunchInput, state: MemorianGateLaunchState): Promise<MemorianGateLaunchResult> {
     if (input.candidates.length === 0 || input.maxItems <= 0) return { status: "skipped", cause: "no_candidates", candidateCount: input.candidates.length }
+    const windowStart = Date.now() - NUDGE_WINDOW_MS
+    const acceptedAt = (this.acceptedAtBySession.get(input.sessionId) ?? []).filter((timestamp) => timestamp > windowStart)
+    this.acceptedAtBySession.set(input.sessionId, acceptedAt)
+    if (acceptedAt.length >= MAX_NUDGES_PER_WINDOW) {
+      return { status: "skipped", cause: "cooldown", candidateCount: input.candidates.length }
+    }
     // The settle handler's snapshot is authoritative. There is deliberately NO resolver fallback:
     // this task runs after the host disposed the senpi ctx, so any late read throws the stale-ctx
     // error and the only honest answer to a missing snapshot is to skip the advisory run.
@@ -203,6 +214,8 @@ export class MemorianGateRunner {
       await overwriteDroppedOutcome(this.options, runId, "compaction", model)
       return this.dropAfterCompaction(input, model, runId)
     }
+    // Charge only the final accepted outcome (including salvaged partials), not hints or child starts.
+    acceptedAt.push(Date.now())
     return judged.partial === true
       ? { status: "nudged", nudges, model, runId, partial: true }
       : { status: "nudged", nudges, model, runId }
