@@ -1,12 +1,32 @@
 import { describe, expect, it } from "bun:test"
 import type { ReflectionSnapshot, ReflectionTranscriptState } from "../journal"
 import {
+  REFLECTION_PENDING_MAX_BYTES,
+  REFLECTION_PENDING_MAX_CONVERSATIONS,
   completeTransition,
   evaluateTransitions,
+  mergedSnapshotBytes,
   reserveTransition,
   type MachineState,
   type ReflectionRequest,
 } from "./machine"
+
+/** A snapshot whose serialized entries weigh approximately `bytes`. */
+function bulkySnapshot(bytes: number): ReflectionSnapshot {
+  return {
+    start_message_id: "start",
+    end_message_id: "end",
+    start_line: 0,
+    end_snapshot_line: 1,
+    entries: [{
+      kind: "assistant",
+      text: "x".repeat(Math.max(1, bytes)),
+      captured_at: "2026-08-10T00:00:00.000Z",
+      source_line_id: "line",
+      source_message_id: "message",
+    }] as unknown as ReflectionSnapshot["entries"],
+  }
+}
 
 function journal(steps = 0, pendingCompaction = false) {
   const state: ReflectionTranscriptState = {
@@ -164,6 +184,58 @@ describe("reflection trigger machine", () => {
       "conversation-a",
       "conversation-b",
     ])
+  })
+
+  it("#given more pending conversations than the merge allows #when they union #then the newest survive and the oldest are evicted", () => {
+    // given: one reflection stays active while a conversation per reservation keeps queueing.
+    const overflow = REFLECTION_PENDING_MAX_CONVERSATIONS + 5
+    let state = reserveTransition({}, request("step-count", ["active-conversation"]), "active").state
+    for (let index = 0; index < overflow; index += 1) {
+      state = reserveTransition(state, request("step-count", [`conversation-${index}`]), `pending-${index}`).state
+    }
+
+    // then: the union is capped, and eviction drops the oldest first.
+    const merged = state.pending?.request.snapshots.map((item) => item.conversationId) ?? []
+    expect(merged).toHaveLength(REFLECTION_PENDING_MAX_CONVERSATIONS)
+    expect(merged).toEqual(
+      Array.from({ length: REFLECTION_PENDING_MAX_CONVERSATIONS }, (_, index) =>
+        `conversation-${overflow - REFLECTION_PENDING_MAX_CONVERSATIONS + index}`),
+    )
+  })
+
+  it("#given pending snapshots past the aggregate byte budget #when they union #then the oldest are evicted until the merge fits", () => {
+    // given: each snapshot carries roughly a tenth of the aggregate budget, so a bounded number fit.
+    const perSnapshotBytes = Math.floor(REFLECTION_PENDING_MAX_BYTES / 10)
+    const heavy = (conversationId: string): ReflectionRequest => ({
+      trigger: "step-count",
+      conversationIds: [conversationId],
+      snapshots: [{ conversationId, snapshot: bulkySnapshot(perSnapshotBytes) }],
+    })
+
+    let state = reserveTransition({}, heavy("active-conversation"), "active").state
+    for (let index = 0; index < 30; index += 1) {
+      state = reserveTransition(state, heavy(`conversation-${index}`), `pending-${index}`).state
+    }
+
+    // then
+    const snapshots = state.pending?.request.snapshots ?? []
+    expect(snapshots.length).toBeGreaterThan(0)
+    expect(snapshots.length).toBeLessThan(30)
+    expect(mergedSnapshotBytes(snapshots)).toBeLessThanOrEqual(REFLECTION_PENDING_MAX_BYTES)
+    // eviction is oldest-first, so the newest request always survives.
+    expect(snapshots.at(-1)?.conversationId).toBe("conversation-29")
+  })
+
+  it("#given a single snapshot larger than the aggregate budget #when it merges #then it is still carried so the request is never emptied", () => {
+    const huge: ReflectionRequest = {
+      trigger: "manual",
+      conversationIds: ["conversation-huge"],
+      snapshots: [{ conversationId: "conversation-huge", snapshot: bulkySnapshot(REFLECTION_PENDING_MAX_BYTES * 2) }],
+    }
+    const active = reserveTransition({}, request("step-count"), "active")
+    const state = reserveTransition(active.state, huge, "pending").state
+
+    expect(state.pending?.request.snapshots.map((item) => item.conversationId)).toEqual(["conversation-huge"])
   })
 
   it("#given interleaved reflection and dream requests #when every bounded event sequence is applied #then at most one active and one pending run exist", () => {
