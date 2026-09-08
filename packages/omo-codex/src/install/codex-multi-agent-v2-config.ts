@@ -139,17 +139,16 @@ function removeFeatureFlagSetting(
 function removeAgentsMaxThreads(config: string, v2Preferred: boolean): string {
   const section = findTomlSection(config, CODEX_AGENTS_HEADER)
   if (!section) return config
-  const pattern = v2Preferred ? /^\s*max_threads\s*=/ : /^\s*max_threads\s*=\s*1000\s*(?:#.*)?$/
-  return removeMatchingCap(config, section, pattern)
+  return removeMatchingCap(config, section, "max_threads", v2Preferred ? undefined : /^1000\s*(?:#.*)?$/)
 }
 
 function removeManagedMultiAgentV2ThreadLimit(config: string): string {
   const section = findTomlSection(config, CODEX_MULTI_AGENT_V2_HEADER)
   if (!section) return config
-  return removeMatchingCap(config, section, /^\s*max_concurrent_threads_per_session\s*=\s*(?:1000|16)\s*(?:#.*)?$/)
+  return removeMatchingCap(config, section, "max_concurrent_threads_per_session", /^(?:1000|16)\s*(?:#.*)?$/)
 }
 
-function removeMatchingCap(config: string, section: TomlSection, pattern: RegExp): string {
+function removeMatchingCap(config: string, section: TomlSection, keyName: string, expectedValue?: RegExp): string {
   let quote: TomlMultilineQuote | null = null
   let offset = section.start
   for (const line of section.text.match(/[^\n]*\n?/g) ?? []) {
@@ -158,7 +157,8 @@ function removeMatchingCap(config: string, section: TomlSection, pattern: RegExp
     if (!scan.wasInside) {
       const assignment = line.indexOf("=")
       const key = assignment < 0 ? null : parseTomlDottedKey(line.slice(0, assignment).trim())
-      if (key?.length === 1 && pattern.test(`${key[0]}${line.slice(assignment)}`)) {
+      if (key?.length === 1 && key[0] === keyName
+        && (expectedValue === undefined || expectedValue.test(line.slice(assignment + 1).trim()))) {
         return config.slice(0, offset) + config.slice(offset + line.length)
       }
     }

@@ -30,8 +30,7 @@ export function ensureSubagentConcurrencyLimit(config, options = {}) {
 function removeAgentsMaxThreads(config, v2Preferred) {
 	const section = findSection(config, CODEX_AGENTS_HEADER);
 	if (!section) return config;
-	const value = v2Preferred ? /^\s*max_threads\s*=\s*([^#\n]*)(?:#[^\n]*)?$/m.exec(section.text)?.[1]?.trim() : "1000";
-	return removeTomlSectionSetting(config, section, "max_threads", value);
+	return removeTomlSectionSetting(config, section, "max_threads", v2Preferred ? undefined : "1000");
 }
 
 function removeManagedV2ThreadLimit(config) {

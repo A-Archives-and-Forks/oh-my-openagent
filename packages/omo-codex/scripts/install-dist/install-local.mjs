@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-codex-install:b5afc7408180d5c1661c76a4c639607941de5e8b936ae1e99b2a5eba9c66aedd:55ee1891c5647811a3cf5669fec1edd2827cf926fd51d3e4b6b42d9986604202
+// omo-codex-install:dd6a563800e30ce8e45f73e631a566e5e525285c2e2049577b5f004bf9d9710a:010968b6b9a972f6d2e1f7d6c4c784d43c54190839385b3ad6eaf734a1d6fef0
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -11064,16 +11064,15 @@ function removeAgentsMaxThreads(config, v2Preferred) {
   const section = findTomlSection(config, CODEX_AGENTS_HEADER);
   if (!section)
     return config;
-  const pattern = v2Preferred ? /^\s*max_threads\s*=/ : /^\s*max_threads\s*=\s*1000\s*(?:#.*)?$/;
-  return removeMatchingCap(config, section, pattern);
+  return removeMatchingCap(config, section, "max_threads", v2Preferred ? undefined : /^1000\s*(?:#.*)?$/);
 }
 function removeManagedMultiAgentV2ThreadLimit(config) {
   const section = findTomlSection(config, CODEX_MULTI_AGENT_V2_HEADER);
   if (!section)
     return config;
-  return removeMatchingCap(config, section, /^\s*max_concurrent_threads_per_session\s*=\s*(?:1000|16)\s*(?:#.*)?$/);
+  return removeMatchingCap(config, section, "max_concurrent_threads_per_session", /^(?:1000|16)\s*(?:#.*)?$/);
 }
-function removeMatchingCap(config, section, pattern) {
+function removeMatchingCap(config, section, keyName, expectedValue) {
   let quote = null;
   let offset = section.start;
   for (const line of section.text.match(/[^\n]*\n?/g) ?? []) {
@@ -11082,7 +11081,7 @@ function removeMatchingCap(config, section, pattern) {
     if (!scan.wasInside) {
       const assignment = line.indexOf("=");
       const key = assignment < 0 ? null : parseTomlDottedKey(line.slice(0, assignment).trim());
-      if (key?.length === 1 && pattern.test(`${key[0]}${line.slice(assignment)}`)) {
+      if (key?.length === 1 && key[0] === keyName && (expectedValue === undefined || expectedValue.test(line.slice(assignment + 1).trim()))) {
         return config.slice(0, offset) + config.slice(offset + line.length);
       }
     }

@@ -9,6 +9,47 @@ import { updateCodexConfig } from "./codex-config-toml"
 import { ensureCodexMultiAgentV2Config, resolveCodexMultiAgentVersion } from "./codex-multi-agent-v2-config"
 
 describe("codex MultiAgentV2 config", () => {
+  for (const fixture of [
+    { name: "bare", key: "max_threads", v2Key: "max_concurrent_threads_per_session", before: "", equals: "=" },
+    { name: "double-quoted", key: '"max_threads"', v2Key: '"max_concurrent_threads_per_session"', before: "", equals: " = " },
+    { name: "single-quoted", key: "'max_threads'", v2Key: "'max_concurrent_threads_per_session'", before: " \t", equals: "\t=  " },
+    { name: "escaped-quoted", key: '"max_thread\\u0073"', v2Key: '"max_concurrent_threads_per_sessio\\u006e"', before: "\t ", equals: "  =\t" },
+  ]) {
+    test(`#given ${fixture.name} thread-cap keys with varied spacing #when normalizing #then removes managed values and retains user values`, () => {
+      for (const value of [1000, 16, 6, 8, 10000]) {
+        const config = [
+          "[agents]",
+          `${fixture.before}${fixture.key}${fixture.equals}${value} # cap`,
+          "max_depth = 4",
+          "[agents.explorer]",
+          'config_file = "./agents/explorer.toml"',
+          "[features.multi_agent_v2]",
+          "enabled = false",
+          `${fixture.before}${fixture.v2Key}${fixture.equals}${value} # cap`,
+          "usage_hint_enabled = false",
+          "",
+        ].join("\n")
+        const result = ensureCodexMultiAgentV2Config(config, { multiAgentVersion: "v1" })
+        const expected = config
+          .replace(value === 1000 ? `${fixture.before}${fixture.key}${fixture.equals}${value} # cap\n` : "", "")
+          .replace(value === 1000 || value === 16 ? `${fixture.before}${fixture.v2Key}${fixture.equals}${value} # cap\n` : "", "")
+        expect(result).toBe(expected)
+        expect(Bun.TOML.parse(result)).toEqual(Bun.TOML.parse(expected))
+        expect(ensureCodexMultiAgentV2Config(result, { multiAgentVersion: "v1" })).toBe(result)
+      }
+    })
+
+    test(`#given V2 and an incompatible ${fixture.name} agents cap #when normalizing #then removes only the cap assignment`, () => {
+      for (const value of [1000, 6]) {
+        const config = `[agents]\n${fixture.before}${fixture.key}${fixture.equals}${value}\nmax_depth = 4\n`
+        const result = ensureCodexMultiAgentV2Config(config, { multiAgentVersion: "v2" })
+        expect(result).toBe("[agents]\nmax_depth = 4\n")
+        expect(Bun.TOML.parse(result)).toEqual({ agents: { max_depth: 4 } })
+        expect(ensureCodexMultiAgentV2Config(result, { multiAgentVersion: "v2" })).toBe(result)
+      }
+    })
+  }
+
   test("#given the former V2 default cap #when normalizing #then removes the cap and preserves the explicit disable", () => {
     for (const key of ["max_concurrent_threads_per_session", '"max_concurrent_threads_per_session"']) {
       const content = ensureCodexMultiAgentV2Config(`[features.multi_agent_v2]\nenabled = false\n${key} = 16\n`)

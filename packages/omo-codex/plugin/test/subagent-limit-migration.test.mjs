@@ -6,6 +6,60 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { migrateConfigFile } from "../scripts/migrate-codex-config.mjs";
+import { ensureSubagentConcurrencyLimit } from "../scripts/migrate-codex-config/subagent-limit-guard.mjs";
+
+for (const fixture of [
+	{ name: "bare", key: "max_threads", v2Key: "max_concurrent_threads_per_session", before: "", equals: "=" },
+	{ name: "double-quoted", key: '"max_threads"', v2Key: '"max_concurrent_threads_per_session"', before: "", equals: " = " },
+	{ name: "single-quoted", key: "'max_threads'", v2Key: "'max_concurrent_threads_per_session'", before: " \t", equals: "\t=  " },
+	{ name: "escaped-quoted", key: '"max_thread\\u0073"', v2Key: '"max_concurrent_threads_per_sessio\\u006e"', before: "\t ", equals: "  =\t" },
+]) {
+	test(`#given ${fixture.name} thread-cap keys with varied spacing #when migrating #then removes managed values and retains user values`, () => {
+		for (const value of [1000, 16, 6, 8, 10000]) {
+			const config = [
+				"[agents]",
+				`${fixture.before}${fixture.key}${fixture.equals}${value} # cap`,
+				"max_depth = 4",
+				"[agents.explorer]",
+				'config_file = "./agents/explorer.toml"',
+				"[features.multi_agent_v2]",
+				"enabled = false",
+				`${fixture.before}${fixture.v2Key}${fixture.equals}${value} # cap`,
+				"usage_hint_enabled = false",
+				"",
+			].join("\n");
+			const result = ensureSubagentConcurrencyLimit(config, { multiAgentVersion: "v1" });
+			const expected = config
+				.replace(value === 1000 ? `${fixture.before}${fixture.key}${fixture.equals}${value} # cap\n` : "", "")
+				.replace(value === 1000 || value === 16 ? `${fixture.before}${fixture.v2Key}${fixture.equals}${value} # cap\n` : "", "");
+			assert.equal(result, expected);
+			assert.deepEqual(parseTomlWithPython(result), parseTomlWithPython(expected));
+			assert.equal(ensureSubagentConcurrencyLimit(result, { multiAgentVersion: "v1" }), result);
+		}
+	});
+
+	test(`#given V2 and an incompatible ${fixture.name} agents cap #when migrating #then removes only the cap assignment`, () => {
+		for (const value of [1000, 6]) {
+			const config = `[agents]\n${fixture.before}${fixture.key}${fixture.equals}${value}\nmax_depth = 4\n`;
+			const result = ensureSubagentConcurrencyLimit(config, { multiAgentVersion: "v2" });
+			assert.equal(result, "[agents]\nmax_depth = 4\n");
+			assert.deepEqual(parseTomlWithPython(result), { agents: { max_depth: 4 } });
+			assert.equal(ensureSubagentConcurrencyLimit(result, { multiAgentVersion: "v2" }), result);
+		}
+	});
+}
+
+test('#given verify-a4 quoted agents.max_threads=1000 #when SessionStart migrates under V2 #then removes the cap idempotently', async () => {
+	const root = await mkdtemp(join(tmpdir(), "lazycodex-verify-a4-quoted-cap-"));
+	const configPath = join(root, "config.toml");
+	await writeFile(configPath, '[agents]\n"max_threads" = 1000\n');
+	const options = { sessionModel: "gpt-6-astra", env: { CODEX_HOME: root } };
+	assert.equal((await migrateConfigFile(configPath, options)).changed, true);
+	const firstPass = await readFile(configPath, "utf8");
+	assert.deepEqual(parseTomlWithPython(firstPass).agents, {});
+	assert.equal((await migrateConfigFile(configPath, options)).changed, false);
+	assert.equal(await readFile(configPath, "utf8"), firstPass);
+});
 
 function parseTomlWithPython(config) {
 	const python = resolvePython();
