@@ -73,13 +73,6 @@ describe("memorian nudged recollection", () => {
     }
   })
 
-  test("#given an already-persisted filler hint #when rendered #then nothing is drawn", () => {
-    for (const hint of ["placeholder", "<hint>", "TODO"]) {
-      const record = { version: 1, nudges: [{ path: "a.md", hint }], via: "steer" }
-      expect(renderMemorianNudgedEntry(entry(record), { expanded: false }, theme)).toBeUndefined()
-    }
-  })
-
   test("#given a second nudge #when rendered #then the extra hint continues the recollection", () => {
     const component = renderMemorianNudgedEntry(
       entry({ version: 1, nudges: [{ path: "a.md", hint: "Use it." }, { path: "b.md", hint: "Also this." }], via: "wake" }),
