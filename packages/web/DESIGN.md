@@ -21,7 +21,7 @@ An operations ledger read at night. The whole site is one framed sheet of ink ru
 
 **Signature material: ink + phosphor.** Flat ink surfaces step by luminance (`ink-0 → ink-3`), separated by 1px `line` hairlines with square corners. Cyan appears only where something is running, selectable, or verified. No gradients as decoration, no purple, no drop shadows.
 
-**The memorable moment:** the hero's agent graph lights up wave by wave — Sisyphus, then the planners, then the workers — and you can grab it and orbit it. Two sections later the same wave grammar plays inside a terminal as `mass ulw` runs. The product's idea (a DAG of specialised agents scheduled in waves and verified at the end) is understood before a paragraph is read.
+**The memorable moment:** the hero's agent graph lights up wave by wave — the orchestrator, then the planners, then the workers — and you can grab it and orbit it. Two sections later the same wave grammar plays inside a terminal as `mass ulw` runs. The product's idea (a DAG of specialised agents scheduled in waves and verified at the end) is understood before a paragraph is read.
 
 ## 2. Color
 
@@ -171,8 +171,8 @@ All primitives live in `components/ui/*` (existing shadcn shells re-tokened) or 
 
 ### BentoCell (`components/ledger/bento-cell.tsx`)
 
-- Cells of the agents grid (`grid-flow-dense`, 1px gaps revealing `--line`, so the grid itself draws the rules). Cell fill `--ink-1`, hover `--ink-2` + icon `--accent`, spans: Sisyphus 2×2, Hephaestus 2×1, others 1×1; mobile 1 column, tablet 2. Content: icon 20px (Lucide/Phosphor SVG), name (Subheading), role (Body/sm `--text-mid`), model chip (Meta mono on `--ink-2`, `--line` border, 2px radius).
-- Gapless verification: 4 columns × 3 rows desktop = 12 cells: Sisyphus 4 + Hephaestus 2 + 6 singles = 12. Tablet 2 columns: Sisyphus 2×2, Hephaestus 2×1, 6 singles → 4 + 2 + 6 = 12 = 2 × 6 rows. No holes.
+- Cells of the agents grid (`grid-flow-dense`, 1px gaps revealing `--line`, so the grid itself draws the rules). Cell fill `--ink-1`, hover `--ink-2` + icon `--accent`, spans: orchestrator 2×2, Hephaestus 2×1, others 1×1; mobile 1 column, tablet 2. Content: icon 20px (Lucide/Phosphor SVG), name (Subheading), role (Body/sm `--text-mid`), model chip (Meta mono on `--ink-2`, `--line` border, 2px radius).
+- Gapless verification: 4 columns × 3 rows desktop = 12 cells: orchestrator 4 + Hephaestus 2 + 6 singles = 12. Tablet 2 columns: orchestrator 2×2, Hephaestus 2×1, 6 singles → 4 + 2 + 6 = 12 = 2 × 6 rows. No holes.
 
 ### Terminal (`components/landing/terminal.tsx`)
 
@@ -253,11 +253,11 @@ Grain is not used (omp.sh's canvas grain and factory's texture PNG would fight t
 
 ### Meaning
 
-The GitHub one-liner calls the user "the master of graph engineering". The focal object is that graph: a directed acyclic graph of agent nodes scheduled in waves by `mass ulw`. Wave 1 = Sisyphus (lead) → wave 2 = Prometheus, Metis, Momus (plan + gates) → wave 3 = Atlas, Hephaestus, Oracle, Librarian, Explore, Sisyphus-Junior, Multimodal-Looker (execution). A 12s loop lights the waves in order, pulses travel down the edges, and a final "verified" flash settles the graph.
+The GitHub one-liner calls the user "the master of graph engineering". The focal object is that graph: a directed acyclic graph of agent nodes scheduled in waves by `mass ulw`. Wave 1 = orchestrator (lead) → wave 2 = planner, gap analysis, plan review (plan + gates) → wave 3 = Atlas, Hephaestus, Oracle, Librarian, Explore, worker, Multimodal-Looker (execution). A 12s loop lights the waves in order, pulses travel down the edges, and a final "verified" flash settles the graph.
 
 ### Content and geometry
 
-- Desktop 11 nodes / mobile 7 (drop Metis, Momus, Multimodal-Looker, Sisyphus-Junior). Positions precomputed in `components/landing/graph/graph-data.ts` (seeded, three planes along -Z).
+- Desktop 11 nodes / mobile 7 (drop gap analysis, plan review, Multimodal-Looker, worker). Positions precomputed in `components/landing/graph/graph-data.ts` (seeded, three planes along -Z).
 - Node = icosahedron (detail 1) `MeshStandardMaterial` (`--ink-3` base, emissive `--accent-dim`, emissiveIntensity 0.2 idle → 1.6 lit) + one additive-blended halo sprite (shared 64×64 radial CanvasTexture, `--accent-16` → transparent). No bloom / postprocessing.
 - Edges = one `LineSegments` geometry, `--accent-dim` at 0.35 opacity; lit edge 0.8.
 - Pulses = one `Points` object (≤ 48 desktop / 24 mobile) whose `t` along its edge advances per frame in a typed array; size 6px, `--accent-hot`.

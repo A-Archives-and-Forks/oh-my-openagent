@@ -1,7 +1,7 @@
 {
   "metadata": {
     "title": "Oh My OpenAgent",
-    "description": "最佳 Agent harness。遇见 Sisyphus：开箱即用的 Agent，像你一样编程。"
+    "description": "最佳 Agent harness。遇见 OmO：开箱即用、像你一样编程的智能体 harness。"
   },
   "nav": {
     "brand": "Oh My OpenAgent",
@@ -39,7 +39,7 @@
       "rail": {
         "wave1": {
           "index": "01",
-          "label": "Sisyphus 领队"
+          "label": "编排器领队"
         },
         "wave2": {
           "index": "02",
@@ -110,10 +110,10 @@
     "agents": {
       "eyebrow": "阵容",
       "title": "十一个智能体，一张图。",
-      "subtitle": "按波次调度的 11 个智能体有向图：Sisyphus 领队，Prometheus、Metis、Momus 负责规划与把关，执行者动手。点击图中的节点即可找到对应格子。",
+      "subtitle": "按波次调度的 11 个智能体有向图：编排器领队，规划器、缺口分析与计划评审负责把关，执行者动手。点击图中的节点即可找到对应格子。",
       "sisyphus": {
-        "name": "Sisyphus",
-        "role": "主编排者",
+        "name": "编排器",
+        "role": "主导智能体",
         "model": "Claude Opus 5 Max",
         "description": "读懂你的意图而非字面，动手前先摸清代码库，委派给专家并独立验证结果。中断的运行会从 boulder.json 记录的位置精确恢复。"
       },
@@ -123,7 +123,7 @@
         "model": "GPT 5.6 Sol Medium"
       },
       "prometheus": {
-        "name": "Prometheus",
+        "name": "规划器",
         "role": "战略规划者",
         "model": "Claude Fable 5.1 XHigh"
       },
@@ -133,8 +133,8 @@
         "model": "Claude Opus 5 High"
       },
       "momus": {
-        "name": "Momus",
-        "role": "计划评审",
+        "name": "计划评审",
+        "role": "评审关卡",
         "model": "GPT 6 Astra xHigh"
       },
       "atlas": {
@@ -158,7 +158,7 @@
         "model": "GPT 5.6 Luna Fast"
       },
       "sisyphusJunior": {
-        "name": "Sisyphus-Junior",
+        "name": "执行者",
         "role": "单任务执行者",
         "model": "Per-category"
       },
@@ -178,7 +178,7 @@
       "title": "先想，再做。",
       "subtitle": "规划和执行是两件事。规划者不写代码；执行者只跟随已通过两位评审的计划。",
       "prometheus": {
-        "name": "Prometheus",
+        "name": "规划器",
         "role": "战略规划者",
         "model": "Claude Fable 5.1 XHigh",
         "description": "访谈你，探索代码库，写出计划。从不写代码。",
@@ -192,7 +192,7 @@
         "features": ["缺失的需求", "未说明的假设"]
       },
       "momus": {
-        "name": "Momus",
+        "name": "计划评审",
         "role": "计划评审",
         "model": "GPT 6 Astra xHigh",
         "description": "只有计划站得住才批准，否则退回。",
@@ -285,7 +285,7 @@
         "author": "Arthur Guiot"
       },
       "review2": {
-        "text": "If Claude Code does in 7 days what a human does in 3 months, Sisyphus does it in 1 hour.",
+        "text": "If Claude Code does in 7 days what a human does in 3 months, OmO does it in 1 hour.",
         "author": "B, Quant Researcher"
       },
       "review3": {
@@ -402,9 +402,9 @@
       },
       "prometheus": {
         "badge": "方法 2",
-        "title": "Prometheus + Atlas",
+        "title": "规划器 + 执行器",
         "subtitle": "当你需要战略性控制时。",
-        "prometheusTitle": "Prometheus",
+        "prometheusTitle": "规划器",
         "prometheusDescription": "进行访谈、研究上下文并生成详细的 YAML 计划。",
         "atlasTitle": "Atlas",
         "atlasDescription": "执行计划，委派给子 Agent，管理波次并跟踪进度。",
@@ -429,7 +429,7 @@
       "title": "核心循环",
       "features": {
         "prometheus": {
-          "feature": "Prometheus",
+          "feature": "规划访谈",
           "purpose": "通过智能访谈提取意图"
         },
         "metis": {
@@ -437,7 +437,7 @@
           "purpose": "在歧义变成 Bug 之前捕获它们"
         },
         "momus": {
-          "feature": "Momus",
+          "feature": "计划评审关卡",
           "purpose": "在执行前验证计划完整性"
         },
         "orchestrator": {
