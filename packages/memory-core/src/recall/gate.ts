@@ -24,7 +24,7 @@ export const PENDING_NUDGES_VERSION = 1
 export const NUDGE_HINT_MAX_CHARS = 200
 
 /** Decision commentary is not a memory fact. Internal, deliberately not a config knob. */
-const NUDGE_DECISION_LANGUAGE_PATTERN = /\b(?:no\s+stored\s+memory|clears\s+the\s+bar|not?\s+relevant|unrelated\s+to|does\s+not\s+(?:cover|address|pertain)|is\s+not\s+about|memor(?:y|ies)\s+covers?\s+.*\s+not\s+the)\b/i
+const NUDGE_DECISION_LANGUAGE_PATTERN = /\b(?:no\s+stored\s+memory|clears\s+the\s+bar|not?\s+relevant|memor(?:y|ies)\s+(?:(?:is|are)\s+(?:unrelated\s+to|not\s+about)|(?:does|do)\s+not\s+(?:cover|address|pertain))|memor(?:y|ies)\s+covers?\s+.*\s+not\s+the)\b/i
 
 /** Pending payloads older than this are junk from an abandoned session. */
 const PENDING_TTL_MS = 24 * 60 * 60_000

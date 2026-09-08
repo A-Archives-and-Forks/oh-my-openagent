@@ -45,6 +45,8 @@ describe("renderMemorianNudgedEntry", () => {
   test.each([
     "The fix is on senpi main, not the extension.",
     "senpi monitors have a verified two-flag desync where registry.paused can remain set.",
+    "The regression test does not cover Windows process cleanup.",
+    "The outage is unrelated to the database migration.",
   ])("#given a factual hint %s #when rendered #then it remains renderable", (hint) => {
     const record = { version: 1, nudges: [{ path: "memory/a.md", hint }] }
     expect(renderMemorianNudgedEntry({ data: record } as never, { expanded: false }, PLAIN_THEME as never)).toBeDefined()
