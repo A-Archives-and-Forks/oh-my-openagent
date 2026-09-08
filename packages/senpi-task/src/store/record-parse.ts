@@ -92,7 +92,7 @@ export function parseTaskRecord(value: unknown, path: string, warnings?: string[
     ...(teamRunId === undefined ? {} : { team_run_id: teamRunId }),
     ...(teamName === undefined ? {} : { team_name: teamName }),
     ...(teamMemberName === undefined ? {} : { team_member_name: teamMemberName }),
-    ...(teamRole === undefined ? {} : { team_role: teamRole as "member" }),
+    ...(teamRole === undefined ? {} : { team_role: teamRole }),
     ...(toolAllow === undefined ? {} : { tool_allow: toolAllow }),
     ...(toolDeny === undefined ? {} : { tool_deny: toolDeny }),
     ...(requestedModel === undefined ? {} : { requested_model: requestedModel }),
