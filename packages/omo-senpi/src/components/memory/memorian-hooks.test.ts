@@ -1,9 +1,13 @@
 import { describe, expect, test } from "bun:test"
 
-import { buildIdentityPaths } from "@oh-my-opencode/memory-core"
+import { buildIdentityPaths, PendingNudges, RecallLedger } from "@oh-my-opencode/memory-core"
 import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import { createMemoryIdentityContext } from "./context"
 import { registerMemorianHooks } from "./memorian-hooks"
+import { createMemorianTrigger, type MemorianTriggerOptions } from "./memorian-trigger"
+import { createMemorianDelivery } from "./memorian-delivery"
+import { ToolArgWindow } from "./recall-query-planner-tools"
+import { beforeAgentStart } from "./recall-wiring.test-support"
 
 const identity = createMemoryIdentityContext({
   identity: "agent",
@@ -22,17 +26,39 @@ function context(sessionId: string, entries: readonly unknown[] = []): Record<st
   }
 }
 
+function ports(overrides: Partial<MemorianTriggerOptions> = {}) {
+  return {
+    env: {},
+    trigger: createMemorianTrigger({
+      snapshotSession: () => undefined, resolveModelRegistry: () => undefined,
+      collectCandidatesFromSnapshot: async () => undefined,
+      runnerFor: () => ({ launch: async () => ({ status: "empty" }) }),
+      resolveContext: () => identity, onAccepted: async () => {}, report: () => {},
+      currentCompactionEpoch: () => 0, argWindow: new ToolArgWindow(), ...overrides,
+    }),
+    delivery: createMemorianDelivery({
+      ledgerFor: () => new RecallLedger(identity.identityPaths.recallLedger),
+      pendingFor: () => new PendingNudges(identity.identityPaths.recallPending),
+      sendMessage: () => {}, appendEntry: () => {},
+    }),
+  }
+}
+
 describe("registerMemorianHooks", () => {
   test("#given a tool call #when dispatched #then the trigger receives it synchronously", async () => {
     const pi = new FakeExtensionAPI()
     const calls: unknown[][] = []
     const eventCtx = context("session-tool-call")
+    const f = ports()
     registerMemorianHooks(pi, {
+      ...f,
       trigger: {
+        ...f.trigger,
         onToolCall: (payload, ctx) => { calls.push([payload, ctx]) },
         onSettled: () => {},
       },
       delivery: {
+        ...f.delivery,
         onToolResult: async () => {},
       },
       resolveContext: () => undefined,
@@ -50,12 +76,16 @@ describe("registerMemorianHooks", () => {
     const pi = new FakeExtensionAPI()
     const calls: unknown[][] = []
     const eventCtx = context("session-tool-result")
+    const f = ports()
     registerMemorianHooks(pi, {
+      ...f,
       trigger: {
+        ...f.trigger,
         onToolCall: () => {},
         onSettled: () => {},
       },
       delivery: {
+        ...f.delivery,
         onToolResult: async (...args) => { calls.push(args) },
       },
       resolveContext: () => identity,
@@ -74,9 +104,11 @@ describe("registerMemorianHooks", () => {
   test("#given text-only and empty sessions #when agent_settled dispatches #then only the non-empty branch settles", async () => {
     const pi = new FakeExtensionAPI()
     const settled: unknown[] = []
+    const f = ports()
     registerMemorianHooks(pi, {
-      trigger: { onToolCall: () => {}, onSettled: (eventCtx) => { settled.push(eventCtx) } },
-      delivery: { onToolResult: async () => {} },
+      ...f,
+      trigger: { ...f.trigger, onToolCall: () => {}, onSettled: (eventCtx) => { settled.push(eventCtx) } },
+      delivery: { ...f.delivery, onToolResult: async () => {} },
       resolveContext: () => undefined,
       resolveSessionId: () => undefined,
     })
@@ -93,9 +125,11 @@ describe("registerMemorianHooks", () => {
   test("#given a delivery whose onToolResult rejects #when tool_result dispatches #then the handler resolves undefined and a warning is logged", async () => {
     const pi = new FakeExtensionAPI()
     const warnings: unknown[][] = []
+    const f = ports()
     registerMemorianHooks(pi, {
-      trigger: { onToolCall: () => {}, onSettled: () => {} },
-      delivery: { onToolResult: async () => { throw new Error("boom") } },
+      ...f,
+      trigger: { ...f.trigger, onToolCall: () => {}, onSettled: () => {} },
+      delivery: { ...f.delivery, onToolResult: async () => { throw new Error("boom") } },
       resolveContext: () => identity,
       resolveSessionId: () => "session-warning",
       logger: { warn: (...args) => { warnings.push(args) }, info: () => {}, error: () => {} },
@@ -108,15 +142,49 @@ describe("registerMemorianHooks", () => {
     expect(warnings[0]?.[0]).toBe("omo-senpi memorian tool_result delivery failed")
   })
 
+  test.each(["SENPI_MEMORY_REFLECTION", "SENPI_MEMORY_FACTS"])("#given a %s child #when before_agent_start dispatches #then the judge is never triggered", async (sentinel) => {
+    // given
+    const pi = new FakeExtensionAPI()
+    let snapshots = 0
+    const f = ports({ snapshotSession: () => { snapshots += 1; return undefined } })
+    const options = { ...f, env: { [sentinel]: "1" }, resolveContext: () => identity, resolveSessionId: () => "child" }
+    registerMemorianHooks(pi, options)
+    // when
+    const result = await pi.dispatch("before_agent_start", beforeAgentStart("recall this"), context("child"))
+    await f.trigger.whenIdle()
+    // then
+    expect(result).toEqual([undefined])
+    expect(snapshots).toBe(0)
+  })
+
+  test("#given a stale session resolver #when before_agent_start dispatches #then it returns undefined and warns", async () => {
+    // given
+    const pi = new FakeExtensionAPI()
+    const warnings: unknown[] = []
+    const f = ports()
+    registerMemorianHooks(pi, {
+      ...f, resolveContext: () => identity, resolveSessionId: () => { throw new Error("stale context") },
+      logger: { warn: (_message, details) => { warnings.push(details) }, info: () => {}, error: () => {} },
+    })
+    // when
+    const result = await pi.dispatch("before_agent_start", beforeAgentStart("recall this"), context("stale"))
+    // then
+    expect(result).toEqual([undefined])
+    expect(warnings).toHaveLength(1)
+  })
+
   test("#given a trigger that throws #when tool_call dispatches #then it returns undefined and warns", async () => {
     const pi = new FakeExtensionAPI()
     const warnings: unknown[][] = []
+    const f = ports()
     registerMemorianHooks(pi, {
+      ...f,
       trigger: {
+        ...f.trigger,
         onToolCall: () => { throw new Error("boom") },
         onSettled: () => {},
       },
-      delivery: { onToolResult: async () => {} },
+      delivery: { ...f.delivery, onToolResult: async () => {} },
       resolveContext: () => undefined,
       resolveSessionId: () => undefined,
       logger: { warn: (...args) => { warnings.push(args) }, info: () => {}, error: () => {} },
