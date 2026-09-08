@@ -1,0 +1,14 @@
+WHAT WAS TESTED
+Raw-pipe PostCompact budget probe using the exact required payload fields, with a 760,000-byte compacted transcript.
+
+WHAT WAS OBSERVED
+b012e531f5aa9fb1bce9003593c3eadf07081fcd  /Users/yeongyu/.codex/config.toml
+Astra command exit=0; unknown-model command exit=0.
+
+b012e531f5aa9fb1bce9003593c3eadf07081fcd  /Users/yeongyu/.codex/config.toml
+
+WHY IT IS ENOUGH
+The source table now recognizes both Astra slugs at 600,000 tokens while the unknown slug retains the 200,000 fallback; the raw hook invocation completed for both models.
+
+WHAT WAS OMITTED
+Bun tests were not run on this machine per task constraints. Remote unit gate is pending.

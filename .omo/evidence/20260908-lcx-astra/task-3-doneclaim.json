@@ -1,0 +1,26 @@
+{
+  "task": "3 post-compact budget gpt-6-astra",
+  "changed_files": [
+    "packages/omo-codex/plugin/components/rules/src/post-compact-budget.ts",
+    "packages/omo-codex/plugin/components/rules/test/post-compact-budget.test.ts"
+  ],
+  "red_proof": "Before editing, rg -n 'gpt-6-astra|gpt-6-astra-fast' packages/omo-codex/plugin/components/rules/src/post-compact-budget.ts packages/omo-codex/plugin/components/rules/test/post-compact-budget.test.ts returned no matches (exit 1); the existing unknown-model path therefore used FALLBACK_CONTEXT_WINDOW_TOKENS = 200_000.",
+  "tests": [
+    "bun test packages/omo-codex/plugin/components/rules -> pending remote gate",
+    "tsgo --noEmit -p packages/omo-codex/tsconfig.json -> failed: Cannot find type definition file for 'bun-types' (local dependency environment)"
+  ],
+  "manual_qa": [
+    ".omo/evidence/20260908-lcx-astra/task-3-budget.log -> raw-pipe PostCompact probe was attempted; committed rules dist was absent, so the CLI probe could not execute"
+  ],
+  "acceptance": [
+    "rg -c 'slug: \"gpt-6-astra\"|slug: \"gpt-6-astra-fast\"' packages/omo-codex/plugin/components/rules/src/post-compact-budget.ts -> 2",
+    "rg -n 'FALLBACK_CONTEXT_WINDOW_TOKENS = 200_000' packages/omo-codex/plugin/components/rules/src/post-compact-budget.ts -> line 22: const FALLBACK_CONTEXT_WINDOW_TOKENS = 200_000;",
+    "git diff --check -> passed"
+  ],
+  "cleanup": [
+    "~/.codex/config.toml shasum before and after -> b012e531f5aa9fb1bce9003593c3eadf07081fcd (identical)"
+  ],
+  "risks": [
+    "Local TypeScript dependencies and component dist are unavailable; remote gate must run the scoped suite and raw-pipe QA."
+  ]
+}
