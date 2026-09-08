@@ -34,6 +34,22 @@ describe("renderMemorianNudgedEntry", () => {
     expect(renderMemorianNudgedEntry({ data: null } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
   })
 
+  test.each([
+    "No stored memory clears the bar for this planning step; the transcript already contains the full methodology, QA approach, and rollout.",
+    "This memory covers OAuth login prompts and remote-test helpers, not the goal continuation timer delay.",
+  ])("#given a meta hint %s #when rendered #then nothing is drawn", (hint) => {
+    const record = { version: 1, nudges: [{ path: "memory/a.md", hint }] }
+    expect(renderMemorianNudgedEntry({ data: record } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
+  })
+
+  test.each([
+    "The fix is on senpi main, not the extension.",
+    "senpi monitors have a verified two-flag desync where registry.paused can remain set.",
+  ])("#given a factual hint %s #when rendered #then it remains renderable", (hint) => {
+    const record = { version: 1, nudges: [{ path: "memory/a.md", hint }] }
+    expect(renderMemorianNudgedEntry({ data: record } as never, { expanded: false }, PLAIN_THEME as never)).toBeDefined()
+  })
+
   test("#given a multiline hint #when rendered #then nothing is drawn", () => {
     const multiline = { version: 1, nudges: [{ path: "memory/a.md", hint: "first\nsecond" }] }
     expect(renderMemorianNudgedEntry({ data: multiline } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
