@@ -7,7 +7,7 @@
 
 > **Sponsors**
 > 以下是我们的赞助商。感谢您帮助我们完成制作。
-> | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** 以与官方定价相同的价格提供 **300 TPS 的 Kimi K3 Ultrafast**。立即试用 `moonshotai/kimi-k3-ultrafast`。 正在对推理内容实行无日志政策,让注重隐私的使用成为可能;同时由于不直接向提供商发起请求,还能保持匿名。 |
+> | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** 以与官方定价相同的价格提供 **300 TPS 的 Kimi K3 Ultrafast**。立即试用 `moonshotai/kimi-k3-ultrafast`。 对推理原文实行无日志政策,让注重隐私的使用成为可能;同时由于不直接向提供商发起请求,还能保持匿名。 |
 > | :-----| :----- |
 
 > [!NOTE]

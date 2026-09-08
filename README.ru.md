@@ -7,7 +7,7 @@
 
 > **Sponsors**
 > Ниже представлены наши спонсоры. Спасибо за помощь в создании проекта.
-> | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** предлагает **Kimi K3 Ultrafast со скоростью 300 TPS** по той же цене, что и официальный прайс. Попробуйте `moonshotai/kimi-k3-ultrafast`. Сервис переходит на политику отсутствия логов для инференса, так что ваши запросы остаются приватными, а поскольку вы не обращаетесь к провайдеру напрямую, сохраняется анонимность. |
+> | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** предлагает **Kimi K3 Ultrafast со скоростью 300 TPS** по той же цене, что и официальный прайс. Попробуйте `moonshotai/kimi-k3-ultrafast`. Действует политика отсутствия логов исходных текстов инференса, так что ваши запросы остаются приватными, а поскольку вы не обращаетесь к провайдеру напрямую, сохраняется анонимность. |
 > | :-----| :----- |
 
 > [!NOTE]

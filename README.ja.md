@@ -7,7 +7,7 @@
 
 > **Sponsors**
 > 以下は私たちのスポンサーです。制作をご支援いただきありがとうございます。
-> | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** では **Kimi K3 Ultrafast (300 TPS)** を公式価格と同じ料金で提供しています。`moonshotai/kimi-k3-ultrafast` を今すぐお試しください。 推論内容のノーロギングポリシーへの移行を進めており、プライバシーに配慮した利用が可能です。プロバイダーに直接リクエストしないため、匿名性も保てます。 |
+> | [<img alt="OpenGateway" src="./.github/assets/opengateway-logo.svg" width="156px" />](https://opengateway.ai/) | **[OpenGateway](https://opengateway.ai/)** では **Kimi K3 Ultrafast (300 TPS)** を公式価格と同じ料金で提供しています。`moonshotai/kimi-k3-ultrafast` を今すぐお試しください。 推論原文ノーロギングポリシーにより、プライバシーに配慮した利用が可能です。プロバイダーに直接リクエストしないため、匿名性も保てます。 |
 > | :-----| :----- |
 
 > [!NOTE]
