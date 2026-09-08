@@ -38,7 +38,6 @@ export async function generateMetadata(): Promise<Metadata> {
       "agent orchestration",
       "claude",
       "gpt",
-      "gemini",
       "coding assistant",
       "lazycodex",
       "lazycodex-ai",
