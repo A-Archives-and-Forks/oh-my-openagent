@@ -9,7 +9,10 @@ import { createMemoryBinding } from "./binding"
 import { createMemoryIdentityContext, type MemoryIdentityContext } from "./context"
 import { tryAcquireJudgeSlot } from "./memorian-concurrency"
 import { createMemorianDelivery } from "./memorian-delivery"
+import { MemorianGateRunner } from "./memorian-runner"
+import { CANDIDATES, nudgeOnce, registrySnapshot, runnerOptions, scriptedSession } from "./memorian-runner.test-support"
 import { createMemorianTrigger } from "./memorian-trigger"
+import { createMemorianGateWiring } from "./memorian-wiring"
 import { MemoryFakeExtensionAPI, memorySettings } from "./memory.test-support"
 import { ToolArgWindow } from "./recall-query-planner-tools"
 import { createRecallDrain } from "./recall-drain"
@@ -74,6 +77,50 @@ async function fixture(): Promise<{
 }
 
 describe("memorian observability contract", () => {
+  test("#given two accepted judges #when tool and settle triggers exceed the budget #then one cooldown gate entry is recorded without another child or delivery", async () => {
+    const { context } = await fixture()
+    const stub = scriptedSession(nudgeOnce)
+    stub.resolve()
+    const runner = new MemorianGateRunner(runnerOptions(context.identityPaths, { createSession: stub.createSession }))
+    const gate = createMemorianGateWiring({ resolveContext: () => context, runnerFor: () => runner })
+    const entries: Array<{ customType: string; data: unknown }> = []
+    gate.attachEntrySink((customType, data) => entries.push({ customType, data }))
+    const accepted: unknown[] = []
+    let collection = 0
+    const trigger = createMemorianTrigger({
+      snapshotSession: () => ({ id: sessionId, entries: [] }),
+      resolveModelRegistry: () => registrySnapshot(),
+      collectCandidatesFromSnapshot: async () => ({
+        sessionId,
+        context,
+        candidates: [...CANDIDATES, { path: `reference/control-${++collection}.md`, description: "control", excerpt: "control", score: 1 }],
+        surfaced: new Set<string>(),
+        maxItems: 1,
+        transcript: [],
+      }),
+      runnerFor: () => runner,
+      resolveContext: () => context,
+      onAccepted: async (_id, _context, nudges) => { accepted.push(nudges) },
+      report: gate.reportOutcome,
+      currentCompactionEpoch: gate.currentCompactionEpoch,
+      argWindow: new ToolArgWindow(),
+    })
+
+    for (let index = 0; index < 2; index += 1) {
+      trigger.onToolCall({ toolName: "read", input: { path: "rollout.ts" } }, {})
+      await trigger.whenIdle()
+      trigger.onSettled({})
+      await trigger.whenIdle()
+    }
+
+    expect(stub.created).toBe(2)
+    expect(accepted).toHaveLength(2)
+    expect(entries).toEqual([{
+      customType: "omo-memorian:gate",
+      data: { version: 1, status: "skipped", cause: "cooldown", candidateCount: 2 },
+    }])
+  })
+
   test("#given unchanged candidates #when triggered twice #then skip is logged without a gate entry", async () => {
     const logs: Array<{ message: string; details?: unknown }> = []
     const gateEntries: GateEntry[] = []
