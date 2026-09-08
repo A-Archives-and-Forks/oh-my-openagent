@@ -1,17 +1,26 @@
 import { expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { senpiWorkerCompileArgs } from "./senpi-worker-compile"
 
-test("#given a worker engine #when compiled and relocated #then two workers start without source files", () => {
+test.each(["directory", "bun-link", "external-link"])("#given a %s worker engine #when compiled and relocated #then two workers start without source files", (layout) => {
   const scratch = mkdtempSync(join(tmpdir(), "omo-worker-compile-"))
   try {
     // given: mirror the published engine layout and compile-time worker contract.
-    const root = join(scratch, "source")
-    const worker = join(root, "node_modules/@code-yeongyu/senpi/dist/modes/rpc/session-worker.js")
-    mkdirSync(dirname(worker), { recursive: true })
+    const buildRoot = join(scratch, "build")
+    const root = join(buildRoot, "source")
+    const packagePath = join(root, "node_modules/@code-yeongyu/senpi")
+    const physicalPackage = layout === "directory" ? packagePath : layout === "bun-link"
+      ? join(root, "node_modules/.bun/senpi/node_modules/@code-yeongyu/senpi")
+      : join(buildRoot, "engine")
+    mkdirSync(join(physicalPackage, "dist/modes/rpc"), { recursive: true })
+    if (layout !== "directory") {
+      mkdirSync(dirname(packagePath), { recursive: true })
+      symlinkSync(physicalPackage, packagePath, "junction")
+    }
+    const worker = join(packagePath, "dist/modes/rpc/session-worker.js")
     writeFileSync(worker, `import { parentPort } from "node:worker_threads"; parentPort.postMessage("ready");`)
     const entry = join(root, "entry.ts")
     writeFileSync(entry, `import { Worker } from "node:worker_threads";
@@ -30,7 +39,7 @@ console.log("two-workers-ready");`)
     mkdirSync(relocated)
     const moved = join(relocated, process.platform === "win32" ? "omo.exe" : "omo")
     renameSync(binary, moved)
-    rmSync(root, { recursive: true })
+    rmSync(buildRoot, { recursive: true })
     const result = spawnSync(moved, [], { cwd: relocated, encoding: "utf8", timeout: 10_000 })
     // then
     expect(result.status, result.stderr).toBe(0)
