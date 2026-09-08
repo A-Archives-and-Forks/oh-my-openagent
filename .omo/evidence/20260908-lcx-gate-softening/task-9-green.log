@@ -1,0 +1,19 @@
+packages/omo-codex/plugin/components/ulw-loop/test/quality-gate.test.ts:139:	it("#given missing manualQa section #when validated #then it explains accepted input forms", () => {
+packages/omo-codex/plugin/components/ulw-loop/test/quality-gate.test.ts:145:		expect(error.message).toContain("accepted input");
+packages/omo-codex/plugin/components/ulw-loop/test/quality-gate.test.ts:343:	const ATTEMPT_OPTS = { ...FS_OPTS, currentAttemptDir: "test/fixtures/artifacts" } as const;
+packages/omo-codex/plugin/components/ulw-loop/test/quality-gate.test.ts:350:		const opts = { ...FS_OPTS, currentAttemptDir: "test/fixtures/elsewhere" } as const;
+packages/omo-codex/plugin/components/ulw-loop/test/quality-gate.test.ts:357:		const opts = { ...FS_OPTS, currentAttemptDir: "test/fixtures/artifact" } as const;
+packages/omo-codex/plugin/components/ulw-loop/src/codex-goal-instruction.ts:115:		"- Evidence layout v2: write every artifact for the active goal (QA matrix, review reports, receipts) under the current attempt directory — read currentAttemptDir from `omo-agent-toolkit ulw-loop status --json` (.omo/evidence/ulw/<session>/<goalId>/a<attempt>). The final checkpoint rejects quality-gate artifacts outside that directory.",
+packages/omo-codex/plugin/components/ulw-loop/src/codex-goal-instruction.ts:156:		"- Run manual QA yourself and write the non-empty artifact under currentAttemptDir; set manualQa.by to \"main-session\".",
+packages/omo-codex/plugin/components/ulw-loop/src/cli-output.ts:19:Every state subcommand needs a session scope: [--session-id <id>] or the session env (OMO_ULW_LOOP_SESSION_ID / CODEX_SESSION_ID / CODEX_THREAD_ID / PI_SESSION_ID); state lives under .omo/ulw-loop/<id>/ and the unscoped root is never used implicitly. `status --json` exposes the currentAttemptDir; put all quality-gate artifacts under it.
+packages/omo-codex/plugin/components/ulw-loop/src/checkpoint.ts:196:							? { currentAttemptDir: ulwLoopAttemptEvidenceDir(goal.id, goal.attempt, scope) }
+packages/omo-codex/plugin/components/ulw-loop/src/quality-gate-artifacts.ts:67:		opts.currentAttemptDir !== undefined &&
+packages/omo-codex/plugin/components/ulw-loop/src/quality-gate-artifacts.ts:68:		!isWithinAttemptDir(absolute, resolve(opts.repoRoot, opts.currentAttemptDir))
+packages/omo-codex/plugin/components/ulw-loop/src/quality-gate-artifacts.ts:71:			`${field} (${path}) must point to an artifact from the current attempt (${opts.currentAttemptDir}).`,
+packages/omo-codex/plugin/components/ulw-loop/src/stop-resume-hook.ts:115:		`1. Run \`omo-agent-toolkit ulw-loop status${option} --json\` to reload the plan, the active goal, and currentAttemptDir.`,
+packages/omo-codex/plugin/components/ulw-loop/src/status-next-actions.ts:31:			`${active.id} passes every criterion and is the final story: update_goal complete, then checkpoint --print-template to build the final quality gate. Use status --json's currentAttemptDir for all quality-gate artifacts.`,
+packages/omo-codex/plugin/components/ulw-loop/src/status-next-actions.ts:34:		`${active.id} passes every criterion: close it with \`omo-agent-toolkit ulw-loop checkpoint --goal-id ${active.id} --status complete --evidence "<proof>" --codex-goal-json '<get_goal json>'\`. Put quality-gate artifacts under the currentAttemptDir shown by status --json.`,
+packages/omo-codex/plugin/components/ulw-loop/src/quality-gate.ts:41:	readonly currentAttemptDir?: string;
+packages/omo-codex/plugin/components/ulw-loop/src/quality-gate-fields.ts:65:		`Final quality gate is missing ${field} evidence (accepted input: a bare object with manualQa/gateReview/iteration/criteriaCoverage and optional codeReview, or the same object under a top-level "qualityGate" key).`,
+packages/omo-codex/plugin/components/ulw-loop/src/cli-subcommands.ts:68:		const currentAttemptDir =
+packages/omo-codex/plugin/components/ulw-loop/src/cli-subcommands.ts:76:			...(currentAttemptDir === undefined ? {} : { currentAttemptDir }),

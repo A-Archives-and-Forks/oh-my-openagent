@@ -1,0 +1,30 @@
+{
+  "task": "9 gate error text + help (#155)",
+  "changed_files": [
+    "packages/omo-codex/plugin/components/ulw-loop/src/quality-gate-fields.ts",
+    "packages/omo-codex/plugin/components/ulw-loop/src/cli-output.ts",
+    "packages/omo-codex/plugin/components/ulw-loop/src/status-next-actions.ts",
+    "packages/omo-codex/plugin/components/ulw-loop/test/quality-gate.test.ts",
+    ".omo/evidence/20260908-lcx-gate-softening/task-9-errors.log"
+  ],
+  "red_proof": "rg on unchanged sources showed `Final quality gate is missing ${field} evidence.` and no currentAttemptDir matches in cli-output.ts or status-next-actions.ts.",
+  "tests": [
+    "bun test packages/omo-codex/plugin/components/ulw-loop -> pending remote gate",
+    "tsgo --noEmit -p packages/omo-codex/tsconfig.json -> failed: error TS2688 Cannot find type definition file for 'bun-types' (environment dependency unavailable)"
+  ],
+  "manual_qa": [
+    ".omo/evidence/20260908-lcx-gate-softening/task-9-errors.log -> captured RED contract output and post-edit acceptance grep; raw CLI invocation was not runnable without the seeded attempt/dist QA setup"
+  ],
+  "acceptance": [
+    "rg -n 'accepted input|currentAttemptDir|artifacts under' packages/omo-codex/plugin/components/ulw-loop/src packages/omo-codex/plugin/components/ulw-loop/test/quality-gate.test.ts -> matched accepted input in the missing-section test and source, currentAttemptDir in help/next-action/source status, and artifacts-under guidance",
+    "git diff --check -> passed"
+  ],
+  "cleanup": [
+    "No commits, checkout, stash, or push performed; worktree changes remain uncommitted"
+  ],
+  "risks": [
+    "tsgo verification is blocked by missing bun-types in the local environment; remote gate must run the component suite and typecheck",
+    "Parallel todo lanes have unrelated uncommitted changes in the same worktree; they were not modified",
+    "syntax fix applied to cli-output.ts (backticks inside template literal) after tsgo caught TS1005; tsgo+build now exit 0"
+  ]
+}
