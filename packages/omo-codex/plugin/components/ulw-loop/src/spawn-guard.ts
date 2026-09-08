@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import type { PreToolUsePayload } from "./codex-hook.js";
@@ -35,6 +35,8 @@ export interface SpawnGuardOptions {
 
 export function applySpawnGuards(payload: PreToolUsePayload, options: SpawnGuardOptions = {}): string {
 	if (payload.hook_event_name !== "PreToolUse" || !SPAWN_TOOL_TOKENS.has(payload.tool_name)) return "";
+	const breaker = readAdmissionBreaker(payload.session_id);
+	if (breaker !== null) return deny(`Subagent admission failed earlier in this session (${breaker}). Do not spawn more workers or reviewers; report the capacity block and wait for the user.`);
 	const scope = { sessionId: payload.session_id } as const;
 	const stateDir = ulwLoopDir(payload.cwd, scope);
 	const plan = readPlan(join(stateDir, "goals.json"));
@@ -55,13 +57,11 @@ export function applySpawnGuards(payload: PreToolUsePayload, options: SpawnGuard
 }
 
 function evaluateGuards(payload: PreToolUsePayload, plan: UlwLoopPlan, stateDir: string): string {
-	const breaker = readAdmissionBreaker(payload.session_id);
-	if (breaker !== null) return deny(`Subagent admission failed earlier in this session (${breaker}). Do not spawn more workers or reviewers; report the capacity block and wait for the user.`);
 	const fanOutPeek = peekFanOutBudget(stateDir);
 	if (fanOutPeek !== null) return deny(fanOutPeek);
 	const missingArtifact = missingGateArtifact(payload, plan);
 	if (missingArtifact !== null)
-		return deny(`spawn code-review + QA first; gate audits their artifacts: missing ${missingArtifact}`);
+		return deny(`record manual QA first; gate audits its artifacts: missing ${missingArtifact}`);
 	const reviewDenial = consumeReviewSpawnBudget(payload, plan, stateDir);
 	if (reviewDenial !== null) return deny(reviewDenial);
 	const fanOutDenial = consumeFanOutBudget(stateDir);
@@ -146,7 +146,6 @@ function missingGateArtifact(payload: PreToolUsePayload, plan: UlwLoopPlan): str
 	if (goal === undefined || goal.status === "complete") return null;
 	if (!goal.successCriteria.every((criterion) => criterion.status === "pass")) return null;
 	const scope = { sessionId: payload.session_id } as const;
-	const surface = resolveToolkitSurface();
 	const requiredArtifacts = [`${goal.id}-manual-qa.md`];
 	if (plan.evidenceLayoutVersion === 2) {
 		const attemptDir = ulwLoopAttemptEvidenceDir(goal.id, goal.attempt, scope);
@@ -156,16 +155,8 @@ function missingGateArtifact(payload: PreToolUsePayload, plan: UlwLoopPlan): str
 		}
 		return null;
 	}
-	const flatReport = `.omo/evidence/${goal.id}-code-review.md`;
-	if (surface !== "omo-senpi" && !isNonEmptyFile(join(payload.cwd, flatReport))) return flatReport;
-	if (surface === "omo-senpi") {
-		const manualQa = `.omo/evidence/${goal.id}-manual-qa.md`;
-		return isNonEmptyFile(join(payload.cwd, manualQa)) ? null : manualQa;
-	}
-	// v1 manual-QA approximation: any other non-empty evidence file counts.
-	if (!hasOtherEvidenceFile(join(payload.cwd, ".omo", "evidence"), `${goal.id}-code-review.md`))
-		return `.omo/evidence/${goal.id}-manual-qa.md`;
-	return null;
+	const manualQa = `.omo/evidence/${goal.id}-manual-qa.md`;
+	return isNonEmptyFile(join(payload.cwd, manualQa)) ? null : manualQa;
 }
 
 function isGateReviewerSpawn(toolInput: unknown): boolean {
@@ -259,15 +250,6 @@ function reviewSpawnLimit(): number {
 function isNonEmptyFile(path: string): boolean {
 	try {
 		return existsSync(path) && statSync(path).size > 0;
-	} catch (error) {
-		if (error instanceof Error) return false;
-		throw error;
-	}
-}
-
-function hasOtherEvidenceFile(evidenceDir: string, excludedName: string): boolean {
-	try {
-		return readdirSync(evidenceDir).some((name) => name !== excludedName && isNonEmptyFile(join(evidenceDir, name)));
 	} catch (error) {
 		if (error instanceof Error) return false;
 		throw error;

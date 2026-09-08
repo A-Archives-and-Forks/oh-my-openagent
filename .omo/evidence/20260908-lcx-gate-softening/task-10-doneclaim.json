@@ -1,1 +1,43 @@
-{"task":"10 spawn-guard artifacts/fanout + admission breaker","changed_files":["packages/omo-codex/plugin/components/ulw-loop/src/spawn-guard.ts","packages/omo-codex/plugin/components/ulw-loop/src/cli.ts","packages/omo-codex/plugin/components/ulw-loop/hooks/hooks.json","packages/omo-codex/plugin/hooks/post-tool-use-recording-spawn-admission.json","packages/omo-codex/plugin/.codex-plugin/plugin.json"],"red_proof":"Not captured: remote Bunshin red run was unavailable within this execution.","tests":["LSP diagnostics spawn-guard.ts -> No diagnostics found","node JSON parse validation -> JSON OK"],"manual_qa":["packages/omo-codex/plugin/hooks/post-tool-use-recording-spawn-admission.json -> matcher and post-tool-use-spawn command present"],"acceptance":["DEFAULT_FANOUT_LIMIT source inspection -> 24","JSON manifest validation -> JSON OK"],"cleanup":["Remote test directory -> not created"],"risks":["Required remote red/green tests and raw-pipe QA were not run; pre-existing parallel worktree changes remain outside this todo's files."]}
+{
+  "task": "10 spawn-guard artifacts/fanout + admission breaker",
+  "status": "done",
+  "outcome": "Resolved all four verifier defects: wrapped PostToolUse manifest with commandWindows, 21-hook aggregate coverage, manual-QA-only artifacts in both layouts, and session admission denial before plan lookup or other guards.",
+  "changed_files": [
+    "packages/omo-codex/plugin/components/ulw-loop/src/spawn-guard.ts",
+    "packages/omo-codex/plugin/components/ulw-loop/test/spawn-guard.test.ts",
+    "packages/omo-codex/plugin/hooks/post-tool-use-recording-spawn-admission.json",
+    "packages/omo-codex/plugin/test/aggregate-manifest.test.mjs",
+    "packages/omo-codex/plugin/test/aggregate-hooks.test.mjs",
+    "packages/omo-codex/plugin/test/hook-status-message.test.mjs",
+    "packages/omo-codex/plugin/test/component-hook-contract-cases.mjs"
+  ],
+  "evidence": "/Volumes/mengmotaStorage/local-workspaces/omo-wt/lcx-gate-softening/.omo/evidence/20260908-lcx-gate-softening/task-10-spawn-guard.log",
+  "tests": [
+    "Local tsgo --noEmit -p packages/omo-codex/tsconfig.json: TSGO_EXIT=0.",
+    "Local ulw-loop bun run build: BUILD_EXIT=0 after installing missing plugin dependencies with npm ci --ignore-scripts.",
+    "mengmotaMac: node --test with leading-./ paths for aggregate-manifest.test.mjs, aggregate-hooks.test.mjs, hook-status-message.test.mjs, and component-bundled-cli.test.mjs: 31 passed, 0 failed, TEST_EXIT=0.",
+    "mengmotaMac: ulw-loop bun run test ./test/spawn-guard.test.ts: 40 passed, TEST_EXIT=0.",
+    "Final TypeScript and MJS LSP diagnostics: none. Hook JSON parsing passed; scoped git diff --check exited 0."
+  ],
+  "manual_qa": [
+    "cqa_install_local_omo into isolated CODEX_HOME: INSTALL_EXIT=0.",
+    "Exact PostToolUse payload: exit 0, stdout 0 bytes, qa1 marker contains reason and valid at timestamp.",
+    "Exact PreToolUse payload for qa1 without an ulw-loop plan: exit 0, hookSpecificOutput.permissionDecision=deny; only existing camelCase output fields.",
+    "Exact PreToolUse payload for clean qa2: exit 0, stdout 0 bytes, no marker.",
+    "Real ~/.codex/config.toml SHA before and after: b012e531f5aa9fb1bce9003593c3eadf07081fcd."
+  ],
+  "cleanup": [
+    "Both remote runs removed /tmp/lcx-t10-20260908; captured ls reports No such file or directory.",
+    "Isolated raw-pipe QA home removed with captured ls receipt.",
+    "No commit, push, checkout, stash, local test run, or agentic probe performed. Unrelated worktree changes left untouched."
+  ],
+  "red_proof": "No new failing-first run claimed; verifier failures supplied the defect baseline.",
+  "runner_adaptations": [
+    "Bun 1.4.0 did not discover the explicitly supplied .test.mjs paths (TEST_EXIT=1 captured). These node:test suites passed under native node --test instead.",
+    "The component imports Vitest, so its declared bun run test script was used rather than Bun's test runner."
+  ],
+  "risks": [
+    "Full plugin-suite verification and unrelated worktree cleanup remain owned by the parent integration task.",
+    "JSON LSP was unavailable because biome was not installed; JSON syntax was verified with Node."
+  ]
+}
