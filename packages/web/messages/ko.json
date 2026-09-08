@@ -1,7 +1,7 @@
 {
   "metadata": {
     "title": "Oh My OpenAgent",
-    "description": "최고의 Agent Harness. Sisyphus를 만나보세요: 당신처럼 코딩하는 완벽한 Agent."
+    "description": "최고의 Agent Harness. OmO를 만나보세요: 당신처럼 코딩하는, 필요한 것이 모두 들어 있는 에이전트 하네스."
   },
   "nav": {
     "brand": "Oh My OpenAgent",
@@ -39,7 +39,7 @@
       "rail": {
         "wave1": {
           "index": "01",
-          "label": "Sisyphus 가 이끕니다"
+          "label": "오케스트레이터가 이끕니다"
         },
         "wave2": {
           "index": "02",
@@ -110,10 +110,10 @@
     "agents": {
       "eyebrow": "로스터",
       "title": "열한 에이전트, 하나의 그래프.",
-      "subtitle": "웨이브로 스케줄되는 11개 에이전트의 방향 그래프: Sisyphus 가 이끌고, Prometheus, Metis, Momus 가 계획과 검문을, 워커가 실행을 맡습니다. 그래프의 노드를 클릭하면 해당 셀이 켜집니다.",
+      "subtitle": "웨이브로 스케줄되는 11개 에이전트의 방향 그래프: 오케스트레이터가 이끌고, 플래너·갭 분석·플랜 리뷰가 검문을, 워커가 실행을 맡습니다. 그래프의 노드를 클릭하면 해당 셀이 켜집니다.",
       "sisyphus": {
-        "name": "Sisyphus",
-        "role": "기본 오케스트레이터",
+        "name": "오케스트레이터",
+        "role": "리드 에이전트",
         "model": "Claude Opus 5 Max",
         "description": "말한 그대로가 아니라 의도를 읽고, 코드 한 줄을 건드리기 전에 코드베이스를 파악하고, 전문 에이전트에 위임한 뒤 결과를 독립적으로 검증합니다. 중단된 실행은 boulder.json 에서 멈춘 지점부터 재개됩니다."
       },
@@ -123,7 +123,7 @@
         "model": "GPT 5.6 Sol Medium"
       },
       "prometheus": {
-        "name": "Prometheus",
+        "name": "플래너",
         "role": "전략 플래너",
         "model": "Claude Fable 5.1 XHigh"
       },
@@ -133,8 +133,8 @@
         "model": "Claude Opus 5 High"
       },
       "momus": {
-        "name": "Momus",
-        "role": "계획 리뷰어",
+        "name": "플랜 리뷰어",
+        "role": "리뷰 게이트",
         "model": "GPT 6 Astra xHigh"
       },
       "atlas": {
@@ -158,7 +158,7 @@
         "model": "GPT 5.6 Luna Fast"
       },
       "sisyphusJunior": {
-        "name": "Sisyphus-Junior",
+        "name": "워커",
         "role": "단일 작업 실행자",
         "model": "Per-category"
       },
@@ -178,7 +178,7 @@
       "title": "먼저 생각하고, 그다음 실행.",
       "subtitle": "계획과 실행은 다른 일입니다. 플래너는 코드를 쓰지 않고, 실행자는 두 리뷰어를 통과한 계획을 따릅니다.",
       "prometheus": {
-        "name": "Prometheus",
+        "name": "플래너",
         "role": "전략 플래너",
         "model": "Claude Fable 5.1 XHigh",
         "description": "인터뷰하고, 코드베이스를 탐색하고, 계획을 씁니다. 코드는 쓰지 않습니다.",
@@ -192,7 +192,7 @@
         "features": ["누락된 요구사항", "암묵적 가정"]
       },
       "momus": {
-        "name": "Momus",
+        "name": "플랜 리뷰어",
         "role": "계획 리뷰",
         "model": "GPT 6 Astra xHigh",
         "description": "계획이 버틸 때만 승인합니다. 아니면 되돌려 보냅니다.",
@@ -285,7 +285,7 @@
         "author": "Arthur Guiot"
       },
       "review2": {
-        "text": "If Claude Code does in 7 days what a human does in 3 months, Sisyphus does it in 1 hour.",
+        "text": "If Claude Code does in 7 days what a human does in 3 months, OmO does it in 1 hour.",
         "author": "B, Quant Researcher"
       },
       "review3": {
@@ -402,9 +402,9 @@
       },
       "prometheus": {
         "badge": "방식 2",
-        "title": "Prometheus + Atlas",
+        "title": "플래너 + 실행자",
         "subtitle": "전략적 통제를 원할 때.",
-        "prometheusTitle": "Prometheus",
+        "prometheusTitle": "플래너",
         "prometheusDescription": "인터뷰를 진행하고, 컨텍스트를 조사하며, 상세한 YAML 계획을 생성합니다.",
         "atlasTitle": "Atlas",
         "atlasDescription": "계획을 실행하고, 하위 Agent에 위임하고, 웨이브를 관리하며, 진행 상황을 추적합니다.",
@@ -429,7 +429,7 @@
       "title": "핵심 루프",
       "features": {
         "prometheus": {
-          "feature": "Prometheus",
+          "feature": "플래닝 인터뷰",
           "purpose": "지능형 인터뷰로 의도 추출"
         },
         "metis": {
@@ -437,7 +437,7 @@
           "purpose": "버그가 되기 전에 모호함 포착"
         },
         "momus": {
-          "feature": "Momus",
+          "feature": "플랜 리뷰 게이트",
           "purpose": "실행 전 계획의 완성도 검증"
         },
         "orchestrator": {

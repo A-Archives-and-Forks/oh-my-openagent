@@ -32,7 +32,6 @@ export async function generateMetadata(): Promise<Metadata> {
       "oh-my-openagent",
       "ai agent",
       "code agent",
-      "sisyphus",
       "multi-model",
       "team mode",
       "agent orchestration",

@@ -10,7 +10,7 @@ import { Showcase, Specimen } from "./showcase"
 
 const EVIDENCE = (
   <pre className="border-line bg-code-bg text-code-fg overflow-x-auto border p-4 font-mono text-sm leading-[1.55]">
-    {"$ mass ulw add auth\n> wave 1  sisyphus      planning\n> wave 2  prometheus   interview"}
+    {"$ mass ulw add auth\n> wave 1  orchestrator  planning\n> wave 2  planner       interview"}
   </pre>
 )
 
@@ -30,7 +30,8 @@ export function LedgerShowcase(): JSX.Element {
         <Specimen label="default / hover (forced) / active" stack>
           <div>
             <LedgerRow index="01" title="Interview before code" evidence={EVIDENCE}>
-              Prometheus researches the codebase and asks only the questions the code cannot answer.
+              The planner researches the codebase and asks only the questions the code cannot
+              answer.
             </LedgerRow>
             <LedgerRow
               index="02"
@@ -41,7 +42,8 @@ export function LedgerShowcase(): JSX.Element {
               Independent tracks run in parallel; dependent ones wait for the wave before them.
             </LedgerRow>
             <LedgerRow index="03" title="Verify at the end" active evidence={EVIDENCE}>
-              Momus gates the plan; the last wave proves the work against the acceptance criteria.
+              The plan reviewer gates the plan; the last wave proves the work against the acceptance
+              criteria.
             </LedgerRow>
           </div>
         </Specimen>
@@ -54,7 +56,7 @@ export function LedgerShowcase(): JSX.Element {
               colSpan={2}
               rowSpan={2}
               icon={<ListChecks />}
-              name="Sisyphus"
+              name="Orchestrator"
               role="Lead orchestrator. Plans, delegates, and refuses to stop before the work is verified."
               chip="claude-opus-4"
               active
@@ -66,14 +68,9 @@ export function LedgerShowcase(): JSX.Element {
               role="Deep worker for long, autonomous implementation runs."
               chip="gpt-5.6"
             />
-            <BentoCell
-              icon={<Compass />}
-              name="Prometheus"
-              role="Interview and plan."
-              chip="opus"
-            />
+            <BentoCell icon={<Compass />} name="Planner" role="Interview and plan." chip="opus" />
             <BentoCell icon={<Scale />} name="Metis" role="Pre-plan gap analysis." chip="opus" />
-            <BentoCell icon={<Eye />} name="Momus" role="Plan review gate." chip="opus" />
+            <BentoCell icon={<Eye />} name="Plan reviewer" role="Plan review gate." chip="opus" />
             <BentoCell icon={<Anvil />} name="Atlas" role="Executes the plan." chip="sonnet" />
             <BentoCell
               icon={<BookOpen />}

@@ -52,16 +52,16 @@ test.describe("Landing Page", () => {
     // when / then
     await expect(grid.locator("li[id^='agent-']")).toHaveCount(12)
     const agentNames = [
-      "Sisyphus",
+      "Orchestrator",
       "Hephaestus",
       "Oracle",
       "Librarian",
       "Explore",
-      "Prometheus",
+      "Planner",
       "Metis",
-      "Momus",
+      "Plan reviewer",
       "Atlas",
-      "Sisyphus-Junior",
+      "Worker",
       "Multimodal-Looker",
     ]
     for (const name of agentNames) {

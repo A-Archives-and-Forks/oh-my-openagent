@@ -7,10 +7,10 @@ export interface GraphNode {
 }
 
 export const graphNodes: readonly GraphNode[] = [
-  { id: "sisyphus", label: "Sisyphus", role: "lead", wave: 1, position: [-3, 0, 0] },
-  { id: "prometheus", label: "Prometheus", role: "planner", wave: 2, position: [0, 2, -2] },
+  { id: "sisyphus", label: "Orchestrator", role: "lead", wave: 1, position: [-3, 0, 0] },
+  { id: "prometheus", label: "Planner", role: "planner", wave: 2, position: [0, 2, -2] },
   { id: "metis", label: "Metis", role: "consultant", wave: 2, position: [0, 0, -2] },
-  { id: "momus", label: "Momus", role: "reviewer", wave: 2, position: [0, -2, -2] },
+  { id: "momus", label: "Plan reviewer", role: "reviewer", wave: 2, position: [0, -2, -2] },
   { id: "atlas", label: "Atlas", role: "executor", wave: 3, position: [3, 3, -4] },
   { id: "hephaestus", label: "Hephaestus", role: "builder", wave: 3, position: [4, 2, -4] },
   { id: "oracle", label: "Oracle", role: "advisor", wave: 3, position: [3, 1, -4] },
@@ -18,7 +18,7 @@ export const graphNodes: readonly GraphNode[] = [
   { id: "explore", label: "Explore", role: "search", wave: 3, position: [3, -1, -4] },
   {
     id: "sisyphus-junior",
-    label: "Sisyphus-Junior",
+    label: "Worker",
     role: "worker",
     wave: 3,
     position: [4, -2, -4],

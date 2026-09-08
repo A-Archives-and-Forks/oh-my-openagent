@@ -20,7 +20,7 @@ function Features({ items }: { readonly items: readonly string[] }): ReactNode {
   )
 }
 
-/** The verified-plan pipeline as a ledger: Prometheus → Metis → Momus → Atlas. */
+/** The verified-plan pipeline as a ledger: planner → gap analysis → plan review → executor. */
 export async function OrchestrationSection(): Promise<JSX.Element> {
   const t = await getTranslations("landing.orchestration")
 
