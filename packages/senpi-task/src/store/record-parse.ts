@@ -44,6 +44,7 @@ export function parseTaskRecord(value: unknown, path: string, warnings?: string[
   const childSessionId = readOptionalString(value, "child_session_id")
   const finalResponse = readOptionalString(value, "final_response")
   const errorMessage = readOptionalString(value, "error_message")
+  const startedAt = readOptionalString(value, "started_at")
   const terminalAt = readOptionalString(value, "terminal_at")
   const killed = readOptionalBoolean(value, "killed")
   // Legacy records predate the field: they never asked for a terminal notification, so false.
@@ -74,6 +75,7 @@ export function parseTaskRecord(value: unknown, path: string, warnings?: string[
     created_at: readString(value, "created_at"),
     updated_at: updatedAt,
     notification: parseNotification(value),
+    ...(startedAt === undefined ? {} : { started_at: startedAt }),
     ...(terminalAt === undefined && !TERMINAL_STATUSES.has(status)
       ? {}
       : { terminal_at: terminalAt ?? updatedAt }),

@@ -23,7 +23,7 @@ describe("renderMemorianNudgedEntry", () => {
     const component = renderMemorianNudgedEntry({ data: record } as never, { expanded: false }, PLAIN_THEME as never)
     expect(component).toBeDefined()
     const lines = component!.render(120).join("\\n")
-    expect(lines).toContain("✦ Oh, right —")
+    expect(lines).toContain("✦ Aha!")
     expect(lines).toContain("just remembered: Use the rollout policy.")
     expect(lines).toContain("memory/a.md")
   })
@@ -32,6 +32,24 @@ describe("renderMemorianNudgedEntry", () => {
     expect(renderMemorianNudgedEntry({ data: { version: 1, nudges: [] } } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
     expect(renderMemorianNudgedEntry({ data: { version: 1, nudges: [{ path: "a", hint: 4 }] } } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
     expect(renderMemorianNudgedEntry({ data: null } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
+  })
+
+  test.each([
+    "No stored memory clears the bar for this planning step; the transcript already contains the full methodology, QA approach, and rollout.",
+    "This memory covers OAuth login prompts and remote-test helpers, not the goal continuation timer delay.",
+  ])("#given a meta hint %s #when rendered #then nothing is drawn", (hint) => {
+    const record = { version: 1, nudges: [{ path: "memory/a.md", hint }] }
+    expect(renderMemorianNudgedEntry({ data: record } as never, { expanded: false }, PLAIN_THEME as never)).toBeUndefined()
+  })
+
+  test.each([
+    "The fix is on senpi main, not the extension.",
+    "senpi monitors have a verified two-flag desync where registry.paused can remain set.",
+    "The regression test does not cover Windows process cleanup.",
+    "The outage is unrelated to the database migration.",
+  ])("#given a factual hint %s #when rendered #then it remains renderable", (hint) => {
+    const record = { version: 1, nudges: [{ path: "memory/a.md", hint }] }
+    expect(renderMemorianNudgedEntry({ data: record } as never, { expanded: false }, PLAIN_THEME as never)).toBeDefined()
   })
 
   test("#given a multiline hint #when rendered #then nothing is drawn", () => {

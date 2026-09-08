@@ -21,6 +21,25 @@ function persisted(fields: Record<string, unknown>): Record<string, unknown> {
   }
 }
 
+describe("record-parse launch evidence", () => {
+  test("#given a lost record with started_at #when persisted JSON is parsed #then the task-level launch evidence round-trips", () => {
+    const startedAt = "2026-08-21T00:00:01.000Z"
+    const stored = persisted({ status: "lost", started_at: startedAt })
+    const parsed = parseTaskRecord(JSON.parse(JSON.stringify(stored)), "record.json")
+    expect(parsed).toMatchObject({ status: "lost", started_at: startedAt })
+  })
+
+  test.each(["pending", "running", "lost"])("#given a legacy %s record without started_at #when parsed #then it stays readable without inventing launch evidence", (status) => {
+    const parsed = parseTaskRecord(persisted({ status }), "record.json")
+    expect(parsed.status).toBe(status)
+    expect(parsed).not.toHaveProperty("started_at")
+  })
+
+  test.each([123, null])("#given malformed started_at %s #when parsed #then the persisted record is rejected", (startedAt) => {
+    expect(() => parseTaskRecord(persisted({ started_at: startedAt }), "record.json")).toThrow(/started_at/)
+  })
+})
+
 describe("record-parse run_stats token totals", () => {
   test("#given a persisted run_stats without the new token fields #when parsed #then the record round-trips and the new fields stay undefined", () => {
     // given

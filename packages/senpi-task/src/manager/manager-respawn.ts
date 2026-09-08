@@ -19,6 +19,7 @@ const RESPAWN_CLEANUP_FAILURE_REASON = "rpc respawn cleanup failed"
 type RpcRespawnRunner = { start(spec: RpcRunnerSpec): Promise<RpcChildHandle> }
 
 export async function respawnManagedTask(input: {
+  readonly beforeLaunch: () => void
   readonly record: TaskRecord
   readonly sessionPath: string | undefined
   readonly stateDir: string
@@ -32,6 +33,7 @@ export async function respawnManagedTask(input: {
 }
 
 async function respawnFresh(input: {
+  readonly beforeLaunch: () => void
   readonly record: TaskRecord
   readonly stateDir: string
   readonly runners: Readonly<Record<"in-process" | "process", ManagedRunner>>
@@ -43,6 +45,7 @@ async function respawnFresh(input: {
   if (input.record.execution_mode === "in-process") {
     let handle: ManagedChildHandle | undefined
     try {
+      input.beforeLaunch()
       handle = await input.runners["in-process"].start(rebuilt.spec)
       return { ok: true, handle }
     } catch (error) {
@@ -54,6 +57,7 @@ async function respawnFresh(input: {
   let handle: RpcChildHandle | undefined
   try {
     const trusted = input.trustedLaunch === undefined ? undefined : await input.trustedLaunch(input.record)
+    input.beforeLaunch()
     handle = await input.rpcRunner.start({
       task_id: input.record.task_id,
       cwd: rebuilt.spec.cwd,
@@ -76,6 +80,7 @@ async function respawnFresh(input: {
 }
 
 async function respawnInProcess(input: {
+  readonly beforeLaunch: () => void
   readonly record: TaskRecord
   readonly sessionPath: string
   readonly stateDir: string
@@ -87,6 +92,7 @@ async function respawnInProcess(input: {
   if (resume === undefined) return failure("unrecoverable", "respawn_failed", "in-process runner cannot resume sessions")
   let handle: ManagedChildHandle | undefined
   try {
+    input.beforeLaunch()
     handle = await resume(rebuilt.spec, input.sessionPath)
     await continueInterruptedTurn(input.record, input.sessionPath, handle)
     return { ok: true, handle }
@@ -106,6 +112,7 @@ async function respawnInProcess(input: {
 }
 
 async function respawnProcess(input: {
+  readonly beforeLaunch: () => void
   readonly record: TaskRecord
   readonly sessionPath: string
   readonly stateDir: string
@@ -117,6 +124,7 @@ async function respawnProcess(input: {
   let handle: RpcChildHandle | undefined
   try {
     const trusted = input.trustedLaunch === undefined ? undefined : await input.trustedLaunch(input.record)
+    input.beforeLaunch()
     handle = await input.rpcRunner.start({
       task_id: input.record.task_id,
       cwd: spawnSpec.cwd,
@@ -229,10 +237,12 @@ export async function reattachManagedTask(input: {
     }
     const { error_message: _error, final_response: _final, killed: _killed, ...rest } = fresh
     const epoch = fresh.notification.run_epoch + 1
+    const timestamp = nowIso(input.now)
     const reattached: TaskRecord = {
       ...rest,
       status: "running",
-      updated_at: nowIso(input.now),
+      started_at: fresh.started_at ?? timestamp,
+      updated_at: timestamp,
       notification: { ...fresh.notification, run_epoch: epoch },
       ...(input.handle.pid === undefined ? {} : { pid: input.handle.pid }),
     }

@@ -220,7 +220,8 @@ describe("memory recall wiring", () => {
     const recall = messages.find((result) => result.message?.customType === RECALL_CUSTOM_TYPE)
     const notice = messages.find((result) => result.message?.customType === MEMORY_NOTICE_CUSTOM_TYPE)
     expect(recall).toBeUndefined()
-    expect(pi.entries).toEqual([])
+    // The memorian prompt trigger may append its gate observability entry; nothing else may land.
+    expect(pi.entries.filter((entry) => entry.customType !== "omo-memorian:gate")).toEqual([])
     expect(notice?.systemPrompt).toContain("persona")
   }, 30_000)
 })

@@ -9,23 +9,27 @@ import type { CollectedRecallCandidates, RecallSessionSnapshot } from "./recall-
 import type { RecallNudge } from "@oh-my-opencode/memory-core"
 
 const MAX_LAUNCHES_PER_SESSION = 200
-/** Judge deadline for a `tool_call`-origin launch; settle-origin launches keep the runner default. */
+/** Only tool-call launches override the runner's default deadline. */
 export const TOOL_CALL_JUDGE_DEADLINE_MS = 90_000
 
-type Origin = "tool_call" | "settled"
+type Origin =
+  | { readonly origin: "prompt"; readonly promptText: string }
+  | { readonly origin: "tool_call"; readonly payload?: ToolCallPayload }
+  | { readonly origin: "settled" }
 type ToolCallPayload = { readonly toolName: string; readonly input: Record<string, unknown> }
 type LaunchResult = {
   readonly status: "active" | "skipped" | "failed" | "dropped" | "nudged" | "empty"
   readonly nudges?: readonly RecallNudge[]
+  readonly cause?: string
 }
-type Trailing = {
+type CapturedTrigger = {
   readonly snapshot: RecallSessionSnapshot
   readonly extraTexts: readonly string[]
-  readonly fingerprint: string
   readonly modelRegistry?: ChildModelRegistry
   readonly compactionEpoch: number
-  readonly origin: Origin
+  readonly source: Origin
 }
+type Trailing = CapturedTrigger & { readonly fingerprint: string }
 
 export interface MemorianTriggerOptions {
   readonly snapshotSession: (eventCtx: unknown) => RecallSessionSnapshot | undefined
@@ -49,6 +53,7 @@ export interface MemorianTriggerOptions {
 }
 
 export interface MemorianTrigger {
+  onPrompt(promptText: string, eventCtx: unknown): void
   onToolCall(payload: unknown, eventCtx: unknown): void
   onSettled(eventCtx: unknown): void
   onCompactionAccepted(sessionId: string): void
@@ -75,7 +80,7 @@ export function createMemorianTrigger(options: MemorianTriggerOptions): Memorian
     inFlight.add(promise)
   }
 
-  function capture(eventCtx: unknown, origin: Origin, payload?: ToolCallPayload): void {
+  function capture(eventCtx: unknown, source: Origin): void {
     let snapshot: RecallSessionSnapshot | undefined
     let modelRegistry: ChildModelRegistry | undefined
     let extraTexts: readonly string[] = []
@@ -83,8 +88,19 @@ export function createMemorianTrigger(options: MemorianTriggerOptions): Memorian
       snapshot = options.snapshotSession(eventCtx)
       modelRegistry = options.resolveModelRegistry(eventCtx)
       if (snapshot !== undefined) {
-        if (payload !== undefined) options.argWindow.push(snapshot.id, toolArgTexts(payload.toolName, payload.input))
-        extraTexts = options.argWindow.texts(snapshot.id)
+        switch (source.origin) {
+          case "prompt":
+            extraTexts = [source.promptText]
+            break
+          case "tool_call":
+            if (source.payload !== undefined) options.argWindow.push(snapshot.id, toolArgTexts(source.payload.toolName, source.payload.input))
+            extraTexts = options.argWindow.texts(snapshot.id)
+            break
+          case "settled":
+            extraTexts = options.argWindow.texts(snapshot.id)
+            break
+          default: source satisfies never
+        }
       }
     } catch (error) {
       warn("memorian trigger synchronous snapshot skipped", error)
@@ -97,16 +113,11 @@ export function createMemorianTrigger(options: MemorianTriggerOptions): Memorian
       warn("memorian trigger compaction epoch snapshot skipped", error)
       return
     }
-    track(() => run(snapshot, extraTexts, modelRegistry, origin, epoch))
+    track(() => run({ snapshot, extraTexts, source, compactionEpoch: epoch, ...(modelRegistry === undefined ? {} : { modelRegistry }) }))
   }
 
-  async function run(
-    snapshot: RecallSessionSnapshot,
-    extraTexts: readonly string[],
-    modelRegistry: ChildModelRegistry | undefined,
-    origin: Origin,
-    launchEpoch: number,
-  ): Promise<void> {
+  async function run(captured: CapturedTrigger): Promise<void> {
+    const { snapshot, extraTexts, modelRegistry, source, compactionEpoch: launchEpoch } = captured
     const owner = !busySessions.has(snapshot.id)
     if (owner) busySessions.add(snapshot.id)
     let keepBusy = false
@@ -126,14 +137,7 @@ export function createMemorianTrigger(options: MemorianTriggerOptions): Memorian
         return
       }
       if (!owner) {
-      trailing.set(collected.sessionId, {
-        snapshot,
-        extraTexts,
-        fingerprint,
-        ...(modelRegistry === undefined ? {} : { modelRegistry }),
-        compactionEpoch: launchEpoch,
-        origin,
-      })
+        trailing.set(collected.sessionId, { ...captured, fingerprint })
         return
       }
       const release = tryAcquireJudgeSlot()
@@ -141,32 +145,44 @@ export function createMemorianTrigger(options: MemorianTriggerOptions): Memorian
         options.logger?.info("memorian trigger skipped", { sessionId: collected.sessionId, reason: "judge_cap" })
         return
       }
+      const previousFingerprint = lastFingerprint.get(collected.sessionId)
       lastFingerprint.set(collected.sessionId, fingerprint)
       launchCounts.set(collected.sessionId, count + 1)
       try {
       const runner = options.runnerFor(context)
+      let transcript = collected.transcript
+      let deadlineMs: number | undefined
+      switch (source.origin) {
+        case "prompt":
+          if (transcript.findLast((turn) => turn.role === "user")?.text !== source.promptText) {
+            transcript = [...transcript, { role: "user", text: source.promptText }]
+          }
+          break
+        case "tool_call": deadlineMs = TOOL_CALL_JUDGE_DEADLINE_MS; break
+        case "settled": break
+        default: source satisfies never
+      }
       const result = await runner.launch({
         sessionId: collected.sessionId,
         candidates: collected.candidates,
         surfaced: collected.surfaced,
         maxItems: collected.maxItems,
-        transcript: collected.transcript,
+        transcript,
         ...(modelRegistry === undefined ? {} : { modelRegistry }),
         compactionEpoch: launchEpoch,
         currentCompactionEpoch: () => options.currentCompactionEpoch(collected.sessionId),
-        ...(origin === "tool_call" ? { deadlineMs: TOOL_CALL_JUDGE_DEADLINE_MS } : {}),
+        ...(deadlineMs === undefined ? {} : { deadlineMs }),
       })
       if (!isLaunchResult(result)) return
+      // Cooldown did not judge these candidates; retain only the previous reservation.
+      if (result.status === "skipped" && result.cause === "cooldown"
+        && lastFingerprint.get(collected.sessionId) === fingerprint) {
+        if (previousFingerprint === undefined) lastFingerprint.delete(collected.sessionId)
+        else lastFingerprint.set(collected.sessionId, previousFingerprint)
+      }
       if (result.status === "active") {
         keepBusy = true
-        trailing.set(collected.sessionId, {
-          snapshot,
-          extraTexts,
-          fingerprint,
-          ...(modelRegistry === undefined ? {} : { modelRegistry }),
-          compactionEpoch: launchEpoch,
-          origin,
-        })
+        trailing.set(collected.sessionId, { ...captured, fingerprint })
         await runner.whenIdle?.()
         const pending = trailing.get(collected.sessionId)
         trailing.delete(collected.sessionId)
@@ -174,7 +190,7 @@ export function createMemorianTrigger(options: MemorianTriggerOptions): Memorian
         keepBusy = false
         release()
         if (pending !== undefined && pending.fingerprint !== fingerprint) {
-          await run(pending.snapshot, pending.extraTexts, pending.modelRegistry, pending.origin, pending.compactionEpoch)
+          await run(pending)
         }
         return
       }
@@ -206,12 +222,15 @@ export function createMemorianTrigger(options: MemorianTriggerOptions): Memorian
   }
 
   return {
+    onPrompt(promptText, eventCtx): void {
+      capture(eventCtx, { origin: "prompt", promptText })
+    },
     onToolCall(payload, eventCtx): void {
-      if (isToolCallPayload(payload)) capture(eventCtx, "tool_call", payload)
-      else capture(eventCtx, "tool_call")
+      if (isToolCallPayload(payload)) capture(eventCtx, { origin: "tool_call", payload })
+      else capture(eventCtx, { origin: "tool_call" })
     },
     onSettled(eventCtx): void {
-      capture(eventCtx, "settled")
+      capture(eventCtx, { origin: "settled" })
     },
     onCompactionAccepted: clearSession,
     onSessionShutdown: clearSession,

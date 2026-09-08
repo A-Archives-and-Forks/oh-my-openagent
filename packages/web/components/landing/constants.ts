@@ -113,13 +113,13 @@ export const REVIEW_KEYS = [
 export type ReviewKey = (typeof REVIEW_KEYS)[number]
 
 export const CATEGORY_ROUTING = [
-  { cat: "visual-engineering", model: "Gemini 3.1 Pro" },
-  { cat: "ultrabrain", model: "GPT 5.6 Sol xHigh" },
-  { cat: "artistry", model: "Gemini 3.1 Pro" },
-  { cat: "quick", model: "GPT 5.6 Luna Fast" },
-  { cat: "deep", model: "GPT 5.6 Terra xHigh" },
-  { cat: "writing", model: "Kimi K2.5" },
-  { cat: "git", model: "Claude Haiku 4.5" },
+  { cat: "visual-engineering", model: "Claude Fable 5.1 Max" },
+  { cat: "ultrabrain", model: "GPT 6 Astra Max" },
+  { cat: "artistry", model: "Claude Fable 5.1 Max" },
+  { cat: "quick", model: "Kimi For Coding Highspeed" },
+  { cat: "deep", model: "GPT 6 Astra High" },
+  { cat: "writing", model: "Claude Fable 5.1 Medium" },
+  { cat: "unspecified-low", model: "Grok 4.6 xHigh" },
 ] as const
 
 export const SKILL_INJECTIONS = ["playwright", "git-master", "frontend", "team-mode"] as const

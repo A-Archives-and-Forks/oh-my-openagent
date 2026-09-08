@@ -28,7 +28,6 @@ import {
 import type { ComponentLogger } from "../../extension/types"
 import type { MemoryExtensionAPI } from "./capabilities"
 import type { MemoryIdentityContext } from "./context"
-import { createRecallOpenerPicker, type RecallOpenerPicker } from "./memorian-openers"
 import { resolveMemorySettings } from "./identity-runtime"
 import { createRecallDrain, type PendingNudgesPort } from "./recall-drain"
 import {
@@ -79,8 +78,6 @@ export interface MemoryRecallWiringOptions {
    * matching the gate wiring's own default for an unknown session.
    */
   readonly currentCompactionEpoch?: (sessionId: string) => number
-  /** Shared opener picker; the prompt-path drain and the memorian delivery must draw from ONE per-session history. */
-  readonly openerPicker?: RecallOpenerPicker
   readonly logger?: ComponentLogger
 }
 
@@ -102,8 +99,6 @@ export interface CollectedRecallCandidates {
 }
 
 export interface MemoryRecallWiring {
-  /** The opener history the visible nudged records of this wiring draw from, per session. */
-  readonly openers: RecallOpenerPicker
   register(pi: MemoryExtensionAPI): void
   /** Settle-time seam: lexical candidates for the completed turn, or undefined when there are none. */
   collectCandidates(
@@ -127,20 +122,19 @@ export interface MemoryRecallWiring {
 // reflection and facts sentinels are here for the sharper reason: those children must not judge
 // or consume the hints produced by the memorian gate.
 const CHILD_SENTINELS = ["SENPI_MEMORY_REFLECTION", "SENPI_MEMORY_FACTS"] as const
+const RECALL_PATH_ENTRY_WINDOW = 200
 
 export function createMemoryRecallWiring(options: MemoryRecallWiringOptions): MemoryRecallWiring {
   const corpusCache = options.corpusCache ?? new RecallCorpusCache()
   const createRepo = options.createRepo ?? defaultCreateRepo
   const ledgerFor = options.ledgerFor ?? ((context) => new RecallLedger(context.identityPaths.recallLedger))
   const pendingFor = options.pendingFor ?? ((context) => new PendingNudges(context.identityPaths.recallPending))
-  const openers = options.openerPicker ?? createRecallOpenerPicker()
   const drain = createRecallDrain({
     resolveContext: options.resolveContext,
     resolveSettings: options.resolveSettings,
     env: options.env,
     ledgerFor,
     pendingFor,
-    pickOpener: (sessionId) => openers.pick(sessionId),
     ...(options.drainQueued === undefined ? {} : { drainQueued: options.drainQueued }),
     ...(options.currentCompactionEpoch === undefined ? {} : { currentCompactionEpoch: options.currentCompactionEpoch }),
     ...(options.logger === undefined ? {} : { logger: options.logger }),
@@ -178,11 +172,23 @@ export function createMemoryRecallWiring(options: MemoryRecallWiringOptions): Me
     const corpus = await corpusCache.load(repo)
     if (corpus.documents.length === 0) return undefined
 
+    // Raw entries include tool calls/results that the judge's text-only window omits.
+    // Serialize the bounded window once; the corpus supplies the exact memory paths to check.
+    const recentEntries = JSON.stringify(session.entries.slice(-RECALL_PATH_ENTRY_WINDOW))
+    const excludePaths = new Set<string>()
+    for (const document of corpus.documents) {
+      const path = JSON.stringify(document.path).slice(1, -1).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      // Close at transcript delimiters (including JSON-escaped whitespace), not filename suffixes.
+      const mention = new RegExp(`${path}(?=$|[\\s"'\x60\\])}>:;,!?]|\\\\["nrtbf])`)
+      if (mention.test(recentEntries)) excludePaths.add(document.path)
+    }
+
     const ledger = ledgerFor(context)
     const surfaced = await ledger.surfacedPaths(session.id)
     const candidates = selectRecallCandidates(corpus.documents, queries, {
       maxItems: recall.max_items,
       surfaced,
+      excludePaths,
     })
     if (candidates.length === 0) return undefined
     return {
@@ -196,7 +202,6 @@ export function createMemoryRecallWiring(options: MemoryRecallWiringOptions): Me
   }
 
   return {
-    openers,
     register(pi): void {
       drain.register(pi)
     },

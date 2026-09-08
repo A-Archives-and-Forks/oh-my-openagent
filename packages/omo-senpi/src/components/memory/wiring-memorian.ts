@@ -42,8 +42,6 @@ export function createMemorianComposition(
     pendingFor: (context) => new PendingNudges(context.identityPaths.recallPending),
     sendMessage: (message, sendOptions) => pi.sendMessage(message, sendOptions),
     appendEntry: (customType, data) => pi.appendEntry?.(customType, data),
-    pickOpener: (sessionId) => recall.openers.pick(sessionId),
-    forgetOpener: (sessionId) => recall.openers.forget(sessionId),
     ...(logger === undefined ? {} : { logger }),
   })
   const pruners = new Map<string, () => void>()
@@ -75,6 +73,7 @@ export function createMemorianComposition(
     gate,
     delivery,
     trigger: {
+      onPrompt: trigger.onPrompt,
       onToolCall: trigger.onToolCall,
       onSettled(eventCtx): void {
         trigger.onSettled(eventCtx)
@@ -95,6 +94,7 @@ export function createMemorianComposition(
     },
     registerHooks(hookPi): void {
       registerMemorianHooks(hookPi, {
+        env: options.env,
         trigger,
         delivery,
         resolveContext: runtime.resolveContext,
