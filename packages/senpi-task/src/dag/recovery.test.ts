@@ -10,6 +10,8 @@ import { FakeRegistry } from "../lifecycle/__fixtures__/lifecycle-fakes"
 import { categoryPlanner, makeHandle, settings } from "../manager/__fixtures__/manager-fakes"
 import { createTaskManager } from "../manager/manager"
 import type { ManagerStartSpec, TaskManager } from "../manager/types"
+import { resolveChildSessionDir } from "../runners/rpc/spawn"
+import type { RpcChildHandle } from "../runners/types"
 import { createTaskRecord, markRecordLostForReconciliation, type TaskRecord, type TaskStatus } from "../state"
 import { createTaskRecordStore } from "../store"
 import { dagFingerprint, ownerFingerprintInput } from "./fingerprint"
@@ -474,8 +476,12 @@ describe("DAG crash recovery", () => {
     expect(events(store).some((event) => event.type === "dag.node.retried")).toBe(false)
   })
 
-  test.each(["lost", "completed"] as const)("#given a retained prior-attempt taskId and a newer launched %s owner #when resumed #then the current owner outcome wins without another retry", async (status) => {
-    // given - retried kept the old taskId; replacement launch committed before batch attachment.
+  test.each([
+    { status: "lost", launched: true },
+    { status: "completed", launched: true },
+    { status: "lost", launched: false },
+  ] as const)("#given a retained prior-attempt taskId and a newer %o owner #when resumed #then recovery uses the selected owner's outcome and retry identity", async ({ status, launched }) => {
+    // given - retried kept the old taskId until the replacement's admission batch attaches it.
     const store = createDagFileStore({ project_dir: tempProject() })
     const manager = new RecoveryTaskManager()
     store.writeCheckpoint(runId, recoverableRecord(definition([node("replacement")]), {
@@ -485,7 +491,7 @@ describe("DAG crash recovery", () => {
     const replacement = {
       ...taskRecord(owner("replacement", 1), status, "task-new"),
       created_at: "2026-08-14T00:00:02.000Z",
-      started_at: "2026-08-14T00:00:03.000Z",
+      ...(launched ? { started_at: "2026-08-14T00:00:03.000Z" } : {}),
     }
     manager.add(replacement)
     expect(manager.findOwnedTask(owner("replacement", 1))).toEqual(replacement)
@@ -495,10 +501,93 @@ describe("DAG crash recovery", () => {
       .resumePausedRuns(parentSessionId)
 
     // then
-    expect(outcome?.record?.nodes[0]).toMatchObject({
-      state: status === "lost" ? "failed" : "completed", taskId: "task-new", execAttempt: 1,
-      ...(status === "lost" ? { error: { code: "task_lost" } } : {}),
+    if (launched) {
+      expect(outcome?.record?.nodes[0]).toMatchObject({
+        state: status === "lost" ? "failed" : "completed", taskId: "task-new", execAttempt: 1,
+        ...(status === "lost" ? { error: { code: "task_lost" } } : {}),
+      })
+      expect(manager.startOwnedCalls).toEqual([])
+      expect(events(store).some((event) => event.type === "dag.node.retried")).toBe(false)
+    } else {
+      expect(outcome?.record?.nodes[0]).toMatchObject({ state: "completed", taskId: "task-replacement", execAttempt: 2 })
+      expect(manager.startOwnedCalls).toEqual(["replacement"])
+      expect(manager.ownerFingerprints).toEqual([owner("replacement", 2).fingerprint])
+      expect(events(store).filter((event) => event.type === "dag.node.retried")).toEqual([
+        expect.objectContaining({ nodeId: "replacement", priorTaskId: "task-new", execAttempt: 2 }),
+      ])
+    }
+  })
+
+  test.each(["switch-cancelled", "continuation-failed"] as const)("#given legacy respawn fails after launch with %s #when its scheduled DAG recovers #then persisted launch evidence prevents another execution", async (failure) => {
+    // given - real manager ports stamp launch before the RPC runner; legacy reconciliation owns loss.
+    const project = tempProject()
+    const taskStore = createTaskRecordStore({ project_dir: project })
+    const pending: TaskRecord = {
+      ...createTaskRecord({
+        parent_session_id: parentSessionId, root_session_id: rootSessionId, depth: 1,
+        execution_mode: "process", model: "fake-model", notify_on_terminal: false, owner: owner("respawned"),
+      }, Date.parse("2026-08-14T00:00:00.000Z")),
+      pid: 9001,
+      spawn_spec: { version: 1, cwd: project, prompt: "do respawned" },
+    }
+    taskStore.save(pending)
+    const sessionDir = resolveChildSessionDir(join(taskStore.stateDir, "children", pending.task_id), pending.task_id)
+    fs.mkdirSync(sessionDir, { recursive: true })
+    fs.writeFileSync(join(sessionDir, "session.jsonl"), `${JSON.stringify({ type: "message", message: { role: "user", content: "continue" } })}\n`)
+    const now = () => Date.parse("2026-08-14T00:00:01.000Z")
+    const config = settings()
+    const launchObservations: Array<TaskRecord | null> = []
+    const calls: string[] = []
+    const handle: RpcChildHandle = {
+      ...makeHandle(pending.task_id).handle,
+      pid: 9002,
+      subscribe: () => () => undefined,
+      waitForIdle: async () => undefined,
+      terminate: async () => { calls.push("terminate") },
+      dispose: async () => { calls.push("dispose") },
+      exitOutcome: () => undefined,
+      waitForExit: async () => ({ kind: "clean", facts: { pid: 9002, code: 0, signal: null, stderrTail: "" } }),
+      lastSeen: () => undefined,
+      switchSession: async () => { calls.push("switch"); return { cancelled: failure === "switch-cancelled" } },
+      followUp: async () => { calls.push("continue"); throw new Error("injected continuation failure") },
+    }
+    const runner = { start: async () => { throw new Error("unexpected fresh launch") } }
+    createTaskManager({
+      store: taskStore, runners: { "in-process": runner, process: runner },
+      rpcRespawnRunner: { start: async () => {
+        launchObservations.push(createTaskRecordStore({ project_dir: project }).load(pending.task_id))
+        taskStore.mutate(pending.task_id, (fresh) => ({ ...fresh, child_session_id: handle.sessionId }))
+        return handle
+      } },
+      planner: categoryPlanner(), config, cwd: project, hostPid: 101, now,
     })
+    const lifecycle = createTaskLifecycle({
+      store: taskStore, registry: new FakeRegistry(), config, hostPid: 101, now,
+      signaller: { isAlive: () => false, signal: () => { throw new Error("unexpected signal") } },
+    })
+
+    // when - no scoped parent: exercise the legacy global sweep and its failed-respawn branch.
+    const reconciled = await lifecycle.reconcileOnSessionStart()
+    lifecycle.dispose?.()
+    const lost = createTaskRecordStore({ project_dir: project }).load(pending.task_id)
+    if (lost === null) throw new Error("expected persisted lost task")
+    expect(reconciled.outcomes).toContainEqual(expect.objectContaining({ task_id: pending.task_id, kind: "lost" }))
+    expect(lost.status).toBe("lost")
+    const manager = new RecoveryTaskManager()
+    manager.add(lost)
+    const store = createDagFileStore({ project_dir: project })
+    store.writeCheckpoint(runId, recoverableRecord(definition([node("respawned")]), {
+      respawned: { state: "scheduled" },
+    }, { previousLeaseHolderPid: 101 }))
+    const [outcome] = await createDagRecovery({ store, taskManager: manager, hostPid: 202, isProcessAlive: () => false })
+      .resumePausedRuns(parentSessionId)
+
+    // then - both the store and DAG observe the same launched/lost task, never a fresh attempt.
+    expect(launchObservations).toHaveLength(1)
+    expect(launchObservations[0]?.started_at).toBe(new Date(now()).toISOString())
+    expect(calls).toEqual(failure === "switch-cancelled" ? ["switch", "terminate", "dispose"] : ["switch", "continue", "terminate", "dispose"])
+    expect(lost).toMatchObject({ started_at: new Date(now()).toISOString(), child_session_id: handle.sessionId, residency_state: "disposed" })
+    expect(outcome?.record?.nodes[0]).toMatchObject({ state: "failed", taskId: pending.task_id, error: { code: "task_lost" } })
     expect(manager.startOwnedCalls).toEqual([])
     expect(events(store).some((event) => event.type === "dag.node.retried")).toBe(false)
   })
