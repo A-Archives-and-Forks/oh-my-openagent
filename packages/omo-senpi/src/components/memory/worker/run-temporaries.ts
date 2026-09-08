@@ -21,12 +21,13 @@ export async function sweepStrandedRunTemporaries(
     throw error
   }
   for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.includes(".json.tmp-")) continue
+    if (!entry.isFile()) continue
+    const temporary = /\.json\.tmp-(?:(\d+)-)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.exec(entry.name)
+    if (temporary === null) continue
     const path = join(directory, entry.name)
     try {
       if ((await stat(path)).mtimeMs > now - STRANDED_TEMP_MIN_AGE_MS) continue
-      const owner = /\.tmp-(\d+)-/.exec(entry.name)
-      if (owner !== null && pidLiveness(Number(owner[1])) !== "dead") continue
+      if (temporary[1] !== undefined && pidLiveness(Number(temporary[1])) !== "dead") continue
       await unlinkRunArtifact(path)
     } catch (error) {
       if (!isMissing(error)) throw error
