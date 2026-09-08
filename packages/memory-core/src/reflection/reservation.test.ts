@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it } from "bun:test"
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { afterEach, describe, expect, it, spyOn } from "bun:test"
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
+import * as fs from "../fs/resilient"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { buildIdentityPaths, type MemoryIdentity } from "../identity"
@@ -48,6 +49,36 @@ async function captured(
 }
 
 describe("persisted reflection reservation", () => {
+  it.each(["active.lock", "pending.json"])("#given %s rename fails #when reserving #then the temporary is removed and the error propagates", async (target) => {
+    const { identity, journal, store } = await fixture()
+    const request = await captured(journal, "manual")
+    if (target === "pending.json") await store.tryReserve(request)
+    const rename = fs.rename
+    const failure = new Error("injected reservation rename failure")
+    const intercepted = spyOn(fs, "rename").mockImplementation(async (source, destination) => {
+      if (String(destination) === join(identity.paths.reflection, target)) throw failure
+      await rename(source, destination)
+    })
+    try {
+      await expect(store.tryReserve(request)).rejects.toBe(failure)
+    } finally {
+      intercepted.mockRestore()
+    }
+    expect((await readdir(identity.paths.reflection)).filter((name) => name.includes(".tmp-"))).toEqual([])
+  })
+
+  it("#given crashed reservation writers #when startup reads state under the scheduler lock #then only their temporary siblings are swept", async () => {
+    const { identity, store } = await fixture()
+    await mkdir(identity.paths.reflection, { recursive: true })
+    for (const name of ["active.lock.tmp-old", "pending.json.tmp-old", "unrelated.tmp-keep"]) {
+      await writeFile(join(identity.paths.reflection, name), "partial")
+    }
+    await mkdir(join(identity.paths.reflection, "pending.json.tmp-directory"))
+
+    expect(await store.readState()).toEqual({})
+    expect((await readdir(identity.paths.reflection)).sort()).toEqual(["pending.json.tmp-directory", "unrelated.tmp-keep"])
+  })
+
   it("#given an aborted signal #when reservation starts #then active and pending state remain empty", async () => {
     // given
     const { store } = await fixture()
