@@ -273,6 +273,53 @@ describe("reflection and dream run reconciliation", () => {
     expect((await unknown.journal.getState()).reflected_completed_steps).toBe(0)
   }, 30_000)
 
+  test("#given a retired run dir shadowing a newer dead-launcher reservation #when reconciled #then the stale reservation is completed and pending is promoted", async () => {
+    // given: run-orphan's directory belongs to an EARLIER generation - it is finalized (merged
+    // final.json plus a settled ledger) strictly before the reservation that now holds the same
+    // run id, whose launcher process is confirmed dead.
+    const item = await fixture()
+    await retireRunGeneration(item, "2026-08-09T00:00:00.000Z")
+    await queuePendingReservation(item)
+
+    // when
+    const launched: string[] = []
+    const results = await reconcileReflectionRuns({
+      identity: item.identity,
+      reservation: item.store,
+      launch: (run) => { launched.push(run.runId) },
+      hostname: () => "fixture-host",
+      now: () => Date.parse("2026-08-10T00:01:01.001Z"),
+      getPidLiveness: () => "dead",
+    })
+
+    // then
+    expect(results).toEqual([{ runId: "run-orphan", outcome: "failed" }])
+    expect(launched).toEqual(["run-pending"])
+    expect((await item.store.readState()).active?.runId).toBe("run-pending")
+    expect((await item.journal.getState()).reflected_completed_steps).toBe(0)
+  }, 30_000)
+
+  test("#given a run dir finalized after its own reservation #when reconciled #then the live generation is left untouched", async () => {
+    // given: the same shape as the reclaim case except the run directory belongs to THIS
+    // reservation - it was finalized after reservedAt - so it must never be reclaimed.
+    const item = await fixture()
+    await retireRunGeneration(item, "2026-08-10T00:00:30.000Z")
+    const before = await item.store.readState()
+
+    // when
+    const results = await reconcileReflectionRuns({
+      identity: item.identity,
+      reservation: item.store,
+      hostname: () => "fixture-host",
+      now: () => Date.parse("2026-08-10T00:01:01.001Z"),
+      getPidLiveness: () => "dead",
+    })
+
+    // then
+    expect(results).toEqual([])
+    expect(await item.store.readState()).toEqual(before)
+  }, 30_000)
+
   test("#given an old prelaunch worktree without a ledger and a confirmed-dead launcher #when reconciled #then resources and reservation are released", async () => {
     // given
     const item = await fixture()
