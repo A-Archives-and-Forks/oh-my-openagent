@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import * as builder from "./build-omob"
 
 describe("omob mainline launcher", () => {
@@ -18,7 +18,7 @@ describe("omob mainline launcher", () => {
 		const args = ["--omo-ref", "origin/feature", "--senpi-ref", "origin/experiment"]
 		const feature = builder.parseOmobArgs([...args, "--name", "omob-feature"], "darwin", "arm64", "/home/dev")
 		expect(feature.omoRef).toBe("origin/feature")
-		expect(feature.cacheDir).toBe("/home/dev/.cache/omob-feature")
+		expect(feature.cacheDir).toBe(resolve(join("/home/dev", ".cache", "omob-feature")))
 		expect(() => builder.parseOmobArgs(args, "darwin", "arm64", "/home/dev")).toThrow()
 		expect(() => builder.parseOmobArgs([...args, "--launcher"], "darwin", "arm64", "/home/dev")).toThrow()
 		expect(builder.parseOmobArgs([], "darwin", "arm64", "/home/dev").omoRef).toBe("origin/dev")
@@ -33,7 +33,8 @@ describe("omob mainline launcher", () => {
 	})
 
 	for (const changed of [false, true]) {
-		test(`#given a ${changed ? "changed" : "same"} SHA pair #when cache is checked #then rebuild is ${changed}`, () => {
+		// The launcher is a POSIX shell script, disabled by default on win32 by parseOmobArgs.
+		test.skipIf(process.platform === "win32")(`#given a ${changed ? "changed" : "same"} SHA pair #when cache is checked #then rebuild is ${changed}`, () => {
 			const root = mkdtempSync(join(tmpdir(), "omob-pair-"))
 			try {
 				const current = builder.isCurrentOmobBuild
@@ -50,7 +51,8 @@ describe("omob mainline launcher", () => {
 		})
 	}
 
-	test("#given a signaled executable #when launched #then the launcher preserves the signal", () => {
+	// The launcher is a POSIX shell script, disabled by default on win32 by parseOmobArgs.
+	test.skipIf(process.platform === "win32")("#given a signaled executable #when launched #then the launcher preserves the signal", () => {
 		const root = mkdtempSync(join(tmpdir(), "omob-signal-"))
 		try {
 			const options = builder.parseOmobArgs(["--cache-dir", join(root, "cache"), "--install-dir", join(root, "bin")], "darwin", "arm64", root)
@@ -67,7 +69,8 @@ describe("omob mainline launcher", () => {
 	})
 
 	for (const fail of [false, true]) {
-		test(`#given ${fail ? "failed" : "successful"} refresh #when launched #then ${fail ? "the previous binary survives without launching" : "args and exit status reach the refreshed executable"}`, () => {
+		// The launcher is a POSIX shell script, disabled by default on win32 by parseOmobArgs.
+		test.skipIf(process.platform === "win32")(`#given ${fail ? "failed" : "successful"} refresh #when launched #then ${fail ? "the previous binary survives without launching" : "args and exit status reach the refreshed executable"}`, () => {
 			const root = mkdtempSync(join(tmpdir(), "omob-launcher-"))
 			try {
 				const install = builder.installOmobLauncher

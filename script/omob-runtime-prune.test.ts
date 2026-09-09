@@ -2,6 +2,7 @@
 
 import { describe, expect, test } from "bun:test"
 import { spawn } from "node:child_process"
+import { once } from "node:events"
 import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, sep } from "node:path"
@@ -85,17 +86,17 @@ describe("runtimesInUse", () => {
 
 describe("listProcessCommands", () => {
 	test("includes a live child spawned by absolute executable path", async () => {
-		const child = spawn(process.execPath, ["-e", "console.log('ready'); setTimeout(() => {}, 30_000)"], { stdio: ["ignore", "pipe", "ignore"] })
+		const child = spawn(process.execPath, ["-e", "process.stdin.once('data', () => console.log('ready')); process.stdin.resume()"], { stdio: ["pipe", "pipe", "ignore"] })
 		try {
-			await new Promise<void>((resolve, reject) => {
-				child.stdout.once("data", () => resolve())
-				child.once("error", reject)
-				child.once("exit", (code) => reject(new Error(`child exited early with ${code}`)))
-			})
+			const ready = once(child.stdout, "data", { signal: AbortSignal.timeout(5_000) })
+			child.stdin.write("start\n")
+			await ready
 			const commands = listProcessCommands()
 			expect(commands.some((command) => command.startsWith(process.execPath))).toBe(true)
 		} finally {
+			const exited = once(child, "exit", { signal: AbortSignal.timeout(5_000) })
 			child.kill()
+			await exited
 		}
 	})
 })

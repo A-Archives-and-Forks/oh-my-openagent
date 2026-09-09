@@ -72,7 +72,8 @@ function fixture() {
 	return { root, omo, senpi, cache, builds, env, options, git, run, ordinary, binary: join(cache, "bin", "omob") }
 }
 
-describe("omob refresh integration", () => {
+// The launcher is a POSIX shell script, disabled by default on win32 by parseOmobArgs.
+describe.skipIf(process.platform === "win32")("omob refresh integration", () => {
 	test("#given an ordinary managed install #when ordinary install repeats #then auto-refresh remains installed", () => {
 		const f = fixture()
 		try {
