@@ -16,6 +16,10 @@ removed.
 
 ## Checks
 
+Named early test logs below are local-only diagnostics. The committed
+[verification.txt](verification.txt) records their failure counts and the
+final Bun 1.4.0 recheck; the real harness capture is [result.json](result.json).
+
 - The original compaction-context tests (21 pass / 4 fail -> 25 / 0) did
   not prove guidance reached the automatic model call and were superseded.
 - Failing first through the actual `plugin-interface.ts` system-transform
@@ -31,6 +35,9 @@ removed.
 - Bun 1.3.14: local `bun run typecheck` exited 0
   (`typecheck-final-system-autoresume.txt`), and local `bun run build` exited 0 with
   `build: all steps completed` (`build-final-system-autoresume.txt`).
+- Final source recheck with Bun 1.4.0 and Node 24.18.0: the same 201 tests,
+  full typecheck, full build, and real OpenCode replay all passed.
+  Host DB session counts remained 8083 before and after.
 - Remote CI is not claimed green: comparison against dev run 34307575373
   reports the same `script/build-omob.test.ts` TS2305 missing
   `planRuntimePrune` / `selectPruneEntries` exports and the same Senpi stale
@@ -66,7 +73,7 @@ prompt prose or prompt length is pinned.
 
 Prepare the `omo-qa` image using the repository's
 [Docker QA setup](../../../.agents/skills/opencode-qa/references/docker-qa.md),
-install repository dependencies, and select a compatible Bun on PATH. From the root:
+install repository dependencies, and select Bun 1.4.0 on PATH. From the root:
 
 ```sh
 bash .omo/evidence/20260908-5806-ultrawork-followups/commands.sh
