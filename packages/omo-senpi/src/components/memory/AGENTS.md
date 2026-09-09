@@ -4,6 +4,12 @@ Kibitzer is a read-only recall judge; its only act is a nudge. The user-visible 
 
 Letta-Code-style persistent agent memory for omo-senpi, backed by `@oh-my-opencode/memory-core` (harness-neutral; zero Senpi imports). Parity target: letta-code@a75f4d93e's local-capable matrix, executed per `.omo/plans/letta-memory-parity-port.md` with the research corpus at `.omo/ulw-research/20260809-224128/`.
 
+## Memory read headlines
+
+`read-classifier-wiring.ts` registers once beside the component's static wiring and reads the live bound identity repos from the session map. Files inside those repos receive kind `memory`, a POSIX repo-relative label, and a headline from the restored 100-entry `recall-openers.ts` pool. Lexical and real paths are supported; `.git` metadata (including symlink aliases) and symlinks escaping the repo are excluded. One picker spans the extension's identities and avoids immediate repeats; Senpi memoizes each read classification across redraws.
+
+The optional `registerReadClassifier` API is feature-detected: older hosts log a debug skip and keep their existing read presentation. The feature activates when the pinned Senpi exposes that API. The classifier unregisters when the last bound session shuts down. This read presentation is independent of the memorian nudge notice, whose fixed `Aha!` title remains unchanged.
+
 ## Attribution
 
 The memory architecture - the git-backed memory filesystem, the memory tool semantics, and background reflection - is inspired by [letta-code](https://github.com/letta-ai/letta-code), which is Apache-2.0 licensed (Copyright 2025, Letta authors). This component is an independent reimplementation written against the observable behavior of letta-code@a75f4d93e; no letta-code source was copied. "Letta" and "Letta Code" are trademarks of Letta, Inc., referenced only to describe origin.
