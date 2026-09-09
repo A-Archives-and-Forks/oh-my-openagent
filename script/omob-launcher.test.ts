@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { delimiter, join, resolve } from "node:path"
+import { writeTestExecutable } from "./omob-test-executable"
 import * as builder from "./build-omob"
 
 describe("omob mainline launcher", () => {
@@ -18,7 +19,7 @@ describe("omob mainline launcher", () => {
 		const args = ["--omo-ref", "origin/feature", "--senpi-ref", "origin/experiment"]
 		const feature = builder.parseOmobArgs([...args, "--name", "omob-feature"], "darwin", "arm64", "/home/dev")
 		expect(feature.omoRef).toBe("origin/feature")
-		expect(feature.cacheDir).toBe("/home/dev/.cache/omob-feature")
+		expect(feature.cacheDir).toBe(resolve("/home/dev", ".cache", "omob-feature"))
 		expect(() => builder.parseOmobArgs(args, "darwin", "arm64", "/home/dev")).toThrow()
 		expect(() => builder.parseOmobArgs([...args, "--launcher"], "darwin", "arm64", "/home/dev")).toThrow()
 		expect(builder.parseOmobArgs([], "darwin", "arm64", "/home/dev").omoRef).toBe("origin/dev")
@@ -40,7 +41,7 @@ describe("omob mainline launcher", () => {
 				expect(typeof current).toBe("function")
 				const binary = join(root, "omob")
 				const info = { command: "omob", omo: { commit: "a".repeat(40), committedAt: "2026-09-09T00:00:00Z", branch: "dev" }, engine: { commit: "b".repeat(40), committedAt: "2026-09-09T00:00:00Z", branch: "main" } }
-				writeFileSync(binary, `#!/bin/sh\nprintf '%s\\n' 'omob dev build' 'omo   ${info.omo.commit} ${info.omo.committedAt} (dev)' 'senpi ${info.engine.commit} ${info.engine.committedAt} (main)'\n`, { mode: 0o755 })
+				writeTestExecutable(binary, `console.log(${JSON.stringify(`omob dev build\nomo   ${info.omo.commit} ${info.omo.committedAt} (dev)\nsenpi ${info.engine.commit} ${info.engine.committedAt} (main)`)})`)
 				const requested = changed ? { ...info, engine: { ...info.engine, commit: "c".repeat(40) } } : info
 				writeFileSync(`${binary}.build.json`, JSON.stringify({ buildInfo: requested }))
 				expect(current(binary, requested, builder.hostTargetFor(process.platform, process.arch))).toBe(!changed)
@@ -50,17 +51,22 @@ describe("omob mainline launcher", () => {
 		})
 	}
 
-	test("#given a signaled executable #when launched #then the launcher preserves the signal", () => {
+	test(`#given a signaled executable #when launched #then ${process.platform === "win32" ? "the unsupported launcher is rejected without an install" : "the launcher preserves the signal"}`, () => {
 		const root = mkdtempSync(join(tmpdir(), "omob-signal-"))
 		try {
 			const options = builder.parseOmobArgs(["--cache-dir", join(root, "cache"), "--install-dir", join(root, "bin")], "darwin", "arm64", root)
+			if (process.platform === "win32") {
+				expect(() => builder.installOmobLauncher(options)).toThrow(/POSIX shell/)
+				expect(existsSync(options.installDir)).toBe(false)
+				return
+			}
 			const tools = join(root, "tools")
 			mkdirSync(tools)
 			mkdirSync(join(options.cacheDir, "bin"), { recursive: true })
 			writeFileSync(join(tools, "bun"), "#!/bin/sh\nexit 0\n", { mode: 0o755 })
 			writeFileSync(join(options.cacheDir, "bin", "omob"), "#!/bin/sh\nkill -TERM $$\n", { mode: 0o755 })
 			builder.installOmobLauncher(options)
-			const result = spawnSync(join(options.installDir, "omob"), [], { env: { ...process.env, PATH: `${tools}:${process.env.PATH}` } })
+			const result = spawnSync(join(options.installDir, "omob"), [], { env: { ...process.env, PATH: `${tools}${delimiter}${process.env.PATH}` } })
 			expect(result.signal).toBe("SIGTERM")
 			expect(result.status).toBeNull()
 		} finally { rmSync(root, { recursive: true, force: true }) }
@@ -82,8 +88,15 @@ describe("omob mainline launcher", () => {
 				writeFileSync(binary, previous, { mode: 0o755 })
 				const receipt = join(root, "refresh-args")
 				writeFileSync(join(fakeBin, "bun"), `#!/bin/sh\nprintf '%s\\n' "$@" > '${receipt}'\n${fail ? "exit 29" : `printf '%s\\n' '#!/bin/sh' 'printf "<%s>\\n" "$@"' 'exit 37' > '${binary}'` }\n`, { mode: 0o755 })
+				if (process.platform === "win32") {
+					expect(() => install(options)).toThrow(/POSIX shell/)
+					expect(existsSync(options.installDir)).toBe(false)
+					expect(existsSync(receipt)).toBe(false)
+					expect(readFileSync(binary, "utf8")).toBe(previous)
+					return
+				}
 				install(options)
-				const result = spawnSync(join(options.installDir, options.name), ["a b", "", "--flag", "$(echo unsafe)"], { encoding: "utf8", env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH}` } })
+				const result = spawnSync(join(options.installDir, options.name), ["a b", "", "--flag", "$(echo unsafe)"], { encoding: "utf8", env: { ...process.env, PATH: `${fakeBin}${delimiter}${process.env.PATH}` } })
 				expect(result.status).toBe(fail ? 29 : 37)
 				expect(result.stdout).toBe(fail ? "" : "<a b>\n<>\n<--flag>\n<$(echo unsafe)>\n")
 				expect(readFileSync(receipt, "utf8").split("\n")).toContain("--if-changed")
