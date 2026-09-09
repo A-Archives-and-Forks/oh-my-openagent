@@ -2532,3 +2532,125 @@ OVERALL=FAIL
 
 PUBLICATION_NOTE=These gates bind to e87691a6a3631a4736141610e025c8d546ab53b8. The subsequent publication commit changes only this evidence log to keep the worktree clean; it does not change tested product or test files. Final local/origin publication-head equality is checked after pushing that evidence-only commit.
 FAILURE_POLICY=No test retries, product source edits, timeout increases, or failure suppressions. The five requested exits are 0,0,0,1,0, not five zeroes. test:codex stops at its Bun test failure, so its final node --test stage was not reached.
+
+===== test:codex rerun =====
+UTC=2026-09-08T18:16:49Z..2026-09-08T18:22:50Z
+MACHINE=mengmotaMac macos/aarch64
+SELECTION=mengmotaMac preferred; 1-min load 11.25 <= ncpu 18 so gorky was not used
+UPTIME_AT_SELECTION= 3:16  up 19 days,  7:45, 6 users, load averages: 11.25 37.79 51.65
+UPTIME_AT_SCRIPT_START= 3:16  up 19 days,  7:45, 6 users, load averages: 11.07 37.31 51.40
+NCPU=18
+BUN=1.4.0 /Users/yeongyu/.bun/bin/bun
+REMOTE_HEAD=b8485e334ebf4614a9e339d722befd4f6070f60a
+REMOTE_BRANCH=lcx/astra-default-models
+REMOTE_SUBJECT=docs(omo-codex): record CI-parity gate results and installer timeout
+DEV_HEAD=4b84102c36b5edd86a28c8053c00014951aa0139
+DEV_BRANCH=dev
+DEV_SUBJECT=Merge pull request #7985 from code-yeongyu/release/v5.0.0-beta.49-source-state
+SETUP_NOTE=An earlier local driver with stdin redirected still produced no mesh dispatch for 3600s (same keychain-resolution hang as the original gate). This rerun loaded BUNSHIN_HUB_URL / BUNSHIN_ACCOUNT_ID / BUNSHIN_ACCOUNT_SECRET from ~/.bunshin/credentials.json into the driver process environment without logging the secret. Work dirs: /tmp/lcx-rerun-a-20260908 and /tmp/lcx-rerun-dev-20260908. Receipts: /tmp/lcx-rerun-a-out on mengmotaMac.
+CLONE_A_EXIT=0
+INSTALL_A_EXIT=0
+CLONE_DEV_EXIT=0
+INSTALL_DEV_EXIT=0
+
+----- (1) bun run test:codex -----
+TEST_EXIT=0
+AUTONOMY_CASE=(pass) install-codex > #given autonomous permissions requested #when installing omo #then writes Codex autonomy settings [1316.03ms]
+NEVER_SPAWNS_CASE=(pass) install-codex > #given codex installer #when installing omo #then never spawns a repo script that is not shipped [1605.40ms]
+BUN_TEST_SUMMARY=465 pass / 1 skip / 0 fail; Ran 466 tests across 66 files. [24.23s]
+NODE_TEST_SUMMARY=495 pass / 0 fail; duration_ms 27373.062625
+PREVIOUS_RUN_ON_e87691a6a=TEST_EXIT=1 with the autonomy case timed out after 20000ms [20062.51ms]; this rerun on b8485e334 did not reproduce that failure.
+
+----- (2) branch single-file: bun test ./packages/omo-codex/src/install/install-codex.test.ts -----
+TEST_EXIT=1
+AUTONOMY_CASE=(pass) install-codex > #given autonomous permissions requested #when installing omo #then writes Codex autonomy settings [2082.38ms]
+OTHER_FAIL=(fail) install-codex > #given codex installer #when installing omo #then never spawns a repo script that is not shipped [20207.10ms]
+  ^ this test timed out after 20000ms.
+FILE_SUMMARY=10 pass / 1 fail; Ran 11 tests across 1 file. [36.02s]
+NOTE=The previously reported autonomy timeout did not recur in isolation. A different installer test in the same file hit the 20s ceiling while 1-min load on the host was 67-111 (see poll samples during STEP test-codex / branch-single).
+
+----- (3) dev baseline single-file: bun test ./packages/omo-codex/src/install/install-codex.test.ts -----
+TEST_EXIT=0
+AUTONOMY_CASE=(pass) install-codex > #given autonomous permissions requested #when installing omo #then writes Codex autonomy settings [1264.18ms]
+NEVER_SPAWNS_CASE=(pass) install-codex > #given codex installer #when installing omo #then never spawns a repo script that is not shipped [1184.44ms]
+FILE_SUMMARY=11 pass / 0 fail; Ran 11 tests across 1 file. [7.49s]
+
+----- durations (autonomy case) -----
+PREVIOUS_SUITE_e87691a6a=20062.51ms fail (timeout 20000ms)
+RERUN_SUITE_b8485e334=1316.03ms pass
+BRANCH_ISOLATED=2082.38ms pass
+DEV_ISOLATED=1264.18ms pass
+
+----- classification -----
+The previous test:codex failure (autonomy settings timed out at ~20s) did not reproduce: rerun TEST_EXIT=0 and the same case was 1316.03ms in the suite.
+Branch vs dev isolated durations are 2082.38ms vs 1264.18ms, both well under 20s. Dev does not show the same ~20s duration, so this is not pre-existing base behavior of a 20s-hanging autonomy test, and it is not a PR-A-introduced ~20s hang of that case.
+The prior 20s timeout is classified as a load/flake ceiling hit: at selection 5/15-min load was already 37.79/51.65 on 18 cores; during the suite 1-min load rose through 67 to 111. The isolated branch file then timed out a different case (`never spawns a repo script that is not shipped` at 20207.10ms) which passed at 1605.40ms inside the suite and 1184.44ms on dev.
+No product or test files were edited. No bun test was run on the driving machine.
+
+----- cleanup receipts -----
+CLEANUP_UTC=2026-09-08T18:22:50Z
+D_EXISTS=0
+D2_EXISTS=0
+REMOTE_RECEIPT_DIR=/tmp/lcx-rerun-a-out
+SCRIPT_EXIT=0
+
+
+----- installer test A/B (quiet box) -----
+UTC=2026-09-09T01:45:46Z selection .. 2026-09-09T01:48:38Z setup start .. 2026-09-09T01:51:36Z tests start .. 2026-09-09T01:52:12Z end
+DRIVER=mengmota-local bunshin SDK -> gorky; no bun test on the driving machine
+MACHINE=gorky linux/x86_64 id=47408d4f-cbbb-4cd2-b968-61962aa741f9 hostname=cursor user=box
+BUN=1.4.0 /home/box/.bun/bin/bun
+NPROC=8
+PATH_PREFIX=$HOME/.bun/bin:$HOME/.local/bin
+
+----- selection (1-min load / cores) -----
+GORKY_LIVE_UPTIME=01:45:46 up 18 days, 20:52,  0 users,  load average: 9.31, 9.33, 9.56
+GORKY_LIVE_NPROC=8
+GORKY_LOAD1=9.31
+GORKY_RATIO=1.16375
+MENGMOTAMAC_LIVE=UNAVAILABLE hub transport error [machine_unavailable]: target machine is not connected
+MESH_SNAPSHOT_JUST_BEFORE=gorky 9.40/8 online; mengmotaMac 49.69/18 OFFLINE (ratio 2.761 if that stale load were used)
+PICK=gorky (lowest live 1-min load/cores; mengmotaMac not connected)
+NOTE=getMachine(gorky) reported state=offline at driver attach, but shell/preflight succeeded (uptime/nproc/bun all ran).
+
+----- setup -----
+B=/tmp/lcx-ab-branch-20260908
+V=/tmp/lcx-ab-dev-20260908
+CLONE_B_EXIT=0
+CLONE_V_EXIT=0
+INSTALL_B_EXIT=0
+INSTALL_V_EXIT=0
+BRANCH_HEAD=b8485e334ebf4614a9e339d722befd4f6070f60a
+BRANCH_REF=lcx/astra-default-models (git clone --branch --depth 1)
+DEV_HEAD=1ee26636fa686f864b7ba752f236bb59ef8a241b
+DEV_REF=dev (git clone --branch --depth 1 as specified; this is origin/dev tip at clone time, not the earlier-session SHA 4b84102c3)
+UPTIME_SETUP=01:48:38 up 18 days, 20:55,  0 users,  load average: 8.93, 9.30, 9.52
+UPTIME_BEFORE_TESTS=01:51:36 up 18 days, 20:58,  0 users,  load average: 11.70, 10.23, 9.83
+UPTIME_END=01:52:12 up 18 days, 20:58,  0 users,  load average: 11.92, 10.44, 9.91
+DF_TMP=overlay 126G 108G 12G 91% /
+
+----- per-run (order: branch, dev, branch, dev) -----
+run       side    TEST_EXIT  file_s  autonomy_ms  never_spawns_ms  result
+branch1   branch  0          8.69    1417.88      1421.81          11 pass / 0 fail
+dev1      dev     0          7.58    1005.59      1220.43          11 pass / 0 fail
+branch2   branch  0          7.78    1172.13      1393.74          11 pass / 0 fail
+dev2      dev     0          7.41    1454.65      1015.90          11 pass / 0 fail
+
+----- min-of-2 -----
+file_s:        branch 7.78s / dev 7.41s = 1.05x
+autonomy_ms:   branch 1172.13 / dev 1005.59 = 1.17x
+never_spawns:  branch 1393.74 / dev 1015.90 = 1.37x
+ALL_RUNS_PASS=yes
+ANY_BRANCH_TIMEOUT=no
+
+----- classification -----
+LOAD ARTIFACT (branch min within 2x of dev min and all runs pass)
+The mengmotaMac isolated timeout (never spawns ... 20207ms / file 36.02s under 1-min load 67-111) did not reproduce on quiet gorky: both branch runs passed under 9s, and never-spawns stayed 1.4s.
+
+----- cleanup receipts -----
+CLEANUP_RM_EXIT=0
+B_EXISTS=0
+V_EXISTS=0
+POST_LS=/tmp/lcx-ab-branch-20260908: No such file or directory
+POST_LS=/tmp/lcx-ab-dev-20260908: No such file or directory
+REMOTE_RECEIPT_DIR=/tmp/lcx-ab-quiet-out (summary.json + per-run tails left on gorky; worktrees removed)
