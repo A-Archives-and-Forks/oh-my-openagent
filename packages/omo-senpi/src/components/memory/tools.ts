@@ -155,6 +155,7 @@ function createMemoryTool(
     ],
     parameters: MemoryToolParams,
     executionMode: "sequential",
+    renderShell: "self",
     execute: async (_toolCallId, params) => {
       const context = resolveContext()
       if (context === undefined) return errorResult(`${MEMORY_TOOL_NAME}: ${UNBOUND_IDENTITY_MESSAGE}`)
