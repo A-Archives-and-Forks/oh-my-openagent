@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-codex-install:dd6a563800e30ce8e45f73e631a566e5e525285c2e2049577b5f004bf9d9710a:6d3fb67854c27d3d65f40e299ca94eef89897ac3077b9273eeadd8afe9627b30
+// omo-codex-install:bc3bb113ea819d8b72c7576db558adb445ad7b64a2dbd605369dbfedf2f94008:a5aeb63af23da9b74e5b4712587db07a1b2b674ca3c3432d9ae609107e7a2dae
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -10981,7 +10981,7 @@ var CODEX_AGENTS_HEADER = "agents";
 var CODEX_MULTI_AGENT_V2_HEADER = "features.multi_agent_v2";
 function ensureCodexMultiAgentV2Config(config, options = {}) {
   const featureFlag = removeFeatureFlagSetting(config, "multi_agent_v2");
-  const v2Preferred = options.multiAgentVersion === "v2";
+  const v2Preferred = options.multiAgentVersion === "v2" || isMultiAgentV2Enabled(featureFlag.config);
   const agentsConfig = removeAgentsMaxThreads(featureFlag.config, v2Preferred);
   const preserveDisable = featureFlag.value === false && !v2Preferred;
   const featureConfig = preserveDisable ? setMultiAgentV2Disable(agentsConfig) : v2Preferred ? removeMultiAgentV2Disable(agentsConfig) : agentsConfig;
@@ -11059,6 +11059,10 @@ function removeFeatureFlagSetting(config, featureName) {
     config: removeSetting(config, section, featureName),
     value: readBooleanSetting(section.text, featureName)
   };
+}
+function isMultiAgentV2Enabled(config) {
+  const section = findTomlSection(config, CODEX_MULTI_AGENT_V2_HEADER);
+  return section !== null && /^\s*enabled\s*=\s*true[ \t]*(?:#.*)?$/m.test(section.text);
 }
 function removeAgentsMaxThreads(config, v2Preferred) {
   const section = findTomlSection(config, CODEX_AGENTS_HEADER);
@@ -12193,7 +12197,7 @@ function lastValue(values) {
   return values.length > 0 ? values[values.length - 1] ?? null : null;
 }
 function repairProjectLocalCodexConfigText(config) {
-  if (!isMultiAgentV2Enabled(config))
+  if (!isMultiAgentV2Enabled2(config))
     return { config, changed: false, removedKeys: [] };
   let nextConfig = config;
   const removedKeys = [];
@@ -12283,7 +12287,7 @@ async function collectProjectLocalArtifacts(projectRoots) {
   }
   return artifacts;
 }
-function isMultiAgentV2Enabled(config) {
+function isMultiAgentV2Enabled2(config) {
   const featuresSection = findTomlSection(config, "features");
   if (featuresSection !== null && settingIsBooleanTrue(featuresSection.text, "multi_agent_v2"))
     return true;
