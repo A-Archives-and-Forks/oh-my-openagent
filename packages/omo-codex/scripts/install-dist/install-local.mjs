@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-codex-install:81cf03496fa0db52b428d9e5f1d2a022f753fe60530d84f72d767af03333373f:d9847212c69382c8b1ef908ee03c5b079dc818a67781f34f9cc324074120ee89
+// omo-codex-install:dd6a563800e30ce8e45f73e631a566e5e525285c2e2049577b5f004bf9d9710a:010968b6b9a972f6d2e1f7d6c4c784d43c54190839385b3ad6eaf734a1d6fef0
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -10422,15 +10422,6 @@ function delay(milliseconds) {
 }
 
 // packages/omo-codex/src/install/toml-setting-reader.ts
-function hasTomlSetting(config, keyPath) {
-  const targetPath = parseTomlDottedKey(keyPath);
-  if (!targetPath)
-    return false;
-  return hasTomlAssignment(config, (tablePath, settingPath) => {
-    const fullPath = [...tablePath, ...settingPath];
-    return fullPath.length === targetPath.length && fullPath.every((part, index) => part === targetPath[index]);
-  });
-}
 function hasTomlRootDottedKeyPrefix(config, rootKey) {
   return hasTomlAssignment(config, (tablePath, settingPath) => tablePath.length === 0 && settingPath.length > 1 && settingPath[0] === rootKey);
 }
@@ -10873,15 +10864,15 @@ import { readFile as readFile10 } from "node:fs/promises";
 import { join as join15 } from "node:path";
 var FALLBACK_CODEX_MODEL_CATALOG = {
   current: {
-    model: "gpt-5.6-sol",
-    modelContextWindow: 650000,
+    model: "gpt-6-astra",
+    modelContextWindow: 600000,
     modelReasoningEffort: "high",
     planModeReasoningEffort: "xhigh"
   },
   managedProfiles: [
     {
       model: "gpt-5.5",
-      modelContextWindow: 650000,
+      modelContextWindow: 400000,
       modelReasoningEffort: "high",
       planModeReasoningEffort: "xhigh"
     },
@@ -10891,7 +10882,13 @@ var FALLBACK_CODEX_MODEL_CATALOG = {
       modelReasoningEffort: "high",
       planModeReasoningEffort: "xhigh"
     },
-    { model: "gpt-5.5", modelContextWindow: 272000 }
+    { model: "gpt-5.5", modelContextWindow: 272000 },
+    {
+      model: "gpt-5.6-sol",
+      modelContextWindow: 650000,
+      modelReasoningEffort: "high",
+      planModeReasoningEffort: "xhigh"
+    }
   ]
 };
 async function readCodexModelCatalog(codexPackageRoot) {
@@ -10982,27 +10979,18 @@ import { readFileSync } from "node:fs";
 import { dirname as dirname6, isAbsolute as isAbsolute6, join as join16 } from "node:path";
 var CODEX_AGENTS_HEADER = "agents";
 var CODEX_MULTI_AGENT_V2_HEADER = "features.multi_agent_v2";
-var CODEX_MULTI_AGENT_V2_THREAD_LIMIT_KEY = `${CODEX_MULTI_AGENT_V2_HEADER}.max_concurrent_threads_per_session`;
-var CODEX_SUBAGENT_THREAD_LIMIT = 1000;
-var CODEX_MULTI_AGENT_V2_THREAD_LIMIT = 16;
 function ensureCodexMultiAgentV2Config(config, options = {}) {
   const featureFlag = removeFeatureFlagSetting(config, "multi_agent_v2");
   const v2Preferred = options.multiAgentVersion === "v2";
-  const modelKnown = options.multiAgentVersion != null || readRootModel(featureFlag.config) !== null;
-  const agentsConfig = v2Preferred ? removeAgentsMaxThreads(featureFlag.config) : modelKnown ? ensureAgentsMaxThreads(featureFlag.config) : raiseExistingAgentsMaxThreads(featureFlag.config);
+  const agentsConfig = removeAgentsMaxThreads(featureFlag.config, v2Preferred);
   const preserveDisable = featureFlag.value === false && !v2Preferred;
   const featureConfig = preserveDisable ? setMultiAgentV2Disable(agentsConfig) : v2Preferred ? removeMultiAgentV2Disable(agentsConfig) : agentsConfig;
-  if (hasTomlSetting(featureConfig, CODEX_MULTI_AGENT_V2_THREAD_LIMIT_KEY))
-    return featureConfig;
-  const section = findTomlSection(featureConfig, CODEX_MULTI_AGENT_V2_HEADER);
-  if (!section) {
-    const enabledSetting = preserveDisable ? `enabled = false
-` : "";
-    return appendBlock(featureConfig, `[${CODEX_MULTI_AGENT_V2_HEADER}]
-${enabledSetting}max_concurrent_threads_per_session = ${CODEX_MULTI_AGENT_V2_THREAD_LIMIT}
-`);
+  const withoutManagedLimit = removeManagedMultiAgentV2ThreadLimit(featureConfig);
+  if (preserveDisable && !findTomlSection(withoutManagedLimit, CODEX_MULTI_AGENT_V2_HEADER)) {
+    return appendBlock(withoutManagedLimit, `[${CODEX_MULTI_AGENT_V2_HEADER}]
+enabled = false`);
   }
-  return replaceOrInsertSetting(featureConfig, section, "max_concurrent_threads_per_session", CODEX_MULTI_AGENT_V2_THREAD_LIMIT.toString());
+  return withoutManagedLimit;
 }
 function resolveCodexMultiAgentVersion(config, configPath) {
   const model = readRootModel(config);
@@ -11012,7 +11000,7 @@ function resolveCodexMultiAgentVersion(config, configPath) {
   const catalogVersion = readCatalogMultiAgentVersion(model, catalogPath);
   if (catalogVersion !== null)
     return catalogVersion;
-  return /^gpt-5\.6\b/i.test(model) ? "v2" : null;
+  return /^(?:gpt-5\.6|gpt-6)\b/i.test(model) ? "v2" : null;
 }
 function resolveCatalogPath(configuredPath, configPath) {
   if (configuredPath === null)
@@ -11072,23 +11060,34 @@ function removeFeatureFlagSetting(config, featureName) {
     value: readBooleanSetting(section.text, featureName)
   };
 }
-function ensureAgentsMaxThreads(config) {
-  const maxThreadsValue = CODEX_SUBAGENT_THREAD_LIMIT.toString();
-  const section = findTomlSection(config, CODEX_AGENTS_HEADER);
-  if (!section) {
-    return appendBlock(config, `[${CODEX_AGENTS_HEADER}]
-max_threads = ${maxThreadsValue}
-`);
-  }
-  return replaceOrInsertSetting(config, section, "max_threads", maxThreadsValue);
-}
-function removeAgentsMaxThreads(config) {
+function removeAgentsMaxThreads(config, v2Preferred) {
   const section = findTomlSection(config, CODEX_AGENTS_HEADER);
   if (!section)
     return config;
-  if (!/^\s*max_threads\s*=/m.test(section.text))
+  return removeMatchingCap(config, section, "max_threads", v2Preferred ? undefined : /^1000\s*(?:#.*)?$/);
+}
+function removeManagedMultiAgentV2ThreadLimit(config) {
+  const section = findTomlSection(config, CODEX_MULTI_AGENT_V2_HEADER);
+  if (!section)
     return config;
-  return removeSetting(config, section, "max_threads");
+  return removeMatchingCap(config, section, "max_concurrent_threads_per_session", /^(?:1000|16)\s*(?:#.*)?$/);
+}
+function removeMatchingCap(config, section, keyName, expectedValue) {
+  let quote = null;
+  let offset = section.start;
+  for (const line of section.text.match(/[^\n]*\n?/g) ?? []) {
+    const scan = scanTomlMultilineLine(line, quote);
+    quote = scan.nextQuote;
+    if (!scan.wasInside) {
+      const assignment = line.indexOf("=");
+      const key = assignment < 0 ? null : parseTomlDottedKey(line.slice(0, assignment).trim());
+      if (key?.length === 1 && key[0] === keyName && (expectedValue === undefined || expectedValue.test(line.slice(assignment + 1).trim()))) {
+        return config.slice(0, offset) + config.slice(offset + line.length);
+      }
+    }
+    offset += line.length;
+  }
+  return config;
 }
 function removeMultiAgentV2Disable(config) {
   const section = findTomlSection(config, CODEX_MULTI_AGENT_V2_HEADER);
@@ -11103,14 +11102,6 @@ function setMultiAgentV2Disable(config) {
   if (!section)
     return config;
   return replaceOrInsertSetting(config, section, "enabled", "false");
-}
-function raiseExistingAgentsMaxThreads(config) {
-  const section = findTomlSection(config, CODEX_AGENTS_HEADER);
-  if (!section)
-    return config;
-  if (!/^\s*max_threads\s*=/m.test(section.text))
-    return config;
-  return replaceOrInsertSetting(config, section, "max_threads", CODEX_SUBAGENT_THREAD_LIMIT.toString());
 }
 function readBooleanSetting(sectionText, key) {
   const match = new RegExp(`^\\s*${escapeRegExp(key)}\\s*=\\s*(true|false)\\s*(?:#.*)?$`, "m").exec(sectionText);
@@ -11338,6 +11329,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-terra", effort: "medium" },
         current: { model: "gpt-5.6-luna", effort: "low" }
+      },
+      {
+        previous: { model: "gpt-5.6-luna", effort: "low" },
+        current: { model: "gpt-6-astra", effort: "low" }
       }
     ]
   ],
@@ -11351,6 +11346,28 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-terra", effort: "medium" },
         current: { model: "gpt-5.6-luna", effort: "low" }
+      },
+      {
+        previous: { model: "gpt-5.6-luna", effort: "low" },
+        current: { model: "gpt-6-astra", effort: "low" }
+      }
+    ]
+  ],
+  [
+    "metis",
+    [
+      {
+        previous: { model: "gpt-5.6-sol", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
+      }
+    ]
+  ],
+  [
+    "lazycodex-worker-low",
+    [
+      {
+        previous: { model: "gpt-5.6-luna", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
       }
     ]
   ],
@@ -11364,6 +11381,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-sol", effort: "ultra" },
         current: { model: "gpt-5.6-terra", effort: "high" }
+      },
+      {
+        previous: { model: "gpt-5.6-terra", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
       }
     ]
   ],
@@ -11377,6 +11398,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-sol", effort: "max" },
         current: { model: "gpt-5.6-sol", effort: "high" }
+      },
+      {
+        previous: { model: "gpt-5.6-sol", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
       }
     ]
   ],
@@ -11390,6 +11415,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-luna", effort: "max" },
         current: { model: "gpt-5.6-terra", effort: "high" }
+      },
+      {
+        previous: { model: "gpt-5.6-terra", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
       }
     ]
   ],
@@ -11399,6 +11428,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-sol", effort: "max" },
         current: { model: "gpt-5.6-sol", effort: "medium" }
+      },
+      {
+        previous: { model: "gpt-5.6-sol", effort: "medium" },
+        current: { model: "gpt-6-astra", effort: "medium" }
       }
     ]
   ],
@@ -11408,6 +11441,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-sol", effort: "xhigh" },
         current: { model: "gpt-5.6-terra", effort: "medium" }
+      },
+      {
+        previous: { model: "gpt-5.6-terra", effort: "medium" },
+        current: { model: "gpt-6-astra", effort: "medium" }
       }
     ]
   ],
@@ -11417,6 +11454,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-sol", effort: "xhigh" },
         current: { model: "gpt-5.6-terra", effort: "high" }
+      },
+      {
+        previous: { model: "gpt-5.6-terra", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
       }
     ]
   ],
@@ -11426,6 +11467,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-terra", effort: "medium" },
         current: { model: "gpt-5.6-luna", effort: "high" }
+      },
+      {
+        previous: { model: "gpt-5.6-luna", effort: "high" },
+        current: { model: "gpt-6-astra", effort: "high" }
       }
     ]
   ],
@@ -11439,6 +11484,10 @@ var MANAGED_REASONING_DEFAULT_UPGRADES = new Map([
       {
         previous: { model: "gpt-5.6-sol", effort: "high" },
         current: { model: "gpt-5.6-sol", effort: "low" }
+      },
+      {
+        previous: { model: "gpt-5.6-sol", effort: "low" },
+        current: { model: "gpt-6-astra", effort: "low" }
       }
     ]
   ]
@@ -11450,9 +11499,9 @@ function resolveManagedAgentReasoning(input) {
   const latest = steps[steps.length - 1];
   if (latest === undefined)
     return input.preserved.effort;
-  if (input.bundledModel !== latest.current.model || input.bundledEffort !== latest.current.effort) {
+  const bundledMatchesCurrentEffort = input.bundledEffort === latest.current.effort && steps.some((step) => input.bundledModel === step.current.model && input.bundledEffort === step.current.effort);
+  if (!bundledMatchesCurrentEffort)
     return input.preserved.effort;
-  }
   const preservedMatchesAnyStep = steps.some((step) => input.preserved.model === step.previous.model && input.preserved.effort === step.previous.effort);
   return preservedMatchesAnyStep ? latest.current.effort : input.preserved.effort;
 }
