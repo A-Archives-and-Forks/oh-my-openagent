@@ -6,12 +6,18 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, watch } from "node:
 
 for (const part of ["home", "config/opencode", "data", "cache", "state", "project", "tmp"]) mkdirSync(`/qa/${part}`, { recursive: true });
 let modelCalls = 0;
-let compactDelivered = false;
+let markerDelivered = false;
+let compactionGuidanceDelivered = false;
+let autoResumeDelivered = false;
+const modelBus = new EventEmitter();
 const model = createServer(async (request, response) => {
   let raw = "";
   for await (const chunk of request) raw += chunk;
   const id = `r${++modelCalls}`;
-  if (modelCalls === 2) compactDelivered = JSON.stringify(JSON.parse(raw).input ?? null).includes("<ultrawork-mode>active</ultrawork-mode>");
+  const input = JSON.stringify(JSON.parse(raw).input ?? null);
+  if (modelCalls === 2) markerDelivered = input.includes("<ultrawork-mode>active</ultrawork-mode>");
+  if (modelCalls === 3) compactionGuidanceDelivered = input.includes("<ultrawork-mode>");
+  modelBus.emit("request");
   const item = { type: "message", id: `i${modelCalls}`, role: "assistant", content: [{ type: "output_text", text: "Done." }] };
   const events = [
     { type: "response.created", response: { id, created_at: 1, model: "gpt-fake" } },
@@ -27,6 +33,10 @@ const model = createServer(async (request, response) => {
 const ready = once(model, "listening", { signal: AbortSignal.timeout(10000) });
 model.listen(0, "127.0.0.1");
 await ready;
+async function waitForModelCalls(count) {
+  const signal = AbortSignal.timeout(15000);
+  while (modelCalls < count) await once(modelBus, "request", { signal });
+}
 writeFileSync("/qa/config/opencode/opencode.json", JSON.stringify({
   plugin: ["file:///evidence/adapter.js"],
   model: "openai/gpt-fake",
@@ -92,16 +102,28 @@ try {
   await prompt("ulw implement a tiny change");
   await prompt("and add error handling");
   const compactBus = new EventEmitter();
-  const compactWatch = watch("/qa", (_event, name) => { if (name === "compacted.json") compactBus.emit("ready"); });
-  const compactReady = once(compactBus, "ready", { signal: AbortSignal.timeout(15000) }).then(() => true, () => false);
+  const compactWatch = watch("/qa", (_event, name) => { if (name === "compacted.json" || name === "compacting.json") compactBus.emit(name); });
+  const autocontinueWatch = watch("/qa", (_event, name) => { if (name === "autocontinue.json") compactBus.emit(name); });
+  const waitForReceipt = name => once(compactBus, name, { signal: AbortSignal.timeout(15000) }).then(() => true, () => false);
+  const compactReady = waitForReceipt("compacted.json");
+  const compactingReady = waitForReceipt("compacting.json");
+  const autocontinueReady = waitForReceipt("autocontinue.json");
   const compactEvent = once(eventBus, "session.compacted", { signal: AbortSignal.timeout(15000) }).then(() => true, () => false);
+  const autoResume = waitForModelCalls(4);
   try {
-    await api(`/session/${session.id}/summarize`, { providerID: "openai", modelID: "gpt-fake", auto: false });
+    await api(`/session/${session.id}/summarize`, { providerID: "openai", modelID: "gpt-fake", auto: true });
     assert(await compactReady, "Compaction must reach the dispatcher");
+    assert(await compactingReady, "Compaction must receive active ULW guidance");
+    assert(await autocontinueReady, "Autocontinue must run before resume");
     assert(await compactEvent, "Compaction must reach SSE");
     assert(JSON.parse(readFileSync("/qa/compacted.json", "utf8")).routed);
+    assert.deepEqual(JSON.parse(readFileSync("/qa/compacting.json", "utf8")), { activeGuidance: true, contextCount: 1 });
+    assert.deepEqual(JSON.parse(readFileSync("/qa/autocontinue.json", "utf8")), { enabled: true });
+    await autoResume;
+    autoResumeDelivered = true;
   } finally {
     compactWatch.close();
+    autocontinueWatch.close();
   }
   await prompt("continue after compaction");
   await prompt("another follow-up");
@@ -116,7 +138,8 @@ try {
     assert(call.originalTextPreserved);
     assert.equal(call.addedParts, 1);
   }
-  assert(compactDelivered, "The model must receive the compact activation marker");
+  assert(markerDelivered, "The model must receive the compact activation marker");
+  assert(compactionGuidanceDelivered, "The compaction model must receive active ULW guidance");
   assert.equal(calls[1].override.modelID, "ulw-selected");
   assert.equal(calls.at(-1).override, null);
   await prompt("ulw reactivate before deletion");
@@ -136,7 +159,8 @@ try {
   assert.deepEqual(deletion, { routed: true, cleared: true });
   assert(await messageEvent, "Real message event must reach SSE");
   assert(await deletionEvent, "Session deletion must reach SSE");
-  result = { status: "PASS", opencode: version, calls, compactDelivered, reactivated, deletion, sse: [...events].sort(), modelCalls, externalModelCalls: 0,
+  result = { status: "PASS", opencode: version, calls, markerDelivered, compactionGuidanceDelivered, autoResumeDelivered,
+    autocontinue: JSON.parse(readFileSync("/qa/autocontinue.json", "utf8")), reactivated, deletion, sse: [...events].sort(), modelCalls, externalModelCalls: 0,
     isolation: "Disposable Docker; evidence-only mount; HOME/XDG under /qa" };
 } catch (error) {
   result.error = String(error);

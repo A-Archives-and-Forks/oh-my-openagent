@@ -3,6 +3,7 @@ import { createKeywordDetectorHook } from "../../../packages/omo-opencode/src/ho
 import { resolveUltraworkOverride } from "../../../packages/omo-opencode/src/plugin/ultrawork-model-override"
 import { stopContinuation } from "../../../packages/omo-opencode/src/plugin/stop-continuation"
 import { createEventHookDispatcher, createEventHookRunner } from "../../../packages/omo-opencode/src/plugin/event-hook-dispatcher"
+import { createCompactionAutocontinueHandler, createSessionCompactingHandler } from "../../../packages/omo-opencode/src/plugin/session-compacting"
 import { resolveSessionEventID } from "../../../packages/omo-opencode/src/shared/event-session-id"
 import { isRealUserTextPart } from "../../../packages/omo-opencode/src/shared"
 import { unsafeTestValue } from "../../../test-support/unsafe-test-value"
@@ -13,6 +14,8 @@ export default {
   async server(ctx: PluginInput) {
     writeFileSync("/qa/factory.json", JSON.stringify({ directory: ctx.directory }))
     const hook = createKeywordDetectorHook(ctx)
+    const compacting = createSessionCompactingHandler({ keywordDetector: hook })
+    const autocontinue = createCompactionAutocontinueHandler({})
     const routedEvents = new Set<string>()
     const safe = createEventHookRunner()
     const dispatch = createEventHookDispatcher(
@@ -24,6 +27,19 @@ export default {
     )
     return {
       ...hook,
+      "experimental.session.compacting": async (input, output) => {
+        await compacting(input, output)
+        writeFileSync("/qa/compacting.json.tmp", JSON.stringify({
+          activeGuidance: output.context.some((context) => context.includes("<ultrawork-mode>")),
+          contextCount: output.context.length,
+        }))
+        renameSync("/qa/compacting.json.tmp", "/qa/compacting.json")
+      },
+      "experimental.compaction.autocontinue": async (input, output) => {
+        await autocontinue(input, output)
+        writeFileSync("/qa/autocontinue.json.tmp", JSON.stringify({ enabled: output.enabled }))
+        renameSync("/qa/autocontinue.json.tmp", "/qa/autocontinue.json")
+      },
       event: async (input: Parameters<typeof dispatch>[0]) => {
         await dispatch(input)
         if (input.event.type === "session.compacted") {

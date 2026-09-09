@@ -85,6 +85,56 @@ describe("explicit ULW session follow-ups", () => {
     }])
   })
 
+  test("#given active mode #when compaction starts #then its full guidance is available before continuation", async () => {
+    const initial = userOutput("ulw initial")
+    await hook["chat.message"]({ sessionID: "main-session", agent: "sisyphus" }, initial)
+
+    const context = hook.getCompactionContext?.("main-session")
+    const initialGuidance = initial.parts[0].text.slice(initial.parts[0].text.indexOf("<ultrawork-mode>"))
+    expect({
+      matchesActivatedGuidance: context === initialGuidance,
+      hasActiveSentinel: context?.includes("<ultrawork-mode>") === true,
+    }).toEqual({ matchesActivatedGuidance: true, hasActiveSentinel: true })
+  })
+
+  test("#given combo-only expansions #when ULW state replays #then the marker and model selection persist", async () => {
+    const comboHook = createKeywordDetectorHook(
+      unsafeTestValue<PluginInput>({ client: { tui: { showToast: async () => {} } } }),
+      undefined,
+      undefined,
+      { enabled_expansions: ["hyperplan-ultrawork"] },
+    )
+    const initial = userOutput("hpp ulw initial")
+    const followup = userOutput("continue")
+
+    try {
+      await comboHook["chat.message"]({ sessionID: "main-session", agent: "sisyphus" }, initial)
+      await comboHook["chat.message"]({ sessionID: "main-session", agent: "sisyphus" }, followup)
+
+      expect(followup.parts).toHaveLength(2)
+      expect(followup.parts[1]).toMatchObject({ ...marker, sessionID: "main-session", messageID: followup.message.id })
+      expect(resolveUltraworkOverride(config, "sisyphus", followup, "main-session")?.modelID).toBe("ulw-model")
+    } finally {
+      comboHook.dispose()
+    }
+  })
+
+  test("#given active mode #when an attachment-only follow-up arrives #then it receives a durable ULW marker", async () => {
+    await send("ulw initial")
+    const output = {
+      message: { id: "msg_attachment" },
+      parts: [{ id: "prt_attachment", sessionID: "main-session", messageID: "msg_attachment", type: "image" }],
+    }
+
+    await hook["chat.message"]({ sessionID: "main-session", agent: "sisyphus" }, output)
+
+    expect(output.parts).toEqual([
+      { id: "prt_attachment", sessionID: "main-session", messageID: "msg_attachment", type: "image" },
+      { ...marker, id: expect.stringMatching(/^prt_/), sessionID: "main-session", messageID: "msg_attachment" },
+    ])
+    expect(resolveUltraworkOverride(config, "sisyphus", output, "main-session")?.modelID).toBe("ulw-model")
+  })
+
   test("#given active mode #when model family changes #then its full guidance is refreshed", async () => {
     const input = { sessionID: "main-session", agent: "sisyphus", model: { providerID: "test", modelID: "gpt-5" } }
     await hook["chat.message"](input, userOutput("ulw initial"))

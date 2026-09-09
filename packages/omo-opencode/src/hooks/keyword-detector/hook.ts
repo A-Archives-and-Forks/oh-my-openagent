@@ -21,6 +21,7 @@ import {
 import { isNonOmoAgent, isPlannerAgent } from "./constants"
 import type { DetectedKeyword } from "./detector"
 import { detectKeywordsWithType, extractPromptText, looksLikeSlashCommand } from "./detector"
+import { getUltraworkMessageForSource } from "./ultrawork"
 import { getUltraworkSource, type UltraworkSource } from "./ultrawork/source-detector"
 
 const defaultModeUltraworkInjectedSessions = new Set<string>()
@@ -124,8 +125,7 @@ export function createKeywordDetectorHook(
       const replayUltrawork = !explicitUltrawork && explicitUltraworkSessions.has(input.sessionID)
       const compactUltrawork = replayUltrawork && explicitUltraworkSessions.get(input.sessionID) === promptSource
       if (replayUltrawork) {
-        detectedKeywords.push(...detectKeywordsWithType("ulw", currentAgent, modelID, disabledKeywords, enabledExpansions)
-          .filter((k) => k.type === "ultrawork"))
+        detectedKeywords.push({ type: "ultrawork", message: getUltraworkMessageForSource(promptSource) })
       }
       detectedKeywords = suppressComboStandalones(detectedKeywords)
 
@@ -262,29 +262,28 @@ export function createKeywordDetectorHook(
           .catch((err) => log(`[keyword-detector] Failed to show toast`, { error: err, sessionID: input.sessionID }))
       }
 
-      const textPartIndex = output.parts.findIndex(isRealUserTextPart)
-      if (textPartIndex === -1) {
-        log(`[keyword-detector] No text part found, skipping injection`, { sessionID: input.sessionID })
-        return
-      }
-
       const allMessages = detectedKeywords
         .filter((k) => !(compactUltrawork && k.type === "ultrawork"))
         .map((k) => k.message).join("\n\n")
-      const originalText = output.parts[textPartIndex].text ?? ""
+      const textPart = output.parts.find(isRealUserTextPart)
 
-      if (allMessages) output.parts[textPartIndex].text = `${originalText}\n\n---\n\n${allMessages}`
-      if (compactUltrawork && hasUltrawork && !output.parts.some(
+      if (textPart && allMessages) {
+        textPart.text = `${textPart.text}\n\n---\n\n${allMessages}`
+      }
+      if (hasUltrawork && (compactUltrawork || !textPart) && !output.parts.some(
         (part) => part.synthetic === true && part.text === ULTRAWORK_CONTINUATION_MARKER,
       )) {
-        output.parts.push({
-          id: generatePartId(),
-          sessionID: input.sessionID,
-          messageID: output.parts[textPartIndex].messageID,
-          type: "text",
-          text: ULTRAWORK_CONTINUATION_MARKER,
-          synthetic: true,
-        })
+        const messageID = input.messageID ?? (typeof output.message.id === "string" ? output.message.id : undefined)
+        if (messageID) {
+          output.parts.push({
+            id: generatePartId(),
+            sessionID: input.sessionID,
+            messageID,
+            type: "text",
+            text: ULTRAWORK_CONTINUATION_MARKER,
+            synthetic: true,
+          })
+        }
       }
 
       if ((explicitUltrawork || replayUltrawork) && (hasUltrawork || hasHyperplanUltrawork)) {
@@ -302,6 +301,10 @@ export function createKeywordDetectorHook(
     },
     clearSession: (sessionID: string): void => {
       explicitUltraworkSessions.delete(sessionID)
+    },
+    getCompactionContext: (sessionID: string): string | undefined => {
+      const source = explicitUltraworkSessions.get(sessionID)
+      return source === undefined ? undefined : getUltraworkMessageForSource(source)
     },
     event: ({ event }: { event: { type: string; properties?: unknown } }): void => {
       if (event.type !== "session.deleted" && event.type !== "session.compacted") return

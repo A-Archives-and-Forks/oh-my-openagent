@@ -34,6 +34,9 @@ type TimerHandleWithOptionalUnref = ReturnType<typeof setTimeout> & {
 }
 
 type CompactionHookDependencies = {
+  keywordDetector?: {
+    getCompactionContext?: (sessionID: string) => string | undefined
+  } | null
   compactionContextInjector?: {
     capture?: (sessionID: string) => Promise<void>
     inject?: (sessionID: string) => string
@@ -115,6 +118,12 @@ export function createSessionCompactingHandler(
     })
     await runCompactionStep("claudeCodeHooks.experimental.session.compacting", input.sessionID, async () => {
       await hooks.claudeCodeHooks?.["experimental.session.compacting"]?.(input, output)
+    })
+    await runCompactionStep("keywordDetector.getCompactionContext", input.sessionID, () => {
+      const context = hooks.keywordDetector?.getCompactionContext?.(input.sessionID)
+      if (context) {
+        output.context.push(context)
+      }
     })
     await runCompactionStep("compactionContextInjector.inject", input.sessionID, () => {
       const inject = hooks.compactionContextInjector?.inject
