@@ -59,7 +59,7 @@
         "@typescript/native-preview": "7.0.0-dev.20260707.2",
         "@xterm/addon-unicode11": "^0.9.0",
         "@xterm/xterm": "^6.0.0",
-        "bun-types": "1.4.0",
+        "bun-types": "1.4.2",
         "node-pty": "^1.1.0",
         "puppeteer-core": "^25.8.0",
         "typescript": "^7.0.2",
@@ -97,7 +97,7 @@
         "@oh-my-opencode/utils": "workspace:*",
       },
       "devDependencies": {
-        "bun-types": "1.4.0",
+        "bun-types": "1.4.2",
       },
     },
     "packages/boulder-state": {
@@ -137,7 +137,7 @@
         "@oh-my-opencode/utils": "workspace:*",
       },
       "devDependencies": {
-        "bun-types": "1.4.0",
+        "bun-types": "1.4.2",
       },
     },
     "packages/hashline-core": {
@@ -164,14 +164,14 @@
         "zod": "^4.4.3",
       },
       "devDependencies": {
-        "bun-types": "1.4.0",
+        "bun-types": "1.4.2",
       },
     },
     "packages/mcp-stdio-core": {
       "name": "@oh-my-opencode/mcp-stdio-core",
       "version": "0.1.0",
       "devDependencies": {
-        "bun-types": "1.4.0",
+        "bun-types": "1.4.2",
       },
     },
     "packages/memory-core": {
@@ -190,7 +190,7 @@
         "@oh-my-opencode/utils": "workspace:*",
       },
       "devDependencies": {
-        "bun-types": "1.4.0",
+        "bun-types": "1.4.2",
       },
     },
     "packages/omo-config-core": {
@@ -1037,7 +1037,7 @@
 
     "bun-ffi-structs": ["bun-ffi-structs@0.3.1", "", { "peerDependencies": { "typescript": "^5" } }, "sha512-3gM7PpVWLyrwxWjcilSiGuhWanhZivvo6l0u573NziPH6f/gwk6McbaYgn7oJWov6pKGRTDbrg94W5DcJsKTtQ=="],
 
-    "bun-types": ["bun-types@1.4.0", "", { "dependencies": { "@types/node": "*" } }, "sha512-iIKw23BspnQQYd3prITOBxeUsxBHnwzX6YJfGMuNOZzeNcMmVqzIIVGRm1l69ogaPQmb4wB6BN8mA5bE9YuC5Q=="],
+    "bun-types": ["bun-types@1.4.2", "", { "dependencies": { "@types/node": "*" } }, "sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w=="],
 
     "bytes": ["bytes@3.1.2", "", {}, "sha512-/Nf7TyzTx6S3yRJObOAV7956r8cr2+Oj8AC5dt8wSP3BQAoeX58NoHyCU8P8zGkNXStjTSi6fzO6F0pBdcYbEg=="],
 

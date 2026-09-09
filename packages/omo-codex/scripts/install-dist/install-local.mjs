@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-codex-install:dd6a563800e30ce8e45f73e631a566e5e525285c2e2049577b5f004bf9d9710a:d2abd7352a0a6e42b3fc9188d4d56980a770bdb93e4d7e61f07a459250cbf091
+// omo-codex-install:dd6a563800e30ce8e45f73e631a566e5e525285c2e2049577b5f004bf9d9710a:6d3fb67854c27d3d65f40e299ca94eef89897ac3077b9273eeadd8afe9627b30
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -8012,7 +8012,7 @@ var init_package = __esm(() => {
       "@oh-my-opencode/utils": "workspace:*"
     },
     devDependencies: {
-      "bun-types": "1.4.0"
+      "bun-types": "1.4.2"
     }
   };
 });
