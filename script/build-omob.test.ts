@@ -13,9 +13,8 @@ import {
 	hostTargetFor,
 	packSoleSenpiTarball,
 	parseOmobArgs,
-	planRuntimePrune,
-	selectPruneEntries,
 } from "./build-omob"
+import { planRuntimePrune, selectPruneEntries } from "./omob-runtime-prune"
 
 function tempDir(prefix: string): string {
 	return mkdtempSync(join(tmpdir(), prefix))
