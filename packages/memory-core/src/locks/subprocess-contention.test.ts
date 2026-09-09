@@ -83,7 +83,20 @@ async function createFixture(): Promise<{ directory: string; lockPath: string; c
 }
 
 afterEach(async () => {
-  for (const child of children) child.kill("SIGKILL")
+  // Temp directories die only after every tracked child is confirmed exited: rm under a live
+  // holder strands it, and a fire-and-forget SIGKILL is not a confirmation.
+  const tracked = [...children]
+  children.clear()
+  for (const child of tracked) {
+    if (child.exitCode !== null || child.signalCode !== null) continue
+    child.kill("SIGTERM")
+    if (!(await exitedWithin(child, TEARDOWN_GRACE_MS))) {
+      child.kill("SIGKILL")
+      if (!(await exitedWithin(child, TEARDOWN_GRACE_MS))) {
+        throw new Error(`tracked lock holder pid ${String(child.pid)} survived SIGTERM and SIGKILL teardown`)
+      }
+    }
+  }
   await Promise.all(temporaryDirectories.splice(0).map(async (directory) => {
     await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
   }))
