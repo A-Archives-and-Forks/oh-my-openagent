@@ -16,17 +16,15 @@ describe("live thread socket discovery", () => {
   })
   test("canonical and env branches resolve through resolveAgentHome", async () => {
     const { resolveAgentHome } = await import("../agent-home/resolve-agent-home")
-    const homeDir = resolve("/h")
-    const canonical = join(homeDir, ".omo", "agent")
-    expect(resolveAgentHome({ env: {}, homeDir, exists: (path) => path === join(canonical, "settings.json") })).toBe(canonical)
-    expect(resolveAgentHome({ env: { OMO_CODING_AGENT_DIR: "/configured" }, homeDir, exists: () => false })).toBe(resolve("/configured"))
+    const canonical = join("/h", ".omo", "agent")
+    expect(resolveAgentHome({ env: {}, homeDir: "/h", exists: (path) => path === join(canonical, "settings.json") })).toBe(canonical)
+    expect(resolveAgentHome({ env: { OMO_CODING_AGENT_DIR: "/configured" }, homeDir: "/h", exists: () => false })).toBe(resolve("/configured"))
   })
   test("resolveAgentHome supports flat and standalone fallback", async () => {
     const { resolveAgentHome } = await import("../agent-home/resolve-agent-home")
-    const homeDir = resolve("/h")
-    const flat = join(homeDir, ".omo")
-    expect(resolveAgentHome({ env: {}, homeDir, exists: (path) => path === join(flat, "settings.json") })).toBe(flat)
-    expect(resolveAgentHome({ env: {}, homeDir, exists: () => false })).toBe(join(homeDir, ".senpi", "agent"))
+    const flat = join("/h", ".omo")
+    expect(resolveAgentHome({ env: {}, homeDir: "/h", exists: (path) => path === join(flat, "settings.json") })).toBe(flat)
+    expect(resolveAgentHome({ env: {}, homeDir: "/h", exists: () => false })).toBe(join("/h", ".senpi", "agent"))
   })
   test("always constructs a surface when the socket is absent at registration", () => {
     expect(createLiveThreadSurface({} as never, { env: { SENPI_RPC_SOCKET: "/missing.sock" }, exists: () => false })).toBeDefined()
