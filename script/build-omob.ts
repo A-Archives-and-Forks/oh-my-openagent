@@ -6,15 +6,13 @@
 // runtime dir are namespaced by the commit pair.
 
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, chmodSync, renameSync, cpSync } from "node:fs"
-import { homedir, tmpdir } from "node:os"
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, chmodSync, renameSync, cpSync } from "node:fs"
+import { homedir } from "node:os"
 import { dirname, join, resolve } from "node:path"
-import { fileURLToPath } from "node:url"
-import { parseBuildInfo, versionLines, type OmoBuildInfo } from "../packages/omo-native/build-info"
+import { versionLines, type OmoBuildInfo } from "../packages/omo-native/build-info"
 import { RELEASE_BINARY_TARGETS } from "./build-omo-binary"
-
-const scriptDir = dirname(fileURLToPath(import.meta.url))
-const repoRoot = resolve(scriptDir, "..")
+import { installOmobLauncher, isCurrentOmobBuild } from "./omob-launcher"
+export { installOmobLauncher, isCurrentOmobBuild } from "./omob-launcher"
 
 export interface OmobOptions {
 	readonly senpiRef: string
@@ -27,6 +25,8 @@ export interface OmobOptions {
 	readonly senpiUrl: string
 	readonly skipFetch: boolean
 	readonly skipInstall: boolean
+	readonly ifChanged: boolean
+	readonly launcher: boolean
 }
 
 export function hostTargetFor(platform: string, arch: string): string {
@@ -39,10 +39,13 @@ export function hostTargetFor(platform: string, arch: string): string {
 const DEFAULT_SENPI_URL = "https://github.com/code-yeongyu/senpi.git"
 
 export function parseOmobArgs(argv: readonly string[], platform: string, arch: string, homeDir: string): OmobOptions {
-	const options: { senpiRef?: string; omoRef?: string; cacheDir?: string; installDir?: string; name?: string; target?: string; senpiUrl?: string; keep?: number; skipFetch: boolean; skipInstall: boolean } = {
+	const options: { senpiRef?: string; omoRef?: string; cacheDir?: string; installDir?: string; name?: string; target?: string; senpiUrl?: string; keep?: number; skipFetch: boolean; skipInstall: boolean; ifChanged: boolean; launcher: boolean; binaryOnly: boolean } = {
 		senpiUrl: undefined,
 		skipFetch: false,
 		skipInstall: false,
+		ifChanged: false,
+		launcher: false,
+		binaryOnly: false,
 	}
 	for (let index = 0; index < argv.length; index += 1) {
 		const argument = argv[index]
@@ -62,21 +65,35 @@ export function parseOmobArgs(argv: readonly string[], platform: string, arch: s
 			options.skipFetch = true
 		} else if (argument === "--skip-install") {
 			options.skipInstall = true
+		} else if (argument === "--if-changed") {
+			options.ifChanged = true
+		} else if (argument === "--launcher") {
+			options.launcher = true
+		} else if (argument === "--binary-only") {
+			options.binaryOnly = true
 		} else {
 			throw new Error(`unknown argument: ${argument}`)
 		}
 	}
+	if (options.launcher && (options.binaryOnly || options.skipInstall)) throw new Error("--launcher conflicts with --binary-only and --skip-install")
+	const launcher = options.launcher || (!options.binaryOnly && !options.skipInstall && platform !== "win32" && (options.name ?? "omob") === "omob")
+	const mainline = (options.omoRef ?? "origin/dev") === "origin/dev" && (options.senpiRef ?? "origin/main") === "origin/main" && (options.senpiUrl ?? DEFAULT_SENPI_URL) === DEFAULT_SENPI_URL
+	if (!mainline && (launcher || (!options.skipInstall && (options.name ?? "omob") === "omob"))) {
+		throw new Error("the managed omob name requires origin/dev + origin/main; use --name omob-feature or --skip-install for feature builds")
+	}
 	return {
 		senpiRef: options.senpiRef ?? "origin/main",
 		omoRef: options.omoRef ?? "origin/dev",
-		cacheDir: options.cacheDir ?? join(homeDir, ".cache", "omob"),
-		installDir: options.installDir ?? join(homeDir, ".local", "bin"),
+		cacheDir: resolve(options.cacheDir ?? join(homeDir, ".cache", options.name ?? (mainline ? "omob" : "omob-feature"))),
+		installDir: resolve(options.installDir ?? join(homeDir, ".local", "bin")),
 		name: options.name ?? "omob",
 		target: options.target ?? hostTargetFor(platform, arch),
 		keep: options.keep ?? 2,
 		senpiUrl: options.senpiUrl ?? DEFAULT_SENPI_URL,
 		skipFetch: options.skipFetch,
 		skipInstall: options.skipInstall,
+		ifChanged: options.ifChanged || launcher,
+		launcher,
 	}
 }
 
@@ -154,15 +171,22 @@ export function acquireCacheLock(cacheDir: string, pid: number = process.pid): C
 		claim()
 	} catch (error) {
 		if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
-		const holder = Number.parseInt(readFileSync(path, "utf8").trim(), 10)
-		if (Number.isFinite(holder) && holder !== pid && processIsAlive(holder)) {
-			throw new Error(
-				`another omob build is running (pid ${holder}); lock: ${path}. Wait for it to finish, or remove the lock if that process is gone.`,
-			)
+		// Serialize stale-owner reclamation too: two contenders must not unlink
+		// a fresh claim after both observed the same dead owner.
+		const reclaim = `${path}.reclaim`
+		mkdirSync(reclaim)
+		try {
+			if (existsSync(path)) {
+				const holder = Number.parseInt(readFileSync(path, "utf8").trim(), 10)
+				if (!Number.isInteger(holder) || holder <= 0 || processIsAlive(holder)) {
+					throw new Error(`another omob build is running (pid ${holder}); lock: ${path}. Wait for it to finish; an incomplete claim must not be stolen.`)
+				}
+				rmSync(path)
+			}
+			claim()
+		} finally {
+			rmSync(reclaim, { recursive: true })
 		}
-		// Stale lock: the owner died without releasing it.
-		rmSync(path, { force: true })
-		claim()
 	}
 	let released = false
 	const release = (): void => {
@@ -177,22 +201,25 @@ export function acquireCacheLock(cacheDir: string, pid: number = process.pid): C
 	return { path, release }
 }
 
-export function ensureCacheClone(url: string, directory: string, ref: string, skipFetch: boolean): { readonly directory: string; readonly commit: string } {
+export function ensureCacheClone(url: string, directory: string, ref: string, skipFetch: boolean, checkout = true): { readonly directory: string; readonly commit: string } {
 	mkdirSync(dirname(directory), { recursive: true })
 	if (!existsSync(join(directory, ".git"))) {
 		// --recurse-submodules bootstraps the submodules; the post-reset sync below is the
 		// single place that points them at the requested ref, on this and every later run.
 		run("git", ["clone", "--recurse-submodules", "--shallow-submodules", url, directory], dirname(directory))
 	}
+	const actualUrl = runCaptured("git", ["config", "--get", "remote.origin.url"], directory)
+	if (actualUrl !== url) throw new Error(`cache origin mismatch at ${directory}: expected ${url}, found ${actualUrl}`)
 	if (!skipFetch) {
 		// A plain `origin/<branch>` narrows the fetch to that one refspec. Anything else —
 		// a raw SHA, or a revision expression such as `origin/dev~1` — is not a refspec git
 		// can fetch, so fall back to fetching every branch and resolving locally.
 		const branch = ref.startsWith("origin/") ? ref.slice("origin/".length) : ""
 		const isPlainBranch = branch !== "" && !/[~^:@\\]|\.\.|^-/.test(branch)
-		const fetchArgs = isPlainBranch ? ["--prune", "origin", branch] : ["--prune", "origin"]
+		const fetchArgs = isPlainBranch ? ["--prune", "origin", `+refs/heads/${branch}:refs/remotes/origin/${branch}`] : ["--prune", "origin"]
 		run("git", ["fetch", ...fetchArgs], directory)
 	}
+	if (!checkout) return { directory, commit: runCaptured("git", ["rev-parse", `${ref}^{commit}`], directory) }
 	// A cache checkout must land on the exact ref tree: drop leftovers from a previous
 	// ref (tracked deletions, staged swaps). `clean -ffd` deliberately omits `-x`, so
 	// ignored build outputs and node_modules survive for cache reuse.
@@ -213,8 +240,8 @@ interface CommitInfo {
 }
 
 function readCommitInfo(directory: string, ref: string): CommitInfo {
-	const commit = runCaptured("git", ["rev-parse", "HEAD"], directory)
-	const committedAt = runCaptured("git", ["log", "-1", "--format=%cI"], directory)
+	const commit = runCaptured("git", ["rev-parse", `${ref}^{commit}`], directory)
+	const committedAt = runCaptured("git", ["log", "-1", "--format=%cI", ref], directory)
 	const rawBranch = runCaptured("git", ["rev-parse", "--abbrev-ref", ref], directory).trim()
 	const branch = (rawBranch === "HEAD" || rawBranch === "" ? ref : rawBranch).replace(/^origin\//, "")
 	return { commit, committedAt, branch }
@@ -370,8 +397,10 @@ async function main(argv: readonly string[]): Promise<number> {
 
 async function runBuild(options: OmobOptions): Promise<number> {
 	const senpiUrl = options.senpiUrl ?? DEFAULT_SENPI_URL
-	const senpi = ensureCacheClone(senpiUrl, join(options.cacheDir, "senpi"), options.senpiRef, options.skipFetch)
-	const omo = ensureCacheClone(runCaptured("git", ["remote", "get-url", "origin"], repoRoot), join(options.cacheDir, "omo"), options.omoRef, options.skipFetch)
+	const omoUrl = "https://github.com/code-yeongyu/oh-my-openagent.git"
+	console.error(`[omob] checking ${options.omoRef} + ${options.senpiRef}`)
+	const senpi = ensureCacheClone(senpiUrl, join(options.cacheDir, "senpi"), options.senpiRef, options.skipFetch, false)
+	const omo = ensureCacheClone(omoUrl, join(options.cacheDir, "omo"), options.omoRef, options.skipFetch, false)
 
 	const senpiInfo = readCommitInfo(senpi.directory, options.senpiRef)
 	const omoInfo = readCommitInfo(omo.directory, options.omoRef)
@@ -381,6 +410,15 @@ async function runBuild(options: OmobOptions): Promise<number> {
 		engine: { commit: senpiInfo.commit, committedAt: senpiInfo.committedAt, branch: senpiInfo.branch },
 	}
 
+	const installDir = options.launcher ? join(options.cacheDir, "bin") : options.installDir
+	if (options.ifChanged && !options.skipInstall && isCurrentOmobBuild(join(installDir, options.name), buildInfo, options.target)) {
+		console.error(`[omob] current: omo ${omoInfo.commit} + senpi ${senpiInfo.commit}; no build needed`)
+		if (options.launcher) installOmobLauncher(options)
+		return 0
+	}
+	console.error(`[omob] building: omo ${omoInfo.commit} + senpi ${senpiInfo.commit}`)
+	ensureCacheClone(senpiUrl, senpi.directory, options.senpiRef, true)
+	ensureCacheClone(omoUrl, omo.directory, options.omoRef, true)
 	const builtSenpiRoot = buildSenpiPackage(senpi.directory, options.cacheDir)
 	// The omo prepare chain materializes gitignored plugin/skills from the shared-skills
 	// upstream submodules; a caller's OMO_SKIP_MATERIALIZE=1 would skip that and break the
@@ -421,7 +459,8 @@ async function runBuild(options: OmobOptions): Promise<number> {
 	const result = { binaryPath, size: statSync(binaryPath).size }
 
 	if (!options.skipInstall) {
-		const installed = installBinary(result.binaryPath, options.installDir, options.name)
+		const installed = installBinary(result.binaryPath, installDir, options.name)
+		if (options.launcher) console.error(`[omob] installed launcher ${installOmobLauncher(options)}`)
 		console.log(`installed ${installed} (${result.size} bytes)`)
 	}
 	// Pruning is only safe once the new binary is in place: a --skip-install run would
