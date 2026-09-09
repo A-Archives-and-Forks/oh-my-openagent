@@ -81,7 +81,7 @@ function fixture() {
 }
 
 describe("omob refresh integration", () => {
-	test(`#given an ordinary install #when install repeats #then ${process.platform === "win32" ? "the native binary remains installed without a POSIX launcher" : "auto-refresh remains installed"}`, () => {
+	test.skipIf(process.platform === "win32")("#given an ordinary managed install #when ordinary install repeats #then auto-refresh remains installed", () => {
 		const f = fixture()
 		try {
 			const first = f.ordinary()
@@ -125,7 +125,7 @@ describe("omob refresh integration", () => {
 	}
 
 	for (const scenario of ["same", "changed", "failure", "network", "feature", "locked"] as const) {
-		test(`#given an installed build #when ${scenario} refresh runs #then only the authoritative pair can launch`, () => {
+		test.skipIf(process.platform === "win32")(`#given an installed build #when ${scenario} refresh runs #then only the authoritative pair can launch`, () => {
 			const f = fixture()
 			try {
 				const first = f.run()

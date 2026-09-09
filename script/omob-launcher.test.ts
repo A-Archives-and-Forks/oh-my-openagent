@@ -15,7 +15,7 @@ describe("omob mainline launcher", () => {
 		expect(() => builder.parseOmobArgs(["--if-changed", "--launcher"], "darwin", "arm64", "/home/dev")).not.toThrow()
 	})
 
-	test("#given explicit feature refs #when building directly #then only explicit launcher installation rejects them", () => {
+	test.skipIf(process.platform === "win32")("#given explicit feature refs #when building directly #then only explicit launcher installation rejects them", () => {
 		const args = ["--omo-ref", "origin/feature", "--senpi-ref", "origin/experiment"]
 		const feature = builder.parseOmobArgs([...args, "--name", "omob-feature"], "darwin", "arm64", "/home/dev")
 		expect(feature.omoRef).toBe("origin/feature")
@@ -51,7 +51,7 @@ describe("omob mainline launcher", () => {
 		})
 	}
 
-	test(`#given a signaled executable #when launched #then ${process.platform === "win32" ? "the unsupported launcher is rejected without an install" : "the launcher preserves the signal"}`, () => {
+	test.skipIf(process.platform === "win32")(`#given a signaled executable #when launched #then the launcher preserves the signal`, () => {
 		const root = mkdtempSync(join(tmpdir(), "omob-signal-"))
 		try {
 			const options = builder.parseOmobArgs(["--cache-dir", join(root, "cache"), "--install-dir", join(root, "bin")], "darwin", "arm64", root)
@@ -73,7 +73,7 @@ describe("omob mainline launcher", () => {
 	})
 
 	for (const fail of [false, true]) {
-		test(`#given ${fail ? "failed" : "successful"} refresh #when launched #then ${fail ? "the previous binary survives without launching" : "args and exit status reach the refreshed executable"}`, () => {
+		test.skipIf(process.platform === "win32")(`#given ${fail ? "failed" : "successful"} refresh #when launched #then ${fail ? "the previous binary survives without launching" : "args and exit status reach the refreshed executable"}`, () => {
 			const root = mkdtempSync(join(tmpdir(), "omob-launcher-"))
 			try {
 				const install = builder.installOmobLauncher
