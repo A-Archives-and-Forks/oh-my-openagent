@@ -335,7 +335,10 @@ describe("daemon IPC authentication and ownership", () => {
 
 		expect(readFileSync(paths.auth, "utf8").trim()).not.toBe("old-token");
 		expect(readDaemonOwner(paths)?.nonce).not.toBe("dead");
-		expect(statSync(paths.socket).ino).not.toBe(orphan.ino);
+		expect(readDaemonOwner(paths)?.pid).toBe(process.pid);
+		// A successful probe is the proof that the orphan was replaced: nothing listens on an orphan
+		// socket, and a listener cannot bind over an existing path. Inode inequality is not asserted
+		// because the filesystem may hand the new socket the unlinked orphan's inode number.
 		expect(await probeDaemon(paths)).toBe(true);
 	});
 
