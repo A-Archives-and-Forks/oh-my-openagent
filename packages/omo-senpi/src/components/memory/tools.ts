@@ -9,7 +9,7 @@ import {
 import { Type, type Static, type TSchema } from "typebox"
 
 import { prepareMemoryEngineSession } from "./engine-session"
-import { createMemoryWriteRenderResult } from "./memory-write-render"
+import { createMemoryWriteRenderResult, renderMemoryWriteCall } from "./memory-write-render"
 import type { MemoryRpcSnapshot } from "./memory-rpc-bridge"
 import { buildMemorySnapshot, createMemoryRpcGitRepo } from "./memory-rpc-snapshot-state"
 
@@ -174,6 +174,7 @@ function createMemoryTool(
         throw error
       }
     },
+    renderCall: renderMemoryWriteCall,
     renderResult: renderResultFor(options),
   }
 }
