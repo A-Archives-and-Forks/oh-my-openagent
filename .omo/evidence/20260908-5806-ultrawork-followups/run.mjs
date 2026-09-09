@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { EventEmitter, once } from "node:events";
 import { createServer } from "node:http";
 import { mkdirSync, writeFileSync, readFileSync, existsSync, watch } from "node:fs";
@@ -7,18 +8,34 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, watch } from "node:
 for (const part of ["home", "config/opencode", "data", "cache", "state", "project", "tmp"]) mkdirSync(`/qa/${part}`, { recursive: true });
 let modelCalls = 0;
 let markerDelivered = false;
-let compactionGuidanceDelivered = false;
-let autoResumeDelivered = false;
+let lossyCompactionSummary = false;
+let autoResumeGuidance = { matchesRuntimeGuidance: false, sha256: "", bytes: 0 };
 const modelBus = new EventEmitter();
+function containsRuntimeGuidance(value, guidance) {
+  if (typeof value === "string") return value.includes(guidance);
+  if (Array.isArray(value)) return value.some((item) => containsRuntimeGuidance(item, guidance));
+  return value !== null && typeof value === "object" && Object.values(value).some((item) => containsRuntimeGuidance(item, guidance));
+}
 const model = createServer(async (request, response) => {
   let raw = "";
   for await (const chunk of request) raw += chunk;
   const id = `r${++modelCalls}`;
-  const input = JSON.stringify(JSON.parse(raw).input ?? null);
-  if (modelCalls === 2) markerDelivered = input.includes("<ultrawork-mode>active</ultrawork-mode>");
-  if (modelCalls === 3) compactionGuidanceDelivered = input.includes("<ultrawork-mode>");
+  const requestInput = JSON.parse(raw).input ?? null;
+  const serializedInput = JSON.stringify(requestInput);
+  if (modelCalls === 2) markerDelivered = serializedInput.includes("<ultrawork-mode>active</ultrawork-mode>");
+  const responseText = "Done.";
+  if (modelCalls === 3) lossyCompactionSummary = responseText === "Done.";
+  if (modelCalls === 4 && existsSync("/qa/system-guidance.txt")) {
+    const guidance = readFileSync("/qa/system-guidance.txt", "utf8");
+    const receipt = JSON.parse(readFileSync("/qa/system-guidance.json", "utf8"));
+    autoResumeGuidance = {
+      matchesRuntimeGuidance: containsRuntimeGuidance(requestInput, guidance),
+      sha256: receipt.sha256,
+      bytes: receipt.bytes,
+    };
+  }
   modelBus.emit("request");
-  const item = { type: "message", id: `i${modelCalls}`, role: "assistant", content: [{ type: "output_text", text: "Done." }] };
+  const item = { type: "message", id: `i${modelCalls}`, role: "assistant", content: [{ type: "output_text", text: responseText }] };
   const events = [
     { type: "response.created", response: { id, created_at: 1, model: "gpt-fake" } },
     { type: "response.output_item.added", output_index: 0, item: { type: "message", id: item.id } },
@@ -102,27 +119,31 @@ try {
   await prompt("ulw implement a tiny change");
   await prompt("and add error handling");
   const compactBus = new EventEmitter();
-  const compactWatch = watch("/qa", (_event, name) => { if (name === "compacted.json" || name === "compacting.json") compactBus.emit(name); });
+  const compactWatch = watch("/qa", (_event, name) => { if (name === "compacted.json") compactBus.emit(name); });
+  const systemGuidanceWatch = watch("/qa", (_event, name) => { if (name === "system-guidance.json") compactBus.emit(name); });
   const autocontinueWatch = watch("/qa", (_event, name) => { if (name === "autocontinue.json") compactBus.emit(name); });
   const waitForReceipt = name => once(compactBus, name, { signal: AbortSignal.timeout(15000) }).then(() => true, () => false);
   const compactReady = waitForReceipt("compacted.json");
-  const compactingReady = waitForReceipt("compacting.json");
+  const systemGuidanceReady = waitForReceipt("system-guidance.json");
   const autocontinueReady = waitForReceipt("autocontinue.json");
   const compactEvent = once(eventBus, "session.compacted", { signal: AbortSignal.timeout(15000) }).then(() => true, () => false);
   const autoResume = waitForModelCalls(4);
   try {
     await api(`/session/${session.id}/summarize`, { providerID: "openai", modelID: "gpt-fake", auto: true });
     assert(await compactReady, "Compaction must reach the dispatcher");
-    assert(await compactingReady, "Compaction must receive active ULW guidance");
+    assert(await systemGuidanceReady, "System transform must restore active ULW guidance");
     assert(await autocontinueReady, "Autocontinue must run before resume");
     assert(await compactEvent, "Compaction must reach SSE");
     assert(JSON.parse(readFileSync("/qa/compacted.json", "utf8")).routed);
-    assert.deepEqual(JSON.parse(readFileSync("/qa/compacting.json", "utf8")), { activeGuidance: true, contextCount: 1 });
     assert.deepEqual(JSON.parse(readFileSync("/qa/autocontinue.json", "utf8")), { enabled: true });
     await autoResume;
-    autoResumeDelivered = true;
+    assert(lossyCompactionSummary, "Compaction summary must remain deliberately lossy");
+    assert(autoResumeGuidance.matchesRuntimeGuidance, "Model request 4 must include runtime system guidance");
+    assert.match(autoResumeGuidance.sha256, /^[a-f0-9]{64}$/);
+    assert(autoResumeGuidance.bytes > 0);
   } finally {
     compactWatch.close();
+    systemGuidanceWatch.close();
     autocontinueWatch.close();
   }
   await prompt("continue after compaction");
@@ -139,7 +160,6 @@ try {
     assert.equal(call.addedParts, 1);
   }
   assert(markerDelivered, "The model must receive the compact activation marker");
-  assert(compactionGuidanceDelivered, "The compaction model must receive active ULW guidance");
   assert.equal(calls[1].override.modelID, "ulw-selected");
   assert.equal(calls.at(-1).override, null);
   await prompt("ulw reactivate before deletion");
@@ -159,7 +179,7 @@ try {
   assert.deepEqual(deletion, { routed: true, cleared: true });
   assert(await messageEvent, "Real message event must reach SSE");
   assert(await deletionEvent, "Session deletion must reach SSE");
-  result = { status: "PASS", opencode: version, calls, markerDelivered, compactionGuidanceDelivered, autoResumeDelivered,
+  result = { status: "PASS", opencode: version, calls, markerDelivered, lossyCompactionSummary, autoResumeGuidance,
     autocontinue: JSON.parse(readFileSync("/qa/autocontinue.json", "utf8")), reactivated, deletion, sse: [...events].sort(), modelCalls, externalModelCalls: 0,
     isolation: "Disposable Docker; evidence-only mount; HOME/XDG under /qa" };
 } catch (error) {

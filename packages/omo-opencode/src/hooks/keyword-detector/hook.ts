@@ -28,6 +28,11 @@ const defaultModeUltraworkInjectedSessions = new Set<string>()
 const DEFAULT_MODE_ULTRAWORK_SESSION_CAP = 256
 const ULTRAWORK_CONTINUATION_MARKER = "<ultrawork-mode>active</ultrawork-mode>"
 
+type ExplicitUltraworkSession = {
+  source: UltraworkSource
+  needsRestoration: boolean
+}
+
 function rememberDefaultModeUltraworkInjectedSession(sessionID: string): void {
   if (defaultModeUltraworkInjectedSessions.has(sessionID)) return
   if (defaultModeUltraworkInjectedSessions.size >= DEFAULT_MODE_ULTRAWORK_SESSION_CAP) {
@@ -67,7 +72,7 @@ export function createKeywordDetectorHook(
 ) {
   const disabledKeywords = config?.disabled_keywords
   const enabledExpansions = config?.enabled_expansions
-  const explicitUltraworkSessions = new Map<string, UltraworkSource | undefined>()
+  const explicitUltraworkSessions = new Map<string, ExplicitUltraworkSession>()
   function getRuntimeVariant(input: { variant?: string }, message: Record<string, unknown>): string | undefined {
     if (typeof message.variant === "string") {
       return message.variant
@@ -122,8 +127,9 @@ export function createKeywordDetectorHook(
       const promptSource = getUltraworkSource(currentAgent, modelID)
       let detectedKeywords = detectKeywordsWithType(cleanText, currentAgent, modelID, disabledKeywords, enabledExpansions)
       const explicitUltrawork = detectedKeywords.some((k) => k.type === "ultrawork" || k.type === "hyperplan-ultrawork")
-      const replayUltrawork = !explicitUltrawork && explicitUltraworkSessions.has(input.sessionID)
-      const compactUltrawork = replayUltrawork && explicitUltraworkSessions.get(input.sessionID) === promptSource
+      const activeUltrawork = explicitUltraworkSessions.get(input.sessionID)
+      const replayUltrawork = !explicitUltrawork && activeUltrawork !== undefined
+      const compactUltrawork = activeUltrawork !== undefined && !activeUltrawork.needsRestoration && activeUltrawork.source === promptSource
       if (replayUltrawork) {
         detectedKeywords.push({ type: "ultrawork", message: getUltraworkMessageForSource(promptSource) })
       }
@@ -266,32 +272,43 @@ export function createKeywordDetectorHook(
         .filter((k) => !(compactUltrawork && k.type === "ultrawork"))
         .map((k) => k.message).join("\n\n")
       const textPart = output.parts.find(isRealUserTextPart)
+      const requiresFullGuidance = (hasUltrawork || hasHyperplanUltrawork) && !compactUltrawork && allMessages.length > 0
+      const messageID = input.messageID ?? (typeof output.message.id === "string" ? output.message.id : undefined)
+      let fullGuidanceDurablyAdded = textPart !== undefined && requiresFullGuidance
 
       if (textPart && allMessages) {
         textPart.text = `${textPart.text}\n\n---\n\n${allMessages}`
       }
-      if (hasUltrawork && (compactUltrawork || !textPart) && !output.parts.some(
+      if (!textPart && requiresFullGuidance && messageID) {
+        output.parts.push({
+          id: generatePartId(),
+          sessionID: input.sessionID,
+          messageID,
+          type: "text",
+          text: allMessages,
+          synthetic: true,
+        })
+        fullGuidanceDurablyAdded = true
+      }
+      if (hasUltrawork && compactUltrawork && !output.parts.some(
         (part) => part.synthetic === true && part.text === ULTRAWORK_CONTINUATION_MARKER,
-      )) {
-        const messageID = input.messageID ?? (typeof output.message.id === "string" ? output.message.id : undefined)
-        if (messageID) {
-          output.parts.push({
-            id: generatePartId(),
-            sessionID: input.sessionID,
-            messageID,
-            type: "text",
-            text: ULTRAWORK_CONTINUATION_MARKER,
-            synthetic: true,
-          })
-        }
+      ) && messageID) {
+        output.parts.push({
+          id: generatePartId(),
+          sessionID: input.sessionID,
+          messageID,
+          type: "text",
+          text: ULTRAWORK_CONTINUATION_MARKER,
+          synthetic: true,
+        })
       }
 
-      if ((explicitUltrawork || replayUltrawork) && (hasUltrawork || hasHyperplanUltrawork)) {
+      if ((explicitUltrawork || replayUltrawork) && (hasUltrawork || hasHyperplanUltrawork) && (!requiresFullGuidance || fullGuidanceDurablyAdded)) {
         if (!explicitUltraworkSessions.has(input.sessionID) && explicitUltraworkSessions.size >= DEFAULT_MODE_ULTRAWORK_SESSION_CAP) {
           const oldest = explicitUltraworkSessions.keys().next().value
           if (oldest !== undefined) explicitUltraworkSessions.delete(oldest)
         }
-        explicitUltraworkSessions.set(input.sessionID, promptSource)
+        explicitUltraworkSessions.set(input.sessionID, { source: promptSource, needsRestoration: false })
       }
 
       log(`[keyword-detector] Detected ${detectedKeywords.length} keywords`, {
@@ -302,16 +319,21 @@ export function createKeywordDetectorHook(
     clearSession: (sessionID: string): void => {
       explicitUltraworkSessions.delete(sessionID)
     },
-    getCompactionContext: (sessionID: string): string | undefined => {
-      const source = explicitUltraworkSessions.get(sessionID)
-      return source === undefined ? undefined : getUltraworkMessageForSource(source)
+    getSystemTransformGuidance: (sessionID: string): string | undefined => {
+      const activeUltrawork = explicitUltraworkSessions.get(sessionID)
+      return activeUltrawork?.needsRestoration
+        ? getUltraworkMessageForSource(activeUltrawork.source)
+        : undefined
     },
     event: ({ event }: { event: { type: string; properties?: unknown } }): void => {
       if (event.type !== "session.deleted" && event.type !== "session.compacted") return
       const sessionID = resolveSessionEventID(event.properties)
       if (sessionID) {
         if (event.type === "session.compacted") {
-          if (explicitUltraworkSessions.has(sessionID)) explicitUltraworkSessions.set(sessionID, undefined)
+          const activeUltrawork = explicitUltraworkSessions.get(sessionID)
+          if (activeUltrawork) {
+            explicitUltraworkSessions.set(sessionID, { ...activeUltrawork, needsRestoration: true })
+          }
           return
         }
         clearDefaultModeUltraworkInjectedSession(sessionID)

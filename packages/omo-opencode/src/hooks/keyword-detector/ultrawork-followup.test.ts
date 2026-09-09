@@ -9,6 +9,7 @@ import { resolveUltraworkOverride } from "../../plugin/ultrawork-model-override"
 import { stopContinuation } from "../../plugin/stop-continuation"
 import { createEventHookDispatcher, createEventHookRunner } from "../../plugin/event-hook-dispatcher"
 import { createKeywordDetectorHook } from "./hook"
+import { getUltraworkMessage } from "./ultrawork"
 
 let hook: ReturnType<typeof createKeywordDetectorHook>
 let messageNumber = 0
@@ -85,18 +86,6 @@ describe("explicit ULW session follow-ups", () => {
     }])
   })
 
-  test("#given active mode #when compaction starts #then its full guidance is available before continuation", async () => {
-    const initial = userOutput("ulw initial")
-    await hook["chat.message"]({ sessionID: "main-session", agent: "sisyphus" }, initial)
-
-    const context = hook.getCompactionContext?.("main-session")
-    const initialGuidance = initial.parts[0].text.slice(initial.parts[0].text.indexOf("<ultrawork-mode>"))
-    expect({
-      matchesActivatedGuidance: context === initialGuidance,
-      hasActiveSentinel: context?.includes("<ultrawork-mode>") === true,
-    }).toEqual({ matchesActivatedGuidance: true, hasActiveSentinel: true })
-  })
-
   test("#given combo-only expansions #when ULW state replays #then the marker and model selection persist", async () => {
     const comboHook = createKeywordDetectorHook(
       unsafeTestValue<PluginInput>({ client: { tui: { showToast: async () => {} } } }),
@@ -133,6 +122,44 @@ describe("explicit ULW session follow-ups", () => {
       { ...marker, id: expect.stringMatching(/^prt_/), sessionID: "main-session", messageID: "msg_attachment" },
     ])
     expect(resolveUltraworkOverride(config, "sisyphus", output, "main-session")?.modelID).toBe("ulw-model")
+  })
+
+  test("#given restoration is pending #when an image follows a model change #then full guidance persists before compact markers resume", async () => {
+    const gptInput = {
+      sessionID: "main-session",
+      agent: "sisyphus",
+      model: { providerID: "openai", modelID: "gpt-5" },
+    }
+    await hook["chat.message"](gptInput, userOutput("ulw initial"))
+    hook.event({ event: { type: "session.compacted", properties: { sessionID: "main-session" } } })
+    const geminiInput = {
+      sessionID: "main-session",
+      agent: "sisyphus",
+      model: { providerID: "google", modelID: "gemini-3-pro" },
+    }
+    const restoredImage = {
+      message: { id: "msg_restored_image" },
+      parts: [{ id: "prt_restored_image", sessionID: "main-session", messageID: "msg_restored_image", type: "image" }],
+    }
+
+    await hook["chat.message"](geminiInput, restoredImage)
+
+    const expectedGuidance = getUltraworkMessage("sisyphus", "gemini-3-pro")
+    expect(restoredImage.parts).toHaveLength(2)
+    expect({
+      durableIdentity: restoredImage.parts[1].id !== restoredImage.parts[0].id,
+      durableModelOverride: resolveUltraworkOverride(config, "sisyphus", restoredImage, "main-session")?.modelID === "ulw-model",
+      sourceByteEquality: restoredImage.parts[1].text === expectedGuidance
+        && Buffer.byteLength(restoredImage.parts[1].text ?? "") === Buffer.byteLength(expectedGuidance),
+      synthetic: restoredImage.parts[1].synthetic === true,
+    }).toEqual({ durableIdentity: true, durableModelOverride: true, sourceByteEquality: true, synthetic: true })
+
+    const compactImage = {
+      message: { id: "msg_compact_image" },
+      parts: [{ id: "prt_compact_image", sessionID: "main-session", messageID: "msg_compact_image", type: "image" }],
+    }
+    await hook["chat.message"](geminiInput, compactImage)
+    expect(compactImage.parts[1]).toMatchObject({ ...marker, sessionID: "main-session", messageID: "msg_compact_image" })
   })
 
   test("#given active mode #when model family changes #then its full guidance is refreshed", async () => {

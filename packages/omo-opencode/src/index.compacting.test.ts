@@ -46,35 +46,6 @@ describe("experimental.session.compacting handler", () => {
     expect(output.context).toEqual(["context-for-ses_test"])
   })
 
-  it("passes active ULW guidance through compaction before OpenCode auto-continues", async () => {
-    const order: string[] = []
-    const handler = createSessionCompactingHandler({
-      keywordDetector: {
-        getCompactionContext: (sessionID: string) => {
-          order.push(`ulw:${sessionID}`)
-          return "<ultrawork-mode>active</ultrawork-mode>"
-        },
-      },
-    })
-    const autocontinue = createCompactionAutocontinueHandler({
-      compactionContextInjector: {
-        restore: async (sessionID: string) => {
-          order.push(`restore:${sessionID}`)
-          return true
-        },
-      },
-    })
-    const compactionOutput = { context: [] as string[], prompt: undefined as string | undefined }
-    const autocontinueOutput = { enabled: true }
-
-    await handler({ sessionID: "ses_ulw_autocontinue" }, compactionOutput)
-    await autocontinue({ sessionID: "ses_ulw_autocontinue" }, autocontinueOutput)
-
-    expect(compactionOutput.context).toEqual(["<ultrawork-mode>active</ultrawork-mode>"])
-    expect(autocontinueOutput.enabled).toBe(true)
-    expect(order).toEqual(["ulw:ses_ulw_autocontinue", "restore:ses_ulw_autocontinue"])
-  })
-
   //#given claudeCodeHooks injects context during PreCompact
   //#when compacting handler is invoked
   //#then injected context from PreCompact is preserved in output

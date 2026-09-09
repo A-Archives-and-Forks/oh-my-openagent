@@ -1,9 +1,11 @@
+import { createHash } from "node:crypto"
 import { appendFileSync, renameSync, writeFileSync } from "node:fs"
 import { createKeywordDetectorHook } from "../../../packages/omo-opencode/src/hooks/keyword-detector/hook"
 import { resolveUltraworkOverride } from "../../../packages/omo-opencode/src/plugin/ultrawork-model-override"
 import { stopContinuation } from "../../../packages/omo-opencode/src/plugin/stop-continuation"
 import { createEventHookDispatcher, createEventHookRunner } from "../../../packages/omo-opencode/src/plugin/event-hook-dispatcher"
-import { createCompactionAutocontinueHandler, createSessionCompactingHandler } from "../../../packages/omo-opencode/src/plugin/session-compacting"
+import { createPluginInterface } from "../../../packages/omo-opencode/src/plugin-interface"
+import { createCompactionAutocontinueHandler } from "../../../packages/omo-opencode/src/plugin/session-compacting"
 import { resolveSessionEventID } from "../../../packages/omo-opencode/src/shared/event-session-id"
 import { isRealUserTextPart } from "../../../packages/omo-opencode/src/shared"
 import { unsafeTestValue } from "../../../test-support/unsafe-test-value"
@@ -14,7 +16,19 @@ export default {
   async server(ctx: PluginInput) {
     writeFileSync("/qa/factory.json", JSON.stringify({ directory: ctx.directory }))
     const hook = createKeywordDetectorHook(ctx)
-    const compacting = createSessionCompactingHandler({ keywordDetector: hook })
+    const pluginInterface = createPluginInterface(unsafeTestValue<Parameters<typeof createPluginInterface>[0]>({
+      ctx,
+      pluginConfig: {},
+      firstMessageVariantGate: {
+        shouldOverride: () => false,
+        markApplied: () => {},
+        markSessionCreated: () => {},
+        clear: () => {},
+      },
+      managers: {},
+      hooks: { keywordDetector: hook },
+      tools: {},
+    }))
     const autocontinue = createCompactionAutocontinueHandler({})
     const routedEvents = new Set<string>()
     const safe = createEventHookRunner()
@@ -27,13 +41,16 @@ export default {
     )
     return {
       ...hook,
-      "experimental.session.compacting": async (input, output) => {
-        await compacting(input, output)
-        writeFileSync("/qa/compacting.json.tmp", JSON.stringify({
-          activeGuidance: output.context.some((context) => context.includes("<ultrawork-mode>")),
-          contextCount: output.context.length,
+      "experimental.chat.system.transform": async (input, output) => {
+        await pluginInterface["experimental.chat.system.transform"]?.(input, output)
+        const guidance = output.system.find((part) => part.includes("<ultrawork-mode>"))
+        if (!guidance) return
+        writeFileSync("/qa/system-guidance.txt", guidance)
+        writeFileSync("/qa/system-guidance.json.tmp", JSON.stringify({
+          bytes: Buffer.byteLength(guidance),
+          sha256: createHash("sha256").update(guidance).digest("hex"),
         }))
-        renameSync("/qa/compacting.json.tmp", "/qa/compacting.json")
+        renameSync("/qa/system-guidance.json.tmp", "/qa/system-guidance.json")
       },
       "experimental.compaction.autocontinue": async (input, output) => {
         await autocontinue(input, output)
