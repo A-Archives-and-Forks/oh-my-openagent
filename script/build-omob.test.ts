@@ -4,7 +4,7 @@ import { describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import {
 	acquireCacheLock,
 	deriveOmobAiVersion,
@@ -32,8 +32,8 @@ describe("parseOmobArgs", () => {
 		expect(parsed.name).toBe("omob")
 		expect(parsed.keep).toBe(2)
 		expect(parsed.target).toBe("darwin-arm64")
-		expect(parsed.installDir).toBe(join("/home/dev", ".local", "bin"))
-		expect(parsed.cacheDir).toBe(join("/home/dev", ".cache", "omob"))
+		expect(parsed.installDir).toBe(resolve(join("/home/dev", ".local", "bin")))
+		expect(parsed.cacheDir).toBe(resolve(join("/home/dev", ".cache", "omob")))
 		expect(parsed.skipFetch).toBe(false)
 		expect(parsed.skipInstall).toBe(false)
 	})
