@@ -39,7 +39,7 @@ Senpi adapter for the `@oh-my-opencode/senpi-task` engine: task/team tools, the 
 
 - Register: sweep first, then flag + capability gates, then config load (`loadSenpiOmoConfig` anchored to `pi.cwd`, never `process.cwd()` on cwd-capable hosts), then engine, renderers, tools (4 task + 6 lead team + `workflow`), commands, status UI.
 - `engine.onStoreMutation` fans out to status sync, DAG sync, and resumption-channel emission.
-- `wireDagLifecycle` order matters: DAG shutdown pause registers before the task lifecycle handlers so runs suspend before children tear down; `session_start` attaches, `session_before_switch` detaches, `session_shutdown` disposes.
+- `wireDagLifecycle` order matters: committed `session_shutdown` awaits DAG scheduler quiescence, persists the pause, and detaches the view before task-child suspension; the final shutdown handler disposes the DAG runtime. `session_start` attaches. The vetoable `session_before_switch` does not detach or suspend DAG work. Same-process recovery accepts a released own lease, never an active own claim or live foreign holder.
 - Team member processes see `isTeamMemberProcess()` true and register nothing; the scoped member extension lives in `senpi-task`.
 
 ## Conventions

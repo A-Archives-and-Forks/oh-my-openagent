@@ -143,7 +143,9 @@ async function pausedHandoffFixture(name: string, predecessor: Predecessor = "fo
   })
   firstEngine.runtime.captureFrom({ sessionManager: { getSessionId: () => sessionId } })
   const firstRuntime = createDagRuntime({ pi: firstPi, engine: firstEngine, logger: { info: () => undefined, warn: () => undefined, error: () => undefined } })
-  firstRuntime.pauseForShutdown()
+  // #8020: retirement now drains the scheduler before releasing the lease, so the
+  // pause is awaited; the fixture must not observe the checkpoint mid-drain.
+  await firstRuntime.pauseForShutdown()
   firstRuntime.dispose()
   if (predecessor === "foreign-host") {
     const paused = store.readCheckpoint<DagRunRecordV1>(runId)
@@ -223,7 +225,7 @@ async function ownRuntimePauseFixture(name: string) {
   }), "manager.start")
   const runId = started.snapshot.runId
   await within(runner.whenStarted(1), "runner.whenStarted(1)")
-  runtime.pauseForShutdown()
+  await runtime.pauseForShutdown()
   const status = (): string => store.readCheckpoint<{ readonly status: string }>(runId)?.status ?? "missing"
   return { runId, sessionId, timers, warnings, runner, runtime, status }
 }
