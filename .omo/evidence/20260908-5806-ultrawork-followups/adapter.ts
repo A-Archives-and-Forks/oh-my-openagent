@@ -4,6 +4,7 @@ import { resolveUltraworkOverride } from "../../../packages/omo-opencode/src/plu
 import { stopContinuation } from "../../../packages/omo-opencode/src/plugin/stop-continuation"
 import { createEventHookDispatcher, createEventHookRunner } from "../../../packages/omo-opencode/src/plugin/event-hook-dispatcher"
 import { resolveSessionEventID } from "../../../packages/omo-opencode/src/shared/event-session-id"
+import { isRealUserTextPart } from "../../../packages/omo-opencode/src/shared"
 import { unsafeTestValue } from "../../../test-support/unsafe-test-value"
 import type { PluginInput } from "@opencode-ai/plugin"
 
@@ -25,12 +26,16 @@ export default {
       ...hook,
       event: async (input: Parameters<typeof dispatch>[0]) => {
         await dispatch(input)
+        if (input.event.type === "session.compacted") {
+          writeFileSync("/qa/compacted.json.tmp", JSON.stringify({ routed: routedEvents.has("session.compacted") }))
+          renameSync("/qa/compacted.json.tmp", "/qa/compacted.json")
+        }
         if (input.event.type === "session.deleted") {
           const sessionID = resolveSessionEventID(input.event.properties)
           if (!sessionID) throw new Error("Missing deleted session id")
           const probe = { message: {}, parts: [{ type: "text", text: "ordinary request" }] }
           await hook["chat.message"]({ sessionID, agent: "sisyphus" }, probe)
-          const receipt = { routed: routedEvents.has("session.deleted"), cleared: !probe.parts[0].text.includes("<ultrawork-mode>") }
+          const receipt = { routed: routedEvents.has("session.deleted"), cleared: !probe.parts.some(part => part.text.includes("<ultrawork-mode>")) }
           writeFileSync("/qa/deletion.json.tmp", JSON.stringify(receipt))
           renameSync("/qa/deletion.json.tmp", "/qa/deletion.json")
         }
@@ -44,12 +49,20 @@ export default {
         input: Parameters<typeof hook["chat.message"]>[0],
         output: Parameters<typeof hook["chat.message"]>[1],
       ) => {
+        const originalText = output.parts.find(isRealUserTextPart)?.text
+        const originalCount = output.parts.length
         await hook["chat.message"](input, output)
+        if (originalText === undefined) return
         const active = output.parts.some(part => part.text?.includes("<ultrawork-mode>"))
+        const compact = output.parts.some(part => part.synthetic === true && part.text === "<ultrawork-mode>active</ultrawork-mode>")
         const override = resolveUltraworkOverride({
           agents: { sisyphus: { ultrawork: { model: "qa/ulw-selected" } } },
         }, input.agent, output, input.sessionID)
-        appendFileSync("/qa/calls.jsonl", JSON.stringify({ active, override }) + "\n")
+        appendFileSync("/qa/calls.jsonl", JSON.stringify({
+          active, override, kind: compact ? "marker" : active ? "full" : "none",
+          originalTextPreserved: output.parts.find(isRealUserTextPart)?.text === originalText,
+          addedParts: output.parts.length - originalCount,
+        }) + "\n")
       },
     }
   },

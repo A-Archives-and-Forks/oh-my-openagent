@@ -6,9 +6,12 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, watch } from "node:
 
 for (const part of ["home", "config/opencode", "data", "cache", "state", "project", "tmp"]) mkdirSync(`/qa/${part}`, { recursive: true });
 let modelCalls = 0;
+let compactDelivered = false;
 const model = createServer(async (request, response) => {
-  for await (const chunk of request) void chunk;
+  let raw = "";
+  for await (const chunk of request) raw += chunk;
   const id = `r${++modelCalls}`;
+  if (modelCalls === 2) compactDelivered = JSON.stringify(JSON.parse(raw).input ?? null).includes("<ultrawork-mode>active</ultrawork-mode>");
   const item = { type: "message", id: `i${modelCalls}`, role: "assistant", content: [{ type: "output_text", text: "Done." }] };
   const events = [
     { type: "response.created", response: { id, created_at: 1, model: "gpt-fake" } },
@@ -88,13 +91,32 @@ try {
   });
   await prompt("ulw implement a tiny change");
   await prompt("and add error handling");
+  const compactBus = new EventEmitter();
+  const compactWatch = watch("/qa", (_event, name) => { if (name === "compacted.json") compactBus.emit("ready"); });
+  const compactReady = once(compactBus, "ready", { signal: AbortSignal.timeout(15000) }).then(() => true, () => false);
+  const compactEvent = once(eventBus, "session.compacted", { signal: AbortSignal.timeout(15000) }).then(() => true, () => false);
+  try {
+    await api(`/session/${session.id}/summarize`, { providerID: "openai", modelID: "gpt-fake", auto: false });
+    assert(await compactReady, "Compaction must reach the dispatcher");
+    assert(await compactEvent, "Compaction must reach SSE");
+    assert(JSON.parse(readFileSync("/qa/compacted.json", "utf8")).routed);
+  } finally {
+    compactWatch.close();
+  }
+  await prompt("continue after compaction");
+  await prompt("another follow-up");
   await api(`/session/${session.id}/command`, { command: "stop-continuation", arguments: "", agent: "sisyphus" });
   await prompt("ordinary request");
   assert(existsSync("/qa/factory.json"), "PluginModule factory must run");
   const calls = readFileSync("/qa/calls.jsonl", "utf8").trim().split("\n").map(JSON.parse);
-  assert(calls.length >= 3);
-  assert.deepEqual(calls.slice(0, 2).map(call => call.active), [true, true]);
-  assert(calls.slice(2).every(call => !call.active));
+  assert(calls.length >= 5);
+  assert.deepEqual(calls.slice(0, 4).map(call => call.kind), ["full", "marker", "full", "marker"]);
+  assert(calls.slice(4).every(call => !call.active));
+  for (const call of [calls[1], calls[3]]) {
+    assert(call.originalTextPreserved);
+    assert.equal(call.addedParts, 1);
+  }
+  assert(compactDelivered, "The model must receive the compact activation marker");
   assert.equal(calls[1].override.modelID, "ulw-selected");
   assert.equal(calls.at(-1).override, null);
   await prompt("ulw reactivate before deletion");
@@ -114,7 +136,7 @@ try {
   assert.deepEqual(deletion, { routed: true, cleared: true });
   assert(await messageEvent, "Real message event must reach SSE");
   assert(await deletionEvent, "Session deletion must reach SSE");
-  result = { status: "PASS", opencode: version, calls, reactivated, deletion, sse: [...events].sort(), modelCalls, externalModelCalls: 0,
+  result = { status: "PASS", opencode: version, calls, compactDelivered, reactivated, deletion, sse: [...events].sort(), modelCalls, externalModelCalls: 0,
     isolation: "Disposable Docker; evidence-only mount; HOME/XDG under /qa" };
 } catch (error) {
   result.error = String(error);

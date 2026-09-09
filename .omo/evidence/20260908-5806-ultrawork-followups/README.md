@@ -1,8 +1,12 @@
 # Issue 5806 verification
 
-Explicit ULW activation now persists in a per-hook, 256-session bounded set.
+Explicit ULW activation now persists in per-hook, 256-session bounded state.
 Existing detector guards still apply. Deletion, disposal and the shared
 stop-continuation owner clear activation; the model resolver remains pure.
+Ordinary follow-ups add one synthetic activation marker, preserving user text
+instead of copying the full directive. Compaction invalidates the remembered
+prompt source; the next turn restores full guidance once. Model-family changes
+also refresh the routed guidance.
 
 ## Checks
 
@@ -13,6 +17,8 @@ stop-continuation owner clear activation; the model resolver remains pure.
 - Review regression: deletion through the production event dispatcher failed
   before its keyword-detector route was added. The keyword/event suites then
   passed 162 tests across 18 files.
+- Compact-marker, durable-part identity, compaction and model-family regressions
+  were added. Final keyword/chat/event suites: 200 pass, 0 fail across 19 files.
 - Bun 1.4.0: `bun run typecheck` and `bun run build` both exited 0.
   Final build output: `build: all steps completed`.
 - Initial worktree setup denied local submodule-cache transport; scoped Git
@@ -24,7 +30,8 @@ stop-continuation owner clear activation; the model resolver remains pure.
 
 Real OpenCode 1.18.4 loaded a PluginModule wrapping the production keyword hook,
 event dispatcher, pure model resolver and common stop owner. Two HTTP turns proved
-activation and retention; the native command endpoint stopped continuation,
+activation and compact retention; a forced compaction restored full guidance,
+then the following turn used a marker again. The native command stopped continuation,
 and a subsequent message stayed ordinary. SSE proved the matching events.
 Only the model responses were scripted. A disposable ARM64 Docker container
 mounted only synthetic QA artifacts, with private HOME/XDG roots and no host
@@ -32,6 +39,9 @@ configuration or database mounts. Server and container were removed. After
 the stop check, the driver reactivated ULW before deleting the session;
 `deletion.routed` and `deletion.cleared` prove the real dispatcher delivered
 that event and removed active state.
+`compactDelivered` proves the model received the marker. Marker turns have
+`originalTextPreserved: true` and `addedParts: 1`; no prompt-length assertions
+or authored prose fragments are pinned.
 
 ## Reproduce and inspect
 
