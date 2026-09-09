@@ -411,7 +411,9 @@ async function runBuild(options: OmobOptions): Promise<number> {
 	}
 
 	const installDir = options.launcher ? join(options.cacheDir, "bin") : options.installDir
-	if (options.ifChanged && !options.skipInstall && isCurrentOmobBuild(join(installDir, options.name), buildInfo, options.target)) {
+	// The filename needs a Windows executable suffix; the command/provenance name does not.
+	const installedName = options.target.startsWith("windows-") && !/\.exe$/i.test(options.name) ? `${options.name}.exe` : options.name
+	if (options.ifChanged && !options.skipInstall && isCurrentOmobBuild(join(installDir, installedName), buildInfo, options.target)) {
 		console.error(`[omob] current: omo ${omoInfo.commit} + senpi ${senpiInfo.commit}; no build needed`)
 		if (options.launcher) installOmobLauncher(options)
 		return 0
@@ -459,7 +461,7 @@ async function runBuild(options: OmobOptions): Promise<number> {
 	const result = { binaryPath, size: statSync(binaryPath).size }
 
 	if (!options.skipInstall) {
-		const installed = installBinary(result.binaryPath, installDir, options.name)
+		const installed = installBinary(result.binaryPath, installDir, installedName)
 		if (options.launcher) console.error(`[omob] installed launcher ${installOmobLauncher(options)}`)
 		console.log(`installed ${installed} (${result.size} bytes)`)
 	}

@@ -39,7 +39,7 @@ describe("omob mainline launcher", () => {
 			try {
 				const current = builder.isCurrentOmobBuild
 				expect(typeof current).toBe("function")
-				const binary = join(root, "omob")
+				const binary = join(root, process.platform === "win32" ? "omob.exe" : "omob")
 				const info = { command: "omob", omo: { commit: "a".repeat(40), committedAt: "2026-09-09T00:00:00Z", branch: "dev" }, engine: { commit: "b".repeat(40), committedAt: "2026-09-09T00:00:00Z", branch: "main" } }
 				writeTestExecutable(binary, `console.log(${JSON.stringify(`omob dev build\nomo   ${info.omo.commit} ${info.omo.committedAt} (dev)\nsenpi ${info.engine.commit} ${info.engine.committedAt} (main)`)})`)
 				const requested = changed ? { ...info, engine: { ...info.engine, commit: "c".repeat(40) } } : info

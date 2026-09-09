@@ -27,7 +27,7 @@ if (args.includes(path.join('script', 'build-omo-binary.ts'))) {
  const version = [info.command+' dev build', 'omo   '+info.omo.commit+' '+info.omo.committedAt+' ('+info.omo.branch+')', 'senpi '+info.engine.commit+' '+info.engine.committedAt+' ('+info.engine.branch+')'].join('\\n');
  const out = args[args.indexOf('--out-dir')+1], target = args[args.indexOf('--target')+1];
  fs.mkdirSync(out,{recursive:true});
- const binary = path.join(out,'omo-'+target+(process.platform==='win32'?'.exe':''));
+ const binary = path.join(out,'omo-'+target+(target.startsWith('windows-')?'.exe':''));
  const entry = path.join(out,'fixture.cjs');
  fs.writeFileSync(entry, 'if(process.argv[2]==="--version") console.log('+JSON.stringify(version)+'); else {console.log(JSON.stringify(process.argv.slice(2))); process.exit(17)}\\n');
  const result = cp.spawnSync(process.env.OMOB_TEST_BUN, ['build','--compile',entry,'--outfile',binary], {stdio:'inherit'});
@@ -76,8 +76,8 @@ function fixture() {
 	const options = parseOmobArgs(["--cache-dir", cache, "--install-dir", join(root, "install")], process.platform, process.arch, root)
 	const args = [builder, "--if-changed", "--binary-only", "--cache-dir", cache, "--install-dir", join(cache, "bin")]
 	const run = (extraEnv = {}) => spawnSync(process.execPath, args, { env: { ...env, ...extraEnv }, encoding: "utf8", timeout: 30_000 })
-	const ordinary = () => spawnSync(process.execPath, [builder, "--cache-dir", cache, "--install-dir", options.installDir], { env, encoding: "utf8", timeout: 30_000 })
-	return { root, omo, senpi, cache, builds, env, options, git, run, ordinary, binary: join(cache, "bin", "omob") }
+	const ordinary = (extraArgs: string[] = []) => spawnSync(process.execPath, [builder, "--cache-dir", cache, "--install-dir", options.installDir, ...extraArgs], { env, encoding: "utf8", timeout: 30_000 })
+	return { root, omo, senpi, cache, builds, env, options, git, run, ordinary, binary: join(cache, "bin", process.platform === "win32" ? "omob.exe" : "omob") }
 }
 
 describe("omob refresh integration", () => {
@@ -88,9 +88,10 @@ describe("omob refresh integration", () => {
 			expect({ status: first.status, error: first.stderr }).toMatchObject({ status: 0 })
 			const repeated = f.ordinary()
 			expect({ status: repeated.status, error: repeated.stderr }).toMatchObject({ status: 0 })
-			const installed = join(f.options.installDir, "omob")
+			const installed = join(f.options.installDir, process.platform === "win32" ? "omob.exe" : "omob")
 			if (process.platform === "win32") {
 				expect(f.options.launcher).toBe(false)
+				expect(existsSync(join(f.options.installDir, "omob"))).toBe(false)
 				const version = spawnSync(installed, ["--version"], { encoding: "utf8" })
 				expect(version.error).toBeUndefined()
 				expect(version.status).toBe(0)
@@ -102,6 +103,27 @@ describe("omob refresh integration", () => {
 		} finally { rmSync(f.root, { recursive: true, force: true }) }
 	}, 60_000)
 
+	for (const name of ["omob", "omob-custom", "omob-custom.exe", "omob-custom.EXE"]) {
+		test(`#given Windows target and command ${name} #when installed #then the executable suffix is retained without changing provenance`, () => {
+			const f = fixture()
+			try {
+				const result = f.ordinary(["--binary-only", "--target", "windows-x64", "--name", name])
+				expect({ status: result.status, error: result.stderr }).toMatchObject({ status: 0 })
+				const filename = name === "omob" ? "omob.exe" : name === "omob-custom" ? "omob-custom.exe" : name
+				const installed = join(f.options.installDir, filename)
+				expect(existsSync(installed)).toBe(true)
+				expect(existsSync(join(f.options.installDir, filename.slice(0, -4)))).toBe(false)
+				expect(existsSync(`${installed}.exe`)).toBe(false)
+				// The compiler boundary emits a host-native fixture, so this also exercises
+				// Windows-target installation naming on POSIX without claiming PE execution.
+				const version = spawnSync(installed, ["--version"], { encoding: "utf8" })
+				expect(version.error).toBeUndefined()
+				expect(version.status).toBe(0)
+				expect(version.stdout.split("\n")[0]).toBe(`${name} dev build`)
+			} finally { rmSync(f.root, { recursive: true, force: true }) }
+		}, 60_000)
+	}
+
 	for (const scenario of ["same", "changed", "failure", "network", "feature", "locked"] as const) {
 		test(`#given an installed build #when ${scenario} refresh runs #then only the authoritative pair can launch`, () => {
 			const f = fixture()
@@ -109,6 +131,7 @@ describe("omob refresh integration", () => {
 				const first = f.run()
 				expect({ status: first.status, error: first.stderr }).toMatchObject({ status: 0 })
 				const previous = readFileSync(f.binary)
+				if (process.platform === "win32") expect(existsSync(join(f.cache, "bin", "omob"))).toBe(false)
 				if (scenario === "changed" || scenario === "failure") {
 					writeFileSync(join(f.senpi, "new-commit"), "new")
 					f.git(f.senpi, ["add", "."])
