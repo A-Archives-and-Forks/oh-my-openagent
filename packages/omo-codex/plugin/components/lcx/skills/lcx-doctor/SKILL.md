@@ -66,6 +66,7 @@ sync_latest_source openai/codex "$LAZYCODEX_SOURCE_ROOT/openai-codex-source"
    - Installed LazyCodex version: the `version` in the installed plugin manifest, discoverable with `find "${CODEX_HOME:-$HOME/.codex}/plugins" -path '*/.codex-plugin/plugin.json'`. Installed plugins live under `$CODEX_HOME/plugins/cache/<marketplace>/<name>/<version>/`.
    - Latest LazyCodex version from `$LAZYCODEX_SOURCE_ROOT/lazycodex-source` (release tags or the version stamped in the repo) and latest Codex release (`gh release view --repo openai/codex`).
    - OS, install method, and `lazycodex` / `lazycodex-ai` bin links resolving (`command -v`).
+   - Astra readiness. LazyCodex defaults to `model = "gpt-6-astra"`, which Codex only knows from codex-cli 0.153.1 onward (the first release tag whose bundled `codex-rs/models-manager/models.json` lists `gpt-6-astra`; confirmed with `git -C "$LAZYCODEX_SOURCE_ROOT/openai-codex-source" log --format='%h %d' -S gpt-6-astra -- codex-rs/models-manager/models.json` plus `git tag --contains <commit> | sort -V | head -1` on a full clone, which points at backport `5cc1c94b8e` in `rust-v0.153.1`). Record the installed version from `codex --version`, the root `model` in `$CODEX_HOME/config.toml`, and, when `$CODEX_HOME/models_cache.json` exists, whether it contains `gpt-6-astra` (`grep -c gpt-6-astra "${CODEX_HOME:-$HOME/.codex}/models_cache.json"`). Verdict: PASS when the installed version is at least 0.153.1 and the cache (if present) lists `gpt-6-astra`; WARN when the configured default is `gpt-6-astra` but the version is older than 0.153.1 or the cache lacks the slug, and list the Codex upgrade as the remediation (`npm install -g @openai/codex@latest`, or the package manager that installed `codex`, then start Codex once so it refreshes `models_cache.json`). When the configured default is not `gpt-6-astra`, report the version fact as informational and keep the row PASS.
 3. Check config and wiring against the latest installer, not against assumptions. Read what the current installer under `$LAZYCODEX_SOURCE_ROOT/lazycodex-source` writes (installer sources live in the omo-codex package, e.g. `scripts/install/`), then verify the local equivalents:
    - `$CODEX_HOME/config.toml` exists and parses; LazyCodex-managed entries match what the latest installer would write.
    - Plugin payload present and non-empty: read `.codex-plugin/plugin.json`; when that manifest declares a `hooks` array, validate every direct hook path declared by the manifest; require `hooks/hooks.json` only when the manifest declares it; do not require retired paths such as `components/workflow-selector` or `hooks/user-prompt-submit-selecting-lazycodex-workflow.json` unless the current manifest declares them.
@@ -96,6 +97,7 @@ sync_latest_source openai/codex "$LAZYCODEX_SOURCE_ROOT/openai-codex-source"
 | Check | Verdict | Evidence |
 | --- | --- | --- |
 | Versions current | PASS/WARN/FAIL | [command output or file:line] |
+| Astra readiness | PASS/WARN | [`codex --version` vs the 0.153.1 floor; `gpt-6-astra` present/absent in `$CODEX_HOME/models_cache.json`; configured root `model`] |
 | config.toml integrity | PASS/WARN/FAIL | [evidence] |
 | Plugin payload wiring | PASS/WARN/FAIL | [evidence] |
 | Bin links / aliases | PASS/WARN/FAIL | [evidence] |
@@ -103,7 +105,7 @@ sync_latest_source openai/codex "$LAZYCODEX_SOURCE_ROOT/openai-codex-source"
 | Drift vs latest source | PASS/WARN/FAIL | [evidence, citing `$LAZYCODEX_SOURCE_ROOT/lazycodex-source` or `$LAZYCODEX_SOURCE_ROOT/openai-codex-source` paths] |
 
 ### Remediations
-1. [Most important fix first: exact command or config edit, and what it resolves.]
+1. [Most important fix first: exact command or config edit, and what it resolves. When Astra readiness is WARN: upgrade Codex to 0.153.1 or newer and relaunch it once so `models_cache.json` picks up `gpt-6-astra`.]
 
 ### Known Issues Matched
 - [issue URL — or "none found"]
