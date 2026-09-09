@@ -6,8 +6,10 @@ unchanged. Ordinary follow-ups add one durable synthetic activation marker
 rather than copying the directive. On `session.compacted`, retained active
 state records both the original source and `needsRestoration`. The production
 `experimental.chat.system.transform` handler, wired by `plugin-interface.ts`,
-adds that source's full guidance for every runtime call while restoration is
-pending. A real `chat.message` that appends full guidance clears the flag, then
+selects guidance for the actual runtime model while restoration is pending,
+and applies the current session's planner/non-OMO/subagent guards. Message
+routing prefers the fallback-selected output model. A real `chat.message`
+that appends full guidance clears the flag, then
 normal compact markers resume. When restoration is pending and an image-only
 turn has no real text part, a durable synthetic full-guidance part is written
 instead; ordinary image follow-ups retain one compact marker. No path calls
@@ -17,8 +19,16 @@ removed.
 ## Checks
 
 Named early test logs below are committed captures with machine-local paths
-redacted. [verification.txt](verification.txt) also records the final Bun 1.4.0
-recheck; the real harness capture is [result.json](result.json).
+redacted. [verification.txt](verification.txt) records the earlier Bun 1.4.0
+recheck. The latest routing regression captures are [routing-red.txt](routing-red.txt)
+and [routing-green.txt](routing-green.txt); the real harness capture is
+[result.json](result.json).
+
+- Current-agent guards and actual/fallback model routing failed first:
+  20 pass / 4 fail, then 24 pass / 0 fail.
+- Latest Bun 1.4.0 / Node 24.18.0 validation: 204 related tests passed;
+  full typecheck, full build and real OpenCode replay passed. Host DB stayed
+  at 8083 sessions. Exact output is in `routing-green.txt`.
 
 - The original compaction-context tests (21 pass / 4 fail -> 25 / 0) did
   not prove guidance reached the automatic model call and were superseded.
@@ -35,13 +45,13 @@ recheck; the real harness capture is [result.json](result.json).
 - Bun 1.3.14: local `bun run typecheck` exited 0
   (`typecheck-final-system-autoresume.txt`), and local `bun run build` exited 0 with
   `build: all steps completed` (`build-final-system-autoresume.txt`).
-- Final source recheck with Bun 1.4.0 and Node 24.18.0: the same 201 tests,
+- Earlier source recheck with Bun 1.4.0 and Node 24.18.0: the same 201 tests,
   full typecheck, full build, and real OpenCode replay all passed.
   Host DB session counts remained 8083 before and after.
-- Remote CI is not claimed green: comparison against dev run 34307575373
+- Earlier remote CI failures matched dev run 34307575373, which
   reports the same `script/build-omob.test.ts` TS2305 missing
   `planRuntimePrune` / `selectPruneEntries` exports and the same Senpi stale
-  output. Those unrelated files are untouched.
+  output. Those unrelated files are untouched. See the PR checks for current CI.
 - The language-server tool cannot inspect this sibling worktree; the complete
   compiler run above validates every changed TypeScript source file.
 

@@ -123,7 +123,11 @@ export function createKeywordDetectorHook(
       }
 
       const cleanText = removeSystemReminders(promptText)
-      const modelID = input.model?.modelID
+      const selectedModel = output.message.model
+      const modelID = selectedModel !== null && typeof selectedModel === "object"
+        && "modelID" in selectedModel && typeof selectedModel.modelID === "string"
+        ? selectedModel.modelID
+        : input.model?.modelID
       const promptSource = getUltraworkSource(currentAgent, modelID)
       let detectedKeywords = detectKeywordsWithType(cleanText, currentAgent, modelID, disabledKeywords, enabledExpansions)
       const explicitUltrawork = detectedKeywords.some((k) => k.type === "ultrawork" || k.type === "hyperplan-ultrawork")
@@ -319,11 +323,14 @@ export function createKeywordDetectorHook(
     clearSession: (sessionID: string): void => {
       explicitUltraworkSessions.delete(sessionID)
     },
-    getSystemTransformGuidance: (sessionID: string): string | undefined => {
+    getSystemTransformGuidance: (sessionID: string, modelID?: string): string | undefined => {
       const activeUltrawork = explicitUltraworkSessions.get(sessionID)
-      return activeUltrawork?.needsRestoration
-        ? getUltraworkMessageForSource(activeUltrawork.source)
-        : undefined
+      const agent = getSessionAgent(sessionID)
+      if (!activeUltrawork?.needsRestoration || isPlannerAgent(agent)
+        || isNonOmoAgent(agent) || subagentSessions.has(sessionID)) return undefined
+      return getUltraworkMessageForSource(
+        modelID === undefined ? activeUltrawork.source : getUltraworkSource(agent, modelID),
+      )
     },
     event: ({ event }: { event: { type: string; properties?: unknown } }): void => {
       if (event.type !== "session.deleted" && event.type !== "session.compacted") return

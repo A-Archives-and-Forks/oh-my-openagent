@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { unsafeTestValue } from "../../../../../test-support/unsafe-test-value"
-import { _resetForTesting, setMainSession, subagentSessions } from "../../features/claude-code-session-state"
+import { _resetForTesting, setMainSession, subagentSessions, updateSessionAgent } from "../../features/claude-code-session-state"
 import { resolveUltraworkOverride } from "../../plugin/ultrawork-model-override"
 import { stopContinuation } from "../../plugin/stop-continuation"
 import { createEventHookDispatcher, createEventHookRunner } from "../../plugin/event-hook-dispatcher"
@@ -44,6 +44,29 @@ afterEach(() => {
 })
 
 describe("explicit ULW session follow-ups", () => {
+  test.each(["prometheus", "builder"])("#given pending restoration #when switching to %s #then its agent guard still applies", async (agent) => {
+    await send("ulw initial")
+    hook.event({ event: { type: "session.compacted", properties: { sessionID: "main-session" } } })
+    updateSessionAgent("main-session", agent)
+    await send("continue", "main-session", agent)
+    expect(hook.getSystemTransformGuidance("main-session") === undefined).toBe(true)
+    updateSessionAgent("main-session", "sisyphus")
+    expect(hook.getSystemTransformGuidance("main-session") === getUltraworkMessage("sisyphus")).toBe(true)
+  })
+
+  test("#given active GPT mode #when fallback selects Gemini #then its output model refreshes guidance", async () => {
+    const input = { sessionID: "main-session", agent: "sisyphus", model: { providerID: "test", modelID: "gpt-5" } }
+    await hook["chat.message"](input, userOutput("ulw initial"))
+    const original = userOutput("continue")
+    const output = { ...original, message: { ...original.message, model: { providerID: "test", modelID: "gemini-3-pro" } } }
+    await hook["chat.message"](input, output)
+    const expected = getUltraworkMessage("sisyphus", "gemini-3-pro")
+    expect({
+      fullGuidance: output.parts.length === 1,
+      selectedSource: output.parts[0].text.slice(-expected.length) === expected,
+    }).toEqual({ fullGuidance: true, selectedSource: true })
+  })
+
   test("#given active mode #when a plain follow-up is processed twice #then only one compact marker is added", async () => {
     await send("ulw initial")
     const output = userOutput("follow-up")

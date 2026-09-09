@@ -4,7 +4,7 @@ import { reconcileSisyphusRuntimePrompt } from "../agents/sisyphus-runtime-promp
 const ULTRAWORK_MODE_TAG = "<ultrawork-mode>"
 
 type UltraworkRestoration = {
-  getSystemTransformGuidance?: (sessionID: string) => string | undefined
+  getSystemTransformGuidance?: (sessionID: string, modelID?: string) => string | undefined
 }
 
 /**
@@ -37,7 +37,7 @@ export function createSystemTransformHandler(
     reconcileSisyphusRuntimePrompt(output.system, toCanonicalModel(input.model))
 
     const restoredGuidance = input.sessionID
-      ? ultraworkRestoration?.getSystemTransformGuidance?.(input.sessionID)
+      ? ultraworkRestoration?.getSystemTransformGuidance?.(input.sessionID, input.model?.id)
       : undefined
     if (restoredGuidance) {
       if (!output.system.some((part) => part.includes(ULTRAWORK_MODE_TAG))) {
