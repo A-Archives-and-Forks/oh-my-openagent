@@ -257,7 +257,7 @@ describe("SenpiSubprocessRunner integration", () => {
     await assertWorktreesClean(item)
   }, 60_000)
 
-  test("#given no candidate is visible #when a fresh probe and then its cached negative are used #then only the fresh verdict fails closed", async () => {
+  test("#given no candidate is visible #when a fresh probe and then its cached negative are used #then both runs proceed reactively", async () => {
     // given
     const item = await harness({
       childMode: "commit",
@@ -269,10 +269,9 @@ describe("SenpiSubprocessRunner integration", () => {
     const cached = await item.runner.launch(await item.reserveAgain())
 
     // then
-    expect(fresh).toMatchObject({ outcome: "failed", reason: "spawn_failed" })
-    expect(fresh.detail).toContain("No reflection model candidate is visible")
+    expect(fresh.outcome).toBe("merged")
     expect(cached.outcome).toBe("merged")
-    expect(item.spawnCalls).toHaveLength(1)
+    expect(item.spawnCalls).toHaveLength(2)
     expect(await readFile(item.preflightProbeLog, "utf8")).toBe("probe\n")
   }, 60_000)
 
