@@ -139,3 +139,26 @@ Operational notes and cleanup
 - Final main job removed `$D` and recorded `D_AFTER_CLEANUP=ls: cannot access '/tmp/lcx-d-gate2-20260909': No such file or directory`.
 - Final dev comparison removed `/tmp/lcx-d-gate2-20260909-dev` and recorded `DEV_AFTER_CLEANUP=ls: cannot access '/tmp/lcx-d-gate2-20260909-dev': No such file or directory`.
 - Final cleanup removed the receipt, completion sentinel, job script, and launcher log; all were confirmed absent. No repository files were edited by this rerun.
+
+----- gate after dev merge (beta.50 + #7999) -----
+Date: 2026-09-09
+Requested merge HEAD before evidence amend: a76149432d1a78017629669048dc88d74a9c0b1b
+Selected machine: gorky (mengmotaMac was online but load exceeded 18; gorky was online fallback; no vultr-tokyo or sionicMac contact)
+Remote setup: job and patch written through Bunshin SDK; `nohup bash` launched; branch clone exit 0; patch apply exit 0; `bun install --frozen-lockfile` exit 0 (gorky Bun 1.3.14).
+Remote cleanup: `/tmp/lcx-d-gate3-20260909` and the dev comparison clone were removed; launcher, job, patch, receipt, and sentinel were removed.
+
+Gate exits:
+- [a] `bun run test:codex`: TEST_EXIT_a=1.
+- [b] `bun test script/codex-install-bundle-freshness.test.ts`: TEST_EXIT_b=0.
+- [c] `bun test packages/omo-codex/src/install/codex-multi-agent-v2-config.test.ts`: TEST_EXIT_c=0.
+- [d] `cd packages/omo-codex/plugin/components/ulw-loop && bunx vitest run test/spawn-guard.test.ts`: TEST_EXIT_d=0.
+- [e] `cd packages/omo-codex/plugin && bun run build && node --test test/*.test.mjs`: TEST_EXIT_e=0.
+
+[a] exact failures (same-machine dev classification):
+- `install-bin-links.test.mjs:108`: `0 !== 127` for `#given bun absent everywhere #when running the omo runtime wrapper #then fails with an actionable install hint`.
+- `install-bin-links.test.mjs:136`: expected `/OMO_NODE_OK --version/`, actual empty output, for `#given bun absent everywhere and a node CLI bundle #when running the omo runtime wrapper #then falls back to node`.
+- `install-bin-links.test.mjs:148`: `0 !== 127` for `#given bun absent and no node CLI bundle #when running the omo runtime wrapper #then the error names both runtimes`.
+- Same-machine fresh dev clone exact command: `node --test packages/omo-codex/scripts/install-bin-links.test.mjs`; DEV_INSTALL_BIN_LINKS_EXIT=1; `18 pass`, `3 fail`; it reproduced all three failures verbatim, so [a] is PRE-EXISTING/ENV on gorky (known bun-absent wrapper behavior), not a branch failure.
+- The baseline full `bun run test:codex` also had one unrelated expected V2-config assertion mismatch because dev lacks this branch's V2-enabled behavior; it does not alter the [a] environment classification.
+
+Results: [b], [c], [d], and [e] passed; [a] contained only the reproduced known environment failures. No non-environment gate failure.
