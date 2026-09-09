@@ -30,7 +30,7 @@ describe("idle-injection wiring: real producers on one idle edge", () => {
     }).register(pi, { logger, config: { getFlag: () => false }, idleCoordinator: coordinator })
 
     // when the ulw continuation fires at turn end (enqueues, defers its flush)
-    await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo"))
+    await pi.dispatch("agent_end", { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))
     expect(delivered).toEqual([])
 
     // and a background completion wakes the idle parent on the same edge (synchronous, throw-safe path)

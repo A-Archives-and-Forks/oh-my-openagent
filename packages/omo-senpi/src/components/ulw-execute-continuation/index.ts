@@ -1,6 +1,7 @@
 import { join } from "node:path"
 
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
+import { canContinueAfterAgentEnd } from "./agent-end-eligibility"
 import { findContinuableBoulderWork } from "./boulder-eligibility"
 
 export interface UlwExecuteContinuationComponentOptions {
@@ -61,7 +62,8 @@ export function createUlwExecuteContinuationComponent(
         }
       })
 
-      pi.on("agent_end", async (_payload, eventCtx) => {
+      pi.on("agent_end", async (payload, eventCtx) => {
+        if (!canContinueAfterAgentEnd(payload)) return
         if (state.consecutiveContinuations >= CONTINUATION_LIMIT) {
           ctx.logger.info("omo-senpi ulw-execute-continuation skipped", {
             reason: "continuation-cap-reached",

@@ -166,7 +166,7 @@ async function runExtensionChild(sessionId) {
 
   await pi.dispatch(
     "agent_end",
-    { type: "agent_end" },
+    { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] },
     {
       cwd: process.cwd(),
       // A host with no session identity exposes no session id at all, exactly like the real extension host.

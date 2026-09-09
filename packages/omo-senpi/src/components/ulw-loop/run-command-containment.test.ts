@@ -40,7 +40,7 @@ describe("omo-senpi ulw-loop run-command failure containment", () => {
       runCommand: async () => ({ code: 127, stdout: "" }),
     }).register(pi, { logger, config: { getFlag: () => false } })
 
-    const results = await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo"))
+    const results = await pi.dispatch("agent_end", { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))
 
     expect(results).toEqual([undefined])
     expect(pi.userMessages).toEqual([])

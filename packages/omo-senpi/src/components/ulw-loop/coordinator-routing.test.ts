@@ -23,7 +23,7 @@ describe("omo-senpi ulw-loop continuation routing through the idle coordinator",
     }).register(pi, { logger, config: { getFlag: () => false }, idleCoordinator })
 
     // when
-    await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo"))
+    await pi.dispatch("agent_end", { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))
 
     // then the continuation was delivered through the coordinator exactly once, and NOT via sendUserMessage
     expect(delivered).toHaveLength(1)
@@ -46,7 +46,7 @@ describe("omo-senpi ulw-loop continuation routing through the idle coordinator",
     }).register(pi, { logger, config: { getFlag: () => false }, idleCoordinator })
 
     // when
-    await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo"))
+    await pi.dispatch("agent_end", { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))
 
     // then exactly one injection carries both, completion first
     expect(delivered).toHaveLength(1)
@@ -91,7 +91,7 @@ describe("omo-senpi ulw-loop continuation routing through the idle coordinator",
       // when
       await pi.dispatch(
         "agent_end",
-        { type: "agent_end" },
+        { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] },
         { cwd: root, sessionManager: { getSessionId: () => "qa-s1" } },
       )
 

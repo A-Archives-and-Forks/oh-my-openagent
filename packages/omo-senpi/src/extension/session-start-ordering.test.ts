@@ -91,7 +91,7 @@ describe("session_start component ordering", () => {
     expect(select).not.toHaveBeenCalled()
 
     // when
-    await pi.dispatch("agent_end", { type: "agent_end" }, eventCtx)
+    await pi.dispatch("agent_end", { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, eventCtx)
 
     // then
     expect(enqueue).toHaveBeenCalled()

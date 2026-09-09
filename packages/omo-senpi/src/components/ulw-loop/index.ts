@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs"
 
+import { canContinueAfterAgentEnd } from "../ulw-execute-continuation/agent-end-eligibility"
 import { findContinuableBoulderWork } from "../ulw-execute-continuation/boulder-eligibility"
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
 import { createUlwLoopFooterStatus, type UlwLoopFooterStatusOptions } from "./footer-status"
@@ -85,7 +86,8 @@ export function createUlwLoopComponent(options: UlwLoopComponentOptions = {}): O
         }
       })
 
-      pi.on("agent_end", async (_payload, eventCtx) => {
+      pi.on("agent_end", async (payload, eventCtx) => {
+        if (!canContinueAfterAgentEnd(payload)) return
         if (state.consecutiveContinuations >= CONTINUATION_LIMIT) {
           ctx.logger.info("omo-senpi ulw-loop continuation skipped", {
             reason: "continuation-cap-reached",

@@ -150,7 +150,7 @@ describe("omo-senpi ulw-loop footer status", () => {
       expect(scenario.ui.calls.some((call) => call.key === "ulw-loop" && call.text !== undefined)).toBe(true)
 
       writeGoal(scenario.goalPath, "complete")
-      await scenario.pi.dispatch("agent_end", { type: "agent_end" }, scenario.context)
+      await scenario.pi.dispatch("agent_end", { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, scenario.context)
 
       expect(scenario.ui.calls.at(-1)).toEqual({ key: "ulw-loop", text: undefined })
       expect(scenario.timers.activeCount()).toBe(0)
@@ -198,10 +198,10 @@ describe("omo-senpi ulw-loop footer status", () => {
     expect(ui.calls).toHaveLength(0)
 
     goalActive = true
-    await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo", { ui }))
+    await pi.dispatch("agent_end", { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo", { ui }))
     expect(timers.activeCount()).toBe(1)
 
-    await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo", { ui }))
+    await pi.dispatch("agent_end", { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo", { ui }))
     expect(ui.calls.at(-1)).toEqual({ key: "ulw-loop", text: undefined })
     expect(timers.activeCount()).toBe(0)
 
@@ -219,7 +219,7 @@ describe("omo-senpi ulw-loop footer status", () => {
       timers,
     })
 
-    await pi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo", { ui }))
+    await pi.dispatch("agent_end", { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo", { ui }))
     expect(pi.messages).toHaveLength(1)
     expect(pi.messages[0]?.message["customType"]).toBe("omo-senpi:ulw-continuation")
     expect(ui.calls.some((call) => call.key === "ulw-loop" && visibleFrame(call.text) === "⚡ ultraworking")).toBe(true)
@@ -230,7 +230,7 @@ describe("omo-senpi ulw-loop footer status", () => {
       outputs: [activeStatus()],
       timers: headlessTimers,
     })
-    await expect(headlessPi.dispatch("agent_end", { type: "agent_end" }, sessionEventCtx("/repo"))).resolves.toHaveLength(1)
+    await expect(headlessPi.dispatch("agent_end", { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, sessionEventCtx("/repo"))).resolves.toHaveLength(1)
     expect(headlessPi.messages).toHaveLength(1)
     expect(headlessTimers.activeCount()).toBe(0)
   })
