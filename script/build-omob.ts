@@ -12,6 +12,7 @@ import { dirname, join, resolve } from "node:path"
 import { versionLines, type OmoBuildInfo } from "../packages/omo-native/build-info"
 import { RELEASE_BINARY_TARGETS } from "./build-omo-binary"
 import { installOmobLauncher, isCurrentOmobBuild } from "./omob-launcher"
+import { pruneOmobRuntimes } from "./omob-runtime-prune"
 export { installOmobLauncher, isCurrentOmobBuild } from "./omob-launcher"
 
 export interface OmobOptions {
@@ -99,34 +100,6 @@ export function parseOmobArgs(argv: readonly string[], platform: string, arch: s
 
 export function deriveOmobAiVersion(omoCommit: string, senpiCommit: string): string {
 	return `0.0.0-omob.${omoCommit.slice(0, 7)}.${senpiCommit.slice(0, 7)}`
-}
-
-export interface PruneEntry {
-	readonly name: string
-	readonly mtimeMs: number
-}
-
-const OMOB_RUNTIME_PREFIX = "0.0.0-omob."
-
-export function isOmobRuntimeDir(name: string): boolean {
-	return name.startsWith(OMOB_RUNTIME_PREFIX)
-}
-
-/**
- * Prune plan for a build about to provision `currentVersion`: that version owns one
- * of the `keep` slots (whether or not its dir exists yet), so only `keep - 1` OTHER
- * dev runtimes survive. Release runtimes are never touched.
- */
-export function planRuntimePrune(entries: readonly PruneEntry[], keep: number, currentVersion: string): string[] {
-	const others = entries.filter((entry) => entry.name !== currentVersion)
-	return selectPruneEntries(others, Math.max(0, keep - 1))
-}
-
-/** Names of dev runtime dirs to delete: omob dirs beyond the newest `keep`. Release runtimes are never touched. */
-export function selectPruneEntries(entries: readonly PruneEntry[], keep: number): string[] {
-	const omob = entries.filter((entry) => isOmobRuntimeDir(entry.name))
-	const sorted = omob.slice().sort((left, right) => right.mtimeMs - left.mtimeMs)
-	return sorted.slice(Math.max(0, keep)).reverse().map((entry) => entry.name)
 }
 
 function run(command: string, args: readonly string[], cwd: string, env: NodeJS.ProcessEnv = process.env): void {
@@ -358,19 +331,6 @@ function swapSenpi(omoDir: string, builtSenpiRoot: string): void {
 	run("bun", [join("packages", "omo-native", "bin", "senpi-patch.mjs")], omoDir, { ...process.env, OMO_SENPI_PATCH_ROOT: target })
 }
 
-function pruneOmobRuntimes(keep: number, currentVersion: string): void {
-	const runtimeRoot = join(homedir(), ".omo", "binary-runtime")
-	if (!existsSync(runtimeRoot)) return
-	const entries: PruneEntry[] = readdirSync(runtimeRoot).map((name) => {
-		const stats = statSync(join(runtimeRoot, name))
-		return { name, mtimeMs: stats.mtimeMs }
-	})
-	for (const name of planRuntimePrune(entries, keep, currentVersion)) {
-		rmSync(join(runtimeRoot, name), { recursive: true, force: true })
-		console.log(`pruned dev runtime ${name}`)
-	}
-}
-
 function installBinary(binaryPath: string, installDir: string, name: string): string {
 	mkdirSync(installDir, { recursive: true })
 	const destination = join(installDir, name)
@@ -467,7 +427,7 @@ async function runBuild(options: OmobOptions): Promise<number> {
 	}
 	// Pruning is only safe once the new binary is in place: a --skip-install run would
 	// otherwise delete the runtime a still-installed (possibly running) omob depends on.
-	if (!options.skipInstall) pruneOmobRuntimes(options.keep, omoAiVersion)
+	if (!options.skipInstall) pruneOmobRuntimes({ runtimeRoot: join(homedir(), ".omo", "binary-runtime"), keep: options.keep, currentVersion: omoAiVersion })
 	// versionLines is the single formatter for provenance output; --version, doctor, the
 	// startup banner and this summary must never drift apart.
 	console.log(versionLines(buildInfo).join("\n"))
