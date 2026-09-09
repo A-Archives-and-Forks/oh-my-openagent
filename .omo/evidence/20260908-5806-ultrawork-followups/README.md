@@ -16,9 +16,9 @@ removed.
 
 ## Checks
 
-Named early test logs below are local-only diagnostics. The committed
-[verification.txt](verification.txt) records their failure counts and the
-final Bun 1.4.0 recheck; the real harness capture is [result.json](result.json).
+Named early test logs below are committed captures with machine-local paths
+redacted. [verification.txt](verification.txt) also records the final Bun 1.4.0
+recheck; the real harness capture is [result.json](result.json).
 
 - The original compaction-context tests (21 pass / 4 fail -> 25 / 0) did
   not prove guidance reached the automatic model call and were superseded.
