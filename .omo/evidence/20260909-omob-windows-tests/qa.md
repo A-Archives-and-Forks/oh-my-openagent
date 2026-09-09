@@ -15,8 +15,17 @@ Production builder, launcher and prune behavior are unchanged. Existing docs alr
 - `git diff --check`: exit 0.
 - Bunshin round trip to mengmotaMac: Darwin arm64, Bun 1.4.0; the task's remote directory did not exist before use.
 
-## Remaining gates at initial push
-The user's required order is push, remote checkout/regression, then PR full-matrix CI. Remote test counts and run URL will be recorded after those gates execute. No local `bun test` was run. Windows cannot be proven by the local host; no simulated-platform result is presented as Windows execution.
+## Remote POSIX regression
+Machine: mengmotaMac via bunshin, Darwin arm64, Bun 1.4.0. Fresh branch clone at b92d0f09f55067226d0de28577fca941c47227ac; dependencies installed with `bun install --frozen-lockfile --ignore-scripts`.
+
+Command: `bun test script/build-omob.test.ts script/omob-launcher.test.ts script/omob-refresh.test.ts script/omob-runtime-prune.test.ts`
+
+Observed in one execution: **42 pass, 0 fail, 125 expect() calls, 4 files, 103.03 seconds**, exit 0. This includes real git submodule transitions, ordinary repeated installation, same/changed SHA refresh, compile/network/lock failure handling, feature-checkout preservation, argv/exit/signal propagation and live-process enumeration. Exact captured test output is in `posix-test.log`.
+
+Remote cleanup used `rm -rf /tmp/omob-win-fix-20260909` followed by `test ! -e /tmp/omob-win-fix-20260909`; exit 0, receipt: `REMOVED /tmp/omob-win-fix-20260909 on mengmotaMac`.
+
+## CI gate
+PR https://github.com/code-yeongyu/oh-my-openagent/pull/7996 targets dev and carries `ci:full-matrix`. Full-matrix CI is pending at this evidence commit; final run URL and per-job conclusions will be recorded in the PR's Verification section after completion. No local `bun test` was run. Windows cannot be proven by the local host; no simulated-platform result is presented as Windows execution.
 
 ## Coverage and omissions
 This is test portability, not a shipped runtime change. The remote integration invokes the real parser, git/cache state, builder CLI and installed POSIX launcher; its existing compiler/package boundary fixture avoids building the full engine. Full repository build, adapter compatibility, typechecks and actual Windows execution are CI gates. No live model/harness session is needed for an unchanged adapter. No credentials, environment dumps, or secret-bearing logs are included.
