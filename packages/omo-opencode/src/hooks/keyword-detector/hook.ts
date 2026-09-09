@@ -7,6 +7,7 @@ import {
   subagentSessions,
 } from "../../features/claude-code-session-state"
 import type { ContextCollector } from "../../features/context-injector"
+import { generatePartId } from "../../features/hook-message-injector"
 import {
   isRealUserTextPart,
   isSyntheticOrInternalOnlyTextParts,
@@ -20,9 +21,11 @@ import {
 import { isNonOmoAgent, isPlannerAgent } from "./constants"
 import type { DetectedKeyword } from "./detector"
 import { detectKeywordsWithType, extractPromptText, looksLikeSlashCommand } from "./detector"
+import { getUltraworkSource, type UltraworkSource } from "./ultrawork/source-detector"
 
 const defaultModeUltraworkInjectedSessions = new Set<string>()
 const DEFAULT_MODE_ULTRAWORK_SESSION_CAP = 256
+const ULTRAWORK_CONTINUATION_MARKER = "<ultrawork-mode>active</ultrawork-mode>"
 
 function rememberDefaultModeUltraworkInjectedSession(sessionID: string): void {
   if (defaultModeUltraworkInjectedSessions.has(sessionID)) return
@@ -63,7 +66,7 @@ export function createKeywordDetectorHook(
 ) {
   const disabledKeywords = config?.disabled_keywords
   const enabledExpansions = config?.enabled_expansions
-  const explicitUltraworkSessions = new Set<string>()
+  const explicitUltraworkSessions = new Map<string, UltraworkSource | undefined>()
   function getRuntimeVariant(input: { variant?: string }, message: Record<string, unknown>): string | undefined {
     if (typeof message.variant === "string") {
       return message.variant
@@ -91,7 +94,7 @@ export function createKeywordDetectorHook(
         return
       }
 
-      const promptText = extractPromptText(output.parts)
+      const promptText = extractPromptText(output.parts.filter(isRealUserTextPart))
 
       if (isSystemDirective(promptText)) {
         log(`[keyword-detector] Skipping system directive message`, { sessionID: input.sessionID })
@@ -115,9 +118,12 @@ export function createKeywordDetectorHook(
 
       const cleanText = removeSystemReminders(promptText)
       const modelID = input.model?.modelID
+      const promptSource = getUltraworkSource(currentAgent, modelID)
       let detectedKeywords = detectKeywordsWithType(cleanText, currentAgent, modelID, disabledKeywords, enabledExpansions)
       const explicitUltrawork = detectedKeywords.some((k) => k.type === "ultrawork" || k.type === "hyperplan-ultrawork")
-      if (!explicitUltrawork && explicitUltraworkSessions.has(input.sessionID)) {
+      const replayUltrawork = !explicitUltrawork && explicitUltraworkSessions.has(input.sessionID)
+      const compactUltrawork = replayUltrawork && explicitUltraworkSessions.get(input.sessionID) === promptSource
+      if (replayUltrawork) {
         detectedKeywords.push(...detectKeywordsWithType("ulw", currentAgent, modelID, disabledKeywords, enabledExpansions)
           .filter((k) => k.type === "ultrawork"))
       }
@@ -262,17 +268,31 @@ export function createKeywordDetectorHook(
         return
       }
 
-      const allMessages = detectedKeywords.map((k) => k.message).join("\n\n")
+      const allMessages = detectedKeywords
+        .filter((k) => !(compactUltrawork && k.type === "ultrawork"))
+        .map((k) => k.message).join("\n\n")
       const originalText = output.parts[textPartIndex].text ?? ""
 
-      output.parts[textPartIndex].text = `${originalText}\n\n---\n\n${allMessages}`
+      if (allMessages) output.parts[textPartIndex].text = `${originalText}\n\n---\n\n${allMessages}`
+      if (compactUltrawork && hasUltrawork && !output.parts.some(
+        (part) => part.synthetic === true && part.text === ULTRAWORK_CONTINUATION_MARKER,
+      )) {
+        output.parts.push({
+          id: generatePartId(),
+          sessionID: input.sessionID,
+          messageID: output.parts[textPartIndex].messageID,
+          type: "text",
+          text: ULTRAWORK_CONTINUATION_MARKER,
+          synthetic: true,
+        })
+      }
 
-      if (explicitUltrawork && (hasUltrawork || hasHyperplanUltrawork) && !explicitUltraworkSessions.has(input.sessionID)) {
-        if (explicitUltraworkSessions.size >= DEFAULT_MODE_ULTRAWORK_SESSION_CAP) {
-          const oldest = explicitUltraworkSessions.values().next().value
+      if ((explicitUltrawork || replayUltrawork) && (hasUltrawork || hasHyperplanUltrawork)) {
+        if (!explicitUltraworkSessions.has(input.sessionID) && explicitUltraworkSessions.size >= DEFAULT_MODE_ULTRAWORK_SESSION_CAP) {
+          const oldest = explicitUltraworkSessions.keys().next().value
           if (oldest !== undefined) explicitUltraworkSessions.delete(oldest)
         }
-        explicitUltraworkSessions.add(input.sessionID)
+        explicitUltraworkSessions.set(input.sessionID, promptSource)
       }
 
       log(`[keyword-detector] Detected ${detectedKeywords.length} keywords`, {
@@ -284,9 +304,13 @@ export function createKeywordDetectorHook(
       explicitUltraworkSessions.delete(sessionID)
     },
     event: ({ event }: { event: { type: string; properties?: unknown } }): void => {
-      if (event.type !== "session.deleted") return
+      if (event.type !== "session.deleted" && event.type !== "session.compacted") return
       const sessionID = resolveSessionEventID(event.properties)
       if (sessionID) {
+        if (event.type === "session.compacted") {
+          if (explicitUltraworkSessions.has(sessionID)) explicitUltraworkSessions.set(sessionID, undefined)
+          return
+        }
         clearDefaultModeUltraworkInjectedSession(sessionID)
         explicitUltraworkSessions.delete(sessionID)
       }

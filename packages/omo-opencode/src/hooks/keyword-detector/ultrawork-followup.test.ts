@@ -11,19 +11,27 @@ import { createEventHookDispatcher, createEventHookRunner } from "../../plugin/e
 import { createKeywordDetectorHook } from "./hook"
 
 let hook: ReturnType<typeof createKeywordDetectorHook>
+let messageNumber = 0
 const config = { agents: { sisyphus: { ultrawork: { model: "test/ulw-model" } } } }
+const marker = { type: "text", text: "<ultrawork-mode>active</ultrawork-mode>", synthetic: true }
+
+function userOutput(text: string, synthetic = false, sessionID = "main-session") {
+  const messageID = `msg_test_${++messageNumber}`
+  return { message: { id: messageID }, parts: [{ id: `prt_input_${messageNumber}`, sessionID, messageID, type: "text", text, synthetic }] }
+}
 
 async function send(text: string, sessionID = "main-session", agent = "sisyphus", synthetic = false) {
-  const output = { message: {}, parts: [{ type: "text", text, synthetic }] }
+  const output = userOutput(text, synthetic, sessionID)
   await hook["chat.message"]({ sessionID, agent }, output)
   return {
-    active: output.parts[0].text.includes("<ultrawork-mode>"),
+    active: output.parts.some(part => part.text.includes("<ultrawork-mode>")),
     override: resolveUltraworkOverride(config, agent, output, sessionID),
   }
 }
 
 beforeEach(() => {
   _resetForTesting()
+  messageNumber = 0
   setMainSession("main-session")
   hook = createKeywordDetectorHook(unsafeTestValue<PluginInput>({
     client: { tui: { showToast: async () => {} } },
@@ -35,6 +43,61 @@ afterEach(() => {
 })
 
 describe("explicit ULW session follow-ups", () => {
+  test("#given active mode #when a plain follow-up is processed twice #then only one compact marker is added", async () => {
+    await send("ulw initial")
+    const output = userOutput("follow-up")
+    const original = { ...output.parts[0] }
+    const input = { sessionID: "main-session", agent: "sisyphus" }
+    await hook["chat.message"](input, output)
+    expect(output.parts).toHaveLength(2)
+    expect(output.parts).toEqual([original, {
+      ...marker, id: expect.stringMatching(/^prt_/), sessionID: original.sessionID, messageID: original.messageID,
+    }])
+    expect(output.parts[1].id).not.toBe(original.id)
+    const savedMarker = { ...output.parts[1] }
+    await hook["chat.message"](input, output)
+    expect(output.parts).toEqual([original, savedMarker])
+    expect(resolveUltraworkOverride(config, input.agent, output, input.sessionID)?.modelID).toBe("ulw-model")
+  })
+
+  test("#given active mode #when compaction finishes #then full guidance is restored once", async () => {
+    const input = { sessionID: "main-session", agent: "sisyphus" }
+    const initial = userOutput("ulw initial")
+    await hook["chat.message"](input, initial)
+    const injected = initial.parts[0].text.slice("ulw initial".length)
+    const followup = userOutput("before compaction")
+    await hook["chat.message"](input, followup)
+    expect(followup.parts).toHaveLength(2)
+    const dispatch = createEventHookDispatcher(
+      unsafeTestValue<Parameters<typeof createEventHookDispatcher>[0]>({ keywordDetector: hook }),
+      createEventHookRunner(),
+    )
+    await dispatch({ event: { type: "session.compacted", properties: { sessionID: "main-session" } } })
+    const restored = userOutput("after compaction")
+    await hook["chat.message"](input, restored)
+    expect(restored.parts).toHaveLength(1)
+    expect(restored.parts[0].text).toBe(`after compaction${injected}`)
+    const later = userOutput("later")
+    const original = { ...later.parts[0] }
+    await hook["chat.message"](input, later)
+    expect(later.parts).toEqual([original, {
+      ...marker, id: expect.stringMatching(/^prt_/), sessionID: original.sessionID, messageID: original.messageID,
+    }])
+  })
+
+  test("#given active mode #when model family changes #then its full guidance is refreshed", async () => {
+    const input = { sessionID: "main-session", agent: "sisyphus", model: { providerID: "test", modelID: "gpt-5" } }
+    await hook["chat.message"](input, userOutput("ulw initial"))
+    const same = userOutput("same model")
+    await hook["chat.message"](input, same)
+    expect(same.parts).toHaveLength(2)
+    input.model.modelID = "gemini-3-pro"
+    const changed = userOutput("new model")
+    await hook["chat.message"](input, changed)
+    expect(changed.parts).toHaveLength(1)
+    expect(changed.parts[0].text).toContain("<ultrawork-mode>")
+  })
+
   test("#given explicit activation #when a follow-up has no keyword #then injection and model selection persist only in that session", async () => {
     expect((await send("ulw implement auth")).active).toBe(true)
     expect(await send("and add error handling")).toEqual({
