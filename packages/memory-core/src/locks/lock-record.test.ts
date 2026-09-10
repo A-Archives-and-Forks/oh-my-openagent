@@ -7,6 +7,7 @@ import {
   LockContentionError,
   acquireLock,
   createLockRecord,
+  getProcessStartIdentity,
   isHeld,
   releaseLock,
   withLock,
@@ -18,6 +19,14 @@ async function createLockPath(): Promise<string> {
   const directory = await mkdtemp(path.join(tmpdir(), "memory-lock-unit-"))
   temporaryDirectories.push(directory)
   return path.join(directory, "resource.lock")
+}
+
+// Start identities are only comparable inside one scheme, so a reused-pid fixture has to keep the
+// platform's own scheme and differ only in the value; a foreign scheme is deliberately unstealable.
+async function differentStartInSameScheme(): Promise<string> {
+  const liveIdentity = await getProcessStartIdentity(process.pid)
+  if (liveIdentity === null) return "different-process-start"
+  return `${liveIdentity.slice(0, liveIdentity.indexOf(":") + 1)}1`
 }
 
 async function captureError(promise: Promise<unknown>): Promise<unknown> {
@@ -88,7 +97,7 @@ describe("cross-process lock protocol", () => {
     const lockPath = await createLockPath()
     const reusedPidOwner = {
       ...(await createLockRecord("memory-write")),
-      process_start: "different-process-start",
+      process_start: await differentStartInSameScheme(),
     }
     await writeFile(lockPath, `${JSON.stringify(reusedPidOwner)}\n`)
 
