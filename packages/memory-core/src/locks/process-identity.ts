@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process"
 import { readFile } from "../fs/resilient"
+import { readDarwinProcessLstart } from "./process-start-time"
 
 function errorCode(error: unknown): string | undefined {
   if (!(error instanceof Error) || !("code" in error)) return undefined
@@ -32,11 +33,18 @@ async function readLinuxStartIdentity(pid: number): Promise<string | null> {
   }
 }
 
+function toStartIdentity(lstart: string): string {
+  return `ps-lstart:${lstart.replace(/\s+/g, " ")}`
+}
+
 export async function getProcessStartIdentity(pid: number): Promise<string | null> {
   if (process.platform === "linux") return await readLinuxStartIdentity(pid)
   if (process.platform === "darwin" || process.platform === "freebsd") {
+    if (getPidLiveness(pid) === "dead") return null
+    const inProcess = await readDarwinProcessLstart(pid)
+    if (inProcess !== null) return toStartIdentity(inProcess)
     const value = await execFileText("/bin/ps", ["-o", "lstart=", "-p", String(pid)])
-    return value === null ? null : `ps-lstart:${value.replace(/\s+/g, " ")}`
+    return value === null ? null : toStartIdentity(value)
   }
   return null
 }
