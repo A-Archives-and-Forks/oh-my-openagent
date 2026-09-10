@@ -211,7 +211,8 @@ export function resolveSenpiLauncher(runtime: RpcSpawnRuntime): SenpiLauncher | 
 
 /**
  * The child-facing argv tail shared by both spawn strategies: `--no-extensions` so the detached child
- * does NOT auto-load the parent's whole package set, then ONLY the threaded `-e` extensions, then the
+ * does NOT auto-load the parent's whole package set, then `--no-ask-user` so the child cannot register
+ * the parent-only question tools, then ONLY the threaded `-e` extensions, then the
  * threaded `--model` so the separate process resolves the requested provider/modelId.
  */
 function isDagOwnedChild(spec: RpcRunnerSpec): boolean {
@@ -224,7 +225,7 @@ function isDagOwnedChild(spec: RpcRunnerSpec): boolean {
 }
 
 export function buildChildArgs(spec: RpcRunnerSpec): readonly string[] {
-  const args: string[] = ["--no-extensions"]
+  const args: string[] = ["--no-extensions", "--no-ask-user"]
   // The OMO launcher prepends its own extension before user/provider entries. DAG-owned tasks drop
   // that first entry so the detached child cannot boot a task engine, while provider extensions
   // and every non-DAG child's extension list remain unchanged.
