@@ -88,7 +88,13 @@ describe("reflection health", () => {
     const imports = [...source.matchAll(/^import[\s\S]*?from "(.+?)"$/gm)].map((match) => match[1])
 
     // then: the only sibling import is the pure distiller, which itself imports nothing
-    expect(imports).toEqual(["@oh-my-opencode/memory-core/fs", "node:path", "@oh-my-opencode/memory-core", "./failure-detail"])
+    expect(imports).toEqual([
+      "@oh-my-opencode/memory-core/fs",
+      "node:path",
+      "@oh-my-opencode/memory-core",
+      "./failure-detail",
+      "./launcher-identity",
+    ])
     expect(distiller).not.toMatch(/^import /m)
     expect(source).not.toContain("appendEntry")
     expect(source).not.toContain("safeNotify")

@@ -46,6 +46,13 @@ export const renderReflectionHealthEntry: EntryRenderer<ReflectionHealthEntry> =
       detail: joinFields([
         `reason ${normalizeRendererText(health.lastReason)}`,
         optionalRendererText(cause) === undefined ? undefined : detailExcerpt(cause ?? ""),
+        health.launcher === undefined ? undefined : `launched by ${normalizeRendererText(health.launcher.runtime)}`,
+        health.thisRuntime === undefined || health.launcher?.runtime === health.thisRuntime
+          ? undefined
+          : `this session ${normalizeRendererText(health.thisRuntime)}`,
+        health.streakRuntimes === undefined || health.streakRuntimes.length < 2
+          ? undefined
+          : `across ${health.streakRuntimes.length} runtimes`,
         `since ${normalizeRendererText(health.sinceISO)}`,
         `identity ${normalizeRendererText(health.identity)}`,
       ]),

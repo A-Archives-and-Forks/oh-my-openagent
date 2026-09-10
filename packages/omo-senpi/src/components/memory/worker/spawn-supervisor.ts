@@ -12,7 +12,6 @@ import {
 } from "./run-artifacts"
 import { requireRunMetadata } from "./spawn-metadata"
 import { describeReflectionLauncher } from "./launcher-identity"
-import { describeReflectionLauncher } from "./launcher-identity"
 import { waitForRunCompletion } from "./run-sentinel"
 import {
   defaultSupervisorPath,
@@ -94,7 +93,6 @@ export async function runReflectionChild(
       gitFileSnapshot: metadata.worktree.gitFileSnapshot,
       commonConfigPath: metadata.worktree.commonConfigPath,
       commonConfigSnapshot: metadata.worktree.commonConfigSnapshot,
-      launcher: describeReflectionLauncher({ env: prepared.env, execPath: process.execPath, pid: process.pid }),
       launcher: describeReflectionLauncher({
         env: prepared.env,
         execPath: process.execPath,
