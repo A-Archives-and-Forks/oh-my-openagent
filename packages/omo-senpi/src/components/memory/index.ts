@@ -1,5 +1,5 @@
 import type { OmoMemorySettings } from "@oh-my-opencode/omo-config-core"
-import { resolveMemoryIdentity } from "@oh-my-opencode/memory-core"
+import { resolveMemoryIdentity, resolveMemoryRoot } from "@oh-my-opencode/memory-core"
 
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
 import { loadSenpiOmoConfig, type SenpiOmoConfigResult } from "../config-resolution"
@@ -18,6 +18,12 @@ import { shutdownDeadlineAt, type ShutdownReason } from "./shutdown-drain"
 import { resolveMemorySettings } from "./identity-runtime"
 import { memoryModuleSupervisor } from "./supervisor"
 import { registerMemoryReadClassifier } from "./read-classifier-wiring"
+import {
+  finalizeIdentityRun,
+  isOneShotSurface,
+  resolveIdentityRunPaths,
+  type IdentityRunPaths,
+} from "./transient-identity"
 import { createMemoryWiring, type MemoryWiringOptions } from "./wiring"
 
 const GLOBAL_DISABLED_FLAG = "omo-senpi-disabled"
@@ -41,11 +47,14 @@ type SessionSurface = {
   readonly entries: readonly SessionEntryLike[]
   readonly id: string
   readonly ui?: SessionUi
+  readonly hasUI?: boolean
 }
 type SessionState = {
   readonly enabled: boolean
   readonly ui?: SessionUi
   context?: MemoryIdentityContext
+  /** Where this session's identity storage lives; finalized (transient root reclaimed) at shutdown. */
+  run?: IdentityRunPaths
   memoryStatusAttempted: boolean
   restartNotified: boolean
   conflictNotified: boolean
@@ -129,9 +138,17 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
           return
         }
 
-        state.context = createMemoryIdentityContext({
+        const run = resolveIdentityRunPaths({
           identity: identity.id,
           identityPaths: identity.paths,
+          memoryRoot: resolveMemoryRoot(env, cwd),
+          oneShot: isOneShotSurface({ hasUI: surface.hasUI, env }),
+        })
+        state.run = run
+        state.context = createMemoryIdentityContext({
+          identity: identity.id,
+          identityPaths: run.paths,
+          durableRoot: run.durableRoot,
           binding,
         })
         memoryModuleSupervisor.acquire()
@@ -194,8 +211,12 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
           now,
         })
         wiring.clearStatus(eventCtx)
-        releaseSession(sessions.get(sessionId))
+        const state = sessions.get(sessionId)
+        releaseSession(state)
         sessions.delete(sessionId)
+        if (state?.run !== undefined) {
+          await finalizeIdentityRun({ run: state.run, warn: (message, fields) => ctx.logger.warn(message, fields) })
+        }
         if (sessions.size === 0) unregisterReadClassifier?.()
         unsubscribeReload?.()
       })
@@ -243,6 +264,7 @@ function readSessionSurface(value: unknown): SessionSurface {
     entries: Array.isArray(entries) ? entries : [],
     id: typeof id === "string" && id.length > 0 ? id : "unknown-session",
     ...(ui === undefined ? {} : { ui }),
+    ...(typeof value.hasUI === "boolean" ? { hasUI: value.hasUI } : {}),
   }
 }
 
