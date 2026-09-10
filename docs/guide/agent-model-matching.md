@@ -1,14 +1,38 @@
 # Agent-Model Matching Guide
 
-> **For agents and users**: which model the main agent runs on, which models carry tuned prompt presets, how curated agents and categories pick their models, and how to change any of it without breaking things.
+> **For agents and users**: the three model profiles that pick the main agent's model, which models carry tuned prompt presets, how curated agents and categories keep their own chains, and how to change any of it without breaking things.
 
 ---
 
-## The main agent runs on your session model
+## Three profiles pick the main agent's model
 
-Oh My OpenAgent doesn't assign a model to the main agent. Whatever model your session is on is the model the main agent thinks with. Pick it with `/model`, or let the harness default stand. Switch mid-session and the main agent switches with you; the prompt stays the same.
+The main agent thinks with your session model. The easiest way to choose it is a **model profile**: a named, ordered chain you pick by intent. At session start omo walks the chain and applies the first model your connected providers serve. Chains live in [`packages/omo-senpi/src/components/model-profile/builtin-profiles.ts`](../../packages/omo-senpi/src/components/model-profile/builtin-profiles.ts); every rung lists each provider that serves the model, so a Copilot-only or gateway-only account resolves the same way a direct API key does.
 
-Two configurations are the ones we recommend and tune against:
+| Profile | Id | Pick it for | Chain |
+| --- | --- | --- | --- |
+| Capable | `capable` | The strongest generalist; the default when you don't want to think about models | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5-1 (max)` -> same providers `/claude-opus-5 (max)` -> `kimi-coding\|kimi-for-coding\|moonshotai\|opencode-go/kimi-k3 (max)` -> `zai-coding-plan\|opencode-go/glm-5.3 (max)` |
+| Simple work | `simple-work` | Small, well-specified edits where speed and cost matter | `openai\|openai-codex/gpt-5.6-luna-fast (low)` -> `deepseek/deepseek-v4-flash` -> `anthropic\|github-copilot/claude-haiku-4-5` |
+| Deep work | `deep-work` | Hard problems that need maximum reasoning; the `deep` category chain verbatim | `openai\|openai-codex\|github-copilot\|opencode/gpt-6-astra (high)` -> same providers `/gpt-5.6-sol (medium)` |
+
+Activate one with a single key in `omo.json`:
+
+```jsonc
+{ "model_profile": "capable" }
+```
+
+The session prints `omo-senpi: model profile "capable" selected anthropic/claude-fable-5-1; mid-session fallback follows senpi's retry chains`, naming any skipped rungs. A few rules worth knowing:
+
+- **Pins win.** Write a literal `provider/model` into the same key (`"model_profile": "anthropic/claude-opus-5"`) and that exact model is applied; anything containing `/` is a pin.
+- **Explicit models are never clobbered.** A `--model` flag, a scoped model, a resumed session, and a fork keep their own model; the profile only touches a fresh session.
+- **Unset means untouched.** With no `model_profile`, Senpi's own default resolution runs and nothing changes.
+- **Session-scoped.** The apply never writes `settings.json` or `omo.json`. Mid-session failures follow Senpi's retry chains, not the profile.
+- **Your own chains.** `model_profiles.<name>` adds a profile, or replaces a builtin of the same name wholesale (no field merge). Entries take the same shape as a category chain and may reference `models.<catalog>` aliases. Key reference: [omo.json](../reference/omo-json.md#model-profiles-senpi-harness).
+
+You can still pick with `/model` and switch mid-session; the main agent switches with you and the prompt stays the same.
+
+### The recommended tier
+
+Two configurations are the ones we recommend and tune against, and the Capable and Deep work profiles lead with them:
 
 - **Claude Opus 5** (or Claude Fable 5 when you have it). Claude is the reference configuration for the orchestration prompt: long nested todos, delegation tables, many tool calls in a row.
 - **GPT 5.6 Sol**. The GPT-recommended configuration. It gets a model-aware GPT-native prompt built for autonomous, principle-driven work. Over-orchestration on small bounded tasks is a known risk on GPT; give it a goal, not a recipe.
@@ -50,7 +74,11 @@ The `/ulw-plan` skill used to mirror this split with separate model-family promp
 
 ---
 
-## Curated agents and their chains
+## Curated agents and categories keep their own chains
+
+A model profile picks the main session model and nothing else. Every delegated child, curated agent or category, walks its own chain, and `model_profile` isn't consulted at any rung of that path. A user who sets `categories.deep.model` sees identical behavior with or without a profile active.
+
+### Curated agents
 
 Delegation goes through the `task` tool. Four curated read-only agents have their own fallback chains, hardcoded in [`packages/senpi-task/src/agents/builtin/fallback-chains.ts`](../../packages/senpi-task/src/agents/builtin/fallback-chains.ts). The first rung your connected providers can serve wins.
 
@@ -65,7 +93,7 @@ The utility rungs elided above are cheap fast models; read the source file for t
 
 The ulw-loop reviewers (`omo-senpi-code-reviewer`, `omo-senpi-qa-executor`, `omo-senpi-gate-reviewer`) don't have hand-written chains. They resolve their model through the `categories` field on their definition.
 
-### Where to spend one scarce premium model
+#### Where to spend one scarce premium model
 
 If one premium model is quota-limited while your other models are effectively unlimited:
 
@@ -88,7 +116,7 @@ For a scarce Claude Fable 5 allocation, `plan-consultant` is the default value-p
 
 ---
 
-## Categories
+### Categories
 
 When the main agent delegates implementation work, it doesn't pick a model name. It picks a **category**, and the category spawns the category worker: a fresh worker session configured by the category's model and skills. Chains live in [`packages/senpi-task/src/category/fallback-chains.ts`](../../packages/senpi-task/src/category/fallback-chains.ts); descriptions and prompt appends live next to them in `packages/senpi-task/src/category/*-categories.ts`.
 
@@ -176,7 +204,7 @@ Override any category or curated agent in `omo.json`. `model` sets one model; `m
 
 **Safe**, same family and role shape:
 
-- Main agent: Claude Opus 5 <-> Claude Fable 5; GPT 5.6 Sol when you want the GPT-native prompt.
+- Main agent: the Capable profile, or Claude Opus 5 <-> Claude Fable 5 pinned; Deep work, or GPT 5.6 Sol pinned, when you want the GPT-native prompt.
 - `plan-consultant`: any Claude-family model, Kimi K3, GLM 5.2 / 5.3.
 - `plan-reviewer`: GPT-6 Astra <-> GPT 5.6 Sol; Claude Opus 5 at max as a communicative fallback.
 - `visual-engineering`, `artistry`, `writing`: swap among Claude Fable 5, Claude Opus 5, and Kimi K3.
@@ -198,7 +226,16 @@ Override any category or curated agent in `omo.json`. `model` sets one model; `m
 
 ## How model resolution works
 
-For the main agent, resolution is one step: your session model. Mid-session model failures follow the harness's own retry chains, not the delegation chains below.
+For the main agent, resolution happens once, at session start (`packages/omo-senpi/src/components/model-profile/index.ts`):
+
+```
+1. --model flag or scoped model    -> kept as is; the profile never runs
+2. model_profile = provider/model  -> the pin; that exact model, if the registry serves it
+3. model_profile = <profile id>    -> builtins overlaid with model_profiles; first rung the registry serves
+4. Senpi's default resolution      -> including its recommended-models builtin
+```
+
+Mid-session model failures follow the harness's own retry chains, not the profile and not the delegation chains below.
 
 For every delegated child (a category or a curated agent), resolution walks a chain until a rung matches a model your connected providers can serve:
 
@@ -216,6 +253,7 @@ Your explicit configuration always wins. If you set a model for a category or ag
 
 - [Installation Guide](./installation.md): setup and provider authentication
 - [Orchestration System Guide](./orchestration.md): how the main agent delegates to categories and curated agents
-- [omo.json Reference](../reference/omo-json.md): `agents`, `categories`, and `models` keys
+- [omo.json Reference](../reference/omo-json.md): `model_profiles`, `model_profile`, `agents`, `categories`, and `models` keys
+- [`packages/omo-senpi/src/components/model-profile/builtin-profiles.ts`](../../packages/omo-senpi/src/components/model-profile/builtin-profiles.ts): the three builtin profile chains
 - [`packages/senpi-task/src/agents/builtin/fallback-chains.ts`](../../packages/senpi-task/src/agents/builtin/fallback-chains.ts): curated agent chains
 - [`packages/senpi-task/src/category/fallback-chains.ts`](../../packages/senpi-task/src/category/fallback-chains.ts): category chains

@@ -35,6 +35,26 @@ Want more control? Run `/ulw-plan` for interview-based planning, then `/ulw-exec
 
 ---
 
+## Pick a profile
+
+You don't have to know model names to get a good main agent. Pick a profile by intent and omo picks the model:
+
+- **Capable**: the strongest generalist you have. Claude Fable 5.1, then Claude Opus 5, then Kimi K3, then GLM 5.3.
+- **Simple work**: fast and cheap for small, well-specified edits. GPT-5.6 Luna Fast, then DeepSeek V4 Flash, then Claude Haiku 4.5.
+- **Deep work**: maximum reasoning for hard problems. GPT-6 Astra, then GPT-5.6 Sol. Same chain the `deep` category runs.
+
+Set one key in `omo.json`:
+
+```jsonc
+{ "model_profile": "capable" }
+```
+
+At session start omo walks the chain and applies the first model your connected providers serve, then prints a notice naming the pick and the rungs it skipped. The switch is session-scoped: nothing is written to `settings.json`. Mid-session failures follow Senpi's own retry chains, not the profile.
+
+Want one exact model instead? Put it in the same key: `"model_profile": "anthropic/claude-opus-5"`. Anything with a `/` is a pin. The precedence is simple: a `--model` flag or scoped model wins, then a pinned model, then a profile, then Senpi's own default. Leave the key unset and omo doesn't touch the session model at all. Profiles pick the main session model only; categories and curated agents keep their own chains. Full detail in the [omo.json reference](../reference/omo-json.md#model-profiles-senpi-harness).
+
+---
+
 ## The Philosophy: Breaking Free
 
 We used to call this "Claude Code on steroids." That was wrong.
@@ -78,14 +98,14 @@ For a deep dive into how the pieces collaborate, see the [Orchestration System G
 
 ### The main agent
 
-The main agent is your session. It runs on whatever model you picked with `/model`, plans the work, fans out delegation, and drives tasks to completion with aggressive parallel execution. It doesn't stop halfway. It doesn't get distracted. It finishes.
+The main agent is your session. It runs on your session model (a profile, a pin, or whatever you picked with `/model`), plans the work, fans out delegation, and drives tasks to completion with aggressive parallel execution. It doesn't stop halfway. It doesn't get distracted. It finishes.
 
 Recommended models, named plainly:
 
 - **Claude Opus 5** (or Claude Fable 5). The reference configuration. The orchestration prompt was built against Claude's habit of following long, mechanics-driven instructions.
 - **GPT 5.6 Sol**. The GPT-recommended configuration. It gets a model-aware GPT-native prompt built for autonomous, principle-driven work: give it a goal, not a recipe. Over-orchestration on small bounded tasks is a known risk.
 
-Kimi K3 and GLM 5.2 / 5.3 have tuned prompt presets too, with lighter validation. Models below the recommended tier aren't supported as the main agent. Details in the [Agent-Model Matching Guide](./agent-model-matching.md).
+Kimi K3 and GLM 5.2 / 5.3 have tuned prompt presets too, with lighter validation. Models below the recommended tier aren't supported as the main agent. The **Capable** profile walks the Claude-first slice of this list (Fable 5.1, Opus 5, Kimi K3, GLM 5.3), so it's the safe default when you'd rather not choose; pick **Deep work** for the GPT side. Details in the [Agent-Model Matching Guide](./agent-model-matching.md).
 
 ### The category worker
 
@@ -130,7 +150,7 @@ Use `/ulw-plan` for multi-day projects, critical production changes, complex ref
 
 ## Agent Model Matching
 
-The main agent runs on your session model. Everything it delegates resolves through a fallback chain: categories and curated agents each carry a provider priority chain, and the system tries rungs in order until it finds a model your connected providers can serve. Work continues even when your preferred provider is down.
+The main agent runs on your session model, chosen by a profile, a pin, or `/model` (see [Pick a profile](#pick-a-profile)). Everything it delegates resolves through a fallback chain: categories and curated agents each carry a provider priority chain, and the system tries rungs in order until it finds a model your connected providers can serve. Work continues even when your preferred provider is down.
 
 ### Custom Model Configuration
 
