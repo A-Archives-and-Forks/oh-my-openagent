@@ -922,7 +922,7 @@ describe("dag runtime node spawn policy", () => {
       pi,
       engine,
       logger: logger(),
-      nodeSpawnPolicy: () => ({ kind: "deny", message: "momus requires a plan gate" }),
+      nodeSpawnPolicy: () => ({ kind: "deny", message: "plan-reviewer requires a plan gate" }),
     })
     runtime.attach()
 
@@ -940,7 +940,7 @@ describe("dag runtime node spawn policy", () => {
         definition: {
           key: "policy-denied",
           name: "policy denied",
-          nodes: [{ id: "review", prompt: "review the plan", subagent_type: "momus", model: "omo-mock/mock-1" }],
+          nodes: [{ id: "review", prompt: "review the plan", subagent_type: "plan-reviewer", model: "omo-mock/mock-1" }],
         },
       },
     )
@@ -951,7 +951,7 @@ describe("dag runtime node spawn policy", () => {
     expect(result.status).toBe("failed")
     const review = result.nodes.review
     if (review?.state !== "failed") throw new Error("expected the denied node to fail")
-    expect(review.error.message).toContain("momus requires a plan gate")
+    expect(review.error.message).toContain("plan-reviewer requires a plan gate")
     expect(runner.handles).toHaveLength(0)
     runtime.dispose()
   })
