@@ -146,13 +146,19 @@ const ULW_CONTINUATION_INJECTION_KEY = "omo-senpi-ulw-loop-continuation"
 // no-ops. Falls back to a direct followUp when no coordinator is wired (isolated unit context).
 function deliverContinuation(pi: SenpiExtensionAPI, ctx: ComponentContext): void {
   if (ctx.idleCoordinator !== undefined) {
-    ctx.idleCoordinator.enqueue({
+    const accepted = ctx.idleCoordinator.enqueue({
       key: ULW_CONTINUATION_INJECTION_KEY,
       source: "ulw-continuation",
       customType: "omo-senpi:ulw-continuation",
       content: CONTINUATION_PROMPT,
       display: false,
     })
+    // Refused = the coordinator retired with the session. The continuation is derived state, not a
+    // durable notification: the next turn's agent_end re-derives it. Log rather than drop in silence.
+    if (accepted === false) {
+      ctx.logger.warn("omo-senpi ulw continuation skipped: idle-injection coordinator retired")
+      return
+    }
     ctx.idleCoordinator.scheduleFlush()
     return
   }

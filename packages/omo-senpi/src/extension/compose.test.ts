@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, jest, spyOn } from "bun:test"
 
 import { FakeExtensionAPI } from "../../test-support/fake-extension-api"
 import { composeOmoSenpiExtension } from "./compose"
+import { IdleInjectionRetiredError, type IdleInjectionCoordinator } from "./idle-injection-coordinator"
 import type { ComponentLogger, OmoSenpiComponent } from "./types"
 
 // Mirrors senpi's reload: after `session_shutdown {reason: "reload"}` the old generation's API throws
@@ -303,6 +304,48 @@ describe("composeOmoSenpiExtension", () => {
     expect(() => jest.advanceTimersByTime(200)).not.toThrow()
     expect(pi.sendMessageCalls).toBe(0)
     expect(pi.messages).toHaveLength(0)
+  })
+
+  it("#given a completion queued inside the batch window #when session_shutdown(reload) retires the coordinator #then its producer gets a failure receipt and later enqueues are refused", async () => {
+    // given the real composition seam: whatever compose wires into ctx.idleCoordinator
+    const pi = new ReloadingFakeExtensionAPI()
+    let coordinator: IdleInjectionCoordinator | undefined
+    const components: OmoSenpiComponent[] = [
+      {
+        name: "task-like",
+        register(_api, ctx) {
+          coordinator = ctx.idleCoordinator
+        },
+      },
+    ]
+    await composeOmoSenpiExtension(components, { logger: createRecordingLogger() })(pi)
+
+    // when a background child completes inside the 200ms batch window and the session reloads first
+    const failures: unknown[] = []
+    const accepted = coordinator?.enqueue({
+      key: "task-completion:st_1",
+      source: "task-completion",
+      content: "task st_1 completed",
+      onDeliveryFailed: (error) => failures.push(error),
+    })
+    coordinator?.scheduleFlush()
+    expect(accepted).toBe(true)
+    await pi.dispatch("session_shutdown", { type: "session_shutdown", reason: "reload" })
+
+    // then the queued completion is handed back as a delivery failure (senpi-task rolls notified_epoch
+    // back on this receipt, so the post-reload reconcile redelivers) and nothing hit the stale API
+    expect(failures).toHaveLength(1)
+    expect(failures[0]).toBeInstanceOf(IdleInjectionRetiredError)
+    expect(pi.sendMessageCalls).toBe(0)
+    expect(pi.messages).toHaveLength(0)
+
+    // and a retry that arrives after the reload is refused instead of reported as queued
+    const retried = coordinator?.enqueue({
+      key: "task-completion:st_1",
+      source: "task-completion",
+      content: "task st_1 completed",
+    })
+    expect(retried).toBe(false)
   })
 
   it("#given the default logger #when a component logs without details #then console receives only the message", async () => {
