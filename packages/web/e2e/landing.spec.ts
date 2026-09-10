@@ -68,7 +68,7 @@ test.describe("Landing Page", () => {
     for (const name of agentNames) {
       await expect(grid.getByRole("heading", { name, exact: true })).toBeVisible()
     }
-    await expect(grid.getByText("Your session model")).toBeVisible()
+    await expect(grid.getByText("Profiles: Capable · Simple work · Deep work")).toBeVisible()
   })
 
   test("keeps the agent bento grid hole-free at desktop and phone widths", async ({ page }) => {
@@ -123,6 +123,56 @@ test.describe("Landing Page", () => {
             )
           }
         }
+      }
+    }
+  })
+
+  test("renders the model profiles ledger at desktop and phone widths", async ({ page }) => {
+    const viewports = [
+      { width: 1440, height: 900 },
+      { width: 390, height: 844 },
+    ]
+
+    for (const viewport of viewports) {
+      // given
+      await page.setViewportSize(viewport)
+      await page.goto("/")
+      const section = page.locator("#profiles")
+
+      // when
+      await section.scrollIntoViewIfNeeded()
+      await page.evaluate(() => document.fonts.ready)
+
+      // then: the section heading and all three builtin profile names are visible.
+      await expect(
+        section.getByRole("heading", { name: "Pick the intent, not the model.", level: 2 }),
+      ).toBeVisible()
+      const profileNames = ["Capable", "Simple work", "Deep work"]
+      for (const name of profileNames) {
+        await expect(section.getByRole("heading", { name, exact: true })).toBeVisible()
+      }
+
+      // and: the ledger sits strictly after the agent bento grid - no shared area at either width.
+      // One synchronous snapshot, same as the grid-integrity case: the scroll-driven reveal
+      // transform would otherwise shift boxes between separate boundingBox() round-trips.
+      const overlapArea = await page.evaluate(() => {
+        const grid = document.querySelector("#agents ul")
+        const profiles = document.querySelector("#profiles")
+        if (!(grid instanceof HTMLElement) || !(profiles instanceof HTMLElement)) {
+          throw new Error("landing must render #agents ul and #profiles")
+        }
+        const gridRect = grid.getBoundingClientRect()
+        const profilesRect = profiles.getBoundingClientRect()
+        const overlapX =
+          Math.min(gridRect.right, profilesRect.right) - Math.max(gridRect.left, profilesRect.left)
+        const overlapY =
+          Math.min(gridRect.bottom, profilesRect.bottom) - Math.max(gridRect.top, profilesRect.top)
+        return Math.max(0, overlapX) * Math.max(0, overlapY)
+      })
+      if (overlapArea > 0) {
+        throw new Error(
+          `profiles section overlaps the agents grid by ${overlapArea}px^2 at ${viewport.width}x${viewport.height}`,
+        )
       }
     }
   })
