@@ -35,7 +35,10 @@ function createFixture(installLayout: InstallLayout = "npm"): Fixture {
     ? join(root, "custom-bun", "install", "global", "node_modules", "omo-ai")
     : join(root, "prefix", "lib", "node_modules", "omo-ai")
   mkdirSync(packagePath, { recursive: true })
-  const packageRoot = realpathSync(packagePath)
+  // realpathSync.native returns the long canonical name on Windows (GetFinalPathNameByHandle); the JS
+  // realpath keeps 8.3 aliases such as RUNNER~1, while the child resolves its own import.meta.url to the
+  // long form, so the two spellings of one directory would disagree in the Update: line.
+  const packageRoot = realpathSync.native(packagePath)
   cpSync(join(SOURCE_ROOT, "bin"), join(packageRoot, "bin"), { recursive: true })
   writeFile(join(packageRoot, "package.json"), JSON.stringify({
     name: "omo-ai",
