@@ -1,3 +1,33 @@
+## 2026-09-10 — Name curated agents by role, keep the old ids for one release
+
+The builtin curated agents `metis` and `momus` are now `plan-consultant` and `plan-reviewer`. The ulw-plan skill works as the Ultrawork Planner instead of a named persona, ulw-execute talks about the "ulw-plan work plan", and docs plus omo.dev describe every agent by what it does rather than by a myth name. The draft/plan frontmatter key `review.momus` becomes `review.plan_reviewer`, and telemetry `delegation_started.name` / `delegation_completed.agent_type` report the new ids, so dashboards that filter on `metis` or `momus` need updating.
+
+The old ids still resolve for one release. `subagent_type: "metis"|"momus"`, `omo.json` `agents.metis|momus` and `allowed_subagents` entries naming them canonicalize through `senpi-task/src/agents/legacy-agent-names.ts` and emit a deprecation notice. That alias window ships in the first tagged publish containing this change (currently 5.0.0-beta.51 per package.json) and is removed in the next tagged publish; a test pins the alias table to exactly those two keys so nothing else slips in.
+
+## 2026-09-10 — Hide question tools from task children
+
+`TASK_CHILD_UI_ONLY_TOOL_NAMES` now lists `request_user_input` and `ask_user_question` next to `memory`, so in-process children do not inherit the parent-only question tools. RPC children get the matching `--no-ask-user` flag from senpi-task.
+
+## 2026-09-10 — Route user questions in the ultrawork directive through the question tool
+
+Three sentences in `skills/ultrawork/SKILL.md` told the model to stop, surface, or plainly "ask the user" when only the user could unblock the run: blockers left after two re-reviews, two identical failed attempts at one step, and the goal-waiting paragraph that had no user-decision case at all. With senpi's question tool (`request_user_input` / `ask_user_question`) available, ending the turn or marking the goal blocked is the wrong move. The re-review rule now asks through the question tool with the outstanding blockers as options; the retry rule asks through the question tool and continues on best judgment if the question times out; the goal-waiting paragraph gains one sentence stating that a decision only the user can make is asked through the question tool, waiting for the answer when the run cannot proceed without it, and is never recorded as blocked.
+
+`src/components/ultrawork/generated-directive.ts` is regenerated from the source through `plugin/scripts/embed-directive.mjs`; the `--check` drift gate in `ultrawork.test.ts` failed against the edited source and passes after regeneration. The committed bundle `plugin/extensions/omo.js` is rebuilt on the CI-pinned Bun 1.4.0 so the reload test in `ultrawork-arming.test.ts` sees the same directive from the bundle and from the generated module. Heading count of SKILL.md is unchanged (27). The planned wording `wait_for_answer true` was not used because the embed script rejects any `wait_for` token as a non-senpi harness surface; the sentence says "waiting for the answer" instead.
+
+## 2026-09-10 — Export claude-sdk-oauth as a known telemetry provider
+
+`src/components/telemetry/model-vocabulary.ts` gains a `claude-sdk-oauth` key carrying the same ids as `anthropic`. The builtin Claude rungs in senpi-task now head with that lane (#8051), and without the key every delegated Claude turn on a Claude Pro/Max machine would have exported as `custom`, collapsing the category-model insight on exactly the lane the product routes to. The generated schema block in `docs/reference/senpi-telemetry.md` lists the new provider value; `product-identity.test.ts` pins the mask. The shipped `plugin/extensions/omo.js`, `omo-task.js`, and `omo-init-deep-advisor.js` bundles are regenerated so the plugin carries the new rung order and the model-core tie-break that no longer prefers a shorter provider name.
+
+## 2026-09-10 — Stop failing Kibitzer fires for reasons that are not failures
+
+`Kibitzer gate failed` kept appearing intermittently on beta.51 after the persona prime shipped, from three producers that were not real gate failures (#8052, #7963).
+
+A judge that answers only through `nudge` and then stops without prose is a completed run. senpi's empty-assistant recovery retries one invisible stop and settles the second as `Model returned an empty response twice`, which the gate reported as `child_failed` even after accepted nudges. The nudge tool result now carries `terminate: true` once the run's `max_items` is reached (also on a rejection at the cap), so the agent loop ends the turn on the tool batch and the model never has to answer with nothing; as the floor for runs that stop below the cap, `classifyJudgeTurn` treats that settled message as `completed` when nudges were accepted and `empty` when none were. Accepted nudges are delivered in both cases.
+
+Run-dir artifacts (`candidates.json`, `transcript-window.txt`) are auditable output the child never reads; a write that fails now logs `kibitzer gate run artifacts skipped` and the fire continues instead of ending as `session_create_failed`. A persona read that fails at fire time is reported as `persona_unavailable` with the asset filename in the reason. The `#omo-task-runtime` module is primed at memory-component registration beside the four personas (`omo-senpi memory boot asset unavailable` names a module that cannot load), and a fire awaits that same load instead of resolving the specifier against the install tree at fire time.
+
+The notice policy is unchanged: one notice per session after three consecutive diagnostic failures (PR #8033), which beta users receive with the next release.
+
 ## 2026-09-09 — Pin persona assets to the payload a process started from
 
 The memory component read each persona markdown from beside the bundle at child-launch time, so the asset had to still be on disk, under its current name, every time a gate fired. The install tree is mutable while a session runs: a global install replaces it in place and the omob launcher rebuilds and prunes runtime dirs. After the Kibitzer rename shipped, sessions whose process had loaded the pre-rename bundle kept opening `extensions/memorian-persona.md` in the replaced tree and every recall gate died with `session_create_failed` (ENOENT). The same shape hit omob runtime dirs on 2026-09-07 through a prune.
