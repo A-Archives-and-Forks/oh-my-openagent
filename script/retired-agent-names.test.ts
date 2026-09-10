@@ -18,6 +18,13 @@ export interface GovernedSurface {
   readonly exclude?: readonly RegExp[]
   /** Also flag lowercase agent-context `oracle` usages (subagent_type/@oracle/agents.oracle). */
   readonly oracleAgentContext?: boolean
+  /**
+   * Only the six retired names apply; `sisyphus` and agent-context `oracle` stay legal. Used for
+   * shared-skill sources whose OpenCode literals the senpi sync overlay re-routes
+   * (`packages/omo-senpi/plugin/scripts/senpi-skill-roster-overlay.mjs`); the synced output is
+   * gated separately by `packages/omo-senpi/src/skills-sync.test.ts`.
+   */
+  readonly retiredNamesOnly?: boolean
 }
 
 export const GOVERNED_SURFACES: readonly GovernedSurface[] = [
@@ -31,7 +38,7 @@ export const GOVERNED_SURFACES: readonly GovernedSurface[] = [
     glob: "packages/senpi-task/src/**/*.ts",
     exclude: [/\.test\.ts$/, /^packages\/senpi-task\/src\/agents\/legacy-agent-names\.ts$/],
   },
-  { glob: "packages/shared-skills/skills/{ulw-execute,refactor,review-work}/**", oracleAgentContext: true },
+  { glob: "packages/shared-skills/skills/{ulw-execute,refactor,review-work}/**", retiredNamesOnly: true },
 ]
 
 /** Paths exempt everywhere (repo-root relative, forward slashes). */
@@ -61,6 +68,7 @@ function isExempt(relativePath: string, surface: GovernedSurface): boolean {
 function lineViolates(line: string, surface: GovernedSurface): boolean {
   if (ALLOWED_MARKER_LINE_END.test(line)) return false
   if (RETIRED_NAME.test(line)) return true
+  if (surface.retiredNamesOnly === true) return false
   if (SISYPHUS.test(line) && !SISYPHUS_ALLOWLIST.test(line)) return true
   if (surface.oracleAgentContext === true && ORACLE_AGENT_CONTEXT.test(line)) return true
   return false
