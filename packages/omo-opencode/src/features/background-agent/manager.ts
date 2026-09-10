@@ -267,6 +267,7 @@ export class BackgroundManager {
   private queuesByKey: Map<string, QueueItem[]> = new Map()
   private processingKeys: Set<string> = new Set()
   private completionTimers: Map<string, ReturnType<typeof setTimeout>> = new Map()
+  private readonly syncAttachedSessions = new Set<string>()
   private completedTaskArchive: Map<string, BackgroundTask> = new Map()
   private completedTaskSummaries: Map<string, BackgroundTaskNotificationTask[]> = new Map()
   private idleDeferralTimers: Map<string, ReturnType<typeof setTimeout>> = new Map()
@@ -1167,6 +1168,22 @@ The fallback retry session is now created and can be inspected directly.
       }
     }
     return undefined
+  }
+
+  /**
+   * Marks a session as being polled by a run_in_background=false continuation so the
+   * completion cleanup timer neither drops the task nor deletes the session underneath it.
+   * The returned detach restarts the cleanup grace window once the waiter leaves.
+   */
+  attachSyncContinuation(sessionID: string): () => void {
+    this.syncAttachedSessions.add(sessionID)
+    return () => {
+      if (!this.syncAttachedSessions.delete(sessionID)) return
+      const task = this.findBySession(sessionID)
+      if (!task || !TERMINAL_BACKGROUND_TASK_STATUSES.has(task.status)) return
+      if (this.completionTimers.has(task.id)) return
+      this.scheduleTaskRemoval(task.id)
+    }
   }
 
   private resolveTaskAttemptBySession(sessionID: string): { task: BackgroundTask; attemptID?: string; isCurrent: boolean } | undefined {
@@ -2341,6 +2358,9 @@ The task was re-queued on a fallback model after a retryable failure.
       const task = this.tasks.get(taskId)
       if (!task) return
 
+      // A sync waiter is still polling this session; its detach re-arms removal.
+      if (task.sessionId && this.syncAttachedSessions.has(task.sessionId)) return
+
       if (task.parentSessionId) {
         const siblings = this.getTasksByParentSession(task.parentSessionId)
         const runningOrPendingSiblings = siblings.filter(
@@ -3185,6 +3205,7 @@ The task was re-queued on a fallback model after a retryable failure.
       clearTimeout(timer)
     }
     this.completionTimers.clear()
+    this.syncAttachedSessions.clear()
 
     for (const timer of this.idleDeferralTimers.values()) {
       clearTimeout(timer)
