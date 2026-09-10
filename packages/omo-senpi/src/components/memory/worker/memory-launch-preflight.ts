@@ -46,8 +46,5 @@ export const resolveAndPreflightMemoryLaunch: ResolveAndPreflightMemoryLaunch = 
     configSources: input.configSources,
     warn: input.warn,
   })
-  if (preflight.kind === "none_visible") {
-    throw new Error(`No ${input.surfaceName} model candidate is visible to the discovery-disabled child: ${preflight.rejected.map((item) => `${item.model} (${item.cause})`).join(", ")}`)
-  }
   return runMemoryModelAttempts(preflight.candidates, input.attempt)
 }
