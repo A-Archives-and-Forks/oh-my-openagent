@@ -194,7 +194,9 @@ and let it fire. `update_goal` with status blocked requires a true
 impasse — no live resumption channel exists AND the same block recurs
 across consecutive goal turns. Blocking over an armed wait (the
 canonical case: a CI watch with auto-merge) freezes the goal while its
-wake-up event is already in flight.
+wake-up event is already in flight. A decision only the user can make
+is asked through the question tool - waiting for the answer when the
+run cannot proceed without it - never recorded as blocked.
 
 ## 2. Open the durable notepad
 Run: `NOTE=$(mktemp -t ulw-$(date +%Y%m%d-%H%M%S).XXXXXX.md)`. Echo the
@@ -495,8 +497,10 @@ Procedure (NON-NEGOTIABLE):
    marked out-of-scope. An approval whose only remaining items are
    notes counts as approval.
 5. On approval, declare done. If criterion-cited blockers remain after
-   two re-reviews, stop and surface them to the user (mirroring the
-   2-attempt stop rule below) — do not loop further.
+   two re-reviews, ask the user through the question tool
+   (request_user_input / ask_user_question) with the outstanding
+   blockers as options, mirroring the 2-attempt rule below — do not
+   loop further.
 
 # Commits
 Commit frequently: one atomic commit per verified increment (RED→GREEN
@@ -565,7 +569,8 @@ commits this session — then stage + draft the message instead.
   bound port, temp file / dir) means NOT done. Tear it down, record
   the receipt, then continue.
 - After 2 identical failed attempts at one step, surface what was tried
-  and ask the user before another retry.
+  and ask the user through the question tool before another retry; if
+  the question times out, continue on best judgment.
 - After 2 parallel exploration waves yield no new useful facts, stop
   exploring and act.
 
