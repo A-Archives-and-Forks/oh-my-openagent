@@ -448,9 +448,14 @@ describe("buildRpcSpawn spawn strategy", () => {
         },
       )
 
-      // then: the compiled binary is its own engine; PATH and the rpc-entry fallback are never consulted
+      // then: the compiled binary is its own engine, launched in rpc mode with the caller's extension
+      // list; PATH and the rpc-entry fallback are never consulted. The full child argv belongs to the
+      // buildChildArgs tests above.
       expect(descriptor.command).toBe(realpathSync.native(execPath))
-      expect(descriptor.args).toEqual(["--mode", "rpc", "--no-extensions", "--extension", "/opt/omo-runtime/plugin", "--model", "omo-mock/mock-1"])
+      expect(descriptor.args.slice(0, 3)).toEqual(["--mode", "rpc", "--no-extensions"])
+      expect(descriptor.args).toContain("/opt/omo-runtime/plugin")
+      expect(descriptor.args).not.toContain("/fallback/rpc-entry.js")
+      expect(descriptor.args).not.toContain(foreign)
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
