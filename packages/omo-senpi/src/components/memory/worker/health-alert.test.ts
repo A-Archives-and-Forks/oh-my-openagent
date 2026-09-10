@@ -227,6 +227,25 @@ describe("renderReflectionHealthEntry house notice contract", () => {
       "reason child_exit · merge refused · since 2026-08-12T22:15:00.000Z · identity project-a1b2c3d4",
     )
   })
+
+  test("#given failure launcher attribution #when it renders expanded #then the detail row identifies both runtimes", () => {
+    const component = renderReflectionHealthEntry({
+      data: {
+        ...HEALTH,
+        launcher: {
+          runtime: "old-runtime",
+          execPath: "/old/omo",
+          pid: 11,
+        },
+        thisRuntime: "new-runtime",
+        streakRuntimes: ["old-runtime", "older-runtime"],
+      },
+    } as never, { expanded: true }, PLAIN_THEME as never)
+
+    expect(component!.render(200)[3]?.slice(1).trimEnd()).toContain(
+      "launched by old-runtime · this session new-runtime · across 2 runtimes",
+    )
+  })
 })
 
 function liveHarness(sessionId = "session-a") {
