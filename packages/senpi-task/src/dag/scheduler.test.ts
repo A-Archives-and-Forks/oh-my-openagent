@@ -1173,11 +1173,11 @@ describe("DAG scheduler node spawn policy", () => {
     // given
     const manager = new FakeTaskManager()
     const { scheduler } = schedulerFixture(
-      definition([{ id: "review", prompt: "review the plan", subagent_type: "momus" }]),
+      definition([{ id: "review", prompt: "review the plan", subagent_type: "plan-reviewer" }]),
       manager,
       undefined,
       undefined,
-      () => ({ kind: "deny" as const, message: "momus requires a plan gate" }),
+      () => ({ kind: "deny" as const, message: "plan-reviewer requires a plan gate" }),
     )
 
     // when
@@ -1185,7 +1185,7 @@ describe("DAG scheduler node spawn policy", () => {
 
     // then
     expect(result.nodes[0]?.state).toBe("failed")
-    expect(result.nodes[0]?.error?.message).toContain("momus requires a plan gate")
+    expect(result.nodes[0]?.error?.message).toContain("plan-reviewer requires a plan gate")
     expect(manager.attempts).toEqual([])
   })
 
@@ -1194,7 +1194,7 @@ describe("DAG scheduler node spawn policy", () => {
     const manager = new FakeTaskManager()
     const canonical = "Review the work plan at .omo/plans/x.md for contradictions and blocking issues."
     const { scheduler } = schedulerFixture(
-      definition([{ id: "review", prompt: "caller wording", subagent_type: "momus" }]),
+      definition([{ id: "review", prompt: "caller wording", subagent_type: "plan-reviewer" }]),
       manager,
       undefined,
       undefined,
@@ -1564,7 +1564,7 @@ describe("DAG scheduler node controls", () => {
     // given
     const manager = new FakeTaskManager({
       sendOutcomes: {
-        "one-shot": { kind: "one_shot_agent", task_id: "task-one-shot", agent: "momus", message: "momus takes no follow-ups" },
+        "one-shot": { kind: "one_shot_agent", task_id: "task-one-shot", agent: "plan-reviewer", message: "plan-reviewer takes no follow-ups" },
         denied: { kind: "scope_denied", task_id: "task-denied", owning_session_id: "other", reason: "belongs to another session" },
         detached: { kind: "not_continuable", task_id: "task-detached", reason: "suspended", suggestion: "task_output" },
       },
@@ -1606,7 +1606,7 @@ describe("DAG scheduler node controls", () => {
       queuePosition: 1,
     })
     expect(outcomes["one-shot"]).toContain("node_not_continuable")
-    expect(outcomes["one-shot"]).toContain("momus takes no follow-ups")
+    expect(outcomes["one-shot"]).toContain("plan-reviewer takes no follow-ups")
     expect(outcomes.denied).toContain("node_not_continuable")
     expect(outcomes.denied).toContain("belongs to another session")
     expect(outcomes.detached).toContain("node_not_continuable")
