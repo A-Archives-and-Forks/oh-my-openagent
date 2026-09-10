@@ -63,6 +63,18 @@ export function fakeExtensionEventHandlerCount(pi: FakeExtensionAPI, name: strin
   return extensionEventHandlers.get(pi)?.get(name)?.size ?? 0
 }
 
+/**
+ * One finished host run: `agent_end`, then the `agent_settled` edge the host emits once no automatic
+ * retry, compaction or queued continuation will run. The plan-continuation producers decide on that
+ * second edge, so a test that dispatches only `agent_end` is asserting a run the host still owns.
+ * Returns the `agent_end` results so handler-result assertions stay unchanged.
+ */
+export async function dispatchRunEnd(pi: FakeExtensionAPI, payload: unknown, ctx?: unknown): Promise<unknown[]> {
+  const results = await pi.dispatch("agent_end", payload, ctx)
+  await pi.dispatch("agent_settled", { type: "agent_settled" }, ctx)
+  return results
+}
+
 export class FakeExtensionAPI implements SenpiExtensionAPI {
   // Mirrors the host's per-session cwd; left undefined to emulate hosts that predate it.
   cwd?: string

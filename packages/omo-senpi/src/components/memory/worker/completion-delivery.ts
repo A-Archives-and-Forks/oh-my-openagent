@@ -12,6 +12,7 @@ import {
 } from "./completion-contracts"
 import { readCompletionRecord, writeCompletionRecord } from "./completion-records"
 import { detailExcerpt, optionalRendererText } from "./entry-renderers"
+import { childFailureCause, failureFingerprint } from "./failure-detail"
 
 const DETAILED_DRAIN_LIMIT = 5
 const COMPLETION_MAX_AGE_MS = 7 * 24 * 60 * 60_000
@@ -111,7 +112,7 @@ function drainMessage(records: readonly ReflectionCompletionRecord[]): string {
 }
 
 function completionFingerprint(record: ReflectionCompletionRecord): string {
-  return `${record.reason ?? record.outcome}:${(record.detail ?? "").slice(0, 60)}`
+  return failureFingerprint(record.reason ?? record.outcome, record.detail)
 }
 
 function isUnsuccessful(record: ReflectionCompletionRecord): boolean {
@@ -146,7 +147,7 @@ function completionMessage(record: ReflectionCompletionRecord): string {
 
 function formatFailureFacts(record: ReflectionCompletionRecord): string {
   const reason = optionalRendererText(record.reason)
-  const detail = optionalRendererText(record.detail)
+  const detail = optionalRendererText(childFailureCause(record.detail))
   const bounded = detail === undefined ? undefined : detailExcerpt(detail)
   const reasonPart = reason === undefined ? "" : ` (${reason})`
   const detailPart = bounded === undefined ? "" : `: ${bounded}`
