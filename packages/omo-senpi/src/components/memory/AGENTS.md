@@ -48,8 +48,8 @@ The memory architecture - the git-backed memory filesystem, the memory tool sema
 | `sandbox.ts` | Seatbelt/bwrap sandbox transforms for detached reflection and dream children (`memory.reflection.sandbox`: `required|auto|off`, default `auto`). The in-process kibitzer and facts runners never pass through it. |
 | `commands/` | Thirteen slash commands (`MEMORY_COMMAND_NAMES`: `/memory`, `/memfs`, `/remember`, `/init`, `/doctor`, `/recompile`, `/memory-repository`, `/sleeptime`, `/reflect`, `/dream`, `/search`, `/people`, `/facts`); read-only output never enters model context. `/facts retry [--conversation <id>]` is the ONLY unpark path; it never touches queue files or either watermark. See `commands/AGENTS.md`. |
 | `palace/` | Self-contained HTML memory viewer. See `palace/AGENTS.md`. |
-| `guard.ts` | Soft cross-identity guard via `tool_call` (file tools only; bash advisory-only). |
-| `policy-guard.ts` | Hard guard: registers a filesystem policy when the host exposes `registerFilesystemPolicy` (senpi >= feat/extension-fs-policy), soft guard otherwise. |
+| `guard.ts` | Soft cross-identity guard via `tool_call` (file tools only; bash advisory-only). The verdict is structural - inside `agents/` or `transient-runs/` but outside the bound run's own root - with no directory enumeration, so per-call cost is constant in the number of identities on disk (#7765). |
+| `policy-guard.ts` | Hard guard: registers a filesystem policy when the host exposes `registerFilesystemPolicy` (senpi >= feat/extension-fs-policy), soft guard otherwise. `check()` is structural over the same two areas; `deniedRoots` metadata lists only durable (repo-owning) sibling identities. |
 | `skills-scope.ts` | Agent memfs `skills/` exposure via `resources_discover`. |
 | `status.ts` | Footer status + committed-only token advisory at `compile_warn_tokens`. |
 | `status-live.ts` | Generic footer animation: braille reflecting spinner, fingerprint-gated segment refresh, injectable timers. |
