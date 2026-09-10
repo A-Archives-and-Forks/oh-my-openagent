@@ -114,7 +114,7 @@
       "orchestrator": {
         "name": "オーケストレーター",
         "role": "メインエージェント",
-        "model": "セッションのモデル",
+        "model": "プロファイル: Capable · Simple work · Deep work",
         "description": "あなたのセッションで、あなたのモデルで動きます。意図を読み、一行も触る前にコードベースを把握し、カテゴリで委譲してすべての結果を独立に検証します。中断した実行は boulder.json から止まった箇所で再開します。"
       },
       "planner": {
@@ -171,6 +171,26 @@
         "name": "Dynamic Agent",
         "role": "タスクに合わせて組み立て",
         "model": "Per-category"
+      }
+    },
+    "profiles": {
+      "eyebrow": "プロファイル",
+      "title": "モデルではなく、意図を選ぶ。",
+      "subtitle": "プロファイルは順序付きのモデルチェーンです。model_profile を一度設定すると、omo はあなたのプロバイダが提供する最初のモデルでセッションを開始します。同じキーに provider/model をそのまま書けば、そのモデルに固定されます。",
+      "capable": {
+        "name": "Capable",
+        "role": "使える中で最も強い汎用モデル — モデルを考えたくないときの既定。",
+        "models": ["Claude Fable 5.1", "Claude Opus 5", "Kimi K3", "GLM 5.3"]
+      },
+      "simpleWork": {
+        "name": "Simple work",
+        "role": "小さく明確な修正を速く安く。",
+        "models": ["GPT-5.6 Luna Fast", "DeepSeek V4 Flash", "Claude Haiku 4.5"]
+      },
+      "deepWork": {
+        "name": "Deep work",
+        "role": "難問のための最大推論 — deep カテゴリと同じチェーン。",
+        "models": ["GPT-6 Astra", "GPT-5.6 Sol"]
       }
     },
     "orchestration": {

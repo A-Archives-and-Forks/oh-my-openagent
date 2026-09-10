@@ -114,7 +114,7 @@
       "orchestrator": {
         "name": "编排器",
         "role": "主智能体",
-        "model": "你的会话模型",
+        "model": "模型配置: Capable · Simple work · Deep work",
         "description": "在你的会话里、用你的模型运行。读懂你的意图，动手前先摸清代码库，按类别委派并独立验证每个结果。中断的运行会从 boulder.json 记录的位置精确恢复。"
       },
       "planner": {
@@ -171,6 +171,26 @@
         "name": "Dynamic Agent",
         "role": "按任务即时组装",
         "model": "Per-category"
+      }
+    },
+    "profiles": {
+      "eyebrow": "模型配置",
+      "title": "选意图，不选模型。",
+      "subtitle": "一个配置就是一条有序的模型链。设一次 model_profile，omo 就会用你的提供商能提供的第一个模型启动会话；在同一个键里直接写 provider/model 则固定为该模型。",
+      "capable": {
+        "name": "Capable",
+        "role": "可用的最强通用模型 — 不想纠结模型时的默认选择。",
+        "models": ["Claude Fable 5.1", "Claude Opus 5", "Kimi K3", "GLM 5.3"]
+      },
+      "simpleWork": {
+        "name": "Simple work",
+        "role": "为小而明确的修改提供快速且便宜的选择。",
+        "models": ["GPT-5.6 Luna Fast", "DeepSeek V4 Flash", "Claude Haiku 4.5"]
+      },
+      "deepWork": {
+        "name": "Deep work",
+        "role": "为难题提供最大推理能力 — 与 deep 类别使用同一条链。",
+        "models": ["GPT-6 Astra", "GPT-5.6 Sol"]
       }
     },
     "orchestration": {
