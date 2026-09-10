@@ -47,7 +47,7 @@ describe("session_start component ordering", () => {
     const logger = createLogger()
     const scheduledFlushes: Array<() => void> = []
     const idleCoordinator = new IdleInjectionCoordinator(() => undefined, {
-      scheduleFlush: (flush) => scheduledFlushes.push(flush),
+      scheduleFlush: (flush) => { scheduledFlushes.push(flush) },
     })
     const enqueue = spyOn(idleCoordinator, "enqueue")
     const scheduleFlush = spyOn(idleCoordinator, "scheduleFlush")

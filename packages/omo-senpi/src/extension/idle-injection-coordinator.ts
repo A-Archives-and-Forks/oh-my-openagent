@@ -29,11 +29,29 @@ export type IdleInjectionDelivery = (
 
 // Defers a single flush to the next idle tick. Injectable so unit tests drive it deterministically;
 // production defaults to queueMicrotask so a deferred continuation flush runs after any synchronous
-// wake on the same idle edge has already drained the queue.
-export type FlushScheduler = (flush: () => void) => void
+// wake on the same idle edge has already drained the queue. Returning a canceller lets retire() drop
+// the armed batch-window timer instead of leaving a live handle behind (every sibling scheduler in
+// this codebase - lead-poller-lifecycle, senpi-task's completion retry - does the same). The
+// queueMicrotask default returns nothing, which is safe: retire() empties the queue, so a microtask
+// that still fires has nothing left to deliver.
+export type FlushScheduler = (flush: () => void) => (() => void) | void
 
 export interface IdleInjectionCoordinatorOptions {
   readonly scheduleFlush?: FlushScheduler
+}
+
+/**
+ * Handed to `onDeliveryFailed` for every injection still queued when the coordinator retires, and
+ * thrown by producers whose `enqueue` was refused after retirement. It means the notification was
+ * NOT delivered and the parent session that owned this queue is gone, so the producer must route it
+ * to its own durable failure path (senpi-task rolls `notified_epoch` back and the post-reload
+ * `session_start` reconcile redelivers).
+ */
+export class IdleInjectionRetiredError extends Error {
+  constructor(message = "idle-injection coordinator retired on session shutdown; injection not delivered") {
+    super(message)
+    this.name = "IdleInjectionRetiredError"
+  }
 }
 
 // Deterministic order: task completions are announced first and DAG run summaries last, so a mixed
@@ -55,6 +73,13 @@ const SOURCE_RANK: Readonly<Record<IdleInjectionSource, number>> = {
  * at the next tool-call boundary (unconditional batched-steer contract: N ready notifications never
  * produce N separate injections). comment-checker's tool_result transform is intentionally NOT routed
  * here.
+ *
+ * Receipts are a contract, not a courtesy. An ACCEPTED injection (`enqueue` returned true) always
+ * gets exactly one receipt: `onFlushed` once delivery succeeded, or `onDeliveryFailed` when the
+ * delivery throws/rejects OR when `retire()` drops the batch window. A REFUSED injection (`enqueue`
+ * returned false, i.e. the coordinator is already retired) gets NO receipt, because ownership never
+ * transferred - the producer sees the refusal synchronously and handles it there. Nothing is ever
+ * dropped silently: a completion that is not delivered is always reported back to its producer.
  */
 export class IdleInjectionCoordinator {
   readonly #deliver: IdleInjectionDelivery
@@ -63,45 +88,47 @@ export class IdleInjectionCoordinator {
   #flushScheduled = false
   #soonScheduled = false
   #retired = false
+  #cancelScheduledFlush: (() => void) | undefined
 
   constructor(deliver: IdleInjectionDelivery, options: IdleInjectionCoordinatorOptions = {}) {
     this.#deliver = deliver
     this.#scheduleFlush = options.scheduleFlush ?? ((flush) => queueMicrotask(flush))
   }
 
-  enqueue(injection: IdleInjection): void {
-    if (this.#retired) return
+  /**
+   * Accept an injection into the batch window. Returns false when the coordinator is retired: the
+   * queue is gone, the injection is NOT queued and gets no receipt, so the caller still owns the
+   * notification and must fail it durably (a silent success is what makes senpi-task persist
+   * `notified_epoch` and makes the post-reload reconcile skip the record forever).
+   */
+  enqueue(injection: IdleInjection): boolean {
+    if (this.#retired) return false
     this.#pending.set(injection.key, injection)
+    return true
   }
 
   // Streaming-safe producers enqueue then request a batched steer at the next tool-call boundary.
-  // Repeated requests before the deferred pass runs coalesce to a single flush.
+  // Repeated requests before the deferred pass runs coalesce to a single flush. Retired: arming a new
+  // batch-window timer for a dead session would only leave a live handle behind.
   scheduleFlush(): void {
     if (this.#retired || this.#flushScheduled) return
     this.#flushScheduled = true
-    this.#scheduleFlush(() => {
+    this.#cancelScheduledFlush = this.#scheduleFlush(() => {
       this.#flushScheduled = false
-      try {
-        this.#flush("steer")
-      } catch (error) {
-        if (!this.#retired) throw error
-      }
-    })
+      this.#cancelScheduledFlush = undefined
+      this.#flush("steer")
+    }) ?? undefined
   }
 
   // Immediate coalesced flush for an IDLE parent. A microtask is soon enough to land the steer before
   // senpi's print mode can decide the session is over (the windowed timer is not - live-driver proven),
   // while still batching every notification that becomes ready in the same tick into one injection.
   flushSoon(): void {
-    if (this.#retired || this.#soonScheduled) return
+    if (this.#soonScheduled) return
     this.#soonScheduled = true
     queueMicrotask(() => {
       this.#soonScheduled = false
-      try {
-        this.flushOnIdle()
-      } catch (error) {
-        if (!this.#retired) throw error
-      }
+      this.flushOnIdle()
     })
   }
 
@@ -113,13 +140,26 @@ export class IdleInjectionCoordinator {
     return this.#pending.delete(key)
   }
 
-  // Called from session_shutdown, which senpi emits on the OLD extension runner before invalidating its
-  // generation. After this, every armed deferred flush and every late enqueue is a no-op, so the captured
-  // pi.sendMessage can never be called on a stale API. The queue is dropped rather than carried over:
-  // it is a batching window, not a durable store, and durable producers redeliver on session_start.
+  /**
+   * Called from session_shutdown, which senpi emits on the OLD extension runner before invalidating
+   * its generation. Retirement is the SINGLE mechanism that makes every armed callback harmless: the
+   * armed batch-window timer is cancelled, the queue is emptied, and `enqueue` refuses from here on,
+   * so no flush can ever reach the stale generation's `pi.sendMessage` (issue #7932) - the flush path
+   * itself needs no retirement guard, because it can only ever see an empty queue.
+   *
+   * The queue is a batching window, not a durable store, so its entries cannot be carried over. They
+   * are handed BACK instead of dropped: every accepted injection gets its `onDeliveryFailed` receipt,
+   * which is what routes a background-task completion to senpi-task's failure bookkeeping (and from
+   * there to the post-reload `session_start` reconcile) rather than losing it forever.
+   */
   retire(): void {
     this.#retired = true
+    const cancelScheduledFlush = this.#cancelScheduledFlush
+    this.#cancelScheduledFlush = undefined
+    cancelScheduledFlush?.()
+    const dropped = [...this.#pending.values()]
     this.#pending.clear()
+    for (const injection of dropped) injection.onDeliveryFailed?.(new IdleInjectionRetiredError())
   }
 
   // Flush the whole queue as one idle-edge steer. Returns how many queued items were collapsed (0 = no-op).
@@ -128,7 +168,7 @@ export class IdleInjectionCoordinator {
   }
 
   #flush(deliverAs: "steer" | "followUp"): number {
-    if (this.#retired || this.#pending.size === 0) return 0
+    if (this.#pending.size === 0) return 0
     if ([...this.#pending.values()].every((injection) => injection.passive === true)) return 0
     const ordered = [...this.#pending.values()].sort(
       (left, right) => SOURCE_RANK[left.source] - SOURCE_RANK[right.source],
