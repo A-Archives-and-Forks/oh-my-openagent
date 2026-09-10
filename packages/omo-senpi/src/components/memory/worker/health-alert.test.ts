@@ -53,6 +53,27 @@ describe("reflection health alert", () => {
     expect(typeof entry.recommendation).toBe("string")
   })
 
+  test("#given a child that died inside a Bun code frame #when the alert fires #then neither the notice nor the entry carries source lines", async () => {
+    // given: the stderr tail of a crashed Bun child leads with a code frame, a caret and property rows
+    const root = await failureStreak(3, BUN_CRASH_STDERR)
+    const harness = liveHarness()
+
+    // when
+    await emitReflectionHealthAlert(root, "agent-test", harness.live, harness.once)
+
+    // then: the user-facing sentence names the cause, never the source that raised it
+    const notice = harness.notifications[0] ?? ""
+    expect(notice).not.toMatch(/\d+\s\|\s/)
+    expect(notice).not.toContain("const ")
+    expect(notice).not.toContain("at getBuiltinThemes")
+    expect(notice).toContain("ENOENT: no such file or directory")
+    const entry = harness.api.entries.find((item) => item.customType === REFLECTION_HEALTH_ENTRY_TYPE)?.data as ReflectionHealthEntry
+    expect(entry.lastDetail).toBe(
+      "ENOENT: no such file or directory, open '/opt/omo-runtime/dist/modes/interactive/theme/dark.json'",
+    )
+    expect(entry.fingerprint).not.toMatch(/\d+\s\|\s/)
+  })
+
   test("#given only two consecutive failures #when alerting runs #then the streak threshold suppresses the alert", async () => {
     // given
     const root = await failureStreak(2, "stable")
@@ -142,6 +163,25 @@ describe("reflection health alert", () => {
     expect(second.api.entries.filter((entry) => entry.customType === REFLECTION_HEALTH_ENTRY_TYPE)).toHaveLength(1)
   })
 })
+
+/** A verbatim Bun crash tail: code frame, caret, message, property rows, stack, runtime footer. */
+const BUN_CRASH_STDERR = [
+  '340 |         const darkPath = path.join(themesDir, "dark.json");',
+  '341 |         const lightPath = path.join(themesDir, "light.json");',
+  "344 |         BUILTIN_THEMES = {",
+  '345 |             dark: JSON.parse(fs.readFileSync(darkPath, "utf-8")),',
+  "                                      ^",
+  "ENOENT: no such file or directory, open '/opt/omo-runtime/dist/modes/interactive/theme/dark.json'",
+  '    path: "/opt/omo-runtime/dist/modes/interactive/theme/dark.json",',
+  '  syscall: "open",',
+  "    errno: -2,",
+  '     code: "ENOENT"',
+  "",
+  "      at getBuiltinThemes (/global/node_modules/@code-yeongyu/senpi/dist/modes/interactive/theme/theme.js:345:33)",
+  "      at loadTheme (/global/node_modules/@code-yeongyu/senpi/dist/modes/interactive/theme/theme.js:513:23)",
+  "",
+  "Bun v1.4.2 (macOS arm64)",
+].join("\n")
 
 const BOLD = "\u001b[1m"
 const BOLD_OFF = "\u001b[22m"

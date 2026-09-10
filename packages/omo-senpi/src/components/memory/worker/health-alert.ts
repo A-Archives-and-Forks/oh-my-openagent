@@ -8,6 +8,7 @@ import {
   normalizeRendererText,
   optionalRendererText,
 } from "./entry-renderers"
+import { childFailureCause } from "./failure-detail"
 import { readReflectionHealth } from "./health"
 import { reflectionRemediation } from "./remediation"
 
@@ -30,6 +31,8 @@ export interface ReflectionHealthEntry {
 export const renderReflectionHealthEntry: EntryRenderer<ReflectionHealthEntry> = (entry, options, theme) => {
   const health = entry.data
   if (!health) return undefined
+  // Entries persisted before distillation existed still carry a raw stderr tail on resume.
+  const cause = childFailureCause(health.lastDetail)
   return noticeComponent(
     {
       glyph: "✗",
@@ -38,7 +41,7 @@ export const renderReflectionHealthEntry: EntryRenderer<ReflectionHealthEntry> =
       why: recommendationWhy(health.recommendation),
       detail: joinFields([
         `reason ${normalizeRendererText(health.lastReason)}`,
-        optionalRendererText(health.lastDetail) === undefined ? undefined : detailExcerpt(health.lastDetail ?? ""),
+        optionalRendererText(cause) === undefined ? undefined : detailExcerpt(cause ?? ""),
         `since ${normalizeRendererText(health.sinceISO)}`,
         `identity ${normalizeRendererText(health.identity)}`,
       ]),
@@ -77,17 +80,22 @@ export async function emitReflectionHealthAlert(
   if (!once(`${live.sessionId}:${health.fingerprint}`)) return false
   const failure = health.lastFailure
   const recommendation = reflectionRemediation(failure?.reason, failure?.detail)
+  const cause = childFailureCause(failure?.detail)
   const entry: ReflectionHealthEntry = {
     schemaVersion: 1,
     identity,
     streak: health.streak,
     fingerprint: health.fingerprint,
     lastReason: failure?.reason ?? "failed",
-    ...(failure?.detail === undefined ? {} : { lastDetail: failure.detail }),
+    ...(cause === undefined ? {} : { lastDetail: cause }),
     sinceISO: health.streakSinceISO ?? failure?.finishedAt ?? new Date(0).toISOString(),
     recommendation,
   }
   live.api.appendEntry(REFLECTION_HEALTH_ENTRY_TYPE, entry)
-  safeNotify(live, `Memory reflection has failed ${health.streak} times (${health.fingerprint}). ${recommendation}`, "warning")
+  safeNotify(
+    live,
+    joinFields([`Memory reflection has failed ${health.streak} times`, cause ?? failure?.reason, recommendation]),
+    "warning",
+  )
   return true
 }

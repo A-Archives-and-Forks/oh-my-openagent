@@ -140,6 +140,7 @@ export {
   classifyChildExit,
   createRpcChildHandle,
   detectBunBinary,
+  detectCompiledEngine,
   mapExitOutcomeToError,
   parseExtensionEntries,
   resolveChildSessionDir,
