@@ -281,7 +281,9 @@ describe("OMO Senpi scoped skill sync", () => {
     const leaks: string[] = []
 
     for (const file of listFiles(skillsRoot)) {
-      const relativePath = relative(repoRoot, file)
+      // `relative` yields `\`-separated paths on Windows; the exemption suffixes are written with
+      // `/`, so compare on a normalized form or the exemptions silently stop matching there.
+      const relativePath = relative(repoRoot, file).replaceAll("\\", "/")
       const lines = readFileSync(file, "utf8").split("\n")
       for (const [index, line] of lines.entries()) {
         if (retiredNameAllowedMarker.test(line)) continue
