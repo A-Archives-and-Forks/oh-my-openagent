@@ -23,7 +23,7 @@ import {
 } from "./candidate-sweep"
 import type { LockRecord } from "./lock-record"
 import { parseLockRecord } from "./lock-record"
-import { getPidLiveness, getProcessStartIdentity } from "./process-identity"
+import { getPidLiveness, getProcessStartIdentity, startIdentitiesConflict } from "./process-identity"
 
 export type AcquireLockOptions = {
   readonly waitTimeoutMs?: number
@@ -190,7 +190,7 @@ async function isProvenDead(owner: LockRecord): Promise<boolean> {
 
   const actualStart = await getProcessStartIdentity(owner.pid)
   if (actualStart === null || owner.process_start === "unavailable") return false
-  return actualStart !== owner.process_start
+  return startIdentitiesConflict(owner.process_start, actualStart)
 }
 
 // The recovery lock's only remover is its holder's nonce-matched releaseLock, so a holder
