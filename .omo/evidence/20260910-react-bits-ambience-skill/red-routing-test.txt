@@ -1,5 +1,5 @@
-RED — packages/shared-skills/frontend-ambience-routing.test.ts run on mengmotaMac (bun 1.4.2, ~/.bun-1.4.2/bin) at branch commit 831c46c30, BEFORE ambience-skill.md / manifest / gitignore existed.
-Worktree: /tmp/omo-ambience-20260910 (git worktree of ~/local-workspaces/omo), bun install --frozen-lockfile.
+RED — packages/shared-skills/frontend-ambience-routing.test.ts run on a fleet compute node (bun 1.4.2, ~/.bun-1.4.2/bin) at branch commit 831c46c30, BEFORE ambience-skill.md / manifest / gitignore existed.
+Worktree: /tmp/omo-ambience-20260910 (git worktree of the repository checkout), bun install --frozen-lockfile.
 
 1.4.2
 INSTALL_EXIT=0
