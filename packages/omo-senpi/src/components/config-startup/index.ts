@@ -155,7 +155,7 @@ export function notificationMessages(
     message: `omo-senpi: configuration diagnostics: ${config.diagnostics.map((diagnostic) => diagnostic.message).join("; ")}`,
     type: "warning",
   })
-  // One warning per retired omo.json agents key (metis/momus); the alias in senpi-task's
+  // One warning per retired omo.json agents key; the alias in senpi-task's
   // mapOmoConfigAgents already lands the definition on the canonical id, so this is notice only.
   for (const { legacy, canonical } of legacyOmoConfigAgentKeys(config.config)) messages.push({
     kind: "omo-config:agent-alias-deprecated",

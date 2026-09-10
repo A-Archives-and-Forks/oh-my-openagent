@@ -13,7 +13,7 @@ import type { AgentDefinition } from "./types"
  * record; `AgentDefinition` carries an explicit `name`, camelCase keys, and last-match-wins tool rules.
  * This maps each field across, reusing the tool-rule normalizer, and omits any field the source omits.
  *
- * A legacy curated record key (`metis`/`momus`) maps onto its canonical key (`plan-consultant`/
+ * A legacy curated record key maps onto its canonical key (`plan-consultant`/
  * `plan-reviewer`), and the canonical key wins when both exist. Every `allowed_subagents` entry is
  * canonicalized so `manager/depth-policy.ts` compares against the canonical target id.
  */

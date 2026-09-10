@@ -158,7 +158,7 @@ function spawnTarget(item: Record<string, unknown>, parent: Record<string, unkno
   const category = itemCategory ?? (itemSubagent === undefined ? identifier(parent.category) : undefined)
   const subagent = itemSubagent ?? (itemCategory === undefined ? identifier(parent.subagent_type) : undefined)
   if ((category === undefined) === (subagent === undefined)) return undefined
-  // A retired curated id (metis/momus) is canonicalized so the allowlist reports the real agent
+  // A retired curated id is canonicalized so the allowlist reports the real agent
   // rather than "custom" for the one release the alias is honored.
   return category === undefined
     ? { kind: "subagent", name: canonicalAgentName(subagent ?? "").name }

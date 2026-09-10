@@ -69,7 +69,7 @@ export function resolveAgent<TModel extends SenpiModelPort>(
   registry: SenpiModelRegistryPort<TModel> | undefined,
   options: ResolveAgentOptions = {},
 ): AgentResolutionResult {
-  // Canonicalized first so a direct caller passing a retired curated id (metis/momus) resolves as
+  // Canonicalized first so a direct caller passing a retired curated id resolves as
   // the canonical id and can never miss the lookup; unknown names pass through untouched.
   const name = canonicalAgentName(requestedName).name
   const availableAgents = Object.entries(agents)

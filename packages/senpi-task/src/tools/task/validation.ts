@@ -108,7 +108,7 @@ export function validateTaskTarget(params: TargetInput): TaskTargetSelection {
     return { kind: "category", category: params.category.trim() }
   }
   if (present(params.subagent_type)) {
-    // Legacy curated ids (metis/momus) canonicalize here; the legacy id rides along in-memory only
+    // Legacy curated ids canonicalize here; the legacy id rides along in-memory only
     // so the caller can surface the deprecation notice without changing any persisted shape.
     const canonical = canonicalAgentName(params.subagent_type)
     return {

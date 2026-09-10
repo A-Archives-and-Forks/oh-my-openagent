@@ -40,7 +40,7 @@ export function validateSenpiTeamMembers(spec: TeamSpec, ports: SenpiTeamMemberP
     }
 
     // Legacy curated ids canonicalize before the curated/reviewer/known checks so a member
-    // declared as metis/momus is validated (and later spawned) as its canonical id. The builtin
+    // declared under a retired curated id is validated (and later spawned) as its canonical id. The builtin
     // name sets may still be keyed by the legacy id during the deprecation window, so both the
     // canonical and the legacy id are checked against them (canonical once the sets are renamed);
     // every message names the canonical id.

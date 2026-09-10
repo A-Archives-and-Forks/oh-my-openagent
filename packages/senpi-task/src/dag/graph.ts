@@ -85,7 +85,7 @@ function compareSequences(a: readonly DagNodeId[], b: readonly DagNodeId[]): num
 
 function routeOf(input: DagNodeInput): DagRoute {
   // Only the canonical agent is stored: DagRoute is hashed by dag/fingerprint.ts, so a legacy
-  // subagent_type (metis/momus) must never leak into the persisted route.
+  // subagent_type must never leak into the persisted route.
   return input.category !== undefined
     ? { kind: "category", category: input.category }
     : {

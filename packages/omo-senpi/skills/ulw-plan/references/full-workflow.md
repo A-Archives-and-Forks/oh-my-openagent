@@ -85,7 +85,7 @@ As soon as `<slug>`, intent, and classification are known, run the scaffold with
 }
 ```
 
-A draft written before the rename may carry review.momus; read it as review.plan_reviewer and rewrite the key on the next atomic draft update. <!-- retired-name-allowed -->
+A draft written before the rename may carry the retired reviewer key; read it as review.plan_reviewer and rewrite the key on the next atomic draft update.
 
 After approval and only after the plan is complete, replace the request state atomically with the initialized review round before launching plan-reviewer:
 
