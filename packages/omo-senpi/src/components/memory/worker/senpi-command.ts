@@ -1,5 +1,4 @@
-import { existsSync } from "@oh-my-opencode/memory-core/fs"
-import { realpathSync } from "node:fs"
+import { existsSync, realpathSync } from "@oh-my-opencode/memory-core/fs"
 import { createRequire } from "node:module"
 import { isAbsolute, join, relative } from "node:path"
 
