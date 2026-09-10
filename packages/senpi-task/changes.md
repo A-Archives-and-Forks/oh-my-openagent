@@ -1,4 +1,13 @@
 
+## 2026-09-10 — Retire myth agent names from test fixtures and update package documentation
+
+The builtin curated agents `metis` and `momus` are renamed to `plan-consultant` and `plan-reviewer` in
+the codebase; the alias handles legacy task records. All non-alias test fixtures in `packages/senpi-task/src/`
+are updated to use the canonical names, and the team member name `atlas` in control-tool tests becomes `builder`.
+`packages/senpi-task/AGENTS.md` and `packages/senpi-task/AGENTS.md` are updated to reflect the new curated agent
+identities. Legacy ids (`metis` and `momus`) are only used in tests that explicitly exercise the alias table
+(todos 1, 3, 5) or in persisted task records demonstrating backward compatibility.
+
 ## 2026-09-10 — Survive a Windows EPERM on the task-record rename and never strand a terminal outcome
 
 On Windows a task-record rename under `tasks/` can be refused with `EPERM` (a sharing violation from Defender,
