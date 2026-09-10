@@ -63,7 +63,9 @@ export async function CognitiveLoadSection(): Promise<JSX.Element> {
           </Eyebrow>
           <div className="space-y-2">
             <h3 className={HEADING_CLASS}>{t("cognitiveLoad.plannerExecutor.title")}</h3>
-            <p className="text-text-mid leading-[1.6]">{t("cognitiveLoad.plannerExecutor.subtitle")}</p>
+            <p className="text-text-mid leading-[1.6]">
+              {t("cognitiveLoad.plannerExecutor.subtitle")}
+            </p>
           </div>
           <div className="border-line border-y">
             <div className="py-4">
