@@ -495,7 +495,7 @@ describe("DAG happy-path end to end", () => {
       { id: "budget", route: { kind: "category", category: "deep" } },
       { id: "build", route: { kind: "agent", agent: "hephaestus" } },
       { id: "docs", route: { kind: "category", category: "writing" } },
-      { id: "review", route: { kind: "agent", agent: "momus" } },
+      { id: "review", route: { kind: "agent", agent: "plan-reviewer" } },
     ])
     // Launch order follows the frontier, not declaration: budget starts as soon as intake
     // settles, ahead of evidence whose dependency research folded one settlement later.
@@ -507,7 +507,7 @@ describe("DAG happy-path end to end", () => {
       ["evidence", "scripted/librarian", "librarian"],
       ["build", "scripted/hephaestus", "hephaestus"],
       ["docs", "scripted/writing", undefined],
-      ["review", "scripted/momus", "momus"],
+      ["review", "scripted/plan-reviewer", "plan-reviewer"],
     ])
     expect(Object.values(result.nodes).every((node) => node.state === "completed" && node.output.startsWith("output:"))).toBe(true)
     assertArtifacts(fixture, result.runId, input.key, input.nodes.map((node) => node.id))
