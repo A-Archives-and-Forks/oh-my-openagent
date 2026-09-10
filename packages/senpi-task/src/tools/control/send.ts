@@ -70,7 +70,8 @@ export async function runTaskSend(
       body: params.message,
       ...(params.summary !== undefined ? { summary: params.summary } : {}),
     })
-    return toolResult(firstText(teamResult), { kind: "team_message", team: teamResult.details })
+    const wrapped: SendToolResult = toolResult(firstText(teamResult), { kind: "team_message", team: teamResult.details })
+    return teamResult.isError === true ? { ...wrapped, isError: true } : wrapped
   }
 
   if (params.message !== undefined) return routeStructuredMessage(params.to, params.message, params, teamRouting)

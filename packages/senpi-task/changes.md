@@ -3,6 +3,13 @@
 
 RPC children now receive `--no-ask-user` immediately after `--no-extensions` so the detached process cannot register `request_user_input` / `ask_user_question`. Headless auto-answer treats `method: "question"` as cancelled (structural request type until the pinned senpi unions include it). Catalog argv is unchanged.
 
+## 2026-09-10 — Team tool failures are tool errors and the family renders as team rows
+
+`tools/control/tool-result.ts` gains `toolErrorResult` (and the `ToolExecutionResult` shape carrying senpi's inline `isError`). Every failure kind of the lead team family returns through it — `team_create` `invalid_arguments` / `spec_error` / `runtime_error`, `team_delete` `invalid_state`, `task_get` `not_found`, `task_update` `already_claimed` / `blocked_by` / `invalid_transition` / `cross_owner`, the team mailbox error kinds, and both shutdown error views — while success kinds are untouched. `task_send` propagates the flag when it wraps a failed team message. The result keeps its typed `details`, so the model still branches on `kind` while the TUI paints the row as an error and the RPC `tool_execution_end.isError` the desktop maps to `failed` is true.
+
+New `tools/team/renderers.ts` gives the six lead tools their own `renderCall` / `renderResult` in the shared renderer-text grammar (`team create name:<n> members:<N>` / `spec:<name>`, `team delete run:<id> [force]`, `team task <op> ...`), lists every member with its own `statusThemeColor`, and renders every failure as one error-colored line carrying the kind, code, and a bounded reason excerpt — replacing senpi's bold-name + raw-JSON fallback. The factories are now generically typed so those renderers keep their argument and details types, `buildLeadTeamTools` publishes the family as a `LeadTeamTool` union, and `filterSharedParentTools` / `mergeChildCustomTools` take a generic tool element (they only read `name` and `exposure`).
+
+`team/spawn-members.ts` describes a `plan_unresolved` member start with the same recoverable target lists the task tool offers, so a member that cannot be routed names the valid categories instead of only the planner message.
 ## 2026-09-10 — Survive a Windows EPERM on the task-record rename and never strand a terminal outcome
 
 On Windows a task-record rename under `tasks/` can be refused with `EPERM` (a sharing violation from Defender,
