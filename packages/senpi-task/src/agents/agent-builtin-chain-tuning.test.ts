@@ -41,7 +41,7 @@ describe("agent tuning on the builtin fallback chain", () => {
     const models = registry([{ provider: "openai", id: "gpt-6-astra" }])
 
     // when
-    const result = expectResolved(resolveAgent("momus", agents, models))
+    const result = expectResolved(resolveAgent("plan-reviewer", agents, models))
 
     // then
     expect(result.resolved_model?.variant).toBe("low")
@@ -53,7 +53,7 @@ describe("agent tuning on the builtin fallback chain", () => {
     const models = registry([{ provider: "openai", id: "gpt-6-astra" }])
 
     // when
-    const result = expectResolved(resolveAgent("momus", agents, models))
+    const result = expectResolved(resolveAgent("plan-reviewer", agents, models))
 
     // then
     expect(result.resolved_model?.variant).toBe("xhigh")
