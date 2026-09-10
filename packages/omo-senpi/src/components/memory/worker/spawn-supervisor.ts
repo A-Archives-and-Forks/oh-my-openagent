@@ -146,6 +146,7 @@ async function runSupervisedChild(input: {
   await writeRunJsonAtomic(join(input.runDir, "launch.json"), launch)
 
   const supervisor = spawn(process.execPath, [input.supervisorPath ?? defaultSupervisorPath(), input.runDir], {
+    env: { ...process.env, ...input.env, BUN_BE_BUN: "1" },
     detached: true,
     stdio: "ignore",
     // win32 gives a detached child its own console, which flashes an empty terminal window on the
