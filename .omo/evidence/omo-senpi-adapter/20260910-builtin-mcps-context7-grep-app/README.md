@@ -19,8 +19,10 @@ deliberately NOT re-declared.
    with the built `plugin/extensions/omo.js` loaded via `-e`, then asked `get_loaded_surfaces` which MCP
    servers the host actually loaded. Three scenarios: anonymous, placeholder `CONTEXT7_API_KEY`, and
    `mcp.json` disable override.
-4. Bundle freshness: `checkExtensionCurrent()` (the function `build-extension.mjs --check` runs) after
-   regenerating the committed bundle.
+4. Bundle freshness: the committed `plugin/extensions/omo.js` must match a fresh build, because
+   `src/**` is bundled into it and CI's `senpi-compatibility` job fails with `stale-output` otherwise.
+   Checked twice: `checkExtensionCurrent()` directly, and then the full CLI
+   `build-extension.mjs --check` once the staged runtimes it preflights were built.
 
 Driver used for (3) is the throwaway script recorded in `live-rpc-surface-driver.mjs` here (not shipped:
 the repo's committed drivers live in `packages/omo-senpi/scripts/qa/`; this change needed one RPC call,
@@ -51,9 +53,13 @@ sandbox child running also changes (`idleDigestStable: false`, recorded in `live
 sandbox child's `SENPI_CODING_AGENT_DIR` was the temp dir printed as `agentDir` in each run.
 
 Bundle freshness after regeneration: `checkExtensionCurrent()` -> `{"ok": true, ...}` (`bundle-check.log`).
-`--check` via the CLI additionally verifies the staged lsp-daemon/ast-grep/agent-toolkit runtimes, which
-are not staged in this worktree (`packages/ast-grep-mcp/dist/cli.js` absent), so the freshness check was
-invoked through the exported function directly.
+The CLI form additionally preflights the staged lsp-daemon/ast-grep/agent-toolkit runtimes, so
+`packages/ast-grep-mcp/dist/cli.js` was built (`bun run --cwd packages/ast-grep-mcp build`) and the
+runtimes staged; `node packages/omo-senpi/plugin/scripts/build-extension.mjs --check` then printed
+`omo-senpi extension build is current: .../plugin/extensions/omo.js` with **exit code 0**, and
+`git status --short` was empty afterwards, i.e. the committed bundle is byte-identical to a fresh build
+(`bundle-check-cli.log`). The bundle is its own commit, `build(omo-senpi): regenerate extension bundle
+for builtin-mcps`.
 
 ## WHY IT IS ENOUGH
 
