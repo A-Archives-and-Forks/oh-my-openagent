@@ -26,6 +26,12 @@ import type {
 
 export { TaskRecordCollisionError } from "./record-write"
 
+export type TaskRecordStoreOptions = {
+  // Test seam: the rename-retry branch is win32-only, so tests inject the platform instead of
+  // running only on Windows CI. Production omits this and reads process.platform.
+  readonly platform?: NodeJS.Platform
+}
+
 type CacheEntry = {
   readonly record: TaskRecord
   readonly mtimeMs: number
@@ -33,8 +39,9 @@ type CacheEntry = {
   readonly warnings: readonly string[]
 }
 
-export function createTaskRecordStore(config: StateDirConfig): TaskRecordStore {
+export function createTaskRecordStore(config: StateDirConfig, options: TaskRecordStoreOptions = {}): TaskRecordStore {
   const stateDir = resolveStateDir(config)
+  const platform = options.platform ?? process.platform
   const cache = new Map<string, CacheEntry>()
   const appendFds: AppendFdCache = new Map()
 
@@ -50,14 +57,14 @@ export function createTaskRecordStore(config: StateDirConfig): TaskRecordStore {
     stateDir,
     save(record) {
       const path = taskPath(stateDir, parseTaskId(record.task_id))
-      writeRecord(path, record, "create")
+      writeRecord(path, record, "create", platform)
       cacheSet(path)
     },
     replace(record) {
       const taskId = parseTaskId(record.task_id)
       const path = taskPath(stateDir, taskId)
       withTaskRecordLock(path, () => {
-        writeRecord(path, record, "replace")
+        writeRecord(path, record, "replace", platform)
         cacheSet(path)
       })
     },
@@ -68,7 +75,7 @@ export function createTaskRecordStore(config: StateDirConfig): TaskRecordStore {
         const current = readRecord(path)
         if (current === null) return null
         const next = mutation(current)
-        if (next !== current) writeRecord(path, next, "replace")
+        if (next !== current) writeRecord(path, next, "replace", platform)
         cacheSet(path)
         return next
       })
@@ -90,7 +97,7 @@ export function createTaskRecordStore(config: StateDirConfig): TaskRecordStore {
         if (record === null) throw new Error(`Task record not found: ${taskId}`)
         const result = transitionTaskRecord(record, transition)
         appendTaskEvent(stateDir, parsedTaskId, { type: result.audit.type, payload: result.audit }, appendFds)
-        if (result.applied) writeRecord(path, result.record, "replace")
+        if (result.applied) writeRecord(path, result.record, "replace", platform)
         cacheSet(path)
         return result
       })
