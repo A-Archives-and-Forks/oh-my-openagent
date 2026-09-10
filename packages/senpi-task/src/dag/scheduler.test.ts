@@ -524,6 +524,57 @@ describe("DAG scheduler terminal result persistence", () => {
   })
 })
 
+describe("#8020 scheduler quiescence", () => {
+  test("#given an in-flight admission #when suspended #then lease handoff waits for admission and stale completion cannot write", async () => {
+    const admitted = deferred<void>()
+    const release = deferred<void>()
+    class GatedManager extends FakeTaskManager {
+      override async startOwned(spec: ManagerStartSpec, owner: DagTaskOwner): Promise<OwnedStartResult> {
+        const result = await super.startOwned(spec, owner)
+        admitted.resolve()
+        await release.promise
+        return result
+      }
+    }
+    const manager = new GatedManager({ autoComplete: false })
+    const { scheduler, store } = schedulerFixture(definition([node("live"), node("next", ["live"])]), manager)
+    const running = scheduler.run()
+    await within(admitted.promise, 3000)
+    let quiesced = false
+    const suspending = scheduler.suspend().then(() => { quiesced = true })
+    expect(quiesced).toBe(false)
+    const seq = scheduler.snapshot().checkpointSeq
+    release.resolve()
+    await within(suspending, 3000)
+    await within(running, 3000)
+    manager.complete("live")
+    await scheduler.whenIdle()
+    expect(store.readCheckpoint<DagRunRecordV1>(runId)?.checkpointSeq).toBe(seq)
+    expect(manager.starts).toEqual(["live"])
+    expect(manager.cancellations).toEqual([])
+    expect(scheduler.snapshot().nodes.map((entry) => entry.state)).toEqual(["scheduled", "pending"])
+  })
+
+  test("#given an attached running child #when suspended then the child settles #then the retired frontier never admits its dependent", async () => {
+    const manager = new FakeTaskManager({ autoComplete: false })
+    const { scheduler } = schedulerFixture(definition([node("live"), node("next", ["live"])]), manager)
+    const attached = deferred<void>()
+    scheduler.subscribe((event) => {
+      if (event.type === "dag.node.task-attached") attached.resolve()
+    })
+    const running = scheduler.run()
+    await within(attached.promise, 3000)
+    await scheduler.suspend()
+    await within(running, 3000)
+    const before = scheduler.snapshot()
+    manager.complete("live")
+    await scheduler.whenIdle()
+    expect(scheduler.snapshot()).toEqual(before)
+    expect(manager.starts).toEqual(["live"])
+    expect(manager.cancellations).toEqual([])
+  })
+})
+
 describe("DAG scheduler subscriber backpressure", () => {
   test("#given a non-default subscriber ring #when a scheduler listener falls behind #then overflow occurs at the configured bound", async () => {
     // given
