@@ -6,7 +6,6 @@ import {
   rmSync,
   statSync,
   type Stats,
-  writeFileSync,
 } from "node:fs"
 import { join } from "node:path"
 
@@ -15,6 +14,7 @@ import type { TaskId, TaskRecord } from "../state"
 import { appendTaskEvent, closeAppendFd, type AppendFdCache } from "./event-log"
 import { withTaskRecordLock } from "./record-lock"
 import { parseTaskRecord } from "./record-parse"
+import { writeRecord } from "./record-write"
 import { resolveStateDir } from "./state-dir"
 import type {
   ListTaskRecordsResult,
@@ -24,25 +24,13 @@ import type {
   TaskRecordStore,
 } from "./types"
 
-type WriteRecordMode = "create" | "replace"
+export { TaskRecordCollisionError } from "./record-write"
 
 type CacheEntry = {
   readonly record: TaskRecord
   readonly mtimeMs: number
   readonly size: number
   readonly warnings: readonly string[]
-}
-
-export class TaskRecordCollisionError extends Error {
-  readonly taskId: TaskId
-  readonly path: string
-
-  constructor(input: { readonly taskId: TaskId; readonly path: string }) {
-    super(`Task record already exists: ${input.taskId}`)
-    this.name = "TaskRecordCollisionError"
-    this.taskId = input.taskId
-    this.path = input.path
-  }
 }
 
 export function createTaskRecordStore(config: StateDirConfig): TaskRecordStore {
@@ -61,14 +49,15 @@ export function createTaskRecordStore(config: StateDirConfig): TaskRecordStore {
   return {
     stateDir,
     save(record) {
-      writeRecord(stateDir, record, "create")
-      cacheSet(taskPath(stateDir, parseTaskId(record.task_id)))
+      const path = taskPath(stateDir, parseTaskId(record.task_id))
+      writeRecord(path, record, "create")
+      cacheSet(path)
     },
     replace(record) {
       const taskId = parseTaskId(record.task_id)
       const path = taskPath(stateDir, taskId)
       withTaskRecordLock(path, () => {
-        writeRecord(stateDir, record, "replace")
+        writeRecord(path, record, "replace")
         cacheSet(path)
       })
     },
@@ -79,7 +68,7 @@ export function createTaskRecordStore(config: StateDirConfig): TaskRecordStore {
         const current = readRecord(path)
         if (current === null) return null
         const next = mutation(current)
-        if (next !== current) writeRecord(stateDir, next, "replace")
+        if (next !== current) writeRecord(path, next, "replace")
         cacheSet(path)
         return next
       })
@@ -101,7 +90,7 @@ export function createTaskRecordStore(config: StateDirConfig): TaskRecordStore {
         if (record === null) throw new Error(`Task record not found: ${taskId}`)
         const result = transitionTaskRecord(record, transition)
         appendTaskEvent(stateDir, parsedTaskId, { type: result.audit.type, payload: result.audit }, appendFds)
-        if (result.applied) writeRecord(stateDir, result.record, "replace")
+        if (result.applied) writeRecord(path, result.record, "replace")
         cacheSet(path)
         return result
       })
@@ -234,29 +223,6 @@ function readRecord(path: string, warnings: string[] = []): TaskRecord | null {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") return null
     throw error
   }
-}
-
-function writeRecord(stateDir: string, record: TaskRecord, mode: WriteRecordMode): void {
-  const tasksDir = join(stateDir, "tasks")
-  mkdirSync(tasksDir, { recursive: true })
-  const taskId = parseTaskId(record.task_id)
-  const path = taskPath(stateDir, taskId)
-  const payload = JSON.stringify(record)
-  if (mode === "create") {
-    try {
-      writeFileSync(path, payload, { encoding: "utf8", flag: "wx" })
-      return
-    } catch (error) {
-      if (error instanceof Error && "code" in error && error.code === "EEXIST") {
-        throw new TaskRecordCollisionError({ taskId, path })
-      }
-      throw error
-    }
-  }
-
-  const tmpPath = `${path}.${process.pid}.tmp`
-  writeFileSync(tmpPath, payload, "utf8")
-  renameSync(tmpPath, path)
 }
 
 const TOMBSTONE_SUFFIX = ".json.expunging"
