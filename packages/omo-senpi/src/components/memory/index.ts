@@ -24,6 +24,7 @@ import {
   resolveIdentityRunPaths,
   type IdentityRunPaths,
 } from "./transient-identity"
+import { sweepTransientMemoryRuns, type TransientSweep } from "./transient-sweep"
 import { createMemoryWiring, type MemoryWiringOptions } from "./wiring"
 
 const GLOBAL_DISABLED_FLAG = "omo-senpi-disabled"
@@ -40,6 +41,8 @@ export interface MemoryComponentOptions {
   readonly resolveCwd?: () => string
   readonly createRuntime?: MemoryWiringOptions["createRuntime"]
   readonly refreshStatus?: MemoryWiringOptions["refreshStatus"]
+  /** Seam for the registration-time transient sweep (transient-sweep.ts). */
+  readonly sweepTransientRuns?: TransientSweep
 }
 
 type SessionUi = { notify(message: string, level: "error" | "warning"): void }
@@ -70,6 +73,7 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
   const resolveCwd = options.resolveCwd ?? (() => process.cwd())
   const now = options.now ?? Date.now
   const env = options.env ?? process.env
+  const sweepTransientRuns = options.sweepTransientRuns ?? sweepTransientMemoryRuns
   const sessions = new Map<string, SessionState>()
 
   return {
@@ -86,6 +90,14 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
       }
 
       primeMemoryPersonaAssets({ logger: ctx.logger })
+      // Reclaim runs an abnormal exit left behind (#7765). Detached from registration on purpose:
+      // it is pure maintenance, and a slow or failing sweep must never delay or break binding.
+      void sweepTransientRuns({
+        memoryRoot: resolveMemoryRoot(env, cwd),
+        warn: (message, fields) => ctx.logger.warn(message, fields),
+      }).catch((error: unknown) => {
+        ctx.logger.warn("omo-senpi memory transient sweep failed", { error: describeError(error) })
+      })
 
       const wiring = createMemoryWiring({
         sessions,
@@ -283,6 +295,10 @@ function readShutdownReason(payload: unknown): ShutdownReason {
 
 function isOmoConfigReload(value: unknown): boolean {
   return isRecord(value) && value.registrationId === "omo"
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

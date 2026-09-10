@@ -103,4 +103,26 @@ describe("transient one-shot memory runs", () => {
     expect(existsSync(bound.context.identityPaths.transcripts)).toBe(true)
     expect(existsSync(join(bound.memoryHome, TRANSIENT_DIRNAME))).toBe(false)
   })
+
+  test("#given an enabled memory component #when it registers #then the transient sweep runs for the resolved memory root without any user action", async () => {
+    const { cwd, memoryHome } = fixture()
+    const pi = new MemoryFakeExtensionAPI()
+    const swept: string[] = []
+    const started = new Promise<void>((resolve) => {
+      createMemoryComponent({
+        env: { OMO_MEMORY_HOME: memoryHome },
+        loadConfig: () => loadedMemoryConfig(memorySettings()),
+        resolveCwd: () => cwd,
+        sweepTransientRuns: (input) => {
+          swept.push(input.memoryRoot)
+          resolve()
+          return Promise.resolve({ removedRuns: 0, removedIdentities: 0, promoted: 0, stranded: 0, kept: 0 })
+        },
+      }).register(pi, componentContext())
+    })
+
+    await started
+
+    expect(swept).toEqual([memoryHome])
+  })
 })
