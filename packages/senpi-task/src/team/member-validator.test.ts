@@ -183,7 +183,7 @@ describe("validateSenpiTeamMembers", () => {
     expect(caught).toBeInstanceOf(SenpiTeamSpecError)
     if (caught instanceof SenpiTeamSpecError) {
       expect(caught.message).toBe(
-        'curated read-only agent "plan-reviewer" cannot be a team member; delegate via the task tool instead',
+        'curated read-only agent "plan-reviewer" (requested as "momus") cannot be a team member; delegate via the task tool instead',
       )
     }
 
@@ -203,7 +203,32 @@ describe("validateSenpiTeamMembers", () => {
     expect(metisCaught).toBeInstanceOf(SenpiTeamSpecError)
     if (metisCaught instanceof SenpiTeamSpecError) {
       expect(metisCaught.message).toBe(
-        'curated read-only agent "plan-consultant" cannot be a team member; delegate via the task tool instead',
+        'curated read-only agent "plan-consultant" (requested as "metis") cannot be a team member; delegate via the task tool instead',
+      )
+    }
+  })
+
+  test("#given a curated read-only agent requested by its legacy id #when validated #then the rejection names the canonical id and the requested legacy id", () => {
+    // given
+    const spec = normalizeSenpiTeamSpec(
+      { members: [{ kind: "agent", subagent_type: "momus" }] },
+      "legacy-curated-team",
+    )
+
+    // when
+    let caught: unknown
+    try {
+      validateSenpiTeamMembers(spec, allowAll)
+    } catch (error) {
+      caught = error
+    }
+
+    // then
+    expect(caught).toBeInstanceOf(SenpiTeamSpecError)
+    if (caught instanceof SenpiTeamSpecError) {
+      expect(caught.code).toBe("UNKNOWN_SUBAGENT_TYPE")
+      expect(caught.message).toBe(
+        'curated read-only agent "plan-reviewer" (requested as "momus") cannot be a team member; delegate via the task tool instead',
       )
     }
   })

@@ -50,8 +50,9 @@ export function validateSenpiTeamMembers(spec: TeamSpec, ports: SenpiTeamMemberP
       names.has(subagentType) || (canonical.legacy !== undefined && names.has(canonical.legacy))
 
     if (knownAs(CURATED_READONLY_AGENT_NAMES)) {
+      const requestedAs = canonical.legacy === undefined ? "" : ` (requested as "${canonical.legacy}")`
       throw new SenpiTeamSpecError(
-        `curated read-only agent "${subagentType}" cannot be a team member; delegate via the task tool instead`,
+        `curated read-only agent "${subagentType}"${requestedAs} cannot be a team member; delegate via the task tool instead`,
         "UNKNOWN_SUBAGENT_TYPE",
         spec.name,
       )
