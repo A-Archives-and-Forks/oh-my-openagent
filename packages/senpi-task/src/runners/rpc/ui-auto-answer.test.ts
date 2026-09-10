@@ -30,7 +30,11 @@ describe("buildAutoUiResponse", () => {
   })
 
   test("#given a question request #when auto-answering #then it cancels", () => {
-    const request = { type: "extension_ui_request", id: "q1", method: "question" }
+    const request: {
+      readonly type: "extension_ui_request"
+      readonly id: string
+      readonly method: "question"
+    } = { type: "extension_ui_request", id: "q1", method: "question" }
 
     expect(buildAutoUiResponse(request)).toEqual({ type: "extension_ui_response", id: "q1", cancelled: true })
   })
