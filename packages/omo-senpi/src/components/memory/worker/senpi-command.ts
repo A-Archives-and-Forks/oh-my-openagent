@@ -4,6 +4,7 @@ import { isAbsolute, join } from "node:path"
 
 import {
   detectBunBinary,
+  detectCompiledEngine,
   resolveSenpiLauncher as resolveTaskSenpiLauncher,
   type SenpiLauncher,
 } from "@oh-my-opencode/senpi-task"
@@ -22,6 +23,10 @@ const CLI_RELATIVE = join("dist", "cli.js")
  * A PATH scan cannot be the last resort because the child inherits the same PATH that already
  * failed. The launcher retains any interpreter prefix needed by npm/Windows shims and falls back to
  * the CLI or entry script of the running Senpi installation.
+ *
+ * A compiled omo binary is its own engine and launches itself (`isCompiledEngine`): a PATH senpi is
+ * a DIFFERENT install whose assets live in another layout, and it died on the inherited package
+ * root before doing any work (`ENOENT .../dist/modes/interactive/theme/dark.json`).
  */
 export function resolveSenpiLaunch(
   env: NodeJS.ProcessEnv,
@@ -29,6 +34,7 @@ export function resolveSenpiLaunch(
 ): SenpiLauncher {
   const launcher = resolveTaskSenpiLauncher({
     isBunBinary: runtime.isBunBinary,
+    isCompiledEngine: runtime.isCompiledEngine,
     execPath: runtime.execPath,
     platform: runtime.platform,
     parentEnv: env,
@@ -62,6 +68,7 @@ export function resolveMemoryChildLaunch(input: {
 
 export type SenpiLaunchRuntime = {
   readonly isBunBinary: boolean
+  readonly isCompiledEngine: boolean
   readonly execPath: string
   readonly platform: NodeJS.Platform
   readonly argv: readonly string[]
@@ -80,6 +87,7 @@ function resolveInstalledSenpiCli(): string | null {
 function defaultRuntime(): SenpiLaunchRuntime {
   return {
     isBunBinary: detectBunBinary(import.meta.url),
+    isCompiledEngine: detectCompiledEngine(),
     execPath: process.execPath,
     platform: process.platform,
     argv: process.argv,

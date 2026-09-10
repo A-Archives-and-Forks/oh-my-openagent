@@ -32,6 +32,8 @@ export type SenpiLauncher = {
 
 export type RpcSpawnRuntime = {
   readonly isBunBinary: boolean
+  // The running process embeds the engine (a compiled omo or senpi binary), so it IS the child engine.
+  readonly isCompiledEngine?: boolean
   readonly execPath: string
   readonly platform: NodeJS.Platform
   readonly parentEnv: NodeJS.ProcessEnv
@@ -51,6 +53,17 @@ export type RpcSpawnRuntime = {
  */
 export function detectBunBinary(metaUrl: string): boolean {
   return metaUrl.includes("$bunfs") || metaUrl.includes("~BUN") || metaUrl.includes("%7EBUN")
+}
+
+/**
+ * Whether this process is a Bun single-file executable that embeds the engine. Such a process IS
+ * the engine: spawning `process.execPath` yields a child with the same version and the same shipped
+ * assets, which no PATH or sibling lookup can promise. `import.meta.url` cannot answer this: omo's
+ * plugin is loaded from a real file inside the compiled binary, so its URL is a plain `file:` path
+ * and `detectBunBinary` reports false while PATH may hold a different senpi install entirely.
+ */
+export function detectCompiledEngine(): boolean {
+  return typeof Bun !== "undefined" && Bun.embeddedFiles.length > 0
 }
 
 /**
@@ -158,8 +171,8 @@ function passesEngineParity(candidate: string, runtime: RpcSpawnRuntime): boolea
  * directly bypasses module resolution, which senpi's own loader alias HIJACKS when omo runs as a senpi
  * extension: `require.resolve("@code-yeongyu/senpi/rpc-entry")` then resolves to the running dist entry
  * instead of the child rpc entry and the child never boots. Preference order: an explicit `SENPI_BIN`
- * override (used even when its package version differs), the sibling binary next to a Bun-compiled senpi,
- * then a PATH scan. Sibling and PATH candidates whose @code-yeongyu/senpi manifest version differs from
+ * override (used even when its package version differs), the running executable when it embeds the
+ * engine (`isCompiledEngine`), the sibling binary next to a Bun-compiled senpi, then a PATH scan. Sibling and PATH candidates whose @code-yeongyu/senpi manifest version differs from
  * the running engine are skipped; a candidate with no readable manifest is kept. Returns null when no
  * executable is found so buildRpcSpawn can fall back to the documented `execPath + rpc-entry` path.
  */
@@ -172,6 +185,7 @@ export function resolveSenpiExecutable(runtime: RpcSpawnRuntime): string | null 
     }
     return scanPathForExecutable(override, runtime.parentEnv.PATH)
   }
+  if (runtime.isCompiledEngine === true) return canonicalExecutable(runtime.execPath)
   const acceptParity = (candidate: string) => passesEngineParity(candidate, runtime)
   if (runtime.isBunBinary) {
     const sibling = canonicalExecutable(join(dirname(runtime.execPath), binaryName))
@@ -266,6 +280,7 @@ function resolveRpcEntrySpecifier(): string {
 function defaultRuntime(): RpcSpawnRuntime {
   return {
     isBunBinary: detectBunBinary(import.meta.url),
+    isCompiledEngine: detectCompiledEngine(),
     execPath: process.execPath,
     platform: process.platform,
     parentEnv: process.env,
