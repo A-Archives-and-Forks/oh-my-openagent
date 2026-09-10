@@ -79,11 +79,14 @@ function extractSessionId(eventCtx: unknown): string | undefined {
 
 // Only a fresh session may receive the profile: a resume/fork carries its own model history, a
 // reload keeps the running session, and a `--model` flag or scoped model is explicit user state.
+// A session_start without any provenance is treated as explicit too: senpi omits the field on a
+// `--model` run, and silently overriding an unknown origin would clobber the user's choice.
 function isFreshSessionWithoutExplicitModel(payload: unknown): boolean {
   if (!isRecord(payload)) return false
   const reason = payload["reason"]
   if (reason !== "startup" && reason !== "new") return false
   const provenance = payload["initialModelProvenance"]
+  if (typeof provenance !== "string") return false
   return provenance !== "cli" && provenance !== "scoped"
 }
 

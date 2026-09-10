@@ -172,6 +172,18 @@ describe("createModelProfileComponent", () => {
     expect(pi.messages).toEqual([])
   })
 
+  test("#given a session_start that carries no provenance (senpi omits it on a --model run) #when it fires #then the profile does not touch the model", async () => {
+    // given
+    const { pi, start } = harness({ model_profile: "capable" })
+
+    // when
+    await start({ reason: "startup" })
+
+    // then
+    expect(pi.sessionModels).toEqual([])
+    expect(pi.messages).toEqual([])
+  })
+
   test("#given two session_start events for one session id #when both fire #then the model is applied once", async () => {
     // given
     const { pi, start } = harness({ model_profile: "capable" })
