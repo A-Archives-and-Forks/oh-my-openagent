@@ -1,6 +1,7 @@
 import { existsSync } from "@oh-my-opencode/memory-core/fs"
+import { realpathSync } from "node:fs"
 import { createRequire } from "node:module"
-import { isAbsolute, join } from "node:path"
+import { isAbsolute, join, relative } from "node:path"
 
 import {
   detectBunBinary,
@@ -64,6 +65,55 @@ export function resolveMemoryChildLaunch(input: {
 }): SenpiLauncher {
   if (input.senpiCommand === undefined) return resolveSenpiLaunch(input.env)
   return { command: input.senpiCommand, prefixArgs: input.senpiPrefixArgs ?? [] }
+}
+
+/**
+ * Brand-scoped roots that senpi reads as its own package directory. The omo binary pins these to
+ * its own runtime root for the engine it embeds (`remapSenpiEnvironment`).
+ */
+const PACKAGE_DIR_ENV_NAMES = ["OMO_PACKAGE_DIR", "SENPI_PACKAGE_DIR", "PI_PACKAGE_DIR"] as const
+
+/**
+ * The launcher arrives realpath-canonicalized (senpi-task `canonicalExecutable`) while the package
+ * root is the raw directory the parent exported, so a symlinked home, agent dir, or `/var` vs
+ * `/private/var` would make a containment test on raw strings disagree with itself. Canonicalize
+ * both sides, falling back to the input when the path does not exist.
+ */
+function canonical(path: string): string {
+  try {
+    return realpathSync.native(path)
+  } catch {
+    return path
+  }
+}
+
+function isInside(root: string, target: string): boolean {
+  const rel = relative(canonical(root), canonical(target))
+  return rel.length > 0 && !rel.startsWith("..") && !isAbsolute(rel)
+}
+
+/**
+ * Drop package-dir variables that do not describe the senpi this child actually launches.
+ *
+ * A memory child inherits the parent's environment, and the omo binary exports its own runtime root
+ * as `*_PACKAGE_DIR`. When the launcher resolves to a DIFFERENT senpi - the npm install found on
+ * PATH - that child reads the inherited root as its own package directory and looks for shipped
+ * assets under a tree that never contained them, dying before the run starts. Keeping the variables
+ * only while the launcher lives inside the root they name preserves the intended override for the
+ * embedded engine and for a relocated install.
+ */
+export function withoutForeignPackageDirEnv(
+  env: NodeJS.ProcessEnv,
+  launch: SenpiLauncher,
+): NodeJS.ProcessEnv {
+  const target = launch.prefixArgs[0] ?? launch.command
+  const next = { ...env }
+  for (const name of PACKAGE_DIR_ENV_NAMES) {
+    const root = next[name]
+    if (root === undefined || root.length === 0) continue
+    if (!isInside(root, target)) delete next[name]
+  }
+  return next
 }
 
 export type SenpiLaunchRuntime = {
