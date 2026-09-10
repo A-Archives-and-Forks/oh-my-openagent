@@ -13,6 +13,7 @@ Complete reference for Oh My OpenCode plugin configuration. Every omo harness re
   - [Agents](#agents)
   - [Categories](#categories)
   - [Model Resolution](#model-resolution)
+  - [Model Profiles](#model-profiles)
 - [Task System](#task-system)
   - [Background Tasks](#background-tasks)
 - [Features](#features)
@@ -72,6 +73,17 @@ Activating a profile that does not exist produces a diagnostic and falls back to
 #### Model Catalog
 
 A top-level `models` record maps a short name to the canonical shape `{ model, reasoning? }`. Deprecated `variant` and `reasoningEffort` inputs are accepted for compatibility and normalized to `reasoning`. When an agent or category `model` string matches a catalog key, it resolves to the entry's model id and fills any unset `reasoning` from the entry; tuning written at the use site always wins. `[harness]` blocks can override individual catalog entries for one harness.
+
+#### Model Profiles
+
+Two more shared base keys, read by the Senpi harness, pick the main session model by intent instead of by model id. They live at the top level, inside `[senpi]`, or inside a `profiles.<name>` layer, like any other base key.
+
+| Key | Type | Description |
+| --- | --- | --- |
+| `model_profiles` | record<string, `{ display_name?, models? }`> | Named ordered model chains. A name matching a builtin (`capable`, `simple-work`, `deep-work`) replaces it wholesale; any other name adds one. Entries use the same string or object shape as a category chain and may reference `models.<catalog>` entries. |
+| `model_profile` | string | Which chain starts the session: a profile id such as `capable`, or a literal `provider/model` that pins one exact model. Unset means Senpi's own default resolution runs. |
+
+Don't confuse these with `profiles.<name>` above: that key swaps configuration layers via `OMO_PROFILE`, while `model_profile` chooses a model within the loaded configuration. Builtin chains, session-start behavior, and override rules are in the [omo.json reference](./omo-json.md#model-profiles-senpi-harness).
 
 #### Security Invariants
 
@@ -378,6 +390,8 @@ Runtime priority:
 6. **System default** - OpenCode's configured default model
 
 The same resolved chain drives spawn-time selection and runtime retry fallback, so a recovered task stays on the same category chain.
+
+In the Senpi harness, the main session model has its own ordering, separate from the delegated-child chain above: a `--model` flag or scoped model, then `model_profile` as a literal `provider/model` pin, then `model_profile` as a profile id (first rung the live registry serves), then Senpi's default resolution. `categories.*` and `agents.*` overrides are never consulted for the main session, and `model_profile` is never consulted for a delegated child. See [Model Profiles](#model-profiles).
 
 In the OpenCode plugin, every merged category appears in `availableCategories`; hiding categories with a dead fallback chain is not implemented here. That dead-chain filtering, the `model_unavailable` spawn failure, and the `task.warnings.unavailable_categories` flag belong to the Senpi/core `task` system, documented in the [omo.json reference](./omo-json.md).
 
