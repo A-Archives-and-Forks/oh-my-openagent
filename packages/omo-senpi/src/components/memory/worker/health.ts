@@ -3,6 +3,8 @@ import { join } from "node:path"
 
 import type { ReflectionOutcome } from "@oh-my-opencode/memory-core"
 
+import { failureFingerprint } from "./failure-detail"
+
 /**
  * A trailing failure streak stops counting once its newest failure is older than this window.
  * Pending completion delivery already expires after 7 days (COMPLETION_MAX_AGE_MS), so a streak
@@ -122,12 +124,8 @@ export async function readReflectionHealth(
   }
 }
 
-export function reflectionFailureFingerprint(reason: string | undefined, detail: string | undefined): string {
-  return `${reason ?? "failed"}:${(detail ?? "").slice(0, 60)}`
-}
-
 function fingerprintOf(record: HealthRecord): string {
-  return reflectionFailureFingerprint(record.reason, record.detail)
+  return failureFingerprint(record.reason, record.detail)
 }
 
 function dominantFingerprint(fingerprints: readonly string[]): string {
