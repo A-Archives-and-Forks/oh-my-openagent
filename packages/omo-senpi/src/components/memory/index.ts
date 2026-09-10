@@ -1,5 +1,5 @@
 import type { OmoMemorySettings } from "@oh-my-opencode/omo-config-core"
-import { resolveMemoryIdentity } from "@oh-my-opencode/memory-core"
+import { resolveMemoryIdentity, resolveMemoryRoot } from "@oh-my-opencode/memory-core"
 
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
 import { loadSenpiOmoConfig, type SenpiOmoConfigResult } from "../config-resolution"
@@ -18,6 +18,13 @@ import { shutdownDeadlineAt, type ShutdownReason } from "./shutdown-drain"
 import { resolveMemorySettings } from "./identity-runtime"
 import { memoryModuleSupervisor } from "./supervisor"
 import { registerMemoryReadClassifier } from "./read-classifier-wiring"
+import {
+  finalizeIdentityRun,
+  isOneShotSurface,
+  resolveIdentityRunPaths,
+  type IdentityRunPaths,
+} from "./transient-identity"
+import { sweepTransientMemoryRuns, type TransientSweep } from "./transient-sweep"
 import { createMemoryWiring, type MemoryWiringOptions } from "./wiring"
 
 const GLOBAL_DISABLED_FLAG = "omo-senpi-disabled"
@@ -34,6 +41,8 @@ export interface MemoryComponentOptions {
   readonly resolveCwd?: () => string
   readonly createRuntime?: MemoryWiringOptions["createRuntime"]
   readonly refreshStatus?: MemoryWiringOptions["refreshStatus"]
+  /** Seam for the registration-time transient sweep (transient-sweep.ts). */
+  readonly sweepTransientRuns?: TransientSweep
 }
 
 type SessionUi = { notify(message: string, level: "error" | "warning"): void }
@@ -41,11 +50,14 @@ type SessionSurface = {
   readonly entries: readonly SessionEntryLike[]
   readonly id: string
   readonly ui?: SessionUi
+  readonly hasUI?: boolean
 }
 type SessionState = {
   readonly enabled: boolean
   readonly ui?: SessionUi
   context?: MemoryIdentityContext
+  /** Where this session's identity storage lives; finalized (transient root reclaimed) at shutdown. */
+  run?: IdentityRunPaths
   memoryStatusAttempted: boolean
   restartNotified: boolean
   conflictNotified: boolean
@@ -61,6 +73,7 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
   const resolveCwd = options.resolveCwd ?? (() => process.cwd())
   const now = options.now ?? Date.now
   const env = options.env ?? process.env
+  const sweepTransientRuns = options.sweepTransientRuns ?? sweepTransientMemoryRuns
   const sessions = new Map<string, SessionState>()
 
   return {
@@ -77,6 +90,14 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
       }
 
       primeMemoryPersonaAssets({ logger: ctx.logger })
+      // Reclaim runs an abnormal exit left behind (#7765). Detached from registration on purpose:
+      // it is pure maintenance, and a slow or failing sweep must never delay or break binding.
+      void sweepTransientRuns({
+        memoryRoot: resolveMemoryRoot(env, cwd),
+        warn: (message, fields) => ctx.logger.warn(message, fields),
+      }).catch((error: unknown) => {
+        ctx.logger.warn("omo-senpi memory transient sweep failed", { error: describeError(error) })
+      })
 
       const wiring = createMemoryWiring({
         sessions,
@@ -129,9 +150,17 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
           return
         }
 
-        state.context = createMemoryIdentityContext({
+        const run = resolveIdentityRunPaths({
           identity: identity.id,
           identityPaths: identity.paths,
+          memoryRoot: resolveMemoryRoot(env, cwd),
+          oneShot: isOneShotSurface({ hasUI: surface.hasUI, env }),
+        })
+        state.run = run
+        state.context = createMemoryIdentityContext({
+          identity: identity.id,
+          identityPaths: run.paths,
+          durableRoot: run.durableRoot,
           binding,
         })
         memoryModuleSupervisor.acquire()
@@ -194,8 +223,12 @@ export function createMemoryComponent(options: MemoryComponentOptions = {}): Omo
           now,
         })
         wiring.clearStatus(eventCtx)
-        releaseSession(sessions.get(sessionId))
+        const state = sessions.get(sessionId)
+        releaseSession(state)
         sessions.delete(sessionId)
+        if (state?.run !== undefined) {
+          await finalizeIdentityRun({ run: state.run, warn: (message, fields) => ctx.logger.warn(message, fields) })
+        }
         if (sessions.size === 0) unregisterReadClassifier?.()
         unsubscribeReload?.()
       })
@@ -243,6 +276,7 @@ function readSessionSurface(value: unknown): SessionSurface {
     entries: Array.isArray(entries) ? entries : [],
     id: typeof id === "string" && id.length > 0 ? id : "unknown-session",
     ...(ui === undefined ? {} : { ui }),
+    ...(typeof value.hasUI === "boolean" ? { hasUI: value.hasUI } : {}),
   }
 }
 
@@ -261,6 +295,10 @@ function readShutdownReason(payload: unknown): ShutdownReason {
 
 function isOmoConfigReload(value: unknown): boolean {
   return isRecord(value) && value.registrationId === "omo"
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
