@@ -4,7 +4,6 @@ The builtin curated agents `metis` and `momus` are now `plan-consultant` and `pl
 
 The old ids still resolve for one release. `subagent_type: "metis"|"momus"`, `omo.json` `agents.metis|momus` and `allowed_subagents` entries naming them canonicalize through `senpi-task/src/agents/legacy-agent-names.ts` and emit a deprecation notice. That alias window ships in the first tagged publish containing this change (currently 5.0.0-beta.51 per package.json) and is removed in the next tagged publish; a test pins the alias table to exactly those two keys so nothing else slips in.
 
-||||||| f42621f5a
 ## 2026-09-10 — Hide question tools from task children
 
 `TASK_CHILD_UI_ONLY_TOOL_NAMES` now lists `request_user_input` and `ask_user_question` next to `memory`, so in-process children do not inherit the parent-only question tools. RPC children get the matching `--no-ask-user` flag from senpi-task.
