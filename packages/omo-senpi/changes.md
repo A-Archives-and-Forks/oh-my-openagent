@@ -1,3 +1,9 @@
+## 2026-09-10 — Name curated agents by role, keep the old ids for one release
+
+The builtin curated agents `metis` and `momus` are now `plan-consultant` and `plan-reviewer`. The ulw-plan skill works as the Ultrawork Planner instead of a named persona, ulw-execute talks about the "ulw-plan work plan", and docs plus omo.dev describe every agent by what it does rather than by a myth name. The draft/plan frontmatter key `review.momus` becomes `review.plan_reviewer`, and telemetry `delegation_started.name` / `delegation_completed.agent_type` report the new ids, so dashboards that filter on `metis` or `momus` need updating.
+
+The old ids still resolve for one release. `subagent_type: "metis"|"momus"`, `omo.json` `agents.metis|momus` and `allowed_subagents` entries naming them canonicalize through `senpi-task/src/agents/legacy-agent-names.ts` and emit a deprecation notice. That alias window ships in the first tagged publish containing this change (currently 5.0.0-beta.51 per package.json) and is removed in the next tagged publish; a test pins the alias table to exactly those two keys so nothing else slips in.
+
 ## 2026-09-09 — Pin persona assets to the payload a process started from
 
 The memory component read each persona markdown from beside the bundle at child-launch time, so the asset had to still be on disk, under its current name, every time a gate fired. The install tree is mutable while a session runs: a global install replaces it in place and the omob launcher rebuilds and prunes runtime dirs. After the Kibitzer rename shipped, sessions whose process had loaded the pre-rename bundle kept opening `extensions/memorian-persona.md` in the replaced tree and every recall gate died with `session_create_failed` (ENOENT). The same shape hit omob runtime dirs on 2026-09-07 through a prune.

@@ -2,6 +2,8 @@
 // a subagent (task tool target, dag route, team member, omo.json agent key, resolveAgent callers)
 // canonicalizes through this table before the value is compared, stored, or persisted, so callers
 // still holding `metis`/`momus` keep working while the ids are retired.
+// Alias window: ships in the first tagged publish containing this change (currently 5.0.0-beta.51 per
+// package.json); delete in the next tagged publish.
 export const LEGACY_AGENT_NAME_ALIASES: Readonly<Record<string, string>> = {
   metis: "plan-consultant",
   momus: "plan-reviewer",

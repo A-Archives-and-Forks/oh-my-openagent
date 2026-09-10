@@ -44,6 +44,11 @@ describe("canonicalAgentName", () => {
   test("#given the alias table #when read #then it maps exactly the two retired curated ids", () => {
     expect(LEGACY_AGENT_NAME_ALIASES).toEqual({ metis: "plan-consultant", momus: "plan-reviewer" })
   })
+
+  test("#given the alias window #when the table keys are listed #then only metis and momus are aliased", () => {
+    // Removal: delete the two aliases and this assertion in the release after the rename ships.
+    expect(Object.keys(LEGACY_AGENT_NAME_ALIASES)).toEqual(["metis", "momus"])
+  })
 })
 
 describe("legacyAgentNameNotice", () => {
