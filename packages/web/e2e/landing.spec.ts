@@ -53,21 +53,78 @@ test.describe("Landing Page", () => {
     await expect(grid.locator("li[id^='agent-']")).toHaveCount(12)
     const agentNames = [
       "Orchestrator",
-      "Hephaestus",
-      "Oracle",
-      "Librarian",
+      "Ultrawork Planner",
+      "Plan Consultant",
+      "Plan Reviewer",
+      "Kibitzer",
+      "Architect",
+      "Deep",
+      "Quick",
+      "Visual Engineering",
       "Explore",
-      "Planner",
-      "Metis",
-      "Plan reviewer",
-      "Atlas",
-      "Worker",
-      "Multimodal-Looker",
+      "Librarian",
+      "Dynamic Agent",
     ]
     for (const name of agentNames) {
       await expect(grid.getByRole("heading", { name, exact: true })).toBeVisible()
     }
-    await expect(grid.getByText("Claude Opus 5 Max")).toBeVisible()
+    await expect(grid.getByText("Your session model")).toBeVisible()
+  })
+
+  test("keeps the agent bento grid hole-free at desktop and phone widths", async ({ page }) => {
+    const viewports = [
+      { width: 1440, height: 900 },
+      { width: 390, height: 844 },
+    ]
+
+    for (const viewport of viewports) {
+      // given
+      await page.setViewportSize(viewport)
+      await page.goto("/")
+      const grid = page.locator("#agents ul")
+      const cells = grid.locator("li[id^='agent-']")
+
+      // when
+      await expect(cells).toHaveCount(12)
+      await grid.scrollIntoViewIfNeeded()
+      await page.evaluate(() => document.fonts.ready)
+      for (let i = 0; i < 12; i += 1) {
+        const cell = cells.nth(i)
+        await expect(cell).toBeVisible()
+        const box = await cell.boundingBox()
+        if (!box) {
+          throw new Error(
+            `agent cell ${i} has no bounding box at ${viewport.width}x${viewport.height}`,
+          )
+        }
+      }
+
+      // then: no two cells share area (the gapless bento has no overlaps and no holes).
+      // One synchronous snapshot: the scroll-driven reveal transform would otherwise
+      // shift cells between separate boundingBox() round-trips.
+      const rects = await cells.evaluateAll((nodes) =>
+        nodes.map((node) => {
+          const rect = node.getBoundingClientRect()
+          return { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
+        }),
+      )
+      for (let i = 0; i < rects.length; i += 1) {
+        const a = rects[i]
+        if (!a) continue
+        for (let j = i + 1; j < rects.length; j += 1) {
+          const b = rects[j]
+          if (!b) continue
+          const overlapX = Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x)
+          const overlapY = Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y)
+          const overlapArea = Math.max(0, overlapX) * Math.max(0, overlapY)
+          if (overlapArea > 0) {
+            throw new Error(
+              `agent cells ${i} and ${j} overlap by ${overlapArea}px^2 at ${viewport.width}x${viewport.height}`,
+            )
+          }
+        }
+      }
+    }
   })
 
   test("renders the desktop DAG view in the hero with 10 nodes across 5 waves", async ({
