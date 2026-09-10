@@ -137,7 +137,7 @@ async function setup(component: "loop" | "boulder", coordinated: boolean) {
   const scheduled: Array<() => void> = []
   const coordinator = new IdleInjectionCoordinator(
     (message, options) => pi.sendMessage(message, { triggerTurn: true, deliverAs: options.deliverAs }),
-    { scheduleFlush: (flush) => scheduled.push(flush) },
+    { scheduleFlush: (flush) => { scheduled.push(flush) } },
   )
   let status = activeStatus()
   let onProbe: (() => void) | undefined
