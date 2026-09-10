@@ -115,9 +115,11 @@ describe("createMemoryComponent", () => {
   })
 
   test("#given the sentinel is absent or not exactly 1 #when registered #then memory stays enabled", () => {
-    for (const env of [{}, { SENPI_MEMORY_REFLECTION: "0" }, { SENPI_MEMORY_REFLECTION: "" }]) {
+    const { memoryHome } = fixture()
+    for (const sentinel of [{}, { SENPI_MEMORY_REFLECTION: "0" }, { SENPI_MEMORY_REFLECTION: "" }]) {
       const pi = new MemoryFakeExtensionAPI()
       const ctx = componentContext()
+      const env = { OMO_MEMORY_HOME: memoryHome, ...sentinel }
 
       createMemoryComponent({ loadConfig: () => loadedMemoryConfig(memorySettings()), env }).register(pi, ctx)
 
