@@ -6,6 +6,10 @@ import { dirname, join } from "node:path"
 
 import { resolveSenpiLaunch, type SenpiLaunchRuntime, withoutForeignPackageDirEnv } from "./senpi-command"
 
+// Windows resolution scans PATH for `senpi.exe`; an extension-less `senpi` there is an npm shim,
+// not an executable, so a fixture using the POSIX name proves nothing about the PATH branch.
+const SENPI_BINARY = process.platform === "win32" ? "senpi.exe" : "senpi"
+
 const roots: string[] = []
 afterEach(async () => Promise.all(roots.splice(0).map((root) =>
   rm(root, { recursive: true, force: true })
@@ -81,7 +85,7 @@ describe("resolveSenpiLaunch", () => {
     // given: the binary embeds the engine; the PATH senpi is a different install with its own assets
     const root = await tempRoot()
     const execPath = join(root, "omo")
-    const foreign = join(root, "path", "senpi")
+    const foreign = join(root, "path", SENPI_BINARY)
     await mkdir(dirname(foreign), { recursive: true })
     await writeFile(execPath, "")
     await writeFile(foreign, "")
@@ -109,7 +113,7 @@ describe("resolveSenpiLaunch", () => {
   test("#given a script-hosted engine and a senpi on PATH #when resolved #then the PATH senpi is still chosen", async () => {
     // given: the non-compiled parent keeps today's resolution order
     const root = await tempRoot()
-    const onPath = join(root, "path", "senpi")
+    const onPath = join(root, "path", SENPI_BINARY)
     await mkdir(dirname(onPath), { recursive: true })
     await writeFile(onPath, "")
 
