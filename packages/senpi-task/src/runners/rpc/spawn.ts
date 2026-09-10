@@ -207,9 +207,23 @@ function normalizeSenpiLauncher(executable: string, runtime: RpcSpawnRuntime): S
   return cliPath === undefined ? null : { command: runtime.execPath, prefixArgs: [cliPath] }
 }
 
+/**
+ * Whether the resolved executable IS this running process. `normalizeSenpiLauncher` reads a Windows
+ * candidate without an `.exe` suffix as an npm shim, which is the right guess for a PATH or sibling
+ * hit but wrong for the compiled engine: a single-file executable may be named anything (`omo`,
+ * `omo-dev`) and still be the engine. Re-interpreting it looked for an adjacent `dist/cli.js`, found
+ * none, discarded the one candidate guaranteed to match the running version and its embedded assets,
+ * and fell through to the PATH shim scans and finally the `argv[1]` entry-script guess.
+ */
+function isRunningCompiledEngine(executable: string, runtime: RpcSpawnRuntime): boolean {
+  if (runtime.isCompiledEngine !== true) return false
+  return canonicalExecutable(runtime.execPath) === executable
+}
+
 export function resolveSenpiLauncher(runtime: RpcSpawnRuntime): SenpiLauncher | null {
   const executable = (runtime.resolveSenpiExecutable ?? resolveSenpiExecutable)(runtime)
   if (executable !== null) {
+    if (isRunningCompiledEngine(executable, runtime)) return { command: executable, prefixArgs: [] }
     const normalized = normalizeSenpiLauncher(executable, runtime)
     if (normalized !== null) return normalized
   }

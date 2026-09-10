@@ -426,6 +426,35 @@ describe("buildRpcSpawn spawn strategy", () => {
     }
   })
 
+  test("#given a compiled engine on Windows whose binary has no .exe suffix #when building an RPC child #then it still launches itself", () => {
+    // given: a compiled single-file executable may be named anything; on Windows the shim reader used
+    // to claim any non-.exe candidate, discard the engine, and fall through to the rpc-entry guess.
+    const root = mkdtempSync(join(tmpdir(), "senpi-compiled-engine-win-"))
+    const execPath = join(root, "omo")
+    writeFileSync(execPath, "")
+    try {
+      // when
+      const descriptor = buildRpcSpawn(
+        { ...baseSpec, model: "omo-mock/mock-1" },
+        {
+          isBunBinary: false,
+          isCompiledEngine: true,
+          execPath,
+          platform: "win32",
+          parentEnv: { PATH: "" },
+          resolveRpcEntry: () => "/fallback/rpc-entry.js",
+        },
+      )
+
+      // then
+      expect(descriptor.command).toBe(realpathSync.native(execPath))
+      expect(descriptor.args.slice(0, 3)).toEqual(["--mode", "rpc", "--no-extensions"])
+      expect(descriptor.args).not.toContain("/fallback/rpc-entry.js")
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   test("#given a compiled engine with a senpi on PATH #when building an RPC child #then the child is the running executable in rpc mode", () => {
     // given
     const root = mkdtempSync(join(tmpdir(), "senpi-compiled-engine-rpc-"))

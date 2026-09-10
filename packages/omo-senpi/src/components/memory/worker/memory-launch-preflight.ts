@@ -5,7 +5,7 @@ import {
   type MemoryModelChain,
 } from "./memory-model-attempts"
 import { preflightMemoryModels } from "./model-preflight"
-import { resolveSenpiLaunch } from "./senpi-command"
+import { resolveSenpiLaunch, withoutForeignPackageDirEnv } from "./senpi-command"
 import type { ReflectionModelCandidate } from "./resolve-model"
 import type { RunAttempt } from "./run-artifacts"
 
@@ -39,7 +39,7 @@ export const resolveAndPreflightMemoryLaunch: ResolveAndPreflightMemoryLaunch = 
     candidates: input.candidates,
     launch,
     env: {
-      ...input.env,
+      ...withoutForeignPackageDirEnv(input.env, launch),
       [input.envFlag]: "1",
       SENPI_PTY_FORCE_PIPE: "1",
     },
