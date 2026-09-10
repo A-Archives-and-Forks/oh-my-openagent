@@ -1,7 +1,7 @@
 import { join } from "node:path"
 
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
-import { canContinueAfterAgentEnd } from "./agent-end-eligibility"
+import { readAgentEndOutcome } from "./agent-end-eligibility"
 import { findContinuableBoulderWork } from "./boulder-eligibility"
 
 export interface UlwExecuteContinuationComponentOptions {
@@ -38,6 +38,8 @@ export function createUlwExecuteContinuationComponent(
       const state = {
         consecutiveContinuations: 0,
         lastSignature: undefined as string | undefined,
+        // This run's agent_end payload and session identity. The decision runs on agent_settled.
+        pendingRun: undefined as { payload: unknown; sessionId: string | undefined; cwd: string | undefined } | undefined,
       }
 
       pi.on("input", async (payload, eventCtx) => {
@@ -46,6 +48,7 @@ export function createUlwExecuteContinuationComponent(
 
         state.consecutiveContinuations = 0
         state.lastSignature = undefined
+        state.pendingRun = undefined
         if (payload.streamingBehavior === undefined) return { action: "continue" }
 
         const sessionId = extractSessionId(eventCtx)
@@ -62,8 +65,29 @@ export function createUlwExecuteContinuationComponent(
         }
       })
 
-      pi.on("agent_end", async (payload, eventCtx) => {
-        if (!canContinueAfterAgentEnd(payload)) return
+      // Record only: the outcome is decided on agent_settled, the host edge that guarantees no
+      // automatic retry, compaction or queued continuation will run, and the last point at which a
+      // late user abort can still have mutated this payload.
+      pi.on("agent_end", (payload, eventCtx) => {
+        state.pendingRun = { payload, sessionId: extractSessionId(eventCtx), cwd: extractCwd(eventCtx) }
+      })
+
+      pi.on("agent_settled", () => {
+        const run = state.pendingRun
+        state.pendingRun = undefined
+        if (run === undefined) return
+
+        const outcome = readAgentEndOutcome(run.payload)
+        if (outcome.blockedBy !== null) {
+          ctx.logger.info("omo-senpi ulw-execute-continuation skipped", {
+            reason: "terminal-outcome",
+            blockedBy: outcome.blockedBy,
+            stopReason: outcome.stopReason,
+            aborted: outcome.aborted,
+            willRetry: outcome.willRetry,
+          })
+          return
+        }
         if (state.consecutiveContinuations >= CONTINUATION_LIMIT) {
           ctx.logger.info("omo-senpi ulw-execute-continuation skipped", {
             reason: "continuation-cap-reached",
@@ -72,8 +96,7 @@ export function createUlwExecuteContinuationComponent(
           return
         }
 
-        const sessionId = extractSessionId(eventCtx)
-        const cwd = extractCwd(eventCtx)
+        const { sessionId, cwd } = run
         if (!sessionId || !cwd) {
           ctx.logger.info("omo-senpi ulw-execute-continuation skipped", { reason: "missing-context" })
           return

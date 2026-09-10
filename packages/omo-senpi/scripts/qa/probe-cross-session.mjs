@@ -144,7 +144,7 @@ function writeLegacyUnscopedPlan(cwd) {
 }
 
 async function runExtensionChild(sessionId) {
-  const [{ FakeExtensionAPI }, { createUlwLoopComponent }] = await Promise.all([
+  const [{ dispatchRunEnd, FakeExtensionAPI }, { createUlwLoopComponent }] = await Promise.all([
     import(
       pathToFileURL(join(repoRoot, "packages/omo-senpi/test-support/fake-extension-api.ts")).href
     ),
@@ -164,8 +164,7 @@ async function runExtensionChild(sessionId) {
     config: { getFlag: () => false },
   })
 
-  await pi.dispatch(
-    "agent_end",
+  await dispatchRunEnd(pi,
     { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] },
     {
       cwd: process.cwd(),

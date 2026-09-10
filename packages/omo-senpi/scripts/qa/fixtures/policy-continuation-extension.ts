@@ -7,6 +7,10 @@ import { createUlwExecuteContinuationComponent } from "../../../src/components/u
 import { IdleInjectionCoordinator } from "../../../src/extension/idle-injection-coordinator"
 import type { SenpiExtensionAPI } from "../../../src/extension/types"
 
+// The driver supplies the window per lane: the compaction lane is only a compaction lane while the
+// host measures the reported usage against a window this session can actually exceed.
+const QA_CONTEXT_WINDOW = Number(process.env.OMO_POLICY_QA_CONTEXT_WINDOW ?? 200_000)
+
 type QaAPI = SenpiExtensionAPI & {
   registerProvider(name: string, provider: Record<string, unknown>): void
 }
@@ -50,16 +54,26 @@ export default async function policyContinuationExtension(pi: QaAPI): Promise<vo
     } else throw new Error("unknown QA lane")
     record({ type: "active_plan", lane, sessionId, cwd })
   })
+  // Edge markers registered BEFORE the components, so the trace records when each host edge OPENED
+  // regardless of handler order: the host awaits each handler, so a send scheduled by a hook can
+  // land before the next handler runs. An `omo_send` recorded while the open edge is still
+  // `agent_end` rode an edge the host had not settled.
+  pi.on("agent_end", (event) => record({ type: "edge_agent_end", willRetry: readFlag(event, "willRetry"), aborted: readFlag(event, "aborted") }))
+  pi.on("agent_settled", () => record({ type: "edge_agent_settled" }))
+
   const context = { logger, config: { getFlag: () => false }, idleCoordinator: coordinator }
   await createUlwExecuteContinuationComponent().register(pi, context)
   await createUlwLoopComponent({ resolveOmoBin: () => toolkit }).register(pi, context)
+  // Recorded AFTER the components register, so each line reports the queue state the hooks left
+  // behind on that edge. `hook_compact` is the host's own compaction interaction.
   pi.on("agent_end", (event) => record({ type: "hook_end", event, pending: coordinator.pendingCount() }))
   pi.on("agent_settled", () => record({ type: "hook_settled", pending: coordinator.pendingCount() }))
+  pi.on("session_compact", (event) => record({ type: "hook_compact", event }))
 
   pi.registerProvider("omo-policy-qa", {
     baseUrl: endpoint, apiKey: "local-qa-only", api: "openai-completions",
     models: [{ id: "qa", name: "QA", reasoning: false, input: ["text"],
-      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 200_000, maxTokens: 1024 }],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: QA_CONTEXT_WINDOW, maxTokens: 1024 }],
     streamSimple() {
       // Actual HTTP boundary, with a bounded request; no credentials or real model service.
       const result = fetch(endpoint, { signal: AbortSignal.timeout(10_000) }).then(async (response) => {
@@ -87,4 +101,8 @@ export default async function policyContinuationExtension(pi: QaAPI): Promise<vo
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function readFlag(event: unknown, key: string): boolean {
+  return isRecord(event) && event[key] === true
 }
