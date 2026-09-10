@@ -212,14 +212,16 @@ These are the only deprecated keys the strict agent schema accepts. `textVerbosi
 
 #### Builtin agents
 
-The Senpi task engine ships four builtin curated agents: `explore` and `librarian` are always spawnable through the task tool with zero configuration, for example `task(subagent_type: "explore", ...)`, while `metis` and `momus` are plan-gated: spawnable only after the user requests the `ulw-plan` workflow, a `.omo/plans/*.md` artifact was touched, and `ulw-execute` was never invoked. They are read-only research and review specialists; implementation and orchestration agents stay category-routed. (`oracle` is an OpenCode plugin agent, not a Senpi builtin.)
+The Senpi task engine ships four builtin curated agents: `explore` and `librarian` are always spawnable through the task tool with zero configuration, for example `task(subagent_type: "explore", ...)`, while `plan-consultant` and `plan-reviewer` are plan-gated: spawnable only after the user requests the `ulw-plan` workflow, a `.omo/plans/*.md` artifact was touched, and `ulw-execute` was never invoked. They are read-only research and review specialists; implementation and orchestration agents stay category-routed (architecture consults go through `task(category: "architect")`).
+
+> **Deprecated**: `agents.metis` and `agents.momus` (and `subagent_type: "metis"|"momus"`) still resolve to `plan-consultant` and `plan-reviewer` with a deprecation notice and are removed in the release after 5.0.0-beta.51. <!-- retired-name-allowed -->
 
 | Name | Purpose |
 |------|---------|
 | `explore` | Codebase search specialist. Answers "Where is X?", "Which file has Y?", "Find the code that does Z". Supports thoroughness levels from quick to very thorough. |
 | `librarian` | Remote codebase and documentation research: searches open-source repositories, retrieves official documentation, and finds implementation examples via the GitHub CLI and direct documentation retrieval. |
-| `metis` | Pre-planning consultant that analyzes requests to surface hidden intentions, ambiguities, and AI failure points. |
-| `momus` | Expert reviewer that evaluates work plans against clarity, verifiability, and completeness standards. |
+| `plan-consultant` | Pre-planning consultant that analyzes requests to surface hidden intentions, ambiguities, and AI failure points. |
+| `plan-reviewer` | Expert reviewer that evaluates work plans against clarity, verifiability, and completeness standards. |
 
 Each builtin carries its own persona prompt, a read-only tool policy, and a per-agent model fallback chain, and is pinned to `execution_mode: "in-process"`. The nine-name allowlist includes a curated `bash` override, but it is not Senpi's general shell: it directly runs only validated read-only `gh` queries and HTTPS `curl` retrievals, with no shell parsing, redirects, output files, uploads, request bodies, or mutating HTTP methods. Direct `edit`, `write`, and mutating LSP tools are excluded.
 
@@ -238,7 +240,7 @@ To hide a builtin from the task tool description and from spawn resolution, disa
 ```jsonc
 {
   "agents": {
-    "momus": { "disable": true }
+    "plan-reviewer": { "disable": true }
   }
 }
 ```
@@ -248,7 +250,7 @@ Overriding `execution_mode` on a curated agent is ignored. All other configured 
 Curated agents and teams. A team member spec naming a curated read-only agent (`kind: "subagent_type"`) is rejected at member validation with this error:
 
 ```
-curated read-only agent "momus" cannot be a team member; delegate via the task tool instead
+curated read-only agent "plan-reviewer" cannot be a team member; delegate via the task tool instead
 ```
 
 Team members always spawn in `process` mode, which cannot carry the curated persona or tool policy, so delegate to these agents through the task tool instead of naming them as team members.
@@ -316,9 +318,9 @@ A record of profile name to a partial view (`schema/config.ts` `OmoConfigProfile
       "categories": {
         "deep": { "model": "kimi-for-coding/kimi-k3" }
       },
-      "[opencode]": {
+      "[senpi]": {
         "agents": {
-          "sisyphus": { "model": "kimi-for-coding/kimi-k3" }
+          "plan-reviewer": { "model": "kimi-for-coding/kimi-k3" }
         }
       }
     }

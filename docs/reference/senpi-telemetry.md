@@ -6,6 +6,8 @@ OmO Native is the anonymous product analytics pipeline for the omo-senpi adapter
 
 The payloads carry only booleans, buckets, counters, and allowlisted enum values. No free-form text ever leaves your machine. The exact schema is machine-generated below; if the generator and this document ever disagree, a drift test fails in CI.
 
+The curated plan agents were renamed to `plan-consultant` and `plan-reviewer`; `delegation_started.name` and `delegation_completed.agent_type` carry the new ids, and this is a breaking value change for anyone querying the old ones. Events emitted before the rename carry metis/momus. <!-- retired-name-allowed -->
+
 <!-- BEGIN GENERATED SCHEMA -->
 ## Event schema
 
