@@ -8,6 +8,7 @@ import {
   buildChildArgs,
   buildRpcSpawn,
   detectBunBinary,
+  detectCompiledEngine,
   readEngineVersionFromResolvePaths,
   readRunningEngineVersion,
   resolveChildSessionDir,
@@ -128,6 +129,30 @@ describe("resolveSenpiExecutable", () => {
     writeFileSync(sibling, "")
     try {
       expect(resolveSenpiExecutable({ ...runtime, isBunBinary: true, execPath, parentEnv: {} })).toBe(realpathSync.native(sibling))
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test("#given a script-hosted test run #when the compiled-engine probe runs #then it reports false", () => {
+    // bun test is a script host: no embedded files, so PATH/sibling resolution stays in force
+    expect(detectCompiledEngine()).toBe(false)
+  })
+
+  test("#given a compiled engine with a senpi on PATH #when resolving #then the running executable wins over PATH", () => {
+    // given: the omo binary embeds the engine; a different senpi install sits on PATH
+    const root = mkdtempSync(join(tmpdir(), "senpi-compiled-engine-"))
+    const execPath = join(root, "omo")
+    const foreign = join(root, "path", "senpi")
+    mkdirSync(dirname(foreign), { recursive: true })
+    writeFileSync(execPath, "")
+    writeFileSync(foreign, "")
+    try {
+      // when
+      const resolved = resolveSenpiExecutable({ ...runtime, isCompiledEngine: true, execPath, parentEnv: { PATH: dirname(foreign) } })
+
+      // then
+      expect(resolved).toBe(realpathSync.native(execPath))
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -396,6 +421,36 @@ describe("buildRpcSpawn spawn strategy", () => {
       expect(descriptor.command).toBe("C:\\Program Files\\nodejs\\node.exe")
       expect(descriptor.args[0]).toBe(realpathSync.native(cli))
       expect(descriptor.args).not.toContain("/fallback/rpc-entry.js")
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  test("#given a compiled engine with a senpi on PATH #when building an RPC child #then the child is the running executable in rpc mode", () => {
+    // given
+    const root = mkdtempSync(join(tmpdir(), "senpi-compiled-engine-rpc-"))
+    const execPath = join(root, "omo")
+    const foreign = join(root, "path", "senpi")
+    mkdirSync(dirname(foreign), { recursive: true })
+    writeFileSync(execPath, "")
+    writeFileSync(foreign, "")
+    try {
+      // when
+      const descriptor = buildRpcSpawn(
+        { ...baseSpec, model: "omo-mock/mock-1", extensions: ["/opt/omo-runtime/plugin"] },
+        {
+          isBunBinary: false,
+          isCompiledEngine: true,
+          execPath,
+          platform: "linux",
+          parentEnv: { PATH: dirname(foreign) },
+          resolveRpcEntry: () => "/fallback/rpc-entry.js",
+        },
+      )
+
+      // then: the compiled binary is its own engine; PATH and the rpc-entry fallback are never consulted
+      expect(descriptor.command).toBe(realpathSync.native(execPath))
+      expect(descriptor.args).toEqual(["--mode", "rpc", "--no-extensions", "--extension", "/opt/omo-runtime/plugin", "--model", "omo-mock/mock-1"])
     } finally {
       rmSync(root, { recursive: true, force: true })
     }

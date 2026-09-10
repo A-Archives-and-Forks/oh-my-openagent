@@ -20,6 +20,7 @@ async function tempRoot(): Promise<string> {
 function runtime(overrides: Partial<SenpiLaunchRuntime> = {}): SenpiLaunchRuntime {
   return {
     isBunBinary: false,
+    isCompiledEngine: false,
     execPath: process.execPath,
     platform: process.platform,
     argv: [...process.argv],
@@ -29,6 +30,49 @@ function runtime(overrides: Partial<SenpiLaunchRuntime> = {}): SenpiLaunchRuntim
 }
 
 describe("resolveSenpiLaunch", () => {
+  test("#given the running engine is a compiled omo binary and PATH carries a senpi #when resolved #then the child is that same binary", async () => {
+    // given: the binary embeds the engine; the PATH senpi is a different install with its own assets
+    const root = await tempRoot()
+    const execPath = join(root, "omo")
+    const foreign = join(root, "path", "senpi")
+    await mkdir(dirname(foreign), { recursive: true })
+    await writeFile(execPath, "")
+    await writeFile(foreign, "")
+
+    // when
+    const launch = resolveSenpiLaunch({ PATH: dirname(foreign) }, runtime({ isCompiledEngine: true, execPath }))
+
+    // then
+    expect(launch).toEqual({ command: realpathSync.native(execPath), prefixArgs: [] })
+  }, 30_000)
+
+  test("#given a compiled omo binary with no senpi on PATH, no installed CLI and no entry script #when resolved #then it still launches itself", async () => {
+    // given
+    const root = await tempRoot()
+    const execPath = join(root, "omo")
+    await writeFile(execPath, "")
+
+    // when
+    const launch = resolveSenpiLaunch({ PATH: "" }, runtime({ isCompiledEngine: true, execPath, argv: [execPath] }))
+
+    // then
+    expect(launch).toEqual({ command: realpathSync.native(execPath), prefixArgs: [] })
+  }, 30_000)
+
+  test("#given a script-hosted engine and a senpi on PATH #when resolved #then the PATH senpi is still chosen", async () => {
+    // given: the non-compiled parent keeps today's resolution order
+    const root = await tempRoot()
+    const onPath = join(root, "path", "senpi")
+    await mkdir(dirname(onPath), { recursive: true })
+    await writeFile(onPath, "")
+
+    // when
+    const launch = resolveSenpiLaunch({ PATH: dirname(onPath) }, runtime())
+
+    // then
+    expect(launch).toEqual({ command: realpathSync.native(onPath), prefixArgs: [] })
+  }, 30_000)
+
   test("#given a Windows npm shim #when resolved #then Node launches the adjacent Senpi CLI", async () => {
     // given
     const root = await tempRoot()
