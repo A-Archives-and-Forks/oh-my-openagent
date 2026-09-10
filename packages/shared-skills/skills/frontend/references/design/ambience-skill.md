@@ -38,7 +38,7 @@ curl -s https://reactbits.dev/r/<Name>-TS-TW.json | jq -c '.dependencies'       
 
 ## 3. Routing map — by intent, not by catalog
 
-Each row names the react-bits component to read, its engine (`none` = plain React + canvas/CSS), and whether the source already ships a `prefers-reduced-motion` path (`RM`). Rows without `RM` need the full retrofit; rows with it still need the rest of the checklist.
+Each row names the react-bits component to read, its animation engine (`none` = plain React + canvas/CSS; a `none` row may still pull a non-animation package such as an icon set, so read `dependencies[]` before importing), and whether the source already ships a `prefers-reduced-motion` path (`RM`). Rows without `RM` need the full retrofit; rows with it still need the rest of the checklist.
 
 ### Hero atmosphere — one per hero, and it is the hero's signature moment
 
@@ -122,7 +122,7 @@ Read `dependencies[]` from the registry item before reading the source. In order
 1. **Zero-dependency components first.** Roughly a quarter of the catalog is plain React plus canvas or CSS; prefer these for anything that is not the hero's signature moment.
 2. **An engine the project already has.** Check `package.json`. If Motion is present, prefer `motion` rows; if GSAP is present, prefer `gsap` rows. Never introduce a second animation engine for one effect.
 3. **`ogl` and `three` are a `DESIGN.md` decision.** Either one is justified only for the hero atmosphere, with the bundle cost, the poster fallback, and the WebGL detection recorded in `DESIGN.md` before the import. `three` (plus `@react-three/*`) is the heaviest option in the catalog; do not add it for a background when an `ogl` or canvas row carries the same material.
-4. **Installing is the exception, not the path.** `npx shadcn@latest add https://reactbits.dev/r/<Name>-TS-TW.json` (or the `jsrepo` equivalent) copies the four-variant source into the project. Do it only when the project already consumes shadcn-style registries, `DESIGN.md` records the component as a primitive, and the retrofit checklist is then applied to the copied file — the copy is a starting point, never a finished primitive.
+4. **Installing is the exception, not the path.** `npx shadcn@latest add https://reactbits.dev/r/<Name>-TS-TW.json` (or the `jsrepo` equivalent) copies the ONE variant named in the URL into the project, not all four. Do it only when the project already consumes shadcn-style registries, `DESIGN.md` records the component as a primitive, and the retrofit checklist is then applied to the copied file — the copy is a starting point, never a finished primitive.
 
 ## 6. DESIGN.md integration
 
