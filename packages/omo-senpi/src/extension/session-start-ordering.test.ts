@@ -5,7 +5,7 @@ import { join } from "node:path"
 
 import { afterEach, describe, expect, mock as mockFn, spyOn, test } from "bun:test"
 
-import { FakeExtensionAPI } from "../../test-support/fake-extension-api"
+import { dispatchRunEnd, FakeExtensionAPI } from "../../test-support/fake-extension-api"
 import { createInitDeepAdvisorComponent, processStartTime } from "../components/init-deep-advisor"
 import {
   makeCoverageRepo,
@@ -91,7 +91,7 @@ describe("session_start component ordering", () => {
     expect(select).not.toHaveBeenCalled()
 
     // when
-    await pi.dispatch("agent_end", { type: "agent_end" }, eventCtx)
+    await dispatchRunEnd(pi, { type: "agent_end", messages: [{ role: "assistant", stopReason: "stop" }] }, eventCtx)
 
     // then
     expect(enqueue).toHaveBeenCalled()
