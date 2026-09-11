@@ -158,7 +158,7 @@ describe("omo-ai publish workflow shape", () => {
     expect(update.env?.OMO_AI_VERSION).toBe("${{ needs.release-metadata.outputs.omo_ai_version }}")
     expect(prepare.run).toContain(stampLine)
     expect(update.run).toContain(stampLine)
-    expect(prepare.run).toContain("git add package.json packages/omo-native/package.json ")
+    expect(prepare.run).toContain("git add CHANGELOG.md package.json packages/omo-native/package.json ")
   })
 
   test("builds and verifies the payload before stripping token auth", () => {
