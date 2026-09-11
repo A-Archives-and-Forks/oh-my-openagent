@@ -1742,7 +1742,17 @@
         "recall": {
           "default": {
             "enabled": true,
-            "max_items": 2
+            "max_items": 2,
+            "category": "quick",
+            "event_caps": {
+              "tool_args": 400,
+              "result_head": 600,
+              "assistant": 1500,
+              "prompt": 4000
+            },
+            "sidecar_max_tokens": 48000,
+            "max_concurrent_wakes": 2,
+            "tool_budget": 8
           },
           "type": "object",
           "properties": {
@@ -1755,11 +1765,81 @@
               "type": "integer",
               "minimum": 1,
               "maximum": 5
+            },
+            "category": {
+              "default": "quick",
+              "type": "string",
+              "minLength": 1
+            },
+            "event_caps": {
+              "default": {
+                "tool_args": 400,
+                "result_head": 600,
+                "assistant": 1500,
+                "prompt": 4000
+              },
+              "type": "object",
+              "properties": {
+                "tool_args": {
+                  "default": 400,
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "result_head": {
+                  "default": 600,
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "assistant": {
+                  "default": 1500,
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "prompt": {
+                  "default": 4000,
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "tool_args",
+                "result_head",
+                "assistant",
+                "prompt"
+              ],
+              "additionalProperties": false
+            },
+            "sidecar_max_tokens": {
+              "default": 48000,
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "max_concurrent_wakes": {
+              "default": 2,
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            "tool_budget": {
+              "default": 8,
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
             }
           },
           "required": [
             "enabled",
-            "max_items"
+            "max_items",
+            "category",
+            "event_caps",
+            "sidecar_max_tokens",
+            "max_concurrent_wakes",
+            "tool_budget"
           ],
           "additionalProperties": false
         },
@@ -1961,6 +2041,51 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 5
+                  },
+                  "category": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "event_caps": {
+                    "type": "object",
+                    "properties": {
+                      "tool_args": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "result_head": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "assistant": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "prompt": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "sidecar_max_tokens": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "max_concurrent_wakes": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "tool_budget": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
                   }
                 },
                 "additionalProperties": false
@@ -13449,6 +13574,51 @@
                   "type": "integer",
                   "minimum": 1,
                   "maximum": 5
+                },
+                "category": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "event_caps": {
+                  "type": "object",
+                  "properties": {
+                    "tool_args": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "result_head": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "assistant": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "prompt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "sidecar_max_tokens": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "max_concurrent_wakes": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "tool_budget": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
                 }
               },
               "additionalProperties": false
@@ -13649,6 +13819,51 @@
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 5
+                      },
+                      "category": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "event_caps": {
+                        "type": "object",
+                        "properties": {
+                          "tool_args": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "result_head": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "assistant": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "prompt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "sidecar_max_tokens": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "max_concurrent_wakes": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "tool_budget": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
                       }
                     },
                     "additionalProperties": false
@@ -15211,6 +15426,51 @@
                   "type": "integer",
                   "minimum": 1,
                   "maximum": 5
+                },
+                "category": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "event_caps": {
+                  "type": "object",
+                  "properties": {
+                    "tool_args": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "result_head": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "assistant": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    },
+                    "prompt": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 9007199254740991
+                    }
+                  },
+                  "additionalProperties": false
+                },
+                "sidecar_max_tokens": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "max_concurrent_wakes": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "tool_budget": {
+                  "type": "integer",
+                  "exclusiveMinimum": 0,
+                  "maximum": 9007199254740991
                 }
               },
               "additionalProperties": false
@@ -15411,6 +15671,51 @@
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 5
+                      },
+                      "category": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "event_caps": {
+                        "type": "object",
+                        "properties": {
+                          "tool_args": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "result_head": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "assistant": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "prompt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "sidecar_max_tokens": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "max_concurrent_wakes": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "tool_budget": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
                       }
                     },
                     "additionalProperties": false
@@ -16979,6 +17284,51 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 5
+                  },
+                  "category": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "event_caps": {
+                    "type": "object",
+                    "properties": {
+                      "tool_args": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "result_head": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "assistant": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "prompt": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "sidecar_max_tokens": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "max_concurrent_wakes": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "tool_budget": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991
                   }
                 },
                 "additionalProperties": false
@@ -17179,6 +17529,51 @@
                           "type": "integer",
                           "minimum": 1,
                           "maximum": 5
+                        },
+                        "category": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "event_caps": {
+                          "type": "object",
+                          "properties": {
+                            "tool_args": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "result_head": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "assistant": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "prompt": {
+                              "type": "integer",
+                              "minimum": 0,
+                              "maximum": 9007199254740991
+                            }
+                          },
+                          "additionalProperties": false
+                        },
+                        "sidecar_max_tokens": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "max_concurrent_wakes": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
+                        },
+                        "tool_budget": {
+                          "type": "integer",
+                          "exclusiveMinimum": 0,
+                          "maximum": 9007199254740991
                         }
                       },
                       "additionalProperties": false
@@ -28647,6 +29042,51 @@
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 5
+                      },
+                      "category": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "event_caps": {
+                        "type": "object",
+                        "properties": {
+                          "tool_args": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "result_head": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "assistant": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "prompt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "sidecar_max_tokens": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "max_concurrent_wakes": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "tool_budget": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
                       }
                     },
                     "additionalProperties": false
@@ -28847,6 +29287,51 @@
                               "type": "integer",
                               "minimum": 1,
                               "maximum": 5
+                            },
+                            "category": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "event_caps": {
+                              "type": "object",
+                              "properties": {
+                                "tool_args": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "result_head": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "assistant": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "prompt": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "sidecar_max_tokens": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "max_concurrent_wakes": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "tool_budget": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
                             }
                           },
                           "additionalProperties": false
@@ -30409,6 +30894,51 @@
                         "type": "integer",
                         "minimum": 1,
                         "maximum": 5
+                      },
+                      "category": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "event_caps": {
+                        "type": "object",
+                        "properties": {
+                          "tool_args": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "result_head": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "assistant": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          },
+                          "prompt": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991
+                          }
+                        },
+                        "additionalProperties": false
+                      },
+                      "sidecar_max_tokens": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "max_concurrent_wakes": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "tool_budget": {
+                        "type": "integer",
+                        "exclusiveMinimum": 0,
+                        "maximum": 9007199254740991
                       }
                     },
                     "additionalProperties": false
@@ -30609,6 +31139,51 @@
                               "type": "integer",
                               "minimum": 1,
                               "maximum": 5
+                            },
+                            "category": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "event_caps": {
+                              "type": "object",
+                              "properties": {
+                                "tool_args": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "result_head": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "assistant": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                },
+                                "prompt": {
+                                  "type": "integer",
+                                  "minimum": 0,
+                                  "maximum": 9007199254740991
+                                }
+                              },
+                              "additionalProperties": false
+                            },
+                            "sidecar_max_tokens": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "max_concurrent_wakes": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
+                            },
+                            "tool_budget": {
+                              "type": "integer",
+                              "exclusiveMinimum": 0,
+                              "maximum": 9007199254740991
                             }
                           },
                           "additionalProperties": false
