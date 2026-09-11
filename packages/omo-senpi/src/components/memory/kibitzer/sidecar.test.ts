@@ -6,7 +6,7 @@ import { OmoMemoryRecallSchema } from "@oh-my-opencode/omo-config-core"
 
 import { resolveKibitzerSidecarSettings } from "./settings"
 import { KIBITZER_RESEED_FRACTION, KIBITZER_SIDECAR_MAX_TOKENS, KIBITZER_WAKE_DEADLINE_MS, KIBITZER_WAKE_TOOL_BUDGET } from "./sidecar"
-import { candidate, fakeWakeSlot, sidecarHarness, withinMs, type FakeChild, type SidecarHarness } from "./sidecar.test-support"
+import { candidate, fakeChild, fakeWakeSlot, sidecarHarness, withinMs, type FakeChild, type SidecarHarness } from "./sidecar.test-support"
 
 const K8S = "reference/kubernetes-rollouts.md"
 const HELM = "reference/helm-values.md"
@@ -357,10 +357,51 @@ describe("KibitzerSidecar lifecycle", () => {
     expect(harness.sidecar.state()).toBe("turn_running")
   })
 
-  test("#given a child that cannot be started #when offered #then the start failure enters backoff without a child and the offer is buffered", async () => {
+  test("#given a child whose start is still in flight #when a hook event is captured before startChild resolves #then the event is not drained unread: it rides the next wake", async () => {
+    const gate = Promise.withResolvers<void>()
+    const entered = Promise.withResolvers<void>()
+    const started: FakeChild[] = []
     const harness = sidecarHarness({
-      startChild: async () => {
-        throw new Error("quick category unavailable")
+      startChild: async (input) => {
+        const child = fakeChild(input)
+        started.push(child)
+        entered.resolve()
+        await gate.promise
+        return child.handle
+      },
+    })
+    harness.prompt(1, "how do we handle kubernetes rollouts")
+
+    const seeding = harness.offer([candidate(K8S)])
+    await withinMs(entered.promise, "startChild to be entered")
+    // The parent does not pause while its child boots: this hook lands after the seed's payload was
+    // built and before the child exists.
+    harness.toolCall(2, "grep", { pattern: "rollout" })
+    gate.resolve()
+    expect(await seeding).toEqual({ action: "seeded", wake: 1 })
+
+    const child = started[0]
+    if (child === undefined) throw new Error("the seed did not start a child")
+    expect(cursorsOf(child.input.prompt)).toEqual([1])
+    expect(harness.sidecar.events.lastCursor()).toBe(2)
+
+    // Too late for the seed, so it must reach the child with the next wake.
+    harness.toolCall(3)
+    expect(await harness.offer([candidate(HELM)])).toEqual({ action: "steered", wake: 1 })
+    expect(cursorsOf(child.steers[0] ?? "")).toEqual([2, 3])
+    expect(harness.sidecar.events.size()).toBe(0)
+  })
+
+  test("#given a child that cannot be started #when offered #then the start failure enters backoff without a child, the offer is buffered, and the retry seed carries every event and candidate", async () => {
+    const started: FakeChild[] = []
+    let attempts = 0
+    const harness = sidecarHarness({
+      startChild: async (input) => {
+        attempts += 1
+        if (attempts === 1) throw new Error("quick category unavailable")
+        const child = fakeChild(input)
+        started.push(child)
+        return child.handle
       },
     })
     harness.prompt(1, "how do we handle kubernetes rollouts")
@@ -371,10 +412,22 @@ describe("KibitzerSidecar lifecycle", () => {
     expect(harness.outcomes.map((outcome) => [outcome.status, outcome.cause])).toEqual([["failed", "start_failed"]])
     expect(harness.sidecar.state()).toBe("backoff")
     expect(harness.timers.pending().map((timer) => timer.ms)).toEqual([1_000])
-    expect(harness.sidecar.events.size()).toBe(1)
     // The lease taken for the wake that never started is handed back before the backoff begins.
     expect(harness.slot.acquisitions).toBe(1)
     expect(harness.slot.held()).toBe(0)
+
+    // Nothing the failed wake was handed is lost: the retry seed carries the event captured before
+    // the failure, the one captured during the backoff, and the candidate that was never offered.
+    harness.toolCall(2)
+    harness.timers.fire()
+    expect(harness.sidecar.state()).toBe("idle")
+    expect(await harness.offer([candidate(K8S)])).toEqual({ action: "seeded", wake: 2 })
+    const retry = started[0]
+    if (retry === undefined) throw new Error("the retry did not start a child")
+    expect(retry.input.generation).toBe(1)
+    expect(cursorsOf(retry.input.prompt)).toEqual([1, 2])
+    expect(candidatePathsOf(retry.input.prompt)).toEqual([K8S])
+    expect(harness.sidecar.events.size()).toBe(0)
   })
 })
 
