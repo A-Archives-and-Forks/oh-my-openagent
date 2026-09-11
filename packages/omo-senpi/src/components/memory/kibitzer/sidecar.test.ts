@@ -2,8 +2,11 @@ import { describe, expect, test } from "bun:test"
 
 import type { RunnerOutcome } from "@oh-my-opencode/senpi-task"
 
-import { KIBITZER_WAKE_DEADLINE_MS, KIBITZER_WAKE_TOOL_BUDGET } from "./sidecar"
-import { candidate, sidecarHarness, withinMs, type FakeChild, type SidecarHarness } from "./sidecar.test-support"
+import { OmoMemoryRecallSchema } from "@oh-my-opencode/omo-config-core"
+
+import { resolveKibitzerSidecarSettings } from "./settings"
+import { KIBITZER_RESEED_FRACTION, KIBITZER_SIDECAR_MAX_TOKENS, KIBITZER_WAKE_DEADLINE_MS, KIBITZER_WAKE_TOOL_BUDGET } from "./sidecar"
+import { candidate, fakeWakeSlot, sidecarHarness, withinMs, type FakeChild, type SidecarHarness } from "./sidecar.test-support"
 
 const K8S = "reference/kubernetes-rollouts.md"
 const HELM = "reference/helm-values.md"
@@ -67,6 +70,9 @@ describe("KibitzerSidecar lifecycle", () => {
     expect(outcome).toMatchObject({ wake: 1, generation: 1, status: "completed", steered: 1, nudges: [], toolCalls: 0, diagnostic: false, model: "omo-mock/mock-1" })
     expect(harness.sidecar.state()).toBe("idle")
     expect(child.disposed).toBe(false)
+    // One wake, one machine-wide lease: taken before the seed, handed back at settlement.
+    expect(harness.slot.acquisitions).toBe(1)
+    expect(harness.slot.held()).toBe(0)
   })
 
   test("#given an idle resident child #when a fresh candidate arrives #then the child is revived through followUp and never recreated", async () => {
@@ -162,6 +168,7 @@ describe("KibitzerSidecar lifecycle", () => {
     expect(failed.reason).toContain("429")
     expect(harness.sidecar.state()).toBe("backoff")
     expect(child.disposed).toBe(true)
+    expect(harness.slot.held()).toBe(0)
     // attempt 0: cap 1s, jitter draw 0.5 -> 750ms, floored to the 1s minimum
     expect(harness.timers.pending().map((timer) => timer.ms)).toEqual([1_000])
 
@@ -209,6 +216,7 @@ describe("KibitzerSidecar lifecycle", () => {
     expect(harness.sidecar.state()).toBe("idle")
     expect(child.disposed).toBe(false)
     expect(harness.timers.pending()).toEqual([])
+    expect(harness.slot.held()).toBe(0)
 
     // The same child carries on; the delivered path is now surfaced and cannot wake again.
     harness.toolCall(2)
@@ -228,6 +236,7 @@ describe("KibitzerSidecar lifecycle", () => {
     expect(child.disposed).toBe(true)
     expect(harness.sidecar.state()).toBe("disposed")
     expect(harness.timers.pending()).toEqual([])
+    expect(harness.slot.held()).toBe(0)
     // A session that is going away receives nothing.
     expect(harness.delivered).toEqual([])
     expect(harness.outcomes.map((outcome) => outcome.status)).toEqual(["cancelled"])
@@ -258,7 +267,15 @@ describe("KibitzerSidecar lifecycle", () => {
     expect(harness.delivered).toEqual([[{ path: K8S, hint: HINT }]])
     expect(harness.sidecar.state()).toBe("idle")
     expect(child.disposed).toBe(false)
+    // No backoff timer, no diagnostic outcome: the budget is a bound, not a failure the gate should notice.
     expect(harness.timers.pending()).toEqual([])
+    expect(harness.outcomes.filter((entry) => entry.diagnostic)).toEqual([])
+    expect(harness.slot.held()).toBe(0)
+
+    // The ninth call never reaches the child's tools as a counted call: the budget closure refuses it.
+    const refused = await child.nudge(HELM, HINT)
+    expect(refused.isError).toBe(true)
+    expect(harness.sidecar.state()).toBe("idle")
   })
 
   test("#given the accepted-nudge cooldown #when two wakes deliver inside ten minutes #then a third fresh candidate buffers until the window slides, and empty wakes are never charged", async () => {
@@ -293,8 +310,9 @@ describe("KibitzerSidecar lifecycle", () => {
   })
 
   test("#given the context estimate crosses the reseed threshold #when the turn settles #then the child is disposed for reseed and the replacement seed carries delivered, rejected paths, and the last cursor", async () => {
-    // Well above what four envelopes reach through the char/4 fallback, so only provider usage can cross it.
-    const harness = sidecarHarness({ reseedAtTokens: 5_000 })
+    // 60% of 8_500 is 5_100: well above what four envelopes reach through the char/4 fallback, so only
+    // provider usage can cross it.
+    const harness = sidecarHarness({ sidecarMaxTokens: 8_500 })
     const child = await seeded(harness)
     // wake 1: K8S offered and nudged
     await child.nudge(K8S, HINT)
@@ -354,5 +372,150 @@ describe("KibitzerSidecar lifecycle", () => {
     expect(harness.sidecar.state()).toBe("backoff")
     expect(harness.timers.pending().map((timer) => timer.ms)).toEqual([1_000])
     expect(harness.sidecar.events.size()).toBe(1)
+    // The lease taken for the wake that never started is handed back before the backoff begins.
+    expect(harness.slot.acquisitions).toBe(1)
+    expect(harness.slot.held()).toBe(0)
+  })
+})
+
+describe("KibitzerSidecar wake governance", () => {
+  test("#given every machine slot held for five minutes (five minute slot outage) #when hooks keep arriving #then every offer buffers as slot_busy without a child, a timer, or a background retry, and the first admitted wake carries every event", async () => {
+    const harness = sidecarHarness()
+    harness.slot.busy = true
+    harness.prompt(1, "how do we handle kubernetes rollouts")
+
+    // Thirty hooks ten seconds apart: a five-minute outage seen from one session.
+    for (let cursor = 2; cursor <= 31; cursor += 1) {
+      harness.toolCall(cursor)
+      expect(await harness.offer([candidate(`reference/topic-${cursor}.md`)])).toEqual({ action: "buffered", reason: "slot_busy" })
+      harness.clock.now += 10_000
+    }
+
+    expect(harness.children).toHaveLength(0)
+    expect(harness.sidecar.state()).toBe("idle")
+    // One bounded attempt per hook, nothing scheduled in between: the sidecar never polls the slot on its own.
+    expect(harness.slot.attempts).toBe(30)
+    expect(harness.slot.acquisitions).toBe(0)
+    expect(harness.timers.pending()).toEqual([])
+    expect(harness.outcomes).toEqual([])
+    // 31 events captured; the newest 20 stay whole and the 11 older ones are folded, not dropped.
+    expect(harness.sidecar.events.size()).toBe(20)
+    expect(harness.sidecar.events.lastCursor()).toBe(31)
+
+    harness.slot.busy = false
+    harness.toolCall(32)
+    expect(await harness.offer([candidate(K8S)])).toEqual({ action: "seeded", wake: 1 })
+    const child = harness.children[0]
+    if (child === undefined) throw new Error("the admitted wake did not start a child")
+    expect(harness.slot.acquisitions).toBe(1)
+    expect(harness.slot.held()).toBe(1)
+    expect(child.input.prompt).toContain('<digest cursor-from="1" cursor-to="12" folded="12">')
+    expect(cursorsOf(child.input.prompt)).toEqual([13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32])
+    expect(candidatePathsOf(child.input.prompt)).toEqual([K8S])
+    child.settle(completed)
+    await harness.nextWake()
+    expect(harness.slot.held()).toBe(0)
+  })
+
+  test("#given a wake parked on the machine-wide lease #when the session shuts down #then the wait is abandoned, no child is started and nothing is held", async () => {
+    const harness = sidecarHarness()
+    harness.slot.parked = true
+    harness.prompt(1, "how do we handle kubernetes rollouts")
+
+    const offer = harness.offer([candidate(K8S)])
+    await withinMs(harness.sidecar.shutdown(), "shutdown during the slot wait")
+
+    expect(await withinMs(offer, "the abandoned offer")).toEqual({ action: "buffered", reason: "disposed" })
+    expect(harness.children).toHaveLength(0)
+    expect(harness.sidecar.state()).toBe("disposed")
+    expect(harness.slot.acquisitions).toBe(0)
+    expect(harness.slot.held()).toBe(0)
+    expect(harness.outcomes).toEqual([])
+  })
+
+  test("#given a lease that cannot be taken at all #when a wake is attempted #then it is a start failure with bounded backoff, never a spin", async () => {
+    const slot = fakeWakeSlot()
+    slot.acquire = async () => {
+      throw new Error("EACCES: locks directory is read-only")
+    }
+    const harness = sidecarHarness({ wakeSlot: slot })
+    harness.prompt(1, "how do we handle kubernetes rollouts")
+
+    expect(await harness.offer([candidate(K8S)])).toEqual({ action: "buffered", reason: "backoff" })
+
+    expect(harness.children).toHaveLength(0)
+    expect(harness.sidecar.state()).toBe("backoff")
+    expect(harness.outcomes).toHaveLength(1)
+    expect(harness.outcomes[0]).toMatchObject({ status: "failed", cause: "start_failed", diagnostic: true })
+    expect(harness.outcomes[0]?.reason).toContain("EACCES")
+    expect(harness.timers.pending().map((timer) => timer.ms)).toEqual([1_000])
+    expect(harness.sidecar.events.size()).toBe(1)
+  })
+
+  test("#given the configured recall settings #when the sidecar is built from them #then tool_budget, event_caps and sidecar_max_tokens govern the wake instead of the defaults", async () => {
+    const settings = resolveKibitzerSidecarSettings(OmoMemoryRecallSchema.parse({
+      category: "deep",
+      tool_budget: 3,
+      sidecar_max_tokens: 500,
+      max_concurrent_wakes: 1,
+      event_caps: { tool_args: 400, result_head: 600, assistant: 1500, prompt: 12 },
+    }))
+    expect(settings).toEqual({
+      category: "deep",
+      toolBudget: 3,
+      sidecarMaxTokens: 500,
+      maxConcurrentWakes: 1,
+      eventCaps: { toolArgs: 400, resultHead: 600, assistant: 1500, prompt: 12 },
+    })
+    const harness = sidecarHarness({ toolBudget: settings.toolBudget, sidecarMaxTokens: settings.sidecarMaxTokens, eventCaps: settings.eventCaps })
+    harness.prompt(1, "how do we handle kubernetes rollouts")
+    expect(await harness.offer([candidate(K8S)])).toEqual({ action: "seeded", wake: 1 })
+    const child = harness.children[0]
+    if (child === undefined) throw new Error("the seed did not start a child")
+
+    // event_caps.prompt: the prompt event body is cut at 12 characters before it reaches the envelope.
+    expect(child.input.prompt).toContain('<event cursor="1" kind="prompt">\n<text>how do we ha</text>\n</event>')
+    expect(child.input.prompt).not.toContain("kubernetes rollouts</text>")
+    // tool_budget: the third call ends the wake as tool_budget_exceeded, still not a failure.
+    await child.nudge("reference/unknown-1.md", HINT)
+    await child.nudge("reference/unknown-2.md", HINT)
+    expect(child.aborts).toBe(0)
+    await child.nudge(K8S, HINT)
+    const outcome = await harness.nextWake()
+    expect(outcome).toMatchObject({ status: "tool_budget_exceeded", toolCalls: 3, diagnostic: false, nudges: [{ path: K8S, hint: HINT }] })
+    // sidecar_max_tokens: with no provider usage the char/4 fallback (the seed alone is well over 1_200
+    // characters) already exceeds 60% of 500 tokens, so the child is replaced before its next turn.
+    expect(outcome.contextTokens).toBe(Math.ceil(child.input.prompt.length / 4))
+    expect(outcome.contextTokens ?? 0).toBeGreaterThanOrEqual(Math.floor(500 * KIBITZER_RESEED_FRACTION))
+    expect(harness.sidecar.state()).toBe("reseeding")
+    expect(child.disposed).toBe(true)
+  })
+
+  test("#given provider usage climbing toward the context window #when it reaches 60% #then the child is reseeded at the threshold and not one token earlier", async () => {
+    expect(KIBITZER_SIDECAR_MAX_TOKENS).toBe(48_000)
+    expect(KIBITZER_RESEED_FRACTION).toBe(0.6)
+    const harness = sidecarHarness({ sidecarMaxTokens: 10_000 })
+    const child = await seeded(harness)
+
+    // 5_999 of 10_000: below the line, the child stays resident.
+    child.emit({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "" }], usage: { input: 5_000, cacheRead: 999, output: 5 } } })
+    child.settle(completed)
+    expect(await harness.nextWake()).toMatchObject({ wake: 1, contextTokens: 5_999 })
+    expect(harness.sidecar.state()).toBe("idle")
+    expect(child.disposed).toBe(false)
+
+    // 6_000 of 10_000: exactly 60%, the wake settles and the child is replaced before the next turn.
+    harness.toolCall(2)
+    expect(await harness.offer([candidate(HELM)])).toEqual({ action: "followed_up", wake: 2 })
+    child.emit({ type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "" }], usage: { input: 5_400, cacheRead: 600, output: 5 } } })
+    child.settle(completed)
+    expect(await harness.nextWake()).toMatchObject({ wake: 2, contextTokens: 6_000 })
+    expect(harness.sidecar.state()).toBe("reseeding")
+    expect(child.disposed).toBe(true)
+    expect(harness.slot.held()).toBe(0)
+
+    harness.toolCall(3)
+    expect(await harness.offer([candidate(ISTIO)])).toEqual({ action: "seeded", wake: 3 })
+    expect(harness.children[1]?.input.prompt.startsWith("<kibitzer-reseed ")).toBe(true)
   })
 })

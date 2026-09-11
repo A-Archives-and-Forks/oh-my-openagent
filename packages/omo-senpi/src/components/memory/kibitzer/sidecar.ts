@@ -14,12 +14,16 @@
 //
 // Hook events are captured synchronously into the bounded event stream and only ever BUFFER; a
 // provider turn happens when `offer` brings a candidate path the child has not seen and the session
-// has not surfaced. An idle child is revived with `followUp` (a fresh tracked turn); a running turn
-// is `steer`ed (senpi's default steering mode drains every queued steer at the next boundary). The
-// child's own event stream is the sidecar's instrument: it counts tool calls for the per-wake budget,
-// confirms which steers reached the transcript, and reads provider usage for the context estimate.
-// Aborting for budget, deadline or shutdown is never a failure; a failed child enters exponential
-// backoff and keeps every buffered event for the child that follows.
+// has not surfaced. Before that turn starts, the sidecar takes one machine-wide wake lease (the
+// memory-core `recall-wake` domain: FIFO, `max_concurrent_wakes` slots, bounded wait) and holds it
+// until the turn settles; a wake that finds every slot busy buffers as `slot_busy` and the next hook
+// tries again - nothing polls in between. An idle child is revived with `followUp` (a fresh tracked
+// turn); a running turn is `steer`ed (senpi's default steering mode drains every queued steer at
+// the next boundary) and needs no second lease. The child's own event stream is the sidecar's
+// instrument: it counts tool calls for the per-wake budget, confirms which steers reached the
+// transcript, and reads provider usage for the context estimate. Aborting for budget, deadline or
+// shutdown is never a failure; a failed child enters exponential backoff and keeps every buffered
+// event for the child that follows. The lease is released on every one of those exits.
 
 import { validateNudges, type RecallCandidate, type RecallNudge } from "@oh-my-opencode/memory-core"
 import type { ChildHandle, ChildSessionEvent, RunnerOutcome } from "@oh-my-opencode/senpi-task"
@@ -52,14 +56,15 @@ import {
 import { createWakeToolBudget, type KibitzerSidecarTools, type KibitzerSidecarToolsInput, type WakeToolBudget } from "./tools"
 import type { AnyKibitzerSidecarTool } from "./tools/result"
 import { backoffDelayMs, createAcceptedNudgeCooldown, decideWake, type WakeSilenceReason } from "./wake-policy"
+import type { KibitzerWakeAdmission, KibitzerWakeLease, KibitzerWakeSlot } from "./wake-slot"
 
 /** `memory.recall.tool_budget` default: child tool calls one wake may spend before it is cut off. */
 export const KIBITZER_WAKE_TOOL_BUDGET = 8
 /** A wake that has not settled in this long is aborted; whatever it accepted so far is kept. */
 export const KIBITZER_WAKE_DEADLINE_MS = 90_000
-/** `memory.recall.sidecar_max_tokens` default, used when the registry knows no context window. */
+/** `memory.recall.sidecar_max_tokens` default: the context window the reseed threshold is taken from. */
 export const KIBITZER_SIDECAR_MAX_TOKENS = 48_000
-/** The child is replaced once its context estimate reaches this share of the budget. */
+/** The child is replaced once its context estimate reaches this share of `sidecarMaxTokens`. */
 export const KIBITZER_RESEED_FRACTION = 0.6
 /** A path offered this many wakes ago without a nudge is carried into the reseed as rejected. */
 export const KIBITZER_REJECTED_AFTER_WAKES = 3
@@ -100,10 +105,14 @@ export interface KibitzerSidecarOptions {
   readonly deliver: (nudges: readonly RecallNudge[], outcome: Pick<KibitzerWakeOutcome, "wake" | "generation">) => Promise<void>
   /** Every settled wake, including failures and aborts; the observability lane persists these. */
   readonly onWake?: (outcome: KibitzerWakeOutcome) => void
+  /** The machine-wide wake lease; one lease is held for the whole of every provider turn. */
+  readonly wakeSlot: KibitzerWakeSlot
+  /** `memory.recall.tool_budget`. */
   readonly toolBudget?: number
   readonly wakeDeadlineMs?: number
-  /** Context estimate (tokens) at which the child is disposed for a reseed; defaults to 60% of 48k. */
-  readonly reseedAtTokens?: number
+  /** `memory.recall.sidecar_max_tokens`: the child is reseeded once its estimate reaches 60% of this. */
+  readonly sidecarMaxTokens?: number
+  /** `memory.recall.event_caps`. */
   readonly eventCaps?: Partial<KibitzerEventCaps>
   readonly now?: () => number
   readonly random?: () => number
@@ -122,7 +131,7 @@ export interface KibitzerOfferInput {
   readonly taskSummary?: string
 }
 
-export type KibitzerBufferedReason = WakeSilenceReason | "backoff" | "disposed"
+export type KibitzerBufferedReason = WakeSilenceReason | "backoff" | "slot_busy" | "disposed"
 
 export type KibitzerOfferResult =
   /** A new child was created (first wake, or after backoff / reseed). */
@@ -182,6 +191,10 @@ interface Turn {
   readonly accepted: RecallNudge[]
   readonly budget: WakeToolBudget
   readonly envelopes: Envelope[]
+  /** The machine-wide lease this turn holds; undefined once released. */
+  lease: KibitzerWakeLease | undefined
+  /** Time the wake spent waiting for its lease. */
+  slotWaitMs: number
   candidateCount: number
   toolStarts: number
   toolEnds: number
@@ -200,7 +213,7 @@ export function createKibitzerSidecar(options: KibitzerSidecarOptions): Kibitzer
   const timers = options.timers ?? RUNTIME_TIMERS
   const toolBudget = options.toolBudget ?? KIBITZER_WAKE_TOOL_BUDGET
   const wakeDeadlineMs = options.wakeDeadlineMs ?? KIBITZER_WAKE_DEADLINE_MS
-  const reseedAtTokens = options.reseedAtTokens ?? Math.floor(KIBITZER_SIDECAR_MAX_TOKENS * KIBITZER_RESEED_FRACTION)
+  const reseedAtTokens = Math.floor((options.sidecarMaxTokens ?? KIBITZER_SIDECAR_MAX_TOKENS) * KIBITZER_RESEED_FRACTION)
   const cooldown = createAcceptedNudgeCooldown({ now })
   const stream = createKibitzerEventStream({
     now,
@@ -215,6 +228,10 @@ export function createKibitzerSidecar(options: KibitzerSidecarOptions): Kibitzer
   let generations = 0
   let consecutiveFailures = 0
   let backoffTimer: unknown
+  /** Set the instant shutdown is requested, before it reaches the mutex: no wake may start after it. */
+  let closing = false
+  /** The lease wait in flight, if any; shutdown aborts it instead of queueing behind it. */
+  let admission: AbortController | undefined
   let pendingReseed: Omit<KibitzerReseedInput, "maxItems" | "toolBudget"> | undefined
   let taskSummary: string | undefined
   /** Payloads no child has confirmed reading: replayed by the next envelope, oldest first. */
@@ -348,6 +365,54 @@ export function createKibitzerSidecar(options: KibitzerSidecarOptions): Kibitzer
     return current.usageTokens ?? Math.ceil(current.charsSent / 4)
   }
 
+  // ---- the machine-wide wake lease -------------------------------------------------------------
+
+  type Admission = KibitzerWakeAdmission | { readonly status: "error"; readonly error: unknown }
+
+  /** Waits (bounded) for a machine slot; shutdown aborts the wait through `admission`. */
+  async function admit(): Promise<Admission> {
+    if (closing) return { status: "aborted" }
+    const controller = new AbortController()
+    admission = controller
+    try {
+      return await options.wakeSlot.acquire(controller.signal)
+    } catch (error) {
+      return { status: "error", error }
+    } finally {
+      admission = undefined
+    }
+  }
+
+  /** Idempotent: the first caller on any exit path hands the slot back, later ones find nothing to do. */
+  async function releaseLease(turn: Turn): Promise<void> {
+    const lease = turn.lease
+    if (lease === undefined) return
+    turn.lease = undefined
+    try {
+      if (!(await lease.release())) warn("omo-senpi kibitzer sidecar wake lease was already gone", { wake: turn.wake, slot: lease.slot })
+    } catch (error) {
+      warn("omo-senpi kibitzer sidecar wake lease release failed", { wake: turn.wake, slot: lease.slot, error: describe(error) })
+    }
+  }
+
+  /** An admission that yielded no lease, turned into the offer result; an error is a start failure. */
+  function refused(admission: Exclude<Admission, { status: "acquired" }>, generation: number, maxItems: number, candidateCount: number): KibitzerOfferResult {
+    switch (admission.status) {
+      case "busy":
+        return { action: "buffered", reason: "slot_busy" }
+      case "aborted":
+        return { action: "buffered", reason: "disposed" }
+      case "error": {
+        const turn = newTurn(generation, maxItems, candidateCount)
+        report(turn, startFailureEnd(new Error(`wake admission failed: ${describe(admission.error)}`)), [], undefined)
+        enterBackoff()
+        return { action: "buffered", reason: "backoff" }
+      }
+      default:
+        return admission satisfies never
+    }
+  }
+
   // ---- timers ------------------------------------------------------------------------------------
 
   function armDeadline(turn: Turn): void {
@@ -410,6 +475,8 @@ export function createKibitzerSidecar(options: KibitzerSidecarOptions): Kibitzer
       accepted,
       budget,
       envelopes: [],
+      lease: undefined,
+      slotWaitMs: 0,
       candidateCount,
       toolStarts: 0,
       toolEnds: 0,
@@ -429,6 +496,8 @@ export function createKibitzerSidecar(options: KibitzerSidecarOptions): Kibitzer
 
   /** A fresh child: the carried and buffered events plus the fresh candidates become its first message. */
   async function seed(fresh: readonly RecallCandidate[], maxItems: number): Promise<KibitzerOfferResult> {
+    const admitted = await admit()
+    if (admitted.status !== "acquired") return refused(admitted, generations + 1, maxItems, fresh.length)
     const payload = merge([...carry, payloadOf(stream.peek(), fresh)])
     const wakeText = pendingReseed === undefined
       ? renderKibitzerSeedPrompt(envelopeInput(payload, maxItems, true))
@@ -438,6 +507,8 @@ export function createKibitzerSidecar(options: KibitzerSidecarOptions): Kibitzer
       : `${renderKibitzerReseedPrompt({ ...pendingReseed, maxItems, toolBudget })}${wakeText}`
     const generation = generations + 1
     const turn = newTurn(generation, maxItems, payload.candidates.length)
+    turn.lease = admitted.lease
+    turn.slotWaitMs = admitted.waitedMs
     const tools = options.createTools({
       nudge: { offered, surfaced, maxItems, accepted: () => accepted },
       budget: () => budget,
@@ -447,6 +518,7 @@ export function createKibitzerSidecar(options: KibitzerSidecarOptions): Kibitzer
       handle = await options.startChild({ sessionId, generation, prompt, tools: tools.tools, maxItems })
     } catch (error) {
       // Nothing was drained and nothing was offered: the events and the candidates wait for the retry.
+      await releaseLease(turn)
       report(turn, startFailureEnd(error), [], undefined)
       enterBackoff()
       return { action: "buffered", reason: "backoff" }
@@ -464,15 +536,20 @@ export function createKibitzerSidecar(options: KibitzerSidecarOptions): Kibitzer
 
   /** The idle child revived: carried payloads (late steers) and the buffered batch in one followUp. */
   async function followUp(current: Child, fresh: readonly RecallCandidate[], maxItems: number): Promise<KibitzerOfferResult> {
+    const admitted = await admit()
+    if (admitted.status !== "acquired") return refused(admitted, current.generation, maxItems, fresh.length)
     const payload = merge([...carry, payloadOf(stream.drain(), fresh)])
     carry = []
     const text = renderKibitzerWakePrompt(envelopeInput(payload, maxItems, false))
     const turn = newTurn(current.generation, maxItems, payload.candidates.length)
+    turn.lease = admitted.lease
+    turn.slotWaitMs = admitted.waitedMs
     offerPaths(fresh, turn.wake)
     try {
       await current.handle.followUp(text)
     } catch (error) {
       carry = [payload]
+      await releaseLease(turn)
       report(turn, { status: "failed", cause: "child_failed", reason: describe(error) }, [], current)
       disposeChild()
       enterBackoff()
@@ -501,6 +578,8 @@ export function createKibitzerSidecar(options: KibitzerSidecarOptions): Kibitzer
   }
 
   async function settle(turn: Turn, outcome: RunnerOutcome): Promise<void> {
+    // The provider turn is over whatever happens next: the machine slot goes back first.
+    await releaseLease(turn)
     if (activeTurn !== turn || child === undefined) return
     const current = child
     clearDeadline(turn)
@@ -586,6 +665,7 @@ export function createKibitzerSidecar(options: KibitzerSidecarOptions): Kibitzer
       steered: turn.envelopes.filter((envelope) => envelope.steered).length,
       toolCalls: turn.toolStarts,
       durationMs: Math.max(0, now() - turn.startedAt),
+      slotWaitMs: turn.slotWaitMs,
       ...(cursors === undefined ? {} : { cursors }),
       ...(current === undefined ? {} : { contextTokens: contextEstimate(current) }),
       diagnostic: isDiagnosticWakeEnd(end),
@@ -652,7 +732,7 @@ export function createKibitzerSidecar(options: KibitzerSidecarOptions): Kibitzer
 
   function offer(input: KibitzerOfferInput): Promise<KibitzerOfferResult> {
     return serialized(async () => {
-      if (state === "disposed") return { action: "buffered", reason: "disposed" }
+      if (closing || state === "disposed") return { action: "buffered", reason: "disposed" }
       for (const path of input.surfaced) surfaced.add(path)
       if (state === "backoff") return { action: "buffered", reason: "backoff" }
       const decision = decideWake({ candidates: input.candidates, offered, surfaced, maxItems: input.maxItems, cooldown })
@@ -676,6 +756,9 @@ export function createKibitzerSidecar(options: KibitzerSidecarOptions): Kibitzer
   }
 
   async function shutdown(): Promise<void> {
+    // Before the mutex: an offer parked on the wake lease must let go now, not after its bounded wait.
+    closing = true
+    admission?.abort()
     await serialized(async () => {
       if (state === "disposed") return
       clearBackoff()

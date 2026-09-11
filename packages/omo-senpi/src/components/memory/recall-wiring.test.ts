@@ -7,7 +7,7 @@ import {
 
 import { MemoryFakeExtensionAPI, memorySettings } from "./memory.test-support"
 import { MEMORY_NOTICE_CUSTOM_TYPE } from "./prompt"
-import { RECALL_CUSTOM_TYPE, createMemoryRecallWiring } from "./recall-wiring"
+import { RECALL_CUSTOM_TYPE, createMemoryRecallWiring, resolveAgentRecallSettings } from "./recall-wiring"
 import { rmEfaultTolerant } from "./teardown.test-support"
 import type { RecallLedger as RecallLedgerType } from "@oh-my-opencode/memory-core"
 import {
@@ -87,6 +87,40 @@ describe("RECALL_CUSTOM_TYPE", () => {
   test("#given the recall injection channel #when the custom type is read #then it is the kibitzer recall channel", () => {
     // given / when / then
     expect(RECALL_CUSTOM_TYPE).toBe("omo-kibitzer:recall")
+  })
+})
+
+describe("resolveAgentRecallSettings", () => {
+  test("#given a per-agent recall override with a partial event_caps #when resolved for that agent #then the sidecar settings merge per field and the other agents keep the root values", () => {
+    // given
+    const settings = memorySettings({
+      recall: { ...memorySettings().recall, event_caps: { tool_args: 300, result_head: 900, assistant: 1500, prompt: 4000 } },
+      agents: { research: { recall: { category: "deep", tool_budget: 4, event_caps: { tool_args: 200 } } } },
+    })
+
+    // when
+    const research = resolveAgentRecallSettings(settings, "research")
+    const other = resolveAgentRecallSettings(settings, "default")
+
+    // then
+    expect(research).toEqual({
+      enabled: true,
+      max_items: 2,
+      category: "deep",
+      event_caps: { tool_args: 200, result_head: 900, assistant: 1500, prompt: 4000 },
+      sidecar_max_tokens: 48000,
+      max_concurrent_wakes: 2,
+      tool_budget: 4,
+    })
+    expect(other).toEqual({
+      enabled: true,
+      max_items: 2,
+      category: "quick",
+      event_caps: { tool_args: 300, result_head: 900, assistant: 1500, prompt: 4000 },
+      sidecar_max_tokens: 48000,
+      max_concurrent_wakes: 2,
+      tool_budget: 8,
+    })
   })
 })
 

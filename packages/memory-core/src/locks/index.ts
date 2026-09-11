@@ -24,5 +24,12 @@ export { createLockRecord, parseLockRecord } from "./lock-record"
 export type { CreateLockRecordOptions, LockRecord } from "./lock-record"
 export { getPidLiveness, getProcessStartIdentity } from "./process-identity"
 export type { ProcessLiveness } from "./process-identity"
-export { acquireRecallWakeLease, recallWakeLockPath, withRecallWakeLease } from "./recall-wake-domain"
+export {
+  RECALL_WAKE_DEFAULT_SLOTS,
+  RecallWakeBusyError,
+  acquireRecallWakeLease,
+  recallWakeLockPath,
+  recallWakeTicketDirectory,
+  withRecallWakeLease,
+} from "./recall-wake-domain"
 export type { RecallWakeLease, RecallWakeLeaseOptions } from "./recall-wake-domain"

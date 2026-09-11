@@ -48,6 +48,8 @@ export interface KibitzerWakeOutcome {
   /** Child tool calls counted through the session subscription. */
   readonly toolCalls: number
   readonly durationMs: number
+  /** Time the wake waited for its machine-wide lease before the turn could start. */
+  readonly slotWaitMs: number
   /** Parent cursor span of the events the wake carried. */
   readonly cursors?: { readonly first: number; readonly last: number }
   /** Context estimate of the child after this wake (provider usage, or char/4 when usage is absent). */
