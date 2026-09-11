@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 import { createLiveThreadSurface, resolveThreadSocket } from "./live-surface"
 
 describe("live thread socket discovery", () => {
@@ -12,13 +12,13 @@ describe("live thread socket discovery", () => {
   test("#given brand and legacy RPC_SOCKET names #when several are set #then the brand name wins and blanks are skipped", () => {
     expect(resolveThreadSocket({ OMO_RPC_SOCKET: "/brand.sock", SENPI_RPC_SOCKET: "/legacy.sock", OMO_RPC_SOCKET_PATH: "/desktop.sock" })).toBe("/brand.sock")
     expect(resolveThreadSocket({ OMO_RPC_SOCKET: "  ", PI_RPC_SOCKET: "/pi.sock", OMO_RPC_SOCKET_PATH: "/desktop.sock" })).toBe("/pi.sock")
-    expect(resolveThreadSocket({ OMO_CODING_AGENT_DIR: "/configured" })).toBe(join("/configured", "rpc", "rpc.sock"))
+    expect(resolveThreadSocket({ OMO_CODING_AGENT_DIR: "/configured" })).toBe(resolve("/configured", "rpc", "rpc.sock"))
   })
   test("canonical and env branches resolve through resolveAgentHome", async () => {
     const { resolveAgentHome } = await import("../agent-home/resolve-agent-home")
     const canonicalSentinel = join("/h", ".omo", "agent", "settings.json")
     expect(resolveAgentHome({ env: {}, homeDir: "/h", exists: (path) => path === canonicalSentinel })).toBe(join("/h", ".omo", "agent"))
-    expect(resolveAgentHome({ env: { OMO_CODING_AGENT_DIR: "/configured" }, homeDir: "/h", exists: () => false })).toBe(join("/configured"))
+    expect(resolveAgentHome({ env: { OMO_CODING_AGENT_DIR: "/configured" }, homeDir: "/h", exists: () => false })).toBe(resolve("/configured"))
   })
   test("resolveAgentHome supports flat and standalone fallback", async () => {
     const { resolveAgentHome } = await import("../agent-home/resolve-agent-home")
