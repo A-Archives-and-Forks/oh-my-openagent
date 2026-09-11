@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto"
-import { mkdir, readdir, unlink, writeFile } from "node:fs/promises"
+import { mkdir, readdir, unlink, writeFile } from "../fs/resilient"
 import path from "node:path"
 import { acquireLock, releaseLock } from "./acquire"
 import { createLockRecord } from "./lock-record"
