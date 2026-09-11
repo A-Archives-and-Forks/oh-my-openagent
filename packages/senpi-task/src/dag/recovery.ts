@@ -8,6 +8,7 @@ import type { TaskRecord, TaskStatus } from "../state"
 import { dagFingerprint, ownerFingerprintInput } from "./fingerprint"
 import {
   dagNodeReusedEvent,
+  dagNodeRetriedEvent,
   dagNodeTaskAttachedEvent,
   dagNodeTransitionedEvent,
   dagRunPausedEvent,
@@ -18,7 +19,7 @@ import { skipDuplicateTerminalTransition, type DagPersistedNode, type DagRunReco
 import type { DagTaskOwner, OwnedStartResult } from "./owner"
 import { readDagNodeResult } from "./results"
 import { applyDagSchedulerEvent, createDagScheduler, type DagNodeSpawnPolicy } from "./scheduler"
-import type { DagFileStore } from "./store"
+import { readDagDirectory, type DagFileStore } from "./store"
 import type {
   DagNodeError,
   DagNodeErrorCode,
@@ -29,6 +30,9 @@ import type {
 } from "./types"
 
 const LIVE_RUN_STATUSES = new Set(["pending", "running"])
+// Bound repeated owner deaths before launch using the durable execution counter, not display
+// attempt. Retries/amendments also consume this budget; recovery never advances it past three.
+const MAX_RECOVERY_READMISSIONS = 3
 
 type RecoverableRecord = DagRunRecordV1 & {
   readonly leaseHolderPid?: number
@@ -55,6 +59,10 @@ export type DagRecoveryOptions = {
   // Liveness probe for a paused run's previous lease holder. Defaults to the lifecycle port's
   // signaller so the signal-0 existence check has exactly one implementation in the package.
   readonly isProcessAlive?: (pid: number) => boolean
+  // Whether THIS process still runs a scheduler for the run. Consulted only when the recorded holder
+  // pid is our own: a signal-0 probe on ourselves is always true, so without this a same-process
+  // session reopen (multi-session host) would wait for its own host to exit. (#8006)
+  readonly isRunHeldInProcess?: (runId: DagRunId) => boolean
   readonly now?: () => number
   readonly subscriberRing?: number
   readonly nodeSpawnPolicy?: DagNodeSpawnPolicy
@@ -70,6 +78,7 @@ export type DagRecovery = {
 type RecoveryContext = Required<Pick<DagRecoveryOptions, "store" | "taskManager">> & {
   readonly hostPid: number
   readonly isProcessAlive: (pid: number) => boolean
+  readonly isRunHeldInProcess?: (runId: DagRunId) => boolean
   readonly now: () => number
   readonly subscriberRing?: number
   readonly nodeSpawnPolicy?: DagNodeSpawnPolicy
@@ -92,6 +101,7 @@ export function createDagRecovery(options: DagRecoveryOptions): DagRecovery {
     taskManager: options.taskManager,
     hostPid: options.hostPid ?? process.pid,
     isProcessAlive: options.isProcessAlive ?? defaultSignaller.isAlive,
+    ...(options.isRunHeldInProcess === undefined ? {} : { isRunHeldInProcess: options.isRunHeldInProcess }),
     now: options.now ?? Date.now,
     ...(options.subscriberRing === undefined ? {} : { subscriberRing: options.subscriberRing }),
     ...(options.nodeSpawnPolicy === undefined ? {} : { nodeSpawnPolicy: options.nodeSpawnPolicy }),
@@ -186,13 +196,22 @@ function claimPausedRun(context: RecoveryContext, runId: DagRunId, parentSession
     if (fresh === null || fresh.status !== "paused") return { kind: "skipped", reason: "not_paused" }
     if (fresh.parentSessionId !== parentSessionId) return { kind: "skipped", reason: "foreign_session" }
     const priorHolder = fresh.leaseHolderPid ?? fresh.previousLeaseHolderPid
-    if (priorHolder !== undefined && context.isProcessAlive(priorHolder)) {
+    if (priorHolder !== undefined && holderStillLive(context, runId, priorHolder)) {
       return { kind: "skipped", reason: "live_lease", holderPid: priorHolder }
     }
     const claimed: RecoverableRecord = { ...fresh, leaseHolderPid: context.hostPid }
     context.store.writeCheckpoint(runId, claimed)
     return { kind: "claimed", record: claimed }
   })
+}
+
+// Our own pid is always alive to a signal-0 probe, so for it the only holder that can still matter
+// is a scheduler registered in this process (same-runtime pause + re-attach). A fresh runtime that
+// reopens the session in the same process holds nothing and claims. Every other pid keeps the
+// cross-host liveness fence: two live host processes must never both schedule a run.
+function holderStillLive(context: RecoveryContext, runId: DagRunId, holderPid: number): boolean {
+  if (holderPid === context.hostPid) return context.isRunHeldInProcess?.(runId) ?? false
+  return context.isProcessAlive(holderPid)
 }
 
 async function resumeClaimedRun(context: RecoveryContext, claimed: RecoverableRecord): Promise<DagRecoveryOutcome> {
@@ -248,7 +267,9 @@ async function reconcileNodes(
     if (observed.state !== "scheduled" && observed.state !== "running") continue
 
     const owned = context.taskManager.findOwnedTask(ownerKey(journal.snapshot(), observed.id))
-    let task = observed.taskId === undefined ? owned : context.taskManager.get(observed.taskId) ?? owned
+    // Retrying retains taskId until the next admission batch attaches its replacement. The
+    // newest owner is authoritative even if that replacement launched before the batch committed.
+    let task = owned ?? (observed.taskId === undefined ? undefined : context.taskManager.get(observed.taskId))
     if (task !== undefined && observed.taskId !== task.task_id) attachTask(journal, observed.id, task.task_id)
 
     if (task === undefined && observed.state === "scheduled" && observed.taskId === undefined) {
@@ -301,6 +322,24 @@ async function reconcileNodes(
         transition(journal, observed.id, "running", pendingErrors)
       }
       reattachedTasks.set(observed.id, task.task_id)
+      continue
+    }
+    // Never-started recovery requires absent task-level started_at: TaskManager commits start
+    // BEFORE runner.start, while the DAG node can stay scheduled until the whole admission batch
+    // settles. Thus scheduled alone cannot prove no launch. A launch stamp survives lost and
+    // always falls through to task_lost. Keep the scheduled guard for legacy running nodes whose
+    // records predate started_at; legacy scheduled records without it remain eligible.
+    // Retry returns the node to pending with a new execAttempt-scoped owner fingerprint, so the
+    // scheduler dispatches a fresh child rather than reusing the terminal lost record.
+    if (task.status === "lost" && task.started_at === undefined && observed.state === "scheduled" &&
+      (observed.execAttempt ?? 0) < MAX_RECOVERY_READMISSIONS) {
+      const node = nodeById(journal.snapshot(), observed.id)
+      journal.append(dagNodeRetriedEvent({
+        nodeId: observed.id,
+        priorTaskId: task.task_id,
+        execAttempt: (node.execAttempt ?? 0) + 1,
+        promptChanged: false,
+      }))
       continue
     }
     foldTaskOutcome(context, journal, observed.id, task, pendingErrors, pendingTerminalResults)
@@ -431,7 +470,7 @@ function releaseLease(context: RecoveryContext, runId: DagRunId): void {
 }
 
 function listRunRecords(store: DagFileStore): readonly RecoverableRecord[] {
-  return fs.readdirSync(store.paths.runs, { withFileTypes: true })
+  return readDagDirectory(store.paths.runs)
     .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
     .map((entry) => store.readCheckpoint<RecoverableRecord>(entry.name.slice(0, -5) as DagRunId))
     .filter((record): record is RecoverableRecord => record !== null)
