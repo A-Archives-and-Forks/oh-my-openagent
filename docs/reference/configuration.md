@@ -602,6 +602,11 @@ relying on it, and expanding the entry shows that caveat.
 | ------------------- | ------- | --------------------------------------------------------------- |
 | `recall.enabled`    | `true`  | Run the Kibitzer judge and surface recollections                |
 | `recall.max_items`  | `2`     | Most memories one judge run may surface (1-5)                   |
+| `recall.category` | `quick` | Model category used by the recall sidecar |
+| `recall.event_caps` | `tool_args: 400`, `result_head: 600`, `assistant: 1500`, `prompt: 4000` | Per-event character caps |
+| `recall.sidecar_max_tokens` | `48000` | Maximum recall sidecar context tokens |
+| `recall.max_concurrent_wakes` | `2` | Maximum concurrent recall wakes |
+| `recall.tool_budget` | `8` | Maximum tools used per recall wake |
 
 #### Facts
 
