@@ -79,13 +79,27 @@ describe("ulwLoopCommand --json error contract", () => {
 	});
 
 	it("#given an invalid codex snapshot token #when checkpoint --json #then emits the stable typed error", async () => {
-		const code = await ulwLoopCommand(["checkpoint", "--json", "--goal-id", "G001", "--status", "complete", "--evidence", "proof", "--codex-goal-json", "not-json-not-a-path"]);
+		const code = await ulwLoopCommand([
+			"checkpoint",
+			"--json",
+			"--goal-id",
+			"G001",
+			"--status",
+			"complete",
+			"--evidence",
+			"proof",
+			"--codex-goal-json",
+			"not-json-not-a-path",
+		]);
 
 		expect(code).toBe(1);
 		expect(err.join("")).toBe("");
 		expect(stdoutJson()).toMatchObject({
 			ok: false,
-			error: { code: "ULW_LOOP_CODEX_GOAL_JSON_INVALID", message: expect.stringContaining("neither valid JSON nor a readable path") },
+			error: {
+				code: "ULW_LOOP_CODEX_GOAL_JSON_INVALID",
+				message: expect.stringContaining("neither valid JSON nor a readable path"),
+			},
 		});
 	});
 
