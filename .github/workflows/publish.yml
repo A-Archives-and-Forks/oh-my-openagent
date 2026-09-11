@@ -997,8 +997,42 @@ jobs:
           JOB_SUMMARY_NEXT: Check package existence probes first, then npm publish logs and the LazyCodex smoke section.
         run: GITHUB_STEP_SUMMARY="$GITHUB_STEP_SUMMARY" bash .github/scripts/write-job-summary.sh
 
+  verify-release-notes:
+    runs-on: ubuntu-latest
+    needs: [release-metadata, prepare-release-state]
+    if: >-
+      always() &&
+      needs.release-metadata.result == 'success' &&
+      needs.prepare-release-state.result == 'success'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.prepare-release-state.outputs.release_sha }}
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.2"
+      # Fail before the platform builds rather than after them: the release body is extracted
+      # from this commit's CHANGELOG section, so a source prepared without one can never publish.
+      - name: Verify the release notes exist on the prepared source
+        env:
+          VERSION: ${{ needs.release-metadata.outputs.version }}
+        run: bun run script/print-release-notes.ts "$VERSION" > /dev/null
+
+      - name: Write job summary
+        if: always()
+        shell: bash
+        env:
+          JOB_SUMMARY_TITLE: Release notes preflight
+          JOB_SUMMARY_STATUS: ${{ job.status }}
+          JOB_SUMMARY_DETAILS: |
+            - Extracts this version's CHANGELOG section from the prepared release source.
+            - Fails closed when the section is absent, empty, or duplicated.
+            - Runs before the platform builds so a source without notes cannot burn a tag.
+          JOB_SUMMARY_NEXT: Author the notes under [Unreleased] and prepare a fresh release state.
+        run: GITHUB_STEP_SUMMARY="$GITHUB_STEP_SUMMARY" bash .github/scripts/write-job-summary.sh
+
   publish-platform:
-    needs: [gate-reuse, preflight-trust, release-metadata, prepare-release-state]
+    needs: [gate-reuse, preflight-trust, release-metadata, prepare-release-state, verify-release-notes]
     if: >-
       always() &&
       github.repository == 'code-yeongyu/oh-my-openagent' &&
