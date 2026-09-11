@@ -7,80 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- New npm package `omo-ai` (beta channel only): the senpi-native edition. `npm i -g omo-ai@beta` installs the `omo` command, which launches the pinned senpi release with the full OMO extension loaded, and `omo setup` imports API credentials from sibling harnesses with consent. Channel contract: every version is a prerelease published with `--tag beta`, so a bare `npm i -g omo-ai` fails with ETARGET by design and `latest` never advances past the deprecated placeholder. Upgrade order: machines with oh-my-openagent/oh-my-opencode 4.19.4 or earlier must upgrade or uninstall that package first (it owns the old global `omo` bin), then install `omo-ai@beta`. See docs/reference/omo-ai-publishing.md.
-
-- Unified `omo.jsonc` configuration surface across all three harnesses: `~/.omo/omo.jsonc` plus walked project `.omo/omo.jsonc` layers, VSCode-style `[opencode]` / `[senpi]` / `[codex]` harness blocks, opt-in `profiles` activated by `OMO_PROFILE` > `OCX_PROFILE` > `OPENCODE_CONFIG_DIR` tail, and a shared `models` catalog whose entries fill unset tuning while site tuning wins.
-- Runtime legacy-config migration: a lock+journal engine imports `oh-my-openagent.json[c]` / `oh-my-opencode.json[c]` and `~/.omo/config.jsonc` into the unified file with no-clobber conflict diagnostics, `_migrations` markers, and resumable backups under `~/.omo/migration-backup-<UTC timestamp>-opencode-config/`; runs at plugin startup (OpenCode + Senpi), Codex startup (config.jsonc group only), install, and `oh-my-openagent config migrate` (`--dry-run` / `--json`).
-- Reasoning unification: `reasoning` is now the canonical config field, `models` is the shared ordered chain, `provider_options` is the escape hatch for wire-specific knobs, model strings accept a `:level` suffix, and deprecated keys remain readable during the back-compat window while the migration rewrites persisted config to the unified schema.
-- Doctor surfacing for deprecated reasoning keys now reports exact file and key paths so users can clean up stale config before the removal window closes.
-- CodeGraph upgraded to 1.5.0; managed 1.0.1 and 1.4.1 runtimes re-provision automatically, while existing project stores remain compatible without a manual re-index.
-- Opt-in CodeGraph shared daemon across all three adapters: `codegraph.daemon` config key (default false) on OpenCode and Codex, `OMO_CODEGRAPH_DAEMON=1` on Senpi, plus `codegraph.excluded_roots` parity. (PR #6251)
-- Process hygiene: parent-liveness watchdogs exit MCP server processes when their parent dies, new lsp daemons reap older-version daemons at startup, and a startup family sweep removes orphaned codegraph and lsp processes on every adapter. (PR #6262)
-- Model profiles: `model_profiles` / `model_profile` in omo.json with builtin `capable`, `simple-work`, `deep-work`; the active profile picks the main session model for the session only (never persisted), a literal `provider/model` value pins, and mid-session fallback continues to follow senpi's retry chains when no model is pinned.
-- `omo doctor` reports stale orphaned engines: interactive senpi engine processes whose launcher died underneath them (reparented to pid 1) are listed with pid, age and tty. Terminating them is an explicit, per-pid opt-in - `omo doctor --reap <pid> [pid...]` - which refuses any pid that is not an orphaned interactive engine at the moment of the request (a live session, an `--mode` rpc/app-server engine, or anything that is not an engine at all). Nothing is ever matched and killed by pattern.
-
-### Changed
-
-- The ultrawork directive's `# Parallel execution` section routes eval work by dependency instead of call count: independent reads, searches, symbol lookups, and spawns batch into one js cell, while edits, side-effecting commands, deploys, approvals, and result-dependent calls run one action at a time and are observed; every cell is named by the state it should produce and compared with it, failures stay verbatim in aggregates, truncated output is re-read, and visual results (pages, components, images, 3D scenes) get a change-render-look loop with several angles for 3D and desktop/mobile widths for pages. The "JS EVAL MAXXING" / "MONITOR MAXXING" wording and its profanity are gone; the Manual-QA browser and computer-use channels name per-change observation. The `visual-engineering` category append (both editions) adds an `<OBSERVE_EACH_CHANGE>` block with the same loop.
-- **OmO Native runs on bun wherever bun exists, no config needed.** The `omo` launcher used to hand itself to bun only for `bun add -g` installs; every other install stayed on node even on a machine with bun, so the JS eval kernel ran under node and the bundled `bun-1-4` skill never surfaced. Now any install (npm, project-local, `bunx`) probes the bun it finds (`$BUN_INSTALL/bin`, `~/.bun/bin`, PATH) once per node boot and re-execs under it when it is >= 1.4.0; bun-global installs keep trusting the bun that installed them without a probe. `OMO_RUNTIME=node` is still the way to stay on node, and `OMO_RUNTIME=bun` still forces bun without the version floor. See docs/reference/omo-ai-publishing.md, "Runtime selection".
-- OmO Native beta.23 adopts Senpi 2026.8.27 and documents the JavaScript-first eval workflow: persistent state, `Promise.all` fan-out, bounded `parallel()`/`pipeline()` composition, idle-kernel continuation for detached work, literal-safe top-level persistence transforms, explicit detached-cell diagnostics, bounded eval telemetry, worker-crash recovery, and Node 24/Bun 1.4 compatibility. It intentionally describes telemetry and mechanisms without inventing an uncommitted percentage speedup.
-- **Detailed eval runtime notes:** The first eval examples now use JavaScript to establish reusable state, then use `await Promise.all(...)` for independent tool calls, and finally demonstrate continuing in Python when JavaScript is busy with detached work. This is the documented fast path because eval kernels are persistent per session and per language; a value created in one JavaScript cell remains available to the next cell, while resetting Python does not reset JavaScript.
-- **Safer persistence transforms:** JavaScript state capture now rewrites only top-level declarations, including destructuring and uninitialized bindings. Declaration-shaped text inside strings, comments, and nested function bodies is left unchanged. The result is safer reuse for templates, examples, regular expressions, and embedded snippets without weakening the state-carrying behavior.
-- **Bounded parallel composition:** `parallel(thunks)` runs asynchronous thunks through a bounded pool with result-order preservation, and `pipeline(items, ...stages)` applies stage barriers while reusing the same bounded fan-out. The default pool width is four. The release describes the mechanism and its telemetry rather than promising a percentage improvement that has not been benchmarked and committed.
-- **Busy-kernel recovery guidance:** A detached cell keeps its language kernel busy until terminal settlement. A competing request receives the occupied cell context and the list of idle enabled kernels, so the agent can continue in another language instead of abandoning the workflow or unnecessarily falling back to an external shell. When every enabled kernel is busy, the diagnostic does not fabricate an alternative.
-- **Detached execution observability:** Detached cells retain explicit create/start/detach/complete/fail/stop/peek lifecycle states. Completion notifications are internal model-visible messages rather than synthetic user-input queue entries. Oversized output notices use plain absolute spill paths for the agent-facing read surface, while `local://` remains an in-cell artifact helper.
-- **Bounded lifetime and bridge behavior:** The hard wall-clock limit remains active across detachment and host-tool bridge calls, with a default of 1800 seconds. A bridge call may use the configured pause grace, but a stuck or detached cell still reaches a bounded terminal outcome and releases the loop instead of remaining unbounded.
-- **Tool orchestration and telemetry:** Eval cells dispatch nested tools through the session's real execution surface; reserved `agent`, `output`, and `tool_schema` helpers use their dedicated bridge path and recursive eval remains rejected. Each settled cell emits one bounded `senpi.eval.execution` record containing wall/kernel timing, terminal and detach status, nested call counts, and bounded per-tool aggregates. External projections omit prompts, arguments, call identifiers, errors, and result previews.
-- **Failure recovery:** A JavaScript worker crash settles the active cell, retires the failed worker, and prepares a fresh worker for the next cell. Session-generation fencing prevents retired callbacks from emitting into a newer session. Subprocess-backed interpreters wait for readiness before their cell timeout begins, so startup under load is not mistaken for user-code failure.
-- **Runtime compatibility:** JavaScript is available on supported Node runtimes without an optional interpreter. Python, Ruby, and Julia remain separately detected capability surfaces. The supported boundary remains Node `>=24`; the build and release toolchain is Bun 1.4, while the codemode package keeps a Node-compatible boundary and avoids depending on Bun-only APIs. Explicit `OMO_RUNTIME=node` and `OMO_RUNTIME=bun` selection remains supported by the launcher, with re-execution loop guards.
-- **Migration and measurement:** This update replaces package files and does not reset settings, credentials, sessions, permissions, or extension enablement. The eval telemetry separates eval-only and non-eval waves, correlates cells to their owning sessions, rejects malformed or duplicate ownership, and reports modeled savings and round trips. No cross-version latency percentage is claimed because the repository contains no committed before/after benchmark.
-- **Breaking**: the `/start-work` command and skill are renamed to `/ulw-execute` (hard cutover, no alias). Update scripts, prompts, and CI that reference the old name. The `start_work` config key is deprecated in favor of `ulw_execute`: the old key still loads for one release and emits a deprecation warning, and it will be removed next release; if both keys are set, `ulw_execute` wins. The `omo-senpi-start-work-continuation-disabled` flag is renamed to `omo-senpi-ulw-execute-continuation-disabled` following the component rename to `ulw-execute-continuation`. The telemetry `skill_loaded` known-skill value `start-work` is renamed to `ulw-execute`; update dashboards and queries that filter on the old value.
-- **Breaking**: the `omo` command is renamed to `omo-agent-toolkit` on every edition, and the old name is removed in the same release. The `omo` npm bin entry and the Codex `~/.local/bin/omo` runtime wrapper are both gone; `omo-agent-toolkit` replaces them with identical behaviour. This is a major release because a published bin entry is removed. Migration: replace `omo ` with `omo-agent-toolkit ` in scripts, prompts, and CI. Migration is automatic for existing installs — an npm upgrade prunes the old `omo` bin link, and Codex installs delete the generated wrapper at the next session start or installer run (a user-owned `omo` file that the installer did not generate is left untouched). One-time caveat: an agent running at the moment of the Codex relink can see a single failed `omo ulw-loop` call and must re-issue it as `omo-agent-toolkit ulw-loop`. The `omo` name is reserved for the future native edition (npm `omo-ai`), which is not shipped in this release.
-- **Breaking**: the OpenCode plugin, Senpi adapter, and Codex codegraph loader no longer read `oh-my-openagent.json[c]` / `oh-my-opencode.json[c]` or `~/.omo/config.jsonc` at runtime; the first startup migrates them into `~/.omo/omo.jsonc` (existing values win, skipped values become diagnostics) and moves the sources into the migration backup directory. Older strict config cores reject a newer `omo.jsonc` containing `models` / `profiles` / harness blocks; restore the legacy files from `~/.omo/migration-backup-*` when downgrading.
-- **Breaking**: `shared/<name>` skill invocations and `disabled_skills: ["shared/<name>"]` entries no longer resolve. Skills from the shared catalog now register under their bare name (e.g. `ulw-plan`, `frontend`). Update configs and prompts to use bare names. (PR #6180)
-- omo-senpi curated agents renamed: `metis` -> `plan-consultant`, `momus` -> `plan-reviewer`; the ulw-plan persona is the Ultrawork Planner; docs and omo.dev describe agents by role. The draft/plan frontmatter key `review.momus` is now `review.plan_reviewer`.
-- **Breaking**: telemetry `delegation_started.name` and `delegation_completed.agent_type` now report `plan-consultant`/`plan-reviewer` instead of `metis`/`momus`; dashboards filtering the old values must be updated.
-
-### Deprecated
-
-- `subagent_type: "metis"|"momus"`, `omo.json` `agents.metis|momus` and `allowed_subagents` entries naming them keep working in the first tagged publish containing this change (currently 5.0.0-beta.51 per package.json) with a deprecation notice and are removed in the next tagged publish. Replace them with `plan-consultant` / `plan-reviewer`.
-
-### Post-beta.23 merge follow-ups
-
-The following pull requests merged after the beta.23 release note was authored
-and are recorded here so the changelog remains connected to the final `dev`
-history:
-
-- LSP formatting now flows through `lsp-core` and the daemon, with typed
-  no-op/unavailable results and a default cap of six resident idle clients.
-  (PR #7428, merge `f356d17816aad57eb248b42a2f30ec0f1b14fde8`)
-- Senpi config-watch re-registration is deferred and coalesced, and duplicate
-  extension instances stand down instead of recursively rebuilding watchers.
-  (PR #7420, merge `8776e80252cbf91127b1b8c1865a11da10e8bb38`)
-- Codex GPT-5.6 context-window contracts are aligned at 650k tokens across
-  catalogs, migration fallbacks, post-compact budgeting, and installers.
-  (PR #7429, merge `a5bb28c604c9fe57c5c59ac00968fe8514881cf4`)
-- Windows DAP drive-letter paths and durable mailbox/receipt persistence are
-  portable across the release path, including the merged beta.23 source-state
-  release update. (PR #7432, merge `c6b1d190e6c52bc1689ba08b138f64e2e54712fb`;
-  PR #7427, merge `b9631886e4ad8922324d3a0977274735b5729be9`)
-- Senpi mutation handling now shares path extraction and single-flight state,
-  uses daemon-first formatting with bounded fallback, and runs diagnostics
-  before comment-checker feedback. (PR #7430, merge
-  `5c2f56b997c13d056ad56c196be32b9e8e37a298`)
-
-### Fixed
-
-- omo-senpi ulw-loop: the bundled agent toolkit is spawned with `BUN_BE_BUN=1` when the runtime is the packaged omo binary (omo-desktop, omob). Without it `process.execPath` ran the omo entrypoint instead of the toolkit, `ulw-loop status` exited 1, and every session with a plan read as inactive (no continuation).
-- Senpi engine pin `2026.8.28`: repairs the beta.23 shared interactive host regressions — Shift+Tab no longer prints `Thinking level: [object Promise]` and `/settings` thinking options render, user messages no longer render twice, resuming a session held by a live shared host attaches instead of failing with `session_path_in_use`, and the compiled JavaScript/Python eval kernels resolve their runtime assets again.
-
-- Windows DAP script paths with drive letters are no longer misclassified as `host:port` endpoints, and thread mailbox/receipt persistence now tolerates the Windows `fsync` behavior while retaining atomic writes.
-- The `omo` launcher no longer orphans the engine when it is signaled. Both spawn layers (`node bin/omo.js` -> engine, and the bun re-exec in between) waited in `spawnSync`, where no JS handler can run, so a `SIGTERM`ed launcher died instantly and left the engine reparented to pid 1 - where it kept running, held the terminal, and eventually accumulated as a zombie session. The launcher now waits asynchronously, forwards `SIGTERM`/`SIGHUP` to the child, gives it a bounded grace window (10s, `OMO_SIGNAL_GRACE_MS`) to run its own graceful shutdown, and re-raises the signal on itself if the child ignores it. `SIGINT` is deliberately not forwarded - the terminal already delivers it to the whole foreground process group - but the launcher still waits instead of dying under the engine. Exit fidelity is unchanged: the child's exit code passes through, and a child killed by a signal still makes the launcher die by that same signal.
-
-<!-- omo-live-backfill-2026-09-11T11:28:45.268Z -->
-
 ## [5.0.0-beta.1] - 2026-08-09
 
 - 13db09a1a Merge pull request #6676 from code-yeongyu/release/v5.0.0-beta.1-source-state
@@ -414,16 +340,16 @@ shared runtime. It fixes LSP behavior in symlinked worktrees, adds a
 privacy-bounded telemetry/config surface, improves Windows Git discovery, and
 refreshes the generated Codex and LazyCodex payloads.
 
-## Highlights
+### Highlights
 
-### LSP operations now work through symlinks and worktrees
+#### LSP operations now work through symlinks and worktrees
 
 Read-only LSP tools preserve valid lexical workspace paths while safely
 resolving canonical ancestors. Diagnostics, definitions, references, symbols,
 and prepare-rename no longer fail merely because a monorepo or task worktree is
 reached through a symlink. Rename keeps strict canonical write confinement.
 
-### Shared telemetry is typed and privacy-bounded
+#### Shared telemetry is typed and privacy-bounded
 
 The shared telemetry core now provides:
 
@@ -447,31 +373,31 @@ Unified configuration can disable telemetry with:
 
 Upgrade shared config consumers together before using this strict new key.
 
-### Memory is more reliable on Windows
+#### Memory is more reliable on Windows
 
 Memory repositories expose commit timestamps, and Git execution now retries
 standard Git-for-Windows locations only after a normal `ENOENT` failure. Other
 execution failures retain their existing behavior.
 
-### Codex and LazyCodex payloads are current
+#### Codex and LazyCodex payloads are current
 
 The generated Codex installer honors `DO_NOT_TRACK`, disables telemetry for the
 explicit placeholder key, and ships refreshed CodeGraph, LSP, configuration,
 and installer artifacts.
 
-## Edition impact
+### Edition impact
 
-### OMO Ultimate for OpenCode
+#### OMO Ultimate for OpenCode
 
 Beta.6 primarily consumes the shared LSP worktree fix. It introduces no new
 OpenCode hook, tool, CLI, schema, or agent migration relative to beta.5.
 
-### OMO Light for Codex
+#### OMO Light for Codex
 
 Beta.6 refreshes installer and marketplace payloads with current telemetry,
 configuration, CodeGraph, and LSP behavior.
 
-## Migration note for users coming from 4.x
+### Migration note for users coming from 4.x
 
 The runtime command introduced during the 5.0 beta line remains:
 
@@ -482,7 +408,7 @@ omo ...  ->  omo-agent-toolkit ...
 Rerunning the installer removes only installer-managed legacy wrappers and
 preserves user-owned `omo` files.
 
-## Release surfaces
+### Release surfaces
 
 - `oh-my-opencode@5.0.0-beta.6`
 - `oh-my-openagent@5.0.0-beta.6`
@@ -494,7 +420,7 @@ preserves user-owned `omo` files.
 
 ---
 
-## Complete generated changelog
+### Complete generated changelog
 
 - 55326d2a8 Merge pull request #6760 from code-yeongyu/fix/windows-memory-lock-beta6
 - 807b62f62 test(memory): budget Windows lazy initialization
@@ -575,7 +501,7 @@ preserves user-owned `omo` files.
 
 ## [5.0.0-beta.7] - 2026-08-12
 
-## OMO Native: your favorites stay put, and updates that just work
+### OMO Native: your favorites stay put, and updates that just work
 
 **Favorite models stop disappearing** — if a provider was momentarily unauthenticated or unreachable, opening the model picker and touching favorites used to silently erase every favorite that provider owned, sometimes wiping the list entirely. The picker only ever sees models that resolve right now, and that filtered view was being written straight back to your settings. Favorites that do not resolve at that moment are now preserved untouched.
 
@@ -637,19 +563,19 @@ ade persona seed v2 + identity.md in <self>
 
 This release is about doing more work at once and trusting what runs in the background. OMO can now run dozens of agents in parallel and recover if something crashes mid-run. You can sign in with your Cursor subscription, and Grok 4.6 is supported out of the box. The background memory system, which learns from your conversations, got a major reliability overhaul after an incident where it filled a disk with retries. Rounding it out: your settings now survive every update, planning asks fewer questions, and Windows got smoother.
 
-## Highlights
+### Highlights
 
-### Run dozens of agents at once
+#### Run dozens of agents at once
 
 Give OMO a big task and it can now break it into parts, run them as parallel waves of agents, collect the results, and move on to the next wave. Before, agents mostly ran one at a time. If a crash happens partway through, OMO picks up where it left off instead of losing the work. Nothing to configure, big tasks just fan out on their own.
 
-### Sign in with Cursor, and Grok 4.6 support
+#### Sign in with Cursor, and Grok 4.6 support
 
 You can now connect your Cursor Pro, Ultra, or Teams subscription. Run `/login cursor`, approve in your browser, and you're signed in. For now this is authentication only. Cursor models don't show up in the model picker yet, but the groundwork is in place.
 
 Grok 4.6 is now a first-class model. It gets a system prompt tuned for how Grok actually works instead of a generic fallback, and when OMO picks a model for quick, lightweight tasks, Grok 4.6 is the new default.
 
-### Memory that doesn't eat your disk
+#### Memory that doesn't eat your disk
 
 OMO quietly extracts facts from your conversations so it remembers things about you and your projects. On August 14 that system hit an infinite retry loop and consumed 388GB of disk. This release fixes all five root causes:
 
@@ -661,49 +587,49 @@ OMO quietly extracts facts from your conversations so it remembers things about 
 
 There's new smarts here too. Memory consolidation now decides between reusing your active session (faster, cache-warm) and starting fresh (more reliable) based on actual token cost. And the planning review loop can no longer run indefinitely; it's capped at 5 rounds.
 
-### Your settings survive every update
+#### Your settings survive every update
 
 Updating OMO used to sometimes wipe your favorite models, fallback chains, or auth tokens, because different parts of the system looked for settings in different places. Now there's one home for your config, `~/.omo/agent`, and everything (launchers, child agents, doctor, setup, the installer) uses it. A one-time migration moves your existing settings there automatically.
 
-### Smarter planning when you don't spell everything out
+#### Smarter planning when you don't spell everything out
 
 When you ask for something without specifying budget, tech stack, scale, or compliance needs, OMO used to either assume nothing or interrogate you. Now it derives sensible defaults, records what it assumed so you can review it, and asks only the one question that genuinely needs your input.
 
-### See how much time parallel work saves
+#### See how much time parallel work saves
 
 OMO now measures the wall-clock time saved by running tool calls in parallel and reports it. The old standalone `/omo-telemetry` command is removed; the measurement is built in now.
 
-### Smoother on Windows
+#### Smoother on Windows
 
 Spawning a background agent on Windows no longer flashes a console window, thanks to community contributor @sanguneo. A batch of timeout and race condition fixes landed across Windows and macOS as well.
 
-### Agents doing UI work now actually study design
+#### Agents doing UI work now actually study design
 
 OMO ships a library of design references for frontend work, but agents mostly skimmed past it: across thousands of real sessions, only about 2 in 10 ever opened it, and almost none followed through. The router now makes the reference stops binding instead of advisory, adds a dedicated layout-mechanics reference, and requires the agent to name which references it actually loaded before writing UI code. Expect more design-grounded frontends, fewer generic ones.
 
-### Fresher web automation under the hood
+#### Fresher web automation under the hood
 
 The bundled browser automation stack (the stealth browser and its controller) is refreshed to the current releases, with a newer Playwright baseline. Web research, login-gated scraping, and screenshot workflows track modern browser behavior instead of last quarter's.
 
-### Team Mode gets boundary repairs
+#### Team Mode gets boundary repairs
 
 Team Mode, the experimental parallel-agent coordination feature, had runtime boundary defects where members could step outside their assigned scope. Those boundaries are repaired, and read-only shell output is now capped so a chatty command can no longer blow up an agent's context window.
 
-## Edition impact
+### Edition impact
 
-### OMO Ultimate for OpenCode
+#### OMO Ultimate for OpenCode
 
 The frontend design routing and browser automation refresh land here first. Grok 4.6 becomes the default for quick tasks, planning derives constraints instead of asking, and the memory reliability fixes apply through the shared memory core. Your settings now live in the canonical config directory and survive updates.
 
-### OMO Light for Codex
+#### OMO Light for Codex
 
 The planning constraint improvements reach the Codex skills, CodeGraph is refreshed, and the Git Bash installer is hardened. No new Codex hooks, tools, or CLI commands this release.
 
-### OMO Native
+#### OMO Native
 
 Everything above, plus the full Senpi engine upgrade below: Cursor sign-in, Grok 4.6, JSONC settings, mass parallel orchestration, parallelism telemetry, the memory disk fix with the new `/facts` commands, and the Windows console flash fix. The `/omo-telemetry` command is removed.
 
-## Senpi engine upgrade to 2026.8.16
+### Senpi engine upgrade to 2026.8.16
 
 Senpi is the engine that powers OMO Native (the `omo-ai` package). This release upgrades it from 2026.8.14 to 2026.8.16.
 
@@ -724,7 +650,7 @@ Things that are fixed:
 - Aborted or oversized conversation compactions no longer freeze your session, and when a compaction doesn't apply, you're told why.
 - Claude authentication is more reliable: tokens stay scoped to the right request, are isolated from subprocesses, and the auth probe window no longer flashes on macOS.
 
-## Migration note for users coming from 4.x
+### Migration note for users coming from 4.x
 
 The `omo` to `omo-agent-toolkit` rename from the 5.0 beta line remains in effect:
 
@@ -732,7 +658,7 @@ The `omo` to `omo-agent-toolkit` rename from the 5.0 beta line remains in effect
 
 Rerunning the installer removes only installer-managed legacy wrappers and preserves any `omo` files you created yourself.
 
-## Release surfaces
+### Release surfaces
 
 - `oh-my-opencode@5.0.0-beta.8`
 - `oh-my-openagent@5.0.0-beta.8`
@@ -979,23 +905,23 @@ Thanks to community contributor @sanguneo for the Windows console flash fix.
 
 ## [5.0.0-beta.9] - 2026-08-17
 
-## OMO 5.0.0-beta.9
+### OMO 5.0.0-beta.9
 
 **Senpi 2026.8.17 engine + beta releases that publish themselves correctly**
 
-### Changed
+#### Changed
 
 - **Latest Senpi engine** — OMO Native now runs on `@code-yeongyu/senpi@2026.8.17` ([#6977](https://github.com/code-yeongyu/oh-my-openagent/pull/6977)). Every workspace pin, lock surface, and the provider compatibility map moved in lockstep. The engine brings the cursor-cli-oauth fallback lane, ignored tool-call loop hard-stop, retry-exhausted steering resume, `-fast` codex variants, and Cloudflare-gateway/Cerebras catalog fixes.
 - **Explicit beta publishes** — `/publish` now accepts an exact semver such as `5.0.0-beta.9` and dispatches it with exact run-ID ownership ([#6970](https://github.com/code-yeongyu/oh-my-openagent/pull/6970)). No more accidental stable-line bumps from the beta channel.
 - **Beta release notes done right** — beta changelogs compare against the previous beta in the same channel, non-semver release tags are ignored safely, and GitHub releases are explicitly marked pre-release ([#6970](https://github.com/code-yeongyu/oh-my-openagent/pull/6970)).
 
-### Fixed
+#### Fixed
 
 - Windows root tests no longer run under Git Bash ([#6957](https://github.com/code-yeongyu/oh-my-openagent/pull/6957)); release validation is deduplicated through gate reuse; RPC model-admission diagnostics got a hardened port with preserved probe environments.
 - Memory: reflection entries render as senpi notices, stale reflection-failure streaks stop alerting, and the reflection reservation is released on abort ([#6971](https://github.com/code-yeongyu/oh-my-openagent/pull/6971), [#6967](https://github.com/code-yeongyu/oh-my-openagent/pull/6967), #6978 pending).
 - Codex: spawn callee boundary anchored; on-complete hooks inject the correct shell platform.
 
-### Added
+#### Added
 
 - Parallel local test path-group runner for faster suites ([#6974](https://github.com/code-yeongyu/oh-my-openagent/pull/6974)); `@babel/parser` shipped for bundled Senpi codemode ([#6965](https://github.com/code-yeongyu/oh-my-openagent/pull/6965)).
 
@@ -1009,34 +935,34 @@ npm i -g omo-ai@beta
 
 ## [5.0.0-beta.10] - 2026-08-18
 
-## Reliable installs, faster CI, safer releases
+### Reliable installs, faster CI, safer releases
 
-### Ast-grep setup now fails clearly instead of hanging
+#### Ast-grep setup now fails clearly instead of hanging
 
 OpenCode and LazyCodex installation now enforce a live timeout for ast-grep
 provisioning, terminate stuck child installers, and report a clear bounded
 failure if the child refuses to exit. Install commands no longer sit
 indefinitely behind a silent provisioning process.
 
-### Faster validation without source-coverage shortcuts
+#### Faster validation without source-coverage shortcuts
 
 Web/docs-only changes and verified generated release-state merges can skip
 unnecessary root jobs, while missing diffs, normal source changes, and
 release-looking non-merge commits still run full validation.
 
-### Releases are tied to one validated source SHA
+#### Releases are tied to one validated source SHA
 
 Publication now reuses the successful full CI workflow for the exact prepared
 commit instead of running a second release-local matrix that could diverge
 from the code being shipped.
 
-### Release credentials stay out of build scripts
+#### Release credentials stay out of build scripts
 
 Repository-controlled generation runs without the release PAT. The token is
 available only for the push/PR step, and the credential-bearing remote is
 removed even when publication fails.
 
-### More predictable Windows release checks
+#### More predictable Windows release checks
 
 Native-shell execution, Bun 1.3.14, Windows-safe script resolution, and
 targeted serial execution remove known environment mismatches and timeout
@@ -1044,13 +970,13 @@ instability from the release path.
 
 ---
 
-### A reliability-focused beta
+#### A reliability-focused beta
 
 `v5.0.0-beta.10` is a focused hardening release for installation, continuous integration, and the synchronized publish pipeline. There are no breaking user-facing changes in this beta. The main result is that failed setup work now stops predictably, release builds are validated against the exact source being published, credentials have a narrower exposure window, and Windows checks run closer to real Windows behavior.
 
-### What changed
+#### What changed
 
-#### Installer timeouts now finish predictably
+##### Installer timeouts now finish predictably
 
 The shared ast-grep provisioning path no longer relies on an unreferenced timer that could be starved while a child process remained stuck. The installer now:
 
@@ -1061,19 +987,19 @@ The shared ast-grep provisioning path no longer relies on an unreferenced timer 
 
 This matters most on failure paths: a broken shell, stalled download, or unresponsive installer should now produce a bounded result rather than holding the CLI or CI job open until a much larger outer timeout expires.
 
-#### Releases reuse validation from the exact source SHA
+##### Releases reuse validation from the exact source SHA
 
 The publish workflow no longer starts a second, redundant test/typecheck/compatibility matrix. Instead, it requires a successful full CI workflow for the exact prepared release SHA and fails closed when that proof is unavailable.
 
 The gate handles both valid release paths: the release-state pull request's exact-SHA run and the post-merge push run. It retries temporary GitHub API failures, waits for active validation to finish, stops when completed runs have no success, and enforces a bounded overall timeout. This makes the release faster while preserving the important guarantee: the source that passed CI is the source that gets published.
 
-#### Release credentials are more tightly isolated
+##### Release credentials are more tightly isolated
 
 Release-state generation and privileged publication are now separate steps. Dependency installation, version synchronization, lockfile updates, and generated-artifact rebuilds run without the release PAT. The token is present only in the step that pushes the prepared branch and manages its pull request.
 
 The authenticated git remote is also protected by an `EXIT` trap, so it is restored to a clean token-free URL even when a push fails. This reduces the chance of a credential remaining in repository configuration for later commands or diagnostic output.
 
-#### CI skips expensive work only when it can prove that it is safe
+##### CI skips expensive work only when it can prove that it is safe
 
 A new changed-path classifier identifies two narrow cases that do not need the full repository matrix:
 
@@ -1082,39 +1008,39 @@ A new changed-path classifier identifies two narrow cases that do not need the f
 
 Everything else continues to run heavy validation. If the base SHA is unavailable, the diff cannot be read, classifier inputs are malformed, or a commit merely imitates a release message without being the expected merge shape, CI defaults to the full matrix. The fast path therefore reduces repeated work without turning uncertainty into a skip.
 
-#### Windows validation now matches the supported runtime more closely
+##### Windows validation now matches the supported runtime more closely
 
 Repository workflows are pinned consistently to Bun `1.3.14`, with cache keys aligned to that version. Windows root tests execute under native PowerShell rather than Git Bash where shell-sensitive behavior could observe Unix-like environment variables and launch paths. File-URL handling in the CI classifier tests also uses native path conversion, including Windows drive-letter paths.
 
 These changes are aimed at reducing Windows-only hangs and false failures while preserving the existing platform coverage for OpenCode/OpenAgent and Codex installations.
 
-### Per-layer highlights
+#### Per-layer highlights
 
-#### omo pure components
+##### omo pure components
 
 - ast-grep provisioning has a real, bounded timeout and kill-grace path;
 - a child that ignores termination becomes an actionable failed result rather than an endless wait; and
 - reusable CI classification fails safe when provenance or changed-path information is incomplete.
 
-#### omo opencode
+##### omo opencode
 
 - publish gates reuse complete CI from the exact prepared SHA instead of rerunning the same validation;
 - release-state generation cannot access the release PAT;
 - push/PR automation has bounded retries and recovery checks; and
 - generated-release and web/docs-only changes receive a safe CI fast path.
 
-#### omo codex
+##### omo codex
 
 - Codex compatibility and platform publication use the same exact-SHA release guarantee;
 - `lazycodex-ai` publication remains behind successful synchronized validation;
 - Windows installer and compatibility checks run with native shell semantics; and
 - Codex consumers inherit the bounded ast-grep installer failure path.
 
-### Breaking changes
+#### Breaking changes
 
 **None.** Existing commands, package entry points, configuration, and installation flows remain compatible with beta.9.
 
-### Install or upgrade
+#### Install or upgrade
 
 Install or upgrade the beta with:
 
@@ -1124,7 +1050,7 @@ npm i -g omo-ai@beta
 
 After installation, `omo --version` should report the beta.10-mapped package version once the release is available on npm.
 
-### Discord announcement
+#### Discord announcement
 
 **omo v5.0.0-beta.10 is out — a reliability-focused beta.**
 
@@ -1138,23 +1064,23 @@ npm i -g omo-ai@beta
 
 ## [5.0.0-beta.11] - 2026-08-19
 
-## 🧠 Memory That Feels Pressure — And Acts On It
+### 🧠 Memory That Feels Pressure — And Acts On It
 
 Your agent's memory now knows when it's getting full. Memory pressure is surfaced directly to the agent, and when it crosses the threshold, dream runs (memory consolidation) launch automatically instead of waiting for a quiet moment. Dreams now carry enforced token budgets with committed per-file estimates, and a new memory-file access ledger records which files actually get read — so dream tier rebalancing is driven by evidence, not guesswork.
 
-## 🔧 Memory Children Actually Spawn On npm Installs
+### 🔧 Memory Children Actually Spawn On npm Installs
 
 If you installed omo via npm, memory reflection and people-ask children died within milliseconds with `node: bad option: --fork` — the Senpi CLI entry was silently dropped from the spawn argv, so node received CLI flags it doesn't understand. The CLI entry is now forwarded everywhere: reflection, fork mode, and people-ask launches. Reflection also retries through provider outages instead of dying on the first 500.
 
-## 🕸️ mass-ulw Grows Teeth
+### 🕸️ mass-ulw Grows Teeth
 
 The dag boundary now enforces planning discipline: mass-ulw runs start with advisory planning warnings, dag agent-node dispatch goes through the spawn policy, and reloading the extension is blocked while a DAG run is in flight — with a notification when the run pauses instead of a silent mid-run reload.
 
-## 👥 Team & Task Fixes That Were Bugging You
+### 👥 Team & Task Fixes That Were Bugging You
 
 Completed resident team members no longer vanish from the team widget. Category selection gates route back to the caller instead of swallowing the decision, and when a category's model is unavailable, the fallback chain actually advances to the next model. On the OpenCode side, your `permission.task` setting is now respected on main agents.
 
-## 🖼️ Bundled Senpi 2026.8.18-3
+### 🖼️ Bundled Senpi 2026.8.18-3
 
 The Senpi upgrade alone is worth the update:
 
@@ -1166,11 +1092,11 @@ The Senpi upgrade alone is worth the update:
 - **Headless OAuth continuity** — `-p -c` sends only your new turn, verified against a private sidecar; imports, forks, and drift fail closed.
 - **Linux glibc hosts** now get the glibc Claude binary before the musl variant, and published tarballs keep their Babel 8 closure so the codemode sidecar starts cleanly.
 
-## 🪟 Windows Fixes
+### 🪟 Windows Fixes
 
 Memory-file access tracking recorded its ledger keys with Windows path separators, so the dream tier's usage counts never matched the POSIX keys every consumer reads — reads on Windows effectively went uncounted. Keys are now normalized, and the reflection health report no longer mis-reports a dormant streak.
 
-## 🔧 Tooling Fixes
+### 🔧 Tooling Fixes
 
 The LSP tools refused to answer for any file outside the session's working directory, so diagnostics, definitions, and references silently came back empty when you worked across a worktree or a sibling checkout. Read-only LSP requests now resolve those paths.
 
@@ -1253,11 +1179,11 @@ The LSP tools refused to answer for any file outside the session's working direc
 
 ## [5.0.0-beta.13] - 2026-08-20
 
-## OMO 5.0.0-beta.13 — Recoverable Graphs, Side Conversations, and a Faster Senpi 2026.8.20-2
+### OMO 5.0.0-beta.13 — Recoverable Graphs, Side Conversations, and a Faster Senpi 2026.8.20-2
 
 The center of gravity: **a failed DAG run is no longer a total loss**, **`/btw` gives you a second conversation without burning your main context**, and the bundled **Senpi 2026.8.20-2** engine ships a large performance + Cursor-correctness wave.
 
-## 🕸️ mass-ulw: retry, steer, and amend a live graph
+### 🕸️ mass-ulw: retry, steer, and amend a live graph
 
 A graph that lost one node to a flaky tool call used to mean re-running the whole thing and paying for every child again. Not anymore:
 
@@ -1269,11 +1195,11 @@ A graph that lost one node to a flaky tool call used to mean re-running the whol
 - The status widget shows an `x<attempt>` badge on re-run nodes; `/dag` shows `amended x<n>` and prefixes node errors with the error **code**. A lost amend race is now a clean `run_still_active` refusal instead of a run wedged on journal replay.
 - The JS SDK gains `retry`, `send`, and `amend` wrappers, and the mass-ulw skill documents the full refusal matrix.
 
-## 💬 `/btw` — ask a side question without polluting the main thread
+### 💬 `/btw` — ask a side question without polluting the main thread
 
 `/btw <question>` (alias `/side`) opens a temporary session on the same model and agent. `Ctrl+/` toggles between main and side; `Ctrl+C` on an empty side composer closes it. The side thread sees your recent main context as **read-only background** (capped at 64 messages / 64 KiB behind a boundary that tells the side model to keep its hands off files and subagents unless you explicitly ask), and its Q&A never enters the main transcript. Parent deletion, crash re-adoption, BTW-in-BTW nesting, and cancellation ordering are all explicitly handled, so side sessions don't leak. Guide: `docs/guide/btw.md`.
 
-## 🔁 Model fallback stops going quiet (#6579)
+### 🔁 Model fallback stops going quiet (#6579)
 
 Community fix by @MoerAI (#6611):
 
@@ -1285,19 +1211,19 @@ The repeated-error stall is fixed at its root: the retry-dedupe key didn't inclu
 - Watchdog timers are generation-scoped, so a timer from an abandoned attempt can never hijack a later turn.
 - A manual model change resets the fallback watchdog, in-flight retry flag, and the retry-key set.
 
-## 🖼️ One notice language across the transcript
+### 🖼️ One notice language across the transcript
 
 Fallback-architect notices, tips, task-completion cards, team-member liveness warnings, and every memory notice (reflection, health, soul-update, write receipts, nudges) now render through one shared padded notice box. Completion cards lead with a tone glyph (`●`/`✗`/`⚠`/`◐`) and the task name, keep `id · target/model · duration · tokens · tools · tps` on a dim second row, and hold continuation hints behind expansion.
 
-## 🩺 `/doctor` reflection health is deterministic
+### 🩺 `/doctor` reflection health is deterministic
 
 Reflection-health severity was a function of the wall clock — `[warn]` decayed to `[ok]` by pure passage of time. The check now reads an injectable clock, so the verdict is a pure function of your reflection data.
 
-## 🧪 CI and tests stop lying
+### 🧪 CI and tests stop lying
 
 The Senpi adapter is now a first-class mandatory-QA surface with a machine-enforced evidence-path contract. Two DAG `wait`-hang classes (resident-cap saturation, terminalization during subscription setup) are pinned by bounded regression tests. Memory-test teardown retries narrowly on `EFAULT` only, and three Windows-slow suites got honest ceilings with waits left event-driven.
 
-## 🧰 Bun 1.4.0 stable, everywhere
+### 🧰 Bun 1.4.0 stable, everywhere
 
 Bun 1.4 went stable today, and this release train rides it end to end:
 
@@ -1307,9 +1233,9 @@ Bun 1.4 went stable today, and this release train rides it end to end:
 
 ---
 
-## ⚙️ Bundled Senpi 2026.8.20-2 — the engine wave
+### ⚙️ Bundled Senpi 2026.8.20-2 — the engine wave
 
-### Faster everywhere
+#### Faster everywhere
 
 - **`/resume` no longer stalls on big sessions**: exact byte-bounded streaming summaries are reused for unchanged files, and the visible transcript tail paints first while older messages warm progressively.
 - **Startup sheds 680 modules**: the 1.2 MB Claude Agent SDK bundle and the jsdom/Readability/turndown HTML stack now load on first use, not at boot (14,203 → 13,523 modules).
@@ -1319,18 +1245,18 @@ Bun 1.4 went stable today, and this release train rides it end to end:
 - **Watch scope fixed**: recursive watch targets now open one non-recursive subscription per in-scope directory — an extensions dir containing `node_modules` no longer drives `fseventsd` to 123% CPU and multi-GB RSS.
 - **Retry spinners throttle** on sessions with 1,000+ persisted entries; the countdown stays.
 
-### The TUI stops freezing
+#### The TUI stops freezing
 
 - Goal footer tickers retire themselves on a stale extension context instead of ticking dead forever — the "Pursuing goal" label and continuation countdown no longer freeze the session after a reload.
 - TUI mode switches detach live components instead of disposing them; spinners and widget intervals survive the switch.
 - A vetoed or failed `/reload` no longer destroys live extension footers and task widgets.
 - Assistant text that arrives after the last tool call renders below the tool cards, so approval questions stay visible.
 
-### claude-sdk-oauth: the $1,084 retry-storm fix (#723)
+#### claude-sdk-oauth: the $1,084 retry-storm fix (#723)
 
 Stream-start-timeout retries now fork the SDK conversation at the last assistant boundary instead of re-sending the whole conversation — each retry re-bills only its own turn on a prefix-cache read. Before: cache writes grew ~8K/attempt, $25/6min, $1,084/3days on worker dispatch.
 
-### Cursor, seriously corrected (community wave — thanks @leeseunguk and @HeiTuz)
+#### Cursor, seriously corrected (community wave — thanks @leeseunguk and @HeiTuz)
 
 - 0-token `resource_exhausted` is treated as overflow: surface on first failure → compact before any rotation; rotation persists under the agent dir and survives TUI restarts; a rotation skip at the 3-rotation cap remints a fresh wire id instead of poisoning the session.
 - Same-model retry after remint/compact instead of falling back to another provider; too-small overflow compacts drop to the last user turn; implausible billed `cacheRead` (3×/8× the live window) can no longer force useless compacts.
@@ -1342,16 +1268,16 @@ Stream-start-timeout retries now fork the SDK conversation at the last assistant
 - Exec-bridge ownership is airtight: handlers bind to the owning run's abort signal, fail closed without a captured run, re-check ownership after approval prompts, and emit `tool_execution_end` errors so nothing dangles.
 - Session titles use the session model's own summarization auth — no more `unauthenticated` title calls under an explicit compaction model.
 
-### Long-running sessions stop burning money
+#### Long-running sessions stop burning money
 
 - Goal continuations are **append-only**: per-request history rewriting invalidated the provider's cache prefix, so long team-mode sessions paid a full uncached re-read every turn and drove themselves into 429 storms.
 - Same-model 429 retries floor every wait with the exponential schedule — a provider answering with the same tiny `retry-after` hint can't pin the cadence at milliseconds anymore.
 
-### Config reload behaves in shared-agent-dir setups (thanks @Indosaram, #1006)
+#### Config reload behaves in shared-agent-dir setups (thanks @Indosaram, #1006)
 
 Routine-preference saves (like `defaultModel`) from another session no longer cascade a reload; the handoff snapshot is cleared unconditionally after `requestReload()` settles, so a stale plaintext settings snapshot can't survive.
 
-### For extension authors
+#### For extension authors
 
 The notice-box primitives are public API now: `buildNoticeBox`, `noticeMessageRenderer`, `noticeEntryRenderer`, and the `NoticeSpec`/`NoticeLine`/`NoticeTone` types — render your transcript notices in the shared visual family instead of re-implementing it.
 
@@ -1520,11 +1446,11 @@ Full engine changelog: [senpi v2026.8.20](https://github.com/code-yeongyu/senpi/
 
 ## [5.0.0-beta.14] - 2026-08-21
 
-## OMO 5.0.0-beta.14 — Retained Side Sessions, OpenGateway, and a Snappier Senpi 2026.8.21-2
+### OMO 5.0.0-beta.14 — Retained Side Sessions, OpenGateway, and a Snappier Senpi 2026.8.21-2
 
 The center of gravity: **`/btw` grows into a retained multi-session picker**, **a new credential-gated OpenGateway provider ships 60 tool-capable models**, **commit attribution becomes configurable**, and the bundled **Senpi 2026.8.21-2** engine kills two CPU-spin freezes, paints your messages instantly, and stops Cursor turns from hanging for five minutes.
 
-## 💬 `/btw` keeps every side conversation (#7086, #7087)
+### 💬 `/btw` keeps every side conversation (#7086, #7087)
 
 **Side sessions now persist until you delete them, and a picker lets you hold several at once.** Contributed by @ToToKr:
 
@@ -1535,52 +1461,52 @@ The center of gravity: **`/btw` grows into a retained multi-session picker**, **
 
 Follow-up review fixes in #7087 (also @ToToKr) guard BTW creation when no parent prompt exists, preserve promptless picker access, and revalidate the parent prompt at selection time so a stale boundary is never reused. Guide: `docs/guide/btw.md`.
 
-## 🌐 OpenGateway provider, gated on your key (#7078)
+### 🌐 OpenGateway provider, gated on your key (#7078)
 
 **Set `OPENGATEWAY_API_KEY` (or add an `opengateway` entry to opencode's `auth.json`) and 60 tool-capable models appear with correct context windows and pricing.** OpenGateway's `/v1/models` serves bare ids with no metadata, so a new generator enriches them from the owning provider's models.dev catalog with OpenRouter as fallback, and excludes models without tool capability. The injection is credential-gated on purpose: without a key you see nothing new instead of dead models. User config wins at every level, and repo-retired GPT models were screened out of the catalog (62 to 60 entries).
 
-## ✍️ Commit attribution is yours to configure (#7092)
+### ✍️ Commit attribution is yours to configure (#7092)
 
 **The omo commit footer and the sisyphus-dev-ai co-author trailer can now be turned off.** A new `git_master` section in `omo.jsonc` carries `commit_footer` (`true` for the builtin footer, a string to replace it, `false` to disable) and `include_co_authored_by` (default true). Both default to today's behavior, the settings flow into delegated children, and the schema, `docs/reference/omo-json.md`, and `docs/reference/configuration.md` document the whole block.
 
-## 📊 Delegation telemetry, honestly scoped (#7091)
+### 📊 Delegation telemetry, honestly scoped (#7091)
 
 **Two new anonymous native event families measure how delegation actually performs: `delegation_completed` and `category_config`.** The projection is an explicit scalar allowlist, so prompts, responses, names, paths, and error text are excluded by construction, with an exact-key-set test making sure a new field can never ride along silently. User category, agent, provider, and model names mask to `custom`; only counts leave the machine. Data quality is reported rather than guessed: a missing cost is never a zero cost, token and duration fields carry status flags, and reconciled or crashed rows are marked so they cannot bias aggregates. The model vocabulary now covers every rung a builtin category can route to, fixing 126 provider/model pairs that previously exported as `custom/custom`. PostHog also derives an approximate country server-side now; the app still never authors or stores an IP, and `docs/legal/privacy-policy.md` discloses all of it.
 
-## 🧭 ulw-plan adapts to how you answer (#7089)
+### 🧭 ulw-plan adapts to how you answer (#7089)
 
 **The planner calibrates question delivery to your planning stance instead of interrogating everyone the same way.** Three renderers over the same surviving forks: batch, one-by-one, and examples-first for users who answer better by critiquing concrete options than by facing a blank page. The opening stance is derived from planning-style episodes in projected memory, override phrases like "you decide" pass three gates and never silently authorize an irreversible or spend decision, and the profile is an append-only episode log with no scores or cached persona. Onboarding can seed a hypothesis from other harnesses' session history, always at low confidence, style-only, never content.
 
-## 🖨️ Paged output becomes a first-class deliverable (#7099, #7098)
+### 🖨️ Paged output becomes a first-class deliverable (#7099, #7098)
 
 **PDF reports and print pipelines get a real authoring reference and a real verification doctrine.** The frontend skill gains a `print-paged-media.md` design reference covering the page box, break control, and the keep-together side effect that strands a callout alone on a near-empty page; visual-qa now admits paginated documents, evidenced by every page rendered to an image, with extracted text explicitly ruled out as evidence. The mass-ULW verification wave learns the same lesson: a paginated deliverable is verified by rendering and inspecting every page, sampling is a failure. `ulw-research` also activates on combined "mass ulw research" invocations so the delivery gates load from either path.
 
-## 🕸️ DAG runs get harder to fool and harder to break
+### 🕸️ DAG runs get harder to fool and harder to break
 
 - **Revived nodes stay in the run (#7106).** A node you revive mid-flight is now tracked by the scheduler itself; a run can no longer declare itself finished while your revived node is still working, and it fails loudly if it ever could.
 - **Parent-side verification directive (#7080).** DAG completion payloads now tell the orchestrating parent to treat the claim as false until proven: read the artifacts, run the commands, and send corrective instructions back to the exact node until its own verification passes. Non-DAG completions are byte-identical.
 - **Real errors, surfaced (#7105).** The eval SDK used to swallow non-start DAG errors as successes and report a `definition_conflict` as "no run_id". Every response now routes through a choke point that rethrows the tool's own code and message.
 - **Windows lock contention (#7107).** Filesystems that refuse hard links (`EPERM`/`EACCES` on NTFS ACLs, ReFS, network shares) no longer crash the losing racer; the lock falls back to an equally atomic exclusive open and the loser waits as designed.
 
-## 🪟 Windows: the console flashes are gone
+### 🪟 Windows: the console flashes are gone
 
 **Nineteen spawn sites across three PRs stop popping black console windows on the desktop.** @sanguneo diagnosed the root cause in #7082: the detached memory reflection supervisor runs console-less, so its children allocated fresh visible consoles on every deadline or cleanup, and pinned the whole launch chain with a source-level `windowsHide` audit. @grim-susemi covered 11 recurring detached and background sites in #6991 (lsp-daemon, MCP OAuth, codegraph, comment checkers, ulw-loop status). #7102 finished the sweep on the last three sites (`spawnNode`, memory people-ask, model preflight). No-op off Windows.
 
-## 🔁 ulw-loop respects session boundaries (#6914, #7112, #7103)
+### 🔁 ulw-loop respects session boundaries (#6914, #7112, #7103)
 
 **Two omo sessions in the same repo no longer stomp on each other's ULW plan.** @feelsodev scoped every ulw-loop write to a per-session ledger in #6914, complete with a cross-session isolation probe and Windows fixture hardening. #7112 (co-authored with Altair Li and @feelsodev) closed the read side: the status probe now resolves the host session id from the event context and passes it explicitly, failing closed when none is available instead of adopting repo-global state. And #7103 makes every steering submit in a repo with no active plan ~36ms faster by skipping the status spawn entirely when no ledger directory exists.
 
-## 🧰 Bun 1.4.0 and the dependency wave (#7079, #7075)
+### 🧰 Bun 1.4.0 and the dependency wave (#7079, #7075)
 
 **CI, publishing, and every committed bundle now run on Bun 1.4.0**, after #7075 briefly rolled back to 1.3.14 while the Windows tail was finished. Floors moved with it: OpenCode plugin ABI 1.15.13 to **1.18.19**, OpenTUI 0.2.16 to **0.5.6**, commander 15, js-yaml 5. Anyone pinning an older OpenCode host needs to move.
 
 ---
 
-## ⚙️ Bundled Senpi 2026.8.21-2 — the engine wave (#7094, #7111)
+### ⚙️ Bundled Senpi 2026.8.21-2 — the engine wave (#7094, #7111)
 
 The host pin moves from the previous beta's engine to **2026.8.21** and then **2026.8.21-2**. What you feel:
 
-### 2026.8.21
+#### 2026.8.21
 
 - **Your message paints instantly.** Enter now renders an optimistic pending bubble at once instead of waiting for the provider round-trip; the canonical message replaces it in place, and rejected or command-handled inputs remove it.
 - **The TUI stops pegging a core under provider-error storms.** Contended settings-lock waiters used to busy-spin on the main thread and freeze the render loop; they now sleep through `Atomics.wait`, fallback-chain canonicalization is memoized per error burst, and OAuth-lane settings loads are cached by mtime and size.
@@ -1589,7 +1515,7 @@ The host pin moves from the previous beta's engine to **2026.8.21** and then **2
 - **`monitor` prompting matches the real PTY contract**, with worked recipes so the agent waits the way the tool actually behaves.
 - **Provider catalogs refreshed:** the vercel-ai-gateway Grok vendor slug moved `xai/` to `spacexai/`, and opencode delisted `deepseek-v4-flash-free`.
 
-### 2026.8.21-2
+#### 2026.8.21-2
 
 - **The auth store gets the same lock-spin fix**, so multi-session OAuth-refresh contention can no longer burn a core.
 - **The model picker releases before the auth round trip.** Choosing a subscription-OAuth model like Cursor no longer freezes a frame of the previous model on screen while the network call resolves.
@@ -1600,7 +1526,7 @@ Full engine changelogs: [senpi v2026.8.21](https://github.com/code-yeongyu/senpi
 
 ---
 
-## 🧹 Roundup
+### 🧹 Roundup
 
 - **mass-ULW answers to more names (#7076):** `ulw mass`, `ulwmass`, `mulw`, and `meth` now trigger it alongside the existing spellings; the guard that keeps `ulw-plan` from matching is intact.
 - **Background completion notifications reach the right project (#7077):** the live server route now carries its registered directory into the SDK client instead of defaulting to the server's.
@@ -1627,11 +1553,11 @@ Full engine changelogs: [senpi v2026.8.21](https://github.com/code-yeongyu/senpi
 
 ## [5.0.0-beta.16] - 2026-08-22
 
-## OMO 5.0.0-beta.16 — Formula-Sized init-deep, One ULW Keyword Table, and a Steadier Senpi 2026.8.22
+### OMO 5.0.0-beta.16 — Formula-Sized init-deep, One ULW Keyword Table, and a Steadier Senpi 2026.8.22
 
 The center of gravity: **`init-deep` stops flooding your main session and runs as a formula-sized DAG map-reduce**, **every ULW keyword now routes through one exception-free skill-pointer table so composite invocations load everything they name**, and the bundled **Senpi 2026.8.22** engine stops Cursor streams from dying under heartbeats, keeps shutdown from throwing on pending permission prompts, and lets Ruby and Julia kernels boot under load without timing out.
 
-## 🗺️ init-deep becomes a formula-sized DAG map-reduce (#7123)
+### 🗺️ init-deep becomes a formula-sized DAG map-reduce (#7123)
 
 **Large repos no longer blow the orchestrator's context exactly when hierarchical `AGENTS.md` coverage matters most.** The old flow collected every explore result into the main session; the new one replaces discovery and generation with a DAG map-reduce whose shape is computed by one formula in an eval cell, not vibes:
 
@@ -1642,13 +1568,13 @@ The center of gravity: **`init-deep` stops flooding your main session and runs a
 
 Small repos (`N_quick < 4`) keep an inline path, and repos that would exceed `task.dag.max_nodes_per_run` chain one run per top-level directory instead of overflowing. The scoring matrix, templates, file-writing rule, and the Phase 5 snapshot/mode contract that the init-deep-advisor reads are all preserved unchanged. The rewrite even nets out 512 characters smaller.
 
-## 🎯 Composite ULW invocations load every skill they name (#7120)
+### 🎯 Composite ULW invocations load every skill they name (#7120)
 
 **"mass ulw loop" used to arm ultrawork and point at mass-ulw, then quietly drop the ulw-loop skill the phrase names.** "mass ulw research" had the same gap. A new component detects `ulw loop` / `ulw-loop` / `ulwloop` and the research equivalents in any case and injects one hidden skill pointer per matched skill, so a composite invocation loads ultrawork, mass-ulw, and the named skill together in a single turn.
 
 Suppressions mirror mass-ulw per skill: extension-source inputs, a raw `/skill:` command for the same skill, and an already-expanded skill block never inject. Queued prompts carry the pointers appended inside the one message, so the group survives senpi's one-at-a-time queue drain intact. A new e2e (`ulw-skill-pointers-e2e.mjs`) drives the built plugin through a sandboxed live senpi run per prompt and asserts each pointer rides as a hidden `custom_message` in the session JSONL, that plain "mass ulw" stays pointer-free, and that the real agent dir is untouched.
 
-## 🧮 One exception-free ULW keyword table (#7122)
+### 🧮 One exception-free ULW keyword table (#7122)
 
 **The mass-ulw and ulw-skill-pointers components were the same mechanism written twice, and their `ulw(?!-)` lookaheads silently swallowed overlapping mentions: "mass ulw-loop" fired neither mass-ulw nor ultrawork.** Both are now replaced by a single `skill-pointers` component holding one uniform target table (mass-ulw with its aliases, ulw-plan, ulw-loop, ulw-research) with no cross-keyword exceptions. Overlapping keywords all fire, and each matched skill gets its own hidden pointer. The ultrawork trigger likewise drops the `(?!-)` guard, so any `ulw` mention arms it.
 
@@ -1661,17 +1587,17 @@ What changes at your keyboard:
 
 Only structural dedup remains: extension-source inputs, raw `/skill:` commands for the same skill, expanded skill blocks, and the `<ultrawork-mode>` tag-pair guard. The e2e was rebuilt as `skill-pointers-e2e.mjs`, proving the overlap case ("mass ulw-loop" carries the directive plus both pointers), the new plan pointer, and that plain "mass ulw" stays loop- and research-free; `mass-ulw-prompts-e2e.mjs` is unchanged and still passes.
 
-## 📐 mass-ULW planning sizes waves by work grain (#7121)
+### 📐 mass-ULW planning sizes waves by work grain (#7121)
 
 **The old "target 5-8 nodes per wave" cap is gone.** Wave sizing is now grain-based: one node per genuinely independent chunk, with coverage-beats-cost scoped to quick map and research waves, and an explicit fan-in contract for waves wider than about 10 nodes, where aggregator and verification nodes read bounded per-node file reports instead of raw output. The capacity numbers are reframed as config defaults (`task.dag.max_nodes_per_run` / `max_runs_per_session`) with queue-time framing rather than "hard caps / slot budget" wording. Mass harvests get a sharding rule of their own: nodes aren't units of work, so `N_nodes = ceil(total_items / items_per_node)`, with roughly 50 to 200 items per quick node bounded by the <=5k-token report contract, and chained runs plus per-run aggregators once one run's cap is exceeded.
 
-## 📚 Docs stamped against dev HEAD
+### 📚 Docs stamped against dev HEAD
 
 A sweep refreshed stale claims across the `AGENTS.md` files: the root stamp moved to 2026-08-22, the tools (15 dirs) and features (25 modules) counts were corrected, the CI Bun pin now reads 1.4.0 with the lagging devcontainer 1.3.12 pin called out, the Windows CI sharding claim matches the workflow table (2 shards), and the omo-senpi component list was corrected from fifteen to the eighteen actually registered (native-badge, onboarding, and init-deep-advisor were missing), with agent-home noted as a non-component resolver.
 
 ---
 
-## ⚙️ Bundled Senpi 2026.8.22 — the engine wave
+### ⚙️ Bundled Senpi 2026.8.22 — the engine wave
 
 The host pin moves to **2026.8.22**. What you feel:
 
@@ -1683,7 +1609,7 @@ Full engine changelog: [senpi v2026.8.22](https://github.com/code-yeongyu/senpi/
 
 ---
 
-## 🧹 Roundup
+### 🧹 Roundup
 
 - **Dependency pins:** the omo package now depends on **senpi 2026.8.22**, and `bun-types` moved **1.3.14 to 1.4.0** in the Codex plugin shared manifest, finishing the Bun 1.4 graduation started in beta.13.
 - **Bundle freshness:** the committed omo-senpi extension bundles were regenerated on Linux after each ULW component change, so the CI freshness gate and your installed extension agree byte-for-byte.
@@ -1723,7 +1649,7 @@ npm i -g omo-ai@beta
 
 ## [5.0.0-beta.18] - 2026-08-24
 
-## OMO 5.0.0-beta.18
+### OMO 5.0.0-beta.18
 
 **Safer worktree cleanup, current Senpi, and sturdier native sessions**
 
@@ -1811,7 +1737,7 @@ native edition.
 - OmO Native: `omo-ai@5.0.0-0.beta.20`
 - Senpi engine: `@code-yeongyu/senpi@2026.8.25`
 
-## Senpi 2026.8.25
+### Senpi 2026.8.25
 
 This release includes the current upstream-integrated Senpi line, including
 the upstream RPC queue-clearing surface from `upstream/main@a79b37334`,
@@ -1847,9 +1773,9 @@ extension factories, nested skill discovery, malformed streamed tool-call
 arguments, corrected `toolcall_start` metadata, branded resume hints, and
 cross-platform shell behavior.
 
-## OmO beta.20
+### OmO beta.20
 
-### Exact native dependency
+#### Exact native dependency
 
 `omo-ai@5.0.0-0.beta.20` depends exactly on:
 
@@ -1860,14 +1786,14 @@ cross-platform shell behavior.
 The native package is published on npm's `beta` channel. `latest` remains the
 intentional placeholder, so install the beta tag or the exact prerelease.
 
-### Configuration and migration
+#### Configuration and migration
 
 The unified `~/.omo/omo.jsonc` surface remains the cross-harness configuration
 contract. Legacy configuration migration is lock- and journal-backed, with
 no-clobber diagnostics, migration markers, resumable backups, and dry-run/JSON
 modes.
 
-### Skill and command migration
+#### Skill and command migration
 
 | Previous name | Beta.20 name | Migration |
 |---|---|---|
@@ -1883,7 +1809,7 @@ The current native inventory includes `mass-ulw`, `ultrawork`, `ulw-plan`,
 `onboarding`, and `give-me-tips`. This inventory is not a claim that every
 listed skill was introduced in beta.20.
 
-### Reliability and orchestration
+#### Reliability and orchestration
 
 The beta.20 OmO line includes dependency-frontier DAG admission, honest paused
 run headers and resume leases, non-blocking reattach paths, reflection run-id
@@ -1891,9 +1817,9 @@ collision protection, Bubblewrap degradation, lock-free journal scans and
 flushes, Atlas cleanup on early exits, surface/install attribution telemetry,
 and compiled native launcher/asset parity.
 
-## Upgrade instructions
+### Upgrade instructions
 
-### Native edition
+#### Native edition
 
 ```bash
 npm install -g omo-ai@beta
@@ -1901,7 +1827,7 @@ npm install -g omo-ai@beta
 npm install -g omo-ai@5.0.0-0.beta.20
 ```
 
-### Multi-harness edition
+#### Multi-harness edition
 
 ```bash
 bun install -g oh-my-openagent@5.0.0-beta.20
@@ -1912,7 +1838,7 @@ npm install -g oh-my-opencode@5.0.0-beta.20
 Replace direct `omo` invocations with `omo-agent-toolkit`. Rename
 `start_work` to `ulw_execute` and use the new continuation-disable flag.
 
-## Verification
+### Verification
 
 The release chain was verified in order:
 
@@ -1924,7 +1850,7 @@ The release chain was verified in order:
 4. Rich release content was applied above the generated GitHub changelog while
    preserving the generated content below it.
 
-## Compatibility and known limitations
+### Compatibility and known limitations
 
 - This remains a beta release; provider availability and quotas are external.
 - `/start-work` has no compatibility alias.
@@ -1934,7 +1860,7 @@ The release chain was verified in order:
   failure does not invalidate the npm package payload when the package gates
   and platform publication checks pass.
 
-## Evidence sources
+### Evidence sources
 
 - Senpi: `v2026.8.24..v2026.8.25`, `af5f53b0d`, `a79b37334`, `99c711255`.
 - OmO: `package.json`, `packages/omo-native/package.json`,
@@ -1948,11 +1874,11 @@ being exposed as a public Desktop download from the OmO beta release.
 
 ## [5.0.0-beta.21] - 2026-08-26
 
-## OmO 5.0.0-beta.21 — hotfix
+### OmO 5.0.0-beta.21 — hotfix
 
 **If beta.20 killed your sessions, this is the release you want.**
 
-### The crash that killed sessions (beta.20) — fixed
+#### The crash that killed sessions (beta.20) — fixed
 `Error: The @earendil-works/pi-tui barrel was accessed before it was loaded` terminating the whole OmO process during mass-ulw / DAG / task work (#7339, #7340, #7351). Root cause: `omo-task.js` ships as an independent bundle with its own private copy of the lazy pi-tui state; the compose-level warm-up only warmed `omo.js`'s copy, the minifier collapsed the cold accessor into an unconditional throw, and the status-widget timer detonated it outside any try/catch.
 
 The fix (#7354) is three layers deep:
@@ -1961,15 +1887,15 @@ The fix (#7354) is three layers deep:
 - **Render-fault containment** — task/DAG status widgets render from bare timers; a faulting frame now logs once and skips instead of killing your session. Ever again.
 - Plus artifact-level regression tests that inspect the *built bundles* so minification can never silently strand a lazy barrel again.
 
-### Compaction reliability (the beta.19 complaints) — Senpi 2026.8.26 (#1124)
+#### Compaction reliability (the beta.19 complaints) — Senpi 2026.8.26 (#1124)
 - Long sessions no longer stop compacting after ten successful compactions (the absolute cap is telemetry-only now; the failure circuit breaker still guards runaways).
 - Todo snapshots no longer recursively retain full history (KB -> MB growth that refilled context right after compaction).
 - A manual `/compact` with nothing to summarize no longer aborts an in-flight continuation.
 
-### Install hygiene (#1125)
+#### Install hygiene (#1125)
 - `bun i -g omo-ai@beta` no longer warns `incorrect peer dependency "@anthropic-ai/sdk@0.91.1"` — the SDK pin now satisfies claude-agent-sdk's `>=0.93.0` peer range (audited symbol-by-symbol, additive-only).
 
-### Credits
+#### Credits
 Community diagnosis nailed this one: @sanguneo (#7350), @NetVar1337 (#7341), @amsminn (#7352) — all three independently identified the bundle-copy split; their approaches are co-authored into the fix commits. Compaction fixes by @haamsuk-collab (#1124).
 
 Install: `npm i -g omo-ai@beta`
@@ -1985,9 +1911,9 @@ Install: `npm i -g omo-ai@beta`
 
 This release rides on Senpi 2026.8.26-2 and focuses on process lifecycle correctness: the launcher no longer orphans engines, `omo doctor` can find and clean up the orphans older versions left behind, broken installs fail fast with a real diagnosis, and DAG runs survive session restarts instead of getting stuck. It also reworks the default model fallback lanes and fixes home-directory config watching.
 
-## Launcher and engine lifecycle (omo-native)
+### Launcher and engine lifecycle (omo-native)
 
-### Signal forwarding: no more orphaned engines
+#### Signal forwarding: no more orphaned engines
 Previously, both launcher layers (`node bin/omo.js` -> engine, plus the bun re-exec in between) blocked in `spawnSync`, where no JavaScript handler can run. A `SIGTERM` killed the launcher on the spot and left the engine reparented to pid 1, still holding your terminal. Those orphans later showed up as stdin `EIO` crashes and engine processes lingering for days.
 
 Both layers now spawn asynchronously and:
@@ -1998,7 +1924,7 @@ Both layers now spawn asynchronously and:
 
 `SIGINT` (Ctrl-C) is deliberately not forwarded, since the terminal already delivers it to the whole foreground process group; the launcher just stops dying underneath the engine. Exit codes and signal-death status pass through unchanged. Windows installs no signal handlers.
 
-### `omo doctor` finds and reaps stale engines
+#### `omo doctor` finds and reaps stale engines
 `omo doctor` now lists interactive engine processes that earlier launcher versions orphaned (reparented to pid 1), with pid, age, and tty. Cleanup is explicit and per-pid:
 
 ```
@@ -2007,23 +1933,23 @@ omo doctor --reap <pid> [pid...]
 
 It re-checks the live process table and refuses any pid that isn't an orphaned interactive engine at that moment (live sessions, rpc/app-server engines, or non-engine processes are never touched). There's no pattern-matching kill.
 
-### Corrupt install diagnosis at launch
+#### Corrupt install diagnosis at launch
 A field report on Windows showed npm dying mid-install with EBUSY (a running engine locks native modules), leaving a tree with senpi's `dist/cli.js` intact but core modules missing. Launch then crashed with a raw `ERR_MODULE_NOT_FOUND` stack. The launcher preflight now verifies the brand contract module next to the CLI and, on a partial tree, fails fast with one actionable line: the missing file, the interrupted-upgrade diagnosis, and the reinstall command. On Windows it additionally explains that running omo/senpi processes cause exactly this partial state.
 
-## Senpi 2026.8.26-2 and the config-watch fix
+### Senpi 2026.8.26-2 and the config-watch fix
 
 The pinned engine moves from 2026.8.26 to 2026.8.26-2 across the root workspace, `omo-ai` launcher, adapter, and task engine, aligned with the config-watch compatibility work (issue #7064, tracked by this worktree).
 
 Senpi's config-reload host rejects watch registrations that cover protected agent-dir paths (`auth.json`, `sessions/`, `logs/`) unless root-anchored filter globs prove each watched path avoids them. OmO previously dropped any target whose path merely contained a protected path, which silently killed home-directory config watching. The filter now inspects the target's globs: targets whose root-anchored globs provably avoid the protected paths are kept, so `~/.omo/omo.jsonc` changes are picked up live again, while unsafe targets are still never emitted. The user-config creation watch also derives its glob set from the actual config directory name instead of a hardcoded `/omo`.
 
-## DAG: detached waits and restart recovery
+### DAG: detached waits and restart recovery
 
 - **Wait detaches by default.** A model-facing `dag` wait used to hold the tool call open until the run settled, freezing the session turn for the whole run (38+ minutes observed in the wild). It now returns immediately with a detached envelope and a live snapshot; node completions and the terminal run wake still reach the session through the idle coordinator. Pass `detach: false` to restore blocking. The eval SDK and dag library keep blocking semantics internally, and an already-terminal run still returns its final result at once.
 - **Orphaned runs get adopted.** A paused run whose parent session id never returns (fork, compaction, restart under a new id) was skipped forever as foreign. Recovery now adopts a run when there's proof of abandonment: the lease holder is this process or a dead pid. Live foreign holders and absent-holder records stay untouched. Adopted runs are fully re-homed (parent and root) and the resume is journaled.
 - **Bridge attaches after recovery.** The RPC bridge used to attach before paused runs resumed, so its first `omo.dag.updated` snapshot showed stale paused state and downstream consumers flipped threads to Ready while children kept working. The first pushed snapshot is now the recovered one.
 - **Status UI** rows and formatting were updated alongside the detach work.
 
-## Model and fallback policy
+### Model and fallback policy
 
 - The `unspecified-high` chain is rebuilt opus-first: `claude-opus-5 xhigh -> glm-5.3 max -> kimi-k3 max` (previously kimi-k3-led). The category default follows the new head on both harnesses.
 - The `vercel` provider leaves every builtin fallback lane; vercel-only registries fall through to the pinned system default, and the vercel-only `minimax-m2.7-highspeed` rung is dropped from explore/librarian.
@@ -2033,25 +1959,25 @@ Senpi's config-reload host rejects watch registrations that cover protected agen
 
 If your setup depended on the vercel or quotio-openai default lanes, configure those providers explicitly.
 
-## Skills and ulw-loop CLI
+### Skills and ulw-loop CLI
 
 - `omo-agent-toolkit ulw-loop help` (and bare `help`/`--help`/no-args) now prints real subcommand help instead of a self-referential pointer or an unknown-component error; each subcommand answers `--help`/`-h`.
 - The ulw-loop skill gets a minimal explicit 5-step run contract, drops a 40-line CLI-resolution bash blob in favor of the resolved CLI path now carried in the skill pointer, and fixes an `update_plan` leak (senpi exposes `todo`).
 - When the ulw-loop pointer accompanies the directive, bootstrap defers to the loop's run contract, ending the dual-bootstrap confusion.
 - mass-ulw, ultrawork, and dag-library skill docs are updated for the detached-wait default.
 
-## Toolchain, CI, and build
+### Toolchain, CI, and build
 
 - **Bun 1.4.0** is now the pinned workspace runtime in both CI and the devcontainer (previously 1.3.12 in the container), with a test guarding against drift.
 - Root-test CI now shards every OS two ways, extending the proven Windows shape: shard 1 covers `packages/omo-opencode` + `packages/memory-core` in one serial process, and shard 2 runs a shared serial quarantine (one source of truth in `script/root-test-serial-quarantine.ts`) before the remainder. Job-level sharding replaced in-job `bun test --parallel` on Linux and macOS, which re-ran the heavy preload per file under `--isolate` and OOM-killed the 7 GB hosted runners; the dead `bunfig.root.parallel.toml` was removed. Two Windows tests that were running twice per shard now run once.
 - Parallel lsp-daemon build artifacts are isolated to avoid dist races.
 - Committed Senpi extension bundles and the generated model-capabilities snapshot are regenerated fresh for this release, so shipped runtime payloads match the source and the 2026.8.26-2 pin.
 
-## Breaking changes
+### Breaking changes
 
 No new breaking changes in beta.22 itself. Note two behavior shifts: the DAG `wait` action detaches by default (pass `detach: false` for the old blocking behavior), and default fallback chains no longer include vercel or quotio-openai lanes.
 
-## Upgrade
+### Upgrade
 
 ```
 npm i -g omo-ai@beta
@@ -2166,24 +2092,24 @@ The beta channel contract is unchanged: every version is a prerelease published 
 
 ## [5.0.0-beta.25] - 2026-08-28
 
-## v5.0.0-beta.25 — stability rollback release
+### v5.0.0-beta.25 — stability rollback release
 
 **This release re-ships the stable v5.0.0-beta.22 codebase as the newest beta.** beta.23/beta.24 introduced multiple regressions (interactive session/TUI defects among them), so beta.25 rolls the beta channel back to the last known-good tree while those changes are reworked on `dev`.
 
-### What's inside
+#### What's inside
 - Product code identical to v5.0.0-beta.22 (senpi engine pin `2026.8.26-2`).
 - One targeted backport: `fix(lsp-daemon): preserve spaced Windows runtime paths` (68211da9d), so Windows platform packages build from source instead of failing in the release pipeline.
 - Release-infrastructure updates only (no runtime impact): current publish workflows adopted on the release lane — npm registry propagation retry, musl smoke `libstdc++`, Windows `USERPROFILE` provisioning.
 
-### Not inside
+#### Not inside
 Post-beta.22 features and fixes that landed on `dev` are intentionally absent. They return in a future beta once the beta.22-parity audit passes.
 
-### Upgrade
+#### Upgrade
 ```
 npm i -g omo-ai@beta   # resolves to 5.0.0-0.beta.25
 ```
 
-### Verification
+#### Verification
 - Full 3-OS CI green on the release SHA `549009348`.
 - 24/24 platform packages live on npm at `5.0.0-beta.25`.
 - Fresh-install smoke: `omo 5.0.0-0.beta.25 (engine: senpi 2026.8.26-2)`.
@@ -2396,7 +2322,7 @@ npm i -g omo-ai@beta   # resolves to 5.0.0-0.beta.25
 
 ## [5.0.0-beta.29] - 2026-08-30
 
-## OMO v5.0.0-beta.29
+### OMO v5.0.0-beta.29
 
 Re-release of the beta.28 line with the engine bumped to **senpi 2026.8.30-2** — the shared-host / connection surfaces are now **disabled by default**.
 
@@ -2422,7 +2348,7 @@ _omo delta: 20 commits since v5.0.0-beta.28 · engine delta: 65 commits (senpi v
 
 ---
 
-### Commits
+#### Commits
 
 - 443103494 Merge pull request #7515 from code-yeongyu/release/v5.0.0-beta.29-source-state
 - 30e4b5fd4 Merge pull request #7511 from code-yeongyu/fix/7412-dag-journal-staleness
@@ -2461,18 +2387,18 @@ _omo delta: 20 commits since v5.0.0-beta.28 · engine delta: 65 commits (senpi v
 
 This is a hotfix release. Steering a message into a running turn while the shared interactive host socket dropped used to lose the message and throw a raw "Error: Client not started". The underlying fix ships in the engine (senpi PR #1220): a typed RpcTransportGoneError, an onDisconnect notification, and reconnect-or-fallback orchestration. The TUI now degrades gracefully when the host connection goes away, and your steering message isn't lost.
 
-## Engine (senpi v2026.8.30-3)
+### Engine (senpi v2026.8.30-3)
 - rpc: session events survive a deferred rebind and are delivered once the client reattaches.
 - pty and terminal: screen writes are serialized with a bounded backlog, queued writes and resizes are absorbed or merged cleanly, and replays no longer split or drop under trim and flush.
 - compaction: a broad correctness pass covering deterministic fail-safe tool admission, preserved structured tool results and lane ownership, retry-safe reminders, and a shared admission cap for multipart results.
 - models: context downswitches are admission-checked against the target usable budget, equal-budget provider switches work, and invalid selections roll back.
 
-## omo-ai changes
+### omo-ai changes
 No omo-side commits land in this release. It picks up the engine hotfix above, so upgrading is still recommended: the "Client not started" crash path affected the omo TUI directly.
 
 ---
 
-### Commits
+#### Commits
 
 - 3abc23c23 Merge pull request #7517 from code-yeongyu/release/v5.0.0-beta.30-source-state
 
@@ -2896,17 +2822,17 @@ No omo-side commits land in this release. It picks up the engine hotfix above, s
 
 This release rolls up everything since **beta.30**. beta.31, beta.32 and beta.33 were published to npm but never announced, and beta.32/33 shipped a broken LazyCodex install (every `lazycodex-ai install` died in `sync:skills` with an ENOENT on the ultrawork prompt). beta.34 is the one to upgrade to. If you're on beta.30, this is a big jump; if you're on 31/32/33, the Codex installer is fixed and the engine moved to senpi 2026.9.2.
 
-### Why the last three betas were silent
+#### Why the last three betas were silent
 
 Each one was killed by a different release-pipeline defect, not by the product. beta.31 shipped with a recall file-mode pin that broke on win32. beta.32 fixed that but the Windows legacy-daemon fixture blew its readiness budget and the omo-native staging build skipped prebuilt inputs under `--ignore-scripts`. beta.33 fixed those but the published tarball was missing the prompts-core Codex prompt. beta.34 fixes the last link: the Codex installer flattens the plugin into `<CODEX_HOME>/plugins/cache/sisyphuslabs/omo/<version>`, and the ultrawork prompt was resolved repo-relative, so it was never there. Every fix landed with a failing-first regression, and the final smoke was replayed against the real published beta.33 tarball (exit 0, ultrawork `SKILL.md` carries the canonical body).
 
-## 🔧 Codex / LazyCodex: the installer works again
+### 🔧 Codex / LazyCodex: the installer works again
 
 - `npx -y lazycodex-ai@5.0.0-beta.34 install` completes. The installer now materializes the prompts-core ultrawork directive inside the cached plugin root, and `sync:skills` resolves it checkout-first, plugin-internal second.
 - The ultrawork directive is single-sourced from prompts-core with a bundled runtime export, so Codex and omo-senpi ship the same text.
 - The unavailable codegraph stub stays alive on the Codex host instead of idling out and dropping the tool.
 
-## 🧠 Memory: the memorian gate and recall
+### 🧠 Memory: the memorian gate and recall
 
 - Recall is now a two-step loop. At settle, omo collects recall candidates from your committed memory and launches a fire-and-forget "memorian" judge child. On your next turn, whatever the judge picked arrives as one hidden recall message with one sourced `<recalled-memory source="[[path]]">` block per nudge, so the agent can open the file for detail. Your current turn pays nothing for it.
 - Nudges are stamped with the compaction epoch. If the transcript gets compacted mid-flight, stale nudges are dropped instead of injected over a transcript that no longer exists.
@@ -2915,7 +2841,7 @@ Each one was killed by a different release-pipeline defect, not by the product. 
 - Dreams reconcile at session start (an overdue identity gets a best-effort dream check), and dream scanning reads each conversation once, gated by journal byte offsets.
 - Default git template files are skipped, and the memory-core fs layer is EINTR-resilient with proper abort-signal handling and Windows-tolerant lock candidates.
 
-## 🔁 ulw-loop: guided gates, bounded reviewers
+### 🔁 ulw-loop: guided gates, bounded reviewers
 
 - `checkpoint --print-template` emits a surface-aware quality-gate skeleton and works without `--goal-id`. Gate validation errors are aggregated into one report, and snapshot, plan, and session-id errors come with guided recovery messages.
 - Repeated review spawns are bounded: each quality-review agent gets three spawns per goal attempt, reset on explicit restart, and only allowed spawns count toward fan-out (fixes #7392). Fan-out eligibility is checked before reviewer quota is charged, and counter writes are atomic.
@@ -2923,20 +2849,20 @@ Each one was killed by a different release-pipeline defect, not by the product. 
 - omo-senpi ships its own ulw reviewer builtin agents, reviewer identities resolve per toolkit surface, article-bearing reviewer roles ("the V2 reviewer") parse, and explicit V2 assignments are honored.
 - The senpi surface gate is gate-review-only with a category chain: `codeReview` is dropped and `manualQa` is pinned to the main session. omo-opencode gets a category-chain fallback verifier for ultrawork verification.
 
-## 🧩 Models, LSP, and MCP
+### 🧩 Models, LSP, and MCP
 
 - Grok: the output reserve is capped when the output limit equals the context window, so requests no longer fail admission (fixes #7541).
 - `terminal_quota_exhausted` is a non-retryable abort instead of a retry loop. `kimi-k3-ultrafast` registers with a 256k default context instead of the base model's 1M. Empty provider model segments are rejected, and the ulw reviewer fallback chains are gone (the fallback table now lists 11 agents).
 - LSP: workspace roots collapse to the git repository root, so a monorepo no longer spawns one language server per package (in-vivo: 4 TLS + 8 tsserver, ~2.4GB, now one). In-flight client stops are tombstoned and dead-client respawns are bounded. Document URIs are normalized at the `openByUri` boundary.
 - MCP: the ast-grep stdio server arms a 10-minute idle timeout (`OMO_AST_GREP_IDLE_TIMEOUT_MS` to override) and idle servers get stdin destroyed so abandoned children exit. Under a bun-compiled omo host, the ast-grep child runs as plain bun instead of re-executing the omo binary (which used to boot a ghost agent session per connection attempt). Slack MCP tokens are redacted in logs.
 
-## 🪟 Windows and path hygiene
+### 🪟 Windows and path hygiene
 
 - Session manager preserves platform path roots, keeps POSIX separators in directory normalization, and normalizes the directory before `session_list` filtering.
 - Frontmatter parses after a UTF-8 BOM, OneDrive path segments match, whitespace-delimited tool names normalize, tar-listed filename whitespace is preserved, and `contains path` falls back when realpath fails.
 - Skills loader normalizes allowed tools from both config and merged sources, and the security-research skill reads the `omo.jsonc` config path.
 
-## 🧹 Lifecycle and leak fixes
+### 🧹 Lifecycle and leak fixes
 
 - Delegated subagent lifecycle resources are released, the TUI mirror is wired into plugin disposal with its heartbeat unref'd and stopped, and continuation cleanup runs on every exit (anchors and revival cleanup preserved).
 - Hooks: idle transcript cache snapshots are pruned on a TTL sweep, unmatched fsync-skip start times are dropped, hashline pending captures are swept, unbounded session-id hook sets drain, and Anthropic recovery maps clear on dispose. A legacy snapshot race is closed.
@@ -2944,7 +2870,7 @@ Each one was killed by a different release-pipeline defect, not by the product. 
 - `omo run` ignores idle boulder state when there's no active plan. omo-ai ships and hardens the Senpi runtime patch, including hoisted installs, and bundles OAuth with hardened hook state.
 - Reliability: a large sweep made the test suite deterministic on Windows and slow runners (event-driven waits, controlled clocks, isolated fixture roots, no subprocess-shaped wrappers).
 
-## ⚙️ Engine: senpi 2026.9.2 (and 2026.8.31)
+### ⚙️ Engine: senpi 2026.9.2 (and 2026.8.31)
 
 - **Claude Fable 5.1 preset.** `claude-fable-5-1` is the dieted Fable 5 core plus the 5.1 prompting-guide deltas: scope-is-the-deliverable, per-response tool-call batching, surgical-edit preference, test-scope discipline, formatting and narration recalibration. The dotted release resolves before the generic `fable-5` matcher, `promptPreset: "claude-fable-5-1"` forces it, and the default lanes (recommended model, fallback chain, startup tip) now point at 5.1. Sessions on the `claude-fable-5` chain keep it.
 - **Shared RPC host on Windows.** Socket endpoints resolve to `\\.\pipe\` named pipes derived from a per-endpoint secret with a constant-time authenticated handshake, pidfile ownership no longer depends on MSYS `ps`, and detached supervisor startup failures don't leak children. POSIX keeps unix sockets + `0600`.
@@ -2957,7 +2883,7 @@ Each one was killed by a different release-pipeline defect, not by the product. 
 - Windows session resume no longer aborts on non-canonical `fs.watch()` paths. TTSR stream buffers keep only a tail window, and the in-memory session mirror is bounded at 64 MiB.
 - Refusal-caused model fallbacks release their pin after a successful senpi-owned compaction and re-attempt the original model once; billing-caused pins never release.
 
-## Install
+### Install
 
 ```
 npm i -g omo-ai@beta          # omo native CLI (5.0.0-0.beta.34, engine senpi 2026.9.2)
@@ -3019,7 +2945,7 @@ npx -y lazycodex-ai@5.0.0-beta.34 install   # Codex plugin (fixed installer)
 
 This is the first omo release that carries senpi's fix for the Windows shared RPC host dying about a minute after every start (code-yeongyu/senpi#1307, fixed in senpi 2026.9.3 and shipped in omo for the first time here). It also carries the RPC interactive-login fix (code-yeongyu/senpi#1316), so Anthropic Claude Pro/Max logins through the desktop app finish instead of landing on a dead callback port. The engine moves to senpi 2026.9.3-2, which makes eval-only tool routing the default and fixes several Claude SDK OAuth failure loops. If you use OmO desktop or omo on Windows, upgrade now. Everyone else gets the engine changes and a set of ultrawork doctrine updates.
 
-## 🪟 Windows: the shared RPC host stays alive
+### 🪟 Windows: the shared RPC host stays alive
 
 **The host no longer dies on its own liveness probe.** The shared RPC supervisor identifies the host process it is watching by reading a process baseline through PowerShell (`Get-CimInstance Win32_Process`). On Windows that read can take more than a second, and the supervisor's 1 s probe treated the overrun as fatal, so the host crashed within about a minute of every start. The OmO desktop app kept reconnecting to a host that had just killed itself.
 
@@ -3027,7 +2953,7 @@ This is the first omo release that carries senpi's fix for the Windows shared RP
 - The watchdog starts without a baseline and keeps running. A slow `Get-CimInstance` no longer decides whether the host lives.
 - The fix landed in senpi 2026.9.3 (code-yeongyu/senpi#1307). beta.36 is the first omo build that pins a senpi with it, along with the rest of the 2026.9.3 shared RPC supervisor lifecycle fixes.
 
-## 🔐 OAuth logins that need a pasted code now work over RPC
+### 🔐 OAuth logins that need a pasted code now work over RPC
 
 **Anthropic Claude Pro/Max login through the desktop app completes.** Over RPC, `startLogin` wired the provider's `onPrompt`/`onSelect` callbacks to a function that threw `Interactive login input is not supported over RPC`. For Anthropic that failure was misleading: `loginAnthropic` races a local browser-callback listener against a `manual_code` prompt right after it emits `auth_login_url`, so the instant rejection set `manualError`, cancelled the wait, and closed the listener about 150 ms after the URL went out. Your browser opened, you approved the login, and the redirect landed on `connection refused`.
 
@@ -3036,7 +2962,7 @@ This is the first omo release that carries senpi's fix for the Windows shared RP
 - Cancelling the dialog maps to `Login cancelled`, the same result a terminal user gets from Escape.
 - Fixes code-yeongyu/senpi#1316 via PR code-yeongyu/senpi#1319. Other prompt-driven OAuth providers get the same path.
 
-## ⚙️ Engine: senpi 2026.9.3-2
+### ⚙️ Engine: senpi 2026.9.3-2
 
 **Eval-only tool routing is the default** (code-yeongyu/senpi#1314).
 
@@ -3073,7 +2999,7 @@ This is the first omo release that carries senpi's fix for the Windows shared RP
 
 **Also from the 2026.9.3 line, first pinned by omo in this beta:** the universal fallback system prompt rewrite, muted-monitor footer labels, bounded multi-session `close_session` teardown (`SENPI_RPC_CLOSE_GRACE_MS`), and the `/reload` `fs.watch` stall fix.
 
-## 🧩 omo
+### 🧩 omo
 
 **omo-native runs on bun wherever a bun >= 1.4 exists** (#7680).
 
@@ -3101,7 +3027,7 @@ This is the first omo release that carries senpi's fix for the Windows shared RP
 - All four Windows Bun invocations, including the previously uncovered `senpi-compatibility` job, now run through `.github/scripts/windows-ci-telemetry.ps1`, which captures process, timing, filesystem, and exit data. Artifacts upload with `continue-on-error`, and the Bun exit code stays authoritative.
 - The heaviest worktree-sweep test (seven worktrees) was the only one left on Bun's 5000 ms default and timed out mid `git worktree add` on the slower Windows runner. It now runs under the same 30 s budget as its siblings, and git setup failures name the stalled phase and elapsed time, e.g. `creating external worktree failed after 37ms`.
 
-## Install
+### Install
 
 ```
 npm i -g omo-ai@beta          # omo native CLI (5.0.0-0.beta.36, engine senpi 2026.9.3-2)
@@ -3111,7 +3037,7 @@ npx -y lazycodex-ai@5.0.0-beta.36 install   # Codex plugin
 
 ---
 
-## Commits
+### Commits
 
 - 776405ec0 Merge pull request #7684 from code-yeongyu/release/v5.0.0-beta.36-source-state
 - 12637f1b3 Merge pull request #7682 from code-yeongyu/fix/hooks-state-writer-cleanup
@@ -3222,19 +3148,19 @@ npx -y lazycodex-ai@5.0.0-beta.36 install   # Codex plugin
 
 Engine: **@code-yeongyu/senpi 2026.9.4-3** (beta.40 shipped 2026.9.3-2 — this beta moves the engine across 2026.9.4, 2026.9.4-2 and 2026.9.4-3).
 
-## Highlights
+### Highlights
 
-### Anthropic native tool search no longer 400s
+#### Anthropic native tool search no longer 400s
 The headline engine fix. Native tool search sent `tool_reference` blocks under a `name` field instead of the API's `tool_name`, and the BM25 server tool was injected on **every** `anthropic-messages` endpoint — including gateways, proxies and Kimi-coding hosts that reject it. Either one returned
 `400 tools.N.tool_search_tool_bm25_20251119.name: Input should be 'tool_search_tool_bm25'` (or an opaque invalid-request error), after which the adapter disabled native search for the rest of the session. Injection is now gated to models that actually support tool search (Opus/Sonnet 4.5+ and the Fable line), and the reference field matches the wire contract. (senpi #1354)
 
-### Korean and non-ASCII memory finally round-trips
+#### Korean and non-ASCII memory finally round-trips
 Memory slugs, git paths and recall query planning keep Korean/non-Latin letters instead of mangling them, with compatibility for directories written by older builds. (#7739, #7741)
 
-### Release plumbing corrected
+#### Release plumbing corrected
 Every GitHub release is created as a full release, and the Latest badge is decided from the highest **published** semver rather than tag order. (#7743, #7761)
 
-### Windows: a leaked SQLite handle no longer stalls the harness
+#### Windows: a leaked SQLite handle no longer stalls the harness
 `node:sqlite`'s `DatabaseSync.close()` does not finalize outstanding statements on Bun 1.4, so one
 `prepare()` left the store's file handle open until GC. POSIX hides this (unlink ignores open handles) but
 Windows keeps the file locked, and the next open of the same store blocks — sibling-harness detection could
@@ -3242,7 +3168,7 @@ stall for tens of seconds. Every `prepare()` in the credential readers and their
 `exec()` with a row-sink function, and a contract test now asserts that no file handle survives `close()`.
 (#7775)
 
-## Fixed
+### Fixed
 
 - `omo-senpi`: the conditional x-search skill ships and no longer logs at startup (#7745); Bun skill guidance in the ultrawork directive is gated instead of unconditional (#7754); the senpi hooks-state lock is granted to every memory sandbox (#7756); unsupported isolation traversal fails closed instead of looking complete (#7769)
 - `lsp-core`: a diagnostic pull that times out now awaits its cancellation write, so `$/cancelRequest` is not lost on Windows (#7773)
@@ -3252,7 +3178,7 @@ stall for tens of seconds. Every `prepare()` in the credential readers and their
 - Dependencies: `@code-yeongyu/senpi` pin moved to 2026.9.4-2 then 2026.9.4-3 (#7749, #7772)
 - Isolation QA snapshots assert the real per-platform contract instead of POSIX-only outcomes, so Windows reports capability failures explicitly (#7770, #7775)
 
-## Engine changes (senpi 2026.9.4 → 2026.9.4-3)
+### Engine changes (senpi 2026.9.4 → 2026.9.4-3)
 
 - Terminal monitors and background Bash sessions are recorded per session, with a single startup notification for carried-over/lost/expired state, and monitors expose a stable `mon_` id while `bash_output`/`bash_input`/`bash_resize`/`kill_bash` accept either id
 - A spawned RPC host that never answers `get_protocol_info` reports why instead of surfacing a raw `powershell.exe` failure, and no longer leaks its pidfile and socket
@@ -3261,7 +3187,7 @@ stall for tens of seconds. Every `prepare()` in the credential readers and their
 - Hook trust-state reads fail open when the lock directory cannot be created (sandboxed/read-only children); writers still fail closed
 - `bun install --frozen-lockfile` works on a clean checkout again
 
-## Internal / tests
+### Internal / tests
 
 - Windows `memory-core` unmerged-entry timing (#7767), omob default dirs asserted with the host path separator (#7759), isolation state-race suite determinism (#7770)
 - Task and memory tool descriptions dieted (-369 tokens) (#7738), shipped skill descriptions rewritten as routing text (#7744), review-work replaced with orchestrator QA plus one gate reviewer (#7742), ulw-research browsing worker made binding and render-first (#7760)
@@ -3360,22 +3286,22 @@ stall for tens of seconds. Every `prepare()` in the credential readers and their
 
 ## [5.0.0-beta.44] - 2026-09-06
 
-## OMO 5.0.0-beta.44 — hotfix: Codex install works again
+### OMO 5.0.0-beta.44 — hotfix: Codex install works again
 
 beta.43 could not install its Codex plugin from npm. This release fixes both published packages and adds the guards that would have caught it before publish. Engine: senpi **2026.9.5-3** (beta.43 shipped 2026.9.5; #7819).
 
-### The install failure, fixed
+#### The install failure, fixed
 - **`oh-my-openagent@5.0.0-beta.43` died at `npm run sync:skills`** because the published tarball did not carry `packages/prompts-core/prompts/ultrawork/codex.md`, the canonical ultrawork directive the Codex cache install reads. The root `files` allowlist now ships it (#7835, thanks @LilMGenius) and the pre-publish payload verifier refuses a payload without it (#7836).
 - **`lazycodex-ai@5.0.0-beta.43` died at the same step** because the curated lazycodex `files` list lacked `packages/shared-skills/skill-source-filter.mjs`. The list is fixed and the verifier now requires every shared-skills runtime export target (#7813).
 - **Both packages would have failed again on dev** — the shared-skills imports in `sync-skills.mjs` had been changed (#7814) to checkout-relative paths that do not exist once the installer flattens `plugin/` into `<CODEX_HOME>/plugins/cache/<marketplace>/omo/<version>`. Restored to the package specifier the installer's `file:` link resolves, with a regression test that runs sync-skills inside a reproduction of that cache layout (#7848).
 - **The `skipped OMO SOT seed/migration` warning is gone**: the installer no longer spawns a migration script that was removed from the payload (#7837).
 - **A failed Codex half now tells you how to retry it** (`bunx oh-my-openagent install --platform=codex`) instead of ending on a success banner (#7845).
 
-### Release-pipeline hardening
+#### Release-pipeline hardening
 - The published-package smoke job actually installs both payloads through `installMarketplaceLocally` instead of dry-running (#7839).
 - The payload verifier reads both npm 11 and npm 12 `npm pack --json` shapes (#7840) and spawns npm through a shell on Windows so the gate can run locally there (#7844).
 
-### Also since beta.43
+#### Also since beta.43
 - Memory: the reflection payload is bounded and routed around context-window overflow (#7842); memorian nudges are triggered and delivered at tool-call boundaries (#7843, #7846).
 - ulw-loop footer refresh, x-search abort, and batch progress state (#7822); Luna / Luna Fast aligned with their 1M context (#7826); compaction-timeout admission overlap prevented in omo-opencode (#7824); repeated senpi runtime access errors suppressed (#7834); LSP push-diagnostics fallback tests synchronized (#7812); category docs aligned with the shipped chains (#7821).
 
@@ -3389,11 +3315,11 @@ Both published packages were installed into a fresh `CODEX_HOME` on a clean Linu
 
 ## [5.0.0-beta.45] - 2026-09-06
 
-## OMO 5.0.0-beta.45 — engine update: senpi 2026.9.6
+### OMO 5.0.0-beta.45 — engine update: senpi 2026.9.6
 
 A small follow-up to the beta.44 install hotfix: the engine moves from senpi 2026.9.5-3 to **2026.9.6**, which carries the compaction and fallback fixes below. No omo-side code changes besides the pin (#7852).
 
-### Fixed (via senpi 2026.9.6)
+#### Fixed (via senpi 2026.9.6)
 - **Long sessions no longer get stuck above the compaction threshold when a retained tool result holds an image.** The deterministic compaction fallback rejected any prepared suffix whose tool results carried an image block (`unsafe-retained-content`), so after a summarization timeout the session could not compact at all — the "deterministic compaction fallback cannot retain the prepared suffix" loop reported in #6871. Well-formed image blocks are now retained; malformed blocks stay rejected; each candidate's rejection reason is recorded in the diagnostics (code-yeongyu/senpi#1412, reported and reproduced by @ayden94).
 - **Fallback decision logs are back.** After the atomic fallback-admission change, `no_chain` / `candidates_exhausted` stopped being written to `fallback.log`; they are logged again (code-yeongyu/senpi#1415).
 - **Fallback activation is atomic and fails closed**: model-select hooks and context admission complete before anything is persisted or announced, and a fallback model that cannot admit the live context no longer hops through unrelated providers (code-yeongyu/senpi#1413, #1411).
@@ -3402,7 +3328,7 @@ A small follow-up to the beta.44 install hotfix: the engine moves from senpi 202
 
 A small follow-up to the beta.44 install hotfix: the engine moves from senpi 2026.9.5-3 to **2026.9.6**, which carries the compaction and fallback fixes below. No omo-side code changes besides the pin (#7852).
 
-### Fixed (via senpi 2026.9.6)
+#### Fixed (via senpi 2026.9.6)
 - **Long sessions no longer get stuck above the compaction threshold when a retained tool result holds an image.** The deterministic compaction fallback rejected any prepared suffix whose tool results carried an image block (`unsafe-retained-content`), so after a summarization timeout the session could not compact at all — the "deterministic compaction fallback cannot retain the prepared suffix" loop reported in #6871. Well-formed image blocks are now retained; malformed blocks stay rejected; each candidate's rejection reason is recorded in the diagnostics (code-yeongyu/senpi#1412, reported and reproduced by @ayden94).
 - **Fallback decision logs are back.** After the atomic fallback-admission change, `no_chain` / `candidates_exhausted` stopped being written to `fallback.log`; they are logged again (code-yeongyu/senpi#1415).
 - **Fallback activation is atomic and fails closed**: model-select hooks and context admission complete before anything is persisted or announced, and a fallback model that cannot admit the live context no longer hops through unrelated providers (code-yeongyu/senpi#1413, #1411).
@@ -3419,18 +3345,18 @@ Both published packages were installed into a fresh `CODEX_HOME` on a clean Linu
 
 ## [5.0.0-beta.46] - 2026-09-07
 
-## OMO 5.0.0-beta.46 — engine update: senpi 2026.9.7
+### OMO 5.0.0-beta.46 — engine update: senpi 2026.9.7
 
 The engine moves from senpi 2026.9.6 to **2026.9.7** (#7886). This one carries the three fixes for the defects that were silently killing long sessions.
 
-### Fixed (via senpi 2026.9.7)
+#### Fixed (via senpi 2026.9.7)
 - **Context overflow is recoverable again, even with auto-compaction off.** `compaction.enabled=false` now switches off only proactive threshold compaction; a turn the provider rejects as a context overflow still gets its one-shot compact-and-retry recovery instead of leaving the session with no way forward. A goal no longer re-prompts a context the provider just rejected; the next user message resumes it (code-yeongyu/senpi#1425, #1422).
 - **The RPC `set_auto_compaction` is session-scoped**: it no longer rewrites the persisted global `compaction.enabled`, so one OmO Desktop thread toggling auto-compaction cannot disable it for every other session on the machine. The desktop toggle keeps working (it reads the following `get_state`); the interactive `/settings` toggle still persists (#1425).
 - **Context windows in the catalog now show the real prompt budget.** OpenAI rejects a request with `context_too_large` once the prompt alone exceeds window minus max output, so the old 1,050,000 / 400,000 totals let sessions run past the point where compaction could still help — that is why sessions were dying around 916k. 128 catalog rows across OpenAI, OpenAI Codex, Azure, Bedrock, Copilot, OpenRouter, Vercel, OpenGateway, Cloudflare and OpenCode now carry the provider input caps (922,000 / 272,000); your UI footer shows a smaller denominator by design, and user `modelOverrides` still win (#1427, #1422).
 - **No more whole-session freeze on a path token.** The permission system's external-directory check resolved paths with `realpathSync`, which under Bun opens every directory it walks and blocks forever on an autofs trigger such as macOS `/home`; it now resolves per component with `lstat`/`readlink` (#1419).
 - Codemode: a missing sidecar now surfaces a clear error instead of a hang (#1426); skill packages are de-duplicated (#1424); fallback decision logs and the teardown test harness were hardened (#1416, #1417).
 
-### Also since beta.45 (omo)
+#### Also since beta.45 (omo)
 - test(background-agent): stop the unreachable-server stale sweep from expiring on the wall clock (#7891, @LilMGenius)
 - fix(omo-senpi): make DAG owner-scope snapshot keys posix on Windows (#7893)
 - #7869 fix(senpi-task): scope DAG recovery to the session and immediate fork source
@@ -3452,13 +3378,13 @@ Verified on a clean Linux box right after publish: both Codex install paths exit
 
 ## [5.0.0-beta.47] - 2026-09-07
 
-## OMO 5.0.0-beta.47
+### OMO 5.0.0-beta.47
 
 **✦ Aha moment! this is the memory release. nothing your agent learned gets dropped on shutdown anymore, Memorian keeps recalling straight through a 503, and every recollection now lands on screen as an aha moment. enjoy them.**
 
 engine unchanged: senpi **2026.9.7**, same as beta.46. this one is all omo side, and most of it is the memory subsystem. i went looking for why memory felt thinner than the number of sessions said it should, and found it.
 
-### 🧠 memory
+#### 🧠 memory
 
 **the journal you wrote this session actually gets flushed now.** (#7899, closes #7889)
 the shutdown drain has a fixed 1.5 s budget, and the only durable step in it, `journal-flush`, ran *last*. before it, the drain awaited the Memorian judge, the gate and the facts children, and whenever one of those was sitting inside a provider retry chain the budget was gone before the flush was even attempted. i measured it on one host: **199 starvation events across 78 sessions, journal-flush skipped in 191 of them**, and 183 came from ordinary `omo.jsonc` hot-reloads. one shared-config edit was silently dropping the journal of every open session at once. that is not a shutdown edge case, that is memory loss during normal use. the flush now runs **first**, before any pre-drain await, same deadline, no budget increase. and if it still gets skipped or aborted, you get `memory shutdown drain skipped the journal flush` at **error** level instead of a warning that nobody greps for.
@@ -3481,25 +3407,25 @@ a Memorian nudge used to read like third-party bookkeeping: `Memorian nudged · 
 
 **known memory issue, not fixed in this release:** #7912. the reflection scheduler never reclaims an `active.lock` whose launcher is dead when a retired run dir with the same id shadows it, so `pending.json` grows without bound and reflection/dream runs stop launching. if your `runtime/reflection/active.lock` names a dead pid, delete it once. the proper fix is tracked there.
 
-### 🔁 DAG runs survive a desktop host restart (#7905)
+#### 🔁 DAG runs survive a desktop host restart (#7905)
 
 a DAG run paused for its host's shutdown stayed `paused` forever if the successor host resumed the session while the predecessor was still exiting. that is the normal shape of an OmO Desktop RPC restart, so every desktop-hosted run that lived through a restart was stuck, and the desktop's "will be claimed and resumed automatically" prompt was lying. `attach` now arms a lease watch on the previous holder pid and re-runs recovery (claim, reconcile, reschedule) the moment it exits, in the same session, no second `session_start`. `detach`, `pauseForShutdown` and `dispose` cancel the watches.
 
-### 🔒 `ulw-loop` toolkit: no lost updates, no silent shared scope (#7908, #7913)
+#### 🔒 `ulw-loop` toolkit: no lost updates, no silent shared scope (#7908, #7913)
 
 - **cross-process state lock.** every mutating CLI command (`create-goals`, `record-evidence`, `checkpoint`, ...) takes an `O_EXCL` lock file carrying pid + a per-acquisition token. stale locks are reclaimed only when the owner pid is dead, `release` unlinks only its own token, and a waiter that cannot acquire fails closed with `ULW_LOOP_LOCK_TIMEOUT` instead of proceeding unlocked. before this, three parallel `record-evidence` calls landed 1 of 3 criteria in 4 of 4 rounds while every process exited 0 with `ok: true`.
 - **fail-closed session scope.** without `--session-id` and without a session env key the CLI fell back to the cwd-global `.omo/ulw-loop/` root. from an eval kernel, which does not carry `PI_SESSION_ID`, the same session could read a stranger's plan. it refuses now, and the `ulw-loop` pointer omo-senpi injects carries `--session-id` so eval calls land in the right scope.
 - **locked legacy-plan migration.** the aggregate-objective migration no longer runs from inside a read. an unlocked read of a legacy plan fails with `ULW_LOOP_MIGRATION_REQUIRED` and names the recovery (run any mutating command once).
 
-### 🎯 workflow pointers stop putting words in your mouth (#7910, for #7890)
+#### 🎯 workflow pointers stop putting words in your mouth (#7910, for #7890)
 
 `skill-pointers` matched workflow names anywhere in any input and injected *"The user asked for <skill>..."*. in a multi-session setup, a relayed status line or a quoted advisory that named a workflow re-armed the pointer in the recipient, and the `ultrawork` trigger had no word boundary. inline and fenced code plus already-injected pointer blocks are masked before the keyword test, the pointer text is conditional ("if the user of this session is asking to run X ... otherwise ignore"), and `ultrawork` / `ulw` match on word boundaries only. `ulw-loop` still arms, `ulwfoo` does not.
 
-### 🪟 windows
+#### 🪟 windows
 
 - OpenClaw's reply-listener daemon is identified through `Win32_Process` (PowerShell addressed via `SystemRoot`, not PATH), so it can be detected and stopped instead of being orphaned on the first status check. (#7885, thank you @LilMGenius)
 
-### known issues
+#### known issues
 
 - **#7914**: `lsp-daemon`'s `spawnDaemonProcess` launches the daemon through the compiled `omo` binary without `BUN_BE_BUN=1`, so an `ensureDaemonRunning` retry can boot a **phantom agent session** instead of a daemon. present on `dev` and in this release, fix in progress. if you see short sessions you did not start, `omo doctor` lists orphaned engines.
 - **#7912**: reflection reservation not reclaimed after a dead launcher (see memory above).
@@ -3568,19 +3494,19 @@ try it and tell me what breaks. i will be here.
 
 ## [5.0.0-beta.49] - 2026-09-08
 
-## Highlights
+### Highlights
 
 **Engine: senpi 2026.9.8** - fixes the Anthropic OAuth login loop reported on Discord: `/login anthropic` and `/claude-account add` no longer dead-end on a browser page reading "Authentication failed - State mismatch." when another OmO/senpi process on the same machine still holds the OAuth callback port 53692. The login now binds an ephemeral loopback port in that case and carries it through the auth URL and the token exchange, a callback that belongs to another session explains itself and tells you how to continue, and an abandoned login times out after 10 minutes and releases its port ([senpi#1502](https://github.com/code-yeongyu/senpi/pull/1502), [senpi#1503](https://github.com/code-yeongyu/senpi/issues/1503)). Pin bump: #7984. Full senpi notes: [v2026.9.8](https://github.com/code-yeongyu/senpi/releases/tag/v2026.9.8).
 
 **Memorian nudges got sharper.** Recollections now fire on the live prompt and steer an accepted nudge mid-run (#7945), each notice opens with a per-record recollection opener under a single "Aha!" title (#7943, #7959), memories already visible in the transcript are excluded from recall (#7948), factual-negation and decision-commentary hints are rejected before they reach you (#7953, #7949), and accepted nudges are capped per session (#7950). The filler-hint gate was reverted in favour of guidance in the nudge tool description (#7956, #7957, #7960).
 
-## Fixed
+### Fixed
 
 - **Tasks / DAG**: spawned task records persist `child_session_id` (#7978); never-started DAG nodes are re-admitted as a new attempt on reconcile (#7939); a vanished DAG state directory no longer exits the session (#7962); RPC process trees are awaited on termination (#7965); `omo.task.updated` snapshot pushes are coalesced so RPC queues stop overflowing in bursts (#7941); delegated children inherit the parent's fast mode through the `-fast` catalog sibling (#7938).
 - **Memory**: a bind superseded by session replacement is treated as a skip instead of an error (#7955); reflection completion swallows a stale extension ctx (#7951); the dream idle tick retires on a stale extension ctx (#7942, thanks @stevenahhh); ghost active memory reservations self-heal on reconcile (#7947); dead-launcher reflection reservations shadowed by retired runs are reclaimed (#7944).
 - **Packaging**: the bundled agent toolkit runs under Bun mode from the packaged binary (#7936); the tracked generated extension bundles are un-ignored (#7964).
 
-## Changed
+### Changed
 
 - **Ultrawork**: eval work is routed by dependency and every cell is compared with the state it was meant to produce (#7981, senpi#1500).
 - **Teams**: task records expose team membership (#7969); the thread tool family is registered (#7456).
@@ -3588,11 +3514,11 @@ try it and tell me what breaks. i will be here.
 - **Website**: the landing hero carries the desktop workflow graph (#7966), the DAG stylesheet ships and the desktop workflow view is legible (#7968), agents are described by role (#7970), and the social image is dynamic with live stars and larger typography (#7954, #7967).
 - **CI**: Windows test timeouts raised for git/fs-heavy tests (#7937); the thread live-surface test builds its path expectations with `node:path`, so the Windows senpi-compatibility leg is green again (#7982).
 
-## Pull requests
+### Pull requests
 
 #7981 #7978 #7976 #7969 #7970 #7968 #7967 #7942 #7966 #7965 #7951 #7955 #7964 #7937 #7962 #7960 #7959 #7957 #7956 #7947 #7954 #7939 #7944 #7950 #7953 #7948 #7949 #7945 #7943 #7941 #7938 #7456 #7936 #7982 #7984
 
-## Commits
+### Commits
 
 - 4b84102c3 Merge pull request #7985 from code-yeongyu/release/v5.0.0-beta.49-source-state
 - 73248ccb0 Merge pull request #7982 from code-yeongyu/fix/live-surface-test-windows-paths
@@ -3878,11 +3804,11 @@ try it and tell me what breaks. i will be here.
 
 ## [5.0.0-beta.51] - 2026-09-09
 
-## OMO 5.0.0-beta.51
+### OMO 5.0.0-beta.51
 
 Recall stops dying after an upgrade, thread tools stop appearing on hosts that cannot run them, and the engine gains GPT Image 2.5 with reference-image editing.
 
-### Memory
+#### Memory
 
 **Recall survives an upgrade that lands under a running session.** The recall gate read its judge persona from beside the plugin bundle on every single fire, so the file had to still exist, under its current name, in an install tree that changes while sessions run. After the Kibitzer rename shipped in beta.50, every session whose process had loaded the previous bundle kept opening the retired filename and each recall gate died with `session_create_failed`; one machine logged 155 of them. Persona filenames now have a single definition, each asset is read at most once per process, and all four personas are primed when the memory component registers — so a process keeps serving the payload it started from and a later upgrade, prune, or rename cannot turn its next judge launch into a missing-file error. A persona that genuinely cannot be read is reported once, by name, with its cause, and is never silently substituted (#8016).
 
@@ -3890,17 +3816,17 @@ Recall stops dying after an upgrade, thread tools stop appearing on hosts that c
 
 **`omo doctor` names sessions that are running a retired payload.** An in-place upgrade cannot rewrite a process that is already running; doctor compares each engine against the payload on its own `--extension` path and tells you exactly which sessions to restart. It never signals those processes, and they stay outside `--reap` (#8016).
 
-### Sessions and tasks
+#### Sessions and tasks
 
 **Thread tools only appear where they can actually work.** They now follow the engine's shared-host capability, read from the host instead of guessed from ambient environment variables: off means no thread tools, on means all six, still search-only (#8010, #8011).
 
-### Platform
+#### Platform
 
 **Windows DAG runs no longer trip over lock cleanup.** A concurrent start could leave the losing worker unable to remove its own quarantined lock while another process still held a handle, which Windows reports as a sharing violation rather than the POSIX unlink semantics the code assumed. Cleanup retries briefly on Windows, and worker failures report message, syscall, and path (#8005).
 
 **LazyCodex installs agree with the migration guard.** The installer treated only the model heuristic as MultiAgent V2 while the guard also honored an explicit `[features.multi_agent_v2] enabled = true`; both follow the same rule now, and spawn-guard storage errors surface on stderr instead of being swallowed (#8008).
 
-### Engine: senpi 2026.9.9-2
+#### Engine: senpi 2026.9.9-2
 
 **GPT Image 2.5 with reference-image editing.** `generate_image` gains model selection (`gpt-image-2.5-sunburst` by default, plus `gpt-image-2.5-flare` and `gpt-image-2`), `xhigh` and `max` quality, free-form validated sizes, and `reference_image_paths` — up to five local PNG/JPEG/WEBP files that are edited or referenced through the images edit endpoint instead of being rejected.
 
@@ -3922,11 +3848,11 @@ After updating, restart your sessions: a running process cannot adopt a new payl
 
 ## [5.0.0-beta.52] - 2026-09-10
 
-## OMO 5.0.0-beta.52
+### OMO 5.0.0-beta.52
 
 This is the beta that makes assistant-response editing a real OmO capability, keeps child sessions from inheriting interactive question tools, and closes several compiled-runtime, memory, task, and doctor rough edges. The engine underneath is **senpi 2026.9.10**.
 
-### Native and shared sessions
+#### Native and shared sessions
 
 **Edit assistant responses instead of restarting the conversation.** senpi now exposes `edit_assistant_message` over RPC and `ctx.editAssistantMessage()` through the extension API. The operation accepts an entry id, replacement text, optional `expectedLeafId`, summarization, and custom instructions. The leaf token is checked before mutation and before the unchanged fast path, so a stale client cannot rewrite a conversation that another client has already advanced. Results distinguish edited, unchanged, and cancelled outcomes, while failures carry typed codes for streaming, missing entries, wrong entry kind, empty text, and stale leaves. `/tree` editing branches at the selected assistant entry, preserves the original session file, and continues from the corrected response. Shared-host `/tree` edits now route to the host rather than a local shadow session.
 
@@ -3934,7 +3860,7 @@ This is the beta that makes assistant-response editing a real OmO capability, ke
 
 **Child sessions stay headless.** OmO hides both question tools from in-process children, passes `--no-ask-user` to RPC children, and cancels question UI requests in headless auto-answer mode instead of allowing a detached child to hang.
 
-### Memory and task reliability
+#### Memory and task reliability
 
 **Memory failures explain the cause, not a code frame.** Reflection child stderr is distilled to a bounded cause line before it reaches health notices, fingerprints, completion payoffs, summaries, or `/facts`; the full diagnostic remains in the durable child log and completion record. This keeps repeated failures grouped by their actual cause without exposing source excerpts in every notice.
 
@@ -3942,7 +3868,7 @@ This is the beta that makes assistant-response editing a real OmO capability, ke
 
 **Task and team errors render as errors.** Lead team tools now use typed tool errors, preserve structured details, and render compact team rows with member status and bounded failure reasons. Windows task-record writes retry sharing violations and terminal persistence failures settle waiters with an explicit error record, releasing residency so dependent DAG nodes do not hang forever.
 
-### Runtime and diagnostics
+#### Runtime and diagnostics
 
 **Compiled children use the compiled engine itself.** A single-file omo binary no longer scans PATH and accidentally launches a different senpi installation for memory or RPC children. `--no-extensions` is honored by the compiled launcher, so bare reflection children stay bare and RPC children do not load the plugin twice.
 
@@ -3950,7 +3876,7 @@ This is the beta that makes assistant-response editing a real OmO capability, ke
 
 **Native parity and packaging fixes.** The native edition includes the senpi Venice provider, and compiled webfetch binaries inline css-tree data needed by Bun's embedded filesystem. Task tools retain model variants across continuation seams, task-store contention waits within a bounded retry budget, and native installs include Context7 and grep_app MCP parity where configured.
 
-### Engine: senpi 2026.9.10
+#### Engine: senpi 2026.9.10
 
 **Assistant-response editing is available to every host.** RPC and extension clients can edit an assistant entry with optimistic concurrency and typed errors, and shared-host `/tree` edits reach the canonical host session.
 
@@ -3970,11 +3896,11 @@ After updating, restart running sessions: a process cannot adopt a new payload i
 
 ## [5.0.0-beta.53] - 2026-09-10
 
-## OMO 5.0.0-beta.53
+### OMO 5.0.0-beta.53
 
 Pick a model profile instead of hand-wiring a chain, the curated agents are named for what they do instead of who they were in mythology, native workflows survive a session switch, and a process leak that could eventually stop a Mac from spawning anything at all is gone. The engine underneath is **senpi 2026.9.10-2**.
 
-### Model profiles pick your session model
+#### Model profiles pick your session model
 
 **Say what kind of work it is; OMO picks the model.** `omo.json` gains `model_profiles` (a record of fallback chains) and `model_profile` (the active one), with three builtin profiles that choose the MAIN session model at session start:
 
@@ -3986,7 +3912,7 @@ The first rung the live registry can actually serve wins, and the applied notice
 
 **It stays out of the way.** No profile is active by default. A profile applies only at session start for a new or startup session, through the session-scoped model setter — it never writes your harness settings, and an explicit `--model`, a scoped model, a pinned value, or a resumed session is left alone. Profiles are documented in the config reference and the agent-model-matching guide, and omo.dev now tells the model story the same way.
 
-### The curated agents are roles now
+#### The curated agents are roles now
 
 **`metis` is `plan-consultant`, `momus` is `plan-reviewer`.** The omo-senpi runtime, its skills, config keys, telemetry, and the shipped ultrawork directive all speak in roles: the main agent (your session model), `plan-consultant`, `plan-reviewer`, `explore`, `librarian`, the Ultrawork Planner persona, and the category roster. Docs, the READMEs in five locales, and omo.dev were re-keyed in the same release.
 
@@ -3994,7 +3920,7 @@ The first rung the live registry can actually serve wins, and the applied notice
 
 **If you query telemetry, this is a breaking change.** `delegation_started.name` and `delegation_completed.agent_type` report the new ids, so dashboards filtering on `metis` or `momus` stop matching new events. A repo gate now fails CI if a retired name reappears in a governed surface. The OpenCode and Codex editions keep their own agent ids; nothing named `boulder` changed.
 
-### Memory and long-running hosts
+#### Memory and long-running hosts
 
 **A shared host no longer fills the machine's process table.** The memory lock protocol fingerprints a process start time to detect PID reuse, and on macOS it resolved that by spawning `/bin/ps` on every check — every lock record, every reflection and facts reservation, every stale-lock recovery. A long-lived shared RPC host never reaps those children, so they accumulated as defunct entries until `posix_spawn` failed machine-wide with `EAGAIN`: one workstation reached 10,981 process-table entries with 9,750 zombies, 9,386 of them `ps`, after which shells and ordinary tooling could no longer start. The value now comes from libproc in-process, so there is no child to leak regardless of how the embedding host handles `SIGCHLD`. Dead PIDs are rejected by a fork-free liveness probe first, so stale-lock recovery no longer forks either, and the identity is recorded as an epoch rather than formatted local time, which also removes a timezone-dependent mismatch. Older lock records stay compatible, so an upgrade never steals a live owner's lock.
 
@@ -4004,7 +3930,7 @@ The first rung the live registry can actually serve wins, and the applied notice
 
 **Kibitzer stops calling non-failures failures.** A judge that answers only through its nudge tool and then stops silently was being settled as an error by empty-response recovery; the nudge result now ends the turn once it reaches its item cap, and a settled empty-response error counts as completed when nudges were accepted and as empty when none were. Run-directory artifacts are auditable output rather than inputs, so a failed write warns and continues instead of failing the fire as a session-creation error. A missing persona asset is reported as `persona_unavailable` and names the file. The task runtime is primed at registration alongside the personas, and a failed import is not cached so a repaired tree recovers.
 
-### Workflows, tasks, and continuation
+#### Workflows, tasks, and continuation
 
 **Native workflows survive a session switch.** Switching sessions used to cancel active DAGs from a vetoable pre-switch hook before shutdown could pause them, and recovery then rejected even an explicitly released lease held by the same process. Retirement moves to committed shutdown, which awaits scheduler quiescence before persisting the pause and suspending child sessions; a single-shot suspension drains in-flight admission and journal delivery without cancelling child records; and a released own lease can be reclaimed while active self-claims and live foreign owners stay protected. Returning to the session in the same host process resumes the run, reuses completed output, keeps the running child's identity, and admits a pending dependent exactly once. Opening `/session` or opening and cancelling `/resume` never caused teardown and still does not. Explicit workflow cancellation stays destructive.
 
@@ -4018,7 +3944,7 @@ The first rung the live registry can actually serve wins, and the applied notice
 
 **Plan continuation only continues successes.** The `ulw-loop` and `ulw-execute` hooks ignored the outcome of the turn they were continuing, so they could resubmit a turn that errored, was aborted, was already owned by a host retry, or was refused. Both producers now record at turn end and decide at the settle edge that guarantees no retry, compaction, or queued continuation will follow, skipping failures without consuming a continuation slot and logging the reason. Successful continuation, caps, and deduplication are unchanged, and ordinary assistant prose that merely discusses an error still continues.
 
-### Engine: senpi 2026.9.10-2
+#### Engine: senpi 2026.9.10-2
 
 **Kimi For Coding sessions identify themselves as a Kimi client.** The Kimi Code endpoint recognizes its clients by a product `User-Agent` plus a six-header `X-Msh-*` device set — platform, version, device name, device model, OS version, and a per-install device id — which the official Kimi client sends on device authorization, token polling, token refresh, and every request. senpi sent none of them, so a subscription session presented itself as an anonymous Anthropic-protocol client that happened to hold a Kimi bearer token. The OAuth subscription path now sends the full set on all four request paths, with printable-ASCII sanitized values and a device id persisted under the agent dir that degrades to a per-process id rather than throwing when that directory cannot be written. The api-key path is deliberately untouched: it authenticates with a platform key rather than a client session.
 
@@ -4030,7 +3956,7 @@ The first rung the live registry can actually serve wins, and the applied notice
 
 **A refused model switch is visible and inert.** When a session declines a model switch, the refusal is recorded rather than silently applied or silently dropped.
 
-### Install
+#### Install
 
 ```
 npm i -g omo-ai@beta
@@ -4162,20 +4088,20 @@ npm i -g omo-ai@beta
 
 ## [4.14.0] - 2026-06-29
 
-### Added
+#### Added
 
 - Unified telemetry architecture across OpenCode and Codex editions. (PR #5668)
 - Coding Agent Sessions shared skill for finding and reconstructing agent sessions across harnesses. (PR #5600)
 - Atlas final-review verdict classification (approve/reject/missing). (PR #5605)
 - Web terminal visual evidence helper for QA. (PR #5534)
 
-### Changed
+#### Changed
 
 - Named plugin server export for easier integration. (PR #5717)
 - Release prepublish size gates with documented exceptions. (PR #5718, #5722)
 - QA evidence redaction for auth headers and terminal secrets.
 
-### Fixed
+#### Fixed
 
 - Atlas background output gate requires explicit gate for retrieval. (PR #5653)
 - TeamMode leader patience: waits calmly instead of rushing members. (PR #5613)
@@ -4187,7 +4113,7 @@ npm i -g omo-ai@beta
 
 ## [4.13.0] - 2026-06-23
 
-### Added
+#### Added
 
 - TeamMode v2 script-driven model (complete rewrite with cross-platform controller script and worktree automation). (PR #5416, #5421)
 - Ultimate Browsing shared skill with tiered routing (insane-search, agent-reach, Chrome stealth). (PR #5469)
@@ -4199,7 +4125,7 @@ npm i -g omo-ai@beta
 - TeamMode members push constant updates by default. (PR #5487)
 - Cross-platform teammode controller script and merge-commit integration.
 
-### Changed
+#### Changed
 
 - Venice provider neutralized in Hephaestus and deep model chains. (PR #5523)
 - Frontend design references materialized from submodules for DMCA compliance. (PR #5472)
@@ -4207,7 +4133,7 @@ npm i -g omo-ai@beta
 - CodeGraph cross-platform bundle and MCP handshake improvements. (PR #5475, #5496)
 - Provider exhaustion fallback policy for background tasks. (PR #5508)
 
-### Fixed
+#### Fixed
 
 - Ultimate Browsing cookie handling, template warnings, and forged module detection. (PR #5498, #5503)
 - TeamMode worktree-add idempotency on Windows 8.3 paths. (PR #5502)
@@ -4217,21 +4143,21 @@ npm i -g omo-ai@beta
 - Opencode run marker refresh after wake requeues. (PR #5500)
 - Skill MCP servers resolved from runtime config without deadlock. (PR #5482)
 
-### Removed
+#### Removed
 
 - AST-grep MCP server and `ast-grep-mcp/core` packages replaced with `sg` binary provisioning via shared resolver. (PR #5313)
 
 ## [4.12.1] - 2026-06-20
 
-### Added
+#### Added
 
 - Per-member thread titles named by role in TeamMode.
 
-### Changed
+#### Changed
 
 - UltraResearch prefers cooperating team broadcasts.
 
-### Fixed
+#### Fixed
 
 - Codex thread title nudge shortened.
 - CodeGraph bootstrap on Node 26.
@@ -4240,7 +4166,7 @@ npm i -g omo-ai@beta
 
 ## [4.12.0] - 2026-06-20
 
-### Added
+#### Added
 
 - Skill rename: `frontend-ui-ux` to `frontend` (ported with full references and designpowers contract). (PR #5308)
 - Skill rename: `ultraresearch` to `ulw-research`. (PR #5518)
@@ -4251,7 +4177,7 @@ npm i -g omo-ai@beta
 - Shared agent setup/cleanup/qa-sandbox scripts for cross-harness dev env. (PR #5354)
 - `qa-docker.sh` for containerized OpenCode and Codex QA.
 
-### Changed
+#### Changed
 
 - CI upgraded to Node.js 24 runtimes across all workflows. (PR #5352)
 - Master-targeting PRs auto-closed with friendly notice. (PR #5351)
@@ -4259,7 +4185,7 @@ npm i -g omo-ai@beta
 - Build runs in parallel with checks.
 - Package layering refactor continued: `telemetry-core`, `team-core`, `delegate-core`, `skills-loader-core`, `claude-code-compat-core`, `tmux-core`, `mcp-client-core`, `openclaw-core`, `mcp-stdio-core`, `lsp-core` extracted.
 
-### Fixed
+#### Fixed
 
 - TUI sidebar quality: redacted active goals, safe background task titles, canonicalized paths. (PR #5349)
 - Prompt async gate virtualized waits in tests (watchdog, background wake, runtime fallback, todo continuation).
@@ -4269,23 +4195,23 @@ npm i -g omo-ai@beta
 - ULW plan honors explicit ask and fork filter.
 - Sisyphus prompt rebuild for runtime model family.
 
-### Removed
+#### Removed
 
 - Native `ast_grep` MCP server and `ast-grep-mcp/core` packages; replaced with shared `sg` resolver and skill. (PR #5313)
 
 ## [4.11.1] - 2026-06-18
 
-### Added
+#### Added
 
 - GLM prompt variants and ultrawork GLM prompt routing.
 - Claude Fable-5 and Mythos-5 context limit recognition.
 
-### Changed
+#### Changed
 
 - Programming skill: restored hard LOC gate, replaced absolute rule with code-smell review triggers.
 - Model-core normalizes non-Claude model version separators.
 
-### Fixed
+#### Fixed
 
 - Codex marketplace auto-update boundary preserved.
 - CodeGraph MCP path stamped during bootstrap.
@@ -4296,7 +4222,7 @@ npm i -g omo-ai@beta
 
 ## [4.11.0] - 2026-06-17
 
-### Added
+#### Added
 
 - CodeGraph initialization: bootstrap on session start, register MCP, shared resolver and provisioning. (PR #5322)
 - TUI sidebar panel: state model, snapshot schema, roster resolver, ULW loop reader, mirror manager. (PR #5325)
@@ -4325,7 +4251,7 @@ npm i -g omo-ai@beta
 - PostHog telemetry stream `omo_codex_daily_active` for Codex edition.
 - Triple-publish to npm: `oh-my-opencode`, `oh-my-openagent`, and `lazycodex`.
 
-### Changed
+#### Changed
 
 - Massive package layering refactor. Eight workspace packages extracted: `utils`, `hashline-core`, `model-core`, `rules-engine` (renamed from `rules-core`), `agents-md-core`, `ast-grep-core`, `comment-checker-core`, and `boulder-state`.
 - `model-core` uses dependency injection, eliminating all `src/` back-imports from core packages.
@@ -4335,7 +4261,7 @@ npm i -g omo-ai@beta
 - CI reworked with Node 24, parallel build, per-package labeling.
 - Master-targeting PRs auto-closed.
 
-### Fixed
+#### Fixed
 
 - Background-agent session activity tracking and stale timeout. (PR #4226, #4228, #4235)
 - Team-mode hard-rejects coordinator agents, surfaces member errors, port-0 fallback, Windows base directory init, atomic config writes, preserves membership across fallback, validates agents. (PR #4027, #3923, #3963, #4023, #3838, #3898, #3987)
@@ -4353,7 +4279,7 @@ npm i -g omo-ai@beta
 - `delegate-task` defaults and per-agent skill restrictions. (PR #4119, #4121)
 - Process-cleanup graceful shutdown after `SIGTERM`. (PR #4026)
 
-### Documentation
+#### Documentation
 
 - Added `ROADMAP.md` describing the package layering refactor and multi-harness direction.
 - PR merge policy documented: merge commits required, squash/rebase forbidden.
@@ -4361,7 +4287,7 @@ npm i -g omo-ai@beta
 
 ## [4.2.3] - 2026-05-20
 
-### Added
+#### Added
 
 - `packages/rules-engine`: new workspace package extracting rule discovery, matching, caching, and nested AGENTS.md context utilities. Part of the ROADMAP multi-harness package layering refactor.
 - `packages/ast-grep-mcp`: native `packages/omo-opencode/src/tools/ast-grep` removed and replaced with a package-backed MCP server. User-facing tool names `ast_grep_search` / `ast_grep_replace` are preserved via MCP namespacing (server `ast_grep` + tools `search`/`replace`). `disabled_tools` continues to honor the legacy names.
@@ -4370,7 +4296,7 @@ npm i -g omo-ai@beta
 - `setSisyphusRuleDeprecationLogger` export from `@oh-my-opencode/rules-engine` lets the host inject its logger so the core package stays free of harness-source imports.
 - `ROADMAP.md` documents the multi-harness package layering refactor and contribution flow (`ROADMAP` label).
 
-### Changed
+#### Changed
 
 - `prompt-async-gate`: `DEFAULT_PROMPT_ASYNC_POST_DISPATCH_HOLD_MS` default raised from 250 ms to 2_000 ms (8x) to absorb slower-provider `session.error` arrivals before reservation release. The constant remains a public export; callers can still override via `postDispatchHoldMs` per dispatch. [`docs/reference/prompt-async-gate-rfc.md`](docs/reference/prompt-async-gate-rfc.md) updated accordingly.
 - `team-mode`: `team_send_message` ambiguous-failure path now releases the reservation, commits on success-path mark failures, preserves live delivery holds, and decouples resume history from session routing (BUG-A / BUG-B).
@@ -4379,7 +4305,7 @@ npm i -g omo-ai@beta
 - `rules-core`: `findRuleFiles` falls back to `workspaceDirectory` when no project root marker is found (BUG-F).
 - `cli doctor`: lists all built-in MCP servers (`websearch`, `context7`, `grep_app`, `lsp`, `ast_grep`) and bootstraps the LSP MCP fallback script when no CLI binary is present.
 
-### Fixed
+#### Fixed
 
 - `rules-core` **security**: project rule files and directories can no longer escape the workspace via symlinks. `findRuleFilesRecursive` and the project-single-file path now require every realpath to remain within the scan boundary, blocking attacks where a hostile repo points `.github/copilot-instructions.md` (or any `.omo/rules` entry) at host secrets such as `~/.ssh/id_rsa`. Tests track the boundary contract in [`packages/rules-engine/src/index.test.ts`](packages/rules-engine/src/index.test.ts).
 - `test-isolation`: rules-injector storage and fixture home isolated per-test; cross-suite leak diagnostic regression test added.
@@ -4390,22 +4316,22 @@ npm i -g omo-ai@beta
 - `plugin`: synthetic `status: idle` events now correctly trigger idle hooks, ensuring continuation and recovery hooks fire even when OpenCode emits synthetic idle after tool completion.
 - `rules-core` **security** (additional): package fully isolated from harness imports; symlink escape blocking extended to cover rule directory scanning (not just individual files).
 
-### Reverted Breaking Changes
+#### Reverted Breaking Changes
 
 - Restored `.sisyphus/rules` and `~/.sisyphus/rules` rule-source discovery that was silently removed in v4.2.2..HEAD. They now load with LOWEST priority among project rule sources and emit a deprecation warning. **Planned removal in v4.3.0**: migrate to `.omo/rules` and `~/.omo/rules`.
 
-### Internal
+#### Internal
 
 - `packages/rules-engine` no longer imports `../../../src/shared/logger`. ROADMAP's "core has no harness dependencies" invariant is now upheld; the host injects its logger from `packages/omo-opencode/src/hooks/rules-injector/rule-file-finder.ts` as a module-level side effect.
 - `README.ru.md` gains the OmO logo to match `README.md` / `README.ja.md` / `README.ko.md` / `README.zh-cn.md`.
 - CLA signatures added for PR #4176, #4180, #4181, #4186.
 
-### Known Limitations (deferred to v4.3.0)
+#### Known Limitations (deferred to v4.3.0)
 
 - `packages/omo-opencode/src/shared/prompt-async-gate.ts` is 885 LOC, well past the 250-LOC architectural ceiling. Splitting it into `prompt-reservations`, `prompt-queue`, `prompt-message-state`, `prompt-dispatch-runner`, and a thin facade is queued with the broader multi-harness refactor.
 - Root `package.json` still declares `@ast-grep/napi` and the doctor still checks the NAPI dependency even though the native tool is gone. Cleanup ships with the next ast-grep harness pass.
 
-### Web
+#### Web
 
 - Landing page decomposed from 832 LOC into 10 section components; manifesto page from 358 LOC into 9 section components.
 - Design system tokens extracted into `DESIGN.md` with consistent spacing, color, and typography variables.
@@ -4416,7 +4342,7 @@ npm i -g omo-ai@beta
 - Responsive test matrix added: 6 viewports x 4 locales x 2 pages.
 - CI/build pipeline optimized; dead dependencies removed.
 
-### Documentation
+#### Documentation
 
 - Added [`ROADMAP.md`](ROADMAP.md) describing the package layering refactor and multi-harness direction.
 - Added OmO logo to [`README.ru.md`](README.ru.md) for parity with the other localized READMEs.
@@ -4425,31 +4351,31 @@ npm i -g omo-ai@beta
 
 ## [4.2.0] - 2026-05-15
 
-### Added
+#### Added
 
 - `createPluginModule` test seam moved out of public API surface to `packages/omo-opencode/src/testing/create-plugin-module.ts`. New public exports for the prompt-async-gate primitives: `dispatchInternalPrompt`, `releasePromptAsyncReservation`, `DEFAULT_PROMPT_ASYNC_POST_DISPATCH_HOLD_MS`, `DEFAULT_PROMPT_DISPATCH_TIMEOUT_MS`.
 - `ParentWakeNotifier` module (`packages/omo-opencode/src/features/background-agent/parent-wake-notifier.ts`) extracted from `BackgroundManager`. Background-agent parent-wake state now lives in its own narrow class with dependency-injected client, directory, and notification enqueue callback.
 
-### Changed
+#### Changed
 
 - `prompt-async-gate` now uses a shared internal runner for both sync (`prompt`) and async (`promptAsync`) dispatch wrappers, deduplicating the reserve/settle/check/dispatch/hold/release flow.
 - `releasePromptAsyncReservation` accepts `reservedByPrefix` only when the prefix ends in `:` (e.g., `model-fallback:`), preventing accidental release of sibling reservations whose source merely starts with the same identifier characters.
 - Version bump from 4.1.2 to 4.2.0. Reason: added public exports for the gate primitives qualify as MINOR per semver. No removals or breaking signature changes.
 
-### Fixed
+#### Fixed
 
 - `prompt-async-gate`: dispatch timeout via `Promise.race` with a default 30s window. Previously a hung `promptAsync` deadlocked the gate for that sessionID until process restart. (BLOCKER-1)
 - `prompt-async-gate`: post-dispatch failure now keeps the reservation hold regardless of whether `promptAsync` resolved or threw. AGENTS.md's documented race window ("returns before durably accepted, later failures arrive as `session.error`") is now covered. (BLOCKER-2)
 - `prompt-async-gate.test.ts`: replaced `setTimeout`-based synchronization with event-driven patterns to comply with the new `.omo/rules/test-discipline.md` rule. (BLOCKER-3)
 - `model-suggestion-retry`: releases the reservation before the suggested-model retry so the second attempt can dispatch immediately. Without this, BLOCKER-2's post-dispatch hold trapped the retry path.
 
-### Internal
+#### Internal
 
 - `prompt-async-route-audit.test.ts` migrated to TypeScript compiler API for AST-based detection. Catches destructuring, bracket access, optional chaining, and type-cast aliasing bypass patterns. Two existing production callers are documented in `RAW_PROMPT_ALLOWLIST` with justifications: `packages/omo-opencode/src/plugin/event.ts` (team-idle-wake-hint client facade) and `packages/omo-opencode/src/hooks/session-recovery/recover-unavailable-tool.ts` (capability check before gate-routed dispatch). (HIGH-5)
 - New `mock-module-lifecycle-audit.test.ts` enforces cleanup pairing for `mock.module(...)` calls in test files; existing offenders allowlisted with TODO references. (HIGH-10)
 - `.omo/rules/test-discipline.md` added in this release window forbidding `setTimeout(resolve, N)` and `await sleep(N)` in test bodies unless time is the SUT. Several CI sharding commits earlier in the window were superseded by removing the sharded runner in favor of the rule.
 
-### Known Issues
+#### Known Issues
 
 - **Delegated child-session early-failure fallback (BLOCKER-4)**: PR #3825's `fac90d69f` was reverted by PR #4044 because its own regression test failed on clean root `bun test`. The delegate-task fallback bug for empty session history remains unaddressed in v4.2.0. Reland targets v4.2.1 once the regression test is stabilized against post-#4032 schema and the new gate semantics. See `docs/reference/known-issues.md` for details and workaround.
 - **First-prompt watchdog supersession history (L16)**: PR #3952 was superseded by PR #4051 (rebased over #4007/factory refactor with `internallyAbortedSessions` threading). The supersession represents conflict resolution, not a feature pivot. The final watchdog logic shipped via #4051 + `a130fa70d` covers subagent first-prompt silence past 90 seconds with cleanup via session.deleted.
@@ -4463,3 +4389,82 @@ npm i -g omo-ai@beta
 [4.11.0]: https://github.com/code-yeongyu/oh-my-openagent/compare/v4.2.3...v4.11.0
 [4.2.3]: https://github.com/code-yeongyu/oh-my-openagent/compare/v4.2.2...v4.2.3
 [4.2.0]: https://github.com/code-yeongyu/oh-my-openagent/compare/v4.1.2...v4.2.0
+
+## Development ledger (pre-backfill, unversioned)
+
+Accumulated before the release sections below were backfilled from the published releases.
+Kept verbatim; it was never attributed to a single release and is not release notes.
+
+### Added
+
+- New npm package `omo-ai` (beta channel only): the senpi-native edition. `npm i -g omo-ai@beta` installs the `omo` command, which launches the pinned senpi release with the full OMO extension loaded, and `omo setup` imports API credentials from sibling harnesses with consent. Channel contract: every version is a prerelease published with `--tag beta`, so a bare `npm i -g omo-ai` fails with ETARGET by design and `latest` never advances past the deprecated placeholder. Upgrade order: machines with oh-my-openagent/oh-my-opencode 4.19.4 or earlier must upgrade or uninstall that package first (it owns the old global `omo` bin), then install `omo-ai@beta`. See docs/reference/omo-ai-publishing.md.
+
+- Unified `omo.jsonc` configuration surface across all three harnesses: `~/.omo/omo.jsonc` plus walked project `.omo/omo.jsonc` layers, VSCode-style `[opencode]` / `[senpi]` / `[codex]` harness blocks, opt-in `profiles` activated by `OMO_PROFILE` > `OCX_PROFILE` > `OPENCODE_CONFIG_DIR` tail, and a shared `models` catalog whose entries fill unset tuning while site tuning wins.
+- Runtime legacy-config migration: a lock+journal engine imports `oh-my-openagent.json[c]` / `oh-my-opencode.json[c]` and `~/.omo/config.jsonc` into the unified file with no-clobber conflict diagnostics, `_migrations` markers, and resumable backups under `~/.omo/migration-backup-<UTC timestamp>-opencode-config/`; runs at plugin startup (OpenCode + Senpi), Codex startup (config.jsonc group only), install, and `oh-my-openagent config migrate` (`--dry-run` / `--json`).
+- Reasoning unification: `reasoning` is now the canonical config field, `models` is the shared ordered chain, `provider_options` is the escape hatch for wire-specific knobs, model strings accept a `:level` suffix, and deprecated keys remain readable during the back-compat window while the migration rewrites persisted config to the unified schema.
+- Doctor surfacing for deprecated reasoning keys now reports exact file and key paths so users can clean up stale config before the removal window closes.
+- CodeGraph upgraded to 1.5.0; managed 1.0.1 and 1.4.1 runtimes re-provision automatically, while existing project stores remain compatible without a manual re-index.
+- Opt-in CodeGraph shared daemon across all three adapters: `codegraph.daemon` config key (default false) on OpenCode and Codex, `OMO_CODEGRAPH_DAEMON=1` on Senpi, plus `codegraph.excluded_roots` parity. (PR #6251)
+- Process hygiene: parent-liveness watchdogs exit MCP server processes when their parent dies, new lsp daemons reap older-version daemons at startup, and a startup family sweep removes orphaned codegraph and lsp processes on every adapter. (PR #6262)
+- Model profiles: `model_profiles` / `model_profile` in omo.json with builtin `capable`, `simple-work`, `deep-work`; the active profile picks the main session model for the session only (never persisted), a literal `provider/model` value pins, and mid-session fallback continues to follow senpi's retry chains when no model is pinned.
+- `omo doctor` reports stale orphaned engines: interactive senpi engine processes whose launcher died underneath them (reparented to pid 1) are listed with pid, age and tty. Terminating them is an explicit, per-pid opt-in - `omo doctor --reap <pid> [pid...]` - which refuses any pid that is not an orphaned interactive engine at the moment of the request (a live session, an `--mode` rpc/app-server engine, or anything that is not an engine at all). Nothing is ever matched and killed by pattern.
+
+### Changed
+
+- The ultrawork directive's `# Parallel execution` section routes eval work by dependency instead of call count: independent reads, searches, symbol lookups, and spawns batch into one js cell, while edits, side-effecting commands, deploys, approvals, and result-dependent calls run one action at a time and are observed; every cell is named by the state it should produce and compared with it, failures stay verbatim in aggregates, truncated output is re-read, and visual results (pages, components, images, 3D scenes) get a change-render-look loop with several angles for 3D and desktop/mobile widths for pages. The "JS EVAL MAXXING" / "MONITOR MAXXING" wording and its profanity are gone; the Manual-QA browser and computer-use channels name per-change observation. The `visual-engineering` category append (both editions) adds an `<OBSERVE_EACH_CHANGE>` block with the same loop.
+- **OmO Native runs on bun wherever bun exists, no config needed.** The `omo` launcher used to hand itself to bun only for `bun add -g` installs; every other install stayed on node even on a machine with bun, so the JS eval kernel ran under node and the bundled `bun-1-4` skill never surfaced. Now any install (npm, project-local, `bunx`) probes the bun it finds (`$BUN_INSTALL/bin`, `~/.bun/bin`, PATH) once per node boot and re-execs under it when it is >= 1.4.0; bun-global installs keep trusting the bun that installed them without a probe. `OMO_RUNTIME=node` is still the way to stay on node, and `OMO_RUNTIME=bun` still forces bun without the version floor. See docs/reference/omo-ai-publishing.md, "Runtime selection".
+- OmO Native beta.23 adopts Senpi 2026.8.27 and documents the JavaScript-first eval workflow: persistent state, `Promise.all` fan-out, bounded `parallel()`/`pipeline()` composition, idle-kernel continuation for detached work, literal-safe top-level persistence transforms, explicit detached-cell diagnostics, bounded eval telemetry, worker-crash recovery, and Node 24/Bun 1.4 compatibility. It intentionally describes telemetry and mechanisms without inventing an uncommitted percentage speedup.
+- **Detailed eval runtime notes:** The first eval examples now use JavaScript to establish reusable state, then use `await Promise.all(...)` for independent tool calls, and finally demonstrate continuing in Python when JavaScript is busy with detached work. This is the documented fast path because eval kernels are persistent per session and per language; a value created in one JavaScript cell remains available to the next cell, while resetting Python does not reset JavaScript.
+- **Safer persistence transforms:** JavaScript state capture now rewrites only top-level declarations, including destructuring and uninitialized bindings. Declaration-shaped text inside strings, comments, and nested function bodies is left unchanged. The result is safer reuse for templates, examples, regular expressions, and embedded snippets without weakening the state-carrying behavior.
+- **Bounded parallel composition:** `parallel(thunks)` runs asynchronous thunks through a bounded pool with result-order preservation, and `pipeline(items, ...stages)` applies stage barriers while reusing the same bounded fan-out. The default pool width is four. The release describes the mechanism and its telemetry rather than promising a percentage improvement that has not been benchmarked and committed.
+- **Busy-kernel recovery guidance:** A detached cell keeps its language kernel busy until terminal settlement. A competing request receives the occupied cell context and the list of idle enabled kernels, so the agent can continue in another language instead of abandoning the workflow or unnecessarily falling back to an external shell. When every enabled kernel is busy, the diagnostic does not fabricate an alternative.
+- **Detached execution observability:** Detached cells retain explicit create/start/detach/complete/fail/stop/peek lifecycle states. Completion notifications are internal model-visible messages rather than synthetic user-input queue entries. Oversized output notices use plain absolute spill paths for the agent-facing read surface, while `local://` remains an in-cell artifact helper.
+- **Bounded lifetime and bridge behavior:** The hard wall-clock limit remains active across detachment and host-tool bridge calls, with a default of 1800 seconds. A bridge call may use the configured pause grace, but a stuck or detached cell still reaches a bounded terminal outcome and releases the loop instead of remaining unbounded.
+- **Tool orchestration and telemetry:** Eval cells dispatch nested tools through the session's real execution surface; reserved `agent`, `output`, and `tool_schema` helpers use their dedicated bridge path and recursive eval remains rejected. Each settled cell emits one bounded `senpi.eval.execution` record containing wall/kernel timing, terminal and detach status, nested call counts, and bounded per-tool aggregates. External projections omit prompts, arguments, call identifiers, errors, and result previews.
+- **Failure recovery:** A JavaScript worker crash settles the active cell, retires the failed worker, and prepares a fresh worker for the next cell. Session-generation fencing prevents retired callbacks from emitting into a newer session. Subprocess-backed interpreters wait for readiness before their cell timeout begins, so startup under load is not mistaken for user-code failure.
+- **Runtime compatibility:** JavaScript is available on supported Node runtimes without an optional interpreter. Python, Ruby, and Julia remain separately detected capability surfaces. The supported boundary remains Node `>=24`; the build and release toolchain is Bun 1.4, while the codemode package keeps a Node-compatible boundary and avoids depending on Bun-only APIs. Explicit `OMO_RUNTIME=node` and `OMO_RUNTIME=bun` selection remains supported by the launcher, with re-execution loop guards.
+- **Migration and measurement:** This update replaces package files and does not reset settings, credentials, sessions, permissions, or extension enablement. The eval telemetry separates eval-only and non-eval waves, correlates cells to their owning sessions, rejects malformed or duplicate ownership, and reports modeled savings and round trips. No cross-version latency percentage is claimed because the repository contains no committed before/after benchmark.
+- **Breaking**: the `/start-work` command and skill are renamed to `/ulw-execute` (hard cutover, no alias). Update scripts, prompts, and CI that reference the old name. The `start_work` config key is deprecated in favor of `ulw_execute`: the old key still loads for one release and emits a deprecation warning, and it will be removed next release; if both keys are set, `ulw_execute` wins. The `omo-senpi-start-work-continuation-disabled` flag is renamed to `omo-senpi-ulw-execute-continuation-disabled` following the component rename to `ulw-execute-continuation`. The telemetry `skill_loaded` known-skill value `start-work` is renamed to `ulw-execute`; update dashboards and queries that filter on the old value.
+- **Breaking**: the `omo` command is renamed to `omo-agent-toolkit` on every edition, and the old name is removed in the same release. The `omo` npm bin entry and the Codex `~/.local/bin/omo` runtime wrapper are both gone; `omo-agent-toolkit` replaces them with identical behaviour. This is a major release because a published bin entry is removed. Migration: replace `omo ` with `omo-agent-toolkit ` in scripts, prompts, and CI. Migration is automatic for existing installs — an npm upgrade prunes the old `omo` bin link, and Codex installs delete the generated wrapper at the next session start or installer run (a user-owned `omo` file that the installer did not generate is left untouched). One-time caveat: an agent running at the moment of the Codex relink can see a single failed `omo ulw-loop` call and must re-issue it as `omo-agent-toolkit ulw-loop`. The `omo` name is reserved for the future native edition (npm `omo-ai`), which is not shipped in this release.
+- **Breaking**: the OpenCode plugin, Senpi adapter, and Codex codegraph loader no longer read `oh-my-openagent.json[c]` / `oh-my-opencode.json[c]` or `~/.omo/config.jsonc` at runtime; the first startup migrates them into `~/.omo/omo.jsonc` (existing values win, skipped values become diagnostics) and moves the sources into the migration backup directory. Older strict config cores reject a newer `omo.jsonc` containing `models` / `profiles` / harness blocks; restore the legacy files from `~/.omo/migration-backup-*` when downgrading.
+- **Breaking**: `shared/<name>` skill invocations and `disabled_skills: ["shared/<name>"]` entries no longer resolve. Skills from the shared catalog now register under their bare name (e.g. `ulw-plan`, `frontend`). Update configs and prompts to use bare names. (PR #6180)
+- omo-senpi curated agents renamed: `metis` -> `plan-consultant`, `momus` -> `plan-reviewer`; the ulw-plan persona is the Ultrawork Planner; docs and omo.dev describe agents by role. The draft/plan frontmatter key `review.momus` is now `review.plan_reviewer`.
+- **Breaking**: telemetry `delegation_started.name` and `delegation_completed.agent_type` now report `plan-consultant`/`plan-reviewer` instead of `metis`/`momus`; dashboards filtering the old values must be updated.
+
+### Deprecated
+
+- `subagent_type: "metis"|"momus"`, `omo.json` `agents.metis|momus` and `allowed_subagents` entries naming them keep working in the first tagged publish containing this change (currently 5.0.0-beta.51 per package.json) with a deprecation notice and are removed in the next tagged publish. Replace them with `plan-consultant` / `plan-reviewer`.
+
+### Post-beta.23 merge follow-ups
+
+The following pull requests merged after the beta.23 release note was authored
+and are recorded here so the changelog remains connected to the final `dev`
+history:
+
+- LSP formatting now flows through `lsp-core` and the daemon, with typed
+  no-op/unavailable results and a default cap of six resident idle clients.
+  (PR #7428, merge `f356d17816aad57eb248b42a2f30ec0f1b14fde8`)
+- Senpi config-watch re-registration is deferred and coalesced, and duplicate
+  extension instances stand down instead of recursively rebuilding watchers.
+  (PR #7420, merge `8776e80252cbf91127b1b8c1865a11da10e8bb38`)
+- Codex GPT-5.6 context-window contracts are aligned at 650k tokens across
+  catalogs, migration fallbacks, post-compact budgeting, and installers.
+  (PR #7429, merge `a5bb28c604c9fe57c5c59ac00968fe8514881cf4`)
+- Windows DAP drive-letter paths and durable mailbox/receipt persistence are
+  portable across the release path, including the merged beta.23 source-state
+  release update. (PR #7432, merge `c6b1d190e6c52bc1689ba08b138f64e2e54712fb`;
+  PR #7427, merge `b9631886e4ad8922324d3a0977274735b5729be9`)
+- Senpi mutation handling now shares path extraction and single-flight state,
+  uses daemon-first formatting with bounded fallback, and runs diagnostics
+  before comment-checker feedback. (PR #7430, merge
+  `5c2f56b997c13d056ad56c196be32b9e8e37a298`)
+
+### Fixed
+
+- omo-senpi ulw-loop: the bundled agent toolkit is spawned with `BUN_BE_BUN=1` when the runtime is the packaged omo binary (omo-desktop, omob). Without it `process.execPath` ran the omo entrypoint instead of the toolkit, `ulw-loop status` exited 1, and every session with a plan read as inactive (no continuation).
+- Senpi engine pin `2026.8.28`: repairs the beta.23 shared interactive host regressions — Shift+Tab no longer prints `Thinking level: [object Promise]` and `/settings` thinking options render, user messages no longer render twice, resuming a session held by a live shared host attaches instead of failing with `session_path_in_use`, and the compiled JavaScript/Python eval kernels resolve their runtime assets again.
+
+- Windows DAP script paths with drive letters are no longer misclassified as `host:port` endpoints, and thread mailbox/receipt persistence now tolerates the Windows `fsync` behavior while retaining atomic writes.
+- The `omo` launcher no longer orphans the engine when it is signaled. Both spawn layers (`node bin/omo.js` -> engine, and the bun re-exec in between) waited in `spawnSync`, where no JS handler can run, so a `SIGTERM`ed launcher died instantly and left the engine reparented to pid 1 - where it kept running, held the terminal, and eventually accumulated as a zombie session. The launcher now waits asynchronously, forwards `SIGTERM`/`SIGHUP` to the child, gives it a bounded grace window (10s, `OMO_SIGNAL_GRACE_MS`) to run its own graceful shutdown, and re-raises the signal on itself if the child ignores it. `SIGINT` is deliberately not forwarded - the terminal already delivers it to the whole foreground process group - but the launcher still waits instead of dying under the engine. Exit fidelity is unchanged: the child's exit code passes through, and a child killed by a signal still makes the launcher die by that same signal.
+
+<!-- omo-live-backfill-2026-09-11T11:28:45.268Z -->
