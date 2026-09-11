@@ -108,21 +108,19 @@ export function reconcileCodexGoalSnapshot(
 	const errors: string[] = [];
 	const warnings: string[] = [];
 
+	const expected = normalizeObjective(options.expectedObjective);
 	if (!effectiveSnapshot.available) {
-		warnings.push("call get_goal; if none, create_goal with the plan's codexObjective verbatim");
+		warnings.push(`call get_goal; if none, create_goal with codexObjective "${expected}" verbatim`);
 		return { ok: errors.length === 0, snapshot: effectiveSnapshot, warnings, errors };
 	}
 
-	const expected = normalizeObjective(options.expectedObjective);
 	const accepted = new Set(
 		[expected, ...(options.acceptedObjectives ?? []).map((objective) => normalizeObjective(objective))].filter(
 			Boolean,
 		),
 	);
 	const actual = normalizeObjective(effectiveSnapshot.objective ?? "");
-	if (!actual) {
-		errors.push("Codex goal snapshot is missing objective text.");
-	} else if (!accepted.has(actual)) {
+	if (actual && !accepted.has(actual)) {
 		warnings.push(`driver_objective_differs: expected "${expected}", got "${actual}".`);
 	}
 
@@ -131,7 +129,7 @@ export function reconcileCodexGoalSnapshot(
 		warnings.push("/goal resume or raise the budget");
 	}
 	if (actualStatus === "complete")
-		warnings.push("driver closed early: call create_goal with the plan's codexObjective again");
+		warnings.push(`driver closed early: call create_goal with codexObjective "${expected}" verbatim`);
 	return { ok: errors.length === 0, snapshot: effectiveSnapshot, warnings, errors };
 }
 

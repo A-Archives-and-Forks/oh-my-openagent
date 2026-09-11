@@ -145,6 +145,18 @@ describe("reconcileCodexGoalSnapshot", () => {
 		expect(reconciliation.warnings.join(" ")).toContain("driver_objective_differs");
 	});
 
+	it("accepts a parsable snapshot without objective as advisory", () => {
+		// when
+		const reconciliation = reconcileCodexGoalSnapshot(
+			{ available: true, status: "active", raw: { goal: { status: "active" } } },
+			{ expectedObjective: "X" },
+		);
+
+		// then
+		expect(reconciliation.ok).toBe(true);
+		expect(reconciliation.errors).toHaveLength(0);
+	});
+
 	it("accepts limited driver statuses", () => {
 		// when
 		const reconciliation = reconcileCodexGoalSnapshot(
