@@ -51,7 +51,7 @@ describe("kibitzer accept-time delivery", () => {
     const pi = sessionHooks(delivery, f.context)
     await pi.dispatch("before_agent_start", beforeAgentStart("rollout"), eventContext([], SESSION_ID))
     // when
-    await delivery.accept(SESSION_ID, f.context, nudges, 0)
+    await delivery.accept(SESSION_ID, f.context, nudges)
     // then
     expect(sends.messages).toHaveLength(1)
     expect(sends.messages[0]).toMatchObject({ message: { customType: "omo-kibitzer:recall", display: false }, options: { deliverAs: "steer" } })
@@ -72,13 +72,13 @@ describe("kibitzer accept-time delivery", () => {
     const pi = sessionHooks(delivery, f.context)
     await pi.dispatch("before_agent_start", beforeAgentStart("rollout"), eventContext([], SESSION_ID))
     // when
-    await delivery.accept(SESSION_ID, f.context, [NUDGE], 0)
+    await delivery.accept(SESSION_ID, f.context, [NUDGE])
     // then
     expect(sends).toBe(1)
     expect(warnings).toHaveLength(1)
     expect(coordinator.pendingCount()).toBe(1)
     expect(delivery.drainForPrompt(SESSION_ID, f.context)).toEqual([NUDGE])
-    await expect(f.pending.take(SESSION_ID, { currentEpoch: 0 })).resolves.toEqual([NUDGE])
+    await expect(f.pending.take(SESSION_ID)).resolves.toEqual([NUDGE])
   })
 
   test("#given a session without a prompt event #when nudges are accepted #then they stay queued without steering", async () => {
@@ -88,11 +88,11 @@ describe("kibitzer accept-time delivery", () => {
     const delivery = createKibitzerDelivery({ ledgerFor: () => f.ledger, pendingFor: () => f.pending, sendMessage: () => { sends += 1 }, appendEntry: () => {} })
     sessionHooks(delivery, f.context)
     // when
-    await delivery.accept(SESSION_ID, f.context, [NUDGE], 0)
+    await delivery.accept(SESSION_ID, f.context, [NUDGE])
     // then
     expect(sends).toBe(0)
     expect(delivery.drainForPrompt(SESSION_ID, f.context)).toEqual([NUDGE])
-    await expect(f.pending.take(SESSION_ID, { currentEpoch: 0 })).resolves.toEqual([NUDGE])
+    await expect(f.pending.take(SESSION_ID)).resolves.toEqual([NUDGE])
   })
 
   test("#given a steer in flight #when another verdict is accepted #then the steering latch prevents a second send", async () => {
@@ -107,11 +107,11 @@ describe("kibitzer accept-time delivery", () => {
     })
     const pi = sessionHooks(delivery, f.context)
     await pi.dispatch("before_agent_start", beforeAgentStart("rollout"), eventContext([], SESSION_ID))
-    const first = delivery.accept(SESSION_ID, f.context, [NUDGE], 0)
+    const first = delivery.accept(SESSION_ID, f.context, [NUDGE])
     try {
       await Promise.race([sent.promise, first])
       // when
-      await delivery.accept(SESSION_ID, f.context, [{ path: "notes/second.md", hint: "Check health." }], 0)
+      await delivery.accept(SESSION_ID, f.context, [{ path: "notes/second.md", hint: "Check health." }])
       // then
       expect(sends).toBe(1)
     } finally {
@@ -135,7 +135,7 @@ describe("kibitzer accept-time delivery", () => {
       default: state satisfies never
     }
     // when
-    await delivery.accept(SESSION_ID, f.context, [NUDGE], 1)
+    await delivery.accept(SESSION_ID, f.context, [NUDGE])
     // then
     expect(sends).toBe(0)
     expect(delivery.drainForPrompt(SESSION_ID, f.context)).toEqual([NUDGE])
@@ -151,7 +151,7 @@ describe("kibitzer delivery idle lifecycle", () => {
     const wakeReady = new Promise<void>((resolve) => { wakeEntryReady = resolve })
     const coordinator = new IdleInjectionCoordinator((message) => delivered.push(message.content))
     const delivery = createKibitzerDelivery({ ledgerFor: () => f.ledger, pendingFor: () => f.pending, coordinator, sendMessage: () => undefined, appendEntry: (_customType, data) => { wakeEntry = data; wakeEntryReady?.() } })
-    await delivery.accept(SESSION_ID, f.context, [NUDGE], 0)
+    await delivery.accept(SESSION_ID, f.context, [NUDGE])
     expect(coordinator.flushOnIdle()).toBe(0)
     expect(delivered).toEqual([])
     coordinator.enqueue({ key: "task-completion:1", source: "task-completion", content: "done" })
@@ -163,28 +163,28 @@ describe("kibitzer delivery idle lifecycle", () => {
     expect(wakeEntry).toEqual({ version: 1, nudges: [NUDGE], via: "wake" })
     expect(coordinator.pendingCount()).toBe(0)
     expect(delivery.drainForPrompt(SESSION_ID, f.context)).toEqual([])
-    await expect(f.pending.take(SESSION_ID, { currentEpoch: 0 })).resolves.toEqual([])
+    await expect(f.pending.take(SESSION_ID)).resolves.toEqual([])
   })
 
   test("#given accepted nudges #when compaction is accepted #then state, coordinator, and pending file are cleared", async () => {
     const f = await fixture()
     const coordinator = new IdleInjectionCoordinator(() => undefined)
     const delivery = createKibitzerDelivery({ ledgerFor: () => f.ledger, pendingFor: () => f.pending, coordinator, sendMessage: () => undefined, appendEntry: () => undefined })
-    await delivery.accept(SESSION_ID, f.context, [NUDGE], 0)
+    await delivery.accept(SESSION_ID, f.context, [NUDGE])
     await delivery.onCompactionAccepted(SESSION_ID, f.context)
     await delivery.onToolResult(SESSION_ID, f.context, { hasPendingMessages: () => false, isIdle: () => false })
     expect(coordinator.remove(`kibitzer:${NUDGE.path}`)).toBe(false)
-    await expect(f.pending.take(SESSION_ID, { currentEpoch: 0 })).resolves.toEqual([])
+    await expect(f.pending.take(SESSION_ID)).resolves.toEqual([])
   })
 
   test("#given accepted nudges #when session shuts down #then only in-memory wake state is cleared", async () => {
     const f = await fixture()
     const coordinator = new IdleInjectionCoordinator(() => undefined)
     const delivery = createKibitzerDelivery({ ledgerFor: () => f.ledger, pendingFor: () => f.pending, coordinator, sendMessage: () => undefined, appendEntry: () => undefined })
-    await delivery.accept(SESSION_ID, f.context, [NUDGE], 0)
+    await delivery.accept(SESSION_ID, f.context, [NUDGE])
     delivery.onSessionShutdown(SESSION_ID)
     await delivery.onToolResult(SESSION_ID, f.context, { hasPendingMessages: () => false, isIdle: () => false })
     expect(coordinator.remove(`kibitzer:${NUDGE.path}`)).toBe(false)
-    await expect(f.pending.take(SESSION_ID, { currentEpoch: 0 })).resolves.toEqual([NUDGE])
+    await expect(f.pending.take(SESSION_ID)).resolves.toEqual([NUDGE])
   })
 })
