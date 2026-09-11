@@ -43,6 +43,7 @@ async function main() {
   const noMarkerRelease = {
     tagName: "v5.0.0-beta.99",
     publishedAt: "2026-09-11T14:00:00Z",
+    isPrerelease: true,
     body: "## Fixed\n\n- Some change",
   }
   const noMarkerErrors = validateReleaseRequirements(noMarkerRelease)
@@ -56,6 +57,7 @@ async function main() {
   const noDateRelease = {
     tagName: "v5.0.0-beta.99",
     publishedAt: null,
+    isPrerelease: true,
     body: "## Fixed\n\n- Change\n\n<!-- omo-backfill-marker: v5.0.0-beta.99 -->",
   }
   const noDateErrors = validateReleaseRequirements(noDateRelease)
@@ -69,6 +71,7 @@ async function main() {
   const validRelease = {
     tagName: "v5.0.0-beta.3",
     publishedAt: "2026-08-10T10:16:58Z",
+    isPrerelease: true,
     body: "## Fixed\n\n- Memory extension crash\n\n<!-- omo-backfill-marker: v5.0.0-beta.3 -->",
   }
   const validEntry = transformReleaseToEntry(validRelease)
