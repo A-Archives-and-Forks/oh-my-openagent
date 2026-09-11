@@ -205,18 +205,28 @@ export function sameNames(actual, expected) {
  * Routes each request to its lane's script. Both lanes advance independently; an exhausted script
  * answers with a closing text so a turn always ends instead of looping on a repeated tool call.
  * The step is placed at the server's global cursor because the mock consumes one step per request.
+ *
+ * `lanes` are consulted first: a surface that makes provider calls of its own beside the parent
+ * turn (the interactive TUI's session-title generation) names them by `matches(body)` and answers
+ * them with `step(body)`, so they neither consume the parent's script nor count as parent turns;
+ * each such lane is counted under `state[name]`.
  */
-export function createRouter() {
+export function createRouter({ lanes = [] } = {}) {
   const state = { requests: 0, parent: 0, sidecar: 0, sidecarRequests: [] }
   let parentSteps = []
   let sidecarSteps = []
   let parentCursor = 0
   let sidecarCursor = 0
+  const laneFor = (body) => lanes.find((lane) => lane.matches(body))
   const steps = (body) => {
     const index = state.requests
     state.requests += 1
     let step
-    if (isSidecarRequest(body)) {
+    const lane = laneFor(body)
+    if (lane !== undefined) {
+      state[lane.name] = (state[lane.name] ?? 0) + 1
+      step = lane.step(body)
+    } else if (isSidecarRequest(body)) {
       state.sidecarRequests.push({ index, toolNames: requestToolNames(body), messageCount: Array.isArray(body?.messages) ? body.messages.length : 0 })
       step = sidecarSteps[sidecarCursor] ?? { type: "text", text: "sidecar script exhausted" }
       sidecarCursor += 1
@@ -233,7 +243,7 @@ export function createRouter() {
   return {
     steps,
     state,
-    classify: (body) => (isSidecarRequest(body) ? "sidecar" : "parent"),
+    classify: (body) => laneFor(body)?.name ?? (isSidecarRequest(body) ? "sidecar" : "parent"),
     setParentSteps(next) { parentSteps = next; parentCursor = 0 },
     setSidecarSteps(next) { sidecarSteps = next; sidecarCursor = 0 },
   }
@@ -519,28 +529,32 @@ export async function seedMemories(command, sandbox, env, router, memories) {
 
 /**
  * One registry for everything a driver must undo, run in reverse order of registration. `run` is
- * idempotent; the driver wires it to SIGINT / SIGTERM once (see `installInterruptCleanup`) so an
- * interrupted lane still kills its processes and removes its sandbox.
+ * idempotent and shared: a second caller (the driver's own finish racing an interrupt handler)
+ * awaits the SAME in-flight run instead of getting an empty receipt list back and exiting while
+ * processes are still being torn down. The driver wires it to SIGINT / SIGTERM once (see
+ * `installInterruptCleanup`) so an interrupted lane still kills its processes and removes its sandbox.
  */
 export function createCleanup() {
   const steps = []
   const receipts = []
-  let ran = false
+  let running
   return {
     add(label, action) { steps.push({ label, action }) },
     receipts,
-    async run() {
-      if (ran) return receipts
-      ran = true
-      for (const step of steps.reverse()) {
-        try {
-          const detail = await step.action()
-          receipts.push(`${step.label}: ${detail ?? "done"}`)
-        } catch (error) {
-          receipts.push(`${step.label}: FAILED ${error instanceof Error ? error.message : String(error)}`)
+    run() {
+      if (running !== undefined) return running
+      running = (async () => {
+        for (const step of steps.reverse()) {
+          try {
+            const detail = await step.action()
+            receipts.push(`${step.label}: ${detail ?? "done"}`)
+          } catch (error) {
+            receipts.push(`${step.label}: FAILED ${error instanceof Error ? error.message : String(error)}`)
+          }
         }
-      }
-      return receipts
+        return receipts
+      })()
+      return running
     },
   }
 }
