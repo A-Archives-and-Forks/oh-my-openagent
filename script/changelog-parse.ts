@@ -50,8 +50,14 @@ export function parseVersion(tagName: string): string {
  * @param timestamp ISO 8601 timestamp (e.g. "2026-08-10T10:16:58Z")
  * @returns Date string (e.g. "2026-08-10")
  */
+const ISO_UTC_INSTANT = /^(\d{4})-(\d{2})-(\d{2})T\d{2}:\d{2}:\d{2}/
+
 export function parseDate(timestamp: string): string {
   if (!timestamp || typeof timestamp !== "string") return ""
-  // Simple split to avoid timezone pitfalls; input must be UTC
-  return timestamp.split("T")[0] ?? ""
+  const match = ISO_UTC_INSTANT.exec(timestamp.trim())
+  if (!match) return ""
+  const [datePart, year, month, day] = [match[0].slice(0, 10), Number(match[1]), Number(match[2]), Number(match[3])]
+  const utc = new Date(Date.UTC(year, month - 1, day))
+  if (utc.getUTCFullYear() !== year || utc.getUTCMonth() !== month - 1 || utc.getUTCDate() !== day) return ""
+  return datePart
 }

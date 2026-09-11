@@ -105,6 +105,7 @@ export function remapSenpiEnvironment(source: NodeJS.ProcessEnv = process.env, e
   let displayVersion = "unknown"
   let devCommand: string | undefined
   let devUpdateCommand: string | undefined
+  let changelogVersion: string | undefined
   try {
     const stamped = readJson(join(execDir, "package.json")) as { version?: string; omoBuild?: unknown }
     displayVersion = typeof stamped.version === "string" ? stamped.version : "unknown"
@@ -113,11 +114,18 @@ export function remapSenpiEnvironment(source: NodeJS.ProcessEnv = process.env, e
       devCommand = info.command
       devUpdateCommand = `rebuild with: bun run ${info.command}`
       displayVersion = buildLabel(info)
+    } else {
+      const pluginManifest = readJson(join(execDir, "plugin", "package.json")) as { version?: string }
+      changelogVersion = typeof pluginManifest.version === "string" ? pluginManifest.version : undefined
     }
   } catch { /* test fixtures may omit the sibling manifest */ }
   env.SENPI_BRAND = JSON.stringify({
     name: "OmO", command: devCommand ?? "omo", displayVersion,
     configDir: ".omo", flatLayout: false, envPrefix: "OMO", userAgent: "omo", originator: "omo",
+    changelog: {
+      path: join(execDir, "plugin", "CHANGELOG.md"),
+      ...(changelogVersion === undefined ? {} : { version: changelogVersion }),
+    },
     update: { packageName: "omo-ai", distTag: "beta", command: devUpdateCommand ?? updateLine(process.platform, process.arch), changelogUrl: "https://github.com/code-yeongyu/oh-my-openagent/releases" },
   })
   const binDir = nearestNodeBin(execDir)

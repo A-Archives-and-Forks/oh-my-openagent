@@ -184,7 +184,11 @@ describe("parseDate", () => {
   })
 
   test("#given timestamp without T #when parsed #then returns empty", () => {
-    expect(parseDate("2026-08-10 10:16:58")).toBe("2026-08-10")
+    expect(parseDate("2026-08-10 10:16:58")).toBe("")
+  })
+
+  test("#given impossible calendar date #when parsed #then returns empty", () => {
+    expect(parseDate("2026-02-30T10:16:58Z")).toBe("")
   })
 
   test("#given empty string #when parsed #then returns empty", () => {
