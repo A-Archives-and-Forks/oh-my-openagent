@@ -8,11 +8,12 @@
 // over the plain snapshot, and ends in `sidecar.offer` - which wakes the child only for a candidate
 // path this sidecar lifetime has not judged. `tool_result` completes the rich event and never wakes.
 // Settle is bookkeeping (the branch snapshot is refreshed, delivery is told the turn ended); there is
-// no settle wake. Session shutdown disposes the sidecar - which hands back its machine-wide wake
-// lease - and drains delivery. The sidecar is created lazily on the first hook of a bound session
-// whose `memory.recall.enabled` is on; that switch is the only way to keep it from existing.
-
-import { join } from "node:path"
+// no settle wake. Every settled wake is handed to `observe.ts`, which appends its `wakes.ndjson`
+// line beside the child transcript and keeps the diagnostic streak behind the `omo-kibitzer:gate`
+// notice. Session shutdown disposes the sidecar - which hands back its machine-wide wake lease -
+// releases its sidecar directory and drains delivery. The sidecar is created lazily on the first
+// hook of a bound session whose `memory.recall.enabled` is on; that switch is the only way to keep
+// it from existing.
 
 import { GitMemoryRepo, PendingNudges, RecallCorpusCache, RecallLedger, type RecallNudge } from "@oh-my-opencode/memory-core"
 import type { ChildModelRegistry } from "@oh-my-opencode/senpi-task"
@@ -29,6 +30,7 @@ import { resolveAgentRecallSettings, type MemoryRecallWiring } from "../recall-w
 import { sessionIdFrom } from "../wiring-context"
 import { createKibitzerDelivery, type KibitzerDelivery, type KibitzerDeliveryOptions } from "./delivery"
 import { registerKibitzerHooks } from "./hooks"
+import { createKibitzerObservability, kibitzerSidecarSessionDir } from "./observe"
 import { resolveKibitzerSidecarSettings, type KibitzerSidecarSettings } from "./settings"
 import { createKibitzerSidecar, type KibitzerSidecar } from "./sidecar"
 import { createKibitzerSidecarChildStarter, type KibitzerSidecarChildStarterOptions } from "./sidecar-model"
@@ -53,7 +55,7 @@ export interface KibitzerCompositionOptions {
   readonly sendMessage: KibitzerDeliveryOptions["sendMessage"]
   readonly appendEntry: (customType: string, data?: unknown) => void
   readonly childStarter?: KibitzerChildStarterSeams
-  /** Every settled wake of every sidecar; the observability lane persists these. */
+  /** QA seam: every settled wake of every sidecar, after `observe.ts` has recorded it. */
   readonly onWake?: (outcome: KibitzerWakeOutcome, context: MemoryIdentityContext) => void
   readonly logger?: ComponentLogger
 }
@@ -63,21 +65,15 @@ export interface KibitzerComposition {
   /** Registers the four Kibitzer hooks; call it after the projection and recall-drain handlers. */
   registerHooks(pi: SenpiExtensionAPI): void
   onCompactionAccepted(sessionId: string, context: MemoryIdentityContext | undefined): void
-  /** Aborts and disposes the session's sidecar (releasing its wake lease) and drains its delivery. */
+  /** Aborts and disposes the session's sidecar (releasing its wake lease and its directory) and drains its delivery. */
   onSessionShutdown(sessionId: string): Promise<void>
-  /** Resolves once every detached collection has ended and every running sidecar turn has settled. */
+  /** Resolves once every detached collection has ended, every running turn has settled and every wake record is on disk. */
   whenIdle(): Promise<void>
   /** Main sessions that own a live sidecar right now. */
   activeSessions(): readonly string[]
 }
 
-/**
- * `recall/sidecars/<encoded-session>/`: URL-safe base64 of the parent session id's UTF-8 bytes,
- * unpadded, so distinct ids never share a directory and any id is a safe path segment.
- */
-export function kibitzerSidecarSessionDir(recallDir: string, sessionId: string): string {
-  return join(recallDir, "sidecars", Buffer.from(sessionId, "utf8").toString("base64url"))
-}
+export { kibitzerSidecarSessionDir } from "./observe"
 
 /** What a hook reads off the live ctx for the sidecar to use later, once the ctx is gone. */
 interface CapturedSession {
@@ -102,6 +98,10 @@ export function createKibitzerComposition(options: KibitzerCompositionOptions): 
   const argWindow = new ToolArgWindow()
   const sidecars = new Map<string, SessionSidecar>()
   const inFlight = new Set<Promise<void>>()
+  const observe = createKibitzerObservability({
+    appendEntry: options.appendEntry,
+    ...(logger === undefined ? {} : { logger }),
+  })
   const delivery = createKibitzerDelivery({
     ledgerFor: (context) => new RecallLedger(context.identityPaths.recallLedger),
     pendingFor: (context) => new PendingNudges(context.identityPaths.recallPending),
@@ -161,13 +161,18 @@ export function createKibitzerComposition(options: KibitzerCompositionOptions): 
         budget: binding.budget,
       }),
       deliver: (nudges: readonly RecallNudge[]) => delivery.accept(sessionId, context, nudges),
-      onWake: (outcome) => options.onWake?.(outcome, context),
+      onWake: (outcome) => {
+        observe.onWake(outcome, context)
+        options.onWake?.(outcome, context)
+      },
       wakeSlot: createKibitzerWakeSlot({ locksDirectory: context.identityPaths.locks, maxConcurrent: settings.maxConcurrentWakes }),
       toolBudget: settings.toolBudget,
       sidecarMaxTokens: settings.sidecarMaxTokens,
       eventCaps: settings.eventCaps,
       ...(logger === undefined ? {} : { logger }),
     })
+    // The directory is owned from this moment: no sweep, from this process or another, may take it.
+    observe.own(sessionId, context)
     return { sessionId, context, sidecar, captured }
   }
 
@@ -241,12 +246,16 @@ export function createKibitzerComposition(options: KibitzerCompositionOptions): 
       const record = sidecars.get(sessionId)
       sidecars.delete(sessionId)
       argWindow.clear(sessionId)
-      if (record !== undefined) await record.sidecar.shutdown()
+      if (record !== undefined) {
+        await record.sidecar.shutdown()
+        await observe.onSessionShutdown(sessionId, record.context)
+      }
       delivery.onSessionShutdown(sessionId)
     },
     async whenIdle(): Promise<void> {
       while (inFlight.size > 0) await Promise.all([...inFlight])
       await Promise.all([...sidecars.values()].map((record) => record.sidecar.whenIdle()))
+      await observe.whenIdle()
     },
     activeSessions: () => [...sidecars.keys()],
   }

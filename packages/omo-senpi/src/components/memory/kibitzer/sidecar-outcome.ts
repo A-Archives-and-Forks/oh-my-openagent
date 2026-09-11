@@ -28,7 +28,15 @@ export type KibitzerWakeEnd =
 
 export type KibitzerWakeStatus = KibitzerWakeEnd["status"]
 
-/** One line of the sidecar's audit trail (`wakes.ndjson` after task 13); every field is a closed value. */
+/** Provider usage the wake's assistant messages reported, summed over the turn. */
+export interface KibitzerWakeUsage {
+  readonly input: number
+  readonly output: number
+  readonly cacheRead: number
+  readonly cacheWrite: number
+}
+
+/** What `observe.ts` writes as one line of the sidecar's `wakes.ndjson`; every field is a closed value. */
 export interface KibitzerWakeOutcome {
   readonly sessionId: string
   /** 1-based turn number across the whole sidecar lifetime, regardless of child generation. */
@@ -54,6 +62,8 @@ export interface KibitzerWakeOutcome {
   readonly cursors?: { readonly first: number; readonly last: number }
   /** Context estimate of the child after this wake (provider usage, or char/4 when usage is absent). */
   readonly contextTokens?: number
+  /** Tokens the wake's assistant messages reported; absent when the provider reported none. */
+  readonly usage?: KibitzerWakeUsage
   /** True only for `failed`: budget, deadline and shutdown never feed the failure streak. */
   readonly diagnostic: boolean
 }

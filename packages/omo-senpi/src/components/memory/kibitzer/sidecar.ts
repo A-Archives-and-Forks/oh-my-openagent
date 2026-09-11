@@ -44,6 +44,7 @@ import {
   type KibitzerWakeAbort,
   type KibitzerWakeEnd,
   type KibitzerWakeOutcome,
+  type KibitzerWakeUsage,
 } from "./sidecar-outcome"
 import {
   renderKibitzerReseedPrompt,
@@ -201,6 +202,8 @@ interface Turn {
   abort: KibitzerWakeAbort | undefined
   deadline: unknown
   model: string | undefined
+  /** Provider usage summed over the turn's assistant messages; undefined until one reports usage. */
+  usage: KibitzerWakeUsage | undefined
   settled: Promise<void>
 }
 
@@ -354,10 +357,20 @@ export function createKibitzerSidecar(options: KibitzerSidecarOptions): Kibitzer
     }
     if (message.role !== "assistant") return
     if (typeof message.provider === "string" && typeof message.model === "string") turn.model = `${message.provider}/${message.model}`
-    if (child === undefined || !isRecord(message.usage)) return
-    const input = typeof message.usage.input === "number" ? message.usage.input : undefined
-    const cacheRead = typeof message.usage.cacheRead === "number" ? message.usage.cacheRead : undefined
-    if (input === undefined && cacheRead === undefined) return
+    if (!isRecord(message.usage)) return
+    const input = numberOf(message.usage.input)
+    const output = numberOf(message.usage.output)
+    const cacheRead = numberOf(message.usage.cacheRead)
+    const cacheWrite = numberOf(message.usage.cacheWrite)
+    if (input === undefined && output === undefined && cacheRead === undefined && cacheWrite === undefined) return
+    const previous = turn.usage ?? { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+    turn.usage = {
+      input: previous.input + (input ?? 0),
+      output: previous.output + (output ?? 0),
+      cacheRead: previous.cacheRead + (cacheRead ?? 0),
+      cacheWrite: previous.cacheWrite + (cacheWrite ?? 0),
+    }
+    if (child === undefined || (input === undefined && cacheRead === undefined)) return
     child.usageTokens = (input ?? 0) + (cacheRead ?? 0)
   }
 
@@ -483,6 +496,7 @@ export function createKibitzerSidecar(options: KibitzerSidecarOptions): Kibitzer
       abort: undefined,
       deadline: undefined,
       model: undefined,
+      usage: undefined,
       settled: Promise.resolve(),
     }
   }
@@ -668,6 +682,7 @@ export function createKibitzerSidecar(options: KibitzerSidecarOptions): Kibitzer
       slotWaitMs: turn.slotWaitMs,
       ...(cursors === undefined ? {} : { cursors }),
       ...(current === undefined ? {} : { contextTokens: contextEstimate(current) }),
+      ...(turn.usage === undefined ? {} : { usage: turn.usage }),
       diagnostic: isDiagnosticWakeEnd(end),
     }
     try {
@@ -842,6 +857,10 @@ function textOf(content: unknown): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
+}
+
+function numberOf(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined
 }
 
 function describe(error: unknown): string {

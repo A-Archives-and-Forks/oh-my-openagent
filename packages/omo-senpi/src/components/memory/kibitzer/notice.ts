@@ -20,8 +20,11 @@ export interface KibitzerGateRecord {
   readonly model?: string
   readonly candidateCount: number
   readonly reason?: string
+  /** One-shot era: the judge run that failed. Resident records carry `wake` instead. */
   readonly runId?: string
   readonly consecutiveFailures?: number
+  /** Resident era (additive): the sidecar wake number whose failure completed the streak. */
+  readonly wake?: number
 }
 
 // Both renderers are fail-closed: a record that does not match the producer contract draws
