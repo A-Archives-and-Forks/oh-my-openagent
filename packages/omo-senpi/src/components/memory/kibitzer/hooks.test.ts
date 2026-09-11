@@ -1,13 +1,12 @@
 import { describe, expect, test } from "bun:test"
 
-import { buildIdentityPaths, PendingNudges, RecallLedger } from "@oh-my-opencode/memory-core"
+import { buildIdentityPaths } from "@oh-my-opencode/memory-core"
+
 import { FakeExtensionAPI } from "../../../../test-support/fake-extension-api"
 import { createMemoryIdentityContext } from "../context"
-import { registerKibitzerHooks } from "./hooks"
-import { createKibitzerTrigger, type KibitzerTriggerOptions } from "../kibitzer-trigger"
-import { createKibitzerDelivery } from "./delivery"
-import { ToolArgWindow } from "../recall-query-planner-tools"
 import { beforeAgentStart } from "../recall-wiring.test-support"
+import type { KibitzerDelivery } from "./delivery"
+import { registerKibitzerHooks, type KibitzerHookSink, type KibitzerHooksOptions } from "./hooks"
 
 const identity = createMemoryIdentityContext({
   identity: "agent",
@@ -15,184 +14,166 @@ const identity = createMemoryIdentityContext({
   binding: { identity: "agent", repoPathHash: "hash", boundAt: 0 },
 })
 
-function context(sessionId: string, entries: readonly unknown[] = []): Record<string, unknown> {
-  return {
-    sessionManager: {
-      getSessionId: () => sessionId,
-      getEntries: () => entries,
-    },
+/** A host ctx that reports whether it is still alive; the host disposes it when the handler returns. */
+function context(sessionId: string): { readonly ctx: Record<string, unknown>; dispose(): void } {
+  let alive = true
+  const ctx = {
+    sessionManager: { getSessionId: () => sessionId, getBranch: () => [], getEntries: () => [] },
     hasPendingMessages: () => false,
     isIdle: () => false,
+    alive: () => alive,
+  }
+  return { ctx, dispose: () => { alive = false } }
+}
+
+interface Recorder {
+  readonly sink: KibitzerHookSink
+  readonly delivery: Pick<KibitzerDelivery, "onToolResult" | "markRunning" | "markSettled">
+  readonly log: string[]
+}
+
+function recorder(overrides: { readonly sink?: Partial<KibitzerHookSink>; readonly delivery?: Partial<Recorder["delivery"]> } = {}): Recorder {
+  const log: string[] = []
+  const alive = (eventCtx: unknown): string => {
+    const probe = (eventCtx as { alive?: () => boolean } | undefined)?.alive
+    return probe === undefined ? "?" : probe() ? "live" : "disposed"
+  }
+  return {
+    log,
+    sink: {
+      onPrompt: (payload, eventCtx) => { log.push(`sink:prompt:${alive(eventCtx)}:${String((payload as { prompt?: string }).prompt)}`) },
+      onToolCall: (payload, eventCtx) => { log.push(`sink:tool_call:${alive(eventCtx)}:${String((payload as { toolName?: string }).toolName)}`) },
+      onToolResult: (payload, eventCtx) => { log.push(`sink:tool_result:${alive(eventCtx)}:${String((payload as { toolName?: string }).toolName)}`) },
+      onSettled: (eventCtx) => { log.push(`sink:settled:${alive(eventCtx)}`) },
+      ...overrides.sink,
+    },
+    delivery: {
+      onToolResult: async (sessionId, _context, eventCtx) => { log.push(`delivery:tool_result:${alive(eventCtx)}:${sessionId}`) },
+      markRunning: (sessionId) => { log.push(`delivery:running:${sessionId}`) },
+      markSettled: (sessionId) => { log.push(`delivery:settled:${sessionId}`) },
+      ...overrides.delivery,
+    },
   }
 }
 
-function ports(overrides: Partial<KibitzerTriggerOptions> = {}) {
+function options(r: Recorder, overrides: Partial<KibitzerHooksOptions> = {}): KibitzerHooksOptions {
   return {
     env: {},
-    trigger: createKibitzerTrigger({
-      snapshotSession: () => undefined, resolveModelRegistry: () => undefined,
-      collectCandidatesFromSnapshot: async () => undefined,
-      runnerFor: () => ({ launch: async () => ({ status: "empty" }) }),
-      resolveContext: () => identity, onAccepted: async () => {}, report: () => {},
-      currentCompactionEpoch: () => 0, argWindow: new ToolArgWindow(), ...overrides,
-    }),
-    delivery: createKibitzerDelivery({
-      ledgerFor: () => new RecallLedger(identity.identityPaths.recallLedger),
-      pendingFor: () => new PendingNudges(identity.identityPaths.recallPending),
-      sendMessage: () => {}, appendEntry: () => {},
-    }),
+    sink: r.sink,
+    delivery: r.delivery,
+    resolveContext: () => identity,
+    resolveSessionId: (eventCtx) => {
+      const manager = (eventCtx as { sessionManager?: { getSessionId?: () => string } } | undefined)?.sessionManager
+      return manager?.getSessionId?.()
+    },
+    ...overrides,
   }
 }
 
 describe("registerKibitzerHooks", () => {
-  test("#given a tool call #when dispatched #then the trigger receives it synchronously", async () => {
+  test("#given the four Kibitzer hooks #when a turn's events dispatch #then every capture runs synchronously on the live ctx, before delivery and before the host disposes it", async () => {
     const pi = new FakeExtensionAPI()
-    const calls: unknown[][] = []
-    const eventCtx = context("session-tool-call")
-    const f = ports()
-    registerKibitzerHooks(pi, {
-      ...f,
-      trigger: {
-        ...f.trigger,
-        onToolCall: (payload, ctx) => { calls.push([payload, ctx]) },
-        onSettled: () => {},
-      },
-      delivery: {
-        ...f.delivery,
-        onToolResult: async () => {},
-      },
-      resolveContext: () => undefined,
-      resolveSessionId: () => "session-tool-call",
-    })
+    const r = recorder()
+    registerKibitzerHooks(pi, options(r))
+    const host = context("session-1")
 
-    const payload = { toolName: "read", input: { path: "README.md" } }
-    const result = await pi.dispatch("tool_call", payload, eventCtx)
+    const results: unknown[][] = []
+    results.push(await pi.dispatch("before_agent_start", beforeAgentStart("recall this"), host.ctx))
+    results.push(await pi.dispatch("tool_call", { toolName: "read", input: { path: "README.md" } }, host.ctx))
+    results.push(await pi.dispatch("tool_result", { toolName: "read", content: [{ type: "text", text: "# readme" }] }, host.ctx))
+    results.push(await pi.dispatch("agent_settled", {}, host.ctx))
+    host.dispose()
 
-    expect(calls).toEqual([[payload, eventCtx]])
+    expect(results).toEqual([[undefined], [undefined], [undefined], [undefined]])
+    expect(r.log).toEqual([
+      "delivery:running:session-1",
+      "sink:prompt:live:recall this",
+      "sink:tool_call:live:read",
+      "sink:tool_result:live:read",
+      "delivery:tool_result:live:session-1",
+      "delivery:settled:session-1",
+      "sink:settled:live",
+    ])
+  })
+
+  test("#given a before_agent_start payload that is not a prompt #when dispatched #then nothing is captured or marked", async () => {
+    const pi = new FakeExtensionAPI()
+    const r = recorder()
+    registerKibitzerHooks(pi, options(r))
+
+    const result = await pi.dispatch("before_agent_start", { type: "before_agent_start" }, context("session-1").ctx)
+
     expect(result).toEqual([undefined])
+    expect(r.log).toEqual([])
   })
 
-  test("#given a tool result #when dispatched #then delivery receives the session id and event context", async () => {
+  test.each(["SENPI_MEMORY_REFLECTION", "SENPI_MEMORY_FACTS"])("#given a %s child process #when hooks dispatch #then no event reaches the sidecar", async (sentinel) => {
     const pi = new FakeExtensionAPI()
-    const calls: unknown[][] = []
-    const eventCtx = context("session-tool-result")
-    const f = ports()
-    registerKibitzerHooks(pi, {
-      ...f,
-      trigger: {
-        ...f.trigger,
-        onToolCall: () => {},
-        onSettled: () => {},
-      },
-      delivery: {
-        ...f.delivery,
-        onToolResult: async (...args) => { calls.push(args) },
-      },
-      resolveContext: () => identity,
-      resolveSessionId: () => "session-tool-result",
-    })
+    const r = recorder()
+    registerKibitzerHooks(pi, options(r, { env: { [sentinel]: "1" } }))
+    const host = context("child")
 
-    const result = await pi.dispatch("tool_result", { toolName: "read" }, eventCtx)
+    const results = [
+      await pi.dispatch("before_agent_start", beforeAgentStart("recall this"), host.ctx),
+      await pi.dispatch("tool_call", { toolName: "read", input: { path: "README.md" } }, host.ctx),
+      await pi.dispatch("tool_result", { toolName: "read", content: [] }, host.ctx),
+      await pi.dispatch("agent_settled", {}, host.ctx),
+    ]
 
-    expect(calls).toHaveLength(1)
-    expect(calls[0]?.[0]).toBe("session-tool-result")
-    expect(calls[0]?.[1]).toBe(identity)
-    expect(calls[0]?.[2]).toBe(eventCtx)
-    expect(result).toEqual([undefined])
+    expect(results).toEqual([[undefined], [undefined], [undefined], [undefined]])
+    expect(r.log.filter((line) => line.startsWith("sink:"))).toEqual([])
   })
 
-  test("#given text-only and empty sessions #when agent_settled dispatches #then only the non-empty branch settles", async () => {
+  test("#given a tool_result for an unbound session #when dispatched #then the event is still captured and delivery is skipped", async () => {
     const pi = new FakeExtensionAPI()
-    const settled: unknown[] = []
-    const f = ports()
-    registerKibitzerHooks(pi, {
-      ...f,
-      trigger: { ...f.trigger, onToolCall: () => {}, onSettled: (eventCtx) => { settled.push(eventCtx) } },
-      delivery: { ...f.delivery, onToolResult: async () => {} },
-      resolveContext: () => undefined,
-      resolveSessionId: () => undefined,
-    })
+    const r = recorder()
+    registerKibitzerHooks(pi, options(r, { resolveContext: () => undefined }))
 
-    await pi.dispatch("agent_settled", {}, context("text-only", [
-      { type: "message", message: { role: "user", content: "hello" } },
-      { type: "message", message: { role: "assistant", content: "hi" } },
-    ]))
-    await pi.dispatch("agent_settled", {}, context("empty"))
+    await pi.dispatch("tool_result", { toolName: "read", content: [] }, context("unbound").ctx)
 
-    expect(settled).toHaveLength(1)
+    expect(r.log).toEqual(["sink:tool_result:live:read"])
   })
 
-  test("#given a delivery whose onToolResult rejects #when tool_result dispatches #then the handler resolves undefined and a warning is logged", async () => {
+  test("#given a sink that throws on tool_call #when dispatched #then the handler resolves undefined and warns once", async () => {
     const pi = new FakeExtensionAPI()
     const warnings: unknown[][] = []
-    const f = ports()
-    registerKibitzerHooks(pi, {
-      ...f,
-      trigger: { ...f.trigger, onToolCall: () => {}, onSettled: () => {} },
-      delivery: { ...f.delivery, onToolResult: async () => { throw new Error("boom") } },
-      resolveContext: () => identity,
-      resolveSessionId: () => "session-warning",
-      logger: { warn: (...args) => { warnings.push(args) }, info: () => {}, error: () => {} },
-    })
+    const r = recorder({ sink: { onToolCall: () => { throw new Error("boom") } } })
+    registerKibitzerHooks(pi, options(r, { logger: { warn: (...args) => { warnings.push(args) }, info: () => {}, error: () => {} } }))
 
-    const result = await pi.dispatch("tool_result", {}, context("session-warning"))
+    const result = await pi.dispatch("tool_call", { toolName: "read", input: {} }, context("session-warning").ctx)
 
     expect(result).toEqual([undefined])
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]?.[0]).toBe("omo-senpi kibitzer tool_call capture failed")
+  })
+
+  test("#given a delivery whose onToolResult rejects #when tool_result dispatches #then the capture still happened, the handler resolves undefined and a warning is logged", async () => {
+    const pi = new FakeExtensionAPI()
+    const warnings: unknown[][] = []
+    const r = recorder({ delivery: { onToolResult: async () => { throw new Error("boom") } } })
+    registerKibitzerHooks(pi, options(r, { logger: { warn: (...args) => { warnings.push(args) }, info: () => {}, error: () => {} } }))
+
+    const result = await pi.dispatch("tool_result", { toolName: "read", content: [] }, context("session-warning").ctx)
+
+    expect(result).toEqual([undefined])
+    expect(r.log).toEqual(["sink:tool_result:live:read"])
     expect(warnings).toHaveLength(1)
     expect(warnings[0]?.[0]).toBe("omo-senpi kibitzer tool_result delivery failed")
   })
 
-  test.each(["SENPI_MEMORY_REFLECTION", "SENPI_MEMORY_FACTS"])("#given a %s child #when before_agent_start dispatches #then the judge is never triggered", async (sentinel) => {
-    // given
-    const pi = new FakeExtensionAPI()
-    let snapshots = 0
-    const f = ports({ snapshotSession: () => { snapshots += 1; return undefined } })
-    const options = { ...f, env: { [sentinel]: "1" }, resolveContext: () => identity, resolveSessionId: () => "child" }
-    registerKibitzerHooks(pi, options)
-    // when
-    const result = await pi.dispatch("before_agent_start", beforeAgentStart("recall this"), context("child"))
-    await f.trigger.whenIdle()
-    // then
-    expect(result).toEqual([undefined])
-    expect(snapshots).toBe(0)
-  })
-
   test("#given a stale session resolver #when before_agent_start dispatches #then it returns undefined and warns", async () => {
-    // given
     const pi = new FakeExtensionAPI()
     const warnings: unknown[] = []
-    const f = ports()
-    registerKibitzerHooks(pi, {
-      ...f, resolveContext: () => identity, resolveSessionId: () => { throw new Error("stale context") },
+    const r = recorder()
+    registerKibitzerHooks(pi, options(r, {
+      resolveSessionId: () => { throw new Error("stale context") },
       logger: { warn: (_message, details) => { warnings.push(details) }, info: () => {}, error: () => {} },
-    })
-    // when
-    const result = await pi.dispatch("before_agent_start", beforeAgentStart("recall this"), context("stale"))
-    // then
-    expect(result).toEqual([undefined])
-    expect(warnings).toHaveLength(1)
-  })
+    }))
 
-  test("#given a trigger that throws #when tool_call dispatches #then it returns undefined and warns", async () => {
-    const pi = new FakeExtensionAPI()
-    const warnings: unknown[][] = []
-    const f = ports()
-    registerKibitzerHooks(pi, {
-      ...f,
-      trigger: {
-        ...f.trigger,
-        onToolCall: () => { throw new Error("boom") },
-        onSettled: () => {},
-      },
-      delivery: { ...f.delivery, onToolResult: async () => {} },
-      resolveContext: () => undefined,
-      resolveSessionId: () => undefined,
-      logger: { warn: (...args) => { warnings.push(args) }, info: () => {}, error: () => {} },
-    })
-
-    const result = await pi.dispatch("tool_call", {}, context("session-warning"))
+    const result = await pi.dispatch("before_agent_start", beforeAgentStart("recall this"), context("stale").ctx)
 
     expect(result).toEqual([undefined])
     expect(warnings).toHaveLength(1)
+    expect(r.log).toEqual([])
   })
 })

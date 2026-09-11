@@ -11,8 +11,6 @@ import { createMemoryBinding } from "../binding"
 import { createKibitzerDelivery, type KibitzerDelivery } from "./delivery"
 import { FakeExtensionAPI } from "../../../../test-support/fake-extension-api"
 import { registerKibitzerHooks } from "./hooks"
-import { createKibitzerTrigger } from "../kibitzer-trigger"
-import { ToolArgWindow } from "../recall-query-planner-tools"
 import { beforeAgentStart, eventContext } from "../recall-wiring.test-support"
 
 const SESSION_ID = "idle-session"
@@ -30,18 +28,12 @@ async function fixture(): Promise<{ context: ReturnType<typeof createMemoryIdent
   return { context, ledger: new RecallLedger(context.identityPaths.recallLedger), pending: new PendingNudges(context.identityPaths.recallPending) }
 }
 
+/** Only the running/settled bookkeeping matters here: the sidecar sink is inert. */
 function sessionHooks(delivery: KibitzerDelivery, context: ReturnType<typeof createMemoryIdentityContext>) {
   const pi = new FakeExtensionAPI()
-  const trigger = createKibitzerTrigger({
-    snapshotSession: () => undefined, resolveModelRegistry: () => undefined,
-    collectCandidatesFromSnapshot: async () => undefined,
-    runnerFor: () => ({ launch: async () => ({ status: "empty" }) }),
-    resolveContext: () => context, onAccepted: delivery.accept, report: () => {},
-    currentCompactionEpoch: () => 0, argWindow: new ToolArgWindow(),
-  })
   registerKibitzerHooks(pi, {
-    trigger, delivery, resolveContext: () => context, resolveSessionId: () => SESSION_ID,
-    registerSettle: false, ...{ env: {} },
+    sink: { onPrompt: () => {}, onToolCall: () => {}, onToolResult: () => {}, onSettled: () => {} },
+    delivery, resolveContext: () => context, resolveSessionId: () => SESSION_ID, env: {},
   })
   return pi
 }
