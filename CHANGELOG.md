@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+OmO Native stops greeting you with its entire history, and memory gains a resident Kibitzer.
+
+### Startup
+
+**The changelog no longer replays itself on every launch.** The engine compared the version it was told it was running against changelog headings written in a different version space, so nothing ever matched and every start re-rendered the whole history. Version tokens are now preserved in full, calendar versions order correctly across hotfixes, and entries are selected only above what you last saw and no newer than what you are running. Comparisons across unrelated version spaces are refused rather than guessed, so a development build and a released engine can never be ordered against each other.
+
+**OmO Native shows its own release notes.** The product ships its own changelog in the npm and compiled payloads, and every launcher hands that source to the engine. Development builds deliberately carry no version, so they stay silent. Branded installs no longer report to the upstream engine's install endpoint.
+
+### Memory
+
+**A resident Kibitzer.** Recall now runs as a bounded resident sidecar with its own prompt contract, read-only tools, an event stream, and a wake lock, instead of paying full startup on every fire. Automatic reflection backs off after repeated failures rather than retrying into the same error.
+
+### Releases
+
+**Release notes are written before the release, not after.** The notes you are reading were authored under `[Unreleased]` and stamped into this section when the release state was prepared, so the published commit carries them. The GitHub release body is extracted from that exact section and fails closed: an absent, empty, or duplicated section aborts the release instead of publishing blank notes.
+
+### Engine: senpi 2026.9.11
+
+The changelog selection fix above lives in the engine and ships with this release. Also included: a cold-start fix for the RPC host, a goal-contract correction so a harness goal advises the loop instead of gating it, and Windows fixes for thread-socket discovery and a DAG race.
+
+
 ## [5.0.0-beta.1] - 2026-08-09
 
 - 13db09a1a Merge pull request #6676 from code-yeongyu/release/v5.0.0-beta.1-source-state
