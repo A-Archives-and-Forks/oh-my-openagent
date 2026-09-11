@@ -15,6 +15,7 @@ import type { CollectedRecallCandidates } from "./recall-wiring"
 import type { KibitzerGatePort } from "./kibitzer-wiring"
 import { createMemoryBinding } from "./binding"
 import { createMemoryIdentityContext, type MemoryIdentityContext } from "./context"
+import { branchEntryCount } from "./wiring-context"
 
 const context: MemoryIdentityContext = createMemoryIdentityContext({
   identity: "agent",
@@ -171,8 +172,15 @@ async function promptFixture(entries: readonly BranchEntry[]) {
     resolveContext: () => f.context, onAccepted: delivery.accept, report: () => {},
     currentCompactionEpoch: () => 0, argWindow,
   })
+  // The dormant one-shot trigger behind the resident hooks' sink, exactly as the old hooks drove it.
   registerKibitzerHooks(pi, {
-    trigger, delivery, resolveContext: () => f.context, resolveSessionId: () => SESSION_ID, ...{ env: {} },
+    sink: {
+      onPrompt: (payload, ctx) => trigger.onPrompt((payload as { prompt: string }).prompt, ctx),
+      onToolCall: trigger.onToolCall,
+      onToolResult: () => {},
+      onSettled: (ctx) => { if (branchEntryCount(ctx) > 0) trigger.onSettled(ctx) },
+    },
+    delivery, resolveContext: () => f.context, resolveSessionId: () => SESSION_ID, ...{ env: {} },
   })
   return { pi, eventCtx, trigger, launches, queries, collections }
 }
