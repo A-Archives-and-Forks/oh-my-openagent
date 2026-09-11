@@ -79,9 +79,6 @@ export function kibitzerSidecarSessionDir(recallDir: string, sessionId: string):
   return join(recallDir, "sidecars", Buffer.from(sessionId, "utf8").toString("base64url"))
 }
 
-/** Delivery keeps a compaction epoch on its pending file; the resident sidecar has no epoch, so every write is 0. */
-const NO_COMPACTION_EPOCH = 0
-
 /** What a hook reads off the live ctx for the sidecar to use later, once the ctx is gone. */
 interface CapturedSession {
   /** The newest branch snapshot, refreshed synchronously at every hook; `session_entries` pages it. */
@@ -163,7 +160,7 @@ export function createKibitzerComposition(options: KibitzerCompositionOptions): 
         nudge: binding.nudge,
         budget: binding.budget,
       }),
-      deliver: (nudges: readonly RecallNudge[]) => delivery.accept(sessionId, context, nudges, NO_COMPACTION_EPOCH),
+      deliver: (nudges: readonly RecallNudge[]) => delivery.accept(sessionId, context, nudges),
       onWake: (outcome) => options.onWake?.(outcome, context),
       wakeSlot: createKibitzerWakeSlot({ locksDirectory: context.identityPaths.locks, maxConcurrent: settings.maxConcurrentWakes }),
       toolBudget: settings.toolBudget,

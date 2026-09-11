@@ -45,7 +45,6 @@ interface WiringInput {
   readonly env?: Record<string, string | undefined>
   readonly logs?: Array<{ message: string; details?: unknown }>
   readonly ledgerFor?: (context: MemoryIdentityContext) => RecallLedgerType
-  readonly currentCompactionEpoch?: (sessionId: string) => number
 }
 
 function wiringFor(input: WiringInput) {
@@ -59,9 +58,6 @@ function wiringFor(input: WiringInput) {
     createRepo: () => input.repo,
     env: input.env ?? {},
     ...(input.ledgerFor === undefined ? {} : { ledgerFor: input.ledgerFor }),
-    ...(input.currentCompactionEpoch === undefined
-      ? {}
-      : { currentCompactionEpoch: input.currentCompactionEpoch }),
     ...(input.logs === undefined
       ? {}
       : {

@@ -22,7 +22,7 @@ export interface KibitzerDeliveryOptions {
 export interface KibitzerDelivery {
   markRunning(sessionId: string): void
   markSettled(sessionId: string): void
-  accept(sessionId: string, context: MemoryIdentityContext, nudges: readonly RecallNudge[], epoch: number): Promise<void>
+  accept(sessionId: string, context: MemoryIdentityContext, nudges: readonly RecallNudge[]): Promise<void>
   onToolResult(sessionId: string, context: MemoryIdentityContext, eventCtx: unknown): Promise<void>
   drainForPrompt(sessionId: string, context: MemoryIdentityContext): RecallNudge[]
   onCompactionAccepted(sessionId: string, context: MemoryIdentityContext): Promise<void>
@@ -33,7 +33,6 @@ export interface KibitzerDelivery {
 interface DeliveryState {
   readonly nudges: Map<string, RecallNudge>
   readonly coordinatorKeys: Set<string>
-  epoch: number
   steering: boolean
 }
 
@@ -44,7 +43,7 @@ export function createKibitzerDelivery(options: KibitzerDeliveryOptions): Kibitz
   function stateFor(sessionId: string): DeliveryState {
     const existing = sessions.get(sessionId)
     if (existing !== undefined) return existing
-    const created: DeliveryState = { nudges: new Map(), coordinatorKeys: new Set(), epoch: 0, steering: false }
+    const created: DeliveryState = { nudges: new Map(), coordinatorKeys: new Set(), steering: false }
     sessions.set(sessionId, created)
     return created
   }
@@ -55,7 +54,7 @@ export function createKibitzerDelivery(options: KibitzerDeliveryOptions): Kibitz
     state.coordinatorKeys.clear()
   }
 
-  async function accept(sessionId: string, context: MemoryIdentityContext, nudges: readonly RecallNudge[], epoch: number): Promise<void> {
+  async function accept(sessionId: string, context: MemoryIdentityContext, nudges: readonly RecallNudge[]): Promise<void> {
     try {
       await options.ledgerFor(context).markSurfaced(sessionId, nudges.map((nudge) => ({ path: nudge.path, hash: GATE_SURFACE_HASH })))
     } catch (error) {
@@ -63,7 +62,6 @@ export function createKibitzerDelivery(options: KibitzerDeliveryOptions): Kibitz
     }
 
     const state = stateFor(sessionId)
-    state.epoch = epoch
     for (const nudge of nudges) {
       state.nudges.set(nudge.path, nudge)
       if (options.coordinator === undefined) continue
@@ -182,7 +180,7 @@ export function createKibitzerDelivery(options: KibitzerDeliveryOptions): Kibitz
       await pending.delete(sessionId)
       return
     }
-    await pending.write(sessionId, [...state.nudges.values()], { epoch: state.epoch })
+    await pending.write(sessionId, [...state.nudges.values()])
   }
 
   function warn(message: string, details: unknown): void {
