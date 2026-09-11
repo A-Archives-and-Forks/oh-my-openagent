@@ -12,6 +12,7 @@ import {
 import type { KibitzerWakeOutcome } from "./sidecar-outcome"
 import { createKibitzerSidecarNudgeTool } from "./tools/nudge"
 import type { KibitzerToolResult } from "./tools/result"
+import type { KibitzerWakeAdmission, KibitzerWakeLease, KibitzerWakeSlot } from "./wake-slot"
 
 export const SESSION_ID = "parent-session-1"
 
@@ -198,8 +199,85 @@ export function fakeChild(input: KibitzerSidecarChildInput, sessionId = `kibitze
   }
 }
 
+/**
+ * An in-memory stand-in for the machine-wide wake lease. It grants immediately by default, turns
+ * every wake away while `busy`, and while `parked` holds each acquisition until the test admits it
+ * or the sidecar's signal aborts it. Every acquisition and release is counted so a test can prove
+ * the lease is handed back on each exit path and that a busy slot is never polled in the background.
+ */
+export interface FakeWakeSlot extends KibitzerWakeSlot {
+  busy: boolean
+  parked: boolean
+  readonly attempts: number
+  readonly acquisitions: number
+  readonly releases: number
+  /** Leases acquired and not yet released. */
+  held(): number
+  /** Grants every parked acquisition. */
+  admit(): void
+}
+
+export function fakeWakeSlot(maxConcurrent = 2): FakeWakeSlot {
+  const counters = { attempts: 0, acquisitions: 0, releases: 0, held: 0 }
+  const parkedWaiters: Array<() => void> = []
+
+  function lease(): KibitzerWakeLease {
+    counters.acquisitions += 1
+    counters.held += 1
+    let released = false
+    return {
+      slot: ((counters.acquisitions - 1) % maxConcurrent) + 1,
+      async release() {
+        if (released) return false
+        released = true
+        counters.releases += 1
+        counters.held -= 1
+        return true
+      },
+    }
+  }
+
+  const slot: FakeWakeSlot = {
+    maxConcurrent,
+    busy: false,
+    parked: false,
+    get attempts() {
+      return counters.attempts
+    },
+    get acquisitions() {
+      return counters.acquisitions
+    },
+    get releases() {
+      return counters.releases
+    },
+    held: () => counters.held,
+    admit() {
+      for (const waiter of parkedWaiters.splice(0)) waiter()
+    },
+    async acquire(signal): Promise<KibitzerWakeAdmission> {
+      counters.attempts += 1
+      if (signal?.aborted) return { status: "aborted" }
+      if (slot.busy) return { status: "busy", waitedMs: 0 }
+      if (slot.parked) {
+        const admitted = await new Promise<boolean>((resolve) => {
+          const onAbort = (): void => resolve(false)
+          signal?.addEventListener("abort", onAbort, { once: true })
+          parkedWaiters.push(() => {
+            signal?.removeEventListener("abort", onAbort)
+            resolve(true)
+          })
+        })
+        if (!admitted) return { status: "aborted" }
+      }
+      return { status: "acquired", lease: lease(), waitedMs: 0 }
+    },
+  }
+  return slot
+}
+
 export interface SidecarHarness {
   readonly sidecar: KibitzerSidecar
+  readonly slot: FakeWakeSlot
   readonly children: readonly FakeChild[]
   readonly delivered: readonly (readonly RecallNudge[])[]
   readonly outcomes: readonly KibitzerWakeOutcome[]
@@ -219,6 +297,7 @@ export interface SidecarHarness {
 }
 
 export function sidecarHarness(overrides: Partial<KibitzerSidecarOptions> = {}): SidecarHarness {
+  const slot = overrides.wakeSlot === undefined ? fakeWakeSlot() : asFakeWakeSlot(overrides.wakeSlot)
   const children: FakeChild[] = []
   const delivered: RecallNudge[][] = []
   const outcomes: KibitzerWakeOutcome[] = []
@@ -247,6 +326,7 @@ export function sidecarHarness(overrides: Partial<KibitzerSidecarOptions> = {}):
       outcomes.push(outcome)
       for (const waiter of wakeWaiters.splice(0)) waiter(outcome)
     },
+    wakeSlot: slot,
     timers,
     now: () => clock.now,
     random: () => 0.5,
@@ -254,6 +334,7 @@ export function sidecarHarness(overrides: Partial<KibitzerSidecarOptions> = {}):
   })
   return {
     sidecar,
+    slot,
     children,
     delivered,
     outcomes,
@@ -270,4 +351,9 @@ export function sidecarHarness(overrides: Partial<KibitzerSidecarOptions> = {}):
       sidecar.events.onPrompt({ type: "before_agent_start", prompt: text }, branchOf(cursor))
     },
   }
+}
+
+function asFakeWakeSlot(slot: KibitzerWakeSlot): FakeWakeSlot {
+  if (!("held" in slot && "admit" in slot)) throw new Error("sidecarHarness only accepts a fakeWakeSlot() as wakeSlot")
+  return slot as FakeWakeSlot
 }

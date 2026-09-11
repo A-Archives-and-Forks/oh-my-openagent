@@ -13,7 +13,7 @@
 // Every step stays fail-open: an unreadable memory repo or a corrupt corpus drops the collection
 // and logs, and the turn proceeds untouched.
 
-import type { OmoMemorySettings } from "@oh-my-opencode/omo-config-core"
+import type { OmoMemoryRecall, OmoMemorySettings } from "@oh-my-opencode/omo-config-core"
 import {
   GitMemoryRepo,
   PendingNudges,
@@ -47,18 +47,20 @@ export {
 } from "./recall-session-read"
 export type { PendingNudgesPort }
 
-export interface ResolvedMemoryRecallSettings {
-  readonly enabled: boolean
-  readonly max_items: number
-}
+export type ResolvedMemoryRecallSettings = OmoMemoryRecall
 
-/** Base recall block under the bound agent's layer override, mirroring the nudge/reflection pattern. */
+/**
+ * Base recall block under the bound agent's layer override, mirroring the nudge/reflection pattern.
+ * `event_caps` merges per field, so an agent that tightens one cap keeps the root's other three.
+ */
 export function resolveAgentRecallSettings(
   settings: OmoMemorySettings | undefined,
   agentId: string,
 ): ResolvedMemoryRecallSettings {
   const resolved = resolveMemorySettings(settings)
-  return { ...resolved.recall, ...resolved.agents[agentId]?.recall }
+  const base = resolved.recall
+  const override = resolved.agents[agentId]?.recall
+  return { ...base, ...override, event_caps: { ...base.event_caps, ...override?.event_caps } }
 }
 
 export interface MemoryRecallWiringOptions {

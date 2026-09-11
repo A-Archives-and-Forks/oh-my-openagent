@@ -98,4 +98,20 @@ describe("backoffDelayMs", () => {
     // A custom band is honoured the same way.
     expect(backoffDelayMs(1, () => 0.5, { minMs: 100, maxMs: 250 })).toBe(150)
   })
+
+  test("#given a streak of consecutive failures #when each retry delay is computed #then the ladder climbs 1s, 2s, 4s ... and settles on the five-minute cap, every draw inside the band", () => {
+    // Full-jitter draw: the ladder itself, capped at five minutes from the ninth retry on.
+    const ladder = Array.from({ length: 12 }, (_, attempt) => backoffDelayMs(attempt, () => 1))
+    expect(ladder).toEqual([1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000, 256_000, 300_000, 300_000, 300_000])
+
+    // Whatever the draw, a delay never leaves [1s, 5min] and never drops below half its rung.
+    for (const attempt of [0, 1, 4, 8, 9, 30]) {
+      for (const draw of [0, 0.01, 0.37, 0.5, 0.99, 1, Number.NaN, Number.POSITIVE_INFINITY]) {
+        const delay = backoffDelayMs(attempt, () => draw)
+        expect(delay).toBeGreaterThanOrEqual(KIBITZER_BACKOFF_MIN_MS)
+        expect(delay).toBeLessThanOrEqual(KIBITZER_BACKOFF_MAX_MS)
+        expect(delay).toBeGreaterThanOrEqual(Math.min(KIBITZER_BACKOFF_MAX_MS, KIBITZER_BACKOFF_MIN_MS * 2 ** attempt) / 2)
+      }
+    }
+  })
 })
