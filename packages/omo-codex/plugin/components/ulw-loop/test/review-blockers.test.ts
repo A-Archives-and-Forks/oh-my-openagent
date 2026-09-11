@@ -159,6 +159,18 @@ describe("recordFinalReviewBlockers error cases", () => {
 	});
 });
 
+describe("recordFinalReviewBlockers advisory results", () => {
+	it("returns objective-difference warning and resume action for a limited snapshot", async () => {
+		const repo = await bootstrapRepo(finalPlan());
+		const result = await recordFinalReviewBlockers(repo, {
+			...validArgs,
+			codexGoalJson: JSON.stringify({ goal: { objective: "different", status: "budget_limited" } }),
+		});
+		expect(result.nextActions).toContain("/goal resume or raise the budget");
+		expect(result.warnings.some((warning) => warning.startsWith("driver_objective_differs"))).toBe(true);
+	});
+});
+
 describe("recordFinalReviewBlockers ledger entries", () => {
 	it("appends goal_review_blocked + goal_added + blocker_recorded events", async () => {
 		const repo = await bootstrapRepo(finalPlan());

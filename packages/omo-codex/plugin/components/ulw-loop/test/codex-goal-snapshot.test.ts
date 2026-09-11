@@ -103,10 +103,10 @@ describe("readCodexGoalSnapshotInput", () => {
 
 	it("reads from sample fixture path", async () => {
 		// given
-		const filePath = join(process.cwd(), "test", "fixtures", "codex-goal-snapshot.json");
+		const filePath = new URL("./fixtures/codex-goal-snapshot.json", import.meta.url);
 
 		// when
-		const snapshot = await readCodexGoalSnapshotInput(filePath);
+		const snapshot = await readCodexGoalSnapshotInput(filePath.pathname);
 
 		// then
 		expect(snapshot?.available).toBe(true);
@@ -120,6 +120,15 @@ describe("readCodexGoalSnapshotInput", () => {
 });
 
 describe("reconcileCodexGoalSnapshot", () => {
+	it("preserves objective whitespace in driver advice while normalizing comparison", () => {
+		const expectedObjective = "  exact   objective\nwith spacing  ";
+		const result = reconcileCodexGoalSnapshot(
+			parseCodexGoalSnapshot({ goal: { objective: "different", status: "active" } }),
+			{ expectedObjective },
+		);
+
+		expect(result.warnings[0]).toContain(`expected "${expectedObjective}"`);
+	});
 	it("returns ok=true when snapshot matches expected", () => {
 		// when
 		const reconciliation = reconcileCodexGoalSnapshot(

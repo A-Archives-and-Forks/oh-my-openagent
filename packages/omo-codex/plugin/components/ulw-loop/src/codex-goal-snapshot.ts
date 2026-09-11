@@ -37,11 +37,15 @@ function safeObject(value: unknown): Record<string, unknown> {
 }
 
 function safeString(value: unknown): string {
+	return typeof value === "string" ? value : "";
+}
+
+function safeStatusString(value: unknown): string {
 	return typeof value === "string" ? value.trim() : "";
 }
 
 function normalizeStatus(value: unknown): CodexGoalSnapshotStatus {
-	const status = safeString(value).toLowerCase();
+	const status = safeStatusString(value).toLowerCase();
 	if (status === "complete" || status === "completed" || status === "done") return "complete";
 	if (status === "cancelled" || status === "canceled") return "cancelled";
 	if (status === "failed" || status === "failure") return "failed";
@@ -108,19 +112,21 @@ export function reconcileCodexGoalSnapshot(
 	const errors: string[] = [];
 	const warnings: string[] = [];
 
-	const expected = normalizeObjective(options.expectedObjective);
+	const expected = options.expectedObjective;
+	const normalizedExpected = normalizeObjective(expected);
 	if (!effectiveSnapshot.available) {
 		warnings.push(`call get_goal; if none, create_goal with codexObjective "${expected}" verbatim`);
 		return { ok: errors.length === 0, snapshot: effectiveSnapshot, warnings, errors };
 	}
 
 	const accepted = new Set(
-		[expected, ...(options.acceptedObjectives ?? []).map((objective) => normalizeObjective(objective))].filter(
-			Boolean,
-		),
+		[
+			normalizedExpected,
+			...(options.acceptedObjectives ?? []).map((objective) => normalizeObjective(objective)),
+		].filter(Boolean),
 	);
 	const actual = normalizeObjective(effectiveSnapshot.objective ?? "");
-	if (actual && !accepted.has(actual)) {
+	if (actual && !accepted.has(normalizeObjective(actual))) {
 		warnings.push(`driver_objective_differs: expected "${expected}", got "${actual}".`);
 	}
 

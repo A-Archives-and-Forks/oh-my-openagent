@@ -34,58 +34,6 @@ describe("#given a codex goal snapshot whose objective differs from the plan", (
 	});
 });
 
-/* removed legacy mismatch-gate cases
-
-	it("#when checkpoint reconciles it #then the mismatch carries the verbatim expected and received objectives", async () => {
-		const repo = await repoWith(plan([passGoal("G001"), goal({ id: "G002", status: "pending" })]));
-
-		const error = await captureError(() =>
-			checkpointUlwLoop(repo, {
-				goalId: "G001",
-				status: "complete",
-				evidence: "work complete and validation passed",
-				codexGoalJson: snapshot("active", "wrong objective"),
-			}),
-		);
-
-		expect(error.code).toBe("driver_objective_differs");
-		expect(error.details).toMatchObject({
-			expectedObjective: ULW_LOOP_AGGREGATE_CODEX_OBJECTIVE,
-			receivedObjective: "wrong objective",
-		});
-		expect(error.message).toContain(
-			"objective must equal the plan's codexObjective exactly — copy the expected value below",
-		);
-		expect(error.message).toContain(ULW_LOOP_AGGREGATE_CODEX_OBJECTIVE);
-	});
-
-	it("#when record-review-blockers reconciles it #then the same guided payload is emitted", async () => {
-		const repo = await repoWith(
-			plan([passGoal("G001", { status: "complete" }), goal({ id: "G002", status: "in_progress" })]),
-		);
-
-		const error = await captureError(() =>
-			recordFinalReviewBlockers(repo, {
-				goalId: "G002",
-				title: "Resolve final review blockers",
-				objective: "Address the BLOCK findings",
-				evidence: "review verdict: REQUEST_CHANGES",
-				codexGoalJson: JSON.stringify({ goal: { objective: "stale objective", status: "active" } }),
-			}),
-		);
-
-		expect(error.code).toBe("driver_objective_differs");
-		expect(error.details).toMatchObject({
-			expectedObjective: ULW_LOOP_AGGREGATE_CODEX_OBJECTIVE,
-			receivedObjective: "stale objective",
-		});
-		expect(error.message).toContain(
-			"objective must equal the plan's codexObjective exactly — copy the expected value below",
-		);
-	});
-});
-
-*/
 describe("#given no ulw-loop plan on disk", () => {
 	it("#when the plan is read #then the error names the exact create-goals bootstrap command", async () => {
 		const repo = await mkdtemp(join(tmpdir(), "ug-guided-plan-"));
