@@ -12,7 +12,7 @@ import {
   transformReleases,
   auditFixtureMissingReleases,
   type Release,
-} from "./changelog-backfill"
+} from "./changelog-backfill-index"
 
 // ==============================================================================
 // Test Fixtures
