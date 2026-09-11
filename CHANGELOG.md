@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-beta.55] - 2026-09-11
+
 OmO Native stops greeting you with its entire history, and memory gains a resident Kibitzer.
 
 ### Startup
