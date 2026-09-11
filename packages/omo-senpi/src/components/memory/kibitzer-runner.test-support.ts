@@ -13,7 +13,7 @@ import type { ChildHandle, ChildModelRegistry, ChildSession, ChildSessionEvent, 
 
 import { ModelRegistry, ModelRuntime } from "../../senpi-test-runtime"
 import type { KibitzerGateRunner } from "./kibitzer-runner"
-import type { KibitzerNudgeTool } from "./kibitzer-nudge-tool"
+import type { KibitzerNudgeTool } from "./kibitzer/nudge-tool"
 
 export const IDENTITY = "kibitzer-agent"
 export const SESSION_ID = "session-gate-1"

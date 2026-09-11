@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { RecallNudge } from "@oh-my-opencode/memory-core"
 import type { ResolvedModelRecord } from "@oh-my-opencode/senpi-task"
-import { KIBITZER_NUDGE_TOOL_NAME, type KibitzerNudgeTool } from "./kibitzer-nudge-tool"
+import { KIBITZER_NUDGE_TOOL_NAME, type KibitzerNudgeTool } from "./kibitzer/nudge-tool"
 import { buildKibitzerJudgeSpec } from "./kibitzer-judge-spec"
 import type { ChildModelChainSpec } from "./memory-child-model-chain"
 import { CANDIDATE_PATH, launchInput } from "./kibitzer-runner.test-support"

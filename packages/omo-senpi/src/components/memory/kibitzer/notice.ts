@@ -1,7 +1,7 @@
 import type { EntryRenderer } from "@code-yeongyu/senpi"
 import { containsSecretLikeMaterial, isValidHint, NUDGE_HINT_MAX_CHARS } from "@oh-my-opencode/memory-core"
 
-import { joinFields, noticeComponent, normalizeRendererText } from "./worker/entry-renderers"
+import { joinFields, noticeComponent, normalizeRendererText } from "../worker/entry-renderers"
 
 export const NUDGED_ENTRY_TYPE = "omo-kibitzer:nudged"
 export const GATE_ENTRY_TYPE = "omo-kibitzer:gate"

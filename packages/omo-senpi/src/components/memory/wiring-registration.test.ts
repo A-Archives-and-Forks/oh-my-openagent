@@ -7,7 +7,7 @@ import { buildIdentityPaths, GitMemoryRepo } from "@oh-my-opencode/memory-core"
 import { IdleInjectionCoordinator } from "../../extension/idle-injection-coordinator"
 import { createMemoryBinding } from "./binding"
 import { createMemoryIdentityContext } from "./context"
-import { NUDGED_ENTRY_TYPE } from "./kibitzer-notice"
+import { NUDGED_ENTRY_TYPE } from "./kibitzer/notice"
 import { MemoryFakeExtensionAPI, componentContext, loadedMemoryConfig, memorySettings } from "./memory.test-support"
 import { createMemoryWiring } from "./wiring"
 

@@ -4,7 +4,7 @@ import type { RecallTranscriptTurn } from "./recall-wiring"
 
 import type { ComponentLogger } from "../../extension/types"
 import { createOncePerSessionGuard } from "../task/usage-guidance"
-import { GATE_ENTRY_TYPE, type KibitzerGateRecord } from "./kibitzer-notice"
+import { GATE_ENTRY_TYPE, type KibitzerGateRecord } from "./kibitzer/notice"
 import type { MemoryIdentityContext } from "./context"
 import type { CollectedRecallCandidates } from "./recall-wiring"
 

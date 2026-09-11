@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import { classifyJudgeTurn, normalizeGateReason } from "./kibitzer-judge-outcome"
+import { classifyJudgeTurn, normalizeGateReason } from "./judge-outcome"
 
 const NO_NUDGES: readonly never[] = []
 const ONE_NUDGE = [{ path: "reference/kubernetes-rollouts.md", hint: "Drain nodes before a rollout." }] as const

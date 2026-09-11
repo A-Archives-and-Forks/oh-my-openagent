@@ -11,7 +11,7 @@ import { type SkillsUsageTracker } from "./skills-usage"
 import { type MemoryUsageTracker } from "./memory-usage"
 import { createMemoryNoticeWiring } from "./memory-notice-wiring"
 import type { KibitzerGateWiring } from "./kibitzer-wiring"
-import { createKibitzerComposition, type KibitzerComposition } from "./wiring-kibitzer"
+import { createKibitzerComposition, type KibitzerComposition } from "./kibitzer/composition"
 import { createMemoryRecallWiring } from "./recall-wiring"
 import { branchEntryCount } from "./wiring-context"
 import {

@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 
 import { NUDGE_HINT_MAX_CHARS, type RecallNudge } from "@oh-my-opencode/memory-core"
 
-import { createKibitzerNudgeTool, KIBITZER_NUDGE_TOOL_NAME } from "./kibitzer-nudge-tool"
+import { createKibitzerNudgeTool, KIBITZER_NUDGE_TOOL_NAME } from "./nudge-tool"
 
 const CANDIDATE_PATH = "reference/kubernetes-rollouts.md"
 const HINT = "Drain nodes before a rollout."

@@ -2,7 +2,7 @@ import type { RunnerOutcome } from "@oh-my-opencode/senpi-task"
 
 import { containsSecretLikeMaterial, type RecallNudge } from "@oh-my-opencode/memory-core"
 
-import { GATE_REASON_MAX_CHARS } from "./kibitzer-notice"
+import { GATE_REASON_MAX_CHARS } from "./notice"
 
 export type JudgeTurnClassification =
   | { readonly status: "completed" }

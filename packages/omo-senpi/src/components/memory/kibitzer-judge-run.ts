@@ -6,11 +6,11 @@ import { join } from "node:path"
 import { resolveAgentHome } from "../agent-home/resolve-agent-home"
 import { abortAndDispose } from "./kibitzer-lifecycle"
 import { childModelChainSpec } from "./memory-child-model-chain"
-import { classifyJudgeTurn, normalizeGateReason } from "./kibitzer-judge-outcome"
+import { classifyJudgeTurn, normalizeGateReason } from "./kibitzer/judge-outcome"
 import { buildKibitzerJudgeSpec } from "./kibitzer-judge-spec"
 import { kibitzerCandidatesPayload, renderTranscriptWindow } from "./kibitzer-prompt"
 import { writeKibitzerRunOutcome } from "./kibitzer-run-retention"
-import { loadKibitzerTaskRuntime } from "./kibitzer-task-runtime"
+import { loadKibitzerTaskRuntime } from "./kibitzer/task-runtime"
 import type {
   KibitzerGateLaunchInput,
   KibitzerGateLaunchResult,

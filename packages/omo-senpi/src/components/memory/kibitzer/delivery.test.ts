@@ -5,10 +5,10 @@ import { join } from "node:path"
 
 import { PendingNudges, RecallLedger, buildIdentityPaths, type RecallNudge } from "@oh-my-opencode/memory-core"
 
-import { IdleInjectionCoordinator } from "../../extension/idle-injection-coordinator"
-import { createMemoryIdentityContext, type MemoryIdentityContext } from "./context"
-import { createMemoryBinding } from "./binding"
-import { createKibitzerDelivery } from "./kibitzer-delivery"
+import { IdleInjectionCoordinator } from "../../../extension/idle-injection-coordinator"
+import { createMemoryIdentityContext, type MemoryIdentityContext } from "../context"
+import { createMemoryBinding } from "../binding"
+import { createKibitzerDelivery } from "./delivery"
 
 const SESSION_ID = "delivery-session"
 const NUDGE: RecallNudge = { path: "reference/rollouts.md", hint: "Drain nodes before rollout." }

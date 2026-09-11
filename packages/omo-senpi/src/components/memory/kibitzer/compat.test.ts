@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test"
-import { createRecallDrain } from "./recall-drain"
-import { judgeTranscript, userTexts } from "./recall-session-read"
-import { GATE_ENTRY_TYPE, NUDGED_ENTRY_TYPE } from "./kibitzer-notice"
-import { RECALL_CUSTOM_TYPE } from "./recall-session-read"
-import { MemoryFakeExtensionAPI } from "./memory.test-support"
+import { createRecallDrain } from "../recall-drain"
+import { judgeTranscript, userTexts } from "../recall-session-read"
+import { GATE_ENTRY_TYPE, NUDGED_ENTRY_TYPE } from "./notice"
+import { RECALL_CUSTOM_TYPE } from "../recall-session-read"
+import { MemoryFakeExtensionAPI } from "../memory.test-support"
 
 describe("Kibitzer session compatibility (#7993)", () => {
   test("emits the Kibitzer channels while registering both generations for replay", () => {
