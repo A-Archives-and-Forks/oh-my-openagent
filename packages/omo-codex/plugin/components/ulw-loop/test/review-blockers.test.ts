@@ -157,16 +157,6 @@ describe("recordFinalReviewBlockers error cases", () => {
 			"ulw_loop_not_final_story",
 		);
 	});
-
-	it("throws ulw_loop_codex_snapshot_mismatch when objective mismatches", async () => {
-		const repo = await bootstrapRepo(finalPlan());
-		const codexGoalJson = JSON.stringify({ goal: { objective: "wrong", status: "active" } });
-
-		await expectUlwLoopCode(
-			() => recordFinalReviewBlockers(repo, { ...validArgs, codexGoalJson }),
-			"ulw_loop_codex_snapshot_mismatch",
-		);
-	});
 });
 
 describe("recordFinalReviewBlockers ledger entries", () => {

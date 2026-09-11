@@ -2,7 +2,15 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-export type CodexGoalSnapshotStatus = "active" | "complete" | "cancelled" | "failed" | "unknown";
+export type CodexGoalSnapshotStatus =
+	| "active"
+	| "complete"
+	| "paused"
+	| "usage_limited"
+	| "budget_limited"
+	| "cancelled"
+	| "failed"
+	| "unknown";
 
 export interface CodexGoalSnapshot {
 	available: boolean;
@@ -20,10 +28,7 @@ export interface CodexGoalReconciliation {
 
 export interface ReconcileCodexGoalOptions {
 	expectedObjective: string;
-	acceptedObjectives?: readonly string[];
-	allowedStatuses?: readonly CodexGoalSnapshotStatus[];
-	requireSnapshot?: boolean;
-	requireComplete?: boolean;
+	readonly acceptedObjectives?: readonly string[];
 }
 
 export class CodexGoalSnapshotError extends Error {}
@@ -40,6 +45,9 @@ function normalizeStatus(value: unknown): CodexGoalSnapshotStatus {
 	if (status === "complete" || status === "completed" || status === "done") return "complete";
 	if (status === "cancelled" || status === "canceled") return "cancelled";
 	if (status === "failed" || status === "failure") return "failed";
+	if (status === "paused") return "paused";
+	if (status === "usage_limited") return "usage_limited";
+	if (status === "budget_limited") return "budget_limited";
 	if (status === "active" || status === "in_progress" || status === "pending" || status === "running") return "active";
 	return "unknown";
 }
@@ -101,10 +109,7 @@ export function reconcileCodexGoalSnapshot(
 	const warnings: string[] = [];
 
 	if (!effectiveSnapshot.available) {
-		const message =
-			"Codex goal snapshot is absent or reports no active goal; call get_goal and pass its JSON with --codex-goal-json.";
-		if (options.requireSnapshot) errors.push(message);
-		else warnings.push(message);
+		warnings.push("call get_goal; if none, create_goal with the plan's codexObjective verbatim");
 		return { ok: errors.length === 0, snapshot: effectiveSnapshot, warnings, errors };
 	}
 
@@ -118,47 +123,19 @@ export function reconcileCodexGoalSnapshot(
 	if (!actual) {
 		errors.push("Codex goal snapshot is missing objective text.");
 	} else if (!accepted.has(actual)) {
-		errors.push(`Codex goal objective mismatch: expected "${expected}", got "${actual}".`);
+		warnings.push(`driver_objective_differs: expected "${expected}", got "${actual}".`);
 	}
 
-	const allowed = options.allowedStatuses ?? (options.requireComplete ? ["complete"] : ["active", "complete"]);
 	const actualStatus = effectiveSnapshot.status ?? "unknown";
-	if (!allowed.includes(actualStatus)) {
-		errors.push(`Codex goal status mismatch: expected ${allowed.join(" or ")}, got ${actualStatus}.`);
+	if (actualStatus === "paused" || actualStatus === "usage_limited" || actualStatus === "budget_limited") {
+		warnings.push("/goal resume or raise the budget");
 	}
-	if (options.requireComplete && actualStatus !== "complete") {
-		errors.push(
-			'Codex goal is not complete; call update_goal({status: "complete"}) only after the objective is actually complete, then pass the fresh get_goal JSON.',
-		);
-	}
-
+	if (actualStatus === "complete")
+		warnings.push("driver closed early: call create_goal with the plan's codexObjective again");
 	return { ok: errors.length === 0, snapshot: effectiveSnapshot, warnings, errors };
 }
 
 export function formatCodexGoalReconciliation(reconciliation: CodexGoalReconciliation): string {
 	const parts = [...reconciliation.errors, ...reconciliation.warnings];
 	return parts.join(" ");
-}
-
-export interface CodexGoalMismatchRecovery {
-	readonly message: string;
-	readonly details: { readonly expectedObjective: string; readonly receivedObjective: string };
-}
-
-/**
- * The reconciliation errors normalize whitespace for comparison, which makes the
- * quoted objective unusable as a copy source. Recovery therefore carries the
- * plan's `codexObjective` verbatim so the agent can paste it into `update_goal`.
- */
-export function codexGoalMismatchRecovery(
-	expectedObjective: string,
-	snapshot: CodexGoalSnapshot | null | undefined,
-): CodexGoalMismatchRecovery {
-	const receivedObjective = snapshot?.objective ?? "";
-	const message = [
-		"Recovery: the Codex goal objective must equal the plan's codexObjective exactly — copy the expected value below into update_goal and re-run get_goal.",
-		`expected codexObjective: ${expectedObjective}`,
-		`received objective: ${receivedObjective || "(none)"}`,
-	].join("\n");
-	return { message, details: { expectedObjective, receivedObjective } };
 }

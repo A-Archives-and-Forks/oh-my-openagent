@@ -132,7 +132,7 @@ describe("reconcileCodexGoalSnapshot", () => {
 		expect(reconciliation.errors).toHaveLength(0);
 	});
 
-	it("reports error when objective mismatches", () => {
+	it("reports warning when objective mismatches", () => {
 		// when
 		const reconciliation = reconcileCodexGoalSnapshot(
 			{ available: true, objective: "X", status: "active", raw: null },
@@ -140,20 +140,22 @@ describe("reconcileCodexGoalSnapshot", () => {
 		);
 
 		// then
-		expect(reconciliation.ok).toBe(false);
-		expect(reconciliation.errors.length).toBeGreaterThan(0);
+		expect(reconciliation.ok).toBe(true);
+		expect(reconciliation.errors).toHaveLength(0);
+		expect(reconciliation.warnings.join(" ")).toContain("driver_objective_differs");
 	});
 
-	it("reports error when status mismatches", () => {
+	it("accepts limited driver statuses", () => {
 		// when
 		const reconciliation = reconcileCodexGoalSnapshot(
-			{ available: true, objective: "X", status: "active", raw: null },
-			{ expectedObjective: "X", allowedStatuses: ["complete"] },
+			{ available: true, objective: "X", status: "budget_limited", raw: null },
+			{ expectedObjective: "X" },
 		);
 
 		// then
-		expect(reconciliation.ok).toBe(false);
-		expect(reconciliation.errors.length).toBeGreaterThan(0);
+		expect(reconciliation.ok).toBe(true);
+		expect(reconciliation.errors).toHaveLength(0);
+		expect(reconciliation.warnings.join(" ")).toContain("/goal resume");
 	});
 });
 
@@ -162,7 +164,7 @@ describe("formatCodexGoalReconciliation", () => {
 		// given
 		const reconciliation = reconcileCodexGoalSnapshot(
 			{ available: true, objective: "X", status: "active", raw: null },
-			{ expectedObjective: "Y", allowedStatuses: ["complete"] },
+			{ expectedObjective: "Y" },
 		);
 
 		// when

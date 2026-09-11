@@ -4,12 +4,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { checkpointUlwLoop } from "../src/checkpoint.js";
-import { ULW_LOOP_AGGREGATE_CODEX_OBJECTIVE } from "../src/goal-status.js";
 import { ulwLoopDir } from "../src/paths.js";
 import { readUlwLoopPlan } from "../src/plan-io.js";
-import { recordFinalReviewBlockers } from "../src/review-blockers.js";
 import { UlwLoopError } from "../src/types.js";
-import { goal, passGoal, plan, repoWith, snapshot } from "./fixtures/checkpoint-builders.js";
+import { goal, passGoal, plan, repoWith } from "./fixtures/checkpoint-builders.js";
 
 async function captureError(action: () => Promise<unknown>): Promise<UlwLoopError> {
 	try {
@@ -23,6 +21,21 @@ async function captureError(action: () => Promise<unknown>): Promise<UlwLoopErro
 }
 
 describe("#given a codex goal snapshot whose objective differs from the plan", () => {
+	it("#when checkpoint reconciles it #then it succeeds with driver advice", async () => {
+		const repo = await repoWith(plan([passGoal("G001"), goal({ id: "G002", status: "pending" })]));
+		const result = await checkpointUlwLoop(repo, {
+			goalId: "G001",
+			status: "complete",
+			evidence: "work complete",
+			codexGoalJson: JSON.stringify({ goal: { objective: "wrong objective", status: "budget_limited" } }),
+		});
+		expect(result.nextActions.join(" ")).toContain("/goal resume");
+		expect(result.warnings.join(" ")).toContain("driver_objective_differs");
+	});
+});
+
+/* removed legacy mismatch-gate cases
+
 	it("#when checkpoint reconciles it #then the mismatch carries the verbatim expected and received objectives", async () => {
 		const repo = await repoWith(plan([passGoal("G001"), goal({ id: "G002", status: "pending" })]));
 
@@ -35,7 +48,7 @@ describe("#given a codex goal snapshot whose objective differs from the plan", (
 			}),
 		);
 
-		expect(error.code).toBe("ulw_loop_codex_snapshot_mismatch");
+		expect(error.code).toBe("driver_objective_differs");
 		expect(error.details).toMatchObject({
 			expectedObjective: ULW_LOOP_AGGREGATE_CODEX_OBJECTIVE,
 			receivedObjective: "wrong objective",
@@ -61,7 +74,7 @@ describe("#given a codex goal snapshot whose objective differs from the plan", (
 			}),
 		);
 
-		expect(error.code).toBe("ulw_loop_codex_snapshot_mismatch");
+		expect(error.code).toBe("driver_objective_differs");
 		expect(error.details).toMatchObject({
 			expectedObjective: ULW_LOOP_AGGREGATE_CODEX_OBJECTIVE,
 			receivedObjective: "stale objective",
@@ -72,6 +85,7 @@ describe("#given a codex goal snapshot whose objective differs from the plan", (
 	});
 });
 
+*/
 describe("#given no ulw-loop plan on disk", () => {
 	it("#when the plan is read #then the error names the exact create-goals bootstrap command", async () => {
 		const repo = await mkdtemp(join(tmpdir(), "ug-guided-plan-"));
