@@ -53,6 +53,36 @@ describe("kibitzer gate notice", () => {
     const component = renderKibitzerGateEntry(entry(record), { expanded: false }, theme)
     expect(component?.render(120).join("\n")).toContain("check Kibitzer model/provider settings")
   })
+
+  test("#given a resident sidecar gate record (wake number, no runId) #when rendered #then it draws the actionable notice without a run line", () => {
+    const record: KibitzerGateRecord = {
+      version: 1,
+      status: "failed",
+      cause: "child_failed_upstream",
+      model: "omo-mock/mock-1",
+      candidateCount: 2,
+      reason: "503 overloaded",
+      consecutiveFailures: 3,
+      wake: 7,
+    }
+    const rendered = renderKibitzerGateEntry(entry(record), { expanded: false }, theme)?.render(120).join("\n")
+    expect(rendered).toContain("Kibitzer gate failed")
+    expect(rendered).toContain("503 overloaded")
+    expect(rendered).toContain("after 3 consecutive failures; check Kibitzer model/provider settings")
+    expect(rendered).not.toContain("run ")
+  })
+
+  test("#given a stored one-shot gate record carrying a runId #when rendered by the resident renderer #then the run line still shows", () => {
+    const legacy = { version: 1, status: "failed", cause: "child_failed", candidateCount: 1, reason: "broken", runId: "run-3", consecutiveFailures: 3 }
+    const rendered = renderKibitzerGateEntry(entry(legacy as KibitzerGateRecord), { expanded: false }, theme)?.render(120).join("\n")
+    expect(rendered).toContain("run run-3")
+    expect(rendered).toContain("after 3 consecutive failures")
+  })
+
+  test("#given a failed record below the notice threshold (an isolated failure) #when rendered #then nothing is drawn", () => {
+    const record: KibitzerGateRecord = { version: 1, status: "failed", cause: "child_failed", candidateCount: 2, wake: 1 }
+    expect(renderKibitzerGateEntry(entry(record), { expanded: false }, theme)).toBeUndefined()
+  })
 })
 
 describe("kibitzer nudged recollection", () => {

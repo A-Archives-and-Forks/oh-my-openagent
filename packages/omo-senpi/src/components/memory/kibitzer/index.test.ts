@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { realpathSync } from "node:fs"
+import { existsSync, realpathSync } from "node:fs"
 import { mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -15,7 +15,8 @@ import { GATE_SURFACE_HASH } from "../recall-drain"
 import { readSession, RECALL_CUSTOM_TYPE } from "../recall-session-read"
 import type { CollectedRecallCandidates } from "../recall-wiring"
 import { createKibitzerComposition, kibitzerSidecarSessionDir, type KibitzerComposition } from "./index"
-import { NUDGED_ENTRY_TYPE } from "./notice"
+import { GATE_ENTRY_TYPE, NUDGED_ENTRY_TYPE } from "./notice"
+import { kibitzerSidecarOwnerLockPath, kibitzerWakesFile, type KibitzerWakeRecord } from "./observe"
 import { KIBITZER_SIDECAR_TOOL_NAMES } from "./sidecar-prompt"
 import { candidate, fakeChild, withinMs, type FakeChild } from "./sidecar.test-support"
 import type { AnyKibitzerSidecarTool } from "./tools/result"
@@ -201,6 +202,12 @@ function eventsOf(envelope: string): Array<{ cursor: number; kind: string }> {
   return [...envelope.matchAll(/<event cursor="(\d+)" kind="([a-z_]+)"/g)].map((match) => ({ cursor: Number(match[1]), kind: match[2] ?? "" }))
 }
 
+/** The session's `wakes.ndjson`, parsed, from the directory the child transcript is written to. */
+async function wakesOf(context: MemoryIdentityContext, sessionId: string): Promise<KibitzerWakeRecord[]> {
+  const text = await readFile(kibitzerWakesFile(context.identityPaths.recall, sessionId), "utf8")
+  return text.trimEnd().split("\n").map((line) => JSON.parse(line) as KibitzerWakeRecord)
+}
+
 describe("kibitzerSidecarSessionDir", () => {
   test("#given distinct parent session ids #when their sidecar directories are derived #then each is URL-safe base64 of the id, unpadded, under recall/sidecars", () => {
     expect(kibitzerSidecarSessionDir("/state/recall", "parent-1")).toBe(join("/state/recall", "sidecars", "cGFyZW50LTE"))
@@ -244,6 +251,17 @@ describe("createKibitzerComposition", () => {
     // The registry the child threads into its session is the one captured synchronously at the hook.
     expect(specA?.modelRegistry).toBe(registry as unknown as ChildSpec["modelRegistry"])
     expect(specA?.selectedModel).toBe("omo-mock/mock-1")
+    // Observability: one `wakes.ndjson` line per settled wake, in the directory the child transcript lives in,
+    // and the live session's directory is owned through its lock for as long as the sidecar exists.
+    for (const [sessionId, spec] of [[SESSION_A, specA], [SESSION_B, specB]] as const) {
+      expect(kibitzerWakesFile(f.context.identityPaths.recall, sessionId)).toBe(join(spec?.sessionDir ?? "", "wakes.ndjson"))
+      const wakes = await wakesOf(f.context, sessionId)
+      expect(wakes.map((record) => [record.sessionId, record.wake, record.status, record.model, record.diagnostic])).toEqual([[sessionId, 1, "completed", "omo-mock/mock-1", false]])
+      // Both wakes were seeded at the prompt (cursor 1); the later hooks on session A carried no new candidate and never joined the turn.
+      expect(wakes[0]?.cursors).toEqual({ first: 1, last: 1 })
+      expect(existsSync(kibitzerSidecarOwnerLockPath(f.context.identityPaths.locks, sessionId))).toBe(true)
+    }
+    expect(f.pi.entries.filter((entry) => entry.customType === GATE_ENTRY_TYPE)).toEqual([])
     expect(f.warnings).toEqual([])
   })
 
@@ -373,6 +391,10 @@ describe("createKibitzerComposition", () => {
     expect(f.pi.messages).toEqual([])
     const lease = await acquireRecallWakeLease(locks, { maxConcurrent: 1, waitTimeoutMs: 0 })
     expect(await lease.release()).toBe(true)
+    // The cancelled wake is the session's one audit line, durable before shutdown resolved; the directory lock is gone with the session.
+    expect((await wakesOf(f.context, SESSION_A)).map((record) => [record.wake, record.status, record.cause, record.diagnostic])).toEqual([[1, "cancelled", "shutdown", false]])
+    expect(existsSync(kibitzerSidecarOwnerLockPath(locks, SESSION_A))).toBe(false)
+    expect(existsSync(kibitzerSidecarSessionDir(f.context.identityPaths.recall, SESSION_A))).toBe(true)
 
     // The host releases the binding with the session: a late hook for the old id creates nothing.
     f.sessions.delete(SESSION_A)
