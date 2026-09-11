@@ -2,7 +2,7 @@ import type { RecallNudge } from "@oh-my-opencode/memory-core"
 import type { ChildSpec } from "@oh-my-opencode/senpi-task"
 import type { ChildModelChainSpec } from "./memory-child-model-chain"
 import type { KibitzerGateLaunchInput } from "./kibitzer-runner"
-import { createKibitzerNudgeTool, KIBITZER_NUDGE_TOOL_NAME } from "./kibitzer-nudge-tool"
+import { createKibitzerNudgeTool, KIBITZER_NUDGE_TOOL_NAME } from "./kibitzer/nudge-tool"
 import { buildKibitzerPrompt } from "./kibitzer-prompt"
 
 type JudgeSpecInput = {

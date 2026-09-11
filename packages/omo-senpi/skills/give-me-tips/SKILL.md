@@ -127,20 +127,20 @@ memory and hands one hint back. Keep the two apart in the explanation.
    the default: it nudges only when a stored memory would change the agent's next action (it
    contradicts the current approach, records a past failure of it, answers a question the agent is
    about to re-derive, or names a constraint being ignored). Topical similarity alone is rejected.
-4. **Hint contract** (`kibitzer-nudge-tool.ts`, `packages/memory-core/src/recall/gate.ts`): the
+4. **Hint contract** (`kibitzer/nudge-tool.ts`, `packages/memory-core/src/recall/gate.ts`): the
    path must be copied from the offered candidates, must not already be surfaced this session, and
    must not be a `system/` path; the hint is one factual present-tense sentence, at most 200
    characters (`NUDGE_HINT_MAX_CHARS`), single line, and secret-like text is rejected. The parent
    re-validates every accepted nudge against the same rules plus `memory.recall.max_items`
    (default 2, range 1 to 5) before anything is persisted.
-5. **Delivery** (`kibitzer-delivery.ts`, `recall-drain.ts`): accepted nudges are marked surfaced in
+5. **Delivery** (`kibitzer/delivery.ts`, `recall-drain.ts`): accepted nudges are marked surfaced in
    the session ledger at ACCEPT time, so a parallel judge can't repeat them. The model-facing half
    is a hidden `omo-kibitzer:recall` message (`display: false`) carrying a `<recalled-memory
    source="[[path]]">` block that says the memory is a hint, not current state, and must be
    verified. It is steered in at the next `tool_result` when nothing else is pending, ridden in on
    another source's idle flush, or drained into the next prompt; the pending file is stamped with
    the compaction epoch and a compaction drops everything held.
-6. **The visible half** (`kibitzer-notice.ts`): because senpi draws nothing for the hidden message,
+6. **The visible half** (`kibitzer/notice.ts`): because senpi draws nothing for the hidden message,
    the component appends an `omo-kibitzer:nudged` entry and renders it as Kibitzer advice:
    a single fixed `Kibitzer` title (`✦ Kibitzer`, accent tone; opener-era records carry a retired
    `opener` field that is ignored) over `recalled memory: <hint>`,

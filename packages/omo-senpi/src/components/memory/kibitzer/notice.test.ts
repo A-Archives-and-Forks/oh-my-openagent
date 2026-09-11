@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import type { CustomEntry } from "@code-yeongyu/senpi"
 
-import { Theme } from "../../senpi-test-runtime"
-import { renderKibitzerGateEntry, renderKibitzerNudgedEntry, type KibitzerGateRecord } from "./kibitzer-notice"
+import { Theme } from "../../../senpi-test-runtime"
+import { renderKibitzerGateEntry, renderKibitzerNudgedEntry, type KibitzerGateRecord } from "./notice"
 
 const TEST_FG_COLORS = {
   accent: "#000000", bashMode: "#000000", border: "#000000", borderAccent: "#000000", borderMuted: "#000000",

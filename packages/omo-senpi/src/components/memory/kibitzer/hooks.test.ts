@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test"
 
 import { buildIdentityPaths, PendingNudges, RecallLedger } from "@oh-my-opencode/memory-core"
-import { FakeExtensionAPI } from "../../../test-support/fake-extension-api"
-import { createMemoryIdentityContext } from "./context"
-import { registerKibitzerHooks } from "./kibitzer-hooks"
-import { createKibitzerTrigger, type KibitzerTriggerOptions } from "./kibitzer-trigger"
-import { createKibitzerDelivery } from "./kibitzer-delivery"
-import { ToolArgWindow } from "./recall-query-planner-tools"
-import { beforeAgentStart } from "./recall-wiring.test-support"
+import { FakeExtensionAPI } from "../../../../test-support/fake-extension-api"
+import { createMemoryIdentityContext } from "../context"
+import { registerKibitzerHooks } from "./hooks"
+import { createKibitzerTrigger, type KibitzerTriggerOptions } from "../kibitzer-trigger"
+import { createKibitzerDelivery } from "./delivery"
+import { ToolArgWindow } from "../recall-query-planner-tools"
+import { beforeAgentStart } from "../recall-wiring.test-support"
 
 const identity = createMemoryIdentityContext({
   identity: "agent",

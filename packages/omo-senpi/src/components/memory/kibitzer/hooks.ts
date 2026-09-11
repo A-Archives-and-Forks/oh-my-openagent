@@ -1,8 +1,8 @@
-import type { ComponentLogger, SenpiExtensionAPI } from "../../extension/types"
-import type { MemoryIdentityContext } from "./context"
-import { branchEntryCount } from "./wiring-context"
-import type { KibitzerDelivery } from "./kibitzer-delivery"
-import type { KibitzerTrigger } from "./kibitzer-trigger"
+import type { ComponentLogger, SenpiExtensionAPI } from "../../../extension/types"
+import type { MemoryIdentityContext } from "../context"
+import { branchEntryCount } from "../wiring-context"
+import type { KibitzerDelivery } from "./delivery"
+import type { KibitzerTrigger } from "../kibitzer-trigger"
 
 export interface KibitzerHooksOptions {
   readonly trigger: Pick<KibitzerTrigger, "onPrompt" | "onToolCall" | "onSettled">

@@ -7,7 +7,7 @@ import { tmpdir } from "node:os"
 import { PendingNudges, RecallLedger, buildIdentityPaths } from "@oh-my-opencode/memory-core"
 import { createMemoryBinding } from "./binding"
 import { createMemoryIdentityContext } from "./context"
-import { createKibitzerDelivery } from "./kibitzer-delivery"
+import { createKibitzerDelivery } from "./kibitzer/delivery"
 
 const sessionId = "delivery-persist-session"
 const nudge = { path: "reference/rollouts.md", hint: "Drain nodes first." }

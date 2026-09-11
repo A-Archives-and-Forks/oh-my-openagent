@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 
-import { createTaskRuntimeLoader } from "./kibitzer-task-runtime"
+import { createTaskRuntimeLoader } from "./task-runtime"
 
 describe("createTaskRuntimeLoader", () => {
   test("#given a resolving import #when the loader is called twice #then the module is imported once and both calls share it", async () => {

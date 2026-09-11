@@ -1,11 +1,11 @@
 import { renderNudgeBlock, type RecallLedger, type RecallNudge, type PendingNudges } from "@oh-my-opencode/memory-core"
 
-import type { IdleInjectionCoordinator } from "../../extension/idle-injection-coordinator"
-import type { ComponentLogger } from "../../extension/types"
-import type { MemoryIdentityContext } from "./context"
-import { GATE_SURFACE_HASH } from "./recall-drain"
-import { NUDGED_ENTRY_TYPE, type KibitzerNudgedRecord } from "./kibitzer-notice"
-import { RECALL_CUSTOM_TYPE } from "./recall-session-read"
+import type { IdleInjectionCoordinator } from "../../../extension/idle-injection-coordinator"
+import type { ComponentLogger } from "../../../extension/types"
+import type { MemoryIdentityContext } from "../context"
+import { GATE_SURFACE_HASH } from "../recall-drain"
+import { NUDGED_ENTRY_TYPE, type KibitzerNudgedRecord } from "./notice"
+import { RECALL_CUSTOM_TYPE } from "../recall-session-read"
 
 export interface KibitzerDeliveryOptions {
   readonly ledgerFor: (context: MemoryIdentityContext) => RecallLedger
