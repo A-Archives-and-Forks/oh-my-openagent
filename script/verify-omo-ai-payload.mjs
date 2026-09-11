@@ -15,6 +15,7 @@ const REQUIRED_ARTIFACTS = [
   "bin/omo.js",
   "bin/omo-agent-toolkit.js",
   "plugin/package.json",
+  "plugin/CHANGELOG.md",
   "plugin/extensions/omo.js",
   // Credential-gated skill: not under plugin/skills (never eager-loaded) but the bundled x-search
   // component resolves ../skills-conditional/x-search/SKILL.md, so the payload must ship it.
