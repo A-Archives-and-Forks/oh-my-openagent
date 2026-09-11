@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp } from "node:fs/promises"
 import { realpathSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+
+import { rmEfaultTolerant } from "./teardown.test-support"
 
 import { buildIdentityPaths, GitMemoryRepo } from "@oh-my-opencode/memory-core"
 import type { ChildSpec, RunnerOutcome, SenpiModelPort } from "@oh-my-opencode/senpi-task"
@@ -31,7 +33,7 @@ const registry = {
 const roots: string[] = []
 afterEach(async () => {
   for (const root of roots.splice(0)) {
-    await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
+    await rmEfaultTolerant(root)
   }
 })
 
