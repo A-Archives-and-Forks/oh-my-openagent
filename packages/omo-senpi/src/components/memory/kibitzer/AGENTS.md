@@ -8,6 +8,8 @@ The sidecar **must remain read-only**. Every fire is a quick-pinned in-process c
 
 | Path | Purpose |
 |------|---------|
+| `events.ts` | Resident sidecar event feed: `createKibitzerEventStream` turns prompt / `tool_call` / `tool_result` hook payloads plus the branch snapshot into `KibitzerEvent` values (branch cursor = `getBranch().length`, newest assistant text emitted once ahead of the hook that revealed it). Bodies are redacted (`redactKibitzerEventText`: memory-core `redactUrl` then the senpi mirror) BEFORE truncation to the caps (tool args 400 / result head 600 / assistant 1500 / prompt 4000), `eval.summary` wins over `eval.code`, the newest 20 events stay verbatim and older ones fold into a one-line digest (<= 1024 chars, keeps first/last cursor). Malformed payloads return `false` and never throw into the hook. `renderKibitzerEventBatch` emits the escaped `<digest>` / `<event>` fragment for wake envelopes. |
+| `sensitive-output.ts` | Verbatim mirror of senpi `core/sensitive-output` (`redactSensitiveOutput`, `redactSensitiveTokenValues`); senpi does not export it and omo-senpi imports senpi types only. `events-redaction.test.ts` pins parity against the real dist module. |
 | `delivery.ts` | Delivery lifecycle: marks nudges surfaced in the ledger, holds them in memory, writes the pending file (epoch-stamped), enqueues coordinator entries, and steers on the next `tool_result` when conditions permit. Compaction and shutdown drain the held nudges, clear coordinator entries, and delete the pending file. |
 | `hooks.ts` | Event registration: binds to `tool_call` (trigger capture snapshot) and `tool_result` (delivery steer gate) with session-id resolution and context capture. |
 | `judge-outcome.ts` | RunnerOutcome → judge classification: `completed` / `empty` / `failed` / `dropped`, mapping all terminal states through the settled outcome's disposition (child termination, model response, provider error, timeout). The model that answered after fallback rotation is recorded per run. |
@@ -18,6 +20,8 @@ The sidecar **must remain read-only**. Every fire is a quick-pinned in-process c
 | `composition.ts` (formerly `wiring-kibitzer.ts`) | Kibitzer composition: assembles `delivery`, `hooks`, and `trigger` (wired from parent) into the `KibitzerComposition` record that the parent's wiring injects. |
 | `compat.test.ts` | Kibitzer recall compat: minimal smoke test of the nudge tool's type signature. |
 | `delivery.test.ts` | Delivery state machine: acceptance → ledger mark + coordinator enqueue, tool_result steering gate, prompt drain, compaction, shutdown cleanup. |
+| `events.test.ts` | Event stream: cursor + assistant capture, exact caps, `eval.summary` preference, 50 ms / same-timestamp survival, 20-event buffer + digest fold and cap, drain continuity, escaped rendering, malformed-payload tolerance. |
+| `events-redaction.test.ts` | Redaction ordering: 90KB eval + API key never reach storage/digest/render, redaction-before-truncation straddle proof, memory-core masks, and byte parity with senpi's `core/sensitive-output.js`. |
 | `delivery-idle.test.ts` | Delivery idle steer: verifies the delivery steerer skips nudges when the agent is idle (even if not pending). |
 | `hooks.test.ts` | Hook registration smoke and session-id resolution. |
 | `judge-outcome.test.ts` | Outcome classification: settled turn interpretation (responses, failures, timeouts), model recording, reason normalization. |
