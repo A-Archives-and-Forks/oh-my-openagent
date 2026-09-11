@@ -61,6 +61,9 @@ function renderLocalLauncher(options) {
     envPrefix: "OMO",
     userAgent: "omo",
     originator: "omo",
+    changelog: {
+      path: join2(options.pluginPath, "CHANGELOG.md")
+    },
     update: {
       packageName: "omo-ai",
       distTag: "beta",
