@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Devin chats again, and the resident Kibitzer is now the only recall path.
+
+### Devin
+
+**Every Devin turn used to fail with `HTTP 404: {"detail":"Not Found"}` right after a successful login.** The OAuth flow handed the engine the login host, and the engine overlaid that host onto the model, so the Cascade chat call was posted to the REST API instead of the model server. The token now stays with the login flow and chat goes where the model says.
+
+**Behind the 404 sat six more layers, all fixed together.** A Devin turn now runs the way the released Devin CLI runs it: the account's user JWT is minted through `GetUserJwt` before every turn and carried on the correct protobuf field (it was serialized as a team override), the API host that call names replaces the seeded one when the account is provisioned elsewhere, the request presents the released CLI identity instead of a dev-channel one, conversation, execution and message ids are UUID-shaped, and the completion configuration matches the CLI's — including a clamp for a temperature of exactly zero, which Cascade rejects with an opaque `invalid_argument`.
+
+**Tool calls execute.** Cascade sends a tool call's id only on its first argument chunk; later chunks were opened as separate nameless calls, so file reads, shell commands and edits never ran even when text streamed. Chunks now merge into one call whose arguments accumulate across frames.
+
+**Rejections are visible.** A Connect error trailer (`invalid_argument`, `permission_denied`) ended the turn as an empty success; it now ends as an error carrying the server's code and message.
+
+**Models and routing.** Discovery speaks the CLI's dev-channel identity as a bare-protobuf unary call (the streaming frame it sent before was answered 415), reads the account's context window, output cap, cost and image support from the catalog, and marks server-side routers. A router such as `adaptive` is resolved through `AssignModel` before the turn. The bundled seed lists the plan-available SWE-2 effort lanes — `swe-2-high` first, then `swe-2-max`, `swe-2-low`, `swe-2-high-lite` — beside SWE-1.6; the bare `swe-2` uid, which Cascade rejects, is gone. Images attached to a prompt or returned by a tool travel inline.
+
+### Memory
+
+**The resident Kibitzer is the live path, and the one-shot judge is gone.** Recall runs as one read-only sidecar per main session, created on that session's first hook. Wakes are admitted through a machine-wide counting lease (two slots by default) with dead-owner recovery, bounded by the configured tool budget, token cap and event caps; a hook event captured while the child was still starting is no longer dropped at the seed boundary. The one-shot runner, its per-run artifacts and the compaction-epoch bookkeeping are removed end to end; a stored pending-nudges file that still carries the old field is consumed normally.
+
+**Wakes are observable and bounded on disk.** Every settled wake appends one redacted, size-capped line to `wakes.ndjson` next to the sidecar transcript — status, cause, model, cursor span, tool calls, duration, slot wait, token usage and nudged paths. Three consecutive diagnostic failures emit exactly one gate notice; any normal settlement resets the streak. Sidecar directories idle for seven days are pruned unless a live process owns them.
+
+### Windows
+
+**Process identity and teardown.** The process start-identity probe gained a Windows branch, so wake-lock and recall-lock recovery no longer treat every Windows process as unidentifiable, and test teardown retries the file-lock errors Windows raises (`EBUSY`, `EPERM`, `ENOTEMPTY`). The changelog path embedded in the local launcher is normalized to forward slashes so the brand identity check passes on Windows.
+
+### Engine: senpi 2026.9.12
+
+The Devin fixes above live in the engine and ship with this release.
+
 ## [5.0.0-beta.55] - 2026-09-11
 
 OmO Native stops greeting you with its entire history, and memory gains a resident Kibitzer.
