@@ -62,7 +62,7 @@ function renderLocalLauncher(options) {
     userAgent: "omo",
     originator: "omo",
     changelog: {
-      path: join2(options.pluginPath, "CHANGELOG.md")
+      path: join2(options.pluginPath, "CHANGELOG.md").replaceAll("\\", "/")
     },
     update: {
       packageName: "omo-ai",
