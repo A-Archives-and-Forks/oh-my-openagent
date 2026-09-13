@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs"
 import { join } from "node:path"
-import { ModelRuntime, SessionManager, createAgentSession } from "@code-yeongyu/senpi"
+import { loadSenpiBarrel } from "../../../lazy/senpi-barrel"
 
 import { createTaskManager } from "../../../manager/manager"
 import { adaptInProcessHandle } from "../../../manager/child-handle"
@@ -13,6 +13,7 @@ import { makeDeps } from "./task-tool-fakes"
 
 // Restored real sessions are deterministic: no prompt, provider, or model network call is made.
 export async function realSessionHandle() {
+  const { ModelRuntime, SessionManager, createAgentSession } = await loadSenpiBarrel()
   const project = tempProject()
   const agentDir = join(project, "isolated-agent")
   mkdirSync(agentDir)
