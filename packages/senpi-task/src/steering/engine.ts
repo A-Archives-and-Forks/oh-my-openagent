@@ -11,6 +11,7 @@ import {
   type SendDelivery,
   type SendInput,
   type SendOutcome,
+  type ReviveReservation,
   type SteeringEngine,
   type SteeringPort,
 } from "./types"
@@ -52,7 +53,7 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
     return new Date(port.now()).toISOString()
   }
 
-  async function sendToTask(input: SendInput): Promise<SendOutcome> {
+  async function sendToTask(input: SendInput, reservation?: ReviveReservation): Promise<SendOutcome> {
     const record = resolve(input.idOrName)
     if (record === undefined) {
       return { kind: "not_found", reason: `No task found for "${input.idOrName}".`, suggestion: NOT_FOUND_SUGGESTION }
@@ -84,7 +85,7 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
     const handle = port.liveHandle(record.task_id)
     if (handle === undefined) {
       if (record.residency_state === "rpc_detached" && record.execution_mode === "process") {
-        return reviveDetachedTerminalOnSend(port, record, input.message, nowIso, beginSend, endSend)
+        return reviveDetachedTerminalOnSend(port, record, input.message, nowIso, beginSend, endSend, reservation)
       }
       return {
         kind: "not_continuable",
@@ -103,7 +104,7 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
     }
 
     if (mode === "steer") return steerRunning(record, handle, input.message, deliverAs)
-    return reviveTerminal(port, record, handle, input.message, nowIso, beginSend, endSend)
+    return reviveTerminal(port, record, handle, input.message, nowIso, beginSend, endSend, reservation)
   }
 
   async function steerRunning(record: TaskRecord, handle: ManagedChildHandle, message: string, deliverAs: SendDelivery): Promise<SendOutcome> {

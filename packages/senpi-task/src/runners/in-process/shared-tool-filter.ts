@@ -15,7 +15,7 @@ export type SharedToolFilterOptions = {
 }
 
 export function isTaskOrTeamFamilyTool(name: string): boolean {
-  return name === "workflow" || name === "task" || name.startsWith("task_") || name.startsWith("team_")
+  return name === "workpool" || name.startsWith("workpool_") || name === "workflow" || name === "task" || name.startsWith("task_") || name.startsWith("team_")
 }
 
 // Only `name` and `exposure` are read, and every tool is passed through unchanged, so the element

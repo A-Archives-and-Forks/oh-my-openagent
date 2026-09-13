@@ -41,6 +41,7 @@ import { wireSessionStartProcessSweep } from "./process-sweep"
 import { createTaskStatusUi } from "./status-ui"
 import { missingTaskCapabilities } from "./surface"
 import { createTaskSkillLoader } from "./task-skill-loader"
+import { registerWorkpoolTool } from "./workpool-tool"
 
 const TASK_ENABLED_FLAG = "omo-task"
 
@@ -233,6 +234,7 @@ function registerTaskTools(
   pi.registerTool({ ...createTaskCancelTool({ manager }) })
   pi.registerTool({ ...createTaskOutputTool({ manager, stateDir: engine.stateDir, resolveCallerSessionId }) })
   registerDagTool(pi, engine, dagRuntime)
+  registerWorkpoolTool(pi, engine, skillInvocations)
 }
 
 function registerDagTool(pi: SenpiExtensionAPI, engine: TaskEngine, runtime: DagRuntime): void {

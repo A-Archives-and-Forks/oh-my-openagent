@@ -6,6 +6,7 @@ import { log } from "@oh-my-opencode/utils"
 
 import { parseTaskId, type TaskId } from "../../state"
 import { createTaskRecordStore } from "../../store"
+import { registerProcessWorkpoolWorker } from "../../workpool/process-worker"
 import { MEMBER_EXTENSION_BUNDLE_NAME, MEMBER_IDENTITY_ENV } from "./identity"
 import { createMemberSelfPoller, type MemberSelfPoller } from "./self-poller"
 import { createQaAfterInjectHold } from "./qa-inject-hold"
@@ -119,6 +120,7 @@ export function parseMemberExtensionEnv(env: NodeJS.ProcessEnv): ParsedMemberExt
 }
 
 export default async function registerMemberExtension(pi: ExtensionAPI): Promise<void> {
+  if (registerProcessWorkpoolWorker(pi)) return
   if (activeRuntimes.has(pi)) return
   const parsed = parseMemberExtensionEnv(process.env)
   const store = createTaskRecordStore({ project_dir: parsed.stateDir, task: { state_dir: parsed.stateDir } })

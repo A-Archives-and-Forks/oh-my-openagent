@@ -14,10 +14,11 @@ export async function reviveTerminal(
   nowIso: () => string,
   beginSend: (taskId: string) => boolean,
   endSend: (taskId: string) => void,
+  granted?: ReviveReservation,
 ): Promise<SendOutcome> {
   if (!beginSend(record.task_id)) return evictionRefusal(record.task_id)
   try {
-    return await deliverRevivedTerminal(port, record, handle, message, nowIso, port.reserveForRevive(record.task_id), false)
+    return await deliverRevivedTerminal(port, record, handle, message, nowIso, granted ?? port.reserveForRevive(record.task_id), false)
   } finally {
     endSend(record.task_id)
   }
@@ -30,10 +31,11 @@ export async function reviveDetachedTerminalOnSend(
   nowIso: () => string,
   beginSend: (taskId: string) => boolean,
   endSend: (taskId: string) => void,
+  granted?: ReviveReservation,
 ): Promise<SendOutcome> {
   if (!beginSend(record.task_id)) return evictionRefusal(record.task_id)
   try {
-    const reservation = port.reserveForDetachedRevive?.(record) ?? port.reserveForRevive(record.task_id)
+    const reservation = granted ?? port.reserveForDetachedRevive?.(record) ?? port.reserveForRevive(record.task_id)
     if (!reservation.ok) {
       return { kind: "capacity_deferred", task_id: record.task_id, reason: "Task capacity is full; retry explicitly." }
     }
