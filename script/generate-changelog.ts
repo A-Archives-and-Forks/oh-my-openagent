@@ -12,10 +12,8 @@ export function isCommunityContributor(login: string): boolean {
 }
 
 const EXCLUDED_PREFIX_PATTERN = /^(ignore:|test:|chore:|ci:|release:)/i
-const CONTAINED_SURFACE_PATTERN = /\bsenpi\b|\bpi-goal\b|\bpi-webfetch\b/i
-
 export function isExcludedReleaseNoteSubject(subject: string): boolean {
-  return EXCLUDED_PREFIX_PATTERN.test(subject) || CONTAINED_SURFACE_PATTERN.test(subject)
+  return EXCLUDED_PREFIX_PATTERN.test(subject)
 }
 
 function releaseChannel(version: string): string | null {

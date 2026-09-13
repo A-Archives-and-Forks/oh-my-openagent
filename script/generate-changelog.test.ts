@@ -31,9 +31,7 @@ describe("isExcludedReleaseNoteSubject", () => {
   test.each([
     ["feat(senpi): add team tools", true],
     ["fix(omo-senpi): persist member sidecar", true],
-    ["feat(senpi-task): wire message-durability fallbacks", true],
-    ["fix(pi-goal): correct goal parsing", true],
-    ["feat(pi-webfetch): add fetch retries", true],
+    ["feat(senpi-task): wire message-durability fallbacks", false],
     ["feat: improve senpi installer", true],
     ["Merge pull request #5932 from code-yeongyu/code-yeongyu/senpi-task-w3-engine", true],
     ["chore: bump internal tooling", true],
