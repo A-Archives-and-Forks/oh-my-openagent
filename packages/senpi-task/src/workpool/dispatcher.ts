@@ -116,7 +116,8 @@ export function createWorkpoolDispatcher(ports: {
       pending.delete(id)
     }
   }
-  function dispose(): void {
+  // Stop scheduling and detach observers only. Child handles remain manager/lifecycle-owned.
+  function stopScheduling(): void {
     disposed = true
     for (const immediate of scheduled.values()) clearImmediate(immediate)
     scheduled.clear()
@@ -125,5 +126,5 @@ export function createWorkpoolDispatcher(ports: {
     for (const controller of completions.values()) controller.abort()
     completions.clear()
   }
-  return { schedule, cancel, dispose }
+  return { schedule, cancel, stopScheduling }
 }

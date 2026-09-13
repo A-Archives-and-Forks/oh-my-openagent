@@ -90,7 +90,7 @@ export function createWorkpoolEngine(stateDir: string, admission: WorkpoolAdmiss
     ownsTask: (taskId: string) => store.list().some(pool => pool.workers.some(worker => worker.task_id === taskId) || pool.items.some(item => item.binding?.task_id === taskId)),
     subscribe: (listener: (event: WorkpoolEvent) => void) => { listeners.add(listener); return () => { listeners.delete(listener) } },
     attach: (caller: WorkpoolCaller) => { assertParent(caller); for (const pool of store.list()) if (pool.parent_session_id === caller.sessionId) dispatcher.schedule(pool.pool_id) },
-    dispose: () => { dispatcher.dispose(); listeners.clear() },
+    dispose: () => { dispatcher.stopScheduling(); listeners.clear() },
   }
 }
 export type WorkpoolEngine = ReturnType<typeof createWorkpoolEngine>
