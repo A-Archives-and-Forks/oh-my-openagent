@@ -6,7 +6,7 @@ import { log } from "@oh-my-opencode/utils"
 
 import { parseTaskId, type TaskId } from "../../state"
 import { createTaskRecordStore } from "../../store"
-import { registerProcessWorkpoolWorker } from "../../workpool/process-worker"
+import { WORKPOOL_STATE_DIR_ENV, WORKPOOL_TASK_ID_ENV } from "../../workpool/process-identity"
 import { MEMBER_EXTENSION_BUNDLE_NAME, MEMBER_IDENTITY_ENV } from "./identity"
 import { createMemberSelfPoller, type MemberSelfPoller } from "./self-poller"
 import { createQaAfterInjectHold } from "./qa-inject-hold"
@@ -120,7 +120,12 @@ export function parseMemberExtensionEnv(env: NodeJS.ProcessEnv): ParsedMemberExt
 }
 
 export default async function registerMemberExtension(pi: ExtensionAPI): Promise<void> {
-  if (registerProcessWorkpoolWorker(pi)) return
+  // The shared extension boots before RPC switch_session can acknowledge. Ordinary team
+  // members must not evaluate the workpool host-policy graph just to reject absent identity.
+  if (process.env[WORKPOOL_STATE_DIR_ENV] !== undefined || process.env[WORKPOOL_TASK_ID_ENV] !== undefined) {
+    const { registerProcessWorkpoolWorker } = await import("../../workpool/process-worker")
+    if (registerProcessWorkpoolWorker(pi)) return
+  }
   if (activeRuntimes.has(pi)) return
   const parsed = parseMemberExtensionEnv(process.env)
   const store = createTaskRecordStore({ project_dir: parsed.stateDir, task: { state_dir: parsed.stateDir } })
