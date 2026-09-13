@@ -121,6 +121,8 @@ export type StartResult =
   | {
       readonly kind: "started"
       readonly task_id: string
+      // Emitted by the manager; optional for existing host implementations of TaskManager.
+      readonly run_epoch?: number
       readonly status: "running" | "pending"
       readonly name: string
       readonly resolved_model?: ResolvedModelRecord

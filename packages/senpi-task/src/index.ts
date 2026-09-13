@@ -363,6 +363,7 @@ export type {
   TaskAgentInfo,
   TaskAncestry,
   TaskCategoryInfo,
+  TaskHandleDetails,
   TaskTargetError,
   TaskTargetErrorCode,
   TaskTargetSelection,
