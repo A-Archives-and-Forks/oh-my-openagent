@@ -67,16 +67,21 @@ export function Ticker({ rows, durationSeconds = 30, className }: TickerProps): 
 
 export interface RotatingWordProps {
   readonly words: readonly string[]
+  /** Rendered inside every row so a particle ("에서", "から") always hugs the current word. */
+  readonly suffix?: string
   readonly className?: string
 }
 
-export function RotatingWord({ words, className }: RotatingWordProps): JSX.Element {
+export function RotatingWord({ words, suffix = "", className }: RotatingWordProps): JSX.Element {
   const style: CSSProperties & { "--count": number } = { "--count": words.length }
   return (
-    <span className={cn("rotate-word text-accent", className)} style={style}>
+    <span className={cn("rotate-word", className)} style={style}>
       <span className="rotate-word-track">
         {words.map((word) => (
-          <span key={word}>{word}</span>
+          <span key={word}>
+            <span className="text-accent">{word}</span>
+            {suffix ? <span className="text-text-hi">{suffix}</span> : null}
+          </span>
         ))}
       </span>
     </span>

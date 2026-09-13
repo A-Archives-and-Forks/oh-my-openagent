@@ -19,7 +19,8 @@ export async function PlatformsSection(): Promise<JSX.Element> {
       <Frame>
         <Reveal>
           <h2 id="platforms-title" className="type-title text-text-hi prose-cjk">
-            {t("platforms.titlePrefix")} <RotatingWord words={PLATFORMS} />
+            {t("platforms.titlePrefix")}{" "}
+            <RotatingWord words={PLATFORMS} suffix={t("platforms.titleSuffix")} />
           </h2>
           <p className="text-text-mid prose-cjk mt-6 max-w-2xl text-lg leading-[1.6] md:text-xl">
             {t("platforms.body")}

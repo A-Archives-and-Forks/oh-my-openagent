@@ -1000,17 +1000,15 @@
   .rotate-word {
     display: inline-grid;
     overflow: hidden;
-    vertical-align: bottom;
-    height: 1.1em;
-    line-height: 1.1;
+    vertical-align: top;
+    height: 1lh;
   }
   .rotate-word-track {
     display: grid;
     animation: rotate-word calc(var(--count) * 1.6s) steps(var(--count)) infinite;
   }
   .rotate-word-track > span {
-    height: 1.1em;
-    line-height: 1.1;
+    height: 1lh;
     white-space: nowrap;
   }
   @keyframes rotate-word {

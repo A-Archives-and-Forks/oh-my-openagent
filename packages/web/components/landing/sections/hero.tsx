@@ -35,7 +35,7 @@ export async function HeroSection(): Promise<JSX.Element> {
             </h1>
             <p
               data-testid="hero-tagline"
-              className="text-text-mid prose-cjk mt-8 max-w-2xl text-lg leading-[1.7] sm:whitespace-pre-line"
+              className="text-text-mid prose-cjk mt-8 max-w-2xl text-lg leading-[1.7] whitespace-pre-line"
             >
               {t("hero.subcopy")}
             </p>

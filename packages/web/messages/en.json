@@ -93,7 +93,7 @@
       "act": "Act · write the migration",
       "skip": "Verify · skip the migration test",
       "testFirst": "Verify · run the migration test first",
-      "ship": "Ship the verified change",
+      "ship": "Ship the change",
       "nextTurn": "Back to plan · next turn",
       "reason": "Last time this broke production. Run the migration test first."
     },
@@ -123,7 +123,8 @@
     "platforms": {
       "titlePrefix": "And from your",
       "body": "Talk to your agent where you already are. It messages as you, not as a bot, on every platform you use.",
-      "footnote": "Coming soon. Messaging platforms are being wired in one by one."
+      "footnote": "Coming soon. Messaging platforms are being wired in one by one.",
+      "titleSuffix": ""
     },
     "reviews": {
       "eyebrow": "From users",
