@@ -84,6 +84,7 @@ async function deliverRevivedTerminal(
   }
   let revived: TaskRecord | undefined
   let deliveryAcknowledged = false
+  let poolDeliveryStarted = false
   try {
     const fresh = port.store.load(record.task_id)
     if (fresh === null || fresh.status !== record.status || fresh.killed === true || fresh.host_pid !== record.host_pid || fresh.notification.run_epoch !== record.notification.run_epoch) {
@@ -108,6 +109,7 @@ async function deliverRevivedTerminal(
     revived = updated
     port.store.appendEvent(record.task_id, { type: "revived", payload: { run_epoch: revived.notification.run_epoch } })
     const pending = revived.pending_steering ?? []
+    poolDeliveryStarted = pending.some(entry => entry.workpool !== undefined)
     await handle.followUp([...pending.map((entry) => entry.message), message].join("\n\n"))
     deliveryAcknowledged = true
     const acknowledged = port.store.load(record.task_id)
@@ -125,6 +127,13 @@ async function deliverRevivedTerminal(
     reservation.commit()
     return { kind: "revived", task_id: record.task_id, run_epoch: revived.notification.run_epoch }
   } catch (error) {
+    if (poolDeliveryStarted && revived?.revive_delivery_uncertain !== undefined) {
+      // A transport exception is not proof of rejection. Keep O9's pre-dispatch marker and
+      // captured queue intact; pool recovery will never automatically replay this turn.
+      log("senpi-task workpool delivery uncertain", { taskId: record.task_id, runEpoch: revived.notification.run_epoch, error: error instanceof Error ? error.message : String(error) })
+      reservation.commit()
+      return deliveryUncertain(record, revived.notification.run_epoch)
+    }
     if (deliveryAcknowledged && revived?.revive_delivery_uncertain !== undefined) {
       // The batch was accepted. Its pre-dispatch marker survives failed ack bookkeeping, so
       // neither rollback nor a later send can replay the still-persisted queue.

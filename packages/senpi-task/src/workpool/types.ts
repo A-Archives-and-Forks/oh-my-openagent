@@ -19,6 +19,7 @@ export const WORKPOOL_ERROR_CODES = [
   "invalid_input", "invalid_pool_id", "pool_not_found", "scope_denied", "pool_name_conflict", "pool_closed",
   "duplicate_key_conflict", "tools_unavailable", "admission_refused", "spawn_failed", "policy_denied",
   "worker_not_continuable", "worker_unassigned", "stale_assignment", "yield_unavailable", "store_corrupt", "cancelled",
+  "yield_conflict", "item_missing_yield", "delivery_uncertain", "cwd_unavailable", "config_generation_mismatch",
 ] as const
 export type WorkpoolErrorCode = typeof WORKPOOL_ERROR_CODES[number]
 export class WorkpoolError extends Error {
@@ -27,9 +28,12 @@ export class WorkpoolError extends Error {
 }
 export type WorkpoolItem = WorkpoolInput & {
   readonly item_id: ItemId
-  readonly status: "queued" | "assigned" | "error" | "cancelled"
+  readonly status: "queued" | "assigned" | "completed" | "error" | "cancelled"
   readonly binding?: { readonly task_id: string; readonly run_epoch: number; readonly generation: number }
-  readonly error?: { readonly code: WorkpoolErrorCode; readonly message: string }
+  readonly delivery?: { readonly phase: "queued" | "dispatching" | "acknowledged"; readonly message_sha256?: string }
+  readonly data?: Json
+  readonly error?: { readonly code: string; readonly message: string }
+  readonly yield_sha256?: string
 }
 export type WorkpoolWorker = {
   readonly task_id: string
@@ -59,7 +63,7 @@ export type WorkpoolRecord = {
 }
 export type WorkpoolEvent = {
   readonly pool_id: PoolId
-  readonly kind: "queued" | "waiting" | "granted" | "dispatched" | "admission_failed" | "cancelled" | "worker_idle"
+  readonly kind: "queued" | "waiting" | "granted" | "dispatched" | "admission_failed" | "cancelled" | "worker_idle" | "item_result"
   readonly item_id?: ItemId
   readonly task_id?: string
   readonly run_epoch?: number

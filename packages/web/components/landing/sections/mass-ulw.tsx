@@ -21,10 +21,10 @@ export async function MassUlwSection(): Promise<JSX.Element> {
           <Reveal className="lg:sticky lg:top-24 lg:self-start">
             <SectionHeader
               id="mass-title"
-              eyebrow={t("ulw.eyebrow")}
+              eyebrow="mass ulw"
               dot="busy"
               title={t("ulw.title")}
-              intro={t("ulw.description")}
+              intro={t("ulw.body")}
             />
           </Reveal>
           <Reveal index={1}>

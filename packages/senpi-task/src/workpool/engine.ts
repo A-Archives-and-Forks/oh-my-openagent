@@ -74,7 +74,7 @@ export function createWorkpoolEngine(stateDir: string, admission: WorkpoolAdmiss
     emit({ kind: "cancelled", pool_id: owned.pool_id })
     return cancelled
   }
-  const yieldResults = createWorkpoolYieldCapability(store, admission.get)
+  const yieldResults = createWorkpoolYieldCapability(store, admission.tasks, emit)
   function waitForEvent(poolId: PoolId, kind: WorkpoolEvent["kind"], signal: AbortSignal): Promise<WorkpoolEvent> {
     signal.throwIfAborted()
     return new Promise((resolve, reject) => {
@@ -89,7 +89,7 @@ export function createWorkpoolEngine(stateDir: string, admission: WorkpoolAdmiss
     setSpawnPolicy: (policy: (agent: WorkpoolAgent, parent: string) => void) => { checkPolicy = policy },
     ownsTask: (taskId: string) => store.list().some(pool => pool.workers.some(worker => worker.task_id === taskId) || pool.items.some(item => item.binding?.task_id === taskId)),
     subscribe: (listener: (event: WorkpoolEvent) => void) => { listeners.add(listener); return () => { listeners.delete(listener) } },
-    attach: (caller: WorkpoolCaller) => { assertParent(caller); for (const pool of store.list()) if (pool.parent_session_id === caller.sessionId) dispatcher.schedule(pool.pool_id) },
+    attach: (caller: WorkpoolCaller) => { assertParent(caller); for (const pool of store.list()) if (pool.parent_session_id === caller.sessionId) dispatcher.attach(pool.pool_id) },
     dispose: () => { dispatcher.stopScheduling(); listeners.clear() },
   }
 }

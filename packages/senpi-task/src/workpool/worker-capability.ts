@@ -1,20 +1,28 @@
-import type { TaskRecord } from "../state"
+import { z } from "zod"
+import type { TaskRecordStore } from "../store"
 import { parseInput, WorkpoolYieldSchema } from "./schema"
 import type { WorkpoolStore } from "./store"
-import { WorkpoolError } from "./types"
+import { WorkpoolError, type WorkpoolEvent } from "./types"
+import { acceptYield, refuseYield } from "./yield"
 
-export function createWorkpoolYieldCapability(store: WorkpoolStore, getTask: (taskId: string) => TaskRecord | undefined) {
-  return (taskId: string, runEpoch: number, value: unknown): never => {
-    const input = parseInput(WorkpoolYieldSchema, value)
-    const pool = store.list().find(candidate => candidate.workers.some(worker => worker.task_id === taskId))
+const envelope = z.strictObject({ op: z.literal("yield"), results: z.array(z.unknown()) })
+export function createWorkpoolYieldCapability(store: WorkpoolStore, tasks: TaskRecordStore, emit?: (event: WorkpoolEvent) => void) {
+  return (taskId: string, runEpoch: number, value: unknown) => {
+    const input = parseInput(envelope, value)
+    const pool = store.list().find(candidate => candidate.items.some(item => item.binding?.task_id === taskId))
     if (pool === undefined) throw new WorkpoolError("worker_unassigned", "Worker has no pool assignment.")
-    const assignments = pool.items.filter(item => item.binding?.task_id === taskId && item.binding.run_epoch === runEpoch && item.binding.generation === pool.generation)
-    if (pool.status === "cancelled" || getTask(taskId)?.notification.run_epoch !== runEpoch ||
-      !pool.workers.some(worker => worker.task_id === taskId && worker.run_epoch === runEpoch) ||
-      assignments.length === 0 || input.results.some(result => !assignments.some(item => item.key === result.key))) {
+    if (pool.status === "cancelled" || tasks.load(taskId)?.notification.run_epoch !== runEpoch ||
+      !pool.items.some(item => item.binding?.task_id === taskId && item.binding.run_epoch === runEpoch && item.binding.generation === pool.generation)) {
       throw new WorkpoolError("stale_assignment", "Yield does not identify this worker's current assignment.")
     }
-    // Row 11 owns durable keyed result reconciliation. Never acknowledge results before it exists.
-    throw new WorkpoolError("yield_unavailable", "Keyed result reconciliation is not enabled yet.")
+    const turn = { pool_id: pool.pool_id, generation: pool.generation, task_id: taskId, run_epoch: runEpoch }
+    const results = input.results.map(value => {
+      const parsed = WorkpoolYieldSchema.shape.results.element.safeParse(value)
+      if (!parsed.success) return refuseYield("invalid_input", "Expected one key and either JSON data or a typed error.")
+      const receipt = acceptYield({ pools: store, tasks }, turn, parsed.data)
+      if (receipt.status === "accepted") emit?.({ kind: "item_result", ...turn, item_id: receipt.item_id })
+      return receipt
+    })
+    return { pool_id: pool.pool_id, generation: pool.generation, results }
   }
 }

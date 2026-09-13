@@ -40,7 +40,8 @@ import {
 import { createOutcomeTracker, type OutcomeTracker } from "./manager-outcome"
 import { claimTaskRecord, TaskRecordCollisionError } from "../store"
 import { withTaskRecordLockAsync } from "../store/record-lock"
-import { reattachManagedTask, respawnManagedTask } from "./manager-respawn"
+import { reattachManagedTask } from "./manager-respawn"
+import { respawnWithWorkpool } from "./workpool-respawn"
 import { NameRegistry } from "./names"
 import { TaskSequence } from "./task-sequence"
 import { createRunStatsTracker, type RunStatsTracker } from "../run-stats"
@@ -607,11 +608,7 @@ class TaskManagerImpl implements TaskManager {
   }
 
   respawn(record: TaskRecord, resumeSessionPath?: string): Promise<RespawnResult> {
-    if (this.workpools.ownsTask(record.task_id)) return Promise.resolve({
-      ok: false, disposition: "retryable", code: "tools_unavailable",
-      reason: "Workpool in-flight recovery requires keyed turn reconciliation; no automatic replay is permitted.",
-    })
-    return respawnManagedTask({
+    return respawnWithWorkpool({
       record,
       sessionPath: resumeSessionPath,
       stateDir: this.#options.store.stateDir,
@@ -628,7 +625,7 @@ class TaskManagerImpl implements TaskManager {
       ...(this.#options.trustedRespawnLaunch === undefined
         ? {}
         : { trustedLaunch: this.#options.trustedRespawnLaunch }),
-    })
+    }, this.workpools, () => this.get(record.task_id)?.notification.run_epoch ?? -1)
   }
 
   reattach(record: TaskRecord, handle: ManagedChildHandle): Promise<ReattachResult> {

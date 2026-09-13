@@ -23,10 +23,14 @@ export function prepareWorkpoolLaunch(input: {
   const { options, workerSpec, spec, taskId } = input
   const executionMode = workerSpec.start.execution_mode
   if (executionMode === undefined) throw new WorkpoolError("store_corrupt", "Worker execution mode was not resolved.")
-  const draft = createTaskRecord(buildRecordInput({ spec, plan: workerSpec.plan, name: taskId, executionMode, taskSeq: input.taskSeq }))
+  const prior = options.store.load(taskId)
+  if (prior !== null && (prior.status !== "pending" || prior.started_at !== undefined || prior.parent_session_id !== spec.parent_session_id)) {
+    throw new WorkpoolError("delivery_uncertain", "An existing worker launch cannot be replayed.")
+  }
+  const draft = prior ?? createTaskRecord(buildRecordInput({ spec, plan: workerSpec.plan, name: taskId, executionMode, taskSeq: input.taskSeq }))
   const claimed = { ...draft, task_id: taskId, host_pid: input.hostPid }
   const managedSpec = buildManagedSpec({ record: claimed, spec, plan: workerSpec.plan, cwd: options.cwd, stateDir: options.store.stateDir })
   const record = { ...claimed, spawn_spec: buildSpawnSpecV1(managedSpec) }
-  options.store.save(record)
+  if (prior === null) options.store.save(record)
   return { record, managedSpec, runner: options.runners[executionMode], model: record.model }
 }

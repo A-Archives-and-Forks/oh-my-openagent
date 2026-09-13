@@ -1,4 +1,5 @@
 import type { TaskRecord } from "../state"
+import type { TaskRecordStore } from "../store"
 import type { WorkpoolAgent, WorkpoolCaller, WorkpoolEvent, WorkpoolItem, WorkpoolRecord, WorkpoolSpec, WorkpoolWorker } from "./types"
 
 export type WorkpoolRequest = {
@@ -11,6 +12,7 @@ export type WorkpoolRequest = {
   event(event: WorkpoolEvent): void
 }
 export type WorkpoolAdmission = {
+  readonly tasks: TaskRecordStore
   resolve(caller: WorkpoolCaller, agent: WorkpoolAgent): WorkpoolSpec
   hasFreeSlot(model: string): boolean
   request(input: WorkpoolRequest): { cancel(): void }

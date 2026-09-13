@@ -1,6 +1,6 @@
 import { z } from "zod"
 import { WorkpoolAgentSchema, nonempty } from "./schema"
-import { WORKPOOL_ERROR_CODES, type WorkpoolRecord } from "./types"
+import type { WorkpoolRecord } from "./types"
 
 const model = z.strictObject({
   provider: nonempty, model_id: nonempty, display: nonempty, source: z.enum(["category", "explicit", "agent"]),
@@ -30,9 +30,11 @@ export const WorkpoolRecordSchema = z.strictObject({
   status: z.enum(["open", "closing", "completed", "cancelled"]),
   items: z.array(z.strictObject({
     key: nonempty, input: z.json(), item_id: z.templateLiteral(["wi_", z.string()]).refine(id => /^wi_[0-9a-f]{32}$/.test(id)),
-    status: z.enum(["queued", "assigned", "error", "cancelled"]),
+    status: z.enum(["queued", "assigned", "completed", "error", "cancelled"]),
     binding: z.strictObject({ task_id: taskId, run_epoch: epoch, generation: z.number().int().positive() }).optional(),
-    error: z.strictObject({ code: z.enum(WORKPOOL_ERROR_CODES), message: z.string() }).optional(),
+    delivery: z.strictObject({ phase: z.enum(["queued", "dispatching", "acknowledged"]), message_sha256: z.string().regex(/^[0-9a-f]{64}$/).optional() }).optional(),
+    data: z.json().optional(), error: z.strictObject({ code: nonempty, message: z.string() }).optional(),
+    yield_sha256: z.string().regex(/^[0-9a-f]{64}$/).optional(),
   })),
   workers: z.array(z.strictObject({
     task_id: taskId, run_epoch: epoch, status: z.enum(["busy", "idle"]), completed_turns: epoch, idle_since: z.number().nonnegative(),

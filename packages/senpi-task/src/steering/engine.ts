@@ -198,7 +198,8 @@ export function createSteeringEngine(port: SteeringPort): SteeringEngine {
     // was persisted, in persisted order. Malformed entries never reach here - the store parser
     // already dropped them with a diagnostic.
     const fresh = tryLoad(taskId)
-    const queue = fresh?.pending_steering
+    // Pool assignments are captured by their admitted turn, never replayed as individual sends.
+    const queue = fresh?.pending_steering?.filter(entry => entry.workpool === undefined)
     if (fresh === undefined || queue === undefined || queue.length === 0) return
     const handle = port.liveHandle(taskId)
     if (handle === undefined) return

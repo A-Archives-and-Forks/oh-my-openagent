@@ -4,6 +4,7 @@ import type { CreateAgentSessionOptions, ToolDefinition } from "@code-yeongyu/se
 
 import type { ResolvedModelRecord } from "../state"
 import { loadSenpiBarrel } from "../lazy/senpi-barrel"
+import { isWorkpoolYieldTool } from "../workpool/worker-tool-identity"
 import {
   createChildHandle,
   createRestoredChildHandle,
@@ -190,7 +191,10 @@ export class InProcessRunner {
   // never comes back with a WIDER tool surface than it had. The restored handle is IDLE; any
   // continuation nudge is manager-owned (todo 12), never sent here.
   async resume(spec: ChildSpec, sessionPath: string): Promise<ChildHandle> {
-    const memberScopedTools = resolveMemberScopedToolNames(spec.memberScopedToolNames ?? [], this.#sharedParentTools)
+    const yields = (spec.memberScopedTools ?? []).filter(isWorkpoolYieldTool)
+    const memberScopedTools = resolveMemberScopedToolNames(spec.memberScopedToolNames ?? [], [
+      ...this.#sharedParentTools.filter(tool => tool.name !== "workpool"), ...yields,
+    ])
     assertUsableSessionFile(sessionPath)
 
     let session: ChildSession

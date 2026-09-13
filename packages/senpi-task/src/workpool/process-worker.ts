@@ -20,7 +20,7 @@ export function registerProcessWorkpoolWorker(pi: Pick<ExtensionAPI, "registerTo
   const store = createWorkpoolStore(stateDir)
   const get = (id: string) => tasks.load(id) ?? undefined
   if (!store.list().some(pool => pool.workers.some(worker => worker.task_id === taskId))) throw new WorkpoolError("worker_unassigned", "Worker has no durable binding.")
-  pi.registerTool(createWorkpoolWorkerTool({ workpools: { yieldResults: createWorkpoolYieldCapability(store, get) }, taskId,
+  pi.registerTool(createWorkpoolWorkerTool({ workpools: { yieldResults: createWorkpoolYieldCapability(store, tasks) }, taskId,
     runEpoch: () => get(taskId)?.notification.run_epoch ?? -1 }))
   return true
 }

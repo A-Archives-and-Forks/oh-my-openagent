@@ -112,14 +112,13 @@ test("#given an assigned worker #when it forges another key or parent operation 
   const workerCaller = { ...f.caller, sessionId: `worker-${taskId}` }
   expect(() => f.manager.workpools.create(workerCaller, poolInput)).toThrow(engine.WorkpoolError)
   expect(() => f.manager.workpools.inspect(workerCaller, pool.pool_id)).toThrow(engine.WorkpoolError)
-  for (const [request, code] of [
-    [{ op: "create", ...poolInput }, "invalid_input"],
-    [{ op: "yield", results: [{ key: "other", data: 1 }] }, "stale_assignment"],
-    [{ op: "yield", results: [{ key: "a", data: 1 }] }, "yield_unavailable"],
-  ] as const) {
-    try { f.manager.workpools.yieldResults(taskId, 0, request); throw new Error("expected refusal") }
-    catch (error) { expect(error).toBeInstanceOf(engine.WorkpoolError); if (error instanceof engine.WorkpoolError) expect(error.code).toBe(code) }
-  }
+  expect(() => f.manager.workpools.yieldResults(taskId, 0, { op: "create", ...poolInput })).toThrow(engine.WorkpoolError)
+  expect(f.manager.workpools.yieldResults(taskId, 0, { op: "yield", results: [{ key: "other", data: 1 }] })).toMatchObject({
+    results: [{ status: "refused", error: { code: "stale_assignment" } }],
+  })
+  expect(f.manager.workpools.yieldResults(taskId, 0, { op: "yield", results: [{ key: "a", data: 1 }] })).toMatchObject({
+    results: [{ key: "a", status: "accepted" }],
+  })
 })
 
 test("#given a process worker launch #when the member bundle registers #then only the owning yield schema is exposed", async () => {

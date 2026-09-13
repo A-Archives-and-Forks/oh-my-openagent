@@ -4,7 +4,8 @@ import { parseInput, WorkpoolCommandSchema } from "../workpool/schema"
 import { WorkpoolError, type WorkpoolCaller } from "../workpool/types"
 import { evaluateSpawnPolicy } from "./task/spawn-policy"
 import type { TaskToolContext, TaskToolDeps } from "./task/types"
-import { WorkpoolParams, WorkpoolYieldParams } from "./workpool-schema"
+import { WorkpoolParams, WorkpoolWorkerYieldParams } from "./workpool-schema"
+import { markWorkpoolYieldTool } from "../workpool/worker-tool-identity"
 
 export type WorkpoolToolDeps = TaskToolDeps & { readonly workpools: WorkpoolEngine }
 export type WorkpoolToolResult = {
@@ -59,7 +60,7 @@ function exhaustive(value: never): never { throw new Error(`Unhandled workpool o
 export function createWorkpoolTool(deps: WorkpoolToolDeps): ToolDefinition<typeof WorkpoolParams, Record<string, unknown>> {
   const execute = buildWorkpoolExecute(deps)
   return {
-    name: "workpool", label: "Workpool", description: "Create and inspect engine-owned keyed work queues. Push returns durable IDs without waiting for capacity. Mode is required. Keyed yield reconciliation and aggregate delivery are not enabled yet.",
+    name: "workpool", label: "Workpool", description: "Create and inspect engine-owned keyed work queues. Push returns durable IDs without waiting for capacity. Mode is required. Inspect reads durable keyed data or errors; uncertain delivery is never retried automatically. Aggregate delivery is not enabled yet.",
     parameters: WorkpoolParams,
     execute: (_id, params, _signal, _update, ctx) => execute(params, ctx),
   }
@@ -70,12 +71,15 @@ export function createWorkpoolWorkerTool(deps: {
   readonly taskId: string
   readonly runEpoch: () => number
 }): ToolDefinition {
-  return {
-    name: "workpool", label: "Workpool yield", description: "Yield keyed results for this worker's current assignment only. Result reconciliation is not enabled yet.",
-    parameters: WorkpoolYieldParams,
+  return markWorkpoolYieldTool({
+    name: "workpool", label: "Workpool yield", description: "Yield JSON data or a typed error for each assigned key. Identical repeated yields are idempotent; conflicting or stale yields are refused. This tool cannot schedule or spawn workers.",
+    parameters: WorkpoolWorkerYieldParams,
     execute: async (_id, params) => {
-      try { return deps.workpools.yieldResults(deps.taskId, deps.runEpoch(), params) }
+      try {
+        const yielded = deps.workpools.yieldResults(deps.taskId, deps.runEpoch(), params)
+        return { ...result(yielded), ...(yielded.results.some(receipt => receipt.status === "refused") ? { isError: true } : {}) }
+      }
       catch (error) { return failure(error) }
     },
-  }
+  })
 }

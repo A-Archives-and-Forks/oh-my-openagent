@@ -48,7 +48,7 @@ The memory architecture - the git-backed memory filesystem, the memory tool sema
 | `palace/` | Self-contained HTML memory viewer. See `palace/AGENTS.md`. |
 | `guard.ts` | Soft cross-identity guard via `tool_call` (file tools only; bash advisory-only). The verdict is structural - inside `agents/` or `transient-runs/` but outside the bound run's own root - with no directory enumeration, so per-call cost is constant in the number of identities on disk (#7765). |
 | `policy-guard.ts` | Hard guard: registers a filesystem policy when the host exposes `registerFilesystemPolicy` (senpi >= feat/extension-fs-policy), soft guard otherwise. `check()` is structural over the same two areas; `deniedRoots` metadata lists only durable (repo-owning) sibling identities. |
-| `skills-scope.ts` | Agent memfs `skills/` exposure via `resources_discover`. |
+| `skills-scope.ts` | Agent memfs `skills/` exposure via `resources_discover`. On a host whose event carries `scopedEntries: true` the dir is contributed as `{ path, scope: "user" }` (memory skills are user data, not harness payload, so they stay in the compact startup banner under `user`); an older host gets the plain path because it would treat an object entry as a path string and abort session start. |
 | `status.ts` | Footer status + committed-only token advisory at `compile_warn_tokens`. |
 | `status-live.ts` | Generic footer animation: braille reflecting spinner, fingerprint-gated segment refresh, injectable timers. |
 | `status-live-wiring.ts` | Binds the footer animation to memory state: session-to-identity resolution, git-backed fingerprint, segment line via the shared status.ts formatter. |

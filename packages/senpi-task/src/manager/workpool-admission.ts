@@ -1,9 +1,11 @@
 import type { ToolDefinition } from "@code-yeongyu/senpi"
-import { interactionPolicyForAgent } from "../agents/interaction-policy"
 import { acquireSessionAdmissionLease } from "../lifecycle/admission-lease"
 import { createTaskId } from "../state/id"
 import { messageability, type TaskRecord } from "../state"
 import { oneShotPolicyDenial } from "../steering/engine-policy"
+import { isColdRevivalCandidate } from "../lifecycle/revive-policy"
+import { createWorkpoolStore } from "../workpool/store"
+import { acknowledgeWorkerTurn, appendAssignedMessages, beginWorkerTurn, WORKPOOL_TURN_MESSAGE } from "../workpool/worker-turn"
 import type { ReviveReservation, SendOutcome } from "../steering/types"
 import { WorkpoolError, type WorkpoolAgent, type WorkpoolCaller, type WorkpoolSpec } from "../workpool/types"
 import type { WorkpoolAdmission, WorkpoolRequest } from "../workpool/ports"
@@ -31,6 +33,7 @@ export type PoolManagerPorts = {
 
 export function createWorkpoolAdmission(ports: PoolManagerPorts): WorkpoolAdmission {
   const { options, concurrency } = ports
+  const stores = { pools: createWorkpoolStore(options.store.stateDir), tasks: options.store }
   function resolve(caller: WorkpoolCaller, agent: WorkpoolAgent): WorkpoolSpec {
     const start = {
       ...agent, parent_session_id: caller.sessionId, root_session_id: caller.rootSessionId,
@@ -48,9 +51,10 @@ export function createWorkpoolAdmission(ports: PoolManagerPorts): WorkpoolAdmiss
 
   function request(input: WorkpoolRequest): { cancel(): void } {
     const { pool, item, worker } = input
-    const taskId = worker?.task_id ?? createTaskId()
+    const taskId = worker?.task_id ?? item.binding?.task_id ?? createTaskId()
     const epoch = worker === undefined ? 0 : worker.run_epoch + 1
     const model = pool.worker_spec.plan.model
+    const turn = { pool_id: pool.pool_id, generation: pool.generation, task_id: taskId, run_epoch: epoch }
     let cancelled = false
     let granted = false
     let transferred = false
@@ -63,17 +67,24 @@ export function createWorkpoolAdmission(ports: PoolManagerPorts): WorkpoolAdmiss
         if (!current()) return
         event("granted")
         input.authorize()
-        const message = JSON.stringify({ pool_id: pool.pool_id, generation: pool.generation, items: [{ item_id: item.item_id, key: item.key, input: item.input }] })
         if (worker !== undefined) {
           const record = ports.get(taskId)
           if (record === undefined || record.parent_session_id !== pool.parent_session_id || record.notification.run_epoch !== worker.run_epoch ||
-            messageability(record.status, record.residency_state, record.execution_mode, record.killed) !== "revive" ||
-            oneShotPolicyDenial(record) !== undefined || ports.pending(taskId)) {
+            (!isColdRevivalCandidate(record) && messageability(record.status, record.residency_state, record.execution_mode, record.killed) !== "revive") ||
+            oneShotPolicyDenial(record) !== undefined || (ports.pending(taskId) && (record.pending_steering ?? []).some(entry => entry.workpool?.pool_id !== pool.pool_id))) {
             throw new WorkpoolError("worker_not_continuable", "Worker is no longer eligible for reuse.")
           }
           if (!input.bind(taskId, epoch)) return
-          const result = await ports.revive(record, message, { ok: true, release, commit: () => ports.trackRevive(taskId, epoch) })
-          if (result.kind !== "revived") throw new WorkpoolError("worker_not_continuable", "Worker did not acknowledge the admitted turn.")
+          appendAssignedMessages(stores, turn)
+          if (beginWorkerTurn(stores, turn) === undefined) return
+          const result = await ports.revive(record, WORKPOOL_TURN_MESSAGE, { ok: true, release, commit: () => { transferred = true; ports.trackRevive(taskId, epoch) } })
+          if (result.kind !== "revived") {
+            if (options.store.load(taskId)?.revive_delivery_uncertain?.run_epoch === epoch) {
+              throw new WorkpoolError("delivery_uncertain", "The admitted turn ended before its delivery acknowledgment was persisted.")
+            }
+            throw refusal(result)
+          }
+          acknowledgeWorkerTurn(stores, turn)
           transferred = true
         } else {
           const acquired = await acquireSessionAdmissionLease(options.store.stateDir, pool.parent_session_id)
@@ -90,21 +101,23 @@ export function createWorkpoolAdmission(ports: PoolManagerPorts): WorkpoolAdmiss
             context = prepareWorkpoolLaunch({ options, workerSpec: pool.worker_spec, taskId, hostPid: ports.hostPid,
               taskSeq: ports.nextSequence(pool.parent_session_id),
               spec: { ...pool.worker_spec.start,
-                prompt: interactionPolicyForAgent(pool.worker_spec.start.subagent_type ?? "")?.promptContract === "plan-review"
-                  ? pool.worker_spec.start.prompt : `${pool.worker_spec.start.prompt}\n\n${message}`,
                 memberScopedTools: ports.workerTools(taskId),
                 ...(pool.worker_spec.start.execution_mode === "process" ? workpoolProcessLaunch(options.store.stateDir, taskId) : {}),
               },
             })
           } finally { acquired.lease.release() }
           if (!current()) { await ports.cancel(taskId); return }
-          const result = await ports.launch(context)
+          appendAssignedMessages(stores, turn)
+          const captured = beginWorkerTurn(stores, turn, context.managedSpec.prompt)
+          if (captured === undefined) return
+          const result = await ports.launch({ ...context, managedSpec: { ...context.managedSpec, prompt: captured.message } })
           if (!result.ok) throw new WorkpoolError("spawn_failed", result.error)
           transferred = true
+          acknowledgeWorkerTurn(stores, turn, captured.entries)
         }
         event("dispatched")
       } catch (error) {
-        const failure = error instanceof WorkpoolError ? error : new WorkpoolError("spawn_failed", "Worker admission failed.")
+        const failure = error instanceof WorkpoolError ? error : new WorkpoolError(transferred ? "delivery_uncertain" : "spawn_failed", error instanceof Error ? error.message : "Worker admission failed.")
         input.event({ kind: "admission_failed", pool_id: pool.pool_id, item_id: item.item_id, task_id: taskId, run_epoch: epoch,
           error: { code: failure.code, message: failure.message } })
       } finally { if (!transferred) release() }
@@ -117,6 +130,19 @@ export function createWorkpoolAdmission(ports: PoolManagerPorts): WorkpoolAdmiss
       if (!granted) release()
     } }
   }
-  return { resolve, request, hasFreeSlot: model => concurrency.hasFreeSlot(model), drain: () => concurrency.drain(),
+  return { tasks: options.store, resolve, request, hasFreeSlot: model => concurrency.hasFreeSlot(model), drain: () => concurrency.drain(),
     get: ports.get, pending: ports.pending, cancel: ports.cancel, waitFor: ports.waitFor }
 }
+
+function refusal(outcome: Exclude<SendOutcome, { kind: "revived" }>): WorkpoolError {
+  switch (outcome.kind) {
+    case "delivery_uncertain": case "admission_refused": case "cwd_unavailable": case "config_generation_mismatch": case "scope_denied":
+      return new WorkpoolError(outcome.kind, outcome.reason)
+    case "capacity_deferred": return new WorkpoolError("admission_refused", outcome.reason)
+    case "one_shot_agent": return new WorkpoolError("worker_not_continuable", outcome.message)
+    case "not_continuable": case "not_found": return new WorkpoolError("worker_not_continuable", outcome.reason)
+    case "queued": case "steered": return new WorkpoolError("delivery_uncertain", "Worker did not acknowledge the expected admitted epoch.")
+    default: return assertNever(outcome)
+  }
+}
+function assertNever(value: never): never { throw new Error(`Unknown send outcome: ${String(value)}`) }
