@@ -20,19 +20,17 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs"
-import { createRequire } from "node:module"
 import { tmpdir } from "node:os"
 import { dirname, join, relative, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 import { z } from "zod"
+import { engineSidecarSources, resolvePackageDir, senpiPackageDir, type SidecarSource } from "./engine-sidecar-sources"
 import nativeFixture from "./release-binary-native-fixture.json"
 import { senpiWorkerCompileArgs } from "./senpi-worker-compile"
 import { parseBuildInfo, type OmoBuildInfo } from "../packages/omo-native/build-info"
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(scriptDir, "..")
-const senpiPackageDir = join(repoRoot, "node_modules", "@code-yeongyu", "senpi")
-const senpiRequire = createRequire(join(senpiPackageDir, "package.json"))
 const compileEntry = join(repoRoot, "packages", "omo-native", "compile-entry.ts")
 
 /** Directory name that prefixes every embedded asset name. */
@@ -312,83 +310,6 @@ export function reportEmbeddedPayload(stageDir: string): EmbeddedPayloadReport {
   } finally {
     rmSync(probeRoot, { recursive: true, force: true })
   }
-}
-
-interface SidecarSource {
-  /** Absolute source path (file or directory). */
-  readonly from: string
-  /** Payload-relative destination path. */
-  readonly to: string
-  /** When true a missing source aborts the build. */
-  readonly required: boolean
-}
-
-function resolveFromSenpi(specifier: string): string | undefined {
-  try {
-    return senpiRequire.resolve(specifier)
-  } catch {
-    return undefined
-  }
-}
-
-function resolvePackageDir(packageName: string): string | undefined {
-  const packageJsonPath = resolveFromSenpi(`${packageName}/package.json`)
-  return packageJsonPath === undefined ? undefined : dirname(packageJsonPath)
-}
-
-/**
- * Sidecar parity set = senpi's own copy-binary-assets manifest (re-read from
- * node_modules/@code-yeongyu/senpi/package.json scripts.copy-binary-assets)
- * mapped from the published npm layout onto the flattened binary layout the
- * engine resolves next to process.execPath.
- */
-function engineSidecarSources(): SidecarSource[] {
-  const dist = join(senpiPackageDir, "dist")
-  const sources: SidecarSource[] = [
-    { from: join(senpiPackageDir, "README.md"), to: "README.md", required: true },
-    { from: join(senpiPackageDir, "CHANGELOG.md"), to: "CHANGELOG.md", required: true },
-    { from: join(dist, "modes", "interactive", "theme"), to: "theme", required: true },
-    { from: join(dist, "modes", "interactive", "assets"), to: "assets", required: true },
-    { from: join(dist, "core", "export-html"), to: "export-html", required: true },
-    { from: join(senpiPackageDir, "docs"), to: "docs", required: true },
-    { from: join(senpiPackageDir, "examples"), to: "examples", required: true },
-    { from: join(senpiPackageDir, "vendor"), to: "vendor", required: true },
-  ]
-  for (const packageName of ["css-tree", "mdn-data", "source-map-js"]) {
-    const packageDir = resolvePackageDir(packageName)
-    if (packageDir === undefined) {
-      throw new Error(`sidecar dependency ${packageName} is not installed under the senpi package`)
-    }
-    sources.push({ from: packageDir, to: `node_modules/${packageName}`, required: true })
-  }
-  const codemodeDir = resolvePackageDir("@code-yeongyu/senpi-codemode")
-  if (codemodeDir === undefined) {
-    throw new Error("codemode sidecar @code-yeongyu/senpi-codemode is not installed")
-  }
-  sources.push({
-    from: codemodeDir,
-    to: "node_modules/@code-yeongyu/senpi-codemode",
-    required: true,
-  })
-  const photonDir = resolvePackageDir("@silvia-odwyer/photon-node")
-  if (photonDir === undefined) {
-    throw new Error("@silvia-odwyer/photon-node is not installed under the senpi package")
-  }
-  sources.push({
-    from: join(photonDir, "photon_rs_bg.wasm"),
-    to: "photon_rs_bg.wasm",
-    required: true,
-  })
-  const tuiDir = resolvePackageDir("@earendil-works/pi-tui")
-  if (tuiDir !== undefined) {
-    for (const platform of ["darwin", "win32"]) {
-      const prebuilds = join(tuiDir, "native", platform, "prebuilds")
-      if (existsSync(prebuilds)) {
-        sources.push({ from: prebuilds, to: `native/${platform}/prebuilds`, required: false })
-      }
-    }
-  }
-  return sources
 }
 
 // Mirrors PAYLOAD_DIRECTORIES / PAYLOAD_FILES in script/build-omo-native.ts (locked by build-omo-binary.test.ts).
