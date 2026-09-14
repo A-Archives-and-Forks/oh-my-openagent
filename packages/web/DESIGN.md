@@ -353,3 +353,29 @@ All five are CSS keyframes or one IntersectionObserver; no scroll listeners, no 
 - `/design` showcase route is dev-only and not localized.
 - The 3D poster is rendered once per design change by `scripts/render-graph-poster.mjs` (Playwright screenshot of the mounted scene); it is a committed asset, not generated at build.
 - Satori cannot read CSS variables, so `lib/og/palette.ts` duplicates §2 values; a `scripts/check-og-palette.mjs` diff against `design-system.css` guards drift.
+
+## 14. Brand OG image (2026-09-14)
+
+The supplied Figma OG composition supersedes the dark graph OG in §11, for
+social images only. Its API geometry supplies the original cat and designed-vector
+OmO wordmark. The wordmark is not typeset. The new headline uses the source's
+Roboto Mono family, Regular 400 followed by Bold 700.
+
+- Canvas: 1200 x 630 PNG. White `#ffffff` paper and `#0a0a0a` ink are explicit
+  reference-specific exceptions to §2/§12. No gradient, border, shadow, or graph.
+- Composition: cat at (162, 196), width 282, original 325.0923:289.9436 aspect.
+  Wordmark at (494, 204), width 390, original 499:156 aspect.
+- Headline: (494, 349), Roboto Mono 36 px, 46 px line height, zero tracking.
+  Two unbroken lines: “Your tool for real work.” (400), “But it's an agent.” (700).
+  The original tagline's special capital-O glyph does not occur in the new copy.
+- Proof: lower-left (48, bottom 42), 28 px GitHub mark, 14 px gap, Roboto Mono
+  24 px. Whole-thousand floor, uppercase K and plus, e.g. 69,999 → `69K+ Stars`.
+  Counts below 1,000 remain exact. No extra download figure or website label.
+- Star states: fresh/cached for up to 5 minutes; last known good for at most
+  24 hours on GitHub failure; otherwise `GitHub` without an invented count.
+  Degraded responses are not cached, allowing immediate recovery.
+- Both social routes render on demand, not as build snapshots. Fonts and artwork
+  are bundled into the renderer; no runtime font CDN, Figma URL, or npm request.
+- Accessibility/QA: descriptive metadata alt, high-contrast text, native-size
+  PNG plus 600/375 px preview inspection; check full vector silhouettes and
+  unbroken text at every scale. No client JavaScript or interaction is added.
