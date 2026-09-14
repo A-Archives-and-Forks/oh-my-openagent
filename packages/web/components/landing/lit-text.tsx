@@ -35,7 +35,7 @@ export interface LitProgressProps {
  * Owns the shared scroll progress `--lit-p` (0 → 1) for everything inside it (DESIGN.md §10
  * lit text): after JS registers the interpolated property, browsers with an active scroll-driven
  * animation animate it in CSS (`.lit-scroll`) from the block's top 20vh above the viewport bottom
- * until the block is fully in view; the rest get the same range from an IntersectionObserver sampled
+ * until the block's bottom reaches mid-viewport; the rest get the same range from an IntersectionObserver sampled
  * at 200 thresholds. `LitWords` and the follow-up line read the
  * inherited value, so the words sweep and the line appears from one timeline.
  */
@@ -58,7 +58,7 @@ export function LitProgress({ children, className }: LitProgressProps): JSX.Elem
       const rect = entry?.boundingClientRect ?? element.getBoundingClientRect()
       const viewport = entry?.rootBounds?.height ?? window.innerHeight
       const startTop = viewport * 0.8
-      const endTop = Math.max(0, viewport - rect.height)
+      const endTop = viewport * 0.5 - rect.height
       const span = startTop - endTop
       const next = span > 0 ? (startTop - rect.top) / span : rect.top <= endTop ? 1 : 0
       setProgress(Math.min(1, Math.max(0, next)))
