@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url"
 
 import type { ExtensionAPI } from "@code-yeongyu/senpi"
 import { TeamModeConfigSchema, type TeamModeConfig } from "@oh-my-opencode/team-core/config"
-import { log } from "@oh-my-opencode/utils"
+import { log } from "@oh-my-opencode/utils/logger"
 
 import { parseTaskId, type TaskId } from "../../state"
 import { createTaskRecordStore } from "../../store"
