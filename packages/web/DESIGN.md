@@ -434,6 +434,10 @@ not pulse: the labels name capabilities, not live work. Use the existing
 Eyebrow `className` hook for this local override; other status indicators
 and the shared Eyebrow component keep their current behavior.
 
+Reduced-motion model tracks take the available width before wrapping.
+Stopping the animation while retaining `max-content` width would leave
+profiles outside the viewport. Normal-motion marquee sizing is unchanged.
+
 The mobile evaluator must read the entire request and keyword without
 horizontal clipping. The CJK reader must retain authored copy and wrapping.
 The motion-sensitive reader must see the completed graph, inserted memory

@@ -43,5 +43,37 @@ test.describe("Work surface readability", () => {
         .evaluateAll((rows) => rows.filter((row) => row.scrollWidth > row.clientWidth + 1).length)
       expect(clippedResponses).toBe(0)
     })
+
+    test(`${locale} wraps stationary model profiles inside the mobile viewport`, async ({
+      page,
+    }) => {
+      // given
+      await page.emulateMedia({ reducedMotion: "reduce" })
+      await page.setViewportSize({ width: 375, height: 844 })
+      const prefix = locale === "en" ? "" : `/${locale}`
+      await page.goto(`${prefix}/`)
+      await page.evaluate(() => document.fonts.ready)
+      const profiles = page.getByTestId("model-marquee")
+
+      // when
+      await profiles.scrollIntoViewIfNeeded()
+
+      // then
+      const overflow = await profiles.evaluate((el) => el.scrollWidth - el.clientWidth)
+      expect(
+        overflow,
+        "Stationary profiles must wrap rather than extend offscreen",
+      ).toBeLessThanOrEqual(1)
+      const labels = profiles.locator('.marquee-track:not([aria-hidden="true"]) li')
+      expect(await labels.count()).toBeGreaterThan(0)
+      const clippedLabels = await labels.evaluateAll(
+        (rows) =>
+          rows.filter((row) => {
+            const rect = row.getBoundingClientRect()
+            return rect.left < 0 || rect.right > innerWidth
+          }).length,
+      )
+      expect(clippedLabels).toBe(0)
+    })
   }
 })

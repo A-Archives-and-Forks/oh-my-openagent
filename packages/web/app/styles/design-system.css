@@ -1111,6 +1111,9 @@
       animation: none;
       flex-wrap: wrap;
     }
+    .marquee-track {
+      width: 100%;
+    }
     .marquee-track[aria-hidden="true"],
     .ticker-track > [aria-hidden="true"] {
       display: none;
