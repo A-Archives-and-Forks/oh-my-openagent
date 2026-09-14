@@ -106,7 +106,7 @@ test.describe("Landing Page", () => {
     const marquee = page.getByTestId("model-marquee").locator(".marquee-track").first()
     await marquee.scrollIntoViewIfNeeded()
     const animation = await marquee.evaluate((node) => getComputedStyle(node).animationName)
-    const litText = page.locator('[data-section="secret"] .lit-text')
+    const litText = page.locator('[data-section="secret"] .lit-progress')
     await litText.scrollIntoViewIfNeeded()
     const litProgress = await litText.evaluate((node) =>
       getComputedStyle(node).getPropertyValue("--lit-p").trim(),

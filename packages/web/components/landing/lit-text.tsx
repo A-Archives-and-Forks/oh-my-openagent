@@ -1,14 +1,9 @@
 "use client"
 
-import type { CSSProperties, JSX } from "react"
+import type { CSSProperties, JSX, ReactNode } from "react"
 import { useEffect, useRef, useState } from "react"
 
 import { cn } from "@/lib/utils"
-
-export interface LitTextProps {
-  readonly text: string
-  readonly className?: string
-}
 
 const THRESHOLDS = Array.from({ length: 201 }, (_, i) => i / 200)
 
@@ -16,18 +11,20 @@ function supportsScrollTimeline(): boolean {
   return typeof CSS !== "undefined" && CSS.supports("animation-timeline: view()")
 }
 
+export interface LitProgressProps {
+  readonly children: ReactNode
+  readonly className?: string
+}
+
 /**
- * Words light up as a continuous sweep while the paragraph scrolls from the viewport bottom
- * to its upper third (DESIGN.md §10 lit text). One progress value, `--lit-p` (0 → 1), drives
- * every word: browsers with scroll-driven animations animate it in CSS (`.lit-scroll`), the
- * rest get it from an IntersectionObserver sampled at 200 thresholds. Each word maps the
- * shared progress to its own fill and paints it as a gradient across its glyphs, so the
- * light travels inside words and across neighbours instead of flipping word by word.
+ * Owns the shared scroll progress `--lit-p` (0 → 1) for everything inside it (DESIGN.md §10
+ * lit text): browsers with scroll-driven animations animate it in CSS (`.lit-scroll`) from
+ * the block's top 20vh above the viewport bottom until the block is fully in view; the rest get it from an
+ * IntersectionObserver sampled at 200 thresholds. `LitWords` and the follow-up line read the
+ * inherited value, so the words sweep and the line appears from one timeline.
  */
-export function LitText({ text, className }: LitTextProps): JSX.Element {
-  const ref = useRef<HTMLParagraphElement>(null)
-  const words = text.split(/(\s+)/)
-  const wordCount = words.filter((w) => w.trim()).length
+export function LitProgress({ children, className }: LitProgressProps): JSX.Element {
+  const ref = useRef<HTMLDivElement>(null)
   const [mode, setMode] = useState<"pending" | "scroll" | "observer">("pending")
   const [progress, setProgress] = useState(0)
 
@@ -48,32 +45,45 @@ export function LitText({ text, className }: LitTextProps): JSX.Element {
       ([entry]) => {
         if (!entry) return
         const viewport = entry.rootBounds?.height ?? window.innerHeight
-        const start = viewport
-        const end = viewport * 0.35
-        const next = Math.min(
-          1,
-          Math.max(0, (start - entry.boundingClientRect.top) / (start - end)),
-        )
+        const lead = viewport * 0.2
+        const entered = viewport - entry.boundingClientRect.top - lead
+        const span = entry.boundingClientRect.height - lead
+        const next = Math.min(1, Math.max(0, entered / span))
         setProgress((current) => Math.max(current, next))
       },
-      { threshold: THRESHOLDS, rootMargin: "0px 0px -35% 0px" },
+      { threshold: THRESHOLDS },
     )
     observer.observe(element)
     return () => observer.disconnect()
   }, [])
 
-  const style: CSSProperties & { "--lit-count": number; "--lit-p"?: number } = {
-    "--lit-count": wordCount,
-  }
+  const style: CSSProperties & { "--lit-p"?: number } = {}
   if (mode === "observer") style["--lit-p"] = progress
+
+  return (
+    <div
+      ref={ref}
+      className={cn("lit-progress", mode === "scroll" && "lit-scroll", className)}
+      style={style}
+    >
+      {children}
+    </div>
+  )
+}
+
+export interface LitWordsProps {
+  readonly text: string
+  readonly className?: string
+}
+
+export function LitWords({ text, className }: LitWordsProps): JSX.Element {
+  const words = text.split(/(\s+)/)
+  const wordCount = words.filter((w) => w.trim()).length
+  const style: CSSProperties & { "--lit-count": number } = { "--lit-count": wordCount }
 
   let index = 0
   return (
-    <p
-      ref={ref}
-      className={cn("lit-text", mode === "scroll" && "lit-scroll", className)}
-      style={style}
-    >
+    <p className={cn("lit-text", className)} style={style}>
       {words.map((word, i) => {
         if (!word.trim()) return word
         const wordStyle: CSSProperties & { "--i": number } = { "--i": index }
