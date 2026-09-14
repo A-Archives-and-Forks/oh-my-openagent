@@ -196,6 +196,7 @@
     --dur-type: 40ms;
     --dur-pulse: 2200ms;
     --dur-wave: 12s;
+    --lit-blur: 4px;
 
     /* Legacy shadcn variables remapped onto the ledger tokens */
     --background: var(--ink-0);
@@ -798,15 +799,21 @@
     inherits: true;
     initial-value: 0;
   }
-  .lit-text {
+  .lit-progress {
     --lit-p: 0;
   }
   @supports (animation-timeline: view()) {
-    .lit-text.lit-scroll {
+    .lit-progress.lit-scroll {
       animation: lit-progress linear both;
       animation-timeline: view();
-      animation-range: entry 35% cover 55%;
+      animation-range: cover 20vh entry 100%;
     }
+  }
+  /* The follow-up line waits for the last words (progress 0.82 → 1) before it rises in. */
+  .lit-follow {
+    --lit-f: clamp(0, calc((var(--lit-p) - 0.82) / 0.18), 1);
+    opacity: var(--lit-f);
+    transform: translateY(calc((1 - var(--lit-f)) * 24px));
   }
   @keyframes lit-progress {
     from {
@@ -831,6 +838,7 @@
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
+    filter: blur(calc((1 - var(--lit-local)) * var(--lit-blur)));
   }
 
   /* Kibitzer: independent clocks; the nudge travels into the verification slot. */
@@ -1066,14 +1074,19 @@
     .ticker-track > [aria-hidden="true"] {
       display: none;
     }
-    .lit-text,
-    .lit-text.lit-scroll {
+    .lit-progress,
+    .lit-progress.lit-scroll {
       --lit-p: 1;
       animation: none;
+    }
+    .lit-follow {
+      opacity: 1;
+      transform: none;
     }
     .lit-word {
       background-image: none;
       color: var(--text-hi);
+      filter: none;
     }
     .rotate-word {
       height: auto;
