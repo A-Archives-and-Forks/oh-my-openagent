@@ -33,6 +33,7 @@ export interface LitProgressProps {
  * The body's named view timeline drives separate word and follow-up ranges (DESIGN.md §10).
  * IO gates the geometry fallback, rather than sampling progress through intersection thresholds:
  * those stop changing when a short block is fully visible or a tall block spans the viewport.
+ * The `.lit-follow` element is optional: a reading block (`lit-read`) sweeps its words alone.
  */
 export function LitProgress({ children, className }: LitProgressProps): JSX.Element {
   const ref = useRef<HTMLDivElement>(null)
@@ -41,8 +42,8 @@ export function LitProgress({ children, className }: LitProgressProps): JSX.Elem
   useEffect(() => {
     const element = ref.current
     const body = element?.querySelector<HTMLElement>(".lit-text")
-    const follow = element?.querySelector<HTMLElement>(".lit-follow")
-    if (!element || !body || !follow) return
+    const follow = element?.querySelector<HTMLElement>(".lit-follow") ?? null
+    if (!element || !body) return
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setMode("observer")
       return
@@ -53,14 +54,15 @@ export function LitProgress({ children, className }: LitProgressProps): JSX.Elem
       const rect = body.getBoundingClientRect()
       const viewport = window.innerHeight
       const style = getComputedStyle(element)
-      const hold = (Number.parseFloat(style.getPropertyValue("--lit-read-hold")) / 100) * viewport
-      const fade = (Number.parseFloat(style.getPropertyValue("--lit-follow-fade")) / 100) * viewport
-      const gap = Number.parseFloat(getComputedStyle(follow).marginTop)
       const startTop = viewport * 0.8
       const endTop = viewport * 0.5 - rect.height
       const words = (startTop - rect.top) / (startTop - endTop)
-      const nextFollow = (endTop - rect.top - Math.max(hold, gap)) / fade
       element.style.setProperty("--lit-p", String(Math.min(1, Math.max(0, words))))
+      if (!follow) return
+      const hold = (Number.parseFloat(style.getPropertyValue("--lit-read-hold")) / 100) * viewport
+      const fade = (Number.parseFloat(style.getPropertyValue("--lit-follow-fade")) / 100) * viewport
+      const gap = Number.parseFloat(getComputedStyle(follow).marginTop)
+      const nextFollow = (endTop - rect.top - Math.max(hold, gap)) / fade
       element.style.setProperty("--lit-f", String(Math.min(1, Math.max(0, nextFollow))))
     }
     let frame = 0
@@ -91,17 +93,16 @@ export function LitProgress({ children, className }: LitProgressProps): JSX.Elem
     }
     if (useTimeline) {
       element.classList.add("lit-scroll")
+      const expectedAnimations = follow ? ["lit-progress", "lit-follow"] : ["lit-progress"]
       const animations = element
         .getAnimations({ subtree: true })
         .filter(
-          (item) =>
-            item instanceof CSSAnimation &&
-            ["lit-progress", "lit-follow"].includes(item.animationName),
+          (item) => item instanceof CSSAnimation && expectedAnimations.includes(item.animationName),
         )
       // View timelines acquire their current time during the next rendering update.
       frame = requestAnimationFrame(() => {
         if (
-          animations.length === 2 &&
+          animations.length === expectedAnimations.length &&
           animations.every(
             ({ timeline }) =>
               timeline && timeline !== document.timeline && timeline.currentTime !== null,
@@ -137,29 +138,57 @@ export function LitProgress({ children, className }: LitProgressProps): JSX.Elem
   )
 }
 
-export interface LitWordsProps {
+export interface LitPart {
   readonly text: string
+  /** Wrap this part's words in an external link; the sweep continues across it. */
+  readonly href?: string
+}
+
+export interface LitWordsProps {
+  readonly text?: string
+  /** Alternative to `text`: consecutive parts, some of them linked. */
+  readonly parts?: readonly LitPart[]
   readonly className?: string
 }
 
-export function LitWords({ text, className }: LitWordsProps): JSX.Element {
-  const words = text.split(/(\s+)/)
-  const wordCount = words.filter((w) => w.trim()).length
+export function LitWords({ text, parts, className }: LitWordsProps): JSX.Element {
+  const resolvedParts: readonly LitPart[] = parts ?? [{ text: text ?? "" }]
+  const wordCount = resolvedParts.reduce(
+    (count, part) => count + part.text.split(/\s+/).filter(Boolean).length,
+    0,
+  )
   const style: CSSProperties & { "--lit-count": number } = { "--lit-count": wordCount }
 
   let index = 0
+  const renderWords = (partText: string, keyPrefix: string): ReactNode[] =>
+    partText.split(/(\s+)/).map((word, i) => {
+      if (!word.trim()) return word
+      const wordStyle: CSSProperties & { "--i": number } = { "--i": index }
+      index += 1
+      return (
+        <span key={`${keyPrefix}-${i}`} className="lit-word" style={wordStyle}>
+          {word}
+        </span>
+      )
+    })
+
   return (
     <p className={cn("lit-text", className)} style={style}>
-      {words.map((word, i) => {
-        if (!word.trim()) return word
-        const wordStyle: CSSProperties & { "--i": number } = { "--i": index }
-        index += 1
-        return (
-          <span key={i} className="lit-word" style={wordStyle}>
-            {word}
-          </span>
-        )
-      })}
+      {resolvedParts.map((part, partIndex) =>
+        part.href ? (
+          <a
+            key={partIndex}
+            href={part.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="lit-link focus-visible:outline-accent-32 focus-visible:outline-2 focus-visible:outline-offset-2"
+          >
+            {renderWords(part.text, String(partIndex))}
+          </a>
+        ) : (
+          renderWords(part.text, String(partIndex))
+        ),
+      )}
     </p>
   )
 }
