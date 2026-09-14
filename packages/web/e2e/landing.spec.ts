@@ -101,21 +101,32 @@ test.describe("Landing Page", () => {
     await page.emulateMedia({ reducedMotion: "no-preference" })
     await page.goto("/")
     const litText = page.locator('[data-section="secret"] .lit-progress')
-    await litText.waitFor()
+    await page.locator('[data-section="secret"] .lit-progress.lit-scroll').waitFor()
+    await page.evaluate(() => document.fonts.ready)
 
     const sampleAt = async (target: number) => {
-      await litText.evaluate((node, progress) => {
+      await litText.evaluate(async (node, progress) => {
         const rect = node.getBoundingClientRect()
         const startTop = innerHeight * 0.8
         const endTop = Math.max(0, innerHeight - rect.height)
-        scrollTo({ top: scrollY + rect.top - startTop + progress * (startTop - endTop) })
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error("Scroll did not complete")), 5000)
+          document.addEventListener(
+            "scrollend",
+            () => {
+              requestAnimationFrame(() => {
+                clearTimeout(timeout)
+                resolve()
+              })
+            },
+            { once: true },
+          )
+          scrollTo({
+            top: scrollY + rect.top - startTop + progress * (startTop - endTop),
+            behavior: "instant",
+          })
+        })
       }, target)
-      await page.evaluate(
-        () =>
-          new Promise<void>((resolve) =>
-            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-          ),
-      )
       return litText.evaluate((node) => ({
         progress: Number.parseFloat(getComputedStyle(node).getPropertyValue("--lit-p")),
         partialWords: Array.from(node.querySelectorAll(".lit-word")).filter((word) => {
