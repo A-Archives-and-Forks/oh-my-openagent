@@ -1,11 +1,12 @@
 import { expect, test } from "bun:test"
-import { resolve } from "node:path"
+import { existsSync, readFileSync } from "node:fs"
+import { join, relative, resolve, sep } from "node:path"
+import { getSkillOutputManifest as senpiSkillManifest } from "../packages/omo-senpi/plugin/scripts/sync-skills.mjs"
+import { getSkillOutputManifest as codexSkillManifest } from "../packages/omo-codex/plugin/scripts/sync-skills.mjs"
 
-const shippedRoots = [
+const trackedRoots = [
   "packages/shared-skills/skills",
   "packages/omo-senpi/skills",
-  "packages/omo-senpi/plugin/skills",
-  "packages/omo-codex/plugin/skills",
   "packages/omo-codex/plugin/components",
   "packages/prompts-core/prompts",
   "docs",
@@ -38,31 +39,48 @@ const providerFiles = [
 ] as const
 
 test("ships no retired browser tool instructions outside the pending provider migration", async () => {
-  // Given: tracked authored sources and checked-in payloads; ignored outputs are rebuilt, not inputs.
+  // Given: tracked sources plus the actual payloads produced by both owning generators.
   const cwd = resolve(import.meta.dir, "..")
   const patterns = ["agent-browser", "agent_browser", "npx playwright", "bunx playwright", "playwright install"]
-
-  // When: Git scans tracked working-tree contents, including uncommitted edits but not stale builds.
-  const scan = Bun.spawn([
-    "git", "grep", "--full-name", "--line-number", "--no-color", "--fixed-strings",
-    ...patterns.flatMap((pattern) => ["-e", pattern]),
-    "--", ...shippedRoots,
+  const tracked = Bun.spawnSync([
+    "git", "ls-files", "-z", "--", ...trackedRoots,
     ...providerFiles.map((path) => `:(exclude,literal)${path}`),
   ], { cwd, stdout: "pipe", stderr: "pipe" })
-  const [exitCode, stdout, stderr] = await Promise.all([
-    scan.exited,
-    new Response(scan.stdout).text(),
-    new Response(scan.stderr).text(),
-  ])
+  expect(tracked.stderr.toString()).toBe("")
+  expect(tracked.exitCode).toBe(0)
+  const files = new Set(tracked.stdout.toString().split("\0").filter(Boolean))
+  const manifests = await Promise.all([senpiSkillManifest(), codexSkillManifest()])
 
-  // TODO-12: exempt only the configuration table row keyed by this provider, not the document.
-  const lines = stdout.trimEnd().split("\n").filter(Boolean)
-  const providerRow = /^docs\/reference\/configuration\.md:\d+:\| `agent-browser`\s*\|/
-  const violations = lines.filter((line) => !providerRow.test(line))
+  for (const { root, names } of manifests) {
+    const generator = relative(cwd, join(root, "..", "scripts", "sync-skills.mjs")).split(sep).join("/")
+    for (const name of names) {
+      const skillFile = join(root, name, "SKILL.md")
+      expect(existsSync(skillFile), `${relative(cwd, skillFile)} is absent; run node ${generator} first`).toBe(true)
+    }
+    // Never sync here: it would erase a bad generated payload before inspecting it.
+    for (const file of new Bun.Glob("**/*").scanSync({ cwd: root, dot: true, onlyFiles: true })) {
+      files.add(relative(cwd, join(root, file)).split(sep).join("/"))
+    }
+  }
 
-  // Then: only the reserved row may match; Git errors and additional rows still fail.
-  expect(stderr).toBe("")
-  expect([0, 1]).toContain(exitCode)
-  expect(lines.length - violations.length).toBeLessThanOrEqual(1)
+  // When: scan working-tree bytes, not the Git index, retaining file:line diagnostics.
+  const violations: string[] = []
+  let providerRows = 0
+  for (const file of [...files].sort()) {
+    const content = readFileSync(join(cwd, file), "utf8")
+    const lines = content.split(/\r?\n/)
+    for (const [index, line] of lines.entries()) {
+      if (!patterns.some((pattern) => line.includes(pattern))) continue
+      // TODO-12: only this provider's table row is reserved, never the whole document.
+      if (file === "docs/reference/configuration.md" && /^\| `agent-browser`\s*\|/.test(line)) {
+        providerRows += 1
+      } else {
+        violations.push(`${file}:${index + 1}:${line}`)
+      }
+    }
+  }
+
+  // Then: only one reserved row may match; ignored non-shipped files are not inputs.
+  expect(providerRows).toBeLessThanOrEqual(1)
   expect(violations, `Retired browser tools remain at file:line:\n${violations.join("\n")}`).toEqual([])
 })
