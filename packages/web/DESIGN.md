@@ -288,7 +288,7 @@ The GitHub one-liner calls the user "the master of graph engineering". The focal
 
 `hero` → `proof` → `secret` → `ultrawork` → `multi-model` → `mass-ulw` → `kibitzer` → `skills` → `crafted` → `platforms` → `reviews` → `cta`. Editions, the agent roster, profiles, orchestration, team mode and the principles ledger were removed from `/`; their substance lives in docs and inside `crafted`. No section carries a numeral label.
 
-- **secret**: the fold. Title = "we'd rather you never read this", body rendered by `LitText` (words light `--text-faint` → `--text-hi` as the paragraph scrolls from the viewport bottom to 35% height), then a `Reveal`ed accent line ("still curious?") that opens the feature story.
+- **secret**: the fold. Title = "we'd rather you never read this", body rendered by `LitText` (a single progress value sweeps `--text-faint` → `--text-hi` through the glyphs of each word and across neighbours as the paragraph scrolls from the viewport bottom to 35% height; no per-word flips), then a `Reveal`ed accent line ("still curious?") that opens the feature story.
 - **ultrawork**: prompt line with the keyword as a `--accent-16` mark + three revealed steps. No product jargon in the copy.
 - **multi-model**: two `Marquee` rows of tuned profile chips (opposite directions, 36s / 44s, pause on hover). The chip list is data (`story-data.ts`) and never names families outside Claude / GPT / Kimi / Grok / GLM / DeepSeek.
 - **mass-ulw**: the existing desktop-app DAG (`dag/`) on a research → dataset → model → deck scenario (`scenario-data.ts`).
