@@ -808,12 +808,12 @@
       animation: lit-progress linear both;
       animation-timeline: view();
       animation-range-start: cover 20vh;
-      animation-range-end: contain 0%;
+      animation-range-end: contain 50vh;
     }
   }
-  /* The follow-up line waits for the last words (progress 0.82 → 1) before it rises in. */
+  /* The follow-up line rises in over the last stretch (progress 0.7 → 1) as it nears mid-viewport. */
   .lit-follow {
-    --lit-f: clamp(0, calc((var(--lit-p) - 0.82) / 0.18), 1);
+    --lit-f: clamp(0, calc((var(--lit-p) - 0.7) / 0.3), 1);
     opacity: var(--lit-f);
     transform: translateY(calc((1 - var(--lit-f)) * 24px));
   }

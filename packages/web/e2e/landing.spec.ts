@@ -108,7 +108,7 @@ test.describe("Landing Page", () => {
       await litText.evaluate(async (node, progress) => {
         const rect = node.getBoundingClientRect()
         const startTop = innerHeight * 0.8
-        const endTop = Math.max(0, innerHeight - rect.height)
+        const endTop = innerHeight * 0.5 - rect.height
         await new Promise<void>((resolve, reject) => {
           const timeout = setTimeout(() => reject(new Error("Scroll did not complete")), 5000)
           document.addEventListener(
