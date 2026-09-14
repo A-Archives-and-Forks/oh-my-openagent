@@ -7,8 +7,23 @@ import { cn } from "@/lib/utils"
 
 const THRESHOLDS = Array.from({ length: 201 }, (_, i) => i / 200)
 
+function registerLitProgress(): boolean {
+  if (typeof CSS === "undefined" || !("registerProperty" in CSS)) return false
+  try {
+    CSS.registerProperty({
+      name: "--lit-p",
+      syntax: "<number>",
+      inherits: true,
+      initialValue: "0",
+    })
+    return true
+  } catch (error) {
+    return error instanceof DOMException && error.name === "InvalidModificationError"
+  }
+}
+
 function supportsScrollTimeline(): boolean {
-  return typeof CSS !== "undefined" && CSS.supports("animation-timeline: view()")
+  return CSS.supports("animation-timeline: view()")
 }
 
 export interface LitProgressProps {
@@ -18,9 +33,10 @@ export interface LitProgressProps {
 
 /**
  * Owns the shared scroll progress `--lit-p` (0 → 1) for everything inside it (DESIGN.md §10
- * lit text): browsers with scroll-driven animations animate it in CSS (`.lit-scroll`) from
- * the block's top 20vh above the viewport bottom until the block is fully in view; the rest get it from an
- * IntersectionObserver sampled at 200 thresholds. `LitWords` and the follow-up line read the
+ * lit text): after JS registers the interpolated property, browsers with an active scroll-driven
+ * animation animate it in CSS (`.lit-scroll`) from the block's top 20vh above the viewport bottom
+ * until the block is fully in view; the rest get the same range from an IntersectionObserver sampled
+ * at 200 thresholds. `LitWords` and the follow-up line read the
  * inherited value, so the words sweep and the line appears from one timeline.
  */
 export function LitProgress({ children, className }: LitProgressProps): JSX.Element {
@@ -36,25 +52,49 @@ export function LitProgress({ children, className }: LitProgressProps): JSX.Elem
       setProgress(1)
       return
     }
-    if (supportsScrollTimeline()) {
-      setMode("scroll")
-      return
+    const useTimeline = registerLitProgress() && supportsScrollTimeline()
+
+    const updateProgress = (entry?: IntersectionObserverEntry) => {
+      const rect = entry?.boundingClientRect ?? element.getBoundingClientRect()
+      const viewport = entry?.rootBounds?.height ?? window.innerHeight
+      const startTop = viewport * 0.8
+      const endTop = Math.max(0, viewport - rect.height)
+      const span = startTop - endTop
+      const next = span > 0 ? (startTop - rect.top) / span : rect.top <= endTop ? 1 : 0
+      setProgress(Math.min(1, Math.max(0, next)))
     }
-    setMode("observer")
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry) return
-        const viewport = entry.rootBounds?.height ?? window.innerHeight
-        const lead = viewport * 0.2
-        const entered = viewport - entry.boundingClientRect.top - lead
-        const span = entry.boundingClientRect.height - lead
-        const next = Math.min(1, Math.max(0, entered / span))
-        setProgress((current) => Math.max(current, next))
-      },
-      { threshold: THRESHOLDS },
-    )
-    observer.observe(element)
-    return () => observer.disconnect()
+    const observer = new IntersectionObserver(([entry]) => updateProgress(entry), {
+      threshold: THRESHOLDS,
+    })
+    const useObserver = () => {
+      element.classList.remove("lit-scroll")
+      setMode("observer")
+      updateProgress()
+      observer.observe(element)
+    }
+    let frame = 0
+    if (useTimeline) {
+      element.classList.add("lit-scroll")
+      const animation = element
+        .getAnimations()
+        .find((item) => item instanceof CSSAnimation && item.animationName === "lit-progress")
+      // View timelines acquire their current time during the next rendering update.
+      frame = requestAnimationFrame(() => {
+        const timeline = animation?.timeline
+        if (timeline && timeline !== document.timeline && timeline.currentTime !== null) {
+          setMode("scroll")
+        } else {
+          useObserver()
+        }
+      })
+    } else {
+      useObserver()
+    }
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+      element.classList.remove("lit-scroll")
+    }
   }, [])
 
   const style: CSSProperties & { "--lit-p"?: number } = {}
