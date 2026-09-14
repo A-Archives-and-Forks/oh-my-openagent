@@ -31,7 +31,7 @@ export function createColdReviveTrace() {
       if (value.type === "agent_end") mark("turn_settle", { launch })
     })
     if (child.stderr) createInterface({ input: child.stderr }).on("line", line => {
-      if (line.startsWith("COLD_REVIVE_CHILD ")) mark("child_stage", { launch, event: line.slice(18) })
+      if (line.startsWith("COLD_REVIVE_CHILD ")) mark("child_stage", { launch, event: JSON.parse(line.slice(18)) })
     })
     return child
   }

@@ -95,9 +95,10 @@ export async function realColdRevive(mode: "in-process" | "process", misleading 
     },
   }), () => ({ agentDir, modelRuntime: runtime, modelRegistry: registry, model }))
   const extension = join(root, "provider.ts")
-  writeFileSync(extension, `export default function(pi) { pi.registerProvider("omp-fixture", ${JSON.stringify(provider)}); ${trace === undefined ? "" : 'console.error("COLD_REVIVE_CHILD provider_registered"); pi.on("session_start", () => console.error("COLD_REVIVE_CHILD session_start"));'} }`)
+  const childTrace = fileURLToPath(new URL("./cold-revive-child-trace.ts", import.meta.url))
+  writeFileSync(extension, `${trace === undefined ? "" : `import { markChildStage } from ${JSON.stringify(childTrace)};`} export default function(pi) { pi.registerProvider("omp-fixture", ${JSON.stringify(provider)}); ${trace === undefined ? "" : 'markChildStage("provider_registered"); pi.on("session_start", () => markChildStage("session_start"));'} }`)
   const trustedRespawnLaunch = options.team ? await coldReviveTeam(store, config, record.task_id) : undefined
-  const rpc = new RpcProcessRunner({ ...(trace === undefined ? {} : { spawnProcess: trace.spawnProcess }), modelAdmission: async () => undefined, buildSpawn: (input) => ({ command: process.execPath, args: [fileURLToPath(import.meta.resolve("@code-yeongyu/senpi/rpc-entry")), "--no-extensions", "--no-skills", "--extension", extension, ...(input.extensions ?? []).flatMap((path) => ["--extension", path]), "--model", "omp-fixture/fixture"], cwd: input.cwd, env: { PATH: process.env.PATH, HOME: root, SENPI_CODING_AGENT_DIR: agentDir, SENPI_CODING_AGENT_SESSION_DIR: sessionDir, OMO_SENPI_TASK_RPC_CHILD: "1", ...input.memberEnv } }) })
+  const rpc = new RpcProcessRunner({ ...(trace === undefined ? {} : { spawnProcess: trace.spawnProcess }), modelAdmission: async () => undefined, buildSpawn: (input) => ({ command: process.execPath, args: [...(trace === undefined ? [] : ["--preload", childTrace]), fileURLToPath(import.meta.resolve("@code-yeongyu/senpi/rpc-entry")), "--no-extensions", "--no-skills", "--extension", extension, ...(input.extensions ?? []).flatMap((path) => ["--extension", path]), "--model", "omp-fixture/fixture"], cwd: input.cwd, env: { PATH: process.env.PATH, HOME: root, SENPI_CODING_AGENT_DIR: agentDir, SENPI_CODING_AGENT_SESSION_DIR: sessionDir, OMO_SENPI_TASK_RPC_CHILD: "1", ...input.memberEnv } }) })
   let now = 1000
   let cadenceMs = 0
   let unrefs = 0
