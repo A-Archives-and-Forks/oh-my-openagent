@@ -62,7 +62,14 @@ export async function createUlwLoopPlan(
 	scope?: UlwLoopScope,
 ): Promise<UlwLoopPlan> {
 	return withUlwLoopMutationLock(repoRoot, scope, async () => {
-		const existing = planExists(repoRoot, scope) ? await readUlwLoopPlan(repoRoot, scope) : undefined;
+		let existing: UlwLoopPlan | undefined;
+		if (planExists(repoRoot, scope)) {
+			try {
+				existing = await readUlwLoopPlan(repoRoot, scope);
+			} catch (error) {
+				if (!args.force) throw error;
+			}
+		}
 		if (!args.force && existing !== undefined) {
 			if (isUlwLoopDone(existing)) throw completedPlanExistsError(scope);
 			throw new UlwLoopError(
