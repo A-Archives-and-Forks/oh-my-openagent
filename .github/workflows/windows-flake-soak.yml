@@ -19,6 +19,7 @@ on:
           - memfs-restore
           - senpi-overflow
           - full-shard-2
+          - member-boot-comparison
       iterations:
         description: Number of identical iterations to run
         required: true
@@ -27,6 +28,11 @@ on:
       test_ref:
         description: Git ref whose repository contents should be tested
         required: false
+        type: string
+      base_ref:
+        description: Base ref for the one-shot member boot comparison
+        required: false
+        default: dev
         type: string
 
 permissions:
@@ -41,7 +47,7 @@ jobs:
           ref: ${{ inputs.test_ref || github.ref }}
 
       - uses: actions/setup-node@v7
-        if: inputs.target == 'full-shard-2'
+        if: inputs.target == 'full-shard-2' || inputs.target == 'member-boot-comparison'
         with:
           node-version: "24"
 
@@ -61,7 +67,26 @@ jobs:
         run: npm test
         working-directory: packages/lsp-daemon
 
+      - name: Compare dev and candidate member boot graphs once
+        if: inputs.target == 'member-boot-comparison'
+        shell: pwsh
+        env:
+          MEMBER_BOOT_BASE_REF: ${{ inputs.base_ref }}
+          MEMBER_BOOT_ITERATIONS: ${{ inputs.iterations }}
+        run: |
+          if ($env:MEMBER_BOOT_ITERATIONS -ne '1') { throw 'Boot comparison runs once; iterations must be 1.' }
+          ./script/qa/member-boot-compare.ps1 -BaseRef $env:MEMBER_BOOT_BASE_REF -OutputDirectory (Join-Path $env:RUNNER_TEMP 'member-boot-graphs')
+
+      - name: Upload member boot graphs
+        if: always() && inputs.target == 'member-boot-comparison'
+        uses: actions/upload-artifact@v4
+        with:
+          name: member-boot-graphs-${{ github.run_id }}
+          path: ${{ runner.temp }}/member-boot-graphs/*.json
+          if-no-files-found: error
+
       - name: Run allowlisted target repeatedly
+        if: inputs.target != 'member-boot-comparison'
         id: run-soak
         shell: pwsh
         env:
@@ -196,7 +221,7 @@ jobs:
           }
 
       - name: Upload Windows soak telemetry
-        if: always()
+        if: always() && inputs.target != 'member-boot-comparison'
         uses: actions/upload-artifact@v4
         with:
           name: windows-flake-soak-${{ inputs.target }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -204,7 +229,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Write job summary
-        if: always()
+        if: always() && inputs.target != 'member-boot-comparison'
         shell: bash
         env:
           JOB_SUMMARY_TITLE: Windows flake soak (${{ inputs.target }})
