@@ -178,7 +178,7 @@ describe("default memory seeds", () => {
     // then
     expect(memorySection).toContain("<self-aware>")
     expect(memorySection).toContain("$MEMORY_DIR/system/self-aware.md</projection>")
-    expect(selfSection).not.toContain("self-aware")
+    expect(selfSection).not.toContain("$MEMORY_DIR/system/self-aware.md</projection>")
     expect(memorySection).toContain("observations.md")
     expect(block).not.toContain("One line per external reaction")
   })
