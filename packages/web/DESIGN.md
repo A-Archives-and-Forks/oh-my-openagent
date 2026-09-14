@@ -369,8 +369,8 @@ Roboto Mono family, Regular 400 followed by Bold 700.
 - Headline: (494, 349), Roboto Mono 36 px, 46 px line height, zero tracking.
   Two unbroken lines: “Your tool for real work.” (400), “But it's an agent.” (700).
   The original tagline's special capital-O glyph does not occur in the new copy.
-- Proof: lower-left (48, bottom 42), 28 px GitHub mark, 14 px gap, Roboto Mono
-  24 px. Whole-thousand floor, uppercase K and plus, e.g. 69,999 → `69K+ Stars`.
+- Proof: lower-left (48, bottom 42), 40 px GitHub mark, 16 px gap, Roboto Mono
+  36 px. Whole-thousand floor, uppercase K and plus, e.g. 69,999 → `69K+ Stars`.
   Counts below 1,000 remain exact. No extra download figure or website label.
 - Star states: fresh/cached for up to 5 minutes; last known good for at most
   24 hours on GitHub failure; otherwise `GitHub` without an invented count.
