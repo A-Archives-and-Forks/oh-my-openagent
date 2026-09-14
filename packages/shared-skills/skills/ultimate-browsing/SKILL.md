@@ -89,10 +89,14 @@ Routing table, per-platform auth (set `TWITTER_*` env vars, `gh auth login`, a t
 Use `new Bun.WebView()` from the js-eval kernel on Bun >= 1.4: macOS defaults to system WebKit; Linux/Windows need installed Chrome/Chromium/Edge. WebView is headless, WebKit has no CDP, and `type()` emits no keyboard events. For other kernels or when those differences matter, use 2b.
 
 ```js
-await using view = new Bun.WebView({ width: 1280, height: 800 })
-await view.navigate(url)
-const title = await view.evaluate("document.title")
-await Bun.write(pngPath, await view.screenshot())
+const view = new Bun.WebView({ width: 1280, height: 800 })
+try {
+  await view.navigate(url)
+  const title = await view.evaluate("document.title")
+  await Bun.write(pngPath, await view.screenshot())
+} finally {
+  view[Symbol.dispose]()
+}
 ```
 
 Use 2b for real-Chrome semantics, stealth, trace, authenticated profiles, or a page the kernel browser cannot reach.

@@ -12,11 +12,13 @@ and `type()` emits no keyboard events. Use tier 2 when these differences matter.
 
 ```js
 // js-eval cell; url and pngPath belong to this QA run.
-{
-  await using view = new Bun.WebView({ width: 1280, height: 720 })
+const view = new Bun.WebView({ width: 1280, height: 720 })
+try {
   await view.navigate(url)
   await Bun.write(pngPath, await view.screenshot())
   console.log(pngPath)
+} finally {
+  view[Symbol.dispose]()
 }
 ```
 
