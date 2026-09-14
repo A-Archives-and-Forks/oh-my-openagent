@@ -225,7 +225,9 @@ export async function buildRuntimeManifest(
       return {
         relPath,
         sha256: sha256OfFile(absolutePath),
-        mode: stats.mode & 0o777,
+        // Native addons must extract executable even from non-executable source
+        // archives or build hosts that do not expose POSIX permission bits.
+        mode: relPath.startsWith("native/prebuilds/") ? 0o755 : stats.mode & 0o777,
         size: stats.size,
       }
     })
@@ -584,7 +586,7 @@ export function stageNativePrebuild(
     const extracted = join(packRoot, "package", payloadRelPath)
     if (!existsSync(extracted) || !statSync(extracted).isFile()) {
       throw new Error(
-        `${packageSpec} ships no ${payloadRelPath}, but release-binary-native-fixture.json marks ${entry.fileStem} as available`,
+        `missing required sidecar source: ${payloadRelPath}; ${packageSpec} ships no such file, but release-binary-native-fixture.json marks ${entry.fileStem} as available`,
       )
     }
     stageSource({ from: extracted, to: payloadRelPath, required: true }, stageDir, staged)

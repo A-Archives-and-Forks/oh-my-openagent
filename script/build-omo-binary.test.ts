@@ -432,7 +432,7 @@ describe("native prebuild staging", () => {
         stageParityFixture(join(archiveRoot, "package"), [otherFile])
         const dependencies = packedPrebuildDependencies(localDir, archiveRoot, `${entry.packageName}@${entry.pin}`)
         const staged = new Set<string>()
-        expect(() => binaryBuilder.stageNativePrebuild(entry, join(root, "stage"), staged, dependencies)).toThrow(relPath)
+        expect(() => binaryBuilder.stageNativePrebuild(entry, join(root, "stage"), staged, dependencies)).toThrow(`missing required sidecar source: ${relPath}`)
         expect(dependencies.commands).toEqual(["npm", "tar"])
         expect([...staged]).toEqual([])
         expect(existsSync(join(root, "stage", relPath))).toBe(false)
