@@ -29,7 +29,7 @@ export async function UltraworkSection(): Promise<JSX.Element> {
             />
           </Reveal>
           <Reveal index={1} className="min-w-0 lg:col-span-7">
-            <div className="border-line bg-ink-1 border">
+            <div className="border-line bg-ink-1 rounded-work overflow-hidden border">
               <div className="border-line flex items-start gap-3 border-b px-5 py-5 font-mono text-base leading-[1.6] sm:px-6">
                 <span className="text-accent shrink-0">›</span>
                 <span className="text-text-hi prose-cjk min-w-0 flex-1 break-words">

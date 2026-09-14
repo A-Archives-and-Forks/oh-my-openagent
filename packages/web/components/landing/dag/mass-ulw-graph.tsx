@@ -67,7 +67,7 @@ export function MassUlwGraph({
       data-testid={testId}
       role="region"
       aria-label={regionLabel}
-      className="border-line bg-ink-1 overflow-hidden border"
+      className="border-line bg-ink-1 rounded-work overflow-hidden border"
     >
       <div className="bg-ink-2 border-line flex h-9 items-center gap-2 border-b px-3">
         <span aria-hidden="true" className="flex gap-1.5">

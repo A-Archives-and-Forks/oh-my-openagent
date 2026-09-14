@@ -429,6 +429,11 @@ All existing work-progress and memory-intervention clocks, visibility gates,
 states and reduced-motion alternatives are preserved. Surface softness adds
 no animation or JavaScript.
 
+Feature labels rendered by `SectionHeader` keep their status colors but do
+not pulse: the labels name capabilities, not live work. Use the existing
+Eyebrow `className` hook for this local override; other status indicators
+and the shared Eyebrow component keep their current behavior.
+
 The mobile evaluator must read the entire request and keyword without
 horizontal clipping. The CJK reader must retain authored copy and wrapping.
 The motion-sensitive reader must see the completed graph, inserted memory
