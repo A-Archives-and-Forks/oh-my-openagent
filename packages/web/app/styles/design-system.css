@@ -810,6 +810,7 @@
     timeline-scope: --lit-body;
   }
   .lit-text {
+    white-space: pre-line;
     view-timeline: --lit-body block;
   }
   @supports (animation-timeline: view()) {

@@ -54,6 +54,7 @@ for (const locale of ["en", "ko"]) {
           if (variant.startsWith("tall")) {
             await page.locator(".lit-text").evaluate((body) => {
               body.style.maxWidth = "130px"
+              body.style.minHeight = "120vh"
             })
           }
           const initial = await page.evaluate(readSecret)
