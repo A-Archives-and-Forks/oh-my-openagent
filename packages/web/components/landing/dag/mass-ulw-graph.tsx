@@ -77,9 +77,9 @@ export function MassUlwGraph({
         </span>
         <span className="text-text-lo text-meta ml-2 truncate font-mono">{frame.windowTitle}</span>
       </div>
-      <div className="border-line border-b px-3 py-2">
-        <p className="text-text-hi font-mono text-xs">{`$ ${USER_COMMAND}`}</p>
-        <p className="text-text-lo mt-1 text-xs">
+      <div className="border-line border-b px-4 py-3">
+        <p className="text-text-hi font-mono text-sm leading-relaxed">{`$ ${USER_COMMAND}`}</p>
+        <p className="text-text-lo mt-2 text-xs">
           {frame.workflow} · {run.name}
         </p>
       </div>
