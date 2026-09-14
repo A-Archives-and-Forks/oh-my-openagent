@@ -1,3 +1,7 @@
+## 2026-09-14 - Restore native telemetry QA completion
+
+The telemetry QA provider now emits valid tool-start metadata, drives subsequent prompts only after `agent_settled`, and isolates onboarding state. Packaged skill reads and privacy checks follow the running runtime and current attribution schema, including installation-id redaction. Malformed streamed events now produce a failed RPC response and terminate the native stdio runtime instead of stranding the caller. The 120-second QA deadline is unchanged.
+
 ## 2026-09-09 - Suspend native DAG runs on committed session switches (#8020)
 
 OMO no longer cancels DAG nodes from the vetoable `session_before_switch` hook. Committed shutdown first retires scheduler admission and settlement, awaits in-flight admission and journal delivery, then persists the pause before task-child suspension. Returning in the same process can reclaim an explicitly released own lease; active self claims and live foreign holders remain protected. Completed output is reused, running children reconcile through their durable task owners, and pending dependents are admitted once. Deliberate workflow cancellation remains destructive. `/session` information and `/resume` selector cancellation are unchanged. External terminal-hosted controllers are outside this native DAG lifecycle fix.
