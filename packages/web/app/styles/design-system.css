@@ -125,6 +125,12 @@
   }
 }
 
+@property --lit-p {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
 @layer base {
   *,
   ::after,
@@ -794,11 +800,6 @@
   /* Lit text: one paragraph progress (--lit-p 0→1) sweeps light through every word.
      Each word owns 3 progress units and overlaps its neighbours, so the fill glides across
      glyphs and between words instead of flipping. */
-  @property --lit-p {
-    syntax: "<number>";
-    inherits: true;
-    initial-value: 0;
-  }
   .lit-progress {
     --lit-p: 0;
   }
@@ -806,7 +807,8 @@
     .lit-progress.lit-scroll {
       animation: lit-progress linear both;
       animation-timeline: view();
-      animation-range: cover 20vh entry 100%;
+      animation-range-start: cover 20vh;
+      animation-range-end: contain 0%;
     }
   }
   /* The follow-up line waits for the last words (progress 0.82 → 1) before it rises in. */
