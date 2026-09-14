@@ -27,7 +27,7 @@ function engineFixture() {
 }
 
 function patch(root) {
-  const result = spawnSync(process.execPath, [patchScript], { env: { ...process.env, OMO_SENPI_PATCH_ROOT: root }, encoding: "utf8" })
+  const result = spawnSync("node", [patchScript], { env: { ...process.env, OMO_SENPI_PATCH_ROOT: root }, encoding: "utf8" })
   if (result.status !== 0) throw new Error(result.stderr)
 }
 
@@ -59,6 +59,32 @@ describe("installed RPC stream serializer", () => {
       expect(runtime.output[0]).toMatchObject({ type: "response", command: "prompt", success: false, errorCode: "invalid_stream_event" })
       expect(runtime.output[0].error.length).toBeGreaterThan(0)
       expect(runtime.shutdowns).toEqual([1])
+    })
+  }
+
+  test("#given a missing RPC target #when postinstall prepares the engine #then it fails with a named compatibility error", () => {
+    const fixture = engineFixture()
+    rmSync(fixture.rpcPath)
+    expect(() => patch(fixture.root)).toThrow("rpc_patch_target_missing")
+  })
+
+  for (const prepared of [false, true]) {
+    test(`#given shutdown renamed in ${prepared ? "prepared" : "upstream"} RPC code #when postinstall runs #then it rejects the missing binding`, () => {
+      const fixture = engineFixture()
+      if (prepared) patch(fixture.root)
+      writeFileSync(fixture.rpcPath, readFileSync(fixture.rpcPath, "utf8").replace("async function shutdown(", "async function stopRpc("))
+      expect(() => patch(fixture.root)).toThrow("rpc_patch_binding_missing: shutdown")
+    })
+  }
+
+  for (const binding of [
+    { name: "toJsonEvent", from: "import { toJsonEvent }", to: "import { toJsonEvent as serializeEvent }" },
+    { name: "value", from: "const value = JSON.parse(line)", to: "const record = JSON.parse(line)" },
+  ]) {
+    test(`#given ${binding.name} missing from RPC code #when postinstall runs #then it rejects the missing binding`, () => {
+      const fixture = engineFixture()
+      writeFileSync(fixture.rpcPath, rpcSource.replace(binding.from, binding.to))
+      expect(() => patch(fixture.root)).toThrow(`rpc_patch_binding_missing: ${binding.name}`)
     })
   }
 
