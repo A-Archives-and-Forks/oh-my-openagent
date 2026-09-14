@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+**OpenCode's `agent-browser` provider and builtin skill have been removed.**
+Configs containing `browser_automation_engine.provider: "agent-browser"` now
+fail schema validation. `oh-my-opencode doctor` reports the rejected value and
+says: "use the built-in browser path: Bun.WebView / playwright-core scripts".
+Remove the obsolete override from the active `[opencode]` block in `omo.jsonc`,
+including project and profile layers. Browser work uses in-process Bun.WebView
+or written playwright-core scripts against local Chrome; these script paths
+are not new provider enum values. The retained provider choices are
+`playwright`, `dev-browser`, and `playwright-cli`.
+
 ## [5.0.0-beta.62] - 2026-09-13
 
 ### Engine: senpi 2026.9.13

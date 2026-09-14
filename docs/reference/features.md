@@ -506,7 +506,11 @@ Selected built-in skills include `debugging`, `dev-browser`, `frontend`, `git-ma
 ### Browser Automation Options
 
 Shipped browser guidance uses two tiers from the js-eval kernel. In Codex,
-prefer `browser:control-in-app-browser` for ordinary page control.
+prefer `browser:control-in-app-browser` for ordinary page control. The retired
+CLI provider and its builtin skill are no longer shipped. An obsolete
+`browser_automation_engine.provider` value fails validation; doctor names the
+rejected value and directs users to Bun.WebView / playwright-core scripts.
+Remove the obsolete override rather than installing a retired CLI.
 
 #### Option 1: Bun.WebView
 
