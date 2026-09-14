@@ -1,3 +1,5 @@
+/// <reference types="bun-types" />
+
 import { describe, expect, it } from "bun:test"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -28,7 +30,7 @@ describe("comment-checker release download", () => {
         const child = Bun.spawn([
           process.execPath,
           "run",
-          join(import.meta.dir, "__fixtures__/download-probe.ts"),
+          join(import.meta.dir, "__fixtures__/download-probe.fixture.ts"),
           JSON.stringify(target),
         ], {
           env: {
