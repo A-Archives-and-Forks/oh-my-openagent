@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { EventEmitter } from "node:events"
+import { spawn } from "node:child_process"
 import { PassThrough } from "node:stream"
 import { existsSync, rmSync } from "node:fs"
 import { join } from "node:path"
@@ -47,6 +48,35 @@ describe("telemetry RPC prompt sequencing", () => {
     child.close(1)
     expect((await run).message).toContain("fixture-rejection")
   })
+
+  test("#given a child that ignores SIGTERM #when RPC rejects a prompt #then forced termination preserves the original failure", async () => {
+    const child = spawn("node", ["--eval", `
+      process.on("SIGTERM", () => process.send("sigterm-observed"));
+      process.stdin.on("data", () => process.stdout.write(JSON.stringify({
+        type: "response", command: "prompt", success: false, error: "fixture-rejection"
+      }) + "\\n"));
+    `], { stdio: ["pipe", "pipe", "pipe", "ipc"] })
+    const closed = new Promise((resolve) => child.once("close", (_code, signal) => resolve(signal)))
+    let sigtermObserved = false
+    child.on("message", (message) => { if (message === "sigterm-observed") sigtermObserved = true })
+    let watchdogForcedKill = false
+    const watchdog = setTimeout(() => { watchdogForcedKill = true; child.kill("SIGKILL") }, 8_000)
+    try {
+      const failure = await driveRpc(child, "test").catch((error) => error)
+      const signal = await closed
+      expect(failure).toBeInstanceOf(Error)
+      expect(failure.message).toContain("fixture-rejection")
+      expect(watchdogForcedKill).toBe(false)
+      if (process.platform !== "win32") {
+        expect(sigtermObserved).toBe(true)
+        expect(signal).toBe("SIGKILL")
+      }
+    } finally {
+      clearTimeout(watchdog)
+      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL")
+      await closed
+    }
+  }, 15_000)
 
   test("#given a fresh sandbox #when it is created #then onboarding is already claimed in its isolated agent state", () => {
     const sandbox = createSandbox("test", true)

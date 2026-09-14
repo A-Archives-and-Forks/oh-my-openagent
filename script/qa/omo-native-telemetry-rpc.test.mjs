@@ -20,14 +20,23 @@ describe("telemetry provider RPC serialization", () => {
     const { default: register } = await import(pathToFileURL(path).href)
     let provider
     register({ registerProvider(_name, value) { provider = value } })
-    const stream = provider.streamSimple({}, { messages: [] }, {})
+    const streams = [provider.streamSimple({}, { messages: [] }, {}), provider.streamSimple({}, { messages: [] }, {})]
+    const expectedIds = []
     const events = []
-    for await (const event of stream) {
-      if (event.type === "toolcall_start") {
-        events.push(toJsonEvent({ type: "message_update", message: event.partial, assistantMessageEvent: event }))
+    for (const stream of streams) {
+      for await (const event of stream) {
+        if (event.type === "toolcall_start") {
+          const toolCall = event.partial.content[event.contentIndex]
+          expect(toolCall.id).toBeString()
+          expect(toolCall.id.length).toBeGreaterThan(0)
+          expectedIds.push(toolCall.id)
+          events.push(toJsonEvent({ type: "message_update", message: event.partial, assistantMessageEvent: event }))
+        }
       }
     }
-    expect(events).toHaveLength(1)
-    expect(events[0].assistantMessageEvent).toMatchObject({ type: "toolcall_start", id: "telemetry-qa-tool-1", toolName: "create_goal" })
+    expect(events).toHaveLength(2)
+    expect(new Set(expectedIds).size).toBe(2)
+    expect(events.map((event) => event.assistantMessageEvent.id)).toEqual(expectedIds)
+    for (const event of events) expect(event.assistantMessageEvent).toMatchObject({ type: "toolcall_start", toolName: "create_goal" })
   })
 })

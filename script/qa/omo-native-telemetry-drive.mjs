@@ -101,6 +101,8 @@ export async function driveCli({ senpiBin, port, label, evidenceDir, configEnabl
 }
 
 export async function driveRpc(child, label) {
+  const shutdownGraceMs = 1_000
+  const deadlineAt = performance.now() + 120_000
   const transcript = []
   const closed = new Promise((resolveClose) => child.once("close", resolveClose))
   let stdoutBuffer = ""
@@ -108,8 +110,10 @@ export async function driveRpc(child, label) {
   let settledCount = 0
   let settled = false
   let timeoutHandle
+  let shutdownHandle
   const completed = new Promise((resolveRun, rejectRun) => {
-    timeoutHandle = setTimeout(() => rejectRun(new Error(`${label} Senpi RPC drive timed out after 120000ms`)), 120_000)
+    // Reserve termination time inside the overall budget, not after it.
+    timeoutHandle = setTimeout(() => rejectRun(new Error(`${label} Senpi RPC drive timed out within its 120000ms total budget`)), 120_000 - shutdownGraceMs)
     child.on("error", rejectRun)
     child.stderr.on("data", (chunk) => { stderr += chunk.toString("utf8") })
     child.stdout.on("data", (chunk) => {
@@ -155,9 +159,19 @@ export async function driveRpc(child, label) {
     return { transcript, stderr, settledCount, pid: child.pid, result }
   } catch (error) {
     if (child.exitCode === null) child.kill("SIGTERM")
-    await closed
+    const forced = new Promise((resolveForce) => {
+      shutdownHandle = setTimeout(() => {
+        child.kill("SIGKILL")
+        child.stdin.destroy()
+        child.stdout.destroy()
+        child.stderr.destroy()
+        resolveForce()
+      }, Math.max(0, Math.min(shutdownGraceMs, deadlineAt - performance.now())))
+    })
+    await Promise.race([closed, forced])
     throw error
   } finally {
+    clearTimeout(shutdownHandle)
     clearTimeout(timeoutHandle)
   }
 }
