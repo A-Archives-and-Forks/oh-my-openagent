@@ -47,7 +47,6 @@ def _install_fake_playwright(node_modules: Path) -> None:
         };
 
         exports.chromium = {
-          use() {},
           async launchPersistentContext() { return context; },
         };
         exports.devices = {

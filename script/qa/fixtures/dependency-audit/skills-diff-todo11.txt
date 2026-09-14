@@ -10,6 +10,7 @@ plugin/skills/ultimate-browsing/engine/AGENTS.md
 plugin/skills/ultimate-browsing/engine/templates/package.json
 plugin/skills/ultimate-browsing/engine/templates/playwright_mobile_chrome.js
 plugin/skills/ultimate-browsing/engine/templates/playwright_real_chrome.js
+plugin/skills/ultimate-browsing/engine/tests/test_playwright_stealth.py
 plugin/skills/ultimate-browsing/engine/tests/test_playwright_templates.py
 plugin/skills/ultimate-browsing/references/chrome-stealth.md
 plugin/skills/ultimate-browsing/references/insane-search/README.md

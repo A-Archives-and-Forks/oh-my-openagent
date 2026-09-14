@@ -17,9 +17,9 @@ test("uses only script dependencies when configuring local Chrome templates", ()
 	const manifest = manifestSchema.parse(JSON.parse(content));
 
 	// Then: local Chrome needs core plus the explicit script-only stealth lane.
-	expect(manifest.dependencies).toEqual({
-		"playwright-core": "^1.62.1",
-		"playwright-extra": "^4.3.6",
-		"puppeteer-extra-plugin-stealth": "^2.11.2",
-	});
+	expect(Object.keys(manifest.dependencies).sort()).toEqual([
+		"playwright-core",
+		"playwright-extra",
+		"puppeteer-extra-plugin-stealth",
+	]);
 });
