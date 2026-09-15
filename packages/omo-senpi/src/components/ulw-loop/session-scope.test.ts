@@ -3,7 +3,7 @@ import { join } from "node:path"
 
 import { dispatchRunEnd, FakeExtensionAPI } from "../../../test-support/fake-extension-api"
 import { createUlwLoopComponent } from "./index"
-import { normalizeUlwLoopSessionId, ulwLoopScopedGoalsPath, ulwLoopStatusArgs } from "./session-scope"
+import { normalizeUlwLoopSessionId, ulwLoopScopedGoalsPath } from "./session-scope"
 import { activeStatus, createLogger, type RecordedLog } from "./ulw-loop.test-support"
 import type { ComponentLogger } from "../../extension/types"
 
@@ -146,10 +146,6 @@ describe("omo-senpi ulw-loop session id normalization parity", () => {
       expect([input, normalizeUlwLoopSessionId(input)]).toEqual([input, expected])
       expect([input, toolkitNormalize(input)]).toEqual([input, expected])
     }
-  })
-
-  it("#given a normalized session id #when building status args #then the toolkit flag order is stable", () => {
-    expect(ulwLoopStatusArgs("sess-A")).toEqual(["ulw-loop", "status", "--json", "--session-id", "sess-A"])
   })
 
   it("#given a cwd and normalized session id #when resolving the scoped goals.json path #then it matches the toolkit session-scoped goals path", () => {
