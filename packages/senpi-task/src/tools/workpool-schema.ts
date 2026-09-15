@@ -23,7 +23,7 @@ export const WorkpoolWorkerYieldParams = Type.Object({
   results: Type.Array(Type.Unknown({ description: "Each entry is {key,data:JSON} or {key,error:{code,message}}. Invalid entries receive individual typed refusals." })),
 }, { additionalProperties: false })
 export const WorkpoolParams = Type.Union([
-  Type.Object({ op: Type.Literal("create"), name: nonempty, agent, mode: Type.Union([Type.Literal("fresh"), Type.Literal("keep_alive")]), tools: Type.Optional(Type.Array(nonempty)) }, { additionalProperties: false }),
+  Type.Object({ op: Type.Literal("create"), name: nonempty, agent, mode: Type.Optional(Type.Union([Type.Literal("fresh"), Type.Literal("keep_alive")])), tools: Type.Optional(Type.Array(nonempty)) }, { additionalProperties: false }),
   Type.Object({ op: Type.Literal("push"), pool_id: poolId, items: Type.Array(Type.Object({ key: nonempty, input: json }, { additionalProperties: false })) }, { additionalProperties: false }),
   Type.Object({ op: Type.Literal("close"), pool_id: poolId }, { additionalProperties: false }),
   Type.Object({ op: Type.Literal("inspect"), pool_id: poolId }, { additionalProperties: false }),

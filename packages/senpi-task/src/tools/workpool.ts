@@ -60,7 +60,7 @@ function exhaustive(value: never): never { throw new Error(`Unhandled workpool o
 export function createWorkpoolTool(deps: WorkpoolToolDeps): ToolDefinition<typeof WorkpoolParams, Record<string, unknown>> {
   const execute = buildWorkpoolExecute(deps)
   return {
-    name: "workpool", label: "Workpool", description: "Create and inspect engine-owned keyed work queues. Push returns durable IDs without waiting for capacity. Mode is required. Inspect reads durable keyed data or errors; uncertain delivery is never retried automatically. Aggregate delivery is not enabled yet.",
+    name: "workpool", label: "Workpool", description: "Create and inspect engine-owned keyed work queues. Push returns durable IDs without waiting for capacity. Omitted mode uses the approved keep_alive default; fresh remains selectable. Inspect reads durable keyed data or errors; close delivers one aggregate; uncertain delivery is never retried automatically.",
     parameters: WorkpoolParams,
     execute: (_id, params, _signal, _update, ctx) => execute(params, ctx),
   }

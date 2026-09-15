@@ -28,6 +28,7 @@ export const WorkpoolRecordSchema = z.strictObject({
     }),
   }),
   status: z.enum(["open", "closing", "completed", "cancelled"]),
+  aggregate: z.strictObject({ generation: z.number().int().positive(), delivered: z.boolean() }).optional(),
   items: z.array(z.strictObject({
     key: nonempty, input: z.json(), item_id: z.templateLiteral(["wi_", z.string()]).refine(id => /^wi_[0-9a-f]{32}$/.test(id)),
     status: z.enum(["queued", "assigned", "completed", "error", "cancelled"]),

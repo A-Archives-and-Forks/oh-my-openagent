@@ -30,6 +30,7 @@ test("#given all operation schemas #when valid machine requests are parsed #then
   const poolId = `wp_${"a".repeat(32)}`
   const requests = [
     { op: "create", ...poolInput },
+    { op: "create", name: poolInput.name, agent: poolInput.agent },
     { op: "push", pool_id: poolId, items: [{ key: "k", input: { list: [null, true, 42, "s"] } }] },
     ...["close", "inspect", "cancel"].map(op => ({ op, pool_id: poolId })),
     { op: "yield", results: [{ key: "k", data: null }, { key: "e", error: { code: "failed", message: "fixture" } }] },
@@ -42,7 +43,7 @@ test("#given malformed or forged requests #when the host parses them #then no wo
   // given
   const f = host()
   const invalid = [
-    { op: "create", ...poolInput, mode: undefined }, { op: "create", ...poolInput, name: " " },
+    { op: "create", ...poolInput, name: " " },
     { op: "create", ...poolInput, parent_session_id: "owner" },
     { op: "create", ...poolInput, agent: { prompt: "p", category: "quick", subagent_type: "worker" } },
     { op: "create", ...poolInput, agent: { prompt: "p" } },

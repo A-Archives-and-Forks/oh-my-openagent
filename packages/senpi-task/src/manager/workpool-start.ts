@@ -28,7 +28,7 @@ export function prepareWorkpoolLaunch(input: {
     throw new WorkpoolError("delivery_uncertain", "An existing worker launch cannot be replayed.")
   }
   const draft = prior ?? createTaskRecord(buildRecordInput({ spec, plan: workerSpec.plan, name: taskId, executionMode, taskSeq: input.taskSeq }))
-  const claimed = { ...draft, task_id: taskId, host_pid: input.hostPid }
+  const claimed = { ...draft, task_id: taskId, host_pid: input.hostPid, notify_on_terminal: false }
   const managedSpec = buildManagedSpec({ record: claimed, spec, plan: workerSpec.plan, cwd: options.cwd, stateDir: options.store.stateDir })
   const record = { ...claimed, spawn_spec: buildSpawnSpecV1(managedSpec) }
   if (prior === null) options.store.save(record)

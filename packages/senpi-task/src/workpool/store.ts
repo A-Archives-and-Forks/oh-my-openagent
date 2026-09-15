@@ -58,7 +58,7 @@ export function createWorkpoolStore(stateDir: string) {
       const record: WorkpoolRecord = {
         version: 1, pool_id: `wp_${randomBytes(16).toString("hex")}`, name: input.name,
         parent_session_id: caller.sessionId, root_session_id: caller.rootSessionId, generation: 1, revision: 0,
-        mode: input.mode, agent: input.agent, worker_spec: workerSpec, status: "open", items: [], workers: [],
+        mode: input.mode ?? "keep_alive", agent: input.agent, worker_spec: workerSpec, status: "open", items: [], workers: [],
       }
       atomicReplace(path(record.pool_id), JSON.stringify(record))
       return load(record.pool_id)

@@ -8,7 +8,7 @@ export type WorkpoolAgent = { readonly prompt: string; readonly model?: string }
   | { readonly category: string; readonly subagent_type?: never }
   | { readonly subagent_type: string; readonly category?: never }
 )
-export type WorkpoolCreate = { readonly name: string; readonly agent: WorkpoolAgent; readonly mode: WorkpoolMode; readonly tools?: readonly string[] }
+export type WorkpoolCreate = { readonly name: string; readonly agent: WorkpoolAgent; readonly mode?: WorkpoolMode; readonly tools?: readonly string[] }
 export type WorkpoolCaller = { readonly sessionId: string; readonly rootSessionId: string; readonly depth: number; readonly cwd: string }
 export type WorkpoolInput = { readonly key: string; readonly input: Json }
 export type WorkpoolYield = { readonly key: string } & (
@@ -60,6 +60,7 @@ export type WorkpoolRecord = {
   readonly status: "open" | "closing" | "completed" | "cancelled"
   readonly items: readonly WorkpoolItem[]
   readonly workers: readonly WorkpoolWorker[]
+  readonly aggregate?: { readonly generation: number; readonly delivered: boolean }
 }
 export type WorkpoolEvent = {
   readonly pool_id: PoolId

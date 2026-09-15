@@ -7,7 +7,7 @@ export const WorkpoolAgentSchema = z.union([
   z.strictObject({ subagent_type: nonempty, prompt: nonempty, model: nonempty.optional() }),
 ])
 export const WorkpoolCreateSchema = z.strictObject({
-  name: nonempty, agent: WorkpoolAgentSchema, mode: z.enum(["fresh", "keep_alive"]), tools: z.array(nonempty).optional(),
+  name: nonempty, agent: WorkpoolAgentSchema, mode: z.enum(["fresh", "keep_alive"]).optional(), tools: z.array(nonempty).optional(),
 })
 export const WorkpoolItemsSchema = z.array(z.strictObject({ key: nonempty, input: z.json() }))
 export const WorkpoolYieldSchema = z.strictObject({ op: z.literal("yield"), results: z.array(z.union([
