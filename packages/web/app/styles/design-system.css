@@ -75,6 +75,8 @@
   /* §4 radius scale: 0 for panels, 2px for controls, 50% for dots */
   --radius-none: 0px;
   --radius-control: 2px;
+  --radius-work: 12px;
+  --radius-message: 8px;
   --radius-lg: var(--radius);
   --radius-md: var(--radius);
   --radius-sm: var(--radius);
@@ -203,6 +205,10 @@
     --dur-pulse: 2200ms;
     --dur-wave: 12s;
     --lit-blur: 4px;
+    --lit-read-hold: 18vh;
+    --lit-follow-fade: 22vh;
+    --lit-follow-gap: 1.25em;
+    --lit-follow-rise: var(--space-6);
 
     /* Legacy shadcn variables remapped onto the ledger tokens */
     --background: var(--ink-0);
@@ -552,6 +558,13 @@
     letter-spacing: -0.025em;
     text-wrap: balance;
   }
+  .type-feature {
+    font-size: clamp(2rem, 1.5rem + 1.6vw, 2.5rem);
+    font-weight: 500;
+    line-height: 1.1;
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+  }
   .type-numeral {
     font-size: clamp(2rem, 1.4rem + 2vw, 2.75rem);
     font-weight: 500;
@@ -802,20 +815,45 @@
      glyphs and between words instead of flipping. */
   .lit-progress {
     --lit-p: 0;
+    --lit-f: 0;
+    timeline-scope: --lit-body;
+  }
+  .lit-text {
+    white-space: pre-line;
+    view-timeline: --lit-body block;
   }
   @supports (animation-timeline: view()) {
     .lit-progress.lit-scroll {
       animation: lit-progress linear both;
-      animation-timeline: view();
+      animation-timeline: --lit-body;
       animation-range-start: cover 20vh;
-      animation-range-end: contain 50vh;
+      animation-range-end: cover calc(100% - 50vh);
+    }
+    .lit-scroll .lit-follow {
+      animation: lit-follow linear both;
+      animation-timeline: --lit-body;
+      animation-range-start: cover
+        calc(100% - 50vh + max(var(--lit-read-hold), var(--lit-follow-gap)));
+      animation-range-end: cover
+        calc(
+          100% - 50vh + max(var(--lit-read-hold), var(--lit-follow-gap)) + var(--lit-follow-fade)
+        );
     }
   }
-  /* The follow-up line rises in over the last stretch (progress 0.7 → 1) as it nears mid-viewport. */
   .lit-follow {
-    --lit-f: clamp(0, calc((var(--lit-p) - 0.7) / 0.3), 1);
+    margin-top: var(--lit-follow-gap);
     opacity: var(--lit-f);
-    transform: translateY(calc((1 - var(--lit-f)) * 24px));
+    transform: translateY(calc((1 - var(--lit-f)) * var(--lit-follow-rise)));
+  }
+  @keyframes lit-follow {
+    from {
+      opacity: 0;
+      transform: translateY(var(--lit-follow-rise));
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
   @keyframes lit-progress {
     from {
@@ -843,6 +881,35 @@
     filter: blur(calc((1 - var(--lit-local)) * var(--lit-blur)));
   }
 
+  /* Reading blocks (manifesto): the same sweep, tuned for long-form prose. Unread words stay
+     legible (--text-lo instead of --text-faint), the blur is halved, and every word is lit until
+     hydration picks a mode, so the page reads before JavaScript does. */
+  .lit-read {
+    --lit-blur: 2px;
+  }
+  .lit-read[data-lit-mode="pending"] {
+    --lit-p: 1;
+  }
+  .lit-read .lit-word {
+    background-image: linear-gradient(
+      90deg,
+      var(--text-hi) 0%,
+      var(--text-hi) 45%,
+      var(--text-lo) 55%,
+      var(--text-lo) 100%
+    );
+  }
+  .lit-link {
+    text-decoration: underline;
+    text-decoration-color: var(--accent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 0.2em;
+  }
+  .lit-link:hover,
+  .lit-link:focus-visible {
+    text-decoration-thickness: 2px;
+  }
+
   /* Kibitzer: independent clocks; the nudge travels into the verification slot. */
   .kib-stage {
     --kib-watch-cycle: 4.5s;
@@ -851,8 +918,9 @@
     --kib-source: translateY(calc(-1 * (var(--space-40) + var(--space-24)))) scale(0.8);
     display: grid;
     gap: var(--space-8);
-    padding: var(--space-4);
+    padding: var(--space-5);
     border: 1px solid var(--line);
+    border-radius: var(--radius-work);
     background: var(--ink-1);
   }
   .kib-side {
@@ -909,7 +977,7 @@
     z-index: 1;
     padding: var(--space-3);
     border: 1px solid var(--accent);
-    border-radius: var(--radius-control);
+    border-radius: var(--radius-message);
     background: var(--ink-2);
     color: var(--accent-hot);
     transform-origin: left center;
@@ -944,7 +1012,7 @@
       --kib-source: translateX(calc(-50% - var(--space-12))) scale(0.5);
       grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
       gap: var(--space-12);
-      padding: var(--space-5);
+      padding: var(--space-8);
     }
     .kib-watch {
       grid-template-columns: minmax(0, 1fr);
@@ -1072,6 +1140,9 @@
       animation: none;
       flex-wrap: wrap;
     }
+    .marquee-track {
+      width: 100%;
+    }
     .marquee-track[aria-hidden="true"],
     .ticker-track > [aria-hidden="true"] {
       display: none;
@@ -1081,7 +1152,9 @@
       --lit-p: 1;
       animation: none;
     }
-    .lit-follow {
+    .lit-follow,
+    .lit-scroll .lit-follow {
+      animation: none;
       opacity: 1;
       transform: none;
     }
