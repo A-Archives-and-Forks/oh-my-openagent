@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url"
 import { buildIdentityPaths, type MemoryIdentity } from "../identity"
 import { exitedWithin } from "../locks/process-liveness.test-support"
 import { ReflectionReservationStore, type ReservationResult } from "../reflection/reservation"
+import type { ReservedRun } from "../reflection/machine"
 import { realpathSync } from "node:fs"
 
 const writerChildPath = fileURLToPath(new URL("./writer-child.ts", import.meta.url))
@@ -207,8 +208,8 @@ describe("one memory identity across real Bun processes", () => {
 
     // #then
     expect(results.map((result) => result.status).sort()).toEqual(["active", "pending"])
-    const activeRecord = JSON.parse(await readFile(join(shared.identity.paths.reflection, "active.lock"), "utf8")) as ReservationResult["run"]
-    const pendingRecord = JSON.parse(await readFile(join(shared.identity.paths.reflection, "pending.json"), "utf8")) as ReservationResult["run"]
+    const activeRecord = JSON.parse(await readFile(join(shared.identity.paths.reflection, "active.lock"), "utf8")) as ReservedRun
+    const pendingRecord = JSON.parse(await readFile(join(shared.identity.paths.reflection, "pending.json"), "utf8")) as ReservedRun
     expect(activeRecord.runId).not.toBe(pendingRecord.runId)
 
     const store = new ReflectionReservationStore({
@@ -223,7 +224,7 @@ describe("one memory identity across real Bun processes", () => {
     expect(completion.launch?.runId).toBe(pendingRecord.runId)
     expect(promoted.active?.runId).toBe(pendingRecord.runId)
     expect(promoted.pending).toBeUndefined()
-    expect((JSON.parse(await readFile(join(shared.identity.paths.reflection, "active.lock"), "utf8")) as ReservationResult["run"]).runId).toBe(pendingRecord.runId)
+    expect((JSON.parse(await readFile(join(shared.identity.paths.reflection, "active.lock"), "utf8")) as ReservedRun).runId).toBe(pendingRecord.runId)
   }, 30_000)
 
   test("#given a writer SIGKILLed while holding the shared lock #when its peer continues #then liveness takeover completes twenty clean commits", async () => {

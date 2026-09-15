@@ -14,37 +14,12 @@ const trackedRoots = [
   "packages/skills-loader-core/src",
 ] as const
 
-// TODO-12: only files implementing or testing the legacy browser-provider contract.
-const providerFiles = [
-  "packages/omo-opencode/src/agents/utils.test.ts",
-  "packages/omo-opencode/src/config/schema.test.ts",
-  "packages/omo-opencode/src/config/schema/agent-names.ts",
-  "packages/omo-opencode/src/config/schema/browser-automation.ts",
-  "packages/omo-opencode/src/features/opencode-skill-loader/skill-content.test.ts",
-  "packages/omo-opencode/src/plugin/skill-context.test.ts",
-  "packages/omo-opencode/src/plugin/skill-context.ts",
-  "packages/omo-opencode/src/tools/delegate-task/tools.test.ts",
-  "packages/omo-opencode/src/tools/skill/zauc-mocks-skill-tools/browser-provider.test.ts",
-  "packages/skills-loader-core/src/types.ts",
-  "packages/skills-loader-core/src/features/opencode-skill-loader/skill-discovery.ts",
-  "packages/skills-loader-core/src/features/opencode-skill-loader/skill-content-browser-provider.test.ts",
-  "packages/skills-loader-core/src/features/builtin-skills/agent-browser/SKILL.md",
-  "packages/skills-loader-core/src/features/builtin-skills/skills.ts",
-  "packages/skills-loader-core/src/features/builtin-skills/skills.test.ts",
-  "packages/skills-loader-core/src/features/builtin-skills/skills/agent-browser-skill.ts",
-  "packages/skills-loader-core/src/features/builtin-skills/skills/agent-browser-template.test.ts",
-  "packages/skills-loader-core/src/features/builtin-skills/skills/agent-browser-template.ts",
-  "packages/skills-loader-core/src/features/builtin-skills/skills/playwright.test.ts",
-  "packages/skills-loader-core/src/features/builtin-skills/skills/playwright.ts",
-] as const
-
-test("ships no retired browser tool instructions outside the pending provider migration", async () => {
+test("ships no retired browser tool instructions", async () => {
   // Given: tracked sources plus the actual payloads produced by both owning generators.
   const cwd = resolve(import.meta.dir, "..")
   const patterns = ["agent-browser", "agent_browser", "npx playwright", "bunx playwright", "playwright install"]
   const tracked = Bun.spawnSync([
     "git", "ls-files", "-z", "--", ...trackedRoots,
-    ...providerFiles.map((path) => `:(exclude,literal)${path}`),
   ], { cwd, stdout: "pipe", stderr: "pipe" })
   expect(tracked.stderr.toString()).toBe("")
   expect(tracked.exitCode).toBe(0)
@@ -65,22 +40,15 @@ test("ships no retired browser tool instructions outside the pending provider mi
 
   // When: scan working-tree bytes, not the Git index, retaining file:line diagnostics.
   const violations: string[] = []
-  let providerRows = 0
   for (const file of [...files].sort()) {
     const content = readFileSync(join(cwd, file), "utf8")
     const lines = content.split(/\r?\n/)
     for (const [index, line] of lines.entries()) {
       if (!patterns.some((pattern) => line.includes(pattern))) continue
-      // TODO-12: only this provider's table row is reserved, never the whole document.
-      if (file === "docs/reference/configuration.md" && /^\| `agent-browser`\s*\|/.test(line)) {
-        providerRows += 1
-      } else {
-        violations.push(`${file}:${index + 1}:${line}`)
-      }
+      violations.push(`${file}:${index + 1}:${line}`)
     }
   }
 
-  // Then: only one reserved row may match; ignored non-shipped files are not inputs.
-  expect(providerRows).toBeLessThanOrEqual(1)
+  // Then: every tracked source and materialized skill payload is covered, with no exemptions.
   expect(violations, `Retired browser tools remain at file:line:\n${violations.join("\n")}`).toEqual([])
 })
