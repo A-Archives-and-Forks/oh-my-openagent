@@ -77,7 +77,8 @@ An operations ledger read at night. The whole site is one framed sheet of ink ru
 | Level      | CSS                                       | Weight | Line | Tracking                                      | Usage                                                              |
 | ---------- | ----------------------------------------- | ------ | ---- | --------------------------------------------- | ------------------------------------------------------------------ |
 | Display    | `clamp(2.5rem, 1.35rem + 4.4vw, 5.25rem)` | 500    | 0.98 | -0.03em                                       | Hero H1 (2 lines max, `text-wrap: balance`, container `max-w-6xl`) |
-| Title      | `clamp(2rem, 1.3rem + 2.4vw, 3.25rem)`    | 500    | 1.04 | -0.025em                                      | Section headlines, manifesto H2                                    |
+| Title      | `clamp(2rem, 1.3rem + 2.4vw, 3.25rem)`    | 500    | 1.04 | -0.025em                                      | Manifesto H2, page-level titles                                    |
+| Feature    | `clamp(2rem, 1.5rem + 1.6vw, 2.5rem)`     | 500    | 1.1  | -0.025em                                      | Landing section headlines via `SectionHeader` (§15)                |
 | Heading    | `1.5rem`                                  | 500    | 1.2  | -0.015em                                      | Ledger row titles, bento card titles                               |
 | Subheading | `1.125rem`                                | 500    | 1.35 | -0.01em                                       | Agent names, terminal pane titles                                  |
 | Numeral    | `clamp(2rem, 1.4rem + 2vw, 2.75rem)`      | 500    | 1.0  | -0.03em, `font-variant-numeric: tabular-nums` | Proof strip                                                        |
@@ -128,7 +129,7 @@ An operations ledger read at night. The whole site is one framed sheet of ink ru
 ### Rules
 
 - Grid for multi-column; no flexbox percentage math.
-- Radius scale: **0px** for panels, rows, cards, terminals; **2px** for buttons, chips, inputs; **50%** for status dots only. `rounded-xl`/`rounded-3xl` are gone.
+- Radius scale: **0px** for panels, rows, cards, terminals; **2px** for buttons, chips, inputs; **50%** for status dots only. The work-media and message exceptions in §15 do not change this default.
 - Cards exist only as bento cells inside a ruled grid (agents). No free-floating cards with borders + shadows.
 
 ## 5. Components (primitives + states)
@@ -340,7 +341,7 @@ All five use CSS keyframes or IntersectionObserver; no scroll listeners, no moti
 - Any mention of investors, accelerators, or "backed by" lines anywhere on the site, in OG images, or in metadata. (Confidential; the reference site herdr.dev carries one — do not mirror it.)
 - Raw hex or rgba outside this file, `app/styles/design-system.css`, and `lib/og/palette.ts`.
 - `#000000`, `#ffffff`, purple/blue gradients, decorative cyan, per-section accent colors.
-- Border radius other than 0 / 2px / 50%.
+- Border radius other than 0 / 2px / 50%, except the scoped work-media and message tokens in §15.
 - `h-screen`; `max-height` animations; animating layout properties.
 - Three-equal-column feature card grids; floating bordered cards with shadows.
 - Emojis in JSX, alt text, or visible UI. Icons are SVG (Lucide / Phosphor).
@@ -380,3 +381,71 @@ Roboto Mono family, Regular 400 followed by Bold 700.
 - Accessibility/QA: descriptive metadata alt, high-contrast text, native-size
   PNG plus 600/375 px preview inspection; check full vector silhouettes and
   unbroken text at every scale. No client JavaScript or interaction is added.
+
+## 15. Readable work surfaces (2026-09-14)
+
+This is a restrained visual refinement of the existing landing, informed by
+the readable conversation illustrations and selective softness at
+`sisyphuslabs.ai/en`. The reference contributes local presentation, not its
+copy, persona, rounded navigation or waitlist positioning.
+
+The headline, authored locale copy, section order, cat/wordmark, cyan palette,
+install controls, DAG nodes and Secret reading sequence stay unchanged.
+The hero remains the editorial split and the actual desktop DAG, not the
+historical 3D concept described in §9.
+
+### Type and whitespace
+
+- Feature titles rendered by `SectionHeader` use `.type-feature`:
+  `clamp(2rem, 1.5rem + 1.6vw, 2.5rem)`, weight 500, line-height 1.1,
+  tracking -0.025em and balanced wrapping. Hero, Secret and CTA display
+  roles do not change. Existing CJK heading rules still apply.
+- Feature introductions use the existing 18px Lead role with 1.7 leading
+  and a 60ch measure, rather than increasing to 20px beside the work media.
+- The ultrawork request uses the existing 16px Body role and wraps in a
+  shrinking grid track; its keyword remains an unbroken inline mark.
+  Request and response rows use 20px padding, rising to 24px horizontally
+  above the small breakpoint.
+- The desktop illustration's request and assistant response use the
+  existing 14px Body/sm role with 1.625 leading. Human text is not
+  truncated; graph metadata and graph-node geometry stay compact.
+- Kibitzer memory and nudge prose use the 16px Body role with 1.6 leading.
+  The stage padding is 20px on mobile and 32px from the medium breakpoint,
+  retaining the current 32px/48px column gaps and insertion slot.
+
+### Scoped surface tokens
+
+- `--radius-work: 12px`: outside shell of the ultrawork exchange, hero
+  graph panel, desktop work illustration and Kibitzer stage only.
+- `--radius-message: 8px`: the existing user message bubble and Kibitzer
+  nudge only. Nested controls, graph nodes, rows and install bars retain
+  their existing radii.
+- Reuse ink surfaces and hairlines; no new color, shadow, glow or image.
+  Clip the terminal/exchange shells at their rounded outside edge.
+  The Kibitzer stage must not clip its travelling nudge.
+
+### Motion, accessibility and verification
+
+All existing work-progress and memory-intervention clocks, visibility gates,
+states and reduced-motion alternatives are preserved. Surface softness adds
+no animation or JavaScript.
+
+Feature labels rendered by `SectionHeader` keep their status colors but do
+not pulse: the labels name capabilities, not live work. Use the existing
+Eyebrow `className` hook for this local override; other status indicators
+and the shared Eyebrow component keep their current behavior.
+
+Reduced-motion model tracks take the available width before wrapping.
+Stopping the animation while retaining `max-content` width would leave
+profiles outside the viewport. Normal-motion marquee sizing is unchanged.
+
+The mobile evaluator must read the entire request and keyword without
+horizontal clipping. The CJK reader must retain authored copy and wrapping.
+The motion-sensitive reader must see the completed graph, inserted memory
+nudge and corrected verification step.
+
+Use before/after Chromium screenshots at 375/768/1440 for English and Korean,
+plus Japanese/Chinese smoke. Check each changed panel's own scroll width,
+not just the root's clipped overflow. Exercise Copy, navigation, DAG controls,
+normal progress/memory and reduced-motion states. Keep frame and nudge
+containment visible in the evidence. No new accessibility debt is accepted.
