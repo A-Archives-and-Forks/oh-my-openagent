@@ -1,6 +1,7 @@
 import type {
   MemoryIdentity,
   ReflectionOutcome,
+  ReflectionReservationLockOptions,
   ReservedRun,
 } from "@oh-my-opencode/memory-core"
 
@@ -8,8 +9,11 @@ import type { ReflectionReservationPort } from "./runner"
 import type { ReflectionCompletionRecord } from "./completion"
 import type { RunLivenessSeams } from "./run-liveness"
 
-export type ReservationStatePort = ReflectionReservationPort & {
-  readState(): Promise<{ readonly active?: ReservedRun }>
+export interface ReservationStatePort extends ReflectionReservationPort {
+  readState(options?: ReflectionReservationLockOptions): Promise<{
+    readonly active?: ReservedRun
+    readonly pending?: ReservedRun
+  }>
 }
 
 export interface RunFinalizationContext extends RunLivenessSeams {
