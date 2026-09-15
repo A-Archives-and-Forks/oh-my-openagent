@@ -182,6 +182,9 @@ export async function detectStaleLock(lockPath: string, staleAfterMs: number): P
 
     if (isPidAlive(parsed.ownerPid)) return false
 
+    // 4-line dead owners are stale immediately. Legacy 3-line keeps the age rule.
+    if (parsed.instanceId !== null) return true
+
     return Date.now() - parsed.acquiredAtEpochMs > staleAfterMs
   } catch (error) {
     if (!(error instanceof Error)) {

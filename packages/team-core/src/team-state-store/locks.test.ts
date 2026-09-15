@@ -320,17 +320,16 @@ test("#given a lock held by a live foreign pid #when detectStaleLock runs #then 
   const { detectStaleLock } = await import("./locks")
   const rootDirectory = await createTempDirectory("locks-foreign-live-")
   const lockPath = join(rootDirectory, "lock")
-  const child = Bun.spawn([process.execPath, "-e", "process.stdin.resume()"], {
-    stdin: "pipe",
-    stdout: "ignore",
-    stderr: "ignore",
-  })
+  const child = Bun.spawn([process.execPath, "-e", "process.stdin.resume()"], { stdin: "pipe", stdout: "ignore", stderr: "ignore" })
   try {
     const childPid = child.pid
     if (childPid === undefined) throw new Error("foreign holder spawn produced no pid")
     process.kill(childPid, 0)
     await writeFile(lockPath, `foreign-owner\n${childPid}\n${Date.now()}\nforeign-instance\n`)
     expect(await detectStaleLock(lockPath, 300_000)).toBe(false)
+    child.kill()
+    await child.exited
+    expect(await detectStaleLock(lockPath, 300_000)).toBe(true)
   } finally {
     child.kill()
     await child.exited
