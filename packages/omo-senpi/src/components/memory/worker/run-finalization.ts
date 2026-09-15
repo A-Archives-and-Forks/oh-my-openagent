@@ -5,6 +5,7 @@ import { cleanupReflectionWorktree } from "@oh-my-opencode/memory-core"
 
 import {
   readRunJson,
+  readRunTextTail,
   runOutcomeMatchesLedger,
   updateRunLedger,
   writeRunJsonAtomic,
@@ -65,10 +66,11 @@ export async function failReservationRun(
         return finalizeClaimedOutcome(context, runDir, ledger.runId)
       }
       const current = await readLedger(runDir, ledger.runId)
+      const described = await describeUnpublishedFailure(runDir, detail)
       const decision: DurableFinalizationDecision = {
         outcome,
         reason: outcome === "timed_out" ? "deadline_exceeded" : "supervisor_failed",
-        ...(detail === undefined ? {} : { detail }),
+        ...(described === undefined ? {} : { detail: described }),
       }
       await checkpointFailure(runDir, decision)
       await cleanupOrThrow(context, current)
@@ -76,6 +78,19 @@ export async function failReservationRun(
     }),
   )
   return claimedValue(claimed)
+}
+
+const CHILD_STDERR_TAIL_BYTES = 64 * 1024
+
+/**
+ * A run that dies without an outcome still usually left its cause in child-stderr.log; that
+ * tail leads the detail so the health fingerprint keys on the cause, and the caller's
+ * description of the dead processes follows it.
+ */
+async function describeUnpublishedFailure(runDir: string, detail: string | undefined): Promise<string | undefined> {
+  const stderrTail = (await readRunTextTail(join(runDir, "child-stderr.log"), CHILD_STDERR_TAIL_BYTES)).trim()
+  const parts = [stderrTail, detail?.trim() ?? ""].filter((part) => part.length > 0)
+  return parts.length === 0 ? undefined : parts.join("\n")
 }
 
 export async function overrideFailedReservationRun(

@@ -1,6 +1,6 @@
-import { execFile, spawn, spawnSync, type ChildProcess } from "node:child_process"
+import { spawn, spawnSync, type ChildProcess } from "node:child_process"
 import { readdirSync, watch, writeFileSync } from "@oh-my-opencode/memory-core/fs"
-import { readFile } from "@oh-my-opencode/memory-core/fs"
+import { getProcessStartIdentity } from "@oh-my-opencode/memory-core/process-identity"
 
 export type SupervisorRuntimePlatform = "posix" | "win32"
 export type CancelSupervisorDeadline = () => void
@@ -172,37 +172,14 @@ export function terminateSupervisorChildHard(
   else signalSupervisorProcessGroup(pid, "SIGKILL")
 }
 
-async function readCommand(command: string, args: readonly string[]): Promise<string | null> {
-  return await new Promise((resolve) => {
-    execFile(command, [...args], { encoding: "utf8", timeout: 2_000 }, (error, stdout) => {
-      if (error !== null) {
-        resolve(null)
-        return
-      }
-      const value = stdout.trim()
-      resolve(value.length > 0 ? value : null)
-    })
-  })
-}
-
-async function readLinuxStartIdentity(pid: number): Promise<string | null> {
-  try {
-    const stat = await readFile(`/proc/${pid}/stat`, "utf8")
-    const commandEnd = stat.lastIndexOf(")")
-    if (commandEnd < 0) return null
-    const fields = stat.slice(commandEnd + 2).trim().split(/\s+/)
-    const startTicks = fields[19]
-    return startTicks === undefined ? null : `linux-proc-start-ticks:${startTicks}`
-  } catch {
-    return null
-  }
-}
-
+/**
+ * The supervisor writes the start identities the parent later compares against its own reading,
+ * so both sides must go through the one memory-core reader: a supervisor-local `ps -o lstart`
+ * scheme against the parent's libproc scheme made every live run look reused (#8304).
+ */
 export async function getSupervisorProcessStart(pid: number): Promise<string | null> {
-  if (process.platform === "linux") return await readLinuxStartIdentity(pid)
-  if (process.platform === "darwin" || process.platform === "freebsd") {
-    const value = await readCommand("/bin/ps", ["-o", "lstart=", "-p", String(pid)])
-    return value === null ? null : `ps-lstart:${value.replace(/\s+/g, " ")}`
-  }
-  return null
+  // win32 keeps its documented null identity so an abruptly dead supervisor still reconciles
+  // through the non-destructive UNKNOWN path instead of a tree kill.
+  if (process.platform === "win32") return null
+  return await getProcessStartIdentity(pid)
 }

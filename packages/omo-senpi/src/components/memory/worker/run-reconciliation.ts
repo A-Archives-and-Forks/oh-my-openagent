@@ -207,6 +207,9 @@ async function hasMatchingOutcome(
   return runOutcomeMatchesLedger(ledger, outcome)
 }
 
+const SUPERVISOR_DIED_DETAIL = "reflection supervisor died before publishing an outcome"
+const CHILD_KILLED_AFTER_DEADLINE_DETAIL = "reflection child outlived its deadline after the supervisor died and was killed"
+
 async function reconcileDeadSupervisor(
   context: ReconcileContext,
   runDir: string,
@@ -214,11 +217,13 @@ async function reconcileDeadSupervisor(
 ): Promise<ReflectionRunReconcileResult | undefined> {
   let child = await classifyRunProcess(ledger.childPid, ledger.childProcessStart, context)
   if (child === "unknown") return await abandonReservationRun(context, runDir, ledger)
-  if (child === "dead" || child === "absent") return await failReservationRun(context, runDir, ledger, "failed")
+  if (child === "dead" || child === "absent") {
+    return await failReservationRun(context, runDir, ledger, "failed", deadRunDetail(ledger, child))
+  }
   const wait = context.waitUntil ?? ((deadlineAt) => waitForTime(deadlineAt, context.now))
   await wait(ledger.hardDeadlineAt)
   child = await classifyRunProcess(ledger.childPid, ledger.childProcessStart, context)
-  if (child === "dead") return await failReservationRun(context, runDir, ledger, "failed")
+  if (child === "dead") return await failReservationRun(context, runDir, ledger, "failed", deadRunDetail(ledger, child))
   if (child === "unknown") return await abandonReservationRun(context, runDir, ledger)
   const signal = context.signalProcessGroup ?? signalRecordedProcessGroup
   if (ledger.childPid !== undefined) signal(ledger.childPid, "SIGTERM")
@@ -229,7 +234,18 @@ async function reconcileDeadSupervisor(
     signal(ledger.childPid, "SIGKILL")
     child = await classifyRunProcess(ledger.childPid, ledger.childProcessStart, context)
   }
-  return child === "dead" ? await failReservationRun(context, runDir, ledger, "timed_out") : undefined
+  return child === "dead"
+    ? await failReservationRun(context, runDir, ledger, "timed_out", `${CHILD_KILLED_AFTER_DEADLINE_DETAIL}\n${deadProcesses(ledger)}`)
+    : undefined
+}
+
+function deadRunDetail(ledger: ReservationRunLedger, child: "dead" | "absent"): string {
+  const childState = child === "absent" ? "no child was recorded" : "the child is dead too"
+  return `${SUPERVISOR_DIED_DETAIL}; ${childState}\n${deadProcesses(ledger)}`
+}
+
+function deadProcesses(ledger: ReservationRunLedger): string {
+  return `supervisor pid ${ledger.pid ?? "unknown"}, child pid ${ledger.childPid ?? "unknown"}`
 }
 
 async function directoryNames(path: string): Promise<readonly string[]> {

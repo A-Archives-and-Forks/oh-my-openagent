@@ -95,6 +95,15 @@ export function startIdentitiesConflict(recorded: string, actual: string): boole
   return recorded !== actual
 }
 
+/**
+ * Two start identities can be compared byte-for-byte only when the same reader produced them.
+ * Scheme-less legacy values compare as raw strings so records written before schemes existed
+ * keep their original meaning.
+ */
+export function startIdentitiesComparable(recorded: string, actual: string): boolean {
+  return identityScheme(recorded) === identityScheme(actual)
+}
+
 export type ProcessLiveness = "alive" | "dead" | "unknown"
 
 export function getPidLiveness(pid: number): ProcessLiveness {
