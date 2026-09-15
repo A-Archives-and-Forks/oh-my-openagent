@@ -226,14 +226,21 @@ export async function checkReflectionHealth(
   }
   const failure = health.lastFailure
   const hint = reflectionRemediation(failure?.reason, failure?.detail)
-  const park = await readReflectionParkFile(reflectionDir)
-  const paused = park.parkedAt === undefined
-    ? ""
-    : `; automatic reflection paused since ${park.parkedAt} (next probe ${reflectionParkNextProbeAt(park) ?? "unknown"}; run /reflect to retry now)`
+  const paused = await describeReflectionPark(reflectionDir)
   return {
     name: "reflection-health",
-    level: health.streak >= 3 || park.parkedAt !== undefined ? "warn" : "ok",
+    level: health.streak >= 3 || paused !== "" ? "warn" : "ok",
     detail: `streak ${health.streak}; fingerprint ${health.fingerprint || "none"}; pending ${health.pendingCount}; last success ${lastSuccess}; ${hint}${paused}`,
+  }
+}
+
+async function describeReflectionPark(reflectionDir: string): Promise<string> {
+  try {
+    const park = await readReflectionParkFile(reflectionDir)
+    if (park.parkedAt === undefined) return ""
+    return `; automatic reflection paused since ${park.parkedAt} (next probe ${reflectionParkNextProbeAt(park) ?? "unknown"}; run /reflect to retry now)`
+  } catch (error) {
+    return `; park state unreadable: ${error instanceof Error ? error.message : String(error)}`
   }
 }
 
