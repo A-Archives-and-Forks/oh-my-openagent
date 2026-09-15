@@ -77,6 +77,13 @@ export interface CompletionResult {
 }
 
 const RESERVATION_FILES = ["active.lock", "pending.json", "park.json"] as const
+const PARK_FILENAME = "park.json"
+
+/** Lock-free read for status surfaces; the scheduler writes the file atomically, so a reader sees one whole state. */
+export async function readReflectionParkFile(reflectionDir: string): Promise<ReflectionParkState> {
+  const parsed = await readJsonOptional(join(reflectionDir, PARK_FILENAME))
+  return parsed === null ? emptyReflectionParkState() : parseReflectionParkState(parsed)
+}
 
 export class ReflectionReservationStore {
   private readonly activePath: string
@@ -90,7 +97,7 @@ export class ReflectionReservationStore {
   constructor(private readonly options: ReflectionReservationStoreOptions) {
     this.activePath = join(options.identity.paths.reflection, "active.lock")
     this.pendingPath = join(options.identity.paths.reflection, "pending.json")
-    this.parkPath = join(options.identity.paths.reflection, "park.json")
+    this.parkPath = join(options.identity.paths.reflection, PARK_FILENAME)
     this.schedulerLockPath = reflectionSchedulerLockPath(options.identity.paths.locks)
     this.createRunId = options.createRunId ?? randomUUID
     this.now = options.now ?? (() => new Date())
@@ -295,8 +302,7 @@ export class ReflectionReservationStore {
   }
 
   private async readParkUnlocked(): Promise<ReflectionParkState> {
-    const parsed = await readJsonOptional(this.parkPath)
-    return parsed === null ? emptyReflectionParkState() : parseReflectionParkState(parsed)
+    return readReflectionParkFile(this.options.identity.paths.reflection)
   }
 
   private async writeParkUnlocked(state: ReflectionParkState): Promise<void> {
