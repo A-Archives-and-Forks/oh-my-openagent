@@ -75,7 +75,6 @@ are not new provider enum values. The retained provider choices are
 
 **Quieter startup.** omo-senpi declares itself a system package, so its skills and extensions leave the compact startup banner and appear only in the expanded view. Memory-repo skills pin to the user scope on engines that accept scoped entries.
 
-||||||| b71e6bab3
 ## [5.0.0-beta.62] - 2026-09-13
 
 ### Engine: senpi 2026.9.13
