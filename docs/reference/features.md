@@ -6,7 +6,7 @@ The main agent runs in your session and delegates through the `task` tool: categ
 
 ### Current Agent Model Chains
 
-The category chains below are edition-aware. Senpi uses `kimi-coding` for Kimi rungs. The OpenCode edition uses `kimi-for-coding` for the same Kimi chain positions. The same resolved chain is used at spawn time and again if runtime retry fallback needs to recover.
+The category chains below are edition-aware. Senpi uses `kimi-coding` for Kimi rungs. The OpenCode edition uses `kimi-for-coding` for the same Kimi chain positions. Senpi also lists no `openai` rung: that id is its metered API-key lane, so every GPT rung and the `ultrabrain`, `deep`, and `unspecified-high` defaults route through `openai-codex` (the ChatGPT subscription lane) there, and a machine holding both an API key and a ChatGPT login is never billed per token for delegated work. An API-key-only Senpi registry still resolves the same way a `vercel`-only one does (cross-provider fallthrough). The OpenCode edition keeps `openai`, its single OpenAI provider id. The same resolved chain is used at spawn time and again if runtime retry fallback needs to recover.
 
 | Role | Primary | Full fallback chain |
 | --- | --- | --- |
