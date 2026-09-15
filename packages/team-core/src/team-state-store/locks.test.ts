@@ -254,3 +254,52 @@ test("detects and reaps stale lock entries", async () => {
   await expect(readFile(lockPath, "utf8")).rejects.toThrow()
   await rm(rootDirectory, { recursive: true, force: true })
 })
+
+test("#given a lock for this pid from a prior process incarnation #when detectStaleLock runs #then it is stale even while the pid is live", async () => {
+  // given
+  const { detectStaleLock, lockOwnerInstanceId } = await import("./locks")
+  const rootDirectory = await createTempDirectory("locks-pid-reuse-")
+  const lockPath = join(rootDirectory, "lock")
+  const priorInstanceId = "00000000-0000-4000-8000-000000000001"
+  expect(priorInstanceId).not.toBe(lockOwnerInstanceId)
+  await writeFile(lockPath, `prior-owner\n${process.pid}\n${Date.now()}\n${priorInstanceId}\n`)
+
+  // when
+  const staleDetected = await detectStaleLock(lockPath, 300_000)
+
+  // then
+  expect(staleDetected).toBe(true)
+  await rm(rootDirectory, { recursive: true, force: true })
+})
+
+test("#given this process already owns the lock payload #when detectStaleLock runs #then it is not stale", async () => {
+  // given
+  const { detectStaleLock, lockOwnerInstanceId } = await import("./locks")
+  const rootDirectory = await createTempDirectory("locks-same-instance-")
+  const lockPath = join(rootDirectory, "lock")
+  await writeFile(lockPath, `self-owner\n${process.pid}\n${Date.now()}\n${lockOwnerInstanceId}\n`)
+
+  // when
+  const staleDetected = await detectStaleLock(lockPath, 300_000)
+
+  // then
+  expect(staleDetected).toBe(false)
+  await rm(rootDirectory, { recursive: true, force: true })
+})
+
+test("#given a recycled-pid lock file #when withLock runs #then it reaps and acquires without waiting out the lock timeout", async () => {
+  // given
+  const { withLock, lockOwnerInstanceId } = await import("./locks")
+  const rootDirectory = await createTempDirectory("locks-pid-reuse-acquire-")
+  const lockPath = join(rootDirectory, "lock")
+  await writeFile(lockPath, `prior-owner\n${process.pid}\n${Date.now()}\n00000000-0000-4000-8000-000000000002\n`)
+  expect(lockOwnerInstanceId).not.toBe("00000000-0000-4000-8000-000000000002")
+
+  // when
+  const result = await withLock(lockPath, async () => "acquired", { staleAfterMs: 300_000 })
+
+  // then
+  expect(result).toBe("acquired")
+  await expect(readFile(lockPath, "utf8")).rejects.toThrow()
+  await rm(rootDirectory, { recursive: true, force: true })
+}, 2_000)
