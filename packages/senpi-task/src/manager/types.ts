@@ -15,6 +15,8 @@ import type {
 import type { TaskRecordStore } from "../store"
 import type { ManagedChildHandle, ManagedChildListener } from "./child-handle"
 import type { ExecutionMode } from "./execution-mode"
+import type { TaskConcurrency } from "./concurrency"
+import type { WorkpoolEngine } from "../workpool/engine"
 
 export type { ExecutionMode } from "./execution-mode"
 
@@ -121,6 +123,8 @@ export type StartResult =
   | {
       readonly kind: "started"
       readonly task_id: string
+      // Emitted by the manager; optional for existing host implementations of TaskManager.
+      readonly run_epoch?: number
       readonly status: "running" | "pending"
       readonly name: string
       readonly resolved_model?: ResolvedModelRecord
@@ -186,6 +190,7 @@ export type TrustedRespawnLaunch = {
 export type TrustedRespawnLaunchResolver = (record: TaskRecord) => Promise<TrustedRespawnLaunch | undefined>
 
 export type TaskManagerOptions = {
+  readonly concurrency?: TaskConcurrency
   readonly store: TaskRecordStore
   readonly runners: Readonly<Record<ExecutionMode, ManagedRunner>>
   readonly planner: ChildPlanner
@@ -207,6 +212,7 @@ export type TaskManagerOptions = {
 }
 
 export type TaskManager = {
+  readonly workpools?: WorkpoolEngine
   start(spec: ManagerStartSpec): Promise<StartResult>
   startOwned(spec: ManagerStartSpec, owner: DagTaskOwner): Promise<OwnedStartResult>
   findOwnedTask(owner: DagTaskOwnerKey): TaskRecord | undefined

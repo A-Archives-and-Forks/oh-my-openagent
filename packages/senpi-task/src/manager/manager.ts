@@ -17,6 +17,10 @@ import { createSteeringEngine } from "../steering"
 import type { CancelOptions, CancelOutcome, DestructionPort, InterruptOutcome, SendInput, SendOutcome, SteeringEngine, SteeringPort } from "../steering"
 import { discardManagedHandle, type ManagedChildHandle, type ManagedChildListener } from "./child-handle"
 import { TaskConcurrency } from "./concurrency"
+import { createWorkpoolAdmission } from "./workpool-admission"
+import { withResidentStart } from "./resident-start"
+import { createWorkpoolEngine, type WorkpoolEngine } from "../workpool/engine"
+import { createWorkpoolWorkerTool } from "../tools/workpool"
 import { admitSpill } from "./spill-admission"
 import { decideDepthPolicy } from "./depth-policy"
 import { onceOnly } from "./once-only"
@@ -36,7 +40,8 @@ import {
 import { createOutcomeTracker, type OutcomeTracker } from "./manager-outcome"
 import { claimTaskRecord, TaskRecordCollisionError } from "../store"
 import { withTaskRecordLockAsync } from "../store/record-lock"
-import { reattachManagedTask, respawnManagedTask } from "./manager-respawn"
+import { reattachManagedTask } from "./manager-respawn"
+import { respawnWithWorkpool } from "./workpool-respawn"
 import { NameRegistry } from "./names"
 import { TaskSequence } from "./task-sequence"
 import { createRunStatsTracker, type RunStatsTracker } from "../run-stats"
@@ -84,6 +89,7 @@ type TaskManagerImplOptions = TaskManagerOptions & {
 }
 
 type ReattachingTaskManager = TaskManager & {
+  readonly workpools: WorkpoolEngine
   respawn(record: TaskRecord, resumeSessionPath?: string): Promise<RespawnResult>
   reattach(record: TaskRecord, handle: ManagedChildHandle): Promise<ReattachResult>
   waiterKeyCount(): number
@@ -145,6 +151,7 @@ function publicStartFailureMessage(error: unknown): string {
 
 // allow: SIZE_OK - one stateful manager keeps concurrency, queue, live-handle, and waiter invariants in one closure-backed implementation.
 class TaskManagerImpl implements TaskManager {
+  readonly workpools: WorkpoolEngine
   readonly #options: TaskManagerImplOptions
   readonly #now: () => number
   readonly #runStats = new Map<string, RunStatsTracker>()
@@ -187,7 +194,7 @@ class TaskManagerImpl implements TaskManager {
     this.#now = options.now ?? Date.now
     this.#hostPid = options.hostPid ?? process.pid
     this.#rpcRespawnRunner = options.rpcRespawnRunner ?? new RpcProcessRunner()
-    this.#concurrency = new TaskConcurrency({
+    this.#concurrency = options.concurrency ?? new TaskConcurrency({
       default_concurrency: options.config.default_concurrency,
       ...(options.config.provider_concurrency !== undefined && { provider_concurrency: options.config.provider_concurrency }),
       ...(options.config.model_concurrency !== undefined && { model_concurrency: options.config.model_concurrency }),
@@ -225,6 +232,20 @@ class TaskManagerImpl implements TaskManager {
       settleWaiters: (taskId, terminal) => this.#settleWaiters(taskId, terminal),
       tryRuntimeFallback: (input) => this.#tryRuntimeFallback(input),
     })
+    this.workpools = createWorkpoolEngine(options.store.stateDir, createWorkpoolAdmission({
+      options, concurrency: this.#concurrency, hostPid: this.#hostPid,
+      get: taskId => this.get(taskId), pending: taskId => this.hasPendingSends(taskId),
+      cancel: taskId => this.cancelTask(taskId), waitFor: (taskId, signal) => this.waitFor(taskId, { signal }),
+      nextSequence: parent => this.#taskSequence.next(parent), launch: context => this.#launch(context),
+      revive: (record, message, reservation) => this.#steering.sendToTask({ idOrName: record.task_id, message, callerSessionId: record.parent_session_id }, reservation),
+      trackRevive: (taskId, epoch) => {
+        const live = this.#live.get(taskId)
+        if (live === undefined) throw new Error("Granted workpool worker lost its live handle")
+        this.#runStats.set(taskId, createRunStatsTracker(this.#now(), this.#now))
+        this.#outcome.trackOutcome(taskId, live.handle, live.model, epoch)
+      },
+      workerTools: taskId => [createWorkpoolWorkerTool({ workpools: this.workpools, taskId, runEpoch: () => this.get(taskId)?.notification.run_epoch ?? -1 })],
+    }))
     registerLifecycleReattachPorts(options.store, {
       reserve: (record) => this.#reserveForReattach(record),
       respawn: (record, resumeSessionPath) => this.respawn(record, resumeSessionPath),
@@ -236,12 +257,8 @@ class TaskManagerImpl implements TaskManager {
     const resolution = this.#options.planner(spec)
     if (resolution.kind === "error") return { kind: "plan_unresolved", error: resolution.error }
 
-    if (this.#options.admit !== undefined) {
-      const admission = await this.#options.admit(spec.parent_session_id)
-      if (admission.kind === "rejected") return { kind: "residency_denied", reason: admission.message }
-    }
-
-    return this.#startResolved(spec, resolution.plan)
+    return withResidentStart(this.#options, spec.parent_session_id,
+      release => this.#startResolved(spec, resolution.plan, undefined, release))
   }
 
   async startOwned(spec: ManagerStartSpec, owner: DagTaskOwner): Promise<OwnedStartResult> {
@@ -249,15 +266,11 @@ class TaskManagerImpl implements TaskManager {
     const resolution = this.#options.planner(spec)
     if (resolution.kind === "error") return { kind: "plan_unresolved", error: resolution.error }
 
-    if (this.#options.admit !== undefined) {
-      const admission = await this.#options.admit(spec.parent_session_id)
-      if (admission.kind === "rejected") return { kind: "residency_denied", reason: admission.message }
-    }
-
     return withTaskRecordLockAsync(lockPath, async () => {
       const raced = this.#ownedResult(owner)
       if (raced !== undefined) return raced
-      const result = await this.#startResolved(spec, resolution.plan, owner)
+      const result = await withResidentStart(this.#options, spec.parent_session_id,
+        release => this.#startResolved(spec, resolution.plan, owner, release))
       return result.kind === "started" ? { ...result, reused: false } : result
     })
   }
@@ -302,6 +315,7 @@ class TaskManagerImpl implements TaskManager {
     spec: ManagerStartSpec,
     plan: ResolvedChildPlan,
     owner?: DagTaskOwner,
+    releaseResidency?: () => void,
   ): Promise<StartResult> {
     const normalizeSpecName = (value: string | undefined): string | undefined => {
       const trimmed = value?.trim()
@@ -420,9 +434,11 @@ class TaskManagerImpl implements TaskManager {
         error_message: "spawn bookkeeping failed",
       }
     }
+    releaseResidency?.()
     const runner = this.#options.runners[executionMode]
     const context: LaunchContext = { record: finalRecord, managedSpec, runner, model: effectivePlan.model }
     const startParts = {
+      run_epoch: finalRecord.notification.run_epoch,
       ...(effectivePlan.resolved_model !== undefined ? { resolved_model: effectivePlan.resolved_model } : {}),
       ...(registration.warning !== undefined ? { name_warning: registration.warning } : {}),
     }
@@ -592,7 +608,7 @@ class TaskManagerImpl implements TaskManager {
   }
 
   respawn(record: TaskRecord, resumeSessionPath?: string): Promise<RespawnResult> {
-    return respawnManagedTask({
+    return respawnWithWorkpool({
       record,
       sessionPath: resumeSessionPath,
       stateDir: this.#options.store.stateDir,
@@ -609,7 +625,7 @@ class TaskManagerImpl implements TaskManager {
       ...(this.#options.trustedRespawnLaunch === undefined
         ? {}
         : { trustedLaunch: this.#options.trustedRespawnLaunch }),
-    })
+    }, this.workpools, () => this.get(record.task_id)?.notification.run_epoch ?? -1)
   }
 
   reattach(record: TaskRecord, handle: ManagedChildHandle): Promise<ReattachResult> {
@@ -791,6 +807,7 @@ class TaskManagerImpl implements TaskManager {
     readonly runStats: TaskRunStats | undefined
     readonly timestamp: string
   }): Promise<boolean> {
+    if (this.workpools.ownsTask(input.taskId)) return false
     if (
       input.outcome.status !== "error"
       || input.outcome.killed === true

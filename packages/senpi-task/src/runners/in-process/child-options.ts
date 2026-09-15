@@ -1,6 +1,7 @@
 import type { CreateAgentSessionOptions, SessionManager, ToolDefinition } from "@code-yeongyu/senpi"
 
 import { BUILTIN_AGENTS, CURATED_READONLY_AGENT_NAMES } from "../../agents/builtin"
+import { isWorkpoolYieldTool } from "../../workpool/worker-tool-identity"
 import type { ChildSpec } from "../in-process"
 import { createChildResourceLoader } from "./child-loader"
 import { createCuratedReadonlyBashTool } from "./curated-readonly-bash"
@@ -84,7 +85,7 @@ export function buildChildSessionOptions(input: BuildChildSessionOptionsInput): 
   const floor = curated ? (BUILTIN_AGENTS[spec.agentType ?? ""]?.tools ?? []).filter((rule) => rule.allow).map((rule) => rule.pattern) : undefined
   const toolAllowlist = floor === undefined ? spec.toolAllowlist : floor.filter((name) => spec.toolAllowlist === undefined || spec.toolAllowlist.includes(name))
   const customTools = curated
-    ? [...mergedCustomTools.filter((tool) => tool.name !== "bash" && toolAllowlist?.includes(tool.name)), createCuratedReadonlyBashTool(spec.cwd)]
+    ? [...mergedCustomTools.filter((tool) => tool.name !== "bash" && (toolAllowlist?.includes(tool.name) || isWorkpoolYieldTool(tool))), createCuratedReadonlyBashTool(spec.cwd)]
     : mergedCustomTools
   const settingsManager = createRuntimeFallbackSettings(spec.selectedModel, spec.fallbackModels, spec.retry)
   return {
@@ -101,7 +102,7 @@ export function buildChildSessionOptions(input: BuildChildSessionOptionsInput): 
     ...(spec.model !== undefined && { model: spec.model }),
     ...(spec.thinkingLevel !== undefined && { thinkingLevel: spec.thinkingLevel }),
     settingsManager,
-    ...(toolAllowlist !== undefined && { tools: [...toolAllowlist] }),
+    ...(toolAllowlist !== undefined && { tools: [...toolAllowlist, ...mergedCustomTools.filter(isWorkpoolYieldTool).map(tool => tool.name)] }),
     ...(spec.toolDenylist !== undefined && { excludeTools: [...spec.toolDenylist] }),
   }
 }

@@ -82,8 +82,14 @@ export type ResolvedSpawnItem =
   | (ResolvedSpawnItemBase & { readonly kind: "category"; readonly category: string })
   | (ResolvedSpawnItemBase & { readonly kind: "subagent_type"; readonly subagentType: string })
 
+export type TaskHandleDetails = {
+  readonly task_id: string
+  readonly run_epoch: number
+}
+
 export type TaskToolItemDetail = {
   readonly task_id: string
+  readonly run_epoch?: number
   readonly task_summary?: string
   readonly name?: string
   readonly category?: string
@@ -99,6 +105,7 @@ export type TaskToolItemDetail = {
 
 export type TaskToolDetails = {
   readonly task_id: string
+  readonly run_epoch?: number
   readonly status: string
   readonly mode: TaskToolMode
   readonly task_summary?: string
