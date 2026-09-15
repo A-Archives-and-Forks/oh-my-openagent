@@ -69,4 +69,35 @@ describe("ulw-loop goal JSON cache", () => {
     writeGoalWithPinnedMtime(path, "complete", stamp)
     expect(cache.read(path)).toMatchObject({ goal: { status: "complete" } })
   })
+
+  it("#given an unchanged goal file #when the cache is read repeatedly #then the file is parsed only once", () => {
+    const path = goalFile()
+    writeFileSync(path, `${JSON.stringify({ version: 1, goal: { status: "active" } })}\n`)
+    const cache = createGoalJsonCache()
+
+    const first = cache.read(path)
+    const second = cache.read(path)
+
+    expect(first).toBeDefined()
+    expect(second).toBe(first)
+  })
+
+  it("#given the goal file changes #when the cache is read again #then it re-reads and returns the new content", () => {
+    const path = goalFile()
+    writeFileSync(path, `${JSON.stringify({ version: 1, goal: { status: "active" } })}\n`)
+    const cache = createGoalJsonCache()
+    const first = cache.read(path)
+
+    writeFileSync(path, `${JSON.stringify({ version: 1, goal: { status: "complete" } })}\n`)
+    utimesSync(path, new Date(), new Date(Date.now() + 5_000))
+    const second = cache.read(path)
+
+    expect(second).not.toBe(first)
+    expect(JSON.stringify(second)).toContain('"status":"complete"')
+  })
+
+  it("#given a missing goal file #when the cache is read #then it returns undefined without throwing", () => {
+    const cache = createGoalJsonCache()
+    expect(cache.read(join(tmpdir(), "omo-goal-cache-missing", "nope.json"))).toBeUndefined()
+  })
 })
