@@ -22,6 +22,7 @@ Detached `senpi -p` reflection/dream/facts child execution and the durable run l
 | `completion*.ts` | Durable completion records (`runtime/reflection/completions/`): record, deliver, render; `REFLECTION_*_ENTRY_TYPE` constants and renderer registration. |
 | `health.ts` / `health-alert.ts` | READ-ONLY derived health over completion records (failure streak, fingerprint, last outcome; `senpi-memory.health` entries). A trailing streak whose newest failure is older than `REFLECTION_HEALTH_STALE_MS` (7 days) reports streak 0 so dormant identities stop alerting; historical fields stay intact. |
 | `remediation.ts` | Failure-reason -> user-facing hint mapping. |
+| `failure-policy.ts` / `park-alert.ts` | Park policy inputs and surface: `classifyReflectionFailure` turns a finalization decision into memory-core's `{ fingerprint, retryable }` signal (fed to `reservation.complete()` by settlement and the runner), and `emitReflectionParkAlert` announces a parked identity once per session per park episode from the durable `park.json`. |
 | `entry-renderers.ts` | Notice-box renderer contract: fields joined with `" · "` (`FIELD_SEPARATOR`), normalized/truncated text, outcome glyph/color/label helpers. |
 
 ## Conventions
