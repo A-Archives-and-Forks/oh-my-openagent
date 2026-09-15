@@ -7,7 +7,7 @@ export function compareMemberBoot(base: Profile, candidate: Profile) {
   if (base.platform !== candidate.platform || base.bun !== candidate.bun) throw new Error("Boot profiles require the same platform and Bun version")
   const differences = []
   for (const launch of [1, 2]) {
-    for (const stage of ["provider_registered", "session_start"]) {
+    for (const stage of ["bootstrap", "provider_registered", "session_start"]) {
       const before = base.graphs.find(graph => graph.launch === launch && graph.stage === stage)
       const after = candidate.graphs.find(graph => graph.launch === launch && graph.stage === stage)
       if (!before || !after) throw new Error(`Missing boot graph: launch=${launch} stage=${stage}`)

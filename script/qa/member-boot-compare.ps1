@@ -30,5 +30,6 @@ try {
   bun run script/qa/member-boot-diff.ts (Join-Path $OutputDirectory "base.json") (Join-Path $OutputDirectory "candidate.json") (Join-Path $OutputDirectory "diff.json")
 } finally {
   Set-Location $source
-  git worktree remove --force $baseline
+  # Bun's nested bundled dependencies exceed Git for Windows' default path limit.
+  git -c core.longpaths=true worktree remove --force $baseline
 }

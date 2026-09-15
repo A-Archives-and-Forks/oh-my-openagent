@@ -5,8 +5,7 @@ import { fileURLToPath } from "node:url"
 
 import type { RpcRunnerSpec } from "../types"
 import { asSenpiThinkingLevel } from "../../senpi/thinking-level"
-import { MEMBER_EXTENSION_BUNDLE_NAME, MEMBER_PROCESS_ENV_NAMES } from "../../team/member-extension/identity"
-import { WORKPOOL_PROCESS_ENV_NAMES } from "../../workpool/process-identity"
+import { MEMBER_EXTENSION_BUNDLE_NAME, MEMBER_PROCESS_ENV_NAMES, WORKPOOL_PROCESS_ENV_NAMES } from "../../team/member-extension/identity"
 import {
   detectBunBinary,
   detectCompiledEngine,
