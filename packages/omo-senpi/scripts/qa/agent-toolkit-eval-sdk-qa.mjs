@@ -16,7 +16,20 @@ function option(name, fallback) {
   assert.ok(args[index + 1] && !args[index + 1].startsWith("--"), `${name} requires a value`)
   return resolve(args[index + 1])
 }
+function intOption(name, fallback) {
+  const index = args.indexOf(name)
+  if (index < 0) return fallback
+  const value = args[index + 1]
+  assert.ok(value && !value.startsWith("--"), `${name} requires a value`)
+  const int = Number.parseInt(value, 10)
+  if (!Number.isInteger(int) || int <= 0) {
+    console.error(`Usage: ${process.argv[1]} [--deadline-ms <int>] [--evidence-dir <path>] [--plugin-root <path>]`)
+    process.exit(2)
+  }
+  return int
+}
 const pluginRoot = option("--plugin-root", join(packageRoot, "plugin"))
+const deadlineMs = intOption("--deadline-ms", 120_000)
 
 async function runSession(sandbox) {
   const cwd = join(sandbox, "project")
@@ -149,7 +162,7 @@ async function supervise() {
   const evidenceDir = option("--evidence-dir", join(process.cwd(), ".omo/evidence/agent-toolkit-eval-sdk-qa"))
   mkdirSync(evidenceDir, { recursive: true })
   const transcript = join(evidenceDir, "task-9-transcript.txt")
-  writeFileSync(transcript, `COMMAND ${JSON.stringify(process.argv)}\n`)
+  writeFileSync(transcript, `COMMAND ${JSON.stringify(process.argv)}\nDEADLINE_MS=${deadlineMs}\n`)
   const sandbox = mkdtempSync(join(tmpdir(), "omo-toolkit-eval-qa-"))
   for (const directory of ["agent", "project", "home", "tmp"]) mkdirSync(join(sandbox, directory))
   const { isolatedEnvironment, processGroupMembers } = await import("./agent-toolkit-eval-sdk-qa-support.mjs")
@@ -167,7 +180,7 @@ async function supervise() {
     code = await new Promise((resolve, reject) => {
       child.once("error", reject)
       child.once("close", (exitCode, signal) => { log(`WORKER_EXIT code=${exitCode} signal=${signal}\n`); resolve(exitCode ?? 1) })
-      deadline = setTimeout(() => { log("FAIL QA deadline exceeded\n"); process.kill(-child.pid, "SIGKILL") }, 120_000)
+      deadline = setTimeout(() => { log("FAIL QA deadline exceeded\n"); process.kill(-child.pid, "SIGKILL") }, deadlineMs)
     })
   } finally {
     clearTimeout(deadline)
