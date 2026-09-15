@@ -28,6 +28,7 @@ import {
 import { classifyGhostActive } from "./run-ghost-active"
 import { classifyRunProcess, isLauncherDead, signalRecordedProcessGroup, waitUntil as waitForTime } from "./run-liveness"
 import { parseReservationRunLedger, type ReservationRunLedger } from "./reservation-run-ledger"
+import { sweepReflectionRunOrphans, type ReflectionSweepLogger } from "./run-reconciliation-sweep"
 import { waitForRunSentinel, type SentinelWaitResult } from "./run-sentinel"
 import { sweepStrandedRunTemporaries } from "./run-temporaries"
 
@@ -45,6 +46,7 @@ export interface ReflectionRunReconciliationOptions {
   readonly waitUntil?: (deadlineAt: number) => Promise<void>
   readonly signalProcessGroup?: (pid: number, signal: NodeJS.Signals) => void
   readonly withWriterLock?: <T>(operation: () => Promise<T>) => Promise<T>
+  readonly logger?: ReflectionSweepLogger
   /** Bind-time maintenance defers when another session is scheduling this identity. */
   readonly deferOnSchedulerContention?: boolean
 }
@@ -80,6 +82,7 @@ export async function reconcileReflectionRuns(
       const result = await reconcileRun(context, runDir, ledger)
       if (result !== undefined) results.push({ runId: result.runId, outcome: result.outcome })
     }
+    await sweepReflectionRunOrphans(context)
     return results
   } catch (error) {
     if (context.deferOnSchedulerContention && error instanceof LockContentionError) return []
