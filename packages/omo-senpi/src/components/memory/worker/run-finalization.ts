@@ -1,8 +1,6 @@
 import { existsSync } from "@oh-my-opencode/memory-core/fs"
 import { join } from "node:path"
 
-import { cleanupReflectionWorktree } from "@oh-my-opencode/memory-core"
-
 import {
   readRunJson,
   readRunTextTail,
@@ -15,7 +13,7 @@ import {
   withRunFinalizationClaim,
   type ClaimedRunResult,
 } from "./run-finalization-claim"
-import { resolveFinalizationDecision } from "./run-finalization-git"
+import { cleanupAndRecord, resolveFinalizationDecision } from "./run-finalization-git"
 import { settleReservationRun } from "./run-finalization-settlement"
 import { withRunTerminalGate } from "./run-terminal-gate"
 import { checkRunAbandonmentPrecedence } from "./run-terminal-precedence"
@@ -26,7 +24,6 @@ import type {
 } from "./run-finalization-types"
 import {
   parseReservationRunLedger,
-  worktreeFromLedger,
   type ReservationRunLedger,
 } from "./reservation-run-ledger"
 
@@ -73,7 +70,7 @@ export async function failReservationRun(
         ...(described === undefined ? {} : { detail: described }),
       }
       await checkpointFailure(runDir, decision)
-      await cleanupOrThrow(context, current)
+      await cleanupAndRecord(context, current, runDir)
       return settleReservationRun(context, runDir, current, decision)
     }),
   )
@@ -111,7 +108,7 @@ export async function overrideFailedReservationRun(
         detail,
       }
       await checkpointFailure(runDir, decision)
-      await cleanupOrThrow(context, current)
+      await cleanupAndRecord(context, current, runDir)
       return settleReservationRun(context, runDir, current, decision)
     }),
   )
@@ -197,16 +194,6 @@ async function checkpointFailure(
     ...(decision.reason === undefined ? {} : { finalizeReason: decision.reason }),
     ...(decision.detail === undefined ? {} : { finalizeDetail: decision.detail }),
   })
-}
-
-async function cleanupOrThrow(
-  context: RunFinalizationContext,
-  ledger: ReservationRunLedger,
-): Promise<void> {
-  const cleanup = await cleanupReflectionWorktree(worktreeFromLedger(context.identity, ledger))
-  if (!cleanup.worktreeRemoved || !cleanup.branchRemoved) {
-    throw new Error(`Reflection cleanup incomplete for ${ledger.runId}`)
-  }
 }
 
 function claimedValue(
