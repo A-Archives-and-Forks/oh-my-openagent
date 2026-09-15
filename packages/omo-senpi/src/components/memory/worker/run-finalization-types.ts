@@ -1,6 +1,7 @@
 import type {
   MemoryIdentity,
   ReflectionOutcome,
+  ReflectionParkTransition,
   ReflectionReservationLockOptions,
   ReservedRun,
 } from "@oh-my-opencode/memory-core"
@@ -31,6 +32,7 @@ export interface ReservationRunResult {
   readonly detail?: string
   readonly completion?: ReflectionCompletionRecord
   readonly launch?: ReservedRun
+  readonly park?: ReflectionParkTransition
 }
 
 export interface DurableFinalizationDecision {
