@@ -1,3 +1,7 @@
+## 2026-09-15 - Idle sessions stop polling: member acks, lead poller, ulw footer (#8290)
+
+Three idle-session drains are now demand-driven. The member-extension ack loop (`senpi-task` `self-poller.ts`) skips its lockfile lease entirely when the pending-ack queue is empty, so an idle member performs zero filesystem work per minute. The lead poller (`omo-senpi` `lead-poller-lifecycle.ts`) stands down when the session owns no teams — owned teams can only appear through this session's own `team_create`, which now kicks the poller back awake — so a teamless session reads the team registry zero times per minute instead of 60. The ulw footer caches the goal JSON by mtime (`createGoalJsonCache`), so the 320ms frame no longer re-reads and re-parses the file unless it changed.
+
 ## 2026-09-14 - Metis heads with Claude Fable 5.1 at max (#8259)
 
 The `metis` pre-planning consultant chain in `model-core` is now `claude-fable-5-1 (max)` -> `claude-opus-5 (max)` ->
