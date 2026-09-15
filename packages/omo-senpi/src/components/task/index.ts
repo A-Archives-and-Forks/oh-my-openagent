@@ -286,7 +286,7 @@ function createTeamToolContext(
   }
   const deliveryJournal = createLeadDeliveryJournal()
   const leadPollers = createLeadPollerLifecycle({
-    listTeams: service.listTeams,
+    listTeams: baseService.listTeams,
     runtime: engine.runtime,
     config: toTeamCoreConfig(engine.settings, teamStorageBaseDir(stateDir)),
     runtimeDir: (teamRunId) => resolveTeamRuntimeDirs(stateDir, teamRunId).runtimeDir,
