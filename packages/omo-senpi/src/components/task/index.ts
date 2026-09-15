@@ -279,7 +279,7 @@ function createTeamToolContext(
     cwd: engine.runtime.cwd(),
     agentNames: new Set(Object.keys(engine.agents)),
   }
-  const service = createTeamService(serviceDeps)
+  const baseService = createTeamService(serviceDeps)
   const stateDir = {
     project_dir: serviceDeps.cwd,
     ...(engine.settings.state_dir !== undefined ? { task: { state_dir: engine.settings.state_dir } } : {}),
@@ -296,6 +296,16 @@ function createTeamToolContext(
     logger: ctx.logger,
     ...(ctx.idleCoordinator !== undefined ? { coordinator: ctx.idleCoordinator } : {}),
   })
+  // A team can only appear through this session's own team_create, so that call is what
+  // wakes the idled lead poller; every other path leaves it in zero-read standby.
+  const service: TeamToolsService = {
+    ...baseService,
+    createTeam: async (input) => {
+      const created = await baseService.createTeam(input)
+      leadPollers.kick()
+      return created
+    },
+  }
   return { service, reconcileTeamMailbox: createTeamMailboxReconciler(serviceDeps), deliveryJournal, leadPollers }
 }
 
