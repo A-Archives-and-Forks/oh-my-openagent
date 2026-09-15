@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+**OpenCode's `agent-browser` provider and builtin skill have been removed.**
+Configs containing `browser_automation_engine.provider: "agent-browser"` now
+fail schema validation. `oh-my-opencode doctor` reports the rejected value and
+says: "use the built-in browser path: Bun.WebView / playwright-core scripts".
+Remove the obsolete override from the active `[opencode]` block in `omo.jsonc`,
+including project and profile layers. Browser work uses in-process Bun.WebView
+or written playwright-core scripts against local Chrome; these script paths
+are not new provider enum values. The retained provider choices are
+`playwright`, `dev-browser`, and `playwright-cli`.
+
 ### Engine: senpi 2026.9.15 (adopting 2026.9.13-2 as well)
 
 **Concurrent questions queue instead of overwriting each other.** Two async questions used to race, and the second one replaced the first. They now sit in a queue: the widget shows `+N more`, `alt+down` cycles through them from an empty composer, and each request keeps its own draft and its own idle deadline. Answering got faster too — a digit on an empty composer answers the shown question, a single-select single question submits on that digit, `/answer` lists or opens a specific request, and typed text binds to one request with a `↳ reply to <header>` label. An answered, commented, dismissed or timed-out question collapses to a `↳ <header>: <answer>` chip you can click to expand.
@@ -63,6 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Quieter startup.** omo-senpi declares itself a system package, so its skills and extensions leave the compact startup banner and appear only in the expanded view. Memory-repo skills pin to the user scope on engines that accept scoped entries.
 
+||||||| b71e6bab3
 ## [5.0.0-beta.62] - 2026-09-13
 
 ### Engine: senpi 2026.9.13

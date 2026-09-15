@@ -49,6 +49,7 @@ export async function finalizationFixture(integrate = true) {
     conversationIds: ["conversation-a"],
     snapshots: [{ conversationId: "conversation-a", snapshot }],
   })
+  if (reserved.status === "parked") throw new Error("fixture reservation was parked")
   const worktree = await createReflectionWorktree(repo, reserved.run.runId, identity.paths.worktrees)
   await mkdir(join(worktree.dir, "system"), { recursive: true })
   await writeFile(join(worktree.dir, "system", "learned.md"), "---\ndescription: Learned\n---\nlearned\n")
