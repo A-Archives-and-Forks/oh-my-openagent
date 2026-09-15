@@ -6,7 +6,7 @@ import { atomicReplace } from "../store/record-write"
 import { withTaskRecordLock } from "../store/record-lock"
 import { WorkpoolRecordSchema } from "./record-schema"
 import { canonicalJson, parsePoolId } from "./schema"
-import { WorkpoolError, type WorkpoolCaller, type WorkpoolCreate, type WorkpoolRecord, type WorkpoolSpec } from "./types"
+import { WorkpoolError, type WorkpoolCaller, type WorkpoolCreate, type WorkpoolMode, type WorkpoolRecord, type WorkpoolSpec } from "./types"
 
 export function createWorkpoolStore(stateDir: string) {
   const directory = join(stateDir, "workpools")
@@ -45,7 +45,7 @@ export function createWorkpoolStore(stateDir: string) {
       return saved
     })
   }
-  function create(caller: WorkpoolCaller, input: WorkpoolCreate, workerSpec: WorkpoolSpec): WorkpoolRecord {
+  function create(caller: WorkpoolCaller, input: WorkpoolCreate & { readonly mode: WorkpoolMode }, workerSpec: WorkpoolSpec): WorkpoolRecord {
     // The directory lock serializes parent/name creation across hosts, not just this object.
     return withTaskRecordLock(join(directory, "names"), () => {
       const existing = list().find(pool => pool.parent_session_id === caller.sessionId && pool.name === input.name)
@@ -58,7 +58,7 @@ export function createWorkpoolStore(stateDir: string) {
       const record: WorkpoolRecord = {
         version: 1, pool_id: `wp_${randomBytes(16).toString("hex")}`, name: input.name,
         parent_session_id: caller.sessionId, root_session_id: caller.rootSessionId, generation: 1, revision: 0,
-        mode: input.mode ?? "keep_alive", agent: input.agent, worker_spec: workerSpec, status: "open", items: [], workers: [],
+        mode: input.mode, agent: input.agent, worker_spec: workerSpec, status: "open", items: [], workers: [],
       }
       atomicReplace(path(record.pool_id), JSON.stringify(record))
       return load(record.pool_id)

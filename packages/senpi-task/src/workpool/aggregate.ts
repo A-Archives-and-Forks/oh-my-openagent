@@ -8,8 +8,12 @@ export type WorkpoolAggregateMessage = {
   readonly generation: number
   readonly results: readonly WorkpoolAggregateResult[]
 }
+export type WorkpoolAggregateReceipts = {
+  readonly ack: () => void
+  readonly fail: (error?: unknown) => void
+}
 export type WorkpoolAggregatePort = {
-  enqueue(message: WorkpoolAggregateMessage): void
+  enqueue(message: WorkpoolAggregateMessage, receipts: WorkpoolAggregateReceipts): void
 }
 
 const terminal = new Set(["completed", "error", "cancelled"])
@@ -26,16 +30,24 @@ export function aggregateResults(pool: WorkpoolRecord): readonly WorkpoolAggrega
 export function deliverAggregate(
   pool: WorkpoolRecord,
   port: WorkpoolAggregatePort | undefined,
-  persist: (delivered: boolean) => void,
+  persist: (state: { readonly delivered: boolean; readonly accepted: boolean }) => void,
+  onFailure?: (error: unknown) => void,
 ): boolean {
   const results = aggregateResults(pool)
   if (results === undefined || port === undefined) return false
+  persist({ delivered: false, accepted: true })
   try {
-    port.enqueue({ pool_id: pool.pool_id, generation: pool.generation, results })
-    persist(true)
+    port.enqueue({ pool_id: pool.pool_id, generation: pool.generation, results }, {
+      ack: () => persist({ delivered: true, accepted: true }),
+      fail: error => {
+        persist({ delivered: false, accepted: false })
+        if (error !== undefined) onFailure?.(error)
+      },
+    })
     return true
-  } catch {
-    persist(false)
+  } catch (error) {
+    persist({ delivered: false, accepted: false })
+    onFailure?.(error)
     return false
   }
 }

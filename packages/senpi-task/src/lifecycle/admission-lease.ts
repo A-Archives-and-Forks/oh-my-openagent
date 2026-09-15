@@ -94,10 +94,9 @@ export function acquireSessionAdmissionLease(
         return Date.now() - startedAt >= timing.acquireTimeoutMs ? { kind: "contended" } : undefined
       }
     }
-    const ready = attempt()
-    // Return the waiter's own promise: an async forwarding layer would postpone its continuation
-    // past runner start/completion even when release has already handed over the lease.
-    return ready === undefined ? waitForAdmissionLease(path, timing.retryMs, attempt) : Promise.resolve(ready)
+    // Register the waiter before the first attempt so a same-tick release cannot be lost between
+    // a failed tryCreate and waitForAdmissionLease. The waiter retries immediately after arming.
+    return waitForAdmissionLease(path, timing.retryMs, attempt)
   } catch (error) {
     return Promise.reject(error)
   }

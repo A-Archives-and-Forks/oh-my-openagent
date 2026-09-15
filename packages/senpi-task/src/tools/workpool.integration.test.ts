@@ -5,7 +5,7 @@ import type { ResidencyRegistry } from "../lifecycle/port"
 import { createTaskManager } from "../manager/manager"
 import { TaskConcurrency } from "../manager/concurrency"
 import { createTaskRecordStore } from "../store"
-import { fixture, poolInput } from "../workpool/__fixtures__/admission"
+import { fixture, fixtureHandle, poolInput } from "../workpool/__fixtures__/admission"
 import { buildWorkpoolExecute } from "./workpool"
 
 test("#given host inspect after a new manager on the same state dir #when the kernel is reset #then the persisted pool is observed", async () => {
@@ -23,7 +23,7 @@ test("#given host inspect after a new manager on the same state dir #when the ke
   const config = OmoTaskSettingsSchema.parse({ default_concurrency: 1, global_concurrency: 1, residency_max_children: 4 })
   const store = createTaskRecordStore({ project_dir: f.root })
   const concurrency = new TaskConcurrency(config)
-  const runner = { start: async (spec: { taskId: string }) => ({ task_id: spec.taskId, sessionId: `w-${spec.taskId}`, waitForOutcome: () => new Promise(() => undefined), followUp: async () => undefined, steer: async () => undefined, abort: async () => undefined, dispose: async () => undefined, subscribe: () => () => undefined, lastAssistantText: () => undefined }) }
+  const runner = { start: async (spec: { taskId: string }) => fixtureHandle(spec.taskId).handle }
   const registry: ResidencyRegistry = { get: () => undefined, entries: () => [], forget: () => undefined, hasPendingSends: () => false, tryClaimEviction: () => false, releaseEviction: () => undefined }
   const lifecycle = createTaskLifecycle({ store, registry, config })
   const manager = createTaskManager({ store, concurrency, runners: { "in-process": runner, process: runner }, config, cwd: f.root,

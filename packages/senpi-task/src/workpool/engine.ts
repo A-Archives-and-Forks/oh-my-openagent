@@ -13,22 +13,29 @@ export function createWorkpoolEngine(stateDir: string, admission: WorkpoolAdmiss
   const store = createWorkpoolStore(stateDir)
   const listeners = new Set<(event: WorkpoolEvent) => void>()
   let aggregatePort: WorkpoolAggregatePort | undefined
-  const inflight = new Set<string>()
+  const awaitingAck = new Set<string>()
   const emit = (event: WorkpoolEvent): void => {
     for (const listener of listeners) listener(event)
     if (event.kind === "item_result" || event.kind === "worker_idle" || event.kind === "cancelled") flushAggregate(event.pool_id)
   }
-  function persistAggregate(poolId: PoolId, generation: number, delivered: boolean): void {
-    store.mutate(poolId, pool => pool.generation !== generation ? pool : { ...pool, aggregate: { generation, delivered } })
+  function persistAggregate(poolId: PoolId, generation: number, state: { readonly delivered: boolean; readonly accepted: boolean }): void {
+    store.mutate(poolId, pool => pool.generation !== generation ? pool : {
+      ...pool,
+      aggregate: state.delivered ? { generation, delivered: true }
+        : { generation, delivered: false, ...(state.accepted ? { accepted: true } : {}) },
+    })
   }
   function flushAggregate(poolId: PoolId): void {
     const pool = store.load(poolId)
     const key = `${pool.pool_id}:${pool.generation}`
-    if (inflight.has(key) || pool.aggregate?.delivered === true && pool.aggregate.generation === pool.generation) return
-    inflight.add(key)
-    try {
-      deliverAggregate(pool, aggregatePort, delivered => persistAggregate(pool.pool_id, pool.generation, delivered))
-    } finally { inflight.delete(key) }
+    if (pool.aggregate?.delivered === true && pool.aggregate.generation === pool.generation) return
+    if (awaitingAck.has(key) || pool.aggregate?.accepted === true && pool.aggregate.generation === pool.generation) return
+    awaitingAck.add(key)
+    const started = deliverAggregate(pool, aggregatePort, state => {
+      persistAggregate(pool.pool_id, pool.generation, state)
+      if (state.delivered || !state.accepted) awaitingAck.delete(key)
+    }, error => emit({ kind: "aggregate_failed", pool_id: pool.pool_id, error: { code: "delivery_uncertain", message: String(error) } }))
+    if (!started) awaitingAck.delete(key)
   }
   let checkPolicy = (agent: WorkpoolAgent, _parent: string): void => {
     if (agent.subagent_type === undefined) return
@@ -115,12 +122,19 @@ export function createWorkpoolEngine(stateDir: string, admission: WorkpoolAdmiss
       assertParent(caller)
       for (const pool of store.list()) if (pool.parent_session_id === caller.sessionId) {
         dispatcher.attach(pool.pool_id)
+        const key = `${pool.pool_id}:${pool.generation}`
+        if (pool.aggregate?.accepted === true && pool.aggregate.delivered !== true && pool.aggregate.generation === pool.generation && !awaitingAck.has(key)) {
+          persistAggregate(pool.pool_id, pool.generation, { delivered: false, accepted: false })
+        }
         flushAggregate(pool.pool_id)
       }
     },
     bindAggregate: (port: WorkpoolAggregatePort) => { aggregatePort = port; for (const pool of store.list()) flushAggregate(pool.pool_id) },
-    noteAggregateFailure: (poolId: PoolId, generation: number) => persistAggregate(poolId, generation, false),
-    dispose: () => { dispatcher.stopScheduling(); listeners.clear(); inflight.clear() },
+    noteAggregateFailure: (poolId: PoolId, generation: number) => {
+      awaitingAck.delete(`${poolId}:${generation}`)
+      persistAggregate(poolId, generation, { delivered: false, accepted: false })
+    },
+    dispose: () => { dispatcher.stopScheduling(); listeners.clear(); awaitingAck.clear() },
   }
 }
 export type WorkpoolEngine = ReturnType<typeof createWorkpoolEngine>

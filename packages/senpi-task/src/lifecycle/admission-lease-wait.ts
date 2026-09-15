@@ -12,14 +12,14 @@ export function waitForAdmissionLease(
   return new Promise((resolve, reject) => {
     const listeners = waiters.get(path) ?? new Set<() => void>()
     waiters.set(path, listeners)
-    let timer: ReturnType<typeof setTimeout>
+    let timer: ReturnType<typeof setTimeout> | undefined
     const cleanup = (): void => {
-      clearTimeout(timer)
+      if (timer !== undefined) clearTimeout(timer)
       listeners.delete(retry)
       if (listeners.size === 0) waiters.delete(path)
     }
     const retry = (): void => {
-      clearTimeout(timer)
+      if (timer !== undefined) clearTimeout(timer)
       try {
         const result = attempt()
         if (result === undefined) {
@@ -34,7 +34,7 @@ export function waitForAdmissionLease(
       }
     }
     listeners.add(retry)
-    timer = setTimeout(retry, retryMs)
+    retry()
   })
 }
 

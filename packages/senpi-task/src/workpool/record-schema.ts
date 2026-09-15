@@ -27,8 +27,8 @@ export const WorkpoolRecordSchema = z.strictObject({
       execution_mode: z.enum(["in-process", "process"]), allowed_subagents: z.array(nonempty).optional(),
     }),
   }),
-  status: z.enum(["open", "closing", "completed", "cancelled"]),
-  aggregate: z.strictObject({ generation: z.number().int().positive(), delivered: z.boolean() }).optional(),
+  status: z.enum(["open", "closing", "cancelled"]),
+  aggregate: z.strictObject({ generation: z.number().int().positive(), delivered: z.boolean(), accepted: z.boolean().optional() }).optional(),
   items: z.array(z.strictObject({
     key: nonempty, input: z.json(), item_id: z.templateLiteral(["wi_", z.string()]).refine(id => /^wi_[0-9a-f]{32}$/.test(id)),
     status: z.enum(["queued", "assigned", "completed", "error", "cancelled"]),

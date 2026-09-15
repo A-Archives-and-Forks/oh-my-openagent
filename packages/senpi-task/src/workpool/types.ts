@@ -57,14 +57,14 @@ export type WorkpoolRecord = {
   readonly mode: WorkpoolMode
   readonly agent: WorkpoolAgent
   readonly worker_spec: WorkpoolSpec
-  readonly status: "open" | "closing" | "completed" | "cancelled"
+  readonly status: "open" | "closing" | "cancelled"
   readonly items: readonly WorkpoolItem[]
   readonly workers: readonly WorkpoolWorker[]
-  readonly aggregate?: { readonly generation: number; readonly delivered: boolean }
+  readonly aggregate?: { readonly generation: number; readonly delivered: boolean; readonly accepted?: boolean }
 }
 export type WorkpoolEvent = {
   readonly pool_id: PoolId
-  readonly kind: "queued" | "waiting" | "granted" | "dispatched" | "admission_failed" | "cancelled" | "worker_idle" | "item_result"
+  readonly kind: "queued" | "waiting" | "granted" | "dispatched" | "admission_failed" | "cancelled" | "worker_idle" | "item_result" | "aggregate_failed"
   readonly item_id?: ItemId
   readonly task_id?: string
   readonly run_epoch?: number
