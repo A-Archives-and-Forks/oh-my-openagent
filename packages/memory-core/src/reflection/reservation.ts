@@ -19,23 +19,17 @@ import {
   type TriggerConfig,
 } from "./machine"
 import {
-  applyReflectionParkFailure,
-  clearReflectionPark,
-  emptyReflectionParkState,
   gateReflectionRequest,
   isAutomaticReflectionRequest,
-  isReflectionParked,
   markReflectionProbe,
-  parseReflectionParkState,
   type ReflectionFailureSignal,
   type ReflectionParkState,
 } from "./park"
+import { PARK_FILENAME, ReflectionParkFile, type ReflectionParkTransition } from "./park-file"
 import {
   currentLauncherIdentity,
-  readJsonOptional,
   readRun,
   sweepReservationTemporaries,
-  unlinkIfPresent,
   writeJsonAtomic,
   writeOptionalRun,
   type ReflectionLauncherIdentity,
@@ -64,31 +58,18 @@ export interface ReflectionCompletionOptions extends ReflectionReservationLockOp
   readonly failure?: ReflectionFailureSignal
 }
 
-export interface ReflectionParkTransition {
-  readonly state: ReflectionParkState
-  readonly parked: boolean
-  readonly justParked: boolean
-}
-
 export interface CompletionResult {
   readonly outcome: ReflectionOutcome
   readonly launch?: ReservedRun
   readonly park: ReflectionParkTransition
 }
 
-const RESERVATION_FILES = ["active.lock", "pending.json", "park.json"] as const
-const PARK_FILENAME = "park.json"
-
-/** Lock-free read for status surfaces; the scheduler writes the file atomically, so a reader sees one whole state. */
-export async function readReflectionParkFile(reflectionDir: string): Promise<ReflectionParkState> {
-  const parsed = await readJsonOptional(join(reflectionDir, PARK_FILENAME))
-  return parsed === null ? emptyReflectionParkState() : parseReflectionParkState(parsed)
-}
+const RESERVATION_FILES = ["active.lock", "pending.json", PARK_FILENAME] as const
 
 export class ReflectionReservationStore {
   private readonly activePath: string
   private readonly pendingPath: string
-  private readonly parkPath: string
+  private readonly parkFile: ReflectionParkFile
   private readonly schedulerLockPath: string
   private readonly createRunId: () => string | Promise<string>
   private readonly now: () => Date
@@ -97,10 +78,10 @@ export class ReflectionReservationStore {
   constructor(private readonly options: ReflectionReservationStoreOptions) {
     this.activePath = join(options.identity.paths.reflection, "active.lock")
     this.pendingPath = join(options.identity.paths.reflection, "pending.json")
-    this.parkPath = join(options.identity.paths.reflection, PARK_FILENAME)
     this.schedulerLockPath = reflectionSchedulerLockPath(options.identity.paths.locks)
     this.createRunId = options.createRunId ?? randomUUID
     this.now = options.now ?? (() => new Date())
+    this.parkFile = new ReflectionParkFile(options.identity.paths.reflection, this.now)
     this.launcherIdentity = options.launcherIdentity ?? currentLauncherIdentity
   }
 
@@ -123,8 +104,9 @@ export class ReflectionReservationStore {
     if (evaluated.action.kind === "none") return null
 
     // A parked identity is refused before any snapshot is captured; tryReserve re-checks under the lock.
-    const gate = gateReflectionRequest(await this.readParkUnlocked(), evaluated.action.request, this.now().toISOString())
-    if (gate.kind === "parked") return { status: "parked", park: await this.readParkUnlocked(), nextProbeAt: gate.nextProbeAt }
+    const park = await this.parkFile.read()
+    const gate = gateReflectionRequest(park, evaluated.action.request, this.now().toISOString())
+    if (gate.kind === "parked") return { status: "parked", park, nextProbeAt: gate.nextProbeAt }
 
     const snapshots: CapturedConversation[] = []
     for (const id of evaluated.action.request.conversationIds) {
@@ -140,7 +122,7 @@ export class ReflectionReservationStore {
     return this.locked(undefined, async () => {
       signal?.throwIfAborted()
       const now = this.now().toISOString()
-      const park = await this.readParkUnlocked()
+      const park = await this.parkFile.read()
       const gate = gateReflectionRequest(park, request, now)
       if (gate.kind === "parked") return { status: "parked", park, nextProbeAt: gate.nextProbeAt }
       const runId = await this.createRunId()
@@ -152,7 +134,7 @@ export class ReflectionReservationStore {
         ? { ...transition.state, active: await this.withLaunchOwner(transition.state.active) }
         : transition.state
       signal?.throwIfAborted()
-      if (gate.kind === "probe" && transition.result === "active") await this.writeParkUnlocked(markReflectionProbe(park, now))
+      if (gate.kind === "probe" && transition.result === "active") await this.parkFile.write(markReflectionProbe(park, now))
       await this.writeStateUnlocked(state)
       const run = transition.result === "active" ? state.active : state.pending
       if (!run) throw new Error("Reservation transition did not produce a run")
@@ -208,7 +190,7 @@ export class ReflectionReservationStore {
           lastRunId: runId,
         })
       }
-      const park = await this.transitionPark(current.active, runId, outcome, options?.failure)
+      const park = await this.parkFile.transition(current.active, runId, outcome, options?.failure)
       const launch = park.parked && transition.launch !== undefined && isAutomaticReflectionRequest(transition.launch.request)
         ? undefined
         : transition.launch
@@ -228,31 +210,7 @@ export class ReflectionReservationStore {
   }
 
   async readPark(lockOptions?: ReflectionReservationLockOptions): Promise<ReflectionParkState> {
-    return this.locked(undefined, () => this.readParkUnlocked(), undefined, lockOptions)
-  }
-
-  private async transitionPark(
-    active: ReservedRun | undefined,
-    runId: string,
-    outcome: ReflectionOutcome,
-    failure: ReflectionFailureSignal | undefined,
-  ): Promise<ReflectionParkTransition> {
-    const before = await this.readParkUnlocked()
-    if (outcome === "merged" || outcome === "no_changes") {
-      const cleared = clearReflectionPark()
-      if (isReflectionParked(before) || before.streak > 0) await this.writeParkUnlocked(cleared)
-      return { state: cleared, parked: false, justParked: false }
-    }
-    if (active === undefined || !isAutomaticReflectionRequest(active.request)) {
-      return { state: before, parked: isReflectionParked(before), justParked: false }
-    }
-    const after = applyReflectionParkFailure(before, {
-      runId,
-      at: this.now().toISOString(),
-      ...(failure ?? { fingerprint: `${outcome}:`, retryable: true }),
-    })
-    await this.writeParkUnlocked(after)
-    return { state: after, parked: isReflectionParked(after), justParked: isReflectionParked(after) && !isReflectionParked(before) }
+    return this.locked(undefined, () => this.parkFile.read(), undefined, lockOptions)
   }
 
   private async withLaunchOwner(run: ReservedRun | undefined): Promise<ReservedRun | undefined> {
@@ -299,17 +257,5 @@ export class ReflectionReservationStore {
     await mkdir(this.options.identity.paths.reflection, { recursive: true, mode: 0o700 })
     await writeOptionalRun(this.activePath, state.active)
     await writeOptionalRun(this.pendingPath, state.pending)
-  }
-
-  private async readParkUnlocked(): Promise<ReflectionParkState> {
-    return readReflectionParkFile(this.options.identity.paths.reflection)
-  }
-
-  private async writeParkUnlocked(state: ReflectionParkState): Promise<void> {
-    if (!isReflectionParked(state) && state.streak === 0) {
-      await unlinkIfPresent(this.parkPath)
-      return
-    }
-    await writeJsonAtomic(this.parkPath, state)
   }
 }

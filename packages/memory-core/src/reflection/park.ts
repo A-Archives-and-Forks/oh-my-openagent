@@ -93,11 +93,20 @@ export function markReflectionProbe(state: ReflectionParkState, now: string): Re
   return { ...state, lastProbeAt: now }
 }
 
+/** A persisted park.json that this version cannot read: truncated, foreign, or hand-edited. */
+export class ReflectionParkStateError extends Error {
+  override readonly name = "ReflectionParkStateError"
+}
+
+export function isUnreadableReflectionParkState(error: unknown): boolean {
+  return error instanceof ReflectionParkStateError || error instanceof SyntaxError
+}
+
 export function parseReflectionParkState(value: unknown): ReflectionParkState {
-  if (!isRecord(value) || value.version !== 1) throw new Error("Invalid reflection park state")
+  if (!isRecord(value) || value.version !== 1) throw new ReflectionParkStateError("Invalid reflection park state")
   const streak = value.streak
   if (typeof streak !== "number" || !Number.isInteger(streak) || streak < 0) {
-    throw new Error("Invalid reflection park streak")
+    throw new ReflectionParkStateError("Invalid reflection park streak")
   }
   const firstFailureAt = optionalTimestamp(value.firstFailureAt, "firstFailureAt")
   const parkedAt = optionalTimestamp(value.parkedAt, "parkedAt")
@@ -114,15 +123,15 @@ export function parseReflectionParkState(value: unknown): ReflectionParkState {
 }
 
 function parseParkFailure(value: unknown): ReflectionParkFailure {
-  if (!isRecord(value)) throw new Error("Invalid reflection park failure")
+  if (!isRecord(value)) throw new ReflectionParkStateError("Invalid reflection park failure")
   const { runId, at, fingerprint, retryable, reason, detail } = value
   if (typeof runId !== "string" || typeof fingerprint !== "string" || typeof retryable !== "boolean") {
-    throw new Error("Invalid reflection park failure")
+    throw new ReflectionParkStateError("Invalid reflection park failure")
   }
   const timestamp = optionalTimestamp(at, "at")
-  if (timestamp === undefined) throw new Error("Invalid reflection park failure timestamp")
-  if (reason !== undefined && typeof reason !== "string") throw new Error("Invalid reflection park failure reason")
-  if (detail !== undefined && typeof detail !== "string") throw new Error("Invalid reflection park failure detail")
+  if (timestamp === undefined) throw new ReflectionParkStateError("Invalid reflection park failure timestamp")
+  if (reason !== undefined && typeof reason !== "string") throw new ReflectionParkStateError("Invalid reflection park failure reason")
+  if (detail !== undefined && typeof detail !== "string") throw new ReflectionParkStateError("Invalid reflection park failure detail")
   return {
     runId,
     at: timestamp,
@@ -136,7 +145,7 @@ function parseParkFailure(value: unknown): ReflectionParkFailure {
 function optionalTimestamp(value: unknown, field: string): string | undefined {
   if (value === undefined) return undefined
   if (typeof value !== "string" || Number.isNaN(Date.parse(value))) {
-    throw new Error(`Invalid reflection park ${field}`)
+    throw new ReflectionParkStateError(`Invalid reflection park ${field}`)
   }
   return value
 }

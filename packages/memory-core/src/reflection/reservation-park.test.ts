@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "bun:test"
 import { existsSync, realpathSync } from "node:fs"
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 
 import { buildIdentityPaths, type MemoryIdentity } from "../identity"
 import { TranscriptJournal } from "../journal"
@@ -197,5 +197,29 @@ describe("reflection reservation park", () => {
     // then
     expect(completion.launch).toBeUndefined()
     expect(await item.store.readState()).toEqual({})
+  })
+
+  it.each([
+    ["truncated json", "{not json"],
+    ["an unsupported shape", JSON.stringify({ version: 2, streak: "many" })],
+  ])("#given %s in park.json #when manual and automatic reflections are requested #then both reserve and the next automatic failure rewrites the file", async (_label, corrupt) => {
+    // given
+    const item = await fixture()
+    await mkdir(dirname(item.parkPath), { recursive: true })
+    await writeFile(item.parkPath, corrupt)
+
+    // when
+    const manual = await item.store.tryReserve({ trigger: "manual", conversationIds: ["conversation-a"], snapshots: [] })
+    expect(manual.status).toBe("active")
+    if (manual.status !== "active") throw new Error("unreachable")
+    await item.store.complete(manual.run.runId, "failed", { failure: deterministic })
+    item.advance(60_000)
+    const automatic = await item.store.tryReserve(await automaticRequest(item.journal))
+    expect(automatic.status).toBe("active")
+    if (automatic.status !== "active") throw new Error("unreachable")
+    await item.store.complete(automatic.run.runId, "failed", { failure: deterministic })
+
+    // then
+    expect(await item.store.readPark()).toMatchObject({ version: 1, streak: 1 })
   })
 })

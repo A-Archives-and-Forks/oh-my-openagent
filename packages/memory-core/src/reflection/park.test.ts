@@ -170,6 +170,14 @@ describe("reflection park gate", () => {
   })
 })
 
+describe("reflection park thresholds", () => {
+  test("#given the shipped policy #when the constants are read #then they match the 3 / 6 / 6 h contract", () => {
+    expect(REFLECTION_PARK_NON_RETRYABLE_STREAK).toBe(3)
+    expect(REFLECTION_PARK_RETRYABLE_STREAK).toBe(6)
+    expect(REFLECTION_PARK_PROBE_INTERVAL_MS).toBe(6 * 60 * 60_000)
+  })
+})
+
 describe("reflection park state parsing", () => {
   test("#given a well-formed persisted state #when parsed #then it round-trips", () => {
     // given
