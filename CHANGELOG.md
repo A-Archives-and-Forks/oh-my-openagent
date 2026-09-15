@@ -19,7 +19,7 @@ or written playwright-core scripts against local Chrome; these script paths
 are not new provider enum values. The retained provider choices are
 `playwright`, `dev-browser`, and `playwright-cli`.
 
-### Engine: senpi 2026.9.15 (adopting 2026.9.13-2 as well)
+### Engine: senpi 2026.9.15-2 (adopting 2026.9.13-2 and 2026.9.15 as well)
 
 **Concurrent questions queue instead of overwriting each other.** Two async questions used to race, and the second one replaced the first. They now sit in a queue: the widget shows `+N more`, `alt+down` cycles through them from an empty composer, and each request keeps its own draft and its own idle deadline. Answering got faster too — a digit on an empty composer answers the shown question, a single-select single question submits on that digit, `/answer` lists or opens a specific request, and typed text binds to one request with a `↳ reply to <header>` label. An answered, commented, dismissed or timed-out question collapses to a `↳ <header>: <answer>` chip you can click to expand.
 
@@ -49,6 +49,20 @@ are not new provider enum values. The retained provider choices are
 
 **Publishing stages what the lockfile says.** The packed tarball now mirrors `publish-deps.lock.json` whatever the developer's package manager did to `node_modules`: nested manifest entries are staged at their manifest path from a version-matched copy, npm's workspace-local placements keep the top-level slot, and packages the manifest no longer lists are pruned. A tarball staged from a bun-hoisted install used to ship `htmlparser2@10` next to a stale `entities@8`, and compiling the engine failed on `No matching export ... for import "fromCodePoint"`.
 
+**Closing an RPC session is ordered now.** `close_session` acknowledgements and `session_closed` events, including worker-failure terminals, go out only after the session registry has dropped the entry, so a `list_sessions` issued right after never returns the closed session. Filesystem watchers are cancelled together with shutdown, every disposer is joined before the process exits, a reentrant shutdown shares that join and keeps its failure exit code, and nonpersistent RPC probes never start watchers.
+
+**The RPC host watchdog stopped spawning `ps`.** Its ppid fallback ran `ps -o lstart=` every 250 ms while the supervisor was alive, and long-lived shared hosts piled up thousands of `ps` children, zombies on runtimes that fail to reap them. A dead supervisor is reaped by its own parent and the host is reparented, so the free `kill(pid, 0)` plus a ppid comparison sees the loss with no child process at all.
+
+**Paused monitors cost nothing.** A paused file watch clears its 250 ms poll timer outright, with no stat or SHA-256 digest work, and resume runs one immediate check so a change made during the pause still fires. Session-output line buffers cap at 64 KiB, so a stream without newlines can no longer grow a monitor's retained tail without bound.
+
+**Eval cells stop hoarding memory in long sessions.** Settled detached cells leave the live registry for a 32-entry snapshot store, where `peek`, `stop` and waiting for a terminal state still work for recent cells; the JS kernel's unconsumed tool-call queue is capped at 256 and cleared on interrupt, reset, close and crash, as the subprocess kernel already did; and per-cell display buffers cap at 8 images, 24 MB and 64 JSON outputs with an elision note. Detached and completed eval cards render static with a frozen elapsed time instead of repainting at 1 Hz forever, and a live ticker whose row stopped rendering stops itself after 60 idle ticks and rearms on the next render, so transcript rebuilds and session switches no longer pile up intervals.
+
+**Standalone binaries ship codemode once.** The compiled binary loads codemode from the staged on-disk package instead of a second embedded copy; the sidecar carries its JS parser dependency and keeps the bun-1-4 skill.
+
+**Multi-day sessions stopped freezing on the status ticker.** Deciding the working/retry animation cadence used to re-parse the whole session file every tick, which periodically froze the UI on long, compaction-trimmed sessions; it now reads an O(1) entry count that `SessionManager` maintains as entries land.
+
+**Cursor CLI OAuth no longer probes on every start.** The startup `cursor-agent models` probe runs only when the lane is usable (not disabled, `cursor-agent` installed, an account bound) and inside that account's HOME, and every `cursor-agent` spawn gets the same explicit environment allowlist instead of the inherited `process.env`. A hermetic or SSH-launched session therefore never trips the CLI's macOS keychain preflight, which used to surface as a blocking "Keychain Not Found" dialog on the console.
+
 ### OmO
 
 **omo.dev is rebuilt for people who do not already know what an agent harness is.** The site carries the OmO brand, one install path, the 2026-09-14 manifesto in English and Korean, and a landing page that shows the Kibitzer loop and the main loop running side by side on a research-to-deck scenario. Open Graph cards render from the Figma brand file with the live GitHub star count. Download stats are all-or-nothing now and count `omo-ai`, so a partial registry response no longer publishes a number that is quietly too low. Lark joins the messaging platforms, the ones that are not shipped yet say so, and the Korean copy breaks its lines where a Korean reader would.
@@ -71,7 +85,7 @@ are not new provider enum values. The retained provider choices are
 
 **Plan consultants run on Fable 5.1 max.** The plan-consultant chain is headed by Fable 5.1 max with a guarded model-core mirror, qwen3.7-plus joins as a utility rung, and every builtin OpenAI rung routes through `openai-codex`.
 
-**Windows and RPC hardening.** The omo-senpi adapter's Windows compatibility races are gone, the native RPC surface rejects incomplete patch targets and malformed stream events instead of acting on them, and the css-tree sidecar trio is embedded only when the engine actually ships it.
+**Windows and RPC hardening.** The omo-senpi adapter's Windows compatibility races are gone, the native RPC surface rejects incomplete patch targets and malformed stream events instead of acting on them, the postinstall guard that installs that serializer accepts the engine's new `createRpcShutdown` entry (the previous guard refused any senpi built after 2026.9.15), and the css-tree sidecar trio is embedded only when the engine actually ships it.
 
 **Quieter startup.** omo-senpi declares itself a system package, so its skills and extensions leave the compact startup banner and appear only in the expanded view. Memory-repo skills pin to the user scope on engines that accept scoped entries.
 
