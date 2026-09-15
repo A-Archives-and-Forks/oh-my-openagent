@@ -176,10 +176,11 @@ export function terminateSupervisorChildHard(
  * The supervisor writes the start identities the parent later compares against its own reading,
  * so both sides must go through the one memory-core reader: a supervisor-local `ps -o lstart`
  * scheme against the parent's libproc scheme made every live run look reused (#8304).
+ * Win32 used to return null because the PowerShell probe was too slow to trust; kernel32
+ * GetProcessTimes now answers in-process (#8294), so every platform uses the same reader.
+ * A dead pid still returns null from memory-core and classifies as dead; an unreadable
+ * identity still classifies as unknown.
  */
 export async function getSupervisorProcessStart(pid: number): Promise<string | null> {
-  // win32 keeps its documented null identity so an abruptly dead supervisor still reconciles
-  // through the non-destructive UNKNOWN path instead of a tree kill.
-  if (process.platform === "win32") return null
   return await getProcessStartIdentity(pid)
 }
