@@ -34,7 +34,7 @@ export function createWorkpoolEngine(stateDir: string, admission: WorkpoolAdmiss
     const started = deliverAggregate(pool, aggregatePort, state => {
       persistAggregate(pool.pool_id, pool.generation, state)
       if (state.delivered || !state.accepted) awaitingAck.delete(key)
-    }, error => emit({ kind: "aggregate_failed", pool_id: pool.pool_id, error: { code: "delivery_uncertain", message: String(error) } }))
+    }, error => emit({ kind: "aggregate_failed", pool_id: pool.pool_id, error: { code: "delivery_uncertain", message: error instanceof Error ? error.message : String(error) } }))
     if (!started) awaitingAck.delete(key)
   }
   let checkPolicy = (agent: WorkpoolAgent, _parent: string): void => {

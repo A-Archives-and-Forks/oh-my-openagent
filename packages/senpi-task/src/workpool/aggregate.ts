@@ -47,7 +47,7 @@ export function deliverAggregate(
     return true
   } catch (error) {
     persist({ delivered: false, accepted: false })
-    onFailure?.(error)
+    onFailure?.(error instanceof Error ? error : new Error(String(error)))
     return false
   }
 }

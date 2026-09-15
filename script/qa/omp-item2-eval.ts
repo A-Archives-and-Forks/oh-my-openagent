@@ -48,10 +48,29 @@ function openEnv(lanes = 1) {
   return { root, store, manager, lifecycle, concurrency, starts, caller, ctx, execute }
 }
 
-function evalCell(host: { execute: (...args: never[]) => unknown }, ctx: { cwd: string; sessionManager: { getSessionId: () => string } }, code: string) {
+type EvalContext = { cwd: string; sessionManager: { getSessionId: () => string } }
+type WorkpoolToolExecute = (
+  id: string,
+  params: Record<string, unknown>,
+  signal: AbortSignal,
+  update: () => void,
+  context: EvalContext,
+) => unknown
+function isWorkpoolToolExecute(value: unknown): value is WorkpoolToolExecute {
+  return typeof value === "function"
+}
+function isWorkpoolAggregateMessage(value: unknown): value is WorkpoolAggregateMessage {
+  if (typeof value !== "object" || value === null) return false
+  if (!("pool_id" in value) || !("generation" in value) || !("results" in value)) return false
+  return typeof value.pool_id === "string" && typeof value.generation === "number" && Array.isArray(value.results)
+}
+
+function evalCell(host: { execute: unknown }, ctx: EvalContext, code: string) {
+  if (!isWorkpoolToolExecute(host.execute)) throw new Error("workpool execute is not a function")
+  const execute = host.execute
   const sandbox = {
     tool: {
-      workpool: (args: Record<string, unknown>) => (host.execute as (id: string, params: Record<string, unknown>, signal: AbortSignal, update: () => void, context: typeof ctx) => unknown)("eval", args, AbortSignal.timeout(5000), () => undefined, ctx),
+      workpool: (args: Record<string, unknown>) => execute("eval", args, AbortSignal.timeout(5000), () => undefined, ctx),
     },
   }
   createContext(sandbox)
@@ -66,7 +85,7 @@ export async function runEvalAggregate(out: string) {
   const coordinator = new IdleInjectionCoordinator((message, options) => {
     pi.sendMessage(message, { triggerTurn: true, deliverAs: options.deliverAs })
     for (const entry of Array.isArray(message.details) ? message.details : []) {
-      if (entry.customType === "senpi-task.workpool-aggregate") delivered.resolve(entry.details as WorkpoolAggregateMessage)
+      if (entry.customType === "senpi-task.workpool-aggregate" && isWorkpoolAggregateMessage(entry.details)) delivered.resolve(entry.details)
     }
   })
   const tool = createWorkpoolTool({ manager: env.manager, workpools: env.manager.workpools, omoConfig: {}, agents: {} })

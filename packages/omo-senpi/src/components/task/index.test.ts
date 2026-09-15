@@ -211,9 +211,11 @@ describe("omo-senpi task component wiring", () => {
     ])
     // exactly the task event handlers (session lifecycle + transition-buffer edges), the
     // skill-invocation tracker subscriptions feeding the plan-gated agent gate, plus the
-    // unconditional T16 hygiene sweep handler, which registers its own session_start listener
+    // unconditional T16 hygiene sweep handler, which registers its own session_start listener,
+    // plus the workpool aggregate attach-recovery listener (registerWorkpoolTool session_start
+    // → workpools.attach, which rolls back accepted-without-ack and flushes on boot)
     expect(pi.handlers.map((handler) => handler.event).sort()).toEqual(
-      [...TASK_EVENTS, ...SKILL_INVOCATION_TRACKER_EVENTS, ...DAG_LIFECYCLE_EVENTS, "session_start", "session_shutdown"].sort(),
+      [...TASK_EVENTS, ...SKILL_INVOCATION_TRACKER_EVENTS, ...DAG_LIFECYCLE_EVENTS, "session_start", "session_shutdown", "session_start"].sort(),
     )
   })
 

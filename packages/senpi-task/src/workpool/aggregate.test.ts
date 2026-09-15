@@ -71,7 +71,7 @@ test("#given notifier throw #when close is empty #then aggregate stays pending, 
   const pool = f.manager.workpools.create(f.caller, poolInput)
   f.manager.workpools.close(f.caller, pool.pool_id)
   expect(f.manager.workpools.inspect(f.caller, pool.pool_id).aggregate?.delivered).not.toBe(true)
-  expect(failures).toEqual(["Error: notifier down"])
+  expect(failures).toEqual(["notifier down"])
   const messages: WorkpoolAggregateMessage[] = []
   f.manager.workpools.bindAggregate(acking(messages))
   expect(messages).toEqual([{ pool_id: pool.pool_id, generation: 1, results: [] }])
@@ -90,7 +90,7 @@ test("#given cancel of unstarted items #when a lane is held #then waiters are re
   expect(f.starts).toHaveLength(0)
 })
 
-test("#given an accepted-then-lost aggregate #when attach runs on a fresh engine #then noteAggregateFailure recovers it once and a delivered aggregate is not duplicated", () => {
+test("#given an accepted-then-lost aggregate #when attach runs on a fresh engine #then the aggregate is redelivered exactly once", () => {
   const lost: WorkpoolAggregateMessage[] = []
   const f = fixture()
   f.manager.workpools.bindAggregate(hanging(lost))
@@ -103,14 +103,31 @@ test("#given an accepted-then-lost aggregate #when attach runs on a fresh engine
   const restarted = reopen(f.root)
   try {
     restarted.manager.workpools.bindAggregate(acking(recovered))
-    restarted.manager.workpools.noteAggregateFailure(pool.pool_id, 1)
     restarted.manager.workpools.attach(f.caller)
     expect(recovered).toEqual(lost)
     restarted.manager.workpools.attach(f.caller)
     expect(recovered).toHaveLength(1)
     expect(restarted.manager.workpools.inspect(f.caller, pool.pool_id).aggregate).toEqual({ generation: 1, delivered: true })
   } finally { restarted.manager.workpools.dispose(); restarted.lifecycle.dispose?.() }
+})
 
+test("#given an accepted aggregate in the same process #when noteAggregateFailure runs #then accepted clears and a later bind redelivers once", () => {
+  const lost: WorkpoolAggregateMessage[] = []
+  const f = fixture()
+  f.manager.workpools.bindAggregate(hanging(lost))
+  const pool = f.manager.workpools.create(f.caller, poolInput)
+  f.manager.workpools.close(f.caller, pool.pool_id)
+  expect(f.manager.workpools.inspect(f.caller, pool.pool_id).aggregate).toEqual({ generation: 1, delivered: false, accepted: true })
+  f.manager.workpools.noteAggregateFailure(pool.pool_id, 1)
+  expect(f.manager.workpools.inspect(f.caller, pool.pool_id).aggregate).toEqual({ generation: 1, delivered: false })
+  const recovered: WorkpoolAggregateMessage[] = []
+  f.manager.workpools.bindAggregate(acking(recovered))
+  expect(recovered).toEqual(lost)
+  f.manager.workpools.bindAggregate(acking(recovered))
+  expect(recovered).toHaveLength(1)
+})
+
+test("#given a delivered aggregate #when attach runs on a fresh engine #then it is not duplicated", () => {
   const delivered: WorkpoolAggregateMessage[] = []
   const g = fixture()
   g.manager.workpools.bindAggregate(acking(delivered))
