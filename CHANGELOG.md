@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Engine: senpi 2026.9.16-3
+
+**`omo --help` answers in tens of milliseconds instead of booting the engine.** A help screen used to build the whole runtime before it could print one line: migrations, settings, the model runtime with its catalog and availability scan, every extension plus skills, prompt templates, themes and context files, and a session. One Windows user measured 47.8 seconds for it ([#8371](https://github.com/code-yeongyu/oh-my-openagent/issues/8371)); on an Apple M4 Pro the same boot took 790 ms warm and 9 to 16 seconds with a cold cache. senpi 2026.9.16-3 ([senpi#1758](https://github.com/code-yeongyu/senpi/pull/1758)) answers `--help` from a cache of the last launch's extension flags before the engine is even imported, so the same help costs 28 ms on bun and 59 ms on node once any launch has run. The cache is checked against the engine version and against the modification time and size of every extension, settings and trust input, so an upgrade, an edited extension or a changed setting refreshes it, and a miss loads extensions for their flags only with no model runtime and no session. A help screen never prompts for project trust and never runs project-local extension code you have not already trusted.
+
+**The startup spinner appears before the work it covers.** Its first frame waited on a 120 ms timer that the synchronous extension imports starved, so on a real terminal it showed up after the whole load, about 2.3 seconds in, one frame before the TUI replaced it. The first frame is now written the moment interactive startup begins, and the "extensions & models" phase is visible while extensions load.
+
 ## [5.0.0-beta.66] - 2026-09-16
 
 ### Engine: senpi 2026.9.16-2
