@@ -7,13 +7,28 @@ import {
   type ToolkitUnknownRequest,
   type ToolkitFailure,
   type ToolkitResponseFor,
+  type ToolkitResultFor,
+  type ToolkitSuccess,
 } from "../../../../../omo-codex/plugin/components/ulw-loop/src/sdk.js"
 import { UlwLoopError } from "../../../../../omo-codex/plugin/components/ulw-loop/src/runtime.js"
 import { readDriverGoalJson } from "./driver-goal"
 import { toolkitContextFromEnv, type SessionToolkitContext } from "./session-binding"
 
+export interface SessionHelpUsage {
+  readonly import: string
+  readonly example: string
+  readonly sessionEnv: readonly string[]
+}
+export type SessionHelpResult = ToolkitResultFor<"help"> & { readonly usage: SessionHelpUsage }
+export type SessionHelpResponse = ToolkitSuccess<"help", SessionHelpResult> | ToolkitFailure<"help">
+export const SESSION_HELP_USAGE: SessionHelpUsage = {
+  import: 'const { agentToolkit } = await import(`${env("OMO_AGENT_TOOLKIT_SDK_ROOT")}/sdk.js`)',
+  example: 'print(await agentToolkit.status()); await agentToolkit.recordEvidence({ goalId: "G001", criterionId: "C001", status: "pass", evidence: "<observable proof>", artifacts: ["<existing path>"] })',
+  sessionEnv: ["PI_SESSION_ID", "PI_SESSION_CWD", "PI_SESSION_FILE", "PI_GOAL_STORE_FILE"],
+}
 export type SessionRecordReviewBlockersArgs = Omit<RecordReviewBlockersArgs, "codexGoalJson"> & { readonly codexGoalJson?: string }
-export type SessionAgentToolkit = Omit<AgentToolkit, "recordReviewBlockers"> & {
+export type SessionAgentToolkit = Omit<AgentToolkit, "recordReviewBlockers" | "help"> & {
+  readonly help: () => Promise<SessionHelpResponse>
   readonly recordReviewBlockers: (args: SessionRecordReviewBlockersArgs) => Promise<ToolkitResponseFor<"record-review-blockers">>
 }
 
@@ -60,7 +75,10 @@ function isKnownRequest(request: ToolkitDispatchRequest | ToolkitUnknownRequest)
 }
 
 export const agentToolkit: SessionAgentToolkit = {
-  help: () => invoke("help", toolkit => toolkit.help()),
+  help: () => invoke("help", async (toolkit): Promise<SessionHelpResponse> => {
+    const response = await toolkit.help()
+    return response.ok ? { ...response, result: { ...response.result, usage: SESSION_HELP_USAGE } } : response
+  }),
   status: () => invoke("status", toolkit => toolkit.status()),
   createGoals: args => invoke("create-goals", toolkit => toolkit.createGoals(args)),
   completeGoals: args => invoke("complete-goals", toolkit => toolkit.completeGoals(args)),
@@ -80,6 +98,7 @@ export const agentToolkit: SessionAgentToolkit = {
   }),
   dispatch: request => {
     if (isKnownRequest(request)) {
+      if (request.operation === "help") return agentToolkit.help()
       if (request.operation === "checkpoint") return agentToolkit.checkpoint(request.args)
       if (request.operation === "record-review-blockers") return agentToolkit.recordReviewBlockers(request.args)
     }

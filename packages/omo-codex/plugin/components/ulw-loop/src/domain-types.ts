@@ -19,6 +19,7 @@ export interface UlwLoopSuccessCriterion {
 	status: UlwLoopCriterionStatus;
 	capturedAt?: string;
 	notes?: string;
+	artifacts?: string[];
 }
 
 export interface UlwLoopItem {
@@ -174,6 +175,7 @@ export interface UlwLoopLedgerEntry {
 	codexGoal?: unknown;
 	evidence?: string;
 	capturedEvidence?: string;
+	artifacts?: string[];
 	qualityGate?: unknown;
 	steering?: UlwLoopSteeringAudit;
 	before?: unknown;

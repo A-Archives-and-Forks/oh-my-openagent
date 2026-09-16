@@ -69,6 +69,8 @@ type StatusResult = {
 	readonly plan: UlwLoopPlan;
 	readonly summary: ReturnType<typeof summarizeUlwLoopPlan>;
 	readonly nextActions: readonly string[];
+	/** Plan-level evidence directory, stable for the whole run (relative to the session cwd). */
+	readonly evidenceRoot: string;
 	readonly currentAttemptDir?: string;
 };
 

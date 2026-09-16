@@ -5,6 +5,7 @@ import {
 	normalizeUlwLoopSessionId,
 	type UlwLoopScope,
 	ulwLoopAttemptEvidenceDir,
+	ulwLoopEvidenceRoot,
 	ulwLoopGoalsRelativePath,
 } from "../paths.js";
 import { addUlwLoopGoal, createUlwLoopPlan, startNextUlwLoop, summarizeUlwLoopPlan } from "../plan-crud.js";
@@ -185,6 +186,7 @@ export function createAgentToolkit(context: ToolkitContext, deps: AgentToolkitDe
 					plan,
 					summary: summarizeUlwLoopPlan(plan),
 					nextActions: statusNextActions(plan, context.surface),
+					evidenceRoot: ulwLoopEvidenceRoot(scope),
 					// Attempt directories are an evidence-layout v2 concept; a v1 plan must not advertise one.
 					...(active === undefined || plan.evidenceLayoutVersion !== 2
 						? {}
@@ -198,8 +200,8 @@ export function createAgentToolkit(context: ToolkitContext, deps: AgentToolkitDe
 					? checkpointTemplate(context.cwd, scope, args.goalId, { surface: context.surface })
 					: checkpointWithValidatedSnapshot(context, scope, args),
 			),
-		steer: (args) => invoke("steer", () => steerUlwLoop(context.cwd, args, scope)),
-		addGoal: (args) => invoke("add-goal", () => addUlwLoopGoal(context.cwd, args, scope)),
+		steer: (args) => invoke("steer", () => steerUlwLoop(context.cwd, args, scope, context.surface)),
+		addGoal: (args) => invoke("add-goal", () => addUlwLoopGoal(context.cwd, args, scope, context.surface)),
 		criteria: (args) =>
 			invoke("criteria", async () => {
 				const plan = await readUlwLoopPlan(context.cwd, scope);

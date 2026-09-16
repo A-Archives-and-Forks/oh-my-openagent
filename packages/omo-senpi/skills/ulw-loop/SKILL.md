@@ -42,15 +42,15 @@ Methods (argument fields are exact):
 
 | Method | Args |
 |---|---|
-| `help()` | none |
-| `status()` | none; `result` carries `plan`, `summary`, `nextActions`, `currentAttemptDir` |
+| `help()` | none; `result.operations[]` carries `method` (the camelCase name to call), `args` (field -> type, `?` = optional), `description`, `mutating` — enough to recover every call below after a kernel restart |
+| `status()` | none; `result` carries `plan`, `summary`, `nextActions`, `evidenceRoot` (stable plan-level artifact dir), `currentAttemptDir` (moves with the active goal) |
 | `createGoals(args)` | `{ brief, codexGoalMode?, force?, validationBatchesJson? }` |
 | `completeGoals(args?)` | `{ retryFailed? }`; acquires the next eligible goal or resumes the in-progress one |
 | `criteria(args)` | `{ goalId }` |
-| `recordEvidence(args)` | `{ goalId, criterionId, status: "pass" \| "fail" \| "blocked", evidence, notes? }` |
+| `recordEvidence(args)` | `{ goalId, criterionId, status: "pass" \| "fail" \| "blocked", evidence, notes?, artifacts? }`; every `artifacts` path must exist (resolved against the session cwd, `ULW_LOOP_EVIDENCE_ARTIFACT_MISSING` otherwise) and is stored on the criterion and the ledger entry, repo-relative when inside the cwd |
 | `checkpoint(args)` | `{ goalId, status: "complete" \| "failed" \| "blocked", evidence, codexGoalJson?, qualityGateJson? }`, or `{ printTemplate: true, goalId? }` for the quality-gate template |
 | `steer(args)` | `{ kind, source: "finding", evidence, rationale, ...kind fields }`; kinds and their fields are in `references/full-workflow.md` |
-| `addGoal(args)` | `{ title, objective }` |
+| `addGoal(args)` | `{ title, objective, successCriteria? }` with `successCriteria: [{ scenario, expectedEvidence, userModel?, essential? }]`; omit it and the three seeded placeholders name the exact `steer({ kind: "revise_criterion", ... })` call that replaces each one |
 | `recordReviewBlockers(args)` | `{ goalId, title, objective, evidence, codexGoalJson? }` |
 
 ## Non-Negotiables

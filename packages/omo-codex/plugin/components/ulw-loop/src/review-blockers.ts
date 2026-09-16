@@ -41,12 +41,13 @@ function nextGoalId(plan: UlwLoopPlan): string {
 
 function appendBlockerGoal(plan: UlwLoopPlan, args: RecordFinalReviewBlockersArgs, now: string): UlwLoopItem {
 	const index = plan.goals.length;
+	const id = nextGoalId(plan);
 	const goal: UlwLoopItem = {
-		id: nextGoalId(plan),
+		id,
 		title: args.title,
 		objective: args.objective,
 		status: "pending",
-		successCriteria: seedDefaultSuccessCriteria(index, args.objective),
+		successCriteria: seedDefaultSuccessCriteria(index, args.objective, { goalId: id }),
 		attempt: 0,
 		createdAt: now,
 		updatedAt: now,
