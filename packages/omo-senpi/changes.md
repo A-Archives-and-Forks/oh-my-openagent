@@ -32,6 +32,26 @@ meaning: pending payloads and stored `omo-kibitzer:nudged` entries were admitted
 under the contract of their own day, and replaying them must not retroactively
 drop a nudge that is already on screen (#8355).
 
+## 2026-09-16 — memory_notice reports only messages compacted out of the live context
+
+`<memory_notice>` told every session that N previous messages had left the live context, with N read
+off `sessionManager.getBranch().length`. The branch is the whole path to the leaf, not what the
+compaction dropped, so a fresh session of fifteen entries and zero compactions announced that twelve
+of its own live messages were gone. The count now comes from the branch's latest compaction entry:
+the `message` entries positioned before its `firstKeptEntryId` - or before the compaction entry
+itself when that id is no longer on the branch - are the ones senpi no longer sends. A branch that
+never compacted counts zero, and a zero count prints no line at all.
+
+The notice is now strictly session-volatile. When the compaction count is zero and there is no save
+nudge and no soul update, the `before_agent_start` handler returns its `systemPrompt` with no message
+at all, so an uncompacted session spends no tokens on a notice that has nothing to report.
+
+The reason the old line existed survives where it belongs. That relevant stored memory arrives on its
+own as `<recalled-memory>` blocks and that there is no recall tool to call are standing facts about
+the toolset, not facts about this turn, so they are one sentence at the end of memory-core's compiled
+REMINDER, present in every prompt whether or not anything compacted. Models still learn there is
+nothing to search for, and they learn it from the block that is always there.
+
 ## 2026-09-13 — Project persisted reflection reports into TUI and RPC
 
 Recap projection requires an explicit positive outcome attempt matching the

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-beta.64] - 2026-09-16
+
 ### Engine: senpi 2026.9.16
 
 **Reasoning shows up while the model is still reasoning.** Claude lanes used to sit on a "Working" line for the whole thinking phase and then dump the entire reasoning block at once, because the empty-response recovery wrapper buffered every event until the first visible text or tool call. Seven days of session files say 80% of Claude turns with thinking were held that way, a median of 16 seconds, 37 seconds at p90. The wrapper now starts forwarding at the first meaningful event, so thinking arrives as the model produces it and the assistant message opens as soon as the provider answers. A turn that streams reasoning and then ends with nothing is no longer replayed inside the stream, where a second start would duplicate the message: it ends as a retryable error that keeps what you already saw, and the session's own turn retry re-requests it. Kimi keeps the old buffered path on purpose, since its reasoning channel is where misrouted tool calls land.
@@ -30,6 +32,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Session shutdown no longer waits on the Kibitzer.** The memory extension used to await its sidecar's shutdown and the facts cancellation outside the 1.5-second drain budget, so a slow lease release stalled quit, `/reload`, `/new` and `/resume` and starved the steps queued behind it. Both awaits now race the drain deadline and finish detached, and the wake lease and the sidecar directory lock are still released. Every wake is bounded from admission as well: the 90-second deadline is armed before the child starts, a 300-second total cap holds through steer re-arms, and a stall during child start ends the wake, hands the slot back and disposes the late child.
 
 **Typed task handles.** Background task handles carry a run epoch, so a handle from a previous run cannot be mistaken for the live one.
+
+**`workpool` is a new host tool for keyed, batched fan-out.** `workpool create { name, agent, mode?, tools? }` opens a pool whose workers run a `category` or `subagent_type` with a prompt; `push { pool_id, items: [{ key, input }] }` returns `{ pool_id, item_ids }` at once without waiting for capacity, and scheduling happens one event-loop turn after the durable receipt, so every later wake is event-driven. `inspect` reads the persisted record with each item's status and its data or error, `close` stops intake and lets in-flight items finish, and `cancel` marks queued and assigned items `cancelled` and cancels their workers. Pool ids are `wp_<32 hex>`, item ids `wi_<32 hex>`. Re-pushing a key with byte-identical input is idempotent; a divergent re-push is a `yield_conflict`. A pool worker takes the same admission lease, per-model concurrency slot and spawn-policy checks as a `task` spawn, so nothing in a pool bypasses admission. One acknowledged aggregate result is delivered through the idle-injection path without polling, and it survives a reconnect once.
+
+**Pool workers default to `keep_alive`.** On one real batch, keeping a worker warm between items answered at a p95 of 12 to 13 seconds against 42 to 51 seconds fresh, on about a fifth of the tokens, with identical correctness, so `keep_alive` is the default and `fresh` stays available per pool. A worker that yields after a stale-kernel error produces one keyed error and the single aggregate, never an automatic retry.
+
+**A parent's JavaScript tools are scoped to the child that receives them.** A grant is computed from the child's resolved effective tool set, so a curated read-only agent, a child whose policy is narrower than the parent for any write-capable tool, and process, team and non-JavaScript children are refused with a typed error and no child session. A revived child re-checks the parent kernel's generation and revision on every call: a reset, a same-name redefinition or a new host without the live binding returns `kernel_tool_stale` or `tools_unavailable` on the child's own result channel instead of running a stale closure.
 
 ## [5.0.0-beta.63] - 2026-09-15
 
