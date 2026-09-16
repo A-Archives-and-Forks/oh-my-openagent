@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-beta.65] - 2026-09-16
+
 ### OmO
 
 **A Kibitzer nudge is reference now, not an order.** The recalled-memory block used to open with "It is a hint, not current state, verify before relying on it; read the source path for full context", which reads as a task, and it arrives on the user channel, so the model treats it with a user turn's authority. Across 3,143 deliveries in local sessions this month, 465 sent the agent to open the recalled note and 75 turned into a different task; 72 of those 75 happened in sessions whose context held no real user request, where the nudge was the only instruction in view. The header now names the sender and the standing of the block: a background memory advisor put it there, it may or may not apply, it is reference only, and the current task stands. Korean hints get the Korean equivalent, and both headers are shorter than the ones they replace.
