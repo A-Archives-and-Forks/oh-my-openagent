@@ -161,7 +161,31 @@ export type StartResult =
       // so a caller can classify the refusal without parsing the sanitized message.
       readonly failure_kind?: RunnerFailure["kind"]
     }
-  | { readonly kind: "residency_denied"; readonly reason: string }
+  | ResidencyDenied
+
+// A resident child named by a residency rejection: enough for the caller to tell whether the cap
+// is held by live work (wait for it) or by nothing that could ever free a slot (give up).
+export type ResidentSummary = {
+  readonly task_id: string
+  readonly name: string
+  readonly status: TaskStatus
+}
+
+// #8396: a residency denial states WHY admission failed so the caller can decide whether waiting
+// helps. `residents` = the session's resident children occupy the cap; every one of them frees its
+// slot on settlement, eviction, or when its pending sends drain, so a caller parks and re-probes
+// after `TaskManager.residencyChanged(parentSessionId)`. A denial that names NO resident can never
+// be helped by waiting. `lease` = the per-session admission lease was contended or displaced; the
+// lease acquisition itself is a bounded wait, so the caller simply probes again.
+export type ResidencyDenied =
+  | {
+      readonly kind: "residency_denied"
+      readonly reason: string
+      readonly cause: "residents"
+      readonly max_children?: number | "unlimited"
+      readonly residents: readonly ResidentSummary[]
+    }
+  | { readonly kind: "residency_denied"; readonly reason: string; readonly cause: "lease" }
 
 export type ContinueDelivery = "steer" | "followUp" | "revive"
 
@@ -189,7 +213,14 @@ export type ListedTask = {
 export type SpawnAdmission =
   | { readonly kind: "admitted" }
   | { readonly kind: "evicted"; readonly evicted_task_id: string }
-  | { readonly kind: "rejected"; readonly message: string }
+  | {
+      readonly kind: "rejected"
+      readonly message: string
+      // The residents that hold the cap (lifecycle AgentLimitReached). Omitted = the adapter could
+      // not name them, which the manager reports as a denial nothing can free (#8396).
+      readonly max_children?: number | "unlimited"
+      readonly residents?: readonly ResidentSummary[]
+    }
 
 export type AdmitResident = (parentSessionId: string) => Promise<SpawnAdmission>
 
@@ -258,6 +289,12 @@ export type TaskManager = {
   // Subscribe at the runner-agnostic handle seam now or when a queued task is promoted.
   subscribeChild(taskId: string, listener: ManagedChildListener): () => void
   residentTaskIds(): readonly string[]
+  // #8396: session-scoped residency wake. Resolves the next time the parent session's residency
+  // picture changes - a resident child reaches a terminal status, is forgotten (evicted, suspended,
+  // destroyed), or has its last pending send drained - so a caller denied for residency can park
+  // and re-probe instead of judging the SESSION by its own bookkeeping. Repeatable: each call arms
+  // the NEXT change, so arm it BEFORE the probe whose denial you intend to wait out.
+  residencyChanged(parentSessionId: string): Promise<void>
   // Promote a foreground task when the tool stops waiting inline. The completion bridge reads this
   // state live at terminal transition, so promotion makes the eventual completion notify normally.
   promoteToBackground(taskId: string): boolean

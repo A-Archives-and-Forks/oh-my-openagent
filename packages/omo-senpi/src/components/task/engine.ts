@@ -252,9 +252,18 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
   }
 }
 
-async function admitAdapter(lifecycle: TaskLifecycle, parentSessionId: string): Promise<SpawnAdmission> {
+// Exported for scripts/qa/dag-cross-run-residency-qa.ts, which composes the real lifecycle +
+// manager + scheduler graph through this exact seam.
+export async function admitAdapter(lifecycle: TaskLifecycle, parentSessionId: string): Promise<SpawnAdmission> {
   const admission = await lifecycle.admitResident(parentSessionId)
   if (admission.kind === "admitted") return { kind: "admitted" }
   if (admission.kind === "evicted") return { kind: "evicted", evicted_task_id: admission.evicted_task_id }
-  return { kind: "rejected", message: admission.error.message }
+  // #8396: keep the residents on the rejection so a residency-denied DAG node can tell "held by
+  // live siblings, wait" from "nothing can free a slot".
+  return {
+    kind: "rejected",
+    message: admission.error.message,
+    max_children: admission.error.max_children,
+    residents: admission.error.residents,
+  }
 }
