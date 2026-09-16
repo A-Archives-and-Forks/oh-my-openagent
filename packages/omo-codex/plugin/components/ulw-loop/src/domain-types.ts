@@ -75,6 +75,7 @@ export interface UlwLoopPlan {
 	codexGoalMode?: UlwLoopCodexGoalMode;
 	codexObjective?: string;
 	codexObjectiveAliases?: string[];
+	acknowledgedDriverObjectives?: string[];
 	aggregateCompletion?: UlwLoopAggregateCompletion;
 	activeGoalId?: string;
 	validationBatches?: readonly UlwLoopValidationBatch[];

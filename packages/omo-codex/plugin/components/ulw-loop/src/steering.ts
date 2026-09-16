@@ -21,7 +21,7 @@ import { iso, ULW_LOOP_STEERING_MUTATION_KINDS, ULW_LOOP_SUCCESS_CRITERION_USER_
 import { batchUpdateLedgerEntry } from "./validation-batch.js";
 
 const SOURCES = ["user_prompt_submit", "finding", "cli"] as const satisfies readonly UlwLoopSteeringSource[];
-const PROTECTED = new Set(["aggregateCompletion", "codexObjective", "codexObjectiveAliases", "originalConstraints", "qualityGate", "status", "completedAt", "completionStatus"]);
+const PROTECTED = new Set(["aggregateCompletion", "codexObjective", "codexObjectiveAliases", "acknowledgedDriverObjectives", "originalConstraints", "qualityGate", "status", "completedAt", "completionStatus"]);
 const isObject = (value: unknown): value is object => typeof value === "object" && value !== null; const isPlain = (value: unknown): value is object => isObject(value) && !Array.isArray(value);
 const read = (value: object, key: string): unknown => Object.entries(value).find(([name]) => name === key)?.[1];
 const isText = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
