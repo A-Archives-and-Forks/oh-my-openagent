@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-beta.64] - 2026-09-16
+
 ### Engine: senpi 2026.9.16
 
 **Reasoning shows up while the model is still reasoning.** Claude lanes used to sit on a "Working" line for the whole thinking phase and then dump the entire reasoning block at once, because the empty-response recovery wrapper buffered every event until the first visible text or tool call. Seven days of session files say 80% of Claude turns with thinking were held that way, a median of 16 seconds, 37 seconds at p90. The wrapper now starts forwarding at the first meaningful event, so thinking arrives as the model produces it and the assistant message opens as soon as the provider answers. A turn that streams reasoning and then ends with nothing is no longer replayed inside the stream, where a second start would duplicate the message: it ends as a retryable error that keeps what you already saw, and the session's own turn retry re-requests it. Kimi keeps the old buffered path on purpose, since its reasoning channel is where misrouted tool calls land.
