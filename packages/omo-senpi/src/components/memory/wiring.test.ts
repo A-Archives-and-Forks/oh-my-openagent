@@ -221,10 +221,13 @@ describe("memory recall wiring", () => {
       .filter((result): result is { message?: { customType?: string; display?: boolean }; systemPrompt?: string } => result !== undefined)
     const recall = messages.find((result) => result.message?.customType === RECALL_CUSTOM_TYPE)
     const notice = messages.find((result) => result.message?.customType === MEMORY_NOTICE_CUSTOM_TYPE)
+    const projection = messages.find((result) => result.systemPrompt !== undefined)
     expect(recall).toBeUndefined()
+    // This branch never compacted and nothing else is volatile, so the projection carries no notice message.
+    expect(notice).toBeUndefined()
     // The kibitzer prompt trigger may append its gate observability entry; nothing else may land.
     expect(pi.entries.filter((entry) => entry.customType !== "omo-kibitzer:gate")).toEqual([])
-    expect(notice?.systemPrompt).toContain("persona")
+    expect(projection?.systemPrompt).toContain("persona")
   }, 30_000)
 })
 
