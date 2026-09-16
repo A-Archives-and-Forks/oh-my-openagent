@@ -102,11 +102,18 @@ export type TaskHandleDetails = {
  * - "refused": a typed refusal, always with a code (nothing was granted);
  * - "not_delivered": the spawn never started, so the resolved grant reached no child.
  * `granted` is only ever present on the granted status - a failed spawn never claims one.
+ *
+ * `scoped`/`scope` say whether the closure's nested host calls run CHILD-permissioned: they are
+ * present only when the live engine advertises the per-call invoke scope (senpi#1731), and `scope`
+ * is the child's effective tool policy this consumer sends with every invoke. The runner recomputes
+ * the same policy against the child's real surface before installing the wrappers.
  */
 export type TaskKernelToolsDetail = {
   readonly requested: readonly string[]
   readonly status: "granted" | "refused" | "not_delivered"
   readonly granted?: readonly string[]
+  readonly scoped?: true
+  readonly scope?: { readonly allow: readonly string[]; readonly deny?: readonly string[] }
   readonly error?: { readonly code: KernelToolErrorCode; readonly message: string }
 }
 

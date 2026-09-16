@@ -4,8 +4,12 @@
  * senpi-codemode's implementation is never imported here: the engine pin that ships with omo can
  * predate the producer, so this package duck-types the transient `kernelTools` capability off the
  * live tool-call context and validates every reply structurally. The shapes below mirror the frozen
- * `kernel-tools` contract: fenced descriptors, `describe(names)`, `invoke(request, signal?)`, and
- * the typed error-code vocabulary.
+ * `kernel-tools` contract: fenced descriptors, `describe(names)`,
+ * `invoke(request, signal | { signal?, scope? })`, and the typed error-code vocabulary.
+ *
+ * The per-call execution scope (senpi#1731, PR #1765) is OPTIONAL on purpose: the pinned engine may
+ * not carry it, so it is only ever sent when the live capability advertises
+ * `capabilities.invokeScope === true`. Nothing here imports a senpi type for it.
  */
 
 export const KERNEL_TOOL_ERROR_CODES = [
@@ -17,6 +21,9 @@ export const KERNEL_TOOL_ERROR_CODES = [
   "kernel_tool_missing",
   "kernel_tool_failed",
   "kernel_tool_recursion",
+  // A nested host call the invoked closure made was outside the scope this consumer sent. The
+  // producer refuses it inside the worker; the child reads it on its own tool-result channel.
+  "kernel_tool_host_denied",
   "curated_policy_denied",
 ] as const
 
@@ -51,10 +58,43 @@ export type KernelToolInvokeRequest = {
   readonly call_id: string
 }
 
+/**
+ * Host tools the nested calls of ONE invoked closure may reach: `allow` narrows to exactly those
+ * names, `deny` refuses the named ones, and `deny` wins where both name the same tool.
+ */
+export type KernelToolHostScope = {
+  readonly allow?: readonly string[]
+  readonly deny?: readonly string[]
+}
+
+/** Execution scope for one `invoke`; call-scoped in the producer and never persisted here. */
+export type KernelToolInvokeScope = {
+  readonly tools?: KernelToolHostScope
+}
+
+export type KernelToolInvokeOptions = {
+  readonly signal?: AbortSignal
+  readonly scope?: KernelToolInvokeScope
+}
+
 // The transient capability the parent's live JS eval publishes on the host tool-call context.
 export type KernelToolsCapability = {
+  /** Present only on engines that ship the marker; read structurally, never trusted as typed. */
+  readonly capabilities?: unknown
   describe(names: readonly string[]): Promise<unknown>
-  invoke(request: KernelToolInvokeRequest, signal?: AbortSignal): Promise<unknown>
+  invoke(request: KernelToolInvokeRequest, options?: AbortSignal | KernelToolInvokeOptions): Promise<unknown>
+}
+
+/**
+ * The runtime gate for the per-call scope. A pin that predates the producer's scope support carries
+ * no marker, so the consumer keeps refusing narrowed grants instead of sending an option that would
+ * be silently ignored - which would hand the child a closure running with the PARENT's permissions.
+ * Only the literal `true` opts in.
+ */
+export function supportsInvokeScope(capability: KernelToolsCapability | undefined): boolean {
+  if (capability === undefined) return false
+  const capabilities = capability.capabilities
+  return isRecord(capabilities) && capabilities["invokeScope"] === true
 }
 
 export type KernelToolDescribeEntry =

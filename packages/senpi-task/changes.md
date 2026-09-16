@@ -1,4 +1,20 @@
 
+## 2026-09-16 — Scope a child's kernel-tool grant with the engine's per-call invoke scope
+
+`kernel-tools/contract.ts` gained the optional per-call execution scope the producer accepts
+(`invoke(request, signal | { signal?, scope? })`), the `kernel_tool_host_denied` code, and
+`supportsInvokeScope(capability)` — a runtime duck-type of `capabilities.invokeScope === true`, so
+the package still compiles and behaves against an engine pin that predates senpi#1731. When the
+marker is present, `resolveKernelToolGrant` no longer refuses a child whose allow/deny narrows the
+parent: it attaches `childInvokeScope(...)` to the grant, `buildChildKernelTools` recomputes that
+scope against the child's REAL installed surface, and every wrapper invoke carries
+`{ scope: { tools: { allow, deny? } } }` beside the turn's signal. Without the marker the grant is
+refused exactly as before and the wrapper posts the bare signal it always did.
+`TaskKernelToolsDetail` reports `scoped: true` plus the allow/deny summary so the caller can see a
+grant is child-permissioned, and a nested call the engine refuses arrives on the child's own tool
+channel as a `kernel_tool_host_denied` envelope instead of failing the parent's cell. Curated
+read-only agents, team members, process children and non-JavaScript parents are untouched.
+
 ## 2026-09-14 — Re-mirror the curated agent chains from model-core and guard the mirror
 
 `agents/builtin/fallback-chains.ts` had drifted from the `model-core` table it claims to mirror: `plan-consultant`

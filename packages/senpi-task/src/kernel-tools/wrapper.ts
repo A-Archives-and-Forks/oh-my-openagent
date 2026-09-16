@@ -62,15 +62,20 @@ function wrapper(
         )
       }
       try {
+        const request = {
+          name: descriptor.name,
+          kernel_generation: descriptor.kernel_generation,
+          definition_revision: descriptor.definition_revision,
+          args,
+          call_id: toolCallId,
+        }
+        // No scope means the pinned engine cannot enforce one: post exactly the frame this wrapper
+        // always posted (a bare signal), never an option an older runtime would silently ignore.
         const value = await grant.capability.invoke(
-          {
-            name: descriptor.name,
-            kernel_generation: descriptor.kernel_generation,
-            definition_revision: descriptor.definition_revision,
-            args,
-            call_id: toolCallId,
-          },
-          signal,
+          request,
+          grant.scope === undefined
+            ? signal
+            : { ...(signal === undefined ? {} : { signal }), scope: grant.scope },
         )
         return envelope({ kernel_tool: descriptor.name }, value)
       } catch (error) {

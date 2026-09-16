@@ -6,10 +6,14 @@ export {
   kernelToolErrorMessage,
   parseDescribeResults,
   readKernelToolsCapability,
+  supportsInvokeScope,
   type KernelToolDescribeEntry,
   type KernelToolDescriptor,
   type KernelToolErrorCode,
+  type KernelToolHostScope,
+  type KernelToolInvokeOptions,
   type KernelToolInvokeRequest,
+  type KernelToolInvokeScope,
   type KernelToolsCapability,
 } from "./contract"
 export {
@@ -21,6 +25,8 @@ export {
   sanitizeKernelToolNamePart,
 } from "./names"
 export {
+  childEffectiveToolNames,
+  childInvokeScope,
   escalatingHostTools,
   isWriteCapableHostTool,
   nestedHostScopeMessage,

@@ -3,7 +3,7 @@ import type { ToolDefinition } from "@code-yeongyu/senpi"
 import { CURATED_READONLY_AGENT_NAMES } from "../../agents/builtin"
 import type { KernelToolBindingRegistry } from "../../kernel-tools/bindings"
 import { kernelToolKey } from "../../kernel-tools/names"
-import { escalatingHostTools, nestedHostScopeMessage } from "../../kernel-tools/nested-host-scope"
+import { childInvokeScope, escalatingHostTools, nestedHostScopeMessage } from "../../kernel-tools/nested-host-scope"
 import { recordedKernelToolNames } from "../../kernel-tools/transcript-names"
 import {
   createKernelToolWrappers,
@@ -36,18 +36,25 @@ export function buildChildKernelTools(
   }
   // The runner floor re-runs the nested-host-scope rule against the child's REAL tool surface: the
   // tool layer decided it from the resolved agent definition, and a category child's plan is only
-  // known here. A closure whose nested host calls would exceed what this child may itself cause is
-  // refused before the session exists (nested-host-scope.ts documents the rule).
-  const escalating = escalatingHostTools({
+  // known here (nested-host-scope.ts documents the rule).
+  //
+  // A grant that carries a scope came from a capability that can ENFORCE it, so the same real
+  // surface becomes the scope every invoke rides with, rather than a reason to refuse. Without one,
+  // a closure whose nested host calls would exceed what this child may itself cause is refused
+  // before the session exists.
+  const scopeRequest = {
     childToolNames: existingToolNames,
     ...(spec.toolAllowlist === undefined ? {} : { toolAllowlist: spec.toolAllowlist }),
     ...(spec.toolDenylist === undefined ? {} : { toolDenylist: spec.toolDenylist }),
-  })
-  if (escalating.length > 0) {
-    throw new RunnerError({
-      kind: "tools_unavailable",
-      message: nestedHostScopeMessage(`Child ${spec.taskId}`, escalating),
-    })
+  }
+  if (grant.scope === undefined) {
+    const escalating = escalatingHostTools(scopeRequest)
+    if (escalating.length > 0) {
+      throw new RunnerError({
+        kind: "tools_unavailable",
+        message: nestedHostScopeMessage(`Child ${spec.taskId}`, escalating),
+      })
+    }
   }
   const existing = new Set(existingToolNames.map(kernelToolKey))
   for (const descriptor of grant.descriptors) {
@@ -58,7 +65,10 @@ export function buildChildKernelTools(
       })
     }
   }
-  return createKernelToolWrappers(grant, options)
+  return createKernelToolWrappers(
+    grant.scope === undefined ? grant : { ...grant, scope: childInvokeScope(scopeRequest) },
+    options,
+  )
 }
 
 /**
