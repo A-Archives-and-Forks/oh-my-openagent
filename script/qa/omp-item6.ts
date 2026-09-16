@@ -41,6 +41,8 @@ async function dispatch(name: string): Promise<Record<string, unknown>> {
       return await (await import("./omp-item6-scope.ts")).runScopedNarrowedChild()
     case "unscoped-narrowed-child-refusal":
       return await (await import("./omp-item6-scope.ts")).runUnscopedNarrowedChildRefusal()
+    case "producer-scoped-narrowed-child":
+      return await (await import("./omp-item6-scope-producer.ts")).runProducerScopedNarrowedChild()
     default:
       return assert.fail(`unknown --case ${name}`)
   }
