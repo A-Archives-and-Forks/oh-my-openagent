@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test"
 import { mkdir, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
+import { createNodeGitExec, type GitExec } from "@oh-my-opencode/memory-core"
+
 import { createWakeToolBudget } from "./budget"
 import { resolveKibitzerToolCaps, type KibitzerToolCaps } from "./caps"
 import { createKibitzerGrepTool } from "./grep"
@@ -12,6 +14,7 @@ interface GrepOptions {
   readonly root: string
   readonly caps?: Partial<KibitzerToolCaps>
   readonly now?: () => number
+  readonly git?: GitExec
 }
 
 function grepTool(options: GrepOptions) {
@@ -21,6 +24,7 @@ function grepTool(options: GrepOptions) {
     caps: resolveKibitzerToolCaps(options.caps),
     budget: () => budget,
     ...(options.now === undefined ? {} : { now: options.now }),
+    ...(options.git === undefined ? {} : { git: options.git }),
   })
 }
 
@@ -56,6 +60,11 @@ async function flatTree(count: number, line = "needle\n"): Promise<string> {
   return root
 }
 
+async function gitInit(root: string): Promise<void> {
+  const result = await createNodeGitExec().run(["init"], { cwd: root, timeoutMs: 30_000 })
+  expect(result.code).toBe(0)
+}
+
 // Captured from the pre-change implementation (walk + full read, no budgets) on `smallTree()`.
 const SMALL_TREE_JSON =
   '{"matches":[{"path":"a.txt","line":1,"text":"alpha needle"},{"path":"src/app.ts","line":3,"text":"needle here"}],"truncated":false}'
@@ -63,6 +72,16 @@ const SMALL_TREE_JSON =
 describe("kibitzer grep budgets", () => {
   test("#given a tree inside every budget #when grep runs #then the result is byte-identical to the pre-change output", async () => {
     const tool = grepTool({ root: await smallTree() })
+
+    const result = await tool.execute("call-1", { pattern: "needle" })
+
+    expect(textOf(result)).toBe(SMALL_TREE_JSON)
+  })
+
+  test("#given a git workspace with nothing ignored #when grep runs #then the result is byte-identical to the walk output", async () => {
+    const root = await smallTree()
+    await gitInit(root)
+    const tool = grepTool({ root })
 
     const result = await tool.execute("call-1", { pattern: "needle" })
 
@@ -135,5 +154,36 @@ describe("kibitzer grep budgets", () => {
 
     expect(matchPaths(result)).toEqual(["a.txt", "b.txt"])
     expect(jsonOf(result)).toMatchObject({ truncated: true, stopped: "matches" })
+  })
+})
+
+describe("kibitzer grep gitignore", () => {
+  test("#given a git workspace #when a file is gitignored #then grep never reports a match inside it", async () => {
+    const root = await flatTree(2)
+    await mkdir(join(root, "ignored"), { recursive: true })
+    await writeFile(join(root, "ignored", "secret.txt"), "needle\n", "utf8")
+    await writeFile(join(root, ".gitignore"), "ignored/\n", "utf8")
+    await gitInit(root)
+    const tool = grepTool({ root })
+
+    const result = await tool.execute("call-1", { pattern: "needle" })
+
+    expect(matchPaths(result)).toEqual(["a.txt", "b.txt"])
+    expect(jsonOf(result).truncated).toBe(false)
+  })
+
+  test("#given git failing on the workspace #when grep runs #then it falls back to the plain walk", async () => {
+    const root = await flatTree(2)
+    await mkdir(join(root, "ignored"), { recursive: true })
+    await writeFile(join(root, "ignored", "secret.txt"), "needle\n", "utf8")
+    await writeFile(join(root, ".gitignore"), "ignored/\n", "utf8")
+    await gitInit(root)
+    const failing: GitExec = { run: async () => ({ code: 128, stdout: "", stderr: "fatal: not a git repository" }) }
+    const tool = grepTool({ root, git: failing })
+
+    const result = await tool.execute("call-1", { pattern: "needle" })
+
+    expect(matchPaths(result)).toEqual(["a.txt", "b.txt", "ignored/secret.txt"])
+    expect(jsonOf(result).truncated).toBe(false)
   })
 })

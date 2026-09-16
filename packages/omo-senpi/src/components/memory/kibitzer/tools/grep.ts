@@ -1,3 +1,4 @@
+import { createNodeGitExec, type GitExec } from "@oh-my-opencode/memory-core"
 import { lstat, readdir, readFile, realpath, stat } from "@oh-my-opencode/memory-core/fs"
 import { join, relative } from "node:path"
 import { Type, type Static } from "typebox"
@@ -21,6 +22,8 @@ export interface KibitzerGrepToolInput {
   readonly budget: () => WakeToolBudget
   /** Wall-clock source for the scan budget; injectable so tests do not sleep. */
   readonly now?: () => number
+  /** Runner for the gitignore-aware candidate list; injectable for tests. */
+  readonly git?: GitExec
 }
 
 export interface KibitzerGrepMatch {
@@ -34,6 +37,8 @@ export type KibitzerGrepStopReason = "files" | "bytes" | "time" | "matches" | "a
 
 const SKIPPED_DIRECTORIES: ReadonlySet<string> = new Set([".git", "node_modules"])
 const MAX_FILE_BYTES = 1024 * 1024
+/** `git ls-files` reads the index once; it is not part of the scan budget, so it gets its own cap. */
+const GIT_LIST_TIMEOUT_MS = 5_000
 
 interface ScanContext {
   readonly caps: KibitzerToolCaps
@@ -66,10 +71,15 @@ const SKIPPED_FILE: GrepFileOutcome = { bytes: 0, capped: false }
  * budget, a byte budget over what was actually read, and a wall-clock budget (`caps.grepScan*`), plus
  * the turn's AbortSignal, checked per directory while enumerating and before every file. The first
  * limit that trips ends the scan; the matches gathered so far are kept and `stopped` names the limit.
+ *
+ * Candidates come from `git ls-files` (tracked plus untracked-not-ignored) when the workspace root is
+ * inside a work tree, so `.gitignore` is honored; any git failure falls back to the direct walk. An
+ * explicitly named file is scanned as given - the path the model asked for is never second-guessed.
  */
 export function createKibitzerGrepTool(input: KibitzerGrepToolInput): KibitzerSidecarTool<typeof KibitzerGrepParams> {
   const description =
     `Search workspace files by regular expression (at most ${input.caps.grepMatches} matching lines). ` +
+    "Files ignored by .gitignore are skipped in a git workspace. " +
     `The scan is bounded (${input.caps.grepScanFiles} files, ` +
     `${Math.round(input.caps.grepScanBytes / (1024 * 1024))}MB read, ${Math.round(input.caps.grepScanMs / 1000)}s) and stops when the turn is ` +
     'cancelled; a bounded run returns "truncated": true with "stopped" naming the limit it hit.'
@@ -98,7 +108,7 @@ export function createKibitzerGrepTool(input: KibitzerGrepToolInput): KibitzerSi
       const context: ScanContext = { caps: input.caps, now, deadline: now() + input.caps.grepScanMs, signal }
       const candidates = info.isFile()
         ? ({ files: [resolved.path] } satisfies Candidates)
-        : await walk(resolved.path, context)
+        : await collectCandidates(root, resolved.path, input.git ?? createNodeGitExec(), context)
 
       const matches: KibitzerGrepMatch[] = []
       let stopped = candidates.stopped
@@ -125,6 +135,42 @@ export function createKibitzerGrepTool(input: KibitzerGrepToolInput): KibitzerSi
       }
       return okJson(stopped === undefined ? { matches, truncated: false } : { matches, truncated: true, stopped })
     }),
+  }
+}
+
+async function collectCandidates(root: string, target: string, git: GitExec, context: ScanContext): Promise<Candidates> {
+  if (context.signal?.aborted === true) return { files: [], stopped: "aborted" }
+  const tracked = await gitCandidates(root, target, git, context)
+  return tracked ?? (await walk(target, context))
+}
+
+/**
+ * The gitignore-aware candidate list. `--cached --others --exclude-standard` is exactly "what git
+ * would show you": tracked files plus untracked files that no ignore rule covers. Paths are printed
+ * relative to the cwd, so running with `cwd: root` scopes the list to the workspace even when the
+ * root is a subdirectory of the work tree. Returns undefined for anything that is not a clean
+ * success - no repo, a git failure, a spawn error - so the caller falls back to the plain walk.
+ */
+async function gitCandidates(root: string, target: string, git: GitExec, context: ScanContext): Promise<Candidates | undefined> {
+  const options = { cwd: root, timeoutMs: GIT_LIST_TIMEOUT_MS }
+  try {
+    const toplevel = await git.run(["rev-parse", "--show-toplevel"], options)
+    if (toplevel.code !== 0) return undefined
+    const pathspec = relative(root, target)
+    const listed = await git.run(
+      ["ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", pathspec.length === 0 ? "." : pathspec],
+      options,
+    )
+    if (listed.code !== 0) return undefined
+    const files = new Set<string>()
+    for (const entry of listed.stdout.split("\0")) {
+      // Merge conflicts list a path once per stage, so the set also deduplicates.
+      if (entry.length === 0 || entry.split("/").some((segment) => SKIPPED_DIRECTORIES.has(segment))) continue
+      files.add(join(root, entry))
+    }
+    return bounded([...files], context.caps.grepScanFiles)
+  } catch {
+    return undefined
   }
 }
 
@@ -176,8 +222,8 @@ async function grepFile(
   matches: KibitzerGrepMatch[],
   caps: KibitzerToolCaps,
 ): Promise<GrepFileOutcome> {
-  // lstat, not stat: the walk yields regular files, for which the two agree, and a candidate can
-  // still vanish between the walk and the read.
+  // lstat, not stat: a git-listed path may be a symlink, a submodule gitlink, or an index entry
+  // whose file is already gone, and the walk's candidates are regular files either way.
   let info
   try {
     info = await lstat(file)
