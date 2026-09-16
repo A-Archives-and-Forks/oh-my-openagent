@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-beta.68] - 2026-09-16
+
 ### OmO
 
 **A second DAG run in the same session waits for a resident slot instead of failing at start.** Every run, team and `task` spawn of a session shares one resident-child cap (`task.residency_max_children`, 16 on a 14-core host). When one run's children held every slot, a second run failed all of its leaves within seconds with `residency_denied: resident child cap reached and no task can free a slot`, its aggregators were skipped, and the run then sat `running` forever because nothing was attached to drive it to a terminal state ([#8396](https://github.com/code-yeongyu/oh-my-openagent/issues/8396), [#8398](https://github.com/code-yeongyu/oh-my-openagent/pull/8398)). The scheduler had judged the whole session by its own bookkeeping, which is empty for a run that arrives second. The task manager now exposes a session-scoped wake that fires when any resident child reaches a terminal status, is evicted or suspended, or drains its last pending send; a denied node stays `scheduled`, its first parking is journaled once as `residency_queued` with how many residents hold the cap and how many belong to other owners, and the scheduler re-probes on every wake. Only a denial that names no resident still fails a node. A run whose every leaf fails at admission now settles `failed` with its dependents `skipped`, so `retry` works on it. The mass-ulw capacity model documents that the queue holds across runs.
