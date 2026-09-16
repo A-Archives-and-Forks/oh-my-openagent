@@ -245,7 +245,8 @@ class TaskManagerImpl implements TaskManager {
         this.#outcome.trackOutcome(taskId, live.handle, live.model, epoch)
       },
       workerTools: taskId => [createWorkpoolWorkerTool({ workpools: this.workpools, taskId, runEpoch: () => this.get(taskId)?.notification.run_epoch ?? -1 })],
-    }))
+      ...(options.kernelToolBindings === undefined ? {} : { kernelToolBindings: options.kernelToolBindings }),
+    }), options.kernelToolBindings)
     registerLifecycleReattachPorts(options.store, {
       reserve: (record) => this.#reserveForReattach(record),
       respawn: (record, resumeSessionPath) => this.respawn(record, resumeSessionPath),
