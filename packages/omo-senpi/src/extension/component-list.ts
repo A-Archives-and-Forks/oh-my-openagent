@@ -27,8 +27,11 @@ export function createOmoSenpiComponents(taskComponent: OmoSenpiComponent): OmoS
     createConfigStartupComponent(),
     // After config-startup so configuration diagnostics print before the profile notice.
     createModelProfileComponent(),
-    createNativeBadgeComponent(),
+    // Skill availability is resolved before the startup UI components run, and it stays
+    // outside the native-badge -> onboarding -> advisor adjacency that session-start
+    // ordering pins (session-start-ordering.test.ts).
     createBundledSkillsComponent(),
+    createNativeBadgeComponent(),
     createOnboardingComponent(),
     createInitDeepAdvisorComponent(),
     createOmoNativeTelemetryComponent(),
