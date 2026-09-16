@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Engine: senpi 2026.9.16
+
+**Reasoning shows up while the model is still reasoning.** Claude lanes used to sit on a "Working" line for the whole thinking phase and then dump the entire reasoning block at once, because the empty-response recovery wrapper buffered every event until the first visible text or tool call. Seven days of session files say 80% of Claude turns with thinking were held that way, a median of 16 seconds, 37 seconds at p90. The wrapper now starts forwarding at the first meaningful event, so thinking arrives as the model produces it and the assistant message opens as soon as the provider answers. A turn that streams reasoning and then ends with nothing is no longer replayed inside the stream, where a second start would duplicate the message: it ends as a retryable error that keeps what you already saw, and the session's own turn retry re-requests it. Kimi keeps the old buffered path on purpose, since its reasoning channel is where misrouted tool calls land.
+
+**`read` returns structure for JSON.** Eligible `.json` files come back as a segmented structural view with declaration-safe folding instead of raw bytes, while TypeScript and JavaScript stay verbatim because the measured candidate missed the required saving for both. Explicit `offset`/`limit` requests, truncated input, markdown and `.txt` keep the old path.
+
+**One extension can no longer hold quit hostage.** Every `session_shutdown` handler runs under a host budget and receives a per-handler `signal` that aborts when it overruns, so a slow handler stops blocking quit, `/reload`, `/new`, `/resume` and forks. The budget is configurable.
+
+**JavaScript eval cells can publish tools to their children.** `tool(fn, metadata?)` registers a named function as a fenced tool for in-process children, the worker answers describe and invoke requests on a pump separate from the top-level run queue, and `workpool(agent, name, mode?)` lands in the JS, Python, Ruby and Julia preludes as a thin adapter over the host workpool tool. Background `agent(..., handle: true)` now requires a structured task id and run epoch from the host.
+
+**Terminal teardown escalates instead of hoping.** `TerminalSession.terminate()` signals, waits, and escalates to `SIGKILL`; the session registry gained grace settings for the forced kill and for detached children, and detached cleanup kills what survives its grace. An opt-in Bun terminal backend is available behind `SENPI_BUN_TERMINAL`.
+
+**Session lists stopped mixing durable and live state.** `SessionMetadata` replaces `SessionSummary` for `listSessions()` and server snapshots, runtime state comes only from an acquired session, and the protocol gained transport-neutral CBOR schemas with length-prefixed framing.
+
+### OmO
+
+**ulw-loop survives an eval-kernel reload.** A reload used to drop `PI_SESSION_CWD` and `PI_GOAL_STORE_FILE`, which failed the toolkit with `PI_SESSION_CWD is required` and hid the live driver goal, so the loop advised creating a goal that already existed. Both are now derived from the session file before falling back, each fallback names its remediation, and the help text, `addGoal` criteria and artifact paths came along in the same pass.
+
+**The Kibitzer stopped reading your whole disk.** Its read-only grep walked the entire workspace and read every file up to 1MB; on a real 277,000-file workspace the walk alone cost 2.5 seconds and a rare pattern read everything. Candidates now come from git so `.gitignore` counts, the scan stops at file-count, byte and wall-clock budgets, and it honors the turn's abort signal instead of running past the wake deadline. Candidate collection also went incremental: per-trigger CPU on the 800-document fixture dropped from 308 ms to 5 ms with identical output, which removes the pause that landed on every tool call in a large memory corpus.
+
+**Session shutdown no longer waits on the Kibitzer.** The memory extension used to await its sidecar's shutdown and the facts cancellation outside the 1.5-second drain budget, so a slow lease release stalled quit, `/reload`, `/new` and `/resume` and starved the steps queued behind it. Both awaits now race the drain deadline and finish detached, and the wake lease and the sidecar directory lock are still released. Every wake is bounded from admission as well: the 90-second deadline is armed before the child starts, a 300-second total cap holds through steer re-arms, and a stall during child start ends the wake, hands the slot back and disposes the late child.
+
+**Typed task handles.** Background task handles carry a run epoch, so a handle from a previous run cannot be mistaken for the live one.
+
 ## [5.0.0-beta.63] - 2026-09-15
 
 ### Breaking
