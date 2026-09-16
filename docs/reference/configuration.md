@@ -493,7 +493,7 @@ Skills bring domain-specific expertise and embedded MCPs.
 
 Selected built-in skills: `playwright`, `playwright-cli`, `dev-browser`, `git-master`, `frontend`, `review-work`, `remove-ai-slops`, `init-deep`, `debugging`, `security-research`, `security-review`, `visual-qa`, `team-mode`. The `team-mode` skill is only rendered when `team_mode.enabled` is true.
 
-Disable built-in skills: `{ "disabled_skills": ["playwright"] }`
+Disable built-in skills: `{ "disabled_skills": ["playwright"] }`. `disabled_skills` is also a shared base key of `~/.omo/omo.jsonc`, honored by every harness including OmO Native (for example `{ "disabled_skills": ["frontend", "visual-qa"] }`); user and project layers are unioned. `skills.enable` below only filters config-sourced skills, not builtin, native, or bundled ones - use `disabled_skills` to hide those.
 
 #### Skills Configuration
 
