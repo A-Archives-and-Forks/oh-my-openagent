@@ -32,6 +32,7 @@ import {
   buildSpawnSpecV1,
   inSession,
   isTerminalRecord,
+  memberKernelToolRefusal,
   nowIso,
   promotedBackgroundMode,
   recordSpawnedChildSession,
@@ -141,6 +142,10 @@ function publicStartFailureMessage(error: unknown): string {
         return "In-process child session creation failed."
       case "child-prompt-failed":
         return "Child prompt failed to start."
+      case "tools_unavailable":
+        // Sanitized but typed: the caller must be able to tell a refused parent kernel-tool grant
+        // from a generic runner failure without reading private spec details.
+        return "Parent kernel tools are unavailable for this child."
       default:
         return GENERIC_START_FAILURE_MESSAGE
     }
@@ -245,7 +250,8 @@ class TaskManagerImpl implements TaskManager {
         this.#outcome.trackOutcome(taskId, live.handle, live.model, epoch)
       },
       workerTools: taskId => [createWorkpoolWorkerTool({ workpools: this.workpools, taskId, runEpoch: () => this.get(taskId)?.notification.run_epoch ?? -1 })],
-    }))
+      ...(options.kernelToolBindings === undefined ? {} : { kernelToolBindings: options.kernelToolBindings }),
+    }), options.kernelToolBindings)
     registerLifecycleReattachPorts(options.store, {
       reserve: (record) => this.#reserveForReattach(record),
       respawn: (record, resumeSessionPath) => this.respawn(record, resumeSessionPath),
@@ -254,6 +260,8 @@ class TaskManagerImpl implements TaskManager {
   }
 
   async start(spec: ManagerStartSpec): Promise<StartResult> {
+    const refused = memberKernelToolRefusal(spec)
+    if (refused !== undefined) return refused
     const resolution = this.#options.planner(spec)
     if (resolution.kind === "error") return { kind: "plan_unresolved", error: resolution.error }
 
@@ -262,6 +270,8 @@ class TaskManagerImpl implements TaskManager {
   }
 
   async startOwned(spec: ManagerStartSpec, owner: DagTaskOwner): Promise<OwnedStartResult> {
+    const refused = memberKernelToolRefusal(spec)
+    if (refused !== undefined) return refused
     const lockPath = ownerLockPath(this.#options.store.stateDir, owner)
     const resolution = this.#options.planner(spec)
     if (resolution.kind === "error") return { kind: "plan_unresolved", error: resolution.error }
@@ -457,6 +467,7 @@ class TaskManagerImpl implements TaskManager {
           ...(finalRecord.resolved_model !== undefined ? { resolved_model: finalRecord.resolved_model } : {}),
           run_in_background: spec.run_in_background === true,
           error_message: launched.error,
+          ...(launched.failure_kind === undefined ? {} : { failure_kind: launched.failure_kind }),
         }
       }
       return { kind: "started", task_id: finalRecord.task_id, status: "running", name: registration.name, ...startParts }
@@ -695,7 +706,7 @@ class TaskManagerImpl implements TaskManager {
   // Test-only observability for proving the release guard never grows unboundedly across revives.
   releasedKeyCount(): number { return this.#released.size }
 
-  async #launch(context: LaunchContext): Promise<{ ok: true } | { ok: false; error: string }> {
+  async #launch(context: LaunchContext): Promise<{ ok: true } | { ok: false; error: string; failure_kind?: Extract<StartResult, { kind: "start_failed" }>["failure_kind"] }> {
     const { record, managedSpec, runner, model } = context
     const startResult = this.#options.store.transition(record.task_id, { type: "start", timestamp: nowIso(this.#now) })
     if (!startResult.applied) {
@@ -718,7 +729,7 @@ class TaskManagerImpl implements TaskManager {
       })
       this.#steering.dropPending(record.task_id)
       this.#settleWaiters(record.task_id)
-      return { ok: false, error: message }
+      return { ok: false, error: message, ...(RunnerError.is(error) ? { failure_kind: error.failure.kind } : {}) }
     }
 
     const current = this.#tryLoad(record.task_id)

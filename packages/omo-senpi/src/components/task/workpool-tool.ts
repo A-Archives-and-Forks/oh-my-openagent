@@ -13,8 +13,8 @@ export function registerWorkpoolTool(
   const workpools = engine.manager.workpools
   if (workpools === undefined) throw new Error("Task engine does not expose workpool admission")
   pi.registerTool({ ...createWorkpoolTool({
-    manager: engine.manager, workpools, omoConfig: engine.omoConfig, agents: engine.agents,
-    resolveSkillInvocations: sessionId => skills.stateFor(sessionId),
+    ...engine.taskToolDeps(sessionId => skills.stateFor(sessionId)),
+    workpools,
   }) })
   workpools.bindAggregate({
     enqueue: (message, receipts) => {
