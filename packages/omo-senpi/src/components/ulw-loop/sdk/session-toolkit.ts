@@ -12,8 +12,17 @@ import {
 } from "../../../../../omo-codex/plugin/components/ulw-loop/src/sdk.js"
 import { UlwLoopError } from "../../../../../omo-codex/plugin/components/ulw-loop/src/runtime.js"
 import { readDriverGoalJson } from "./driver-goal"
-import { toolkitContextFromEnv, type SessionToolkitContext } from "./session-binding"
+import { driverRelationOf, type SessionDriverRelation } from "./driver-relation"
+import { toolkitContextFromEnv, type SessionCwdSource, type SessionToolkitContext } from "./session-binding"
 
+export interface SessionBinding {
+  readonly cwd: string
+  readonly cwdSource: SessionCwdSource
+  readonly sessionId: string
+  readonly goalStorePaths: readonly string[]
+}
+export type SessionStatusResult = ToolkitResultFor<"status"> & { readonly binding: SessionBinding; readonly driver: SessionDriverRelation }
+export type SessionStatusResponse = ToolkitSuccess<"status", SessionStatusResult> | ToolkitFailure<"status">
 export interface SessionHelpUsage {
   readonly import: string
   readonly example: string
@@ -27,8 +36,9 @@ export const SESSION_HELP_USAGE: SessionHelpUsage = {
   sessionEnv: ["PI_SESSION_ID", "PI_SESSION_CWD", "PI_SESSION_FILE", "PI_GOAL_STORE_FILE"],
 }
 export type SessionRecordReviewBlockersArgs = Omit<RecordReviewBlockersArgs, "codexGoalJson"> & { readonly codexGoalJson?: string }
-export type SessionAgentToolkit = Omit<AgentToolkit, "recordReviewBlockers" | "help"> & {
+export type SessionAgentToolkit = Omit<AgentToolkit, "recordReviewBlockers" | "status" | "help"> & {
   readonly help: () => Promise<SessionHelpResponse>
+  readonly status: () => Promise<SessionStatusResponse>
   readonly recordReviewBlockers: (args: SessionRecordReviewBlockersArgs) => Promise<ToolkitResponseFor<"record-review-blockers">>
 }
 
@@ -43,23 +53,27 @@ function failure<Operation extends string>(operation: Operation, error: unknown)
   }
 }
 
+function withWarnings<Response extends { readonly ok: boolean }>(response: Response, warnings: readonly string[]): Response {
+  if (warnings.length === 0) return response
+  const existing = "warnings" in response && Array.isArray(response.warnings) ? response.warnings : []
+  return { ...response, warnings: [...existing, ...warnings] }
+}
+
 // Binding and snapshot reads happen on the synchronous portion of each call, never at import time.
+// Binding warnings (cwd or goal-store fallbacks) ride every envelope, failures included, so a
+// plan-missing error after a fallback explains which cwd it looked under.
 async function invoke<Operation extends string, Result extends { readonly ok: boolean }>(
   operation: Operation,
   run: (toolkit: AgentToolkit, context: SessionToolkitContext, warnings: string[]) => Promise<Result>,
 ): Promise<Result | ToolkitFailure<Operation>> {
+  const warnings: string[] = []
   try {
     const context = toolkitContextFromEnv(process.env)
+    warnings.push(...context.warnings)
     const toolkit = createAgentToolkit(context)
-    const warnings = [...context.warnings]
-    const response = await run(toolkit, context, warnings)
-    if (response.ok && warnings.length > 0) {
-      const existing = "warnings" in response && Array.isArray(response.warnings) ? response.warnings : []
-      return { ...response, warnings: [...existing, ...warnings] }
-    }
-    return response
+    return withWarnings(await run(toolkit, context, warnings), warnings)
   } catch (error) {
-    return failure(operation, error)
+    return withWarnings(failure(operation, error), warnings)
   }
 }
 
@@ -68,6 +82,10 @@ function snapshot(explicit: string | undefined, context: SessionToolkitContext, 
   const derived = readDriverGoalJson(context.goalStorePaths)
   warnings.push(...derived.warnings)
   return derived.codexGoalJson
+}
+
+function bindingOf(context: SessionToolkitContext): SessionBinding {
+  return { cwd: context.cwd, cwdSource: context.cwdSource, sessionId: context.rawSessionId, goalStorePaths: context.goalStorePaths }
 }
 
 function isKnownRequest(request: ToolkitDispatchRequest | ToolkitUnknownRequest): request is ToolkitDispatchRequest {
@@ -79,7 +97,12 @@ export const agentToolkit: SessionAgentToolkit = {
     const response = await toolkit.help()
     return response.ok ? { ...response, result: { ...response.result, usage: SESSION_HELP_USAGE } } : response
   }),
-  status: () => invoke("status", toolkit => toolkit.status()),
+  status: () => invoke("status", async (toolkit, context, warnings): Promise<SessionStatusResponse> => {
+    const response = await toolkit.status()
+    if (!response.ok) return response
+    const driver = driverRelationOf(response.result.plan, context.goalStorePaths, warnings)
+    return { ...response, result: { ...response.result, binding: bindingOf(context), driver } }
+  }),
   createGoals: args => invoke("create-goals", toolkit => toolkit.createGoals(args)),
   completeGoals: args => invoke("complete-goals", toolkit => toolkit.completeGoals(args)),
   criteria: args => invoke("criteria", toolkit => toolkit.criteria(args)),
@@ -99,6 +122,7 @@ export const agentToolkit: SessionAgentToolkit = {
   dispatch: request => {
     if (isKnownRequest(request)) {
       if (request.operation === "help") return agentToolkit.help()
+      if (request.operation === "status") return agentToolkit.status()
       if (request.operation === "checkpoint") return agentToolkit.checkpoint(request.args)
       if (request.operation === "record-review-blockers") return agentToolkit.recordReviewBlockers(request.args)
     }

@@ -34,8 +34,8 @@ Rules that keep it working:
 
 - JS cells only. From a py, rb, or jl cell, run a separate eval with language `js`.
 - Import once per kernel lifetime. `agentToolkit` stays bound in later cells; re-import only after a kernel restart or a `ReferenceError: agentToolkit is not defined`.
-- Every call resolves to an envelope, never a throw: `{ ok: true, operation, result, nextActions, warnings? }` or `{ ok: false, operation, error: { code, message } }`. Read `nextActions` before deciding the next step, and branch on `error.code`, not on the message text.
-- Never pass a session id or plan path. The SDK binds `PI_SESSION_ID` and `PI_SESSION_CWD` from the host env on each call; state lives under `.omo/ulw-loop/<session-id>/`.
+- Every call resolves to an envelope, never a throw: `{ ok: true, operation, result, nextActions, warnings? }` or `{ ok: false, operation, error: { code, message }, warnings? }`. `nextActions` are things to do next; `warnings` are facts to know (a fallback the binder took, a driver objective that differs). Read `nextActions` before deciding the next step, and branch on `error.code`, not on the message text.
+- Never pass a session id or plan path. The SDK binds `PI_SESSION_ID` and `PI_SESSION_CWD` from the host env on each call; state lives under `.omo/ulw-loop/<session-id>/`. When `PI_SESSION_CWD` is missing (seen after an extension reload restarted the kernel), the binder falls back to the cwd recorded in the `PI_SESSION_FILE` header, then to `process.cwd()`, and every envelope carries a warning naming the fix: `env("PI_SESSION_CWD", "<session cwd>")`. `status().result.binding` shows `{ cwd, cwdSource, sessionId, goalStorePaths }`, so check it after any kernel restart and re-pin the env when `cwdSource` is not `PI_SESSION_CWD`.
 - The driver snapshot is filled automatically from this session's goal store. Pass `codexGoalJson` only to override it.
 
 Methods (argument fields are exact):
@@ -43,7 +43,7 @@ Methods (argument fields are exact):
 | Method | Args |
 |---|---|
 | `help()` | none; `result.operations[]` carries `method` (the camelCase name to call), `args` (field -> type, `?` = optional), `description`, `mutating` — enough to recover every call below after a kernel restart |
-| `status()` | none; `result` carries `plan`, `summary`, `nextActions`, `evidenceRoot` (stable plan-level artifact dir), `currentAttemptDir` (moves with the active goal) |
+| `status()` | none; `result` carries `plan`, `summary`, `nextActions`, `evidenceRoot` (stable plan-level artifact dir), `currentAttemptDir` (moves with the active goal), `binding` (`cwd`, `cwdSource`, `sessionId`, `goalStorePaths`), `driver` (`available`, `status`, `objectiveMatchesPlan`, `objectiveAcknowledged`) |
 | `createGoals(args)` | `{ brief, codexGoalMode?, force?, validationBatchesJson? }` |
 | `completeGoals(args?)` | `{ retryFailed? }`; acquires the next eligible goal or resumes the in-progress one |
 | `criteria(args)` | `{ goalId }` |
@@ -57,7 +57,7 @@ Methods (argument fields are exact):
 
 - Write loop state only through the SDK; it lives under `.omo/ulw-loop/<session-id>/` and is never hand-edited. Mutations are serialized across processes by the session's `.state.lock`, so parallel `recordEvidence` calls from workers are safe.
 - Register goals up front, shaped by `references/define-goal.md` (`agentToolkit.createGoals({ brief })`, then `create_goal` from the returned handoff), and mirror every atomic step into the live `todo` checklist: one ultra-granular step per action, exactly one in_progress, transitions marked the instant they happen.
-- After any compaction or context loss, re-read brief + goals + ledger FIRST plus `agentToolkit.status()` (re-import the SDK if the kernel restarted), then resume; never re-plan from scratch.
+- After any compaction or context loss, re-read brief + goals + ledger FIRST plus `agentToolkit.status()` (re-import the SDK if the kernel restarted; `help()` lists every method with its argument fields), confirm `result.binding.cwdSource` is `PI_SESSION_CWD` and re-pin it with `env("PI_SESSION_CWD", result.binding.cwd)` when it is not, then resume; never re-plan from scratch.
 - If `createGoals` answers `ULW_LOOP_PLAN_EXISTS_COMPLETE`, this session's aggregate is already done: start unrelated new work in a fresh session instead of steering or forcing the completed state. Use `force: true` only to intentionally overwrite completed evidence.
 - Every success criterion needs observable evidence from a real surface: a channel (terminal/TUI via the xterm.js web terminal, HTTP, browser, computer-use) or, for CLI- or data-shaped criteria, an auxiliary surface (CLI stdout, DB diff, parsed config dump).
 - Evidence is bound to the tree it was captured at (`git rev-parse --short "HEAD^{tree}"`); it goes stale only when tracked content changes — a rebase or amend that keeps the tree identical keeps it valid. When the tree differs, re-run at the current HEAD and re-record, never relabel or regenerate. Record only after cleanup receipts exist.

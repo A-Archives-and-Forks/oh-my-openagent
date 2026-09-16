@@ -63,6 +63,7 @@ export interface ToolkitFailure<Operation extends string = string> {
 	readonly ok: false;
 	readonly operation: Operation;
 	readonly error: ToolkitError;
+	readonly warnings?: readonly string[];
 }
 
 type StatusResult = {
