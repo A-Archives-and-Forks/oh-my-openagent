@@ -19,9 +19,6 @@
     "system": true,
     "extensions": [
       "./extensions/omo.js"
-    ],
-    "skills": [
-      "./skills"
     ]
   },
   "files": [

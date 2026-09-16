@@ -105,6 +105,7 @@ No default profiles ship. A profile exists only when you write one under `profil
   "memory": {},         // MemorySettings, Senpi memory subsystem
   "git_master": { "commit_footer": true, "include_co_authored_by": true }, // commit attribution (Senpi harness)
   "telemetry": { "enabled": true }, // Senpi telemetry, enabled by default
+  "disabled_skills": [], // skill names hidden on every harness, unioned across layers
   "[opencode]": {},     // OpenCode plugin config, freeform (see configuration.md)
   "[senpi]": {},        // Senpi-only overrides, typed base keys
   "[codex]": {},        // Codex-only overrides, typed base keys
@@ -118,7 +119,18 @@ Source: `packages/omo-config-core/src/schema/config.ts`.
 
 ### Harness blocks
 
-`[opencode]` is a freeform record: it carries the full OpenCode plugin configuration documented in [`docs/reference/configuration.md`](./configuration.md) (background tasks, tmux, hooks, skills, and every other plugin key), and the strict schema does not validate its contents. `[senpi]` and `[codex]` are typed blocks accepting the shared base keys (`categories`, `agents`, `git_master`, `task`, `teams`, `models`, `model_profiles`, `model_profile`, `memory`, `telemetry`), so a harness-specific override stays schema-checked.
+`[opencode]` is a freeform record: it carries the full OpenCode plugin configuration documented in [`docs/reference/configuration.md`](./configuration.md) (background tasks, tmux, hooks, skills, and every other plugin key), and the strict schema does not validate its contents. `[senpi]` and `[codex]` are typed blocks accepting the shared base keys (`categories`, `agents`, `git_master`, `task`, `teams`, `models`, `model_profiles`, `model_profile`, `memory`, `telemetry`, `disabled_skills`), so a harness-specific override stays schema-checked.
+
+### `disabled_skills` (every harness)
+
+The one supported way to turn a skill off. A name listed here is absent from the run: on OmO Native / Senpi it never enters the `<available_skills>` index, the `/skill:` commands, or `get_commands`; on the OpenCode plugin it is dropped from the builtin set and the skill tool. Unlike other arrays, layers are unioned: the shared base, the `[harness]` block, the user file, the project file, and the active profile all add names, and a project cannot re-enable a skill the user file disabled by omitting it.
+
+```jsonc
+// ~/.omo/omo.jsonc
+{
+  "disabled_skills": ["frontend", "visual-qa"]
+}
+```
 
 Security invariant: the OpenCode plugin honors `mcp_env_allowlist` and `browser_automation_engine.playwright_mcp_args` only from the user layer, including the user layer's own active profile block. Project layers cannot extend them.
 

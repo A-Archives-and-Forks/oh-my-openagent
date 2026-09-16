@@ -1,5 +1,6 @@
 import { createAstGrepComponent } from "../components/ast-grep"
 import { createBuiltinMcpsComponent } from "../components/builtin-mcps"
+import { createBundledSkillsComponent } from "../components/bundled-skills"
 import { createCommentCheckerComponent } from "../components/comment-checker"
 import { createConfigStartupComponent } from "../components/config-startup"
 import { createConfigWatchComponent } from "../components/config-watch"
@@ -27,6 +28,7 @@ export function createOmoSenpiComponents(taskComponent: OmoSenpiComponent): OmoS
     // After config-startup so configuration diagnostics print before the profile notice.
     createModelProfileComponent(),
     createNativeBadgeComponent(),
+    createBundledSkillsComponent(),
     createOnboardingComponent(),
     createInitDeepAdvisorComponent(),
     createOmoNativeTelemetryComponent(),
