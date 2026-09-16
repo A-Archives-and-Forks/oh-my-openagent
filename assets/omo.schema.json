@@ -2138,6 +2138,12 @@
       ],
       "additionalProperties": false
     },
+    "disabled_skills": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "[opencode]": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "$id": "https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/dev/assets/oh-my-opencode.schema.json",
@@ -13899,6 +13905,12 @@
             }
           },
           "additionalProperties": false
+        },
+        "disabled_skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false
@@ -15756,6 +15768,12 @@
             }
           },
           "additionalProperties": false
+        },
+        "disabled_skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "additionalProperties": false
@@ -17619,6 +17637,12 @@
               }
             },
             "additionalProperties": false
+          },
+          "disabled_skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "[opencode]": {
             "$schema": "http://json-schema.org/draft-07/schema#",
@@ -29381,6 +29405,12 @@
                   }
                 },
                 "additionalProperties": false
+              },
+              "disabled_skills": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             },
             "additionalProperties": false
@@ -31238,6 +31268,12 @@
                   }
                 },
                 "additionalProperties": false
+              },
+              "disabled_skills": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             },
             "additionalProperties": false
