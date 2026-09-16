@@ -103,7 +103,7 @@ No default profiles ship. A profile exists only when you write one under `profil
   "model_profiles": {}, // record<string, ModelProfile>, named model chains picked by intent (Senpi harness)
   "model_profile": "",  // active profile id or a literal provider/model pin (Senpi harness)
   "memory": {},         // MemorySettings, Senpi memory subsystem
-  "git_master": { "commit_footer": true, "include_co_authored_by": true }, // commit attribution (Senpi harness)
+  "git_master": { "commit_footer": false }, // opt-in commit footer (Senpi harness); no Co-authored-by trailer is ever emitted
   "telemetry": { "enabled": true }, // Senpi telemetry, enabled by default
   "[opencode]": {},     // OpenCode plugin config, freeform (see configuration.md)
   "[senpi]": {},        // Senpi-only overrides, typed base keys
@@ -144,19 +144,21 @@ The optional `memory` block configures the Senpi memory subsystem (`schema/memor
 
 ### `git_master` (Senpi harness)
 
-The optional `git_master` block controls commit attribution in Senpi (`schema/git-master.ts`). When the agent works with the `git-master` skill — reading it in the main session or loading it into a task child via `load_skills` — omo appends a commit-attribution directive to the skill content based on these settings.
+The optional `git_master` block controls commit attribution in Senpi (`schema/git-master.ts`). When the agent works with the `git-master` skill — reading it in the main session or loading it into a task child via `load_skills` — omo appends a commit-footer directive to the skill content only when you opt in.
+
+Commit-identity contract: commits omo causes in your repository carry your own git `user.name` / `user.email` as author and committer, and omo never adds a `Co-authored-by` trailer or any other GitHub-resolvable automation identity. A default install appends nothing.
 
 | Field | Type | Default | Notes |
 |-------|------|---------|-------|
-| `commit_footer` | boolean \| string | `true` | Adds the "Ultraworked with [omo](https://github.com/code-yeongyu/oh-my-openagent)" footer to commit messages. A string replaces the builtin footer text; `false` disables the footer. |
-| `include_co_authored_by` | boolean | `true` | Adds the `Co-authored-by: sisyphus-dev-ai <sisyphus-dev-ai@users.noreply.github.com>` trailer ([sisyphus-dev-ai](https://github.com/sisyphus-dev-ai)) to commit messages. |
+| `commit_footer` | boolean \| string | `false` | Opt in to the "Ultraworked with [omo](https://github.com/code-yeongyu/oh-my-openagent)" footer in the commit body. A string replaces the builtin footer text. |
+| `include_co_authored_by` | boolean | `false` | Deprecated no-op, accepted so existing configs keep validating. omo does not emit a `Co-authored-by` trailer regardless of this value. |
 
-Both attributions ship enabled by default. To opt out of the co-author trailer:
+To opt in to the body footer:
 
 ```jsonc
 {
   "git_master": {
-    "include_co_authored_by": false
+    "commit_footer": true
   }
 }
 ```
