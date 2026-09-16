@@ -1,3 +1,37 @@
+## 2026-09-16 — Kibitzer nudges are reference-only
+
+A recalled note used to arrive with no stated posture, and 54% of the hints
+Kibitzer delivered this month were written as orders to the primary agent
+("verify these before ...", "하지 말아야 합니다"), which is advice the agent did
+not ask for and cannot audit. The injected block now names its sender and its
+posture in the header itself - Kibitzer, a background memory advisor, surfaced
+this stored note; it may or may not apply, reference only, the current task
+stands - in English or Korean according to the hint
+(`packages/memory-core/src/recall/render.ts`). The persona's sample block and the
+renderer are pinned to each other byte for byte by `render.test.ts`, so the judge
+is never shown a block the harness does not produce.
+
+The persona asks for the other half of the contract: a hint states what the
+stored note records ("the note records that ..."), and an instruction to the
+agent joins commentary-only and topical-only nudges as a worked bad example
+(`packages/memory-core/src/recall/assets/kibitzer-persona.md`).
+
+The rule is enforced where nudges are admitted instead of being left to the
+model. `describeInvalidHint` in `packages/memory-core/src/recall/gate.ts` answers
+`addresses-agent` for a hint that carries the second person, opens with an
+imperative or negated imperative, or ends in a Korean request form, next to the
+existing `empty`, `too-long`, `multiline` and `decision-commentary` reasons.
+`validateNudges` drops such a hint on the parent side and the sidecar's `nudge`
+tool refuses it at call time with the reason and the fix - restate what the note
+records as a plain observation - keeping the single correction the tool contract
+allows. Only the opening of the sentence is scanned for imperatives, so an
+observation that quotes a rule mid-sentence ("the release note records that
+publish must follow the green-main guard") is still accepted, as are Korean
+plain-form endings. `isValidHint` deliberately keeps its older shape-only
+meaning: pending payloads and stored `omo-kibitzer:nudged` entries were admitted
+under the contract of their own day, and replaying them must not retroactively
+drop a nudge that is already on screen (#8355).
+
 ## 2026-09-16 — memory_notice reports only messages compacted out of the live context
 
 `<memory_notice>` told every session that N previous messages had left the live context, with N read
