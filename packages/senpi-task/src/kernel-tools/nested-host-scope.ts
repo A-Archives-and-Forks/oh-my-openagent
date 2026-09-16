@@ -1,3 +1,4 @@
+import type { KernelToolInvokeScope } from "./contract"
 import { isTaskOrTeamFamilyTool } from "../runners/in-process/shared-tool-filter"
 import { childStructuralToolNames, isWriteCapableHostTool } from "../runners/in-process/host-tools"
 
@@ -5,9 +6,16 @@ export { isWriteCapableHostTool }
 
 /**
  * Nested host calls made INSIDE a granted parent closure run with the PARENT session's tool
- * permissions: the merged producer exposes no scoped-execution hook for them (backlog senpi#1731).
- * Until it does, a grant must never hand a child a closure that reaches a WRITE-capable tool the
- * child's OWN policy took away.
+ * permissions UNLESS the live capability advertises the producer's per-call execution scope
+ * (senpi#1731, PR #1765, `capabilities.invokeScope === true`).
+ *
+ * - WITH the scope: the child's RESOLVED EFFECTIVE tool policy rides every invoke as
+ *   `scope.tools`, so the closure's nested calls run CHILD-permissioned and a narrowed child is
+ *   granted (`childInvokeScope`). A nested call outside the scope is refused inside the worker and
+ *   lands on the child's own tool-result channel as `kernel_tool_host_denied`.
+ * - WITHOUT it (an older pin): a grant must never hand a child a closure that reaches a
+ *   WRITE-capable tool the child's OWN policy took away, so the grant is refused
+ *   (`escalatingHostTools` + `nestedHostScopeMessage`).
  *
  * THE RULE (also stated in the changelog fragment and the PR body):
  *
@@ -58,6 +66,22 @@ export function escalatingHostTools(request: NestedHostScopeRequest): readonly s
   if (request.toolAllowlist === undefined && (request.toolDenylist?.length ?? 0) === 0) return []
   const effective = new Set(childEffectiveToolNames(request))
   return reachableHostTools(request).filter((name) => isWriteCapableHostTool(name) && !effective.has(name))
+}
+
+/**
+ * The per-call execution scope to send with EVERY invoke made on this child's behalf: the child's
+ * effective tool set as `allow`, plus its literal denylist as `deny` when it has one (the producer
+ * lets `deny` win, so carrying both states the policy exactly as the child's own surface does).
+ * An empty allow list is meaningful, not missing: that child may cause nothing on the host.
+ */
+export function childInvokeScope(request: NestedHostScopeRequest): KernelToolInvokeScope {
+  const deny = request.toolDenylist ?? []
+  return {
+    tools: {
+      allow: [...childEffectiveToolNames(request)],
+      ...(deny.length === 0 ? {} : { deny: [...deny] }),
+    },
+  }
 }
 
 export function nestedHostScopeMessage(subject: string, escalating: readonly string[]): string {

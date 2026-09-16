@@ -54,6 +54,25 @@ export async function resolveTaskKernelTools(
   return {
     kind: "granted",
     grant,
-    detail: { requested: [...requested], status: "granted", granted: grant.descriptors.map((descriptor) => descriptor.name) },
+    detail: {
+      requested: [...requested],
+      status: "granted",
+      granted: grant.descriptors.map((descriptor) => descriptor.name),
+      ...scopeDetail(grant),
+    },
+  }
+}
+
+/**
+ * What the parent sees about the grant's execution scope. Present only when the live engine can
+ * enforce it, so a status record without it means the closure's nested host calls still run with
+ * the parent's permissions - which is exactly why a narrowed child is refused on that engine.
+ */
+function scopeDetail(grant: KernelToolGrant): Pick<TaskKernelToolsDetail, "scoped" | "scope"> {
+  const tools = grant.scope?.tools
+  if (tools === undefined) return {}
+  return {
+    scoped: true,
+    scope: { allow: [...(tools.allow ?? [])], ...(tools.deny === undefined ? {} : { deny: [...tools.deny] }) },
   }
 }
