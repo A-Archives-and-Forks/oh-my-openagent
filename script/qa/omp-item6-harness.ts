@@ -7,7 +7,7 @@ import { join } from "node:path"
 import { OmoTaskSettingsSchema } from "@oh-my-opencode/omo-config-core"
 import { loadSenpiBarrel } from "../../packages/senpi-task/src/lazy/senpi-barrel"
 import { createKernelToolBindings } from "../../packages/senpi-task/src/kernel-tools/bindings"
-import type { KernelToolsCapability } from "../../packages/senpi-task/src/kernel-tools/contract"
+import type { KernelToolInvokeOptions, KernelToolsCapability } from "../../packages/senpi-task/src/kernel-tools/contract"
 import { createTaskManager } from "../../packages/senpi-task/src/manager/manager"
 import { createInProcessManagedRunner } from "../../packages/senpi-task/src/manager/runner"
 import { InProcessRunner } from "../../packages/senpi-task/src/runners/in-process"
@@ -51,6 +51,18 @@ export function producerCheckout(): { readonly dir: string; readonly sha: string
   return { dir, sha, verified_by: head === undefined ? "declared" : "git" }
 }
 
+/** `KERNEL_TOOLS_CAPABILITIES` from the injected checkout, when that checkout defines it. */
+async function producerCapabilities(dir: string): Promise<unknown> {
+  try {
+    const module = (await import(join(dir, "packages/senpi-codemode/src/kernels/js/kernel-tools-types.ts"))) as {
+      KERNEL_TOOLS_CAPABILITIES?: unknown
+    }
+    return module.KERNEL_TOOLS_CAPABILITIES
+  } catch {
+    return undefined
+  }
+}
+
 type ToolCallMessage = { readonly callId: string; readonly toolName: string; readonly args: unknown }
 export type KernelInvocationCounts = { readonly attempted: number; readonly succeeded: number }
 export type ProducerKernel = {
@@ -84,10 +96,13 @@ export async function openProducerKernel(sessionId: string): Promise<ProducerKer
     nextToolCall(): Promise<ToolCallMessage>
     deliverToolReply(message: { type: "tool-reply"; callId: string; ok: boolean; value: unknown }): void
     describeKernelTools(names: readonly string[]): Promise<unknown>
-    invokeKernelTool(request: Record<string, unknown>, signal?: AbortSignal): Promise<unknown>
+    invokeKernelTool(request: Record<string, unknown>, options?: AbortSignal | KernelToolInvokeOptions): Promise<unknown>
     reset(): Promise<void>
     close(): Promise<void>
   }
+  // The marker the INJECTED checkout exports, or nothing when it predates the per-call invoke scope
+  // (senpi#1731). Forwarded verbatim so omo's runtime detection sees exactly what the engine says.
+  const capabilities = await producerCapabilities(dir)
   const counts = { attempted: 0, succeeded: 0 }
   return {
     sha,
@@ -95,10 +110,11 @@ export async function openProducerKernel(sessionId: string): Promise<ProducerKer
     invocations: () => ({ ...counts }),
     invocationsSince: (mark) => ({ attempted: counts.attempted - mark.attempted, succeeded: counts.succeeded - mark.succeeded }),
     capability: {
+      ...(capabilities === undefined ? {} : { capabilities }),
       describe: (names) => kernel.describeKernelTools(names),
-      invoke: async (request, signal) => {
+      invoke: async (request, options) => {
         counts.attempted += 1
-        const value = await kernel.invokeKernelTool({ ...request }, signal)
+        const value = await kernel.invokeKernelTool({ ...request }, options)
         counts.succeeded += 1
         return value
       },
@@ -169,8 +185,18 @@ export const QA_AGENTS = {
 // The names a child of this parent already carries; session builtins are unioned by the grant rule.
 const CHILD_TOOL_NAMES = ["read", "grep", "x_search"]
 
+type ManagerOptions = Parameters<typeof createTaskManager>[0]
+
+export type ChildEnvOptions = {
+  readonly idleTimeoutMs?: number
+  /** Child plan resolution. Defaults to the fixture model with no tool policy of its own. */
+  readonly planner?: ManagerOptions["planner"]
+  /** The names a child of this parent already carries, as the engine reports them. */
+  readonly childToolNames?: readonly string[]
+}
+
 /** Real omo engine: real store, manager, in-process runner, task and workpool tool definitions. */
-export async function openChildEnv(turn: ProviderTurnDecider, options: { readonly idleTimeoutMs?: number } = {}) {
+export async function openChildEnv(turn: ProviderTurnDecider, options: ChildEnvOptions = {}) {
   const { ModelRegistry, ModelRuntime } = await loadSenpiBarrel()
   const root = mkdtempSync(join(tmpdir(), "omp-item6-"))
   const agentDir = join(root, "agent")
@@ -209,12 +235,13 @@ export async function openChildEnv(turn: ProviderTurnDecider, options: { readonl
   })
   let now = 1000
   let tick: () => void = () => assert.fail("idle reclaimer was never scheduled")
+  const childToolNames = options.childToolNames ?? CHILD_TOOL_NAMES
   const manager = createTaskManager({
     store, config, cwd: root, kernelToolBindings, now: () => now,
     destruction: { destroyResidentTask: (taskId, cause) => lifecycle.destroyResidentTask(taskId, cause) },
     runners: { "in-process": runner, process: runner },
-    resolveChildToolNames: () => CHILD_TOOL_NAMES,
-    planner: () => ({ kind: "resolved", plan: { model: "omp-fixture/fixture" } }),
+    resolveChildToolNames: () => childToolNames,
+    planner: options.planner ?? (() => ({ kind: "resolved", plan: { model: "omp-fixture/fixture" } })),
   })
   const lifecycle = createTaskLifecycle({
     store, config, kernelToolBindings, now: () => now,
@@ -225,7 +252,7 @@ export async function openChildEnv(turn: ProviderTurnDecider, options: { readonl
     manager,
     omoConfig: { categories: {}, agents: {} },
     agents: QA_AGENTS,
-    resolveChildToolNames: () => CHILD_TOOL_NAMES,
+    resolveChildToolNames: () => childToolNames,
     loadSkills: () => ({ prepend: "", resolved: [], missing: [] }),
   }
   const taskTool = createTaskTool(deps)

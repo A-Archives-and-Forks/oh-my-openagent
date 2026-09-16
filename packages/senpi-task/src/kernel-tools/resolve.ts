@@ -4,12 +4,14 @@ import {
   kernelToolErrorCode,
   kernelToolErrorMessage,
   parseDescribeResults,
+  supportsInvokeScope,
   type KernelToolDescriptor,
   type KernelToolErrorCode,
+  type KernelToolInvokeScope,
   type KernelToolsCapability,
 } from "./contract"
 import { isReservedKernelToolName, kernelToolKey, normalizeKernelToolName } from "./names"
-import { escalatingHostTools, nestedHostScopeMessage } from "./nested-host-scope"
+import { childInvokeScope, escalatingHostTools, nestedHostScopeMessage } from "./nested-host-scope"
 
 export type KernelToolGrantRequest = {
   readonly requestedNames: readonly string[]
@@ -27,6 +29,13 @@ export type KernelToolGrant = {
   readonly capability: KernelToolsCapability
   readonly descriptors: readonly KernelToolDescriptor[]
   readonly requestedNames: readonly string[]
+  /**
+   * The per-call execution scope every invoke on this child's behalf carries. Present only when the
+   * live capability advertises `capabilities.invokeScope`; its absence is what makes the wrapper
+   * post exactly the frame it always did. The runner recomputes it against the child's REAL tool
+   * surface before installing the wrappers.
+   */
+  readonly scope?: KernelToolInvokeScope
 }
 
 export type KernelToolGrantResolution =
@@ -43,11 +52,13 @@ function denied(code: KernelToolErrorCode, message: string): KernelToolGrantReso
  * LIVE capability. Every rejection is typed and happens BEFORE a child session exists; nothing here
  * ever partially grants.
  *
- * Nested host calls made by a parent closure execute with the PARENT's permissions - the merged
- * producer contract exposes no scoped execution hook. A child whose own allow/deny policy takes a
- * WRITE-capable parent tool away therefore cannot receive kernel tools (see nested-host-scope.ts
- * for the exact rule): granting one would be a write bypass of that policy, so the grant fails
- * closed as tools_unavailable instead.
+ * Nested host calls made by a parent closure execute with the PARENT's permissions UNLESS the live
+ * capability advertises the per-call execution scope (`capabilities.invokeScope`, senpi#1731).
+ * When it does, the child's resolved effective policy rides every invoke as the scope, so a
+ * narrowed child is GRANTED and its closure's nested calls run child-permissioned. When it does
+ * not, a child whose own allow/deny policy takes a WRITE-capable parent tool away cannot receive
+ * kernel tools (see nested-host-scope.ts for the exact rule): granting one would be a write bypass
+ * of that policy, so the grant fails closed as tools_unavailable instead.
  */
 export async function resolveKernelToolGrant(request: KernelToolGrantRequest): Promise<KernelToolGrantResolution> {
   if (request.requestedNames.length === 0) return { kind: "none" }
@@ -67,13 +78,17 @@ export async function resolveKernelToolGrant(request: KernelToolGrantRequest): P
       `Parent kernel tools require an in-process child; this child runs in ${request.executionMode} mode.`,
     )
   }
-  const escalating = escalatingHostTools({
+  const scopeRequest = {
     ...(request.existingToolNames === undefined ? {} : { childToolNames: request.existingToolNames }),
     ...(request.toolAllowlist === undefined ? {} : { toolAllowlist: request.toolAllowlist }),
     ...(request.toolDenylist === undefined ? {} : { toolDenylist: request.toolDenylist }),
-  })
-  if (escalating.length > 0) {
-    return denied("tools_unavailable", nestedHostScopeMessage("This child", escalating))
+  }
+  const scoped = supportsInvokeScope(request.capability)
+  if (!scoped) {
+    const escalating = escalatingHostTools(scopeRequest)
+    if (escalating.length > 0) {
+      return denied("tools_unavailable", nestedHostScopeMessage("This child", escalating))
+    }
   }
 
   const existing = new Set((request.existingToolNames ?? []).map(kernelToolKey))
@@ -125,5 +140,13 @@ export async function resolveKernelToolGrant(request: KernelToolGrantRequest): P
     descriptors.push(entry.descriptor)
   }
 
-  return { kind: "granted", grant: { capability, descriptors, requestedNames: normalized } }
+  return {
+    kind: "granted",
+    grant: {
+      capability,
+      descriptors,
+      requestedNames: normalized,
+      ...(scoped ? { scope: childInvokeScope(scopeRequest) } : {}),
+    },
+  }
 }

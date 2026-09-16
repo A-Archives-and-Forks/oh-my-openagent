@@ -1,15 +1,37 @@
-import type { KernelToolDescriptor, KernelToolInvokeRequest, KernelToolsCapability } from "../../../kernel-tools/contract"
+import type {
+  KernelToolDescriptor,
+  KernelToolInvokeOptions,
+  KernelToolInvokeRequest,
+  KernelToolInvokeScope,
+  KernelToolsCapability,
+} from "../../../kernel-tools/contract"
+
+/**
+ * The nested host call a parent closure makes while it runs. The fake enforces the call's scope
+ * exactly as the producer does (deny wins, an allow list refuses every name it does not carry,
+ * a malformed list fails closed), so a test asserting the refusal is asserting real semantics.
+ */
+export type FakeHostCall = (toolName: string) => Promise<unknown>
 
 export type FakeKernelToolDefinition = {
   readonly name: string
   readonly description?: string
   readonly input_schema?: Record<string, unknown>
-  readonly run?: (args: unknown) => unknown
+  readonly run?: (args: unknown, host: FakeHostCall) => unknown
+}
+
+/** One `invoke` exactly as the consumer made it, including how many arguments it passed. */
+export type FakeInvokeCall = {
+  readonly request: KernelToolInvokeRequest
+  readonly options: AbortSignal | KernelToolInvokeOptions | undefined
+  readonly argCount: number
 }
 
 export type FakeKernelToolsCapability = KernelToolsCapability & {
   readonly invocations: readonly KernelToolInvokeRequest[]
+  readonly invokeCalls: readonly FakeInvokeCall[]
   readonly describeCalls: readonly (readonly string[])[]
+  readonly hostCalls: readonly string[]
   define(definition: FakeKernelToolDefinition): KernelToolDescriptor
   redefine(name: string, run: (args: unknown) => unknown): KernelToolDescriptor
   reset(): void
@@ -17,13 +39,38 @@ export type FakeKernelToolsCapability = KernelToolsCapability & {
   descriptor(name: string): KernelToolDescriptor
 }
 
-type Entry = {
-  readonly descriptor: KernelToolDescriptor
-  readonly run: (args: unknown) => unknown
+export type FakeKernelToolsOptions = {
+  /** Advertise the producer's `capabilities.invokeScope` marker (senpi#1731 / PR #1765). */
+  readonly invokeScope?: boolean
 }
 
-function error(code: string, message: string): Error {
-  return Object.assign(new Error(message), { code })
+type Entry = {
+  readonly descriptor: KernelToolDescriptor
+  readonly run: (args: unknown, host: FakeHostCall) => unknown
+}
+
+function error(code: string, message: string, details?: Record<string, unknown>): Error {
+  return Object.assign(new Error(message), details === undefined ? { code } : { code, details })
+}
+
+function nameList(value: unknown): readonly string[] | null {
+  if (!Array.isArray(value)) return null
+  return value.every((name) => typeof name === "string") ? (value as readonly string[]) : null
+}
+
+/** The producer's `hostToolRefusal` rule, reproduced so a scoped fake refuses what senpi refuses. */
+function hostToolRefusal(scope: KernelToolInvokeScope | undefined, toolName: string): "allow" | "deny" | null {
+  const tools = scope?.tools
+  if (tools === null || typeof tools !== "object" || tools === undefined) return null
+  if (tools.deny !== undefined) {
+    const deny = nameList(tools.deny)
+    if (deny === null || deny.includes(toolName)) return "deny"
+  }
+  if (tools.allow !== undefined) {
+    const allow = nameList(tools.allow)
+    if (allow === null || !allow.includes(toolName)) return "allow"
+  }
+  return null
 }
 
 /**
@@ -31,10 +78,12 @@ function error(code: string, message: string): Error {
  * bumps on reset, revision bumps on same-name redefinition, and the producer's typed error codes.
  * Only the exported contract shape is reproduced - no senpi-codemode code is imported.
  */
-export function fakeKernelTools(): FakeKernelToolsCapability {
+export function fakeKernelTools(options: FakeKernelToolsOptions = {}): FakeKernelToolsCapability {
   const entries = new Map<string, Entry>()
   const invocations: KernelToolInvokeRequest[] = []
+  const invokeCalls: FakeInvokeCall[] = []
   const describeCalls: (readonly string[])[] = []
+  const hostCalls: string[] = []
   let generation = 1
   let dead: string | undefined
 
@@ -57,8 +106,11 @@ export function fakeKernelTools(): FakeKernelToolsCapability {
   }
 
   return {
+    ...(options.invokeScope === true ? { capabilities: { invokeScope: true as const } } : {}),
     invocations,
+    invokeCalls,
     describeCalls,
+    hostCalls,
     define,
     redefine: (name, run) => define({ name, run }),
     reset: () => {
@@ -86,8 +138,10 @@ export function fakeKernelTools(): FakeKernelToolsCapability {
         }),
       }
     },
-    invoke: async (request) => {
+    invoke: async (...args: [KernelToolInvokeRequest, (AbortSignal | KernelToolInvokeOptions)?]) => {
+      const [request, invokeOptions] = args
       invocations.push(request)
+      invokeCalls.push({ request, options: invokeOptions, argCount: args.length })
       if (dead !== undefined) throw error("tools_unavailable", dead)
       if (request.kernel_generation !== generation) {
         throw error("kernel_tool_stale", "Kernel tool descriptor generation is stale")
@@ -97,7 +151,20 @@ export function fakeKernelTools(): FakeKernelToolsCapability {
       if (entry.descriptor.definition_revision !== request.definition_revision) {
         throw error("kernel_tool_stale", "Kernel tool descriptor revision is stale")
       }
-      return entry.run(request.args)
+      const scope = invokeOptions instanceof AbortSignal || invokeOptions === undefined ? undefined : invokeOptions.scope
+      const host: FakeHostCall = async (toolName) => {
+        const refusal = hostToolRefusal(scope, toolName)
+        if (refusal !== null) {
+          throw error(
+            "kernel_tool_host_denied",
+            `Host tool is outside this kernel tool call's scope: ${toolName} (${refusal})`,
+            { tool: toolName, call_id: request.call_id, reason: refusal },
+          )
+        }
+        hostCalls.push(toolName)
+        return `host:${toolName}`
+      }
+      return await entry.run(request.args, host)
     },
   }
 }

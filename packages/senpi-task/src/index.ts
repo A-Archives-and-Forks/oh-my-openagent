@@ -6,7 +6,7 @@ export { createWorkpoolStore } from "./workpool/store"
 export { WorkpoolError, WORKPOOL_ERROR_CODES } from "./workpool/types"
 export type { WorkpoolEngine } from "./workpool/engine"
 export { createKernelToolBindings, type KernelToolBindingRegistry } from "./kernel-tools/bindings"
-export { escalatingHostTools, isWriteCapableHostTool } from "./kernel-tools/nested-host-scope"
+export { childInvokeScope, escalatingHostTools, isWriteCapableHostTool } from "./kernel-tools/nested-host-scope"
 export {
   KERNEL_TOOL_ERROR_CODES,
   KernelToolError,
@@ -16,9 +16,11 @@ export {
   normalizeKernelToolName,
   readKernelToolsCapability,
   resolveKernelToolGrant,
+  supportsInvokeScope,
   type KernelToolDescriptor,
   type KernelToolErrorCode,
   type KernelToolGrant,
+  type KernelToolInvokeScope,
   type KernelToolsCapability,
 } from "./kernel-tools"
 export type { PoolId, ItemId, WorkpoolRecord, WorkpoolCaller, WorkpoolCreate, WorkpoolEvent, WorkpoolErrorCode } from "./workpool/types"
