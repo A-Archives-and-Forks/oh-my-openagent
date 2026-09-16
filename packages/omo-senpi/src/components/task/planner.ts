@@ -148,6 +148,9 @@ function toAgentPlan(resolution: ResolvedAgentResult, explicitModel: ResolvedMod
     agentType: resolution.agentType,
     ...(resolution.instructions !== undefined ? { instructions: resolution.instructions } : {}),
     ...(resolution.toolAllowlist !== undefined ? { toolAllowlist: resolution.toolAllowlist } : {}),
+    // The denylist must travel too: it becomes the record's tool_deny -> ChildSpec.toolDenylist ->
+    // senpi excludeTools, and a deny-only agent is otherwise invisible to every policy check.
+    ...(resolution.toolDenylist !== undefined ? { toolDenylist: resolution.toolDenylist } : {}),
     ...(resolution.agentExecutionMode !== undefined ? { agentExecutionMode: resolution.agentExecutionMode } : {}),
     ...(resolution.allowedSubagents !== undefined ? { allowedSubagents: resolution.allowedSubagents } : {}),
     ...(resolution.maxDepth !== undefined ? { maxDepth: resolution.maxDepth } : {}),

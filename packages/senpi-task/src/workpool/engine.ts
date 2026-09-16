@@ -3,14 +3,25 @@ import { EMPTY_SKILL_INVOCATIONS, evaluateInvocationGuard } from "../agents/invo
 import { createWorkpoolDispatcher } from "./dispatcher"
 import type { WorkpoolAdmission } from "./ports"
 import { canonicalJson, parseInput, WorkpoolCreateSchema, WorkpoolItemsSchema } from "./schema"
+import type { KernelToolBindingRegistry } from "../kernel-tools/bindings"
+import type { KernelToolGrant } from "../kernel-tools/resolve"
+import { normalizeKernelToolName } from "../kernel-tools/names"
+import { resolvePoolKernelTools } from "./worker-kernel-tools"
 import { createWorkpoolYieldCapability } from "./worker-capability"
 import { createWorkpoolStore } from "./store"
-import { deliverAggregate, type WorkpoolAggregatePort } from "./aggregate"
+import { deliverAggregate, poolWorkIsFinished, type WorkpoolAggregatePort } from "./aggregate"
 import { WORKPOOL_DEFAULT_MODE } from "./default-mode"
 import { WorkpoolError, type WorkpoolAgent, type WorkpoolCaller, type WorkpoolCreate, type WorkpoolEvent, type WorkpoolInput, type WorkpoolItem, type PoolId, type ItemId } from "./types"
 
-export function createWorkpoolEngine(stateDir: string, admission: WorkpoolAdmission) {
+export function createWorkpoolEngine(stateDir: string, admission: WorkpoolAdmission, kernelToolBindings?: KernelToolBindingRegistry) {
   const store = createWorkpoolStore(stateDir)
+  // The pool ids THIS engine bound, so disposal releases its own bindings without touching the
+  // child-task entries that share the map.
+  const boundPools = new Set<PoolId>()
+  const releaseKernelTools = (poolId: PoolId): void => {
+    if (!boundPools.delete(poolId)) return
+    kernelToolBindings?.release(poolId)
+  }
   const listeners = new Set<(event: WorkpoolEvent) => void>()
   let aggregatePort: WorkpoolAggregatePort | undefined
   const awaitingAck = new Set<string>()
@@ -27,6 +38,8 @@ export function createWorkpoolEngine(stateDir: string, admission: WorkpoolAdmiss
   }
   function flushAggregate(poolId: PoolId): void {
     const pool = store.load(poolId)
+    // Close-completion: the last worker of a closed pool is gone and no item is outstanding.
+    if (poolWorkIsFinished(pool)) releaseKernelTools(pool.pool_id)
     const key = `${pool.pool_id}:${pool.generation}`
     if (pool.aggregate?.delivered === true && pool.aggregate.generation === pool.generation) return
     if (awaitingAck.has(key) || pool.aggregate?.accepted === true && pool.aggregate.generation === pool.generation) return
@@ -52,12 +65,43 @@ export function createWorkpoolEngine(stateDir: string, admission: WorkpoolAdmiss
       }
     }
   }
-  function create(caller: WorkpoolCaller, value: WorkpoolCreate) {
+  /**
+   * Resolve requested worker-tool names against the caller's LIVE capability before a pool exists.
+   * The caller (the workpool tool) awaits this and hands the grant to `create`, which stays
+   * synchronous for every existing caller.
+   */
+  async function resolveKernelTools(
+    caller: WorkpoolCaller,
+    value: WorkpoolCreate,
+    capability: unknown,
+    existingToolNames?: readonly string[],
+  ) {
+    const names = (value.tools ?? []).map(normalizeKernelToolName)
+    if (names.length === 0) return undefined
+    assertParent(caller)
+    return await resolvePoolKernelTools({
+      names,
+      capability,
+      spec: admission.resolve(caller, value.agent),
+      ...(existingToolNames === undefined ? {} : { existingToolNames }),
+    })
+  }
+
+  // Only the normalized NAMES are persisted; the live capability stays in the runtime binding map
+  // and every later worker spawn re-resolves against it.
+  function create(caller: WorkpoolCaller, value: WorkpoolCreate, grant?: KernelToolGrant) {
     assertParent(caller)
     const input = parseInput(WorkpoolCreateSchema, value)
-    if (input.tools !== undefined) throw new WorkpoolError("tools_unavailable", "Parent-defined worker tools are not enabled.")
+    const names = (input.tools ?? []).map(normalizeKernelToolName)
+    if (names.length > 0 && grant === undefined) {
+      throw new WorkpoolError("tools_unavailable", "Parent-defined worker tools need a live JavaScript kernel capability.")
+    }
     checkPolicy(input.agent, caller.sessionId)
-    const pool = store.create(caller, { ...input, mode: input.mode ?? WORKPOOL_DEFAULT_MODE }, admission.resolve(caller, input.agent))
+    const pool = store.create(caller, { ...input, mode: input.mode ?? WORKPOOL_DEFAULT_MODE, tools: names }, admission.resolve(caller, input.agent))
+    if (grant !== undefined) {
+      kernelToolBindings?.bind(pool.pool_id, grant)
+      boundPools.add(pool.pool_id)
+    }
     dispatcher.schedule(pool.pool_id)
     return pool
   }
@@ -99,6 +143,9 @@ export function createWorkpoolEngine(stateDir: string, admission: WorkpoolAdmiss
       } : item),
     })
     dispatcher.cancel(owned.pool_id)
+    // A cancelled pool never spawns another worker, so its binding goes now - the workers still
+    // tearing down keep their own per-child bindings until destruction releases them.
+    releaseKernelTools(owned.pool_id)
     for (const worker of cancelled.workers) void admission.cancel(worker.task_id)
     emit({ kind: "cancelled", pool_id: owned.pool_id })
     return cancelled
@@ -114,7 +161,7 @@ export function createWorkpoolEngine(stateDir: string, admission: WorkpoolAdmiss
       signal.addEventListener("abort", abort, { once: true })
     })
   }
-  return { create, inspect, push, close, cancel, yieldResults, waitForEvent,
+  return { create, resolveKernelTools, inspect, push, close, cancel, yieldResults, waitForEvent,
     setSpawnPolicy: (policy: (agent: WorkpoolAgent, parent: string) => void) => { checkPolicy = policy },
     ownsTask: (taskId: string) => store.list().some(pool => pool.workers.some(worker => worker.task_id === taskId) || pool.items.some(item => item.binding?.task_id === taskId)),
     subscribe: (listener: (event: WorkpoolEvent) => void) => { listeners.add(listener); return () => { listeners.delete(listener) } },
@@ -134,7 +181,10 @@ export function createWorkpoolEngine(stateDir: string, admission: WorkpoolAdmiss
       awaitingAck.delete(`${poolId}:${generation}`)
       persistAggregate(poolId, generation, { delivered: false, accepted: false })
     },
-    dispose: () => { dispatcher.stopScheduling(); listeners.clear(); awaitingAck.clear() },
+    dispose: () => {
+      dispatcher.stopScheduling(); listeners.clear(); awaitingAck.clear()
+      for (const poolId of [...boundPools]) releaseKernelTools(poolId)
+    },
   }
 }
 export type WorkpoolEngine = ReturnType<typeof createWorkpoolEngine>
