@@ -768,8 +768,10 @@ Run background subagents in separate tmux panes. Requires running inside tmux wi
 Configure git commit behavior:
 
 ```json
-{ "git_master": { "commit_footer": true, "include_co_authored_by": true } }
+{ "git_master": { "commit_footer": false, "git_env_prefix": "GIT_MASTER=1" } }
 ```
+
+`commit_footer` (default `false`) opts in to an "Ultraworked with Sisyphus" footer in the commit body; a string replaces the builtin text. Commits keep your own git author and committer, and omo never adds a `Co-authored-by` trailer; `include_co_authored_by` is a deprecated no-op kept so existing configs still validate.
 
 This key configures the OpenCode plugin inside `[opencode]`. The Senpi harness reads the typed shared `git_master` section instead, documented in the [omo.json reference](./omo-json.md#git_master-senpi-harness).
 
