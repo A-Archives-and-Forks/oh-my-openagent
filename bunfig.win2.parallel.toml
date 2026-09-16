@@ -21,6 +21,8 @@ pathIgnorePatterns = [
   "packages/omo-native/test/payload.test.ts",
   "script/build-omo-binary.test.ts",
   "packages/senpi-task/src/team/member-extension/residency.test.ts",
+  "script/omob-refresh.test.ts",
+  "script/release-version.test.ts",
 ]
 
 [loader]
