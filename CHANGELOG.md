@@ -33,6 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Typed task handles.** Background task handles carry a run epoch, so a handle from a previous run cannot be mistaken for the live one.
 
+**`workpool` is a new host tool for keyed, batched fan-out.** `workpool create { name, agent, mode?, tools? }` opens a pool whose workers run a `category` or `subagent_type` with a prompt; `push { pool_id, items: [{ key, input }] }` returns `{ pool_id, item_ids }` at once without waiting for capacity, and scheduling happens one event-loop turn after the durable receipt, so every later wake is event-driven. `inspect` reads the persisted record with each item's status and its data or error, `close` stops intake and lets in-flight items finish, and `cancel` marks queued and assigned items `cancelled` and cancels their workers. Pool ids are `wp_<32 hex>`, item ids `wi_<32 hex>`. Re-pushing a key with byte-identical input is idempotent; a divergent re-push is a `yield_conflict`. A pool worker takes the same admission lease, per-model concurrency slot and spawn-policy checks as a `task` spawn, so nothing in a pool bypasses admission. One acknowledged aggregate result is delivered through the idle-injection path without polling, and it survives a reconnect once.
+
+**Pool workers default to `keep_alive`.** On one real batch, keeping a worker warm between items answered at a p95 of 12 to 13 seconds against 42 to 51 seconds fresh, on about a fifth of the tokens, with identical correctness, so `keep_alive` is the default and `fresh` stays available per pool. A worker that yields after a stale-kernel error produces one keyed error and the single aggregate, never an automatic retry.
+
+**A parent's JavaScript tools are scoped to the child that receives them.** A grant is computed from the child's resolved effective tool set, so a curated read-only agent, a child whose policy is narrower than the parent for any write-capable tool, and process, team and non-JavaScript children are refused with a typed error and no child session. A revived child re-checks the parent kernel's generation and revision on every call: a reset, a same-name redefinition or a new host without the live binding returns `kernel_tool_stale` or `tools_unavailable` on the child's own result channel instead of running a stale closure.
+
 ## [5.0.0-beta.63] - 2026-09-15
 
 ### Breaking
