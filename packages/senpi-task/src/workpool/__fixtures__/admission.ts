@@ -8,6 +8,7 @@ import type { ResidencyRegistry } from "../../lifecycle/port"
 import { createTaskManager } from "../../manager/manager"
 import { TaskConcurrency } from "../../manager/concurrency"
 import type { ManagedChildHandle } from "../../manager/child-handle"
+import type { KernelToolBindingRegistry } from "../../kernel-tools/bindings"
 import type { AdmitResident, ChildPlanner, ManagedRunner, ManagedStartSpec } from "../../manager/types"
 import type { RunnerOutcome } from "../../runners/in-process/child-handle"
 import { createTaskRecordStore } from "../../store"
@@ -48,6 +49,8 @@ export function fixture(options: {
   readonly admit?: AdmitResident
   readonly planner?: ChildPlanner
   readonly runner?: ManagedRunner
+  // The engine's runtime parent kernel-tool map, so a test can watch a pool binding appear and go.
+  readonly kernelToolBindings?: KernelToolBindingRegistry
 } = {}) {
   const root = mkdtempSync(join(tmpdir(), "workpool-admission-"))
   const store = createTaskRecordStore({ project_dir: root })
@@ -74,6 +77,7 @@ export function fixture(options: {
   }
   const lifecycle = createTaskLifecycle({ store, registry, config })
   const manager = createTaskManager({ store, concurrency, runners: { "in-process": runner, process: runner }, config, cwd: root,
+    ...(options.kernelToolBindings === undefined ? {} : { kernelToolBindings: options.kernelToolBindings }),
     planner: options.planner ?? (spec => ({ kind: "resolved", plan: { model: spec.model ?? "test/model", ...(spec.subagent_type === undefined ? {} : { agentType: spec.subagent_type }) } })),
     destruction: lifecycle,
     admit: options.admit ?? (async parent => {

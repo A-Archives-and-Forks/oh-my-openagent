@@ -1,6 +1,8 @@
 import { expect } from "bun:test"
 import { mkdirSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
+import type { KernelToolBindingRegistry } from "../../kernel-tools/bindings"
+import type { KernelToolGrant } from "../../kernel-tools/resolve"
 import type { ManagedStartSpec } from "../../manager/types"
 import type { PendingSteeringEntry } from "../../state"
 import { fixture, fixtureHandle, poolInput, bounded, deferred } from "./admission"
@@ -8,12 +10,18 @@ import type { WorkpoolEvent, WorkpoolYield } from "../types"
 
 export { bounded, deferred }
 export const signal = () => AbortSignal.timeout(5000)
-export function deliveryFixture(options: { readonly mode?: "fresh" | "keep_alive"; readonly agent?: string } = {}) {
+export function deliveryFixture(options: {
+  readonly mode?: "fresh" | "keep_alive"
+  readonly agent?: string
+  readonly kernelToolBindings?: KernelToolBindingRegistry
+  // Creates the pool WITH parent kernel tools, exactly as the workpool tool does for a live cell.
+  readonly kernelTools?: { readonly names: readonly string[]; readonly grant: KernelToolGrant }
+} = {}) {
   const turns: { spec: ManagedStartSpec; pending: readonly PendingSteeringEntry[] }[] = []
   const children = new Map<string, ReturnType<typeof fixtureHandle>>()
   const resumes: ManagedStartSpec[] = []
   let onFollowUp: (message: string, taskId: string) => Promise<void> = async () => undefined
-  const f = fixture({ runner: {
+  const f = fixture({ ...(options.kernelToolBindings === undefined ? {} : { kernelToolBindings: options.kernelToolBindings }), runner: {
     start: async spec => {
       const child = fixtureHandle(spec.taskId)
       children.set(spec.taskId, child)
@@ -32,7 +40,8 @@ export function deliveryFixture(options: { readonly mode?: "fresh" | "keep_alive
   } })
   const pool = f.manager.workpools.create(f.caller, { ...poolInput, mode: options.mode ?? "keep_alive",
     ...(options.agent === undefined ? {} : { agent: { subagent_type: options.agent, prompt: "Process assigned input" } }),
-  })
+    ...(options.kernelTools === undefined ? {} : { tools: [...options.kernelTools.names] }),
+  }, options.kernelTools?.grant)
   const push = (key: string, input: number = 1) => f.manager.workpools.push(f.caller, pool.pool_id, [{ key, input }])
   const event = (kind: WorkpoolEvent["kind"]) => f.manager.workpools.waitForEvent(pool.pool_id, kind, signal())
   const inspect = () => f.manager.workpools.inspect(f.caller, pool.pool_id)

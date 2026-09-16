@@ -1,3 +1,4 @@
+// allow: SIZE_OK - register() is the remaining host-wiring graph after engine/runners/liveness splits; further cuts would scatter the register surface.
 import { loadSenpiOmoConfig } from "../config-resolution"
 import {
   TEAM_LEAD_SENTINEL,
@@ -218,13 +219,7 @@ function registerTaskTools(
   const resolveCallerSessionId = defaultResolveCallerSessionId
   const manager = engine.manager
   pi.registerTool({
-    ...createTaskTool({
-      manager,
-      omoConfig: engine.omoConfig,
-      agents: engine.agents,
-      loadSkills: engine.loadSkills,
-      resolveSkillInvocations: (sessionId: string) => skillInvocations.stateFor(sessionId),
-    }),
+    ...createTaskTool(engine.taskToolDeps((sessionId: string) => skillInvocations.stateFor(sessionId))),
   })
   pi.registerTool({
     ...createTaskSendTool({

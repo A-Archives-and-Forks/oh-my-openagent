@@ -18,6 +18,17 @@ export type WorkpoolAggregatePort = {
 
 const terminal = new Set(["completed", "error", "cancelled"])
 
+/**
+ * No NEW worker can ever spawn for this pool: it is closed or cancelled, every item reached a
+ * terminal state and no worker is still busy. The engine drops the pool's runtime kernel-tool
+ * binding here, so a finished pool keeps no strong reference to the parent kernel.
+ */
+export function poolWorkIsFinished(pool: WorkpoolRecord): boolean {
+  return pool.status !== "open" &&
+    pool.items.every(item => terminal.has(item.status)) &&
+    pool.workers.every(worker => worker.status !== "busy")
+}
+
 export function aggregateResults(pool: WorkpoolRecord): readonly WorkpoolAggregateResult[] | undefined {
   if (pool.status !== "closing" && pool.status !== "cancelled") return undefined
   if (pool.aggregate?.delivered === true && pool.aggregate.generation === pool.generation) return undefined
