@@ -18,6 +18,7 @@ import type { TaskRecordStore } from "../store"
 import type { ManagedChildHandle, ManagedChildListener } from "./child-handle"
 import type { ExecutionMode } from "./execution-mode"
 import type { TaskConcurrency } from "./concurrency"
+import type { RunnerFailure } from "../runners/in-process/child-handle"
 import type { WorkpoolEngine } from "../workpool/engine"
 
 export type { ExecutionMode } from "./execution-mode"
@@ -158,7 +159,7 @@ export type StartResult =
       readonly error_message: string
       // The runner's typed failure kind (RunnerFailure["kind"]) when the runner rejected the start,
       // so a caller can classify the refusal without parsing the sanitized message.
-      readonly failure_kind?: string
+      readonly failure_kind?: RunnerFailure["kind"]
     }
   | { readonly kind: "residency_denied"; readonly reason: string }
 
@@ -222,6 +223,8 @@ export type TaskManagerOptions = {
   // The parent engine's RUNTIME-ONLY kernel-tool capability map (item 6). Shared with the runner so
   // a same-host parked child revives onto the same live parent closures; absent = no kernel tools.
   readonly kernelToolBindings?: KernelToolBindingRegistry
+  // The names a child of this parent already carries (same list the task tool grant reads).
+  readonly resolveChildToolNames?: () => readonly string[]
 }
 
 export type TaskManager = {

@@ -132,11 +132,13 @@ export {
   InProcessRunner,
   RunnerError,
   buildSubagentPrompt,
+  childStructuralToolNames,
   childVisibleToolNames,
   createChildResourceLoader,
   filterSharedParentTools,
   isTaskOrTeamFamilyTool,
   mergeChildCustomTools,
+  SENPI_SESSION_BUILTIN_NAMES,
 } from "./runners"
 export type {
   ChildCompletionPolicy,

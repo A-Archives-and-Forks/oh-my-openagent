@@ -70,11 +70,21 @@ export function createWorkpoolEngine(stateDir: string, admission: WorkpoolAdmiss
    * The caller (the workpool tool) awaits this and hands the grant to `create`, which stays
    * synchronous for every existing caller.
    */
-  async function resolveKernelTools(caller: WorkpoolCaller, value: WorkpoolCreate, capability: unknown) {
+  async function resolveKernelTools(
+    caller: WorkpoolCaller,
+    value: WorkpoolCreate,
+    capability: unknown,
+    existingToolNames?: readonly string[],
+  ) {
     const names = (value.tools ?? []).map(normalizeKernelToolName)
     if (names.length === 0) return undefined
     assertParent(caller)
-    return await resolvePoolKernelTools({ names, capability, spec: admission.resolve(caller, value.agent) })
+    return await resolvePoolKernelTools({
+      names,
+      capability,
+      spec: admission.resolve(caller, value.agent),
+      ...(existingToolNames === undefined ? {} : { existingToolNames }),
+    })
   }
 
   // Only the normalized NAMES are persisted; the live capability stays in the runtime binding map

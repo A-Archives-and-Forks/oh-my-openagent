@@ -46,7 +46,7 @@ export function buildWorkpoolExecute(deps: WorkpoolToolDeps) {
           // Requested worker tools are resolved against the caller's LIVE capability first; only the
           // normalized names reach the persisted pool record.
           const request = { ...create, agent }
-          const grant = await deps.workpools.resolveKernelTools(caller, request, ctx.kernelTools)
+          const grant = await deps.workpools.resolveKernelTools(caller, request, ctx.kernelTools, deps.resolveChildToolNames?.())
           return result(deps.workpools.create(caller, request, grant))
         }
         case "push": return result(deps.workpools.push(caller, input.pool_id, input.items))

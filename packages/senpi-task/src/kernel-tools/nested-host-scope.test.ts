@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test"
 import { childEffectiveToolNames, escalatingHostTools, isWriteCapableHostTool } from "./nested-host-scope"
 
 // The child's structurally-visible surface: shared parent tools minus UI-only names minus the
-// task/team family, exactly as the runner builds it.
+// task/team family. Session builtins are unioned by the shared childStructuralToolNames function.
 const CHILD_TOOLS = ["read", "grep", "ls", "web_search", "write", "edit", "bash", "lsp_symbols", "lsp_rename"]
 
 describe("nested host scope classification", () => {
@@ -15,9 +15,8 @@ describe("nested host scope classification", () => {
   test("#given a policy #when the effective set is computed #then it is the visible surface minus deny, intersected with allow", () => {
     expect(childEffectiveToolNames({ childToolNames: CHILD_TOOLS, toolDenylist: ["write"] })).not.toContain("write")
     expect(childEffectiveToolNames({ childToolNames: CHILD_TOOLS, toolAllowlist: ["read"] })).toEqual(["read"])
-    // The engine's write-capable builtins belong to the surface even when the host can only
-    // enumerate its extension tools.
-    expect(childEffectiveToolNames({ childToolNames: ["x_search"] })).toEqual(["write", "edit", "bash", "x_search"])
+    expect(childEffectiveToolNames({ childToolNames: ["x_search"] })).toEqual(["read", "bash", "edit", "write", "grep", "x_search"])
+    expect(childEffectiveToolNames({ childToolNames: [], toolAllowlist: ["read"] })).toEqual(["read"])
   })
 })
 
@@ -28,13 +27,13 @@ describe("nested host scope rule", () => {
   })
 
   test("#given an EMPTY allowlist (the most restrictive shape) #when checked #then every write-capable parent tool escalates", () => {
-    expect(escalatingHostTools({ childToolNames: CHILD_TOOLS, toolAllowlist: [] })).toEqual(["write", "edit", "bash", "lsp_rename"])
+    expect(escalatingHostTools({ childToolNames: CHILD_TOOLS, toolAllowlist: [] })).toEqual(["bash", "edit", "write", "lsp_rename"])
     // `tools: { write: false }` in omo.json resolves to exactly this pair.
     expect(escalatingHostTools({ childToolNames: ["fixture_write"], toolAllowlist: [], toolDenylist: ["write"] })).toContain("write")
   })
 
   test("#given a denylist #when it removes a write-capable tool #then that tool escalates, and a read-only denial does not", () => {
-    expect(escalatingHostTools({ childToolNames: CHILD_TOOLS, toolDenylist: ["write", "edit"] })).toEqual(["write", "edit"])
+    expect(escalatingHostTools({ childToolNames: CHILD_TOOLS, toolDenylist: ["write", "edit"] })).toEqual(["edit", "write"])
     expect(escalatingHostTools({ childToolNames: CHILD_TOOLS, toolDenylist: ["web_search", "grep"] })).toEqual([])
   })
 
@@ -50,9 +49,9 @@ describe("nested host scope rule", () => {
     expect(escalatingHostTools({ childToolNames: ["read", "task", "workpool", "team_send"], toolAllowlist: ["read", "write", "edit", "bash"] })).toEqual([])
   })
 
-  test("#given an unknown child surface #when a policy exists #then the engine's write-capable builtins are still checked", () => {
+  test("#given an unknown child surface #when a policy exists #then the session builtins are still checked", () => {
     expect(escalatingHostTools({ toolDenylist: ["write"] })).toEqual(["write"])
-    expect(escalatingHostTools({ childToolNames: [], toolAllowlist: ["read"] })).toEqual(["write", "edit", "bash"])
+    expect(escalatingHostTools({ childToolNames: [], toolAllowlist: ["read"] })).toEqual(["bash", "edit", "write"])
     expect(escalatingHostTools({ toolDenylist: ["web_search"] })).toEqual([])
   })
 })

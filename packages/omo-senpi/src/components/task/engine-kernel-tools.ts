@@ -1,7 +1,8 @@
 import type { ToolDefinition } from "@code-yeongyu/senpi"
 import {
-  childVisibleToolNames,
+  childStructuralToolNames,
   createKernelToolBindings,
+  mergeChildCustomTools,
   type KernelToolBindingRegistry,
 } from "@oh-my-opencode/senpi-task"
 
@@ -25,6 +26,8 @@ export type EngineKernelTools = {
 export function createEngineKernelTools(sharedParentTools: () => readonly ToolDefinition[]): EngineKernelTools {
   return {
     bindings: createKernelToolBindings(),
-    childToolNames: () => childVisibleToolNames(sharedParentTools().map((tool) => tool.name), TASK_CHILD_UI_ONLY_TOOL_NAMES),
+    childToolNames: () => childStructuralToolNames(
+      mergeChildCustomTools(sharedParentTools(), undefined, { uiOnlyToolNames: TASK_CHILD_UI_ONLY_TOOL_NAMES }).map((tool) => tool.name),
+    ),
   }
 }

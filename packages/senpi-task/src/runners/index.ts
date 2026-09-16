@@ -7,6 +7,7 @@ export {
   isTaskOrTeamFamilyTool,
   mergeChildCustomTools,
 } from "./in-process"
+export { childStructuralToolNames, SENPI_SESSION_BUILTIN_NAMES } from "./in-process/host-tools"
 export type {
   ChildCompletionPolicy,
   ChildHandle,

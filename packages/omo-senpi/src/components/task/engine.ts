@@ -205,6 +205,7 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
     store: storeChain.store,
     runners: { "in-process": factories.inProcess(runnerContext), process: factories.process(runnerContext) },
     kernelToolBindings,
+    resolveChildToolNames: kernelTools.childToolNames,
     planner,
     config: settings,
     cwd: deps.cwd,

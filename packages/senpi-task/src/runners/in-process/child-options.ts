@@ -9,6 +9,7 @@ import { createCuratedReadonlyBashTool } from "./curated-readonly-bash"
 import { buildChildKernelTools, buildRevivedChildKernelTools } from "./kernel-tool-surface"
 import { RunnerError } from "./runner-error"
 import { createRuntimeFallbackSettings } from "./runtime-fallback-settings"
+import { childStructuralToolNames } from "./host-tools"
 import { mergeChildCustomTools } from "./shared-tool-filter"
 
 export type BuildChildSessionOptionsInput = {
@@ -101,15 +102,16 @@ export function buildChildSessionOptions(input: BuildChildSessionOptionsInput): 
   const mergedCustomTools = mergeChildCustomTools(input.sharedParentTools, spec.memberScopedTools, {
     uiOnlyToolNames,
   })
+  const existingToolNames = childStructuralToolNames(mergedCustomTools.map((tool) => tool.name))
   const curated = spec.agentType !== undefined && CURATED_READONLY_AGENT_NAMES.has(spec.agentType)
   const floor = curated ? (BUILTIN_AGENTS[spec.agentType ?? ""]?.tools ?? []).filter((rule) => rule.allow).map((rule) => rule.pattern) : undefined
   const toolAllowlist = floor === undefined ? spec.toolAllowlist : floor.filter((name) => spec.toolAllowlist === undefined || spec.toolAllowlist.includes(name))
   const kernelTools = input.revivedSessionPath === undefined
-    ? buildChildKernelTools(spec, mergedCustomTools.map((tool) => tool.name), liveBindingGuard(spec, input.kernelToolBindings))
+    ? buildChildKernelTools(spec, existingToolNames, liveBindingGuard(spec, input.kernelToolBindings))
     : buildRevivedChildKernelTools({
       spec,
       sessionPath: input.revivedSessionPath,
-      existingToolNames: mergedCustomTools.map((tool) => tool.name),
+      existingToolNames,
       bindings: input.kernelToolBindings,
     })
   const customTools = curated

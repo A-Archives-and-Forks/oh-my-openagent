@@ -706,7 +706,7 @@ class TaskManagerImpl implements TaskManager {
   // Test-only observability for proving the release guard never grows unboundedly across revives.
   releasedKeyCount(): number { return this.#released.size }
 
-  async #launch(context: LaunchContext): Promise<{ ok: true } | { ok: false; error: string; failure_kind?: string }> {
+  async #launch(context: LaunchContext): Promise<{ ok: true } | { ok: false; error: string; failure_kind?: Extract<StartResult, { kind: "start_failed" }>["failure_kind"] }> {
     const { record, managedSpec, runner, model } = context
     const startResult = this.#options.store.transition(record.task_id, { type: "start", timestamp: nowIso(this.#now) })
     if (!startResult.applied) {

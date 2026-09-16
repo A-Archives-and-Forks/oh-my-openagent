@@ -3,6 +3,7 @@ import type { OmoConfig } from "@oh-my-opencode/omo-config-core"
 import type { AgentDefinition, SkillInvocationState } from "../../agents"
 import type { KernelToolErrorCode } from "../../kernel-tools/contract"
 import type { TaskManager } from "../../manager"
+import type { RunnerFailure } from "../../runners/in-process/child-handle"
 import type { ResolvedModelRecord, TaskRunStats } from "../../state"
 import type { TaskToolParamsStatic } from "./params"
 
@@ -69,9 +70,9 @@ export type TaskToolDeps = {
   // Session-scoped skill-invocation state for plan-gated agents (plan-consultant/plan-reviewer). When absent the
   // invocation gate fails CLOSED: without a resolver there is no proof ulw-plan was invoked.
   readonly resolveSkillInvocations?: (sessionId: string) => SkillInvocationState
-  // The names a child of THIS parent already carries (shared parent tools minus UI-only names minus
-  // the task/team family). A kernel-tool grant is decided against them before any child exists;
-  // absent falls back to the conservative write-capable baseline (kernel-tools/nested-host-scope.ts).
+  // The names a child of THIS parent already carries (session builtins plus merged custom tools).
+  // A kernel-tool grant is decided against them before any child exists; absent falls back to the
+  // senpi session builtins (runners/in-process/host-tools.ts).
   readonly resolveChildToolNames?: () => readonly string[]
 }
 
@@ -143,7 +144,7 @@ export type TaskToolDetails = {
   readonly items?: readonly TaskToolItemDetail[]
   // The runner's typed failure kind when a start failed, so the caller can tell a refused parent
   // kernel-tool grant from a generic runner failure without reading prose.
-  readonly failure_kind?: string
+  readonly failure_kind?: RunnerFailure["kind"]
   readonly reason?: string
   readonly run_stats?: TaskRunStats
   readonly skills?: TaskSkillSummary

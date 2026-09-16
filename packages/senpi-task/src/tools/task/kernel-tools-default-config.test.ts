@@ -3,9 +3,7 @@ import { describe, expect, test } from "bun:test"
 import type { OmoConfig } from "@oh-my-opencode/omo-config-core"
 
 import { BUILTIN_AGENTS, CURATED_READONLY_AGENT_NAMES, ULW_REVIEWER_AGENT_NAMES } from "../../agents/builtin"
-import { agentToolPolicy } from "../../agents/agent-tool-policy"
 import { DEFAULT_CATEGORIES } from "../../category"
-import { escalatingHostTools } from "../../kernel-tools/nested-host-scope"
 import { fakeKernelTools } from "../../runners/in-process/__fixtures__/kernel-tools-fakes"
 import { buildTaskExecute } from "./execute"
 import { CTX, createFakeManager, makeDeps, makeRecord } from "./__fixtures__/task-tool-fakes"
@@ -83,11 +81,6 @@ describe("kernel-tool grants under the real default omo config", () => {
     }
 
     for (const name of CURATED_READONLY_AGENT_NAMES) expect(codes[name]).toBe("curated_policy_denied")
-    for (const name of ULW_REVIEWER_AGENT_NAMES) {
-      expect(codes[name]).toBe("tools_unavailable")
-      // The reason is the rule, not the mode: these definitions allow write but not edit, so a
-      // parent closure's nested host calls would out-permission the child.
-      expect(escalatingHostTools({ childToolNames: CHILD_TOOLS, ...agentToolPolicy(BUILTIN_AGENTS[name]) })).toContain("edit")
-    }
+    for (const name of ULW_REVIEWER_AGENT_NAMES) expect(codes[name]).toBe("tools_unavailable")
   })
 })

@@ -22,6 +22,7 @@ export async function resolvePoolKernelTools(input: {
   readonly names: readonly string[]
   readonly capability: unknown
   readonly spec: WorkpoolSpec
+  readonly existingToolNames?: readonly string[]
 }): Promise<KernelToolGrant | undefined> {
   if (input.names.length === 0) return undefined
   const agentType = input.spec.start.subagent_type ?? input.spec.plan.agentType
@@ -30,6 +31,7 @@ export async function resolvePoolKernelTools(input: {
     capability: readKernelToolsCapability({ kernelTools: input.capability }),
     executionMode: input.spec.start.execution_mode ?? "in-process",
     ...(agentType === undefined ? {} : { agentType }),
+    ...(input.existingToolNames === undefined ? {} : { existingToolNames: input.existingToolNames }),
     ...(input.spec.plan.toolAllowlist === undefined ? {} : { toolAllowlist: input.spec.plan.toolAllowlist }),
     ...(input.spec.plan.toolDenylist === undefined ? {} : { toolDenylist: input.spec.plan.toolDenylist }),
   })
@@ -45,6 +47,7 @@ export async function resolvePoolKernelTools(input: {
 export async function resolveWorkerKernelTools(
   pool: WorkpoolRecord,
   bindings: KernelToolBindingRegistry | undefined,
+  existingToolNames?: readonly string[],
 ): Promise<KernelToolGrant | undefined> {
   const names = pool.kernel_tool_names ?? []
   if (names.length === 0) return undefined
@@ -55,5 +58,10 @@ export async function resolveWorkerKernelTools(
       `Pool ${pool.pool_id} has no live parent kernel binding for its worker tools; recreate the pool from a live JavaScript cell.`,
     )
   }
-  return await resolvePoolKernelTools({ names, capability: binding.capability, spec: pool.worker_spec })
+  return await resolvePoolKernelTools({
+    names,
+    capability: binding.capability,
+    spec: pool.worker_spec,
+    ...(existingToolNames === undefined ? {} : { existingToolNames }),
+  })
 }

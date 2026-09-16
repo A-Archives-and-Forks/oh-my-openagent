@@ -166,12 +166,7 @@ export const QA_AGENTS = {
   "probe-no-write": { name: "probe-no-write", tools: [{ pattern: "write", allow: false }] },
 } as const
 
-const PLANNED_AGENT_POLICY: Record<string, { readonly toolAllowlist?: readonly string[]; readonly toolDenylist?: readonly string[] }> = {
-  "restricted-writer": { toolDenylist: ["write"] },
-  "probe-no-write": { toolAllowlist: [], toolDenylist: ["write"] },
-}
-
-// The names a child of this parent already carries; the rule adds the engine's write builtins.
+// The names a child of this parent already carries; session builtins are unioned by the grant rule.
 const CHILD_TOOL_NAMES = ["read", "grep", "x_search"]
 
 /** Real omo engine: real store, manager, in-process runner, task and workpool tool definitions. */
@@ -218,17 +213,8 @@ export async function openChildEnv(turn: ProviderTurnDecider, options: { readonl
     store, config, cwd: root, kernelToolBindings, now: () => now,
     destruction: { destroyResidentTask: (taskId, cause) => lifecycle.destroyResidentTask(taskId, cause) },
     runners: { "in-process": runner, process: runner },
-    // The narrowing agents below stand in for the two supported omo.json shapes that take a tool
-    // away: a deny-only definition, and one whose rules resolve to an EMPTY allowlist.
-    planner: (spec) => ({
-      kind: "resolved",
-      plan: {
-        model: "omp-fixture/fixture",
-        ...(spec.subagent_type === undefined ? {} : PLANNED_AGENT_POLICY[spec.subagent_type] === undefined
-          ? {}
-          : { agentType: spec.subagent_type, ...PLANNED_AGENT_POLICY[spec.subagent_type] }),
-      },
-    }),
+    resolveChildToolNames: () => CHILD_TOOL_NAMES,
+    planner: () => ({ kind: "resolved", plan: { model: "omp-fixture/fixture" } }),
   })
   const lifecycle = createTaskLifecycle({
     store, config, kernelToolBindings, now: () => now,

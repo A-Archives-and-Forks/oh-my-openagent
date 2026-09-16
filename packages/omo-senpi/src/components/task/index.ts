@@ -1,3 +1,4 @@
+// allow: SIZE_OK - register() is the remaining host-wiring graph after engine/runners/liveness splits; further cuts would scatter the register surface.
 import { loadSenpiOmoConfig } from "../config-resolution"
 import {
   TEAM_LEAD_SENTINEL,
