@@ -23,14 +23,16 @@ export async function runCuratedProcessAndLanguageDenials(): Promise<Record<stri
     const hold = await kernel.nextToolCall()
     assert.equal(hold.toolName, "hold")
 
-    const execute = async (params: Record<string, unknown>, capability: unknown): Promise<TaskToolDetails> =>
-      ((await env.taskTool.execute(
+    const run = async (params: Record<string, unknown>, capability: unknown): Promise<AgentToolResult<TaskToolDetails>> =>
+      (await env.taskTool.execute(
         "omp-item6-denial",
         params as never,
         undefined,
         undefined,
         env.context(capability as never) as never,
-      )) as AgentToolResult<TaskToolDetails>).details
+      )) as AgentToolResult<TaskToolDetails>
+    const execute = async (params: Record<string, unknown>, capability: unknown): Promise<TaskToolDetails> =>
+      (await run(params, capability)).details
 
     const base = { prompt: "use the parent tool", run_in_background: true as const }
     const cases: { readonly label: string; readonly details: TaskToolDetails }[] = [
@@ -57,9 +59,15 @@ export async function runCuratedProcessAndLanguageDenials(): Promise<Record<stri
     assert.equal(pool.error?.code, "kernel_tool_missing")
     assert.deepEqual(createWorkpoolStore(env.store.stateDir).list(), [], "a refused pool must not be created")
 
-    // A child-denied nested host call: the child's own policy narrows the parent surface, so the
-    // grant is refused rather than running the closure with unrestricted parent permissions.
-    const policyDenied = await execute({ ...base, subagent_type: "code-reviewer", tools: ["fixture_lookup"] }, kernel.capability)
+    // A child-denied nested host call: the child's RESOLVED policy narrows the parent surface, so
+    // the grant is refused rather than running the closure with unrestricted parent permissions.
+    // The plan is only known inside the runner, so this refusal happens there - before any session.
+    const sessionsBefore = env.sessions.length
+    const policy = await run({ ...base, subagent_type: "restricted-writer", tools: ["fixture_lookup"] }, kernel.capability)
+    const policyText = policy.content.map((part) => (part.type === "text" ? part.text : "")).join("")
+    assert.equal(env.sessions.length, sessionsBefore, "a policy-narrowed child must not open a session")
+    assert.equal(policy.details.status, "error")
+    assert.match(policyText, /Parent kernel tools are unavailable/)
 
     kernel.reply(hold.callId, "released")
     await cell
@@ -68,8 +76,8 @@ export async function runCuratedProcessAndLanguageDenials(): Promise<Record<stri
       producer_sha: kernel.sha,
       denials: cases.map((entry) => ({ case: entry.label, code: entry.details.kernel_tools?.error?.code, status: entry.details.status })),
       pool_denial: pool.error,
-      child_policy_denial: { code: policyDenied.kernel_tools?.error?.code, status: policyDenied.status },
-      spawned_children: env.store.list().records.length,
+      child_policy_denial: { status: policy.details.status, message: policyText.split("\n")[0], sessions_opened: 0 },
+      child_sessions_opened: env.sessions.length,
     }
   } finally {
     env.dispose()

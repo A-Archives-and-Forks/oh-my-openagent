@@ -146,6 +146,11 @@ export class InProcessRunner {
     this.#kernelToolBindings = options.kernelToolBindings
   }
 
+  /** Drop a child's runtime kernel-tool binding (deliberate destruction, expunge, shutdown). */
+  releaseKernelTools(taskId: string): void {
+    this.#kernelToolBindings?.release(taskId)
+  }
+
   async start(spec: ChildSpec): Promise<ChildHandle> {
     if (spec.depth > this.#depthPolicy.maxDepth) {
       throw new RunnerError({
@@ -219,11 +224,17 @@ export class InProcessRunner {
     let session: ChildSession
     try {
       const { SessionManager } = await loadSenpiBarrel()
+      // Parent kernel tools are NOT rebuilt from the spec: only a runtime binding that survived
+      // same-host parking can restore a callable tool, and a missing binding restores typed error
+      // stubs from this child's own recorded transcript names.
+      const { kernelTools: _discardedGrant, ...plain } = spec
       const options = buildChildSessionOptions({
-        spec: { ...spec, memberScopedTools },
+        spec: { ...plain, memberScopedTools },
         sessionManager: SessionManager.open(sessionPath, requireChildSessionDir(spec), spec.cwd),
         sharedParentTools: this.#sharedParentTools,
         uiOnlyToolNames: this.#uiOnlyToolNames,
+        revivedSessionPath: sessionPath,
+        ...(this.#kernelToolBindings === undefined ? {} : { kernelToolBindings: this.#kernelToolBindings }),
       })
       session = await this.#createSession(options)
     } catch (error) {

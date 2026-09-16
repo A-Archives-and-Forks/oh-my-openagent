@@ -141,6 +141,10 @@ function publicStartFailureMessage(error: unknown): string {
         return "In-process child session creation failed."
       case "child-prompt-failed":
         return "Child prompt failed to start."
+      case "tools_unavailable":
+        // Sanitized but typed: the caller must be able to tell a refused parent kernel-tool grant
+        // from a generic runner failure without reading private spec details.
+        return "Parent kernel tools are unavailable for this child."
       default:
         return GENERIC_START_FAILURE_MESSAGE
     }

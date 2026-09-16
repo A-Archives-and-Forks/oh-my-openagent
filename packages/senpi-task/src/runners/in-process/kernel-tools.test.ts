@@ -267,6 +267,21 @@ describe("in-process runner kernel-tool grant", () => {
     expect(options.customTools?.map((entry) => entry.name)).toContain("lookup")
   })
 
+  test("#given a child whose resolved policy narrows the parent surface #when the session is built #then the runner refuses typed and creates no session", async () => {
+    const capability = fakeKernelTools()
+    const grant = await grantOf(capability)
+
+    const denied = await startWith({ kernelTools: grant, toolDenylist: ["write"] }).catch((error: unknown) => error)
+    const allowlisted = await startWith({ kernelTools: grant, toolAllowlist: ["read"] }).catch((error: unknown) => error)
+
+    for (const failure of [denied, allowlisted]) {
+      expect(RunnerError.is(failure)).toBe(true)
+      if (!RunnerError.is(failure)) throw new Error("unreachable")
+      expect(failure.failure.kind).toBe("tools_unavailable")
+    }
+    expect(capability.invocations).toEqual([])
+  })
+
   test("#given a curated child #when a grant is attached anyway #then the runner refuses typed instead of granting", async () => {
     const capability = fakeKernelTools()
     const grant = await grantOf(capability)

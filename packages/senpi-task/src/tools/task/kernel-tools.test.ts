@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test"
 
 import type { ManagerStartSpec, StartResult } from "../../manager"
 import { fakeKernelTools } from "../../runners/in-process/__fixtures__/kernel-tools-fakes"
+import { normalizeTaskToolArguments } from "./argument-normalization"
 import { buildTaskExecute } from "./execute"
 import { CTX, createFakeManager, makeDeps, makeRecord } from "./__fixtures__/task-tool-fakes"
 import type { TaskToolContext } from "./types"
@@ -15,6 +16,13 @@ function started(taskId: string): StartResult {
 }
 
 describe("task tool kernel-tool names", () => {
+  test("#given raw arguments carrying tools #when normalized for the real tool surface #then the names survive", () => {
+    expect(normalizeTaskToolArguments({ prompt: "p", category: "quick", tools: ["lookup", " ", 7] })).toMatchObject({
+      tools: ["lookup"],
+    })
+    expect(normalizeTaskToolArguments({ prompt: "p", category: "quick" }).tools).toBeUndefined()
+  })
+
   test("#given a live JS parent and requested names #when the child spawns #then the transient grant reaches the manager and the handle keeps the real identity", async () => {
     const capability = fakeKernelTools()
     capability.define({ name: "lookup" })

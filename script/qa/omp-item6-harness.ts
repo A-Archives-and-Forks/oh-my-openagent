@@ -11,6 +11,8 @@ import type { KernelToolsCapability } from "../../packages/senpi-task/src/kernel
 import { createTaskManager } from "../../packages/senpi-task/src/manager/manager"
 import { createInProcessManagedRunner } from "../../packages/senpi-task/src/manager/runner"
 import { InProcessRunner } from "../../packages/senpi-task/src/runners/in-process"
+import { createTaskLifecycle } from "../../packages/senpi-task/src/lifecycle"
+import { createManagerResidencyRegistry } from "../../packages/omo-senpi/src/components/task/residency-registry"
 import { createTaskRecordStore } from "../../packages/senpi-task/src/store"
 import { createTaskTool } from "../../packages/senpi-task/src/tools/task"
 import { createWorkpoolTool } from "../../packages/senpi-task/src/tools/workpool"
@@ -140,7 +142,7 @@ function providerServer(turn: (body: string) => ProviderTurn) {
 export type ChildEnv = Awaited<ReturnType<typeof openChildEnv>>
 
 /** Real omo engine: real store, manager, in-process runner, task and workpool tool definitions. */
-export async function openChildEnv(turn: (body: string) => ProviderTurn) {
+export async function openChildEnv(turn: (body: string) => ProviderTurn, options: { readonly idleTimeoutMs?: number } = {}) {
   const { ModelRegistry, ModelRuntime } = await loadSenpiBarrel()
   const root = mkdtempSync(join(tmpdir(), "omp-item6-"))
   const agentDir = join(root, "agent")
@@ -173,17 +175,45 @@ export async function openChildEnv(turn: (body: string) => ProviderTurn) {
   const runner = createInProcessManagedRunner(inProcess, () => ({
     agentDir, modelRuntime: runtime, modelRegistry: registry, model,
   }))
-  const config = OmoTaskSettingsSchema.parse({ default_concurrency: 2, global_concurrency: 2, residency_max_children: 4 })
+  const config = OmoTaskSettingsSchema.parse({
+    default_concurrency: 2, global_concurrency: 2, residency_max_children: 4,
+    ...(options.idleTimeoutMs === undefined ? {} : { resident_idle_timeout_ms: options.idleTimeoutMs }),
+  })
+  let now = 1000
+  let tick: () => void = () => assert.fail("idle reclaimer was never scheduled")
   const manager = createTaskManager({
-    store, config, cwd: root, kernelToolBindings,
+    store, config, cwd: root, kernelToolBindings, now: () => now,
+    destruction: { destroyResidentTask: (taskId, cause) => lifecycle.destroyResidentTask(taskId, cause) },
     runners: { "in-process": runner, process: runner },
-    planner: () => ({ kind: "resolved", plan: { model: "omp-fixture/fixture" } }),
+    // `restricted-writer` stands in for any agent whose definition narrows the child's tool policy.
+    planner: (spec) => ({
+      kind: "resolved",
+      plan: {
+        model: "omp-fixture/fixture",
+        ...(spec.subagent_type === "restricted-writer" ? { agentType: spec.subagent_type, toolDenylist: ["write"] } : {}),
+      },
+    }),
+  })
+  const lifecycle = createTaskLifecycle({
+    store, config, kernelToolBindings, now: () => now,
+    registry: createManagerResidencyRegistry(() => manager),
+    idleReclaimerScheduler: { setInterval: (callback) => { tick = callback; return { unref: () => undefined } }, clearInterval: () => undefined },
   })
   const deps = { manager, omoConfig: { categories: {}, agents: {} }, agents: {}, loadSkills: () => ({ prepend: "", resolved: [], missing: [] }) }
   const taskTool = createTaskTool(deps)
   const workpoolTool = createWorkpoolTool({ ...deps, workpools: manager.workpools })
   return {
-    root, store, manager, taskTool, workpoolTool, kernelToolBindings, inProcess, sessions,
+    root, store, manager, taskTool, workpoolTool, kernelToolBindings, inProcess, sessions, lifecycle,
+    // TTL park is the ONE clock-driven path: time itself is the behaviour, so the clock is injected
+    // and advanced explicitly instead of slept on.
+    park: async (taskId: string) => {
+      now += config.resident_idle_timeout_ms + 1
+      // One sweep, driven directly: the scheduler seam is registered but never fired here, so the
+      // TTL expunge pass cannot race this park.
+      void tick
+      const reclaimed = await lifecycle.reclaimIdleResidents?.()
+      return { state: store.load(taskId)?.residency_state, reclaimed }
+    },
     context: (capability: KernelToolsCapability | undefined, sessionId = "omp-item6-parent") => ({
       cwd: root,
       sessionManager: { getSessionId: () => sessionId },
@@ -191,6 +221,7 @@ export async function openChildEnv(turn: (body: string) => ProviderTurn) {
     }),
     dispose: () => {
       manager.workpools.dispose()
+      lifecycle.dispose?.()
       server.stop(true)
       rmSync(root, { recursive: true, force: true })
     },

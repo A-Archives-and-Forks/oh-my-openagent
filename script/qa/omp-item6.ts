@@ -33,6 +33,10 @@ async function dispatch(name: string): Promise<Record<string, unknown>> {
       return await (await import("./omp-item6-real.ts")).runRealChildKernelTool()
     case "curated-process-and-language-denials":
       return await (await import("./omp-item6-denials.ts")).runCuratedProcessAndLanguageDenials()
+    case "parked-child-live-kernel":
+      return await (await import("./omp-item6-revive.ts")).runParkedChildLiveKernel()
+    case "revived-child-stale-kernel":
+      return await (await import("./omp-item6-revive.ts")).runRevivedChildStaleKernel()
     default:
       return assert.fail(`unknown --case ${name}`)
   }

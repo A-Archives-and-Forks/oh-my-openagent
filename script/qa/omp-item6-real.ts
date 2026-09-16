@@ -6,7 +6,7 @@ import { bounded, openChildEnv, openProducerKernel, type ChildEnv, type Producer
 
 const PARENT_CELL = [
   "tool(async function fixture_lookup(key) { return 'parent-state:' + (await tool.read({ path: key })); });",
-  "return await agent('Call fixture_lookup with key=config.txt and report its value.', { tools: ['fixture_lookup'] });",
+  "return await agent('Call fixture_lookup with key=config.txt and report its value.', { agent: 'qa-worker', tools: ['fixture_lookup'] });",
 ].join("\n")
 
 type PumpedCall = { readonly toolName: string; readonly callId: string }
