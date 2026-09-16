@@ -37,6 +37,10 @@ async function dispatch(name: string): Promise<Record<string, unknown>> {
       return await (await import("./omp-item6-revive.ts")).runParkedChildLiveKernel()
     case "revived-child-stale-kernel":
       return await (await import("./omp-item6-revive.ts")).runRevivedChildStaleKernel()
+    case "scoped-narrowed-child":
+      return await (await import("./omp-item6-scope.ts")).runScopedNarrowedChild()
+    case "unscoped-narrowed-child-refusal":
+      return await (await import("./omp-item6-scope.ts")).runUnscopedNarrowedChildRefusal()
     default:
       return assert.fail(`unknown --case ${name}`)
   }
