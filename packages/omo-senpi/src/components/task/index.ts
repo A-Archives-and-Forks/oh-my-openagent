@@ -218,13 +218,7 @@ function registerTaskTools(
   const resolveCallerSessionId = defaultResolveCallerSessionId
   const manager = engine.manager
   pi.registerTool({
-    ...createTaskTool({
-      manager,
-      omoConfig: engine.omoConfig,
-      agents: engine.agents,
-      loadSkills: engine.loadSkills,
-      resolveSkillInvocations: (sessionId: string) => skillInvocations.stateFor(sessionId),
-    }),
+    ...createTaskTool(engine.taskToolDeps((sessionId: string) => skillInvocations.stateFor(sessionId))),
   })
   pi.registerTool({
     ...createTaskSendTool({

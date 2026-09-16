@@ -73,9 +73,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function readKernelToolsCapability(source: unknown): KernelToolsCapability | undefined {
   if (!isRecord(source)) return undefined
   const capability = source["kernelTools"]
-  if (!isRecord(capability)) return undefined
-  if (typeof capability["describe"] !== "function" || typeof capability["invoke"] !== "function") return undefined
-  return capability as unknown as KernelToolsCapability
+  return isKernelToolsCapability(capability) ? capability : undefined
+}
+
+/** The duck-type at the engine-pin boundary: both calls exist, or this is not the capability. */
+function isKernelToolsCapability(value: unknown): value is KernelToolsCapability {
+  return isRecord(value) && typeof value["describe"] === "function" && typeof value["invoke"] === "function"
 }
 
 export function isKernelToolDescriptor(value: unknown): value is KernelToolDescriptor {

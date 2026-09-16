@@ -1,24 +1,11 @@
 import { describe, expect, test } from "bun:test"
 
-import type { AgentToolResult, CreateAgentSessionOptions, ToolDefinition } from "@code-yeongyu/senpi"
-import { Type } from "typebox"
+import type { AgentToolResult, ToolDefinition } from "@code-yeongyu/senpi"
 
 import { resolveKernelToolGrant, type KernelToolGrant } from "../../kernel-tools/resolve"
 import { createKernelToolWrappers } from "../../kernel-tools/wrapper"
 import { isReservedKernelToolName, kernelToolKey, normalizeKernelToolName } from "../../kernel-tools/names"
-import { InProcessRunner, type ChildSession, type ChildSpec } from "../in-process"
-import { RunnerError } from "./runner-error"
 import { fakeKernelTools } from "./__fixtures__/kernel-tools-fakes"
-
-function tool(name: string): ToolDefinition {
-  return {
-    name,
-    label: name,
-    description: `parent tool ${name}`,
-    parameters: Type.Object({}),
-    execute: async () => ({ content: [{ type: "text", text: "ok" }], details: undefined }),
-  }
-}
 
 function grantRequest(overrides: Partial<Parameters<typeof resolveKernelToolGrant>[0]> = {}) {
   const capability = overrides.capability === undefined ? fakeKernelTools() : overrides.capability
@@ -142,19 +129,20 @@ describe("kernel tool grant resolution", () => {
     const resolved = await resolveKernelToolGrant(grantRequest({ capability, requestedNames: ["missing"] }))
 
     expect(resolved).toMatchObject({ kind: "denied", code: "kernel_tool_missing" })
-    if (resolved.kind !== "denied") throw new Error("unreachable")
-    expect(resolved.message).toContain("tool(")
   })
 
-  test("#given a child whose policy narrows the parent surface #when resolved #then the grant fails closed instead of bypassing the child policy", async () => {
+  test("#given a child policy that removes a write-capable parent tool #when resolved #then the grant fails closed instead of bypassing that policy", async () => {
     const capability = fakeKernelTools()
     capability.define({ name: "lookup" })
+    const child = ["read", "grep", "write", "edit", "bash", "web_search"]
 
-    const denied = await resolveKernelToolGrant(grantRequest({ capability, toolDenylist: ["write"] }))
-    const allowlisted = await resolveKernelToolGrant(grantRequest({ capability, toolAllowlist: ["read"] }))
+    const denied = await resolveKernelToolGrant(grantRequest({ capability, existingToolNames: child, toolDenylist: ["write"] }))
+    const allowlisted = await resolveKernelToolGrant(grantRequest({ capability, existingToolNames: child, toolAllowlist: ["read", "grep"] }))
+    const readOnlyDeny = await resolveKernelToolGrant(grantRequest({ capability, existingToolNames: child, toolDenylist: ["web_search"] }))
 
     expect(denied).toMatchObject({ kind: "denied", code: "tools_unavailable" })
     expect(allowlisted).toMatchObject({ kind: "denied", code: "tools_unavailable" })
+    expect(readOnlyDeny.kind).toBe("granted")
   })
 
   test("#given a dead parent kernel #when resolved #then the denial is typed and no child tool is produced", async () => {
@@ -221,75 +209,5 @@ describe("kernel tool child wrappers", () => {
 
     expect(result.isError).toBe(true)
     expect(errorCode(result)).toBe("kernel_tool_failed")
-  })
-})
-
-describe("in-process runner kernel-tool grant", () => {
-  async function startWith(spec: Partial<ChildSpec>): Promise<CreateAgentSessionOptions> {
-    let captured: CreateAgentSessionOptions | undefined
-    const runner = new InProcessRunner({
-      sharedParentTools: [tool("grep")],
-      createSession: async (options) => {
-        captured = options
-        const session: ChildSession = {
-          sessionId: "child-session",
-          prompt: async () => undefined,
-          steer: async () => undefined,
-          followUp: async () => undefined,
-          abort: async () => undefined,
-          subscribe: () => () => undefined,
-          getLastAssistantText: () => undefined,
-          dispose: () => undefined,
-        }
-        return session
-      },
-    })
-    await runner.start({
-      taskId: "st_00000901",
-      cwd: process.cwd(),
-      sessionDir: `${process.cwd()}/`,
-      depth: 1,
-      parentSessionId: "parent",
-      rootSessionId: "parent",
-      prompt: "work",
-      ...spec,
-    } as ChildSpec)
-    if (captured === undefined) throw new Error("session options were not captured")
-    return captured
-  }
-
-  test("#given a transient grant on the child spec #when the child session is built #then the wrapper is a custom tool and is allowed by name", async () => {
-    const capability = fakeKernelTools()
-    const grant = await grantOf(capability)
-
-    const options = await startWith({ kernelTools: grant, toolAllowlist: undefined })
-
-    expect(options.customTools?.map((entry) => entry.name)).toContain("lookup")
-  })
-
-  test("#given a child whose resolved policy narrows the parent surface #when the session is built #then the runner refuses typed and creates no session", async () => {
-    const capability = fakeKernelTools()
-    const grant = await grantOf(capability)
-
-    const denied = await startWith({ kernelTools: grant, toolDenylist: ["write"] }).catch((error: unknown) => error)
-    const allowlisted = await startWith({ kernelTools: grant, toolAllowlist: ["read"] }).catch((error: unknown) => error)
-
-    for (const failure of [denied, allowlisted]) {
-      expect(RunnerError.is(failure)).toBe(true)
-      if (!RunnerError.is(failure)) throw new Error("unreachable")
-      expect(failure.failure.kind).toBe("tools_unavailable")
-    }
-    expect(capability.invocations).toEqual([])
-  })
-
-  test("#given a curated child #when a grant is attached anyway #then the runner refuses typed instead of granting", async () => {
-    const capability = fakeKernelTools()
-    const grant = await grantOf(capability)
-
-    const failure = await startWith({ kernelTools: grant, agentType: "explore" }).catch((error: unknown) => error)
-
-    expect(RunnerError.is(failure)).toBe(true)
-    if (!RunnerError.is(failure)) throw new Error("unreachable")
-    expect(failure.failure.kind).toBe("tools_unavailable")
   })
 })

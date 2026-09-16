@@ -1,3 +1,4 @@
+import { agentToolPolicy } from "../../agents/agent-tool-policy"
 import { readKernelToolsCapability } from "../../kernel-tools/contract"
 import { resolveKernelToolGrant, type KernelToolGrant } from "../../kernel-tools/resolve"
 import { taskExecutionModeFor } from "./execute-spec"
@@ -11,8 +12,9 @@ export type TaskKernelToolsResolution =
 /**
  * Resolve the `tools` names ONCE for the whole call, against the live capability of the parent
  * invocation, before any child session is created. Every item is checked against its own target:
- * a batch where one item routes to a curated agent or a process-mode child is denied whole, so no
- * child of that call spawns on a grant failure.
+ * a batch where one item routes to a curated agent, a process-mode child, or an agent whose own
+ * tool policy would make the grant a write bypass is denied whole, so neither a child session nor a
+ * task record exists after a grant failure.
  */
 export async function resolveTaskKernelTools(
   deps: TaskToolDeps,
@@ -22,17 +24,29 @@ export async function resolveTaskKernelTools(
 ): Promise<TaskKernelToolsResolution> {
   if (requested === undefined || requested.length === 0) return { kind: "none" }
   const capability = readKernelToolsCapability(ctx)
+  // The names the child will already carry, so a colliding request and a policy-narrowed child are
+  // both refused here rather than at the runner floor (which runs after the record is written).
+  const childToolNames = deps.resolveChildToolNames?.()
   let grant: KernelToolGrant | undefined
   for (const item of items) {
     const target = item.kind === "category" ? { category: item.category } : { subagentType: item.subagentType }
+    // A category target carries no persona, so its child keeps the full shared surface; a named
+    // agent's literal allow/deny rules decide the nested-host-scope rule for this grant.
+    const agent = item.kind === "subagent_type"
+      ? { agentType: item.subagentType, ...agentToolPolicy(deps.agents[item.subagentType]) }
+      : {}
     const resolved = await resolveKernelToolGrant({
       requestedNames: requested,
       capability,
       executionMode: taskExecutionModeFor(target, deps),
-      ...(item.kind === "subagent_type" ? { agentType: item.subagentType } : {}),
+      ...(childToolNames === undefined ? {} : { existingToolNames: childToolNames }),
+      ...agent,
     })
     if (resolved.kind === "denied") {
-      return { kind: "denied", detail: { requested: [...requested], error: { code: resolved.code, message: resolved.message } } }
+      return {
+        kind: "denied",
+        detail: { requested: [...requested], status: "refused", error: { code: resolved.code, message: resolved.message } },
+      }
     }
     if (resolved.kind === "granted") grant = resolved.grant
   }
@@ -40,6 +54,6 @@ export async function resolveTaskKernelTools(
   return {
     kind: "granted",
     grant,
-    detail: { requested: [...requested], granted: grant.descriptors.map((descriptor) => descriptor.name) },
+    detail: { requested: [...requested], status: "granted", granted: grant.descriptors.map((descriptor) => descriptor.name) },
   }
 }

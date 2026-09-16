@@ -2,6 +2,7 @@ export {
   DEFAULT_MAX_CHILD_DEPTH,
   InProcessRunner,
   RunnerError,
+  childVisibleToolNames,
   filterSharedParentTools,
   isTaskOrTeamFamilyTool,
   mergeChildCustomTools,

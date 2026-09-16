@@ -31,6 +31,7 @@ export type {
 } from "./in-process/child-handle"
 export type { ChildRetryOverride } from "./in-process/runtime-fallback-settings"
 export {
+  childVisibleToolNames,
   filterSharedParentTools,
   isTaskOrTeamFamilyTool,
   mergeChildCustomTools,
@@ -146,11 +147,6 @@ export class InProcessRunner {
     this.#kernelToolBindings = options.kernelToolBindings
   }
 
-  /** Drop a child's runtime kernel-tool binding (deliberate destruction, expunge, shutdown). */
-  releaseKernelTools(taskId: string): void {
-    this.#kernelToolBindings?.release(taskId)
-  }
-
   async start(spec: ChildSpec): Promise<ChildHandle> {
     if (spec.depth > this.#depthPolicy.maxDepth) {
       throw new RunnerError({
@@ -164,17 +160,19 @@ export class InProcessRunner {
       // SessionManager and the child option helpers below read barrel values synchronously, so the
       // barrel is loaded here (memoized: a cache hit in any process that already runs the engine).
       const { SessionManager } = await loadSenpiBarrel()
-      // Runtime-only: the grant is bound under this child's id for same-host revival. Nothing about
-      // it reaches the record, the v1 spawn_spec or the child's JSONL transcript.
-      if (spec.kernelTools !== undefined) this.#kernelToolBindings?.bind(spec.taskId, spec.kernelTools)
       const options = buildChildSessionOptions({
         spec,
         sessionManager: SessionManager.create(spec.cwd, requireChildSessionDir(spec)),
         sharedParentTools: this.#sharedParentTools,
         uiOnlyToolNames: this.#uiOnlyToolNames,
+        ...(this.#kernelToolBindings === undefined ? {} : { kernelToolBindings: this.#kernelToolBindings }),
       })
       session = await this.#createSession(options)
     } catch (error) {
+      // A start that never produced a session must leave NO binding behind: the runner floor refuses
+      // curated/policy-narrowed/colliding grants by throwing from here, and a stale entry would keep
+      // a strong reference to the parent kernel until TTL expunge.
+      this.#kernelToolBindings?.release(spec.taskId)
       if (RunnerError.is(error)) throw error
       throw new RunnerError({ kind: "session-create-failed", message: sessionCreateMessage(error), cause: error })
     }
@@ -194,17 +192,24 @@ export class InProcessRunner {
         ...(spec.instructions !== undefined && { instructions: spec.instructions }),
       })
 
+    let handle: ChildHandle
     try {
-      return createChildHandle({
+      handle = createChildHandle({
         taskId: spec.taskId,
         session,
         promptText,
         ...(spec.completion === undefined ? {} : { completion: spec.completion }),
       })
     } catch (error) {
+      this.#kernelToolBindings?.release(spec.taskId)
       discardUnstartedChildSession(session)
       throw error
     }
+    // Runtime-only, and only once the child actually exists: the grant is bound under this child's
+    // id for same-host revival. Nothing about it reaches the record, the v1 spawn_spec or the
+    // child's JSONL transcript.
+    if (spec.kernelTools !== undefined) this.#kernelToolBindings?.bind(spec.taskId, spec.kernelTools)
+    return handle
   }
 
   // Rebuild a persisted child from its session transcript WITHOUT replaying its prompt. The tool

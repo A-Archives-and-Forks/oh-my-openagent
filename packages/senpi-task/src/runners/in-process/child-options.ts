@@ -77,6 +77,20 @@ export function resolveMemberScopedToolNames(
 }
 
 /**
+ * The identity gate a STARTED child's wrappers evaluate on every call: a grant that is no longer
+ * this child's current binding (released on destruction, expunge or shutdown) must fail closed
+ * instead of reaching a kernel it no longer belongs to during the teardown window.
+ */
+function liveBindingGuard(
+  spec: ChildSpec,
+  bindings: KernelToolBindingRegistry | undefined,
+): { readonly isCurrent?: () => boolean } {
+  const granted = spec.kernelTools
+  if (bindings === undefined || granted === undefined) return {}
+  return { isCurrent: () => bindings.get(spec.taskId) === granted }
+}
+
+/**
  * Assemble the full CreateAgentSessionOptions for an in-process child: shared parent tools minus
  * the task/team family, member-scoped tools (the sanctioned bypass), the curated read-only bash
  * override, the allowlist on `tools`, the denylist on senpi's real deny field `excludeTools`
@@ -91,7 +105,7 @@ export function buildChildSessionOptions(input: BuildChildSessionOptionsInput): 
   const floor = curated ? (BUILTIN_AGENTS[spec.agentType ?? ""]?.tools ?? []).filter((rule) => rule.allow).map((rule) => rule.pattern) : undefined
   const toolAllowlist = floor === undefined ? spec.toolAllowlist : floor.filter((name) => spec.toolAllowlist === undefined || spec.toolAllowlist.includes(name))
   const kernelTools = input.revivedSessionPath === undefined
-    ? buildChildKernelTools(spec, mergedCustomTools.map((tool) => tool.name))
+    ? buildChildKernelTools(spec, mergedCustomTools.map((tool) => tool.name), liveBindingGuard(spec, input.kernelToolBindings))
     : buildRevivedChildKernelTools({
       spec,
       sessionPath: input.revivedSessionPath,

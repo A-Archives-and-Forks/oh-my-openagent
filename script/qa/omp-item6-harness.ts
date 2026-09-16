@@ -52,10 +52,16 @@ export function producerCheckout(): { readonly dir: string; readonly sha: string
 }
 
 type ToolCallMessage = { readonly callId: string; readonly toolName: string; readonly args: unknown }
+export type KernelInvocationCounts = { readonly attempted: number; readonly succeeded: number }
 export type ProducerKernel = {
   readonly capability: KernelToolsCapability
   readonly sha: string
   readonly verified_by: string
+  // REAL counts taken at the capability boundary omo owns: how many invocations were attempted and
+  // how many actually returned a closure value. `since()` snapshots, so a case can count what
+  // happened after a reset without subtracting by hand.
+  invocations(): KernelInvocationCounts
+  invocationsSince(mark: KernelInvocationCounts): KernelInvocationCounts
   run(input: { cellId: string; code: string; timeoutMs?: number }): Promise<{ ok: boolean; valueRepr?: string }>
   nextToolCall(): Promise<ToolCallMessage>
   reply(callId: string, value: unknown): void
@@ -82,12 +88,20 @@ export async function openProducerKernel(sessionId: string): Promise<ProducerKer
     reset(): Promise<void>
     close(): Promise<void>
   }
+  const counts = { attempted: 0, succeeded: 0 }
   return {
     sha,
     verified_by,
+    invocations: () => ({ ...counts }),
+    invocationsSince: (mark) => ({ attempted: counts.attempted - mark.attempted, succeeded: counts.succeeded - mark.succeeded }),
     capability: {
       describe: (names) => kernel.describeKernelTools(names),
-      invoke: (request, signal) => kernel.invokeKernelTool({ ...request }, signal),
+      invoke: async (request, signal) => {
+        counts.attempted += 1
+        const value = await kernel.invokeKernelTool({ ...request }, signal)
+        counts.succeeded += 1
+        return value
+      },
     },
     run: (input) => kernel.run({ timeoutMs: FENCE_MS, ...input }),
     nextToolCall: () => kernel.nextToolCall(),
@@ -99,18 +113,22 @@ export async function openProducerKernel(sessionId: string): Promise<ProducerKer
 }
 
 type ProviderTurn = { readonly toolName?: string; readonly args?: Record<string, unknown>; readonly text?: string }
+export type ProviderTurnDecider = (body: string) => ProviderTurn | Promise<ProviderTurn>
 
 /**
  * Deterministic loopback provider: each turn is decided by inspecting the real request body, so the
  * child's tool call and its final answer are produced by the actual agent loop, never injected.
+ * The decider may be async, which is how a case sequences a kernel reset exactly between "the
+ * worker exists" and "the worker calls its parent tool" without sleeping or polling.
  */
-function providerServer(turn: (body: string) => ProviderTurn) {
+function providerServer(turn: ProviderTurnDecider) {
+  let callSeq = 0
   return Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
     fetch: async (request) => {
       const body = await request.text()
-      const next = turn(body)
+      const next = await turn(body)
       const usage = { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }
       const delta = next.toolName === undefined
         ? { content: next.text ?? "DONE" }
@@ -118,7 +136,7 @@ function providerServer(turn: (body: string) => ProviderTurn) {
             tool_calls: [
               {
                 index: 0,
-                id: `call_${Math.random().toString(16).slice(2, 10)}`,
+                id: `call_${(callSeq += 1).toString().padStart(4, "0")}`,
                 type: "function",
                 function: { name: next.toolName, arguments: JSON.stringify(next.args ?? {}) },
               },
@@ -141,8 +159,23 @@ function providerServer(turn: (body: string) => ProviderTurn) {
 
 export type ChildEnv = Awaited<ReturnType<typeof openChildEnv>>
 
+// The agent definitions the denial cases exercise, in the same shape omo resolves from omo.json.
+export const QA_AGENTS = {
+  "rpc-worker": { name: "rpc-worker", executionMode: "process" },
+  "restricted-writer": { name: "restricted-writer", disallowedTools: ["write"] },
+  "probe-no-write": { name: "probe-no-write", tools: [{ pattern: "write", allow: false }] },
+} as const
+
+const PLANNED_AGENT_POLICY: Record<string, { readonly toolAllowlist?: readonly string[]; readonly toolDenylist?: readonly string[] }> = {
+  "restricted-writer": { toolDenylist: ["write"] },
+  "probe-no-write": { toolAllowlist: [], toolDenylist: ["write"] },
+}
+
+// The names a child of this parent already carries; the rule adds the engine's write builtins.
+const CHILD_TOOL_NAMES = ["read", "grep", "x_search"]
+
 /** Real omo engine: real store, manager, in-process runner, task and workpool tool definitions. */
-export async function openChildEnv(turn: (body: string) => ProviderTurn, options: { readonly idleTimeoutMs?: number } = {}) {
+export async function openChildEnv(turn: ProviderTurnDecider, options: { readonly idleTimeoutMs?: number } = {}) {
   const { ModelRegistry, ModelRuntime } = await loadSenpiBarrel()
   const root = mkdtempSync(join(tmpdir(), "omp-item6-"))
   const agentDir = join(root, "agent")
@@ -185,12 +218,15 @@ export async function openChildEnv(turn: (body: string) => ProviderTurn, options
     store, config, cwd: root, kernelToolBindings, now: () => now,
     destruction: { destroyResidentTask: (taskId, cause) => lifecycle.destroyResidentTask(taskId, cause) },
     runners: { "in-process": runner, process: runner },
-    // `restricted-writer` stands in for any agent whose definition narrows the child's tool policy.
+    // The narrowing agents below stand in for the two supported omo.json shapes that take a tool
+    // away: a deny-only definition, and one whose rules resolve to an EMPTY allowlist.
     planner: (spec) => ({
       kind: "resolved",
       plan: {
         model: "omp-fixture/fixture",
-        ...(spec.subagent_type === "restricted-writer" ? { agentType: spec.subagent_type, toolDenylist: ["write"] } : {}),
+        ...(spec.subagent_type === undefined ? {} : PLANNED_AGENT_POLICY[spec.subagent_type] === undefined
+          ? {}
+          : { agentType: spec.subagent_type, ...PLANNED_AGENT_POLICY[spec.subagent_type] }),
       },
     }),
   })
@@ -199,7 +235,13 @@ export async function openChildEnv(turn: (body: string) => ProviderTurn, options
     registry: createManagerResidencyRegistry(() => manager),
     idleReclaimerScheduler: { setInterval: (callback) => { tick = callback; return { unref: () => undefined } }, clearInterval: () => undefined },
   })
-  const deps = { manager, omoConfig: { categories: {}, agents: {} }, agents: {}, loadSkills: () => ({ prepend: "", resolved: [], missing: [] }) }
+  const deps = {
+    manager,
+    omoConfig: { categories: {}, agents: {} },
+    agents: QA_AGENTS,
+    resolveChildToolNames: () => CHILD_TOOL_NAMES,
+    loadSkills: () => ({ prepend: "", resolved: [], missing: [] }),
+  }
   const taskTool = createTaskTool(deps)
   const workpoolTool = createWorkpoolTool({ ...deps, workpools: manager.workpools })
   return {

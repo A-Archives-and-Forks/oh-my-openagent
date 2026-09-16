@@ -9,6 +9,7 @@ import {
   type KernelToolsCapability,
 } from "./contract"
 import { isReservedKernelToolName, kernelToolKey, normalizeKernelToolName } from "./names"
+import { escalatingHostTools, nestedHostScopeMessage } from "./nested-host-scope"
 
 export type KernelToolGrantRequest = {
   readonly requestedNames: readonly string[]
@@ -43,9 +44,10 @@ function denied(code: KernelToolErrorCode, message: string): KernelToolGrantReso
  * ever partially grants.
  *
  * Nested host calls made by a parent closure execute with the PARENT's permissions - the merged
- * producer contract exposes no scoped execution hook. A child whose own policy narrows that surface
- * (an allowlist or a denylist) therefore cannot receive kernel tools: granting one would be a write
- * bypass of the child's policy, so the grant fails closed as tools_unavailable instead.
+ * producer contract exposes no scoped execution hook. A child whose own allow/deny policy takes a
+ * WRITE-capable parent tool away therefore cannot receive kernel tools (see nested-host-scope.ts
+ * for the exact rule): granting one would be a write bypass of that policy, so the grant fails
+ * closed as tools_unavailable instead.
  */
 export async function resolveKernelToolGrant(request: KernelToolGrantRequest): Promise<KernelToolGrantResolution> {
   if (request.requestedNames.length === 0) return { kind: "none" }
@@ -65,14 +67,13 @@ export async function resolveKernelToolGrant(request: KernelToolGrantRequest): P
       `Parent kernel tools require an in-process child; this child runs in ${request.executionMode} mode.`,
     )
   }
-  if (
-    (request.toolAllowlist !== undefined && request.toolAllowlist.length > 0) ||
-    (request.toolDenylist !== undefined && request.toolDenylist.length > 0)
-  ) {
-    return denied(
-      "tools_unavailable",
-      "This child restricts its own tool policy, and the host cannot run the parent closure's nested tool calls under that intersection; the grant is refused instead of bypassing the child policy.",
-    )
+  const escalating = escalatingHostTools({
+    ...(request.existingToolNames === undefined ? {} : { childToolNames: request.existingToolNames }),
+    ...(request.toolAllowlist === undefined ? {} : { toolAllowlist: request.toolAllowlist }),
+    ...(request.toolDenylist === undefined ? {} : { toolDenylist: request.toolDenylist }),
+  })
+  if (escalating.length > 0) {
+    return denied("tools_unavailable", nestedHostScopeMessage("This child", escalating))
   }
 
   const existing = new Set((request.existingToolNames ?? []).map(kernelToolKey))

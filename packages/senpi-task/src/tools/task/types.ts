@@ -69,6 +69,10 @@ export type TaskToolDeps = {
   // Session-scoped skill-invocation state for plan-gated agents (plan-consultant/plan-reviewer). When absent the
   // invocation gate fails CLOSED: without a resolver there is no proof ulw-plan was invoked.
   readonly resolveSkillInvocations?: (sessionId: string) => SkillInvocationState
+  // The names a child of THIS parent already carries (shared parent tools minus UI-only names minus
+  // the task/team family). A kernel-tool grant is decided against them before any child exists;
+  // absent falls back to the conservative write-capable baseline (kernel-tools/nested-host-scope.ts).
+  readonly resolveChildToolNames?: () => readonly string[]
 }
 
 export type TaskToolMode = "spawn"
@@ -91,9 +95,16 @@ export type TaskHandleDetails = {
   readonly run_epoch: number
 }
 
-// Machine-readable outcome of a `tools` request: granted descriptor names, or the typed refusal.
+/**
+ * Machine-readable outcome of a `tools` request:
+ * - "granted": the child was created carrying those wrappers;
+ * - "refused": a typed refusal, always with a code (nothing was granted);
+ * - "not_delivered": the spawn never started, so the resolved grant reached no child.
+ * `granted` is only ever present on the granted status - a failed spawn never claims one.
+ */
 export type TaskKernelToolsDetail = {
   readonly requested: readonly string[]
+  readonly status: "granted" | "refused" | "not_delivered"
   readonly granted?: readonly string[]
   readonly error?: { readonly code: KernelToolErrorCode; readonly message: string }
 }
@@ -130,6 +141,9 @@ export type TaskToolDetails = {
   readonly run_in_background?: boolean
   readonly queue_position?: number
   readonly items?: readonly TaskToolItemDetail[]
+  // The runner's typed failure kind when a start failed, so the caller can tell a refused parent
+  // kernel-tool grant from a generic runner failure without reading prose.
+  readonly failure_kind?: string
   readonly reason?: string
   readonly run_stats?: TaskRunStats
   readonly skills?: TaskSkillSummary

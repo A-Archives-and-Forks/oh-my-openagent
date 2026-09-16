@@ -21,6 +21,12 @@ export {
   sanitizeKernelToolNamePart,
 } from "./names"
 export {
+  escalatingHostTools,
+  isWriteCapableHostTool,
+  nestedHostScopeMessage,
+  type NestedHostScopeRequest,
+} from "./nested-host-scope"
+export {
   resolveKernelToolGrant,
   type KernelToolGrant,
   type KernelToolGrantRequest,

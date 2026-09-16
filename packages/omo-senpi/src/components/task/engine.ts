@@ -6,7 +6,6 @@ import {
   createFsSkillLoader,
   createTaskLifecycle,
   parseExtensionEntries,
-  createKernelToolBindings,
   createTaskManager,
   createTeamMemberRespawnLaunchResolver,
   createTaskRecordStore,
@@ -15,11 +14,13 @@ import {
   type ChildPlanner,
   type CompletionNotifier,
   type PersistedTaskEvent,
+  type SkillInvocationState,
   type SpawnAdmission,
   type SkillLoader,
   type TaskLifecycle,
   type TaskManager,
   type TaskRecord,
+  type TaskToolDeps,
 } from "@oh-my-opencode/senpi-task"
 
 import type { IdleInjectionCoordinator } from "../../extension/idle-injection-coordinator"
@@ -31,16 +32,17 @@ import {
 } from "./category-config-generation"
 import { createCategoryUnavailableWarningPlanner } from "./category-unavailable-warning"
 import { createTaskStoreChain } from "./engine-store-chain"
+import { createEngineKernelTools } from "./engine-kernel-tools"
+import { createEngineLiveness } from "./engine-liveness"
 import {
   DEFAULT_RUNNER_FACTORIES,
   resolveTaskAgents,
   type RunnerBuildContext,
   type TaskRunnerFactories,
 } from "./engine-runners"
-import { createOwnedMemberLivenessNotifier } from "./owned-member-liveness"
 import { createParentNotifier } from "./parent-notifier"
 import { createTaskChildPlanner, type ResolveModelRegistry } from "./planner"
-import { createTeamMemberLivenessNotifier, type TeamMemberLivenessNotifier } from "./member-liveness"
+import type { TeamMemberLivenessNotifier } from "./member-liveness"
 import { createManagerResidencyRegistry } from "./residency-registry"
 import { TaskRuntimeContext } from "./runtime-context"
 import { sharedTaskTerminalObservers, type TaskTerminalObservers } from "./terminal-observers"
@@ -61,6 +63,12 @@ export interface TaskEngine {
   readonly loadSkills: SkillLoader
   readonly memberLiveness: TeamMemberLivenessNotifier
   readonly notifyOwnedMemberLiveness: (record: TaskRecord) => Promise<void>
+  /**
+   * Everything the `task` tool resolves a spawn against, including the child tool names a parent
+   * kernel-tool grant is decided from (item 6) - assembled here because this engine owns the
+   * manager, the agent map and the shared parent tool surface they are derived from.
+   */
+  readonly taskToolDeps: (resolveSkillInvocations: (sessionId: string) => SkillInvocationState) => TaskToolDeps
   readonly appendTaskEvent: (taskId: string, event: PersistedTaskEvent) => void
   // Subscribe to every store mutation (spawn/transition/replace/remove). The UI status sync attaches
   // here so the footer/widget refresh on background task activity. Returns an unsubscribe.
@@ -101,57 +109,13 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
     ...(settings.state_dir !== undefined && { task: { state_dir: settings.state_dir } }),
   }
   const baseStore = createTaskRecordStore(stateDir)
-  const memberLiveness = createTeamMemberLivenessNotifier({
+  const { memberLiveness, notifyOwnedMemberLiveness } = createEngineLiveness({
     pi: deps.pi,
     ...(deps.coordinator === undefined ? {} : { coordinator: deps.coordinator }),
-    isStreaming: () => runtime.parentState().kind === "streaming",
-    wasDelivered: (record) => {
-      try {
-        const fresh = baseStore.load(record.task_id) ?? record
-        return (fresh.notification.liveness_notified_epoch ?? -1) >= record.notification.run_epoch
-      } catch (error) {
-        log("omo-senpi team liveness marker read failed", {
-          taskId: record.task_id,
-          error: error instanceof Error ? error.message : String(error),
-        })
-        return false
-      }
-    },
-    markDelivered: (record) => {
-      try {
-        const capturedEpoch = record.notification.run_epoch
-        baseStore.mutate(record.task_id, (fresh) => {
-          if (fresh.status !== record.status || fresh.notification.run_epoch !== capturedEpoch) return fresh
-          if ((fresh.notification.liveness_notified_epoch ?? -1) >= capturedEpoch) return fresh
-          return {
-            ...fresh,
-            notification: { ...fresh.notification, liveness_notified_epoch: capturedEpoch },
-          }
-        })
-      } catch (error) {
-        log("omo-senpi team liveness marker write failed", {
-          taskId: record.task_id,
-          error: error instanceof Error ? error.message : String(error),
-        })
-      }
-    },
-    onError: (error) => {
-      log("omo-senpi team liveness delivery failed", {
-        error: error instanceof Error ? error.message : String(error),
-      })
-    },
-  })
-  const notifyOwnedMemberLiveness = createOwnedMemberLivenessNotifier({
+    runtime,
+    store: baseStore,
     stateDir,
     settings,
-    runtime,
-    notifier: memberLiveness,
-    onError: (error, record) => {
-      log("omo-senpi team liveness ownership check failed", {
-        taskId: record.task_id,
-        error: error instanceof Error ? error.message : String(error),
-      })
-    },
   })
   const agents = resolveTaskAgents(deps.omoConfig)
 
@@ -192,10 +156,8 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
   }
 
   const categoryConfigGenerations = createCategoryConfigGenerations()
-  // ONE runtime-only kernel-tool capability map per engine, shared by the in-process runner (grant
-  // and same-host revival), the lifecycle (release on destruction/expunge/shutdown) and the
-  // manager's pool admission (fresh resolution per new worker).
-  const kernelToolBindings = createKernelToolBindings()
+  const kernelTools = createEngineKernelTools(deps.sharedParentTools)
+  const kernelToolBindings = kernelTools.bindings
   const storeChain = createTaskStoreChain({
     baseStore,
     runtime,
@@ -276,6 +238,14 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
     loadSkills,
     memberLiveness,
     notifyOwnedMemberLiveness,
+    taskToolDeps: (resolveSkillInvocations) => ({
+      manager,
+      omoConfig: deps.omoConfig,
+      agents,
+      loadSkills,
+      resolveSkillInvocations,
+      resolveChildToolNames: kernelTools.childToolNames,
+    }),
     appendTaskEvent,
     onStoreMutation: storeChain.onMutation,
   }

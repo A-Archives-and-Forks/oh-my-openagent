@@ -8,7 +8,14 @@ import type { ForegroundWaitOptions } from "./foreground-wait"
 import { resolveTaskKernelTools } from "./kernel-tools"
 import { evaluateSpawnPolicy } from "./spawn-policy"
 import type { TaskToolParamsStatic } from "./params"
-import type { ResolvedSpawnItem, TaskSkillSummary, TaskToolContext, TaskToolDeps, TaskToolDetails } from "./types"
+import type {
+  ResolvedSpawnItem,
+  TaskKernelToolsDetail,
+  TaskSkillSummary,
+  TaskToolContext,
+  TaskToolDeps,
+  TaskToolDetails,
+} from "./types"
 import { resolveRunInBackground, resolveSpawnItems, validateBatchShape, validateTaskTarget } from "./validation"
 
 type TaskExecute = (
@@ -25,6 +32,25 @@ function result(text: string, details: TaskToolDetails): AgentToolResult<TaskToo
 
 function invalidArguments(message: string): AgentToolResult<TaskToolDetails> {
   return result(message, { task_id: "", status: "invalid_arguments", mode: "spawn", reason: message })
+}
+
+/**
+ * What the caller is told about a resolved grant once the spawn settled. A spawn that never started
+ * must NEVER report `granted`: a runner-floor refusal carries its typed code, and any other failed
+ * start reports that the grant reached no child.
+ */
+function deliveredKernelTools(detail: TaskKernelToolsDetail, details: TaskToolDetails): TaskKernelToolsDetail {
+  if (details.failure_kind === "tools_unavailable") {
+    return {
+      requested: detail.requested,
+      status: "refused",
+      error: { code: "tools_unavailable", message: details.reason ?? "Parent kernel tools are unavailable for this child." },
+    }
+  }
+  if (details.task_id.length === 0 || details.failure_kind !== undefined) {
+    return { requested: detail.requested, status: "not_delivered" }
+  }
+  return detail
 }
 
 export function buildTaskExecute(deps: TaskToolDeps, options: ForegroundWaitOptions = {}): TaskExecute {
@@ -62,7 +88,9 @@ export function buildTaskExecute(deps: TaskToolDeps, options: ForegroundWaitOpti
     }
     const granted = kernelTools.kind === "granted" ? kernelTools : undefined
     const withKernelTools = (spawned: AgentToolResult<TaskToolDetails>): AgentToolResult<TaskToolDetails> =>
-      granted === undefined ? spawned : { ...spawned, details: { ...spawned.details, kernel_tools: granted.detail } }
+      granted === undefined
+        ? spawned
+        : { ...spawned, details: { ...spawned.details, kernel_tools: deliveredKernelTools(granted.detail, spawned.details) } }
 
     if (resolved.items.length === 1) {
       return withKernelTools(await runSpawn(deps, {

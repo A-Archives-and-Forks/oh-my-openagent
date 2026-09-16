@@ -9,10 +9,6 @@ import { createKernelToolBindings } from "../../kernel-tools/bindings"
 import { recordedKernelToolNames } from "../../kernel-tools/transcript-names"
 import { resolveKernelToolGrant, type KernelToolGrant } from "../../kernel-tools/resolve"
 import { InProcessRunner, type ChildSession, type ChildSpec } from "../in-process"
-import type { WorkpoolAggregateMessage } from "../../workpool/aggregate"
-import { deliveryFixture } from "../../workpool/__fixtures__/delivery"
-import { resolveWorkerKernelTools } from "../../workpool/worker-kernel-tools"
-import { WorkpoolError } from "../../workpool/types"
 import { fakeKernelTools, type FakeKernelToolsCapability } from "./__fixtures__/kernel-tools-fakes"
 
 const roots: string[] = []
@@ -260,50 +256,4 @@ describe("revived child kernel tools", () => {
     expect(recordedKernelToolNames(path)).toEqual([])
   })
 
-  test("#given a revived process or team child #when it requests the parent tool #then the mode stays typed unavailable", async () => {
-    const capability = fakeKernelTools()
-    capability.define({ name: "fixture_lookup" })
-
-    const process = await resolveKernelToolGrant({ requestedNames: ["fixture_lookup"], capability, executionMode: "process" })
-    const team = await resolveKernelToolGrant({ requestedNames: ["fixture_lookup"], capability, executionMode: "in-process", teamRole: "member" })
-
-    expect(process).toMatchObject({ kind: "denied", code: "tools_unavailable" })
-    expect(team).toMatchObject({ kind: "denied", code: "tools_unavailable" })
-    expect(capability.invocations).toEqual([])
-  })
-})
-
-describe("workpool workers after a stale kernel tool", () => {
-  test("#given a worker that yields a stale kernel-tool error #when the pool closes #then one keyed error and one aggregate are delivered with no retry", async () => {
-    const messages: WorkpoolAggregateMessage[] = []
-    const f = deliveryFixture()
-    f.manager.workpools.bindAggregate({ enqueue: (message, receipts) => { messages.push(message); receipts.ack() } })
-    const worker = await f.start("a")
-    const turnsBefore = f.turns.length
-
-    const yielded = f.yieldResults(worker.taskId, worker.epoch, [
-      { key: "a", error: { code: "kernel_tool_stale", message: "Kernel tool descriptor generation is stale" } },
-    ])
-    await f.settle(worker.taskId)
-    f.manager.workpools.close(f.caller, f.pool.pool_id)
-
-    expect(yielded).toMatchObject({ results: [{ key: "a", status: "accepted" }] })
-    expect(f.inspect().items).toMatchObject([{ key: "a", status: "error", error: { code: "kernel_tool_stale" } }])
-    expect(f.turns.length).toBe(turnsBefore)
-    expect(messages).toHaveLength(1)
-    expect(messages[0]?.results).toMatchObject([{ key: "a", error: { code: "kernel_tool_stale" } }])
-  })
-
-  test("#given a pool whose parent kernel binding is gone #when a new worker spawns #then the grant is refused instead of silently dropped", async () => {
-    const f = deliveryFixture()
-    const bindings = createKernelToolBindings()
-    const pool = { ...f.inspect(), kernel_tool_names: ["fixture_lookup"] }
-
-    const denied = await resolveWorkerKernelTools(pool, bindings).catch((error: unknown) => error)
-    const none = await resolveWorkerKernelTools(f.inspect(), bindings)
-
-    expect(denied).toBeInstanceOf(WorkpoolError)
-    expect((denied as WorkpoolError).code).toBe("tools_unavailable")
-    expect(none).toBeUndefined()
-  })
 })

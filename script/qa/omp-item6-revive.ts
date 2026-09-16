@@ -1,16 +1,13 @@
 import assert from "node:assert/strict"
 
-import type { AgentToolResult } from "@code-yeongyu/senpi"
+import type { AgentToolResult, ToolDefinition } from "@code-yeongyu/senpi"
 import { createKernelToolBindings } from "../../packages/senpi-task/src/kernel-tools/bindings"
 import { InProcessRunner } from "../../packages/senpi-task/src/runners/in-process"
 import { runTaskSend } from "../../packages/senpi-task/src/tools/control/send"
 import type { TaskToolDetails } from "../../packages/senpi-task/src/tools/task/types"
-import { bounded, openChildEnv, openProducerKernel, type ChildEnv, type ProducerKernel } from "./omp-item6-harness"
-
-const DEFINE_CELL = [
-  "tool(async function fixture_lookup(key) { return 'parent-state:' + key; });",
-  "return await tool.hold({});",
-].join("\n")
+import { definedKernel } from "./omp-item6-kernel-cell"
+import { runPoolWorkerStaleYield } from "./omp-item6-pool-stale"
+import { bounded, openChildEnv, type ChildEnv, type ProducerKernel } from "./omp-item6-harness"
 
 const REVIVE_MARKER = "REVIVED_TURN_MARKER"
 
@@ -41,13 +38,6 @@ async function spawn(env: ChildEnv, kernel: ProducerKernel, name: string): Promi
   return result.details
 }
 
-async function definedKernel(sessionId: string): Promise<{ kernel: ProducerKernel; release: () => void }> {
-  const kernel = await openProducerKernel(sessionId)
-  const cell = kernel.run({ cellId: `${sessionId}-cell`, code: DEFINE_CELL })
-  const hold = await bounded(kernel.nextToolCall(), "hold-call")
-  assert.equal(hold.toolName, "hold")
-  return { kernel, release: () => { kernel.reply(hold.callId, "released"); void cell } }
-}
 
 export async function runParkedChildLiveKernel(): Promise<Record<string, unknown>> {
   const { kernel, release } = await definedKernel("omp-item6-parked")
@@ -104,6 +94,7 @@ export async function runRevivedChildStaleKernel(): Promise<Record<string, unkno
     assert.equal((await env.park(taskId)).state, "persisted_only")
 
     // A real kernel reset bumps the generation, so the fenced descriptor is stale on the next call.
+    const beforeReset = kernel.invocations()
     await kernel.reset()
     const revived = await runTaskSend(env.manager, { to: taskId, message: `${REVIVE_MARKER} Call fixture_lookup again.` }, "omp-item6-parent")
     assert.equal(revived.details.kind, "revived")
@@ -112,27 +103,52 @@ export async function runRevivedChildStaleKernel(): Promise<Record<string, unkno
 
     // A new host process has no binding at all: only a typed stub is restored from the transcript.
     const sessionPath = `${env.store.stateDir}/children/${taskId}/sessions/${taskId}/${(await import("node:fs")).readdirSync(`${env.store.stateDir}/children/${taskId}/sessions/${taskId}`)[0]}`
+    const restartedTools: ToolDefinition[] = []
     const restarted = new InProcessRunner({ kernelToolBindings: createKernelToolBindings(), createSession: async (options) => {
-      restartedTools.push(...(options.customTools ?? []).map((tool) => tool.name))
+      restartedTools.push(...(options.customTools ?? []))
       return { sessionId: "restarted", prompt: async () => undefined, steer: async () => undefined, followUp: async () => undefined, abort: async () => undefined, subscribe: () => () => undefined, getLastAssistantText: () => undefined, dispose: () => undefined }
     } })
-    const restartedTools: string[] = []
     const handle = await restarted.resume({
       taskId, cwd: env.root, sessionDir: `${env.store.stateDir}/children/${taskId}/sessions/${taskId}/`,
       depth: 1, parentSessionId: "omp-item6-parent", rootSessionId: "omp-item6-parent", prompt: "",
     }, sessionPath)
     assert.ok(handle)
-    assert.ok(restartedTools.includes("fixture_lookup"), "the restarted host restores a named stub")
+    const stubTool = restartedTools.find((tool) => tool.name === "fixture_lookup")
+    assert.ok(stubTool, "the restarted host restores a named stub")
+
+    // Invoke the restored stub ONCE: the child must read a typed refusal on its own tool channel,
+    // and the stub must never reach a closure - the counter below proves it never called invoke.
+    const beforeStub = kernel.invocations()
+    const stubResult = (await stubTool.execute("omp-item6-stub", {} as never, undefined, undefined, {} as never)) as {
+      readonly isError?: boolean
+      readonly details?: { readonly error?: { readonly code?: string } }
+    }
+    const stubInvocations = kernel.invocationsSince(beforeStub)
+    assert.equal(stubResult.isError, true)
+    assert.equal(stubResult.details?.error?.code, "tools_unavailable")
+    assert.deepEqual(stubInvocations, { attempted: 0, succeeded: 0 }, "a restored stub must never invoke a closure")
 
     const stub = (await import("../../packages/senpi-task/src/kernel-tools/transcript-names")).recordedKernelToolNames(sessionPath)
     assert.deepEqual(stub, ["fixture_lookup"])
+
+    const afterReset = kernel.invocationsSince(beforeReset)
+    assert.equal(afterReset.succeeded, 0, "no closure may run after the parent kernel reset")
+
+    const pool = await runPoolWorkerStaleYield()
 
     return {
       passed: true,
       producer_sha: kernel.sha,
       stale_after_reset: { task_id: taskId, final_response: terminal.final_response, run_epoch: terminal.notification.run_epoch },
-      restarted_host: { restored_stub_names: stub, no_binding: true },
-      kernel_invocations_after_reset: "fenced by the parent kernel generation",
+      restarted_host: {
+        restored_stub_names: stub,
+        no_binding: true,
+        stub_result_code: stubResult.details?.error?.code,
+        stub_kernel_invocations: stubInvocations,
+      },
+      kernel_invocations_after_reset: afterReset.succeeded,
+      kernel_invocation_attempts_after_reset: afterReset.attempted,
+      pool_worker_stale_yield: pool,
     }
   } finally {
     release()

@@ -156,6 +156,9 @@ export type StartResult =
       readonly resolved_model?: ResolvedModelRecord
       readonly run_in_background: boolean
       readonly error_message: string
+      // The runner's typed failure kind (RunnerFailure["kind"]) when the runner rejected the start,
+      // so a caller can classify the refusal without parsing the sanitized message.
+      readonly failure_kind?: string
     }
   | { readonly kind: "residency_denied"; readonly reason: string }
 

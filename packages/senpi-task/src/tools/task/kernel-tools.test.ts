@@ -70,7 +70,34 @@ describe("task tool kernel-tool names", () => {
 
     expect(starts).toBe(0)
     expect(result.details.status).toBe("denied")
+    expect(result.details.kernel_tools?.status).toBe("refused")
     expect(result.details.kernel_tools?.error?.code).toBe("kernel_tool_missing")
+  })
+
+  test("#given an agent that runs in process mode #when it requests a parent tool #then no child starts and the refusal is typed", async () => {
+    const capability = fakeKernelTools()
+    capability.define({ name: "lookup" })
+    let starts = 0
+    const manager = createFakeManager({
+      start: async () => {
+        starts += 1
+        return started("st_00000006")
+      },
+    })
+    const deps = makeDeps(manager, { agents: { "rpc-worker": { name: "rpc-worker", executionMode: "process" } } })
+
+    const result = await buildTaskExecute(deps)(
+      "call-6",
+      { prompt: "use the parent tool", subagent_type: "rpc-worker", run_in_background: true, tools: ["lookup"] },
+      undefined,
+      undefined,
+      contextWith(capability),
+    )
+
+    expect(starts).toBe(0)
+    expect(result.details.kernel_tools?.status).toBe("refused")
+    expect(result.details.kernel_tools?.error?.code).toBe("tools_unavailable")
+    expect(capability.invocations).toEqual([])
   })
 
   test("#given a parent with no live JS kernel #when names are requested #then the spawn is refused as tools_unavailable", async () => {
