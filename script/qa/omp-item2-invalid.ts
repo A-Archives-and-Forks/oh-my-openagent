@@ -44,7 +44,7 @@ export async function runInvalid(out: string) {
   const starts: unknown[] = []
   const runner = { start: async (spec: { taskId: string }) => {
     starts.push(spec)
-    return { task_id: spec.taskId, sessionId: `worker-${spec.taskId}`, waitForOutcome: () => new Promise(() => undefined), followUp: async () => undefined, steer: async () => undefined, abort: async () => undefined, dispose: async () => undefined, subscribe: () => () => undefined, lastAssistantText: () => undefined }
+    return { task_id: spec.taskId, sessionId: `worker-${spec.taskId}`, pid: undefined, waitForOutcome: () => new Promise<never>(() => {}), followUp: async () => undefined, steer: async () => undefined, abort: async () => undefined, dispose: async () => undefined, subscribe: () => () => undefined, lastAssistantText: () => undefined }
   } }
   const registry: ResidencyRegistry = {
     get: () => undefined, entries: () => [], forget: () => undefined, hasPendingSends: () => false,
