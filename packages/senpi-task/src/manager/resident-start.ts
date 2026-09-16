@@ -10,13 +10,25 @@ export async function withResidentStart(
 ): Promise<StartResult> {
   if (options.admit === undefined) return start(() => undefined)
   const acquired = await acquireSessionAdmissionLease(options.store.stateDir, parentSessionId)
-  if (acquired.kind === "contended") return { kind: "residency_denied", reason: "Residency admission is contended." }
+  if (acquired.kind === "contended") {
+    return { kind: "residency_denied", reason: "Residency admission is contended.", cause: "lease" }
+  }
   let released = false
   const release = (): void => { if (!released) { released = true; acquired.lease.release() } }
   try {
     const admission = await options.admit(parentSessionId)
-    if (admission.kind === "rejected") return { kind: "residency_denied", reason: admission.message }
-    if (!acquired.lease.isOwner()) return { kind: "residency_denied", reason: "Residency admission lease was displaced." }
+    if (admission.kind === "rejected") {
+      return {
+        kind: "residency_denied",
+        reason: admission.message,
+        cause: "residents",
+        ...(admission.max_children === undefined ? {} : { max_children: admission.max_children }),
+        residents: admission.residents ?? [],
+      }
+    }
+    if (!acquired.lease.isOwner()) {
+      return { kind: "residency_denied", reason: "Residency admission lease was displaced.", cause: "lease" }
+    }
     return await start(release)
   } finally { release() }
 }

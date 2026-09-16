@@ -24,6 +24,7 @@ import { createWorkpoolWorkerTool } from "../tools/workpool"
 import { admitSpill } from "./spill-admission"
 import { decideDepthPolicy } from "./depth-policy"
 import { onceOnly } from "./once-only"
+import { ResidencySignal } from "./residency-signal"
 import { resolveExecutionMode, type ExecutionMode } from "./execution-mode"
 import { toContinueResult } from "./continue-result"
 import {
@@ -180,6 +181,7 @@ class TaskManagerImpl implements TaskManager {
   readonly #sendCounts = new Map<string, number>()
   readonly #steering: SteeringEngine
   readonly #outcome: OutcomeTracker
+  readonly #residency = new ResidencySignal()
 
   constructor(options: TaskManagerImplOptions) {
     this.#options = options
@@ -547,8 +549,13 @@ class TaskManagerImpl implements TaskManager {
 
   endSend(taskId: string): void {
     const count = this.#sendCounts.get(taskId) ?? 0
-    if (count <= 1) this.#sendCounts.delete(taskId)
-    else this.#sendCounts.set(taskId, count - 1)
+    if (count <= 1) {
+      this.#sendCounts.delete(taskId)
+      // The last pending send drained: a terminal resident that was unevictable is evictable now.
+      this.#residency.notify(this.#tryLoad(taskId)?.parent_session_id)
+    } else {
+      this.#sendCounts.set(taskId, count - 1)
+    }
   }
 
   list(scope: ListScope): readonly ListedTask[] {
@@ -561,6 +568,8 @@ class TaskManagerImpl implements TaskManager {
   }
 
   forget(taskId: string): void {
+    // Eviction, suspension, and destruction all land here; each frees (or is about to free) a slot.
+    this.#residency.notify(this.#tryLoad(taskId)?.parent_session_id)
     this.#live.get(taskId)?.unsubscribe()
     this.#live.delete(taskId)
     const subscribers = this.#childSubscribers.get(taskId)
@@ -594,6 +603,8 @@ class TaskManagerImpl implements TaskManager {
   runStatsSnapshot(taskId: string): TaskRunStats | undefined { return this.#runStats.get(taskId)?.snapshot(this.#now()) }
 
   residentTaskIds(): readonly string[] { return [...this.#live.keys()] }
+
+  residencyChanged(parentSessionId: string): Promise<void> { return this.#residency.changed(parentSessionId) }
 
   promoteToBackground(taskId: string): boolean {
     const promoted = !this.wasBackground(taskId)
@@ -1050,6 +1061,8 @@ class TaskManagerImpl implements TaskManager {
   #settleWaiters(taskId: string, terminal?: TaskRecord): void {
     const record = terminal ?? this.#tryLoad(taskId)
     if (record === null || record === undefined || !isTerminalRecord(record)) return
+    // Terminal = LRU-evictable (once its sends drain), so every session waiter re-probes (#8396).
+    this.#residency.notify(record.parent_session_id)
     const waiters = this.#waiters.get(taskId)
     if (waiters === undefined) return
     const settling = waiters.splice(0)
