@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-beta.65] - 2026-09-16
+
+### OmO
+
+**A Kibitzer nudge is reference now, not an order.** The recalled-memory block used to open with "It is a hint, not current state, verify before relying on it; read the source path for full context", which reads as a task, and it arrives on the user channel, so the model treats it with a user turn's authority. Across 3,143 deliveries in local sessions this month, 465 sent the agent to open the recalled note and 75 turned into a different task; 72 of those 75 happened in sessions whose context held no real user request, where the nudge was the only instruction in view. The header now names the sender and the standing of the block: a background memory advisor put it there, it may or may not apply, it is reference only, and the current task stands. Korean hints get the Korean equivalent, and both headers are shorter than the ones they replace.
+
+**The Kibitzer writes observations, not instructions.** More than half of the hints it delivered this month were phrased as orders ("verify these before ...", "하지 말아야 합니다"). Its persona now asks for one sentence about what the stored note records, shows an instruction-shaped hint as a worked bad example, and carries the same block the renderer produces, pinned byte for byte by a test. The rule is enforced where nudges are admitted: a hint carrying the second person, opening with an imperative, or ending in a Korean request form is refused with the reason and the fix, and the judge keeps its single correction. Nudges stored under the old contract still render in past sessions.
+
+**`<memory_notice>` stopped claiming messages left the live context.** It reported the session branch length on every prompt, so a fresh session with 15 entries and no compaction read "12 previous messages ... have left the live context". It now counts the messages a compaction actually removed, omits the line when nothing was compacted, and skips the notice entirely when it would carry no lines. The standing fact that recalled memory arrives on its own and has no tool to call moved into the compiled memory block, where it belongs.
+
+**Plan Effort is five bands, and `disabled_skills` works on Native.** An `**Effort:**` value written as a duration ("200 hours", "3 days") is rewritten to the band that bounds it, Quick through XL, with a warning that explains the bands, so an hour count never reaches the summary a reader sees first. `disabled_skills` is a canonical key of `~/.omo/omo.jsonc` across the shared base, the harness blocks and profiles; on Native the bundled skills now arrive through discovery minus every disabled name, with user, project, harness and profile layers unioned.
+
 ## [5.0.0-beta.64] - 2026-09-16
 
 ### Engine: senpi 2026.9.16
