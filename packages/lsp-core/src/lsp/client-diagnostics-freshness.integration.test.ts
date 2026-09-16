@@ -247,15 +247,15 @@ describe("LspClient diagnostics freshness", () => {
 	});
 
 	it("#given a server that claims pull support but closes instead of answering #when diagnostics run #then the transport failure is not labeled clean", async () => {
-		// The transport close is the signal under test; a controlled clock stops the freshness window
-		// from resolving the request first on a starved shard (#8323).
-		const clock = new ControlledClock();
+		// Deliberately left on the real clock: the client only notices the dead server when the
+		// in-flight pull request's own timeout aborts it, so a timer must actually fire here. Making
+		// the transport reject pending requests from the child's exit event is a separate change.
 		const context = await harness.makeClient(
 			{
 				capabilities: { diagnosticProvider: { interFileDependencies: false, workspaceDiagnostics: false } },
 				diagnosticResponses: [{ action: "close" }],
 			},
-			{ diagnosticsFreshnessTimeoutMs: 500, versionlessPublishQuiescenceMs: 5, timerProvider: clock },
+			{ diagnosticsFreshnessTimeoutMs: 500, versionlessPublishQuiescenceMs: 5 },
 		);
 		await context.client.openFile(context.source);
 
