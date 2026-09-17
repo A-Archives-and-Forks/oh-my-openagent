@@ -75,6 +75,13 @@ function writeTranscript(input: { projectDirectory: string; fileName: string; mt
   return sessionsDirectory
 }
 
+// Senpi encodes a session cwd into one directory segment. A Windows path carries a drive colon and
+// backslashes, neither legal inside a segment, so the fixture mirrors the production normalizer
+// (storage/stale-work.ts: toLowerCase().replace(/[^a-z0-9]+/g, "-")) instead of splitting on "/".
+function encodeSessionCwd(directory: string): string {
+	return directory.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+}
+
 function writeTranscriptInto(input: {
   sessionsDirectory: string
   projectDirectory: string
@@ -83,7 +90,7 @@ function writeTranscriptInto(input: {
 }): void {
   const projectSessionsDirectory = join(
     input.sessionsDirectory,
-    `--${input.projectDirectory.split("/").filter((segment) => segment.length > 0).join("-")}--`,
+    `--${encodeSessionCwd(input.projectDirectory)}--`,
   )
   mkdirSync(projectSessionsDirectory, { recursive: true })
   const transcriptPath = join(projectSessionsDirectory, input.fileName)
@@ -91,6 +98,15 @@ function writeTranscriptInto(input: {
   const mtime = new Date(input.mtimeMs)
   utimesSync(transcriptPath, mtime, mtime)
 }
+
+
+test("#given a Windows-shaped session cwd #when it is encoded for a session directory #then the segment carries no drive colon or separator", () => {
+	// A drive colon and a backslash are both illegal inside a Windows path segment, so a fixture that
+	// splits on "/" alone produced mkdir ENOENT on Windows runners while passing on POSIX.
+	const encoded = encodeSessionCwd("C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\boulder-stale-work-z5FTDO")
+	expect(encoded).toBe("C-Users-RUNNER-1-AppData-Local-Temp-boulder-stale-work-z5FTDO")
+	expect(/[:\\/]/.test(encoded)).toBe(false)
+})
 
 describe("reconcileStaleWorks", () => {
   test("#given an active work whose only session transcript is 41 hours old #when reconciling #then the work is paused and stamped", () => {
