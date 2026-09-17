@@ -1,4 +1,43 @@
 
+## 2026-09-17 — One senpi RpcClient per daemon-hosted child
+
+`runners/rpc-host/session-client.ts` is a child's whole view of the daemon: `HostSessionClient`
+holds ONE engine `RpcClient` for ONE child. A connection is never shared between children, so a
+sibling's records, its UI requests and its transport loss can never reach this child, and `detach()`
+drops only this child's socket.
+
+`open()` probes the daemon per child (never a cached ensure answer), then opens the session with
+`kind: "worker"`, the child context, `retain_on_disconnect` and `auto_title`. The probe rides its
+OWN short-lived connection to the same socket because the engine's `RpcClient` exposes no
+raw-command seam: `get_protocol_info` cannot be sent on the session connection through the public
+API. That is acceptable precisely because `instance_id` is informational — records key liveness on
+the session path, never on the instance — and it keeps the identity per child instead of per
+process. When the engine grows a connection-level protocol-info call, only `session-transport.ts`
+changes.
+
+Admission reuses the ensure path's vocabulary on purpose: the probe is checked against
+`TASK_DAEMON_PROTOCOL_VERSION` and `TASK_DAEMON_REQUIRED_CAPABILITIES`, and a narrower daemon throws
+the SAME `HostUnavailableError{ reason: "capability", fallbackAllowed: true }` the ensure path
+throws, so one branch in the runner covers both. Anything else fails closed (`protocol`,
+`fallbackAllowed: false`) — a refused client never starts a second host beside the daemon (I1).
+
+`session-wire.ts` owns the boundary: every frame is parsed before anything acts on it, records
+tagged for another routing handle are dropped, `session_parked` / `session_closed{reason}` release
+the handle and fire typed callbacks, and an `open_session` refusal becomes `SessionHeldElsewhereError
+{ owner, retryAfterMs }` (`session_path_in_use`) or `HostSessionOpenError{ code }`
+(`invalid_launch_profile`, `open_failed`, …). The client NEVER retries a held path: the backoff and
+the `deferred/host_draining` decision belong to the lifecycle, which is the only place that knows
+whether the record should wait at all.
+
+UI requests are answered through `runners/rpc/ui-auto-answer.ts` and the answer is written, never
+awaited, so a headless child cannot block on a human; `buildAutoUiResponse` now takes the wire
+minimum (`type`/`id`/`method`) because a frame parsed off a socket carries no compile-time variant.
+
+The transport is a port (`createClient`, `probeProtocolInfo`) for ONE reason: the suites run the
+REAL engine client against a unix-socket fake host (`__fixtures__/fake-host.ts`, which todo 33
+grows), so open, routing, park, close, detach and transport loss are proven on the wire rather than
+against a mock of the engine.
+
 ## 2026-09-17 — Attach-or-create the shared task daemon from the launch spec
 
 `lazy/senpi-barrel.ts` gains the host-daemon accessors (`senpiEnsureHost`, `senpiProbeHost`,
