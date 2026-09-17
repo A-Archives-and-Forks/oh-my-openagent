@@ -25,6 +25,7 @@ import {
 
 import type { IdleInjectionCoordinator } from "../../extension/idle-injection-coordinator"
 import type { SenpiExtensionAPI } from "../../extension/types"
+import { createEngineHostRuntime, type EngineHostRuntime } from "./host-execution-mode"
 import {
   createCategoryConfigGenerations,
   createGenerationObservingPlanner,
@@ -59,6 +60,9 @@ export interface TaskEngine {
   readonly agents: Readonly<Record<string, AgentDefinition>>
   readonly omoConfig: OmoConfig
   readonly settings: OmoTaskSettings
+  // This parent session's shared-daemon wiring: the ONE answer to `task.default_execution_mode:
+  // "auto"`, and the deduped reasons the daemon could not take its children.
+  readonly host: EngineHostRuntime
   readonly stateDir: string
   readonly loadSkills: SkillLoader
   readonly memberLiveness: TeamMemberLivenessNotifier
@@ -88,6 +92,9 @@ export interface ComposeTaskEngineDeps {
   // Terminal status-edge ledger notified on every nonterminal -> terminal write. Defaults to the
   // process-shared ledger; tests inject an isolated one so edges cannot leak between engines.
   readonly terminalObservers?: TaskTerminalObservers
+  // This session's shared-daemon wiring. Defaults to the real one (ensure + capability check); a
+  // suite injects it whole so no test ever ensures a daemon and its notices are the engine's.
+  readonly host?: EngineHostRuntime
 }
 
 export type { RunnerBuildContext, TaskRunnerFactories } from "./engine-runners"
@@ -186,7 +193,8 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
   })
 
   const factories = deps.runnerFactories ?? DEFAULT_RUNNER_FACTORIES
-  const runnerContext: RunnerBuildContext = { runtime, sharedParentTools: deps.sharedParentTools, settings, kernelToolBindings }
+  const host = deps.host ?? createEngineHostRuntime(settings)
+  const runnerContext: RunnerBuildContext = { runtime, sharedParentTools: deps.sharedParentTools, settings, kernelToolBindings, agentDir: host.agentDir, onHostWarning: host.notices.add }
   const resolveRegistry: ResolveModelRegistry = () => runtime.modelRegistry()
   const basePlanner = createGenerationObservingPlanner({
     planner: createTaskChildPlanner(deps.omoConfig, agents, resolveRegistry, () => runtime.parentServiceTier()),
@@ -208,6 +216,7 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
     resolveChildToolNames: kernelTools.childToolNames,
     planner,
     config: settings,
+    executionModeGate: host.executionModeGate,
     cwd: deps.cwd,
     destruction: {
       destroyResidentTask: (taskId, cause) =>
@@ -235,6 +244,7 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
     agents,
     omoConfig: deps.omoConfig,
     settings,
+    host,
     stateDir: baseStore.stateDir,
     loadSkills,
     memberLiveness,
@@ -246,6 +256,7 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
       loadSkills,
       resolveSkillInvocations,
       resolveChildToolNames: kernelTools.childToolNames,
+      executionModeGate: host.executionModeGate,
     }),
     appendTaskEvent,
     onStoreMutation: storeChain.onMutation,

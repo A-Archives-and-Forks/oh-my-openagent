@@ -1,3 +1,23 @@
+## 2026-09-17 — Process children go to the shared daemon, and the plugin gates itself per session
+
+`DEFAULT_RUNNER_FACTORIES.process` now builds an `RpcHostRunner` (children as sessions of the
+machine-wide daemon) with the per-child `RpcProcessRunner` as its loud fallback. `process_runner:
+"child-process"` and win32 keep the per-child runner; both inputs are injectable on
+`RunnerBuildContext` (`platform`, `agentDir`, `env`, `onHostWarning`) so the selection is testable
+without pretending to run on Windows.
+
+`host-execution-mode.ts` owns this session's daemon wiring: the gate that answers
+`default_execution_mode: "auto"` (ensure once, read the capabilities, fail closed to in-process) and
+the deduped notice list the gate and the runner share. Each distinct `host_unavailable:<reason>` is
+logged once and appears once in `task_output`, so the parent learns why its children are not daemon
+sessions without reading a log file.
+
+Session-role gating replaces the process-wide env checks: the task component registers nothing for a
+`dag_child` (parity with the per-child launch, which drops omo's own `-e` entry for DAG children) or
+a `member` session, the session-start process sweep skips any child session, and a memory run is
+one-shot when the session says it is a child. Every one of them falls back to the old environment
+variables for the per-child process runner.
+
 ## 2026-09-17 — the residency registry reads the runner's kind, not the pid
 
 `components/task/residency-registry.ts` used to derive a resident's kind from `handle.pid`

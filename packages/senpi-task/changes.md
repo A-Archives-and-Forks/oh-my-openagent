@@ -1,3 +1,31 @@
+## 2026-09-17 — The shared daemon is where a process child runs by default
+
+`task.default_execution_mode` ships as `auto`. A parent session answers it ONCE, at the first spawn
+that needs an answer: `process` when the platform is not win32, `task.process_runner` is `host`, and
+the ensured daemon advertises `session_context` + `generation_handoff`; `in-process` otherwise. The
+answer is a SESSION fact (`manager/execution-mode.ts` `createExecutionModeGate`) - a daemon that dies
+later never changes the mode of the next child, and the daemon is asked exactly once per session.
+
+Precedence is unchanged where it matters: `spec.execution_mode ?? agentDef.executionMode ?? config`,
+with `auto` contributing only the resolved value. A user-set `in-process`/`process` wins and never
+even ensures a daemon, and curated read-only agents stay in-process. A spec that names no mode
+because `auto` has not resolved yet reaches the manager WITHOUT `execution_mode`, and the manager
+resolves it (awaiting that one resolution) instead of anyone guessing in-process.
+
+Two new seams carry the decision outward. `ensureTaskDaemon` returns the daemon's `capabilities`
+(probed for a host that was already up, asked once for one it just started) so the mode decision has
+the facts it needs without a second connection. `ManagedChildHandle` carries `hostSession`, and
+`recordSpawnedRunner` stamps `runner_kind: "host-session"` plus that identity onto the record at
+spawn - the fields the lifecycle already branches on now have a production writer.
+
+`readSessionRole` (`runners/rpc-host/session-role.ts`) is the reader half of `buildChildContext`:
+one extension set serves every session of the daemon, so a component asks what THIS session is
+(`pi.sessionContext.role`) and only falls back to `OMO_SENPI_TASK_RPC_CHILD` / `SENPI_TASK_MEMBER`
+for the per-child process runner. The member extension follows: `resolveMemberExtensionConfig` takes
+its identity from the session context when there is one, a session with no member identity now
+registers nothing instead of throwing `missing_env`, and while the run is live the member publishes
+a `wake_source_state` source so the host never parks it mid-run.
+
 ## 2026-09-17 — Session-aware lifecycle for daemon-hosted children
 
 The lifecycle now knows the difference between a child that owns an OS process and one that is a

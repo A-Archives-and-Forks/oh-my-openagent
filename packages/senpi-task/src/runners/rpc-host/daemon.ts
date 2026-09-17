@@ -118,6 +118,10 @@ export interface EnsuredTaskDaemon {
   readonly upgradeable: boolean
   readonly instanceId?: string
   readonly engineVersion?: string
+  // What this daemon advertises (`get_protocol_info.capabilities`). Absent only when a host this
+  // call just started did not answer a probe - never guessed, because the `auto` execution mode is
+  // decided from this list.
+  readonly capabilities?: readonly string[]
 }
 
 interface DaemonCacheEntry {
@@ -199,6 +203,9 @@ export async function ensureTaskDaemon(input: EnsureTaskDaemonInput): Promise<En
   const ensured = await host.ensureHost(request).catch((error: unknown) => {
     throw new HostUnavailableError("ensure_failed", { fallbackAllowed: false, detail: sanitize(error) })
   })
+  // A host that was already up answered the probe above; one this call started is asked once, so
+  // the caller learns what it can do without opening a second connection of its own.
+  const capabilities = running?.capabilities ?? (await host.probeHost({ socket: ensured.socket }))?.capabilities
   const result: EnsuredTaskDaemon = {
     action: decision.action,
     reason: decision.reason,
@@ -208,6 +215,7 @@ export async function ensureTaskDaemon(input: EnsureTaskDaemonInput): Promise<En
     upgradeable: decision.upgradeable,
     ...(ensured.instanceId === undefined ? {} : { instanceId: ensured.instanceId }),
     ...(ensured.engineVersion === undefined ? {} : { engineVersion: ensured.engineVersion }),
+    ...(capabilities === undefined ? {} : { capabilities }),
   }
   cached = { socket, expiresAt: now() + TASK_DAEMON_CACHE_TTL_MS, ensured: result }
   return result

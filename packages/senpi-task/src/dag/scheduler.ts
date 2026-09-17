@@ -3,7 +3,7 @@ import { createHash } from "node:crypto"
 import * as fs from "node:fs"
 import { relative } from "node:path"
 
-import type { ManagerStartSpec, ResidencyDenied, TaskManager } from "../manager/types"
+import type { ExecutionMode, ManagerStartSpec, ResidencyDenied, TaskManager } from "../manager/types"
 import type { TaskRecord, TaskStatus } from "../state"
 import { resolveDagNodeExecutionMode, type DagExecutionModeSources } from "./execution-mode"
 import { dagFingerprint, ownerFingerprintInput } from "./fingerprint"
@@ -34,6 +34,7 @@ import type {
   DagNodeTransitionReason,
   DagRunEvent,
   DagRunId,
+  DagRoute,
 } from "./types"
 
 // The per-node control verbs live beside the scheduler but keep one public entry point: callers
@@ -928,6 +929,18 @@ function failNode(context: SchedulerContext, nodeId: DagNodeId, code: DagNodeErr
   context.pendingErrors.delete(nodeId)
 }
 
+// A node names its execution mode only when something already decides it: no mode configuration at
+// all, or an `auto` config the parent session has not resolved yet, both leave the choice to the
+// manager (which awaits that one resolution before it writes the record).
+function dagNodeExecutionMode(
+  context: SchedulerContext,
+  route: DagRoute,
+): { readonly execution_mode?: ExecutionMode } {
+  if (context.executionMode === undefined) return {}
+  const mode = resolveDagNodeExecutionMode({ ...context.executionMode, route })
+  return mode === undefined ? {} : { execution_mode: mode }
+}
+
 function startSpec(context: SchedulerContext, nodeId: DagNodeId): ManagerStartSpec {
   const record = context.journal.snapshot()
   const node = nodeById(record, nodeId)
@@ -939,15 +952,7 @@ function startSpec(context: SchedulerContext, nodeId: DagNodeId): ManagerStartSp
     parent_session_id: record.parentSessionId,
     root_session_id: record.rootSessionId,
     depth: (context.ancestry?.depth ?? 0) + 1,
-    ...(context.executionMode === undefined
-      ? {}
-      : {
-          execution_mode: resolveDagNodeExecutionMode({
-            route: node.route,
-            agents: context.executionMode.agents,
-            config: context.executionMode.config,
-          }),
-        }),
+    ...dagNodeExecutionMode(context, node.route),
     ...(node.route.kind === "category"
       ? { category: node.route.category }
       : { subagent_type: node.route.agent, ...(node.route.model === undefined ? {} : { model: node.route.model }) }),

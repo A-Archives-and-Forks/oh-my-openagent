@@ -334,3 +334,57 @@ describe("ensureTaskDaemon", () => {
     expect(host.probes).toHaveLength(2)
   })
 })
+
+// What the ensured daemon can do decides `task.default_execution_mode: "auto"`, so the ensure hands
+// the capability list back to its caller instead of every caller re-probing the socket.
+describe("ensureTaskDaemon capabilities", () => {
+  test("#given a daemon already running #when ensured #then the probed capability list rides the result", async () => {
+    // given
+    const host = fakeHostPort({ host: protocolInfo() })
+
+    // when
+    const ensured = await ensureTaskDaemon(ensureInput(host))
+
+    // then
+    expect(ensured.action).toBe("reuse")
+    expect(ensured.capabilities).toEqual([...TASK_DAEMON_REQUIRED_CAPABILITIES, "generation_handoff"])
+  })
+
+  test("#given a daemon this call had to start #when ensured #then the fresh host is probed once for its capabilities", async () => {
+    // given
+    let started = false
+    const host = fakeHostPort({
+      host: undefined,
+      ensure: async (input) => {
+        started = true
+        return { pid: 4242, socket: input.socket, reused: false }
+      },
+    })
+    const withStartedHost: typeof host = {
+      ...host,
+      probeHost: async ({ socket }) => {
+        host.probes.push(socket)
+        return started ? protocolInfo({ capabilities: ["multi_session", "generation_handoff"] }) : undefined
+      },
+    }
+
+    // when
+    const ensured = await ensureTaskDaemon(ensureInput(withStartedHost))
+
+    // then
+    expect(ensured.action).toBe("start")
+    expect(ensured.capabilities).toEqual(["multi_session", "generation_handoff"])
+    expect(host.probes).toHaveLength(2)
+  })
+
+  test("#given a started daemon that answers no probe #when ensured #then the capabilities are absent instead of guessed", async () => {
+    // given
+    const host = fakeHostPort({ host: undefined, ensure: async (input) => ({ pid: 7, socket: input.socket, reused: false }) })
+
+    // when
+    const ensured = await ensureTaskDaemon(ensureInput(host))
+
+    // then
+    expect(ensured.capabilities).toBeUndefined()
+  })
+})
