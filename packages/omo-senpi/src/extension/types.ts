@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "@code-yeongyu/senpi"
 
 import type { IdleInjectionCoordinator } from "./idle-injection-coordinator"
+import type { StartupWork } from "./startup-deferral"
 
 export interface CompactReadClassification {
   readonly kind: "docs" | "resource" | "skill" | "memory"
@@ -71,6 +72,10 @@ export interface ComponentContext {
   // Single-queue idle-edge injection arbiter (todo 17). When present, ulw-loop continuation and task
   // completion wakes route through it so one idle edge yields exactly one injection.
   idleCoordinator?: IdleInjectionCoordinator
+  // Off-critical-path scheduler for startup work that must happen but is not needed before the
+  // first user turn (see startup-deferral.ts). Absent in isolated component unit tests, where
+  // `deferUntilAfterFirstPaint` runs the work inline instead.
+  deferStartupWork?: (label: string, work: StartupWork) => void
 }
 
 export interface OmoSenpiComponent {
