@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### OmO
+
+**A ulw-execute work whose session died no longer shows as running forever.** `.omo/boulder.json` only ever left `status: "active"` on an explicit completion, so a crash, a reboot or a closed terminal left the work `active` for good - one real project still advertised a work whose only session's transcript had been quiet for 41 hours, next to a sibling work the same file had recorded as `completed` ([#8413](https://github.com/code-yeongyu/oh-my-openagent/issues/8413)). Both ulw-execute read paths now reconcile the file where they already read it: a work is demoted to `paused` and stamped `stale_since` once its last activity - the newest of its sessions' transcript mtimes, `updated_at` and `started_at` - is at least six hours old, configurable with `OMO_BOULDER_STALE_WORK_THRESHOLD_MS`. Session ids, plan, mode and every other field survive the demotion, a work with recent activity is never rewritten, `completed` and `abandoned` records are untouched, and an unreadable or absent file changes nothing. Resuming a demoted work returns it to `active` and clears the stamp, and it stays listed as resumable the whole time.
+
 ## [5.0.0-beta.68] - 2026-09-16
 
 ### OmO
