@@ -1,3 +1,22 @@
+## 2026-09-17 — ulw-execute continuation repairs a work its session abandoned
+
+`findContinuableBoulderWork` reads `.omo/boulder.json` on every user input and on
+`agent_settled`, and it used to accept whatever status it found there. A work whose
+session ended abnormally kept `status: "active"` forever, because `completeBoulder`
+is the only transition away from it and it runs only on an explicit completion
+(#8413). The read now starts with `reconcileStaleWorks`, which demotes such a work
+to `paused` and stamps `stale_since` once its last activity - the newest of its
+sessions' transcript mtimes, `updated_at` and `started_at` - is six hours old
+(`OMO_BOULDER_STALE_WORK_THRESHOLD_MS`). A healthy work is never rewritten, and the
+continuation itself is unchanged: `active` and `paused` were both continuable
+before this change and still are.
+
+The transcripts are found through this package's own agent-home resolver, which
+gained `resolveAgentSessionsDirectory(options)` beside `resolveAgentHome` and is now
+reachable as the `@oh-my-opencode/omo-senpi/agent-home` subpath, so the OpenCode
+ulw-execute hook resolves the same directory rather than re-deriving it.
+`boulder-state` takes the directory as an option and resolves no home path itself.
+
 ## 2026-09-16 — Kibitzer nudges are reference-only
 
 A recalled note used to arrive with no stated posture, and 54% of the hints
