@@ -3,86 +3,76 @@ import { createServer, type Server, type Socket } from "node:net"
 import { join } from "node:path"
 
 import type { SenpiHostProtocolInfo } from "../../../lazy/senpi-barrel"
+import { FakeSessionTable, type FakeDrainedSession, type FakeHostSession } from "./fake-host-sessions"
 import { fakeProtocolInfo, probeFakeHost, type FakeHostIdentityOptions } from "./fake-host-probe"
+import { handleWireLine, writeFrame, type FakeHostCommand, type FakeHostOpenFailure } from "./fake-host-wire"
 
 /**
- * Minimal in-process unix-socket JSONL host: enough of the senpi multi-session wire for the
- * per-child session client (protocol probe, open/close, routing tags, lifecycle records, UI
- * requests, transport loss). Todo 33 grows THIS module into the full fixture (list_sessions,
- * handoff, holdPath, stalls); keep additions behind the same `FakeHost` surface so the suites
- * written against it keep compiling.
+ * In-process unix-socket JSONL daemon: enough of the senpi multi-session wire for a child session
+ * client, a lifecycle probe and a two-parent integration suite. The wire lives in `fake-host-wire`
+ * and the session rules in `fake-host-sessions`; THIS module owns the listener, the identity a
+ * generation answers with, and the four things a machine-wide daemon does to its children - it
+ * parks a session, holds a path while it drains, hands its socket to a newer generation, and dies.
  */
-export interface FakeHostOpenFailure {
-  readonly code: string
-  readonly detail?: string
-  readonly data?: unknown
-}
+
+export type { FakeHostCommand, FakeHostOpenFailure } from "./fake-host-wire"
+export type { FakeHostSession } from "./fake-host-sessions"
 
 export interface FakeHostOptions extends FakeHostIdentityOptions {
   readonly openFailure?: FakeHostOpenFailure
-}
-
-export interface FakeHostCommand {
-  readonly type: string
-  readonly sessionId: string | undefined
-  readonly payload: Readonly<Record<string, unknown>>
-}
-
-export interface FakeHostSession {
-  readonly routingId: string
-  readonly sessionPath: string
-  readonly kind: unknown
-  readonly context: unknown
-  readonly retainOnDisconnect: unknown
-  readonly autoTitle: unknown
-  readonly attachments: number
-  readonly parked: boolean
+  /** Write a real JSONL transcript per session path, as a daemon owning that file would. */
+  readonly transcripts?: boolean
+  /** What a draining generation tells a client to wait before retrying a held path. */
+  readonly drainRetryAfterMs?: number
 }
 
 export interface FakeHost {
   readonly socketPath: string
   readonly commands: readonly FakeHostCommand[]
   readonly connections: number
+  /** The identity this generation answers `get_protocol_info` with; it rotates on `handoff`. */
+  readonly instanceId: string
   sessions(): readonly FakeHostSession[]
+  /** How many connections ever held this session path at once - one JSONL writer reads as 1. */
+  peakAttachments(sessionPath: string): number
   probeProtocolInfo(): Promise<SenpiHostProtocolInfo | undefined>
   failOpen(failure: FakeHostOpenFailure | undefined): void
   /** Record the named command but never answer it - the caller's request stays in flight. */
   withholdReply(type: string): void
   requestUi(routingId: string, request: Readonly<Record<string, unknown>>): void
   emitRecord(routingId: string, record: Readonly<Record<string, unknown>>): void
+  /** The host loop stalled: a connection-level notice every attached client sees. */
+  stall(driftMs: number): void
+  /** Finish the turn in flight with an assistant answer, exactly as a real session would. */
+  completeTurn(routingId: string, text: string): void
   evict(sessionPath: string): void
   closeSession(routingId: string, reason: string): void
+  holdPath(sessionPath: string, ownerInstanceId: string): void
+  releasePath(sessionPath: string): void
+  /** A newer generation takes the socket: sessions park, their paths drain, the instance rotates. */
+  handoff(nextInstanceId?: string): void
   crash(): void
+  restart(): Promise<void>
   waitForCommand(type: string): Promise<FakeHostCommand>
+  /** Resolve when exactly `count` connections are open - a detach observed, never polled for. */
+  waitForConnections(count: number): Promise<void>
   stop(): Promise<void>
-}
-
-interface LiveSession {
-  routingId: string
-  readonly sessionPath: string
-  readonly kind: unknown
-  readonly context: unknown
-  readonly retainOnDisconnect: unknown
-  readonly autoTitle: unknown
-  socket: Socket | undefined
-  parked: boolean
 }
 
 export async function startFakeHost(options: FakeHostOptions = {}): Promise<FakeHost> {
   const dir = mkdtempSync("/tmp/dh-fake-")
   const socketPath = join(dir, "rpc.sock")
-  const protocolInfo = fakeProtocolInfo(options)
+  const drainRetryAfterMs = options.drainRetryAfterMs ?? 2_000
+  const table = new FakeSessionTable({ transcripts: options.transcripts === true })
   const commands: FakeHostCommand[] = []
   const waiters: Array<{ readonly type: string; readonly resolve: (command: FakeHostCommand) => void }> = []
-  const sessions = new Map<string, LiveSession>()
   const sockets = new Set<Socket>()
+  const connectionWaiters: Array<{ readonly count: number; readonly resolve: () => void }> = []
   const withheld = new Set<string>()
+  let identity = fakeProtocolInfo(options)
+  let generation = typeof identity.generation === "number" ? identity.generation : 1
   let openFailure = options.openFailure
-  let nextRoutingId = 0
-
-  const write = (socket: Socket, payload: unknown): void => {
-    socket.write(`${JSON.stringify(payload)}\n`)
-  }
+  let server: Server
 
   const record = (command: FakeHostCommand): void => {
     commands.push(command)
@@ -94,118 +84,68 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
     }
   }
 
-  const findByRouting = (routingId: string): LiveSession | undefined =>
-    [...sessions.values()].find((session) => session.routingId === routingId)
+  const ports = { table, identity: () => identity, openFailure: () => openFailure, withheld, record }
 
-  const openSession = (socket: Socket, payload: Readonly<Record<string, unknown>>): void => {
-    if (openFailure !== undefined) {
-      const failure = openFailure
-      write(socket, {
-        type: "response",
-        id: payload.id,
-        command: "open_session",
-        success: false,
-        error: `${failure.code}${failure.detail === undefined ? "" : `: ${failure.detail}`}`,
-        errorCode: failure.code,
-        ...(failure.data === undefined ? {} : { errorData: failure.data }),
+  const settleConnectionWaiters = (): void => {
+    for (let index = connectionWaiters.length - 1; index >= 0; index--) {
+      const waiter = connectionWaiters[index]
+      if (waiter === undefined || waiter.count !== sockets.size) continue
+      connectionWaiters.splice(index, 1)
+      waiter.resolve()
+    }
+  }
+
+  const listen = async (): Promise<void> => {
+    server = createServer((socket) => {
+      sockets.add(socket)
+      settleConnectionWaiters()
+      let buffer = ""
+      socket.setEncoding("utf8")
+      socket.on("data", (chunk: string) => {
+        buffer += chunk
+        for (;;) {
+          const newline = buffer.indexOf("\n")
+          if (newline === -1) break
+          const line = buffer.slice(0, newline).trim()
+          buffer = buffer.slice(newline + 1)
+          if (line) handleWireLine(ports, socket, line)
+        }
       })
-      return
-    }
-    const existing = typeof payload.sessionPath === "string" ? sessions.get(payload.sessionPath) : undefined
-    const session: LiveSession = existing ?? {
-      routingId: "",
-      sessionPath: String(payload.sessionPath ?? `unnamed-${nextRoutingId}`),
-      kind: payload.kind,
-      context: payload.context,
-      retainOnDisconnect: payload.retain_on_disconnect,
-      autoTitle: payload.auto_title,
-      socket,
-      parked: false,
-    }
-    session.routingId = `routing-${++nextRoutingId}`
-    session.socket = socket
-    session.parked = false
-    sessions.set(session.sessionPath, session)
-    write(socket, {
-      type: "response",
-      id: payload.id,
-      command: "open_session",
-      success: true,
-      sessionId: session.routingId,
-      data: {
-        sessionId: session.routingId,
-        state: { sessionId: `durable-${session.routingId}` },
-        attached: existing !== undefined,
-      },
+      socket.on("error", () => undefined)
+      socket.on("close", () => {
+        sockets.delete(socket)
+        table.detach(socket)
+        settleConnectionWaiters()
+      })
     })
+    await new Promise<void>((resolve) => server.listen(socketPath, resolve))
   }
-
-  const handleLine = (socket: Socket, line: string): void => {
-    const parsed: unknown = JSON.parse(line)
-    if (typeof parsed !== "object" || parsed === null) return
-    const payload: Readonly<Record<string, unknown>> = { ...parsed }
-    const type = typeof payload.type === "string" ? payload.type : "unknown"
-    record({ type, sessionId: typeof payload.sessionId === "string" ? payload.sessionId : undefined, payload })
-    if (withheld.has(type)) return
-    const ok = (data: unknown): void => write(socket, { type: "response", id: payload.id, command: type, success: true, data })
-    switch (type) {
-      case "get_protocol_info":
-        return write(socket, { type: "response", id: payload.id, command: type, success: true, data: protocolInfo })
-      case "open_session":
-        return openSession(socket, payload)
-      case "close_session": {
-        const routingId = typeof payload.sessionId === "string" ? payload.sessionId : ""
-        const session = findByRouting(routingId)
-        if (session !== undefined) sessions.delete(session.sessionPath)
-        ok({})
-        return write(socket, { type: "session_closed", sessionId: routingId, reason: "client_close" })
-      }
-      case "get_state":
-        return ok({ sessionId: `durable-${payload.sessionId}` })
-      case "get_entries":
-        return ok({ entries: [], leafId: null })
-      case "switch_session":
-        return ok({ cancelled: false })
-      case "extension_ui_response":
-      case "extension_ui_progress":
-        return
-      default:
-        return ok({})
-    }
-  }
-
-  const server: Server = createServer((socket) => {
-    sockets.add(socket)
-    let buffer = ""
-    socket.setEncoding("utf8")
-    socket.on("data", (chunk: string) => {
-      buffer += chunk
-      for (;;) {
-        const newline = buffer.indexOf("\n")
-        if (newline === -1) break
-        const line = buffer.slice(0, newline).trim()
-        buffer = buffer.slice(newline + 1)
-        if (line) handleLine(socket, line)
-      }
-    })
-    socket.on("error", () => undefined)
-    socket.on("close", () => {
-      sockets.delete(socket)
-      for (const [path, session] of sessions) {
-        if (session.socket !== socket) continue
-        session.socket = undefined
-        if (session.retainOnDisconnect !== true) sessions.delete(path)
-      }
-    })
-  })
-  await new Promise<void>((resolve) => server.listen(socketPath, resolve))
+  await listen()
 
   // The routing tag goes FIRST so a payload may carry a foreign `sessionId` on purpose - that is
   // how a suite proves a client drops records addressed to another session.
   const sendTo = (routingId: string, payload: Readonly<Record<string, unknown>>): void => {
-    const session = findByRouting(routingId)
-    if (session?.socket !== undefined) write(session.socket, { sessionId: routingId, ...payload })
+    for (const socket of table.attachmentsOf(routingId)) writeFrame(socket, { sessionId: routingId, ...payload })
   }
+
+  /** Tell a session that already left the live table: its former attachments are the audience. */
+  const notifyDrained = (session: FakeDrainedSession, payload: Readonly<Record<string, unknown>>): void => {
+    for (const socket of session.attachments) writeFrame(socket, { sessionId: session.routingId, ...payload })
+  }
+
+  const dropConnections = (): void => {
+    for (const socket of [...sockets]) socket.destroy()
+  }
+
+  /** A drain closes its connections gracefully, so the records it just wrote still arrive. */
+  const endConnections = (): void => {
+    for (const socket of [...sockets]) socket.end()
+  }
+
+  const closeServer = (): Promise<void> =>
+    new Promise<void>((resolve) => {
+      server.close(() => resolve())
+    })
 
   return {
     socketPath,
@@ -213,17 +153,11 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
     get connections() {
       return sockets.size
     },
-    sessions: () =>
-      [...sessions.values()].map((session) => ({
-        routingId: session.routingId,
-        sessionPath: session.sessionPath,
-        kind: session.kind,
-        context: session.context,
-        retainOnDisconnect: session.retainOnDisconnect,
-        autoTitle: session.autoTitle,
-        attachments: session.socket === undefined ? 0 : 1,
-        parked: session.parked,
-      })),
+    get instanceId() {
+      return String(identity.instanceId)
+    },
+    sessions: () => table.view(),
+    peakAttachments: (sessionPath) => table.peakAttachments(sessionPath),
     probeProtocolInfo: () => probeFakeHost(socketPath),
     failOpen: (failure) => {
       openFailure = failure
@@ -233,28 +167,62 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
     },
     requestUi: (routingId, request) => sendTo(routingId, { type: "extension_ui_request", ...request }),
     emitRecord: (routingId, payload) => sendTo(routingId, payload),
+    stall: (driftMs) => {
+      for (const socket of [...sockets]) writeFrame(socket, { type: "host_stalled", driftMs })
+    },
+    completeTurn: (routingId, text) => {
+      const message = { role: "assistant", content: [{ type: "text", text }], stopReason: "stop" }
+      table.appendTranscript(routingId, message)
+      sendTo(routingId, { type: "message_end", message })
+      sendTo(routingId, { type: "agent_end", willRetry: false, messages: [message] })
+    },
     evict: (sessionPath) => {
-      const session = sessions.get(sessionPath)
-      if (session === undefined) return
-      sendTo(session.routingId, { type: "session_parked", sessionPath })
-      session.parked = true
-      session.socket = undefined
+      const parked = table.park(sessionPath)
+      if (parked !== undefined) notifyDrained(parked, { type: "session_parked", sessionPath })
     },
     closeSession: (routingId, reason) => {
-      const session = findByRouting(routingId)
-      sendTo(routingId, { type: "session_closed", reason })
-      if (session !== undefined) sessions.delete(session.sessionPath)
+      const closed = table.close(routingId)
+      if (closed !== undefined) notifyDrained(closed, { type: "session_closed", reason })
+    },
+    holdPath: (sessionPath, ownerInstanceId) => table.hold(sessionPath, ownerInstanceId, drainRetryAfterMs),
+    releasePath: (sessionPath) => table.release(sessionPath),
+    handoff: (nextInstanceId) => {
+      const previous = String(identity.instanceId)
+      generation += 1
+      identity = fakeProtocolInfo({
+        ...options,
+        instanceId: nextInstanceId ?? `${previous}-gen${generation}`,
+        generation,
+      })
+      for (const session of table.handoff(previous, drainRetryAfterMs)) {
+        notifyDrained(session, { type: "session_closed", reason: "handoff_parked" })
+      }
+      endConnections()
     },
     crash: () => {
-      for (const socket of [...sockets]) socket.destroy()
+      table.clear()
+      dropConnections()
+      server.close()
+    },
+    restart: async () => {
+      table.clear()
+      dropConnections()
+      await closeServer()
+      await listen()
     },
     waitForCommand: (type) =>
       new Promise<FakeHostCommand>((resolve) => {
         waiters.push({ type, resolve })
       }),
+    waitForConnections: (count) =>
+      sockets.size === count
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => {
+            connectionWaiters.push({ count, resolve })
+          }),
     stop: async () => {
-      for (const socket of [...sockets]) socket.destroy()
-      await new Promise<void>((resolve) => server.close(() => resolve()))
+      dropConnections()
+      await closeServer()
       rmSync(dir, { recursive: true, force: true })
     },
   }
