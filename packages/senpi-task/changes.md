@@ -1,4 +1,48 @@
 
+## 2026-09-17 — The steerable child handle over a daemon session
+
+`runners/rpc-host/handle.ts` (`createHostSessionHandle`) is the `RpcChildHandle` a daemon-hosted
+child is driven through. Turn semantics are the child-process runner's, unchanged and reused rather
+than re-derived: `rpc/delivery-semantics.ts` for the steer → followUp fallback, `rpc/turn-outcome.ts`
+for `agent_end` classification, terminal assistant facts, prompt failures and exit-to-outcome
+mapping. The heartbeat is `get_state`, which records `lastSeen` and the durable session id exactly
+as the process handle does.
+
+What a session does NOT have is a process. `pid` is `undefined` ALWAYS — the daemon's pid is not
+this child's, and writing it into a record would arm `lifecycle/destroy.ts`'s `record.pid` signal
+against a machine-wide host (invariant I1). Nothing in this module sends a signal: `terminate()` is
+`abort` (≤ 2 s) then `close_session` (≤ `closeGraceMs`), each bounded on its own, so a daemon that
+answers nothing still lets a parent shut down. `close()` is the same teardown without the abort.
+`detach()` drops the connection and leaves the session running; `dispose()` IS `detach()`, because
+a parent going away must never end a child that outlives it.
+
+`runners/rpc-host/exit-mapping.ts` is the session-shaped sibling of `runners/rpc/exit-mapping.ts`:
+the same `ChildExitOutcome` vocabulary, with `pid`/`code`/`signal` absent and the host's reason
+riding `stderrTail` so the lifecycle's error text is identical for both runners. The classifier reads
+one fact this client owns — what it last asked for (`running` / `closed` / `terminated`) — and one
+the host names:
+
+| what happened | intent | outcome |
+| --- | --- | --- |
+| `session_closed` (any reason) | `closed` | `clean` |
+| `session_closed` (any reason) | `terminated` | `killed` |
+| `session_closed{host_shutdown,error,…}` | `running` | `crashed`, `stderrTail` = reason |
+| transport gone | `running` | `crashed`, `stderrTail` = `transport_gone` |
+| open refused | any | `spawn_error` carrying the code |
+| `session_parked`, `session_closed{handoff_parked,idle_evicted}` | any | NOT an exit |
+
+Parking wins over intent on purpose: a suspended session is reopenable, so calling it an exit would
+end a child the manager is supposed to park (`rpc_detached`) and wake. A parked handle fires
+`onParked`, flips `attached` to false, stops its heartbeat and produces NO outcome — and from then
+on nothing the host says (a late `session_closed`, the daemon dying) can turn that child into a
+crash. A teardown this client asks for is the one exception: `terminate()` ends a parked child as
+`killed`, because cancel/TTL is the manager's decision, not the daemon's.
+
+The seam is `handle-port.ts` (`HostSessionPort`), which `HostSessionClient` satisfies structurally.
+Turn delivery and outcome tracking are therefore proven against an in-memory session, while park,
+transport loss, close, terminate and detach are proven through the REAL engine client against the
+unix-socket fake host — the same fixture `session-client.test.ts` uses.
+
 ## 2026-09-17 — One senpi RpcClient per daemon-hosted child
 
 `runners/rpc-host/session-client.ts` is a child's whole view of the daemon: `HostSessionClient`
