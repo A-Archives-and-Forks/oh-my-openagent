@@ -11,6 +11,14 @@ const CUTOFF = 1_000_000
 
 type TreeSpec = Readonly<Record<string, { readonly mtimeMs?: number; readonly entries?: readonly string[] }>>
 
+// The probe joins paths with `node:path`, which separates with a backslash on Windows, while this
+// fixture keys its tree with forward slashes. Normalizing on lookup (and on what the recorder
+// reports) keeps the fixture describing one tree on every platform instead of missing every
+// lookup on Windows and reporting an unreadable mtime.
+function posix(path: string): string {
+  return path.replace(/\\/g, "/")
+}
+
 class RecordingAgeProbeFs implements AgeProbeFs {
   readonly listed: string[] = []
   readonly stated: string[] = []
@@ -18,15 +26,17 @@ class RecordingAgeProbeFs implements AgeProbeFs {
   constructor(private readonly tree: TreeSpec) {}
 
   async list(path: string): Promise<readonly AgeProbeEntry[]> {
-    this.listed.push(path)
-    const node = this.tree[path]
-    if (node?.entries === undefined) throw new Error(`ENOTDIR: ${path}`)
-    return node.entries.map((name) => ({ name, directory: this.tree[`${path}/${name}`]?.entries !== undefined }))
+    const key = posix(path)
+    this.listed.push(key)
+    const node = this.tree[key]
+    if (node?.entries === undefined) throw new Error(`ENOTDIR: ${key}`)
+    return node.entries.map((name) => ({ name, directory: this.tree[`${key}/${name}`]?.entries !== undefined }))
   }
 
   async mtimeMs(path: string): Promise<number | undefined> {
-    this.stated.push(path)
-    return this.tree[path]?.mtimeMs
+    const key = posix(path)
+    this.stated.push(key)
+    return this.tree[key]?.mtimeMs
   }
 }
 
