@@ -1,3 +1,40 @@
+## 2026-09-17 - Defer plugin startup work past the first paint
+
+### What changed
+
+- `src/extension/startup-deferral.ts` (new): `createLazyValue` (construct on first use, with a
+  `constructed` flag a test can assert on) and `createStartupDeferral` (queue work, retire it on
+  session_shutdown), plus `createFirstPaintScheduler` and the `deferUntilAfterFirstPaint` call-site
+  helper.
+- `src/extension/compose.ts` / `types.ts`: compose builds one deferral per activation, hands it to
+  every component as `ComponentContext.deferStartupWork`, and retires it on `session_shutdown`
+  beside the idle coordinator.
+- `src/components/lsp/index.ts`: the mutation formatter is a lazy accessor built on the first
+  `tool_result`; the project-config notice moved onto the deferral. Tools, flags and all four hooks
+  still register eagerly.
+- `src/components/init-deep-advisor/component.ts`, `src/components/telemetry/omo-native-session.ts`:
+  the `session_start` bodies moved onto the deferral; the telemetry one refuses to build a client
+  once `session_shutdown` has landed.
+- `src/components/telemetry/index.ts`: the legacy product config resolves the package version on
+  first capture instead of at module scope.
+
+### Why
+
+- `session_start` is dispatched from inside the engine's `interactiveMode.init`, so everything a
+  handler does synchronously is billed to the phase before the first paint. A plain
+  `setTimeout(…, 0)` does NOT escape it — that phase awaits I/O, so the macrotask fires before init
+  returns (measured: 0 ms saved, where a scheduler that never fired saved 34 ms). The gate opens on
+  the first post-paint host edge or a 750 ms backstop instead.
+
+### Why an extension could not handle it
+
+- This IS the extension; the work is the plugin's own registration and session-binding path.
+
+### Expected merge conflict zones
+
+- LOW: `compose.ts`'s activation sequence (upstream edits the same block when adding seams) and the
+  `ComponentContext` shape in `types.ts`.
+
 ## 2026-09-17 — ulw-execute continuation repairs a work its session abandoned
 
 `findContinuableBoulderWork` reads `.omo/boulder.json` on every user input and on
