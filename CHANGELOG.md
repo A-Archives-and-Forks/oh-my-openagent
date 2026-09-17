@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **deps:** adopt senpi 2026.9.17-3 with the restored engine tree-sitter assets ([#8428](https://github.com/code-yeongyu/oh-my-openagent/pull/8428))
+
 ## [5.0.0-beta.69] - 2026-09-17
 
 ### Engine: senpi 2026.9.17-3
