@@ -272,6 +272,33 @@ describe("memory filesystem policy guard", () => {
     })
   })
 
+  test("#given a durable sibling that only appears after registration #when deniedRoots is first read #then it is resolved against the filesystem at read time", () => {
+    const setup = fixture()
+    registerMemoryFilesystemPolicy(setup.pi, setup.own)
+    const latePaths = buildIdentityPaths(setup.memoryRoot, "late")
+    mkdirSync(join(latePaths.repo, "system"), { recursive: true })
+    writeFileSync(join(latePaths.repo, "system", "persona.md"), "late")
+
+    const deniedRoots = registeredPolicy(setup).deniedRoots ?? []
+
+    expect(deniedRoots).toContain(canonical(latePaths.root))
+  })
+
+  test("#given deniedRoots already read once #when another durable sibling appears #then the read snapshot is reused instead of re-enumerating", () => {
+    const setup = fixture()
+    registerMemoryFilesystemPolicy(setup.pi, setup.own)
+    const policy = registeredPolicy(setup)
+    const first = policy.deniedRoots ?? []
+    const laterPaths = buildIdentityPaths(setup.memoryRoot, "later")
+    mkdirSync(join(laterPaths.repo, "system"), { recursive: true })
+    writeFileSync(join(laterPaths.repo, "system", "persona.md"), "later")
+
+    const second = policy.deniedRoots ?? []
+
+    expect(second).toEqual(first)
+    expect(second).not.toContain(canonical(laterPaths.root))
+  })
+
   test("#given the policy guard module source #when imports are audited #then senpi references are type-only with no runtime import or any-cast", () => {
     const source = readFileSync(resolve(import.meta.dir, "policy-guard.ts"), "utf8")
 
