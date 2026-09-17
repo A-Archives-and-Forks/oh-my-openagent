@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, mock, spyOn } from "bun:test"
 
 import { FakeExtensionAPI } from "../../test-support/fake-extension-api"
 import * as formatterModule from "../components/formatter/formatter"
+import { createInitDeepAdvisorComponent } from "../components/init-deep-advisor"
 import { createLspComponent } from "../components/lsp"
 import { composeOmoSenpiExtension } from "./compose"
 import { deferUntilAfterFirstPaint } from "./startup-deferral"
@@ -190,4 +191,26 @@ describe("deferred session_start work", () => {
     expect(ran).toBe(1)
   })
 
+  it("#given the init-deep advisor #when session_start fires #then its preflight is scheduled instead of running on the dispatch path", async () => {
+    // given
+    const scheduled: Scheduled[] = []
+    const pi = new FakeExtensionAPI()
+    let advisorRuns = 0
+    const advisor = createInitDeepAdvisorComponent({
+      runAfterPreflight: async () => {
+        advisorRuns += 1
+      },
+    })
+
+    // when
+    await composeOmoSenpiExtension([advisor], {
+      logger: silentLogger,
+      scheduleStartupWork: recordingScheduler(scheduled),
+    })(pi)
+    await pi.dispatch("session_start", { type: "session_start", reason: "startup" }, { ui: {}, hasUI: false })
+
+    // then
+    expect(advisorRuns).toBe(0)
+    expect(scheduled).toHaveLength(1)
+  })
 })
