@@ -35,12 +35,13 @@ import {
 } from "@oh-my-opencode/senpi-task/dag"
 
 import { admitAdapter } from "../../src/components/task/engine"
+import { resolveOutDirArg } from "./out-dir-arg"
 
 const PARENT_SESSION = "session-cross-run-qa"
 const ROOT_SESSION = "session-cross-run-qa"
 const RESIDENCY_CAP = 2
 
-const outDir = process.argv[2] ?? join(tmpdir(), "dag-cross-run-residency-qa")
+const outDir = resolveOutDirArg(process.argv.slice(2), join(tmpdir(), "dag-cross-run-residency-qa"))
 const failures: string[] = []
 const report: Record<string, unknown> = { residency_cap: RESIDENCY_CAP }
 
