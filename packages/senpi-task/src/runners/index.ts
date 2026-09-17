@@ -26,6 +26,15 @@ export { buildSubagentPrompt, type SubagentPromptInput } from "./in-process/suba
 export { createChildResourceLoader } from "./in-process/child-loader"
 export { RpcProcessRunner } from "./rpc-process"
 export type { RpcProcessRunnerOptions } from "./rpc-process"
+export { isHostSessionHandle, RpcHostRunner } from "./rpc-host"
+export type {
+  CreateHostSessionChannel,
+  EnsureTaskDaemonPort,
+  FallbackChildRunner,
+  HostSessionChannel,
+  RpcHostRunnerOptions,
+} from "./rpc-host"
+export type { HostSessionChildHandle, HostSessionFacts } from "./rpc-host/handle-port"
 export type {
   ChildEventListener,
   ChildExitFacts,

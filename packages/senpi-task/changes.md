@@ -1,4 +1,47 @@
 
+## 2026-09-17 — Process-mode children as daemon sessions (`RpcHostRunner`)
+
+`runners/rpc-host.ts` is the runner that turns a `process`-mode child into a SESSION of the shared
+daemon. It composes what the previous todos built and adds nothing of its own: `rpc-host/daemon.ts`
+for attach-or-create, `rpc-host/session-context.ts` for the child's `kind`/`context` and its JSONL
+path, `rpc-host/session-client.ts` for the per-child connection, `rpc-host/handle.ts` for the
+steerable handle, and `rpc/model-admission.ts` + `rpc/start-cleanup.ts` unchanged from the
+child-process runner. It spawns nothing, signals nothing, and holds no pid.
+
+One start, in order: inherited parent extensions are applied to a spec that carries none (same rule
+as `rpc-process.ts`), `modelAdmission(spec)` runs FIRST so a model the child profile cannot resolve
+never reaches the daemon, then `ensureTaskDaemon` decides whether there is a daemon to use, and only
+then is a session opened - `retain_on_disconnect: true`, `auto_title: false`, `kind: "worker"`, the
+child context, the parent's cwd, `provider`/`modelId` split off `spec.model`, and the thinking level
+from `reasoning ?? variant`.
+
+Resume semantics are the reason a daemon child is cheaper than a process child:
+
+| start | session path | what the runner sends |
+| --- | --- | --- |
+| fresh child | `<stateDir>/sessions/<taskId>/<iso>_<uuid>.jsonl` | `startInitialPrompt(spec.prompt)` |
+| resume, host still holds it | `spec.resumeSessionPath` | nothing (re-joined under a new routing handle) |
+| resume, reopened from JSONL | `spec.resumeSessionPath` | nothing (the transcript IS the state) |
+
+No `switch_session` is ever issued for a resume: the session is OPENED at that path, so the handle's
+`switchSession(target)` answers `{ cancelled: false }` for the path it already owns and only a
+different path reaches the wire. That keeps `manager/manager-respawn.ts` working unchanged.
+
+The fallback is loud and narrow. Whether a refusal may run the child as its own process is NOT
+re-decided here: `HostUnavailableError.fallbackAllowed` (set in `rpc-host/daemon.ts` from the
+engine's own verdict - `capability`, `engine_mismatch`, `win32`, `runtime`) is the single source of
+truth, and the runner additionally requires a `fallback` runner to delegate to. The reason is warned
+ONCE per runner, carrying the `host_unavailable:<reason>` token so a surface can show it; everything
+else - including `ensure_failed` WITH a fallback present - fails closed as
+`RunnerError{ kind: "host_unavailable" }`, which is the new `RunnerFailure` kind this change adds.
+A refused client never starts a second host beside the daemon (invariant I1).
+
+Failure cleanup mirrors the child-process runner exactly: the exit outcome is captured BEFORE
+cleanup, `discardUnstartedRpcHandle` aborts and closes the session (never a signal), and the throw is
+`child-prompt-failed` with `rejected_while`. An `open_session` that fails for any other reason
+(`session_path_in_use`, `invalid_launch_profile`) becomes `session_unavailable` with the typed engine
+error preserved as `cause`, so the lifecycle work can branch on it without re-parsing a message.
+
 ## 2026-09-17 — The steerable child handle over a daemon session
 
 `runners/rpc-host/handle.ts` (`createHostSessionHandle`) is the `RpcChildHandle` a daemon-hosted
