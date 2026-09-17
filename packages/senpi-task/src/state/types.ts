@@ -35,6 +35,12 @@ export const RUNNER_KINDS = ["child-process", "host-session"] as const
 
 export type RunnerKind = (typeof RUNNER_KINDS)[number]
 
+// Why a record is parked at a non-resident residency. Absent for the ordinary "resumes with the
+// session" suspension; set only when the daemon path gave up on a reachable host.
+export const SUSPENSION_REASONS = ["daemon_unavailable", "host_draining"] as const
+
+export type SuspensionReason = (typeof SUSPENSION_REASONS)[number]
+
 export type HostSessionIdentity = {
   readonly socket: string
   readonly routing_id: string
@@ -241,6 +247,10 @@ export type TaskRecord = TaskRecordInput & {
   readonly run_stats?: TaskRunStats
   readonly notification: TaskNotification
   readonly revive_delivery_uncertain?: ReviveDeliveryUncertainty
+  // Why this record is suspended, when the reason is NOT "its session went away": the daemon was
+  // unreachable for the whole bounded reconcile, or an old generation never finished draining.
+  // Cleared by the revival that succeeds.
+  readonly suspension_reason?: SuspensionReason
   // Kind of runner that spawned this child. Absent on records persisted before this field shipped.
   readonly runner_kind?: RunnerKind
   // Host session identity when runner_kind is "host-session". Absent otherwise.

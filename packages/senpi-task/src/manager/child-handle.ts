@@ -26,6 +26,9 @@ export type ManagedChildListener = (event: ManagedChildEvent) => void
 // single waitForOutcome() that yields the unified RunnerOutcome for either runner.
 export type ManagedChildHandle = {
   readonly task_id: string
+  // Which runner owns this child. `pid` cannot answer that: a daemon session has no pid either.
+  // Absent only on handles built before the field shipped (they are in-process by construction).
+  readonly kind?: "in-process" | "rpc" | "host-session"
   readonly sessionId: string | undefined
   readonly pid: number | undefined
   readonly spawnSpec?: RpcSpawnSpec
@@ -48,6 +51,7 @@ export type ManagedChildHandle = {
 export function adaptInProcessHandle(handle: InProcessChildHandle): ManagedChildHandle {
   return {
     task_id: handle.task_id,
+    kind: "in-process",
     sessionId: handle.sessionId,
     pid: undefined,
     steer: (text) => handle.steer(text),
@@ -68,6 +72,7 @@ export function adaptRpcHandle(handle: RpcChildHandle): ManagedChildHandle {
   const getEntries = handle.getEntries
   return {
     task_id: handle.task_id,
+    kind: "kind" in handle && handle.kind === "host-session" ? "host-session" : "rpc",
     get sessionId() {
       return handle.sessionId
     },

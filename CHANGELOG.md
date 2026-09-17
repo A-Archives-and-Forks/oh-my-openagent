@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### OmO
 
+**Subagents hosted by the shared engine daemon now survive the things that used to lose them.** Quitting a parent detaches from its children instead of stopping them, and resuming reattaches to the sessions still running rather than replaying their prompts. Cancelling one closes its session on the daemon instead of signalling a process it does not have, and a parked child stays reachable: sending it a message reopens its transcript and delivers, where it previously refused as "not continuable". When the daemon is replaced by a newer build, children whose session is still being handed over wait for it and reattach instead of being marked lost; when the daemon disappears entirely, they are parked and retried three times before `task_output` reports "suspended (daemon unavailable)" - never lost, and never a signal to a pid that belongs to no child. Subagents that run as their own process are unaffected. ([#8415](https://github.com/code-yeongyu/oh-my-openagent/issues/8415))
+
 **Compiled omo binaries now carry the engine's build identity.** An omob (dev) binary compiles in the engine commit's unix epoch and short sha, so `omo --version` prints `+<epoch>.<sha7>` and scheme `epoch`. A release binary derives the same pair from the pinned engine package's `gitHead` and commit timestamp when that metadata is present; when it is not, the defines are omitted and `--version` reports scheme `nodef`, which never initiates a generation handoff. The epoch is never invented from the clock. ([#8415](https://github.com/code-yeongyu/oh-my-openagent/issues/8415))
 
 ### OmO

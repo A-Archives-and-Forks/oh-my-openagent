@@ -42,7 +42,7 @@ import {
 import { createOutcomeTracker, type OutcomeTracker } from "./manager-outcome"
 import { claimTaskRecord, TaskRecordCollisionError } from "../store"
 import { withTaskRecordLockAsync } from "../store/record-lock"
-import { reattachManagedTask } from "./manager-respawn"
+import { reattachManagedTask } from "./manager-reattach"
 import { respawnWithWorkpool } from "./workpool-respawn"
 import { NameRegistry } from "./names"
 import { TaskSequence } from "./task-sequence"

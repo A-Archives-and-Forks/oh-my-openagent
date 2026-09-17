@@ -1,10 +1,12 @@
 import {
   RESOLVED_MODEL_SOURCES,
   RUNNER_KINDS,
+  SUSPENSION_REASONS,
   type HostSessionIdentity,
   type PendingSteeringEntry,
   type ResolvedModelRecord,
   type RunnerKind,
+  type SuspensionReason,
   type TaskNotification,
   type TaskSpawnSpec,
 } from "../state"
@@ -38,6 +40,12 @@ export function readOptionalRunnerKind(
 ): RunnerKind | undefined {
   const val = readOptionalLiteral(record, "runner_kind", RUNNER_KINDS)
   return val as RunnerKind | undefined
+}
+
+export function readOptionalSuspensionReason(
+  record: Record<string, unknown>,
+): SuspensionReason | undefined {
+  return readOptionalLiteral(record, "suspension_reason", SUSPENSION_REASONS) as SuspensionReason | undefined
 }
 
 export function parseOptionalHostSession(

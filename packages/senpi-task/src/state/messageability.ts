@@ -13,8 +13,10 @@ export function messageability(
   // Persisted-only children keep the session-resume contract. A terminal RPC child is different:
   // its completed transcript can be reattached lazily when task_send explicitly targets it.
   if (residencyState === "disposed" || residencyState === "persisted_only") return "not-continuable"
-  // Host-session children: revivable if terminal and daemon is reachable. Key on session_path + routing_id,
-  // never on instance_id (which rotates on handoff). If no reachability check is provided, default to not-continuable.
+  // Host-session children: a PARKED session (the daemon evicted it, or the daemon died mid-turn) is
+  // reopened from its transcript and delivered to, so `running` is revivable here too - the record
+  // names no live process anyone could talk over. Key on session_path + routing_id, never on
+  // instance_id (which rotates on handoff). With no reachability check, default to not-continuable.
   if (residencyState === "rpc_detached" && runnerKind === "host-session" && hostSession !== undefined) {
     const daemonReachable = isDaemonReachable?.(hostSession) ?? false
     if (!daemonReachable) return "not-continuable"
@@ -22,9 +24,9 @@ export function messageability(
       case "completed":
       case "error":
       case "interrupted":
+      case "running":
         return "revive"
       case "pending":
-      case "running":
       case "cancelled":
       case "lost":
         return "not-continuable"

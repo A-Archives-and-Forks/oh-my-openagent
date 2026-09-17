@@ -23,9 +23,19 @@ describe("host-session record messageability", () => {
     ).toBe("revive")
   })
 
-  test("running rpc_detached host-session is not-continuable", () => {
+  // SPEC CHANGE (todo 32, "PARKED children stay reachable"): an rpc_detached host-session record is
+  // a PARKED session, not a live process - the daemon evicted it or died mid-turn. Reopening it
+  // from its transcript and delivering is exactly what retaining it is for, so `running` is revive
+  // here. A `pending` child was never opened, so it still has nothing to reopen.
+  test("running rpc_detached host-session with a reachable daemon is revive", () => {
     expect(
       messageability("running", "rpc_detached", "process", false, "host-session", hostSession, () => true),
+    ).toBe("revive")
+  })
+
+  test("pending rpc_detached host-session is not-continuable", () => {
+    expect(
+      messageability("pending", "rpc_detached", "process", false, "host-session", hostSession, () => true),
     ).toBe("not-continuable")
   })
 

@@ -6,6 +6,7 @@ export {
   RESIDENCY_STATES,
   RESOLVED_MODEL_SOURCES,
   RUNNER_KINDS,
+  SUSPENSION_REASONS,
   TASK_STATUSES,
   TOKEN_COVERAGE_STATUSES,
 } from "./types"
@@ -22,6 +23,7 @@ export type {
   ResolvedModelSource,
   RunnerKind,
   SpawnSpecV1,
+  SuspensionReason,
   TaskNotification,
   TaskRecord,
   TaskRecordInput,

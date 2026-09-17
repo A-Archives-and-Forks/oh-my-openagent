@@ -15,6 +15,7 @@ import {
   parseOptionalResolvedModelArray,
   parseOptionalSpawnSpec,
   readOptionalRunnerKind,
+  readOptionalSuspensionReason,
   validateHostSessionConsistency,
 } from "./record-blocks-parse"
 import { parseRunStats } from "./run-stats-parse"
@@ -70,6 +71,7 @@ export function parseTaskRecord(value: unknown, path: string, warnings?: string[
   const backgroundMode = readOptionalBackgroundMode(value)
   const reviveDeliveryUncertain = parseOptionalReviveDeliveryUncertainty(value)
   const runnerKind = readOptionalRunnerKind(value)
+  const suspensionReason = readOptionalSuspensionReason(value)
   const hostSession = parseOptionalHostSession(value)
   validateHostSessionConsistency(runnerKind, hostSession)
 
@@ -119,6 +121,7 @@ export function parseTaskRecord(value: unknown, path: string, warnings?: string[
     ...(configGeneration === undefined ? {} : { config_generation: configGeneration }),
     ...(backgroundMode === undefined ? {} : { background_mode: backgroundMode }),
     ...(reviveDeliveryUncertain === undefined ? {} : { revive_delivery_uncertain: reviveDeliveryUncertain }),
+    ...(suspensionReason === undefined ? {} : { suspension_reason: suspensionReason }),
     ...(runnerKind === undefined ? {} : { runner_kind: runnerKind }),
     ...(hostSession === undefined ? {} : { host_session: hostSession }),
   }

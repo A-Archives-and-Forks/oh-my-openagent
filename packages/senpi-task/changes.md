@@ -1,3 +1,60 @@
+## 2026-09-17 — Session-aware lifecycle for daemon-hosted children
+
+The lifecycle now knows the difference between a child that owns an OS process and one that is a
+SESSION of the shared daemon. The seam is `lifecycle/host-session.ts`: `hostSessionProbe`
+(`daemonAlive` / `sessionLive`), the `hostSessionClose` writer, and `hostRetry` — the two bounded
+waits the daemon path owns. `createHostSessionProbe` takes ONE `probeHost` and ONE
+`list_sessions { include_workers: true }` per pass, per socket, and matches records against it by
+`session_path`; `refresh()` is what starts the next pass. Reconciliation and the TTL sweep each call
+it once, so a hundred daemon children still cost one round trip, never one per record.
+
+| event | child-process child | daemon-hosted child |
+| --- | --- | --- |
+| parent session shutdown | terminate (SIGTERM/SIGKILL), then dispose | DETACH — the session keeps running, record parks `rpc_detached` |
+| cancel / evict / TTL orphan | signal `record.pid` | `abort` + `close_session` via `runners/rpc-host/close.ts`, only when the session is still live |
+| reconcile liveness | `record.pid` alive | `daemonAlive && sessionLive` (`host_pid` stays the omo PARENT's pid) |
+| resume path | newest JSONL in the child's session dir | `host_session.session_path` from the record |
+| daemon/host gone | mark lost | park `rpc_detached`, bounded reconcile 1 s / 4 s / 16 s, then stay parked |
+
+Nothing signals a pid for a host-session record, and nothing can: `ResidentHandle.kind` gained
+`"host-session"`, and every teardown branches on it (`destroy.ts`, `shutdown.ts`, `ttl.ts`). The
+kind now comes from the RUNNER — `ManagedChildHandle.kind`, set by `adaptInProcessHandle` and
+`adaptRpcHandle` — because `pid === undefined` cannot tell an in-process child from a daemon session,
+and reading it wrong silently turned `terminate()` into a no-op that leaked the session.
+
+Two failures are explicitly NOT losses. `session_path_in_use` from a generation that is still
+draining after a handoff becomes `RespawnResult{ code: "host_draining", retryAfterMs }`, retried on
+the host's own delay (2 s default) up to 10 attempts and then deferred as `deferred/host_draining`.
+A daemon that stops answering parks the child and retries three times on a fixed backoff. Both leave
+a durable `suspension_reason` on the record (`host_draining` / `daemon_unavailable`), which is what
+`task_output` reports instead of the generic "resumes with session" line.
+
+Parked children stay reachable. `isColdRevivalCandidate` and `messageability` treat an
+`rpc_detached` host-session record as revivable in every non-`pending` state — including `running`,
+because a parked session names no live process anyone could talk over — so a `task_send` or team
+mail reopens it (`open_session { sessionPath }`, no prompt replay) and delivers, instead of refusing
+with `not_continuable`. Revival also stops reading the disk for that record's transcript: a
+host-session child NAMES its session path, so the "terminal with no transcript, dispose it" rule can
+no longer throw away a session the daemon still holds.
+
+Respawn follows the same rule. `manager/manager-respawn.ts` resumes `host_session.session_path`, and
+when the daemon answers `attached` it skips BOTH `switch_session` and the interrupted-turn nudge —
+the session never stopped, so re-opening it or injecting a continuation prompt would duplicate a
+turn that is still running. A session the daemon EVICTED is reopened from JSONL and still gets the
+nudge when its tail shows an unanswered turn.
+
+The legacy pid path is untouched: a record with a bare `pid` and no `runner_kind` reconciles,
+terminates and TTL-sweeps exactly as before, and `src/__adversarial__/chaos-host.test.ts` pins the
+new branches against a seeded mix of `hostKill` / `daemonRestart` / `idleEvict` / `handoff`.
+
+Two files were split to stay under the size ceiling while absorbing this: `manager-reattach.ts`
+(out of `manager-respawn.ts`) and `revive-rollback.ts` (out of `reconcile-reclamation.ts`).
+
+CAVEAT, pinned engine: omo pins `@code-yeongyu/senpi` 2026.9.17, whose `RpcClient.listSessions()`
+takes no options, so `include_workers` does not reach the wire yet and worker rows stay hidden. The
+probe therefore reads "no session is live", which is the conservative answer everywhere — the
+lifecycle reopens from JSONL instead of attaching, and closes nothing. It starts attaching for real
+once the pin moves to an engine whose client forwards the flag.
 
 ## 2026-09-17 — Process-mode children as daemon sessions (`RpcHostRunner`)
 

@@ -1,3 +1,12 @@
+## 2026-09-17 — the residency registry reads the runner's kind, not the pid
+
+`components/task/residency-registry.ts` used to derive a resident's kind from `handle.pid`
+(`undefined` meant in-process). A child that is a SESSION of the shared daemon also has no pid, so
+it was classified in-process — and `terminate()` for an in-process resident is a deliberate no-op.
+Cancel, eviction and the TTL sweep therefore left the daemon session running with nobody attached.
+The kind now comes from `ManagedChildHandle.kind`, which the runner adapters set; a handle from
+before that field shipped is in-process by construction.
+
 ## 2026-09-17 — the thread surface reads the shared task-daemon socket resolver
 
 `components/thread/live-surface.ts` no longer spells out its own socket-name list. `THREAD_SOCKET_ENV_NAMES`
