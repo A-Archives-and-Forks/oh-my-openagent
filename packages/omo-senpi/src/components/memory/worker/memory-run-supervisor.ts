@@ -123,14 +123,14 @@ async function runSupervisor(runDir: string): Promise<void> {
     })
   }
 
-  const containChild = (synchronous = false) => {
+  const containChild = () => {
     try {
-      terminateSupervisorChildHard(platform, childPid, synchronous)
+      terminateSupervisorChildHard(platform, childPid)
     } catch (error) {
       process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
     }
   }
-  process.once("exit", () => containChild(true))
+  process.once("exit", () => containChild())
   process.once("SIGTERM", () => {
     containChild()
     childPid = undefined
