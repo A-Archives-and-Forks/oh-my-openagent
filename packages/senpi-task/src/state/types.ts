@@ -31,6 +31,18 @@ export const BACKGROUND_MODES = ["foreground", "background", "promoted"] as cons
 
 export type BackgroundMode = (typeof BACKGROUND_MODES)[number]
 
+export const RUNNER_KINDS = ["child-process", "host-session"] as const
+
+export type RunnerKind = (typeof RUNNER_KINDS)[number]
+
+export type HostSessionIdentity = {
+  readonly socket: string
+  readonly routing_id: string
+  readonly session_path: string
+  readonly instance_id: string
+  readonly daemon_pid?: number
+}
+
 export type ResolvedModelRecord = {
   readonly provider: string
   readonly model_id: string
@@ -187,6 +199,15 @@ export type TaskRecordInput = {
   // background, or promoted to background mid-run. `notify_on_terminal` alone cannot tell the
   // last two apart. Absent on records persisted before the mode shipped.
   readonly background_mode?: BackgroundMode
+  // Kind of runner that spawned this child. child-process means the old rpc-process runner,
+  // host-session means a session of the shared daemon. Absent on records persisted before this
+  // field shipped.
+  readonly runner_kind?: RunnerKind
+  // Host session identity, present only when runner_kind is "host-session". Contains the socket
+  // path, routing id, and session path needed to reattach or probe the session. instance_id is
+  // informational (rotates on daemon handoff) - liveness and revival key on session_path +
+  // routing_id while attached.
+  readonly host_session?: HostSessionIdentity
 }
 
 export type TaskRecord = TaskRecordInput & {
@@ -220,6 +241,10 @@ export type TaskRecord = TaskRecordInput & {
   readonly run_stats?: TaskRunStats
   readonly notification: TaskNotification
   readonly revive_delivery_uncertain?: ReviveDeliveryUncertainty
+  // Kind of runner that spawned this child. Absent on records persisted before this field shipped.
+  readonly runner_kind?: RunnerKind
+  // Host session identity when runner_kind is "host-session". Absent otherwise.
+  readonly host_session?: HostSessionIdentity
 }
 
 export type TaskTransition =
@@ -228,6 +253,8 @@ export type TaskTransition =
       readonly timestamp: string
       readonly pid?: number
       readonly child_session_id?: string
+      readonly runner_kind?: RunnerKind
+      readonly host_session?: HostSessionIdentity
     }
   | {
       readonly type: "complete"

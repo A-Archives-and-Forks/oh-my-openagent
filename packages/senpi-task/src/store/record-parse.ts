@@ -8,11 +8,14 @@ import {
 import { parseTaskId } from "../state/id"
 import {
   parseNotification,
+  parseOptionalHostSession,
   parseOptionalOwner,
   parseOptionalPendingSteering,
   parseOptionalResolvedModel,
   parseOptionalResolvedModelArray,
   parseOptionalSpawnSpec,
+  readOptionalRunnerKind,
+  validateHostSessionConsistency,
 } from "./record-blocks-parse"
 import { parseRunStats } from "./run-stats-parse"
 import {
@@ -66,6 +69,9 @@ export function parseTaskRecord(value: unknown, path: string, warnings?: string[
   const configGeneration = readOptionalNumber(value, "config_generation")
   const backgroundMode = readOptionalBackgroundMode(value)
   const reviveDeliveryUncertain = parseOptionalReviveDeliveryUncertainty(value)
+  const runnerKind = readOptionalRunnerKind(value)
+  const hostSession = parseOptionalHostSession(value)
+  validateHostSessionConsistency(runnerKind, hostSession)
 
   return {
     task_id: parseTaskId(readString(value, "task_id")),
@@ -113,6 +119,8 @@ export function parseTaskRecord(value: unknown, path: string, warnings?: string[
     ...(configGeneration === undefined ? {} : { config_generation: configGeneration }),
     ...(backgroundMode === undefined ? {} : { background_mode: backgroundMode }),
     ...(reviveDeliveryUncertain === undefined ? {} : { revive_delivery_uncertain: reviveDeliveryUncertain }),
+    ...(runnerKind === undefined ? {} : { runner_kind: runnerKind }),
+    ...(hostSession === undefined ? {} : { host_session: hostSession }),
   }
 }
 
