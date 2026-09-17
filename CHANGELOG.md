@@ -9,7 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [5.0.0-beta.69] - 2026-09-17
 
-### Engine: senpi 2026.9.17-2
+### Engine: senpi 2026.9.17-3
+
+**The published engine ships its tree-sitter assets again.** senpi's publish staging copied a bundled workspace's `dist` but not its `assets`, so the tarball carried compile-time `type: "file"` imports pointing outside the package. Any consumer bundling it with `bun build --compile` — omo's own release binaries included — failed to resolve them. (senpi [#1800](https://github.com/code-yeongyu/senpi/issues/1800))
 
 **Cold startup reaches ready in under a second; warm in under 900 ms.** Three rounds of profiling cut cold time-to-ready from 5.8 s to 850 ms and warm from 1.5 s to 886 ms on a loaded host. The banner-to-spinner wait (the gap where nothing is on screen) fell from 4.6 s to 175 ms cold and from 550 ms to 177 ms warm. The last round found that MCP server attach consumed 255 ms of a 292 ms serial `session_start` dispatch on a real config (0.2 ms with no servers configured); it now starts past the first frame and the first turn still carries the full tool set. The auto-theme detection no longer repaints on every launch: the detected background is persisted and seeds the next start. The app-server MCP inventory stays current after deferred attach through a wire-status subscription. Managed-tool detection uses PATH stats instead of process spawns. The model runtime and resource loader run concurrently instead of in sequence. Measured same-commit for the final round: time-to-ready 1,014 to 797 ms (n=10 interleaved). The cross-version headline compares installed beta.68 against current dev, not only this work. ([#8412](https://github.com/code-yeongyu/oh-my-openagent/issues/8412), senpi [#1781](https://github.com/code-yeongyu/senpi/issues/1781))
 
