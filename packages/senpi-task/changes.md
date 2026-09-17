@@ -1,4 +1,32 @@
 
+## 2026-09-17 — Attach-or-create the shared task daemon from the launch spec
+
+`lazy/senpi-barrel.ts` gains the host-daemon accessors (`senpiEnsureHost`, `senpiProbeHost`,
+`senpiStopHost`, `senpiHandoffHost`, `senpiDecideHostAction`, `senpiEngineBuildIdentity`,
+`senpiRpcClient`) plus omo's own structural view of that surface. Each accessor duck-types the
+loaded barrel exactly as `kernel-tools/contract.ts` duck-types the JS kernel capability — the
+pinned engine can predate the release that exports them — and fails closed with
+`SenpiHostSymbolMissingError` naming the symbol. Nothing is imported statically; the lazy boundary
+and its guard are unchanged.
+
+`runners/rpc-host/daemon.ts` is the attach-or-create client. `resolveTaskHostSocket(env, agentDir)`
+is now the ONE resolver for the public socket (`OMO_RPC_SOCKET`, `SENPI_RPC_SOCKET`,
+`PI_RPC_SOCKET`, `OMO_RPC_SOCKET_PATH`, then `<agentDir>/rpc/rpc.sock`); omo-senpi's thread surface
+imports it instead of keeping a second copy. `ensureTaskDaemon({ agentDir, env, policy })` probes
+the socket, asks the engine's `decideHostAction`, and runs `start` / `reuse` / `handoff` through
+`ensureHost`; a `refuse` becomes a typed `HostUnavailableError` and never starts a second host.
+`fallbackAllowed` is set only for the loud fallbacks to the per-child runner: `capability`,
+`engine_mismatch` under policy `fallback`, `win32`, and `runtime` (a Node host cannot arm the
+engine's child reaper, so a machine-wide daemon would accumulate zombies — todo 13's matrix). The
+ensured result is cached for 5 s; a refusal is never cached.
+
+`runners/rpc-host/launch-options.ts` derives the daemon's launch from the spec alone:
+`hostArgs` = `--session-runtime <runtime>` plus one `--extension` per spec path resolved against the
+spec's directory, `env` = the spec's env with the child, member and workpool identity names nulled
+and `SENPI_RPC_SESSION_IDLE_EVICTION_MS` raised to at least the idle-exit window, plus the cold-start
+policy and the `upgrade` marker. `__fixtures__/daemon-launch.ts` is the ONE expectation fixture both
+this package's suite and `omo daemon run`'s suite import, so the two launch paths cannot drift.
+
 ## 2026-09-16 — Scope a child's kernel-tool grant with the engine's per-call invoke scope
 
 `kernel-tools/contract.ts` gained the optional per-call execution scope the producer accepts

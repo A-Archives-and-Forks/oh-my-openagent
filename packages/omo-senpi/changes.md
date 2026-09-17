@@ -1,3 +1,11 @@
+## 2026-09-17 — the thread surface reads the shared task-daemon socket resolver
+
+`components/thread/live-surface.ts` no longer spells out its own socket-name list. `THREAD_SOCKET_ENV_NAMES`
+is now the list exported by `senpi-task`'s `runners/rpc-host/daemon.ts`, and `resolveThreadSocket`
+delegates to `resolveTaskHostSocket(env, resolveAgentHome({ env }))`. Precedence and the
+`<agentDir>/rpc/rpc.sock` fallback are unchanged; the point is that the thread tools and the shared
+task daemon can no longer disagree about which socket the machine's engine host listens on.
+
 ## 2026-09-17 — the absent-path bwrap rebind is synchronous again, and exit-time containment blocks
 
 Making the session-reachable probes async left two contracts of the memory component broken.
