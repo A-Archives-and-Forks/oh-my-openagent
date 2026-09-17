@@ -4,6 +4,11 @@
 // leaf would otherwise look untouched since it started. The probe therefore walks the tree, and
 // the walk is bounded in both depth and entries because a sweep must never walk real memory.
 //
+// The verdict only needs ONE mtime newer than the cutoff, never the newest one, so the walk stops
+// at the first entry that proves the tree active - starting with the root's own mtime. On a real
+// agents root almost every surviving identity was touched recently, so that single stat replaces
+// the whole listing (issue #8412: 2213 stat + 1052 readdir per startup before this).
+//
 // The filesystem is a parameter so the walk's cost - not only its verdict - is testable:
 // `nodeAgeProbeFs` is the only production implementation.
 
@@ -51,7 +56,9 @@ export async function probeTreeActivity(
   depth: number = MAX_AGE_DEPTH,
   fs: AgeProbeFs = nodeAgeProbeFs,
 ): Promise<TreeActivity> {
-  let newest = await fs.mtimeMs(root)
+  const rootMtime = await fs.mtimeMs(root)
+  if (rootMtime !== undefined && rootMtime > cutoffMs) return "active"
+  let dated = rootMtime !== undefined
   let budget = MAX_AGE_ENTRIES
   const pending: Array<{ readonly path: string; readonly depth: number }> = [{ path: root, depth }]
   while (pending.length > 0 && budget > 0) {
@@ -68,10 +75,12 @@ export async function probeTreeActivity(
       budget -= 1
       const child = join(current.path, entry.name)
       const stamp = await fs.mtimeMs(child)
-      if (stamp !== undefined && (newest === undefined || stamp > newest)) newest = stamp
+      if (stamp !== undefined) {
+        if (stamp > cutoffMs) return "active"
+        dated = true
+      }
       if (entry.directory && current.depth > 1) pending.push({ path: child, depth: current.depth - 1 })
     }
   }
-  if (newest === undefined) return "unknown"
-  return newest > cutoffMs ? "active" : "idle"
+  return dated ? "idle" : "unknown"
 }

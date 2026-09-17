@@ -43,6 +43,27 @@ function wideTree(width: number): TreeSpec {
 }
 
 describe("transient age probe", () => {
+  test("#given a root whose own mtime already proves it active #when it is probed #then no directory is listed", async () => {
+    const fs = new RecordingAgeProbeFs({
+      "/root": { mtimeMs: CUTOFF + 1, entries: ["runtime"] },
+      "/root/runtime": { mtimeMs: CUTOFF + 1, entries: [] },
+    })
+
+    expect(await probeTreeActivity("/root", CUTOFF, 6, fs)).toBe("active")
+    expect({ listed: fs.listed, stated: fs.stated }).toEqual({ listed: [], stated: ["/root"] })
+  })
+
+  test("#given a stale root whose first fresh entry is the first one read #when it is probed #then the walk stops at that entry", async () => {
+    const fs = new RecordingAgeProbeFs({
+      "/root": { mtimeMs: CUTOFF - 10, entries: ["fresh", "stale"] },
+      "/root/fresh": { mtimeMs: CUTOFF + 1 },
+      "/root/stale": { mtimeMs: CUTOFF - 10 },
+    })
+
+    expect(await probeTreeActivity("/root", CUTOFF, 6, fs)).toBe("active")
+    expect(fs.stated).toEqual(["/root", "/root/fresh"])
+  })
+
   test("#given a tree whose every mtime is at or before the cutoff #when it is probed #then it reports idle", async () => {
     const fs = new RecordingAgeProbeFs({
       "/root": { mtimeMs: CUTOFF - 10, entries: ["runtime"] },
