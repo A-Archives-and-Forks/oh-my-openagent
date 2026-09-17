@@ -1,3 +1,29 @@
+## 2026-09-17 — the absent-path bwrap rebind is synchronous again, and exit-time containment blocks
+
+Making the session-reachable probes async left two contracts of the memory component broken.
+
+`defaultProbe` in `sandbox-platform.ts` became `async`, so it returned a Promise even for the
+branch that deliberately spawns nothing: an executable a test's injected `which` resolved to a
+path that does not exist on this machine. `buildPathSandboxTransform` reads the probe's
+Promise-ness as "defer the verdict", so a Linux transform built over a runtime write dir that
+does not exist yet stopped returning its `--bind` arguments and returned a Promise instead - the
+rebind of the absent path was no longer in the built arguments at all. Only the branch that
+actually spawns bwrap is async now; the existence gate answers synchronously, so a seam-resolved
+executable keeps a synchronous transform while a real `/usr/bin/bwrap` is still probed off the
+event loop.
+
+The supervisor's hard termination lost its synchronous form, and with it the `process.once("exit")`
+containment. `spawnTerminationCommand` in `worker/supervisor-process-identity.ts` takes
+`synchronous` again and `runSupervisor` passes it from the exit handler alone. An exit handler
+cannot await, and the "error" event of an async child is queued on a loop that never turns again:
+measured on bun 1.4.2, a taskkill spawned there finishes only after the supervisor is gone, and one
+that cannot be spawned at all (`ENOENT`) writes nothing anywhere. The blocking form finishes before
+the supervisor exits and throws that `ENOENT` into the containment's own `catch`, which is what puts
+it on the run's stderr. Every other caller - the signal handlers, the deadline hard kill, the
+injected posix signal command - stays async. That branch is also the second spawn call
+`worker/windows-console-hide.test.ts` audits for `windowsHide: true`; without it the audit had
+nothing left to check in that file and would have passed on a chain with no taskkill spawn at all.
+
 ## 2026-09-17 — ulw-execute continuation repairs a work its session abandoned
 
 `findContinuableBoulderWork` reads `.omo/boulder.json` on every user input and on

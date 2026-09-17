@@ -236,10 +236,14 @@ function resolveExecutable(
 /**
  * Probes only executables that exist on this machine: a resolved path that is absent here comes
  * from an injected `which` seam, and spawning it would prove nothing while breaking hermeticity.
+ *
+ * The gate itself answers synchronously; only the branch that actually spawns bwrap is async. An
+ * `async` gate would return a Promise for the no-spawn case too, deferring the bwrap rebinding
+ * behind a `.then` for a probe that never runs.
  */
-async function defaultProbe(executable: string): Promise<SandboxUsability> {
+function defaultProbe(executable: string): SandboxUsability | Promise<SandboxUsability> {
   if (!existsSync(executable)) return { usable: true }
-  return await probeBwrapUsability(executable)
+  return probeBwrapUsability(executable)
 }
 
 type LockPathsResolution =

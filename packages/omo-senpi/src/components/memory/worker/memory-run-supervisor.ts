@@ -123,14 +123,16 @@ async function runSupervisor(runDir: string): Promise<void> {
     })
   }
 
-  const containChild = () => {
+  const containChild = (synchronous = false) => {
     try {
-      terminateSupervisorChildHard(platform, childPid)
+      terminateSupervisorChildHard(platform, childPid, synchronous)
     } catch (error) {
       process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`)
     }
   }
-  process.once("exit", () => containChild())
+  // The exit handler is the last chance to contain the child, and nothing it queues will ever run,
+  // so this one containment is synchronous; the signal handlers below still run on a live loop.
+  process.once("exit", () => containChild(true))
   process.once("SIGTERM", () => {
     containChild()
     childPid = undefined

@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process"
+import { spawn, spawnSync, type ChildProcess } from "node:child_process"
 import { readdirSync, watch, writeFileSync } from "@oh-my-opencode/memory-core/fs"
 import { getProcessStartIdentity } from "@oh-my-opencode/memory-core/process-identity"
 
@@ -108,10 +108,23 @@ function testCommand(name: string): readonly string[] | undefined {
   return value
 }
 
-function spawnTerminationCommand(command: readonly string[], args: readonly string[]): void {
+function spawnTerminationCommand(command: readonly string[], args: readonly string[], synchronous: boolean): void {
   const [executable, ...prefix] = command
   if (executable === undefined) throw new TypeError("termination command is required")
-  // taskkill runs from the console-less supervisor, so it needs the same hidden creation flag.
+  // taskkill runs from the console-less supervisor, so both forms need the same hidden creation flag.
+  // Containment from `process.once("exit")` blocks: that handler cannot await, and an async child's
+  // "error" event is queued on a loop that never turns again, so a taskkill that could not even be
+  // spawned would leave the child tree alive with nothing written anywhere. Every other caller runs
+  // on a live loop and stays async, so the supervisor never blocks on a termination child.
+  if (synchronous) {
+    const result = spawnSync(executable, [...prefix, ...args], {
+      env: process.env,
+      stdio: "ignore",
+      windowsHide: true,
+    })
+    if (result.error !== undefined) throw result.error
+    return
+  }
   const child = spawn(executable, [...prefix, ...args], {
     env: process.env,
     stdio: "ignore",
@@ -124,7 +137,7 @@ export function signalSupervisorProcessGroup(pid: number, signal: NodeJS.Signals
   recordTestTermination(`posix-${signal}`, pid)
   const injected = testCommand("OMO_MEMORY_SUPERVISOR_POSIX_SIGNAL_COMMAND")
   if (injected !== undefined) {
-    spawnTerminationCommand(injected, ["--signal-group", String(pid), signal])
+    spawnTerminationCommand(injected, ["--signal-group", String(pid), signal], false)
     return
   }
   try {
@@ -134,9 +147,9 @@ export function signalSupervisorProcessGroup(pid: number, signal: NodeJS.Signals
   }
 }
 
-function taskkillTree(pid: number): void {
+function taskkillTree(pid: number, synchronous: boolean): void {
   const command = testCommand("OMO_MEMORY_SUPERVISOR_TASKKILL_COMMAND") ?? ["taskkill"]
-  spawnTerminationCommand(command, ["/pid", String(pid), "/T", "/F"])
+  spawnTerminationCommand(command, ["/pid", String(pid), "/T", "/F"], synchronous)
 }
 
 export function recordSupervisorGracefulDeadline(pid: number | undefined): void {
@@ -156,9 +169,10 @@ export function terminateSupervisorChildGracefully(
 export function terminateSupervisorChildHard(
   platform: SupervisorRuntimePlatform,
   pid: number | undefined,
+  synchronous = false,
 ): void {
   if (pid === undefined) return
-  if (platform === "win32") taskkillTree(pid)
+  if (platform === "win32") taskkillTree(pid, synchronous)
   else signalSupervisorProcessGroup(pid, "SIGKILL")
 }
 
