@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Engine: senpi 2026.9.17-4
+
+**Downstream builds can bundle the engine again.** `ws` ships two optional native accelerators, `bufferutil` and `utf-8-validate`, and both reach their bindings through `node-gyp-build`'s computed require, which a bundler cannot follow. Any consumer that had them installed failed with `Bundle left unexpected external imports: <runtime>`; senpi's own CI never saw it, because neither package is installed there and `ws` quietly falls back to pure JS. They are now marked external. (senpi [#1804](https://github.com/code-yeongyu/senpi/issues/1804))
+
 ## [5.0.0-beta.70] - 2026-09-17
 
 ### Engine: senpi 2026.9.17-3
