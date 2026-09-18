@@ -1,3 +1,11 @@
+## omo daemon reaches the launcher, the compiled entry and doctor
+
+`omo daemon attach <launch args>` continues as a normal launch whose environment points the engine at
+the shared socket. `omo doctor` gains one `INFO Daemon:` line (not running / pid, instance, engine,
+sessions, zombies) - never a FAIL, since a machine without a daemon is healthy. The compiled binary
+reaches the engine's host CLI by re-running ITSELF with `host ...` (an early command that goes to the
+engine untouched); spawning a node path there would re-enter omo and leave a phantom session.
+
 ## omo daemon - the operator's view of the shared engine host
 
 `omo daemon run|attach|status|stop|handoff` (`bin/lib/daemon.js`) wraps the engine's `senpi host`.

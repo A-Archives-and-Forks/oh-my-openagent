@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { runDaemonCommand } from "../bin/lib/daemon.js"
+import { daemonReportLines, runDaemonCommand } from "../bin/lib/daemon.js"
 
 /**
  * `omo daemon` is a thin wrapper: every decision about who serves the socket belongs to the
@@ -188,5 +188,78 @@ describe("omo daemon", () => {
       })
       expect(engine.calls[0]?.args.slice(0, 2)).toEqual(["host", expected])
     }
+  })
+
+  test("--help prints usage on stdout and exits 0", () => {
+    const { pluginRoot, agentDir } = workspace()
+    const engine = fakeEngine({ exitCode: 0, stdout: "" })
+    const stdout = capture()
+
+    const exitCode = runDaemonCommand(["--help"], {
+      engine, pluginRoot, agentDir, env: {}, stdout, stderr: capture(), platform: "darwin",
+    })
+
+    expect(exitCode).toBe(0)
+    expect(engine.calls).toHaveLength(0)
+    expect(stdout.text()).toContain("usage: omo daemon")
+  })
+
+  test("attach with trailing args hands back a passthrough the launcher continues with", () => {
+    const { pluginRoot, agentDir } = workspace()
+    const socket = join(agentDir, "rpc", "rpc.sock")
+    const engine = fakeEngine({ exitCode: 0, stdout: JSON.stringify({ action: "reuse", pid: 5, socket }) })
+    const stdout = capture()
+
+    const outcome = runDaemonCommand(["attach", "--model", "x"], {
+      engine, pluginRoot, agentDir, env: { HOME: "/h" }, stdout, stderr: capture(), platform: "darwin",
+    })
+
+    expect(typeof outcome).toBe("object")
+    const passthrough = outcome as { passthrough: true; args: string[]; env: Record<string, string> }
+    expect(passthrough.passthrough).toBe(true)
+    expect(passthrough.args).toEqual(["--model", "x"])
+    expect(passthrough.env.OMO_ENABLE_SHARED_HOST).toBe("1")
+    expect(passthrough.env.OMO_RPC_SOCKET).toBe(socket)
+    expect(passthrough.env.HOME).toBe("/h")
+    expect(stdout.text()).toBe("")
+  })
+
+  test("attach that cannot reach a daemon does not pass through", () => {
+    const { pluginRoot, agentDir } = workspace()
+    const engine = fakeEngine({ exitCode: 5, stdout: "", stderr: "refused" })
+
+    const outcome = runDaemonCommand(["attach", "--model", "x"], {
+      engine, pluginRoot, agentDir, env: {}, stdout: capture(), stderr: capture(), platform: "darwin",
+    })
+
+    expect(outcome).toBe(5)
+  })
+})
+
+describe("omo doctor Daemon line", () => {
+  test("says not running when the engine reports no host", () => {
+    const engine = fakeEngine({ exitCode: 3, stdout: "" })
+    const lines = daemonReportLines({ engine, pluginRoot: "/p", agentDir: "/a", env: {}, platform: "darwin" })
+    expect(lines).toEqual(["INFO Daemon: not running"])
+  })
+
+  test("summarizes pid, instance, engine, sessions and zombies when one answers", () => {
+    const status = { pid: 4242, instanceId: "inst-1", engineVersion: "2026.9.18+1.abc", sessions: { total: 3 }, zombies: 0 }
+    const engine = fakeEngine({ exitCode: 0, stdout: JSON.stringify(status) })
+    const lines = daemonReportLines({ engine, pluginRoot: "/p", agentDir: "/a", env: {}, platform: "darwin" })
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toContain("INFO Daemon: running")
+    expect(lines[0]).toContain("pid 4242")
+    expect(lines[0]).toContain("inst-1")
+    expect(lines[0]).toContain("2026.9.18+1.abc")
+    expect(lines[0]).toContain("3 session")
+    expect(lines[0]).toContain("zombies 0")
+  })
+
+  test("is one honest line on win32 instead of a probe that cannot succeed", () => {
+    const engine = fakeEngine({ exitCode: 0, stdout: "" })
+    const lines = daemonReportLines({ engine, pluginRoot: "/p", agentDir: "/a", env: {}, platform: "win32" })
+    expect(lines).toEqual(["INFO Daemon: unavailable on win32 (no unix socket to share)"])
+    expect(engine.calls).toHaveLength(0)
   })
 })

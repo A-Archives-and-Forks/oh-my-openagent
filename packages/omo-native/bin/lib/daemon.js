@@ -12,6 +12,8 @@ import { join } from "node:path"
  */
 
 const SUBCOMMANDS = new Set(["run", "attach", "status", "stop", "handoff"])
+/** Flags this wrapper consumes itself; anything else after `attach` belongs to the launch. */
+const DAEMON_FLAGS = new Set(["--json", "--no-upgrade", "--persistent", "--foreground", "--include-workers", "--drain"])
 /** The subcommands that can bring a host into existence, and therefore need omo's argv source. */
 const NEEDS_SPEC = new Set(["run", "attach", "handoff"])
 
@@ -124,9 +126,13 @@ export function runDaemonCommand(args, options) {
   const { engine, pluginRoot, agentDir, env, stdout, stderr, platform } = options
   const subcommand = args[0]
 
-  if (subcommand === undefined || subcommand === "--help" || subcommand === "-h") {
+  if (subcommand === "--help" || subcommand === "-h") {
+    stdout.write(`${USAGE}\n`)
+    return DAEMON_EXIT.ok
+  }
+  if (subcommand === undefined) {
     stderr.write(`${USAGE}\n`)
-    return subcommand === undefined ? DAEMON_EXIT.usage : DAEMON_EXIT.ok
+    return DAEMON_EXIT.usage
   }
   if (!SUBCOMMANDS.has(subcommand)) {
     stderr.write(`omo daemon: unknown subcommand '${subcommand}'\n${USAGE}\n`)
@@ -155,13 +161,45 @@ export function runDaemonCommand(args, options) {
   if (result.stderr) stderr.write(result.stderr)
 
   if (subcommand === "attach") {
-    const payload = { ...(parsed ?? {}), env: attachEnv(parsed, agentDir) }
+    if (result.exitCode !== DAEMON_EXIT.ok) return result.exitCode
+    const daemonEnv = attachEnv(parsed, agentDir)
+    // `omo daemon attach --model x`: the trailing args are a normal omo launch that should run
+    // against the daemon, so the caller gets the merged environment back and continues with them.
+    const launchArgs = args.slice(1).filter((arg) => !DAEMON_FLAGS.has(arg))
+    if (launchArgs.length > 0) return { passthrough: true, args: launchArgs, env: { ...env, ...daemonEnv } }
+    const payload = { ...(parsed ?? {}), env: daemonEnv }
     if (args.includes("--json")) stdout.write(`${JSON.stringify(payload)}\n`)
-    else for (const [key, value] of Object.entries(payload.env)) stdout.write(`${key}=${value}\n`)
-    return result.exitCode
+    else for (const [key, value] of Object.entries(daemonEnv)) stdout.write(`${key}=${value}\n`)
+    return DAEMON_EXIT.ok
   }
 
   if (args.includes("--json") && result.stdout) stdout.write(result.stdout.trim() + "\n")
   else stdout.write(`${summarize(subcommand, parsed, result.exitCode)}\n`)
   return result.exitCode
+}
+
+/**
+ * The `omo doctor` view: one INFO line, never a FAIL - a machine without a daemon is healthy,
+ * it just has nothing shared to report. Returned as lines so doctor can place it with the rest.
+ */
+export function daemonReportLines({ engine, pluginRoot, agentDir, env, platform }) {
+  if (platform === "win32") return ["INFO Daemon: unavailable on win32 (no unix socket to share)"]
+  const stdout = { write() {} }
+  const captured = []
+  const exitCode = runDaemonCommand(["status", "--json"], {
+    engine, pluginRoot, agentDir, env, platform,
+    stdout: { write: (text) => void captured.push(text) },
+    stderr: stdout,
+  })
+  const parsed = parseLine(captured.join(""))
+  if (exitCode !== DAEMON_EXIT.ok || parsed === undefined) return ["INFO Daemon: not running"]
+  const sessions = parsed.sessions?.total ?? parsed.sessions?.length ?? 0
+  const parts = [
+    `pid ${parsed.pid}`,
+    parsed.instanceId === undefined ? undefined : `instance ${parsed.instanceId}`,
+    parsed.engineVersion === undefined ? undefined : `engine ${parsed.engineVersion}`,
+    `${sessions} session(s)`,
+    `zombies ${parsed.zombies ?? 0}`,
+  ].filter(Boolean)
+  return [`INFO Daemon: running ${parts.join(" · ")}`]
 }

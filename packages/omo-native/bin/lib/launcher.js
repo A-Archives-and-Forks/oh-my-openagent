@@ -11,7 +11,7 @@ import { detectHarnesses } from "./setup-detect.js"
 import { readSetupSuggestionCache, spawnSetupSuggestionRefresh } from "./setup-detect-cache.js"
 import { printSetupReport } from "./setup-report.js"
 
-const earlyCommands = new Set(["install", "remove", "list", "config", "auth", "app-server"])
+const earlyCommands = new Set(["install", "remove", "list", "config", "auth", "app-server", "host"])
 const selfUpdateTargets = new Set(["self", "senpi", "omo"])
 // Updating extensions or model catalogs is the engine's job; everything else under `update`
 // would try to replace the pinned engine, so the launcher answers it instead.
@@ -152,7 +152,7 @@ function setupSuggestionForLaunch() {
  * captured rather than inherited - `omo daemon` has to read the engine's answer to turn it into
  * an exit code, and `spawnSync` is honest about a call that is expected to be this short.
  */
-function engineHostCall(engineArgs, options) {
+export function engineHostCall(engineArgs, options) {
   const senpi = resolveSenpi()
   const result = spawnSync(process.execPath, [senpi.cliPath, ...engineArgs], {
     encoding: "utf8",
@@ -176,7 +176,7 @@ export async function runLauncher(args = process.argv.slice(2)) {
   // The daemon is the engine's to run; omo only supplies the launch spec, the policy from
   // omo.json, and an exit code the caller can branch on.
   if (command === "daemon") {
-    process.exitCode = runDaemonCommand(args.slice(1), {
+    const outcome = runDaemonCommand(args.slice(1), {
       engine: { run: engineHostCall },
       pluginRoot: join(packageRoot, "plugin"),
       agentDir: canonicalAgentDir(),
@@ -185,10 +185,20 @@ export async function runLauncher(args = process.argv.slice(2)) {
       stderr: process.stderr,
       platform: process.platform,
     })
+    // `omo daemon attach <launch args>`: the daemon is reachable, so this becomes a normal launch
+    // whose environment points the engine at the shared socket instead of starting its own.
+    if (typeof outcome === "object") {
+      const senpi = resolveSenpi()
+      await spawnNode(senpi.cliPath, ["--extension", join(packageRoot, "plugin"), ...outcome.args], {
+        env: { ...senpiEnvironment(senpi.packageRoot), ...outcome.env },
+      })
+      return
+    }
+    process.exitCode = outcome
     return
   }
   if (command === "doctor") {
-    runDoctor(await detectHarnesses(), args.slice(1))
+    runDoctor(await detectHarnesses(), args.slice(1), { daemonEngine: { run: engineHostCall } })
     return
   }
   if (command === "setup") {

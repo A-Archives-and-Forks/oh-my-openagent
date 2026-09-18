@@ -19,9 +19,11 @@ import { buildLabel, parseBuildInfo, parseEngineBuildStamp, versionLines } from 
 import { migrateLegacyBunGlobalManifest } from "./bin/lib/legacy-bun-global-migration.js"
 import { adoptLegacyFlatState, canonicalAgentDir } from "./bin/lib/agent-dir.js"
 import { nearestNodeBin, readJson } from "./bin/lib/package-paths.js"
+import { daemonReportLines, runDaemonCommand } from "./bin/lib/daemon.js"
 import { runDoctor } from "./bin/lib/doctor.js"
 import { detectHarnesses, needsSetupSuggestion } from "./bin/lib/setup-detect.js"
 import { printSetupReport } from "./bin/lib/setup-report.js"
+import { spawnSync } from "node:child_process"
 import { delimiter } from "node:path"
 import { registerBunOAuthFlows } from "../../node_modules/@code-yeongyu/senpi/node_modules/@earendil-works/pi-ai/dist/bun-oauth.js"
 
@@ -41,7 +43,7 @@ registerBunOAuthFlows()
 //    $bunfs. Do NOT refactor these two literals into an indirection.
 // Probe receipts: .omo/evidence/20260825-bun-compile-release-binaries/
 
-const earlyCommands = new Set(["install", "remove", "list", "config", "auth", "app-server"])
+const earlyCommands = new Set(["install", "remove", "list", "config", "auth", "app-server", "host"])
 const selfUpdateTargets = new Set(["self", "senpi", "omo"])
 const engineUpdateTargets = new Set(["--extensions", "--models"])
 const doctorArtifacts = [
@@ -144,7 +146,9 @@ export function remapSenpiEnvironment(source: NodeJS.ProcessEnv = process.env, e
   return env
 }
 
-function runCompiledDoctor(inventory: Awaited<ReturnType<typeof detectHarnesses>>, execDir: string, enginePin: string): void {
+type DaemonEngine = { run(args: string[], options: { env: Record<string, string | undefined> }): { exitCode: number; stdout: string; stderr: string } }
+
+function runCompiledDoctor(inventory: Awaited<ReturnType<typeof detectHarnesses>>, execDir: string, enginePin: string, engine?: DaemonEngine): void {
   let failed = false
   const lines: string[] = []
   for (const [label, artifact] of doctorArtifacts) {
@@ -156,6 +160,9 @@ function runCompiledDoctor(inventory: Awaited<ReturnType<typeof detectHarnesses>
   }
   const packageJson = readJson(join(execDir, "package.json"))
   for (const line of versionLine(packageJson, enginePin).split("\n")) lines.push(`INFO ${line}`)
+  if (engine !== undefined) {
+    lines.push(...daemonReportLines({ engine, pluginRoot: join(execDir, "plugin"), agentDir: canonicalAgentDir(), env: process.env, platform: process.platform }))
+  }
   if (needsSetupSuggestion(inventory)) lines.push("INFO no credentials found; run omo setup to review sibling stores")
   console.log(lines.join("\n"))
   process.exitCode = failed ? 1 : 0
@@ -221,10 +228,38 @@ export async function runCompiledLauncher(args: string[], execDir: string, engin
     process.exitCode = 2
     return true
   }
+  // The compiled binary IS the engine's process, so the host CLI is reached by re-running this
+  // executable with `host ...` - an early command that goes to the engine untouched. Spawning a
+  // node path here would re-enter omo itself and leave a phantom session behind.
+  const engine = {
+    run(engineArgs: string[], options: { env: Record<string, string | undefined> }) {
+      const result = spawnSync(process.execPath, engineArgs, { encoding: "utf8", env: options.env, windowsHide: true })
+      return { exitCode: result.status ?? 1, stdout: result.stdout ?? "", stderr: result.stderr ?? "" }
+    },
+  }
+  if (command === "daemon") {
+    const outcome = runDaemonCommand(args.slice(1), {
+      engine,
+      pluginRoot: join(execDir, "plugin"),
+      agentDir: canonicalAgentDir(),
+      env: process.env,
+      stdout: process.stdout,
+      stderr: process.stderr,
+      platform: process.platform,
+    })
+    if (typeof outcome === "object") {
+      // A reachable daemon: continue as a normal launch pointed at the shared socket.
+      process.argv.splice(2, process.argv.length - 2, ...outcome.args)
+      Object.assign(process.env, outcome.env)
+      return false
+    }
+    process.exitCode = outcome
+    return true
+  }
   if (command === "doctor") {
     const inventory = await detectHarnesses()
-    if (compiledPackageRoot) runCompiledDoctor(inventory, compiledPackageRoot, enginePin)
-    else runDoctor(inventory)
+    if (compiledPackageRoot) runCompiledDoctor(inventory, compiledPackageRoot, enginePin, engine)
+    else runDoctor(inventory, [], { daemonEngine: engine })
     return true
   }
   if (command === "setup") { printSetupReport(await detectHarnesses()); process.exitCode = 0; return true }
