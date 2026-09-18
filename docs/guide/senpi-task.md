@@ -37,7 +37,9 @@ Two runners back a child (`packages/senpi-task/src/runners/`):
 - **in-process (default).** The child runs inside the same Senpi runtime and executes through the SAME parent tool closures, minus `task`, `task_*`, `team_*`, and `dag` (member-scoped tools are the only sanctioned bypass). This is the cheapest path and needs no extra process.
 - **process.** The child is spawned as an isolated Senpi process. Steering (`steer` / `abort` / `prompt`) crosses a JSON-RPC boundary, and the child's transcript is written below `children/<taskId>/sessions/<taskId>/`. On the next session start, a dead process child with a persisted session can be respawned without replaying its original prompt and rebound with `switch_session`.
 
-The default comes from `task.default_execution_mode` in `omo.json`; a per-agent `execution_mode` can override it.
+A process child is itself run one of two ways: as a SESSION of the machine-wide engine daemon (the default on macOS/Linux, `task.process_runner: "host"`), or as its own OS process (`"child-process"`, and always on Windows).
+
+The default comes from `task.default_execution_mode` in `omo.json`, which ships as `auto`: the parent session asks the shared daemon ONCE whether it can host children (not Windows, `process_runner: "host"`, and the daemon advertises `session_context` + `generation_handoff`) and uses `process` when it can, `in-process` when it cannot. A per-agent `execution_mode` and an explicit `in-process`/`process` in `omo.json` both win over that check, and curated read-only agents stay in-process either way. When the daemon cannot take the children, the reason is reported once per session and shows up in `task_output` as a `host_unavailable:<reason>` note.
 
 Team members always use process mode. Their child process loads a small member extension that owns the member inbox poller and exposes only team-scoped `task_send`.
 
@@ -103,7 +105,7 @@ All defaults live in `omo.json` under `task` and `teams`. A minimal project conf
 // .omo/omo.jsonc
 {
   "task": {
-    "default_execution_mode": "in-process",
+    "default_execution_mode": "auto",
     "reattach_on_reconcile": true,
     "resident_idle_timeout_ms": 900000,
     "wait": { "default_ms": 90000 }

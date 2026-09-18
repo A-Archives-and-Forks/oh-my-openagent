@@ -38,11 +38,12 @@ import {
   promotedBackgroundMode,
   recordSpawnedChildSession,
   recordSpawnedPid,
+  recordSpawnedRunner,
 } from "./manager-helpers"
 import { createOutcomeTracker, type OutcomeTracker } from "./manager-outcome"
 import { claimTaskRecord, TaskRecordCollisionError } from "../store"
 import { withTaskRecordLockAsync } from "../store/record-lock"
-import { reattachManagedTask } from "./manager-respawn"
+import { reattachManagedTask } from "./manager-reattach"
 import { respawnWithWorkpool } from "./workpool-respawn"
 import { NameRegistry } from "./names"
 import { TaskSequence } from "./task-sequence"
@@ -351,6 +352,7 @@ class TaskManagerImpl implements TaskManager {
       ...(spec.execution_mode !== undefined && { specMode: spec.execution_mode }),
       ...(plan.agentExecutionMode !== undefined && { agentMode: plan.agentExecutionMode }),
       configMode: this.#options.config.default_execution_mode,
+      ...(await this.#autoExecutionMode(spec, plan)),
     })
 
     const requestedName = normalizeSpecName(spec.name)
@@ -767,6 +769,22 @@ class TaskManagerImpl implements TaskManager {
     return { ok: true }
   }
 
+  /**
+   * The `auto` resolution, asked ONLY when nothing more specific already decided and the config
+   * really says `auto` - a user-set mode or a per-agent override must never make a parent session
+   * ensure the daemon. The gate memoizes, so one parent session asks at most once and every later
+   * child reuses that answer even after the daemon goes down.
+   */
+  async #autoExecutionMode(
+    spec: ManagerStartSpec,
+    plan: ResolvedChildPlan,
+  ): Promise<{ readonly autoMode?: ExecutionMode }> {
+    const gate = this.#options.executionModeGate
+    if (gate === undefined || this.#options.config.default_execution_mode !== "auto") return {}
+    if (spec.execution_mode !== undefined || plan.agentExecutionMode !== undefined) return {}
+    return { autoMode: await gate.ensure() }
+  }
+
   #attachChildSubscribers(taskId: string, handle: ManagedChildHandle): void {
     const subscribers = this.#childSubscribers.get(taskId)
     if (subscribers === undefined) return
@@ -788,7 +806,8 @@ class TaskManagerImpl implements TaskManager {
     const current = this.#tryLoad(taskId)
     if (current === null || isTerminalRecord(current)) return
     const withPid = recordSpawnedPid(current, handle.pid) ?? current
-    const withSession = recordSpawnedChildSession(withPid, handle.sessionId) ?? withPid
+    const withRunner = recordSpawnedRunner(withPid, handle.kind, handle.hostSession) ?? withPid
+    const withSession = recordSpawnedChildSession(withRunner, handle.sessionId) ?? withRunner
     const spawnSpec = handle.spawnSpec
     // A v1 spawn_spec persisted at spawn is authoritative: the rpc echo would rewrite it as the
     // legacy {cwd, extensions, member_env} shape, dropping the rebuild facts v1 carries.

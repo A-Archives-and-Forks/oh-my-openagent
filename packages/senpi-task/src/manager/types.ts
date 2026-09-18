@@ -16,12 +16,12 @@ import type {
 } from "../steering"
 import type { TaskRecordStore } from "../store"
 import type { ManagedChildHandle, ManagedChildListener } from "./child-handle"
-import type { ExecutionMode } from "./execution-mode"
+import type { ExecutionMode, ExecutionModeGate } from "./execution-mode"
 import type { TaskConcurrency } from "./concurrency"
 import type { RunnerFailure } from "../runners/in-process/child-handle"
 import type { WorkpoolEngine } from "../workpool/engine"
 
-export type { ExecutionMode } from "./execution-mode"
+export type { ExecutionMode, ExecutionModeGate } from "./execution-mode"
 
 // The unified spec both runner adapters accept. A superset: the rpc adapter uses the subset it
 // needs (task_id, cwd, state_dir, prompt); the in-process adapter also consumes model/tools/agent.
@@ -256,6 +256,10 @@ export type TaskManagerOptions = {
   readonly kernelToolBindings?: KernelToolBindingRegistry
   // The names a child of this parent already carries (same list the task tool grant reads).
   readonly resolveChildToolNames?: () => readonly string[]
+  // Resolves `task.default_execution_mode: "auto"` ONCE per parent session (the shared-daemon
+  // capability check). Absent -> `auto` reads as in-process, which is what a wiring without a
+  // daemon (tests, a pinned engine without the host surface) must do.
+  readonly executionModeGate?: ExecutionModeGate
 }
 
 export type TaskManager = {

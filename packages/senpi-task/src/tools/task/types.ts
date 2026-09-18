@@ -2,7 +2,7 @@ import type { OmoConfig } from "@oh-my-opencode/omo-config-core"
 
 import type { AgentDefinition, SkillInvocationState } from "../../agents"
 import type { KernelToolErrorCode } from "../../kernel-tools/contract"
-import type { TaskManager } from "../../manager"
+import type { ExecutionModeGate, TaskManager } from "../../manager"
 import type { RunnerFailure } from "../../runners/in-process/child-handle"
 import type { ResolvedModelRecord, TaskRunStats } from "../../state"
 import type { TaskToolParamsStatic } from "./params"
@@ -74,6 +74,9 @@ export type TaskToolDeps = {
   // A kernel-tool grant is decided against them before any child exists; absent falls back to the
   // senpi session builtins (runners/in-process/host-tools.ts).
   readonly resolveChildToolNames?: () => readonly string[]
+  // The parent session's ONE resolution of `task.default_execution_mode: "auto"` (the shared-daemon
+  // capability check). Absent -> `auto` reads as in-process and the manager decides at spawn.
+  readonly executionModeGate?: ExecutionModeGate
 }
 
 export type TaskToolMode = "spawn"

@@ -22,6 +22,13 @@ export interface SenpiExtensionAPI {
    * older than the release that added it do not report one; consumers fall back to process.cwd().
    */
   readonly cwd?: string
+  /**
+   * Opaque labels the opener attached to THIS session (senpi `open_session.context`). One extension
+   * set serves every session of the shared daemon, so components gate themselves on the role here
+   * instead of on process-wide environment variables. Optional: hosts older than the release that
+   * added it report none, and consumers fall back to the per-child process env.
+   */
+  readonly sessionContext?: unknown
   on(event: string, handler: (payload: unknown, ctx?: unknown) => unknown | Promise<unknown>): void
   rpc?: {
     emit(name: string, data: unknown): void

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-codex-install:6df5dbbbb7ca9b9dce86fae98a525a9caa7de96caed85a4b77d4e8b4ab4d1501:eba819ee20dfc6ffa92afcc564928ea09c1e23a0b3e7f73ddc99b7dc38a6b637
+// omo-codex-install:6df5dbbbb7ca9b9dce86fae98a525a9caa7de96caed85a4b77d4e8b4ab4d1501:3e5330ce0793c672cf77a73c412a9e963c23c8e4d363ee3c9eaa445d37850edc
 var __esm = (fn, res, err) => () => {
   if (fn)
     try {
@@ -13264,7 +13264,10 @@ var OmoTaskDagSettingsSchema = object({
   max_prompt_bytes: number2().int().positive().default(262144)
 }).strict();
 var OmoTaskSettingsSchema = object({
-  default_execution_mode: _enum(["in-process", "process"]).default("in-process"),
+  default_execution_mode: _enum(["auto", "in-process", "process"]).default("auto"),
+  process_runner: _enum(["host", "child-process"]).default("host"),
+  host_engine_policy: _enum(["upgrade", "fallback"]).default("upgrade"),
+  host_idle_exit_ms: number2().int().positive().optional(),
   default_concurrency: number2().int().nonnegative().default(5),
   global_concurrency: number2().int().nonnegative().default(8),
   provider_concurrency: record(string2(), number2().int().nonnegative()).optional(),
@@ -13309,7 +13312,10 @@ var OmoTaskWarningsLayerSchema = object({
   unavailable_categories: boolean2().optional()
 }).strict();
 var OmoTaskSettingsLayerSchema = object({
-  default_execution_mode: _enum(["in-process", "process"]).optional(),
+  default_execution_mode: _enum(["auto", "in-process", "process"]).optional(),
+  process_runner: _enum(["host", "child-process"]).optional(),
+  host_engine_policy: _enum(["upgrade", "fallback"]).optional(),
+  host_idle_exit_ms: number2().int().positive().optional(),
   default_concurrency: number2().int().nonnegative().optional(),
   global_concurrency: number2().int().nonnegative().optional(),
   provider_concurrency: record(string2(), number2().int().nonnegative()).optional(),
