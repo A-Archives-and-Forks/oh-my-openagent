@@ -14,51 +14,38 @@ import {
 } from "./senpi-barrel"
 
 describe("senpi host-daemon accessors", () => {
-  test("#given the warmed barrel #when a symbol the pinned engine exports is read #then the live value comes back", async () => {
+  test("#given the warmed barrel #when the host-daemon symbols the pinned engine exports are read #then each live value comes back", async () => {
     // given
     await loadSenpiBarrel()
 
     // when
-    const ensure = senpiEnsureHost()
-    const client = senpiRpcClient()
+    const resolved = {
+      ensureHost: senpiEnsureHost(),
+      RpcClient: senpiRpcClient(),
+      probeHost: senpiProbeHost(),
+      stopHost: senpiStopHost(),
+      handoffHost: senpiHandoffHost(),
+      decideHostAction: senpiDecideHostAction(),
+      engineBuildIdentity: senpiEngineBuildIdentity(),
+    }
 
     // then
-    expect(typeof ensure).toBe("function")
-    expect(typeof client).toBe("function")
+    // The pin (2026.9.18-2) carries senpi todos 15-17/20, so every accessor resolves. While the
+    // pin predated them this test's tripwire proved each one failed closed with its symbol name
+    // (see this file's history); that path is the three-line requireHostSymbol with no other branch.
+    for (const [name, value] of Object.entries(resolved)) {
+      expect(typeof value, `${name} should be a live export of the pinned engine`).toBe("function")
+    }
   })
 
-  test("#given the warmed barrel #when a symbol this pin predates is read #then a typed error names it", async () => {
+  test("#given a host symbol the engine lacks #when the typed error is raised #then it names the symbol a caller can branch on", () => {
     // given
-    await loadSenpiBarrel()
-    const pending = [
-      ["probeHost", senpiProbeHost],
-      ["stopHost", senpiStopHost],
-      ["handoffHost", senpiHandoffHost],
-      ["decideHostAction", senpiDecideHostAction],
-      ["engineBuildIdentity", senpiEngineBuildIdentity],
-    ] as const
-
-    // when
-    const failures = pending.map(([name, accessor]) => {
-      try {
-        accessor()
-        return { name, missing: false, named: true }
-      } catch (error) {
-        return {
-          name,
-          missing: error instanceof SenpiHostSymbolMissingError,
-          named: error instanceof SenpiHostSymbolMissingError && error.symbol === name,
-        }
-      }
-    })
+    const error = new SenpiHostSymbolMissingError("decideHostAction")
 
     // then
-    // TRIPWIRE: the pinned engine (2026.9.17) predates senpi todos 15-17/20, so each accessor above
-    // still fails closed with the symbol it needs. When the pin moves to the release that carries
-    // the host-daemon exports, these move to the resolved test above instead of being deleted.
-    expect(failures.filter((entry) => entry.missing).map((entry) => entry.name)).toEqual(
-      pending.map(([name]) => name),
-    )
-    expect(failures.every((entry) => entry.named)).toBe(true)
+    expect(error).toBeInstanceOf(Error)
+    expect(error.name).toBe("SenpiHostSymbolMissingError")
+    expect(error.symbol).toBe("decideHostAction")
+    expect(error.message).toContain("decideHostAction")
   })
 })
