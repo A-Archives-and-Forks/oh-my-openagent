@@ -30,6 +30,7 @@
     "CHANGELOG.md",
     "README.md",
     "NOTICE",
-    "LICENSE"
+    "LICENSE",
+    "daemon-launch-spec.json"
   ]
 }

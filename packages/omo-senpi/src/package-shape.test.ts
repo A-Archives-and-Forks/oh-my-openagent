@@ -110,6 +110,9 @@ describe("omo-senpi package shape", () => {
     expect(files).toContain("extensions")
     expect(files).toContain("skills")
     expect(files).toContain("runtime")
+    // The task daemon's only argv source ships with the plugin; without it `omo daemon run`
+    // fails closed (exit 5) on every npm install.
+    expect(files).toContain("daemon-launch-spec.json")
     expect(files).toContain("README.md")
     expect(files).toContain("NOTICE")
     expect(files).toContain("LICENSE")
