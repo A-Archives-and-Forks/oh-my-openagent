@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-beta.74] - 2026-09-18
+
 ### Engine: senpi 2026.9.18-3
 
 **Agent-directory extensions load reliably on Windows.** An extension discovered in an agent directory could fail to start with `Cannot find package 'runtime'`, and did so on every Windows shard for three releases. The engine's loader served that import from a virtual module registration that intermittently stopped answering Bun's resolver under a loaded parallel test shard; it now resolves to a real file and keeps the virtual route only for compiled binaries, where no file exists to point at.
