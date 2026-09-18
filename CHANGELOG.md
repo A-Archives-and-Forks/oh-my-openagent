@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**Kimi K2.8 Preview gets the Kimi K2.7 prompt instead of the K2.6 one.** Moonshot upgraded Kimi Code's `kimi-for-coding` model id to K2.8 Preview in place on 2026-09-11 - same id, no client change - and the opencode lane picks prompts by model family, so a K2.8 session matched no K2.7 rule and fell through to the generic K2.6 Kimi prompt. K2.8 is an efficiency and context upgrade inside the same K2 coding family rather than a new prompting contract, so it now shares the K2.7 prompt on every surface that routes by family: Sisyphus, Sisyphus Junior, Atlas, and Metis. `kimi-for-coding-highspeed` is still K2.7 Code HighSpeed per the published model table and resolves the same way, where before it also landed on the K2.6 prompt. ([#8466](https://github.com/code-yeongyu/oh-my-openagent/issues/8466))
+
 ## [5.0.0-beta.74] - 2026-09-18
 
 ### Engine: senpi 2026.9.18-3
