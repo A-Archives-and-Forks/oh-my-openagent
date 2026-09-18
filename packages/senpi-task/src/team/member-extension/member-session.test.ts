@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { afterEach, describe, expect, test } from "bun:test"
@@ -15,7 +16,7 @@ afterEach(() => {
 })
 
 function memberContext(overrides: Record<string, string> = {}): Record<string, string> {
-  const stateDir = mkdtempSync("/tmp/dh-member-")
+  const stateDir = mkdtempSync(join(tmpdir(), "dh-member-"))
   roots.push(stateDir)
   const config = TeamModeConfigSchema.parse({ base_dir: join(stateDir, "teams") })
   return {

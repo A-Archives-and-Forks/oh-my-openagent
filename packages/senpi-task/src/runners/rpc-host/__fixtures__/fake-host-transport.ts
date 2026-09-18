@@ -1,6 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto"
-import { writeFileSync } from "node:fs"
-import type { Socket } from "node:net"
+import { readFileSync, writeFileSync } from "node:fs"
+import { connect, type Socket } from "node:net"
 import { win32 } from "node:path"
 
 /**
@@ -27,13 +27,8 @@ export function fakeHostTransport(socketPath: string, platform: NodeJS.Platform 
   if (platform !== "win32") return { listenAddress: socketPath, authenticate: (_socket, accept) => accept() }
   const secret = randomBytes(SECRET_BYTES)
   writeFileSync(`${socketPath}.secret`, secret, { mode: 0o600 })
-  const canonical = win32.normalize(socketPath).toLowerCase()
-  const name = createHash("sha256")
-    .update(Buffer.concat([Buffer.from(canonical, "utf8"), secret]))
-    .digest("hex")
-    .slice(0, 32)
   return {
-    listenAddress: `${WINDOWS_PIPE_PREFIX}${name}`,
+    listenAddress: pipeNameFor(socketPath, secret),
     authenticate: (socket, accept) => authenticateHandshake(socket, secret, accept),
   }
 }
@@ -68,4 +63,25 @@ function authenticateHandshake(socket: Socket, secret: Buffer, accept: () => voi
   socket.on("data", onData)
   socket.once("error", onError)
   socket.once("close", finish)
+}
+
+/**
+ * The client side of the same contract, for the fixture's own out-of-band connections: on win32
+ * read the secret, connect to the derived pipe and send the secret first; elsewhere just connect.
+ */
+export function connectFakeHost(socketPath: string, platform: NodeJS.Platform = process.platform): Socket {
+  if (platform !== "win32") return connect(socketPath)
+  const secret = readFileSync(`${socketPath}.secret`)
+  const socket = connect(pipeNameFor(socketPath, secret))
+  socket.once("connect", () => socket.write(secret))
+  return socket
+}
+
+function pipeNameFor(socketPath: string, secret: Buffer): string {
+  const canonical = win32.normalize(socketPath).toLowerCase()
+  const name = createHash("sha256")
+    .update(Buffer.concat([Buffer.from(canonical, "utf8"), secret]))
+    .digest("hex")
+    .slice(0, 32)
+  return `${WINDOWS_PIPE_PREFIX}${name}`
 }
