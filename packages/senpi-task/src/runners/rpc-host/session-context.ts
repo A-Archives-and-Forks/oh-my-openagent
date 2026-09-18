@@ -95,7 +95,7 @@ function isDagOwnedChild(spec: RpcSpawnSpec): boolean {
  * <stateDir>/sessions/<taskId>/. The path combines the ISO timestamp (UTC) and UUID
  * to ensure uniqueness across restarts and parallel children.
  *
- * Format: <stateDir>/sessions/<taskId>/<YYYY-MM-DDTHH:MM:SSZ>_<uuid>.jsonl
+ * Format: <stateDir>/sessions/<taskId>/<YYYY-MM-DDTHH-MM-SS.sssZ>_<uuid>.jsonl
  */
 export function resolveChildSessionPath(
   stateDir: string,
@@ -103,7 +103,9 @@ export function resolveChildSessionPath(
   now: Date,
   uuid: string,
 ): string {
-  const isoTimestamp = now.toISOString() // e.g., "2026-09-17T12:34:56.789Z"
-  const filename = `${isoTimestamp}_${uuid}.jsonl`
+  // Windows has no legal filename containing ":", so the time part uses "-" and the
+  // stamp stays lexicographically sortable.
+  const stamp = now.toISOString().replaceAll(":", "-")
+  const filename = `${stamp}_${uuid}.jsonl`
   return join(stateDir, "sessions", taskId, filename)
 }

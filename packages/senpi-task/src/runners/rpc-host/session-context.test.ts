@@ -1,4 +1,4 @@
-import { basename, dirname, join } from "node:path"
+import { basename, dirname, isAbsolute, join } from "node:path"
 import { describe, expect, test } from "bun:test"
 import type { RpcSpawnSpec } from "../rpc/spawn"
 import { buildChildContext, resolveChildSessionPath } from "./session-context"
@@ -132,15 +132,16 @@ describe("resolveChildSessionPath", () => {
     // then
     expect(path).toContain(join(stateDir, "sessions", taskId))
     expect(path.endsWith(".jsonl")).toBe(true)
-    expect(basename(path)).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z_[a-f0-9-]+\.jsonl$/)
+    expect(basename(path)).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}Z_[a-f0-9-]+\.jsonl$/)
+    expect(basename(path)).not.toContain(":")
   })
 
-  test("#given a path #when resolved #then it is a valid path (starts with /)", () => {
+  test("#given a path #when resolved #then it is absolute on this platform", () => {
     // when
     const path = resolveChildSessionPath("/tmp/.omo/senpi-task", "st_abc123", new Date(), "550e8400-e29b-41d4-a716-446655440000")
 
     // then
-    expect(path.startsWith("/")).toBe(true)
+    expect(isAbsolute(path)).toBe(true)
     const pathDir = dirname(path)
     expect(pathDir).toContain(join("/tmp/.omo/senpi-task", "sessions", "st_abc123"))
   })
