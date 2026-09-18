@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-beta.72] - 2026-09-18
+
 ### Engine: senpi 2026.9.18-2
 
 **omo boots again on Bun 1.3.x.** Every build since beta.69 crashed at startup there with `webidl.util.markAsUncloneable is not a function`, TUI and headless alike. The engine's bundled `undici` creates a `CacheStorage` at module init, and that constructor reaches for `worker_threads.markAsUncloneable`, which Node added in 23 and Bun 1.3 does not have. The bundle prologue now installs a no-op when the runtime lacks it; nothing in the engine ever used `caches`. (senpi [#1806](https://github.com/code-yeongyu/senpi/issues/1806))
