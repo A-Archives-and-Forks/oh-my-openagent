@@ -1,3 +1,5 @@
+import { mkdir } from "node:fs/promises"
+import { dirname } from "node:path"
 import { randomUUID } from "node:crypto"
 import { log } from "@oh-my-opencode/utils"
 
@@ -129,6 +131,10 @@ export class RpcHostRunner {
     const sessionPath =
       spec.resumeSessionPath ??
       resolveChildSessionPath(spec.state_dir, spec.task_id, new Date(this.now()), randomUUID())
+    // The daemon lstat()s the JSONL's directory before it opens the session and refuses with
+    // ENOENT when it is missing. A child process used to create that directory for itself; on the
+    // daemon path the client names the path, so the client creates the directory.
+    if (spec.resumeSessionPath === undefined) await mkdir(dirname(sessionPath), { recursive: true })
     const opened = await this.openSession(client, spec, sessionPath)
     const handle = createHostSessionHandle({
       client,

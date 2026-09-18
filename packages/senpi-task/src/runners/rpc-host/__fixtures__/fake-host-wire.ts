@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs"
+import { dirname, isAbsolute } from "node:path"
 import type { Socket } from "node:net"
 
 import type { FakeSessionTable } from "./fake-host-sessions"
@@ -26,6 +28,8 @@ export interface FakeHostWirePorts {
   /** Read per line so a handoff's rotated instance answers the very next probe. */
   readonly identity: () => Readonly<Record<string, unknown>>
   readonly openFailure: () => FakeHostOpenFailure | undefined
+  /** Mirror the engine: opening at a path whose directory does not exist fails with ENOENT. */
+  readonly enforceSessionDir: boolean
   readonly withheld: ReadonlySet<string>
   readonly record: (command: FakeHostCommand) => void
 }
@@ -79,6 +83,14 @@ function openSession(ports: FakeHostWirePorts, socket: Socket, payload: Readonly
   const configured = ports.openFailure()
   if (configured !== undefined) return refuse(socket, payload, configured)
   const sessionPath = typeof payload.sessionPath === "string" ? payload.sessionPath : "unnamed-session"
+  if (ports.enforceSessionDir && isAbsolute(sessionPath) && !existsSync(dirname(sessionPath))) {
+    // The real host lstat()s the session directory before it opens the JSONL; the client owns that
+    // directory, so a path nobody created is refused exactly as the engine refuses it.
+    return refuse(socket, payload, {
+      code: "open_failed",
+      detail: `ENOENT: no such file or directory, lstat '${dirname(sessionPath)}'`,
+    })
+  }
   const opened = ports.table.open(socket, sessionPath, payload)
   if (opened.kind === "held") {
     return refuse(socket, payload, {

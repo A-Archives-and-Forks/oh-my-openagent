@@ -1,3 +1,12 @@
+## The daemon runner creates the child session directory before opening
+
+The first live run of daemon-hosted children failed every `open_session` with `ENOENT ... lstat
+<stateDir>/sessions/<taskId>`: the host checks the JSONL's directory before it opens the session,
+and on the daemon path nobody had created it (a child process used to do that for itself).
+`RpcHostRunner.openChild` now creates the directory for a fresh child. The fake host gained an
+`enforceSessionDir` option that mirrors the host's check, so the regression test fails for the
+right reason.
+
 ## 2026-09-17 — The shared daemon is where a process child runs by default
 
 `task.default_execution_mode` ships as `auto`. A parent session answers it ONCE, at the first spawn

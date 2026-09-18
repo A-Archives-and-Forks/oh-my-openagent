@@ -21,6 +21,8 @@ export type { FakeHostSession } from "./fake-host-sessions"
 
 export interface FakeHostOptions extends FakeHostIdentityOptions {
   readonly openFailure?: FakeHostOpenFailure
+  /** Refuse open_session for a path whose directory does not exist, as the real host does. */
+  readonly enforceSessionDir?: boolean
   /** Write a real JSONL transcript per session path, as a daemon owning that file would. */
   readonly transcripts?: boolean
   /** What a draining generation tells a client to wait before retrying a held path. */
@@ -87,7 +89,7 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
     }
   }
 
-  const ports = { table, identity: () => identity, openFailure: () => openFailure, withheld, record }
+  const ports = { table, identity: () => identity, openFailure: () => openFailure, enforceSessionDir: options.enforceSessionDir === true, withheld, record }
 
   const settleConnectionWaiters = (): void => {
     for (let index = connectionWaiters.length - 1; index >= 0; index--) {

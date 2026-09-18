@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
+import { existsSync, mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { RunnerError } from "./in-process/runner-error"
@@ -25,6 +27,25 @@ function ofType(commands: readonly FakeHostCommand[], type: string): readonly Fa
 }
 
 describe("RpcHostRunner start", () => {
+  test("#given a daemon that lstats the session directory #when a fresh child starts under a state dir nobody created yet #then the runner creates the directory and the session opens", async () => {
+    // given - the real host refuses open_session with ENOENT when the JSONL's directory is absent;
+    // the client owns that directory, so a fresh child's runner has to create it first.
+    const stateDir = mkdtempSync(join(tmpdir(), "dh-30-fresh-"))
+    rmSync(stateDir, { recursive: true, force: true })
+    const host = await fakeHost({ enforceSessionDir: true })
+    const runner = runnerOver(host)
+
+    // when
+    const handle = await runner.start(childSpec({ state_dir: stateDir }))
+
+    // then
+    const [session] = host.sessions()
+    expect(session?.sessionPath).toStartWith(join(stateDir, "sessions", "st_30"))
+    expect(existsSync(join(stateDir, "sessions", "st_30"))).toBe(true)
+    await handle.terminate()
+    rmSync(stateDir, { recursive: true, force: true })
+  })
+
   test("#given a reachable daemon #when a fresh child starts #then it opens a retained worker session and delivers the first prompt", async () => {
     // given
     const host = await fakeHost()
