@@ -1,3 +1,10 @@
+## daemon-launch-spec.json ships in every payload
+
+The task daemon's launch spec was generated at build time but reached only the source tree: the
+native payload copies root-level files from an allowlist, the npm plugin publishes from `files`, and
+neither listed it, so every installed `omo daemon run` exited 5 with "launch spec missing". It is on
+both lists now and on `REQUIRED_PLUGIN_ARTIFACTS`, so a payload without it fails the build.
+
 ## 2026-09-17 — Process children go to the shared daemon, and the plugin gates itself per session
 
 `DEFAULT_RUNNER_FACTORIES.process` now builds an `RpcHostRunner` (children as sessions of the
