@@ -1,4 +1,4 @@
-import { connect } from "node:net"
+import { connectFakeHost } from "./fake-host-transport"
 
 import type { SenpiHostProtocolInfo } from "../../../lazy/senpi-barrel"
 
@@ -72,7 +72,7 @@ export async function probeFakeHost(socketPath: string): Promise<SenpiHostProtoc
 /** One short-lived connection, one command, one answer: the fixture's out-of-band request shape. */
 function askFakeHost(socketPath: string, request: string): Promise<Readonly<Record<string, unknown>> | undefined> {
   return new Promise<Readonly<Record<string, unknown>> | undefined>((resolve) => {
-    const socket = connect(socketPath)
+    const socket = connectFakeHost(socketPath)
     let buffer = ""
     const finish = (data: Readonly<Record<string, unknown>> | undefined): void => {
       socket.destroy()
