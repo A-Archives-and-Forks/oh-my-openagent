@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 import { OmoTaskSettingsSchema, type OmoTaskSettings } from "@oh-my-opencode/omo-config-core"
@@ -76,7 +77,7 @@ export function hostSuiteSettings(overrides: Record<string, unknown> = {}): OmoT
 
 export async function startHostWorld(options: FakeHostOptions = {}): Promise<HostWorld> {
   const host = await startFakeHost(options)
-  const projectDir = mkdtempSync("/tmp/dh-world-")
+  const projectDir = mkdtempSync(join(tmpdir(), "dh-world-"))
   const parents: ParentSession[] = []
   return {
     host,
