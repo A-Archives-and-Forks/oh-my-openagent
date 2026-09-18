@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-beta.75] - 2026-09-18
+
 ### Engine: senpi 2026.9.18-4
 
 **Kimi K2.8 Preview gets the Kimi prompt.** Moonshot rolled K2.8 out across Kimi Code on 2026-09-11 and upgraded the `kimi-for-coding` model id in place, so every Kimi Code session has been served by K2.8 while omo matched no Kimi rule for it. Both lanes now route it to the Kimi K2.7 prompt: the engine gains a `kimi-k2-8` preset that renders the K2.7 prompt verbatim apart from the model name it announces, and the opencode side sends K2.8 to the same prompt across Sisyphus, Sisyphus Junior, Atlas and Metis, where an unmatched Kimi id used to fall through to the K2.6 one. K2.8 is an efficiency and context upgrade inside the same K2 coding family, and the prompting contract is unchanged, so it shares the prompt instead of getting a copy that would drift. Moonshot's model table still lists `kimi-for-coding-highspeed` as K2.7 Code HighSpeed, so that id resolves to the K2.7 prompt too. The version-tagged shapes land there as well: `moonshotai/kimi-k2.8`, the `k2p8` shorthands, and a catalog row whose display name says `Kimi K2.8 Preview`. You can still force any of it with `promptPreset`, which now accepts `"kimi-k2-8"`. ([#8466](https://github.com/code-yeongyu/oh-my-openagent/issues/8466), senpi [#1826](https://github.com/code-yeongyu/senpi/issues/1826))
