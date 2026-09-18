@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-**Kimi K2.8 Preview gets the Kimi K2.7 prompt instead of the K2.6 one.** Moonshot upgraded Kimi Code's `kimi-for-coding` model id to K2.8 Preview in place on 2026-09-11 - same id, no client change - and the opencode lane picks prompts by model family, so a K2.8 session matched no K2.7 rule and fell through to the generic K2.6 Kimi prompt. K2.8 is an efficiency and context upgrade inside the same K2 coding family rather than a new prompting contract, so it now shares the K2.7 prompt on every surface that routes by family: Sisyphus, Sisyphus Junior, Atlas, and Metis. `kimi-for-coding-highspeed` is still K2.7 Code HighSpeed per the published model table and resolves the same way, where before it also landed on the K2.6 prompt. ([#8466](https://github.com/code-yeongyu/oh-my-openagent/issues/8466))
+### Engine: senpi 2026.9.18-4
+
+**Kimi K2.8 Preview gets the Kimi prompt.** Moonshot rolled K2.8 out across Kimi Code on 2026-09-11 and upgraded the `kimi-for-coding` model id in place, so every Kimi Code session has been served by K2.8 while omo matched no Kimi rule for it. Both lanes now route it to the Kimi K2.7 prompt: the engine gains a `kimi-k2-8` preset that renders the K2.7 prompt verbatim apart from the model name it announces, and the opencode side sends K2.8 to the same prompt across Sisyphus, Sisyphus Junior, Atlas and Metis, where an unmatched Kimi id used to fall through to the K2.6 one. K2.8 is an efficiency and context upgrade inside the same K2 coding family, and the prompting contract is unchanged, so it shares the prompt instead of getting a copy that would drift. Moonshot's model table still lists `kimi-for-coding-highspeed` as K2.7 Code HighSpeed, so that id resolves to the K2.7 prompt too. The version-tagged shapes land there as well: `moonshotai/kimi-k2.8`, the `k2p8` shorthands, and a catalog row whose display name says `Kimi K2.8 Preview`. You can still force any of it with `promptPreset`, which now accepts `"kimi-k2-8"`. ([#8466](https://github.com/code-yeongyu/oh-my-openagent/issues/8466), senpi [#1826](https://github.com/code-yeongyu/senpi/issues/1826))
+
+**A busy daemon keeps its sessions.** An ensure used to end a host that missed the protocol probe budget, which on a loaded machine meant killing a daemon that was answering fine and taking every live session with it. A host whose socket still accepts connections is now refused as `host_busy` instead of replaced.
+
+**Releases stop losing a hand-shipped provider.** When models.dev stops describing a provider the fork ships itself, a catalog regeneration used to drop it out of the built-in catalog entirely. `kimi-coding` is now owned by the fork the way `devin` already was, so it survives a regeneration that upstream no longer covers.
 
 ## [5.0.0-beta.74] - 2026-09-18
 
