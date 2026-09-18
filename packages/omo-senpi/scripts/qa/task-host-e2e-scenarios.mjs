@@ -7,12 +7,23 @@ import { createScenarioSandbox, writeMockScript, writeOmoConfig } from "./task-h
 import {
   cleanupScenario,
   daemonStatus,
+  observeDaemon,
   perChildRpcProcesses,
   readTaskRecords,
   runBin,
   spawnParent,
   waitFor,
 } from "./task-host-e2e-process.mjs"
+
+/** The engine's own words about who serves the socket: what a parent printed about host/ensure/handoff. */
+function hostLines(text) {
+  const seen = new Set()
+  for (const line of text.split("\n")) {
+    const trimmed = line.trim()
+    if (trimmed.length > 0 && /host|ensure|handoff|daemon|generation|socket/i.test(trimmed)) seen.add(trimmed.slice(0, 220))
+  }
+  return [...seen].slice(0, 12)
+}
 import {
   CHILD_BUSY,
   CHILD_DONE,
@@ -30,13 +41,17 @@ import {
 
 export async function scenarioA(run) {
   const sandbox = createScenarioSandbox(run, "sA", { omoConfig: hostConfig(), script: spawnScript(16, CHILD_BUSY) })
+  const startedAt = Date.now()
   const parents = [0, 1].map(() => spawnParent(sandbox, run.mockEntry, "fan out sixteen daemon children", { capture: true }))
-  const status = await waitFor(() => {
-    const probe = daemonStatus(sandbox, { includeWorkers: true })
-    if (probe.json?.sessions?.worker >= 32) return probe
-    return childrenSettled(readTaskRecords(sandbox), 32) ? probe : undefined
+  const parentExits = []
+  parents.forEach((parent, index) => {
+    void parent.closed.then((closed) => parentExits.push({ parent: index, status: closed.status, signal: closed.signal, ms: Date.now() - startedAt }))
+  })
+  const watched = await observeDaemon(sandbox, (probe) => {
+    if (probe.json?.sessions?.worker >= 32) return true
+    return childrenSettled(readTaskRecords(sandbox), 32)
   }, { timeoutMs: 180_000, intervalMs: 1_000 })
-  const observed = status ?? daemonStatus(sandbox, { includeWorkers: true })
+  const observed = watched.matched ?? watched.lastProbe ?? daemonStatus(sandbox, { includeWorkers: true })
   const records = readTaskRecords(sandbox)
   const perChild = perChildRpcProcesses(sandbox)
   const parentOutput = parents.map((parent) => parent.chunks.stdout + parent.chunks.stderr).join("\n")
@@ -49,6 +64,14 @@ export async function scenarioA(run) {
     instanceId: observed.json?.instanceId ?? null,
     perChildRpcProcessCount: perChild.length,
     failureTokens: tokens,
+    // Two parents ensure the SAME daemon concurrently and then exit while their children keep running,
+    // so the question "was this one host for the whole scenario?" has to be answered from a timeline,
+    // not from a single status call. Every identity change is an entry; the parents' exits are stamped
+    // on the same clock, and their stderr host lines say which side started, reused or handed off.
+    daemonIdentityTimeline: watched.timeline,
+    daemonIdentitiesSeen: [...new Set(watched.timeline.map((entry) => entry.instanceId).filter(Boolean))].length,
+    parentExits,
+    parentStderrHostLines: parents.map((parent) => hostLines(parent.chunks.stderr)),
     childStart: childStartDiagnosis(sandbox, records),
     // The store collapses every start failure to one fixed sentence, so when no child could start the
     // daemon itself is asked with the exact `open_session` the host runner issues, and its verbatim
@@ -63,7 +86,9 @@ export async function scenarioA(run) {
         }
       : {}),
   }
-  const pass = facts.sessionsTotal >= 32 && facts.sessionsWorker >= 32 && tokens.length === 0 && perChild.length === 0
+  const pass =
+    facts.sessionsTotal >= 32 && facts.sessionsWorker >= 32 && tokens.length === 0 && perChild.length === 0 &&
+    facts.daemonIdentitiesSeen === 1
   for (const parent of parents) {
     try {
       process.kill(-parent.child.pid, "SIGKILL")
@@ -76,7 +101,53 @@ export async function scenarioA(run) {
     scenario: "A",
     title: "one daemon, two parents x 16 process children",
     status: pass ? "pass" : "fail",
-    ...(pass ? {} : { reason: `sessions.total=${facts.sessionsTotal} sessions.worker=${facts.sessionsWorker} perChildRpc=${perChild.length} tokens=${tokens.join(",")}` }),
+    ...(pass ? {} : { reason: `sessions.total=${facts.sessionsTotal} sessions.worker=${facts.sessionsWorker} perChildRpc=${perChild.length} tokens=${tokens.join(",")} daemonIdentities=${facts.daemonIdentitiesSeen}` }),
+    facts,
+    receipt,
+  }
+}
+
+/**
+ * The control for A. A is the only scenario where TWO clients ensure the same daemon at once, so when A
+ * reports the host being replaced under its children there are two candidate causes: concurrent ensures
+ * racing each other, or a fan-out the daemon does not survive on its own. A1 is A with ONE parent: a
+ * stable identity here blames the race, an unstable one exonerates it.
+ */
+export async function scenarioA1(run) {
+  const sandbox = createScenarioSandbox(run, "sA1", { omoConfig: hostConfig(), script: spawnScript(16, CHILD_BUSY, "s") })
+  const startedAt = Date.now()
+  const parent = spawnParent(sandbox, run.mockEntry, "fan out sixteen daemon children from one parent", { capture: true })
+  const parentExits = []
+  void parent.closed.then((closed) => parentExits.push({ parent: 0, status: closed.status, signal: closed.signal, ms: Date.now() - startedAt }))
+  const watched = await observeDaemon(sandbox, (probe) => {
+    if (probe.json?.sessions?.worker >= 16) return true
+    return childrenSettled(readTaskRecords(sandbox), 16)
+  }, { timeoutMs: 180_000, intervalMs: 1_000 })
+  const observed = watched.matched ?? watched.lastProbe ?? daemonStatus(sandbox, { includeWorkers: true })
+  const records = readTaskRecords(sandbox)
+  const identities = [...new Set(watched.timeline.map((entry) => entry.instanceId).filter(Boolean))]
+  const facts = {
+    sessionsTotal: observed.json?.sessions?.total ?? null,
+    sessionsWorker: observed.json?.sessions?.worker ?? null,
+    daemonIdentityTimeline: watched.timeline,
+    daemonIdentitiesSeen: identities.length,
+    parentExits,
+    parentStderrHostLines: hostLines(parent.chunks.stderr),
+    perChildRpcProcessCount: perChildRpcProcesses(sandbox).length,
+    childStart: childStartDiagnosis(sandbox, records),
+  }
+  const pass = facts.sessionsWorker >= 16 && identities.length === 1 && facts.perChildRpcProcessCount === 0
+  try {
+    process.kill(-parent.child.pid, "SIGKILL")
+  } catch {
+    // already gone
+  }
+  const receipt = await cleanupScenario(sandbox, { hostPids: [observed.json?.pid].filter(Boolean) })
+  return {
+    scenario: "A1",
+    title: "single-parent control: 16 children, one daemon identity",
+    status: pass ? "pass" : "fail",
+    ...(pass ? {} : { reason: `sessions.worker=${facts.sessionsWorker} daemonIdentities=${identities.length} perChildRpc=${facts.perChildRpcProcessCount}` }),
     facts,
     receipt,
   }

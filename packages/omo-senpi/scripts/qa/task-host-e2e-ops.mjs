@@ -4,10 +4,10 @@ import { spawn, spawnSync } from "node:child_process"
 import { join } from "node:path"
 
 import { createScenarioSandbox, sandboxEnv } from "./task-host-e2e-sandbox.mjs"
+import { generationHostPid, zombieChildCount } from "./task-host-e2e-daemon-state.mjs"
 import {
   cleanupScenario,
   daemonStatus,
-  generationHostPid,
   lastJsonLine,
   perChildRpcProcesses,
   pidAlive,
@@ -16,7 +16,6 @@ import {
   socketInode,
   spawnParent,
   waitFor,
-  zombieChildCount,
 } from "./task-host-e2e-process.mjs"
 import {
   CHILD_DONE,

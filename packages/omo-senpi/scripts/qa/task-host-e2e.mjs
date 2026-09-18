@@ -23,7 +23,7 @@ import {
 } from "./task-host-e2e-sandbox.mjs"
 import { globalModeRpcCount, parentArgv, sandboxProcesses } from "./task-host-e2e-process.mjs"
 import { probeChildSessionOpen, probeSessionContext } from "./task-host-e2e-engine-probe.mjs"
-import { scenarioA, scenarioB, scenarioI } from "./task-host-e2e-scenarios.mjs"
+import { scenarioA, scenarioA1, scenarioB, scenarioI } from "./task-host-e2e-scenarios.mjs"
 import { scenarioC, scenarioC2 } from "./task-host-e2e-team.mjs"
 import { scenarioF, scenarioG, scenarioH } from "./task-host-e2e-ops.mjs"
 import { scenarioD, scenarioE4, scenarioH2, scenarioHandoffSuite } from "./task-host-e2e-gated.mjs"
@@ -35,6 +35,7 @@ const MOCK_ENTRY = join(scriptDir, "task-e2e-mock-provider.ts")
 const SUMMARY_NAMES = ["task-host-e2e.json", "task-41-senpi-task-daemon-host-runner-v2.json"]
 const SCENARIOS = [
   ["A", scenarioA],
+  ["A1", scenarioA1],
   ["B", scenarioB],
   ["C", scenarioC],
   ["C2", scenarioC2],

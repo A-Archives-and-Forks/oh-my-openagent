@@ -7,6 +7,7 @@ import { existsSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs
 import { join } from "node:path"
 
 import { REAL_AGENT_DIRS, sandboxEnv } from "./task-host-e2e-sandbox.mjs"
+import { daemonStderrTail, generationHostRecord } from "./task-host-e2e-daemon-state.mjs"
 
 export function runBin(sandbox, args, { timeoutMs = 120_000, env = {}, cwd = sandbox.cwd } = {}) {
   const result = spawnSync(sandbox.bin, args, { cwd, env: sandboxEnv(sandbox, env), encoding: "utf8", timeout: timeoutMs })
@@ -29,6 +30,39 @@ export function daemonStatus(sandbox, { includeWorkers = false } = {}) {
   const args = ["daemon", "status", "--json", ...(includeWorkers ? ["--include-workers"] : [])]
   const result = runBin(sandbox, args, { timeoutMs: 60_000 })
   return { exitCode: result.status, json: lastJsonLine(result.stdout), stderr: result.stderr }
+}
+
+/**
+ * Poll the daemon while waiting, recording every change of IDENTITY. A host that is replaced mid-run -
+ * a second ensure that starts its own, a generation handoff, a transient host whose starter exited -
+ * otherwise reads as one long-lived daemon that simply never got the sessions, which is the wrong
+ * diagnosis. The timeline keeps only transitions, so a quiet run costs one entry.
+ */
+export async function observeDaemon(sandbox, done, { timeoutMs = 180_000, intervalMs = 1_000 } = {}) {
+  const timeline = []
+  const startedAt = Date.now()
+  const deadline = startedAt + timeoutMs
+  let previous = ""
+  for (;;) {
+    const probe = daemonStatus(sandbox, { includeWorkers: true })
+    const key = `${probe.exitCode}:${probe.json?.pid ?? "none"}:${probe.json?.instanceId ?? "none"}`
+    if (key !== previous) {
+      previous = key
+      timeline.push({
+        ms: Date.now() - startedAt,
+        exitCode: probe.exitCode,
+        pid: probe.json?.pid ?? null,
+        instanceId: probe.json?.instanceId ?? null,
+        sessions: probe.json?.sessions ?? null,
+        // Who STARTED the generation on disk: a new instance under a new writer is another client
+        // starting its own host, not the same client restarting one.
+        generationRecord: generationHostRecord(sandbox.agentDir) ?? null,
+      })
+    }
+    if (done(probe)) return { matched: probe, timeline }
+    if (Date.now() >= deadline) return { matched: undefined, timeline, lastProbe: probe }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs))
+  }
 }
 
 export function parentArgv(sandbox, mockEntry, prompt) {
@@ -109,36 +143,6 @@ export function perChildRpcProcesses(sandbox) {
 
 export function globalModeRpcCount() {
   return psSnapshot().filter((entry) => entry.args.includes("--mode rpc")).length
-}
-
-/**
- * The pid of the generation that currently owns the socket, read from the v2 daemon state the way the
- * plan's zombie check does: layout.json -> <dir>/host.pid -> generations/<instance>/host.pid -> .pid.
- * A flat legacy pidfile is deliberately NOT read: a v2 client must never mistake one for its own.
- */
-export function generationHostPid(agentDir) {
-  try {
-    const root = join(agentDir, "rpc-host-daemon")
-    const layout = JSON.parse(readFileSync(join(root, "layout.json"), "utf8"))
-    const pointer = JSON.parse(readFileSync(join(root, layout.dir, "host.pid"), "utf8"))
-    const generation = JSON.parse(readFileSync(join(root, layout.dir, pointer.generation_dir, "host.pid"), "utf8"))
-    return typeof generation.pid === "number" ? generation.pid : undefined
-  } catch {
-    return undefined
-  }
-}
-
-/** Zombies parented by THIS host pid - darwin `ps -axo`, linux `ps -eo`, same awk selection. */
-export function zombieChildCount(hostPid) {
-  const flag = process.platform === "darwin" ? "-axo" : "-eo"
-  try {
-    return execFileSync("ps", [flag, "ppid=,stat="], { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 })
-      .split("\n")
-      .map((line) => line.trim().split(/\s+/))
-      .filter((parts) => Number(parts[0]) === hostPid && /^Z/.test(parts[1] ?? "")).length
-  } catch {
-    return undefined
-  }
 }
 
 export function childPids(pid) {
@@ -232,16 +236,4 @@ export async function cleanupScenario(sandbox, { hostPids = [] } = {}) {
     sandboxRemoved: !existsSync(sandbox.root),
     daemonStderrTail: hostLog,
   }
-}
-
-/** The host's own log, captured BEFORE the sandbox is removed - the transcript's only view inside it. */
-function daemonStderrTail(agentDir, limit = 25) {
-  const root = join(agentDir, "rpc-host-daemon")
-  if (!existsSync(root)) return []
-  return readdirSync(root)
-    .flatMap((entry) => {
-      const path = join(root, entry, "stderr.log")
-      return existsSync(path) ? readFileSync(path, "utf8").split("\n").filter((line) => line.trim().length > 0) : []
-    })
-    .slice(-limit)
 }
