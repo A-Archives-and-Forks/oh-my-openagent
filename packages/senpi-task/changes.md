@@ -1,3 +1,11 @@
+## The launch profile no longer depends on how the spec's path is spelled
+
+The compiled entry reaches `daemon-launch-spec.json` through the install prefix; the in-process
+runner reaches the same file through the bundle's real location. On macOS `/tmp` is a symlink, so
+the two spellings hashed to two profile ids, the parent's ensure judged the healthy daemon foreign
+and handed the socket over to itself - dropping every live child session. The spec directory is
+now canonicalized before extension paths are resolved into the profile.
+
 ## The daemon runner creates the child session directory before opening
 
 The first live run of daemon-hosted children failed every `open_session` with `ENOENT ... lstat

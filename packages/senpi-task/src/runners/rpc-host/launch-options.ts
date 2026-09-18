@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import { realpathSync } from "node:fs"
 import { dirname, resolve } from "node:path"
 
 import type { HostEnginePolicy } from "../../lazy/senpi-barrel"
@@ -66,8 +67,20 @@ export function daemonLaunchOptions(input: DaemonLaunchOptionsInput): DaemonLaun
  * resolved core (sorted absolute extension roots). The engine computes the same digest from its own
  * argv; a client whose digest differs attaches with a profile warning instead of handing off.
  */
+function canonicalDir(dir: string): string {
+  try {
+    return realpathSync(dir)
+  } catch {
+    return dir
+  }
+}
+
 export function daemonLaunchProfileId(spec: DaemonLaunchSpec, specPath: string): string {
-  const specDir = dirname(specPath)
+  // The compiled entry reaches the spec through the install prefix while the in-process runner
+  // sees the bundle's real location; on macOS /tmp is a symlink and on every platform an install
+  // can be. Two spellings of one file must yield one profile, or the second ensure hands the
+  // socket over to itself and drops every live session.
+  const specDir = canonicalDir(dirname(specPath))
   const core = {
     extensions: spec.core.extensions.map((path) => resolve(specDir, path)).sort(),
     multi_session: spec.core.multi_session,
