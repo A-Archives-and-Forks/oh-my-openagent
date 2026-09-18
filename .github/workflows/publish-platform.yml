@@ -641,7 +641,9 @@ jobs:
         run: |
           set -euo pipefail
           ENGINE_PIN="$(jq -r '.dependencies["@code-yeongyu/senpi"]' packages/omo-native/package.json)"
-          EXPECTED_VERSION_LINE="omo ${OMO_AI_VERSION} (engine: senpi ${ENGINE_PIN})"
+          # Prefix through the engine pin; the line continues with the engine build
+          # stamp (`; scheme epoch` or `; scheme nodef`), which varies per build.
+          EXPECTED_VERSION_LINE="omo ${OMO_AI_VERSION} (engine: senpi ${ENGINE_PIN}"
 
           isolate() {
             SMOKE_ROOT="$(mktemp -d)"
@@ -661,10 +663,13 @@ jobs:
             chmod +x .omo/release-binaries/omo-linux-arm64
             isolate
             actual="$(.omo/release-binaries/omo-linux-arm64 --version)"
-            if [ "$actual" != "$EXPECTED_VERSION_LINE" ]; then
-              echo "version mismatch for omo-linux-arm64: expected '${EXPECTED_VERSION_LINE}', got '${actual}'"
-              exit 1
-            fi
+            case "$actual" in
+              "${EXPECTED_VERSION_LINE}"*")") ;;
+              *)
+                echo "version mismatch for omo-linux-arm64: expected '${EXPECTED_VERSION_LINE}...)', got '${actual}'"
+                exit 1
+                ;;
+            esac
             test -f "${HOME}/.omo/binary-runtime/${OMO_AI_VERSION}/omo"
           fi
 
