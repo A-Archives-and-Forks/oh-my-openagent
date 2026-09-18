@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+**The memory reconcile pass no longer replays a settled reflection run on every launch.** A run directory whose durable completion record already existed could never be re-settled byte for byte, because the rebuilt record folds in launch-dependent values (the current failure streak, the clock when the ledger has no `finalizedAt`). The strict comparison threw before `final.json` landed, so every bind logged `memory bind-time reconcile failed: Reflection completion record mismatch for reflection-run-1` and tried again next time. Settlement now adopts the existing record and finishes the terminal artifacts, so the directory turns terminal after one pass. ([#8437](https://github.com/code-yeongyu/oh-my-openagent/issues/8437))
+
 ## [5.0.0-beta.71] - 2026-09-18
 
 ### Engine: senpi 2026.9.17-4
