@@ -5,6 +5,8 @@
  * and executable while every invocation dies with `bwrap: setting up uid map: Permission denied`,
  * so an existence check alone selects a sandbox that kills every child at spawn (issue #6873).
  */
+import { type ChildProcess, spawn } from "node:child_process"
+
 export type SandboxUsability =
   | { readonly usable: true }
   | { readonly usable: false; readonly reason: string }
@@ -60,28 +62,32 @@ export async function probeBwrapUsability(executable: string): Promise<SandboxUs
 }
 
 async function runBwrapSmoke(executable: string): Promise<BwrapSmokeResult> {
-  const controller = new AbortController()
-  const timeoutHandle = setTimeout(() => controller.abort(), SMOKE_TIMEOUT_MS)
-  try {
-    const child = Bun.spawn([executable, ...SMOKE_ARGS], {
-      signal: controller.signal,
-      stdio: ["ignore", "ignore", "pipe"],
-    })
-    const exitCode = await child.exited
-    const stderrBuffer = await new Response(child.stderr!).arrayBuffer()
-    const stderr = new TextDecoder().decode(stderrBuffer)
-    return { exitCode, timedOut: false, stderr }
-  } catch (error) {
-    if (error instanceof Error) {
-      if (error.name === "AbortError") {
-        return { exitCode: null, timedOut: true, stderr: "" }
-      }
-      return { exitCode: null, timedOut: false, errorMessage: error.message, stderr: "" }
+  // node's child_process rather than the Bun runtime API: the memory component runs inside the
+  // engine, and the default launcher starts that engine under node, where no `Bun` global exists.
+  return await new Promise<BwrapSmokeResult>((resolve) => {
+    let settled = false
+    const finish = (result: BwrapSmokeResult): void => {
+      if (settled) return
+      settled = true
+      clearTimeout(timeoutHandle)
+      resolve(result)
     }
-    return { exitCode: null, timedOut: false, errorMessage: String(error), stderr: "" }
-  } finally {
-    clearTimeout(timeoutHandle)
-  }
+    let child: ChildProcess
+    try {
+      child = spawn(executable, [...SMOKE_ARGS], { stdio: ["ignore", "ignore", "pipe"] })
+    } catch (error) {
+      finish({ exitCode: null, timedOut: false, errorMessage: error instanceof Error ? error.message : String(error), stderr: "" })
+      return
+    }
+    const stderrChunks: Buffer[] = []
+    child.stderr?.on("data", (chunk: Buffer) => stderrChunks.push(chunk))
+    const timeoutHandle = setTimeout(() => {
+      child.kill("SIGKILL")
+      finish({ exitCode: null, timedOut: true, stderr: "" })
+    }, SMOKE_TIMEOUT_MS)
+    child.once("error", (error) => finish({ exitCode: null, timedOut: false, errorMessage: error.message, stderr: "" }))
+    child.once("close", (code) => finish({ exitCode: code, timedOut: false, stderr: Buffer.concat(stderrChunks).toString("utf8") }))
+  })
 }
 
 function unusable(cause: string, stderr: string): SandboxUsability {
