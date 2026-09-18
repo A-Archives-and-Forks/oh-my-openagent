@@ -1,6 +1,6 @@
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
-import { join } from "node:path"
+import { join, sep } from "node:path"
 
 import { afterEach, describe, expect, test } from "bun:test"
 import type { ExtensionAPI } from "@code-yeongyu/senpi"
@@ -53,7 +53,7 @@ describe("resolveMemberExtensionConfig", () => {
     expect(parsed?.memberName).toBe("alice")
     expect(parsed?.taskId).toBe("st_00000001")
     expect(parsed?.members).toEqual(["alice"])
-    expect(parsed?.sessionDir).toBe(`${join(context["state_dir"] ?? "", "sessions", "st_00000001")}/`)
+    expect(parsed?.sessionDir).toBe(`${join(context["state_dir"] ?? "", "sessions", "st_00000001")}${sep}`)
   })
 
   test("#given a session with no role at all #when resolved #then nothing is reported and nothing throws", () => {
