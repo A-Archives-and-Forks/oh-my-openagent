@@ -1,3 +1,12 @@
+## omo daemon - the operator's view of the shared engine host
+
+`omo daemon run|attach|status|stop|handoff` (`bin/lib/daemon.js`) wraps the engine's `senpi host`.
+The wrapper owns three things and deliberately nothing else: the launch spec under the plugin root
+is the argv source, `omo.json` `task.host_engine_policy` / `task.host_idle_exit_ms` is where the
+policy comes from, and every outcome has a named exit code (2 usage, 3 not running, 4 win32,
+5 the engine refused) so a script never parses prose. `run` and `attach` are omo's words for the
+engine's `ensure`; `status` and `stop` do not need a launch spec and still work without one.
+
 ## 2026-09-17 — stamp the engine build epoch into compiled binaries
 
 `build-info.ts` derives `EngineBuildStamp { scheme, epoch, sha7, source }` from omob

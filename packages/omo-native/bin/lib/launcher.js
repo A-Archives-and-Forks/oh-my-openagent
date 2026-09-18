@@ -1,6 +1,8 @@
+import { spawnSync } from "node:child_process"
 import { existsSync } from "node:fs"
 import { delimiter, join } from "node:path"
 import { spawnNode } from "./child-process.js"
+import { runDaemonCommand } from "./daemon.js"
 import { runDoctor } from "./doctor.js"
 import { migrateLegacyBunGlobalManifest } from "./legacy-bun-global-migration.js"
 import { adoptLegacyFlatState, canonicalAgentDir } from "./agent-dir.js"
@@ -145,6 +147,21 @@ function setupSuggestionForLaunch() {
   return cached.suggestion === true
 }
 
+/**
+ * One call into the engine's host CLI. It prints a single JSON line and exits, so the output is
+ * captured rather than inherited - `omo daemon` has to read the engine's answer to turn it into
+ * an exit code, and `spawnSync` is honest about a call that is expected to be this short.
+ */
+function engineHostCall(engineArgs, options) {
+  const senpi = resolveSenpi()
+  const result = spawnSync(process.execPath, [senpi.cliPath, ...engineArgs], {
+    encoding: "utf8",
+    env: { ...senpiEnvironment(senpi.packageRoot), ...options.env },
+    windowsHide: true,
+  })
+  return { exitCode: result.status ?? 1, stdout: result.stdout ?? "", stderr: result.stderr ?? "" }
+}
+
 export async function runLauncher(args = process.argv.slice(2)) {
   migrateLegacyBunGlobalManifest()
   reportLegacyFlatAdoption()
@@ -154,6 +171,20 @@ export async function runLauncher(args = process.argv.slice(2)) {
   if (command === "ulw-loop") {
     console.error('omo ulw-loop is unavailable in this build: use the agent toolkit SDK from an eval js cell: const { agentToolkit } = await import(`${env("OMO_AGENT_TOOLKIT_SDK_ROOT")}/sdk.js`); print(await agentToolkit.status()) (Codex keeps the standalone CLI).')
     process.exitCode = 2
+    return
+  }
+  // The daemon is the engine's to run; omo only supplies the launch spec, the policy from
+  // omo.json, and an exit code the caller can branch on.
+  if (command === "daemon") {
+    process.exitCode = runDaemonCommand(args.slice(1), {
+      engine: { run: engineHostCall },
+      pluginRoot: join(packageRoot, "plugin"),
+      agentDir: canonicalAgentDir(),
+      env: process.env,
+      stdout: process.stdout,
+      stderr: process.stderr,
+      platform: process.platform,
+    })
     return
   }
   if (command === "doctor") {
