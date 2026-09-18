@@ -1,3 +1,23 @@
+## `task-host-e2e.mjs`: live QA for daemon-hosted task children
+
+`scripts/qa/task-host-e2e.mjs` drives a REAL compiled omo binary against a throwaway sandbox and asks
+whether a `process` child actually lives as a session of `omo daemon`. It follows `task-rpc-e2e.mjs`'s
+isolation model with two additions the compiled binary forces: all THREE agent-dir names are pointed at
+the sandbox (the binary reads `OMO_` first, so setting only `SENPI_` hands it the real agent dir), and
+`HOME` is a sandbox dir before the FIRST call, because the binary provisions its runtime under
+`$HOME/.omo/binary-runtime/<ver>/`. The daemon loads extensions only from its launch spec, and the spec
+refuses absolute paths, so the keyless mock provider is copied into the sandbox's provisioned plugin
+root and added there - the repo and every real install are untouched.
+
+Scenarios A (two parents x 16 children on one daemon), B (detach/attach), C/C2 (team members, parking),
+D (DAG child toolset), E/E2/E3/E4 (generation handoff), F (zombie budget), G (CLI exit codes + a tmux
+pty attach), H/H2 (a pre-wave-2 host, a fail-closed legacy client) and I (the default-mode rule) each
+write a JSON result, a transcript and a cleanup receipt. A scenario whose input this machine does not
+have - a second build of a newer epoch, a spec-less newer senpi, a pre-change engine CLI, a DAG-run
+driver - reports `skipped` with the exact command that would run it, never a pass. `--baseline` records
+what the current mainline omob does instead, and `--self-test` proves the harness itself without a
+binary.
+
 ## daemon-launch-spec.json ships in every payload
 
 The task daemon's launch spec was generated at build time but reached only the source tree: the
