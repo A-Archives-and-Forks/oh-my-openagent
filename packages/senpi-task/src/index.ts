@@ -185,6 +185,8 @@ export {
   tailStderr,
   terminateRpcChild,
 } from "./runners"
+export { resolveInheritedExtensionList, selectPackageExtensionPaths } from "./runners/rpc/parent-extensions"
+export type { InheritedExtensions } from "./runners/rpc/parent-extensions"
 export type {
   ChildEventListener,
   ChildExitFacts,

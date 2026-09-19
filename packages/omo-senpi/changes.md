@@ -1,3 +1,10 @@
+## Package-provided extensions reach process task children
+
+The process task runner now carries the parent's loaded package extension paths into a child when
+they are not already covered by argv extensions. It discovers configured package roots without
+changing the existing argv extension base, so package-provided providers remain available to the
+child while agent-directory and project extensions stay out of the child profile.
+
 ## `task-host-e2e.mjs`: live QA for daemon-hosted task children
 
 `scripts/qa/task-host-e2e.mjs` drives a REAL compiled omo binary against a throwaway sandbox and asks

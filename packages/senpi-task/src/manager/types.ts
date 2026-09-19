@@ -19,6 +19,7 @@ import type { ManagedChildHandle, ManagedChildListener } from "./child-handle"
 import type { ExecutionMode, ExecutionModeGate } from "./execution-mode"
 import type { TaskConcurrency } from "./concurrency"
 import type { RunnerFailure } from "../runners/in-process/child-handle"
+import type { InheritedExtensions } from "../runners/rpc/parent-extensions"
 import type { WorkpoolEngine } from "../workpool/engine"
 
 export type { ExecutionMode, ExecutionModeGate } from "./execution-mode"
@@ -248,6 +249,10 @@ export type TaskManagerOptions = {
   // Resolves launch inputs from the current runtime. Persisted task records never supply executable
   // extensions or environment during a respawn.
   readonly trustedRespawnLaunch?: TrustedRespawnLaunchResolver
+  // What a child of this session inherits when the caller names no explicit list. The composition
+  // root passes a resolver that includes settings-installed package providers (#8492); absent, the
+  // parent's argv entries are used, which is what a wiring without a package manager can know.
+  readonly resolveInheritedExtensions?: InheritedExtensions
   // Pid recorded as host_pid on every claimed record so sibling processes sharing the project store
   // can tell a live owner from a dead one. Defaults to process.pid; injectable for tests.
   readonly hostPid?: number
