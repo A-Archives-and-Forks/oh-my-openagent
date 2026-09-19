@@ -20,6 +20,25 @@ export function parseExtensionEntries(argv: readonly string[]): readonly string[
   return entries
 }
 
+/**
+ * What a child of this session should inherit, as either the resolved list or a resolver for it.
+ *
+ * Composition roots that can discover settings-installed packages (`omo-senpi`) pass a resolver, so
+ * a team member, a workpool worker and a revived child all reproduce the SAME provider set an
+ * ordinary spawn gets. Left absent, this degrades to the parent's argv entries, which is the correct
+ * answer for a wiring with no package manager - and the exact behaviour that predates #8492.
+ */
+export type InheritedExtensions =
+  | readonly string[]
+  | (() => readonly string[] | Promise<readonly string[]>)
+
+export async function resolveInheritedExtensionList(
+  inherited: InheritedExtensions | undefined,
+): Promise<readonly string[]> {
+  if (inherited === undefined) return parseExtensionEntries(process.argv)
+  return typeof inherited === "function" ? inherited() : inherited
+}
+
 export function selectPackageExtensionPaths(
   argvEntries: readonly string[],
   loadedExtensionPaths: readonly string[],

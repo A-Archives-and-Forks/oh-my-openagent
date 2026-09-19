@@ -649,6 +649,9 @@ class TaskManagerImpl implements TaskManager {
       ...(this.#options.trustedRespawnLaunch === undefined
         ? {}
         : { trustedLaunch: this.#options.trustedRespawnLaunch }),
+      ...(this.#options.resolveInheritedExtensions === undefined
+        ? {}
+        : { inheritedExtensions: this.#options.resolveInheritedExtensions }),
     }, this.workpools, () => this.get(record.task_id)?.notification.run_epoch ?? -1)
   }
 

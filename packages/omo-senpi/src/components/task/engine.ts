@@ -37,6 +37,8 @@ import { createEngineKernelTools } from "./engine-kernel-tools"
 import { createEngineLiveness } from "./engine-liveness"
 import {
   DEFAULT_RUNNER_FACTORIES,
+  buildRespawnRunner,
+  createInheritedExtensionsResolver,
   resolveTaskAgents,
   type RunnerBuildContext,
   type TaskRunnerFactories,
@@ -50,6 +52,8 @@ import { sharedTaskTerminalObservers, type TaskTerminalObservers } from "./termi
 
 export interface TaskEngine {
   readonly manager: TaskManager
+  // The session's package-aware inherited extension list, shared with every child-launch producer.
+  readonly resolveInheritedExtensions: () => Promise<readonly string[]>
   readonly lifecycle: TaskLifecycle
   readonly notifier: CompletionNotifier
   readonly runtime: TaskRuntimeContext
@@ -194,7 +198,11 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
 
   const factories = deps.runnerFactories ?? DEFAULT_RUNNER_FACTORIES
   const host = deps.host ?? createEngineHostRuntime(settings)
-  const runnerContext: RunnerBuildContext = { runtime, sharedParentTools: deps.sharedParentTools, settings, kernelToolBindings, agentDir: host.agentDir, onHostWarning: host.notices.add }
+  const baseRunnerContext: RunnerBuildContext = { runtime, sharedParentTools: deps.sharedParentTools, settings, kernelToolBindings, agentDir: host.agentDir, onHostWarning: host.notices.add }
+  // One resolver for the whole session, so an ordinary spawn, a revival, a team member and a
+  // workpool worker all inherit the SAME package-aware extension list (#8492).
+  const resolveInheritedExtensions = createInheritedExtensionsResolver(baseRunnerContext)
+  const runnerContext: RunnerBuildContext = { ...baseRunnerContext, resolveInheritedExtensions }
   const resolveRegistry: ResolveModelRegistry = () => runtime.modelRegistry()
   const basePlanner = createGenerationObservingPlanner({
     planner: createTaskChildPlanner(deps.omoConfig, agents, resolveRegistry, () => runtime.parentServiceTier()),
@@ -216,6 +224,8 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
     resolveChildToolNames: kernelTools.childToolNames,
     planner,
     config: settings,
+    resolveInheritedExtensions,
+    rpcRespawnRunner: buildRespawnRunner(runnerContext),
     executionModeGate: host.executionModeGate,
     cwd: deps.cwd,
     destruction: {
@@ -228,7 +238,7 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
       taskSettings: settings,
       memberExtension: {
         entryPath: resolveMemberExtensionEntryPath(),
-        inheritedExtensions: parseExtensionEntries(process.argv),
+        inheritedExtensions: resolveInheritedExtensions,
       },
     }),
   })
@@ -236,6 +246,7 @@ export function composeTaskEngine(deps: ComposeTaskEngineDeps): TaskEngine {
 
   return {
     manager,
+    resolveInheritedExtensions,
     lifecycle,
     notifier,
     runtime,

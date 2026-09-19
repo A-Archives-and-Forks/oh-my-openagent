@@ -11,7 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Task children can use providers installed through configured packages.** Process-mode children
 now inherit the package extensions actually loaded by the parent, so providers such as glm-zcode
-and commandcode are available when a task resolves its model. ([#8492](https://github.com/code-yeongyu/oh-my-openagent/issues/8492))
+and commandcode are available when a task resolves its model. Every child-launch path resolves the
+same list, so a revived child keeps the provider it started with, and team members and pool workers
+get it too instead of only a first spawn. ([#8492](https://github.com/code-yeongyu/oh-my-openagent/issues/8492))
 
 ## [5.0.0-beta.78] - 2026-09-19
 
