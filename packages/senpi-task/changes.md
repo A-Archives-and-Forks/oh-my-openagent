@@ -6,6 +6,30 @@ are filtered to installed package roots, exclude synthetic and already-covered p
 load order, so children can resolve providers shipped by packages without forwarding unrelated
 agent or project extensions.
 
+## A refused model names its cause, and the category chain is walked
+
+Two halves of #8492 that forwarding package extensions does not reach.
+
+`publicStartFailureMessage` collapses every runner failure to one sentence on purpose: `RunnerFailure.message`
+is stderr-derived child output and `store/redaction.ts` redacts by key name only, so free text carrying a
+credential would be persisted verbatim. `model_unavailable` fell through that collapse to the generic
+sentence, which is why an admission refusal reached the caller as `Task runner failed to start.` The cause
+now rides an optional `RunnerFailureReason` - a closed union the parent authors, never the child - and the
+manager maps it through a fixed table. `knownFailureReason` makes that lookup total, so an off-enum value
+degrades to the classification sentence instead of being echoed; the same guarded value is recorded as
+`failure_reason` beside `failure_kind`. `createRpcModelAdmission` tags its three refusals accordingly.
+
+`#launch` now loops. On `model_unavailable` it advances to the next `fallback_models` entry and retries;
+every other kind fails immediately, because a depth refusal or a failed session create would reproduce on
+every remaining entry. Nothing has executed yet at that point - the child does not exist - so advancing
+repeats no work, unlike the post-outcome runtime fallback that must guard on `tool_calls === 0`.
+
+The epoch advances on every hop, and that is load-bearing. `#releaseSlot` is guarded per (task, epoch) and
+remembers the highest epoch it released, so retrying under the same epoch makes the eventual completion's
+release a silent no-op and leaks the lane's lease for the life of the process. Record bookkeeping mirrors
+the runtime fallback, and `#launch` reports the epoch and resolved model it ended on so `start()` cannot
+return the pre-fallback pair.
+
 ## The launch profile no longer depends on how the spec's path is spelled
 
 The compiled entry reaches `daemon-launch-spec.json` through the install prefix; the in-process
