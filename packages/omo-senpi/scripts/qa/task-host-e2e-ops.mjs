@@ -27,11 +27,19 @@ import {
   spawnScript,
 } from "./task-host-e2e-support.mjs"
 
-const BASH_STORM = [{
+// 25 DISTINCT steps per child: senpi's loop guard blocks a tool call repeated with
+// byte-identical arguments (two warnings, then refusal), so a single repeated step can
+// never drive a spawn storm - it stalls at ~6 calls per child. Each step carries its own
+// marker so every call is distinct, and 25 x 8 children covers the 200-spawn budget.
+const BASH_STORM = Array.from({ length: 25 }, (_, index) => ({
   type: "tool_call",
   name: "eval",
-  arguments: { language: "js", summary: "spawn one short-lived child process", code: 'await tool.bash({ command: "true" })' },
-}]
+  arguments: {
+    language: "js",
+    summary: `spawn one short-lived child process (${index})`,
+    code: `await tool.bash({ command: "true # storm-${index}" })`,
+  },
+}))
 
 export async function scenarioF(run) {
   // 200 `true` calls spread over 8 children: the last scripted step repeats, so each child keeps
@@ -54,7 +62,7 @@ export async function scenarioF(run) {
     records.reduce((total, record) =>
       total + childSessionFiles(sandbox, record.task_id)
         .reduce((lines, file) => lines + jsonlLines(file).filter((line) => line.includes('"bash"')).length, 0), 0)
-  const stormed = await waitFor(() => (bashCalls() >= 200 ? bashCalls() : undefined), { timeoutMs: 120_000, intervalMs: 1_000 })
+  const stormed = await waitFor(() => (bashCalls() >= 200 ? bashCalls() : undefined), { timeoutMs: 300_000, intervalMs: 1_000 })
   try {
     process.kill(-parent.child.pid, "SIGKILL")
   } catch {
