@@ -1,3 +1,7 @@
+## 2026-09-19 - Adopt senpi 2026.9.19: extensions with CommonJS dependencies load again (senpi#1838)
+
+The engine pin moves from 2026.9.18-6 to 2026.9.19 across the four manifests that declare it (root, `omo-native`, `omo-senpi` peer + dev, `senpi-task` peer + dev), the three pin assertions, the `provider-map.json` provenance comment and `bun.lock`. The only engine change between the two tags is senpi#1839: the extension loader used to wrap every CommonJS dependency in a prologue that declared `exports` as a constant, so a module written as `module.exports = exports = { ... }` (whatwg-url, jsdom's generated IDL utils) failed to parse and took the whole extension graph down; pi-webfetch was the reported casualty. The loader now evaluates CommonJS inside Node's module function wrapper, gives each file a `require.resolve` that returns the absolute path, hands a module inside a require cycle the partially built exports of the module still evaluating, evicts a module whose body throws, and keeps `.mjs`/`.mts` files on the ESM path. The Codex installer bundle is regenerated because its embedded version string was still beta.75.
+
 ## 2026-09-19 - build-omob discards publish-staging residue before every senpi install (#8477)
 
 A repeat `omob` build against a senpi commit that had already been built once failed inside senpi's bundler with `No matching export ... for import prepareReadFolder`, and the builds where every import still resolved were worse: they silently packed an engine carrying the previous build's agent core.
