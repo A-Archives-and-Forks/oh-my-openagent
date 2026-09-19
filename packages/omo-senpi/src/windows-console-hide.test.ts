@@ -20,11 +20,19 @@ interface ChildProcessCall {
   readonly text: string
 }
 
+// readdirSync hands back backslash-separated entries on win32, so every path this gate reports or
+// matches on is normalized to POSIX first; otherwise the coverage assertions below silently find
+// nothing on Windows while the gate itself still looks green.
+function toPosix(entry: string): string {
+  return entry.replaceAll("\\", "/")
+}
+
 function productionSources(): readonly string[] {
   return readdirSync(import.meta.dir, { recursive: true, encoding: "utf8" })
+    .map(toPosix)
     .filter((entry: string) => entry.endsWith(".ts"))
     .filter((entry: string) => !entry.endsWith(".test.ts") && !entry.endsWith(".test-support.ts"))
-    .filter((entry: string) => !entry.split(/[\\/]/).includes("__fixtures__"))
+    .filter((entry: string) => !entry.split("/").includes("__fixtures__"))
     .sort()
 }
 
@@ -115,6 +123,11 @@ describe("omo-senpi win32 console suppression", () => {
         ]) {
           expect(audited).toContain(required)
         }
+      })
+
+      test("#then win32 directory entries are matched under POSIX separators", () => {
+        expect(toPosix("components\\thread\\addressing.ts")).toBe("components/thread/addressing.ts")
+        expect(toPosix("install\\local-launcher.ts")).toBe("install/local-launcher.ts")
       })
 
       test("#then the exec family is audited, not just spawn", () => {

@@ -19,11 +19,19 @@ interface ChildProcessCall {
   readonly text: string
 }
 
+// readdirSync hands back backslash-separated entries on win32, so every path this audit reports or
+// matches on is normalized to POSIX first; otherwise the coverage assertions below silently find
+// nothing on Windows while the audit itself still looks green.
+function toPosix(entry: string): string {
+  return entry.replaceAll("\\", "/")
+}
+
 function productionSources(): readonly string[] {
   return readdirSync(import.meta.dir, { recursive: true, encoding: "utf8" })
+    .map(toPosix)
     .filter((entry) => entry.endsWith(".ts"))
     .filter((entry) => !entry.endsWith(".test.ts") && !entry.endsWith(".test-support.ts"))
-    .filter((entry) => !entry.split(/[\\/]/).includes("__fixtures__"))
+    .filter((entry) => !entry.split("/").includes("__fixtures__"))
     .sort()
 }
 
@@ -100,6 +108,11 @@ describe("memory-core win32 console suppression", () => {
         expect(
           audited.map((call) => call.file).filter((file) => file.includes("locks/process-identity")).length,
         ).toBeGreaterThan(0)
+      })
+
+      test("#then win32 directory entries are matched under POSIX separators", () => {
+        expect(toPosix("git\\exec.ts")).toBe("git/exec.ts")
+        expect(toPosix("locks\\process-identity.ts")).toBe("locks/process-identity.ts")
       })
 
       test("#then an execFile call without the flag is reported, not silently skipped", () => {
