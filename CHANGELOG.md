@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+**Writing memory no longer steals focus on Windows.** Every `memory` tool write auto-commits, and each git command behind it spawned `git.exe` with no `windowsHide`, so Windows built a fresh console window and brought it to the front. The lock protocol's start-time probe did the same with `powershell.exe`, and on a Node runtime it did it on every probe. That probe falls back from an in-process kernel32 reader reached through `bun:ffi`, which Node cannot import, so the visible fallback was the normal path there. Both spawns are hidden now, along with the formatter, the worktree-root lookups and the init-deep git probes that flashed the same way. The interactive launcher keeps its console on purpose and says so at the call site. ([#8501](https://github.com/code-yeongyu/oh-my-openagent/issues/8501))
+
 ## [5.0.0-beta.79] - 2026-09-19
 
 ### Fixed

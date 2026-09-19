@@ -1,3 +1,20 @@
+## Console-subsystem spawns are hidden on win32, and a gate keeps them that way
+
+`memory-core`'s git exec and its process-start identity probe, plus the adapter's formatter, thread
+worktree-root lookup, init-deep git plumbing and memory sandbox probe, now pass `windowsHide: true`.
+memory-core carried none at all, so every memory auto-commit spawned a visible `git.exe` console and
+every PowerShell start-time fallback spawned a visible `powershell.exe` console, both of which
+Windows foregrounds. On a Node runtime that PowerShell fallback is the steady-state path, because
+the kernel32 reader it falls back from is reached through `bun:ffi`.
+
+The audit meant to catch this matched `spawn(` and `spawnSync(` over three hand-listed files under
+`memory/worker`, so it could see neither the `exec*` family nor any file outside that list. Two
+gates replace it: `packages/memory-core/src/windows-console-hide.test.ts` and the root gate
+`packages/omo-senpi/src/windows-console-hide.test.ts`. Each resolves the child_process entry points
+a file actually imports, aliases included, and walks its whole source tree. A foreground process
+that must keep the user's console opts out with a `windowsHide-exempt:` comment at the call site,
+which is how `install/local-launcher.ts` stays exempt without reopening the hole.
+
 ## Package-provided extensions reach process task children
 
 The process task runner now carries the parent's loaded package extension paths into a child when
