@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+**A task that cannot serve its model now says so.** A `task({ category })` spawn whose model was missing from the child's own profile died with `Task runner failed to start.` and nothing else. The admission probe knew the real reason and said it plainly, but the manager mapped only four failure kinds to a message and `model_unavailable` was not one of them, so the useful half never reached the caller. The reason now travels as a closed set of parent-authored codes rather than as text, which is what makes it safe to show: the child's stderr stays out of every record and tool result, and the caller gets a sentence that names the cause. ([#8492](https://github.com/code-yeongyu/oh-my-openagent/issues/8492))
+
+**A category with four spare models stops giving up on the first one.** A category resolves to a chain, but only the leading entry was ever attempted. When admission refused it, the spawn failed outright and the remaining entries were never tried, even when the next one was a built-in provider that would have worked. In a graph run that also skip-cascaded every dependent node. A refusal that means "this child cannot serve this model" now walks to the next entry in the chain; every other kind of start failure still fails immediately, because it would repeat identically on the rest of the chain. ([#8492](https://github.com/code-yeongyu/oh-my-openagent/issues/8492))
+
 ## [5.0.0-beta.78] - 2026-09-19
 
 ### Engine: senpi 2026.9.19-2
