@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **omob:** a repeat dev build no longer packs the previous build's engine copies. The reusable senpi cache clone kept the publish staging that the last build wrote into its workspaces, and the bundler resolved the agent core from that stale copy instead of the commit being built; the staging is now discarded before every install ([#8477](https://github.com/code-yeongyu/oh-my-openagent/issues/8477))
+
 ## [5.0.0-beta.76] - 2026-09-19
 
 ### Engine: senpi 2026.9.18-6
