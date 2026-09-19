@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-beta.77] - 2026-09-19
+
 ### Engine: senpi 2026.9.19
 
 **Extensions that pull in jsdom or whatwg-url load again.** The engine's extension loader wrapped every CommonJS dependency in a prologue that declared `exports` as a constant, so a module written as `module.exports = exports = { ... }` (the published shape of `whatwg-url/lib/utils.js` and jsdom's generated IDL utils) failed to parse and took the whole extension graph down with `This assignment will throw because "exports" is a constant`. pi-webfetch was the reported casualty. CommonJS now evaluates inside Node's module function wrapper, the per-file `require` carries a `resolve` that returns the file's absolute path (jsdom locates its XHR sync worker that way), and a module inside a require cycle receives the partially built exports of the module still evaluating instead of `undefined`, so `@acemir/cssom`'s mutual requires resolve. A dependency whose body throws is evicted, so a later require re-throws instead of returning a half-built module, and `.mjs` / `.mts` files stay on the ESM path even without import or export statements.
