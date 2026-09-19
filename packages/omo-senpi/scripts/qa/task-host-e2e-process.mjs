@@ -33,6 +33,17 @@ export function daemonStatus(sandbox, { includeWorkers = false } = {}) {
 }
 
 /**
+ * Every observe budget below is sized for an IDLE machine. On a busy one the count is still
+ * climbing when the window closes, which reads as a product failure ("only 23 of 32 sessions")
+ * when the daemon was fine all along. `TASK_HOST_E2E_OBSERVE_MS` raises every budget at once so a
+ * loaded host can be measured without editing the scenarios.
+ */
+const OBSERVE_BUDGET_OVERRIDE_MS = (() => {
+  const raw = Number.parseInt(process.env.TASK_HOST_E2E_OBSERVE_MS ?? "", 10)
+  return Number.isFinite(raw) && raw > 0 ? raw : undefined
+})()
+
+/**
  * Poll the daemon while waiting, recording every change of IDENTITY. A host that is replaced mid-run -
  * a second ensure that starts its own, a generation handoff, a transient host whose starter exited -
  * otherwise reads as one long-lived daemon that simply never got the sessions, which is the wrong
@@ -41,7 +52,7 @@ export function daemonStatus(sandbox, { includeWorkers = false } = {}) {
 export async function observeDaemon(sandbox, done, { timeoutMs = 180_000, intervalMs = 1_000 } = {}) {
   const timeline = []
   const startedAt = Date.now()
-  const deadline = startedAt + timeoutMs
+  const deadline = startedAt + (OBSERVE_BUDGET_OVERRIDE_MS ?? timeoutMs)
   let previous = ""
   for (;;) {
     const probe = daemonStatus(sandbox, { includeWorkers: true })
