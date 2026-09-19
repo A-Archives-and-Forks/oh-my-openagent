@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Engine: senpi 2026.9.19-2
+
+**Goal-driven sessions compact before the wall.** A session running under a goal loop had every one of its turns started by the goal extension, and those turns skipped the compaction extension's proactive policy entirely: nothing compacted between the 80% threshold and the hard reserve valve at 96% of the window, the idle warm summary was never applied, and the turn that finally crossed the valve paid a from-scratch summarization while the screen sat on `Compacting...` for five to eight minutes. On a 1M-token model that looked like omo hanging. Hidden trigger turns now pass through `before_agent_start` the way a typed prompt does, so the proactive policy and the warm summary apply to them too (senpi#1329).
+
 ## [5.0.0-beta.77] - 2026-09-19
 
 ### Engine: senpi 2026.9.19
