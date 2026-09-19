@@ -1,3 +1,5 @@
+import { isAbsolute, relative, sep } from "node:path"
+
 /**
  * Parse the parent process's `-e` / `--extension` entries out of an argv so a detached rpc child can
  * be spawned with the SAME extensions the parent loaded. A separate OS process cannot inherit the
@@ -16,4 +18,20 @@ export function parseExtensionEntries(argv: readonly string[]): readonly string[
     }
   }
   return entries
+}
+
+export function selectPackageExtensionPaths(
+  argvEntries: readonly string[],
+  loadedExtensionPaths: readonly string[],
+  installedPackageRoots: readonly string[],
+): readonly string[] {
+  const isWithin = (path: string, root: string): boolean => {
+    const nested = relative(root, path)
+    return nested === "" || (!isAbsolute(nested) && nested !== ".." && !nested.startsWith(`..${sep}`))
+  }
+  return [...new Set(loadedExtensionPaths.filter((path) =>
+    !path.startsWith("<")
+    && installedPackageRoots.some((root) => isWithin(path, root))
+    && !argvEntries.some((entry) => isWithin(path, entry)),
+  ))]
 }

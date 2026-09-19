@@ -1,3 +1,11 @@
+## Package-provided extensions reach RPC children
+
+Process and host child runners can now select extension paths that the parent actually loaded from
+configured packages, while preserving the parent's argv extensions as the base list. Package paths
+are filtered to installed package roots, exclude synthetic and already-covered paths, and retain
+load order, so children can resolve providers shipped by packages without forwarding unrelated
+agent or project extensions.
+
 ## The launch profile no longer depends on how the spec's path is spelled
 
 The compiled entry reaches `daemon-launch-spec.json` through the install prefix; the in-process

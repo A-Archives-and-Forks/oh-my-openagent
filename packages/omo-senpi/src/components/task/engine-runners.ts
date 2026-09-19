@@ -13,11 +13,13 @@ import {
   createRpcManagedRunner,
   mapOmoConfigAgents,
   parseExtensionEntries,
+  selectPackageExtensionPaths,
   type AgentDefinition,
   type KernelToolBindingRegistry,
   type ManagedRunner,
 } from "@oh-my-opencode/senpi-task"
 
+import { loadSenpiBarrel } from "../../../../senpi-task/src/lazy/senpi-barrel"
 import { resolveAgentHome } from "../agent-home/resolve-agent-home"
 import { MEMORY_TOOL_NAME } from "../memory/tools"
 import type { TaskRuntimeContext } from "./runtime-context"
@@ -42,6 +44,7 @@ export interface RunnerBuildContext {
   readonly platform?: NodeJS.Platform
   readonly agentDir?: string
   readonly env?: Readonly<Record<string, string | undefined>>
+  readonly listInstalledPackageRoots?: () => readonly string[]
   // Where a daemon fallback reason goes. Defaults to the module logger; the engine passes the
   // session's deduped notice list so the same reason reaches `task_output` exactly once.
   readonly onHostWarning?: (message: string) => void
@@ -87,7 +90,38 @@ function buildInProcessRunner(build: RunnerBuildContext): ManagedRunner {
 }
 
 function buildProcessRunner(build: RunnerBuildContext): ManagedRunner {
-  return createRpcManagedRunner(buildProcessChildRunner(build))
+  const runner = buildProcessChildRunner(build)
+  const argvEntries = parseExtensionEntries(process.argv)
+  return createRpcManagedRunner({
+    async start(spec) {
+      if (spec.extensions !== undefined) return runner.start(spec)
+      const loadedExtensionPaths = build.runtime.loadedExtensionPaths()
+      let installedPackageRoots: readonly string[] = []
+      if (loadedExtensionPaths.length > 0) {
+        try {
+          if (build.listInstalledPackageRoots !== undefined) {
+            installedPackageRoots = build.listInstalledPackageRoots()
+          } else {
+            const { DefaultPackageManager, SettingsManager } = await loadSenpiBarrel()
+            const cwd = build.runtime.cwd()
+            const agentDir = build.agentDir ?? resolveAgentHome({ env: build.env ?? process.env })
+            installedPackageRoots = new DefaultPackageManager({
+              cwd,
+              agentDir,
+              settingsManager: SettingsManager.create(cwd, agentDir),
+            }).listConfiguredPackages().flatMap(({ installedPath }) => installedPath === undefined ? [] : [installedPath])
+          }
+        } catch {
+          // Package discovery is best-effort; keep argv extensions usable on older or unavailable hosts.
+          installedPackageRoots = []
+        }
+      }
+      return runner.start({
+        ...spec,
+        extensions: [...argvEntries, ...selectPackageExtensionPaths(argvEntries, loadedExtensionPaths, installedPackageRoots)],
+      })
+    },
+  })
 }
 
 /**
