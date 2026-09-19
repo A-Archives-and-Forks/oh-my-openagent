@@ -50,7 +50,11 @@ export async function scenarioA(run) {
   const watched = await observeDaemon(sandbox, (probe) => {
     if (probe.json?.sessions?.worker >= 32) return true
     return childrenSettled(readTaskRecords(sandbox), 32)
-  }, { timeoutMs: 180_000, intervalMs: 1_000 })
+  // Measured: the parents finish in ~25 s, but on a machine with other work in flight the 32nd
+  // child can still be opening well past 180 s, so the old budget closed the window mid-count and
+  // reported a green daemon as FAIL. 420 s covers the loaded case; the poll returns as soon as the
+  // 32nd session lands, so an idle run is no slower.
+  }, { timeoutMs: 420_000, intervalMs: 1_000 })
   const observed = watched.matched ?? watched.lastProbe ?? daemonStatus(sandbox, { includeWorkers: true })
   const records = readTaskRecords(sandbox)
   const perChild = perChildRpcProcesses(sandbox)

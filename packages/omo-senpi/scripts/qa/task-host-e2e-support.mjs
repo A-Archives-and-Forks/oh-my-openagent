@@ -50,8 +50,10 @@ export const CHILD_BUSY = [
 		// NOT mock-script.json: it carries the prompts, so every tool result would echo the child's
 		// own prompt and B would read its own fixture as a prompt replay.
 		arguments: { path: ".omo/omo.json" },
-		// Long enough that a child is still mid-turn when B kills the parent, short enough that all
-		// 32 of A's children open before the driver's 180 s parent budget expires.
+		// Long enough that a child is still mid-turn when B kills the parent. It does NOT guarantee
+		// that all 32 of A's children open inside any particular observe budget: on a loaded machine
+		// they keep opening for minutes, which is why A observes with its own larger budget and
+		// `TASK_HOST_E2E_OBSERVE_MS` exists.
 		delayMs: 1_000,
 	})),
 	{ type: "text", text: "host child mock work complete" },
