@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-beta.76] - 2026-09-19
+
 ### Engine: senpi 2026.9.18-6
 
 **A published install can start its daemon again.** Every release from 2026.9.18-4 onward shipped a bundle that could not start a shared host at all: the bundler emitted no `host-lifecycle` entry, so the deferred import resolved to a chunk nobody wrote, and once that was fixed the launcher spawned the emitted chunk itself - a module, not a program - which returned without ever listening. `host ensure` answered `exited with code 0 before answering get_protocol_info`, and the daemon's stderr log was empty because it is truncated on every generation start, so nothing was left to read. Bundled builds now re-enter the CLI through the same internal route compiled binaries use, and the CLI entry comes from the package's declared `bin` rather than from counting `..`, which lands on the package root once the module is bundled.
