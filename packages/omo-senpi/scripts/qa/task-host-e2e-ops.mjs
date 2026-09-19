@@ -27,7 +27,11 @@ import {
   spawnScript,
 } from "./task-host-e2e-support.mjs"
 
-const BASH_STORM = [{ type: "tool_call", name: "bash", arguments: { command: "true" } }]
+const BASH_STORM = [{
+  type: "tool_call",
+  name: "eval",
+  arguments: { language: "js", summary: "spawn one short-lived child process", code: 'await tool.bash({ command: "true" })' },
+}]
 
 export async function scenarioF(run) {
   // 200 `true` calls spread over 8 children: the last scripted step repeats, so each child keeps

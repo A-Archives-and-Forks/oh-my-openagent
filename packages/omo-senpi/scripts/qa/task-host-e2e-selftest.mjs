@@ -6,7 +6,7 @@ import { join } from "node:path"
 
 import { AGENT_DIR_ENV_NAMES, DELETED_CHILD_ENV, credentialDigest, sandboxEnv } from "./task-host-e2e-sandbox.mjs"
 import { lastJsonLine, perChildRpcProcesses, sandboxProcesses } from "./task-host-e2e-process.mjs"
-import { CHILD_BUSY, childStartDiagnosis, failureTokens, hostConfig, jsonlLines, spawnScript } from "./task-host-e2e-support.mjs"
+import { CHILD_BUSY, childSessionFiles, childStartDiagnosis, failureTokens, hostConfig, jsonlLines, spawnScript } from "./task-host-e2e-support.mjs"
 import { scenarioD, scenarioE4, scenarioH2, scenarioHandoffSuite } from "./task-host-e2e-gated.mjs"
 
 function assert(condition, message) {
@@ -73,7 +73,16 @@ function checkFixtures() {
   const script = spawnScript(16, CHILD_BUSY)
   assert(script.parentSteps.filter((step) => step.name === "task").length === 16, "a 16-child parent script must issue 16 task calls")
   assert(script.parentSteps.at(-1).type === "text", "a parent script must end with a text step so the turn closes")
-  assert(script.childSteps[0].name === "bash", "a mid-turn child keeps working through a repeating tool step")
+  // The busy step must call a tool the child can COMPLETE on this engine and take TIME doing it.
+  // `bash` is eval-only (a direct call is refused instantly; the mock repeats its last step; the
+  // child spun at 100% of the host loop and starved every other open) and `eval` aborts at
+  // startup in a mock child. `read` completes; the mock's delayMs supplies the time.
+  assert(script.childSteps[0].name === "read", "a mid-turn child keeps working through a repeating tool step")
+  assert(script.childSteps[0].delayMs >= 1_000, "the busy step must hold the child for real, through a delayed model call")
+  // ...and it must END: the mock repeats its LAST step, so a busy script whose last step is a
+  // tool call never frees its concurrency slot, and the sessions the host should accumulate
+  // never open.
+  assert(script.childSteps.at(-1).type === "text", "a busy child script must end with a text step so the child finishes")
   assert(failureTokens("error too_many_sessions here").join() === "too_many_sessions", "failure tokens must be detected")
   assert(failureTokens("all good").length === 0, "failure tokens must not false-positive")
 }
@@ -87,6 +96,13 @@ function checkReaders(root) {
   assert(jsonlLines(join(sandbox.stateDir, "sessions", "st_a", "t.jsonl")).length === 2, "jsonl reader must count records")
   const diagnosis = childStartDiagnosis(sandbox, [{ task_id: "st_a", status: "error", error_message: "Task runner failed to start.", execution_mode: "process" }])
   assert(diagnosis.errored === 1 && diagnosis.childSessionsDirExists === true, "the child-start probe must localize a start failure")
+  // The engine's real layout nests a child's sessions under children/<id>/sessions/<id>/; the
+  // reader must find those, or every transcript assertion runs blind against a working child.
+  const nested = { stateDir: join(root, "state-nested") }
+  mkdirSync(join(nested.stateDir, "children", "st_b", "sessions", "st_b"), { recursive: true })
+  writeFileSync(join(nested.stateDir, "children", "st_b", "sessions", "st_b", "t.jsonl"), '{"type":"x"}\n')
+  assert(childSessionFiles(nested, "st_b").length === 1, "child session files must be found under children/<id>/sessions/<id>/")
+  assert(childStartDiagnosis(nested, []).childSessionsDirExists === true, "the child-start probe must see the nested layout")
   const probeDir = join(root, "creds")
   mkdirSync(probeDir, { recursive: true })
   writeFileSync(join(probeDir, "auth.json"), "AAA")
