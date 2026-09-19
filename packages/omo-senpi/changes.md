@@ -18,12 +18,47 @@ driver - reports `skipped` with the exact command that would run it, never a pas
 what the current mainline omob does instead, and `--self-test` proves the harness itself without a
 binary.
 
+The busy-child fixture is load-bearing and easy to get wrong, so `--self-test` pins its contract.
+Its step must call a tool the child can COMPLETE on this engine - `bash` is eval-only (a direct
+call is refused instantly) and `eval` aborts at startup in a mock-provider child, so it is `read`
+- against a file that does NOT carry the prompts, because a tool result echoing the child's own
+prompt reads as a prompt replay. It must take TIME, which `step.delayMs` supplies rather than any
+tool's own latency. And it must END with a text step: the mock provider repeats its LAST step, so
+a script that ends on a tool call never frees its concurrency slot and the sessions the host
+should accumulate never open. A child's transcripts live under `children/<id>/sessions/<id>/`;
+the flat `sessions/<id>/` layout is older and is read only as a fallback.
+
 ## daemon-launch-spec.json ships in every payload
 
 The task daemon's launch spec was generated at build time but reached only the source tree: the
 native payload copies root-level files from an allowlist, the npm plugin publishes from `files`, and
 neither listed it, so every installed `omo daemon run` exited 5 with "launch spec missing". It is on
 both lists now and on `REQUIRED_PLUGIN_ARTIFACTS`, so a payload without it fails the build.
+
+## 2026-09-19 - The daemon-host QA fixture matches the engine it drives again
+
+### What changed
+
+The busy-child fixture and the transcript readers, after four live matrix runs against a compiled
+binary found four independent drifts (the contract is now stated at the top of this file and
+pinned by `--self-test`): `CHILD_BUSY` called `bash` directly; it read the prompt-bearing
+`mock-script.json`; it never terminated; and `childSessionFiles` / `childStartDiagnosis` read only
+the flat session layout. `task-e2e-mock-provider.ts` gained `step.delayMs` (abort-aware).
+
+### Why
+
+`bash` is eval-only on this engine and the mock repeats its last step, so the child spun at 100%
+of the host's single loop: every sibling `open_session` failed `host_unavailable`, the socket
+stopped answering (`get_protocol_info` unanswered for 5 s while `daemon status` reported
+`reachable:false` for a live host), and the run stalled for 13 minutes. With the flat-layout
+reader, transcripts that had thousands of lines counted as 0, so every transcript assertion in A,
+B and C was blind. The driver could not reach its own assertions.
+
+### Impact
+
+QA-only; nothing here ships to users. On the same binary the fixed harness shows one daemon
+identity, no per-child `--mode rpc` process, zero zombies, 32 children admitted with zero errors,
+and children still working - transcripts growing - after their parent is SIGKILLed.
 
 ## 2026-09-17 — Process children go to the shared daemon, and the plugin gates itself per session
 
