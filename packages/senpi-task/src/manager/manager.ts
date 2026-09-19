@@ -7,6 +7,7 @@ import { log } from "@oh-my-opencode/utils"
 import type { DagTaskOwner, DagTaskOwnerKey, OwnedStartResult } from "../dag/owner"
 import { registerLifecycleReattachPorts, type ReattachResult, type RespawnResult } from "../lifecycle/port"
 import { RunnerError } from "../runners/in-process/runner-error"
+import type { RunnerFailureReason } from "../runners/in-process/child-handle"
 import { RpcProcessRunner } from "../runners/rpc-process"
 import type { RpcChildHandle, RpcRunnerSpec } from "../runners/types"
 import { createTaskRecord, isSpawnSpecV1, parseTaskId, syncTaskIdFloor } from "../state"
@@ -101,6 +102,25 @@ type ReattachingTaskManager = TaskManager & {
 
 const NOOP_DESTRUCTION: DestructionPort = { destroyResidentTask: () => Promise.resolve() }
 const GENERIC_START_FAILURE_MESSAGE = "Task runner failed to start."
+const MODEL_UNAVAILABLE_MESSAGE = "The task child cannot serve this model."
+
+// Parent-authored sentences keyed by the closed `RunnerFailureReason`. The reason is only ever used
+// as a lookup key here, so an off-enum value degrades to the classification sentence and can never
+// be echoed - which is what keeps this actionable without reopening the free-text leak the
+// collapsing above exists to prevent.
+const MODEL_UNAVAILABLE_MESSAGES: Readonly<Record<RunnerFailureReason, string>> = {
+  model_not_in_child_profile:
+    "The task child cannot serve this model: its provider is not present in the child profile.",
+  catalog_probe_timed_out:
+    "The task child could not confirm this model in time: its model catalog probe timed out.",
+  catalog_probe_failed: "The task child cannot serve this model: its model catalog probe failed.",
+}
+
+function knownFailureReason(reason: unknown): RunnerFailureReason | undefined {
+  return typeof reason === "string" && Object.hasOwn(MODEL_UNAVAILABLE_MESSAGES, reason)
+    ? (reason as RunnerFailureReason)
+    : undefined
+}
 
 function ownerLockPath(stateDir: string, owner: DagTaskOwnerKey): string {
   const ownerKey = `${owner.kind}\0${owner.runId}\0${owner.nodeId}`
@@ -125,8 +145,10 @@ function ownerLockPath(stateDir: string, owner: DagTaskOwnerKey): string {
 function startFailureFacts(error: unknown): Record<string, unknown> | undefined {
   if (!RunnerError.is(error)) return undefined
   const { kind, rejected_while: rejectedWhile, exit } = error.failure
+  const reason = knownFailureReason(error.failure.reason)
   return {
     failure_kind: kind,
+    ...(reason === undefined ? {} : { failure_reason: reason }),
     ...(rejectedWhile === undefined ? {} : { rejected_while: rejectedWhile }),
     ...(exit === undefined
       ? {}
@@ -148,6 +170,10 @@ function publicStartFailureMessage(error: unknown): string {
         // Sanitized but typed: the caller must be able to tell a refused parent kernel-tool grant
         // from a generic runner failure without reading private spec details.
         return "Parent kernel tools are unavailable for this child."
+      case "model_unavailable": {
+        const reason = knownFailureReason(error.failure.reason)
+        return reason === undefined ? MODEL_UNAVAILABLE_MESSAGE : MODEL_UNAVAILABLE_MESSAGES[reason]
+      }
       default:
         return GENERIC_START_FAILURE_MESSAGE
     }
