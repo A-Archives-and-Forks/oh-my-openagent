@@ -5,6 +5,8 @@ export interface BinaryIdentity {
 	readonly ino: number
 	readonly size: number
 	readonly mtimeMs: number
+	/** Included so a chmod alone stops the marker from speaking for the file. */
+	readonly mode: number
 }
 
 export interface ProvenanceMarker {
@@ -19,14 +21,22 @@ export function provenancePath(binary: string): string {
 export function binaryIdentity(binary: string): BinaryIdentity | undefined {
 	try {
 		const stats = statSync(binary)
-		return { dev: stats.dev, ino: stats.ino, size: stats.size, mtimeMs: stats.mtimeMs }
+		return { dev: stats.dev, ino: stats.ino, size: stats.size, mtimeMs: stats.mtimeMs, mode: stats.mode }
 	} catch {
 		return undefined
 	}
 }
 
+const IDENTITY_FIELDS = ["dev", "ino", "size", "mtimeMs", "mode"] as const
+
+function isBinaryIdentity(value: unknown): value is BinaryIdentity {
+	if (typeof value !== "object" || value === null) return false
+	const record = value as Record<string, unknown>
+	return IDENTITY_FIELDS.every((field) => typeof record[field] === "number")
+}
+
 function sameIdentity(left: BinaryIdentity, right: BinaryIdentity): boolean {
-	return left.dev === right.dev && left.ino === right.ino && left.size === right.size && left.mtimeMs === right.mtimeMs
+	return IDENTITY_FIELDS.every((field) => left[field] === right[field])
 }
 
 /**
@@ -49,15 +59,17 @@ export function writeProvenanceMarker(binary: string, versionOutput: string): vo
 export function readProvenanceMarker(binary: string): string | undefined {
 	const identity = binaryIdentity(binary)
 	if (identity === undefined) return undefined
-	let parsed: Partial<ProvenanceMarker>
+	let parsed: unknown
 	try {
-		parsed = JSON.parse(readFileSync(provenancePath(binary), "utf8")) as Partial<ProvenanceMarker>
+		parsed = JSON.parse(readFileSync(provenancePath(binary), "utf8"))
 	} catch {
 		return undefined
 	}
-	const recorded = parsed.identity
-	if (recorded === undefined || typeof parsed.versionOutput !== "string") return undefined
-	if (typeof recorded.dev !== "number" || typeof recorded.ino !== "number") return undefined
-	if (typeof recorded.size !== "number" || typeof recorded.mtimeMs !== "number") return undefined
-	return sameIdentity(recorded, identity) ? parsed.versionOutput : undefined
+	// Anything can be on disk here - a truncated write, a hand-edit, a file from another tool - and
+	// every shape must degrade to "ask the executable", never to a throw on the launch path.
+	if (typeof parsed !== "object" || parsed === null) return undefined
+	const record = parsed as Record<string, unknown>
+	if (typeof record.versionOutput !== "string") return undefined
+	if (!isBinaryIdentity(record.identity)) return undefined
+	return sameIdentity(record.identity, identity) ? record.versionOutput : undefined
 }

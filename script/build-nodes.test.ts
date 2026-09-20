@@ -10,6 +10,11 @@ describe("selectBuildNodes", () => {
 	test("#given the omo-native profile #when the graph is selected #then only what the compiled binary consumes survives", () => {
 		const selected = selectBuildNodes(BUILD_NODES, "omo-native").map((node) => node.id)
 		for (const id of BUILD_PROFILES["omo-native"]) expect(selected).toContain(id)
+		// The binary embeds both MCP runtime dists. ensurePrebuiltNativeInputs only builds them when
+		// ABSENT, so leaving them out of the profile lets a stale dist from an older commit ship
+		// under the new commit's provenance.
+		expect(selected).toContain("lsp-daemon")
+		expect(selected).toContain("ast-grep-mcp")
 		// The payload the binary embeds is built by build-omo-native, so the product build
 		// (OpenCode plugin bundle, Codex Light plugin, CLI, TUI, schemas, declarations) is not
 		// an input to it and must not run for a binary build.
