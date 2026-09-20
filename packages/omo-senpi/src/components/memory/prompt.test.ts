@@ -353,6 +353,34 @@ describe("createMemoryPromptHandler", () => {
     expect(result?.systemPrompt).toContain("A".repeat(1_000))
   }, 30_000)
 
+  test("#given a system file holding invalid UTF-8 #when the pressure line is compiled #then it counts what the model will be shown, not the stored blob size", async () => {
+    // given - the estimate stands in for what the compiled memory block costs the model, and the
+    // model is shown the DECODED text, where every invalid byte becomes one U+FFFD of three bytes.
+    // Counting git's stored blob size instead makes the advisory read low for exactly the files
+    // whose decoded form is largest.
+    const advisory = 30_000
+    const boundary = Math.floor(MEMORY_PRESSURE_SOFT_RATIO * advisory)
+    const { repo, context } = await fixtureAtSystemTokens(boundary)
+    // 3 invalid bytes -> 9 decoded bytes, a 6-byte gap the stored size cannot see.
+    await writeFile(join(repo.dir, "system", "raw.md"), Buffer.from([0xff, 0xfe, 0x80]))
+    await repo.commitWrite(["system/raw.md"], "add raw", { agentId: IDENTITY, authorName: "Prompt Agent" })
+    const pi = new FakeExtensionAPI()
+    pi.on("before_agent_start", createMemoryPromptHandler({
+      resolveContext: () => context,
+      createRepo: () => repo,
+      resolveCompileWarnTokens: () => advisory,
+    }))
+
+    // when
+    const result = await dispatchEvent(pi, beforeAgentStart("BASE PROMPT"), eventContext("session-1", liveBranch(0)))
+
+    // then - decoded is 9 bytes over the boundary's byte budget, stored is 3, and the estimate
+    // divides by 4: 24002 decoded against 24000 stored.
+    const pressureLines = result?.systemPrompt?.split("\n").filter((line) => line.includes(MEMORY_PRESSURE_METADATA_TOKEN)) ?? []
+    expect(pressureLines).toHaveLength(1)
+    expect(pressureLines[0]).toContain("24002/30000")
+  }, 30_000)
+
   test("#given nudge state at the threshold #when before_agent_start compiles #then the late message carries the behavioral nudge token", async () => {
     // given
     const { repo, context } = await fixture()
