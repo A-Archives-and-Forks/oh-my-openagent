@@ -3,6 +3,7 @@
 // that turn a child's session JSONL and the task store into scenario facts.
 import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
+import { failedChildEvidence } from "./task-host-e2e-audit.mjs"
 
 export const CHILD_PROMPT = "do the host child work and report"
 const FAILURE_TOKENS = ["too_many_sessions", "host_unavailable"]
@@ -28,6 +29,24 @@ export function spawnScript(count, childSteps, prefix = "c") {
   }
   parentSteps.push({ type: "text", text: "parent fan-out complete" })
   return { parentSteps, childSteps }
+}
+
+// Print-mode turn settlement can cancel work before the observer sees it. Keep the test's
+// parent turn open until the driver has captured its fact and explicitly kills that parent.
+export function holdParent(script) {
+  script.parentSteps.splice(-1, 0, {
+    type: "tool_call", name: "eval", arguments: {
+      language: "js", summary: "keep the QA parent active until observation completes", timeout: 1_200,
+      code: `var fs = await import("node:fs"); await new Promise((resolve, reject) => {
+        var finish = () => { if (!fs.existsSync(".omo/parent-release")) return;
+          clearTimeout(timer); watcher.close(); resolve(); };
+        var watcher = fs.watch(".omo", finish);
+        var timer = setTimeout(() => { watcher.close(); reject(new Error("parent release missing")); }, 1200000);
+        finish();
+      });`,
+    },
+  })
+  return script
 }
 
 /**
@@ -88,6 +107,15 @@ export function jsonlLines(path) {
   return readFileSync(path, "utf8").split("\n").filter((line) => line.trim().length > 0)
 }
 
+export function toolDetails(stdout, name) {
+  return stdout.split("\n").flatMap((line) => {
+    let event
+    try { event = JSON.parse(line) } catch { return [] }
+    return event.type === "tool_execution_end" && event.toolName === name && !event.isError
+      ? [event.result?.details].filter(Boolean) : []
+  })
+}
+
 export function transcriptSizes(sandbox, records) {
   return Object.fromEntries(records.map((record) => [
     record.task_id,
@@ -117,6 +145,7 @@ export function childStartDiagnosis(sandbox, records) {
     completed: records.filter((record) => record.status === "completed").length,
     errored: failed.length,
     errorMessages: [...new Set(failed.map((record) => record.error_message))].slice(0, 3),
+    failedRecords: failedChildEvidence(sandbox, records),
     childSessionsDirExists: sessionsDir !== undefined,
     executionModes: [...new Set(records.map((record) => record.execution_mode))],
   }
