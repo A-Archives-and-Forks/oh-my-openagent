@@ -33,7 +33,7 @@ export async function runMigrate(args = process.argv.slice(2), options = {}) {
     return { kind: "help" }
   }
   const { applyMigrationPlan, planMigration } = await import("./migration-planner.js")
-  const plan = planMigration(options)
+  const plan = await planMigration(options)
   if (parsed.kind !== "apply") out(parsed.kind === "dry-run" ? "DRY RUN: no files will be written" : "Preview only: pass --yes to write")
   for (const line of plan.report) out(line)
   if (plan.warnings.length > 0) out(`manual-review: ${plan.warnings.join(", ")}`)

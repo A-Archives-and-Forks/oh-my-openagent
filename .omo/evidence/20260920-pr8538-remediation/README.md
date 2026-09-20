@@ -8,10 +8,10 @@ Baseline: 9a6028354. No real credential store or provider service was used.
 Using exact-pinned Bun 1.4.0 with its bin directory first in PATH:
 
 ```text
-432 pass
+435 pass
 0 fail
-1380 expect() calls
-Ran 432 tests across 45 files. [33.82s]
+1411 expect() calls
+Ran 435 tests across 45 files. [36.01s]
 ```
 
 Command: from an isolated test cwd without unrelated adapter preloads,
@@ -39,6 +39,8 @@ agents, preserving native-compatible fields and warning on unsupported ones.
 `round9.md` verifies the default native build preserves tracked ignore rules and
 git status. `round10.md` verifies provider aliases resolve consistently between
 defaults and imported definitions, including preserved destination conflicts.
+`round11.md` defers new defaults until reconciliation and verifies models against
+the actual preserved native catalog, without credential access, network or writes.
 
 An intermediate full-suite failure was caused by this change's additional generated
 file in `.gitignore`, not by unrelated code. The payload test's exact expected
@@ -89,12 +91,12 @@ than treating command-shaped API keys as executable helpers.
 ```bash
 bun run script/build-omo-binary.ts \
   --target darwin-arm64 \
-  --omo-version 5.0.0-review10 \
-  --omo-ai-version 5.0.0-0.beta.review10 \
-  --out-dir /tmp/omo-pr8538-round10-build
+  --omo-version 5.0.0-review11 \
+  --omo-ai-version 5.0.0-0.beta.review11 \
+  --out-dir /tmp/omo-pr8538-round11-build
 ```
 
-Exit 0: built darwin-arm64, 110870642 bytes, 751 embedded sidecar files.
+Exit 0: built darwin-arm64, 110920178 bytes, 751 embedded sidecar files.
 The exact output binary passed the CLI/consumer QA above. The package suite also
 built and validated the full native plugin payload.
 

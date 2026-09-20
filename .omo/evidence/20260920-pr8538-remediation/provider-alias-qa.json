@@ -1,14 +1,17 @@
 {
   "status": "PASS",
-  "consumer": "Senpi ModelConfig",
+  "consumer": "Senpi ModelRegistry.find and ModelConfig",
   "results": [
     {
       "launcher": "node",
-      "existing": false,
+      "state": "new",
+      "previewReadOnly": true,
       "settings": {
+        "theme": "dark",
         "defaultProvider": "azure-openai-responses",
         "defaultModel": "deployment-a"
       },
+      "defaultResolves": true,
       "providerIds": [
         "azure-openai-responses"
       ],
@@ -26,11 +29,144 @@
     },
     {
       "launcher": "node",
-      "existing": true,
+      "state": "matching",
+      "previewReadOnly": true,
       "settings": {
+        "theme": "dark",
         "defaultProvider": "azure-openai-responses",
         "defaultModel": "deployment-a"
       },
+      "defaultResolves": true,
+      "providerIds": [
+        "azure-openai-responses"
+      ],
+      "provider": {
+        "api": "openai-completions",
+        "baseUrl": "https://kept.test/v1",
+        "models": [
+          {
+            "id": "deployment-a",
+            "name": "Existing"
+          }
+        ]
+      },
+      "warnings": [
+        "models.azure-openai-responses (existing destination provider preserved; differing source azure skipped; manual review required)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "state": "missing",
+      "previewReadOnly": true,
+      "settings": {
+        "theme": "dark"
+      },
+      "defaultResolves": false,
+      "providerIds": [
+        "azure-openai-responses"
+      ],
+      "provider": {
+        "api": "openai-completions",
+        "baseUrl": "https://kept.test/v1",
+        "models": [
+          {
+            "id": "different-deployment",
+            "name": "Existing"
+          }
+        ]
+      },
+      "warnings": [
+        "models.azure-openai-responses (existing destination provider preserved; differing source azure skipped; manual review required)",
+        "settings.default model (unavailable in preserved destination catalog; manual review required)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "state": "disabled",
+      "previewReadOnly": true,
+      "settings": {
+        "theme": "dark"
+      },
+      "defaultResolves": false,
+      "providerIds": [
+        "azure-openai-responses"
+      ],
+      "provider": {
+        "api": "openai-completions",
+        "baseUrl": "https://kept.test/v1",
+        "models": [
+          {
+            "id": "deployment-a",
+            "name": "Existing"
+          }
+        ],
+        "disabled": true
+      },
+      "warnings": [
+        "models.azure-openai-responses (existing destination provider preserved; differing source azure skipped; manual review required)",
+        "settings.default model (unavailable in preserved destination catalog; manual review required)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "state": "globally-disabled",
+      "previewReadOnly": true,
+      "settings": {
+        "theme": "dark"
+      },
+      "defaultResolves": false,
+      "providerIds": [
+        "azure-openai-responses"
+      ],
+      "provider": {
+        "baseUrl": "https://custom-azure.test/v1",
+        "models": [
+          {
+            "id": "deployment-a",
+            "name": "Deployment A"
+          }
+        ],
+        "api": "openai-completions"
+      },
+      "warnings": [
+        "settings.default model (unavailable in preserved destination catalog; manual review required)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "state": "new",
+      "previewReadOnly": true,
+      "settings": {
+        "theme": "dark",
+        "defaultProvider": "azure-openai-responses",
+        "defaultModel": "deployment-a"
+      },
+      "defaultResolves": true,
+      "providerIds": [
+        "azure-openai-responses"
+      ],
+      "provider": {
+        "baseUrl": "https://custom-azure.test/v1",
+        "models": [
+          {
+            "id": "deployment-a",
+            "name": "Deployment A"
+          }
+        ],
+        "api": "openai-completions"
+      },
+      "warnings": []
+    },
+    {
+      "launcher": "compiled",
+      "state": "matching",
+      "previewReadOnly": true,
+      "settings": {
+        "theme": "dark",
+        "defaultProvider": "azure-openai-responses",
+        "defaultModel": "deployment-a"
+      },
+      "defaultResolves": true,
       "providerIds": [
         "azure-openai-responses"
       ],
@@ -50,11 +186,65 @@
     },
     {
       "launcher": "compiled",
-      "existing": false,
+      "state": "missing",
+      "previewReadOnly": true,
       "settings": {
-        "defaultProvider": "azure-openai-responses",
-        "defaultModel": "deployment-a"
+        "theme": "dark"
       },
+      "defaultResolves": false,
+      "providerIds": [
+        "azure-openai-responses"
+      ],
+      "provider": {
+        "api": "openai-completions",
+        "baseUrl": "https://kept.test/v1",
+        "models": [
+          {
+            "id": "different-deployment",
+            "name": "Existing"
+          }
+        ]
+      },
+      "warnings": [
+        "models.azure-openai-responses (existing destination provider preserved; differing source azure skipped; manual review required)",
+        "settings.default model (unavailable in preserved destination catalog; manual review required)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "state": "disabled",
+      "previewReadOnly": true,
+      "settings": {
+        "theme": "dark"
+      },
+      "defaultResolves": false,
+      "providerIds": [
+        "azure-openai-responses"
+      ],
+      "provider": {
+        "api": "openai-completions",
+        "baseUrl": "https://kept.test/v1",
+        "models": [
+          {
+            "id": "deployment-a",
+            "name": "Existing"
+          }
+        ],
+        "disabled": true
+      },
+      "warnings": [
+        "models.azure-openai-responses (existing destination provider preserved; differing source azure skipped; manual review required)",
+        "settings.default model (unavailable in preserved destination catalog; manual review required)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "state": "globally-disabled",
+      "previewReadOnly": true,
+      "settings": {
+        "theme": "dark"
+      },
+      "defaultResolves": false,
       "providerIds": [
         "azure-openai-responses"
       ],
@@ -68,30 +258,8 @@
         ],
         "api": "openai-completions"
       },
-      "warnings": []
-    },
-    {
-      "launcher": "compiled",
-      "existing": true,
-      "settings": {
-        "defaultProvider": "azure-openai-responses",
-        "defaultModel": "deployment-a"
-      },
-      "providerIds": [
-        "azure-openai-responses"
-      ],
-      "provider": {
-        "api": "openai-completions",
-        "baseUrl": "https://kept.test/v1",
-        "models": [
-          {
-            "id": "deployment-a",
-            "name": "Existing"
-          }
-        ]
-      },
       "warnings": [
-        "models.azure-openai-responses (existing destination provider preserved; differing source azure skipped; manual review required)"
+        "settings.default model (unavailable in preserved destination catalog; manual review required)"
       ]
     }
   ]

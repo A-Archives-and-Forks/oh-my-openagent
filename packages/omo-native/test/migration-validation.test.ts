@@ -5,6 +5,8 @@ import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { ModelConfig } from "../../../node_modules/@code-yeongyu/senpi/dist/core/model-config.js"
+import { ModelRegistry } from "../../../node_modules/@code-yeongyu/senpi/dist/core/model-registry.js"
+import { AuthStorage } from "../../../node_modules/@code-yeongyu/senpi/dist/core/auth-storage.js"
 import { buildMigrationRuntime } from "../../../script/build-migration-runtime"
 import { loadOmoConfig } from "../../omo-config-core/src/index"
 import { teardownRoots } from "./teardown.test-support"
@@ -69,11 +71,15 @@ test("#given invalid existing models #when migrating #then preflight leaves ever
   expect(json(join(item.agent, "models.json"))).toEqual({ providers: { custom: { apiKey: "" } } })
 })
 
-test.each([false, true])("#given an aliased custom provider with destination existing=%s #when migrating #then defaults reference the preserved destination definition", (existing) => {
+test.each(["new", "matching", "missing", "disabled", "globally-disabled"])("#given an aliased custom provider with destination=%s #when migrating #then every written default resolves", (state) => {
   const item = fixture()
   const destination = "azure-openai-responses"
-  const kept = { api: "openai-completions", baseUrl: "https://kept.test/v1", models: [{ id: "deployment-a", name: "Existing" }] }
+  const existing = state !== "new" && state !== "globally-disabled"
+  const resolvable = state === "new" || state === "matching"
+  const kept = { api: "openai-completions", baseUrl: "https://kept.test/v1", models: [{ id: state === "missing" ? "different-deployment" : "deployment-a", name: "Existing" }], ...(state === "disabled" ? { disabled: true } : {}) }
   if (existing) write(join(item.agent, "models.json"), { providers: { [destination]: kept } })
+  if (state === "globally-disabled") write(join(item.agent, "models.json"), { providers: {}, disabledProviders: [destination] })
+  write(join(item.agent, "settings.json"), { theme: "dark" })
   write(join(item.config, "opencode.json"), {
     model: "azure/deployment-a",
     provider: { azure: { npm: "@ai-sdk/openai-compatible", options: { baseURL: "https://custom-azure.test/v1" }, models: { "deployment-a": { name: "Deployment A" } } } },
@@ -83,8 +89,14 @@ test.each([false, true])("#given an aliased custom provider with destination exi
   const settings = json(join(item.agent, "settings.json"))
   const models = ModelConfig.loadSync(join(item.agent, "models.json"))
   expect(models.getError()).toBeUndefined()
-  expect(settings.defaultProvider).toBe(destination)
-  expect(models.getProvider(settings.defaultProvider)?.models?.some((model) => model.id === settings.defaultModel)).toBe(true)
+  const registry = ModelRegistry.create(AuthStorage.inMemory(), join(item.agent, "models.json"))
+  if (resolvable) {
+    expect(settings.defaultProvider).toBe(destination)
+    expect(registry.find(settings.defaultProvider, settings.defaultModel)).toBeDefined()
+  } else {
+    expect(settings).toEqual({ theme: "dark" })
+    expect(registry.find(destination, "deployment-a")).toBeUndefined()
+  }
   expect(models.getProviderIds()).toEqual([destination])
   expect(models.getProvider(destination)?.baseUrl).toBe(existing ? kept.baseUrl : "https://custom-azure.test/v1")
   if (existing) {
