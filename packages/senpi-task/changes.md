@@ -1,3 +1,13 @@
+## Detached host sessions cannot crash heartbeat or teardown
+
+The host-session heartbeat catches an in-place `HostSessionDetachedError` as well as a rejected
+state read, using the existing diagnostic. Teardown stops the heartbeat before abort or close can
+drop the connection. Its best-effort wrapper invokes each operation inside the error boundary,
+so a synchronous abort failure is logged and still proceeds to close and settle the child.
+This incorporates ayden94's heartbeat fix from #8495 for #8494 and covers the host teardown
+failure reported in senpi#1840. Subprocess regressions count both uncaught exceptions and
+unhandled rejections; a withheld-close test pins heartbeat cancellation before detachment.
+
 ## Package-provided extensions reach RPC children
 
 Process and host child runners can now select extension paths that the parent actually loaded from
