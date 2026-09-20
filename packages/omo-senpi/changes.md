@@ -1,3 +1,20 @@
+## The fallback-architect nudge arms on any refusal-driven fallback
+
+`detection.ts` no longer exports `isFableFiveModel`. The exact-id equality it provided was the arming gate
+in `index.ts`, so only a session whose refusing model was literally `claude-fable-5` ever received the
+directive, and `claude-fable-5-1` - the id the shipped architect category itself resolves to - missed it.
+The `model_select` handler now arms on the refusal signal alone: `source === "fallback"`, a previous model
+in the payload, and the refusal predicate on the preceding assistant message, behind the unchanged
+architect-category gate and the unchanged `omo-senpi-fallback-architect-disabled` flag. A second refusal on
+the fallback model therefore arms a fresh directive naming the new pair, which is what the reminder must
+say once the session has moved twice.
+
+Two consequences ride along. The active episode used to clear when the newly selected model was fable 5; it
+now clears when the session returns to the selector that was refused, or on `source === "fallback-revert"`.
+And `directive.ts` gained `isFableFiveSelector`, a copy-only predicate: the consultant is Fable 5 whoever
+refused, but "the same model that just refused" holds only for a fable-family refusal, so that clause is
+conditional now and the mirrored tip line no longer names Fable 5 as the refuser.
+
 ## Console-subsystem spawns are hidden on win32, and a gate keeps them that way
 
 `memory-core`'s git exec and its process-start identity probe, plus the adapter's formatter, thread
