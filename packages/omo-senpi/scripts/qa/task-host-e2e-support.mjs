@@ -3,6 +3,7 @@
 // that turn a child's session JSONL and the task store into scenario facts.
 import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
+import { failedChildEvidence } from "./task-host-e2e-audit.mjs"
 
 export const CHILD_PROMPT = "do the host child work and report"
 const FAILURE_TOKENS = ["too_many_sessions", "host_unavailable"]
@@ -144,6 +145,7 @@ export function childStartDiagnosis(sandbox, records) {
     completed: records.filter((record) => record.status === "completed").length,
     errored: failed.length,
     errorMessages: [...new Set(failed.map((record) => record.error_message))].slice(0, 3),
+    failedRecords: failedChildEvidence(sandbox, records),
     childSessionsDirExists: sessionsDir !== undefined,
     executionModes: [...new Set(records.map((record) => record.execution_mode))],
   }

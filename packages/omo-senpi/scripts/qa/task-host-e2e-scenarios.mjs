@@ -5,6 +5,7 @@ import { join } from "node:path"
 import { singleParentPass } from "./task-host-e2e-gates.mjs"
 import { STATE_DEADLINE_MS } from "./task-host-e2e-events.mjs"
 import { terminalChildSnapshots } from "./task-host-e2e-stranded.mjs"
+import { recordMockEvent } from "./task-host-e2e-audit.mjs"
 export { scenarioB } from "./task-host-e2e-resume.mjs"
 
 import { createScenarioSandbox, writeMockScript, writeOmoConfig } from "./task-host-e2e-sandbox.mjs"
@@ -95,6 +96,7 @@ export async function scenarioA(run) {
   const pass =
     facts.sessionsTotal >= 32 && facts.sessionsWorker >= 32 && tokens.length === 0 && perChild.length === 0 &&
     facts.daemonIdentitiesSeen === 1 && facts.terminalChildFailures === 0
+  facts.driverTeardown = recordMockEvent(sandbox.cwd, { type: "driver_teardown", parentPids: parents.map((parent) => parent.child.pid) })
   for (const parent of parents) {
     try {
       process.kill(-parent.child.pid, "SIGKILL")
@@ -145,6 +147,7 @@ export async function scenarioA1(run) {
     childStart: childStartDiagnosis(sandbox, records),
   }
   const pass = singleParentPass(facts)
+  facts.driverTeardown = recordMockEvent(sandbox.cwd, { type: "driver_teardown", parentPids: [parent.child.pid] })
   try {
     process.kill(-parent.child.pid, "SIGKILL")
   } catch {
@@ -155,7 +158,7 @@ export async function scenarioA1(run) {
     scenario: "A1",
     title: "single-parent control: 16 children, one daemon identity",
     status: pass ? "pass" : "fail",
-    reason: `sessions.worker=${facts.sessionsWorker} daemonIdentities=${identities.length} perChildRpc=${facts.perChildRpcProcessCount} terminalFailures=${facts.terminalChildFailures}`,
+    reason: `sessions.worker=${facts.sessionsWorker} daemonIdentities=${identities.length} perChildRpc=${facts.perChildRpcProcessCount} failedChildren=${facts.failedChildren} terminalFailures=${facts.terminalChildFailures}`,
     facts,
     receipt,
   }

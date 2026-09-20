@@ -25,7 +25,7 @@ import {
   writeFileSync,
 } from "node:fs"
 import { homedir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 
 export const DELETED_CHILD_ENV = [
   "SENPI_PACKAGE_DIR",
@@ -135,6 +135,8 @@ export function injectDaemonMockProvider(pluginRoot, mockEntry, name = "omo-qa-m
   // per-child processes inherit the parent's `-e` mock provider instead.
   if (!existsSync(specPath)) return { specPath, extensions: [], launchSpecPresent: false }
   copyFileSync(mockEntry, join(pluginRoot, name))
+  copyFileSync(join(dirname(mockEntry), "task-e2e-mock-provider.ts"), join(pluginRoot, "task-e2e-mock-provider.ts"))
+  copyFileSync(join(dirname(mockEntry), "task-host-e2e-audit.mjs"), join(pluginRoot, "task-host-e2e-audit.mjs"))
   const spec = JSON.parse(readFileSync(specPath, "utf8"))
   const entry = `./${name}`
   if (!spec.core.extensions.includes(entry)) spec.core.extensions.push(entry)

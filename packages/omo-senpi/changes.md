@@ -25,6 +25,15 @@ count is sufficient. A separate diagnostic captures paired store/transcript snap
 convergence observation for the graceful-shutdown suspension behavior tracked in #8517; this harness
 change does not change that product behavior.
 
+The daemon lane now owns its mock provider. Its step cursor comes from each conversation's tool-call
+receipts and the current script, so eight in-process children cannot consume one another's steps.
+The shared `task-e2e-mock-provider.ts` is unchanged. An interleaved eight-child regression requires
+all 200 steps and verifies that a replacement script starts at its first step.
+
+Failed-task evidence retains the exact record, the last assistant entry, correlated provider abort
+signals, `agent_end` abort fields, session shutdown events and the driver's teardown boundary.
+An observed `toolUse` stop reason alone is not labeled an intrinsic engine failure.
+
 ## The fallback-architect nudge arms on any refusal-driven fallback
 
 `detection.ts` no longer exports `isFableFiveModel`. The exact-id equality it provided was the arming gate

@@ -29,7 +29,7 @@ import { baselineScenarios } from "./task-host-e2e-baseline.mjs"
 import { runSelfTest } from "./task-host-e2e-selftest.mjs"
 
 const scriptDir = dirname(fileURLToPath(import.meta.url))
-const MOCK_ENTRY = join(scriptDir, "task-e2e-mock-provider.ts")
+const MOCK_ENTRY = join(scriptDir, "task-host-e2e-mock-provider.mjs")
 const SUMMARY_NAMES = ["task-host-e2e.json", "task-41-senpi-task-daemon-host-runner-v2.json"]
 const SCENARIOS = [
   ["A", scenarioA],

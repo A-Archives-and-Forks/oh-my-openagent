@@ -12,6 +12,7 @@ import { singleParentPass, resumePass, teamPass, reopenPass, stormPass } from ".
 import { observeState } from "./task-host-e2e-events.mjs"
 import { completedStormCalls } from "./task-host-e2e-storm.mjs"
 import { terminalChildSnapshots } from "./task-host-e2e-stranded.mjs"
+import { checkMockSessionIsolation } from "./task-host-e2e-mock-selftest.mjs"
 
 function assert(condition, message) {
   if (!condition) throw new Error(`self-test: ${message}`)
@@ -29,6 +30,7 @@ export async function runSelfTest(scriptDir) {
     checkTerminalStoreMismatch(root)
     await checkStateEvents(root)
     checkStormReceipts()
+    await checkMockSessionIsolation(root)
     checkDriverSource(scriptDir)
   } finally {
     rmSync(root, { recursive: true, force: true })
@@ -173,11 +175,14 @@ function checkFixtures() {
 function checkReaders(root) {
   assert(lastJsonLine('banner\n{"a":1}\n{"reachable":true,"pid":7}\n')?.pid === 7, "the last JSON line must win over a banner")
   assert(lastJsonLine("no json at all") === undefined, "a JSON-free stream must read as undefined")
-  const sandbox = { stateDir: join(root, "state") }
+  const sandbox = { cwd: root, stateDir: join(root, "state") }
   mkdirSync(join(sandbox.stateDir, "sessions", "st_a"), { recursive: true })
   writeFileSync(join(sandbox.stateDir, "sessions", "st_a", "t.jsonl"), '{"type":"x"}\n{"type":"y"}\n')
   assert(jsonlLines(join(sandbox.stateDir, "sessions", "st_a", "t.jsonl")).length === 2, "jsonl reader must count records")
-  const diagnosis = childStartDiagnosis(sandbox, [{ task_id: "st_a", status: "error", error_message: "Task runner failed to start.", execution_mode: "process" }])
+  const failedRecord = { task_id: "st_a", status: "error", error_message: "Task runner failed to start.", execution_mode: "process" }
+  mkdirSync(join(sandbox.stateDir, "tasks"), { recursive: true })
+  writeFileSync(join(sandbox.stateDir, "tasks", "st_a.json"), JSON.stringify(failedRecord))
+  const diagnosis = childStartDiagnosis(sandbox, [failedRecord])
   assert(diagnosis.errored === 1 && diagnosis.childSessionsDirExists === true, "the child-start probe must localize a start failure")
   // The engine's real layout nests a child's sessions under children/<id>/sessions/<id>/; the
   // reader must find those, or every transcript assertion runs blind against a working child.
