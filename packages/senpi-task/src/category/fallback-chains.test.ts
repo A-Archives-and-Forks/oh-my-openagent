@@ -78,8 +78,9 @@ describe("CATEGORY_FALLBACK_CHAINS", () => {
         { providers: ["kimi-coding", "kimi-for-coding", "moonshotai", "opencode-go"], model: "kimi-k3", variant: "max" }
       ],
       writing: [
-        { providers: ["claude-sdk-oauth", "anthropic", "anthropic-api", "github-copilot", "opencode"], model: "claude-fable-5-1", variant: "medium" },
-        { providers: ["kimi-coding", "kimi-for-coding", "moonshotai", "opencode-go"], model: "kimi-k3", variant: "max" }
+        { providers: ["claude-sdk-oauth", "anthropic", "anthropic-api", "github-copilot", "opencode"], model: "claude-fable-5-1", variant: "low" },
+        { providers: ["kimi-coding", "kimi-for-coding", "moonshotai", "opencode-go"], model: "kimi-k3", variant: "low" },
+        { providers: ["claude-sdk-oauth", "anthropic", "anthropic-api", "github-copilot", "opencode"], model: "claude-opus-4-6", variant: "low" }
       ]
     })
   })

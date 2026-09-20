@@ -200,12 +200,17 @@ describe("category routing policy", () => {
       {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
         model: "claude-fable-5-1",
-        variant: "medium",
+        variant: "low",
       },
       {
         providers: ["kimi-for-coding", "moonshotai", "opencode-go", "opencode"],
         model: "kimi-k3",
-        variant: "max",
+        variant: "low",
+      },
+      {
+        providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
+        model: "claude-opus-4-6",
+        variant: "low",
       }
     ])
   })

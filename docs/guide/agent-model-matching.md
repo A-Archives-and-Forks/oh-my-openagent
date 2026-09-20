@@ -130,7 +130,7 @@ When the main agent delegates implementation work, it doesn't pick a model name.
 | `quick` | Trivial tasks: single-file changes, typos | `kimi-coding/kimi-for-coding-highspeed` | `kimi-for-coding-highspeed` -> `openai-codex/gpt-5.6-luna-fast (low)` -> `deepseek/deepseek-v4-flash (off)` -> `qwen3.6-flash (low)` -> cheaper utility rungs -> `xai/grok-4.20-0309-non-reasoning` -> `claude-haiku-4-5 (off)` |
 | `unspecified-low` | Doesn't fit elsewhere, low effort | `xai/grok-4.6 (xhigh)` | `xai\|github-copilot\|opencode/grok-4.6 (xhigh)` -> `gpt-5.6-terra (high)` -> `claude-sonnet-5 (low)` -> `qwen3.8-max-preview (max)` -> `deepseek\|opencode-go/deepseek-v4-pro (max)` -> `xiaomi\|opencode-go/mimo-v2.5-pro (max)` |
 | `unspecified-high` | Doesn't fit elsewhere, high effort | `openai/gpt-6-astra (high)` | `gpt-6-astra (high)` -> `claude-opus-5 (xhigh)` -> `zai-coding-plan\|opencode-go/glm-5.3 (max)` -> `kimi-k3 (max)` |
-| `writing` | Documentation, prose, technical writing | `anthropic/claude-fable-5-1 (medium)` | `claude-fable-5-1 (medium)` -> `kimi-k3 (max)` |
+| `writing` | Documentation, prose, technical writing | `anthropic/claude-fable-5-1 (low)` | `claude-fable-5-1 (low)` -> `kimi-k3 (low)` -> `claude-opus-4-6 (low)` |
 
 The `quick` category ships a caller warning: small fast models need an explicit prompt with numbered must-do steps, forbidden deviations, and concrete success criteria. `deep` is one goal plus one deliverable per call; fan out multiple goals as parallel `deep` calls.
 

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+**The writing category runs at low reasoning and keeps a Claude fallback.** The builtin `writing` chain led with `claude-fable-5-1` at medium and fell back to `kimi-k3` at max, so prose delegation paid a reasoning budget it does not need, and a Fable outage moved every writing task onto a max-variant Kimi run with no Claude rung left. The chain is three rungs at low now: `claude-fable-5-1`, then `kimi-k3`, then `claude-opus-4-6`. ([#8525](https://github.com/code-yeongyu/oh-my-openagent/issues/8525))
+
 ### Fixed
 
 **A detached task session no longer crashes the host during heartbeat or shutdown.** State polling
