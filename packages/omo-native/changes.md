@@ -10,16 +10,23 @@ Evidence: `.omo/evidence/20260920-pr8538-remediation/setup/`.
 
 ## omo migrate - the opencode codemod
 
-`omo migrate [--dry-run|--yes]` translates an existing global opencode setup into omo-native state in
-one pass: `model`/`permission` into `settings.json` (never overwriting keys the user already has),
-custom `provider` blocks into `models.json` (senpi's array shape, limits -> contextWindow/maxTokens,
-npm package -> `api` mapping with manual-review notes when unknown), the `mcp` block into `mcp.json`,
-`tui.json` keybinds into `keybindings.json` (best-effort id map; unmatched ids are reported, and
-leader-key setups are named as unmappable), agent markdown into `omo.jsonc` `agents`, and the shared
-omo schema keys (categories/agents/task/teams/codegraph) out of `oh-my-openagent.json(c)` into
-`omo.jsonc`. Sources and prior targets are backed up under `migration-backup-<ts>/`, unmappable keys
-are printed as `dropped-with-warning` and written to `migration-notes.md`, and a state marker makes
-re-runs idempotent. `--dry-run` prints the full plan without touching a single file.
+`omo migrate` previews unless `--yes` explicitly permits writes. Both npm and compiled
+launchers use the same setup/migrate dispatcher; help and dry-run bypass legacy-state
+adoption. A literal lazy import keeps non-migration commands independent of the generated
+schema/YAML runtime, which native staging and binary builds generate atomically.
+
+Migration treats default provider/model as a pair, translates permission shorthand,
+environment references and upstream model IDs, and converts key alternatives/`none`.
+Unsupported chords, config expressions and settings produce manual-review warnings.
+Restricted Markdown/inline agents remain disabled pending review; existing agent and
+category leaves take precedence over imported values.
+
+Shared config uses omo-config-core path selection, recursive merge and schema validation,
+independently of the engine directory. Versioned state re-evaluates old markers and recovers
+config hidden by the earlier `.json`/`.jsonc` behavior. All targets are read before writing;
+caught write failures restore previous bytes. Backups include an original-path manifest,
+and `opencode-migration-report.json` retains warnings and the backup directory. Diagnostics
+identify conflicting fields without serializing their values.
 
 ## omo setup inherits opencode content, and names every skipped OAuth provider
 

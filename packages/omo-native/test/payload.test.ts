@@ -124,7 +124,7 @@ describe("build:omo-native staged payload", () => {
               "\r\n",
               "\n",
             ),
-          ).toBe("/plugin/\n")
+          ).toBe("/plugin/\n/bin/lib/migration-runtime.js\n")
 
           rmSync(join(outputDir, "extensions", "kibitzer-persona.md"))
           const missingGatePersona = runBuild(["--output", outputDir, "--check-only"])

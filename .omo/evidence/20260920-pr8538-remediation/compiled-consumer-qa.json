@@ -1,0 +1,83 @@
+{
+  "status": "PASS",
+  "scenarios": [
+    {
+      "scenario": "setup",
+      "args": [
+        "setup",
+        "--yes"
+      ],
+      "status": 0,
+      "stdout": "HARNESS | INSTALLED | PROVIDERS | CREDENTIAL TYPES | MODELS\nsenpi | no | none | none | none\nopencode | yes | anthropic-api, opencode | api, oauth | none\noh-my-pi | no | none | none | models.db: no\ngajae-code | no | none | none | none\nRun `omo setup --yes` to import available API credentials.\n\nMODEL AVAILABILITY\nsenpi: providers none; models none\nopencode: providers anthropic-api, opencode; models none\noh-my-pi: providers none; models models.db: no\ngajae-code: providers none; models none\nModel-to-agent guidance: docs/guide/agent-model-matching.md\nReady-to-paste omo.json models catalog template:\n{\n  \"models\": {\n    \"primary\": {\n      \"model\": \"<provider>/<model-id>\",\n      \"reasoning\": \"<off|low|medium|high|max>\"\n    },\n    \"custom-endpoint\": {\n      \"model\": \"<custom-baseUrl-provider>/<model-id>\"\n    }\n  }\n}\nFor custom endpoints, define the provider baseUrl in senpi models.json, then use that provider id above.\nplanned-add: anthropic\nskipped-existing: none\nskipped-oauth: none\nskipped-gateway: opencode\nskipped-unmapped: none\nmcp-planned-add: remote\nmcp-skipped-existing: none\nskills-planned-add: none\nskills-skipped-existing: none\nagents-md: absent\nimported: 1\nskipped-existing: 0\nskipped-oauth: 0\nskipped-gateway: 1\nskipped-unmapped: 0\nmcp-imported: 1\nskills-imported: 0\nagents-md: absent\n",
+      "stderr": ""
+    },
+    {
+      "scenario": "help",
+      "args": [
+        "migrate",
+        "--help"
+      ],
+      "status": 0,
+      "stdout": "Usage: omo migrate [--dry-run|--yes]\n\nWithout --yes, omo migrate previews changes without writing.\nUse --dry-run for an explicit read-only preview.\n",
+      "stderr": ""
+    },
+    {
+      "scenario": "full",
+      "args": [
+        "migrate",
+        "--dry-run"
+      ],
+      "status": 0,
+      "stdout": "DRY RUN: no files will be written\nsettings: migrated\nmodels: migrated\nmcp: migrated\nkeybindings: migrated\nomo-config: migrated\nmanual-review: agents.restricted (disabled because its OpenCode restrictions cannot be represented), keybindings.session_new (unsupported; manual review required), omo-config.codegraph (unsupported by omo.json; manual review required), settings.default model (preserved existing partial provider/model pair)\n",
+      "stderr": ""
+    },
+    {
+      "scenario": "full",
+      "args": [
+        "migrate",
+        "--yes"
+      ],
+      "status": 0,
+      "stdout": "settings: migrated\nmodels: migrated\nmcp: migrated\nkeybindings: migrated\nomo-config: migrated\nmanual-review: agents.restricted (disabled because its OpenCode restrictions cannot be represented), keybindings.session_new (unsupported; manual review required), omo-config.codegraph (unsupported by omo.json; manual review required), settings.default model (preserved existing partial provider/model pair)\n",
+      "stderr": ""
+    },
+    {
+      "scenario": "full",
+      "args": [
+        "migrate",
+        "--yes"
+      ],
+      "status": 0,
+      "stdout": "settings: already migrated\nmodels: already migrated\nmcp: already migrated\nkeybindings: already migrated\nomo-config: migrated\nmanual-review: agents.restricted (disabled because its OpenCode restrictions cannot be represented), omo-config.codegraph (unsupported by omo.json; manual review required), omo-config.skipped: agents.oracle.model, omo-config.skipped: agents.restricted.description, omo-config.skipped: agents.restricted.disable, omo-config.skipped: agents.reviewer.description, omo-config.skipped: agents.reviewer.model, omo-config.skipped: agents.reviewer.prompt, omo-config.skipped: categories.deep.model\n",
+      "stderr": ""
+    },
+    {
+      "scenario": "malformed-mcp",
+      "args": [
+        "migrate",
+        "--yes"
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": "84 | \n85 |       `)}}doc.write(`payload.value = newResult;`);doc.write(`return payload;`);const fn=doc.compile();return(payload,ctx)=>fn(shape,payload,ctx)};let fastpass;const isObject2=isObject;const jit=!globalConfig.jitless;const allowsEval2=allowsEval;const fastEnabled=jit&&allowsEval2.value;const catchall=def.catchall;let value;inst._zod.parse=(payload,ctx)=>{value??(value=_normalized.value);const input=payload.value;if(!isObject2(input)){payload.issues.push({expected:\"object\",code:\"invalid_type\",input,inst});return payload}if(jit&&fastEnabled&&ctx?.async===false&&ctx.jitless!==true){if(!fastpass)fastpass=generateFastpass(def.shape);payload=fastpass(payload,ctx);if(!catchall)return payload;return handleCatchall([],input,payload,ctx,value,inst)}return superParse(payload,ctx)}});$ZodUnion=$constructor(\"$ZodUnion\",(inst,def)=>{$ZodType.init(inst,def);defineLazy(inst._zod,\"optin\",()=>def.options.some((o)=>o._zod.optin===\"optional\")?\"optional\":undefined);defineLazy(inst._zod,\"optout\",()=>def.options.some((o)=>o._zod.opt\n86 | `,{encoding:\"utf8\",mode:384});renameSync2(temporary,path)}finally{if(existsSync8(temporary))unlinkSync(temporary)}}function backupInputs(plan){if(plan.writes.length===0)return;mkdirSync3(plan.backupDir,{recursive:true,mode:448});const paths=[...new Set([...plan.sourcePaths,...plan.writes.map((entry)=>entry.path)])];const files=[];for(const[index,path]of paths.entries()){if(!existsSync8(path))continue;const prefix=plan.sourcePaths.includes(path)?\"source\":\"target\";const backup=`${String(index).padStart(3,\"0\")}-${prefix}-${basename2(path)}`;copyFileSync3(path,join9(plan.backupDir,backup));files.push({path,backup,role:prefix,mode:statSync3(path).mode&511})}writeJsonAtomic(join9(plan.backupDir,\"manifest.json\"),{files,created:plan.writes.filter((entry)=>!existsSync8(entry.path)).map((entry)=>entry.path)})}function applyMigrationPlan(plan){backupInputs(plan);const written=[];try{for(const entry of plan.writes){const before=existsSync8(entry.path)?readFileSync9(entry.path):undefined;const mode2=before===undefined?und\n87 | `)}\n88 | `)}function printContentCounts(written){process.stdout.write([`mcp-imported: ${written.mcp.length}`,`skills-imported: ${written.skills.length}`,`agents-md: ${written.agentsMd}`].join(`\n89 | `)}var init_setup_content=__esm(()=>{init_config_values()});var exports_migration_planner={};__export(exports_migration_planner,{applyMigrationPlan:()=>applyMigrationPlan,planMigration:()=>planMigration});import{existsSync as existsSync11,lstatSync as lstatSync2,readFileSync as readFileSync12}from\"fs\";import{randomUUID}from\"crypto\";import{dirname as dirname6,join as join12}from\"path\";function timestamp3(){return new Date().toISOString().replace(/[-:.]/g,\"\")}function isRecord9(value){return value!==null&&typeof value===\"object\"&&!Array.isArray(value)}function readJsonOrJsonc(path){if(!existsSync11(path))return;let parsed;try{parsed=parseJsoncLite(readFileSync12(path,\"utf8\"))}catch(error){if(!(error instanceof SyntaxError))throw error;throw new Error(`Malformed migration config: ${path}`)}if(!isRecord9(parsed))throw new Error(`Malformed migration target: ${path}`);return parsed}function readFirstExisting(dir,names){for(const name2 of names){const path=join12(dir,name2);if(existsSync11(path))return{path,value:re\n\nerror: Malformed migration config: /var/folders/d7/2hnp97055zlcf6r_bygm1_4r0000gn/T/omo-pr8538-final-PTN6fH/malformed-mcp/custom/agent/mcp.json\n      at readJsonOrJsonc (/$bunfs/root/omo-darwin-arm64:89:750)\n      at target (/$bunfs/root/omo-darwin-arm64:89:1251)\n      at planMigration (/$bunfs/root/omo-darwin-arm64:89:4336)\n      at runMigrate (/$bunfs/root/omo-darwin-arm64:4217:284)\n      at async runSetupOrMigrate (/$bunfs/root/omo-darwin-arm64:4230:719)\n      at async main2 (/$bunfs/root/omo-darwin-arm64:4233:3013)\n\nBun v1.4.0 (macOS arm64)\n"
+    },
+    {
+      "scenario": "old-marker-repair",
+      "args": [
+        "migrate",
+        "--yes"
+      ],
+      "status": 0,
+      "stdout": "settings: nothing to migrate\nmodels: nothing to migrate\nmcp: nothing to migrate\nkeybindings: nothing to migrate\nomo-config: migrated\nmanual-review: omo-config (recovered the user omo.json masked by a prior migration)\n",
+      "stderr": ""
+    }
+  ],
+  "consumers": [
+    "OmoConfigLayerSchema",
+    "Senpi loadMcpConfig",
+    "Senpi permission settings and evaluator",
+    "Senpi KeybindingsManager"
+  ],
+  "isolation": "temporary HOME, custom agent directory and XDG roots",
+  "cleanup": "temporary fixtures removed in finally"
+}

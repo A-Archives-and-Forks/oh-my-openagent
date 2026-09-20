@@ -24,6 +24,7 @@ import { tmpdir } from "node:os"
 import { dirname, join, relative, resolve, sep } from "node:path"
 import { fileURLToPath } from "node:url"
 import { z } from "zod"
+import { buildMigrationRuntime } from "./build-migration-runtime"
 import { engineSidecarSources, resolvePackageDir, senpiPackageDir, type SidecarSource } from "./engine-sidecar-sources"
 import nativeFixture from "./release-binary-native-fixture.json"
 import { senpiWorkerCompileArgs } from "./senpi-worker-compile"
@@ -731,6 +732,7 @@ function parseArgs(argv: readonly string[]): CliOptions {
 
 async function main(argv: readonly string[]): Promise<number> {
   const options = parseArgs(argv)
+  await buildMigrationRuntime()
   for (const target of options.targets) {
     const result = await buildReleaseBinary(target, {
       omoVersion: options.omoVersion,

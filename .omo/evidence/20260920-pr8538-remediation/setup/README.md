@@ -22,7 +22,9 @@ unrelated repository adapter preloads.
   setup-content-import.test.ts. FIFO failure now restores original target bytes
   and removes the partially copied new skill.
 
-The skip is the existing node:sqlite case on Bun 1.3.14.
+The skip above is the existing node:sqlite case on Bun 1.3.14. A subsequent run
+using isolated, exact-pinned Bun 1.4.0 passed all 23 tests with 0 skips and 0 failures,
+including the real SQLite stores and FIFO rollback case.
 
 ## Real launcher output
 

@@ -14,5 +14,5 @@
     "lib": ["ESNext"],
     "types": ["bun-types"]
   },
-  "include": ["test/**/*", "bin/**/*"]
+  "include": ["test/**/*", "bin/**/*", "migration-runtime.ts"]
 }

@@ -1,0 +1,83 @@
+{
+  "status": "PASS",
+  "scenarios": [
+    {
+      "scenario": "setup",
+      "args": [
+        "setup",
+        "--yes"
+      ],
+      "status": 0,
+      "stdout": "HARNESS | INSTALLED | PROVIDERS | CREDENTIAL TYPES | MODELS\nsenpi | no | none | none | none\nopencode | yes | anthropic-api, opencode | api, oauth | none\noh-my-pi | no | none | none | models.db: no\ngajae-code | no | none | none | none\nRun `omo setup --yes` to import available API credentials.\n\nMODEL AVAILABILITY\nsenpi: providers none; models none\nopencode: providers anthropic-api, opencode; models none\noh-my-pi: providers none; models models.db: no\ngajae-code: providers none; models none\nModel-to-agent guidance: docs/guide/agent-model-matching.md\nReady-to-paste omo.json models catalog template:\n{\n  \"models\": {\n    \"primary\": {\n      \"model\": \"<provider>/<model-id>\",\n      \"reasoning\": \"<off|low|medium|high|max>\"\n    },\n    \"custom-endpoint\": {\n      \"model\": \"<custom-baseUrl-provider>/<model-id>\"\n    }\n  }\n}\nFor custom endpoints, define the provider baseUrl in senpi models.json, then use that provider id above.\nplanned-add: anthropic\nskipped-existing: none\nskipped-oauth: none\nskipped-gateway: opencode\nskipped-unmapped: none\nmcp-planned-add: remote\nmcp-skipped-existing: none\nskills-planned-add: none\nskills-skipped-existing: none\nagents-md: absent\nimported: 1\nskipped-existing: 0\nskipped-oauth: 0\nskipped-gateway: 1\nskipped-unmapped: 0\nmcp-imported: 1\nskills-imported: 0\nagents-md: absent\n",
+      "stderr": ""
+    },
+    {
+      "scenario": "help",
+      "args": [
+        "migrate",
+        "--help"
+      ],
+      "status": 0,
+      "stdout": "Usage: omo migrate [--dry-run|--yes]\n\nWithout --yes, omo migrate previews changes without writing.\nUse --dry-run for an explicit read-only preview.\n",
+      "stderr": ""
+    },
+    {
+      "scenario": "full",
+      "args": [
+        "migrate",
+        "--dry-run"
+      ],
+      "status": 0,
+      "stdout": "DRY RUN: no files will be written\nsettings: migrated\nmodels: migrated\nmcp: migrated\nkeybindings: migrated\nomo-config: migrated\nmanual-review: agents.restricted (disabled because its OpenCode restrictions cannot be represented), keybindings.session_new (unsupported; manual review required), omo-config.codegraph (unsupported by omo.json; manual review required), settings.default model (preserved existing partial provider/model pair)\n",
+      "stderr": ""
+    },
+    {
+      "scenario": "full",
+      "args": [
+        "migrate",
+        "--yes"
+      ],
+      "status": 0,
+      "stdout": "settings: migrated\nmodels: migrated\nmcp: migrated\nkeybindings: migrated\nomo-config: migrated\nmanual-review: agents.restricted (disabled because its OpenCode restrictions cannot be represented), keybindings.session_new (unsupported; manual review required), omo-config.codegraph (unsupported by omo.json; manual review required), settings.default model (preserved existing partial provider/model pair)\n",
+      "stderr": ""
+    },
+    {
+      "scenario": "full",
+      "args": [
+        "migrate",
+        "--yes"
+      ],
+      "status": 0,
+      "stdout": "settings: already migrated\nmodels: already migrated\nmcp: already migrated\nkeybindings: already migrated\nomo-config: migrated\nmanual-review: agents.restricted (disabled because its OpenCode restrictions cannot be represented), omo-config.codegraph (unsupported by omo.json; manual review required), omo-config.skipped: agents.oracle.model, omo-config.skipped: agents.restricted.description, omo-config.skipped: agents.restricted.disable, omo-config.skipped: agents.reviewer.description, omo-config.skipped: agents.reviewer.model, omo-config.skipped: agents.reviewer.prompt, omo-config.skipped: categories.deep.model\n",
+      "stderr": ""
+    },
+    {
+      "scenario": "malformed-mcp",
+      "args": [
+        "migrate",
+        "--yes"
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": "omo: Malformed migration config: /var/folders/d7/2hnp97055zlcf6r_bygm1_4r0000gn/T/omo-pr8538-final-7KbWeL/malformed-mcp/custom/agent/mcp.json\n"
+    },
+    {
+      "scenario": "old-marker-repair",
+      "args": [
+        "migrate",
+        "--yes"
+      ],
+      "status": 0,
+      "stdout": "settings: nothing to migrate\nmodels: nothing to migrate\nmcp: nothing to migrate\nkeybindings: nothing to migrate\nomo-config: migrated\nmanual-review: omo-config (recovered the user omo.json masked by a prior migration)\n",
+      "stderr": ""
+    }
+  ],
+  "consumers": [
+    "OmoConfigLayerSchema",
+    "Senpi loadMcpConfig",
+    "Senpi permission settings and evaluator",
+    "Senpi KeybindingsManager"
+  ],
+  "isolation": "temporary HOME, custom agent directory and XDG roots",
+  "cleanup": "temporary fixtures removed in finally"
+}
