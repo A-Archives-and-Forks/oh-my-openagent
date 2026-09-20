@@ -21,10 +21,9 @@ function migrationHelp() {
 }
 
 /**
- * Migration is deliberately lazy: normal CLI commands, --help, and setup must
- * work from a clean source checkout before the generated config-core bundle
- * exists. Package and test build paths generate that bundle before applying or
- * previewing a migration.
+ * Migration is deliberately lazy: normal CLI commands, --help, and credential-only
+ * setup work before the generated bundle exists. Migration and MCP imports use its
+ * canonical validators; package and test build paths generate it before those runs.
  */
 export async function runMigrate(args = process.argv.slice(2), options = {}) {
   const parsed = parseArgs(args)

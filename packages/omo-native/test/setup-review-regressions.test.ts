@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from "bun:test"
+import { afterEach, beforeAll, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -8,6 +8,9 @@ import { fileURLToPath } from "node:url"
 import { AuthStorage } from "../../../node_modules/@code-yeongyu/senpi/dist/core/auth-storage.js"
 import { runSetup } from "../bin/lib/setup-import.js"
 import { teardownRoots } from "./teardown.test-support"
+import { buildMigrationRuntime } from "../../../script/build-migration-runtime"
+
+beforeAll(buildMigrationRuntime)
 
 const roots: string[] = []
 afterEach(() => teardownRoots(roots))

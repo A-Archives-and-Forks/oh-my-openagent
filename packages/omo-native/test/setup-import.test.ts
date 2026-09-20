@@ -94,7 +94,7 @@ function run(item: Fixture, args: string[], ttyInput?: string) {
   const before = sourceSnapshot(item)
   const env: NodeJS.ProcessEnv = {
     ...process.env, HOME: item.home, USERPROFILE: item.home, SENPI_CODING_AGENT_DIR: item.agentDir,
-    XDG_DATA_HOME: item.xdg,
+    XDG_DATA_HOME: item.xdg, XDG_CONFIG_HOME: join(item.root, "config"),
   }
   delete env.OMO_CODING_AGENT_DIR
   delete env.PI_CODING_AGENT_DIR
@@ -355,7 +355,7 @@ describe("omo setup import", () => {
           join(item.xdg, "opencode", "auth.json"),
           JSON.stringify({ google: { type: "api", key: "IMPORT-SECRET" } }),
         )
-        const env: NodeJS.ProcessEnv = { ...process.env, HOME: item.home, USERPROFILE: item.home, XDG_DATA_HOME: item.xdg }
+        const env: NodeJS.ProcessEnv = { ...process.env, HOME: item.home, USERPROFILE: item.home, XDG_DATA_HOME: item.xdg, XDG_CONFIG_HOME: join(item.root, "config") }
         delete env.OMO_CODING_AGENT_DIR
         delete env.SENPI_CODING_AGENT_DIR
         delete env.PI_CODING_AGENT_DIR

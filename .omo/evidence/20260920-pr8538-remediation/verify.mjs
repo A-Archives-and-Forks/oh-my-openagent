@@ -176,6 +176,53 @@ try {
   assert.equal(repaired.agents.reviewer.prompt, "Already migrated")
   assert.equal(repaired.agents.oracle.model, "openai/gpt-5")
 
+  for (const command of ["setup", "migrate"]) {
+    const layers = fixture(`source-layers-${command}`)
+    write(join(layers.config, "config.json"), { mcp: { legacy: { type: "remote", url: "https://legacy.test/mcp" } } })
+    write(join(layers.config, "opencode.json"), {
+      model: "openai/gpt-5", permission: "allow", default_agent: "reviewer", instructions: ["RULES.md"],
+      agent: { "team/reviewer": { model: "openai/gpt-5", permission: { edit: "deny" } } },
+      provider: { custom: { npm: "@ai-sdk/openai-compatible", options: { baseURL: "https://example.test/v1", headers: { Authorization: "DUMMY" } }, models: { m: {} } } },
+      mcp: { json: { type: "remote", url: "https://json.test/mcp" } },
+    })
+    write(join(layers.config, "opencode.jsonc"), {
+      model: "anthropic/claude-opus-4-5", permission: "deny",
+      mcp: {
+        jsonc: { type: "remote", url: "https://jsonc.test/mcp" },
+        literal: { type: "remote", url: "https://literal.test/mcp", headers: { Authorization: "Bearer ${OPENAI_API_KEY}" } },
+      },
+    })
+    write(join(layers.config, "tui.json"), { keybinds: { session_new: "ctrl+n", model_list: "ctrl+l" } })
+    write(join(layers.config, "tui.jsonc"), { keybinds: { model_list: "ctrl+m" } })
+    const nestedSource = join(layers.config, "agents", "team", "reviewer.md")
+    write(nestedSource, "---\ndescription: Nested reviewer\n---\nReview nested code.\n")
+    run(layers, [command, "--yes"])
+    const mcp = loadMcpConfig({ cwd: layers.home, agentDir: layers.agent, projectTrusted: false, env: { OPENAI_API_KEY: "EXPANDED" } })
+    assert.deepEqual(Object.keys(mcp.servers).sort(), ["json", "jsonc", "legacy"])
+    if (command === "migrate") {
+      assert.equal(json(join(layers.agent, "settings.json")).defaultProvider, "anthropic")
+      assert.deepEqual(json(join(layers.agent, "settings.json")).permission, { "*": "deny" })
+      const agent = json(join(layers.home, ".omo", "omo.jsonc")).agents["team/reviewer"]
+      assert.equal(agent.prompt, "Review nested code.")
+      assert.equal(agent.model, "openai/gpt-5")
+      assert.equal(agent.disable, true)
+      assert.equal(json(join(layers.agent, "keybindings.json"))["app.model.select"], "ctrl+m")
+      const receipt = json(join(layers.agent, "opencode-migration-report.json"))
+      for (const key of ["default_agent", "instructions", "options.headers"]) assert.ok(receipt.warnings.some((entry) => entry.includes(key)))
+      const backedUp = json(join(receipt.backupDirectory, "manifest.json")).files.map((entry) => entry.path)
+      for (const name of ["config.json", "opencode.json", "opencode.jsonc", "tui.json", "tui.jsonc"]) assert.ok(backedUp.includes(join(layers.config, name)))
+      assert.ok(backedUp.includes(nestedSource))
+    }
+    const invalidSchema = fixture(`schema-invalid-${command}`)
+    write(join(invalidSchema.base, "data", "opencode", "auth.json"), { openai: { type: "api", key: "DUMMY" } })
+    write(join(invalidSchema.config, "opencode.json"), { model: "openai/gpt-5", mcp: { new: { type: "remote", url: "https://new.test/mcp" } } })
+    write(join(invalidSchema.agent, "mcp.json"), { mcpServers: { broken: { type: "http" } } })
+    run(invalidSchema, [command, "--yes"], 1)
+    assert.equal(existsSync(join(invalidSchema.agent, "auth.json")), false)
+    assert.equal(existsSync(join(invalidSchema.agent, "settings.json")), false)
+    assert.deepEqual(json(join(invalidSchema.agent, "mcp.json")), { mcpServers: { broken: { type: "http" } } })
+  }
+
   const report = JSON.stringify({ status: "PASS", scenarios: receipts, consumers: ["OmoConfigLayerSchema", "Senpi loadMcpConfig", "Senpi AuthStorage", "Senpi permission settings and evaluator", "Senpi KeybindingsManager"], isolation: "temporary HOME, custom agent directory and XDG roots", cleanup: "temporary fixtures removed in finally" }, null, 2)
   writeFileSync(new URL(process.env.REVIEW_COMPILED_BINARY ? "./compiled-consumer-qa.json" : "./consumer-qa.json", import.meta.url), `${report}\n`)
   console.log(report)

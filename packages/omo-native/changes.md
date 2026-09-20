@@ -4,7 +4,9 @@ OAuth re-auth guidance now maps source aliases and excludes gateway/unknown IDs
 from executable login advice. MCP environment references translate to `${VAR}`;
 file references and unsupported command expressions are reported for manual
 review rather than copied as literal credentials. Malformed target MCP objects
-stop setup before credential writes. A caught content-copy failure restores
+are checked with Senpi's complete schema and endpoint validator, as is the planned
+document, before credential writes. Preexisting native `${VAR}` syntax in OpenCode
+MCP values requires manual review rather than being reinterpreted. A caught content-copy failure restores
 previous credential/MCP bytes and removes newly copied skill directories.
 Imported credential strings are escaped as native literals, so `$` and a leading
 `!` cannot become interpolation or a command. Auth/MCP/AGENTS targets are compared
@@ -15,8 +17,9 @@ Evidence: `.omo/evidence/20260920-pr8538-remediation/setup/`.
 
 `omo migrate` previews unless `--yes` explicitly permits writes. Both npm and compiled
 launchers use the same setup/migrate dispatcher; help and dry-run bypass legacy-state
-adoption. A literal lazy import keeps non-migration commands independent of the generated
-schema/YAML runtime, which native staging and binary builds generate atomically.
+adoption. A literal lazy import keeps ordinary commands independent of the generated
+schema/YAML runtime; MCP imports also load its validators lazily. Native staging and
+binary builds generate the bundle atomically.
 
 Migration treats default provider/model as a pair, translates permission shorthand,
 environment references and upstream model IDs, and converts key alternatives/`none`.
@@ -33,6 +36,13 @@ identify conflicting fields without serializing their values.
 Each run re-evaluates unresolved warnings. The durable report refreshes when those
 warnings change, retains the last applied action rows on no-op runs, and does not
 create backups solely for volatile paths or unchanged merge leaves.
+
+Setup and migration share OpenCode's global read precedence: `config.json`,
+`opencode.json`, then `opencode.jsonc`, recursively merged. TUI JSON and JSONC are
+merged likewise. Agent discovery includes nested/symlinked directories, preserves
+relative names, and backs up every discovered Markdown source. Inline agent fields
+fill missing Markdown fields without dropping restrictions. Unhandled root settings
+and provider/model options receive path-only manual-review warnings.
 
 ## omo setup inherits opencode content, and names every skipped OAuth provider
 

@@ -8,10 +8,10 @@ Baseline: 9a6028354. No real credential store or provider service was used.
 Using exact-pinned Bun 1.4.0 with its bin directory first in PATH:
 
 ```text
-383 pass
+396 pass
 0 fail
-1156 expect() calls
-Ran 383 tests across 42 files. [25.93s]
+1200 expect() calls
+Ran 396 tests across 43 files. [27.70s]
 ```
 
 Command: from an isolated test cwd without unrelated adapter preloads,
@@ -25,6 +25,8 @@ provider APIs, and recovery of unsupported output from the old migration.
 The subsequent review's three remaining findings were reproduced and corrected:
 literal credential resolution, consent-time target changes, and stale durable
 warnings. See `round3.md` for RED/GREEN and consumer evidence.
+`round4.md` records the next review's source-precedence, complete MCP validation,
+literal MCP expression, recursive-agent, and unsupported-field corrections.
 
 An intermediate full-suite failure was caused by this change's additional generated
 file in `.gitignore`, not by unrelated code. The payload test's exact expected
@@ -56,6 +58,11 @@ Both receipts cover:
 | Malformed target MCP | Nonzero exit; no settings or migration marker written. |
 | Second migration | Config bytes unchanged. |
 | Old marker and masking jsonc | Previously hidden json configuration and omitted agent recovered. |
+| Global JSON/JSONC layers and TUI layers | Later JSONC values win while other keys survive; all sources are backed up. |
+| Schema-invalid MCP documents | Both commands abort without writing credentials/settings. |
+| Literal native MCP variables | Server is reported for manual review, never silently interpolated. |
+| Nested agents plus inline restrictions | Relative names, missing fields, restrictions and source backups survive. |
+| Unsupported settings/provider options | Path-only warnings include every omitted key tested. |
 
 The real consumer checks use OmoConfigLayerSchema, Senpi loadMcpConfig,
 SettingsManager plus permission evaluation, and KeybindingsManager. A regression
@@ -67,12 +74,12 @@ than treating command-shaped API keys as executable helpers.
 ```bash
 bun run script/build-omo-binary.ts \
   --target darwin-arm64 \
-  --omo-version 5.0.0-review3 \
-  --omo-ai-version 5.0.0-0.beta.review3 \
-  --out-dir /tmp/omo-pr8538-round3-build
+  --omo-version 5.0.0-review4 \
+  --omo-ai-version 5.0.0-0.beta.review4 \
+  --out-dir /tmp/omo-pr8538-round4-build
 ```
 
-Exit 0: built darwin-arm64, 110490866 bytes, 751 embedded sidecar files.
+Exit 0: built darwin-arm64, 110854130 bytes, 751 embedded sidecar files.
 The exact output binary passed the CLI/consumer QA above. The package suite also
 built and validated the full native plugin payload.
 

@@ -89,7 +89,7 @@
       ],
       "status": 1,
       "stdout": "",
-      "stderr": "omo: Malformed migration config: /var/folders/d7/2hnp97055zlcf6r_bygm1_4r0000gn/T/omo-pr8538-final-Ti8Zo2/malformed-mcp/custom/agent/mcp.json\n"
+      "stderr": "omo: Malformed migration config: /var/folders/d7/2hnp97055zlcf6r_bygm1_4r0000gn/T/omo-pr8538-final-VWAcli/malformed-mcp/custom/agent/mcp.json\n"
     },
     {
       "scenario": "old-marker-repair",
@@ -100,6 +100,46 @@
       "status": 0,
       "stdout": "settings: nothing to migrate\nmodels: nothing to migrate\nmcp: nothing to migrate\nkeybindings: nothing to migrate\nomo-config: recovered the user omo.json masked by a prior migration\nomo-config: migrated\n",
       "stderr": ""
+    },
+    {
+      "scenario": "source-layers-setup",
+      "args": [
+        "setup",
+        "--yes"
+      ],
+      "status": 0,
+      "stdout": "HARNESS | INSTALLED | PROVIDERS | CREDENTIAL TYPES | MODELS\nsenpi | no | none | none | none\nopencode | no | none | none | none\noh-my-pi | no | none | none | models.db: no\ngajae-code | no | none | none | none\n\nMODEL AVAILABILITY\nsenpi: providers none; models none\nopencode: providers none; models none\noh-my-pi: providers none; models models.db: no\ngajae-code: providers none; models none\nModel-to-agent guidance: docs/guide/agent-model-matching.md\nReady-to-paste omo.json models catalog template:\n{\n  \"models\": {\n    \"primary\": {\n      \"model\": \"<provider>/<model-id>\",\n      \"reasoning\": \"<off|low|medium|high|max>\"\n    },\n    \"custom-endpoint\": {\n      \"model\": \"<custom-baseUrl-provider>/<model-id>\"\n    }\n  }\n}\nFor custom endpoints, define the provider baseUrl in senpi models.json, then use that provider id above.\nNOTICE opencode: mcp servers need manual review: literal\nplanned-add: none\nskipped-existing: none\nskipped-oauth: none\nskipped-gateway: none\nskipped-unmapped: none\nmcp-planned-add: legacy, json, jsonc\nmcp-skipped-existing: none\nskills-planned-add: none\nskills-skipped-existing: none\nagents-md: absent\nimported: 0\nskipped-existing: 0\nskipped-oauth: 0\nskipped-gateway: 0\nskipped-unmapped: 0\nmcp-imported: 3\nskills-imported: 0\nagents-md: absent\n",
+      "stderr": ""
+    },
+    {
+      "scenario": "schema-invalid-setup",
+      "args": [
+        "setup",
+        "--yes"
+      ],
+      "status": 1,
+      "stdout": "HARNESS | INSTALLED | PROVIDERS | CREDENTIAL TYPES | MODELS\nsenpi | no | none | none | none\nopencode | yes | openai | api | none\noh-my-pi | no | none | none | models.db: no\ngajae-code | no | none | none | none\nRun `omo setup --yes` to import available API credentials.\n\nMODEL AVAILABILITY\nsenpi: providers none; models none\nopencode: providers openai; models none\noh-my-pi: providers none; models models.db: no\ngajae-code: providers none; models none\nModel-to-agent guidance: docs/guide/agent-model-matching.md\nReady-to-paste omo.json models catalog template:\n{\n  \"models\": {\n    \"primary\": {\n      \"model\": \"<provider>/<model-id>\",\n      \"reasoning\": \"<off|low|medium|high|max>\"\n    },\n    \"custom-endpoint\": {\n      \"model\": \"<custom-baseUrl-provider>/<model-id>\"\n    }\n  }\n}\nFor custom endpoints, define the provider baseUrl in senpi models.json, then use that provider id above.\n",
+      "stderr": "omo: Invalid MCP config: mcpServers.broken.url: Required for enabled http server\n"
+    },
+    {
+      "scenario": "source-layers-migrate",
+      "args": [
+        "migrate",
+        "--yes"
+      ],
+      "status": 0,
+      "stdout": "settings: migrated\nmodels: migrated\nmcp: migrated\nkeybindings: migrated\nomo-config: migrated\nmanual-review: agents.team/reviewer (disabled because its OpenCode restrictions cannot be represented), mcp.literal (unsupported config expression; manual review required), models.custom.options.headers (unsupported; manual review required), settings.default_agent (unsupported; manual review required), settings.instructions (unsupported; manual review required)\n",
+      "stderr": ""
+    },
+    {
+      "scenario": "schema-invalid-migrate",
+      "args": [
+        "migrate",
+        "--yes"
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": "omo: Invalid MCP config: mcpServers.broken.url: Required for enabled http server\n"
     }
   ],
   "consumers": [

@@ -1,10 +1,14 @@
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
-import { parseJsoncLite } from "./jsonc-lite.js"
+import { readOpencodeGlobalConfig } from "./opencode-config.js"
 import { translateOpencodeValue, UnsupportedConfigValue } from "./config-values.js"
+export { readOpencodeConfigDir, readOpencodeGlobalConfig } from "./opencode-config.js"
 
 function translateMcpValue(value) {
   if (typeof value === "string") {
+    // OpenCode's raw ${...} is literal, whereas Senpi interpolates it. Check
+    // before converting supported {env:...} so the two syntaxes cannot mix.
+    if (/\$\{[A-Za-z_][A-Za-z0-9_]*(?::-[^}]*)?\}/.test(value)) throw new UnsupportedConfigValue()
     const translated = translateOpencodeValue(value)
     if (translated.trimStart().startsWith("!") || translated.includes("$(")) throw new UnsupportedConfigValue()
     return translated
@@ -16,19 +20,6 @@ function translateMcpValue(value) {
 
 function isObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value)
-}
-
-export function readOpencodeConfigDir(home, env) {
-  const xdgConfig = env.XDG_CONFIG_HOME || join(home, ".config")
-  return join(xdgConfig, "opencode")
-}
-
-export function readOpencodeGlobalConfig(configDir) {
-  for (const name of ["opencode.json", "opencode.jsonc"]) {
-    const path = join(configDir, name)
-    if (existsSync(path)) return parseJsoncLite(readFileSync(path, "utf8"))
-  }
-  return undefined
 }
 
 export function translateMcpServer(server) {
@@ -64,7 +55,7 @@ function listSkillDirs(configDir) {
     .sort()
 }
 
-export function planContentImport({ configDir, agentDir }) {
+export async function planContentImport({ configDir, agentDir }) {
   const plan = {
     mcp: { add: [], skipExisting: [], invalid: [], expectedBytes: undefined },
     skills: { add: [], skipExisting: [] },
@@ -76,7 +67,11 @@ export function planContentImport({ configDir, agentDir }) {
   if (config !== undefined && config !== null && typeof config === "object") {
     const mcp = config.mcp
     if (mcp !== null && typeof mcp === "object" && !Array.isArray(mcp)) {
+      // MCP schema validation is a command-local dependency; other setup paths
+      // remain usable before the source checkout's runtime bundle is built.
+      const { assertNativeMcpConfig } = await import("./migration-runtime.js")
       let existingServers = {}
+      let existingConfig = {}
       const targetPath = join(agentDir, "mcp.json")
       if (existsSync(targetPath)) {
         try {
@@ -84,10 +79,12 @@ export function planContentImport({ configDir, agentDir }) {
           const parsed = JSON.parse(plan.mcp.expectedBytes)
           if (!isObject(parsed) || (parsed.mcpServers !== undefined && !isObject(parsed.mcpServers))) throw new SyntaxError("expected MCP object")
           existingServers = parsed.mcpServers ?? {}
+          existingConfig = parsed
         } catch {
           throw new Error("Malformed mcp.json; setup did not write any files")
         }
       }
+      assertNativeMcpConfig(existingConfig)
       for (const [name, server] of Object.entries(mcp)) {
         if (Object.hasOwn(existingServers, name)) {
           plan.mcp.skipExisting.push(name)
@@ -106,6 +103,7 @@ export function planContentImport({ configDir, agentDir }) {
         plan.mcp.add.push(name)
         plan.translated[name] = translated
       }
+      assertNativeMcpConfig({ ...existingConfig, mcpServers: { ...existingServers, ...plan.translated } })
       if (plan.mcp.invalid.length > 0) {
         plan.notices.push(`NOTICE opencode: mcp servers need manual review: ${plan.mcp.invalid.sort().join(", ")}`)
       }
