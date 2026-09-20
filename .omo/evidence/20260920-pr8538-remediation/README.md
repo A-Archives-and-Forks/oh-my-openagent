@@ -8,10 +8,10 @@ Baseline: 9a6028354. No real credential store or provider service was used.
 Using exact-pinned Bun 1.4.0 with its bin directory first in PATH:
 
 ```text
-373 pass
+383 pass
 0 fail
-1123 expect() calls
-Ran 373 tests across 41 files. [24.97s]
+1156 expect() calls
+Ran 383 tests across 42 files. [25.93s]
 ```
 
 Command: from an isolated test cwd without unrelated adapter preloads,
@@ -22,6 +22,9 @@ OAuth aliases, expression translation, content-copy rollback, compiled JSON
 resource loading, dry-run state adoption, leader chords, masked configuration,
 diagnostic secret leakage, backup-source omission, invalid permissions, unknown
 provider APIs, and recovery of unsupported output from the old migration.
+The subsequent review's three remaining findings were reproduced and corrected:
+literal credential resolution, consent-time target changes, and stale durable
+warnings. See `round3.md` for RED/GREEN and consumer evidence.
 
 An intermediate full-suite failure was caused by this change's additional generated
 file in `.gitignore`, not by unrelated code. The payload test's exact expected
@@ -64,9 +67,9 @@ than treating command-shaped API keys as executable helpers.
 ```bash
 bun run script/build-omo-binary.ts \
   --target darwin-arm64 \
-  --omo-version 5.0.0-review \
-  --omo-ai-version 5.0.0-0.beta.review \
-  --out-dir /tmp/omo-pr8538-final-build
+  --omo-version 5.0.0-review3 \
+  --omo-ai-version 5.0.0-0.beta.review3 \
+  --out-dir /tmp/omo-pr8538-round3-build
 ```
 
 Exit 0: built darwin-arm64, 110490866 bytes, 751 embedded sidecar files.

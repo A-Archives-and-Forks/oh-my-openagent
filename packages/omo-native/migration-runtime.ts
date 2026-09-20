@@ -1,4 +1,5 @@
 import { load, YAMLException } from "js-yaml"
+import { isDeepStrictEqual } from "node:util"
 
 import {
   mergeWithoutClobber,
@@ -49,12 +50,23 @@ export function resolveProviderAlias(id: string): string {
   return __MIGRATION_PROVIDER_MAP__.providers[id] ?? id
 }
 
+function conflictPaths(existing: RecordValue, incoming: RecordValue, prefix: readonly string[]): string[] {
+  return Object.entries(incoming).flatMap(([key, value]) => {
+    const path = [...prefix, key]
+    if (["__proto__", "constructor", "prototype"].includes(key)) return [`unsupported: ${path.join(".")}`]
+    if (!Object.hasOwn(existing, key)) return []
+    const kept = existing[key]
+    if (isRecord(kept) && isRecord(value)) return conflictPaths(kept, value, path)
+    return isDeepStrictEqual(kept, value) ? [] : [`skipped: ${path.join(".")}`]
+  })
+}
+
 export function mergeOmoConfig(
   existing: RecordValue,
   additions: RecordValue,
 ): { readonly diagnostics: readonly string[]; readonly value: RecordValue } {
   const merged = mergeWithoutClobber(existing, additions)
-  return { diagnostics: merged.diagnostics.map((message) => message.split(" legacy=")[0]), value: merged.merged }
+  return { diagnostics: conflictPaths(existing, additions, []), value: merged.merged }
 }
 
 export function validateOmoConfig(value: RecordValue): OmoConfigValidation {

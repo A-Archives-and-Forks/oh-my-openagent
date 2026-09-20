@@ -66,7 +66,7 @@ function listSkillDirs(configDir) {
 
 export function planContentImport({ configDir, agentDir }) {
   const plan = {
-    mcp: { add: [], skipExisting: [], invalid: [] },
+    mcp: { add: [], skipExisting: [], invalid: [], expectedBytes: undefined },
     skills: { add: [], skipExisting: [] },
     agentsMd: "absent",
     notices: [],
@@ -80,7 +80,8 @@ export function planContentImport({ configDir, agentDir }) {
       const targetPath = join(agentDir, "mcp.json")
       if (existsSync(targetPath)) {
         try {
-          const parsed = JSON.parse(readFileSync(targetPath, "utf8"))
+          plan.mcp.expectedBytes = readFileSync(targetPath, "utf8")
+          const parsed = JSON.parse(plan.mcp.expectedBytes)
           if (!isObject(parsed) || (parsed.mcpServers !== undefined && !isObject(parsed.mcpServers))) throw new SyntaxError("expected MCP object")
           existingServers = parsed.mcpServers ?? {}
         } catch {

@@ -6,6 +6,9 @@ file references and unsupported command expressions are reported for manual
 review rather than copied as literal credentials. Malformed target MCP objects
 stop setup before credential writes. A caught content-copy failure restores
 previous credential/MCP bytes and removes newly copied skill directories.
+Imported credential strings are escaped as native literals, so `$` and a leading
+`!` cannot become interpolation or a command. Auth/MCP/AGENTS targets are compared
+with the planned bytes after consent; a concurrent edit aborts before any writes.
 Evidence: `.omo/evidence/20260920-pr8538-remediation/setup/`.
 
 ## omo migrate - the opencode codemod
@@ -27,6 +30,9 @@ config hidden by the earlier `.json`/`.jsonc` behavior. All targets are read bef
 caught write failures restore previous bytes. Backups include an original-path manifest,
 and `opencode-migration-report.json` retains warnings and the backup directory. Diagnostics
 identify conflicting fields without serializing their values.
+Each run re-evaluates unresolved warnings. The durable report refreshes when those
+warnings change, retains the last applied action rows on no-op runs, and does not
+create backups solely for volatile paths or unchanged merge leaves.
 
 ## omo setup inherits opencode content, and names every skipped OAuth provider
 

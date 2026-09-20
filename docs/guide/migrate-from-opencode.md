@@ -66,8 +66,11 @@ are reported for manual review. Backups preserve files that existed before a wri
   Its `manifest.json` maps backup names to original paths and lists newly created files.
   `<agentDir>/opencode-migration-report.json` records warnings and the backup directory,
   including runs that only report unsupported settings. Keep these until you have checked
-  the new setup.
+  the new setup. Reruns refresh unresolved warnings; unchanged reruns retain the last
+  applied action rows without creating extra backups.
 - `omo setup` backs up an existing `auth.json`/`mcp.json` as `.bak-<timestamp>` before merging.
+  If an intended target changes while you answer its consent prompt, setup stops without
+  writing so you can preview the new state and try again.
 - Caught apply failures roll back earlier writes. Abrupt process termination is not an
   all-or-nothing transaction across multiple files; retain backups for recovery.
 - opencode is never modified or uninstalled — your old setup keeps working as-is. To roll back,

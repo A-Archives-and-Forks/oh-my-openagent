@@ -1,4 +1,11 @@
-import { chmodSync, lstatSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, lstatSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+
+export function assertSetupTargetsUnchanged(targets) {
+  for (const { path, bytes } of targets) {
+    const current = existsSync(path) ? readFileSync(path, "utf8") : undefined
+    if (current !== bytes) throw new Error("Setup destination changed during consent; no files were written. Run setup again")
+  }
+}
 
 // Backups remain as recovery receipts. This rolls back caught apply failures, not
 // abrupt process termination. Validate/capture every target before the first write.

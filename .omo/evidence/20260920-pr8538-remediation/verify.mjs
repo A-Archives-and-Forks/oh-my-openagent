@@ -1,11 +1,12 @@
 import assert from "node:assert/strict"
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { loadMcpConfig } from "../../../node_modules/@code-yeongyu/senpi/dist/core/extensions/builtin/mcp/config.js"
 import { SettingsManager } from "../../../node_modules/@code-yeongyu/senpi/dist/core/settings-manager.js"
+import { AuthStorage } from "../../../node_modules/@code-yeongyu/senpi/dist/core/auth-storage.js"
 import { KeybindingsManager } from "../../../node_modules/@code-yeongyu/senpi/dist/core/keybindings.js"
 import { loadPermissionSettings } from "../../../node_modules/@code-yeongyu/senpi/dist/core/extensions/builtin/permission-system/settings.js"
 import { evaluate } from "../../../node_modules/@code-yeongyu/senpi/dist/core/extensions/builtin/permission-system/evaluate.js"
@@ -57,13 +58,18 @@ try {
   const setup = fixture("setup")
   write(join(setup.base, "data", "opencode", "auth.json"), {
     "anthropic-api": { type: "api", key: "DUMMY_SETUP_KEY" },
+    openai: { type: "api", key: "!printf OMO_LITERAL_KEY" },
+    google: { type: "api", key: "${OMO_UNSET_LITERAL}" },
     opencode: { type: "oauth", access: "DUMMY" },
   })
   write(join(setup.config, "opencode.json"), {
     mcp: { remote: { type: "remote", url: "https://example.test/mcp", headers: { Authorization: "Bearer {env:REVIEW_MCP_TOKEN}" } } },
   })
   run(setup, ["setup", "--yes"])
-  assert.deepEqual(json(join(setup.agent, "auth.json")), { anthropic: { type: "api_key", key: "DUMMY_SETUP_KEY" } })
+  const credentials = AuthStorage.create(join(setup.agent, "auth.json"))
+  assert.equal(await credentials.getApiKey("anthropic", { includeFallback: false }), "DUMMY_SETUP_KEY")
+  assert.equal(await credentials.getApiKey("openai", { includeFallback: false }), "!printf OMO_LITERAL_KEY")
+  assert.equal(await credentials.getApiKey("google", { includeFallback: false }), "${OMO_UNSET_LITERAL}")
   const setupMcp = loadMcpConfig({ cwd: setup.home, agentDir: setup.agent, projectTrusted: false, env: { REVIEW_MCP_TOKEN: "DUMMY" } })
   assert.equal(setupMcp.servers.remote.config.headers.Authorization, "Bearer DUMMY")
 
@@ -132,8 +138,24 @@ try {
   assert.deepEqual(loaded.diagnostics, [])
   assert.equal(loaded.servers.remote.config.headers.Authorization, "Bearer DUMMY")
   const after = readFileSync(omoPath, "utf8")
+  const reportBeforeRepeat = readFileSync(join(full.agent, "opencode-migration-report.json"), "utf8")
   run(full, ["migrate", "--yes"])
   assert.equal(readFileSync(omoPath, "utf8"), after)
+  assert.equal(readFileSync(join(full.agent, "opencode-migration-report.json"), "utf8"), reportBeforeRepeat)
+
+  const refresh = fixture("report-refresh")
+  const refreshSource = join(refresh.config, "oh-my-openagent.json")
+  write(refreshSource, {})
+  run(refresh, ["migrate", "--yes"])
+  write(refreshSource, { codegraph: {} })
+  run(refresh, ["migrate", "--yes"])
+  const refreshedPath = join(refresh.agent, "opencode-migration-report.json")
+  assert.ok(json(refreshedPath).warnings.some((warning) => warning.includes("codegraph")))
+  const refreshedBytes = readFileSync(refreshedPath, "utf8")
+  const refreshedBackups = readdirSync(refresh.agent).filter((name) => name.startsWith("migration-backup-"))
+  run(refresh, ["migrate", "--yes"])
+  assert.equal(readFileSync(refreshedPath, "utf8"), refreshedBytes)
+  assert.deepEqual(readdirSync(refresh.agent).filter((name) => name.startsWith("migration-backup-")), refreshedBackups)
 
   const invalid = fixture("malformed-mcp")
   write(join(invalid.config, "opencode.json"), { model: "anthropic/claude-opus-4-5", mcp: { remote: { type: "remote", url: "https://example.test/mcp" } } })
@@ -154,7 +176,7 @@ try {
   assert.equal(repaired.agents.reviewer.prompt, "Already migrated")
   assert.equal(repaired.agents.oracle.model, "openai/gpt-5")
 
-  const report = JSON.stringify({ status: "PASS", scenarios: receipts, consumers: ["OmoConfigLayerSchema", "Senpi loadMcpConfig", "Senpi permission settings and evaluator", "Senpi KeybindingsManager"], isolation: "temporary HOME, custom agent directory and XDG roots", cleanup: "temporary fixtures removed in finally" }, null, 2)
+  const report = JSON.stringify({ status: "PASS", scenarios: receipts, consumers: ["OmoConfigLayerSchema", "Senpi loadMcpConfig", "Senpi AuthStorage", "Senpi permission settings and evaluator", "Senpi KeybindingsManager"], isolation: "temporary HOME, custom agent directory and XDG roots", cleanup: "temporary fixtures removed in finally" }, null, 2)
   writeFileSync(new URL(process.env.REVIEW_COMPILED_BINARY ? "./compiled-consumer-qa.json" : "./consumer-qa.json", import.meta.url), `${report}\n`)
   console.log(report)
 } finally {
