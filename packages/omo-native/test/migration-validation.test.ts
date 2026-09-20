@@ -69,6 +69,36 @@ test("#given invalid existing models #when migrating #then preflight leaves ever
   expect(json(join(item.agent, "models.json"))).toEqual({ providers: { custom: { apiKey: "" } } })
 })
 
+test.each([false, true])("#given an aliased custom provider with destination existing=%s #when migrating #then defaults reference the preserved destination definition", (existing) => {
+  const item = fixture()
+  const destination = "azure-openai-responses"
+  const kept = { api: "openai-completions", baseUrl: "https://kept.test/v1", models: [{ id: "deployment-a", name: "Existing" }] }
+  if (existing) write(join(item.agent, "models.json"), { providers: { [destination]: kept } })
+  write(join(item.config, "opencode.json"), {
+    model: "azure/deployment-a",
+    provider: { azure: { npm: "@ai-sdk/openai-compatible", options: { baseURL: "https://custom-azure.test/v1" }, models: { "deployment-a": { name: "Deployment A" } } } },
+  })
+  const result = run(item)
+  expect(result.status, result.stderr).toBe(0)
+  const settings = json(join(item.agent, "settings.json"))
+  const models = ModelConfig.loadSync(join(item.agent, "models.json"))
+  expect(models.getError()).toBeUndefined()
+  expect(settings.defaultProvider).toBe(destination)
+  expect(models.getProvider(settings.defaultProvider)?.models?.some((model) => model.id === settings.defaultModel)).toBe(true)
+  expect(models.getProviderIds()).toEqual([destination])
+  expect(models.getProvider(destination)?.baseUrl).toBe(existing ? kept.baseUrl : "https://custom-azure.test/v1")
+  if (existing) {
+    expect(json(join(item.agent, "models.json")).providers[destination]).toEqual(kept)
+    expect(json(join(item.agent, "opencode-migration-report.json")).warnings.some((line: string) => line.includes(destination))).toBe(true)
+  }
+  const reportPath = join(item.agent, "opencode-migration-report.json")
+  const before = readFileSync(reportPath, "utf8")
+  const backups = readdirSync(item.agent).filter((name) => name.startsWith("migration-backup-"))
+  expect(run(item).status).toBe(0)
+  expect(readFileSync(reportPath, "utf8")).toBe(before)
+  expect(readdirSync(item.agent).filter((name) => name.startsWith("migration-backup-"))).toEqual(backups)
+})
+
 test.each(["new", "existing", "no-options"])("#given an unsupported provider with omitted fields and state=%s #when migrating #then every field warning survives", (state) => {
   const item = fixture()
   write(join(item.config, "opencode.json"), {

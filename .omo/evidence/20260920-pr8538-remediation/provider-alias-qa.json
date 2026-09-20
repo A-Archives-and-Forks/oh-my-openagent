@@ -1,0 +1,98 @@
+{
+  "status": "PASS",
+  "consumer": "Senpi ModelConfig",
+  "results": [
+    {
+      "launcher": "node",
+      "existing": false,
+      "settings": {
+        "defaultProvider": "azure-openai-responses",
+        "defaultModel": "deployment-a"
+      },
+      "providerIds": [
+        "azure-openai-responses"
+      ],
+      "provider": {
+        "baseUrl": "https://custom-azure.test/v1",
+        "models": [
+          {
+            "id": "deployment-a",
+            "name": "Deployment A"
+          }
+        ],
+        "api": "openai-completions"
+      },
+      "warnings": []
+    },
+    {
+      "launcher": "node",
+      "existing": true,
+      "settings": {
+        "defaultProvider": "azure-openai-responses",
+        "defaultModel": "deployment-a"
+      },
+      "providerIds": [
+        "azure-openai-responses"
+      ],
+      "provider": {
+        "api": "openai-completions",
+        "baseUrl": "https://kept.test/v1",
+        "models": [
+          {
+            "id": "deployment-a",
+            "name": "Existing"
+          }
+        ]
+      },
+      "warnings": [
+        "models.azure-openai-responses (existing destination provider preserved; differing source azure skipped; manual review required)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "existing": false,
+      "settings": {
+        "defaultProvider": "azure-openai-responses",
+        "defaultModel": "deployment-a"
+      },
+      "providerIds": [
+        "azure-openai-responses"
+      ],
+      "provider": {
+        "baseUrl": "https://custom-azure.test/v1",
+        "models": [
+          {
+            "id": "deployment-a",
+            "name": "Deployment A"
+          }
+        ],
+        "api": "openai-completions"
+      },
+      "warnings": []
+    },
+    {
+      "launcher": "compiled",
+      "existing": true,
+      "settings": {
+        "defaultProvider": "azure-openai-responses",
+        "defaultModel": "deployment-a"
+      },
+      "providerIds": [
+        "azure-openai-responses"
+      ],
+      "provider": {
+        "api": "openai-completions",
+        "baseUrl": "https://kept.test/v1",
+        "models": [
+          {
+            "id": "deployment-a",
+            "name": "Existing"
+          }
+        ]
+      },
+      "warnings": [
+        "models.azure-openai-responses (existing destination provider preserved; differing source azure skipped; manual review required)"
+      ]
+    }
+  ]
+}

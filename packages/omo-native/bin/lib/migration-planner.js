@@ -1,6 +1,7 @@
 import { existsSync, lstatSync, readFileSync } from "node:fs"
 import { randomUUID } from "node:crypto"
 import { dirname, join } from "node:path"
+import { isDeepStrictEqual } from "node:util"
 import { canonicalAgentDir, runtimeHome } from "./agent-dir.js"
 import { parseJsoncLite } from "./jsonc-lite.js"
 import { assertNativeMcpConfig, assertNativeModelsConfig, nativeModelsDiagnostics, mergeOmoConfig, resolveProviderAlias, selectUserOmoConfigPath, validateOmoConfig } from "./migration-runtime.js"
@@ -105,16 +106,22 @@ export function planMigration(options) {
   let modelsTouched = false
   if (isRecord(config.provider)) {
     for (const [id, provider] of Object.entries(config.provider)) {
+      const destinationId = resolveProviderAlias(id)
       const translated = translateProvider(id, provider)
       for (const key of translated.unsupported ?? []) warnings.push(`models.${id}.${key} (unsupported; manual review required)`)
-      if (Object.hasOwn(providers, id)) continue
+      if (Object.hasOwn(providers, destinationId)) {
+        if (translated.provider !== undefined && !isDeepStrictEqual(providers[destinationId], translated.provider)) {
+          warnings.push(`models.${destinationId} (existing destination provider preserved; differing source ${id} skipped; manual review required)`)
+        }
+        continue
+      }
       if (translated.provider !== undefined) {
-        const diagnostics = nativeModelsDiagnostics({ providers: { [id]: translated.provider } })
+        const diagnostics = nativeModelsDiagnostics({ providers: { [destinationId]: translated.provider } })
         if (diagnostics.length > 0) {
           warnings.push(...diagnostics.map((path) => `models${path} (unsupported translated value; manual review required)`))
           continue
         }
-        providers[id] = translated.provider
+        providers[destinationId] = translated.provider
         modelsTouched = true
       } else warnings.push(`models.${id} (unsupported provider API, baseURL or config expression; manual review required)`)
     }
