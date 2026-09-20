@@ -5,6 +5,7 @@
     {
       "launcher": "node",
       "source": "inline",
+      "layer": "root",
       "state": "enabled",
       "disable": false,
       "prompt": null,
@@ -15,6 +16,7 @@
     {
       "launcher": "node",
       "source": "inline",
+      "layer": "root",
       "state": "disabled",
       "disable": true,
       "prompt": "Restricted incoming prompt",
@@ -25,6 +27,106 @@
     {
       "launcher": "node",
       "source": "inline",
+      "layer": "root",
+      "state": "new",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "inline",
+      "layer": "senpi",
+      "state": "enabled",
+      "disable": false,
+      "prompt": null,
+      "warnings": [
+        "agents.reviewer (restricted source skipped; existing enabled agent preserved; manual review required)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "inline",
+      "layer": "senpi",
+      "state": "disabled",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "inline",
+      "layer": "senpi",
+      "state": "new",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "inline",
+      "layer": "profile",
+      "state": "enabled",
+      "disable": false,
+      "prompt": null,
+      "warnings": [
+        "agents.reviewer (restricted source skipped; existing enabled agent preserved; manual review required)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "inline",
+      "layer": "profile",
+      "state": "disabled",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "inline",
+      "layer": "profile",
+      "state": "new",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "inline",
+      "layer": "profile-senpi",
+      "state": "enabled",
+      "disable": false,
+      "prompt": null,
+      "warnings": [
+        "agents.reviewer (restricted source skipped; existing enabled agent preserved; manual review required)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "inline",
+      "layer": "profile-senpi",
+      "state": "disabled",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "inline",
+      "layer": "profile-senpi",
       "state": "new",
       "disable": true,
       "prompt": "Restricted incoming prompt",
@@ -35,6 +137,7 @@
     {
       "launcher": "node",
       "source": "markdown",
+      "layer": "root",
       "state": "enabled",
       "disable": false,
       "prompt": null,
@@ -45,6 +148,7 @@
     {
       "launcher": "node",
       "source": "markdown",
+      "layer": "root",
       "state": "disabled",
       "disable": true,
       "prompt": "Restricted incoming prompt",
@@ -55,6 +159,106 @@
     {
       "launcher": "node",
       "source": "markdown",
+      "layer": "root",
+      "state": "new",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "markdown",
+      "layer": "senpi",
+      "state": "enabled",
+      "disable": false,
+      "prompt": null,
+      "warnings": [
+        "agents.reviewer (restricted source skipped; existing enabled agent preserved; manual review required)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "markdown",
+      "layer": "senpi",
+      "state": "disabled",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "markdown",
+      "layer": "senpi",
+      "state": "new",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "markdown",
+      "layer": "profile",
+      "state": "enabled",
+      "disable": false,
+      "prompt": null,
+      "warnings": [
+        "agents.reviewer (restricted source skipped; existing enabled agent preserved; manual review required)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "markdown",
+      "layer": "profile",
+      "state": "disabled",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "markdown",
+      "layer": "profile",
+      "state": "new",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "markdown",
+      "layer": "profile-senpi",
+      "state": "enabled",
+      "disable": false,
+      "prompt": null,
+      "warnings": [
+        "agents.reviewer (restricted source skipped; existing enabled agent preserved; manual review required)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "markdown",
+      "layer": "profile-senpi",
+      "state": "disabled",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "markdown",
+      "layer": "profile-senpi",
       "state": "new",
       "disable": true,
       "prompt": "Restricted incoming prompt",
@@ -65,6 +269,7 @@
     {
       "launcher": "compiled",
       "source": "inline",
+      "layer": "root",
       "state": "enabled",
       "disable": false,
       "prompt": null,
@@ -75,6 +280,7 @@
     {
       "launcher": "compiled",
       "source": "inline",
+      "layer": "root",
       "state": "disabled",
       "disable": true,
       "prompt": "Restricted incoming prompt",
@@ -85,6 +291,106 @@
     {
       "launcher": "compiled",
       "source": "inline",
+      "layer": "root",
+      "state": "new",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "inline",
+      "layer": "senpi",
+      "state": "enabled",
+      "disable": false,
+      "prompt": null,
+      "warnings": [
+        "agents.reviewer (restricted source skipped; existing enabled agent preserved; manual review required)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "inline",
+      "layer": "senpi",
+      "state": "disabled",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "inline",
+      "layer": "senpi",
+      "state": "new",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "inline",
+      "layer": "profile",
+      "state": "enabled",
+      "disable": false,
+      "prompt": null,
+      "warnings": [
+        "agents.reviewer (restricted source skipped; existing enabled agent preserved; manual review required)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "inline",
+      "layer": "profile",
+      "state": "disabled",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "inline",
+      "layer": "profile",
+      "state": "new",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "inline",
+      "layer": "profile-senpi",
+      "state": "enabled",
+      "disable": false,
+      "prompt": null,
+      "warnings": [
+        "agents.reviewer (restricted source skipped; existing enabled agent preserved; manual review required)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "inline",
+      "layer": "profile-senpi",
+      "state": "disabled",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "inline",
+      "layer": "profile-senpi",
       "state": "new",
       "disable": true,
       "prompt": "Restricted incoming prompt",
@@ -95,6 +401,7 @@
     {
       "launcher": "compiled",
       "source": "markdown",
+      "layer": "root",
       "state": "enabled",
       "disable": false,
       "prompt": null,
@@ -105,6 +412,7 @@
     {
       "launcher": "compiled",
       "source": "markdown",
+      "layer": "root",
       "state": "disabled",
       "disable": true,
       "prompt": "Restricted incoming prompt",
@@ -115,6 +423,106 @@
     {
       "launcher": "compiled",
       "source": "markdown",
+      "layer": "root",
+      "state": "new",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "markdown",
+      "layer": "senpi",
+      "state": "enabled",
+      "disable": false,
+      "prompt": null,
+      "warnings": [
+        "agents.reviewer (restricted source skipped; existing enabled agent preserved; manual review required)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "markdown",
+      "layer": "senpi",
+      "state": "disabled",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "markdown",
+      "layer": "senpi",
+      "state": "new",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "markdown",
+      "layer": "profile",
+      "state": "enabled",
+      "disable": false,
+      "prompt": null,
+      "warnings": [
+        "agents.reviewer (restricted source skipped; existing enabled agent preserved; manual review required)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "markdown",
+      "layer": "profile",
+      "state": "disabled",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "markdown",
+      "layer": "profile",
+      "state": "new",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "markdown",
+      "layer": "profile-senpi",
+      "state": "enabled",
+      "disable": false,
+      "prompt": null,
+      "warnings": [
+        "agents.reviewer (restricted source skipped; existing enabled agent preserved; manual review required)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "markdown",
+      "layer": "profile-senpi",
+      "state": "disabled",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "markdown",
+      "layer": "profile-senpi",
       "state": "new",
       "disable": true,
       "prompt": "Restricted incoming prompt",

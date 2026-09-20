@@ -58,6 +58,8 @@ such as `team/reviewer` retained.
   agent; it must not become unrestricted just because its source restriction has no equivalent.
   If an existing agent explicitly has `disable:false`, the conflicting restricted source
   agent is skipped entirely. Existing fields remain unchanged and the report calls for review.
+  This includes `[senpi]` and every profile's base and `[senpi]` overrides, even when
+  that profile is not active during migration.
 
 ## What does not move (yet)
 

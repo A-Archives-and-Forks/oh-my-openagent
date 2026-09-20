@@ -15,11 +15,16 @@ const write = (path, value) => {
 }
 try {
   assert.ok(process.env.REVIEW_COMPILED_BINARY)
-  for (const launcher of ["node", "compiled"]) for (const source of ["inline", "markdown"]) for (const state of ["enabled", "disabled", "new"]) {
-    const base = join(root, `${launcher}-${source}-${state}`)
+  for (const launcher of ["node", "compiled"]) for (const source of ["inline", "markdown"])
+    for (const layer of ["root", "senpi", "profile", "profile-senpi"]) for (const state of ["enabled", "disabled", "new"]) {
+    const base = join(root, `${launcher}-${source}-${layer}-${state}`)
     const home = join(base, "home"), agent = join(base, "agent"), config = join(base, "config", "opencode")
     mkdirSync(home, { recursive: true })
-    if (state !== "new") write(join(home, ".omo", "omo.json"), { agents: { reviewer: { description: "Keep existing", disable: state === "disabled" } } })
+    if (state !== "new") {
+      const agentLayer = { agents: { reviewer: { description: "Keep existing", disable: state === "disabled" } } }
+      const scoped = layer === "senpi" || layer === "profile-senpi" ? { "[senpi]": agentLayer } : agentLayer
+      write(join(home, ".omo", "omo.json"), layer.startsWith("profile") ? { profiles: { unrelated: {}, testing: scoped } } : scoped)
+    }
     if (source === "inline") write(join(config, "opencode.json"), { agent: { reviewer: { prompt: "Restricted incoming prompt", permission: { edit: "deny" } } } })
     else write(join(config, "agents", "reviewer.md"), "---\npermission:\n  edit: deny\n---\nRestricted incoming prompt\n")
     const result = spawnSync(launcher === "compiled" ? process.env.REVIEW_COMPILED_BINARY : "node",
@@ -33,13 +38,13 @@ try {
         },
       })
     assert.equal(result.status, 0, result.stderr)
-    const loaded = loadOmoConfig({ cwd: home, env: { HOME: home, USERPROFILE: home }, harness: "senpi" })
+    const loaded = loadOmoConfig({ cwd: home, env: { HOME: home, USERPROFILE: home }, harness: "senpi", profile: layer.startsWith("profile") && state !== "new" ? "testing" : undefined })
     const reviewer = loaded.config.agents?.reviewer
     assert.equal(reviewer?.disable, state !== "enabled")
     assert.equal(reviewer?.prompt, state === "enabled" ? undefined : "Restricted incoming prompt")
     if (state !== "new") assert.equal(reviewer?.description, "Keep existing")
     const warnings = JSON.parse(readFileSync(join(agent, "opencode-migration-report.json"), "utf8")).warnings
-    results.push({ launcher, source, state, disable: reviewer?.disable, prompt: reviewer?.prompt ?? null, warnings })
+    results.push({ launcher, source, layer, state, disable: reviewer?.disable, prompt: reviewer?.prompt ?? null, warnings })
   }
   const receipt = JSON.stringify({ status: "PASS", consumer: "loadOmoConfig(harness:senpi)", results }, null, 2)
   writeFileSync(new URL("./restricted-agent-qa.json", import.meta.url), `${receipt}\n`)

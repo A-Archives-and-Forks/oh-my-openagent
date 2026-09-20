@@ -32,6 +32,8 @@ category leaves take precedence over imported values.
 If an existing agent explicitly has `disable:false`, a restricted source agent is
 skipped in its entirety instead of importing its prompt into that enabled agent.
 Its manual-review warning describes the preserved destination, not a disabled state.
+The guard checks base and `[senpi]` agent settings in the global config and every
+profile, including profiles that are not active during migration.
 
 Shared config uses omo-config-core path selection, recursive merge and schema validation,
 independently of the engine directory. Versioned state re-evaluates old markers and recovers
