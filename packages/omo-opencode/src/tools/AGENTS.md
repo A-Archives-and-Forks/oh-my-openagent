@@ -62,7 +62,7 @@ Tools registered via [`createToolRegistry()`](../plugin/tool-registry.ts) in `sr
 | `quick` | kimi-for-coding/kimi-for-coding-highspeed | openai-categories.ts | Trivial single-file changes |
 | `unspecified-low` | xai/grok-4.6 (variant: xhigh) | openai-categories.ts | Moderate effort fallback |
 | `unspecified-high` | openai/gpt-6-astra (variant: high) | openai-categories.ts | High effort fallback; GPT-6 Astra-specific prompt append |
-| `writing` | anthropic/claude-fable-5-1 (variant: medium) | kimi-categories.ts | Documentation, prose |
+| `writing` | anthropic/claude-fable-5-1 (variant: low) | kimi-categories.ts | Documentation, prose |
 
 User-defined categories declared in `categories: { ... }` config override and extend this set.
 

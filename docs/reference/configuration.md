@@ -144,7 +144,7 @@ Here's a practical starting `~/.omo/omo.jsonc`. OpenCode plugin settings live in
       "unspecified-high": { "model": "openai/gpt-6-astra", "reasoning": "high" },
 
       // writing - docs/prose
-      "writing": { "model": "anthropic/claude-fable-5-1", "reasoning": "medium" },
+      "writing": { "model": "anthropic/claude-fable-5-1", "reasoning": "low" },
 
       // visual-engineering - Fable 5.1 max, then Opus 5 max and Kimi K3 max
       "visual-engineering": {
@@ -347,7 +347,7 @@ Domain-specific model delegation used by the `task()` tool. When the main agent 
 | `quick`              | `kimi-for-coding/kimi-for-coding-highspeed` | Trivial tasks, typo fixes, single-file changes |
 | `unspecified-low`    | `xai/grok-4.6` (xhigh)          | General tasks, low effort                      |
 | `unspecified-high`   | `openai/gpt-6-astra` (high) | General tasks, high effort                     |
-| `writing`            | `anthropic/claude-fable-5-1` (medium)  | Documentation, prose, technical writing        |
+| `writing`            | `anthropic/claude-fable-5-1` (low)     | Documentation, prose, technical writing        |
 
 > **Note**: Built-in category defaults are available automatically. User-defined category config merges over the built-in defaults or adds custom categories.
 

@@ -1,20 +1,16 @@
 #!/usr/bin/env node
-// omo-codex-install:6df5dbbbb7ca9b9dce86fae98a525a9caa7de96caed85a4b77d4e8b4ab4d1501:99475c56218737b0acb575411f073378ea61e9740aa63e4e2a502afd613fb630
-var __defProp = Object.defineProperty;
-var __returnValue = (v) => v;
-function __exportSetter(name, newValue) {
-  this[name] = __returnValue.bind(null, newValue);
-}
-var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, {
-      get: all[name],
-      enumerable: true,
-      configurable: true,
-      set: __exportSetter.bind(all, name)
-    });
+// omo-codex-install:6df5dbbbb7ca9b9dce86fae98a525a9caa7de96caed85a4b77d4e8b4ab4d1501:22d5be94e5d18d210fd29271002ead106586ea0f47260699758540fc8993779b
+var __esm = (fn, res, err) => () => {
+  if (fn)
+    try {
+      res = fn(fn = 0);
+    } catch (e) {
+      err = [e];
+    }
+  if (err)
+    throw err[0];
+  return res;
 };
-var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
 
 // packages/utils/src/xdg-data-dir.ts
 import { accessSync, constants, mkdirSync } from "node:fs";
@@ -110,40 +106,85 @@ var init_atomic_write = __esm(() => {
   ]);
 });
 
+// packages/telemetry-core/src/day-claim.ts
+import { closeSync as closeSync2, mkdirSync as mkdirSync2, openSync as openSync2, readdirSync, rmSync as rmSync2 } from "node:fs";
+import { join as join33 } from "node:path";
+function getTelemetryDayClaimFilePath(stateDir, dayUTC) {
+  return join33(stateDir, `${CLAIM_PREFIX}${dayUTC}${CLAIM_SUFFIX}`);
+}
+function claimUtcDay(stateDir, dayUTC) {
+  try {
+    mkdirSync2(stateDir, { recursive: true });
+    closeSync2(openSync2(getTelemetryDayClaimFilePath(stateDir, dayUTC), "wx"));
+  } catch (error) {
+    return error.code === "EEXIST" ? "already-claimed" : "unavailable";
+  }
+  pruneSupersededClaims(stateDir, dayUTC);
+  return "claimed";
+}
+function pruneSupersededClaims(stateDir, dayUTC) {
+  const currentClaim = `${CLAIM_PREFIX}${dayUTC}${CLAIM_SUFFIX}`;
+  let entries;
+  try {
+    entries = readdirSync(stateDir);
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (entry === currentClaim)
+      continue;
+    if (!entry.startsWith(CLAIM_PREFIX) || !entry.endsWith(CLAIM_SUFFIX))
+      continue;
+    try {
+      rmSync2(join33(stateDir, entry), { force: true });
+    } catch {}
+  }
+}
+var CLAIM_PREFIX = "daily-active.", CLAIM_SUFFIX = ".claim";
+var init_day_claim = () => {};
+
 // packages/telemetry-core/src/activity-state.ts
-import { existsSync as existsSync5, mkdirSync as mkdirSync2, readFileSync as readFileSync3 } from "node:fs";
-import { basename as basename6, join as join33 } from "node:path";
+import { existsSync as existsSync5, mkdirSync as mkdirSync3, readFileSync as readFileSync3 } from "node:fs";
+import { basename as basename6, join as join34 } from "node:path";
 function resolveTelemetryStateDir(product, options = {}) {
   const dataDir = resolveXdgDataDir(product.cacheDirName, {
     env: options.env,
     osProvider: options.osProvider
   });
-  const xdgStateDir = options.env?.XDG_DATA_HOME === undefined ? undefined : join33(options.env.XDG_DATA_HOME, product.cacheDirName);
+  const xdgStateDir = options.env?.XDG_DATA_HOME === undefined ? undefined : join34(options.env.XDG_DATA_HOME, product.cacheDirName);
   if (dataDir === xdgStateDir || xdgStateDir === undefined && basename6(dataDir) === product.cacheDirName) {
     return dataDir;
   }
-  return join33(dataDir, product.cacheDirName);
+  return join34(dataDir, product.cacheDirName);
 }
 function getTelemetryActivityStateFilePath(stateDir) {
-  return join33(stateDir, POSTHOG_ACTIVITY_STATE_FILE);
+  return join34(stateDir, POSTHOG_ACTIVITY_STATE_FILE);
 }
 function getDailyActiveCaptureState(input) {
-  const state = readPostHogActivityState(input.stateDir, input.diagnostics);
   const dayUTC = getUtcDayString(input.now ?? new Date);
-  const captureDaily = state.lastActiveDayUTC !== dayUTC;
-  if (captureDaily) {
+  if (capturedDaysByStateDir.get(input.stateDir) === dayUTC) {
+    return { dayUTC, captureDaily: false };
+  }
+  const state = readPostHogActivityState(input.stateDir, input.diagnostics);
+  if (state.lastActiveDayUTC === dayUTC) {
+    capturedDaysByStateDir.set(input.stateDir, dayUTC);
+    return { dayUTC, captureDaily: false };
+  }
+  const claim = claimUtcDay(input.stateDir, dayUTC);
+  capturedDaysByStateDir.set(input.stateDir, dayUTC);
+  if (claim === "already-claimed") {
+    return { dayUTC, captureDaily: false };
+  }
+  if (claim === "claimed") {
     writePostHogActivityState(input.stateDir, {
       ...state,
       lastActiveDayUTC: dayUTC
     }, input.diagnostics);
   }
-  return {
-    dayUTC,
-    captureDaily
-  };
+  return { dayUTC, captureDaily: true };
 }
-function getUtcDayString(date3) {
-  return date3.toISOString().slice(0, 10);
+function getUtcDayString(date) {
+  return date.toISOString().slice(0, 10);
 }
 function isPostHogActivityState(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -173,7 +214,7 @@ function readPostHogActivityState(stateDir, diagnostics) {
 function writePostHogActivityState(stateDir, nextState, diagnostics) {
   const stateFilePath = getTelemetryActivityStateFilePath(stateDir);
   try {
-    mkdirSync2(stateDir, { recursive: true });
+    mkdirSync3(stateDir, { recursive: true });
     writeFileAtomically(stateFilePath, `${JSON.stringify(nextState, null, 2)}
 `);
   } catch (error) {
@@ -185,26 +226,28 @@ function writePostHogActivityState(stateDir, nextState, diagnostics) {
     });
   }
 }
-var POSTHOG_ACTIVITY_STATE_FILE = "posthog-activity.json";
+var POSTHOG_ACTIVITY_STATE_FILE = "posthog-activity.json", capturedDaysByStateDir;
 var init_activity_state = __esm(() => {
   init_atomic_write();
   init_xdg_data_dir();
+  init_day_claim();
+  capturedDaysByStateDir = new Map;
 });
 
 // packages/telemetry-core/src/constants.ts
 var DEFAULT_POSTHOG_HOST = "https://us.i.posthog.com", DEFAULT_POSTHOG_API_KEY = "phc_CFJhj5HyvA62QPhvyaUCtaq23aUfznnijg5VaaGkNk74", UNCONFIGURED_POSTHOG_API_KEY = "phc_REPLACE_ME_OMO_NATIVE";
 
 // packages/telemetry-core/src/diagnostics.ts
-import { appendFileSync, existsSync as existsSync6, mkdirSync as mkdirSync3, readFileSync as readFileSync4 } from "node:fs";
-import { join as join34 } from "node:path";
+import { appendFileSync, existsSync as existsSync6, mkdirSync as mkdirSync4, readFileSync as readFileSync4 } from "node:fs";
+import { join as join35 } from "node:path";
 function getTelemetryDiagnosticsFilePath(diagnosticsDir) {
-  return join34(diagnosticsDir, DIAGNOSTICS_FILE_NAME);
+  return join35(diagnosticsDir, DIAGNOSTICS_FILE_NAME);
 }
 function writeTelemetryDiagnostic(input, options) {
   const now = options.now ?? new Date;
   try {
     cleanupTelemetryDiagnostics({ diagnosticsDir: options.diagnosticsDir, now });
-    mkdirSync3(options.diagnosticsDir, { recursive: true });
+    mkdirSync4(options.diagnosticsDir, { recursive: true });
     appendFileSync(getTelemetryDiagnosticsFilePath(options.diagnosticsDir), `${JSON.stringify(toDiagnosticRecord(input, now))}
 `, "utf-8");
   } catch (error) {
@@ -394,8 +437,8 @@ function createGetModuleFromFilename(basePath = process.argv[1] ? dirname11(proc
     return decodedFile;
   };
 }
-function normalizeWindowsPath(path2) {
-  return path2.replace(/^[A-Z]:/, "").replace(/\\/g, "/");
+function normalizeWindowsPath(path) {
+  return path.replace(/^[A-Z]:/, "").replace(/\\/g, "/");
 }
 var init_module_node = () => {};
 
@@ -802,9 +845,6 @@ function isError(candidate) {
       return isInstanceOf(candidate, Error);
   }
 }
-function isErrorEvent(event) {
-  return isBuiltin(event, "ErrorEvent");
-}
 function isEvent(candidate) {
   return typeof Event != "undefined" && isInstanceOf(candidate, Event);
 }
@@ -855,10 +895,10 @@ var init_number_utils = __esm(() => {
 });
 
 // node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/utils/bucketed-rate-limiter.mjs
-function resolveExceptionRateLimiterConfig(config2 = {}) {
+function resolveExceptionRateLimiterConfig(config = {}) {
   return {
-    refillRate: config2.exceptionRateLimiterRefillRate ?? config2.__exceptionRateLimiterRefillRate ?? DEFAULT_EXCEPTION_RATE_LIMITER_REFILL_RATE,
-    bucketSize: config2.exceptionRateLimiterBucketSize ?? config2.__exceptionRateLimiterBucketSize ?? DEFAULT_EXCEPTION_RATE_LIMITER_BUCKET_SIZE
+    refillRate: config.exceptionRateLimiterRefillRate ?? config.__exceptionRateLimiterRefillRate ?? DEFAULT_EXCEPTION_RATE_LIMITER_REFILL_RATE,
+    bucketSize: config.exceptionRateLimiterBucketSize ?? config.__exceptionRateLimiterBucketSize ?? DEFAULT_EXCEPTION_RATE_LIMITER_BUCKET_SIZE
   };
 }
 
@@ -940,20 +980,20 @@ class UUID {
     bytes[15] = randBLo;
     return new UUID(bytes);
   }
-  static parse(uuid2) {
+  static parse(uuid) {
     let hex;
-    switch (uuid2.length) {
+    switch (uuid.length) {
       case 32:
-        hex = /^[0-9a-f]{32}$/i.exec(uuid2)?.[0];
+        hex = /^[0-9a-f]{32}$/i.exec(uuid)?.[0];
         break;
       case 36:
-        hex = /^([0-9a-f]{8})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{12})$/i.exec(uuid2)?.slice(1, 6).join("");
+        hex = /^([0-9a-f]{8})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{12})$/i.exec(uuid)?.slice(1, 6).join("");
         break;
       case 38:
-        hex = /^\{([0-9a-f]{8})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{12})\}$/i.exec(uuid2)?.slice(1, 6).join("");
+        hex = /^\{([0-9a-f]{8})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{12})\}$/i.exec(uuid)?.slice(1, 6).join("");
         break;
       case 45:
-        hex = /^urn:uuid:([0-9a-f]{8})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{12})$/i.exec(uuid2)?.slice(1, 6).join("");
+        hex = /^urn:uuid:([0-9a-f]{8})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{4})-([0-9a-f]{12})$/i.exec(uuid)?.slice(1, 6).join("");
         break;
       default:
         break;
@@ -1327,8 +1367,8 @@ var init_user_agent_utils = __esm(() => {
           ];
         const match = /Windows NT ([0-9.]+)/i.exec(user_agent);
         if (match && match[1]) {
-          const version2 = match[1];
-          let osVersion = windowsVersionMap[version2] || "";
+          const version = match[1];
+          let osVersion = windowsVersionMap[version] || "";
           if (/arm/i.test(user_agent))
             osVersion = "RT";
           return [
@@ -1365,12 +1405,12 @@ var init_user_agent_utils = __esm(() => {
     [
       /(watch.*\/(\d+\.\d+\.\d+)|watch os,(\d+\.\d+),)/i,
       (match) => {
-        let version2 = "";
+        let version = "";
         if (match && match.length >= 3)
-          version2 = isUndefined(match[2]) ? match[3] : match[2];
+          version = isUndefined(match[2]) ? match[3] : match[2];
         return [
           "watchOS",
-          version2
+          version
         ];
       }
     ],
@@ -1440,8 +1480,8 @@ var init_user_agent_utils = __esm(() => {
 function isValidUUID(value) {
   return typeof value == "string" && UUID_REGEX.test(value);
 }
-function getEventUuid(uuid2, generateUuid) {
-  return isValidUUID(uuid2) ? uuid2 : generateUuid();
+function getEventUuid(uuid, generateUuid) {
+  return isValidUUID(uuid) ? uuid : generateUuid();
 }
 function removeTrailingSlash(url) {
   return url?.replace(/\/+$/, "");
@@ -1475,11 +1515,11 @@ async function raceWithTimeout(promise, timeoutMs, onTimeout) {
   try {
     return await Promise.race([
       promise,
-      new Promise((resolve10, reject) => {
+      new Promise((resolve, reject) => {
         timeoutHandle = safeSetTimeout(() => {
           try {
             onTimeout?.();
-            resolve10();
+            resolve();
           } catch (error) {
             reject(error);
           }
@@ -1521,14 +1561,14 @@ function newState() {
     remainingNodes: MAX_JSON_SAFE_VALUE_NODES
   };
 }
-function toOtlpKeyValueList(attrs, logger2) {
+function toOtlpKeyValueList(attrs, logger) {
   try {
-    return encodeKeyValueList(attrs, logger2, newState(), 0);
+    return encodeKeyValueList(attrs, logger, newState(), 0);
   } catch {
     return [];
   }
 }
-function encodeAnyValue(value, logger2, state, depth) {
+function encodeAnyValue(value, logger, state, depth) {
   if (state.remainingNodes <= 0)
     return {
       stringValue: TRUNCATED_VALUE
@@ -1554,7 +1594,7 @@ function encodeAnyValue(value, logger2, state, depth) {
         };
       const decimal = BigInt(value).toString();
       if (value >= INT64_RANGE_LIMIT || value < -INT64_RANGE_LIMIT) {
-        logger2?.debug(`Attribute ${decimal} is outside the int64 range; encoding it as a string`);
+        logger?.debug(`Attribute ${decimal} is outside the int64 range; encoding it as a string`);
         return {
           stringValue: decimal
         };
@@ -1589,8 +1629,8 @@ function encodeAnyValue(value, logger2, state, depth) {
         stringValue: TRUNCATED_VALUE
       };
     if (value instanceof Date) {
-      const time3 = value.getTime();
-      const iso = Number.isFinite(time3) ? value.toISOString() : String(value);
+      const time = value.getTime();
+      const iso = Number.isFinite(time) ? value.toISOString() : String(value);
       return {
         stringValue: typeof iso == "string" ? sanitizeString(iso) : String(iso)
       };
@@ -1600,17 +1640,17 @@ function encodeAnyValue(value, logger2, state, depth) {
       try {
         const toJSON = value.toJSON;
         if (typeof toJSON == "function")
-          return encodeAnyValue(toJSON.call(value), logger2, state, depth + 1);
+          return encodeAnyValue(toJSON.call(value), logger, state, depth + 1);
       } catch {}
       if (isArray(value))
         return {
           arrayValue: {
-            values: encodeArrayValues(value, logger2, state, depth + 1)
+            values: encodeArrayValues(value, logger, state, depth + 1)
           }
         };
       return {
         kvlistValue: {
-          values: encodeKeyValueList(value, logger2, state, depth + 1)
+          values: encodeKeyValueList(value, logger, state, depth + 1)
         }
       };
     } finally {
@@ -1621,7 +1661,7 @@ function encodeAnyValue(value, logger2, state, depth) {
     stringValue: sanitizeString(String(value))
   };
 }
-function encodeArrayValues(values, logger2, state, depth) {
+function encodeArrayValues(values, logger, state, depth) {
   const result = [];
   const itemCount = Math.min(values.length, MAX_JSON_SAFE_VALUE_ITEMS);
   let index = 0;
@@ -1630,7 +1670,7 @@ function encodeArrayValues(values, logger2, state, depth) {
       const element = index in values ? values[index] : undefined;
       if (isNullish(element))
         continue;
-      result.push(encodeAnyValue(element, logger2, state, depth));
+      result.push(encodeAnyValue(element, logger, state, depth));
     } catch {
       result.push({
         stringValue: UNSERIALIZABLE_VALUE
@@ -1642,12 +1682,12 @@ function encodeArrayValues(values, logger2, state, depth) {
     });
   return result;
 }
-function encodeKeyValueList(attrs, logger2, state, depth) {
+function encodeKeyValueList(attrs, logger, state, depth) {
   const result = [];
   for (const key in attrs)
     if (propertyIsEnumerable.call(attrs, key)) {
       if (result.length >= MAX_JSON_SAFE_VALUE_ITEMS || state.remainingNodes <= 0) {
-        logger2?.debug("Attributes truncated: the value exceeds the OTLP encoder budget");
+        logger?.debug("Attributes truncated: the value exceeds the OTLP encoder budget");
         break;
       }
       try {
@@ -1656,7 +1696,7 @@ function encodeKeyValueList(attrs, logger2, state, depth) {
           continue;
         result.push({
           key: sanitizeString(key),
-          value: encodeAnyValue(value, logger2, state, depth)
+          value: encodeAnyValue(value, logger, state, depth)
         });
       } catch {
         result.push({
@@ -1728,15 +1768,15 @@ function bucketIndexFor(value, bounds) {
       return i;
   return bounds.length;
 }
-function buildMetricsResourceAttributes(config2, scopeName, scopeVersion) {
+function buildMetricsResourceAttributes(config, scopeName, scopeVersion) {
   return {
-    ...config2.resourceAttributes,
-    "service.name": config2.serviceName || "unknown_service",
-    ...config2.environment && {
-      "deployment.environment": config2.environment
+    ...config.resourceAttributes,
+    "service.name": config.serviceName || "unknown_service",
+    ...config.environment && {
+      "deployment.environment": config.environment
     },
-    ...config2.serviceVersion && {
-      "service.version": config2.serviceVersion
+    ...config.serviceVersion && {
+      "service.version": config.serviceVersion
     },
     "telemetry.sdk.name": scopeName,
     "telemetry.sdk.version": scopeVersion
@@ -1785,16 +1825,16 @@ var init_metrics_utils = __esm(() => {
 });
 
 // node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/metrics/config.mjs
-function resolveMetricsConfig(config2) {
-  const resourceAttributes = config2?.resourceAttributes;
+function resolveMetricsConfig(config) {
+  const resourceAttributes = config?.resourceAttributes;
   return {
-    serviceName: resourceAttributes?.["service.name"] ?? config2?.serviceName,
-    serviceVersion: resourceAttributes?.["service.version"] ?? config2?.serviceVersion,
-    environment: resourceAttributes?.["deployment.environment"] ?? config2?.environment,
+    serviceName: resourceAttributes?.["service.name"] ?? config?.serviceName,
+    serviceVersion: resourceAttributes?.["service.version"] ?? config?.serviceVersion,
+    environment: resourceAttributes?.["deployment.environment"] ?? config?.environment,
     resourceAttributes,
-    beforeSend: config2?.beforeSend,
-    flushIntervalMs: config2?.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS,
-    maxSeriesPerFlush: config2?.maxSeriesPerFlush ?? DEFAULT_MAX_SERIES_PER_FLUSH
+    beforeSend: config?.beforeSend,
+    flushIntervalMs: config?.flushIntervalMs ?? DEFAULT_FLUSH_INTERVAL_MS,
+    maxSeriesPerFlush: config?.maxSeriesPerFlush ?? DEFAULT_MAX_SERIES_PER_FLUSH
   };
 }
 var DEFAULT_FLUSH_INTERVAL_MS = 1e4, DEFAULT_MAX_SERIES_PER_FLUSH = 1000;
@@ -2300,11 +2340,11 @@ class ErrorPropertiesBuilder {
     return context;
   }
   buildCoercingContext(mechanism, hint, depth = 0) {
-    const coerce = (input, depth2) => {
-      if (!(depth2 <= MAX_CAUSE_RECURSION))
+    const coerce = (input, depth) => {
+      if (!(depth <= MAX_CAUSE_RECURSION))
         return;
       {
-        const ctx = this.buildCoercingContext(mechanism, hint, depth2);
+        const ctx = this.buildCoercingContext(mechanism, hint, depth);
         return this.applyCoercers(input, ctx);
       }
     };
@@ -2363,8 +2403,8 @@ var init_safari = __esm(() => {
 var chromeRegexNoFnName, chromeRegex, chromeEvalRegex, chromeStackLineParser = (line, platform) => {
   const noFnParts = chromeRegexNoFnName.exec(line);
   if (noFnParts) {
-    const [, filename, line2, col] = noFnParts;
-    return createFrame(platform, filename, UNKNOWN_FUNCTION, +line2, +col);
+    const [, filename, line, col] = noFnParts;
+    return createFrame(platform, filename, UNKNOWN_FUNCTION, +line, +col);
   }
   const parts = chromeRegex.exec(line);
   if (parts) {
@@ -2417,27 +2457,13 @@ var init_gecko = __esm(() => {
 });
 
 // node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/parsers/winjs.mjs
-var winjsRegex, winjsStackLineParser = (line, platform) => {
-  const parts = winjsRegex.exec(line);
-  return parts ? createFrame(platform, parts[2], parts[1] || UNKNOWN_FUNCTION, +parts[3], parts[4] ? +parts[4] : undefined) : undefined;
-};
 var init_winjs = __esm(() => {
   init_base();
-  winjsRegex = /^\s*at (?:((?:\[object object\])?.+) )?\(?((?:[-a-z]+):.*?):(\d+)(?::(\d+))?\)?\s*$/i;
 });
 
 // node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/parsers/opera.mjs
-var opera10Regex, opera10StackLineParser = (line, platform) => {
-  const parts = opera10Regex.exec(line);
-  return parts ? createFrame(platform, parts[2], parts[3] || UNKNOWN_FUNCTION, +parts[1]) : undefined;
-}, opera11Regex, opera11StackLineParser = (line, platform) => {
-  const parts = opera11Regex.exec(line);
-  return parts ? createFrame(platform, parts[5], parts[3] || parts[4] || UNKNOWN_FUNCTION, +parts[1], +parts[2]) : undefined;
-};
 var init_opera = __esm(() => {
   init_base();
-  opera10Regex = / line (\d+).*script (?:in )?(\S+)(?:: in function (\S+))?$/i;
-  opera11Regex = / line (\d+), column (\d+)\s*(?:in (?:<anonymous function: ([^>]+)>|([^)]+))\(.*\))? in (.*):\s*$/i;
 });
 
 // node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/parsers/node.mjs
@@ -2451,7 +2477,7 @@ function _parseIntOrUndefined(input) {
 var FILENAME_MATCH, FULL_MATCH, PROMISE_COMBINATOR, PROMISE_INDEX, PROMISE_FRAME_FILENAME = "node:internal/promise", nodeStackLineParser = (line, platform) => {
   const lineMatch = line.match(FULL_MATCH);
   if (lineMatch) {
-    let object2;
+    let object;
     let method;
     let functionName;
     let typeName;
@@ -2462,18 +2488,18 @@ var FILENAME_MATCH, FULL_MATCH, PROMISE_COMBINATOR, PROMISE_INDEX, PROMISE_FRAME
       if (functionName[methodStart - 1] === ".")
         methodStart--;
       if (methodStart > 0) {
-        object2 = functionName.slice(0, methodStart);
+        object = functionName.slice(0, methodStart);
         method = functionName.slice(methodStart + 1);
-        const objectEnd = object2.indexOf(".Module");
+        const objectEnd = object.indexOf(".Module");
         if (objectEnd > 0) {
           functionName = functionName.slice(objectEnd + 1);
-          object2 = object2.slice(0, objectEnd);
+          object = object.slice(0, objectEnd);
         }
       }
       typeName = undefined;
     }
     if (method) {
-      typeName = object2;
+      typeName = object;
       methodName = method;
     }
     if (method === "<anonymous>") {
@@ -2571,35 +2597,6 @@ var init_parsers = __esm(() => {
 });
 
 // node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/coercers/dom-exception-coercer.mjs
-class DOMExceptionCoercer {
-  match(err) {
-    return this.isDOMException(err) || this.isDOMError(err);
-  }
-  coerce(err, ctx) {
-    const hasStack = isString(err.stack);
-    return {
-      type: this.getType(err),
-      value: this.getValue(err),
-      stack: hasStack ? err.stack : undefined,
-      cause: err.cause ? ctx.next(err.cause) : undefined,
-      synthetic: false
-    };
-  }
-  getType(candidate) {
-    return this.isDOMError(candidate) ? "DOMError" : "DOMException";
-  }
-  getValue(err) {
-    const name = err.name || (this.isDOMError(err) ? "DOMError" : "DOMException");
-    const message = err.message ? `${name}: ${err.message}` : name;
-    return message;
-  }
-  isDOMException(err) {
-    return isBuiltin(err, "DOMException");
-  }
-  isDOMError(err) {
-    return isBuiltin(err, "DOMError");
-  }
-}
 var init_dom_exception_coercer = __esm(() => {
   init_utils();
 });
@@ -2638,39 +2635,6 @@ var init_error_coercer = __esm(() => {
 });
 
 // node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/coercers/error-event-coercer.mjs
-class ErrorEventCoercer {
-  constructor() {}
-  match(err) {
-    if (!isErrorEvent(err))
-      return false;
-    const errorEvent = err;
-    return errorEvent.error != null || this._hasUsableMessage(errorEvent);
-  }
-  coerce(err, ctx) {
-    if (err.error != null)
-      return ctx.apply(err.error);
-    const exceptionLike = ctx.apply(err.message);
-    return {
-      ...exceptionLike,
-      stack: this._buildLocationStack(err) ?? exceptionLike.stack,
-      synthetic: true
-    };
-  }
-  _hasUsableMessage(err) {
-    return isString(err.message) && err.message.length > 0;
-  }
-  _buildLocationStack(err) {
-    const location = err;
-    const lineno = location.lineno ?? 0;
-    const colno = location.colno ?? 0;
-    if (!isString(location.filename) || location.filename.length === 0)
-      return;
-    if (lineno === 0)
-      return;
-    return `Error
-    at ${location.filename}:${lineno}:${colno}`;
-  }
-}
 var init_error_event_coercer = __esm(() => {
   init_utils();
 });
@@ -2849,41 +2813,6 @@ var init_primitive_coercer = __esm(() => {
 });
 
 // node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/coercers/promise-rejection-event.mjs
-class PromiseRejectionEventCoercer {
-  match(err) {
-    return isBuiltin(err, "PromiseRejectionEvent") || this.isCustomEventWrappingRejection(err);
-  }
-  isCustomEventWrappingRejection(err) {
-    if (!isEvent(err))
-      return false;
-    try {
-      const detail = err.detail;
-      return detail != null && typeof detail == "object" && "reason" in detail;
-    } catch {
-      return false;
-    }
-  }
-  coerce(err, ctx) {
-    const reason = this.getUnhandledRejectionReason(err);
-    if (isPrimitive(reason))
-      return {
-        type: "UnhandledRejection",
-        value: `Non-Error promise rejection captured with value: ${String(reason)}`,
-        stack: ctx.syntheticException?.stack,
-        synthetic: true
-      };
-    return ctx.apply(reason);
-  }
-  getUnhandledRejectionReason(error) {
-    try {
-      if ("reason" in error)
-        return error.reason;
-      if ("detail" in error && error.detail != null && typeof error.detail == "object" && "reason" in error.detail)
-        return error.detail.reason;
-    } catch {}
-    return error;
-  }
-}
 var init_promise_rejection_event = __esm(() => {
   init_utils();
 });
@@ -2902,8 +2831,8 @@ var init_coercers = __esm(() => {
 
 // node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/utils.mjs
 class ReduceableCache {
-  constructor(_maxSize2) {
-    this._maxSize = _maxSize2;
+  constructor(_maxSize) {
+    this._maxSize = _maxSize;
     this._cache = new Map;
   }
   get(key) {
@@ -2928,127 +2857,7 @@ class ReduceableCache {
 var init_utils3 = () => {};
 
 // node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/exception-steps.mjs
-function resolveExceptionStepsConfig(config2) {
-  if (!config2)
-    return {
-      ...DEFAULT_EXCEPTION_STEPS_CONFIG
-    };
-  return {
-    enabled: config2.enabled ?? DEFAULT_EXCEPTION_STEPS_CONFIG.enabled,
-    max_bytes: normalizePositiveInteger(config2.max_bytes, DEFAULT_EXCEPTION_STEPS_CONFIG.max_bytes)
-  };
-}
-function stripReservedExceptionStepFields(properties) {
-  if (!properties)
-    return {
-      sanitizedProperties: {},
-      droppedKeys: []
-    };
-  const droppedKeys = [];
-  const sanitizedProperties = Object.keys(properties).reduce((acc, key) => {
-    if (RESERVED_EXCEPTION_STEP_KEYS.has(key)) {
-      droppedKeys.push(key);
-      return acc;
-    }
-    acc[key] = properties[key];
-    return acc;
-  }, {});
-  return {
-    sanitizedProperties,
-    droppedKeys
-  };
-}
-
-class ExceptionStepsBuffer {
-  constructor(config2) {
-    this._entries = [];
-    this._totalBytes = 0;
-    this._config = resolveExceptionStepsConfig(config2);
-  }
-  setConfig(config2) {
-    this._config = resolveExceptionStepsConfig(config2);
-    this._trimToMaxBytes();
-  }
-  add(step) {
-    const serialized = normalizeAndSerializeStep(step);
-    if (!serialized)
-      return;
-    const bytes = getUtf8ByteLength(serialized.json);
-    if (bytes > this._config.max_bytes)
-      return;
-    this._entries.push({
-      step: serialized.step,
-      bytes
-    });
-    this._totalBytes += bytes;
-    this._trimToMaxBytes();
-  }
-  getAttachable() {
-    return this._entries.map((e) => e.step);
-  }
-  clear() {
-    this._entries = [];
-    this._totalBytes = 0;
-  }
-  size() {
-    return this._entries.length;
-  }
-  _trimToMaxBytes() {
-    while (this._totalBytes > this._config.max_bytes && this._entries.length > 0) {
-      const evicted = this._entries.shift();
-      if (evicted)
-        this._totalBytes -= evicted.bytes;
-    }
-  }
-}
-function normalizePositiveInteger(input, fallback) {
-  if (!isNumber(input) || input === 1 / 0 || input === -1 / 0)
-    return fallback;
-  const normalized = Math.floor(input);
-  if (normalized < 0)
-    return fallback;
-  return normalized;
-}
-function normalizeAndSerializeStep(step) {
-  let json;
-  try {
-    json = safeJsonStringify(step);
-  } catch {
-    return;
-  }
-  try {
-    const parsed = JSON.parse(json);
-    if (!isObject2(parsed))
-      return;
-    const parsedStep = parsed;
-    const message = parsedStep[EXCEPTION_STEP_INTERNAL_FIELDS.MESSAGE];
-    const timestamp = parsedStep[EXCEPTION_STEP_INTERNAL_FIELDS.TIMESTAMP];
-    if (!isString(message) || message.trim().length === 0)
-      return;
-    if (!isString(timestamp) && !isNumber(timestamp))
-      return;
-    return {
-      step: parsedStep,
-      json
-    };
-  } catch {
-    return;
-  }
-}
-function getUtf8ByteLength(value) {
-  if (typeof TextEncoder != "undefined")
-    return new TextEncoder().encode(value).length;
-  const encoded = encodeURIComponent(value);
-  let byteLength = 0;
-  for (let i = 0;i < encoded.length; i++)
-    if (encoded[i] === "%") {
-      byteLength += 1;
-      i += 2;
-    } else
-      byteLength += 1;
-  return byteLength;
-}
-var EXCEPTION_STEP_INTERNAL_FIELDS, RESERVED_EXCEPTION_STEP_KEYS, DEFAULT_EXCEPTION_STEPS_CONFIG;
+var EXCEPTION_STEP_INTERNAL_FIELDS, RESERVED_EXCEPTION_STEP_KEYS;
 var init_exception_steps = __esm(() => {
   init_utils();
   EXCEPTION_STEP_INTERNAL_FIELDS = {
@@ -3059,10 +2868,6 @@ var init_exception_steps = __esm(() => {
     EXCEPTION_STEP_INTERNAL_FIELDS.MESSAGE,
     EXCEPTION_STEP_INTERNAL_FIELDS.TIMESTAMP
   ]);
-  DEFAULT_EXCEPTION_STEPS_CONFIG = {
-    enabled: true,
-    max_bytes: 32768
-  };
 });
 
 // node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/release.mjs
@@ -3073,35 +2878,6 @@ function getInjectedReleaseId() {
 var init_release = () => {};
 
 // node_modules/.bun/@posthog+core@1.48.9/node_modules/@posthog/core/dist/error-tracking/index.mjs
-var exports_error_tracking = {};
-__export(exports_error_tracking, {
-  DEFAULT_EXCEPTION_STEPS_CONFIG: () => DEFAULT_EXCEPTION_STEPS_CONFIG,
-  DOMExceptionCoercer: () => DOMExceptionCoercer,
-  EXCEPTION_STEP_INTERNAL_FIELDS: () => EXCEPTION_STEP_INTERNAL_FIELDS,
-  ErrorCoercer: () => ErrorCoercer,
-  ErrorEventCoercer: () => ErrorEventCoercer,
-  ErrorPropertiesBuilder: () => ErrorPropertiesBuilder,
-  EventCoercer: () => EventCoercer,
-  ExceptionStepsBuffer: () => ExceptionStepsBuffer,
-  ObjectCoercer: () => ObjectCoercer,
-  PrimitiveCoercer: () => PrimitiveCoercer,
-  PromiseRejectionEventCoercer: () => PromiseRejectionEventCoercer,
-  ReduceableCache: () => ReduceableCache,
-  StringCoercer: () => StringCoercer,
-  chromeStackLineParser: () => chromeStackLineParser,
-  createDefaultStackParser: () => createDefaultStackParser,
-  createStackParser: () => createStackParser,
-  geckoStackLineParser: () => geckoStackLineParser,
-  getInjectedReleaseId: () => getInjectedReleaseId,
-  getUtf8ByteLength: () => getUtf8ByteLength,
-  nodeStackLineParser: () => nodeStackLineParser,
-  opera10StackLineParser: () => opera10StackLineParser,
-  opera11StackLineParser: () => opera11StackLineParser,
-  resolveExceptionStepsConfig: () => resolveExceptionStepsConfig,
-  reverseAndStripFrames: () => reverseAndStripFrames,
-  stripReservedExceptionStepFields: () => stripReservedExceptionStepFields,
-  winjsStackLineParser: () => winjsStackLineParser
-});
 var init_error_tracking = __esm(() => {
   init_error_properties_builder();
   init_parsers();
@@ -3571,15 +3347,15 @@ class PostHogCoreStateless {
     };
     const response = await this.fetchWithRetry(url, fetchOptions, {
       type: "required",
-      consume: (response2) => {
-        if (response2.status !== 200 || !response2.json) {
-          const msg = `Surveys API could not be loaded: ${response2.status}`;
+      consume: (response) => {
+        if (response.status !== 200 || !response.json) {
+          const msg = `Surveys API could not be loaded: ${response.status}`;
           const error = new Error(msg);
           this._logger.error(error);
           this._events.emit("error", new Error(msg));
           return Promise.resolve(undefined);
         }
-        return response2.json();
+        return response.json();
       }
     }).catch((error) => {
       this._logger.error("Surveys API could not be loaded", error);
@@ -4269,7 +4045,7 @@ import { constants as constants2 } from "node:fs";
 import { open as promises_open } from "node:fs/promises";
 import { isAbsolute as isAbsolute7 } from "node:path";
 import { createInterface } from "node:readline";
-async function addSourceContext(frames, openSourceFile = promises_open, logger2) {
+async function addSourceContext(frames, openSourceFile = promises_open, logger) {
   const filesToLines = {};
   let basePath;
   try {
@@ -4305,7 +4081,7 @@ async function addSourceContext(frames, openSourceFile = promises_open, logger2)
     if (ranges.every((r) => rangeExistsInContentCache(cacheKey, r)))
       continue;
     const cache = emplace(LRU_FILE_CONTENTS_CACHE, cacheKey, {});
-    readlinePromises.push(getContextLinesFromFile(file, ranges, cache, cacheKey, openSourceFile, logger2));
+    readlinePromises.push(getContextLinesFromFile(file, ranges, cache, cacheKey, openSourceFile, logger));
   }
   await Promise.all(readlinePromises).catch(() => {});
   if (frames && frames.length > 0)
@@ -4313,16 +4089,16 @@ async function addSourceContext(frames, openSourceFile = promises_open, logger2)
   LRU_FILE_CONTENTS_CACHE.reduce();
   return frames;
 }
-async function openRegularSourceFile(path2, openSourceFile, logger2) {
+async function openRegularSourceFile(path, openSourceFile, logger) {
   let fileHandle;
   let isValid = false;
   try {
-    fileHandle = await openSourceFile(path2, constants2.O_RDONLY | constants2.O_NONBLOCK);
+    fileHandle = await openSourceFile(path, constants2.O_RDONLY | constants2.O_NONBLOCK);
     const fileStat = await fileHandle.stat();
     if (!fileStat.isFile())
       return;
     if (fileStat.size > MAX_CONTEXTLINES_FILE_SIZE)
-      return void logger2?.debug(`Skipping source context for oversized file ${path2}: ${fileStat.size} bytes exceeds ${MAX_CONTEXTLINES_FILE_SIZE}`);
+      return void logger?.debug(`Skipping source context for oversized file ${path}: ${fileStat.size} bytes exceeds ${MAX_CONTEXTLINES_FILE_SIZE}`);
     isValid = true;
     return fileHandle;
   } catch {
@@ -4332,19 +4108,19 @@ async function openRegularSourceFile(path2, openSourceFile, logger2) {
       await fileHandle.close().catch(() => {});
   }
 }
-async function getContextLinesFromFile(path2, ranges, output, cacheKey, openSourceFile, logger2) {
-  const fileHandle = await openRegularSourceFile(path2, openSourceFile, logger2);
+async function getContextLinesFromFile(path, ranges, output, cacheKey, openSourceFile, logger) {
+  const fileHandle = await openRegularSourceFile(path, openSourceFile, logger);
   if (fileHandle === undefined)
     return void LRU_FILE_CONTENTS_FS_READ_FAILED.set(cacheKey, 1);
   const openedFileHandle = fileHandle;
-  return new Promise((resolve10) => {
+  return new Promise((resolve) => {
     let finished = false;
-    function destroyStreamAndResolve(stream2) {
+    function destroyStreamAndResolve(stream) {
       if (finished)
         return;
       finished = true;
-      stream2?.destroy();
-      openedFileHandle.close().then(resolve10, resolve10);
+      stream?.destroy();
+      openedFileHandle.close().then(resolve, resolve);
     }
     let stream;
     try {
@@ -4396,14 +4172,14 @@ async function getContextLinesFromFile(path2, ranges, output, cacheKey, openSour
           return;
         }
         currentRangeIndex++;
-        const range2 = ranges[currentRangeIndex];
-        if (range2 === undefined) {
+        const range = ranges[currentRangeIndex];
+        if (range === undefined) {
           lineReaded.close();
           lineReaded.removeAllListeners();
           return;
         }
-        rangeStart = range2[0];
-        rangeEnd = range2[1];
+        rangeStart = range[0];
+        rangeEnd = range[1];
       }
     });
   });
@@ -4445,8 +4221,8 @@ function clearLineContext(frame) {
   delete frame.context_line;
   delete frame.post_context;
 }
-function shouldSkipContextLinesForFile(path2) {
-  return path2.startsWith("node:") || path2.endsWith(".min.js") || path2.endsWith(".min.cjs") || path2.endsWith(".min.mjs") || path2.startsWith("data:");
+function shouldSkipContextLinesForFile(path) {
+  return path.startsWith("node:") || path.endsWith(".min.js") || path.endsWith(".min.cjs") || path.endsWith(".min.mjs") || path.startsWith("data:");
 }
 function shouldSkipContextLinesForFrame(frame) {
   if (frame.lineno !== undefined && frame.lineno > MAX_CONTEXTLINES_LINENO)
@@ -4455,15 +4231,15 @@ function shouldSkipContextLinesForFrame(frame) {
     return true;
   return false;
 }
-function makeSourceCacheKey(path2, basePath) {
-  if (isAbsolute7(path2))
+function makeSourceCacheKey(path, basePath) {
+  if (isAbsolute7(path))
     return JSON.stringify([
       null,
-      path2
+      path
     ]);
   return basePath === undefined ? undefined : JSON.stringify([
     basePath,
-    path2
+    path
   ]);
 }
 function rangeExistsInContentCache(cacheKey, range) {
@@ -4547,8 +4323,8 @@ function snipLine(line, colno) {
 var LRU_FILE_CONTENTS_CACHE, LRU_FILE_CONTENTS_FS_READ_FAILED, DEFAULT_LINES_OF_CONTEXT = 7, MAX_CONTEXTLINES_COLNO = 1000, MAX_CONTEXTLINES_LINENO = 1e4, MAX_CONTEXTLINES_FILE_SIZE = 10485760;
 var init_context_lines_node = __esm(() => {
   init_dist();
-  LRU_FILE_CONTENTS_CACHE = new exports_error_tracking.ReduceableCache(25);
-  LRU_FILE_CONTENTS_FS_READ_FAILED = new exports_error_tracking.ReduceableCache(20);
+  LRU_FILE_CONTENTS_CACHE = new ReduceableCache(25);
+  LRU_FILE_CONTENTS_FS_READ_FAILED = new ReduceableCache(20);
 });
 
 // node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/extensions/error-tracking/modifiers/relative-path.node.mjs
@@ -4696,15 +4472,15 @@ class FeatureFlagEvaluations {
       properties.$feature_flag_has_experiment = flag.hasExperiment;
     if (flag?.locallyEvaluated && this._flagDefinitionsLoadedAt !== undefined)
       properties.$feature_flag_definitions_loaded_at = this._flagDefinitionsLoadedAt;
-    const errors2 = [];
+    const errors = [];
     if (this._errorsWhileComputing)
-      errors2.push(FeatureFlagError2.ERRORS_WHILE_COMPUTING);
+      errors.push(FeatureFlagError2.ERRORS_WHILE_COMPUTING);
     if (this._quotaLimited)
-      errors2.push(FeatureFlagError2.QUOTA_LIMITED);
+      errors.push(FeatureFlagError2.QUOTA_LIMITED);
     if (flag === undefined)
-      errors2.push(FeatureFlagError2.FLAG_MISSING);
-    if (errors2.length > 0)
-      properties.$feature_flag_error = errors2.join(",");
+      errors.push(FeatureFlagError2.FLAG_MISSING);
+    if (errors.length > 0)
+      properties.$feature_flag_error = errors.join(",");
     this._host.captureFlagCalledEventIfNeeded({
       distinctId: this._distinctId,
       key,
@@ -5069,12 +4845,12 @@ class FeatureFlagsPoller {
     if (!this.cacheProvider)
       return false;
     try {
-      const cached2 = await this.cacheProvider.getFlagDefinitions();
-      if (cached2) {
-        this.updateFlagState(cached2);
-        this.logMsgIfDebug(() => console.debug(`[FEATURE FLAGS] ${debugMessage} (${cached2.flags.length} flags)`));
+      const cached = await this.cacheProvider.getFlagDefinitions();
+      if (cached) {
+        this.updateFlagState(cached);
+        this.logMsgIfDebug(() => console.debug(`[FEATURE FLAGS] ${debugMessage} (${cached.flags.length} flags)`));
         this.onLoad?.(this.featureFlags.length);
-        this.warnAboutExperienceContinuityFlags(cached2.flags);
+        this.warnAboutExperienceContinuityFlags(cached.flags);
         return true;
       }
       return false;
@@ -5291,21 +5067,21 @@ function matchProperty(property, propertyValues, warnFunction) {
       warnFunction(`Property ${key} cannot have a value of null/undefined with the ${operator} operator`);
     return false;
   }
-  function computeExactMatch(value2, overrideValue2) {
-    if (Array.isArray(value2))
-      return value2.map((val) => String(val).toLowerCase()).includes(String(overrideValue2).toLowerCase());
-    return String(value2).toLowerCase() === String(overrideValue2).toLowerCase();
+  function computeExactMatch(value, overrideValue) {
+    if (Array.isArray(value))
+      return value.map((val) => String(val).toLowerCase()).includes(String(overrideValue).toLowerCase());
+    return String(value).toLowerCase() === String(overrideValue).toLowerCase();
   }
-  function compare(lhs, rhs, operator2) {
-    if (operator2 === "gt")
+  function compare(lhs, rhs, operator) {
+    if (operator === "gt")
       return lhs > rhs;
-    if (operator2 === "gte")
+    if (operator === "gte")
       return lhs >= rhs;
-    if (operator2 === "lt")
+    if (operator === "lt")
       return lhs < rhs;
-    if (operator2 === "lte")
+    if (operator === "lte")
       return lhs <= rhs;
-    throw new Error(`Invalid operator: ${operator2}`);
+    throw new Error(`Invalid operator: ${operator}`);
   }
   switch (operator) {
     case "exact":
@@ -5615,9 +5391,9 @@ function convertToDateTime(value) {
   if (value instanceof Date)
     return value;
   if (typeof value == "string" || typeof value == "number") {
-    const date3 = new Date(value);
-    if (!isNaN(date3.valueOf()))
-      return date3;
+    const date = new Date(value);
+    if (!isNaN(date.valueOf()))
+      return date;
     throw new InconclusiveMatchError(`${value} is in an invalid date format`);
   }
   throw new InconclusiveMatchError(`The date provided ${value} must be a string, number, or date object`);
@@ -5631,22 +5407,22 @@ function relativeDateParseForFeatureFlagMatching(value) {
   {
     if (!match.groups)
       return null;
-    const number3 = parseInt(match.groups["number"]);
-    if (number3 >= 1e4)
+    const number = parseInt(match.groups["number"]);
+    if (number >= 1e4)
       return null;
     const interval = match.groups["interval"];
     if (interval == "h")
-      parsedDt.setUTCHours(parsedDt.getUTCHours() - number3);
+      parsedDt.setUTCHours(parsedDt.getUTCHours() - number);
     else if (interval == "d")
-      parsedDt.setUTCDate(parsedDt.getUTCDate() - number3);
+      parsedDt.setUTCDate(parsedDt.getUTCDate() - number);
     else if (interval == "w")
-      parsedDt.setUTCDate(parsedDt.getUTCDate() - 7 * number3);
+      parsedDt.setUTCDate(parsedDt.getUTCDate() - 7 * number);
     else if (interval == "m")
-      parsedDt.setUTCMonth(parsedDt.getUTCMonth() - number3);
+      parsedDt.setUTCMonth(parsedDt.getUTCMonth() - number);
     else {
       if (interval != "y")
         return null;
-      parsedDt.setUTCFullYear(parsedDt.getUTCFullYear() - number3);
+      parsedDt.setUTCFullYear(parsedDt.getUTCFullYear() - number);
     }
     return parsedDt;
   }
@@ -5706,7 +5482,7 @@ function splitNodeOptions(nodeOptions) {
   return args;
 }
 function findUnhandledRejectionMode(args) {
-  let mode2;
+  let mode;
   for (let index = 0;index < args.length; index++) {
     const argument = args[index];
     const optionName = UNHANDLED_REJECTION_OPTION_NAMES.find((name) => argument === name || argument.startsWith(`${name}=`));
@@ -5714,9 +5490,9 @@ function findUnhandledRejectionMode(args) {
       continue;
     const value = argument === optionName ? args[++index] : argument.slice(optionName.length + 1);
     if (UNHANDLED_REJECTION_MODES.has(value))
-      mode2 = value;
+      mode = value;
   }
-  return mode2;
+  return mode;
 }
 function getUnhandledRejectionMode(execArgv = STARTUP_EXEC_ARGV, nodeOptions = STARTUP_NODE_OPTIONS) {
   return findUnhandledRejectionMode(execArgv) ?? findUnhandledRejectionMode(splitNodeOptions(nodeOptions ?? "")) ?? "throw";
@@ -5742,19 +5518,19 @@ function makeUncaughtExceptionHandler(captureFn, onFatalFn) {
     _posthogErrorHandler: true
   });
 }
-function addUncaughtExceptionListener(captureFn, onFatalFn, mode2 = STARTUP_UNHANDLED_REJECTION_MODE) {
-  const process3 = globalThis.process;
-  if (!process3)
+function addUncaughtExceptionListener(captureFn, onFatalFn, mode = STARTUP_UNHANDLED_REJECTION_MODE) {
+  const process2 = globalThis.process;
+  if (!process2)
     return;
-  if (mode2 === "strict")
-    return void process3.on("uncaughtExceptionMonitor", (error, origin) => captureUncaughtException(captureFn, error, origin));
-  process3.on("uncaughtException", makeUncaughtExceptionHandler(captureFn, onFatalFn));
+  if (mode === "strict")
+    return void process2.on("uncaughtExceptionMonitor", (error, origin) => captureUncaughtException(captureFn, error, origin));
+  process2.on("uncaughtException", makeUncaughtExceptionHandler(captureFn, onFatalFn));
 }
-function addUnhandledRejectionListener(captureFn, mode2 = STARTUP_UNHANDLED_REJECTION_MODE) {
-  const process3 = globalThis.process;
-  if (!process3 || mode2 === "throw" || mode2 === "strict" || mode2 === "warn-with-error-code")
+function addUnhandledRejectionListener(captureFn, mode = STARTUP_UNHANDLED_REJECTION_MODE) {
+  const process2 = globalThis.process;
+  if (!process2 || mode === "throw" || mode === "strict" || mode === "warn-with-error-code")
     return;
-  process3.on("unhandledRejection", (reason) => {
+  process2.on("unhandledRejection", (reason) => {
     captureFn(reason, {
       mechanism: {
         type: "onunhandledrejection",
@@ -5805,7 +5581,7 @@ class error_tracking_ErrorTracking {
     };
     const exceptionProperties = builder.buildFromUnknown(error, hint);
     exceptionProperties.$exception_list = await builder.modifyFrames(exceptionProperties.$exception_list);
-    const injectedReleaseId = exports_error_tracking.getInjectedReleaseId();
+    const injectedReleaseId = getInjectedReleaseId();
     if (injectedReleaseId)
       properties.$release_id = injectedReleaseId;
     return {
@@ -5930,10 +5706,10 @@ function isRecord9(value) {
 }
 function toRfc3339(timestamp) {
   if (typeof timestamp == "string") {
-    const asDate2 = new Date(timestamp);
-    if (Number.isNaN(asDate2.getTime()))
+    const asDate = new Date(timestamp);
+    if (Number.isNaN(asDate.getTime()))
       return new Date().toISOString();
-    const normalized = asDate2.toISOString();
+    const normalized = asDate.toISOString();
     const fractionalSeconds = timestamp.match(/\.(\d+)(?:Z|[+-]\d{2}:?\d{2})?$/i)?.[1];
     return fractionalSeconds && fractionalSeconds.length > 3 ? normalized.replace(/\.\d{3}Z$/, `.${fractionalSeconds}Z`) : normalized;
   }
@@ -6028,13 +5804,13 @@ var init_transform = __esm(() => {
 
 // node_modules/.bun/posthog-node@5.51.1/node_modules/posthog-node/dist/capture-v1/sender.mjs
 class V1CaptureSender {
-  constructor(config2, hooks) {
-    this.config = config2;
-    this.maxBackoffMs = config2.maxBackoffMs ?? DEFAULT_MAX_BACKOFF_MS;
+  constructor(config, hooks) {
+    this.config = config;
+    this.maxBackoffMs = config.maxBackoffMs ?? DEFAULT_MAX_BACKOFF_MS;
     this.fetchFn = hooks.fetch;
     this.onError = hooks.onError;
     this.now = hooks.now ?? Date.now;
-    this.sleep = hooks.sleep ?? ((ms) => new Promise((resolve10) => safeSetTimeout(resolve10, ms)));
+    this.sleep = hooks.sleep ?? ((ms) => new Promise((resolve) => safeSetTimeout(resolve, ms)));
     this.generateRequestId = hooks.generateRequestId ?? uuidv7;
     this.compress = hooks.compress ?? gzipCompress;
   }
@@ -6448,9 +6224,9 @@ var init_client = __esm(() => {
       if (this.disabled || this.optedOut)
         return;
       if (!this._waitUntilCycle) {
-        let resolve10;
+        let resolve;
         const promise = new Promise((r) => {
-          resolve10 = r;
+          resolve = r;
         });
         try {
           waitUntil(promise);
@@ -6458,7 +6234,7 @@ var init_client = __esm(() => {
           return;
         }
         this._waitUntilCycle = {
-          resolve: resolve10,
+          resolve,
           startedAt: Date.now(),
           timer: undefined
         };
@@ -6484,11 +6260,11 @@ var init_client = __esm(() => {
       return cycle?.resolve;
     }
     async resolveWaitUntilFlush() {
-      const resolve10 = this._consumeWaitUntilCycle();
+      const resolve = this._consumeWaitUntilCycle();
       try {
         await this.flushWithPendingPromises();
       } catch {} finally {
-        resolve10?.();
+        resolve?.();
       }
     }
     getPersistedProperty(key) {
@@ -6648,22 +6424,22 @@ var init_client = __esm(() => {
     captureAi(props) {
       if (this.disabled)
         return;
-      const uuid2 = getEventUuid(props.uuid, uuidv7);
+      const uuid = getEventUuid(props.uuid, uuidv7);
       this._sendPreparedAiEvent({
         ...props,
-        uuid: uuid2
+        uuid
       }, false);
-      return uuid2;
+      return uuid;
     }
     async captureAiImmediate(props) {
       if (this.disabled)
         return;
-      const uuid2 = getEventUuid(props.uuid, uuidv7);
+      const uuid = getEventUuid(props.uuid, uuidv7);
       await this._sendPreparedAiEvent({
         ...props,
-        uuid: uuid2
+        uuid
       }, true);
-      return uuid2;
+      return uuid;
     }
     _sendPreparedAiEvent(props, immediate) {
       if (typeof props?.event == "string" && !props.event.startsWith("$ai_"))
@@ -6767,15 +6543,15 @@ var init_client = __esm(() => {
         return true;
       if (this.featureFlagsPoller === undefined)
         return false;
-      return new Promise((resolve10) => {
+      return new Promise((resolve) => {
         const timeout = setTimeout(() => {
           cleanup();
-          resolve10(false);
+          resolve(false);
         }, timeoutMs);
         const cleanup = this._events.on("localEvaluationFlagsLoaded", (count) => {
           clearTimeout(timeout);
           cleanup();
-          resolve10(count > 0);
+          resolve(count > 0);
         });
       });
     }
@@ -6862,14 +6638,14 @@ var init_client = __esm(() => {
           this._minimalFlagCalledEvents = flagsResponse.minimalFlagCalledEvents === true;
           requestId = flagsResponse.requestId;
           evaluatedAt = flagsResponse.evaluatedAt;
-          const errors2 = [];
+          const errors = [];
           if (flagsResponse.errorsWhileComputingFlags)
-            errors2.push(FeatureFlagError2.ERRORS_WHILE_COMPUTING);
+            errors.push(FeatureFlagError2.ERRORS_WHILE_COMPUTING);
           if (flagsResponse.quotaLimited?.includes("feature_flags"))
-            errors2.push(FeatureFlagError2.QUOTA_LIMITED);
+            errors.push(FeatureFlagError2.QUOTA_LIMITED);
           const flagDetail = flagsResponse.flags[key];
           if (flagDetail === undefined)
-            errors2.push(FeatureFlagError2.FLAG_MISSING);
+            errors.push(FeatureFlagError2.FLAG_MISSING);
           else {
             flagId = flagDetail.metadata?.id;
             flagVersion = flagDetail.metadata?.version;
@@ -6889,8 +6665,8 @@ var init_client = __esm(() => {
               payload: parsedPayload
             };
           }
-          if (errors2.length > 0)
-            featureFlagError = errors2.join(",");
+          if (errors.length > 0)
+            featureFlagError = errors.join(",");
         }
       }
       if (sendFeatureFlagEvents) {
@@ -7325,7 +7101,7 @@ var init_client = __esm(() => {
     }
     async _shutdown(shutdownTimeoutMs) {
       const shutdownDeadlineMs = Date.now() + (shutdownTimeoutMs ?? 30000);
-      const resolve10 = this._consumeWaitUntilCycle();
+      const resolve = this._consumeWaitUntilCycle();
       await this.featureFlagsPoller?.stopPoller(shutdownTimeoutMs);
       this.errorTracking.shutdown();
       if (this._metrics) {
@@ -7336,7 +7112,7 @@ var init_client = __esm(() => {
         return await super._shutdown(Math.max(0, shutdownDeadlineMs - Date.now()));
       } finally {
         this.distinctIdHasSentFlagCalls = {};
-        resolve10?.();
+        resolve?.();
       }
     }
     async _requestRemoteConfigPayload(flagKey) {
@@ -7459,14 +7235,14 @@ var init_client = __esm(() => {
         evaluationCache: {}
       };
     }
-    captureException(error, distinctId, additionalProperties, uuid2, flags) {
+    captureException(error, distinctId, additionalProperties, uuid, flags) {
       if (!error_tracking_ErrorTracking.isPreviouslyCapturedError(error)) {
         const syntheticException = new Error("PostHog syntheticException");
         this.addPendingPromise(error_tracking_ErrorTracking.buildEventMessage(this.getErrorPropertiesBuilder(), error, {
           syntheticException
         }, distinctId, additionalProperties).then((msg) => this._capturePreparedEvent({
           ...msg,
-          uuid: uuid2,
+          uuid,
           flags
         }, false)));
       }
@@ -7486,7 +7262,7 @@ var init_client = __esm(() => {
       return this._prepareEventMessage(props);
     }
     async _prepareEventMessage(props, options = {}) {
-      const { distinctId, event, properties, groups, flags, sendFeatureFlags, timestamp, disableGeoip, uuid: uuid2 } = props;
+      const { distinctId, event, properties, groups, flags, sendFeatureFlags, timestamp, disableGeoip, uuid } = props;
       const contextData = this.context?.get();
       const includeContextProperties = options.includeContextProperties ?? true;
       let mergedDistinctId = distinctId || contextData?.distinctId;
@@ -7513,7 +7289,7 @@ var init_client = __esm(() => {
         sendFeatureFlags,
         timestamp,
         disableGeoip,
-        uuid: uuid2
+        uuid
       });
       if (!eventMessage)
         return Promise.reject(null);
@@ -7674,7 +7450,7 @@ function createEventProcessor(_posthog, { organization, projectId, prefix, sever
       $sentry_exception_type: exceptions[0]?.type,
       $sentry_tags: event.tags
     };
-    const injectedReleaseId = exports_error_tracking.getInjectedReleaseId();
+    const injectedReleaseId = getInjectedReleaseId();
     if (injectedReleaseId)
       properties.$release_id = injectedReleaseId;
     if (organization && projectId)
@@ -7756,13 +7532,13 @@ var init_index_node = __esm(() => {
       return new PostHogContext;
     }
     createErrorPropertiesBuilder() {
-      return new exports_error_tracking.ErrorPropertiesBuilder([
-        new exports_error_tracking.EventCoercer,
-        new exports_error_tracking.ErrorCoercer,
-        new exports_error_tracking.ObjectCoercer,
-        new exports_error_tracking.StringCoercer,
-        new exports_error_tracking.PrimitiveCoercer
-      ], exports_error_tracking.createStackParser("node:javascript", exports_error_tracking.nodeStackLineParser), [
+      return new ErrorPropertiesBuilder([
+        new EventCoercer,
+        new ErrorCoercer,
+        new ObjectCoercer,
+        new StringCoercer,
+        new PrimitiveCoercer
+      ], createStackParser("node:javascript", nodeStackLineParser), [
         createModulerModifier(),
         (frames) => addSourceContext(frames, undefined, this._logger),
         createRelativePathModifier()
@@ -7977,7 +7753,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.0.0-beta.78",
+    version: "5.0.0-beta.79",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
@@ -8143,26 +7919,8 @@ function createPostHogClient(source, options = {}) {
 function getPostHogDistinctId() {
   return getTelemetryDistinctId(MACHINE_ID_PREFIX, resolveOsProvider());
 }
-function createCliPostHog() {
-  return createPostHogClient("cli");
-}
 function createInstallPostHog() {
   return createPostHogClient("install");
-}
-function createPluginPostHog() {
-  return createPostHogClient("plugin");
-}
-function __setOsProviderForTesting(provider) {
-  osProviderOverride2 = provider;
-}
-function __resetOsProviderForTesting() {
-  osProviderOverride2 = null;
-}
-function __setActivityStateProviderForTesting(provider) {
-  activityStateProviderOverride = provider;
-}
-function __resetActivityStateProviderForTesting() {
-  activityStateProviderOverride = null;
 }
 var osProviderOverride2 = null, activityStateProviderOverride = null, transportFactoryOverride = null, NO_OP_POSTHOG;
 var init_posthog = __esm(() => {
@@ -8181,24 +7939,13 @@ var init_posthog = __esm(() => {
 });
 
 // packages/omo-codex/src/telemetry/index.ts
-var exports_telemetry = {};
-__export(exports_telemetry, {
-  __resetActivityStateProviderForTesting: () => __resetActivityStateProviderForTesting,
-  __resetOsProviderForTesting: () => __resetOsProviderForTesting,
-  __setActivityStateProviderForTesting: () => __setActivityStateProviderForTesting,
-  __setOsProviderForTesting: () => __setOsProviderForTesting,
-  createCliPostHog: () => createCliPostHog,
-  createInstallPostHog: () => createInstallPostHog,
-  createPluginPostHog: () => createPluginPostHog,
-  getPostHogDistinctId: () => getPostHogDistinctId
-});
 var init_telemetry = __esm(() => {
   init_posthog();
 });
 
 // packages/omo-codex/src/install/install-local-cli.ts
 import { readFile as readFile24 } from "node:fs/promises";
-import { dirname as dirname13, join as join39, resolve as resolve11 } from "node:path";
+import { dirname as dirname13, join as join40, resolve as resolve11 } from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 
 // packages/utils/src/runtime/spawn.ts
@@ -8466,7 +8213,7 @@ var defaultRunCommand = async (command, args, options) => {
 };
 
 // packages/omo-codex/src/install/install-codex.ts
-import { join as join35, resolve as resolve10 } from "node:path";
+import { join as join36, resolve as resolve10 } from "node:path";
 
 // node_modules/.bun/zod@4.4.3/node_modules/zod/v4/core/core.js
 var _a;
@@ -8502,10 +8249,10 @@ function $constructor(name, initializer, params) {
   }
   Object.defineProperty(Definition, "name", { value: name });
   function _(def) {
-    var _a2;
+    var _a;
     const inst = params?.Parent ? new Definition : this;
     init(inst, def);
-    (_a2 = inst._zod).deferred ?? (_a2.deferred = []);
+    (_a = inst._zod).deferred ?? (_a.deferred = []);
     for (const fn of inst._zod.deferred) {
       fn();
     }
@@ -8544,90 +8291,10 @@ function config(newConfig) {
   return globalConfig;
 }
 // node_modules/.bun/zod@4.4.3/node_modules/zod/v4/core/util.js
-var exports_util = {};
-__export(exports_util, {
-  BIGINT_FORMAT_RANGES: () => BIGINT_FORMAT_RANGES,
-  Class: () => Class,
-  NUMBER_FORMAT_RANGES: () => NUMBER_FORMAT_RANGES,
-  aborted: () => aborted,
-  allowsEval: () => allowsEval,
-  assert: () => assert,
-  assertEqual: () => assertEqual,
-  assertIs: () => assertIs,
-  assertNever: () => assertNever,
-  assertNotEqual: () => assertNotEqual,
-  assignProp: () => assignProp,
-  base64ToUint8Array: () => base64ToUint8Array,
-  base64urlToUint8Array: () => base64urlToUint8Array,
-  cached: () => cached,
-  captureStackTrace: () => captureStackTrace,
-  cleanEnum: () => cleanEnum,
-  cleanRegex: () => cleanRegex,
-  clone: () => clone,
-  cloneDef: () => cloneDef,
-  createTransparentProxy: () => createTransparentProxy,
-  defineLazy: () => defineLazy,
-  esc: () => esc,
-  escapeRegex: () => escapeRegex,
-  explicitlyAborted: () => explicitlyAborted,
-  extend: () => extend,
-  finalizeIssue: () => finalizeIssue,
-  floatSafeRemainder: () => floatSafeRemainder,
-  getElementAtPath: () => getElementAtPath,
-  getEnumValues: () => getEnumValues,
-  getLengthableOrigin: () => getLengthableOrigin,
-  getParsedType: () => getParsedType,
-  getSizableOrigin: () => getSizableOrigin,
-  hexToUint8Array: () => hexToUint8Array,
-  isObject: () => isObject,
-  isPlainObject: () => isPlainObject,
-  issue: () => issue,
-  joinValues: () => joinValues,
-  jsonStringifyReplacer: () => jsonStringifyReplacer,
-  merge: () => merge,
-  mergeDefs: () => mergeDefs,
-  normalizeParams: () => normalizeParams,
-  nullish: () => nullish,
-  numKeys: () => numKeys,
-  objectClone: () => objectClone,
-  omit: () => omit,
-  optionalKeys: () => optionalKeys,
-  parsedType: () => parsedType,
-  partial: () => partial,
-  pick: () => pick,
-  prefixIssues: () => prefixIssues,
-  primitiveTypes: () => primitiveTypes,
-  promiseAllObject: () => promiseAllObject,
-  propertyKeyTypes: () => propertyKeyTypes,
-  randomString: () => randomString,
-  required: () => required,
-  safeExtend: () => safeExtend,
-  shallowClone: () => shallowClone,
-  slugify: () => slugify,
-  stringifyPrimitive: () => stringifyPrimitive,
-  uint8ArrayToBase64: () => uint8ArrayToBase64,
-  uint8ArrayToBase64url: () => uint8ArrayToBase64url,
-  uint8ArrayToHex: () => uint8ArrayToHex,
-  unwrapMessage: () => unwrapMessage
-});
-function assertEqual(val) {
-  return val;
-}
-function assertNotEqual(val) {
-  return val;
-}
-function assertIs(_arg) {}
-function assertNever(_x) {
-  throw new Error("Unexpected value in exhaustive check");
-}
-function assert(_) {}
 function getEnumValues(entries) {
   const numericValues = Object.values(entries).filter((v) => typeof v === "number");
   const values = Object.entries(entries).filter(([k, _]) => numericValues.indexOf(+k) === -1).map(([_, v]) => v);
   return values;
-}
-function joinValues(array, separator = "|") {
-  return array.map((val) => stringifyPrimitive(val)).join(separator);
 }
 function jsonStringifyReplacer(_, value) {
   if (typeof value === "bigint")
@@ -8685,9 +8352,6 @@ function defineLazy(object, key, getter) {
     configurable: true
   });
 }
-function objectClone(obj) {
-  return Object.create(Object.getPrototypeOf(obj), Object.getOwnPropertyDescriptors(obj));
-}
 function assignProp(target, prop, value) {
   Object.defineProperty(target, prop, {
     value,
@@ -8703,33 +8367,6 @@ function mergeDefs(...defs) {
     Object.assign(mergedDescriptors, descriptors);
   }
   return Object.defineProperties({}, mergedDescriptors);
-}
-function cloneDef(schema) {
-  return mergeDefs(schema._zod.def);
-}
-function getElementAtPath(obj, path) {
-  if (!path)
-    return obj;
-  return path.reduce((acc, key) => acc?.[key], obj);
-}
-function promiseAllObject(promisesObj) {
-  const keys = Object.keys(promisesObj);
-  const promises = keys.map((key) => promisesObj[key]);
-  return Promise.all(promises).then((results) => {
-    const resolvedObj = {};
-    for (let i = 0;i < keys.length; i++) {
-      resolvedObj[keys[i]] = results[i];
-    }
-    return resolvedObj;
-  });
-}
-function randomString(length = 10) {
-  const chars = "abcdefghijklmnopqrstuvwxyz";
-  let str = "";
-  for (let i = 0;i < length; i++) {
-    str += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return str;
 }
 function esc(str) {
   return JSON.stringify(str);
@@ -8783,68 +8420,7 @@ function shallowClone(o) {
     return new Set(o);
   return o;
 }
-function numKeys(data) {
-  let keyCount = 0;
-  for (const key in data) {
-    if (Object.prototype.hasOwnProperty.call(data, key)) {
-      keyCount++;
-    }
-  }
-  return keyCount;
-}
-var getParsedType = (data) => {
-  const t = typeof data;
-  switch (t) {
-    case "undefined":
-      return "undefined";
-    case "string":
-      return "string";
-    case "number":
-      return Number.isNaN(data) ? "nan" : "number";
-    case "boolean":
-      return "boolean";
-    case "function":
-      return "function";
-    case "bigint":
-      return "bigint";
-    case "symbol":
-      return "symbol";
-    case "object":
-      if (Array.isArray(data)) {
-        return "array";
-      }
-      if (data === null) {
-        return "null";
-      }
-      if (data.then && typeof data.then === "function" && data.catch && typeof data.catch === "function") {
-        return "promise";
-      }
-      if (typeof Map !== "undefined" && data instanceof Map) {
-        return "map";
-      }
-      if (typeof Set !== "undefined" && data instanceof Set) {
-        return "set";
-      }
-      if (typeof Date !== "undefined" && data instanceof Date) {
-        return "date";
-      }
-      if (typeof File !== "undefined" && data instanceof File) {
-        return "file";
-      }
-      return "object";
-    default:
-      throw new Error(`Unknown data type: ${t}`);
-  }
-};
 var propertyKeyTypes = /* @__PURE__ */ new Set(["string", "number", "symbol"]);
-var primitiveTypes = /* @__PURE__ */ new Set([
-  "string",
-  "number",
-  "bigint",
-  "boolean",
-  "symbol",
-  "undefined"
-]);
 function escapeRegex(str) {
   return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -8870,46 +8446,6 @@ function normalizeParams(_params) {
     return { ...params, error: () => params.error };
   return params;
 }
-function createTransparentProxy(getter) {
-  let target;
-  return new Proxy({}, {
-    get(_, prop, receiver) {
-      target ?? (target = getter());
-      return Reflect.get(target, prop, receiver);
-    },
-    set(_, prop, value, receiver) {
-      target ?? (target = getter());
-      return Reflect.set(target, prop, value, receiver);
-    },
-    has(_, prop) {
-      target ?? (target = getter());
-      return Reflect.has(target, prop);
-    },
-    deleteProperty(_, prop) {
-      target ?? (target = getter());
-      return Reflect.deleteProperty(target, prop);
-    },
-    ownKeys(_) {
-      target ?? (target = getter());
-      return Reflect.ownKeys(target);
-    },
-    getOwnPropertyDescriptor(_, prop) {
-      target ?? (target = getter());
-      return Reflect.getOwnPropertyDescriptor(target, prop);
-    },
-    defineProperty(_, prop, descriptor) {
-      target ?? (target = getter());
-      return Reflect.defineProperty(target, prop, descriptor);
-    }
-  });
-}
-function stringifyPrimitive(value) {
-  if (typeof value === "bigint")
-    return value.toString() + "n";
-  if (typeof value === "string")
-    return `"${value}"`;
-  return `${value}`;
-}
 function optionalKeys(shape) {
   return Object.keys(shape).filter((k) => {
     return shape[k]._zod.optin === "optional" && shape[k]._zod.optout === "optional";
@@ -8921,10 +8457,6 @@ var NUMBER_FORMAT_RANGES = {
   uint32: [0, 4294967295],
   float32: [-340282346638528860000000000000000000000, 340282346638528860000000000000000000000],
   float64: [-Number.MAX_VALUE, Number.MAX_VALUE]
-};
-var BIGINT_FORMAT_RANGES = {
-  int64: [/* @__PURE__ */ BigInt("-9223372036854775808"), /* @__PURE__ */ BigInt("9223372036854775807")],
-  uint64: [/* @__PURE__ */ BigInt(0), /* @__PURE__ */ BigInt("18446744073709551615")]
 };
 function pick(schema, mask) {
   const currDef = schema._zod.def;
@@ -9120,8 +8652,8 @@ function explicitlyAborted(x, startIndex = 0) {
 }
 function prefixIssues(path, issues) {
   return issues.map((iss) => {
-    var _a2;
-    (_a2 = iss).path ?? (_a2.path = []);
+    var _a;
+    (_a = iss).path ?? (_a.path = []);
     iss.path.unshift(path);
     return iss;
   });
@@ -9129,8 +8661,8 @@ function prefixIssues(path, issues) {
 function unwrapMessage(message) {
   return typeof message === "string" ? message : message?.message;
 }
-function finalizeIssue(iss, ctx, config2) {
-  const message = iss.message ? iss.message : unwrapMessage(iss.inst?._zod.def?.error?.(iss)) ?? unwrapMessage(ctx?.error?.(iss)) ?? unwrapMessage(config2.customError?.(iss)) ?? unwrapMessage(config2.localeError?.(iss)) ?? "Invalid input";
+function finalizeIssue(iss, ctx, config) {
+  const message = iss.message ? iss.message : unwrapMessage(iss.inst?._zod.def?.error?.(iss)) ?? unwrapMessage(ctx?.error?.(iss)) ?? unwrapMessage(config.customError?.(iss)) ?? unwrapMessage(config.localeError?.(iss)) ?? "Invalid input";
   const { inst: _inst, continue: _continue, input: _input, ...rest } = iss;
   rest.path ?? (rest.path = []);
   rest.message = message;
@@ -9139,42 +8671,12 @@ function finalizeIssue(iss, ctx, config2) {
   }
   return rest;
 }
-function getSizableOrigin(input) {
-  if (input instanceof Set)
-    return "set";
-  if (input instanceof Map)
-    return "map";
-  if (input instanceof File)
-    return "file";
-  return "unknown";
-}
 function getLengthableOrigin(input) {
   if (Array.isArray(input))
     return "array";
   if (typeof input === "string")
     return "string";
   return "unknown";
-}
-function parsedType(data) {
-  const t = typeof data;
-  switch (t) {
-    case "number": {
-      return Number.isNaN(data) ? "nan" : "number";
-    }
-    case "object": {
-      if (data === null) {
-        return "null";
-      }
-      if (Array.isArray(data)) {
-        return "array";
-      }
-      const obj = data;
-      if (obj && Object.getPrototypeOf(obj) !== Object.prototype && "constructor" in obj && obj.constructor) {
-        return obj.constructor.name;
-      }
-    }
-  }
-  return t;
 }
 function issue(...args) {
   const [iss, input, inst] = args;
@@ -9187,52 +8689,6 @@ function issue(...args) {
     };
   }
   return { ...iss };
-}
-function cleanEnum(obj) {
-  return Object.entries(obj).filter(([k, _]) => {
-    return Number.isNaN(Number.parseInt(k, 10));
-  }).map((el) => el[1]);
-}
-function base64ToUint8Array(base64) {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0;i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
-}
-function uint8ArrayToBase64(bytes) {
-  let binaryString = "";
-  for (let i = 0;i < bytes.length; i++) {
-    binaryString += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binaryString);
-}
-function base64urlToUint8Array(base64url) {
-  const base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
-  const padding = "=".repeat((4 - base64.length % 4) % 4);
-  return base64ToUint8Array(base64 + padding);
-}
-function uint8ArrayToBase64url(bytes) {
-  return uint8ArrayToBase64(bytes).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-}
-function hexToUint8Array(hex) {
-  const cleanHex = hex.replace(/^0x/, "");
-  if (cleanHex.length % 2 !== 0) {
-    throw new Error("Invalid hex string length");
-  }
-  const bytes = new Uint8Array(cleanHex.length / 2);
-  for (let i = 0;i < cleanHex.length; i += 2) {
-    bytes[i / 2] = Number.parseInt(cleanHex.slice(i, i + 2), 16);
-  }
-  return bytes;
-}
-function uint8ArrayToHex(bytes) {
-  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-class Class {
-  constructor(..._args) {}
 }
 
 // node_modules/.bun/zod@4.4.3/node_modules/zod/v4/core/errors.js
@@ -9254,7 +8710,7 @@ var initializer = (inst, def) => {
 };
 var $ZodError = $constructor("$ZodError", initializer);
 var $ZodRealError = $constructor("$ZodError", initializer, { Parent: Error });
-function flattenError(error, mapper = (issue2) => issue2.message) {
+function flattenError(error, mapper = (issue) => issue.message) {
   const fieldErrors = {};
   const formErrors = [];
   for (const sub of error.issues) {
@@ -9267,20 +8723,20 @@ function flattenError(error, mapper = (issue2) => issue2.message) {
   }
   return { formErrors, fieldErrors };
 }
-function formatError(error, mapper = (issue2) => issue2.message) {
+function formatError(error, mapper = (issue) => issue.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error2, path = []) => {
-    for (const issue2 of error2.issues) {
-      if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path, ...issue2.path]));
-      } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path, ...issue2.path]);
-      } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path, ...issue2.path]);
+  const processError = (error, path = []) => {
+    for (const issue of error.issues) {
+      if (issue.code === "invalid_union" && issue.errors.length) {
+        issue.errors.map((issues) => processError({ issues }, [...path, ...issue.path]));
+      } else if (issue.code === "invalid_key") {
+        processError({ issues: issue.issues }, [...path, ...issue.path]);
+      } else if (issue.code === "invalid_element") {
+        processError({ issues: issue.issues }, [...path, ...issue.path]);
       } else {
-        const fullpath = [...path, ...issue2.path];
+        const fullpath = [...path, ...issue.path];
         if (fullpath.length === 0) {
-          fieldErrors._errors.push(mapper(issue2));
+          fieldErrors._errors.push(mapper(issue));
         } else {
           let curr = fieldErrors;
           let i = 0;
@@ -9291,7 +8747,7 @@ function formatError(error, mapper = (issue2) => issue2.message) {
               curr[el] = curr[el] || { _errors: [] };
             } else {
               curr[el] = curr[el] || { _errors: [] };
-              curr[el]._errors.push(mapper(issue2));
+              curr[el]._errors.push(mapper(issue));
             }
             curr = curr[el];
             i++;
@@ -9419,13 +8875,13 @@ function time(args) {
   return new RegExp(`^${timeSource(args)}$`);
 }
 function datetime(args) {
-  const time2 = timeSource({ precision: args.precision });
+  const time = timeSource({ precision: args.precision });
   const opts = ["Z"];
   if (args.local)
     opts.push("");
   if (args.offset)
     opts.push(`([+-](?:[01]\\d|2[0-3]):[0-5]\\d)`);
-  const timeRegex = `${time2}(?:${opts.join("|")})`;
+  const timeRegex = `${time}(?:${opts.join("|")})`;
   return new RegExp(`^${dateSource}T(?:${timeRegex})$`);
 }
 var string = (params) => {
@@ -9440,10 +8896,10 @@ var uppercase = /^[^a-z]*$/;
 
 // node_modules/.bun/zod@4.4.3/node_modules/zod/v4/core/checks.js
 var $ZodCheck = /* @__PURE__ */ $constructor("$ZodCheck", (inst, def) => {
-  var _a2;
+  var _a;
   inst._zod ?? (inst._zod = {});
   inst._zod.def = def;
-  (_a2 = inst._zod).onattach ?? (_a2.onattach = []);
+  (_a = inst._zod).onattach ?? (_a.onattach = []);
 });
 var numericOriginMap = {
   number: "number",
@@ -9453,8 +8909,8 @@ var numericOriginMap = {
 var $ZodCheckLessThan = /* @__PURE__ */ $constructor("$ZodCheckLessThan", (inst, def) => {
   $ZodCheck.init(inst, def);
   const origin = numericOriginMap[typeof def.value];
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
+  inst._zod.onattach.push((inst) => {
+    const bag = inst._zod.bag;
     const curr = (def.inclusive ? bag.maximum : bag.exclusiveMaximum) ?? Number.POSITIVE_INFINITY;
     if (def.value < curr) {
       if (def.inclusive)
@@ -9481,8 +8937,8 @@ var $ZodCheckLessThan = /* @__PURE__ */ $constructor("$ZodCheckLessThan", (inst,
 var $ZodCheckGreaterThan = /* @__PURE__ */ $constructor("$ZodCheckGreaterThan", (inst, def) => {
   $ZodCheck.init(inst, def);
   const origin = numericOriginMap[typeof def.value];
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
+  inst._zod.onattach.push((inst) => {
+    const bag = inst._zod.bag;
     const curr = (def.inclusive ? bag.minimum : bag.exclusiveMinimum) ?? Number.NEGATIVE_INFINITY;
     if (def.value > curr) {
       if (def.inclusive)
@@ -9508,9 +8964,9 @@ var $ZodCheckGreaterThan = /* @__PURE__ */ $constructor("$ZodCheckGreaterThan", 
 });
 var $ZodCheckMultipleOf = /* @__PURE__ */ $constructor("$ZodCheckMultipleOf", (inst, def) => {
   $ZodCheck.init(inst, def);
-  inst._zod.onattach.push((inst2) => {
-    var _a2;
-    (_a2 = inst2._zod.bag).multipleOf ?? (_a2.multipleOf = def.value);
+  inst._zod.onattach.push((inst) => {
+    var _a;
+    (_a = inst._zod.bag).multipleOf ?? (_a.multipleOf = def.value);
   });
   inst._zod.check = (payload) => {
     if (typeof payload.value !== typeof def.value)
@@ -9534,8 +8990,8 @@ var $ZodCheckNumberFormat = /* @__PURE__ */ $constructor("$ZodCheckNumberFormat"
   const isInt = def.format?.includes("int");
   const origin = isInt ? "int" : "number";
   const [minimum, maximum] = NUMBER_FORMAT_RANGES[def.format];
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
+  inst._zod.onattach.push((inst) => {
+    const bag = inst._zod.bag;
     bag.format = def.format;
     bag.minimum = minimum;
     bag.maximum = maximum;
@@ -9608,16 +9064,16 @@ var $ZodCheckNumberFormat = /* @__PURE__ */ $constructor("$ZodCheckNumberFormat"
   };
 });
 var $ZodCheckMaxLength = /* @__PURE__ */ $constructor("$ZodCheckMaxLength", (inst, def) => {
-  var _a2;
+  var _a;
   $ZodCheck.init(inst, def);
-  (_a2 = inst._zod.def).when ?? (_a2.when = (payload) => {
+  (_a = inst._zod.def).when ?? (_a.when = (payload) => {
     const val = payload.value;
     return !nullish(val) && val.length !== undefined;
   });
-  inst._zod.onattach.push((inst2) => {
-    const curr = inst2._zod.bag.maximum ?? Number.POSITIVE_INFINITY;
+  inst._zod.onattach.push((inst) => {
+    const curr = inst._zod.bag.maximum ?? Number.POSITIVE_INFINITY;
     if (def.maximum < curr)
-      inst2._zod.bag.maximum = def.maximum;
+      inst._zod.bag.maximum = def.maximum;
   });
   inst._zod.check = (payload) => {
     const input = payload.value;
@@ -9637,16 +9093,16 @@ var $ZodCheckMaxLength = /* @__PURE__ */ $constructor("$ZodCheckMaxLength", (ins
   };
 });
 var $ZodCheckMinLength = /* @__PURE__ */ $constructor("$ZodCheckMinLength", (inst, def) => {
-  var _a2;
+  var _a;
   $ZodCheck.init(inst, def);
-  (_a2 = inst._zod.def).when ?? (_a2.when = (payload) => {
+  (_a = inst._zod.def).when ?? (_a.when = (payload) => {
     const val = payload.value;
     return !nullish(val) && val.length !== undefined;
   });
-  inst._zod.onattach.push((inst2) => {
-    const curr = inst2._zod.bag.minimum ?? Number.NEGATIVE_INFINITY;
+  inst._zod.onattach.push((inst) => {
+    const curr = inst._zod.bag.minimum ?? Number.NEGATIVE_INFINITY;
     if (def.minimum > curr)
-      inst2._zod.bag.minimum = def.minimum;
+      inst._zod.bag.minimum = def.minimum;
   });
   inst._zod.check = (payload) => {
     const input = payload.value;
@@ -9666,14 +9122,14 @@ var $ZodCheckMinLength = /* @__PURE__ */ $constructor("$ZodCheckMinLength", (ins
   };
 });
 var $ZodCheckLengthEquals = /* @__PURE__ */ $constructor("$ZodCheckLengthEquals", (inst, def) => {
-  var _a2;
+  var _a;
   $ZodCheck.init(inst, def);
-  (_a2 = inst._zod.def).when ?? (_a2.when = (payload) => {
+  (_a = inst._zod.def).when ?? (_a.when = (payload) => {
     const val = payload.value;
     return !nullish(val) && val.length !== undefined;
   });
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
+  inst._zod.onattach.push((inst) => {
+    const bag = inst._zod.bag;
     bag.minimum = def.length;
     bag.maximum = def.length;
     bag.length = def.length;
@@ -9697,10 +9153,10 @@ var $ZodCheckLengthEquals = /* @__PURE__ */ $constructor("$ZodCheckLengthEquals"
   };
 });
 var $ZodCheckStringFormat = /* @__PURE__ */ $constructor("$ZodCheckStringFormat", (inst, def) => {
-  var _a2, _b;
+  var _a, _b;
   $ZodCheck.init(inst, def);
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
+  inst._zod.onattach.push((inst) => {
+    const bag = inst._zod.bag;
     bag.format = def.format;
     if (def.pattern) {
       bag.patterns ?? (bag.patterns = new Set);
@@ -9708,7 +9164,7 @@ var $ZodCheckStringFormat = /* @__PURE__ */ $constructor("$ZodCheckStringFormat"
     }
   });
   if (def.pattern)
-    (_a2 = inst._zod).check ?? (_a2.check = (payload) => {
+    (_a = inst._zod).check ?? (_a.check = (payload) => {
       def.pattern.lastIndex = 0;
       if (def.pattern.test(payload.value))
         return;
@@ -9755,8 +9211,8 @@ var $ZodCheckIncludes = /* @__PURE__ */ $constructor("$ZodCheckIncludes", (inst,
   const escapedRegex = escapeRegex(def.includes);
   const pattern = new RegExp(typeof def.position === "number" ? `^.{${def.position}}${escapedRegex}` : escapedRegex);
   def.pattern = pattern;
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
+  inst._zod.onattach.push((inst) => {
+    const bag = inst._zod.bag;
     bag.patterns ?? (bag.patterns = new Set);
     bag.patterns.add(pattern);
   });
@@ -9778,8 +9234,8 @@ var $ZodCheckStartsWith = /* @__PURE__ */ $constructor("$ZodCheckStartsWith", (i
   $ZodCheck.init(inst, def);
   const pattern = new RegExp(`^${escapeRegex(def.prefix)}.*`);
   def.pattern ?? (def.pattern = pattern);
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
+  inst._zod.onattach.push((inst) => {
+    const bag = inst._zod.bag;
     bag.patterns ?? (bag.patterns = new Set);
     bag.patterns.add(pattern);
   });
@@ -9801,8 +9257,8 @@ var $ZodCheckEndsWith = /* @__PURE__ */ $constructor("$ZodCheckEndsWith", (inst,
   $ZodCheck.init(inst, def);
   const pattern = new RegExp(`.*${escapeRegex(def.suffix)}$`);
   def.pattern ?? (def.pattern = pattern);
-  inst._zod.onattach.push((inst2) => {
-    const bag = inst2._zod.bag;
+  inst._zod.onattach.push((inst) => {
+    const bag = inst._zod.bag;
     bag.patterns ?? (bag.patterns = new Set);
     bag.patterns.add(pattern);
   });
@@ -9874,7 +9330,7 @@ var version = {
 
 // node_modules/.bun/zod@4.4.3/node_modules/zod/v4/core/schemas.js
 var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
-  var _a2;
+  var _a;
   inst ?? (inst = {});
   inst._zod.def = def;
   inst._zod.bag = inst._zod.bag || {};
@@ -9889,15 +9345,15 @@ var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
     }
   }
   if (checks.length === 0) {
-    (_a2 = inst._zod).deferred ?? (_a2.deferred = []);
+    (_a = inst._zod).deferred ?? (_a.deferred = []);
     inst._zod.deferred?.push(() => {
       inst._zod.run = inst._zod.parse;
     });
   } else {
-    const runChecks = (payload, checks2, ctx) => {
+    const runChecks = (payload, checks, ctx) => {
       let isAborted = aborted(payload);
       let asyncResult;
-      for (const ch of checks2) {
+      for (const ch of checks) {
         if (ch._zod.def.when) {
           if (explicitlyAborted(payload))
             continue;
@@ -9945,7 +9401,7 @@ var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
       if (checkResult instanceof Promise) {
         if (ctx.async === false)
           throw new $ZodAsyncError;
-        return checkResult.then((checkResult2) => inst._zod.parse(checkResult2, ctx));
+        return checkResult.then((checkResult) => inst._zod.parse(checkResult, ctx));
       }
       return inst._zod.parse(checkResult, ctx);
     };
@@ -9956,8 +9412,8 @@ var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
       if (ctx.direction === "backward") {
         const canary = inst._zod.parse({ value: payload.value, issues: [] }, { ...ctx, skipChecks: true });
         if (canary instanceof Promise) {
-          return canary.then((canary2) => {
-            return handleCanaryResult(canary2, payload, ctx);
+          return canary.then((canary) => {
+            return handleCanaryResult(canary, payload, ctx);
           });
         }
         return handleCanaryResult(canary, payload, ctx);
@@ -9966,7 +9422,7 @@ var $ZodType = /* @__PURE__ */ $constructor("$ZodType", (inst, def) => {
       if (result instanceof Promise) {
         if (ctx.async === false)
           throw new $ZodAsyncError;
-        return result.then((result2) => runChecks(result2, checks, ctx));
+        return result.then((result) => runChecks(result, checks, ctx));
       }
       return runChecks(result, checks, ctx);
     };
@@ -9991,7 +9447,7 @@ var $ZodString = /* @__PURE__ */ $constructor("$ZodString", (inst, def) => {
     if (def.coerce)
       try {
         payload.value = String(payload.value);
-      } catch (_2) {}
+      } catch (_) {}
     if (typeof payload.value === "string")
       return payload;
     payload.issues.push({
@@ -10231,8 +9687,8 @@ var $ZodBase64 = /* @__PURE__ */ $constructor("$ZodBase64", (inst, def) => {
 function isValidBase64URL(data) {
   if (!base64url.test(data))
     return false;
-  const base642 = data.replace(/[-_]/g, (c) => c === "-" ? "+" : "/");
-  const padded = base642.padEnd(Math.ceil(base642.length / 4) * 4, "=");
+  const base64 = data.replace(/[-_]/g, (c) => c === "-" ? "+" : "/");
+  const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
   return isValidBase64(padded);
 }
 var $ZodBase64URL = /* @__PURE__ */ $constructor("$ZodBase64URL", (inst, def) => {
@@ -10380,7 +9836,7 @@ var $ZodArray = /* @__PURE__ */ $constructor("$ZodArray", (inst, def) => {
         issues: []
       }, ctx);
       if (result instanceof Promise) {
-        proms.push(result.then((result2) => handleArrayResult(result2, payload, i)));
+        proms.push(result.then((result) => handleArrayResult(result, payload, i)));
       } else {
         handleArrayResult(result, payload, i);
       }
@@ -10452,7 +9908,7 @@ function handleCatchall(proms, input, payload, ctx, def, inst) {
     }
     const r = _catchall.run({ value: input[key], issues: [] }, ctx);
     if (r instanceof Promise) {
-      proms.push(r.then((r2) => handlePropertyResult(r2, payload, key, input, isOptionalIn, isOptionalOut)));
+      proms.push(r.then((r) => handlePropertyResult(r, payload, key, input, isOptionalIn, isOptionalOut)));
     } else {
       handlePropertyResult(r, payload, key, input, isOptionalIn, isOptionalOut);
     }
@@ -10524,7 +9980,7 @@ var $ZodObject = /* @__PURE__ */ $constructor("$ZodObject", (inst, def) => {
       const isOptionalOut = el._zod.optout === "optional";
       const r = el._zod.run({ value: input[key], issues: [] }, ctx);
       if (r instanceof Promise) {
-        proms.push(r.then((r2) => handlePropertyResult(r2, payload, key, input, isOptionalIn, isOptionalOut)));
+        proms.push(r.then((r) => handlePropertyResult(r, payload, key, input, isOptionalIn, isOptionalOut)));
       } else {
         handlePropertyResult(r, payload, key, input, isOptionalIn, isOptionalOut);
       }
@@ -10722,8 +10178,8 @@ var $ZodUnion = /* @__PURE__ */ $constructor("$ZodUnion", (inst, def) => {
     }
     if (!async)
       return handleUnionResults(results, payload, inst, ctx);
-    return Promise.all(results).then((results2) => {
-      return handleUnionResults(results2, payload, inst, ctx);
+    return Promise.all(results).then((results) => {
+      return handleUnionResults(results, payload, inst, ctx);
     });
   };
 });
@@ -10802,8 +10258,8 @@ var $ZodIntersection = /* @__PURE__ */ $constructor("$ZodIntersection", (inst, d
     const right = def.right._zod.run({ value: input, issues: [] }, ctx);
     const async = left instanceof Promise || right instanceof Promise;
     if (async) {
-      return Promise.all([left, right]).then(([left2, right2]) => {
-        return handleIntersectionResults(payload, left2, right2);
+      return Promise.all([left, right]).then(([left, right]) => {
+        return handleIntersectionResults(payload, left, right);
       });
     }
     return handleIntersectionResults(payload, left, right);
@@ -10931,11 +10387,11 @@ var $ZodRecord = /* @__PURE__ */ $constructor("$ZodRecord", (inst, def) => {
           const outKey = keyResult.value;
           const result = def.valueType._zod.run({ value: input[key], issues: [] }, ctx);
           if (result instanceof Promise) {
-            proms.push(result.then((result2) => {
-              if (result2.issues.length) {
-                payload.issues.push(...prefixIssues(key, result2.issues));
+            proms.push(result.then((result) => {
+              if (result.issues.length) {
+                payload.issues.push(...prefixIssues(key, result.issues));
               }
-              payload.value[outKey] = result2.value;
+              payload.value[outKey] = result.value;
             }));
           } else {
             if (result.issues.length) {
@@ -10998,11 +10454,11 @@ var $ZodRecord = /* @__PURE__ */ $constructor("$ZodRecord", (inst, def) => {
         }
         const result = def.valueType._zod.run({ value: input[key], issues: [] }, ctx);
         if (result instanceof Promise) {
-          proms.push(result.then((result2) => {
-            if (result2.issues.length) {
-              payload.issues.push(...prefixIssues(key, result2.issues));
+          proms.push(result.then((result) => {
+            if (result.issues.length) {
+              payload.issues.push(...prefixIssues(key, result.issues));
             }
-            payload.value[keyResult.value] = result2.value;
+            payload.value[keyResult.value] = result.value;
           }));
         } else {
           if (result.issues.length) {
@@ -11070,8 +10526,8 @@ var $ZodTransform = /* @__PURE__ */ $constructor("$ZodTransform", (inst, def) =>
     const _out = def.transform(payload.value, payload);
     if (ctx.async) {
       const output = _out instanceof Promise ? _out : Promise.resolve(_out);
-      return output.then((output2) => {
-        payload.value = output2;
+      return output.then((output) => {
+        payload.value = output;
         payload.fallback = true;
         return payload;
       });
@@ -11154,7 +10610,7 @@ var $ZodDefault = /* @__PURE__ */ $constructor("$ZodDefault", (inst, def) => {
     }
     const result = def.innerType._zod.run(payload, ctx);
     if (result instanceof Promise) {
-      return result.then((result2) => handleDefaultResult(result2, def));
+      return result.then((result) => handleDefaultResult(result, def));
     }
     return handleDefaultResult(result, def);
   };
@@ -11188,7 +10644,7 @@ var $ZodNonOptional = /* @__PURE__ */ $constructor("$ZodNonOptional", (inst, def
   inst._zod.parse = (payload, ctx) => {
     const result = def.innerType._zod.run(payload, ctx);
     if (result instanceof Promise) {
-      return result.then((result2) => handleNonOptionalResult(result2, inst));
+      return result.then((result) => handleNonOptionalResult(result, inst));
     }
     return handleNonOptionalResult(result, inst);
   };
@@ -11215,13 +10671,13 @@ var $ZodCatch = /* @__PURE__ */ $constructor("$ZodCatch", (inst, def) => {
     }
     const result = def.innerType._zod.run(payload, ctx);
     if (result instanceof Promise) {
-      return result.then((result2) => {
-        payload.value = result2.value;
-        if (result2.issues.length) {
+      return result.then((result) => {
+        payload.value = result.value;
+        if (result.issues.length) {
           payload.value = def.catchValue({
             ...payload,
             error: {
-              issues: result2.issues.map((iss) => finalizeIssue(iss, ctx, config()))
+              issues: result.issues.map((iss) => finalizeIssue(iss, ctx, config()))
             },
             input: payload.value
           });
@@ -11256,13 +10712,13 @@ var $ZodPipe = /* @__PURE__ */ $constructor("$ZodPipe", (inst, def) => {
     if (ctx.direction === "backward") {
       const right = def.out._zod.run(payload, ctx);
       if (right instanceof Promise) {
-        return right.then((right2) => handlePipeResult(right2, def.in, ctx));
+        return right.then((right) => handlePipeResult(right, def.in, ctx));
       }
       return handlePipeResult(right, def.in, ctx);
     }
     const left = def.in._zod.run(payload, ctx);
     if (left instanceof Promise) {
-      return left.then((left2) => handlePipeResult(left2, def.out, ctx));
+      return left.then((left) => handlePipeResult(left, def.out, ctx));
     }
     return handlePipeResult(left, def.out, ctx);
   };
@@ -11308,7 +10764,7 @@ var $ZodCustom = /* @__PURE__ */ $constructor("$ZodCustom", (inst, def) => {
     const input = payload.value;
     const r = def.fn(input);
     if (r instanceof Promise) {
-      return r.then((r2) => handleRefineResult(r2, payload, input, inst));
+      return r.then((r) => handleRefineResult(r, payload, input, inst));
     }
     handleRefineResult(r, payload, input, inst);
     return;
@@ -11379,14 +10835,14 @@ function registry() {
 (_a2 = globalThis).__zod_globalRegistry ?? (_a2.__zod_globalRegistry = registry());
 var globalRegistry = globalThis.__zod_globalRegistry;
 // node_modules/.bun/zod@4.4.3/node_modules/zod/v4/core/api.js
-function _string(Class2, params) {
-  return new Class2({
+function _string(Class, params) {
+  return new Class({
     type: "string",
     ...normalizeParams(params)
   });
 }
-function _email(Class2, params) {
-  return new Class2({
+function _email(Class, params) {
+  return new Class({
     type: "string",
     format: "email",
     check: "string_format",
@@ -11394,8 +10850,8 @@ function _email(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _guid(Class2, params) {
-  return new Class2({
+function _guid(Class, params) {
+  return new Class({
     type: "string",
     format: "guid",
     check: "string_format",
@@ -11403,8 +10859,8 @@ function _guid(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _uuid(Class2, params) {
-  return new Class2({
+function _uuid(Class, params) {
+  return new Class({
     type: "string",
     format: "uuid",
     check: "string_format",
@@ -11412,8 +10868,8 @@ function _uuid(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _uuidv4(Class2, params) {
-  return new Class2({
+function _uuidv4(Class, params) {
+  return new Class({
     type: "string",
     format: "uuid",
     check: "string_format",
@@ -11422,8 +10878,8 @@ function _uuidv4(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _uuidv6(Class2, params) {
-  return new Class2({
+function _uuidv6(Class, params) {
+  return new Class({
     type: "string",
     format: "uuid",
     check: "string_format",
@@ -11432,8 +10888,8 @@ function _uuidv6(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _uuidv7(Class2, params) {
-  return new Class2({
+function _uuidv7(Class, params) {
+  return new Class({
     type: "string",
     format: "uuid",
     check: "string_format",
@@ -11442,8 +10898,8 @@ function _uuidv7(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _url(Class2, params) {
-  return new Class2({
+function _url(Class, params) {
+  return new Class({
     type: "string",
     format: "url",
     check: "string_format",
@@ -11451,8 +10907,8 @@ function _url(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _emoji2(Class2, params) {
-  return new Class2({
+function _emoji2(Class, params) {
+  return new Class({
     type: "string",
     format: "emoji",
     check: "string_format",
@@ -11460,8 +10916,8 @@ function _emoji2(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _nanoid(Class2, params) {
-  return new Class2({
+function _nanoid(Class, params) {
+  return new Class({
     type: "string",
     format: "nanoid",
     check: "string_format",
@@ -11469,8 +10925,8 @@ function _nanoid(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _cuid(Class2, params) {
-  return new Class2({
+function _cuid(Class, params) {
+  return new Class({
     type: "string",
     format: "cuid",
     check: "string_format",
@@ -11478,8 +10934,8 @@ function _cuid(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _cuid2(Class2, params) {
-  return new Class2({
+function _cuid2(Class, params) {
+  return new Class({
     type: "string",
     format: "cuid2",
     check: "string_format",
@@ -11487,8 +10943,8 @@ function _cuid2(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _ulid(Class2, params) {
-  return new Class2({
+function _ulid(Class, params) {
+  return new Class({
     type: "string",
     format: "ulid",
     check: "string_format",
@@ -11496,8 +10952,8 @@ function _ulid(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _xid(Class2, params) {
-  return new Class2({
+function _xid(Class, params) {
+  return new Class({
     type: "string",
     format: "xid",
     check: "string_format",
@@ -11505,8 +10961,8 @@ function _xid(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _ksuid(Class2, params) {
-  return new Class2({
+function _ksuid(Class, params) {
+  return new Class({
     type: "string",
     format: "ksuid",
     check: "string_format",
@@ -11514,8 +10970,8 @@ function _ksuid(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _ipv4(Class2, params) {
-  return new Class2({
+function _ipv4(Class, params) {
+  return new Class({
     type: "string",
     format: "ipv4",
     check: "string_format",
@@ -11523,8 +10979,8 @@ function _ipv4(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _ipv6(Class2, params) {
-  return new Class2({
+function _ipv6(Class, params) {
+  return new Class({
     type: "string",
     format: "ipv6",
     check: "string_format",
@@ -11532,8 +10988,8 @@ function _ipv6(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _cidrv4(Class2, params) {
-  return new Class2({
+function _cidrv4(Class, params) {
+  return new Class({
     type: "string",
     format: "cidrv4",
     check: "string_format",
@@ -11541,8 +10997,8 @@ function _cidrv4(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _cidrv6(Class2, params) {
-  return new Class2({
+function _cidrv6(Class, params) {
+  return new Class({
     type: "string",
     format: "cidrv6",
     check: "string_format",
@@ -11550,8 +11006,8 @@ function _cidrv6(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _base64(Class2, params) {
-  return new Class2({
+function _base64(Class, params) {
+  return new Class({
     type: "string",
     format: "base64",
     check: "string_format",
@@ -11559,8 +11015,8 @@ function _base64(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _base64url(Class2, params) {
-  return new Class2({
+function _base64url(Class, params) {
+  return new Class({
     type: "string",
     format: "base64url",
     check: "string_format",
@@ -11568,8 +11024,8 @@ function _base64url(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _e164(Class2, params) {
-  return new Class2({
+function _e164(Class, params) {
+  return new Class({
     type: "string",
     format: "e164",
     check: "string_format",
@@ -11577,8 +11033,8 @@ function _e164(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _jwt(Class2, params) {
-  return new Class2({
+function _jwt(Class, params) {
+  return new Class({
     type: "string",
     format: "jwt",
     check: "string_format",
@@ -11586,8 +11042,8 @@ function _jwt(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _isoDateTime(Class2, params) {
-  return new Class2({
+function _isoDateTime(Class, params) {
+  return new Class({
     type: "string",
     format: "datetime",
     check: "string_format",
@@ -11597,16 +11053,16 @@ function _isoDateTime(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _isoDate(Class2, params) {
-  return new Class2({
+function _isoDate(Class, params) {
+  return new Class({
     type: "string",
     format: "date",
     check: "string_format",
     ...normalizeParams(params)
   });
 }
-function _isoTime(Class2, params) {
-  return new Class2({
+function _isoTime(Class, params) {
+  return new Class({
     type: "string",
     format: "time",
     check: "string_format",
@@ -11614,23 +11070,23 @@ function _isoTime(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _isoDuration(Class2, params) {
-  return new Class2({
+function _isoDuration(Class, params) {
+  return new Class({
     type: "string",
     format: "duration",
     check: "string_format",
     ...normalizeParams(params)
   });
 }
-function _number(Class2, params) {
-  return new Class2({
+function _number(Class, params) {
+  return new Class({
     type: "number",
     checks: [],
     ...normalizeParams(params)
   });
 }
-function _int(Class2, params) {
-  return new Class2({
+function _int(Class, params) {
+  return new Class({
     type: "number",
     check: "number_format",
     abort: false,
@@ -11638,19 +11094,19 @@ function _int(Class2, params) {
     ...normalizeParams(params)
   });
 }
-function _boolean(Class2, params) {
-  return new Class2({
+function _boolean(Class, params) {
+  return new Class({
     type: "boolean",
     ...normalizeParams(params)
   });
 }
-function _unknown(Class2) {
-  return new Class2({
+function _unknown(Class) {
+  return new Class({
     type: "unknown"
   });
 }
-function _never(Class2, params) {
-  return new Class2({
+function _never(Class, params) {
+  return new Class({
     type: "never",
     ...normalizeParams(params)
   });
@@ -11783,15 +11239,15 @@ function _toUpperCase() {
 function _slugify() {
   return _overwrite((input) => slugify(input));
 }
-function _array(Class2, element, params) {
-  return new Class2({
+function _array(Class, element, params) {
+  return new Class({
     type: "array",
     element,
     ...normalizeParams(params)
   });
 }
-function _refine(Class2, fn, _params) {
-  const schema = new Class2({
+function _refine(Class, fn, _params) {
+  const schema = new Class({
     type: "custom",
     check: "custom",
     fn,
@@ -11849,7 +11305,7 @@ function initializeContext(params) {
   };
 }
 function process2(schema, ctx, _params = { path: [], schemaPath: [] }) {
-  var _a3;
+  var _a;
   const def = schema._zod.def;
   const seen = ctx.seen.get(schema);
   if (seen) {
@@ -11897,7 +11353,7 @@ function process2(schema, ctx, _params = { path: [], schemaPath: [] }) {
     delete result.schema.default;
   }
   if (ctx.io === "input" && "_prefault" in result.schema)
-    (_a3 = result.schema).default ?? (_a3.default = result.schema._prefault);
+    (_a = result.schema).default ?? (_a.default = result.schema._prefault);
   delete result.schema._prefault;
   const _result = ctx.seen.get(schema);
   return _result.schema;
@@ -11921,7 +11377,7 @@ function extractDefs(ctx, schema) {
     const defsSegment = ctx.target === "draft-2020-12" ? "$defs" : "definitions";
     if (ctx.external) {
       const externalId = ctx.external.registry.get(entry[0])?.id;
-      const uriGenerator = ctx.external.uri ?? ((id2) => id2);
+      const uriGenerator = ctx.external.uri ?? ((id) => id);
       if (externalId) {
         return { ref: uriGenerator(externalId) };
       }
@@ -11946,11 +11402,11 @@ function extractDefs(ctx, schema) {
     seen.def = { ...seen.schema };
     if (defId)
       seen.defId = defId;
-    const schema2 = seen.schema;
-    for (const key in schema2) {
-      delete schema2[key];
+    const schema = seen.schema;
+    for (const key in schema) {
+      delete schema[key];
     }
-    schema2.$ref = ref;
+    schema.$ref = ref;
   };
   if (ctx.cycles === "throw") {
     for (const entry of ctx.seen.entries()) {
@@ -11998,8 +11454,8 @@ function finalize(ctx, schema) {
     const seen = ctx.seen.get(zodSchema);
     if (seen.ref === null)
       return;
-    const schema2 = seen.def ?? seen.schema;
-    const _cached = { ...schema2 };
+    const schema = seen.def ?? seen.schema;
+    const _cached = { ...schema };
     const ref = seen.ref;
     seen.ref = null;
     if (ref) {
@@ -12007,28 +11463,28 @@ function finalize(ctx, schema) {
       const refSeen = ctx.seen.get(ref);
       const refSchema = refSeen.schema;
       if (refSchema.$ref && (ctx.target === "draft-07" || ctx.target === "draft-04" || ctx.target === "openapi-3.0")) {
-        schema2.allOf = schema2.allOf ?? [];
-        schema2.allOf.push(refSchema);
+        schema.allOf = schema.allOf ?? [];
+        schema.allOf.push(refSchema);
       } else {
-        Object.assign(schema2, refSchema);
+        Object.assign(schema, refSchema);
       }
-      Object.assign(schema2, _cached);
+      Object.assign(schema, _cached);
       const isParentRef = zodSchema._zod.parent === ref;
       if (isParentRef) {
-        for (const key in schema2) {
+        for (const key in schema) {
           if (key === "$ref" || key === "allOf")
             continue;
           if (!(key in _cached)) {
-            delete schema2[key];
+            delete schema[key];
           }
         }
       }
       if (refSchema.$ref && refSeen.def) {
-        for (const key in schema2) {
+        for (const key in schema) {
           if (key === "$ref" || key === "allOf")
             continue;
-          if (key in refSeen.def && JSON.stringify(schema2[key]) === JSON.stringify(refSeen.def[key])) {
-            delete schema2[key];
+          if (key in refSeen.def && JSON.stringify(schema[key]) === JSON.stringify(refSeen.def[key])) {
+            delete schema[key];
           }
         }
       }
@@ -12038,13 +11494,13 @@ function finalize(ctx, schema) {
       flattenRef(parent);
       const parentSeen = ctx.seen.get(parent);
       if (parentSeen?.schema.$ref) {
-        schema2.$ref = parentSeen.schema.$ref;
+        schema.$ref = parentSeen.schema.$ref;
         if (parentSeen.def) {
-          for (const key in schema2) {
+          for (const key in schema) {
             if (key === "$ref" || key === "allOf")
               continue;
-            if (key in parentSeen.def && JSON.stringify(schema2[key]) === JSON.stringify(parentSeen.def[key])) {
-              delete schema2[key];
+            if (key in parentSeen.def && JSON.stringify(schema[key]) === JSON.stringify(parentSeen.def[key])) {
+              delete schema[key];
             }
           }
         }
@@ -12052,7 +11508,7 @@ function finalize(ctx, schema) {
     }
     ctx.override({
       zodSchema,
-      jsonSchema: schema2,
+      jsonSchema: schema,
       path: seen.path ?? []
     });
   };
@@ -12540,14 +11996,14 @@ var initializer2 = (inst, issues) => {
       value: (mapper) => flattenError(inst, mapper)
     },
     addIssue: {
-      value: (issue2) => {
-        inst.issues.push(issue2);
+      value: (issue) => {
+        inst.issues.push(issue);
         inst.message = JSON.stringify(inst.issues, jsonStringifyReplacer, 2);
       }
     },
     addIssues: {
-      value: (issues2) => {
-        inst.issues.push(...issues2);
+      value: (issues) => {
+        inst.issues.push(...issues);
         inst.message = JSON.stringify(inst.issues, jsonStringifyReplacer, 2);
       }
     },
@@ -12641,10 +12097,10 @@ var ZodType = /* @__PURE__ */ $constructor("ZodType", (inst, def) => {
   inst.safeDecodeAsync = async (data, params) => safeDecodeAsync(inst, data, params);
   _installLazyMethods(inst, "ZodType", {
     check(...chks) {
-      const def2 = this.def;
-      return this.clone(exports_util.mergeDefs(def2, {
+      const def = this.def;
+      return this.clone(mergeDefs(def, {
         checks: [
-          ...def2.checks ?? [],
+          ...def.checks ?? [],
           ...chks.map((ch) => typeof ch === "function" ? { _zod: { check: ch, def: { check: "custom" }, onattach: [] } } : ch)
         ]
       }), { parent: true });
@@ -12652,14 +12108,14 @@ var ZodType = /* @__PURE__ */ $constructor("ZodType", (inst, def) => {
     with(...chks) {
       return this.check(...chks);
     },
-    clone(def2, params) {
-      return clone(this, def2, params);
+    clone(def, params) {
+      return clone(this, def, params);
     },
     brand() {
       return this;
     },
-    register(reg, meta2) {
-      reg.add(this, meta2);
+    register(reg, meta) {
+      reg.add(this, meta);
       return this;
     },
     refine(check, params) {
@@ -13035,7 +12491,7 @@ var ZodObject = /* @__PURE__ */ $constructor("ZodObject", (inst, def) => {
   $ZodObjectJIT.init(inst, def);
   ZodType.init(inst, def);
   inst._zod.processJSONSchema = (ctx, json, params) => objectProcessor(inst, ctx, json, params);
-  exports_util.defineLazy(inst, "shape", () => {
+  defineLazy(inst, "shape", () => {
     return def.shape;
   });
   _installLazyMethods(inst, "ZodObject", {
@@ -13058,25 +12514,25 @@ var ZodObject = /* @__PURE__ */ $constructor("ZodObject", (inst, def) => {
       return this.clone({ ...this._zod.def, catchall: undefined });
     },
     extend(incoming) {
-      return exports_util.extend(this, incoming);
+      return extend(this, incoming);
     },
     safeExtend(incoming) {
-      return exports_util.safeExtend(this, incoming);
+      return safeExtend(this, incoming);
     },
     merge(other) {
-      return exports_util.merge(this, other);
+      return merge(this, other);
     },
     pick(mask) {
-      return exports_util.pick(this, mask);
+      return pick(this, mask);
     },
     omit(mask) {
-      return exports_util.omit(this, mask);
+      return omit(this, mask);
     },
     partial(...args) {
-      return exports_util.partial(ZodOptional, this, args[0]);
+      return partial(ZodOptional, this, args[0]);
     },
     required(...args) {
-      return exports_util.required(ZodNonOptional, this, args[0]);
+      return required(ZodNonOptional, this, args[0]);
     }
   });
 });
@@ -13084,7 +12540,7 @@ function object(shape, params) {
   const def = {
     type: "object",
     shape: shape ?? {},
-    ...exports_util.normalizeParams(params)
+    ...normalizeParams(params)
   };
   return new ZodObject(def);
 }
@@ -13098,7 +12554,7 @@ function union(options, params) {
   return new ZodUnion({
     type: "union",
     options,
-    ...exports_util.normalizeParams(params)
+    ...normalizeParams(params)
   });
 }
 var ZodDiscriminatedUnion = /* @__PURE__ */ $constructor("ZodDiscriminatedUnion", (inst, def) => {
@@ -13110,7 +12566,7 @@ function discriminatedUnion(discriminator, options, params) {
     type: "union",
     options,
     discriminator,
-    ...exports_util.normalizeParams(params)
+    ...normalizeParams(params)
   });
 }
 var ZodIntersection = /* @__PURE__ */ $constructor("ZodIntersection", (inst, def) => {
@@ -13138,14 +12594,14 @@ function record(keyType, valueType, params) {
       type: "record",
       keyType: string2(),
       valueType: keyType,
-      ...exports_util.normalizeParams(valueType)
+      ...normalizeParams(valueType)
     });
   }
   return new ZodRecord({
     type: "record",
     keyType,
     valueType,
-    ...exports_util.normalizeParams(params)
+    ...normalizeParams(params)
   });
 }
 var ZodEnum = /* @__PURE__ */ $constructor("ZodEnum", (inst, def) => {
@@ -13166,7 +12622,7 @@ var ZodEnum = /* @__PURE__ */ $constructor("ZodEnum", (inst, def) => {
     return new ZodEnum({
       ...def,
       checks: [],
-      ...exports_util.normalizeParams(params),
+      ...normalizeParams(params),
       entries: newEntries
     });
   };
@@ -13181,7 +12637,7 @@ var ZodEnum = /* @__PURE__ */ $constructor("ZodEnum", (inst, def) => {
     return new ZodEnum({
       ...def,
       checks: [],
-      ...exports_util.normalizeParams(params),
+      ...normalizeParams(params),
       entries: newEntries
     });
   };
@@ -13191,7 +12647,7 @@ function _enum(values, params) {
   return new ZodEnum({
     type: "enum",
     entries,
-    ...exports_util.normalizeParams(params)
+    ...normalizeParams(params)
   });
 }
 var ZodLiteral = /* @__PURE__ */ $constructor("ZodLiteral", (inst, def) => {
@@ -13212,7 +12668,7 @@ function literal(value, params) {
   return new ZodLiteral({
     type: "literal",
     values: Array.isArray(value) ? value : [value],
-    ...exports_util.normalizeParams(params)
+    ...normalizeParams(params)
   });
 }
 var ZodTransform = /* @__PURE__ */ $constructor("ZodTransform", (inst, def) => {
@@ -13225,7 +12681,7 @@ var ZodTransform = /* @__PURE__ */ $constructor("ZodTransform", (inst, def) => {
     }
     payload.addIssue = (issue2) => {
       if (typeof issue2 === "string") {
-        payload.issues.push(exports_util.issue(issue2, payload.value, def));
+        payload.issues.push(issue(issue2, payload.value, def));
       } else {
         const _issue = issue2;
         if (_issue.fatal)
@@ -13233,13 +12689,13 @@ var ZodTransform = /* @__PURE__ */ $constructor("ZodTransform", (inst, def) => {
         _issue.code ?? (_issue.code = "custom");
         _issue.input ?? (_issue.input = payload.value);
         _issue.inst ?? (_issue.inst = inst);
-        payload.issues.push(exports_util.issue(_issue));
+        payload.issues.push(issue(_issue));
       }
     };
     const output = def.transform(payload.value, payload);
     if (output instanceof Promise) {
-      return output.then((output2) => {
-        payload.value = output2;
+      return output.then((output) => {
+        payload.value = output;
         payload.fallback = true;
         return payload;
       });
@@ -13303,7 +12759,7 @@ function _default(innerType, defaultValue) {
     type: "default",
     innerType,
     get defaultValue() {
-      return typeof defaultValue === "function" ? defaultValue() : exports_util.shallowClone(defaultValue);
+      return typeof defaultValue === "function" ? defaultValue() : shallowClone(defaultValue);
     }
   });
 }
@@ -13318,7 +12774,7 @@ function prefault(innerType, defaultValue) {
     type: "prefault",
     innerType,
     get defaultValue() {
-      return typeof defaultValue === "function" ? defaultValue() : exports_util.shallowClone(defaultValue);
+      return typeof defaultValue === "function" ? defaultValue() : shallowClone(defaultValue);
     }
   });
 }
@@ -13332,7 +12788,7 @@ function nonoptional(innerType, params) {
   return new ZodNonOptional({
     type: "nonoptional",
     innerType,
-    ...exports_util.normalizeParams(params)
+    ...normalizeParams(params)
   });
 }
 var ZodCatch = /* @__PURE__ */ $constructor("ZodCatch", (inst, def) => {
@@ -14086,15 +13542,15 @@ function createScanner(text, ignoreTrivia = false) {
   let pos = 0, value = "", tokenOffset = 0, token = 16, lineNumber = 0, lineStartOffset = 0, tokenLineStartOffset = 0, prevTokenLineStartOffset = 0, scanError = 0;
   function scanHexDigits(count, exact) {
     let digits = 0;
-    let value2 = 0;
+    let value = 0;
     while (digits < count || !exact) {
       let ch = text.charCodeAt(pos);
       if (ch >= 48 && ch <= 57) {
-        value2 = value2 * 16 + ch - 48;
+        value = value * 16 + ch - 48;
       } else if (ch >= 65 && ch <= 70) {
-        value2 = value2 * 16 + ch - 65 + 10;
+        value = value * 16 + ch - 65 + 10;
       } else if (ch >= 97 && ch <= 102) {
-        value2 = value2 * 16 + ch - 97 + 10;
+        value = value * 16 + ch - 97 + 10;
       } else {
         break;
       }
@@ -14102,9 +13558,9 @@ function createScanner(text, ignoreTrivia = false) {
       digits++;
     }
     if (digits < count) {
-      value2 = -1;
+      value = -1;
     }
-    return value2;
+    return value;
   }
   function setPosition(newPosition) {
     pos = newPosition;
@@ -14412,87 +13868,87 @@ function isDigit(ch) {
   return ch >= 48 && ch <= 57;
 }
 var CharacterCodes;
-(function(CharacterCodes2) {
-  CharacterCodes2[CharacterCodes2["lineFeed"] = 10] = "lineFeed";
-  CharacterCodes2[CharacterCodes2["carriageReturn"] = 13] = "carriageReturn";
-  CharacterCodes2[CharacterCodes2["space"] = 32] = "space";
-  CharacterCodes2[CharacterCodes2["_0"] = 48] = "_0";
-  CharacterCodes2[CharacterCodes2["_1"] = 49] = "_1";
-  CharacterCodes2[CharacterCodes2["_2"] = 50] = "_2";
-  CharacterCodes2[CharacterCodes2["_3"] = 51] = "_3";
-  CharacterCodes2[CharacterCodes2["_4"] = 52] = "_4";
-  CharacterCodes2[CharacterCodes2["_5"] = 53] = "_5";
-  CharacterCodes2[CharacterCodes2["_6"] = 54] = "_6";
-  CharacterCodes2[CharacterCodes2["_7"] = 55] = "_7";
-  CharacterCodes2[CharacterCodes2["_8"] = 56] = "_8";
-  CharacterCodes2[CharacterCodes2["_9"] = 57] = "_9";
-  CharacterCodes2[CharacterCodes2["a"] = 97] = "a";
-  CharacterCodes2[CharacterCodes2["b"] = 98] = "b";
-  CharacterCodes2[CharacterCodes2["c"] = 99] = "c";
-  CharacterCodes2[CharacterCodes2["d"] = 100] = "d";
-  CharacterCodes2[CharacterCodes2["e"] = 101] = "e";
-  CharacterCodes2[CharacterCodes2["f"] = 102] = "f";
-  CharacterCodes2[CharacterCodes2["g"] = 103] = "g";
-  CharacterCodes2[CharacterCodes2["h"] = 104] = "h";
-  CharacterCodes2[CharacterCodes2["i"] = 105] = "i";
-  CharacterCodes2[CharacterCodes2["j"] = 106] = "j";
-  CharacterCodes2[CharacterCodes2["k"] = 107] = "k";
-  CharacterCodes2[CharacterCodes2["l"] = 108] = "l";
-  CharacterCodes2[CharacterCodes2["m"] = 109] = "m";
-  CharacterCodes2[CharacterCodes2["n"] = 110] = "n";
-  CharacterCodes2[CharacterCodes2["o"] = 111] = "o";
-  CharacterCodes2[CharacterCodes2["p"] = 112] = "p";
-  CharacterCodes2[CharacterCodes2["q"] = 113] = "q";
-  CharacterCodes2[CharacterCodes2["r"] = 114] = "r";
-  CharacterCodes2[CharacterCodes2["s"] = 115] = "s";
-  CharacterCodes2[CharacterCodes2["t"] = 116] = "t";
-  CharacterCodes2[CharacterCodes2["u"] = 117] = "u";
-  CharacterCodes2[CharacterCodes2["v"] = 118] = "v";
-  CharacterCodes2[CharacterCodes2["w"] = 119] = "w";
-  CharacterCodes2[CharacterCodes2["x"] = 120] = "x";
-  CharacterCodes2[CharacterCodes2["y"] = 121] = "y";
-  CharacterCodes2[CharacterCodes2["z"] = 122] = "z";
-  CharacterCodes2[CharacterCodes2["A"] = 65] = "A";
-  CharacterCodes2[CharacterCodes2["B"] = 66] = "B";
-  CharacterCodes2[CharacterCodes2["C"] = 67] = "C";
-  CharacterCodes2[CharacterCodes2["D"] = 68] = "D";
-  CharacterCodes2[CharacterCodes2["E"] = 69] = "E";
-  CharacterCodes2[CharacterCodes2["F"] = 70] = "F";
-  CharacterCodes2[CharacterCodes2["G"] = 71] = "G";
-  CharacterCodes2[CharacterCodes2["H"] = 72] = "H";
-  CharacterCodes2[CharacterCodes2["I"] = 73] = "I";
-  CharacterCodes2[CharacterCodes2["J"] = 74] = "J";
-  CharacterCodes2[CharacterCodes2["K"] = 75] = "K";
-  CharacterCodes2[CharacterCodes2["L"] = 76] = "L";
-  CharacterCodes2[CharacterCodes2["M"] = 77] = "M";
-  CharacterCodes2[CharacterCodes2["N"] = 78] = "N";
-  CharacterCodes2[CharacterCodes2["O"] = 79] = "O";
-  CharacterCodes2[CharacterCodes2["P"] = 80] = "P";
-  CharacterCodes2[CharacterCodes2["Q"] = 81] = "Q";
-  CharacterCodes2[CharacterCodes2["R"] = 82] = "R";
-  CharacterCodes2[CharacterCodes2["S"] = 83] = "S";
-  CharacterCodes2[CharacterCodes2["T"] = 84] = "T";
-  CharacterCodes2[CharacterCodes2["U"] = 85] = "U";
-  CharacterCodes2[CharacterCodes2["V"] = 86] = "V";
-  CharacterCodes2[CharacterCodes2["W"] = 87] = "W";
-  CharacterCodes2[CharacterCodes2["X"] = 88] = "X";
-  CharacterCodes2[CharacterCodes2["Y"] = 89] = "Y";
-  CharacterCodes2[CharacterCodes2["Z"] = 90] = "Z";
-  CharacterCodes2[CharacterCodes2["asterisk"] = 42] = "asterisk";
-  CharacterCodes2[CharacterCodes2["backslash"] = 92] = "backslash";
-  CharacterCodes2[CharacterCodes2["closeBrace"] = 125] = "closeBrace";
-  CharacterCodes2[CharacterCodes2["closeBracket"] = 93] = "closeBracket";
-  CharacterCodes2[CharacterCodes2["colon"] = 58] = "colon";
-  CharacterCodes2[CharacterCodes2["comma"] = 44] = "comma";
-  CharacterCodes2[CharacterCodes2["dot"] = 46] = "dot";
-  CharacterCodes2[CharacterCodes2["doubleQuote"] = 34] = "doubleQuote";
-  CharacterCodes2[CharacterCodes2["minus"] = 45] = "minus";
-  CharacterCodes2[CharacterCodes2["openBrace"] = 123] = "openBrace";
-  CharacterCodes2[CharacterCodes2["openBracket"] = 91] = "openBracket";
-  CharacterCodes2[CharacterCodes2["plus"] = 43] = "plus";
-  CharacterCodes2[CharacterCodes2["slash"] = 47] = "slash";
-  CharacterCodes2[CharacterCodes2["formFeed"] = 12] = "formFeed";
-  CharacterCodes2[CharacterCodes2["tab"] = 9] = "tab";
+(function(CharacterCodes) {
+  CharacterCodes[CharacterCodes["lineFeed"] = 10] = "lineFeed";
+  CharacterCodes[CharacterCodes["carriageReturn"] = 13] = "carriageReturn";
+  CharacterCodes[CharacterCodes["space"] = 32] = "space";
+  CharacterCodes[CharacterCodes["_0"] = 48] = "_0";
+  CharacterCodes[CharacterCodes["_1"] = 49] = "_1";
+  CharacterCodes[CharacterCodes["_2"] = 50] = "_2";
+  CharacterCodes[CharacterCodes["_3"] = 51] = "_3";
+  CharacterCodes[CharacterCodes["_4"] = 52] = "_4";
+  CharacterCodes[CharacterCodes["_5"] = 53] = "_5";
+  CharacterCodes[CharacterCodes["_6"] = 54] = "_6";
+  CharacterCodes[CharacterCodes["_7"] = 55] = "_7";
+  CharacterCodes[CharacterCodes["_8"] = 56] = "_8";
+  CharacterCodes[CharacterCodes["_9"] = 57] = "_9";
+  CharacterCodes[CharacterCodes["a"] = 97] = "a";
+  CharacterCodes[CharacterCodes["b"] = 98] = "b";
+  CharacterCodes[CharacterCodes["c"] = 99] = "c";
+  CharacterCodes[CharacterCodes["d"] = 100] = "d";
+  CharacterCodes[CharacterCodes["e"] = 101] = "e";
+  CharacterCodes[CharacterCodes["f"] = 102] = "f";
+  CharacterCodes[CharacterCodes["g"] = 103] = "g";
+  CharacterCodes[CharacterCodes["h"] = 104] = "h";
+  CharacterCodes[CharacterCodes["i"] = 105] = "i";
+  CharacterCodes[CharacterCodes["j"] = 106] = "j";
+  CharacterCodes[CharacterCodes["k"] = 107] = "k";
+  CharacterCodes[CharacterCodes["l"] = 108] = "l";
+  CharacterCodes[CharacterCodes["m"] = 109] = "m";
+  CharacterCodes[CharacterCodes["n"] = 110] = "n";
+  CharacterCodes[CharacterCodes["o"] = 111] = "o";
+  CharacterCodes[CharacterCodes["p"] = 112] = "p";
+  CharacterCodes[CharacterCodes["q"] = 113] = "q";
+  CharacterCodes[CharacterCodes["r"] = 114] = "r";
+  CharacterCodes[CharacterCodes["s"] = 115] = "s";
+  CharacterCodes[CharacterCodes["t"] = 116] = "t";
+  CharacterCodes[CharacterCodes["u"] = 117] = "u";
+  CharacterCodes[CharacterCodes["v"] = 118] = "v";
+  CharacterCodes[CharacterCodes["w"] = 119] = "w";
+  CharacterCodes[CharacterCodes["x"] = 120] = "x";
+  CharacterCodes[CharacterCodes["y"] = 121] = "y";
+  CharacterCodes[CharacterCodes["z"] = 122] = "z";
+  CharacterCodes[CharacterCodes["A"] = 65] = "A";
+  CharacterCodes[CharacterCodes["B"] = 66] = "B";
+  CharacterCodes[CharacterCodes["C"] = 67] = "C";
+  CharacterCodes[CharacterCodes["D"] = 68] = "D";
+  CharacterCodes[CharacterCodes["E"] = 69] = "E";
+  CharacterCodes[CharacterCodes["F"] = 70] = "F";
+  CharacterCodes[CharacterCodes["G"] = 71] = "G";
+  CharacterCodes[CharacterCodes["H"] = 72] = "H";
+  CharacterCodes[CharacterCodes["I"] = 73] = "I";
+  CharacterCodes[CharacterCodes["J"] = 74] = "J";
+  CharacterCodes[CharacterCodes["K"] = 75] = "K";
+  CharacterCodes[CharacterCodes["L"] = 76] = "L";
+  CharacterCodes[CharacterCodes["M"] = 77] = "M";
+  CharacterCodes[CharacterCodes["N"] = 78] = "N";
+  CharacterCodes[CharacterCodes["O"] = 79] = "O";
+  CharacterCodes[CharacterCodes["P"] = 80] = "P";
+  CharacterCodes[CharacterCodes["Q"] = 81] = "Q";
+  CharacterCodes[CharacterCodes["R"] = 82] = "R";
+  CharacterCodes[CharacterCodes["S"] = 83] = "S";
+  CharacterCodes[CharacterCodes["T"] = 84] = "T";
+  CharacterCodes[CharacterCodes["U"] = 85] = "U";
+  CharacterCodes[CharacterCodes["V"] = 86] = "V";
+  CharacterCodes[CharacterCodes["W"] = 87] = "W";
+  CharacterCodes[CharacterCodes["X"] = 88] = "X";
+  CharacterCodes[CharacterCodes["Y"] = 89] = "Y";
+  CharacterCodes[CharacterCodes["Z"] = 90] = "Z";
+  CharacterCodes[CharacterCodes["asterisk"] = 42] = "asterisk";
+  CharacterCodes[CharacterCodes["backslash"] = 92] = "backslash";
+  CharacterCodes[CharacterCodes["closeBrace"] = 125] = "closeBrace";
+  CharacterCodes[CharacterCodes["closeBracket"] = 93] = "closeBracket";
+  CharacterCodes[CharacterCodes["colon"] = 58] = "colon";
+  CharacterCodes[CharacterCodes["comma"] = 44] = "comma";
+  CharacterCodes[CharacterCodes["dot"] = 46] = "dot";
+  CharacterCodes[CharacterCodes["doubleQuote"] = 34] = "doubleQuote";
+  CharacterCodes[CharacterCodes["minus"] = 45] = "minus";
+  CharacterCodes[CharacterCodes["openBrace"] = 123] = "openBrace";
+  CharacterCodes[CharacterCodes["openBracket"] = 91] = "openBracket";
+  CharacterCodes[CharacterCodes["plus"] = 43] = "plus";
+  CharacterCodes[CharacterCodes["slash"] = 47] = "slash";
+  CharacterCodes[CharacterCodes["formFeed"] = 12] = "formFeed";
+  CharacterCodes[CharacterCodes["tab"] = 9] = "tab";
 })(CharacterCodes || (CharacterCodes = {}));
 
 // node_modules/.bun/jsonc-parser@3.3.1/node_modules/jsonc-parser/lib/esm/impl/string-intern.js
@@ -14531,12 +13987,12 @@ var cachedBreakLinesWithSpaces = {
 
 // node_modules/.bun/jsonc-parser@3.3.1/node_modules/jsonc-parser/lib/esm/impl/parser.js
 var ParseOptions;
-(function(ParseOptions2) {
-  ParseOptions2.DEFAULT = {
+(function(ParseOptions) {
+  ParseOptions.DEFAULT = {
     allowTrailingComma: false
   };
 })(ParseOptions || (ParseOptions = {}));
-function parse4(text, errors2 = [], options = ParseOptions.DEFAULT) {
+function parse4(text, errors = [], options = ParseOptions.DEFAULT) {
   let currentProperty = null;
   let currentParent = [];
   const previousParents = [];
@@ -14549,10 +14005,10 @@ function parse4(text, errors2 = [], options = ParseOptions.DEFAULT) {
   }
   const visitor = {
     onObjectBegin: () => {
-      const object2 = {};
-      onValue(object2);
+      const object = {};
+      onValue(object);
       previousParents.push(currentParent);
-      currentParent = object2;
+      currentParent = object;
       currentProperty = null;
     },
     onObjectProperty: (name) => {
@@ -14562,10 +14018,10 @@ function parse4(text, errors2 = [], options = ParseOptions.DEFAULT) {
       currentParent = previousParents.pop();
     },
     onArrayBegin: () => {
-      const array2 = [];
-      onValue(array2);
+      const array = [];
+      onValue(array);
       previousParents.push(currentParent);
-      currentParent = array2;
+      currentParent = array;
       currentProperty = null;
     },
     onArrayEnd: () => {
@@ -14573,7 +14029,7 @@ function parse4(text, errors2 = [], options = ParseOptions.DEFAULT) {
     },
     onLiteralValue: onValue,
     onError: (error, offset, length) => {
-      errors2.push({ error, offset, length });
+      errors.push({ error, offset, length });
     }
   };
   visit(text, visitor, options);
@@ -14834,54 +14290,54 @@ function visit(text, visitor, options = ParseOptions.DEFAULT) {
 
 // node_modules/.bun/jsonc-parser@3.3.1/node_modules/jsonc-parser/lib/esm/main.js
 var ScanError;
-(function(ScanError2) {
-  ScanError2[ScanError2["None"] = 0] = "None";
-  ScanError2[ScanError2["UnexpectedEndOfComment"] = 1] = "UnexpectedEndOfComment";
-  ScanError2[ScanError2["UnexpectedEndOfString"] = 2] = "UnexpectedEndOfString";
-  ScanError2[ScanError2["UnexpectedEndOfNumber"] = 3] = "UnexpectedEndOfNumber";
-  ScanError2[ScanError2["InvalidUnicode"] = 4] = "InvalidUnicode";
-  ScanError2[ScanError2["InvalidEscapeCharacter"] = 5] = "InvalidEscapeCharacter";
-  ScanError2[ScanError2["InvalidCharacter"] = 6] = "InvalidCharacter";
+(function(ScanError) {
+  ScanError[ScanError["None"] = 0] = "None";
+  ScanError[ScanError["UnexpectedEndOfComment"] = 1] = "UnexpectedEndOfComment";
+  ScanError[ScanError["UnexpectedEndOfString"] = 2] = "UnexpectedEndOfString";
+  ScanError[ScanError["UnexpectedEndOfNumber"] = 3] = "UnexpectedEndOfNumber";
+  ScanError[ScanError["InvalidUnicode"] = 4] = "InvalidUnicode";
+  ScanError[ScanError["InvalidEscapeCharacter"] = 5] = "InvalidEscapeCharacter";
+  ScanError[ScanError["InvalidCharacter"] = 6] = "InvalidCharacter";
 })(ScanError || (ScanError = {}));
 var SyntaxKind;
-(function(SyntaxKind2) {
-  SyntaxKind2[SyntaxKind2["OpenBraceToken"] = 1] = "OpenBraceToken";
-  SyntaxKind2[SyntaxKind2["CloseBraceToken"] = 2] = "CloseBraceToken";
-  SyntaxKind2[SyntaxKind2["OpenBracketToken"] = 3] = "OpenBracketToken";
-  SyntaxKind2[SyntaxKind2["CloseBracketToken"] = 4] = "CloseBracketToken";
-  SyntaxKind2[SyntaxKind2["CommaToken"] = 5] = "CommaToken";
-  SyntaxKind2[SyntaxKind2["ColonToken"] = 6] = "ColonToken";
-  SyntaxKind2[SyntaxKind2["NullKeyword"] = 7] = "NullKeyword";
-  SyntaxKind2[SyntaxKind2["TrueKeyword"] = 8] = "TrueKeyword";
-  SyntaxKind2[SyntaxKind2["FalseKeyword"] = 9] = "FalseKeyword";
-  SyntaxKind2[SyntaxKind2["StringLiteral"] = 10] = "StringLiteral";
-  SyntaxKind2[SyntaxKind2["NumericLiteral"] = 11] = "NumericLiteral";
-  SyntaxKind2[SyntaxKind2["LineCommentTrivia"] = 12] = "LineCommentTrivia";
-  SyntaxKind2[SyntaxKind2["BlockCommentTrivia"] = 13] = "BlockCommentTrivia";
-  SyntaxKind2[SyntaxKind2["LineBreakTrivia"] = 14] = "LineBreakTrivia";
-  SyntaxKind2[SyntaxKind2["Trivia"] = 15] = "Trivia";
-  SyntaxKind2[SyntaxKind2["Unknown"] = 16] = "Unknown";
-  SyntaxKind2[SyntaxKind2["EOF"] = 17] = "EOF";
+(function(SyntaxKind) {
+  SyntaxKind[SyntaxKind["OpenBraceToken"] = 1] = "OpenBraceToken";
+  SyntaxKind[SyntaxKind["CloseBraceToken"] = 2] = "CloseBraceToken";
+  SyntaxKind[SyntaxKind["OpenBracketToken"] = 3] = "OpenBracketToken";
+  SyntaxKind[SyntaxKind["CloseBracketToken"] = 4] = "CloseBracketToken";
+  SyntaxKind[SyntaxKind["CommaToken"] = 5] = "CommaToken";
+  SyntaxKind[SyntaxKind["ColonToken"] = 6] = "ColonToken";
+  SyntaxKind[SyntaxKind["NullKeyword"] = 7] = "NullKeyword";
+  SyntaxKind[SyntaxKind["TrueKeyword"] = 8] = "TrueKeyword";
+  SyntaxKind[SyntaxKind["FalseKeyword"] = 9] = "FalseKeyword";
+  SyntaxKind[SyntaxKind["StringLiteral"] = 10] = "StringLiteral";
+  SyntaxKind[SyntaxKind["NumericLiteral"] = 11] = "NumericLiteral";
+  SyntaxKind[SyntaxKind["LineCommentTrivia"] = 12] = "LineCommentTrivia";
+  SyntaxKind[SyntaxKind["BlockCommentTrivia"] = 13] = "BlockCommentTrivia";
+  SyntaxKind[SyntaxKind["LineBreakTrivia"] = 14] = "LineBreakTrivia";
+  SyntaxKind[SyntaxKind["Trivia"] = 15] = "Trivia";
+  SyntaxKind[SyntaxKind["Unknown"] = 16] = "Unknown";
+  SyntaxKind[SyntaxKind["EOF"] = 17] = "EOF";
 })(SyntaxKind || (SyntaxKind = {}));
 var parse5 = parse4;
 var ParseErrorCode;
-(function(ParseErrorCode2) {
-  ParseErrorCode2[ParseErrorCode2["InvalidSymbol"] = 1] = "InvalidSymbol";
-  ParseErrorCode2[ParseErrorCode2["InvalidNumberFormat"] = 2] = "InvalidNumberFormat";
-  ParseErrorCode2[ParseErrorCode2["PropertyNameExpected"] = 3] = "PropertyNameExpected";
-  ParseErrorCode2[ParseErrorCode2["ValueExpected"] = 4] = "ValueExpected";
-  ParseErrorCode2[ParseErrorCode2["ColonExpected"] = 5] = "ColonExpected";
-  ParseErrorCode2[ParseErrorCode2["CommaExpected"] = 6] = "CommaExpected";
-  ParseErrorCode2[ParseErrorCode2["CloseBraceExpected"] = 7] = "CloseBraceExpected";
-  ParseErrorCode2[ParseErrorCode2["CloseBracketExpected"] = 8] = "CloseBracketExpected";
-  ParseErrorCode2[ParseErrorCode2["EndOfFileExpected"] = 9] = "EndOfFileExpected";
-  ParseErrorCode2[ParseErrorCode2["InvalidCommentToken"] = 10] = "InvalidCommentToken";
-  ParseErrorCode2[ParseErrorCode2["UnexpectedEndOfComment"] = 11] = "UnexpectedEndOfComment";
-  ParseErrorCode2[ParseErrorCode2["UnexpectedEndOfString"] = 12] = "UnexpectedEndOfString";
-  ParseErrorCode2[ParseErrorCode2["UnexpectedEndOfNumber"] = 13] = "UnexpectedEndOfNumber";
-  ParseErrorCode2[ParseErrorCode2["InvalidUnicode"] = 14] = "InvalidUnicode";
-  ParseErrorCode2[ParseErrorCode2["InvalidEscapeCharacter"] = 15] = "InvalidEscapeCharacter";
-  ParseErrorCode2[ParseErrorCode2["InvalidCharacter"] = 16] = "InvalidCharacter";
+(function(ParseErrorCode) {
+  ParseErrorCode[ParseErrorCode["InvalidSymbol"] = 1] = "InvalidSymbol";
+  ParseErrorCode[ParseErrorCode["InvalidNumberFormat"] = 2] = "InvalidNumberFormat";
+  ParseErrorCode[ParseErrorCode["PropertyNameExpected"] = 3] = "PropertyNameExpected";
+  ParseErrorCode[ParseErrorCode["ValueExpected"] = 4] = "ValueExpected";
+  ParseErrorCode[ParseErrorCode["ColonExpected"] = 5] = "ColonExpected";
+  ParseErrorCode[ParseErrorCode["CommaExpected"] = 6] = "CommaExpected";
+  ParseErrorCode[ParseErrorCode["CloseBraceExpected"] = 7] = "CloseBraceExpected";
+  ParseErrorCode[ParseErrorCode["CloseBracketExpected"] = 8] = "CloseBracketExpected";
+  ParseErrorCode[ParseErrorCode["EndOfFileExpected"] = 9] = "EndOfFileExpected";
+  ParseErrorCode[ParseErrorCode["InvalidCommentToken"] = 10] = "InvalidCommentToken";
+  ParseErrorCode[ParseErrorCode["UnexpectedEndOfComment"] = 11] = "UnexpectedEndOfComment";
+  ParseErrorCode[ParseErrorCode["UnexpectedEndOfString"] = 12] = "UnexpectedEndOfString";
+  ParseErrorCode[ParseErrorCode["UnexpectedEndOfNumber"] = 13] = "UnexpectedEndOfNumber";
+  ParseErrorCode[ParseErrorCode["InvalidUnicode"] = 14] = "InvalidUnicode";
+  ParseErrorCode[ParseErrorCode["InvalidEscapeCharacter"] = 15] = "InvalidEscapeCharacter";
+  ParseErrorCode[ParseErrorCode["InvalidCharacter"] = 16] = "InvalidCharacter";
 })(ParseErrorCode || (ParseErrorCode = {}));
 function printParseErrorCode(code) {
   switch (code) {
@@ -15072,19 +14528,19 @@ function toRecord(value) {
     return;
   return Object.fromEntries(Object.entries(value));
 }
-function withoutControlKeys(config2) {
+function withoutControlKeys(config) {
   const result = {};
-  for (const [key, value] of Object.entries(config2)) {
+  for (const [key, value] of Object.entries(config)) {
     if (key === "profiles" || HARNESS_KEYS.includes(key))
       continue;
     result[key] = value;
   }
   return result;
 }
-function harnessLayer(config2, harness) {
+function harnessLayer(config, harness) {
   if (harness === undefined)
     return {};
-  return toRecord(config2[`[${harness}]`]) ?? {};
+  return toRecord(config[`[${harness}]`]) ?? {};
 }
 function resolveOmoConfigView(options) {
   const profiles = toRecord(options.config["profiles"]);
@@ -15100,12 +14556,12 @@ function resolveOmoConfigView(options) {
     profile === undefined ? {} : withoutControlKeys(profile),
     profile === undefined ? {} : harnessLayer(profile, options.harness)
   ];
-  let config2 = {};
+  let config = {};
   for (const layer of layers)
-    config2 = mergeOmoConfigRecords(config2, layer);
+    config = mergeOmoConfigRecords(config, layer);
   const resolvedProfile = options.profile !== undefined && profile !== undefined ? options.profile : undefined;
   return {
-    config: withoutControlKeys(config2),
+    config: withoutControlKeys(config),
     diagnostics,
     ...resolvedProfile === undefined ? {} : { profile: resolvedProfile }
   };
@@ -15113,14 +14569,14 @@ function resolveOmoConfigView(options) {
 
 // packages/omo-config-core/src/loader/loader.ts
 function parseJsoncSafe(content) {
-  const errors2 = [];
-  const data = parse5(content.charCodeAt(0) === 65279 ? content.slice(1) : content, errors2, {
+  const errors = [];
+  const data = parse5(content.charCodeAt(0) === 65279 ? content.slice(1) : content, errors, {
     allowTrailingComma: true,
     disallowComments: false
   });
   return {
-    data: errors2.length === 0 ? data : null,
-    errors: errors2.map((error) => ({
+    data: errors.length === 0 ? data : null,
+    errors: errors.map((error) => ({
       message: printParseErrorCode(error.error),
       offset: error.offset
     }))
@@ -15132,18 +14588,18 @@ var DEFAULT_RAW_CONFIG = {
   task: resolveOmoTaskSettings({}),
   teams: {}
 };
-function stripResolutionControlKeys(config2) {
+function stripResolutionControlKeys(config) {
   const {
     "[codex]": _codex,
     "[opencode]": _opencode,
     "[senpi]": _senpi,
     profiles: _profiles,
     ...resolved
-  } = config2;
+  } = config;
   return resolved;
 }
 function validationDiagnostic(path, issues) {
-  const issuePaths = issues.map((issue2) => issue2.path.map((segment) => String(segment)).join("."));
+  const issuePaths = issues.map((issue) => issue.path.map((segment) => String(segment)).join("."));
   return {
     kind: "validation",
     message: `Invalid omo config at ${path}: ${issuePaths.join(", ")}`,
@@ -15152,10 +14608,10 @@ function validationDiagnostic(path, issues) {
   };
 }
 function unrecognizedKeyIssues(issues) {
-  return issues.flatMap((issue2) => issue2.code === "unrecognized_keys" ? [{ keys: issue2.keys, path: issue2.path.map((segment) => String(segment)) }] : []);
+  return issues.flatMap((issue) => issue.code === "unrecognized_keys" ? [{ keys: issue.keys, path: issue.path.map((segment) => String(segment)) }] : []);
 }
 function hasUnsafeUnrecognizedKey(issues) {
-  return issues.some((issue2) => issue2.keys.some((key) => isUnsafeObjectKey(key)));
+  return issues.some((issue) => issue.keys.some((key) => isUnsafeObjectKey(key)));
 }
 function hasTamperedPrototype(value) {
   if (Array.isArray(value))
@@ -15170,8 +14626,8 @@ function hasTamperedPrototype(value) {
 function isRecord6(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function containerAt(record2, path) {
-  let container = record2;
+function containerAt(record, path) {
+  let container = record;
   for (const segment of path) {
     const next = container[segment];
     if (!isRecord6(next))
@@ -15180,16 +14636,16 @@ function containerAt(record2, path) {
   }
   return container;
 }
-function stripUnrecognizedKeys(record2, issues) {
-  const stripped = structuredClone(record2);
+function stripUnrecognizedKeys(record, issues) {
+  const stripped = structuredClone(record);
   const issuePaths = [];
-  for (const issue2 of issues) {
-    const container = containerAt(stripped, issue2.path);
+  for (const issue of issues) {
+    const container = containerAt(stripped, issue.path);
     if (container === null)
       continue;
-    for (const key of issue2.keys) {
+    for (const key of issue.keys) {
       delete container[key];
-      issuePaths.push([...issue2.path, key].join("."));
+      issuePaths.push([...issue.path, key].join("."));
     }
   }
   return { issuePaths, stripped };
@@ -15197,11 +14653,11 @@ function stripUnrecognizedKeys(record2, issues) {
 function toRecord2(value) {
   if (value === null || typeof value !== "object" || Array.isArray(value))
     return null;
-  const record2 = {};
+  const record = {};
   for (const [key, entry] of Object.entries(value)) {
-    record2[key] = entry;
+    record[key] = entry;
   }
-  return record2;
+  return record;
 }
 function readConfigSource(path, scope, fileSystem) {
   if (!fileSystem.existsSync(path)) {
@@ -15515,16 +14971,16 @@ async function removeLegacyCodexComponentBins(binDir, platform) {
 }
 async function removeLegacyCodexComponentBin(linkPath, component, platform) {
   try {
-    const stat2 = await lstat3(linkPath);
+    const stat = await lstat3(linkPath);
     if (platform !== "win32") {
-      if (!stat2.isSymbolicLink())
+      if (!stat.isSymbolicLink())
         return;
       const target = await readlink2(linkPath);
       if (isManagedLegacyComponentTarget(target, component))
         await rm2(linkPath, { force: true });
       return;
     }
-    if (!stat2.isFile())
+    if (!stat.isFile())
       return;
     const content = await readFile2(linkPath, "utf8");
     if (content.includes(COMMAND_SHIM_MARKER))
@@ -15701,10 +15157,10 @@ async function linkRootRuntimeBin(input) {
   const nodeCliPath = join5(input.repoRoot, "dist", "cli-node", "index.js");
   await mkdir(input.binDir, { recursive: true });
   if (platform === "win32") {
-    const linkPath2 = join5(input.binDir, `${binName}.cmd`);
-    await replaceRuntimeWrapper(linkPath2, windowsRuntimeWrapper(binName, cliPath, input.codexHome, input.binDir, nodeCliPath));
+    const linkPath = join5(input.binDir, `${binName}.cmd`);
+    await replaceRuntimeWrapper(linkPath, windowsRuntimeWrapper(binName, cliPath, input.codexHome, input.binDir, nodeCliPath));
     await removeGeneratedRuntimeWrapper(legacyPath);
-    return { name: binName, path: linkPath2, target: cliPath };
+    return { name: binName, path: linkPath, target: cliPath };
   }
   const linkPath = join5(input.binDir, binName);
   await replaceRuntimeWrapper(linkPath, posixRuntimeWrapper(binName, cliPath, input.codexHome, input.binDir, nodeCliPath));
@@ -15714,9 +15170,9 @@ async function linkRootRuntimeBin(input) {
 }
 async function linkCachedPluginBin(binDir, link, platform) {
   if (platform === "win32") {
-    const linkPath2 = join5(binDir, `${link.name}.cmd`);
-    await replaceCommandShim(linkPath2, link.target);
-    return linkPath2;
+    const linkPath = join5(binDir, `${link.name}.cmd`);
+    await replaceCommandShim(linkPath, link.target);
+    return linkPath;
   }
   const linkPath = join5(binDir, link.name);
   await replaceSymlink(linkPath, link.target);
@@ -15848,10 +15304,10 @@ async function readGeneratedWrapperContent(path) {
 }
 async function existingNonRuntimeWrapper(path) {
   try {
-    const stat3 = await lstat4(path);
-    if (stat3.isSymbolicLink())
+    const stat = await lstat4(path);
+    if (stat.isSymbolicLink())
       return false;
-    if (!stat3.isFile())
+    if (!stat.isFile())
       return true;
     const content = await readFile3(path, "utf8");
     return !content.includes(RUNTIME_WRAPPER_MARKER);
@@ -15863,8 +15319,8 @@ async function existingNonRuntimeWrapper(path) {
 }
 async function existingNonShim(path) {
   try {
-    const stat3 = await lstat4(path);
-    if (!stat3.isFile())
+    const stat = await lstat4(path);
+    if (!stat.isFile())
       return true;
     const content = await readFile3(path, "utf8");
     if (content.includes(COMMAND_SHIM_MARKER))
@@ -15878,8 +15334,8 @@ async function existingNonShim(path) {
 }
 async function existingNonSymlink(path) {
   try {
-    const stat3 = await lstat4(path);
-    if (!stat3.isSymbolicLink())
+    const stat = await lstat4(path);
+    if (!stat.isSymbolicLink())
       return true;
     await readlink3(path);
     return false;
@@ -15914,22 +15370,22 @@ var BUNDLED_MCP_RUNTIMES = [
 ];
 async function copyBundledMcpRuntimeDists(input) {
   const sourceArgs = await readSourceMcpArgs(join6(input.sourceRoot, ".mcp.json"));
-  for (const runtime2 of BUNDLED_MCP_RUNTIMES) {
-    if (!sourceArgs.has(runtime2.sourceArg))
+  for (const runtime of BUNDLED_MCP_RUNTIMES) {
+    if (!sourceArgs.has(runtime.sourceArg))
       continue;
-    await copyBundledMcpRuntimeDist(input.pluginRoot, input.sourceRoot, runtime2);
+    await copyBundledMcpRuntimeDist(input.pluginRoot, input.sourceRoot, runtime);
   }
 }
 function resolveBundledMcpRuntimeArg(pluginRoot, arg) {
-  const runtime2 = BUNDLED_MCP_RUNTIMES.find((candidate) => candidate.sourceArg === arg);
-  return runtime2 ? join6(pluginRoot, runtime2.destinationArg) : null;
+  const runtime = BUNDLED_MCP_RUNTIMES.find((candidate) => candidate.sourceArg === arg);
+  return runtime ? join6(pluginRoot, runtime.destinationArg) : null;
 }
-async function copyBundledMcpRuntimeDist(pluginRoot, sourceRoot, runtime2) {
-  const sourcePath = resolve4(sourceRoot, runtime2.sourceDistFromPlugin);
+async function copyBundledMcpRuntimeDist(pluginRoot, sourceRoot, runtime) {
+  const sourcePath = resolve4(sourceRoot, runtime.sourceDistFromPlugin);
   if (!await isDirectory(sourcePath)) {
-    throw new Error(`missing built ${runtime2.label} dist at ${sourcePath}`);
+    throw new Error(`missing built ${runtime.label} dist at ${sourcePath}`);
   }
-  const destinationPath = join6(pluginRoot, runtime2.destinationDistFromPlugin);
+  const destinationPath = join6(pluginRoot, runtime.destinationDistFromPlugin);
   await mkdir2(dirname3(destinationPath), { recursive: true });
   await cp(sourcePath, destinationPath, { recursive: true });
 }
@@ -16411,10 +15867,10 @@ async function restoreBackupDirectory(backupPath, targetPath, renameDirectory) {
   await renameDirectory(backupPath, targetPath);
 }
 function shouldCopyPluginPath(path, root) {
-  const relative4 = path === root ? "" : path.slice(root.length + sep5.length);
-  if (relative4 === "")
+  const relative = path === root ? "" : path.slice(root.length + sep5.length);
+  if (relative === "")
     return true;
-  const parts = relative4.split(sep5);
+  const parts = relative.split(sep5);
   if (parts.some((part) => part === ".git" || part === "node_modules"))
     return false;
   return !isNestedComponentMcpManifest(parts);
@@ -16643,10 +16099,10 @@ import { mkdir as mkdir5, readFile as readFile11 } from "node:fs/promises";
 import { dirname as dirname8 } from "node:path";
 
 // packages/omo-codex/src/install/toml-section-editor.ts
-function findTomlSection(config2, header) {
+function findTomlSection(config, header) {
   const headerLine = `[${header}]`;
   const targetHeaderPath = parseTomlDottedKey(header);
-  const lines = config2.match(/[^\n]*\n?|$/g) ?? [];
+  const lines = config.match(/[^\n]*\n?|$/g) ?? [];
   let offset = 0;
   let start = -1;
   let multilineQuote = null;
@@ -16664,18 +16120,18 @@ function findTomlSection(config2, header) {
       if (tomlTableHeaderMatches(trimmed, headerLine, targetHeaderPath))
         start = offset;
     } else if (isTomlTableHeaderLine(line)) {
-      return { start, end: offset, text: config2.slice(start, offset) };
+      return { start, end: offset, text: config.slice(start, offset) };
     }
     offset += line.length;
   }
   if (start === -1)
     return null;
-  return { start, end: config2.length, text: config2.slice(start) };
+  return { start, end: config.length, text: config.slice(start) };
 }
-function replaceOrInsertSetting(config2, section, key, value) {
+function replaceOrInsertSetting(config, section, key, value) {
   const targetPath = parseTomlDottedKey(key);
   if (!targetPath)
-    return config2;
+    return config;
   const lines = section.text.match(/[^\n]*\n?|$/g) ?? [];
   let offset = 0;
   let multilineQuote = null;
@@ -16698,23 +16154,23 @@ function replaceOrInsertSetting(config2, section, key, value) {
       offset += line.length;
       continue;
     }
-    const replacement2 = replaceTomlAssignmentValue(line, assignmentIndex, value);
+    const replacement = replaceTomlAssignmentValue(line, assignmentIndex, value);
     const assignmentEnd = multilineScan.nextQuote ? findTomlMultilineValueEnd(section.text, offset + line.length, multilineScan.nextQuote) : offset + line.length;
-    const sectionReplacement = section.text.slice(0, offset) + replacement2 + section.text.slice(assignmentEnd);
-    return config2.slice(0, section.start) + sectionReplacement + config2.slice(section.end);
+    const sectionReplacement = section.text.slice(0, offset) + replacement + section.text.slice(assignmentEnd);
+    return config.slice(0, section.start) + sectionReplacement + config.slice(section.end);
   }
   const replacement = insertSetting(section.text, key, value);
-  return config2.slice(0, section.start) + replacement + config2.slice(section.end);
+  return config.slice(0, section.start) + replacement + config.slice(section.end);
 }
-function removeSetting(config2, section, key) {
+function removeSetting(config, section, key) {
   const linePattern = new RegExp(`^[ \\t]*${escapeRegExp(key)}[ \\t]*=.*(?:\\n|$)`, "m");
   const replacement = section.text.replace(linePattern, "");
-  return config2.slice(0, section.start) + replacement + config2.slice(section.end);
+  return config.slice(0, section.start) + replacement + config.slice(section.end);
 }
-function replaceOrInsertRootSetting(config2, key, value) {
-  const sectionStart = findFirstTableStart(config2);
-  const root = config2.slice(0, sectionStart);
-  const suffix = config2.slice(sectionStart);
+function replaceOrInsertRootSetting(config, key, value) {
+  const sectionStart = findFirstTableStart(config);
+  const root = config.slice(0, sectionStart);
+  const suffix = config.slice(sectionStart);
   const linePattern = new RegExp(`^[ \\t]*${escapeRegExp(key)}[ \\t]*=.*$`, "m");
   const replacement = linePattern.test(root) ? root.replace(linePattern, `${key} = ${value}`) : `${root.trimEnd()}${root.trimEnd().length > 0 ? `
 ` : ""}${key} = ${value}
@@ -16725,20 +16181,20 @@ function replaceOrInsertRootSetting(config2, key, value) {
 
 ${suffix.trimStart()}`;
 }
-function removeRootSetting(config2, key) {
-  const sectionStart = findFirstTableStart(config2);
-  const root = config2.slice(0, sectionStart);
-  const suffix = config2.slice(sectionStart);
+function removeRootSetting(config, key) {
+  const sectionStart = findFirstTableStart(config);
+  const root = config.slice(0, sectionStart);
+  const suffix = config.slice(sectionStart);
   const linePattern = new RegExp(`^[ \\t]*${escapeRegExp(key)}[ \\t]*=.*(?:\\n|$)`, "m");
   if (!linePattern.test(root))
-    return config2;
+    return config;
   return root.replace(linePattern, "") + suffix;
 }
-function replaceOrInsertRootDottedSetting(config2, keyPath, value) {
+function replaceOrInsertRootDottedSetting(config, keyPath, value) {
   const targetPath = parseTomlDottedKey(keyPath);
   if (!targetPath)
-    return config2;
-  const lines = config2.match(/[^\n]*\n?|$/g) ?? [];
+    return config;
+  const lines = config.match(/[^\n]*\n?|$/g) ?? [];
   let offset = 0;
   let multilineQuote = null;
   for (const line of lines) {
@@ -16762,13 +16218,13 @@ function replaceOrInsertRootDottedSetting(config2, keyPath, value) {
       offset += line.length;
       continue;
     }
-    const replacement2 = replaceTomlAssignmentValue(line, assignmentIndex, value);
-    const assignmentEnd = multilineScan.nextQuote ? findTomlMultilineValueEnd(config2, offset + line.length, multilineScan.nextQuote) : offset + line.length;
-    return config2.slice(0, offset) + replacement2 + config2.slice(assignmentEnd);
+    const replacement = replaceTomlAssignmentValue(line, assignmentIndex, value);
+    const assignmentEnd = multilineScan.nextQuote ? findTomlMultilineValueEnd(config, offset + line.length, multilineScan.nextQuote) : offset + line.length;
+    return config.slice(0, offset) + replacement + config.slice(assignmentEnd);
   }
-  const sectionStart = findFirstTableStart(config2);
-  const root = config2.slice(0, sectionStart).trimEnd();
-  const suffix = config2.slice(sectionStart);
+  const sectionStart = findFirstTableStart(config);
+  const root = config.slice(0, sectionStart).trimEnd();
+  const suffix = config.slice(sectionStart);
   const replacement = `${root}${root.length > 0 ? `
 ` : ""}${keyPath} = ${value}
 `;
@@ -16778,15 +16234,15 @@ function replaceOrInsertRootDottedSetting(config2, keyPath, value) {
 
 ${suffix.trimStart()}`;
 }
-function appendBlock(config2, block) {
-  const prefix = config2.trimEnd();
+function appendBlock(config, block) {
+  const prefix = config.trimEnd();
   return `${prefix}${prefix.length > 0 ? `
 
 ` : ""}${block.trimEnd()}
 `;
 }
-function findFirstTableStart(config2) {
-  const lines = config2.match(/[^\n]*\n?|$/g) ?? [];
+function findFirstTableStart(config) {
+  const lines = config.match(/[^\n]*\n?|$/g) ?? [];
   let offset = 0;
   let multilineQuote = null;
   for (const line of lines) {
@@ -16802,7 +16258,7 @@ function findFirstTableStart(config2) {
       return offset;
     offset += line.length;
   }
-  return config2.length;
+  return config.length;
 }
 function insertSetting(sectionText, key, value) {
   const lines = sectionText.split(`
@@ -17100,13 +16556,13 @@ function skipWhitespace(input, startIndex) {
 }
 
 // packages/omo-codex/src/install/codex-config-toml-sections.ts
-function removeTomlSections(config2, shouldRemove) {
-  return splitTomlSections(config2).filter((section) => section.header === null || !shouldRemove(section.header, section)).map((section) => section.text).join("").replace(/\n{3,}/g, `
+function removeTomlSections(config, shouldRemove) {
+  return splitTomlSections(config).filter((section) => section.header === null || !shouldRemove(section.header, section)).map((section) => section.text).join("").replace(/\n{3,}/g, `
 
 `);
 }
-function splitTomlSections(config2) {
-  const lines = config2.match(/[^\n]*\n?|$/g) ?? [];
+function splitTomlSections(config) {
+  const lines = config.match(/[^\n]*\n?|$/g) ?? [];
   const sections = [];
   let current = { header: null, text: "" };
   for (const line of lines) {
@@ -17202,9 +16658,9 @@ var MANAGED_CODEX_AGENT_NAMES = [
   ...LEGACY_MANAGED_CODEX_AGENT_NAMES_TO_PURGE,
   ...CURRENT_MANAGED_CODEX_AGENT_NAMES
 ];
-function removeStaleManagedAgentBlocks(config2, keepAgentNames) {
+function removeStaleManagedAgentBlocks(config, keepAgentNames) {
   const managedAgentNames = new Set(MANAGED_CODEX_AGENT_NAMES);
-  return splitTomlSections(config2).filter((section) => {
+  return splitTomlSections(config).filter((section) => {
     if (section.header === null)
       return true;
     const agentName = parseAgentHeaderName(section.header);
@@ -17215,21 +16671,21 @@ function removeStaleManagedAgentBlocks(config2, keepAgentNames) {
 
 `);
 }
-function hasForeignAgentRegistration(config2, agentConfig) {
-  const section = findTomlSection(config2, `agents.${tomlKeySegment(agentConfig.name)}`);
+function hasForeignAgentRegistration(config, agentConfig) {
+  const section = findTomlSection(config, `agents.${tomlKeySegment(agentConfig.name)}`);
   if (!section)
     return false;
   return !section.text.includes(`config_file = ${JSON.stringify(agentConfig.configFile)}`);
 }
-function ensureAgentConfig(config2, agentConfig) {
+function ensureAgentConfig(config, agentConfig) {
   const header = `agents.${tomlKeySegment(agentConfig.name)}`;
-  const section = findTomlSection(config2, header);
+  const section = findTomlSection(config, header);
   const configFile = JSON.stringify(agentConfig.configFile);
   if (!section)
-    return appendBlock(config2, `[${header}]
+    return appendBlock(config, `[${header}]
 config_file = ${configFile}
 `);
-  return replaceOrInsertSetting(config2, section, "config_file", configFile);
+  return replaceOrInsertSetting(config, section, "config_file", configFile);
 }
 function tomlKeySegment(value) {
   return /^[A-Za-z0-9_-]+$/.test(value) ? value : JSON.stringify(value);
@@ -17297,13 +16753,13 @@ function delay(milliseconds) {
 }
 
 // packages/omo-codex/src/install/toml-setting-reader.ts
-function hasTomlRootDottedKeyPrefix(config2, rootKey) {
-  return hasTomlAssignment(config2, (tablePath, settingPath) => tablePath.length === 0 && settingPath.length > 1 && settingPath[0] === rootKey);
+function hasTomlRootDottedKeyPrefix(config, rootKey) {
+  return hasTomlAssignment(config, (tablePath, settingPath) => tablePath.length === 0 && settingPath.length > 1 && settingPath[0] === rootKey);
 }
-function hasTomlAssignment(config2, predicate) {
+function hasTomlAssignment(config, predicate) {
   let tablePath = [];
   let multilineQuote = null;
-  for (const line of config2.split(`
+  for (const line of config.split(`
 `)) {
     const multilineScan = scanTomlMultilineLine(line, multilineQuote);
     multilineQuote = multilineScan.nextQuote;
@@ -17408,17 +16864,17 @@ function findUnquotedAssignment2(line) {
 }
 
 // packages/omo-codex/src/install/codex-config-features.ts
-function ensureFeatureEnabled(config2, featureName) {
-  const section = findTomlSection(config2, "features");
+function ensureFeatureEnabled(config, featureName) {
+  const section = findTomlSection(config, "features");
   if (!section) {
-    if (hasTomlRootDottedKeyPrefix(config2, "features")) {
-      return replaceOrInsertRootDottedSetting(config2, `features.${featureName}`, "true");
+    if (hasTomlRootDottedKeyPrefix(config, "features")) {
+      return replaceOrInsertRootDottedSetting(config, `features.${featureName}`, "true");
     }
-    return appendBlock(config2, `[features]
+    return appendBlock(config, `[features]
 ${featureName} = true
 `);
   }
-  return replaceOrInsertSetting(config2, section, featureName, "true");
+  return replaceOrInsertSetting(config, section, featureName, "true");
 }
 
 // packages/omo-codex/src/install/codex-config-marketplaces.ts
@@ -17426,14 +16882,14 @@ var SISYPHUS_LEGACY_MARKETPLACES = ["lazycodex", "code-yeongyu-codex-plugins"];
 function legacyMarketplaceNames(marketplaceName) {
   return marketplaceName === "sisyphuslabs" ? SISYPHUS_LEGACY_MARKETPLACES : [];
 }
-function removeMarketplaceBlock(config2, marketplaceName) {
-  return removeTomlSections(config2, (header) => header === `marketplaces.${marketplaceName}`);
+function removeMarketplaceBlock(config, marketplaceName) {
+  return removeTomlSections(config, (header) => header === `marketplaces.${marketplaceName}`);
 }
-function hasMarketplaceBlock(config2, marketplaceName) {
-  return findTomlSection(config2, `marketplaces.${marketplaceName}`) !== null;
+function hasMarketplaceBlock(config, marketplaceName) {
+  return findTomlSection(config, `marketplaces.${marketplaceName}`) !== null;
 }
-function removeStaleMarketplacePluginBlocks(config2, marketplaceName, keepPluginNames) {
-  return removeTomlSections(config2, (header) => {
+function removeStaleMarketplacePluginBlocks(config, marketplaceName, keepPluginNames) {
+  return removeTomlSections(config, (header) => {
     const pluginKey = parsePluginHeaderKey(header);
     if (pluginKey === null)
       return false;
@@ -17443,8 +16899,8 @@ function removeStaleMarketplacePluginBlocks(config2, marketplaceName, keepPlugin
     return !keepPluginNames.has(pluginKey.slice(0, -suffix.length));
   });
 }
-function removeStaleMarketplaceHookStateBlocks(config2, marketplaceName, keepPluginNames) {
-  return removeTomlSections(config2, (header) => {
+function removeStaleMarketplaceHookStateBlocks(config, marketplaceName, keepPluginNames) {
+  return removeTomlSections(config, (header) => {
     const hookKey = parseHookStateHeaderKey(header);
     if (hookKey === null)
       return false;
@@ -17458,7 +16914,7 @@ function removeStaleMarketplaceHookStateBlocks(config2, marketplaceName, keepPlu
     return !keepPluginNames.has(pluginKey.slice(0, -suffix.length));
   });
 }
-function ensureMarketplaceBlock(config2, marketplaceName, source) {
+function ensureMarketplaceBlock(config, marketplaceName, source) {
   const header = `marketplaces.${marketplaceName}`;
   const lines = [
     `[${header}]`,
@@ -17472,16 +16928,16 @@ function ensureMarketplaceBlock(config2, marketplaceName, source) {
   lines.push("");
   const block = lines.join(`
 `);
-  const section = findTomlSection(config2, header);
+  const section = findTomlSection(config, header);
   if (section)
-    return config2.slice(0, section.start) + block + config2.slice(section.end);
-  return appendBlock(config2, block);
+    return config.slice(0, section.start) + block + config.slice(section.end);
+  return appendBlock(config, block);
 }
 
 // packages/omo-codex/src/install/codex-config-permissions.ts
 var AUTONOMOUS_FEATURES = ["multi_agent", "unified_exec", "goals"];
-function ensureAutonomousPermissions(config2) {
-  let next = replaceOrInsertRootSetting(config2, "approval_policy", JSON.stringify("never"));
+function ensureAutonomousPermissions(config) {
+  let next = replaceOrInsertRootSetting(config, "approval_policy", JSON.stringify("never"));
   next = replaceOrInsertRootSetting(next, "sandbox_mode", JSON.stringify("danger-full-access"));
   next = removeRootSetting(next, "network_access");
   for (const featureName of AUTONOMOUS_FEATURES) {
@@ -17491,64 +16947,64 @@ function ensureAutonomousPermissions(config2) {
   next = ensureNoticeEnabled(next, "hide_full_access_warning");
   return ensureNoticeEnabled(next, "hide_world_writable_warning");
 }
-function removeWindowsSandboxSetting(config2) {
-  const section = findTomlSection(config2, "windows");
+function removeWindowsSandboxSetting(config) {
+  const section = findTomlSection(config, "windows");
   if (section === null)
-    return config2;
-  return removeSetting(config2, section, "sandbox");
+    return config;
+  return removeSetting(config, section, "sandbox");
 }
-function ensureNoticeEnabled(config2, key) {
-  const section = findTomlSection(config2, "notice");
+function ensureNoticeEnabled(config, key) {
+  const section = findTomlSection(config, "notice");
   if (section === null)
-    return appendNoticeBlock(config2, key);
-  return replaceOrInsertSetting(config2, section, key, "true");
+    return appendNoticeBlock(config, key);
+  return replaceOrInsertSetting(config, section, key, "true");
 }
-function appendNoticeBlock(config2, key) {
-  return appendBlock(config2, `[notice]
+function appendNoticeBlock(config, key) {
+  return appendBlock(config, `[notice]
 ${key} = true
 `);
 }
 
 // packages/omo-codex/src/install/codex-config-plugins.ts
-function ensurePluginEnabled(config2, pluginKey) {
+function ensurePluginEnabled(config, pluginKey) {
   const header = `plugins.${JSON.stringify(pluginKey)}`;
-  const section = findTomlSection(config2, header);
+  const section = findTomlSection(config, header);
   if (!section)
-    return appendBlock(config2, `[${header}]
+    return appendBlock(config, `[${header}]
 enabled = true
 `);
-  return replaceOrInsertSetting(config2, section, "enabled", "true");
+  return replaceOrInsertSetting(config, section, "enabled", "true");
 }
-function ensureOmoBuiltinMcpPolicies(config2, input) {
+function ensureOmoBuiltinMcpPolicies(config, input) {
   if (input.marketplaceName !== "sisyphuslabs" || !input.pluginNames.includes("omo"))
-    return config2;
+    return config;
   const gitBashEnabled = (input.platform ?? process.platform) === "win32" && input.gitBashEnabled === true;
-  let nextConfig = removeStaleContext7PlaceholderMcp(config2);
+  let nextConfig = removeStaleContext7PlaceholderMcp(config);
   nextConfig = ensurePluginMcpEnabled(nextConfig, "omo@sisyphuslabs", "context7", true);
   nextConfig = ensurePluginMcpEnabled(nextConfig, "omo@sisyphuslabs", "git_bash", gitBashEnabled);
   return nextConfig;
 }
-function ensureHookTrusted(config2, state) {
+function ensureHookTrusted(config, state) {
   const header = `hooks.state.${JSON.stringify(state.key)}`;
-  const section = findTomlSection(config2, header);
+  const section = findTomlSection(config, header);
   if (!section)
-    return appendBlock(config2, `[${header}]
+    return appendBlock(config, `[${header}]
 trusted_hash = ${JSON.stringify(state.trustedHash)}
 `);
-  return replaceOrInsertSetting(config2, section, "trusted_hash", JSON.stringify(state.trustedHash));
+  return replaceOrInsertSetting(config, section, "trusted_hash", JSON.stringify(state.trustedHash));
 }
-function ensurePluginMcpEnabled(config2, pluginKey, serverName, enabled) {
+function ensurePluginMcpEnabled(config, pluginKey, serverName, enabled) {
   const header = `plugins.${JSON.stringify(pluginKey)}.mcp_servers.${serverName}`;
-  const section = findTomlSection(config2, header);
+  const section = findTomlSection(config, header);
   const enabledValue = enabled ? "true" : "false";
   if (!section)
-    return appendBlock(config2, `[${header}]
+    return appendBlock(config, `[${header}]
 enabled = ${enabledValue}
 `);
-  return replaceOrInsertSetting(config2, section, "enabled", enabledValue);
+  return replaceOrInsertSetting(config, section, "enabled", enabledValue);
 }
-function removeStaleContext7PlaceholderMcp(config2) {
-  return removeTomlSections(config2, (header, section) => header === "mcp_servers.context7" && isContext7PlaceholderSection(section.text));
+function removeStaleContext7PlaceholderMcp(config) {
+  return removeTomlSections(config, (header, section) => header === "mcp_servers.context7" && isContext7PlaceholderSection(section.text));
 }
 function isContext7PlaceholderSection(sectionText) {
   const args = readStringArraySetting(sectionText, "args");
@@ -17669,20 +17125,20 @@ function applyReasoningOverride(catalog, reasoning) {
     return catalog;
   return { ...catalog, current: { ...catalog.current, modelReasoningEffort: wireEffort } };
 }
-function ensureCodexReasoningConfig(config2, catalog) {
-  const current = readRootReasoningSettings(config2);
+function ensureCodexReasoningConfig(config, catalog) {
+  const current = readRootReasoningSettings(config);
   if (Object.keys(current).length > 0 && !matchesProfile(current, catalog.current) && !catalog.managedProfiles.some((profile) => matchesProfile(current, profile))) {
-    return config2;
+    return config;
   }
-  let next = replaceOrInsertRootSetting(config2, "model", JSON.stringify(catalog.current.model));
+  let next = replaceOrInsertRootSetting(config, "model", JSON.stringify(catalog.current.model));
   next = replaceOrInsertRootSetting(next, "model_context_window", catalog.current.modelContextWindow.toString());
   next = replaceOrInsertRootSetting(next, "model_reasoning_effort", JSON.stringify(catalog.current.modelReasoningEffort));
   next = replaceOrInsertRootSetting(next, "plan_mode_reasoning_effort", JSON.stringify(catalog.current.planModeReasoningEffort));
   return next;
 }
-function readRootReasoningSettings(config2) {
+function readRootReasoningSettings(config) {
   const settings = {};
-  for (const line of config2.split(/\n/)) {
+  for (const line of config.split(/\n/)) {
     if (isSectionHeader(line))
       break;
     for (const key of MANAGED_KEYS) {
@@ -17820,8 +17276,8 @@ function parseProfileMatch(match) {
 
 // packages/omo-codex/src/install/codex-multi-agent-mode-config.ts
 var CODEX_MULTI_AGENT_MODE_KEY = "multi_agent_mode";
-function removeUnsupportedCodexMultiAgentModeConfig(config2) {
-  const lines = config2.split(/\n/);
+function removeUnsupportedCodexMultiAgentModeConfig(config) {
+  const lines = config.split(/\n/);
   const output = [];
   let inRoot = true;
   let changed = false;
@@ -17836,7 +17292,7 @@ function removeUnsupportedCodexMultiAgentModeConfig(config2) {
       inRoot = false;
   }
   return changed ? output.join(`
-`) : config2;
+`) : config;
 }
 function isSectionHeader2(line) {
   return isTomlTableHeaderLine(line);
@@ -17854,8 +17310,8 @@ import { readFileSync as readFileSync2 } from "node:fs";
 import { dirname as dirname7, isAbsolute as isAbsolute6, join as join17 } from "node:path";
 var CODEX_AGENTS_HEADER = "agents";
 var CODEX_MULTI_AGENT_V2_HEADER = "features.multi_agent_v2";
-function ensureCodexMultiAgentV2Config(config2, options = {}) {
-  const featureFlag = removeFeatureFlagSetting(config2, "multi_agent_v2");
+function ensureCodexMultiAgentV2Config(config, options = {}) {
+  const featureFlag = removeFeatureFlagSetting(config, "multi_agent_v2");
   const v2Preferred = options.multiAgentVersion === "v2" || isMultiAgentV2Enabled(featureFlag.config);
   const agentsConfig = removeAgentsMaxThreads(featureFlag.config, v2Preferred);
   const preserveDisable = featureFlag.value === false && !v2Preferred;
@@ -17867,11 +17323,11 @@ enabled = false`);
   }
   return withoutManagedLimit;
 }
-function resolveCodexMultiAgentVersion(config2, configPath) {
-  const model = readRootModel(config2);
+function resolveCodexMultiAgentVersion(config, configPath) {
+  const model = readRootModel(config);
   if (model === null)
     return null;
-  const catalogPath = resolveCatalogPath(readRootModelCatalogPath(config2), configPath);
+  const catalogPath = resolveCatalogPath(readRootModelCatalogPath(config), configPath);
   const catalogVersion = readCatalogMultiAgentVersion(model, catalogPath);
   if (catalogVersion !== null)
     return catalogVersion;
@@ -17902,56 +17358,56 @@ function readCatalogMultiAgentVersion(model, cachePath) {
       continue;
     if (entry.slug !== model && entry.id !== model)
       continue;
-    const version2 = entry.multi_agent_version;
-    if (version2 === "v1" || version2 === "v2")
-      return version2;
+    const version = entry.multi_agent_version;
+    if (version === "v1" || version === "v2")
+      return version;
     return null;
   }
   return null;
 }
-function readRootModel(config2) {
-  const double = config2.match(/^\s*model\s*=\s*"([^"]+)"/m);
+function readRootModel(config) {
+  const double = config.match(/^\s*model\s*=\s*"([^"]+)"/m);
   if (double !== null)
     return double[1] ?? null;
-  const single = config2.match(/^\s*model\s*=\s*'([^']+)'/m);
+  const single = config.match(/^\s*model\s*=\s*'([^']+)'/m);
   return single?.[1] ?? null;
 }
-function readRootModelCatalogPath(config2) {
-  const double = config2.match(/^\s*model_catalog_json\s*=\s*"([^"]+)"/m);
+function readRootModelCatalogPath(config) {
+  const double = config.match(/^\s*model_catalog_json\s*=\s*"([^"]+)"/m);
   if (double !== null)
     return double[1] ?? null;
-  const single = config2.match(/^\s*model_catalog_json\s*=\s*'([^']+)'/m);
+  const single = config.match(/^\s*model_catalog_json\s*=\s*'([^']+)'/m);
   return single?.[1] ?? null;
 }
 function isRecord7(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
-function removeFeatureFlagSetting(config2, featureName) {
-  const section = findTomlSection(config2, "features");
+function removeFeatureFlagSetting(config, featureName) {
+  const section = findTomlSection(config, "features");
   if (!section)
-    return { config: config2, value: null };
+    return { config, value: null };
   return {
-    config: removeSetting(config2, section, featureName),
+    config: removeSetting(config, section, featureName),
     value: readBooleanSetting(section.text, featureName)
   };
 }
-function isMultiAgentV2Enabled(config2) {
-  const section = findTomlSection(config2, CODEX_MULTI_AGENT_V2_HEADER);
+function isMultiAgentV2Enabled(config) {
+  const section = findTomlSection(config, CODEX_MULTI_AGENT_V2_HEADER);
   return section !== null && /^\s*enabled\s*=\s*true[ \t]*(?:#.*)?$/m.test(section.text);
 }
-function removeAgentsMaxThreads(config2, v2Preferred) {
-  const section = findTomlSection(config2, CODEX_AGENTS_HEADER);
+function removeAgentsMaxThreads(config, v2Preferred) {
+  const section = findTomlSection(config, CODEX_AGENTS_HEADER);
   if (!section)
-    return config2;
-  return removeMatchingCap(config2, section, "max_threads", v2Preferred ? undefined : /^1000\s*(?:#.*)?$/);
+    return config;
+  return removeMatchingCap(config, section, "max_threads", v2Preferred ? undefined : /^1000\s*(?:#.*)?$/);
 }
-function removeManagedMultiAgentV2ThreadLimit(config2) {
-  const section = findTomlSection(config2, CODEX_MULTI_AGENT_V2_HEADER);
+function removeManagedMultiAgentV2ThreadLimit(config) {
+  const section = findTomlSection(config, CODEX_MULTI_AGENT_V2_HEADER);
   if (!section)
-    return config2;
-  return removeMatchingCap(config2, section, "max_concurrent_threads_per_session", /^(?:1000|16)\s*(?:#.*)?$/);
+    return config;
+  return removeMatchingCap(config, section, "max_concurrent_threads_per_session", /^(?:1000|16)\s*(?:#.*)?$/);
 }
-function removeMatchingCap(config2, section, keyName, expectedValue) {
+function removeMatchingCap(config, section, keyName, expectedValue) {
   let quote = null;
   let offset = section.start;
   for (const line of section.text.match(/[^\n]*\n?/g) ?? []) {
@@ -17961,26 +17417,26 @@ function removeMatchingCap(config2, section, keyName, expectedValue) {
       const assignment = line.indexOf("=");
       const key = assignment < 0 ? null : parseTomlDottedKey(line.slice(0, assignment).trim());
       if (key?.length === 1 && key[0] === keyName && (expectedValue === undefined || expectedValue.test(line.slice(assignment + 1).trim()))) {
-        return config2.slice(0, offset) + config2.slice(offset + line.length);
+        return config.slice(0, offset) + config.slice(offset + line.length);
       }
     }
     offset += line.length;
   }
-  return config2;
+  return config;
 }
-function removeMultiAgentV2Disable(config2) {
-  const section = findTomlSection(config2, CODEX_MULTI_AGENT_V2_HEADER);
+function removeMultiAgentV2Disable(config) {
+  const section = findTomlSection(config, CODEX_MULTI_AGENT_V2_HEADER);
   if (!section)
-    return config2;
+    return config;
   if (!/^\s*enabled\s*=\s*false(?:\s*#.*)?$/m.test(section.text))
-    return config2;
-  return removeSetting(config2, section, "enabled");
+    return config;
+  return removeSetting(config, section, "enabled");
 }
-function setMultiAgentV2Disable(config2) {
-  const section = findTomlSection(config2, CODEX_MULTI_AGENT_V2_HEADER);
+function setMultiAgentV2Disable(config) {
+  const section = findTomlSection(config, CODEX_MULTI_AGENT_V2_HEADER);
   if (!section)
-    return config2;
-  return replaceOrInsertSetting(config2, section, "enabled", "false");
+    return config;
+  return replaceOrInsertSetting(config, section, "enabled", "false");
 }
 function readBooleanSetting(sectionText, key) {
   const match = new RegExp(`^\\s*${escapeRegExp(key)}\\s*=\\s*(true|false)\\s*(?:#.*)?$`, "m").exec(sectionText);
@@ -17992,47 +17448,47 @@ function readBooleanSetting(sectionText, key) {
 // packages/omo-codex/src/install/codex-config-toml.ts
 async function updateCodexConfig(input) {
   await mkdir5(dirname8(input.configPath), { recursive: true });
-  let config2;
+  let config;
   try {
-    config2 = await readFile11(input.configPath, "utf8");
+    config = await readFile11(input.configPath, "utf8");
   } catch (error) {
     if (!isMissingFileError(error))
       throw error;
-    config2 = "";
+    config = "";
   }
   const pluginSet = new Set(input.pluginNames);
   for (const legacyMarketplaceName of legacyMarketplaceNames(input.marketplaceName)) {
-    config2 = removeMarketplaceBlock(config2, legacyMarketplaceName);
-    config2 = removeStaleMarketplacePluginBlocks(config2, legacyMarketplaceName, new Set);
-    config2 = removeStaleMarketplaceHookStateBlocks(config2, legacyMarketplaceName, new Set);
+    config = removeMarketplaceBlock(config, legacyMarketplaceName);
+    config = removeStaleMarketplacePluginBlocks(config, legacyMarketplaceName, new Set);
+    config = removeStaleMarketplaceHookStateBlocks(config, legacyMarketplaceName, new Set);
   }
-  config2 = removeStaleMarketplacePluginBlocks(config2, input.marketplaceName, pluginSet);
-  config2 = removeStaleMarketplaceHookStateBlocks(config2, input.marketplaceName, pluginSet);
-  config2 = removeStaleManagedAgentBlocks(config2, new Set((input.agentConfigs ?? []).map((agentConfig) => agentConfig.name)));
-  config2 = ensureFeatureEnabled(config2, "plugins");
-  config2 = ensureFeatureEnabled(config2, "plugin_hooks");
-  config2 = ensureFeatureEnabled(config2, "multi_agent");
-  config2 = removeUnsupportedCodexMultiAgentModeConfig(config2);
-  config2 = ensureCodexReasoningConfig(config2, applyReasoningOverride(await readCodexModelCatalog(input.repoRoot), input.reasoning));
-  config2 = ensureCodexMultiAgentV2Config(config2, {
-    multiAgentVersion: resolveCodexMultiAgentVersion(config2, input.configPath)
+  config = removeStaleMarketplacePluginBlocks(config, input.marketplaceName, pluginSet);
+  config = removeStaleMarketplaceHookStateBlocks(config, input.marketplaceName, pluginSet);
+  config = removeStaleManagedAgentBlocks(config, new Set((input.agentConfigs ?? []).map((agentConfig) => agentConfig.name)));
+  config = ensureFeatureEnabled(config, "plugins");
+  config = ensureFeatureEnabled(config, "plugin_hooks");
+  config = ensureFeatureEnabled(config, "multi_agent");
+  config = removeUnsupportedCodexMultiAgentModeConfig(config);
+  config = ensureCodexReasoningConfig(config, applyReasoningOverride(await readCodexModelCatalog(input.repoRoot), input.reasoning));
+  config = ensureCodexMultiAgentV2Config(config, {
+    multiAgentVersion: resolveCodexMultiAgentVersion(config, input.configPath)
   });
   if (input.autonomousPermissions === true)
-    config2 = ensureAutonomousPermissions(config2);
-  if (!(input.preserveMarketplaceSource === true && hasMarketplaceBlock(config2, input.marketplaceName))) {
-    config2 = ensureMarketplaceBlock(config2, input.marketplaceName, input.marketplaceSource);
+    config = ensureAutonomousPermissions(config);
+  if (!(input.preserveMarketplaceSource === true && hasMarketplaceBlock(config, input.marketplaceName))) {
+    config = ensureMarketplaceBlock(config, input.marketplaceName, input.marketplaceSource);
   }
   for (const pluginName of input.pluginNames) {
-    config2 = ensurePluginEnabled(config2, `${pluginName}@${input.marketplaceName}`);
+    config = ensurePluginEnabled(config, `${pluginName}@${input.marketplaceName}`);
   }
-  config2 = ensureOmoBuiltinMcpPolicies(config2, input);
+  config = ensureOmoBuiltinMcpPolicies(config, input);
   for (const state of input.trustedHookStates ?? []) {
-    config2 = ensureHookTrusted(config2, state);
+    config = ensureHookTrusted(config, state);
   }
   for (const agentConfig of input.agentConfigs ?? []) {
-    config2 = ensureAgentConfig(config2, agentConfig);
+    config = ensureAgentConfig(config, agentConfig);
   }
-  await writeFileAtomic(input.configPath, `${config2.trimEnd()}
+  await writeFileAtomic(input.configPath, `${config.trimEnd()}
 `);
 }
 function isMissingFileError(error) {
@@ -18164,8 +17620,8 @@ var resolveGitBashForCurrentProcess2 = (input = {}) => {
   return toCodexResolution(resolveGitBashForCurrentProcess(input));
 };
 async function prepareGitBashForInstall(input) {
-  const resolve8 = input.resolveGitBash ?? (() => resolveGitBashForCurrentProcess2({ platform: input.platform, env: input.env }));
-  const initialResolution = resolve8();
+  const resolve = input.resolveGitBash ?? (() => resolveGitBashForCurrentProcess2({ platform: input.platform, env: input.env }));
+  const initialResolution = resolve();
   return initialResolution;
 }
 function toCodexResolution(resolution) {
@@ -18616,7 +18072,7 @@ async function installDefaultAgentRole(input) {
   const target = join21(input.codexHome, "agents", "default.toml");
   const receipt = join21(input.codexHome, "agents", ".lazycodex-default.sha256");
   const configPath = join21(input.codexHome, "config.toml");
-  const config2 = await readIfPresent(configPath);
+  const config = await readIfPresent(configPath);
   const entry = await lstat9(target).catch((error) => {
     if (error instanceof Error && "code" in error && error.code === "ENOENT")
       return null;
@@ -18630,12 +18086,12 @@ async function installDefaultAgentRole(input) {
   const existing = await readIfPresent(target);
   const digest = await readIfPresent(receipt);
   const owned = existing !== null && digest === hash(existing);
-  const foreign = hasForeignAgentRegistration(config2 ?? "", REGISTRATION);
+  const foreign = hasForeignAgentRegistration(config ?? "", REGISTRATION);
   if (!input.enabled) {
     if (owned) {
-      if (!foreign && config2 !== null) {
-        const next = splitTomlSections(config2).filter((section) => section.header === null || parseAgentHeaderName(section.header) !== "default").map((section) => section.text).join("");
-        if (next !== config2)
+      if (!foreign && config !== null) {
+        const next = splitTomlSections(config).filter((section) => section.header === null || parseAgentHeaderName(section.header) !== "default").map((section) => section.text).join("");
+        if (next !== config)
           await writeFileAtomic(configPath, next);
       }
       await rm8(target);
@@ -18862,10 +18318,10 @@ function localSourcePath(source) {
 function validateLocalSourcePath(path) {
   if (!path.startsWith("./"))
     throw new Error("local plugin source path must start with ./");
-  const relative4 = path.slice(2);
-  if (relative4.length === 0)
+  const relative = path.slice(2);
+  if (relative.length === 0)
     throw new Error("local plugin source path must not be empty");
-  for (const part of relative4.split(/[\\/]/)) {
+  for (const part of relative.split(/[\\/]/)) {
     if (part === "" || part === "." || part === "..") {
       throw new Error("local plugin source path must stay within the marketplace root");
     }
@@ -18915,10 +18371,10 @@ async function writeSnapshotPlugin(marketplaceRoot, plugin) {
   return { name: plugin.name, path: targetPath };
 }
 function shouldCopyMarketplaceSourcePath(path, root) {
-  const relative4 = path === root ? "" : path.slice(root.length + sep6.length);
-  if (relative4 === "")
+  const relative = path === root ? "" : path.slice(root.length + sep6.length);
+  if (relative === "")
     return true;
-  const parts = relative4.split(sep6);
+  const parts = relative.split(sep6);
   return !parts.some((part) => part === ".git" || part === "node_modules");
 }
 
@@ -18969,12 +18425,12 @@ async function writeLazyCodexInstallSnapshot(input) {
   }, null, "\t")}
 `);
 }
-async function stampJsonVersion(path, version2) {
+async function stampJsonVersion(path, version) {
   try {
     const parsed = JSON.parse(await readFile17(path, "utf8"));
     if (!isPlainRecord(parsed))
       return;
-    parsed.version = version2;
+    parsed.version = version;
     await writeFile9(path, `${JSON.stringify(parsed, null, "\t")}
 `);
   } catch (error) {
@@ -19003,12 +18459,12 @@ async function readPluginHookPaths(manifestPath) {
 function stripDotSlash3(path) {
   return path.startsWith("./") ? path.slice(2) : path;
 }
-async function stampHookStatusMessages(path, version2) {
+async function stampHookStatusMessages(path, version) {
   try {
     const parsed = JSON.parse(await readFile17(path, "utf8"));
     if (!isPlainRecord(parsed))
       return;
-    stampHookGroups(parsed.hooks, version2);
+    stampHookGroups(parsed.hooks, version);
     await writeFile9(path, `${JSON.stringify(parsed, null, "\t")}
 `);
   } catch (error) {
@@ -19032,7 +18488,7 @@ async function stampComponentVersions(input) {
     await stampHookStatusMessages(join25(componentRoot, "hooks", "hooks.json"), input.version);
   }
 }
-function stampHookGroups(hooks, version2) {
+function stampHookGroups(hooks, version) {
   if (!isPlainRecord(hooks))
     return;
   for (const groups of Object.values(hooks)) {
@@ -19042,18 +18498,18 @@ function stampHookGroups(hooks, version2) {
       if (!isPlainRecord(group) || !Array.isArray(group.hooks))
         continue;
       for (const hook of group.hooks) {
-        stampHookStatusMessage(hook, version2);
+        stampHookStatusMessage(hook, version);
       }
     }
   }
 }
-function stampHookStatusMessage(hook, version2) {
+function stampHookStatusMessage(hook, version) {
   if (!isPlainRecord(hook) || typeof hook.statusMessage !== "string")
     return;
-  hook.statusMessage = hook.statusMessage.replace(/^(?:LazyCodex\([^)]+\):|\(OmO(?:\s+[^)]+)?\))\s*/, `(OmO ${normalizeHookStatusVersion(version2)}) `);
+  hook.statusMessage = hook.statusMessage.replace(/^(?:LazyCodex\([^)]+\):|\(OmO(?:\s+[^)]+)?\))\s*/, `(OmO ${normalizeHookStatusVersion(version)}) `);
 }
-function normalizeHookStatusVersion(version2) {
-  const normalized = version2.trim();
+function normalizeHookStatusVersion(version) {
+  const normalized = version.trim();
   return normalized.length === 0 ? "local" : normalized;
 }
 
@@ -19101,7 +18557,7 @@ async function repairNearestProjectLocalCodexArtifacts(input) {
       backupPath
     });
   }
-  const changedConfigs = configs.filter((config2) => config2.changed);
+  const changedConfigs = configs.filter((config) => config.changed);
   const nearestChangedConfig = lastValue(changedConfigs);
   const nearestConfig = lastValue(configs);
   return {
@@ -19126,8 +18582,8 @@ function emptyProjectLocalCodexCleanupResult() {
 }
 function uniqueRemovedKeys(configs) {
   const keys = [];
-  for (const config2 of configs) {
-    for (const key of config2.removedKeys) {
+  for (const config of configs) {
+    for (const key of config.removedKeys) {
       if (!keys.includes(key))
         keys.push(key);
     }
@@ -19137,10 +18593,10 @@ function uniqueRemovedKeys(configs) {
 function lastValue(values) {
   return values.length > 0 ? values[values.length - 1] ?? null : null;
 }
-function repairProjectLocalCodexConfigText(config2) {
-  if (!isMultiAgentV2Enabled2(config2))
-    return { config: config2, changed: false, removedKeys: [] };
-  let nextConfig = config2;
+function repairProjectLocalCodexConfigText(config) {
+  if (!isMultiAgentV2Enabled2(config))
+    return { config, changed: false, removedKeys: [] };
+  let nextConfig = config;
   const removedKeys = [];
   for (const key of LEGACY_AGENT_CONFLICT_KEYS) {
     const section = findTomlSection(nextConfig, "agents");
@@ -19228,11 +18684,11 @@ async function collectProjectLocalArtifacts(projectRoots) {
   }
   return artifacts;
 }
-function isMultiAgentV2Enabled2(config2) {
-  const featuresSection = findTomlSection(config2, "features");
+function isMultiAgentV2Enabled2(config) {
+  const featuresSection = findTomlSection(config, "features");
   if (featuresSection !== null && settingIsBooleanTrue(featuresSection.text, "multi_agent_v2"))
     return true;
-  const multiAgentSection = findTomlSection(config2, "features.multi_agent_v2");
+  const multiAgentSection = findTomlSection(config, "features.multi_agent_v2");
   return multiAgentSection !== null && settingIsBooleanTrue(multiAgentSection.text, "enabled");
 }
 function settingIsBooleanTrue(sectionText, key) {
@@ -19241,8 +18697,8 @@ function settingIsBooleanTrue(sectionText, key) {
 function hasSetting(sectionText, key) {
   return new RegExp(`^\\s*${escapeRegExp(key)}\\s*=`, "m").test(sectionText);
 }
-function formatBackupTimestamp(date3) {
-  return date3.toISOString().replace(/[:.]/g, "-");
+function formatBackupTimestamp(date) {
+  return date.toISOString().replace(/[:.]/g, "-");
 }
 async function maybeLstat(path) {
   try {
@@ -19299,7 +18755,7 @@ import { connect } from "node:net";
 import { basename as basename5 } from "node:path";
 var PROBE_TIMEOUT_MS = 500;
 async function probeLegacyJsonRpcEndpoint(endpoint, timeoutMs = PROBE_TIMEOUT_MS) {
-  return await new Promise((resolve9) => {
+  return await new Promise((resolve) => {
     const socket = connect(endpoint);
     let settled = false;
     let buffer = "";
@@ -19309,7 +18765,7 @@ async function probeLegacyJsonRpcEndpoint(endpoint, timeoutMs = PROBE_TIMEOUT_MS
       settled = true;
       clearTimeout(timer);
       socket.destroy();
-      resolve9(value);
+      resolve(value);
     };
     const timer = setTimeout(() => finish(false), timeoutMs);
     timer.unref?.();
@@ -19442,13 +18898,13 @@ function isNodeCliDaemonCommand(command) {
   return /\bnode(?:\.exe)?\b/i.test(command) && /\bcli\.js\b/.test(command) && /\bdaemon\b/.test(command);
 }
 async function executeForStdout(executeFileImpl, file, args) {
-  return await new Promise((resolve9) => {
+  return await new Promise((resolve) => {
     executeFileImpl(file, [...args], { encoding: "utf8", maxBuffer: 1024 * 1024, timeout: 1000 }, (error, stdout) => {
       if (error !== null) {
-        resolve9(null);
+        resolve(null);
         return;
       }
-      resolve9(stdout);
+      resolve(stdout);
     });
   });
 }
@@ -19517,8 +18973,8 @@ async function reapLspDaemons(codexHome, deps = {}) {
 function parseVersionEntry(entryName) {
   if (!entryName.startsWith("v"))
     return null;
-  const version2 = entryName.slice(1);
-  return LEGACY_VERSION_PATTERN.test(version2) ? version2 : null;
+  const version = entryName.slice(1);
+  return LEGACY_VERSION_PATTERN.test(version) ? version : null;
 }
 async function readLegacyMetadata(input) {
   const pidText = await readRegularTrimmedFile(join27(input.versionPath, "daemon.pid"));
@@ -19570,14 +19026,14 @@ function shortDigest(value) {
 async function removeVersionDir(path) {
   await rm11(path, { recursive: true, force: true });
 }
-function removed(version2, reason) {
-  return { version: version2, status: "removed", reason };
+function removed(version, reason) {
+  return { version, status: "removed", reason };
 }
-function terminated(version2, reason) {
-  return { version: version2, status: "terminated", reason };
+function terminated(version, reason) {
+  return { version, status: "terminated", reason };
 }
-function deferred(version2, reason) {
-  return { version: version2, status: "deferred", reason };
+function deferred(version, reason) {
+  return { version, status: "deferred", reason };
 }
 function sendSigterm(pid) {
   try {
@@ -19594,7 +19050,7 @@ async function defaultWaitForProcessExit(pid, timeoutMs) {
       return true;
     if (Date.now() >= deadline)
       return false;
-    await new Promise((resolve9) => setTimeout(resolve9, 100));
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
 }
 function processIsRunning(pid) {
@@ -19694,12 +19150,12 @@ function defaultSpawnProcess(command, args, options) {
     windowsHide: true
   });
   let settled = false;
-  const outcome = new Promise((resolve10) => {
+  const outcome = new Promise((resolve) => {
     const settle = (result) => {
       if (settled)
         return;
       settled = true;
-      resolve10(result);
+      resolve(result);
     };
     child.once("error", (error) => {
       settle({ kind: "spawn-error", error, missingExecutable: isMissingExecutable(error) });
@@ -19819,9 +19275,9 @@ async function installAstGrepForCodex(options) {
 // packages/omo-codex/src/install/codex-install-telemetry.ts
 async function trackCodexInstallTelemetry() {
   try {
-    const { createInstallPostHog: createInstallPostHog2, getPostHogDistinctId: getPostHogDistinctId2 } = await Promise.resolve().then(() => (init_telemetry(), exports_telemetry));
-    const posthog = createInstallPostHog2();
-    posthog.trackActive(getPostHogDistinctId2(), "install_completed");
+    await Promise.resolve().then(() => init_telemetry());
+    const posthog = createInstallPostHog();
+    posthog.trackActive(getPostHogDistinctId(), "install_completed");
     await posthog.shutdown();
   } catch (error) {
     if (error instanceof Error)
@@ -19833,29 +19289,29 @@ async function trackCodexInstallTelemetry() {
 // packages/omo-codex/src/install/install-codex.ts
 var SISYPHUS_LEGACY_CACHE_MARKETPLACES = ["lazycodex", "code-yeongyu-codex-plugins"];
 async function runCodexInstaller(options = {}) {
-  const env2 = options.env ?? process.env;
+  const env = options.env ?? process.env;
   const platform = options.platform ?? process.platform;
-  const repoRoot = resolve10(options.repoRoot ?? findRepoRoot({ importerDir: import.meta.dir, env: env2 }));
-  const codexHome = resolve10(options.codexHome ?? env2.CODEX_HOME ?? join35(homedir2(), ".codex"));
-  const projectDirectory = resolve10(options.projectDirectory ?? env2.OMO_CODEX_PROJECT ?? process.cwd());
-  const binDir = resolveCodexInstallerBinDir({ binDir: options.binDir, codexHome, env: env2 });
+  const repoRoot = resolve10(options.repoRoot ?? findRepoRoot({ importerDir: import.meta.dir, env }));
+  const codexHome = resolve10(options.codexHome ?? env.CODEX_HOME ?? join36(homedir2(), ".codex"));
+  const projectDirectory = resolve10(options.projectDirectory ?? env.OMO_CODEX_PROJECT ?? process.cwd());
+  const binDir = resolveCodexInstallerBinDir({ binDir: options.binDir, codexHome, env });
   const runCommand = options.runCommand ?? defaultRunCommand;
   const log = options.log ?? (() => {
     return;
   });
   const buildSource = await shouldBuildSourcePackages(repoRoot);
-  const versionOverride = env2.LAZYCODEX_DEV_VERSION?.trim() || undefined;
+  const versionOverride = env.LAZYCODEX_DEV_VERSION?.trim() || undefined;
   const gitBashResolution = await prepareGitBashForInstall({
     platform,
-    env: env2,
-    resolveGitBash: platform === "win32" ? options.gitBashResolver ?? (() => resolveGitBashForCurrentProcess2({ platform, env: env2 })) : undefined
+    env,
+    resolveGitBash: platform === "win32" ? options.gitBashResolver ?? (() => resolveGitBashForCurrentProcess2({ platform, env })) : undefined
   });
   if (!gitBashResolution.found) {
     throw new Error(gitBashResolution.installHint);
   }
-  const codexPackageRoot = join35(repoRoot, "packages", "omo-codex");
+  const codexPackageRoot = join36(repoRoot, "packages", "omo-codex");
   const marketplace = await readMarketplace(repoRoot, {
-    marketplacePath: join35(codexPackageRoot, "marketplace.json")
+    marketplacePath: join36(codexPackageRoot, "marketplace.json")
   });
   const distributionManifest = await readDistributionManifest(repoRoot);
   const installed = [];
@@ -19867,27 +19323,27 @@ async function runCodexInstaller(options = {}) {
     if (manifest.name !== entry.name) {
       throw new Error(`plugin manifest name ${JSON.stringify(manifest.name)} does not match marketplace name ${JSON.stringify(entry.name)}`);
     }
-    const version3 = resolveLazyCodexPluginVersion({
+    const version = resolveLazyCodexPluginVersion({
       manifestVersion: manifest.version,
       marketplaceName: marketplace.name,
       pluginName: entry.name,
       distributionManifest,
       versionOverride
     });
-    validatePathSegment(version3, "plugin version");
-    log(`Building ${entry.name}@${version3}`);
+    validatePathSegment(version, "plugin version");
+    log(`Building ${entry.name}@${version}`);
     const plugin = await installCachedPlugin({
       buildSource,
       codexHome,
-      env: env2,
+      env,
       marketplaceName: marketplace.name,
       name: entry.name,
       runCommand,
       sourcePath,
-      version: version3
+      version
     });
     if (marketplace.name === "sisyphuslabs" && plugin.name === "omo") {
-      await stampLazyCodexPluginVersion({ pluginRoot: plugin.path, version: version3 });
+      await stampLazyCodexPluginVersion({ pluginRoot: plugin.path, version });
       await writeLazyCodexInstallSnapshot({ pluginRoot: plugin.path, distributionManifest });
       await writeInstalledCodexBinDir({ pluginRoot: plugin.path, binDir });
       await removeGitBashHooksOffWindows({ platform, pluginRoot: plugin.path });
@@ -19901,7 +19357,7 @@ async function runCodexInstaller(options = {}) {
       if (runtimeLink !== null)
         log(`Linked ${runtimeLink.name} -> ${runtimeLink.target}`);
       else
-        log(`Warning: skipped the omo-agent-toolkit runtime wrapper because ${join35(repoRoot, "dist", "cli", "index.js")} is missing; omo-agent-toolkit ulw-loop commands will be unavailable until a package shipping dist/cli is installed`);
+        log(`Warning: skipped the omo-agent-toolkit runtime wrapper because ${join36(repoRoot, "dist", "cli", "index.js")} is missing; omo-agent-toolkit ulw-loop commands will be unavailable until a package shipping dist/cli is installed`);
     }
     pluginSources.push({ name: entry.name, sourcePath });
     installed.push(plugin);
@@ -19921,7 +19377,7 @@ async function runCodexInstaller(options = {}) {
     installed,
     pluginSources
   });
-  const omoConfig = readDefaultRoleConfig({ cwd: projectDirectory, env: env2 });
+  const omoConfig = readDefaultRoleConfig({ cwd: projectDirectory, env });
   for (const warning of omoConfig.warnings)
     log(`Warning: ${warning}`);
   for (const plugin of installed) {
@@ -19968,13 +19424,13 @@ async function runCodexInstaller(options = {}) {
       continue;
     log(`Warning: deferred legacy Codex LSP daemon cleanup for v${cleanup.version}: ${cleanup.reason}`);
   }
-  const marketplaceRoot = join35(codexHome, "plugins", "cache", marketplace.name);
+  const marketplaceRoot = join36(codexHome, "plugins", "cache", marketplace.name);
   await writeCachedMarketplaceManifest({
     marketplaceName: marketplace.name,
     marketplaceRoot,
     plugins: installed
   });
-  const configPath = join35(codexHome, "config.toml");
+  const configPath = join36(codexHome, "config.toml");
   await updateCodexConfig({
     configPath,
     repoRoot: codexPackageRoot,
@@ -20033,7 +19489,7 @@ function findRepoRootFromImporter(importerDir) {
   for (let depth = 0;depth <= 7; depth += 1) {
     if (isRepoRootWithCodexPlugin(current))
       return current;
-    for (const wrapperPackageRoot of [join35(current, "node_modules", "oh-my-openagent"), join35(current, "oh-my-openagent")]) {
+    for (const wrapperPackageRoot of [join36(current, "node_modules", "oh-my-openagent"), join36(current, "oh-my-openagent")]) {
       if (isRepoRootWithCodexPlugin(wrapperPackageRoot))
         return wrapperPackageRoot;
     }
@@ -20051,7 +19507,7 @@ function findRepoRoot(input) {
   return findRepoRootFromImporter(input.importerDir);
 }
 function isRepoRootWithCodexPlugin(repoRoot) {
-  return existsSync7(join35(repoRoot, "packages", "omo-codex", "plugin", ".codex-plugin", "plugin.json"));
+  return existsSync7(join36(repoRoot, "packages", "omo-codex", "plugin", ".codex-plugin", "plugin.json"));
 }
 function codexMarketplaceSource(marketplaceRoot) {
   return { sourceType: "local", source: marketplaceRoot };
@@ -20238,25 +19694,25 @@ async function runDelegatedOmoCommand(parsed, options) {
     options.log(formatShellCommand(invocation.command, invocation.args));
     return;
   }
-  const env2 = invocation.delegatesToOmo ? { ...process.env, OMO_INVOCATION_NAME: "omo-agent-toolkit", ...invocation.env } : { ...process.env, ...invocation.env };
-  await options.runCommand(invocation.command, invocation.args, { cwd: options.cwd, env: env2 });
+  const env = invocation.delegatesToOmo ? { ...process.env, OMO_INVOCATION_NAME: "omo-agent-toolkit", ...invocation.env } : { ...process.env, ...invocation.env };
+  await options.runCommand(invocation.command, invocation.args, { cwd: options.cwd, env });
 }
 function buildDelegatedOmoInvocation(parsed) {
   if (parsed.command === "doctor")
     return buildLazyCodexDoctorInvocation(parsed.args);
   if (parsed.command === "install") {
-    const args2 = ["--yes", "oh-my-openagent@latest", parsed.command, "--platform=codex"];
+    const args = ["--yes", "oh-my-openagent@latest", parsed.command, "--platform=codex"];
     if (parsed.noTui)
-      args2.push("--no-tui");
+      args.push("--no-tui");
     if (parsed.skipAuth)
-      args2.push("--skip-auth");
+      args.push("--skip-auth");
     if (parsed.autonomousPermissions !== false)
-      args2.push("--codex-autonomous");
+      args.push("--codex-autonomous");
     if (parsed.autonomousPermissions === false)
-      args2.push("--no-codex-autonomous");
+      args.push("--no-codex-autonomous");
     if (parsed.repoRoot)
-      args2.push(`--repo-root=${parsed.repoRoot}`);
-    return { command: "npx", args: args2, delegatesToOmo: true };
+      args.push(`--repo-root=${parsed.repoRoot}`);
+    return { command: "npx", args, delegatesToOmo: true };
   }
   const args = ["--yes", "--package", "oh-my-openagent", "omo-agent-toolkit", parsed.command];
   if (parsed.command === "cleanup") {
@@ -20364,28 +19820,28 @@ function shellQuote(value) {
 // packages/omo-codex/src/install/lazycodex-manual-update.ts
 import { spawn as spawn3, spawnSync as spawnSync2 } from "node:child_process";
 import { readFileSync as readFileSync5 } from "node:fs";
-import { dirname as dirname12, join as join37 } from "node:path";
+import { dirname as dirname12, join as join38 } from "node:path";
 import { createInterface as createInterface2 } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 
 // packages/omo-codex/src/install/lazycodex-bun-global-paths.ts
-import { join as join36 } from "node:path";
-function isBunGlobalEntrypointPath(invokedPath, env2) {
+import { join as join37 } from "node:path";
+function isBunGlobalEntrypointPath(invokedPath, env) {
   if (typeof invokedPath !== "string" || invokedPath.trim().length === 0)
     return false;
   const normalizedPath = normalizePathForPrefix(invokedPath);
-  return resolveBunGlobalRoots(env2).some((root) => normalizedPath.startsWith(root));
+  return resolveBunGlobalRoots(env).some((root) => normalizedPath.startsWith(root));
 }
-function resolveBunGlobalRoots(env2) {
-  const bunInstallRoot = env2.BUN_INSTALL?.trim();
-  const homeRoot = env2.HOME?.trim();
+function resolveBunGlobalRoots(env) {
+  const bunInstallRoot = env.BUN_INSTALL?.trim();
+  const homeRoot = env.HOME?.trim();
   return [
-    ...bunInstallRoot ? [join36(bunInstallRoot, "bin"), join36(bunInstallRoot, "install", "global", "node_modules")] : [],
-    ...homeRoot ? [join36(homeRoot, ".bun", "bin"), join36(homeRoot, ".bun", "install", "global", "node_modules")] : []
+    ...bunInstallRoot ? [join37(bunInstallRoot, "bin"), join37(bunInstallRoot, "install", "global", "node_modules")] : [],
+    ...homeRoot ? [join37(homeRoot, ".bun", "bin"), join37(homeRoot, ".bun", "install", "global", "node_modules")] : []
   ].map(normalizePathForPrefix);
 }
-function normalizePathForPrefix(path2) {
-  const normalized = path2.replaceAll("\\", "/").replace(/\/+$/, "");
+function normalizePathForPrefix(path) {
+  const normalized = path.replaceAll("\\", "/").replace(/\/+$/, "");
   return normalized.endsWith("/node_modules") || normalized.endsWith("/bin") ? `${normalized}/` : normalized;
 }
 
@@ -20407,17 +19863,17 @@ var KNOWN_LAZYCODEX_BUN_TRUST_PACKAGES = new Set([
 ]);
 var KNOWN_LAZYCODEX_BUN_TRUST_PREFIXES = ["@oh-my-opencode/", "oh-my-openagent-", "oh-my-opencode-"];
 async function runLazyCodexManualUpdate(input = {}) {
-  const env2 = input.env ?? process.env;
+  const env = input.env ?? process.env;
   const log = input.log ?? console.log;
   const commandRunner = input.runCommand ?? defaultRunCommandForManualUpdate;
-  const currentVersion = resolveCurrentVersion(env2);
-  const latestVersion = resolveLatestVersion(env2);
+  const currentVersion = resolveCurrentVersion(env);
+  const latestVersion = resolveLatestVersion(env);
   const plan = resolveLazyCodexUpdatePlan({
     currentVersion,
     latestVersion,
-    command: resolveCommand2(env2),
-    args: resolveArgs(env2),
-    env: env2,
+    command: resolveCommand2(env),
+    args: resolveArgs(env),
+    env,
     invokedPath: input.invokedPath ?? process.argv[1]
   });
   if (!plan.shouldUpdate) {
@@ -20431,15 +19887,15 @@ async function runLazyCodexManualUpdate(input = {}) {
       log(`${DEFAULT_UPDATE_COMMAND} ${DEFAULT_UPDATE_ARGS.join(" ")}`);
     return 0;
   }
-  await commandRunner(plan.command, plan.args, { cwd: process.cwd(), env: env2 });
+  await commandRunner(plan.command, plan.args, { cwd: process.cwd(), env });
   if (plan.postUpdate === "bun-global-trust") {
     await handleBunGlobalTrust({
-      env: env2,
+      env,
       log,
       commandRunner,
       isInteractive: input.isInteractive ?? (process.stdin.isTTY === true && process.stdout.isTTY === true)
     });
-    await commandRunner(DEFAULT_UPDATE_COMMAND, DEFAULT_UPDATE_ARGS, { cwd: process.cwd(), env: env2 });
+    await commandRunner(DEFAULT_UPDATE_COMMAND, DEFAULT_UPDATE_ARGS, { cwd: process.cwd(), env });
   }
   return 0;
 }
@@ -20457,12 +19913,12 @@ function resolveLazyCodexUpdatePlan(input = {}) {
   }
   return { shouldUpdate: true, command: input.command ?? DEFAULT_UPDATE_COMMAND, args: input.args ?? DEFAULT_UPDATE_ARGS, postUpdate: "none" };
 }
-function resolveCommand2(env2) {
-  return env2.LAZYCODEX_AUTO_UPDATE_COMMAND?.trim() || DEFAULT_UPDATE_COMMAND;
+function resolveCommand2(env) {
+  return env.LAZYCODEX_AUTO_UPDATE_COMMAND?.trim() || DEFAULT_UPDATE_COMMAND;
 }
-function resolveArgs(env2) {
-  if (env2.LAZYCODEX_AUTO_UPDATE_ARGS_JSON) {
-    const parsed = JSON.parse(env2.LAZYCODEX_AUTO_UPDATE_ARGS_JSON);
+function resolveArgs(env) {
+  if (env.LAZYCODEX_AUTO_UPDATE_ARGS_JSON) {
+    const parsed = JSON.parse(env.LAZYCODEX_AUTO_UPDATE_ARGS_JSON);
     if (!Array.isArray(parsed) || parsed.some((value) => typeof value !== "string")) {
       throw new TypeError("LAZYCODEX_AUTO_UPDATE_ARGS_JSON must be a JSON string array");
     }
@@ -20470,23 +19926,23 @@ function resolveArgs(env2) {
   }
   return DEFAULT_UPDATE_ARGS;
 }
-function resolveCurrentVersion(env2) {
-  if (env2.LAZYCODEX_CURRENT_VERSION?.trim())
-    return env2.LAZYCODEX_CURRENT_VERSION.trim();
+function resolveCurrentVersion(env) {
+  if (env.LAZYCODEX_CURRENT_VERSION?.trim())
+    return env.LAZYCODEX_CURRENT_VERSION.trim();
   const pluginRoot = dirname12(dirname12(fileURLToPath(import.meta.url)));
-  return readVersionManifest(resolveInstalledVersionPath(env2, pluginRoot)) ?? readVersionManifest(join37(pluginRoot, "..", "..", "..", "package.json")) ?? readVersionManifest(join37(pluginRoot, ".codex-plugin", "plugin.json"));
+  return readVersionManifest(resolveInstalledVersionPath(env, pluginRoot)) ?? readVersionManifest(join38(pluginRoot, "..", "..", "..", "package.json")) ?? readVersionManifest(join38(pluginRoot, ".codex-plugin", "plugin.json"));
 }
-function resolveLatestVersion(env2) {
-  if (env2.LAZYCODEX_LATEST_VERSION?.trim())
-    return env2.LAZYCODEX_LATEST_VERSION.trim();
+function resolveLatestVersion(env) {
+  if (env.LAZYCODEX_LATEST_VERSION?.trim())
+    return env.LAZYCODEX_LATEST_VERSION.trim();
   const result = spawnSync2("npm", ["view", "lazycodex-ai", "version", "--silent"], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "ignore"]
   });
   if (result.status !== 0)
     return;
-  const version3 = result.stdout.trim();
-  return version3.length > 0 ? version3 : undefined;
+  const version = result.stdout.trim();
+  return version.length > 0 ? version : undefined;
 }
 async function handleBunGlobalTrust(input) {
   const packageNames = resolveKnownBunGlobalUntrustedPackages(input.env);
@@ -20506,10 +19962,10 @@ ${trustCommand}`);
   input.log(`Skipped Bun postinstall trust. To run it later:
 ${trustCommand}`);
 }
-function resolveKnownBunGlobalUntrustedPackages(env2) {
+function resolveKnownBunGlobalUntrustedPackages(env) {
   const result = spawnSync2(BUN_UPDATE_COMMAND, BUN_GLOBAL_UNTRUSTED_ARGS, {
     encoding: "utf8",
-    env: env2,
+    env,
     stdio: ["ignore", "pipe", "ignore"]
   });
   if (result.status !== 0)
@@ -20536,11 +19992,11 @@ async function confirmBunGlobalTrust(packageNames) {
 function isKnownLazyCodexBunTrustPackage(packageName) {
   return KNOWN_LAZYCODEX_BUN_TRUST_PACKAGES.has(packageName) || KNOWN_LAZYCODEX_BUN_TRUST_PREFIXES.some((prefix) => packageName.startsWith(prefix));
 }
-function isBunGlobalEntrypoint(invokedPath, env2) {
-  return isBunGlobalEntrypointPath(invokedPath, env2);
+function isBunGlobalEntrypoint(invokedPath, env) {
+  return isBunGlobalEntrypointPath(invokedPath, env);
 }
 function defaultRunCommandForManualUpdate(command, args, options) {
-  return new Promise((resolve11, reject) => {
+  return new Promise((resolve, reject) => {
     const child = spawn3(command, args, {
       cwd: options.cwd,
       env: options.env,
@@ -20550,17 +20006,17 @@ function defaultRunCommandForManualUpdate(command, args, options) {
     child.once("error", reject);
     child.once("close", (code) => {
       if (code === 0) {
-        resolve11();
+        resolve();
         return;
       }
       reject(new Error(`${command} ${args.join(" ")} exited with ${code ?? "unknown status"}`));
     });
   });
 }
-function parseVersion(version3) {
-  if (typeof version3 !== "string")
+function parseVersion(version) {
+  if (typeof version !== "string")
     return null;
-  const match = /^(\d+)\.(\d+)\.(\d+)(?:-([^+]+))?(?:\+.*)?$/.exec(version3.trim());
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:-([^+]+))?(?:\+.*)?$/.exec(version.trim());
   if (match === null)
     return null;
   const major = Number.parseInt(match[1] ?? "", 10);
@@ -20587,14 +20043,14 @@ function compareVersions(left, right) {
   }
   return 0;
 }
-function resolveInstalledVersionPath(env2, pluginRoot) {
-  if (env2.LAZYCODEX_INSTALLED_VERSION_FILE?.trim())
-    return env2.LAZYCODEX_INSTALLED_VERSION_FILE.trim();
-  return join37(pluginRoot, INSTALLED_VERSION_FILE);
+function resolveInstalledVersionPath(env, pluginRoot) {
+  if (env.LAZYCODEX_INSTALLED_VERSION_FILE?.trim())
+    return env.LAZYCODEX_INSTALLED_VERSION_FILE.trim();
+  return join38(pluginRoot, INSTALLED_VERSION_FILE);
 }
-function readVersionManifest(path2) {
+function readVersionManifest(path) {
   try {
-    const parsed = JSON.parse(readFileSync5(path2, "utf8"));
+    const parsed = JSON.parse(readFileSync5(path, "utf8"));
     if (typeof parsed === "object" && parsed !== null && "version" in parsed && typeof parsed.version === "string") {
       return parsed.version;
     }
@@ -20607,10 +20063,10 @@ function readVersionManifest(path2) {
 }
 // packages/omo-codex/src/install/codex-git-bash-mcp-env.ts
 import { readFile as readFile23, writeFile as writeFile13 } from "node:fs/promises";
-import { join as join38 } from "node:path";
+import { join as join39 } from "node:path";
 var GIT_BASH_ENV_KEY2 = "OMO_CODEX_GIT_BASH_PATH";
 async function stampGitBashMcpEnv(input) {
-  const manifestPath = join38(input.pluginRoot, ".mcp.json");
+  const manifestPath = join39(input.pluginRoot, ".mcp.json");
   if (!await fileExistsStrict(manifestPath))
     return false;
   const parsed = JSON.parse(await readFile23(manifestPath, "utf8"));
@@ -20657,9 +20113,9 @@ async function runLazyCodexInstallLocalCli(input) {
     return 0;
   }
   if (parsed.kind === "version") {
-    const packageJson = JSON.parse(await readFile24(join39(input.defaultRepoRoot, "package.json"), "utf8"));
-    const version3 = typeof packageJson.version === "string" ? packageJson.version : "unknown";
-    input.log(`lazycodex-ai ${version3}`);
+    const packageJson = JSON.parse(await readFile24(join40(input.defaultRepoRoot, "package.json"), "utf8"));
+    const version = typeof packageJson.version === "string" ? packageJson.version : "unknown";
+    input.log(`lazycodex-ai ${version}`);
     return 0;
   }
   if (parsed.kind === "command") {
@@ -20672,13 +20128,13 @@ async function runLazyCodexInstallLocalCli(input) {
         input.log(`node ${input.entrypointPath} install --repo-root=${parsed.repoRoot}`);
         return 0;
       }
-      const result2 = await installMarketplaceLocally({
+      const result = await installMarketplaceLocally({
         repoRoot: resolve11(parsed.repoRoot),
         autonomousPermissions: true,
         env: input.env,
         log: logWarning
       });
-      input.log(`Installed ${result2.installed.length} plugin(s) from ${result2.marketplaceName}.`);
+      input.log(`Installed ${result.installed.length} plugin(s) from ${result.marketplaceName}.`);
       return 0;
     }
     return runLazyCodexManualUpdate({ env: input.env, dryRun: parsed.dryRun, log: input.log, invokedPath: input.invokedPath });
