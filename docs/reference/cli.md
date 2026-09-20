@@ -159,6 +159,38 @@ bunx oh-my-openagent doctor
 
 ---
 
+## setup
+
+### Usage
+
+```bash
+omo setup                 # detect other harnesses, plan, ask, then import
+omo setup --yes           # non-interactive import
+omo setup --dry-run       # plan only; writes nothing
+```
+
+Onboarding for the senpi edition. Detects provider credentials in senpi/opencode/oh-my-pi/
+gajae-code stores (read-only), imports compatible API-key credentials with consent (never
+overwrites existing entries, timestamped backup), translates the opencode `mcp` block into
+`mcp.json`, copies global skills and a global `AGENTS.md`, and prints one exact re-auth command
+per skipped OAuth provider. Hosted gateway keys report as `skipped-gateway`.
+
+## migrate
+
+### Usage
+
+```bash
+omo migrate --dry-run     # print the full translation plan; write nothing
+omo migrate --yes         # apply
+```
+
+One-shot codemod from global opencode state to omo native: `model`/`permission` →
+`settings.json`, custom `provider` blocks → `models.json`, `mcp` → `mcp.json`, `tui.json`
+keybinds → `keybindings.json` (best-effort; unmatched ids are reported), agent markdown →
+`omo.jsonc` agents, shared keys of `oh-my-openagent.json(c)` → `omo.jsonc`. Backup-first
+(`migration-backup-<timestamp>/` + `migration-notes.md`), idempotent via a state marker, and
+anything unmappable is printed as `dropped-with-warning` instead of disappearing.
+
 ## run
 
 Runs a non-interactive session and exits only when all of these conditions are true:

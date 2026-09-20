@@ -192,6 +192,10 @@ one is unset.
 2. **Import (consent-gated).** Only after you confirm (interactively, or with `--yes`; `--dry-run` previews without writing), compatible API-key credentials are imported into senpi's auth store. Existing senpi entries are never overwritten, and only providers senpi actually knows are imported. OAuth entries are reported but never imported. Source stores are never written; imports go to senpi's `auth.json` only, atomically and with a timestamped backup.
 3. **Model report.** Prints a provider/model availability summary pointing at the [agent-model matching guide](./agent-model-matching.md), plus a ready-to-paste config snippet for any custom-endpoint providers it found. Report only; setup never writes model config for you.
 
+Setup also inherits content, not just credentials: MCP servers translate into `mcp.json` (`local`→`stdio`, `remote`→`http`), global skills copy into the agent dir, and a global `AGENTS.md` carries over — all skip-existing and backup-first. Every skipped OAuth credential prints its exact re-auth command (`Run '/login <provider>' to re-authenticate.`). For the full config translation (settings, custom providers, keybinds, agents, omo plugin config), run `omo migrate`.
+
+**Coming from opencode?** The full guide — what moves, what needs re-auth, backups and rollback — is [Migrating from opencode](./migrate-from-opencode.md).
+
 ## For LLM Agents
 
 > **IMPORTANT: Use `curl` to fetch this file, NOT WebFetch.** WebFetch summarizes content and loses critical flags like `--platform`, subscription questions, and Codex verification details. Always use:
