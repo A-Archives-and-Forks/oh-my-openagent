@@ -16,7 +16,7 @@ export function teamPass(facts) {
 
 export function reopenPass(facts) {
   return facts.childCompleted === "completed" && facts.parkObserved &&
-    facts.reopenExit === 0 && facts.transcriptLinesAfterReopen > facts.transcriptLinesBeforeReopen &&
+    facts.reviveAccepted && facts.transcriptLinesAfterReopen > facts.transcriptLinesBeforeReopen &&
     facts.reopenedCompleted && facts.reopenMessageDelivered && facts.sameChildSession
 }
 

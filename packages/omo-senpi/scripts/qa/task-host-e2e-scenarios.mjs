@@ -55,10 +55,8 @@ export async function scenarioA(run) {
   const watched = await observeDaemon(sandbox, (probe) => {
     if (probe.json?.sessions?.worker >= 32) return true
     return childrenSettled(readTaskRecords(sandbox), 32)
-  // Measured: the parents finish in ~25 s, but on a machine with other work in flight the 32nd
-  // child can still be opening well past 180 s, so the old budget closed the window mid-count and
-  // reported a green daemon as FAIL. 420 s covers the loaded case; the poll returns as soon as the
-  // 32nd session lands, so an idle run is no slower.
+  // Allow a loaded host to open the full cohort; return as soon as the 32nd session lands.
+  // The parents remain attached until observation, so graceful shutdown cannot cancel admission.
   }, { timeoutMs: 420_000, intervalMs: 1_000 })
   const observed = watched.matched ?? watched.lastProbe ?? daemonStatus(sandbox, { includeWorkers: true })
   const records = readTaskRecords(sandbox)
@@ -74,10 +72,8 @@ export async function scenarioA(run) {
     perChildRpcProcessCount: perChild.length,
     failureTokens: tokens,
     terminalChildFailures: terminalChildSnapshots(sandbox).length,
-    // Two parents ensure the SAME daemon concurrently and then exit while their children keep running,
-    // so the question "was this one host for the whole scenario?" has to be answered from a timeline,
-    // not from a single status call. Every identity change is an entry; the parents' exits are stamped
-    // on the same clock, and their stderr host lines say which side started, reused or handed off.
+    // Two parents concurrently ensure the same daemon. Record its identity throughout admission,
+    // rather than trusting one final status call; parent exits and host diagnostics share that clock.
     daemonIdentityTimeline: watched.timeline,
     daemonIdentitiesSeen: [...new Set(watched.timeline.map((entry) => entry.instanceId).filter(Boolean))].length,
     parentExits,

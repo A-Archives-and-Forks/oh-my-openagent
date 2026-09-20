@@ -2,7 +2,7 @@
 // whose identity travels in the session context and whose lead mail is delivered, C2 proves a completed
 // child is PARKED rather than closed and that `task_send` reopens it.
 import { join } from "node:path"
-import { writeFileSync } from "node:fs"
+import { readdirSync, writeFileSync } from "node:fs"
 import { teamPass, reopenPass } from "./task-host-e2e-gates.mjs"
 import { STATE_DEADLINE_MS, observeState, stopParent } from "./task-host-e2e-events.mjs"
 
@@ -161,6 +161,11 @@ export async function scenarioC2(run) {
   })
   let reopen
   let reopened
+  const reopenResults = () => readdirSync(sandbox.sessionDir).filter((file) => file.endsWith(".jsonl"))
+    .flatMap((file) => jsonlLines(join(sandbox.sessionDir, file)))
+    .map((line) => JSON.parse(line).message)
+    .filter((message) => message?.role === "toolResult" && message.toolName === "task_send" && message.details)
+    .map((message) => message.details)
   const progress = await observeState(sandbox.root, () => {
     reopened = readTaskRecords(sandbox).find((record) => record.task_id === completed?.task_id)
     const rows = filesBefore.flatMap(jsonlLines).slice(linesBefore).map((line) => JSON.parse(line))
@@ -168,13 +173,16 @@ export async function scenarioC2(run) {
       JSON.stringify(row.message.content).includes(reopenMessage))
     const answered = messageIndex >= 0 && rows.slice(messageIndex + 1).some((row) =>
       row.message?.role === "assistant" && row.message.content?.some((part) => part.type === "text" && part.text === reopenReply))
-    if (toolDetails(reopen.stdout, "task_send").some((d) => d.kind !== "revived")) {
+    const outcomes = reopenResults()
+    if (outcomes.some((d) => d.kind !== "revived")) {
       return { messageIndex, answered: false }
     }
-    return reopened?.notification?.run_epoch === epochBefore + 1 &&
+    const accepted = outcomes.some((d) =>
+      d.kind === "revived" && d.task_id === completed?.task_id && d.run_epoch === epochBefore + 1)
+    return accepted && reopened?.notification?.run_epoch === epochBefore + 1 &&
       reopened.status === "completed" && answered ? { messageIndex, answered } : undefined
-  }, { trigger: () => { reopen = runBin(sandbox, run.parentArgs(sandbox, "reopen the parked child"), { timeoutMs: STATE_DEADLINE_MS, env }) } })
-  const accepted = toolDetails(reopen.stdout, "task_send").some((d) =>
+  }, { trigger: () => { reopen = spawnParent(sandbox, run.mockEntry, "reopen the parked child", { env, capture: true }) } })
+  const accepted = reopenResults().some((d) =>
     d.kind === "revived" && d.task_id === completed?.task_id && d.run_epoch === epochBefore + 1)
   const linesAfter = completed === undefined ? 0 : transcriptSizes(sandbox, [completed])[completed.task_id]
   const facts = {
@@ -185,7 +193,7 @@ export async function scenarioC2(run) {
     hadWorkerSessionBeforePark: hadWorker,
     parkObserved: hadWorker && parked !== undefined,
     workerSessionsAfterPark: parked?.json?.sessions?.worker ?? daemonStatus(sandbox, { includeWorkers: true }).json?.sessions?.worker ?? null,
-    reopenExit: reopen.status,
+    reopenExit: reopen.child.exitCode,
     transcriptLinesBeforeReopen: linesBefore,
     transcriptLinesAfterReopen: linesAfter,
     reopenedCompleted: accepted && progress?.answered === true,
@@ -194,18 +202,19 @@ export async function scenarioC2(run) {
       childSessionFiles(sandbox, completed.task_id).join() === filesBefore.join() &&
       readTaskRecords(sandbox).length === 1,
     reviveAccepted: accepted,
-    reopenOutcome: toolDetails(reopen.stdout, "task_send"),
+    reopenOutcome: reopenResults(),
     runEpochBefore: epochBefore ?? null,
     runEpochAfter: reopened?.notification?.run_epoch ?? null,
     childStart: childStartDiagnosis(sandbox, readTaskRecords(sandbox)),
   }
   const pass = reopenPass(facts)
+  await stopParent(reopen)
   const receipt = await cleanupScenario(sandbox, { hostPids: [before?.json?.pid].filter(Boolean) })
   return {
     scenario: "C2",
     title: "parking: completed child parked, task_send reopens it",
     status: pass ? "pass" : "fail",
-    ...(pass ? {} : { reason: `child=${facts.childCompleted} parked=${facts.parkObserved} reopenExit=${reopen.status} lines ${linesBefore}->${linesAfter}` }),
+    reason: `child=${facts.childCompleted} parked=${facts.parkObserved} revived=${accepted} epoch=${facts.runEpochBefore}->${facts.runEpochAfter} lines=${linesBefore}->${linesAfter}`,
     facts,
     receipt,
   }

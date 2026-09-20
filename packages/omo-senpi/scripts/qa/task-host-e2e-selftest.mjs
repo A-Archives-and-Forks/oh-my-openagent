@@ -89,10 +89,10 @@ function checkProductGates() {
     }, [{ memberRecords: 0 }, { mailDelivered: false }, { memberSessionContexts: [] },
       { memberContextMatches: false }, { failedMembers: 1 }, { perChildRpcProcessCount: 1 }]],
     [reopenPass, {
-      childCompleted: "completed", parkObserved: true, reopenExit: 0,
+      childCompleted: "completed", parkObserved: true, reopenExit: null, reviveAccepted: true,
       transcriptLinesBeforeReopen: 10, transcriptLinesAfterReopen: 16,
       reopenedCompleted: true, reopenMessageDelivered: true, sameChildSession: true,
-    }, [{ childCompleted: "error" }, { parkObserved: false }, { transcriptLinesAfterReopen: 10 },
+    }, [{ childCompleted: "error" }, { parkObserved: false }, { reviveAccepted: false }, { transcriptLinesAfterReopen: 10 },
       { reopenedCompleted: false }, { reopenMessageDelivered: false }, { sameChildSession: false }]],
     [stormPass, {
       hostPid: 123, childrenStarted: 0, bashCallRecords: 240,

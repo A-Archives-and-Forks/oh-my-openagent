@@ -22,6 +22,17 @@ export async function scenarioB(run) {
         finish();
       });`,
     },
+  }, {
+    type: "tool_call", name: "eval", arguments: {
+      language: "js", summary: "remain mid-turn until the parent reattaches", timeout: 660,
+      code: `await new Promise((resolve, reject) => {
+        var finish = () => { if (!fs.existsSync(".omo/resume-release")) return;
+          clearTimeout(timer); watcher.close(); resolve(); };
+        var watcher = fs.watch(".omo", finish);
+        var timer = setTimeout(() => { watcher.close(); reject(new Error("resume release missing")); }, 600000);
+        finish();
+      });`,
+    },
   }, ...CHILD_DONE]
   const sandbox = createScenarioSandbox(run, "sB", { omoConfig: hostConfig(), script: holdParent(spawnScript(4, childSteps)) })
   let parent
@@ -46,18 +57,36 @@ export async function scenarioB(run) {
   writeMockScript(sandbox, {
     parentSteps: [
       ...records.map((r) => ({ type: "tool_call", name: "task_output", arguments: { task_id: r.task_id, mode: "status" } })),
+      {
+        type: "tool_call", name: "eval", arguments: {
+          language: "js", summary: "release reattached children and observe their completion", timeout: 660,
+          code: `var fs = await import("node:fs");
+            var ids = ${JSON.stringify(records.map((r) => r.task_id))};
+            await new Promise((resolve, reject) => {
+              var finish = () => {
+                var done = ids.map(id => JSON.parse(fs.readFileSync(".omo/senpi-task/tasks/" + id + ".json", "utf8")));
+                if (!done.every(r => ["completed", "error", "lost", "cancelled"].includes(r.status))) return;
+                clearTimeout(timer); watcher.close(); resolve();
+              };
+              var watcher = fs.watch(".omo/senpi-task/tasks", finish);
+              var timer = setTimeout(() => { watcher.close(); reject(new Error("reattached children did not finish")); }, 600000);
+              fs.writeFileSync(".omo/resume-release", "release");
+              finish();
+            });`,
+        },
+      },
       { type: "text", text: resumeMarker },
     ],
-    childSteps: CHILD_DONE,
+    childSteps,
   })
   let resumed
+  const parentAnswered = () => session && jsonlLines(session).slice(linesBeforeResume).some((line) => {
+    const row = JSON.parse(line)
+    return row.message?.role === "assistant" && row.message?.content?.some((part) => part.type === "text" && part.text === resumeMarker)
+  })
   const acknowledged = session && await observeState(sandbox.root, () => {
     const done = readTaskRecords(sandbox).filter((r) => records.some((old) => old.task_id === r.task_id))
-    const answered = jsonlLines(session).slice(linesBeforeResume).some((line) => {
-      const row = JSON.parse(line)
-      return row.message?.role === "assistant" && row.message?.content?.some((part) => part.type === "text" && part.text === resumeMarker)
-    })
-    return answered && childrenSettled(done, 4) ? { done, answered } : undefined
+    return parentAnswered() && childrenSettled(done, 4) ? done : undefined
   }, { trigger: () => { resumed = spawnParent(sandbox, run.mockEntry, "resume the detached children", { capture: true, session }) } })
   const replays = Object.fromEntries(records.map((record) => [
     record.task_id,
@@ -69,11 +98,12 @@ export async function scenarioB(run) {
   ]))
   const facts = {
     childrenStarted: records.filter((r) => r.status === "running").length,
-    childrenCompleted: acknowledged?.done.filter((r) => r.status === "completed").length ?? 0,
+    childrenCompleted: (acknowledged || readTaskRecords(sandbox)).filter((r) =>
+      records.some((old) => old.task_id === r.task_id) && r.status === "completed").length,
     transcriptLinesBefore: before, transcriptLinesAfter: grew ?? transcriptSizes(sandbox, records),
     grewAfterParentExit: grew !== undefined,
     resumeExit: resumed?.child.exitCode ?? null,
-    resumeAcknowledged: acknowledged?.answered === true,
+    resumeAcknowledged: parentAnswered() === true,
     sameParentSession: !!session && jsonlLines(session).some((line) => {
       const row = JSON.parse(line)
       return row.type === "session" && row.id === sessionId
