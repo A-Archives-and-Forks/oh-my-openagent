@@ -10,6 +10,8 @@ import {
 	acquireCacheLock,
 	deriveOmobAiVersion,
 	ensureCacheClone,
+	fetchCacheClones,
+	fetchRefArgs,
 	hostTargetFor,
 	packSoleSenpiTarball,
 	parseOmobArgs,
@@ -298,4 +300,42 @@ describe("ensureCacheClone submodule ordering", () => {
 			rmSync(rootDir, { recursive: true, force: true })
 		}
 	}, 120_000)
+})
+
+describe("fetchCacheClones", () => {
+	const specs = [
+		{ url: "https://example.invalid/senpi.git", directory: "/cache/senpi", ref: "origin/main" },
+		{ url: "https://example.invalid/omo.git", directory: "/cache/omo", ref: "origin/dev" },
+	] as const
+
+	test("#given two independent clones #when the refresh fetches them #then neither waits for the other to finish", async () => {
+		const events: string[] = []
+		await fetchCacheClones(specs, async (spec) => {
+			events.push(`start:${spec.directory}`)
+			await Promise.resolve()
+			await Promise.resolve()
+			events.push(`end:${spec.directory}`)
+		})
+		expect(events).toHaveLength(4)
+		// Serialized fetches produce start,end,start,end; the launch path pays one network
+		// round trip per repository, so the second start must precede the first end.
+		expect(events.indexOf("start:/cache/omo")).toBeLessThan(events.indexOf("end:/cache/senpi"))
+	})
+
+	test("#given one failing fetch #when both run #then the failure is reported", async () => {
+		const attempted: string[] = []
+		const failing = fetchCacheClones(specs, async (spec) => {
+			attempted.push(spec.directory)
+			if (spec.directory === "/cache/omo") throw new Error("fetch refused")
+		})
+		await expect(failing).rejects.toThrow("fetch refused")
+		expect(attempted).toHaveLength(2)
+	})
+
+	test("#given a plain branch ref #when fetch args are built #then only that branch is fetched, and anything else falls back to the whole remote", () => {
+		expect(fetchRefArgs("origin/dev")).toEqual(["--prune", "origin", "+refs/heads/dev:refs/remotes/origin/dev"])
+		expect(fetchRefArgs("origin/main")).toEqual(["--prune", "origin", "+refs/heads/main:refs/remotes/origin/main"])
+		expect(fetchRefArgs("origin/dev~1")).toEqual(["--prune", "origin"])
+		expect(fetchRefArgs("a".repeat(40))).toEqual(["--prune", "origin"])
+	})
 })
