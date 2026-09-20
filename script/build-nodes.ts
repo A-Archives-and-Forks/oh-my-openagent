@@ -28,14 +28,18 @@ export const BUILD_NODES: BuildNode[] = [
 
 /**
  * A profile names the nodes a consumer actually needs; its dependency closure is added
- * automatically. `omo-native` is empty on purpose: the compiled binary embeds only the Senpi
- * plugin payload, which `build-omo-native.ts` builds itself into a temp directory, and the two
- * MCP runtime dists it needs are produced on demand by `ensurePrebuiltNativeInputs`. Everything
- * else this graph emits (the OpenCode plugin bundle, the Codex Light plugin and its components,
- * the CLI, the TUI, schemas, declarations) is never read by the binary build.
+ * automatically.
+ *
+ * `omo-native` keeps the two MCP runtime dists the binary embeds. They cannot be left to
+ * `ensurePrebuiltNativeInputs`, which builds them only when the artifact is ABSENT: a dist left
+ * in the cache clone by an older commit would then be embedded under the new commit's
+ * provenance. Everything else this graph emits (the OpenCode plugin bundle, the Codex Light
+ * plugin and its components, the CLI, the TUI, schemas, declarations, and the source-tree copy
+ * of the Senpi plugin that `build-omo-native.ts` rebuilds for itself) is never read by the
+ * binary build.
  */
 export const BUILD_PROFILES: Record<string, readonly string[]> = {
-	"omo-native": [],
+	"omo-native": ["lsp-daemon", "ast-grep-mcp"],
 }
 
 export function selectBuildNodes(

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { versionLines, type OmoBuildInfo } from "../packages/omo-native/build-info"
@@ -28,7 +28,9 @@ function spawnCountingFixture(root: string): Fixture {
 	const install = (versionOutput: string): void => {
 		writeFileSync(`${binary}.version`, versionOutput)
 		writeFileSync(`${binary}.spawns`, "")
-		// Published the way installBinary publishes: a rename, so every install is a new inode.
+		// Removed and rewritten so each install lands on a new inode, which is the property under
+		// test. installBinary itself publishes via renameSync; this fixture only reproduces the
+		// resulting identity change, not the atomicity.
 		const temporary = `${binary}.tmp`
 		writeFileSync(temporary, `#!/bin/sh\nprintf x >> "$0.spawns"\ncat "$0.version"\n`, { mode: 0o755 })
 		rmSync(binary, { force: true })
@@ -95,6 +97,34 @@ describe("omob provenance marker", () => {
 				expect(readProvenanceMarker(fixture.binary)).toBeUndefined()
 				expect(isCurrentOmobBuild(fixture.binary, info, hostTarget)).toBe(true)
 				expect(fixture.spawns()).toBe(1)
+			})
+		},
+	)
+
+	test.skipIf(process.platform === "win32")(
+		"#given a marker whose JSON is not an object #when it is read #then it is ignored instead of crashing the launch",
+		() => {
+			withFixture("omob-prov-shape-", (fixture) => {
+				// These shapes reach property access before the type guards, so a throw here does not
+				// degrade to a spawn - it takes down every omob launch.
+				for (const body of ["null", "123", '"text"', "[]", '{"identity":null,"versionOutput":"x"}', '{"identity":{},"versionOutput":"x"}', '{"identity":{"dev":1,"ino":2,"size":3},"versionOutput":"x"}', '{"identity":{"dev":1,"ino":2,"size":3,"mtimeMs":4}}']) {
+					writeFileSync(provenancePath(fixture.binary), body)
+					expect(() => readProvenanceMarker(fixture.binary)).not.toThrow()
+					expect(readProvenanceMarker(fixture.binary)).toBeUndefined()
+					expect(isCurrentOmobBuild(fixture.binary, info, hostTarget)).toBe(true)
+				}
+			})
+		},
+	)
+
+	test.skipIf(process.platform === "win32")(
+		"#given the executable's mode changes #when provenance is read #then the marker no longer speaks for it",
+		() => {
+			withFixture("omob-prov-mode-", (fixture) => {
+				writeProvenanceMarker(fixture.binary, expectedVersion)
+				expect(readProvenanceMarker(fixture.binary)).toBe(expectedVersion)
+				chmodSync(fixture.binary, 0o644)
+				expect(readProvenanceMarker(fixture.binary)).toBeUndefined()
 			})
 		},
 	)

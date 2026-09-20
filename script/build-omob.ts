@@ -215,7 +215,11 @@ export async function fetchCacheClones(
 	specs: readonly CacheCloneSpec[],
 	fetchOne: (spec: CacheCloneSpec) => Promise<void> = (spec) => runAsync("git", ["fetch", ...fetchRefArgs(spec.ref)], spec.directory),
 ): Promise<void> {
-	await Promise.all(specs.map((spec) => fetchOne(spec)))
+	// Every fetch must finish before a failure is reported: the caller releases the cache lock and
+	// exits on the error, and an abandoned `git fetch` would keep writing to that same cache.
+	const results = await Promise.allSettled(specs.map((spec) => fetchOne(spec)))
+	const failure = results.find((result) => result.status === "rejected")
+	if (failure !== undefined && failure.status === "rejected") throw failure.reason
 }
 
 function ensureCloneExists(url: string, directory: string): void {

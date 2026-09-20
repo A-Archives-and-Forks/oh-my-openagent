@@ -333,6 +333,26 @@ describe("fetchCacheClones", () => {
 		expect(attempted).toHaveLength(2)
 	})
 
+	test("#given one fetch fails while its sibling is still running #when the refresh reports the failure #then no fetch is left running against the cache", async () => {
+		const settled: string[] = []
+		let releaseSlow: (() => void) | undefined
+		const slow = new Promise<void>((resolve) => { releaseSlow = resolve })
+		const failing = fetchCacheClones(specs, async (spec) => {
+			if (spec.directory === "/cache/omo") throw new Error("fetch refused")
+			await slow
+			settled.push(spec.directory)
+		})
+		let reported = false
+		void failing.catch(() => undefined).then(() => { reported = true })
+		for (let tick = 0; tick < 12; tick++) await Promise.resolve()
+		// Reporting the failure while the sibling git process is still writing would let this
+		// process release the cache lock with a fetch still running against that cache.
+		expect(reported, "the refresh must not report failure while a sibling fetch is still running").toBe(false)
+		releaseSlow?.()
+		await expect(failing).rejects.toThrow("fetch refused")
+		expect(settled).toEqual(["/cache/senpi"])
+	})
+
 	test("#given one git log line pair #when commit info is parsed #then the commit and its date come from a single git call", () => {
 		expect(parseCommitLog("abc123\n2026-09-20T01:44:58+09:00\n")).toEqual({ commit: "abc123", committedAt: "2026-09-20T01:44:58+09:00" })
 		expect(parseCommitLog("")).toEqual({ commit: "", committedAt: "" })
