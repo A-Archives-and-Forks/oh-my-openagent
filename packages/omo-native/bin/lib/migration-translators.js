@@ -92,20 +92,20 @@ export function normalizeKeybinding(value) {
   return alternatives.length > 1 ? alternatives : alternatives[0]
 }
 
-function addAgent(agentName, parsed, agents, warnings) {
+function addAgent(agentName, parsed, agents, warnings, restrictedAgents) {
   const translated = agentFromMarkdown(parsed)
   agents[agentName] = Object.hasOwn(agents, agentName)
     ? mergeOmoConfig(agents[agentName], translated.entry).value
     : translated.entry
   if (translated.restricted) {
     agents[agentName].disable = true
-    warnings.push(`agents.${agentName} (disabled because its OpenCode restrictions cannot be represented)`)
+    restrictedAgents.add(agentName)
   }
   for (const key of translated.unsupported) warnings.push(`agents.${agentName}.${key} (unsupported; manual review required)`)
   return true
 }
 
-function addInlineAgents(config, agents, warnings) {
+function addInlineAgents(config, agents, warnings, restrictedAgents) {
   const source = isRecord(config.agent) ? config.agent : isRecord(config.agents) ? config.agents : {}
   let touched = false
   for (const [name, value] of Object.entries(source)) {
@@ -113,12 +113,12 @@ function addInlineAgents(config, agents, warnings) {
     const frontmatter = { ...value }
     const prompt = typeof frontmatter.prompt === "string" ? frontmatter.prompt : undefined
     delete frontmatter.prompt
-    touched = addAgent(name, { frontmatter, body: prompt }, agents, warnings) || touched
+    touched = addAgent(name, { frontmatter, body: prompt }, agents, warnings, restrictedAgents) || touched
   }
   return touched
 }
 
-function collectMarkdownAgents(configDir, agents, warnings) {
+function collectMarkdownAgents(configDir, agents, warnings, restrictedAgents) {
   const sourcePaths = []
   const walk = (dir, prefix, ancestors) => {
     const real = realpathSync(dir)
@@ -142,7 +142,7 @@ function collectMarkdownAgents(configDir, agents, warnings) {
       const content = readFileSync(path, "utf8")
       try {
         const parsed = parseAgentMarkdown(content)
-        addAgent(name, parsed, agents, warnings)
+        addAgent(name, parsed, agents, warnings, restrictedAgents)
       } catch (error) {
         if (!(error instanceof AgentFrontmatterError)) throw error
         warnings.push(`agents.${name} (malformed frontmatter; manual review required)`)
@@ -156,8 +156,9 @@ function collectMarkdownAgents(configDir, agents, warnings) {
 export function collectOmoAdditions(config, configDir, warnings, readFirstExisting) {
   const additions = {}
   const agents = {}
-  const sourcePaths = collectMarkdownAgents(configDir, agents, warnings)
-  addInlineAgents(config, agents, warnings)
+  const restrictedAgents = new Set()
+  const sourcePaths = collectMarkdownAgents(configDir, agents, warnings, restrictedAgents)
+  addInlineAgents(config, agents, warnings, restrictedAgents)
   if (Object.keys(agents).length > 0) additions.agents = agents
   const legacy = readFirstExisting(configDir, ["oh-my-openagent.json", "oh-my-openagent.jsonc", "oh-my-opencode.json", "oh-my-opencode.jsonc"])
   if (isRecord(legacy?.value)) {
@@ -175,5 +176,5 @@ export function collectOmoAdditions(config, configDir, warnings, readFirstExisti
     }
   }
   if (legacy !== undefined) sourcePaths.push(legacy.path)
-  return { additions, sourcePaths }
+  return { additions, sourcePaths, restrictedAgents }
 }

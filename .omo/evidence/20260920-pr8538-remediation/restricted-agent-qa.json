@@ -1,0 +1,126 @@
+{
+  "status": "PASS",
+  "consumer": "loadOmoConfig(harness:senpi)",
+  "results": [
+    {
+      "launcher": "node",
+      "source": "inline",
+      "state": "enabled",
+      "disable": false,
+      "prompt": null,
+      "warnings": [
+        "agents.reviewer (restricted source skipped; existing enabled agent preserved; manual review required)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "inline",
+      "state": "disabled",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "inline",
+      "state": "new",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "markdown",
+      "state": "enabled",
+      "disable": false,
+      "prompt": null,
+      "warnings": [
+        "agents.reviewer (restricted source skipped; existing enabled agent preserved; manual review required)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "markdown",
+      "state": "disabled",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "node",
+      "source": "markdown",
+      "state": "new",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "inline",
+      "state": "enabled",
+      "disable": false,
+      "prompt": null,
+      "warnings": [
+        "agents.reviewer (restricted source skipped; existing enabled agent preserved; manual review required)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "inline",
+      "state": "disabled",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "inline",
+      "state": "new",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "markdown",
+      "state": "enabled",
+      "disable": false,
+      "prompt": null,
+      "warnings": [
+        "agents.reviewer (restricted source skipped; existing enabled agent preserved; manual review required)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "markdown",
+      "state": "disabled",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    },
+    {
+      "launcher": "compiled",
+      "source": "markdown",
+      "state": "new",
+      "disable": true,
+      "prompt": "Restricted incoming prompt",
+      "warnings": [
+        "agents.reviewer (disabled because its OpenCode restrictions cannot be represented)"
+      ]
+    }
+  ]
+}
