@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs"
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 import { afterAll, describe, expect, test } from "bun:test"
@@ -60,6 +60,26 @@ function listRelativeFiles(root: string, prefix = ""): string[] {
 }
 
 describe("build:omo-native staged payload", () => {
+  test("#given the default output #when building #then tracked ignore rules and git status remain unchanged", () => {
+    const ignorePath = join(repoRoot, "packages", "omo-native", ".gitignore")
+    const before = readFileSync(ignorePath)
+    const beforeStatus = spawnSync("git", ["status", "--porcelain"], { cwd: repoRoot, encoding: "utf8" })
+    expect(beforeStatus.status).toBe(0)
+    try {
+      const result = runBuild([])
+      expect(result.exitCode, result.output.slice(-2000)).toBe(0)
+      expect(readFileSync(ignorePath)).toEqual(before)
+      for (const path of ["packages/omo-native/plugin/", "packages/omo-native/bin/lib/migration-runtime.js"]) {
+        expect(spawnSync("git", ["check-ignore", "--quiet", path], { cwd: repoRoot }).status).toBe(0)
+      }
+      const afterStatus = spawnSync("git", ["status", "--porcelain"], { cwd: repoRoot, encoding: "utf8" })
+      expect(afterStatus.status).toBe(0)
+      expect(afterStatus.stdout).toBe(beforeStatus.stdout)
+    } finally {
+      writeFileSync(ignorePath, before)
+    }
+  }, fullBuildTimeoutMs)
+
   describe("#given an empty staging directory", () => {
     describe("#when the completeness check runs", () => {
       test("#then it exits 1 naming the first missing artifact", () => {

@@ -10,7 +10,6 @@ import {
   readdirSync,
   rmSync,
   statSync,
-  writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
@@ -194,11 +193,6 @@ function main(argv: readonly string[]): number {
       `omo-native payload completeness check failed: missing required artifact: ${missing}`,
     )
     return 1
-  }
-  // Only the default package plugin dir is git-ignored; staging builds (--output)
-  // must leave packages/omo-native untouched.
-  if (!options.checkOnly && options.outputDir === defaultOutputDir) {
-    writeFileSync(join(packageDir, ".gitignore"), "/plugin/\n", "utf8")
   }
   console.log(
     `omo-native payload complete at ${options.outputDir} (${REQUIRED_PLUGIN_ARTIFACTS.length} required artifacts present)`,

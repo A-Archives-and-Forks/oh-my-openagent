@@ -8,14 +8,15 @@ Baseline: 9a6028354. No real credential store or provider service was used.
 Using exact-pinned Bun 1.4.0 with its bin directory first in PATH:
 
 ```text
-420 pass
+430 pass
 0 fail
-1340 expect() calls
-Ran 420 tests across 44 files. [28.80s]
+1360 expect() calls
+Ran 430 tests across 45 files. [34.03s]
 ```
 
 Command: from an isolated test cwd without unrelated adapter preloads,
-`bun test <worktree>/packages/omo-native/test`.
+`bun test <worktree>/packages/omo-native/test <worktree>/script/build-omo-native.test.ts`.
+This includes the complete native suite plus nine direct native-build tests.
 
 Regressions were observed failing before fixes: malformed-target partial writes,
 OAuth aliases, expression translation, content-copy rollback, compiled JSON
@@ -35,6 +36,8 @@ agents, verified through native loadOmoConfig and both actual launchers.
 and every profile's base and `[senpi]` layers.
 `round8.md` applies the same translation and safety guard to legacy shared-config
 agents, preserving native-compatible fields and warning on unsupported ones.
+`round9.md` verifies the default native build preserves tracked ignore rules and
+git status. Runtime code is unchanged from the round-8 binary/consumer receipts.
 
 An intermediate full-suite failure was caused by this change's additional generated
 file in `.gitignore`, not by unrelated code. The payload test's exact expected

@@ -1,3 +1,12 @@
+## 2026-09-20 - Native builds preserve tracked ignore rules
+
+The default native payload build no longer rewrites the tracked package
+`.gitignore`. Its old one-line rewrite removed the migration runtime's ignore rule,
+dirtying the checkout and exposing a generated bundle. The checked-in rules remain
+the source of truth for both `/plugin/` and `/bin/lib/migration-runtime.js`.
+The real default-output regression checks unchanged bytes, ignored outputs and
+unchanged git status; staged-output coverage remains in place.
+
 ## 2026-09-20 - Writing category chain drops to low rungs and gains a claude-opus-4-6 fallback (#8525)
 
 `writing` led with `claude-fable-5-1` at variant `medium` and had one fallback, `kimi-k3` at `max`. Prose delegation does not need that reasoning budget, and the single fallback left no Claude rung once Fable was unavailable, so a Fable outage routed every writing task to a max-variant Kimi run.
