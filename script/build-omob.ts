@@ -484,7 +484,12 @@ async function runBuild(options: OmobOptions): Promise<number> {
 	// build, so the dev-binary install always runs the full materialization.
 	const installEnv: NodeJS.ProcessEnv = { ...process.env }
 	delete installEnv.OMO_SKIP_MATERIALIZE
-	run("bun", ["install"], omoSpec.directory, installEnv)
+	// `bun install` triggers the root prepare, which otherwise builds the whole product - the
+	// OpenCode plugin bundle, the Codex Light plugin and its components, the CLI, the TUI,
+	// schemas and declarations - none of which the compiled binary embeds. build-omo-native
+	// builds the plugin payload it does embed, so the binary only needs the materialized
+	// frontend from that chain.
+	run("bun", ["install"], omoSpec.directory, { ...installEnv, OMO_BUILD_PROFILE: "omo-native" })
 	swapSenpi(omoSpec.directory, builtSenpiRoot)
 
 	// Imported here, not at module scope: the fast path returns above, and this module graph
