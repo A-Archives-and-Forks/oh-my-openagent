@@ -25,12 +25,14 @@ function snapshot(path) {
 }
 try {
   assert.ok(process.env.REVIEW_COMPILED_BINARY)
-  for (const launcher of ["node", "compiled"]) for (const state of ["new", "matching", "missing", "disabled", "globally-disabled"]) {
-    const existing = state !== "new" && state !== "globally-disabled"
+  for (const launcher of ["node", "compiled"]) for (const state of ["new", "new-missing", "matching", "missing", "disabled", "globally-disabled"]) {
+    const existing = state !== "new" && state !== "new-missing" && state !== "globally-disabled"
     const resolvable = state === "new" || state === "matching"
     const base = join(root, `${launcher}-${state}`)
     const home = join(base, "home"), agent = join(base, "agent"), config = join(base, "config", "opencode")
     mkdirSync(home, { recursive: true })
+    const scratch = join(base, "scratch")
+    mkdirSync(scratch)
     const destination = "azure-openai-responses"
     const kept = { api: "openai-completions", baseUrl: "https://kept.test/v1", models: [{ id: state === "missing" ? "different-deployment" : "deployment-a", name: "Existing" }], ...(state === "disabled" ? { disabled: true } : {}) }
     if (existing) write(join(agent, "models.json"), { providers: { [destination]: kept } })
@@ -38,7 +40,7 @@ try {
     write(join(agent, "settings.json"), { theme: "dark" })
     write(join(config, "opencode.json"), {
       model: "azure/deployment-a",
-      provider: { azure: { npm: "@ai-sdk/openai-compatible", options: { baseURL: "https://custom-azure.test/v1" }, models: { "deployment-a": { name: "Deployment A" } } } },
+      provider: { azure: { npm: "@ai-sdk/openai-compatible", options: { baseURL: "https://custom-azure.test/v1" }, models: { [state === "new-missing" ? "different-deployment" : "deployment-a"]: { name: "Deployment A" } } } },
     })
     const invoke = (mode) => spawnSync(launcher === "compiled" ? process.env.REVIEW_COMPILED_BINARY : process.execPath,
       [...(launcher === "node" ? [join(repo, "packages/omo-native/bin/omo.js")] : []), "migrate", mode], {
@@ -48,6 +50,7 @@ try {
           OMO_CODING_AGENT_DIR: agent, SENPI_CODING_AGENT_DIR: agent, PI_CODING_AGENT_DIR: agent,
           XDG_CONFIG_HOME: dirname(config), XDG_DATA_HOME: join(base, "data"),
           XDG_STATE_HOME: join(base, "state"), XDG_CACHE_HOME: join(base, "cache"),
+          TMPDIR: scratch, TMP: scratch, TEMP: scratch,
         },
       })
     const before = snapshot(base)

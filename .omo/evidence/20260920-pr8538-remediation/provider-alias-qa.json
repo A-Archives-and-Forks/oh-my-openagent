@@ -29,6 +29,31 @@
     },
     {
       "launcher": "node",
+      "state": "new-missing",
+      "previewReadOnly": true,
+      "settings": {
+        "theme": "dark"
+      },
+      "defaultResolves": false,
+      "providerIds": [
+        "azure-openai-responses"
+      ],
+      "provider": {
+        "baseUrl": "https://custom-azure.test/v1",
+        "models": [
+          {
+            "id": "different-deployment",
+            "name": "Deployment A"
+          }
+        ],
+        "api": "openai-completions"
+      },
+      "warnings": [
+        "settings.default model (unavailable in destination catalog; manual review required)"
+      ]
+    },
+    {
+      "launcher": "node",
       "state": "matching",
       "previewReadOnly": true,
       "settings": {
@@ -77,7 +102,7 @@
       },
       "warnings": [
         "models.azure-openai-responses (existing destination provider preserved; differing source azure skipped; manual review required)",
-        "settings.default model (unavailable in preserved destination catalog; manual review required)"
+        "settings.default model (unavailable in destination catalog; manual review required)"
       ]
     },
     {
@@ -104,7 +129,7 @@
       },
       "warnings": [
         "models.azure-openai-responses (existing destination provider preserved; differing source azure skipped; manual review required)",
-        "settings.default model (unavailable in preserved destination catalog; manual review required)"
+        "settings.default model (unavailable in destination catalog; manual review required)"
       ]
     },
     {
@@ -129,7 +154,7 @@
         "api": "openai-completions"
       },
       "warnings": [
-        "settings.default model (unavailable in preserved destination catalog; manual review required)"
+        "settings.default model (unavailable in destination catalog; manual review required)"
       ]
     },
     {
@@ -159,6 +184,31 @@
     },
     {
       "launcher": "compiled",
+      "state": "new-missing",
+      "previewReadOnly": true,
+      "settings": {
+        "theme": "dark"
+      },
+      "defaultResolves": false,
+      "providerIds": [
+        "azure-openai-responses"
+      ],
+      "provider": {
+        "baseUrl": "https://custom-azure.test/v1",
+        "models": [
+          {
+            "id": "different-deployment",
+            "name": "Deployment A"
+          }
+        ],
+        "api": "openai-completions"
+      },
+      "warnings": [
+        "settings.default model (unavailable in destination catalog; manual review required)"
+      ]
+    },
+    {
+      "launcher": "compiled",
       "state": "matching",
       "previewReadOnly": true,
       "settings": {
@@ -207,7 +257,7 @@
       },
       "warnings": [
         "models.azure-openai-responses (existing destination provider preserved; differing source azure skipped; manual review required)",
-        "settings.default model (unavailable in preserved destination catalog; manual review required)"
+        "settings.default model (unavailable in destination catalog; manual review required)"
       ]
     },
     {
@@ -234,7 +284,7 @@
       },
       "warnings": [
         "models.azure-openai-responses (existing destination provider preserved; differing source azure skipped; manual review required)",
-        "settings.default model (unavailable in preserved destination catalog; manual review required)"
+        "settings.default model (unavailable in destination catalog; manual review required)"
       ]
     },
     {
@@ -259,7 +309,7 @@
         "api": "openai-completions"
       },
       "warnings": [
-        "settings.default model (unavailable in preserved destination catalog; manual review required)"
+        "settings.default model (unavailable in destination catalog; manual review required)"
       ]
     }
   ]

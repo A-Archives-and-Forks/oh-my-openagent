@@ -10,7 +10,7 @@ import { collectOmoAdditions, KEYBIND_MAP, normalizeKeybinding, normalizePermiss
 import { readOpencodeConfigDir, translateMcpServer } from "./setup-content.js"
 import { UnsupportedConfigValue } from "./config-values.js"
 import { readOpencodeConfigFiles } from "./opencode-config.js"
-import { canResolveExistingModel } from "./migration-model-resolution.js"
+import { canResolveModel } from "./migration-model-resolution.js"
 
 const MIGRATION_VERSION = 2
 const HANDLED_CONFIG_KEYS = new Set(["$schema", "model", "permission", "provider", "mcp", "agent", "agents"])
@@ -122,13 +122,12 @@ export async function planMigration(options) {
       warnings.push("settings.model (unsupported model reference; manual review required)")
     } else if (settings.defaultProvider === undefined && settings.defaultModel === undefined) {
       const provider = resolveProviderAlias(rawProvider)
-      const resolvable = !existingModels.disabledProviders?.includes(provider)
-        && (!Object.hasOwn(existingModels.providers, provider) || await canResolveExistingModel(modelsTarget.path, provider, model))
+      const resolvable = await canResolveModel(modelsNext, provider, model)
       if (resolvable) {
         settings.defaultProvider = provider
         settings.defaultModel = model
         settingsTouched = true
-      } else warnings.push("settings.default model (unavailable in preserved destination catalog; manual review required)")
+      } else warnings.push("settings.default model (unavailable in destination catalog; manual review required)")
     } else if (settings.defaultProvider === undefined || settings.defaultModel === undefined) {
       warnings.push("settings.default model (preserved existing partial provider/model pair)")
     }

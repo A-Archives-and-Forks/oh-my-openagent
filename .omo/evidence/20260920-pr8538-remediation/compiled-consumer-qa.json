@@ -28,7 +28,7 @@
         "--dry-run"
       ],
       "status": 0,
-      "stdout": "DRY RUN: no files will be written\nsettings: migrated\nmodels: migrated\nmcp: migrated\nkeybindings: migrated\nomo-config: migrated\nmanual-review: agents.restricted (disabled because its OpenCode restrictions cannot be represented), keybindings.session_new (unsupported; manual review required), omo-config.codegraph (unsupported by omo.json; manual review required), settings.default model (preserved existing partial provider/model pair)\n",
+      "stdout": "DRY RUN: no target files will be changed\nsettings: migrated\nmodels: migrated\nmcp: migrated\nkeybindings: migrated\nomo-config: migrated\nmanual-review: agents.restricted (disabled because its OpenCode restrictions cannot be represented), keybindings.session_new (unsupported; manual review required), omo-config.codegraph (unsupported by omo.json; manual review required), settings.default model (preserved existing partial provider/model pair)\n",
       "stderr": ""
     },
     {
@@ -89,7 +89,7 @@
       ],
       "status": 1,
       "stdout": "",
-      "stderr": "omo: Malformed migration config: /var/folders/d7/2hnp97055zlcf6r_bygm1_4r0000gn/T/omo-pr8538-final-NioCJU/malformed-mcp/custom/agent/mcp.json\n"
+      "stderr": "omo: Malformed migration config: /var/folders/d7/2hnp97055zlcf6r_bygm1_4r0000gn/T/omo-pr8538-final-UoyXHl/malformed-mcp/custom/agent/mcp.json\n"
     },
     {
       "scenario": "old-marker-repair",

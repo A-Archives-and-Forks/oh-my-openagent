@@ -29,11 +29,12 @@ environment references and upstream model IDs, and converts key alternatives/`no
 Provider definitions use the same destination alias as defaults. A differing
 definition at that destination is preserved with a manual-review warning; equal
 definitions remain no-ops on rerun.
-New defaults are selected after provider reconciliation. When the destination
-provider is preserved, its actual native catalog must resolve the requested model;
-otherwise existing settings remain unchanged with a manual-review warning.
-Globally disabled providers are not selected. The engine SDK is loaded lazily for
-this read-only lookup, with empty credentials and model-network refresh disabled.
+New defaults are selected after provider reconciliation. The complete proposed
+native catalog, including newly imported definitions, must resolve the requested
+model; otherwise existing settings remain unchanged with a manual-review warning.
+The declared engine SDK inspects a private scratch catalog (removed in finally)
+with empty credentials and model-network refresh disabled. No migration target is
+changed by preview, and disabled/filter rules are handled by the native composer.
 Unsupported chords, config expressions and settings produce manual-review warnings.
 Restricted Markdown/inline/legacy agents remain disabled pending review; existing agent and
 category leaves take precedence over imported values.
