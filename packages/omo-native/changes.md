@@ -1,3 +1,13 @@
+## Setup migration review corrections
+
+OAuth re-auth guidance now maps source aliases and excludes gateway/unknown IDs
+from executable login advice. MCP environment references translate to `${VAR}`;
+file references and unsupported command expressions are reported for manual
+review rather than copied as literal credentials. Malformed target MCP objects
+stop setup before credential writes. A caught content-copy failure restores
+previous credential/MCP bytes and removes newly copied skill directories.
+Evidence: `.omo/evidence/20260920-pr8538-remediation/setup/`.
+
 ## omo migrate - the opencode codemod
 
 `omo migrate [--dry-run|--yes]` translates an existing global opencode setup into omo-native state in

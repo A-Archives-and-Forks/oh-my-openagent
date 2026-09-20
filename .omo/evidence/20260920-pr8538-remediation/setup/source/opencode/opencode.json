@@ -1,0 +1,14 @@
+{
+  "mcp": {
+    "local": {
+      "type": "local",
+      "command": ["node", "dummy-mcp.js"],
+      "environment": {"TOKEN": "{env:REVIEW_MCP_TOKEN}"}
+    },
+    "remote": {
+      "type": "remote",
+      "url": "https://example.test/mcp",
+      "headers": {"Authorization": "Bearer {env:REVIEW_MCP_TOKEN}"}
+    }
+  }
+}

@@ -9,6 +9,7 @@ import { detectHarnesses } from "./setup-detect.js"
 import { readRow, readRows } from "./sqlite-rows.js"
 import { printModelReport } from "./setup-models.js"
 import { printSetupReport } from "./setup-report.js"
+import { withSetupRollback } from "./setup-transaction.js"
 import {
   contentPlanHasWork, planContentImport, printContentCounts, printContentPlan,
   readOpencodeConfigDir, writeContentImport,
@@ -131,6 +132,14 @@ function classify(plan, existing) {
   const skippedExisting = []
   const skippedGateway = []
   const skippedUnmapped = []
+  const skippedOauth = []
+  const providerMap = readProviderMap()
+  for (const provider of plan.oauth) {
+    const mapped = targetProvider(provider, providerMap)
+    if (mapped) skippedOauth.push(mapped)
+    else if (providerMap.excludedHostedGatewayIds.includes(provider)) skippedGateway.push(provider)
+    else skippedUnmapped.push(provider)
+  }
   const reserved = new Set(Object.keys(existing))
   for (const item of plan.candidates) {
     if (item.unmapped) {
@@ -145,7 +154,7 @@ function classify(plan, existing) {
   return {
     additions,
     skippedExisting: sorted(skippedExisting),
-    skippedOauth: sorted(plan.oauth),
+    skippedOauth: sorted(skippedOauth),
     skippedGateway: sorted(skippedGateway),
     skippedUnmapped: sorted(skippedUnmapped),
   }
@@ -254,8 +263,17 @@ export async function runSetup(args = process.argv.slice(2), options = {}) {
     if (runtime.stdin.isTTY === true) process.stdout.write("Import cancelled\n")
     return
   }
-  if (result.additions.length > 0) writeTarget(target, current, result.additions)
-  const written = writeContentImport(content, { configDir, agentDir })
+  const files = []
+  if (result.additions.length > 0) files.push(target)
+  if (content.mcp.add.length > 0) files.push(join(agentDir, "mcp.json"))
+  if (content.agentsMd === "copy") files.push(join(agentDir, "AGENTS.md"))
+  const written = withSetupRollback({
+    files,
+    newDirectories: content.skills.add.map((name) => join(agentDir, "skills", name)),
+  }, () => {
+    if (result.additions.length > 0) writeTarget(target, current, result.additions)
+    return writeContentImport(content, { configDir, agentDir })
+  })
   printCounts(result)
   printContentCounts(written)
 }

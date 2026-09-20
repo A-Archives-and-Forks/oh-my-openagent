@@ -1,6 +1,22 @@
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, unlinkSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { parseJsoncLite } from "./jsonc-lite.js"
+import { translateOpencodeValue, UnsupportedConfigValue } from "./config-values.js"
+
+function translateMcpValue(value) {
+  if (typeof value === "string") {
+    const translated = translateOpencodeValue(value)
+    if (translated.trimStart().startsWith("!") || translated.includes("$(")) throw new UnsupportedConfigValue()
+    return translated
+  }
+  if (Array.isArray(value)) return value.map(translateMcpValue)
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, translateMcpValue(item)]))
+  return value
+}
+
+function isObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+}
 
 export function readOpencodeConfigDir(home, env) {
   const xdgConfig = env.XDG_CONFIG_HOME || join(home, ".config")
@@ -26,7 +42,7 @@ export function translateMcpServer(server) {
     if (typeof server.cwd === "string") out.cwd = server.cwd
     if (typeof server.enabled === "boolean") out.enabled = server.enabled
     if (typeof server.timeout === "number") out.startupTimeoutMs = server.timeout
-    return out
+    return translateMcpValue(out)
   }
   if (server.type === "remote") {
     if (typeof server.url !== "string") return undefined
@@ -34,7 +50,7 @@ export function translateMcpServer(server) {
     if (server.headers && typeof server.headers === "object") out.headers = server.headers
     if (typeof server.enabled === "boolean") out.enabled = server.enabled
     if (typeof server.timeout === "number") out.requestTimeoutMs = server.timeout
-    return out
+    return translateMcpValue(out)
   }
   return undefined
 }
@@ -65,11 +81,10 @@ export function planContentImport({ configDir, agentDir }) {
       if (existsSync(targetPath)) {
         try {
           const parsed = JSON.parse(readFileSync(targetPath, "utf8"))
-          if (parsed && typeof parsed === "object" && parsed.mcpServers && typeof parsed.mcpServers === "object") {
-            existingServers = parsed.mcpServers
-          }
+          if (!isObject(parsed) || (parsed.mcpServers !== undefined && !isObject(parsed.mcpServers))) throw new SyntaxError("expected MCP object")
+          existingServers = parsed.mcpServers ?? {}
         } catch {
-          plan.notices.push("WARN senpi: could not parse existing mcp.json; MCP import skipped")
+          throw new Error("Malformed mcp.json; setup did not write any files")
         }
       }
       for (const [name, server] of Object.entries(mcp)) {
@@ -77,7 +92,12 @@ export function planContentImport({ configDir, agentDir }) {
           plan.mcp.skipExisting.push(name)
           continue
         }
-        const translated = translateMcpServer(server)
+        let translated
+        try {
+          translated = translateMcpServer(server)
+        } catch (error) {
+          if (!(error instanceof UnsupportedConfigValue)) throw error
+        }
         if (translated === undefined) {
           plan.mcp.invalid.push(name)
           continue

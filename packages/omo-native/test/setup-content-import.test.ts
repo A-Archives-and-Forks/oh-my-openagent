@@ -45,6 +45,91 @@ afterEach(() => {
 })
 
 describe("omo setup content inheritance", () => {
+  test.skipIf(process.platform === "win32")("#given a skill copy fails after credentials and MCP writes #when setup applies #then earlier target bytes are restored", () => {
+    const item = fixture()
+    const originalAuth = '{"google":{"type":"api_key","key":"EXISTING"}}\n'
+    const originalMcp = '{"mcpServers":{}}\n'
+    write(join(item.agentDir, "auth.json"), originalAuth)
+    write(join(item.agentDir, "mcp.json"), originalMcp)
+    write(join(item.xdgData, "opencode", "auth.json"), JSON.stringify({ openai: { type: "api", key: "DUMMY" } }))
+    write(join(item.xdgConfig, "opencode", "opencode.json"), JSON.stringify({
+      mcp: { web: { type: "remote", url: "https://example.test/mcp" } },
+    }))
+    const skill = join(item.xdgConfig, "opencode", "skills", "broken")
+    write(join(skill, "SKILL.md"), "---\nname: broken\ndescription: fixture\n---\n")
+    const fifo = spawnSync("mkfifo", [join(skill, "pipe")])
+    expect(fifo.status).toBe(0)
+
+    const result = run(item, ["setup", "--yes"])
+
+    expect(result.status).toBe(1)
+    expect(readFileSync(join(item.agentDir, "auth.json"), "utf8")).toBe(originalAuth)
+    expect(readFileSync(join(item.agentDir, "mcp.json"), "utf8")).toBe(originalMcp)
+    expect(existsSync(join(item.agentDir, "skills", "broken"))).toBe(false)
+  })
+
+  test("#given malformed target MCP and new credentials #when setup applies #then no credentials or content are changed", () => {
+    const item = fixture()
+    write(join(item.xdgData, "opencode", "auth.json"), JSON.stringify({ openai: { type: "api", key: "DUMMY" } }))
+    write(join(item.xdgConfig, "opencode", "opencode.json"), JSON.stringify({
+      mcp: { web: { type: "remote", url: "https://example.test/mcp" } },
+    }))
+    write(join(item.agentDir, "mcp.json"), "{")
+
+    const result = run(item, ["setup", "--yes"])
+
+    expect(result.status).toBe(1)
+    expect(existsSync(join(item.agentDir, "auth.json"))).toBe(false)
+    expect(readFileSync(join(item.agentDir, "mcp.json"), "utf8")).toBe("{")
+    expect(readdirSync(item.agentDir)).toEqual(["mcp.json"])
+  })
+
+  test.each(["null", "[]", '{"mcpServers":[]}'])("#given invalid MCP target %s #when setup applies #then no writes occur", (target) => {
+    const item = fixture()
+    write(join(item.xdgData, "opencode", "auth.json"), JSON.stringify({ openai: { type: "api", key: "DUMMY" } }))
+    write(join(item.xdgConfig, "opencode", "opencode.json"), JSON.stringify({
+      mcp: { web: { type: "remote", url: "https://example.test/mcp" } },
+    }))
+    write(join(item.agentDir, "mcp.json"), target)
+
+    const result = run(item, ["setup", "--yes"])
+
+    expect(result.status).toBe(1)
+    expect(existsSync(join(item.agentDir, "auth.json"))).toBe(false)
+    expect(readFileSync(join(item.agentDir, "mcp.json"), "utf8")).toBe(target)
+  })
+
+  test("#given MCP environment references #when setup applies #then the target retains resolvable environment expressions", () => {
+    const item = fixture()
+    write(join(item.xdgConfig, "opencode", "opencode.json"), JSON.stringify({
+      mcp: {
+        local: { type: "local", command: ["node", "mcp.js"], environment: { TOKEN: "{env:MCP_TOKEN}" } },
+        remote: { type: "remote", url: "https://example.test/mcp", headers: { Authorization: "Bearer {env:MCP_TOKEN}" } },
+      },
+    }))
+
+    const result = run(item, ["setup", "--yes"])
+
+    expect(result.status).toBe(0)
+    const target = JSON.parse(readFileSync(join(item.agentDir, "mcp.json"), "utf8"))
+    expect(target.mcpServers.local.env.TOKEN).toBe("${MCP_TOKEN}")
+    expect(target.mcpServers.remote.headers.Authorization).toBe("Bearer ${MCP_TOKEN}")
+  })
+
+  test("#given a file reference in MCP credentials #when setup applies #then the unsupported server is not silently enabled", () => {
+    const item = fixture()
+    write(join(item.xdgConfig, "opencode", "opencode.json"), JSON.stringify({
+      mcp: { remote: { type: "remote", url: "https://example.test/mcp", headers: { Authorization: "{file:/secret-value}" } } },
+    }))
+
+    const result = run(item, ["setup", "--yes"])
+
+    expect(result.status).toBe(0)
+    expect(existsSync(join(item.agentDir, "mcp.json"))).toBe(false)
+    expect(result.stdout).toContain("remote")
+    expect(result.stdout).not.toContain("/secret-value")
+  })
+
   test("#given opencode mcp config with local and remote servers #when accepted #then mcp.json is written in senpi shape", () => {
     const item = fixture()
     write(join(item.xdgConfig, "opencode", "opencode.json"), JSON.stringify({

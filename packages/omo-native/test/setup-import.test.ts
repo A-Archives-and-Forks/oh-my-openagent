@@ -148,6 +148,26 @@ afterEach(() => {
 })
 
 describe("omo setup credential inheritance", () => {
+  test("#given OAuth aliases gateways and unknown providers #when setup reports login targets #then only mapped vendor IDs are executable", () => {
+    const item = fixture()
+    write(join(item.xdg, "opencode", "auth.json"), JSON.stringify({
+      "anthropic-api": { type: "oauth", access: secrets[0] },
+      opencode: { type: "oauth", access: secrets[1] },
+      "unknown-oauth": { type: "oauth", access: secrets[2] },
+    }))
+
+    const result = run(item, ["setup", "--yes"])
+
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain("/login anthropic'")
+    expect(result.stdout).not.toContain("/login anthropic-api")
+    expect(result.stdout).not.toContain("/login opencode")
+    expect(result.stdout).not.toContain("/login unknown-oauth")
+    expect(result.stdout).toContain("skipped-gateway: opencode")
+    expect(result.stdout).toContain("skipped-unmapped: unknown-oauth")
+    expect(existsSync(join(item.agentDir, "auth.json"))).toBe(false)
+  })
+
   test("#given opencode api oauth mapped and gateway entries #when accepted #then only safe api ids import", () => {
     const item = fixture()
     write(join(item.xdg, "opencode", "auth.json"), JSON.stringify({
