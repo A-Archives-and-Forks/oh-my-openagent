@@ -1,0 +1,10 @@
+{
+  "items": {
+    "settings": true,
+    "models": true,
+    "mcp": true,
+    "keybindings": true,
+    "agents": true,
+    "omo-config": true
+  }
+}

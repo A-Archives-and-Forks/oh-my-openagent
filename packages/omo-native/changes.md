@@ -1,3 +1,16 @@
+## omo migrate - the opencode codemod
+
+`omo migrate [--dry-run|--yes]` translates an existing global opencode setup into omo-native state in
+one pass: `model`/`permission` into `settings.json` (never overwriting keys the user already has),
+custom `provider` blocks into `models.json` (senpi's array shape, limits -> contextWindow/maxTokens,
+npm package -> `api` mapping with manual-review notes when unknown), the `mcp` block into `mcp.json`,
+`tui.json` keybinds into `keybindings.json` (best-effort id map; unmatched ids are reported, and
+leader-key setups are named as unmappable), agent markdown into `omo.jsonc` `agents`, and the shared
+omo schema keys (categories/agents/task/teams/codegraph) out of `oh-my-openagent.json(c)` into
+`omo.jsonc`. Sources and prior targets are backed up under `migration-backup-<ts>/`, unmappable keys
+are printed as `dropped-with-warning` and written to `migration-notes.md`, and a state marker makes
+re-runs idempotent. `--dry-run` prints the full plan without touching a single file.
+
 ## omo setup inherits opencode content, and names every skipped OAuth provider
 
 `omo setup` now reads the global opencode config dir beyond credentials: `mcp` servers translate

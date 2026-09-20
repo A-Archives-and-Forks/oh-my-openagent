@@ -1,0 +1,8 @@
+settings: migrated
+models: migrated
+mcp: migrated
+keybindings: migrated
+keybinds-unmatched: leader, theme_list
+agents: migrated
+omo-config: migrated
+dropped-with-warning: omo-config.runtime_fallback, omo-config.tmux, settings.autoupdate, settings.small_model
