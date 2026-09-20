@@ -30,20 +30,20 @@ describe("category routing policy", () => {
     ])
   })
 
-  test("deep is limited to a single sol-family medium rung", () => {
+  test("each deep lane is a single rung, so the lanes never substitute each other", () => {
     // given
-    const deep = CATEGORY_MODEL_REQUIREMENTS["deep"]
-
-    // when
-    const chain = deep.fallbackChain
+    const low = CATEGORY_MODEL_REQUIREMENTS["deep-low"]
+    const high = CATEGORY_MODEL_REQUIREMENTS["deep-high"]
 
     // then
-    expect(chain).toEqual([
+    expect(high.fallbackChain).toEqual([
       {
         providers: ["openai", "openai-codex", "github-copilot", "opencode"],
         model: "gpt-6-astra",
         variant: "high",
       },
+    ])
+    expect(low.fallbackChain).toEqual([
       {
         providers: ["openai", "openai-codex", "github-copilot", "opencode"],
         model: "gpt-5.6-sol",

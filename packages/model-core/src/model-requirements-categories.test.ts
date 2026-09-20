@@ -40,19 +40,18 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     ])
   })
 
-  test("deep routes GPT-6 Astra high before the Sol medium fallback", () => {
-    expect(CATEGORY_MODEL_REQUIREMENTS.deep.fallbackChain).toEqual([
+  test("deep-high routes GPT-6 Astra high only", () => {
+    expect(CATEGORY_MODEL_REQUIREMENTS["deep-high"].fallbackChain).toEqual([
       { providers: ["openai", "openai-codex", "github-copilot", "opencode"], model: "gpt-6-astra", variant: "high" },
-      { providers: ["openai", "openai-codex", "github-copilot", "opencode"], model: "gpt-5.6-sol", variant: "medium" },
     ])
   })
 
-  test("deep is a single sol-family medium fallback rung", () => {
+  test("deep-low is a single sol-family medium rung", () => {
     // given
-    const requirement = CATEGORY_MODEL_REQUIREMENTS["deep"]
+    const requirement = CATEGORY_MODEL_REQUIREMENTS["deep-low"]
 
     // when
-    const chain = requirement.fallbackChain.filter(({ model }) => model === "gpt-5.6-sol")
+    const chain = requirement.fallbackChain
 
     // then
     expect(chain).toEqual([
@@ -62,6 +61,11 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
         variant: "medium",
       }
     ])
+  })
+
+  test("neither deep lane carries the other lane's model, so they never substitute each other", () => {
+    expect(CATEGORY_MODEL_REQUIREMENTS["deep-low"].fallbackChain.map(({ model }) => model)).toEqual(["gpt-5.6-sol"])
+    expect(CATEGORY_MODEL_REQUIREMENTS["deep-high"].fallbackChain.map(({ model }) => model)).toEqual(["gpt-6-astra"])
   })
 
   test("visual-engineering starts with Fable 5.1 max", () => {
@@ -275,13 +279,15 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     ])
   })
 
-  test("deep and artistry no longer hard-require primary models", () => {
+  test("the deep lanes and artistry no longer hard-require primary models", () => {
     // given
-    const deep = CATEGORY_MODEL_REQUIREMENTS["deep"]
+    const deepLow = CATEGORY_MODEL_REQUIREMENTS["deep-low"]
+    const deepHigh = CATEGORY_MODEL_REQUIREMENTS["deep-high"]
     const artistry = CATEGORY_MODEL_REQUIREMENTS["artistry"]
 
     // when / then
-    expect(deep.requiresModel).toBeUndefined()
+    expect(deepLow.requiresModel).toBeUndefined()
+    expect(deepHigh.requiresModel).toBeUndefined()
     expect(artistry.requiresModel).toBeUndefined()
   })
 

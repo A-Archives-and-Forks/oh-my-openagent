@@ -21,8 +21,8 @@ export type BuiltinModelProfile = {
   readonly models: readonly DelegateFallbackEntry[]
 }
 
-// Key order is the order a picker renders. `deep` is deliberately NOT an id: a builtin delegation
-// category already carries that name, and the two axes never compete (a profile picks the MAIN
+// Key order is the order a picker renders. `deep` is deliberately NOT an id: builtin delegation
+// categories already carry that name, and the two axes never compete (a profile picks the MAIN
 // session model; categories keep their own chains).
 export const BUILTIN_MODEL_PROFILES: Readonly<Record<string, BuiltinModelProfile>> = Object.freeze({
   capable: {
@@ -56,11 +56,12 @@ export const BUILTIN_MODEL_PROFILES: Readonly<Record<string, BuiltinModelProfile
       { providers: ["anthropic", "github-copilot"], model: "claude-haiku-4-5" },
     ],
   },
-  // Verbatim copy of CATEGORY_FALLBACK_CHAINS.deep; `builtin-profiles.test.ts` deep-equals the two
-  // so the profile can never drift away from the category the product already ships.
+  // The two deep delegation lanes, strongest first; `builtin-profiles.test.ts` deep-equals this to
+  // deep-high ++ deep-low so the profile can never drift away from what the product ships. The lanes
+  // themselves never fall back onto each other, but a MAIN session model wants the ladder.
   "deep-work": {
     displayName: "Deep work",
-    description: "Maximum reasoning for hard problems - the same chain the deep delegation category runs.",
+    description: "Maximum reasoning for hard problems - the models the deep delegation lanes run.",
     models: [
       {
         providers: ["openai-codex", "github-copilot", "opencode"],

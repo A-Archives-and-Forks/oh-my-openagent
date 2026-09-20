@@ -30,17 +30,21 @@ export const CATEGORY_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
       { providers: ["openai", "openai-codex", "opencode"], model: "gpt-5.6-sol", variant: "max" }
     ],
   },
-  deep: {
+  "deep-low": {
+    fallbackChain: [
+      {
+        providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+        model: "gpt-5.6-sol",
+        variant: "medium",
+      }
+    ],
+  },
+  "deep-high": {
     fallbackChain: [
       {
         providers: ["openai", "openai-codex", "github-copilot", "opencode"],
         model: "gpt-6-astra",
         variant: "high",
-      },
-      {
-        providers: ["openai", "openai-codex", "github-copilot", "opencode"],
-        model: "gpt-5.6-sol",
-        variant: "medium",
       }
     ],
   },
