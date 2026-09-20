@@ -463,6 +463,29 @@ describe("createMemoryPromptHandler", () => {
     expect(repo.showCalls).toBe(1)
   }, 30_000)
 
+  test("#given pressure advisory enabled and an unchanged HEAD #when the handler runs twice #then the tree is listed and the system blobs are read once, not once per prompt", async () => {
+    // given — the production configuration: resolveCompileWarnTokens is wired (wiring-static.ts:85), so the
+    // pressure estimate runs on every prompt. The compiled block is HEAD-cached; the estimate must be too,
+    // or a 2.7k-commit identity pays lsTree + one show per system file on every Enter (measured: 45 git
+    // spawns between Enter and the provider request).
+    const { repo, context } = await fixture()
+    const pi = new FakeExtensionAPI()
+    pi.on("before_agent_start", createMemoryPromptHandler({
+      resolveContext: () => context,
+      createRepo: () => repo,
+      resolveCompileWarnTokens: () => 30_000,
+    }))
+
+    // when
+    const first = await dispatchEvent(pi, beforeAgentStart("BASE PROMPT"), eventContext("session-1", liveBranch(1)))
+    const afterFirst = { lsTree: repo.lsTreeCalls, show: repo.showCalls }
+    const second = await dispatchEvent(pi, beforeAgentStart("BASE PROMPT"), eventContext("session-1", liveBranch(1)))
+
+    // then — same bytes, and the second prompt added no tree listing and no blob reads
+    expect(second?.systemPrompt).toBe(first?.systemPrompt)
+    expect({ lsTree: repo.lsTreeCalls - afterFirst.lsTree, show: repo.showCalls - afterFirst.show }).toEqual({ lsTree: 0, show: 0 })
+  }, 30_000)
+
   test("#given a commit between runs #when the next dispatch happens #then the new content appears while the prior result keeps the old content", async () => {
     // given
     const { repo, context } = await fixture()
