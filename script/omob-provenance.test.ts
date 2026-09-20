@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { versionLines, type OmoBuildInfo } from "../packages/omo-native/build-info"
 import { isCurrentOmobBuild } from "./omob-launcher"
-import { provenancePath, readProvenanceMarker, writeProvenanceMarker } from "./omob-provenance"
+import { binaryContentDigest, provenancePath, readProvenanceMarker, writeProvenanceMarker } from "./omob-provenance"
 import { hostTargetFor } from "./build-omob"
 
 const info: OmoBuildInfo = {
@@ -113,6 +113,37 @@ describe("omob provenance marker", () => {
 					expect(readProvenanceMarker(fixture.binary)).toBeUndefined()
 					expect(isCurrentOmobBuild(fixture.binary, info, hostTarget)).toBe(true)
 				}
+			})
+		},
+	)
+
+	test.skipIf(process.platform === "win32")(
+		"#given the executable's bytes change while the recorded stat identity still matches #when provenance is read #then the marker is rejected",
+		() => {
+			withFixture("omob-prov-inplace-", (fixture) => {
+				writeProvenanceMarker(fixture.binary, expectedVersion)
+				expect(readProvenanceMarker(fixture.binary)).toBe(expectedVersion)
+
+				// Rewrite the content, then re-stamp the marker's identity to the file's CURRENT stat
+				// while keeping the digest of the old bytes. That is the stat-identical overwrite a
+				// metadata-only marker cannot see, constructed directly because utimesSync cannot
+				// restore sub-millisecond mtime. Only the content digest can reject this.
+				const marker = JSON.parse(readFileSync(provenancePath(fixture.binary), "utf8")) as {
+					identity: Record<string, number>
+					contentSha256: string
+					versionOutput: string
+				}
+				writeFileSync(fixture.binary, `#!/bin/sh\nprintf x >> "$0.spawns"\necho tampered\n`, { mode: 0o755 })
+				const current = statSync(fixture.binary)
+				const restamped = {
+					identity: { dev: current.dev, ino: current.ino, size: current.size, mtimeMs: current.mtimeMs, mode: current.mode },
+					contentSha256: marker.contentSha256,
+					versionOutput: marker.versionOutput,
+				}
+				writeFileSync(provenancePath(fixture.binary), `${JSON.stringify(restamped)}\n`)
+
+				expect(binaryContentDigest(fixture.binary)).not.toBe(marker.contentSha256)
+				expect(readProvenanceMarker(fixture.binary)).toBeUndefined()
 			})
 		},
 	)
