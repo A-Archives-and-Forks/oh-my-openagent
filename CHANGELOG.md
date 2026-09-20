@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `omo doctor` sees your running sessions again. It recognised engines by one spelling of their command line, and the launcher stopped producing that spelling when it moved onto the engine's pre-linked bundle, so the stale-session report and its reap command had been looking at an empty list on current installs.
+
 - The reminder that your soul files changed no longer re-reads the whole memory history to find out. It asked git for every commit since the last notice that touched `system/`, which on an identity with thousands of commits costs most of a second on every prompt; it now reads a page and only looks further when that page is entirely memory-tool writes. The notice it produces is the same one.
 
 - Every prompt in a directory with a memory identity re-read the same files from git. The memory pressure advisory listed the repository tree and read each `system/*.md` blob again on every turn, and the save reminder asked git for the entire commit history and searched it here. Both answers only change when the memory repository gains a commit, so both are now derived once per commit: five fewer git processes per prompt, and a megabyte of commit history that no longer crosses the process boundary on a repository with three thousand commits. What the model receives is unchanged.
