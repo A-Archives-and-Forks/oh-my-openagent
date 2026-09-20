@@ -1,0 +1,46 @@
+HARNESS | INSTALLED | PROVIDERS | CREDENTIAL TYPES | MODELS
+senpi | no | none | none | none
+opencode | yes | kimi-for-coding, openai, opencode-go | api, oauth | none
+oh-my-pi | no | none | none | models.db: no
+gajae-code | no | none | none | none
+Run `omo setup --yes` to import available API credentials.
+
+MODEL AVAILABILITY
+senpi: providers none; models none
+opencode: providers kimi-for-coding, openai, opencode-go; models none
+oh-my-pi: providers none; models models.db: no
+gajae-code: providers none; models none
+Model-to-agent guidance: docs/guide/agent-model-matching.md
+Ready-to-paste omo.json models catalog template:
+{
+  "models": {
+    "primary": {
+      "model": "<provider>/<model-id>",
+      "reasoning": "<off|low|medium|high|max>"
+    },
+    "custom-endpoint": {
+      "model": "<custom-baseUrl-provider>/<model-id>"
+    }
+  }
+}
+For custom endpoints, define the provider baseUrl in senpi models.json, then use that provider id above.
+NOTICE setup: node:sqlite unavailable; database credentials not imported
+planned-add: kimi-coding
+skipped-existing: none
+skipped-oauth: openai
+skipped-gateway: opencode-go
+skipped-unmapped: none
+mcp-planned-add: localtools, web
+mcp-skipped-existing: none
+skills-planned-add: use-railway
+skills-skipped-existing: none
+agents-md: copy
+imported: 1
+skipped-existing: 0
+skipped-oauth: 1
+skipped-gateway: 1
+skipped-unmapped: 0
+Run '/login openai' to re-authenticate.
+mcp-imported: 2
+skills-imported: 1
+agents-md: copied

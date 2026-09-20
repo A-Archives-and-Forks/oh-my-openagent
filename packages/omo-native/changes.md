@@ -1,3 +1,16 @@
+## omo setup inherits opencode content, and names every skipped OAuth provider
+
+`omo setup` now reads the global opencode config dir beyond credentials: `mcp` servers translate
+into `<agentDir>/mcp.json` (`local`->`stdio` with command/args/env/startupTimeoutMs, `remote`->`http`,
+existing server names and unknown server shapes are skipped, never clobbered, existing files backed
+up as `.bak-<ts>`), `skills/<name>/` directories copy in (skip-existing), and a global `AGENTS.md`
+carries over when the agent dir has none. Hosted gateways (opencode, opencode-go, zai-coding-plan)
+report as `skipped-gateway`, distinct from genuinely unmapped ids, and every skipped OAuth provider
+prints its own engine-convention guidance line (`Run '/login <provider>' to re-authenticate.`)
+instead of the generic auth hint. JSONC sources parse through a small dependency-free
+comment/trailing-comma tolerant reader (`bin/lib/jsonc-lite.js`). Everything stays consent-gated
+(`--yes` or one combined prompt) and idempotent across runs.
+
 ## omo daemon reaches the launcher, the compiled entry and doctor
 
 `omo daemon attach <launch args>` continues as a normal launch whose environment points the engine at
