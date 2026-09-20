@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url"
 import { loadMcpConfig } from "../../../node_modules/@code-yeongyu/senpi/dist/core/extensions/builtin/mcp/config.js"
 import { SettingsManager } from "../../../node_modules/@code-yeongyu/senpi/dist/core/settings-manager.js"
 import { AuthStorage } from "../../../node_modules/@code-yeongyu/senpi/dist/core/auth-storage.js"
+import { ModelConfig } from "../../../node_modules/@code-yeongyu/senpi/dist/core/model-config.js"
 import { KeybindingsManager } from "../../../node_modules/@code-yeongyu/senpi/dist/core/keybindings.js"
 import { loadPermissionSettings } from "../../../node_modules/@code-yeongyu/senpi/dist/core/extensions/builtin/permission-system/settings.js"
 import { evaluate } from "../../../node_modules/@code-yeongyu/senpi/dist/core/extensions/builtin/permission-system/evaluate.js"
@@ -30,8 +31,7 @@ function fixture(name) {
   return { base, home, agent, config }
 }
 
-function run(item, args, expectedExit = 0) {
-  const binary = process.env.REVIEW_COMPILED_BINARY
+function run(item, args, expectedExit = 0, binary = process.env.REVIEW_COMPILED_BINARY) {
   const result = spawnSync(binary ?? process.execPath, binary ? args : [join(repo, "packages/omo-native/bin/omo.js"), ...args], {
     cwd: item.home,
     encoding: "utf8",
@@ -52,6 +52,7 @@ function run(item, args, expectedExit = 0) {
   if (result.error) throw result.error
   receipts.push({ scenario: item.base.split("/").pop(), args, status: result.status, stdout: result.stdout, stderr: result.stderr })
   assert.equal(result.status, expectedExit, result.stderr)
+  return result
 }
 
 try {
@@ -223,7 +224,26 @@ try {
     assert.deepEqual(json(join(invalidSchema.agent, "mcp.json")), { mcpServers: { broken: { type: "http" } } })
   }
 
-  const report = JSON.stringify({ status: "PASS", scenarios: receipts, consumers: ["OmoConfigLayerSchema", "Senpi loadMcpConfig", "Senpi AuthStorage", "Senpi permission settings and evaluator", "Senpi KeybindingsManager"], isolation: "temporary HOME, custom agent directory and XDG roots", cleanup: "temporary fixtures removed in finally" }, null, 2)
+  const validation = fixture("model-and-agent-validation")
+  write(join(validation.config, "opencode.json"), {
+    model: "openai/gpt-5",
+    provider: {
+      good: { npm: "@ai-sdk/openai-compatible", options: { baseURL: "https://good.test/v1" }, models: { good: {} } },
+      invalid: { npm: "@ai-sdk/openai-compatible", options: { baseURL: "", apiKey: "" }, models: { m: { name: "" } } },
+      unsupported: { npm: "unknown-sdk", options: { baseURL: "https://example.test", headers: {} }, models: { m: { reasoning: true, limit: { input: 42 } } } },
+    },
+  })
+  write(join(validation.config, "agents", "bad.md"), "---\ndescription: [broken\n---\nNot imported\n")
+  run(validation, ["migrate", "--yes"])
+  const validatedModels = ModelConfig.loadSync(join(validation.agent, "models.json"))
+  assert.equal(validatedModels.getError(), undefined)
+  assert.deepEqual(validatedModels.getProviderIds(), ["good"])
+  const warnings = json(join(validation.agent, "opencode-migration-report.json")).warnings
+  for (const field of ["options.headers", "models.m.reasoning", "models.m.limit.input", "agents.bad"]) assert.ok(warnings.some((line) => line.includes(field)))
+  const errorCase = fixture("entrypoint-error-parity")
+  assert.equal(run(errorCase, ["migrate", "--bogus"], 1).stderr, run(errorCase, ["migrate", "--bogus"], 1, null).stderr)
+
+  const report = JSON.stringify({ status: "PASS", scenarios: receipts, consumers: ["OmoConfigLayerSchema", "Senpi ModelConfig", "Senpi loadMcpConfig", "Senpi AuthStorage", "Senpi permission settings and evaluator", "Senpi KeybindingsManager"], isolation: "temporary HOME, custom agent directory and XDG roots", cleanup: "temporary fixtures removed in finally" }, null, 2)
   writeFileSync(new URL(process.env.REVIEW_COMPILED_BINARY ? "./compiled-consumer-qa.json" : "./consumer-qa.json", import.meta.url), `${report}\n`)
   console.log(report)
 } finally {

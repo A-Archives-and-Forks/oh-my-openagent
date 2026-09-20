@@ -66,7 +66,7 @@ export async function planContentImport({ configDir, agentDir }) {
   const config = readOpencodeGlobalConfig(configDir)
   if (config !== undefined && config !== null && typeof config === "object") {
     const mcp = config.mcp
-    if (mcp !== null && typeof mcp === "object" && !Array.isArray(mcp)) {
+    if (isObject(mcp) && Object.keys(mcp).length > 0) {
       // MCP schema validation is a command-local dependency; other setup paths
       // remain usable before the source checkout's runtime bundle is built.
       const { assertNativeMcpConfig } = await import("./migration-runtime.js")

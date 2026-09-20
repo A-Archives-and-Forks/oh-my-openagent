@@ -8,10 +8,10 @@ Baseline: 9a6028354. No real credential store or provider service was used.
 Using exact-pinned Bun 1.4.0 with its bin directory first in PATH:
 
 ```text
-396 pass
+406 pass
 0 fail
-1200 expect() calls
-Ran 396 tests across 43 files. [27.70s]
+1245 expect() calls
+Ran 406 tests across 44 files. [26.60s]
 ```
 
 Command: from an isolated test cwd without unrelated adapter preloads,
@@ -27,6 +27,8 @@ literal credential resolution, consent-time target changes, and stale durable
 warnings. See `round3.md` for RED/GREEN and consumer evidence.
 `round4.md` records the next review's source-precedence, complete MCP validation,
 literal MCP expression, recursive-agent, and unsupported-field corrections.
+`round5.md` covers native models validation, exhaustive provider warnings, empty
+MCP setup, per-file malformed Markdown handling and compiled error parity.
 
 An intermediate full-suite failure was caused by this change's additional generated
 file in `.gitignore`, not by unrelated code. The payload test's exact expected
@@ -63,8 +65,11 @@ Both receipts cover:
 | Literal native MCP variables | Server is reported for manual review, never silently interpolated. |
 | Nested agents plus inline restrictions | Relative names, missing fields, restrictions and source backups survive. |
 | Unsupported settings/provider options | Path-only warnings include every omitted key tested. |
+| Invalid translated models | Invalid providers are skipped; the remaining document loads through native ModelConfig. |
+| Malformed Markdown agent | Warned and backed up without blocking other configuration. |
+| Invalid CLI arguments | Compiled and Node entrypoints return identical concise diagnostics and exit status. |
 
-The real consumer checks use OmoConfigLayerSchema, Senpi loadMcpConfig,
+The real consumer checks use OmoConfigLayerSchema, Senpi ModelConfig and loadMcpConfig,
 SettingsManager plus permission evaluation, and KeybindingsManager. A regression
 also loads escaped literal credentials through Senpi resolveConfigValue rather
 than treating command-shaped API keys as executable helpers.
@@ -74,12 +79,12 @@ than treating command-shaped API keys as executable helpers.
 ```bash
 bun run script/build-omo-binary.ts \
   --target darwin-arm64 \
-  --omo-version 5.0.0-review4 \
-  --omo-ai-version 5.0.0-0.beta.review4 \
-  --out-dir /tmp/omo-pr8538-round4-build
+  --omo-version 5.0.0-review5 \
+  --omo-ai-version 5.0.0-0.beta.review5 \
+  --out-dir /tmp/omo-pr8538-round5-build
 ```
 
-Exit 0: built darwin-arm64, 110854130 bytes, 751 embedded sidecar files.
+Exit 0: built darwin-arm64, 110870642 bytes, 751 embedded sidecar files.
 The exact output binary passed the CLI/consumer QA above. The package suite also
 built and validated the full native plugin payload.
 

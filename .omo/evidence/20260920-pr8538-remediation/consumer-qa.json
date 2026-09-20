@@ -89,7 +89,7 @@
       ],
       "status": 1,
       "stdout": "",
-      "stderr": "omo: Malformed migration config: /var/folders/d7/2hnp97055zlcf6r_bygm1_4r0000gn/T/omo-pr8538-final-VWAcli/malformed-mcp/custom/agent/mcp.json\n"
+      "stderr": "omo: Malformed migration config: /var/folders/d7/2hnp97055zlcf6r_bygm1_4r0000gn/T/omo-pr8538-final-ljVk1e/malformed-mcp/custom/agent/mcp.json\n"
     },
     {
       "scenario": "old-marker-repair",
@@ -140,10 +140,41 @@
       "status": 1,
       "stdout": "",
       "stderr": "omo: Invalid MCP config: mcpServers.broken.url: Required for enabled http server\n"
+    },
+    {
+      "scenario": "model-and-agent-validation",
+      "args": [
+        "migrate",
+        "--yes"
+      ],
+      "status": 0,
+      "stdout": "settings: migrated\nmodels: migrated\nmcp: nothing to migrate\nkeybindings: nothing to migrate\nomo-config: nothing to migrate\nmanual-review: agents.bad (malformed frontmatter; manual review required), models.unsupported (unsupported provider API, baseURL or config expression; manual review required), models.unsupported.models.m.limit.input (unsupported; manual review required), models.unsupported.models.m.reasoning (unsupported; manual review required), models.unsupported.options.headers (unsupported; manual review required), models/providers/invalid/apiKey (unsupported translated value; manual review required), models/providers/invalid/baseUrl (unsupported translated value; manual review required), models/providers/invalid/models/0/name (unsupported translated value; manual review required)\n",
+      "stderr": ""
+    },
+    {
+      "scenario": "entrypoint-error-parity",
+      "args": [
+        "migrate",
+        "--bogus"
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": "omo: unknown migrate argument: --bogus\n"
+    },
+    {
+      "scenario": "entrypoint-error-parity",
+      "args": [
+        "migrate",
+        "--bogus"
+      ],
+      "status": 1,
+      "stdout": "",
+      "stderr": "omo: unknown migrate argument: --bogus\n"
     }
   ],
   "consumers": [
     "OmoConfigLayerSchema",
+    "Senpi ModelConfig",
     "Senpi loadMcpConfig",
     "Senpi AuthStorage",
     "Senpi permission settings and evaluator",

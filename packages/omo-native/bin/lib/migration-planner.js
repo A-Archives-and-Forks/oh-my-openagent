@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto"
 import { dirname, join } from "node:path"
 import { canonicalAgentDir, runtimeHome } from "./agent-dir.js"
 import { parseJsoncLite } from "./jsonc-lite.js"
-import { assertNativeMcpConfig, mergeOmoConfig, resolveProviderAlias, selectUserOmoConfigPath, validateOmoConfig } from "./migration-runtime.js"
+import { assertNativeMcpConfig, assertNativeModelsConfig, nativeModelsDiagnostics, mergeOmoConfig, resolveProviderAlias, selectUserOmoConfigPath, validateOmoConfig } from "./migration-runtime.js"
 import { applyMigrationPlan } from "./migration-transaction.js"
 import { collectOmoAdditions, KEYBIND_MAP, normalizeKeybinding, normalizePermission, translateProvider } from "./migration-translators.js"
 import { readOpencodeConfigDir, translateMcpServer } from "./setup-content.js"
@@ -99,23 +99,30 @@ export function planMigration(options) {
   report.push(settingsTouched ? "settings: migrated" : isCurrentState && items.settings ? "settings: already migrated" : "settings: nothing to migrate")
 
   const modelsTarget = target(join(agentDir, "models.json"))
-  if (modelsTarget.value.providers !== undefined && !isRecord(modelsTarget.value.providers)) throw new Error("Malformed models.json providers")
-  const providers = { ...(isRecord(modelsTarget.value.providers) ? modelsTarget.value.providers : {}) }
+  const existingModels = existsSync(modelsTarget.path) ? modelsTarget.value : { providers: {} }
+  assertNativeModelsConfig(existingModels)
+  const providers = { ...existingModels.providers }
   let modelsTouched = false
   if (isRecord(config.provider)) {
     for (const [id, provider] of Object.entries(config.provider)) {
-      if (Object.hasOwn(providers, id)) continue
       const translated = translateProvider(id, provider)
       for (const key of translated.unsupported ?? []) warnings.push(`models.${id}.${key} (unsupported; manual review required)`)
+      if (Object.hasOwn(providers, id)) continue
       if (translated.provider !== undefined) {
+        const diagnostics = nativeModelsDiagnostics({ providers: { [id]: translated.provider } })
+        if (diagnostics.length > 0) {
+          warnings.push(...diagnostics.map((path) => `models${path} (unsupported translated value; manual review required)`))
+          continue
+        }
         providers[id] = translated.provider
         modelsTouched = true
       } else warnings.push(`models.${id} (unsupported provider API, baseURL or config expression; manual review required)`)
     }
     items.models = true
   }
-  const modelsNext = modelsTouched ? { ...modelsTarget.value, providers } : modelsTarget.value
-  appendWrite(writes, modelsTarget.path, modelsNext, modelsTarget.value)
+  const modelsNext = modelsTouched ? { ...existingModels, providers } : existingModels
+  assertNativeModelsConfig(modelsNext)
+  appendWrite(writes, modelsTarget.path, modelsNext, existingModels)
   report.push(modelsTouched ? "models: migrated" : isCurrentState && items.models ? "models: already migrated" : "models: nothing to migrate")
 
   const mcpTarget = target(join(agentDir, "mcp.json"))

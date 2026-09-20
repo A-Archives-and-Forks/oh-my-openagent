@@ -1,5 +1,6 @@
 import { load, YAMLException } from "js-yaml"
 import { isDeepStrictEqual } from "node:util"
+import { validateModelsConfig } from "../../node_modules/@code-yeongyu/senpi/dist/core/model-config-schema.js"
 import {
   getServerEndpointValidationError,
   validateConfig as validateMcpConfig,
@@ -12,6 +13,15 @@ import {
 } from "@oh-my-opencode/omo-config-core"
 type RecordValue = Record<string, unknown>
 declare const __MIGRATION_PROVIDER_MAP__: { readonly providers: Readonly<Record<string, string>> }
+
+export function nativeModelsDiagnostics(value: unknown): string[] {
+  return [...validateModelsConfig.Errors(value)].map((issue) => issue.instancePath || "$")
+}
+
+export function assertNativeModelsConfig(value: unknown): void {
+  const diagnostics = nativeModelsDiagnostics(value)
+  if (diagnostics.length > 0) throw new Error(`Invalid models config fields: ${diagnostics.join(", ")}`)
+}
 
 export function assertNativeMcpConfig(value: unknown): void {
   if (!validateMcpConfig.Check(value)) {
@@ -36,15 +46,17 @@ function isRecord(value: unknown): value is RecordValue {
   return typeof value === "object" && value !== null && !Array.isArray(value)
 }
 
+export class AgentFrontmatterError extends Error {}
+
 function parseFrontmatter(value: string): RecordValue {
   let parsed: unknown
   try {
     parsed = load(value)
   } catch (error) {
     if (!(error instanceof YAMLException)) throw error
-    throw new Error("Malformed agent frontmatter")
+    throw new AgentFrontmatterError("Malformed agent frontmatter")
   }
-  if (!isRecord(parsed)) throw new Error("Agent frontmatter must be an object")
+  if (!isRecord(parsed)) throw new AgentFrontmatterError("Agent frontmatter must be an object")
   return parsed
 }
 
