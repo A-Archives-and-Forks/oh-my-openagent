@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-beta.80] - 2026-09-20
+
 ### Changed
 
 **The engine moves to senpi 2026.9.20, and two long-standing TUI annoyances go with it.**
