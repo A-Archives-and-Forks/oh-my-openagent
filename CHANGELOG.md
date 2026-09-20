@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **A detached task session no longer crashes the host during heartbeat or shutdown.** State polling
 now catches synchronous connection errors, and shutdown stops polling before dropping the
 connection. A failed abort is logged without preventing the child from closing.
+Child-process heartbeat calls have the same protection, and disposal observes and logs a failed
+detach instead of leaving an unhandled rejection.
 Thanks to @ayden94 for the heartbeat fix.
 ([#8494](https://github.com/code-yeongyu/oh-my-openagent/issues/8494))
 

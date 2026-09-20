@@ -8,6 +8,15 @@ This incorporates ayden94's heartbeat fix from #8495 for #8494 and covers the ho
 failure reported in senpi#1840. Subprocess regressions count both uncaught exceptions and
 unhandled rejections; a withheld-close test pins heartbeat cancellation before detachment.
 
+## RPC child heartbeat and disposal contain connection failures
+
+The child-process heartbeat also catches synchronous `send(get_state)` failures while keeping
+the existing exited-client and harmless-pipe-error policy. Disposal awaits `detach()` and logs
+either a thrown error or a rejected promise instead of leaving a nested rejection unobserved.
+These are the remaining two call sites from senpi#1840. The current protocol client returns
+rejections from `send` and detaches synchronously; subclass probes exercise both failure forms
+at the handle boundary with a real child process.
+
 ## Package-provided extensions reach RPC children
 
 Process and host child runners can now select extension paths that the parent actually loaded from
