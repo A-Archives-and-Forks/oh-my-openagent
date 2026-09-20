@@ -6,7 +6,7 @@ The main agent runs in your session and delegates through the `task` tool: categ
 
 ### Current Agent Model Chains
 
-The category chains below are edition-aware. Senpi uses `kimi-coding` for Kimi rungs. The OpenCode edition uses `kimi-for-coding` for the same Kimi chain positions. Senpi also lists no `openai` rung: that id is its metered API-key lane, so every GPT rung and the `ultrabrain`, `deep`, and `unspecified-high` defaults route through `openai-codex` (the ChatGPT subscription lane) there, and a machine holding both an API key and a ChatGPT login is never billed per token for delegated work. An API-key-only Senpi registry still resolves the same way a `vercel`-only one does (cross-provider fallthrough). The OpenCode edition keeps `openai`, its single OpenAI provider id. The same resolved chain is used at spawn time and again if runtime retry fallback needs to recover.
+The category chains below are edition-aware. Senpi uses `kimi-coding` for Kimi rungs. The OpenCode edition uses `kimi-for-coding` for the same Kimi chain positions. Senpi also lists no `openai` rung: that id is its metered API-key lane, so every GPT rung and the `ultrabrain`, `deep-low`, `deep-high`, and `unspecified-high` defaults route through `openai-codex` (the ChatGPT subscription lane) there, and a machine holding both an API key and a ChatGPT login is never billed per token for delegated work. An API-key-only Senpi registry still resolves the same way a `vercel`-only one does (cross-provider fallthrough). The OpenCode edition keeps `openai`, its single OpenAI provider id. The same resolved chain is used at spawn time and again if runtime retry fallback needs to recover.
 
 | Role | Primary | Full fallback chain |
 | --- | --- | --- |
@@ -164,7 +164,8 @@ By combining these two concepts, you can generate optimal agents through `task`.
 | -------------------- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `visual-engineering` | `anthropic/claude-fable-5-1` (max) → `anthropic/claude-opus-5` (max) → `kimi-for-coding/kimi-k3` (max) | Frontend, UI/UX, design, styling, animation                                                                                |
 | `ultrabrain`         | `openai/gpt-6-astra` (max)      | Deep logical reasoning, complex architecture decisions requiring extensive analysis. Falls back to `gpt-5.6-sol` (max).     |
-| `deep`               | `openai/gpt-6-astra` (high)     | Deep autonomous work for 3D graphics, computer use, browser use, backend, logic, algorithms, CAPTCHA solving, multimodal, and complex research. ONE goal + ONE deliverable per call — multiple goals must fan out as parallel `deep` calls, never bundled into one. |
+| `deep-low`           | `openai/gpt-5.6-sol` (medium)   | Default deep lane: one goal, one deliverable, decisions the child can settle from what it reads. 3D graphics, computer use, browser use, backend, logic, algorithms, CAPTCHA solving, and multimodal work route here. ONE goal + ONE deliverable per call — multiple goals fan out as parallel calls. No model fallback: unavailable without `gpt-5.6-sol`. |
+| `deep-high`          | `openai/gpt-6-astra` (high)     | Escalation deep lane: the goal's central decision cannot be settled from evidence alone (a trade-off, a contract crossing a package or process boundary, a mechanism with no in-repo pattern, or correctness argued from invariants). A `deep-low` child that returns `ESCALATE: deep-high` is re-spawned here with its findings. No model fallback: unavailable without `gpt-6-astra`. |
 | `artistry`           | `anthropic/claude-fable-5-1` (max) → `kimi-for-coding/kimi-k3` (max) → `anthropic/claude-opus-5` (xhigh) | Highly creative/artistic tasks, novel ideas                                                                                 |
 | `quick`              | `kimi-for-coding/kimi-for-coding-highspeed` | Trivial tasks - single file changes, typo fixes, simple modifications                                                  |
 | `unspecified-low`    | `xai/grok-4.6` (xhigh)          | Tasks that don't fit other categories, low effort required                                                                  |
@@ -297,8 +298,8 @@ Load agent system prompts from external files using `file://` URLs in the `promp
     }
   },
   "categories": {
-    "deep": {
-      "prompt_append": "file:///path/to/deep-category-append.md"
+    "deep-low": {
+      "prompt_append": "file:///path/to/deep-low-category-append.md"
     }
   }
 }
@@ -663,7 +664,7 @@ AST-aware search and rewrite now lives in the `ast-grep` skill. Load it with the
 | Tool                  | Description                                                                                                                                                                                                                             |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **call_omo_agent**    | Spawn explore/librarian agents. Supports `run_in_background`.                                                                                                                                                                           |
-| **task**              | Category-based task delegation. Supports built-in categories like `visual-engineering`, `ultrabrain`, `deep`, `artistry`, `quick`, `unspecified-low`, `unspecified-high`, and `writing`, or direct agent targeting via `subagent_type`. |
+| **task**              | Category-based task delegation. Supports built-in categories like `visual-engineering`, `ultrabrain`, `deep-low`, `deep-high`, `artistry`, `quick`, `unspecified-low`, `unspecified-high`, and `writing`, or direct agent targeting via `subagent_type`. |
 | **background_output** | Retrieve background task results                                                                                                                                                                                                        |
 | **background_cancel** | Cancel running background tasks                                                                                                                                                                                                         |
 

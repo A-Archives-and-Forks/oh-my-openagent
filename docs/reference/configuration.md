@@ -342,7 +342,8 @@ Domain-specific model delegation used by the `task()` tool. When the main agent 
 | -------------------- | ------------------------------- | ---------------------------------------------- |
 | `visual-engineering` | `anthropic/claude-fable-5-1` (max) | Visual design, UI/UX, frontend, styling, animation, design systems |
 | `ultrabrain`         | `openai/gpt-6-astra` (max)      | Deep logical reasoning, complex architecture. Falls back to `gpt-5.6-sol` (max). |
-| `deep`               | `openai/gpt-6-astra` (high)     | 3D graphics, computer use, browser use, backend, logic, algorithms, CAPTCHA solving, multimodal, and complex research. Falls back to `gpt-5.6-sol` (medium). |
+| `deep-low`           | `openai/gpt-5.6-sol` (medium)   | Default deep lane: 3D graphics, computer use, browser use, backend, logic, algorithms, CAPTCHA solving, multimodal, and complex research whose decisions the child can settle from evidence. Single rung, no model fallback. |
+| `deep-high`          | `openai/gpt-6-astra` (high)     | Escalation deep lane for a goal whose central decision cannot be settled from evidence. Single rung, no model fallback. |
 | `artistry`           | `anthropic/claude-fable-5-1` (max) | Creative/unconventional approaches             |
 | `quick`              | `kimi-for-coding/kimi-for-coding-highspeed` | Trivial tasks, typo fixes, single-file changes |
 | `unspecified-low`    | `xai/grok-4.6` (xhigh)          | General tasks, low effort                      |
@@ -1037,7 +1038,7 @@ Mix string entries and object entries when only some fallback models need specia
 ```json
 {
   "categories": {
-    "deep": {
+    "deep-low": {
       "model": "openai/gpt-5.6-sol",
       "fallback_models": [
         {
