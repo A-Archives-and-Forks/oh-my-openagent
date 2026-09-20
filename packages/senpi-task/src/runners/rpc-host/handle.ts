@@ -65,15 +65,20 @@ export function createHostSessionHandle(options: HostSessionHandleOptions): Host
 
   const heartbeat = setInterval(() => {
     if (outcome !== undefined || parked || detached) return
-    client
-      .getState()
-      .then((state) => {
-        lastSeenAt = now()
-        sessionId = state.sessionId
-      })
-      .catch((error: unknown) => {
-        log("senpi-task host session heartbeat get_state failed", { taskId, error: String(error) })
-      })
+    // A detached client throws before returning a promise; keep the state reaction's ordering.
+    try {
+      client
+        .getState()
+        .then((state) => {
+          lastSeenAt = now()
+          sessionId = state.sessionId
+        })
+        .catch((error: unknown) => {
+          log("senpi-task host session heartbeat get_state failed", { taskId, error: String(error) })
+        })
+    } catch (error) {
+      log("senpi-task host session heartbeat get_state failed", { taskId, error: String(error) })
+    }
   }, heartbeatIntervalMs)
   heartbeat.unref?.()
 
@@ -153,18 +158,23 @@ export function createHostSessionHandle(options: HostSessionHandleOptions): Host
     }
   }
 
-  const bestEffort = (work: Promise<void>, step: string): Promise<void> =>
-    work.catch((error: unknown) => {
+  const bestEffort = async (work: () => Promise<void>, step: string): Promise<void> => {
+    try {
+      await work()
+    } catch (error) {
       log("senpi-task host session teardown step failed", { taskId, step, error: String(error) })
-    })
+    }
+  }
 
   // Bounded teardown: a daemon that never answers must not hold the parent's shutdown open, and a
   // session is never ended with a signal.
   const endOnHost = async (next: "closed" | "terminated"): Promise<void> => {
     if (outcome !== undefined) return
     intent = next
-    if (next === "terminated") await settleWithin(bestEffort(client.send({ type: "abort" }), "abort"), ABORT_GRACE_MS)
-    await settleWithin(bestEffort(client.close(), "close_session"), closeGraceMs)
+    // close() drops the connection before its reply, so stop polling before teardown starts.
+    clearInterval(heartbeat)
+    if (next === "terminated") await settleWithin(bestEffort(() => client.send({ type: "abort" }), "abort"), ABORT_GRACE_MS)
+    await settleWithin(bestEffort(() => client.close(), "close_session"), closeGraceMs)
     // A teardown this client asked for always ends the child - including a session the daemon had
     // parked, which the manager cancels exactly the same way.
     const reason = next === "terminated" ? "terminated" : "client_close"

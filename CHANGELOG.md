@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+**A detached task session no longer crashes the host during heartbeat or shutdown.** State polling
+now catches synchronous connection errors, and shutdown stops polling before dropping the
+connection. A failed abort is logged without preventing the child from closing.
+Child-process heartbeat calls have the same protection, and disposal observes and logs a failed
+detach instead of leaving an unhandled rejection.
+Thanks to @ayden94 for the heartbeat fix.
+([#8494](https://github.com/code-yeongyu/oh-my-openagent/issues/8494))
+
+**The architect nudge follows the refusal now, not one model id.** When a model refuses a turn and the session falls back, omo injects a hidden directive telling the agent to route the hard parts to `task(category: "architect")`. It armed only when the refusing model was `claude-fable-5`, so a session on `claude-fable-5-1`, which is the model the architect category itself runs, never saw it. Any refusal-driven fallback arms it now, and the directive no longer calls the consultant the model that just refused unless it is. ([#8513](https://github.com/code-yeongyu/oh-my-openagent/issues/8513))
+
 **Writing memory no longer steals focus on Windows.** Every `memory` tool write auto-commits, and each git command behind it spawned `git.exe` with no `windowsHide`, so Windows built a fresh console window and brought it to the front. The lock protocol's start-time probe did the same with `powershell.exe`, and on a Node runtime it did it on every probe. That probe falls back from an in-process kernel32 reader reached through `bun:ffi`, which Node cannot import, so the visible fallback was the normal path there. Both spawns are hidden now, along with the formatter, the worktree-root lookups and the init-deep git probes that flashed the same way. The interactive launcher keeps its console on purpose and says so at the call site. ([#8501](https://github.com/code-yeongyu/oh-my-openagent/issues/8501))
 
 ## [5.0.0-beta.79] - 2026-09-19
