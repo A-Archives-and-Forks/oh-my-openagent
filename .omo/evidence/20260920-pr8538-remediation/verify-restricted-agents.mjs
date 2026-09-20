@@ -15,7 +15,7 @@ const write = (path, value) => {
 }
 try {
   assert.ok(process.env.REVIEW_COMPILED_BINARY)
-  for (const launcher of ["node", "compiled"]) for (const source of ["inline", "markdown"])
+  for (const launcher of ["node", "compiled"]) for (const source of ["inline", "markdown", "legacy"])
     for (const layer of ["root", "senpi", "profile", "profile-senpi"]) for (const state of ["enabled", "disabled", "new"]) {
     const base = join(root, `${launcher}-${source}-${layer}-${state}`)
     const home = join(base, "home"), agent = join(base, "agent"), config = join(base, "config", "opencode")
@@ -26,7 +26,11 @@ try {
       write(join(home, ".omo", "omo.json"), layer.startsWith("profile") ? { profiles: { unrelated: {}, testing: scoped } } : scoped)
     }
     if (source === "inline") write(join(config, "opencode.json"), { agent: { reviewer: { prompt: "Restricted incoming prompt", permission: { edit: "deny" } } } })
-    else write(join(config, "agents", "reviewer.md"), "---\npermission:\n  edit: deny\n---\nRestricted incoming prompt\n")
+    else if (source === "markdown") write(join(config, "agents", "reviewer.md"), "---\npermission:\n  edit: deny\n---\nRestricted incoming prompt\n")
+    else write(join(config, "oh-my-openagent.json"), { agents: { reviewer: {
+      prompt: "Restricted incoming prompt", permission: { edit: "deny" },
+      models: ["openai/gpt-5"], variant: "high", skills: ["DUMMY"], category: "quick",
+    } } })
     const result = spawnSync(launcher === "compiled" ? process.env.REVIEW_COMPILED_BINARY : "node",
       [...(launcher === "node" ? [join(repo, "packages/omo-native/bin/omo.js")] : []), "migrate", "--yes"], {
         cwd: home, encoding: "utf8",
@@ -43,7 +47,12 @@ try {
     assert.equal(reviewer?.disable, state !== "enabled")
     assert.equal(reviewer?.prompt, state === "enabled" ? undefined : "Restricted incoming prompt")
     if (state !== "new") assert.equal(reviewer?.description, "Keep existing")
+    if (source === "legacy" && state !== "enabled") {
+      assert.deepEqual(reviewer?.models, ["openai/gpt-5"])
+      assert.equal(reviewer?.reasoning, "high")
+    }
     const warnings = JSON.parse(readFileSync(join(agent, "opencode-migration-report.json"), "utf8")).warnings
+    if (source === "legacy") for (const key of ["skills", "category"]) assert.ok(warnings.some((line) => line.includes(`agents.reviewer.${key}`)))
     results.push({ launcher, source, layer, state, disable: reviewer?.disable, prompt: reviewer?.prompt ?? null, warnings })
   }
   const receipt = JSON.stringify({ status: "PASS", consumer: "loadOmoConfig(harness:senpi)", results }, null, 2)

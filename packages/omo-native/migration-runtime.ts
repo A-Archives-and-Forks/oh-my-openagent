@@ -8,6 +8,7 @@ import {
 
 import {
   mergeWithoutClobber,
+  OmoAgentDefSchema,
   OmoConfigLayerSchema,
   resolveOmoConfigPaths,
 } from "@oh-my-opencode/omo-config-core"
@@ -109,18 +110,13 @@ export function agentFromMarkdown(parsed: { readonly frontmatter: RecordValue; r
   readonly unsupported: readonly string[]
 } {
   const entry: RecordValue = {}
-  for (const key of ["description", "model"] as const) {
-    const value = parsed.frontmatter[key]
-    if (typeof value === "string") entry[key] = value
+  const unsupported: string[] = []
+  for (const [key, value] of Object.entries(parsed.frontmatter)) {
+    if (key === "permission" || key === "permissions") continue
+    if (OmoAgentDefSchema.safeParse({ [key]: value }).success) entry[key] = value
+    else unsupported.push(key)
   }
-  if (isRecord(parsed.frontmatter.tools) && Object.values(parsed.frontmatter.tools).every((value) => typeof value === "boolean")) {
-    entry.tools = parsed.frontmatter.tools
-  }
-  if (typeof parsed.frontmatter.temperature === "number") entry.temperature = parsed.frontmatter.temperature
-  if (typeof parsed.frontmatter.disable === "boolean") entry.disable = parsed.frontmatter.disable
   if (parsed.body !== undefined) entry.prompt = parsed.body
-  const supported = new Set(["description", "model", "tools", "temperature", "disable", "permission", "permissions"])
-  const unsupported = Object.keys(parsed.frontmatter).filter((key) => !supported.has(key))
   const restricted = parsed.frontmatter.permission !== undefined || parsed.frontmatter.permissions !== undefined
   if (restricted) entry.disable = true
   return { entry, restricted, unsupported }

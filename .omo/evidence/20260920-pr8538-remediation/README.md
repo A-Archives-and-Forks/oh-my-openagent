@@ -8,10 +8,10 @@ Baseline: 9a6028354. No real credential store or provider service was used.
 Using exact-pinned Bun 1.4.0 with its bin directory first in PATH:
 
 ```text
-414 pass
+420 pass
 0 fail
-1299 expect() calls
-Ran 414 tests across 44 files. [27.60s]
+1340 expect() calls
+Ran 420 tests across 44 files. [28.80s]
 ```
 
 Command: from an isolated test cwd without unrelated adapter preloads,
@@ -33,6 +33,8 @@ MCP setup, per-file malformed Markdown handling and compiled error parity.
 agents, verified through native loadOmoConfig and both actual launchers.
 `round7.md` extends that guard and native-consumer verification to `[senpi]`
 and every profile's base and `[senpi]` layers.
+`round8.md` applies the same translation and safety guard to legacy shared-config
+agents, preserving native-compatible fields and warning on unsupported ones.
 
 An intermediate full-suite failure was caused by this change's additional generated
 file in `.gitignore`, not by unrelated code. The payload test's exact expected
@@ -83,9 +85,9 @@ than treating command-shaped API keys as executable helpers.
 ```bash
 bun run script/build-omo-binary.ts \
   --target darwin-arm64 \
-  --omo-version 5.0.0-review7 \
-  --omo-ai-version 5.0.0-0.beta.review7 \
-  --out-dir /tmp/omo-pr8538-round7-build
+  --omo-version 5.0.0-review8 \
+  --omo-ai-version 5.0.0-0.beta.review8 \
+  --out-dir /tmp/omo-pr8538-round8-build
 ```
 
 Exit 0: built darwin-arm64, 110870642 bytes, 751 embedded sidecar files.
