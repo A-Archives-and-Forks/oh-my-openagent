@@ -5,7 +5,7 @@ export function singleParentPass(facts) {
 }
 
 export function resumePass(facts) {
-  return facts.childrenStarted === 4 && facts.grewAfterParentExit && facts.resumeAcknowledged &&
+  return facts.childrenStarted === 4 && facts.reattachedChildren === 4 && facts.grewAfterParentExit && facts.resumeAcknowledged &&
     facts.sameParentSession && facts.noPromptReplay && facts.childrenCompleted === 4
 }
 

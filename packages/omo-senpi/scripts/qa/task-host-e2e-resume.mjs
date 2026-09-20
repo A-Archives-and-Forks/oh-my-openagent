@@ -4,6 +4,7 @@ import { createScenarioSandbox, writeMockScript } from "./task-host-e2e-sandbox.
 import { cleanupScenario, daemonStatus, readTaskRecords, spawnParent } from "./task-host-e2e-process.mjs"
 import { observeState, stopParent } from "./task-host-e2e-events.mjs"
 import { resumePass } from "./task-host-e2e-gates.mjs"
+import { reattachedTaskIds, resumeReleaseStep } from "./task-host-e2e-resume-evidence.mjs"
 import {
   CHILD_DONE, CHILD_PROMPT, childSessionFiles, childStartDiagnosis,
   childrenSettled, hostConfig, holdParent, jsonlLines, spawnScript, transcriptSizes,
@@ -57,36 +58,21 @@ export async function scenarioB(run) {
   writeMockScript(sandbox, {
     parentSteps: [
       ...records.map((r) => ({ type: "tool_call", name: "task_output", arguments: { task_id: r.task_id, mode: "status" } })),
-      {
-        type: "tool_call", name: "eval", arguments: {
-          language: "js", summary: "release reattached children and observe their completion", timeout: 660,
-          code: `var fs = await import("node:fs");
-            var ids = ${JSON.stringify(records.map((r) => r.task_id))};
-            await new Promise((resolve, reject) => {
-              var finish = () => {
-                var done = ids.map(id => JSON.parse(fs.readFileSync(".omo/senpi-task/tasks/" + id + ".json", "utf8")));
-                if (!done.every(r => ["completed", "error", "lost", "cancelled"].includes(r.status))) return;
-                clearTimeout(timer); watcher.close(); resolve();
-              };
-              var watcher = fs.watch(".omo/senpi-task/tasks", finish);
-              var timer = setTimeout(() => { watcher.close(); reject(new Error("reattached children did not finish")); }, 600000);
-              fs.writeFileSync(".omo/resume-release", "release");
-              finish();
-            });`,
-        },
-      },
+      resumeReleaseStep(session, records.map((record) => record.task_id), sessionId, linesBeforeResume),
       { type: "text", text: resumeMarker },
     ],
     childSteps,
   })
   let resumed
+  const resumeRows = () => session ? jsonlLines(session).slice(linesBeforeResume).map(JSON.parse) : []
+  const readbacks = () => reattachedTaskIds(resumeRows(), records.map((record) => record.task_id), sessionId)
   const parentAnswered = () => session && jsonlLines(session).slice(linesBeforeResume).some((line) => {
     const row = JSON.parse(line)
     return row.message?.role === "assistant" && row.message?.content?.some((part) => part.type === "text" && part.text === resumeMarker)
   })
   const acknowledged = session && await observeState(sandbox.root, () => {
     const done = readTaskRecords(sandbox).filter((r) => records.some((old) => old.task_id === r.task_id))
-    return parentAnswered() && childrenSettled(done, 4) ? done : undefined
+    return parentAnswered() && (childrenSettled(done, 4) || readbacks().length !== 4) ? done : undefined
   }, { trigger: () => { resumed = spawnParent(sandbox, run.mockEntry, "resume the detached children", { capture: true, session }) } })
   const replays = Object.fromEntries(records.map((record) => [
     record.task_id,
@@ -98,6 +84,8 @@ export async function scenarioB(run) {
   ]))
   const facts = {
     childrenStarted: records.filter((r) => r.status === "running").length,
+    reattachedChildren: readbacks().length,
+    reattachmentReadbacks: resumeRows().filter((row) => row.message?.toolName === "task_output").map((row) => row.message),
     childrenCompleted: (acknowledged || readTaskRecords(sandbox)).filter((r) =>
       records.some((old) => old.task_id === r.task_id) && r.status === "completed").length,
     transcriptLinesBefore: before, transcriptLinesAfter: grew ?? transcriptSizes(sandbox, records),
@@ -117,7 +105,7 @@ export async function scenarioB(run) {
   return {
     scenario: "B", title: "detach/attach: parent quits with 4 children mid-turn",
     status: resumePass(facts) ? "pass" : "fail",
-    reason: `started=${facts.childrenStarted} completed=${facts.childrenCompleted} grew=${facts.grewAfterParentExit} resumed=${facts.resumeAcknowledged} sameParent=${facts.sameParentSession} noReplay=${facts.noPromptReplay}`,
+    reason: `started=${facts.childrenStarted} reattached=${facts.reattachedChildren} completed=${facts.childrenCompleted} grew=${facts.grewAfterParentExit} resumed=${facts.resumeAcknowledged} sameParent=${facts.sameParentSession} noReplay=${facts.noPromptReplay}`,
     facts, receipt,
   }
 }

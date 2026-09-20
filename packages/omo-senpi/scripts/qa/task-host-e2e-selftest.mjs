@@ -13,6 +13,7 @@ import { observeState } from "./task-host-e2e-events.mjs"
 import { completedStormCalls } from "./task-host-e2e-storm.mjs"
 import { terminalChildSnapshots } from "./task-host-e2e-stranded.mjs"
 import { checkMockSessionIsolation } from "./task-host-e2e-mock-selftest.mjs"
+import { checkResumeReadbacks } from "./task-host-e2e-resume-selftest.mjs"
 
 function assert(condition, message) {
   if (!condition) throw new Error(`self-test: ${message}`)
@@ -31,6 +32,7 @@ export async function runSelfTest(scriptDir) {
     await checkStateEvents(root)
     checkStormReceipts()
     await checkMockSessionIsolation(root)
+    await checkResumeReadbacks(root)
     checkDriverSource(scriptDir)
   } finally {
     rmSync(root, { recursive: true, force: true })
@@ -81,9 +83,9 @@ function checkProductGates() {
     }, [{ sessionsWorker: 15 }, { daemonIdentitiesSeen: 2 }, { perChildRpcProcessCount: 1 },
       { failedChildren: 1 }, { terminalChildFailures: 1 }]],
     [resumePass, {
-      childrenStarted: 4, grewAfterParentExit: true, resumeExit: null,
+      childrenStarted: 4, reattachedChildren: 4, grewAfterParentExit: true, resumeExit: null,
       resumeAcknowledged: true, sameParentSession: true, noPromptReplay: true, childrenCompleted: 4,
-    }, [{ childrenStarted: 0 }, { grewAfterParentExit: false }, { resumeAcknowledged: false },
+    }, [{ childrenStarted: 0 }, { reattachedChildren: 0 }, { grewAfterParentExit: false }, { resumeAcknowledged: false },
       { sameParentSession: false }, { noPromptReplay: false }, { childrenCompleted: 3 }]],
     [teamPass, {
       memberRecords: 1, mailDelivered: true, memberSessionContexts: [{ role: "member" }],
