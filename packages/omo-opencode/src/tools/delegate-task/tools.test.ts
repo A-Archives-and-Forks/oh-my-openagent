@@ -177,14 +177,18 @@ describe("sisyphus-task", () => {
       expect(category.variant).toBe("max")
     })
 
-    test("deep category has model and variant config", () => {
+    test("the deep lanes each carry their own model and variant config", () => {
       // given
-      const category = DEFAULT_CATEGORIES["deep"]
+      const low = DEFAULT_CATEGORIES["deep-low"]
+      const high = DEFAULT_CATEGORIES["deep-high"]
 
       // when / #then
-      expect(category).toBeDefined()
-      expect(category.model).toBe("openai/gpt-6-astra")
-      expect(category.variant).toBe("high")
+      expect(low).toBeDefined()
+      expect(low.model).toBe("openai/gpt-5.6-sol")
+      expect(low.variant).toBe("medium")
+      expect(high).toBeDefined()
+      expect(high.model).toBe("openai/gpt-6-astra")
+      expect(high.variant).toBe("high")
     })
 
     test("unspecified-high category uses GPT-6 Astra high as primary", () => {
@@ -869,9 +873,9 @@ describe("sisyphus-task", () => {
       expect(result?.model).toBe("anthropic/claude-fable-5-1")
     })
 
-    test("returns null for deep when neither gpt-6-astra nor gpt-5.6-sol is available and no user config overrides it", () => {
+    test("returns null for deep-high when neither gpt-6-astra nor gpt-5.6-sol is available and no user config overrides it", () => {
       // #given
-      const categoryName = "deep"
+      const categoryName = "deep-high"
       const availableModels = new Set<string>(["anthropic/claude-opus-4-7"])
 
       // #when
@@ -884,9 +888,9 @@ describe("sisyphus-task", () => {
       expect(result).toBeNull()
     })
 
-    test("keeps deep available with its builtin gpt-6-astra high config when only the gpt-5.6-sol gate model is present", () => {
-      // #given: the gate opens on either flagship; the runtime chain later lands the sol rung
-      const categoryName = "deep"
+    test("keeps deep-low available on its own sol gate model", () => {
+      // #given: each lane is a single rung gated on its own model, so sol opens deep-low only
+      const categoryName = "deep-low"
       const availableModels = new Set<string>(["openai/gpt-5.6-sol"])
 
       // #when
@@ -897,13 +901,14 @@ describe("sisyphus-task", () => {
 
       // #then
       const resolved = expectResolvedCategoryConfig(result)
-      expect(resolved.config.model).toBe("openai/gpt-6-astra")
-      expect(resolved.config.variant).toBe("high")
+      expect(resolved.config.model).toBe("openai/gpt-5.6-sol")
+      expect(resolved.config.variant).toBe("medium")
+      expect(resolveCategoryConfig("deep-high", { systemDefaultModel: SYSTEM_DEFAULT_MODEL, availableModels })).toBeNull()
     })
 
-    test("keeps deep available when only gpt-6-astra is present", () => {
+    test("keeps deep-high available when only gpt-6-astra is present", () => {
       // #given
-      const categoryName = "deep"
+      const categoryName = "deep-high"
       const availableModels = new Set<string>(["openai/gpt-6-astra"])
 
       // #when
