@@ -30,6 +30,24 @@ export function spawnScript(count, childSteps, prefix = "c") {
   return { parentSteps, childSteps }
 }
 
+// Print-mode turn settlement can cancel work before the observer sees it. Keep the test's
+// parent turn open until the driver has captured its fact and explicitly kills that parent.
+export function holdParent(script) {
+  script.parentSteps.splice(-1, 0, {
+    type: "tool_call", name: "eval", arguments: {
+      language: "js", summary: "keep the QA parent active until observation completes", timeout: 1_200,
+      code: `var fs = await import("node:fs"); await new Promise((resolve, reject) => {
+        var finish = () => { if (!fs.existsSync(".omo/parent-release")) return;
+          clearTimeout(timer); watcher.close(); resolve(); };
+        var watcher = fs.watch(".omo", finish);
+        var timer = setTimeout(() => { watcher.close(); reject(new Error("parent release missing")); }, 1200000);
+        finish();
+      });`,
+    },
+  })
+  return script
+}
+
 /**
  * A child that stays mid-turn: the last scripted step repeats forever, so every provider call issues
  * another short bash sleep and the child's transcript keeps growing while it is never terminal.

@@ -2,6 +2,7 @@
 // whose identity travels in the session context and whose lead mail is delivered, C2 proves a completed
 // child is PARKED rather than closed and that `task_send` reopens it.
 import { join } from "node:path"
+import { writeFileSync } from "node:fs"
 import { teamPass, reopenPass } from "./task-host-e2e-gates.mjs"
 import { STATE_DEADLINE_MS, observeState, stopParent } from "./task-host-e2e-events.mjs"
 
@@ -111,19 +112,37 @@ export async function scenarioC2(run) {
         { type: "tool_call", name: "task", arguments: { category: "proc", run_in_background: true, name: "done", prompt: CHILD_PROMPT } },
         { type: "text", text: "parked child scenario complete" },
       ],
-      childSteps: CHILD_DONE,
+      childSteps: [{
+        type: "tool_call", name: "eval", arguments: {
+          language: "js", summary: "hold the worker until its residency is observed",
+          code: `var fs = await import("node:fs"); await new Promise((resolve, reject) => {
+            var finish = () => { if (!fs.existsSync(".omo/park-release")) return;
+              clearTimeout(timer); watcher.close(); resolve(); };
+            var watcher = fs.watch(".omo", finish);
+            var timer = setTimeout(() => { watcher.close(); reject(new Error("park release missing")); }, 600000);
+            finish();
+          });`,
+        },
+      }, ...CHILD_DONE],
     },
   })
   const env = { SENPI_RPC_SESSION_IDLE_EVICTION_MS: String(IDLE_EVICTION_MS) }
   let first
+  const before = await observeState(sandbox.root, () => {
+    const record = readTaskRecords(sandbox).find((record) => record.name === "done")
+    if (!record || record.status !== "running") return undefined
+    const status = daemonStatus(sandbox, { includeWorkers: true })
+    return status.json?.sessions?.worker >= 1 ? status : undefined
+  }, { trigger: () => { first = spawnParent(sandbox, run.mockEntry, "spawn one child and let it finish", { env, capture: true }) } })
   const completed = await observeState(sandbox.root, () => {
     const record = readTaskRecords(sandbox).find((record) => record.name === "done")
     return record && childrenSettled([record], 1) ? record : undefined
-  }, { trigger: () => { first = runBin(sandbox, run.parentArgs(sandbox, "spawn one child and let it finish"), { timeoutMs: STATE_DEADLINE_MS, env }) } })
-  const before = daemonStatus(sandbox, { includeWorkers: true })
+  }, { trigger: () => writeFileSync(join(sandbox.cwd, ".omo", "park-release"), "release\n") })
+  const firstExit = first.child.exitCode
+  await stopParent(first)
   // A park is only observable when there WAS a live worker session to park: with no worker, a zero
   // count is the starting state, not the eviction under test.
-  const hadWorker = (before.json?.sessions?.worker ?? 0) >= 1
+  const hadWorker = (before?.json?.sessions?.worker ?? 0) >= 1
   const parked = !hadWorker ? undefined : await waitFor(() => {
     const probe = daemonStatus(sandbox, { includeWorkers: true })
     return probe.json?.instanceId === before.json?.instanceId && probe.json.sessions.worker === 0 ? probe : undefined
@@ -149,6 +168,9 @@ export async function scenarioC2(run) {
       JSON.stringify(row.message.content).includes(reopenMessage))
     const answered = messageIndex >= 0 && rows.slice(messageIndex + 1).some((row) =>
       row.message?.role === "assistant" && row.message.content?.some((part) => part.type === "text" && part.text === reopenReply))
+    if (toolDetails(reopen.stdout, "task_send").some((d) => d.kind !== "revived")) {
+      return { messageIndex, answered: false }
+    }
     return reopened?.notification?.run_epoch === epochBefore + 1 &&
       reopened.status === "completed" && answered ? { messageIndex, answered } : undefined
   }, { trigger: () => { reopen = runBin(sandbox, run.parentArgs(sandbox, "reopen the parked child"), { timeoutMs: STATE_DEADLINE_MS, env }) } })
@@ -156,10 +178,10 @@ export async function scenarioC2(run) {
     d.kind === "revived" && d.task_id === completed?.task_id && d.run_epoch === epochBefore + 1)
   const linesAfter = completed === undefined ? 0 : transcriptSizes(sandbox, [completed])[completed.task_id]
   const facts = {
-    firstRunExit: first.status,
+    firstRunExit: firstExit,
     childCompleted: completed?.status ?? null,
-    workerSessionsBeforePark: before.json?.sessions?.worker ?? null,
-    retainedBeforePark: before.json?.sessions?.retained ?? null,
+    workerSessionsBeforePark: before?.json?.sessions?.worker ?? null,
+    retainedBeforePark: before?.json?.sessions?.retained ?? null,
     hadWorkerSessionBeforePark: hadWorker,
     parkObserved: hadWorker && parked !== undefined,
     workerSessionsAfterPark: parked?.json?.sessions?.worker ?? daemonStatus(sandbox, { includeWorkers: true }).json?.sessions?.worker ?? null,
@@ -172,12 +194,13 @@ export async function scenarioC2(run) {
       childSessionFiles(sandbox, completed.task_id).join() === filesBefore.join() &&
       readTaskRecords(sandbox).length === 1,
     reviveAccepted: accepted,
+    reopenOutcome: toolDetails(reopen.stdout, "task_send"),
     runEpochBefore: epochBefore ?? null,
     runEpochAfter: reopened?.notification?.run_epoch ?? null,
     childStart: childStartDiagnosis(sandbox, readTaskRecords(sandbox)),
   }
   const pass = reopenPass(facts)
-  const receipt = await cleanupScenario(sandbox, { hostPids: [before.json?.pid].filter(Boolean) })
+  const receipt = await cleanupScenario(sandbox, { hostPids: [before?.json?.pid].filter(Boolean) })
   return {
     scenario: "C2",
     title: "parking: completed child parked, task_send reopens it",

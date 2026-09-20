@@ -6,7 +6,7 @@ import { observeState, stopParent } from "./task-host-e2e-events.mjs"
 import { resumePass } from "./task-host-e2e-gates.mjs"
 import {
   CHILD_DONE, CHILD_PROMPT, childSessionFiles, childStartDiagnosis,
-  childrenSettled, hostConfig, jsonlLines, spawnScript, transcriptSizes,
+  childrenSettled, hostConfig, holdParent, jsonlLines, spawnScript, transcriptSizes,
 } from "./task-host-e2e-support.mjs"
 
 export async function scenarioB(run) {
@@ -23,7 +23,7 @@ export async function scenarioB(run) {
       });`,
     },
   }, ...CHILD_DONE]
-  const sandbox = createScenarioSandbox(run, "sB", { omoConfig: hostConfig(), script: spawnScript(4, childSteps) })
+  const sandbox = createScenarioSandbox(run, "sB", { omoConfig: hostConfig(), script: holdParent(spawnScript(4, childSteps)) })
   let parent
   const started = await observeState(sandbox.root, () => {
     const records = readTaskRecords(sandbox)

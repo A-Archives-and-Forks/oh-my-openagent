@@ -16,6 +16,12 @@ Self-tests cover healthy terminal states and fault controls. State waits subscri
 work. QA no longer reads real agent credentials for digest comparisons; child environments remain
 isolated and each scenario records process and sandbox cleanup.
 
+Fan-out fixtures keep the parent turn active until the cohort is observed. A/A1 still reject a
+terminal aborted/error child transcript even if its store incorrectly appears active and the worker
+count is sufficient. A separate diagnostic captures paired store/transcript snapshots and a bounded
+convergence observation for the graceful-shutdown suspension behavior tracked in #8517; this harness
+change does not change that product behavior.
+
 ## Console-subsystem spawns are hidden on win32, and a gate keeps them that way
 
 `memory-core`'s git exec and its process-start identity probe, plus the adapter's formatter, thread

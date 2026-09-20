@@ -4,6 +4,7 @@
 import { join } from "node:path"
 import { singleParentPass } from "./task-host-e2e-gates.mjs"
 import { STATE_DEADLINE_MS } from "./task-host-e2e-events.mjs"
+import { terminalChildSnapshots } from "./task-host-e2e-stranded.mjs"
 export { scenarioB } from "./task-host-e2e-resume.mjs"
 
 import { createScenarioSandbox, writeMockScript, writeOmoConfig } from "./task-host-e2e-sandbox.mjs"
@@ -36,6 +37,7 @@ import {
   childrenSettled,
   failureTokens,
   hostConfig,
+  holdParent,
   jsonlLines,
   recordFailureTokens,
   spawnScript,
@@ -43,7 +45,7 @@ import {
 } from "./task-host-e2e-support.mjs"
 
 export async function scenarioA(run) {
-  const sandbox = createScenarioSandbox(run, "sA", { omoConfig: hostConfig(), script: spawnScript(16, CHILD_BUSY) })
+  const sandbox = createScenarioSandbox(run, "sA", { omoConfig: hostConfig(), script: holdParent(spawnScript(16, CHILD_BUSY)) })
   const startedAt = Date.now()
   const parents = [0, 1].map(() => spawnParent(sandbox, run.mockEntry, "fan out sixteen daemon children", { capture: true }))
   const parentExits = []
@@ -71,6 +73,7 @@ export async function scenarioA(run) {
     instanceId: observed.json?.instanceId ?? null,
     perChildRpcProcessCount: perChild.length,
     failureTokens: tokens,
+    terminalChildFailures: terminalChildSnapshots(sandbox).length,
     // Two parents ensure the SAME daemon concurrently and then exit while their children keep running,
     // so the question "was this one host for the whole scenario?" has to be answered from a timeline,
     // not from a single status call. Every identity change is an entry; the parents' exits are stamped
@@ -95,7 +98,7 @@ export async function scenarioA(run) {
   }
   const pass =
     facts.sessionsTotal >= 32 && facts.sessionsWorker >= 32 && tokens.length === 0 && perChild.length === 0 &&
-    facts.daemonIdentitiesSeen === 1
+    facts.daemonIdentitiesSeen === 1 && facts.terminalChildFailures === 0
   for (const parent of parents) {
     try {
       process.kill(-parent.child.pid, "SIGKILL")
@@ -108,7 +111,7 @@ export async function scenarioA(run) {
     scenario: "A",
     title: "one daemon, two parents x 16 process children",
     status: pass ? "pass" : "fail",
-    ...(pass ? {} : { reason: `sessions.total=${facts.sessionsTotal} sessions.worker=${facts.sessionsWorker} perChildRpc=${perChild.length} tokens=${tokens.join(",")} daemonIdentities=${facts.daemonIdentitiesSeen}` }),
+    reason: `sessions.total=${facts.sessionsTotal} sessions.worker=${facts.sessionsWorker} perChildRpc=${perChild.length} tokens=${tokens.length} daemonIdentities=${facts.daemonIdentitiesSeen} terminalFailures=${facts.terminalChildFailures}`,
     facts,
     receipt,
   }
@@ -121,7 +124,7 @@ export async function scenarioA(run) {
  * stable identity here blames the race, an unstable one exonerates it.
  */
 export async function scenarioA1(run) {
-  const sandbox = createScenarioSandbox(run, "sA1", { omoConfig: hostConfig(), script: spawnScript(16, CHILD_BUSY, "s") })
+  const sandbox = createScenarioSandbox(run, "sA1", { omoConfig: hostConfig(), script: holdParent(spawnScript(16, CHILD_BUSY, "s")) })
   const startedAt = Date.now()
   const parent = spawnParent(sandbox, run.mockEntry, "fan out sixteen daemon children from one parent", { capture: true })
   const parentExits = []
@@ -142,6 +145,7 @@ export async function scenarioA1(run) {
     parentStderrHostLines: hostLines(parent.chunks.stderr),
     perChildRpcProcessCount: perChildRpcProcesses(sandbox).length,
     failedChildren: records.filter((record) => ["error", "lost", "cancelled"].includes(record.status)).length,
+    terminalChildFailures: terminalChildSnapshots(sandbox).length,
     childStart: childStartDiagnosis(sandbox, records),
   }
   const pass = singleParentPass(facts)
@@ -155,7 +159,7 @@ export async function scenarioA1(run) {
     scenario: "A1",
     title: "single-parent control: 16 children, one daemon identity",
     status: pass ? "pass" : "fail",
-    ...(pass ? {} : { reason: `sessions.worker=${facts.sessionsWorker} daemonIdentities=${identities.length} perChildRpc=${facts.perChildRpcProcessCount}` }),
+    reason: `sessions.worker=${facts.sessionsWorker} daemonIdentities=${identities.length} perChildRpc=${facts.perChildRpcProcessCount} terminalFailures=${facts.terminalChildFailures}`,
     facts,
     receipt,
   }

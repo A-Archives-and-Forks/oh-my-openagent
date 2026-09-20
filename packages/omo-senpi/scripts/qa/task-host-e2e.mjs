@@ -208,7 +208,7 @@ function optionalPath(value) {
 }
 
 function countBy(results) {
-  return results.reduce((counts, entry) => ({ ...counts, [entry.status]: (counts[entry.status] ?? 0) + 1 }), {})
+  return results.reduce((counts, entry) => ({ ...counts, [entry.status]: (counts[entry.status] ?? 0) + 1 }), { pass: 0, fail: 0, skipped: 0 })
 }
 
 async function runScenarios(run, selected) {

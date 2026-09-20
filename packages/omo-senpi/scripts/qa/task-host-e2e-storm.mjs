@@ -3,7 +3,7 @@ import { generationHostPid, zombieChildCount } from "./task-host-e2e-daemon-stat
 import { cleanupScenario, daemonStatus, pidAlive, readTaskRecords, spawnParent, waitFor } from "./task-host-e2e-process.mjs"
 import { observeState, stopParent } from "./task-host-e2e-events.mjs"
 import { stormPass } from "./task-host-e2e-gates.mjs"
-import { CHILD_DONE, childSessionFiles, childStartDiagnosis, childrenSettled, hostConfig, jsonlLines, spawnScript } from "./task-host-e2e-support.mjs"
+import { CHILD_DONE, childSessionFiles, childStartDiagnosis, childrenSettled, hostConfig, holdParent, jsonlLines, spawnScript } from "./task-host-e2e-support.mjs"
 
 // A finite, distinct workload: the success marker is emitted only after the real bash tool returns.
 const BASH_STORM = [
@@ -38,7 +38,7 @@ export function completedStormCalls(lines) {
 export async function scenarioF(run) {
   const sandbox = createScenarioSandbox(run, "sF", {
     omoConfig: hostConfig(),
-    script: spawnScript(8, BASH_STORM, "z"),
+    script: holdParent(spawnScript(8, BASH_STORM, "z")),
   })
   let parent
   let calls = {}

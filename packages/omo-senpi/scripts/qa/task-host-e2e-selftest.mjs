@@ -11,6 +11,7 @@ import { scenarioD, scenarioE4, scenarioH2, scenarioHandoffSuite } from "./task-
 import { singleParentPass, resumePass, teamPass, reopenPass, stormPass } from "./task-host-e2e-gates.mjs"
 import { observeState } from "./task-host-e2e-events.mjs"
 import { completedStormCalls } from "./task-host-e2e-storm.mjs"
+import { terminalChildSnapshots } from "./task-host-e2e-stranded.mjs"
 
 function assert(condition, message) {
   if (!condition) throw new Error(`self-test: ${message}`)
@@ -25,12 +26,30 @@ export async function runSelfTest(scriptDir) {
     checkReaders(root)
     checkGates()
     checkProductGates()
+    checkTerminalStoreMismatch(root)
     await checkStateEvents(root)
     checkStormReceipts()
     checkDriverSource(scriptDir)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
+}
+
+function checkTerminalStoreMismatch(root) {
+  const sandbox = { stateDir: join(root, "stranded") }
+  mkdirSync(join(sandbox.stateDir, "tasks"), { recursive: true })
+  const sessionPath = join(sandbox.stateDir, "child.jsonl")
+  writeFileSync(sessionPath, JSON.stringify({
+    type: "message", timestamp: "2026-09-20T00:00:00Z",
+    message: { role: "assistant", stopReason: "aborted", content: [] },
+  }) + "\n")
+  writeFileSync(join(sandbox.stateDir, "tasks", "st_aborted.json"), JSON.stringify({
+    task_id: "st_aborted", status: "running", host_session: { session_path: sessionPath },
+  }))
+  const captured = terminalChildSnapshots(sandbox)
+  assert(captured.length === 1 && captured[0].taskId === "st_aborted" &&
+    captured[0].storeStatus === "running" && captured[0].storeStableDuringRead,
+    "a terminal aborted turn must remain visible even when its store says running")
 }
 
 async function checkStateEvents(root) {
@@ -56,8 +75,9 @@ function checkStormReceipts() {
 function checkProductGates() {
   const cases = [
     [singleParentPass, {
-      sessionsWorker: 16, daemonIdentitiesSeen: 1, perChildRpcProcessCount: 0, failedChildren: 0,
-    }, [{ sessionsWorker: 15 }, { daemonIdentitiesSeen: 2 }, { perChildRpcProcessCount: 1 }, { failedChildren: 1 }]],
+      sessionsWorker: 16, daemonIdentitiesSeen: 1, perChildRpcProcessCount: 0, failedChildren: 0, terminalChildFailures: 0,
+    }, [{ sessionsWorker: 15 }, { daemonIdentitiesSeen: 2 }, { perChildRpcProcessCount: 1 },
+      { failedChildren: 1 }, { terminalChildFailures: 1 }]],
     [resumePass, {
       childrenStarted: 4, grewAfterParentExit: true, resumeExit: null,
       resumeAcknowledged: true, sameParentSession: true, noPromptReplay: true, childrenCompleted: 4,

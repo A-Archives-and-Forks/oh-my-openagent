@@ -1,7 +1,7 @@
 // Product predicates shared by the live scenarios and their fault controls.
 export function singleParentPass(facts) {
   return facts.sessionsWorker >= 16 && facts.daemonIdentitiesSeen === 1 &&
-    facts.perChildRpcProcessCount === 0 && facts.failedChildren === 0
+    facts.perChildRpcProcessCount === 0 && facts.failedChildren === 0 && facts.terminalChildFailures === 0
 }
 
 export function resumePass(facts) {
