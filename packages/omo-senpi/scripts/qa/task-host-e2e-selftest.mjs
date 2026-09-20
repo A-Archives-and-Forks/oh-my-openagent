@@ -8,12 +8,15 @@ import { AGENT_DIR_ENV_NAMES, DELETED_CHILD_ENV, credentialDigest, sandboxEnv } 
 import { lastJsonLine, perChildRpcProcesses, sandboxProcesses } from "./task-host-e2e-process.mjs"
 import { CHILD_BUSY, childSessionFiles, childStartDiagnosis, failureTokens, hostConfig, jsonlLines, spawnScript } from "./task-host-e2e-support.mjs"
 import { scenarioD, scenarioE4, scenarioH2, scenarioHandoffSuite } from "./task-host-e2e-gated.mjs"
+import { singleParentPass, resumePass, teamPass, reopenPass, stormPass } from "./task-host-e2e-gates.mjs"
+import { observeState } from "./task-host-e2e-events.mjs"
+import { completedStormCalls } from "./task-host-e2e-storm.mjs"
 
 function assert(condition, message) {
   if (!condition) throw new Error(`self-test: ${message}`)
 }
 
-export function runSelfTest(scriptDir) {
+export async function runSelfTest(scriptDir) {
   const root = mkdtempSync("/tmp/dh41st.")
   try {
     checkSandboxEnv(root)
@@ -21,10 +24,70 @@ export function runSelfTest(scriptDir) {
     checkFixtures()
     checkReaders(root)
     checkGates()
+    checkProductGates()
+    await checkStateEvents(root)
+    checkStormReceipts()
     checkDriverSource(scriptDir)
   } finally {
     rmSync(root, { recursive: true, force: true })
   }
+}
+
+async function checkStateEvents(root) {
+  const path = join(root, "ready")
+  const value = await observeState(root, () => {
+    try { return readFileSync(path, "utf8") === "ready" ? "observed" : undefined } catch { return undefined }
+  }, { trigger: () => writeFileSync(path, "ready"), timeoutMs: 1_000 })
+  assert(value === "observed", "state subscription must see a synchronous trigger without sleeping")
+  assert(await observeState(root, () => undefined, { timeoutMs: 0 }) === undefined,
+    "missing state must time out, never count as readiness")
+}
+
+function checkStormReceipts() {
+  const row = (role, isError, text) => JSON.stringify({
+    message: { role, toolName: "eval", isError, content: [{ type: "text", text }] },
+  })
+  const success = row("toolResult", false, "STORM_OK:3")
+  assert(completedStormCalls([success, success]) === 1, "duplicate receipts cannot inflate the spawn budget")
+  assert(completedStormCalls([row("assistant", false, "STORM_OK:4"), row("toolResult", true, "STORM_OK:4")]) === 0,
+    "a prompt or failed eval is not a successful process spawn")
+}
+
+function checkProductGates() {
+  const cases = [
+    [singleParentPass, {
+      sessionsWorker: 16, daemonIdentitiesSeen: 1, perChildRpcProcessCount: 0, failedChildren: 0,
+    }, [{ sessionsWorker: 15 }, { daemonIdentitiesSeen: 2 }, { perChildRpcProcessCount: 1 }, { failedChildren: 1 }]],
+    [resumePass, {
+      childrenStarted: 4, grewAfterParentExit: true, resumeExit: null,
+      resumeAcknowledged: true, sameParentSession: true, noPromptReplay: true, childrenCompleted: 4,
+    }, [{ childrenStarted: 0 }, { grewAfterParentExit: false }, { resumeAcknowledged: false },
+      { sameParentSession: false }, { noPromptReplay: false }, { childrenCompleted: 3 }]],
+    [teamPass, {
+      memberRecords: 1, mailDelivered: true, memberSessionContexts: [{ role: "member" }],
+      memberContextMatches: true, failedMembers: 0, perChildRpcProcessCount: 0,
+    }, [{ memberRecords: 0 }, { mailDelivered: false }, { memberSessionContexts: [] },
+      { memberContextMatches: false }, { failedMembers: 1 }, { perChildRpcProcessCount: 1 }]],
+    [reopenPass, {
+      childCompleted: "completed", parkObserved: true, reopenExit: 0,
+      transcriptLinesBeforeReopen: 10, transcriptLinesAfterReopen: 16,
+      reopenedCompleted: true, reopenMessageDelivered: true, sameChildSession: true,
+    }, [{ childCompleted: "error" }, { parkObserved: false }, { transcriptLinesAfterReopen: 10 },
+      { reopenedCompleted: false }, { reopenMessageDelivered: false }, { sameChildSession: false }]],
+    [stormPass, {
+      hostPid: 123, childrenStarted: 0, bashCallRecords: 240,
+      stormParticipants: 8, zombieChildCount: 0, daemonReportedZombies: 0, daemonAlive: true,
+    }, [{ stormParticipants: 0 }, { bashCallRecords: 199 }, { zombieChildCount: 1 },
+      { daemonReportedZombies: 1 }, { daemonAlive: false }, { hostPid: null }]],
+  ]
+  const failures = []
+  for (const [gate, healthy, mutations] of cases) {
+    if (!gate(healthy)) failures.push(`${gate.name}: rejects a healthy completed workload on a loaded host`)
+    for (const mutation of mutations) {
+      if (gate({ ...healthy, ...mutation })) failures.push(`${gate.name}: accepted broken product fact ${JSON.stringify(mutation)}`)
+    }
+  }
+  assert(failures.length === 0, failures.join("\n"))
 }
 
 function checkSandboxEnv(root) {

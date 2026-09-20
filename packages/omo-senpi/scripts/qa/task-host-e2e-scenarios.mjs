@@ -2,6 +2,9 @@
 // carries two parents' worth of children as sessions, B proves those sessions outlive their parent and
 // are re-attached without replaying a prompt, I proves the default-mode rule both ways.
 import { join } from "node:path"
+import { singleParentPass } from "./task-host-e2e-gates.mjs"
+import { STATE_DEADLINE_MS } from "./task-host-e2e-events.mjs"
+export { scenarioB } from "./task-host-e2e-resume.mjs"
 
 import { createScenarioSandbox, writeMockScript, writeOmoConfig } from "./task-host-e2e-sandbox.mjs"
 import {
@@ -126,7 +129,7 @@ export async function scenarioA1(run) {
   const watched = await observeDaemon(sandbox, (probe) => {
     if (probe.json?.sessions?.worker >= 16) return true
     return childrenSettled(readTaskRecords(sandbox), 16)
-  }, { timeoutMs: 180_000, intervalMs: 1_000 })
+  }, { timeoutMs: STATE_DEADLINE_MS, intervalMs: 1_000 })
   const observed = watched.matched ?? watched.lastProbe ?? daemonStatus(sandbox, { includeWorkers: true })
   const records = readTaskRecords(sandbox)
   const identities = [...new Set(watched.timeline.map((entry) => entry.instanceId).filter(Boolean))]
@@ -138,9 +141,10 @@ export async function scenarioA1(run) {
     parentExits,
     parentStderrHostLines: hostLines(parent.chunks.stderr),
     perChildRpcProcessCount: perChildRpcProcesses(sandbox).length,
+    failedChildren: records.filter((record) => ["error", "lost", "cancelled"].includes(record.status)).length,
     childStart: childStartDiagnosis(sandbox, records),
   }
-  const pass = facts.sessionsWorker >= 16 && identities.length === 1 && facts.perChildRpcProcessCount === 0
+  const pass = singleParentPass(facts)
   try {
     process.kill(-parent.child.pid, "SIGKILL")
   } catch {
@@ -152,57 +156,6 @@ export async function scenarioA1(run) {
     title: "single-parent control: 16 children, one daemon identity",
     status: pass ? "pass" : "fail",
     ...(pass ? {} : { reason: `sessions.worker=${facts.sessionsWorker} daemonIdentities=${identities.length} perChildRpc=${facts.perChildRpcProcessCount}` }),
-    facts,
-    receipt,
-  }
-}
-
-export async function scenarioB(run) {
-  const sandbox = createScenarioSandbox(run, "sB", { omoConfig: hostConfig(), script: spawnScript(4, CHILD_BUSY) })
-  const parent = spawnParent(sandbox, run.mockEntry, "detach with four children mid turn", { capture: true })
-  const started = await waitFor(() => {
-    const records = readTaskRecords(sandbox)
-    const running = records.filter((record) => record.status === "running").length
-    return running >= 4 || childrenSettled(records, 4) ? records : undefined
-  }, { timeoutMs: 120_000, intervalMs: 500 })
-  const records = started ?? readTaskRecords(sandbox)
-  const before = transcriptSizes(sandbox, records)
-  try {
-    process.kill(-parent.child.pid, "SIGKILL")
-  } catch {
-    // already exited
-  }
-  await parent.closed
-  const grew = await waitFor(() => {
-    const after = transcriptSizes(sandbox, records)
-    return Object.keys(before).every((id) => (after[id] ?? 0) > (before[id] ?? 0)) ? after : undefined
-  }, { timeoutMs: 60_000, intervalMs: 1_000 })
-  const after = grew ?? transcriptSizes(sandbox, records)
-  writeMockScript(sandbox, { parentSteps: [{ type: "text", text: "resume complete" }], childSteps: CHILD_BUSY })
-  const resumed = runBin(sandbox, run.parentArgs(sandbox, "resume the detached children"), { timeoutMs: 180_000 })
-  const replays = Object.fromEntries(records.map((record) => [
-    record.task_id,
-    childSessionFiles(sandbox, record.task_id)
-      .flatMap((file) => jsonlLines(file))
-      .filter((line) => line.includes(CHILD_PROMPT)).length,
-  ]))
-  const facts = {
-    childrenStarted: records.filter((record) => record.status === "running").length,
-    transcriptLinesBefore: before,
-    transcriptLinesAfter: after,
-    grewAfterParentExit: grew !== undefined,
-    resumeExit: resumed.status,
-    promptOccurrencesPerChild: replays,
-    noPromptReplay: Object.values(replays).every((count) => count === 1),
-    childStart: childStartDiagnosis(sandbox, records),
-  }
-  const pass = facts.childrenStarted >= 4 && facts.grewAfterParentExit && resumed.status === 0 && facts.noPromptReplay
-  const receipt = await cleanupScenario(sandbox, { hostPids: [daemonStatus(sandbox).json?.pid].filter(Boolean) })
-  return {
-    scenario: "B",
-    title: "detach/attach: parent quits with 4 children mid-turn",
-    status: pass ? "pass" : "fail",
-    ...(pass ? {} : { reason: `started=${facts.childrenStarted} grew=${facts.grewAfterParentExit} resumeExit=${resumed.status} noReplay=${facts.noPromptReplay}` }),
     facts,
     receipt,
   }

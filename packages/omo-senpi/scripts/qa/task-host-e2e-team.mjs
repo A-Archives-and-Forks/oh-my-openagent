@@ -2,6 +2,8 @@
 // whose identity travels in the session context and whose lead mail is delivered, C2 proves a completed
 // child is PARKED rather than closed and that `task_send` reopens it.
 import { join } from "node:path"
+import { teamPass, reopenPass } from "./task-host-e2e-gates.mjs"
+import { STATE_DEADLINE_MS, observeState, stopParent } from "./task-host-e2e-events.mjs"
 
 import { createScenarioSandbox, writeMockScript, writeOmoConfig } from "./task-host-e2e-sandbox.mjs"
 import {
@@ -26,6 +28,7 @@ import {
   recordFailureTokens,
   spawnScript,
   transcriptSizes,
+  toolDetails,
 } from "./task-host-e2e-support.mjs"
 
 const TEAM_MAIL = "LEAD2MEMBER daemon mail delivered"
@@ -54,39 +57,42 @@ export async function scenarioC(run) {
       childSteps: CHILD_BUSY,
     },
   })
-  const parent = spawnParent(sandbox, run.mockEntry, "create a team whose members live in the daemon", { capture: true })
-  const started = await waitFor(() => {
-    const records = readTaskRecords(sandbox).filter((record) => record.name === "quick")
-    if (records.length === 0) return undefined
-    return records.every((record) => record.status === "running") || childrenSettled(records, 1) ? records : undefined
-  }, { timeoutMs: 120_000, intervalMs: 500 })
-  const members = started ?? readTaskRecords(sandbox).filter((record) => record.name === "quick")
+  let parent
+  let facts = { memberRecords: 0, mailDelivered: false, memberSessionContexts: [] }
+  await observeState(sandbox.root, async () => {
+    const members = readTaskRecords(sandbox).filter((record) => record.team_member_name === "quick")
+    const sent = toolDetails(parent.chunks.stdout, "task_send").find((d) =>
+      d.kind === "team_message" && d.team?.kind === "to_members" && d.team.recipients.includes("quick"))
+    const context = members.length ? await run.probeSessionContext(join(sandbox.agentDir, "rpc", "rpc.sock")) : { rows: [] }
+    const memberContext = context.rows?.filter((row) => row.context?.role === "member") ?? []
+    const mailDelivered = !!sent && members.some((record) =>
+      childSessionFiles(sandbox, record.task_id).some((file) => jsonlLines(file).some((line) =>
+        line.includes("<peer_message") && line.includes(sent.team.message_id) && line.includes(TEAM_MAIL))))
+    facts = {
+      memberRecords: members.length,
+      memberStatuses: members.map((record) => record.status),
+      mailDelivered,
+      messageId: sent?.team.message_id ?? null,
+      sessionContextProbe: context.probe,
+      memberSessionContexts: memberContext.map((row) => row.context),
+      memberContextMatches: members.length > 0 && members.every((record) => memberContext.some((row) =>
+        row.context.task_id === record.task_id && row.context.team_run_id === record.team_run_id &&
+        row.context.member_name === record.team_member_name)),
+      failedMembers: members.filter((r) => ["error", "lost", "cancelled"].includes(r.status)).length,
+      perChildRpcProcessCount: perChildRpcProcesses(sandbox).length,
+      childStart: childStartDiagnosis(sandbox, readTaskRecords(sandbox)),
+    }
+    return teamPass(facts) || facts.failedMembers > 0 ? facts : undefined
+  }, { trigger: () => { parent = spawnParent(sandbox, run.mockEntry, "create a team whose members live in the daemon", { capture: true }) } })
+  const pass = teamPass(facts)
+  await stopParent(parent)
   const status = daemonStatus(sandbox, { includeWorkers: true })
-  const mailDelivered = members.some((record) =>
-    childSessionFiles(sandbox, record.task_id).some((file) => jsonlLines(file).some((line) => line.includes(TEAM_MAIL))))
-  const context = await run.probeSessionContext(join(sandbox.agentDir, "rpc", "rpc.sock"))
-  const memberContext = context.rows?.filter((row) => row.context?.role === "member") ?? []
-  const facts = {
-    memberRecords: members.length,
-    memberStatuses: members.map((record) => record.status),
-    sessionsWorker: status.json?.sessions?.worker ?? null,
-    mailDelivered,
-    sessionContextProbe: context.probe,
-    memberSessionContexts: memberContext.map((row) => row.context),
-    childStart: childStartDiagnosis(sandbox, readTaskRecords(sandbox)),
-  }
-  const pass = members.length > 0 && mailDelivered && memberContext.length > 0
-  try {
-    process.kill(-parent.child.pid, "SIGKILL")
-  } catch {
-    // already gone
-  }
   const receipt = await cleanupScenario(sandbox, { hostPids: [status.json?.pid].filter(Boolean) })
   return {
     scenario: "C",
     title: "team members via daemon (identity from sessionContext, lead->member mail)",
     status: pass ? "pass" : "fail",
-    ...(pass ? {} : { reason: `members=${members.length} mail=${mailDelivered} memberContexts=${memberContext.length} probe=${context.probe}` }),
+    reason: `members=${facts.memberRecords} mail=${facts.mailDelivered} memberContexts=${facts.memberSessionContexts.length} matched=${facts.memberContextMatches} probe=${facts.sessionContextProbe}`,
     facts,
     receipt,
   }
@@ -109,25 +115,45 @@ export async function scenarioC2(run) {
     },
   })
   const env = { SENPI_RPC_SESSION_IDLE_EVICTION_MS: String(IDLE_EVICTION_MS) }
-  const first = runBin(sandbox, run.parentArgs(sandbox, "spawn one child and let it finish"), { timeoutMs: 180_000, env })
-  const completed = readTaskRecords(sandbox).find((record) => record.name === "done")
+  let first
+  const completed = await observeState(sandbox.root, () => {
+    const record = readTaskRecords(sandbox).find((record) => record.name === "done")
+    return record && childrenSettled([record], 1) ? record : undefined
+  }, { trigger: () => { first = runBin(sandbox, run.parentArgs(sandbox, "spawn one child and let it finish"), { timeoutMs: STATE_DEADLINE_MS, env }) } })
   const before = daemonStatus(sandbox, { includeWorkers: true })
   // A park is only observable when there WAS a live worker session to park: with no worker, a zero
   // count is the starting state, not the eviction under test.
   const hadWorker = (before.json?.sessions?.worker ?? 0) >= 1
   const parked = !hadWorker ? undefined : await waitFor(() => {
     const probe = daemonStatus(sandbox, { includeWorkers: true })
-    return probe.json !== undefined && probe.json.sessions.worker === 0 ? probe : undefined
+    return probe.json?.instanceId === before.json?.instanceId && probe.json.sessions.worker === 0 ? probe : undefined
   }, { timeoutMs: 90_000, intervalMs: 2_000 })
   const linesBefore = completed === undefined ? 0 : transcriptSizes(sandbox, [completed])[completed.task_id]
+  const filesBefore = completed === undefined ? [] : childSessionFiles(sandbox, completed.task_id)
+  const epochBefore = completed?.notification?.run_epoch
+  const reopenMessage = "reopen the parked session"
+  const reopenReply = "parked child resumed successfully"
   writeMockScript(sandbox, {
     parentSteps: [
-      { type: "tool_call", name: "task_send", arguments: { to: "done", message: "reopen the parked session" } },
+      { type: "tool_call", name: "task_send", arguments: { to: "done", message: reopenMessage, all_scope: true } },
       { type: "text", text: "reopen complete" },
     ],
-    childSteps: CHILD_DONE,
+    childSteps: [{ type: "text", text: reopenReply }],
   })
-  const reopen = runBin(sandbox, run.parentArgs(sandbox, "reopen the parked child"), { timeoutMs: 180_000, env })
+  let reopen
+  let reopened
+  const progress = await observeState(sandbox.root, () => {
+    reopened = readTaskRecords(sandbox).find((record) => record.task_id === completed?.task_id)
+    const rows = filesBefore.flatMap(jsonlLines).slice(linesBefore).map((line) => JSON.parse(line))
+    const messageIndex = rows.findIndex((row) => row.message?.role === "user" &&
+      JSON.stringify(row.message.content).includes(reopenMessage))
+    const answered = messageIndex >= 0 && rows.slice(messageIndex + 1).some((row) =>
+      row.message?.role === "assistant" && row.message.content?.some((part) => part.type === "text" && part.text === reopenReply))
+    return reopened?.notification?.run_epoch === epochBefore + 1 &&
+      reopened.status === "completed" && answered ? { messageIndex, answered } : undefined
+  }, { trigger: () => { reopen = runBin(sandbox, run.parentArgs(sandbox, "reopen the parked child"), { timeoutMs: STATE_DEADLINE_MS, env }) } })
+  const accepted = toolDetails(reopen.stdout, "task_send").some((d) =>
+    d.kind === "revived" && d.task_id === completed?.task_id && d.run_epoch === epochBefore + 1)
   const linesAfter = completed === undefined ? 0 : transcriptSizes(sandbox, [completed])[completed.task_id]
   const facts = {
     firstRunExit: first.status,
@@ -140,9 +166,17 @@ export async function scenarioC2(run) {
     reopenExit: reopen.status,
     transcriptLinesBeforeReopen: linesBefore,
     transcriptLinesAfterReopen: linesAfter,
+    reopenedCompleted: accepted && progress?.answered === true,
+    reopenMessageDelivered: progress?.messageIndex >= 0,
+    sameChildSession: filesBefore.length === 1 &&
+      childSessionFiles(sandbox, completed.task_id).join() === filesBefore.join() &&
+      readTaskRecords(sandbox).length === 1,
+    reviveAccepted: accepted,
+    runEpochBefore: epochBefore ?? null,
+    runEpochAfter: reopened?.notification?.run_epoch ?? null,
     childStart: childStartDiagnosis(sandbox, readTaskRecords(sandbox)),
   }
-  const pass = completed?.status === "completed" && facts.parkObserved === true && reopen.status === 0 && linesAfter > linesBefore
+  const pass = reopenPass(facts)
   const receipt = await cleanupScenario(sandbox, { hostPids: [before.json?.pid].filter(Boolean) })
   return {
     scenario: "C2",

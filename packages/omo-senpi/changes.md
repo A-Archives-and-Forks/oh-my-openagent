@@ -1,3 +1,21 @@
+## Daemon-host QA gates observe product transitions, not parent timing
+
+The single-parent control keeps its sixteen-session and single-daemon requirements but waits for
+readiness with the loaded-host allowance. Detach/attach uses a release barrier and resumes the
+original parent session; its gate checks child completion, a persisted resume response and no prompt
+replay rather than requiring the resident parent process to exit within an observation window.
+
+Team QA follows the member's stored identity, matches its daemon context and checks delivery of the
+specific mailbox message. Parking QA explicitly authorizes its new sender, checks the revival epoch
+and waits for the same child transcript to contain both the message and its completed response.
+The zombie scenario runs a finite workload and counts successful, distinct bash receipts from all
+eight children, not how many remain running after the storm ends. Missing work, a dead daemon,
+zombies, wrong identities and replay still fail their gates.
+
+Self-tests cover healthy terminal states and fault controls. State waits subscribe before triggering
+work. QA no longer reads real agent credentials for digest comparisons; child environments remain
+isolated and each scenario records process and sandbox cleanup.
+
 ## Console-subsystem spawns are hidden on win32, and a gate keeps them that way
 
 `memory-core`'s git exec and its process-start identity probe, plus the adapter's formatter, thread

@@ -80,8 +80,10 @@ export function parentArgv(sandbox, mockEntry, prompt) {
   return ["-e", mockEntry, "-p", "--mode", "json", "--provider", "omo-mock", "--model", "mock-1", "--session-dir", sandbox.sessionDir, prompt]
 }
 
-export function spawnParent(sandbox, mockEntry, prompt, { env = {}, capture = false } = {}) {
-  const child = spawn(sandbox.bin, parentArgv(sandbox, mockEntry, prompt), {
+export function spawnParent(sandbox, mockEntry, prompt, { env = {}, capture = false, session } = {}) {
+  const args = parentArgv(sandbox, mockEntry, prompt)
+  if (session) args.unshift("--session", session)
+  const child = spawn(sandbox.bin, args, {
     cwd: sandbox.cwd,
     env: sandboxEnv(sandbox, env),
     detached: true,

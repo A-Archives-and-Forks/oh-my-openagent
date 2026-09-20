@@ -36,6 +36,12 @@ export const DELETED_CHILD_ENV = [
   "PI_SESSION_FILE",
   "OMO_RPC_SOCKET_PATH",
   "SENPI_RPC_HOST_WATCH_FD",
+  "SENPI_CODING_AGENT_HOST_DIR",
+  "SENPI_CODING_AGENT_RUNTIME_DIR",
+  "OMO_CODING_AGENT_HOST_DIR",
+  "OMO_CODING_AGENT_RUNTIME_DIR",
+  "PI_CODING_AGENT_HOST_DIR",
+  "PI_CODING_AGENT_RUNTIME_DIR",
 ]
 
 export const AGENT_DIR_ENV_NAMES = ["OMO_CODING_AGENT_DIR", "SENPI_CODING_AGENT_DIR", "PI_CODING_AGENT_DIR"]
@@ -142,6 +148,9 @@ function baseEnv({ home, agentDir, xdgConfigHome, extra = {} }) {
   for (const name of DELETED_CHILD_ENV) delete env[name]
   env.HOME = home
   env.XDG_CONFIG_HOME = xdgConfigHome
+  env.XDG_DATA_HOME = join(home, "data")
+  env.XDG_CACHE_HOME = join(home, "cache")
+  env.XDG_STATE_HOME = join(home, "state")
   for (const name of AGENT_DIR_ENV_NAMES) env[name] = agentDir
   env.OMO_SENPI_QA = "1"
   env.CI = "1"

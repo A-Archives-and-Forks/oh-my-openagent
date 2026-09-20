@@ -88,6 +88,15 @@ export function jsonlLines(path) {
   return readFileSync(path, "utf8").split("\n").filter((line) => line.trim().length > 0)
 }
 
+export function toolDetails(stdout, name) {
+  return stdout.split("\n").flatMap((line) => {
+    let event
+    try { event = JSON.parse(line) } catch { return [] }
+    return event.type === "tool_execution_end" && event.toolName === name && !event.isError
+      ? [event.result?.details].filter(Boolean) : []
+  })
+}
+
 export function transcriptSizes(sandbox, records) {
   return Object.fromEntries(records.map((record) => [
     record.task_id,
