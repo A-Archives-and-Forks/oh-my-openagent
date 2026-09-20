@@ -7,8 +7,7 @@ import {
 } from "@oh-my-opencode/memory-core"
 
 import type { MemoryIdentityContext } from "./context"
-import { estimateSystemTokens } from "./memory-rpc-snapshot-state"
-import { MEMORY_PRESSURE_SOFT_RATIO } from "./status"
+import { estimateSystemTokensCached, MEMORY_PRESSURE_SOFT_RATIO } from "./status"
 
 export const MEMORY_PROMPT_TEMPLATE = "omo-senpi:before_agent_start:v3"
 export const MEMORY_NOTICE_CUSTOM_TYPE = "omo-memory:notice"
@@ -96,7 +95,7 @@ async function addMemoryPressureMetadata(
   if (compileWarnTokens === undefined) return block
   const head = await repo.head()
   if (head === null) return block
-  const estimate = await estimateSystemTokens(repo, head, estimates)
+  const estimate = await estimateSystemTokensCached(repo, head, estimates)
   const softThreshold = Math.floor(MEMORY_PRESSURE_SOFT_RATIO * compileWarnTokens)
   if (estimate < softThreshold) return block
   const percentage = Math.floor((estimate / compileWarnTokens) * 100)

@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The memory pressure advisory counts the text your model is actually shown again. A recent change estimated from the sizes git stored, which reads low for any `system/` file holding invalid UTF-8 and reported no pressure at all when the repository could not be read; both are restored, and the estimate is still computed once per commit rather than once per prompt.
+
 - `omo doctor` sees your running sessions again. It recognised engines by one spelling of their command line, and the launcher stopped producing that spelling when it moved onto the engine's pre-linked bundle, so the stale-session report and its reap command had been looking at an empty list on current installs.
 
 - The reminder that your soul files changed no longer re-reads the whole memory history to find out. It asked git for every commit since the last notice that touched `system/`, which on an identity with thousands of commits costs most of a second on every prompt; it now reads a page and only looks further when that page is entirely memory-tool writes. The notice it produces is the same one.
