@@ -12,6 +12,7 @@ import {
 	ensureCacheClone,
 	fetchCacheClones,
 	fetchRefArgs,
+	parseCommitLog,
 	hostTargetFor,
 	packSoleSenpiTarball,
 	parseOmobArgs,
@@ -330,6 +331,11 @@ describe("fetchCacheClones", () => {
 		})
 		await expect(failing).rejects.toThrow("fetch refused")
 		expect(attempted).toHaveLength(2)
+	})
+
+	test("#given one git log line pair #when commit info is parsed #then the commit and its date come from a single git call", () => {
+		expect(parseCommitLog("abc123\n2026-09-20T01:44:58+09:00\n")).toEqual({ commit: "abc123", committedAt: "2026-09-20T01:44:58+09:00" })
+		expect(parseCommitLog("")).toEqual({ commit: "", committedAt: "" })
 	})
 
 	test("#given a plain branch ref #when fetch args are built #then only that branch is fetched, and anything else falls back to the whole remote", () => {

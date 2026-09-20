@@ -254,9 +254,15 @@ interface CommitInfo {
 	readonly branch: string
 }
 
+// One `git log` answers both the commit and its date; every extra git process is ~11ms
+// on the refresh path that each managed launch pays.
+export function parseCommitLog(output: string): { readonly commit: string; readonly committedAt: string } {
+	const [commit = "", committedAt = ""] = output.split("\n")
+	return { commit: commit.trim(), committedAt: committedAt.trim() }
+}
+
 function readCommitInfo(directory: string, ref: string): CommitInfo {
-	const commit = runCaptured("git", ["rev-parse", `${ref}^{commit}`], directory)
-	const committedAt = runCaptured("git", ["log", "-1", "--format=%cI", ref], directory)
+	const { commit, committedAt } = parseCommitLog(runCaptured("git", ["log", "-1", "--format=%H%n%cI", `${ref}^{commit}`], directory))
 	const rawBranch = runCaptured("git", ["rev-parse", "--abbrev-ref", ref], directory).trim()
 	const branch = (rawBranch === "HEAD" || rawBranch === "" ? ref : rawBranch).replace(/^origin\//, "")
 	return { commit, committedAt, branch }
@@ -449,16 +455,12 @@ async function runBuild(options: OmobOptions): Promise<number> {
 	console.error(`[omob] checking ${options.omoRef} + ${options.senpiRef}`)
 	const senpiSpec: CacheCloneSpec = { url: senpiUrl, directory: join(options.cacheDir, "senpi"), ref: options.senpiRef }
 	const omoSpec: CacheCloneSpec = { url: omoUrl, directory: join(options.cacheDir, "omo"), ref: options.omoRef }
-	if (!options.skipFetch) {
-		ensureCloneExists(senpiSpec.url, senpiSpec.directory)
-		ensureCloneExists(omoSpec.url, omoSpec.directory)
-		await fetchCacheClones([senpiSpec, omoSpec])
-	}
-	const senpi = ensureCacheClone(senpiUrl, senpiSpec.directory, options.senpiRef, true, false)
-	const omo = ensureCacheClone(omoUrl, omoSpec.directory, options.omoRef, true, false)
+	ensureCloneExists(senpiSpec.url, senpiSpec.directory)
+	ensureCloneExists(omoSpec.url, omoSpec.directory)
+	if (!options.skipFetch) await fetchCacheClones([senpiSpec, omoSpec])
 
-	const senpiInfo = readCommitInfo(senpi.directory, options.senpiRef)
-	const omoInfo = readCommitInfo(omo.directory, options.omoRef)
+	const senpiInfo = readCommitInfo(senpiSpec.directory, options.senpiRef)
+	const omoInfo = readCommitInfo(omoSpec.directory, options.omoRef)
 	const buildInfo: OmoBuildInfo = {
 		command: options.name,
 		omo: omoInfo,
@@ -474,16 +476,16 @@ async function runBuild(options: OmobOptions): Promise<number> {
 		return 0
 	}
 	console.error(`[omob] building: omo ${omoInfo.commit} + senpi ${senpiInfo.commit}`)
-	ensureCacheClone(senpiUrl, senpi.directory, options.senpiRef, true)
-	ensureCacheClone(omoUrl, omo.directory, options.omoRef, true)
-	const builtSenpiRoot = buildSenpiPackage(senpi.directory, options.cacheDir, senpiInfo.commit)
+	ensureCacheClone(senpiUrl, senpiSpec.directory, options.senpiRef, true)
+	ensureCacheClone(omoUrl, omoSpec.directory, options.omoRef, true)
+	const builtSenpiRoot = buildSenpiPackage(senpiSpec.directory, options.cacheDir, senpiInfo.commit)
 	// The omo prepare chain materializes gitignored plugin/skills from the shared-skills
 	// upstream submodules; a caller's OMO_SKIP_MATERIALIZE=1 would skip that and break the
 	// build, so the dev-binary install always runs the full materialization.
 	const installEnv: NodeJS.ProcessEnv = { ...process.env }
 	delete installEnv.OMO_SKIP_MATERIALIZE
-	run("bun", ["install"], omo.directory, installEnv)
-	swapSenpi(omo.directory, builtSenpiRoot)
+	run("bun", ["install"], omoSpec.directory, installEnv)
+	swapSenpi(omoSpec.directory, builtSenpiRoot)
 
 	// Imported here, not at module scope: the fast path returns above, and this module graph
 	// (zod plus the sidecar fixture) is parsed on every managed launch otherwise.
@@ -511,7 +513,7 @@ async function runBuild(options: OmobOptions): Promise<number> {
 			"--build-info",
 			JSON.stringify(buildInfo),
 		],
-		omo.directory,
+		omoSpec.directory,
 		installEnv,
 	)
 	const binaryPath = join(outDir, target.binaryName)
