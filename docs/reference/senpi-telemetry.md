@@ -61,7 +61,7 @@ The curated plan agents were renamed to `plan-consultant` and `plan-reviewer`; `
 | `delegation_started` | `background` | `boolean` | - |
 | `delegation_started` | `batch_size_bucket` | `string` | `1`, `2_4`, `5_plus` |
 | `delegation_started` | `kind` | `string` | `category`, `subagent` |
-| `delegation_started` | `name` | `string` | `visual-engineering`, `artistry`, `ultrabrain`, `deep`, `quick`, `unspecified-low`, `unspecified-high`, `architect`, `writing`, `explore`, `librarian`, `plan-consultant`, `plan-reviewer`, `custom` |
+| `delegation_started` | `name` | `string` | `visual-engineering`, `artistry`, `ultrabrain`, `deep-low`, `deep-high`, `quick`, `unspecified-low`, `unspecified-high`, `architect`, `writing`, `explore`, `librarian`, `plan-consultant`, `plan-reviewer`, `custom` |
 | `feature_used` | `$session_id` | `string` | - |
 | `feature_used` | `feature` | `string` | `goal_tool`, `team_create`, `memory_tool` |
 | `kibitzer_summary` | `$session_id` | `string` | - |
@@ -123,7 +123,7 @@ The curated plan agents were renamed to `plan-consultant` and `plan-reviewer`; `
 | `delegation_completed` | `background_mode` | `string` | `foreground`, `background`, `promoted`, `unknown` |
 | `delegation_completed` | `cache_read_tokens` | `number` | - |
 | `delegation_completed` | `cache_write_tokens` | `number` | - |
-| `delegation_completed` | `category` | `string` | `visual-engineering`, `artistry`, `ultrabrain`, `deep`, `quick`, `unspecified-low`, `unspecified-high`, `architect`, `writing`, `custom`, `none` |
+| `delegation_completed` | `category` | `string` | `visual-engineering`, `artistry`, `ultrabrain`, `deep-low`, `deep-high`, `quick`, `unspecified-low`, `unspecified-high`, `architect`, `writing`, `custom`, `none` |
 | `delegation_completed` | `config_generation` | `number` | - |
 | `delegation_completed` | `cost_status` | `string` | `reported`, `unavailable`, `invalid` |
 | `delegation_completed` | `cost_usd` | `number` | - |
@@ -153,7 +153,8 @@ The curated plan agents were renamed to `plan-consultant` and `plan-reviewer`; `
 | `category_config` | `builtin_overridden_count` | `number` | - |
 | `category_config` | `cat_architect` | `string` | - |
 | `category_config` | `cat_artistry` | `string` | - |
-| `category_config` | `cat_deep` | `string` | - |
+| `category_config` | `cat_deep_high` | `string` | - |
+| `category_config` | `cat_deep_low` | `string` | - |
 | `category_config` | `cat_quick` | `string` | - |
 | `category_config` | `cat_ultrabrain` | `string` | - |
 | `category_config` | `cat_unspecified_high` | `string` | - |

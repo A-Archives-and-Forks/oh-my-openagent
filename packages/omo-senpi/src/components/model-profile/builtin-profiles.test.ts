@@ -67,8 +67,11 @@ describe("BUILTIN_MODEL_PROFILES", () => {
     expect(apiLaneRungs).toEqual([])
   })
 
-  it("copies the deep category chain verbatim into deep-work", () => {
-    expect(BUILTIN_MODEL_PROFILES["deep-work"]?.models).toEqual(CATEGORY_FALLBACK_CHAINS["deep"])
+  it("copies the deep lane chains verbatim into deep-work, strongest lane first", () => {
+    expect(BUILTIN_MODEL_PROFILES["deep-work"]?.models).toEqual([
+      ...CATEGORY_FALLBACK_CHAINS["deep-high"],
+      ...CATEGORY_FALLBACK_CHAINS["deep-low"],
+    ])
   })
 
   it("orders the capable chain fable -> opus -> kimi -> glm", () => {

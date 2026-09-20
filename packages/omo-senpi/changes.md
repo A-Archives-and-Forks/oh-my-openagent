@@ -1,3 +1,54 @@
+## The `deep` delegation category splits into `deep-low` and `deep-high`
+
+`deep` opened its description with a bold MANDATORY list of domains (3D, computer and browser use,
+CAPTCHA, multimodal, backend, logic, algorithms). The list routes by domain, which almost every
+coding task matches, so the category's head rung `gpt-6-astra` high served nearly all delegated work
+and the `gpt-5.6-sol` medium rung under it was reachable only by provider absence.
+
+The replacement routes by capability on two axes the caller can rate from the brief: how much context
+the child must hold, and how hard its decisions are. Decision difficulty is the gate. `deep-low`
+(`openai-codex/gpt-5.6-sol` medium) is the default lane; `deep-high` (`openai-codex/gpt-6-astra`
+high) takes a goal whose central decision cannot be settled from evidence. `CATEGORY_FALLBACK_CHAINS`
+gives each lane ONE rung and `requiresModel` gates each on its own model id, so the lanes never
+substitute each other and a registry missing one lane drops it from `availableCategories` instead of
+serving the other model under its name. The provider list inside a rung is unchanged, so a single
+provider outage still fails over across `openai-codex` -> `github-copilot` -> `opencode`.
+
+The domain list now lives only on the caller-facing `deep-low` description. The child appends lost it
+(a child never picks its category) and gained the escalation contract: a `deep-low` child returns
+`ESCALATE: deep-high` as the first line, with what it read and the decision it could not settle,
+instead of guessing. `openai-categories.ts` therefore ships four deep appends (GPT and generic per
+lane) resolved by `resolveDeepLowCategoryPromptAppend` / `resolveDeepHighCategoryPromptAppend`; the
+GPT-5.5-specific deep append is gone, since both lanes ship GPT rungs only and the GPT-5.6 doctrine
+(outcome, success criteria, escalation, stop rule) covers Sol and Astra alike.
+
+`omo-senpi-gate-reviewer` routes `["deep-high", "unspecified-high"]`, `omo-senpi-qa-executor`
+`["deep-low", "unspecified-low"]`. The telemetry `category_config` schema swaps `cat_deep` for
+`cat_deep_low` / `cat_deep_high`; `delegation_completed.category` derives from
+`BUILTIN_CATEGORY_DEFAULTS` and needed no edit. The `deep-work` model profile now deep-equals
+`deep-high ++ deep-low` instead of the single old chain.
+
+## `categories.deep` migrates once, and does nothing to configs that never used it
+
+`omo-config-core` gains `canonicalizeLegacyCategoryNames`, which rewrites a retired category key
+(`categories.deep`) and a retired category VALUE (`teams.*.members[].category`,
+`memory.reflection.category`) through the base block, `[senpi]`/`[opencode]`/`[codex]`, and every
+`profiles.*` and its harness sub-block. The loader runs it per layer before merge and reports a
+`deprecated-keys` diagnostic, which `config-startup` already surfaces as a startup warning. That is
+what keeps an override working when the file rewrite cannot run (locked batch, read-only project
+file). When both `deep` and `deep-low` exist the canonical entry wins and the drop is reported.
+
+The file rewrite is the new `2026-09-category-deep-split` plan in `config-migration`. Because the
+reasoning-unification plan taught us that a `replace-target` plan writes a backup and a `_migrations`
+marker even when the transform is a no-op, `MigrationPlan` gains `shouldRun`, a content gate that
+`batch.ts` evaluates against the parsed target before the journal, the backup and the write. The new
+plan passes `hasLegacyCategoryNames`, so a config that never named `deep` is left byte-identical with
+no marker - asserted in `migration/should-run.test.ts` by `operations` carrying no write or rename.
+
+The name also resolves at runtime: `validateTaskTarget` canonicalizes the spawn boundary (so the task
+record, telemetry and renderers all carry the name that ran), and both edition resolvers accept the
+retired name, so `task(category: "deep")` in a third-party skill or an AGENTS.md keeps working.
+
 ## Daemon-host QA gates observe product transitions, not parent timing
 
 The single-parent control keeps its sixteen-session and single-daemon requirements but waits for

@@ -578,10 +578,10 @@ describe("createTaskChildPlanner plan variant", () => {
 })
 
 describe("createTaskChildPlanner reviewer category routing", () => {
-  test("#given omo.json overrides categories.deep.model #when the gate reviewer is planned #then the override reaches the agent-sourced model", () => {
+  test("#given omo.json overrides categories.deep-high.model #when the gate reviewer is planned #then the override reaches the agent-sourced model", () => {
     // given
     const planner = createTaskChildPlanner(
-      { categories: { deep: { model: "openai/gpt-5.6-terra" } } },
+      { categories: { "deep-high": { model: "openai/gpt-5.6-terra" } } },
       BUILTIN_AGENTS,
       () => registry([model("openai", "gpt-5.6-terra")]),
     )
@@ -601,12 +601,12 @@ describe("createTaskChildPlanner reviewer category routing", () => {
     expect(resolved.plan.agentType).toBe("omo-senpi-gate-reviewer")
   })
 
-  test("#given a registry serving deep and unspecified-high #when the gate reviewer is planned #then the deep model wins and unspecified-high extends the runtime chain", () => {
+  test("#given a registry serving deep-high and unspecified-high #when the gate reviewer is planned #then the deep-high model wins and unspecified-high extends the runtime chain", () => {
     // given
     const planner = createTaskChildPlanner(
       {},
       BUILTIN_AGENTS,
-      () => registry([model("openai", "gpt-5.6-sol"), model("anthropic", "claude-opus-5")]),
+      () => registry([model("openai", "gpt-6-astra"), model("anthropic", "claude-opus-5")]),
     )
 
     // when
@@ -619,14 +619,14 @@ describe("createTaskChildPlanner reviewer category routing", () => {
 
     // then
     const resolved = expectResolved(result)
-    expect(resolved.plan.model).toBe("openai/gpt-5.6-sol")
-    expect(resolved.plan.variant).toBe("medium")
+    expect(resolved.plan.model).toBe("openai/gpt-6-astra")
+    expect(resolved.plan.variant).toBe("high")
     expect(resolved.plan.fallback_models?.map((record) => record.display)).toContain("anthropic/claude-opus-5")
     expect(resolved.plan.instructions).toBe(BUILTIN_AGENTS["omo-senpi-gate-reviewer"]?.prompt)
     expect(resolved.plan.agentExecutionMode).toBe("in-process")
   })
 
-  test("#given a registry without the deep gate model #when the gate reviewer is planned #then unspecified-high supplies the model", () => {
+  test("#given a registry without the deep-high gate model #when the gate reviewer is planned #then unspecified-high supplies the model", () => {
     // given
     const planner = createTaskChildPlanner(
       {},

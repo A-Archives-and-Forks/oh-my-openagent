@@ -76,7 +76,7 @@ The `/ulw-plan` skill used to mirror this split with separate model-family promp
 
 ## Curated agents and categories keep their own chains
 
-A model profile picks the main session model and nothing else. Every delegated child, curated agent or category, walks its own chain, and `model_profile` isn't consulted at any rung of that path. A user who sets `categories.deep.model` sees identical behavior with or without a profile active.
+A model profile picks the main session model and nothing else. Every delegated child, curated agent or category, walks its own chain, and `model_profile` isn't consulted at any rung of that path. A user who sets `categories.deep-low.model` sees identical behavior with or without a profile active.
 
 ### Curated agents
 
@@ -157,7 +157,7 @@ Override any category or curated agent in `omo.json`. `model` sets one model; `m
 
   "categories": {
     "visual-engineering": { "model": "anthropic/claude-fable-5-1", "reasoning": "max" },
-    "deep": { "model": "openai/gpt-6-astra", "reasoning": "high" },
+    "deep-high": { "model": "openai/gpt-6-astra", "reasoning": "high" },
     "ultrabrain": { "model": "openai/gpt-6-astra", "reasoning": "max" },
     "unspecified-high": { "model": "anthropic/claude-opus-5", "reasoning": "xhigh" }
   }
@@ -188,7 +188,7 @@ Override any category or curated agent in `omo.json`. `model` sets one model; `m
 ```jsonc
 {
   "categories": {
-    "deep": {
+    "deep-low": {
       "models": [
         { "model": "openai/gpt-6-astra", "reasoning": "high" },
         { "model": "deepseek/deepseek-v4-pro", "reasoning": "max" }

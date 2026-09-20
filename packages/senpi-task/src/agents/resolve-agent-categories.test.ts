@@ -163,7 +163,7 @@ describe("resolveAgent category stage", () => {
 
   test("#given no registry #when a categorized agent resolves #then the first category builtin model is the attempted model", () => {
     // given
-    const agents = categorizedAgent(["deep"])
+    const agents = categorizedAgent(["deep-high"])
 
     // when
     const result = expectUnavailable(resolveAgent("categorized", agents, undefined))
@@ -183,8 +183,8 @@ describe("resolveAgent category stage", () => {
     // then
     expect(declared).toEqual({
       "omo-senpi-code-reviewer": ["unspecified-high"],
-      "omo-senpi-qa-executor": ["deep", "unspecified-low"],
-      "omo-senpi-gate-reviewer": ["deep", "unspecified-high"],
+      "omo-senpi-qa-executor": ["deep-low", "unspecified-low"],
+      "omo-senpi-gate-reviewer": ["deep-high", "unspecified-high"],
     })
   })
 

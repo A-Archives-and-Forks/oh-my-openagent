@@ -13,7 +13,8 @@ const CATEGORY_NAMES = [
   "visual-engineering",
   "architect",
   "ultrabrain",
-  "deep",
+  "deep-low",
+  "deep-high",
   "artistry",
   "quick",
   "unspecified-low",
@@ -22,7 +23,7 @@ const CATEGORY_NAMES = [
 ] as const
 
 describe("CATEGORY_FALLBACK_CHAINS", () => {
-  test("#given the builtin chains #when listing keys #then exactly the 9 category names are present", () => {
+  test("#given the builtin chains #when listing keys #then exactly the 10 category names are present", () => {
     expect(Object.keys(CATEGORY_FALLBACK_CHAINS).sort()).toEqual([...CATEGORY_NAMES].sort())
   })
 
@@ -44,9 +45,11 @@ describe("CATEGORY_FALLBACK_CHAINS", () => {
         { providers: ["github-copilot"], model: "gpt-5.6-sol", variant: "max" },
         { providers: ["openai-codex", "opencode"], model: "gpt-5.6-sol", variant: "max" }
       ],
-      deep: [
-        { providers: ["openai-codex", "github-copilot", "opencode"], model: "gpt-6-astra", variant: "high" },
+      "deep-low": [
         { providers: ["openai-codex", "github-copilot", "opencode"], model: "gpt-5.6-sol", variant: "medium" }
+      ],
+      "deep-high": [
+        { providers: ["openai-codex", "github-copilot", "opencode"], model: "gpt-6-astra", variant: "high" }
       ],
       artistry: [
         { providers: ["claude-sdk-oauth", "anthropic", "anthropic-api", "github-copilot", "opencode"], model: "claude-fable-5-1", variant: "max" },

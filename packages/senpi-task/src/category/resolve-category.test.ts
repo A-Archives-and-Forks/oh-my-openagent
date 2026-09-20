@@ -480,7 +480,8 @@ describe("builtin category defaults", () => {
       ["visual-engineering", "anthropic/claude-fable-5-1", "max"],
       ["artistry", "anthropic/claude-fable-5-1", "max"],
       ["ultrabrain", "openai-codex/gpt-6-astra", "max"],
-      ["deep", "openai-codex/gpt-6-astra", "high"],
+      ["deep-low", "openai-codex/gpt-5.6-sol", "medium"],
+      ["deep-high", "openai-codex/gpt-6-astra", "high"],
       ["quick", "kimi-coding/kimi-for-coding-highspeed", undefined],
       ["unspecified-low", "xai/grok-4.6", "xhigh"],
       ["unspecified-high", "openai-codex/gpt-6-astra", "high"],
@@ -492,7 +493,8 @@ describe("builtin category defaults", () => {
     expect(BUILTIN_CATEGORY_REQUIRES_MODEL).toEqual({
       architect: ["claude-fable-5-1"],
       ultrabrain: ["gpt-6-astra", "gpt-5.6-sol"],
-      deep: ["gpt-6-astra", "gpt-5.6-sol"],
+      "deep-low": ["gpt-5.6-sol"],
+      "deep-high": ["gpt-6-astra"],
     })
   })
 })
