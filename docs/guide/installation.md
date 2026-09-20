@@ -174,6 +174,8 @@ omo
 
 A bare `npm i -g omo-ai` fails with ETARGET on purpose; every published version is a prerelease, so the default channel never resolves. See the [omo-ai publishing runbook](../reference/omo-ai-publishing.md) for the mechanism.
 
+On npm ≥ 11 you may see an `npm warn allow-scripts` notice about omo-ai's postinstall during install. It is cosmetic: the install scripts still run (the warning is npm's opt-in `approve-scripts` workflow nagging, not a block). Verified on npm 11.17.0 — the engine patch (`bin/senpi-patch.mjs`) applies normally. If your npm config enforces a strict allowlist (`allow-scripts-pending=true` / `strict-allow-scripts=true`), approve the package once with `npm approve-scripts omo-ai` and reinstall.
+
 **Where omo keeps its state.** The senpi edition stores engine state under `~/.omo/agent`
 (`settings.json`, `auth.json`, `models.json`, and friends). A pre-unification flat `~/.omo` layout
 is adopted once into `~/.omo/agent` (marker `.adopted-from-omo-flat`; sessions, caches, and logs
