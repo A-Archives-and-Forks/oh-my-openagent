@@ -3,7 +3,7 @@ import { dirname, join } from "node:path"
 import { IsolationUnavailableError, type IsolationBackend, type IsolationContext } from "../backend"
 import { exists, git, gitResult } from "../git/command"
 import { markStarted } from "../backend-marker"
-import { copyBudget } from "./copy-tree"
+import { copyBudget, copyTree } from "./copy-tree"
 
 export async function seedDirtyState(lower: string, merged: string, consume: (size: number) => void = () => {}): Promise<void> {
   const staged = await git(lower, ["diff", "--binary", "--no-color", "--no-ext-diff", "--cached"])
@@ -57,15 +57,11 @@ export class RcopyBackend implements IsolationBackend {
       return
     }
     const consume = await copyBudget(ctx.baseDir, ctx.maxCopyBytes)
-    // Count during fs.cp's traversal rather than prewalking the source.
-    await cp(lower, merged, {
-      recursive: true, verbatimSymlinks: true, errorOnExist: true, force: false, preserveTimestamps: true,
-      filter: async (source) => {
-        const info = await lstat(source)
-        if (info.isFile()) consume(info.size)
-        return info.isFile() || info.isDirectory() || info.isSymbolicLink()
-      },
-    })
+    // Copy through the shared walker: it counts during the traversal (no
+    // prewalk), skips sockets/FIFOs like the old fs.cp filter, and never
+    // descends into its own destination when a pathological layout places it
+    // inside the source.
+    await copyTree(lower, merged, async (source, destination) => { await copyFile(source, destination) }, consume)
     await markStarted(ctx.baseDir, this.kind)
   }
 

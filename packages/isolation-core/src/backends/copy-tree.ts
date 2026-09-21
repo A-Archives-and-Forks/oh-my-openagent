@@ -51,7 +51,7 @@ async function copyTreeSkipping(source: string, destination: string,
   await utimes(destination, info.atime, info.mtime)
 }
 
-function isAtOrBelow(path: string, root: string): boolean {
+export function isAtOrBelow(path: string, root: string): boolean {
   const resolved = resolve(path)
   const rel = relative(root, resolved)
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))

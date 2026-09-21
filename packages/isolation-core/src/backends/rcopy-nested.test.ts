@@ -2,6 +2,7 @@ import { expect, test } from "bun:test"
 import { access, cp, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { git, repo } from "./git-fixture"
+import { fixture } from "../test-fixture"
 import { RcopyBackend } from "./rcopy"
 import { ensureIsolation, cleanupIsolation } from "../ensure"
 import { captureBaseline } from "../git/baseline"
@@ -71,4 +72,19 @@ test("rcopy teardown proceeds when the registration is already gone", async () =
   await rm(join(f.repoRoot, ".git", "worktrees", "merged"), { recursive: true, force: true })
   await new RcopyBackend().stop(merged)
   await expect(access(merged)).rejects.toThrow()
+})
+
+test("rcopy plain copy does not descend into its own destination", async () => {
+  const f = await fixture()
+  const lower = join(f.root, "plain")
+  await mkdir(join(lower, "nested"), { recursive: true })
+  await writeFile(join(lower, "nested", "file"), "data")
+  // Pathological layout (defended in depth): the destination lives inside the
+  // source, as it did when a subvolume repository root stopped the device walk.
+  const baseDir = join(lower, ".omo-wt", "tselfcopy")
+  const merged = join(baseDir, "m")
+  await mkdir(baseDir, { recursive: true })
+  await new RcopyBackend().start(lower, merged, { id: "selfcopy", baseDir, crossDevice: false })
+  expect(await readFile(join(merged, "nested", "file"), "utf8")).toBe("data")
+  await expect(access(join(merged, ".omo-wt", "tselfcopy", "m"))).rejects.toThrow()
 })

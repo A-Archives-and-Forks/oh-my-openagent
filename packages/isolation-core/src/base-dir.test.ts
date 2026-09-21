@@ -37,3 +37,26 @@ test("different task ids get different paths without interpolating the id", asyn
   expect(first.baseDir).not.toEqual(second.baseDir)
   expect(first.baseDir).toMatch(/\/\.omo\/wt\/t[0-9a-f]{10}$/)
 })
+
+test("never places the base directory inside a subvolume-style repository root", async () => {
+  // The repository root reports its own device (btrfs subvolume, zfs dataset,
+  // bind mount): the same-device walk must not stop at the repository itself
+  // and sandbox the clone inside the tree being cloned.
+  const io: BaseDirIO = {
+    stat: async (path) => (path === repo ? { dev: 7 } : path.startsWith("/volume") ? { dev: 9 } : { dev: 1 }),
+    writable: async () => true,
+  }
+  const selection = await chooseBaseDir(repo, home, id, io)
+  expect(selection.baseDir).not.toContain(repo)
+  expect(selection).toEqual({ baseDir: join("/volume/.omo-wt", segment), crossDevice: false })
+})
+
+test("falls back home cross-device when a subvolume-style root has no writable ancestor outside it", async () => {
+  const io: BaseDirIO = {
+    stat: async (path) => (path === repo ? { dev: 7 } : path.startsWith("/volume") ? { dev: 9 } : { dev: 1 }),
+    writable: async (path) => path.startsWith(repo),
+  }
+  const selection = await chooseBaseDir(repo, home, id, io)
+  expect(selection.baseDir).not.toContain(repo)
+  expect(selection).toEqual({ baseDir: join(home, ".omo/wt", segment), crossDevice: true })
+})
