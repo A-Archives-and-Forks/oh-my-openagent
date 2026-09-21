@@ -6,7 +6,7 @@ import { join } from "node:path"
 import type { SenpiHostProtocolInfo } from "../../../lazy/senpi-barrel"
 import { FakeSessionTable, type FakeDrainedSession, type FakeHostSession } from "./fake-host-sessions"
 import { fakeProtocolInfo, probeFakeHost, type FakeHostIdentityOptions } from "./fake-host-probe"
-import { fakeHostTransport, type FakeHostTransport } from "./fake-host-transport"
+import { fakeHostTransport } from "./fake-host-transport"
 import { handleWireLine, writeFrame, type FakeHostCommand, type FakeHostOpenFailure } from "./fake-host-wire"
 
 /**
@@ -70,7 +70,7 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
   // The logical socket path on every platform; on win32 the transport derives the named pipe and
   // the secret from it, exactly as the engine's client does, so the same session logic runs there.
   const socketPath = join(dir, "rpc.sock")
-  let transport = fakeHostTransport(socketPath)
+  const transport = fakeHostTransport(socketPath)
   const drainRetryAfterMs = options.drainRetryAfterMs ?? 2_000
   const table = new FakeSessionTable({ transcripts: options.transcripts === true })
   const commands: FakeHostCommand[] = []
@@ -81,6 +81,7 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
   let identity = fakeProtocolInfo(options)
   let generation = typeof identity.generation === "number" ? identity.generation : 1
   let openFailure = options.openFailure
+  let server: Server
 
   const record = (command: FakeHostCommand): void => {
     commands.push(command)
@@ -103,15 +104,8 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
     }
   }
 
-  interface ActiveGeneration {
-    readonly server: Server
-    /** Sockets accepted by THIS generation only; retirement destroys exactly these. */
-    readonly sockets: Set<Socket>
-  }
-  const listen = async (owner: FakeHostTransport = transport): Promise<ActiveGeneration> => {
-    const accepted: Set<Socket> = new Set()
-    const created: Server = createServer((socket) => owner.authenticate(socket, () => {
-      accepted.add(socket)
+  const listen = async (): Promise<void> => {
+    server = createServer((socket) => transport.authenticate(socket, () => {
       sockets.add(socket)
       settleConnectionWaiters()
       let buffer = ""
@@ -128,56 +122,14 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
       })
       socket.on("error", () => undefined)
       socket.on("close", () => {
-        accepted.delete(socket)
         sockets.delete(socket)
         table.detach(socket)
         settleConnectionWaiters()
       })
     }))
-    await new Promise<void>((resolve, reject) => {
-      created.once("error", reject)
-      created.listen(owner.listenAddress, () => {
-        created.off("error", reject)
-        resolve()
-      })
-    })
-    return { server: created, sockets: accepted }
+    await new Promise<void>((resolve) => server.listen(transport.listenAddress, resolve))
   }
-  let active: ActiveGeneration = await listen()
-  let server: Server = active.server
-  // The restart mirrors the real daemon's generation change: the NEW generation binds its
-  // OWN pipe first (a win32 named pipe with no server handles simply does not exist, so a
-  // close-then-rebind window would answer reconnecting clients with ENOENT and stall the
-  // runner), then the old generation is fully retired - connections dropped, listener closed
-  // - and only once the new listener is up is the new secret published with an atomic
-  // rename. At every instant exactly one generation answers: before the swap only the old
-  // (draining, never re-prompting), after the swap only the new.
-  const rebind = async (): Promise<void> => {
-    if (process.platform === "win32") {
-      // win32: the next generation derives its OWN pipe name and binds it while the old
-      // generation still answers (a closed pipe with no server handles simply does not
-      // exist, so a close-then-rebind window would answer reconnecting clients with
-      // ENOENT and stall the runner). Only after the new listener is up do the shared
-      // handles swap, the new secret publish atomically, and the OLD generation - its
-      // listener and exactly the sockets IT accepted - retire. One answering
-      // generation at every instant.
-      const next = transport.deriveNext()
-      const nextActive = await listen(next)
-      const previous = active
-      active = nextActive
-      server = nextActive.server
-      transport = next
-      transport.publish()
-      for (const socket of previous.sockets) socket.destroy()
-      await closeServer(previous.server)
-      return
-    }
-    // POSIX: one path is the whole address; rebind it once the old listener is closed.
-    for (const socket of [...sockets]) socket.destroy()
-    await closeServer(active.server)
-    active = await listen()
-    server = active.server
-  }
+  await listen()
 
   // The routing tag goes FIRST so a payload may carry a foreign `sessionId` on purpose - that is
   // how a suite proves a client drops records addressed to another session.
@@ -199,20 +151,9 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
     for (const socket of [...sockets]) socket.end()
   }
 
-  const closeServer = (target: Server): Promise<void> =>
+  const closeServer = (): Promise<void> =>
     new Promise<void>((resolve) => {
-      let settled = false
-      const done = (): void => {
-        if (settled) return
-        settled = true
-        // The listener only stops accepting once it emits 'close'; a second
-        // close() call (crash() already closed it) resolves its callback at once
-        // while the pipe may still be tearing down, so 'close' is the authority.
-        target.once("close", () => resolve())
-        target.close(() => resolve())
-      }
-      if (target.listening) done()
-      else resolve()
+      server.close(() => resolve())
     })
 
   return {
@@ -272,11 +213,13 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
     crash: () => {
       table.clear()
       dropConnections()
-      active.server.close()
+      server.close()
     },
     restart: async () => {
       table.clear()
-      await rebind()
+      dropConnections()
+      await closeServer()
+      await listen()
     },
     waitForCommand: (type) =>
       new Promise<FakeHostCommand>((resolve) => {
@@ -290,7 +233,7 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
           }),
     stop: async () => {
       dropConnections()
-      await closeServer(active.server)
+      await closeServer()
       rmSync(dir, { recursive: true, force: true })
     },
   }
