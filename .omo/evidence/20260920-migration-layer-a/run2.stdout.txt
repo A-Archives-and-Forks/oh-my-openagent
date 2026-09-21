@@ -1,6 +1,0 @@
-settings: already migrated
-models: already migrated
-mcp: already migrated
-keybindings: already migrated
-agents: already migrated
-omo-config: already migrated

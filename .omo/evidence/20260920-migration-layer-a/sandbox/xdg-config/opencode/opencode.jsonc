@@ -1,9 +1,0 @@
-// main config
-{
-  "model": "anthropic/claude-opus-4-5",
-  "small_model": "anthropic/claude-haiku",
-  "autoupdate": true,
-  "permission": { "bash": { "rm *": "ask" }, "edit": "allow" },
-  "provider": { "local": { "npm": "@ai-sdk/openai-compatible", "options": { "baseURL": "http://localhost:11434/v1" }, "models": { "llama3": { "name": "Llama 3", "limit": { "context": 128000, "output": 8192 } } } } },
-  "mcp": { "web": { "type": "remote", "url": "https://mcp.example.com/mcp" } }
-}

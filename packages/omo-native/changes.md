@@ -11,7 +11,6 @@ previous credential/MCP bytes and removes newly copied skill directories.
 Imported credential strings are escaped as native literals, so `$` and a leading
 `!` cannot become interpolation or a command. Auth/MCP/AGENTS targets are compared
 with the planned bytes after consent; a concurrent edit aborts before any writes.
-Evidence: `.omo/evidence/20260920-pr8538-remediation/setup/`.
 
 ## omo migrate - the opencode codemod
 

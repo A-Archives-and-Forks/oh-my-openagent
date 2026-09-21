@@ -1,8 +1,0 @@
-// my config
-{
-  "model": "anthropic/claude-x",
-  "mcp": {
-    "localtools": { "type": "local", "command": ["npx", "-y", "some-mcp"], "environment": { "A": "1" }, "timeout": 5000 },
-    "web": { "type": "remote", "url": "https://mcp.example.com/mcp", "enabled": true }
-  }
-}

@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "web": {
-      "type": "http",
-      "url": "https://mcp.example.com/mcp"
-    }
-  }
-}
