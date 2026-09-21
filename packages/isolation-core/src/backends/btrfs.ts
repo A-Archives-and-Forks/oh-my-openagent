@@ -11,21 +11,32 @@ export class BtrfsBackend implements IsolationBackend {
   constructor(private readonly io: BackendRuntime = runtime) {}
   async probe(lower: string, ctx?: IsolationContext) {
     if (this.io.platform !== "linux" || !this.io.which("btrfs")) return { available: false, reason: "btrfs requires Linux and btrfs on PATH" }
-    if (ctx && (ctx.crossDevice || await this.io.device(lower) !== await this.io.device(await existingParent(ctx.baseDir)))) return { available: false, reason: "btrfs requires the same device" }
+    if (ctx?.crossDevice) return { available: false, reason: "btrfs requires the same filesystem" }
     const result = await this.io.run(["btrfs", "subvolume", "show", lower])
-    if (!result.code) return { available: true }
-    if (/not a btrfs|not a subvolume|cannot find|no such|unknown subvolume|not a directory/i.test(result.stderr)) {
+    if (result.code && /not a btrfs|not a subvolume|cannot find|no such|unknown subvolume|not a directory/i.test(result.stderr)) {
       return { available: false, reason: result.stderr }
     }
-    // Unprivileged users cannot search the parent subvolume's B-tree, so show
-    // reports EPERM even for a subvolume they may snapshot. Like upstream's
-    // CLI-presence probe, treat it as inconclusive: attempting the snapshot in
-    // start decides, and its classifier turns a genuine refusal unavailable.
-    if (/operation not permitted|permission denied|could not search b-tree/i.test(result.stderr)) {
-      return { available: true }
+    if (result.code && !/operation not permitted|permission denied|could not search b-tree/i.test(result.stderr)) {
+      // An I/O or similar operational failure says nothing about btrfs capability.
+      throw new Error(`btrfs subvolume show ${lower} failed (${result.code}): ${result.stderr}`)
     }
-    // An I/O or similar operational failure says nothing about btrfs capability.
-    throw new Error(`btrfs subvolume show ${lower} failed (${result.code}): ${result.stderr}`)
+    if (ctx) {
+      // A subvolume reports its own st_dev, so device numbers cannot decide
+      // "same filesystem" on the very filesystem this backend exists for.
+      // The mount's filesystem UUID can: both paths must live on the same
+      // btrfs, or the snapshot's cross-filesystem refusal stands.
+      const target = await existingParent(ctx.baseDir)
+      const fstype = await this.io.run(["findmnt", "-no", "FSTYPE", "--target", target])
+      if (fstype.code || fstype.stdout.toString().trim() !== "btrfs") {
+        return { available: false, reason: "btrfs requires the same filesystem" }
+      }
+      const lowerId = await this.io.run(["findmnt", "-no", "UUID", "--target", lower])
+      const targetId = await this.io.run(["findmnt", "-no", "UUID", "--target", target])
+      if (lowerId.code || targetId.code || lowerId.stdout.toString().trim() !== targetId.stdout.toString().trim()) {
+        return { available: false, reason: "btrfs requires the same filesystem" }
+      }
+    }
+    return { available: true }
   }
   async start(lower: string, merged: string, ctx: IsolationContext) {
     await mkdir(dirname(merged), { recursive: true })

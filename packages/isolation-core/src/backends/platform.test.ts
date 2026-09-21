@@ -283,3 +283,35 @@ test("btrfs probe treats unprivileged B-tree search as inconclusive and lets sta
   await backend.start(f.repoRoot, f.merged, f.ctx)
   expect(calls).toContainEqual(["btrfs", "subvolume", "snapshot", f.repoRoot, f.merged])
 })
+
+test("btrfs probe trusts the filesystem UUID over subvolume st_dev", async () => {
+  const f = await paths()
+  const io = fake({
+    device: async (path) => (path === f.repoRoot ? 7 : 9), // a subvolume reports its own device
+    run: async (argv) => {
+      if (argv[0] === "btrfs" && argv[2] === "show") return { code: 0, stdout: "", stderr: "" }
+      if (argv[0] === "findmnt" && argv[2] === "FSTYPE") return { code: 0, stdout: "btrfs\n", stderr: "" }
+      if (argv[0] === "findmnt" && argv[2] === "UUID") return { code: 0, stdout: "uuid-same\n", stderr: "" }
+      return { code: 0, stdout: "", stderr: "" }
+    },
+  }).io
+  const backend = new BtrfsBackend(io)
+  expect((await backend.probe(f.repoRoot, f.ctx)).available).toBe(true)
+})
+
+test("btrfs probe rejects a base directory on a different btrfs filesystem", async () => {
+  const f = await paths()
+  const io = fake({
+    device: async () => 1, // st_dev alone would say "same device"
+    run: async (argv) => {
+      if (argv[0] === "btrfs" && argv[2] === "show") return { code: 0, stdout: "", stderr: "" }
+      if (argv[0] === "findmnt" && argv[2] === "FSTYPE") return { code: 0, stdout: "btrfs\n", stderr: "" }
+      if (argv[0] === "findmnt" && argv[2] === "UUID") {
+        return { code: 0, stdout: argv[4] === f.repoRoot ? "uuid-a\n" : "uuid-b\n", stderr: "" }
+      }
+      return { code: 0, stdout: "", stderr: "" }
+    },
+  }).io
+  const backend = new BtrfsBackend(io)
+  expect((await backend.probe(f.repoRoot, f.ctx)).available).toBe(false)
+})
