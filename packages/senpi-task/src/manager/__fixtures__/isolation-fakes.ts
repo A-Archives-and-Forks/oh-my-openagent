@@ -75,6 +75,7 @@ export function tempGitRepo(): IsolationFixture {
   // CRLF, breaking the byte-exact round-trip assertions on the merged working tree.
   run(repoRoot, ["git", "config", "core.autocrlf", "false"])
   run(repoRoot, ["git", "config", "core.safecrlf", "false"])
+  run(repoRoot, ["git", "config", "core.symlinks", "false"])
   writeFileSync(join(repoRoot, "seed.txt"), "seed\n")
   run(repoRoot, ["git", "add", "."])
   run(repoRoot, ["git", "commit", "-m", "seed"])

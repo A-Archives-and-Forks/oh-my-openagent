@@ -127,20 +127,32 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
         settleConnectionWaiters()
       })
     }))
-    await new Promise<void>((resolve) => server.listen(transport.listenAddress, resolve))
+    await new Promise<void>((resolve, reject) => {
+      server.once("error", reject)
+      server.listen(transport.listenAddress, () => {
+        server.off("error", reject)
+        resolve()
+      })
+    })
   }
   await listen()
+  // The restarted generation rebinds the SAME address: a second published name
+  // would let both generations answer the reconnect storm and resume every
+  // child twice. win32 keeps a pipe name reserved while any handle is open, so
+  // the rebind retries until the last straggler peer handle is gone.
   const rebind = async (): Promise<void> => {
-    // A restarted generation answers as a new pipe instance: the old one's name
-    // stays reserved on win32 while a reconnecting client still holds it. The
-    // old listener is fully closed and its connections dropped BEFORE the new
-    // secret is published, so exactly one generation can ever answer: clients
-    // holding the old secret find a dead pipe, and every fresh connection reads
-    // the published secret of the new generation only.
     await dropConnections()
     await closeServer()
-    transport = transport.rotate()
-    await listen()
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        await listen()
+        return
+      } catch (error) {
+        const retryable = error instanceof Error && /EADDRINUSE|EACCES/.test(String((error as NodeJS.ErrnoException).code ?? error.message))
+        if (!retryable || attempt >= 50) throw error
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
+    }
   }
 
   // The routing tag goes FIRST so a payload may carry a foreign `sessionId` on purpose - that is

@@ -21,32 +21,22 @@ export interface FakeHostTransport {
   readonly listenAddress: string
   /** Runs `accept` once the connection is allowed to carry wire frames. */
   authenticate(socket: Socket, accept: () => void): void
-  /**
-   * Binds the NEXT generation. Windows keeps a pipe name reserved while any handle
-   * is open, and a reconnecting client can still hold the old pipe when the fake
-   * restarts; rebinding the same name then fails with EADDRINUSE. A new
-   * generation derives a fresh secret (and with it a fresh pipe name) and
-   * republishes it where connecting clients read it, which is exactly the
-   * "a newer generation answers the same logical path" story the suites test.
-   * POSIX keeps the same path: a unix socket can be rebound once closed.
-   */
-  rotate(): FakeHostTransport
 }
 
 export function fakeHostTransport(socketPath: string, platform: NodeJS.Platform = process.platform): FakeHostTransport {
   if (platform !== "win32") {
-    return { listenAddress: socketPath, authenticate: (_socket, accept) => accept(), rotate: () => fakeHostTransport(socketPath, platform) }
+    return { listenAddress: socketPath, authenticate: (_socket, accept) => accept() }
   }
-  const bind = (): FakeHostTransport => {
-    const secret = randomBytes(SECRET_BYTES)
-    writeFileSync(`${socketPath}.secret`, secret, { mode: 0o600 })
-    return {
-      listenAddress: pipeNameFor(socketPath, secret),
-      authenticate: (socket, accept) => authenticateHandshake(socket, secret, accept),
-      rotate: bind,
-    }
+  // One address for the fixture's whole lifetime: a SECOND published name would let
+  // both generations answer during the reconnect storm after a restart, resuming
+  // every child twice. The listener rebinds this same name once the old handles
+  // are gone (the restart awaits the peers' close first).
+  const secret = randomBytes(SECRET_BYTES)
+  writeFileSync(`${socketPath}.secret`, secret, { mode: 0o600 })
+  return {
+    listenAddress: pipeNameFor(socketPath, secret),
+    authenticate: (socket, accept) => authenticateHandshake(socket, secret, accept),
   }
-  return bind()
 }
 
 function authenticateHandshake(socket: Socket, secret: Buffer, accept: () => void): void {
