@@ -9,6 +9,12 @@ import { IsolationUnavailableError } from "../backend"
 import { repo } from "./git-fixture"
 import { ensureIsolation, cleanupIsolation } from "../ensure"
 
+async function withPlatform<T>(platform: NodeJS.Platform, fn: () => Promise<T>): Promise<T> {
+  const saved = process.platform
+  Object.defineProperty(process, "platform", { value: platform })
+  try { return await fn() } finally { Object.defineProperty(process, "platform", { value: saved }) }
+}
+
 const mac = process.platform === "darwin" ? test : test.skip
 mac("APFS clones 5000 files COW, skips FIFO/socket, and never follows entry symlinks", async () => {
   const { repoRoot: lower, root } = await repo()
@@ -81,9 +87,13 @@ mac("ensure removes stale snapshot locks before the git consistency probe", asyn
 })
 
 test("apfs loader failures other than a missing module propagate", async () => {
+  // The darwin guard returns before the loader runs; exercise the loader
+  // classification on every platform by stubbing the platform for the probe.
   const backend = new ApfsBackend(async () => { throw new Error("dlopen exploded") })
   let failure: unknown
-  try { await backend.probe("unused") } catch (error) { failure = error }
+  await withPlatform("darwin", async () => {
+    try { await backend.probe("unused") } catch (error) { failure = error }
+  })
   expect(failure).toBeInstanceOf(Error)
   expect(failure instanceof IsolationUnavailableError).toBe(false)
 })
@@ -92,5 +102,7 @@ test("apfs treats a missing bun:ffi module as unavailable", async () => {
   const backend = new ApfsBackend(async () => {
     throw Object.assign(new Error("Cannot find module 'bun:ffi'"), { code: "ERR_UNKNOWN_BUILTIN_MODULE" })
   })
-  await expect(backend.probe("unused")).rejects.toBeInstanceOf(IsolationUnavailableError)
+  await withPlatform("darwin", async () => {
+    await expect(backend.probe("unused")).rejects.toBeInstanceOf(IsolationUnavailableError)
+  })
 })
