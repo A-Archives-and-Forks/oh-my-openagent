@@ -10,7 +10,6 @@ import { collectOmoAdditions, KEYBIND_MAP, normalizeKeybinding, normalizePermiss
 import { readOpencodeConfigDir, translateMcpServer } from "./setup-content.js"
 import { UnsupportedConfigValue } from "./config-values.js"
 import { readOpencodeConfigFiles } from "./opencode-config.js"
-import { canResolveExistingModel } from "./migration-model-resolution.js"
 
 const MIGRATION_VERSION = 2
 const HANDLED_CONFIG_KEYS = new Set(["$schema", "model", "permission", "provider", "mcp", "agent", "agents"])
@@ -54,7 +53,7 @@ function appendWrite(writes, path, next, previous) {
   if (JSON.stringify(next) !== JSON.stringify(previous)) writes.push({ path, value: next })
 }
 
-export async function planMigration(options) {
+export function planMigration(options) {
   const env = options.env ?? process.env
   const home = options.home ?? runtimeHome(env)
   const agentDir = canonicalAgentDir(env, home)
@@ -75,6 +74,19 @@ export async function planMigration(options) {
   const settings = { ...settingsTarget.value }
   let settingsTouched = false
   if (isRecord(config)) {
+    if (typeof config.model === "string" && config.model.includes("/")) {
+      const [rawProvider, ...modelParts] = config.model.split("/")
+      const model = modelParts.join("/")
+      if (!rawProvider || !model) {
+        warnings.push("settings.model (unsupported model reference; manual review required)")
+      } else if (settings.defaultProvider === undefined && settings.defaultModel === undefined) {
+        settings.defaultProvider = resolveProviderAlias(rawProvider)
+        settings.defaultModel = model
+        settingsTouched = true
+      } else if (settings.defaultProvider === undefined || settings.defaultModel === undefined) {
+        warnings.push("settings.default model (preserved existing partial provider/model pair)")
+      }
+    } else if (config.model !== undefined) warnings.push("settings.model (unsupported model reference; manual review required)")
     if (config.permission !== undefined && settings.permission === undefined) {
       settings.permission = normalizePermission(config.permission)
       settingsTouched = true
@@ -84,6 +96,9 @@ export async function planMigration(options) {
     }
     items.settings = true
   }
+  appendWrite(writes, settingsTarget.path, settings, settingsTarget.value)
+  report.push(settingsTouched ? "settings: migrated" : isCurrentState && items.settings ? "settings: already migrated" : "settings: nothing to migrate")
+
   const modelsTarget = target(join(agentDir, "models.json"))
   const existingModels = existsSync(modelsTarget.path) ? modelsTarget.value : { providers: {} }
   assertNativeModelsConfig(existingModels)
@@ -115,26 +130,6 @@ export async function planMigration(options) {
   const modelsNext = modelsTouched ? { ...existingModels, providers } : existingModels
   assertNativeModelsConfig(modelsNext)
   appendWrite(writes, modelsTarget.path, modelsNext, existingModels)
-  if (typeof config.model === "string" && config.model.includes("/")) {
-    const [rawProvider, ...modelParts] = config.model.split("/")
-    const model = modelParts.join("/")
-    if (!rawProvider || !model) {
-      warnings.push("settings.model (unsupported model reference; manual review required)")
-    } else if (settings.defaultProvider === undefined && settings.defaultModel === undefined) {
-      const provider = resolveProviderAlias(rawProvider)
-      const resolvable = !existingModels.disabledProviders?.includes(provider)
-        && (!Object.hasOwn(existingModels.providers, provider) || await canResolveExistingModel(modelsTarget.path, provider, model))
-      if (resolvable) {
-        settings.defaultProvider = provider
-        settings.defaultModel = model
-        settingsTouched = true
-      } else warnings.push("settings.default model (unavailable in preserved destination catalog; manual review required)")
-    } else if (settings.defaultProvider === undefined || settings.defaultModel === undefined) {
-      warnings.push("settings.default model (preserved existing partial provider/model pair)")
-    }
-  } else if (config.model !== undefined) warnings.push("settings.model (unsupported model reference; manual review required)")
-  appendWrite(writes, settingsTarget.path, settings, settingsTarget.value)
-  report.push(settingsTouched ? "settings: migrated" : isCurrentState && items.settings ? "settings: already migrated" : "settings: nothing to migrate")
   report.push(modelsTouched ? "models: migrated" : isCurrentState && items.models ? "models: already migrated" : "models: nothing to migrate")
 
   const mcpTarget = target(join(agentDir, "mcp.json"))
