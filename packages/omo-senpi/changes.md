@@ -950,3 +950,52 @@ value, so they all follow the session.
 
 Keep the fallback until the minimum supported Senpi guarantees `cwd`, and keep resolving the cwd
 ONCE at register: re-reading it later would let a session's store move mid-flight.
+
+## Thread tools register unconditionally and gain rename, model, and reasoning control
+
+The `thread` component used to register its tools only when a launch flag said the shared
+multi-session host had been enabled. That flag recorded launch opt-in, not host presence. A session
+hosted by a supervisor that never opted in (the desktop rpc child is the common case) got zero
+`thread_*` tools, even though the socket it needed was right there. The gate is gone: `component.ts`
+registers all nine tools every time, and `src/extension/component-list.ts` lists the component right
+after `task`. Host absence is now a per-call failure, `{ kind: "error", error: { code:
+"host_unavailable", ... } }`, returned as data when the socket path doesn't exist. Nothing throws,
+and the tool surface no longer changes shape based on how the process was started.
+
+Three tools join the family. `thread_rename` sets a peer's display label through
+`set_session_name`; the id stays the address, and a label already used by another visible thread is
+`name_conflict`. `thread_set_model` resolves `provider/id`, an exact id, or a case-insensitive
+fragment against the target's own model catalog (`model_not_found` with the available list,
+`model_ambiguous` with candidates) and applies the single match through `set_model`.
+`thread_set_reasoning` applies one of `off|minimal|low|medium|high|xhigh|max` through
+`set_thinking_level`, with `scope: "turn"` leaving the model's remembered level alone; a level the
+active model rejects comes back as `thinking_level_unsupported` with the supported list and the
+thread untouched. All three require a live owner and go through the same receipt admission as
+`thread_send`.
+
+Every tool now reads the caller's id per call from the execution context's
+`sessionManager.getSessionId()`. Two addresses reach the caller's own thread: the literal `"self"`
+and the caller's explicit durable id. Fuzzy resolution in `thread_handoff` excludes the caller's
+entry before scoring, so a near-miss on your own name can't hand work back to yourself. Keep the
+`host_unavailable` mapping in the tool wrapper rather than reintroducing a registration gate; the
+tools must exist whenever the extension does.
+
+The socket client under all of this (`live-surface.ts` `request()`) also stopped taking the first
+JSONL line as the response. A multi-session host writes other lines on the same connection before
+the reply: the `open_session` admission notice `{ type: "queued", for_request: <id> }`, which the
+engine deliberately tags with the request id under `for_request` rather than the response id, and
+connection-wide broadcasts such as `agent_start` and `session_opened`. Any of those used to fail
+the pending call with "thread RPC request failed" before the real reply arrived. The client now
+settles only on the frame whose `id` matches the request it sent and skips everything else; a
+connection that closes first is a named error. Correlate by id, never by position.
+
+Two more things had to be true before a created thread was usable at all. `open_session` answers
+with the ROUTING id and a state carrying neither the durable id nor a name, while the address book
+keys every entry by the DURABLE id - so `thread_create` returned an id that resolved to `not_found`
+on the very next call, and its `name` parameter was silently dropped because the wire has no name
+field on open. And `open_session.retain_on_disconnect` defaults to false: this client is one-shot,
+so the connection that opens a session drops at once and the host moved the new session straight to
+`closing`, answering `session_closing` from then on. `openSession` now applies the name through
+`set_session_name`, sends `retain_on_disconnect: true`, and merges the entry the host reports in
+`list_sessions` before returning. When QA'ing this surface, run the host from the engine this repo
+pins: `retain_on_disconnect` landed in senpi 2026.9.20, and an older host ignores it in silence.
