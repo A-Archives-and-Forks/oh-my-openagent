@@ -137,12 +137,71 @@ export const ThreadHandoffParams = Type.Object({
   all_scope: AllScope,
 })
 
+export const ThreadRenameParams = Type.Object({
+  thread: ThreadAddress,
+  name: Type.String({
+    minLength: 1,
+    maxLength: 200,
+    description:
+      "New display label for the thread; the thread keeps its id as its address, and a label already used by another visible thread returns name_conflict.",
+  }),
+  all_scope: AllScope,
+  idempotency_key: IdempotencyKey,
+})
+
+export const ThreadSetModelParams = Type.Object({
+  thread: ThreadAddress,
+  model: Type.String({
+    minLength: 1,
+    description:
+      "Model to switch the thread to, as provider/id, an exact model id, or a case-insensitive fragment of the id or display name resolved against the host's model catalog; no match returns model_not_found with the available list, several matches return model_ambiguous with candidates.",
+  }),
+  provider: Type.Optional(
+    Type.String({
+      description:
+        "Restricts resolution to one provider when the fragment alone would match models from several providers.",
+    }),
+  ),
+  all_scope: AllScope,
+  idempotency_key: IdempotencyKey,
+})
+
+export const ThreadSetReasoningParams = Type.Object({
+  thread: ThreadAddress,
+  level: Type.Union(
+    [
+      Type.Literal("off"),
+      Type.Literal("minimal"),
+      Type.Literal("low"),
+      Type.Literal("medium"),
+      Type.Literal("high"),
+      Type.Literal("xhigh"),
+      Type.Literal("max"),
+    ],
+    {
+      description:
+        "Thinking level to apply; a level the thread's active model cannot run returns thinking_level_unsupported with the supported list and leaves the thread unchanged.",
+    },
+  ),
+  scope: Type.Optional(
+    Type.Union([Type.Literal("session"), Type.Literal("turn")], {
+      description:
+        "session (default) changes the thread's remembered level for its model; turn changes only the current session level without rewriting the model's remembered level.",
+    }),
+  ),
+  all_scope: AllScope,
+  idempotency_key: IdempotencyKey,
+})
+
 export type ThreadCreateInput = Static<typeof ThreadCreateParams>
 export type ThreadListInput = Static<typeof ThreadListParams>
 export type ThreadReadInput = Static<typeof ThreadReadParams>
 export type ThreadSendInput = Static<typeof ThreadSendParams>
 export type ThreadInterruptInput = Static<typeof ThreadInterruptParams>
 export type ThreadHandoffInput = Static<typeof ThreadHandoffParams>
+export type ThreadRenameInput = Static<typeof ThreadRenameParams>
+export type ThreadSetModelInput = Static<typeof ThreadSetModelParams>
+export type ThreadSetReasoningInput = Static<typeof ThreadSetReasoningParams>
 
 export const threadToolParamSchemas = {
   thread_create: ThreadCreateParams,
@@ -151,6 +210,9 @@ export const threadToolParamSchemas = {
   thread_send: ThreadSendParams,
   thread_interrupt: ThreadInterruptParams,
   thread_handoff: ThreadHandoffParams,
+  thread_rename: ThreadRenameParams,
+  thread_set_model: ThreadSetModelParams,
+  thread_set_reasoning: ThreadSetReasoningParams,
 } as const
 
 export type ThreadToolName = keyof typeof threadToolParamSchemas
@@ -230,6 +292,22 @@ export type ThreadHandoffResult =
     }
   | ThreadDataError
 
+export type ThreadThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
+
+export type ThreadReasoningScope = "session" | "turn"
+
+export type ThreadRenameResult =
+  | { readonly kind: "ok"; readonly thread_id: string; readonly name: string }
+  | ThreadDataError
+
+export type ThreadSetModelResult =
+  | { readonly kind: "ok"; readonly thread_id: string; readonly model: { readonly provider: string; readonly id: string } }
+  | ThreadDataError
+
+export type ThreadSetReasoningResult =
+  | { readonly kind: "ok"; readonly thread_id: string; readonly level: ThreadThinkingLevel; readonly scope: ThreadReasoningScope }
+  | ThreadDataError
+
 export type ThreadToolResult =
   | ThreadCreateResult
   | ThreadListResult
@@ -237,6 +315,9 @@ export type ThreadToolResult =
   | ThreadSendResult
   | ThreadInterruptResult
   | ThreadHandoffResult
+  | ThreadRenameResult
+  | ThreadSetModelResult
+  | ThreadSetReasoningResult
 
 export type ThreadParamParse<S extends TObject> =
   | { readonly kind: "ok"; readonly value: Static<S> }
