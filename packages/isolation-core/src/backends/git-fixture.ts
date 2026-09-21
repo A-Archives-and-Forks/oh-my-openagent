@@ -1,10 +1,15 @@
+import { execFile } from "node:child_process"
 import { writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { fixture } from "../test-fixture"
 
 export async function git(cwd: string, ...args: string[]) {
-  const p = Bun.spawn(["git", "-C", cwd, ...args], { stdout: "pipe", stderr: "pipe" })
-  const [out, err, code] = await Promise.all([new Response(p.stdout).text(), new Response(p.stderr).text(), p.exited])
+  const [code, out, err] = await new Promise<[number, string, string]>((resolve, reject) => {
+    execFile("git", ["-C", cwd, ...args], { maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
+      if (error && error.code === undefined) return reject(error)
+      resolve([(error?.code as number | undefined) ?? 0, stdout.toString(), stderr.toString()])
+    })
+  })
   if (code) throw new Error(`git ${args.join(" ")}: ${err}`)
   return out.trim()
 }

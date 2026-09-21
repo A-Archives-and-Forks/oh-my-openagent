@@ -1,3 +1,5 @@
+import { spawn } from "node:child_process"
+import type { Readable } from "node:stream"
 import { lstat } from "node:fs/promises"
 import { IsolationUnavailableError } from "../backend"
 
@@ -29,42 +31,46 @@ export async function runGit(args: string[], options: GitOptions): Promise<{ cod
   options.signal?.throwIfAborted()
   let child
   try {
-    child = Bun.spawn(["git", ...args], {
+    child = spawn("git", args, {
       cwd: options.cwd, env: { ...process.env, ...options.env },
-      stdin: options.input === undefined ? "ignore" : new Blob([typeof options.input === "string" ? options.input : new Uint8Array(options.input)]),
-      stdout: "pipe", stderr: "pipe", signal: options.signal,
+      stdio: [options.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
+      signal: options.signal,
     })
+    if (options.input !== undefined) {
+      child.stdin!.end(typeof options.input === "string" ? options.input : new Uint8Array(options.input))
+    }
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") throw new IsolationUnavailableError("git not on PATH")
     throw error
   }
-  let retained = 0
-  const collect = async (stream: ReadableStream<Uint8Array>): Promise<Buffer> => {
+  // Drain both pipes concurrently; reject before retaining output beyond the budget.
+  const collect = (stream: Readable): Promise<Buffer> => new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
-    const reader = stream.getReader()
-    try {
-      while (true) {
-        const { done, value: chunk } = await reader.read()
-        if (done) break
-        retained += chunk.byteLength
-        if (retained > (options.maxOutputBytes ?? Infinity)) {
-          throw options.outputLimitError?.() ?? new Error("Git output exceeds budget")
-        }
-        chunks.push(Buffer.from(chunk))
+    let retained = 0
+    stream.on("data", (chunk: Buffer) => {
+      retained += chunk.byteLength
+      if (retained > (options.maxOutputBytes ?? Infinity)) {
+        reject(options.outputLimitError?.() ?? new Error("Git output exceeds budget"))
+        child.kill()
+        return
       }
-      return Buffer.concat(chunks)
-    } finally {
-      reader.releaseLock()
-    }
-  }
+      chunks.push(chunk)
+    })
+    stream.on("error", reject)
+    stream.on("end", () => resolve(Buffer.concat(chunks)))
+  })
+  const exited = new Promise<number>((resolve, reject) => {
+    child.once("error", reject)
+    child.once("close", () => resolve(child.exitCode ?? 0))
+  })
   try {
-    const [stdout, stderr, code] = await Promise.all([collect(child.stdout), collect(child.stderr), child.exited])
+    const [stdout, stderr, code] = await Promise.all([collect(child.stdout!), collect(child.stderr!), exited])
     options.signal?.throwIfAborted()
     if (!(options.allowedExitCodes ?? [0]).includes(code)) throw new GitCommandError(args, options.cwd, code, stderr.toString())
     return { code, stdout, stderr: stderr.toString() }
   } catch (error) {
     child.kill()
-    await child.exited
+    await exited
     throw error
   }
 }
