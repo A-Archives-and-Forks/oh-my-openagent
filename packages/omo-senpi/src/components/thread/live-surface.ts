@@ -9,7 +9,11 @@ import type { ThreadTranscriptEntry, ThreadHost, ThreadHostSession } from "./too
 
 type RpcFrame = { readonly success?: boolean; readonly data?: unknown; readonly error?: unknown }
 function record(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value) }
-function dataRecord(frame: RpcFrame): Record<string, unknown> {
+function dataRecord(frame: RpcFrame, command: unknown): Record<string, unknown> {
+  if (frame.success === false && command === "set_thinking_level" && typeof frame.error === "string" && /^Thinking level .+ is not supported by the active model\.$/.test(frame.error)) {
+    throw new Error(`thinking_level_unsupported:${frame.error}`)
+  }
+  if (frame.success && frame.data === undefined && (command === "set_session_name" || command === "set_thinking_level")) return {}
   if (!frame.success || !record(frame.data)) throw new Error(`thread RPC request failed: ${JSON.stringify(frame.error ?? frame)}`)
   return frame.data
 }
@@ -25,7 +29,7 @@ async function request(socketPath: string, command: Record<string, unknown>): Pr
       buffer += chunk.toString("utf8")
       const newline = buffer.indexOf("\n")
       if (newline < 0) return
-      try { finish(undefined, dataRecord(JSON.parse(buffer.slice(0, newline)) as RpcFrame)) } catch (error) { finish(error instanceof Error ? error : new Error(String(error))) }
+      try { finish(undefined, dataRecord(JSON.parse(buffer.slice(0, newline)) as RpcFrame, command.type)) } catch (error) { finish(error instanceof Error ? error : new Error(String(error))) }
     })
   })
 }
@@ -58,6 +62,14 @@ export function createLiveThreadSurface(_pi: SenpiExtensionAPI, options: { reado
     getState: (sessionId) => call("get_state", { sessionId }),
     prompt: (sessionId, message, options) => call("prompt", { sessionId, message, ...options }),
     interrupt: (sessionId, turnId) => call("interrupt", { sessionId, ...(turnId === undefined ? {} : { turnId }) }),
+    setSessionName: async (sessionId, name) => { await call("set_session_name", { sessionId, name }) },
+    setModel: (sessionId, provider, modelId) => call("set_model", { sessionId, provider, modelId }),
+    getAvailableModels: async (sessionId) => {
+      const { models } = await call<{ models: Awaited<ReturnType<ThreadHost["getAvailableModels"]>> }>("get_available_models", { sessionId })
+      return models.map(({ provider, id, name }) => ({ provider, id, ...(name === undefined ? {} : { name }) }))
+    },
+    setThinkingLevel: async (sessionId, level, scope) => { await call("set_thinking_level", { sessionId, level, ...(scope === "turn" ? { scope } : {}) }) },
+    getAvailableThinkingLevels: async (sessionId) => (await call<{ levels: string[] }>("get_available_thinking_levels", { sessionId })).levels,
   }
 }
 

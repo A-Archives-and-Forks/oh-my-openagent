@@ -1,7 +1,47 @@
 import { describe, expect, test } from "bun:test"
+import { once } from "node:events"
+import { mkdtempSync, rmSync } from "node:fs"
+import { createServer, type Socket } from "node:net"
 import { join, resolve } from "node:path"
 import { TASK_HOST_SOCKET_ENV_NAMES } from "../../../../senpi-task/src/runners/rpc-host/daemon"
 import { createLiveThreadSurface, resolveThreadSocket, THREAD_SOCKET_ENV_NAMES } from "./live-surface"
+import type { ThreadHost } from "./tools"
+
+async function withRpc(
+  response: Record<string, unknown>,
+  exercise: (surface: ThreadHost, frames: Array<Record<string, unknown>>) => Promise<void>,
+): Promise<void> {
+  const directory = mkdtempSync("/tmp/thread-rpc-")
+  const socketPath = join(directory, "rpc.sock")
+  const frames: Array<Record<string, unknown>> = []
+  const sockets = new Set<Socket>()
+  const server = createServer((socket) => {
+    sockets.add(socket)
+    socket.once("close", () => sockets.delete(socket))
+    let buffer = ""
+    socket.on("data", (chunk) => {
+      buffer += chunk.toString("utf8")
+      const newline = buffer.indexOf("\n")
+      if (newline < 0) return
+      const frame = JSON.parse(buffer.slice(0, newline)) as Record<string, unknown>
+      buffer = buffer.slice(newline + 1)
+      frames.push(frame)
+      socket.end(`${JSON.stringify({ id: frame.id, type: "response", command: frame.type, ...response })}\n`)
+    })
+  })
+  try {
+    const listening = once(server, "listening", { signal: AbortSignal.timeout(2000) })
+    server.listen(socketPath)
+    await listening
+    await exercise(createLiveThreadSurface({} as never, { env: { SENPI_RPC_SOCKET: socketPath } }), frames)
+  } finally {
+    const closed = once(server, "close", { signal: AbortSignal.timeout(2000) })
+    for (const socket of sockets) socket.destroy()
+    server.close()
+    await closed
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
 
 describe("live thread socket discovery", () => {
   test("#given the thread surface and the task daemon #when the socket names are compared #then both read the ONE shared list", () => {
@@ -37,5 +77,62 @@ describe("live thread socket discovery", () => {
   test("returns typed host_unavailable when the socket is absent at call time", async () => {
     const surface = createLiveThreadSurface({} as never, { env: { SENPI_RPC_SOCKET: "/missing.sock" }, exists: () => false })
     await expect(surface.listSessions()).rejects.toThrow("host_unavailable:/missing.sock")
+  })
+})
+
+describe("live thread session-control RPCs", () => {
+  test("setSessionName writes set_session_name and accepts a success frame without data", async () => {
+    await withRpc({ success: true }, async (surface, frames) => {
+      expect(typeof surface.setSessionName).toBe("function")
+      expect(await surface.setSessionName("route-peer", "New Name")).toBeUndefined()
+      expect(frames).toEqual([{ id: expect.any(String), type: "set_session_name", sessionId: "route-peer", name: "New Name" }])
+    })
+  })
+
+  test("setModel writes provider and modelId and reads the full model response", async () => {
+    await withRpc({ success: true, data: { provider: "openai", id: "gpt-x", name: "GPT X", contextWindow: 1234 } }, async (surface, frames) => {
+      expect(typeof surface.setModel).toBe("function")
+      expect(await surface.setModel("route-peer", "openai", "gpt-x")).toMatchObject({ provider: "openai", id: "gpt-x", name: "GPT X" })
+      expect(frames).toEqual([{ id: expect.any(String), type: "set_model", sessionId: "route-peer", provider: "openai", modelId: "gpt-x" }])
+    })
+  })
+
+  test("getAvailableModels writes get_available_models and projects the catalog", async () => {
+    await withRpc({ success: true, data: { models: [{ provider: "openai", id: "gpt-x", name: "GPT X", contextWindow: 1234 }, { provider: "other", id: "other-model", contextWindow: 4321 }] } }, async (surface, frames) => {
+      expect(typeof surface.getAvailableModels).toBe("function")
+      expect(await surface.getAvailableModels("route-peer")).toEqual([{ provider: "openai", id: "gpt-x", name: "GPT X" }, { provider: "other", id: "other-model" }])
+      expect(frames).toEqual([{ id: expect.any(String), type: "get_available_models", sessionId: "route-peer" }])
+    })
+  })
+
+  test.each([undefined, "session", "turn"] as const)("setThinkingLevel writes only wire-supported scope for %s", async (scope) => {
+    await withRpc({ success: true }, async (surface, frames) => {
+      expect(typeof surface.setThinkingLevel).toBe("function")
+      expect(await surface.setThinkingLevel("route-peer", "high", scope)).toBeUndefined()
+      expect(frames).toEqual([{ id: expect.any(String), type: "set_thinking_level", sessionId: "route-peer", level: "high", ...(scope === "turn" ? { scope: "turn" } : {}) }])
+    })
+  })
+
+  test("getAvailableThinkingLevels writes get_available_thinking_levels and unwraps levels", async () => {
+    await withRpc({ success: true, data: { levels: ["off", "high"] } }, async (surface, frames) => {
+      expect(typeof surface.getAvailableThinkingLevels).toBe("function")
+      expect(await surface.getAvailableThinkingLevels("route-peer")).toEqual(["off", "high"])
+      expect(frames).toEqual([{ id: expect.any(String), type: "get_available_thinking_levels", sessionId: "route-peer" }])
+    })
+  })
+
+  test("set_thinking_level unsupported failure frames become classified errors", async () => {
+    await withRpc({ success: false, error: "Thinking level low is not supported by the active model." }, async (surface, frames) => {
+      expect(typeof surface.setThinkingLevel).toBe("function")
+      await expect(surface.setThinkingLevel("route-peer", "low")).rejects.toThrow(/^thinking_level_unsupported:/)
+      expect(frames).toEqual([{ id: expect.any(String), type: "set_thinking_level", sessionId: "route-peer", level: "low" }])
+    })
+  })
+
+  test("unrelated set_thinking_level failures are not mislabeled as unsupported", async () => {
+    await withRpc({ success: false, error: "Session not found" }, async (surface) => {
+      expect(typeof surface.setThinkingLevel).toBe("function")
+      await expect(surface.setThinkingLevel("route-peer", "low")).rejects.toThrow(/^thread RPC request failed:/)
+    })
   })
 })

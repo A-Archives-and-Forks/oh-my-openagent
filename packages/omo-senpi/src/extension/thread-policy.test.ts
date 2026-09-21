@@ -29,6 +29,7 @@ test.each([
     expect(pi.tools.map((tool) => tool.name)).toEqual([
       "thread_create", "thread_list", "thread_read",
       "thread_send", "thread_interrupt", "thread_handoff",
+      "thread_rename", "thread_set_model", "thread_set_reasoning",
     ])
     for (const tool of pi.tools) {
       expect(tool.exposure).toBe("search")
