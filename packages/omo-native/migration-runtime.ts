@@ -1,9 +1,5 @@
 import { load, YAMLException } from "js-yaml"
 import { isDeepStrictEqual } from "node:util"
-import {
-  getServerEndpointValidationError,
-  validateConfig as validateMcpConfig,
-} from "../../node_modules/@code-yeongyu/senpi/dist/core/extensions/builtin/mcp/config-schema.js"
 
 import {
   mergeWithoutClobber,
@@ -12,15 +8,6 @@ import {
 } from "@oh-my-opencode/omo-config-core"
 type RecordValue = Record<string, unknown>
 declare const __MIGRATION_PROVIDER_MAP__: { readonly providers: Readonly<Record<string, string>> }
-
-export function assertNativeMcpConfig(value: unknown): void {
-  if (!validateMcpConfig.Check(value)) {
-    const issue = [...validateMcpConfig.Errors(value)][0]
-    throw new Error(`Invalid MCP config field: ${issue?.instancePath || "$"}`)
-  }
-  const endpoint = getServerEndpointValidationError(value)
-  if (endpoint !== undefined) throw new Error(`Invalid MCP config: ${endpoint}`)
-}
 
 export type ParsedAgentMarkdown = {
   readonly body: string
@@ -91,7 +78,7 @@ export function validateOmoConfig(value: RecordValue): OmoConfigValidation {
   }
 }
 
-export function agentFromMarkdown(parsed: { readonly frontmatter: RecordValue; readonly body: string | undefined }): {
+export function agentFromMarkdown(parsed: ParsedAgentMarkdown): {
   readonly entry: RecordValue
   readonly restricted: boolean
   readonly unsupported: readonly string[]
@@ -106,7 +93,7 @@ export function agentFromMarkdown(parsed: { readonly frontmatter: RecordValue; r
   }
   if (typeof parsed.frontmatter.temperature === "number") entry.temperature = parsed.frontmatter.temperature
   if (typeof parsed.frontmatter.disable === "boolean") entry.disable = parsed.frontmatter.disable
-  if (parsed.body !== undefined) entry.prompt = parsed.body
+  if (parsed.body) entry.prompt = parsed.body
   const supported = new Set(["description", "model", "tools", "temperature", "disable", "permission", "permissions"])
   const unsupported = Object.keys(parsed.frontmatter).filter((key) => !supported.has(key))
   const restricted = parsed.frontmatter.permission !== undefined || parsed.frontmatter.permissions !== undefined

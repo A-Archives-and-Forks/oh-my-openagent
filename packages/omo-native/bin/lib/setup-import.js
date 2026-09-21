@@ -245,7 +245,7 @@ export async function runSetup(args = process.argv.slice(2), options = {}) {
   }
   const result = classify(plan, current.entries)
   const configDir = readOpencodeConfigDir(home, env)
-  const content = await planContentImport({ configDir, agentDir })
+  const content = planContentImport({ configDir, agentDir })
   for (const notice of content.notices) process.stdout.write(`${notice}\n`)
   const dryRun = args.includes("--dry-run")
   printPlan(result, dryRun)

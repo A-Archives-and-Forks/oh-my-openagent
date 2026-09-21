@@ -3,15 +3,14 @@ import { randomUUID } from "node:crypto"
 import { dirname, join } from "node:path"
 import { canonicalAgentDir, runtimeHome } from "./agent-dir.js"
 import { parseJsoncLite } from "./jsonc-lite.js"
-import { assertNativeMcpConfig, mergeOmoConfig, resolveProviderAlias, selectUserOmoConfigPath, validateOmoConfig } from "./migration-runtime.js"
+import { mergeOmoConfig, resolveProviderAlias, selectUserOmoConfigPath, validateOmoConfig } from "./migration-runtime.js"
 import { applyMigrationPlan } from "./migration-transaction.js"
 import { collectOmoAdditions, KEYBIND_MAP, normalizeKeybinding, normalizePermission, translateProvider } from "./migration-translators.js"
 import { readOpencodeConfigDir, translateMcpServer } from "./setup-content.js"
 import { UnsupportedConfigValue } from "./config-values.js"
-import { readOpencodeConfigFiles } from "./opencode-config.js"
 
 const MIGRATION_VERSION = 2
-const HANDLED_CONFIG_KEYS = new Set(["$schema", "model", "permission", "provider", "mcp", "agent", "agents"])
+const SETTINGS_DROPPED_KEYS = ["autoupdate", "share", "snapshot", "watcher", "formatter", "lsp", "server", "small_model"]
 
 function timestamp() {
   return new Date().toISOString().replace(/[-:.]/g, "")
@@ -65,9 +64,9 @@ export function planMigration(options) {
   const report = []
   const writes = []
   const sourcePaths = new Set()
-  const configEntry = readOpencodeConfigFiles(configDir)
-  const config = configEntry.value ?? {}
-  for (const path of configEntry.paths) sourcePaths.add(path)
+  const configEntry = readFirstExisting(configDir, ["opencode.json", "opencode.jsonc"])
+  const config = configEntry?.value ?? {}
+  if (configEntry !== undefined) sourcePaths.add(configEntry.path)
 
   const settingsTarget = target(join(agentDir, "settings.json"))
   const settings = { ...settingsTarget.value }
@@ -76,22 +75,20 @@ export function planMigration(options) {
     if (typeof config.model === "string" && config.model.includes("/")) {
       const [rawProvider, ...modelParts] = config.model.split("/")
       const model = modelParts.join("/")
-      if (!rawProvider || !model) {
-        warnings.push("settings.model (unsupported model reference; manual review required)")
-      } else if (settings.defaultProvider === undefined && settings.defaultModel === undefined) {
+      if (settings.defaultProvider === undefined && settings.defaultModel === undefined && rawProvider && model) {
         settings.defaultProvider = resolveProviderAlias(rawProvider)
         settings.defaultModel = model
         settingsTouched = true
       } else if (settings.defaultProvider === undefined || settings.defaultModel === undefined) {
         warnings.push("settings.default model (preserved existing partial provider/model pair)")
       }
-    } else if (config.model !== undefined) warnings.push("settings.model (unsupported model reference; manual review required)")
+    }
     if (config.permission !== undefined && settings.permission === undefined) {
       settings.permission = normalizePermission(config.permission)
       settingsTouched = true
     }
-    for (const key of Object.keys(config)) {
-      if (!HANDLED_CONFIG_KEYS.has(key)) warnings.push(`settings.${key} (unsupported; manual review required)`)
+    for (const key of SETTINGS_DROPPED_KEYS) {
+      if (config[key] !== undefined) warnings.push(`settings.${key} (unsupported; manual review required)`)
     }
     items.settings = true
   }
@@ -106,7 +103,6 @@ export function planMigration(options) {
     for (const [id, provider] of Object.entries(config.provider)) {
       if (Object.hasOwn(providers, id)) continue
       const translated = translateProvider(id, provider)
-      for (const key of translated.unsupported ?? []) warnings.push(`models.${id}.${key} (unsupported; manual review required)`)
       if (translated.provider !== undefined) {
         providers[id] = translated.provider
         modelsTouched = true
@@ -119,7 +115,7 @@ export function planMigration(options) {
   report.push(modelsTouched ? "models: migrated" : isCurrentState && items.models ? "models: already migrated" : "models: nothing to migrate")
 
   const mcpTarget = target(join(agentDir, "mcp.json"))
-  assertNativeMcpConfig(mcpTarget.value)
+  if (mcpTarget.value.mcpServers !== undefined && !isRecord(mcpTarget.value.mcpServers)) throw new Error("Malformed mcp.json servers")
   const servers = { ...(isRecord(mcpTarget.value.mcpServers) ? mcpTarget.value.mcpServers : {}) }
   let mcpTouched = false
   if (isRecord(config.mcp)) {
@@ -140,15 +136,11 @@ export function planMigration(options) {
     items.mcp = true
   }
   const mcpNext = mcpTouched ? { ...mcpTarget.value, mcpServers: servers } : mcpTarget.value
-  assertNativeMcpConfig(mcpNext)
   appendWrite(writes, mcpTarget.path, mcpNext, mcpTarget.value)
   report.push(mcpTouched ? "mcp: migrated" : isCurrentState && items.mcp ? "mcp: already migrated" : "mcp: nothing to migrate")
 
-  const tuiEntry = readOpencodeConfigFiles(configDir, ["tui.json", "tui.jsonc"])
-  for (const path of tuiEntry.paths) sourcePaths.add(path)
-  for (const key of Object.keys(tuiEntry.value ?? {})) {
-    if (key !== "$schema" && key !== "keybinds") warnings.push(`keybindings.${key} (unsupported TUI setting; manual review required)`)
-  }
+  const tuiEntry = readFirstExisting(configDir, ["tui.json", "tui.jsonc"])
+  if (tuiEntry !== undefined) sourcePaths.add(tuiEntry.path)
   const keybindingsTarget = target(join(agentDir, "keybindings.json"))
   const keybindings = { ...keybindingsTarget.value }
   let keybindingsTouched = false

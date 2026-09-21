@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs"
+import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 import { escapeConfigLiteral, translateOpencodeValue, UnsupportedConfigValue } from "./config-values.js"
 import { agentFromMarkdown, mergeOmoConfig, parseAgentMarkdown } from "./migration-runtime.js"
@@ -50,10 +50,6 @@ function translatedEndpoint(value) {
 
 export function translateProvider(id, provider) {
   if (!isRecord(provider) || !isRecord(provider.options)) return { needsReview: id }
-  const unsupported = [
-    ...Object.keys(provider).filter((key) => !["npm", "options", "models"].includes(key)),
-    ...Object.keys(provider.options).filter((key) => !["baseURL", "apiKey"].includes(key)).map((key) => `options.${key}`),
-  ]
   const baseUrl = translatedEndpoint(provider.options.baseURL)
   if (baseUrl === undefined) return { needsReview: id }
   const api = NPM_TO_API[provider.npm]
@@ -61,8 +57,6 @@ export function translateProvider(id, provider) {
   const models = isRecord(provider.models)
     ? Object.entries(provider.models).flatMap(([modelId, model]) => {
       if (!isRecord(model)) return []
-      unsupported.push(...Object.keys(model).filter((key) => !["id", "name", "limit"].includes(key)).map((key) => `models.${modelId}.${key}`))
-      if (isRecord(model.limit)) unsupported.push(...Object.keys(model.limit).filter((key) => !["context", "output"].includes(key)).map((key) => `models.${modelId}.limit.${key}`))
       const entry = { id: modelId, name: typeof model.name === "string" ? model.name : modelId }
       if (typeof model.id === "string") entry.upstreamModelId = model.id
       if (isRecord(model.limit) && typeof model.limit.context === "number") entry.contextWindow = model.limit.context
@@ -80,7 +74,7 @@ export function translateProvider(id, provider) {
       throw error
     }
   }
-  return { provider: out, unsupported }
+  return { provider: out }
 }
 
 export function normalizeKeybinding(value) {
@@ -92,14 +86,10 @@ export function normalizeKeybinding(value) {
 }
 
 function addAgent(agentName, parsed, agents, warnings) {
+  if (Object.hasOwn(agents, agentName)) return false
   const translated = agentFromMarkdown(parsed)
-  agents[agentName] = Object.hasOwn(agents, agentName)
-    ? mergeOmoConfig(agents[agentName], translated.entry).value
-    : translated.entry
-  if (translated.restricted) {
-    agents[agentName].disable = true
-    warnings.push(`agents.${agentName} (disabled because its OpenCode restrictions cannot be represented)`)
-  }
+  agents[agentName] = translated.entry
+  if (translated.restricted) warnings.push(`agents.${agentName} (disabled because its OpenCode restrictions cannot be represented)`)
   for (const key of translated.unsupported) warnings.push(`agents.${agentName}.${key} (unsupported; manual review required)`)
   return true
 }
@@ -108,9 +98,9 @@ function addInlineAgents(config, agents, warnings) {
   const source = isRecord(config.agent) ? config.agent : isRecord(config.agents) ? config.agents : {}
   let touched = false
   for (const [name, value] of Object.entries(source)) {
-    if (!isRecord(value)) continue
+    if (!isRecord(value) || Object.hasOwn(agents, name)) continue
     const frontmatter = { ...value }
-    const prompt = typeof frontmatter.prompt === "string" ? frontmatter.prompt : undefined
+    const prompt = typeof frontmatter.prompt === "string" ? frontmatter.prompt : ""
     delete frontmatter.prompt
     touched = addAgent(name, { frontmatter, body: prompt }, agents, warnings) || touched
   }
@@ -119,30 +109,16 @@ function addInlineAgents(config, agents, warnings) {
 
 function collectMarkdownAgents(configDir, agents, warnings) {
   const sourcePaths = []
-  const walk = (dir, prefix, ancestors) => {
-    const real = realpathSync(dir)
-    if (ancestors.has(real)) {
-      warnings.push(`agents.${prefix} (directory cycle; manual review required)`)
-      return
-    }
-    const parents = new Set([...ancestors, real])
-    for (const entry of readdirSync(dir, { withFileTypes: true }).sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0)) {
-      const relative = prefix ? `${prefix}/${entry.name}` : entry.name
-      const path = join(dir, entry.name)
-      const kind = entry.isSymbolicLink() ? statSync(path) : entry
-      if (kind.isDirectory()) {
-        walk(path, relative, parents)
-        continue
-      }
-      if (!entry.name.endsWith(".md")) continue
-      const name = relative.replace(/\.md$/, "")
-      sourcePaths.push(path)
+  for (const dir of ["agents", "agent"].map((name) => join(configDir, name)).filter(existsSync)) {
+    for (const file of readdirSync(dir).filter((name) => name.endsWith(".md")).sort()) {
+      const name = file.replace(/\.md$/, "")
       if (Object.hasOwn(agents, name)) continue
+      const path = join(dir, file)
       const parsed = parseAgentMarkdown(readFileSync(path, "utf8"))
       addAgent(name, parsed, agents, warnings)
+      sourcePaths.push(path)
     }
   }
-  for (const dir of ["agents", "agent"].map((name) => join(configDir, name)).filter(existsSync)) walk(dir, "", new Set())
   return sourcePaths
 }
 

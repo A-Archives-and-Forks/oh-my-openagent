@@ -1,13 +1,10 @@
-import { afterEach, beforeAll, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync, cpSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { teardownRoots } from "./teardown.test-support"
-import { buildMigrationRuntime } from "../../../script/build-migration-runtime"
-
-beforeAll(buildMigrationRuntime)
 
 const SOURCE_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)))
 const roots: string[] = []

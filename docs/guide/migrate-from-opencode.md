@@ -18,18 +18,12 @@ Preview before applying. `omo migrate` requires `--yes` to write; `--help` and
 `--dry-run` are read-only. Existing values take precedence, and unsupported settings
 are reported for manual review. Backups preserve files that existed before a write.
 
-Global source files are merged in order: `config.json`, `opencode.json`, then
-`opencode.jsonc`; later values override earlier ones without dropping other keys.
-`tui.json` and `tui.jsonc` use the same JSONC-last rule. Markdown agents are discovered
-recursively under `agent/` and `agents/`, including linked directories, with names
-such as `team/reviewer` retained.
-
 ## What moves automatically
 
 | opencode | omo native | How |
 |---|---|---|
 | API-key credentials (`~/.local/share/opencode/auth.json`) | `<agentDir>/auth.json` | `omo setup` — `api`→`api_key`, common provider ids remapped; never overwrites existing entries |
-| MCP servers (`mcp` in merged global config) | `<agentDir>/mcp.json` | `omo setup` / `omo migrate` — `local`→`stdio`, `remote`→`http`, key renames |
+| MCP servers (`mcp` in `opencode.json`) | `<agentDir>/mcp.json` | `omo setup` / `omo migrate` — `local`→`stdio`, `remote`→`http`, key renames |
 | Skills (`~/.config/opencode/skills/`) | `<agentDir>/skills/` | `omo setup` — copied verbatim (same Agent Skills standard), skip-existing |
 | `AGENTS.md` rules | `<agentDir>/AGENTS.md` (and project files keep working as-is) | `omo setup` — same convention on both sides |
 | `model` default | `defaultProvider` + `defaultModel` in `settings.json` | `omo migrate` — treated as a pair; existing choices are preserved |
@@ -52,8 +46,6 @@ such as `team/reviewer` retained.
   reported as unmatched/unmappable rather than silently dropped.
 - **Config expressions**: supported `{env:NAME}` references become native environment references,
   without reading their secret values. `{file:...}` expressions require manual translation.
-  Native-style `${NAME}` or `${NAME:-fallback}` in an OpenCode MCP value is treated
-  as an unsupported literal, not silently turned into environment interpolation.
 - **Agent restrictions**: review any unsupported permission policy before enabling the migrated
   agent; it must not become unrestricted just because its source restriction has no equivalent.
 
