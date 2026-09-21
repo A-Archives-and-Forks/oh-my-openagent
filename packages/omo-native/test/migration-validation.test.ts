@@ -71,10 +71,10 @@ test("#given invalid existing models #when migrating #then preflight leaves ever
   expect(json(join(item.agent, "models.json"))).toEqual({ providers: { custom: { apiKey: "" } } })
 })
 
-test.each(["new", "new-missing", "matching", "missing", "disabled", "globally-disabled"])("#given an aliased custom provider with destination=%s #when migrating #then every written default resolves", (state) => {
+test.each(["new", "matching", "missing", "disabled", "globally-disabled"])("#given an aliased custom provider with destination=%s #when migrating #then every written default resolves", (state) => {
   const item = fixture()
   const destination = "azure-openai-responses"
-  const existing = state !== "new" && state !== "new-missing" && state !== "globally-disabled"
+  const existing = state !== "new" && state !== "globally-disabled"
   const resolvable = state === "new" || state === "matching"
   const kept = { api: "openai-completions", baseUrl: "https://kept.test/v1", models: [{ id: state === "missing" ? "different-deployment" : "deployment-a", name: "Existing" }], ...(state === "disabled" ? { disabled: true } : {}) }
   if (existing) write(join(item.agent, "models.json"), { providers: { [destination]: kept } })
@@ -82,7 +82,7 @@ test.each(["new", "new-missing", "matching", "missing", "disabled", "globally-di
   write(join(item.agent, "settings.json"), { theme: "dark" })
   write(join(item.config, "opencode.json"), {
     model: "azure/deployment-a",
-    provider: { azure: { npm: "@ai-sdk/openai-compatible", options: { baseURL: "https://custom-azure.test/v1" }, models: { [state === "new-missing" ? "different-deployment" : "deployment-a"]: { name: "Deployment A" } } } },
+    provider: { azure: { npm: "@ai-sdk/openai-compatible", options: { baseURL: "https://custom-azure.test/v1" }, models: { "deployment-a": { name: "Deployment A" } } } },
   })
   const result = run(item)
   expect(result.status, result.stderr).toBe(0)

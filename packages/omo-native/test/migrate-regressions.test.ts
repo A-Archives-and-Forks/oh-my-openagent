@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs"
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -24,7 +24,6 @@ function fixture() {
   const app = join(root, "app")
   mkdirSync(home, { recursive: true })
   cpSync(join(SOURCE_ROOT, "bin"), join(app, "bin"), { recursive: true })
-  symlinkSync(resolve(SOURCE_ROOT, "..", "..", "node_modules"), join(app, "node_modules"), "junction")
   write(join(app, "package.json"), JSON.stringify({ name: "omo-ai", version: "test", type: "module" }))
   return { root, home, engineDir, xdgConfig, launcher: join(app, "bin", "omo.js") }
 }
