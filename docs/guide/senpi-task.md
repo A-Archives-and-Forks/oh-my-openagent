@@ -131,7 +131,7 @@ inherit `task.isolation.enabled`; they have no per-node switch of their own.
 | `task.isolation.backend` | `auto` | Select `auto`, `apfs`, `btrfs`, `zfs`, `reflink`, `overlayfs`, `block-clone`, or `rcopy`. |
 | `task.isolation.apply` | `true` | Merge completed child changes back; `false` keeps patch/branch artifacts only. |
 | `task.isolation.merge` | `patch` | Choose patch application or branch integration (`branch`). |
-| `task.isolation.commits` | `generic` | Choose generic or AI-generated commit messages (`ai`). |
+| `task.isolation.commits` | `generic` | Reserved for the commit-message style of a `branch` merge (`ai`). Accepted and validated; no backend consumes it yet, so both values behave as `generic`. |
 
 All defaults live in `omo.json` under `task` and `teams`. A minimal project config:
 

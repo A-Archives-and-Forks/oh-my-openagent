@@ -45,14 +45,6 @@ export function isolationDetails(record: TaskRecord): IsolationDetails | undefin
   }
 }
 
-/** A background spawn reports only where the child is working: the merge has not happened yet. */
-export function isolationStartedDetails(record: TaskRecord | null | undefined): IsolationStartedDetails | undefined {
-  const isolation = record?.isolation
-  return isolation === undefined
-    ? undefined
-    : { backend: isolation.backend, merged_dir: isolation.merged_dir }
-}
-
 export function isolationLine(details: IsolationDetails): string {
   const target = details.patch_path === undefined ? "" : ` -> ${details.patch_path}`
   return `isolation: ${details.kind} via ${details.backend}${target}`

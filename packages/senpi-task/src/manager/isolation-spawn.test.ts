@@ -17,7 +17,7 @@ import { flush } from "./__fixtures__/manager-fakes"
 
 afterEach(cleanupIsolationProjects)
 
-async function startAndSettle(runner: WritingRunner, manager: ReturnType<typeof makeIsolationManager>["manager"], spec = isolatedSpec()) {
+async function startAndSettle(manager: ReturnType<typeof makeIsolationManager>["manager"], spec = isolatedSpec()) {
   const started = await manager.start(spec)
   expect(started.kind).toBe("started")
   if (started.kind !== "started") throw new Error("spawn refused")
@@ -30,7 +30,7 @@ describe("isolated child spawn", () => {
     const runner = new WritingRunner([{ path: "a.txt", content: "from the child\n" }])
     const { manager, store } = makeIsolationManager({ fixture, runner })
 
-    const started = await startAndSettle(runner, manager)
+    const started = await startAndSettle(manager)
     const spawned = runner.startedSpecs[0]
     expect(spawned?.cwd).not.toBe(fixture.repoRoot)
     expect(existsSync(join(fixture.repoRoot, "a.txt"))).toBe(false)
@@ -51,7 +51,7 @@ describe("isolated child spawn", () => {
     const fixture = tempGitRepo()
     const runner = new WritingRunner([{ path: "a.txt", content: "child\n" }])
     const { manager } = makeIsolationManager({ fixture, runner })
-    const started = await startAndSettle(runner, manager)
+    const started = await startAndSettle(manager)
     const terminal = manager.waitFor(started.task_id)
     runner.settle(started.task_id, { status: "completed", finalResponse: "done" })
     const record = await terminal
@@ -72,7 +72,7 @@ describe("isolated child spawn", () => {
     const fixture = tempGitRepo()
     const runner = new WritingRunner([{ path: "seed.txt", content: "child edit\n" }])
     const { manager } = makeIsolationManager({ fixture, runner })
-    const started = await startAndSettle(runner, manager)
+    const started = await startAndSettle(manager)
     writeFileSync(join(fixture.repoRoot, "seed.txt"), "parent edit\n")
 
     const terminal = manager.waitFor(started.task_id)
@@ -92,7 +92,7 @@ describe("isolated child spawn", () => {
     const fixture = tempGitRepo()
     const runner = new WritingRunner([{ path: "a.txt", content: "abandoned\n" }])
     const { manager } = makeIsolationManager({ fixture, runner })
-    const started = await startAndSettle(runner, manager)
+    const started = await startAndSettle(manager)
 
     const terminal = manager.waitFor(started.task_id)
     runner.settle(started.task_id, { status: "cancelled" })
@@ -109,7 +109,7 @@ describe("isolated child spawn", () => {
     const fixture = tempGitRepo()
     const runner = new WritingRunner([{ path: "a.txt", content: "half done\n" }])
     const { manager } = makeIsolationManager({ fixture, runner })
-    const started = await startAndSettle(runner, manager)
+    const started = await startAndSettle(manager)
 
     const terminal = manager.waitFor(started.task_id)
     runner.settle(started.task_id, { status: "error", failure: { kind: "child-turn-failed", message: "boom" } })
@@ -187,7 +187,7 @@ describe("isolated child spawn", () => {
     const fixture = tempGitRepo()
     const runner = new WritingRunner()
     const { manager, store } = makeIsolationManager({ fixture, runner })
-    const started = await startAndSettle(runner, manager)
+    const started = await startAndSettle(manager)
     const record = store.load(started.task_id)
 
     expect(record?.spawn_spec?.cwd).toBe(record?.isolation?.merged_dir)
