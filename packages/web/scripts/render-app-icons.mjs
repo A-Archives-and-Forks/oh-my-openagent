@@ -1,45 +1,38 @@
-// Renders the raster app icons from app/icon.svg so every PNG the site ships is
-// derived from the one vector mark. Run with `bun scripts/render-app-icons.mjs`
-// after changing app/icon.svg, then commit the regenerated PNGs.
+// Renders every raster app icon from app/icon.svg so each PNG the site ships derives from the
+// one vector mark. `bun run icons:render` writes them; `bun run icons:check` exits 1 listing
+// every committed PNG that no longer matches a fresh render (lib/app-icons.test.ts does too).
 import { readFile, writeFile } from "node:fs/promises"
-import { chromium } from "@playwright/test"
+
+import { ICON_OUTPUTS, ICON_SOURCE, renderIcon } from "../lib/app-icons.ts"
 
 const webRoot = new URL("../", import.meta.url)
-const iconSvg = await readFile(new URL("app/icon.svg", webRoot), "utf8")
-const field = "#0a0a0a"
+const checkOnly = process.argv.includes("--check")
+const source = await readFile(new URL(ICON_SOURCE, webRoot), "utf8")
 
-// fullBleed: iOS composes its own rounded mask over apple-touch icons, so that
-// one must be an opaque square; the manifest PNGs keep the SVG's rounded corners.
-const outputs = [
-  { file: "app/apple-icon.png", size: 180, fullBleed: true },
-  { file: "public/icon-192x192.png", size: 192, fullBleed: false },
-  { file: "public/icon-512x512.png", size: 512, fullBleed: false },
-]
-
-const pageFor = ({ size, fullBleed }) => `<!doctype html>
-<html><head><style>
-  html, body { margin: 0; padding: 0; background: ${fullBleed ? field : "transparent"}; }
-  #icon { display: block; width: ${size}px; height: ${size}px; }
-</style></head>
-<body><div id="icon">${iconSvg.replace("<svg ", `<svg width="${size}" height="${size}" `)}</div></body></html>`
-
-const browser = await chromium.launch()
-try {
-  for (const output of outputs) {
-    const page = await browser.newPage({
-      viewport: { width: output.size, height: output.size },
-      deviceScaleFactor: 1,
+const stale = []
+for (const output of ICON_OUTPUTS) {
+  const { png } = await renderIcon(source, output)
+  const target = new URL(output.file, webRoot)
+  if (checkOnly) {
+    const committed = await readFile(target).catch((error) => {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") return null
+      throw error
     })
-    await page.setContent(pageFor(output))
-    const png = await page.screenshot({
-      type: "png",
-      omitBackground: !output.fullBleed,
-      clip: { x: 0, y: 0, width: output.size, height: output.size },
-    })
-    await page.close()
-    await writeFile(new URL(output.file, webRoot), png)
-    process.stdout.write(`${output.file}: ${output.size}x${output.size}, ${png.byteLength} bytes\n`)
+    if (committed === null || Buffer.compare(committed, png) !== 0) stale.push(output.file)
+    continue
   }
-} finally {
-  await browser.close()
+  await writeFile(target, png)
+  process.stdout.write(
+    `${output.file}: ${output.size}x${output.size} ${output.purpose}, ${png.byteLength} bytes\n`,
+  )
+}
+
+if (checkOnly) {
+  if (stale.length > 0) {
+    process.stderr.write(
+      `stale app icons (run \`bun run icons:render\`):\n${stale.map((file) => `  ${file}`).join("\n")}\n`,
+    )
+    process.exit(1)
+  }
+  process.stdout.write(`${ICON_OUTPUTS.length} app icons match ${ICON_SOURCE}\n`)
 }
