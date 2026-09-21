@@ -20,7 +20,7 @@ import { CONTEXT_KEY } from "./request-routing.js";
 import { createLineDecoder, encodeJsonLine } from "./socket-jsonrpc.js";
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
-const STARTUP_BACKOFF_MS = [100, 300, 900] as const;
+const STARTUP_BACKOFF_MS = [0, 100, 300] as const;
 let nextProxyRequestId = 1;
 
 export type DaemonToolContext = LspRequestContext;
@@ -58,7 +58,7 @@ export async function callToolViaDaemon(
 	let authRefreshUsed = false;
 	for (const [attempt, backoffMs] of STARTUP_BACKOFF_MS.entries()) {
 		try {
-			await sleep(backoffMs, options.signal);
+			if (backoffMs > 0) await sleep(backoffMs, options.signal);
 			if (options.signal?.aborted) throw new DaemonRequestCancelledError(false);
 			if (attempt === 0) {
 				await ensureDaemonAvailable(paths, ensure, options.signal);

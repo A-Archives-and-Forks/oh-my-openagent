@@ -107,6 +107,45 @@ function answerProbe(socket: Socket, message: unknown, paths: DaemonPaths): bool
 }
 
 describe("daemon-client retry discipline", () => {
+	it("does not delay the first attempt when the daemon is reachable", async () => {
+		const paths = tempPaths();
+		const delays: number[] = [];
+		let requestCount = 0;
+		const server = createServer((socket) => {
+			const decoder = createLineDecoder((message) => {
+				if (answerProbe(socket, message, paths)) return;
+				requestCount += 1;
+				socket.write(
+					encodeJsonLine({
+						jsonrpc: "2.0",
+						id: jsonRpcId(message),
+						result: { content: [{ type: "text", text: "ready" }] },
+					}),
+				);
+			});
+			socket.on("data", (chunk) => decoder.push(chunk));
+		});
+		servers.push(server);
+		await new Promise<void>((resolve) => server.listen(paths.socket, resolve));
+
+		const result = await callToolViaDaemon(
+			"status",
+			{},
+			{
+				paths,
+				context: defaultContext(),
+				sleep: async (ms) => {
+					delays.push(ms);
+				},
+			},
+		);
+
+		expect(result.isError).not.toBe(true);
+		expect(result.content[0]?.text).toBe("ready");
+		expect(requestCount).toBe(1);
+		expect(delays).toEqual([]);
+	});
+
 	it("ensures once after failed startup and only probes on subsequent attempts", async () => {
 		const paths = tempPaths();
 		let ensureCount = 0;
@@ -135,7 +174,7 @@ describe("daemon-client retry discipline", () => {
 		expect(result.content[0]?.text).toContain("unreachable");
 		expect(ensureCount).toBe(1);
 		expect(probeCount).toBe(2);
-		expect(delays).toEqual([100, 300, 900]);
+		expect(delays).toEqual([100, 300]);
 	});
 
 	it("cancels during retry backoff without another ensure or probe", async () => {
@@ -284,7 +323,7 @@ describe("daemon-client retry discipline", () => {
 				ensure,
 				sleep: async () => {
 					backoffCount += 1;
-					if (backoffCount === 2) await new Promise<void>((resolve) => server.listen(paths.socket, resolve));
+					if (backoffCount === 1) await new Promise<void>((resolve) => server.listen(paths.socket, resolve));
 				},
 				requestTimeoutMs: 2000,
 				context: defaultContext(),
