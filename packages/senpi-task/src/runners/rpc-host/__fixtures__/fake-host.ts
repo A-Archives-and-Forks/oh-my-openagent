@@ -70,7 +70,7 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
   // The logical socket path on every platform; on win32 the transport derives the named pipe and
   // the secret from it, exactly as the engine's client does, so the same session logic runs there.
   const socketPath = join(dir, "rpc.sock")
-  const transport = fakeHostTransport(socketPath)
+  let transport = fakeHostTransport(socketPath)
   const drainRetryAfterMs = options.drainRetryAfterMs ?? 2_000
   const table = new FakeSessionTable({ transcripts: options.transcripts === true })
   const commands: FakeHostCommand[] = []
@@ -130,6 +130,12 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
     await new Promise<void>((resolve) => server.listen(transport.listenAddress, resolve))
   }
   await listen()
+  const rebind = async (): Promise<void> => {
+    // A restarted generation answers as a new pipe instance: the old one's name
+    // stays reserved on win32 while a reconnecting client still holds it.
+    transport = transport.rotate()
+    await listen()
+  }
 
   // The routing tag goes FIRST so a payload may carry a foreign `sessionId` on purpose - that is
   // how a suite proves a client drops records addressed to another session.
@@ -219,7 +225,7 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
       table.clear()
       dropConnections()
       await closeServer()
-      await listen()
+      await rebind()
     },
     waitForCommand: (type) =>
       new Promise<FakeHostCommand>((resolve) => {

@@ -1,3 +1,15 @@
+## The fake host rebinds a fresh pipe when it restarts
+
+`fake-host-transport.ts` derives the win32 named pipe from the logical socket path plus a random
+secret and publishes the secret at `<path>.secret` for connecting clients. The fake host's
+`restart()` closed the server and rebound the SAME pipe name, but Windows keeps a pipe name
+reserved while any handle is open - including a reconnecting client still holding the old pipe -
+so the rebind raced the dying handles and failed with `EADDRINUSE`. The transport now exposes a
+`rotate()` that mints a fresh secret (and with it a fresh pipe name) and republishes it where
+clients read it, and `restart()` rebinds through it; a restarted generation answering the same
+logical path as a new pipe instance is exactly the story the recovery suites pin. POSIX keeps
+rebinding the same socket path, as before. omo#8604 (same dev full-matrix shard).
+
 ## Isolated children run in a copy-on-write clone and merge back when they settle
 
 `isolation/` wraps `@oh-my-opencode/isolation-core` as an injectable port (`runtime.ts`
