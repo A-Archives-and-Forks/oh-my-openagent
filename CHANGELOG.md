@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+**The frontend skill now refuses the coloured accent border.**
+
+A selected row no longer earns a `border-l-2 border-primary` stripe, and a focused card no longer gets a primary-tinted outline — the skill names that pattern as the most recognizable AI-generated-UI tell and treats it as a defect, including instances that already exist on a surface it touches. State is expressed the way this repo's design systems already express it: washes of one ink, a check glyph for selection, tonal layering for focus. Keyboard focus rings stay coloured.
+
+
 ## [5.0.0-beta.80] - 2026-09-20
 
 ### Changed
