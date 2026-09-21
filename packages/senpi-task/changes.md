@@ -1,3 +1,23 @@
+## A foreground wait parks the parent's lane lease
+
+`manager/concurrency.ts` keeps parked leases in `#parked`, a per-lane map of `(taskId, runEpoch)`
+entries held outside `#counts` and outside the FIFO. `park()` drops the lease and dispatches, so a
+child is admitted while its parent waits; `unpark(token, signal, { overflow })` resumes that exact
+entry and is a no-op for a stale token, so a released task cannot be resurrected and an earlier
+token cannot resume a later parking of the same epoch. The drain prefers a resumable parked owner
+over the queue head, which is what re-admits the parent ahead of everything that queued while it
+waited; `overflow: true` (promotion to background) re-counts the parent immediately, bounded to one
+overflow per parked lease, and an abort while parked releases instead of resuming. `tryAcquire` and
+`releaseLease` both go through `leaseState()`, so a parked epoch is neither re-acquired nor
+double-released.
+
+`tools/task/execute-single.ts` and `tools/task/execute-batch.ts` park the live caller - resolved
+through `manager.findTaskByChildSession(sessionId)` plus live ownership rather than a new context
+field - and unpark in `finally`. `tools/output` reports `lease: "held" | "parked"` on the snapshot
+(`OutputManager` now also picks `concurrency`). Residency and TTL policy are untouched. Pinned by
+`manager/concurrency.test.ts` and `tools/task/lease-parking.test.ts`, the latter driving the real
+in-process runner through two- and three-level spawn trees at cap 1. omo#8575.
+
 ## Host-session children reattach after a lost transport and wait out host memory pressure
 
 `runners/rpc-host/handle.ts` takes an optional `reattach` port (`runners/rpc-host/reattach.ts`). A

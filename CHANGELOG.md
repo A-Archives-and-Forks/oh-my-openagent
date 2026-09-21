@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `@oh-my-opencode/isolation-core`, a copy-on-write task isolation PAL with baseline capture and merge-back. Filesystem backends — APFS clonefile, btrfs and ZFS reflink clones, fuse-overlayfs, ReFS block clone, and a git-worktree rcopy fallback — write only inside the supplied context base directory; an unavailable backend surfaces as a typed `IsolationUnavailableError` and falls through to the next candidate. Baselines capture staged, unstaged and untracked work under a per-repository budget, and merge-back replays it as a patch or a task branch without ever committing the user's overlapping WIP: a failed replay retains the isolated tree with a manual recovery command. A new Linux CI job exercises publication, copy-on-write and teardown on real loopback btrfs and ZFS. ([#8573](https://github.com/code-yeongyu/oh-my-openagent/issues/8573))
 
+### Fixed
+
+**A task that waits on the child it just spawned no longer deadlocks at the concurrency cap.** A task held its lane slot for its entire run, so spawning a child with `run_in_background: false` on a full lane left the child queued behind the very parent that was waiting for it, and the whole spawn tree stopped. The parent's slot is now parked for the length of the wait - outside lane and global room - so the child is admitted immediately, and the parent is re-admitted ahead of anything that queued while it waited. Promoting the child to the background re-counts the parent right away instead of making promotion wait, cancelling a parked parent releases its slot, and `task_output` reports whether a task currently holds or has parked its lease. ([#8575](https://github.com/code-yeongyu/oh-my-openagent/issues/8575))
+
 ## [5.0.0-beta.81] - 2026-09-21
 
 ### Fixed
