@@ -69,14 +69,17 @@ async function worker(sandbox) {
     console.log("ARTIFACTS", JSON.stringify({ pluginRoot, mockProvider, engine: import.meta.resolve("@code-yeongyu/senpi"), sandbox }))
     const getSessionId = session.sessionManager.getSessionId
     session.sessionManager.getSessionId = () => undefined
+    const shutdownStarted = performance.now()
     try {
       await session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" })
     } finally {
       session.sessionManager.getSessionId = getSessionId
     }
     const after = JSON.parse(readFileSync(join(tasksDir, `${record.task_id}.json`), "utf8"))
-    console.log("AFTER", JSON.stringify({ pid: record.pid, status: after.status, residency: after.residency_state, alive: alive(record.pid) }))
+    const shutdownMs = performance.now() - shutdownStarted
+    console.log("AFTER", JSON.stringify({ pid: record.pid, status: after.status, residency: after.residency_state, alive: alive(record.pid), shutdownMs }))
     assert.equal(alive(record.pid), false)
+    assert.ok(shutdownMs < 7000, "child must exit within orphanKillDelayMs + 2 seconds (shared host, non-quiet)")
     assert.equal(after.status, "completed")
     assert.equal(after.residency_state, "rpc_detached")
     assert.notEqual(after.killed, true)
