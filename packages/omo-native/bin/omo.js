@@ -3,7 +3,8 @@ import { fileURLToPath } from "node:url"
 import { ensureBunBinShim } from "./lib/bun-bin-shim.js"
 import { maybeReexecUnderBun } from "./lib/bun-runtime.js"
 import { runLauncher } from "./lib/launcher.js"
-import { runSetupOrMigrate } from "./lib/setup-migrate-dispatch.js"
+import { runMigrate } from "./lib/migrate.js"
+import { runSetup } from "./lib/setup-import.js"
 
 try {
   // A machine that has bun runs omo on bun, whichever package manager installed it. A `bun add -g`
@@ -19,7 +20,9 @@ try {
   ensureBunBinShim({ scriptPath })
   const reexeced = await maybeReexecUnderBun({ scriptPath })
   if (!reexeced) {
-    if (!await runSetupOrMigrate(process.argv.slice(2))) await runLauncher()
+    if (process.argv[2] === "setup") await runSetup(process.argv.slice(3))
+    else if (process.argv[2] === "migrate") runMigrate(process.argv.slice(3))
+    else await runLauncher()
   }
 } catch (error) {
   console.error(`omo: ${error.message}`)

@@ -172,28 +172,24 @@ omo setup --dry-run       # plan only; writes nothing
 Onboarding for the senpi edition. Detects provider credentials in senpi/opencode/oh-my-pi/
 gajae-code stores (read-only), imports compatible API-key credentials with consent (never
 overwrites existing entries, timestamped backup), translates the opencode `mcp` block into
-`mcp.json`, copies global skills and a global `AGENTS.md`, and prints re-auth commands
-using mapped provider IDs. Hosted gateways and unknown providers are reported without
-invalid login advice. Malformed MCP targets abort before credential writes.
+`mcp.json`, copies global skills and a global `AGENTS.md`, and prints one exact re-auth command
+per skipped OAuth provider. Hosted gateway keys report as `skipped-gateway`.
 
 ## migrate
 
 ### Usage
 
 ```bash
-omo migrate --help        # usage only; writes nothing
 omo migrate --dry-run     # print the full translation plan; write nothing
-omo migrate --yes         # explicitly apply
+omo migrate --yes         # apply
 ```
 
-Applying requires `--yes`; bare invocation and help do not modify state.
-Codemod from global opencode state to omo native: `model`/`permission` →
+One-shot codemod from global opencode state to omo native: `model`/`permission` →
 `settings.json`, custom `provider` blocks → `models.json`, `mcp` → `mcp.json`, `tui.json`
-keybinds → `keybindings.json` (supported IDs and key syntax), Markdown/inline agents →
-user OMO config, supported keys of `oh-my-openagent.json(c)` → user OMO config.
-Existing `omo.json`/`omo.jsonc` and nested values are preserved. Unrepresentable settings
-are reported for manual review, and backups protect prior target bytes. See
-[Migrating from opencode](../guide/migrate-from-opencode.md) for recovery and rollback.
+keybinds → `keybindings.json` (best-effort; unmatched ids are reported), agent markdown →
+`omo.jsonc` agents, shared keys of `oh-my-openagent.json(c)` → `omo.jsonc`. Backup-first
+(`migration-backup-<timestamp>/` + `migration-notes.md`), idempotent via a state marker, and
+anything unmappable is printed as `dropped-with-warning` instead of disappearing.
 
 ## run
 

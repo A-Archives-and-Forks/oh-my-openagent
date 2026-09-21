@@ -92,17 +92,8 @@ export function ensurePrebuiltNativeInputs(
   }
 }
 
-function ensureMigrationRuntime(): void {
-  const result = spawnSync("bun", ["run", "script/build-migration-runtime.ts"], { cwd: repoRoot, stdio: "inherit" })
-  if (result.error !== undefined) throw result.error
-  if (result.status !== 0) {
-    throw new Error(`build-migration-runtime failed with exit code ${result.status ?? 1}`)
-  }
-}
-
 function runSenpiPluginBuild(outputDir: string): void {
   ensurePrebuiltNativeInputs()
-  ensureMigrationRuntime()
   const buildRoot = mkdtempSync(join(tmpdir(), "omo-native-build-"))
   const lspSource = join(buildRoot, "lsp-daemon", "dist")
   const astSource = join(buildRoot, "ast-grep-mcp", "cli.js")

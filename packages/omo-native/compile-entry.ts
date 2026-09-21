@@ -22,7 +22,7 @@ import { nearestNodeBin, readJson } from "./bin/lib/package-paths.js"
 import { daemonReportLines, runDaemonCommand } from "./bin/lib/daemon.js"
 import { runDoctor } from "./bin/lib/doctor.js"
 import { detectHarnesses, needsSetupSuggestion } from "./bin/lib/setup-detect.js"
-import { runSetupOrMigrate } from "./bin/lib/setup-migrate-dispatch.js"
+import { printSetupReport } from "./bin/lib/setup-report.js"
 import { spawnSync } from "node:child_process"
 import { delimiter } from "node:path"
 import { registerBunOAuthFlows } from "../../node_modules/@code-yeongyu/senpi/node_modules/@earendil-works/pi-ai/dist/bun-oauth.js"
@@ -217,7 +217,6 @@ export function shouldPrintCompiledBanner(args: string[], stderrIsTTY: boolean):
 }
 
 export async function runCompiledLauncher(args: string[], execDir: string, enginePin = "unknown", compiledPackageRoot?: string): Promise<boolean> {
-  if (await runSetupOrMigrate(args)) return true
   const packageJson = readJson(join(execDir, "package.json")) as { version: string; omoBuild?: unknown }
   migrateLegacyBunGlobalManifest(execDir)
   adoptLegacyFlatState()
@@ -263,15 +262,13 @@ export async function runCompiledLauncher(args: string[], execDir: string, engin
     else runDoctor(inventory, [], { daemonEngine: engine })
     return true
   }
+  if (command === "setup") { printSetupReport(await detectHarnesses()); process.exitCode = 0; return true }
   if ((command === "--version" || command === "-v") && args.length === 1) { console.log(versionLine(packageJson, enginePin ?? "unknown")); return true }
   if (isSelfUpdate(args)) { console.log(updateHint(packageJson.omoBuild)); return true }
   return false
 }
 
 async function main(): Promise<void> {
-  // These commands operate on config only. In particular, help/preview must not
-  // materialize the embedded runtime or adopt legacy state as a boot side effect.
-  if (await runSetupOrMigrate(process.argv.slice(2))) return
   const embedded = (globalThis as typeof globalThis & { Bun?: { embeddedFiles?: EmbeddedFile[] } }).Bun?.embeddedFiles as EmbeddedFile[] | undefined
   if (!embedded?.length) {
     const execDir = dirname(fileURLToPath(import.meta.url))

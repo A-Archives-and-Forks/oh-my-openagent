@@ -10,7 +10,6 @@ import { readRow, readRows } from "./sqlite-rows.js"
 import { printModelReport } from "./setup-models.js"
 import { printSetupReport } from "./setup-report.js"
 import { withSetupRollback } from "./setup-transaction.js"
-import providerMap from "./provider-map.json" with { type: "json" }
 import {
   contentPlanHasWork, planContentImport, printContentCounts, printContentPlan,
   readOpencodeConfigDir, writeContentImport,
@@ -24,6 +23,10 @@ const SQLITE_STORES = [
 
 function sorted(values) {
   return [...new Set(values)].sort()
+}
+
+function readProviderMap() {
+  return JSON.parse(readFileSync(new URL("./provider-map.json", import.meta.url), "utf8"))
 }
 
 function targetProvider(provider, providerMap) {
@@ -98,6 +101,7 @@ async function buildPlan(options) {
   const home = options.home ?? homedir()
   const env = options.env ?? process.env
   const dataHome = env.XDG_DATA_HOME || join(home, ".local", "share")
+  const providerMap = readProviderMap()
   const plan = { candidates: [], oauth: [], notices: [] }
   readOpencode(join(dataHome, "opencode", "auth.json"), providerMap, plan)
   try {
@@ -129,6 +133,7 @@ function classify(plan, existing) {
   const skippedGateway = []
   const skippedUnmapped = []
   const skippedOauth = []
+  const providerMap = readProviderMap()
   for (const provider of plan.oauth) {
     const mapped = targetProvider(provider, providerMap)
     if (mapped) skippedOauth.push(mapped)

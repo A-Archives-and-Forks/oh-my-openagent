@@ -1,9 +1,8 @@
-import { afterEach, beforeAll, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs"
 import { createHash } from "node:crypto"
 import { homedir } from "node:os"
 import { join } from "node:path"
-import { buildMigrationRuntime } from "../../../script/build-migration-runtime"
 import {
   compiledBannerLines,
   answerCompiledFastPath,
@@ -32,20 +31,7 @@ const roots: string[] = []
 const temp = () => { const root = mkdtempSync(join(homedir(), "omo-compile-entry-test-")); roots.push(root); return root }
 const sha = (value: string) => createHash("sha256").update(value).digest("hex")
 
-beforeAll(buildMigrationRuntime)
 afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }) })
-
-async function withIsolatedEnvironment<T>(env: Record<string, string>, run: () => Promise<T>): Promise<T> {
-  const original = { ...process.env }
-  for (const key of Object.keys(process.env)) delete process.env[key]
-  Object.assign(process.env, env)
-  try {
-    return await run()
-  } finally {
-    for (const key of Object.keys(process.env)) delete process.env[key]
-    Object.assign(process.env, original)
-  }
-}
 
 describe("compiled OMO OAuth module identity", () => {
   test("registers the loader in the same nested pi-ai graph used by the provider", async () => {
@@ -66,81 +52,6 @@ describe("compiled OMO OAuth module identity", () => {
 })
 
 describe("compiled omo entry launcher parity", () => {
-  test("does not adopt old state during a migration dry run", async () => {
-    const root = temp()
-    const home = join(root, "home")
-    mkdirSync(join(home, ".omo"), { recursive: true })
-    writeFileSync(join(root, "package.json"), JSON.stringify({ version: "9.2.1" }))
-    writeFileSync(join(home, ".omo", "settings.json"), '{"defaultModel":"existing"}')
-
-    await withIsolatedEnvironment({
-      HOME: home,
-      USERPROFILE: home,
-      XDG_CONFIG_HOME: join(root, "config"),
-      XDG_DATA_HOME: join(root, "data"),
-      XDG_CACHE_HOME: join(root, "cache"),
-      XDG_STATE_HOME: join(root, "state"),
-    }, () => runCompiledLauncher(["migrate", "--dry-run"], root))
-
-    expect(existsSync(join(home, ".omo", "agent"))).toBe(false)
-    expect(readFileSync(join(home, ".omo", "settings.json"), "utf8")).toBe('{"defaultModel":"existing"}')
-  })
-
-  test("runs setup with the same importer as the npm launcher", async () => {
-    const root = temp()
-    const home = join(root, "home")
-    const agentDir = join(root, "agent")
-    const xdgData = join(root, "xdg-data")
-    writeFileSync(join(root, "package.json"), JSON.stringify({ version: "9.2.1" }))
-    mkdirSync(join(xdgData, "opencode"), { recursive: true })
-    writeFileSync(join(xdgData, "opencode", "auth.json"), JSON.stringify({
-      openai: { type: "api", key: "test-key" },
-    }))
-
-    await withIsolatedEnvironment({
-      HOME: home,
-      USERPROFILE: home,
-      OMO_CODING_AGENT_DIR: agentDir,
-      SENPI_CODING_AGENT_DIR: agentDir,
-      XDG_DATA_HOME: xdgData,
-      XDG_CONFIG_HOME: join(root, "xdg-config"),
-      XDG_STATE_HOME: join(root, "xdg-state"),
-      XDG_CACHE_HOME: join(root, "xdg-cache"),
-    }, () => runCompiledLauncher(["setup", "--yes"], root))
-
-    expect(JSON.parse(readFileSync(join(agentDir, "auth.json"), "utf8"))).toEqual({
-      openai: { type: "api_key", key: "test-key" },
-    })
-  })
-
-  test("runs migrate with the same importer as the npm launcher", async () => {
-    const root = temp()
-    const home = join(root, "home")
-    const agentDir = join(root, "agent")
-    const xdgConfig = join(root, "xdg-config")
-    writeFileSync(join(root, "package.json"), JSON.stringify({ version: "9.2.1" }))
-    mkdirSync(join(xdgConfig, "opencode"), { recursive: true })
-    writeFileSync(join(xdgConfig, "opencode", "opencode.json"), JSON.stringify({
-      model: "anthropic/claude-opus-4-5",
-    }))
-
-    await withIsolatedEnvironment({
-      HOME: home,
-      USERPROFILE: home,
-      OMO_CODING_AGENT_DIR: agentDir,
-      SENPI_CODING_AGENT_DIR: agentDir,
-      XDG_DATA_HOME: join(root, "xdg-data"),
-      XDG_CONFIG_HOME: xdgConfig,
-      XDG_STATE_HOME: join(root, "xdg-state"),
-      XDG_CACHE_HOME: join(root, "xdg-cache"),
-    }, () => runCompiledLauncher(["migrate", "--yes"], root))
-
-    expect(JSON.parse(readFileSync(join(agentDir, "settings.json"), "utf8"))).toMatchObject({
-      defaultProvider: "anthropic",
-      defaultModel: "claude-opus-4-5",
-    })
-  })
-
   test("uses the launched Windows executable path for self-provisioning identity", () => {
     expect(runningExecutablePath("C:\\runtime\\omo.exe", "B:\\~BUN\\root\\omo.exe", "win32")).toBe(
       "C:\\runtime\\omo.exe",

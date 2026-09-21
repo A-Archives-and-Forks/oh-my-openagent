@@ -14,9 +14,8 @@ omo migrate --dry-run  # plan the full config translation without writing
 omo migrate --yes      # translate settings/models/mcp/keybinds/agents/omo config
 ```
 
-Preview before applying. `omo migrate` requires `--yes` to write; `--help` and
-`--dry-run` are read-only. Existing values take precedence, and unsupported settings
-are reported for manual review. Backups preserve files that existed before a write.
+Both tools are backup-first and idempotent: every overwritten file is copied aside first, nothing
+is ever silently dropped, and a second run changes nothing.
 
 ## What moves automatically
 
@@ -26,67 +25,55 @@ are reported for manual review. Backups preserve files that existed before a wri
 | MCP servers (`mcp` in `opencode.json`) | `<agentDir>/mcp.json` | `omo setup` / `omo migrate` — `local`→`stdio`, `remote`→`http`, key renames |
 | Skills (`~/.config/opencode/skills/`) | `<agentDir>/skills/` | `omo setup` — copied verbatim (same Agent Skills standard), skip-existing |
 | `AGENTS.md` rules | `<agentDir>/AGENTS.md` (and project files keep working as-is) | `omo setup` — same convention on both sides |
-| `model` default | `defaultProvider` + `defaultModel` in `settings.json` | `omo migrate` — treated as a pair; existing choices are preserved |
-| `permission` rules | `permission` in `settings.json` | `omo migrate` — includes root `ask`/`allow`/`deny` shorthand |
-| Custom providers (`provider.*`) | `models.json` | `omo migrate` — supported APIs, upstream model IDs and context/output limits; unsupported definitions need review |
-| omo plugin settings (`oh-my-openagent.json`) | Existing user `omo.json`/`omo.jsonc` | `omo migrate` — supported shared schema keys, merged without overwriting existing leaves |
-| Custom agents (Markdown and inline definitions) | User OMO config `agents` | `omo migrate` — supported fields; unrepresentable restrictions require manual review |
-| Keybinds (`tui.json`) | `keybindings.json` | `omo migrate` — supported IDs, comma alternatives and `none`; leader/chord bindings need review |
+| `model` default | `defaultProvider` + `defaultModel` in `settings.json` | `omo migrate` |
+| `permission` rules | `permission` in `settings.json` | `omo migrate` — same tri-state, last-match-wins |
+| Custom providers (`provider.*`) | `models.json` | `omo migrate` — incl. context/output limits; unknown `npm` packages get a needs-review note |
+| omo plugin settings (`oh-my-openagent.json`) | `omo.jsonc` shared keys (`categories`, `agents`, `task`, `teams`, `codegraph`) | `omo migrate` |
+| Custom agents (`agents/*.md`) | `omo.jsonc` `agents` | `omo migrate` — description/model/prompt survive |
+| Keybinds (`tui.json`) | `keybindings.json` | `omo migrate` — best-effort id map; unmatched ids are listed |
 
 ## What needs you
 
 - **OAuth / subscription logins are never imported** (token shapes and clients differ per provider).
-  `omo setup` maps recognized provider IDs before printing `Run '/login <provider>' to re-authenticate.`
-  Run `omo`, then the suggested command. Unknown providers and hosted gateways do not receive a
-  potentially invalid login command.
+  `omo setup` prints one exact line per skipped provider: `Run '/login <provider>' to re-authenticate.`
+  Run `omo`, then `/login <provider>` for each.
 - **Hosted gateway keys** (opencode Zen / opencode-go / zai-coding-plan) authenticate opencode's own
   gateway, not the vendor — they report as `skipped-gateway`. Add the equivalent provider directly.
 - **MCP servers with OAuth** re-login on first use (`/mcp login <name>`).
 - **Keybinds with no senpi equivalent** (the leader key, agent cycling, `@mention` flows) are
   reported as unmatched/unmappable rather than silently dropped.
-- **Config expressions**: supported `{env:NAME}` references become native environment references,
-  without reading their secret values. `{file:...}` expressions require manual translation.
-- **Agent restrictions**: review any unsupported permission policy before enabling the migrated
-  agent; it must not become unrestricted just because its source restriction has no equivalent.
 
 ## What does not move (yet)
 
-- **Session history** — this command does not translate sessions; start fresh, or keep
+- **Session history** — opencode's on-disk session store has no public format; start fresh, or keep
   opencode installed for reading old sessions (both tools can coexist).
 - **opencode plugins** — the plugin API differs from senpi extensions; plugins must be ported or
   replaced. omo's own feature set is built into the senpi edition already.
 - **Some omo feature flags** (tmux panes, hook-level toggles, sisyphus planner options) — reported
-  as `manual-review` and listed in `<agentDir>/opencode-migration-report.json`.
+  as `dropped-with-warning` and listed in `migration-notes.md` next to the backup.
 
 ## Safety: backups and rollback
 
-- `omo migrate --dry-run` previews the translation and writes nothing.
-- Migration validates the planned configuration before applying it. Existing target files and
-  migration sources are backed up under `<agentDir>/migration-backup-<timestamp>-<id>/`.
-  Its `manifest.json` maps backup names to original paths and lists newly created files.
-  `<agentDir>/opencode-migration-report.json` records warnings and the backup directory,
-  including runs that only report unsupported settings. Keep these until you have checked
-  the new setup.
+- `omo migrate --dry-run` prints the complete plan and writes nothing.
+- Every written target is first copied to `<agentDir>/migration-backup-<timestamp>/`, together with
+  `migration-notes.md` listing anything that did not translate.
 - `omo setup` backs up an existing `auth.json`/`mcp.json` as `.bak-<timestamp>` before merging.
-- Caught apply failures roll back earlier writes. Abrupt process termination is not an
-  all-or-nothing transaction across multiple files; retain backups for recovery.
 - opencode is never modified or uninstalled — your old setup keeps working as-is. To roll back,
-  keep using opencode. To undo omo-side state, restore each preexisting file from its backup
-  and remove only files that the migration created. Do not delete preexisting settings files:
-  they may contain values unrelated to this migration.
+  simply keep using opencode; to undo omo-side state, delete the new files (they are all additive).
 
 ## FAQ
 
 **Both opencode and omo installed — do they conflict?**
 No. They read different directories (`~/.config/opencode` + `~/.local/share/opencode` vs
-`~/.omo/agent`). One known collision: an older globally installed omo (≤ 4.19.4,
-opencode edition) may own the `omo` bin. Upgrade or uninstall that package before
-installing `omo-ai@beta`; otherwise npm can fail with EEXIST.
+`~/.omo/agent`). One known collision: if an older omo (≤ 4.19.4, opencode edition) owns
+`~/.local/bin/omo`, install the native edition first and let it replace the wrapper — the new
+launcher refuses to overwrite a non-omo file, so remove a foreign `omo` binary by hand if needed.
 
 **Where does omo keep its state?**
-Engine state goes to `~/.omo/agent` (override: `OMO_CODING_AGENT_DIR`). Shared OMO config
-remains in `~/.omo/omo.jsonc`, or the existing `~/.omo/omo.json`, independently of that
-engine-directory override. The migration targets the global layer, not the current project.
+`~/.omo/agent` (override: `OMO_CODING_AGENT_DIR`). Note the engine resolves the "global" agent dir
+from the nearest ancestor `.senpi/agent` or `.omo/agent` directory — run `omo setup`/`omo migrate`
+from your home directory (or anywhere without a stray `.senpi/agent` above it) so migrated files
+land globally.
 
 **I run per-project opencode configs.**
 This migration covers the global layer. Project `opencode.json` / `.opencode/` dirs keep working

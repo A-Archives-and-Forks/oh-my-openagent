@@ -83,7 +83,7 @@ The first concrete step toward a harness-neutral config layer has landed: `omo-c
 The senpi edition (omo native, `omo-ai`) is the long-term default. The opencode edition remains fully
 supported through a dual-support window of at least six months or two major releases after the senpi
 edition goes stable — no dates are committed yet, and none will be until the senpi CLI is stable.
-The user-facing path is [`omo setup` + `omo migrate`](packages/omo-native/changes.md) and
+The user-facing path is [`omo setup` + `omo migrate`](../packages/omo-native/changes.md) and
 [the migration guide](docs/guide/migrate-from-opencode.md). New work should assume both editions
 load the same `omo.json` configuration surface.
 

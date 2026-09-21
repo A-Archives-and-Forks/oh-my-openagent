@@ -1,11 +1,10 @@
-import { afterEach, beforeAll, describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { teardownRoots } from "./teardown.test-support"
-import { buildMigrationRuntime } from "../../../script/build-migration-runtime"
 
 const SOURCE_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)))
 const roots: string[] = []
@@ -43,10 +42,6 @@ function run(item: ReturnType<typeof fixture>, args: string[]) {
 
 afterEach(() => {
   teardownRoots(roots)
-})
-
-beforeAll(async () => {
-  await buildMigrationRuntime()
 })
 
 describe("omo migrate", () => {
@@ -103,8 +98,8 @@ describe("omo migrate", () => {
     const keybindings = JSON.parse(readFileSync(join(item.agentDir, "keybindings.json"), "utf8"))
     expect(keybindings["app.session.new"]).toBe("ctrl+n")
     expect(keybindings["app.model.select"]).toBe("ctrl+l")
-    expect(result.stdout).toContain("keybindings.leader")
-    const omoConfig = readFileSync(join(item.home, ".omo", "omo.jsonc"), "utf8")
+    expect(result.stdout).toContain("keybinds-unmatched: leader")
+    const omoConfig = readFileSync(join(item.omoRoot, "omo.jsonc"), "utf8")
     const parsed = JSON.parse(omoConfig)
     expect(parsed.agents.reviewer.description).toBe("Code reviewer")
     expect(parsed.agents.reviewer.prompt).toBe("Review the diff carefully.")
@@ -122,9 +117,9 @@ describe("omo migrate", () => {
     const result = run(item, ["migrate", "--yes"])
 
     expect(result.status).toBe(0)
-    const parsed = JSON.parse(readFileSync(join(item.home, ".omo", "omo.jsonc"), "utf8"))
+    const parsed = JSON.parse(readFileSync(join(item.omoRoot, "omo.jsonc"), "utf8"))
     expect(parsed.categories.deep.model).toBe("anthropic/claude-opus-4-5")
-    expect(result.stdout).toContain("manual-review")
+    expect(result.stdout).toContain("dropped-with-warning")
     expect(result.stdout).toContain("tmux")
   })
 
