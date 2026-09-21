@@ -28,7 +28,7 @@ function getInstallationDocsPath(pathname: string): string | null {
   return locale ? `/${locale}/docs` : "/docs"
 }
 
-export default function middleware(request: NextRequest): NextResponse {
+export default function proxy(request: NextRequest): NextResponse {
   const forwardedHost = request.headers.get("x-forwarded-host")
   const requestHost = request.headers.get("host")
   const hostname = (forwardedHost ?? requestHost ?? request.nextUrl.hostname).split(":")[0]
