@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Task child processes are reclaimed on session shutdown even when the closing context no longer exposes its session ID. Cleanup recovers ownership from that engine's resident handles, preserves resumable task records, and leaves sibling sessions alone. ([#8562](https://github.com/code-yeongyu/oh-my-openagent/issues/8562))
 
+**A task child survives its daemon dying or dropping the connection.** A lost connection to the shared session daemon used to end every delegated child at once as `crashed (transport_gone)`, even though the child's session went on running on the daemon - or sat complete in its transcript after the daemon process itself died. The child now reconnects: it re-ensures the daemon, reopens the same session, and when the daemon still had the session the running turn simply continues over the new connection; when the daemon had to reopen the session from its transcript, the interrupted turn is re-prompted once to continue from where the transcript ends. Commands sent while the reconnect is in flight wait for it instead of failing. Only a daemon that never comes back ends the child as before. A daemon that refuses a new child because it is above its memory watermark (`host_memory_pressure`) is now a bounded wait for the retry hint it sends, never a reason to start a separate process. ([#8563](https://github.com/code-yeongyu/oh-my-openagent/issues/8563))
+
+**The "Memory updated" notice shows the reflection report again.** The omo-senpi component logger wrote its info lines to stdout, and a reflection worker's stdout is the report, so the notice previewed `omo-senpi ulw-execute-continuation skipped { reason: "not-continuable" }` in place of the first lines of the report. Component diagnostics now go to stderr on every level. ([#8564](https://github.com/code-yeongyu/oh-my-openagent/issues/8564))
+
 ### Changed
 
 **Every direct dependency moves to its latest release inside its current major, and the security overrides move with them.**
