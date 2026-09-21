@@ -57,3 +57,23 @@ through `--build-info`. Correctness of handoff does not depend on the define: a 
 is scheme `nodef`, which per I2 never initiates a handoff.
 
 Refs #8415.
+
+## 2026-09-21 - Remove unused compiled-launcher import after #8568
+
+### What changed
+
+Removed the unused `spawn` import from `compile-entry.ts`. The `spawnSync`
+import and signal-aware `runChild` fallback remain.
+
+### Why
+
+The imported binding had no references outside its declaration. Keeping it
+suggested that the compiled launcher still used that child-process API.
+
+### Why an extension could not handle it
+
+This is a source cleanup in the compiled launcher, before extension loading.
+
+### Expected merge conflict zones
+
+The import list in `compile-entry.ts`. No runtime behavior or Windows paths changed.
