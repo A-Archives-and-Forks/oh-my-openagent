@@ -94,7 +94,9 @@ test("overlay relocates by unmount, parent rename, remount with new upper/work p
   const f = await paths(), { io, calls } = fake({ mounted: async () => true })
   const backend = new OverlayfsBackend(io)
   await backend.start(f.repoRoot, f.merged, f.ctx)
-  const final = join(f.root, "final")
+  // POSIX-literal relocation target: win32 join() would re-separate it and the
+  // mount-option guard (correctly) rejects backslashes in overlay paths.
+  const final = `${f.root}/final`
   await backend.relocate(f.baseDir, final)
   await backend.stop(join(final, "m"))
   expect(calls).toEqual([
@@ -114,7 +116,7 @@ test("overlay unmount failure retries three times and leaves source untouched", 
   const backend = new OverlayfsBackend(io)
   await backend.start(f.repoRoot, f.merged, f.ctx)
   await writeFile(join(f.merged, "sentinel"), "untouched")
-  await expect(backend.relocate(f.baseDir, join(f.root, "final"))).rejects.toThrow("busy")
+  await expect(backend.relocate(f.baseDir, `${f.root}/final`)).rejects.toThrow("busy")
   expect(calls.filter((argv) => argv[0] === "fusermount3")).toHaveLength(3)
   expect(await readFile(join(f.merged, "sentinel"), "utf8")).toBe("untouched")
   await expect(access(join(f.root, "final"))).rejects.toThrow()

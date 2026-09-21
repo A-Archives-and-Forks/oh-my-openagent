@@ -12,10 +12,11 @@ test("rcopy seeds staged, unstaged and NUL-delimited untracked files without ign
   await writeFile(join(lower, "staged"), "stage\n")
   await git(lower, "add", "staged")
   await writeFile(join(lower, "tracked"), "dirty\n")
-  // NUL-delimited listing round-trip with a filename that is legal on every
-  // platform; NTFS rejects control characters in names, so the separator
-  // escape lives in a name with spaces instead of an embedded newline.
-  const name = "untracked name"
+  // The name must force ls-files' NUL delimitation to matter: a newline breaks
+  // the non-z output outright (POSIX), and git C-quotes non-ASCII names in the
+  // non-z output, so either form proves the -z round-trip. NTFS rejects the
+  // control character, so win32 proves it through the quoted-escape form.
+  const name = process.platform === "win32" ? "untracked-한글" : "untracked\nname"
   await writeFile(join(lower, name), "untracked")
   await chmod(join(lower, name), 0o751)
   await utimes(join(lower, name), 1234567890, 1234567890)
