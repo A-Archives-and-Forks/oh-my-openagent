@@ -17,6 +17,13 @@ export class BtrfsBackend implements IsolationBackend {
     if (/not a btrfs|not a subvolume|cannot find|no such|unknown subvolume|not a directory/i.test(result.stderr)) {
       return { available: false, reason: result.stderr }
     }
+    // Unprivileged users cannot search the parent subvolume's B-tree, so show
+    // reports EPERM even for a subvolume they may snapshot. Like upstream's
+    // CLI-presence probe, treat it as inconclusive: attempting the snapshot in
+    // start decides, and its classifier turns a genuine refusal unavailable.
+    if (/operation not permitted|permission denied|could not search b-tree/i.test(result.stderr)) {
+      return { available: true }
+    }
     // An I/O or similar operational failure says nothing about btrfs capability.
     throw new Error(`btrfs subvolume show ${lower} failed (${result.code}): ${result.stderr}`)
   }

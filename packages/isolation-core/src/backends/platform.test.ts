@@ -266,3 +266,20 @@ test("overlayfs unexpected mount failures remain hard errors", async () => {
   expect(failure).toBeInstanceOf(Error)
   expect(failure instanceof IsolationUnavailableError).toBe(false)
 })
+
+test("btrfs probe treats unprivileged B-tree search as inconclusive and lets start snapshot", async () => {
+  const f = await paths()
+  const calls: string[][] = []
+  const io = fake({ run: async (argv) => {
+    calls.push(argv)
+    return argv[2] === "show"
+      ? { code: 1, stdout: "", stderr: "ERROR: Could not search B-tree: Operation not permitted" }
+      : { code: 0, stdout: "", stderr: "" }
+  } }).io
+  const backend = new BtrfsBackend(io)
+  // The CLI cannot inspect subvolumes unprivileged; only attempting the
+  // snapshot can decide, exactly like upstream's CLI-presence probe.
+  expect((await backend.probe(f.repoRoot)).available).toBe(true)
+  await backend.start(f.repoRoot, f.merged, f.ctx)
+  expect(calls).toContainEqual(["btrfs", "subvolume", "snapshot", f.repoRoot, f.merged])
+})

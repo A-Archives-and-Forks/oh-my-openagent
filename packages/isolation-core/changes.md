@@ -21,6 +21,9 @@ clones record dataset and snapshot identity, fuse-overlayfs keeps the lower
 path, and ReFS block-clones cluster-rounded tails on Windows. Copy walks
 enforce a 2 GiB default budget with 10% target-space headroom; special
 entries are skipped rather than copied.
+The sandbox base directory never lands inside the repository being
+isolated, even when a subvolume-style root reports its own device; the device
+walk adopts the enclosing writable filesystem and otherwise falls back home.
 Probing is context-bound: reflink writes its probe files inside the supplied
 base directory only, and a probe without a context stays read-only instead of
 writing into the source repository. Unexpected backend command failures (an
