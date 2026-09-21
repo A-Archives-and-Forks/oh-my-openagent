@@ -6,7 +6,6 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { ModelConfig } from "../../../node_modules/@code-yeongyu/senpi/dist/core/model-config.js"
 import { buildMigrationRuntime } from "../../../script/build-migration-runtime"
-import { loadOmoConfig } from "../../omo-config-core/src/index"
 import { teardownRoots } from "./teardown.test-support"
 
 const roots: string[] = []
@@ -120,25 +119,4 @@ test("#given invalid migrate arguments #when either entrypoint runs #then diagno
   expect(compiledEntry.status).toBe(node.status)
   expect(compiledEntry.stderr).toBe(node.stderr)
   expect(existsSync(join(item.home, ".omo"))).toBe(false)
-})
-
-test.each(["inline", "markdown"])("#given an enabled native agent and restricted %s source #when migrating #then the entire conflicting import is skipped", (source) => {
-  const item = fixture()
-  const existing = { description: "Existing reviewer", disable: false }
-  write(join(item.home, ".omo", "omo.json"), { agents: { reviewer: existing } })
-  write(join(item.config, "opencode.json"), {
-    agent: {
-      helper: { prompt: "Compatible helper" },
-      ...(source === "inline" ? { reviewer: { prompt: "Restricted incoming prompt", permission: { edit: "deny" } } } : {}),
-    },
-  })
-  if (source === "markdown") write(join(item.config, "agents", "reviewer.md"), "---\npermission:\n  edit: deny\n---\nRestricted incoming prompt\n")
-  const result = run(item)
-  expect(result.status, result.stderr).toBe(0)
-  expect(json(join(item.home, ".omo", "omo.json")).agents.reviewer).toEqual(existing)
-  const loaded = loadOmoConfig({ cwd: item.home, env: { HOME: item.home, USERPROFILE: item.home }, harness: "senpi" })
-  expect(loaded.config.agents?.reviewer?.disable).toBe(false)
-  expect(loaded.config.agents?.reviewer?.prompt).toBeUndefined()
-  expect(loaded.config.agents?.helper?.prompt).toBe("Compatible helper")
-  expect(json(join(item.agent, "opencode-migration-report.json")).warnings.some((line: string) => line.includes("agents.reviewer"))).toBe(true)
 })

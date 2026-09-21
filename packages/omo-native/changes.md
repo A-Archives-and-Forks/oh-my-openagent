@@ -28,9 +28,6 @@ environment references and upstream model IDs, and converts key alternatives/`no
 Unsupported chords, config expressions and settings produce manual-review warnings.
 Restricted Markdown/inline agents remain disabled pending review; existing agent and
 category leaves take precedence over imported values.
-If an existing agent explicitly has `disable:false`, a restricted source agent is
-skipped in its entirety instead of importing its prompt into that enabled agent.
-Its manual-review warning describes the preserved destination, not a disabled state.
 
 Shared config uses omo-config-core path selection, recursive merge and schema validation,
 independently of the engine directory. Versioned state re-evaluates old markers and recovers

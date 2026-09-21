@@ -56,8 +56,6 @@ such as `team/reviewer` retained.
   as an unsupported literal, not silently turned into environment interpolation.
 - **Agent restrictions**: review any unsupported permission policy before enabling the migrated
   agent; it must not become unrestricted just because its source restriction has no equivalent.
-  If an existing agent explicitly has `disable:false`, the conflicting restricted source
-  agent is skipped entirely. Existing fields remain unchanged and the report calls for review.
 
 ## What does not move (yet)
 
