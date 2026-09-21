@@ -1,3 +1,24 @@
+## The reflection child uses the agent directory its parent engine resolved
+
+The reflection sandbox granted an agent directory the adapter re-derived through `resolveAgentHome`:
+an environment override, then `~/.omo/agent` behind its `settings.json` sentinel, then the flat
+`~/.omo`, then `~/.senpi/agent`. The engine answers that question differently - the brand's
+environment prefix before the legacy ones, then the nearest parent project config directory walked
+up from the session's cwd, then its own home default - so the two could name different directories.
+The child then locked its credentials outside the grant and the run died with
+`EPERM ... auth.json.lock` followed by `No API key found`, while the parent stayed authenticated
+(omo#8595).
+
+`session-context-resolver.ts` now reads the engine's own answer off the event context
+(`ExtensionContext.agentDir`, accepted only when absolute and non-blank) and `wiring-runtime.ts`
+hands it to the identity runtime; detection remains the fallback for a host that reports none.
+`identity-runtime.ts` resolves that directory once, grants it, and pins it into the reflection
+child's environment under `OMO_CODING_AGENT_DIR`, `SENPI_CODING_AGENT_DIR` and
+`PI_CODING_AGENT_DIR`. The pin matters twice: the child's cwd is the reflection worktree, so without
+it the child walks its own way to a directory nobody granted, and an inherited value under the brand
+prefix would beat a legacy-only pin because the engine takes the first DEFINED name across
+`<brand>`, `SENPI`, `PI`. Grant and pin come from one resolution, so they cannot drift apart.
+
 ## The default component logger writes every level to stderr
 
 `extension/compose.ts` `defaultLogger.info` used `console.info` (stdout). A child process's stdout
