@@ -96,6 +96,9 @@ export async function reviveClaimed(
   sessionPath: string | undefined,
   options: ReviveClaimedOptions = {},
 ): Promise<ReconcileOutcome> {
+  if (claimed.isolation !== undefined) {
+    return { task_id: claimed.task_id, kind: "deferred", reason: "isolated_not_revivable" }
+  }
   const fresh = context.store.load(claimed.task_id)
   const terminalAllowed = options.allowTerminal === true && fresh !== null && TERMINAL_STATUSES.has(fresh.status)
   // A daemon-hosted child resumes its RECORDED session path: the daemon, not the disk, owns the

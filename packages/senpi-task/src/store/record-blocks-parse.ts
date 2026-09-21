@@ -29,8 +29,10 @@ function parseIsolationSpec(value: unknown): TaskIsolationSpec {
   if (mode !== "patch" && mode !== "branch") throw new Error("isolation.mode must be patch or branch")
   const apply = readOptionalBoolean(value, "apply")
   if (apply === undefined) throw new Error("isolation.apply is required")
+  const fellBack = readOptionalBoolean(value, "fell_back")
   return {
     backend: IsolationBackendKindSchema.parse(value["backend"]),
+    ...(fellBack === undefined ? {} : { fell_back: fellBack }),
     merged_dir: readString(value, "merged_dir"),
     base_dir: readString(value, "base_dir"),
     mode,
@@ -56,12 +58,28 @@ export function parseOptionalIsolation(record: Record<string, unknown>): Isolati
   const duration = readOptionalNumber(mergeResult, "duration_ms")
   const patchPath = readOptionalString(mergeResult, "patchPath")
   const error = readOptionalString(mergeResult, "error")
+  const reason = readOptionalString(mergeResult, "reason")
+  const summaryPath = readOptionalString(mergeResult, "summaryPath")
+  const filesChanged = readOptionalNumber(mergeResult, "filesChanged")
+  const nestedPatchPaths = readOptionalStringArray(mergeResult, "nestedPatchPaths")
+  const branchName = readOptionalString(mergeResult, "branchName")
+  const partial = readOptionalBoolean(mergeResult, "partial")
+  const conflict = readOptionalString(mergeResult, "conflict")
+  const manualCommand = readOptionalString(mergeResult, "manualCommand")
   const parsed: IsolationMergeResult = {
     kind,
     changesApplied,
     ...(duration === undefined ? {} : { duration_ms: duration }),
     ...(patchPath === undefined ? {} : { patchPath }),
     ...(error === undefined ? {} : { error }),
+    ...(reason === undefined ? {} : { reason }),
+    ...(summaryPath === undefined ? {} : { summaryPath }),
+    ...(filesChanged === undefined ? {} : { filesChanged }),
+    ...(nestedPatchPaths === undefined ? {} : { nestedPatchPaths }),
+    ...(branchName === undefined ? {} : { branchName }),
+    ...(partial === undefined ? {} : { partial }),
+    ...(conflict === undefined ? {} : { conflict }),
+    ...(manualCommand === undefined ? {} : { manualCommand }),
   }
   return { ...spec, merge_result: parsed }
 }

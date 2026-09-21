@@ -1,3 +1,4 @@
+import { isolationDetails } from "../../isolation/details"
 import type { TaskRecord } from "../../state"
 import { childSessionDir } from "./transcript"
 import type { LostBreadcrumbs, SuspendedDetails, TaskSnapshot } from "./types"
@@ -41,6 +42,7 @@ export function buildTaskSnapshot(record: TaskRecord, stateDir: string, now: num
     ...(record.final_response !== undefined ? { final_response: record.final_response } : {}),
     ...(record.error_message !== undefined ? { error_message: record.error_message } : {}),
     ...(record.run_stats !== undefined ? { run_stats: record.run_stats } : {}),
+    ...(isolationDetails(record) === undefined ? {} : { isolation: isolationDetails(record) }),
     ...(record.status === "lost" ? { lost: lostBreadcrumbs(record, stateDir) } : {}),
   }
 }

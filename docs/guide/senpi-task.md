@@ -105,8 +105,25 @@ The task tool accepts `isolated`, `apply`, and `merge` on a single request or
 each batch item. Items inherit omitted values from the top-level request;
 explicit `false` wins. `apply` and `merge` are invalid unless isolation is on,
 either through `isolated: true` or the setting below. There is no free-form
-`cwd` parameter. These contracts prepare checkout isolation; clone creation
-and merge-back are supplied by the isolation lifecycle integration.
+`cwd` parameter.
+
+An isolated child runs in a copy-on-write clone of the checkout instead of the
+checkout itself. When it **completes**, its changes are merged back and the
+clone is removed. Any other ending - cancelled, interrupted, failed - merges
+nothing and keeps the delta as a patch plus a summary under
+`<state dir>/isolation/<task id>/`; a merge that cannot apply cleanly leaves
+the workspace beside its original as `<clone>.retained-<timestamp>`. The
+outcome rides every result surface as `isolation`, and the completion
+notification renders it as `isolation: <kind> via <backend>`.
+
+A repository that cannot be cloned refuses the spawn with
+`isolation_unavailable` rather than quietly running the child against the real
+checkout, and an isolated child is never revived: once settled its clone is
+gone, so `task_send` and startup recovery both answer
+`isolated_not_revivable`. If the host dies mid-run, the next session salvages
+the clone's delta as artifacts - never an automatic merge - and then reclaims
+clones whose owning process is provably gone. DAG nodes and workpool workers
+inherit `task.isolation.enabled`; they have no per-node switch of their own.
 
 | Setting | Default | Meaning |
 | --- | --- | --- |

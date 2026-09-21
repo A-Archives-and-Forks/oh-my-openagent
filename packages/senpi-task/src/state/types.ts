@@ -5,18 +5,34 @@ export type { IsolationBackendKind } from "@oh-my-opencode/omo-config-core"
 
 export type TaskIsolationSpec = {
   readonly backend: IsolationBackendKind
+  // True when the chosen backend was not the preferred one, so a reader can tell a real clone from a
+  // recursive copy without re-probing the filesystem.
+  readonly fell_back?: boolean
   readonly merged_dir: string
   readonly base_dir: string
   readonly mode: "patch" | "branch"
   readonly apply: boolean
 }
 
+export type IsolationMergeKind =
+  | "applied" | "already-applied" | "not-applied" | "branch-merged" | "branch-merge-failed" | "no-changes" | "retained"
+
 export type IsolationMergeResult = {
-  readonly kind: "applied" | "already-applied" | "not-applied" | "branch-merged" | "branch-merge-failed" | "no-changes" | "retained"
+  readonly kind: IsolationMergeKind
   readonly changesApplied: boolean
   readonly duration_ms?: number
   readonly patchPath?: string
   readonly error?: string
+  // Why a non-completed or crash-salvaged run was retained rather than merged, so a reader can tell
+  // "the child failed" from "the host died holding the clone" long after both are terminal.
+  readonly reason?: string
+  readonly summaryPath?: string
+  readonly filesChanged?: number
+  readonly nestedPatchPaths?: readonly string[]
+  readonly branchName?: string
+  readonly partial?: boolean
+  readonly conflict?: string
+  readonly manualCommand?: string
 }
 
 export type IsolationRecord = TaskIsolationSpec & {
