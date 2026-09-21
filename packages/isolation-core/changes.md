@@ -67,3 +67,12 @@ workflow (`.github/workflows/isolation-linux-fs.yml`) creates real loopback
 btrfs and, when the kernel module loads, ZFS pools, then exercises
 publication, copy-on-write and teardown. ReFS validation on Windows follows
 the runbook in AGENTS.md with `ISOLATION_TEST_REFS_ROOT`.
+
+## Test fixture repositories disable git auto-maintenance
+
+The `repo()` fixture sets `maintenance.auto=false` before committing, so no
+`git maintenance run --auto --detach` background process outlives a fixture
+command. Tests mutate `.git` directly right after the fixture returns; on macOS
+CI the detached maintenance process recreated `.git/objects` between the test's
+`rm()` and `symlink()`, failing `detach-git-dir.test.ts` with EEXIST.
+`git-fixture.test.ts` pins the invariant through `GIT_TRACE`.
