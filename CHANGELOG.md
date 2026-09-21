@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `@oh-my-opencode/isolation-core`, a copy-on-write task isolation PAL with baseline capture and merge-back. Filesystem backends — APFS clonefile, btrfs and ZFS reflink clones, fuse-overlayfs, ReFS block clone, and a git-worktree rcopy fallback — write only inside the supplied context base directory; an unavailable backend surfaces as a typed `IsolationUnavailableError` and falls through to the next candidate. Baselines capture staged, unstaged and untracked work under a per-repository budget, and merge-back replays it as a patch or a task branch without ever committing the user's overlapping WIP: a failed replay retains the isolated tree with a manual recovery command. A new Linux CI job exercises publication, copy-on-write and teardown on real loopback btrfs and ZFS. ([#8573](https://github.com/code-yeongyu/oh-my-openagent/issues/8573))
+
 ## [5.0.0-beta.81] - 2026-09-21
 
 ### Fixed
