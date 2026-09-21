@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process"
+import { spawn, type ChildProcess } from "node:child_process"
 import type { Readable } from "node:stream"
 import { lstat } from "node:fs/promises"
 import { IsolationUnavailableError } from "../backend"
@@ -24,6 +24,20 @@ export interface GitOptions {
   allowedExitCodes?: readonly number[]
   maxOutputBytes?: number
   outputLimitError?: () => Error
+  /** Observes the spawned process (tests use it to signal git by pid). */
+  onSpawn?: (child: ChildProcess) => void
+}
+
+// git runs "!" aliases and hooks through a shell, so its helpers are
+// grandchildren. Killing only the direct child leaves them writing into the
+// inherited pipes; on POSIX the child leads its own process group so the whole
+// tree goes down together.
+function killTree(child: ChildProcess): void {
+  if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return
+  if (process.platform !== "win32") {
+    try { process.kill(-child.pid, "SIGKILL"); return } catch { /* group already gone; fall through */ }
+  }
+  child.kill("SIGKILL")
 }
 
 /** Drain both pipes concurrently; reject before retaining output beyond the budget. */
@@ -35,7 +49,9 @@ export async function runGit(args: string[], options: GitOptions): Promise<{ cod
       cwd: options.cwd, env: { ...process.env, ...options.env },
       stdio: [options.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
       signal: options.signal,
+      detached: process.platform !== "win32",
     })
+    options.onSpawn?.(child)
     if (options.input !== undefined) {
       child.stdin!.end(typeof options.input === "string" ? options.input : new Uint8Array(options.input))
     }
@@ -44,7 +60,7 @@ export async function runGit(args: string[], options: GitOptions): Promise<{ cod
     throw error
   }
   // A child that dies mid-write must surface as a failure, not an EPIPE crash.
-  child.stdin?.on("error", () => child.kill())
+  child.stdin?.on("error", () => killTree(child))
   // Drain both pipes concurrently; reject before retaining output beyond the budget.
   let retained = 0
   const collect = (stream: Readable): Promise<Buffer> => new Promise((resolve, reject) => {
@@ -53,7 +69,10 @@ export async function runGit(args: string[], options: GitOptions): Promise<{ cod
       retained += chunk.byteLength
       if (retained > (options.maxOutputBytes ?? Infinity)) {
         reject(options.outputLimitError?.() ?? new Error("Git output exceeds budget"))
-        child.kill()
+        killTree(child)
+        // A grandchild may hold the pipe open past the kill; stop waiting on "end".
+        child.stdout?.destroy()
+        child.stderr?.destroy()
         return
       }
       chunks.push(chunk)
@@ -81,7 +100,9 @@ export async function runGit(args: string[], options: GitOptions): Promise<{ cod
     if (!(options.allowedExitCodes ?? [0]).includes(code)) throw new GitCommandError(args, options.cwd, code, stderr.toString())
     return { code, stdout, stderr: stderr.toString() }
   } catch (error) {
-    child.kill()
+    killTree(child)
+    child.stdout?.destroy()
+    child.stderr?.destroy()
     // The teardown kill itself makes `exited` reject with a signal death; that
     // rejection must not displace the caller's error (the typed budget error,
     // for one) on its way out.
