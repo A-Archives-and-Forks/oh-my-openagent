@@ -99,9 +99,9 @@ jobs:
             echo
             echo "| Field | Value |"
             echo "| --- | --- |"
-            echo "| Result | `${{ job.status }}` |"
-            echo "| Workflow | `${{ github.workflow }}` |"
-            echo "| Event | `${{ github.event_name }}` |"
+            echo "| Result | \`${{ job.status }}\` |"
+            echo "| Workflow | \`${{ github.workflow }}\` |"
+            echo "| Event | \`${{ github.event_name }}\` |"
             echo
             echo "### What this job checks"
             echo

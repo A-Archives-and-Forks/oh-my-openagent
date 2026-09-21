@@ -7,7 +7,9 @@ export async function git(cwd: string, ...args: string[]) {
   const [code, out, err] = await new Promise<[number, string, string]>((resolve, reject) => {
     execFile("git", ["-C", cwd, ...args], { maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
       if (error && error.code === undefined) return reject(error)
-      resolve([(error?.code as number | undefined) ?? 0, stdout.toString(), stderr.toString()])
+      // A missing executable reports a string code (ENOENT), not a number.
+      const code = typeof error?.code === "number" ? error.code : error ? 1 : 0
+      resolve([code, stdout.toString(), stderr.toString()])
     })
   })
   if (code) throw new Error(`git ${args.join(" ")}: ${err}`)

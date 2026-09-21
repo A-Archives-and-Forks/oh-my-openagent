@@ -43,10 +43,12 @@ export async function runGit(args: string[], options: GitOptions): Promise<{ cod
     if (error instanceof Error && "code" in error && error.code === "ENOENT") throw new IsolationUnavailableError("git not on PATH")
     throw error
   }
+  // A child that dies mid-write must surface as a failure, not an EPIPE crash.
+  child.stdin?.on("error", () => child.kill())
   // Drain both pipes concurrently; reject before retaining output beyond the budget.
+  let retained = 0
   const collect = (stream: Readable): Promise<Buffer> => new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
-    let retained = 0
     stream.on("data", (chunk: Buffer) => {
       retained += chunk.byteLength
       if (retained > (options.maxOutputBytes ?? Infinity)) {
@@ -60,8 +62,18 @@ export async function runGit(args: string[], options: GitOptions): Promise<{ cod
     stream.on("end", () => resolve(Buffer.concat(chunks)))
   })
   const exited = new Promise<number>((resolve, reject) => {
-    child.once("error", reject)
-    child.once("close", () => resolve(child.exitCode ?? 0))
+    // Node reports a missing executable through the async "error" event, so the
+    // spawn try/catch above cannot see it; classify it here.
+    child.once("error", (error) => {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return reject(new IsolationUnavailableError("git not on PATH"))
+      reject(error)
+    })
+    child.once("close", (code, signal) => {
+      // A signal death leaves exitCode null; "null ?? 0" would report success
+      // for a killed git and its partial output.
+      if (signal !== null) return reject(new GitCommandError(args, options.cwd, 128, `git terminated by signal ${signal}`))
+      resolve(code ?? 0)
+    })
   })
   try {
     const [stdout, stderr, code] = await Promise.all([collect(child.stdout!), collect(child.stderr!), exited])
