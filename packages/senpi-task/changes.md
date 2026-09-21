@@ -7,9 +7,9 @@ entry and is a no-op for a stale token, so a released task cannot be resurrected
 token cannot resume a later parking of the same epoch. The drain prefers a resumable parked owner
 over the queue head, which is what re-admits the parent ahead of everything that queued while it
 waited; `overflow: true` (promotion to background) re-counts the parent immediately, bounded to one
-overflow per parked lease, and an abort while parked releases instead of resuming. `tryAcquire` and
-`releaseLease` both go through `leaseState()`, so a parked epoch is neither re-acquired nor
-double-released.
+overflow per parked lease, and an abort while parked releases instead of resuming. `tryAcquire`
+refuses an epoch whose `leaseState()` is anything but `undefined` and `releaseLease` drops the held
+lease AND any parked entry for that key, so a parked epoch is neither re-acquired nor double-released.
 
 `tools/task/execute-single.ts` and `tools/task/execute-batch.ts` park the live caller - resolved
 through `manager.findTaskByChildSession(sessionId)` plus live ownership rather than a new context

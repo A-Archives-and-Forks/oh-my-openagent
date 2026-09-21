@@ -23,6 +23,27 @@ describe("lease parking", () => {
     expect(concurrency.getCount(model)).toBe(1)
   })
 
+  test("#given a released and re-parked epoch #when the earlier token unparks #then the later parking is untouched", async () => {
+    const concurrency = holder()
+    const stale = concurrency.park("parent", 0)
+    expect(stale).toBeDefined()
+    // The parent is released while parked, then the SAME epoch acquires and parks again: the token
+    // the first parking handed out must not resume - or release - the second one.
+    concurrency.releaseLease("parent", 0)
+    expect(concurrency.tryAcquire(model, "parent", 0)).toBe(true)
+    const current = concurrency.park("parent", 0)
+    expect(current).toBeDefined()
+    expect(current).not.toBe(stale)
+
+    await concurrency.unpark(stale)
+
+    expect(concurrency.leaseState("parent", 0)).toBe("parked")
+    expect(concurrency.getCount(model)).toBe(0)
+    await concurrency.unpark(current)
+    expect(concurrency.leaseState("parent", 0)).toBe("held")
+    expect(concurrency.getCount(model)).toBe(1)
+  })
+
   test("parking grants a queued child and a resumable parent precedes W2-after-unpark", async () => {
     const concurrency = holder()
     const order: string[] = []

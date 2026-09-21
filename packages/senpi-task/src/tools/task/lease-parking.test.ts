@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { OmoTaskSettingsSchema } from "@oh-my-opencode/omo-config-core"
 import { createTaskManager } from "../../manager/manager"
@@ -34,7 +35,7 @@ async function bounded(event: Promise<void>): Promise<void> {
 }
 
 function tree(levels: number, holdLeaf = false, batch = false, promote = false) {
-  const project = mkdtempSync(join(process.cwd(), ".lease-parking-"))
+  const project = mkdtempSync(join(tmpdir(), "lease-parking-"))
   roots.push(project)
   const store = createTaskRecordStore({ project_dir: project })
   const concurrency = new TaskConcurrency({ default_concurrency: 1, global_concurrency: 1 })
@@ -130,7 +131,7 @@ test("real runner: P foreground-waits for C at cap 1 and completes", () => compl
 test("real runner: P -> C -> G completes at cap 1", () => completes(3), 25_000)
 test("real runner: foreground batch frees the parent's lease", () => completes(2, true), 25_000)
 
-test.each([false, true])("promotion resumes the parent over cap without waiting for its child (batch=%s)", async (batch) => {
+test.each([[false], [true]])("promotion resumes the parent over cap without waiting for its child (batch=%s)", async (batch) => {
   const fixture = tree(2, true, batch, true)
   const parent = await fixture.start()
   if (parent.kind !== "started") throw new Error(JSON.stringify(parent))
