@@ -36,7 +36,7 @@ such as `team/reviewer` retained.
 | `permission` rules | `permission` in `settings.json` | `omo migrate` — includes root `ask`/`allow`/`deny` shorthand |
 | Custom providers (`provider.*`) | `models.json` | `omo migrate` — supported APIs, upstream model IDs and context/output limits; unsupported definitions need review |
 | omo plugin settings (`oh-my-openagent.json`) | Existing user `omo.json`/`omo.jsonc` | `omo migrate` — supported shared schema keys, merged without overwriting existing leaves |
-| Custom agents (Markdown, inline and legacy plugin definitions) | User OMO config `agents` | `omo migrate` — supported fields; unrepresentable restrictions require manual review |
+| Custom agents (Markdown and inline definitions) | User OMO config `agents` | `omo migrate` — supported fields; unrepresentable restrictions require manual review |
 | Keybinds (`tui.json`) | `keybindings.json` | `omo migrate` — supported IDs, comma alternatives and `none`; leader/chord bindings need review |
 
 ## What needs you

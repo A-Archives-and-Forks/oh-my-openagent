@@ -159,11 +159,11 @@ export function collectOmoAdditions(config, configDir, warnings, readFirstExisti
   const restrictedAgents = new Set()
   const sourcePaths = collectMarkdownAgents(configDir, agents, warnings, restrictedAgents)
   addInlineAgents(config, agents, warnings, restrictedAgents)
+  if (Object.keys(agents).length > 0) additions.agents = agents
   const legacy = readFirstExisting(configDir, ["oh-my-openagent.json", "oh-my-openagent.jsonc", "oh-my-opencode.json", "oh-my-opencode.jsonc"])
   if (isRecord(legacy?.value)) {
-    addInlineAgents({ agent: legacy.value.agents }, agents, warnings, restrictedAgents)
     for (const key of OMO_SHARED_KEYS) {
-      if (key === "agents" || legacy.value[key] === undefined) continue
+      if (legacy.value[key] === undefined) continue
       additions[key] = isRecord(additions[key]) && isRecord(legacy.value[key])
         ? mergeOmoConfig(additions[key], legacy.value[key]).value
         : legacy.value[key]
@@ -175,7 +175,6 @@ export function collectOmoAdditions(config, configDir, warnings, readFirstExisti
       }
     }
   }
-  if (Object.keys(agents).length > 0) additions.agents = agents
   if (legacy !== undefined) sourcePaths.push(legacy.path)
   return { additions, sourcePaths, restrictedAgents }
 }

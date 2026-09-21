@@ -122,7 +122,7 @@ test("#given invalid migrate arguments #when either entrypoint runs #then diagno
   expect(existsSync(join(item.home, ".omo"))).toBe(false)
 })
 
-test.each(["root", "senpi", "profile", "profile-senpi"].flatMap((layer) => ["inline", "markdown", "legacy"].map((source) => [layer, source])))("#given an enabled %s agent and restricted %s source #when migrating #then the entire conflicting import is skipped", (layer, source) => {
+test.each(["root", "senpi", "profile", "profile-senpi"].flatMap((layer) => ["inline", "markdown"].map((source) => [layer, source])))("#given an enabled %s agent and restricted %s source #when migrating #then the entire conflicting import is skipped", (layer, source) => {
   const item = fixture()
   const existing = { description: "Existing reviewer", disable: false }
   const agentLayer = { agents: { reviewer: existing } }
@@ -136,7 +136,6 @@ test.each(["root", "senpi", "profile", "profile-senpi"].flatMap((layer) => ["inl
     },
   })
   if (source === "markdown") write(join(item.config, "agents", "reviewer.md"), "---\npermission:\n  edit: deny\n---\nRestricted incoming prompt\n")
-  if (source === "legacy") write(join(item.config, "oh-my-openagent.json"), { agents: { reviewer: { prompt: "Restricted incoming prompt", permission: { edit: "deny" } } } })
   const result = run(item)
   expect(result.status, result.stderr).toBe(0)
   const target = json(join(item.home, ".omo", "omo.json"))
@@ -151,26 +150,4 @@ test.each(["root", "senpi", "profile", "profile-senpi"].flatMap((layer) => ["inl
   expect(loaded.config.agents?.reviewer?.prompt).toBeUndefined()
   expect(loaded.config.agents?.helper?.prompt).toBe("Compatible helper")
   expect(json(join(item.agent, "opencode-migration-report.json")).warnings.some((line: string) => line.includes("agents.reviewer"))).toBe(true)
-})
-
-test.each(["permission", "permissions"])("#given a legacy agent with %s and shared native fields #when migrating #then supported data survives safely", (permissionKey) => {
-  const item = fixture()
-  write(join(item.config, "opencode.json"), { model: "openai/gpt-5" })
-  write(join(item.config, "oh-my-openagent.json"), {
-    agents: { reviewer: {
-      prompt: "Restricted legacy prompt", [permissionKey]: { edit: "deny" },
-      models: ["openai/gpt-5"], variant: "high", tools: { read: true },
-      category: "quick", skills: ["SECRET_SKILL"], prompt_append: "SECRET_APPEND",
-    } },
-  })
-  const result = run(item)
-  expect(result.status, result.stderr).toBe(0)
-  expect(json(join(item.agent, "settings.json")).defaultModel).toBe("gpt-5")
-  const loaded = loadOmoConfig({ cwd: item.home, env: { HOME: item.home, USERPROFILE: item.home }, harness: "senpi" })
-  expect(loaded.config.agents?.reviewer).toMatchObject({
-    prompt: "Restricted legacy prompt", disable: true, models: ["openai/gpt-5"], reasoning: "high", tools: { read: true },
-  })
-  const report = json(join(item.agent, "opencode-migration-report.json"))
-  for (const key of ["skills", "category", "prompt_append"]) expect(report.warnings.some((line: string) => line.includes(`agents.reviewer.${key}`))).toBe(true)
-  expect(JSON.stringify(report) + result.stdout + result.stderr).not.toContain("SECRET")
 })

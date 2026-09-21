@@ -26,17 +26,13 @@ exit-status contract instead of exposing Bun's embedded-source stack frames.
 Migration treats default provider/model as a pair, translates permission shorthand,
 environment references and upstream model IDs, and converts key alternatives/`none`.
 Unsupported chords, config expressions and settings produce manual-review warnings.
-Restricted Markdown/inline/legacy agents remain disabled pending review; existing agent and
+Restricted Markdown/inline agents remain disabled pending review; existing agent and
 category leaves take precedence over imported values.
 If an existing agent explicitly has `disable:false`, a restricted source agent is
 skipped in its entirety instead of importing its prompt into that enabled agent.
 Its manual-review warning describes the preserved destination, not a disabled state.
 The guard checks base and `[senpi]` agent settings in the global config and every
 profile, including profiles that are not active during migration.
-Legacy shared-config agents use the same translator and conflict guard, rather
-than bypassing them through dictionary copying. Native-schema-compatible fields
-(including model chains and reasoning aliases) survive; unsupported agent fields
-are dropped with path-only warnings without blocking other configuration.
 
 Shared config uses omo-config-core path selection, recursive merge and schema validation,
 independently of the engine directory. Versioned state re-evaluates old markers and recovers
