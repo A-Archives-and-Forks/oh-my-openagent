@@ -38,6 +38,8 @@ export {
   messageability,
   transitionTaskRecord,
 } from "./state"
+export { createIsolationRuntime, isolationBackends } from "./isolation"
+export type { IsolationRuntime, OwnerProbe } from "./isolation"
 export type {
   BackgroundMode,
   IsolationBackendKind,
