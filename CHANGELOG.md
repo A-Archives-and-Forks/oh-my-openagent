@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Task child processes are reclaimed on session shutdown even when the closing context no longer exposes its session ID. Cleanup recovers ownership from that engine's resident handles, preserves resumable task records, and leaves sibling sessions alone. ([#8562](https://github.com/code-yeongyu/oh-my-openagent/issues/8562))
+
 ### Changed
 
 **Native launchers no longer keep a redundant runtime alive on POSIX.** The Node-to-Bun handoff, engine launch and compiled runtime relocation now replace the launcher process with `execve`, preserving its PID and stdio. Windows and runtimes where replacement is unavailable or fails keep the existing signal-aware child fallback. `omo daemon attach` remains spawn-based. ([#8560](https://github.com/code-yeongyu/oh-my-openagent/issues/8560))

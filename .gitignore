@@ -10,6 +10,7 @@ node_modules/
 
 # Build output
 dist/
+.vitest/
 packages/omo-codex/plugin/skills/
 
 # Platform binaries (built, not committed)
