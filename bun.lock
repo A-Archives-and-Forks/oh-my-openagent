@@ -316,6 +316,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@oh-my-opencode/delegate-core": "workspace:*",
+        "@oh-my-opencode/isolation-core": "workspace:*",
         "@oh-my-opencode/omo-config-core": "workspace:*",
         "@oh-my-opencode/team-core": "workspace:*",
         "@oh-my-opencode/utils": "workspace:*",

@@ -4,6 +4,7 @@ import type { Static } from "typebox"
 
 import type { ListScope, ListedTask } from "../../manager"
 import type { TaskRecord } from "../../state"
+import { isolationLine } from "../../isolation/details"
 import { defaultResolveCallerSessionId, toolResult } from "../control"
 import { renderTaskOutputCall, renderTaskOutputResult, taskOutputModelText } from "./renderers"
 import { renderTranscript } from "./render"
@@ -121,6 +122,7 @@ function statusText(snapshot: TaskSnapshot): string {
   if (snapshot.suspended !== undefined) parts.push(snapshot.suspended.explanation)
   if (snapshot.pid !== undefined) parts.push(`pid ${snapshot.pid}`)
   if (snapshot.lost !== undefined) parts.push(snapshot.lost.explanation)
+  if (snapshot.isolation !== undefined) parts.push(isolationLine(snapshot.isolation))
   if (snapshot.error_message !== undefined) parts.push(`error: ${snapshot.error_message}`)
   if (snapshot.final_response !== undefined) parts.push(snapshot.final_response)
   return parts.join("\n")

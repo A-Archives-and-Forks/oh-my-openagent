@@ -1,4 +1,5 @@
 import type { AgentToolResult } from "@code-yeongyu/senpi"
+import type { IsolationDetails } from "../../isolation/details"
 
 import type { TaskManager } from "../../manager"
 import type { ResolvedModelRecord, ResidencyState, TaskRunStats, TaskStatus } from "../../state"
@@ -53,6 +54,7 @@ export type TaskSnapshot = {
   readonly final_response?: string
   readonly error_message?: string
   readonly run_stats?: TaskRunStats
+  readonly isolation?: IsolationDetails
   readonly lost?: LostBreadcrumbs
 }
 

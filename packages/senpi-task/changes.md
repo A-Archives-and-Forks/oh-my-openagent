@@ -1,3 +1,25 @@
+## Isolated children run in a copy-on-write clone and merge back when they settle
+
+`isolation/` wraps `@oh-my-opencode/isolation-core` as an injectable port (`runtime.ts`
+`createIsolationRuntime`, seven backends, `~/.omo/wt` sweep roots). `prepare.ts` resolves the repo
+root, captures the baseline and clones BEFORE the record is committed to a launch, so a repository
+that cannot be cloned refuses the spawn `isolation_unavailable` instead of quietly running the child
+against the real checkout. `settle.ts` runs before the terminal record is written - every result
+surface therefore reports one merge outcome - and only a completed child merges: anything else keeps
+the delta as a patch plus a summary under `<stateDir>/isolation/<taskId>/`, and a `not-applied` or
+`branch-merge-failed` replay renames the clone aside as `<base>.retained-<ts>` with a
+`git apply --3way` manual command rather than deleting the user's only copy of that work.
+`salvage.ts` reclaims a crashed host's clones at session start by salvaging the delta before the
+sweep. An isolated record is never revived: `reviveClaimed`, `revive-detached` and the legacy
+respawn path all answer `isolated_not_revivable`.
+
+The manager takes the port as `TaskManagerOptions.isolation` and the lifecycle as `isolation` +
+`isolationProbe` (defaulting to `processOwnerProbe`); `manager/isolation-wiring.ts` owns the binding
+map, the post-spawn owner re-stamp and the settle. `createIsolationRuntime` is exported from the
+package barrel so the omo-senpi adapter can build ONE runtime per engine and hand the same object to
+both seams - an adapter that supplies neither refuses every isolated spawn, which is what
+`packages/omo-senpi/scripts/qa/isolation-e2e.mjs` pins against the real senpi binary. omo#8574.
+
 ## A foreground wait parks the parent's lane lease
 
 `manager/concurrency.ts` keeps parked leases in `#parked`, a per-lane map of `(taskId, runEpoch)`
