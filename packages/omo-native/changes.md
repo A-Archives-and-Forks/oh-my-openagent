@@ -1,3 +1,28 @@
+## 2026-09-21 - POSIX launchers replace themselves with the engine (#8560)
+
+### What changed
+
+The Node-to-Bun handoff, engine launch and provisioned executable handoff use
+`execve` on POSIX, with argv[0] included and the existing environment preserved.
+Windows, unavailable execve and thrown execve keep the async child fallback.
+Daemon attach remains spawn-based. The PTY probe now checks the launcher PID
+itself for engine identity before looking at descendants.
+
+### Why
+
+The previous spawn-and-wait paths kept redundant runtime processes alive for
+the whole session. Replacing the process preserves its PID and stdio without
+retaining that wrapper.
+
+### Why an extension could not handle it
+
+These handoffs run before the engine loads extensions.
+
+### Expected merge conflict zones
+
+`bin/lib/launcher.js`, `bin/lib/bun-runtime.js`, `compile-entry.ts`, their focused
+tests, the PTY QA script and the runtime-policy paragraph in `AGENTS.md`.
+
 ## omo daemon reaches the launcher, the compiled entry and doctor
 
 `omo daemon attach <launch args>` continues as a normal launch whose environment points the engine at
@@ -32,3 +57,23 @@ through `--build-info`. Correctness of handoff does not depend on the define: a 
 is scheme `nodef`, which per I2 never initiates a handoff.
 
 Refs #8415.
+
+## 2026-09-21 - Remove unused compiled-launcher import after #8568
+
+### What changed
+
+Removed the unused `spawn` import from `compile-entry.ts`. The `spawnSync`
+import and signal-aware `runChild` fallback remain.
+
+### Why
+
+The imported binding had no references outside its declaration. Keeping it
+suggested that the compiled launcher still used that child-process API.
+
+### Why an extension could not handle it
+
+This is a source cleanup in the compiled launcher, before extension loading.
+
+### Expected merge conflict zones
+
+The import list in `compile-entry.ts`. No runtime behavior or Windows paths changed.

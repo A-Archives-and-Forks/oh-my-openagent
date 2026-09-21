@@ -1,3 +1,20 @@
+## The default component logger writes every level to stderr
+
+`extension/compose.ts` `defaultLogger.info` used `console.info` (stdout). A child process's stdout
+is its deliverable - the reflection worker's report is read back from `child-stdout.log` and its
+first three non-empty lines become the "Memory updated" preview - so component info lines
+(`ulw-execute-continuation skipped`, `ulw-loop continuation skipped`) were shown as the report.
+`info` now writes through `console.error` like `warn` and `error`; the argument shape is unchanged
+(no trailing `undefined`). Pinned by `extension/compose.test.ts`. omo#8564.
+
+## Memory identity comes from the session's workspace, and a reattach rebinds instead of failing closed
+
+`createMemoryComponent` resolved every session's identity from `process.cwd()`, read once at registration and reused for every bind. One shared host serves sessions from many workspaces, so a generation ensured by a process sitting in some other directory handed that directory's identity to every session it picked up: seven sessions reported `memory identity conflict: session is bound to <workspace>-<hash>, but config resolved server-<hash>` inside one second and lost their memory tools, with no workspace change behind it (#8556).
+
+The bind now resolves the identity from the session's own cwd. senpi builds one `ExtensionRunner` per `AgentSession` and exposes that session's directory as `ExtensionContext.cwd`, so `readSessionSurface` reads it off the event; the extension's load cwd (`pi.cwd`) and then `process.cwd()` remain as fallbacks for a host that reports neither. Registration-time work (the config read, the transient sweep, the wiring's own cwd getter) keeps using the host cwd, which is what it has always meant.
+
+`identity-adoption.ts` decides what a bind does when the session already carries a binding entry. The record wins, because it is the only evidence of what the session was; a divergence goes to the log at `info` and never to the user. Two cases the record cannot answer keep the fail-closed error: an explicitly configured `memory.agent` that names a different identity, and a record whose memory repository cannot be reproduced under the current memory root. The `session_start` path for a user-initiated identity change is therefore unchanged, and so is the repository check on the `before_agent_start` rebind from #8017.
+
 ## The `deep` delegation category splits into `deep-low` and `deep-high`
 
 `deep` opened its description with a bold MANDATORY list of domains (3D, computer and browser use,
