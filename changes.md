@@ -1,3 +1,9 @@
+## 2026-09-21 - Bound deferred LSP daemon startup retries (#8561)
+
+`callToolViaDaemon` ensures the daemon once per request and uses authenticated probes on later attempts, with 100/300/900 ms backoff slots. `ensureDaemonRunning` records a five-second, endpoint-scoped cooldown after failed readiness; a successful probe clears it. Probe timeout is two seconds. The daemon CLI prints expected startup deferrals on one line and preserves stacks for unexpected errors. Lease ownership, version reaping, file layout, cancellation and written-request replay rules are unchanged.
+
+Regression coverage includes cooldown expiry and endpoint isolation, retry recovery and auth rotation, cancellation, and real CLI stderr. Two isolated engine sessions made ten successful diagnostics calls through the built plugin with one shared daemon. A socket permission fault produced the existing unreachable error and one deferred log line; all QA processes were removed.
+
 ## 2026-09-21 - Frontend skill bans coloured accent borders for state (#8552)
 
 The shared axioms, the design README (anti-patterns, execution checklist, Phase Final), the perfection design-system compliance grep, and the design-system-architecture states rule now name the same tell: a coloured or accent-width border on a rounded surface marking selected/focused/active. State is encoded with ink-alpha washes, a glyph for selection, and tonal layering for focus; `focus-visible` rings are the only coloured edge, and the rule covers pre-existing instances on any surface a session touches. The loader-core builtin copy stays byte-equivalent through the same change; the plugin skill dirs are build outputs and pick it up through sync-skills.
