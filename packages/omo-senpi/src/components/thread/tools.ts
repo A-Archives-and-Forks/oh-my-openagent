@@ -23,122 +23,22 @@ import { THREAD_FAMILY_PROMPT_GUIDELINES, THREAD_TOOL_SEARCH_METADATA } from "./
 import { readTranscript, type ThreadTranscriptEntry } from "./reader"
 export type { ThreadTranscriptEntry } from "./reader"
 import { createReceiptStore, type ReceiptStore } from "./receipts"
-
-export type ThreadHostSession = {
-  readonly sessionId: string
-  readonly durableSessionId?: string
-  readonly sessionPath?: string
-  readonly cwd: string
-  readonly name?: string
-  readonly status?: "opening" | "open" | "closing" | "closed"
-  readonly createdAt?: string
-  readonly updatedAt?: string
-}
-
-/** The already-running senpi multi-session host, expressed as its public command surface. */
-export type ThreadHost = {
-  readonly socket: string
-  readonly listSessions: () => Promise<readonly ThreadHostSession[]>
-  readonly openSession: (params: { readonly cwd?: string; readonly sessionPath?: string; readonly name?: string; readonly forkFrom?: string }) => Promise<ThreadHostSession>
-  readonly getMessages: (sessionId: string) => Promise<readonly ThreadTranscriptEntry[]>
-  readonly getState: (sessionId: string) => Promise<{ readonly isStreaming?: boolean; readonly activeTurnId?: string }>
-  readonly prompt: (sessionId: string, message: string, options?: { readonly streamingBehavior?: "steer" | "followUp" }) => Promise<{ readonly turnId?: string }>
-  readonly interrupt: (sessionId: string, turnId?: string) => Promise<{ readonly interrupted?: boolean; readonly turnId?: string }>
-  readonly setSessionName: (sessionId: string, name: string) => Promise<void>
-  readonly setModel: (sessionId: string, provider: string, modelId: string) => Promise<{ provider: string; id: string; name?: string }>
-  readonly getAvailableModels: (sessionId: string) => Promise<readonly { provider: string; id: string; name?: string }[]>
-  readonly setThinkingLevel: (sessionId: string, level: string, scope?: "session" | "turn") => Promise<void>
-  readonly getAvailableThinkingLevels: (sessionId: string) => Promise<readonly string[]>
-}
-
-export type ThreadToolSurfaceOptions = {
-  readonly host: ThreadHost
-  readonly callerSessionId: () => string
-  readonly callerWorkspaceRoot: () => string
-  readonly stateDirectory: string
-  readonly diskSessions?: () => readonly DiskSession[]
-  readonly ensureHost?: () => Promise<void>
-}
-
-type AnyTool = ToolDefinition<any, any>
-
-/** Placeholder the component supplies when the host passes no per-call caller identity. */
-export const UNKNOWN_CALLER = "unknown-caller"
-type ToolOutput = AgentToolResult<{ readonly result: ThreadToolResult }>
-
-function failure(code: ThreadErrorCode, message: string, next: string, details?: Readonly<Record<string, unknown>>): ThreadToolResult {
-  return { kind: "error", error: threadToolFailure(code, message, next, details) }
-}
-
-function output(result: ThreadToolResult): ToolOutput {
-  return { content: [{ type: "text", text: JSON.stringify(result) }], details: { result } }
-}
-
-type ThreadToolSummary = Omit<ThreadHostSession, "name" | "status" | "createdAt" | "updatedAt"> & {
-  readonly thread_id: string
-  readonly name: string
-  readonly status: "live" | "resumable"
-  readonly created_at: string
-  readonly updated_at: string
-}
-
-type ThreadToolMetadata = {
-  readonly name: string
-  readonly label: string
-  readonly description: string
-  readonly exposure: "search"
-  readonly searchText: string
-  readonly searchKeywords: readonly string[]
-  readonly searchGroup: string
-  readonly allowLazyActivation: true
-}
-
-function metadata(name: ThreadToolName): ThreadToolMetadata {
-  const entry = THREAD_TOOL_SEARCH_METADATA.find((candidate) => candidate.name === name)
-  if (entry === undefined) throw new Error(`missing thread metadata for ${name}`)
-  return {
-    name: entry.name, label: entry.label, description: entry.description,
-    exposure: entry.exposure, searchText: entry.searchText, searchKeywords: entry.searchKeywords,
-    searchGroup: entry.group, allowLazyActivation: entry.allowLazyActivation,
-  }
-}
-
-function summary(session: ThreadHostSession): ThreadToolSummary {
-  const id = session.durableSessionId ?? session.sessionId
-  const created = session.createdAt ?? new Date(0).toISOString()
-  return {
-    ...session,
-    thread_id: id,
-    name: session.name ?? id,
-    status: session.status === "closed" ? "resumable" : "live",
-    created_at: created,
-    updated_at: session.updatedAt ?? created,
-  }
-}
-
-function resolveEntries(options: ThreadToolSurfaceOptions, sessions: readonly ThreadHostSession[]): ThreadAddressEntry[] {
-  return toThreadAddressEntries(assembleAddressBook([{ socket: options.host.socket, list_sessions: { sessions } } as AddressBookHost], options.diskSessions?.() ?? []))
-}
-
-function resolution(options: ThreadToolSurfaceOptions, entries: readonly ThreadAddressEntry[], target: string, callerId: string, allScope?: boolean) {
-  if (target === "self") {
-    // UNKNOWN_CALLER stands for an ABSENT identity, so it must never match an entry: a thread
-    // that happened to carry it as its durable id would otherwise be renamed or re-modelled by
-    // any caller whose host passes no execution context.
-    const caller = callerId === UNKNOWN_CALLER ? undefined : entries.find((entry) => entry.thread_id === callerId)
-    if (caller === undefined) return { kind: "error" as const, ...threadToolFailure("caller_context_missing", "The caller's durable session id is not in the thread address book.", "Call thread_list and pass an explicit thread_id, or retry from a session with caller context.") }
-    target = caller.thread_id
-  }
-  return resolveTarget(entries, target, { all_scope: allScope, callerWorkspaceRoot: options.callerWorkspaceRoot() })
-}
-
-function routingId(session: ThreadHostSession): string { return session.sessionId }
-
-function targetSession(sessions: readonly ThreadHostSession[], durableId: string): ThreadHostSession | undefined {
-  return sessions.find((session) => (session.durableSessionId ?? session.sessionId) === durableId)
-}
-
-function makeReceipts(options: ThreadToolSurfaceOptions): ReceiptStore { return createReceiptStore({ directory: options.stateDirectory }) }
+export type { ThreadHost, ThreadHostSession, ThreadToolSurfaceOptions } from "./tools/ports"
+export { UNKNOWN_CALLER } from "./tools/ports"
+import { UNKNOWN_CALLER, type ThreadHost, type ThreadHostSession, type ThreadToolSurfaceOptions } from "./tools/ports"
+import {
+  failure,
+  makeReceipts,
+  metadata,
+  output,
+  resolution,
+  resolveEntries,
+  routingId,
+  summary,
+  targetSession,
+  type AnyTool,
+  type ToolOutput,
+} from "./tools/internals"
 
 export function createThreadTools(options: ThreadToolSurfaceOptions): readonly AnyTool[] {
   const receipts = makeReceipts(options)
@@ -281,3 +181,4 @@ export function createThreadTools(options: ThreadToolSurfaceOptions): readonly A
 export function registerThreadTools(pi: { registerTool(tool: Record<string, unknown>): void }, options: ThreadToolSurfaceOptions): void {
   for (const tool of createThreadTools(options)) pi.registerTool({ ...tool })
 }
+
