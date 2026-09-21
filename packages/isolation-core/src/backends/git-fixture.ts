@@ -18,6 +18,11 @@ export async function git(cwd: string, ...args: string[]) {
 export async function repo() {
   const f = await fixture()
   await git(f.repoRoot, "init")
+  // Never let a fixture command outlive itself: commit would otherwise spawn
+  // `git maintenance run --auto --detach`, a background process that races the
+  // tests' direct .git mutations (observed as EEXIST on macOS CI when it
+  // recreated .git/objects between rm() and symlink()).
+  await git(f.repoRoot, "config", "maintenance.auto", "false")
   await git(f.repoRoot, "config", "user.name", "Fixture")
   await git(f.repoRoot, "config", "user.email", "fixture@example.invalid")
   await git(f.repoRoot, "config", "core.autocrlf", "false")
