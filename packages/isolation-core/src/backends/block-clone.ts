@@ -113,7 +113,8 @@ export class BlockCloneBackend implements IsolationBackend {
     if (this.io.platform !== "win32" || !this.io.which("fsutil")) return { available: false, reason: "ReFS block clone requires Windows and fsutil" }
     if (ctx && (ctx.crossDevice || await this.io.device(lower) !== await this.io.device(await existingParent(ctx.baseDir)))) return { available: false, reason: "ReFS requires the same volume serial" }
     const result = await this.io.run(["fsutil", "fsinfo", "volumeinfo", win32.parse(lower).root])
-    if (result.code || !/\bReFS\b/i.test(result.stdout)) return { available: false, reason: "volume is not ReFS" }
+    if (result.code) throw new Error(`fsutil volumeinfo failed (${result.code}): ${result.stderr}`)
+    if (!/\bReFS\b/i.test(result.stdout)) return { available: false, reason: "volume is not ReFS" }
     try { this.api ??= await this.load() } catch (error) {
       if (error instanceof Error && "code" in error && ["ERR_UNSUPPORTED_ESM_URL_SCHEME", "ERR_UNKNOWN_BUILTIN_MODULE", "MODULE_NOT_FOUND", "ERR_MODULE_NOT_FOUND"].includes(String(error.code))) return { available: false, reason: "Windows block clone requires bun:ffi" }
       throw error

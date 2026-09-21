@@ -153,3 +153,14 @@ test("retry restores ownership after a mount backend removes its whole base", as
   expect(starts).toBe(2)
   expect(JSON.parse(await readFile(join(handle.baseDir, ".omo-isolation-owner.json"), "utf8")).id).toBe("retry-owner")
 })
+
+test("git snapshot inconsistency after retry is a hard failure, not a fallback signal", async () => {
+  const f = await fixture()
+  // A start that materializes a git directory too broken for status: retry cannot fix it.
+  const broken = backend({ start: async (_lower, merged) => { await mkdir(join(merged, ".git"), { recursive: true }) } })
+  let failure: unknown
+  try { await ensureIsolation({ repoRoot: f.repoRoot, homeDir: f.homeDir, id: "broken", backends: [broken] }) } catch (error) { failure = error }
+  expect(failure).toBeInstanceOf(Error)
+  expect(failure instanceof IsolationUnavailableError).toBe(false)
+  expect((failure as Error).message).toContain("snapshot")
+})

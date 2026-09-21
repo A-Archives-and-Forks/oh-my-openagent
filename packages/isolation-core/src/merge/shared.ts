@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises"
+import { lstat, mkdir, realpath, writeFile } from "node:fs/promises"
 import { dirname, isAbsolute, join, resolve, sep } from "node:path"
 import { acquireLock, releaseLock } from "../../../memory-core/src/locks/acquire"
 import { createLockRecord } from "../../../memory-core/src/locks/lock-record"
@@ -32,10 +32,29 @@ export function taskBranch(id: string): string {
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(id) || id.includes("..") || id.endsWith(".") || id.endsWith(".lock")) throw new Error("Invalid isolation task id")
   return `omo/task/${id}`
 }
-export function nestedPath(root: string, relativePath: string): string {
-  const path = resolve(root, relativePath)
-  if (isAbsolute(relativePath) || !path.startsWith(resolve(root) + sep)) throw new Error(`Invalid nested repository path: ${relativePath}`)
-  return path
+export function nestedPath(root: string, relativePath: string): Promise<string> {
+  return (async () => {
+    const path = resolve(root, relativePath)
+    if (isAbsolute(relativePath) || !path.startsWith(resolve(root) + sep)) throw new Error(`Invalid nested repository path: ${relativePath}`)
+    // Lexical containment is not filesystem containment: an existing component can
+    // be a symlink out of the root, redirecting every later mutation. Validate the
+    // canonical location of the deepest existing ancestor of the target.
+    const anchor = await deepestExistingCanonical(root)
+    const existing = await deepestExistingCanonical(path)
+    if (existing !== anchor && !existing.startsWith(anchor + sep)) {
+      throw new Error(`Nested repository path escapes the repository root through a symlink: ${relativePath}`)
+    }
+    return path
+  })()
+}
+async function deepestExistingCanonical(path: string): Promise<string> {
+  let current = path
+  for (;;) {
+    try { return await realpath(current) } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") { current = dirname(current); continue }
+      throw error
+    }
+  }
 }
 
 // Queue in-process callers without polling; the identity-bearing file lock also fences
@@ -68,14 +87,17 @@ export async function withRepoLock<T>(repoRoot: string, fn: () => Promise<T>, ho
 export async function writeArtifacts(delta: DeltaPatchResult, options: ArtifactOptions) {
   taskBranch(options.id)
   const dir = resolve(options.artifactsDir, "isolation", options.id)
+  await assertNoSymlinkComponents(dir, options.artifactsDir)
   await mkdir(dir, { recursive: true })
   const patch_path = join(dir, "root.patch")
-  await writeFile(patch_path, delta.rootPatch)
+  await writeFileOwned(patch_path, delta.rootPatch)
   const nested_patch_paths: string[] = []
+  const nestedRoot = join(dir, "nested")
+  await mkdir(nestedRoot, { recursive: true })
   for (const nested of delta.nestedPatches) {
-    const path = nestedPath(join(dir, "nested"), `${nested.relativePath}.patch`)
+    const path = await nestedPath(nestedRoot, `${nested.relativePath}.patch`)
     await mkdir(dirname(path), { recursive: true })
-    await writeFile(path, nested.patch)
+    await writeFileOwned(path, nested.patch)
     nested_patch_paths.push(path)
   }
   const files = new Set(delta.rootPatch.split("\n").flatMap(parseDiffGitLinePaths))
@@ -84,16 +106,55 @@ export async function writeArtifacts(delta: DeltaPatchResult, options: ArtifactO
   }
   return { patch_path, nested_patch_paths, summary_path: join(dir, "isolation-summary.md"), files_changed: files.size }
 }
+/** A pre-existing symlink on the owned artifact path would redirect every write.
+ * Only components at or below the caller's artifacts directory are ours to judge:
+ * system-level symlinked prefixes (such as /var on macOS) are not redirects. */
+async function assertNoSymlinkComponents(path: string, base: string): Promise<void> {
+  const parts = resolve(path).slice(resolve(base).length).split(sep).filter(Boolean)
+  let prefix = resolve(base)
+  for (const part of parts) {
+    prefix = join(prefix, part)
+    let info
+    try { info = await lstat(prefix) } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "ENOENT") continue
+      throw error
+    }
+    if (info.isSymbolicLink()) throw new Error(`Artifact path component is a symlink: ${prefix}`)
+  }
+}
+/** Owned outputs are created without following a pre-existing final symlink. */
+async function writeFileOwned(path: string, data: string): Promise<void> {
+  try { await writeFile(path, data, { flag: "wx" }) } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) throw error
+    const info = await lstat(path)
+    if (!info.isFile()) throw new Error(`Artifact path is not a regular file: ${path}`)
+    await writeFile(path, data)
+  }
+}
+
 export async function summarize(result: IsolationMergeResult): Promise<IsolationMergeResult> {
   await writeFile(result.summary_path, `# Isolation merge: ${result.kind}\n\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\`\n`)
   return result
 }
-export async function stashPush(repoRoot: string): Promise<boolean> {
-  if (!(await runGit(["status", "--porcelain", "--untracked-files=all"], { cwd: repoRoot })).stdout.length) return false
+export async function stashPush(repoRoot: string): Promise<string | null> {
+  if (!(await runGit(["status", "--porcelain", "--untracked-files=all"], { cwd: repoRoot })).stdout.length) return null
+  const readTip = async () => (await runGit(["rev-parse", "--verify", "--quiet", "refs/stash"], { cwd: repoRoot, allowedExitCodes: [0, 1] })).stdout.toString().trim()
+  const before = await readTip()
   await runGit(["stash", "push", "--include-untracked", "-m", "omo-task-merge"], { cwd: repoRoot })
-  return true
+  const created = await readTip()
+  // A no-op push (dirt only inside a submodule, for example) leaves the stack
+  // unchanged; the caller must not restore and drop an unrelated user stash.
+  return created && created !== before ? created : null
 }
-export async function stashPop(repoRoot: string): Promise<string | undefined> {
-  const result = await runGit(["stash", "pop", "--index"], { cwd: repoRoot, allowedExitCodes: [0, 1] })
-  if (result.code) return `stash restore failed; stash entry preserved: ${result.stderr || result.stdout.toString()}`
+export async function stashPop(repoRoot: string, stash: string): Promise<string | undefined> {
+  // Locate OUR entry by identity: whatever sits on top when we get here belongs
+  // to someone else and must survive the merge untouched.
+  const list = (await runGit(["stash", "list", "--format=%H"], { cwd: repoRoot })).stdout.toString().split("\n")
+  const index = list.findIndex((sha) => sha === stash)
+  if (index < 0) return undefined
+  const ref = `stash@{${index}}`
+  const applied = await runGit(["stash", "apply", "--index", ref], { cwd: repoRoot, allowedExitCodes: [0, 1] })
+  if (applied.code) return `stash restore failed; stash entry preserved: ${applied.stderr || applied.stdout.toString()}`
+  const dropped = await runGit(["stash", "drop", ref], { cwd: repoRoot, allowedExitCodes: [0, 1] })
+  if (dropped.code) return `stash applied but not dropped: ${dropped.stderr || dropped.stdout.toString()}`
 }

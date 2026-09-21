@@ -21,6 +21,12 @@ clones record dataset and snapshot identity, fuse-overlayfs keeps the lower
 path, and ReFS block-clones cluster-rounded tails on Windows. Copy walks
 enforce a 2 GiB default budget with 10% target-space headroom; special
 entries are skipped rather than copied.
+Probing is context-bound: reflink writes its probe files inside the supplied
+base directory only, and a probe without a context stays read-only instead of
+writing into the source repository. Unexpected backend command failures (an
+I/O error from btrfs, zfs or fsutil, a dlopen crash, a live worktree
+registration that refuses removal) propagate instead of being reported as
+"unavailable"; only capability failures fall through to the next backend.
 
 ## Baselines and deltas
 
@@ -41,7 +47,13 @@ preserves child commits on clean baselines and filters inherited WIP on dirty
 ones; an unresolvable replay throws `IsolationCommitReplayError` naming the
 commit and the retained branch. Every failure path retains the isolated tree
 with the manual recovery command instead of deleting it. Both modes serialize
-through memory-core's identity-bearing lock.
+through memory-core's identity-bearing lock. Stash cycles
+are tracked by entry identity: a no-op push (dirt only inside a submodule)
+never touches the stack, and a pop restores exactly the entry the merge
+created, never whatever landed on top afterwards. A baseline-listed nested
+repository missing from the isolated tree fails the delta loudly instead of
+merging back an empty change, and nested paths are checked for symlink
+escapes immediately before mutation.
 
 ## CI and tests
 

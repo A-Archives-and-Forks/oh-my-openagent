@@ -79,3 +79,18 @@ mac("ensure removes stale snapshot locks before the git consistency probe", asyn
   expect(await git(h.mergedDir, "status", "--porcelain")).toBe("")
   await cleanupIsolation(h)
 })
+
+test("apfs loader failures other than a missing module propagate", async () => {
+  const backend = new ApfsBackend(async () => { throw new Error("dlopen exploded") })
+  let failure: unknown
+  try { await backend.probe("unused") } catch (error) { failure = error }
+  expect(failure).toBeInstanceOf(Error)
+  expect(failure instanceof IsolationUnavailableError).toBe(false)
+})
+
+test("apfs treats a missing bun:ffi module as unavailable", async () => {
+  const backend = new ApfsBackend(async () => {
+    throw Object.assign(new Error("Cannot find module 'bun:ffi'"), { code: "ERR_UNKNOWN_BUILTIN_MODULE" })
+  })
+  await expect(backend.probe("unused")).rejects.toBeInstanceOf(IsolationUnavailableError)
+})

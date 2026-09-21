@@ -28,24 +28,37 @@ export async function cloneWithSymbols(symbols: CloneSymbols, source: string, de
   throw new CloneError(errno, message)
 }
 
+export type LoadApfs = () => Promise<CloneSymbols>
+async function loadApfs(): Promise<CloneSymbols> {
+  const { dlopen, FFIType } = await import("bun:ffi")
+  const library = dlopen("/usr/lib/libSystem.B.dylib", {
+    clonefile: { args: [FFIType.cstring, FFIType.cstring, FFIType.i32], returns: FFIType.i32 },
+    __error: { args: [], returns: FFIType.ptr },
+    strerror: { args: [FFIType.i32], returns: FFIType.cstring },
+  })
+  return library.symbols as unknown as CloneSymbols
+}
+
 export class ApfsBackend implements IsolationBackend {
   readonly kind = "apfs" as const
   readonly clonesTree = true
   private symbols?: CloneSymbols
 
+  constructor(private readonly load: LoadApfs = loadApfs) {}
+
   async probe(_repoRoot: string) {
     if (process.platform !== "darwin") return { available: false, reason: "APFS requires macOS" }
     if (!this.symbols) {
       try {
-        const { dlopen, FFIType } = await import("bun:ffi")
-        const library = dlopen("/usr/lib/libSystem.B.dylib", {
-          clonefile: { args: [FFIType.cstring, FFIType.cstring, FFIType.i32], returns: FFIType.i32 },
-          __error: { args: [], returns: FFIType.ptr },
-          strerror: { args: [FFIType.i32], returns: FFIType.cstring },
-        })
-        this.symbols = library.symbols as unknown as CloneSymbols
+        this.symbols = await this.load()
       } catch (cause) {
-        throw new IsolationUnavailableError(`APFS clonefile unavailable: ${String(cause)}`)
+        // A missing bun:ffi module is an unavailable capability; anything else
+        // (a failed dlopen, for example) is an operational failure that propagates.
+        if (cause instanceof Error && "code" in cause
+          && ["ERR_UNSUPPORTED_ESM_URL_SCHEME", "ERR_UNKNOWN_BUILTIN_MODULE", "MODULE_NOT_FOUND", "ERR_MODULE_NOT_FOUND"].includes(String(cause.code))) {
+          throw new IsolationUnavailableError(`APFS clonefile unavailable: ${String(cause)}`)
+        }
+        throw cause
       }
     }
     return { available: true }

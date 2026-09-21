@@ -13,7 +13,7 @@ export async function applyNestedPatches(repoRoot: string, delta: DeltaPatchResu
   const warnings: string[] = []
   for (const [index, nested] of delta.nestedPatches.entries()) {
     if (!nested.patch.trim()) continue
-    const cwd = nestedPath(repoRoot, nested.relativePath)
+    const cwd = await nestedPath(repoRoot, nested.relativePath)
     try {
       if (await alreadyApplied(cwd, patchPaths[index]!)) continue
       const stashed = await stashPush(cwd)
@@ -22,7 +22,7 @@ export async function applyNestedPatches(repoRoot: string, delta: DeltaPatchResu
         await runGit(["commit", "-m", "chore(task): isolated nested changes"], { cwd })
       } finally {
         if (stashed) {
-          const warning = await stashPop(cwd)
+          const warning = await stashPop(cwd, stashed)
           if (warning) warnings.push(`${nested.relativePath}: ${warning}`)
         }
       }
@@ -55,6 +55,16 @@ export async function applyDeltaPatchLocked(repoRoot: string, delta: DeltaPatchR
     }
   }
   const nested = await applyNestedPatches(repoRoot, delta, artifacts.nested_patch_paths)
+  const expected = delta.nestedPatches.filter((entry) => entry.patch.trim()).length
+  if (!delta.rootPatch.trim() && expected > 0 && nested.nested_failed?.length === expected) {
+    // Nothing landed anywhere: report the merge as not applied, with recovery.
+    return summarize({
+      ...artifacts, changes_applied: false, kind: "not-applied",
+      conflict: nested.nested_failed!.map((failure) => `${failure.path}: ${failure.error}`).join("\n"),
+      manual_command: `git apply --3way <nested patch>`,
+      ...nested,
+    })
+  }
   return summarize({ ...artifacts, changes_applied: true, kind, ...nested })
 }
 export async function applyDeltaPatch(repoRoot: string, delta: DeltaPatchResult, options: ArtifactOptions): Promise<IsolationMergeResult> {

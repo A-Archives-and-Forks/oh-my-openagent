@@ -132,7 +132,7 @@ export async function mergeTaskBranchLocked(repoRoot: string, branch: TaskBranch
       state = { changes_applied: false, kind: "branch-merge-failed", branch_name: branchName, conflict: error.stderr }
     }
   } finally {
-    if (stashed) warning = await stashPop(repoRoot)
+    if (stashed) warning = await stashPop(repoRoot, stashed)
   }
   if (state.changes_applied) await runGit(["branch", "-D", branchName], { cwd: repoRoot })
   return { ...state, ...(warning ? { warning } : {}) }

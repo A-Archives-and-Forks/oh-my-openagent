@@ -111,7 +111,7 @@ test("overlay unmount failure retries three times and leaves source untouched", 
 test("reflink ffi unavailable selects cp argv and classifies only unsupported failures", async () => {
   const f = await paths(), { io, calls } = fake()
   const backend = new ReflinkBackend(io, async () => undefined)
-  expect((await backend.probe(f.repoRoot)).available).toBe(true)
+  expect((await backend.probe(f.repoRoot, f.ctx)).available).toBe(true)
   await backend.start(f.repoRoot, f.merged, f.ctx)
   expect(calls.at(-1)).toEqual(["cp", "-a", "--reflink=always", f.repoRoot, f.merged])
   for (const stderr of ["failed to clone", "Operation not supported", "Invalid cross-device link", "permission denied"]) {
@@ -127,7 +127,7 @@ test("reflink ffi unavailable selects cp argv and classifies only unsupported fa
 test("reflink probe rejects EOPNOTSUPP and disables start", async () => {
   const f = await paths(), { io } = fake()
   const unsupported = new ReflinkBackend(io, async () => ({ ioctl: () => -1, errno: () => 95 }))
-  expect((await unsupported.probe(f.repoRoot)).available).toBe(false)
+  expect((await unsupported.probe(f.repoRoot, f.ctx)).available).toBe(false)
   await writeFile(join(f.repoRoot, "data"), "source")
   await expect(unsupported.start(f.repoRoot, f.merged, f.ctx)).rejects.toBeInstanceOf(IsolationUnavailableError)
   await expect(access(f.merged)).rejects.toThrow()
@@ -204,4 +204,65 @@ test("missing cp probe cannot leave the fallback tier enabled", async () => {
   expect((await backend.probe(f.repoRoot)).available).toBe(false)
   await expect(backend.start(f.repoRoot, f.merged, f.ctx)).rejects.toBeInstanceOf(IsolationUnavailableError)
   expect(calls).toEqual([])
+})
+
+test("btrfs probe propagates unexpected subvolume-show failures", async () => {
+  const f = await paths()
+  const backend = new BtrfsBackend(fake({ run: async () => ({ code: 1, stdout: "", stderr: "Input/output error" }) }).io)
+  await expect(backend.probe(f.repoRoot)).rejects.toThrow("Input/output error")
+})
+
+test("btrfs probe still classifies not-a-subvolume as unavailable", async () => {
+  const f = await paths()
+  const backend = new BtrfsBackend(fake({ run: async () => ({ code: 1, stdout: "", stderr: "Not a Btrfs subvolume: /x" }) }).io)
+  expect((await backend.probe(f.repoRoot)).available).toBe(false)
+})
+
+test("zfs list failures other than missing pools propagate from the probe", async () => {
+  const f = await paths()
+  const backend = new ZfsBackend(fake({ run: async () => ({ code: 1, stdout: "", stderr: "Input/output error" }) }).io)
+  await expect(backend.probe(f.repoRoot)).rejects.toThrow("Input/output error")
+})
+
+test("zfs snapshot permission failures fall through as unavailable", async () => {
+  const f = await paths()
+  const io = fake({ run: async (argv) => argv[1] === "list"
+    ? { code: 0, stdout: "pool/repo\t" + f.repoRoot + "\n", stderr: "" }
+    : { code: 1, stdout: "", stderr: "cannot create snapshot: permission denied" } }).io
+  await expect(new ZfsBackend(io).start(f.repoRoot, f.merged, f.ctx)).rejects.toBeInstanceOf(IsolationUnavailableError)
+})
+
+test("zfs unexpected snapshot failures remain hard errors", async () => {
+  const f = await paths()
+  const io = fake({ run: async (argv) => argv[1] === "list"
+    ? { code: 0, stdout: "pool/repo\t" + f.repoRoot + "\n", stderr: "" }
+    : { code: 1, stdout: "", stderr: "internal error: Input/output error" } }).io
+  let failure: unknown
+  try { await new ZfsBackend(io).start(f.repoRoot, f.merged, f.ctx) } catch (error) { failure = error }
+  expect(failure).toBeInstanceOf(Error)
+  expect(failure instanceof IsolationUnavailableError).toBe(false)
+})
+
+test("ReFS probe propagates fsutil failures instead of reporting not-ReFS", async () => {
+  const backend = new BlockCloneBackend(fake({ platform: "win32" as const, run: async () => ({ code: 1, stdout: "", stderr: "The volume does not exist" }) }).io)
+  await expect(backend.probe("C:\\repo")).rejects.toThrow("volume does not exist")
+})
+
+test("overlayfs mount capability failures fall through as unavailable", async () => {
+  const f = await paths()
+  const io = fake({ run: async (argv) => argv[0] === "fuse-overlayfs"
+    ? { code: 1, stdout: "", stderr: "fusermount3: failed to access /dev/fuse: Permission denied" }
+    : { code: 0, stdout: "", stderr: "" } }).io
+  await expect(new OverlayfsBackend(io).start(f.repoRoot, f.merged, f.ctx)).rejects.toBeInstanceOf(IsolationUnavailableError)
+})
+
+test("overlayfs unexpected mount failures remain hard errors", async () => {
+  const f = await paths()
+  const io = fake({ run: async (argv) => argv[0] === "fuse-overlayfs"
+    ? { code: 1, stdout: "", stderr: "Input/output error" }
+    : { code: 0, stdout: "", stderr: "" } }).io
+  let failure: unknown
+  try { await new OverlayfsBackend(io).start(f.repoRoot, f.merged, f.ctx) } catch (error) { failure = error }
+  expect(failure).toBeInstanceOf(Error)
+  expect(failure instanceof IsolationUnavailableError).toBe(false)
 })

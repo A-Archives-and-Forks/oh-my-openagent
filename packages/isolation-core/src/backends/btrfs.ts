@@ -13,7 +13,12 @@ export class BtrfsBackend implements IsolationBackend {
     if (this.io.platform !== "linux" || !this.io.which("btrfs")) return { available: false, reason: "btrfs requires Linux and btrfs on PATH" }
     if (ctx && (ctx.crossDevice || await this.io.device(lower) !== await this.io.device(await existingParent(ctx.baseDir)))) return { available: false, reason: "btrfs requires the same device" }
     const result = await this.io.run(["btrfs", "subvolume", "show", lower])
-    return { available: result.code === 0, reason: result.code ? result.stderr : undefined }
+    if (!result.code) return { available: true }
+    if (/not a btrfs|not a subvolume|cannot find|no such|unknown subvolume|not a directory/i.test(result.stderr)) {
+      return { available: false, reason: result.stderr }
+    }
+    // An I/O or similar operational failure says nothing about btrfs capability.
+    throw new Error(`btrfs subvolume show ${lower} failed (${result.code}): ${result.stderr}`)
   }
   async start(lower: string, merged: string, ctx: IsolationContext) {
     await mkdir(dirname(merged), { recursive: true })

@@ -55,7 +55,7 @@ test.skipIf(!btrfsRoot || !overlay)("fs-integration overlayfs publication and te
 
 test.skipIf(!ext4Root)("fs-integration ext4 probe rejects EOPNOTSUPP", async () => {
   const lower = await mkdtemp(join(ext4Root!, "reflink-unsupported-"))
-  try { expect((await new ReflinkBackend().probe(lower)).available).toBe(false) }
+  try { expect((await new ReflinkBackend().probe(lower, { id: "ext4", baseDir: lower, crossDevice: false })).available).toBe(false) }
   finally { await rm(lower, { recursive: true, force: true }) }
 })
 

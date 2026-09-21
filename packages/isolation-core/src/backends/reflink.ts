@@ -1,10 +1,10 @@
-import { mkdir, mkdtemp, open, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, open, rm, rmdir, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { IsolationUnavailableError, type IsolationBackend, type IsolationContext } from "../backend"
 import { markStarted } from "../backend-marker"
 import { exists } from "../git/command"
 import { copyBudget, copyTree } from "./copy-tree"
-import { existingParent, runtime, type BackendRuntime } from "./runtime"
+import { runtime, type BackendRuntime } from "./runtime"
 
 export const FICLONE = 0x40049409
 export interface ReflinkIoctl { ioctl(dst: number, request: number, src: number): number; errno(): number }
@@ -54,27 +54,37 @@ export class ReflinkBackend implements IsolationBackend {
   }
   async probe(lower: string, ctx?: IsolationContext) {
     if (this.io.platform !== "linux") return { available: false, reason: "FICLONE requires Linux" }
-    const target = await existingParent(ctx?.baseDir ?? lower)
-    if (ctx?.crossDevice || await this.io.device(lower) !== await this.io.device(target)) return { available: false, reason: "reflink requires the same device" }
-    await this.initialize()
-    if (!this.ffi && !this.io.which("cp")) {
-      this.unavailableReason = "no FICLONE or cp"
-      return { available: false, reason: this.unavailableReason }
-    }
-    const base = await mkdtemp(join(target, ".omo-reflink-probe-"))
+    if (!ctx?.baseDir) return { available: false, reason: "reflink probing requires an isolation context to write inside" }
+    // Claim the supplied context: probe files live exactly inside the caller's
+    // base directory, and a context we had to create is released again so the
+    // exclusive publication in ensure is unaffected.
+    const target = ctx.baseDir
+    const existed = await exists(target)
+    await mkdir(target, { recursive: true })
     try {
-      await writeFile(join(base, "source"), "x")
-      if (this.ffi) await this.clone(join(base, "source"), join(base, "clone"))
-      else await this.cp(join(base, "source"), join(base, "clone"))
-      this.unavailableReason = undefined
-      return { available: true }
-    } catch (error) {
-      if (error instanceof IsolationUnavailableError) {
-        this.unavailableReason = error.message
-        return { available: false, reason: error.message }
+      if (ctx.crossDevice || await this.io.device(lower) !== await this.io.device(target)) return { available: false, reason: "reflink requires the same device" }
+      await this.initialize()
+      if (!this.ffi && !this.io.which("cp")) {
+        this.unavailableReason = "no FICLONE or cp"
+        return { available: false, reason: this.unavailableReason }
       }
-      throw error
-    } finally { await rm(base, { recursive: true, force: true }) }
+      const base = await mkdtemp(join(target, ".omo-reflink-probe-"))
+      try {
+        await writeFile(join(base, "source"), "x")
+        if (this.ffi) await this.clone(join(base, "source"), join(base, "clone"))
+        else await this.cp(join(base, "source"), join(base, "clone"))
+        this.unavailableReason = undefined
+        return { available: true }
+      } catch (error) {
+        if (error instanceof IsolationUnavailableError) {
+          this.unavailableReason = error.message
+          return { available: false, reason: error.message }
+        }
+        throw error
+      } finally { await rm(base, { recursive: true, force: true }) }
+    } finally {
+      if (!existed) await rmdir(target).catch(() => {})
+    }
   }
   async start(lower: string, merged: string, ctx: IsolationContext) {
     if (this.io.platform !== "linux") throw new IsolationUnavailableError("FICLONE requires Linux")

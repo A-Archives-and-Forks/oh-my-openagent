@@ -15,7 +15,16 @@ export class OverlayfsBackend implements IsolationBackend {
     // Commas/colons are option separators even without a shell; reject rather than mis-mount.
     if (/[,:\n\\]/.test(lower + base)) throw new IsolationUnavailableError("overlay paths contain unsupported mount-option separators")
     for (const name of ["upper", "work", "m"]) await mkdir(join(base, name), { recursive: true })
-    await checked(this.io, ["fuse-overlayfs", "-o", `lowerdir=${lower},upperdir=${join(base, "upper")},workdir=${join(base, "work")}`, join(base, "m")])
+    try {
+      await checked(this.io, ["fuse-overlayfs", "-o", `lowerdir=${lower},upperdir=${join(base, "upper")},workdir=${join(base, "work")}`, join(base, "m")])
+    } catch (error) {
+      const message = String((error as Error).message)
+      // A missing or unusable FUSE device is a capability gap other backends can fill.
+      if (/\/dev\/fuse|fusermount|permission denied|operation not permitted|fuse device/i.test(message)) {
+        throw new IsolationUnavailableError(message)
+      }
+      throw error
+    }
     await this.io.waitMounted(join(base, "m"))
   }
   async start(lower: string, _merged: string, ctx: IsolationContext) {

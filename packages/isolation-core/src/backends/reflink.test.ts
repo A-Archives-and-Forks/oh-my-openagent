@@ -20,7 +20,7 @@ test("FICLONE walks fd pairs, preserves metadata/symlinks and isolates writes", 
   const backend = new ReflinkBackend({ ...runtime, platform: "linux" }, async () => ({
     ioctl: (dst, request, src) => { requests.push(request); writeFileSync(dst, readFileSync(src)); return 0 }, errno: () => 0,
   }))
-  expect((await backend.probe(f.repoRoot)).available).toBe(true)
+  expect((await backend.probe(f.repoRoot, { id: "probe", baseDir: f.root, crossDevice: false })).available).toBe(true)
   await backend.start(f.repoRoot, merged, { id: "walk", baseDir: f.root, crossDevice: false })
   expect(requests).toEqual([0x40049409, 0x40049409])
   expect((await readdir(merged)).sort()).toEqual(["dir", "link"])
@@ -42,7 +42,7 @@ test("first mid-walk EOPNOTSUPP aborts and removes all partial output", async ()
   const backend = new ReflinkBackend({ ...runtime, platform: "linux" }, async () => ({
     ioctl: (dst, _request, src) => { if (++clones === 3) return -1; writeFileSync(dst, readFileSync(src)); return 0 }, errno: () => 95,
   }))
-  expect((await backend.probe(f.repoRoot)).available).toBe(true)
+  expect((await backend.probe(f.repoRoot, { id: "probe", baseDir: f.root, crossDevice: false })).available).toBe(true)
   await expect(backend.start(f.repoRoot, merged, { id: "walk", baseDir: f.root, crossDevice: false })).rejects.toBeInstanceOf(IsolationUnavailableError)
   expect(clones).toBe(3)
   await expect(access(merged)).rejects.toThrow()
@@ -61,7 +61,7 @@ test("failed probe disables direct start rather than retrying an unsupported ioc
   const f = await fixture()
   let clones = 0
   const backend = new ReflinkBackend({ ...runtime, platform: "linux" }, async () => ({ ioctl: () => { clones++; return -1 }, errno: () => 95 }))
-  expect((await backend.probe(f.repoRoot)).available).toBe(false)
+  expect((await backend.probe(f.repoRoot, { id: "probe", baseDir: f.root, crossDevice: false })).available).toBe(false)
   await expect(backend.start(f.repoRoot, join(f.root, "merged"), { id: "probe", baseDir: f.root, crossDevice: false })).rejects.toBeInstanceOf(IsolationUnavailableError)
   expect(clones).toBe(1)
 })
@@ -72,7 +72,7 @@ test("reflink byte ceiling aborts before cloning oversized input", async () => {
   await writeFile(join(f.repoRoot, "data"), "123456")
   let clones = 0
   const backend = new ReflinkBackend({ ...runtime, platform: "linux" }, async () => ({ ioctl: () => { clones++; return 0 }, errno: () => 0 }))
-  expect((await backend.probe(f.repoRoot)).available).toBe(true)
+  expect((await backend.probe(f.repoRoot, { id: "probe", baseDir: f.root, crossDevice: false })).available).toBe(true)
   await expect(backend.start(f.repoRoot, merged, { id: "cap", baseDir: f.root, crossDevice: false, maxCopyBytes: 5 })).rejects.toThrow("6 bytes exceeds maxCopyBytes 5")
   expect(clones).toBe(1)
   await expect(access(merged)).rejects.toThrow()

@@ -29,16 +29,49 @@ async function copyOptional(src: string, dst: string): Promise<void> {
   await cp(src, dst, { recursive: true, verbatimSymlinks: true, force: false, errorOnExist: true })
 }
 
+/** Shared Git mutation targets (objects, refs, HEAD, index, config) must stay
+ * inside the copied metadata directory; a symlink escape would let isolated
+ * operations mutate the source repository's store. */
+async function assertContainedMetadata(gitDir: string): Promise<void> {
+  const real = await canonical(gitDir)
+  const inside = (path: string) => path === real || path.startsWith(real + sep)
+  for (const name of ["objects", "refs", "HEAD", "config", "index"]) {
+    const area = join(gitDir, name)
+    if (!(await exists(area))) continue
+    const info = await lstat(area)
+    if (info.isSymbolicLink()) {
+      if (!inside(await canonical(area))) throw new IsolationUnavailableError(`git metadata ${name} escapes the repository copy: ${gitDir}`)
+      continue
+    }
+    if (!info.isDirectory()) continue
+    const walk = async (dir: string): Promise<void> => {
+      for (const child of await readdir(dir, { withFileTypes: true })) {
+        const path = join(dir, child.name)
+        if (child.isSymbolicLink()) {
+          if (!inside(await canonical(path))) throw new IsolationUnavailableError(`git metadata under ${name} escapes the repository copy: ${gitDir}`)
+        } else if (child.isDirectory()) await walk(path)
+      }
+    }
+    await walk(area)
+  }
+}
+/** Directory-form Git metadata becomes standalone: no locks, no external worktree
+ * target, and no shared mutation targets. */
+async function sanitizeStandaloneGitDir(entry: string): Promise<void> {
+  await removeLocks(entry)
+  if (await exists(join(entry, "config"))) {
+    await unset(join(entry, "config"), "core.worktree")
+    await unset(join(entry, "config"), "core.bare")
+  }
+  await assertContainedMetadata(entry)
+}
+
 export async function detachGitDir(worktreeRoot: string, sourceCommonDir: string): Promise<"no-git" | "independent" | "detached"> {
   const entry = join(worktreeRoot, ".git")
   if (!(await exists(entry))) return "no-git"
   const meta = await lstat(entry)
   if (meta.isDirectory()) {
-    await removeLocks(entry)
-    if (await exists(join(entry, "config"))) {
-      await unset(join(entry, "config"), "core.worktree")
-      await unset(join(entry, "config"), "core.bare")
-    }
+    await sanitizeStandaloneGitDir(entry)
     return "independent"
   }
   if (!meta.isFile()) throw new IsolationUnavailableError(".git must not share metadata through a symlink")
@@ -83,8 +116,13 @@ export async function detachGitDir(worktreeRoot: string, sourceCommonDir: string
     throw error
   }
   if (ownAdmin) {
-    await rm(admin, { recursive: true })
-    await git(common, ["--git-dir", common, "worktree", "prune"])
+    // A matching back-pointer alone is not proof of ownership: the registration
+    // must also live under the source common directory's worktrees area.
+    const worktreesRoot = join(common, "worktrees")
+    if (await canonical(admin) === worktreesRoot || (await canonical(admin)).startsWith(worktreesRoot + sep)) {
+      await rm(admin, { recursive: true })
+      await git(common, ["--git-dir", common, "worktree", "prune"])
+    }
   }
   return "detached"
 }
@@ -103,6 +141,7 @@ export async function scanNestedGitDirs(merged: string): Promise<NestedGitResult
       if (await exists(entry)) {
         const meta = await lstat(entry)
         if (meta.isSymbolicLink()) throw new IsolationUnavailableError(`submodule ${relative(merged, dir)} shares the source gitdir`)
+        if (meta.isDirectory()) await sanitizeStandaloneGitDir(entry)
         if (meta.isFile()) {
           const target = await gitdir(entry)
           const resolved = await canonical(target)
@@ -118,7 +157,9 @@ export async function scanNestedGitDirs(merged: string): Promise<NestedGitResult
         }
       }
     }
-    if (depth === 6) return
+    // No fixed depth cap: symlinked directories are not descended (readdir reports
+    // the link itself), so the walk cannot cycle, and stopping early would leave
+    // deeper external Git-directory pointers unchecked.
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       if (entry.isDirectory() && entry.name !== ".git" && entry.name !== "node_modules") await walk(join(dir, entry.name), depth + 1)
     }

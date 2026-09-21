@@ -12,12 +12,24 @@ export class ZfsBackend implements IsolationBackend {
   private async dataset(lower: string): Promise<string | undefined> {
     if (!this.io.which("zfs")) return undefined
     const result = await this.io.run(["zfs", "list", "-H", "-o", "name,mountpoint"])
-    if (result.code) return undefined
+    if (result.code) {
+      if (/no datasets|dataset does not exist|pool .* does not exist|permission denied|failed to initialize|no pools available|cannot open/i.test(result.stderr)) return undefined
+      throw new Error(`zfs list failed (${result.code}): ${result.stderr}`)
+    }
     return result.stdout.split("\n").map((line) => line.split("\t"))
       .find(([, mount]) => mount?.startsWith("/") && resolve(mount) === resolve(lower))?.[0]
   }
   async probe(lower: string) {
     return { available: !!await this.dataset(lower), reason: "source must be a delegated ZFS dataset root" }
+  }
+  /** Capability failures (a dataset not delegated to us) fall through; the rest propagate. */
+  private async capable(argv: string[]): Promise<void> {
+    try { await checked(this.io, argv) } catch (error) {
+      if (/permission denied|dataset does not exist|pool .* does not exist|not delegated/i.test(String((error as Error).message))) {
+        throw new IsolationUnavailableError(String((error as Error).message))
+      }
+      throw error
+    }
   }
   async start(lower: string, merged: string, ctx: IsolationContext) {
     const source = await this.dataset(lower)
@@ -25,10 +37,10 @@ export class ZfsBackend implements IsolationBackend {
     if (!/^[a-zA-Z0-9_.-]+$/.test(ctx.id)) throw new Error("Invalid ZFS isolation id")
     const snapshot = `${source}@omo-${ctx.id}`, dataset = `${source}/omo-${ctx.id}`
     await mkdir(ctx.baseDir, { recursive: true })
-    await checked(this.io, ["zfs", "snapshot", snapshot])
+    await this.capable(["zfs", "snapshot", snapshot])
     // Persist the snapshot before clone so a crash or clone failure can be reclaimed.
     await writeFile(join(ctx.baseDir, BACKEND_FILE), JSON.stringify({ backend: this.kind, dataset, snapshot, cloned: false }))
-    await checked(this.io, ["zfs", "clone", "-o", `mountpoint=${merged}`, snapshot, dataset])
+    await this.capable(["zfs", "clone", "-o", `mountpoint=${merged}`, snapshot, dataset])
     await writeFile(join(ctx.baseDir, BACKEND_FILE), JSON.stringify({ backend: this.kind, dataset, snapshot, cloned: true }))
     await markStarted(ctx.baseDir, this.kind)
   }

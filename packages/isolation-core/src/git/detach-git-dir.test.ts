@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import { cp, lstat, mkdir, readFile, writeFile } from "node:fs/promises"
+import { access, cp, lstat, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises"
 import { isAbsolute, join, resolve } from "node:path"
 import { git, repo } from "../backends/git-fixture"
 import { detachGitDir, scanNestedGitDirs } from "./detach-git-dir"
@@ -100,6 +100,61 @@ test("ensure retries one inconsistent clone, detaches before publication, then r
     const admin = (await readFile(join(args[1], ".git"), "utf8")).trim().slice(8)
     await writeFile(join(admin, "index"), "broken")
   }
-  await expect(ensureIsolation({ repoRoot, homeDir, id: "bad", backends: [backend] })).rejects.toBeInstanceOf(IsolationUnavailableError)
+  // Persistent corruption after the retry is an operational failure, not a
+  // capability gap: no other backend would produce a consistent snapshot of it.
+  let failure: unknown
+  try { await ensureIsolation({ repoRoot, homeDir, id: "bad", backends: [backend] }) } catch (error) { failure = error }
+  expect(failure).toBeInstanceOf(Error)
+  expect(failure instanceof IsolationUnavailableError).toBe(false)
+  expect((failure as Error).message).toContain("snapshot")
   expect(starts).toBe(2)
+})
+
+test("directory metadata rejects external symlinks beneath mutation targets", async () => {
+  const { repoRoot, root } = await repo()
+  await rm(join(repoRoot, ".git", "objects"), { recursive: true, force: true })
+  await symlink(join(root, "outside-objects"), join(repoRoot, ".git", "objects"))
+  await mkdir(join(root, "outside-objects"), { recursive: true })
+  await expect(detachGitDir(repoRoot, join(repoRoot, ".git"))).rejects.toBeInstanceOf(IsolationUnavailableError)
+})
+
+test("nested directory-form git metadata is sanitized for absolute worktree targets", async () => {
+  const f = await repo()
+  const inner = await repo()
+  await cp(inner.repoRoot, join(f.repoRoot, "inner"), { recursive: true })
+  // An absolute core.worktree would keep mutating the source copy.
+  await git(join(f.repoRoot, "inner"), "config", "core.worktree", inner.repoRoot)
+  const result = await scanNestedGitDirs(f.repoRoot)
+  expect(result.nested_git_rewritten).toEqual([])
+  await expect(git(join(f.repoRoot, "inner"), "config", "--get", "core.worktree")).rejects.toThrow()
+})
+
+test("deeply nested file-form gitdir pointers are still rewritten", async () => {
+  const f = await repo()
+  const depth = ["a", "b", "c", "d", "e", "f", "g", "h"] // eight levels, beyond the old depth-six walk
+  const deep = join(f.repoRoot, ...depth)
+  await mkdir(deep, { recursive: true })
+  // A linked-worktree-style .git file pointing outside the tree, with its
+  // replacement already registered under .git/modules.
+  await mkdir(join(f.root, "outside-admin"), { recursive: true })
+  await mkdir(join(f.repoRoot, ".git", "modules", ...depth), { recursive: true })
+  await writeFile(join(deep, ".git"), "gitdir: " + join(f.root, "outside-admin") + "\n")
+  const result = await scanNestedGitDirs(f.repoRoot)
+  expect(result.nested_git_rewritten).toContain(depth.join("/"))
+})
+
+test("admin directories outside the common worktrees area are never deleted", async () => {
+  const { repoRoot: source, root } = await repo()
+  const merged = join(root, "merged")
+  await mkdir(merged)
+  // A .git file whose admin directory back-points at us but lives outside <common>/worktrees.
+  const admin = join(root, "planted-admin")
+  await mkdir(admin, { recursive: true })
+  await writeFile(join(admin, "gitdir"), join(merged, ".git") + "\n")
+  await writeFile(join(admin, "HEAD"), "ref: refs/heads/main\n")
+  await writeFile(join(merged, ".git"), "gitdir: " + admin + "\n")
+  expect(await detachGitDir(merged, join(source, ".git"))).toBe("detached")
+  // The back-pointer matches, but the admin directory is not a registration under
+  // the source's worktrees area: it must survive untouched.
+  expect(await access(admin).then(() => true, () => false)).toBe(true)
 })

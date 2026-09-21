@@ -20,7 +20,7 @@ test("Node-hosted caller without bun:ffi reaches the cp reflink tier", async () 
       run: async (argv) => { calls.push(argv); await cp(argv[3], argv[4], { recursive: true }); return { code: 0, stdout: '', stderr: '' }; } };
     const backend = new ReflinkBackend(io);
     const lower = ${JSON.stringify(f.repoRoot)}, merged = ${JSON.stringify(merged)};
-    if (!(await backend.probe(lower)).available) throw new Error('probe unavailable');
+    if (!(await backend.probe(lower, { id: 'node', baseDir: ${JSON.stringify(f.root)}, crossDevice: false })).available) throw new Error('probe unavailable');
     await backend.start(lower, merged, { id: 'node', baseDir: ${JSON.stringify(f.root)}, crossDevice: false });
     console.log(JSON.stringify(calls.at(-1)));
     await backend.stop(merged);

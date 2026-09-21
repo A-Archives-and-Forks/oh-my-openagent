@@ -26,18 +26,17 @@ export async function discoverNestedRepos(repoRoot: string): Promise<string[]> {
   const status = (await runGit(["submodule", "status"], { cwd: repoRoot })).stdout.toString()
   const submodules = new Set(status.split("\n").filter(Boolean).map(line => line.slice(42).replace(/ \([^\n]*\)$/, "")))
   const result: string[] = []
-  const walk = async (dir: string, depth: number): Promise<void> => {
-    if (depth === 6) return
+  const walk = async (dir: string): Promise<void> => {
     for (const entry of await readdir(dir, { withFileTypes: true })) {
       if (!entry.isDirectory() || entry.name === ".git" || entry.name === "node_modules") continue
       const full = join(dir, entry.name)
       const rel = relative(repoRoot, full).split(sep).join("/")
       if (submodules.has(rel)) continue
       if (await exists(join(full, ".git"))) result.push(rel)
-      else await walk(full, depth + 1)
+      else await walk(full)
     }
   }
-  await walk(repoRoot, 0)
+  await walk(repoRoot)
   return result.sort()
 }
 

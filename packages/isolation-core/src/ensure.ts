@@ -92,7 +92,7 @@ export async function ensureIsolation(options: EnsureIsolationOptions): Promise<
         if (detached === "no-git") break
         const status = await gitResult(merged, ["status", "--porcelain"])
         if (status.code === 0) break
-        if (attempt === 1) throw new IsolationUnavailableError(`Git snapshot inconsistent after retry: ${status.stderr}`)
+        if (attempt === 1) throw new Error(`Git snapshot inconsistent after retry: ${status.stderr}`)
         await backend.stop(merged)
         // Mount backends may remove the whole base during teardown.
         await mkdir(creating, { recursive: true })
