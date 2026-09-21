@@ -7,8 +7,8 @@
       "dependencies": {
         "@clack/prompts": "^1.7.0",
         "@modelcontextprotocol/sdk": "^1.30.0",
-        "@opencode-ai/plugin": "1.18.22",
-        "@opencode-ai/sdk": "1.18.22",
+        "@opencode-ai/plugin": "1.18.31",
+        "@opencode-ai/sdk": "1.18.31",
         "@opentui/core": "^0.5.8",
         "@opentui/keymap": "^0.5.8",
         "@opentui/solid": "^0.5.8",
@@ -237,8 +237,8 @@
         "@oh-my-opencode/telemetry-core": "workspace:*",
         "@oh-my-opencode/tmux-core": "workspace:*",
         "@oh-my-opencode/utils": "workspace:*",
-        "@opencode-ai/plugin": "1.18.22",
-        "@opencode-ai/sdk": "1.18.22",
+        "@opencode-ai/plugin": "1.18.31",
+        "@opencode-ai/sdk": "1.18.31",
         "commander": "^15.0.0",
         "jsonc-parser": "^3.3.1",
         "picocolors": "^1.1.1",
@@ -701,9 +701,9 @@
 
     "@oh-my-opencode/utils": ["@oh-my-opencode/utils@workspace:packages/utils"],
 
-    "@opencode-ai/plugin": ["@opencode-ai/plugin@1.18.22", "", { "dependencies": { "@ai-sdk/provider": "3.0.8", "@opencode-ai/sdk": "1.18.22", "effect": "4.0.0-beta.83", "zod": "4.1.8" }, "peerDependencies": { "@opentui/core": ">=0.4.5", "@opentui/keymap": ">=0.4.5", "@opentui/solid": ">=0.4.5" }, "optionalPeers": ["@opentui/core", "@opentui/keymap", "@opentui/solid"] }, "sha512-ExKQu8EkJRZgPzKIEiYvLuTs/wYsOxDFerjwHG7pJJhOeXqNOuPYLzuU4w3cpzMZp5vu7q2larJ/+K6M4ax2Xw=="],
+    "@opencode-ai/plugin": ["@opencode-ai/plugin@1.18.31", "", { "dependencies": { "@ai-sdk/provider": "3.0.8", "@opencode-ai/sdk": "1.18.31", "effect": "4.0.0-beta.83", "zod": "4.1.8" }, "peerDependencies": { "@opentui/core": ">=0.4.5", "@opentui/keymap": ">=0.4.5", "@opentui/solid": ">=0.4.5" }, "optionalPeers": ["@opentui/core", "@opentui/keymap", "@opentui/solid"] }, "sha512-Rdc1bPK06PByaGyGd0kf7JUZ4pTkexz2OOUNlqZWLpHOiMEZ+/rFGjt46ypZ3QwA697gNdWwwwQbHbKG5NMwGA=="],
 
-    "@opencode-ai/sdk": ["@opencode-ai/sdk@1.18.22", "", { "dependencies": { "cross-spawn": "7.0.6" } }, "sha512-fRZ2r6nqdLBXfs7j531aibrqCC9tpbL2tmz3ThnwtLa3bMNUozEVAOPnZjh86JcTBDhNtACt5CNgKDZ1Pve1NA=="],
+    "@opencode-ai/sdk": ["@opencode-ai/sdk@1.18.31", "", { "dependencies": { "cross-spawn": "7.0.6" } }, "sha512-Raouthf8Lhe9edjvYeeSK7SgvdoU6bBjH9qV3f70dHoa6h+z0X2TMz/e22/wKp/StlFUZ4kIRpYYxFnY8/k01w=="],
 
     "@opentelemetry/api": ["@opentelemetry/api@1.9.1", "", {}, "sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q=="],
 
