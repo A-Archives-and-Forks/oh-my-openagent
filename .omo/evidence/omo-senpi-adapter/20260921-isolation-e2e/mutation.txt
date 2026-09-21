@@ -37,3 +37,15 @@ Scenario `control-pre-change-plugin-rejects-isolated` runs the SAME script again
 of the pre-change branch (`$W/omo-c/packages/omo-senpi/plugin`, dev + O-C, no isolation support):
 that build records no `isolation` block at all while still producing a task record. Captured in
 task-19/e2e.json.
+
+## Post-review addition (O-C): the stale park token regression is now pinned
+The code reviewer's mutation M3 proved a coverage hole: weakening unpark's identity check left all
+37 tests green. concurrency.test.ts gained
+"#given a released and re-parked epoch #when the earlier token unparks #then the later parking is untouched".
+
+$ perl -0pi -e 's/if \(entry\?\.lease !== lease\)/if (entry === undefined)/' packages/senpi-task/src/manager/concurrency.ts
+$ bun test packages/senpi-task/src/manager/concurrency.test.ts
+  1 tests failed:
+  (fail) lease parking > #given a released and re-parked epoch #when the earlier token unparks #then the later parking is untouched
+  31 pass / 1 fail
+$ # restored, then re-ran both files

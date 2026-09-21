@@ -5,6 +5,7 @@ import { join } from "node:path"
 import { resolveContext } from "./context"
 import { createTaskLifecycle } from "./create"
 import { getLifecycleDetachedRevival, type ProcessSignaller, type RespawnResult } from "./port"
+import { needsCrashSalvage } from "../isolation"
 import { reviveClaimed } from "./reconcile-reclamation"
 import { resolveChildSessionDir } from "../runners/rpc/spawn"
 import type { TaskIsolationSpec, TaskRecord } from "../state"
@@ -86,7 +87,7 @@ describe("isolated records are never revived", () => {
     expect(outcome).toEqual({ ok: false, code: "admission_refused", reason: "isolated_not_revivable" })
   })
 
-  test("#given an isolated claimed record #when reviveClaimed runs #then it refuses before any respawn", async () => {
+  test("#given an isolated claimed record #when reviveClaimed runs #then it is marked lost so its delta is salvageable, never respawned", async () => {
     const { store, registry, respawns, signaller } = harness()
     const record = isolatedRecord(store, {
       task_id: "st_20000002", status: "running", residency_state: "resident", host_pid: hostPid,
@@ -97,8 +98,14 @@ describe("isolated records are never revived", () => {
 
     const outcome = await reviveClaimed(context, record, "persisted_only", persistSession(store, record.task_id))
 
-    expect(outcome).toEqual({ task_id: record.task_id, kind: "deferred", reason: "isolated_not_revivable" })
+    expect(outcome).toEqual({ task_id: record.task_id, kind: "lost", reason: "isolated_not_revivable" })
     expect(respawns).toEqual([])
+    // Deferring instead left the record non-terminal, and crash salvage only looks at terminal
+    // records - so the sweep in the same pass reclaimed the clone with the child's delta in it.
+    const reloaded = store.load(record.task_id)
+    if (reloaded === null) throw new Error("the record vanished")
+    expect(reloaded.status).toBe("lost")
+    expect(needsCrashSalvage(reloaded, (candidate) => candidate.status === "lost")).toBe(true)
   })
 
   test("#given an isolated legacy process record with a transcript #when startup reconcile runs #then it is marked lost and never respawned", async () => {

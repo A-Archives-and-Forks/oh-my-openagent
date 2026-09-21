@@ -97,7 +97,11 @@ export async function reviveClaimed(
   options: ReviveClaimedOptions = {},
 ): Promise<ReconcileOutcome> {
   if (claimed.isolation !== undefined) {
-    return { task_id: claimed.task_id, kind: "deferred", reason: "isolated_not_revivable" }
+    // Never respawned - but deferring left the record non-terminal, and crash salvage only visits
+    // terminal records, so the sweep in the same startup pass reclaimed the clone with the child's
+    // unreviewed delta still inside it. Marking it lost is what the legacy respawn path already does.
+    await markLost(context, claimed, "isolated record is never respawned")
+    return { task_id: claimed.task_id, kind: "lost", reason: "isolated_not_revivable" }
   }
   const fresh = context.store.load(claimed.task_id)
   const terminalAllowed = options.allowTerminal === true && fresh !== null && TERMINAL_STATUSES.has(fresh.status)

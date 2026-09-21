@@ -92,13 +92,19 @@ export function latestIsolation(cwd) {
 	return latest
 }
 
-export function leftoverClones(cwd) {
-	const isolation = join(stateDir(cwd), "isolation")
-	if (!existsSync(isolation)) return []
-	return readdirSync(isolation, { withFileTypes: true })
-		.filter((entry) => entry.isDirectory())
-		.map((entry) => join(isolation, entry.name))
-		.filter((dir) => existsSync(join(dir, "merged")) || existsSync(join(dir, "worktree")))
+/**
+ * Everything still sitting where the backend puts sandboxes. The state dir holds only artifacts
+ * (baseline, patch, summary), so looking there proves nothing - the clone itself lives beside
+ * `base_dir`, either under its own name or renamed aside as `<base>.retained-<ts>`.
+ */
+export function leftoverClones(baseDir) {
+	if (typeof baseDir !== "string") return []
+	const parent = dirname(baseDir)
+	if (!existsSync(parent)) return []
+	const self = basename(baseDir)
+	return readdirSync(parent)
+		.filter((name) => name === self || name.startsWith(`${self}.`))
+		.map((name) => join(parent, name))
 }
 
 function check(name, expected, observed) {
@@ -114,7 +120,7 @@ export function assertApplied(cwd) {
 		check("child ran in a clone, not the checkout", true, typeof record?.isolation?.merged_dir === "string" && record.isolation.merged_dir !== cwd),
 		check("merge_result.kind", "applied", merge?.kind),
 		check("parent checkout gained hello.txt", "hi\n", existsSync(helloPath) ? readFileSync(helloPath, "utf8") : null),
-		check("no leftover clone under the state dir", [], leftoverClones(cwd)),
+		check("no clone left beside its base dir", [], leftoverClones(record?.isolation?.base_dir)),
 		check("the clone directory is gone", false, typeof record?.isolation?.merged_dir === "string" ? existsSync(record.isolation.merged_dir) : true),
 	]
 }
