@@ -1,5 +1,5 @@
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
-import { registerThreadTools, type ThreadToolSurfaceOptions } from "./tools"
+import { registerThreadTools, UNKNOWN_CALLER, type ThreadToolSurfaceOptions } from "./tools"
 import { createLiveThreadSurface, defaultThreadStateDirectory } from "./live-surface"
 
 export type ThreadComponentOptions = Partial<Omit<ThreadToolSurfaceOptions, "callerSessionId" | "callerWorkspaceRoot">> & {
@@ -22,7 +22,7 @@ export function createThreadComponent(options: ThreadComponentOptions = {}): Omo
         stateDirectory,
         diskSessions: options.diskSessions,
         ensureHost: options.ensureHost,
-        callerSessionId: options.callerSessionId ?? (() => "unknown-caller"),
+        callerSessionId: options.callerSessionId ?? (() => UNKNOWN_CALLER),
         callerWorkspaceRoot: options.callerWorkspaceRoot ?? (() => pi.cwd ?? process.cwd()),
       })
     },

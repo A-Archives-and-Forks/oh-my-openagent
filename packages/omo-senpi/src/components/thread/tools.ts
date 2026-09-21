@@ -61,6 +61,9 @@ export type ThreadToolSurfaceOptions = {
 }
 
 type AnyTool = ToolDefinition<any, any>
+
+/** Placeholder the component supplies when the host passes no per-call caller identity. */
+export const UNKNOWN_CALLER = "unknown-caller"
 type ToolOutput = AgentToolResult<{ readonly result: ThreadToolResult }>
 
 function failure(code: ThreadErrorCode, message: string, next: string, details?: Readonly<Record<string, unknown>>): ThreadToolResult {
@@ -119,7 +122,10 @@ function resolveEntries(options: ThreadToolSurfaceOptions, sessions: readonly Th
 
 function resolution(options: ThreadToolSurfaceOptions, entries: readonly ThreadAddressEntry[], target: string, callerId: string, allScope?: boolean) {
   if (target === "self") {
-    const caller = entries.find((entry) => entry.thread_id === callerId)
+    // UNKNOWN_CALLER stands for an ABSENT identity, so it must never match an entry: a thread
+    // that happened to carry it as its durable id would otherwise be renamed or re-modelled by
+    // any caller whose host passes no execution context.
+    const caller = callerId === UNKNOWN_CALLER ? undefined : entries.find((entry) => entry.thread_id === callerId)
     if (caller === undefined) return { kind: "error" as const, ...threadToolFailure("caller_context_missing", "The caller's durable session id is not in the thread address book.", "Call thread_list and pass an explicit thread_id, or retry from a session with caller context.") }
     target = caller.thread_id
   }

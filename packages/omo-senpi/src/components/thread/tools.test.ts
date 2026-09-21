@@ -237,6 +237,15 @@ describe("thread session controls", () => {
     expect(await runner(f, "dur-peer")("thread_rename", { thread: "self", name: "New Name" })).toEqual({ kind: "ok", thread_id: "dur-peer", name: "New Name" })
   })
 
+  test("the unknown-caller placeholder is an absent identity, not an addressable id", async () => {
+    // A placeholder that matches a real entry would let "self" act on a thread the caller does
+    // not own, so the sentinel must fail closed even when some thread carries it as its id.
+    const f = fixture()
+    f.sessions[0] = { ...f.sessions[0], durableSessionId: "unknown-caller" }
+    expect(await runner(f)("thread_rename", { thread: "self", name: "hijacked" })).toMatchObject({ kind: "error", error: { code: "caller_context_missing" } })
+    expect(f.setSessionName).not.toHaveBeenCalled()
+  })
+
   test.each([
     { name: "thread_rename", args: { thread: "dur-peer", name: "New Name", idempotency_key: "shared-key" }, calls: "setSessionName" },
     { name: "thread_set_model", args: { thread: "dur-peer", model: "gpt-x", idempotency_key: "shared-key" }, calls: "setModel" },
