@@ -89,7 +89,7 @@
       ],
       "status": 1,
       "stdout": "",
-      "stderr": "omo: Malformed migration config: /var/folders/d7/2hnp97055zlcf6r_bygm1_4r0000gn/T/omo-pr8538-final-UoyXHl/malformed-mcp/custom/agent/mcp.json\n"
+      "stderr": "omo: Malformed migration config: /var/folders/d7/2hnp97055zlcf6r_bygm1_4r0000gn/T/omo-pr8538-final-BwqMvi/malformed-mcp/custom/agent/mcp.json\n"
     },
     {
       "scenario": "old-marker-repair",
