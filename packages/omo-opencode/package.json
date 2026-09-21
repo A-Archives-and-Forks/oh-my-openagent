@@ -14,7 +14,7 @@
     "typecheck": "tsgo --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@clack/prompts": "^1.7.0",
+    "@clack/prompts": "^1.8.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@oh-my-opencode/agents-md-core": "workspace:*",
     "@oh-my-opencode/boulder-state": "workspace:*",
@@ -41,6 +41,6 @@
     "jsonc-parser": "^3.3.1",
     "picocolors": "^1.1.1",
     "picomatch": "^4.0.7",
-    "zod": "^4.4.3"
+    "zod": "^4.6.5"
   }
 }
