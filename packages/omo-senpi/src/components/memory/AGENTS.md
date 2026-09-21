@@ -18,7 +18,8 @@ The memory architecture - the git-backed memory filesystem, the memory tool sema
 
 | Path | Purpose |
 |------|---------|
-| `index.ts` | Component factory: capability checks, config latch, session binding (`senpi-memory.session-binding`), fail-closed resume conflicts, supervisor refcount, shutdown cleanup. |
+| `index.ts` | Component factory: capability checks, config latch, session binding (`senpi-memory.session-binding`), fail-closed resume conflicts, supervisor refcount, shutdown cleanup. The identity is resolved from the SESSION's cwd (the host reports it per event; `pi.cwd` then `process.cwd()` are the fallbacks), never from the host process directory - one shared host serves sessions from many workspaces (#8556). |
+| `identity-adoption.ts` | Which identity a (re)bind uses when the session already carries a binding entry: the record wins and a divergence is an `info` rebind, because config resolution is the suspect on a shared host. The fail-closed conflict is left for an explicitly configured `memory.agent` that names a different identity, and for a record whose memory repository cannot be reproduced under the current memory root. |
 | `wiring.ts` | Registration surface: prompt handler, journal routing, tools, guard, skills scope, commands, trigger wiring, completion renderer/consumption, policy registration, status refresh. |
 | `identity-runtime.ts` | Per-identity reflection assembly: reservation store (trigger engine), worker runner, lazy OS-sandbox transform. |
 | `transient-identity.ts` | One-shot run routing (#7765): a headless (`hasUI === false`) or senpi-task rpc-child session whose identity owns no `repo/` gets `<memory>/transient-runs/<token>/agents/<id>` instead of a durable `agents/<id>` directory; `session_shutdown` removes that run root unless it grew a `repo/`, in which case it is left for the sweep to promote. `repo/` is the only durable/transient discriminator. |
