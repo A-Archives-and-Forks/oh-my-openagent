@@ -201,9 +201,8 @@ export function planMigration(options) {
   const collected = collectOmoAdditions(config, configDir, warnings, readFirstExisting)
   const { additions } = collected
   for (const path of collected.sourcePaths) sourcePaths.add(path)
-  const agentScopes = [existingOmo, ...Object.values(isRecord(existingOmo.profiles) ? existingOmo.profiles : {})]
   for (const name of collected.restrictedAgents) {
-    if (agentScopes.some((scope) => scope?.agents?.[name]?.disable === false || scope?.["[senpi]"]?.agents?.[name]?.disable === false)) {
+    if (existingOmo.agents?.[name]?.disable === false) {
       delete additions.agents[name]
       warnings.push(`agents.${name} (restricted source skipped; existing enabled agent preserved; manual review required)`)
     } else warnings.push(`agents.${name} (disabled because its OpenCode restrictions cannot be represented)`)

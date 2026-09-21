@@ -122,13 +122,10 @@ test("#given invalid migrate arguments #when either entrypoint runs #then diagno
   expect(existsSync(join(item.home, ".omo"))).toBe(false)
 })
 
-test.each(["root", "senpi", "profile", "profile-senpi"].flatMap((layer) => ["inline", "markdown"].map((source) => [layer, source])))("#given an enabled %s agent and restricted %s source #when migrating #then the entire conflicting import is skipped", (layer, source) => {
+test.each(["inline", "markdown"])("#given an enabled native agent and restricted %s source #when migrating #then the entire conflicting import is skipped", (source) => {
   const item = fixture()
   const existing = { description: "Existing reviewer", disable: false }
-  const agentLayer = { agents: { reviewer: existing } }
-  const scoped = layer === "senpi" || layer === "profile-senpi" ? { "[senpi]": agentLayer } : agentLayer
-  const original: Record<string, unknown> = layer.startsWith("profile") ? { profiles: { unrelated: {}, testing: scoped } } : scoped
-  write(join(item.home, ".omo", "omo.json"), original)
+  write(join(item.home, ".omo", "omo.json"), { agents: { reviewer: existing } })
   write(join(item.config, "opencode.json"), {
     agent: {
       helper: { prompt: "Compatible helper" },
@@ -138,14 +135,8 @@ test.each(["root", "senpi", "profile", "profile-senpi"].flatMap((layer) => ["inl
   if (source === "markdown") write(join(item.config, "agents", "reviewer.md"), "---\npermission:\n  edit: deny\n---\nRestricted incoming prompt\n")
   const result = run(item)
   expect(result.status, result.stderr).toBe(0)
-  const target = json(join(item.home, ".omo", "omo.json"))
-  if (layer === "root") expect(target.agents.reviewer).toEqual(existing)
-  else {
-    expect(target.agents.reviewer).toBeUndefined()
-    const key = layer === "senpi" ? "[senpi]" : "profiles"
-    expect(target[key]).toEqual(original[key])
-  }
-  const loaded = loadOmoConfig({ cwd: item.home, env: { HOME: item.home, USERPROFILE: item.home }, harness: "senpi", profile: layer.startsWith("profile") ? "testing" : undefined })
+  expect(json(join(item.home, ".omo", "omo.json")).agents.reviewer).toEqual(existing)
+  const loaded = loadOmoConfig({ cwd: item.home, env: { HOME: item.home, USERPROFILE: item.home }, harness: "senpi" })
   expect(loaded.config.agents?.reviewer?.disable).toBe(false)
   expect(loaded.config.agents?.reviewer?.prompt).toBeUndefined()
   expect(loaded.config.agents?.helper?.prompt).toBe("Compatible helper")
