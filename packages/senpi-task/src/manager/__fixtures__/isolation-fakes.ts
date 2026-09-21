@@ -1,10 +1,12 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
+import { BACKEND_FILE } from "@oh-my-opencode/isolation-core"
+
 import { OmoTaskSettingsSchema, type OmoTaskSettings } from "@oh-my-opencode/omo-config-core"
 
-import { createIsolationRuntime, type IsolationRuntime } from "../../isolation"
+import { createIsolationRuntime, isolationBackends, type IsolationRuntime } from "../../isolation"
 import type { RunnerOutcome } from "../../runners/in-process/child-handle"
 import { createTaskRecordStore, type TaskRecordStore } from "../../store"
 import type { ManagedChildHandle } from "../child-handle"
@@ -14,8 +16,37 @@ import { categoryPlanner, makeHandle, type FakeHandle } from "./manager-fakes"
 
 const roots: string[] = []
 
-export function cleanupIsolationProjects(): void {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+/**
+ * Release every sandbox a test left behind through its own recorded backend before the tree is
+ * removed. A tree-cloning backend can leave the sandbox MOUNTED - `fuse-overlayfs` on Linux is the
+ * case CI hits - both for a retained workspace (`not-applied` / `retained` relocate and re-mount by
+ * contract) and for a child the test never settled. `rm` cannot remove a live mount point, so a raw
+ * recursive delete of the fixture root fails `EBUSY`. isolation-core's contract for removing such a
+ * tree by hand is to stop its recorded backend at `<dir>/m` first; that is what this does.
+ */
+export async function releaseSandboxes(homeDir: string): Promise<void> {
+  const worktrees = join(homeDir, ".omo", "wt")
+  if (!existsSync(worktrees)) return
+  const backends = isolationBackends()
+  for (const entry of readdirSync(worktrees, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue
+    const sandbox = join(worktrees, entry.name)
+    const markerPath = join(sandbox, BACKEND_FILE)
+    if (!existsSync(markerPath)) continue
+    const marker: unknown = JSON.parse(readFileSync(markerPath, "utf8"))
+    const kind = typeof marker === "object" && marker !== null && "backend" in marker ? marker.backend : undefined
+    const backend = backends.find((candidate) => candidate.kind === kind)
+    if (backend === undefined) continue
+    await backend.stop(join(sandbox, "m"))
+    rmSync(sandbox, { recursive: true, force: true })
+  }
+}
+
+export async function cleanupIsolationProjects(): Promise<void> {
+  for (const root of roots.splice(0)) {
+    await releaseSandboxes(join(root, "home"))
+    rmSync(root, { recursive: true, force: true })
+  }
 }
 
 function run(cwd: string, argv: readonly string[]): void {
