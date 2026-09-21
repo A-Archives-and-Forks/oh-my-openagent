@@ -132,7 +132,13 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
   await listen()
   const rebind = async (): Promise<void> => {
     // A restarted generation answers as a new pipe instance: the old one's name
-    // stays reserved on win32 while a reconnecting client still holds it.
+    // stays reserved on win32 while a reconnecting client still holds it. The
+    // old listener is fully closed and its connections dropped BEFORE the new
+    // secret is published, so exactly one generation can ever answer: clients
+    // holding the old secret find a dead pipe, and every fresh connection reads
+    // the published secret of the new generation only.
+    await dropConnections()
+    await closeServer()
     transport = transport.rotate()
     await listen()
   }
@@ -159,7 +165,19 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
 
   const closeServer = (): Promise<void> =>
     new Promise<void>((resolve) => {
-      server.close(() => resolve())
+      const closing = server
+      let settled = false
+      const done = (): void => {
+        if (settled) return
+        settled = true
+        // The listener only stops accepting once it emits 'close'; a second
+        // close() call (crash() already closed it) resolves its callback at once
+        // while the pipe may still be tearing down, so 'close' is the authority.
+        closing.once("close", () => resolve())
+        closing.close(() => resolve())
+      }
+      if (closing.listening) done()
+      else resolve()
     })
 
   return {

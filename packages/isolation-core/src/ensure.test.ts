@@ -65,6 +65,18 @@ test("generic probe error propagates without falling through", async () => {
     backend({ kind: "apfs", probe: async () => { throw failure } }), backend(),
   ] })).rejects.toBe(failure)
 })
+test("a probing backend whose CLI fails falls through instead of aborting the walk", async () => {
+  const f = await fixture()
+  // ReFS on a hosted runner: fsutil exits non-zero. The candidate walk must
+  // record the reason and use the next backend, never surface the CLI failure.
+  const handle = await ensureIsolation({ ...f, id: "one", platform: "win32", backends: [
+    backend({ kind: "block-clone", probe: async () => ({ available: false, reason: "fsutil volumeinfo failed (1): The volume does not exist" }) }),
+    backend(),
+  ] })
+  expect(handle.backend).toBe("rcopy")
+  expect(handle.fellBack).toBe(true)
+  expect(handle.fallbackReason).toContain("volume does not exist")
+})
 test("all unavailable yields a typed error", async () => {
   await expect(ensureIsolation({ ...await fixture(), id: "one", backends: [] })).rejects.toBeInstanceOf(IsolationUnavailableError)
 })

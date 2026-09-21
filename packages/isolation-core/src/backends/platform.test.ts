@@ -257,9 +257,14 @@ test("zfs unexpected snapshot failures remain hard errors", async () => {
   expect(failure instanceof IsolationUnavailableError).toBe(false)
 })
 
-test("ReFS probe propagates fsutil failures instead of reporting not-ReFS", async () => {
+test("ReFS probe classifies fsutil failures as unavailable so the walk can fall through", async () => {
   const backend = new BlockCloneBackend(fake({ platform: "win32" as const, run: async () => ({ code: 1, stdout: "", stderr: "The volume does not exist" }) }).io)
-  await expect(backend.probe("C:\\repo")).rejects.toThrow("volume does not exist")
+  // A probe-time CLI failure is a capability gap (missing volume, privileges,
+  // transient fsutil error), never an operational failure: ensure's candidate
+  // walk must fall through to the next backend with the reason recorded.
+  const result = await backend.probe("C:\\repo")
+  expect(result.available).toBe(false)
+  expect(result.reason).toContain("volume does not exist")
 })
 
 test("overlayfs mount capability failures fall through as unavailable", async () => {
