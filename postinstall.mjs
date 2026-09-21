@@ -19,7 +19,8 @@ const OPENCODE_VERSION_PROBE_TIMEOUT_MS = 3_000;
 const OPENCODE_PLUGIN_PACKAGES = ["oh-my-opencode", "oh-my-openagent"];
 const RENAME_NOTICE =
   "oh-my-openagent: the 'omo' command is now 'omo-agent-toolkit' (the old name was removed in this major release).";
-const SENPI_NOTICE = "Standalone Senpi edition: bun add -g omo-ai@beta";
+const SENPI_NOTICE =
+  "oh-my-openagent: a standalone Senpi edition (beta) is available - one 'omo' command, no OpenCode host: bun add -g omo-ai@beta";
 
 /**
  * Parse version string into numeric parts
