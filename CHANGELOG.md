@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-beta.82] - 2026-09-21
+
 ### Added
 
 - The OpenCode edition now tells you the standalone Senpi edition exists. Finishing `oh-my-openagent install` — the interactive setup or `--no-tui` — prints a short pointer: omo also ships as a standalone Senpi edition with one `omo` command and no OpenCode host, installed with `bun add -g omo-ai@beta`, with a link to the installation guide. The package postinstall prints the same one-line notice. Installs that target the senpi platform itself do not get the pointer. ([#8593](https://github.com/code-yeongyu/oh-my-openagent/issues/8593))
