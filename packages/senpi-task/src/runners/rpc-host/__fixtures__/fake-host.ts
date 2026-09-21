@@ -81,7 +81,6 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
   let identity = fakeProtocolInfo(options)
   let generation = typeof identity.generation === "number" ? identity.generation : 1
   let openFailure = options.openFailure
-  let server: Server
 
   const record = (command: FakeHostCommand): void => {
     commands.push(command)
@@ -104,8 +103,15 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
     }
   }
 
-  const listen = async (owner: FakeHostTransport = transport): Promise<void> => {
-    server = createServer((socket) => owner.authenticate(socket, () => {
+  interface ActiveGeneration {
+    readonly server: Server
+    /** Sockets accepted by THIS generation only; retirement destroys exactly these. */
+    readonly sockets: Set<Socket>
+  }
+  const listen = async (owner: FakeHostTransport = transport): Promise<ActiveGeneration> => {
+    const accepted: Set<Socket> = new Set()
+    const created: Server = createServer((socket) => owner.authenticate(socket, () => {
+      accepted.add(socket)
       sockets.add(socket)
       settleConnectionWaiters()
       let buffer = ""
@@ -122,20 +128,23 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
       })
       socket.on("error", () => undefined)
       socket.on("close", () => {
+        accepted.delete(socket)
         sockets.delete(socket)
         table.detach(socket)
         settleConnectionWaiters()
       })
     }))
     await new Promise<void>((resolve, reject) => {
-      server.once("error", reject)
-      server.listen(owner.listenAddress, () => {
-        server.off("error", reject)
+      created.once("error", reject)
+      created.listen(owner.listenAddress, () => {
+        created.off("error", reject)
         resolve()
       })
     })
+    return { server: created, sockets: accepted }
   }
-  await listen()
+  let active: ActiveGeneration = await listen()
+  let server: Server = active.server
   // The restart mirrors the real daemon's generation change: the NEW generation binds its
   // OWN pipe first (a win32 named pipe with no server handles simply does not exist, so a
   // close-then-rebind window would answer reconnecting clients with ENOENT and stall the
@@ -145,23 +154,29 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
   // (draining, never re-prompting), after the swap only the new.
   const rebind = async (): Promise<void> => {
     if (process.platform === "win32") {
-      // win32: the next generation derives its OWN pipe name, binds it while the old
+      // win32: the next generation derives its OWN pipe name and binds it while the old
       // generation still answers (a closed pipe with no server handles simply does not
       // exist, so a close-then-rebind window would answer reconnecting clients with
-      // ENOENT and stall the runner), then the old generation is retired and the new
-      // secret published atomically - exactly one answering generation at every instant.
+      // ENOENT and stall the runner). Only after the new listener is up do the shared
+      // handles swap, the new secret publish atomically, and the OLD generation - its
+      // listener and exactly the sockets IT accepted - retire. One answering
+      // generation at every instant.
       const next = transport.deriveNext()
-      await listen(next)
-      dropConnections()
-      await closeServer()
+      const nextActive = await listen(next)
+      const previous = active
+      active = nextActive
+      server = nextActive.server
       transport = next
       transport.publish()
+      for (const socket of previous.sockets) socket.destroy()
+      await closeServer(previous.server)
       return
     }
     // POSIX: one path is the whole address; rebind it once the old listener is closed.
-    dropConnections()
-    await closeServer()
-    await listen()
+    for (const socket of [...sockets]) socket.destroy()
+    await closeServer(active.server)
+    active = await listen()
+    server = active.server
   }
 
   // The routing tag goes FIRST so a payload may carry a foreign `sessionId` on purpose - that is
@@ -184,9 +199,8 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
     for (const socket of [...sockets]) socket.end()
   }
 
-  const closeServer = (): Promise<void> =>
+  const closeServer = (target: Server): Promise<void> =>
     new Promise<void>((resolve) => {
-      const closing = server
       let settled = false
       const done = (): void => {
         if (settled) return
@@ -194,10 +208,10 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
         // The listener only stops accepting once it emits 'close'; a second
         // close() call (crash() already closed it) resolves its callback at once
         // while the pipe may still be tearing down, so 'close' is the authority.
-        closing.once("close", () => resolve())
-        closing.close(() => resolve())
+        target.once("close", () => resolve())
+        target.close(() => resolve())
       }
-      if (closing.listening) done()
+      if (target.listening) done()
       else resolve()
     })
 
@@ -258,7 +272,7 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
     crash: () => {
       table.clear()
       dropConnections()
-      server.close()
+      active.server.close()
     },
     restart: async () => {
       table.clear()
@@ -276,7 +290,7 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
           }),
     stop: async () => {
       dropConnections()
-      await closeServer()
+      await closeServer(active.server)
       rmSync(dir, { recursive: true, force: true })
     },
   }
