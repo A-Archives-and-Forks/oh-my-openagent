@@ -29,6 +29,39 @@ function persisted(fields: Record<string, unknown>): Record<string, unknown> {
 }
 
 describe("record-parse launch evidence", () => {
+  test("isolation and v1 isolation preserve Windows paths through JSON", () => {
+    const isolation = { backend: "rcopy", merged_dir: "C:\\clone\\child", base_dir: "C:\\base\\repo", mode: "branch", apply: false } as const
+    const spawnSpec = { version: 1, cwd: "C:\\clone\\child", prompt: "Inspect", isolation } as const
+    const stored = persisted({
+      isolation,
+      spawn_spec: spawnSpec,
+    })
+    const parsed = parseTaskRecord(JSON.parse(JSON.stringify(stored)), "record.json")
+    expect(parsed.isolation).toEqual(isolation)
+    expect(parsed.spawn_spec).toEqual(spawnSpec)
+  })
+
+  test("legacy records omit isolation", () => {
+    expect(parseTaskRecord(persisted({}), "record.json")).not.toHaveProperty("isolation")
+  })
+
+  test("settled isolation merge results round-trip without changing artifact paths", () => {
+    const isolation = {
+      backend: "apfs", merged_dir: "/clone", base_dir: "/base", mode: "patch", apply: true,
+      merge_result: { kind: "not-applied", changesApplied: false, duration_ms: 13, patchPath: "C:\\artifacts\\root.patch", error: "conflict" },
+    } as const
+    expect(parseTaskRecord(JSON.parse(JSON.stringify(persisted({ isolation }))), "record.json").isolation)
+      .toEqual(isolation)
+  })
+
+  test.each([
+    { backend: "projfs" }, { apply: "yes" }, { mode: "squash" }, { merged_dir: 123 },
+  ])("malformed isolation is rejected", (override) => {
+    const isolation = { backend: "rcopy", merged_dir: "/clone", base_dir: "/base", mode: "patch", apply: true, ...override }
+    expect(() => parseTaskRecord(persisted({ isolation }), "record.json")).toThrow()
+    expect(() => parseTaskRecord(persisted({ spawn_spec: { version: 1, cwd: "/clone", prompt: "Inspect", isolation } }), "record.json")).toThrow()
+  })
+
   test("#given a lost record with started_at #when persisted JSON is parsed #then the task-level launch evidence round-trips", () => {
     const startedAt = "2026-08-21T00:00:01.000Z"
     const stored = persisted({ status: "lost", started_at: startedAt })

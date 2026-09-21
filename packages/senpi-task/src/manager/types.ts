@@ -66,6 +66,9 @@ export type ManagedRunner = {
 }
 
 export type ManagerStartSpec = {
+  readonly isolated?: boolean
+  readonly apply?: boolean
+  readonly merge?: "patch" | "branch"
   readonly prompt: string
   readonly task_summary?: string
   readonly parent_session_id: string

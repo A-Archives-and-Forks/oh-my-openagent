@@ -1,4 +1,27 @@
 import type { DagTaskOwner } from "../dag/owner"
+import type { IsolationBackendKind } from "@oh-my-opencode/omo-config-core"
+
+export type { IsolationBackendKind } from "@oh-my-opencode/omo-config-core"
+
+export type TaskIsolationSpec = {
+  readonly backend: IsolationBackendKind
+  readonly merged_dir: string
+  readonly base_dir: string
+  readonly mode: "patch" | "branch"
+  readonly apply: boolean
+}
+
+export type IsolationMergeResult = {
+  readonly kind: "applied" | "already-applied" | "not-applied" | "branch-merged" | "branch-merge-failed" | "no-changes" | "retained"
+  readonly changesApplied: boolean
+  readonly duration_ms?: number
+  readonly patchPath?: string
+  readonly error?: string
+}
+
+export type IsolationRecord = TaskIsolationSpec & {
+  readonly merge_result?: IsolationMergeResult
+}
 
 export const TASK_STATUSES = [
   "pending",
@@ -137,6 +160,7 @@ export type LegacyProcessSpawnSpec = {
 // resumed process's live registries. In-process rebuild REQUIRES this shape and otherwise
 // fails spawn_spec_unavailable.
 export type SpawnSpecV1 = {
+  readonly isolation?: TaskIsolationSpec
   readonly version: 1
   readonly cwd: string
   readonly prompt: string
@@ -217,6 +241,7 @@ export type TaskRecordInput = {
 }
 
 export type TaskRecord = TaskRecordInput & {
+  readonly isolation?: IsolationRecord
   readonly task_id: string
   readonly status: TaskStatus
   readonly residency_state: ResidencyState

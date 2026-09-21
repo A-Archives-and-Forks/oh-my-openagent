@@ -82,6 +82,9 @@ export type TaskToolDeps = {
 export type TaskToolMode = "spawn"
 
 type ResolvedSpawnItemBase = {
+  readonly isolated?: boolean
+  readonly apply?: boolean
+  readonly merge?: "patch" | "branch"
   readonly prompt: string
   readonly task_summary?: string
   readonly description?: string

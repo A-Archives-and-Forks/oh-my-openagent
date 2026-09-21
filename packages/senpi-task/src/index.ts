@@ -40,6 +40,10 @@ export {
 } from "./state"
 export type {
   BackgroundMode,
+  IsolationBackendKind,
+  IsolationMergeResult,
+  IsolationRecord,
+  TaskIsolationSpec,
   CostReportStatus,
   DurationSourceStatus,
   LegacyProcessSpawnSpec,

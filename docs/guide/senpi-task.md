@@ -99,6 +99,23 @@ There is no `team_wait` tool. When the next step depends on a reply, send with `
 
 ## Configuration
 
+### Checkout isolation
+
+The task tool accepts `isolated`, `apply`, and `merge` on a single request or
+each batch item. Items inherit omitted values from the top-level request;
+explicit `false` wins. `apply` and `merge` are invalid unless isolation is on,
+either through `isolated: true` or the setting below. There is no free-form
+`cwd` parameter. These contracts prepare checkout isolation; clone creation
+and merge-back are supplied by the isolation lifecycle integration.
+
+| Setting | Default | Meaning |
+| --- | --- | --- |
+| `task.isolation.enabled` | `false` | Opt children into checkout isolation when `isolated` is omitted. |
+| `task.isolation.backend` | `auto` | Select `auto`, `apfs`, `btrfs`, `zfs`, `reflink`, `overlayfs`, `block-clone`, or `rcopy`. |
+| `task.isolation.apply` | `true` | Merge completed child changes back; `false` keeps patch/branch artifacts only. |
+| `task.isolation.merge` | `patch` | Choose patch application or branch integration (`branch`). |
+| `task.isolation.commits` | `generic` | Choose generic or AI-generated commit messages (`ai`). |
+
 All defaults live in `omo.json` under `task` and `teams`. A minimal project config:
 
 ```jsonc
