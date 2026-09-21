@@ -1,5 +1,5 @@
 import { chmod, lstat, lutimes, mkdir, readdir, readlink, statfs, symlink, utimes } from "node:fs/promises"
-import { join } from "node:path"
+import { isAbsolute, join, relative, resolve } from "node:path"
 import { IsolationUnavailableError } from "../backend"
 
 export async function copyBudget(base: string, max = 2 * 1024 ** 3,
@@ -19,6 +19,17 @@ export async function copyTree(source: string, destination: string,
   clone: (source: string, destination: string, size: number) => Promise<void>,
   consume: (size: number) => void,
 ): Promise<void> {
+  // The volume walk can place the destination inside the source (a subvolume
+  // repository root reports its own st_dev). Never descend into the tree this
+  // copy is itself producing, or the walk chases its own output forever.
+  return copyTreeSkipping(source, destination, clone, consume, resolve(destination))
+}
+
+async function copyTreeSkipping(source: string, destination: string,
+  clone: (source: string, destination: string, size: number) => Promise<void>,
+  consume: (size: number) => void,
+  skipRoot: string,
+): Promise<void> {
   const info = await lstat(source)
   if (info.isSymbolicLink()) {
     await symlink(await readlink(source), destination)
@@ -27,11 +38,21 @@ export async function copyTree(source: string, destination: string,
   }
   if (info.isDirectory()) {
     await mkdir(destination)
-    for (const entry of await readdir(source)) await copyTree(join(source, entry), join(destination, entry), clone, consume)
+    for (const entry of await readdir(source)) {
+      const child = join(source, entry)
+      if (isAtOrBelow(child, skipRoot)) continue
+      await copyTreeSkipping(child, join(destination, entry), clone, consume, skipRoot)
+    }
   } else if (info.isFile()) {
     consume(info.size)
     await clone(source, destination, info.size)
   } else return // sockets, FIFOs and devices are not copyable state
   await chmod(destination, info.mode)
   await utimes(destination, info.atime, info.mtime)
+}
+
+function isAtOrBelow(path: string, root: string): boolean {
+  const resolved = resolve(path)
+  const rel = relative(root, resolved)
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))
 }

@@ -1,3 +1,11 @@
+test("btrfs snapshots a subvolume whose st_dev differs from the parent directory", async () => {
+  const f = await paths()
+  const { io, calls } = fake({ device: async (path) => (path === f.repoRoot ? 7 : 9) })
+  const backend = new BtrfsBackend(io)
+  await backend.start(f.repoRoot, f.merged, f.ctx)
+  expect(calls).toContainEqual(["btrfs", "subvolume", "snapshot", f.repoRoot, f.merged])
+})
+
 import { expect, test } from "bun:test"
 import { access, mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
@@ -24,7 +32,7 @@ async function paths() {
   return { ...f, baseDir, merged: join(baseDir, "m"), ctx: { id: "test", baseDir, crossDevice: false } }
 }
 
-test("btrfs checks binary, subvolume and device then snapshots/deletes with argv", async () => {
+test("btrfs checks binary and subvolume then snapshots/deletes with argv", async () => {
   const f = await paths(), { io, calls } = fake()
   const backend = new BtrfsBackend(io)
   expect((await backend.probe(f.repoRoot)).available).toBe(true)
@@ -42,7 +50,9 @@ test("btrfs checks binary, subvolume and device then snapshots/deletes with argv
     expect((await new BtrfsBackend(fake(override).io).probe(f.repoRoot)).available).toBe(false)
   }
   await expect(backend.start(f.repoRoot, f.merged, { ...f.ctx, crossDevice: true })).rejects.toBeInstanceOf(IsolationUnavailableError)
-  await expect(new BtrfsBackend(fake({ device: async (p) => p === f.repoRoot ? 1 : 2 }).io).start(f.repoRoot, f.merged, f.ctx)).rejects.toBeInstanceOf(IsolationUnavailableError)
+  // A subvolume reports its own st_dev, so differing devices are not a
+  // cross-device signal here; the CLI failure classifier owns that verdict.
+  await new BtrfsBackend(fake({ device: async (p) => p === f.repoRoot ? 1 : 2 }).io).start(f.repoRoot, f.merged, f.ctx)
 })
 
 test("zfs dataset-root probe, snapshot/clone, relocation and restart-safe stop", async () => {

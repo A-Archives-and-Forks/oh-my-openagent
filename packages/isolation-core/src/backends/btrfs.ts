@@ -17,7 +17,7 @@ export class BtrfsBackend implements IsolationBackend {
   }
   async start(lower: string, merged: string, ctx: IsolationContext) {
     await mkdir(dirname(merged), { recursive: true })
-    if (ctx.crossDevice || await this.io.device(lower) !== await this.io.device(dirname(merged))) throw new IsolationUnavailableError("btrfs requires the same device")
+    if (ctx.crossDevice) throw new IsolationUnavailableError("btrfs requires the same device")
     const probe = await this.probe(lower)
     if (!probe.available) throw new IsolationUnavailableError(probe.reason)
     const result = await this.io.run(["btrfs", "subvolume", "snapshot", lower, merged])
