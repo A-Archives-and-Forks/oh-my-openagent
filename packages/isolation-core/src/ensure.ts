@@ -5,6 +5,8 @@ import { dirname, join } from "node:path"
 import { IsolationUnavailableError, resolveCandidates, type BackendKind, type IsolationBackend } from "./backend"
 import { chooseBaseDir } from "./base-dir"
 import { writeOwnerMarker, type IsolationOwner } from "./owner"
+import { detachGitDir, scanNestedGitDirs, type NestedGitResult } from "./git/detach-git-dir"
+import { exists, git, gitResult } from "./git/command"
 
 export interface IsolationHandle {
   readonly mergedDir: string
@@ -12,6 +14,9 @@ export interface IsolationHandle {
   readonly backend: BackendKind
   readonly fellBack: boolean
   readonly fallbackReason: string | null
+  readonly strategy_detail?: string
+  readonly nested_git_rewritten: string[]
+  readonly nested_git_skipped: string[]
   readonly stop: (mergedDir: string) => Promise<void>
 }
 
@@ -23,6 +28,7 @@ export interface EnsureIsolationOptions {
   readonly platform?: NodeJS.Platform
   readonly homeDir?: string
   readonly owner?: IsolationOwner
+  readonly maxCopyBytes?: number
 }
 
 export class IsolationExistsError extends Error {
@@ -66,11 +72,25 @@ export async function ensureIsolation(options: EnsureIsolationOptions): Promise<
       await writeOwnerMarker(creating, id, options.owner)
       await writeFile(join(creating, ".omo-isolation-backend.json"), JSON.stringify({ backend: kind }))
       startAttempted = true
-      await backend.start(repoRoot, merged, { id, baseDir: creating, crossDevice })
+      let detail: void | { strategy_detail: string }
+      let nested: NestedGitResult = { nested_git_rewritten: [], nested_git_skipped: [] }
+      const common = await exists(join(repoRoot, ".git"))
+        ? (await git(repoRoot, ["rev-parse", "--path-format=absolute", "--git-common-dir"])).toString().trim()
+        : join(repoRoot, ".git")
+      for (let attempt = 0; attempt < 2; attempt++) {
+        detail = await backend.start(repoRoot, merged, { id, baseDir: creating, crossDevice, maxCopyBytes: options.maxCopyBytes })
+        const detached = await detachGitDir(merged, common)
+        nested = await scanNestedGitDirs(merged)
+        if (detached === "no-git") break
+        const status = await gitResult(merged, ["status", "--porcelain"])
+        if (status.code === 0) break
+        if (attempt === 1) throw new IsolationUnavailableError(`Git snapshot inconsistent after retry: ${status.stderr}`)
+        await backend.stop(merged)
+      }
       await rename(creating, baseDir)
       return {
         baseDir, mergedDir: join(baseDir, "m"), backend: kind,
-        fellBack: index > 0, fallbackReason,
+        fellBack: index > 0, fallbackReason, strategy_detail: detail!?.strategy_detail, ...nested,
         stop: (path) => backend.stop(path),
       }
     } catch (error) {

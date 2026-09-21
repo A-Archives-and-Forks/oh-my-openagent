@@ -12,13 +12,14 @@ export interface IsolationContext {
   readonly id: string
   readonly baseDir: string
   readonly crossDevice: boolean
+  readonly maxCopyBytes?: number
 }
 
 export interface IsolationBackend {
   readonly kind: BackendKind
   readonly clonesTree: boolean
   probe(repoRoot: string): Promise<ProbeResult>
-  start(lower: string, merged: string, ctx: IsolationContext): Promise<void>
+  start(lower: string, merged: string, ctx: IsolationContext): Promise<void | { strategy_detail: string }>
   stop(merged: string): Promise<void>
 }
 

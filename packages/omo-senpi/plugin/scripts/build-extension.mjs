@@ -66,13 +66,14 @@ const builtinModuleNames = builtinModules
   .filter((moduleName) => !moduleName.startsWith("_"))
   .sort()
 const externalSpecifiers = [
+  "bun:ffi",
   "#omo-task-runtime",
   "#omo-agent-toolkit-sdk",
   ...SENPI_LOADER_ALIASES,
   ...builtinModuleNames,
   ...builtinModuleNames.map((moduleName) => `node:${moduleName}`),
 ]
-const sdkExternalSpecifiers = [...builtinModuleNames, ...builtinModuleNames.map(name => `node:${name}`)]
+const sdkExternalSpecifiers = ["bun:ffi", ...builtinModuleNames, ...builtinModuleNames.map(name => `node:${name}`)]
 const BUILD_SETTINGS = JSON.stringify({
   target: "node",
   format: "esm",
