@@ -20,11 +20,11 @@ Both `lazycodex-ai` and `lazycodex` are shipped bin aliases that default to the 
 
 - Already use OpenCode, or want the most-tested path? Choose **Ultimate**: `bunx oh-my-openagent install`.
 - Already use Codex CLI? Choose **Light**: `npx lazycodex-ai install`.
-- Want one command without installing a host first? Choose **Senpi/native (beta)**: `npm i -g omo-ai@beta`.
+- Want one command without installing a host first? Choose **Senpi/native (beta)**: `bun add -g omo-ai@beta`.
 
 Ultimate and Light are plugins that load into a host you already run. Senpi is standalone: it ships a pinned Senpi engine with OMO built in.
 
-For Senpi, the `@beta` tag is required; bare `npm i -g omo-ai` fails by design. Do not install plain `omo` from npm: it is an unrelated package by a different author.
+For Senpi, the `@beta` tag is required; bare `bun add -g omo-ai` fails by design. Do not install plain `omo` from npm: it is an unrelated package by a different author.
 
 ## For Humans
 
@@ -161,18 +161,18 @@ Do not run a blanket trust command. Trust only packages you recognize from this 
 
 The OpenCode comment-checker hook downloads its pinned binary directly from [GitHub releases](https://github.com/code-yeongyu/go-claude-code-comment-checker/releases) on first use and caches it locally. No comment-checker npm package or lifecycle-script trust is required. If the download fails, comment checking is disabled for that process; allow GitHub access and restart OpenCode to retry.
 
-### Senpi edition (beta): `omo` via npm `omo-ai`
+### Senpi edition (beta): `omo` via `omo-ai`
 
 The senpi-native edition ships as the npm package `omo-ai` and installs a single command, `omo`, which launches the pinned senpi release with the full OMO extension loaded. No settings edits, no plugin registration, no extra setup.
 
 It is beta-channel only. The tag is mandatory:
 
 ```bash
-npm i -g omo-ai@beta
+bun add -g omo-ai@beta
 omo
 ```
 
-A bare `npm i -g omo-ai` fails with ETARGET on purpose; every published version is a prerelease, so the default channel never resolves. See the [omo-ai publishing runbook](../reference/omo-ai-publishing.md) for the mechanism.
+A bare `bun add -g omo-ai` fails with ETARGET on purpose; every published version is a prerelease, so the default channel never resolves. See the [omo-ai publishing runbook](../reference/omo-ai-publishing.md) for the mechanism.
 
 **Where omo keeps its state.** The senpi edition stores engine state under `~/.omo/agent`
 (`settings.json`, `auth.json`, `models.json`, and friends). A pre-unification flat `~/.omo` layout

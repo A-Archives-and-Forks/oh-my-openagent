@@ -1,3 +1,7 @@
+## 2026-09-21 - OpenCode-edition installs point at the standalone Senpi edition (#8593)
+
+`packages/omo-opencode/src/cli/senpi-edition-hint.ts` owns the install command, the guide URL, the hint lines and the `!hasSenpi` gate. `cli-installer.ts` prints the lines after the Magic Word box and `tui-installer.ts` logs them before the star prompt, so the two installers read one source. `postinstall.mjs` prints a one-line notice naming the edition and the command. `docs/guide/installation.md` uses the bun install line throughout, and the README anchor follows the renamed Senpi heading. Coverage: helper unit tests, CLI and TUI installer tests for both the OpenCode and senpi platforms, and the postinstall notice pin. Real-surface runs of the `--no-tui` installer and `node postinstall.mjs` in an isolated HOME are recorded on PR #8538.
+
 ## 2026-09-21 - Bound deferred LSP daemon startup retries (#8561)
 
 `callToolViaDaemon` ensures the daemon immediately on the first attempt and uses authenticated probes on its two retries, after 100 and 300 ms backoffs. A reachable daemon adds no backoff. `ensureDaemonRunning` records a five-second, endpoint-scoped cooldown after failed readiness; a successful probe clears it. Probe timeout is two seconds. The daemon CLI prints expected startup deferrals on one line and preserves stacks for unexpected errors. Lease ownership, version reaping, file layout, cancellation and written-request replay rules are unchanged.

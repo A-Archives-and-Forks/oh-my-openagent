@@ -26,6 +26,7 @@ import {
 import { getUnsupportedOpenCodeVersionMessage } from "./minimum-opencode-version"
 import { runCodexInstaller } from "./install-codex"
 import { runSenpiInstaller } from "./install-senpi"
+import { SENPI_EDITION_HINT_TITLE, senpiEditionHintLines, shouldShowSenpiEditionHint } from "./senpi-edition-hint"
 import { starGitHubRepositories } from "./star-request"
 import { getNoModelProvidersWarning, hasAnyConfiguredProvider } from "./provider-availability"
 import { ensureTuiPluginEntry } from "./config-manager/add-tui-plugin-to-tui-config"
@@ -191,6 +192,14 @@ export async function runCliInstaller(args: InstallArgs, version: string): Promi
       `deep exploration, and relentless execution until completion.`,
     "The Magic Word",
   )
+
+  if (shouldShowSenpiEditionHint(config)) {
+    printInfo(color.bold(SENPI_EDITION_HINT_TITLE))
+    for (const line of senpiEditionHintLines({ command: color.cyan, link: color.underline })) {
+      console.log(`    ${line}`)
+    }
+    console.log()
+  }
 
   if (args.tui) {
     await maybePromptForGitHubStars(config.platform)
