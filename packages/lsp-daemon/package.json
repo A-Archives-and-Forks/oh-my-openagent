@@ -35,7 +35,7 @@
 		"check": "tsc --noEmit && biome check . && npm run build"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.4.16",
+		"@biomejs/biome": "2.5.14",
 		"@oh-my-opencode/lsp-core": "file:../lsp-core",
 		"@oh-my-opencode/mcp-stdio-core": "file:../mcp-stdio-core",
 		"@types/node": "^26.6.2",
