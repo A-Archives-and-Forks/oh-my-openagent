@@ -6,7 +6,7 @@ import { join } from "node:path"
 import type { SenpiHostProtocolInfo } from "../../../lazy/senpi-barrel"
 import { FakeSessionTable, type FakeDrainedSession, type FakeHostSession } from "./fake-host-sessions"
 import { fakeProtocolInfo, probeFakeHost, type FakeHostIdentityOptions } from "./fake-host-probe"
-import { fakeHostTransport } from "./fake-host-transport"
+import { fakeHostTransport, type FakeHostTransport } from "./fake-host-transport"
 import { handleWireLine, writeFrame, type FakeHostCommand, type FakeHostOpenFailure } from "./fake-host-wire"
 
 /**
@@ -104,8 +104,8 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
     }
   }
 
-  const listen = async (): Promise<void> => {
-    server = createServer((socket) => transport.authenticate(socket, () => {
+  const listen = async (owner: FakeHostTransport = transport): Promise<void> => {
+    server = createServer((socket) => owner.authenticate(socket, () => {
       sockets.add(socket)
       settleConnectionWaiters()
       let buffer = ""
@@ -129,30 +129,39 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
     }))
     await new Promise<void>((resolve, reject) => {
       server.once("error", reject)
-      server.listen(transport.listenAddress, () => {
+      server.listen(owner.listenAddress, () => {
         server.off("error", reject)
         resolve()
       })
     })
   }
   await listen()
-  // The restarted generation rebinds the SAME address: a second published name
-  // would let both generations answer the reconnect storm and resume every
-  // child twice. win32 keeps a pipe name reserved while any handle is open, so
-  // the rebind retries until the last straggler peer handle is gone.
+  // The restart mirrors the real daemon's generation change: the NEW generation binds its
+  // OWN pipe first (a win32 named pipe with no server handles simply does not exist, so a
+  // close-then-rebind window would answer reconnecting clients with ENOENT and stall the
+  // runner), then the old generation is fully retired - connections dropped, listener closed
+  // - and only once the new listener is up is the new secret published with an atomic
+  // rename. At every instant exactly one generation answers: before the swap only the old
+  // (draining, never re-prompting), after the swap only the new.
   const rebind = async (): Promise<void> => {
-    await dropConnections()
-    await closeServer()
-    for (let attempt = 0; ; attempt += 1) {
-      try {
-        await listen()
-        return
-      } catch (error) {
-        const retryable = error instanceof Error && /EADDRINUSE|EACCES/.test(String((error as NodeJS.ErrnoException).code ?? error.message))
-        if (!retryable || attempt >= 50) throw error
-        await new Promise((resolve) => setTimeout(resolve, 100))
-      }
+    if (process.platform === "win32") {
+      // win32: the next generation derives its OWN pipe name, binds it while the old
+      // generation still answers (a closed pipe with no server handles simply does not
+      // exist, so a close-then-rebind window would answer reconnecting clients with
+      // ENOENT and stall the runner), then the old generation is retired and the new
+      // secret published atomically - exactly one answering generation at every instant.
+      const next = transport.deriveNext()
+      await listen(next)
+      dropConnections()
+      await closeServer()
+      transport = next
+      transport.publish()
+      return
     }
+    // POSIX: one path is the whole address; rebind it once the old listener is closed.
+    dropConnections()
+    await closeServer()
+    await listen()
   }
 
   // The routing tag goes FIRST so a payload may carry a foreign `sessionId` on purpose - that is
@@ -253,16 +262,6 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
     },
     restart: async () => {
       table.clear()
-      dropConnections()
-      // A named pipe's name stays reserved until every peer handle is gone, so
-      // the restart waits for the destroyed connections to actually close before
-      // the next generation binds - straggler peers that had not yet observed the
-      // destroy would otherwise race the new listener into re-prompting.
-      await Promise.all([...sockets].map((socket) => new Promise<void>((resolve) => {
-        if (socket.destroyed) return resolve()
-        socket.once("close", () => resolve())
-      })))
-      await closeServer()
       await rebind()
     },
     waitForCommand: (type) =>

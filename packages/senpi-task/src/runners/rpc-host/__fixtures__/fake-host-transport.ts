@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto"
-import { readFileSync, writeFileSync } from "node:fs"
+import { readFileSync, renameSync, writeFileSync } from "node:fs"
 import { connect, type Socket } from "node:net"
 import { win32 } from "node:path"
 
@@ -21,22 +21,40 @@ export interface FakeHostTransport {
   readonly listenAddress: string
   /** Runs `accept` once the connection is allowed to carry wire frames. */
   authenticate(socket: Socket, accept: () => void): void
+  /**
+   * Derives the NEXT generation's pipe WITHOUT publishing it: the new listener can bind before
+   * the old generation goes away, and the published `.secret` file is swapped atomically
+   * (write + rename) only once the caller decides the new generation owns the address. Until
+   * the swap, every client still resolves the OLD pipe - exactly one generation answers.
+   */
+  deriveNext(): FakeHostTransport
+  /** Publishes this generation's secret where connecting clients read it (atomic rename). */
+  publish(): void
 }
 
 export function fakeHostTransport(socketPath: string, platform: NodeJS.Platform = process.platform): FakeHostTransport {
   if (platform !== "win32") {
-    return { listenAddress: socketPath, authenticate: (_socket, accept) => accept() }
+    // A unix socket path is its own published address: rebinding after close is the whole story.
+    return {
+      listenAddress: socketPath,
+      authenticate: (_socket, accept) => accept(),
+      deriveNext: () => fakeHostTransport(socketPath, platform),
+      publish: () => undefined,
+    }
   }
-  // One address for the fixture's whole lifetime: a SECOND published name would let
-  // both generations answer during the reconnect storm after a restart, resuming
-  // every child twice. The listener rebinds this same name once the old handles
-  // are gone (the restart awaits the peers' close first).
-  const secret = randomBytes(SECRET_BYTES)
-  writeFileSync(`${socketPath}.secret`, secret, { mode: 0o600 })
-  return {
+  const bind = (secret: Buffer): FakeHostTransport => ({
     listenAddress: pipeNameFor(socketPath, secret),
     authenticate: (socket, accept) => authenticateHandshake(socket, secret, accept),
-  }
+    deriveNext: () => bind(randomBytes(SECRET_BYTES)),
+    publish: () => {
+      const temporary = `${socketPath}.secret.tmp`
+      writeFileSync(temporary, secret, { mode: 0o600 })
+      renameSync(temporary, `${socketPath}.secret`)
+    },
+  })
+  const initial = bind(randomBytes(SECRET_BYTES))
+  initial.publish()
+  return initial
 }
 
 function authenticateHandshake(socket: Socket, secret: Buffer, accept: () => void): void {
@@ -57,14 +75,13 @@ function authenticateHandshake(socket: Socket, secret: Buffer, accept: () => voi
   const onData = (chunk: Buffer): void => {
     received = Buffer.concat([received, chunk])
     if (received.length < secret.length) return
-    finish()
-    if (!timingSafeEqual(received.subarray(0, secret.length), secret)) {
-      socket.destroy()
-      return
-    }
+    const matches = timingSafeEqual(received.subarray(0, secret.length), secret)
     const remainder = received.subarray(secret.length)
-    if (remainder.length > 0) socket.unshift(remainder)
-    accept()
+    finish()
+    if (matches) {
+      if (remainder.length > 0) socket.unshift(remainder)
+      accept()
+    } else socket.destroy()
   }
   socket.on("data", onData)
   socket.once("error", onError)

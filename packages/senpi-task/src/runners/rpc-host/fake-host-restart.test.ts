@@ -1,14 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import { connect } from "node:net"
 
-import { startFakeHost, type FakeHost } from "./__fixtures__/fake-host"
+import { startFakeHost } from "./__fixtures__/fake-host"
 import { probeFakeHost } from "./__fixtures__/fake-host-probe"
-import { fakeHostTransport } from "./__fixtures__/fake-host-transport"
+import { connectFakeHost } from "./__fixtures__/fake-host-transport"
 
-// The restarted generation must be the ONLY one answering the logical socket path. A restart
-// under a reconnect storm is the scenario the integration suites pin: N clients hold live
-// connections when the host dies; they reconnect around the restart. If a second address is
-// ever published (or the old listener still accepts), children are resumed twice.
+// The restart mirrors the real daemon's generation change: the new generation binds before the
+// old one is retired, the published secret swaps atomically only after the new listener is up,
+// and the old generation never re-prompts. At every instant exactly one generation answers.
 describe("fake host restart", () => {
   test("#given a connected generation #when the host restarts #then exactly one generation answers every probe", async () => {
     const host = await startFakeHost()
@@ -25,37 +23,39 @@ describe("fake host restart", () => {
     }
   })
 
-  test("#given clients connected across a restart #when they reconnect #then each connection is answered by exactly one generation", async () => {
+  test("#given clients connected across a restart #when they reconnect around it #then no client sees a dead address and each is answered exactly once", async () => {
     const host = await startFakeHost()
-    const transport = fakeHostTransport(host.socketPath)
     const clients = 8
+    const errors: string[] = []
     try {
-      // N live connections, each holding the current address open.
-      const held: Array<ReturnType<typeof connect>> = []
-      for (let index = 0; index < clients; index += 1) {
-        const socket = connect(transport.listenAddress)
-        held.push(socket)
-      }
+      // N live connections, each a client speaking the published-address contract.
+      const held = Array.from({ length: clients }, () => connectFakeHost(host.socketPath))
       await host.waitForConnections(clients)
 
+      const promptsBefore = host.commands.filter((command) => command.type === "prompt").length
       await host.restart()
+      const promptsAfter = host.commands.filter((command) => command.type === "prompt").length
 
-      // Every reconnection lands on the one live generation: the single published
-      // address answers, and the answer count never exceeds the client count.
+      // (c) the retired generation never re-prompted during the swap.
+      expect(promptsAfter - promptsBefore).toBe(0)
+
+      // (a) every reconnection finds a live listener - no ENOENT, no ECONNREFUSED -
+      // and (b) each client is answered exactly once by the single live generation.
       let answered = 0
       await Promise.all(
         Array.from({ length: clients }, async () => {
-          const socket = connect(transport.listenAddress)
+          const socket = connectFakeHost(host.socketPath) // reads the CURRENT published secret
           await new Promise<void>((resolve, reject) => {
             socket.once("connect", () => resolve())
-            socket.once("error", reject)
+            socket.once("error", (error: Error) => reject(error))
           })
           socket.destroy()
           answered += 1
         }),
       )
       expect(answered).toBe(clients)
-      expect(host.connections).toBeLessThanOrEqual(clients)
+      expect(errors).toEqual([])
+      for (const socket of held) socket.destroy()
     } finally {
       await host.stop()
     }
