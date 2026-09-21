@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
-import { escapeConfigLiteral, translateOpencodeValue, UnsupportedConfigValue } from "./config-values.js"
+import { translateOpencodeValue, UnsupportedConfigValue } from "./config-values.js"
 import { agentFromMarkdown, mergeOmoConfig, parseAgentMarkdown } from "./migration-runtime.js"
 
 const OMO_SHARED_KEYS = ["categories", "agents", "task", "teams"]
@@ -34,7 +34,9 @@ export function normalizePermission(permission) {
 }
 
 function translateProviderValue(value) {
-  return translateOpencodeValue(escapeConfigLiteral(value))
+  const translated = translateOpencodeValue(value.replace(/\$/g, () => "$$"))
+  // OpenCode treats a leading ! as literal; Senpi treats it as a shell command.
+  return translated.startsWith("!") ? `$${translated}` : translated
 }
 
 function translatedEndpoint(value) {

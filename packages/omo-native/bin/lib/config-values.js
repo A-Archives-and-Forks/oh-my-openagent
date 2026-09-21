@@ -5,11 +5,6 @@ export class UnsupportedConfigValue extends Error {
   }
 }
 
-export function escapeConfigLiteral(value) {
-  const escaped = value.replace(/\$/g, () => "$$")
-  return escaped.startsWith("!") ? `$${escaped}` : escaped
-}
-
 // Preserve references, not their current secret values. Neither file references nor
 // malformed variable expressions may become literal credentials in the target.
 export function translateOpencodeValue(value) {

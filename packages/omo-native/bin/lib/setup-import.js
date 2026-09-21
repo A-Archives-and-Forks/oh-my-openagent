@@ -9,8 +9,7 @@ import { detectHarnesses } from "./setup-detect.js"
 import { readRow, readRows } from "./sqlite-rows.js"
 import { printModelReport } from "./setup-models.js"
 import { printSetupReport } from "./setup-report.js"
-import { assertSetupTargetsUnchanged, withSetupRollback } from "./setup-transaction.js"
-import { escapeConfigLiteral } from "./config-values.js"
+import { withSetupRollback } from "./setup-transaction.js"
 import providerMap from "./provider-map.json" with { type: "json" }
 import {
   contentPlanHasWork, planContentImport, printContentCounts, printContentPlan,
@@ -195,7 +194,7 @@ function writeTarget(path, current, additions) {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 })
   if (current.bytes !== undefined) copyFileSync(path, `${path}.bak-${timestamp()}`)
   const next = { ...current.entries }
-  for (const item of additions) next[item.provider] = { type: "api_key", key: escapeConfigLiteral(item.key) }
+  for (const item of additions) next[item.provider] = { type: "api_key", key: item.key }
   const temporary = `${path}.tmp-${process.pid}`
   try {
     writeFileSync(temporary, JSON.stringify(next, null, 2), { encoding: "utf8", mode: 0o600 })
@@ -218,7 +217,7 @@ async function consent(result, contentPlan, target, options) {
     parts.push(`API credentials for ${result.additions.map((item) => item.provider).join(", ")} into ${target}`)
   }
   if (contentPlanHasWork(contentPlan)) parts.push("opencode content (mcp servers, skills, AGENTS.md)")
-  options.stdout.write(`Import ${parts.join(" and ")}? [y/N] `)
+  process.stdout.write(`Import ${parts.join(" and ")}? [y/N] `)
   const readline = createInterface({ input: options.stdin, output: options.stdout })
   try {
     return (await readline.question("")).trim().toLowerCase() === "y"
@@ -255,17 +254,16 @@ export async function runSetup(args = process.argv.slice(2), options = {}) {
     printCounts(result)
     return
   }
-  const targets = []
-  if (result.additions.length > 0) targets.push({ path: target, bytes: current.bytes })
-  if (content.mcp.add.length > 0) targets.push({ path: join(agentDir, "mcp.json"), bytes: content.mcp.expectedBytes })
-  if (content.agentsMd === "copy") targets.push({ path: join(agentDir, "AGENTS.md"), bytes: undefined })
   if (!await consent(result, content, target, { ...runtime, yes: args.includes("--yes") })) {
     if (runtime.stdin.isTTY === true) process.stdout.write("Import cancelled\n")
     return
   }
-  assertSetupTargetsUnchanged(targets)
+  const files = []
+  if (result.additions.length > 0) files.push(target)
+  if (content.mcp.add.length > 0) files.push(join(agentDir, "mcp.json"))
+  if (content.agentsMd === "copy") files.push(join(agentDir, "AGENTS.md"))
   const written = withSetupRollback({
-    files: targets.map(({ path }) => path),
+    files,
     newDirectories: content.skills.add.map((name) => join(agentDir, "skills", name)),
   }, () => {
     if (result.additions.length > 0) writeTarget(target, current, result.additions)

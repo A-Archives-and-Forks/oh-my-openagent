@@ -71,7 +71,7 @@ export function planMigration(options) {
   const settingsTarget = target(join(agentDir, "settings.json"))
   const settings = { ...settingsTarget.value }
   let settingsTouched = false
-  if (isRecord(config)) {
+  if (!items.settings && isRecord(config)) {
     if (typeof config.model === "string" && config.model.includes("/")) {
       const [rawProvider, ...modelParts] = config.model.split("/")
       const model = modelParts.join("/")
@@ -99,7 +99,7 @@ export function planMigration(options) {
   if (modelsTarget.value.providers !== undefined && !isRecord(modelsTarget.value.providers)) throw new Error("Malformed models.json providers")
   const providers = { ...(isRecord(modelsTarget.value.providers) ? modelsTarget.value.providers : {}) }
   let modelsTouched = false
-  if (isRecord(config.provider)) {
+  if (!items.models && isRecord(config.provider)) {
     for (const [id, provider] of Object.entries(config.provider)) {
       if (Object.hasOwn(providers, id)) continue
       const translated = translateProvider(id, provider)
@@ -118,7 +118,7 @@ export function planMigration(options) {
   if (mcpTarget.value.mcpServers !== undefined && !isRecord(mcpTarget.value.mcpServers)) throw new Error("Malformed mcp.json servers")
   const servers = { ...(isRecord(mcpTarget.value.mcpServers) ? mcpTarget.value.mcpServers : {}) }
   let mcpTouched = false
-  if (isRecord(config.mcp)) {
+  if (!items.mcp && isRecord(config.mcp)) {
     for (const [name, server] of Object.entries(config.mcp)) {
       if (Object.hasOwn(servers, name)) continue
       try {
@@ -144,7 +144,7 @@ export function planMigration(options) {
   const keybindingsTarget = target(join(agentDir, "keybindings.json"))
   const keybindings = { ...keybindingsTarget.value }
   let keybindingsTouched = false
-  if (isRecord(tuiEntry?.value?.keybinds)) {
+  if (!items.keybindings && isRecord(tuiEntry?.value?.keybinds)) {
     for (const [id, keys] of Object.entries(tuiEntry.value.keybinds)) {
       const mapped = KEYBIND_MAP[id]
       const normalized = normalizeKeybinding(keys)
@@ -167,21 +167,21 @@ export function planMigration(options) {
   const maskedJsonPath = join(home, ".omo", "omo.json")
   if (!isCurrentState && isRecord(state.items) && omoPath.endsWith("omo.jsonc") && existsSync(maskedJsonPath)) {
     existingOmo = mergeOmoConfig(existingOmo, readJsonOrJsonc(maskedJsonPath)).value
-    report.push("omo-config: recovered the user omo.json masked by a prior migration")
+    warnings.push("omo-config (recovered the user omo.json masked by a prior migration)")
     sourcePaths.add(maskedJsonPath)
   }
   if (!isCurrentState && legacyMaskPath !== omoPath && existsSync(legacyMaskPath)) {
     const legacyMask = readJsonOrJsonc(legacyMaskPath)
     if (legacyMask !== undefined) {
       existingOmo = mergeOmoConfig(existingOmo, legacyMask).value
-      report.push("omo-config: recovered a prior migration config from the engine directory")
+      warnings.push("omo-config (recovered a prior migration config from the engine directory)")
       sourcePaths.add(legacyMaskPath)
     }
   }
   if (!isCurrentState && isRecord(state.items) && Object.hasOwn(existingOmo, "codegraph")) {
     existingOmo = { ...existingOmo }
     delete existingOmo.codegraph
-    report.push("omo-config.codegraph: removed unsupported prior output; preserved in backup")
+    warnings.push("omo-config.codegraph (removed unsupported output from a prior migration; preserved in backup)")
   }
   const collected = collectOmoAdditions(config, configDir, warnings, readFirstExisting)
   const { additions } = collected
@@ -196,17 +196,10 @@ export function planMigration(options) {
 
   const backupDir = join(agentDir, `migration-backup-${timestamp()}-${randomUUID()}`)
   const reportPath = join(agentDir, "opencode-migration-report.json")
-  const previousReport = readJsonOrJsonc(reportPath) ?? {}
-  // No-op reruns retain the last action rows, but always refresh unresolved
-  // warnings. Volatile backup paths and "already" wording do not force a write.
-  const durableRows = writes.length === 0 && Array.isArray(previousReport.report) ? previousReport.report : report
-  const semanticReport = { version: MIGRATION_VERSION, report: durableRows, warnings: [...new Set(warnings)].sort() }
-  const previousSemantic = { version: previousReport.version, report: previousReport.report, warnings: previousReport.warnings }
-  if (JSON.stringify(semanticReport) !== JSON.stringify(previousSemantic)) {
-    writes.push({ path: reportPath, value: { ...semanticReport, backupDirectory: backupDir } })
-  }
+  const reportValue = { version: MIGRATION_VERSION, report, warnings: [...new Set(warnings)].sort(), backupDirectory: backupDir }
+  if (writes.length > 0 || !existsSync(reportPath)) appendWrite(writes, reportPath, reportValue, readJsonOrJsonc(reportPath) ?? {})
   appendWrite(writes, statePath, { version: MIGRATION_VERSION, items }, state)
-  return { backupDir, report, sourcePaths: [...sourcePaths].sort(), warnings: semanticReport.warnings, writes }
+  return { backupDir, report, sourcePaths: [...sourcePaths].sort(), warnings: reportValue.warnings, writes }
 }
 
 export { applyMigrationPlan }
