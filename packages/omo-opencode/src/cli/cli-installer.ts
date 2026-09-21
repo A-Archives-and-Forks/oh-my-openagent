@@ -142,6 +142,7 @@ export async function runCliInstaller(args: InstallArgs, version: string): Promi
   }
 
   console.log(`${SYMBOLS.star} ${color.bold(color.green(isUpdate ? "Configuration updated!" : "Installation complete!"))}`)
+  printInfo("Standalone Senpi edition (beta): bun add -g omo-ai@beta")
   if (hasOpenCode) {
     console.log(`  Run ${color.cyan("opencode")} to start!`)
   }
