@@ -82,7 +82,10 @@ export async function runGit(args: string[], options: GitOptions): Promise<{ cod
     return { code, stdout, stderr: stderr.toString() }
   } catch (error) {
     child.kill()
-    await exited
+    // The teardown kill itself makes `exited` reject with a signal death; that
+    // rejection must not displace the caller's error (the typed budget error,
+    // for one) on its way out.
+    await exited.catch(() => {})
     throw error
   }
 }
