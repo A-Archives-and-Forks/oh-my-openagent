@@ -24,10 +24,12 @@ test("FICLONE walks fd pairs, preserves metadata/symlinks and isolates writes", 
   await backend.start(f.repoRoot, merged, { id: "walk", baseDir: f.root, crossDevice: false })
   expect(requests).toEqual([0x40049409, 0x40049409])
   expect((await readdir(merged)).sort()).toEqual(["dir", "link"])
-  expect(await readlink(join(merged, "link"))).toBe("dir/data")
+  // The walk recreates the stored target verbatim; its textual form is the
+  // platform's own (win32 readlink returns backslash-separated targets).
+  expect(await readlink(join(merged, "link"))).toBe(join("dir", "data"))
   expect((await lstat(join(merged, "link"))).isSymbolicLink()).toBe(true)
   expect((await stat(join(merged, "dir", "data"))).mtimeMs).toBe(1234567890000)
-  expect((await stat(join(merged, "dir", "data"))).mode & 0o777).toBe(0o751)
+  if (process.platform !== "win32") expect((await stat(join(merged, "dir", "data"))).mode & 0o777).toBe(0o751)
   await writeFile(join(merged, "dir", "data"), "changed")
   expect(await readFile(join(f.repoRoot, "dir", "data"), "utf8")).toBe("original")
   await backend.stop(merged)

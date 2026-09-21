@@ -31,13 +31,16 @@ export interface GitOptions {
 // git runs "!" aliases and hooks through a shell, so its helpers are
 // grandchildren. Killing only the direct child leaves them writing into the
 // inherited pipes; on POSIX the child leads its own process group so the whole
-// tree goes down together.
+// tree goes down together. win32 has no process groups: the alias shell and
+// its writers survive a direct kill, keep the drained pipes open and hold
+// their working directory, so the whole spawned tree is terminated instead.
 function killTree(child: ChildProcess): void {
   if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return
   if (process.platform !== "win32") {
     try { process.kill(-child.pid, "SIGKILL"); return } catch { /* group already gone; fall through */ }
   }
-  child.kill("SIGKILL")
+  const killer = spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true })
+  killer.once("error", () => { try { child.kill("SIGKILL") } catch { /* already exited */ } })
 }
 
 /** Drain both pipes concurrently; reject before retaining output beyond the budget. */

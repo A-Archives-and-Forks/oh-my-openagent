@@ -6,10 +6,10 @@ test("btrfs snapshots a subvolume whose st_dev differs from the parent directory
   expect(calls).toContainEqual(["btrfs", "subvolume", "snapshot", f.repoRoot, f.merged])
 })
 
-import { expect, test } from "bun:test"
-import { access, mkdir, readFile, writeFile } from "node:fs/promises"
+import { afterEach, expect, test } from "bun:test"
+import { randomBytes } from "node:crypto"
+import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
-import { fixture } from "../test-fixture"
 import { BACKEND_FILE, IsolationUnavailableError } from "../backend"
 import { BtrfsBackend } from "./btrfs"
 import { ZfsBackend } from "./zfs"
@@ -26,10 +26,22 @@ function fake(overrides: Partial<BackendRuntime> = {}) {
     mounted: async () => false, waitMounted: async () => {}, ...overrides }
   return { io, calls }
 }
+const posixRoots: string[] = []
+afterEach(async () => {
+  await Promise.all(posixRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+})
 async function paths() {
-  const f = await fixture(), baseDir = join(f.root, "creating")
-  await mkdir(baseDir)
-  return { ...f, baseDir, merged: join(baseDir, "m"), ctx: { id: "test", baseDir, crossDevice: false } }
+  // The Linux-only CLI contracts in this file speak POSIX paths: a win32
+  // temp root carries the drive colon and backslashes that overlayfs rejects
+  // as option separators and the zfs dataset parse never matches. The fakes
+  // run against a POSIX-form root instead; the real filesystem resolves it
+  // drive-relative on win32, so marker and sentinel files are still real.
+  const root = `/tmp/isolation-core-posix-${randomBytes(6).toString("hex")}`
+  posixRoots.push(root)
+  const baseDir = `${root}/creating`, repoRoot = `${root}/repo`
+  await mkdir(baseDir, { recursive: true })
+  await mkdir(repoRoot, { recursive: true })
+  return { root, homeDir: `${root}/home`, repoRoot, baseDir, merged: `${baseDir}/m`, ctx: { id: "test", baseDir, crossDevice: false } }
 }
 
 test("btrfs checks binary and subvolume then snapshots/deletes with argv", async () => {
@@ -86,9 +98,9 @@ test("overlay relocates by unmount, parent rename, remount with new upper/work p
   await backend.relocate(f.baseDir, final)
   await backend.stop(join(final, "m"))
   expect(calls).toEqual([
-    ["fuse-overlayfs", "-o", `lowerdir=${f.repoRoot},upperdir=${f.baseDir}/upper,workdir=${f.baseDir}/work`, f.merged],
-    ["fusermount3", "-u", f.merged],
-    ["fuse-overlayfs", "-o", `lowerdir=${f.repoRoot},upperdir=${final}/upper,workdir=${final}/work`, join(final, "m")],
+    ["fuse-overlayfs", "-o", `lowerdir=${f.repoRoot},upperdir=${join(f.baseDir, "upper")},workdir=${join(f.baseDir, "work")}`, join(f.baseDir, "m")],
+    ["fusermount3", "-u", join(f.baseDir, "m")],
+    ["fuse-overlayfs", "-o", `lowerdir=${f.repoRoot},upperdir=${join(final, "upper")},workdir=${join(final, "work")}`, join(final, "m")],
     ["fusermount3", "-u", join(final, "m")],
   ])
   for (const override of [{ which: () => false }, { accessible: async () => false }, { platform: "darwin" as const }]) {

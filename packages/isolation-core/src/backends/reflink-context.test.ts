@@ -2,6 +2,7 @@ import { expect, test } from "bun:test"
 import { join } from "node:path"
 import { fixture } from "../test-fixture"
 import { ReflinkBackend } from "./reflink"
+import { isAtOrBelow } from "./copy-tree"
 import { runtime, type BackendRuntime } from "./runtime"
 
 function linuxIo(observe: (argv: string[], path: string) => void): BackendRuntime {
@@ -26,7 +27,7 @@ test("reflink probing writes only inside the supplied context base directory", a
   // Every path the probe touched other than the source itself must be the context
   // base directory or inside it; the nearest existing ancestor is a violation.
   const violations = [...seen.paths, ...seen.cpDestinations].filter((p) =>
-    p !== f.repoRoot && p !== ctx.baseDir && !p.startsWith(ctx.baseDir + "/"))
+    p !== f.repoRoot && p !== ctx.baseDir && !isAtOrBelow(p, ctx.baseDir))
   expect(violations).toEqual([])
 })
 

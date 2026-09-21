@@ -76,3 +76,35 @@ command. Tests mutate `.git` directly right after the fixture returns; on macOS
 CI the detached maintenance process recreated `.git/objects` between the test's
 `rm()` and `symlink()`, failing `detach-git-dir.test.ts` with EEXIST.
 `git-fixture.test.ts` pins the invariant through `GIT_TRACE`.
+
+## The windows-latest suite runs the full contract set
+
+23 tests failed on the dev full-matrix `windows-latest` 2/2 shard because
+PR CI never exercises the OS (see #8604). Three production defects are fixed:
+
+- `runGit`'s win32 teardown now terminates the whole spawned tree with
+  `taskkill /T /F` instead of only the direct git child. Windows has no
+  process groups, so alias-shell grandchildren (`!` commands) survived the
+  kill, kept the drained pipes open and held their working directory —
+  the budget-breach tests failed with EBUSY on fixture teardown and the
+  orphaned writers lingered for the rest of the shard.
+- `detachGitDir`'s canonical path resolution uses the native resolver, which
+  expands Windows 8.3 short names (`RUNNER~1`). The JS resolver leaves them
+  alone, so the worktree back-pointer identity check never matched and the
+  registration survived detach — the ensure retry then hit `git worktree add`
+  failing 128 with "missing but already registered worktree". This affects
+  any user whose temp or home path carries a short-name component.
+- `ZfsBackend.probe` reports an explicit `zfs requires Linux` reason on other
+  platforms, matching the btrfs/reflink/overlayfs platform gates, instead of
+  failing the dataset parse against foreign path forms.
+
+The remaining failures were fixture and assertion assumptions: Linux-only
+CLI contract tests (`platform.test.ts` zfs/overlay) now run against
+POSIX-form roots with expectations mirroring production's own `join`
+derivations; `base-dir`/`ensure`/`reflink-context`/`detach-git-dir`
+expectations compare resolved platform forms (`basename`, `isAtOrBelow`, the
+native-resolved forward-slash spelling git prints); filenames that NTFS
+forbids (`"`, control characters) stay on filesystems that permit them; the
+nested-repository fixture pins `core.autocrlf=false` like the shared `repo()`
+fixture; and the signal-death test accepts win32's non-zero-exit form of a
+forced kill. No test is skipped without an explicit platform reason.

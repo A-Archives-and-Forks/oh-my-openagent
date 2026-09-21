@@ -1,6 +1,14 @@
 import { expect, test } from "bun:test"
 import { access, cp, lstat, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises"
 import { isAbsolute, join, resolve } from "node:path"
+import { realpathSync } from "node:fs"
+
+/** git prints forward-slash, fully resolved paths on win32 (8.3 names expanded);
+ * the expectations compare in that form instead of the caller's spelling. POSIX
+ * keeps the registered spelling verbatim — resolving there would chase /tmp
+ * symlinks git never followed. */
+const gitPath = (path: string) =>
+  process.platform === "win32" ? realpathSync.native(path).replace(/\\/g, "/") : path
 import { git, repo } from "../backends/git-fixture"
 import { detachGitDir, scanNestedGitDirs } from "./detach-git-dir"
 import { IsolationUnavailableError } from "../backend"
@@ -20,8 +28,8 @@ test("linked-worktree detach uses private metadata and alternates, allowlists co
   expect(await detachGitDir(merged, common)).toBe("detached")
   expect(resolve(merged, await git(merged, "rev-parse", "--git-common-dir"))).toBe(join(merged, ".git"))
   expect(await git(merged, "log", "-1", "--format=%s")).toBe("fixture")
-  expect(await git(source, "worktree", "list", "--porcelain")).not.toContain(merged)
-  expect(await git(source, "worktree", "list", "--porcelain")).toContain(lower)
+  expect(await git(source, "worktree", "list", "--porcelain")).not.toContain(gitPath(merged))
+  expect(await git(source, "worktree", "list", "--porcelain")).toContain(gitPath(lower))
   await expect(lstat(admin)).rejects.toMatchObject({ code: "ENOENT" })
   const config = await readFile(join(merged, ".git/config"), "utf8")
   expect(config).not.toContain("origin")
@@ -50,7 +58,7 @@ test("copied linked metadata never deletes the source worktree admin", async () 
   await cp(linked, merged, { recursive: true })
   await detachGitDir(merged, join(repoRoot, ".git"))
   expect(await git(linked, "status", "--porcelain")).toBe("")
-  expect(await git(repoRoot, "worktree", "list", "--porcelain")).toContain(linked)
+  expect(await git(repoRoot, "worktree", "list", "--porcelain")).toContain(gitPath(linked))
 })
 
 test("nested relative submodule metadata remains functional; external metadata rewrites or fails closed", async () => {
@@ -113,8 +121,10 @@ test("ensure retries one inconsistent clone, detaches before publication, then r
 test("directory metadata rejects external symlinks beneath mutation targets", async () => {
   const { repoRoot, root } = await repo()
   await rm(join(repoRoot, ".git", "objects"), { recursive: true, force: true })
-  await symlink(join(root, "outside-objects"), join(repoRoot, ".git", "objects"))
   await mkdir(join(root, "outside-objects"), { recursive: true })
+  // The escape replaces a directory, so the symlink target form follows it;
+  // win32 resolves a file-form link at a directory path only partially (EPERM).
+  await symlink(join(root, "outside-objects"), join(repoRoot, ".git", "objects"), "dir")
   await expect(detachGitDir(repoRoot, join(repoRoot, ".git"))).rejects.toBeInstanceOf(IsolationUnavailableError)
 })
 

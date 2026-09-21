@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { access, cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises"
-import { dirname, join } from "node:path"
+import { basename, dirname, join } from "node:path"
 import { IsolationUnavailableError } from "./backend"
 import { chooseBaseDir } from "./base-dir"
 import { cleanupIsolation, ensureIsolation, retainIsolation } from "./ensure"
@@ -40,7 +40,7 @@ test("unavailable start falls through and preserves the reason", async () => {
   expect(handle.backend).toBe("rcopy")
   expect(handle.fellBack).toBe(true)
   expect(handle.fallbackReason).toContain("no clone support")
-  expect(await readdir(dirname(handle.baseDir))).toEqual([handle.baseDir.split("/").pop() ?? ""])
+  expect(await readdir(dirname(handle.baseDir))).toEqual([basename(handle.baseDir)])
 })
 test("unavailable probe skips start and falls through", async () => {
   const handle = await ensureIsolation({ ...await fixture(), id: "one", platform: "darwin", backends: [

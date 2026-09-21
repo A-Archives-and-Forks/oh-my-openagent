@@ -20,6 +20,9 @@ export class ZfsBackend implements IsolationBackend {
       .find(([, mount]) => mount?.startsWith("/") && resolve(mount) === resolve(lower))?.[0]
   }
   async probe(lower: string) {
+    // ZFS delegation is a Linux capability; say so up front on other platforms
+    // instead of failing the dataset parse against foreign path forms.
+    if (this.io.platform !== "linux") return { available: false, reason: "zfs requires Linux and a delegated ZFS dataset root" }
     return { available: !!await this.dataset(lower), reason: "source must be a delegated ZFS dataset root" }
   }
   /** Capability failures (a dataset not delegated to us) fall through; the rest propagate. */
