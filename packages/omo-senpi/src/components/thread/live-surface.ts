@@ -76,7 +76,27 @@ export function createLiveThreadSurface(_pi: SenpiExtensionAPI, options: { reado
   return {
     socket,
     listSessions: async () => (await call<{ sessions: ThreadHostSession[] }>("list_sessions")).sessions,
-    openSession: async (params) => { const result = await call<{ sessionId: string; state: ThreadHostSession }>("open_session", params as Record<string, unknown>); return { ...result.state, sessionId: result.sessionId } },
+    /**
+     * `open_session` answers with the ROUTING id and a state that carries neither the durable id
+     * nor a name, but the address book keys every entry by the durable id - so returning the wire
+     * reply as-is hands the caller an address that resolves to not_found on its very next call.
+     * The wire also has no name field on open, while the family's contract says a created thread
+     * can be named. Both are settled here, in the adapter that owns the wire: apply the name when
+     * one was asked for, then read the session list back and merge the entry the host now reports.
+     */
+    openSession: async (params) => {
+      // `retain_on_disconnect` (host capability of the same name, wire default false) makes the
+      // host DETACH instead of closing when a connection drops. This client is one-shot - the
+      // connection that opens the session ends immediately - so without the flag the new session
+      // goes straight to `closing` and every later call answers `session_closing`.
+      const result = await call<{ sessionId: string; state: ThreadHostSession }>("open_session", { ...(params as Record<string, unknown>), retain_on_disconnect: true })
+      const routingId = result.sessionId
+      const name = (params as { readonly name?: string }).name
+      if (name !== undefined && name.trim() !== "") await call("set_session_name", { sessionId: routingId, name })
+      const { sessions } = await call<{ sessions: readonly ThreadHostSession[] }>("list_sessions")
+      const listed = sessions.find((session) => session.sessionId === routingId)
+      return { ...result.state, ...(listed ?? {}), sessionId: routingId }
+    },
     getMessages: async (sessionId) => (await call<{ messages: ThreadTranscriptEntry[] }>("get_messages", { sessionId })).messages,
     getState: (sessionId) => call("get_state", { sessionId }),
     prompt: (sessionId, message, options) => call("prompt", { sessionId, message, ...options }),

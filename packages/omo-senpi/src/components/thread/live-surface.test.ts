@@ -13,7 +13,7 @@ import type { ThreadHost } from "./tools"
  * broadcasts (`agent_start`, `session_opened`) can all land on the wire ahead of the reply.
  */
 async function withRpc(
-  response: Record<string, unknown>,
+  response: Record<string, unknown> | ((frame: Record<string, unknown>) => Record<string, unknown>),
   exercise: (surface: ThreadHost, frames: Array<Record<string, unknown>>) => Promise<void>,
   preamble: (requestId: string) => Array<Record<string, unknown>> = () => [],
 ): Promise<void> {
@@ -32,7 +32,8 @@ async function withRpc(
       const frame = JSON.parse(buffer.slice(0, newline)) as Record<string, unknown>
       buffer = buffer.slice(newline + 1)
       frames.push(frame)
-      const lines = [...preamble(String(frame.id)), { id: frame.id, type: "response", command: frame.type, ...response }]
+      const answer = typeof response === "function" ? response(frame) : response
+      const lines = [...preamble(String(frame.id)), { id: frame.id, type: "response", command: frame.type, ...answer }]
       socket.end(lines.map((line) => `${JSON.stringify(line)}\n`).join(""))
     })
   })
@@ -147,11 +148,19 @@ describe("live thread session-control RPCs", () => {
 describe("live thread request correlation", () => {
   test("#given an open_session admission notice ahead of the reply #when openSession runs #then the queued frame is skipped and the correlated response is returned", async () => {
     await withRpc(
-      { success: true, data: { sessionId: "route-new", state: { cwd: "/w", name: "peer" } } },
+      (frame) =>
+        frame.type === "open_session"
+          ? { success: true, data: { sessionId: "route-new", state: { cwd: "/w" } } }
+          : frame.type === "set_session_name"
+            ? { success: true }
+            : { success: true, data: { sessions: [{ sessionId: "route-new", durableSessionId: "01a0-queued", cwd: "/w", name: "peer", status: "open" }] } },
       async (surface) => {
         const opened = await surface.openSession({ cwd: "/w", name: "peer" })
         expect(opened.sessionId).toBe("route-new")
+        expect(opened.durableSessionId).toBe("01a0-queued")
       },
+      // Every one of the three calls is preceded by the admission notice, so the skip has to hold
+      // on each connection, not just the first.
       (requestId) => [{ type: "queued", for_request: requestId, position: 1, in_flight: 0 }],
     )
   })
@@ -168,6 +177,45 @@ describe("live thread request correlation", () => {
         { id: "some-other-request", type: "response", command: "get_state", success: true, data: {} },
         { type: "session_opened", sessionId: "route-other" },
       ],
+    )
+  })
+
+  test("#given an open_session reply carrying only the routing id #when openSession runs #then the durable id from the session list is returned as the address", async () => {
+    await withRpc(
+      (frame) =>
+        frame.type === "open_session"
+          ? { success: true, data: { sessionId: "rpc-1", state: { cwd: "/w" } } }
+          : { success: true, data: { sessions: [{ sessionId: "rpc-1", durableSessionId: "01a0-durable", cwd: "/w", status: "open" }] } },
+      async (surface, frames) => {
+        const opened = await surface.openSession({ cwd: "/w" })
+        // The address book keys every entry by the durable id, so an address that is only the
+        // routing id resolves to not_found on the very next call.
+        expect(opened.durableSessionId).toBe("01a0-durable")
+        expect(opened.sessionId).toBe("rpc-1")
+        expect(frames.map((f) => f.type)).toEqual(["open_session", "list_sessions"])
+        // This client is one-shot: the connection that opens a session drops immediately. Without
+        // retain_on_disconnect the host closes that session at once and every later call is
+        // session_closing, so a created thread would never be usable.
+        expect(frames[0]).toMatchObject({ type: "open_session", retain_on_disconnect: true })
+      },
+    )
+  })
+
+  test("#given a requested name #when openSession runs #then the name is applied through set_session_name and echoed back", async () => {
+    await withRpc(
+      (frame) =>
+        frame.type === "open_session"
+          ? { success: true, data: { sessionId: "rpc-2", state: { cwd: "/w" } } }
+          : frame.type === "set_session_name"
+            ? { success: true }
+            : { success: true, data: { sessions: [{ sessionId: "rpc-2", durableSessionId: "01a0-named", cwd: "/w", name: "peer-one", status: "open" }] } },
+      async (surface, frames) => {
+        const opened = await surface.openSession({ cwd: "/w", name: "peer-one" })
+        expect(opened.name).toBe("peer-one")
+        expect(opened.durableSessionId).toBe("01a0-named")
+        expect(frames.map((f) => f.type)).toEqual(["open_session", "set_session_name", "list_sessions"])
+        expect(frames[1]).toMatchObject({ sessionId: "rpc-2", name: "peer-one" })
+      },
     )
   })
 
