@@ -1,7 +1,7 @@
 # isolation-core
 
-Harness-neutral filesystem isolation PAL; real backend implementations are supplied
-by callers. This package does not implement merge-back or task-runner integration.
+Harness-neutral filesystem isolation PAL with patch and branch merge-back.
+Task-runner integration is supplied by callers.
 
 Provenance: ported from oh-my-pi `crates/pi-iso` + `task/isolation-*`, MIT.
 Candidate ordering, unavailable-only fallback and retention follow that upstream.
@@ -33,6 +33,23 @@ host, not a Bun-callable clone operation.
 - `retainIsolation(handle, reason)` transfers the tree to a retained path and
   invalidates the old handle paths. Manual removal requires stopping its recorded
   backend at `<retainedPath>/m` before recursively removing the retained directory.
+
+- `mergeIsolatedChanges` writes root/nested patches and an isolation summary before
+  merging. `apply: false` retains artifacts without mutating the parent. Callers
+  own teardown; on artifact-write failure keep the handle and call
+  `retainIsolation(handle, reason)` rather than cleaning it up.
+- Patch apply is atomic per repository and never automatically uses `--3way`.
+  Root failure leaves nested repositories untouched; nested failure after root
+  success is reported as partial. Nested changes are committed separately.
+- Branch replay preserves child commits on clean baselines and filters inherited
+  WIP on dirty baselines. Unresolvable replay throws `IsolationCommitReplayError`
+  naming the commit and retained branch (the facade reports branch-merge-failed).
+  It does not fall back to committing the user's overlapping WIP.
+- Both modes serialize through memory-core's identity-bearing lock in Git's
+  common directory, including linked-worktree parents. Branch merges stash WIP
+  and restore with `--index`; failed pops preserve the stash and report warnings.
+- Low-level `applyDeltaPatch` takes `{ id, artifactsDir }`; `commitToBranch`
+  returns `{ branchName, baseSha, nestedPatches }` for `mergeTaskBranch`.
 
 ## Verification
 
