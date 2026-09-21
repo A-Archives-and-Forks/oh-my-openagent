@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Task child processes are reclaimed on session shutdown even when the closing context no longer exposes its session ID. Cleanup recovers ownership from that engine's resident handles, preserves resumable task records, and leaves sibling sessions alone. ([#8562](https://github.com/code-yeongyu/oh-my-openagent/issues/8562))
+
 ### Changed
 
 **Every direct dependency moves to its latest release inside its current major, and the security overrides move with them.**
