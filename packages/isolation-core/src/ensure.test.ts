@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import { access, cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises"
-import { dirname, join } from "node:path"
+import { basename, dirname, join } from "node:path"
 import { IsolationUnavailableError } from "./backend"
 import { chooseBaseDir } from "./base-dir"
 import { cleanupIsolation, ensureIsolation, retainIsolation } from "./ensure"
@@ -40,7 +40,7 @@ test("unavailable start falls through and preserves the reason", async () => {
   expect(handle.backend).toBe("rcopy")
   expect(handle.fellBack).toBe(true)
   expect(handle.fallbackReason).toContain("no clone support")
-  expect(await readdir(dirname(handle.baseDir))).toEqual([handle.baseDir.split("/").pop() ?? ""])
+  expect(await readdir(dirname(handle.baseDir))).toEqual([basename(handle.baseDir)])
 })
 test("unavailable probe skips start and falls through", async () => {
   const handle = await ensureIsolation({ ...await fixture(), id: "one", platform: "darwin", backends: [
@@ -64,6 +64,18 @@ test("generic probe error propagates without falling through", async () => {
   await expect(ensureIsolation({ ...await fixture(), id: "one", preferred: "apfs", backends: [
     backend({ kind: "apfs", probe: async () => { throw failure } }), backend(),
   ] })).rejects.toBe(failure)
+})
+test("a probing backend whose CLI fails falls through instead of aborting the walk", async () => {
+  const f = await fixture()
+  // ReFS on a hosted runner: fsutil exits non-zero. The candidate walk must
+  // record the reason and use the next backend, never surface the CLI failure.
+  const handle = await ensureIsolation({ ...f, id: "one", platform: "win32", backends: [
+    backend({ kind: "block-clone", probe: async () => ({ available: false, reason: "fsutil volumeinfo failed (1): The volume does not exist" }) }),
+    backend(),
+  ] })
+  expect(handle.backend).toBe("rcopy")
+  expect(handle.fellBack).toBe(true)
+  expect(handle.fallbackReason).toContain("volume does not exist")
 })
 test("all unavailable yields a typed error", async () => {
   await expect(ensureIsolation({ ...await fixture(), id: "one", backends: [] })).rejects.toBeInstanceOf(IsolationUnavailableError)

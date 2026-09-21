@@ -75,7 +75,10 @@ test("spaces, quotes and unicode paths round-trip through patches and parsing", 
   const { repoRoot, root } = await setup()
   const baseline = await captureBaseline(repoRoot)
   const isolated = await child(repoRoot, root)
-  const names = ['space name', 'quote"name', '한글', 'tab\tname']
+  // NTFS forbids quotes and control characters in filenames; the quoted and
+  // tab-separated spellings stay on filesystems that permit them.
+  const posixOnly = process.platform !== "win32"
+  const names = ['space name', ...(posixOnly ? ['quote"name', 'tab\tname'] as const : []), '한글']
   for (const name of names) await writeFile(join(isolated, name), "new\n")
   const { rootPatch } = await captureDeltaPatch(isolated, baseline)
   expect(paths(rootPatch)).toEqual(names.sort())

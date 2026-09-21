@@ -6,10 +6,10 @@ test("btrfs snapshots a subvolume whose st_dev differs from the parent directory
   expect(calls).toContainEqual(["btrfs", "subvolume", "snapshot", f.repoRoot, f.merged])
 })
 
-import { expect, test } from "bun:test"
-import { access, mkdir, readFile, writeFile } from "node:fs/promises"
+import { afterEach, expect, test } from "bun:test"
+import { randomBytes } from "node:crypto"
+import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
-import { fixture } from "../test-fixture"
 import { BACKEND_FILE, IsolationUnavailableError } from "../backend"
 import { BtrfsBackend } from "./btrfs"
 import { ZfsBackend } from "./zfs"
@@ -26,10 +26,22 @@ function fake(overrides: Partial<BackendRuntime> = {}) {
     mounted: async () => false, waitMounted: async () => {}, ...overrides }
   return { io, calls }
 }
+const posixRoots: string[] = []
+afterEach(async () => {
+  await Promise.all(posixRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
+})
 async function paths() {
-  const f = await fixture(), baseDir = join(f.root, "creating")
-  await mkdir(baseDir)
-  return { ...f, baseDir, merged: join(baseDir, "m"), ctx: { id: "test", baseDir, crossDevice: false } }
+  // The Linux-only CLI contracts in this file speak POSIX paths: a win32
+  // temp root carries the drive colon and backslashes that overlayfs rejects
+  // as option separators and the zfs dataset parse never matches. The fakes
+  // run against a POSIX-form root instead; the real filesystem resolves it
+  // drive-relative on win32, so marker and sentinel files are still real.
+  const root = `/tmp/isolation-core-posix-${randomBytes(6).toString("hex")}`
+  posixRoots.push(root)
+  const baseDir = `${root}/creating`, repoRoot = `${root}/repo`
+  await mkdir(baseDir, { recursive: true })
+  await mkdir(repoRoot, { recursive: true })
+  return { root, homeDir: `${root}/home`, repoRoot, baseDir, merged: `${baseDir}/m`, ctx: { id: "test", baseDir, crossDevice: false } }
 }
 
 test("btrfs checks binary and subvolume then snapshots/deletes with argv", async () => {
@@ -82,13 +94,15 @@ test("overlay relocates by unmount, parent rename, remount with new upper/work p
   const f = await paths(), { io, calls } = fake({ mounted: async () => true })
   const backend = new OverlayfsBackend(io)
   await backend.start(f.repoRoot, f.merged, f.ctx)
-  const final = join(f.root, "final")
+  // POSIX-literal relocation target: win32 join() would re-separate it and the
+  // mount-option guard (correctly) rejects backslashes in overlay paths.
+  const final = `${f.root}/final`
   await backend.relocate(f.baseDir, final)
   await backend.stop(join(final, "m"))
   expect(calls).toEqual([
-    ["fuse-overlayfs", "-o", `lowerdir=${f.repoRoot},upperdir=${f.baseDir}/upper,workdir=${f.baseDir}/work`, f.merged],
-    ["fusermount3", "-u", f.merged],
-    ["fuse-overlayfs", "-o", `lowerdir=${f.repoRoot},upperdir=${final}/upper,workdir=${final}/work`, join(final, "m")],
+    ["fuse-overlayfs", "-o", `lowerdir=${f.repoRoot},upperdir=${join(f.baseDir, "upper")},workdir=${join(f.baseDir, "work")}`, join(f.baseDir, "m")],
+    ["fusermount3", "-u", join(f.baseDir, "m")],
+    ["fuse-overlayfs", "-o", `lowerdir=${f.repoRoot},upperdir=${join(final, "upper")},workdir=${join(final, "work")}`, join(final, "m")],
     ["fusermount3", "-u", join(final, "m")],
   ])
   for (const override of [{ which: () => false }, { accessible: async () => false }, { platform: "darwin" as const }]) {
@@ -102,7 +116,7 @@ test("overlay unmount failure retries three times and leaves source untouched", 
   const backend = new OverlayfsBackend(io)
   await backend.start(f.repoRoot, f.merged, f.ctx)
   await writeFile(join(f.merged, "sentinel"), "untouched")
-  await expect(backend.relocate(f.baseDir, join(f.root, "final"))).rejects.toThrow("busy")
+  await expect(backend.relocate(f.baseDir, `${f.root}/final`)).rejects.toThrow("busy")
   expect(calls.filter((argv) => argv[0] === "fusermount3")).toHaveLength(3)
   expect(await readFile(join(f.merged, "sentinel"), "utf8")).toBe("untouched")
   await expect(access(join(f.root, "final"))).rejects.toThrow()
@@ -243,9 +257,14 @@ test("zfs unexpected snapshot failures remain hard errors", async () => {
   expect(failure instanceof IsolationUnavailableError).toBe(false)
 })
 
-test("ReFS probe propagates fsutil failures instead of reporting not-ReFS", async () => {
+test("ReFS probe classifies fsutil failures as unavailable so the walk can fall through", async () => {
   const backend = new BlockCloneBackend(fake({ platform: "win32" as const, run: async () => ({ code: 1, stdout: "", stderr: "The volume does not exist" }) }).io)
-  await expect(backend.probe("C:\\repo")).rejects.toThrow("volume does not exist")
+  // A probe-time CLI failure is a capability gap (missing volume, privileges,
+  // transient fsutil error), never an operational failure: ensure's candidate
+  // walk must fall through to the next backend with the reason recorded.
+  const result = await backend.probe("C:\\repo")
+  expect(result.available).toBe(false)
+  expect(result.reason).toContain("volume does not exist")
 })
 
 test("overlayfs mount capability failures fall through as unavailable", async () => {

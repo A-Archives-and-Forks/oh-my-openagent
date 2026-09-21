@@ -1,10 +1,14 @@
-import { cp, lstat, mkdir, readFile, readdir, realpath, rename, rm, writeFile } from "node:fs/promises"
+import { realpathSync } from "node:fs"
+import { cp, lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises"
 import { dirname, join, relative, resolve, sep } from "node:path"
 import { IsolationUnavailableError } from "../backend"
 import { exists, git, gitResult } from "./command"
 
 async function canonical(path: string): Promise<string> {
-  const value = await realpath(path)
+  // The native resolver expands 8.3 short names (RUNNER~1) that git's own
+  // long-path registrations carry; the JS resolver leaves them unexpanded, so
+  // back-pointer identity checks would never match on such paths.
+  const value = realpathSync.native(path)
   return process.platform === "win32" ? value.toLowerCase() : value
 }
 async function gitdir(entry: string): Promise<string> {
@@ -76,7 +80,9 @@ export async function detachGitDir(worktreeRoot: string, sourceCommonDir: string
   }
   if (!meta.isFile()) throw new IsolationUnavailableError(".git must not share metadata through a symlink")
   const admin = await gitdir(entry)
-  const common = await realpath(sourceCommonDir)
+  // Canonicalize through the same resolver and case rules as every identity
+  // comparison below, or the prune guard compares mismatched forms on win32.
+  const common = await canonical(sourceCommonDir)
   let ownAdmin = false
   if (await exists(join(admin, "gitdir"))) {
     const backPointer = (await readFile(join(admin, "gitdir"), "utf8")).trim()

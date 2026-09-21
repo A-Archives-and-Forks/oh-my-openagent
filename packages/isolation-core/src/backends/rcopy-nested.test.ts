@@ -14,6 +14,10 @@ async function nestedRepoAt(path: string) {
   await git(path, "init")
   await git(path, "config", "user.name", "Fixture")
   await git(path, "config", "user.email", "fixture@example.invalid")
+  // Match the shared repo() fixture: a system-wide autocrlf=true (the Windows
+  // runner default) would rewrite every applied patch into CRLF and break the
+  // byte-exact round-trip assertions below.
+  await git(path, "config", "core.autocrlf", "false")
   await writeFile(join(path, "inner-file"), "inner\n")
   await git(path, "add", ".")
   await git(path, "commit", "-m", "inner")
