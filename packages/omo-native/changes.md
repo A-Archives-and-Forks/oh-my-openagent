@@ -19,9 +19,6 @@ launchers use the same setup/migrate dispatcher; help and dry-run bypass legacy-
 adoption. A literal lazy import keeps ordinary commands independent of the generated
 schema/YAML runtime; MCP imports also load its validators lazily. Native staging and
 binary builds generate the bundle atomically.
-Empty source MCP maps do not load that bundle during credential-only setup.
-The compiled top-level error boundary uses the npm launcher's concise error and
-exit-status contract instead of exposing Bun's embedded-source stack frames.
 
 Migration treats default provider/model as a pair, translates permission shorthand,
 environment references and upstream model IDs, and converts key alternatives/`none`.
@@ -45,12 +42,6 @@ merged likewise. Agent discovery includes nested/symlinked directories, preserve
 relative names, and backs up every discovered Markdown source. Inline agent fields
 fill missing Markdown fields without dropping restrictions. Unhandled root settings
 and provider/model options receive path-only manual-review warnings.
-Provider warning paths are collected before all translation early returns and
-even when a destination provider already exists. Existing and planned model
-documents use Senpi's pinned models schema; invalid translated providers are
-skipped with field-only warnings while valid providers still migrate. Malformed
-Markdown frontmatter is warned and skipped per file, as in OpenCode, while its
-readable original remains in the backup.
 
 ## omo setup inherits opencode content, and names every skipped OAuth provider
 

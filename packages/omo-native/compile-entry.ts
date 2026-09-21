@@ -317,11 +317,4 @@ async function main(): Promise<void> {
   await import("../../node_modules/@code-yeongyu/senpi/dist/cli.js") // literal: see import note above
 }
 
-if (import.meta.main) {
-  try {
-    await main()
-  } catch (error) {
-    console.error(`omo: ${error instanceof Error ? error.message : String(error)}`)
-    process.exitCode = 1
-  }
-}
+if (import.meta.main) await main()

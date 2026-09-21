@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { escapeConfigLiteral, translateOpencodeValue, UnsupportedConfigValue } from "./config-values.js"
-import { AgentFrontmatterError, agentFromMarkdown, mergeOmoConfig, parseAgentMarkdown } from "./migration-runtime.js"
+import { agentFromMarkdown, mergeOmoConfig, parseAgentMarkdown } from "./migration-runtime.js"
 
 const OMO_SHARED_KEYS = ["categories", "agents", "task", "teams"]
 const OMO_META_KEYS = new Set(["$schema", "_migrations", "legacy_migrations"])
@@ -49,12 +49,15 @@ function translatedEndpoint(value) {
 }
 
 export function translateProvider(id, provider) {
-  if (!isRecord(provider)) return { needsReview: id, unsupported: [] }
-  const options = isRecord(provider.options) ? provider.options : {}
+  if (!isRecord(provider) || !isRecord(provider.options)) return { needsReview: id }
   const unsupported = [
     ...Object.keys(provider).filter((key) => !["npm", "options", "models"].includes(key)),
-    ...Object.keys(options).filter((key) => !["baseURL", "apiKey"].includes(key)).map((key) => `options.${key}`),
+    ...Object.keys(provider.options).filter((key) => !["baseURL", "apiKey"].includes(key)).map((key) => `options.${key}`),
   ]
+  const baseUrl = translatedEndpoint(provider.options.baseURL)
+  if (baseUrl === undefined) return { needsReview: id }
+  const api = NPM_TO_API[provider.npm]
+  if (api === undefined) return { needsReview: id }
   const models = isRecord(provider.models)
     ? Object.entries(provider.models).flatMap(([modelId, model]) => {
       if (!isRecord(model)) return []
@@ -67,17 +70,13 @@ export function translateProvider(id, provider) {
       return [entry]
     })
     : []
-  const baseUrl = translatedEndpoint(options.baseURL)
-  if (baseUrl === undefined) return { needsReview: id, unsupported }
-  const api = NPM_TO_API[provider.npm]
-  if (api === undefined) return { needsReview: id, unsupported }
   const out = { baseUrl, models }
   out.api = api
-  if (typeof options.apiKey === "string") {
+  if (typeof provider.options.apiKey === "string") {
     try {
-      out.apiKey = translateProviderValue(options.apiKey)
+      out.apiKey = translateProviderValue(provider.options.apiKey)
     } catch (error) {
-      if (error instanceof UnsupportedConfigValue) return { needsReview: id, unsupported }
+      if (error instanceof UnsupportedConfigValue) return { needsReview: id }
       throw error
     }
   }
@@ -139,14 +138,8 @@ function collectMarkdownAgents(configDir, agents, warnings) {
       const name = relative.replace(/\.md$/, "")
       sourcePaths.push(path)
       if (Object.hasOwn(agents, name)) continue
-      const content = readFileSync(path, "utf8")
-      try {
-        const parsed = parseAgentMarkdown(content)
-        addAgent(name, parsed, agents, warnings)
-      } catch (error) {
-        if (!(error instanceof AgentFrontmatterError)) throw error
-        warnings.push(`agents.${name} (malformed frontmatter; manual review required)`)
-      }
+      const parsed = parseAgentMarkdown(readFileSync(path, "utf8"))
+      addAgent(name, parsed, agents, warnings)
     }
   }
   for (const dir of ["agents", "agent"].map((name) => join(configDir, name)).filter(existsSync)) walk(dir, "", new Set())
