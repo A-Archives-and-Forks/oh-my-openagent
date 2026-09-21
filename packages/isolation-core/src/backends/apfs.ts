@@ -3,6 +3,8 @@ import { dirname, join } from "node:path"
 import type { Pointer } from "bun:ffi"
 import { IsolationUnavailableError, type IsolationBackend, type IsolationContext } from "../backend"
 
+import { markStarted } from "../backend-marker"
+
 const CLONE_NOFOLLOW = 0x0001
 interface CloneSymbols {
   clonefile(src: Uint8Array, dst: Uint8Array, flags: number): number
@@ -67,7 +69,10 @@ export class ApfsBackend implements IsolationBackend {
     }
     try {
       await clone(lower, merged)
-      if (!(await hasSpecialEntries(merged))) return { strategy_detail: "clonefile" }
+      if (!(await hasSpecialEntries(merged))) {
+        await markStarted(ctx.baseDir, this.kind)
+        return { strategy_detail: "clonefile" }
+      }
     } catch (error) {
       if (!(error instanceof Error && "errno" in error && [22, 45, 102].includes(Number(error.errno)))) throw error
     }
@@ -82,6 +87,7 @@ export class ApfsBackend implements IsolationBackend {
       for (const entry of await readdir(src)) await walk(join(src, entry), join(dst, entry))
     }
     await walk(lower, merged)
+    await markStarted(ctx.baseDir, this.kind)
     return { strategy_detail: "clone_tree" }
   }
 

@@ -1,13 +1,15 @@
 import { expect, test } from "bun:test"
-import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises"
+import { access, cp, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { IsolationUnavailableError } from "./backend"
 import { chooseBaseDir } from "./base-dir"
 import { cleanupIsolation, ensureIsolation, retainIsolation } from "./ensure"
 import { backend, fixture } from "./test-fixture"
+import { repo } from "./backends/git-fixture"
 
 test("writes marker before start and publishes only a complete directory", async () => {
   const f = await fixture()
+  const before = Date.now()
   const { baseDir } = await chooseBaseDir(f.repoRoot, f.homeDir, "one")
   const handle = await ensureIsolation({ ...f, id: "one", preferred: "rcopy", backends: [backend({
     start: async (_lower, merged) => {
@@ -22,7 +24,12 @@ test("writes marker before start and publishes only a complete directory", async
   expect(handle.mergedDir).toBe(join(baseDir, "m"))
   expect(handle.baseDir).not.toContain(".creating-")
   expect(await readFile(join(handle.mergedDir, "result"), "utf8")).toBe("ready")
-  expect(JSON.parse(await readFile(join(baseDir, ".omo-isolation-backend.json"), "utf8"))).toEqual({ backend: "rcopy" })
+  const marker = JSON.parse(await readFile(join(baseDir, ".omo-isolation-backend.json"), "utf8"))
+  expect(marker).toEqual({ backend: "rcopy", started_at: expect.any(String) })
+  const started = Date.parse(marker.started_at)
+  expect(Number.isFinite(started)).toBe(true)
+  expect(started).toBeGreaterThanOrEqual(before)
+  expect(started).toBeLessThanOrEqual(Date.now())
 })
 test("unavailable start falls through and preserves the reason", async () => {
   const f = await fixture()
@@ -115,4 +122,34 @@ test("fall-through leaves no creating directory behind", async () => {
     backend(),
   ] })
   expect((await readdir(dirname(handle.baseDir))).filter((entry) => entry.includes(".creating-"))).toEqual([])
+})
+
+
+test("publication and retention route through the backend relocation hook", async () => {
+  const calls: [string, string][] = []
+  const instance = backend({ relocate: async (from, to) => {
+    calls.push([from, to])
+    await rename(from, to)
+  } })
+  const handle = await ensureIsolation({ ...await fixture(), id: "relocate", backends: [instance], preferred: "rcopy" })
+  expect(calls).toEqual([[`${handle.baseDir}.creating-${process.pid}`, handle.baseDir]])
+  const retained = await retainIsolation(handle, "conflict")
+  expect(calls).toEqual([[`${handle.baseDir}.creating-${process.pid}`, handle.baseDir], [handle.baseDir, retained]])
+  await access(join(retained, "m"))
+})
+
+
+test("retry restores ownership after a mount backend removes its whole base", async () => {
+  const f = await repo()
+  let starts = 0
+  const handle = await ensureIsolation({ ...f, id: "retry-owner", preferred: "rcopy", backends: [backend({
+    start: async (lower, merged) => {
+      await mkdir(dirname(merged), { recursive: true })
+      await cp(lower, merged, { recursive: true })
+      if (++starts === 1) await writeFile(join(merged, ".git", "index"), "broken index")
+    },
+    stop: async (merged) => { await rm(dirname(merged), { recursive: true, force: true }) },
+  })] })
+  expect(starts).toBe(2)
+  expect(JSON.parse(await readFile(join(handle.baseDir, ".omo-isolation-owner.json"), "utf8")).id).toBe("retry-owner")
 })

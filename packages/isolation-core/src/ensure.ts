@@ -4,6 +4,7 @@ import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 import { IsolationUnavailableError, resolveCandidates, type BackendKind, type IsolationBackend } from "./backend"
 import { chooseBaseDir } from "./base-dir"
+import { markStarted } from "./backend-marker"
 import { writeOwnerMarker, type IsolationOwner } from "./owner"
 import { detachGitDir, scanNestedGitDirs, type NestedGitResult } from "./git/detach-git-dir"
 import { exists, git, gitResult } from "./git/command"
@@ -18,6 +19,7 @@ export interface IsolationHandle {
   readonly nested_git_rewritten: string[]
   readonly nested_git_skipped: string[]
   readonly stop: (mergedDir: string) => Promise<void>
+  readonly relocate?: (from: string, to: string) => Promise<void>
 }
 
 export interface EnsureIsolationOptions {
@@ -34,6 +36,11 @@ export interface EnsureIsolationOptions {
 export class IsolationExistsError extends Error {
   readonly name = "IsolationExistsError"
   readonly code = "isolation_exists"
+}
+
+export async function relocateSandbox(backend: Pick<IsolationBackend, "relocate">, from: string, to: string): Promise<void> {
+  if (backend.relocate) await backend.relocate(from, to)
+  else await rename(from, to)
 }
 
 export async function ensureIsolation(options: EnsureIsolationOptions): Promise<IsolationHandle> {
@@ -56,7 +63,7 @@ export async function ensureIsolation(options: EnsureIsolationOptions): Promise<
       continue
     }
     try {
-      const probe = await backend.probe(repoRoot)
+      const probe = await backend.probe(repoRoot, { id, baseDir: creating, crossDevice, maxCopyBytes: options.maxCopyBytes })
       if (!probe.available) throw new IsolationUnavailableError(probe.reason ?? `${kind} is unavailable`)
       if (crossDevice && backend.clonesTree) throw new IsolationUnavailableError(`${kind} requires the same device`)
     } catch (error) {
@@ -79,6 +86,7 @@ export async function ensureIsolation(options: EnsureIsolationOptions): Promise<
         : join(repoRoot, ".git")
       for (let attempt = 0; attempt < 2; attempt++) {
         detail = await backend.start(repoRoot, merged, { id, baseDir: creating, crossDevice, maxCopyBytes: options.maxCopyBytes })
+        await markStarted(creating, kind)
         const detached = await detachGitDir(merged, common)
         nested = await scanNestedGitDirs(merged)
         if (detached === "no-git") break
@@ -86,12 +94,17 @@ export async function ensureIsolation(options: EnsureIsolationOptions): Promise<
         if (status.code === 0) break
         if (attempt === 1) throw new IsolationUnavailableError(`Git snapshot inconsistent after retry: ${status.stderr}`)
         await backend.stop(merged)
+        // Mount backends may remove the whole base during teardown.
+        await mkdir(creating, { recursive: true })
+        await writeOwnerMarker(creating, id, options.owner)
+        await writeFile(join(creating, ".omo-isolation-backend.json"), JSON.stringify({ backend: kind }))
       }
-      await rename(creating, baseDir)
+      await relocateSandbox(backend, creating, baseDir)
       return {
         baseDir, mergedDir: join(baseDir, "m"), backend: kind,
         fellBack: index > 0, fallbackReason, strategy_detail: detail!?.strategy_detail, ...nested,
         stop: (path) => backend.stop(path),
+        relocate: backend.relocate ? (from, to) => backend.relocate!(from, to) : undefined,
       }
     } catch (error) {
       if (startAttempted) {
@@ -117,6 +130,6 @@ export async function cleanupIsolation(handle: IsolationHandle): Promise<void> {
 export async function retainIsolation(handle: IsolationHandle, reason: string): Promise<string> {
   const retained = `${handle.baseDir}.retained-${Date.now()}-${randomBytes(6).toString("hex")}`
   await writeFile(join(handle.baseDir, ".omo-isolation-retained.json"), JSON.stringify({ reason }))
-  await rename(handle.baseDir, retained)
+  await relocateSandbox(handle, handle.baseDir, retained)
   return retained
 }

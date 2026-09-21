@@ -18,9 +18,11 @@ export interface IsolationContext {
 export interface IsolationBackend {
   readonly kind: BackendKind
   readonly clonesTree: boolean
-  probe(repoRoot: string): Promise<ProbeResult>
+  probe(repoRoot: string, ctx?: IsolationContext): Promise<ProbeResult>
   start(lower: string, merged: string, ctx: IsolationContext): Promise<void | { strategy_detail: string }>
   stop(merged: string): Promise<void>
+  /** Relocate the sandbox parent, including any mounted merged tree. */
+  relocate?(from: string, to: string): Promise<void>
 }
 
 export class IsolationUnavailableError extends Error {

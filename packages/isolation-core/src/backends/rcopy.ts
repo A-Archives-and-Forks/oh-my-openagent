@@ -2,6 +2,8 @@ import { chmod, copyFile, cp, lstat, mkdir, readlink, rm, symlink, utimes } from
 import { dirname, join } from "node:path"
 import { IsolationUnavailableError, type IsolationBackend, type IsolationContext } from "../backend"
 import { exists, git, gitResult } from "../git/command"
+import { markStarted } from "../backend-marker"
+import { copyBudget } from "./copy-tree"
 
 export async function seedDirtyState(lower: string, merged: string): Promise<void> {
   const staged = await git(lower, ["diff", "--binary", "--no-color", "--no-ext-diff", "--cached"])
@@ -35,22 +37,20 @@ export class RcopyBackend implements IsolationBackend {
       // Missing git is unavailable, not permission to copy shared git metadata blindly.
       await git(lower, ["worktree", "add", "--detach", merged, "HEAD"])
       await seedDirtyState(lower, merged)
+      await markStarted(ctx.baseDir, this.kind)
       return
     }
-    const ceiling = ctx.maxCopyBytes ?? 8 * 1024 ** 3
-    let bytes = 0
+    const consume = await copyBudget(ctx.baseDir, ctx.maxCopyBytes)
     // Count during fs.cp's traversal rather than prewalking the source.
     await cp(lower, merged, {
       recursive: true, verbatimSymlinks: true, errorOnExist: true, force: false, preserveTimestamps: true,
       filter: async (source) => {
         const info = await lstat(source)
-        if (info.isFile()) {
-          bytes += info.size
-          if (bytes > ceiling) throw new Error(`rcopy size ${bytes} bytes exceeds maxCopyBytes ${ceiling}`)
-        }
+        if (info.isFile()) consume(info.size)
         return info.isFile() || info.isDirectory() || info.isSymbolicLink()
       },
     })
+    await markStarted(ctx.baseDir, this.kind)
   }
 
   async stop(merged: string): Promise<void> {
