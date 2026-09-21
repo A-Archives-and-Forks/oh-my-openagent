@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+**Native launchers no longer keep a redundant runtime alive on POSIX.** The Node-to-Bun handoff, engine launch and compiled runtime relocation now replace the launcher process with `execve`, preserving its PID and stdio. Windows and runtimes where replacement is unavailable or fails keep the existing signal-aware child fallback. `omo daemon attach` remains spawn-based. ([#8560](https://github.com/code-yeongyu/oh-my-openagent/issues/8560))
+
 **Every direct dependency moves to its latest release inside its current major, and the security overrides move with them.**
 
 `bun audit` reports one advisory row where it reported 43. The hono, fast-uri and express-rate-limit overrides now sit past their advisories, and `@hono/node-server` moved to the 2.1.1 the engine already asks for. Nothing in the tree needs a 1.x copy, so the old `^1.19.13` override was itself what held the package below the serve-static path-traversal fix. qs and ip-address gained overrides because the engine pins both to exact versions and no range refresh reaches the fixed releases; brace-expansion and browserslist needed none, since their existing ranges already cover theirs. What remains is one low-severity @babel/core file read, held in place by the exact pin @opentui/solid puts on it.
