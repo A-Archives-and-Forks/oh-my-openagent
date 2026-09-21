@@ -25,9 +25,6 @@ exit-status contract instead of exposing Bun's embedded-source stack frames.
 
 Migration treats default provider/model as a pair, translates permission shorthand,
 environment references and upstream model IDs, and converts key alternatives/`none`.
-Provider definitions use the same destination alias as defaults. A differing
-definition at that destination is preserved with a manual-review warning; equal
-definitions remain no-ops on rerun.
 Unsupported chords, config expressions and settings produce manual-review warnings.
 Restricted Markdown/inline/legacy agents remain disabled pending review; existing agent and
 category leaves take precedence over imported values.
