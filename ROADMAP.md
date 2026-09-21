@@ -78,15 +78,6 @@ We express what each component does in markdown documentation, not in interface 
 
 The first concrete step toward a harness-neutral config layer has landed: `omo-config-core` provides an `omo.json` schema, a walked multi-layer loader, and a comment-preserving atomic writer as pure, harness-neutral code, and the Senpi adapter's `task` component reads it in production. This was delivered senpi-first on purpose - Senpi had no existing config surface to preserve, so it was the safe place to prove the schema. The OpenCode edition still reads its own `oh-my-openagent.json` chain, and the two files have zero interaction today. Adopting `omo.json` in the OpenCode edition, and any migration path from `oh-my-openagent.json`, is the next phase. See [`docs/reference/omo-json.md`](docs/reference/omo-json.md).
 
-## opencode → senpi transition (policy)
-
-The senpi edition (omo native, `omo-ai`) is the long-term default. The opencode edition remains fully
-supported through a dual-support window of at least six months or two major releases after the senpi
-edition goes stable — no dates are committed yet, and none will be until the senpi CLI is stable.
-The user-facing path is [`omo setup` + `omo migrate`](../packages/omo-native/changes.md) and
-[the migration guide](docs/guide/migrate-from-opencode.md). New work should assume both editions
-load the same `omo.json` configuration surface.
-
 ## Why Not OpenCode-Native
 
 OpenCode is the current host. But its plugin API makes it trivial to break the main agent loop.

@@ -174,8 +174,6 @@ omo
 
 A bare `npm i -g omo-ai` fails with ETARGET on purpose; every published version is a prerelease, so the default channel never resolves. See the [omo-ai publishing runbook](../reference/omo-ai-publishing.md) for the mechanism.
 
-On npm ≥ 11 you may see an `npm warn allow-scripts` notice about omo-ai's postinstall during install. It is cosmetic: the install scripts still run (the warning is npm's opt-in `approve-scripts` workflow nagging, not a block). Verified on npm 11.17.0 — the engine patch (`bin/senpi-patch.mjs`) applies normally. If your npm config enforces a strict allowlist (`allow-scripts-pending=true` / `strict-allow-scripts=true`), approve the package once with `npm approve-scripts omo-ai` and reinstall.
-
 **Where omo keeps its state.** The senpi edition stores engine state under `~/.omo/agent`
 (`settings.json`, `auth.json`, `models.json`, and friends). A pre-unification flat `~/.omo` layout
 is adopted once into `~/.omo/agent` (marker `.adopted-from-omo-flat`; sessions, caches, and logs
@@ -193,10 +191,6 @@ one is unset.
 1. **Detect (read-only).** Scans your other coding-agent installs for provider credentials: senpi's agent dir (`SENPI_CODING_AGENT_DIR`, else `~/.senpi/agent`), opencode (`~/.local/share/opencode/auth.json`, XDG-aware), oh-my-pi (`~/.omp/agent/agent.db`), and gajae-code (`~/.gjc/agent/agent.db`). It reports, per harness, whether it's installed and which provider ids have credentials of which type. Credential values are never printed. The oh-my-pi and gajae-code databases are opened read-only.
 2. **Import (consent-gated).** Only after you confirm (interactively, or with `--yes`; `--dry-run` previews without writing), compatible API-key credentials are imported into senpi's auth store. Existing senpi entries are never overwritten, and only providers senpi actually knows are imported. OAuth entries are reported but never imported. Source stores are never written; imports go to senpi's `auth.json` only, atomically and with a timestamped backup.
 3. **Model report.** Prints a provider/model availability summary pointing at the [agent-model matching guide](./agent-model-matching.md), plus a ready-to-paste config snippet for any custom-endpoint providers it found. Report only; setup never writes model config for you.
-
-Setup also inherits content, not just credentials: MCP servers translate into `mcp.json` (`local`→`stdio`, `remote`→`http`), global skills copy into the agent dir, and a global `AGENTS.md` carries over — all skip-existing and backup-first. Every skipped OAuth credential prints its exact re-auth command (`Run '/login <provider>' to re-authenticate.`). For the full config translation (settings, custom providers, keybinds, agents, omo plugin config), run `omo migrate`.
-
-**Coming from opencode?** The full guide — what moves, what needs re-auth, backups and rollback — is [Migrating from opencode](./migrate-from-opencode.md).
 
 ## For LLM Agents
 

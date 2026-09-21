@@ -148,26 +148,6 @@ afterEach(() => {
 })
 
 describe("omo setup credential inheritance", () => {
-  test("#given OAuth aliases gateways and unknown providers #when setup reports login targets #then only mapped vendor IDs are executable", () => {
-    const item = fixture()
-    write(join(item.xdg, "opencode", "auth.json"), JSON.stringify({
-      "anthropic-api": { type: "oauth", access: secrets[0] },
-      opencode: { type: "oauth", access: secrets[1] },
-      "unknown-oauth": { type: "oauth", access: secrets[2] },
-    }))
-
-    const result = run(item, ["setup", "--yes"])
-
-    expect(result.status).toBe(0)
-    expect(result.stdout).toContain("/login anthropic'")
-    expect(result.stdout).not.toContain("/login anthropic-api")
-    expect(result.stdout).not.toContain("/login opencode")
-    expect(result.stdout).not.toContain("/login unknown-oauth")
-    expect(result.stdout).toContain("skipped-gateway: opencode")
-    expect(result.stdout).toContain("skipped-unmapped: unknown-oauth")
-    expect(existsSync(join(item.agentDir, "auth.json"))).toBe(false)
-  })
-
   test("#given opencode api oauth mapped and gateway entries #when accepted #then only safe api ids import", () => {
     const item = fixture()
     write(join(item.xdg, "opencode", "auth.json"), JSON.stringify({
@@ -187,48 +167,9 @@ describe("omo setup credential inheritance", () => {
       anthropic: { type: "api_key", key: secrets[1] },
     })
     expect(result.stdout).toContain("skipped-oauth: 1")
-    expect(result.stdout).toContain("skipped-gateway: 1")
-    expect(result.stdout).toContain("skipped-unmapped: 1")
+    expect(result.stdout).toContain("skipped-unmapped: 2")
     expect(result.stdout).toContain("xai")
     expect(result.stdout).toContain("opencode")
-    expectSourcesUntouched(before)
-  })
-
-  test("#given opencode oauth entries #when setup runs #then each provider gets its own re-auth guidance line", () => {
-    const item = fixture()
-    write(join(item.xdg, "opencode", "auth.json"), JSON.stringify({
-      xai: { type: "oauth", access: secrets[0], refresh: secrets[1], expires: 9999999999999 },
-      "github-copilot": { type: "oauth", access: secrets[2], refresh: secrets[3], expires: 9999999999999 },
-      google: { type: "api", key: "PLAIN-KEY-NOT-A-SECRET" },
-    }))
-    const before = sourceSnapshot(item)
-
-    const result = run(item, ["setup", "--yes"])
-
-    expect(result.status).toBe(0)
-    expect(result.stdout).toContain("Run '/login xai' to re-authenticate.")
-    expect(result.stdout).toContain("Run '/login github-copilot' to re-authenticate.")
-    expect(result.stdout).not.toContain("Use `omo auth` to sign in to OAuth providers.")
-    expect(auth(item)).toEqual({ google: { type: "api_key", key: "PLAIN-KEY-NOT-A-SECRET" } })
-    expectSourcesUntouched(before)
-  })
-
-  test("#given gateway and unknown provider ids #when setup runs #then gateways and unmapped ids are reported separately", () => {
-    const item = fixture()
-    write(join(item.xdg, "opencode", "auth.json"), JSON.stringify({
-      opencode: { type: "api", key: secrets[0] },
-      "unknown-vendor": { type: "api", key: secrets[1] },
-    }))
-    const before = sourceSnapshot(item)
-
-    const result = run(item, ["setup", "--yes"])
-
-    expect(result.status).toBe(0)
-    expect(result.stdout).toContain("skipped-gateway: 1")
-    expect(result.stdout).toContain("skipped-unmapped: 1")
-    expect(result.stdout).toContain("opencode")
-    expect(result.stdout).toContain("unknown-vendor")
-    expect(existsSync(join(item.agentDir, "auth.json"))).toBe(false)
     expectSourcesUntouched(before)
   })
 

@@ -9,11 +9,6 @@ import { detectHarnesses } from "./setup-detect.js"
 import { readRow, readRows } from "./sqlite-rows.js"
 import { printModelReport } from "./setup-models.js"
 import { printSetupReport } from "./setup-report.js"
-import { withSetupRollback } from "./setup-transaction.js"
-import {
-  contentPlanHasWork, planContentImport, printContentCounts, printContentPlan,
-  readOpencodeConfigDir, writeContentImport,
-} from "./setup-content.js"
 
 export const API_KEY_TYPE_ACCEPTLIST = new Set(["api_key"])
 const SQLITE_STORES = [
@@ -37,9 +32,7 @@ function targetProvider(provider, providerMap) {
 
 function candidate(provider, key, source, providerMap) {
   const target = targetProvider(provider, providerMap)
-  if (target) return { provider: target, key, source }
-  const gateway = providerMap.excludedHostedGatewayIds.includes(provider)
-  return { provider, source, unmapped: true, gateway }
+  return target ? { provider: target, key, source } : { provider, source, unmapped: true }
 }
 
 function readOpencode(path, providerMap, plan) {
@@ -130,20 +123,11 @@ function readTarget(path) {
 function classify(plan, existing) {
   const additions = []
   const skippedExisting = []
-  const skippedGateway = []
   const skippedUnmapped = []
-  const skippedOauth = []
-  const providerMap = readProviderMap()
-  for (const provider of plan.oauth) {
-    const mapped = targetProvider(provider, providerMap)
-    if (mapped) skippedOauth.push(mapped)
-    else if (providerMap.excludedHostedGatewayIds.includes(provider)) skippedGateway.push(provider)
-    else skippedUnmapped.push(provider)
-  }
   const reserved = new Set(Object.keys(existing))
   for (const item of plan.candidates) {
     if (item.unmapped) {
-      (item.gateway ? skippedGateway : skippedUnmapped).push(item.provider)
+      skippedUnmapped.push(item.provider)
     } else if (reserved.has(item.provider)) {
       skippedExisting.push(item.provider)
     } else {
@@ -154,8 +138,7 @@ function classify(plan, existing) {
   return {
     additions,
     skippedExisting: sorted(skippedExisting),
-    skippedOauth: sorted(skippedOauth),
-    skippedGateway: sorted(skippedGateway),
+    skippedOauth: sorted(plan.oauth),
     skippedUnmapped: sorted(skippedUnmapped),
   }
 }
@@ -170,25 +153,18 @@ function printPlan(result, dryRun) {
     list("planned-add", result.additions.map((item) => item.provider)),
     list("skipped-existing", result.skippedExisting),
     list("skipped-oauth", result.skippedOauth),
-    list("skipped-gateway", result.skippedGateway),
     list("skipped-unmapped", result.skippedUnmapped),
   ].join("\n")}\n`)
 }
 
 function printCounts(result) {
-  const lines = [
+  process.stdout.write([
     `imported: ${result.additions.length}`,
     `skipped-existing: ${result.skippedExisting.length}`,
     `skipped-oauth: ${result.skippedOauth.length}`,
-    `skipped-gateway: ${result.skippedGateway.length}`,
     `skipped-unmapped: ${result.skippedUnmapped.length}`,
-  ]
-  // One exact command per skipped OAuth provider, matching the engine's own guidance wording
-  // (senpi agent-session.ts: `Run '/login <provider>' to re-authenticate.`); login is in-app only.
-  for (const provider of result.skippedOauth) {
-    lines.push(`Run '/login ${provider}' to re-authenticate.`)
-  }
-  process.stdout.write(lines.join("\n") + "\n")
+    "Use `omo auth` to sign in to OAuth providers.",
+  ].join("\n") + "\n")
 }
 
 function timestamp() {
@@ -211,18 +187,13 @@ function writeTarget(path, current, additions) {
   }
 }
 
-async function consent(result, contentPlan, target, options) {
+async function consent(result, target, options) {
   if (options.yes) return true
   if (options.stdin?.isTTY !== true || options.stdout?.isTTY !== true) {
-    process.stdout.write("Non-interactive setup did not import credentials or content. Re-run with `omo setup --yes`.\n")
+    process.stdout.write("Non-interactive setup did not import credentials. Re-run with `omo setup --yes`.\n")
     return false
   }
-  const parts = []
-  if (result.additions.length > 0) {
-    parts.push(`API credentials for ${result.additions.map((item) => item.provider).join(", ")} into ${target}`)
-  }
-  if (contentPlanHasWork(contentPlan)) parts.push("opencode content (mcp servers, skills, AGENTS.md)")
-  process.stdout.write(`Import ${parts.join(" and ")}? [y/N] `)
+  process.stdout.write(`Import API credentials for ${result.additions.map((item) => item.provider).join(", ")} into ${target}? [y/N] `)
   const readline = createInterface({ input: options.stdin, output: options.stdout })
   try {
     return (await readline.question("")).trim().toLowerCase() === "y"
@@ -248,32 +219,17 @@ export async function runSetup(args = process.argv.slice(2), options = {}) {
     return
   }
   const result = classify(plan, current.entries)
-  const configDir = readOpencodeConfigDir(home, env)
-  const content = planContentImport({ configDir, agentDir })
-  for (const notice of content.notices) process.stdout.write(`${notice}\n`)
   const dryRun = args.includes("--dry-run")
   printPlan(result, dryRun)
-  printContentPlan(content)
   if (dryRun) return
-  if (result.additions.length === 0 && !contentPlanHasWork(content)) {
+  if (result.additions.length === 0) {
     printCounts(result)
     return
   }
-  if (!await consent(result, content, target, { ...runtime, yes: args.includes("--yes") })) {
+  if (!await consent(result, target, { ...runtime, yes: args.includes("--yes") })) {
     if (runtime.stdin.isTTY === true) process.stdout.write("Import cancelled\n")
     return
   }
-  const files = []
-  if (result.additions.length > 0) files.push(target)
-  if (content.mcp.add.length > 0) files.push(join(agentDir, "mcp.json"))
-  if (content.agentsMd === "copy") files.push(join(agentDir, "AGENTS.md"))
-  const written = withSetupRollback({
-    files,
-    newDirectories: content.skills.add.map((name) => join(agentDir, "skills", name)),
-  }, () => {
-    if (result.additions.length > 0) writeTarget(target, current, result.additions)
-    return writeContentImport(content, { configDir, agentDir })
-  })
+  writeTarget(target, current, result.additions)
   printCounts(result)
-  printContentCounts(written)
 }

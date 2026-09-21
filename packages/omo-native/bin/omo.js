@@ -3,7 +3,6 @@ import { fileURLToPath } from "node:url"
 import { ensureBunBinShim } from "./lib/bun-bin-shim.js"
 import { maybeReexecUnderBun } from "./lib/bun-runtime.js"
 import { runLauncher } from "./lib/launcher.js"
-import { runMigrate } from "./lib/migrate.js"
 import { runSetup } from "./lib/setup-import.js"
 
 try {
@@ -21,7 +20,6 @@ try {
   const reexeced = await maybeReexecUnderBun({ scriptPath })
   if (!reexeced) {
     if (process.argv[2] === "setup") await runSetup(process.argv.slice(3))
-    else if (process.argv[2] === "migrate") runMigrate(process.argv.slice(3))
     else await runLauncher()
   }
 } catch (error) {

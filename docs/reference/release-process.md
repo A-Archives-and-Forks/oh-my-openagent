@@ -18,23 +18,6 @@ The `/publish` command accepts `patch`, `minor`, `major`, or an explicit semanti
 
 For the `omo-ai` package (the senpi-native edition, beta channel only), see the [omo-ai publishing runbook](./omo-ai-publishing.md): bootstrap state, the beta-gate mechanism, the Trusted Publisher merge gate, and the first-beta-release checklist.
 
-## Migration notes in release bodies
-
-While the opencode → senpi transition window is open, every stable release body carries a standing
-Migration section between the highlights and the changelog link:
-
-```markdown
-## Migration
-
-- New installs: `npm i -g omo-ai@beta` (senpi edition) is the default for new setups.
-- Existing opencode installs are fully supported; nothing changes until you choose to move.
-- To move: `omo setup` (credentials + content), then `omo migrate --dry-run` / `omo migrate --yes`
-  (full config translation). Guide: docs/guide/migrate-from-opencode.md.
-- Support window for the opencode edition runs at least six months / two majors past senpi stable.
-```
-
-Drop the section only when the window closes and the end-of-life notice ships.
-
 ## Resuming a Failed Publish
 
 For a transient failure, retry only the failed jobs and their dependencies:
