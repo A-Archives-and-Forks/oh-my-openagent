@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-codex-install:6df5dbbbb7ca9b9dce86fae98a525a9caa7de96caed85a4b77d4e8b4ab4d1501:5fb7f6e9730ceb3ace92ba274cf5fe7f50551c4a325d8e765dd9894ce86a6e3f
+// omo-codex-install:6df5dbbbb7ca9b9dce86fae98a525a9caa7de96caed85a4b77d4e8b4ab4d1501:8d31fa4378e1c437b73ad7c3a8273517aca2ac81dbb3732c506d18c98937e060
 var __esm = (fn, res, err) => () => {
   if (fn)
     try {
@@ -9984,7 +9984,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.0.0-beta.80",
+    version: "5.0.0-beta.81",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
@@ -16758,6 +16758,31 @@ var OmoTaskTeamSettingsSchema = object({
 var OmoTaskWarningsSchema = object({
   unavailable_categories: boolean2().default(true)
 }).strict();
+var IsolationBackendKindSchema = _enum([
+  "auto",
+  "apfs",
+  "btrfs",
+  "zfs",
+  "reflink",
+  "overlayfs",
+  "block-clone",
+  "rcopy"
+]);
+var OmoTaskIsolationSchema = object({
+  enabled: boolean2().default(false),
+  backend: IsolationBackendKindSchema.default("auto"),
+  apply: boolean2().default(true),
+  merge: _enum(["patch", "branch"]).default("patch"),
+  commits: _enum(["generic", "ai"]).default("generic")
+}).strict();
+var isolationDefaults = OmoTaskIsolationSchema.parse({});
+var OmoTaskIsolationLayerSchema = object({
+  enabled: boolean2().optional(),
+  backend: IsolationBackendKindSchema.optional(),
+  apply: boolean2().optional(),
+  merge: _enum(["patch", "branch"]).optional(),
+  commits: _enum(["generic", "ai"]).optional()
+}).strict();
 var OmoTaskDagSettingsSchema = object({
   max_nodes_per_run: number2().int().positive().default(64),
   max_runs_per_session: number2().int().positive().default(16),
@@ -16769,6 +16794,7 @@ var OmoTaskDagSettingsSchema = object({
   max_prompt_bytes: number2().int().positive().default(262144)
 }).strict();
 var OmoTaskSettingsSchema = object({
+  isolation: OmoTaskIsolationSchema.default(isolationDefaults),
   default_execution_mode: _enum(["auto", "in-process", "process"]).default("auto"),
   process_runner: _enum(["host", "child-process"]).default("host"),
   host_engine_policy: _enum(["upgrade", "fallback"]).default("upgrade"),
@@ -16817,6 +16843,7 @@ var OmoTaskWarningsLayerSchema = object({
   unavailable_categories: boolean2().optional()
 }).strict();
 var OmoTaskSettingsLayerSchema = object({
+  isolation: OmoTaskIsolationLayerSchema.optional(),
   default_execution_mode: _enum(["auto", "in-process", "process"]).optional(),
   process_runner: _enum(["host", "child-process"]).optional(),
   host_engine_policy: _enum(["upgrade", "fallback"]).optional(),
