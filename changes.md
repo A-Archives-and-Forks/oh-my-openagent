@@ -1,3 +1,7 @@
+## 2026-09-21 - Frontend skill bans coloured accent borders for state (#8552)
+
+The shared axioms, the design README (anti-patterns, execution checklist, Phase Final), the perfection design-system compliance grep, and the design-system-architecture states rule now name the same tell: a coloured or accent-width border on a rounded surface marking selected/focused/active. State is encoded with ink-alpha washes, a glyph for selection, and tonal layering for focus; `focus-visible` rings are the only coloured edge, and the rule covers pre-existing instances on any surface a session touches. The loader-core builtin copy stays byte-equivalent through the same change; the plugin skill dirs are build outputs and pick it up through sync-skills.
+
 ## 2026-09-20 - Writing category chain drops to low rungs and gains a claude-opus-4-6 fallback (#8525)
 
 `writing` led with `claude-fable-5-1` at variant `medium` and had one fallback, `kimi-k3` at `max`. Prose delegation does not need that reasoning budget, and the single fallback left no Claude rung once Fable was unavailable, so a Fable outage routed every writing task to a max-variant Kimi run.
