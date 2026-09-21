@@ -17,19 +17,38 @@ function dataRecord(frame: RpcFrame, command: unknown): Record<string, unknown> 
   if (!frame.success || !record(frame.data)) throw new Error(`thread RPC request failed: ${JSON.stringify(frame.error ?? frame)}`)
   return frame.data
 }
+/**
+ * One request, one correlated response. The multi-session host writes other lines on the same
+ * connection before the reply: the `open_session` admission notice (`{type:"queued",
+ * for_request:<our id>}`, deliberately NOT carrying the response id so a client that settles by
+ * id never takes it for the reply) and connection-wide broadcasts (`agent_start`,
+ * `session_opened`, ...). Only the frame whose `id` equals the request id settles the call;
+ * every other line is skipped.
+ */
 async function request(socketPath: string, command: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const id = randomUUID()
   return await new Promise((resolve, reject) => {
     const socket = createConnection(socketPath)
     let buffer = ""
     const timer = setTimeout(() => { socket.destroy(); reject(new Error("thread RPC request timed out")) }, 60_000)
     const finish = (error?: Error, value?: Record<string, unknown>) => { clearTimeout(timer); socket.destroy(); error === undefined ? resolve(value as Record<string, unknown>) : reject(error) }
     socket.once("error", (error) => finish(error))
-    socket.once("connect", () => socket.write(`${JSON.stringify({ id: randomUUID(), ...command })}\n`))
+    socket.once("close", () => finish(new Error(`thread RPC connection closed before the ${String(command.type)} response arrived`)))
+    socket.once("connect", () => socket.write(`${JSON.stringify({ id, ...command })}\n`))
     socket.on("data", (chunk) => {
       buffer += chunk.toString("utf8")
-      const newline = buffer.indexOf("\n")
-      if (newline < 0) return
-      try { finish(undefined, dataRecord(JSON.parse(buffer.slice(0, newline)) as RpcFrame, command.type)) } catch (error) { finish(error instanceof Error ? error : new Error(String(error))) }
+      let newline = buffer.indexOf("\n")
+      while (newline >= 0) {
+        const line = buffer.slice(0, newline)
+        buffer = buffer.slice(newline + 1)
+        newline = buffer.indexOf("\n")
+        if (line.trim() === "") continue
+        let frame: unknown
+        try { frame = JSON.parse(line) } catch (error) { finish(error instanceof Error ? error : new Error(String(error))); return }
+        if (!record(frame) || frame.id !== id) continue
+        try { finish(undefined, dataRecord(frame as RpcFrame, command.type)) } catch (error) { finish(error instanceof Error ? error : new Error(String(error))) }
+        return
+      }
     })
   })
 }

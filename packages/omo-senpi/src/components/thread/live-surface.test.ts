@@ -7,9 +7,15 @@ import { TASK_HOST_SOCKET_ENV_NAMES } from "../../../../senpi-task/src/runners/r
 import { createLiveThreadSurface, resolveThreadSocket, THREAD_SOCKET_ENV_NAMES } from "./live-surface"
 import type { ThreadHost } from "./tools"
 
+/**
+ * `preamble` frames are written BEFORE the correlated response, exactly as the multi-session host
+ * does: an `open_session` admission notice (`{type:"queued", for_request:<id>}`) and connection-wide
+ * broadcasts (`agent_start`, `session_opened`) can all land on the wire ahead of the reply.
+ */
 async function withRpc(
   response: Record<string, unknown>,
   exercise: (surface: ThreadHost, frames: Array<Record<string, unknown>>) => Promise<void>,
+  preamble: (requestId: string) => Array<Record<string, unknown>> = () => [],
 ): Promise<void> {
   const directory = mkdtempSync("/tmp/thread-rpc-")
   const socketPath = join(directory, "rpc.sock")
@@ -26,7 +32,8 @@ async function withRpc(
       const frame = JSON.parse(buffer.slice(0, newline)) as Record<string, unknown>
       buffer = buffer.slice(newline + 1)
       frames.push(frame)
-      socket.end(`${JSON.stringify({ id: frame.id, type: "response", command: frame.type, ...response })}\n`)
+      const lines = [...preamble(String(frame.id)), { id: frame.id, type: "response", command: frame.type, ...response }]
+      socket.end(lines.map((line) => `${JSON.stringify(line)}\n`).join(""))
     })
   })
   try {
@@ -134,5 +141,43 @@ describe("live thread session-control RPCs", () => {
       expect(typeof surface.setThinkingLevel).toBe("function")
       await expect(surface.setThinkingLevel("route-peer", "low")).rejects.toThrow(/^thread RPC request failed:/)
     })
+  })
+})
+
+describe("live thread request correlation", () => {
+  test("#given an open_session admission notice ahead of the reply #when openSession runs #then the queued frame is skipped and the correlated response is returned", async () => {
+    await withRpc(
+      { success: true, data: { sessionId: "route-new", state: { cwd: "/w", name: "peer" } } },
+      async (surface) => {
+        const opened = await surface.openSession({ cwd: "/w", name: "peer" })
+        expect(opened.sessionId).toBe("route-new")
+      },
+      (requestId) => [{ type: "queued", for_request: requestId, position: 1, in_flight: 0 }],
+    )
+  })
+
+  test("#given connection-wide broadcasts ahead of the reply #when listSessions runs #then only the frame carrying the request id settles it", async () => {
+    await withRpc(
+      { success: true, data: { sessions: [{ sessionId: "route-a", cwd: "/w" }] } },
+      async (surface) => {
+        const sessions = await surface.listSessions()
+        expect(sessions).toEqual([{ sessionId: "route-a", cwd: "/w" }])
+      },
+      () => [
+        { type: "agent_start", sessionId: "route-other" },
+        { id: "some-other-request", type: "response", command: "get_state", success: true, data: {} },
+        { type: "session_opened", sessionId: "route-other" },
+      ],
+    )
+  })
+
+  test("#given a failure response for a different request id #when a request is pending #then it is ignored rather than settling the pending call", async () => {
+    await withRpc(
+      { success: true, data: {} },
+      async (surface) => {
+        await expect(surface.setSessionName("route-peer", "renamed")).resolves.toBeUndefined()
+      },
+      () => [{ id: "stale-request", type: "response", command: "set_session_name", success: false, error: "Session not found" }],
+    )
   })
 })
