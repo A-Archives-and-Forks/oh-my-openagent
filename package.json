@@ -164,22 +164,22 @@
   },
   "homepage": "https://github.com/code-yeongyu/oh-my-openagent#readme",
   "dependencies": {
-    "@clack/prompts": "^1.7.0",
+    "@clack/prompts": "^1.8.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@opencode-ai/plugin": "1.18.22",
-    "@opencode-ai/sdk": "1.18.22",
-    "@opentui/core": "^0.5.8",
-    "@opentui/keymap": "^0.5.8",
-    "@opentui/solid": "^0.5.8",
+    "@opencode-ai/plugin": "1.18.31",
+    "@opencode-ai/sdk": "1.18.31",
+    "@opentui/core": "^0.5.11",
+    "@opentui/keymap": "^0.5.11",
+    "@opentui/solid": "^0.5.11",
     "commander": "^15.0.0",
     "detect-libc": "^2.1.2",
     "diff": "^9.0.0",
-    "js-yaml": "^5.0.0",
+    "js-yaml": "^5.4.2",
     "jsonc-parser": "^3.3.1",
     "picocolors": "^1.1.1",
     "picomatch": "^4.0.7",
-    "posthog-node": "^5.51.1",
-    "zod": "^4.4.3"
+    "posthog-node": "^5.52.4",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@code-yeongyu/senpi": "2026.9.20",
@@ -217,7 +217,7 @@
     "@xterm/xterm": "^6.0.0",
     "bun-types": "1.4.2",
     "node-pty": "^1.1.0",
-    "puppeteer-core": "^25.8.0",
+    "puppeteer-core": "^25.11.0",
     "typescript": "^7.0.2"
   },
   "optionalDependencies": {
@@ -239,12 +239,14 @@
     "@earendil-works/pi-ai": "0.84.2",
     "@earendil-works/pi-coding-agent": "0.84.2",
     "@earendil-works/pi-tui": "0.84.2",
-    "hono": "^4.12.18",
-    "@hono/node-server": "^1.19.13",
-    "express-rate-limit": "^8.5.1",
-    "fast-uri": "^3.1.2",
+    "hono": "^4.13.8",
+    "@hono/node-server": "2.1.1",
+    "express-rate-limit": "^8.7.0",
+    "fast-uri": "^3.1.6",
     "path-to-regexp": "^8.4.2",
-    "@types/node": "26.2.0"
+    "qs": "^6.16.0",
+    "ip-address": "^10.7.2",
+    "@types/node": "26.6.2"
   },
   "trustedDependencies": []
 }

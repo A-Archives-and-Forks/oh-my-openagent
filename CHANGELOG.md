@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+**Every direct dependency moves to its latest release inside its current major, and the security overrides move with them.**
+
+`bun audit` reports one advisory row where it reported 43. The hono, fast-uri and express-rate-limit overrides now sit past their advisories, and `@hono/node-server` moved to the 2.1.1 the engine already asks for. Nothing in the tree needs a 1.x copy, so the old `^1.19.13` override was itself what held the package below the serve-static path-traversal fix. qs and ip-address gained overrides because the engine pins both to exact versions and no range refresh reaches the fixed releases; brace-expansion and browserslist needed none, since their existing ranges already cover theirs. What remains is one low-severity @babel/core file read, held in place by the exact pin @opentui/solid puts on it.
+
+Then the sweep: vitest 4.1.11, @opencode-ai/plugin and sdk 1.18.31, opentui 0.5.11, zod 4.6.5, typebox 1.3.34, js-yaml 5.4.2, posthog-node 5.52.4, @clack/prompts 1.8.1, terser 5.51.2, puppeteer-core 25.11.0, yaml 2.9.1, @types/node 26.6.2 and biome 2.5.14 wherever they are declared, and in the web package react 19.3.0, three 0.186.0, tailwindcss 4.3.3, wrangler 4.135.0, next-intl 4.14.5 and the rest of its set. next, eslint and the ai SDK keep their majors; those belong to their own change.
+
+Two generated artifacts moved with the versions. zod 4.6.5 writes a boolean-or-string union as a single type array instead of an anyOf pair, so both JSON Schema files were regenerated. And because the Senpi extension inlines zod, js-yaml and posthog-node into one non-split file, its bundle grew from 1,202,188 to 1,260,200 bytes; the size budget moved to 1,300,000 with the measurement written into the test comment.
+
 **The frontend skill now refuses the coloured accent border.**
 
 A selected row no longer earns a `border-l-2 border-primary` stripe, and a focused card no longer gets a primary-tinted outline — the skill names that pattern as the most recognizable AI-generated-UI tell and treats it as a defect, including instances that already exist on a surface it touches. State is expressed the way this repo's design systems already express it: washes of one ink, a check glyph for selection, tonal layering for focus. Keyboard focus rings stay coloured.
