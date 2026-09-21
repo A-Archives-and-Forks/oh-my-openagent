@@ -4,7 +4,7 @@ import type { TaskManager } from "../../manager"
 import type { ResolvedModelRecord, ResidencyState, TaskRunStats, TaskStatus } from "../../state"
 import type { CallerSessionResolver } from "../control"
 
-export type OutputManager = Pick<TaskManager, "get" | "list">
+export type OutputManager = Pick<TaskManager, "get" | "list" | "concurrency">
 
 export type TranscriptEntry =
   | { readonly kind: "assistant"; readonly text: string }
@@ -33,6 +33,7 @@ export type SuspendedDetails = {
 
 export type TaskSnapshot = {
   readonly task_id: string
+  readonly lease?: "held" | "parked"
   readonly name?: string
   readonly description?: string
   readonly task_summary?: string

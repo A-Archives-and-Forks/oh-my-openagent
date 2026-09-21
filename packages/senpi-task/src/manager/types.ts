@@ -269,6 +269,9 @@ export type TaskManagerOptions = {
 
 export type TaskManager = {
   readonly workpools?: WorkpoolEngine
+  // Optional for structural adapters; the concrete manager exposes its live lease allocator.
+  readonly concurrency?: TaskConcurrency
+  findTaskByChildSession?(sessionId: string): TaskRecord | undefined
   start(spec: ManagerStartSpec): Promise<StartResult>
   startOwned(spec: ManagerStartSpec, owner: DagTaskOwner): Promise<OwnedStartResult>
   findOwnedTask(owner: DagTaskOwnerKey): TaskRecord | undefined

@@ -604,6 +604,13 @@ class TaskManagerImpl implements TaskManager {
     }
   }
 
+  get concurrency(): TaskConcurrency { return this.#concurrency }
+
+  findTaskByChildSession(sessionId: string): TaskRecord | undefined {
+    return this.#options.store.list().records.find((record) => record.child_session_id === sessionId
+      && record.status === "running" && this.#live.has(record.task_id))
+  }
+
   list(scope: ListScope): readonly ListedTask[] {
     const records = this.#options.store.list().records
     const filtered = scope.scope === "all" ? records : records.filter((record) => inSession(record, scope.session_id))
