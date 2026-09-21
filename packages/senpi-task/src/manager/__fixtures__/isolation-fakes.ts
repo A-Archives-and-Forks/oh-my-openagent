@@ -71,6 +71,10 @@ export function tempGitRepo(): IsolationFixture {
   run(repoRoot, ["git", "init", "--initial-branch=main"])
   run(repoRoot, ["git", "config", "user.email", "fixture@example.com"])
   run(repoRoot, ["git", "config", "user.name", "Fixture"])
+  // A system-wide autocrlf=true (the Windows runner default) rewrites applied patch content into
+  // CRLF, breaking the byte-exact round-trip assertions on the merged working tree.
+  run(repoRoot, ["git", "config", "core.autocrlf", "false"])
+  run(repoRoot, ["git", "config", "core.safecrlf", "false"])
   writeFileSync(join(repoRoot, "seed.txt"), "seed\n")
   run(repoRoot, ["git", "add", "."])
   run(repoRoot, ["git", "commit", "-m", "seed"])

@@ -242,6 +242,14 @@ export async function startFakeHost(options: FakeHostOptions = {}): Promise<Fake
     restart: async () => {
       table.clear()
       dropConnections()
+      // A named pipe's name stays reserved until every peer handle is gone, so
+      // the restart waits for the destroyed connections to actually close before
+      // the next generation binds - straggler peers that had not yet observed the
+      // destroy would otherwise race the new listener into re-prompting.
+      await Promise.all([...sockets].map((socket) => new Promise<void>((resolve) => {
+        if (socket.destroyed) return resolve()
+        socket.once("close", () => resolve())
+      })))
       await closeServer()
       await rebind()
     },

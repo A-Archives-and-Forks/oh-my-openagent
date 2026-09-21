@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs"
-import { dirname, join } from "node:path"
+import { basename, dirname, join } from "node:path"
 
 import { buildCompletionDetails, completionMessageLines } from "../completion"
 import type { DagNodeId, DagRunId } from "../dag/types"
@@ -85,7 +85,7 @@ describe("isolated child spawn", () => {
     expect(existsSync(record.isolation?.merge_result?.patchPath ?? "")).toBe(true)
     const base = record.isolation?.base_dir ?? ""
     const siblings = readdirSync(dirname(base))
-    expect(siblings.some((entry) => entry.startsWith(`${base.split("/").pop()}.retained-`))).toBe(true)
+    expect(siblings.some((entry) => entry.startsWith(`${basename(base)}.retained-`))).toBe(true)
   })
 
   test("#given an isolated child that is cancelled #when it settles #then the delta is retained as artifacts and nothing is merged", async () => {
