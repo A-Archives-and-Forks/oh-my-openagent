@@ -1,5 +1,5 @@
 {
-  "at": "2026-09-21T14:52:08.622Z",
+  "at": "2026-09-21T15:14:16.170Z",
   "senpi": "/Users/yeongyu/.bun/install/global/node_modules/.bin/senpi",
   "plugin_root": "/Users/yeongyu/tmp/omp-remaining-wt/omo-b2/packages/omo-senpi/plugin",
   "scenarios": [
@@ -8,7 +8,7 @@
       "plugin_root": "/Users/yeongyu/tmp/omp-remaining-wt/omo-b2/packages/omo-senpi/plugin",
       "command": "senpi -e <mock-provider> -p --provider omo-mock --model mock-1 \"spawn the isolated child now\"",
       "exit_code": 0,
-      "duration_ms": 4908,
+      "duration_ms": 4576,
       "checks": [
         {
           "name": "record carries an isolation block",
@@ -54,7 +54,7 @@
       "plugin_root": "/Users/yeongyu/tmp/omp-remaining-wt/omo-b2/packages/omo-senpi/plugin",
       "command": "senpi -e <mock-provider> -p --provider omo-mock --model mock-1 \"spawn the isolated child now\"",
       "exit_code": 0,
-      "duration_ms": 4413,
+      "duration_ms": 4248,
       "checks": [
         {
           "name": "record carries an isolation block",
@@ -106,7 +106,7 @@
       "plugin_root": "/Users/yeongyu/tmp/omp-remaining-wt/omo-c/packages/omo-senpi/plugin",
       "command": "senpi -e <mock-provider> -p --provider omo-mock --model mock-1 \"spawn the isolated child now\"",
       "exit_code": 0,
-      "duration_ms": 3677,
+      "duration_ms": 6708,
       "checks": [
         {
           "name": "the pre-change plugin records no isolation",
