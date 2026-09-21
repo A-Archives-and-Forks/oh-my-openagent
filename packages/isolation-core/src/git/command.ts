@@ -37,7 +37,10 @@ export interface GitOptions {
 function killTree(child: ChildProcess): void {
   if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return
   if (process.platform !== "win32") {
-    try { process.kill(-child.pid, "SIGKILL"); return } catch { /* group already gone; fall through */ }
+    // POSIX: the child leads its own process group; a group that already died
+    // leaves nothing worth killing, so the ESRCH fall-through is a plain kill.
+    try { process.kill(-child.pid, "SIGKILL"); return } catch { try { child.kill("SIGKILL") } catch { /* already exited */ } }
+    return
   }
   const killer = spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true })
   killer.once("error", () => { try { child.kill("SIGKILL") } catch { /* already exited */ } })
