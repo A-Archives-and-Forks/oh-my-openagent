@@ -14,6 +14,7 @@ import { getUnsupportedOpenCodeVersionMessage } from "./minimum-opencode-version
 import { promptInstallConfig, promptInstallPlatform } from "./tui-install-prompts"
 import { detectCodexInstallation, formatCodexInstallationWarning, runCodexInstaller } from "./install-codex"
 import { runSenpiInstaller } from "./install-senpi"
+import { SENPI_EDITION_HINT_TITLE, senpiEditionHintLines, shouldShowSenpiEditionHint } from "./senpi-edition-hint"
 import { starGitHubRepositories } from "./star-request"
 import { getNoModelProvidersWarning, hasAnyConfiguredProvider } from "./provider-availability"
 import { ensureTuiPluginEntry } from "./config-manager/add-tui-plugin-to-tui-config"
@@ -175,6 +176,11 @@ export async function runTuiInstaller(args: InstallArgs, version: string): Promi
       `deep exploration, and relentless execution until completion.`,
     "The Magic Word",
   )
+
+  if (shouldShowSenpiEditionHint(config)) {
+    p.log.info(color.bold(SENPI_EDITION_HINT_TITLE))
+    p.log.message(senpiEditionHintLines({ command: color.cyan, link: color.underline }).join("\n"))
+  }
 
   const shouldStar = await p.confirm({
     message: "Star the repos on GitHub?",
