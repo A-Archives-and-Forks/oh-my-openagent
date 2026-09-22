@@ -5,7 +5,7 @@ import { resolveAgent } from "../agents/resolve-agent"
 import { resolveCategory } from "./index"
 
 // Regression coverage for code-yeongyu/oh-my-openagent#8051: senpi's Claude subscription lane
-// (`claude-sdk-oauth`, Claude Pro/Max) serves the same model ids as `anthropic`. A machine that is
+// (`anthropic-subscription`, Claude Pro/Max) serves the same model ids as `anthropic`. A machine that is
 // logged in there AND holds an OpenCode Zen key sees both providers in `getAvailable()`, and every
 // builtin Claude rung must pick the subscription lane, not the metered `opencode` one.
 
@@ -47,41 +47,41 @@ const CLAUDE_IDS = ["claude-fable-5-1", "claude-opus-5", "claude-sonnet-4-6"] as
 
 // The metered lane is listed FIRST so registry order cannot be what picks the subscription lane.
 function subscriptionAndMeteredRegistry(): FakeRegistry {
-  return registry(CLAUDE_IDS.flatMap((id) => [model("opencode", id), model("claude-sdk-oauth", id)]))
+  return registry(CLAUDE_IDS.flatMap((id) => [model("opencode", id), model("anthropic-subscription", id)]))
 }
 
 describe("builtin Claude rungs under the senpi harness", () => {
-  test("#given claude-sdk-oauth and opencode both serve Fable 5.1 #when architect resolves #then the subscription lane wins", () => {
+  test("#given anthropic-subscription and opencode both serve Fable 5.1 #when architect resolves #then the subscription lane wins", () => {
     // when
     const resolved = expectResolvedCategory(resolveCategory("architect", {}, subscriptionAndMeteredRegistry()))
 
     // then
-    expect(resolved.spec.provider).toBe("claude-sdk-oauth")
+    expect(resolved.spec.provider).toBe("anthropic-subscription")
     expect(resolved.spec.modelId).toBe("claude-fable-5-1")
     expect(resolved.spec.variant).toBe("max")
-    expect(resolved.modelSelection.fallbackEntry?.providers[0]).toBe("claude-sdk-oauth")
+    expect(resolved.modelSelection.fallbackEntry?.providers[0]).toBe("anthropic-subscription")
   })
 
-  test("#given claude-sdk-oauth and opencode both serve Opus 5 #when unspecified-high resolves #then the subscription lane wins", () => {
+  test("#given anthropic-subscription and opencode both serve Opus 5 #when unspecified-high resolves #then the subscription lane wins", () => {
     // when
     const resolved = expectResolvedCategory(resolveCategory("unspecified-high", {}, subscriptionAndMeteredRegistry()))
 
     // then
-    expect(resolved.spec.provider).toBe("claude-sdk-oauth")
+    expect(resolved.spec.provider).toBe("anthropic-subscription")
     expect(resolved.spec.modelId).toBe("claude-opus-5")
     expect(resolved.spec.variant).toBe("xhigh")
   })
 
-  test("#given claude-sdk-oauth and opencode both serve Fable 5.1 #when plan-consultant resolves #then the subscription lane wins", () => {
+  test("#given anthropic-subscription and opencode both serve Fable 5.1 #when plan-consultant resolves #then the subscription lane wins", () => {
     // when
     const resolved = expectResolvedAgent(resolveAgent("plan-consultant", BUILTIN_AGENTS, subscriptionAndMeteredRegistry()))
 
     // then
-    expect(resolved.model).toBe("claude-sdk-oauth/claude-fable-5-1")
-    expect(resolved.resolved_model).toMatchObject({ provider: "claude-sdk-oauth", model_id: "claude-fable-5-1" })
+    expect(resolved.model).toBe("anthropic-subscription/claude-fable-5-1")
+    expect(resolved.resolved_model).toMatchObject({ provider: "anthropic-subscription", model_id: "claude-fable-5-1" })
   })
 
-  test("#given claude-sdk-oauth is absent #when Claude rungs resolve #then selection is identical to the pre-lane table", () => {
+  test("#given anthropic-subscription is absent #when Claude rungs resolve #then selection is identical to the pre-lane table", () => {
     // given: the registry shape of a machine without a Claude subscription login
     const apiKeyRegistry = registry([
       model("opencode", "claude-fable-5-1"),

@@ -24,7 +24,7 @@ describe("resolveCompatibleModelSettings", () => {
 
   test("maps GPT-6 Astra minimal reasoning effort to low", () => {
     expect(resolveCompatibleModelSettings({
-      providerID: "openai-codex",
+      providerID: "chatgpt-subscription",
       modelID: "gpt-6-astra",
       desired: { reasoningEffort: "minimal" },
     }).reasoningEffort).toBe("low")

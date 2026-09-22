@@ -32,7 +32,7 @@ describe("omo-ai packed install", () => {
       const searchPaths = consumerRequire.resolve.paths("@code-yeongyu/senpi") ?? []
       const senpiRoot = searchPaths.map((searchPath) => join(searchPath, "@code-yeongyu", "senpi")).find((candidate) => existsSync(join(candidate, "package.json")))
       expect(senpiRoot).toBeDefined()
-      const sessionRegistryPump = readFileSync(join(senpiRoot!, "dist/core/extensions/builtin/claude-sdk-oauth/session-registry-pump.js"), "utf8")
+      const sessionRegistryPump = readFileSync(join(senpiRoot!, "dist/core/extensions/builtin/anthropic-subscription/session-registry-pump.js"), "utf8")
       expect(sessionRegistryPump).toContain("sdkResultFailure(message)")
     } finally {
       rmSync(root, { recursive: true, force: true })

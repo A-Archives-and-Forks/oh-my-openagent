@@ -60,7 +60,7 @@ describe("BUILTIN_MODEL_PROFILES", () => {
     expect(offenders).toEqual([])
   })
 
-  it("lists no rung on the openai API lane so openai-codex is the only OpenAI lane", () => {
+  it("lists no rung on the openai API lane so chatgpt-subscription is the only OpenAI lane", () => {
     const apiLaneRungs = rungs()
       .filter((rung) => rung.providers.includes("openai"))
       .map((rung) => `${rung.profile}: ${rung.providers.join("|")}/${rung.model}`)

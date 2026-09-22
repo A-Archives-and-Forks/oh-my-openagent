@@ -35,14 +35,14 @@ describe("dead-chain category disabling", () => {
       if (result.kind !== "model_unavailable") throw new Error("Expected model_unavailable")
       expect(result.attempted_chain).toEqual(CATEGORY_FALLBACK_CHAINS.quick)
       expect(result.missing_providers).toEqual([
-        "openai-codex",
+        "chatgpt-subscription",
         "deepseek",
         "qwen-token-plan",
         "alibaba-token-plan",
         "bailian-coding-plan",
         "opencode-go",
         "xai",
-        "claude-sdk-oauth",
+        "anthropic-subscription",
         "anthropic-api",
         "github-copilot",
       ])

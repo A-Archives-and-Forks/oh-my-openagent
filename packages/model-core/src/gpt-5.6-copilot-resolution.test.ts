@@ -151,7 +151,7 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
 
   test("momus prefers native Astra xhigh over the Copilot Astra rung when both are available", () => {
     // given
-    const availableModels = new Set(["openai-codex/gpt-6-astra", "github-copilot/gpt-6-astra"])
+    const availableModels = new Set(["chatgpt-subscription/gpt-6-astra", "github-copilot/gpt-6-astra"])
 
     // when
     const result = resolveModelWithFallback({
@@ -162,7 +162,7 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
 
     // then
     expect(result).toEqual({
-      model: "openai-codex/gpt-6-astra",
+      model: "chatgpt-subscription/gpt-6-astra",
       source: "provider-fallback",
       variant: "xhigh",
     })

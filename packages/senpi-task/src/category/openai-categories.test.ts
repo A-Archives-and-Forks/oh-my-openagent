@@ -34,8 +34,8 @@ function definition(name: string) {
   return found
 }
 
-const ASTRA_IDS = ["gpt-6-astra", "openai/gpt-6-astra", "openai-codex/gpt-6-astra-fast", "vercel/openai/gpt-6-astra", "GPT-6-Astra"] as const
-const GPT_5_IDS = ["openai/gpt-5.6-sol", "openai-codex/gpt-5.6-terra", "openai/gpt-5.5", "gpt-5-5"] as const
+const ASTRA_IDS = ["gpt-6-astra", "openai/gpt-6-astra", "chatgpt-subscription/gpt-6-astra-fast", "vercel/openai/gpt-6-astra", "GPT-6-Astra"] as const
+const GPT_5_IDS = ["openai/gpt-5.6-sol", "chatgpt-subscription/gpt-5.6-terra", "openai/gpt-5.5", "gpt-5-5"] as const
 const OTHER_IDS = ["anthropic/claude-opus-5", "kimi-coding/k3", "zai-coding-plan/glm-5.3", undefined] as const
 
 describe("isGpt6Model", () => {
@@ -125,10 +125,10 @@ describe("category prompt append resolvers", () => {
 })
 
 describe("GPT builtin defaults and gates", () => {
-  it("#given the builtin definitions #then ultrabrain runs Astra max, deep-high Astra high, deep-low Sol medium, all on the openai-codex lane", () => {
-    expect(definition("ultrabrain").config).toEqual({ model: "openai-codex/gpt-6-astra", variant: "max" })
-    expect(definition("deep-high").config).toEqual({ model: "openai-codex/gpt-6-astra", variant: "high" })
-    expect(definition("deep-low").config).toEqual({ model: "openai-codex/gpt-5.6-sol", variant: "medium" })
+  it("#given the builtin definitions #then ultrabrain runs Astra max, deep-high Astra high, deep-low Sol medium, all on the chatgpt-subscription lane", () => {
+    expect(definition("ultrabrain").config).toEqual({ model: "chatgpt-subscription/gpt-6-astra", variant: "max" })
+    expect(definition("deep-high").config).toEqual({ model: "chatgpt-subscription/gpt-6-astra", variant: "high" })
+    expect(definition("deep-low").config).toEqual({ model: "chatgpt-subscription/gpt-5.6-sol", variant: "medium" })
   })
 
   it("#given unspecified-high #then its default is the Opus 5 rung its chain now leads with, not Astra", () => {
@@ -145,7 +145,7 @@ describe("GPT builtin defaults and gates", () => {
 
 describe("resolveCategory on GPT registries", () => {
   const astraRegistry = registry([{ provider: "openai", id: "gpt-6-astra" }])
-  const codexAstraRegistry = registry([{ provider: "openai-codex", id: "gpt-6-astra" }])
+  const codexAstraRegistry = registry([{ provider: "chatgpt-subscription", id: "gpt-6-astra" }])
   const solRegistry = registry([{ provider: "openai", id: "gpt-5.6-sol" }])
 
   const astraCases = [
@@ -161,11 +161,11 @@ describe("resolveCategory on GPT registries", () => {
       expect(result.spec).toMatchObject({ provider: "openai", modelId: "gpt-6-astra", variant, prompt_append: append })
     })
 
-    it(`#given only openai-codex/gpt-6-astra #when ${category} resolves #then the codex rung carries the same variant and append`, () => {
+    it(`#given only chatgpt-subscription/gpt-6-astra #when ${category} resolves #then the codex rung carries the same variant and append`, () => {
       const result = resolveCategory(category, {}, codexAstraRegistry)
       expect(result.kind).toBe("resolved")
       if (result.kind !== "resolved") throw new Error("Expected resolved")
-      expect(result.spec).toMatchObject({ provider: "openai-codex", modelId: "gpt-6-astra", variant, prompt_append: append })
+      expect(result.spec).toMatchObject({ provider: "chatgpt-subscription", modelId: "gpt-6-astra", variant, prompt_append: append })
     })
   }
 

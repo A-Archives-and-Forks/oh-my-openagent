@@ -9,7 +9,7 @@ import { AGENT_FALLBACK_CHAINS } from "@oh-my-opencode/senpi-task/agents-builtin
 // without any test noticing (#8259). This package depends on both, so it holds the guard: every
 // curated agent chain must equal its model-core source rung for rung, except that senpi heads each
 // claude-* rung with its Claude subscription lane (#8051) and drops the `openai` API-key lane so
-// `openai-codex` is its only OpenAI lane (#8300; OpenCode keeps `openai`, its single OpenAI id).
+// `chatgpt-subscription` is its only OpenAI lane (#8300; OpenCode keeps `openai`, its single OpenAI id).
 
 const CURATED_AGENT_MIRROR_SOURCES = {
   explore: "explore",
@@ -18,7 +18,7 @@ const CURATED_AGENT_MIRROR_SOURCES = {
   "plan-reviewer": "momus",
 } as const
 
-const SENPI_CLAUDE_LANE = "claude-sdk-oauth"
+const SENPI_CLAUDE_LANE = "anthropic-subscription"
 const OPENAI_API_LANE = "openai"
 // senpi's Kimi Code registry id is `kimi-coding`; model-core carries the models.dev/opencode id
 // `kimi-for-coding` only, so a senpi kimi rung heads with the extra id (same shape as the category

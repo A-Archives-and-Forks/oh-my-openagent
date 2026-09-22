@@ -21,7 +21,7 @@ function registry(models: readonly FakeModel[]) {
 const FULL_CHAIN_MODELS: readonly FakeModel[] = [
   { provider: "xiaomi", id: "mimo-v2.6-pro" },
   { provider: "xai", id: "grok-4.7" },
-  { provider: "openai-codex", id: "gpt-5.6-terra" },
+  { provider: "chatgpt-subscription", id: "gpt-5.6-terra" },
   { provider: "anthropic", id: "claude-sonnet-5" },
   { provider: "qwen-token-plan", id: "qwen3.8-max-preview" },
   { provider: "deepseek", id: "deepseek-v4-pro" },
