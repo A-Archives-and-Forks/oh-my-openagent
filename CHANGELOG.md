@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0-beta.84] - 2026-09-22
+
 ### Changed
 
 **Claude Opus 5.5 is the Opus every default reaches for now, and it runs at `max`.** ([#8684](https://github.com/code-yeongyu/oh-my-openagent/issues/8684))
