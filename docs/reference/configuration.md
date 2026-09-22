@@ -129,7 +129,7 @@ Here's a practical starting `~/.omo/omo.jsonc`. OpenCode plugin settings live in
       "explore": { "model": "github-copilot/grok-code-fast-1" },
 
       // Plan-gated reviewers: keep the builtin prompt, pin the model
-      "plan-consultant": { "model": "anthropic/claude-opus-5", "reasoning": "max" },
+      "plan-consultant": { "model": "anthropic/claude-opus-5-5", "reasoning": "max" },
       "plan-reviewer": { "model": "openai/gpt-6-astra", "reasoning": "high" },
     },
 
@@ -141,14 +141,14 @@ Here's a practical starting `~/.omo/omo.jsonc`. OpenCode plugin settings live in
       "unspecified-low": { "model": "xiaomi/mimo-v2.6-pro", "reasoning": "max" },
 
       // unspecified-high - complex work
-      "unspecified-high": { "model": "anthropic/claude-opus-5", "reasoning": "xhigh" },
+      "unspecified-high": { "model": "anthropic/claude-opus-5-5", "reasoning": "max" },
 
       // writing - docs/prose
       "writing": { "model": "anthropic/claude-fable-5-1", "reasoning": "low" },
 
       // visual-engineering - Fable 5.1 max, then Opus 5 max and Kimi K3 max
       "visual-engineering": {
-        "model": "anthropic/claude-opus-5",
+        "model": "anthropic/claude-opus-5-5",
         "reasoning": "max",
       },
 
@@ -169,7 +169,7 @@ Here's a practical starting `~/.omo/omo.jsonc`. OpenCode plugin settings live in
         "zai-coding-plan": 10,
       },
       "modelConcurrency": {
-        "anthropic/claude-opus-5": 2,
+        "anthropic/claude-opus-5-5": 2,
         "opencode/gpt-5-nano": 20,
       },
     },
@@ -282,7 +282,7 @@ Control what tools an agent can use:
 {
   "agents": {
     "plan-consultant": {
-      "model": "anthropic/claude-opus-5",
+      "model": "anthropic/claude-opus-5-5",
       "fallback_models": [
         // Simple string fallback
         "openai/gpt-5.6-sol",
@@ -347,7 +347,7 @@ Domain-specific model delegation used by the `task()` tool. When the main agent 
 | `artistry`           | `anthropic/claude-fable-5-1` (max) | Creative/unconventional approaches             |
 | `quick`              | `openai/gpt-5.6-luna-fast` (low) | Trivial tasks, typo fixes, single-file changes |
 | `unspecified-low`    | `xiaomi/mimo-v2.6-pro` (max)     | General tasks, low effort                      |
-| `unspecified-high`   | `anthropic/claude-opus-5` (xhigh) | General tasks, high effort                     |
+| `unspecified-high`   | `anthropic/claude-opus-5-5` (max) | General tasks, high effort                     |
 | `writing`            | `anthropic/claude-fable-5-1` (low)     | Documentation, prose, technical writing        |
 
 > **Note**: Built-in category defaults are available automatically. User-defined category config merges over the built-in defaults or adds custom categories.
@@ -420,14 +420,14 @@ Capability data comes from provider runtime metadata first. OmO also ships bundl
 
 #### Agent Provider Chains
 
-The main agent has no chain of its own: it runs on your session model (Claude Opus 5 or GPT 5.6 Sol recommended). The four curated agents resolve through these chains (`packages/senpi-task/src/agents/builtin/fallback-chains.ts`):
+The main agent has no chain of its own: it runs on your session model (Claude Opus 5.5 or GPT 5.6 Sol recommended). The four curated agents resolve through these chains (`packages/senpi-task/src/agents/builtin/fallback-chains.ts`):
 
 | Agent | Default Model | Provider Priority |
 | --- | --- | --- |
 | **explore** | `gpt-5.6-luna-fast` | `openai\|chatgpt-subscription/gpt-5.6-luna-fast (low)` → `deepseek/deepseek-v4-flash (max)` → `opencode-go\|bailian-coding-plan/qwen3.7-plus` → `opencode-go/minimax-m3` → `minimax-coding-plan\|minimax-cn-coding-plan/MiniMax-M3` → `opencode-go/minimax-m2.7` → `anthropic\|github-copilot/claude-haiku-4-5` → `openai\|chatgpt-subscription/gpt-5.4-nano`
 | **librarian** | `gpt-5.6-luna-fast` | `openai\|chatgpt-subscription/gpt-5.6-luna-fast (low)` → `deepseek/deepseek-v4-flash (max)` → `opencode-go\|bailian-coding-plan/qwen3.7-plus` → `opencode-go/minimax-m3` → `minimax-coding-plan\|minimax-cn-coding-plan/MiniMax-M3` → `opencode-go/minimax-m2.7` → `anthropic\|github-copilot/claude-haiku-4-5` → `openai\|chatgpt-subscription/gpt-5.4-nano`
-| **plan-consultant** | `claude-fable-5-1` | `anthropic\|github-copilot\|opencode/claude-fable-5-1 (max)` → `anthropic\|github-copilot\|opencode/claude-opus-5 (max)` → `opencode-go\|kimi-for-coding\|moonshotai\|opencode/kimi-k3 (max)`
-| **plan-reviewer** | `gpt-6-astra` | `openai\|chatgpt-subscription/gpt-6-astra (xhigh)` → `github-copilot/gpt-6-astra (high)` → `openai\|chatgpt-subscription\|opencode/gpt-6-astra (high)` → `anthropic\|github-copilot\|opencode/claude-opus-5 (max)` → `google\|github-copilot\|opencode/gemini-3.1-pro (high)` → `opencode-go/glm-5.2`
+| **plan-consultant** | `claude-fable-5-1` | `anthropic\|github-copilot\|opencode/claude-fable-5-1 (max)` → `anthropic\|github-copilot\|opencode/claude-opus-5-5 (max)` → `opencode-go\|kimi-for-coding\|moonshotai\|opencode/kimi-k3 (max)`
+| **plan-reviewer** | `gpt-6-astra` | `openai\|chatgpt-subscription/gpt-6-astra (xhigh)` → `github-copilot/gpt-6-astra (high)` → `openai\|chatgpt-subscription\|opencode/gpt-6-astra (high)` → `anthropic\|github-copilot\|opencode/claude-opus-5-5 (max)` → `google\|github-copilot\|opencode/gemini-3.1-pro (high)` → `opencode-go/glm-5.2`
 
 #### Category Provider Chains
 
@@ -435,14 +435,14 @@ This table mirrors the authoritative hardcoded category fallback chains: the cha
 
 | Category | Provider Chain Primary | Provider Priority |
 | --- | --- | --- |
-| **Visual Engineering** | `claude-fable-5-1` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5-1 (max)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5 (max)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` |
+| **Visual Engineering** | `claude-fable-5-1` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5-1 (max)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5-5 (max)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` |
 | **Ultrabrain** | `gpt-6-astra` | `openai\|chatgpt-subscription/gpt-6-astra (max)` → `github-copilot/gpt-6-astra (max)` → `openai\|chatgpt-subscription\|opencode/gpt-6-astra (max)` → `openai\|chatgpt-subscription/gpt-5.6-sol (max)` → `github-copilot/gpt-5.6-sol (max)` → `openai\|chatgpt-subscription\|opencode/gpt-5.6-sol (max)` |
 | **Deep** | `gpt-6-astra` | `openai\|chatgpt-subscription\|github-copilot\|opencode/gpt-6-astra (high)` → `openai\|chatgpt-subscription\|github-copilot\|opencode/gpt-5.6-sol (medium)` |
-| **Artistry** | `claude-fable-5-1` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5-1 (max)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5 (xhigh)` |
+| **Artistry** | `claude-fable-5-1` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5-1 (max)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5-5 (max)` |
 | **Quick** | `gpt-5.6-luna-fast` | `chatgpt-subscription/gpt-5.6-luna-fast (low)` → `deepseek/deepseek-v4-flash (off)` → `qwen-token-plan\|alibaba-token-plan\|bailian-coding-plan/qwen3.6-flash (low)` → `opencode-go/minimax-m3 (max)` → `opencode-go/minimax-m2.7 (max)` → `xai/grok-4.20-0309-non-reasoning` → `anthropic\|anthropic-api\|github-copilot/claude-haiku-4-5 (off)` |
 | **Unspecified Low** | `mimo-v2.6-pro` | `xiaomi\|opencode-go/mimo-v2.6-pro (max)` → `xai\|github-copilot\|opencode-go/grok-4.7 (xhigh)` → `openai\|chatgpt-subscription\|github-copilot\|opencode/gpt-5.6-terra (high)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-sonnet-5 (low)` → `qwen-token-plan\|alibaba-token-plan\|qwen-token-plan-cn\|alibaba-token-plan-cn/qwen3.8-max-preview (max)` → `deepseek\|opencode-go/deepseek-v4-pro (max)` → `xiaomi\|opencode-go/mimo-v2.5-pro (max)` |
-| **Unspecified High** | `gpt-6-astra` | `openai\|chatgpt-subscription\|github-copilot\|opencode/gpt-6-astra (high)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5 (xhigh)` → `zai-coding-plan\|opencode-go/glm-5.3 (max)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` |
-| **Writing** | `claude-fable-5-1` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5-1 (medium)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` |
+| **Unspecified High** | `gpt-6-astra` | `openai\|chatgpt-subscription\|github-copilot\|opencode/gpt-6-astra (high)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5-5 (max)` → `zai-coding-plan\|opencode-go/glm-5.3 (max)` → `kimi-for-coding\|moonshotai\|opencode-go\|opencode/kimi-k3 (max)` |
+| **Writing** | `claude-fable-5-1` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5-1 (low)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5-5 (low)` → `anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-4-6 (max)` |
 
 Run `bunx oh-my-openagent doctor --verbose` to see effective model resolution for your config.
 
@@ -460,7 +460,7 @@ Control parallel agent execution and concurrency limits. `background_task` (came
     "defaultConcurrency": 5,
     "staleTimeoutMs": 2700000,
     "providerConcurrency": { "anthropic": 3, "openai": 5, "google": 10 },
-    "modelConcurrency": { "anthropic/claude-opus-5": 2 }
+    "modelConcurrency": { "anthropic/claude-opus-5-5": 2 }
   }
 }
 ```
@@ -894,7 +894,7 @@ Define `fallback_models` per agent or category:
 {
   "agents": {
     "plan-consultant": {
-      "model": "anthropic/claude-opus-5",
+      "model": "anthropic/claude-opus-5-5",
       "fallback_models": [
         "openai/gpt-5.6-sol",
         {
@@ -913,7 +913,7 @@ Define `fallback_models` per agent or category:
 {
   "agents": {
     "plan-consultant": {
-      "model": "anthropic/claude-opus-5",
+      "model": "anthropic/claude-opus-5-5",
       "fallback_models": [
         "openai/gpt-5.6-sol",
         {
@@ -1014,7 +1014,7 @@ Mix string entries and object entries when only some fallback models need specia
 {
   "agents": {
     "plan-consultant": {
-      "model": "anthropic/claude-opus-5",
+      "model": "anthropic/claude-opus-5-5",
       "fallback_models": [
         "openai/gpt-5.6-sol",
         {
@@ -1047,7 +1047,7 @@ Mix string entries and object entries when only some fallback models need specia
           "maxTokens": 12000
         },
         {
-          "model": "anthropic/claude-opus-5",
+          "model": "anthropic/claude-opus-5-5",
           "reasoning": "max",
           "temperature": 0.2
         },
@@ -1269,11 +1269,11 @@ Use Antigravity for cheaper or quota-balanced work. Use direct Anthropic for lon
 
     // Direct Anthropic, only for eligible long-context accounts/models.
     "plan-consultant": {
-      "model": "anthropic/claude-opus-5",
+      "model": "anthropic/claude-opus-5-5",
       "reasoning": "max"
     },
     "plan-reviewer": {
-      "model": "anthropic/claude-opus-5"
+      "model": "anthropic/claude-opus-5-5"
     }
   }
 }
