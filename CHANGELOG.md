@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+**Write your harness block as `[native]` in `omo.json`, and delegate to the `omo-native-*` reviewers.** ([#8620](https://github.com/code-yeongyu/oh-my-openagent/issues/8620))
+
+The standalone edition is branded OmO Native, but the block you write in `omo.json` to override settings for it was spelled `[senpi]`, and the reviewer agents you delegate to by name were `omo-senpi-code-reviewer`, `omo-senpi-qa-executor` and `omo-senpi-gate-reviewer`. Both spellings came from the engine's package name.
+
+`[senpi]` keeps working. It is canonicalized when the config is read, so a config nothing can rewrite still applies every value it sets, and first launch rewrites the key in the file once and names it in a startup notice. A file carrying both blocks resolves `[native]` and reports the ignored one. A config that never mentioned `[senpi]` is not touched at all.
+
+The reviewer agents now answer to `omo-native-code-reviewer`, `omo-native-qa-executor` and `omo-native-gate-reviewer`. The old names still resolve for one release line, so existing skills and AGENTS.md files keep working while you rename them.
+
+The engine is still senpi and still called senpi. The `senpi` command, `@code-yeongyu/senpi`, `SENPI_CODING_AGENT_DIR` and the telemetry identifiers are unchanged.
+
 **The catch-all `unspecified-high` category no longer runs on GPT-6 Astra.** ([#8616](https://github.com/code-yeongyu/oh-my-openagent/issues/8616))
 
 Work lands in `unspecified-high` when no specialist category fits and the job is big, so that lane absorbs a large share of delegated turns. Its chain led with Astra at `high`, which put the most expensive reasoning model on the most generic lane.
