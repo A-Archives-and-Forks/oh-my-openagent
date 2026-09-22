@@ -21,8 +21,15 @@ export const KNOWN_MODELS = Object.freeze({
   "anthropic-api": Object.freeze([
     "claude-fable-5", "claude-fable-5-1", "claude-haiku-4-5", "claude-opus-4-6", "claude-opus-5", "claude-sonnet-5",
   ]),
-  "bailian-coding-plan": Object.freeze(["qwen3.6-flash"]),
   // senpi's Claude subscription lane serves the anthropic ids verbatim (#8051).
+  // Its pre-rename id `claude-sdk-oauth` is KEPT below: a binary pinned to an
+  // older senpi still emits it, and dropping it would blank out that telemetry
+  // rather than migrate it. Same for `openai-codex` / `chatgpt-subscription`.
+  "anthropic-subscription": Object.freeze([
+    "claude-fable-5", "claude-fable-5-1", "claude-haiku-4-5", "claude-opus-4-6", "claude-opus-5", "claude-sonnet-5",
+  ]),
+  "bailian-coding-plan": Object.freeze(["qwen3.6-flash"]),
+  "chatgpt-subscription": Object.freeze(["gpt-5.6-luna-fast", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-astra"]),
   "claude-sdk-oauth": Object.freeze([
     "claude-fable-5", "claude-fable-5-1", "claude-haiku-4-5", "claude-opus-4-6", "claude-opus-5", "claude-sonnet-5",
   ]),
