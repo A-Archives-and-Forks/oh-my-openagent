@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test"
 import { join } from "node:path"
 
-const senpiRoot = join(import.meta.dir, "..", "node_modules", "@code-yeongyu", "senpi", "dist", "core", "extensions", "builtin", "claude-sdk-oauth")
+const senpiRoot = join(import.meta.dir, "..", "node_modules", "@code-yeongyu", "senpi", "dist", "core", "extensions", "builtin", "anthropic-subscription")
 
 // This imports the installed Senpi runtime so the pinned release keeps surfacing a pre-replay SDK
 // result as the failure it reports (senpi 2026.9.3-2 ships this natively; omo used to patch it in).
-describe("claude-sdk-oauth result-before-replay", () => {
+describe("anthropic-subscription result-before-replay", () => {
   test("surfaces the SDK result cause and classifies it as a query failure", async () => {
-    const [{ ClaudeSdkOauthSessionRegistry, overrideSessionRegistryBoundary, resetSessionRegistryBoundary }, { submitSessionTurn }, { sanitizeTerminalFailure }] = await Promise.all([
+    const [{ AnthropicSubscriptionSessionRegistry, overrideSessionRegistryBoundary, resetSessionRegistryBoundary }, { submitSessionTurn }, { sanitizeTerminalFailure }] = await Promise.all([
       import(`${senpiRoot}/session-registry.js`),
       import(`${senpiRoot}/session-registry-pump.js`),
       import(`${senpiRoot}/session-observability.js`),
@@ -23,7 +23,7 @@ describe("claude-sdk-oauth result-before-replay", () => {
 
     overrideSessionRegistryBoundary({ queryFactory: () => query })
     try {
-      const registry = new ClaudeSdkOauthSessionRegistry()
+      const registry = new AnthropicSubscriptionSessionRegistry()
       const entry = registry.getOrCreate({
         senpiSessionId: "result-before-replay",
         accountName: "default",

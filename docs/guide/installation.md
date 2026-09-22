@@ -3,7 +3,7 @@
 oh-my-openagent ships in **three editions** of the same product: two plugins that load into a host you already run, plus one standalone edition.
 
 - **Ultimate Edition (omo for [OpenCode](https://opencode.ai))** — the full omo experience. The curated agent roster, 54+ lifecycle hooks, all built-in MCPs, every slash command, Team Mode, ulw-loop, hashline edits, the works.
-- **Light Edition (omo for [OpenAI Codex CLI](https://github.com/openai/codex))** - the portable components that fit Codex's plugin system: `bootstrap`, `comment-checker`, `git-bash`, `lazycodex-executor-verify`, `rules`, `lsp`, `telemetry`, `teammode`, `ulw-execute-continuation`, `ulw-loop`, and `ultrawork`, plus plugin-scoped MCPs for `grep_app`, `context7`, `git_bash`, and `lsp`, and the shared `ast-grep` skill. It has no OpenCode agent registry or `team_*` tool family, but ships Codex-native agent roles and the script-and-skill-driven `teammode` component.
+- **Light Edition (omo for [ChatGPT Subscription CLI](https://github.com/openai/codex))** - the portable components that fit Codex's plugin system: `bootstrap`, `comment-checker`, `git-bash`, `lazycodex-executor-verify`, `rules`, `lsp`, `telemetry`, `teammode`, `ulw-execute-continuation`, `ulw-loop`, and `ultrawork`, plus plugin-scoped MCPs for `grep_app`, `context7`, `git_bash`, and `lsp`, and the shared `ast-grep` skill. It has no OpenCode agent registry or `team_*` tool family, but ships Codex-native agent roles and the script-and-skill-driven `teammode` component.
 - **OmO Native (standalone, beta)** — the `omo` command with the OMO extension built in. It installs from `omo-ai@beta` instead of loading as a plugin into OpenCode or Codex.
 
 Most users want **Ultimate**. Pick **Light** if you are already invested in Codex CLI. Pick **both** if you want OMO available wherever you happen to be working that day.
@@ -210,7 +210,7 @@ First, ask which platform(s) they want to install for. This determines the rest 
 
 > "Which harness do you want to install oh-my-openagent for? Pick one:
 > 1. OpenCode — terminal AI coding agent
-> 2. OpenAI Codex CLI
+> 2. ChatGPT Subscription CLI
 > 3. Both"
 
 Map their answer to the `--platform` flag:
@@ -605,13 +605,13 @@ Not all models behave the same way. Understanding "similar" families helps you m
 
 | Model             | Provider(s)                      | Notes                                                                                                       |
 | ----------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| **GPT-6 Astra**   | openai, openai-codex, github-copilot, opencode | OpenAI's most capable model and the recommended GPT flagship. Default for the Plan Reviewer (xhigh, high on Copilot), `ultrabrain` (max), and `deep-high` (high). `gpt-6-astra-fast` is the Fast-mode variant. Manual override option for the main agent and the `architect` category. |
-| **GPT-5.6 Sol**   | openai, openai-codex, github-copilot, opencode | The GPT model recommended for the main agent at medium effort; the fallback rung under Astra for `ultrabrain` (max) and `deep` (medium). |
-| **GPT-5.6 Terra** | openai, openai-codex, github-copilot | GPT-5.6 mid-tier. No longer a default for any agent; an optional balanced override.                    |
-| **GPT-5.6 Luna**  | openai, openai-codex             | GPT-5.6 light tier. Not the `unspecified-low` default: that category starts at `xiaomi\|opencode-go/mimo-v2.6-pro (max)`, then `grok-4.7 (xhigh)`, then `gpt-5.6-terra (high)`. |
-| **GPT-5.6 Sol override paths** | openai, openai-codex, github-copilot, opencode | The first GPT-5.6 Sol-family fallback for the Plan Consultant, `deep`, and `ultrabrain`. |
-| **GPT 5.6 Luna Fast**  | openai, openai-codex | Fast + strong reasoning. Utility fallback after the Kimi high-speed quick default.                  |
-| **GPT-5-Nano**    | openai, openai-codex, github-copilot, opencode | Ultra-cheap, fast. Good for simple utility tasks.                                                           |
+| **GPT-6 Astra**   | openai, chatgpt-subscription, github-copilot, opencode | OpenAI's most capable model and the recommended GPT flagship. Default for the Plan Reviewer (xhigh, high on Copilot), `ultrabrain` (max), and `deep-high` (high). `gpt-6-astra-fast` is the Fast-mode variant. Manual override option for the main agent and the `architect` category. |
+| **GPT-5.6 Sol**   | openai, chatgpt-subscription, github-copilot, opencode | The GPT model recommended for the main agent at medium effort; the fallback rung under Astra for `ultrabrain` (max) and `deep` (medium). |
+| **GPT-5.6 Terra** | openai, chatgpt-subscription, github-copilot | GPT-5.6 mid-tier. No longer a default for any agent; an optional balanced override.                    |
+| **GPT-5.6 Luna**  | openai, chatgpt-subscription             | GPT-5.6 light tier. Not the `unspecified-low` default: that category starts at `xiaomi\|opencode-go/mimo-v2.6-pro (max)`, then `grok-4.7 (xhigh)`, then `gpt-5.6-terra (high)`. |
+| **GPT-5.6 Sol override paths** | openai, chatgpt-subscription, github-copilot, opencode | The first GPT-5.6 Sol-family fallback for the Plan Consultant, `deep`, and `ultrabrain`. |
+| **GPT 5.6 Luna Fast**  | openai, chatgpt-subscription | Fast + strong reasoning. Utility fallback after the Kimi high-speed quick default.                  |
+| **GPT-5-Nano**    | openai, chatgpt-subscription, github-copilot, opencode | Ultra-cheap, fast. Good for simple utility tasks.                                                           |
 
 **Different-behavior Models**:
 
@@ -642,8 +642,8 @@ Not all models behave the same way. Understanding "similar" families helps you m
 | Agent               | Role                                       | Default Chain                                                          |
 | ------------------- | ------------------------------------------ | ---------------------------------------------------------------------- |
 | **plan-consultant** | Pre-planning gap analysis for `/ulw-plan`  | anthropic\|github-copilot\|opencode/claude-fable-5-1 (max) → anthropic\|github-copilot\|opencode/claude-opus-5 (max) → opencode-go\|kimi-for-coding\|moonshotai\|opencode/kimi-k3 (max) |
-| **plan-reviewer**   | High-accuracy plan review gate             | openai\|openai-codex/gpt-6-astra (xhigh) → github-copilot/gpt-6-astra (high) → openai\|openai-codex\|opencode/gpt-6-astra (high) → anthropic\|github-copilot\|opencode/claude-opus-5 (max) → … (full chain in source) |
-| **explore**         | Fast codebase grep                         | kimi-coding\|kimi-for-coding/kimi-for-coding-highspeed (off) → openai\|openai-codex/gpt-5.6-luna-fast (low) → deepseek/deepseek-v4-flash (max) → opencode-go\|bailian-coding-plan/qwen3.5-plus → … → anthropic\|github-copilot/claude-haiku-4-5 → openai\|openai-codex/gpt-5.4-nano (full chain in source) |
+| **plan-reviewer**   | High-accuracy plan review gate             | openai\|chatgpt-subscription/gpt-6-astra (xhigh) → github-copilot/gpt-6-astra (high) → openai\|chatgpt-subscription\|opencode/gpt-6-astra (high) → anthropic\|github-copilot\|opencode/claude-opus-5 (max) → … (full chain in source) |
+| **explore**         | Fast codebase grep                         | kimi-coding\|kimi-for-coding/kimi-for-coding-highspeed (off) → openai\|chatgpt-subscription/gpt-5.6-luna-fast (low) → deepseek/deepseek-v4-flash (max) → opencode-go\|bailian-coding-plan/qwen3.5-plus → … → anthropic\|github-copilot/claude-haiku-4-5 → openai\|chatgpt-subscription/gpt-5.4-nano (full chain in source) |
 | **librarian**       | Docs/code search                           | (same chain as `explore`)                                              |
 
 `explore` and `librarian` trade intelligence for speed. Don't "upgrade" them to Opus; it wastes money without improving results.
