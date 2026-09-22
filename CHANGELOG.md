@@ -63,6 +63,14 @@ Kimi HighSpeed led the `quick` chain and no other lane used it. The `quick` chai
 
 ### Fixed
 
+**A DAG snapshot now carries what each node actually returned, and shows when a running node's child last did anything.** ([#8674](https://github.com/code-yeongyu/oh-my-openagent/issues/8674))
+
+`workflow` tells you to detach and peek with `action=snapshot`, but the snapshot never carried a node's output. The text was being saved - it just was not reachable except through the blocking wait, so a run you were supervising showed six nodes with nothing to read, and the only way to learn what a child had done was to look at the files it wrote.
+
+A settled node now carries `output` (the child's final message, up to 2000 characters) and `outputBytes` (its full size, so you can tell a truncated preview from the whole thing, and a node that returned nothing reads as `0` rather than as nothing recorded). A running node carries `lastActivityAt`, the last time its child wrote anything at all, and `snapshot` names any running node that has been silent for more than ten minutes. Silence is reported, never judged - one long tool call looks the same as a stalled child - but a node quiet for fifty minutes is now something you can see instead of something you have to guess.
+
+The end time was already recorded, under the name `completed_at`. A node stuck in `running` because its child finished but was never reaped is a separate defect, tracked in [#8659](https://github.com/code-yeongyu/oh-my-openagent/issues/8659).
+
 **A git that dies mid-command no longer hangs isolation work until its helpers exit.** `runGit` settled on the child `close` event, which fires only after every stdio pipe closes — but git's `!` alias shells inherit those pipes. On Windows, killing git alone (`TerminateProcess` has no tree semantics) left those shells holding every handle, so a run whose git had already failed stayed pending until the last survivor exited; in CI that raced the 30-second test budget and intermittently lost, with the survivor's locked working directory surfacing as an `EBUSY` on fixture teardown. A git that exits to a signal death or a disallowed exit code now settles at once: what remains of the tree is killed immediately, and pipes still held a second later are force-closed so the typed `GitCommandError` surfaces with the output kept so far. Normal commands are unaffected — their pipes close in milliseconds anyway. ([#8663](https://github.com/code-yeongyu/oh-my-openagent/issues/8663))
 
 **A resumed DAG no longer shows nodes as running when nothing is running them.** ([#8657](https://github.com/code-yeongyu/oh-my-openagent/issues/8657))
