@@ -1,3 +1,11 @@
+## unspecified-low leads with MiMo V2.6 Pro; the Grok rung moves to 4.7
+
+`CATEGORY_FALLBACK_CHAINS["unspecified-low"]` and the builtin category config now lead with
+`xiaomi|mimo-v2.6-pro (max)`. The Grok rung is `grok-4.7 (xhigh)` on `xai|github-copilot|opencode-go`:
+`opencode` does not serve 4.7 (models.dev, measured), `opencode-go` does. The `mimo-v2.5-pro` rung
+stays last. Chain order is proven by resolving against a registry that serves every rung at once,
+so the winner demonstrates order rather than availability. omo#8652.
+
 ## The persisted run stats keep their failure count
 
 `store/run-stats-parse.ts` parses the persisted `run_stats` block field by field, and it had no

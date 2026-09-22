@@ -30,7 +30,7 @@
   "categories": {
     "quick": { "model": "openai/gpt-5.6-luna-fast", "reasoning": "low" },
 
-    "unspecified-low": { "model": "xai/grok-4.6", "reasoning": "xhigh" },
+    "unspecified-low": { "model": "xiaomi/mimo-v2.6-pro", "reasoning": "max" },
 
     // High-effort planning tasks: maximum reasoning
     "unspecified-high": { "model": "anthropic/claude-opus-5", "reasoning": "max" },

@@ -61,7 +61,7 @@ Tools registered via [`createToolRegistry()`](../plugin/tool-registry.ts) in `sr
 | `deep-high` | openai/gpt-6-astra (variant: high) | openai-categories.ts | Escalation deep lane: the goal's central decision cannot be settled from evidence (trade-off, cross-boundary contract, no in-repo pattern, correctness argued from invariants); single rung, gated on gpt-6-astra |
 | `artistry` | anthropic/claude-fable-5-1 (variant: max) | google-categories.ts | Creative / unconventional approaches |
 | `quick` | openai/gpt-5.6-luna-fast (variant: low) | openai-categories.ts | Trivial single-file changes |
-| `unspecified-low` | xai/grok-4.6 (variant: xhigh) | openai-categories.ts | Moderate effort fallback |
+| `unspecified-low` | xiaomi/mimo-v2.6-pro (variant: max) | openai-categories.ts | Moderate effort fallback |
 | `unspecified-high` | anthropic/claude-opus-5 (variant: xhigh) | openai-categories.ts | High effort fallback; keeps the GPT-6 Astra-specific prompt append for a user override onto a GPT-6 model |
 | `writing` | anthropic/claude-fable-5-1 (variant: low) | kimi-categories.ts | Documentation, prose |
 

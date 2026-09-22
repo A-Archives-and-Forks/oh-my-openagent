@@ -483,7 +483,7 @@ describe("builtin category defaults", () => {
       ["deep-low", "openai-codex/gpt-5.6-sol", "medium"],
       ["deep-high", "openai-codex/gpt-6-astra", "high"],
       ["quick", "openai-codex/gpt-5.6-luna-fast", "low"],
-      ["unspecified-low", "xai/grok-4.6", "xhigh"],
+      ["unspecified-low", "xiaomi/mimo-v2.6-pro", "max"],
       ["unspecified-high", "anthropic/claude-opus-5", "xhigh"],
       ["architect", "anthropic/claude-fable-5-1", "max"],
       ["writing", "anthropic/claude-fable-5-1", "low"],

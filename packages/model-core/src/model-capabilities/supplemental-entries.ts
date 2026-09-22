@@ -218,6 +218,36 @@ export const SUPPLEMENTAL_MODEL_CAPABILITIES: Record<string, ModelCapabilitiesSn
 			output: 32768,
 		},
 	},
+	"grok-4.7": {
+		id: "grok-4.7",
+		family: "grok",
+		reasoning: false,
+		temperature: true,
+		toolCall: true,
+		modalities: {
+			input: ["text", "image"],
+			output: ["text"],
+		},
+		limit: {
+			context: 500000,
+			output: 32768,
+		},
+	},
+	"xai/grok-4.7": {
+		id: "xai/grok-4.7",
+		family: "grok",
+		reasoning: false,
+		temperature: true,
+		toolCall: true,
+		modalities: {
+			input: ["text", "image"],
+			output: ["text"],
+		},
+		limit: {
+			context: 500000,
+			output: 32768,
+		},
+	},
 	"xai/grok-build-0.1": {
 		id: "xai/grok-build-0.1",
 		family: "grok",
@@ -246,6 +276,36 @@ export const SUPPLEMENTAL_MODEL_CAPABILITIES: Record<string, ModelCapabilitiesSn
 		limit: {
 			context: 256000,
 			output: 32768,
+		},
+	},
+	"mimo-v2.6-pro": {
+		id: "mimo-v2.6-pro",
+		family: "mimo",
+		reasoning: true,
+		temperature: true,
+		toolCall: true,
+		modalities: {
+			input: ["text", "image"],
+			output: ["text"],
+		},
+		limit: {
+			context: 1048576,
+			output: 131072,
+		},
+	},
+	"xiaomi/mimo-v2.6-pro": {
+		id: "xiaomi/mimo-v2.6-pro",
+		family: "mimo",
+		reasoning: true,
+		temperature: true,
+		toolCall: true,
+		modalities: {
+			input: ["text", "image"],
+			output: ["text"],
+		},
+		limit: {
+			context: 1048576,
+			output: 131072,
 		},
 	},
 }

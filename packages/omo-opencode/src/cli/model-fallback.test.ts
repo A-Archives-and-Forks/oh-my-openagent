@@ -71,7 +71,7 @@ describe("generateModelConfig", () => {
       expect(result.categories?.ultrabrain?.variant).toBe("high")
       expect(result.categories?.["deep-high"]?.model).toBe("github-copilot/gpt-6-astra")
       expect(result.categories?.["deep-high"]?.variant).toBe("high")
-      expect(result.categories?.["unspecified-low"]?.model).toBe("github-copilot/grok-4.6")
+      expect(result.categories?.["unspecified-low"]?.model).toBe("github-copilot/grok-4.7")
       expect(result.categories?.["unspecified-low"]?.variant).toBe("high")
     })
     test("omits librarian when only ZAI is available", () => {

@@ -147,7 +147,7 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     ])
   })
 
-  test("unspecified-low follows the approved 6-rung chain headed by grok-4.6 xhigh", () => {
+  test("unspecified-low follows the approved 7-rung chain headed by mimo-v2.6-pro max", () => {
     // given
     const requirement = CATEGORY_MODEL_REQUIREMENTS["unspecified-low"]
 
@@ -157,8 +157,13 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     // then
     expect(chain).toEqual([
       {
-        providers: ["xai", "github-copilot", "opencode"],
-        model: "grok-4.6",
+        providers: ["xiaomi", "opencode-go"],
+        model: "mimo-v2.6-pro",
+        variant: "max",
+      },
+      {
+        providers: ["xai", "github-copilot", "opencode-go"],
+        model: "grok-4.7",
         variant: "xhigh",
       },
       {
