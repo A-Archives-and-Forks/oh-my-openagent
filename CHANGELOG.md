@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`oh-my-openagent install --platform=native` installs OmO Native for you.** `native` is a public platform now, listed in `install --help` and in the interactive picker beside OpenCode, Codex and Both. Choosing it performs the real install — `bun add -g omo-ai@beta` when bun is on PATH, `npm i -g omo-ai@beta` when it is not, with bun named as the recommended runtime — and then points you at `omo setup`. When the global install fails, the exact command to run by hand and the reason it failed are printed instead of a raw error. The in-repo development adapter keeps today's behaviour under `--platform=native-dev`, still gated by an environment flag (`OMO_ENABLE_NATIVE_DEV_PLATFORM`, and the old `OMO_ENABLE_SENPI_PLATFORM` is still accepted). ([#8618](https://github.com/code-yeongyu/oh-my-openagent/issues/8618))
+
 ### Changed
 
 **The catch-all `unspecified-high` category no longer runs on GPT-6 Astra.** ([#8616](https://github.com/code-yeongyu/oh-my-openagent/issues/8616))
@@ -22,6 +26,8 @@ Astra stays where it was chosen on purpose: `ultrabrain`, `deep-high`, and the p
 Kimi HighSpeed led the `quick` chain and no other lane used it. The `quick` chain now starts at GPT-5.6 Luna Fast at `low`, followed by DeepSeek V4 Flash at `off`.
 
 `explore` and `librarian` now lead with Kimi HighSpeed at variant `off`. The Kimi endpoint rejects an explicit disabled-thinking block, so senpi sends the request with no thinking parameter and the lowest adaptive effort, which is what a grep-and-report agent needs. A machine with no Kimi Code subscription falls through to Luna Fast, the model those two agents ran on before this change.
+
+- **The standalone edition is called OmO Native everywhere.** The installer hint, the package postinstall notice, the installation guide, the README and its four translations, and the `omo-ai` package description called it the "Senpi edition" — a name the product itself never used, having said `OmO Native` in the TUI footer and `Edition: Native` in `omo doctor` all along. They all say OmO Native now, and the hint names what you get: the same omo as one `omo` command, with no OpenCode host required, while the install you already have keeps working. `senpi` still names the engine, in `omo doctor`, in this file's engine headings, and in its own environment variables and paths. A regression test scans those surfaces and fails if the old edition wording comes back. ([#8618](https://github.com/code-yeongyu/oh-my-openagent/issues/8618))
 
 ## [5.0.0-beta.82] - 2026-09-21
 
