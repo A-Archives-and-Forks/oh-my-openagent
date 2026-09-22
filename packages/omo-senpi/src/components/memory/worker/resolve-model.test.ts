@@ -64,8 +64,9 @@ describe("resolveReflectionModel", () => {
     // when
     const result = resolveReflectionModel("quick", config, staleRegistry)
 
-    // then
-    expect(result).toEqual({ kind: "resolved", category: "quick", model: "omo-mock/mock-1", fallbacks: [] })
+    // then: thinking comes from the builtin quick default (gpt-5.6-luna-fast at low), which a user
+    // model pin inherits when it declares no reasoning of its own.
+    expect(result).toEqual({ kind: "resolved", category: "quick", model: "omo-mock/mock-1", thinking: "low", fallbacks: [] })
   })
 
   test("#given a pinned model that find() cannot locate #when resolved #then it still fails closed", () => {
@@ -379,6 +380,7 @@ describe("resolveReflectionModel", () => {
       kind: "resolved",
       category: "quick",
       model: "apitopia/z-ai/glm-5.2-ultrafast-unlocked",
+      thinking: "low",
       fallbacks: [],
     })
     expect(lookups).not.toContainEqual({ provider: "apitopia", modelId: "z-ai" })
