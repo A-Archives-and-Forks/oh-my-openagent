@@ -33,7 +33,6 @@ const GPT_CATEGORY_CASES = [
   { category: "ultrabrain", modelId: "gpt-6-astra", variant: "max" },
   { category: "deep-high", modelId: "gpt-6-astra", variant: "high" },
   { category: "deep-low", modelId: "gpt-5.6-sol", variant: "medium" },
-  { category: "unspecified-high", modelId: "gpt-6-astra", variant: "high" },
 ] as const
 
 describe("openai lane policy", () => {

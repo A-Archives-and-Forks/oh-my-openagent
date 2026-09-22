@@ -69,7 +69,6 @@ export const CATEGORY_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
   },
   quick: {
     fallbackChain: [
-      { providers: ["kimi-for-coding"], model: "kimi-for-coding-highspeed" },
       { providers: ["openai-codex"], model: "gpt-5.6-luna-fast", variant: "low" },
       { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "off" },
       {
@@ -111,11 +110,6 @@ export const CATEGORY_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
   },
   "unspecified-high": {
     fallbackChain: [
-      {
-        providers: ["openai", "openai-codex", "github-copilot", "opencode"],
-        model: "gpt-6-astra",
-        variant: "high",
-      },
       {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
         model: "claude-opus-5",

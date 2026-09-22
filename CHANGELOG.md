@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+**The catch-all `unspecified-high` category no longer runs on GPT-6 Astra.** ([#8616](https://github.com/code-yeongyu/oh-my-openagent/issues/8616))
+
+Work lands in `unspecified-high` when no specialist category fits and the job is big, so that lane absorbs a large share of delegated turns. Its chain led with Astra at `high`, which put the most expensive reasoning model on the most generic lane.
+
+The chain now starts at the rung that already sat behind Astra: Claude Opus 5 at `xhigh`, then GLM 5.3 at `max`, then Kimi K3 at `max`. The default written in the category config moves to Opus 5 with it, so the primary rung and the model a user reads in their config agree.
+
+Astra stays where it was chosen on purpose: `ultrabrain`, `deep-high`, and the plan reviewer. Point the category back at a GPT-6 model in your own config and the child still gets the Astra-tuned prompt append.
+
+**`quick` drops its Kimi HighSpeed rung, and the two search agents pick it up with thinking off.** ([#8616](https://github.com/code-yeongyu/oh-my-openagent/issues/8616))
+
+Kimi HighSpeed led the `quick` chain and no other lane used it. The `quick` chain now starts at GPT-5.6 Luna Fast at `low`, followed by DeepSeek V4 Flash at `off`.
+
+`explore` and `librarian` now lead with Kimi HighSpeed at variant `off`. The Kimi endpoint rejects an explicit disabled-thinking block, so senpi sends the request with no thinking parameter and the lowest adaptive effort, which is what a grep-and-report agent needs. A machine with no Kimi Code subscription falls through to Luna Fast, the model those two agents ran on before this change.
+
 ## [5.0.0-beta.82] - 2026-09-21
 
 ### Added

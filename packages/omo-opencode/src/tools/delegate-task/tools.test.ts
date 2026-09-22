@@ -191,14 +191,14 @@ describe("sisyphus-task", () => {
       expect(high.variant).toBe("high")
     })
 
-    test("unspecified-high category uses GPT-6 Astra high as primary", () => {
+    test("unspecified-high category uses Claude Opus 5 xhigh as primary", () => {
       // given
       const category = DEFAULT_CATEGORIES["unspecified-high"]
 
       // when / #then
       expect(category).toBeDefined()
-      expect(category.model).toBe("openai/gpt-6-astra")
-      expect(category.variant).toBe("high")
+      expect(category.model).toBe("anthropic/claude-opus-5")
+      expect(category.variant).toBe("xhigh")
     })
   })
 
@@ -3047,10 +3047,10 @@ describe("sisyphus-task", () => {
         toolContext
       )
 
-      // then - model should be kimi-for-coding/kimi-for-coding-highspeed from DEFAULT_CATEGORIES
+      // then - model should be openai/gpt-5.6-luna-fast from DEFAULT_CATEGORIES
       //         NOT anthropic/claude-sonnet-4-6 (system default)
-      expect(launchInput.model.providerID).toBe("kimi-for-coding")
-      expect(launchInput.model.modelID).toBe("kimi-for-coding-highspeed")
+      expect(launchInput.model.providerID).toBe("openai")
+      expect(launchInput.model.modelID).toBe("gpt-5.6-luna-fast")
     })
 
     test("category delegation ignores UI-selected (Kimi) system default model", async () => {
@@ -3113,8 +3113,8 @@ describe("sisyphus-task", () => {
       )
 
       // then - category model must win (not Kimi)
-      expect(launchInput.model.providerID).toBe("kimi-for-coding")
-      expect(launchInput.model.modelID).toBe("kimi-for-coding-highspeed")
+      expect(launchInput.model.providerID).toBe("openai")
+      expect(launchInput.model.modelID).toBe("gpt-5.6-luna-fast")
     })
 
     test("sisyphus-junior model override takes precedence over category model", async () => {

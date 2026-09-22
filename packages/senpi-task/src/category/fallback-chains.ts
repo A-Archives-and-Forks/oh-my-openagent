@@ -81,7 +81,6 @@ export const CATEGORY_FALLBACK_CHAINS: Readonly<Record<string, readonly Delegate
     }
   ],
   quick: [
-    { providers: ["kimi-coding", "kimi-for-coding"], model: "kimi-for-coding-highspeed" },
     { providers: ["openai-codex"], model: "gpt-5.6-luna-fast", variant: "low" },
     { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "off" },
     {
@@ -119,11 +118,6 @@ export const CATEGORY_FALLBACK_CHAINS: Readonly<Record<string, readonly Delegate
     { providers: ["xiaomi", "opencode-go"], model: "mimo-v2.5-pro", variant: "max" }
   ],
   "unspecified-high": [
-    {
-      providers: ["openai-codex", "github-copilot", "opencode"],
-      model: "gpt-6-astra",
-      variant: "high",
-    },
     {
       providers: ["claude-sdk-oauth", "anthropic", "anthropic-api", "github-copilot", "opencode"],
       model: "claude-opus-5",

@@ -111,10 +111,6 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     // then
     expect(chain).toEqual([
       {
-        providers: ["kimi-for-coding"],
-        model: "kimi-for-coding-highspeed",
-      },
-      {
         providers: ["openai-codex"],
         model: "gpt-5.6-luna-fast",
         variant: "low",
@@ -193,7 +189,7 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     ])
   })
 
-  test("unspecified-high follows the approved Astra-first 4-rung chain", () => {
+  test("unspecified-high follows the approved Opus-first 3-rung chain", () => {
     // given
     const requirement = CATEGORY_MODEL_REQUIREMENTS["unspecified-high"]
 
@@ -202,11 +198,6 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
 
     // then
     expect(chain).toEqual([
-      {
-        providers: ["openai", "openai-codex", "github-copilot", "opencode"],
-        model: "gpt-6-astra",
-        variant: "high",
-      },
       {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
         model: "claude-opus-5",

@@ -57,7 +57,6 @@ describe("CATEGORY_FALLBACK_CHAINS", () => {
         { providers: ["claude-sdk-oauth", "anthropic", "anthropic-api", "github-copilot", "opencode"], model: "claude-opus-5", variant: "xhigh" }
       ],
       quick: [
-        { providers: ["kimi-coding", "kimi-for-coding"], model: "kimi-for-coding-highspeed" },
         { providers: ["openai-codex"], model: "gpt-5.6-luna-fast", variant: "low" },
         { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "off" },
         { providers: ["qwen-token-plan", "alibaba-token-plan", "bailian-coding-plan"], model: "qwen3.6-flash", variant: "low" },
@@ -75,7 +74,6 @@ describe("CATEGORY_FALLBACK_CHAINS", () => {
         { providers: ["xiaomi", "opencode-go"], model: "mimo-v2.5-pro", variant: "max" }
       ],
       "unspecified-high": [
-        { providers: ["openai-codex", "github-copilot", "opencode"], model: "gpt-6-astra", variant: "high" },
         { providers: ["claude-sdk-oauth", "anthropic", "anthropic-api", "github-copilot", "opencode"], model: "claude-opus-5", variant: "xhigh" },
         { providers: ["zai-coding-plan", "opencode-go"], model: "glm-5.3", variant: "max" },
         { providers: ["kimi-coding", "kimi-for-coding", "moonshotai", "opencode-go"], model: "kimi-k3", variant: "max" }

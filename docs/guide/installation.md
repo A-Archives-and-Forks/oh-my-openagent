@@ -242,7 +242,7 @@ Map their answer to:
    - **no** → `--claude=no`
 
 2. **Do you have an OpenAI/ChatGPT Plus Subscription?**
-   - **yes** → `--openai=yes` (enables OpenAI routes; the `ultrabrain` (max), `deep` (high), and `unspecified-high` (high) categories start on GPT-6 Astra, and the Plan Reviewer starts on GPT-6 Astra (xhigh))
+   - **yes** → `--openai=yes` (enables OpenAI routes; the `ultrabrain` (max) and `deep-high` (high) categories start on GPT-6 Astra, the `quick` category starts on GPT-5.6 Luna Fast (low), and the Plan Reviewer starts on GPT-6 Astra (xhigh))
    - **no** → `--openai=no` (default)
 
 3. **Will you integrate Gemini models?**
@@ -605,7 +605,7 @@ Not all models behave the same way. Understanding "similar" families helps you m
 
 | Model             | Provider(s)                      | Notes                                                                                                       |
 | ----------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| **GPT-6 Astra**   | openai, openai-codex, github-copilot, opencode | OpenAI's most capable model and the recommended GPT flagship. Default for the Plan Reviewer (xhigh, high on Copilot), `ultrabrain` (max), `deep` (high), and `unspecified-high` (high). `gpt-6-astra-fast` is the Fast-mode variant. Manual override option for the main agent and the `architect` category. |
+| **GPT-6 Astra**   | openai, openai-codex, github-copilot, opencode | OpenAI's most capable model and the recommended GPT flagship. Default for the Plan Reviewer (xhigh, high on Copilot), `ultrabrain` (max), and `deep-high` (high). `gpt-6-astra-fast` is the Fast-mode variant. Manual override option for the main agent and the `architect` category. |
 | **GPT-5.6 Sol**   | openai, openai-codex, github-copilot, opencode | The GPT model recommended for the main agent at medium effort; the fallback rung under Astra for `ultrabrain` (max) and `deep` (medium). |
 | **GPT-5.6 Terra** | openai, openai-codex, github-copilot | GPT-5.6 mid-tier. No longer a default for any agent; an optional balanced override.                    |
 | **GPT-5.6 Luna**  | openai, openai-codex             | GPT-5.6 light tier. Not the `unspecified-low` default: that category starts at `xai\|github-copilot\|opencode/grok-4.6 (xhigh)`, then `gpt-5.6-terra (high)`. |
@@ -643,7 +643,7 @@ Not all models behave the same way. Understanding "similar" families helps you m
 | ------------------- | ------------------------------------------ | ---------------------------------------------------------------------- |
 | **plan-consultant** | Pre-planning gap analysis for `/ulw-plan`  | anthropic\|github-copilot\|opencode/claude-fable-5-1 (max) → anthropic\|github-copilot\|opencode/claude-opus-5 (max) → opencode-go\|kimi-for-coding\|moonshotai\|opencode/kimi-k3 (max) |
 | **plan-reviewer**   | High-accuracy plan review gate             | openai\|openai-codex/gpt-6-astra (xhigh) → github-copilot/gpt-6-astra (high) → openai\|openai-codex\|opencode/gpt-6-astra (high) → anthropic\|github-copilot\|opencode/claude-opus-5 (max) → … (full chain in source) |
-| **explore**         | Fast codebase grep                         | openai\|openai-codex/gpt-5.6-luna-fast (low) → deepseek/deepseek-v4-flash (max) → opencode-go\|bailian-coding-plan/qwen3.5-plus → … → anthropic\|github-copilot/claude-haiku-4-5 → openai\|openai-codex/gpt-5.4-nano (full chain in source) |
+| **explore**         | Fast codebase grep                         | kimi-coding\|kimi-for-coding/kimi-for-coding-highspeed (off) → openai\|openai-codex/gpt-5.6-luna-fast (low) → deepseek/deepseek-v4-flash (max) → opencode-go\|bailian-coding-plan/qwen3.5-plus → … → anthropic\|github-copilot/claude-haiku-4-5 → openai\|openai-codex/gpt-5.4-nano (full chain in source) |
 | **librarian**       | Docs/code search                           | (same chain as `explore`)                                              |
 
 `explore` and `librarian` trade intelligence for speed. Don't "upgrade" them to Opus; it wastes money without improving results.

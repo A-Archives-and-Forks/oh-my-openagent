@@ -52,7 +52,7 @@ describe("category routing policy", () => {
     ])
   })
 
-  test("quick prioritizes Kimi high-speed, Luna low, DeepSeek off, then the speed tier", () => {
+  test("quick prioritizes Luna low, DeepSeek off, then the speed tier", () => {
     // given
     const quick = CATEGORY_MODEL_REQUIREMENTS["quick"]
 
@@ -61,10 +61,6 @@ describe("category routing policy", () => {
 
     // then
     expect(leadingChain).toEqual([
-      {
-        providers: ["kimi-for-coding"],
-        model: "kimi-for-coding-highspeed",
-      },
       {
         providers: ["openai-codex"],
         model: "gpt-5.6-luna-fast",
@@ -158,11 +154,6 @@ describe("category routing policy", () => {
 
     // then
     expect(highChain).toEqual([
-      {
-        providers: ["openai", "openai-codex", "github-copilot", "opencode"],
-        model: "gpt-6-astra",
-        variant: "high",
-      },
       {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
         model: "claude-opus-5",

@@ -182,7 +182,7 @@ export const OPENAI_CATEGORIES: BuiltinCategoryDefinition[] = [
   },
   {
     name: "quick",
-    config: { model: "kimi-for-coding/kimi-for-coding-highspeed" },
+    config: { model: "openai/gpt-5.6-luna-fast", variant: "low" },
     description: "Trivial tasks - single file changes, typo fixes, simple modifications",
     callerGuidance: QUICK_CATEGORY_CALLER_GUIDANCE,
     promptAppend: QUICK_CATEGORY_PROMPT_APPEND,
@@ -196,7 +196,7 @@ export const OPENAI_CATEGORIES: BuiltinCategoryDefinition[] = [
   },
   {
     name: "unspecified-high",
-    config: { model: "openai/gpt-6-astra", variant: "high" },
+    config: { model: "anthropic/claude-opus-5", variant: "xhigh" },
     description: "Tasks that don't fit other categories, high effort required",
     callerGuidance: UNSPECIFIED_HIGH_CATEGORY_CALLER_GUIDANCE,
     promptAppend: UNSPECIFIED_HIGH_CATEGORY_PROMPT_APPEND,

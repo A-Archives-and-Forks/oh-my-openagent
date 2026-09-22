@@ -129,7 +129,10 @@ describe("GPT builtin defaults and gates", () => {
     expect(definition("ultrabrain").config).toEqual({ model: "openai-codex/gpt-6-astra", variant: "max" })
     expect(definition("deep-high").config).toEqual({ model: "openai-codex/gpt-6-astra", variant: "high" })
     expect(definition("deep-low").config).toEqual({ model: "openai-codex/gpt-5.6-sol", variant: "medium" })
-    expect(definition("unspecified-high").config).toEqual({ model: "openai-codex/gpt-6-astra", variant: "high" })
+  })
+
+  it("#given unspecified-high #then its default is the Opus 5 rung its chain now leads with, not Astra", () => {
+    expect(definition("unspecified-high").config).toEqual({ model: "anthropic/claude-opus-5", variant: "xhigh" })
   })
 
   it("#given the gates #then ultrabrain opens on either flagship, each deep lane only on its own model, unspecified-high is ungated", () => {
@@ -148,7 +151,6 @@ describe("resolveCategory on GPT registries", () => {
   const astraCases = [
     { category: "ultrabrain", variant: "max", append: ULTRABRAIN_CATEGORY_PROMPT_APPEND_GPT_6_ASTRA },
     { category: "deep-high", variant: "high", append: DEEP_HIGH_CATEGORY_PROMPT_APPEND_GPT },
-    { category: "unspecified-high", variant: "high", append: UNSPECIFIED_HIGH_CATEGORY_PROMPT_APPEND_GPT_6_ASTRA },
   ] as const
 
   for (const { category, variant, append } of astraCases) {
@@ -172,6 +174,23 @@ describe("resolveCategory on GPT registries", () => {
     expect(result.kind).toBe("resolved")
     if (result.kind !== "resolved") throw new Error("Expected resolved")
     expect(result.spec).toMatchObject({ modelId: "gpt-5.6-sol", variant: "medium", prompt_append: DEEP_LOW_CATEGORY_PROMPT_APPEND_GPT })
+  })
+
+  it("#given only gpt-6-astra #when unspecified-high resolves #then it is model_unavailable, because its chain no longer carries a GPT rung", () => {
+    expect(resolveCategory("unspecified-high", {}, astraRegistry).kind).toBe("model_unavailable")
+    expect(resolveCategory("unspecified-high", {}, codexAstraRegistry).kind).toBe("model_unavailable")
+  })
+
+  it("#given claude-opus-5 #when unspecified-high resolves #then it runs Opus 5 at xhigh with the generic append", () => {
+    const result = resolveCategory("unspecified-high", {}, registry([{ provider: "anthropic", id: "claude-opus-5" }]))
+    expect(result.kind).toBe("resolved")
+    if (result.kind !== "resolved") throw new Error("Expected resolved")
+    expect(result.spec).toMatchObject({
+      provider: "anthropic",
+      modelId: "claude-opus-5",
+      variant: "xhigh",
+      prompt_append: definition("unspecified-high").promptAppend,
+    })
   })
 
   it("#given a registry missing a lane's own model #then that lane never borrows the other lane's model", () => {

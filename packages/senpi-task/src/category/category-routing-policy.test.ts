@@ -16,8 +16,8 @@ describe("Senpi category routing policy", () => {
     // then
     expect(routing).toEqual({
       visualEngineering: { model: "anthropic/claude-fable-5-1", variant: "max" },
-      quick: { model: "kimi-coding/kimi-for-coding-highspeed" },
-      unspecifiedHigh: { model: "openai-codex/gpt-6-astra", variant: "high" },
+      quick: { model: "openai-codex/gpt-5.6-luna-fast", variant: "low" },
+      unspecifiedHigh: { model: "anthropic/claude-opus-5", variant: "xhigh" },
       unspecifiedLow: { model: "xai/grok-4.6", variant: "xhigh" },
     })
   })
