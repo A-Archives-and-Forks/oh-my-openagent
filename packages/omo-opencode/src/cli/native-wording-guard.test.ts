@@ -56,7 +56,6 @@ const ENGINE_NAME_ALLOWLIST: readonly { readonly why: string; readonly pattern: 
   { why: "SENPI_MACHINE_ID_PREFIX value", pattern: /omo-senpi:/g },
   { why: "adapter id in logger prefixes and product identity", pattern: /omo-senpi\b/g },
   { why: "harness-id warning prefix", pattern: /WARN senpi:/g },
-  { why: "the engine named as a proper noun", pattern: /\bSenpi(?:'s)?\b/g },
   { why: "the engine named possessively", pattern: /senpi's/gi },
   { why: "engine eval execution event", pattern: /senpi\.eval(?:\.[\w.]+)?/g },
   { why: "engine omob runtime slot", pattern: /<senpi\d*>/g },
@@ -69,6 +68,18 @@ const ENGINE_NAME_ALLOWLIST: readonly { readonly why: string; readonly pattern: 
     pattern: /\bsenpi(?:\s+(?:extension(?:\s+events)?|RPC(?:\s+host)?|release|process(?:es)?|host))/gi,
   },
   { why: "quoted harness id", pattern: /(['"])senpi\1/g },
+  { why: "telemetry env prefix (an identifier value the dashboards join on)", pattern: /OMO_SENPI\b/g },
+  {
+    why: "compound source identifiers such as resolveSenpi or senpiRoot; a bare senpi is deliberately excluded",
+    pattern: /\b(?:[A-Za-z]+[Ss]enpi[A-Za-z]*|[Ss]enpi[A-Za-z]+)\b/g,
+  },
+  {
+    // The engine is allowed to be named. What must never pass is the engine being OFFERED to the
+    // user as a thing to adopt - that is the edition-by-another-name framing this guard exists to
+    // stop, and it is what the can-fail cases below pin.
+    why: "the engine as a proper noun, except when offered as a product to adopt",
+    pattern: /(?<!\b(?:choose|use|install|try|adopt|switch to|move to|get)\s)\bsenpi(?:'s)?\b/gi,
+  },
 ]
 
 interface Violation {
@@ -87,14 +98,7 @@ function stripEngineNames(line: string): string {
   return rest
 }
 
-function isEngineAdapterSource(file: string): boolean {
-  return (
-    file.startsWith("packages/omo-senpi/src/components/") || file.startsWith("packages/omo-native/bin/")
-  )
-}
-
-function hasUnallowlistedEngineMention(line: string, file = ""): boolean {
-  if (isEngineAdapterSource(file)) return false
+function hasUnallowlistedEngineMention(line: string): boolean {
   return /senpi/i.test(stripEngineNames(line))
 }
 
@@ -170,6 +174,15 @@ describe("the guard itself can fail", () => {
     // given / when / then
     expect(namesEditionAfterEngine(line)).toBe(false)
     expect(hasUnallowlistedEngineMention(line)).toBe(false)
+  })
+
+  test.each([
+    "Want one command without a host? Choose senpi (beta).",
+    "Want one command without a host? Choose Senpi today.",
+    "Install Senpi to get the standalone command.",
+  ])("#given the engine offered as a product %p #when checked #then the allowlist does not excuse it", (line) => {
+    // given / when / then
+    expect(hasUnallowlistedEngineMention(line)).toBe(true)
   })
 
   test("#given a bare edition mention dressed as prose #when checked #then the allowlist does not excuse it", () => {
