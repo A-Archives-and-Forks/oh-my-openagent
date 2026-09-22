@@ -130,3 +130,60 @@ surface and it was run on real machines in both reachable states.
 - **Biome was not used as a gate.** The repo has no root `biome.json` and no lint script; an
   unchanged tracked file reports the same errors under `bunx @biomejs/biome check`, so that
   invocation resolves a config this codebase does not use. `tsgo` is the gate that exists.
+
+
+---
+
+## CI rounds — what the shipped-set duplication actually cost
+
+Adding one skill required registering it in seven places. They live in different packages, so each
+one only fails once the earlier one is fixed, and CI surfaced them one round at a time.
+
+### Round 1 — 4 failures
+
+| Check | Actual reason (read from the log, not the name) | Verdict |
+|---|---|---|
+| `senpi-compatibility` | `build-install.mjs --check`: the committed installer embeds `REQUIRED_PLUGIN_ARTIFACTS` and was stale | mine |
+| `codex-compatibility` | `sync-skills-test-support.mjs` `expectedSkills` omitted `browser` | mine |
+| `test (ubuntu 2/2)` | `senpi-test-script.test.ts` packed-layout fixture omitted `browser` | mine |
+| `test (ubuntu 1/2)` | `auto-update-checker > getLatestVersion` received `3.0.1` | unclassified |
+
+The fourth was NOT called pre-existing. The dev baseline run on the same workflow failed only on the
+**windows** shards; ubuntu was green, so "pre-existing" had no evidence behind it. It was left
+unclassified and handed to the next CI round rather than guessed at.
+
+### Round 2 — 1 failure
+
+The three fixes landed and `auto-update-checker` **cleared on its own**, which classified it: it was
+downstream of those defects perturbing the run, not an independent mock leak. Remaining:
+
+| Check | Actual reason | Verdict |
+|---|---|---|
+| `senpi-compatibility` | three more lists: `BUILTIN_SKILL_NAMES`, `expectedSkillNames`, `cli-local` fixture | mine |
+
+`BUILTIN_SKILL_NAMES` is the important one. It is **not** a test list — it backs the
+`skill_loaded.skill_name` property allowlist, so a skill missing from it has its usage events
+silently dropped. A test-only fix would have shipped that data loss behind a green suite. Changing it
+regenerates exactly one line of the byte-pinned telemetry doc block:
+
+```
+| `skill_loaded` | `skill_name` | `string` | `ast-grep`, `browser`, `coding-agent-sessions`, ... |
+```
+
+### Round 3 — pushed with all seven registered
+
+Before pushing, the repo was swept proactively for further drift sites using `"ultimate-browsing"` as
+the anchor (every shipped-set list contains it). Nineteen files matched; nine lacked `browser`, and
+all nine are `ultimate-browsing`-specific references — the `ulw-research` companion routing in
+`skill-pointers`, the engine runtime pins, and landing copy — not set enumerations. No further drift
+sites exist.
+
+**Local full package gate before the round-3 push:**
+
+```
+bun test packages/omo-senpi
+ 3731 pass | 32 skip | 0 fail | 13932 expect() calls
+Ran 3763 tests across 450 files. [240.78s]
+```
+
+The duplication itself is filed as #8670 with the full seven-site table.
