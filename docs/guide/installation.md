@@ -530,10 +530,10 @@ After OpenCode sees the provider, reference models with the OpenCode provider pr
 {
   "agents": {
     "plan-consultant": { "model": "amazon-bedrock/us.anthropic.claude-fable-5-1", "reasoning": "max" },
-    "plan-reviewer": { "model": "amazon-bedrock/us.anthropic.claude-opus-5" }
+    "plan-reviewer": { "model": "amazon-bedrock/us.anthropic.claude-opus-5-5" }
   },
   "categories": {
-    "deep-low": { "model": "amazon-bedrock/us.anthropic.claude-opus-5" }
+    "deep-low": { "model": "amazon-bedrock/us.anthropic.claude-opus-5-5" }
   }
 }
 ```
@@ -546,13 +546,13 @@ GitHub Copilot is supported as a **fallback provider** when native providers are
 
 | Agent / category      | Model                                    |
 | --------------------- | ---------------------------------------- |
-| **plan-consultant**   | `github-copilot/claude-opus-5` (max)     |
+| **plan-consultant**   | `github-copilot/claude-opus-5-5` (max)     |
 | **plan-reviewer**     | `github-copilot/gpt-6-astra` (high)      |
 | **explore**           | `github-copilot/claude-haiku-4-5`        |
 | **librarian**         | `github-copilot/claude-haiku-4-5`        |
 | **deep** (category)   | `github-copilot/gpt-6-astra` (high)      |
 
-Copilot acts as a proxy provider, routing requests to underlying models based on your subscription. The main agent keeps running on whatever session model you picked; Copilot-only installs commonly use `github-copilot/claude-opus-5` there.
+Copilot acts as a proxy provider, routing requests to underlying models based on your subscription. The main agent keeps running on whatever session model you picked; Copilot-only installs commonly use `github-copilot/claude-opus-5-5` there.
 
 ##### Z.ai Coding Plan
 
@@ -568,7 +568,7 @@ The main agent can run on `zai-coding-plan/glm-5.2` as your session model; GLM 5
 
 ##### OpenCode Zen
 
-OpenCode Zen provides access to `opencode/` prefixed models including `opencode/claude-opus-5`, `opencode/gpt-6-astra`, `opencode/gpt-5.6-sol`, `opencode/gpt-5-nano`, `opencode/glm-5.2`, `opencode/big-pickle`, `opencode/minimax-m2.7`, and `opencode/minimax-m2.7-highspeed`.
+OpenCode Zen provides access to `opencode/` prefixed models including `opencode/claude-opus-5-5`, `opencode/gpt-6-astra`, `opencode/gpt-5.6-sol`, `opencode/gpt-5-nano`, `opencode/glm-5.2`, `opencode/big-pickle`, `opencode/minimax-m2.7`, and `opencode/minimax-m2.7-highspeed`.
 
 When OpenCode Zen is the best available provider, common examples:
 
@@ -577,7 +577,7 @@ When OpenCode Zen is the best available provider, common examples:
 | **plan-consultant**   | `opencode/claude-fable-5-1` (max)                    |
 | **plan-reviewer**     | `opencode/gpt-6-astra` (high)                        |
 | **deep** (category)   | `opencode/gpt-6-astra` (high)                        |
-| main agent (session)  | `opencode/claude-opus-5` or `opencode-go/kimi-k3`    |
+| main agent (session)  | `opencode/claude-opus-5-5` or `opencode-go/kimi-k3`    |
 
 Run the installer with `--opencode-zen=yes` and select "Yes" for OpenCode Zen at the prompt. If your OpenCode environment prompts for provider authentication, follow the OpenCode provider flow for `opencode/` models.
 
@@ -591,7 +591,7 @@ Not all models behave the same way. Understanding "similar" families helps you m
 
 | Model                    | Provider(s)                         | Notes                                                                                       |
 | ------------------------ | ----------------------------------- | ------------------------------------------------------------------------------------------- |
-| **Claude Opus 5**        | anthropic, github-copilot, opencode | Current best Opus. Dedicated per-agent prompt variants.                                     |
+| **Claude Opus 5.5**        | anthropic, github-copilot, opencode | Current best Opus. Dedicated per-agent prompt variants.                                     |
 | **Claude Sonnet 5**      | anthropic, github-copilot, opencode | Faster, cheaper. Good balance.                                                              |
 | **Claude Haiku 4.5**     | anthropic, github-copilot           | Fast and cheap. Good for quick tasks.                                                       |
 | **Kimi K3**              | opencode-go, kimi-for-coding, moonshotai, opencode | Top recommended Kimi for the main agent when thinking-token cost is acceptable.              |
@@ -635,14 +635,14 @@ Not all models behave the same way. Understanding "similar" families helps you m
 
 #### What each role does and which model it gets
 
-**The main agent** is the session you are talking to. It runs on your session model; there is no separate agent chain for it. Claude Opus 5 is the recommended choice, with GPT 5.6 Sol as the recommended GPT configuration. Models with tuned prompt presets are listed in [Agent Model Matching](./agent-model-matching.md).
+**The main agent** is the session you are talking to. It runs on your session model; there is no separate agent chain for it. Claude Opus 5.5 is the recommended choice, with GPT 5.6 Sol as the recommended GPT configuration. Models with tuned prompt presets are listed in [Agent Model Matching](./agent-model-matching.md).
 
 **Curated agents** (read-only helpers the main agent delegates to through `task(subagent_type: ...)`; chains from `packages/senpi-task/src/agents/builtin/fallback-chains.ts`):
 
 | Agent               | Role                                       | Default Chain                                                          |
 | ------------------- | ------------------------------------------ | ---------------------------------------------------------------------- |
-| **plan-consultant** | Pre-planning gap analysis for `/ulw-plan`  | anthropic\|github-copilot\|opencode/claude-fable-5-1 (max) → anthropic\|github-copilot\|opencode/claude-opus-5 (max) → opencode-go\|kimi-for-coding\|moonshotai\|opencode/kimi-k3 (max) |
-| **plan-reviewer**   | High-accuracy plan review gate             | openai\|chatgpt-subscription/gpt-6-astra (xhigh) → github-copilot/gpt-6-astra (high) → openai\|chatgpt-subscription\|opencode/gpt-6-astra (high) → anthropic\|github-copilot\|opencode/claude-opus-5 (max) → … (full chain in source) |
+| **plan-consultant** | Pre-planning gap analysis for `/ulw-plan`  | anthropic\|github-copilot\|opencode/claude-fable-5-1 (max) → anthropic\|github-copilot\|opencode/claude-opus-5-5 (max) → opencode-go\|kimi-for-coding\|moonshotai\|opencode/kimi-k3 (max) |
+| **plan-reviewer**   | High-accuracy plan review gate             | openai\|chatgpt-subscription/gpt-6-astra (xhigh) → github-copilot/gpt-6-astra (high) → openai\|chatgpt-subscription\|opencode/gpt-6-astra (high) → anthropic\|github-copilot\|opencode/claude-opus-5-5 (max) → … (full chain in source) |
 | **explore**         | Fast codebase grep                         | kimi-coding\|kimi-for-coding/kimi-for-coding-highspeed (off) → openai\|chatgpt-subscription/gpt-5.6-luna-fast (low) → deepseek/deepseek-v4-flash (max) → opencode-go\|bailian-coding-plan/qwen3.5-plus → … → anthropic\|github-copilot/claude-haiku-4-5 → openai\|chatgpt-subscription/gpt-5.4-nano (full chain in source) |
 | **librarian**       | Docs/code search                           | (same chain as `explore`)                                              |
 
@@ -758,7 +758,7 @@ Add custom skills under `.opencode/skills/<name>/SKILL.md` (project scope) or `~
 
 After verification, tell the user:
 
-1. **The main agent runs on your session model, and Claude Opus 5 is strongly recommended** (GPT 5.6 Sol for a GPT setup). Other models may noticeably degrade the experience.
+1. **The main agent runs on your session model, and Claude Opus 5.5 is strongly recommended** (GPT 5.6 Sol for a GPT setup). Other models may noticeably degrade the experience.
 2. **Feeling lazy?** Just include `ultrawork` (or `ulw`) in your prompt. The agent figures out the rest.
 3. **Need precision?** Run `/ulw-plan` to produce a plan under `.omo/plans/`, then run `/ulw-execute` so the main agent executes the verified plan in the same session.
 4. **Your own agent/category setup?** Read [`docs/guide/agent-model-matching.md`](agent-model-matching.md) — the assistant can interview the user and tune the config.

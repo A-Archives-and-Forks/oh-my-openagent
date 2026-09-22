@@ -19,7 +19,7 @@ describe("category routing policy", () => {
       },
       {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
-        model: "claude-opus-5",
+        model: "claude-opus-5-5",
         variant: "max",
       },
       {
@@ -161,8 +161,8 @@ describe("category routing policy", () => {
     expect(highChain).toEqual([
       {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
-        model: "claude-opus-5",
-        variant: "xhigh",
+        model: "claude-opus-5-5",
+        variant: "max",
       },
       {
         providers: ["zai-coding-plan", "opencode-go"],
@@ -188,8 +188,8 @@ describe("category routing policy", () => {
       },
       {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
-        model: "claude-opus-5",
-        variant: "xhigh",
+        model: "claude-opus-5-5",
+        variant: "max",
       }
     ])
     expect(writingChain).toEqual([
@@ -199,14 +199,14 @@ describe("category routing policy", () => {
         variant: "low",
       },
       {
-        providers: ["kimi-for-coding", "moonshotai", "opencode-go", "opencode"],
-        model: "kimi-k3",
+        providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
+        model: "claude-opus-5-5",
         variant: "low",
       },
       {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
         model: "claude-opus-4-6",
-        variant: "low",
+        variant: "max",
       }
     ])
   })

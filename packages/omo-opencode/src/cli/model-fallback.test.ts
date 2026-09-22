@@ -57,7 +57,7 @@ describe("generateModelConfig", () => {
         variant: "high",
         fallback_models: [
           {
-            model: "github-copilot/claude-opus-5",
+            model: "github-copilot/claude-opus-5.5",
             variant: "max",
           },
           {
@@ -211,7 +211,7 @@ describe("generateModelConfig", () => {
       const result = generateModelConfig(config)
 
       // #then
-      expect(result.agents?.sisyphus?.model).toBe("anthropic/claude-opus-5")
+      expect(result.agents?.sisyphus?.model).toBe("anthropic/claude-opus-5-5")
     })
 
     test("Sisyphus is created when multiple fallback providers are available", () => {
@@ -228,7 +228,7 @@ describe("generateModelConfig", () => {
       const result = generateModelConfig(config)
 
       // #then
-      expect(result.agents?.sisyphus?.model).toBe("anthropic/claude-opus-5")
+      expect(result.agents?.sisyphus?.model).toBe("anthropic/claude-opus-5-5")
     })
 
     test("Sisyphus resolves to gpt-5.6-sol medium when only OpenAI is available", () => {

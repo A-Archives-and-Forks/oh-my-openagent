@@ -22,7 +22,7 @@
   "categories": {
     "quick": { "model": "openai/gpt-5.6-luna-fast", "reasoning": "low" },
     "unspecified-low": { "model": "xiaomi/mimo-v2.6-pro", "reasoning": "max" },
-    "unspecified-high": { "model": "anthropic/claude-opus-5", "reasoning": "xhigh" },
+    "unspecified-high": { "model": "anthropic/claude-opus-5-5", "reasoning": "max" },
     "writing": { "model": "anthropic/claude-fable-5-1", "reasoning": "medium" },
     "visual-engineering": { "model": "anthropic/claude-fable-5-1", "reasoning": "max" },
     "architect": { "model": "anthropic/claude-fable-5-1", "reasoning": "max" },

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+**Claude Opus 5.5 is the Opus every default reaches for now, and it runs at `max`.** ([#8684](https://github.com/code-yeongyu/oh-my-openagent/issues/8684))
+
+Every rung that named `claude-opus-5` now names `claude-opus-5-5`: the `visual-engineering`, `artistry`, `unspecified-high` and `writing` category chains, the Sisyphus, Oracle, Metis and Momus agent chains, the senpi-task category and builtin-agent tables, `unspecified-high`'s builtin config, and the Capable model profile. The rungs that ran at `xhigh` run at `max`, because that is the level Opus 5.5 is recommended at. Claude Opus 5 stays selectable and keeps its own prompt variant; it is no longer what you get without asking.
+
+**The `writing` category chain is Fable 5.1, then Opus 5.5, then Opus 4.6.** ([#8684](https://github.com/code-yeongyu/oh-my-openagent/issues/8684))
+
+`writing` ran Fable 5.1 at `low`, then Kimi K3 at `low`, then Opus 4.6 at `low`. It now runs Fable 5.1 at `low`, then Claude Opus 5.5 at `low`, then Claude Opus 4.6 at `max`, so prose work stays inside the Claude family end to end. The chain was declared in two places that had drifted apart - `model-core` and `senpi-task` disagreed on both the rungs and their levels - and both now read the same three rungs.
+
+**A Claude Opus 5.5 session no longer introduces itself as Opus 5.** ([#8684](https://github.com/code-yeongyu/oh-my-openagent/issues/8684))
+
+Opus 5.5 routes to the Opus 5 orchestrator prompt, which is right - the Opus 5 patterns carry over - but its self-knowledge block hardcoded the name and id of the earlier model, so the running model was told it was something else. The block now names whichever of the two is running. Telemetry gained the new id while keeping the old one, so a session on an older pinned engine is still recorded rather than masked to `custom`.
+
 ## [5.0.0-beta.83] - 2026-09-22
 
 ### Added

@@ -285,14 +285,14 @@ describe("resolveReflectionModel", () => {
 
       // when
       const result = resolveReflectionModel("quick", { categories: {} }, emptyRegistry, {
-        sessionModel: { provider: "anthropic", id: "claude-opus-5", thinking: "low" },
+        sessionModel: { provider: "anthropic", id: "claude-opus-5-5", thinking: "low" },
       })
 
       // then
       expect(result).toEqual({
         kind: "resolved",
         category: "quick",
-        model: "anthropic/claude-opus-5",
+        model: "anthropic/claude-opus-5-5",
         thinking: "low",
         source: "session_inherit",
         fallbacks: [],
@@ -302,13 +302,13 @@ describe("resolveReflectionModel", () => {
     test("#when even the registry object is missing #then the session model still resolves", () => {
       // when
       const result = resolveReflectionModel("quick", { categories: {} }, undefined, {
-        sessionModel: { provider: "anthropic", id: "claude-opus-5" },
+        sessionModel: { provider: "anthropic", id: "claude-opus-5-5" },
       })
 
       // then
       expect(result.kind).toBe("resolved")
       if (result.kind === "resolved") {
-        expect(result.model).toBe("anthropic/claude-opus-5")
+        expect(result.model).toBe("anthropic/claude-opus-5-5")
         expect(result.source).toBe("session_inherit")
       }
     })

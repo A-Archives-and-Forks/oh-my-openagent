@@ -186,11 +186,11 @@ A record of short name to catalog entry (`schema/model-catalog.ts`). The canonic
 ```jsonc
 {
   "models": {
-    "opus": { "model": "anthropic/claude-opus-5", "reasoning": "max" },
+    "opus": { "model": "anthropic/claude-opus-5-5", "reasoning": "max" },
     "fast": { "model": "anthropic/claude-haiku-4-5" }
   },
   "categories": {
-    "deep-low": { "model": "opus" },          // resolves to anthropic/claude-opus-5 at reasoning max
+    "deep-low": { "model": "opus" },          // resolves to anthropic/claude-opus-5-5 at reasoning max
     "quick": { "model": "fast", "reasoning": "high" } // site tuning wins over the entry
   }
 }
@@ -205,7 +205,7 @@ A model profile is a named, ordered model chain you pick by intent ("Capable", "
 | Key | Type | Notes |
 |-----|------|-------|
 | `model_profiles` | record<string, `{ display_name?: string; models?: model entries }`> | Named chains. `models` entries are the same shape as a category chain: a bare string (`provider/model`, a bare model id, either with an optional `:level` reasoning suffix) or `{ model, reasoning?, ... }`. Both fields are optional; the object is strict. |
-| `model_profile` | string | Which chain drives the main session model. Either a profile id (`capable`) or a literal `provider/model` (`anthropic/claude-opus-5`). A value containing `/` is a pin, so the pin and the profile share one key. |
+| `model_profile` | string | Which chain drives the main session model. Either a profile id (`capable`) or a literal `provider/model` (`anthropic/claude-opus-5-5`). A value containing `/` is a pin, so the pin and the profile share one key. |
 
 This is not the `profiles` key. `profiles.<name>` is a config-layer overlay activated by `OMO_PROFILE` (see [Profile activation](#profile-activation)): it changes which configuration is loaded. `model_profiles` and `model_profile` are ordinary base keys inside that configuration: they change which model the main session starts on. A `profiles.<name>` layer may set `model_profile` like any other key, which is the one way the two meet.
 
@@ -213,7 +213,7 @@ Three builtin profiles ship (`packages/omo-senpi/src/components/model-profile/bu
 
 | Id | Display name | Chain |
 |----|--------------|-------|
-| `capable` | Capable | `claude-fable-5-1` (max) -> `claude-opus-5` (max) -> `kimi-k3` (max) -> `glm-5.3` (max) |
+| `capable` | Capable | `claude-fable-5-1` (max) -> `claude-opus-5-5` (max) -> `kimi-k3` (max) -> `glm-5.3` (max) |
 | `simple-work` | Simple work | `gpt-5.6-luna-fast` (low) -> `deepseek-v4-flash` -> `claude-haiku-4-5` |
 | `deep-work` | Deep work | `gpt-6-astra` (high) -> `gpt-5.6-sol` (medium), the `deep` category chain verbatim |
 
@@ -221,7 +221,7 @@ What happens at session start (`packages/omo-senpi/src/components/model-profile/
 
 - `model_profile` unset: nothing. Senpi's own default resolution, including its `recommended-models` builtin, runs untouched.
 - A literal `provider/model`: that exact model is looked up in the live registry and applied.
-- A profile id: the builtin table is overlaid with `model_profiles`, and the first rung the live registry can serve is applied. The notice names the pick and the skipped rungs, for example `omo-senpi: model profile "capable" selected anthropic/claude-opus-5 (skipped: anthropic/claude-fable-5-1); mid-session fallback follows senpi's retry chains`.
+- A profile id: the builtin table is overlaid with `model_profiles`, and the first rung the live registry can serve is applied. The notice names the pick and the skipped rungs, for example `omo-senpi: model profile "capable" selected anthropic/claude-opus-5-5 (skipped: anthropic/claude-fable-5-1); mid-session fallback follows senpi's retry chains`.
 - No rung resolves: a notice lists the chain and Senpi's default model stays.
 - Unknown id: `model_profile "<name>" is not defined; known profiles: ...`.
 
@@ -232,7 +232,7 @@ Override semantics: a `model_profiles.<name>` entry that matches a builtin repla
 ```jsonc
 {
   "models": {
-    "opus": { "model": "anthropic/claude-opus-5", "reasoning": "max" }
+    "opus": { "model": "anthropic/claude-opus-5-5", "reasoning": "max" }
   },
   "model_profiles": {
     "office": {
@@ -240,7 +240,7 @@ Override semantics: a `model_profiles.<name>` entry that matches a builtin repla
       "models": ["opus", "openai/gpt-5.6-sol:medium"] // catalog alias, then a literal with a reasoning suffix
     }
   },
-  "model_profile": "office" // or "capable", or a pin such as "anthropic/claude-opus-5"
+  "model_profile": "office" // or "capable", or a pin such as "anthropic/claude-opus-5-5"
 }
 ```
 
@@ -431,7 +431,7 @@ The migration engine rewrites the persisted config in place, and doctor reports 
   "categories": {
     "deep-low": {
       "models": [
-        { "model": "anthropic/claude-opus-5", "reasoning": "high" },
+        { "model": "anthropic/claude-opus-5-5", "reasoning": "high" },
         "anthropic/claude-sonnet-4-5"
       ]
     }

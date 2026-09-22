@@ -36,7 +36,7 @@ function definition(name: string) {
 
 const ASTRA_IDS = ["gpt-6-astra", "openai/gpt-6-astra", "chatgpt-subscription/gpt-6-astra-fast", "vercel/openai/gpt-6-astra", "GPT-6-Astra"] as const
 const GPT_5_IDS = ["openai/gpt-5.6-sol", "chatgpt-subscription/gpt-5.6-terra", "openai/gpt-5.5", "gpt-5-5"] as const
-const OTHER_IDS = ["anthropic/claude-opus-5", "kimi-coding/k3", "zai-coding-plan/glm-5.3", undefined] as const
+const OTHER_IDS = ["anthropic/claude-opus-5-5", "kimi-coding/k3", "zai-coding-plan/glm-5.3", undefined] as const
 
 describe("isGpt6Model", () => {
   it("#given GPT-6 ids with and without provider prefixes or the fast alias #then all match", () => {
@@ -131,8 +131,8 @@ describe("GPT builtin defaults and gates", () => {
     expect(definition("deep-low").config).toEqual({ model: "chatgpt-subscription/gpt-5.6-sol", variant: "medium" })
   })
 
-  it("#given unspecified-high #then its default is the Opus 5 rung its chain now leads with, not Astra", () => {
-    expect(definition("unspecified-high").config).toEqual({ model: "anthropic/claude-opus-5", variant: "xhigh" })
+  it("#given unspecified-high #then its default is the Opus 5.5 rung its chain now leads with, not Astra", () => {
+    expect(definition("unspecified-high").config).toEqual({ model: "anthropic/claude-opus-5-5", variant: "max" })
   })
 
   it("#given the gates #then ultrabrain opens on either flagship, each deep lane only on its own model, unspecified-high is ungated", () => {
@@ -181,14 +181,14 @@ describe("resolveCategory on GPT registries", () => {
     expect(resolveCategory("unspecified-high", {}, codexAstraRegistry).kind).toBe("model_unavailable")
   })
 
-  it("#given claude-opus-5 #when unspecified-high resolves #then it runs Opus 5 at xhigh with the generic append", () => {
-    const result = resolveCategory("unspecified-high", {}, registry([{ provider: "anthropic", id: "claude-opus-5" }]))
+  it("#given claude-opus-5-5 #when unspecified-high resolves #then it runs Opus 5.5 at max with the generic append", () => {
+    const result = resolveCategory("unspecified-high", {}, registry([{ provider: "anthropic", id: "claude-opus-5-5" }]))
     expect(result.kind).toBe("resolved")
     if (result.kind !== "resolved") throw new Error("Expected resolved")
     expect(result.spec).toMatchObject({
       provider: "anthropic",
-      modelId: "claude-opus-5",
-      variant: "xhigh",
+      modelId: "claude-opus-5-5",
+      variant: "max",
       prompt_append: definition("unspecified-high").promptAppend,
     })
   })

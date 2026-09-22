@@ -43,7 +43,7 @@ export const AGENT_FALLBACK_CHAINS: Readonly<Record<string, readonly DelegateFal
     },
     {
       providers: ["anthropic-subscription", "anthropic", "github-copilot", "opencode"],
-      model: "claude-opus-5",
+      model: "claude-opus-5-5",
       variant: "max",
     },
     {
@@ -58,7 +58,7 @@ export const AGENT_FALLBACK_CHAINS: Readonly<Record<string, readonly DelegateFal
     { providers: ["chatgpt-subscription", "opencode"], model: "gpt-6-astra", variant: "high" },
     {
       providers: ["anthropic-subscription", "anthropic", "github-copilot", "opencode"],
-      model: "claude-opus-5",
+      model: "claude-opus-5-5",
       variant: "max",
     },
     {

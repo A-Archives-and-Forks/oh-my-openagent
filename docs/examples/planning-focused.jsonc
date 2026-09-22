@@ -14,7 +14,7 @@
 
     // Pre-planning consultant: heavily used, maximum depth
     "plan-consultant": {
-      "model": "anthropic/claude-opus-5",
+      "model": "anthropic/claude-opus-5-5",
       "reasoning": "max",
       "prompt": "Critically evaluate the request. Identify gaps, hidden intentions, risks, and ambiguities. Be thorough.",
     },
@@ -33,7 +33,7 @@
     "unspecified-low": { "model": "xiaomi/mimo-v2.6-pro", "reasoning": "max" },
 
     // High-effort planning tasks: maximum reasoning
-    "unspecified-high": { "model": "anthropic/claude-opus-5", "reasoning": "max" },
+    "unspecified-high": { "model": "anthropic/claude-opus-5-5", "reasoning": "max" },
 
     // Documentation from plans
     "writing": { "model": "anthropic/claude-fable-5-1", "reasoning": "medium" },
