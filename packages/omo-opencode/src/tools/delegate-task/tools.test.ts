@@ -191,14 +191,14 @@ describe("sisyphus-task", () => {
       expect(high.variant).toBe("high")
     })
 
-    test("unspecified-high category uses Claude Opus 5 xhigh as primary", () => {
+    test("unspecified-high category uses Claude Opus 5.5 max as primary", () => {
       // given
       const category = DEFAULT_CATEGORIES["unspecified-high"]
 
       // when / #then
       expect(category).toBeDefined()
-      expect(category.model).toBe("anthropic/claude-opus-5")
-      expect(category.variant).toBe("xhigh")
+      expect(category.model).toBe("anthropic/claude-opus-5-5")
+      expect(category.variant).toBe("max")
     })
   })
 

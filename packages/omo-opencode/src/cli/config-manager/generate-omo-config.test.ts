@@ -31,7 +31,8 @@ describe("generateOmoConfig - model fallback system", () => {
 
     //#then
     expect([
-      "github-copilot/claude-opus-5",
+      "github-copilot/claude-opus-5-5",
+      "github-copilot/claude-opus-5.5",
     ]).toContain((result.agents as Record<string, { model: string }>).sisyphus.model)
   })
 
@@ -89,7 +90,7 @@ describe("generateOmoConfig - model fallback system", () => {
     //#then
     expect((result.agents as Record<string, { model: string }>).librarian.model).toBe("anthropic/claude-haiku-4-5")
     expect(JSON.stringify(result)).not.toContain("zai-coding-plan/glm-4.7")
-    expect((result.agents as Record<string, { model: string }>).sisyphus.model).toBe("anthropic/claude-opus-5")
+    expect((result.agents as Record<string, { model: string }>).sisyphus.model).toBe("anthropic/claude-opus-5-5")
   })
 
   test("uses native OpenAI models when only ChatGPT available", () => {
@@ -162,7 +163,7 @@ describe("generateOmoConfig - model fallback system", () => {
     }>
 
     //#then
-    expect(agents.sisyphus.model).toBe("anthropic/claude-opus-5")
+    expect(agents.sisyphus.model).toBe("anthropic/claude-opus-5-5")
     expect(agents.sisyphus.fallback_models).toEqual([
       {
         model: "openai/gpt-5.6-sol",
