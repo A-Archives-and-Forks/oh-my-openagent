@@ -73,16 +73,27 @@ condition that must suppress it is pinned beside a control that proves the asser
 cross-process throttle is proven against a real file rather than a mock, which is the part unit
 doubles cannot establish.
 
-**Not yet sufficient for merge.** Two gaps remain, and I am not claiming them:
+**Live event capture — what is and is not proven.**
 
-- **No live TUI capture.** The SSE probe proves the plumbing that carries `session.created`; it does
-  not show this hook's toast rendering inside a running OpenCode TUI. That needs an
-  `--attach` run against a live server with a real session creation, per the `opencode-qa` skill's
-  Case B.
-- **No TUI command or dialog yet.** Issue #8619 also asks for a command-palette entry opening an
-  install / guide / later / never dialog. Only the toast half is implemented.
+`live-session-created.sh` boots an isolated opencode server, creates a real session over
+`POST /session`, and reads the SSE stream. Run 1 (`GREEN-live-session-created.txt`) proves the claim
+that matters: **a real opencode process emits `session.created` when a session is created**, for
+session `ses_f380eba8…`. That line came from an unanchored grep and is genuine.
 
-This PR should not merge until both are done.
+The same run also printed a top-level/parentID PASS that was **vacuous** and is not evidence: it
+consumed an anchored grep (`{"type":"session.created"`) that assumes `type` is the first JSON key,
+while the real frame puts `type` last, so it matched nothing and the branch could not fail. The
+artifact states this inline rather than letting the green line stand. The grep is fixed in the
+script, and `GREEN-assertions-can-fail.txt` drives the corrected logic against three synthetic
+frames — type-last without `parentID`, type-last with `parentID`, and no event at all — showing all
+three branches reachable, so the assertion can now fail.
+
+**Still open, and this PR should not merge until it is closed:** a single live run that reaches the
+corrected assertions end to end. Two attempts timed out at the `oqa_wait_http` health gate because
+`opencode serve` needs several minutes to become healthy under current machine load; each teardown
+was verified clean (0 opencode processes, port free, sandbox removed). The TUI dialog itself is
+implemented and unit-covered (`features/native-edition-nudge/tui.test.ts`), but its rendering inside
+a live TUI is likewise not captured.
 
 ## WHAT WAS OMITTED
 
