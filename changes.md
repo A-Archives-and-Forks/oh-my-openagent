@@ -1,6 +1,6 @@
 ## 2026-09-22 - The standalone edition names itself OmO Native in its own notices (#8629)
 
-The footer badge read `(😺 OmO Native)` and `omo doctor` printed `Edition: Native`, while the notices above them opened with the internal adapter id: `telemetry/omo-native-notice.ts` began `omo-senpi sends anonymous usage telemetry`, `model-profile/index.ts` built every notice as `omo-senpi: model profile ...`, and `config-startup/index.ts` prefixed its five migration and diagnostics messages the same way. One screen carried two names for one product.
+The footer badge read `(😺 OmO Native)` and the doctor edition line printed `Edition: Native`, while the notices above them opened with the internal adapter id: `telemetry/omo-native-notice.ts` began `omo-senpi sends anonymous usage telemetry`, `model-profile/index.ts` built every notice as `omo-senpi: model profile ...`, and `config-startup/index.ts` prefixed its five migration and diagnostics messages the same way. One screen carried two names for one product.
 
 Every user-rendered notice in those three components now says `OmO Native`. The engine keeps its name where the sentence is about the engine (`keeping senpi's default model`, `mid-session fallback follows senpi's retry chains`), matching the doctor line's `(engine: senpi X)`. The two `ctx.logger.warn` calls in model-profile that never reach a user were deliberately left alone.
 
