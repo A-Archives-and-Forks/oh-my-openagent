@@ -1,3 +1,13 @@
+## The persisted run stats keep their failure count
+
+`store/run-stats-parse.ts` parses the persisted `run_stats` block field by field, and it had no
+branch for `failed_turns` - so the counter survived only in memory. Every read back from disk
+(`task_output` on a terminal child, the completion notification's details, a reconciled record)
+silently dropped it, leaving a record that claims zero turns and offers no evidence that any
+attempt was ever made. The parser now reads it with the same absent-tolerant, type-strict rule as
+the other optional stats: a record written before the field shipped still loads, and a present
+value of the wrong shape rejects the record instead of being discarded. omo#8627.
+
 ## A live row reads "starting" until a real turn lands
 
 `status-line.ts` emitted `turn N` whenever stats existed, so the row the user complained about
