@@ -14,6 +14,10 @@ const killOnSpawn = (signal: NodeJS.Signals) => (child: ChildProcess) => {
     if (child.pid !== undefined) process.kill(child.pid, signal)
   })
 }
+// The alias only has to outlive the spawn-time kill (milliseconds away) so the
+// child dies mid-run with input still written; bounding it at 5s also bounds
+// the win32 orphan tail — TerminateProcess leaves the alias shell alive —
+// inside the fixture teardown's EBUSY retry window below.
 
 test("a missing git binary is typed unavailable, not a generic spawn failure", async () => {
   const f = await fixture()
@@ -27,7 +31,7 @@ test("a git terminated by a signal is a failure, never a zero exit", async () =>
   let failure: unknown
   let resolved: { code: number } | undefined
   try {
-    resolved = await runGit(["-c", "alias.wait=!sleep 30", "wait"], {
+    resolved = await runGit(["-c", "alias.wait=!sleep 5", "wait"], {
       cwd: f.repoRoot, allowedExitCodes: Array.from({ length: 256 }, (_, code) => code), onSpawn: killOnSpawn("SIGKILL"),
     })
   } catch (error) { failure = error }
@@ -47,9 +51,29 @@ test("input written to a child that dies before reading rejects instead of crash
   const f = await fixture()
   let failure: unknown
   try {
-    await runGit(["-c", "alias.wait=!sleep 30", "wait"], { cwd: f.repoRoot, input: "payload\n", onSpawn: killOnSpawn("SIGKILL") })
+    await runGit(["-c", "alias.wait=!sleep 5", "wait"], { cwd: f.repoRoot, input: "payload\n", onSpawn: killOnSpawn("SIGKILL") })
   } catch (error) { failure = error }
   expect(failure).toBeInstanceOf(Error)
+})
+
+test("input written to a child that dies while alias-shell survivors hold its pipes settles promptly", async () => {
+  const f = await fixture()
+  let failure: unknown
+  const started = Date.now()
+  try {
+    // The alias backgrounds a survivor that inherits git's pipes (moving its
+    // own working directory out of the fixture first) while the direct child
+    // exits failing with the input still unread — the exact shape the win32
+    // kill race produces when TerminateProcess lands after git already
+    // spawned the alias shell. Deterministic on every platform: the survivor
+    // exists before the child dies, no spawn/kill timing involved.
+    await runGit(["-c", "alias.orphan=!sh -c 'cd / && exec sleep 7' & exit 1", "orphan"], { cwd: f.repoRoot, input: "payload\n" })
+  } catch (error) { failure = error }
+  expect(failure).toBeInstanceOf(GitCommandError)
+  // The survivor holds the stdio pipes open for its whole life; the run may
+  // not wait the survivor out (the win32 flake waited out the full 30s test
+  // budget while `close` stayed pending on the dead child's pipes).
+  expect(Date.now() - started).toBeLessThan(5_000)
 })
 
 test("a budget breach on a still-streaming child preserves the typed limit error", async () => {
