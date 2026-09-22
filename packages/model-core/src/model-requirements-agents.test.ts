@@ -36,7 +36,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     expect(sisyphus.requiresAnyModel).toBe(true)
     expect(primary).toEqual({
           providers: ["anthropic", "github-copilot", "opencode"],
-          model: "claude-opus-5",
+          model: "claude-opus-5-5",
           variant: "max",
         })
     expect(second).toEqual({
@@ -196,7 +196,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
         })
     expect(opusFallback).toEqual({
           providers: ["anthropic", "github-copilot", "opencode"],
-          model: "claude-opus-5",
+          model: "claude-opus-5-5",
           variant: "max",
         })
     expect(kimiFallback).toEqual({
@@ -232,7 +232,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
         })
     expect(opusFallback).toEqual({
           providers: ["anthropic", "github-copilot", "opencode"],
-          model: "claude-opus-5",
+          model: "claude-opus-5-5",
           variant: "max",
         })
     expect(momus.fallbackChain.some((entry) => entry.model.startsWith("gpt-5.6-"))).toBe(false)
