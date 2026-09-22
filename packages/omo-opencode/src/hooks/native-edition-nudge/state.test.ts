@@ -86,7 +86,31 @@ describe("writability is probed rather than assumed", () => {
     expect(createNudgeStateStore(dir).read()).toBe("missing")
   })
 
-  test("#given a read-only directory #when probed #then it reports unwritable instead of throwing", () => {
+  test("#given a store path whose parent is a file #when probed #then it reports unwritable instead of throwing", () => {
+    // given - mkdir/open under a regular file fails with ENOTDIR/ENOENT on every platform, including Windows
+    const notADir = join(dir, "not-a-dir")
+    writeFileSync(notADir, "")
+    const locked = join(notADir, "locked")
+
+    // when
+    const writable = createNudgeStateStore(locked).probeWritable()
+
+    // then
+    expect(writable).toBe(false)
+  })
+
+  test("#given a store path whose parent is a file #when a write is attempted #then it returns false rather than throwing", () => {
+    // given - mkdir/open under a regular file fails with ENOTDIR/ENOENT on every platform, including Windows
+    const notADir = join(dir, "not-a-dir")
+    writeFileSync(notADir, "")
+    const locked = join(notADir, "locked-write")
+
+    // when / then
+    expect(createNudgeStateStore(locked).write(sample())).toBe(false)
+  })
+
+  // POSIX mode bits do not make a directory unwritable on Windows (Node chmod only toggles the file read-only attribute).
+  test.skipIf(process.platform === "win32")("#given a read-only directory #when probed #then it reports unwritable instead of throwing", () => {
     // given
     const locked = join(dir, "locked")
     mkdirSync(locked, { recursive: true })
@@ -99,7 +123,8 @@ describe("writability is probed rather than assumed", () => {
     expect(writable).toBe(false)
   })
 
-  test("#given a read-only directory #when a write is attempted #then it returns false rather than throwing", () => {
+  // POSIX mode bits do not make a directory unwritable on Windows (Node chmod only toggles the file read-only attribute).
+  test.skipIf(process.platform === "win32")("#given a read-only directory #when a write is attempted #then it returns false rather than throwing", () => {
     // given
     const locked = join(dir, "locked-write")
     mkdirSync(locked, { recursive: true })
