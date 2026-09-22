@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test"
 import * as fs from "node:fs"
+import { join } from "node:path"
 
 import { taskEventLogPath } from "../store/event-log"
 import {
@@ -43,6 +44,22 @@ describe("dag node activity projection (#8674)", () => {
     expect(node?.state).toBe("running")
     expect(node?.lastActivityAt).toBe(quietSince.toISOString())
 
+    fixture.runner.child("only").settle({ status: "completed", finalResponse: "done" })
+    await fixture.run
+  })
+
+  test("#given a stat fault on the transcript log #when the snapshot is projected #then it degrades to no clock instead of throwing", async () => {
+    const fixture = await startHeldRun(["only"])
+    await fixture.whenNodeRunning("only")
+    const logsDir = join(fixture.store.stateDir, "logs")
+    fs.rmSync(logsDir, { recursive: true, force: true })
+    fs.writeFileSync(logsDir, "not a directory", "utf8")
+
+    const node = fixture.manager.snapshot(fixture.runId, PARENT_SESSION_ID).nodes[0]
+    expect(node?.state).toBe("running")
+    expect(node?.lastActivityAt).toBeUndefined()
+
+    fs.rmSync(logsDir, { force: true })
     fixture.runner.child("only").settle({ status: "completed", finalResponse: "done" })
     await fixture.run
   })
