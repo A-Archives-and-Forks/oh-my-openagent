@@ -32,10 +32,48 @@ function markerValue(target: Readonly<Record<string, unknown>>, migrationId: str
   return hasMigrationMarker(target, migrationId) ? value : [...value, migrationId]
 }
 
+const OMO_HARNESS_BLOCKS = ["[codex]", "[opencode]", "[senpi]"] as const
+
+type RetiredCodegraphCleanup = {
+  readonly diagnostics: readonly string[]
+  readonly document: Record<string, unknown>
+  readonly edits: readonly { readonly path: readonly string[]; readonly value: undefined }[]
+}
+
+function stripRetiredCodegraph(document: Readonly<Record<string, unknown>>): RetiredCodegraphCleanup {
+  const stripped = structuredClone(document)
+  const removedPaths: string[][] = []
+  const strip = (value: unknown, path: readonly string[]): void => {
+    if (!isPlainObject(value)) return
+    if (Object.prototype.hasOwnProperty.call(value, "codegraph")) {
+      delete value.codegraph
+      removedPaths.push([...path, "codegraph"])
+    }
+  }
+
+  strip(stripped, [])
+  for (const harness of OMO_HARNESS_BLOCKS) strip(stripped[harness], [harness])
+  if (isPlainObject(stripped.profiles)) {
+    for (const [profileName, profile] of Object.entries(stripped.profiles)) {
+      strip(profile, ["profiles", profileName])
+      if (!isPlainObject(profile)) continue
+      for (const harness of OMO_HARNESS_BLOCKS) strip(profile[harness], ["profiles", profileName, harness])
+    }
+  }
+
+  return {
+    diagnostics: removedPaths.length === 0 ? [] : ["removed: codegraph (retired configuration)"],
+    document: stripped,
+    edits: removedPaths.map((path) => ({ path, value: undefined })),
+  }
+}
+
 function validateTarget(targetPath: string, document: Readonly<Record<string, unknown>>): void {
   const result = OmoConfigSchema.safeParse(document)
   if (result.success) return
-  const detail = result.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join(", ")
+  const detail = result.error.issues
+    .map((issue: { readonly path: readonly PropertyKey[]; readonly message: string }) => `${issue.path.map(String).join(".")}: ${issue.message}`)
+    .join(", ")
   throw new MigrationValidationError(targetPath, detail)
 }
 
@@ -82,12 +120,22 @@ export function prepareTargetWrite(input: {
   readonly target: Readonly<Record<string, unknown>>
   readonly targetPath: string
 }): PreparedTargetWrite {
-  const merged = mergeWithoutClobber(input.target, input.additions)
+  const targetCleanup = stripRetiredCodegraph(input.target)
+  const additionsCleanup = stripRetiredCodegraph(input.additions)
+  const merged = mergeWithoutClobber(targetCleanup.document, additionsCleanup.document)
   const marker = markerValue(input.target, input.migrationId, input.targetPath)
   const document = { ...merged.merged, _migrations: marker }
   validateTarget(input.targetPath, document)
-  const edits = [...collectMigrationEdits(merged.additions), { path: ["_migrations"], value: marker }]
-  return { diagnostics: merged.diagnostics, document, edits }
+  const edits = [
+    ...targetCleanup.edits,
+    ...collectMigrationEdits(merged.additions),
+    { path: ["_migrations"], value: marker },
+  ]
+  return {
+    diagnostics: [...merged.diagnostics, ...targetCleanup.diagnostics, ...additionsCleanup.diagnostics],
+    document,
+    edits,
+  }
 }
 
 export function prepareTargetReplacement(input: {
@@ -96,20 +144,26 @@ export function prepareTargetReplacement(input: {
   readonly target: Readonly<Record<string, unknown>>
   readonly targetPath: string
 }): PreparedTargetWrite {
+  const targetCleanup = stripRetiredCodegraph(input.target)
+  const documentCleanup = stripRetiredCodegraph(input.document)
   const marker = markerValue(input.target, input.migrationId, input.targetPath)
-  const document = { ...input.document, _migrations: marker }
+  const document = { ...documentCleanup.document, _migrations: marker }
   validateTarget(input.targetPath, document)
-  const edits: { path: readonly string[]; value: unknown }[] = []
-  for (const key of Object.keys(input.target)) {
-    if (key !== "_migrations" && !Object.prototype.hasOwnProperty.call(input.document, key)) {
+  const edits: { path: readonly string[]; value: unknown }[] = [...targetCleanup.edits]
+  for (const key of Object.keys(targetCleanup.document)) {
+    if (key !== "_migrations" && !Object.prototype.hasOwnProperty.call(documentCleanup.document, key)) {
       edits.push({ path: [key], value: undefined })
     }
   }
-  for (const [key, value] of Object.entries(input.document)) {
+  for (const [key, value] of Object.entries(documentCleanup.document)) {
     if (key !== "_migrations") edits.push({ path: [key], value })
   }
   edits.push({ path: ["_migrations"], value: marker })
-  return { diagnostics: [], document, edits }
+  return {
+    diagnostics: [...targetCleanup.diagnostics, ...documentCleanup.diagnostics],
+    document,
+    edits,
+  }
 }
 
 export function writePreparedTarget(input: {
