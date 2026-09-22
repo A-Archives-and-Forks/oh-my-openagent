@@ -20,9 +20,9 @@ function registry(models: readonly FakeModel[]) {
   }
 }
 
-// A registry whose only providers serve none of the quick chain rungs; claude-opus-5 keeps
+// A registry whose only providers serve none of the quick chain rungs; claude-opus-5-5 keeps
 // visual-engineering/unspecified-high alive so the gated list is not simply empty.
-const OPUS_ONLY = registry([model("omo-mock", "mock-parent"), model("anthropic", "claude-opus-5")])
+const OPUS_ONLY = registry([model("omo-mock", "mock-parent"), model("anthropic", "claude-opus-5-5")])
 
 describe("dead-chain category disabling", () => {
   describe("#given a builtin category whose chain has no resolvable rung", () => {

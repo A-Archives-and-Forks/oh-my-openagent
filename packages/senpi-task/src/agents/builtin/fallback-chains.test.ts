@@ -64,14 +64,14 @@ describe("AGENT_FALLBACK_CHAINS", () => {
       ],
       "plan-consultant": [
         { providers: ["anthropic-subscription", "anthropic", "github-copilot", "opencode"], model: "claude-fable-5-1", variant: "max" },
-        { providers: ["anthropic-subscription", "anthropic", "github-copilot", "opencode"], model: "claude-opus-5", variant: "max" },
+        { providers: ["anthropic-subscription", "anthropic", "github-copilot", "opencode"], model: "claude-opus-5-5", variant: "max" },
         { providers: ["opencode-go", "kimi-for-coding", "moonshotai", "opencode"], model: "kimi-k3", variant: "max" }
       ],
       "plan-reviewer": [
         { providers: ["chatgpt-subscription"], model: "gpt-6-astra", variant: "xhigh" },
         { providers: ["github-copilot"], model: "gpt-6-astra", variant: "high" },
         { providers: ["chatgpt-subscription", "opencode"], model: "gpt-6-astra", variant: "high" },
-        { providers: ["anthropic-subscription", "anthropic", "github-copilot", "opencode"], model: "claude-opus-5", variant: "max" },
+        { providers: ["anthropic-subscription", "anthropic", "github-copilot", "opencode"], model: "claude-opus-5-5", variant: "max" },
         { providers: ["google", "github-copilot", "opencode"], model: "gemini-3.1-pro", variant: "high" },
         { providers: ["opencode-go"], model: "glm-5.2" }
       ]

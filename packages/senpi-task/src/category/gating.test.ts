@@ -21,7 +21,7 @@ function registry(models: readonly FakeModel[]) {
 
 const MODELS_THE_PRE_GATING_CHAINS_WOULD_HAVE_ACCEPTED = [
   model("google", "gemini-3.1-pro"),
-  model("anthropic", "claude-opus-5"),
+  model("anthropic", "claude-opus-5-5"),
   model("opencode-go", "glm-5.2"),
   model("kimi-coding", "k3"),
 ] as const
@@ -93,7 +93,7 @@ describe("category activation gating", () => {
 
     test("#when the gate model is absent and omo.json only sets a description #then the gate is bypassed and the category stays listed", () => {
       // given
-      const models = registry([model("anthropic", "claude-opus-5")])
+      const models = registry([model("anthropic", "claude-opus-5-5")])
 
       // when
       const result = resolveCategory(
@@ -222,19 +222,19 @@ describe("category activation gating", () => {
 
     test("#when the gate model is absent but omo.json configures the category #then the explicit entry bypasses the gate", () => {
       // given
-      const models = registry([model("anthropic", "claude-opus-5")])
+      const models = registry([model("anthropic", "claude-opus-5-5")])
 
       // when
       const result = resolveCategory(
         "deep-low",
-        { categories: { "deep-low": { model: "anthropic/claude-opus-5" } } },
+        { categories: { "deep-low": { model: "anthropic/claude-opus-5-5" } } },
         models,
       )
 
       // then
       expect(result.kind).toBe("resolved")
       if (result.kind !== "resolved") throw new Error("Expected resolved")
-      expect(result.spec.modelId).toBe("claude-opus-5")
+      expect(result.spec.modelId).toBe("claude-opus-5-5")
     })
   })
 
