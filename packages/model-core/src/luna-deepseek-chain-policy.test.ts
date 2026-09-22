@@ -4,7 +4,7 @@ import { AGENT_MODEL_REQUIREMENTS, CATEGORY_MODEL_REQUIREMENTS } from "./model-r
 import type { FallbackEntry } from "./model-requirement-types"
 
 const LUNA_LOW = {
-  providers: ["openai-codex"],
+  providers: ["chatgpt-subscription"],
   model: "gpt-5.6-luna-fast",
   variant: "low",
 } satisfies FallbackEntry
@@ -42,7 +42,7 @@ describe("Luna and DeepSeek chain policy", () => {
 
       expect(chain.slice(0, 3)).toEqual([
         KIMI_HIGHSPEED_OFF,
-        { providers: ["openai", "openai-codex"], model: "gpt-5.6-luna-fast", variant: "low" },
+        { providers: ["openai", "chatgpt-subscription"], model: "gpt-5.6-luna-fast", variant: "low" },
         DEEPSEEK_MAX,
       ])
     },

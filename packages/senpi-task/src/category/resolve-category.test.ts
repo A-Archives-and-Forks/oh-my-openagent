@@ -47,7 +47,7 @@ const gpt56CategoryCases = [
     mixedWinner: { provider: "github-copilot", modelId: "gpt-5.6-sol", variant: "medium" },
     copilotVariant: "medium",
     copilotFallbackEntry: {
-      providers: ["openai-codex", "github-copilot", "opencode"] as string[],
+      providers: ["chatgpt-subscription", "github-copilot", "opencode"] as string[],
       model: "gpt-5.6-sol",
       variant: "medium",
     },
@@ -59,7 +59,7 @@ const gpt56CategoryCases = [
     mixedWinner: { provider: "github-copilot", modelId: "gpt-5.6-terra", variant: "high" },
     copilotVariant: "high",
     copilotFallbackEntry: {
-      providers: ["openai-codex", "github-copilot", "opencode"] as string[],
+      providers: ["chatgpt-subscription", "github-copilot", "opencode"] as string[],
       model: "gpt-5.6-terra",
       variant: "high",
     },
@@ -413,7 +413,7 @@ describe("resolveCategory", () => {
 
   test("#given category params in omo overlay #when resolved #then child spec carries generation params and prompt append", () => {
     // given
-    const models = registry([model("openai-codex", "gpt-5.6-luna-fast")])
+    const models = registry([model("chatgpt-subscription", "gpt-5.6-luna-fast")])
 
     // when
     const result = resolveCategory(
@@ -479,10 +479,10 @@ describe("builtin category defaults", () => {
     expect(defaults.map(({ config, name }) => [name, config.model, config.variant])).toEqual([
       ["visual-engineering", "anthropic/claude-fable-5-1", "max"],
       ["artistry", "anthropic/claude-fable-5-1", "max"],
-      ["ultrabrain", "openai-codex/gpt-6-astra", "max"],
-      ["deep-low", "openai-codex/gpt-5.6-sol", "medium"],
-      ["deep-high", "openai-codex/gpt-6-astra", "high"],
-      ["quick", "openai-codex/gpt-5.6-luna-fast", "low"],
+      ["ultrabrain", "chatgpt-subscription/gpt-6-astra", "max"],
+      ["deep-low", "chatgpt-subscription/gpt-5.6-sol", "medium"],
+      ["deep-high", "chatgpt-subscription/gpt-6-astra", "high"],
+      ["quick", "chatgpt-subscription/gpt-5.6-luna-fast", "low"],
       ["unspecified-low", "xiaomi/mimo-v2.6-pro", "max"],
       ["unspecified-high", "anthropic/claude-opus-5", "xhigh"],
       ["architect", "anthropic/claude-fable-5-1", "max"],

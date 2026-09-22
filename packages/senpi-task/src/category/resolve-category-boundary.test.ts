@@ -50,7 +50,7 @@ describe("resolveCategory boundary parsing", () => {
   test("#given a registry model with legal headers #when resolved #then the header-bearing model is accepted", () => {
     // given
     const headerModel = {
-      provider: "openai-codex",
+      provider: "chatgpt-subscription",
       id: "gpt-5.6-luna-fast",
       headers: { "User-Agent": "test" },
     }
@@ -60,7 +60,7 @@ describe("resolveCategory boundary parsing", () => {
 
     // then
     const resolved = expectResolved(result)
-    expect(resolved.spec.provider).toBe("openai-codex")
+    expect(resolved.spec.provider).toBe("chatgpt-subscription")
     expect(resolved.spec.modelId).toBe("gpt-5.6-luna-fast")
     expect(resolved.spec.model).toBe(headerModel)
   })
@@ -79,7 +79,7 @@ describe("resolveCategory boundary parsing", () => {
     expect(result.kind).toBe("model_unavailable")
     if (result.kind !== "model_unavailable") throw new Error("Expected unavailable result")
     expect(result.category).toBe("quick")
-    expect(result.attemptedModel).toBe("openai-codex/gpt-5.6-luna-fast")
+    expect(result.attemptedModel).toBe("chatgpt-subscription/gpt-5.6-luna-fast")
     expect(result.availableModels).toEqual([])
   })
 
@@ -98,7 +98,7 @@ describe("resolveCategory boundary parsing", () => {
     // then
     expect(result.kind).toBe("model_unavailable")
     if (result.kind !== "model_unavailable") throw new Error(`Expected unavailable result, got ${result.kind}`)
-    expect(result.attemptedModel).toBe("openai-codex/gpt-5.6-luna-fast")
+    expect(result.attemptedModel).toBe("chatgpt-subscription/gpt-5.6-luna-fast")
     expect(result.availableModels).toEqual([])
     expect(JSON.stringify(result)).not.toContain("hidden available accessor marker")
   })
@@ -108,11 +108,11 @@ describe("resolveCategory boundary parsing", () => {
     const malformedFindResults = [
       {},
       { provider: { secret: "hidden" }, id: ["gpt-5.6-luna-fast"] },
-      { provider: "openai-codex", id: "gpt-5.6-luna-fast", password: "hidden" },
-      { provider: "openai-codex", id: "gpt-5.6-luna-fast", accessToken: "hidden" },
-      { provider: "openai-codex", id: "gpt-5.6-luna-fast", privateToken: "hidden" },
+      { provider: "chatgpt-subscription", id: "gpt-5.6-luna-fast", password: "hidden" },
+      { provider: "chatgpt-subscription", id: "gpt-5.6-luna-fast", accessToken: "hidden" },
+      { provider: "chatgpt-subscription", id: "gpt-5.6-luna-fast", privateToken: "hidden" },
     ]
-    const availableModel = model("openai-codex", "gpt-5.6-luna-fast")
+    const availableModel = model("chatgpt-subscription", "gpt-5.6-luna-fast")
 
     // when
     const results = malformedFindResults.map((findResult) => resolveCategory("quick", {}, {
@@ -124,15 +124,15 @@ describe("resolveCategory boundary parsing", () => {
     for (const result of results) {
       expect(result.kind).toBe("model_unavailable")
       if (result.kind !== "model_unavailable") throw new Error(`Expected unavailable result, got ${result.kind}`)
-      expect(result.attemptedModel).toBe("openai-codex/gpt-5.6-luna-fast")
-      expect(result.availableModels).toEqual(["openai-codex/gpt-5.6-luna-fast"])
+      expect(result.attemptedModel).toBe("chatgpt-subscription/gpt-5.6-luna-fast")
+      expect(result.availableModels).toEqual(["chatgpt-subscription/gpt-5.6-luna-fast"])
       expect(JSON.stringify(result)).not.toContain("hidden")
     }
   })
 
   test("#given find returns a throwing-accessor model #when resolved #then category resolution returns sanitized model_unavailable", () => {
     // given
-    const availableModel = model("openai-codex", "gpt-5.6-luna-fast")
+    const availableModel = model("chatgpt-subscription", "gpt-5.6-luna-fast")
     const throwingModel = throwingProviderAccessorModel("hidden find accessor marker")
     const resolver = () => resolveCategory("quick", {}, {
       getAvailable: () => [availableModel],
@@ -146,18 +146,18 @@ describe("resolveCategory boundary parsing", () => {
     // then
     expect(result.kind).toBe("model_unavailable")
     if (result.kind !== "model_unavailable") throw new Error(`Expected unavailable result, got ${result.kind}`)
-    expect(result.attemptedModel).toBe("openai-codex/gpt-5.6-luna-fast")
-    expect(result.availableModels).toEqual(["openai-codex/gpt-5.6-luna-fast"])
+    expect(result.attemptedModel).toBe("chatgpt-subscription/gpt-5.6-luna-fast")
+    expect(result.availableModels).toEqual(["chatgpt-subscription/gpt-5.6-luna-fast"])
     expect(JSON.stringify(result)).not.toContain("hidden find accessor marker")
   })
 
   test("#given find returns an empty or mismatched identity #when resolved #then category resolution rejects the registry result", () => {
     // given
-    const availableModel = model("openai-codex", "gpt-5.6-luna-fast")
+    const availableModel = model("chatgpt-subscription", "gpt-5.6-luna-fast")
     const malformedFindResults = [
       { provider: "", id: "" },
       { provider: "evil", id: "other" },
-      { provider: "openai-codex", id: "" },
+      { provider: "chatgpt-subscription", id: "" },
     ] satisfies readonly FakeModel[]
 
     // when
@@ -169,15 +169,15 @@ describe("resolveCategory boundary parsing", () => {
     // then
     for (const result of results) {
       if (result.kind === "resolved") {
-        expect(result.modelSelection.selectedModel).toBe("openai-codex/gpt-5.6-luna-fast")
+        expect(result.modelSelection.selectedModel).toBe("chatgpt-subscription/gpt-5.6-luna-fast")
         expect(result.spec.provider).not.toBe("evil")
         expect(result.spec.modelId).not.toBe("")
         throw new Error(`Expected unavailable result, got resolved ${result.spec.provider}/${result.spec.modelId}`)
       }
       expect(result.kind).toBe("model_unavailable")
       if (result.kind !== "model_unavailable") throw new Error(`Expected unavailable result, got ${result.kind}`)
-      expect(result.attemptedModel).toBe("openai-codex/gpt-5.6-luna-fast")
-      expect(result.availableModels).toEqual(["openai-codex/gpt-5.6-luna-fast"])
+      expect(result.attemptedModel).toBe("chatgpt-subscription/gpt-5.6-luna-fast")
+      expect(result.availableModels).toEqual(["chatgpt-subscription/gpt-5.6-luna-fast"])
       expect(JSON.stringify(result)).not.toContain("evil")
       expect(JSON.stringify(result)).not.toContain("other")
     }
@@ -185,9 +185,9 @@ describe("resolveCategory boundary parsing", () => {
 
   test("#given inherited model identity fields #when resolved #then category resolution rejects them without leaking prototype data", () => {
     // given
-    const availableModel = model("openai-codex", "gpt-5.6-luna-fast")
+    const availableModel = model("chatgpt-subscription", "gpt-5.6-luna-fast")
     const inheritedIdentityModel: object = Object.create({
-      provider: "openai-codex",
+      provider: "chatgpt-subscription",
       id: "gpt-5.6-luna-fast",
       privateToken: "hidden",
     })
@@ -201,8 +201,8 @@ describe("resolveCategory boundary parsing", () => {
     // then
     expect(result.kind).toBe("model_unavailable")
     if (result.kind !== "model_unavailable") throw new Error(`Expected unavailable result, got ${result.kind}`)
-    expect(result.attemptedModel).toBe("openai-codex/gpt-5.6-luna-fast")
-    expect(result.availableModels).toEqual(["openai-codex/gpt-5.6-luna-fast"])
+    expect(result.attemptedModel).toBe("chatgpt-subscription/gpt-5.6-luna-fast")
+    expect(result.availableModels).toEqual(["chatgpt-subscription/gpt-5.6-luna-fast"])
     expect(JSON.stringify(result)).not.toContain("hidden")
   })
 
@@ -210,28 +210,28 @@ describe("resolveCategory boundary parsing", () => {
     // given
     const malformedAvailableResults = [
       null,
-      { 0: model("openai-codex", "gpt-5.6-luna-fast"), length: 1 },
-      "openai-codex/gpt-5.6-luna-fast",
+      { 0: model("chatgpt-subscription", "gpt-5.6-luna-fast"), length: 1 },
+      "chatgpt-subscription/gpt-5.6-luna-fast",
     ]
 
     // when
     const results = malformedAvailableResults.map((availableResult) => resolveCategory("quick", {}, {
       getAvailable: () => availableResult,
-      find: () => model("openai-codex", "gpt-5.6-luna-fast"),
+      find: () => model("chatgpt-subscription", "gpt-5.6-luna-fast"),
     }))
 
     // then
     for (const result of results) {
       expect(result.kind).toBe("model_unavailable")
       if (result.kind !== "model_unavailable") throw new Error(`Expected unavailable result, got ${result.kind}`)
-      expect(result.attemptedModel).toBe("openai-codex/gpt-5.6-luna-fast")
+      expect(result.attemptedModel).toBe("chatgpt-subscription/gpt-5.6-luna-fast")
       expect(result.availableModels).toEqual([])
     }
   })
 
   test("#given prototype-shaped category names #when resolved #then they return not_found instead of inherited object values", () => {
     // given
-    const models = registry([model("openai-codex", "gpt-5.6-luna-fast")])
+    const models = registry([model("chatgpt-subscription", "gpt-5.6-luna-fast")])
 
     // when
     const results = ["__proto__", "toString", "hasOwnProperty"].map((category) =>

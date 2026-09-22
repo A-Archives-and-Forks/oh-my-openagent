@@ -13,7 +13,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     expect(oracle.fallbackChain).toBeArray()
     expect(oracle.fallbackChain.length).toBeGreaterThan(0)
     expect(primary).toEqual({
-          providers: ["openai", "openai-codex", "opencode"],
+          providers: ["openai", "chatgpt-subscription", "opencode"],
           model: "gpt-5.6-sol",
           variant: "xhigh",
         })
@@ -44,7 +44,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
           model: "kimi-k3",
         })
     expect(solFallback).toEqual({
-          providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+          providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
           model: "gpt-5.6-sol",
           variant: "medium",
         })
@@ -69,7 +69,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
           variant: "off",
         })
     expect(second).toEqual({
-          providers: ["openai", "openai-codex"],
+          providers: ["openai", "chatgpt-subscription"],
           model: "gpt-5.6-luna-fast",
           variant: "low",
         })
@@ -89,7 +89,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     expect(eighth?.providers).toContain("anthropic")
     expect(eighth?.model).toBe("claude-haiku-4-5")
     expect(ninth).toEqual({
-          providers: ["openai", "openai-codex"],
+          providers: ["openai", "chatgpt-subscription"],
           model: "gpt-5.4-nano",
         })
   })
@@ -109,7 +109,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
           variant: "off",
         })
     expect(second).toEqual({
-          providers: ["openai", "openai-codex"],
+          providers: ["openai", "chatgpt-subscription"],
           model: "gpt-5.6-luna-fast",
           variant: "low",
         })
@@ -129,7 +129,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     expect(eighth?.providers).toContain("anthropic")
     expect(eighth?.model).toBe("claude-haiku-4-5")
     expect(ninth).toEqual({
-          providers: ["openai", "openai-codex"],
+          providers: ["openai", "chatgpt-subscription"],
           model: "gpt-5.4-nano",
         })
   })
@@ -144,7 +144,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     // then
     expect(multimodalLooker.fallbackChain).toHaveLength(4)
     expect(primary).toEqual({
-          providers: ["openai", "openai-codex", "opencode"],
+          providers: ["openai", "chatgpt-subscription", "opencode"],
           model: "gpt-5.6-sol",
           variant: "low",
         })
@@ -154,7 +154,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
         })
     expect(tertiary?.model).toBe("glm-4.6v")
     expect(last).toEqual({
-          providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+          providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
           model: "gpt-5-nano",
         })
   })
@@ -216,7 +216,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     // then
     expect(momus.fallbackChain.length).toBeGreaterThan(1)
     expect(primary).toEqual({
-          providers: ["openai", "openai-codex"],
+          providers: ["openai", "chatgpt-subscription"],
           model: "gpt-6-astra",
           variant: "xhigh",
         })
@@ -226,7 +226,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
           variant: "high",
         })
     expect(astraHighFallback).toEqual({
-          providers: ["openai", "openai-codex", "opencode"],
+          providers: ["openai", "chatgpt-subscription", "opencode"],
           model: "gpt-6-astra",
           variant: "high",
         })
@@ -252,7 +252,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     expect(secondary?.model).toBe("kimi-k3")
     expect(secondary?.providers[0]).toBe("opencode-go")
     expect(solFallback).toEqual({
-          providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+          providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
           model: "gpt-5.6-sol",
           variant: "medium",
         })
@@ -286,14 +286,14 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     expect(modelIDs).not.toContain("gpt-5.5")
   })
 
-  test("hephaestus supports openai, openai-codex, github-copilot, and opencode providers", () => {
+  test("hephaestus supports openai, chatgpt-subscription, github-copilot, and opencode providers", () => {
     // given
     const hephaestus = AGENT_MODEL_REQUIREMENTS["hephaestus"]
 
     // when / then
     expect(hephaestus.requiresProvider).toEqual([
       "openai",
-      "openai-codex",
+      "chatgpt-subscription",
       "github-copilot",
       "opencode",
     ])
@@ -313,7 +313,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     // then
     expect(hephaestus.fallbackChain).toHaveLength(1)
     expect(primary).toEqual({
-          providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+          providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
           model: "gpt-5.6-sol",
           variant: "medium",
         })

@@ -4,12 +4,12 @@ import { CATEGORY_MODEL_REQUIREMENTS } from "./model-requirements"
 describe("CATEGORY_MODEL_REQUIREMENTS", () => {
   test("ultrabrain routes GPT-6 Astra max before the existing Sol max fallbacks", () => {
     expect(CATEGORY_MODEL_REQUIREMENTS.ultrabrain.fallbackChain).toEqual([
-      { providers: ["openai", "openai-codex"], model: "gpt-6-astra", variant: "max" },
+      { providers: ["openai", "chatgpt-subscription"], model: "gpt-6-astra", variant: "max" },
       { providers: ["github-copilot"], model: "gpt-6-astra", variant: "max" },
-      { providers: ["openai", "openai-codex", "opencode"], model: "gpt-6-astra", variant: "max" },
-      { providers: ["openai", "openai-codex"], model: "gpt-5.6-sol", variant: "max" },
+      { providers: ["openai", "chatgpt-subscription", "opencode"], model: "gpt-6-astra", variant: "max" },
+      { providers: ["openai", "chatgpt-subscription"], model: "gpt-5.6-sol", variant: "max" },
       { providers: ["github-copilot"], model: "gpt-5.6-sol", variant: "max" },
-      { providers: ["openai", "openai-codex", "opencode"], model: "gpt-5.6-sol", variant: "max" },
+      { providers: ["openai", "chatgpt-subscription", "opencode"], model: "gpt-5.6-sol", variant: "max" },
     ])
   })
 
@@ -23,7 +23,7 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     // then
     expect(chain).toEqual([
       {
-        providers: ["openai", "openai-codex"],
+        providers: ["openai", "chatgpt-subscription"],
         model: "gpt-5.6-sol",
         variant: "max",
       },
@@ -33,7 +33,7 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
         variant: "max",
       },
       {
-        providers: ["openai", "openai-codex", "opencode"],
+        providers: ["openai", "chatgpt-subscription", "opencode"],
         model: "gpt-5.6-sol",
         variant: "max",
       }
@@ -42,7 +42,7 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
 
   test("deep-high routes GPT-6 Astra high only", () => {
     expect(CATEGORY_MODEL_REQUIREMENTS["deep-high"].fallbackChain).toEqual([
-      { providers: ["openai", "openai-codex", "github-copilot", "opencode"], model: "gpt-6-astra", variant: "high" },
+      { providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"], model: "gpt-6-astra", variant: "high" },
     ])
   })
 
@@ -56,7 +56,7 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     // then
     expect(chain).toEqual([
       {
-        providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+        providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
         model: "gpt-5.6-sol",
         variant: "medium",
       }
@@ -111,7 +111,7 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     // then
     expect(chain).toEqual([
       {
-        providers: ["openai-codex"],
+        providers: ["chatgpt-subscription"],
         model: "gpt-5.6-luna-fast",
         variant: "low",
       },
@@ -167,7 +167,7 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
         variant: "xhigh",
       },
       {
-        providers: ["openai", "openai-codex", "github-copilot", "opencode"],
+        providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
         model: "gpt-5.6-terra",
         variant: "high",
       },
