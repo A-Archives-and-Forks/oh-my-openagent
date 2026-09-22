@@ -1,3 +1,11 @@
+## 2026-09-22 - The standalone edition names itself OmO Native in its own notices (#8629)
+
+The footer badge read `(😺 OmO Native)` and the doctor edition line printed `Edition: Native`, while the notices above them opened with the internal adapter id: `telemetry/omo-native-notice.ts` began `omo-senpi sends anonymous usage telemetry`, `model-profile/index.ts` built every notice as `omo-senpi: model profile ...`, and `config-startup/index.ts` prefixed its five migration and diagnostics messages the same way. One screen carried two names for one product.
+
+Every user-rendered notice in those three components now says `OmO Native`. The engine keeps its name where the sentence is about the engine (`keeping senpi's default model`, `mid-session fallback follows senpi's retry chains`), matching the doctor line's `(engine: senpi X)`. The two `ctx.logger.warn` calls in model-profile that never reach a user were deliberately left alone.
+
+Telemetry identifiers did NOT move, and `telemetry/identity-invariants.test.ts` now pins all four - `omo_senpi_daily_active`, the `omo-senpi:` machine-id prefix, and the product `platform`/`productName` - because the dashboards join on them and a rename would break continuity silently. That test was proven fail-able by temporarily renaming the prefix in the production source and capturing the failure before reverting (`.omo/evidence/20260922-native-notice-wording/MUTATION-telemetry-invariant.txt`). The rendered notices are captured by a committed re-runnable driver rather than quoted from source.
+
 ## 2026-09-22 - The ulw-loop spawn guard recognizes the renamed reviewer agents (#8630)
 
 `REVIEWER_ROLES_BY_SURFACE["omo-senpi"]` carried the pre-rename agent names, so `REVIEW_AGENT_TYPE_SET` and `GATE_MESSAGE_PATTERN` in `packages/omo-codex/plugin/components/ulw-loop/src/spawn-guard.ts` never matched the canonical `omo-native-*` names the resolver hands over. `reviewAgentType` returned `null`, and both `missingGateArtifact` and `consumeReviewSpawnBudget` bail on `null`: the gate reviewer could spawn with no `g1-manual-qa.md` on disk and the 3-per-reviewer no-progress cap never incremented. The surface id itself is unchanged - `"omo-senpi"` names the staged-bundle marker, not an agent.

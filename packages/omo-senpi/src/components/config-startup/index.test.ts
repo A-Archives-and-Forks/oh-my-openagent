@@ -214,10 +214,10 @@ describe("createConfigStartupComponent", () => {
     // then
     expect(notifications).toEqual([
       {
-        message: "omo-senpi: migrated legacy configuration from /home/alice/.config/opencode/oh-my-openagent.jsonc",
+        message: "OmO Native: migrated legacy configuration from /home/alice/.config/opencode/oh-my-openagent.jsonc",
         type: "info",
       },
-      { message: "omo-senpi: configuration diagnostics: JSONC parse error", type: "warning" },
+      { message: "OmO Native: configuration diagnostics: JSONC parse error", type: "warning" },
     ])
     expect(logs).toEqual([])
   })
@@ -245,11 +245,11 @@ describe("createConfigStartupComponent", () => {
     // then
     expect(notifications).toEqual([
       {
-        message: "omo-senpi: migrated legacy configuration from /home/alice/.config/opencode/oh-my-openagent.jsonc",
+        message: "OmO Native: migrated legacy configuration from /home/alice/.config/opencode/oh-my-openagent.jsonc",
         type: "info",
       },
       {
-        message: "omo-senpi: configuration migration: skipped: [opencode].model_fallback legacy=true kept=false",
+        message: "OmO Native: configuration migration: skipped: [opencode].model_fallback legacy=true kept=false",
         type: "warning",
       },
     ])
@@ -277,7 +277,7 @@ describe("createConfigStartupComponent", () => {
     await pi.dispatch("session_start", {})
 
     // then
-    expect(logs).toEqual(["warn:omo-senpi: configuration diagnostics: Invalid omo config"])
+    expect(logs).toEqual(["warn:OmO Native: configuration diagnostics: Invalid omo config"])
   })
 
   test("#given a retired agents.momus key in omo.json #when session_start captures a UI #then nothing is reported about it", async () => {
