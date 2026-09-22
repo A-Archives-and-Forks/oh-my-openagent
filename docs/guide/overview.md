@@ -192,7 +192,7 @@ Override specific categories or curated agents in `omo.json`:
     // Low-effort fallback: Grok 4.6 xhigh
     "unspecified-low": { "model": "xai/grok-4.6", "reasoning": "xhigh" },
 
-    // High-effort fallback: GPT-6 Astra, then Opus 5, GLM 5.3, and Kimi K3
+    // High-effort fallback: Opus 5, then GLM 5.3 and Kimi K3
     "unspecified-high": { "model": "anthropic/claude-opus-5", "reasoning": "xhigh" },
 
     // Prose and documentation
