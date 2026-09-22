@@ -35,8 +35,6 @@ describe("dead-chain category disabling", () => {
       if (result.kind !== "model_unavailable") throw new Error("Expected model_unavailable")
       expect(result.attempted_chain).toEqual(CATEGORY_FALLBACK_CHAINS.quick)
       expect(result.missing_providers).toEqual([
-        "kimi-coding",
-        "kimi-for-coding",
         "openai-codex",
         "deepseek",
         "qwen-token-plan",

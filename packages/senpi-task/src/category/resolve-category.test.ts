@@ -251,23 +251,23 @@ describe("resolveCategory", () => {
     expect(resolved.spec.reasoningEffort).toBe("medium")
   })
 
-  test("#given quick primary is unavailable and the quotio rung is available #when resolved #then delegate-core fallback chain reaches gpt-5.6-luna-fast", () => {
+  test("#given quick primary is unavailable and the deepseek rung is available #when resolved #then delegate-core fallback chain reaches deepseek-v4-flash", () => {
     // given
-    const models = registry([model("openai-codex", "gpt-5.6-luna-fast")])
+    const models = registry([model("deepseek", "deepseek-v4-flash")])
 
     // when
     const result = resolveCategory("quick", {}, models)
 
     // then
     const resolved = expectResolved(result)
-    expect(resolved.spec.provider).toBe("openai-codex")
-    expect(resolved.spec.modelId).toBe("gpt-5.6-luna-fast")
-    expect(resolved.spec.variant).toBe("low")
+    expect(resolved.spec.provider).toBe("deepseek")
+    expect(resolved.spec.modelId).toBe("deepseek-v4-flash")
+    expect(resolved.spec.variant).toBe("off")
     expect(resolved.modelSelection.matchedFallback).toBe(true)
     expect(resolved.modelSelection.fallbackEntry).toEqual({
-      providers: ["openai-codex"],
-      model: "gpt-5.6-luna-fast",
-      variant: "low",
+      providers: ["deepseek"],
+      model: "deepseek-v4-flash",
+      variant: "off",
     })
   })
 
@@ -413,7 +413,7 @@ describe("resolveCategory", () => {
 
   test("#given category params in omo overlay #when resolved #then child spec carries generation params and prompt append", () => {
     // given
-    const models = registry([model("kimi-coding", "kimi-for-coding-highspeed")])
+    const models = registry([model("openai-codex", "gpt-5.6-luna-fast")])
 
     // when
     const result = resolveCategory(
@@ -482,9 +482,9 @@ describe("builtin category defaults", () => {
       ["ultrabrain", "openai-codex/gpt-6-astra", "max"],
       ["deep-low", "openai-codex/gpt-5.6-sol", "medium"],
       ["deep-high", "openai-codex/gpt-6-astra", "high"],
-      ["quick", "kimi-coding/kimi-for-coding-highspeed", undefined],
+      ["quick", "openai-codex/gpt-5.6-luna-fast", "low"],
       ["unspecified-low", "xai/grok-4.6", "xhigh"],
-      ["unspecified-high", "openai-codex/gpt-6-astra", "high"],
+      ["unspecified-high", "anthropic/claude-opus-5", "xhigh"],
       ["architect", "anthropic/claude-fable-5-1", "max"],
       ["writing", "anthropic/claude-fable-5-1", "low"],
     ])

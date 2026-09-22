@@ -58,13 +58,13 @@ if (visualPrimary.kind !== "resolved") {
 requireCondition(visualPrimary.spec.modelId === "claude-opus-5", "visual-engineering primary model mismatch")
 requireCondition(visualPrimary.spec.variant === "max", "visual-engineering primary variant is not max")
 
-const quickPrimary = resolveCategory("quick", {}, registry([model("kimi-coding", "kimi-for-coding-highspeed")]))
+const quickPrimary = resolveCategory("quick", {}, registry([model("openai-codex", "gpt-5.6-luna-fast")]))
 requireCondition(quickPrimary.kind === "resolved", "quick primary did not resolve")
 if (quickPrimary.kind !== "resolved") {
   throw new Error("quick primary did not resolve")
 }
-requireCondition(quickPrimary.spec.provider === "kimi-coding", "quick primary provider mismatch")
-requireCondition(quickPrimary.spec.modelId === "kimi-for-coding-highspeed", "quick primary model mismatch")
+requireCondition(quickPrimary.spec.provider === "openai-codex", "quick primary provider mismatch")
+requireCondition(quickPrimary.spec.modelId === "gpt-5.6-luna-fast", "quick primary model mismatch")
 requireCondition(quickPrimary.modelSelection.matchedFallback === false, "quick primary should be a direct hit")
 
 const visualKimiFallback = resolveCategory("visual-engineering", {}, registry([model("kimi-coding", "k3")]))

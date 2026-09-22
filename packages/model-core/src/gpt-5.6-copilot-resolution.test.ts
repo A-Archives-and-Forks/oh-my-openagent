@@ -4,12 +4,18 @@ import { AGENT_MODEL_REQUIREMENTS, CATEGORY_MODEL_REQUIREMENTS } from "./model-r
 import { resolveModelWithFallback } from "./model-resolver"
 
 describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
-  test("ultrabrain, deep-high, and unspecified-high prefer Copilot Astra when available", () => {
+  test("ultrabrain and deep-high prefer Copilot Astra when available", () => {
     const availableModels = new Set(["github-copilot/gpt-6-astra", "github-copilot/gpt-5.6-sol"])
     expect(resolveModelWithFallback({ fallbackChain: CATEGORY_MODEL_REQUIREMENTS.ultrabrain.fallbackChain, availableModels, systemDefaultModel: "system/default" })).toMatchObject({ model: "github-copilot/gpt-6-astra", variant: "max" })
-    for (const requirement of [CATEGORY_MODEL_REQUIREMENTS["deep-high"], CATEGORY_MODEL_REQUIREMENTS["unspecified-high"]]) {
-      expect(resolveModelWithFallback({ fallbackChain: requirement.fallbackChain, availableModels, systemDefaultModel: "system/default" })).toMatchObject({ model: "github-copilot/gpt-6-astra", variant: "high" })
-    }
+    expect(resolveModelWithFallback({ fallbackChain: CATEGORY_MODEL_REQUIREMENTS["deep-high"].fallbackChain, availableModels, systemDefaultModel: "system/default" })).toMatchObject({ model: "github-copilot/gpt-6-astra", variant: "high" })
+  })
+
+  test("unspecified-high never borrows Copilot Astra: it takes the Copilot Opus 5 rung, and without it falls to the system default", () => {
+    const withOpus = new Set(["github-copilot/gpt-6-astra", "github-copilot/claude-opus-5"])
+    expect(resolveModelWithFallback({ fallbackChain: CATEGORY_MODEL_REQUIREMENTS["unspecified-high"].fallbackChain, availableModels: withOpus, systemDefaultModel: "system/default" })).toMatchObject({ model: "github-copilot/claude-opus-5", variant: "xhigh" })
+
+    const gptOnly = new Set(["github-copilot/gpt-6-astra", "github-copilot/gpt-5.6-sol"])
+    expect(resolveModelWithFallback({ fallbackChain: CATEGORY_MODEL_REQUIREMENTS["unspecified-high"].fallbackChain, availableModels: gptOnly, systemDefaultModel: "system/default" })).toMatchObject({ model: "system/default" })
   })
 
   test("ultrabrain falls back to Copilot Sol when Astra is absent, while deep-high has no fallback and deep-low is the Sol lane", () => {

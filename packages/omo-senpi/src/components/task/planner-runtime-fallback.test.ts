@@ -81,7 +81,7 @@ describe("createTaskChildPlanner runtime fallback", () => {
       {},
       {},
       () => registry([
-        model("openai-codex", "gpt-5.6-luna-fast"),
+        model("deepseek", "deepseek-v4-flash"),
         model("opencode-go", "minimax-m3"),
       ]),
     )
@@ -97,17 +97,17 @@ describe("createTaskChildPlanner runtime fallback", () => {
     // then
     if (result.kind !== "resolved") throw new Error(`Expected resolved plan, got ${result.kind}`)
     expect(result.plan).toMatchObject({
-      model: "openai-codex/gpt-5.6-luna-fast",
+      model: "deepseek/deepseek-v4-flash",
       requested_model: {
-        source: "category",
-        provider: "kimi-coding",
-        model_id: "kimi-for-coding-highspeed",
-      },
-      resolved_model: {
         source: "category",
         provider: "openai-codex",
         model_id: "gpt-5.6-luna-fast",
-        variant: "low",
+      },
+      resolved_model: {
+        source: "category",
+        provider: "deepseek",
+        model_id: "deepseek-v4-flash",
+        variant: "off",
       },
       fallback_models: [
         {

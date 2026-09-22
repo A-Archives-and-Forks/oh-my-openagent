@@ -31,8 +31,8 @@ describe("AGENT_FALLBACK_CHAINS", () => {
       ALL_CHAIN_NAMES.map((name) => [name, AGENT_FALLBACK_CHAINS[name]?.length]),
     )
     expect(lengths).toEqual({
-      explore: 8,
-      librarian: 8,
+      explore: 9,
+      librarian: 9,
       "plan-consultant": 3,
       "plan-reviewer": 6,
     })
@@ -41,6 +41,7 @@ describe("AGENT_FALLBACK_CHAINS", () => {
   test("#given the mirrored fallback table #when compared with the independent transcription #then every provider model variant and order is pinned", () => {
     expect(AGENT_FALLBACK_CHAINS).toEqual({
       explore: [
+        { providers: ["kimi-coding", "kimi-for-coding"], model: "kimi-for-coding-highspeed", variant: "off" },
         { providers: ["openai-codex"], model: "gpt-5.6-luna-fast", variant: "low" },
         { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "max" },
         { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.7-plus" },
@@ -51,6 +52,7 @@ describe("AGENT_FALLBACK_CHAINS", () => {
         { providers: ["openai-codex"], model: "gpt-5.4-nano" }
       ],
       librarian: [
+        { providers: ["kimi-coding", "kimi-for-coding"], model: "kimi-for-coding-highspeed", variant: "off" },
         { providers: ["openai-codex"], model: "gpt-5.6-luna-fast", variant: "low" },
         { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "max" },
         { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.7-plus" },

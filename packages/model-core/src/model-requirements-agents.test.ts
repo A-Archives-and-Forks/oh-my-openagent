@@ -54,71 +54,81 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
     expect(last?.model).toBe("big-pickle")
   })
 
-  test("librarian keeps fast OpenAI primary before qwen, minimax, haiku, and nano fallbacks", () => {
+  test("librarian keeps no-thinking Kimi HighSpeed primary, then fast OpenAI, before qwen, minimax, haiku, and nano fallbacks", () => {
     // given
     const librarian = AGENT_MODEL_REQUIREMENTS["librarian"]
 
     // when
-    const [primary, second, third, fourth, fifth, sixth, seventh, eighth] = librarian.fallbackChain
+    const [primary, second, third, fourth, fifth, sixth, seventh, eighth, ninth] = librarian.fallbackChain
 
     // then
-    expect(librarian.fallbackChain).toHaveLength(8)
+    expect(librarian.fallbackChain).toHaveLength(9)
     expect(primary).toEqual({
+          providers: ["kimi-for-coding"],
+          model: "kimi-for-coding-highspeed",
+          variant: "off",
+        })
+    expect(second).toEqual({
           providers: ["openai", "openai-codex"],
           model: "gpt-5.6-luna-fast",
           variant: "low",
         })
-    expect(second?.providers).toContain("deepseek")
-    expect(second?.model).toBe("deepseek-v4-flash")
-    expect(third?.providers).toContain("opencode-go")
-    expect(third?.providers).toContain("bailian-coding-plan")
-    expect(third?.model).toBe("qwen3.7-plus")
+    expect(third?.providers).toContain("deepseek")
+    expect(third?.model).toBe("deepseek-v4-flash")
     expect(fourth?.providers).toContain("opencode-go")
-    expect(fourth?.model).toBe("minimax-m3")
-    expect(fifth).toEqual({
+    expect(fourth?.providers).toContain("bailian-coding-plan")
+    expect(fourth?.model).toBe("qwen3.7-plus")
+    expect(fifth?.providers).toContain("opencode-go")
+    expect(fifth?.model).toBe("minimax-m3")
+    expect(sixth).toEqual({
           providers: ["minimax-coding-plan", "minimax-cn-coding-plan"],
           model: "MiniMax-M3",
         })
-    expect(sixth?.providers).toContain("opencode-go")
-    expect(sixth?.model).toBe("minimax-m2.7")
-    expect(seventh?.providers).toContain("anthropic")
-    expect(seventh?.model).toBe("claude-haiku-4-5")
-    expect(eighth).toEqual({
+    expect(seventh?.providers).toContain("opencode-go")
+    expect(seventh?.model).toBe("minimax-m2.7")
+    expect(eighth?.providers).toContain("anthropic")
+    expect(eighth?.model).toBe("claude-haiku-4-5")
+    expect(ninth).toEqual({
           providers: ["openai", "openai-codex"],
           model: "gpt-5.4-nano",
         })
   })
 
-  test("explore keeps fast OpenAI primary before qwen, minimax, haiku, and nano fallbacks", () => {
+  test("explore keeps no-thinking Kimi HighSpeed primary, then fast OpenAI, before qwen, minimax, haiku, and nano fallbacks", () => {
     // given
     const explore = AGENT_MODEL_REQUIREMENTS["explore"]
 
     // when
-    const [primary, second, third, fourth, fifth, sixth, seventh, eighth] = explore.fallbackChain
+    const [primary, second, third, fourth, fifth, sixth, seventh, eighth, ninth] = explore.fallbackChain
 
     // then
-    expect(explore.fallbackChain).toHaveLength(8)
+    expect(explore.fallbackChain).toHaveLength(9)
     expect(primary).toEqual({
+          providers: ["kimi-for-coding"],
+          model: "kimi-for-coding-highspeed",
+          variant: "off",
+        })
+    expect(second).toEqual({
           providers: ["openai", "openai-codex"],
           model: "gpt-5.6-luna-fast",
           variant: "low",
         })
-    expect(second?.providers).toContain("deepseek")
-    expect(second?.model).toBe("deepseek-v4-flash")
-    expect(third?.providers).toContain("opencode-go")
-    expect(third?.providers).toContain("bailian-coding-plan")
-    expect(third?.model).toBe("qwen3.7-plus")
+    expect(third?.providers).toContain("deepseek")
+    expect(third?.model).toBe("deepseek-v4-flash")
     expect(fourth?.providers).toContain("opencode-go")
-    expect(fourth?.model).toBe("minimax-m3")
-    expect(fifth).toEqual({
+    expect(fourth?.providers).toContain("bailian-coding-plan")
+    expect(fourth?.model).toBe("qwen3.7-plus")
+    expect(fifth?.providers).toContain("opencode-go")
+    expect(fifth?.model).toBe("minimax-m3")
+    expect(sixth).toEqual({
           providers: ["minimax-coding-plan", "minimax-cn-coding-plan"],
           model: "MiniMax-M3",
         })
-    expect(sixth?.providers).toContain("opencode-go")
-    expect(sixth?.model).toBe("minimax-m2.7")
-    expect(seventh?.providers).toContain("anthropic")
-    expect(seventh?.model).toBe("claude-haiku-4-5")
-    expect(eighth).toEqual({
+    expect(seventh?.providers).toContain("opencode-go")
+    expect(seventh?.model).toBe("minimax-m2.7")
+    expect(eighth?.providers).toContain("anthropic")
+    expect(eighth?.model).toBe("claude-haiku-4-5")
+    expect(ninth).toEqual({
           providers: ["openai", "openai-codex"],
           model: "gpt-5.4-nano",
         })

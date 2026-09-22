@@ -52,6 +52,7 @@ export const AGENT_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
   },
   librarian: {
     fallbackChain: [
+      { providers: ["kimi-for-coding"], model: "kimi-for-coding-highspeed", variant: "off" },
       { providers: ["openai", "openai-codex"], model: "gpt-5.6-luna-fast", variant: "low" },
       { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "max" },
       { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.7-plus" },
@@ -64,6 +65,7 @@ export const AGENT_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
   },
   explore: {
     fallbackChain: [
+      { providers: ["kimi-for-coding"], model: "kimi-for-coding-highspeed", variant: "off" },
       { providers: ["openai", "openai-codex"], model: "gpt-5.6-luna-fast", variant: "low" },
       { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "max" },
       { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.7-plus" },
