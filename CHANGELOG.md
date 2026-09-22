@@ -39,6 +39,10 @@ Kimi HighSpeed led the `quick` chain and no other lane used it. The `quick` chai
 
 - **The standalone edition is called OmO Native everywhere.** The installer hint, the package postinstall notice, the installation guide, the README and its four translations, and the `omo-ai` package description called it the "Senpi edition" — a name the product itself never used, having said `OmO Native` in the TUI footer and `Edition: Native` in `omo doctor` all along. They all say OmO Native now, and the hint names what you get: the same omo as one `omo` command, with no OpenCode host required, while the install you already have keeps working. `senpi` still names the engine, in `omo doctor`, in this file's engine headings, and in its own environment variables and paths. A regression test scans those surfaces and fails if the old edition wording comes back. ([#8618](https://github.com/code-yeongyu/oh-my-openagent/issues/8618))
 
+### Fixed
+
+**A failed turn in a delegated task is no longer counted as a turn.** When a provider error ends an assistant turn, that turn now lands in a new `failed_turns` stat instead of inflating `turns`, and its usage — typically an all-zero block the provider sends alongside the error — contributes no tokens, no cost and no generation time. A run that never produced a successful turn reports token and cost coverage as `unavailable` and omits the cost field entirely, instead of claiming `turns: 6` for six consecutive failures. A successful turn that genuinely cost $0 keeps reporting a cost of 0, and a failure re-anchors the generation window so the next successful turn's throughput is measured from the failure, not from spawn. ([#8627](https://github.com/code-yeongyu/oh-my-openagent/issues/8627))
+
 ## [5.0.0-beta.82] - 2026-09-21
 
 ### Added

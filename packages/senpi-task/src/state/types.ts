@@ -123,6 +123,9 @@ export type DurationSourceStatus = (typeof DURATION_SOURCE_STATUSES)[number]
 export type TaskRunStats = {
   readonly runtime_ms: number
   readonly turns: number
+  /** Count of assistant turns that ended in error or abort: a failed turn is not a `turn` and
+   * contributes no tokens, cost or generation time. Emitted only when greater than zero. */
+  readonly failed_turns?: number
   readonly tool_calls: number
   readonly output_tokens?: number
   /** Summed prompt tokens the provider billed as fresh (cache reads/writes are counted separately). */

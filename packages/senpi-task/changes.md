@@ -1,3 +1,17 @@
+## A failed assistant turn is no longer a turn
+
+`run-stats.ts` counted every assistant `message_end` as a turn and folded in whatever usage it
+claimed, so a provider error produced a run with `turns: 6` and `cost_status: "reported"` even
+though nothing executed - the measured payload was an all-zero usage block with a zeroed cost
+breakdown. A turn is now a SUCCESSFUL assistant turn only: `stopReason` neither `error` nor
+`aborted`, the same predicate the transcript log and the runner outcome mapping already apply.
+A failed turn contributes nothing to tokens, cost, usage coverage or generation time; it only
+increments a new `failed_turns` counter on `TaskRunStats` (emitted when greater than zero) and
+re-anchors the generation window, so a failure's wall time never inflates the next successful
+turn's `generation_ms`. A run with no successful turn reports `token_status`/`cost_status`
+`unavailable` and omits `cost_usd`, while a successful turn reporting a genuine zero cost still
+yields `cost_status: "reported"` with `cost_usd: 0`. omo#8627.
+
 ## The fake host rebinds a fresh pipe when it restarts
 
 `fake-host-transport.ts` derives the win32 named pipe from the logical socket path plus a random
