@@ -100,6 +100,7 @@ export const DAG_NODE_ERROR_CODES = [
   "task_lost",
   "task_cancelled",
   "resume_task_missing",
+  "resume_task_orphaned",
   "journal_corrupt",
 ] as const
 
