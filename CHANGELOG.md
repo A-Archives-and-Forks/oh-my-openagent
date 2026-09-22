@@ -27,7 +27,7 @@ The standalone edition is branded OmO Native, but the block you write in `omo.js
 
 The reviewer agents now answer to `omo-native-code-reviewer`, `omo-native-qa-executor` and `omo-native-gate-reviewer`. The old names still resolve for one release line, so existing skills and AGENTS.md files keep working while you rename them.
 
-The engine is still senpi and still called senpi. The `senpi` command, `@code-yeongyu/senpi`, `SENPI_CODING_AGENT_DIR` and the telemetry identifiers are unchanged.
+The engine underneath OmO Native is still senpi and still called senpi. The `senpi` command, `@code-yeongyu/senpi`, `SENPI_CODING_AGENT_DIR` and the telemetry identifiers are unchanged.
 
 **The catch-all `unspecified-high` category no longer runs on GPT-6 Astra.** ([#8616](https://github.com/code-yeongyu/oh-my-openagent/issues/8616))
 
@@ -37,7 +37,7 @@ The chain now starts at the rung that already sat behind Astra: Claude Opus 5 at
 
 Astra stays where it was chosen on purpose: `ultrabrain`, `deep-high`, and the plan reviewer. Point the category back at a GPT-6 model in your own config and the child still gets the Astra-tuned prompt append.
 
-**`quick` drops its Kimi HighSpeed rung, and the two search agents pick it up with thinking off.** ([#8616](https://github.com/code-yeongyu/oh-my-openagent/issues/8616))
+**`quick` drops Kimi HighSpeed from its model chain, and the two search agents (`explore`, `librarian`) pick it up with thinking off.** ([#8616](https://github.com/code-yeongyu/oh-my-openagent/issues/8616))
 
 Kimi HighSpeed led the `quick` chain and no other lane used it. The `quick` chain now starts at GPT-5.6 Luna Fast at `low`, followed by DeepSeek V4 Flash at `off`.
 
@@ -53,11 +53,11 @@ Kimi HighSpeed led the `quick` chain and no other lane used it. The `quick` chai
 
 **A hard OpenAI usage-limit 429 is terminal on the first failure.** `usage_limit_reached` / "The usage limit has been reached" used to classify as a transient rate limit, so a turn spent five retries over about a minute on an account that cannot serve another request until the quota resets. The same wording now pins a billing fallback for the rest of the session. Warnings that only approach the limit still retry. (senpi [#1969](https://github.com/code-yeongyu/senpi/issues/1969))
 
-**Normalizing a tool call's arguments no longer rewrites the assistant message the model produced.** The eval summary clamp and the edit tool's `edits` rewrite used to change that message in place. On the `claude-sdk-oauth` lane that was the usual cause of `Session continuity lost - resent the full conversation (assistant_rewritten)`. They now run on a detached copy. The 80-character eval summary limit is unchanged: it is enforced on the rendered line. (senpi [#1472](https://github.com/code-yeongyu/senpi/issues/1472))
+**Normalizing a tool call's arguments no longer rewrites the assistant message the model produced.** Two argument normalizers — the 80-character clamp on an eval cell's summary and the edit tool's rewrite of its `edits` list — used to change that message in place. On the `claude-sdk-oauth` lane that was the usual cause of `Session continuity lost - resent the full conversation (assistant_rewritten)`. They now run on a detached copy. The 80-character eval summary limit is unchanged: it is enforced on the rendered line. (senpi [#1472](https://github.com/code-yeongyu/senpi/issues/1472))
 
 **A supervised RPC host whose supervisor loses its observer keeps reconnecting, and a host whose socket file is deleted drains and exits.** The supervisor retried a lost observer once and then gave up, which kept an idle window from ever elapsing because an unhealthy observer counts as busy; reconnects now continue until they succeed, and an observer that stays unhealthy for a whole idle window no longer counts as busy. Removing the workspace or deleting the socket used to leave the pair running until reboot; attached sessions finish, then the host exits. A host started as `persistent` still never exits for idleness. (senpi [#1979](https://github.com/code-yeongyu/senpi/issues/1979), [#1961](https://github.com/code-yeongyu/senpi/issues/1961))
 
-**Opening a second terminal on a live Claude SDK session no longer throws away the resumable binding.** The startup notice it appends used to retire the binding, so the next turn re-sent the entire conversation as `registry_miss`. Append-only entries after the committed assistant keep the binding; a later assistant message, a compaction, a branch summary and an explicit invalidation still discard it. A fork point Claude Code reports missing is dropped instead of being requested again every turn. (senpi [#1964](https://github.com/code-yeongyu/senpi/issues/1964), [#1958](https://github.com/code-yeongyu/senpi/issues/1958), [#1973](https://github.com/code-yeongyu/senpi/issues/1973))
+**Opening a second terminal on a live Claude SDK session no longer throws away the resumable binding (the saved link that lets the next turn continue the conversation instead of resending it).** The startup notice it appends used to retire the binding, so the next turn re-sent the entire conversation as `registry_miss`. Append-only entries after the committed assistant keep the binding; a later assistant message, a compaction, a branch summary and an explicit invalidation still discard it. A fork point (the message the conversation branched from) that Claude Code reports missing is dropped instead of being requested again every turn. (senpi [#1964](https://github.com/code-yeongyu/senpi/issues/1964), [#1958](https://github.com/code-yeongyu/senpi/issues/1958), [#1973](https://github.com/code-yeongyu/senpi/issues/1973))
 
 **A session whose worker dies while it is being opened now reports `open_failed` carrying the worker's reason**, instead of `session_closing`, which means a session somebody else is tearing down. (senpi [#1953](https://github.com/code-yeongyu/senpi/issues/1953))
 
