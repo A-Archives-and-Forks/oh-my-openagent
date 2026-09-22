@@ -1,3 +1,7 @@
+## 2026-09-22 - Docs and setup output name the standalone edition OmO Native, and the CLI reference recommends bun (#8628)
+
+`docs/reference/cli.md` introduces the `omo` bin as OmO Native and leads with `bun add -g omo-ai@beta`, labelling `npm i -g omo-ai@beta` as the fallback. `docs/guide/overview.md`, `docs/guide/binary-install.md`, the Native-harness annotations in `docs/reference/omo-json.md`, and the opening of `docs/reference/senpi-telemetry.md` stop naming the edition after its engine. Custom-endpoint setup copy points at the engine's `models.json`. The `WARN senpi:` prefix on a malformed `auth.json` stays; it is a harness id in a per-harness table, not the product name. Links that targeted `#model-profiles-senpi-harness` or `#git_master-senpi-harness` now use the Native-harness slugs.
+
 ## 2026-09-22 - config.jsonc migration emits [native]; reasoning unification visits it too (#8631)
 
 `transformConfigJsoncSources` still wrote `"[senpi]": senpi ?? omo` after #8623 made `[native]` canonical, so a fresh leftover-file migration produced the retired key. It now writes `[native]`, and the overlap diagnostic names that key. `transformReasoningUnification` walked only `["[senpi]", "[codex]"]`. The harness-rename migration runs after it, so a mid-batch file and a hand-written `[native]` block both need the walk; the loop is now `["[senpi]", "[native]", "[codex]"]`. Tests that pinned the retired output spelling are realigned. RED/GREEN in `.omo/evidence/20260922-migration-native-key/`.
