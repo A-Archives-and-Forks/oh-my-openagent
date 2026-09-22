@@ -1,3 +1,7 @@
+## 2026-09-22 - config.jsonc migration emits [native]; reasoning unification visits it too (#8631)
+
+`transformConfigJsoncSources` still wrote `"[senpi]": senpi ?? omo` after #8623 made `[native]` canonical, so a fresh leftover-file migration produced the retired key. It now writes `[native]`, and the overlap diagnostic names that key. `transformReasoningUnification` walked only `["[senpi]", "[codex]"]`. The harness-rename migration runs after it, so a mid-batch file and a hand-written `[native]` block both need the walk; the loop is now `["[senpi]", "[native]", "[codex]"]`. Tests that pinned the retired output spelling are realigned. RED/GREEN in `.omo/evidence/20260922-migration-native-key/`.
+
 ## 2026-09-22 - The standalone edition names itself OmO Native in its own notices (#8629)
 
 The footer badge read `(😺 OmO Native)` and the doctor edition line printed `Edition: Native`, while the notices above them opened with the internal adapter id: `telemetry/omo-native-notice.ts` began `omo-senpi sends anonymous usage telemetry`, `model-profile/index.ts` built every notice as `omo-senpi: model profile ...`, and `config-startup/index.ts` prefixed its five migration and diagnostics messages the same way. One screen carried two names for one product.
