@@ -39,11 +39,11 @@ https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/dev/assets/omo.sc
 After the file layers merge, each harness resolves its own view out of the merged document (`packages/omo-config-core/src/loader/resolution.ts`). Later layers win:
 
 1. **Shared base keys** (every top-level key except `profiles` and the bracketed harness blocks).
-2. **The `[harness]` block** for the current harness: `[opencode]`, `[senpi]`, or `[codex]`.
+2. **The `[harness]` block** for the current harness: `[opencode]`, `[native]`, or `[codex]`.
 3. **`profiles.<name>`** for the active profile.
 4. **`profiles.<name>.[harness]`** for the active profile.
 
-Schema defaults apply once at the very end, after all four layers fold. Control keys (`profiles`, `[opencode]`, `[senpi]`, `[codex]`) never leak into the resolved view. Activating a profile that does not exist yields a `profile` diagnostic and the base configuration.
+Schema defaults apply once at the very end, after all four layers fold. Control keys (`profiles`, `[opencode]`, `[native]`, `[codex]`, and the legacy `[senpi]` spelling) never leak into the resolved view. Activating a profile that does not exist yields a `profile` diagnostic and the base configuration.
 
 ### Profile activation
 
@@ -107,7 +107,7 @@ No default profiles ship. A profile exists only when you write one under `profil
   "telemetry": { "enabled": true }, // Senpi telemetry, enabled by default
   "disabled_skills": [], // skill names hidden on every harness, unioned across layers
   "[opencode]": {},     // OpenCode plugin config, freeform (see configuration.md)
-  "[senpi]": {},        // Senpi-only overrides, typed base keys
+  "[native]": {},       // OmO Native-only overrides, typed base keys
   "[codex]": {},        // Codex-only overrides, typed base keys
   "profiles": {},       // record<string, Profile>, opt-in named profiles
   "_migrations": [],    // applied migration ids, written by the migration engine
@@ -119,7 +119,9 @@ Source: `packages/omo-config-core/src/schema/config.ts`.
 
 ### Harness blocks
 
-`[opencode]` is a freeform record: it carries the full OpenCode plugin configuration documented in [`docs/reference/configuration.md`](./configuration.md) (background tasks, tmux, hooks, skills, and every other plugin key), and the strict schema does not validate its contents. `[senpi]` and `[codex]` are typed blocks accepting the shared base keys (`categories`, `agents`, `git_master`, `task`, `teams`, `models`, `model_profiles`, `model_profile`, `memory`, `telemetry`, `disabled_skills`), so a harness-specific override stays schema-checked.
+`[opencode]` is a freeform record: it carries the full OpenCode plugin configuration documented in [`docs/reference/configuration.md`](./configuration.md) (background tasks, tmux, hooks, skills, and every other plugin key), and the strict schema does not validate its contents. `[native]` and `[codex]` are typed blocks accepting the shared base keys (`categories`, `agents`, `git_master`, `task`, `teams`, `models`, `model_profiles`, `model_profile`, `memory`, `telemetry`, `disabled_skills`), so a harness-specific override stays schema-checked.
+
+`[senpi]` is the legacy spelling of `[native]`, kept working for one release line. It is canonicalized to `[native]` when the config is read, so a config that cannot be rewritten still applies every value it sets, and the startup migration rewrites the key in the file once, naming it in a notice. When a file carries both blocks, `[native]` wins and the ignored `[senpi]` block is reported as a deprecation diagnostic.
 
 ### `disabled_skills` (every harness)
 
@@ -140,7 +142,7 @@ The optional `telemetry` block controls OmO Native product telemetry in Senpi. `
 
 ```jsonc
 {
-  "[senpi]": {
+  "[native]": {
     "telemetry": {
       "enabled": false
     }
@@ -175,7 +177,7 @@ To opt in to the body footer:
 }
 ```
 
-The block may live at the shared top level, in `[senpi]`, or in profile layers, and follows the normal resolution order. The OpenCode plugin keeps its own `git_master` key inside the freeform `[opencode]` block (see [configuration.md](./configuration.md)); this typed section applies to the Senpi harness.
+The block may live at the shared top level, in `[native]`, or in profile layers, and follows the normal resolution order. The OpenCode plugin keeps its own `git_master` key inside the freeform `[opencode]` block (see [configuration.md](./configuration.md)); this typed section applies to the Senpi harness.
 
 ### `models` (shared catalog)
 
@@ -376,7 +378,7 @@ Each member shares a base (`name` matching `^[a-z0-9-]+$`, optional `cwd`, `work
 
 ### `profiles`
 
-A record of profile name to a partial view (`schema/config.ts` `OmoConfigProfileSchema`). Each profile accepts the shared base keys (`categories`, `agents`, `task`, `teams`, `models`, `model_profiles`, `model_profile`, `memory`, `telemetry`) plus `[opencode]`, `[senpi]`, and `[codex]` blocks of its own:
+A record of profile name to a partial view (`schema/config.ts` `OmoConfigProfileSchema`). Each profile accepts the shared base keys (`categories`, `agents`, `task`, `teams`, `models`, `model_profiles`, `model_profile`, `memory`, `telemetry`) plus `[opencode]`, `[native]`, and `[codex]` blocks of its own:
 
 ```jsonc
 {
@@ -385,7 +387,7 @@ A record of profile name to a partial view (`schema/config.ts` `OmoConfigProfile
       "categories": {
         "deep-low": { "model": "kimi-for-coding/kimi-k3" }
       },
-      "[senpi]": {
+      "[native]": {
         "agents": {
           "plan-reviewer": { "model": "kimi-for-coding/kimi-k3" }
         }
@@ -457,7 +459,7 @@ The migration engine rewrites the persisted config in place, and doctor reports 
 Before the unification, the OpenCode plugin read a walked `oh-my-openagent.json[c]` / `oh-my-opencode.json[c]` chain and the Codex/Senpi harnesses read `~/.omo/config.jsonc`. Those files are history: a lock-and-journal migration engine imports them into `omo.jsonc` once, and nothing reads them at runtime afterward.
 
 - The legacy OpenCode user file imports into `~/.omo/omo.jsonc` under `[opencode]`; each legacy `profiles/<name>/` directory becomes `profiles.<name>."[opencode]"` holding only the keys that differ from the user file; project `.opencode/` files import into that project's `.omo/omo.jsonc`.
-- `~/.omo/config.jsonc` imports its `[opencode]` / `[codex]` blocks; a legacy `[omo]` block maps to `[senpi]`.
+- `~/.omo/config.jsonc` imports its `[opencode]` / `[codex]` blocks; a legacy `[omo]` block maps to `[native]`.
 - No-clobber: a value already present in the target wins, and skipped legacy values surface as diagnostics. Legacy migration history is preserved under `legacy_migrations`, and applied migrations are marked in the target's `_migrations` array (`2026-07-opencode-config-unification` for the `oh-my-*` files, `2026-07-codex-config-jsonc` for `~/.omo/config.jsonc`, and `2026-08-reasoning-unification` for persisted model and reasoning fields).
 - Sources move to `~/.omo/migration-backup-<UTC timestamp>-opencode-config/` (project sources to `<project>/.omo/migration-backup-<UTC timestamp>/`).
 - Triggers: OpenCode plugin startup, Senpi startup, and install run both migration groups; Codex startup runs only the `config.jsonc` group; `oh-my-openagent config migrate` runs both on demand (`--dry-run`, `--json`).
@@ -468,7 +470,7 @@ Full user-facing detail: [`docs/reference/configuration.md`](./configuration.md#
 
 The unified file is read starting with oh-my-openagent 5.0.0 (current `5.0.0-beta.13`): the OpenCode plugin, the Senpi adapter, and the Codex plugin at 5.0.0 or later all load `~/.omo/omo.jsonc` plus walked project `.omo/omo.jsonc` and nothing else. Harnesses from 4.x still read the legacy files, which the migration has moved into the backup directory.
 
-One sharp edge when mixing versions: every schema object is `.strict()`. A pre-unification copy of `@oh-my-opencode/omo-config-core` rejects an `omo.jsonc` that contains keys it does not know, which includes `models`, `profiles`, and the `[opencode]` / `[senpi]` / `[codex]` harness blocks. An older strict core handed a newer unified file fails validation on those keys instead of ignoring them.
+One sharp edge when mixing versions: every schema object is `.strict()`. A pre-unification copy of `@oh-my-opencode/omo-config-core` rejects an `omo.jsonc` that contains keys it does not know, which includes `models`, `profiles`, and the `[opencode]` / `[native]` / `[codex]` harness blocks. An older strict core handed a newer unified file fails validation on those keys instead of ignoring them.
 
 To downgrade:
 

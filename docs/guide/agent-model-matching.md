@@ -91,7 +91,7 @@ Delegation goes through the `task` tool. Four curated read-only agents have thei
 
 The utility rungs elided above are cheap fast models; read the source file for the exact list. They exist so the system degrades gracefully when you don't hold every subscription. If you have a paid tier connected, it's always preferred.
 
-The ulw-loop reviewers (`omo-senpi-code-reviewer`, `omo-senpi-qa-executor`, `omo-senpi-gate-reviewer`) don't have hand-written chains. They resolve their model through the `categories` field on their definition.
+The ulw-loop reviewers (`omo-native-code-reviewer`, `omo-native-qa-executor`, `omo-native-gate-reviewer`) don't have hand-written chains. They resolve their model through the `categories` field on their definition.
 
 #### Where to spend one scarce premium model
 

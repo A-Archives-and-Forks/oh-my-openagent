@@ -826,3 +826,40 @@ exists to survive a cold Windows process spawn, not to hide a genuine hang.
 ## 2026-09-06 — Keep lead polling alive through runtime access windows
 
 Lead polling now suppresses repeated `EPERM` and `EACCES` runtime-directory errors, reports the first unavailable transition and the subsequent recovery, and leaves mailbox state untouched while the runtime directory cannot be enumerated. Mailbox reads and missing-directory handling remain unchanged.
+
+## 2026-09-22 — omo.json speaks `[native]`, and the ulw-loop reviewers are `omo-native-*`
+
+The standalone edition is branded OmO Native, but its two public identifiers were
+minted from the engine's package name before the edition had a brand: the harness
+block in `omo.json` was `[senpi]`, and the three reviewer agents users delegate to
+by name were `omo-senpi-code-reviewer`, `omo-senpi-qa-executor` and
+`omo-senpi-gate-reviewer`. Both are user-typed, so neither could be renamed outright.
+
+`[native]` is now the canonical harness block in all three config shapes, and
+`OMO_CONFIG_HARNESS_IDS` is `["opencode", "native", "codex"]` with `senpi` kept as an
+exported alias. The loader canonicalizes the legacy block when the config is READ,
+which is what keeps a config the startup migration cannot reach — a locked run, a
+read-only project file — applying every value it sets instead of being silently
+ignored. When a file carries both spellings `[native]` wins and the ignored block is
+named in a `deprecated-keys` diagnostic. A caller still passing `harness: "senpi"`
+resolves the same view, so no consumer had to change. The `git_master` and
+`telemetry` harness key scopes moved to `native` with it.
+
+A first-launch migration (`2026-09-harness-native-rename`) rewrites the key in the
+file once, following the shape `2026-09-category-deep-split` shipped: gated on
+content, so a config that never named `[senpi]` is not rewritten at all — no backup,
+no journal entry, no `_migrations` marker — and the rename surfaces as a startup
+notice naming the key.
+
+The reviewer trio is renamed to `omo-native-*`. The old names keep resolving through
+`LEGACY_AGENT_NAME_ALIASES`, consulted at the resolution site (`resolveAgent`) rather
+than by registering a second definition, so each agent still has exactly one
+definition and `availableAgents` lists only the canonical names. The team member
+validator canonicalizes before its reviewer check, so a team spec naming an old
+reviewer still gets the "delegate via the task tool" refusal instead of an unknown-agent
+error. The ulw-loop quality gate on the `omo-senpi` surface still names the pre-rename
+identities; they reach the renamed agents through that alias, which is the one release
+line of grace the rename gets.
+
+Telemetry identifier VALUES are untouched: the platform string stays `omo-senpi`, and
+so do the machine-id prefix and cache directory, because dashboards key off them.

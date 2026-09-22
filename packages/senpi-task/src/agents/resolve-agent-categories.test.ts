@@ -182,9 +182,9 @@ describe("resolveAgent category stage", () => {
 
     // then
     expect(declared).toEqual({
-      "omo-senpi-code-reviewer": ["unspecified-high"],
-      "omo-senpi-qa-executor": ["deep-low", "unspecified-low"],
-      "omo-senpi-gate-reviewer": ["deep-high", "unspecified-high"],
+      "omo-native-code-reviewer": ["unspecified-high"],
+      "omo-native-qa-executor": ["deep-low", "unspecified-low"],
+      "omo-native-gate-reviewer": ["deep-high", "unspecified-high"],
     })
   })
 

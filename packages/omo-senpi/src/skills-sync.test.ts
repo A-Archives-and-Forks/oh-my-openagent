@@ -253,7 +253,7 @@ describe("OMO Senpi scoped skill sync", () => {
     const body = content.slice(content.indexOf("\n# "))
     const targets = [...body.matchAll(taskTargetPattern)].map(([, kind, name]) => `${kind}=${name}`)
 
-    expect(targets).toEqual(["subagent_type=omo-senpi-gate-reviewer"])
+    expect(targets).toEqual(["subagent_type=omo-native-gate-reviewer"])
   })
 
   test("#given shipped task examples #when targets are scanned #then every agent and category exists in Senpi", () => {
