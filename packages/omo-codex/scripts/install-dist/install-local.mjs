@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-codex-install:6df5dbbbb7ca9b9dce86fae98a525a9caa7de96caed85a4b77d4e8b4ab4d1501:8d31fa4378e1c437b73ad7c3a8273517aca2ac81dbb3732c506d18c98937e060
+// omo-codex-install:c42ca2789892e741a353587fea54e7781dd79f730ba31d4a57d4c8b99675ddde:5469b4ea035d18ca37d9534051523b8da5f1ad1c3ce5ae361899b30ed0f12cc0
 var __esm = (fn, res, err) => () => {
   if (fn)
     try {
@@ -316,7 +316,7 @@ function shouldRetainLine(line, cutoffMs) {
 function parseDiagnosticLine(line) {
   try {
     const parsed = JSON.parse(line);
-    if (!isRecord9(parsed)) {
+    if (!isRecord10(parsed)) {
       return null;
     }
     return parsed;
@@ -327,7 +327,7 @@ function parseDiagnosticLine(line) {
     throw error;
   }
 }
-function isRecord9(value) {
+function isRecord10(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 function trimToMaxBytes(lines) {
@@ -7817,7 +7817,7 @@ function coerceBool(value) {
 function coerceString(value) {
   return typeof value == "string" ? value : undefined;
 }
-function isRecord10(value) {
+function isRecord11(value) {
   return typeof value == "object" && value !== null && !Array.isArray(value);
 }
 function toRfc3339(timestamp) {
@@ -7839,7 +7839,7 @@ function relocateInto(properties, key, value) {
     properties[key] = value;
 }
 function buildV1Event(message) {
-  const sourceProperties = isRecord10(message.properties) ? message.properties : {};
+  const sourceProperties = isRecord11(message.properties) ? message.properties : {};
   const properties = {
     ...sourceProperties
   };
@@ -9984,7 +9984,7 @@ var package_default;
 var init_package = __esm(() => {
   package_default = {
     name: "@oh-my-opencode/omo-codex",
-    version: "5.0.0-beta.81",
+    version: "5.0.0-beta.82",
     type: "module",
     private: true,
     description: "Codex harness adapter for oh-my-openagent. Vendored Codex plugin namespace (omo) + TypeScript installer + telemetry.",
@@ -16515,8 +16515,10 @@ var OmoGitMasterSettingsSchema = OmoGitMasterSettingsLayerSchema.extend({
 
 // packages/omo-config-core/src/schema/harness.ts
 var HARNESS_IDS = ["codex", "opencode", "omo"];
-var OMO_CONFIG_HARNESS_IDS = ["opencode", "senpi", "codex"];
+var OMO_CONFIG_HARNESS_IDS = ["opencode", "native", "codex"];
 var OmoHarnessIdSchema = _enum(OMO_CONFIG_HARNESS_IDS);
+var OMO_CONFIG_LEGACY_HARNESS_ALIASES = { senpi: "native" };
+var OMO_CONFIG_LEGACY_HARNESS_IDS = Object.keys(OMO_CONFIG_LEGACY_HARNESS_ALIASES);
 
 // packages/omo-config-core/src/schema/memory.ts
 var OmoMemoryReflectionTriggerSchema = object({
@@ -16975,6 +16977,7 @@ var OmoConfigProfileSchema = object({
   telemetry: OmoTelemetrySettingsLayerSchema.optional(),
   disabled_skills: OmoDisabledSkillsSchema.optional(),
   "[opencode]": OmoOpenCodeHarnessConfigSchema.optional(),
+  "[native]": OmoTypedHarnessConfigSchema.optional(),
   "[senpi]": OmoTypedHarnessConfigSchema.optional(),
   "[codex]": OmoTypedHarnessConfigSchema.optional()
 }).strict();
@@ -16993,6 +16996,7 @@ var OmoConfigSchema = object({
   telemetry: OmoTelemetrySettingsSchema.optional(),
   disabled_skills: OmoDisabledSkillsSchema.optional(),
   "[opencode]": OmoOpenCodeHarnessConfigSchema.optional(),
+  "[native]": OmoTypedHarnessConfigSchema.optional(),
   "[senpi]": OmoTypedHarnessConfigSchema.optional(),
   "[codex]": OmoTypedHarnessConfigSchema.optional(),
   profiles: record(string2(), OmoConfigProfileSchema).default({}),
@@ -17014,6 +17018,7 @@ var OmoConfigLayerSchema = object({
   telemetry: OmoTelemetrySettingsLayerSchema.optional(),
   disabled_skills: OmoDisabledSkillsSchema.optional(),
   "[opencode]": OmoOpenCodeHarnessConfigSchema.optional(),
+  "[native]": OmoTypedHarnessConfigSchema.optional(),
   "[senpi]": OmoTypedHarnessConfigSchema.optional(),
   "[codex]": OmoTypedHarnessConfigSchema.optional(),
   profiles: record(string2(), OmoConfigProfileSchema).optional(),
@@ -17074,6 +17079,54 @@ function canonicalizeValue(value, path, renames) {
 function canonicalizeLegacyCategoryNames(document) {
   const renames = [];
   const canonicalized = isRecord6(document) ? canonicalizeValue(document, [], renames) : {};
+  return { document: canonicalized, renames };
+}
+
+// packages/omo-config-core/src/schema/legacy-harness-names.ts
+function canonicalHarnessName(name) {
+  return Object.hasOwn(OMO_CONFIG_LEGACY_HARNESS_ALIASES, name) ? OMO_CONFIG_LEGACY_HARNESS_ALIASES[name] : name;
+}
+function harnessBlockKey(harness) {
+  return `[${harness}]`;
+}
+function legacyHarnessOfBlockKey(key) {
+  if (!key.startsWith("[") || !key.endsWith("]"))
+    return;
+  const harness = key.slice(1, -1);
+  return Object.hasOwn(OMO_CONFIG_LEGACY_HARNESS_ALIASES, harness) ? harness : undefined;
+}
+function isRecord7(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+function canonicalizeBlocksIn(container, path, renames) {
+  const result = {};
+  for (const [key, value] of Object.entries(container)) {
+    const legacyHarness = legacyHarnessOfBlockKey(key);
+    if (legacyHarness === undefined) {
+      result[key] = value;
+      continue;
+    }
+    const canonical = harnessBlockKey(canonicalHarnessName(legacyHarness));
+    const dropped = Object.hasOwn(container, canonical);
+    renames.push({ canonical, dropped, legacy: key, path: [...path, key].join(".") });
+    if (!dropped)
+      result[canonical] = value;
+  }
+  return result;
+}
+function canonicalizeLegacyHarnessBlocks(document) {
+  if (!isRecord7(document))
+    return { document: {}, renames: [] };
+  const renames = [];
+  const canonicalized = canonicalizeBlocksIn(document, [], renames);
+  const profiles = canonicalized["profiles"];
+  if (isRecord7(profiles)) {
+    const canonicalProfiles = {};
+    for (const [name, profile] of Object.entries(profiles)) {
+      canonicalProfiles[name] = isRecord7(profile) ? canonicalizeBlocksIn(profile, ["profiles", name], renames) : profile;
+    }
+    canonicalized["profiles"] = canonicalProfiles;
+  }
   return { document: canonicalized, renames };
 }
 
@@ -18052,7 +18105,7 @@ function resolveOmoConfigPaths(options) {
 }
 
 // packages/omo-config-core/src/loader/resolution.ts
-var HARNESS_KEYS = [...new Set([...HARNESS_IDS, ...OMO_CONFIG_HARNESS_IDS])].map((harness) => `[${harness}]`);
+var HARNESS_KEYS = [...new Set([...HARNESS_IDS, ...OMO_CONFIG_HARNESS_IDS, ...OMO_CONFIG_LEGACY_HARNESS_IDS])].map((harness) => harnessBlockKey(harness));
 function profileName(value) {
   return value === "" ? undefined : value;
 }
@@ -18081,7 +18134,13 @@ function withoutControlKeys(config) {
 function harnessLayer(config, harness) {
   if (harness === undefined)
     return {};
-  return toRecord(config[`[${harness}]`]) ?? {};
+  const canonical = canonicalHarnessName(harness);
+  const legacyKeys = Object.entries(OMO_CONFIG_LEGACY_HARNESS_ALIASES).filter(([, target]) => target === canonical).map(([legacy]) => harnessBlockKey(legacy));
+  let layer = {};
+  for (const key of [...legacyKeys, harnessBlockKey(canonical)]) {
+    layer = mergeOmoConfigRecords(layer, toRecord(config[key]) ?? {});
+  }
+  return layer;
 }
 function resolveOmoConfigView(options) {
   const profiles = toRecord(options.config["profiles"]);
@@ -18132,6 +18191,7 @@ var DEFAULT_RAW_CONFIG = {
 function stripResolutionControlKeys(config) {
   const {
     "[codex]": _codex,
+    "[native]": _native,
     "[opencode]": _opencode,
     "[senpi]": _senpi,
     profiles: _profiles,
@@ -18157,21 +18217,21 @@ function hasUnsafeUnrecognizedKey(issues) {
 function hasTamperedPrototype(value) {
   if (Array.isArray(value))
     return value.some((entry) => hasTamperedPrototype(entry));
-  if (!isRecord7(value))
+  if (!isRecord8(value))
     return false;
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null)
     return true;
   return Object.values(value).some((entry) => hasTamperedPrototype(entry));
 }
-function isRecord7(value) {
+function isRecord8(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function containerAt(record, path) {
   let container = record;
   for (const segment of path) {
     const next = container[segment];
-    if (!isRecord7(next))
+    if (!isRecord8(next))
       return null;
     container = next;
   }
@@ -18282,6 +18342,15 @@ function legacyCategoryDiagnostic(path, renames) {
     issuePaths: renames.map((rename) => rename.path)
   };
 }
+function legacyHarnessDiagnostic(path, renames) {
+  const detail = renames.map((rename) => rename.dropped ? `${rename.path} ignored because ${rename.canonical} is also configured` : `${rename.path} renamed to ${rename.canonical}`).join(", ");
+  return {
+    kind: "deprecated-keys",
+    message: `Deprecated harness block in ${path}: ${detail}. Rename it; the alias is removed in a future release.`,
+    path,
+    issuePaths: renames.map((rename) => rename.path)
+  };
+}
 function loadOmoConfig(options = {}) {
   const fileSystem = options.fileSystem ?? DEFAULT_READ_FILE_SYSTEM;
   const cwd = options.cwd ?? process.cwd();
@@ -18304,8 +18373,12 @@ function loadOmoConfig(options = {}) {
       if (canonicalized.renames.length > 0) {
         diagnostics.push(legacyCategoryDiagnostic(candidate.path, canonicalized.renames));
       }
-      layers.push({ config: canonicalized.document, source: loaded.source });
-      merged = mergeOmoConfigRecords(merged, canonicalized.document);
+      const harnessCanonicalized = canonicalizeLegacyHarnessBlocks(canonicalized.document);
+      if (harnessCanonicalized.renames.length > 0) {
+        diagnostics.push(legacyHarnessDiagnostic(candidate.path, harnessCanonicalized.renames));
+      }
+      layers.push({ config: harnessCanonicalized.document, source: loaded.source });
+      merged = mergeOmoConfigRecords(merged, harnessCanonicalized.document);
     }
   }
   const requestedProfile = resolveOmoProfileName({
@@ -20905,10 +20978,10 @@ function readCatalogMultiAgentVersion(model, cachePath) {
   } catch {
     return null;
   }
-  if (!isRecord8(cache) || !Array.isArray(cache.models))
+  if (!isRecord9(cache) || !Array.isArray(cache.models))
     return null;
   for (const entry of cache.models) {
-    if (!isRecord8(entry))
+    if (!isRecord9(entry))
       continue;
     if (entry.slug !== model && entry.id !== model)
       continue;
@@ -20933,7 +21006,7 @@ function readRootModelCatalogPath(config) {
   const single = config.match(/^\s*model_catalog_json\s*=\s*'([^']+)'/m);
   return single?.[1] ?? null;
 }
-function isRecord8(value) {
+function isRecord9(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 function removeFeatureFlagSetting(config, featureName) {
