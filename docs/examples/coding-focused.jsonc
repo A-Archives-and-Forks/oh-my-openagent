@@ -31,7 +31,7 @@
     "unspecified-low": { "model": "xai/grok-4.6", "reasoning": "xhigh" },
 
     // Complex refactors: best quality
-    "unspecified-high": { "model": "openai/gpt-6-astra", "reasoning": "high" },
+    "unspecified-high": { "model": "anthropic/claude-opus-5", "reasoning": "xhigh" },
 
     // Visual work
     "visual-engineering": { "model": "anthropic/claude-fable-5-1", "reasoning": "max" },
