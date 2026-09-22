@@ -121,7 +121,14 @@ describe("runSenpiStartupMigration", () => {
 
     // then
     expect(result.error).toBeUndefined()
-    expect(result.results.map((entry) => entry.status)).toEqual(["migrated", "migrated", "migrated", "skipped", "skipped"])
+    expect(result.results.map((entry) => entry.status)).toEqual([
+      "migrated",
+      "migrated",
+      "migrated",
+      "skipped",
+      "skipped",
+      "skipped",
+    ])
     expect(parse(fileSystem.readFileSync("/home/alice/.omo/omo.jsonc", "utf-8"))).toMatchObject({
       _migrations: [
         "2026-07-opencode-config-unification",
