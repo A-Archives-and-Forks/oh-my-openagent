@@ -7,6 +7,15 @@ const REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url))
 
 const INSTALLER_SOURCE_GLOB = "packages/omo-opencode/src/cli/**/*.ts"
 
+const ADDITIONAL_SOURCE_GLOBS = [
+  "docs/reference/**/*.md",
+  "docs/guide/*.md",
+  "docs/legal/*.md",
+  "packages/omo-native/bin/**/*.js",
+  "packages/omo-senpi/src/components/**/*.ts",
+  "packages/web/src/**/*.{ts,tsx,astro,md}",
+] as const
+
 const USER_FACING_FILES = [
   "postinstall.mjs",
   "docs/guide/installation.md",
@@ -41,6 +50,25 @@ const ENGINE_NAME_ALLOWLIST: readonly { readonly why: string; readonly pattern: 
   { why: "the engine named as the engine", pattern: /senpi engine/gi },
   { why: "the doctor edition line", pattern: /engine: ?senpi/gi },
   { why: "engine installer export re-exported by install-native-dev", pattern: /runSenpiInstaller/g },
+  { why: "engine telemetry reference document", pattern: /senpi-telemetry(?:\.md)?/gi },
+  { why: "engine task package, docs, and project state dir", pattern: /senpi-task(?:\.md)?/g },
+  { why: "engine telemetry event names", pattern: /omo_senpi_[a-z0-9_]+/g },
+  { why: "SENPI_MACHINE_ID_PREFIX value", pattern: /omo-senpi:/g },
+  { why: "adapter id in logger prefixes and product identity", pattern: /omo-senpi\b/g },
+  { why: "harness-id warning prefix", pattern: /WARN senpi:/g },
+  { why: "the engine named as a proper noun", pattern: /\bSenpi(?:'s)?\b/g },
+  { why: "the engine named possessively", pattern: /senpi's/gi },
+  { why: "engine eval execution event", pattern: /senpi\.eval(?:\.[\w.]+)?/g },
+  { why: "engine omob runtime slot", pattern: /<senpi\d*>/g },
+  { why: "engine git sha stamp", pattern: /senpi@[\w.<>]+/g },
+  { why: "engine CLI flag", pattern: /--senpi-[a-z-]+/g },
+  { why: "engine GitHub issue references", pattern: /senpi#\d+/g },
+  { why: "engine session-id prefix", pattern: /senpi:/g },
+  {
+    why: "engine named in technical prose",
+    pattern: /\bsenpi(?:\s+(?:extension(?:\s+events)?|RPC(?:\s+host)?|release|process(?:es)?|host))/gi,
+  },
+  { why: "quoted harness id", pattern: /(['"])senpi\1/g },
 ]
 
 interface Violation {
@@ -59,24 +87,36 @@ function stripEngineNames(line: string): string {
   return rest
 }
 
-function hasUnallowlistedEngineMention(line: string): boolean {
+function isEngineAdapterSource(file: string): boolean {
+  return (
+    file.startsWith("packages/omo-senpi/src/components/") || file.startsWith("packages/omo-native/bin/")
+  )
+}
+
+function hasUnallowlistedEngineMention(line: string, file = ""): boolean {
+  if (isEngineAdapterSource(file)) return false
   return /senpi/i.test(stripEngineNames(line))
 }
 
 async function userFacingSources(): Promise<readonly string[]> {
-  const installerSources: string[] = []
-  for await (const path of new Bun.Glob(INSTALLER_SOURCE_GLOB).scan({ cwd: REPO_ROOT })) {
-    if (!path.endsWith(".test.ts")) installerSources.push(path)
+  const sources = new Set<string>(USER_FACING_FILES)
+  for (const glob of [INSTALLER_SOURCE_GLOB, ...ADDITIONAL_SOURCE_GLOBS]) {
+    for await (const path of new Bun.Glob(glob).scan({ cwd: REPO_ROOT })) {
+      if (path.endsWith(".test.ts")) continue
+      sources.add(path)
+    }
   }
-  return [...installerSources.sort(), ...USER_FACING_FILES]
+  return [...sources].sort()
 }
 
-async function collectViolations(detect: (line: string) => boolean): Promise<readonly Violation[]> {
+async function collectViolations(
+  detect: (line: string, file: string) => boolean,
+): Promise<readonly Violation[]> {
   const violations: Violation[] = []
   for (const file of await userFacingSources()) {
     const contents = await Bun.file(`${REPO_ROOT}${file}`).text()
     contents.split("\n").forEach((text, index) => {
-      if (detect(text)) violations.push({ file, line: index + 1, text: text.trim().slice(0, 140) })
+      if (detect(text, file)) violations.push({ file, line: index + 1, text: text.trim().slice(0, 140) })
     })
   }
   return violations
@@ -87,7 +127,7 @@ function report(violations: readonly Violation[]): string[] {
 }
 
 describe("user-facing surfaces call the standalone edition OmO Native", () => {
-  test("#given every installer, postinstall, docs and README surface #when scanned #then none names the edition after the engine", async () => {
+  test("#given every installer, postinstall, docs, native bin, runtime notice and README surface #when scanned #then none names the edition after the engine", async () => {
     // given / when
     const violations = await collectViolations(namesEditionAfterEngine)
 
@@ -95,7 +135,7 @@ describe("user-facing surfaces call the standalone edition OmO Native", () => {
     expect(report(violations)).toEqual([])
   })
 
-  test("#given every installer, postinstall, docs and README surface #when scanned #then each remaining senpi mention is an allowlisted engine name", async () => {
+  test("#given every installer, postinstall, docs, native bin, runtime notice and README surface #when scanned #then each remaining senpi mention is an allowlisted engine name", async () => {
     // given / when
     const violations = await collectViolations(hasUnallowlistedEngineMention)
 

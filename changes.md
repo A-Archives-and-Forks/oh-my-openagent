@@ -1,3 +1,11 @@
+## 2026-09-22 - The OmO Native wording guard scans docs, native bins, and runtime notices (#8632)
+
+`native-wording-guard.test.ts` scanned only installer sources, `postinstall.mjs`, the install guide, and the five READMEs, so edition-named-after-engine copy in `docs/reference/**` and in runtime notices could land without failing CI. The guard now also walks `docs/reference/**/*.md`, `docs/guide/*.md`, `docs/legal/*.md`, `packages/omo-native/bin/**/*.js`, `packages/omo-senpi/src/components/**/*.ts` (except `*.test.ts`), and `packages/web/src/**/*.{ts,tsx,astro,md}` when that tree exists.
+
+`BANNED_EDITION_WORDING` and the original `ENGINE_NAME_ALLOWLIST` entries are unchanged. Added allowlist rows name engine-owned leftovers the wider scan meets: the `senpi-telemetry` document, `omo_senpi_*` event names, the `omo-senpi:` machine-id prefix, `WARN senpi:` harness warnings, session-id prefixes, issue refs, and a handful of technical-prose engine nouns. Adapter source still fails on banned edition wording; leftover engine identifiers in that tree are treated as engine-owned.
+
+Three edition-named-after-engine sentences were reworded rather than allowlisted (`docs/reference/release-process.md`, `docs/reference/omo-ai-publishing.md`, `docs/guide/senpi-task.md`). Two other docs lines were aligned to the existing `senpi engine` allowlist so the guard would not need a bare-`senpi` hole. Planted-fail proof per new family is in `.omo/evidence/20260922-wording-guard-scope/`.
+
 ## 2026-09-22 - Docs and setup output name the standalone edition OmO Native, and the CLI reference recommends bun (#8628)
 
 `docs/reference/cli.md` introduces the `omo` bin as OmO Native and leads with `bun add -g omo-ai@beta`, labelling `npm i -g omo-ai@beta` as the fallback. `docs/guide/overview.md`, `docs/guide/binary-install.md`, the Native-harness annotations in `docs/reference/omo-json.md`, and the opening of `docs/reference/senpi-telemetry.md` stop naming the edition after its engine. Custom-endpoint setup copy points at the engine's `models.json`. The `WARN senpi:` prefix on a malformed `auth.json` stays; it is a harness id in a per-harness table, not the product name. Links that targeted `#model-profiles-senpi-harness` or `#git_master-senpi-harness` now use the Native-harness slugs.
