@@ -83,6 +83,10 @@ Such a node now fails at resume with a reason naming the task and why it cannot 
 
 Renaming the reviewer agents to `omo-native-*` left the Codex-side ulw-loop guard (which checks that a gate reviewer only starts after a manual-QA artifact exists) matching only the retired `omo-senpi-*` spellings. Because the resolver (which maps a reviewer's old name to its new one before any check runs) canonicalizes a name before the guard sees it, the guard received a name it did not recognize and treated the spawn as ordinary work: the gate reviewer could start without a manual-QA artifact, and the per-reviewer no-progress cap stopped counting. Both checks apply again, and either spelling is recognized, so nothing that named the old reviewer breaks. The denial message and the spawn counter now name the reviewer that actually ran.
 
+### Known issues
+
+**One Windows-only test flake is not fixed in this release.** On a slow Windows CI runner, the DAG lock test in `senpi-task` (`store.test.ts`) can still fail with `Timed out acquiring DAG lock` when an earlier run crashed while it was clearing a lock. The fix ([#8672](https://github.com/code-yeongyu/oh-my-openagent/pull/8672)) ships in 5.0.0-beta.84. It changes only how that leftover lock file is cleared on Windows; nothing in this build behaves differently for users.
+
 ## [5.0.0-beta.82] - 2026-09-21
 
 ### Added
