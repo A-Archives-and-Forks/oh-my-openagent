@@ -845,7 +845,7 @@ Member eligibility:
 
 - **The lead is the current session.** Don't declare a lead member.
 - **Members** are either `category` members (a resolvable category; `prompt` required) or `subagent_type` members naming a user-defined agent.
-- **Rejected at parse**: the curated read-only agents (`explore`, `librarian`, `plan-consultant`, `plan-reviewer`) and the ulw-loop reviewer trio (`omo-native-code-reviewer`, `omo-native-qa-executor`, `omo-native-gate-reviewer`); the pre-rename `omo-senpi-*` spellings still resolve. Delegate to them through the `task` tool instead.
+- **Rejected at parse**: the curated read-only agents (`explore`, `librarian`, `plan-consultant`, `plan-reviewer`) and the ulw-loop reviewer trio (`omo-native-code-reviewer`, `omo-native-qa-executor`, `omo-native-gate-reviewer`); the pre-rename `omo-senpi-code-reviewer`, `omo-senpi-qa-executor` and `omo-senpi-gate-reviewer` spellings still resolve. Delegate to them through the `task` tool instead.
 
 Two skills already ride on top of Team Mode:
 
