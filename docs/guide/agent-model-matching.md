@@ -26,7 +26,7 @@ The session prints `omo-senpi: model profile "capable" selected anthropic/claude
 - **Explicit models are never clobbered.** A `--model` flag, a scoped model, a resumed session, and a fork keep their own model; the profile only touches a fresh session.
 - **Unset means untouched.** With no `model_profile`, Senpi's own default resolution runs and nothing changes.
 - **Session-scoped.** The apply never writes `settings.json` or `omo.json`. Mid-session failures follow Senpi's retry chains, not the profile.
-- **Your own chains.** `model_profiles.<name>` adds a profile, or replaces a builtin of the same name wholesale (no field merge). Entries take the same shape as a category chain and may reference `models.<catalog>` aliases. Key reference: [omo.json](../reference/omo-json.md#model-profiles-senpi-harness).
+- **Your own chains.** `model_profiles.<name>` adds a profile, or replaces a builtin of the same name wholesale (no field merge). Entries take the same shape as a category chain and may reference `models.<catalog>` aliases. Key reference: [omo.json](../reference/omo-json.md#model-profiles-native-harness).
 
 You can still pick with `/model` and switch mid-session; the main agent switches with you and the prompt stays the same.
 
