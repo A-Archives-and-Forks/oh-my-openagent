@@ -85,7 +85,8 @@ docs/reference/senpi-telemetry.md:261  KEEP: engine named as the engine (adapter
   | Component flag | `omo-senpi-telemetry-disabled` | Per-component disable flag |
 
 == packages/omo-native/bin/lib/setup-import.js ==
-no remaining senpi hits
+packages/omo-native/bin/lib/setup-import.js:218  KEEP: harness id in the per-harness WARN table (same shape as WARN opencode:)
+  process.stdout.write("WARN senpi: malformed auth.json; credentials were not imported\n")
 
 == packages/omo-native/bin/lib/setup-models.js ==
 no remaining senpi hits

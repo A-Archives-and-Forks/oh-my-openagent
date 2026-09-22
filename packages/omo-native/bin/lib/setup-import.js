@@ -215,7 +215,7 @@ export async function runSetup(args = process.argv.slice(2), options = {}) {
   for (const notice of plan.notices) process.stdout.write(`${notice}\n`)
   const current = readTarget(target)
   if (current.malformed) {
-    process.stdout.write("WARN OmO Native: malformed auth.json; credentials were not imported\n")
+    process.stdout.write("WARN senpi: malformed auth.json; credentials were not imported\n")
     return
   }
   const result = classify(plan, current.entries)
