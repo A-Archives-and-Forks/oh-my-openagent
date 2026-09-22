@@ -189,8 +189,8 @@ Override specific categories or curated agents in `omo.json`:
     // Quick tasks: fast and cheap
     "quick": { "model": "openai/gpt-5.6-luna-fast", "reasoning": "low" },
 
-    // Low-effort fallback: Grok 4.6 xhigh
-    "unspecified-low": { "model": "xai/grok-4.6", "reasoning": "xhigh" },
+    // Low-effort fallback: MiMo V2.6 Pro max
+    "unspecified-low": { "model": "xiaomi/mimo-v2.6-pro", "reasoning": "max" },
 
     // High-effort fallback: Opus 5, then GLM 5.3 and Kimi K3
     "unspecified-high": { "model": "anthropic/claude-opus-5", "reasoning": "xhigh" },

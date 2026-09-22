@@ -608,7 +608,7 @@ Not all models behave the same way. Understanding "similar" families helps you m
 | **GPT-6 Astra**   | openai, openai-codex, github-copilot, opencode | OpenAI's most capable model and the recommended GPT flagship. Default for the Plan Reviewer (xhigh, high on Copilot), `ultrabrain` (max), and `deep-high` (high). `gpt-6-astra-fast` is the Fast-mode variant. Manual override option for the main agent and the `architect` category. |
 | **GPT-5.6 Sol**   | openai, openai-codex, github-copilot, opencode | The GPT model recommended for the main agent at medium effort; the fallback rung under Astra for `ultrabrain` (max) and `deep` (medium). |
 | **GPT-5.6 Terra** | openai, openai-codex, github-copilot | GPT-5.6 mid-tier. No longer a default for any agent; an optional balanced override.                    |
-| **GPT-5.6 Luna**  | openai, openai-codex             | GPT-5.6 light tier. Not the `unspecified-low` default: that category starts at `xai\|github-copilot\|opencode/grok-4.6 (xhigh)`, then `gpt-5.6-terra (high)`. |
+| **GPT-5.6 Luna**  | openai, openai-codex             | GPT-5.6 light tier. Not the `unspecified-low` default: that category starts at `xiaomi\|opencode-go/mimo-v2.6-pro (max)`, then `grok-4.7 (xhigh)`, then `gpt-5.6-terra (high)`. |
 | **GPT-5.6 Sol override paths** | openai, openai-codex, github-copilot, opencode | The first GPT-5.6 Sol-family fallback for the Plan Consultant, `deep`, and `ultrabrain`. |
 | **GPT 5.6 Luna Fast**  | openai, openai-codex | Fast + strong reasoning. Utility fallback after the Kimi high-speed quick default.                  |
 | **GPT-5-Nano**    | openai, openai-codex, github-copilot, opencode | Ultra-cheap, fast. Good for simple utility tasks.                                                           |

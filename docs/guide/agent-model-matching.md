@@ -56,7 +56,7 @@ The harness ships a prompt preset per model family. When your session model matc
 | `kimi-k3` | Newest Kimi. Instruction-following mirrors Claude closely. The preset is calibrated to stop overthinking and keep work moving, so expect thinking-token cost. |
 | `glm-5-3` / `glm-5-2` | Claude-like, slightly looser on long nested workflows. GLM has a calibrated preset and one community report of good results, but no maintainer end-to-end validation of the nested todo, delegation, and long-context paths. Treat it as lower-confidence than Claude or Kimi. |
 | `deepseek-v4` | Preset exists for the V4 line (including Flash and Pro). Not a recommended main-agent configuration. |
-| `grok-4.5` / `grok-4.6` | Preset exists. Grok 4.6 is also the default for the `unspecified-low` category. |
+| `grok-4.5` / `grok-4.6` | Preset exists. No longer the `unspecified-low` default: that category now leads with `mimo-v2.6-pro`, then `grok-4.7 (xhigh)`. |
 
 Having a preset means the prompt is shaped for that model. It doesn't mean the model is recommended as the main agent; the recommended tier is the two configurations above. Anything outside this table runs on the generic prompt with no model-specific tuning at all.
 
@@ -128,7 +128,7 @@ When the main agent delegates implementation work, it doesn't pick a model name.
 | `deep` | 3D graphics, computer use, browser use, backend, algorithms, multimodal work, complex research | `openai/gpt-6-astra (high)` | `openai\|openai-codex\|github-copilot\|opencode/gpt-6-astra (high)` -> same providers `/gpt-5.6-sol (medium)` |
 | `artistry` | Unconventional, creative problem-solving | `anthropic/claude-fable-5-1 (max)` | `claude-fable-5-1 (max)` -> `kimi-k3 (max)` -> `claude-opus-5 (xhigh)` |
 | `quick` | Trivial tasks: single-file changes, typos | `openai-codex/gpt-5.6-luna-fast (low)` | `openai-codex/gpt-5.6-luna-fast (low)` -> `deepseek/deepseek-v4-flash (off)` -> `qwen3.6-flash (low)` -> cheaper utility rungs -> `xai/grok-4.20-0309-non-reasoning` -> `claude-haiku-4-5 (off)` |
-| `unspecified-low` | Doesn't fit elsewhere, low effort | `xai/grok-4.6 (xhigh)` | `xai\|github-copilot\|opencode/grok-4.6 (xhigh)` -> `gpt-5.6-terra (high)` -> `claude-sonnet-5 (low)` -> `qwen3.8-max-preview (max)` -> `deepseek\|opencode-go/deepseek-v4-pro (max)` -> `xiaomi\|opencode-go/mimo-v2.5-pro (max)` |
+| `unspecified-low` | Doesn't fit elsewhere, low effort | `xiaomi/mimo-v2.6-pro (max)` | `xiaomi\|opencode-go/mimo-v2.6-pro (max)` -> `xai\|github-copilot\|opencode-go/grok-4.7 (xhigh)` -> `gpt-5.6-terra (high)` -> `claude-sonnet-5 (low)` -> `qwen3.8-max-preview (max)` -> `deepseek\|opencode-go/deepseek-v4-pro (max)` -> `xiaomi\|opencode-go/mimo-v2.5-pro (max)` |
 | `unspecified-high` | Doesn't fit elsewhere, high effort | `anthropic/claude-opus-5 (xhigh)` | `claude-opus-5 (xhigh)` -> `zai-coding-plan\|opencode-go/glm-5.3 (max)` -> `kimi-k3 (max)` |
 | `writing` | Documentation, prose, technical writing | `anthropic/claude-fable-5-1 (low)` | `claude-fable-5-1 (low)` -> `kimi-k3 (low)` -> `claude-opus-4-6 (low)` |
 
