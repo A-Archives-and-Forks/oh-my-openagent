@@ -10,7 +10,7 @@ export const CATEGORY_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
       },
       {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
-        model: "claude-opus-5",
+        model: "claude-opus-5-5",
         variant: "max",
       },
       {
@@ -62,8 +62,8 @@ export const CATEGORY_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
       },
       {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
-        model: "claude-opus-5",
-        variant: "xhigh",
+        model: "claude-opus-5-5",
+        variant: "max",
       }
     ],
   },
@@ -113,8 +113,8 @@ export const CATEGORY_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
     fallbackChain: [
       {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
-        model: "claude-opus-5",
-        variant: "xhigh",
+        model: "claude-opus-5-5",
+        variant: "max",
       },
       { providers: ["zai-coding-plan", "opencode-go"], model: "glm-5.3", variant: "max" },
       {
@@ -132,14 +132,14 @@ export const CATEGORY_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
         variant: "low",
       },
       {
-        providers: ["kimi-for-coding", "moonshotai", "opencode-go", "opencode"],
-        model: "kimi-k3",
+        providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
+        model: "claude-opus-5-5",
         variant: "low",
       },
       {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
         model: "claude-opus-4-6",
-        variant: "low",
+        variant: "max",
       }
     ],
   },
