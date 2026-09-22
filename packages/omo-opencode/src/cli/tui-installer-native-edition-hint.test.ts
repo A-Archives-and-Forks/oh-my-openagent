@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:te
 import * as p from "@clack/prompts"
 import * as configManager from "./config-manager"
 import * as astGrepInstall from "./install-ast-grep-sg"
-import * as senpiInstaller from "./install-senpi"
+import * as nativeDevInstaller from "./install-native-dev"
 import * as tuiInstallPrompts from "./tui-install-prompts"
-import { SENPI_EDITION_GUIDE_URL, SENPI_EDITION_INSTALL_COMMAND } from "./senpi-edition-hint"
+import { NATIVE_EDITION_GUIDE_URL, NATIVE_EDITION_INSTALL_COMMAND } from "./native-edition-hint"
 import { runTuiInstaller } from "./tui-installer"
 import type { InstallConfig } from "./types"
 
@@ -20,7 +20,7 @@ function createMockSpinner(): ReturnType<typeof p.spinner> {
   }
 }
 
-function installConfig(platform: "opencode" | "senpi"): InstallConfig {
+function installConfig(platform: "opencode" | "native-dev"): InstallConfig {
   return {
     platform,
     hasOpenCode: platform === "opencode",
@@ -30,7 +30,7 @@ function installConfig(platform: "opencode" | "senpi"): InstallConfig {
     hasGemini: false,
     hasCopilot: false,
     hasCodex: false,
-    hasSenpi: platform === "senpi",
+    hasNativeDev: platform === "native-dev",
     hasOpencodeZen: false,
     hasZaiCodingPlan: false,
     hasKimiForCoding: false,
@@ -43,7 +43,7 @@ function installConfig(platform: "opencode" | "senpi"): InstallConfig {
   }
 }
 
-describe("runTuiInstaller Senpi edition hint", () => {
+describe("runTuiInstaller OmO Native hint", () => {
   const originalIsStdinTty = process.stdin.isTTY
   const originalIsStdoutTty = process.stdout.isTTY
   const printed: string[] = []
@@ -73,7 +73,7 @@ describe("runTuiInstaller Senpi edition hint", () => {
     mock.restore()
   })
 
-  it("points an OpenCode-edition install at the standalone Senpi edition with the guide link", async () => {
+  it("points an OpenCode-edition install at OmO Native with the guide link", async () => {
     // given
     spyOn(tuiInstallPrompts, "promptInstallPlatform").mockResolvedValue("opencode")
     spyOn(configManager, "detectCurrentConfig").mockReturnValue({
@@ -106,29 +106,29 @@ describe("runTuiInstaller Senpi edition hint", () => {
     // then
     expect(result).toBe(0)
     const output = printed.join("\n")
-    expect(output).toContain(SENPI_EDITION_INSTALL_COMMAND)
-    expect(output).toContain(SENPI_EDITION_GUIDE_URL)
+    expect(output).toContain(NATIVE_EDITION_INSTALL_COMMAND)
+    expect(output).toContain(NATIVE_EDITION_GUIDE_URL)
   })
 
-  it("stays silent about the Senpi edition when the install target is senpi itself", async () => {
+  it("stays silent about OmO Native when the install target is the native development adapter", async () => {
     // given
-    spyOn(tuiInstallPrompts, "promptInstallPlatform").mockResolvedValue("senpi")
-    spyOn(tuiInstallPrompts, "promptInstallConfig").mockResolvedValue(installConfig("senpi"))
-    spyOn(senpiInstaller, "runSenpiInstaller").mockResolvedValue({
+    spyOn(tuiInstallPrompts, "promptInstallPlatform").mockResolvedValue("native-dev")
+    spyOn(tuiInstallPrompts, "promptInstallConfig").mockResolvedValue(installConfig("native-dev"))
+    spyOn(nativeDevInstaller, "runNativeDevInstaller").mockResolvedValue({
       ok: true,
       action: "install",
-      agentDir: "/tmp/senpi-agent",
-      settingsPath: "/tmp/senpi-agent/settings.json",
+      agentDir: "/tmp/omo-agent",
+      settingsPath: "/tmp/omo-agent/settings.json",
       pluginPath: "/tmp/repo/packages/omo-senpi/plugin",
       changed: true,
-      backupPath: "/tmp/senpi-agent/settings.json.20260921T000000000Z.backup",
+      backupPath: "/tmp/omo-agent/settings.json.20260921T000000000Z.backup",
     })
 
     // when
-    const result = await runTuiInstaller({ tui: true, platform: "senpi" }, "3.16.0")
+    const result = await runTuiInstaller({ tui: true, platform: "native-dev" }, "3.16.0")
 
     // then
     expect(result).toBe(0)
-    expect(printed.join("\n")).not.toContain(SENPI_EDITION_INSTALL_COMMAND)
+    expect(printed.join("\n")).not.toContain(NATIVE_EDITION_INSTALL_COMMAND)
   })
 })
