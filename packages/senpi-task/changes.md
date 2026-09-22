@@ -1,3 +1,17 @@
+## A live row reads "starting" until a real turn lands
+
+`status-line.ts` emitted `turn N` whenever stats existed, so the row the user complained about
+read `turn 4 · $0.0000 · running` while six provider attempts had failed and nothing had run. The
+stats tokens now come from ONE shared `buildLiveStatsTokens`: a run with no successful turn and no
+tool call renders no turn token at all, failed attempts render as their own `failed N` counter,
+and spend still follows reported cost - which a failed-only run never carries, while a successful
+zero-cost turn keeps rendering `$0.0000`. `progress.ts` selects the verb the same way:
+`running <tool>` while a tool executes, `starting` before anything has landed, `retrying` once a
+failure proved the child is alive, and plain `running` only after a successful turn.
+`ToolProgressDetails` carries `failedTurns` (round-tripped through `readToolProgressDetails`,
+which still accepts records omitting it, and emitted as `failed_turns` by the RPC codec) so DAG
+and RPC consumers read the same facts. omo#8627.
+
 ## A failed assistant turn is no longer a turn
 
 `run-stats.ts` counted every assistant `message_end` as a turn and folded in whatever usage it
