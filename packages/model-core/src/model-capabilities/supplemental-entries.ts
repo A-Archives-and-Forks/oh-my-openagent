@@ -278,4 +278,34 @@ export const SUPPLEMENTAL_MODEL_CAPABILITIES: Record<string, ModelCapabilitiesSn
 			output: 32768,
 		},
 	},
+	"mimo-v2.6-pro": {
+		id: "mimo-v2.6-pro",
+		family: "mimo",
+		reasoning: true,
+		temperature: true,
+		toolCall: true,
+		modalities: {
+			input: ["text", "image"],
+			output: ["text"],
+		},
+		limit: {
+			context: 1048576,
+			output: 131072,
+		},
+	},
+	"xiaomi/mimo-v2.6-pro": {
+		id: "xiaomi/mimo-v2.6-pro",
+		family: "mimo",
+		reasoning: true,
+		temperature: true,
+		toolCall: true,
+		modalities: {
+			input: ["text", "image"],
+			output: ["text"],
+		},
+		limit: {
+			context: 1048576,
+			output: 131072,
+		},
+	},
 }
