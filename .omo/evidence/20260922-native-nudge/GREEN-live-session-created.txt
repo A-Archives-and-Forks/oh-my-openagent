@@ -1,25 +1,17 @@
-# Live capture, run 1 (isolated opencode server, real HTTP session creation)
+# Live capture — isolated opencode server, real HTTP session creation, CORRECTED assertions.
 #
-# SCOPE OF THIS ARTIFACT - read before citing it:
-#   SUPPORTS: "a real opencode process emits session.created when a session is
-#             created over the HTTP API". That line came from an UNANCHORED
-#             grep -q '"type":"session.created"' and is genuine.
-#   DOES NOT SUPPORT: the top-level/parentID line below it. That check consumed
-#             an ANCHORED grep ('{"type":"session.created"') which assumes
-#             "type" is the first JSON key. The frame puts "type" last, so the
-#             anchored grep matched nothing and the parentID branch could not
-#             fail. It is a vacuous pass and is NOT evidence.
-#
-# The anchored grep is fixed in live-session-created.sh, and
-# GREEN-assertions-can-fail.txt proves all three branches of the corrected
-# assertion are reachable using a type-last frame.
+# Note the frame below: "type" is the SECOND key, after "id". That is exactly why the earlier
+# anchored grep ('{"type":"session.created"') matched nothing and turned its parentID check into a
+# vacuous pass. The assertions now match the whole line; assert-selftest.sh proves all three
+# branches are reachable against type-last fixtures.
 
-sandbox: <tmp>/oqa-xdg.XXXXXX.JJnGbpkVUn  (the real opencode DB is untouched)
-server: 127.0.0.1:64588
+sandbox: <tmp>/oqa-xdg.XXXXXX.BAyWx8bWyt  (the real opencode DB is untouched)
+server: 127.0.0.1:52111
 --- creating a real session over the HTTP API ---
-POST /session -> {"id":"ses_f380eba8fffe2zA2V4ptZ33hKD","slug":"proud-cabin","projectID":"cc6c088c28ecc03bed8b0121d9b40f9c8b9c0678","dire
+POST /session -> {"id":"ses_f37f57bbfffeVOawJuxnl5Rn1S","slug":"swift-canyon","projectID":"cc6c088c28ecc03bed8b0121d9b40f9c8b9c0678","dir
 
---- session.created frames observed on the wire ---
+--- the session.created frame observed on the wire ---
+data: {"id":"evt_0c80a8441001nHsYuYvRdGFGD7","type":"session.created","properties":{"sessionID":"ses_f37f57bbfffeVOawJuxnl5Rn1S","info":{"id":"ses_f37f57bbfffeVOawJuxnl5Rn1S","slug":"swift-canyon","version":"1.18.18","projectID":"cc6c088c28ecc03bed8b0121d9b40f9c8b9c0678","directory":"<repo>","path":"","title":"native nudge QA","cost":0,"tokens":{"input":0,"output":0,"reasoning":0,"cache":{
 
-PASS: a real opencode process emitted session.created
+PASS: a real opencode process emitted session.created (501 bytes captured)
 PASS: the frame is top-level (no parentID), which is what the hook requires to fire

@@ -88,12 +88,23 @@ script, and `GREEN-assertions-can-fail.txt` drives the corrected logic against t
 frames — type-last without `parentID`, type-last with `parentID`, and no event at all — showing all
 three branches reachable, so the assertion can now fail.
 
-**Still open, and this PR should not merge until it is closed:** a single live run that reaches the
-corrected assertions end to end. Two attempts timed out at the `oqa_wait_http` health gate because
-`opencode serve` needs several minutes to become healthy under current machine load; each teardown
-was verified clean (0 opencode processes, port free, sandbox removed). The TUI dialog itself is
-implemented and unit-covered (`features/native-edition-nudge/tui.test.ts`), but its rendering inside
-a live TUI is likewise not captured.
+**The live run now reaches the corrected assertions end to end.** On an uncontended box
+(load 15.24, 0 vitest, 1021 MB free) the capture booted an isolated server, created session
+`ses_f37f57bbfffeVOawJuxnl5Rn1S` over `POST /session`, and captured the 501-byte frame:
+
+```
+data: {"id":"evt_0c80a8441001nHsYuYvRdGFGD7","type":"session.created","properties":{"sessionID":"ses_f37f…
+```
+
+Both assertions pass on their corrected form — the event was emitted, and the frame is top-level with
+no `parentID`, which is the condition the hook requires to fire. The frame also settles the earlier
+defect concretely: `"type"` is the **second** key, after `"id"`, so the anchored grep could never have
+matched. Teardown verified in the capturing step: 0 opencode processes, 0 sandboxes.
+
+**Still open:** the dialog rendering inside a live TUI. `features/native-edition-nudge/tui.test.ts`
+covers the action semantics — install returns the bun command and writes nothing, later schedules
++7d without consuming a showing, never records the decision, guide returns the documented URL — but
+no TUI screenshot exists.
 
 ## WHAT WAS OMITTED
 
