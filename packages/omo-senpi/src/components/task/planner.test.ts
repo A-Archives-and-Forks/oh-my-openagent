@@ -356,9 +356,9 @@ describe("createTaskChildPlanner", () => {
     expect(result.error.availableAgents).toEqual([
       "explore",
       "librarian",
-      "omo-senpi-code-reviewer",
-      "omo-senpi-gate-reviewer",
-      "omo-senpi-qa-executor",
+      "omo-native-code-reviewer",
+      "omo-native-gate-reviewer",
+      "omo-native-qa-executor",
       "plan-consultant",
     ])
   })
@@ -385,9 +385,9 @@ describe("createTaskChildPlanner", () => {
     expect(result.error.availableAgents).toEqual([
       "explore",
       "librarian",
-      "omo-senpi-code-reviewer",
-      "omo-senpi-gate-reviewer",
-      "omo-senpi-qa-executor",
+      "omo-native-code-reviewer",
+      "omo-native-gate-reviewer",
+      "omo-native-qa-executor",
       "plan-consultant",
       "plan-reviewer",
     ])
@@ -420,9 +420,9 @@ describe("createTaskChildPlanner", () => {
     expect(result.error.availableAgents).toEqual([
       "explore",
       "librarian",
-      "omo-senpi-code-reviewer",
-      "omo-senpi-gate-reviewer",
-      "omo-senpi-qa-executor",
+      "omo-native-code-reviewer",
+      "omo-native-gate-reviewer",
+      "omo-native-qa-executor",
       "plan-consultant",
       "plan-reviewer",
     ])
@@ -591,14 +591,14 @@ describe("createTaskChildPlanner reviewer category routing", () => {
       prompt: "Review the gate.",
       parent_session_id: "parent-1",
       depth: 0,
-      subagent_type: "omo-senpi-gate-reviewer",
+      subagent_type: "omo-native-gate-reviewer",
     })
 
     // then
     const resolved = expectResolved(result)
     expect(resolved.plan.model).toBe("openai/gpt-5.6-terra")
     expect(resolved.plan.resolved_model?.source).toBe("agent")
-    expect(resolved.plan.agentType).toBe("omo-senpi-gate-reviewer")
+    expect(resolved.plan.agentType).toBe("omo-native-gate-reviewer")
   })
 
   test("#given a registry serving deep-high and unspecified-high #when the gate reviewer is planned #then the deep-high model wins and unspecified-high extends the runtime chain", () => {
@@ -614,7 +614,7 @@ describe("createTaskChildPlanner reviewer category routing", () => {
       prompt: "Review the gate.",
       parent_session_id: "parent-1",
       depth: 0,
-      subagent_type: "omo-senpi-gate-reviewer",
+      subagent_type: "omo-native-gate-reviewer",
     })
 
     // then
@@ -622,7 +622,7 @@ describe("createTaskChildPlanner reviewer category routing", () => {
     expect(resolved.plan.model).toBe("openai/gpt-6-astra")
     expect(resolved.plan.variant).toBe("high")
     expect(resolved.plan.fallback_models?.map((record) => record.display)).toContain("anthropic/claude-opus-5")
-    expect(resolved.plan.instructions).toBe(BUILTIN_AGENTS["omo-senpi-gate-reviewer"]?.prompt)
+    expect(resolved.plan.instructions).toBe(BUILTIN_AGENTS["omo-native-gate-reviewer"]?.prompt)
     expect(resolved.plan.agentExecutionMode).toBe("in-process")
   })
 
@@ -639,7 +639,7 @@ describe("createTaskChildPlanner reviewer category routing", () => {
       prompt: "Review the gate.",
       parent_session_id: "parent-1",
       depth: 0,
-      subagent_type: "omo-senpi-gate-reviewer",
+      subagent_type: "omo-native-gate-reviewer",
     })
 
     // then
