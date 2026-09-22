@@ -6,7 +6,7 @@ import { resolveModelProfile } from "./resolve"
 
 const FABLE = "anthropic/claude-fable-5-1"
 const FABLE_API = "anthropic-api/claude-fable-5-1"
-const OPUS = "anthropic/claude-opus-5"
+const OPUS = "anthropic/claude-opus-5-5"
 const KIMI = "moonshotai/kimi-k3"
 const FLASH = "deepseek/deepseek-v4-flash"
 const LUNA = "openai/gpt-5.6-luna-fast"
@@ -43,7 +43,7 @@ describe("resolveModelProfile", () => {
       kind: "resolved",
       profile: { id: OPUS, displayName: OPUS, source: "pin" },
       provider: "anthropic",
-      modelId: "claude-opus-5",
+      modelId: "claude-opus-5-5",
       skipped: [],
     })
   })
@@ -104,7 +104,7 @@ describe("resolveModelProfile", () => {
       availableModels: [OPUS],
     })
 
-    expect(result).toMatchObject({ kind: "resolved", provider: "anthropic", modelId: "claude-opus-5", reasoning: "high" })
+    expect(result).toMatchObject({ kind: "resolved", provider: "anthropic", modelId: "claude-opus-5-5", reasoning: "high" })
   })
 
   it("reports an empty registry as unavailable and lists the chain", () => {

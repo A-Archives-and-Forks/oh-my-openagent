@@ -606,7 +606,7 @@ describe("createTaskChildPlanner reviewer category routing", () => {
     const planner = createTaskChildPlanner(
       {},
       BUILTIN_AGENTS,
-      () => registry([model("openai", "gpt-6-astra"), model("anthropic", "claude-opus-5")]),
+      () => registry([model("openai", "gpt-6-astra"), model("anthropic", "claude-opus-5-5")]),
     )
 
     // when
@@ -621,7 +621,7 @@ describe("createTaskChildPlanner reviewer category routing", () => {
     const resolved = expectResolved(result)
     expect(resolved.plan.model).toBe("openai/gpt-6-astra")
     expect(resolved.plan.variant).toBe("high")
-    expect(resolved.plan.fallback_models?.map((record) => record.display)).toContain("anthropic/claude-opus-5")
+    expect(resolved.plan.fallback_models?.map((record) => record.display)).toContain("anthropic/claude-opus-5-5")
     expect(resolved.plan.instructions).toBe(BUILTIN_AGENTS["omo-native-gate-reviewer"]?.prompt)
     expect(resolved.plan.agentExecutionMode).toBe("in-process")
   })
@@ -631,7 +631,7 @@ describe("createTaskChildPlanner reviewer category routing", () => {
     const planner = createTaskChildPlanner(
       {},
       BUILTIN_AGENTS,
-      () => registry([model("anthropic", "claude-opus-5")]),
+      () => registry([model("anthropic", "claude-opus-5-5")]),
     )
 
     // when
@@ -644,8 +644,8 @@ describe("createTaskChildPlanner reviewer category routing", () => {
 
     // then
     const resolved = expectResolved(result)
-    expect(resolved.plan.model).toBe("anthropic/claude-opus-5")
-    expect(resolved.plan.variant).toBe("xhigh")
+    expect(resolved.plan.model).toBe("anthropic/claude-opus-5-5")
+    expect(resolved.plan.variant).toBe("max")
   })
 })
 
@@ -660,7 +660,7 @@ describe("createTaskChildPlanner parent independence", () => {
       BUILTIN_AGENTS,
       () => registry([
         model("anthropic", "claude-fable-5-1"),
-        model("anthropic", "claude-opus-5"),
+        model("anthropic", "claude-opus-5-5"),
         model("openai", "gpt-5.6-luna-fast"),
       ]),
     )
@@ -683,7 +683,7 @@ describe("createTaskChildPlanner parent independence", () => {
 
     // then
     expect(fableParent.plan.model).toBe("anthropic/claude-fable-5-1")
-    expect(highParent.plan.model).toBe("anthropic/claude-opus-5")
+    expect(highParent.plan.model).toBe("anthropic/claude-opus-5-5")
     expect(childUnderFableParent.plan.model).toBe("openai/gpt-5.6-luna-fast")
     expect(childUnderHighParent.plan.model).toBe(childUnderFableParent.plan.model)
     expect(childUnderFableParent.plan.category).toBeUndefined()
@@ -697,7 +697,7 @@ describe("createTaskChildPlanner parent independence", () => {
       BUILTIN_AGENTS,
       () => registry([
         model("anthropic", "claude-fable-5-1"),
-        model("anthropic", "claude-opus-5"),
+        model("anthropic", "claude-opus-5-5"),
       ]),
     )
     const child = {
@@ -714,7 +714,7 @@ describe("createTaskChildPlanner parent independence", () => {
     const childUnderHighParent = expectResolved(planner(child))
 
     // then
-    expect(childUnderFableParent.plan.model).toBe("anthropic/claude-opus-5")
+    expect(childUnderFableParent.plan.model).toBe("anthropic/claude-opus-5-5")
     expect(childUnderHighParent.plan.model).toBe(childUnderFableParent.plan.model)
     expect(childUnderFableParent.plan.category).toBe("unspecified-high")
   })

@@ -77,7 +77,7 @@ describe("BUILTIN_MODEL_PROFILES", () => {
   it("orders the capable chain fable -> opus -> kimi -> glm", () => {
     expect(BUILTIN_MODEL_PROFILES["capable"]?.models.map((rung) => rung.model)).toEqual([
       "claude-fable-5-1",
-      "claude-opus-5",
+      "claude-opus-5-5",
       "kimi-k3",
       "glm-5.3",
     ])
