@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from "bun:test"
 import * as configManager from "./config-manager"
 import * as astGrepInstall from "./install-ast-grep-sg"
-import * as senpiInstaller from "./install-senpi"
+import * as nativeDevInstaller from "./install-native-dev"
 import { runCliInstaller } from "./cli-installer"
-import { SENPI_EDITION_GUIDE_URL, SENPI_EDITION_INSTALL_COMMAND } from "./senpi-edition-hint"
+import { NATIVE_EDITION_GUIDE_URL, NATIVE_EDITION_INSTALL_COMMAND } from "./native-edition-hint"
 import type { InstallArgs } from "./types"
 
 const OPENCODE_ARGS: InstallArgs = {
@@ -44,7 +44,7 @@ function stubOpenCodeInstall(): void {
   spyOn(configManager, "writeOmoConfig").mockReturnValue({ success: true, configPath: "/tmp/omo.jsonc" })
 }
 
-describe("runCliInstaller Senpi edition hint", () => {
+describe("runCliInstaller OmO Native hint", () => {
   const mockConsoleLog = mock(() => {})
   const originalConsoleLog = console.log
 
@@ -63,7 +63,7 @@ describe("runCliInstaller Senpi edition hint", () => {
     return mockConsoleLog.mock.calls.map((call) => call.join(" ")).join("\n")
   }
 
-  it("points an OpenCode-edition install at the standalone Senpi edition with the guide link", async () => {
+  it("points an OpenCode-edition install at OmO Native with the guide link", async () => {
     // given
     stubOpenCodeInstall()
 
@@ -73,27 +73,27 @@ describe("runCliInstaller Senpi edition hint", () => {
     // then
     expect(result).toBe(0)
     const output = printedOutput()
-    expect(output).toContain(SENPI_EDITION_INSTALL_COMMAND)
-    expect(output).toContain(SENPI_EDITION_GUIDE_URL)
+    expect(output).toContain(NATIVE_EDITION_INSTALL_COMMAND)
+    expect(output).toContain(NATIVE_EDITION_GUIDE_URL)
   })
 
-  it("stays silent about the Senpi edition when the install target is senpi itself", async () => {
+  it("stays silent about OmO Native when the install target is the native development adapter", async () => {
     // given
-    spyOn(senpiInstaller, "runSenpiInstaller").mockResolvedValue({
+    spyOn(nativeDevInstaller, "runNativeDevInstaller").mockResolvedValue({
       ok: true,
       action: "install",
-      agentDir: "/tmp/senpi-agent",
-      settingsPath: "/tmp/senpi-agent/settings.json",
+      agentDir: "/tmp/omo-agent",
+      settingsPath: "/tmp/omo-agent/settings.json",
       pluginPath: "/tmp/repo/packages/omo-senpi/plugin",
       changed: true,
-      backupPath: "/tmp/senpi-agent/settings.json.20260921T000000000Z.backup",
+      backupPath: "/tmp/omo-agent/settings.json.20260921T000000000Z.backup",
     })
 
     // when
-    const result = await runCliInstaller({ tui: false, platform: "senpi" }, "3.4.0")
+    const result = await runCliInstaller({ tui: false, platform: "native-dev" }, "3.4.0")
 
     // then
     expect(result).toBe(0)
-    expect(printedOutput()).not.toContain(SENPI_EDITION_INSTALL_COMMAND)
+    expect(printedOutput()).not.toContain(NATIVE_EDITION_INSTALL_COMMAND)
   })
 })

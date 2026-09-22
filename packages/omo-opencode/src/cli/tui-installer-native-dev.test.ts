@@ -3,7 +3,7 @@ import * as p from "@clack/prompts"
 
 import * as configManager from "./config-manager"
 import * as astGrepInstall from "./install-ast-grep-sg"
-import * as senpiInstaller from "./install-senpi"
+import * as nativeDevInstaller from "./install-native-dev"
 import * as tuiInstallPrompts from "./tui-install-prompts"
 import { runTuiInstaller } from "./tui-installer"
 
@@ -19,7 +19,7 @@ function createMockSpinner(): ReturnType<typeof p.spinner> {
   }
 }
 
-describe("runTuiInstaller Senpi platform", () => {
+describe("runTuiInstaller native-dev platform", () => {
   const originalIsStdinTty = process.stdin.isTTY
   const originalIsStdoutTty = process.stdout.isTTY
 
@@ -35,7 +35,7 @@ describe("runTuiInstaller Senpi platform", () => {
     mock.restore()
   })
 
-  it("executes Senpi adapter install when platform is senpi", async () => {
+  it("executes the native development adapter install when platform is native-dev", async () => {
     // given
     spyOn(p, "spinner").mockReturnValue(createMockSpinner())
     spyOn(p, "intro").mockImplementation(() => undefined)
@@ -46,9 +46,9 @@ describe("runTuiInstaller Senpi platform", () => {
     spyOn(p, "note").mockImplementation(() => undefined)
     spyOn(p, "confirm").mockResolvedValue(false)
     spyOn(p, "outro").mockImplementation(() => undefined)
-    spyOn(tuiInstallPrompts, "promptInstallPlatform").mockResolvedValue("senpi")
+    spyOn(tuiInstallPrompts, "promptInstallPlatform").mockResolvedValue("native-dev")
     spyOn(tuiInstallPrompts, "promptInstallConfig").mockResolvedValue({
-      platform: "senpi",
+      platform: "native-dev",
       hasOpenCode: false,
       hasClaude: false,
       isMax20: false,
@@ -56,7 +56,7 @@ describe("runTuiInstaller Senpi platform", () => {
       hasGemini: false,
       hasCopilot: false,
       hasCodex: false,
-      hasSenpi: true,
+      hasNativeDev: true,
       hasOpencodeZen: false,
       hasZaiCodingPlan: false,
       hasKimiForCoding: false,
@@ -69,21 +69,21 @@ describe("runTuiInstaller Senpi platform", () => {
     })
     const detectConfigSpy = spyOn(configManager, "detectCurrentConfig")
     const addPluginSpy = spyOn(configManager, "addPluginToOpenCodeConfig")
-    const senpiSpy = spyOn(senpiInstaller, "runSenpiInstaller").mockResolvedValue({
-      agentDir: "/tmp/senpi-agent",
-      settingsPath: "/tmp/senpi-agent/settings.json",
+    const nativeDevSpy = spyOn(nativeDevInstaller, "runNativeDevInstaller").mockResolvedValue({
+      agentDir: "/tmp/omo-agent",
+      settingsPath: "/tmp/omo-agent/settings.json",
       pluginPath: "/tmp/repo/packages/omo-senpi/plugin",
       changed: true,
-      backupPath: "/tmp/senpi-agent/settings.json.20260703T000000000Z.backup",
+      backupPath: "/tmp/omo-agent/settings.json.20260703T000000000Z.backup",
     })
 
     // when
-    const result = await runTuiInstaller({ tui: true, platform: "senpi" }, "3.16.0")
+    const result = await runTuiInstaller({ tui: true, platform: "native-dev" }, "3.16.0")
 
     // then
     expect(result).toBe(0)
     expect(detectConfigSpy).not.toHaveBeenCalled()
     expect(addPluginSpy).not.toHaveBeenCalled()
-    expect(senpiSpy).toHaveBeenCalledTimes(1)
+    expect(nativeDevSpy).toHaveBeenCalledTimes(1)
   })
 })
