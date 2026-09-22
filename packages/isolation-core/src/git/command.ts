@@ -34,8 +34,12 @@ export interface GitOptions {
 // tree goes down together. win32 has no process groups: the alias shell and
 // its writers survive a direct kill, keep the drained pipes open and hold
 // their working directory, so the whole spawned tree is terminated instead.
+// No dead-child guard: the survivors can outlive their leader (a killed git
+// leaves alias shells behind), and they are exactly what must die. POSIX group
+// kill still reaches them; the win32 taskkill shot only lands while the
+// leader lives, so the drain grace in runGit covers the rest.
 function killTree(child: ChildProcess): void {
-  if (child.pid === undefined || child.exitCode !== null || child.signalCode !== null) return
+  if (child.pid === undefined) return
   if (process.platform !== "win32") {
     // POSIX: the child leads its own process group; a group that already died
     // leaves nothing worth killing, so the ESRCH fall-through is a plain kill.
@@ -85,7 +89,14 @@ export async function runGit(args: string[], options: GitOptions): Promise<{ cod
     })
     stream.on("error", reject)
     stream.on("end", () => resolve(Buffer.concat(chunks)))
+    // A force-close after a failing exit drains nothing more; settle with
+    // what was kept instead of dangling past the run's own failure.
+    stream.once("close", () => resolve(Buffer.concat(chunks)))
   })
+  // How long the pipes may take to close on their own after the child died
+  // failing; a normal drain closes them in milliseconds, so this only fires
+  // when survivors hold the handles.
+  const PIPE_DRAIN_GRACE_MS = 1_000
   const exited = new Promise<number>((resolve, reject) => {
     // Node reports a missing executable through the async "error" event, so the
     // spawn try/catch above cannot see it; classify it here.
@@ -93,7 +104,26 @@ export async function runGit(args: string[], options: GitOptions): Promise<{ cod
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return reject(new IsolationUnavailableError("git not on PATH"))
       reject(error)
     })
+    // "close" waits for every stdio pipe to close, and git's "!" alias shells
+    // inherit them. When git itself dies first — a kill of git alone (win32
+    // TerminateProcess has no tree semantics) leaves those survivors alive and
+    // holding the handles — "close" stays pending for as long as they live and
+    // the run hangs past its own child's death. A dead git has already failed
+    // on a signal death or a disallowed code, so settle at "exit": kill what
+    // still runs of the tree, and force-close the pipes if they have not
+    // drained by the end of the grace.
+    let drainGrace: ReturnType<typeof setTimeout> | undefined
+    child.once("exit", (code, signal) => {
+      if (signal === null && (options.allowedExitCodes ?? [0]).includes(code ?? 0)) return
+      killTree(child)
+      drainGrace = setTimeout(() => {
+        child.stdin?.destroy()
+        child.stdout?.destroy()
+        child.stderr?.destroy()
+      }, PIPE_DRAIN_GRACE_MS)
+    })
     child.once("close", (code, signal) => {
+      clearTimeout(drainGrace)
       // A signal death leaves exitCode null; "null ?? 0" would report success
       // for a killed git and its partial output.
       if (signal !== null) return reject(new GitCommandError(args, options.cwd, 128, `git terminated by signal ${signal}`))

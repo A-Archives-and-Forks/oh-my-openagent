@@ -108,3 +108,31 @@ forbids (`"`, control characters) stay on filesystems that permit them; the
 nested-repository fixture pins `core.autocrlf=false` like the shared `repo()`
 fixture; and the signal-death test accepts win32's non-zero-exit form of a
 forced kill. No test is skipped without an explicit platform reason.
+
+## A dead git settles its run without waiting out pipe-holding survivors
+
+`runGit` keyed its whole settle on the child `close` event, which Node emits
+only after every stdio pipe closes — and git's `!` alias shells inherit those
+pipes. When git itself died first, the run stayed pending until the last
+survivor exited. The windows-latest flake (#8663) is the kill race: win32
+`process.kill(pid, "SIGKILL")` is TerminateProcess with no tree semantics,
+git.exe → sh.exe → sleep.exe startup is slow enough under load for the alias
+shell to exist when the kill lands, and the surviving shell then held all
+three handles (pinning `close` for the alias's full lifetime) and its working
+directory (surfacing as EBUSY on fixture teardown). POSIX kills land before
+git ever spawns the shell, so only win32 surfaced it.
+
+A child that exits to a signal death or a disallowed code has already failed,
+so the run now settles at `exit`: killTree runs immediately — and no longer
+refuses to act once the direct child exited, letting the POSIX group kill
+reach survivors after their leader died — and if the pipes have not closed by
+the end of a one-second drain grace they are force-closed, with the streams'
+collectors settling on what was kept. Normal runs are untouched (`close`
+follows `exit` in milliseconds for them); win32, where taskkill cannot
+enumerate a dead pid's tree at all, is exactly the case the grace covers.
+The kill fixture bounds its alias at five seconds so an orphan tail stays
+inside the fixture teardown's new EBUSY retry window (`rm` with
+`maxRetries`/`retryDelay`, the #8610 family), and the test file pins the
+contract with a deterministic survivor: a child that exits failing while an
+alias-shell survivor holds its pipes must settle promptly, not wait the
+survivor out.
