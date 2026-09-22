@@ -6,7 +6,7 @@ packages/omo-opencode/src/config-migration/harness-native-rename.test.ts:
 
 # Unhandled error between tests
 -------------------------------
-error: Cannot find module './harness-native-rename' from '/Users/yeongyu/.worktrees/omo-8620/packages/omo-opencode/src/config-migration/harness-native-rename.test.ts'
+error: Cannot find module './harness-native-rename' from '<repo>/packages/omo-opencode/src/config-migration/harness-native-rename.test.ts'
 -------------------------------
 
 

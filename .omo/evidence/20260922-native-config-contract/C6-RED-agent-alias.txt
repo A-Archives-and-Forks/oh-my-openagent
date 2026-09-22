@@ -4,7 +4,7 @@ packages/senpi-task/src/agents/builtin/legacy-agent-names.test.ts:
 
 # Unhandled error between tests
 -------------------------------
-error: Cannot find module './legacy-agent-names' from '/Users/yeongyu/.worktrees/omo-8620/packages/senpi-task/src/agents/builtin/legacy-agent-names.test.ts'
+error: Cannot find module './legacy-agent-names' from '<repo>/packages/senpi-task/src/agents/builtin/legacy-agent-names.test.ts'
 -------------------------------
 
 
