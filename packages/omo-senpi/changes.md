@@ -1,3 +1,22 @@
+## The live background row no longer claims "running" before a real turn lands
+
+`status-row-format.ts` kept a second copy of the status-line grammar in `liveStatsTokens` and
+defaulted the activity string to `"running"`, so a freshly spawned child with zero stats - or one
+whose provider attempts had all failed - read `turn 0 · running` (or worse, `turn 4 · $0.0000 ·
+running`, failures counted as turns by the old run stats). The row now draws its stats tokens from
+the shared `buildLiveStatsTokens` builder and derives the fallback verb through
+`selectLiveActivityVerb`: `starting` before anything lands, `retrying` once failures prove the
+child is alive, `running` only after a successful turn, and `running <tool>` unchanged while a
+tool executes. A child with no stats at all keeps the legacy `running` fallback: it is alive,
+its turn facts are just unknown to the renderer. `task-rpc-codec.ts` carries `failed_turns`
+through the live-progress snapshot so RPC and DAG consumers read the same facts as the TUI.
+The QA stats renderer (`scripts/qa/task-stats-renderer.mjs`) was repaired alongside: it now warms
+the lazy pi-tui boundary before rendering (it crashed at HEAD since the lazy boundary landed),
+renders every scenario when invoked bare instead of demanding an argument, pins the current
+completed-row grammars (the foreground row lost its `tps` token and the team notice moved to
+space-separated fields since the script was written), and adds a `failed` scenario pinning the
+failed-only row. omo#8627.
+
 ## The reflection child uses the agent directory its parent engine resolved
 
 The reflection sandbox granted an agent directory the adapter re-derived through `resolveAgentHome`:

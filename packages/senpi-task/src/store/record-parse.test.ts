@@ -3,14 +3,7 @@ import { describe, expect, test } from "bun:test"
 import type { TaskRecord, TaskRunStats } from "../state"
 import { parseTaskRecord } from "./record-parse"
 
-// Enable this flag to capture RED test output before implementation
-const CAPTURE_RED = process.env.CAPTURE_RED === "1"
-
 function persisted(fields: Record<string, unknown>): Record<string, unknown> {
-  // Mark with CAPTURE_RED if you want to see which tests currently fail (RED)
-  if (CAPTURE_RED) {
-    // Placeholder for debugging
-  }
   return {
     task_id: "st_1a2b3c4d",
     status: "completed",
@@ -135,6 +128,48 @@ describe("record-parse run_stats token totals", () => {
 
     // then
     expect(record.run_stats).toEqual(runStats)
+  })
+
+  // A failed turn is recorded as `failed_turns`, never as a `turn`. The parser has to READ it back:
+  // dropping it silently turns every persisted failure count into zero on the next read, so
+  // task_output and the completion notification lose the only evidence that attempts were made.
+  test("#given a persisted run_stats carrying failed_turns #when parsed #then the failure count round-trips", () => {
+    // given
+    const runStats: TaskRunStats = {
+      runtime_ms: 61_062,
+      turns: 0,
+      failed_turns: 6,
+      tool_calls: 0,
+      token_status: "unavailable",
+      cost_status: "unavailable",
+      duration_status: "monotonic",
+    }
+
+    // when
+    const record = parseTaskRecord(persisted({ run_stats: runStats }), "record.json")
+
+    // then
+    expect(record.run_stats?.failed_turns).toBe(6)
+    expect(record.run_stats).toEqual(runStats)
+  })
+
+  test("#given a persisted run_stats without failed_turns #when parsed #then the field stays undefined", () => {
+    // given
+    const legacy = persisted({ run_stats: { runtime_ms: 5_000, turns: 2, tool_calls: 3 } })
+
+    // when
+    const record = parseTaskRecord(legacy, "record.json")
+
+    // then
+    expect(record.run_stats?.failed_turns).toBeUndefined()
+  })
+
+  test("#given a run_stats carrying a non-numeric failed_turns #when parsed #then the record is rejected", () => {
+    // given
+    const rogue = persisted({ run_stats: { runtime_ms: 1, turns: 1, tool_calls: 0, failed_turns: "many" } })
+
+    // when / then
+    expect(() => parseTaskRecord(rogue, "record.json")).toThrow()
   })
 
   test("#given a run_stats carrying an unknown token_status #when parsed #then the record is rejected", () => {

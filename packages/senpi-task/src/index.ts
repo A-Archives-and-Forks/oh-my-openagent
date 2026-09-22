@@ -75,6 +75,7 @@ export type {
   TaskRecordStore,
 } from "./store"
 export {
+  buildLiveStatsTokens,
   composeStatusLine,
   formatLiveSpend,
   formatRunSpend,
@@ -84,12 +85,13 @@ export {
   taskIdentityLabel,
   toolCountSuffix,
 } from "./status-line"
-export type { StatusLineInput, StatusLineStats, StatusTargetInput, TaskIdentityInput } from "./status-line"
+export type { LiveStatsTokens, StatusLineInput, StatusLineStats, StatusTargetInput, TaskIdentityInput } from "./status-line"
 export { TASK_SUMMARY_MAX_LENGTH, clampTaskSummary } from "./task-summary"
 export {
   assistantLastLine,
   createChildProgress,
   formatToolActivity,
+  selectLiveActivityVerb,
   type ToolProgressDetails,
 } from "./progress"
 export { createMinimalSenpiResourceLoader } from "./senpi/minimal-resource-loader"

@@ -1,3 +1,41 @@
+## The persisted run stats keep their failure count
+
+`store/run-stats-parse.ts` parses the persisted `run_stats` block field by field, and it had no
+branch for `failed_turns` - so the counter survived only in memory. Every read back from disk
+(`task_output` on a terminal child, the completion notification's details, a reconciled record)
+silently dropped it, leaving a record that claims zero turns and offers no evidence that any
+attempt was ever made. The parser now reads it with the same absent-tolerant, type-strict rule as
+the other optional stats: a record written before the field shipped still loads, and a present
+value of the wrong shape rejects the record instead of being discarded. omo#8627.
+
+## A live row reads "starting" until a real turn lands
+
+`status-line.ts` emitted `turn N` whenever stats existed, so the row the user complained about
+read `turn 4 · $0.0000 · running` while six provider attempts had failed and nothing had run. The
+stats tokens now come from ONE shared `buildLiveStatsTokens`: a run with no successful turn and no
+tool call renders no turn token at all, failed attempts render as their own `failed N` counter,
+and spend still follows reported cost - which a failed-only run never carries, while a successful
+zero-cost turn keeps rendering `$0.0000`. `progress.ts` selects the verb the same way:
+`running <tool>` while a tool executes, `starting` before anything has landed, `retrying` once a
+failure proved the child is alive, and plain `running` only after a successful turn.
+`ToolProgressDetails` carries `failedTurns` (round-tripped through `readToolProgressDetails`,
+which still accepts records omitting it, and emitted as `failed_turns` by the RPC codec) so DAG
+and RPC consumers read the same facts. omo#8627.
+
+## A failed assistant turn is no longer a turn
+
+`run-stats.ts` counted every assistant `message_end` as a turn and folded in whatever usage it
+claimed, so a provider error produced a run with `turns: 6` and `cost_status: "reported"` even
+though nothing executed - the measured payload was an all-zero usage block with a zeroed cost
+breakdown. A turn is now a SUCCESSFUL assistant turn only: `stopReason` neither `error` nor
+`aborted`, the same predicate the transcript log and the runner outcome mapping already apply.
+A failed turn contributes nothing to tokens, cost, usage coverage or generation time; it only
+increments a new `failed_turns` counter on `TaskRunStats` (emitted when greater than zero) and
+re-anchors the generation window, so a failure's wall time never inflates the next successful
+turn's `generation_ms`. A run with no successful turn reports `token_status`/`cost_status`
+`unavailable` and omits `cost_usd`, while a successful turn reporting a genuine zero cost still
+yields `cost_status: "reported"` with `cost_usd: 0`. omo#8627.
+
 ## The fake host rebinds a fresh pipe when it restarts
 
 `fake-host-transport.ts` derives the win32 named pipe from the logical socket path plus a random
