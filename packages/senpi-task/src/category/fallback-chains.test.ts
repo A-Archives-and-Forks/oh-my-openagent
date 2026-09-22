@@ -66,7 +66,8 @@ describe("CATEGORY_FALLBACK_CHAINS", () => {
         { providers: ["claude-sdk-oauth", "anthropic", "anthropic-api", "github-copilot"], model: "claude-haiku-4-5", variant: "off" }
       ],
       "unspecified-low": [
-        { providers: ["xai", "github-copilot", "opencode"], model: "grok-4.6", variant: "xhigh" },
+        { providers: ["xiaomi", "opencode-go"], model: "mimo-v2.6-pro", variant: "max" },
+        { providers: ["xai", "github-copilot", "opencode-go"], model: "grok-4.7", variant: "xhigh" },
         { providers: ["openai-codex", "github-copilot", "opencode"], model: "gpt-5.6-terra", variant: "high" },
         { providers: ["claude-sdk-oauth", "anthropic", "anthropic-api", "github-copilot", "opencode"], model: "claude-sonnet-5", variant: "low" },
         { providers: ["qwen-token-plan", "alibaba-token-plan", "qwen-token-plan-cn", "alibaba-token-plan-cn"], model: "qwen3.8-max-preview", variant: "max" },

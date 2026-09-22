@@ -88,14 +88,14 @@ describe("resolveAgent category stage", () => {
   test("#given categories deep then unspecified-low #when only the low chain head is available #then it resolves at that chain head", () => {
     // given
     const agents = categorizedAgent(["deep", "unspecified-low"])
-    const models = registry([model("xai", "grok-4.6")])
+    const models = registry([model("xiaomi", "mimo-v2.6-pro")])
 
     // when
     const result = expectResolved(resolveAgent("categorized", agents, models))
 
     // then
-    expect(result.model).toBe("xai/grok-4.6")
-    expect(result.resolved_model?.reasoning).toBe("xhigh")
+    expect(result.model).toBe("xiaomi/mimo-v2.6-pro")
+    expect(result.resolved_model?.reasoning).toBe("max")
   })
 
   test("#given a single unspecified-high category #when only its claude-opus-5 rung is available #then the agent runs on it", () => {

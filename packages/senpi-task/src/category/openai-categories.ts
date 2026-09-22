@@ -227,7 +227,7 @@ export const OPENAI_CATEGORIES = [
   },
   {
     name: "unspecified-low",
-    config: { model: "xai/grok-4.6", variant: "xhigh" },
+    config: { model: "xiaomi/mimo-v2.6-pro", variant: "max" },
     description: "Tasks that don't fit other categories, low effort required",
     callerGuidance: UNSPECIFIED_LOW_CATEGORY_CALLER_GUIDANCE,
     promptAppend: UNSPECIFIED_LOW_CATEGORY_PROMPT_APPEND,

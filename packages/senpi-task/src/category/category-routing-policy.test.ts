@@ -18,11 +18,11 @@ describe("Senpi category routing policy", () => {
       visualEngineering: { model: "anthropic/claude-fable-5-1", variant: "max" },
       quick: { model: "openai-codex/gpt-5.6-luna-fast", variant: "low" },
       unspecifiedHigh: { model: "anthropic/claude-opus-5", variant: "xhigh" },
-      unspecifiedLow: { model: "xai/grok-4.6", variant: "xhigh" },
+      unspecifiedLow: { model: "xiaomi/mimo-v2.6-pro", variant: "max" },
     })
   })
 
-  test("unspecified-low fallback chain is grok-4.6 xhigh first and excludes luna", () => {
+  test("unspecified-low fallback chain is mimo-v2.6-pro max first and excludes luna", () => {
     // given / when
     const chain = CATEGORY_FALLBACK_CHAINS["unspecified-low"]
 
@@ -30,8 +30,13 @@ describe("Senpi category routing policy", () => {
     expect(chain.map((entry) => entry.model)).not.toContain("gpt-5.6-luna")
     expect(chain).toEqual([
       {
-        providers: ["xai", "github-copilot", "opencode"],
-        model: "grok-4.6",
+        providers: ["xiaomi", "opencode-go"],
+        model: "mimo-v2.6-pro",
+        variant: "max",
+      },
+      {
+        providers: ["xai", "github-copilot", "opencode-go"],
+        model: "grok-4.7",
         variant: "xhigh",
       },
       {

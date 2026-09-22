@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+**The `unspecified-low` category now runs on MiMo V2.6 Pro first, and its Grok rung moves to Grok 4.7.** ([#8652](https://github.com/code-yeongyu/oh-my-openagent/issues/8652))
+
+`unspecified-low` is where delegated work lands when no specialist category fits and the job is contained. The chain led with Grok 4.6 at `xhigh`; it now leads with MiMo V2.6 Pro at `max`, served by Xiaomi or opencode-go, with Grok 4.7 at `xhigh` right behind it. Grok 4.7 is not served by the opencode provider, so that lane left the rung and opencode-go joined it. The rest of the chain — GPT-5.6 Terra, Claude Sonnet 5, Qwen 3.8 Max Preview, DeepSeek V4 Pro — is unchanged, and MiMo V2.5 Pro stays as the last rung.
+
 **Write your harness block as `[native]` in `omo.json`, and delegate to the `omo-native-*` reviewers.** ([#8620](https://github.com/code-yeongyu/oh-my-openagent/issues/8620))
 
 The standalone edition is branded OmO Native, but the block you write in `omo.json` to override settings for it was spelled `[senpi]`, and the reviewer agents you delegate to by name were `omo-senpi-code-reviewer`, `omo-senpi-qa-executor` and `omo-senpi-gate-reviewer`. Both spellings came from the engine's package name.

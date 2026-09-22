@@ -98,7 +98,8 @@ export const CATEGORY_FALLBACK_CHAINS: Readonly<Record<string, readonly Delegate
     }
   ],
   "unspecified-low": [
-    { providers: ["xai", "github-copilot", "opencode"], model: "grok-4.6", variant: "xhigh" },
+    { providers: ["xiaomi", "opencode-go"], model: "mimo-v2.6-pro", variant: "max" },
+    { providers: ["xai", "github-copilot", "opencode-go"], model: "grok-4.7", variant: "xhigh" },
     {
       providers: ["openai-codex", "github-copilot", "opencode"],
       model: "gpt-5.6-terra",
