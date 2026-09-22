@@ -60,7 +60,7 @@ export const KNOWN_MODELS = Object.freeze({
   vercel: Object.freeze([
     "claude-fable-5", "claude-fable-5-1", "claude-haiku-4-5", "claude-opus-5", "claude-opus-5-5", "claude-sonnet-5", "deepseek-v4-flash",
     "deepseek-v4-pro", "gemini-3.1-pro", "gemini-3.6-flash", "glm-5.2", "gpt-5.6-sol",
-    "gpt-5.6-terra", "gpt-6-astra", "grok-4.6", "kimi-k3", "mimo-v2.5-pro", "minimax-m2.7",
+    "gpt-5.6-terra", "gpt-6-astra", "gpt-6-sol", "grok-4.6", "kimi-k3", "mimo-v2.5-pro", "minimax-m2.7",
     "minimax-m3", "qwen3.6-flash",
   ]),
   xai: Object.freeze(["grok-4.20-0309-non-reasoning", "grok-4.6", "grok-4.7"]),

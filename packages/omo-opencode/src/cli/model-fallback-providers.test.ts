@@ -38,9 +38,17 @@ describe("generateModelConfig provider routes", () => {
       // when the generated model config is resolved
       const result = generateModelConfig(config)
 
-      // then Hephaestus uses the native Sol route
-      expect(result.agents?.hephaestus?.model).toBe("openai/gpt-6-sol")
-      expect(result.agents?.hephaestus?.variant).toBe("medium")
+      // then Hephaestus uses the native Sol route and keeps its predecessor as fallback
+      expect(result.agents?.hephaestus).toEqual({
+        model: "openai/gpt-6-sol",
+        variant: "medium",
+        fallback_models: [
+          {
+            model: "openai/gpt-5.6-sol",
+            variant: "medium",
+          },
+        ],
+      })
     })
 
     test("Hephaestus uses its merged Copilot GPT-6 Sol medium rung", () => {
