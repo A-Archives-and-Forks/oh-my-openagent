@@ -39,7 +39,7 @@ const ENGINE_NAME_ALLOWLIST: readonly { readonly why: string; readonly pattern: 
   { why: "reviewer agent ids (public contract)", pattern: /omo-senpi-[a-z-]+/g },
   { why: "omo.json harness view id", pattern: /\[senpi\]/g },
   { why: "the engine named as the engine", pattern: /senpi engine/gi },
-  { why: "omo doctor edition line", pattern: /engine: ?senpi/gi },
+  { why: "the doctor edition line", pattern: /engine: ?senpi/gi },
   { why: "engine installer export re-exported by install-native-dev", pattern: /runSenpiInstaller/g },
 ]
 
