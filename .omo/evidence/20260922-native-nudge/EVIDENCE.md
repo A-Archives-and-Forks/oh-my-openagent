@@ -101,10 +101,25 @@ no `parentID`, which is the condition the hook requires to fire. The frame also 
 defect concretely: `"type"` is the **second** key, after `"id"`, so the anchored grep could never have
 matched. Teardown verified in the capturing step: 0 opencode processes, 0 sandboxes.
 
-**Still open:** the dialog rendering inside a live TUI. `features/native-edition-nudge/tui.test.ts`
-covers the action semantics — install returns the bun command and writes nothing, later schedules
-+7d without consuming a showing, never records the decision, guide returns the documented URL — but
-no TUI screenshot exists.
+**The command wiring is now driven, not assumed** (`features/native-edition-nudge/register.test.ts`).
+`registerNativeEditionNudgeTui` is invoked with a recording fake API, and the test asserts what a
+user actually reaches: exactly one command is registered, its slash name is `native`, selecting it
+opens a dialog offering all four actions, and choosing one applies the action, clears the dialog and
+emits exactly one toast. The install path is asserted to write **nothing**, which is what stops a
+failed install from silencing the nudge permanently.
+
+**What that does and does not claim.** It proves the descriptor and the select path are correct. It
+does **not** prove OpenCode renders the dialog — `registerNativeEditionNudgeTui` contains no
+rendering logic of its own; it hands a descriptor to `api.command.register` and calls OpenCode's own
+`DialogSelect`. A TUI frame capture would be asserting OpenCode's contract, not this module's, and
+the `opencode-qa` skill explicitly rules that surface out: "Asserting on conversation OUTPUT by
+scraping the frame is FRAGILE and not recommended … tmux for smoke, server/SSE or /tui/* control for
+assertions." The two sanctioned surfaces are both covered here — the event on the wire for the toast
+path, a driven unit for the command path.
+
+**Remaining risk, stated rather than hidden:** if OpenCode changes the shape it expects from
+`command.register` or `DialogSelect`, these tests keep passing while the real palette breaks. That is
+a contract-drift risk shared by every plugin command in this package, not specific to this one.
 
 ## WHAT WAS OMITTED
 
