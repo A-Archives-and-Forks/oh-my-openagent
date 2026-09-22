@@ -134,6 +134,13 @@ export type DagRunRecordV1 = DagJournalCheckpoint & {
   readonly previousLeaseHolderPid?: number
 }
 
+type CachedRunSummary = {
+  readonly ino: number
+  readonly size: number
+  readonly mtimeMs: number
+  readonly summary: DagRunSummary
+}
+
 export type DagRunSummary = {
   readonly runId: DagRunId
   readonly runKey: string
@@ -215,6 +222,40 @@ export function createDagManager(options: DagManagerOptions): DagManager {
   const now = options.now ?? Date.now
   const newRunId = options.newRunId ?? (() => `dag_${randomUUID()}` as DagRunId)
   const settings: DagSettings = { ...DAG_SETTINGS_DEFAULTS, ...options.settings }
+  // list() sits on the DAG widget's 1Hz repaint path AND on the runtime mutation listener that
+  // fires for every checkpoint write, so parsing each checkpoint in the runs directory made one
+  // frame re-read the whole of DAG history: 710 checkpoints / 68MB / 473ms per call on a real
+  // state dir, which starved the TUI writer and froze the screen after resuming a DAG-bearing
+  // session. A summary is a pure projection of the persisted record, and every checkpoint write
+  // lands as a temp+rename (store.ts writeFileAtomic) that allocates a new inode, so a matching
+  // (ino, size, mtimeMs) means byte-identical content. The directory listing stays authoritative -
+  // this caches the parse, never the membership - so a run can never go missing from the list.
+  const summaryCache = new Map<DagRunId, CachedRunSummary>()
+
+  function runSummary(runId: DagRunId): DagRunSummary | undefined {
+    const stats = fs.statSync(store.paths.run(runId), { throwIfNoEntry: false })
+    const cached = summaryCache.get(runId)
+    if (stats !== undefined && cached !== undefined && cached.ino === stats.ino && cached.size === stats.size && cached.mtimeMs === stats.mtimeMs) {
+      return cached.summary
+    }
+    const record = store.readCheckpoint<DagRunRecordV1>(runId)
+    if (record === null) {
+      summaryCache.delete(runId)
+      return undefined
+    }
+    const summary: DagRunSummary = {
+      runId: record.runId,
+      runKey: record.runKey,
+      name: record.name,
+      parentSessionId: record.parentSessionId,
+      status: record.status,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+      counts: countNodes(record.nodes),
+    }
+    if (stats !== undefined) summaryCache.set(runId, { ino: stats.ino, size: stats.size, mtimeMs: stats.mtimeMs, summary })
+    return summary
+  }
 
   function ownedRecord(runId: DagRunId, parentSessionId: string): DagRunRecordV1 {
     const record = store.readCheckpoint<DagRunRecordV1>(runId)
@@ -256,21 +297,16 @@ export function createDagManager(options: DagManagerOptions): DagManager {
     list(parentSessionId, listOptions) {
       const limit = resolveLimit(listOptions?.limit, LIST_DEFAULT_LIMIT, LIST_MAX_LIMIT)
       const summaries: DagRunSummary[] = []
+      const present = new Set<DagRunId>()
       for (const entry of readDagDirectory(store.paths.runs)) {
         if (!entry.isFile() || !entry.name.endsWith(".json")) continue
-        const record = store.readCheckpoint<DagRunRecordV1>(entry.name.slice(0, -5) as DagRunId)
-        if (record === null || record.parentSessionId !== parentSessionId) continue
-        summaries.push({
-          runId: record.runId,
-          runKey: record.runKey,
-          name: record.name,
-          parentSessionId: record.parentSessionId,
-          status: record.status,
-          createdAt: record.createdAt,
-          updatedAt: record.updatedAt,
-          counts: countNodes(record.nodes),
-        })
+        const runId = entry.name.slice(0, -5) as DagRunId
+        present.add(runId)
+        const summary = runSummary(runId)
+        if (summary === undefined || summary.parentSessionId !== parentSessionId) continue
+        summaries.push(summary)
       }
+      for (const runId of summaryCache.keys()) if (!present.has(runId)) summaryCache.delete(runId)
       summaries.sort((a, b) => {
         const byUpdated = Date.parse(b.updatedAt) - Date.parse(a.updatedAt)
         if (byUpdated !== 0) return byUpdated
