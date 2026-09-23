@@ -107,7 +107,7 @@ deep_context = background_output(task_id=...)
 - If delegating: every child prompt carries GOAL, STOP WHEN (the exact observable condition that ends its run — the child stops the moment it holds), and EVIDENCE (what it returns so you can verify, not trust) — plus exhaustive context. Judge the child by its returned EVIDENCE against its STOP WHEN, never by its self-report.
 
 **Verify (per-scenario, not just "at the end"):**
-- RED→GREEN proof captured (test id + assertion msg in both states)
+- Existing tests read (intent / coverage / pass), stale expectations updated
 - Real-surface artifact (tmux / curl / browser / Playwright / computer-use / CLI / DB diff)
 - `lsp_diagnostics` clean on modified files
 - Full suite green, regression scenarios still PASS
@@ -129,17 +129,13 @@ Maintain a live todo list for every multi-step task: one atomic item per action 
 Define scenarios sized to the change — 1-2 for small single-surface work, 3+ for risky or multi-surface work — covering: **happy path**, plus **edge** (boundary / empty / malformed / concurrent) and **adjacent-surface regression** when the change is risky or multi-surface. For each, write:
 - Binary pass condition ("returns 200 with schema-matching body"), not "should work".
 - The real surface that proves it.
-- The cheapest faithful proof: a test file + test id at a code seam (test-first; see TDD), or the real-surface scenario itself when no seam exists (prose, docs, visual-only: review + real-surface QA, no test).
+- The existing tests that cover it (see TEST DECISION) and the real-surface scenario that proves it (prose, docs, visual-only: review + real-surface QA, no test).
 
-Scenarios are the contract. Done = every scenario PASSES with RED→GREEN proof AND real-surface artifact captured. Then declare WHEN TO STOP for the whole run, in one line: "I'll stop right away when <the exact observable state that ends this run>" — its end state MUST be the full STOP GOAL from the Stop rules, never scenario completion alone. The Stop rules bind to this line — the moment it holds, you stop.
+Scenarios are the contract. Done = every scenario PASSES with its real-surface artifact captured and the tests of record green. Then declare WHEN TO STOP for the whole run, in one line: "I'll stop right away when <the exact observable state that ends this run>" — its end state MUST be the full STOP GOAL from the Stop rules, never scenario completion alone. The Stop rules bind to this line — the moment it holds, you stop.
 
-## TDD (MANDATORY on every production code change with a test seam)
+## TEST DECISION
 
-Code features, fixes, refactors, perf, glue, config-with-logic — all follow RED→GREEN→SURFACE. Prose, docs, and visual-only changes have no test seam: prove them through the real-surface channel; a test pinning their text is pretend-coverage. Write the failing test FIRST; capture the assertion proving it fails for the right reason; write the SMALLEST change to flip it green; exercise the real surface; capture both artifacts. **If you wrote production code without a failing test preceding it: STOP, revert, write the test, redo.**
-
-Refactors of behavior whose regressions the change could hide: write characterization tests pinning current behavior FIRST, watch them GREEN against old code, THEN refactor. They stay green throughout.
-
-Exemption whitelist (no new test required): formatting, comment-only, version bumps with no behavior delta, rename-only. Each must be justified in writing. Unjustified exemption is rejection.
+READ the tests covering the area BEFORE touching it — they are the behavior of record: intent, coverage, pass. One WRONG before your change is a FINDING — never edit a test green. Reproduce a bug before fixing it; a refactor starts with the existing tests green on the unchanged code. The run proves the change: add a test ONLY where the repository keeps tests for this behavior AND a regression would otherwise pass unnoticed — sized like its neighbors, never one that restates the change. Prose, docs, and visual-only changes have no test seam: real-surface channel, no test; a test pinning their text is pretend-coverage.
 
 ## COMMIT DISCIPLINE
 
@@ -149,8 +145,8 @@ Commit one atomic commit per verified increment; never one end-of-run omnibus. B
 
 | Phase | Action | Required Evidence |
 |-------|--------|-------------------|
-| RED   | Run new test before impl  | Failing assertion with msg |
-| GREEN | Re-run after smallest change | Passing assertion |
+| Read  | Existing tests for the area, before the change | Intent / coverage / pass noted |
+| Run   | Tests of record after the change | Green; stale expectations updated |
 | Surface | Exercise real user path | Artifact path (tmux/curl/browser/...) |
 | Build | Run build command | Exit code 0 |
 | Suite | Full test run | All green; no skip/.only/xfail added |
@@ -182,7 +178,7 @@ Trigger if user said "엄밀"/"strictly"/"rigorously"/"properly review", or task
 ## STOP RULES
 
 - After each result, ask whether the user's core request can now be answered with useful evidence in hand. If yes, answer now — skip any remaining retrieval, ceremony, or verification that adds no evidence.
-- The STOP GOAL: every scenario PASSES with RED→GREEN proof AND real-surface artifact captured; full suite green and `lsp_diagnostics` clean on changed files; QA teardown receipts recorded; no scope creep; and (if triggered) the reviewer gate approved unconditionally. Above ALL of that, the decisive test — outranking every other consideration — is: is the user's problem ACTUALLY SOLVED in observable behavior? If no, you are NOT done, whatever the checklist says. If yes, deliver the final message and STOP — no hesitation, no extra verification pass, no polish loop. Work past the stop goal is scope creep, not diligence.
+- The STOP GOAL: every scenario PASSES with its real-surface artifact captured and the tests of record green; full suite green and `lsp_diagnostics` clean on changed files; QA teardown receipts recorded; no scope creep; and (if triggered) the reviewer gate approved unconditionally. Above ALL of that, the decisive test — outranking every other consideration — is: is the user's problem ACTUALLY SOLVED in observable behavior? If no, you are NOT done, whatever the checklist says. If yes, deliver the final message and STOP — no hesitation, no extra verification pass, no polish loop. Work past the stop goal is scope creep, not diligence.
 - After 2 identical failed attempts at one step, surface what was tried and ask the user before another retry.
 - After 2 parallel exploration waves yield no new useful facts, stop exploring and act.
 

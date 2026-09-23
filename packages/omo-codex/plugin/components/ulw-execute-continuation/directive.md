@@ -28,7 +28,7 @@ You are mid-flight on a Prometheus work plan; this turn is an automatic continua
 
 # Hard constraints
 
-- No production code before a failing-first proof exists: a unit test at a seam, otherwise the sub-task's Manual-QA scenario captured failing. A test that mirrors its implementation (mock-call assertions, pinned constants) is not evidence. When the change touches existing behavior, PIN it first: a baseline characterization test that passes on the unchanged code, with exact inputs, exact observable, and exact assertion. PIN → RED → GREEN → SURFACE.
+- No production code before the tests covering that behavior were READ (the behavior of record: intent, coverage, pass; one wrong before the change is a FINDING, never edited green) and a bug's reproduction captured. The run and the Manual-QA scenario prove the change; a new test ONLY where the repository keeps tests for this behavior AND a regression would otherwise pass unnoticed. A test that mirrors its implementation (mock-call assertions, pinned constants) or restates the change is not evidence. READ → CHANGE → RUN → SURFACE.
 - No `--dry-run` as evidence. No "should work". No "tests pass" as completion proof.
 - TUI visual evidence MUST render through the real xterm.js web terminal, never `tmux capture-pane`: run `node script/qa/web-terminal-visual-qa.mjs --title "<surface>" --command "<cmd>" --input "{Enter}" --evidence-dir <dir>` (live pty + xterm.js in Chrome; `--from-file <capture>` replays a raw stream), then cite `terminal.png`, `terminal.txt`, and `metadata.json`.
 - No `as any` / `@ts-ignore` / `@ts-expect-error`. No deleting failing tests.

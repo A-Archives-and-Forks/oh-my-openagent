@@ -97,7 +97,7 @@ These are not phases — read them when the situation calls for them:
 <safety>
 1. **Runtime state is the only source of truth.** A hypothesis without an observed value is a guess. Do not fix guesses.
 2. **Every debug artifact is journaled before it is created.** Journal-then-modify, not modify-then-remember-maybe.
-3. **Never ship a fix without a failing-first test.** Red→green transition required, or the fix is unverified.
+3. **Never ship a fix without its reproduction.** The failing case captured BEFORE the fix, the same case passing after it, or the fix is unverified. Where the repository keeps tests for this behavior, that case is the regression test.
 4. **Never declare done on type-check/compile alone.** Types catch declaration bugs. Only running the actual user scenario catches the actual user bug.
 5. **Never ask the user a question that runtime evidence can already answer.** Escalation is for genuine ambiguity.
 6. **Never silently swallow errors while debugging.** If the system swallows errors, that is often the bug itself. Make them loud temporarily; restore at cleanup.
