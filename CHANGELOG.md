@@ -35,6 +35,8 @@ Every request to `claude-opus-5-5` on a subscription login was rejected with `40
 
 **The Capable model profile no longer bills a Claude subscription user through OpenCode Zen.** ([#8704](https://github.com/code-yeongyu/oh-my-openagent/issues/8704)) On a machine logged in to a Claude subscription that also held an OpenCode Zen key, the Capable profile picked the metered `opencode` copy of Claude Fable 5.1, because the profile's Claude rungs never listed the subscription lane. Every Claude rung in the builtin profiles now tries the subscription first, the same order the delegation categories already use.
 
+**`omob` can build an engine version before its workspace packages reach npm.** The development build now uses the dependencies already packed into its local engine tarball instead of asking Bun to resolve their unpublished versions from the registry. Platform-specific optional packages still install normally, and an incomplete bundle fails explicitly rather than fetching a replacement.
+
 **A reasoning effort of `none` is no longer silently raised to `low` on GPT-6 models that support it.** Every model id containing `gpt-6` shared one capability rule, which was written for GPT-6 Astra and therefore mapped `none` onto `low`. GPT-6 Sol and GPT-6 Luna both document `none` as a supported effort, so anyone who configured the cheapest tier on those models was quietly billed and throttled at `low` instead, with the change recorded as `unsupported-by-model-family`. The Astra rule is now matched on its own id and keeps its documented clamp, while the rest of the GPT-6 family accepts `none`. A per-model capability override could not have fixed this, because family effort aliases are applied before capability metadata.
 
 ## [5.0.0-beta.84] - 2026-09-22

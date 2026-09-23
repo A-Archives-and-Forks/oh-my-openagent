@@ -1,3 +1,11 @@
+## 2026-09-23 - omob installs unpublished engine bundles without resolving their workspaces from npm
+
+The development build packed the current engine and then passed that tarball to `bun install`. Bun resolves declared dependencies even when the tarball bundles them, so an engine source version whose sibling packages are not yet published failed with `No version matching` before the binary build.
+
+`script/omob-senpi-install.ts` extracts the packed graph unchanged, verifies that every declared bundle exists, and installs only non-bundled dependencies and platform-specific optionals with lifecycle scripts disabled. The remaining packages are nested alongside the packed dependencies without replacing them, including packages under the same scope. `build-omob.ts` awaits this installation before caching the artifact.
+
+Regression coverage uses real tarballs and real Bun installs against an isolated local registry: unpublished bundled aliases never request registry metadata, required and optional sidecars remain loadable, and a missing bundle fails before any registry request. The original installation and all three regression cases were captured failing before the repair.
+
 ## 2026-09-22 - Claude Opus 5.5 becomes the default Opus at max, and `writing` stops leaving the Claude family (#8684)
 
 Every shipped rung that named `claude-opus-5` now names `claude-opus-5-5`, and the rungs that ran at `xhigh` run at `max`. That covers `CATEGORY_MODEL_REQUIREMENTS` (visual-engineering, artistry, unspecified-high, writing), `AGENT_MODEL_REQUIREMENTS` (sisyphus, oracle, metis, momus), both senpi-task tables (`CATEGORY_FALLBACK_CHAINS`, `AGENT_FALLBACK_CHAINS`), `unspecified-high`'s builtin category config, and the Capable model profile. Opus 5 keeps its catalog row, its prompt variant and its tests; it is a demotion, not a removal.
