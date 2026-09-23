@@ -166,8 +166,8 @@ Override specific categories or curated agents in `omo.json`:
     "plan-reviewer": { "model": "openai/gpt-6-astra", "reasoning": "xhigh" },
 
     // Research agents: cheap and fast is the point
-    "explore": { "model": "openai/gpt-5.6-luna-fast", "reasoning": "low" },
-    "librarian": { "model": "openai/gpt-5.6-luna-fast", "reasoning": "low" }
+    "explore": { "model": "openai/gpt-6-luna-fast", "reasoning": "low" },
+    "librarian": { "model": "openai/gpt-6-luna-fast", "reasoning": "low" }
   },
 
   "categories": {
@@ -187,7 +187,7 @@ Override specific categories or curated agents in `omo.json`:
     "artistry": { "model": "anthropic/claude-fable-5-1", "reasoning": "max" },
 
     // Quick tasks: fast and cheap
-    "quick": { "model": "openai/gpt-5.6-luna-fast", "reasoning": "low" },
+    "quick": { "model": "openai/gpt-6-luna-fast", "reasoning": "low" },
 
     // Low-effort fallback: MiMo V2.6 Pro max
     "unspecified-low": { "model": "xiaomi/mimo-v2.6-pro", "reasoning": "max" },

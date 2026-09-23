@@ -214,8 +214,8 @@ Three builtin profiles ship (`packages/omo-senpi/src/components/model-profile/bu
 | Id | Display name | Chain |
 |----|--------------|-------|
 | `capable` | Capable | `claude-fable-5-1` (max) -> `claude-opus-5-5` (max) -> `kimi-k3` (max) -> `glm-5.3` (max) |
-| `simple-work` | Simple work | `gpt-5.6-luna-fast` (low) -> `deepseek-v4-flash` -> `claude-haiku-4-5` |
-| `deep-work` | Deep work | `gpt-6-astra` (high) -> `gpt-5.6-sol` (medium), the `deep` category chain verbatim |
+| `simple-work` | Simple work | `gpt-6-luna-fast` (low) -> `deepseek-v4-flash` -> `claude-haiku-4-5` |
+| `deep-work` | Deep work | `gpt-6-astra` (high) -> `gpt-6-sol` (medium) -> `gpt-5.6-sol` (medium), the deep lane chains verbatim |
 
 What happens at session start (`packages/omo-senpi/src/components/model-profile/index.ts`, `resolve.ts`):
 

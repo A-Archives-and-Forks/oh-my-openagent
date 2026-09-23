@@ -51,7 +51,7 @@ export const BUILTIN_MODEL_PROFILES: Readonly<Record<string, BuiltinModelProfile
     displayName: "Simple work",
     description: "Fast and cheap for small, well-specified edits - provider lists copied from the explore chain.",
     models: [
-      { providers: ["chatgpt-subscription"], model: "gpt-5.6-luna-fast", variant: "low" },
+      { providers: ["chatgpt-subscription"], model: "gpt-6-luna-fast", variant: "low" },
       { providers: ["deepseek"], model: "deepseek-v4-flash" },
       { providers: ["anthropic", "github-copilot"], model: "claude-haiku-4-5" },
     ],
@@ -67,6 +67,11 @@ export const BUILTIN_MODEL_PROFILES: Readonly<Record<string, BuiltinModelProfile
         providers: ["chatgpt-subscription", "github-copilot", "opencode"],
         model: "gpt-6-astra",
         variant: "high",
+      },
+      {
+        providers: ["chatgpt-subscription", "github-copilot", "opencode"],
+        model: "gpt-6-sol",
+        variant: "medium",
       },
       {
         providers: ["chatgpt-subscription", "github-copilot", "opencode"],
