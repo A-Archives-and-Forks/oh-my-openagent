@@ -205,6 +205,9 @@ function runScenario(name, scenario, args, senpiBin) {
         checks.details_thinking = applied?.details?.reasoning === scenario.expect.thinking
       }
     }
+    if (scenario.expect.label !== undefined) {
+      checks.notice_names_lane = profileNotices[0]?.content.includes(scenario.expect.label) === true
+    }
     if (scenario.expect.thinking !== undefined) {
       checks.engine_thinking = engine.fromCapture === scenario.expect.thinking
     }

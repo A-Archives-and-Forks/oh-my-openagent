@@ -106,9 +106,9 @@ export default function registerModelProfileMockProvider(pi: TaskE2EExtensionAPI
     }
     pi.registerProvider(id, wrapped)
     if (id === "omo-mock") {
-      const requested = new Set((process.env.OMO_PROFILE_QA_PROVIDERS ?? "").split(","))
-      for (const providerId of ["openai", "chatgpt-subscription", "github-copilot"]) {
-        if (!requested.has(providerId)) continue
+      // Every provider id a scenario lists serves the same mock models under that real id.
+      const requested = (process.env.OMO_PROFILE_QA_PROVIDERS ?? "").split(",").filter((id) => id.length > 0)
+      for (const providerId of requested) {
         pi.registerProvider(providerId, {
           ...wrapped,
           name: `${providerId} fixture`,
