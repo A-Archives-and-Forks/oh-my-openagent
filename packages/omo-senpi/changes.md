@@ -1126,3 +1126,12 @@ then `openai`, then other providers serving the non-fast Sol or Astra rung.
 An explicit provider in a user profile remains scoped; it does not silently
 switch to a different provider when unavailable. Real-runtime QA observes the
 engine thinking state and the provider stream input, not only the notice.
+
+## 2026-09-23 — A customized builtin model profile keeps its lane name
+
+A user `model_profiles.<id>` entry for a builtin lane that sets no
+`display_name` now keeps the builtin's name (`Daily · Normal`) instead of
+showing the raw id. The session notice reads `model profile "daily-normal"
+(Daily · Normal) selected …` for a customized lane too. An explicit
+`display_name` still wins. The e2e gains the exact chain the desktop Settings
+editor saves and checks the notice names the lane.

@@ -77,7 +77,7 @@ describe("resolveModelProfile", () => {
 
     expect(result).toEqual({
       kind: "resolved",
-      profile: { id: "daily-normal", displayName: "daily-normal", source: "user", family: "daily", tier: "normal" },
+      profile: { id: "daily-normal", displayName: "Daily · Normal", source: "user", family: "daily", tier: "normal" },
       provider: "deepseek",
       modelId: "deepseek-flash",
       skipped: [],
@@ -329,7 +329,7 @@ describe("builtin chain routing", () => {
 
     expect(result).toEqual({
       kind: "resolved",
-      profile: { id: "geeky-normal", displayName: "geeky-normal", source: "user", family: "geeky", tier: "normal" },
+      profile: { id: "geeky-normal", displayName: "Geeky · Normal", source: "user", family: "geeky", tier: "normal" },
       provider: "openai",
       modelId: "gpt-6-sol",
       reasoning: "high",
