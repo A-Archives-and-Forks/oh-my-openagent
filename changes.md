@@ -1,3 +1,9 @@
+## 2026-09-23 - adopt senpi 2026.9.23-4 for model-only tool text and codex-style exploration groups (#8732)
+
+Every senpi pin moves 2026.9.23-3 -> 2026.9.23-4 (root `package.json` devDependency, `packages/omo-native`, `packages/omo-senpi` peer+dev, `packages/senpi-task`), with `bun.lock`, the `provider-map.json` derivation comment, and the pin assertions in `omo-native` `senpi-pin.test.ts` / `package-shape.test.ts`, `omo-senpi` `package-shape.test.ts` and `senpi-task` `senpi-barrel-host-accessors.test.ts`. `builtinProviders()` is unchanged between the two senpi tags (only openrouter catalog data moved), so the provider map needs no re-derivation.
+
+The engine release carries code-yeongyu/senpi#2062 (model-only `audience: "model"` text parts: read/bash/find/ls/grep/webfetch notices, injected project rules, and nested AGENTS.md directory context stay in model input but no longer render in the TUI), senpi#2045 (consecutive read/grep/find/ls calls render as one codex-style `• Explored` cell), senpi#2046 (hidden diagnostics no longer duplicate the mouse-enabled frame), senpi#2059 (project-rule notices fold into the Explored cell) and senpi#2061 (skill and memory reads keep their own cards).
+
 ## 2026-09-23 - adopt senpi 2026.9.23-3 for the Claude subscription follow-ups (#8700)
 
 Every senpi pin moves 2026.9.23-2 -> 2026.9.23-3 (root `package.json` devDependency, `packages/omo-native`, `packages/omo-senpi` peer+dev, `packages/senpi-task`), with `bun.lock`, the `provider-map.json` derivation comment, and the pin assertions in `omo-native` `senpi-pin.test.ts` / `package-shape.test.ts`, `omo-senpi` `package-shape.test.ts` and `senpi-task` `senpi-barrel-host-accessors.test.ts`. `builtinProviders()` is unchanged between the two senpi tags (only openrouter catalog data moved), so the provider map needs no re-derivation.
