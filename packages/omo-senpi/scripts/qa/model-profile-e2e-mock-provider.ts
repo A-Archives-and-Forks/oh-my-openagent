@@ -50,7 +50,9 @@ function readThinking(source: unknown): string | null {
   return null
 }
 
-function withReasoning(model: MockProvider["models"][number]): MockProvider["models"][number] {
+function withReasoning(
+  model: MockProvider["models"][number],
+): MockProvider["models"][number] & { readonly thinkingLevelMap: typeof THINKING_LEVELS } {
   return {
     ...model,
     reasoning: true,
@@ -58,12 +60,23 @@ function withReasoning(model: MockProvider["models"][number]): MockProvider["mod
   }
 }
 
+// senpi keeps a gpt-6-astra request at its cached reasoning baseline and carries a later effort
+// change as a Responses `configuration_update` item built from this context message.
+function lastConfigurationUpdateEffort(context: unknown): string | null {
+  if (typeof context !== "object" || context === null) return null
+  const messages = Reflect.get(context, "messages")
+  if (!Array.isArray(messages)) return null
+  const update = messages.findLast((message) => Reflect.get(Object(message), "role") === "configurationUpdate")
+  const effort = update === undefined ? null : Reflect.get(Object(update), "effort")
+  return typeof effort === "string" ? effort : null
+}
+
 function appendCapture(record: Record<string, unknown>): void {
   appendFileSync(join(process.cwd(), CAPTURES_FILE), `${JSON.stringify(record)}\n`)
 }
 
 function wrapStreamSimple(providerId: string, original: StreamSimple): StreamSimple {
-  return ((model, context, options) => {
+  return (model, context, options) => {
     appendCapture({
       provider: providerId,
       model: typeof model === "object" && model !== null ? Reflect.get(model, "id") ?? null : null,
@@ -72,11 +85,16 @@ function wrapStreamSimple(providerId: string, original: StreamSimple): StreamSim
         readThinking(context) ??
         readThinking(model) ??
         null,
+      configurationUpdateEffort: lastConfigurationUpdateEffort(context),
+      thinkingSelection:
+        typeof options === "object" && options !== null ? Reflect.get(options, "thinkingSelection") ?? null : null,
+      modelThinkingLevelMap:
+        typeof model === "object" && model !== null ? Reflect.get(model, "thinkingLevelMap") ?? null : null,
       optionKeys: typeof options === "object" && options !== null ? Object.keys(options) : [],
       contextKeys: typeof context === "object" && context !== null ? Object.keys(context) : [],
     })
     return original(model, context, options)
-  }) as StreamSimple
+  }
 }
 
 export default function registerModelProfileMockProvider(pi: TaskE2EExtensionAPI): void {
@@ -87,12 +105,16 @@ export default function registerModelProfileMockProvider(pi: TaskE2EExtensionAPI
       streamSimple: wrapStreamSimple(id, provider.streamSimple.bind(provider)),
     }
     pi.registerProvider(id, wrapped)
-    if (id === "omo-mock" && process.env.OMO_PROFILE_QA_REGISTER_OPENAI === "1") {
-      pi.registerProvider("openai", {
-        ...wrapped,
-        name: "openai fixture",
-        streamSimple: wrapStreamSimple("openai", provider.streamSimple.bind(provider)),
-      })
+    if (id === "omo-mock") {
+      const requested = new Set((process.env.OMO_PROFILE_QA_PROVIDERS ?? "").split(","))
+      for (const providerId of ["openai", "chatgpt-subscription", "github-copilot"]) {
+        if (!requested.has(providerId)) continue
+        pi.registerProvider(providerId, {
+          ...wrapped,
+          name: `${providerId} fixture`,
+          streamSimple: wrapStreamSimple(providerId, provider.streamSimple.bind(provider)),
+        })
+      }
     }
   }
   registerTaskE2eMockProvider(

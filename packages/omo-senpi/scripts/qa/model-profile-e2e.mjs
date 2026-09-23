@@ -20,7 +20,7 @@
 // Isolation: SENPI_CODING_AGENT_DIR + XDG_CONFIG_HOME point at a throwaway sandbox; the real
 // ~/.senpi/agent credential files are digest-compared before/after and MUST stay identical.
 import { spawnSync } from "node:child_process"
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { delimiter, dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -58,162 +58,9 @@ const scriptDir = dirname(fileURLToPath(import.meta.url))
 const packageRoot = resolve(scriptDir, "..", "..")
 const defaultPluginRoot = join(packageRoot, "plugin")
 const mockProviderEntry = join(scriptDir, "model-profile-e2e-mock-provider.ts")
-const STREAM_CAPTURES_FILE = "model-profile-stream-captures.jsonl"
 const realSenpiAgentDir = join(homedir(), ".senpi", "agent")
 
-const APPLIED_TYPE = "omo-model-profile:applied"
-const UNKNOWN_TYPE = "omo-model-profile:unknown"
-const UNAVAILABLE_TYPE = "omo-model-profile:unavailable"
-const PROFILE_TYPES = [APPLIED_TYPE, UNKNOWN_TYPE, UNAVAILABLE_TYPE]
-
-// The mock provider registers under `omo-mock`; a builtin provider id cannot be impersonated
-// (senpi merges the builtin's real baseUrl over the registration), so tier rungs and the literal
-// pin resolve through the same cross-provider matcher a category chain uses. `mock-1` is the model
-// senpi's own resolution picks when nothing is pinned (first-available), so "no model change" is
-// observable as the turn running on `mock-1`. senpi's `recommended-models` builtin auto-switches a
-// first-available session to kimi-k3 / claude-opus-5 / ... whenever one is in the registry, which
-// would mask the profile; the sandbox `settings.json` therefore lists `mock-1` as the recommended
-// model so the builtin stays active but inert, except in the scenario that proves the precedence.
-const KNOWN_LANES = "daily-heavy, daily-normal, geeky-heavy, geeky-normal"
-
-const SCENARIOS = {
-  "daily-normal-opus": {
-    omoConfig: { model_profile: "daily-normal" },
-    mockModels: ["mock-1", "claude-opus-5-5"],
-    cliModel: undefined,
-    expect: { model: "claude-opus-5-5", notice: APPLIED_TYPE, thinking: "medium" },
-  },
-  "daily-heavy-fable": {
-    omoConfig: { model_profile: "daily-heavy" },
-    mockModels: ["mock-1", "claude-fable-5-1"],
-    cliModel: undefined,
-    expect: { model: "claude-fable-5-1", notice: APPLIED_TYPE, thinking: "xhigh" },
-  },
-  "geeky-normal-sol-fast": {
-    omoConfig: { model_profile: "geeky-normal" },
-    mockModels: ["mock-1", "gpt-6-sol-fast"],
-    cliModel: undefined,
-    expect: { model: "gpt-6-sol-fast", notice: APPLIED_TYPE, thinking: "medium" },
-  },
-  "geeky-heavy-astra": {
-    omoConfig: { model_profile: "geeky-heavy" },
-    mockModels: ["mock-1", "gpt-6-astra"],
-    cliModel: undefined,
-    expect: { model: "gpt-6-astra", notice: APPLIED_TYPE, thinking: "xhigh" },
-  },
-  "daily-normal-kimi": {
-    omoConfig: { model_profile: "daily-normal" },
-    mockModels: ["mock-1", "kimi-k3"],
-    cliModel: undefined,
-    expect: { model: "kimi-k3", notice: APPLIED_TYPE, thinking: "max" },
-  },
-  "daily-normal-glm": {
-    omoConfig: { model_profile: "daily-normal" },
-    mockModels: ["mock-1", "glm-5.3"],
-    cliModel: undefined,
-    expect: { model: "glm-5.3", notice: APPLIED_TYPE, thinking: "max" },
-  },
-  "geeky-normal-nonfast-sol-omo-mock": {
-    omoConfig: { model_profile: "geeky-normal" },
-    mockModels: ["mock-1", "gpt-6-sol"],
-    cliModel: undefined,
-    expect: { model: "gpt-6-sol", notice: APPLIED_TYPE, thinking: "medium" },
-  },
-  unset: {
-    omoConfig: {},
-    mockModels: ["mock-1", "kimi-k3"],
-    cliModel: undefined,
-    expect: { model: "kimi-k3", notice: APPLIED_TYPE, thinking: "max" },
-  },
-  "empty-registry": {
-    omoConfig: { model_profile: "daily-normal" },
-    mockModels: ["mock-1"],
-    cliModel: undefined,
-    expect: { model: "mock-1", notice: UNAVAILABLE_TYPE },
-  },
-  "literal-pin": {
-    omoConfig: { model_profile: "anthropic/claude-opus-5" },
-    mockModels: ["mock-1", "claude-opus-5"],
-    cliModel: undefined,
-    expect: { model: "claude-opus-5", notice: APPLIED_TYPE },
-  },
-  "unknown-profile": {
-    omoConfig: { model_profile: "nope" },
-    mockModels: ["mock-1", "kimi-k3"],
-    cliModel: undefined,
-    expect: { model: "mock-1", notice: UNKNOWN_TYPE },
-  },
-  "capable-removed": {
-    omoConfig: { model_profile: "capable" },
-    mockModels: ["mock-1", "kimi-k3"],
-    cliModel: undefined,
-    expect: { model: "mock-1", notice: UNKNOWN_TYPE },
-  },
-  "deep-work-removed": {
-    omoConfig: { model_profile: "deep-work" },
-    mockModels: ["mock-1", "gpt-6-sol"],
-    cliModel: undefined,
-    expect: { model: "mock-1", notice: UNKNOWN_TYPE },
-  },
-  "simple-work-removed": {
-    omoConfig: { model_profile: "simple-work" },
-    mockModels: ["mock-1", "gpt-6-luna-fast"],
-    cliModel: undefined,
-    expect: { model: "mock-1", notice: UNKNOWN_TYPE },
-  },
-  "custom-profile": {
-    omoConfig: {
-      model_profile: "night-shift",
-      model_profiles: { "night-shift": { display_name: "Night shift", models: ["mock-1"] } },
-    },
-    mockModels: ["mock-1", "kimi-k3"],
-    cliModel: undefined,
-    expect: { model: "mock-1", notice: APPLIED_TYPE },
-  },
-  "scoped-custom-openai-missing": {
-    omoConfig: {
-      model_profile: "geeky-normal",
-      model_profiles: {
-        "geeky-normal": {
-          display_name: "Office GPT",
-          models: [{ model: "openai/gpt-6-sol", reasoning: "high" }],
-        },
-      },
-    },
-    mockModels: ["mock-1", "gpt-6-sol", "gpt-6-sol-fast"],
-    cliModel: undefined,
-    expect: { model: "mock-1", notice: UNAVAILABLE_TYPE },
-  },
-  "custom-geeky-openai-reasoning": {
-    omoConfig: {
-      model_profile: "geeky-normal",
-      model_profiles: {
-        "geeky-normal": {
-          display_name: "Office GPT",
-          models: [{ model: "openai/gpt-6-sol", reasoning: "high" }],
-        },
-      },
-    },
-    mockModels: ["mock-1", "gpt-6-sol-fast", "gpt-6-sol"],
-    cliModel: undefined,
-    registerOpenai: true,
-    expect: { model: "gpt-6-sol", provider: "openai", notice: APPLIED_TYPE, thinking: "high" },
-  },
-  "cli-model-wins": {
-    omoConfig: { model_profile: "daily-normal" },
-    mockModels: ["mock-1", "claude-opus-5-5"],
-    cliModel: "mock-1",
-    cliThinking: "low",
-    expect: { model: "mock-1", notice: null, thinking: "low" },
-  },
-  "lane-beats-recommended-models": {
-    omoConfig: { model_profile: "daily-normal" },
-    mockModels: ["mock-1", "glm-5.3", "gpt-5.6-sol"],
-    cliModel: undefined,
-    recommendedModels: undefined,
-    expect: { model: "glm-5.3", notice: APPLIED_TYPE, thinking: "max" },
-  },
-}
+import { APPLIED_TYPE, UNKNOWN_TYPE, UNAVAILABLE_TYPE, PROFILE_TYPES, KNOWN_LANES, SCENARIOS } from "./model-profile-e2e-scenarios.mjs"
 
 function parseArgs(argv) {
   const args = { bundle: defaultPluginRoot, scenarios: Object.keys(SCENARIOS) }
@@ -238,6 +85,22 @@ function findOnPath(bin) {
   return null
 }
 
+// `--thinking` persists the chosen level for the CLI model; that write belongs to senpi, so a
+// CLI scenario allows exactly those two per-model keys and nothing else.
+function onlyCliThinkingPersisted(beforeJson, afterJson, modelKey, level) {
+  if (afterJson === null) return true
+  const before = JSON.parse(beforeJson)
+  const after = JSON.parse(afterJson)
+  const cliKeys = ["modelThinkingLevels", "modelLastOnThinkingLevels"]
+  for (const key of cliKeys) {
+    const value = after[key]
+    if (value === undefined) continue
+    if (JSON.stringify(value) !== JSON.stringify({ [modelKey]: level })) return false
+    delete after[key]
+  }
+  return JSON.stringify(after) === JSON.stringify(before)
+}
+
 function seedScenario(pluginRoot, scenario) {
   const sandbox = createSandbox()
   mkdirSync(sandbox.cwd, { recursive: true })
@@ -245,6 +108,7 @@ function seedScenario(pluginRoot, scenario) {
   mkdirSync(sandbox.xdgConfigHome, { recursive: true })
   const settingsPath = join(sandbox.agentDir, "settings.json")
   const settings = { defaultProjectTrust: "ask", packages: [pluginRoot] }
+  if (scenario.cliThinking !== undefined) settings.defaultThinkingLevel = scenario.cliThinking
   if (!("recommendedModels" in scenario)) settings.recommendedModels = ["mock-1"]
   writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`)
   writeFileSync(join(sandbox.agentDir, "trust.json"), `${JSON.stringify({ [sandbox.canonicalCwd]: true }, null, 2)}\n`)
@@ -262,28 +126,7 @@ function seedScenario(pluginRoot, scenario) {
   return { sandbox, sessionDir, settingsPath }
 }
 
-function readSessionEntries(sessionDir) {
-  const entries = []
-  const walk = (dir) => {
-    if (!existsSync(dir)) return
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const path = join(dir, entry.name)
-      if (entry.isDirectory()) walk(path)
-      else if (entry.isFile() && path.endsWith(".jsonl")) {
-        for (const line of readFileSync(path, "utf8").split("\n")) {
-          if (line.trim().length === 0) continue
-          try {
-            entries.push(JSON.parse(line))
-          } catch {
-            // partial trailing line: ignore
-          }
-        }
-      }
-    }
-  }
-  walk(sessionDir)
-  return entries
-}
+import { readSessionEntries, loadStreamCaptures, observeEngineThinking } from "./model-profile-e2e-observations.mjs"
 
 // An omo/senpi session exports its own runtime locators; a child senpi that inherits them boots
 // against that runtime dir instead of the binary on PATH, so they are dropped from the spawn env.
@@ -292,8 +135,7 @@ const INHERITED_RUNTIME_KEYS = ["SENPI_PACKAGE_DIR", "OMO_PACKAGE_DIR", "OMO_BIN
 function spawnEnv(sandbox, sessionDir, scenario) {
   const env = { ...process.env }
   for (const key of INHERITED_RUNTIME_KEYS) delete env[key]
-  if (scenario.registerOpenai === true) env.OMO_PROFILE_QA_REGISTER_OPENAI = "1"
-  else delete env.OMO_PROFILE_QA_REGISTER_OPENAI
+  env.OMO_PROFILE_QA_PROVIDERS = (scenario.registerProviders ?? []).join(",")
   return {
     ...env,
     SENPI_CODING_AGENT_DIR: sandbox.agentDir,
@@ -305,65 +147,29 @@ function spawnEnv(sandbox, sessionDir, scenario) {
   }
 }
 
-function readThinkingField(source) {
-  if (typeof source !== "object" || source === null) return null
-  for (const key of ["thinkingLevel", "thinking_level", "level", "reasoning"]) {
-    const value = source[key]
-    if (typeof value === "string") return value
-  }
-  return null
-}
-
-function loadStreamCaptures(cwd) {
-  const path = join(cwd, STREAM_CAPTURES_FILE)
-  if (!existsSync(path)) return []
-  return readFileSync(path, "utf8")
-    .split("\n")
-    .filter((line) => line.trim().length > 0)
-    .flatMap((line) => {
-      try {
-        return [JSON.parse(line)]
-      } catch {
-        return []
-      }
-    })
-}
-
-function observeEngineThinking(entries, captures) {
-  const changes = entries.filter((entry) => entry.type === "thinking_level_change")
-  const lastAssistant = entries.filter((entry) => entry.type === "message" && entry.message?.role === "assistant").at(-1)
-  const fromCapture = captures.map((capture) => capture.thinking).find((value) => typeof value === "string" && value.length > 0) ?? null
-  const fromChange = readThinkingField(changes.at(-1)) ?? changes.at(-1)?.thinkingLevel ?? changes.at(-1)?.level ?? null
-  const fromAssistant = lastAssistant?.message?.thinkingLevel ?? lastAssistant?.thinkingLevel ?? null
-  return {
-    observed: fromChange ?? fromCapture ?? fromAssistant ?? null,
-    fromChange,
-    fromCapture,
-    fromAssistant,
-    captures,
-    changeCount: changes.length,
-    entryTypes: [...new Set(entries.map((entry) => entry.type))],
-  }
-}
 
 function runScenario(name, scenario, args, senpiBin) {
   const { sandbox, sessionDir, settingsPath } = seedScenario(args.bundle, scenario)
   const settingsBefore = sha256File(settingsPath)
+  const settingsBeforeJson = readFileSync(settingsPath, "utf8")
   const modelArgs = scenario.cliModel === undefined ? [] : ["--provider", "omo-mock", "--model", scenario.cliModel]
   const thinkingArgs = scenario.cliThinking === undefined ? [] : ["--thinking", scenario.cliThinking]
   try {
-    const run = spawnSync(
-      senpiBin,
-      ["-e", mockProviderEntry, "-p", "--mode", "json", ...modelArgs, ...thinkingArgs, "--session-dir", sessionDir, "run the scripted scenario"],
-      {
+    const spawnSenpi = (extraArgs, prompt) =>
+      spawnSync(senpiBin, ["-e", mockProviderEntry, "-p", "--mode", "json", ...extraArgs, "--session-dir", sessionDir, prompt], {
         cwd: sandbox.cwd,
         env: spawnEnv(sandbox, sessionDir, scenario),
         encoding: "utf8",
         timeout: 120_000,
         maxBuffer: 64 * 1024 * 1024,
-      },
-    )
+      })
+    // A resume scenario first runs a turn on the CLI model, then continues that session with the
+    // lane configured: the continued session must keep its own model and get no profile notice.
+    const runs = [spawnSenpi([...modelArgs, ...thinkingArgs], "run the scripted scenario")]
+    if (scenario.resumeRun === true) runs.push(spawnSenpi(["--continue"], "continue the scripted scenario"))
+    const run = runs.at(-1)
     const settingsAfter = sha256File(settingsPath)
+    const settingsAfterJson = settingsBefore === settingsAfter ? null : readFileSync(settingsPath, "utf8")
     const entries = readSessionEntries(sessionDir)
     const assistantMessages = entries
       .filter((entry) => entry.type === "message" && entry.message?.role === "assistant")
@@ -374,9 +180,12 @@ function runScenario(name, scenario, args, senpiBin) {
     const lastAssistant = assistantMessages.at(-1) ?? null
 
     const checks = {
-      exit_zero: run.status === 0,
+      exit_zero: runs.every((each) => each.status === 0),
       turn_ran: run.stdout.includes("model profile scenario complete"),
-      settings_json_unchanged: scenario.cliThinking === undefined ? settingsBefore === settingsAfter : true,
+      settings_json_unchanged:
+        scenario.cliThinking === undefined
+          ? settingsBefore === settingsAfter
+          : onlyCliThinkingPersisted(settingsBeforeJson, settingsAfterJson, `omo-mock/${scenario.cliModel}`, scenario.cliThinking),
       turn_model: lastAssistant?.model === scenario.expect.model,
       notice:
         scenario.expect.notice === null
@@ -385,6 +194,7 @@ function runScenario(name, scenario, args, senpiBin) {
     }
     const provider = scenario.expect.provider ?? "omo-mock"
     const engine = observeEngineThinking(entries, loadStreamCaptures(sandbox.cwd))
+    checks.stream_model = engine.captures.some((capture) => capture.model === scenario.expect.model)
     if (scenario.expect.notice === APPLIED_TYPE) {
       const applied = profileNotices[0]
       checks.notice_names_model = applied?.content.includes(`selected ${provider}/${scenario.expect.model}`) === true
@@ -396,7 +206,7 @@ function runScenario(name, scenario, args, senpiBin) {
       }
     }
     if (scenario.expect.thinking !== undefined) {
-      checks.engine_thinking = engine.observed === scenario.expect.thinking
+      checks.engine_thinking = engine.fromCapture === scenario.expect.thinking
     }
     if (scenario.expect.thinkingAbsent !== undefined) {
       checks.engine_thinking_not_profile = engine.observed !== scenario.expect.thinkingAbsent
@@ -430,6 +240,10 @@ function runScenario(name, scenario, args, senpiBin) {
       const changes = entries.filter((entry) => entry.type === "model_change").map((entry) => entry.modelId)
       checks.recommended_models_switched_first = changes.indexOf("gpt-5.6-sol") !== -1 && changes.indexOf("gpt-5.6-sol") < changes.lastIndexOf("glm-5.3")
     }
+    if (scenario.resumeRun === true) {
+      checks.resumed_one_session = entries.filter((entry) => entry.type === "session").length === 1
+      checks.resumed_turns = assistantMessages.length === 2 && assistantMessages.every((message) => message.model === scenario.expect.model)
+    }
     if (name === "cli-model-wins") {
       checks.cli_model_kept = lastAssistant?.provider === "omo-mock" && lastAssistant?.model === "mock-1"
     }
@@ -439,6 +253,7 @@ function runScenario(name, scenario, args, senpiBin) {
       result: Object.values(checks).every((value) => value === true) ? "PASS" : "FAIL",
       checks,
       settingsSha256: { before: settingsBefore, after: settingsAfter },
+      settingsAfterJson,
       turnModel: lastAssistant,
       profileNotices,
       engineThinking: engine,
