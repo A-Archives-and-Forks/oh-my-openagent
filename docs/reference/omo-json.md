@@ -224,7 +224,7 @@ profile can replace the candidate order and reasoning. Provider-qualified user
 candidates stay on the named provider; an unavailable one advances only to the
 next user-listed candidate, while a bare model id may match any provider.
 
-What happens at session start (`packages/omo-senpi/src/components/model-profile/index.ts`, `resolve.ts`):
+What happens at session start (`packages/omo-senpi/src/components/model-profile/index.ts`, `resolve.ts`) in OmO Desktop and headless sessions. The interactive TUI does not apply `model_profile` yet; it keeps the model it started with.
 
 - `model_profile` unset: Daily · Normal is applied on a fresh session. The apply is not written back to config.
 - A literal `provider/model`: that exact model is looked up in the live registry and applied.

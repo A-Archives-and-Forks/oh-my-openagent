@@ -392,7 +392,7 @@ Runtime priority:
 
 The same resolved chain drives spawn-time selection and runtime retry fallback, so a recovered task stays on the same category chain.
 
-In the Senpi harness, an explicit `--model`, scoped model or resumed session is preserved. A fresh session otherwise uses `model_profile` as a literal pin or a named chain; unset config selects Daily · Normal. If no candidate is available, a notice explains the unavailable profile and the current model stays. `categories.*` and `agents.*` overrides do not select the main session model, and `model_profile` does not select delegated children. See [Model Profiles](#model-profiles).
+In the Senpi harness, `model_profile` applies to OmO Desktop and headless sessions; the interactive TUI keeps the model it started with. An explicit `--model`, scoped model or resumed session is preserved. A fresh session otherwise uses `model_profile` as a literal pin or a named chain; unset config selects Daily · Normal. If no candidate is available, a notice explains the unavailable profile and the current model stays. `categories.*` and `agents.*` overrides do not select the main session model, and `model_profile` does not select delegated children. See [Model Profiles](#model-profiles).
 
 In the OpenCode plugin, every merged category appears in `availableCategories`; hiding categories with a dead fallback chain is not implemented here. That dead-chain filtering, the `model_unavailable` spawn failure, and the `task.warnings.unavailable_categories` flag belong to the Senpi/core `task` system, documented in the [omo.json reference](./omo-json.md).
 

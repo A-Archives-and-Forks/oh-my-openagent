@@ -10,7 +10,7 @@ The main agent thinks with your session model. The easiest way to choose it is a
 
 | Lane | Id | Pick it for | Chain |
 | --- | --- | --- | --- |
-| Daily · Normal | `daily-normal` | Gets any task done without fuss. Default when `model_profile` is unset. | `anthropic-subscription\|anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5-5 (medium)` -> `kimi-coding\|kimi-for-coding\|moonshotai\|opencode-go/kimi-k3 (max)` -> `zai-coding-plan\|opencode-go/glm-5.3 (max)` |
+| Daily · Normal | `daily-normal` | Gets any task done without fuss. Default when `model_profile` is unset (desktop and headless). | `anthropic-subscription\|anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5-5 (medium)` -> `kimi-coding\|kimi-for-coding\|moonshotai\|opencode-go/kimi-k3 (max)` -> `zai-coding-plan\|opencode-go/glm-5.3 (max)` |
 | Daily · Heavy | `daily-heavy` | Gets any task done, after thinking it over from more sides. | same Claude providers `/claude-fable-5-1 (xhigh)` |
 | Geeky · Normal | `geeky-normal` | Works on one task and thinks it through. | `chatgpt-subscription\|openai/gpt-6-sol-fast (medium)` -> `chatgpt-subscription\|openai\|github-copilot\|opencode/gpt-6-sol (medium)` |
 | Geeky · Heavy | `geeky-heavy` | Works on one task and thinks it over from every side. | `chatgpt-subscription\|openai\|github-copilot\|opencode/gpt-6-astra (xhigh)` |
@@ -229,13 +229,13 @@ Override any category or curated agent in `omo.json`. `model` sets one model; `m
 
 ## How model resolution works
 
-For the main agent, resolution happens once, at session start (`packages/omo-senpi/src/components/model-profile/index.ts`):
+For the main agent, resolution happens once, at session start (`packages/omo-senpi/src/components/model-profile/index.ts`). It runs for OmO Desktop and headless sessions; the interactive TUI has no lane surface yet, so a TUI session keeps the model it started with whatever `model_profile` says.
 
 ```
 1. --model flag or scoped model    -> kept as is; the profile never runs
 2. model_profile = provider/model  -> the pin; that exact model, if the registry serves it
 3. model_profile = <profile id>    -> builtins overlaid with model_profiles; first rung the registry serves
-4. model_profile unset            -> Daily · Normal on a fresh session
+4. model_profile unset            -> Daily · Normal on a fresh desktop/headless session
 5. No profile candidate available  -> notice; retain Senpi's selected model
 ```
 

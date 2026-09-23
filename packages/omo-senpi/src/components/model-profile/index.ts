@@ -91,6 +91,13 @@ function isFreshSessionWithoutExplicitModel(payload: unknown): boolean {
   return provenance !== "cli" && provenance !== "scoped"
 }
 
+// Lanes have no TUI surface yet: the terminal shows neither the lane nor its reasoning, so an
+// interactive TUI session keeps the model the user started with. The desktop (rpc) and headless
+// runs still apply the profile.
+function isTuiSession(eventCtx: unknown): boolean {
+  return isRecord(eventCtx) && eventCtx["mode"] === "tui"
+}
+
 function extractCwd(pi: SenpiExtensionAPI, eventCtx: unknown): string {
   if (pi.cwd !== undefined) return pi.cwd
   if (isRecord(eventCtx) && typeof eventCtx["cwd"] === "string") return eventCtx["cwd"]
@@ -138,7 +145,7 @@ export function createModelProfileComponent(options: ModelProfileComponentOption
       // instance, which is the conservative reading of "never clobber twice".
       const appliedSessions = new Set<string>()
       pi.on("session_start", async (payload, eventCtx) => {
-        if (!isFreshSessionWithoutExplicitModel(payload)) return
+        if (isTuiSession(eventCtx) || !isFreshSessionWithoutExplicitModel(payload)) return
         const sessionId = extractSessionId(eventCtx) ?? ""
         if (appliedSessions.has(sessionId)) return
         appliedSessions.add(sessionId)
