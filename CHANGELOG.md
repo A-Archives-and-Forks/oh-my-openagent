@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+**GPT-6 Sol and GPT-6 Luna are supported models, and Hephaestus now runs on GPT-6 Sol.** Both tiers are registered with their published capabilities: a 1.05M context window, a 128K output limit, text and image input, no temperature, and a reasoning ladder of `none` through `max`. Hephaestus leads with `gpt-6-sol` at medium effort across OpenAI, OpenAI Codex, GitHub Copilot and OpenCode Zen, and keeps its previous `gpt-5.6-sol` medium rung as a fallback, so the agent still resolves on a provider that has not shipped GPT-6 Sol yet. The Fast service-tier ids `gpt-6-sol-fast` and `gpt-6-luna-fast` canonicalize to their base models the same way `gpt-6-astra-fast` already did. GPT-6 Luna is not a default for any agent or category and is available as a manual override.
+
+### Fixed
+
+**A reasoning effort of `none` is no longer silently raised to `low` on GPT-6 models that support it.** Every model id containing `gpt-6` shared one capability rule, which was written for GPT-6 Astra and therefore mapped `none` onto `low`. GPT-6 Sol and GPT-6 Luna both document `none` as a supported effort, so anyone who configured the cheapest tier on those models was quietly billed and throttled at `low` instead, with the change recorded as `unsupported-by-model-family`. The Astra rule is now matched on its own id and keeps its documented clamp, while the rest of the GPT-6 family accepts `none`. A per-model capability override could not have fixed this, because family effort aliases are applied before capability metadata.
+
 ## [5.0.0-beta.84] - 2026-09-22
 
 ### Changed
