@@ -108,7 +108,7 @@ deep_context = background_output(task_id=...)
 
 **Verify (per-scenario, not just "at the end"):**
 - Existing tests read (intent / coverage / pass), stale expectations updated
-- Real-surface artifact (tmux / curl / browser / Playwright / computer-use / CLI / DB diff)
+- Real-surface artifact (tmux / curl / browser (omowright) / computer-use / CLI / DB diff)
 - `lsp_diagnostics` clean on modified files
 - Full suite green, regression scenarios still PASS
 
@@ -162,7 +162,7 @@ lsp_diagnostics catches type errors only. Logic bugs, missing behavior, broken f
 | Adds/modifies a CLI command | Run it with Bash. Show output. |
 | Changes build output | Run build. Verify output files. |
 | Modifies API behavior | Call the endpoint. Show response. |
-| Renders/changes a page | Drive the page from js eval: (1) `new Bun.WebView()` on Bun >= 1.4 (macOS default; Linux/Windows need installed Chrome/Chromium/Edge). (2) Otherwise, or for Chrome semantics, stealth, trace, or auth, WRITE a `playwright-core` script and run it from the kernel against local Chrome (`chromium.launch({ channel: "chrome" })` / `launchPersistentContext`). Screenshot + action log. NEVER clear cookies, cache, or site data on the user's live profile. For login state, CLONE it first (`rsync -a <profile>/ <tmp-clone>/`) and use only the clone as the persistent user-data-dir; clear data only there. |
+| Renders/changes a page | Drive the REAL page from js eval with omowright (staged in the `browser` skill): the owned engine (`connectPipe` on a task-owned profile, `connectCloakProfile` for bot-scored targets) for unauthenticated pages, the attached engine (`connectBrowserSkill()` in the user's own signed-in browser) when the page needs their login. Screenshot + action log. NEVER clear cookies, cache, or site data on the user's live profile, and never clone it; if the attached engine is missing, run the browser skill's onboarding script and relay its one human step instead of launching a headless browser. |
 | Changes UI rendering or a TUI/terminal layout (incl. CJK/Korean/Japanese/Chinese text) | Load the visual-qa skill: capture reference + actual screenshots (web) or the xterm.js web terminal render (TUI; NEVER `tmux capture-pane` - it degrades color and CJK width), run its bundled pixel-diff / column-width script, and get the dual read-only verdict (design-system + functional integrity, and visual fidelity + CJK precision). Record the diff/score artifact. |
 | Drives a desktop GUI | Computer use: OS-level GUI automation against the running app. Action log + screenshot. |
 | Adds tool/hook/feature | Test end-to-end in a real scenario. |

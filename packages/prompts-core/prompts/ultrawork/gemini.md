@@ -241,7 +241,7 @@ Commit frequently: one atomic commit per verified increment (change + evidence c
 |------|-------------------|
 | **Read** | Existing tests for the area noted (intent / coverage / pass) before the change |
 | **Run** | Tests of record green after it; stale expectations updated |
-| **Surface** | tmux / curl / browser / Playwright / computer-use / CLI / DB diff artifact path |
+| **Surface** | tmux / curl / browser (omowright) / computer-use / CLI / DB diff artifact path |
 | **Build** | Exit code 0 |
 | **Suite** | Full run green; no skip/.only/xfail added this turn |
 | **Lint** | lsp_diagnostics clean on changed files |
@@ -280,7 +280,7 @@ Trigger if user said "엄밀"/"strictly"/"rigorously"/"properly review", or task
 | Adds/modifies a CLI command | Run the command with Bash. Show the output. |
 | Changes build output | Run the build. Verify output files exist and are correct. |
 | Modifies API behavior | Call the endpoint. Show the response. |
-| Renders/changes a page | Drive the REAL page from js eval: (1) `new Bun.WebView()` on Bun >= 1.4 (macOS default; Linux/Windows need installed Chrome/Chromium/Edge). (2) Otherwise, or for Chrome semantics, stealth, trace, or auth, WRITE a `playwright-core` script and run it from the kernel against local Chrome (`chromium.launch({ channel: "chrome" })` / `launchPersistentContext`). Capture screenshot + action log. NEVER clear cookies, cache, or site data on the user's live profile. For login state, CLONE it first (`rsync -a <profile>/ <tmp-clone>/`) and use only the clone as the persistent user-data-dir; clear data only there. |
+| Renders/changes a page | Drive the REAL page from js eval with omowright (staged in the `browser` skill): the owned engine (`connectPipe` on a task-owned profile, `connectCloakProfile` for bot-scored targets) for unauthenticated pages, the attached engine (`connectBrowserSkill()` in the user's own signed-in browser) when the page needs their login. Capture screenshot + action log. NEVER clear cookies, cache, or site data on the user's live profile, and never clone it; if the attached engine is missing, run the browser skill's onboarding script and relay its one human step instead of launching a headless browser. |
 | Changes UI rendering or a TUI/terminal layout (incl. CJK/Korean/Japanese/Chinese text) | Load the visual-qa skill: capture reference + actual screenshots (web) or the xterm.js web terminal render (TUI; NEVER `tmux capture-pane` - it degrades color and CJK width), run its bundled pixel-diff / column-width script, and get the dual read-only verdict (design-system + functional integrity, and visual fidelity + CJK precision). Record the diff/score artifact. |
 | Drives a desktop/GUI (non-page) surface | Computer use: OS-level GUI automation against the running app. Capture action log + screenshot. |
 | Adds a new tool/hook/feature | Test it end-to-end in a real scenario. |

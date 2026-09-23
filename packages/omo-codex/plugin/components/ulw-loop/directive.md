@@ -53,8 +53,8 @@ triggered, run the reviewer loop until unconditional approval.
 Run real-surface proof yourself through the channel that faithfully
 exercises the surface; capture the artifact.
 
-  1. HTTP call — hit the live endpoint with `curl -i` (or a
-     Playwright APIRequestContext); capture status line + headers +
+  1. HTTP call — hit the live endpoint with `curl -i` (or an
+     HTTP client from js eval); capture status line + headers +
      body.
   2. Terminal / TUI - drive a real pty and prove it through the
      xterm.js web terminal (see the TUI visual QA note below). tmux
@@ -62,18 +62,21 @@ exercises the surface; capture the artifact.
      for color / layout / CJK evidence, which degrades truecolor.
   3. Browser use — in Codex, use `browser:control-in-app-browser`
      first when available and no authenticated/persistent user browser
-     profile is required. Otherwise, or for Chrome semantics, stealth,
-     or trace, WRITE a `playwright-core` script and run it from js eval
-     against local Chrome (`chromium.launch({ channel: "chrome" })` /
-     `launchPersistentContext` on a CLONED profile). Capture action
-     log + screenshot path. Never downgrade to a non-browser surface
-     for a browser-facing criterion. NEVER clear cookies, cache, or
-     site data (`Network.clearBrowserCookies`, `Storage.clearCookies`,
+     profile is required. Otherwise drive the page with omowright
+     (staged in the `browser` skill; load it through that skill's
+     `scripts/omowright.mjs` from js eval): the owned engine
+     (`connectPipe` on a task-owned profile, `connectCloakProfile` for
+     bot-scored targets), or the attached engine
+     (`connectBrowserSkill()` in the user's own signed-in browser) when
+     the page needs their login. Capture action log + screenshot path.
+     Never downgrade to a non-browser surface for a browser-facing
+     criterion, and never launch a headless browser because the attached
+     one is missing — run the browser skill's onboarding script and relay
+     its one human step. NEVER clear cookies, cache, or site data
+     (`Network.clearBrowserCookies`, `Storage.clearCookies`,
      `chrome.browsingData.remove`, "clear browsing data") on the user's
-     real/main browser profile — it wipes their logged-in state. If you
-     need that profile's login state, clone it first (`rsync -a
-     <profile>/ <tmp-clone>/`) and launch Chrome against
-     the clone as the user-data-dir; run any clearing there only.
+     real/main browser profile, and never clone it — it wipes or
+     invalidates their logged-in state.
   4. Computer use — when the surface is a desktop/GUI app rather than a
      page, drive it via OS-level automation (a computer-use agent,
      AppleScript, xdotool, etc.) against the running app; capture
@@ -277,7 +280,7 @@ Until every success criterion PASSES with its evidence captured:
    before this step completes:
    server PIDs (`kill <pid>`; verify `kill -0` fails), `tmux` sessions
    (`tmux kill-session -t ulw-qa-<criterion>`; verify with `tmux ls`),
-   browser / Playwright contexts (`.close()`), containers
+   browsers / sessions (`browser.close()` / `session.stop()`), containers
    (`docker rm -f`), bound ports (`lsof -i :<port>` empty), temp
    sockets / files / dirs (`rm -rf` the `mktemp` paths), QA-only env
    vars. Append a one-line cleanup receipt to the notepad next to the

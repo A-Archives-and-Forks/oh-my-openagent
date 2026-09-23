@@ -63,29 +63,29 @@ notepad when it does not.
 Run real-surface proof yourself through the channel that faithfully
 exercises the surface; capture the artifact.
 
-  1. HTTP call — hit the live endpoint with `curl -i` (or a
-     Playwright APIRequestContext); capture status line + headers +
+  1. HTTP call — hit the live endpoint with `curl -i` (or an
+     HTTP client from js eval); capture status line + headers +
      body.
   2. Terminal / TUI - drive a real pty and prove it through the
      xterm.js web terminal (see the TUI visual QA note below). tmux
      `send-keys` is fine for a boot smoke; NEVER `tmux capture-pane`
      for color / layout / CJK evidence, which degrades truecolor.
-  3. Browser use — drive the REAL page from the eval js kernel:
-     (1) `new Bun.WebView()` on Bun >= 1.4 (macOS default;
-     Linux/Windows require installed Chrome/Chromium/Edge).
-     (2) Otherwise, or for Chrome semantics, stealth, trace, or auth,
-     WRITE a `playwright-core` script and run it from the js-eval
-     kernel against local Chrome: `chromium.launch({ channel: "chrome" })`
-     or `launchPersistentContext` on a CLONED profile.
-     Capture action log + screenshot path. Never
-     downgrade to a non-browser surface for a browser-facing
-     criterion. NEVER clear cookies, cache, or site data
+  3. Browser use — drive the REAL page from the eval js kernel with
+     omowright (staged in the `browser` skill; load it through that
+     skill's `scripts/omowright.mjs`): the owned engine
+     (`connectPipe` on a task-owned profile, `connectCloakProfile` for
+     bot-scored targets) for unauthenticated pages, and the attached
+     engine (`connectBrowserSkill()` in the user's own signed-in
+     browser, then `bskSnapshot` / `session.observe` / `session.click`)
+     when the page needs their login. Capture action log + screenshot
+     path. Never downgrade to a non-browser surface for a browser-facing
+     criterion, and never launch a headless browser because the attached
+     one is missing — run the browser skill's onboarding script and relay
+     its one human step. NEVER clear cookies, cache, or site data
      (`Network.clearBrowserCookies`, `Storage.clearCookies`,
      `chrome.browsingData.remove`, "clear browsing data") on the user's
-     real/main browser profile — it wipes their logged-in state. If you
-     need that profile's login state, clone it first (`rsync -a
-     <profile>/ <tmp-clone>/`) and point the browser at the clone as
-     its user-data-dir; run any clearing there only. For frontend work,
+     real/main browser profile, and never clone it — it wipes or
+     invalidates their logged-in state. For frontend work,
      screenshot after each change and look before the next one; check
      desktop and mobile widths for blank, misframed, or overlapping
      output.
@@ -353,7 +353,7 @@ Until every success criterion PASSES with its evidence captured:
    before this step completes:
    server PIDs (`kill <pid>`; verify `kill -0` fails), `tmux` sessions
    (`tmux kill-session -t ulw-qa-<criterion>`; verify with `tmux ls`),
-   browser / Playwright contexts (`.close()`), containers
+   browsers / sessions (`browser.close()` / `session.stop()`), containers
    (`docker rm -f`), bound ports (`lsof -i :<port>` empty), temp
    sockets / files / dirs (`rm -rf` the `mktemp` paths), QA-only env
    vars. Append a one-line cleanup receipt to the notepad next to the
