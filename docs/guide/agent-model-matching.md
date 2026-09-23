@@ -124,7 +124,8 @@ When the main agent delegates implementation work, it doesn't pick a model name.
 | `architect` | Big-picture system design; proposes, doesn't implement (the architect consult lane) | `anthropic/claude-fable-5-1 (max)` | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5-1 (max)` |
 | `visual-engineering` | Frontend, UI/UX, CSS, animation, design systems | `anthropic/claude-fable-5-1 (max)` | `claude-fable-5-1 (max)` -> `claude-opus-5-5 (max)` -> `kimi-coding\|kimi-for-coding\|moonshotai\|opencode-go/kimi-k3 (max)` |
 | `ultrabrain` | Genuinely hard, logic-heavy tasks; goals only, no step-by-step | `openai/gpt-6-astra (max)` | `gpt-6-astra (max)` across `openai`, `chatgpt-subscription`, `github-copilot`, `opencode` -> `gpt-5.6-sol (max)` across the same providers |
-| `deep` | 3D graphics, computer use, browser use, backend, algorithms, multimodal work, complex research | `openai/gpt-6-astra (high)` | `openai\|chatgpt-subscription\|github-copilot\|opencode/gpt-6-astra (high)` -> same providers `/gpt-6-sol (medium)` -> same providers `/gpt-5.6-sol (medium)` |
+| `deep-low` | Default deep lane: 3D graphics, computer use, browser use, backend, algorithms, multimodal work; decisions settled from evidence | `openai/gpt-6-sol-fast (medium)` | `openai\|chatgpt-subscription/gpt-6-sol-fast (medium)` -> `openai\|chatgpt-subscription\|github-copilot\|opencode/gpt-6-sol (medium)` -> same providers `/gpt-5.6-sol (medium)` |
+| `deep-high` | Escalation deep lane: a central decision evidence cannot settle | `openai/gpt-6-astra (xhigh)` | `openai\|chatgpt-subscription\|github-copilot\|opencode/gpt-6-astra (xhigh)`, no fallback |
 | `artistry` | Unconventional, creative problem-solving | `anthropic/claude-fable-5-1 (max)` | `claude-fable-5-1 (max)` -> `kimi-k3 (max)` -> `claude-opus-5-5 (max)` |
 | `quick` | Trivial tasks: single-file changes, typos | `chatgpt-subscription/gpt-6-luna-fast (low)` | `chatgpt-subscription/gpt-6-luna-fast (low)` -> `deepseek/deepseek-v4-flash (off)` -> `qwen3.6-flash (low)` -> cheaper utility rungs -> `xai/grok-4.20-0309-non-reasoning` -> `claude-haiku-4-5 (off)` |
 | `unspecified-low` | Doesn't fit elsewhere, low effort | `xiaomi/mimo-v2.6-pro (max)` | `xiaomi\|opencode-go/mimo-v2.6-pro (max)` -> `xai\|github-copilot\|opencode-go/grok-4.7 (xhigh)` -> `gpt-5.6-terra (high)` -> `claude-sonnet-5 (low)` -> `qwen3.8-max-preview (max)` -> `deepseek\|opencode-go/deepseek-v4-pro (max)` -> `xiaomi\|opencode-go/mimo-v2.5-pro (max)` |
@@ -156,7 +157,7 @@ Override any category or curated agent in `omo.json`. `model` sets one model; `m
 
   "categories": {
     "visual-engineering": { "model": "anthropic/claude-fable-5-1", "reasoning": "max" },
-    "deep-high": { "model": "openai/gpt-6-astra", "reasoning": "high" },
+    "deep-high": { "model": "openai/gpt-6-astra", "reasoning": "xhigh" },
     "ultrabrain": { "model": "openai/gpt-6-astra", "reasoning": "max" },
     "unspecified-high": { "model": "anthropic/claude-opus-5-5", "reasoning": "max" }
   }

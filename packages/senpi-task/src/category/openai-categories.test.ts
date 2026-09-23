@@ -125,10 +125,10 @@ describe("category prompt append resolvers", () => {
 })
 
 describe("GPT builtin defaults and gates", () => {
-  it("#given the builtin definitions #then ultrabrain runs Astra max, deep-high Astra high, deep-low GPT-6 Sol medium, all on the chatgpt-subscription lane", () => {
+  it("#given the builtin definitions #then ultrabrain runs Astra max, deep-high Astra xhigh, deep-low GPT-6 Sol Fast medium, all on the chatgpt-subscription lane", () => {
     expect(definition("ultrabrain").config).toEqual({ model: "chatgpt-subscription/gpt-6-astra", variant: "max" })
-    expect(definition("deep-high").config).toEqual({ model: "chatgpt-subscription/gpt-6-astra", variant: "high" })
-    expect(definition("deep-low").config).toEqual({ model: "chatgpt-subscription/gpt-6-sol", variant: "medium" })
+    expect(definition("deep-high").config).toEqual({ model: "chatgpt-subscription/gpt-6-astra", variant: "xhigh" })
+    expect(definition("deep-low").config).toEqual({ model: "chatgpt-subscription/gpt-6-sol-fast", variant: "medium" })
   })
 
   it("#given unspecified-high #then its default is the Opus 5.5 rung its chain now leads with, not Astra", () => {
@@ -137,7 +137,7 @@ describe("GPT builtin defaults and gates", () => {
 
   it("#given the gates #then ultrabrain opens on either flagship, deep-low on either Sol tier, deep-high on Astra alone, unspecified-high is ungated", () => {
     expect(definition("ultrabrain").requiresModel).toEqual(["gpt-6-astra", "gpt-5.6-sol"])
-    expect(definition("deep-low").requiresModel).toEqual(["gpt-6-sol", "gpt-5.6-sol"])
+    expect(definition("deep-low").requiresModel).toEqual(["gpt-6-sol-fast", "gpt-6-sol", "gpt-5.6-sol"])
     expect(definition("deep-high").requiresModel).toBe("gpt-6-astra")
     expect(definition("unspecified-high").requiresModel).toBeUndefined()
   })
@@ -150,7 +150,7 @@ describe("resolveCategory on GPT registries", () => {
 
   const astraCases = [
     { category: "ultrabrain", variant: "max", append: ULTRABRAIN_CATEGORY_PROMPT_APPEND_GPT_6_ASTRA },
-    { category: "deep-high", variant: "high", append: DEEP_HIGH_CATEGORY_PROMPT_APPEND_GPT },
+    { category: "deep-high", variant: "xhigh", append: DEEP_HIGH_CATEGORY_PROMPT_APPEND_GPT },
   ] as const
 
   for (const { category, variant, append } of astraCases) {
@@ -168,6 +168,23 @@ describe("resolveCategory on GPT registries", () => {
       expect(result.spec).toMatchObject({ provider: "chatgpt-subscription", modelId: "gpt-6-astra", variant, prompt_append: append })
     })
   }
+
+  it("#given the subscription lane serves both Sol tiers #when deep-low resolves #then gpt-6-sol-fast wins at medium", () => {
+    const result = resolveCategory("deep-low", {}, registry([
+      { provider: "chatgpt-subscription", id: "gpt-6-sol" },
+      { provider: "chatgpt-subscription", id: "gpt-6-sol-fast" },
+    ]))
+    expect(result.kind).toBe("resolved")
+    if (result.kind !== "resolved") throw new Error("Expected resolved")
+    expect(result.spec).toMatchObject({ provider: "chatgpt-subscription", modelId: "gpt-6-sol-fast", variant: "medium", prompt_append: DEEP_LOW_CATEGORY_PROMPT_APPEND_GPT })
+  })
+
+  it("#given only Copilot's plain gpt-6-sol #when deep-low resolves #then the lane stays open on it at medium", () => {
+    const result = resolveCategory("deep-low", {}, registry([{ provider: "github-copilot", id: "gpt-6-sol" }]))
+    expect(result.kind).toBe("resolved")
+    if (result.kind !== "resolved") throw new Error("Expected resolved")
+    expect(result.spec).toMatchObject({ provider: "github-copilot", modelId: "gpt-6-sol", variant: "medium" })
+  })
 
   it("#given only gpt-5.6-sol #when deep-low resolves #then it runs Sol at medium with the deep-low GPT append", () => {
     const result = resolveCategory("deep-low", {}, solRegistry)

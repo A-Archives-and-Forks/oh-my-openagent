@@ -50,6 +50,9 @@ export const CATEGORY_FALLBACK_CHAINS: Readonly<Record<string, readonly Delegate
     { providers: ["chatgpt-subscription", "opencode"], model: "gpt-5.6-sol", variant: "max" }
   ],
   "deep-low": [
+    // The Fast (priority) tier exists only on the ChatGPT subscription lane; Copilot and OpenCode Zen
+    // serve plain gpt-6-sol, so the next rung keeps the lane open there at the same effort.
+    { providers: ["chatgpt-subscription"], model: "gpt-6-sol-fast", variant: "medium" },
     {
       providers: ["chatgpt-subscription", "github-copilot", "opencode"],
       model: "gpt-6-sol",
@@ -65,7 +68,7 @@ export const CATEGORY_FALLBACK_CHAINS: Readonly<Record<string, readonly Delegate
     {
       providers: ["chatgpt-subscription", "github-copilot", "opencode"],
       model: "gpt-6-astra",
-      variant: "high",
+      variant: "xhigh",
     }
   ],
   artistry: [

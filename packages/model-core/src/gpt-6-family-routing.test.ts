@@ -6,8 +6,9 @@ import { AGENT_MODEL_REQUIREMENTS, CATEGORY_MODEL_REQUIREMENTS } from "./model-r
 const GPT_PROVIDERS = ["openai", "chatgpt-subscription", "github-copilot", "opencode"]
 
 describe("GPT-6 family routing", () => {
-  test("deep-low leads with gpt-6-sol medium and keeps gpt-5.6-sol medium as the fallback rung", () => {
+  test("deep-low leads with gpt-6-sol-fast medium on the OpenAI lanes, then gpt-6-sol and gpt-5.6-sol medium", () => {
     expect(CATEGORY_MODEL_REQUIREMENTS["deep-low"].fallbackChain).toEqual([
+      { providers: ["openai", "chatgpt-subscription"], model: "gpt-6-sol-fast", variant: "medium" },
       { providers: GPT_PROVIDERS, model: "gpt-6-sol", variant: "medium" },
       { providers: GPT_PROVIDERS, model: "gpt-5.6-sol", variant: "medium" },
     ])

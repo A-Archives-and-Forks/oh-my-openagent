@@ -1,3 +1,14 @@
+## deep-high runs GPT-6 Astra at xhigh; deep-low leads with GPT-6 Sol Fast medium
+
+`category/fallback-chains.ts` mirrors the model-core table: `deep-high`'s single Astra rung moves
+from `high` to `xhigh`, and `deep-low` gains a `chatgpt-subscription/gpt-6-sol-fast` medium head
+rung ahead of the existing `gpt-6-sol` and `gpt-5.6-sol` medium rungs. The Fast (priority) tier is
+published only on the ChatGPT subscription lane, so Copilot and OpenCode Zen keep resolving the
+lane through plain `gpt-6-sol`. `category/openai-categories.ts` routes the `deep-low` default
+through `chatgpt-subscription/gpt-6-sol-fast` and adds it to `DEEP_LOW_GATE_MODELS`, and the
+`deep-high` default runs at `xhigh`. `ultrabrain` (Astra max) and `unspecified-high` (Opus 5.5 max
+first) are unchanged. omo#8714.
+
 ## deep-low leads with GPT-6 Sol; every Luna rung is GPT-6 Luna Fast; Fable chains step down to Opus 5.5
 
 `category/fallback-chains.ts` mirrors the model-core table: `deep-low` gains a `gpt-6-sol` medium

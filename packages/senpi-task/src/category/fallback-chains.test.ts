@@ -46,11 +46,12 @@ describe("CATEGORY_FALLBACK_CHAINS", () => {
         { providers: ["chatgpt-subscription", "opencode"], model: "gpt-5.6-sol", variant: "max" }
       ],
       "deep-low": [
+        { providers: ["chatgpt-subscription"], model: "gpt-6-sol-fast", variant: "medium" },
         { providers: ["chatgpt-subscription", "github-copilot", "opencode"], model: "gpt-6-sol", variant: "medium" },
         { providers: ["chatgpt-subscription", "github-copilot", "opencode"], model: "gpt-5.6-sol", variant: "medium" }
       ],
       "deep-high": [
-        { providers: ["chatgpt-subscription", "github-copilot", "opencode"], model: "gpt-6-astra", variant: "high" }
+        { providers: ["chatgpt-subscription", "github-copilot", "opencode"], model: "gpt-6-astra", variant: "xhigh" }
       ],
       artistry: [
         { providers: ["anthropic-subscription", "anthropic", "anthropic-api", "github-copilot", "opencode"], model: "claude-fable-5-1", variant: "max" },
