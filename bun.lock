@@ -59,6 +59,7 @@
         "@xterm/xterm": "^6.0.0",
         "bun-types": "1.4.2",
         "node-pty": "^1.1.0",
+        "omowright": "github:code-yeongyu/omowright#25781c8ac04f9aae358b06551520b792ac45c6ed",
         "puppeteer-core": "^25.11.0",
         "typescript": "^7.0.2",
       },
@@ -1287,6 +1288,8 @@
     "obug": ["obug@2.1.3", "", {}, "sha512-9miFgM2OFba7hB+pRgvtV84pYTBaoTHohvmIgiRt6dRIzbwEOIaNaP+dIlGs2fNFoB0SeISs0Jz5WFVRid6Xyg=="],
 
     "omo-ai": ["omo-ai@workspace:packages/omo-native"],
+
+    "omowright": ["omowright@github:code-yeongyu/omowright#25781c8", { "dependencies": { "ws": "^8.18.3", "zod": "^4.1.5" }, "bin": { "omowright-cloak": "./bin/omowright-cloak.mjs" } }, "code-yeongyu-omowright-25781c8", "sha512-mGLU8L5hvjRoM3EAeTjz7l3y5M68RLukCNWzmXW63VJZvHsAYDI1tsvmjBoy+Jo0RcXvw/q/5SitqGFVRJRmPQ=="],
 
     "on-finished": ["on-finished@2.4.1", "", { "dependencies": { "ee-first": "1.1.1" } }, "sha512-oVlzkg3ENAhCk2zdv7IJwd/QUD4z2RxRwpkcGY8psCVcCYZNq4wYnVWALHM+brtuJjePWiYF/ClmuDr8Ch5+kg=="],
 

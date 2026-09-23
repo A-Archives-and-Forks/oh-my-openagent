@@ -206,7 +206,7 @@ BEFORE writing ANY code, define realistic scenarios sized to the change — **1-
 
 Each scenario MUST specify, upfront:
 - Pass condition as a binary observable ("returns 200 + body matches schema"), not "should work".
-- The REAL surface that proves it: tmux transcript, curl status+body, browser/Playwright assertion, computer-use action log, CLI stdout, parsed config dump, DB state diff. Asserting "tests pass" alone is NOT evidence.
+- The REAL surface that proves it: tmux transcript, curl status+body, browser (omowright) assertion, computer-use action log, CLI stdout, parsed config dump, DB state diff. Asserting "tests pass" alone is NOT evidence.
 - The existing tests that cover it (read first — see Test Decision below) and the real-surface scenario that proves it. Prose, docs, prompt, and visual-only changes take review + real-surface QA — a test pinning their text is pretend-coverage, not proof.
 
 **These scenarios are the CONTRACT.** Record them in your TODO/notepad. You are not done until every one PASSES with its real-surface artifact captured and the tests the repository keeps for it green.
@@ -236,7 +236,7 @@ Every scenario requires TWO captured artifacts — both mandatory:
 | Artifact | Source | Captures |
 |----------|--------|----------|
 | **Tests of record** | The existing suite for the area, read before the change and green after it | Intent / coverage / pass noted; stale expectations updated |
-| **Real-surface artifact** | tmux / curl / browser / Playwright / computer-use / CLI / DB | What the user actually sees |
+| **Real-surface artifact** | tmux / curl / browser (omowright) / computer-use / CLI / DB | What the user actually sees |
 
 Supporting (necessary, not sufficient): build exit 0, full suite green, lsp_diagnostics clean on changed files, regression scenarios still PASS.
 
@@ -254,7 +254,7 @@ The real-surface artifact is always required. A new test only where the reposito
 | Adds/modifies a CLI command | Run the command with Bash. Show the output. |
 | Changes build output | Run the build. Verify the output files exist and are correct. |
 | Modifies API behavior | Call the endpoint. Show the response. |
-| Changes UI rendering | Drive the REAL page from js eval: (1) `new Bun.WebView()` on Bun >= 1.4 (macOS default; Linux/Windows need installed Chrome/Chromium/Edge). (2) Otherwise, or for Chrome semantics, stealth, trace, or auth, WRITE a `playwright-core` script and run it from the kernel against local Chrome (`chromium.launch({ channel: "chrome" })` / `launchPersistentContext`). Capture screenshot + action log. NEVER clear cookies, cache, or site data on the user's live profile. For login state, CLONE the profile first (`rsync -a <profile>/ <tmp-clone>/`) and use only the clone as the persistent user-data-dir; clear data only there. |
+| Changes UI rendering | Drive the REAL page from js eval with omowright (staged in the `browser` skill): the owned engine (`connectPipe` on a task-owned profile, `connectCloakProfile` for bot-scored targets) for unauthenticated pages, the attached engine (`connectBrowserSkill()` in the user's own signed-in browser) when the page needs their login. Capture screenshot + action log. NEVER clear cookies, cache, or site data on the user's live profile, and never clone it; if the attached engine is missing, run the browser skill's onboarding script and relay its one human step instead of launching a headless browser. |
 | Changes UI rendering or a TUI/terminal layout (incl. CJK/Korean/Japanese/Chinese text) | Load the visual-qa skill: capture reference + actual screenshots (web) or the xterm.js web terminal render (TUI; NEVER `tmux capture-pane` - it degrades color and CJK width), run its bundled pixel-diff / column-width script, and get the dual read-only verdict (design-system + functional integrity, and visual fidelity + CJK precision). Record the diff/score artifact. |
 | Changes a desktop/GUI (non-page) surface | Computer use: OS-level GUI automation against the running app. Capture action log + screenshot. |
 | Adds a new tool/hook/feature | Test it end-to-end in a real scenario. |

@@ -49,7 +49,7 @@ These are not "optional extras". They are the correct tool in their domain, and 
 
 | Tool | Use when | Reference |
 |---|---|---|
-| **Playwright CLI** | Any browser-served web UI bug. Any flow that requires clicking/typing/navigating. Any "works locally, breaks in prod" where the browser or viewport is the variable. **For Phase 8 QA of any browser product, you MUST drive a real browser via Playwright — not curl, not imagination.** | 📖 **[references/tools/playwright-cli.md](references/tools/playwright-cli.md)** |
+| **omowright** | Any browser-served web UI bug. Any flow that requires clicking/typing/navigating. Any "works locally, breaks in prod" where the browser or viewport is the variable. **For Phase 8 QA of any browser product, you MUST drive a real browser through omowright — not curl, not imagination.** | 📖 **[references/tools/browser-qa.md](references/tools/browser-qa.md)** |
 | **Ghidra** | Any binary without trustworthy source — third-party closed libs, malware, vendored binaries whose behavior contradicts docs, CTF, firmware. **Use Ghidra's decompiler before `strings`/`objdump` guessing. It turns machine code into readable C.** | 📖 **[references/tools/ghidra.md](references/tools/ghidra.md)** |
 | **pwndbg** | Any native binary debugging session. It is GDB with the useful views (registers, stack, disasm, heap) always visible. **If you'd reach for plain `gdb`, reach for `pwndbg` instead — it is strictly a superset.** | 📖 **[references/tools/pwndbg.md](references/tools/pwndbg.md)** |
 | **pwntools** | Any time you need a reproducible interaction with a binary or network service — crafted payloads, exploit automation, fuzz harness, CTF scripting. | 📖 **[references/tools/pwntools.md](references/tools/pwntools.md)** |
