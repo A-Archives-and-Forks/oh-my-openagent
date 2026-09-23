@@ -70,7 +70,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
         })
     expect(second).toEqual({
           providers: ["openai", "chatgpt-subscription"],
-          model: "gpt-5.6-luna-fast",
+          model: "gpt-6-luna-fast",
           variant: "low",
         })
     expect(third?.providers).toContain("deepseek")
@@ -110,7 +110,7 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
         })
     expect(second).toEqual({
           providers: ["openai", "chatgpt-subscription"],
-          model: "gpt-5.6-luna-fast",
+          model: "gpt-6-luna-fast",
           variant: "low",
         })
     expect(third?.providers).toContain("deepseek")
@@ -159,19 +159,24 @@ describe("AGENT_MODEL_REQUIREMENTS", () => {
         })
   })
 
-  test("prometheus uses Fable 5.1 xhigh before Kimi K3 max", () => {
+  test("prometheus uses Fable 5.1 xhigh, then Opus 5.5 max, before Kimi K3 max", () => {
     // given
     const prometheus = AGENT_MODEL_REQUIREMENTS["prometheus"]
 
     // when
-    const [primary, kimiFallback] = prometheus.fallbackChain
+    const [primary, opusFallback, kimiFallback] = prometheus.fallbackChain
 
     // then
-    expect(prometheus.fallbackChain).toHaveLength(2)
+    expect(prometheus.fallbackChain).toHaveLength(3)
     expect(primary).toEqual({
           providers: ["anthropic", "github-copilot", "opencode"],
           model: "claude-fable-5-1",
           variant: "xhigh",
+        })
+    expect(opusFallback).toEqual({
+          providers: ["anthropic", "github-copilot", "opencode"],
+          model: "claude-opus-5-5",
+          variant: "max",
         })
     expect(kimiFallback).toEqual({
           providers: ["opencode-go", "kimi-for-coding", "moonshotai", "opencode"],

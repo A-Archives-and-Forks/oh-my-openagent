@@ -151,7 +151,7 @@ describe("generateModelConfig provider routes", () => {
       const result = generateModelConfig(config)
 
       // then Explore includes its remaining fallbacks
-      expect(result.agents?.explore?.model).toBe("openai/gpt-5.6-luna-fast")
+      expect(result.agents?.explore?.model).toBe("openai/gpt-6-luna-fast")
       expect(result.agents?.explore?.variant).toBe("low")
       expect(result.agents?.explore?.fallback_models).toBeDefined()
       expect(result.agents?.explore?.fallback_models?.length).toBeGreaterThan(0)
@@ -211,7 +211,7 @@ describe("generateModelConfig provider routes", () => {
       const result = generateModelConfig(config)
 
       // then Librarian includes its remaining fallbacks
-      expect(result.agents?.librarian?.model).toBe("openai/gpt-5.6-luna-fast")
+      expect(result.agents?.librarian?.model).toBe("openai/gpt-6-luna-fast")
       expect(result.agents?.librarian?.variant).toBe("low")
       expect(result.agents?.librarian?.fallback_models).toBeDefined()
       expect(result.agents?.librarian?.fallback_models?.length).toBeGreaterThan(0)

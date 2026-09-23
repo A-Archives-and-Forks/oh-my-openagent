@@ -158,6 +158,22 @@ export const SUPPLEMENTAL_MODEL_CAPABILITIES: Record<string, ModelCapabilitiesSn
 			output: 128000,
 		},
 	},
+	"gpt-6-luna-fast": {
+		id: "gpt-6-luna-fast",
+		family: "gpt-nano",
+		reasoning: true,
+		temperature: false,
+		toolCall: true,
+		modalities: {
+			input: ["text", "image"],
+			output: ["text"],
+		},
+		limit: {
+			context: 1050000,
+			input: 922000,
+			output: 128000,
+		},
+	},
 	"gpt-5.6-luna-fast": {
 		id: "gpt-5.6-luna-fast",
 		family: "gpt-mini",
