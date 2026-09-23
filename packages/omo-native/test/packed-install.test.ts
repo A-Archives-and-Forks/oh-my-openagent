@@ -35,13 +35,15 @@ describe("omo-ai packed install", () => {
       const sessionRegistryPump = readFileSync(join(senpiRoot!, "dist/core/extensions/builtin/anthropic-subscription/session-registry-pump.js"), "utf8")
       expect(sessionRegistryPump).toContain("sdkResultFailure(message)")
 
-      // omo#8247: the ~255 MiB checker npm payload is deliberately absent from a native install; the
-      // installed extension carries the pinned-release downloader that stands in for it.
-      const extensionRequire = createRequire(join(installedPackageRoot, "plugin", "extensions", "omo.js"))
+      // omo#8247: the ~255 MiB checker npm payload is deliberately absent from a native install. The
+      // extension resolves it from plugin/extensions/omo.js, and that lookup walks the same node_modules
+      // chain as the package root, so the miss is proven here without the staged plugin payload (which
+      // build:omo-native produces; package-shape.test.ts pins the downloader in the source bundle).
+      const installedExtensionDir = join(installedPackageRoot, "plugin", "extensions")
+      const extensionRequire = createRequire(join(installedExtensionDir, "omo.js"))
+      expect(existsSync(join(installedPackageRoot, "node_modules", "@code-yeongyu", "comment-checker"))).toBe(false)
+      expect(existsSync(join(consumer, "node_modules", "@code-yeongyu", "comment-checker"))).toBe(false)
       expect(() => extensionRequire.resolve("@code-yeongyu/comment-checker")).toThrow()
-      const installedExtension = readFileSync(join(installedPackageRoot, "plugin", "extensions", "omo.js"), "utf8")
-      expect(installedExtension).toContain("code-yeongyu/go-claude-code-comment-checker")
-      expect(installedExtension).toContain("comment-checker_v")
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
