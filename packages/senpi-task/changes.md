@@ -1,3 +1,11 @@
+## deep-low drops its GPT-5.6 Sol rung and gate
+
+`category/fallback-chains.ts` removes the trailing `gpt-5.6-sol` medium rung from `deep-low`, leaving
+`chatgpt-subscription/gpt-6-sol-fast` medium -> `gpt-6-sol` medium. `category/openai-categories.ts`
+narrows `DEEP_LOW_GATE_MODELS` to `gpt-6-sol-fast`, `gpt-6-sol`, so the task tool's category listing
+reads `(requires gpt-6-sol-fast or gpt-6-sol)` and a GPT-5.6-Sol-only registry leaves `deep-low`
+unavailable. `ultrabrain` keeps its GPT-5.6 Sol max fallback. omo#8718.
+
 ## deep-high runs GPT-6 Astra at xhigh; deep-low leads with GPT-6 Sol Fast medium
 
 `category/fallback-chains.ts` mirrors the model-core table: `deep-high`'s single Astra rung moves

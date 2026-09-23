@@ -1,3 +1,7 @@
+## 2026-09-23 - deep-low drops its GPT-5.6 Sol rung and gate (#8718)
+
+#8714 left `deep-low` ending in a `gpt-5.6-sol` medium rung, with both `deep-low` activation gates still accepting `gpt-5.6-sol`, so the task tool listed `deep-low (requires gpt-6-sol-fast or gpt-6-sol or gpt-5.6-sol)`. The rung is removed from model-core `CATEGORY_MODEL_REQUIREMENTS` and senpi-task `CATEGORY_FALLBACK_CHAINS`, and `DEEP_LOW_GATE_MODELS` (omo-opencode and senpi-task) is now `gpt-6-sol-fast`, `gpt-6-sol`. A GPT-5.6-Sol-only registry now reports `deep-low` unavailable, pinned by new gating, routing and resolver tests, and the installer's OpenAI output carries `gpt-6-sol` as the lane's only `fallback_models` entry. `ultrabrain` keeps its GPT-5.6 Sol max fallback and the OpenCode-edition agent chains are untouched. The unreleased #8714 CHANGELOG entry is corrected rather than contradicted by a second entry.
+
 ## 2026-09-23 - explore/librarian trimmed to six rungs on DeepSeek V4.1 Flash; every DeepSeek Flash rung renamed to `deepseek-flash` (#8115)
 
 DeepSeek's 2026-09-10 changelog renames the V4.1 Flash API model to `deepseek-flash` and keeps `deepseek-v4-flash` only as a temporary alias. The pinned engine (senpi 2026.9.23) `providers/data/deepseek.json` lists `deepseek-flash` and `deepseek-v4-pro` and nothing else, so the builtin `deepseek/deepseek-v4-flash` rung in `explore`, `librarian` and `quick` could never resolve on OmO Native. models.dev serves the same id (`deepseek/deepseek-flash`, "DeepSeek V4.1 Flash"), so both editions use it.
