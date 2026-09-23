@@ -7,7 +7,7 @@
 //   daily-normal-opus / daily-heavy-fable / geeky-normal-sol-fast / geeky-heavy-astra
 //                    each leaf's first rung + thinking level in the applied notice.
 //   daily-normal-kimi / daily-normal-glm  later Daily · Normal rungs.
-//   geeky-normal-copilot-sol  Copilot gpt-6-sol medium (no sol-fast).
+//   geeky-normal-nonfast-sol-omo-mock  gpt-6-sol medium via omo-mock model-id matching (not a github-copilot registration).
 //   unset            empty omo.json applies Daily · Normal (kimi-k3 here).
 //   empty-registry   Daily · Normal against only mock-1: unavailable, session keeps mock-1.
 //   literal-pin      model_profile "anthropic/claude-opus-5": that model id is applied.
@@ -57,7 +57,8 @@ function sha256File(path) {
 const scriptDir = dirname(fileURLToPath(import.meta.url))
 const packageRoot = resolve(scriptDir, "..", "..")
 const defaultPluginRoot = join(packageRoot, "plugin")
-const mockProviderEntry = join(scriptDir, "task-e2e-mock-provider.ts")
+const mockProviderEntry = join(scriptDir, "model-profile-e2e-mock-provider.ts")
+const STREAM_CAPTURES_FILE = "model-profile-stream-captures.jsonl"
 const realSenpiAgentDir = join(homedir(), ".senpi", "agent")
 
 const APPLIED_TYPE = "omo-model-profile:applied"
@@ -112,7 +113,7 @@ const SCENARIOS = {
     cliModel: undefined,
     expect: { model: "glm-5.3", notice: APPLIED_TYPE, thinking: "max" },
   },
-  "geeky-normal-copilot-sol": {
+  "geeky-normal-nonfast-sol-omo-mock": {
     omoConfig: { model_profile: "geeky-normal" },
     mockModels: ["mock-1", "gpt-6-sol"],
     cliModel: undefined,
@@ -169,25 +170,26 @@ const SCENARIOS = {
     cliModel: undefined,
     expect: { model: "mock-1", notice: APPLIED_TYPE },
   },
-  "custom-geeky-reasoning": {
+  "custom-geeky-openai-reasoning": {
     omoConfig: {
       model_profile: "geeky-normal",
       model_profiles: {
         "geeky-normal": {
           display_name: "Office GPT",
-          models: [{ model: "mock-1", reasoning: "high" }],
+          models: [{ model: "openai/gpt-6-sol", reasoning: "high" }],
         },
       },
     },
     mockModels: ["mock-1", "gpt-6-sol-fast", "gpt-6-sol"],
     cliModel: undefined,
-    expect: { model: "mock-1", notice: APPLIED_TYPE, thinking: "high" },
+    registerOpenai: true,
+    expect: { model: "gpt-6-sol", provider: "openai", notice: APPLIED_TYPE, thinking: "high" },
   },
   "cli-model-wins": {
-    omoConfig: { model_profile: "daily-normal" },
-    mockModels: ["mock-1", "kimi-k3"],
+    omoConfig: { model_profile: "daily-heavy" },
+    mockModels: ["mock-1", "claude-fable-5-1"],
     cliModel: "mock-1",
-    expect: { model: "mock-1", notice: null },
+    expect: { model: "mock-1", notice: null, thinkingAbsent: "xhigh" },
   },
   "lane-beats-recommended-models": {
     omoConfig: { model_profile: "daily-normal" },
@@ -272,9 +274,11 @@ function readSessionEntries(sessionDir) {
 // against that runtime dir instead of the binary on PATH, so they are dropped from the spawn env.
 const INHERITED_RUNTIME_KEYS = ["SENPI_PACKAGE_DIR", "OMO_PACKAGE_DIR", "OMO_BIN", "PI_SESSION_FILE"]
 
-function spawnEnv(sandbox, sessionDir) {
+function spawnEnv(sandbox, sessionDir, scenario) {
   const env = { ...process.env }
   for (const key of INHERITED_RUNTIME_KEYS) delete env[key]
+  if (scenario.registerOpenai === true) env.OMO_PROFILE_QA_REGISTER_OPENAI = "1"
+  else delete env.OMO_PROFILE_QA_REGISTER_OPENAI
   return {
     ...env,
     SENPI_CODING_AGENT_DIR: sandbox.agentDir,
@@ -283,6 +287,47 @@ function spawnEnv(sandbox, sessionDir) {
     XDG_CACHE_HOME: sandbox.xdgCacheHome,
     SENPI_CODING_AGENT_SESSION_DIR: sessionDir,
     OMO_SENPI_QA: "1",
+  }
+}
+
+function readThinkingField(source) {
+  if (typeof source !== "object" || source === null) return null
+  for (const key of ["thinkingLevel", "thinking_level", "level", "reasoning"]) {
+    const value = source[key]
+    if (typeof value === "string") return value
+  }
+  return null
+}
+
+function loadStreamCaptures(cwd) {
+  const path = join(cwd, STREAM_CAPTURES_FILE)
+  if (!existsSync(path)) return []
+  return readFileSync(path, "utf8")
+    .split("\n")
+    .filter((line) => line.trim().length > 0)
+    .flatMap((line) => {
+      try {
+        return [JSON.parse(line)]
+      } catch {
+        return []
+      }
+    })
+}
+
+function observeEngineThinking(entries, captures) {
+  const changes = entries.filter((entry) => entry.type === "thinking_level_change")
+  const lastAssistant = entries.filter((entry) => entry.type === "message" && entry.message?.role === "assistant").at(-1)
+  const fromCapture = captures.map((capture) => capture.thinking).find((value) => typeof value === "string" && value.length > 0) ?? null
+  const fromChange = readThinkingField(changes.at(-1)) ?? changes.at(-1)?.thinkingLevel ?? changes.at(-1)?.level ?? null
+  const fromAssistant = lastAssistant?.message?.thinkingLevel ?? lastAssistant?.thinkingLevel ?? null
+  return {
+    observed: fromChange ?? fromCapture ?? fromAssistant ?? null,
+    fromChange,
+    fromCapture,
+    fromAssistant,
+    captures,
+    changeCount: changes.length,
+    entryTypes: [...new Set(entries.map((entry) => entry.type))],
   }
 }
 
@@ -296,7 +341,7 @@ function runScenario(name, scenario, args, senpiBin) {
       ["-e", mockProviderEntry, "-p", "--mode", "json", ...modelArgs, "--session-dir", sessionDir, "run the scripted scenario"],
       {
         cwd: sandbox.cwd,
-        env: spawnEnv(sandbox, sessionDir),
+        env: spawnEnv(sandbox, sessionDir, scenario),
         encoding: "utf8",
         timeout: 120_000,
         maxBuffer: 64 * 1024 * 1024,
@@ -322,15 +367,26 @@ function runScenario(name, scenario, args, senpiBin) {
           ? profileNotices.length === 0
           : profileNotices.length === 1 && profileNotices[0].customType === scenario.expect.notice,
     }
+    const provider = scenario.expect.provider ?? "omo-mock"
+    const engine = observeEngineThinking(entries, loadStreamCaptures(sandbox.cwd))
     if (scenario.expect.notice === APPLIED_TYPE) {
       const applied = profileNotices[0]
-      checks.notice_names_model = applied?.content.includes(`selected omo-mock/${scenario.expect.model}`) === true
-      checks.applied_details = applied?.details?.model === `omo-mock/${scenario.expect.model}`
+      checks.notice_names_model = applied?.content.includes(`selected ${provider}/${scenario.expect.model}`) === true
+      checks.applied_details = applied?.details?.model === `${provider}/${scenario.expect.model}`
       if (scenario.expect.thinking !== undefined) {
         checks.notice_names_thinking =
-          applied?.content.includes(`omo-mock/${scenario.expect.model} ${scenario.expect.thinking}`) === true
+          applied?.content.includes(`${provider}/${scenario.expect.model} ${scenario.expect.thinking}`) === true
         checks.details_thinking = applied?.details?.reasoning === scenario.expect.thinking
       }
+    }
+    if (scenario.expect.thinking !== undefined) {
+      checks.engine_thinking = engine.observed === scenario.expect.thinking
+    }
+    if (scenario.expect.thinkingAbsent !== undefined) {
+      checks.engine_thinking_not_profile = engine.observed !== scenario.expect.thinkingAbsent
+    }
+    if (scenario.expect.provider !== undefined) {
+      checks.stream_provider = engine.captures.some((capture) => capture.provider === scenario.expect.provider) === true
     }
     if (name === "daily-normal-kimi") {
       const applied = profileNotices[0]
@@ -369,6 +425,7 @@ function runScenario(name, scenario, args, senpiBin) {
       settingsSha256: { before: settingsBefore, after: settingsAfter },
       turnModel: lastAssistant,
       profileNotices,
+      engineThinking: engine,
       modelChanges: entries.filter((entry) => entry.type === "model_change").map((entry) => `${entry.provider}/${entry.modelId}`),
       stderrTail: (run.stderr ?? "").split("\n").filter((line) => line.trim().length > 0).slice(-4),
     }
@@ -379,6 +436,10 @@ function runScenario(name, scenario, args, senpiBin) {
 }
 
 function main() {
+  const wrongThinking = process.env.OMO_PROFILE_QA_WRONG_THINKING?.trim()
+  if (wrongThinking !== undefined && wrongThinking.length > 0 && SCENARIOS["daily-normal-opus"] !== undefined) {
+    SCENARIOS["daily-normal-opus"].expect.thinking = wrongThinking
+  }
   const args = parseArgs(process.argv)
   const senpiBin = findOnPath(process.env.SENPI_BIN?.trim() || "senpi")
   if (senpiBin === null) {
