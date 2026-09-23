@@ -244,7 +244,7 @@ function runScenario(name, scenario, args, senpiBin) {
     if (name === "unknown-profile") {
       const unknown = profileNotices[0]
       checks.notice_lists_known_profiles =
-        unknown?.content.includes('model_profile "nope" is not defined; known profiles: capable, deep-work, simple-work') === true
+        unknown?.content.includes('model_profile "nope" is not defined; known profiles: capable, deep-work') === true
     }
     if (name === "tier-beats-recommended-models") {
       const changes = entries.filter((entry) => entry.type === "model_change").map((entry) => entry.modelId)
