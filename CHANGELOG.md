@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+**`omob` can build an engine version before its workspace packages reach npm.** The development build now uses the dependencies already packed into its local engine tarball instead of asking Bun to resolve their unpublished versions from the registry. Platform-specific optional packages still install normally, and an incomplete bundle fails explicitly rather than fetching a replacement.
+
+**CI update-checker tests no longer depend on sibling test order.** An unnecessary module mock leaked a fixed version into the registry-channel tests, failing all five assertions when the hook tests ran first. The hook now uses only its existing injected stub; runtime update behavior is unchanged. ([#8678](https://github.com/code-yeongyu/oh-my-openagent/issues/8678))
+
 ## [5.0.0-beta.85] - 2026-09-23
 
 ### Added
