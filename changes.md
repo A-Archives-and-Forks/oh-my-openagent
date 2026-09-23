@@ -1,3 +1,9 @@
+## 2026-09-23 - adopt senpi 2026.9.23-3 for the Claude subscription follow-ups (#8700)
+
+Every senpi pin moves 2026.9.23-2 -> 2026.9.23-3 (root `package.json` devDependency, `packages/omo-native`, `packages/omo-senpi` peer+dev, `packages/senpi-task`), with `bun.lock`, the `provider-map.json` derivation comment, and the pin assertions in `omo-native` `senpi-pin.test.ts` / `package-shape.test.ts`, `omo-senpi` `package-shape.test.ts` and `senpi-task` `senpi-barrel-host-accessors.test.ts`. `builtinProviders()` is unchanged between the two senpi tags (only openrouter catalog data moved), so the provider map needs no re-derivation.
+
+The engine release carries code-yeongyu/senpi#2054: settings overrides survive saves/reloads (senpi#2052), the version-floor remedy names the Claude Code that ran and its source, win32 npm `claude.cmd` shims resolve to `claude.exe`, and a promoted-model guard in senpi CI/release (senpi#2053).
+
 ## 2026-09-23 - programming skill: Rust references compile, agree with each other, and cover the missing rules (#8739)
 
 A read of `packages/shared-skills/skills/programming`'s Rust material against the 265-rule leonardomso/rust-skills corpus found shipped defects, then the rules worth adopting.
