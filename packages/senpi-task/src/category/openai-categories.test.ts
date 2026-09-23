@@ -135,9 +135,9 @@ describe("GPT builtin defaults and gates", () => {
     expect(definition("unspecified-high").config).toEqual({ model: "anthropic/claude-opus-5-5", variant: "max" })
   })
 
-  it("#given the gates #then ultrabrain opens on either flagship, deep-low on either Sol tier, deep-high on Astra alone, unspecified-high is ungated", () => {
+  it("#given the gates #then ultrabrain opens on either flagship, deep-low on a GPT-6 Sol tier, deep-high on Astra alone, unspecified-high is ungated", () => {
     expect(definition("ultrabrain").requiresModel).toEqual(["gpt-6-astra", "gpt-5.6-sol"])
-    expect(definition("deep-low").requiresModel).toEqual(["gpt-6-sol-fast", "gpt-6-sol", "gpt-5.6-sol"])
+    expect(definition("deep-low").requiresModel).toEqual(["gpt-6-sol-fast", "gpt-6-sol"])
     expect(definition("deep-high").requiresModel).toBe("gpt-6-astra")
     expect(definition("unspecified-high").requiresModel).toBeUndefined()
   })
@@ -186,11 +186,10 @@ describe("resolveCategory on GPT registries", () => {
     expect(result.spec).toMatchObject({ provider: "github-copilot", modelId: "gpt-6-sol", variant: "medium" })
   })
 
-  it("#given only gpt-5.6-sol #when deep-low resolves #then it runs Sol at medium with the deep-low GPT append", () => {
+  it("#given only gpt-5.6-sol #when deep-low resolves #then it is model_unavailable, because the lane no longer carries a GPT-5.6 Sol rung", () => {
     const result = resolveCategory("deep-low", {}, solRegistry)
-    expect(result.kind).toBe("resolved")
-    if (result.kind !== "resolved") throw new Error("Expected resolved")
-    expect(result.spec).toMatchObject({ modelId: "gpt-5.6-sol", variant: "medium", prompt_append: DEEP_LOW_CATEGORY_PROMPT_APPEND_GPT })
+    expect(result.kind).toBe("model_unavailable")
+    expect(result.availableCategories).not.toContain("deep-low")
   })
 
   it("#given only gpt-6-astra #when unspecified-high resolves #then it is model_unavailable, because its chain no longer carries a GPT rung", () => {

@@ -46,7 +46,7 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     ])
   })
 
-  test("deep-low leads with gpt-6-sol-fast medium on the OpenAI lanes, then gpt-6-sol and gpt-5.6-sol medium", () => {
+  test("deep-low leads with gpt-6-sol-fast medium on the OpenAI lanes, then gpt-6-sol medium, and carries no GPT-5.6 Sol rung", () => {
     // given
     const requirement = CATEGORY_MODEL_REQUIREMENTS["deep-low"]
 
@@ -60,17 +60,12 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
         providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
         model: "gpt-6-sol",
         variant: "medium",
-      },
-      {
-        providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
-        model: "gpt-5.6-sol",
-        variant: "medium",
       }
     ])
   })
 
   test("neither deep lane carries the other lane's model, so they never substitute each other", () => {
-    expect(CATEGORY_MODEL_REQUIREMENTS["deep-low"].fallbackChain.map(({ model }) => model)).toEqual(["gpt-6-sol-fast", "gpt-6-sol", "gpt-5.6-sol"])
+    expect(CATEGORY_MODEL_REQUIREMENTS["deep-low"].fallbackChain.map(({ model }) => model)).toEqual(["gpt-6-sol-fast", "gpt-6-sol"])
     expect(CATEGORY_MODEL_REQUIREMENTS["deep-high"].fallbackChain.map(({ model }) => model)).toEqual(["gpt-6-astra"])
   })
 

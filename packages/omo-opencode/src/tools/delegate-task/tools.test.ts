@@ -891,9 +891,8 @@ describe("sisyphus-task", () => {
     test.each([
       ["openai/gpt-6-sol-fast"],
       ["openai/gpt-6-sol"],
-      ["openai/gpt-5.6-sol"],
-    ])("keeps deep-low open on any Sol tier (%s) while deep-high stays Astra-only", (solId) => {
-      // #given: deep-low gates on gpt-6-sol-fast, gpt-6-sol OR gpt-5.6-sol; the builtin default config is the
+    ])("keeps deep-low open on either GPT-6 Sol tier (%s) while deep-high stays Astra-only", (solId) => {
+      // #given: deep-low gates on gpt-6-sol-fast OR gpt-6-sol; the builtin default config is the
       // GPT-6 Sol Fast tier and the runtime chain walk (category-resolver) picks the rung the registry carries
       const availableModels = new Set<string>([solId])
 
@@ -902,6 +901,20 @@ describe("sisyphus-task", () => {
         systemDefaultModel: SYSTEM_DEFAULT_MODEL,
         availableModels,
       })
+
+    test("gates deep-low closed when the registry only carries GPT-5.6 Sol", () => {
+      // #given
+      const availableModels = new Set<string>(["openai/gpt-5.6-sol"])
+
+      // #when
+      const result = resolveCategoryConfig("deep-low", {
+        systemDefaultModel: SYSTEM_DEFAULT_MODEL,
+        availableModels,
+      })
+
+      // #then
+      expect(result).toBeNull()
+    })
 
       // #then
       const resolved = expectResolvedCategoryConfig(result)

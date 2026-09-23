@@ -151,7 +151,7 @@ const DEEP_HIGH_CATEGORY_CALLER_GUIDANCE = `<Selection_Gate>Route here only when
 
 // Each deep lane is a single rung with no model fallback, so it gates on its own model and
 // disappears from the category list without it.
-const DEEP_LOW_GATE_MODELS = ["gpt-6-sol-fast", "gpt-6-sol", "gpt-5.6-sol"] as const
+const DEEP_LOW_GATE_MODELS = ["gpt-6-sol-fast", "gpt-6-sol"] as const
 const DEEP_HIGH_GATE_MODEL = "gpt-6-astra"
 
 export const OPENAI_CATEGORIES: BuiltinCategoryDefinition[] = [

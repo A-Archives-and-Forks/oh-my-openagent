@@ -49,11 +49,6 @@ describe("category routing policy", () => {
         providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
         model: "gpt-6-sol",
         variant: "medium",
-      },
-      {
-        providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
-        model: "gpt-5.6-sol",
-        variant: "medium",
       }
     ])
   })
