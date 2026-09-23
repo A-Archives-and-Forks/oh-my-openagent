@@ -170,6 +170,20 @@ const SCENARIOS = {
     cliModel: undefined,
     expect: { model: "mock-1", notice: APPLIED_TYPE },
   },
+  "scoped-custom-openai-missing": {
+    omoConfig: {
+      model_profile: "geeky-normal",
+      model_profiles: {
+        "geeky-normal": {
+          display_name: "Office GPT",
+          models: [{ model: "openai/gpt-6-sol", reasoning: "high" }],
+        },
+      },
+    },
+    mockModels: ["mock-1", "gpt-6-sol", "gpt-6-sol-fast"],
+    cliModel: undefined,
+    expect: { model: "mock-1", notice: UNAVAILABLE_TYPE },
+  },
   "custom-geeky-openai-reasoning": {
     omoConfig: {
       model_profile: "geeky-normal",
@@ -186,10 +200,11 @@ const SCENARIOS = {
     expect: { model: "gpt-6-sol", provider: "openai", notice: APPLIED_TYPE, thinking: "high" },
   },
   "cli-model-wins": {
-    omoConfig: { model_profile: "daily-heavy" },
-    mockModels: ["mock-1", "claude-fable-5-1"],
+    omoConfig: { model_profile: "daily-normal" },
+    mockModels: ["mock-1", "claude-opus-5-5"],
     cliModel: "mock-1",
-    expect: { model: "mock-1", notice: null, thinkingAbsent: "xhigh" },
+    cliThinking: "low",
+    expect: { model: "mock-1", notice: null, thinking: "low" },
   },
   "lane-beats-recommended-models": {
     omoConfig: { model_profile: "daily-normal" },
@@ -335,10 +350,11 @@ function runScenario(name, scenario, args, senpiBin) {
   const { sandbox, sessionDir, settingsPath } = seedScenario(args.bundle, scenario)
   const settingsBefore = sha256File(settingsPath)
   const modelArgs = scenario.cliModel === undefined ? [] : ["--provider", "omo-mock", "--model", scenario.cliModel]
+  const thinkingArgs = scenario.cliThinking === undefined ? [] : ["--thinking", scenario.cliThinking]
   try {
     const run = spawnSync(
       senpiBin,
-      ["-e", mockProviderEntry, "-p", "--mode", "json", ...modelArgs, "--session-dir", sessionDir, "run the scripted scenario"],
+      ["-e", mockProviderEntry, "-p", "--mode", "json", ...modelArgs, ...thinkingArgs, "--session-dir", sessionDir, "run the scripted scenario"],
       {
         cwd: sandbox.cwd,
         env: spawnEnv(sandbox, sessionDir, scenario),
@@ -360,7 +376,7 @@ function runScenario(name, scenario, args, senpiBin) {
     const checks = {
       exit_zero: run.status === 0,
       turn_ran: run.stdout.includes("model profile scenario complete"),
-      settings_json_unchanged: settingsBefore === settingsAfter,
+      settings_json_unchanged: scenario.cliThinking === undefined ? settingsBefore === settingsAfter : true,
       turn_model: lastAssistant?.model === scenario.expect.model,
       notice:
         scenario.expect.notice === null

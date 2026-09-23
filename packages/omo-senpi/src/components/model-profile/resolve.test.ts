@@ -230,6 +230,68 @@ describe("builtin chain routing", () => {
     })
   })
 
+  it("does not silently take another provider when a user overlay names openai and openai is absent", () => {
+    const result = resolveModelProfile({
+      profiles: { "geeky-normal": { models: [{ model: "openai/gpt-6-sol", reasoning: "medium" }] } },
+      active: "geeky-normal",
+      availableModels: ["chatgpt-subscription/gpt-6-sol"],
+    })
+
+    expect(result).toMatchObject({ kind: "unavailable" })
+  })
+
+  it("walks only the user-listed providers when the first scoped rung is missing", () => {
+    const result = resolveModelProfile({
+      profiles: {
+        "geeky-normal": {
+          models: [
+            { model: "openai/gpt-6-sol", reasoning: "high" },
+            { model: "github-copilot/gpt-6-sol", reasoning: "medium" },
+          ],
+        },
+      },
+      active: "geeky-normal",
+      availableModels: [SOL_COPILOT, SOL_FAST],
+    })
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      provider: "github-copilot",
+      modelId: "gpt-6-sol",
+      reasoning: "medium",
+    })
+  })
+
+  it("still matches an unscoped user model through whichever registry provider serves it", () => {
+    const result = resolveModelProfile({
+      profiles: { "geeky-normal": { models: [{ model: "gpt-6-sol", reasoning: "medium" }] } },
+      active: "geeky-normal",
+      availableModels: ["chatgpt-subscription/gpt-6-sol"],
+    })
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      provider: "chatgpt-subscription",
+      modelId: "gpt-6-sol",
+      reasoning: "medium",
+    })
+  })
+
+  it("selects the named provider when a scoped user rung is present", () => {
+    const result = resolveModelProfile({
+      profiles: { "geeky-normal": { models: [{ model: "openai/gpt-6-sol", reasoning: "high" }] } },
+      active: "geeky-normal",
+      availableModels: ["openai/gpt-6-sol", "chatgpt-subscription/gpt-6-sol"],
+    })
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      provider: "openai",
+      modelId: "gpt-6-sol",
+      reasoning: "high",
+    })
+  })
+
   it("keeps geeky-normal family/tier when a user replaces the chain with an openai model and does not merge builtin rungs", () => {
     const result = resolveModelProfile({
       profiles: { "geeky-normal": { models: [{ model: "openai/gpt-6-sol", reasoning: "high" }] } },

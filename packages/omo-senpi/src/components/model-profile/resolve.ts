@@ -156,6 +156,29 @@ function matchRung(rung: ModelProfileRung, availableModels: ReadonlySet<string>)
   }
 }
 
+function matchScopedUserRung(rung: ModelProfileRung, availableModels: ReadonlySet<string>): RungMatch | undefined {
+  for (const provider of rung.providers) {
+    if (!availableModels.has(`${provider}/${rung.model}`)) continue
+    return {
+      provider,
+      modelId: rung.model,
+      ...(rung.reasoning !== undefined ? { reasoning: rung.reasoning } : {}),
+    }
+  }
+  return undefined
+}
+
+function matchProfileRung(
+  rung: ModelProfileRung,
+  availableModels: ReadonlySet<string>,
+  source: ModelProfileSource,
+): RungMatch | undefined {
+  if (source === "user" && rung.providers.length > 0) {
+    return matchScopedUserRung(rung, availableModels)
+  }
+  return matchRung(rung, availableModels)
+}
+
 /**
  * Resolve the active `model_profile` against the live registry listing.
  *
@@ -190,7 +213,7 @@ export function resolveModelProfile(input: ResolveModelProfileInput): ModelProfi
   const skipped: string[] = []
   if (availableModels.size > 0) {
     for (const rung of definition.models) {
-      const match = matchRung(rung, availableModels)
+      const match = matchProfileRung(rung, availableModels, definition.profile.source)
       if (match !== undefined) {
         return { kind: "resolved", profile: definition.profile, ...match, skipped }
       }
