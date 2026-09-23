@@ -2,6 +2,10 @@ import { describe, expect, test } from "bun:test"
 import { CATEGORY_MODEL_REQUIREMENTS } from "./model-requirements"
 
 describe("CATEGORY_MODEL_REQUIREMENTS", () => {
+  test("writing only activates when one of its own chain models is available", () => {
+    expect(CATEGORY_MODEL_REQUIREMENTS["writing"].requiresAnyModel).toBe(true)
+  })
+
   test("ultrabrain routes GPT-6 Astra max before the existing Sol max fallbacks", () => {
     expect(CATEGORY_MODEL_REQUIREMENTS.ultrabrain.fallbackChain).toEqual([
       { providers: ["openai", "chatgpt-subscription"], model: "gpt-6-astra", variant: "max" },

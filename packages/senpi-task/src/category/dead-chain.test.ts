@@ -110,6 +110,31 @@ describe("dead-chain category disabling", () => {
     })
   })
 
+  describe("#given a registry without any of writing's Claude models", () => {
+    test("#when writing resolves #then it is unavailable and unlisted instead of borrowing another family", () => {
+      // given
+      const models = registry([model("chatgpt-subscription", "gpt-6-sol"), model("openai", "gpt-5.6-sol")])
+
+      // when
+      const result = resolveCategory("writing", {}, models)
+
+      // then
+      expect(result.kind).toBe("model_unavailable")
+      expect(result.availableCategories).not.toContain("writing")
+    })
+
+    test("#when Copilot serves its dotted Fable id #then writing resolves on it", () => {
+      // given
+      const models = registry([model("github-copilot", "claude-fable-5.1")])
+
+      // when
+      const result = resolveCategory("writing", {}, models)
+
+      // then
+      expect(result.kind).toBe("resolved")
+    })
+  })
+
   describe("#given a gateway-prefixed registry id", () => {
     test("#when the unwrapped id matches a rung #then the category stays available", () => {
       // given

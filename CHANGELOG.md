@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+**`writing` is unavailable when none of its Claude models is connected, instead of running on another model.** ([#8723](https://github.com/code-yeongyu/oh-my-openagent/issues/8723)) The `writing` chain is Claude Fable 5.1, then Claude Opus 5.5, then Claude Opus 4.6. In the OpenCode edition, a machine without any of them still accepted `task(category: "writing")` and ran it on the session's default model. The installer went further: on an OpenAI-only setup it wrote `writing` as GPT-5.6 Sol, and on a setup with no matching provider it wrote the `opencode/gpt-5-nano` last resort. Now the OpenCode runtime refuses the lane with `Category "writing" has no available model`, and the installer leaves `writing` out of the generated config. OmO Native already treated the lane as unavailable. An explicit `categories.writing` model in `omo.json` still opens it.
+
 ## [5.0.0-beta.86] - 2026-09-23
 
 ### Changed

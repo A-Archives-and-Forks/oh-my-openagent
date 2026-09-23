@@ -128,6 +128,9 @@ export const CATEGORY_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
     ],
   },
   writing: {
+    // Writing runs on Claude only: with none of these models reachable the lane is unavailable instead
+    // of borrowing another family through the session or system default.
+    requiresAnyModel: true,
     fallbackChain: [
       {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
