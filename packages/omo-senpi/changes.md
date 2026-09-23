@@ -1,3 +1,30 @@
+## comment-checker: a native install obtains the checker without the npm payload, and Bun 1.3.x's ResolveMessage no longer escapes
+
+`components/comment-checker/resolver.ts`: `resolvePackageApiBinary` treats the value Bun 1.3.x throws
+for a missing module - a `ResolveMessage` carrying `MODULE_NOT_FOUND` that is not an `Error` instance
+(Bun 1.4.0 made it one) - as "package absent" through `utils.ts` `isMissingModuleValue`; unrelated
+thrown values still propagate. Before this, a native install without `@code-yeongyu/comment-checker`
+running on a 1.3.x bun surfaced `Extension error (.../omo.js): ResolveMessage: Cannot find module
+'@code-yeongyu/comment-checker'` after every successful `write`/`edit`/`apply_patch`. The resolver
+gains a fourth step after env, package API and PATH: the shared binary cache
+(`defaultCommentCheckerCacheDir`, `COMMENT_CHECKER_CACHE_DIR_NAME = "oh-my-opencode"`, pinned equal to
+the OpenCode edition's `CACHE_DIR_NAME` so one download serves both editions). `downloader.ts` (new)
+`downloadSenpiCommentCheckerBinary` fetches the release the shared descriptor in
+`@oh-my-opencode/comment-checker-core` pins (v0.8.0, per-platform asset) through
+`@oh-my-opencode/omo-opencode/binary-downloader` (a new narrow package export of the shared
+primitives: `downloadArchive`, `extractTarGz`, `extractZipArchive`, `ensureExecutable`, archive-entry
+validation), logs through the component logger, and returns null on an unsupported platform or a
+failed download. `component.ts`: `ensureBinaryPath` is async - sync resolution, then one download per
+session memoized in a single in-flight promise, then the existing one-time "binary unavailable"
+warning and session-inert state; `CommentCheckerComponentOptions.downloadBinary` injects it for tests.
+The native manifest keeps NOT declaring `@code-yeongyu/comment-checker` (267,670,796 bytes unpacked,
+every platform's binary), matching the OpenCode edition after #8256. The main bundle grows
+1,270,564 -> 1,284,797 bytes under the unchanged 1,300,000 budget. Tests: `comment-checker.missing-package.test.ts`
+(real module resolution, PATH fallback, Bun's non-Error value, once-only disable, unrelated values
+propagate; the first four adapted from #8248 by gunggme), `comment-checker.downloader.test.ts` (local
+HTTP server, cache hit, 503, unsupported platform, cache-dir equality with the OpenCode edition),
+resolver cache step, component download-once and in-flight coalescing. omo#8247.
+
 ## Memory changes read as one "Remembered" notice; reflection lifecycle rows are gone
 
 `worker/completion-renderers.ts` registers a renderer for `senpi-memory.reflection-completion`

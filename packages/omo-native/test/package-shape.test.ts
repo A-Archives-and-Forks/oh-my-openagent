@@ -9,6 +9,7 @@ import { describe, expect, test } from "bun:test"
  * root package). Shape only - launcher behavior is covered by launcher.test.ts.
  */
 const manifestPath = resolve(import.meta.dir, "..", "package.json")
+const sourceExtensionBundlePath = resolve(import.meta.dir, "..", "..", "omo-senpi", "plugin", "extensions", "omo.js")
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
   name: string
   bin?: Record<string, string>
@@ -45,20 +46,22 @@ describe("omo-ai published package shape", () => {
     })
 
     describe("#when the dependencies are audited", () => {
-      test("#then it declares exactly the engine, codemode parser and comment-checker runtime dependencies", () => {
+      test("#then it declares exactly the engine and codemode parser runtime dependencies", () => {
         expect(Object.keys(manifest.dependencies ?? {}).sort()).toEqual([
           "@babel/parser",
-          "@code-yeongyu/comment-checker",
           "@code-yeongyu/senpi",
         ])
       })
 
-      // The shipped extension requires this package at runtime after write-like tool
-      // results, so a global install without it fails to resolve the module (#8247).
-      test("#then the comment-checker pin is exact with no range operator", () => {
-        const pin = manifest.dependencies?.["@code-yeongyu/comment-checker"]
-        expect(pin).toBeDefined()
-        expect(pin).toMatch(/^\d+\.\d+\.\d+$/)
+      // omo#8247: the checker npm package ships every platform's binary (~255 MiB unpacked); the
+      // extension downloads the pinned release for the host instead, so the dependency must stay absent
+      // AND the shipped bundle must carry the downloader that replaces it.
+      test("#then the comment-checker payload is not a runtime dependency and the bundle downloads the pinned release instead", () => {
+        expect(manifest.dependencies).not.toHaveProperty("@code-yeongyu/comment-checker")
+        const bundle = readFileSync(sourceExtensionBundlePath, "utf8")
+        expect(bundle).toContain("code-yeongyu/go-claude-code-comment-checker")
+        expect(bundle).toContain("/releases/download/v")
+        expect(bundle).toContain("comment-checker_v")
       })
 
       test("#then the codemode parser dependency is exactly pinned", () => {
