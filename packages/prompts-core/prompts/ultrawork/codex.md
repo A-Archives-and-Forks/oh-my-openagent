@@ -257,7 +257,7 @@ Until every success criterion PASSES with its evidence captured:
    existing tests — sized like its neighbors, one case per stated
    behavior, failing when that behavior breaks. A test that restates
    the change (a constant, a string, a rename, a call) is NOT evidence;
-   the run is. Coverage-only task (no production change): break the
+   the run is. Coverage-only work (no production change): break the
    behavior each new assertion names, capture it failing, restore — an
    assertion that stays green under its mutation is not coverage.
    PROSE TARGET (prompt, SKILL.md, rule, markdown): the wording is NOT
