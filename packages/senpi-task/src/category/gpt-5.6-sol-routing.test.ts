@@ -17,7 +17,6 @@ const registry = {
 describe("GPT-5.6 Sol category routing", () => {
   const cases = [
     { category: "ultrabrain", variant: "max" },
-    { category: "deep-low", variant: "medium" },
   ] as const
 
   for (const { category, variant } of cases) {
@@ -36,6 +35,14 @@ describe("GPT-5.6 Sol category routing", () => {
       expect(result.modelSelection.fallbackEntry?.model).toBe("gpt-5.6-sol")
     })
   }
+
+  test("#given only OpenCode Sol #when deep-low resolves #then it is unavailable because GPT-5.6 Sol left its chain", () => {
+    // given / when
+    const result = resolveCategory("deep-low", {}, registry)
+
+    // then
+    expect(result.kind).toBe("model_unavailable")
+  })
 
   test("#given only OpenCode Sol #when unspecified-low resolves #then it is unavailable because sol left its chain", () => {
     // given / when

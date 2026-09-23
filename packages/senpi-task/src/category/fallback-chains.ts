@@ -57,11 +57,6 @@ export const CATEGORY_FALLBACK_CHAINS: Readonly<Record<string, readonly Delegate
       providers: ["chatgpt-subscription", "github-copilot", "opencode"],
       model: "gpt-6-sol",
       variant: "medium",
-    },
-    {
-      providers: ["chatgpt-subscription", "github-copilot", "opencode"],
-      model: "gpt-5.6-sol",
-      variant: "medium",
     }
   ],
   "deep-high": [

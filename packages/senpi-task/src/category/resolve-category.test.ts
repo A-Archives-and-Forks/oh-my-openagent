@@ -42,13 +42,13 @@ const gpt56CategoryCases = [
   },
   {
     category: "deep",
-    modelId: "gpt-5.6-sol",
+    modelId: "gpt-6-sol",
     nativeVariant: "medium",
-    mixedWinner: { provider: "github-copilot", modelId: "gpt-5.6-sol", variant: "medium" },
+    mixedWinner: { provider: "github-copilot", modelId: "gpt-6-sol", variant: "medium" },
     copilotVariant: "medium",
     copilotFallbackEntry: {
       providers: ["chatgpt-subscription", "github-copilot", "opencode"] as string[],
-      model: "gpt-5.6-sol",
+      model: "gpt-6-sol",
       variant: "medium",
     },
   },
@@ -331,7 +331,7 @@ describe("resolveCategory", () => {
     })
   })
 
-  test("#given only transformed Vercel GPT-5.6 models #when deep categories resolve #then each keeps its native top rung", () => {
+  test("#given only transformed Vercel GPT models #when deep categories resolve #then each keeps its native top rung", () => {
     for (const { category, modelId, nativeVariant } of gpt56CategoryCases) {
       const gatewayModelId = `openai/${modelId}`
       const result = expectResolved(resolveCategory(category, {}, registry([model("vercel", gatewayModelId)])))
@@ -344,7 +344,7 @@ describe("resolveCategory", () => {
     }
   })
 
-  test("#given transformed Vercel and Copilot GPT-5.6 models #when deep categories resolve #then the first available rung provider wins", () => {
+  test("#given transformed Vercel and Copilot GPT models #when deep categories resolve #then the first available rung provider wins", () => {
     for (const { category, modelId, mixedWinner } of gpt56CategoryCases) {
       const gatewayModelId = `openai/${modelId}`
       const models = registry([
@@ -360,7 +360,7 @@ describe("resolveCategory", () => {
     }
   })
 
-  test("#given only Copilot GPT-5.6 models #when deep categories resolve #then each uses its copilot rung", () => {
+  test("#given only Copilot GPT models #when deep categories resolve #then each uses its copilot rung", () => {
     for (const { category, modelId, copilotVariant, copilotFallbackEntry } of gpt56CategoryCases) {
       const result = expectResolved(resolveCategory(category, {}, registry([model("github-copilot", modelId)])))
 
@@ -493,7 +493,7 @@ describe("builtin category defaults", () => {
     expect(BUILTIN_CATEGORY_REQUIRES_MODEL).toEqual({
       architect: ["claude-fable-5-1"],
       ultrabrain: ["gpt-6-astra", "gpt-5.6-sol"],
-      "deep-low": ["gpt-6-sol-fast", "gpt-6-sol", "gpt-5.6-sol"],
+      "deep-low": ["gpt-6-sol-fast", "gpt-6-sol"],
       "deep-high": ["gpt-6-astra"],
     })
   })
