@@ -464,7 +464,7 @@ Selected built-in skills include `debugging`, `dev-browser`, `frontend`, `git-ma
 | ---------------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **git-master**         | commit, rebase, squash, "who wrote", "when was X added" | Git expert. Detects commit styles, splits atomic commits, formulates rebase strategies. Three specializations: Commit Architect (atomic commits, dependency ordering), Rebase Surgeon (history rewriting, conflict resolution), and History Archaeologist (finding when/where specific changes were introduced).                              |
 | **playwright**         | Browser tasks, testing, screenshots                     | Browser automation via Playwright MCP. MUST USE for browser verification, browsing, web scraping, testing, and screenshots.                                                                                                                                                                                                                   |
-| **visual-qa**          | Browser rendering and screenshot evidence               | Bun.WebView from js eval, or a written playwright-core script against local Chrome for Chrome semantics, stealth, traces, and cloned authenticated profiles. |
+| **visual-qa**          | Browser rendering and screenshot evidence               | omowright from js eval: the owned engine for renders on a task-owned profile, the attached engine for pages that need the user's login. |
 | **dev-browser**        | Stateful browser scripting                              | Browser automation with persistent page state for iterative workflows and authenticated sessions.                                                                                                                                                                                                                                             |
 | **frontend**           | UI/UX tasks, styling                                    | Designer-turned-developer persona. Crafts strong UI/UX even without design mockups. Emphasizes bold aesthetic direction, distinctive typography, cohesive color palettes.                                                                                                                                                                     |
 | **review-work**        | "review work", "review my work", "QA my work"          | Post-implementation gate review. The orchestrator runs manual QA on the real surface, then one gate reviewer audits goal, code quality, security, missed context, and the QA evidence. Passes only on a clean QA matrix plus APPROVE.                                                                                                                     |
@@ -507,29 +507,32 @@ Selected built-in skills include `debugging`, `dev-browser`, `frontend`, `git-ma
 
 ### Browser Automation Options
 
-Shipped browser guidance uses two tiers from the js-eval kernel. In Codex,
-prefer `browser:control-in-app-browser` for ordinary page control. The retired
-CLI provider and its builtin skill are no longer shipped. An obsolete
-`browser_automation_engine.provider` value fails validation; doctor names the
-rejected value and directs users to Bun.WebView / playwright-core scripts.
-Remove the obsolete override rather than installing a retired CLI.
+On OmO Native and Codex, shipped browser guidance runs through **omowright**,
+staged inside the `browser` skill and loaded from the js-eval kernel. In Codex,
+`browser:control-in-app-browser` stays first for ordinary page control. The
+OpenCode edition keeps its `browser_automation_engine` providers; an obsolete
+provider value fails validation and doctor names the rejected value.
 
-#### Option 1: Bun.WebView
+#### Owned engine
 
-On Bun >= 1.4, use `new Bun.WebView()`. macOS defaults to system WebKit;
-Linux/Windows require installed Chrome/Chromium/Edge. Capture PNG with
-`await Bun.write(pngPath, await view.screenshot())` and close the WebView.
-WebView is headless, WebKit has no CDP, and `type()` emits no keyboard events.
+`connectPipe({ browserPath, browserArgs, storageRoot })` launches a browser your
+code owns over a pipe (no listening port) with a task-owned profile;
+`connectCloakProfile({ profileDir })` launches CloakBrowser with a pinned
+fingerprint for bot-scored targets. The page is Playwright-shaped
+(`snapshot`, `locator(ref)`, `screenshot`, `evaluate`), with coordinate control,
+captcha helpers, network snooping, request routes and flight traces beside it.
+Chrome must already be installed; no managed browser download is required.
 
-#### Option 2: playwright-core scripts with local Chrome
+#### Attached engine
 
-Otherwise, or for Chrome semantics, stealth, trace, or authenticated profiles,
-WRITE a `playwright-core` script and run it from js eval against installed Chrome
-(`chromium.launch({ channel: "chrome" })`). The user installs `playwright-core`
-once if absent; no managed browser download is required. For persistent auth,
-CLONE the profile before `launchPersistentContext`; never launch against or clear
-the live profile. The `ultimate-browsing` skill documents optional, user-installed
-script-only stealth plugins. Close all browser contexts after capture.
+`connectBrowserSkill({ name, focused: false })` drives the browser the user is
+already signed into through BrowserSkill's daemon and extension;
+`bskSnapshot(session)` returns the same tree-and-refs shape without leaving a
+trace in the page. `bskDoctor()` / `bskOnboard()` (wrapped by the skill's
+`browser-doctor.mjs` / `browser-install.mjs`) install the CLI, start the daemon
+and register the Web Store extension so the user's only step is one **Enable**
+click. Never launch against, clone, or clear the user's live profile; never fall
+back to the owned engine for a page that needs their login.
 
 **Browser QA capabilities (choose the tier that supports the criterion)**:
 
