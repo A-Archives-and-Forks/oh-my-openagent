@@ -98,7 +98,7 @@ const ulwExecuteCodexCompletion = `When all top-level checkboxes in \`## TODOs\`
 5. Remove or mark the Boulder work as completed.
 6. Print an \`ORCHESTRATION COMPLETE\` block with the plan path, verification commands, artifacts, and cleanup receipts.`;
 
-const ulwExecuteOriginalHardRule = `- No production change before a failing-first proof exists (unit test at a seam, otherwise the failing Manual-QA scenario), and no change to existing behavior before a baseline characterization test pins the current behavior and passes on the unchanged code.
+const ulwExecuteOriginalHardRule = `- No production change before the tests covering that behavior were read and a bug's reproduction captured; existing tests are green on the unchanged code first, and one that contradicts the intent is a FINDING, never edited green.
 - No \`--dry-run\` as completion evidence.
 - No tests-only completion claim. A Manual-QA artifact is required.
 - **NO DIRECT IMPLEMENTATION BY THE ORCHESTRATOR.** Root NEVER edits product files, writes tests, or runs QA itself — a spawned worker does.
@@ -107,7 +107,7 @@ const ulwExecuteOriginalHardRule = `- No production change before a failing-firs
 - No unprefixed session ids in Boulder state. Sessions are always recorded as \`codex:<session_id>\`.
 - No stale-memory execution. The plan and ledger are the durable source of truth.`;
 
-const ulwExecuteCodexHardRule = `- No production change before a failing-first proof exists (unit test at a seam, otherwise the failing Manual-QA scenario), and no change to existing behavior before a baseline characterization test pins the current behavior and passes on the unchanged code.
+const ulwExecuteCodexHardRule = `- No production change before the tests covering that behavior were read and a bug's reproduction captured; existing tests are green on the unchanged code first, and one that contradicts the intent is a FINDING, never edited green.
 - No \`--dry-run\` as completion evidence.
 - No tests-only completion claim. A Manual-QA artifact is required.
 - **NO DIRECT IMPLEMENTATION BY THE ORCHESTRATOR.** Root NEVER edits product files, writes tests, or runs QA itself — a spawned worker does.

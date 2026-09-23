@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+**ultrawork and the bundled skills verify behavior instead of mandating TDD.** ([#8719](https://github.com/code-yeongyu/oh-my-openagent/issues/8719))
+
+The ultrawork directive (OmO Native, Codex, and every OpenCode variant), `programming`, `debugging`, `ulw-execute`, `ulw-loop`'s goal reference, the Hephaestus GPT-6 rule, and the root protocol no longer demand a failing test before every change. They read the tests that already cover the area as the behavior of record, reproduce a bug before fixing it, let the run on the real surface prove the change, and add a test only where the repository keeps tests for that behavior and a regression would otherwise pass unnoticed. Sessions stop producing tests that only restate a small change, and every rewritten surface is shorter than before.
+
 **`deep-high` runs GPT-6 Astra at `xhigh`, and `deep-low` leads with GPT-6 Sol Fast.** ([#8714](https://github.com/code-yeongyu/oh-my-openagent/issues/8714))
 
 The escalation lane `deep-high` still has one rung, GPT-6 Astra, and now runs it at `xhigh` instead of `high`. The default deep lane `deep-low` starts on `gpt-6-sol-fast`, GPT-6 Sol's Fast (priority) tier, at `medium`, on the OpenAI and ChatGPT subscription providers that serve that tier. It then falls back to plain `gpt-6-sol` at `medium`, so GitHub Copilot and OpenCode Zen, which do not offer the Fast tier, keep the lane. GPT-5.6 Sol is no longer a `deep-low` model: a setup that serves only GPT-5.6 Sol now reports `deep-low` as unavailable instead of running it there ([#8718](https://github.com/code-yeongyu/oh-my-openagent/issues/8718)). `ultrabrain` stays on GPT-6 Astra at `max`, and `unspecified-high` stays on Claude Opus 5.5 at `max` first. The configuration reference's provider-chain table, which still listed GPT-6 Astra as the first `unspecified-high` rung, now matches the shipped chain.

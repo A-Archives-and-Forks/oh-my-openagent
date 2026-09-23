@@ -1,6 +1,6 @@
 ---
 name: programming
-description: "Applies strict, modern language practice (typed errors, exhaustive match, TDD) for Python, Rust, TypeScript, and Go. Use for work on .py, .rs, .ts, or .go files."
+description: "Applies strict, modern language practice (typed errors, exhaustive match, tests that can fail) for Python, Rust, TypeScript, and Go. Use for work on .py, .rs, .ts, or .go files."
 ---
 
 # Programming
@@ -47,23 +47,15 @@ These are not style preferences. They are the seven axioms every recipe in `refe
 
 5. **Trust framework guarantees. Validate only at boundaries.** No null checks for values the type system already proves non-null. No `try/except` around code that cannot raise. No `unwrap`/`!`/`as` to paper over a contract you should have encoded in types. No defensive layer for a scenario you cannot name.
 
-6. **Test-driven, with the right shape of test.** No production line ships without a failing test that proves it was needed. Behavior is locked by tests, not by hope. See the TDD discipline below.
+6. **Tests are the behavior of record, and only tests that can fail count.** READ the tests covering the area BEFORE you change it: do they encode the intent, cover this path, pass? One wrong before your change is a FINDING — never edit it green. Reproduce a bug before fixing it. The run proves the change; add a test ONLY where the repository keeps tests for this behavior AND a regression would otherwise pass unnoticed — sized like its neighbors, never restating the change. See the test discipline below.
 
 ---
 
-## TDD DISCIPLINE — NON-NEGOTIABLE
-
-**Every change follows the red → green → refactor loop.** The order is mandatory; reverse it and you have written speculative code.
-
-### The order
-
-1. **Red.** Write a failing test that names the behavior in `Given / When / Then`. Run it. *Confirm it fails for the right reason* — not a typo, not an import error. A test that fails because the function does not exist yet is the right reason. A test that fails because of a missing import is not.
-2. **Green.** Write the minimum code to make the test pass. Resist adding the second case until the first passes. The second case is the next red.
-3. **Refactor.** With the test green, restructure ruthlessly. The test is your safety net. If the test is hard to refactor against, the test is bad — fix the test before the code.
+## TEST DISCIPLINE
 
 ### The shape of the test pyramid
 
-Every feature ships with all three rungs, sized in this proportion:
+Where the repository keeps these rungs, test at the cheapest rung that observes the behavior:
 
 | Rung | Count | Purpose | Speed budget |
 |---|---|---|---|
@@ -71,7 +63,7 @@ Every feature ships with all three rungs, sized in this proportion:
 | **Integration** | some | The real adapter against the real downstream (DB, queue, HTTP) — via `testcontainers`, `httptest`, or equivalent. NEVER a unit test pretending to be integration. | < 1 s each |
 | **E2E scenario** | few | One narrative per user-visible outcome. Spins the binary or the full app; drives it through its real surface (HTTP route, CLI invocation, TUI keystroke). Asserts the *observable outcome*, not internal state. | seconds, run on CI |
 
-If a feature has zero E2E coverage, it is undone — even if every unit test passes.
+A user-visible outcome you never drove through its real surface is unverified — a green unit suite does not stand in for that run.
 
 ### Given / When / Then is mandatory
 
@@ -121,7 +113,7 @@ If no machine consumes the text, there is no seam: write NO test and say so in t
 
 | Anti-pattern | Why it fails | Fix |
 |---|---|---|
-| Writing code first, tests "to add later" | Tests-after rationalize the existing design, even when wrong. | Red first. Always. |
+| A test that restates the change (pins a constant, a string, a rename, a call) | Cannot fail for any regression; certifies the diff, not the behavior. | The run is the proof. Delete the test. |
 | One mega-test asserting 12 things | First failure hides the next 11. | Split by `Then` clause — one assertion class per test. |
 | Mocking every collaborator | Test passes regardless of real behavior. | Use a fake or the real thing. Mock only true unmockables. |
 | `time.sleep(0.1)` to "let it finish" | Flake guaranteed. | Subscribe to the completion signal; bounded await. |
