@@ -10,7 +10,7 @@
     "explore": { "model": "openai/gpt-6-luna-fast", "reasoning": "low" },
 
     // Research and documentation
-    "librarian": { "model": "deepseek/deepseek-v4-flash", "reasoning": "max" },
+    "librarian": { "model": "deepseek/deepseek-flash", "reasoning": "max" },
 
     // Pre-planning consultant: heavily used, maximum depth
     "plan-consultant": {
