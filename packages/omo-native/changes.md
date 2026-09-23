@@ -1,3 +1,21 @@
+## 2026-09-23 - the comment-checker runtime dependency is removed again; the extension downloads the pinned release (#8247)
+
+### What changed
+
+`package.json` drops the `@code-yeongyu/comment-checker` runtime dependency that #8745 (below) declared earlier today and that shipped in 5.0.0-beta.87, and `bun.lock` loses its record. `test/package-shape.test.ts` replaces the "declares comment-checker" and "pin is exact" assertions with the inverse: the dependency is absent while asserting that the shipped extension bundle (`packages/omo-senpi/plugin/extensions/omo.js`) carries the pinned-release downloader (`code-yeongyu/go-claude-code-comment-checker`, `/releases/download/v`, `comment-checker_v`). `test/packed-install.test.ts` asserts, on the packed consumer, that `@code-yeongyu/comment-checker` is installed nowhere in the consumer tree and is not resolvable from the installed extension's directory (the plugin payload itself is a `build:omo-native` output, absent in the root test shard, so the downloader-in-bundle assertion lives only in `package-shape.test.ts`).
+
+### Why
+
+A native install had no checker at all, and on a 1.3.x bun the miss escaped as `Extension error (...omo.js): ResolveMessage: Cannot find module '@code-yeongyu/comment-checker'` after every successful write-like tool result. #8248 and #8745 declared the package; it unpacks to 267,670,796 bytes (every platform's binary, 261,416 KiB on disk against 274,732 KiB for the whole engine), which is why #8256 removed it from the OpenCode edition on 2026-09-14. #8745 also left the Bun 1.3.x `ResolveMessage` leak in place, reasoning from Bun 1.4.x where the value is an `Error`; on Bun 1.3.14 it is not, and `bun add -g` installs re-execute under the bun that installed them with no version floor. The fix lives in `packages/omo-senpi` (lazy pinned-release download into the cache both editions share, plus the ResolveMessage predicate); these tests are the guard that keeps the native package on that path.
+
+### Why an extension could not handle it
+
+The package manifest and the packed-install contract are this package's own surface.
+
+### Expected merge conflict zones
+
+`test/package-shape.test.ts` (dependencies block), `test/packed-install.test.ts` (first test's tail).
+
 ## 2026-09-23 - omo-ai declares the comment-checker runtime dependency (#8247)
 
 ### What changed
