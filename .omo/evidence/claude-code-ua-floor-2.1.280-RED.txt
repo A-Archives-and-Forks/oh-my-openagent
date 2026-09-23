@@ -1,0 +1,110 @@
+bun test v1.4.0 (34cbb9a40)
+
+packages/omo-native/test/senpi-patch.test.ts:
+85 |     describe("#when the patch script runs as postinstall does", () => {
+86 |       test("#then the version is rewritten to the floor", () => {
+87 |         const fixture = createFixture("2.1.75")
+88 |         const result = runPatch(fixture.root)
+89 |         expect(result.status).toBe(0)
+90 |         expect(readFileSync(fixture.anthropicMessages, "utf8")).toBe(anthropicMessagesSource(FLOOR))
+                                                                     ^
+error: expect(received).toBe(expected)
+
+  "// Stealth mode: Mimic Claude Code's tool naming exactly
+- const claudeCodeVersion = "2.1.280";
++ const claudeCodeVersion = "2.1.251";
+  // Claude Code 2.x tool names (canonical casing)
+  const claudeCodeTools = [
+    "Read",
+    "Write",
+    "Edit",
+    "Bash",
+  ]
+  export { claudeCodeTools }
+  "
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/private/tmp/omo-pr/packages/omo-native/test/senpi-patch.test.ts:90:65)
+(fail) senpi-patch claudeCodeVersion floor > #given a bundled pi-ai claudeCodeVersion below the 2.1.280 floor > #when the patch script runs as postinstall does > #then the version is rewritten to the floor [37.17ms]
+(pass) senpi-patch claudeCodeVersion floor > #given a bundled pi-ai claudeCodeVersion already at the floor > #when the patch script runs > #then the bundled file stays byte-identical [35.03ms]
+(pass) senpi-patch claudeCodeVersion floor > #given a bundled pi-ai claudeCodeVersion above the floor > #when the patch script runs > #then the bundled file is never downgraded and stays byte-identical [31.10ms]
+120 |     describe("#when it runs again", () => {
+121 |       test("#then the rewritten file is left unchanged and the exit stays clean", () => {
+122 |         const fixture = createFixture("2.1.75")
+123 |         runPatch(fixture.root)
+124 |         const afterFirst = readFileSync(fixture.anthropicMessages, "utf8")
+125 |         expect(afterFirst).toBe(anthropicMessagesSource(FLOOR))
+                                 ^
+error: expect(received).toBe(expected)
+
+  "// Stealth mode: Mimic Claude Code's tool naming exactly
+- const claudeCodeVersion = "2.1.280";
++ const claudeCodeVersion = "2.1.251";
+  // Claude Code 2.x tool names (canonical casing)
+  const claudeCodeTools = [
+    "Read",
+    "Write",
+    "Edit",
+    "Bash",
+  ]
+  export { claudeCodeTools }
+  "
+
+- Expected  - 1
++ Received  + 1
+
+      at <anonymous> (/private/tmp/omo-pr/packages/omo-native/test/senpi-patch.test.ts:125:28)
+(fail) senpi-patch claudeCodeVersion floor > #given the patch script already rewrote a below-floor version > #when it runs again > #then the rewritten file is left unchanged and the exit stays clean [33.77ms]
+(pass) senpi-patch claudeCodeVersion floor > #given the bundled file has no claudeCodeVersion declaration > #when the patch script runs > #then it fails with the unsupported-Senpi error naming the relative path [34.01ms]
+151 |       test("#then every bundled declaration is raised to the floor and nothing else changes", () => {
+152 |         const fixture = createFixture(FLOOR)
+153 |         writeEngineBundle(fixture.root, bundledChunkSources("2.1.251"))
+154 |         const result = runPatch(fixture.root)
+155 |         expect(result.status).toBe(0)
+156 |         expect(readEngineBundle(fixture.root, bundledChunkSources(FLOOR))).toEqual(bundledChunkSources(FLOOR))
+                                                                                 ^
+error: expect(received).toEqual(expected)
+
+  {
+    "chunks/anthropic-messages-TEST.js": 
+- "function cacheControl(){return{type:"ephemeral"}}var claudeCodeVersion="2.1.280",claudeCodeTools=["Read","Write"];export{claudeCodeTools};
++ "function cacheControl(){return{type:"ephemeral"}}var claudeCodeVersion="2.1.251",claudeCodeTools=["Read","Write"];export{claudeCodeTools};
+  "
+  ,
+    "chunks/session-worker.js": 
+- "init_prompt_cache_ttl();claudeCodeVersion="2.1.280",claudeCodeTools=["Read","Write"]}});
++ "init_prompt_cache_ttl();claudeCodeVersion="2.1.251",claudeCodeTools=["Read","Write"]}});
+  "
+  ,
+    "cli.js": 
+  "import("./chunks/session-worker.js");
+  "
+  ,
+  }
+
+- Expected  - 2
++ Received  + 2
+
+      at <anonymous> (/private/tmp/omo-pr/packages/omo-native/test/senpi-patch.test.ts:156:76)
+(fail) senpi-patch claudeCodeVersion floor in the engine bundle > #given bundled chunks advertising 2.1.251 as senpi 2026.9.22-4 ships them > #when the patch script runs as postinstall does > #then every bundled declaration is raised to the floor and nothing else changes [33.72ms]
+(pass) senpi-patch claudeCodeVersion floor in the engine bundle > #given bundled chunks already above the floor > #when the patch script runs > #then the bundle is never downgraded and stays byte-identical [34.71ms]
+174 |     describe("#when the patch script runs", () => {
+175 |       test("#then it fails with the unsupported-Senpi error naming the bundle", () => {
+176 |         const fixture = createFixture(FLOOR)
+177 |         writeEngineBundle(fixture.root, { "cli.js": "export {}\n" })
+178 |         const result = runPatch(fixture.root)
+179 |         expect(result.status).not.toBe(0)
+                                        ^
+error: expect(received).not.toBe(expected)
+
+Expected: not 0
+
+      at <anonymous> (/private/tmp/omo-pr/packages/omo-native/test/senpi-patch.test.ts:179:35)
+(fail) senpi-patch claudeCodeVersion floor in the engine bundle > #given an engine bundle without any claudeCodeVersion declaration > #when the patch script runs > #then it fails with the unsupported-Senpi error naming the bundle [33.19ms]
+
+ 4 pass
+ 4 fail
+ 14 expect() calls
+Ran 8 tests across 1 file. [703.00ms]

@@ -1,0 +1,16 @@
+bun test v1.4.0 (34cbb9a40)
+
+packages/omo-native/test/senpi-patch.test.ts:
+(pass) senpi-patch claudeCodeVersion floor > #given a bundled pi-ai claudeCodeVersion below the 2.1.280 floor > #when the patch script runs as postinstall does > #then the version is rewritten to the floor [39.78ms]
+(pass) senpi-patch claudeCodeVersion floor > #given a bundled pi-ai claudeCodeVersion already at the floor > #when the patch script runs > #then the bundled file stays byte-identical [33.34ms]
+(pass) senpi-patch claudeCodeVersion floor > #given a bundled pi-ai claudeCodeVersion above the floor > #when the patch script runs > #then the bundled file is never downgraded and stays byte-identical [32.32ms]
+(pass) senpi-patch claudeCodeVersion floor > #given the patch script already rewrote a below-floor version > #when it runs again > #then the rewritten file is left unchanged and the exit stays clean [63.22ms]
+(pass) senpi-patch claudeCodeVersion floor > #given the bundled file has no claudeCodeVersion declaration > #when the patch script runs > #then it fails with the unsupported-Senpi error naming the relative path [35.07ms]
+(pass) senpi-patch claudeCodeVersion floor in the engine bundle > #given bundled chunks advertising 2.1.251 as senpi 2026.9.22-4 ships them > #when the patch script runs as postinstall does > #then every bundled declaration is raised to the floor and nothing else changes [33.84ms]
+(pass) senpi-patch claudeCodeVersion floor in the engine bundle > #given bundled chunks already above the floor > #when the patch script runs > #then the bundle is never downgraded and stays byte-identical [33.91ms]
+(pass) senpi-patch claudeCodeVersion floor in the engine bundle > #given an engine bundle without any claudeCodeVersion declaration > #when the patch script runs > #then it fails with the unsupported-Senpi error naming the bundle [32.18ms]
+
+ 8 pass
+ 0 fail
+ 17 expect() calls
+Ran 8 tests across 1 file. [764.00ms]
