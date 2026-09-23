@@ -82,7 +82,7 @@ describe("resolveAgent category stage", () => {
 
     // then
     expect(result.model).toBe("anthropic/claude-opus-5-5")
-    expect(result.resolved_model?.reasoning).toBe("max")
+    expect(result.resolved_model?.reasoning).toBe("medium")
   })
 
   test("#given categories deep then unspecified-low #when only the low chain head is available #then it resolves at that chain head", () => {
@@ -108,7 +108,7 @@ describe("resolveAgent category stage", () => {
 
     // then
     expect(result.model).toBe("anthropic/claude-opus-5-5")
-    expect(result.resolved_model?.reasoning).toBe("max")
+    expect(result.resolved_model?.reasoning).toBe("medium")
   })
 
   test("#given an omo.json deep category model override #when the agent resolves #then the user model reaches the agent", () => {

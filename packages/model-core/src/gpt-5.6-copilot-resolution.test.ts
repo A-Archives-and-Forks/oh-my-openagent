@@ -12,7 +12,7 @@ describe("GitHub Copilot GPT-5.6 and GPT-6 Astra resolution", () => {
 
   test("unspecified-high never borrows Copilot Astra: it takes the Copilot Opus 5.5 rung, and without it falls to the system default", () => {
     const withOpus = new Set(["github-copilot/gpt-6-astra", "github-copilot/claude-opus-5-5"])
-    expect(resolveModelWithFallback({ fallbackChain: CATEGORY_MODEL_REQUIREMENTS["unspecified-high"].fallbackChain, availableModels: withOpus, systemDefaultModel: "system/default" })).toMatchObject({ model: "github-copilot/claude-opus-5-5", variant: "max" })
+    expect(resolveModelWithFallback({ fallbackChain: CATEGORY_MODEL_REQUIREMENTS["unspecified-high"].fallbackChain, availableModels: withOpus, systemDefaultModel: "system/default" })).toMatchObject({ model: "github-copilot/claude-opus-5-5", variant: "medium" })
 
     const gptOnly = new Set(["github-copilot/gpt-6-astra", "github-copilot/gpt-5.6-sol"])
     expect(resolveModelWithFallback({ fallbackChain: CATEGORY_MODEL_REQUIREMENTS["unspecified-high"].fallbackChain, availableModels: gptOnly, systemDefaultModel: "system/default" })).toMatchObject({ model: "system/default" })

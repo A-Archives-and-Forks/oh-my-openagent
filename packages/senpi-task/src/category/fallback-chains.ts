@@ -125,7 +125,7 @@ export const CATEGORY_FALLBACK_CHAINS: Readonly<Record<string, readonly Delegate
     {
       providers: ["anthropic-subscription", "anthropic", "anthropic-api", "github-copilot", "opencode"],
       model: "claude-opus-5-5",
-      variant: "max",
+      variant: "medium",
     },
     { providers: ["zai-coding-plan", "opencode-go"], model: "glm-5.3", variant: "max" },
     {

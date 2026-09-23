@@ -117,7 +117,7 @@ export const CATEGORY_MODEL_REQUIREMENTS: Record<string, ModelRequirement> = {
       {
         providers: ["anthropic", "anthropic-api", "github-copilot", "opencode"],
         model: "claude-opus-5-5",
-        variant: "max",
+        variant: "medium",
       },
       { providers: ["zai-coding-plan", "opencode-go"], model: "glm-5.3", variant: "max" },
       {

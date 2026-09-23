@@ -76,7 +76,7 @@ describe("CATEGORY_FALLBACK_CHAINS", () => {
         { providers: ["xiaomi", "opencode-go"], model: "mimo-v2.5-pro", variant: "max" }
       ],
       "unspecified-high": [
-        { providers: ["anthropic-subscription", "anthropic", "anthropic-api", "github-copilot", "opencode"], model: "claude-opus-5-5", variant: "max" },
+        { providers: ["anthropic-subscription", "anthropic", "anthropic-api", "github-copilot", "opencode"], model: "claude-opus-5-5", variant: "medium" },
         { providers: ["zai-coding-plan", "opencode-go"], model: "glm-5.3", variant: "max" },
         { providers: ["kimi-coding", "kimi-for-coding", "moonshotai", "opencode-go"], model: "kimi-k3", variant: "max" }
       ],

@@ -484,7 +484,7 @@ describe("builtin category defaults", () => {
       ["deep-high", "chatgpt-subscription/gpt-6-astra", "xhigh"],
       ["quick", "chatgpt-subscription/gpt-6-luna-fast", "low"],
       ["unspecified-low", "xiaomi/mimo-v2.6-pro", "max"],
-      ["unspecified-high", "anthropic/claude-opus-5-5", "max"],
+      ["unspecified-high", "anthropic/claude-opus-5-5", "medium"],
       ["architect", "anthropic/claude-fable-5-1", "max"],
       ["writing", "anthropic/claude-fable-5-1", "low"],
     ])

@@ -192,7 +192,7 @@ Override specific categories or curated agents in `omo.json`:
     "unspecified-low": { "model": "xiaomi/mimo-v2.6-pro", "reasoning": "max" },
 
     // High-effort fallback: Opus 5, then GLM 5.3 and Kimi K3
-    "unspecified-high": { "model": "anthropic/claude-opus-5-5", "reasoning": "max" },
+    "unspecified-high": { "model": "anthropic/claude-opus-5-5", "reasoning": "medium" },
 
     // Prose and documentation
     "writing": { "model": "anthropic/claude-fable-5-1", "reasoning": "low" }

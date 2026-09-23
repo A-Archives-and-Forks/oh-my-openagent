@@ -31,7 +31,7 @@
     "unspecified-low": { "model": "xiaomi/mimo-v2.6-pro", "reasoning": "max" },
 
     // Complex refactors: best quality
-    "unspecified-high": { "model": "anthropic/claude-opus-5-5", "reasoning": "max" },
+    "unspecified-high": { "model": "anthropic/claude-opus-5-5", "reasoning": "medium" },
 
     // Visual work
     "visual-engineering": { "model": "anthropic/claude-fable-5-1", "reasoning": "max" },
