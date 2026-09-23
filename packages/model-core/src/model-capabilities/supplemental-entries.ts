@@ -174,6 +174,22 @@ export const SUPPLEMENTAL_MODEL_CAPABILITIES: Record<string, ModelCapabilitiesSn
 			output: 128000,
 		},
 	},
+	// DeepSeek V4.1 Flash: official API id since 2026-09-10 (models.dev deepseek/deepseek-flash); multimodal input.
+	"deepseek-flash": {
+		id: "deepseek-flash",
+		family: "deepseek-flash",
+		reasoning: true,
+		temperature: true,
+		toolCall: true,
+		modalities: {
+			input: ["text", "image"],
+			output: ["text"],
+		},
+		limit: {
+			context: 1000000,
+			output: 384000,
+		},
+	},
 	"gpt-6-luna-fast": {
 		id: "gpt-6-luna-fast",
 		family: "gpt-nano",
