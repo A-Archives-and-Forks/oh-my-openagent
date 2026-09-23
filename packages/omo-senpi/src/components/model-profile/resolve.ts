@@ -111,7 +111,8 @@ export function mergeModelProfiles(
     merged.set(id, {
       profile: {
         id,
-        displayName: entry.display_name ?? id,
+        // A customized builtin lane keeps its lane name unless the entry renames it.
+        displayName: entry.display_name ?? replaced?.displayName ?? id,
         source: "user",
         ...(family !== undefined ? { family } : {}),
         ...(tier !== undefined ? { tier } : {}),
