@@ -20,7 +20,7 @@ describe("GPT-6 family routing", () => {
 
   test("quick leads with gpt-6-luna-fast low", () => {
     expect(CATEGORY_MODEL_REQUIREMENTS["quick"].fallbackChain[0]).toEqual({
-      providers: ["chatgpt-subscription"],
+      providers: ["openai", "chatgpt-subscription"],
       model: "gpt-6-luna-fast",
       variant: "low",
     })

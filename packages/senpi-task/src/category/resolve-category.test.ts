@@ -47,7 +47,7 @@ const gpt56CategoryCases = [
     mixedWinner: { provider: "github-copilot", modelId: "gpt-6-sol", variant: "medium" },
     copilotVariant: "medium",
     copilotFallbackEntry: {
-      providers: ["chatgpt-subscription", "github-copilot", "opencode"] as string[],
+      providers: ["chatgpt-subscription", "openai", "github-copilot", "opencode"] as string[],
       model: "gpt-6-sol",
       variant: "medium",
     },
@@ -59,7 +59,7 @@ const gpt56CategoryCases = [
     mixedWinner: { provider: "github-copilot", modelId: "gpt-5.6-terra", variant: "high" },
     copilotVariant: "high",
     copilotFallbackEntry: {
-      providers: ["chatgpt-subscription", "github-copilot", "opencode"] as string[],
+      providers: ["chatgpt-subscription", "openai", "github-copilot", "opencode"] as string[],
       model: "gpt-5.6-terra",
       variant: "high",
     },

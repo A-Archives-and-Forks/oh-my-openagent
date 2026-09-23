@@ -74,7 +74,13 @@ describe("generateModelConfig OpenAI-only model catalog", () => {
     expect(result.agents?.librarian).toMatchObject({ model: "openai/gpt-6-luna-fast", variant: "low" })
     expect(result.agents?.explore).not.toMatchObject({ variant: "medium" })
     expect(result.agents?.librarian).not.toMatchObject({ variant: "medium" })
-    expect(result.categories?.quick).toMatchObject({ model: "opencode-go/minimax-m3", variant: "high" })
+    // The builtin quick chain (Luna low, then the OpenCode Go rungs) wins, not the OpenAI-only override,
+    // which would be a bare `{ model: "openai/gpt-6-luna-fast" }` with no variant and no fallbacks.
+    expect(result.categories?.quick).toMatchObject({
+      model: "openai/gpt-6-luna-fast",
+      variant: "low",
+      fallback_models: [{ model: "opencode-go/minimax-m3", variant: "high" }, { model: "opencode-go/minimax-m2.7", variant: "high" }],
+    })
   })
 
   for (const { name, overrides } of mixedProviderCases) {

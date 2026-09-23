@@ -28,6 +28,7 @@ export type BuiltinModelProfile = {
 // Every Claude rung is headed by `anthropic-subscription`, senpi's Claude subscription lane, exactly
 // like the category chains (#8051): rung provider order IS the ranking, so a machine logged in there
 // that also holds an OpenCode Zen key must not land on the metered `opencode` lane.
+// Every GPT rung lists `chatgpt-subscription` then `openai`, as in the category chains (#8300, #8734).
 export const BUILTIN_MODEL_PROFILES: Readonly<Record<string, BuiltinModelProfile>> = Object.freeze({
   capable: {
     displayName: "Capable",
@@ -59,12 +60,12 @@ export const BUILTIN_MODEL_PROFILES: Readonly<Record<string, BuiltinModelProfile
     description: "Maximum reasoning for hard problems - GPT-6 Astra, then GPT-6 Sol.",
     models: [
       {
-        providers: ["chatgpt-subscription", "github-copilot", "opencode"],
+        providers: ["chatgpt-subscription", "openai", "github-copilot", "opencode"],
         model: "gpt-6-astra",
         variant: "high",
       },
       {
-        providers: ["chatgpt-subscription", "github-copilot", "opencode"],
+        providers: ["chatgpt-subscription", "openai", "github-copilot", "opencode"],
         model: "gpt-6-sol",
         variant: "medium",
       },

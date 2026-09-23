@@ -116,7 +116,7 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
     // then
     expect(chain).toEqual([
       {
-        providers: ["chatgpt-subscription"],
+        providers: ["openai", "chatgpt-subscription"],
         model: "gpt-6-luna-fast",
         variant: "low",
       },

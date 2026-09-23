@@ -36,6 +36,7 @@ describe("dead-chain category disabling", () => {
       expect(result.attempted_chain).toEqual(CATEGORY_FALLBACK_CHAINS.quick)
       expect(result.missing_providers).toEqual([
         "chatgpt-subscription",
+        "openai",
         "deepseek",
         "qwen-token-plan",
         "alibaba-token-plan",
