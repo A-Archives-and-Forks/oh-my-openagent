@@ -45,11 +45,20 @@ describe("omo-ai published package shape", () => {
     })
 
     describe("#when the dependencies are audited", () => {
-      test("#then it declares exactly the engine and codemode parser runtime dependencies", () => {
+      test("#then it declares exactly the engine, codemode parser and comment-checker runtime dependencies", () => {
         expect(Object.keys(manifest.dependencies ?? {}).sort()).toEqual([
           "@babel/parser",
+          "@code-yeongyu/comment-checker",
           "@code-yeongyu/senpi",
         ])
+      })
+
+      // The shipped extension requires this package at runtime after write-like tool
+      // results, so a global install without it fails to resolve the module (#8247).
+      test("#then the comment-checker pin is exact with no range operator", () => {
+        const pin = manifest.dependencies?.["@code-yeongyu/comment-checker"]
+        expect(pin).toBeDefined()
+        expect(pin).toMatch(/^\d+\.\d+\.\d+$/)
       })
 
       test("#then the codemode parser dependency is exactly pinned", () => {

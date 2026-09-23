@@ -1,3 +1,22 @@
+## 2026-09-23 - omo-ai declares the comment-checker runtime dependency (#8247)
+
+### What changed
+
+`package.json` lists `@code-yeongyu/comment-checker` at an exact version alongside the engine and the
+codemode parser. The shipped extension resolves that package after a write-like tool result, so an
+install that had no other copy of it raised `Cannot find module '@code-yeongyu/comment-checker'`.
+
+### Why
+
+The dependency was implicit: it resolved on machines where another workspace or a global install
+happened to provide it, and failed on a clean global install of the published package.
+
+### Verification
+
+`bun test packages/omo-native/test/package-shape.test.ts` pins the declaration and its exact pin
+(12 pass). A clean `npm i omo-ai@5.0.0-0.beta.86` prefix resolves the package only once the
+declaration is present.
+
 ## 2026-09-23 - the launcher prepares an engine postinstall never touched (#8713)
 
 ### What changed

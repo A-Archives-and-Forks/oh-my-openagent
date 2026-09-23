@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+**A global install no longer fails to find the comment checker.** ([#8247](https://github.com/code-yeongyu/oh-my-openagent/issues/8247))
+
+The shipped extension asks for `@code-yeongyu/comment-checker` after a write-like tool result, but `omo-ai` never declared it, so an install that had no other copy of that package raised `Cannot find module '@code-yeongyu/comment-checker'`. The package now declares it as a pinned runtime dependency, and the manifest test pins the declaration so it cannot disappear again.
+
 ### Changed
 
 **The `programming` skill's Rust guidance compiles and no longer contradicts itself.** ([#8739](https://github.com/code-yeongyu/oh-my-openagent/issues/8739)) Agents writing Rust got several examples that did not build or broke the skill's own strict lint config: an edition 2024 template declaring Rust 1.83, a duplicate lint key cargo rejects, `mem::forget` and `static mut` patterns the config denies, a serde struct combining two attributes serde cannot combine, and a project scaffold that failed its own lint gate and could not link on macOS. Every edited example now compiles under the skill's configuration on Rust 1.85 and current stable, and the scaffold builds, lints, and runs clean. The Rust references also gained what they were missing: Rust 2024 FFI syntax, explicit overflow and conversion rules, validated-newtype construction, async trait and cancellation guidance, public-API naming and trait design, macro hygiene, doctests, and an MSRV check. The bundled checker now also flags `#[allow]`, silently discarded results, and blocking calls inside async code.
