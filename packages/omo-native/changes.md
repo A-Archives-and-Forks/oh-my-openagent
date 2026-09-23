@@ -1,3 +1,31 @@
+## 2026-09-23 - Claude Code UA floor reaches the bundled engine and rises to 2.1.280
+
+### What changed
+
+`bin/senpi-patch.mjs` raises `claudeCodeVersionFloor` from `2.1.251` to `2.1.280` and applies the
+floor to every `claudeCodeVersion` declaration under the engine's `dist/bundle/` as well as the
+existing `@earendil-works/pi-ai/dist/api/anthropic-messages.js` target. Only the version string of a
+below-floor declaration is rewritten; at-or-above declarations stay byte-identical, and a bundle
+with no declaration fails installation with `omo-ai: unsupported Senpi dist/bundle`.
+
+### Why
+
+Claude Opus 5.5 rejects OAuth requests advertising Claude Code below 2.1.280
+(`claude_code_version_too_old`), and senpi 2026.9.22-4 made `claude-opus-5-5` the recommended
+Anthropic model and the first rung of the Fable fallback ladders. The launcher runs the engine's
+pre-linked `dist/bundle/cli.js` whenever it exists, and that bundle inlines its own
+`claudeCodeVersion`, so the pi-ai-only floor never reached the running engine: raising the floor
+alone still advertised `claude-cli/2.1.251`.
+
+### Why an extension could not handle it
+
+The header is assembled inside the engine's Anthropic client before any extension hook runs; the
+postinstall preparation of the installed engine is the only omo-owned point that reaches it.
+
+### Expected merge conflict zones
+
+`bin/senpi-patch.mjs` floor constant and the bundle pass; `test/senpi-patch.test.ts`.
+
 ## 2026-09-21 - POSIX launchers replace themselves with the engine (#8560)
 
 ### What changed
