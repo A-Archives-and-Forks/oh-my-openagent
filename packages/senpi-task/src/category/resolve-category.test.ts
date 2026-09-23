@@ -480,8 +480,8 @@ describe("builtin category defaults", () => {
       ["visual-engineering", "anthropic/claude-fable-5-1", "max"],
       ["artistry", "anthropic/claude-fable-5-1", "max"],
       ["ultrabrain", "chatgpt-subscription/gpt-6-astra", "max"],
-      ["deep-low", "chatgpt-subscription/gpt-6-sol", "medium"],
-      ["deep-high", "chatgpt-subscription/gpt-6-astra", "high"],
+      ["deep-low", "chatgpt-subscription/gpt-6-sol-fast", "medium"],
+      ["deep-high", "chatgpt-subscription/gpt-6-astra", "xhigh"],
       ["quick", "chatgpt-subscription/gpt-6-luna-fast", "low"],
       ["unspecified-low", "xiaomi/mimo-v2.6-pro", "max"],
       ["unspecified-high", "anthropic/claude-opus-5-5", "max"],
@@ -493,7 +493,7 @@ describe("builtin category defaults", () => {
     expect(BUILTIN_CATEGORY_REQUIRES_MODEL).toEqual({
       architect: ["claude-fable-5-1"],
       ultrabrain: ["gpt-6-astra", "gpt-5.6-sol"],
-      "deep-low": ["gpt-6-sol", "gpt-5.6-sol"],
+      "deep-low": ["gpt-6-sol-fast", "gpt-6-sol", "gpt-5.6-sol"],
       "deep-high": ["gpt-6-astra"],
     })
   })

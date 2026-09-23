@@ -40,10 +40,11 @@ describe("category routing policy", () => {
       {
         providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
         model: "gpt-6-astra",
-        variant: "high",
+        variant: "xhigh",
       },
     ])
     expect(low.fallbackChain).toEqual([
+      { providers: ["openai", "chatgpt-subscription"], model: "gpt-6-sol-fast", variant: "medium" },
       {
         providers: ["openai", "chatgpt-subscription", "github-copilot", "opencode"],
         model: "gpt-6-sol",
