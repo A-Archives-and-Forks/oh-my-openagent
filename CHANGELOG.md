@@ -19,6 +19,10 @@ Both agents now fall back in this order: `kimi-for-coding-highspeed` (off), `gpt
 
 ### Fixed
 
+**Claude subscription sessions run and advertise Claude Code 2.1.280 on every install.** ([#8713](https://github.com/code-yeongyu/oh-my-openagent/issues/8713))
+
+Beta.85 still shipped Claude Agent SDK 0.3.278, whose bundled Claude Code 2.1.278 is older than the 2.1.280 that Claude Opus 5.5 requires. Installs made with `ignore-scripts=true` in `~/.npmrc`, or through a Bun install that blocked the package's postinstall, also skipped the step that raises the advertised version, so they kept sending `claude-cli/2.1.251`. The engine now pins the SDK at 0.3.280 and declares 2.1.280 itself. The first `omo` launch prepares an engine that install scripts never touched and records it in the engine directory, so later launches skip the work. If that preparation fails, `omo` prints the reinstall command and starts anyway. A newer Claude Code on your PATH (after `claude update`, for example) now runs instead of the bundled copy, and `CLAUDE_CODE_EXECUTABLE` still overrides both.
+
 **`omob` can build an engine version before its workspace packages reach npm.** The development build now uses the dependencies already packed into its local engine tarball instead of asking Bun to resolve their unpublished versions from the registry. Platform-specific optional packages still install normally, and an incomplete bundle fails explicitly rather than fetching a replacement.
 
 **CI update-checker tests no longer depend on sibling test order.** An unnecessary module mock leaked a fixed version into the registry-channel tests, failing all five assertions when the hook tests ran first. The hook now uses only its existing injected stub; runtime update behavior is unchanged. ([#8678](https://github.com/code-yeongyu/oh-my-openagent/issues/8678))
