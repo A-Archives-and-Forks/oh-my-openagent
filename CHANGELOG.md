@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+**`omob` can build an engine version before its workspace packages reach npm.** The development build now uses the dependencies already packed into its local engine tarball instead of asking Bun to resolve their unpublished versions from the registry. Platform-specific optional packages still install normally, and an incomplete bundle fails explicitly rather than fetching a replacement.
+
+**CI update-checker tests no longer depend on sibling test order.** An unnecessary module mock leaked a fixed version into the registry-channel tests, failing all five assertions when the hook tests ran first. The hook now uses only its existing injected stub; runtime update behavior is unchanged. ([#8678](https://github.com/code-yeongyu/oh-my-openagent/issues/8678))
+
 ## [5.0.0-beta.85] - 2026-09-23
 
 ### Added
@@ -34,10 +40,6 @@ The `artistry` category and the `prometheus` agent, both led by `claude-fable-5-
 Every request to `claude-opus-5-5` on a subscription login was rejected with `400 claude_code_version_too_old` (`Claude Code 2.1.251 does not support this model; version 2.1.280 or newer is required`) and the turn fell back to Claude Opus 5, so the recommended Anthropic model never answered. The postinstall step that raises the advertised Claude Code version only rewrote the pi-ai module, while the launcher runs the engine's pre-linked `dist/bundle`, which carries its own copy of the version. The floor is now `2.1.280` and postinstall applies it to every declaration under `dist/bundle` as well, rewriting only the version string and never lowering one that is already higher. Thanks to youngminsw for the diagnosis and the fix.
 
 **The Capable model profile no longer bills a Claude subscription user through OpenCode Zen.** ([#8704](https://github.com/code-yeongyu/oh-my-openagent/issues/8704)) On a machine logged in to a Claude subscription that also held an OpenCode Zen key, the Capable profile picked the metered `opencode` copy of Claude Fable 5.1, because the profile's Claude rungs never listed the subscription lane. Every Claude rung in the builtin profiles now tries the subscription first, the same order the delegation categories already use.
-
-**`omob` can build an engine version before its workspace packages reach npm.** The development build now uses the dependencies already packed into its local engine tarball instead of asking Bun to resolve their unpublished versions from the registry. Platform-specific optional packages still install normally, and an incomplete bundle fails explicitly rather than fetching a replacement.
-
-**CI update-checker tests no longer depend on sibling test order.** An unnecessary module mock leaked a fixed version into the registry-channel tests, failing all five assertions when the hook tests ran first. The hook now uses only its existing injected stub; runtime update behavior is unchanged. ([#8678](https://github.com/code-yeongyu/oh-my-openagent/issues/8678))
 
 **A reasoning effort of `none` is no longer silently raised to `low` on GPT-6 models that support it.** Every model id containing `gpt-6` shared one capability rule, which was written for GPT-6 Astra and therefore mapped `none` onto `low`. GPT-6 Sol and GPT-6 Luna both document `none` as a supported effort, so anyone who configured the cheapest tier on those models was quietly billed and throttled at `low` instead, with the change recorded as `unsupported-by-model-family`. The Astra rule is now matched on its own id and keeps its documented clamp, while the rest of the GPT-6 family accepts `none`. A per-model capability override could not have fixed this, because family effort aliases are applied before capability metadata.
 
