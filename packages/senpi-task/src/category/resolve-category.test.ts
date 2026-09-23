@@ -251,9 +251,9 @@ describe("resolveCategory", () => {
     expect(resolved.spec.reasoningEffort).toBe("medium")
   })
 
-  test("#given quick primary is unavailable and the deepseek rung is available #when resolved #then delegate-core fallback chain reaches deepseek-v4-flash", () => {
+  test("#given quick primary is unavailable and the deepseek rung is available #when resolved #then delegate-core fallback chain reaches deepseek-flash", () => {
     // given
-    const models = registry([model("deepseek", "deepseek-v4-flash")])
+    const models = registry([model("deepseek", "deepseek-flash")])
 
     // when
     const result = resolveCategory("quick", {}, models)
@@ -261,12 +261,12 @@ describe("resolveCategory", () => {
     // then
     const resolved = expectResolved(result)
     expect(resolved.spec.provider).toBe("deepseek")
-    expect(resolved.spec.modelId).toBe("deepseek-v4-flash")
+    expect(resolved.spec.modelId).toBe("deepseek-flash")
     expect(resolved.spec.variant).toBe("off")
     expect(resolved.modelSelection.matchedFallback).toBe(true)
     expect(resolved.modelSelection.fallbackEntry).toEqual({
       providers: ["deepseek"],
-      model: "deepseek-v4-flash",
+      model: "deepseek-flash",
       variant: "off",
     })
   })

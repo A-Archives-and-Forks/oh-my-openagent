@@ -123,7 +123,7 @@ describe("CATEGORY_MODEL_REQUIREMENTS", () => {
       },
       {
         providers: ["deepseek"],
-        model: "deepseek-v4-flash",
+        model: "deepseek-flash",
         variant: "off",
       },
       {

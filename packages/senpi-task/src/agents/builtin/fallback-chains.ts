@@ -16,24 +16,18 @@ export const AGENT_FALLBACK_CHAINS: Readonly<Record<string, readonly DelegateFal
   explore: [
     { providers: ["kimi-coding", "kimi-for-coding"], model: "kimi-for-coding-highspeed", variant: "off" },
     { providers: ["chatgpt-subscription"], model: "gpt-6-luna-fast", variant: "low" },
-    { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "max" },
+    { providers: ["deepseek"], model: "deepseek-flash", variant: "max" },
     { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.7-plus" },
-    { providers: ["opencode-go"], model: "minimax-m3" },
-    { providers: ["minimax-coding-plan", "minimax-cn-coding-plan"], model: "MiniMax-M3" },
     { providers: ["opencode-go"], model: "minimax-m2.7" },
-    { providers: ["anthropic-subscription", "anthropic", "github-copilot"], model: "claude-haiku-4-5" },
-    { providers: ["chatgpt-subscription"], model: "gpt-5.4-nano" }
+    { providers: ["anthropic-subscription", "anthropic", "github-copilot"], model: "claude-haiku-4-5" }
   ],
   librarian: [
     { providers: ["kimi-coding", "kimi-for-coding"], model: "kimi-for-coding-highspeed", variant: "off" },
     { providers: ["chatgpt-subscription"], model: "gpt-6-luna-fast", variant: "low" },
-    { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "max" },
+    { providers: ["deepseek"], model: "deepseek-flash", variant: "max" },
     { providers: ["opencode-go", "bailian-coding-plan"], model: "qwen3.7-plus" },
-    { providers: ["opencode-go"], model: "minimax-m3" },
-    { providers: ["minimax-coding-plan", "minimax-cn-coding-plan"], model: "MiniMax-M3" },
     { providers: ["opencode-go"], model: "minimax-m2.7" },
-    { providers: ["anthropic-subscription", "anthropic", "github-copilot"], model: "claude-haiku-4-5" },
-    { providers: ["chatgpt-subscription"], model: "gpt-5.4-nano" }
+    { providers: ["anthropic-subscription", "anthropic", "github-copilot"], model: "claude-haiku-4-5" }
   ],
   "plan-consultant": [
     {

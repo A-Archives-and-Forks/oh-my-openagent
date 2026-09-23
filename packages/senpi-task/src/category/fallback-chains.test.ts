@@ -60,7 +60,7 @@ describe("CATEGORY_FALLBACK_CHAINS", () => {
       ],
       quick: [
         { providers: ["chatgpt-subscription"], model: "gpt-6-luna-fast", variant: "low" },
-        { providers: ["deepseek"], model: "deepseek-v4-flash", variant: "off" },
+        { providers: ["deepseek"], model: "deepseek-flash", variant: "off" },
         { providers: ["qwen-token-plan", "alibaba-token-plan", "bailian-coding-plan"], model: "qwen3.6-flash", variant: "low" },
         { providers: ["opencode-go"], model: "minimax-m3", variant: "max" },
         { providers: ["opencode-go"], model: "minimax-m2.7", variant: "max" },

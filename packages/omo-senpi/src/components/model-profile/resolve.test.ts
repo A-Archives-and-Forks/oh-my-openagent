@@ -10,7 +10,7 @@ const FABLE_API = "anthropic-api/claude-fable-5-1"
 const OPUS = "anthropic/claude-opus-5-5"
 const OPUS_SUBSCRIPTION = "anthropic-subscription/claude-opus-5-5"
 const KIMI = "moonshotai/kimi-k3"
-const FLASH = "deepseek/deepseek-v4-flash"
+const FLASH = "deepseek/deepseek-flash"
 const LUNA = "openai/gpt-5.6-luna-fast"
 
 describe("resolveModelProfile", () => {
@@ -67,7 +67,7 @@ describe("resolveModelProfile", () => {
       kind: "resolved",
       profile: { id: "capable", displayName: "capable", source: "user" },
       provider: "deepseek",
-      modelId: "deepseek-v4-flash",
+      modelId: "deepseek-flash",
       skipped: [],
     })
   })

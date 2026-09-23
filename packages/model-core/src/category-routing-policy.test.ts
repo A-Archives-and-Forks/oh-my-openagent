@@ -74,7 +74,7 @@ describe("category routing policy", () => {
       },
       {
         providers: ["deepseek"],
-        model: "deepseek-v4-flash",
+        model: "deepseek-flash",
         variant: "off",
       },
       {

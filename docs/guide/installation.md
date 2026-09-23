@@ -624,7 +624,7 @@ Not all models behave the same way. Understanding "similar" families helps you m
 | **MiniMax M3**             | opencode-go                      | Latest MiniMax flagship. Primary utility fallback, ahead of M2.7.   |
 | **MiniMax M2.7**           | opencode-go                      | Fast and smart. Utility fallback for various chains.        |
 | **MiniMax M2.7 Highspeed** | opencode (manual choice)         | Faster utility variant. No longer a built-in Explore or Librarian rung.|
-| **Qwen 3.7 Plus**          | opencode-go                      | 1M context, high-speed reasoning. OpenCode Go utility fallback for Explore and Librarian after GPT 5.6 Luna Fast and DeepSeek v4 Flash. |
+| **Qwen 3.7 Plus**          | opencode-go                      | 1M context, high-speed reasoning. OpenCode Go utility fallback for Explore and Librarian after GPT-6 Luna Fast and DeepSeek V4.1 Flash. |
 
 **Speed-Focused Models**:
 
@@ -645,7 +645,7 @@ Not all models behave the same way. Understanding "similar" families helps you m
 | ------------------- | ------------------------------------------ | ---------------------------------------------------------------------- |
 | **plan-consultant** | Pre-planning gap analysis for `/ulw-plan`  | anthropic\|github-copilot\|opencode/claude-fable-5-1 (max) → anthropic\|github-copilot\|opencode/claude-opus-5-5 (max) → opencode-go\|kimi-for-coding\|moonshotai\|opencode/kimi-k3 (max) |
 | **plan-reviewer**   | High-accuracy plan review gate             | openai\|chatgpt-subscription/gpt-6-astra (xhigh) → github-copilot/gpt-6-astra (high) → openai\|chatgpt-subscription\|opencode/gpt-6-astra (high) → anthropic\|github-copilot\|opencode/claude-opus-5-5 (max) → … (full chain in source) |
-| **explore**         | Fast codebase grep                         | kimi-coding\|kimi-for-coding/kimi-for-coding-highspeed (off) → openai\|chatgpt-subscription/gpt-6-luna-fast (low) → deepseek/deepseek-v4-flash (max) → opencode-go\|bailian-coding-plan/qwen3.5-plus → … → anthropic\|github-copilot/claude-haiku-4-5 → openai\|chatgpt-subscription/gpt-5.4-nano (full chain in source) |
+| **explore**         | Fast codebase grep                         | kimi-coding\|kimi-for-coding/kimi-for-coding-highspeed (off) → openai\|chatgpt-subscription/gpt-6-luna-fast (low) → deepseek/deepseek-flash (max) → opencode-go\|bailian-coding-plan/qwen3.7-plus → opencode-go/minimax-m2.7 → anthropic\|github-copilot/claude-haiku-4-5 |
 | **librarian**       | Docs/code search                           | (same chain as `explore`)                                              |
 
 `explore` and `librarian` trade intelligence for speed. Don't "upgrade" them to Opus; it wastes money without improving results.
