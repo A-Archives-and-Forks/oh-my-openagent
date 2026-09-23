@@ -30,7 +30,7 @@ export const KNOWN_MODELS = Object.freeze({
   ]),
   "bailian-coding-plan": Object.freeze(["qwen3.6-flash"]),
   "chatgpt-subscription": Object.freeze([
-    "gpt-5.6-luna-fast", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-astra", "gpt-6-sol",
+    "gpt-5.6-luna-fast", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-astra", "gpt-6-luna", "gpt-6-luna-fast", "gpt-6-sol",
   ]),
   "claude-sdk-oauth": Object.freeze([
     "claude-fable-5", "claude-fable-5-1", "claude-haiku-4-5", "claude-opus-4-6", "claude-opus-5", "claude-opus-5-5", "claude-sonnet-5",
@@ -44,13 +44,15 @@ export const KNOWN_MODELS = Object.freeze({
   "kimi-coding": Object.freeze(["k3", "kimi-for-coding-highspeed", "kimi-k3"]),
   "kimi-for-coding": Object.freeze(["k3", "kimi-for-coding-highspeed", "kimi-k3"]),
   moonshotai: Object.freeze(["kimi-k3"]),
-  openai: Object.freeze(["gpt-5.6-luna-fast", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-astra", "gpt-6-sol"]),
+  openai: Object.freeze([
+    "gpt-5.6-luna-fast", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-astra", "gpt-6-luna", "gpt-6-luna-fast", "gpt-6-sol",
+  ]),
   "openai-codex": Object.freeze([
-    "gpt-5.6-luna-fast", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-astra", "gpt-6-sol",
+    "gpt-5.6-luna-fast", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-astra", "gpt-6-luna", "gpt-6-luna-fast", "gpt-6-sol",
   ]),
   opencode: Object.freeze([
     "claude-fable-5", "claude-fable-5-1", "claude-opus-4-6", "claude-opus-5", "claude-opus-5-5", "claude-sonnet-5", "gemini-3.1-pro",
-    "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-astra", "gpt-6-sol", "grok-4.6", "kimi-k3",
+    "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-astra", "gpt-6-luna", "gpt-6-sol", "grok-4.6", "kimi-k3",
   ]),
   "opencode-go": Object.freeze([
     "deepseek-v4-pro", "glm-5.2", "glm-5.3", "grok-4.7", "kimi-k3", "mimo-v2.5-pro", "mimo-v2.6-pro", "minimax-m2.7", "minimax-m3",

@@ -85,7 +85,7 @@ describe("BUILTIN_MODEL_PROFILES", () => {
 
   it("keeps simple-work on the fast rungs", () => {
     expect(BUILTIN_MODEL_PROFILES["simple-work"]?.models.map((rung) => rung.model)).toEqual([
-      "gpt-5.6-luna-fast",
+      "gpt-6-luna-fast",
       "deepseek-v4-flash",
       "claude-haiku-4-5",
     ])
