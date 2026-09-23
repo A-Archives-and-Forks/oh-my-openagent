@@ -1092,3 +1092,10 @@ so the connection that opens a session drops at once and the host moved the new 
 `set_session_name`, sends `retain_on_disconnect: true`, and merges the entry the host reports in
 `list_sessions` before returning. When QA'ing this surface, run the host from the engine this repo
 pins: `retain_on_disconnect` landed in senpi 2026.9.20, and an older host ignores it in silence.
+## 2026-09-23 — Four-profile provider coverage follows task routing
+
+Geeky profiles keep the #8737 provider ranking: ChatGPT subscription first,
+then `openai`, then other providers serving the non-fast Sol or Astra rung.
+An explicit provider in a user profile remains scoped; it does not silently
+switch to a different provider when unavailable. Real-runtime QA observes the
+engine thinking state and the provider stream input, not only the notice.

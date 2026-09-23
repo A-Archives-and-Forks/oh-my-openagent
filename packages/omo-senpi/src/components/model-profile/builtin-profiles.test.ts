@@ -68,11 +68,13 @@ describe("BUILTIN_MODEL_PROFILES", () => {
     expect(offenders).toEqual([])
   })
 
-  it("lists no rung on the openai API lane so chatgpt-subscription is the only OpenAI lane", () => {
-    const apiLaneRungs = rungs()
-      .filter((rung) => rung.providers.includes("openai"))
+  it("ranks the ChatGPT subscription ahead of the openai API lane on every GPT rung", () => {
+    const gptRungs = rungs().filter((rung) => rung.model.startsWith("gpt-"))
+    expect(gptRungs.length).toBeGreaterThan(0)
+    const misordered = gptRungs
+      .filter((rung) => rung.providers[0] !== "chatgpt-subscription" || rung.providers[1] !== "openai")
       .map((rung) => `${rung.profile}: ${rung.providers.join("|")}/${rung.model}`)
-    expect(apiLaneRungs).toEqual([])
+    expect(misordered).toEqual([])
   })
 
   it("heads every Claude rung with the anthropic-subscription lane", () => {
@@ -95,17 +97,17 @@ describe("BUILTIN_MODEL_PROFILES", () => {
     ])
   })
 
-  it("splits geeky-normal so sol-fast stays on chatgpt-subscription and sol is the Copilot/OpenCode rung", () => {
+  it("splits geeky-normal so sol-fast stays on the subscription/API lanes and plain sol also opens Copilot/OpenCode", () => {
     expect(BUILTIN_MODEL_PROFILES["geeky-normal"]?.models).toEqual([
-      { providers: ["chatgpt-subscription"], model: "gpt-6-sol-fast", variant: "medium" },
-      { providers: ["github-copilot", "opencode"], model: "gpt-6-sol", variant: "medium" },
+      { providers: ["chatgpt-subscription", "openai"], model: "gpt-6-sol-fast", variant: "medium" },
+      { providers: ["chatgpt-subscription", "openai", "github-copilot", "opencode"], model: "gpt-6-sol", variant: "medium" },
     ])
   })
 
-  it("runs geeky-heavy as astra xhigh on the GPT subscription lanes", () => {
+  it("runs geeky-heavy as astra xhigh with the same provider ranking as deep-high", () => {
     expect(BUILTIN_MODEL_PROFILES["geeky-heavy"]?.models).toEqual([
       {
-        providers: ["chatgpt-subscription", "github-copilot", "opencode"],
+        providers: ["chatgpt-subscription", "openai", "github-copilot", "opencode"],
         model: "gpt-6-astra",
         variant: "xhigh",
       },

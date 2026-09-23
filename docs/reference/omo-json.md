@@ -215,8 +215,14 @@ Four builtin lanes ship (`packages/omo-senpi/src/components/model-profile/builti
 |----|--------------|-------|
 | `daily-normal` | Daily · Normal | `claude-opus-5-5` (medium) -> `kimi-k3` (max) -> `glm-5.3` (max) |
 | `daily-heavy` | Daily · Heavy | `claude-fable-5-1` (xhigh) |
-| `geeky-normal` | Geeky · Normal | `gpt-6-sol-fast` (medium, ChatGPT subscription) -> `gpt-6-sol` (medium, Copilot/OpenCode) |
+| `geeky-normal` | Geeky · Normal | `gpt-6-sol-fast` (medium, ChatGPT subscription/API) -> `gpt-6-sol` (medium, subscription/API/Copilot/OpenCode) |
 | `geeky-heavy` | Geeky · Heavy | `gpt-6-astra` (xhigh) |
+
+GPT profiles use the same provider coverage as the corresponding task lanes:
+ChatGPT subscription takes priority over the `openai` API/proxy lane. A user
+profile can replace the candidate order and reasoning. Provider-qualified user
+candidates stay on the named provider; an unavailable one advances only to the
+next user-listed candidate, while a bare model id may match any provider.
 
 What happens at session start (`packages/omo-senpi/src/components/model-profile/index.ts`, `resolve.ts`):
 

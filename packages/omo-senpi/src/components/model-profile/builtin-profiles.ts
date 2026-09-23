@@ -20,9 +20,11 @@ import type { DelegateFallbackEntry } from "@oh-my-opencode/delegate-core"
  * There is no alias, migration, or compatibility shim for retired ids (`capable`,
  * `deep-work`, `simple-work`). A stale `model_profile` value is `unknown`.
  *
- * Builtin GPT profile rungs do not list the metered `openai` API lane. Category
- * chains may (#8737); a user overlay that names `openai/` is scoped to that
- * provider. Unset sessions default to Daily · Normal.
+ * Builtin GPT rungs rank providers exactly like the `deep-low` / `deep-high`
+ * category chains (#8737): the ChatGPT subscription first, then the `openai`
+ * API/proxy lane, then Copilot and OpenCode where they serve the model. A user
+ * overlay that names `openai/` is scoped to that provider. Unset sessions
+ * default to Daily · Normal.
  */
 export type ModelProfileFamily = "daily" | "geeky"
 export type ModelProfileTier = "normal" | "heavy"
@@ -41,7 +43,7 @@ export const DEFAULT_MODEL_PROFILE_ID = "daily-normal"
 const CLAUDE_PROVIDERS = ["anthropic-subscription", "anthropic", "anthropic-api", "github-copilot", "opencode"] as const
 const KIMI_PROVIDERS = ["kimi-coding", "kimi-for-coding", "moonshotai", "opencode-go"] as const
 const GLM_PROVIDERS = ["zai-coding-plan", "opencode-go"] as const
-const GPT_PROVIDERS = ["chatgpt-subscription", "github-copilot", "opencode"] as const
+const GPT_PROVIDERS = ["chatgpt-subscription", "openai", "github-copilot", "opencode"] as const
 
 // Key order is the order a picker renders. `deep` is deliberately NOT an id: builtin
 // delegation categories already carry that name, and the two axes never compete (a
@@ -74,8 +76,10 @@ export const BUILTIN_MODEL_PROFILES: Readonly<Record<string, BuiltinModelProfile
     displayName: "Geeky · Normal",
     description: "Works on one task and thinks it through.",
     models: [
-      { providers: ["chatgpt-subscription"], model: "gpt-6-sol-fast", variant: "medium" },
-      { providers: ["github-copilot", "opencode"], model: "gpt-6-sol", variant: "medium" },
+      // The Fast tier exists only on the ChatGPT subscription and API lanes; Copilot and
+      // OpenCode serve plain gpt-6-sol, so the next rung keeps the lane open at the same effort.
+      { providers: ["chatgpt-subscription", "openai"], model: "gpt-6-sol-fast", variant: "medium" },
+      { providers: [...GPT_PROVIDERS], model: "gpt-6-sol", variant: "medium" },
     ],
   },
   "geeky-heavy": {

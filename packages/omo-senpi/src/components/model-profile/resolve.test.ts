@@ -220,6 +220,34 @@ describe("builtin chain routing", () => {
     })
   })
 
+  it("ranks the openai API lane ahead of an unlisted provider serving geeky-normal sol-fast", () => {
+    const result = resolveModelProfile({
+      active: "geeky-normal",
+      availableModels: ["office-gateway/gpt-6-sol-fast", "openai/gpt-6-sol-fast"],
+    })
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      provider: "openai",
+      modelId: "gpt-6-sol-fast",
+      reasoning: "medium",
+    })
+  })
+
+  it("keeps the ChatGPT subscription ahead of the openai API lane for geeky-heavy astra", () => {
+    const result = resolveModelProfile({
+      active: "geeky-heavy",
+      availableModels: ["openai/gpt-6-astra", ASTRA],
+    })
+
+    expect(result).toMatchObject({
+      kind: "resolved",
+      provider: "chatgpt-subscription",
+      modelId: "gpt-6-astra",
+      reasoning: "xhigh",
+    })
+  })
+
   it("resolves geeky-heavy to astra xhigh", () => {
     const result = resolveModelProfile({ active: "geeky-heavy", availableModels: [ASTRA, SOL_FAST] })
 

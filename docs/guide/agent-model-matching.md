@@ -12,8 +12,8 @@ The main agent thinks with your session model. The easiest way to choose it is a
 | --- | --- | --- | --- |
 | Daily · Normal | `daily-normal` | Gets any task done without fuss. Default when `model_profile` is unset. | `anthropic-subscription\|anthropic\|anthropic-api\|github-copilot\|opencode/claude-opus-5-5 (medium)` -> `kimi-coding\|kimi-for-coding\|moonshotai\|opencode-go/kimi-k3 (max)` -> `zai-coding-plan\|opencode-go/glm-5.3 (max)` |
 | Daily · Heavy | `daily-heavy` | Gets any task done, after thinking it over from more sides. | same Claude providers `/claude-fable-5-1 (xhigh)` |
-| Geeky · Normal | `geeky-normal` | Works on one task and thinks it through. | `chatgpt-subscription/gpt-6-sol-fast (medium)` -> `github-copilot\|opencode/gpt-6-sol (medium)` |
-| Geeky · Heavy | `geeky-heavy` | Works on one task and thinks it over from every side. | `chatgpt-subscription\|github-copilot\|opencode/gpt-6-astra (xhigh)` |
+| Geeky · Normal | `geeky-normal` | Works on one task and thinks it through. | `chatgpt-subscription\|openai/gpt-6-sol-fast (medium)` -> `chatgpt-subscription\|openai\|github-copilot\|opencode/gpt-6-sol (medium)` |
+| Geeky · Heavy | `geeky-heavy` | Works on one task and thinks it over from every side. | `chatgpt-subscription\|openai\|github-copilot\|opencode/gpt-6-astra (xhigh)` |
 
 Activate one with a single key in `omo.json`:
 
@@ -28,7 +28,7 @@ The session prints `OmO Native: model profile "daily-normal" (Daily · Normal) s
 - **Unset means Daily · Normal.** With no `model_profile`, a fresh session applies `daily-normal`. That apply is session-scoped and is not written back to `omo.json`.
 - **Session-scoped.** The apply never writes `settings.json` or `omo.json`. Mid-session failures follow Senpi's retry chains, not the profile.
 - **Retired ids are unknown.** `capable`, `deep-work`, and `simple-work` are not aliases. A config still naming one of them gets the unknown-profile notice listing the four lane ids.
-- **Your own chains.** `model_profiles.<name>` adds a profile, or replaces a builtin of the same name wholesale (no field merge). Entries take the same shape as a category chain and may reference `models.<catalog>` aliases. Key reference: [omo.json](../reference/omo-json.md#model-profiles-native-harness).
+- **Your own chains.** `model_profiles.<name>` adds a profile or replaces a builtin's entire model chain. A builtin override keeps its family/tier identity unless those metadata fields are supplied. A provider-qualified candidate is used only on that provider; if absent, only the next configured candidate is tried. Bare model ids may match any provider. Key reference: [omo.json](../reference/omo-json.md#model-profiles-native-harness).
 
 You can still pick with `/model` and switch mid-session; the main agent switches with you and the prompt stays the same.
 
@@ -207,7 +207,7 @@ Override any category or curated agent in `omo.json`. `model` sets one model; `m
 
 **Safe**, same family and role shape:
 
-- Main agent: the Capable profile, or Claude Opus 5.5 <-> Claude Fable 5 pinned; Deep work, or GPT 5.6 Sol pinned, when you want the GPT-native prompt.
+- Main agent: Daily · Normal or Daily · Heavy for the generalist lanes; Geeky · Normal or Geeky · Heavy for the GPT lanes.
 - `plan-consultant`: any Claude-family model, Kimi K3, GLM 5.2 / 5.3.
 - `plan-reviewer`: GPT-6 Astra <-> GPT 5.6 Sol; Claude Opus 5.5 at max as a communicative fallback.
 - `visual-engineering`, `artistry`, `writing`: swap among Claude Fable 5, Claude Opus 5.5, and Kimi K3.
@@ -235,7 +235,8 @@ For the main agent, resolution happens once, at session start (`packages/omo-sen
 1. --model flag or scoped model    -> kept as is; the profile never runs
 2. model_profile = provider/model  -> the pin; that exact model, if the registry serves it
 3. model_profile = <profile id>    -> builtins overlaid with model_profiles; first rung the registry serves
-4. Senpi's default resolution      -> including its recommended-models builtin
+4. model_profile unset            -> Daily · Normal on a fresh session
+5. No profile candidate available  -> notice; retain Senpi's selected model
 ```
 
 Mid-session model failures follow the harness's own retry chains, not the profile and not the delegation chains below.
@@ -257,6 +258,6 @@ Your explicit configuration always wins. If you set a model for a category or ag
 - [Installation Guide](./installation.md): setup and provider authentication
 - [Orchestration System Guide](./orchestration.md): how the main agent delegates to categories and curated agents
 - [omo.json Reference](../reference/omo-json.md): `model_profiles`, `model_profile`, `agents`, `categories`, and `models` keys
-- [`packages/omo-senpi/src/components/model-profile/builtin-profiles.ts`](../../packages/omo-senpi/src/components/model-profile/builtin-profiles.ts): the three builtin profile chains
+- [`packages/omo-senpi/src/components/model-profile/builtin-profiles.ts`](../../packages/omo-senpi/src/components/model-profile/builtin-profiles.ts): the four builtin profile chains
 - [`packages/senpi-task/src/agents/builtin/fallback-chains.ts`](../../packages/senpi-task/src/agents/builtin/fallback-chains.ts): curated agent chains
 - [`packages/senpi-task/src/category/fallback-chains.ts`](../../packages/senpi-task/src/category/fallback-chains.ts): category chains
