@@ -18,6 +18,17 @@ The model-facing tool text is unchanged, and with `memory.write_notice.enabled: 
 keeps the plain call line and message. `memory-write-render.ts` keeps only the Box framing.
 omo#8733.
 
+## Model profiles: Daily/Geeky × Normal/Heavy lanes, no capable/deep-work alias
+
+`model-profile/builtin-profiles.ts`: the builtin table is `daily-normal`, `daily-heavy`,
+`geeky-normal`, `geeky-heavy`, each with `family`/`tier`/`displayName`/`description`.
+`daily-normal` is opus 5.5 medium -> kimi-k3 max -> glm-5.3 max; `daily-heavy` is fable 5.1
+xhigh; `geeky-normal` is chatgpt-subscription gpt-6-sol-fast medium then Copilot/OpenCode
+gpt-6-sol medium; `geeky-heavy` is gpt-6-astra xhigh. `capable` / `deep-work` are removed with
+no alias map. Unset `model_profile` applies `daily-normal` on a fresh session (session-only).
+Notices include displayName + reasoning; unavailable copy names the session registry rather
+than inferring disconnected auth. omo#8735.
+
 ## Model profiles: Capable then Deep work, Simple work removed, subscription lane first
 
 `model-profile/builtin-profiles.ts`: the builtin table is `capable` then `deep-work`, and
@@ -1081,3 +1092,10 @@ so the connection that opens a session drops at once and the host moved the new 
 `set_session_name`, sends `retain_on_disconnect: true`, and merges the entry the host reports in
 `list_sessions` before returning. When QA'ing this surface, run the host from the engine this repo
 pins: `retain_on_disconnect` landed in senpi 2026.9.20, and an older host ignores it in silence.
+## 2026-09-23 — Four-profile provider coverage follows task routing
+
+Geeky profiles keep the #8737 provider ranking: ChatGPT subscription first,
+then `openai`, then other providers serving the non-fast Sol or Astra rung.
+An explicit provider in a user profile remains scoped; it does not silently
+switch to a different provider when unavailable. Real-runtime QA observes the
+engine thinking state and the provider stream input, not only the notice.

@@ -1399,6 +1399,20 @@
           "display_name": {
             "type": "string"
           },
+          "family": {
+            "type": "string",
+            "enum": [
+              "daily",
+              "geeky"
+            ]
+          },
+          "tier": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "heavy"
+            ]
+          },
           "models": {
             "type": "array",
             "items": {
@@ -13404,6 +13418,20 @@
               "display_name": {
                 "type": "string"
               },
+              "family": {
+                "type": "string",
+                "enum": [
+                  "daily",
+                  "geeky"
+                ]
+              },
+              "tier": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "heavy"
+                ]
+              },
               "models": {
                 "type": "array",
                 "items": {
@@ -15322,6 +15350,20 @@
               "display_name": {
                 "type": "string"
               },
+              "family": {
+                "type": "string",
+                "enum": [
+                  "daily",
+                  "geeky"
+                ]
+              },
+              "tier": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "heavy"
+                ]
+              },
               "models": {
                 "type": "array",
                 "items": {
@@ -17239,6 +17281,20 @@
             "properties": {
               "display_name": {
                 "type": "string"
+              },
+              "family": {
+                "type": "string",
+                "enum": [
+                  "daily",
+                  "geeky"
+                ]
+              },
+              "tier": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "heavy"
+                ]
               },
               "models": {
                 "type": "array",
@@ -19163,6 +19219,20 @@
               "properties": {
                 "display_name": {
                   "type": "string"
+                },
+                "family": {
+                  "type": "string",
+                  "enum": [
+                    "daily",
+                    "geeky"
+                  ]
+                },
+                "tier": {
+                  "type": "string",
+                  "enum": [
+                    "normal",
+                    "heavy"
+                  ]
                 },
                 "models": {
                   "type": "array",
@@ -30983,6 +31053,20 @@
                     "display_name": {
                       "type": "string"
                     },
+                    "family": {
+                      "type": "string",
+                      "enum": [
+                        "daily",
+                        "geeky"
+                      ]
+                    },
+                    "tier": {
+                      "type": "string",
+                      "enum": [
+                        "normal",
+                        "heavy"
+                      ]
+                    },
                     "models": {
                       "type": "array",
                       "items": {
@@ -32901,6 +32985,20 @@
                     "display_name": {
                       "type": "string"
                     },
+                    "family": {
+                      "type": "string",
+                      "enum": [
+                        "daily",
+                        "geeky"
+                      ]
+                    },
+                    "tier": {
+                      "type": "string",
+                      "enum": [
+                        "normal",
+                        "heavy"
+                      ]
+                    },
                     "models": {
                       "type": "array",
                       "items": {
@@ -34818,6 +34916,20 @@
                   "properties": {
                     "display_name": {
                       "type": "string"
+                    },
+                    "family": {
+                      "type": "string",
+                      "enum": [
+                        "daily",
+                        "geeky"
+                      ]
+                    },
+                    "tier": {
+                      "type": "string",
+                      "enum": [
+                        "normal",
+                        "heavy"
+                      ]
                     },
                     "models": {
                       "type": "array",

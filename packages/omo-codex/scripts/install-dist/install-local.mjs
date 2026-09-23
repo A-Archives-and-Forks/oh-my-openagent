@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// omo-codex-install:a828b9248b81641c1a04d1a216485054625a2759b78c233d3d2d05b362ff662d:66dded6b1a03ce8f66ae732601e7a2e62b2ca4b0a1ae6191cdd47f7d4aa85b8e
+// omo-codex-install:a7021454487961ca303e5d2af45f40a9e030839078f9a752aa5711681a1bd15c:9291dd28619242b9c69217bb3a035e4f12ad3153a67501871f62b9f8c08c849f
 var __esm = (fn, res, err) => () => {
   if (fn)
     try {
@@ -16735,6 +16735,8 @@ function isRecord5(value) {
 }
 var OmoModelProfileInputSchema = object({
   display_name: string2().optional(),
+  family: _enum(["daily", "geeky"]).optional(),
+  tier: _enum(["normal", "heavy"]).optional(),
   models: array(union([string2(), OmoFallbackModelObjectSchema])).optional()
 }).strict();
 var OmoModelProfileSchema = preprocess((value) => isRecord5(value) ? normalizeLegacyModelFields(value) : value, OmoModelProfileInputSchema);

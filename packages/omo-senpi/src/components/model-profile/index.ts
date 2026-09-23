@@ -1,6 +1,7 @@
 import type { ComponentContext, OmoSenpiComponent, SenpiExtensionAPI } from "../../extension/types"
 import { loadSenpiOmoConfig } from "../config-resolution"
-import { resolveModelProfile, type ModelProfileResolution } from "./resolve"
+import { DEFAULT_MODEL_PROFILE_ID } from "./builtin-profiles"
+import { resolveModelProfile, type ModelProfileResolution, type ModelProfileSummary } from "./resolve"
 
 /**
  * Applies the active `model_profile` to the MAIN session model at session start.
@@ -107,17 +108,22 @@ function availableSelectors(registry: SessionRegistry): string[] {
   return selectors
 }
 
+function profileLabel(profile: ModelProfileSummary): string {
+  return profile.displayName !== profile.id ? `"${profile.id}" (${profile.displayName})` : `"${profile.id}"`
+}
+
 function noticeContent(resolution: ModelProfileResolution): string {
   switch (resolution.kind) {
     case "resolved": {
       const model = `${resolution.provider}/${resolution.modelId}`
+      const reasoning = resolution.reasoning !== undefined ? ` ${resolution.reasoning}` : ""
       const skipped = resolution.skipped.length > 0 ? ` (skipped: ${resolution.skipped.join(", ")})` : ""
-      return `OmO Native: model profile "${resolution.profile.id}" selected ${model}${skipped}; ${MID_SESSION_NOTE}`
+      return `OmO Native: model profile ${profileLabel(resolution.profile)} selected ${model}${reasoning}${skipped}; ${MID_SESSION_NOTE}`
     }
     case "unavailable":
-      return `OmO Native: model profile "${resolution.profile.id}" has no available model (chain: ${resolution.chain.join(", ")}); keeping senpi's default model`
+      return `OmO Native: model profile ${profileLabel(resolution.profile)} has no available model; none of the chain is in this session's model registry (${resolution.chain.join(", ")}); keeping senpi's default model`
     case "empty":
-      return `OmO Native: model profile "${resolution.profile.id}" defines no models; keeping senpi's default model`
+      return `OmO Native: model profile ${profileLabel(resolution.profile)} defines no models; keeping senpi's default model`
     case "unknown":
       return `OmO Native: ${resolution.message}`
   }
@@ -138,8 +144,9 @@ export function createModelProfileComponent(options: ModelProfileComponentOption
         appliedSessions.add(sessionId)
 
         const config = loadConfig({ cwd: extractCwd(pi, eventCtx) }).config
-        const active = config.model_profile
-        if (active === undefined || active.trim().length === 0) return
+        const configured = config.model_profile
+        const active =
+          configured !== undefined && configured.trim().length > 0 ? configured : DEFAULT_MODEL_PROFILE_ID
 
         const registry = extractRegistry(eventCtx)
         if (registry === undefined) {
@@ -181,7 +188,12 @@ export function createModelProfileComponent(options: ModelProfileComponentOption
           customType: MODEL_PROFILE_APPLIED_TYPE,
           content,
           display: true,
-          details: { profile: resolution.profile.id, model: selectedModel, skipped: [...resolution.skipped] },
+          details: {
+            profile: resolution.profile.id,
+            model: selectedModel,
+            skipped: [...resolution.skipped],
+            ...(resolution.reasoning !== undefined ? { reasoning: resolution.reasoning } : {}),
+          },
         })
         ctx.logger.info(content, { profile: resolution.profile.id, model: selectedModel })
       })
