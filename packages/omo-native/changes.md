@@ -2,7 +2,7 @@
 
 ### What changed
 
-`bin/senpi-patch.mjs` keeps resolving the engine root and now only calls `prepareInstalledEngine` and writes the stamp. The preparation moved into `bin/lib/engine-prepare.js` (orchestrator plus the `.omo-engine-prepared` stamp, holding the omo version, inside the engine tree) and `bin/lib/claude-code-floor.js` (the Claude Code UA floor, unchanged logic). `launcher.js` routes every engine start (`spawnSenpi`, `engineHostCall`, `omo daemon attach`) through `preparedSenpi()`, which calls `ensureEnginePrepared`: a matching stamp costs one small read; a missing or foreign stamp prepares and restamps; a failure prints `omo: could not prepare the installed engine (...); reinstall with: ...` and the launch continues.
+`bin/senpi-patch.mjs` keeps resolving the engine root and now only calls `prepareInstalledEngine` and writes the stamp. The preparation moved into `bin/lib/engine-prepare.js` (orchestrator plus the `.omo-engine-prepared` stamp, holding the omo-ai package version, inside the engine tree) and `bin/lib/claude-code-floor.js` (the Claude Code UA floor, unchanged logic). `launcher.js` routes every engine start (`spawnSenpi`, `engineHostCall`, `omo daemon attach`) through `preparedSenpi()`, which calls `ensureEnginePrepared`: a matching stamp costs one small read; a missing or foreign stamp prepares and restamps; a failure prints `omo: could not prepare the installed engine (...); reinstall with: ...` and the launch continues.
 
 ### Why
 

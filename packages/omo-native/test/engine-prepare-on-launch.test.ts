@@ -41,7 +41,7 @@ afterEach(() => {
 
 describe("launcher engine preparation (#8713)", () => {
   describe("#given an engine that postinstall never prepared", () => {
-    test("#then the launch prepares it and stamps it with the omo version", () => {
+    test("#then the launch prepares it and stamps it with the omo-ai version", () => {
       const root = createEngine("2.1.251")
       prepareOnce(root)
       expect(readUa(root)).toBe(uaSource("2.1.280"))
@@ -50,7 +50,7 @@ describe("launcher engine preparation (#8713)", () => {
     })
   })
 
-  describe("#given an engine already stamped for this omo version", () => {
+  describe("#given an engine already stamped for this omo-ai version", () => {
     test("#then the launch leaves every engine file untouched", () => {
       const root = createEngine("2.1.251")
       prepareOnce(root)
@@ -60,7 +60,7 @@ describe("launcher engine preparation (#8713)", () => {
     })
   })
 
-  describe("#given an engine stamped by a different omo version", () => {
+  describe("#given an engine stamped by a different omo-ai version", () => {
     test("#then the launch prepares it again and restamps it", () => {
       const root = createEngine("2.1.251")
       writeFileSync(join(root, ENGINE_PREPARED_STAMP), "5.0.0-0.beta.85\n")

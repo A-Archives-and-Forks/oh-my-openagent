@@ -52,7 +52,7 @@ describe("omo-ai packed install", () => {
       const home = join(root, "home")
       Bun.spawnSync(["mkdir", "-p", consumer, home], { stdout: "ignore", stderr: "ignore" })
       writeFileSync(join(consumer, "package.json"), JSON.stringify({ name: "omo-ai-consumer", private: true }))
-      const install = Bun.spawnSync(["bun", "add", "--ignore-scripts", join(root, tarball!)], { cwd: consumer, stdout: "pipe", stderr: "pipe" })
+      const install = Bun.spawnSync(["bun", "add", "--ignore-scripts", "--backend", "copyfile", join(root, tarball!)], { cwd: consumer, stdout: "pipe", stderr: "pipe" })
       expect(install.exitCode).toBe(0)
       const installedPackageRoot = join(consumer, "node_modules", "omo-ai")
       const consumerRequire = createRequire(join(installedPackageRoot, "package.json"))
@@ -60,7 +60,9 @@ describe("omo-ai packed install", () => {
       const senpiRoot = searchPaths.map((searchPath) => join(searchPath, "@code-yeongyu", "senpi")).find((candidate) => existsSync(join(candidate, "package.json")))
       expect(senpiRoot).toBeDefined()
       const rpcMode = join(senpiRoot!, "dist", "modes", "rpc", "rpc-mode.js")
-      expect(readFileSync(rpcMode, "utf8")).not.toContain("invalid_stream_event")
+      const stamp = join(senpiRoot!, ".omo-engine-prepared")
+      // The stamp is the precondition: a hardlinked Bun cache can already carry a rewritten rpc-mode.js.
+      expect(existsSync(stamp)).toBe(false)
 
       const launch = Bun.spawnSync(["node", join(installedPackageRoot, "bin", "omo.js"), "--help"], {
         cwd: consumer,
@@ -72,7 +74,7 @@ describe("omo-ai packed install", () => {
       expect(launch.exitCode).toBe(0)
       expect(readFileSync(rpcMode, "utf8")).toContain("invalid_stream_event")
       const omoVersion = JSON.parse(readFileSync(join(installedPackageRoot, "package.json"), "utf8")).version
-      expect(readFileSync(join(senpiRoot!, ".omo-engine-prepared"), "utf8").trim()).toBe(omoVersion)
+      expect(readFileSync(stamp, "utf8").trim()).toBe(omoVersion)
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
