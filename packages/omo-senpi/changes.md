@@ -1,3 +1,15 @@
+## Model profiles: Capable then Deep work, Simple work removed, subscription lane first
+
+`model-profile/builtin-profiles.ts`: the builtin table is `capable` then `deep-work`, and
+`simple-work` is removed. `capable` leads with `claude-fable-5-1` at `xhigh` (was `max`).
+`deep-work` is its own chain, `gpt-6-astra` high -> `gpt-6-sol` medium, and no longer mirrors
+deep-high ++ deep-low, so it stops at GPT-6 Sol instead of inheriting the `gpt-5.6-sol` tail.
+Every Claude rung is headed by `anthropic-subscription`, like the category chains (#8051): before
+this a subscription machine holding an OpenCode Zen key resolved `capable` to the metered
+`opencode/claude-fable-5-1`. A config still naming `model_profile: "simple-work"` now gets the
+existing unknown-profile notice (known profiles: capable, deep-work) and keeps senpi's default
+model; a user `model_profiles.simple-work` entry keeps working as a user profile. omo#8704.
+
 ## Model profiles and telemetry vocabulary follow the GPT-6 routing
 
 `model-profile/builtin-profiles.ts`: `simple-work` leads with `gpt-6-luna-fast` low and

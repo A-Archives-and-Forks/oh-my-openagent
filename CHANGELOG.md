@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+**The model profiles are now Capable and Deep work; Simple work is removed.** ([#8704](https://github.com/code-yeongyu/oh-my-openagent/issues/8704))
+
+The profile picker lists `capable`, then `deep-work`. Capable starts on Claude Fable 5.1 at `xhigh` instead of `max`, then Claude Opus 5.5, Kimi K3 and GLM 5.3 at `max` as before. Deep work is GPT-6 Astra at `high`, then GPT-6 Sol at `medium`, and stops there instead of continuing to GPT-5.6 Sol. The `simple-work` profile no longer ships: a configuration that still sets `"model_profile": "simple-work"` shows the unknown-profile notice listing the remaining profiles and keeps the default model, and a `model_profiles.simple-work` entry you wrote yourself keeps working as your own profile.
+
 **`deep-low` runs on GPT-6 Sol, and every Luna rung is GPT-6 Luna Fast.** ([#8701](https://github.com/code-yeongyu/oh-my-openagent/issues/8701))
 
 The default deep lane leads with `gpt-6-sol` at `medium` across OpenAI, ChatGPT Subscription, GitHub Copilot and OpenCode Zen and keeps `gpt-5.6-sol` at `medium` as its fallback rung, so a registry that has not picked up GPT-6 Sol yet still opens the lane; `deep-high` stays Astra-only. Wherever a builtin chain, default or profile named `gpt-5.6-luna-fast` it now names `gpt-6-luna-fast` at the same `low` effort: the `quick` category, the `explore` and `librarian` agents, the `simple-work` model profile, the OpenAI-only installer catalog and the installer's explore default. The `deep-work` profile picks up the new Sol rung, `gpt-6-luna` and `gpt-6-luna-fast` join the telemetry vocabulary, the post-compaction budget knows the GPT-6 Sol (400k) and Luna (922k) prompt budgets, and `gpt-6-luna-fast` has a capability entry so the model-capability guardrail no longer reports a built-in model missing from the snapshot. The docs, shipped example configs and the generated telemetry schema follow.
@@ -22,6 +26,8 @@ The default deep lane leads with `gpt-6-sol` at `medium` across OpenAI, ChatGPT 
 The `artistry` category and the `prometheus` agent, both led by `claude-fable-5-1`, now carry `claude-opus-5-5` at `max` as their second rung ahead of `kimi-k3`, matching senpi's own Fable 5.1 fallback ladder. `architect` is unchanged: it is hard-gated on Fable 5.1 and never falls back.
 
 ### Fixed
+
+**The Capable model profile no longer bills a Claude subscription user through OpenCode Zen.** ([#8704](https://github.com/code-yeongyu/oh-my-openagent/issues/8704)) On a machine logged in to a Claude subscription that also held an OpenCode Zen key, the Capable profile picked the metered `opencode` copy of Claude Fable 5.1, because the profile's Claude rungs never listed the subscription lane. Every Claude rung in the builtin profiles now tries the subscription first, the same order the delegation categories already use.
 
 **A reasoning effort of `none` is no longer silently raised to `low` on GPT-6 models that support it.** Every model id containing `gpt-6` shared one capability rule, which was written for GPT-6 Astra and therefore mapped `none` onto `low`. GPT-6 Sol and GPT-6 Luna both document `none` as a supported effort, so anyone who configured the cheapest tier on those models was quietly billed and throttled at `low` instead, with the change recorded as `unsupported-by-model-family`. The Astra rule is now matched on its own id and keeps its documented clamp, while the rest of the GPT-6 family accepts `none`. A per-model capability override could not have fixed this, because family effort aliases are applied before capability metadata.
 

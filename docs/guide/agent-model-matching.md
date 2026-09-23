@@ -4,15 +4,14 @@
 
 ---
 
-## Three profiles pick the main agent's model
+## Two profiles pick the main agent's model
 
 The main agent thinks with your session model. The easiest way to choose it is a **model profile**: a named, ordered chain you pick by intent. At session start omo walks the chain and applies the first model your connected providers serve. Chains live in [`packages/omo-senpi/src/components/model-profile/builtin-profiles.ts`](../../packages/omo-senpi/src/components/model-profile/builtin-profiles.ts); every rung lists each provider that serves the model, so a Copilot-only or gateway-only account resolves the same way a direct API key does.
 
 | Profile | Id | Pick it for | Chain |
 | --- | --- | --- | --- |
-| Capable | `capable` | The strongest generalist; the default when you don't want to think about models | `anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5-1 (max)` -> same providers `/claude-opus-5-5 (max)` -> `kimi-coding\|kimi-for-coding\|moonshotai\|opencode-go/kimi-k3 (max)` -> `zai-coding-plan\|opencode-go/glm-5.3 (max)` |
-| Simple work | `simple-work` | Small, well-specified edits where speed and cost matter | `openai\|chatgpt-subscription/gpt-6-luna-fast (low)` -> `deepseek/deepseek-v4-flash` -> `anthropic\|github-copilot/claude-haiku-4-5` |
-| Deep work | `deep-work` | Hard problems that need maximum reasoning; the `deep` category chain verbatim | `openai\|chatgpt-subscription\|github-copilot\|opencode/gpt-6-astra (high)` -> same providers `/gpt-6-sol (medium)` -> same providers `/gpt-5.6-sol (medium)` |
+| Capable | `capable` | The strongest generalist; the default when you don't want to think about models | `anthropic-subscription\|anthropic\|anthropic-api\|github-copilot\|opencode/claude-fable-5-1 (xhigh)` -> same providers `/claude-opus-5-5 (max)` -> `kimi-coding\|kimi-for-coding\|moonshotai\|opencode-go/kimi-k3 (max)` -> `zai-coding-plan\|opencode-go/glm-5.3 (max)` |
+| Deep work | `deep-work` | Hard problems that need maximum reasoning | `chatgpt-subscription\|github-copilot\|opencode/gpt-6-astra (high)` -> same providers `/gpt-6-sol (medium)` |
 
 Activate one with a single key in `omo.json`:
 
@@ -20,7 +19,7 @@ Activate one with a single key in `omo.json`:
 { "model_profile": "capable" }
 ```
 
-The session prints `omo-senpi: model profile "capable" selected anthropic/claude-fable-5-1; mid-session fallback follows senpi's retry chains`, naming any skipped rungs. A few rules worth knowing:
+The session prints `OmO Native: model profile "capable" selected anthropic-subscription/claude-fable-5-1; mid-session fallback follows senpi's retry chains`, naming any skipped rungs. A few rules worth knowing:
 
 - **Pins win.** Write a literal `provider/model` into the same key (`"model_profile": "anthropic/claude-opus-5-5"`) and that exact model is applied; anything containing `/` is a pin.
 - **Explicit models are never clobbered.** A `--model` flag, a scoped model, a resumed session, and a fork keep their own model; the profile only touches a fresh session.
