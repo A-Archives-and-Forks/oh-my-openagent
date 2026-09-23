@@ -62,11 +62,17 @@ describe("BUILTIN_MODEL_PROFILES", () => {
     expect(offenders).toEqual([])
   })
 
-  it("lists no rung on the openai API lane so chatgpt-subscription is the only OpenAI lane", () => {
-    const apiLaneRungs = rungs()
-      .filter((rung) => rung.providers.includes("openai"))
+  it("lists chatgpt-subscription then the openai lane on every GPT rung and openai nowhere else", () => {
+    const gptRungs = rungs().filter((rung) => rung.model.startsWith("gpt-"))
+    expect(gptRungs.length).toBeGreaterThan(0)
+    const misordered = gptRungs
+      .filter((rung) => rung.providers[rung.providers.indexOf("chatgpt-subscription") + 1] !== "openai")
       .map((rung) => `${rung.profile}: ${rung.providers.join("|")}/${rung.model}`)
-    expect(apiLaneRungs).toEqual([])
+    expect(misordered).toEqual([])
+    const strayApiLane = rungs()
+      .filter((rung) => !rung.model.startsWith("gpt-") && rung.providers.includes("openai"))
+      .map((rung) => `${rung.profile}: ${rung.model}`)
+    expect(strayApiLane).toEqual([])
   })
 
   it("heads every Claude rung with the anthropic-subscription lane", () => {
@@ -86,8 +92,8 @@ describe("BUILTIN_MODEL_PROFILES", () => {
 
   it("runs deep-work as astra high then gpt-6-sol medium and nothing after it", () => {
     expect(BUILTIN_MODEL_PROFILES["deep-work"]?.models).toEqual([
-      { providers: ["chatgpt-subscription", "github-copilot", "opencode"], model: "gpt-6-astra", variant: "high" },
-      { providers: ["chatgpt-subscription", "github-copilot", "opencode"], model: "gpt-6-sol", variant: "medium" },
+      { providers: ["chatgpt-subscription", "openai", "github-copilot", "opencode"], model: "gpt-6-astra", variant: "high" },
+      { providers: ["chatgpt-subscription", "openai", "github-copilot", "opencode"], model: "gpt-6-sol", variant: "medium" },
     ])
   })
 })

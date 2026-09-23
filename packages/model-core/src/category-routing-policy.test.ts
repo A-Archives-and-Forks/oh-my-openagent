@@ -63,7 +63,7 @@ describe("category routing policy", () => {
     // then
     expect(leadingChain).toEqual([
       {
-        providers: ["chatgpt-subscription"],
+        providers: ["openai", "chatgpt-subscription"],
         model: "gpt-6-luna-fast",
         variant: "low",
       },
