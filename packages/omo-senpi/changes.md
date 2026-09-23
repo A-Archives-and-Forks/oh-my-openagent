@@ -1,3 +1,13 @@
+## model profiles: the interactive TUI no longer applies `model_profile`
+
+`components/model-profile/index.ts`: `session_start` returns before any resolution when the event
+context reports `mode === "tui"` (`isTuiSession`), for a set or an unset `model_profile` alike. The
+TUI shows neither the lane nor its reasoning, so the unset Daily · Normal default replaced the
+model a user had chosen in `settings.json` (for example Fable xhigh) with Opus medium and gave them
+no way to see or change the lane. OmO Desktop (`rpc`) and headless (`json`/`print`) sessions keep
+the previous behavior. Test: `index.test.ts` "#given a TUI session ..." covers unset, a lane id and
+a literal pin; removing the guard fails it (1 fail / 55 pass), restoring it passes 56/0.
+
 ## comment-checker: a native install obtains the checker without the npm payload, and Bun 1.3.x's ResolveMessage no longer escapes
 
 `components/comment-checker/resolver.ts`: `resolvePackageApiBinary` treats the value Bun 1.3.x throws

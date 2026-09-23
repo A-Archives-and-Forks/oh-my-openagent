@@ -48,14 +48,15 @@ function harness(config: OmoConfig, models: readonly FakeModel[] = [FABLE, OPUS,
   createModelProfileComponent({
     loadConfig: () => ({ config, diagnostics: [], layers: [], sources: [] }),
   }).register(pi, context(logs))
-  const eventCtx = (sessionId = "session-1") => ({
+  const eventCtx = (sessionId = "session-1", mode = "rpc") => ({
+    mode,
     cwd: "/project",
     agentDir,
     modelRegistry: registry(models),
     sessionManager: { getSessionId: () => sessionId },
   })
-  const start = (payload: Record<string, unknown>, sessionId?: string) =>
-    pi.dispatch("session_start", { type: "session_start", ...payload }, eventCtx(sessionId))
+  const start = (payload: Record<string, unknown>, sessionId?: string, mode?: string) =>
+    pi.dispatch("session_start", { type: "session_start", ...payload }, eventCtx(sessionId, mode))
   return { pi, logs, agentDir, start }
 }
 
@@ -67,6 +68,18 @@ function appliedContent(pi: FakeExtensionAPI): string {
 }
 
 describe("createModelProfileComponent", () => {
+  test("#given a TUI session #when it starts #then no profile applies, set or unset", async () => {
+    for (const config of [{}, { model_profile: "daily-heavy" }, { model_profile: "anthropic/claude-fable-5-1" }] satisfies OmoConfig[]) {
+      const { pi, start } = harness(config)
+
+      await start(STARTUP, "session-tui", "tui")
+
+      expect(pi.sessionModels).toEqual([])
+      expect(pi.sessionThinkingLevels).toEqual([])
+      expect(pi.messages).toHaveLength(0)
+    }
+  })
+
   test("#given model_profile unset #when the session starts #then Daily Normal is applied", async () => {
     const { pi, start } = harness({})
 
