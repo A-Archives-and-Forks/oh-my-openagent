@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+**`deep-high` runs GPT-6 Astra at `xhigh`, and `deep-low` leads with GPT-6 Sol Fast.** ([#8714](https://github.com/code-yeongyu/oh-my-openagent/issues/8714))
+
+The escalation lane `deep-high` still has one rung, GPT-6 Astra, and now runs it at `xhigh` instead of `high`. The default deep lane `deep-low` starts on `gpt-6-sol-fast`, GPT-6 Sol's Fast (priority) tier, at `medium`, on the OpenAI and ChatGPT subscription providers that serve that tier. It then falls back to plain `gpt-6-sol` and to `gpt-5.6-sol`, both at `medium`, so GitHub Copilot and OpenCode Zen, which do not offer the Fast tier, keep the lane. `ultrabrain` stays on GPT-6 Astra at `max`, and `unspecified-high` stays on Claude Opus 5.5 at `max` first. The configuration reference's provider-chain table, which still listed GPT-6 Astra as the first `unspecified-high` rung, now matches the shipped chain.
+
 ### Fixed
 
 **`omob` can build an engine version before its workspace packages reach npm.** The development build now uses the dependencies already packed into its local engine tarball instead of asking Bun to resolve their unpublished versions from the registry. Platform-specific optional packages still install normally, and an incomplete bundle fails explicitly rather than fetching a replacement.
