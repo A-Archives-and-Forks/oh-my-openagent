@@ -645,7 +645,7 @@ describe("createTaskChildPlanner reviewer category routing", () => {
     // then
     const resolved = expectResolved(result)
     expect(resolved.plan.model).toBe("anthropic/claude-opus-5-5")
-    expect(resolved.plan.variant).toBe("max")
+    expect(resolved.plan.variant).toBe("medium")
   })
 })
 
