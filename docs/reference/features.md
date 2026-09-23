@@ -171,7 +171,7 @@ By combining these two concepts, you can generate optimal agents through `task`.
 | `quick`              | `openai/gpt-6-luna-fast` (low) | Trivial tasks - single file changes, typo fixes, simple modifications                                                  |
 | `unspecified-low`    | `xiaomi/mimo-v2.6-pro` (max) | Tasks that don't fit other categories, low effort required                                                                  |
 | `unspecified-high`   | `anthropic/claude-opus-5-5` (max) | Tasks that don't fit other categories, high effort required. Falls back to GLM 5.3, then Kimi K3.          |
-| `writing`            | `anthropic/claude-fable-5-1` (low)    | Documentation, prose, technical writing                                                                                     |
+| `writing`            | `anthropic/claude-fable-5-1` (low)    | Documentation, prose, technical writing. Unavailable when none of its Claude models is connected; it never falls back to another family. |
 
 ### Usage
 

@@ -348,7 +348,7 @@ Domain-specific model delegation used by the `task()` tool. When the main agent 
 | `quick`              | `openai/gpt-6-luna-fast` (low) | Trivial tasks, typo fixes, single-file changes |
 | `unspecified-low`    | `xiaomi/mimo-v2.6-pro` (max)     | General tasks, low effort                      |
 | `unspecified-high`   | `anthropic/claude-opus-5-5` (max) | General tasks, high effort                     |
-| `writing`            | `anthropic/claude-fable-5-1` (low)     | Documentation, prose, technical writing        |
+| `writing`            | `anthropic/claude-fable-5-1` (low)     | Documentation, prose, technical writing. Unavailable when none of its Claude models (`claude-fable-5-1`, `claude-opus-5-5`, `claude-opus-4-6`) is connected; it never falls back to another family, and the installer leaves it out. |
 
 > **Note**: Built-in category defaults are available automatically. User-defined category config merges over the built-in defaults or adds custom categories.
 
