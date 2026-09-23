@@ -902,6 +902,13 @@ describe("sisyphus-task", () => {
         availableModels,
       })
 
+      // #then
+      const resolved = expectResolvedCategoryConfig(result)
+      expect(resolved.config.model).toBe("openai/gpt-6-sol-fast")
+      expect(resolved.config.variant).toBe("medium")
+      expect(resolveCategoryConfig("deep-high", { systemDefaultModel: SYSTEM_DEFAULT_MODEL, availableModels })).toBeNull()
+    })
+
     test("gates deep-low closed when the registry only carries GPT-5.6 Sol", () => {
       // #given
       const availableModels = new Set<string>(["openai/gpt-5.6-sol"])
@@ -914,13 +921,6 @@ describe("sisyphus-task", () => {
 
       // #then
       expect(result).toBeNull()
-    })
-
-      // #then
-      const resolved = expectResolvedCategoryConfig(result)
-      expect(resolved.config.model).toBe("openai/gpt-6-sol-fast")
-      expect(resolved.config.variant).toBe("medium")
-      expect(resolveCategoryConfig("deep-high", { systemDefaultModel: SYSTEM_DEFAULT_MODEL, availableModels })).toBeNull()
     })
 
     test("keeps deep-high available when only gpt-6-astra is present", () => {

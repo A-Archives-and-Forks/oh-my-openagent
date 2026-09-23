@@ -215,11 +215,11 @@ describe("resolveCategory on GPT registries", () => {
   })
 
   it("#given the retired deep name #when it is spawned #then it resolves as deep-low", () => {
-    const result = resolveCategory("deep", {}, solRegistry)
+    const result = resolveCategory("deep", {}, registry([{ provider: "openai", id: "gpt-6-sol" }]))
     expect(result.kind).toBe("resolved")
     if (result.kind !== "resolved") throw new Error("Expected resolved")
     expect(result.category).toBe("deep-low")
-    expect(result.spec).toMatchObject({ modelId: "gpt-5.6-sol", variant: "medium" })
+    expect(result.spec).toMatchObject({ modelId: "gpt-6-sol", variant: "medium" })
   })
 
   it("#given an omo.json prompt_append for deep-high #when it resolves on Astra #then the user overlay follows the lane append", () => {
